@@ -40,7 +40,6 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/handlers"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/types/serverconfig"
@@ -334,23 +333,10 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		return
 	}
 
-	var hh http.Handler
-
-	if strings.HasPrefix(h.htype, "importer-") {
-		itype := strings.TrimPrefix(h.htype, "importer-")
-		imp, err := importer.Create(itype, hl, hl.baseURL+h.prefix, h.conf)
-		if err != nil {
-			exitFailure("error instantiating importer for prefix %q, type %q: %v",
-				h.prefix, itype, err)
-		}
-		hh = imp
-	} else {
-		var err error
-		hh, err = blobserver.CreateHandler(h.htype, hl, h.conf)
-		if err != nil {
-			exitFailure("error instantiating handler for prefix %q, type %q: %v",
-				h.prefix, h.htype, err)
-		}
+	hh, err := blobserver.CreateHandler(h.htype, hl, h.conf)
+	if err != nil {
+		exitFailure("error instantiating handler for prefix %q, type %q: %v",
+			h.prefix, h.htype, err)
 	}
 
 	hl.handler[prefix] = hh

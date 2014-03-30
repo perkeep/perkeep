@@ -1,0 +1,791 @@
+{
+    "meta": {
+        "code": 200
+    },
+    "notifications": [
+        {
+            "type": "notificationTray",
+            "item": {
+                "unreadCount": 4
+            }
+        }
+    ],
+    "response": {
+        "user": {
+            "id": "13674",
+            "firstName": "Brad",
+            "lastName": "Fitzpatrick",
+            "gender": "male",
+            "relationship": "self",
+            "photo": {
+                "prefix": "https:\/\/irs0.4sqi.net\/img\/user\/",
+                "suffix": "\/CKG5FOF2WMCMPD3E.jpg"
+            },
+            "friends": {
+                "count": 174,
+                "groups": [
+                    {
+                        "type": "friends",
+                        "name": "Mutual friends",
+                        "count": 0,
+                        "items": []
+                    },
+                    {
+                        "type": "others",
+                        "name": "Other friends",
+                        "count": 174,
+                        "items": [
+                            {
+                                "id": "83878",
+                                "firstName": "Randal",
+                                "lastName": "Schwartz",
+                                "gender": "male",
+                                "relationship": "friend",
+                                "photo": {
+                                    "prefix": "https:\/\/irs2.4sqi.net\/img\/user\/",
+                                    "suffix": "\/41NCM3VIMA30PNZ3.jpg"
+                                },
+                                "tips": {
+                                    "count": 28
+                                },
+                                "lists": {
+                                    "groups": [
+                                        {
+                                            "type": "created",
+                                            "count": 4,
+                                            "items": []
+                                        }
+                                    ]
+                                },
+                                "homeCity": "Beaverton, OR",
+                                "bio": "Yeah, \u2022that\u2022 Randal Schwartz.  I'm also a low-carb high-fat (ketogenic)  consumer, so if you have location advice around that, let me know!",
+                                "contact": {
+                                    "phone": "",
+                                    "email": "merlyn.foursquare@stonehenge.com",
+                                    "twitter": "merlyn",
+                                    "facebook": "504874371"
+                                }
+                            },
+                            {
+                                "id": "38677952",
+                                "firstName": "Nori",
+                                "lastName": "Heikkinen",
+                                "gender": "female",
+                                "relationship": "friend",
+                                "photo": {
+                                    "prefix": "https:\/\/irs0.4sqi.net\/img\/user\/",
+                                    "suffix": "\/VDOVTY0YUYUJ10QK.jpg"
+                                },
+                                "tips": {
+                                    "count": 4
+                                },
+                                "lists": {
+                                    "groups": [
+                                        {
+                                            "type": "created",
+                                            "count": 5,
+                                            "items": []
+                                        }
+                                    ]
+                                },
+                                "homeCity": "Baltimore, MD",
+                                "bio": "",
+                                "contact": {
+                                    "email": "nori.heikkinen@gmail.com",
+                                    "twitter": "n0r1",
+                                    "facebook": "677985398"
+                                }
+                            },
+                            {
+                                "id": "64376555",
+                                "firstName": "Miguel",
+                                "lastName": "de Icaza",
+                                "gender": "male",
+                                "relationship": "friend",
+                                "photo": {
+                                    "prefix": "https:\/\/irs0.4sqi.net\/img\/user\/",
+                                    "suffix": "\/LP510B3INEKRTNI2.jpg"
+                                },
+                                "tips": {
+                                    "count": 2
+                                },
+                                "lists": {
+                                    "groups": [
+                                        {
+                                            "type": "created",
+                                            "count": 1,
+                                            "items": []
+                                        }
+                                    ]
+                                },
+                                "homeCity": "Boston, MA",
+                                "bio": "",
+                                "contact": {
+                                    "email": "miguel.de.icaza@gmail.com",
+                                    "facebook": "532065026"
+                                }
+                            },
+                            {
+                                "id": "50291",
+                                "firstName": "Nat",
+                                "lastName": "Friedman",
+                                "gender": "male",
+                                "relationship": "friend",
+                                "photo": {
+                                    "prefix": "https:\/\/irs3.4sqi.net\/img\/user\/",
+                                    "suffix": "\/50291_1259165803611.jpg"
+                                },
+                                "tips": {
+                                    "count": 12
+                                },
+                                "lists": {
+                                    "groups": [
+                                        {
+                                            "type": "created",
+                                            "count": 2,
+                                            "items": []
+                                        }
+                                    ]
+                                },
+                                "homeCity": "San Francisco",
+                                "bio": "",
+                                "contact": {
+                                    "phone": "",
+                                    "email": "nat@nat.org",
+                                    "twitter": "natfriedman",
+                                    "facebook": "547946582"
+                                }
+                            },
+                            {
+                                "id": "618",
+                                "firstName": "Chris",
+                                "lastName": "Messina",
+                                "gender": "male",
+                                "relationship": "friend",
+                                "photo": {
+                                    "prefix": "https:\/\/irs0.4sqi.net\/img\/user\/",
+                                    "suffix": "\/-31MXPPWS4MBOET0B.jpg"
+                                },
+                                "tips": {
+                                    "count": 389
+                                },
+                                "lists": {
+                                    "groups": [
+                                        {
+                                            "type": "created",
+                                            "count": 17,
+                                            "items": []
+                                        }
+                                    ]
+                                },
+                                "homeCity": "San Francisco, CA",
+                                "bio": "Bachelor of Arts.\r\n#godfather (http:\/\/nyti.ms\/lJ6Kdj)\r\nI am not the actor.",
+                                "contact": {
+                                    "phone": "",
+                                    "email": "chris.messina@gmail.com",
+                                    "twitter": "chrismessina",
+                                    "facebook": "502411873"
+                                },
+                                "superuser": 2
+                            },
+                            {
+                                "id": "21279572",
+                                "firstName": "Barry",
+                                "lastName": "Abrahamson",
+                                "gender": "male",
+                                "relationship": "friend",
+                                "photo": {
+                                    "prefix": "https:\/\/irs2.4sqi.net\/img\/user\/",
+                                    "suffix": "\/MAV25J2AQ3IORLLM.jpg"
+                                },
+                                "tips": {
+                                    "count": 2
+                                },
+                                "lists": {
+                                    "groups": [
+                                        {
+                                            "type": "created",
+                                            "count": 2,
+                                            "items": []
+                                        }
+                                    ]
+                                },
+                                "homeCity": "Houston, Texas",
+                                "bio": "",
+                                "contact": {
+                                    "email": "barry@yourang.org",
+                                    "twitter": "bazza",
+                                    "facebook": "732341470"
+                                }
+                            },
+                            {
+                                "id": "76974963",
+                                "firstName": "Tiffany",
+                                "lastName": "Precissi",
+                                "gender": "female",
+                                "relationship": "friend",
+                                "photo": {
+                                    "prefix": "https:\/\/irs2.4sqi.net\/img\/user\/",
+                                    "suffix": "\/blank_girl.png"
+                                },
+                                "tips": {
+                                    "count": 0
+                                },
+                                "lists": {
+                                    "groups": [
+                                        {
+                                            "type": "created",
+                                            "count": 1,
+                                            "items": []
+                                        }
+                                    ]
+                                },
+                                "homeCity": "Stockton, CA",
+                                "bio": "",
+                                "contact": {
+                                    "email": "tifflynn@gmail.com",
+                                    "twitter": "xo_tiff4ny",
+                                    "facebook": "665546095"
+                                }
+                            },
+                            {
+                                "id": "4478390",
+                                "firstName": "Julie",
+                                "lastName": "Parent",
+                                "gender": "female",
+                                "relationship": "friend",
+                                "photo": {
+                                    "prefix": "https:\/\/irs2.4sqi.net\/img\/user\/",
+                                    "suffix": "\/blank_girl.png"
+                                },
+                                "tips": {
+                                    "count": 0
+                                },
+                                "lists": {
+                                    "groups": [
+                                        {
+                                            "type": "created",
+                                            "count": 1,
+                                            "items": []
+                                        }
+                                    ]
+                                },
+                                "homeCity": "San Francisco, CA",
+                                "bio": "",
+                                "contact": {
+                                    "email": "jparent@gmail.com",
+                                    "twitter": "jewree",
+                                    "facebook": "1513396"
+                                }
+                            },
+                            {
+                                "id": "68959715",
+                                "firstName": "Ekaterina",
+                                "lastName": "Ustinova",
+                                "gender": "female",
+                                "relationship": "friend",
+                                "photo": {
+                                    "prefix": "https:\/\/irs2.4sqi.net\/img\/user\/",
+                                    "suffix": "\/blank_girl.png"
+                                },
+                                "tips": {
+                                    "count": 0
+                                },
+                                "lists": {
+                                    "groups": [
+                                        {
+                                            "type": "created",
+                                            "count": 1,
+                                            "items": []
+                                        }
+                                    ]
+                                },
+                                "homeCity": "New York, NY",
+                                "bio": "",
+                                "contact": {
+                                    "email": "ustinoid@gmail.com",
+                                    "facebook": "100000011060984"
+                                }
+                            },
+                            {
+                                "id": "67841916",
+                                "firstName": "Katherine",
+                                "lastName": "Deyo",
+                                "gender": "female",
+                                "relationship": "friend",
+                                "photo": {
+                                    "prefix": "https:\/\/irs2.4sqi.net\/img\/user\/",
+                                    "suffix": "\/blank_girl.png"
+                                },
+                                "tips": {
+                                    "count": 0
+                                },
+                                "lists": {
+                                    "groups": [
+                                        {
+                                            "type": "created",
+                                            "count": 1,
+                                            "items": []
+                                        }
+                                    ]
+                                },
+                                "homeCity": "San Francisco, CA",
+                                "bio": "I wanna be myself",
+                                "contact": {
+                                    "email": "katherine_w_deyo@gmail.com"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            "tips": {
+                "count": 18
+            },
+            "homeCity": "San Francisco, CA",
+            "bio": "",
+            "contact": {
+                "phone": "5035551212",
+                "email": "brad@danga.com",
+                "twitter": "bradfitz",
+                "facebook": "500033387"
+            },
+            "superuser": 1,
+            "checkinPings": "off",
+            "pings": false,
+            "type": "user",
+            "badges": {
+                "count": 65,
+                "items": [
+                    {
+                        "id": "518577cd498ebaa83dc8f7e0",
+                        "badgeId": "4ebb078f7bebd6a83f1176bd",
+                        "name": "Hot Tamale",
+                        "unlockMessage": "You unlocked the Hot Tamale badge!",
+                        "description": "Rice, beans, cheese, cilantro \u2013 why eat anything else when you can get all the important food groups wrapped into one delicious pound of foil? Now pass those nachos, will ya? It\u2019s time to guac and roll.\n\nThat's 45 different Mexican restaurants! Your taste buds must be scorched. Don't worry, some tequila shots should probably fix that. Congrats on Level 10 Hot Tamale status!",
+                        "level": 10,
+                        "badgeText": "Rice, beans, cheese, cilantro \u2013 why eat anything else when you can get all the important food groups wrapped into one delicious pound of foil? Now pass those nachos, will ya? It\u2019s time to guac and roll.",
+                        "levelText": "That's 45 different Mexican restaurants! Your taste buds must be scorched. Don't worry, some tequila shots should probably fix that. Congrats on Level 10 Hot Tamale status!",
+                        "categorySummary": "Mexican Restaurants",
+                        "image": {
+                            "prefix": "https:\/\/playfoursquare.s3.amazonaws.com\/badge\/",
+                            "sizes": [
+                                57,
+                                114,
+                                200,
+                                300,
+                                400
+                            ],
+                            "name": "\/L2RRMCA2PGOBSFRN_10.png"
+                        },
+                        "unlocks": [
+                            {
+                                "checkins": [
+                                    {
+                                        "id": "518577cc498ebaa83dc8f148",
+                                        "createdAt": 1367701452,
+                                        "type": "checkin",
+                                        "shout": "Van exchange point for The Relay. Not actually going to church.",
+                                        "timeZoneOffset": -420,
+                                        "venue": {
+                                            "id": "4bdc6861c79cc9285e6586e9",
+                                            "name": "Crosswalk Community Church",
+                                            "contact": {},
+                                            "location": {
+                                                "lat": 38.30073598016023,
+                                                "lng": -122.30450377008302,
+                                                "postalCode": "94558",
+                                                "cc": "US",
+                                                "country": "United States"
+                                            },
+                                            "categories": [
+                                                {
+                                                    "id": "4bf58dd8d48988d1c1941735",
+                                                    "name": "Mexican Restaurant",
+                                                    "pluralName": "Mexican Restaurants",
+                                                    "shortName": "Mexican",
+                                                    "icon": {
+                                                        "prefix": "https:\/\/ss1.4sqi.net\/img\/categories_v2\/food\/mexican_",
+                                                        "suffix": ".png"
+                                                    },
+                                                    "primary": true
+                                                }
+                                            ],
+                                            "verified": false,
+                                            "stats": {
+                                                "checkinsCount": 248,
+                                                "usersCount": 90,
+                                                "tipCount": 4
+                                            }
+                                        },
+                                        "photos": {
+                                            "count": 0,
+                                            "items": []
+                                        },
+                                        "posts": {
+                                            "count": 0,
+                                            "textCount": 0
+                                        },
+                                        "comments": {
+                                            "count": 1
+                                        },
+                                        "source": {
+                                            "name": "foursquare for Android",
+                                            "url": "https:\/\/foursquare.com\/download\/#\/android"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            "mayorships": {
+                "count": 4,
+                "items": []
+            },
+            "checkins": {
+                "count": 3272,
+                "items": [
+                    {
+                        "id": "53396b10498e2c3aed309903",
+                        "createdAt": 1396271888,
+                        "type": "checkin",
+                        "shout": "SFO-PDX",
+                        "timeZoneOffset": -420,
+                        "venue": {
+                            "id": "4a7601b6f964a520efe11fe3",
+                            "name": "Alaska Airlines Board Room",
+                            "contact": {
+                                "twitter": "alaskaair"
+                            },
+                            "location": {
+                                "address": "Terminal 1",
+                                "crossStreet": "at SFO Airport",
+                                "lat": 37.61343253150299,
+                                "lng": -122.3850667476654,
+                                "postalCode": "94128",
+                                "cc": "US",
+                                "city": "San Francisco",
+                                "state": "CA",
+                                "country": "United States"
+                            },
+                            "categories": [
+                                {
+                                    "id": "4eb1bc533b7b2c5b1d4306cb",
+                                    "name": "Airport Lounge",
+                                    "pluralName": "Airport Lounges",
+                                    "shortName": "Lounge",
+                                    "icon": {
+                                        "prefix": "https:\/\/ss1.4sqi.net\/img\/categories_v2\/travel\/airport_lounge_",
+                                        "suffix": ".png"
+                                    },
+                                    "primary": true
+                                }
+                            ],
+                            "verified": false,
+                            "stats": {
+                                "checkinsCount": 1318,
+                                "usersCount": 822,
+                                "tipCount": 22
+                            },
+                            "url": "http:\/\/alaskaair.com",
+                            "likes": {
+                                "count": 6,
+                                "groups": [
+                                    {
+                                        "type": "others",
+                                        "count": 6,
+                                        "items": [
+                                            {
+                                                "id": "6446336",
+                                                "firstName": "Aaron",
+                                                "lastName": "C.",
+                                                "gender": "male",
+                                                "photo": {
+                                                    "prefix": "https:\/\/irs3.4sqi.net\/img\/user\/",
+                                                    "suffix": "\/BVDOLAQG4BYFXHV3.jpg"
+                                                }
+                                            },
+                                            {
+                                                "id": "15728179",
+                                                "firstName": "Christopher",
+                                                "lastName": "P.",
+                                                "gender": "male",
+                                                "photo": {
+                                                    "prefix": "https:\/\/irs3.4sqi.net\/img\/user\/",
+                                                    "suffix": "\/Q5AUNW2UZDUDG10E.jpg"
+                                                }
+                                            },
+                                            {
+                                                "id": "7709153",
+                                                "firstName": "Farhad",
+                                                "lastName": "M.",
+                                                "gender": "male",
+                                                "photo": {
+                                                    "prefix": "https:\/\/irs1.4sqi.net\/img\/user\/",
+                                                    "suffix": "\/VZBNN1XYBEVWEAIO.jpg"
+                                                }
+                                            },
+                                            {
+                                                "id": "181603",
+                                                "firstName": "Jeffrey-Ryan",
+                                                "lastName": "B.",
+                                                "gender": "male",
+                                                "photo": {
+                                                    "prefix": "https:\/\/irs2.4sqi.net\/img\/user\/",
+                                                    "suffix": "\/FP5Q5W1FHULIZOCV.jpg"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ],
+                                "summary": "Aaron Chaffee, Christopher Potter, Farhad M & 3 others"
+                            },
+                            "like": false,
+                            "beenHere": {
+                                "count": 1,
+                                "marked": true
+                            }
+                        },
+                        "likes": {
+                            "count": 1,
+                            "groups": [
+                                {
+                                    "type": "friends",
+                                    "count": 1,
+                                    "items": [
+                                        {
+                                            "id": "431392",
+                                            "firstName": "Owen",
+                                            "lastName": "Thomas",
+                                            "gender": "male",
+                                            "relationship": "friend",
+                                            "photo": {
+                                                "prefix": "https:\/\/irs0.4sqi.net\/img\/user\/",
+                                                "suffix": "\/GEDBNXFSYUXRUFLD.gif"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ],
+                            "summary": "Owen Thomas"
+                        },
+                        "like": false,
+                        "photos": {
+                            "count": 0,
+                            "items": []
+                        },
+                        "posts": {
+                            "count": 0,
+                            "textCount": 0
+                        },
+                        "comments": {
+                            "count": 0
+                        },
+                        "source": {
+                            "name": "foursquare for Android",
+                            "url": "https:\/\/foursquare.com\/download\/#\/android"
+                        }
+                    }
+                ]
+            },
+            "following": {
+                "count": 1,
+                "groups": [
+                    {
+                        "type": "following",
+                        "name": "Mutual following",
+                        "count": 0,
+                        "items": []
+                    },
+                    {
+                        "type": "others",
+                        "name": "Other following",
+                        "count": 1,
+                        "items": [
+                            {
+                                "id": "13276",
+                                "firstName": "Loic",
+                                "lastName": "L.",
+                                "gender": "male",
+                                "relationship": "followingThem",
+                                "photo": {
+                                    "prefix": "https:\/\/irs0.4sqi.net\/img\/user\/",
+                                    "suffix": "\/MHWAEBRGHQOMJE22.jpg"
+                                },
+                                "type": "celebrity",
+                                "followers": {
+                                    "count": 8132,
+                                    "groups": []
+                                },
+                                "tips": {
+                                    "count": 16
+                                },
+                                "lists": {
+                                    "groups": [
+                                        {
+                                            "type": "created",
+                                            "count": 1,
+                                            "items": []
+                                        }
+                                    ]
+                                },
+                                "homeCity": "San Francisco",
+                                "bio": "LeWeb and Seesmic founder, love creating things",
+                                "contact": {
+                                    "twitter": "loic",
+                                    "facebook": "1417669498"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            "requests": {
+                "count": 280
+            },
+            "lists": {
+                "count": 1,
+                "groups": [
+                    {
+                        "type": "created",
+                        "count": 1,
+                        "items": [
+                            {
+                                "id": "13674\/todos",
+                                "name": "My to-do list",
+                                "description": "",
+                                "user": {
+                                    "id": "13674",
+                                    "firstName": "Brad",
+                                    "lastName": "Fitzpatrick",
+                                    "gender": "male",
+                                    "relationship": "self",
+                                    "photo": {
+                                        "prefix": "https:\/\/irs0.4sqi.net\/img\/user\/",
+                                        "suffix": "\/CKG5FOF2WMCMPD3E.jpg"
+                                    }
+                                },
+                                "editable": false,
+                                "public": false,
+                                "collaborative": false,
+                                "url": "\/bradfitz\/list\/todos",
+                                "canonicalUrl": "https:\/\/foursquare.com\/bradfitz\/list\/todos",
+                                "followers": {
+                                    "count": 0
+                                },
+                                "listItems": {
+                                    "count": 3
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "type": "followed",
+                        "count": 0,
+                        "items": []
+                    }
+                ]
+            },
+            "photos": {
+                "count": 11,
+                "items": [
+                    {
+                        "id": "530278c311d26be8ab5da961",
+                        "createdAt": 1392670915,
+                        "source": {
+                            "name": "foursquare for Android",
+                            "url": "https:\/\/foursquare.com\/download\/#\/android"
+                        },
+                        "prefix": "https:\/\/irs1.4sqi.net\/img\/general\/",
+                        "suffix": "\/13674_4TxZ1OeQuFwOlprqcI1lWGZN4Or2f4Oal1rGup6ZPS4.jpg",
+                        "width": 960,
+                        "height": 720,
+                        "visibility": "public",
+                        "venue": {
+                            "id": "40870b00f964a520aaf21ee3",
+                            "name": "The Liberties",
+                            "contact": {
+                                "phone": "4152826789",
+                                "formattedPhone": "(415) 282-6789",
+                                "twitter": "thelibertiesbar"
+                            },
+                            "location": {
+                                "address": "998 Guerrero St",
+                                "crossStreet": "at 22nd St",
+                                "lat": 37.75523648445705,
+                                "lng": -122.4232582553582,
+                                "postalCode": "94110",
+                                "cc": "US",
+                                "city": "San Francisco",
+                                "state": "CA",
+                                "country": "United States"
+                            },
+                            "categories": [
+                                {
+                                    "id": "4bf58dd8d48988d116941735",
+                                    "name": "Bar",
+                                    "pluralName": "Bars",
+                                    "shortName": "Bar",
+                                    "icon": {
+                                        "prefix": "https:\/\/ss1.4sqi.net\/img\/categories_v2\/nightlife\/bar_",
+                                        "suffix": ".png"
+                                    },
+                                    "primary": true
+                                }
+                            ],
+                            "verified": true,
+                            "stats": {
+                                "checkinsCount": 4526,
+                                "usersCount": 2147,
+                                "tipCount": 35
+                            },
+                            "url": "http:\/\/www.theliberties.com",
+                            "likes": {
+                                "count": 21,
+                                "groups": [
+                                    {
+                                        "type": "others",
+                                        "count": 20,
+                                        "items": []
+                                    }
+                                ],
+                                "summary": "You and 20 others"
+                            },
+                            "like": true,
+                            "menu": {
+                                "type": "Menu",
+                                "label": "Menu",
+                                "anchor": "View Menu",
+                                "url": "https:\/\/foursquare.com\/v\/the-liberties\/40870b00f964a520aaf21ee3\/menu",
+                                "mobileUrl": "https:\/\/foursquare.com\/v\/40870b00f964a520aaf21ee3\/device_menu"
+                            },
+                            "beenHere": {
+                                "count": 24,
+                                "marked": true
+                            },
+                            "venuePage": {
+                                "id": "46953806"
+                            },
+                            "storeId": ""
+                        },
+                        "checkin": {
+                            "id": "5302789511d2c9d07c49130e",
+                            "createdAt": 1392670869,
+                            "type": "checkin",
+                            "timeZoneOffset": -480
+                        }
+                    }
+                ]
+            },
+            "scores": {
+                "recent": 116,
+                "max": 272,
+                "checkinsCount": 27
+            },
+            "createdAt": 1242876758,
+            "referralId": "u-13674"
+        }
+    }
+}

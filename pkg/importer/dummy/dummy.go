@@ -31,10 +31,13 @@ import (
 )
 
 func init() {
-	importer.Register("dummy", newFromConfig)
+	importer.Register("dummy", importer.TODOImporter)
+	importer.Register("flickr", importer.TODOImporter)
+	importer.Register("picasa", importer.TODOImporter)
+	importer.Register("twitter", importer.TODOImporter)
 }
 
-func newFromConfig(cfg jsonconfig.Obj, host *importer.Host) (importer.Importer, error) {
+func newFromConfig(cfg jsonconfig.Obj, host *importer.Host) (*imp, error) {
 	im := &imp{
 		url:       cfg.RequiredString("url"),
 		username:  cfg.RequiredString("username"),
@@ -53,9 +56,6 @@ type imp struct {
 	authToken string
 	host      *importer.Host
 }
-
-func (im *imp) CanHandleURL(url string) bool { return false }
-func (im *imp) ImportURL(url string) error   { panic("unused") }
 
 func (im *imp) Prefix() string {
 	return fmt.Sprintf("dummy:%s", im.username)

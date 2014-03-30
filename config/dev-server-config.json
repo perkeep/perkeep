@@ -271,46 +271,27 @@
          }
      },
 
-     "/importer-dummy/": {
-         "handler": "importer-dummy",
-         "handlerArgs": {
-             "url": "http://localhost:8080/foo.json",
-             "username": "alice",
-             "authToken": "xyz"
-         }
+     "/importer/": {
+       "handler": "importer",
+       "handlerArgs": {
+          "dummy": {
+              "clientID": "dummyID",
+              "clientSecret": "foobar"
+          },
+          "flickr": {
+              "clientSecret": ["_env", "${CAMLI_FLICKR_API_KEY}", ""]
+          },
+          "foursquare": {
+              "clientSecret": ["_env", "${CAMLI_FOURSQUARE_API_KEY}", ""]
+          },
+          "picasa": {
+              "clientSecret": ["_env", "${CAMLI_PICASA_API_KEY}", ""]
+          },
+          "twitter": {
+              "clientSecret": ["_env", "${CAMLI_TWITTER_API_KEY}", ""]
+          }
+       }
      },
-
-    "/importer-flickr/": {
-      "handler": "importer-flickr",
-      "enabled": ["_env", "${CAMLI_FLICKR_ENABLED}", false],
-      "handlerArgs": {
-        "apiKey": ["_env", "${CAMLI_FLICKR_API_KEY}", ""]
-      }
-    },
-
-    "/importer-foursquare/": {
-      "handler": "importer-foursquare",
-      "enabled": ["_env", "${CAMLI_FOURSQUARE_ENABLED}", false],
-      "handlerArgs": {
-        "apiKey": ["_env", "${CAMLI_FOURSQUARE_API_KEY}", ""]
-      }
-    },
-
-    "/importer-picasa/": {
-      "handler": "importer-picasa",
-      "enabled": ["_env", "${CAMLI_PICASA_ENABLED}", false],
-      "handlerArgs": {
-        "apiKey": ["_env", "${CAMLI_PICASA_API_KEY}", ""]
-      }
-    },
-
-    "/importer-twitter/": {
-      "handler": "importer-twitter",
-      "enabled": ["_env", "${CAMLI_TWITTER_ENABLED}", false],
-      "handlerArgs": {
-        "apiKey": ["_env", "${CAMLI_TWITTER_API_KEY}", ""]
-      }
-    },
 
      "/share/": {
          "handler": "share",

@@ -51,8 +51,10 @@ func New() *Context {
 
 // HTTPClient returns the HTTP Client to use for this context.
 func (c *Context) HTTPClient() *http.Client {
-	if cl := c.httpClient; cl != nil {
-		return cl
+	if c != nil {
+		if cl := c.httpClient; cl != nil {
+			return cl
+		}
 	}
 	return http.DefaultClient
 }

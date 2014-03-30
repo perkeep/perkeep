@@ -24,7 +24,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -32,213 +31,157 @@ import (
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 )
 
 const (
-	apiURL = "https://api.foursquare.com/v2/"
+	apiURL   = "https://api.foursquare.com/v2/"
+	authURL  = "https://foursquare.com/oauth2/authenticate"
+	tokenURL = "https://foursquare.com/oauth2/access_token"
+
+	// Permanode attributes on account node:
+	acctAttrUserId      = "foursquareUserId"
+	acctAttrUserFirst   = "foursquareFirstName"
+	acctAttrUserLast    = "foursquareLastName"
+	acctAttrAccessToken = "oauthAccessToken"
 )
 
 func init() {
-	importer.Register("foursquare", newFromConfig)
+	importer.Register("foursquare", &imp{
+		imageFileRef: make(map[string]blob.Ref),
+	})
 }
+
+var _ importer.ImporterSetupHTMLer = (*imp)(nil)
 
 type imp struct {
-	host *importer.Host
+	tokenCache oauth.Cache
 
-	oauthConfig *oauth.Config
-	tokenCache  oauth.Cache
-
-	// no locking, serial access only
+	mu           sync.Mutex          // guards following
 	imageFileRef map[string]blob.Ref // url to file schema blob
-
-	mu   sync.Mutex
-	user string
 }
 
-func newFromConfig(cfg jsonconfig.Obj, host *importer.Host) (importer.Importer, error) {
-	apiKey := cfg.RequiredString("apiKey")
-	if err := cfg.Validate(); err != nil {
-		return nil, err
+func (im *imp) NeedsAPIKey() bool { return true }
+
+func (im *imp) IsAccountReady(acctNode *importer.Object) (ok bool, err error) {
+	if acctNode.Attr(acctAttrUserId) != "" && acctNode.Attr(acctAttrAccessToken) != "" {
+		return true, nil
 	}
-	parts := strings.Split(apiKey, ":")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("Foursquare importer: Invalid apiKey configuration: %q", apiKey)
+	return false, nil
+}
+
+func (im *imp) SummarizeAccount(acct *importer.Object) string {
+	ok, err := im.IsAccountReady(acct)
+	if err != nil {
+		return "Not configured; error = " + err.Error()
 	}
-	clientID, clientSecret := parts[0], parts[1]
-	im := &imp{
-		host:         host,
-		tokenCache:   &tokenCache{},
-		imageFileRef: make(map[string]blob.Ref),
-		oauthConfig: &oauth.Config{
-			ClientId:     clientID,
-			ClientSecret: clientSecret,
-			AuthURL:      "https://foursquare.com/oauth2/authenticate",
-			TokenURL:     "https://foursquare.com/oauth2/access_token",
-			RedirectURL:  host.BaseURL + "callback",
-		},
+	if !ok {
+		return "Not configured"
 	}
-	// TODO: schedule work?
-	return im, nil
-}
-
-type tokenCache struct {
-	mu    sync.Mutex
-	token *oauth.Token
-}
-
-func (tc *tokenCache) Token() (*oauth.Token, error) {
-	tc.mu.Lock()
-	defer tc.mu.Unlock()
-	if tc.token == nil {
-		return nil, errors.New("no token")
+	if acct.Attr(acctAttrUserFirst) == "" && acct.Attr(acctAttrUserLast) == "" {
+		return fmt.Sprintf("userid %s", acct.Attr(acctAttrUserId))
 	}
-	return tc.token, nil
+	return fmt.Sprintf("userid %s (%s %s)", acct.Attr(acctAttrUserId),
+		acct.Attr(acctAttrUserFirst), acct.Attr(acctAttrUserLast))
 }
 
-func (tc *tokenCache) PutToken(t *oauth.Token) error {
-	tc.mu.Lock()
-	defer tc.mu.Unlock()
-	tc.token = t
-	return nil
-
+func (im *imp) AccountSetupHTML(host *importer.Host) string {
+	base := host.ImporterBaseURL() + "foursquare"
+	return fmt.Sprintf(`
+<h1>Configuring Foursquare</h1>
+<p>Visit <a href='https://foursquare.com/developers/apps'>https://foursquare.com/developers/apps</a> and click "Create a new app".</p>
+<p>Use the following settings:</p>
+<ul>
+  <li>Download / welcome page url: <b>%s</b></li>
+  <li>Your privacy policy url: <b>%s</b></li>
+  <li>Redirect URI(s): <b>%s</b></li>
+</ul>
+<p>Click "SAVE CHANGES".  Copy the "Client ID" and "Client Secret" into the boxes above.</p>
+`, base, base+"/privacy", base+"/callback")
 }
-func (im *imp) CanHandleURL(url string) bool { return false }
-func (im *imp) ImportURL(url string) error   { panic("unused") }
 
-func (im *imp) Prefix() string {
-	im.mu.Lock()
-	defer im.mu.Unlock()
-	if im.user == "" {
-		// This should only get called when we're importing, but check anyway.
-		panic("Prefix called before authenticated")
+// A run is our state for a given run of the importer.
+type run struct {
+	*importer.RunContext
+	im          *imp
+	oauthConfig *oauth.Config
+}
+
+func (r *run) token() string {
+	return r.RunContext.AccountNode().Attr(acctAttrAccessToken)
+}
+
+func (r *run) initRoot() error {
+	root := r.RootNode()
+	user := r.AccountNode().Attr("foursquareUser")
+	if user == "" {
+		return errors.New("The 'foursquareUser' attribute on the account node is empty.")
 	}
-	return fmt.Sprintf("foursquare:%s", im.user)
+	title := fmt.Sprintf("Foursquare (%s)", user)
+	return root.SetAttr("title", title)
 }
 
-func (im *imp) String() string {
-	im.mu.Lock()
-	defer im.mu.Unlock()
-	userId := "<unauthenticated>"
-	if im.user != "" {
-		userId = im.user
-	}
-	return fmt.Sprintf("foursquare:%s", userId)
-}
-
-func (im *imp) Run(ctx *context.Context) error {
-	// TODO: plumb context and monitor it for cancelation.
-	if err := im.importCheckins(); err != nil {
+func (im *imp) Run(ctx *importer.RunContext) error {
+	clientId, secret, err := ctx.Credentials()
+	if err != nil {
 		return err
 	}
-
-	return nil
-}
-
-// structures from json
-
-type userInfo struct {
-	Response struct {
-		User struct {
-			Id string
-		}
+	r := &run{
+		RunContext: ctx,
+		im:         im,
+		oauthConfig: &oauth.Config{
+			ClientId:     clientId,
+			ClientSecret: secret,
+			AuthURL:      authURL,
+			TokenURL:     tokenURL,
+		},
 	}
-}
 
-type checkinsList struct {
-	Response struct {
-		Checkins struct {
-			Items []*checkinItem
-		}
-	}
-}
-
-type checkinItem struct {
-	Id        string
-	CreatedAt int64 // unix time in seconds from 4sq
-	Venue     venueItem
-}
-
-type venueItem struct {
-	Id         string // eg 42474900f964a52087201fe3 from 4sq
-	Name       string
-	Location   *venueLocationItem
-	Categories []*venueCategory
-}
-
-func (vi *venueItem) primaryCategory() *venueCategory {
-	for _, c := range vi.Categories {
-		if c.Primary {
-			return c
-		}
+	if err := r.importCheckins(); err != nil {
+		return err
 	}
 	return nil
 }
-
-func (vi *venueItem) icon() string {
-	c := vi.primaryCategory()
-	if c == nil || c.Icon == nil || c.Icon.Prefix == "" {
-		return ""
-	}
-	return c.Icon.Prefix + "bg_88" + c.Icon.Suffix
-}
-
-type venueLocationItem struct {
-	Address    string
-	City       string
-	PostalCode string
-	State      string
-	Country    string // 4sq provides "US"
-	Lat        float64
-	Lng        float64
-}
-
-type venueCategory struct {
-	Primary bool
-	Name    string
-	Icon    *categoryIcon
-}
-
-type categoryIcon struct {
-	Prefix string
-	Suffix string
-}
-
-// data import methods
 
 // urlFileRef slurps urlstr from the net, writes to a file and returns its
 // fileref or "" on error
-func (im *imp) urlFileRef(urlstr string) string {
+func (r *run) urlFileRef(urlstr string) string {
+	im := r.im
+	im.mu.Lock()
 	if br, ok := im.imageFileRef[urlstr]; ok {
+		im.mu.Unlock()
 		return br.String()
 	}
-	res, err := im.host.HTTPClient().Get(urlstr)
+	im.mu.Unlock()
+
+	res, err := r.Host.HTTPClient().Get(urlstr)
 	if err != nil {
 		log.Printf("couldn't get image: %v", err)
 		return ""
 	}
 	defer res.Body.Close()
 
-	fileRef, err := schema.WriteFileFromReader(im.host.Target(), "category.png", res.Body)
+	fileRef, err := schema.WriteFileFromReader(r.Host.Target(), "category.png", res.Body)
 	if err != nil {
 		log.Printf("couldn't write file: %v", err)
 		return ""
 	}
 
+	im.mu.Lock()
+	defer im.mu.Unlock()
 	im.imageFileRef[urlstr] = fileRef
 	return fileRef.String()
 }
 
-func (im *imp) importCheckins() error {
+func (r *run) importCheckins() error {
 	limit := 100
 	offset := 0
 	continueRequests := true
 
 	for continueRequests {
 		resp := checkinsList{}
-		if err := im.doAPI(&resp, "users/self/checkins", "limit", strconv.Itoa(limit), "offset", strconv.Itoa(offset)); err != nil {
+		if err := r.im.doAPI(r.Context, r.token(), &resp, "users/self/checkins", "limit", strconv.Itoa(limit), "offset", strconv.Itoa(offset)); err != nil {
 			return err
 		}
 
@@ -250,24 +193,24 @@ func (im *imp) importCheckins() error {
 			offset += itemcount
 		}
 
-		checkinsNode, err := im.getTopLevelNode("checkins", "Checkins")
+		checkinsNode, err := r.getTopLevelNode("checkins", "Checkins")
 		if err != nil {
 			return err
 		}
 
-		placesNode, err := im.getTopLevelNode("places", "Places")
+		placesNode, err := r.getTopLevelNode("places", "Places")
 		if err != nil {
 			return err
 		}
 
 		for _, checkin := range resp.Response.Checkins.Items {
-			placeRef, err := im.importPlace(placesNode, &checkin.Venue)
+			placeRef, err := r.importPlace(placesNode, &checkin.Venue)
 			if err != nil {
 				log.Printf("Foursquare importer: error importing place %s %v", checkin.Venue.Id, err)
 				continue
 			}
 
-			err = im.importCheckin(checkinsNode, checkin, placeRef)
+			err = r.importCheckin(checkinsNode, checkin, placeRef)
 			if err != nil {
 				log.Printf("Foursquare importer: error importing checkin %s %v", checkin.Id, err)
 				continue
@@ -278,7 +221,7 @@ func (im *imp) importCheckins() error {
 	return nil
 }
 
-func (im *imp) importCheckin(parent *importer.Object, checkin *checkinItem, placeRef blob.Ref) error {
+func (r *run) importCheckin(parent *importer.Object, checkin *checkinItem, placeRef blob.Ref) error {
 	checkinNode, err := parent.ChildPathObject(checkin.Id)
 	if err != nil {
 		return err
@@ -290,7 +233,7 @@ func (im *imp) importCheckin(parent *importer.Object, checkin *checkinItem, plac
 		"foursquareId", checkin.Id,
 		"foursquareVenuePermanode", placeRef.String(),
 		"camliNodeType", "foursquare.com:checkin",
-		"camliContentImage", im.urlFileRef(checkin.Venue.icon()),
+		"camliContentImage", r.urlFileRef(checkin.Venue.icon()),
 		"startDate", schema.RFC3339FromTime(time.Unix(checkin.CreatedAt, 0)),
 		"title", title); err != nil {
 		return err
@@ -299,7 +242,7 @@ func (im *imp) importCheckin(parent *importer.Object, checkin *checkinItem, plac
 	return nil
 }
 
-func (im *imp) importPlace(parent *importer.Object, place *venueItem) (placeRef blob.Ref, err error) {
+func (r *run) importPlace(parent *importer.Object, place *venueItem) (placeRef blob.Ref, err error) {
 	placeNode, err := parent.ChildPathObject(place.Id)
 	if err != nil {
 		return placeRef, err
@@ -313,7 +256,7 @@ func (im *imp) importPlace(parent *importer.Object, place *venueItem) (placeRef 
 	if err := placeNode.SetAttrs(
 		"foursquareId", place.Id,
 		"camliNodeType", "foursquare.com:venue",
-		"camliContentImage", im.urlFileRef(place.icon()),
+		"camliContentImage", r.urlFileRef(place.icon()),
 		"foursquareCategoryName", catName,
 		"title", place.Name,
 		"streetAddress", place.Location.Address,
@@ -329,13 +272,8 @@ func (im *imp) importPlace(parent *importer.Object, place *venueItem) (placeRef 
 	return placeNode.PermanodeRef(), nil
 }
 
-func (im *imp) getTopLevelNode(path string, title string) (*importer.Object, error) {
-	root, err := im.getRootNode()
-	if err != nil {
-		return nil, err
-	}
-
-	childObject, err := root.ChildPathObject(path)
+func (r *run) getTopLevelNode(path string, title string) (*importer.Object, error) {
+	childObject, err := r.RootNode().ChildPathObject(path)
 	if err != nil {
 		return nil, err
 	}
@@ -346,60 +284,31 @@ func (im *imp) getTopLevelNode(path string, title string) (*importer.Object, err
 	return childObject, nil
 }
 
-func (im *imp) getRootNode() (*importer.Object, error) {
-	root, err := im.host.RootObject()
-	if err != nil {
-		return nil, err
+func (im *imp) getUserInfo(ctx *context.Context, accessToken string) (user, error) {
+	var ui userInfo
+	if err := im.doAPI(ctx, accessToken, &ui, "users/self"); err != nil {
+		return user{}, err
 	}
-
-	if root.Attr("title") == "" {
-		im.mu.Lock()
-		user := im.user
-		im.mu.Unlock()
-
-		title := fmt.Sprintf("Foursquare (%s)", user)
-		if err := root.SetAttr("title", title); err != nil {
-			return nil, err
-		}
+	if ui.Response.User.Id == "" {
+		return user{}, fmt.Errorf("No userid returned")
 	}
-	return root, nil
+	return ui.Response.User, nil
 }
 
-func (im *imp) getUserId() (string, error) {
-	user := userInfo{}
-
-	if err := im.doAPI(&user, "users/self"); err != nil {
-		return "", err
-	}
-
-	if user.Response.User.Id == "" {
-		return "", fmt.Errorf("No username specified")
-	}
-
-	return user.Response.User.Id, nil
-}
-
-// foursquare api builders
-
-func (im *imp) doAPI(result interface{}, apiPath string, keyval ...string) error {
+func (im *imp) doAPI(ctx *context.Context, accessToken string, result interface{}, apiPath string, keyval ...string) error {
 	if len(keyval)%2 == 1 {
 		panic("Incorrect number of keyval arguments")
 	}
 
-	token, err := im.tokenCache.Token()
-	if err != nil {
-		return fmt.Errorf("Token error: %v", err)
-	}
-
 	form := url.Values{}
 	form.Set("v", "20140225") // 4sq requires this to version their API
-	form.Set("oauth_token", token.AccessToken)
+	form.Set("oauth_token", accessToken)
 	for i := 0; i < len(keyval); i += 2 {
 		form.Set(keyval[i], keyval[i+1])
 	}
 
 	fullURL := apiURL + apiPath
-	res, err := im.doGet(fullURL, form)
+	res, err := doGet(ctx, fullURL, form)
 	if err != nil {
 		return err
 	}
@@ -410,36 +319,56 @@ func (im *imp) doAPI(result interface{}, apiPath string, keyval ...string) error
 	return err
 }
 
-func (im *imp) doGet(url string, form url.Values) (*http.Response, error) {
+func doGet(ctx *context.Context, url string, form url.Values) (*http.Response, error) {
 	requestURL := url + "?" + form.Encode()
-
 	req, err := http.NewRequest("GET", requestURL, nil)
 	if err != nil {
 		return nil, err
 	}
-
-	res, err := im.host.HTTPClient().Do(req)
+	res, err := ctx.HTTPClient().Do(req)
 	if err != nil {
 		log.Printf("Error fetching %s: %v", url, err)
 		return nil, err
 	}
-
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("Get request on %s failed with: %s", requestURL, res.Status)
 	}
-
 	return res, nil
+}
+
+func auth(ctx *importer.SetupContext) (*oauth.Config, error) {
+	clientId, secret, err := ctx.Credentials()
+	if err != nil {
+		return nil, err
+	}
+	return &oauth.Config{
+		ClientId:     clientId,
+		ClientSecret: secret,
+		AuthURL:      authURL,
+		TokenURL:     tokenURL,
+		RedirectURL:  ctx.CallbackURL(),
+	}, nil
+
 }
 
 // possibly common methods for accessing oauth2 sites
 
-func (im *imp) serveLogin(w http.ResponseWriter, r *http.Request) {
-	state := "no_clue_what_this_is" // TODO: ask adg to document this. or send him a CL.
-	authURL := im.oauthConfig.AuthCodeURL(state)
-	http.Redirect(w, r, authURL, 302)
+func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) error {
+	oauthConfig, err := auth(ctx)
+	if err == nil {
+		state := "no_clue_what_this_is" // TODO: ask adg to document this. or send him a CL.
+		http.Redirect(w, r, oauthConfig.AuthCodeURL(state), 302)
+	}
+	return err
 }
 
-func (im *imp) serveCallback(w http.ResponseWriter, r *http.Request) {
+func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
+	oauthConfig, err := auth(ctx)
+	if err != nil {
+		httputil.ServeError(w, r, fmt.Errorf("Error getting oauth config: %v", err))
+		return
+	}
+
 	if r.Method != "GET" {
 		http.Error(w, "Expected a GET", 400)
 		return
@@ -449,7 +378,7 @@ func (im *imp) serveCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Expected a code", 400)
 		return
 	}
-	transport := &oauth.Transport{Config: im.oauthConfig}
+	transport := &oauth.Transport{Config: oauthConfig}
 	token, err := transport.Exchange(code)
 	log.Printf("Token = %#v, error %v", token, err)
 	if err != nil {
@@ -457,25 +386,22 @@ func (im *imp) serveCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "token exchange error", 500)
 		return
 	}
-	im.tokenCache.PutToken(token)
 
-	userid, err := im.getUserId()
+	u, err := im.getUserInfo(ctx.Context, token.AccessToken)
 	if err != nil {
 		log.Printf("Couldn't get username: %v", err)
 		http.Error(w, "can't get username", 500)
 		return
 	}
-	im.user = userid
-
-	http.Redirect(w, r, im.host.BaseURL+"?mode=start", 302)
-}
-
-func (im *imp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if strings.HasSuffix(r.URL.Path, "/login") {
-		im.serveLogin(w, r)
-	} else if strings.HasSuffix(r.URL.Path, "/callback") {
-		im.serveCallback(w, r)
-	} else {
-		httputil.BadRequestError(w, "Unknown path: %s", r.URL.Path)
+	if err := ctx.AccountNode.SetAttrs(
+		acctAttrUserId, u.Id,
+		acctAttrUserFirst, u.FirstName,
+		acctAttrUserLast, u.LastName,
+		acctAttrAccessToken, token.AccessToken,
+	); err != nil {
+		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
+		return
 	}
+	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)
+
 }

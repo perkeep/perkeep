@@ -1,0 +1,10 @@
+Permanode type:
+
+camliNodeType: "importer"
+importerType: "twitter"
+authClientID:     "xxx"    // e.g. api token
+authClientSecret: "sdkojfsldfjlsdkf"
+
+camliNodeType: "importerAccount"
+importerType: "twitter"
+twitterAccount: "bradfitz"
