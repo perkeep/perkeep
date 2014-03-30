@@ -51,7 +51,8 @@ type FindHandlerByTyper interface {
 type Loader interface {
 	FindHandlerByTyper
 
-	// MyPrefix returns the prefix of the handler currently being constructed.
+	// MyPrefix returns the prefix of the handler currently being constructed,
+	// with both leading and trailing slashes (e.g. "/ui/").
 	MyPrefix() string
 
 	// BaseURL returns the server's base URL, without trailing slash, and not including
