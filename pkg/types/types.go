@@ -40,6 +40,10 @@ var (
 // NopCloser is an io.Closer that does nothing.
 var NopCloser io.Closer = ioutil.NopCloser(nil)
 
+// EmptyBody is a ReadCloser that returns EOF on Read and does nothing
+// on Close.
+var EmptyBody io.ReadCloser = ioutil.NopCloser(strings.NewReader(""))
+
 // Time3339 is a time.Time which encodes to and from JSON
 // as an RFC 3339 time in UTC.
 type Time3339 time.Time
