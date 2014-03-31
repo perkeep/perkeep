@@ -66,7 +66,7 @@ func (h *Handler) secretRingPath() string {
 	if h.secretRing != "" {
 		return h.secretRing
 	}
-	return osutil.IdentitySecretRing()
+	return osutil.SecretRingFile()
 }
 
 func init() {

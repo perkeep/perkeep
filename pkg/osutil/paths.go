@@ -17,6 +17,7 @@ limitations under the License.
 package osutil
 
 import (
+	"flag"
 	"log"
 	"os"
 	"path/filepath"
@@ -108,6 +109,10 @@ func CamliConfigDir() string {
 		return p
 	}
 	failInTests()
+	return camliConfigDir()
+}
+
+func camliConfigDir() string {
 	if runtime.GOOS == "windows" {
 		return filepath.Join(os.Getenv("APPDATA"), "Camlistore")
 	}
@@ -125,14 +130,61 @@ func UserClientConfigPath() string {
 	return filepath.Join(CamliConfigDir(), "client-config.json")
 }
 
-// IdentitySecretRing returns the path to the default GPG
-// secret keyring. It is overriden by the CAMLI_SECRET_RING
-// environment variable.
-func IdentitySecretRing() string {
+// If set, flagSecretRing overrides the JSON config file
+// ~/.config/camlistore/client-config.json
+// (i.e. UserClientConfigPath()) "identitySecretRing" key.
+var (
+	flagSecretRing      string
+	secretRingFlagAdded bool
+)
+
+func AddSecretRingFlag() {
+	flag.StringVar(&flagSecretRing, "secret-keyring", "", "GnuPG secret keyring file to use.")
+	secretRingFlagAdded = true
+}
+
+// ExplicitSecretRingFile returns the path to the user's GPG secret ring
+// file and true if it was ever set through the --secret-keyring flag or
+// the CAMLI_SECRET_RING var. It returns "", false otherwise.
+// Use of this function requires the program to call AddSecretRingFlag,
+// and before flag.Parse is called.
+func ExplicitSecretRingFile() (string, bool) {
+	if !secretRingFlagAdded {
+		panic("proper use of ExplicitSecretRingFile requires exposing flagSecretRing with AddSecretRingFlag")
+	}
+	if flagSecretRing != "" {
+		return flagSecretRing, true
+	}
+	if e := os.Getenv("CAMLI_SECRET_RING"); e != "" {
+		return e, true
+	}
+	return "", false
+}
+
+// DefaultSecretRingFile returns the path to the default GPG secret
+// keyring. It is not influenced by any flag or CAMLI* env var.
+func DefaultSecretRingFile() string {
+	return filepath.Join(camliConfigDir(), "identity-secring.gpg")
+}
+
+// identitySecretRing returns the path to the default GPG
+// secret keyring. It is still affected by CAMLI_CONFIG_DIR.
+func identitySecretRing() string {
+	return filepath.Join(CamliConfigDir(), "identity-secring.gpg")
+}
+
+// SecretRingFile returns the path to the user's GPG secret ring file.
+// The value comes from either the --secret-keyring flag (if previously
+// registered with AddSecretRingFlag), or the CAMLI_SECRET_RING environment
+// variable, or the operating system default location.
+func SecretRingFile() string {
+	if flagSecretRing != "" {
+		return flagSecretRing
+	}
 	if e := os.Getenv("CAMLI_SECRET_RING"); e != "" {
 		return e
 	}
-	return filepath.Join(CamliConfigDir(), "identity-secring.gpg")
+	return identitySecretRing()
 }
 
 // DefaultTLSCert returns the path to the default TLS certificate

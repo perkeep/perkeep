@@ -36,15 +36,12 @@ import (
 	"camlistore.org/pkg/types/clientconfig"
 )
 
-// These, if set, override the JSON config file
+// If set, flagServer overrides the JSON config file
 // ~/.config/camlistore/client-config.json
-// (i.e. osutil.UserClientConfigPath()) "server" and "password" keys.
+// (i.e. osutil.UserClientConfigPath()) "server" key.
 //
-// A main binary must call AddFlags to expose these.
-var (
-	flagServer     string
-	flagSecretRing string
-)
+// A main binary must call AddFlags to expose it.
+var flagServer string
 
 func AddFlags() {
 	defaultPath := "/x/y/z/we're/in-a-test"
@@ -52,7 +49,7 @@ func AddFlags() {
 		defaultPath = osutil.UserClientConfigPath()
 	}
 	flag.StringVar(&flagServer, "server", "", "Camlistore server prefix. If blank, the default from the \"server\" field of "+defaultPath+" is used. Acceptable forms: https://you.example.com, example.com:1345 (https assumed), or http://you.example.com/alt-root")
-	flag.StringVar(&flagSecretRing, "secret-keyring", "", "GnuPG secret keyring file to use.")
+	osutil.AddSecretRingFlag()
 }
 
 // ExplicitServer returns the blobserver given in the flags, if any.
@@ -94,7 +91,7 @@ func parseConfig() {
 
 	config = &clientconfig.Config{
 		Identity:           cfg.OptionalString("identity", ""),
-		IdentitySecretRing: cfg.OptionalString("identitySecretRing", osutil.IdentitySecretRing()),
+		IdentitySecretRing: cfg.OptionalString("identitySecretRing", ""),
 		IgnoredFiles:       cfg.OptionalList("ignoredFiles"),
 	}
 	serversList := make(map[string]*clientconfig.Server)
@@ -150,7 +147,7 @@ func convertToMultiServers(conf jsonconfig.Obj) (jsonconfig.Obj, error) {
 			},
 		},
 		"identity":           conf.OptionalString("identity", ""),
-		"identitySecretRing": conf.OptionalString("identitySecretRing", osutil.IdentitySecretRing()),
+		"identitySecretRing": conf.OptionalString("identitySecretRing", ""),
 	}
 	if ignoredFiles := conf.OptionalList("ignoredFiles"); ignoredFiles != nil {
 		var list []interface{}
@@ -330,22 +327,19 @@ func (c *Client) SetupAuthFromString(a string) error {
 }
 
 // SecretRingFile returns the filename to the user's GPG secret ring.
-// The value comes from either a command-line flag, the
+// The value comes from either the --secret-keyring flag, the
 // CAMLI_SECRET_RING environment variable, the client config file's
 // "identitySecretRing" value, or the operating system default location.
 func (c *Client) SecretRingFile() string {
-	if flagSecretRing != "" {
-		return flagSecretRing
-	}
-	if e := os.Getenv("CAMLI_SECRET_RING"); e != "" {
-		return e
+	if secretRing, ok := osutil.ExplicitSecretRingFile(); ok {
+		return secretRing
 	}
 	if android.OnAndroid() {
-		panic("CAMLI_SECRET_RING should have been defined when on android")
+		panic("on android, so CAMLI_SECRET_RING should have been defined, or --secret-keyring used.")
 	}
 	configOnce.Do(parseConfig)
 	if config.IdentitySecretRing == "" {
-		return osutil.IdentitySecretRing()
+		return osutil.SecretRingFile()
 	}
 	return config.IdentitySecretRing
 }
