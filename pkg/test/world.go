@@ -282,7 +282,7 @@ func MustRunCmd(t *testing.T, c *exec.Cmd) string {
 }
 
 // ClientIdentity returns the GPG identity to use in World tests, suitable
-// for setting in CAMLI_CLIENT_IDENTITY.
+// for setting in CAMLI_KEYID.
 func (w *World) ClientIdentity() string {
 	return "26F5ABDA"
 }
