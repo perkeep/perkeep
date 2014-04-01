@@ -1,304 +1,319 @@
 { "_for-emacs": "-*- mode: js2;-*-",
-  "handlerConfig": true,
-  "baseURL": ["_env", "${CAMLI_BASEURL}"],
-  "auth": ["_env", "${CAMLI_AUTH}"],
-  "https": ["_env", "${CAMLI_TLS}", false],
-  "httpsCert": "config/selfgen_pem.crt",
-  "httpsKey": "config/selfgen_pem.key",
-  "prefixes": {
-     "/": {
-         "handler": "root",
-         "handlerArgs": {
-             "ownerName": ["_env", "${USER}-dev"],
-             "blobRoot": "/bs-recv/",
-             "statusRoot": "/status/",
-             "searchRoot": "/my-search/",
-             "stealth": false
-         }
-     },
+	"handlerConfig": true,
+	"baseURL": ["_env", "${CAMLI_BASEURL}"],
+	"auth": ["_env", "${CAMLI_AUTH}"],
+	"https": ["_env", "${CAMLI_TLS}", false],
+	"httpsCert": "config/selfgen_pem.crt",
+	"httpsKey": "config/selfgen_pem.key",
+	"prefixes": {
+		"/": {
+			"handler": "root",
+			"handlerArgs": {
+				"ownerName": ["_env", "${USER}-dev"],
+				"blobRoot": "/bs-recv/",
+				"statusRoot": "/status/",
+				"searchRoot": "/my-search/",
+				"stealth": false
+			}
+		},
 
-      "/blog/": {
-          "enabled": ["_env", "${CAMLI_PUBLISH_ENABLED}"],
-          "handler": "publish",
-          "handlerArgs": {
-              "rootName": "dev-blog-root",
-              "blobRoot": "/bs/",
-              "searchRoot": "/my-search/",
-              "cache": "/cache/",
-              "goTemplate": "blog.html",
-              "devBootstrapPermanodeUsing": "/sighelper/"
-          }
-      },
+		"/blog/": {
+			"enabled": ["_env", "${CAMLI_PUBLISH_ENABLED}"],
+			"handler": "publish",
+			"handlerArgs": {
+				"rootName": "dev-blog-root",
+				"blobRoot": "/bs/",
+				"searchRoot": "/my-search/",
+				"cache": "/cache/",
+				"goTemplate": "blog.html",
+				"devBootstrapPermanodeUsing": "/sighelper/"
+			}
+		},
 
-      "/pics/": {
-          "enabled": ["_env", "${CAMLI_PUBLISH_ENABLED}"],
-          "handler": "publish",
-          "handlerArgs": {
-              "rootName": "dev-pics-root",
-              "blobRoot": "/bs/",
-              "searchRoot": "/my-search/",
-              "cache": "/cache/",
-              "css": ["pics.css"],
-              "js": ["pics.js"],
-              "goTemplate": "gallery.html",
-              "devBootstrapPermanodeUsing": "/sighelper/"
-          }
-      },
+		"/pics/": {
+			"enabled": ["_env", "${CAMLI_PUBLISH_ENABLED}"],
+			"handler": "publish",
+			"handlerArgs": {
+				"rootName": "dev-pics-root",
+				"blobRoot": "/bs/",
+				"searchRoot": "/my-search/",
+				"cache": "/cache/",
+				"css": ["pics.css"],
+				"js": ["pics.js"],
+				"goTemplate": "gallery.html",
+				"devBootstrapPermanodeUsing": "/sighelper/"
+			}
+		},
 
-      "/stub-test-disable/": {
-          "handler": "publish",
-          "enabled": false,
-          "handlerArgs": {
-          }
-      },
+		"/stub-test-disable/": {
+			"handler": "publish",
+			"enabled": false,
+			"handlerArgs": {
+			}
+		},
 
-     "/ui/": {
-         "handler": "ui",
-         "handlerArgs": {
-             "sourceRoot": ["_env", "${CAMLI_DEV_CAMLI_ROOT}", ""],
-             "jsonSignRoot": "/sighelper/",
-             "cache": "/cache/",
-             "scaledImage": {
-                "type": "kv",
-                "file": ["_env", "${CAMLI_ROOT_CACHE}/thumbnails.kv", ""]
-             },
-             "publishRoots": ["/blog/", "/pics/"]
-         }
-     },
+		"/ui/": {
+			"handler": "ui",
+			"handlerArgs": {
+				"sourceRoot": ["_env", "${CAMLI_DEV_CAMLI_ROOT}", ""],
+				"jsonSignRoot": "/sighelper/",
+				"cache": "/cache/",
+				"scaledImage": {
+					"type": "kv",
+					"file": ["_env", "${CAMLI_ROOT_CACHE}/thumbnails.kv", ""]
+				},
+				"publishRoots": ["/blog/", "/pics/"]
+			}
+		},
 
-     "/status/": {
-         "handler": "status"
-     },
+		"/status/": {
+			"handler": "status"
+		},
 
-      "/sync-index/": {
-          "handler": "sync",
-          "handlerArgs": {
-              "from": "/bs/",
-              "to": ["_env", "${CAMLI_INDEXER_PATH}"],
-              "queue": { "type": "memory" },
-              "fullSyncOnStart": ["_env", "${CAMLI_FULL_INDEX_SYNC_ON_START}"],
-              "blockingFullSyncOnStart": ["_env", "${CAMLI_FULL_INDEX_SYNC_ON_START}"]
-          }
-      },
+		"/sync-index/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"to": ["_env", "${CAMLI_INDEXER_PATH}"],
+				"queue": { "type": "memory" },
+				"fullSyncOnStart": ["_env", "${CAMLI_FULL_INDEX_SYNC_ON_START}"],
+				"blockingFullSyncOnStart": ["_env", "${CAMLI_FULL_INDEX_SYNC_ON_START}"]
+			}
+		},
 
-      "/sync-r1/": {
-          "handler": "sync",
-          "handlerArgs": {
-              "from": "/bs/",
-              "to": "/r1/",
-              "queue": { "type": "memory" }
-          }
-      },
+		"/sync-r1/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"to": "/r1/",
+				"queue": { "type": "memory" }
+			}
+		},
 
-      "/sighelper/": {
-          "handler": "jsonsign",
-          "handlerArgs": {
-              "secretRing": ["_env", "${CAMLI_SECRET_RING}"],
-              "keyId": ["_env", "${CAMLI_KEYID}"],
-              "publicKeyDest": "/bs/"
-          }
-     },
+		"/sighelper/": {
+			"handler": "jsonsign",
+			"handlerArgs": {
+				"secretRing": ["_env", "${CAMLI_SECRET_RING}"],
+				"keyId": ["_env", "${CAMLI_KEYID}"],
+				"publicKeyDest": "/bs/"
+			}
+		},
 
-      "/bs-recv/": {
-          "handler": "storage-replica",
-          "handlerArgs": {
-              "minWritesForSuccess": 2,
-              "backends": ["/bs/", ["_env", "${CAMLI_INDEXER_PATH}"]],
-              "readBackends": ["/bs/"]
-          }
-      },
+		"/bs-recv/": {
+			"handler": "storage-replica",
+			"handlerArgs": {
+				"minWritesForSuccess": 2,
+				"backends": ["/bs/", ["_env", "${CAMLI_INDEXER_PATH}"]],
+				"readBackends": ["/bs/"]
+			}
+		},
 
-      "/cond-unused/": {
-          "handler": "storage-cond",
-          "handlerArgs": {
-              "write": {
-                  "if": "isSchema",
-                  "then": "/bs-recv/",
-                  "else": "/bs/"
-              },
-              "read": "/bs/"
-          }
-      },
+		"/cond-unused/": {
+			"handler": "storage-cond",
+			"handlerArgs": {
+				"write": {
+					"if": "isSchema",
+					"then": "/bs-recv/",
+					"else": "/bs/"
+				},
+				"read": "/bs/"
+			}
+		},
 
-     "/bs/": {
-         "handler": "storage-filesystem",
-         "handlerArgs": {
-            "path": ["_env", "${CAMLI_ROOT}"]
-          }
-     },
+		"/bs/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": ["_env", "${CAMLI_ROOT}"]
+			}
+		},
 
-     "/cache/": {
-         "handler": "storage-filesystem",
-         "handlerArgs": {
-            "path": ["_env", "${CAMLI_ROOT_CACHE}"]
-          }
-     },
+		"/cache/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": ["_env", "${CAMLI_ROOT_CACHE}"]
+			}
+		},
 
-     "/sharder/": {
-         "handler": "storage-shard",
-         "handlerArgs": {
-             "backends": ["/s1/", "/s2/"]
-          }
-     },
+		"/sharder/": {
+			"handler": "storage-shard",
+			"handlerArgs": {
+				"backends": ["/s1/", "/s2/"]
+			}
+		},
 
-     "/s1/": {
-         "handler": "storage-filesystem",
-         "handlerArgs": {
-            "path": ["_env", "${CAMLI_ROOT_SHARD1}"]
-          }
-     },
+		"/s1/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": ["_env", "${CAMLI_ROOT_SHARD1}"]
+			}
+		},
 
-      "/s2/": {
-          "handler": "storage-filesystem",
-          "handlerArgs": {
-              "path": ["_env", "${CAMLI_ROOT_SHARD2}"]
-          }
-      },
+		"/s2/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": ["_env", "${CAMLI_ROOT_SHARD2}"]
+			}
+		},
 
-      "/repl/": {
-          "handler": "storage-replica",
-          "handlerArgs": {
-              "backends": ["/r1/", "/r2/", "/r3/"],
-              "minWritesForSuccess": 2
-          }
-      },
+		"/repl/": {
+			"handler": "storage-replica",
+			"handlerArgs": {
+				"backends": ["/r1/", "/r2/", "/r3/"],
+				"minWritesForSuccess": 2
+			}
+		},
 
-     "/r1/": {
-         "handler": "storage-diskpacked",
-         "handlerArgs": {
-            "path": ["_env", "${CAMLI_ROOT_REPLICA1}"]
-          }
-     },
+		"/r1/": {
+			"handler": "storage-diskpacked",
+			"handlerArgs": {
+				"path": ["_env", "${CAMLI_ROOT_REPLICA1}"]
+			}
+		},
 
-     "/r2/": {
-         "handler": "storage-filesystem",
-         "handlerArgs": {
-            "path": ["_env", "${CAMLI_ROOT_REPLICA2}"]
-          }
-     },
+		"/r2/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": ["_env", "${CAMLI_ROOT_REPLICA2}"]
+			}
+		},
 
-     "/r3/": {
-         "handler": "storage-filesystem",
-         "handlerArgs": {
-            "path": ["_env", "${CAMLI_ROOT_REPLICA3}"]
-          }
-     },
+		"/r3/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": ["_env", "${CAMLI_ROOT_REPLICA3}"]
+			}
+		},
 
-     "/enc/": {
-          "handler": "storage-encrypt",
-          "handlerArgs": {
-              "I_AGREE": "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change.",
-              "meta": "/encmeta/",
-              "blobs": "/encblob/",
-              "metaIndex": { "type": "memory" },
-              "key": "000102030405060708090a0b0c0d0e0f"
-          }
-      },
+		"/enc/": {
+			"handler": "storage-encrypt",
+			"handlerArgs": {
+				"I_AGREE": "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change.",
+				"meta": "/encmeta/",
+				"blobs": "/encblob/",
+				"metaIndex": { "type": "memory" },
+				"key": "000102030405060708090a0b0c0d0e0f"
+			}
+		},
 
-     "/encmeta/": {
-         "handler": "storage-filesystem",
-         "handlerArgs": {
-            "path": ["_env", "${CAMLI_ROOT_ENCMETA}"]
-          }
-     },
+		"/encmeta/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": ["_env", "${CAMLI_ROOT_ENCMETA}"]
+			}
+		},
 
-     "/encblob/": {
-         "handler": "storage-filesystem",
-         "handlerArgs": {
-            "path": ["_env", "${CAMLI_ROOT_ENCBLOB}"]
-          }
-     },
+		"/encblob/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": ["_env", "${CAMLI_ROOT_ENCBLOB}"]
+			}
+		},
 
-     "/index-kv/": {
-         "enabled": ["_env", "${CAMLI_KVINDEX_ENABLED}"],
-         "handler": "storage-kvfileindexer",
-         "handlerArgs": {
-             "blobSource": "/bs/",
-             "file": ["_env", "${CAMLI_DBNAME}", ""]
-         }
-     },
+		"/index-kv/": {
+			"enabled": ["_env", "${CAMLI_KVINDEX_ENABLED}"],
+			"handler": "storage-index",
+			"handlerArgs": {
+				"blobSource": "/bs/",
+				"storage": {
+					"type": "kv",
+					"file": ["_env", "${CAMLI_DBNAME}", ""]
+				}
+			}
+		},
 
-     "/index-mongo/": {
-         "enabled": ["_env", "${CAMLI_MONGO_ENABLED}", true],
-         "handler": "storage-mongodbindexer",
-         "handlerArgs": {
-             "host": "localhost",
-             "database": ["_env", "${CAMLI_DBNAME}"],
-             "blobSource": "/bs/"
-         }
-     },
+		"/index-mongo/": {
+			"enabled": ["_env", "${CAMLI_MONGO_ENABLED}", true],
+			"handler": "storage-index",
+			"handlerArgs": {
+				"blobSource": "/bs/",
+				"storage": {
+					"type": "mongo",
+					"host": "localhost",
+					"database": ["_env", "${CAMLI_DBNAME}"]
+				}
+			}
+		},
 
-     "/index-mysql/": {
-         "enabled": ["_env", "${CAMLI_MYSQL_ENABLED}", true],
-         "handler": "storage-mysqlindexer",
-         "handlerArgs": {
-             "database": ["_env", "${CAMLI_DBNAME}"],
-             "user": "root",
-             "password": "root",
-             "host": "127.0.0.1",
-             "blobSource": "/bs/"
-         }
-     },
+		"/index-mysql/": {
+			"enabled": ["_env", "${CAMLI_MYSQL_ENABLED}", true],
+			"handler": "storage-index",
+			"handlerArgs": {
+				"blobSource": "/bs/",
+				"storage": {
+					"type": "mysql",
+					"database": ["_env", "${CAMLI_DBNAME}"],
+					"user": "root",
+					"password": "root",
+					"host": "127.0.0.1"
+				}
+			}
+		},
 
-     "/index-postgres/": {
-         "enabled": ["_env", "${CAMLI_POSTGRES_ENABLED}", true],
-         "handler": "storage-postgresindexer",
-         "handlerArgs": {
-             "database": ["_env", "${CAMLI_DBNAME}"],
-             "user": "postgres",
-             "password": "postgres",
-             "host": "127.0.0.1",
-             "blobSource": "/bs/"
-         }
-     },
+		"/index-postgres/": {
+			"enabled": ["_env", "${CAMLI_POSTGRES_ENABLED}", true],
+			"handler": "storage-index",
+			"handlerArgs": {
+				"blobSource": "/bs/",
+				"storage": {
+					"type": "postgres",
+					"database": ["_env", "${CAMLI_DBNAME}"],
+					"user": "postgres",
+					"password": "postgres",
+					"host": "127.0.0.1"
+				}
+			}
+		},
 
-     "/index-sqlite/": {
-         "enabled": ["_env", "${CAMLI_SQLITE_ENABLED}", true],
-         "handler": "storage-sqliteindexer",
-         "handlerArgs": {
-             "file": ["_env", "${CAMLI_DBNAME}"],
-             "blobSource": "/bs/"
-         }
-     },
+		"/index-sqlite/": {
+			"enabled": ["_env", "${CAMLI_SQLITE_ENABLED}", true],
+			"handler": "storage-index",
+			"handlerArgs": {
+				"blobSource": "/bs/",
+				"storage": {
+					"type": "sqlite",
+					"file": ["_env", "${CAMLI_DBNAME}"]
+				}
+			}
+		},
 
-     "/my-search/": {
-         "handler": "search",
-         "handlerArgs": {
-             "index": ["_env", "${CAMLI_INDEXER_PATH}"],
-             "owner": ["_env", "${CAMLI_PUBKEY_BLOBREF}"],
-             "slurpToMemory": true,
-             "devBlockStartupOn": "/sync-index/"
-         }
-     },
+		"/my-search/": {
+			"handler": "search",
+			"handlerArgs": {
+				"index": ["_env", "${CAMLI_INDEXER_PATH}"],
+				"owner": ["_env", "${CAMLI_PUBKEY_BLOBREF}"],
+				"slurpToMemory": true,
+				"devBlockStartupOn": "/sync-index/"
+			}
+		},
 
-     "/importer/": {
-       "handler": "importer",
-       "handlerArgs": {
-          "dummy": {
-              "clientID": "dummyID",
-              "clientSecret": "foobar"
-          },
-          "flickr": {
-              "clientSecret": ["_env", "${CAMLI_FLICKR_API_KEY}", ""]
-          },
-          "foursquare": {
-              "clientSecret": ["_env", "${CAMLI_FOURSQUARE_API_KEY}", ""]
-          },
-          "picasa": {
-              "clientSecret": ["_env", "${CAMLI_PICASA_API_KEY}", ""]
-          },
-          "twitter": {
-              "clientSecret": ["_env", "${CAMLI_TWITTER_API_KEY}", ""]
-          }
-       }
-     },
+		"/importer/": {
+			"handler": "importer",
+			"handlerArgs": {
+				"dummy": {
+					"clientID": "dummyID",
+					"clientSecret": "foobar"
+				},
+				"flickr": {
+					"clientSecret": ["_env", "${CAMLI_FLICKR_API_KEY}", ""]
+				},
+				"foursquare": {
+					"clientSecret": ["_env", "${CAMLI_FOURSQUARE_API_KEY}", ""]
+				},
+				"picasa": {
+					"clientSecret": ["_env", "${CAMLI_PICASA_API_KEY}", ""]
+				},
+				"twitter": {
+					"clientSecret": ["_env", "${CAMLI_TWITTER_API_KEY}", ""]
+				}
+			}
+		},
 
-     "/share/": {
-         "handler": "share",
-         "handlerArgs": {
-             "blobRoot": "/bs/"
-         }
-     }
-  }
+		"/share/": {
+			"handler": "share",
+			"handlerArgs": {
+				"blobRoot": "/bs/"
+			}
+		}
+	}
 
 }

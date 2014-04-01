@@ -18,7 +18,7 @@
 			"handlerArgs": {
 				"backends": [
 					"/bs/",
-					"/index-kv/"
+					"/index/"
 				]
 			}
 		},
@@ -45,17 +45,20 @@
 				"path": "/tmp/blobs/cache"
 			}
 		},
-		"/index-kv/": {
-			"handler": "storage-kvfileindexer",
+		"/index/": {
+			"handler": "storage-index",
 			"handlerArgs": {
 				"blobSource": "/bs/",
-				"file": "/path/to/indexkv.db"
+				"storage": {
+					"type": "kv",
+					"file": "/path/to/indexkv.db"
+				}
 			}
 		},
 		"/my-search/": {
 			"handler": "search",
 			"handlerArgs": {
-				"index": "/index-kv/",
+				"index": "/index/",
 				"owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
 				"slurpToMemory": true
 			}
@@ -137,7 +140,7 @@
 					"file": "/tmp/blobs/sync-to-index-queue.kv",
 					"type": "kv"
 				},
-				"to": "/index-kv/"
+				"to": "/index/"
 			}
 		},
 		"/ui/": {

@@ -18,7 +18,7 @@
 			"handlerArgs": {
 				"backends": [
 					"/bs/",
-					"/index-mongo/"
+					"/index/"
 				]
 			}
 		},
@@ -45,21 +45,24 @@
 				"path": "/tmp/blobs/cache"
 			}
 		},
-		"/index-mongo/": {
+		"/index/": {
 			"enabled": true,
-			"handler": "storage-mongodbindexer",
+			"handler": "storage-index",
 			"handlerArgs": {
 				"blobSource": "/bs/",
-				"database": "camlitest",
-				"host": "localhost",
-				"password": "",
-				"user": ""
+				"storage": {
+					"type": "mongo",
+					"database": "camlitest",
+					"host": "localhost",
+					"password": "",
+					"user": ""
+				}
 			}
 		},
 		"/my-search/": {
 			"handler": "search",
 			"handlerArgs": {
-				"index": "/index-mongo/",
+				"index": "/index/",
 				"owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
 				"slurpToMemory": true
 			}
@@ -92,7 +95,7 @@
 					"file": "/tmp/blobs/sync-to-index-queue.kv",
 					"type": "kv"
 				},
-				"to": "/index-mongo/"
+				"to": "/index/"
 			}
 		},
 		"/ui/": {

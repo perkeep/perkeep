@@ -17,7 +17,7 @@
 			"handlerArgs": {
 				"backends": [
 					"/bs/",
-					"/index-mysql/"
+					"/index/"
 				]
 			}
 		},
@@ -46,21 +46,24 @@
 				"path": "/tmp/camli-cache"
 			}
 		},
-		"/index-mysql/": {
+		"/index/": {
 			"enabled": true,
-			"handler": "storage-mysqlindexer",
+			"handler": "storage-index",
 			"handlerArgs": {
 				"blobSource": "/bs/",
-				"database": "camlitest",
-				"host": "localhost",
-				"password": "password",
-				"user": "user"
+				"storage": {
+					"type": "mysql",
+					"database": "camlitest",
+					"host": "localhost",
+					"password": "password",
+					"user": "user"
+				}
 			}
 		},
 		"/my-search/": {
 			"handler": "search",
 			"handlerArgs": {
-				"index": "/index-mysql/",
+				"index": "/index/",
 				"owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
 				"slurpToMemory": true
 			}
@@ -90,7 +93,7 @@
 			"handlerArgs": {
 				"from": "/bs/",
 				"idle": true,
-				"to": "/index-mysql/"
+				"to": "/index/"
 			}
 		},
 		"/ui/": {

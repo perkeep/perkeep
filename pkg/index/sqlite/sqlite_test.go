@@ -72,7 +72,7 @@ func newSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
 	}
 }
 
-func TestSortedKV(t *testing.T) {
+func TestSorted_SQLite(t *testing.T) {
 	kv, clean := newSorted(t)
 	defer clean()
 	kvtest.TestSorted(t, kv)
