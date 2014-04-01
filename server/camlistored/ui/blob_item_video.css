@@ -1,0 +1,50 @@
+/*
+Copyright 2014 The Camlistore Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+.cam-blobitem-video {
+	display: block;
+}
+
+.cam-blobitem-video a {
+	text-decoration: none;
+}
+
+.cam-blobitem-video .fa-video-camera {
+	color: #ccc;
+	display: block;
+	text-align: center;
+}
+
+.cam-blobitem-video .fa-play,
+.cam-blobitem-video .fa-pause {
+	cursor: default;
+	position: absolute;
+	left: 35%;
+	top: 40%;
+	color: rgba(125, 125, 125, 0.85);
+	line-height: 100%;
+}
+
+.cam-blobitem-video .fa-pause {
+	left: 32%;
+}
+
+.cam-blobitem-video-loaded .fa-play {
+	left: 40%;
+}
+.cam-blobitem-video-loaded .fa-pause {
+	left: 37%;
+}
