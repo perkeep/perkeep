@@ -22,6 +22,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,6 +34,13 @@ import (
 )
 
 func init() {
+	if os.Getenv("CAMLI_DEV_CAMLI_ROOT") == "" {
+		// For this particular example importer, we only
+		// register it if we're in "devcam server" mode.
+		// Normally you'd avoid this check.
+		return
+	}
+
 	// This Register call must happen during init.
 	//
 	// Register only registers an importer site type and not a
