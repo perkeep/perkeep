@@ -42,7 +42,7 @@ type importersRootPage struct {
 }
 
 type importersRootBody struct {
-	BasePath  string
+	Host      *Host
 	Importers []*importer
 }
 
@@ -52,7 +52,7 @@ type importerPage struct {
 }
 
 type importerBody struct {
-	BasePath  string
+	Host      *Host
 	Importer  *importer
 	SetupHelp template.HTML
 }
@@ -96,7 +96,7 @@ var tmpl = template.Must(template.New("root").Parse(`
 
 {{define "importersRootBody"}}
    <ul>
-      {{$base := .BasePath}}
+      {{$base := .Host.ImporterBaseURL}}
       {{range .Importers}}
          <li><a href="{{$base}}{{.Name}}">{{.Name}}</a></li>
       {{end}}
@@ -111,7 +111,7 @@ var tmpl = template.Must(template.New("root").Parse(`
 {{end}}
 
 {{define "importerBody"}}
-<p>[<a href="./">&lt;&lt; Back</a>]</p>
+<p>[<a href="{{.Host.ImporterBaseURL}}">&lt;&lt; Back</a>]</p>
 <ul>
   <li>Importer configuration permanode: {{.Importer.Node.PermanodeRef}}</li>
   <li>Status: {{.Importer.Status}}</li>
@@ -160,6 +160,7 @@ var tmpl = template.Must(template.New("root").Parse(`
    <li>Account metadata permanode: {{.Acct.AccountObject.PermanodeRef}}</li>
    <li>Import root permanode: {{if .Acct.RootObject}}{{.Acct.RootObject.PermanodeRef}}{{else}}(none){{end}}</li>
    <li>Configured: {{.Acct.IsAccountReady}}</li>
+   <li>Summary: {{.Acct.AccountLinkSummary}}</li>
    <li>Running: {{.Running}}</li>
    {{if .Running}}
      <li>Started: {{.StartedAgo}} ago</li>

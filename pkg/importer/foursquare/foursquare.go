@@ -56,8 +56,6 @@ func init() {
 var _ importer.ImporterSetupHTMLer = (*imp)(nil)
 
 type imp struct {
-	tokenCache oauth.Cache
-
 	mu           sync.Mutex          // guards following
 	imageFileRef map[string]blob.Ref // url to file schema blob
 }

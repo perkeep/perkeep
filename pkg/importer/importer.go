@@ -77,11 +77,19 @@ type Importer interface {
 	ServeCallback(w http.ResponseWriter, r *http.Request, ctx *SetupContext)
 }
 
+// ImporterSetupHTMLer is an optional interface that may be implemented by
+// Importers to return some HTML to be included on the importer setup page.
 type ImporterSetupHTMLer interface {
 	AccountSetupHTML(*Host) string
 }
 
 var importers = make(map[string]Importer)
+
+func init() {
+	Register("flickr", TODOImporter)
+	Register("picasa", TODOImporter)
+	Register("twitter", TODOImporter)
+}
 
 // Register registers a site-specific importer. It should only be called from init,
 // and not from concurrent goroutines.
@@ -285,7 +293,7 @@ func (h *Host) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // Serves list of importers at http://host/importer/
 func (h *Host) serveImportersRoot(w http.ResponseWriter, r *http.Request) {
 	body := importersRootBody{
-		BasePath:  httputil.PathBase(r),
+		Host:      h,
 		Importers: make([]*importer, 0, len(h.imp)),
 	}
 	for _, v := range h.importers {
@@ -313,6 +321,7 @@ func (h *Host) serveImporter(w http.ResponseWriter, r *http.Request, imp *import
 	execTemplate(w, r, importerPage{
 		Title: "Importer - " + imp.Name(),
 		Body: importerBody{
+			Host:      h,
 			Importer:  imp,
 			SetupHelp: template.HTML(setup),
 		},
@@ -546,6 +555,7 @@ func (im *importer) newAccount() (*importerAcct, error) {
 		return nil, err
 	}
 	if err := acct.SetAttrs(
+		"title", fmt.Sprintf("%s account", im.name),
 		attrNodeType, nodeTypeImporterAccount,
 		attrImporterType, im.name,
 		attrImportRoot, root.PermanodeRef().String(),
@@ -631,6 +641,7 @@ func (im *importer) Node() (*Object, error) {
 		return nil, err
 	}
 	if err := o.SetAttrs(
+		"title", fmt.Sprintf("%s importer", im.name),
 		attrNodeType, nodeTypeImporter,
 		attrImporterType, im.name,
 	); err != nil {
@@ -772,7 +783,7 @@ func (ia *importerAcct) start() {
 	ia.stopped = false
 	ia.lastRunStart = time.Now()
 	go func() {
-		log.Printf("Starting importer %s", ia)
+		log.Printf("Starting importer %s: %s", ia.im.name, ia.AccountLinkSummary())
 		err := ia.im.impl.Run(rc)
 		if err != nil {
 			log.Printf("Importer %s error: %v", ia.im.name, err)
@@ -939,36 +950,14 @@ func (o *Object) ChildPathObject(path string) (*Object, error) {
 	}, nil
 }
 
-// RootObject returns the root permanode for this importer account.
-func (h *Host) RootObject() (*Object, error) {
+// TODO: auto-migrate people from the old way? It was:
+/*
 	res, err := h.search.GetPermanodesWithAttr(&search.WithAttrRequest{
 		N:     2, // only expect 1
 		Attr:  "camliImportRoot",
 		Value: "TODO", // h.imp.Prefix(),
 	})
-	if err != nil {
-		log.Printf("RootObject searching GetPermanodesWithAttr: %v", err)
-		return nil, err
-	}
-	if len(res.WithAttr) == 0 {
-		obj, err := h.NewObject()
-		if err != nil {
-			return nil, err
-		}
-		log.Printf("No root object found. Created %v", obj.pn)
-		/*
-			if err := obj.SetAttr("camliImportRoot", h.imp.Prefix()); err != nil {
-						return nil, err
-					}
-		*/
-		return obj, nil
-	}
-	if len(res.WithAttr) > 1 {
-		return nil, fmt.Errorf("Found %d import roots for %q; want 1", len(res.WithAttr), "xxx" /* h.imp.Prefix() */)
-	}
-	pn := res.WithAttr[0].Permanode
-	return h.ObjectFromRef(pn)
-}
+*/
 
 // ObjectFromRef returns the object given by the named permanode
 func (h *Host) ObjectFromRef(permanodeRef blob.Ref) (*Object, error) {

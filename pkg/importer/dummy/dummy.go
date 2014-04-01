@@ -20,57 +20,130 @@ package dummy
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
 
-	"camlistore.org/pkg/context"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/schema"
 )
 
 func init() {
-	importer.Register("dummy", importer.TODOImporter)
-	importer.Register("flickr", importer.TODOImporter)
-	importer.Register("picasa", importer.TODOImporter)
-	importer.Register("twitter", importer.TODOImporter)
+	// This Register call must happen during init.
+	//
+	// Register only registers an importer site type and not a
+	// specific account on a site.
+	importer.Register("dummy", &imp{})
 }
 
-func newFromConfig(cfg jsonconfig.Obj, host *importer.Host) (*imp, error) {
-	im := &imp{
-		url:       cfg.RequiredString("url"),
-		username:  cfg.RequiredString("username"),
-		authToken: cfg.RequiredString("authToken"),
-		host:      host,
-	}
-	if err := cfg.Validate(); err != nil {
-		return nil, err
-	}
-	return im, nil
-}
-
+// imp is the dummy importer, as a demo of how to write an importer.
+//
+// It must implement the importer.Importer interface in order for
+// it to be registered (in the init above).
 type imp struct {
-	url       string
-	username  string
-	authToken string
-	host      *importer.Host
+	// The struct or underlying type implementing an importer
+	// holds state that is global, and not per-account, so it
+	// should not be used to cache account-specific
+	// resources. Some importers (e.g. Foursquare) use this space
+	// to cache mappings from site-specific global resource URLs
+	// (e.g. category icons) to the fileref once it's been copied
+	// into Camlistore.
+
+	mu          sync.Mutex          // mu guards cache
+	categoryRef map[string]blob.Ref // URL -> file schema ref
 }
 
-func (im *imp) Prefix() string {
-	return fmt.Sprintf("dummy:%s", im.username)
+func (*imp) NeedsAPIKey() bool {
+	// This tells the importer framework that we our importer will
+	// be calling the {RunContext,SetupContext}.Credentials method
+	// to get the OAuth client ID & client secret, which may be
+	// either configured on the importer permanode, or statically
+	// in the server's config file.
+	return true
 }
 
-func (im *imp) Run(ctx *context.Context) (err error) {
+const (
+	acctAttrToken     = "my_token"
+	acctAttrUsername  = "username"
+	acctAttrRunNumber = "run_number" // some state
+)
+
+func (*imp) IsAccountReady(acct *importer.Object) (ready bool, err error) {
+	// This method tells the importer framework whether this account
+	// permanode (accessed via the importer.Object) is ready to start
+	// an import.  Here you would typically check whether you have the
+	// right metadata/tokens on the account.
+	return acct.Attr(acctAttrToken) != "" && acct.Attr(acctAttrUsername) != "", nil
+}
+
+func (*imp) SummarizeAccount(acct *importer.Object) string {
+	// This method is run by the importer framework if the account is
+	// ready (see IsAccountReady) and summarizes the account in
+	// the list of accounts on the importer page.
+	return acct.Attr(acctAttrUsername)
+}
+
+func (*imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) error {
+	// ServeSetup gets called at the beginning of adding a new account
+	// to an importer, or when an account is being re-logged into to
+	// refresh its access token.
+	// You typically start the OAuth redirect flow here.
+	http.Redirect(w, r, ctx.CallbackURL(), http.StatusFound)
+	return nil
+}
+
+// Statically declare that our importer supports the optional
+// importer.ImporterSetupHTMLer interface.
+//
+// We do this in case importer.ImporterSetupHTMLer changes, or if we
+// typo the method name below. It turns this into a compile-time
+// error. In general you should do this in Go whenever you implement
+// optional interfaces.
+var _ importer.ImporterSetupHTMLer = (*imp)(nil)
+
+func (im *imp) AccountSetupHTML(host *importer.Host) string {
+	return "<h1>Hello from the dummy importer!</h1><p>I am example HTML. This importer is a demo of how to write an importer.</p>"
+}
+
+func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
+	// ServeCallback is called after ServeSetup, at the end of an
+	// OAuth redirect flow.
+
+	code := r.FormValue("code") // e.g. get the OAuth code out of the redirect
+	if code == "" {
+		code = "some_dummy_code"
+	}
+	name := ctx.AccountNode.Attr(acctAttrUsername)
+	if name == "" {
+		names := []string{
+			"alfred", "alice", "bob", "bethany",
+			"cooper", "claire", "doug", "darla",
+			"ed", "eve", "frank", "francine",
+		}
+		name = names[rand.Intn(len(names))]
+	}
+	if err := ctx.AccountNode.SetAttrs(
+		"title", fmt.Sprintf("dummy account: %s", name),
+		acctAttrUsername, name,
+		acctAttrToken, code,
+	); err != nil {
+		httputil.ServeError(w, r, fmt.Errorf("Error setting attributes: %v", err))
+		return
+	}
+	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)
+}
+
+func (im *imp) Run(ctx *importer.RunContext) (err error) {
 	log.Printf("Running dummy importer.")
 	defer func() {
 		log.Printf("Dummy importer returned: %v", err)
 	}()
-	root, err := im.host.RootObject()
-	if err != nil {
-		return err
-	}
-	fileRef, err := schema.WriteFileFromReader(im.host.Target(), "foo.txt", strings.NewReader("Some file.\n"))
+	root := ctx.RootNode()
+	fileRef, err := schema.WriteFileFromReader(ctx.Host.Target(), "foo.txt", strings.NewReader("Some file.\n"))
 	if err != nil {
 		return err
 	}
@@ -78,7 +151,15 @@ func (im *imp) Run(ctx *context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	return obj.SetAttr("camliContent", fileRef.String())
+	if err = obj.SetAttr("camliContent", fileRef.String()); err != nil {
+		return err
+	}
+	n, _ := strconv.Atoi(ctx.AccountNode().Attr(acctAttrRunNumber))
+	n++
+	ctx.AccountNode().SetAttr(acctAttrRunNumber, fmt.Sprint(n))
+	// Update the title each time, just to show it working. You
+	// wouldn't actually do this:
+	return root.SetAttr("title", fmt.Sprintf("dummy: %s import #%d", ctx.AccountNode().Attr(acctAttrUsername), n))
 }
 
 func (im *imp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
