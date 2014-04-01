@@ -71,10 +71,6 @@ limitations under the License.
 	display: block;
 }
 
-.cam-blobitem.cam-blobitem-image .cam-blobitem-thumbtitle {
-	display: none;
-}
-
 .cam-blobitem.cam-dropactive {
 	border: 1px solid #acf!important;
 	outline: 1px solid #acf!important;

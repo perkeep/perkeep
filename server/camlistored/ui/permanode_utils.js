@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Google Inc.
+Copyright 2014 The Camlistore Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,16 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-goog.provide('cam.imageUtil');
+goog.provide('cam.permanodeUtils');
 
-// Returns the size of image to request for a given dimension. We round up to the nearest power of two for cache friendliness.
-cam.imageUtil.getSizeToRequest = function(sizeToDisplay, opt_existingSize) {
-	if (opt_existingSize && sizeToDisplay <= opt_existingSize) {
-		return opt_existingSize;
-	}
+goog.require('goog.array');
 
-	var maxImageSize = 2000; // max size server will accept
-	for (var size = 64; (size <= sizeToDisplay && size < maxImageSize); size <<= 1) {
+cam.permanodeUtils.getSingleAttr = function(permanode, name) {
+	var val = permanode.attr[name];
+	if (val) {
+		return goog.isArray(val) ? val[0] : val;
 	}
-	return Math.min(size, maxImageSize);
+	return null;
 };

@@ -25,6 +25,8 @@ goog.require('goog.string');
 goog.require('goog.Uri');
 
 goog.require('cam.BlobItemContainerReact');
+goog.require('cam.BlobItemGenericContent');
+goog.require('cam.BlobItemImageContent');
 goog.require('cam.DetailView');
 goog.require('cam.Navigator');
 goog.require('cam.NavReact');
@@ -318,8 +320,10 @@ cam.IndexPage = React.createClass({
 		}
 	},
 
-	handleDetailURL_: function(item) {
-		return this.getDetailURL_(Boolean(item.im), item.blobref);
+	handleDetailURL_: function(blobref) {
+		var m = this.searchSession_.getMeta(blobref);
+		var rm = this.searchSession_.getResolvedMeta(blobref);
+		return this.getDetailURL_(Boolean(rm && rm.image), m.blobRef);
 	},
 
 	getDetailURL_: function(newUI, blobref) {
@@ -327,6 +331,8 @@ cam.IndexPage = React.createClass({
 		detailURL.setParameterValue('p', blobref);
 		if (newUI) {
 			detailURL.setParameterValue('newui', '1');
+		} else {
+			detailURL.removeParameter('newui');
 		}
 		return detailURL;
 	},
@@ -343,8 +349,7 @@ cam.IndexPage = React.createClass({
 		}
 
 		var blobref = goog.object.getAnyKey(this.state.selection);
-		var data = new cam.BlobItemReactData(blobref, this.searchSession_.getCurrentResults().description.meta);
-		if (data.m.camliType != 'permanode') {
+		if (this.searchSession_.getMeta(blobref).camliType != 'permanode') {
 			return null;
 		}
 
@@ -415,6 +420,7 @@ cam.IndexPage = React.createClass({
 			key: 'blobitemcontainer',
 			ref: 'blobItemContainer',
 			detailURL: this.handleDetailURL_,
+			handlers: [cam.BlobItemImageContent.getHandler, cam.BlobItemGenericContent.getHandler],
 			history: this.props.history,
 			onSelectionChange: this.handleSelectionChange_,
 			searchSession: this.searchSession_,
@@ -471,7 +477,7 @@ cam.IndexPage = React.createClass({
 			searchSession: this.searchSession_,
 			searchURL: searchURL,
 			oldURL: oldURL,
-			getDetailURL: this.getDetailURL_.bind(this, false),
+			getDetailURL: this.handleDetailURL_.bind(this),
 			navigator: this.navigator_,
 			keyEventTarget: this.props.eventTarget,
 			width: this.props.availWidth,

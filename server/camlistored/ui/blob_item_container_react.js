@@ -26,7 +26,6 @@ goog.require('goog.math.Size');
 goog.require('goog.style');
 
 goog.require('cam.BlobItemReact');
-goog.require('cam.BlobItemReactData');
 goog.require('cam.reactUtil');
 goog.require('cam.SearchSession');
 
@@ -44,6 +43,7 @@ cam.BlobItemContainerReact = React.createClass({
 
 	propTypes: {
 		detailURL: React.PropTypes.func.isRequired,  // string->string (blobref->complete detail URL)
+		handlers: React.PropTypes.array.isRequired,
 		history: cam.reactUtil.quacksLike({replaceState:React.PropTypes.func.isRequired}).isRequired,
 		onSelectionChange: React.PropTypes.func,
 		searchSession: cam.reactUtil.quacksLike({getCurrentResults:React.PropTypes.func.isRequired, addEventListener:React.PropTypes.func.isRequired, loadMoreResults:React.PropTypes.func.isRequired}),
@@ -63,7 +63,10 @@ cam.BlobItemContainerReact = React.createClass({
 		this.lastCheckedIndex_ = -1;
 		this.scrollbarWidth_ = goog.style.getScrollbarWidth();
 		this.layoutHeight_ = 0;
-		this.childProps_ = null;
+
+		// Minimal information we keep about every single child. We construct the actual child lazily when the user scrolls it into view using handler.
+		// @type {Array.<{{position:goog.math.Position, size:goog.math.Size, blobref:string, handler>}
+		this.childItems_ = null;
 
 		// TODO(aa): This can be removed when https://code.google.com/p/chromium/issues/detail?id=50298 is fixed and deployed.
 		this.updateHistoryThrottle_ = new goog.async.Throttle(this.updateHistory_, 2000);
@@ -87,7 +90,7 @@ cam.BlobItemContainerReact = React.createClass({
 			nextProps.searchSession.loadMoreResults();
 		}
 
-		this.childProps_ = null;
+		this.childItems_ = null;
 	},
 
 	componentWillUnmount: function() {
@@ -102,18 +105,27 @@ cam.BlobItemContainerReact = React.createClass({
 	},
 
 	render: function() {
-		this.updateChildProps_();
+		this.updateChildItems_();
 
-		var children = [];
-		this.childProps_.forEach(function(props) {
-			if (this.isVisible_(props.position.y) || this.isVisible_(props.position.y + props.size.height)) {
-				children.push(cam.BlobItemReact(props));
-			} else if (props.blobref == this.lastWheelItem_) {
-				children.push(cam.BlobItemReact(cam.object.extend(props, {visibility:'hidden'})));
-			}
-		}.bind(this));
+		var self = this;
+		var childControls = this.childItems_.filter(function(item) {
+			var visible = self.isVisible_(item.position.y) || self.isVisible_(item.position.y + item.size.height);
+			var isLastWheelItem = item.blobref == self.lastWheelItem_;
+			return visible || isLastWheelItem;
+		}).map(function(item) {
+			return cam.BlobItemReact({
+					key: item.blobref,
+					blobref: item.blobref,
+					checked: Boolean(self.props.selection[item.blobref]),
+					onCheckClick: self.handleCheckClick_,
+					onWheel: self.handleChildWheel_,
+					position: item.position,
+				},
+				item.handler.createContent(item.size)
+			);
+		});
 
-		children.push(React.DOM.div({
+		childControls.push(React.DOM.div({
 			key: 'marker',
 			style: {
 				position: 'absolute',
@@ -127,20 +139,30 @@ cam.BlobItemContainerReact = React.createClass({
 		// If we haven't filled the window with results, add some more.
 		this.fillVisibleAreaWithResults_();
 
-		return React.DOM.div({className:'cam-blobitemcontainer', style:this.props.style, onMouseDown:this.handleMouseDown_, onScroll:this.handleScroll_}, children);
+		return React.DOM.div({className:'cam-blobitemcontainer', style:this.props.style, onMouseDown:this.handleMouseDown_, onScroll:this.handleScroll_}, childControls);
 	},
 
-	updateChildProps_: function() {
-		if (this.childProps_ !== null) {
+	updateChildItems_: function() {
+		if (this.childItems_ !== null) {
 			return;
 		}
 
-		this.childProps_ = [];
+		this.childItems_ = [];
 
 		var results = this.props.searchSession.getCurrentResults();
-		var data = goog.array.map(results.blobs, function(blob) {
-			return new cam.BlobItemReactData(blob.blob, results.description.meta);
-		});
+		var items = results.blobs.map(function(blob) {
+			var blobref = blob.blob;
+			var self = this;
+			var href = self.props.detailURL(blobref).toString();
+			var handler = null;
+			this.props.handlers.some(function(h) { return handler = h(blobref, self.props.searchSession, href); });
+			return {
+				blobref: blobref,
+				handler: handler,
+				position: null,
+				size: null,
+			};
+		}.bind(this));
 
 		var currentTop = this.BLOB_ITEM_MARGIN_;
 		var currentWidth = this.BLOB_ITEM_MARGIN_;
@@ -148,9 +170,9 @@ cam.BlobItemContainerReact = React.createClass({
 		var lastItem = results.blobs.length - 1;
 
 		for (var i = rowStart; i <= lastItem; i++) {
-			var item = data[i];
+			var item = items[i];
 			var availWidth = this.props.style.width - this.scrollbarWidth_;
-			var nextWidth = currentWidth + this.props.thumbnailSize * item.aspect + this.BLOB_ITEM_MARGIN_;
+			var nextWidth = currentWidth + this.props.thumbnailSize * item.handler.getAspectRatio() + this.BLOB_ITEM_MARGIN_;
 			if (i != lastItem && nextWidth < availWidth) {
 				currentWidth = nextWidth;
 				continue;
@@ -178,7 +200,7 @@ cam.BlobItemContainerReact = React.createClass({
 				rowWidth = nextWidth;
 			}
 
-			currentTop += this.updateChildPropsRow_(data, rowStart, rowEnd, availWidth, rowWidth, currentTop) + this.BLOB_ITEM_MARGIN_;
+			currentTop += this.updateChildItemsRow_(items, rowStart, rowEnd, availWidth, rowWidth, currentTop) + this.BLOB_ITEM_MARGIN_;
 
 			currentWidth = this.BLOB_ITEM_MARGIN_;
 			rowStart = rowEnd + 1;
@@ -188,7 +210,7 @@ cam.BlobItemContainerReact = React.createClass({
 		this.layoutHeight_ = currentTop;
 	},
 
-	updateChildPropsRow_: function(data, startIndex, endIndex, availWidth, usedWidth, top) {
+	updateChildItemsRow_: function(items, startIndex, endIndex, availWidth, usedWidth, top) {
 		var currentLeft = 0;
 		var rowHeight = Number.POSITIVE_INFINITY;
 
@@ -198,25 +220,17 @@ cam.BlobItemContainerReact = React.createClass({
 
 		for (var i = startIndex; i <= endIndex; i++) {
 			// We figure out the amount to adjust each item in this slightly non-intuitive way so that the adjustment is split up as fairly as possible. Figuring out a ratio up front and applying it to all items uniformly can end up with a large amount left over because of rounding.
-			var item = data[i];
+			var item = items[i];
 			var numItemsLeft = (endIndex + 1) - i;
 			var delta = Math.round((availThumbWidth - usedThumbWidth) / numItemsLeft);
-			var originalWidth = this.props.thumbnailSize * item.aspect;
+			var originalWidth = this.props.thumbnailSize * item.handler.getAspectRatio();
 			var width = originalWidth + delta;
 			var ratio = width / originalWidth;
 			var height = Math.round(this.props.thumbnailSize * ratio);
 
-			this.childProps_.push({
-				key: item.blobref,
-				blobref: item.blobref,
-				checked: Boolean(this.props.selection[item.blobref]),
-				href: this.props.detailURL(item).toString(),
-				data: item,
-				onCheckClick: this.handleCheckClick_,
-				onWheel: this.handleChildWheel_,
-				position: new goog.math.Coordinate(currentLeft + this.BLOB_ITEM_MARGIN_, top),
-				size: new goog.math.Size(width, height),
-			});
+			item.position = new goog.math.Coordinate(currentLeft + this.BLOB_ITEM_MARGIN_, top);
+			item.size = new goog.math.Size(width, height);
+			this.childItems_.push(item);
 
 			currentLeft += width + this.BLOB_ITEM_MARGIN_;
 			usedThumbWidth += delta;
@@ -224,7 +238,7 @@ cam.BlobItemContainerReact = React.createClass({
 		}
 
 		for (var i = startIndex; i <= endIndex; i++) {
-			this.childProps_[i].size.height = rowHeight;
+			this.childItems_[i].size.height = rowHeight;
 		}
 
 		return rowHeight;
@@ -235,7 +249,7 @@ cam.BlobItemContainerReact = React.createClass({
 	},
 
 	handleSearchSessionChanged_: function() {
-		this.childProps_ = null;
+		this.childItems_ = null;
 		this.forceUpdate();
 	},
 
