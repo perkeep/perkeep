@@ -120,6 +120,33 @@ cam.SearchSession.prototype.close = function() {
 	}
 };
 
+cam.SearchSession.prototype.getMeta = function(blobref) {
+	return this.data_.description.meta[blobref];
+};
+
+cam.SearchSession.prototype.getResolvedMeta = function(blobref) {
+	var meta = this.data_.description.meta[blobref];
+	if (meta.camliType == 'permanode') {
+		var camliContent = cam.permanodeUtils.getSingleAttr(meta.permanode, 'camliContent');
+		if (camliContent) {
+			return this.data_.description.meta[camliContent];
+		}
+	}
+	return meta;
+};
+
+cam.SearchSession.prototype.getTitle = function(blobref) {
+	var meta = this.getMeta(blobref);
+	if (meta.camliType == 'permanode') {
+		var title = cam.permanodeUtils.getSingleAttr(meta.permanode, 'title');
+		if (title) {
+			return title;
+		}
+	}
+	var rm = this.getResolvedMeta(blobref);
+	return (rm && rm.camliType == 'file' && rm.file.fileName) || (rm && rm.camliType == 'directory' && rm.dir.fileName) || '';
+};
+
 cam.SearchSession.prototype.resetData_ = function() {
 	this.data_ = {
 		blobs: [],

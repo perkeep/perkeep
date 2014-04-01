@@ -23,15 +23,14 @@ goog.require('goog.object');
 goog.require('goog.string');
 
 goog.require('cam.AnimationLoop');
-goog.require('cam.BlobItemReactData');
 goog.require('cam.ImageDetail');
-goog.require('cam.imageUtil');
 goog.require('cam.Navigator');
 goog.require('cam.reactUtil');
-goog.require('cam.PropertySheetContainer');
 goog.require('cam.SearchSession');
 goog.require('cam.SpritedAnimation');
 
+// Top-level control for the detail view. Handles loading data specified in URL and left/right navigation.
+// The details of the actual rendering are left up to child controls which are chosen based on the type of data loaded. However, currently there is only one type of child control: cam.ImageDetail.
 cam.DetailView = React.createClass({
 	displayName: 'DetailView',
 
@@ -71,13 +70,16 @@ cam.DetailView = React.createClass({
 			return React.DOM.div();
 		}
 
-		// TODO(aa): Different types of detail views can go here based on what's in blobItemData.
+		// TODO(aa): Different types of detail views can go here based on what blobref refers to.
+		var meta = this.props.searchSession.getMeta(this.props.blobref);
+		var permanodeMeta = meta.camliType == 'permanode' ? meta : null;
 		return cam.ImageDetail({
 			backwardPiggy: this.state.lastNavigateWasBackward,
-			blobItemData: new cam.BlobItemReactData(this.props.blobref, this.props.searchSession.getCurrentResults().description.meta),
 			height: this.props.height,
 			oldURL: this.props.oldURL,
 			onEscape: this.handleEscape_,
+			permanodeMeta: permanodeMeta,
+			resolvedMeta: this.props.searchSession.getResolvedMeta(this.props.blobref),
 			searchURL: this.props.searchURL,
 			width: this.props.width,
 		});
@@ -166,6 +168,6 @@ cam.DetailView = React.createClass({
 	},
 
 	dataIsLoaded_: function() {
-		return Boolean(this.props.searchSession.getCurrentResults().description.meta[this.props.blobref]);
+		return Boolean(this.props.searchSession.getMeta(this.props.blobref));
 	},
 });

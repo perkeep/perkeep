@@ -16,6 +16,10 @@ limitations under the License.
 
 goog.provide('cam.ImageDetail');
 
+goog.require('cam.PropertySheetContainer');
+goog.require('cam.Thumber');
+
+// Renders the guts of the detail view for images.
 cam.ImageDetail = React.createClass({
 	displayName: 'ImageDetail',
 
@@ -25,29 +29,24 @@ cam.ImageDetail = React.createClass({
 
 	propTypes: {
 		backwardPiggy: false,
-		blobItemData: React.PropTypes.instanceOf(cam.BlobItemReactData).isRequired,
 		height: React.PropTypes.number.isRequired,
 		oldURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		onEscape: React.PropTypes.func.isRequired,
+		permanodeMeta: React.PropTypes.object,
+		resolvedMeta: React.PropTypes.object.isRequired,
 		searchURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		width: React.PropTypes.number.isRequired,
 	},
 
-	getInitialState: function() {
-		this.imgSize_ = null;
-		this.lastImageHeight_ = 0;
-
-		return {
-			imgHasLoaded: false,
-		};
-	},
-
 	componentWillReceiveProps: function(nextProps) {
-		if (this.props.blobItemData.blobref != nextProps.blobItemData.blobref) {
-			this.imgSize_ = null;
-			this.lastImageHeight_ = 0;
+		if (this.props == nextProps || this.props.resolvedMeta.blobRef != nextProps.resolvedMeta.blobRef) {
+			this.thumber_ = cam.Thumber.fromImageMeta(nextProps.resolvedMeta);
 			this.setState({imgHasLoaded: false});
 		}
+	},
+
+	componentWillMount: function() {
+		this.componentWillReceiveProps(this.props, true);
 	},
 
 	componentDidMount: function() {
@@ -84,7 +83,7 @@ cam.ImageDetail = React.createClass({
 	},
 
 	getGeneralProperties_: function() {
-		if (this.props.blobItemData.m.camliType != 'permanode') {
+		if (!this.props.permanodeMeta) {
 			return null;
 		}
 		return cam.PropertySheet({key:'general', title:'Generalities'}, [
@@ -94,8 +93,8 @@ cam.ImageDetail = React.createClass({
 	},
 
 	getFileishProperties_: function() {
-		var isFile = this.props.blobItemData.rm.camliType == 'file';
-		var isDir = this.props.blobItemData.rm.camliType == 'directory';
+		var isFile = this.props.resolvedMeta.camliType == 'file';
+		var isDir = this.props.resolvedMeta.camliType == 'directory';
 		if (!isFile && !isDir) {
 			return null;
 		}
@@ -103,18 +102,18 @@ cam.ImageDetail = React.createClass({
 			React.DOM.table({}, [
 				React.DOM.tr({}, [
 					React.DOM.td({}, 'filename'),
-					React.DOM.td({}, isFile ? this.props.blobItemData.rm.file.fileName : this.props.blobItemData.rm.dir.fileName),
+					React.DOM.td({}, isFile ? this.props.resolvedMeta.file.fileName : this.props.resolvedMeta.dir.fileName),
 				]),
 				React.DOM.tr({}, [
 					React.DOM.td({}, 'size'),
-					React.DOM.td({}, this.props.blobItemData.rm.file.size + ' bytes'),  // TODO(aa): Humanize units
+					React.DOM.td({}, this.props.resolvedMeta.file.size + ' bytes'),  // TODO(aa): Humanize units
 				]),
 			]),
 		]);
 	},
 
 	getImageProperties_: function() {
-		if (!this.props.blobItemData.im) {
+		if (!this.props.resolvedMeta.image) {
 			return null;
 		}
 
@@ -122,11 +121,11 @@ cam.ImageDetail = React.createClass({
 			React.DOM.table({}, [
 				React.DOM.tr({}, [
 					React.DOM.td({}, 'width'),
-					React.DOM.td({}, this.props.blobItemData.im.width),
+					React.DOM.td({}, this.props.resolvedMeta.image.width),
 				]),
 				React.DOM.tr({}, [
 					React.DOM.td({}, 'height'),
-					React.DOM.td({}, this.props.blobItemData.im.height),
+					React.DOM.td({}, this.props.resolvedMeta.image.height),
 				]),
 				// TODO(aa): encoding type, exif data, etc.
 			]),
@@ -141,14 +140,8 @@ cam.ImageDetail = React.createClass({
 		]);
 	},
 
-	// TODO(aa): We need a Permanode utility class that wraps the JSON goop.
 	getSinglePermanodeAttr_: function(name) {
-		var m = this.props.blobItemData.m;
-		if (m.camliType == 'permanode' && m.permanode.attr[name]) {
-			return goog.isArray(m.permanode.attr[name]) ? m.permanode.attr[name][0] : m.permanode.attr[name];
-		} else {
-			return null;
-		}
+		return cam.permanodeUtils.getSingleAttr(this.props.permanodeMeta.permanode, name);
 	},
 
 	onImgLoad_: function() {
@@ -167,7 +160,7 @@ cam.ImageDetail = React.createClass({
 					// We want each image to have its own node in the DOM so that during the crossfade, we don't see the image jump to the next image's size.
 					key: this.getImageId_(),
 					ref: this.getImageId_(),
-					src: this.getSrc_(),
+					src: this.thumber_.getSrc(this.imgSize_.height),
 					style: this.getCenteredProps_(this.imgSize_.width, this.imgSize_.height)
 				})
 			);
@@ -206,16 +199,11 @@ cam.ImageDetail = React.createClass({
 		}
 	},
 
-	getSrc_: function() {
-		this.lastImageHeight_ = Math.min(this.props.blobItemData.im.height, cam.imageUtil.getSizeToRequest(this.imgSize_.height, this.lastImageHeight_));
-		return this.props.blobItemData.getThumbSrc(this.lastImageHeight_);
-	},
-
 	getImgSize_: function() {
-		if (!this.props.blobItemData || !this.props.blobItemData.im) {
+		if (!this.props.resolvedMeta.image) {
 			return null;
 		}
-		var rawSize = new goog.math.Size(this.props.blobItemData.im.width, this.props.blobItemData.im.height);
+		var rawSize = new goog.math.Size(this.props.resolvedMeta.image.width, this.props.resolvedMeta.image.height);
 		var available = new goog.math.Size(
 			this.props.width - this.getSidebarWidth_() - this.IMG_MARGIN * 2,
 			this.props.height - this.IMG_MARGIN * 2);
@@ -242,18 +230,11 @@ cam.ImageDetail = React.createClass({
 		return Math.max(this.props.width * 0.2, 300);
 	},
 
-	getPermanodeMeta_: function() {
-		if (!this.props.blobItemData) {
-			return null;
-		}
-		return this.props.blobItemData.m;
-	},
-
 	getImageRef_: function() {
 		return this.refs && this.refs[this.getImageId_()];
 	},
 
 	getImageId_: function() {
-		return 'img' + this.props.blobItemData.blobref;
+		return 'img' + this.props.resolvedMeta.blobRef;
 	}
 });

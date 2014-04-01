@@ -43,7 +43,7 @@ func init() {
 	cmdmain.RegisterCommand("init", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(initCmd)
 		flags.BoolVar(&cmd.newKey, "newkey", false,
-			fmt.Sprintf("Automatically generate a new identity in a new secret ring at %s", osutil.DefaultSecretRingFile()))
+			"Automatically generate a new identity in a new secret ring at the default location (~/.config/camlistore/identity-secring.gpg on linux).")
 		flags.StringVar(&cmd.keyId, "gpgkey", "", "GPG key ID to use for signing (overrides $GPGKEY environment)")
 		flags.BoolVar(&cmd.noconfig, "noconfig", false, "Stop after creating the public key blob, and do not try and create a config file.")
 		return cmd

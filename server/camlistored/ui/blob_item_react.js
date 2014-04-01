@@ -15,168 +15,28 @@ limitations under the License.
 */
 
 goog.provide('cam.BlobItemReact');
-goog.provide('cam.BlobItemReactData');
 
-goog.require('goog.array');
-goog.require('goog.object');
 goog.require('goog.string');
 goog.require('goog.math.Coordinate');
-goog.require('goog.math.Size');
-
-goog.require('cam.imageUtil');
-goog.require('cam.math');
-goog.require('cam.PyramidThrobber');
-
-// Extracts the bits of metadata that BlobItemReact needs.
-cam.BlobItemReactData = function(blobref, metabag) {
-	this.blobref = blobref;
-	this.metabag = metabag;
-	this.m = metabag[blobref];
-	this.rm = this.constructor.getResolvedMeta_(this.m, metabag);
-	this.cci = this.constructor.getCamliContentImage_(this.m, metabag);
-	this.im = this.constructor.getImageMeta_(this.rm, this.cci);
-	this.isStaticCollection = this.constructor.isStaticCollection_(this.rm);
-	this.thumbType = this.constructor.getThumbType_(this);
-	this.aspect = this.constructor.getAspect_(this.im, this.thumbType);
-	this.title = this.constructor.getTitle_(this.m, this.rm);
-};
-
-cam.BlobItemReactData.getTitle_ = function(m, rm) {
-	if (m) {
-		if (m.camliType == 'permanode' && m.permanode && m.permanode.attr && m.permanode.attr.title) {
-			return goog.isArray(m.permanode.attr.title) ? m.permanode.attr.title[0] : m.permanode.attr.title;
-		}
-	}
-	if (rm) {
-		if (rm.camliType == 'file' && rm.file) {
-			return rm.file.fileName;
-		}
-		if (rm.camliType == 'directory' && rm.dir) {
-			return rm.dir.fileName;
-		}
-		if (rm.camliType == 'permanode' && rm.permanode && rm.permanode.attr && rm.permanode.attr.title) {
-			return goog.isArray(m.permanode.attr.title) ? m.permanode.attr.title[0] : m.permanode.attr.title;
-		}
-	}
-	return 'Unknown title';
-};
-
-cam.BlobItemReactData.getAspect_ = function(im, tt) {
-	if (tt == 'image') {
-		return im.width / im.height;
-	}
-
-	// These are the dimensions of the static icons we use for each of these cases.
-	if (tt == 'file') {
-		return 260 / 300;
-	} else if (tt == 'folder') {
-		return 300 / 300;
-	} else if (tt == 'node') {
-		return 100 / 100;
-	}
-
-	throw new Error('Unexpected thumb type: ' + tt);
-};
-
-cam.BlobItemReactData.isStaticCollection_ = function(rm) {
-	return rm.camliType == 'directory' || rm.camliType == 'static-set';
-};
-
-cam.BlobItemReactData.getThumbType_ = function(data) {
-	if (data.im || data.cci) {
-		return 'image';
-	}
-
-	if (data.rm.camliType == 'file') {
-		return 'file';
-	}
-
-	if (data.isStaticCollection || data.m.camliType == 'permanode') {
-		return 'folder';
-	}
-
-	return 'file';
-};
-
-cam.BlobItemReactData.getImageMeta_ = function(rm, cci) {
-	if (rm && rm.image) {
-		return rm.image;
-	} else if (cci) {
-		return cci.image;
-	} else {
-		return null;
-	}
-};
-
-cam.BlobItemReactData.getResolvedMeta_ = function(m, metabag) {
-	if (m.camliType == 'permanode' && m.permanode && m.permanode.attr && m.permanode.attr.camliContent && m.permanode.attr.camliContent.length == 1) {
-		return metabag[m.permanode.attr.camliContent[0]];
-	} else {
-		return m;
-	}
-};
-
-cam.BlobItemReactData.getCamliContentImage_ = function(m, metabag) {
-	if (m.permanode && m.permanode.attr.camliContentImage && m.permanode.attr.camliContentImage.length) {
-		return metabag[m.permanode.attr.camliContentImage[0]];
-	} else {
-		return null;
-	}
-};
-
-cam.BlobItemReactData.prototype.getThumbSrc = function(thumbSize) {
-	var baseName = '';
-	if (this.thumbType == 'image') {
-		var blobref = this.cci ? this.cci.blobRef : this.m.permanode.attr.camliContent;
-		baseName = goog.string.subs('thumbnail/%s/%s.jpg', blobref, (this.rm.file && this.rm.file.fileName) ? this.rm.file.fileName : blobref);
-	} else {
-		baseName = this.thumbType + '.png';
-	}
-	return goog.string.subs('%s?mh=%s&tv=%s', baseName, thumbSize, goog.global.CAMLISTORE_CONFIG ? goog.global.CAMLISTORE_CONFIG.thumbVersion : '');
-};
-
 
 cam.BlobItemReact = React.createClass({
 	displayName: 'BlobItemReact',
 
-	TITLE_HEIGHT: 22,
-
 	propTypes: {
 		blobref: React.PropTypes.string.isRequired,
 		checked: React.PropTypes.bool.isRequired,
-		href: React.PropTypes.string.isRequired,
-		data: React.PropTypes.instanceOf(cam.BlobItemReactData).isRequired,
 		onCheckClick: React.PropTypes.func.isRequired,  // (string,event)->void
+		onWheel: React.PropTypes.func.isRequired,
 		position: React.PropTypes.instanceOf(goog.math.Coordinate).isRequired,
-		size: React.PropTypes.instanceOf(goog.math.Size).isRequired,
 	},
 
 	getInitialState: function() {
 		return {
-			loaded: false,
 			hovered: false,
 		};
 	},
 
-	componentWillMount: function() {
-		this.currentIntrinsicThumbHeight_ = 0;
-	},
-
-	componentDidMount: function() {
-		this.refs.thumb.getDOMNode().addEventListener('load', this.onThumbLoad_);
-		this.refs.thumb.getDOMNode().addEventListener('error', this.onThumbLoad_);
-	},
-
-	componentDidUpdate: function(prevProps, prevState) {
-		if (prevProps.blobref != this.props.blobref) {
-			this.currentIntrinsicThumbHeight_ = 0;
-			this.setState({loaded: false});
-		}
-	},
-
 	render: function() {
-		var thumbClipSize = this.getThumbClipSize_();
-
 		return React.DOM.div({
 				className: this.getRootClassName_(),
 				style: this.getRootStyle_(),
@@ -185,28 +45,13 @@ cam.BlobItemReact = React.createClass({
 				onWheel: this.handleWheel_,
 			},
 			React.DOM.div({className:'checkmark', onClick:this.handleCheckClick_}),
-			React.DOM.a({href:this.props.href},
-				React.DOM.div({className:this.getThumbClipClassName_(), style:thumbClipSize},
-					this.getThrobber_(thumbClipSize),
-					this.getThumb_(thumbClipSize)
-				),
-				this.getLabel_()
-			)
+			this.props.children
 		);
-	},
-
-	componentWillUnmount: function() {
-		this.refs.thumb.getDOMNode().removeEventListener('load', this.onThumbLoad_);
-	},
-
-	onThumbLoad_: function() {
-		this.setState({loaded:true});
 	},
 
 	getRootClassName_: function() {
 		return React.addons.classSet({
 			'cam-blobitem': true,
-			'cam-blobitem-image': Boolean(this.props.data.im),
 			'goog-control-hover': this.state.hovered,
 			'goog-control-checked': this.props.checked,
 		});
@@ -235,59 +80,5 @@ cam.BlobItemReact = React.createClass({
 		if (this.props.onWheel) {
 			this.props.onWheel(this);
 		}
-	},
-
-	getThumbClipClassName_: function() {
-		return React.addons.classSet({
-			'cam-blobitem-thumbclip': true,
-			'cam-blobitem-loading': !this.state.loaded,
-		});
-	},
-
-	getThrobber_: function(thumbClipSize) {
-		if (this.state.loaded) {
-			return null;
-		}
-		return cam.PyramidThrobber({pos:cam.math.center(cam.PyramidThrobber.SIZE, thumbClipSize)});
-	},
-
-	getThumb_: function(thumbClipSize) {
-		var thumbSize = this.getThumbSize_(thumbClipSize);
-		var pos = cam.math.center(thumbSize, thumbClipSize);
-		return React.DOM.img({
-			className: 'cam-blobitem-thumb',
-			ref: 'thumb',
-			src: this.getThumbSrc_(thumbSize),
-			style: {left:pos.x, top:pos.y, visibility:(this.state.loaded ? 'visible' : 'hidden')},
-			title: this.props.data.title,
-			width: thumbSize.width,
-			height: thumbSize.height,
-		})
-	},
-
-	getThumbSrc_: function(thumbSize) {
-		this.currentIntrinsicThumbHeight_ = cam.imageUtil.getSizeToRequest(thumbSize.height, this.currentIntrinsicThumbHeight_);
-		return this.props.data.getThumbSrc(this.currentIntrinsicThumbHeight_);
-	},
-
-	getLabel_: function() {
-		// We don't show the label at all for images.
-		if (this.props.data.im) {
-			return null;
-		}
-		return React.DOM.span({className:'cam-blobitem-thumbtitle', style:{width:this.props.size.width}},
-			this.props.data.title);
-	},
-
-	getThumbSize_: function(thumbClipSize) {
-		return cam.math.scaleToFit(new goog.math.Size(this.props.data.aspect, 1), thumbClipSize, Boolean(this.props.data.im));
-	},
-
-	getThumbClipSize_: function() {
-		var h = this.props.size.height;
-		if (!this.props.data.im) {
-			h -= this.TITLE_HEIGHT;
-		}
-		return new goog.math.Size(this.props.size.width, h);
 	},
 });

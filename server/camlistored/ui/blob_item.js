@@ -22,8 +22,8 @@ goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
 goog.require('goog.ui.Control');
 
-goog.require('cam.imageUtil');
 goog.require('cam.ServerType');
+goog.require('cam.Thumber');
 
 
 // @fileoverview An item showing in a blob item container; represents a blob that has already been uploaded in the system, or acts as a placeholder for a new blob.
@@ -59,7 +59,12 @@ cam.BlobItem.prototype.update = function(blobRef, metaBag, opt_contentLink) {
 	this.metaBag_ = metaBag;
 	this.metaData_ = this.metaBag_[this.blobRef_];
 	this.resolvedMetaData_ = cam.BlobItem.resolve(this.blobRef_, this.metaBag_);
-	this.currentIntrinsicImageHeight_ = 0;
+
+	if (this.resolvedMetaData_.image) {
+		this.thumber_ = cam.Thumber.fromImageMeta(this.resolvedMetaData_);
+	} else {
+		this.thumber_ = new cam.Thumber(this.metaData_.thumbnailSrc);
+	}
 };
 
 cam.BlobItem.TITLE_HEIGHT = 21;
@@ -163,32 +168,15 @@ cam.BlobItem.prototype.setThumbSize = function(w, h) {
 	this.loading_.style.top = Math.round((h - 85) / 2) + 'px';
 	this.loading_.style.left = Math.round((w - 70) / 2) + 'px';
 
-	// Load a differently sized image from server if necessary.
-	if (!this.thumb_.src || adjustedWidth > parseInt(this.thumbClip_.style.width) || adjustedHeight > parseInt(this.thumbClip_.style.height)) {
-		this.currentIntrinsicImageHeight_ = cam.imageUtil.getSizeToRequest(adjustedHeight, this.currentIntrinsicImageHeight_);
-
-		var tv = '';
-		if (window.CAMLISTORE_CONFIG) {
-			tv = CAMLISTORE_CONFIG.thumbVersion || '';
-		}
-
-		// TODO(aa): The mh param is kind of a hack, it would be better if the server just returned the base URL and the aspect ratio, rather than specific dimensions.
-		var newThumb = this.getThumbSrc_().split('?')[0] + '?mh=' +
-				this.currentIntrinsicImageHeight_ + '&tv=' + tv;
-
-		// It's important to only assign the new src if it has changed. Assigning a src causes layout and style recalc.
-		if (newThumb != this.thumb_.getAttribute('src')) {
-			this.thumb_.src = newThumb;
-		}
+	// It's important to only assign the new src if it has changed. Assigning a src causes layout and style recalc.
+	var newThumb = this.thumber_.getSrc(adjustedHeight);
+	if (newThumb != this.thumb_.getAttribute('src')) {
+		this.thumb_.src = newThumb;
 	}
 };
 
 cam.BlobItem.prototype.isImage = function() {
 	return Boolean(this.resolvedMetaData_.image);
-};
-
-cam.BlobItem.prototype.getThumbSrc_ = function() {
-	return './' + this.metaData_.thumbnailSrc;
 };
 
 cam.BlobItem.prototype.getLink_ = function() {
