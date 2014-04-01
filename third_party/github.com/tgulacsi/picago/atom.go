@@ -17,6 +17,7 @@ type Atom struct {
 	Title        string    `xml:"title"`
 	Subtitle     string    `xml:"subtitle"`
 	Icon         string    `xml:"icon"`
+	Thumbnail    string    `xml:"http://schemas.google.com/photos/2007 thumbnail"`
 	Author       Author    `xml:"author"`
 	NumPhotos    int       `xml:"numphotos"`
 	StartIndex   int       `xml:"startIndex"`
