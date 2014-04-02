@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"camlistore.org/pkg/blob"
@@ -137,12 +138,13 @@ func (vr *VerifyRequest) ParsePayloadMap() bool {
 
 func (vr *VerifyRequest) FindAndParsePublicKeyBlob() bool {
 	reader, _, err := vr.fetcher.Fetch(vr.CamliSigner)
+	if err == os.ErrNotExist {
+		vr.Err = camerrors.ErrMissingKeyBlob
+		return false
+	}
 	if err != nil {
 		log.Printf("error fetching public key blob %v: %v", vr.CamliSigner, err)
-		// TODO(mpl): we're losing some info here, so maybe
-		// create an error type that contains the reason,
-		// instead of logging the reason.
-		vr.Err = camerrors.ErrMissingKeyBlob
+		vr.Err = err
 		return false
 	}
 	defer reader.Close()

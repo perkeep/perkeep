@@ -28,6 +28,7 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/sorted"
@@ -357,4 +358,68 @@ func TestOutOfOrderIndexing(t *testing.T) {
 			t.Errorf("Shouldn't have missing key: %q", k)
 		}
 	})
+}
+
+func TestIndexingClaimMissingPubkey(t *testing.T) {
+	s := sorted.NewMemoryKeyValue()
+	idx, err := index.New(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	id := indextest.NewIndexDeps(idx)
+	id.Fataler = t
+
+	goodKeyFetcher := id.Index.KeyFetcher
+	emptyFetcher := new(test.Fetcher)
+
+	pn := id.NewPermanode()
+
+	// Prevent the index from being able to find the public key:
+	idx.KeyFetcher = emptyFetcher
+
+	// This previous failed to upload, since the signer's public key was
+	// unavailable.
+	claimRef := id.SetAttribute(pn, "tag", "foo")
+
+	t.Logf(" Claim is %v", claimRef)
+	t.Logf("Signer is %v", id.SignerBlobRef)
+
+	// Verify that populateClaim noted the missing public key blob:
+	{
+		key := fmt.Sprintf("missing|%s|%s", claimRef, id.SignerBlobRef)
+		if got, err := s.Get(key); got == "" || err != nil {
+			t.Errorf("key %q missing (err: %v); want 1", key, err)
+		}
+	}
+
+	// Now make it available again:
+	idx.KeyFetcher = idx.BlobSource
+
+	if err := copyBlob(id.SignerBlobRef, idx.BlobSource.(*test.Fetcher), goodKeyFetcher); err != nil {
+		t.Errorf("Error copying public key to BlobSource: %v", err)
+	}
+	if err := copyBlob(id.SignerBlobRef, idx, goodKeyFetcher); err != nil {
+		t.Errorf("Error uploading public key to indexer: %v", err)
+	}
+
+	idx.Exp_AwaitReindexing(t)
+
+	// Verify that populateClaim noted the missing public key blob:
+	{
+		key := fmt.Sprintf("missing|%s|%s", claimRef, id.SignerBlobRef)
+		if got, err := s.Get(key); got != "" || err == nil {
+			t.Errorf("row %q still exists", key)
+		}
+	}
+}
+
+func copyBlob(br blob.Ref, dst blobserver.BlobReceiver, src blob.Fetcher) error {
+	rc, _, err := src.Fetch(br)
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+	_, err = dst.ReceiveBlob(br, rc)
+	return err
 }

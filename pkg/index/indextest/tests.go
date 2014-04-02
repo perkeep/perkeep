@@ -104,6 +104,10 @@ func (id *IndexDeps) uploadAndSign(m *schema.Builder) blob.Ref {
 		id.Fatalf("problem signing: " + err.Error())
 	}
 	tb := &test.Blob{Contents: signed}
+	_, err = id.BlobSource.ReceiveBlob(tb.BlobRef(), tb.Reader())
+	if err != nil {
+		id.Fatalf("public uploading signed blob to blob source, pre-indexing: %v, %v", tb.BlobRef(), err)
+	}
 	_, err = id.Index.ReceiveBlob(tb.BlobRef(), tb.Reader())
 	if err != nil {
 		id.Fatalf("problem indexing blob: %v\nblob was:\n%s", err, signed)

@@ -284,7 +284,7 @@ func (ix *Index) populateMutationMap(fetcher *missTrackFetcher, br blob.Ref, sni
 	if blob, ok := sniffer.SchemaBlob(); ok {
 		switch blob.Type() {
 		case "claim":
-			if err := ix.populateClaim(blob, mm); err != nil {
+			if err := ix.populateClaim(fetcher, blob, mm); err != nil {
 				return nil, err
 			}
 		case "file":
@@ -647,7 +647,7 @@ func (ix *Index) populateDeleteClaim(cl schema.Claim, vr *jsonsign.VerifyRequest
 	mm.Set(claimKey, keyPermanodeClaim.Val(cl.ClaimType(), attr, value, vr.CamliSigner))
 }
 
-func (ix *Index) populateClaim(b *schema.Blob, mm *mutationMap) error {
+func (ix *Index) populateClaim(fetcher *missTrackFetcher, b *schema.Blob, mm *mutationMap) error {
 	br := b.BlobRef()
 
 	claim, ok := b.AsClaim()
@@ -656,7 +656,7 @@ func (ix *Index) populateClaim(b *schema.Blob, mm *mutationMap) error {
 		return nil
 	}
 
-	vr := jsonsign.NewVerificationRequest(b.JSON(), ix.KeyFetcher)
+	vr := jsonsign.NewVerificationRequest(b.JSON(), blob.NewSerialFetcher(ix.KeyFetcher, fetcher))
 	if !vr.Verify() {
 		// TODO(bradfitz): ask if the vr.Err.(jsonsign.Error).IsPermanent() and retry
 		// later if it's not permanent? or maybe do this up a level?
