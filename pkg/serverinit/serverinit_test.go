@@ -154,6 +154,9 @@ func testConfig(name string, t *testing.T) {
 	if err != nil {
 		return
 	}
+	if err := (&jsonconfig.ConfigParser{}).CheckTypes(lowLevelConf.Obj); err != nil {
+		t.Fatalf("Error while parsing low-level conf generated from %v: %v", name, err)
+	}
 
 	wantFile := strings.Replace(name, ".json", "-want.json", 1)
 	wantConf, err := configParser().ReadFile(wantFile)

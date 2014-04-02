@@ -115,7 +115,11 @@ func addUIConfig(params *configPrefixesParams,
 		"cache":        "/cache/",
 	}
 	if len(published) > 0 {
-		args["publishRoots"] = published
+		var publishedAsList []interface{}
+		for _, v := range published {
+			publishedAsList = append(publishedAsList, v)
+		}
+		args["publishRoots"] = publishedAsList
 	}
 	if sourceRoot != "" {
 		args["sourceRoot"] = sourceRoot
