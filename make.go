@@ -342,7 +342,7 @@ func buildSrcPath(fromSrc string) string {
 // It also populates wantDestFile with those files so they're
 // kept in between runs.
 func genEmbeds() error {
-	cmdName := filepath.Join(buildGoPath, "bin", "genfileembed")
+	cmdName := exeName(filepath.Join(buildGoPath, "bin", "genfileembed"))
 	uiEmbeds := buildSrcPath("server/camlistored/ui")
 	serverEmbeds := buildSrcPath("pkg/server")
 	reactEmbeds := buildSrcPath("third_party/react")
