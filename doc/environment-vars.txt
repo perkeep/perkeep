@@ -82,9 +82,10 @@ CAMLI_INCLUDE_PATH (string):
   /path/1:/path/two:/some/other/path, and Windows would be C:\path\one;D:\path\2
 
 CAMLI_KEYID (string):
-  devcam commands only, used by config/dev-server-config.json, and
-  config/dev-client-dir/client-config.json: public ID of the GPG key
-  to use for signing.
+  Optional GPG identity to use, taking precedence over config files.
+  Used by devcam commands, in config/dev-server-config.json, and
+  config/dev-client-dir/client-config.json as the public ID of the GPG
+  key to use for signing.
 
 CAMLI_KV_VERIFY (bool):
   Enable all the VerifyDb* options in cznic/kv, to e.g. track down
@@ -108,9 +109,6 @@ CAMLI_QUIET (bool):
 CAMLI_FAST_DEV (bool):
   Used by dev/demo.sh for giving presentations with devcam server/put/etc
   for faster pre-built builds, without calling make.go.
-
-CAMLI_CLIENT_IDENTITY (string):
-  Optional GPG identity to use, taking precedence over config files.
 
 CAMLI_SECRET_RING (string):
   Path to the GPG secret keyring, which is otherwise set by identitySecretRing

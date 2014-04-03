@@ -358,7 +358,7 @@ func (c *Client) SignerPublicKeyBlobref() blob.Ref {
 }
 
 func (c *Client) initSignerPublicKeyBlobref() {
-	keyId := os.Getenv("CAMLI_CLIENT_IDENTITY")
+	keyId := os.Getenv("CAMLI_KEYID")
 	if keyId == "" {
 		configOnce.Do(parseConfig)
 		keyId = config.Identity
