@@ -747,6 +747,9 @@ type DescribedBlob struct {
 	Dir *camtypes.FileInfo `json:"dir,omitempty"`
 	// if camliType "file", and File.IsImage()
 	Image *camtypes.ImageInfo `json:"image,omitempty"`
+	// if camliType "file" and media file
+	MediaTags map[string]string `json:"mediaTags,omitempty"`
+
 	// if camliType "directory"
 	DirChildren []blob.Ref `json:"dirChildren,omitempty"`
 
@@ -1239,6 +1242,9 @@ func (dr *DescribeRequest) describeReally(br blob.Ref, depth int) {
 			} else {
 				des.Image = &imgInfo
 			}
+		}
+		if mediaTags, err := dr.sh.index.GetMediaTags(br); err == nil {
+			des.MediaTags = mediaTags
 		}
 	case "directory":
 		var g syncutil.Group

@@ -1066,6 +1066,18 @@ func (x *Index) GetImageInfo(fileRef blob.Ref) (camtypes.ImageInfo, error) {
 	return ii, nil
 }
 
+func (x *Index) GetMediaTags(fileRef blob.Ref) (tags map[string]string, err error) {
+	if x.corpus != nil {
+		return x.corpus.GetMediaTags(fileRef)
+	}
+	it := x.queryPrefix(keyMediaTag, fileRef.String())
+	defer closeIterator(it, &err)
+	for it.Next() {
+		tags[it.Key()] = it.Value()
+	}
+	return tags, nil
+}
+
 func (x *Index) EdgesTo(ref blob.Ref, opts *camtypes.EdgesToOpts) (edges []*camtypes.Edge, err error) {
 	it := x.queryPrefix(keyEdgeBackward, ref)
 	defer closeIterator(it, &err)

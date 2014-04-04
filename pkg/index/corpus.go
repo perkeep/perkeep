@@ -102,7 +102,7 @@ type Corpus struct {
 	// as the date when that deletion happened.
 	deletes map[blob.Ref][]deletion
 
-	mediaTag map[blob.Ref]map[string]string // wholeref -> "album" -> "foo"
+	mediaTags map[blob.Ref]map[string]string // wholeref -> "album" -> "foo"
 
 	// scratch string slice
 	ss []string
@@ -157,7 +157,7 @@ func newCorpus() *Corpus {
 		brOfStr:      make(map[string]blob.Ref),
 		fileWholeRef: make(map[blob.Ref]blob.Ref),
 		gps:          make(map[blob.Ref]latLong),
-		mediaTag:     make(map[blob.Ref]map[string]string),
+		mediaTags:    make(map[blob.Ref]map[string]string),
 		deletes:      make(map[blob.Ref][]deletion),
 		claimBack:    make(map[blob.Ref][]*camtypes.Claim),
 	}
@@ -582,10 +582,10 @@ func (c *Corpus) mergeMediaTag(k, v []byte) error {
 	if !ok {
 		return fmt.Errorf("failed to parse wholeref from key %q", k)
 	}
-	tm, ok := c.mediaTag[wholeRef]
+	tm, ok := c.mediaTags[wholeRef]
 	if !ok {
 		tm = make(map[string]string)
-		c.mediaTag[wholeRef] = tm
+		c.mediaTags[wholeRef] = tm
 	}
 	tm[c.str(f[2])] = c.str(urld(string(v)))
 	return nil
@@ -967,12 +967,22 @@ func (c *Corpus) GetImageInfoLocked(fileRef blob.Ref) (ii camtypes.ImageInfo, er
 	return
 }
 
-func (c *Corpus) MediaTagLocked(fileRef blob.Ref) map[string]string {
+func (c *Corpus) GetMediaTags(fileRef blob.Ref) (map[string]string, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.GetMediaTagsLocked(fileRef)
+}
+
+func (c *Corpus) GetMediaTagsLocked(fileRef blob.Ref) (map[string]string, error) {
 	wholeRef, ok := c.fileWholeRef[fileRef]
 	if !ok {
-		return nil
+		return nil, os.ErrNotExist
 	}
-	return c.mediaTag[wholeRef]
+	tags, ok := c.mediaTags[wholeRef]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return tags, nil
 }
 
 func (c *Corpus) FileLatLongLocked(fileRef blob.Ref) (lat, long float64, ok bool) {
