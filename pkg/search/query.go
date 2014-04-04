@@ -1342,6 +1342,9 @@ func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMet
 		}
 		imageInfo, err := corpus.GetImageInfoLocked(br)
 		if err != nil {
+			if os.IsNotExist(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		width = int64(imageInfo.Width)
