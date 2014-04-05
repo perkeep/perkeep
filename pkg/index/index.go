@@ -32,12 +32,17 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/context"
+	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/strutil"
 	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
 )
+
+func init() {
+	blobserver.RegisterStorageConstructor("index", newFromConfig)
+}
 
 type Index struct {
 	*blobserver.NoImplStorage
@@ -139,6 +144,35 @@ func New(s sorted.KeyValue) (*Index, error) {
 	}
 	go idx.outOfOrderIndexerLoop()
 	return idx, nil
+}
+
+func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
+	blobPrefix := config.RequiredString("blobSource")
+	kvConfig := config.RequiredObject("storage")
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	kv, err := sorted.NewKeyValue(kvConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	ix, err := New(kv)
+	if err != nil {
+		return nil, err
+	}
+
+	sto, err := ld.GetStorage(blobPrefix)
+	if err != nil {
+		ix.Close()
+		return nil, err
+	}
+	ix.BlobSource = sto
+
+	// Good enough, for now:
+	ix.KeyFetcher = ix.BlobSource
+
+	return ix, err
 }
 
 func (x *Index) String() string {

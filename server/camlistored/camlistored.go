@@ -22,7 +22,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/json"
 	"encoding/pem"
 	"flag"
 	"fmt"
@@ -41,11 +40,9 @@ import (
 	"time"
 
 	"camlistore.org/pkg/buildinfo"
-	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/misc"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/serverinit"
-	"camlistore.org/pkg/types/serverconfig"
 	"camlistore.org/pkg/webserver"
 
 	// Storage options:
@@ -61,19 +58,13 @@ import (
 	_ "camlistore.org/pkg/blobserver/s3"
 	_ "camlistore.org/pkg/blobserver/shard"
 	// Indexers: (also present themselves as storage targets)
-	// sqlite is taken care of in option_sqlite.go
-	"camlistore.org/pkg/index" // base indexer + in-memory dev index
-	_ "camlistore.org/pkg/index/kvfile"
-	_ "camlistore.org/pkg/index/mongo"
-	_ "camlistore.org/pkg/index/mysql"
-	_ "camlistore.org/pkg/index/postgres"
+	"camlistore.org/pkg/index"
 	// KeyValue implementations:
-	_ "camlistore.org/pkg/sorted"
 	_ "camlistore.org/pkg/sorted/kvfile"
 	_ "camlistore.org/pkg/sorted/mongo"
 	_ "camlistore.org/pkg/sorted/mysql"
 	_ "camlistore.org/pkg/sorted/postgres"
-	"camlistore.org/pkg/sorted/sqlite"
+	"camlistore.org/pkg/sorted/sqlite" // for sqlite.CompiledIn()
 
 	// Handlers:
 	_ "camlistore.org/pkg/search"
@@ -212,7 +203,7 @@ func findConfigFile(file string) (absPath string, isNewConfig bool, err error) {
 				return
 			}
 			log.Printf("Generating template config file %s", absPath)
-			if err = newDefaultConfigFile(absPath); err == nil {
+			if err = serverinit.WriteDefaultConfigFile(absPath, sqlite.CompiledIn()); err == nil {
 				isNewConfig = true
 			}
 		}
@@ -224,63 +215,6 @@ func findConfigFile(file string) (absPath string, isNewConfig bool, err error) {
 	}
 	_, err = os.Stat(absPath)
 	return
-}
-
-var defaultListenAddr = ":3179"
-
-// TODO(mpl): move this func to pkg/types/serverconfig as well.
-
-func newDefaultConfigFile(path string) error {
-	conf := serverconfig.Config{
-		Listen:      defaultListenAddr,
-		HTTPS:       false,
-		Auth:        "localhost",
-		ReplicateTo: make([]interface{}, 0),
-	}
-	blobDir := osutil.CamliBlobRoot()
-	if err := os.MkdirAll(blobDir, 0700); err != nil {
-		return fmt.Errorf("Could not create default blobs directory: %v", err)
-	}
-	conf.BlobPath = blobDir
-	if sqlite.CompiledIn() {
-		conf.SQLite = filepath.Join(osutil.CamliVarDir(), "camli-index.db")
-	} else {
-		conf.KVFile = filepath.Join(osutil.CamliVarDir(), "camli-index.kvdb")
-	}
-
-	var keyId string
-	secRing := osutil.SecretRingFile()
-	_, err := os.Stat(secRing)
-	switch {
-	case err == nil:
-		keyId, err = jsonsign.KeyIdFromRing(secRing)
-		if err != nil {
-			return fmt.Errorf("Could not find any keyId in file %q: %v", secRing, err)
-		}
-		log.Printf("Re-using identity with keyId %q found in file %s", keyId, secRing)
-	case os.IsNotExist(err):
-		keyId, err = jsonsign.GenerateNewSecRing(secRing)
-		if err != nil {
-			return fmt.Errorf("Could not generate new secRing at file %q: %v", secRing, err)
-		}
-		log.Printf("Generated new identity with keyId %q in file %s", keyId, secRing)
-	}
-	if err != nil {
-		return fmt.Errorf("Could not stat secret ring %q: %v", secRing, err)
-	}
-	conf.Identity = keyId
-	conf.IdentitySecretRing = secRing
-
-	confData, err := json.MarshalIndent(conf, "", "    ")
-	if err != nil {
-		return fmt.Errorf("Could not json encode config file : %v", err)
-	}
-
-	if err := ioutil.WriteFile(path, confData, 0600); err != nil {
-		return fmt.Errorf("Could not create or write default server config: %v", err)
-	}
-
-	return nil
 }
 
 func setupTLS(ws *webserver.Server, config *serverinit.Config, listen string) {

@@ -57,7 +57,7 @@ func TestStarts(t *testing.T) {
 
 	mkdir(t, confDir)
 	*flagOpenBrowser = false
-	defaultListenAddr = ":0"
+	*listenFlag = ":0"
 
 	up := make(chan struct{})
 	down := make(chan struct{})

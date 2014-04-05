@@ -17,8 +17,11 @@ limitations under the License.
 package serverinit
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -37,7 +40,8 @@ import (
 type configPrefixesParams struct {
 	secretRing       string
 	keyId            string
-	indexerPath      string
+	haveIndex        bool
+	haveSQLite       bool
 	blobPath         string
 	packBlobs        bool
 	searchOwner      blob.Ref
@@ -144,15 +148,18 @@ func addMongoConfig(prefixes jsonconfig.Obj, dbname string, dbinfo string) {
 	}
 	ob := map[string]interface{}{}
 	ob["enabled"] = true
-	ob["handler"] = "storage-mongodbindexer"
+	ob["handler"] = "storage-index"
 	ob["handlerArgs"] = map[string]interface{}{
-		"host":       host,
-		"user":       fields[0],
-		"password":   fields[1],
-		"database":   dbname,
 		"blobSource": "/bs/",
+		"storage": map[string]interface{}{
+			"type":     "mongo",
+			"host":     host,
+			"user":     fields[0],
+			"password": fields[1],
+			"database": dbname,
+		},
 	}
-	prefixes["/index-mongo/"] = ob
+	prefixes["/index/"] = ob
 }
 
 func addSQLConfig(rdbms string, prefixes jsonconfig.Obj, dbname string, dbinfo string) {
@@ -167,15 +174,18 @@ func addSQLConfig(rdbms string, prefixes jsonconfig.Obj, dbname string, dbinfo s
 	}
 	ob := map[string]interface{}{}
 	ob["enabled"] = true
-	ob["handler"] = "storage-" + rdbms + "indexer"
+	ob["handler"] = "storage-index"
 	ob["handlerArgs"] = map[string]interface{}{
-		"host":       fields[0],
-		"user":       user,
-		"password":   fields[1],
-		"database":   dbname,
 		"blobSource": "/bs/",
+		"storage": map[string]interface{}{
+			"type":     rdbms,
+			"host":     fields[0],
+			"user":     user,
+			"password": fields[1],
+			"database": dbname,
+		},
 	}
-	prefixes["/index-"+rdbms+"/"] = ob
+	prefixes["/index/"] = ob
 }
 
 func addPostgresConfig(prefixes jsonconfig.Obj, dbname string, dbinfo string) {
@@ -188,20 +198,26 @@ func addMySQLConfig(prefixes jsonconfig.Obj, dbname string, dbinfo string) {
 
 func addSQLiteConfig(prefixes jsonconfig.Obj, file string) {
 	ob := map[string]interface{}{}
-	ob["handler"] = "storage-sqliteindexer"
+	ob["handler"] = "storage-index"
 	ob["handlerArgs"] = map[string]interface{}{
 		"blobSource": "/bs/",
-		"file":       file,
+		"storage": map[string]interface{}{
+			"type": "sqlite",
+			"file": file,
+		},
 	}
-	prefixes["/index-sqlite/"] = ob
+	prefixes["/index/"] = ob
 }
 
 func addKVConfig(prefixes jsonconfig.Obj, file string) {
-	prefixes["/index-kv/"] = map[string]interface{}{
-		"handler": "storage-kvfileindexer",
+	prefixes["/index/"] = map[string]interface{}{
+		"handler": "storage-index",
 		"handlerArgs": map[string]interface{}{
 			"blobSource": "/bs/",
-			"file":       file,
+			"storage": map[string]interface{}{
+				"type": "kv",
+				"file": file,
+			},
 		},
 	}
 }
@@ -384,7 +400,7 @@ func addGoogleCloudStorageConfig(params *configPrefixesParams, prefixes jsonconf
 func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m jsonconfig.Obj) {
 	m = make(jsonconfig.Obj)
 
-	haveIndex := params.indexerPath != ""
+	haveIndex := params.haveIndex
 	root := "/bs/"
 	pubKeyDest := root
 	if haveIndex {
@@ -474,7 +490,7 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 	if haveIndex {
 		syncArgs := map[string]interface{}{
 			"from": "/bs/",
-			"to":   params.indexerPath,
+			"to":   "/index/",
 		}
 
 		// TODO: currently when using s3, the index must be
@@ -491,7 +507,7 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 				dir = params.indexFileDir
 			}
 			typ := "kv"
-			if params.indexerPath == "/index-sqlite/" {
+			if params.haveSQLite {
 				typ = "sqlite"
 			}
 			syncArgs["queue"] = map[string]interface{}{
@@ -507,7 +523,7 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 		m["/bs-and-index/"] = map[string]interface{}{
 			"handler": "storage-replica",
 			"handlerArgs": map[string]interface{}{
-				"backends": []interface{}{"/bs/", params.indexerPath},
+				"backends": []interface{}{"/bs/", "/index/"},
 			},
 		}
 
@@ -524,7 +540,7 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 		}
 
 		searchArgs := map[string]interface{}{
-			"index": params.indexerPath,
+			"index": "/index/",
 			"owner": params.searchOwner.String(),
 		}
 		if params.memoryIndex {
@@ -581,10 +597,11 @@ func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err err
 		conf.DBName = "camli" + username
 	}
 
-	var indexerPath string  // e.g. "/index-kv/"
+	var haveSQLite bool
 	var indexFileDir string // filesystem directory of sqlite, kv, or similar
 	numIndexers := numSet(conf.Mongo, conf.MySQL, conf.PostgreSQL, conf.SQLite, conf.KVFile)
 	runIndex := conf.RunIndex.Get()
+
 	switch {
 	case runIndex && numIndexers == 0:
 		return nil, fmt.Errorf("Unless runIndex is set to false, you must specify an index option (kvIndexFile, mongo, mysql, postgres, sqlite).")
@@ -592,17 +609,10 @@ func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err err
 		return nil, fmt.Errorf("With runIndex set true, you can only pick exactly one indexer (mongo, mysql, postgres, sqlite).")
 	case !runIndex && numIndexers != 0:
 		return nil, fmt.Errorf("With runIndex disabled, you can't specify any of mongo, mysql, postgres, sqlite.")
-	case conf.MySQL != "":
-		indexerPath = "/index-mysql/"
-	case conf.PostgreSQL != "":
-		indexerPath = "/index-postgres/"
-	case conf.Mongo != "":
-		indexerPath = "/index-mongo/"
 	case conf.SQLite != "":
-		indexerPath = "/index-sqlite/"
+		haveSQLite = true
 		indexFileDir = filepath.Dir(conf.SQLite)
 	case conf.KVFile != "":
-		indexerPath = "/index-kv/"
 		indexFileDir = filepath.Dir(conf.KVFile)
 	}
 
@@ -632,7 +642,8 @@ func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err err
 	prefixesParams := &configPrefixesParams{
 		secretRing:       conf.IdentitySecretRing,
 		keyId:            conf.Identity,
-		indexerPath:      indexerPath,
+		haveIndex:        runIndex,
+		haveSQLite:       haveSQLite,
 		blobPath:         conf.BlobPath,
 		packBlobs:        conf.PackBlobs,
 		searchOwner:      blob.SHA1FromString(armoredPublicKey),
@@ -741,4 +752,60 @@ func setMap(m map[string]interface{}, v ...interface{}) {
 		return
 	}
 	setMap(m[v[0].(string)].(map[string]interface{}), v[1:]...)
+}
+
+// WriteDefaultConfigFile generates a new default high-level server configuration
+// file at filePath. If useSQLite, the default indexer will use SQLite, otherwise
+// kv. If filePath already exists, it is overwritten.
+func WriteDefaultConfigFile(filePath string, useSQLite bool) error {
+	conf := serverconfig.Config{
+		Listen:      ":3179",
+		HTTPS:       false,
+		Auth:        "localhost",
+		ReplicateTo: make([]interface{}, 0),
+	}
+	blobDir := osutil.CamliBlobRoot()
+	if err := os.MkdirAll(blobDir, 0700); err != nil {
+		return fmt.Errorf("Could not create default blobs directory: %v", err)
+	}
+	conf.BlobPath = blobDir
+	if useSQLite {
+		conf.SQLite = filepath.Join(osutil.CamliVarDir(), "camli-index.db")
+	} else {
+		conf.KVFile = filepath.Join(osutil.CamliVarDir(), "camli-index.kvdb")
+	}
+
+	var keyId string
+	secRing := osutil.SecretRingFile()
+	_, err := os.Stat(secRing)
+	switch {
+	case err == nil:
+		keyId, err = jsonsign.KeyIdFromRing(secRing)
+		if err != nil {
+			return fmt.Errorf("Could not find any keyId in file %q: %v", secRing, err)
+		}
+		log.Printf("Re-using identity with keyId %q found in file %s", keyId, secRing)
+	case os.IsNotExist(err):
+		keyId, err = jsonsign.GenerateNewSecRing(secRing)
+		if err != nil {
+			return fmt.Errorf("Could not generate new secRing at file %q: %v", secRing, err)
+		}
+		log.Printf("Generated new identity with keyId %q in file %s", keyId, secRing)
+	}
+	if err != nil {
+		return fmt.Errorf("Could not stat secret ring %q: %v", secRing, err)
+	}
+	conf.Identity = keyId
+	conf.IdentitySecretRing = secRing
+
+	confData, err := json.MarshalIndent(conf, "", "    ")
+	if err != nil {
+		return fmt.Errorf("Could not json encode config file : %v", err)
+	}
+
+	if err := ioutil.WriteFile(filePath, confData, 0600); err != nil {
+		return fmt.Errorf("Could not create or write default server config: %v", err)
+	}
+
+	return nil
 }

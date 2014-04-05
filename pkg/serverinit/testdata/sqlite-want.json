@@ -17,7 +17,7 @@
 			"handlerArgs": {
 				"backends": [
 					"/bs/",
-					"/index-sqlite/"
+					"/index/"
 				]
 			}
 		},
@@ -44,17 +44,20 @@
 				"path": "/tmp/blobs/cache"
 			}
 		},
-		"/index-sqlite/": {
-			"handler": "storage-sqliteindexer",
+		"/index/": {
+			"handler": "storage-index",
 			"handlerArgs": {
 				"blobSource": "/bs/",
-				"file": "/tmp/camli.db"
+				"storage": {
+					"type": "sqlite",
+					"file": "/tmp/camli.db"
+				}
 			}
 		},
 		"/my-search/": {
 			"handler": "search",
 			"handlerArgs": {
-				"index": "/index-sqlite/",
+				"index": "/index/",
 				"owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
 				"slurpToMemory": true
 			}
@@ -87,7 +90,7 @@
 					"file": "/tmp/blobs/sync-to-index-queue.sqlite",
 					"type": "sqlite"
 				},
-				"to": "/index-sqlite/"
+				"to": "/index/"
 			}
 		},
 		"/ui/": {
