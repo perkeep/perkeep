@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"camlistore.org/pkg/errorutil"
 	"camlistore.org/pkg/osutil"
@@ -120,7 +121,7 @@ func (c *ConfigParser) recursiveReadJSON(configPath string) (decodedObject map[s
 			f.Name(), extra, err)
 	}
 
-	if err = c.evaluateExpressions(decodedObject); err != nil {
+	if err = c.evaluateExpressions(decodedObject, nil, false); err != nil {
 		return nil, fmt.Errorf("error expanding JSON config expressions in %s:\n%v",
 			f.Name(), err)
 	}
@@ -164,8 +165,17 @@ func (c *ConfigParser) evalValue(v interface{}) (interface{}, error) {
 	return v, nil
 }
 
-func (c *ConfigParser) evaluateExpressions(m map[string]interface{}) error {
+// CheckTypes parses m and returns an error if it encounters a type or value
+// that is not supported by this package.
+func (c *ConfigParser) CheckTypes(m map[string]interface{}) error {
+	return c.evaluateExpressions(m, nil, true)
+}
+
+// evaluateExpressions parses recursively m, populating it with the values
+// that are found, unless testOnly is true.
+func (c *ConfigParser) evaluateExpressions(m map[string]interface{}, seenKeys []string, testOnly bool) error {
 	for k, ei := range m {
+		thisPath := append(seenKeys, k)
 		switch subval := ei.(type) {
 		case string:
 			continue
@@ -177,17 +187,19 @@ func (c *ConfigParser) evaluateExpressions(m map[string]interface{}) error {
 			if len(subval) == 0 {
 				continue
 			}
-			var err error
-			m[k], err = c.evalValue(subval)
+			evaled, err := c.evalValue(subval)
 			if err != nil {
-				return err
+				return fmt.Errorf("%s: value error %v", strings.Join(thisPath, "."), err)
+			}
+			if !testOnly {
+				m[k] = evaled
 			}
 		case map[string]interface{}:
-			if err := c.evaluateExpressions(subval); err != nil {
+			if err := c.evaluateExpressions(subval, thisPath, testOnly); err != nil {
 				return err
 			}
 		default:
-			return fmt.Errorf("Unhandled type %T", ei)
+			return fmt.Errorf("%s: unhandled type %T", strings.Join(thisPath, "."), ei)
 		}
 	}
 	return nil
