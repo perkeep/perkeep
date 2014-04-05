@@ -89,7 +89,9 @@ func main() {
 			log.Fatal(err)
 		}
 
-		embedName := "zembed_" + fileName + ".go"
+		dir := filepath.Dir(fileName)
+		base := "zembed_" + filepath.Base(fileName) + ".go"
+		embedName := filepath.Join(dir, base)
 		zfi, zerr := os.Stat(embedName)
 		genFile := func() bool {
 			if *processAll || zerr != nil {
@@ -230,23 +232,16 @@ func quote(bs []byte) []byte {
 
 func matchingFiles(p *regexp.Regexp) []string {
 	var f []string
-	d, err := os.Open(".")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer d.Close()
-	names, err := d.Readdirnames(-1)
-	if err != nil {
-		log.Fatal(err)
-	}
-	for _, n := range names {
-		if strings.HasPrefix(n, "zembed_") {
-			continue
+	filepath.Walk(".", func(path string, _ os.FileInfo, err error) error {
+		if err != nil {
+			return err
 		}
-		if p.MatchString(n) {
-			f = append(f, n)
+		n := filepath.Base(path)
+		if !strings.HasPrefix(n, "zembed_") && p.MatchString(n) {
+			f = append(f, path)
 		}
-	}
+		return nil
+	})
 	return f
 }
 

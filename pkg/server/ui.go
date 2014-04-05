@@ -43,6 +43,7 @@ import (
 	uistatic "camlistore.org/server/camlistored/ui"
 	closurestatic "camlistore.org/server/camlistored/ui/closure"
 	"camlistore.org/third_party/code.google.com/p/rsc/qr"
+	fontawesomestatic "camlistore.org/third_party/fontawesome"
 	glitchstatic "camlistore.org/third_party/glitch"
 	reactstatic "camlistore.org/third_party/react"
 )
@@ -57,11 +58,12 @@ var (
 	//       if sane looking
 	downloadPattern = regexp.MustCompile(`^download/([^/]+)(/.*)?$`)
 
-	thumbnailPattern = regexp.MustCompile(`^thumbnail/([^/]+)(/.*)?$`)
-	treePattern      = regexp.MustCompile(`^tree/([^/]+)(/.*)?$`)
-	closurePattern   = regexp.MustCompile(`^closure/(([^/]+)(/.*)?)$`)
-	reactPattern     = regexp.MustCompile(`^react/(.+)$`)
-	glitchPattern    = regexp.MustCompile(`^glitch/(.+)$`)
+	thumbnailPattern   = regexp.MustCompile(`^thumbnail/([^/]+)(/.*)?$`)
+	treePattern        = regexp.MustCompile(`^tree/([^/]+)(/.*)?$`)
+	closurePattern     = regexp.MustCompile(`^closure/(([^/]+)(/.*)?)$`)
+	reactPattern       = regexp.MustCompile(`^react/(.+)$`)
+	fontawesomePattern = regexp.MustCompile(`^fontawesome/(.+)$`)
+	glitchPattern      = regexp.MustCompile(`^glitch/(.+)$`)
 
 	disableThumbCache, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_THUMB_CACHE"))
 )
@@ -98,9 +100,10 @@ type UIHandler struct {
 
 	uiDir string // if sourceRoot != "", this is sourceRoot+"/server/camlistored/ui"
 
-	closureHandler    http.Handler
-	fileReactHandler  http.Handler
-	fileGlitchHandler http.Handler
+	closureHandler         http.Handler
+	fileReactHandler       http.Handler
+	fileFontawesomeHandler http.Handler
+	fileGlitchHandler      http.Handler
 }
 
 func init() {
@@ -235,6 +238,10 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		ui.fileGlitchHandler, err = makeFileServer(ui.sourceRoot, filepath.Join("third_party", "glitch"), "npc_piggy__x1_walk_png_1354829432.png")
 		if err != nil {
 			return nil, fmt.Errorf("Could not make glitch handler: %s", err)
+		}
+		ui.fileFontawesomeHandler, err = makeFileServer(ui.sourceRoot, filepath.Join("third_party", "fontawesome"), "css/font-awesome.css")
+		if err != nil {
+			return nil, fmt.Errorf("Could not make fontawesome handler: %s", err)
 		}
 	}
 
@@ -383,6 +390,8 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ui.serveFromDiskOrStatic(rw, req, reactPattern, ui.fileReactHandler, reactstatic.Files)
 	case getSuffixMatches(req, glitchPattern):
 		ui.serveFromDiskOrStatic(rw, req, glitchPattern, ui.fileGlitchHandler, glitchstatic.Files)
+	case getSuffixMatches(req, fontawesomePattern):
+		ui.serveFromDiskOrStatic(rw, req, fontawesomePattern, ui.fileFontawesomeHandler, fontawesomestatic.Files)
 	default:
 		file := ""
 		if m := staticFilePattern.FindStringSubmatch(suffix); m != nil {
