@@ -66,6 +66,10 @@ func GenDepsWithPath(pathPrefix string, root http.FileSystem) ([]byte, error) {
 		if !strings.HasSuffix(name, ".js") {
 			continue
 		}
+		if strings.HasPrefix(name, ".#") {
+			// Emacs noise.
+			continue
+		}
 		f, err := root.Open(name)
 		if err != nil {
 			return nil, fmt.Errorf("Could not open %v: %v", name, err)
