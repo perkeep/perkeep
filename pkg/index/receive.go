@@ -66,9 +66,9 @@ WaitTickle:
 			delete(ix.readyReindex, br)
 			ix.mu.Unlock()
 
-			err := ix.reindex(br)
+			err := ix.indexBlob(br)
 			if err != nil {
-				log.Printf("out-of-order reindex(%v) = %v", br, err)
+				log.Printf("out-of-order indexBlob(%v) = %v", br, err)
 				ix.mu.Lock()
 				if len(ix.needs[br]) == 0 {
 					ix.readyReindex[br] = true
@@ -79,7 +79,7 @@ WaitTickle:
 	}
 }
 
-func (ix *Index) reindex(br blob.Ref) error {
+func (ix *Index) indexBlob(br blob.Ref) error {
 	bs := ix.BlobSource
 	if bs == nil {
 		return fmt.Errorf("index: can't re-index %v: no BlobSource", br)

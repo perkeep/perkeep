@@ -243,7 +243,7 @@ func (x *Index) Reindex() error {
 		go func() {
 			defer wg.Done()
 			for br := range blobc {
-				if err := x.reindex(br); err != nil {
+				if err := x.indexBlob(br); err != nil {
 					log.Printf("Error reindexing %v: %v", br, err)
 					nerrmu.Lock()
 					nerr++
@@ -257,7 +257,15 @@ func (x *Index) Reindex() error {
 	if err := <-enumErr; err != nil {
 		return err
 	}
+
 	wg.Wait()
+
+	x.mu.Lock()
+	readyCount := len(x.readyReindex)
+	x.mu.Unlock()
+	if readyCount > 0 {
+		return fmt.Errorf("%d blobs were ready to reindex in out-of-order queue, but not yet ran", readyCount)
+	}
 
 	log.Printf("Index rebuild complete.")
 	nerrmu.Lock() // no need to unlock
