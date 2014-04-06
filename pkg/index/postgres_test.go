@@ -20,10 +20,11 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/index/indextest"
+	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
-	"camlistore.org/pkg/sorted/postgres"
+	_ "camlistore.org/pkg/sorted/postgres"
 	"camlistore.org/pkg/test/dockertest"
 )
 
@@ -31,12 +32,13 @@ func newPostgresSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
 	dbname := "camlitest_" + osutil.Username()
 	containerID, ip := dockertest.SetupPostgreSQLContainer(t, dbname)
 
-	kv, err := postgres.NewKeyValue(postgres.Config{
-		Host:     ip,
-		Database: dbname,
-		User:     dockertest.PostgresUsername,
-		Password: dockertest.PostgresPassword,
-		SSLMode:  "disable",
+	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
+		"type":     "postgres",
+		"host":     ip,
+		"database": dbname,
+		"user":     dockertest.PostgresUsername,
+		"password": dockertest.PostgresPassword,
+		"sslmode":  "disable",
 	})
 	if err != nil {
 		containerID.Kill()
