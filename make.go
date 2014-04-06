@@ -360,19 +360,13 @@ func genEmbeds() error {
 		}
 		// We mark all the zembeds in builddir as wanted, so that we do not
 		// have to regen them next time, unless they need updating.
-		f, err := os.Open(embeds)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		names, err := f.Readdirnames(-1)
-		if err != nil {
-			return err
-		}
-		for _, v := range names {
-			if strings.HasPrefix(v, "zembed_") {
-				wantDestFile[filepath.Join(embeds, v)] = true
+		if err := filepath.Walk(embeds, func(path string, _ os.FileInfo, err error) error {
+			if strings.HasPrefix(filepath.Base(path), "zembed_") {
+				wantDestFile[path] = true
 			}
+			return err
+		}); err != nil {
+			return err
 		}
 	}
 	return nil

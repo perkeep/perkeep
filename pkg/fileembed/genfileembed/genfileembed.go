@@ -108,7 +108,7 @@ func main() {
 		if !genFile() {
 			continue
 		}
-		log.Printf("Updating %s (package %s)", filepath.Join(dir, embedName), pkgName)
+		log.Printf("Updating %s (package %s)", embedName, pkgName)
 
 		bs, err := ioutil.ReadFile(fileName)
 		if err != nil {
