@@ -102,7 +102,10 @@ func newLocalhostAuth(string) (AuthMode, error) {
 
 func newDevAuth(pw string) (AuthMode, error) {
 	// the vivify mode password is automatically set to "vivi" + Password
-	return &DevAuth{pw, "vivi" + pw}, nil
+	return &DevAuth{
+		Password:   pw,
+		VivifyPass: "vivi" + pw,
+	}, nil
 }
 
 func newUserPassAuth(arg string) (AuthMode, error) {
