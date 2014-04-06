@@ -32,7 +32,7 @@ import (
 )
 
 func init() {
-	sorted.RegisterKeyValue("postgresql", newKeyValueFromJSONConfig)
+	sorted.RegisterKeyValue("postgres", newKeyValueFromJSONConfig)
 }
 
 // Config holds the parameters used to connect to the PostgreSQL db.
