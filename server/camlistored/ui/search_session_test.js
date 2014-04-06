@@ -130,6 +130,9 @@ describe('cam.SearchSession', function() {
 
 			// e is a permanode, but its camliContent doesn't exist. This is legitimate and can happen for a variety of reasons (e.g., during sync).
 			assert.equal(null, session.getResolvedMeta('e'));
+
+			// z doesn't exist at all.
+			assert.equal(null, session.getResolvedMeta('z'));
 		});
 	});
 
