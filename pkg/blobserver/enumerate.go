@@ -65,3 +65,13 @@ func EnumerateAllFrom(ctx *context.Context, src BlobEnumerator, after string, fn
 		}
 	}
 }
+
+// RefTypes returns a list of blobref types appearing on the provided enumerator.
+// A blobref type is a string like "sha1", or whatever is on the left side
+// of the hyphen in a blobref.
+// To get the alphabet valid for the right side of the hyphen, use blob.TypeAlphabet(type).
+func RefTypes(src BlobEnumerator) ([]string, error) {
+	// TODO(bradfitz): implement, with various short enumerate
+	// reads at the right places.
+	return []string{"sha1"}, nil
+}
