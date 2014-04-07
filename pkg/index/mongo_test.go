@@ -20,10 +20,11 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/index/indextest"
+	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
-	"camlistore.org/pkg/sorted/mongo"
+	_ "camlistore.org/pkg/sorted/mongo"
 	"camlistore.org/pkg/test/dockertest"
 )
 
@@ -31,9 +32,10 @@ func newMongoSorted(t *testing.T) (kv sorted.KeyValue, cleanup func()) {
 	dbname := "camlitest_" + osutil.Username()
 	containerID, ip := dockertest.SetupMongoContainer(t)
 
-	kv, err := mongo.NewKeyValue(mongo.Config{
-		Server:   ip,
-		Database: dbname,
+	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
+		"type":     "mongo",
+		"host":     ip,
+		"database": dbname,
 	})
 	if err != nil {
 		containerID.Kill()

@@ -35,53 +35,24 @@ func init() {
 	sorted.RegisterKeyValue("mysql", newKeyValueFromJSONConfig)
 }
 
-// Config holds the parameters used to connect to the MySQL db.
-type Config struct {
-	// Host optionally specifies the address on which mysqld listens. It should
-	// be of the form hostname:port, or addr:port. If empty, a local connection
-	// will be used. If the address does not have a colon, it is assumed the
-	// port is missing and the default MySQL (3306) one will be set in ConfigFromJSON.
-	Host     string
-	Database string // Required.
-	User     string // Required.
-	Password string // Optional.
-}
-
-// ConfigFromJSON populates Config from config, and validates
-// config. It returns an error if config fails to validate.
-func ConfigFromJSON(config jsonconfig.Obj) (Config, error) {
-	host := config.OptionalString("host", "")
+func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
+	host := cfg.OptionalString("host", "")
+	dsn := fmt.Sprintf("%s/%s/%s",
+		cfg.RequiredString("database"),
+		cfg.RequiredString("user"),
+		cfg.OptionalString("password", ""),
+	)
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
 	if host != "" {
+		// TODO(mpl): document that somewhere
 		if !strings.Contains(host, ":") {
 			host = host + ":3306"
 		}
+		dsn = "tcp:" + host + "*" + dsn
 	}
-	conf := Config{
-		Host:     host,
-		User:     config.RequiredString("user"),
-		Password: config.OptionalString("password", ""),
-		Database: config.RequiredString("database"),
-	}
-	if err := config.Validate(); err != nil {
-		return Config{}, err
-	}
-	return conf, nil
-}
 
-func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
-	conf, err := ConfigFromJSON(cfg)
-	if err != nil {
-		return nil, err
-	}
-	return NewKeyValue(conf)
-}
-
-// NewKeyValue returns a sorted.KeyValue implementation of the described MySQL database.
-func NewKeyValue(cfg Config) (sorted.KeyValue, error) {
-	dsn := cfg.Database + "/" + cfg.User + "/" + cfg.Password
-	if cfg.Host != "" {
-		dsn = "tcp:" + cfg.Host + "*" + dsn
-	}
 	db, err := sql.Open("mymysql", dsn)
 	if err != nil {
 		return nil, err
@@ -100,7 +71,6 @@ func NewKeyValue(cfg Config) (sorted.KeyValue, error) {
 		KeyValue: &sqlkv.KeyValue{
 			DB: db,
 		},
-		conf: cfg,
 	}
 	if err := kv.ping(); err != nil {
 		return nil, fmt.Errorf("MySQL db unreachable: %v", err)
@@ -128,8 +98,7 @@ func NewKeyValue(cfg Config) (sorted.KeyValue, error) {
 type keyValue struct {
 	*sqlkv.KeyValue
 
-	conf Config
-	db   *sql.DB
+	db *sql.DB
 }
 
 func (kv *keyValue) ping() error {

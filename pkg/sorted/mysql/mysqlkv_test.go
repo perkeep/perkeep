@@ -19,7 +19,9 @@ package mysql
 import (
 	"testing"
 
+	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
+	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
 	"camlistore.org/pkg/test/dockertest"
 )
@@ -30,11 +32,12 @@ func TestMySQLKV(t *testing.T) {
 	containerID, ip := dockertest.SetupMySQLContainer(t, dbname)
 	defer containerID.Kill()
 
-	kv, err := NewKeyValue(Config{
-		Host:     ip + ":3306",
-		Database: dbname,
-		User:     dockertest.MySQLUsername,
-		Password: dockertest.MySQLPassword,
+	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
+		"type":     "mysql",
+		"host":     ip + ":3306",
+		"database": dbname,
+		"user":     dockertest.MySQLUsername,
+		"password": dockertest.MySQLPassword,
 	})
 	if err != nil {
 		t.Fatalf("mysql.NewKeyValue = %v", err)
