@@ -199,16 +199,16 @@ func (t *BTree) Dump(w io.Writer) (err error) {
 // Extract is a combination of Get and Delete. If the key exists in the tree,
 // it is returned (like Get) and also deleted from a tree in a more efficient
 // way which doesn't walk it twice.  The returned slice may be a sub-slice of
-// dst if dst was large enough to hold the entire content.  Otherwise, a newly
-// allocated slice will be returned.  It is valid to pass a nil dst.
-func (t *BTree) Extract(dst, key []byte) (value []byte, err error) {
+// buf if buf was large enough to hold the entire content.  Otherwise, a newly
+// allocated slice will be returned.  It is valid to pass a nil buf.
+func (t *BTree) Extract(buf, key []byte) (value []byte, err error) {
 	if t == nil {
 		err = errors.New("BTree method invoked on nil receiver")
 		return
 	}
 
 	t.serial++
-	return t.root.extract(t.store, dst, t.collate, key)
+	return t.root.extract(t.store, buf, t.collate, key)
 }
 
 // First returns the first KV pair of the tree, if it exists. Otherwise key == nil
@@ -233,23 +233,23 @@ func (t *BTree) First() (key, value []byte, err error) {
 }
 
 // Get returns the value associated with key, or nil if no such value exists.
-// The returned slice may be a sub-slice of dst if dst was large enough to hold
+// The returned slice may be a sub-slice of buf if buf was large enough to hold
 // the entire content.  Otherwise, a newly allocated slice will be returned.
-// It is valid to pass a nil dst.
-func (t *BTree) Get(dst, key []byte) (value []byte, err error) {
+// It is valid to pass a nil buf.
+func (t *BTree) Get(buf, key []byte) (value []byte, err error) {
 	if t == nil {
 		err = errors.New("BTree method invoked on nil receiver")
 		return
 	}
 
-	buf := bufs.GCache.Get(maxBuf)
-	defer bufs.GCache.Put(buf)
-	if buf, err = t.root.get(t.store, buf, t.collate, key); buf == nil || err != nil {
+	buffer := bufs.GCache.Get(maxBuf)
+	defer bufs.GCache.Put(buffer)
+	if buffer, err = t.root.get(t.store, buffer, t.collate, key); buffer == nil || err != nil {
 		return
 	}
 
-	value = need(len(buf), dst)
-	copy(value, buf)
+	value = need(len(buffer), buf)
+	copy(value, buffer)
 	return
 }
 
@@ -295,17 +295,17 @@ func (t *BTree) Last() (key, value []byte, err error) {
 //
 // modulo the differing return values.
 //
-// The returned slice may be a sub-slice of dst if dst was large enough to hold
+// The returned slice may be a sub-slice of buf if buf was large enough to hold
 // the entire content.  Otherwise, a newly allocated slice will be returned.
-// It is valid to pass a nil dst.
-func (t *BTree) Put(dst, key []byte, upd func(key, old []byte) (new []byte, write bool, err error)) (old []byte, written bool, err error) {
+// It is valid to pass a nil buf.
+func (t *BTree) Put(buf, key []byte, upd func(key, old []byte) (new []byte, write bool, err error)) (old []byte, written bool, err error) {
 	if t == nil {
 		err = errors.New("BTree method invoked on nil receiver")
 		return
 	}
 
 	t.serial++
-	return t.root.put2(dst, t.store, t.collate, key, upd)
+	return t.root.put2(buf, t.store, t.collate, key, upd)
 }
 
 // Seek returns an Enumerator with "position" or an error of any. Normally the
@@ -333,6 +333,40 @@ func (t *BTree) seek(key []byte) (enum *bTreeEnumerator, hit bool, err error) {
 
 	r := &bTreeEnumerator{t: t, collate: t.collate, serial: t.serial}
 	if r.p, r.index, hit, err = t.root.seek(t.store, r.collate, key); err != nil {
+		return
+	}
+
+	enum = r
+	return
+}
+
+// IndexSeek returns an Enumerator with "position" or an error of any. Normally
+// the position is on a KV pair such that key >= KV.key. Then hit is key ==
+// KV.key.  The position is possibly "after" the last KV pair, but that is not
+// an error.  The collate function originally passed to CreateBTree is used for
+// enumerating the tree but a custom collate function c is used for IndexSeek.
+func (t *BTree) IndexSeek(key []byte, c func(a, b []byte) int) (enum *BTreeEnumerator, hit bool, err error) { //TODO +test
+	enum0, hit, err := t.indexSeek(key, c)
+	if err != nil {
+		return
+	}
+
+	enum = &BTreeEnumerator{
+		enum:     enum0,
+		firstHit: hit,
+		key:      append([]byte(nil), key...),
+	}
+	return
+}
+
+func (t *BTree) indexSeek(key []byte, c func(a, b []byte) int) (enum *bTreeEnumerator, hit bool, err error) {
+	if t == nil {
+		err = errors.New("BTree method invoked on nil receiver")
+		return
+	}
+
+	r := &bTreeEnumerator{t: t, collate: t.collate, serial: t.serial}
+	if r.p, r.index, hit, err = t.root.seek(t.store, c, key); err != nil {
 		return
 	}
 

@@ -10,8 +10,8 @@ import (
 	"io"
 
 	"camlistore.org/third_party/github.com/cznic/exp/lldb"
-	"camlistore.org/third_party/github.com/cznic/mathutil"
 	"camlistore.org/third_party/github.com/cznic/fileutil"
+	"camlistore.org/third_party/github.com/cznic/mathutil"
 )
 
 /*
