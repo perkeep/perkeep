@@ -19,6 +19,8 @@ package mongo
 import (
 	"testing"
 
+	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
 	"camlistore.org/pkg/test/dockertest"
 )
@@ -30,9 +32,10 @@ func TestMongoKV(t *testing.T) {
 	containerID, ip := dockertest.SetupMongoContainer(t)
 	defer containerID.Kill()
 
-	kv, err := NewKeyValue(Config{
-		Server:   ip,
-		Database: "camlitest",
+	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
+		"type":     "mongo",
+		"host":     ip,
+		"database": "camlitest",
 	})
 	if err != nil {
 		t.Fatalf("mongo.NewKeyValue = %v", err)

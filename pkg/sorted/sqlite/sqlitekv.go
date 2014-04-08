@@ -34,18 +34,13 @@ func init() {
 }
 
 func newKeyValueFromConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
+	if !compiled {
+		return nil, ErrNotCompiled
+	}
+
 	file := cfg.RequiredString("file")
 	if err := cfg.Validate(); err != nil {
 		return nil, err
-	}
-	return NewKeyValue(file)
-}
-
-// NewKeyValue returns a KeyValue implementation on top of
-// an SQLite database file.
-func NewKeyValue(file string) (sorted.KeyValue, error) {
-	if !compiled {
-		return nil, ErrNotCompiled
 	}
 
 	fi, err := os.Stat(file)

@@ -38,18 +38,18 @@ import (
 var _ sorted.Wiper = (*kvis)(nil)
 
 func init() {
-	sorted.RegisterKeyValue("kv", NewKeyValue)
+	sorted.RegisterKeyValue("kv", newKeyValueFromJSONConfig)
 }
 
-// NewStorage is a convenience that calls NewKeyValue
+// NewStorage is a convenience that calls newKeyValueFromJSONConfig
 // with file as the kv storage file.
 func NewStorage(file string) (sorted.KeyValue, error) {
-	return NewKeyValue(jsonconfig.Obj{"file": file})
+	return newKeyValueFromJSONConfig(jsonconfig.Obj{"file": file})
 }
 
-// NewKeyValue returns a KeyValue implementation on top of a
+// newKeyValueFromJSONConfig returns a KeyValue implementation on top of a
 // github.com/cznic/kv file.
-func NewKeyValue(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
+func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	file := cfg.RequiredString("file")
 	if err := cfg.Validate(); err != nil {
 		return nil, err
