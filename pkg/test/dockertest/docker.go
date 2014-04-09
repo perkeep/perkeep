@@ -131,6 +131,23 @@ func (c ContainerID) Kill() error {
 	return KillContainer(string(c))
 }
 
+// Remove runs "docker rm" on the container
+func (c ContainerID) Remove() error {
+	return exec.Command("docker", "rm", string(c)).Run()
+}
+
+// KillRemove calls Kill on the container, and then Remove if there was
+// no error. It logs any error to t.
+func (c ContainerID) KillRemove(t *testing.T) {
+	if err := c.Kill(); err != nil {
+		t.Log(err)
+		return
+	}
+	if err := c.Remove(); err != nil {
+		t.Log(err)
+	}
+}
+
 // lookup retrieves the ip address of the container, and tries to reach
 // before timeout the tcp address at this ip and given port.
 func (c ContainerID) lookup(port int, timeout time.Duration) (ip string, err error) {
@@ -161,7 +178,7 @@ func setupContainer(t *testing.T, image string, port int, timeout time.Duration,
 	c = ContainerID(containerID)
 	ip, err = c.lookup(port, timeout)
 	if err != nil {
-		c.Kill()
+		c.KillRemove(t)
 		t.Fatalf("container lookup: %v", err)
 	}
 	return
@@ -206,7 +223,7 @@ func SetupPostgreSQLContainer(t *testing.T, dbname string) (c ContainerID, ip st
 		return run("-d", postgresImage)
 	})
 	cleanupAndDie := func(err error) {
-		c.Kill()
+		c.KillRemove(t)
 		t.Fatal(err)
 	}
 	// Otherwise getting error: "pq: the database system is starting up"

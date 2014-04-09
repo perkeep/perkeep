@@ -30,7 +30,7 @@ import (
 func TestPostgreSQLKV(t *testing.T) {
 	dbname := "camlitest_" + osutil.Username()
 	containerID, ip := dockertest.SetupPostgreSQLContainer(t, dbname)
-	defer containerID.Kill()
+	defer containerID.KillRemove(t)
 
 	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
 		"type":     "postgres",

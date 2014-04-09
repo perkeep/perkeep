@@ -38,12 +38,12 @@ func newMongoSorted(t *testing.T) (kv sorted.KeyValue, cleanup func()) {
 		"database": dbname,
 	})
 	if err != nil {
-		containerID.Kill()
+		containerID.KillRemove(t)
 		t.Fatal(err)
 	}
 	return kv, func() {
 		kv.Close()
-		containerID.Kill()
+		containerID.KillRemove(t)
 	}
 }
 

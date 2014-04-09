@@ -40,12 +40,12 @@ func newMySQLSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
 		"password": dockertest.MySQLPassword,
 	})
 	if err != nil {
-		containerID.Kill()
+		containerID.KillRemove(t)
 		t.Fatal(err)
 	}
 	return kv, func() {
 		kv.Close()
-		containerID.Kill()
+		containerID.KillRemove(t)
 	}
 }
 

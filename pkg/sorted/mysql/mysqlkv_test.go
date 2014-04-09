@@ -30,7 +30,7 @@ import (
 func TestMySQLKV(t *testing.T) {
 	dbname := "camlitest_" + osutil.Username()
 	containerID, ip := dockertest.SetupMySQLContainer(t, dbname)
-	defer containerID.Kill()
+	defer containerID.KillRemove(t)
 
 	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
 		"type":     "mysql",
