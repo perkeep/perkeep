@@ -18,7 +18,7 @@ type Slice struct {
 }
 
 // Do calls f for every subscripts-value pair in s in ascending collation order
-// of the subsripts.  Do returns non nil error for general errors (eg. file
+// of the subscripts.  Do returns non nil error for general errors (eg. file
 // read error).  If f returns false or a non nil error then Do terminates and
 // returns the value of error from f.
 //

@@ -1,4 +1,6 @@
-all:
+.PHONY: all editor todo clean bench
+
+all: editor
 	go build
 	go vet
 	go install
@@ -16,9 +18,6 @@ todo:
 
 clean:
 	rm -f *~ cov cov.html test.db
-
-gocov:
-	gocov test $(COV) | gocov-html > cov.html
 
 bench:
 	go test -run NONE -bench B

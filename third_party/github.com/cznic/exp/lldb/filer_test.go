@@ -25,12 +25,12 @@ const (
 type newFunc func() Filer
 
 type testFileFiler struct {
-	*SimpleFileFiler
+	Filer
 }
 
 func (t *testFileFiler) Close() (err error) {
 	n := t.Name()
-	err = t.SimpleFileFiler.Close()
+	err = t.Filer.Close()
 	if errDel := os.Remove(n); errDel != nil && err == nil {
 		err = errDel
 	}
@@ -39,12 +39,21 @@ func (t *testFileFiler) Close() (err error) {
 
 var (
 	newFileFiler = func() Filer {
-		file, err := ioutil.TempFile("", "lldb-test")
+		file, err := ioutil.TempFile("", "lldb-test-file")
 		if err != nil {
 			panic(err)
 		}
 
 		return &testFileFiler{NewSimpleFileFiler(file)}
+	}
+
+	newOSFileFiler = func() Filer {
+		file, err := ioutil.TempFile("", "lldb-test-osfile")
+		if err != nil {
+			panic(err)
+		}
+
+		return &testFileFiler{NewOSFiler(file)}
 	}
 
 	newMemFiler = func() Filer {
@@ -70,7 +79,7 @@ var (
 		}
 
 		r, err := NewRollbackFiler(f, checkpoint, f)
-		if r != nil {
+		if err != nil {
 			panic(err)
 		}
 
@@ -80,6 +89,7 @@ var (
 
 func TestFilerNesting(t *testing.T) {
 	testFilerNesting(t, newFileFiler)
+	testFilerNesting(t, newOSFileFiler)
 	testFilerNesting(t, newMemFiler)
 	testFilerNesting(t, newRollbackFiler)
 }
@@ -129,6 +139,7 @@ func testFilerNesting(t *testing.T, nf newFunc) {
 
 func TestFilerTruncate(t *testing.T) {
 	testFilerTruncate(t, newFileFiler)
+	testFilerTruncate(t, newOSFileFiler)
 	testFilerTruncate(t, newMemFiler)
 	testFilerTruncate(t, nwBitFiler)
 	testFilerTruncate(t, newRollbackFiler)
@@ -142,6 +153,18 @@ func testFilerTruncate(t *testing.T, nf newFunc) {
 			t.Error(err)
 		}
 	}()
+
+	if _, ok := f.(*RollbackFiler); ok {
+		if err := f.BeginUpdate(); err != nil {
+			t.Fatal(err)
+		}
+
+		defer func() {
+			if err := f.EndUpdate(); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
 
 	// Check Truncate works.
 	sz := int64(1e6)
@@ -206,6 +229,7 @@ func testFilerTruncate(t *testing.T, nf newFunc) {
 
 func TestFilerReadAtWriteAt(t *testing.T) {
 	testFilerReadAtWriteAt(t, newFileFiler)
+	testFilerReadAtWriteAt(t, newOSFileFiler)
 	testFilerReadAtWriteAt(t, newMemFiler)
 	testFilerReadAtWriteAt(t, nwBitFiler)
 	testFilerReadAtWriteAt(t, newRollbackFiler)
@@ -219,6 +243,18 @@ func testFilerReadAtWriteAt(t *testing.T, nf newFunc) {
 			t.Error(err)
 		}
 	}()
+
+	if _, ok := f.(*RollbackFiler); ok {
+		if err := f.BeginUpdate(); err != nil {
+			t.Fatal(err)
+		}
+
+		defer func() {
+			if err := f.EndUpdate(); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
 
 	const (
 		N = 1 << 16
@@ -355,6 +391,7 @@ func testFilerReadAtWriteAt(t *testing.T, nf newFunc) {
 
 func TestInnerFiler(t *testing.T) {
 	testInnerFiler(t, newFileFiler)
+	testInnerFiler(t, newOSFileFiler)
 	testInnerFiler(t, newMemFiler)
 	testInnerFiler(t, nwBitFiler)
 	testInnerFiler(t, newRollbackFiler)
@@ -373,6 +410,18 @@ func testInnerFiler(t *testing.T, nf newFunc) {
 			t.Error(err)
 		}
 	}()
+
+	if _, ok := outer.(*RollbackFiler); ok {
+		if err := outer.BeginUpdate(); err != nil {
+			t.Fatal(err)
+		}
+
+		defer func() {
+			if err := outer.EndUpdate(); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
 
 	b := []byte{2, 5, 11}
 	n, err := inner.WriteAt(b, -1)
@@ -559,6 +608,7 @@ func testInnerFiler(t *testing.T, nf newFunc) {
 
 func TestFileReadAtHole(t *testing.T) {
 	testFileReadAtHole(t, newFileFiler)
+	testFileReadAtHole(t, newOSFileFiler)
 	testFileReadAtHole(t, newMemFiler)
 	testFileReadAtHole(t, nwBitFiler)
 	testFileReadAtHole(t, newRollbackFiler)
@@ -572,6 +622,18 @@ func testFileReadAtHole(t *testing.T, nf newFunc) {
 			t.Error(err)
 		}
 	}()
+
+	if _, ok := f.(*RollbackFiler); ok {
+		if err := f.BeginUpdate(); err != nil {
+			t.Fatal(err)
+		}
+
+		defer func() {
+			if err := f.EndUpdate(); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
 
 	n, err := f.WriteAt([]byte{1}, 40000)
 	if err != nil {

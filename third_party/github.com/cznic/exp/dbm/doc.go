@@ -62,7 +62,9 @@ Collating
 
 Values in an Array are always ordered in the collating order of the respective
 keys. For details about the collating order please see lldb.Collate. There's a
-plan for mechanism respecting user-supplied locale applied to string collating.
+plan for a mechanism respecting user-supplied locale applied to string
+collating, but the required API differences call for a whole different package
+perhaps emerging in the future.
 
 Multidimensional sparse arrays
 

@@ -636,20 +636,20 @@ func need(n int, src []byte) []byte {
 }
 
 // Get returns the data content of a block referred to by handle or an error if
-// any.  The returned slice may be a sub-slice of dst if dst was large enough
+// any.  The returned slice may be a sub-slice of buf if buf was large enough
 // to hold the entire content.  Otherwise, a newly allocated slice will be
-// returned.  It is valid to pass a nil dst.
+// returned.  It is valid to pass a nil buf.
 //
 // If the content was stored using compression then it is transparently
 // returned decompressed.
 //
 // Handle must have been obtained initially from Alloc and must be still valid,
 // otherwise invalid data may be returned without detecting the error.
-func (a *Allocator) Get(dst []byte, handle int64) (b []byte, err error) {
-	dst = dst[:cap(dst)]
+func (a *Allocator) Get(buf []byte, handle int64) (b []byte, err error) {
+	buf = buf[:cap(buf)]
 	if n, ok := a.m[handle]; ok {
 		a.lru.moveToFront(n)
-		b = need(len(n.b), dst)
+		b = need(len(n.b), buf)
 		copy(b, n.b)
 		a.expHit++
 		a.hit++
@@ -694,11 +694,11 @@ reloc:
 			default:
 				return nil, &ErrILSEQ{Type: ErrTailTag, Off: off, Arg: int64(tag)}
 			case tagNotCompressed:
-				b = need(dlen, dst)
+				b = need(dlen, buf)
 				copy(b, first[1:])
 				return
 			case tagCompressed:
-				return zappy.Decode(dst, first[1:dlen+1])
+				return zappy.Decode(buf, first[1:dlen+1])
 			}
 		default:
 			cc := bufs.GCache.Get(1)
@@ -714,10 +714,10 @@ reloc:
 			default:
 				return nil, &ErrILSEQ{Type: ErrTailTag, Off: off, Arg: int64(tag)}
 			case tagNotCompressed:
-				b = need(dlen, dst)
+				b = need(dlen, buf)
 				off += 1
 				if err = a.read(b, off); err != nil {
-					b = dst[:0]
+					b = buf[:0]
 				}
 				return
 			case tagCompressed:
@@ -725,14 +725,14 @@ reloc:
 				defer bufs.GCache.Put(zbuf)
 				off += 1
 				if err = a.read(zbuf, off); err != nil {
-					return dst[:0], err
+					return buf[:0], err
 				}
 
-				return zappy.Decode(dst, zbuf)
+				return zappy.Decode(buf, zbuf)
 			}
 		}
 	case 0:
-		return dst[:0], nil
+		return buf[:0], nil
 	case tagUsedLong:
 		cc := bufs.GCache.Get(1)
 		defer bufs.GCache.Put(cc)
@@ -747,10 +747,10 @@ reloc:
 		default:
 			return nil, &ErrILSEQ{Type: ErrTailTag, Off: off, Arg: int64(tag)}
 		case tagNotCompressed:
-			b = need(dlen, dst)
+			b = need(dlen, buf)
 			off += 3
 			if err = a.read(b, off); err != nil {
-				b = dst[:0]
+				b = buf[:0]
 			}
 			return
 		case tagCompressed:
@@ -758,10 +758,10 @@ reloc:
 			defer bufs.GCache.Put(zbuf)
 			off += 3
 			if err = a.read(zbuf, off); err != nil {
-				return dst[:0], err
+				return buf[:0], err
 			}
 
-			return zappy.Decode(dst, zbuf)
+			return zappy.Decode(buf, zbuf)
 		}
 	case tagFreeShort, tagFreeLong:
 		return nil, &ErrILSEQ{Type: ErrExpUsedTag, Off: off, Arg: int64(tag)}
@@ -776,6 +776,8 @@ reloc:
 	}
 }
 
+var reallocTestHook bool
+
 // Realloc sets the content of a block referred to by handle or returns an
 // error, if any.
 //
@@ -783,12 +785,18 @@ reloc:
 // otherwise a database may get irreparably corrupted.
 func (a *Allocator) Realloc(handle int64, b []byte) (err error) {
 	if handle <= 0 || handle > maxHandle {
-		return &ErrINVAL{"Allocator.Free: handle out of limits", handle}
+		return &ErrINVAL{"Realloc: handle out of limits", handle}
 	}
 
 	a.cfree(handle)
 	if err = a.realloc(handle, b); err != nil {
 		return
+	}
+
+	if reallocTestHook {
+		if err = cacheAudit(a.m, &a.lru); err != nil {
+			return
+		}
 	}
 
 	a.cadd(b, handle)
@@ -1879,5 +1887,76 @@ func (l *lst) size() (sz int64) {
 	for n := l.front; n != nil; n = n.next {
 		sz += int64(cap(n.b))
 	}
+	return
+}
+
+func cacheAudit(m map[int64]*node, l *lst) (err error) {
+	cnt := 0
+	for h, n := range m {
+		if g, e := n.h, h; g != e {
+			return fmt.Errorf("cacheAudit: invalid node handle %d != %d", g, e)
+		}
+
+		if cnt, err = l.audit(n, true); err != nil {
+			return
+		}
+	}
+
+	if g, e := cnt, len(m); g != e {
+		return fmt.Errorf("cacheAudit: invalid cache size %d != %d", g, e)
+	}
+
+	return
+}
+
+func (l *lst) audit(n *node, onList bool) (cnt int, err error) {
+	if !onList && (n.prev != nil || n.next != nil) {
+		return -1, fmt.Errorf("lst.audit: free node with non nil linkage")
+	}
+
+	if l.front == nil && l.back != nil || l.back == nil && l.front != nil {
+		return -1, fmt.Errorf("lst.audit: one of .front/.back is nil while the other is non nil")
+	}
+
+	if l.front == l.back && l.front != nil {
+		x := l.front
+		if x.prev != nil || x.next != nil {
+			return -1, fmt.Errorf("lst.audit: single node has non nil linkage")
+		}
+
+		if onList && x != n {
+			return -1, fmt.Errorf("lst.audit: single node is alien")
+		}
+	}
+
+	seen := false
+	var prev *node
+	x := l.front
+	for x != nil {
+		cnt++
+		if x.prev != prev {
+			return -1, fmt.Errorf("lst.audit: broken .prev linkage")
+		}
+
+		if x == n {
+			seen = true
+		}
+
+		prev = x
+		x = x.next
+	}
+
+	if prev != l.back {
+		return -1, fmt.Errorf("lst.audit: broken .back linkage")
+	}
+
+	if onList && !seen {
+		return -1, fmt.Errorf("lst.audit: node missing in list")
+	}
+
+	if !onList && seen {
+		return -1, fmt.Errorf("lst.audit: node should not be on the list")
+	}
+
 	return
 }

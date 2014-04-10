@@ -53,6 +53,7 @@ BenchmarkRollbackFiler	50000000	        39.6 ns/op	  25.27 MB/s
 import (
 	"fmt"
 	"io"
+	"sync"
 
 	"camlistore.org/third_party/github.com/cznic/fileutil"
 	"camlistore.org/third_party/github.com/cznic/mathutil"
@@ -355,14 +356,19 @@ func (f *bitFiler) dumpDirty(w io.WriterAt) (nwr int, err error) {
 // by this package which do not implement any of the transactional methods.
 // RollbackFiler thus _does not_ invoke any of the transactional methods of its
 // wrapped Filer.
+//
+// RollbackFiler is safe for concurrent use by multiple goroutines.
 type RollbackFiler struct {
-	bitFiler   *bitFiler
-	checkpoint func(int64) error
-	closed     bool
-	f          Filer
-	parent     Filer
-	tlevel     int // transaction nesting level, 0 == not in transaction
-	writerAt   io.WriterAt
+	mu           sync.RWMutex
+	inCallback   bool
+	inCallbackMu sync.RWMutex
+	bitFiler     *bitFiler
+	checkpoint   func(int64) error
+	closed       bool
+	f            Filer
+	parent       Filer
+	tlevel       int // transaction nesting level, 0 == not in transaction
+	writerAt     io.WriterAt
 
 	// afterRollback, if not nil, is called after performing Rollback
 	// without errros.
@@ -418,6 +424,9 @@ func NewRollbackFiler(f Filer, checkpoint func(sz int64) error, writerAt io.Writ
 
 // Implements Filer.
 func (r *RollbackFiler) BeginUpdate() (err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	parent := r.f
 	if r.tlevel != 0 {
 		parent = r.bitFiler
@@ -441,6 +450,9 @@ func (r *RollbackFiler) BeginUpdate() (err error) {
 // IOW: Regardless of the transaction nesting level the Close is always
 // performed but any uncommitted transaction data are lost.
 func (r *RollbackFiler) Close() (err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if r.closed {
 		return &ErrPERM{r.f.Name() + ": Already closed"}
 	}
@@ -459,12 +471,14 @@ func (r *RollbackFiler) Close() (err error) {
 
 // Implements Filer.
 func (r *RollbackFiler) EndUpdate() (err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	if r.tlevel == 0 {
 		return &ErrPERM{r.f.Name() + " : EndUpdate outside of a transaction"}
 	}
 
-	sz, err := r.Size()
+	sz, err := r.size() // Cannot call .Size() -> deadlock
 	if err != nil {
 		return
 	}
@@ -497,10 +511,18 @@ func (r *RollbackFiler) EndUpdate() (err error) {
 }
 
 // Implements Filer.
-func (r *RollbackFiler) Name() string { return r.f.Name() }
+func (r *RollbackFiler) Name() string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return r.f.Name()
+}
 
 // Implements Filer.
 func (r *RollbackFiler) PunchHole(off, size int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if r.tlevel == 0 {
 		return &ErrPERM{r.f.Name() + ": PunchHole outside of a transaction"}
 	}
@@ -518,6 +540,12 @@ func (r *RollbackFiler) PunchHole(off, size int64) error {
 
 // Implements Filer.
 func (r *RollbackFiler) ReadAt(b []byte, off int64) (n int, err error) {
+	r.inCallbackMu.RLock()
+	defer r.inCallbackMu.RUnlock()
+	if !r.inCallback {
+		r.mu.RLock()
+		defer r.mu.RUnlock()
+	}
 	if r.tlevel == 0 {
 		return r.f.ReadAt(b, off)
 	}
@@ -527,6 +555,9 @@ func (r *RollbackFiler) ReadAt(b []byte, off int64) (n int, err error) {
 
 // Implements Filer.
 func (r *RollbackFiler) Rollback() (err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if r.tlevel == 0 {
 		return &ErrPERM{r.f.Name() + ": Rollback outside of a transaction"}
 	}
@@ -536,14 +567,20 @@ func (r *RollbackFiler) Rollback() (err error) {
 	}
 	r.tlevel--
 	if f := r.afterRollback; f != nil {
+		r.inCallbackMu.Lock()
+		r.inCallback = true
+		r.inCallbackMu.Unlock()
+		defer func() {
+			r.inCallbackMu.Lock()
+			r.inCallback = false
+			r.inCallbackMu.Unlock()
+		}()
 		return f()
 	}
-
 	return
 }
 
-// Implements Filer.
-func (r *RollbackFiler) Size() (sz int64, err error) {
+func (r *RollbackFiler) size() (sz int64, err error) {
 	if r.tlevel == 0 {
 		return r.f.Size()
 	}
@@ -552,12 +589,26 @@ func (r *RollbackFiler) Size() (sz int64, err error) {
 }
 
 // Implements Filer.
+func (r *RollbackFiler) Size() (sz int64, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.size()
+}
+
+// Implements Filer.
 func (r *RollbackFiler) Sync() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	return r.f.Sync()
 }
 
 // Implements Filer.
 func (r *RollbackFiler) Truncate(size int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if r.tlevel == 0 {
 		return &ErrPERM{r.f.Name() + ": Truncate outside of a transaction"}
 	}
@@ -567,6 +618,9 @@ func (r *RollbackFiler) Truncate(size int64) error {
 
 // Implements Filer.
 func (r *RollbackFiler) WriteAt(b []byte, off int64) (n int, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if r.tlevel == 0 {
 		return 0, &ErrPERM{r.f.Name() + ": WriteAt outside of a transaction"}
 	}

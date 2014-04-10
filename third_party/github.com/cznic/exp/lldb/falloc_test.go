@@ -30,6 +30,10 @@ var (
 	oKeep                 = flag.Bool("keep", false, "do not delete testing DB/WAL (where applicable)")
 )
 
+func init() {
+	reallocTestHook = true
+}
+
 func mfBytes(f Filer) []byte {
 	var b bytes.Buffer
 	if _, err := f.(*MemFiler).WriteTo(&b); err != nil {
@@ -134,6 +138,10 @@ func (a *pAllocator) Realloc(handle int64, b []byte) (err error) {
 	}
 
 	if err = a.Allocator.Realloc(handle, b); err != nil {
+		return
+	}
+
+	if err = cacheAudit(a.Allocator.m, &a.Allocator.lru); err != nil {
 		return
 	}
 
@@ -914,6 +922,10 @@ func TestAllocatorRnd(t *testing.T) {
 						"D) h:%#x, len(b):%#4x, len(wb): %#x, err %v",
 						h, len0, len(wb), err,
 					)
+				}
+
+				if err = cacheAudit(a.m, &a.lru); err != nil {
+					t.Fatal(err)
 				}
 
 				ref[h] = wb
@@ -1706,7 +1718,7 @@ func TestFltFind(t *testing.T) {
 	f.init()
 	f[1].head = 1
 	if h := f.find(2); h != 1 || f[1].head != 0 {
-		t.Fatalf("\n%s\n%d", f, h)
+		t.Fatal(f, h)
 	}
 
 	f.init()
