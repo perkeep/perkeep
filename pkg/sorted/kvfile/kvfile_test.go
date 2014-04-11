@@ -22,6 +22,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
 )
 
@@ -32,7 +34,10 @@ func TestKvfileKV(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 	dbname := filepath.Join(tmpDir, "testdb.kvfile")
-	kv, err := NewStorage(dbname)
+	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
+		"type": "kv",
+		"file": dbname,
+	})
 	if err != nil {
 		t.Fatalf("Could not create kvfile sorted kv at %v: %v", dbname, err)
 	}

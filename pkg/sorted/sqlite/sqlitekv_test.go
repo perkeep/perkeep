@@ -22,6 +22,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
 )
 
@@ -32,7 +34,10 @@ func TestSQLiteKV(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 	dbname := filepath.Join(tmpDir, "testdb.sqlite")
-	kv, err := NewKeyValue(dbname)
+	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
+		"type": "sqlite",
+		"file": dbname,
+	})
 	if err != nil {
 		t.Fatalf("Could not create sqlite sorted kv at %v: %v", dbname, err)
 	}

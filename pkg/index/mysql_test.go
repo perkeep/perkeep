@@ -20,10 +20,11 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/index/indextest"
+	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
-	"camlistore.org/pkg/sorted/mysql"
+	_ "camlistore.org/pkg/sorted/mysql"
 	"camlistore.org/pkg/test/dockertest"
 )
 
@@ -31,19 +32,20 @@ func newMySQLSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
 	dbname := "camlitest_" + osutil.Username()
 	containerID, ip := dockertest.SetupMySQLContainer(t, dbname)
 
-	kv, err := mysql.NewKeyValue(mysql.Config{
-		Host:     ip + ":3306",
-		Database: dbname,
-		User:     dockertest.MySQLUsername,
-		Password: dockertest.MySQLPassword,
+	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
+		"type":     "mysql",
+		"host":     ip + ":3306",
+		"database": dbname,
+		"user":     dockertest.MySQLUsername,
+		"password": dockertest.MySQLPassword,
 	})
 	if err != nil {
-		containerID.Kill()
+		containerID.KillRemove(t)
 		t.Fatal(err)
 	}
 	return kv, func() {
 		kv.Close()
-		containerID.Kill()
+		containerID.KillRemove(t)
 	}
 }
 

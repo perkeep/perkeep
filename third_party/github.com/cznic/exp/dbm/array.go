@@ -432,3 +432,115 @@ func (a *Array) Tree() (tr *lldb.BTree, err error) {
 
 	return a.tree, nil
 }
+
+// Enumerator returns a "raw" enumerator of the whole array. It's initially
+// positioned on the first (asc is true) or last (asc is false)
+// subscripts/value pair in the array.
+//
+// This method is safe for concurrent use by multiple goroutines.
+func (a *Array) Enumerator(asc bool) (en *Enumerator, err error) {
+	if err = a.db.enter(); err != nil {
+		return
+	}
+
+	defer func() {
+		if e := recover(); e != nil {
+			switch x := e.(type) {
+			case error:
+				err = x
+			default:
+				err = fmt.Errorf("%v", e)
+			}
+		}
+		a.db.leave(&err)
+	}()
+
+	var e Enumerator
+	switch asc {
+	case true:
+		e.en, err = a.tree.SeekFirst()
+	default:
+		e.en, err = a.tree.SeekLast()
+	}
+	if err != nil {
+		return
+	}
+
+	e.db = a.db
+	return &e, nil
+}
+
+type Enumerator struct {
+	db *DB
+	en *lldb.BTreeEnumerator
+}
+
+// Next returns the currently enumerated raw KV pair, if it exists and moves to
+// the next KV in the key collation order. If there is no KV pair to return,
+// err == io.EOF is returned.
+//
+// This method is safe for concurrent use by multiple goroutines.
+func (e *Enumerator) Next() (key, value []interface{}, err error) {
+	if err = e.db.enter(); err != nil {
+		return
+	}
+
+	defer func() {
+		if e := recover(); e != nil {
+			switch x := e.(type) {
+			case error:
+				err = x
+			default:
+				err = fmt.Errorf("%v", e)
+			}
+		}
+		e.db.leave(&err)
+	}()
+
+	k, v, err := e.en.Next()
+	if err != nil {
+		return
+	}
+
+	if key, err = lldb.DecodeScalars(k); err != nil {
+		return
+	}
+
+	value, err = lldb.DecodeScalars(v)
+	return
+}
+
+// Prev returns the currently enumerated raw KV pair, if it exists and moves to
+// the previous KV in the key collation order. If there is no KV pair to
+// return, err == io.EOF is returned.
+//
+// This method is safe for concurrent use by multiple goroutines.
+func (e *Enumerator) Prev() (key, value []interface{}, err error) {
+	if err = e.db.enter(); err != nil {
+		return
+	}
+
+	defer func() {
+		if e := recover(); e != nil {
+			switch x := e.(type) {
+			case error:
+				err = x
+			default:
+				err = fmt.Errorf("%v", e)
+			}
+		}
+		e.db.leave(&err)
+	}()
+
+	k, v, err := e.en.Prev()
+	if err != nil {
+		return
+	}
+
+	if key, err = lldb.DecodeScalars(k); err != nil {
+		return
+	}
+
+	value, err = lldb.DecodeScalars(v)
+	return
+}

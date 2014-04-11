@@ -14,9 +14,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"os"
 	"path"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -54,7 +56,7 @@ func init() {
 	}
 }
 
-var dbg = func(s string, va ...interface{}) {
+func dbg(s string, va ...interface{}) {
 	_, fn, fl, _ := runtime.Caller(1)
 	fmt.Printf("%s:%d: ", path.Base(fn), fl)
 	fmt.Printf(s, va...)
@@ -2900,5 +2902,94 @@ func TestBug20130712(t *testing.T) {
 		return true, nil
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCreateWithEmptyWAL(t *testing.T) {
+	dir, err := ioutil.TempDir("", "dbm-test-create")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer os.RemoveAll(dir)
+	dbName := filepath.Join(dir, "test.db")
+	var o Options
+	walName := o.walName(dbName, "")
+	wal, err := os.Create(walName)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	wal.Close()
+	defer os.Remove(walName)
+
+	db, err := Create(dbName, &Options{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if err = db.Set("val", "subscript"); err != nil {
+		t.Error(err)
+	}
+	db.Close()
+}
+
+func TestCreateWithNonEmptyWAL(t *testing.T) {
+	dir, err := ioutil.TempDir("", "dbm-test-create")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer os.RemoveAll(dir)
+	dbName := filepath.Join(dir, "test.db")
+	var o Options
+	walName := o.walName(dbName, "")
+	wal, err := os.Create(walName)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if n, err := wal.Write([]byte{0}); n != 1 || err != nil {
+		t.Error(n, err)
+		return
+	}
+
+	wal.Close()
+	defer os.Remove(walName)
+
+	if _, err = Create(dbName, &Options{ACID: ACIDFull}); err == nil {
+		t.Error("Unexpected success")
+		return
+	}
+}
+
+func TestIsMem(t *testing.T) {
+	db, err := CreateTemp("", "dbm-test", ".tmp", &Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() {
+		nm := db.Name()
+		db.Close()
+		os.Remove(nm)
+	}()
+
+	if g, e := db.IsMem(), false; g != e {
+		t.Error(g, e)
+		return
+	}
+
+	db, err = CreateMem(&Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if g, e := db.IsMem(), true; g != e {
+		t.Error(g, e)
+		return
 	}
 }

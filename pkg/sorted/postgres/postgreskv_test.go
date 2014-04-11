@@ -19,7 +19,9 @@ package postgres
 import (
 	"testing"
 
+	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
+	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
 	"camlistore.org/pkg/test/dockertest"
 )
@@ -28,14 +30,15 @@ import (
 func TestPostgreSQLKV(t *testing.T) {
 	dbname := "camlitest_" + osutil.Username()
 	containerID, ip := dockertest.SetupPostgreSQLContainer(t, dbname)
-	defer containerID.Kill()
+	defer containerID.KillRemove(t)
 
-	kv, err := NewKeyValue(Config{
-		Host:     ip,
-		Database: dbname,
-		User:     dockertest.PostgresUsername,
-		Password: dockertest.PostgresPassword,
-		SSLMode:  "disable",
+	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
+		"type":     "postgres",
+		"host":     ip,
+		"database": dbname,
+		"user":     dockertest.PostgresUsername,
+		"password": dockertest.PostgresPassword,
+		"sslmode":  "disable",
 	})
 	if err != nil {
 		t.Fatalf("postgres.NewKeyValue = %v", err)

@@ -18,7 +18,7 @@ goog.provide('cam.BlobItemVideoContent');
 
 goog.require('goog.math.Size');
 
-// Renders video blob items. Currently only file blobs with filenames that end in '.mov'.
+// Renders video blob items. Currently recognizes movies by looking for a filename with a common movie extension.
 cam.BlobItemVideoContent = React.createClass({
 	displayName: 'BlobItemVideoContent',
 
@@ -128,8 +128,26 @@ cam.BlobItemVideoContent = React.createClass({
 cam.BlobItemVideoContent.getHandler = function(blobref, searchSession, href) {
 	var rm = searchSession.getResolvedMeta(blobref);
 
+	// From http://en.wikipedia.org/wiki/List_of_file_formats
 	// TODO(aa): Fix this quick hack once the server indexes movies and gives us more information.
-	if (rm && rm.file && goog.string.endsWith(rm.file.fileName, '.mov')) {
+	var extensions = [
+		'3gp',
+		'aav',
+		'asf',
+		'avi',
+		'dat',
+		'm1v',
+		'm2v',
+		'm4v',
+		'mov',
+		'mp4',
+		'mpe',
+		'mpeg',
+		'mpg',
+		'ogg',
+		'wmv',
+	];
+	if (rm && rm.file && goog.array.some(extensions, goog.string.endsWith.bind(null, rm.file.fileName.toLowerCase()))) {
 		return new cam.BlobItemVideoContent.Handler(rm, href)
 	}
 

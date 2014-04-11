@@ -584,3 +584,13 @@ type SizedByRef []SizedRef
 func (s SizedByRef) Len() int           { return len(s) }
 func (s SizedByRef) Less(i, j int) bool { return s[i].Less(s[j].Ref) }
 func (s SizedByRef) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
+// TypeAlphabet returns the valid characters in the given blobref type.
+// It returns the empty string if the typ is unknown.
+func TypeAlphabet(typ string) string {
+	switch typ {
+	case "sha1":
+		return hexDigit
+	}
+	return ""
+}

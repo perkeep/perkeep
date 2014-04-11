@@ -131,6 +131,23 @@ func (c ContainerID) Kill() error {
 	return KillContainer(string(c))
 }
 
+// Remove runs "docker rm" on the container
+func (c ContainerID) Remove() error {
+	return exec.Command("docker", "rm", string(c)).Run()
+}
+
+// KillRemove calls Kill on the container, and then Remove if there was
+// no error. It logs any error to t.
+func (c ContainerID) KillRemove(t *testing.T) {
+	if err := c.Kill(); err != nil {
+		t.Log(err)
+		return
+	}
+	if err := c.Remove(); err != nil {
+		t.Log(err)
+	}
+}
+
 // lookup retrieves the ip address of the container, and tries to reach
 // before timeout the tcp address at this ip and given port.
 func (c ContainerID) lookup(port int, timeout time.Duration) (ip string, err error) {
@@ -161,7 +178,7 @@ func setupContainer(t *testing.T, image string, port int, timeout time.Duration,
 	c = ContainerID(containerID)
 	ip, err = c.lookup(port, timeout)
 	if err != nil {
-		c.Kill()
+		c.KillRemove(t)
 		t.Fatalf("container lookup: %v", err)
 	}
 	return
@@ -182,8 +199,8 @@ const (
 // or makes the test fail on error.
 // Currently using https://index.docker.io/u/robinvdvleuten/mongo/
 func SetupMongoContainer(t *testing.T) (c ContainerID, ip string) {
-	return setupContainer(t, mongoImage, 27017, 20*time.Second, func() (string, error) {
-		return run("-d", mongoImage, "--smallfiles")
+	return setupContainer(t, mongoImage, 27017, 10*time.Second, func() (string, error) {
+		return run("-d", mongoImage, "--nojournal")
 	})
 }
 
@@ -202,23 +219,49 @@ func SetupMySQLContainer(t *testing.T, dbname string) (c ContainerID, ip string)
 // or makes the test fail on error.
 // Currently using https://index.docker.io/u/nornagon/postgres
 func SetupPostgreSQLContainer(t *testing.T, dbname string) (c ContainerID, ip string) {
-	c, ip = setupContainer(t, postgresImage, 5432, 10*time.Second, func() (string, error) {
+	c, ip = setupContainer(t, postgresImage, 5432, 15*time.Second, func() (string, error) {
 		return run("-d", postgresImage)
 	})
 	cleanupAndDie := func(err error) {
-		c.Kill()
+		c.KillRemove(t)
 		t.Fatal(err)
 	}
-	// Otherwise getting error: "pq: the database system is starting up"
-	// TODO(mpl): solution that adapts to the machine's perfs?
-	time.Sleep(2 * time.Second)
 	rootdb, err := sql.Open("postgres",
 		fmt.Sprintf("user=%s password=%s host=%s dbname=postgres sslmode=disable", PostgresUsername, PostgresPassword, ip))
 	if err != nil {
 		cleanupAndDie(fmt.Errorf("Could not open postgres rootdb: %v", err))
 	}
-	if _, err := rootdb.Exec("CREATE DATABASE " + dbname + " LC_COLLATE = 'C' TEMPLATE = template0"); err != nil {
+	if _, err := sqlExecRetry(rootdb,
+		"CREATE DATABASE "+dbname+" LC_COLLATE = 'C' TEMPLATE = template0",
+		50); err != nil {
 		cleanupAndDie(fmt.Errorf("Could not create database %v: %v", dbname, err))
 	}
 	return
+}
+
+// sqlExecRetry keeps calling http://golang.org/pkg/database/sql/#DB.Exec on db
+// with stmt until it succeeds or until it has been tried maxTry times.
+// It sleeps in between tries, twice longer after each new try, starting with
+// 100 milliseconds.
+func sqlExecRetry(db *sql.DB, stmt string, maxTry int) (sql.Result, error) {
+	if maxTry <= 0 {
+		return nil, errors.New("did not try at all")
+	}
+	interval := 100 * time.Millisecond
+	try := 0
+	var err error
+	var result sql.Result
+	for {
+		result, err = db.Exec(stmt)
+		if err == nil {
+			return result, nil
+		}
+		try++
+		if try == maxTry {
+			break
+		}
+		time.Sleep(interval)
+		interval *= 2
+	}
+	return result, fmt.Errorf("failed %v times: %v", try, err)
 }

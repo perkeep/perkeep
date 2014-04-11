@@ -9,9 +9,9 @@ Anatomy of a WAL file
 WAL file
 	A sequence of packets
 
-WAL packet
-	0..3,   4 bytes:        N uint32        // network byte order
-	4..4+N, N bytes:        payload []byte  // gb encoded scalars
+WAL packet, parts in slice notation
+	[0:4],   4 bytes:        N uint32        // network byte order
+	[4:4+N], N bytes:        payload []byte  // gb encoded scalars
 
 Packets, including the 4 byte 'size' prefix, MUST BE padded to size == 0 (mod
 16). The values of the padding bytes MUST BE zero.

@@ -28,6 +28,7 @@ import (
 
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
+	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
 	"camlistore.org/pkg/sorted/sqlite"
@@ -62,7 +63,10 @@ func newSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
 	}
 	do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, sqlite.SchemaVersion()))
 
-	kv, err = sqlite.NewKeyValue(f.Name())
+	kv, err = sorted.NewKeyValue(jsonconfig.Obj{
+		"type": "sqlite",
+		"file": f.Name(),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
