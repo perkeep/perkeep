@@ -22,13 +22,25 @@ import (
 	"testing"
 )
 
+var parseFn = map[string]func(string) (Ref, bool){
+	"Parse":      Parse,
+	"ParseKnown": ParseKnown,
+}
+
 var parseTests = []struct {
-	in  string
-	bad bool
+	in        string
+	bad       bool
+	fn        string
+	skipBytes bool // skip ParseBytes test
 }{
 	{in: "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"},
 	{in: "foo-0b"},
 	{in: "foo-0b0c"},
+
+	{in: "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a34", fn: "ParseKnown"},
+	{in: "foo-0b0c", bad: true, skipBytes: true, fn: "ParseKnown"},
+	{in: "perma-1243", fn: "ParseKnown"},
+	{in: "fakeref-0012", fn: "ParseKnown"},
 
 	{in: "/camli/sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33", bad: true},
 	{in: "", bad: true},
@@ -45,22 +57,26 @@ var parseTests = []struct {
 
 func TestParse(t *testing.T) {
 	for _, tt := range parseTests {
-		r, ok := Parse(tt.in)
+		fn := tt.fn
+		if fn == "" {
+			fn = "Parse"
+		}
+		r, ok := parseFn[fn](tt.in)
 		if r.Valid() != ok {
 			t.Errorf("Valid != ok for %q", tt.in)
 		}
 		if ok && tt.bad {
-			t.Errorf("Parse(%q) didn't fail. It should've.", tt.in)
+			t.Errorf("%s(%q) didn't fail. It should've.", fn, tt.in)
 			continue
 		}
 		if !ok {
 			if !tt.bad {
-				t.Errorf("Parse(%q) failed to parse", tt.in)
+				t.Errorf("%s(%q) failed to parse", fn, tt.in)
 				continue
 			}
 			continue
 		}
-		{
+		if !tt.skipBytes {
 			r2, ok := ParseBytes([]byte(tt.in))
 			if r != r2 {
 				t.Errorf("ParseBytes(%q) = %v, %v; want %v", tt.in, r2, ok, r)
