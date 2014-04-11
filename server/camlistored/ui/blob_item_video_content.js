@@ -147,7 +147,7 @@ cam.BlobItemVideoContent.getHandler = function(blobref, searchSession, href) {
 		'ogg',
 		'wmv',
 	];
-	if (rm && rm.file && goog.array.some(extensions, goog.string.endsWith.bind(null, rm.file.fileName))) {
+	if (rm && rm.file && goog.array.some(extensions, goog.string.endsWith.bind(null, rm.file.fileName.toLowerCase()))) {
 		return new cam.BlobItemVideoContent.Handler(rm, href)
 	}
 
