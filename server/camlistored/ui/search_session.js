@@ -62,11 +62,11 @@ cam.SearchSession.DESCRIBE_REQUEST = {
 	// TODO(aa): This needs to die: https://code.google.com/p/camlistore/issues/detail?id=321
 	thumbnailSize: 1000,
 
-	// TODO(aa): This is not great. The describe request will still return tons of data we don't care about:
+	// TODO(aa): This is not great. The describe request will return tons of data we don't care about:
 	// - Children of folders
 	// - Properties we don't use
 	// See: https://code.google.com/p/camlistore/issues/detail?id=319
-	depth: 2
+	depth: 4
 };
 
 cam.SearchSession.instanceCount_ = 0;
@@ -126,7 +126,7 @@ cam.SearchSession.prototype.getMeta = function(blobref) {
 
 cam.SearchSession.prototype.getResolvedMeta = function(blobref) {
 	var meta = this.data_.description.meta[blobref];
-	if (meta.camliType == 'permanode') {
+	if (meta && meta.camliType == 'permanode') {
 		var camliContent = cam.permanodeUtils.getSingleAttr(meta.permanode, 'camliContent');
 		if (camliContent) {
 			return this.data_.description.meta[camliContent];

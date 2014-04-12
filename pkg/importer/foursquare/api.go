@@ -51,6 +51,22 @@ type venueItem struct {
 	Categories []*venueCategory
 }
 
+type photosList struct {
+	Response struct {
+		Photos struct {
+			Items []*photoItem
+		}
+	}
+}
+
+type photoItem struct {
+	Id     string
+	Prefix string
+	Suffix string
+	Width  int
+	Height int
+}
+
 func (vi *venueItem) primaryCategory() *venueCategory {
 	for _, c := range vi.Categories {
 		if c.Primary {

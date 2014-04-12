@@ -25,6 +25,7 @@ goog.require('goog.string');
 goog.require('goog.Uri');
 
 goog.require('cam.BlobItemContainerReact');
+goog.require('cam.BlobItemFoursquareContent');
 goog.require('cam.BlobItemGenericContent');
 goog.require('cam.BlobItemVideoContent');
 goog.require('cam.BlobItemImageContent');
@@ -423,9 +424,10 @@ cam.IndexPage = React.createClass({
 			ref: 'blobItemContainer',
 			detailURL: this.handleDetailURL_,
 			handlers: [
+				cam.BlobItemDemoContent.getHandler,
+				cam.BlobItemFoursquareContent.getHandler,
 				cam.BlobItemImageContent.getHandler,
 				cam.BlobItemVideoContent.getHandler,
-				cam.BlobItemDemoContent.getHandler,
 				cam.BlobItemGenericContent.getHandler // must be last
 			],
 			history: this.props.history,

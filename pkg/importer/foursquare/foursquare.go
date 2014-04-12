@@ -23,6 +23,8 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -172,6 +174,12 @@ func (r *run) urlFileRef(urlstr string) string {
 	return fileRef.String()
 }
 
+type byCreatedAt []*checkinItem
+
+func (s byCreatedAt) Less(i, j int) bool { return s[i].CreatedAt < s[j].CreatedAt }
+func (s byCreatedAt) Len() int           { return len(s) }
+func (s byCreatedAt) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
 func (r *run) importCheckins() error {
 	limit := 100
 	offset := 0
@@ -201,16 +209,23 @@ func (r *run) importCheckins() error {
 			return err
 		}
 
+		sort.Sort(byCreatedAt(resp.Response.Checkins.Items))
 		for _, checkin := range resp.Response.Checkins.Items {
-			placeRef, err := r.importPlace(placesNode, &checkin.Venue)
+			placeNode, err := r.importPlace(placesNode, &checkin.Venue)
 			if err != nil {
 				log.Printf("Foursquare importer: error importing place %s %v", checkin.Venue.Id, err)
 				continue
 			}
 
-			err = r.importCheckin(checkinsNode, checkin, placeRef)
+			_, err = r.importCheckin(checkinsNode, checkin, placeNode.PermanodeRef())
 			if err != nil {
 				log.Printf("Foursquare importer: error importing checkin %s %v", checkin.Id, err)
+				continue
+			}
+
+			err = r.importPhotos(placeNode)
+			if err != nil {
+				log.Printf("Foursquare importer: error importing photos for checkin %s %v", checkin.Id, err)
 				continue
 			}
 		}
@@ -219,10 +234,50 @@ func (r *run) importCheckins() error {
 	return nil
 }
 
-func (r *run) importCheckin(parent *importer.Object, checkin *checkinItem, placeRef blob.Ref) error {
-	checkinNode, err := parent.ChildPathObject(checkin.Id)
+func (r *run) importPhotos(placeNode *importer.Object) error {
+	photosNode, err := placeNode.ChildPathObject("photos")
 	if err != nil {
 		return err
+	}
+
+	photosNode.SetAttrs(
+		"title", "Photos of "+placeNode.Attr("title"),
+		"camliDefVis", "hide")
+
+	resp := photosList{}
+	if err := r.im.doAPI(r.Context, r.token(), &resp, "venues/"+placeNode.Attr("foursquareId")+"/photos", "limit", "10"); err != nil {
+		return err
+	}
+
+	itemcount := len(resp.Response.Photos.Items)
+	log.Printf("Importing %d photos for venue %s", itemcount, placeNode.Attr("title"))
+
+	for _, photo := range resp.Response.Photos.Items {
+		attr := "camliPath:" + photo.Id + filepath.Ext(photo.Suffix)
+		if photosNode.Attr(attr) != "" {
+			log.Printf("Skipping photo, we already have it")
+			// Assume we have this photo already and don't need to refetch.
+			continue
+		}
+		url := photo.Prefix + "original" + photo.Suffix
+		ref := r.urlFileRef(url)
+		if ref == "" {
+			log.Printf("Error slurping photo: %s", url)
+			continue
+		}
+		err = photosNode.SetAttr(attr, ref)
+		if err != nil {
+			log.Printf("Error adding venue photo: %#v", err)
+		}
+	}
+
+	return nil
+}
+
+func (r *run) importCheckin(parent *importer.Object, checkin *checkinItem, placeRef blob.Ref) (*importer.Object, error) {
+	checkinNode, err := parent.ChildPathObject(checkin.Id)
+	if err != nil {
+		return nil, err
 	}
 
 	title := fmt.Sprintf("Checkin at %s", checkin.Venue.Name)
@@ -231,19 +286,18 @@ func (r *run) importCheckin(parent *importer.Object, checkin *checkinItem, place
 		"foursquareId", checkin.Id,
 		"foursquareVenuePermanode", placeRef.String(),
 		"camliNodeType", "foursquare.com:checkin",
-		"camliContentImage", r.urlFileRef(checkin.Venue.icon()),
 		"startDate", schema.RFC3339FromTime(time.Unix(checkin.CreatedAt, 0)),
 		"title", title); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return checkinNode, nil
 }
 
-func (r *run) importPlace(parent *importer.Object, place *venueItem) (placeRef blob.Ref, err error) {
+func (r *run) importPlace(parent *importer.Object, place *venueItem) (*importer.Object, error) {
 	placeNode, err := parent.ChildPathObject(place.Id)
 	if err != nil {
-		return placeRef, err
+		return nil, err
 	}
 
 	catName := ""
@@ -264,10 +318,10 @@ func (r *run) importPlace(parent *importer.Object, place *venueItem) (placeRef b
 		"addressCountry", place.Location.Country,
 		"latitude", fmt.Sprint(place.Location.Lat),
 		"longitude", fmt.Sprint(place.Location.Lng)); err != nil {
-		return placeRef, err
+		return nil, err
 	}
 
-	return placeNode.PermanodeRef(), nil
+	return placeNode, nil
 }
 
 func (r *run) getTopLevelNode(path string, title string) (*importer.Object, error) {

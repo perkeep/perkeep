@@ -17,6 +17,7 @@ limitations under the License.
 /* Tile view of BlobItem */
 .cam-blobitem {
 	display: inline-block;
+	font-size: 0.8em;
 }
 
 .cam-blobitem>a {
@@ -37,38 +38,37 @@ limitations under the License.
 	position: relative;
 }
 
-.cam-blobitemcontainer-50 .cam-blobitem-thumbtitle {
+.cam-blobitemcontainer-50 {
 	font-size: 10px;
 }
 
-.cam-blobitemcontainer-75 .cam-blobitem-thumbtitle {
+.cam-blobitemcontainer-75 {
 	font-size: 12px;
 }
 
-.cam-blobitemcontainer-100 .cam-blobitem-thumbtitle {
+.cam-blobitemcontainer-100 {
 	font-size: 12px;
 }
 
-.cam-blobitemcontainer-150 .cam-blobitem-thumbtitle {
+.cam-blobitemcontainer-150 {
 	font-size: 13px;
 }
 
-.cam-blobitemcontainer-200 .cam-blobitem-thumbtitle {
+.cam-blobitemcontainer-200 {
 	font-size: 14px;
 }
 
-.cam-blobitemcontainer-250 .cam-blobitem-thumbtitle {
+.cam-blobitemcontainer-250 {
 	font-size: 14px;
 }
 
 .cam-blobitem-thumbtitle {
-	color: #222;
-	font-size: 0.8em;
 	overflow: hidden;
 	padding: 0 1ex;
 	text-align: center;
 	text-overflow: ellipsis;
 	display: block;
+	color: #222;
 }
 
 .cam-blobitem.cam-dropactive {
