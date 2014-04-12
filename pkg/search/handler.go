@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -49,6 +50,8 @@ const defaultNumResults = 50
 // MaxImageSize is the maximum width or height in pixels that we will serve image
 // thumbnails at. It is used in the search result UI.
 const MaxImageSize = 2000
+
+var blobRefPattern = regexp.MustCompile(blob.Pattern)
 
 func init() {
 	blobserver.RegisterHandlerConstructor("search", newHandlerFromConfig)
@@ -1371,33 +1374,11 @@ claimLoop:
 		pi.ModTime = cl.Date
 	}
 
-	// If the permanode's content (or its image) is now known, look up its type
-	for _, attrName := range []string{"camliContent", "camliContentImage"} {
-		if content, ok := attr[attrName]; ok && len(content) > 0 {
-			if cbr, ok := blob.Parse(content[len(content)-1]); ok {
-				dr.Describe(cbr, depth-1)
-			}
-		}
-	}
-
-	// Resolve children
-	if members, ok := attr["camliMember"]; ok {
-		for _, member := range members {
-			if membr, ok := blob.Parse(member); ok {
-				dr.Describe(membr, depth-1)
-			}
-		}
-	}
-
-	// Resolve path elements
-	for k, vv := range attr {
-		if !strings.HasPrefix(k, "camliPath:") {
-			continue
-		}
-		for _, brs := range vv {
-			if br, ok := blob.Parse(brs); ok {
-				dr.Describe(br, depth-1)
-			}
+	// Descend into any references in current attributes.
+	for key, vals := range attr {
+		dr.describeRefs(key, depth)
+		for _, v := range vals {
+			dr.describeRefs(v, depth)
 		}
 	}
 }
@@ -1419,6 +1400,14 @@ func (dr *DescribeRequest) getDirMembers(br blob.Ref, depth int) ([]blob.Ref, er
 		return nil, err
 	}
 	return members, nil
+}
+
+func (dr *DescribeRequest) describeRefs(str string, depth int) {
+	for _, match := range blobRefPattern.FindAllString(str, -1) {
+		if ref, ok := blob.ParseKnown(match); ok {
+			dr.Describe(ref, depth-1)
+		}
+	}
 }
 
 // SignerAttrValueResponse is the JSON response to $search/camli/search/signerattrvalue
