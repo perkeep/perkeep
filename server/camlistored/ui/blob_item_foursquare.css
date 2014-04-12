@@ -52,7 +52,8 @@ limitations under the License.
 .cam-blobitem-fs-checkin-content img {
 	position: absolute;
 	top: 4%;
-	left: 23%;
+	left: 50%;
+	margin-left: -59px;
 	width: 118px;
 	height: 32px;
 }
