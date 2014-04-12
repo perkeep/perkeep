@@ -160,7 +160,7 @@ cam.BlobItemFoursquareContent.Handler.prototype.createContent = function(size) {
 		size: size,
 		venueId: this.venueId_,
 		venueName: this.venueName_,
-		photo: this.thumber_ ? this.thumber_.getSrc(size.height) : '',
+		photo: this.thumber_ ? this.thumber_.getSrc(size) : '',
 		date: this.startDate_,
 	});
 };
