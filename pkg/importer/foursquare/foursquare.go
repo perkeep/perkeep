@@ -23,6 +23,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -146,7 +147,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 
 // urlFileRef slurps urlstr from the net, writes to a file and returns its
 // fileref or "" on error
-func (r *run) urlFileRef(urlstr string) string {
+func (r *run) urlFileRef(urlstr, filename string) string {
 	im := r.im
 	im.mu.Lock()
 	if br, ok := im.imageFileRef[urlstr]; ok {
@@ -162,7 +163,7 @@ func (r *run) urlFileRef(urlstr string) string {
 	}
 	defer res.Body.Close()
 
-	fileRef, err := schema.WriteFileFromReader(r.Host.Target(), "category.png", res.Body)
+	fileRef, err := schema.WriteFileFromReader(r.Host.Target(), filename, res.Body)
 	if err != nil {
 		log.Printf("couldn't write file: %v", err)
 		return ""
@@ -260,7 +261,7 @@ func (r *run) importPhotos(placeNode *importer.Object) error {
 			continue
 		}
 		url := photo.Prefix + "original" + photo.Suffix
-		ref := r.urlFileRef(url)
+		ref := r.urlFileRef(url, "")
 		if ref == "" {
 			log.Printf("Error slurping photo: %s", url)
 			continue
@@ -305,10 +306,11 @@ func (r *run) importPlace(parent *importer.Object, place *venueItem) (*importer.
 		catName = cat.Name
 	}
 
+	icon := place.icon()
 	if err := placeNode.SetAttrs(
 		"foursquareId", place.Id,
 		"camliNodeType", "foursquare.com:venue",
-		"camliContentImage", r.urlFileRef(place.icon()),
+		"camliContentImage", r.urlFileRef(icon, path.Base(icon)),
 		"foursquareCategoryName", catName,
 		"title", place.Name,
 		"streetAddress", place.Location.Address,
