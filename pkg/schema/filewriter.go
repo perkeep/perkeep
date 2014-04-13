@@ -64,6 +64,9 @@ const (
 // BlobRef is of the JSON file schema blob.
 // The filename is optional.
 func WriteFileFromReader(bs blobserver.StatReceiver, filename string, r io.Reader) (blob.Ref, error) {
+	if strings.Contains(filename, "/") {
+		return blob.Ref{}, fmt.Errorf("schema.WriteFileFromReader: filename %q shouldn't contain a slash", filename)
+	}
 	m := NewFileMap(filename)
 	return WriteFileMap(bs, m, r)
 }
