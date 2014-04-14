@@ -18,8 +18,27 @@ goog.provide('cam.reactUtil');
 
 goog.require('goog.string');
 
+cam.reactUtil.mapOf = function(validator) {
+	var validator = function(props, propName, componentName) {
+		if (!props[propName]) {
+			return;
+		}
+
+		React.PropTypes.isObject(props, propName, componentName);
+
+		for (var child in props[propName]) {
+			var childName = goog.string.subs('%s[%s]', componentName, child);
+			validator(props[propName], child, childName);
+		}
+	};
+
+	validator.isRequired = React.PropTypes.object.isRequired;
+	return validator;
+};
+
 // A React prop validator that enforces a property has the specified duck type.
 // @param Object iface An object that describes the required interface. Each property should itself be a React prop validator describing the corresponding required member.
+// TODO(aa): Delete now that React has this built in.
 cam.reactUtil.quacksLike = function(iface) {
 	var validator = function(props, propName, componentName) {
 		componentName += '.' + propName;

@@ -30,11 +30,8 @@ cam.ImageDetail = React.createClass({
 	propTypes: {
 		backwardPiggy: React.PropTypes.bool.isRequired,
 		height: React.PropTypes.number.isRequired,
-		oldURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
-		onEscape: React.PropTypes.func.isRequired,
 		permanodeMeta: React.PropTypes.object,
 		resolvedMeta: React.PropTypes.object.isRequired,
-		searchURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		width: React.PropTypes.number.isRequired,
 	},
 
@@ -63,7 +60,6 @@ cam.ImageDetail = React.createClass({
 			this.getGeneralProperties_(),
 			this.getFileishProperties_(),
 			this.getImageProperties_(),
-			this.getNavProperties_(),
 		]);
 	},
 
@@ -114,14 +110,6 @@ cam.ImageDetail = React.createClass({
 				]),
 				// TODO(aa): encoding type, exif data, etc.
 			]),
-		]);
-	},
-
-	getNavProperties_: function() {
-		return cam.PropertySheet({key:'nav', title:'Elsewhere'}, [
-			React.DOM.a({key:'search-link', href:this.props.searchURL.toString(), onClick:this.props.onEscape}, 'Back to search'),
-			React.DOM.br(),
-			React.DOM.a({key:'old-link', href:this.props.oldURL.toString()}, 'Old (editable) UI'),
 		]);
 	},
 
@@ -215,3 +203,36 @@ cam.ImageDetail = React.createClass({
 		return Math.max(this.props.width * 0.2, 300);
 	},
 });
+
+cam.ImageDetail.getAspect = function(blobref, searchSession) {
+	var rm = searchSession.getResolvedMeta(blobref);
+	var pm = searchSession.getMeta(blobref);
+
+	if (pm.camliType != 'permanode') {
+		pm = null;
+	}
+
+	return rm && rm.image ? new cam.ImageDetail.Aspect(rm, pm) : null;
+
+	// We don't handle camliContentImage like BlobItemImage.getHandler does because that only tells us what image to display in the search results. It doesn't actually make the permanode an image or anything.
+};
+
+cam.ImageDetail.Aspect = function(resolvedMeta, permanodeMeta) {
+	this.resolvedMeta_ = resolvedMeta;
+	this.permanodeMeta_ = permanodeMeta;
+};
+
+cam.ImageDetail.Aspect.prototype.getTitle = function() {
+	return 'Image';
+};
+
+// TODO(aa): Piggy should move into cam.Detail and use an onload handler to turn on/off.
+cam.ImageDetail.Aspect.prototype.createContent = function(size, backwardPiggy) {
+	return cam.ImageDetail({
+		backwardPiggy: backwardPiggy,
+		height: size.height,
+		permanodeMeta: this.permanodeMeta_,
+		resolvedMeta: this.resolvedMeta_,
+		width: size.width,
+	});
+};

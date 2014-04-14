@@ -26,7 +26,7 @@
 }
 
 .detail-view-sidebar {
-	background: white;
+	background: #f9f9f9;
 	bottom: 0;
 	overflow: auto;
 	position: absolute;
@@ -66,4 +66,37 @@
 	-moz-box-sizing: border-box;
 	-webkit-box-sizing: border-box;
 	box-sizing: border-box;
+}
+
+.cam-detail {
+	position: absolute;
+	background: #222;
+	left: 0;
+	top: 0;
+	width: 100%;
+	overflow: hidden;
+}
+
+.cam-detail iframe {
+	background: white;
+}
+
+.cam-detail-aspect-nav {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+}
+
+.cam-detail-aspect-nav a {
+	color: #bbb;
+	display: inline-block;
+	font-family: 'Open Sans', sans-serif;
+	font-size: 14px;
+	margin-left: 1em;
+	padding: 0.5ex;
+}
+
+.cam-detail-aspect-nav a:hover {
+	color: #ddd;
 }

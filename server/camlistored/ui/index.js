@@ -24,6 +24,7 @@ goog.require('goog.object');
 goog.require('goog.string');
 goog.require('goog.Uri');
 
+goog.require('cam.BlobDetail');
 goog.require('cam.BlobItemContainerReact');
 goog.require('cam.BlobItemFoursquareContent');
 goog.require('cam.BlobItemGenericContent');
@@ -33,6 +34,7 @@ goog.require('cam.BlobItemDemoContent');
 goog.require('cam.DetailView');
 goog.require('cam.Navigator');
 goog.require('cam.NavReact');
+goog.require('cam.PermanodeDetail');
 goog.require('cam.reactUtil');
 goog.require('cam.SearchSession');
 goog.require('cam.ServerConnection');
@@ -224,9 +226,7 @@ cam.IndexPage = React.createClass({
 	},
 
 	handleNewPermanode_: function() {
-		this.props.serverConnection.createPermanode(function(p) {
-			this.navigator_.navigate(this.getDetailURL_(false, p));
-		}.bind(this));
+		this.props.serverConnection.createPermanode(this.getDetailURL_.bind(this));
 	},
 
 	handleShowSearchRoots_: function() {
@@ -326,17 +326,13 @@ cam.IndexPage = React.createClass({
 	handleDetailURL_: function(blobref) {
 		var m = this.searchSession_.getMeta(blobref);
 		var rm = this.searchSession_.getResolvedMeta(blobref);
-		return this.getDetailURL_(Boolean(rm && rm.image), m.blobRef);
+		return this.getDetailURL_(m.blobRef);
 	},
 
-	getDetailURL_: function(newUI, blobref) {
+	getDetailURL_: function(blobref) {
 		var detailURL = this.state.currentURL.clone();
 		detailURL.setParameterValue('p', blobref);
-		if (newUI) {
-			detailURL.setParameterValue('newui', '1');
-		} else {
-			detailURL.removeParameter('newui');
-		}
+		detailURL.setParameterValue('newui', '1');
 		return detailURL;
 	},
 
@@ -476,16 +472,17 @@ cam.IndexPage = React.createClass({
 			searchURL.setParameterValue('q', this.state.currentURL.getParameterValue('q'));
 		}
 
-		var oldURL = this.baseURL_.clone();
-		oldURL.setParameterValue('p', this.state.currentURL.getParameterValue('p'));
-
 		return cam.DetailView({
 			key: 'detailview',
+			aspects: {
+				'image': cam.ImageDetail.getAspect,
+				'permanode': cam.PermanodeDetail.getAspect.bind(null, this.baseURL_),
+				'blob': cam.BlobDetail.getAspect.bind(null, this.baseURL_),
+			},
 			blobref: this.state.currentURL.getParameterValue('p'),
 			history: this.props.history,
 			searchSession: this.searchSession_,
 			searchURL: searchURL,
-			oldURL: oldURL,
 			getDetailURL: this.handleDetailURL_,
 			navigator: this.navigator_,
 			keyEventTarget: this.props.eventTarget,

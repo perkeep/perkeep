@@ -35,13 +35,16 @@ cam.DetailView = React.createClass({
 	displayName: 'DetailView',
 
 	propTypes: {
+		aspects: cam.reactUtil.mapOf(React.PropTypes.shape({
+			getTitle: React.PropTypes.func.isRequired,
+			createContent: React.PropTypes.func.isRequired,
+		})).isRequired,
 		blobref: React.PropTypes.string.isRequired,
 		getDetailURL: React.PropTypes.func.isRequired,
-		history: cam.reactUtil.quacksLike({go:React.PropTypes.func.isRequired}).isRequired,
+		history: React.PropTypes.shape({go:React.PropTypes.func.isRequired}).isRequired,
 		height: React.PropTypes.number.isRequired,
 		keyEventTarget: React.PropTypes.object.isRequired, // An event target we will addEventListener() on to receive key events.
 		navigator: React.PropTypes.instanceOf(cam.Navigator).isRequired,
-		oldURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		searchSession: React.PropTypes.instanceOf(cam.SearchSession).isRequired,
 		searchURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		width: React.PropTypes.number.isRequired,
@@ -50,6 +53,7 @@ cam.DetailView = React.createClass({
 	getInitialState: function() {
 		return {
 			lastNavigateWasBackward: false,
+			selectedAspect: '',
 		};
 	},
 
@@ -66,27 +70,59 @@ cam.DetailView = React.createClass({
 	},
 
 	render: function() {
-		if (!this.dataIsLoaded_()) {
-			return React.DOM.div();
+		var activeAspects = null;
+		var selectedAspect = null;
+
+		if (this.dataIsLoaded_()) {
+			activeAspects = goog.object.filter(
+				goog.object.map(this.props.aspects, function(f) {
+					return f(this.props.blobref, this.props.searchSession);
+				}, this),
+				function(a) {
+					return a != null;
+				}
+			);
+
+			selectedAspect = activeAspects[this.state.selectedAspect] || goog.object.getAnyValue(activeAspects);
 		}
 
-		// TODO(aa): Different types of detail views can go here based on what blobref refers to.
-		var meta = this.props.searchSession.getMeta(this.props.blobref);
-		var permanodeMeta = meta.camliType == 'permanode' ? meta : null;
-		return cam.ImageDetail({
-			backwardPiggy: this.state.lastNavigateWasBackward,
-			height: this.props.height,
-			oldURL: this.props.oldURL,
-			onEscape: this.handleEscape_,
-			permanodeMeta: permanodeMeta,
-			resolvedMeta: this.props.searchSession.getResolvedMeta(this.props.blobref),
-			searchURL: this.props.searchURL,
-			width: this.props.width,
-		});
+		return React.DOM.div({className: 'cam-detail', style: {height: this.props.height}},
+			this.getAspectNav_(activeAspects),
+
+			// TODO(aa): Actually pick this based on the current URL
+			this.getAspectView_(selectedAspect)
+		);
+	},
+
+	getAspectNav_: function(aspects) {
+		if (!aspects) {
+			return null;
+		}
+		var items = goog.object.getValues(goog.object.map(aspects, function(aspect, name) {
+			// TODO(aa): URLs involving k I guess?
+			return React.DOM.a({href: '#', onClick: this.handleAspectClick_.bind(this, name)}, aspect.getTitle());
+		}, this));
+		items.push(React.DOM.a({href: this.props.searchURL.toString()}, 'Back to search'));
+		return React.DOM.div({className: 'cam-detail-aspect-nav'}, items);
+	},
+
+	getAspectView_: function(aspect) {
+		if (aspect) {
+			// TODO(aa): Why doesn't parent pass us |Size| instead of width/height?
+			return aspect.createContent(new goog.math.Size(this.props.width, this.props.height - 25), this.state.lastNavigateWasBackward);
+		} else {
+			return null;
+		}
 	},
 
 	componentWillUnmount: function() {
 		this.eh_.dispose();
+	},
+
+	handleAspectClick_: function(name) {
+		this.setState({
+			selectedAspect: name,
+		});
 	},
 
 	handleKeyUp_: function(e) {
