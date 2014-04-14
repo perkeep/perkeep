@@ -486,7 +486,7 @@ cam.IndexPage = React.createClass({
 			searchSession: this.searchSession_,
 			searchURL: searchURL,
 			oldURL: oldURL,
-			getDetailURL: this.handleDetailURL_.bind(this),
+			getDetailURL: this.handleDetailURL_,
 			navigator: this.navigator_,
 			keyEventTarget: this.props.eventTarget,
 			width: this.props.availWidth,
