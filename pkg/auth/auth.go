@@ -272,7 +272,7 @@ func IsLocalhost(req *http.Request) bool {
 // Allowed returns whether the given request
 // has access to perform all the operations in op.
 func Allowed(req *http.Request, op Operation) bool {
-	if op|OpUpload != 0 {
+	if op&OpUpload != 0 {
 		// upload (at least from camput) requires stat and get too
 		op = op | OpVivify
 	}
