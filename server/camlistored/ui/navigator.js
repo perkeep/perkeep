@@ -24,13 +24,12 @@ goog.require('goog.Uri');
 // @param Window win The window to listen for click and popstate events within to potentially interpret as navigations.
 // @param Location location Network navigation will be executed using this location object.
 // @param History history PushState navigation will be executed using this history object.
-// @param boolean= opt_beforeOnload Whether this is being constructed before window.onload. We have to ignore the first popstate event in some browsers in this case.
-cam.Navigator = function(win, location, history, opt_beforeOnload) {
+cam.Navigator = function(win, location, history) {
 	this.win_ = win;
 	this.location_ = location;
 	this.history_ = history;
 	this.handlers_ = [];
-	this.ignoreNextPopstate_ = Boolean(opt_beforeOnload) && !this.history_.state;
+	this.updateState_('replace', location.href);
 	this.win_.addEventListener('click', this.handleClick_.bind(this));
 	this.win_.addEventListener('popstate', this.handlePopState_.bind(this));
 };
@@ -76,9 +75,8 @@ cam.Navigator.prototype.handleClick_ = function(e) {
 };
 
 // Handles navigation via popstate.
-cam.Navigator.prototype.handlePopState_ = function() {
-	if (this.ignoreNextPopstate_) {
-		this.ignoreNextPopstate_ = false;
+cam.Navigator.prototype.handlePopState_ = function(e) {
+	if (!e.state) {
 		return;
 	}
 	if (!this.dispatchImpl_(new goog.Uri(this.location_.href), false)) {
@@ -89,9 +87,22 @@ cam.Navigator.prototype.handlePopState_ = function() {
 cam.Navigator.prototype.dispatchImpl_ = function(url, addState) {
 	if (this.onNavigate(url)) {
 		if (addState) {
-			this.history_.pushState(null, '', url.toString());
+			this.updateState_('push', url.toString());
 		}
 		return true;
 	}
 	return false;
+};
+
+// @param {string} type 'push' or 'replace', the type of state modification to do.
+// @param {string} url The URL to update the history state to.
+cam.Navigator.prototype.updateState_ = function(type, url) {
+	var f = (type == 'push' && this.history_.pushState) || (type == 'replace' && this.history_.replaceState) || null;
+	if (!f) {
+		throw new Error('Unexpected type: ' + type);
+	}
+
+	// The empty object is needed to differentiate between the initial load and subsequent navigations because browsers.
+	// It is passed back to us in e.state in handlePopState_. See: http://stackoverflow.com/questions/6421769/popstate-on-pages-load-in-chrome
+	f.call(this.history_, {}, '', url);
 };

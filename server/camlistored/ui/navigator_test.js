@@ -31,11 +31,14 @@ MockLocation.prototype.reload = function() {
 };
 
 var MockHistory = function() {
-	this.states = [];
+	this.states = [null];
 };
 MockHistory.prototype.pushState = function(a, b, url) {
-	this.states.push(url);
+	this.states.push({state:a, url:url});
 };
+MockHistory.prototype.replaceState = function(a, b, url) {
+	this.states[this.states.length - 1] = {state:a, url:url};
+}
 
 var Handler = function() {
 	this.lastURL = null;
@@ -60,12 +63,16 @@ describe('cam.Navigator', function() {
 		navigator.onNavigate = handler.handle;
 	});
 
+	it ('#constructor - seed initial state', function() {
+		assert.deepEqual(mockHistory.states, [{state:{}, url:''}]);
+	});
+
 	it('#navigate - no handler', function() {
 		// We should do network navigation.
 		navigator.onNavigate = function(){};
 		navigator.navigate(url);
 		assert.equal(mockLocation.href, url.toString());
-		assert.equal(mockHistory.states.length, 0);
+		assert.equal(mockHistory.states.length, 1);
 	});
 
 	it('#navigate - handler returns false', function() {
@@ -73,7 +80,7 @@ describe('cam.Navigator', function() {
 		navigator.navigate(url);
 		assert.equal(handler.lastURL, url);
 		assert.equal(mockLocation.href, url.toString());
-		assert.equal(mockHistory.states, 0);
+		assert.equal(mockHistory.states.length, 1);
 	});
 
 	it('#navigate - handler returns true', function() {
@@ -82,7 +89,7 @@ describe('cam.Navigator', function() {
 		navigator.navigate(url);
 		assert.equal(handler.lastURL, url);
 		assert.equal(mockLocation.href, '');
-		assert.deepEqual(mockHistory.states, [url.toString()]);
+		assert.deepEqual(mockHistory.states, [{state:{}, url:''}, {state:{}, url:url.toString()}]);
 	});
 
 	it('#handleClick_ - handled', function() {
@@ -95,7 +102,7 @@ describe('cam.Navigator', function() {
 		};
 		mockWindow.dispatchEvent(ev);
 		assert.equal(mockLocation.href, '');
-		assert.deepEqual(mockHistory.states, [url.toString()]);
+		assert.deepEqual(mockHistory.states, [{state:{}, url:''}, {state:{}, url:url.toString()}]);
 	});
 
 	it('#handleClick_ - not handled', function() {
@@ -107,20 +114,30 @@ describe('cam.Navigator', function() {
 		};
 		mockWindow.dispatchEvent(ev);
 		assert.equal(mockLocation.href, '');
-		assert.deepEqual(mockHistory.states, []);
+		assert.deepEqual(mockHistory.states, [{state:{}, url:''}]);
 		assert.equal(ev.defaultPrevented, false);
 	});
 
 	it('#handlePopState_ - handled', function() {
 		handler.returnsTrue = true;
-		mockWindow.dispatchEvent('popstate');
+		mockWindow.dispatchEvent({type:'popstate', state:{}});
 		assert.equal(mockLocation.reloadCount, 0);
-		assert.deepEqual(mockHistory.states, []);
+		assert.deepEqual(mockHistory.states, [{state:{}, url:''}]);
 	});
 
 	it('#handlePopState_ - not handled', function() {
-		mockWindow.dispatchEvent('popstate');
+		mockWindow.dispatchEvent({type:'popstate', state:{}});
 		assert.equal(mockLocation.reloadCount, 1);
-		assert.deepEqual(mockHistory.states, []);
+		assert.deepEqual(mockHistory.states, [{state:{}, url:''}]);
+	});
+
+	it('#handlePopState_ - ignore initial popstate', function() {
+		// Fire a popstate with no state property. This simulates what happens in buggy browsers onload. This one should be ignored.
+		mockWindow.dispatchEvent({type:'popstate', state:null});
+		assert.equal(mockLocation.reloadCount, 0);
+
+		// Now fire a popstate with a state property it should be handled.
+		mockWindow.dispatchEvent({type:'popstate', state:{}});
+		assert.equal(mockLocation.reloadCount, 1);
 	});
 });
