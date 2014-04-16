@@ -179,6 +179,10 @@ func (fi *FakeIndex) GetImageInfo(fileRef blob.Ref) (camtypes.ImageInfo, error) 
 	panic("NOIMPL")
 }
 
+func (fi *FakeIndex) GetMediaTags(fileRef blob.Ref) (tags map[string]string, err error) {
+	panic("NOIMPL")
+}
+
 func (fi *FakeIndex) GetDirMembers(dir blob.Ref, dest chan<- blob.Ref, limit int) error {
 	panic("NOIMPL")
 }
