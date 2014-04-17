@@ -45,10 +45,12 @@
 				"path": "/tmp/blobs/cache"
 			}
 		},
-		"/importer-flickr/": {
-			"handler": "importer-flickr",
+		"/importer/": {
+			"handler": "importer",
 			"handlerArgs": {
-				"apiKey": "monkey:balls"
+				"flickr": {
+					"clientSecret": "monkey:balls"
+				}
 			}
 		},
 		"/index/": {

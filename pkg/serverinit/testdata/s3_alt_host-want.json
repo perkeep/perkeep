@@ -47,6 +47,10 @@
 				"path": "/tmp/camli-cache"
 			}
 		},
+		"/importer/": {
+			"handler": "importer",
+			"handlerArgs": {}
+		},
 		"/index/": {
 			"handler": "storage-index",
 			"handlerArgs": {

@@ -65,6 +65,10 @@
 				"path": "/tmp/blobs/cache"
 			}
 		},
+		"/importer/": {
+			"handler": "importer",
+			"handlerArgs": {}
+		},
 		"/index/": {
 			"handler": "storage-index",
 			"handlerArgs": {
