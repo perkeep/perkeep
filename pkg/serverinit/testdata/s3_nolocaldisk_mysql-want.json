@@ -52,10 +52,10 @@
 			"handlerArgs": {
 				"blobSource": "/bs/",
 				"storage": {
-					"type": "mysql",
 					"database": "camlitest",
 					"host": "localhost",
 					"password": "password",
+					"type": "mysql",
 					"user": "user"
 				}
 			}

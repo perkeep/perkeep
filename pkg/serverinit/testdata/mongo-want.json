@@ -51,10 +51,10 @@
 			"handlerArgs": {
 				"blobSource": "/bs/",
 				"storage": {
-					"type": "mongo",
 					"database": "camlitest",
 					"host": "localhost",
 					"password": "",
+					"type": "mongo",
 					"user": ""
 				}
 			}

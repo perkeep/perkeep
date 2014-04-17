@@ -50,9 +50,33 @@
 			"handlerArgs": {
 				"blobSource": "/bs/",
 				"storage": {
-					"type": "kv",
-					"file": "/path/to/indexkv.db"
+					"file": "/path/to/indexkv.db",
+					"type": "kv"
 				}
+			}
+		},
+		"/music/": {
+			"handler": "publish",
+			"handlerArgs": {
+				"blobRoot": "/bs-and-maybe-also-index/",
+				"cache": "/cache/",
+				"css": [
+					"pics.css"
+				],
+				"goTemplate": "gallery.html",
+				"js": [
+					"pics.js"
+				],
+				"rootName": "musicRoot",
+				"rootPermanode": [
+					"/sighelper/",
+					"sha1-999c6aae4ec8245dfe63edc4a2abb407824a4b5a"
+				],
+				"scaledImage": {
+					"file": "/tmp/camli-cache/music-thumbnails.kv",
+					"type": "kv"
+				},
+				"searchRoot": "/my-search/"
 			}
 		},
 		"/my-search/": {
@@ -63,55 +87,30 @@
 				"slurpToMemory": true
 			}
 		},
-
-    "/pics/": {
-      "handler": "publish",
-      "handlerArgs": {
-        "blobRoot": "/bs-and-maybe-also-index/",
-        "cache": "/cache/",
-        "css": [
-          "pics.css"
-        ],
-        "goTemplate": "gallery.html",
-        "js": [
-          "pics.js"
-        ],
-        "rootName": "picsRoot",
-        "rootPermanode": [
-          "/sighelper/",
-          "sha1-046c6aae4ec8245dfe63edc4a2abb407824a4b5a"
-        ],
-        "scaledImage": {
-          "file": "/tmp/camli-cache/pics-thumbnails.kv",
-          "type": "kv"
-        },
-        "searchRoot": "/my-search/"
-      }
-    },
-    "/music/": {
-      "handler": "publish",
-      "handlerArgs": {
-        "blobRoot": "/bs-and-maybe-also-index/",
-        "cache": "/cache/",
-        "css": [
-          "pics.css"
-        ],
-        "goTemplate": "gallery.html",
-        "js": [
-          "pics.js"
-        ],
-        "rootName": "musicRoot",
-        "rootPermanode": [
-          "/sighelper/",
-          "sha1-999c6aae4ec8245dfe63edc4a2abb407824a4b5a"
-        ],
-        "scaledImage": {
-          "file": "/tmp/camli-cache/music-thumbnails.kv",
-          "type": "kv"
-        },
-        "searchRoot": "/my-search/"
-      }
-    },
+		"/pics/": {
+			"handler": "publish",
+			"handlerArgs": {
+				"blobRoot": "/bs-and-maybe-also-index/",
+				"cache": "/cache/",
+				"css": [
+					"pics.css"
+				],
+				"goTemplate": "gallery.html",
+				"js": [
+					"pics.js"
+				],
+				"rootName": "picsRoot",
+				"rootPermanode": [
+					"/sighelper/",
+					"sha1-046c6aae4ec8245dfe63edc4a2abb407824a4b5a"
+				],
+				"scaledImage": {
+					"file": "/tmp/camli-cache/pics-thumbnails.kv",
+					"type": "kv"
+				},
+				"searchRoot": "/my-search/"
+			}
+		},
 		"/setup/": {
 			"handler": "setup"
 		},
@@ -148,10 +147,10 @@
 			"handlerArgs": {
 				"cache": "/cache/",
 				"jsonSignRoot": "/sighelper/",
-                "publishRoots": [
-                    "/music/",
-                    "/pics/"
-                ],
+				"publishRoots": [
+					"/music/",
+					"/pics/"
+				],
 				"scaledImage": {
 					"file": "/tmp/blobs/thumbmeta.kv",
 					"type": "kv"
