@@ -28,7 +28,7 @@ cam.ImageDetail = React.createClass({
 	PIGGY_HEIGHT: 62,
 
 	propTypes: {
-		backwardPiggy: false,
+		backwardPiggy: React.PropTypes.bool.isRequired,
 		height: React.PropTypes.number.isRequired,
 		oldURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		onEscape: React.PropTypes.func.isRequired,
@@ -47,21 +47,6 @@ cam.ImageDetail = React.createClass({
 
 	componentWillMount: function() {
 		this.componentWillReceiveProps(this.props, true);
-	},
-
-	componentDidMount: function() {
-		this.componentDidUpdate();
-	},
-
-	componentDidUpdate: function() {
-		var img = this.getImageRef_();
-		if (img) {
-			// This function gets called multiple times, but the DOM de-dupes listeners for us. Thanks DOM.
-			img.getDOMNode().addEventListener('load', this.onImgLoad_);
-			img.getDOMNode().addEventListener('error', function() {
-				console.error('Could not load image: %s', img.props.src);
-			})
-		}
 	},
 
 	render: function() {
@@ -158,8 +143,8 @@ cam.ImageDetail = React.createClass({
 						'detail-view-img-loaded': this.state.imgHasLoaded
 					}),
 					// We want each image to have its own node in the DOM so that during the crossfade, we don't see the image jump to the next image's size.
-					key: this.getImageId_(),
-					ref: this.getImageId_(),
+					key: 'img' + this.props.resolvedMeta.blobRef,
+					onLoad: this.onImgLoad_,
 					src: this.thumber_.getSrc(this.imgSize_.height),
 					style: this.getCenteredProps_(this.imgSize_.width, this.imgSize_.height)
 				})
@@ -229,12 +214,4 @@ cam.ImageDetail = React.createClass({
 	getSidebarWidth_: function() {
 		return Math.max(this.props.width * 0.2, 300);
 	},
-
-	getImageRef_: function() {
-		return this.refs && this.refs[this.getImageId_()];
-	},
-
-	getImageId_: function() {
-		return 'img' + this.props.resolvedMeta.blobRef;
-	}
 });

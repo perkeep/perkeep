@@ -47,11 +47,6 @@ cam.BlobItemImageContent = React.createClass({
 		this.currentIntrinsicThumbHeight_ = 0;
 	},
 
-	componentDidMount: function() {
-		this.refs.thumb.getDOMNode().addEventListener('load', this.onThumbLoad_);
-		this.refs.thumb.getDOMNode().addEventListener('error', this.onThumbLoad_);
-	},
-
 	componentDidUpdate: function(prevProps, prevState) {
 		// TODO(aa): It seems like we would not need this if we always use this component with the 'key' prop.
 		if (prevProps.blobref != this.props.blobref) {
@@ -68,10 +63,6 @@ cam.BlobItemImageContent = React.createClass({
 				this.getThumb_(thumbClipSize)
 			)
 		);
-	},
-
-	componentWillUnmount: function() {
-		this.refs.thumb.getDOMNode().removeEventListener('load', this.onThumbLoad_);
 	},
 
 	onThumbLoad_: function() {
@@ -97,7 +88,7 @@ cam.BlobItemImageContent = React.createClass({
 		var pos = cam.math.center(thumbSize, thumbClipSize);
 		return React.DOM.img({
 			className: 'cam-blobitem-thumb',
-			ref: 'thumb',
+			onLoad: this.onThumbLoad_,
 			src: this.props.src,
 			style: {left:pos.x, top:pos.y, visibility:(this.state.loaded ? 'visible' : 'hidden')},
 			title: this.props.title,
