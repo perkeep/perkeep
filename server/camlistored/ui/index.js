@@ -32,6 +32,7 @@ goog.require('cam.BlobItemVideoContent');
 goog.require('cam.BlobItemImageContent');
 goog.require('cam.BlobItemDemoContent');
 goog.require('cam.DetailView');
+goog.require('cam.DirectoryDetail');
 goog.require('cam.Navigator');
 goog.require('cam.NavReact');
 goog.require('cam.PermanodeDetail');
@@ -476,6 +477,7 @@ cam.IndexPage = React.createClass({
 			key: 'detailview',
 			aspects: {
 				'image': cam.ImageDetail.getAspect,
+				'directory': cam.DirectoryDetail.getAspect.bind(null, this.baseURL_),
 				'permanode': cam.PermanodeDetail.getAspect.bind(null, this.baseURL_),
 				'blob': cam.BlobDetail.getAspect.bind(null, this.baseURL_),
 			},
