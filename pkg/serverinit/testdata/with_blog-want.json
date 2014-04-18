@@ -27,9 +27,9 @@
 					"sha1-2790ec1ec6fd44b9620b21155c8738aa08d4e3a0"
 				],
 				"scaledImage": {
-					"type": "kv",
-					"file": "/tmp/camli-cache/blog-thumbnails.kv"
-             	},
+					"file": "/tmp/camli-cache/blog-thumbnails.kv",
+					"type": "kv"
+				},
 				"searchRoot": "/my-search/"
 			}
 		},
@@ -65,13 +65,17 @@
 				"path": "/tmp/blobs/cache"
 			}
 		},
+		"/importer/": {
+			"handler": "importer",
+			"handlerArgs": {}
+		},
 		"/index/": {
 			"handler": "storage-index",
 			"handlerArgs": {
 				"blobSource": "/bs/",
 				"storage": {
-					"type": "kv",
-					"file": "/path/to/indexkv.db"
+					"file": "/path/to/indexkv.db",
+					"type": "kv"
 				}
 			}
 		},

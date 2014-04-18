@@ -435,6 +435,11 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 	m["/status/"] = map[string]interface{}{
 		"handler": "status",
 	}
+	importerArgs := map[string]interface{}{}
+	m["/importer/"] = map[string]interface{}{
+		"handler":     "importer",
+		"handlerArgs": importerArgs,
+	}
 
 	if params.shareHandlerPath != "" {
 		m[params.shareHandlerPath] = map[string]interface{}{
@@ -475,19 +480,13 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 	}
 
 	if params.flickr != "" {
-		m["/importer-flickr/"] = map[string]interface{}{
-			"handler": "importer-flickr",
-			"handlerArgs": map[string]interface{}{
-				"apiKey": params.flickr,
-			},
+		importerArgs["flickr"] = map[string]interface{}{
+			"clientSecret": params.flickr,
 		}
 	}
 	if params.picasa != "" {
-		m["/importer-picasa/"] = map[string]interface{}{
-			"handler": "importer-picasa",
-			"handlerArgs": map[string]interface{}{
-				"apiKey": params.picasa,
-			},
+		importerArgs["picasa"] = map[string]interface{}{
+			"clientSecret": params.picasa,
 		}
 	}
 

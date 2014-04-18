@@ -1,7 +1,7 @@
 {
-	"listen": "localhost:3179",
 	"auth": "userpass:camlistore:pass3179",
 	"https": false,
+	"listen": "localhost:3179",
 	"prefixes": {
 		"/": {
 			"handler": "root",
@@ -11,45 +11,41 @@
 				"stealth": false
 			}
 		},
-
- 		"/setup/": {
-			"handler": "setup"
-        },
-
- 		"/status/": {
-			"handler": "status"
-		},
-
- 		"/share/": {
-			"handler": "share",
-			"handlerArgs": {
-				"blobRoot": "/bs/"
-			}
-		},
-
-		"/sighelper/": {
-			"handler": "jsonsign",
-			"handlerArgs": {
-				"secretRing": "/path/to/secring",
-				"keyId": "26F5ABDA",
-				"publicKeyDest": "/bs/"
-			}
-		},
-	
 		"/bs/": {
 			"handler": "storage-filesystem",
 			"handlerArgs": {
 				"path": "/tmp/blobs"
 			}
 		},
-	
 		"/cache/": {
 			"handler": "storage-filesystem",
 			"handlerArgs": {
 				"path": "/tmp/blobs/cache"
 			}
+		},
+		"/importer/": {
+			"handler": "importer",
+			"handlerArgs": {}
+		},
+		"/setup/": {
+			"handler": "setup"
+		},
+		"/share/": {
+			"handler": "share",
+			"handlerArgs": {
+				"blobRoot": "/bs/"
+			}
+		},
+		"/sighelper/": {
+			"handler": "jsonsign",
+			"handlerArgs": {
+				"keyId": "26F5ABDA",
+				"publicKeyDest": "/bs/",
+				"secretRing": "/path/to/secring"
+			}
+		},
+		"/status/": {
+			"handler": "status"
 		}
-
 	}
-
 }

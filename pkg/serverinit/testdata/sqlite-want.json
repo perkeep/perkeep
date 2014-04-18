@@ -44,13 +44,17 @@
 				"path": "/tmp/blobs/cache"
 			}
 		},
+		"/importer/": {
+			"handler": "importer",
+			"handlerArgs": {}
+		},
 		"/index/": {
 			"handler": "storage-index",
 			"handlerArgs": {
 				"blobSource": "/bs/",
 				"storage": {
-					"type": "sqlite",
-					"file": "/tmp/camli.db"
+					"file": "/tmp/camli.db",
+					"type": "sqlite"
 				}
 			}
 		},

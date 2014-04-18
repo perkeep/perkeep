@@ -1,8 +1,8 @@
 {
-	"httpsCert": "/tls.crt",
-	"httpsKey": "/tls.key",
 	"auth": "userpass:camlistore:pass3179",
 	"https": true,
+	"httpsCert": "/tls.crt",
+	"httpsKey": "/tls.key",
 	"listen": "1.2.3.4:443",
 	"prefixes": {
 		"/": {
@@ -46,13 +46,17 @@
 				"path": "/tmp/blobs/cache"
 			}
 		},
+		"/importer/": {
+			"handler": "importer",
+			"handlerArgs": {}
+		},
 		"/index/": {
 			"handler": "storage-index",
 			"handlerArgs": {
 				"blobSource": "/bs/",
 				"storage": {
-					"type": "kv",
-					"file": "/path/to/indexkv.db"
+					"file": "/path/to/indexkv.db",
+					"type": "kv"
 				}
 			}
 		},

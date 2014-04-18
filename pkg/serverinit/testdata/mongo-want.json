@@ -45,16 +45,20 @@
 				"path": "/tmp/blobs/cache"
 			}
 		},
+		"/importer/": {
+			"handler": "importer",
+			"handlerArgs": {}
+		},
 		"/index/": {
 			"enabled": true,
 			"handler": "storage-index",
 			"handlerArgs": {
 				"blobSource": "/bs/",
 				"storage": {
-					"type": "mongo",
 					"database": "camlitest",
 					"host": "localhost",
 					"password": "",
+					"type": "mongo",
 					"user": ""
 				}
 			}

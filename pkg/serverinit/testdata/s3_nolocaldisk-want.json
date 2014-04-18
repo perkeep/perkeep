@@ -46,13 +46,17 @@
 				"path": "/tmp/camli-cache"
 			}
 		},
+		"/importer/": {
+			"handler": "importer",
+			"handlerArgs": {}
+		},
 		"/index/": {
 			"handler": "storage-index",
 			"handlerArgs": {
 				"blobSource": "/bs/",
 				"storage": {
-					"type": "kv",
-					"file": "/path/to/indexkv.db"
+					"file": "/path/to/indexkv.db",
+					"type": "kv"
 				}
 			}
 		},

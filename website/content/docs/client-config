@@ -71,5 +71,4 @@ If the server is not on the same host, it is highly recommended to use TLS or an
 
 <li><b><code>server</code></b>: The camlistored server to connect to, of the form: "[http[s]://]host[:port][/prefix]". Defaults to https. This option can be overriden with the "-server" command-line flag.</li>
 
-<li><b><code>trustedCerts</code></b>: Optional. The list of TLS server certificates fingerprints (truncated at 10 digits) that the client will trust blindly when using https. It is required when the server is using a self-signed certificate. Example: "trustedCerts": ["ffc7730f4b"].</li>
 </ul>

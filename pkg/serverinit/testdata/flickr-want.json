@@ -45,10 +45,12 @@
 				"path": "/tmp/blobs/cache"
 			}
 		},
-		"/importer-flickr/": {
-			"handler": "importer-flickr",
+		"/importer/": {
+			"handler": "importer",
 			"handlerArgs": {
-				"apiKey": "monkey:balls"
+				"flickr": {
+					"clientSecret": "monkey:balls"
+				}
 			}
 		},
 		"/index/": {
@@ -56,8 +58,8 @@
 			"handlerArgs": {
 				"blobSource": "/bs/",
 				"storage": {
-					"type": "kv",
-					"file": "/path/to/indexkv.db"
+					"file": "/path/to/indexkv.db",
+					"type": "kv"
 				}
 			}
 		},
