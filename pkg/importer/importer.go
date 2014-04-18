@@ -204,7 +204,7 @@ func (rc *RunContext) Credentials() (clientID, clientSecret string, err error) {
 // missing anything).
 func (rc *RunContext) AccountNode() *Object { return rc.ia.acct }
 
-// AccountNode returns the initially-empty permanode storing the root
+// RootNode returns the initially-empty permanode storing the root
 // of this account's data. You can change anything at will. This will
 // typically be modeled as a dynamic directory (with camliPath:xxxx
 // attributes), where each path element is either a file, object, or

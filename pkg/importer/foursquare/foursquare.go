@@ -113,16 +113,6 @@ func (r *run) token() string {
 	return r.RunContext.AccountNode().Attr(acctAttrAccessToken)
 }
 
-func (r *run) initRoot() error {
-	root := r.RootNode()
-	user := r.AccountNode().Attr("foursquareUser")
-	if user == "" {
-		return errors.New("The 'foursquareUser' attribute on the account node is empty.")
-	}
-	title := fmt.Sprintf("Foursquare (%s)", user)
-	return root.SetAttr("title", title)
-}
-
 func (im *imp) Run(ctx *importer.RunContext) error {
 	clientId, secret, err := ctx.Credentials()
 	if err != nil {
