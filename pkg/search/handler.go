@@ -1231,12 +1231,10 @@ func (dr *DescribeRequest) describeReally(br blob.Ref, depth int) {
 			return
 		}
 		des.File = &fi
-		if des.File.IsImage() && !skipImageInfoLookup(des.File) {
+		if des.File.IsImage() {
 			imgInfo, err := dr.sh.index.GetImageInfo(br)
 			if err != nil {
-				if os.IsNotExist(err) {
-					log.Printf("index.GetImageInfo(file %s) failed; index stale?", br)
-				} else {
+				if !os.IsNotExist(err) {
 					dr.addError(br, err)
 				}
 			} else {
@@ -1609,11 +1607,4 @@ func (d *DescribedBlob) setMIMEType(mime string) {
 	if strings.HasPrefix(mime, camliTypePrefix) {
 		d.CamliType = strings.TrimPrefix(mime, camliTypePrefix)
 	}
-}
-
-func skipImageInfoLookup(fi *camtypes.FileInfo) bool {
-	// psd photoshop files are not currently indexed (no width/height info available),
-	// so we don't even try to hit the index, which would just log an error.
-	// Instead the UI renders them as files, not images.
-	return fi.MIMEType == "image/vnd.adobe.photoshop"
 }
