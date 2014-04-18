@@ -75,7 +75,7 @@ import (
 	//_ "camlistore.org/pkg/importer/flickr"
 	_ "camlistore.org/pkg/importer/foursquare"
 	//_ "camlistore.org/pkg/importer/picasa"
-	//_ "camlistore.org/pkg/importer/twitter"
+	_ "camlistore.org/pkg/importer/twitter"
 )
 
 var (
