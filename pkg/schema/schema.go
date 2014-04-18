@@ -712,7 +712,7 @@ type claimParam struct {
 	target blob.Ref
 }
 
-func NewClaim(claims ...*claimParam) *Builder {
+func newClaim(claims ...*claimParam) *Builder {
 	bb := base(1, "claim")
 	bb.SetClaimDate(clockNow())
 	if len(claims) == 1 {
@@ -751,7 +751,7 @@ func populateClaimMap(m map[string]interface{}, cp *claimParam) {
 
 // NewShareRef creates a *Builder for a "share" claim.
 func NewShareRef(authType string, target blob.Ref, transitive bool) *Builder {
-	return NewClaim(&claimParam{
+	return newClaim(&claimParam{
 		claimType:  ShareClaim,
 		authType:   authType,
 		target:     target,
@@ -760,7 +760,7 @@ func NewShareRef(authType string, target blob.Ref, transitive bool) *Builder {
 }
 
 func NewSetAttributeClaim(permaNode blob.Ref, attr, value string) *Builder {
-	return NewClaim(&claimParam{
+	return newClaim(&claimParam{
 		permanode: permaNode,
 		claimType: SetAttributeClaim,
 		attribute: attr,
@@ -769,7 +769,7 @@ func NewSetAttributeClaim(permaNode blob.Ref, attr, value string) *Builder {
 }
 
 func NewAddAttributeClaim(permaNode blob.Ref, attr, value string) *Builder {
-	return NewClaim(&claimParam{
+	return newClaim(&claimParam{
 		permanode: permaNode,
 		claimType: AddAttributeClaim,
 		attribute: attr,
@@ -781,7 +781,7 @@ func NewAddAttributeClaim(permaNode blob.Ref, attr, value string) *Builder {
 // values set for the attribute attr of permaNode. If value is empty then
 // all the values for attribute are cleared.
 func NewDelAttributeClaim(permaNode blob.Ref, attr, value string) *Builder {
-	return NewClaim(&claimParam{
+	return newClaim(&claimParam{
 		permanode: permaNode,
 		claimType: DelAttributeClaim,
 		attribute: attr,
@@ -791,7 +791,7 @@ func NewDelAttributeClaim(permaNode blob.Ref, attr, value string) *Builder {
 
 // NewDeleteClaim creates a new claim to delete a target claim or permanode.
 func NewDeleteClaim(target blob.Ref) *Builder {
-	return NewClaim(&claimParam{
+	return newClaim(&claimParam{
 		target:    target,
 		claimType: DeleteClaim,
 	})
