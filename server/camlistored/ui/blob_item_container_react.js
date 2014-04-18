@@ -26,7 +26,6 @@ goog.require('goog.math.Size');
 goog.require('goog.style');
 
 goog.require('cam.BlobItemReact');
-goog.require('cam.reactUtil');
 goog.require('cam.SearchSession');
 
 cam.BlobItemContainerReact = React.createClass({
@@ -44,9 +43,9 @@ cam.BlobItemContainerReact = React.createClass({
 	propTypes: {
 		detailURL: React.PropTypes.func.isRequired,  // string->string (blobref->complete detail URL)
 		handlers: React.PropTypes.array.isRequired,
-		history: cam.reactUtil.quacksLike({replaceState:React.PropTypes.func.isRequired}).isRequired,
+		history: React.PropTypes.shape({replaceState:React.PropTypes.func.isRequired}).isRequired,
 		onSelectionChange: React.PropTypes.func,
-		searchSession: cam.reactUtil.quacksLike({getCurrentResults:React.PropTypes.func.isRequired, addEventListener:React.PropTypes.func.isRequired, loadMoreResults:React.PropTypes.func.isRequired}),
+		searchSession: React.PropTypes.shape({getCurrentResults:React.PropTypes.func.isRequired, addEventListener:React.PropTypes.func.isRequired, loadMoreResults:React.PropTypes.func.isRequired}),
 		selection: React.PropTypes.object.isRequired,
 		style: React.PropTypes.object,
 		thumbnailSize: React.PropTypes.number.isRequired,

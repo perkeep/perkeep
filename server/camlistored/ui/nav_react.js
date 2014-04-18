@@ -32,7 +32,7 @@ cam.NavReact = React.createClass({
 		onOpen: React.PropTypes.func.isRequired,
 		onClose: React.PropTypes.func.isRequired,
 		open: React.PropTypes.bool.isRequired,
-		timer: cam.reactUtil.quacksLike({setTimeout: React.PropTypes.func.isRequired, clearTimeout: React.PropTypes.func.isRequired,}).isRequired,
+		timer: React.PropTypes.shape({setTimeout: React.PropTypes.func.isRequired, clearTimeout: React.PropTypes.func.isRequired,}).isRequired,
 	},
 
 	componentWillMount: function() {

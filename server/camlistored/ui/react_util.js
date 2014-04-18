@@ -36,30 +36,6 @@ cam.reactUtil.mapOf = function(validator) {
 	return validator;
 };
 
-// A React prop validator that enforces a property has the specified duck type.
-// @param Object iface An object that describes the required interface. Each property should itself be a React prop validator describing the corresponding required member.
-// TODO(aa): Delete now that React has this built in.
-cam.reactUtil.quacksLike = function(iface) {
-	var validator = function(props, propName, componentName) {
-		componentName += '.' + propName;
-		if (propName in props) {
-			var thing = props[propName];
-			for (var p in iface) {
-				iface[p](thing, p, componentName);
-			}
-		}
-	};
-
-	validator.isRequired = function(props, propName, componentName) {
-		if (!(propName in props)) {
-			throw new Error(goog.string.subs('Required prop %s is not present', propName));
-		}
-		validator(props, propName, componentName);
-	};
-
-	return validator;
-};
-
 // Returns the appropriate vendor prefixed style property name. This is figured out by testing the presence of various property names on an actual DOM style object.
 // The returned property is of the form 'fooBar' (if no prefix is needed), or 'WebkitFooBar' if a prefix is needed, which is the form React expects.
 // @param {string} prop The property name to find.
