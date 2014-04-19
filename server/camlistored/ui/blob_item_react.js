@@ -25,7 +25,7 @@ cam.BlobItemReact = React.createClass({
 	propTypes: {
 		blobref: React.PropTypes.string.isRequired,
 		checked: React.PropTypes.bool.isRequired,
-		onCheckClick: React.PropTypes.func.isRequired,  // (string,event)->void
+		onCheckClick: React.PropTypes.func,  // (string,event)->void
 		onWheel: React.PropTypes.func.isRequired,
 		position: React.PropTypes.instanceOf(goog.math.Coordinate).isRequired,
 	},
@@ -44,7 +44,7 @@ cam.BlobItemReact = React.createClass({
 				onMouseLeave: this.handleMouseLeave_,
 				onWheel: this.handleWheel_,
 			},
-			React.DOM.div({className:'checkmark', onClick:this.handleCheckClick_}),
+			this.getCheckmark_(),
 			this.props.children
 		);
 	},
@@ -55,6 +55,14 @@ cam.BlobItemReact = React.createClass({
 			'goog-control-hover': this.state.hovered,
 			'goog-control-checked': this.props.checked,
 		});
+	},
+
+	getCheckmark_: function() {
+		if (this.props.onCheckClick) {
+			return React.DOM.div({className:'checkmark', onClick:this.handleCheckClick_});
+		} else {
+			return null;
+		}
 	},
 
 	getRootStyle_: function() {

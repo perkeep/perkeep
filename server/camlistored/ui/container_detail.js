@@ -55,9 +55,6 @@ cam.ContainerDetail.Aspect.prototype.createContent = function(size) {
 		detailURL: this.detailURL_,
 		handlers: this.handlers_,
 		history: this.history_,
-		onSelectionChange: function() {
-			console.error('TODO');
-		},
 		searchSession: this.searchSession_,
 		selection: {},
 		style: {

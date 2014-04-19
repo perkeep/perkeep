@@ -106,23 +106,22 @@ cam.BlobItemContainerReact = React.createClass({
 	render: function() {
 		this.updateChildItems_();
 
-		var self = this;
 		var childControls = this.childItems_.filter(function(item) {
-			var visible = self.isVisible_(item.position.y) || self.isVisible_(item.position.y + item.size.height);
-			var isLastWheelItem = item.blobref == self.lastWheelItem_;
+			var visible = this.isVisible_(item.position.y) || this.isVisible_(item.position.y + item.size.height);
+			var isLastWheelItem = item.blobref == this.lastWheelItem_;
 			return visible || isLastWheelItem;
-		}).map(function(item) {
+		}, this).map(function(item) {
 			return cam.BlobItemReact({
 					key: item.blobref,
 					blobref: item.blobref,
-					checked: Boolean(self.props.selection[item.blobref]),
-					onCheckClick: self.handleCheckClick_,
-					onWheel: self.handleChildWheel_,
+					checked: Boolean(this.props.selection[item.blobref]),
+					onCheckClick: this.props.onSelectionChange ? this.handleCheckClick_ : null,
+					onWheel: this.handleChildWheel_,
 					position: item.position,
 				},
 				item.handler.createContent(item.size)
 			);
-		});
+		}, this);
 
 		childControls.push(React.DOM.div({
 			key: 'marker',
@@ -274,9 +273,7 @@ cam.BlobItemContainerReact = React.createClass({
 		this.lastCheckedIndex_ = index;
 		this.forceUpdate();
 
-		if (this.props.onSelectionChange) {
-			this.props.onSelectionChange(newSelection);
-		}
+		this.props.onSelectionChange(newSelection);
 	},
 
 	handleMouseDown_: function(e) {
