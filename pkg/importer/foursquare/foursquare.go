@@ -18,7 +18,6 @@ limitations under the License.
 package foursquare
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
