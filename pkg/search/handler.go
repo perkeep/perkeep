@@ -900,10 +900,3 @@ func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
 }
 
 const camliTypePrefix = "application/json; camliType="
-
-func skipImageInfoLookup(fi *camtypes.FileInfo) bool {
-	// psd photoshop files are not currently indexed (no width/height info available),
-	// so we don't even try to hit the index, which would just log an error.
-	// Instead the UI renders them as files, not images.
-	return fi.MIMEType == "image/vnd.adobe.photoshop"
-}

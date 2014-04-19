@@ -771,12 +771,10 @@ func (dr *DescribeRequest) describeReally(br blob.Ref, depth int) {
 			return
 		}
 		des.File = &fi
-		if des.File.IsImage() && !skipImageInfoLookup(des.File) {
+		if des.File.IsImage() {
 			imgInfo, err := dr.sh.index.GetImageInfo(br)
 			if err != nil {
-				if os.IsNotExist(err) {
-					log.Printf("index.GetImageInfo(file %s) failed; index stale?", br)
-				} else {
+				if !os.IsNotExist(err) {
 					dr.addError(br, err)
 				}
 			} else {
