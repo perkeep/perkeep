@@ -31,6 +31,7 @@ goog.require('cam.BlobItemGenericContent');
 goog.require('cam.BlobItemVideoContent');
 goog.require('cam.BlobItemImageContent');
 goog.require('cam.BlobItemDemoContent');
+goog.require('cam.ContainerDetail');
 goog.require('cam.DetailView');
 goog.require('cam.DirectoryDetail');
 goog.require('cam.Navigator');
@@ -51,6 +52,14 @@ cam.IndexPage = React.createClass({
 	SEARCH_PREFIX_: {
 		RAW: 'raw'
 	},
+
+	BLOB_ITEM_HANDLERS_: [
+		cam.BlobItemDemoContent.getHandler,
+		cam.BlobItemFoursquareContent.getHandler,
+		cam.BlobItemImageContent.getHandler,
+		cam.BlobItemVideoContent.getHandler,
+		cam.BlobItemGenericContent.getHandler // must be last
+	],
 
 	propTypes: {
 		availWidth: React.PropTypes.number.isRequired,
@@ -420,13 +429,7 @@ cam.IndexPage = React.createClass({
 			key: 'blobitemcontainer',
 			ref: 'blobItemContainer',
 			detailURL: this.handleDetailURL_,
-			handlers: [
-				cam.BlobItemDemoContent.getHandler,
-				cam.BlobItemFoursquareContent.getHandler,
-				cam.BlobItemImageContent.getHandler,
-				cam.BlobItemVideoContent.getHandler,
-				cam.BlobItemGenericContent.getHandler // must be last
-			],
+			handlers: this.BLOB_ITEM_HANDLERS_,
 			history: this.props.history,
 			onSelectionChange: this.handleSelectionChange_,
 			searchSession: this.searchSession_,
@@ -477,6 +480,7 @@ cam.IndexPage = React.createClass({
 			key: 'detailview',
 			aspects: {
 				'image': cam.ImageDetail.getAspect,
+				'container': cam.ContainerDetail.getAspect.bind(null, this.handleDetailURL_, this.BLOB_ITEM_HANDLERS_, this.props.history, this.getChildSearchSession_, this.THUMBNAIL_SIZES_[this.state.thumbnailSizeIndex]),
 				'directory': cam.DirectoryDetail.getAspect.bind(null, this.baseURL_),
 				'permanode': cam.PermanodeDetail.getAspect.bind(null, this.baseURL_),
 				'blob': cam.BlobDetail.getAspect.bind(null, this.baseURL_),
@@ -490,6 +494,17 @@ cam.IndexPage = React.createClass({
 			keyEventTarget: this.props.eventTarget,
 			width: this.props.availWidth,
 			height: this.props.availHeight,
+		});
+	},
+
+	getChildSearchSession_: function(blobref) {
+		return new cam.SearchSession(this.props.serverConnection, this.baseURL_.clone(), {
+			permanode: {
+				relation: {
+					relation: 'parent',
+					any: { blobRefPrefix: blobref }
+				}
+			}
 		});
 	},
 
