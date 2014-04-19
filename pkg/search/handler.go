@@ -20,25 +20,19 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log"
-	"math"
 	"net/http"
 	"net/url"
-	"os"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
 )
@@ -181,26 +175,31 @@ var getHandler = map[string]func(*Handler, http.ResponseWriter, *http.Request){
 	"edgesto":         (*Handler).serveEdgesTo,
 }
 
+var postHandler = map[string]func(*Handler, http.ResponseWriter, *http.Request){
+	"describe": (*Handler).serveDescribe,
+	"query":    (*Handler).serveQuery,
+}
+
 func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	ret := jsonMap()
 	suffix := httputil.PathSuffix(req)
 
-	if httputil.IsGet(req) {
-		fn := getHandler[strings.TrimPrefix(suffix, "camli/search/")]
-		if fn != nil {
-			fn(sh, rw, req)
-			return
-		}
+	handlers := getHandler
+	switch {
+	case httputil.IsGet(req):
+		// use default from above
+	case req.Method == "POST":
+		handlers = postHandler
+	default:
+		handlers = nil
 	}
-	if req.Method == "POST" {
-		switch suffix {
-		case "camli/search/query":
-			sh.serveQuery(rw, req)
-			return
-		}
+	fn := handlers[strings.TrimPrefix(suffix, "camli/search/")]
+	if fn != nil {
+		fn(sh, rw, req)
+		return
 	}
 
 	// TODO: discovery for the endpoints & better error message with link to discovery info
+	ret := jsonMap()
 	ret["error"] = "Unsupported search path or method"
 	ret["errorType"] = "input"
 	httputil.ReturnJSON(rw, ret)
@@ -365,16 +364,6 @@ func (r *EdgesRequest) fromHTTP(req *http.Request) {
 	r.ToRef = httputil.MustGetBlobRef(req, "blobref")
 }
 
-// A MetaMap is a map from blobref to a DescribedBlob.
-type MetaMap map[string]*DescribedBlob
-
-func (m MetaMap) Get(br blob.Ref) *DescribedBlob {
-	if !br.Valid() {
-		return nil
-	}
-	return m[br.String()]
-}
-
 // TODO(mpl): it looks like we never populate RecentResponse.Error*, shouldn't we remove them?
 // Same for WithAttrResponse. I suppose it doesn't matter much if we end up removing GetRecentPermanodes anyway...
 
@@ -395,11 +384,6 @@ func (r *RecentResponse) Err() error {
 		return errors.New(r.Error)
 	}
 	return nil
-}
-
-// DescribeResponse is the JSON response from $searchRoot/camli/search/describe.
-type DescribeResponse struct {
-	Meta MetaMap `json:"meta"`
 }
 
 // WithAttrResponse is the JSON response from $searchRoot/camli/search/permanodeattr.
@@ -655,387 +639,6 @@ func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 	httputil.ReturnJSON(rw, res)
 }
 
-type DescribeRequest struct {
-	// BlobRefs are the blobs to describe. If length zero, BlobRef
-	// is used.
-	BlobRefs []blob.Ref `json:"blobrefs,omitempty"`
-
-	// BlobRef is the blob to describe.
-	BlobRef blob.Ref `json:"blobref,omitempty"`
-
-	// Depth is the optional traversal depth to describe from the
-	// root BlobRef. If zero, a default is used.
-	Depth int `json:"depth,omitempty"`
-	// MaxDirChildren is the requested optional limit to the number
-	// of children that should be fetched when describing a static
-	// directory. If zero, a default is used.
-	MaxDirChildren int `json:"maxDirChildren,omitempty"`
-
-	// At specifies the time which we wish to see the state of
-	// this blob.  If zero (unspecified), all claims will be
-	// considered, otherwise, any claims after this date will not
-	// be considered.
-	At types.Time3339 `json:"at"`
-
-	// ThumbnailSize sets the max dimension for the thumbnail ULR generated,
-	// or zero for none
-	ThumbnailSize int `json:"thumbnailSize,omitempty"`
-
-	// Internal details, used while loading.
-	// Initialized by sh.initDescribeRequest.
-	sh   *Handler
-	mu   sync.Mutex // protects following:
-	m    MetaMap
-	done map[string]bool  // blobref -> described
-	errs map[string]error // blobref -> error
-
-	wg *sync.WaitGroup // for load requests
-}
-
-func (r *DescribeRequest) URLSuffix() string {
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "camli/search/describe?depth=%d&maxdirchildren=%d",
-		r.depth(), r.maxDirChildren())
-	for _, br := range r.BlobRefs {
-		buf.WriteString("&blobref=")
-		buf.WriteString(br.String())
-	}
-	if len(r.BlobRefs) == 0 && r.BlobRef.Valid() {
-		buf.WriteString("&blobref=")
-		buf.WriteString(r.BlobRef.String())
-	}
-	if !r.At.IsZero() {
-		buf.WriteString("&at=")
-		buf.WriteString(r.At.String())
-	}
-	return buf.String()
-}
-
-// fromHTTP panics with an httputil value on failure
-func (r *DescribeRequest) fromHTTP(req *http.Request) {
-	req.ParseForm()
-	if vv := req.Form["blobref"]; len(vv) > 1 {
-		for _, brs := range vv {
-			if br, ok := blob.Parse(brs); ok {
-				r.BlobRefs = append(r.BlobRefs, br)
-			} else {
-				panic(httputil.InvalidParameterError("blobref"))
-			}
-		}
-	} else {
-		r.BlobRef = httputil.MustGetBlobRef(req, "blobref")
-	}
-	r.Depth = httputil.OptionalInt(req, "depth")
-	r.MaxDirChildren = httputil.OptionalInt(req, "maxdirchildren")
-	r.ThumbnailSize = thumbnailSize(req)
-	r.At = types.ParseTime3339OrZero(req.FormValue("at"))
-}
-
-type DescribedBlob struct {
-	Request *DescribeRequest `json:"-"`
-
-	BlobRef   blob.Ref `json:"blobRef"`
-	CamliType string   `json:"camliType,omitempty"`
-	Size      int64    `json:"size,"`
-
-	// if camliType "permanode"
-	Permanode *DescribedPermanode `json:"permanode,omitempty"`
-
-	// if camliType "file"
-	File *camtypes.FileInfo `json:"file,omitempty"`
-	// if camliType "directory"
-	Dir *camtypes.FileInfo `json:"dir,omitempty"`
-	// if camliType "file", and File.IsImage()
-	Image *camtypes.ImageInfo `json:"image,omitempty"`
-	// if camliType "file" and media file
-	MediaTags map[string]string `json:"mediaTags,omitempty"`
-
-	// if camliType "directory"
-	DirChildren []blob.Ref `json:"dirChildren,omitempty"`
-
-	Thumbnail       string `json:"thumbnailSrc,omitempty"`
-	ThumbnailWidth  int    `json:"thumbnailWidth,omitempty"`
-	ThumbnailHeight int    `json:"thumbnailHeight,omitempty"`
-
-	// Stub is set if this is not loaded, but referenced.
-	Stub bool `json:"-"`
-}
-
-// PermanodeFile returns in path the blobref of the described permanode
-// and the blobref of its File camliContent.
-// If b isn't a permanode, or doesn't have a camliContent that
-// is a file blob, ok is false.
-func (b *DescribedBlob) PermanodeFile() (path []blob.Ref, fi *camtypes.FileInfo, ok bool) {
-	if b == nil || b.Permanode == nil {
-		return
-	}
-	if contentRef := b.Permanode.Attr.Get("camliContent"); contentRef != "" {
-		if cdes := b.Request.DescribedBlobStr(contentRef); cdes != nil && cdes.File != nil {
-			return []blob.Ref{b.BlobRef, cdes.BlobRef}, cdes.File, true
-		}
-	}
-	return
-}
-
-// PermanodeDir returns in path the blobref of the described permanode
-// and the blobref of its Directory camliContent.
-// If b isn't a permanode, or doesn't have a camliContent that
-// is a directory blob, ok is false.
-func (b *DescribedBlob) PermanodeDir() (path []blob.Ref, fi *camtypes.FileInfo, ok bool) {
-	if b == nil || b.Permanode == nil {
-		return
-	}
-	if contentRef := b.Permanode.Attr.Get("camliContent"); contentRef != "" {
-		if cdes := b.Request.DescribedBlobStr(contentRef); cdes != nil && cdes.Dir != nil {
-			return []blob.Ref{b.BlobRef, cdes.BlobRef}, cdes.Dir, true
-		}
-	}
-	return
-}
-
-func (b *DescribedBlob) DomID() string {
-	if b == nil {
-		return ""
-	}
-	return b.BlobRef.DomID()
-}
-
-func (b *DescribedBlob) Title() string {
-	if b == nil {
-		return ""
-	}
-	if b.Permanode != nil {
-		if t := b.Permanode.Attr.Get("title"); t != "" {
-			return t
-		}
-		if contentRef := b.Permanode.Attr.Get("camliContent"); contentRef != "" {
-			return b.Request.DescribedBlobStr(contentRef).Title()
-		}
-	}
-	if b.File != nil {
-		return b.File.FileName
-	}
-	if b.Dir != nil {
-		return b.Dir.FileName
-	}
-	return ""
-}
-
-func (b *DescribedBlob) Description() string {
-	if b == nil {
-		return ""
-	}
-	if b.Permanode != nil {
-		return b.Permanode.Attr.Get("description")
-	}
-	return ""
-}
-
-// Members returns all of b's children, as given by b's camliMember and camliPath:*
-// attributes. Only the first entry for a given camliPath attribute is used.
-func (b *DescribedBlob) Members() []*DescribedBlob {
-	if b == nil {
-		return nil
-	}
-	m := make([]*DescribedBlob, 0)
-	if b.Permanode != nil {
-		for _, bstr := range b.Permanode.Attr["camliMember"] {
-			if br, ok := blob.Parse(bstr); ok {
-				m = append(m, b.PeerBlob(br))
-			}
-		}
-		for k, bstrs := range b.Permanode.Attr {
-			if strings.HasPrefix(k, "camliPath:") && len(bstrs) > 0 {
-				if br, ok := blob.Parse(bstrs[0]); ok {
-					m = append(m, b.PeerBlob(br))
-				}
-			}
-		}
-	}
-	return m
-}
-
-func (b *DescribedBlob) DirMembers() []*DescribedBlob {
-	if b == nil || b.Dir == nil || len(b.DirChildren) == 0 {
-		return nil
-	}
-
-	m := make([]*DescribedBlob, 0)
-	for _, br := range b.DirChildren {
-		m = append(m, b.PeerBlob(br))
-	}
-	return m
-}
-
-func (b *DescribedBlob) ContentRef() (br blob.Ref, ok bool) {
-	if b != nil && b.Permanode != nil {
-		if cref := b.Permanode.Attr.Get("camliContent"); cref != "" {
-			return blob.Parse(cref)
-		}
-	}
-	return
-}
-
-// Given a blobref string returns a Description or nil.
-// dr may be nil itself.
-func (dr *DescribeRequest) DescribedBlobStr(blobstr string) *DescribedBlob {
-	if dr == nil {
-		return nil
-	}
-	dr.mu.Lock()
-	defer dr.mu.Unlock()
-	return dr.m[blobstr]
-}
-
-// PeerBlob returns a DescribedBlob for the provided blobref.
-//
-// Unlike DescribedBlobStr, the returned DescribedBlob is never nil.
-//
-// If the blob was never loaded along with the the receiver (or if the
-// receiver is nil), a stub DescribedBlob is returned with its Stub
-// field set true.
-func (b *DescribedBlob) PeerBlob(br blob.Ref) *DescribedBlob {
-	if b.Request == nil {
-		return &DescribedBlob{BlobRef: br, Stub: true}
-	}
-	b.Request.mu.Lock()
-	defer b.Request.mu.Unlock()
-	return b.peerBlob(br)
-}
-
-// version of PeerBlob when b.Request.mu is already held.
-func (b *DescribedBlob) peerBlob(br blob.Ref) *DescribedBlob {
-	if peer, ok := b.Request.m[br.String()]; ok {
-		return peer
-	}
-	return &DescribedBlob{Request: b.Request, BlobRef: br, Stub: true}
-}
-
-// HasSecureLinkTo returns true if there's a valid link from this blob
-// to the other blob. This is used in access control (hence the
-// somewhat redundant "Secure" in the name) and should be paranoid
-// against e.g. random user/attacker-control attributes making links
-// to other blobs.
-//
-// TODO: don't linear scan here.  rewrite this in terms of ResolvePrefixHop,
-// passing down some policy perhaps?  or maybe that's enough.
-func (b *DescribedBlob) HasSecureLinkTo(other blob.Ref) bool {
-	if b == nil || !other.Valid() {
-		return false
-	}
-	ostr := other.String()
-	if b.Permanode != nil {
-		if b.Permanode.Attr.Get("camliContent") == ostr {
-			return true
-		}
-		for _, mstr := range b.Permanode.Attr["camliMember"] {
-			if mstr == ostr {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func (b *DescribedBlob) isPermanode() bool {
-	return b.Permanode != nil
-}
-
-// returns a path relative to the UI handler.
-//
-// Locking: requires that DescribedRequest is done loading or that
-// Request.mu is held (as it is from metaMap)
-func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int, ok bool) {
-	if thumbSize <= 0 || !b.isPermanode() {
-		return
-	}
-	if b.Stub {
-		return "node.png", thumbSize, thumbSize, true
-	}
-
-	if b.Permanode.IsContainer() {
-		return "folder.png", thumbSize, thumbSize, true
-	}
-
-	if content, ok := b.ContentRef(); ok {
-		peer := b.peerBlob(content)
-		if peer.File != nil {
-			ii := peer.Image
-			if peer.File.IsImage() && ii != nil && ii.Height > 0 && ii.Width > 0 {
-				image := fmt.Sprintf("thumbnail/%s/%s?mh=%d&tv=%s", peer.BlobRef,
-					url.QueryEscape(peer.File.FileName), thumbSize, images.ThumbnailVersion())
-				mw, mh := images.ScaledDimensions(
-					int(ii.Width), int(ii.Height),
-					MaxImageSize, thumbSize)
-				return image, mw, mh, true
-			}
-
-			// TODO: different thumbnails based on peer.File.MIMEType.
-			const fileIconAspectRatio = 260.0 / 300.0
-			var width = int(math.Floor(float64(thumbSize)*fileIconAspectRatio + 0.5))
-			return "file.png", width, thumbSize, true
-		}
-		if peer.Dir != nil {
-			return "folder.png", thumbSize, thumbSize, true
-		}
-	}
-
-	return "node.png", thumbSize, thumbSize, true
-}
-
-type DescribedPermanode struct {
-	Attr    url.Values `json:"attr"` // a map[string][]string
-	ModTime time.Time  `json:"modtime,omitempty"`
-}
-
-// IsContainer returns whether the permanode has either named ("camliPath:"-prefixed) or unnamed
-// ("camliMember") member attributes.
-func (dp *DescribedPermanode) IsContainer() bool {
-	if members := dp.Attr["camliMember"]; len(members) > 0 {
-		return true
-	}
-	for k := range dp.Attr {
-		if strings.HasPrefix(k, "camliPath:") {
-			return true
-		}
-	}
-	return false
-}
-
-func (dp *DescribedPermanode) jsonMap() map[string]interface{} {
-	m := jsonMap()
-
-	am := jsonMap()
-	m["attr"] = am
-	for k, vv := range dp.Attr {
-		if len(vv) > 0 {
-			vl := make([]string, len(vv))
-			copy(vl[:], vv[:])
-			am[k] = vl
-		}
-	}
-	return m
-}
-
-// NewDescribeRequest returns a new DescribeRequest holding the state
-// of blobs and their summarized descriptions.  Use DescribeBlob
-// one or more times before calling Result.
-func (sh *Handler) NewDescribeRequest() *DescribeRequest {
-	dr := new(DescribeRequest)
-	sh.initDescribeRequest(dr)
-	return dr
-}
-
-func (sh *Handler) initDescribeRequest(req *DescribeRequest) {
-	if req.sh != nil {
-		panic("already initialized")
-	}
-	req.sh = sh
-	req.m = make(MetaMap)
-	req.errs = make(map[string]error)
-	req.wg = new(sync.WaitGroup)
-}
-
 // Given a blobref and a few hex characters of the digest of the next hop, return the complete
 // blobref of the prefix, if that's a valid next hop.
 func (sh *Handler) ResolvePrefixHop(parent blob.Ref, prefix string) (child blob.Ref, err error) {
@@ -1083,219 +686,6 @@ func (sh *Handler) ResolvePrefixHop(parent blob.Ref, prefix string) (child blob.
 	return blob.Ref{}, fmt.Errorf("Member prefix %q not found in %q", prefix, parent)
 }
 
-type DescribeError map[string]error
-
-func (de DescribeError) Error() string {
-	var buf bytes.Buffer
-	for b, err := range de {
-		fmt.Fprintf(&buf, "%s: %v; ", b, err)
-	}
-	return fmt.Sprintf("Errors (%d) describing blobs: %s", len(de), buf.String())
-}
-
-// Result waits for all outstanding lookups to complete and
-// returns the map of blobref (strings) to their described
-// results. The returned error is non-nil if any errors
-// occured, and will be of type DescribeError.
-func (dr *DescribeRequest) Result() (desmap map[string]*DescribedBlob, err error) {
-	dr.wg.Wait()
-	// TODO: set "done" / locked flag, so no more DescribeBlob can
-	// be called.
-	if len(dr.errs) > 0 {
-		return dr.m, DescribeError(dr.errs)
-	}
-	return dr.m, nil
-}
-
-func (dr *DescribeRequest) depth() int {
-	if dr.Depth > 0 {
-		return dr.Depth
-	}
-	return 4
-}
-
-func (dr *DescribeRequest) maxDirChildren() int {
-	return sanitizeNumResults(dr.MaxDirChildren)
-}
-
-func (dr *DescribeRequest) metaMap() (map[string]*DescribedBlob, error) {
-	return dr.metaMapThumbs(0)
-}
-
-func (dr *DescribeRequest) metaMapThumbs(thumbSize int) (map[string]*DescribedBlob, error) {
-	// thumbSize of zero means to not include the thumbnails.
-	dr.wg.Wait()
-	dr.mu.Lock()
-	defer dr.mu.Unlock()
-	for k, err := range dr.errs {
-		// TODO: include all?
-		return nil, fmt.Errorf("error populating %s: %v", k, err)
-	}
-	m := make(map[string]*DescribedBlob)
-	for k, desb := range dr.m {
-		m[k] = desb
-		if src, w, h, ok := desb.thumbnail(thumbSize); ok {
-			desb.Thumbnail = src
-			desb.ThumbnailWidth = w
-			desb.ThumbnailHeight = h
-		}
-	}
-	return m, nil
-}
-
-func (dr *DescribeRequest) describedBlob(b blob.Ref) *DescribedBlob {
-	dr.mu.Lock()
-	defer dr.mu.Unlock()
-	bs := b.String()
-	if des, ok := dr.m[bs]; ok {
-		return des
-	}
-	des := &DescribedBlob{Request: dr, BlobRef: b}
-	dr.m[bs] = des
-	return des
-}
-
-func (dr *DescribeRequest) DescribeSync(br blob.Ref) (*DescribedBlob, error) {
-	dr.Describe(br, 1)
-	res, err := dr.Result()
-	if err != nil {
-		return nil, err
-	}
-	return res[br.String()], nil
-}
-
-// Describe starts a lookup of br, down to the provided depth.
-// It returns immediately.
-func (dr *DescribeRequest) Describe(br blob.Ref, depth int) {
-	if depth <= 0 {
-		return
-	}
-	dr.mu.Lock()
-	defer dr.mu.Unlock()
-	if dr.done == nil {
-		dr.done = make(map[string]bool)
-	}
-	brefAndDepth := fmt.Sprintf("%s-%d", br, depth)
-	if dr.done[brefAndDepth] {
-		return
-	}
-	dr.done[brefAndDepth] = true
-	dr.wg.Add(1)
-	go func() {
-		defer dr.wg.Done()
-		dr.describeReally(br, depth)
-	}()
-}
-
-func (dr *DescribeRequest) addError(br blob.Ref, err error) {
-	if err == nil {
-		return
-	}
-	dr.mu.Lock()
-	defer dr.mu.Unlock()
-	// TODO: append? meh.
-	dr.errs[br.String()] = err
-}
-
-func (dr *DescribeRequest) describeReally(br blob.Ref, depth int) {
-	meta, err := dr.sh.index.GetBlobMeta(br)
-	if err == os.ErrNotExist {
-		return
-	}
-	if err != nil {
-		dr.addError(br, err)
-		return
-	}
-
-	// TODO: convert all this in terms of
-	// DescribedBlob/DescribedPermanode/DescribedFile, not json
-	// maps.  Then add JSON marhsallers to those types. Add tests.
-	des := dr.describedBlob(br)
-	if meta.CamliType != "" {
-		des.setMIMEType("application/json; camliType=" + meta.CamliType)
-	}
-	des.Size = int64(meta.Size)
-
-	switch des.CamliType {
-	case "permanode":
-		des.Permanode = new(DescribedPermanode)
-		dr.populatePermanodeFields(des.Permanode, br, dr.sh.owner, depth)
-	case "file":
-		fi, err := dr.sh.index.GetFileInfo(br)
-		if err != nil {
-			if os.IsNotExist(err) {
-				log.Printf("index.GetFileInfo(file %s) failed; index stale?", br)
-			} else {
-				dr.addError(br, err)
-			}
-			return
-		}
-		des.File = &fi
-		if des.File.IsImage() && !skipImageInfoLookup(des.File) {
-			imgInfo, err := dr.sh.index.GetImageInfo(br)
-			if err != nil {
-				if os.IsNotExist(err) {
-					log.Printf("index.GetImageInfo(file %s) failed; index stale?", br)
-				} else {
-					dr.addError(br, err)
-				}
-			} else {
-				des.Image = &imgInfo
-			}
-		}
-		if mediaTags, err := dr.sh.index.GetMediaTags(br); err == nil {
-			des.MediaTags = mediaTags
-		}
-	case "directory":
-		var g syncutil.Group
-		g.Go(func() (err error) {
-			fi, err := dr.sh.index.GetFileInfo(br)
-			if os.IsNotExist(err) {
-				log.Printf("index.GetFileInfo(directory %s) failed; index stale?", br)
-			}
-			if err == nil {
-				des.Dir = &fi
-			}
-			return
-		})
-		g.Go(func() (err error) {
-			des.DirChildren, err = dr.getDirMembers(br, depth)
-			return
-		})
-		if err := g.Err(); err != nil {
-			dr.addError(br, err)
-		}
-	}
-}
-
-func (sh *Handler) Describe(dr *DescribeRequest) (*DescribeResponse, error) {
-	sh.initDescribeRequest(dr)
-	if dr.BlobRef.Valid() {
-		dr.Describe(dr.BlobRef, dr.depth())
-	}
-	for _, br := range dr.BlobRefs {
-		dr.Describe(br, dr.depth())
-	}
-	metaMap, err := dr.metaMapThumbs(dr.ThumbnailSize)
-	if err != nil {
-		return nil, err
-	}
-	return &DescribeResponse{metaMap}, nil
-}
-
-func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
-	defer httputil.RecoverJSON(rw, req)
-	var dr DescribeRequest
-	dr.fromHTTP(req)
-
-	res, err := sh.Describe(&dr)
-	if err != nil {
-		httputil.ServeJSONError(rw, err)
-		return
-	}
-	httputil.ReturnJSON(rw, res)
-}
-
 func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
 	defer httputil.ReturnJSON(rw, ret)
@@ -1320,100 +710,6 @@ func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 	}
 	ret["files"] = strList
 	return
-}
-
-func (dr *DescribeRequest) populatePermanodeFields(pi *DescribedPermanode, pn, signer blob.Ref, depth int) {
-	pi.Attr = make(url.Values)
-	attr := pi.Attr
-
-	claims, err := dr.sh.index.AppendClaims(nil, pn, signer, "")
-	if err != nil {
-		log.Printf("Error getting claims of %s: %v", pn.String(), err)
-		dr.addError(pn, fmt.Errorf("Error getting claims of %s: %v", pn.String(), err))
-		return
-	}
-
-	sort.Sort(camtypes.ClaimsByDate(claims))
-claimLoop:
-	for _, cl := range claims {
-		if !dr.At.IsZero() {
-			if cl.Date.After(dr.At.Time()) {
-				continue
-			}
-		}
-		switch cl.Type {
-		default:
-			continue
-		case "del-attribute":
-			if cl.Value == "" {
-				delete(attr, cl.Attr)
-			} else {
-				sl := attr[cl.Attr]
-				filtered := make([]string, 0, len(sl))
-				for _, val := range sl {
-					if val != cl.Value {
-						filtered = append(filtered, val)
-					}
-				}
-				attr[cl.Attr] = filtered
-			}
-		case "set-attribute":
-			delete(attr, cl.Attr)
-			fallthrough
-		case "add-attribute":
-			if cl.Value == "" {
-				continue
-			}
-			sl, ok := attr[cl.Attr]
-			if ok {
-				for _, exist := range sl {
-					if exist == cl.Value {
-						continue claimLoop
-					}
-				}
-			} else {
-				sl = make([]string, 0, 1)
-				attr[cl.Attr] = sl
-			}
-			attr[cl.Attr] = append(sl, cl.Value)
-		}
-		pi.ModTime = cl.Date
-	}
-
-	// Descend into any references in current attributes.
-	for key, vals := range attr {
-		dr.describeRefs(key, depth)
-		for _, v := range vals {
-			dr.describeRefs(v, depth)
-		}
-	}
-}
-
-func (dr *DescribeRequest) getDirMembers(br blob.Ref, depth int) ([]blob.Ref, error) {
-	limit := dr.maxDirChildren()
-	ch := make(chan blob.Ref)
-	errch := make(chan error)
-	go func() {
-		errch <- dr.sh.index.GetDirMembers(br, ch, limit)
-	}()
-
-	var members []blob.Ref
-	for child := range ch {
-		dr.Describe(child, depth)
-		members = append(members, child)
-	}
-	if err := <-errch; err != nil {
-		return nil, err
-	}
-	return members, nil
-}
-
-func (dr *DescribeRequest) describeRefs(str string, depth int) {
-	for _, match := range blobRefPattern.FindAllString(str, -1) {
-		if ref, ok := blob.ParseKnown(match); ok {
-			dr.Describe(ref, depth-1)
-		}
-	}
 }
 
 // SignerAttrValueResponse is the JSON response to $search/camli/search/signerattrvalue
@@ -1604,12 +900,6 @@ func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
 }
 
 const camliTypePrefix = "application/json; camliType="
-
-func (d *DescribedBlob) setMIMEType(mime string) {
-	if strings.HasPrefix(mime, camliTypePrefix) {
-		d.CamliType = strings.TrimPrefix(mime, camliTypePrefix)
-	}
-}
 
 func skipImageInfoLookup(fi *camtypes.FileInfo) bool {
 	// psd photoshop files are not currently indexed (no width/height info available),

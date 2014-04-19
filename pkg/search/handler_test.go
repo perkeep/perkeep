@@ -17,14 +17,17 @@ limitations under the License.
 package search_test
 
 import (
-	. "camlistore.org/pkg/search"
-
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,6 +36,7 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/osutil"
+	. "camlistore.org/pkg/search"
 	"camlistore.org/pkg/test"
 )
 
@@ -61,10 +65,15 @@ type handlerTest struct {
 	// FakeIndex is not used.
 	setup func(fi *test.FakeIndex) index.Interface
 
-	name  string // test name
-	query string // the HTTP path + optional query suffix after "camli/search/"
+	name     string // test name
+	query    string // the HTTP path + optional query suffix after "camli/search/"
+	postBody string // if non-nil, a POST request
 
 	want map[string]interface{}
+	// wantDescribed is a list of blobref strings that should've been
+	// described in meta. If want is nil and this is non-zero length,
+	// want is ignored.
+	wantDescribed []string
 }
 
 var owner = blob.MustParse("abcown-123")
@@ -614,57 +623,112 @@ var handlerTests = []handlerTest{
 	},
 }
 
+func marshalJSON(v interface{}) string {
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
+}
+
+func jmap(v interface{}) map[string]interface{} {
+	m := make(map[string]interface{})
+	if err := json.NewDecoder(strings.NewReader(marshalJSON(v))).Decode(&m); err != nil {
+		panic(err)
+	}
+	return m
+}
+
+func checkNoDups(sliceName string, tests []handlerTest) {
+	seen := map[string]bool{}
+	for _, tt := range tests {
+		if seen[tt.name] {
+			panic(fmt.Sprintf("duplicate handlerTest named %q in var %s", tt.name, sliceName))
+		}
+		seen[tt.name] = true
+	}
+}
+
+func init() {
+	checkNoDups("handlerTests", handlerTests)
+}
+
+func (ht handlerTest) test(t *testing.T) {
+	SetTestHookBug121(func() {})
+
+	fakeIndex := test.NewFakeIndex()
+	idx := ht.setup(fakeIndex)
+
+	indexOwner := owner
+	if io, ok := idx.(indexOwnerer); ok {
+		indexOwner = io.IndexOwner()
+	}
+	h := NewHandler(idx, indexOwner)
+
+	var body io.Reader
+	var method = "GET"
+	if ht.postBody != "" {
+		method = "POST"
+		body = strings.NewReader(ht.postBody)
+	}
+	req, err := http.NewRequest(method, "/camli/search/"+ht.query, body)
+	if err != nil {
+		t.Fatalf("%s: bad query: %v", ht.name, err)
+	}
+	req.Header.Set(httputil.PathSuffixHeader, req.URL.Path[1:])
+
+	rr := httptest.NewRecorder()
+	rr.Body = new(bytes.Buffer)
+
+	h.ServeHTTP(rr, req)
+	got := rr.Body.Bytes()
+
+	if len(ht.wantDescribed) > 0 {
+		dr := new(DescribeResponse)
+		if err := json.NewDecoder(bytes.NewReader(got)).Decode(dr); err != nil {
+			t.Fatalf("On test %s: Non-JSON response: %s", ht.name, got)
+		}
+		var gotDesc []string
+		for k := range dr.Meta {
+			gotDesc = append(gotDesc, k)
+		}
+		sort.Strings(ht.wantDescribed)
+		sort.Strings(gotDesc)
+		if !reflect.DeepEqual(gotDesc, ht.wantDescribed) {
+			t.Errorf("On test %s: described blobs:\n%v\nwant:\n%v\n",
+				ht.name, gotDesc, ht.wantDescribed)
+		}
+		if ht.want == nil {
+			return
+		}
+	}
+
+	want, _ := json.MarshalIndent(ht.want, "", "  ")
+	trim := bytes.TrimSpace
+
+	if bytes.Equal(trim(got), trim(want)) {
+		return
+	}
+
+	// Try with re-encoded got, since the JSON ordering doesn't matter
+	// to the test,
+	gotj := parseJSON(string(got))
+	got2, _ := json.MarshalIndent(gotj, "", "  ")
+	if bytes.Equal(got2, want) {
+		return
+	}
+	diff := test.Diff(want, got2)
+
+	t.Errorf("test %s:\nwant: %s\n got: %s\ndiff:\n%s", ht.name, want, got, diff)
+}
+
 func TestHandler(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode")
 		return
 	}
-	seen := map[string]bool{}
 	defer SetTestHookBug121(func() {})
-	for _, tt := range handlerTests {
-		if seen[tt.name] {
-			t.Fatalf("duplicate test named %q", tt.name)
-		}
-		seen[tt.name] = true
-		SetTestHookBug121(func() {})
-
-		fakeIndex := test.NewFakeIndex()
-		idx := tt.setup(fakeIndex)
-
-		indexOwner := owner
-		if io, ok := idx.(indexOwnerer); ok {
-			indexOwner = io.IndexOwner()
-		}
-		h := NewHandler(idx, indexOwner)
-
-		req, err := http.NewRequest("GET", "/camli/search/"+tt.query, nil)
-		if err != nil {
-			t.Fatalf("%s: bad query: %v", tt.name, err)
-		}
-		req.Header.Set(httputil.PathSuffixHeader, req.URL.Path[1:])
-
-		rr := httptest.NewRecorder()
-		rr.Body = new(bytes.Buffer)
-
-		h.ServeHTTP(rr, req)
-
-		got := rr.Body.Bytes()
-		want, _ := json.MarshalIndent(tt.want, "", "  ")
-		trim := bytes.TrimSpace
-
-		if bytes.Equal(trim(got), trim(want)) {
-			continue
-		}
-
-		// Try with re-encoded got, since the JSON ordering doesn't matter
-		// to the test,
-		gotj := parseJSON(string(got))
-		got2, _ := json.MarshalIndent(gotj, "", "  ")
-		if bytes.Equal(got2, want) {
-			continue
-		}
-		diff := test.Diff(want, got2)
-
-		t.Errorf("test %s:\nwant: %s\n got: %s\ndiff:\n%s", tt.name, want, got, diff)
+	for _, ht := range handlerTests {
+		ht.test(t)
 	}
 }
