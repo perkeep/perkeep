@@ -104,8 +104,7 @@ func (im *imp) AccountSetupHTML(host *importer.Host) string {
 // A run is our state for a given run of the importer.
 type run struct {
 	*importer.RunContext
-	im          *imp
-	oauthConfig *oauth.Config
+	im *imp
 }
 
 func (r *run) token() string {
@@ -113,19 +112,9 @@ func (r *run) token() string {
 }
 
 func (im *imp) Run(ctx *importer.RunContext) error {
-	clientId, secret, err := ctx.Credentials()
-	if err != nil {
-		return err
-	}
 	r := &run{
 		RunContext: ctx,
 		im:         im,
-		oauthConfig: &oauth.Config{
-			ClientId:     clientId,
-			ClientSecret: secret,
-			AuthURL:      authURL,
-			TokenURL:     tokenURL,
-		},
 	}
 
 	if err := r.importCheckins(); err != nil {
