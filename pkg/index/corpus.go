@@ -839,6 +839,26 @@ func (c *Corpus) PermanodeModtimeLocked(pn blob.Ref) (t time.Time, ok bool) {
 	if !ok {
 		return
 	}
+
+	// TODO: this is a temporary hack. We really want the default
+	// search sorting mode to be created-descending, but it's
+	// currently modtime-descending, and all my foursquare
+	// checkins (thousands) are currently at the top, and not
+	// inter-mingled in time where they should be.  This doesn't
+	// demo well, so hack it for now by lying about the
+	// modtime. This can be deleted (or at least moved to its
+	// proper place) when I finish the other TODOs about changing
+	// the default search.
+	nodeType := c.PermanodeAttrValueLocked(pn, "camliNodeType", time.Time{}, blob.Ref{})
+	if nodeType == "foursquare.com:checkin" {
+		if timeStr := c.PermanodeAttrValueLocked(pn, "startDate", time.Time{}, blob.Ref{}); timeStr != "" {
+			t, err := time.Parse(time.RFC3339, timeStr)
+			if err == nil {
+				return t, true
+			}
+		}
+	}
+
 	// Note: We intentionally don't try to derive any information
 	// (except the owner, elsewhere) from the permanode blob
 	// itself. Even though the permanode blob sometimes has the
