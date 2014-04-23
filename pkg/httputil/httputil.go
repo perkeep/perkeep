@@ -27,6 +27,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -63,7 +64,7 @@ func RequestEntityTooLargeError(conn http.ResponseWriter) {
 
 func ServeError(conn http.ResponseWriter, req *http.Request, err error) {
 	conn.WriteHeader(http.StatusInternalServerError)
-	if IsLocalhost(req) {
+	if IsLocalhost(req) || os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "" {
 		fmt.Fprintf(conn, "Server error: %s\n", err)
 		return
 	}
