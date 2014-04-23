@@ -31,7 +31,7 @@ import (
 
 func TestGetUserID(t *testing.T) {
 	im := &imp{
-		&oauth.Credentials{
+		credsVal: &oauth.Credentials{
 			Token:  "foo",
 			Secret: "bar",
 		},

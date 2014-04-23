@@ -75,13 +75,13 @@ type imp struct {
 
 func (im *imp) creds() *oauth.Credentials {
 	im.mu.Lock()
-	defer im.mu.Lock()
+	defer im.mu.Unlock()
 	return im.credsVal
 }
 
 func (im *imp) setCreds(v *oauth.Credentials) {
 	im.mu.Lock()
-	defer im.mu.Lock()
+	defer im.mu.Unlock()
 	im.credsVal = v
 }
 
