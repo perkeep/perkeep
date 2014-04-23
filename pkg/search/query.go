@@ -1174,11 +1174,17 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 	}
 
 	if c.SkipHidden && corpus != nil {
-		vals := corpus.AppendPermanodeAttrValuesLocked(s.ss[:0], br, "camliDefVis", time.Time{}, s.h.owner)
-		for _, v := range vals {
-			if v == "hide" {
-				return false, nil
-			}
+		defVis := corpus.PermanodeAttrValueLocked(br, "camliDefVis", c.At, s.h.owner)
+		if defVis == "hide" {
+			return false, nil
+		}
+		nodeType := corpus.PermanodeAttrValueLocked(br, "camliNodeType", c.At, s.h.owner)
+		if nodeType == "foursquare.com:venue" {
+			// TODO: temporary. remove this, or change
+			// when/where (time) we show these.  But these
+			// are flooding my results and I'm about to
+			// demo this.
+			return false, nil
 		}
 	}
 
