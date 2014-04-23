@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"camlistore.org/pkg/context"
@@ -66,9 +67,22 @@ var (
 )
 
 type imp struct {
-	// cred are the various credentials passed around during OAUTH. First the temporary
+	// cred are the various credentials passed around during OAuth. First the temporary
 	// ones, then the access token and secret.
-	cred *oauth.Credentials
+	mu       sync.Mutex // guards credsVal
+	credsVal *oauth.Credentials
+}
+
+func (im *imp) creds() *oauth.Credentials {
+	im.mu.Lock()
+	defer im.mu.Lock()
+	return im.credsVal
+}
+
+func (im *imp) setCreds(v *oauth.Credentials) {
+	im.mu.Lock()
+	defer im.mu.Lock()
+	im.credsVal = v
 }
 
 func (im *imp) NeedsAPIKey() bool { return true }
@@ -245,7 +259,7 @@ func (im *imp) doAPI(ctx *context.Context, result interface{}, apiPath string, k
 		panic("Incorrect number of keyval arguments. must be even.")
 	}
 
-	if im.cred == nil {
+	if im.creds() == nil {
 		return fmt.Errorf("No authentication creds")
 	}
 
@@ -269,10 +283,11 @@ func (im *imp) doAPI(ctx *context.Context, result interface{}, apiPath string, k
 }
 
 func (im *imp) doGet(ctx *context.Context, url string, form url.Values) (*http.Response, error) {
-	if im.cred == nil {
-		return nil, errors.New("No OAUTH credentials. Not logged in?")
+	creds := im.creds()
+	if creds == nil {
+		return nil, errors.New("No OAuth credentials. Not logged in?")
 	}
-	res, err := oauthClient.Get(ctx.HTTPClient(), im.cred, url, form)
+	res, err := oauthClient.Get(ctx.HTTPClient(), creds, url, form)
 	if err != nil {
 		return nil, fmt.Errorf("Error fetching %s: %v", url, err)
 	}
@@ -306,7 +321,7 @@ func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.
 		err = fmt.Errorf("Error getting temp cred: %v", err)
 		httputil.ServeError(w, r, err)
 	}
-	im.cred = tempCred
+	im.setCreds(tempCred)
 
 	authURL := oauthClient.AuthorizationURL(tempCred, nil)
 	http.Redirect(w, r, authURL, 302)
@@ -314,13 +329,19 @@ func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.
 }
 
 func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
-	if im.cred.Token != r.FormValue("oauth_token") {
-		log.Printf("unexpected oauth_token: got %v, want %v", r.FormValue("oauth_token"), im.cred.Token)
+	creds := im.creds()
+	if creds == nil {
+		log.Printf("twitter: nil creds in callback")
+		httputil.BadRequestError(w, "nil creds in callback")
+		return
+	}
+	if creds.Token != r.FormValue("oauth_token") {
+		log.Printf("unexpected oauth_token: got %v, want %v", r.FormValue("oauth_token"), creds.Token)
 		httputil.BadRequestError(w, "unexpected oauth_token")
 		return
 	}
 
-	tokenCred, vals, err := oauthClient.RequestToken(ctx.Context.HTTPClient(), im.cred, r.FormValue("oauth_verifier"))
+	tokenCred, vals, err := oauthClient.RequestToken(ctx.Context.HTTPClient(), creds, r.FormValue("oauth_verifier"))
 	if err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error getting request token: %v ", err))
 		return
@@ -330,7 +351,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		httputil.ServeError(w, r, fmt.Errorf("Couldn't get user id: %v", err))
 		return
 	}
-	im.cred = tokenCred
+	im.setCreds(tokenCred)
 
 	u, err := im.getUserInfo(ctx.Context)
 	if err != nil {
