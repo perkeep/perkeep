@@ -868,8 +868,44 @@ func (c *Corpus) AppendPermanodeAttrValues(dst []string,
 	return c.AppendPermanodeAttrValuesLocked(dst, permaNode, attr, at, signerFilter)
 }
 
-// AppendPermanodeAttrValuesLocked is the version of AppendPermanodeAttrValues that assumes
-// the Corpus is already locked with RLock.
+// PermanodeAttrValueLocked returns a single-valued attribute or "".
+func (c *Corpus) PermanodeAttrValueLocked(permaNode blob.Ref,
+	attr string,
+	at time.Time,
+	signerFilter blob.Ref) string {
+	pm, ok := c.permanodes[permaNode]
+	if !ok {
+		return ""
+	}
+	if at.IsZero() {
+		at = time.Now()
+	}
+	var v string
+	for _, cl := range pm.Claims {
+		if cl.Attr != attr || cl.Date.After(at) {
+			continue
+		}
+		if signerFilter.Valid() && signerFilter != cl.Signer {
+			continue
+		}
+		switch cl.Type {
+		case string(schema.DelAttributeClaim):
+			if cl.Value == "" {
+				v = ""
+			} else if v == cl.Value {
+				v = ""
+			}
+		case string(schema.SetAttributeClaim):
+			v = cl.Value
+		case string(schema.AddAttributeClaim):
+			if v == "" {
+				v = cl.Value
+			}
+		}
+	}
+	return v
+}
+
 func (c *Corpus) AppendPermanodeAttrValuesLocked(dst []string,
 	permaNode blob.Ref,
 	attr string,
@@ -995,6 +1031,36 @@ func (c *Corpus) FileLatLongLocked(fileRef blob.Ref) (lat, long float64, ok bool
 		return
 	}
 	return ll.lat, ll.long, true
+}
+
+// zero value of at means current
+func (c *Corpus) PermanodeLatLongLocked(pn blob.Ref, at time.Time) (lat, long float64, ok bool) {
+	nodeType := c.PermanodeAttrValueLocked(pn, "camliNodeType", at, blob.Ref{})
+	if nodeType == "" {
+		return
+	}
+	// TODO: make these pluggable, e.g. registered from an importer or something?
+	// How will that work when they're out-of-process?
+	if nodeType == "foursquare.com:checkin" {
+		venuePn, hasVenue := blob.Parse(c.PermanodeAttrValueLocked(pn, "foursquareVenuePermanode", at, blob.Ref{}))
+		if !hasVenue {
+			return
+		}
+		return c.PermanodeLatLongLocked(venuePn, at)
+	}
+	if nodeType == "foursquare.com:venue" {
+		var err error
+		lat, err = strconv.ParseFloat(c.PermanodeAttrValueLocked(pn, "latitude", at, blob.Ref{}), 64)
+		if err != nil {
+			return
+		}
+		long, err = strconv.ParseFloat(c.PermanodeAttrValueLocked(pn, "longitude", at, blob.Ref{}), 64)
+		if err != nil {
+			return
+		}
+		return lat, long, true
+	}
+	return
 }
 
 // ForeachClaimBackLocked calls fn for each claim with a value referencing br.

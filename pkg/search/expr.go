@@ -504,24 +504,31 @@ func parseLocationAtom(ctx *context.Context, word string) (*Constraint, error) {
 		if len(rects) == 0 {
 			return nil, fmt.Errorf("No location found for %q", where)
 		}
-		var locConstraint *Constraint
+		var c *Constraint
 		for i, rect := range rects {
-			rectConstraint := permOfFile(&FileConstraint{
-				IsImage: true,
-				Location: &LocationConstraint{
-					West:  rect.SouthWest.Long,
-					East:  rect.NorthEast.Long,
-					North: rect.NorthEast.Lat,
-					South: rect.SouthWest.Lat,
-				},
+			loc := &LocationConstraint{
+				West:  rect.SouthWest.Long,
+				East:  rect.NorthEast.Long,
+				North: rect.NorthEast.Lat,
+				South: rect.SouthWest.Lat,
+			}
+			fileLoc := permOfFile(&FileConstraint{
+				IsImage:  true,
+				Location: loc,
 			})
+			permLoc := &Constraint{
+				Permanode: &PermanodeConstraint{
+					Location: loc,
+				},
+			}
+			rectConstraint := orConst(fileLoc, permLoc)
 			if i == 0 {
-				locConstraint = rectConstraint
+				c = rectConstraint
 			} else {
-				locConstraint = orConst(locConstraint, rectConstraint)
+				c = orConst(c, rectConstraint)
 			}
 		}
-		return locConstraint, nil
+		return c, nil
 	}
 	if word == "has:location" {
 		c := permOfFile(&FileConstraint{
