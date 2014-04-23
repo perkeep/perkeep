@@ -109,7 +109,7 @@ type BlobStreamer interface {
 	// receive blobs from "the start". StreamBlobs must
 	// unconditionally close dest before returning, and it must
 	// return if ctx.Done() becomes readable.
-	StreamBlobs(ctx *context.Context, dest chan<- blob.Blob, contToken string, limitBytes int64) (nextContinueToken string, err error)
+	StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string, limitBytes int64) (nextContinueToken string, err error)
 }
 
 // Cache is the minimal interface expected of a blob cache.
