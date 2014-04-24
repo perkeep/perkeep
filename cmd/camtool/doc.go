@@ -26,7 +26,7 @@ Usage:
 Modes:
 
   env: Return Camlistore environment information
-  gsinit: Init Google Storage.
+  googinit: Init Google Drive or Google Cloud Storage.
   list: List blobs on a server.
   claims: Ask the search system to list the claims that modify a permanode.
   dumpconfig: Dump the low-level server config from its simple config.
