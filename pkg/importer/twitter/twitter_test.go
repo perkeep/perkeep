@@ -30,19 +30,13 @@ import (
 )
 
 func TestGetUserID(t *testing.T) {
-	im := &imp{
-		credsVal: &oauth.Credentials{
-			Token:  "foo",
-			Secret: "bar",
-		},
-	}
 	ctx := context.New()
 	ctx.SetHTTPClient(&http.Client{
 		Transport: newFakeTransport(map[string]func() *http.Response{
 			apiURL + userInfoAPIPath: fileResponder(filepath.FromSlash("testdata/verify_credentials-res.json")),
 		}),
 	})
-	inf, err := im.getUserInfo(ctx)
+	inf, err := getUserInfo(ctx, &oauth.Client{}, &oauth.Credentials{})
 	if err != nil {
 		t.Fatal(err)
 	}
