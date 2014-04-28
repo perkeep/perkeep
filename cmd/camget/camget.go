@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/buildinfo"
@@ -33,6 +34,7 @@ import (
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 )
 
@@ -313,6 +315,39 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 		// os.Chtimes always dereferences (does not act on the
 		// symlink but its target).
 		return err
+	case "fifo":
+		name := filepath.Join(targ, b.FileName())
+
+		if runtime.GOOS == "windows" {
+			log.Printf("Skipping FIFO: %s: Unsupported filetype",
+				name)
+			return nil
+		}
+
+		sf, ok := b.AsStaticFile()
+		if !ok {
+			return errors.New("blob is not a static file")
+		}
+		_, ok = sf.AsStaticFIFO()
+		if !ok {
+			return errors.New("blob is not a static FIFO")
+		}
+
+		if _, err := os.Lstat(name); err == nil {
+			log.Printf("Skipping FIFO: %s: A file with that name already exists", name)
+			return nil
+		}
+
+		err = osutil.Mkfifo(name, 0600)
+		if err != nil {
+			return fmt.Errorf("%s: osutil.Mkfifo(): %v", name, err)
+		}
+
+		if err := setFileMeta(name, b); err != nil {
+			log.Print(err)
+		}
+
+		return nil
 
 	default:
 		return errors.New("unknown blob type: " + b.Type())

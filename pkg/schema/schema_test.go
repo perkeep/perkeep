@@ -22,11 +22,13 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/osutil"
 	. "camlistore.org/pkg/test/asserts"
 )
 
@@ -524,5 +526,43 @@ func TestStaticFileAndStaticSymlink(t *testing.T) {
 
 	if want, got := target, sl.SymlinkTargetString(); got != want {
 		t.Fatalf("StaticSymlink.SymlinkTargetString(): Expected %s, got %s", want, got)
+	}
+}
+
+func TestStaticFIFO(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.SkipNow()
+	}
+
+	tdir, err := ioutil.TempDir("", "schema-test-")
+	if err != nil {
+		t.Fatalf("ioutil.TempDir(): %v", err)
+	}
+	defer os.RemoveAll(tdir)
+
+	fifoPath := filepath.Join(tdir, "fifo")
+	err = osutil.Mkfifo(fifoPath, 0660)
+	if err != nil {
+		t.Fatalf("osutil.Mkfifo(): %v", err)
+	}
+
+	fi, err := os.Lstat(fifoPath)
+	if err != nil {
+		t.Fatalf("os.Lstat(): %v", err)
+	}
+
+	bb := NewCommonFileMap(fifoPath, fi)
+	bb.SetType("fifo")
+	bb.SetFileName(fifoPath)
+	blob := bb.Blob()
+	t.Logf("Got JSON for fifo: %s\n", blob.JSON())
+
+	sf, ok := blob.AsStaticFile()
+	if !ok {
+		t.Fatalf("Blob.AsStaticFile(): Expected true, got false")
+	}
+	_, ok = sf.AsStaticFIFO()
+	if !ok {
+		t.Fatalf("StaticFile.AsStaticFIFO(): Expected true, got false")
 	}
 }

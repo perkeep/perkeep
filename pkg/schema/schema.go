@@ -92,6 +92,11 @@ type Symlink interface {
 	// .. TODO
 }
 
+// FIFO is the read-only interface to a "fifo" schema blob.
+type FIFO interface {
+	// .. TODO
+}
+
 // DirectoryEntry is a read-only interface to an entry in a (static)
 // directory.
 type DirectoryEntry interface {
@@ -106,6 +111,7 @@ type DirectoryEntry interface {
 	File() (File, error)           // if camliType is "file"
 	Directory() (Directory, error) // if camliType is "directory"
 	Symlink() (Symlink, error)     // if camliType is "symlink"
+	FIFO() (FIFO, error)           // if camliType is "fifo"
 }
 
 // dirEntry is the default implementation of DirectoryEntry
@@ -160,10 +166,14 @@ func (de *dirEntry) Symlink() (Symlink, error) {
 	return 0, errors.New("TODO: Symlink not implemented")
 }
 
+func (de *dirEntry) FIFO() (FIFO, error) {
+	return 0, errors.New("TODO: FIFO not implemented")
+}
+
 // newDirectoryEntry takes a superset and returns a DirectoryEntry if
 // the Supserset is valid and represents an entry in a directory.  It
 // must by of type "file", "directory", or "symlink".
-// TODO: "fifo", "socket", "char", "block", probably.  later.
+// TODO: "socket", "char", "block", probably.  later.
 func newDirectoryEntry(fetcher blob.Fetcher, ss *superset) (DirectoryEntry, error) {
 	if ss == nil {
 		return nil, errors.New("ss was nil")
@@ -172,7 +182,7 @@ func newDirectoryEntry(fetcher blob.Fetcher, ss *superset) (DirectoryEntry, erro
 		return nil, errors.New("ss.BlobRef was invalid")
 	}
 	switch ss.Type {
-	case "file", "directory", "symlink":
+	case "file", "directory", "symlink", "fifo":
 		// Okay
 	default:
 		return nil, fmt.Errorf("invalid DirectoryEntry camliType of %q", ss.Type)
@@ -182,9 +192,9 @@ func newDirectoryEntry(fetcher blob.Fetcher, ss *superset) (DirectoryEntry, erro
 }
 
 // NewDirectoryEntryFromBlobRef takes a BlobRef and returns a
-// DirectoryEntry if the BlobRef contains a type "file", "directory"
-// or "symlink".
-// TODO: "fifo", "socket", "char", "block", probably.  later.
+//  DirectoryEntry if the BlobRef contains a type "file", "directory",
+//  "symlink", or "fifo".
+// TODO: "socket", "char", "block", probably.  later.
 func NewDirectoryEntryFromBlobRef(fetcher blob.Fetcher, blobRef blob.Ref) (DirectoryEntry, error) {
 	ss := new(superset)
 	err := ss.setFromBlobRef(fetcher, blobRef)
@@ -442,6 +452,8 @@ func (ss *superset) FileMode() os.FileMode {
 		// No extra bit.
 	case "symlink":
 		mode = mode | os.ModeSymlink
+	case "fifo":
+		mode = mode | os.ModeNamedPipe
 	}
 	return mode
 }
