@@ -566,3 +566,41 @@ func TestStaticFIFO(t *testing.T) {
 		t.Fatalf("StaticFile.AsStaticFIFO(): Expected true, got false")
 	}
 }
+
+func TestStaticSocket(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.SkipNow()
+	}
+
+	tdir, err := ioutil.TempDir("", "schema-test-")
+	if err != nil {
+		t.Fatalf("ioutil.TempDir(): %v", err)
+	}
+	defer os.RemoveAll(tdir)
+
+	sockPath := filepath.Join(tdir, "socket")
+	err = osutil.Mksocket(sockPath)
+	if err != nil {
+		t.Fatalf("osutil.Mksocket(): %v", err)
+	}
+
+	fi, err := os.Lstat(sockPath)
+	if err != nil {
+		t.Fatalf("os.Lstat(): %v", err)
+	}
+
+	bb := NewCommonFileMap(sockPath, fi)
+	bb.SetType("socket")
+	bb.SetFileName(sockPath)
+	blob := bb.Blob()
+	t.Logf("Got JSON for socket: %s\n", blob.JSON())
+
+	sf, ok := blob.AsStaticFile()
+	if !ok {
+		t.Fatalf("Blob.AsStaticFile(): Expected true, got false")
+	}
+	_, ok = sf.AsStaticSocket()
+	if !ok {
+		t.Fatalf("StaticFile.AsStaticSocket(): Expected true, got false")
+	}
+}

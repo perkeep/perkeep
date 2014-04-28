@@ -349,6 +349,40 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 
 		return nil
 
+	case "socket":
+		name := filepath.Join(targ, b.FileName())
+
+		if runtime.GOOS == "windows" {
+			log.Printf("Skipping socket: %s: Unsupported filetype",
+				name)
+			return nil
+		}
+
+		sf, ok := b.AsStaticFile()
+		if !ok {
+			return errors.New("blob is not a static file")
+		}
+		_, ok = sf.AsStaticSocket()
+		if !ok {
+			return errors.New("blob is not a static socket")
+		}
+
+		if _, err := os.Lstat(name); err == nil {
+			log.Printf("Skipping socket: %s: A file with that name already exists", name)
+			return nil
+		}
+
+		err = osutil.Mksocket(name)
+		if err != nil {
+			return fmt.Errorf("%s: %v", name, err)
+		}
+
+		if err := setFileMeta(name, b); err != nil {
+			log.Print(err)
+		}
+
+		return nil
+
 	default:
 		return errors.New("unknown blob type: " + b.Type())
 	}

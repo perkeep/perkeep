@@ -21,3 +21,8 @@ import "errors"
 func Mkfifo(path string, mode uint32) (err error) {
 	return errors.New("not supported")
 }
+
+// Mksocket always fails on Windows.
+func Mksocket(path string) (err error) {
+	return errors.New("not supported")
+}
