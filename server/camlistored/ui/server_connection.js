@@ -190,7 +190,7 @@ cam.ServerConnection.prototype.permanodeOfSignerAttrValue = function(signer, att
 // @param {?object} opt_describe The describe property to send for the query
 cam.ServerConnection.prototype.buildQuery = function(callerQuery, opt_describe, opt_limit, opt_continuationToken) {
 	var query = {
-		sort: "-mod"
+		sort: "-created"
 	};
 
 	if (goog.isString(callerQuery)) {

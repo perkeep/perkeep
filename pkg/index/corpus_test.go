@@ -143,7 +143,24 @@ func TestKVClaim(t *testing.T) {
 	}
 }
 
-func TestDeletePermanode(t *testing.T) {
+func TestDeletePermanode_Modtime(t *testing.T) {
+	testDeletePermanodes(t,
+		func(c *index.Corpus, ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+			return c.EnumeratePermanodesLastModifiedLocked(ctx, ch)
+		},
+	)
+}
+
+func TestDeletePermanode_CreateTime(t *testing.T) {
+	testDeletePermanodes(t,
+		func(c *index.Corpus, ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+			return c.EnumeratePermanodesCreatedLocked(ctx, ch, true)
+		},
+	)
+}
+
+func testDeletePermanodes(t *testing.T,
+	enumFunc func(*index.Corpus, *context.Context, chan<- camtypes.BlobMeta) error) {
 	idx := index.NewMemoryIndex()
 	idxd := indextest.NewIndexDeps(idx)
 
@@ -166,7 +183,7 @@ func TestDeletePermanode(t *testing.T) {
 	var got []camtypes.BlobMeta
 	errc := make(chan error, 1)
 	c.RLock()
-	go func() { errc <- c.EnumeratePermanodesLastModifiedLocked(context.TODO(), ch) }()
+	go func() { errc <- enumFunc(c, context.TODO(), ch) }()
 	for blobMeta := range ch {
 		got = append(got, blobMeta)
 	}
@@ -197,7 +214,7 @@ func TestDeletePermanode(t *testing.T) {
 	got = got[:0]
 	ch = make(chan camtypes.BlobMeta, 10)
 	c.RLock()
-	go func() { errc <- c.EnumeratePermanodesLastModifiedLocked(context.TODO(), ch) }()
+	go func() { errc <- enumFunc(c, context.TODO(), ch) }()
 	for blobMeta := range ch {
 		got = append(got, blobMeta)
 	}
@@ -219,7 +236,7 @@ func TestDeletePermanode(t *testing.T) {
 	got = got[:0]
 	ch = make(chan camtypes.BlobMeta, 10)
 	c.RLock()
-	go func() { errc <- c.EnumeratePermanodesLastModifiedLocked(context.TODO(), ch) }()
+	go func() { errc <- enumFunc(c, context.TODO(), ch) }()
 	for blobMeta := range ch {
 		got = append(got, blobMeta)
 	}
@@ -241,6 +258,84 @@ func TestDeletePermanode(t *testing.T) {
 		}
 		if !found {
 			t.Fatalf("permanode %v was not found in corpus", bm.Ref)
+		}
+	}
+}
+
+func TestEnumerateOrder_Modtime(t *testing.T) {
+	testEnumerateOrder(t,
+		func(c *index.Corpus, ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+			return c.EnumeratePermanodesLastModifiedLocked(ctx, ch)
+		},
+		modtimeOrder,
+	)
+}
+
+func TestEnumerateOrder_CreateTime(t *testing.T) {
+	testEnumerateOrder(t,
+		func(c *index.Corpus, ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+			return c.EnumeratePermanodesCreatedLocked(ctx, ch, true)
+		},
+		createOrder,
+	)
+}
+
+const (
+	modtimeOrder = iota
+	createOrder
+)
+
+func testEnumerateOrder(t *testing.T,
+	enumFunc func(*index.Corpus, *context.Context, chan<- camtypes.BlobMeta) error,
+	order int) {
+	idx := index.NewMemoryIndex()
+	idxd := indextest.NewIndexDeps(idx)
+
+	// permanode with no contents
+	foopn := idxd.NewPlannedPermanode("foo")
+	idxd.SetAttribute(foopn, "tag", "foo")
+	// permanode with file contents
+	// we set the time of the contents 1 second older than the modtime of foopn
+	fooModTime := idxd.LastTime()
+	fileTime := fooModTime.Add(-1 * time.Second)
+	fileRef, _ := idxd.UploadFile("foo.html", "<html>I am an html file.</html>", fileTime)
+	barpn := idxd.NewPlannedPermanode("bar")
+	idxd.SetAttribute(barpn, "camliContent", fileRef.String())
+
+	c, err := idxd.Index.KeepInMemory()
+	if err != nil {
+		t.Fatalf("error slurping index to memory: %v", err)
+	}
+
+	// check that we get a different order whether with enumerate according to
+	// contents time, or to permanode modtime.
+	var want []blob.Ref
+	if order == modtimeOrder {
+		// modtime.
+		want = []blob.Ref{barpn, foopn}
+	} else {
+		// creation time.
+		want = []blob.Ref{foopn, barpn}
+	}
+	ch := make(chan camtypes.BlobMeta, 10)
+	var got []camtypes.BlobMeta
+	errc := make(chan error, 1)
+	c.RLock()
+	go func() { errc <- enumFunc(c, context.TODO(), ch) }()
+	for blobMeta := range ch {
+		got = append(got, blobMeta)
+	}
+	err = <-errc
+	c.RUnlock()
+	if err != nil {
+		t.Fatalf("Could not enumerate permanodes: %v", err)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("Saw %d permanodes in corpus; want %d", len(got), len(want))
+	}
+	for k, v := range got {
+		if v.Ref != want[k] {
+			t.Fatalf("Wrong result from enumeration. Got %v, wanted %v.", v.Ref, want[k])
 		}
 	}
 }

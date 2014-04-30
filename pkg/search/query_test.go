@@ -626,8 +626,19 @@ func TestDecodeFileInfo(t *testing.T) {
 	})
 }
 
-func TestQueryRecentPermanodes(t *testing.T) {
-	// TODO: care about classic (allIndexTypes) too?
+func TestQueryRecentPermanodes_UnspecifiedSort(t *testing.T) {
+	testQueryRecentPermanodes(t, UnspecifiedSort, "corpus_permanode_created")
+}
+
+func TestQueryRecentPermanodes_LastModifiedDesc(t *testing.T) {
+	testQueryRecentPermanodes(t, LastModifiedDesc, "corpus_permanode_lastmod")
+}
+
+func TestQueryRecentPermanodes_CreatedDesc(t *testing.T) {
+	testQueryRecentPermanodes(t, CreatedDesc, "corpus_permanode_created")
+}
+
+func testQueryRecentPermanodes(t *testing.T, sortType SortType, source string) {
 	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
 		id := qt.id
 
@@ -648,7 +659,7 @@ func TestQueryRecentPermanodes(t *testing.T) {
 				Permanode: &PermanodeConstraint{},
 			},
 			Limit:    2,
-			Sort:     UnspecifiedSort,
+			Sort:     sortType,
 			Describe: &DescribeRequest{},
 		}
 		handler := qt.Handler()
@@ -656,8 +667,8 @@ func TestQueryRecentPermanodes(t *testing.T) {
 		if err != nil {
 			qt.t.Fatal(err)
 		}
-		if usedSource != "corpus_permanode_lastmod" {
-			t.Errorf("used candidate source strategy %q; want corpus_permanode_desc", usedSource)
+		if usedSource != source {
+			t.Errorf("used candidate source strategy %q; want %v", usedSource, source)
 		}
 		wantBlobs := []*SearchResultBlob{
 			{Blob: p3},
@@ -681,7 +692,7 @@ func TestQueryRecentPermanodes(t *testing.T) {
 					Permanode: &PermanodeConstraint{},
 				},
 				Limit:    2,
-				Sort:     UnspecifiedSort,
+				Sort:     sortType,
 				Continue: res.Continue,
 			}
 			res, err := handler.Query(req)
@@ -697,10 +708,22 @@ func TestQueryRecentPermanodes(t *testing.T) {
 	})
 }
 
+func TestQueryRecentPermanodes_Continue_UnspecifiedSort(t *testing.T) {
+	testQueryRecentPermanodes_Continue(t, UnspecifiedSort)
+}
+
+func TestQueryRecentPermanodes_Continue_LastModifiedDesc(t *testing.T) {
+	testQueryRecentPermanodes_Continue(t, LastModifiedDesc)
+}
+
+func TestQueryRecentPermanodes_Continue_CreatedDesc(t *testing.T) {
+	testQueryRecentPermanodes_Continue(t, CreatedDesc)
+}
+
 // Tests the continue token on recent permanodes, notably when the
 // page limit truncates in the middle of a bunch of permanodes with the
 // same modtime.
-func TestQueryRecentPermanodes_Continue(t *testing.T) {
+func testQueryRecentPermanodes_Continue(t *testing.T, sortType SortType) {
 	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
 		id := qt.id
 
@@ -730,7 +753,7 @@ func TestQueryRecentPermanodes_Continue(t *testing.T) {
 					Permanode: &PermanodeConstraint{},
 				},
 				Limit:    2,
-				Sort:     UnspecifiedSort,
+				Sort:     sortType,
 				Continue: contToken,
 			}
 			res, err := handler.Query(req)
@@ -760,8 +783,20 @@ func TestQueryRecentPermanodes_Continue(t *testing.T) {
 	})
 }
 
+func TestQueryRecentPermanodes_ContinueEndMidPage_UnspecifiedSort(t *testing.T) {
+	testQueryRecentPermanodes_ContinueEndMidPage(t, UnspecifiedSort)
+}
+
+func TestQueryRecentPermanodes_ContinueEndMidPage_LastModifiedDesc(t *testing.T) {
+	testQueryRecentPermanodes_ContinueEndMidPage(t, LastModifiedDesc)
+}
+
+func TestQueryRecentPermanodes_ContinueEndMidPage_CreatedDesc(t *testing.T) {
+	testQueryRecentPermanodes_ContinueEndMidPage(t, CreatedDesc)
+}
+
 // Tests continue token hitting the end mid-page.
-func TestQueryRecentPermanodes_ContinueEndMidPage(t *testing.T) {
+func testQueryRecentPermanodes_ContinueEndMidPage(t *testing.T, sortType SortType) {
 	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
 		id := qt.id
 
@@ -790,7 +825,7 @@ func TestQueryRecentPermanodes_ContinueEndMidPage(t *testing.T) {
 					Permanode: &PermanodeConstraint{},
 				},
 				Limit:    2,
-				Sort:     UnspecifiedSort,
+				Sort:     sortType,
 				Continue: contToken,
 			}
 			res, err := handler.Query(req)
@@ -981,8 +1016,19 @@ func TestQueryPermanodeTaggedViaParent(t *testing.T) {
 	})
 }
 
-func TestLimitDoesntDeadlock(t *testing.T) {
-	// TODO: care about classic (allIndexTypes) too?
+func TestLimitDoesntDeadlock_UnspecifiedSort(t *testing.T) {
+	testLimitDoesntDeadlock(t, UnspecifiedSort)
+}
+
+func TestLimitDoesntDeadlock_LastModifiedDesc(t *testing.T) {
+	testLimitDoesntDeadlock(t, LastModifiedDesc)
+}
+
+func TestLimitDoesntDeadlock_CreatedDesc(t *testing.T) {
+	testLimitDoesntDeadlock(t, CreatedDesc)
+}
+
+func testLimitDoesntDeadlock(t *testing.T, sortType SortType) {
 	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
 		id := qt.id
 
@@ -997,7 +1043,7 @@ func TestLimitDoesntDeadlock(t *testing.T) {
 				Permanode: &PermanodeConstraint{},
 			},
 			Limit:    limit,
-			Sort:     UnspecifiedSort,
+			Sort:     sortType,
 			Describe: &DescribeRequest{},
 		}
 		h := qt.Handler()
@@ -1036,7 +1082,7 @@ func TestPlannedQuery(t *testing.T) {
 				},
 			},
 			want: &SearchQuery{
-				Sort: LastModifiedDesc,
+				Sort: CreatedDesc,
 				Constraint: &Constraint{
 					Permanode: &PermanodeConstraint{},
 				},
@@ -1107,15 +1153,33 @@ func TestDescribeMarshal(t *testing.T) {
 	}
 }
 
-func TestSortMarshal(t *testing.T) {
+func TestSortMarshal_UnspecifiedSort(t *testing.T) {
+	testSortMarshal(t, UnspecifiedSort)
+}
+
+func TestSortMarshal_LastModifiedDesc(t *testing.T) {
+	testSortMarshal(t, LastModifiedDesc)
+}
+
+func TestSortMarshal_CreatedDesc(t *testing.T) {
+	testSortMarshal(t, CreatedDesc)
+}
+
+var sortMarshalWant = map[SortType]string{
+	UnspecifiedSort:  "{}",
+	LastModifiedDesc: `{"sort":` + string(SortName[LastModifiedDesc]) + `}`,
+	CreatedDesc:      `{"sort":` + string(SortName[CreatedDesc]) + `}`,
+}
+
+func testSortMarshal(t *testing.T, sortType SortType) {
 	q := &SearchQuery{
-		Sort: CreatedDesc,
+		Sort: sortType,
 	}
 	enc, err := json.Marshal(q)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := string(enc), `{"sort":"-created"}`; got != want {
+	if got, want := string(enc), sortMarshalWant[sortType]; got != want {
 		t.Errorf("JSON: %s; want %s", got, want)
 	}
 	back := &SearchQuery{}
