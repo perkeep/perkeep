@@ -30,8 +30,8 @@ import (
 	"camlistore.org/pkg/sorted/postgres"
 	"camlistore.org/pkg/sorted/sqlite"
 
+	_ "camlistore.org/third_party/github.com/go-sql-driver/mysql"
 	_ "camlistore.org/third_party/github.com/lib/pq"
-	_ "camlistore.org/third_party/github.com/ziutek/mymysql/godrv"
 	"camlistore.org/third_party/labix.org/v2/mgo"
 )
 
@@ -107,7 +107,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=%s", c.user, "postgres", c.host, c.password, c.sslMode)
 		rootdb, err = sql.Open("postgres", conninfo)
 	case "mysql":
-		rootdb, err = sql.Open("mymysql", "mysql/"+c.user+"/"+c.password)
+		rootdb, err = sql.Open("mysql", c.user+":"+c.password+"@/mysql")
 	}
 	if err != nil {
 		exitf("Error connecting to the root %s database: %v", c.dbType, err)
@@ -153,7 +153,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 	case "sqlite":
 		db, err = sql.Open("sqlite3", dbname)
 	default:
-		db, err = sql.Open("mymysql", dbname+"/"+c.user+"/"+c.password)
+		db, err = sql.Open("mysql", c.user+":"+c.password+"@/"+dbname)
 	}
 	if err != nil {
 		return fmt.Errorf("Connecting to the %s %s database: %v", dbname, c.dbType, err)

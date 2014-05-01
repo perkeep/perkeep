@@ -28,7 +28,7 @@ import (
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/sqlkv"
 
-	_ "camlistore.org/third_party/github.com/ziutek/mymysql/godrv"
+	_ "camlistore.org/third_party/github.com/go-sql-driver/mysql"
 )
 
 func init() {
@@ -37,10 +37,10 @@ func init() {
 
 func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	host := cfg.OptionalString("host", "")
-	dsn := fmt.Sprintf("%s/%s/%s",
-		cfg.RequiredString("database"),
+	dsn := fmt.Sprintf("%s:%s@/%s",
 		cfg.RequiredString("user"),
 		cfg.OptionalString("password", ""),
+		cfg.RequiredString("database"),
 	)
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -50,10 +50,10 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		if !strings.Contains(host, ":") {
 			host = host + ":3306"
 		}
-		dsn = "tcp:" + host + "*" + dsn
+		dsn = strings.Replace(dsn, "@", fmt.Sprintf("@tcp(%v)", host), 1)
 	}
 
-	db, err := sql.Open("mymysql", dsn)
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return nil, err
 	}
