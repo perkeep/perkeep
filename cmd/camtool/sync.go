@@ -297,7 +297,11 @@ func enumerateAllBlobs(ctx *context.Context, s blobserver.Storage, destc chan<- 
 
 	defer close(destc)
 	return blobserver.EnumerateAll(ctx, s, func(sb blob.SizedRef) error {
-		destc <- sb
+		select {
+		case destc <- sb:
+		case <-ctx.Done():
+			return context.ErrCanceled
+		}
 		return nil
 	})
 }
@@ -315,12 +319,19 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 	destErr := make(chan error, 1)
 
 	ctx := context.TODO()
-	defer ctx.Cancel()
-	go func() {
-		srcErr <- enumerateAllBlobs(ctx, src, srcBlobs)
-	}()
+	enumCtx := ctx.New() // used for all (2 or 3) enumerates
+	defer enumCtx.Cancel()
+	enumerate := func(errc chan<- error, sto blobserver.Storage, blobc chan<- blob.SizedRef) {
+		err := enumerateAllBlobs(enumCtx, sto, blobc)
+		if err != nil {
+			enumCtx.Cancel()
+		}
+		errc <- err
+	}
+
+	go enumerate(srcErr, src, srcBlobs)
 	checkSourceError := func() {
-		if err := <-srcErr; err != nil {
+		if err := <-srcErr; err != nil && err != context.ErrCanceled {
 			retErr = fmt.Errorf("Enumerate error from source: %v", err)
 		}
 	}
@@ -339,11 +350,9 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 		log.Print("Index wiping not yet supported.")
 	}
 
-	go func() {
-		destErr <- enumerateAllBlobs(ctx, dest, destBlobs)
-	}()
+	go enumerate(destErr, dest, destBlobs)
 	checkDestError := func() {
-		if err := <-destErr; err != nil {
+		if err := <-destErr; err != nil && err != context.ErrCanceled {
 			retErr = fmt.Errorf("Enumerate error from destination: %v", err)
 		}
 	}
@@ -372,11 +381,9 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 	if thirdLeg != nil {
 		thirdBlobs := make(chan blob.SizedRef, 100)
 		thirdErr := make(chan error, 1)
-		go func() {
-			thirdErr <- enumerateAllBlobs(ctx, thirdLeg, thirdBlobs)
-		}()
+		go enumerate(thirdErr, thirdLeg, thirdBlobs)
 		checkThirdError = func() {
-			if err := <-thirdErr; err != nil {
+			if err := <-thirdErr; err != nil && err != context.ErrCanceled {
 				retErr = fmt.Errorf("Enumerate error from third leg: %v", err)
 			}
 		}
