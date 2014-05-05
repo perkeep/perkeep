@@ -888,6 +888,20 @@ func (o *Object) Attrs(attr string) []string {
 	return o.attr[attr]
 }
 
+// ForeachAttr runs fn for each of the object's attributes & values.
+// There might be multiple values for the same attribute.
+// The internal lock is held while running, so no mutations should be
+// made or it will deadlock.
+func (o *Object) ForeachAttr(fn func(key, value string)) {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	for k, vv := range o.attr {
+		for _, v := range vv {
+			fn(k, v)
+		}
+	}
+}
+
 // SetAttr sets the attribute key to value.
 func (o *Object) SetAttr(key, value string) error {
 	if o.Attr(key) == value {
