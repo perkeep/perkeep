@@ -62,11 +62,27 @@ cam.SearchSession.DESCRIBE_REQUEST = {
 	// TODO(aa): This needs to die: https://code.google.com/p/camlistore/issues/detail?id=321
 	thumbnailSize: 1000,
 
-	// TODO(aa): This is not great. The describe request will return tons of data we don't care about:
-	// - Children of folders
+	// TODO(aa): This is not perfect. The describe request will return some data we don't care about:
 	// - Properties we don't use
 	// See: https://code.google.com/p/camlistore/issues/detail?id=319
-	depth: 4
+
+	depth: 1,
+	rules: [
+		{
+			attrs: ['camliContent', 'camliContentImage']
+		},
+		{
+			ifCamliNodeType: 'foursquare.com:checkin',
+			attrs: ['foursquareVenuePermanode']
+		},
+		{
+			ifCamliNodeType: 'foursquare.com:venue',
+			attrs: ['camliPath:photos'],
+                        rules: [
+                            { attrs: ['camliPath:*'] }
+                        ]
+		}
+	]
 };
 
 cam.SearchSession.instanceCount_ = 0;
