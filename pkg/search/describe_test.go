@@ -56,6 +56,35 @@ func searchDescribeSetup(fi *test.FakeIndex) index.Interface {
 	addPermanode(fi, "abc-8881",
 		"name", "leaf8881",
 	)
+
+	addPermanode(fi, "fourcheckin-0",
+		"camliNodeType", "foursquare.com:checkin",
+		"foursquareVenuePermanode", "fourvenue-123",
+	)
+	addPermanode(fi, "fourvenue-123",
+		"camliNodeType", "foursquare.com:venue",
+		"camliPath:photos", "venuepicset-123",
+	)
+	addPermanode(fi, "venuepicset-123",
+		"camliPath:1.jpg", "venuepic-1",
+	)
+	addPermanode(fi, "venuepic-1",
+		"camliContent", "somevenuepic-0",
+	)
+	addPermanode(fi, "somevenuepic-0",
+		"foo", "bar",
+	)
+
+	addPermanode(fi, "homedir-0",
+		"camliPath:subdir.1", "homedir-1",
+	)
+	addPermanode(fi, "homedir-1",
+		"camliPath:subdir.2", "homedir-2",
+	)
+	addPermanode(fi, "homedir-2",
+		"foo", "bar",
+	)
+
 	return fi
 }
 
@@ -132,6 +161,50 @@ var searchDescribeTests = []handlerTest{
 			},
 		}),
 		wantDescribed: []string{"abc-123", "abc-123c", "abc-123cc", "abc-888", "abc-8881"},
+	},
+
+	{
+		name: "foursquare venue photos, but not recursive camliPath explosion",
+		postBody: marshalJSON(&search.DescribeRequest{
+			BlobRefs: []blob.Ref{
+				blob.MustParse("homedir-0"),
+				blob.MustParse("fourcheckin-0"),
+			},
+			Rules: []*search.DescribeRule{
+				{
+					Attrs: []string{"camliContent", "camliContentImage"},
+				},
+				{
+					IfCamliNodeType: "foursquare.com:checkin",
+					Attrs:           []string{"foursquareVenuePermanode"},
+				},
+				{
+					IfCamliNodeType: "foursquare.com:venue",
+					Attrs:           []string{"camliPath:photos"},
+					Rules: []*search.DescribeRule{
+						{
+							Attrs: []string{"camliPath:*"},
+						},
+					},
+				},
+			},
+		}),
+		wantDescribed: []string{"homedir-0", "fourcheckin-0", "fourvenue-123", "venuepicset-123", "venuepic-1", "somevenuepic-0"},
+	},
+
+	{
+		name: "home dirs forever",
+		postBody: marshalJSON(&search.DescribeRequest{
+			BlobRefs: []blob.Ref{
+				blob.MustParse("homedir-0"),
+			},
+			Rules: []*search.DescribeRule{
+				{
+					Attrs: []string{"camliPath:*"},
+				},
+			},
+		}),
+		wantDescribed: []string{"homedir-0", "homedir-1", "homedir-2"},
 	},
 }
 

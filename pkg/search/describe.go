@@ -51,7 +51,20 @@ func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 	httputil.ReturnJSON(rw, res)
 }
 
-func (sh *Handler) Describe(dr *DescribeRequest) (*DescribeResponse, error) {
+const verboseDescribe = false
+
+func (sh *Handler) Describe(dr *DescribeRequest) (dres *DescribeResponse, err error) {
+	if verboseDescribe {
+		t0 := time.Now()
+		defer func() {
+			td := time.Since(t0)
+			var num int
+			if dres != nil {
+				num = len(dres.Meta)
+			}
+			log.Printf("Described %d blobs in %v", num, td)
+		}()
+	}
 	sh.initDescribeRequest(dr)
 	if dr.BlobRef.Valid() {
 		dr.Describe(dr.BlobRef, dr.depth())
@@ -105,11 +118,13 @@ type DescribeRequest struct {
 
 	// Internal details, used while loading.
 	// Initialized by sh.initDescribeRequest.
-	sh   *Handler
-	mu   sync.Mutex // protects following:
-	m    MetaMap
-	done map[blobrefAndDepth]bool // blobref -> true
-	errs map[string]error         // blobref -> error
+	sh            *Handler
+	mu            sync.Mutex // protects following:
+	m             MetaMap
+	done          map[blobrefAndDepth]bool // blobref -> true
+	errs          map[string]error         // blobref -> error
+	resFromRule   map[*DescribeRule]map[blob.Ref]bool
+	flatRuleCache []*DescribeRule // flattened once, by flatRules
 
 	wg *sync.WaitGroup // for load requests
 }
@@ -117,6 +132,25 @@ type DescribeRequest struct {
 type blobrefAndDepth struct {
 	br    blob.Ref
 	depth int
+}
+
+// Requires dr.mu is held
+func (dr *DescribeRequest) flatRules() []*DescribeRule {
+	if dr.flatRuleCache == nil {
+		dr.flatRuleCache = make([]*DescribeRule, 0)
+		for _, rule := range dr.Rules {
+			rule.appendToFlatCache(dr)
+		}
+	}
+	return dr.flatRuleCache
+}
+
+func (r *DescribeRule) appendToFlatCache(dr *DescribeRequest) {
+	dr.flatRuleCache = append(dr.flatRuleCache, r)
+	for _, rchild := range r.Rules {
+		rchild.parentRule = r
+		rchild.appendToFlatCache(dr)
+	}
 }
 
 // Requires dr.mu is held.
@@ -163,6 +197,11 @@ type DescribeRule struct {
 	// is if the value ends in "*", which matches prefixes
 	// (e.g. "camliPath:*" or "*").
 	Attrs []string `json:"attrs,omitempty"`
+
+	// Additional rules to run on the described results of Attrs.
+	Rules []*DescribeRule `json:"rules,omitempty"`
+
+	parentRule *DescribeRule
 }
 
 // DescribeResponse is the JSON response from $searchRoot/camli/search/describe.
@@ -665,6 +704,11 @@ func (r *DescribeRule) newMatches(br blob.Ref, dr *DescribeRequest) (brs []blob.
 			return nil
 		}
 	}
+	if r.parentRule != nil {
+		if _, ok := dr.resFromRule[r.parentRule][br]; !ok {
+			return nil
+		}
+	}
 	db, ok := dr.m[br.String()]
 	if !ok || db.Permanode == nil {
 		return nil
@@ -699,18 +743,33 @@ func (r *DescribeRule) newMatches(br blob.Ref, dr *DescribeRequest) (brs []blob.
 	return brs
 }
 
+// dr.mu just be locked.
+func (dr *DescribeRequest) noteResultFromRule(rule *DescribeRule, br blob.Ref) {
+	if dr.resFromRule == nil {
+		dr.resFromRule = make(map[*DescribeRule]map[blob.Ref]bool)
+	}
+	m, ok := dr.resFromRule[rule]
+	if !ok {
+		m = make(map[blob.Ref]bool)
+		dr.resFromRule[rule] = m
+	}
+	m[br] = true
+}
+
 func (dr *DescribeRequest) expandRules() error {
 	loop := true
+
 	for loop {
 		loop = false
 		dr.wg.Wait()
 		dr.mu.Lock()
 		len0 := len(dr.m)
 		var new []blob.Ref
-		for _, rule := range dr.Rules {
+		for _, rule := range dr.flatRules() {
 			dr.foreachResultBlob(func(br blob.Ref) {
 				for _, nbr := range rule.newMatches(br, dr) {
 					new = append(new, nbr)
+					dr.noteResultFromRule(rule, nbr)
 				}
 			})
 		}
