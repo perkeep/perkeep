@@ -334,9 +334,7 @@ cam.IndexPage = React.createClass({
 	},
 
 	handleDetailURL_: function(blobref) {
-		var m = this.searchSession_.getMeta(blobref);
-		var rm = this.searchSession_.getResolvedMeta(blobref);
-		return this.getDetailURL_(m.blobRef);
+		return this.getDetailURL_(blobref);
 	},
 
 	getDetailURL_: function(blobref) {
