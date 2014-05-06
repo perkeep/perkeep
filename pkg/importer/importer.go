@@ -49,6 +49,7 @@ const (
 	attrClientID     = "authClientID"
 	attrClientSecret = "authClientSecret"
 	attrImportRoot   = "importRoot"
+	attrImportAuto   = "importAuto" // => time.Duration value ("30m") or "" for off
 )
 
 // An Importer imports from a third-party site.
@@ -675,6 +676,15 @@ func (ia *importerAcct) delete() error {
 	return nil
 }
 
+func (ia *importerAcct) toggleAuto() error {
+	old := ia.acct.Attr(attrImportAuto)
+	var new string
+	if old == "" {
+		new = "30m" // TODO: configurable?
+	}
+	return ia.acct.SetAttrs(attrImportAuto, new)
+}
+
 func (ia *importerAcct) IsAccountReady() (bool, error) {
 	return ia.im.impl.IsAccountReady(ia.acct)
 }
@@ -692,6 +702,15 @@ func (ia *importerAcct) AccountLinkText() string {
 
 func (ia *importerAcct) AccountLinkSummary() string {
 	return ia.im.impl.SummarizeAccount(ia.acct)
+}
+
+func (ia *importerAcct) RefreshInterval() time.Duration {
+	ds := ia.acct.Attr(attrImportAuto)
+	if ds == "" {
+		return 0
+	}
+	d, _ := time.ParseDuration(ds)
+	return d
 }
 
 func (ia *importerAcct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -742,6 +761,11 @@ func (ia *importerAcct) serveHTTPPost(w http.ResponseWriter, r *http.Request) {
 	case "login":
 		ia.setup(w, r)
 		return
+	case "toggleauto":
+		if err := ia.toggleAuto(); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
 	case "delete":
 		ia.stop() // can't hurt
 		if err := ia.delete(); err != nil {

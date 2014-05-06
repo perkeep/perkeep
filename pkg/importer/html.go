@@ -161,6 +161,7 @@ var tmpl = template.Must(template.New("root").Parse(`
    <li>Import root permanode: {{if .Acct.RootObject}}{{.Acct.RootObject.PermanodeRef}}{{else}}(none){{end}}</li>
    <li>Configured: {{.Acct.IsAccountReady}}</li>
    <li>Summary: {{.Acct.AccountLinkSummary}}</li>
+   <li>Import interval: {{if .Acct.RefreshInterval}}{{.Acct.RefreshInterval}}{{else}}(manual){{end}}</li>
    <li>Running: {{.Running}}</li>
    {{if .Running}}
      <li>Started: {{.StartedAgo}} ago</li>
@@ -187,6 +188,11 @@ var tmpl = template.Must(template.New("root").Parse(`
 <form method='post' style='display: inline'>
 <input type='hidden' name='mode' value='login'>
 <input type='submit' value='Re-login'>
+</form>
+
+<form method='post' style='display: inline'>
+<input type='hidden' name='mode' value='toggleauto'>
+<input type='submit' value='Toggle auto'>
 </form>
 
 <form method='post' style='display: inline'>
