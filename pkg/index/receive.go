@@ -567,15 +567,16 @@ func indexMusic(r types.SizeReaderAt, wholeRef blob.Ref, mm *mutationMap) {
 	// Note: if you add to this map, please update
 	// pkg/search/query.go's MediaTagConstraint Tag docs.
 	tags := map[string]string{
-		"title":      tag.Title(),
-		"artist":     tag.Artist(),
-		"album":      tag.Album(),
-		"genre":      tag.Genre(),
-		"year":       yearStr,
-		"track":      trackStr,
-		"disc":       discStr,
-		"mediaref":   mediaRef.String(),
-		"durationms": durationStr,
+		"title":              tag.Title(),
+		"artist":             tag.Artist(),
+		"album":              tag.Album(),
+		"genre":              tag.Genre(),
+		"musicbrainzalbumid": tag.CustomFrames()["MusicBrainz Album Id"],
+		"year":               yearStr,
+		"track":              trackStr,
+		"disc":               discStr,
+		"mediaref":           mediaRef.String(),
+		"durationms":         durationStr,
 	}
 
 	for tag, value := range tags {

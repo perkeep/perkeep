@@ -406,6 +406,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		{"artist", "Test Artist"},
 		{"album", "Test Album"},
 		{"genre", "(20)Alternative"},
+		{"musicbrainzalbumid", "00000000-0000-0000-0000-000000000000"},
 		{"year", "1992"},
 		{"track", "1"},
 		{"disc", "2"},
