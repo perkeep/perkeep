@@ -43,11 +43,20 @@ const (
 	authURL  = "https://foursquare.com/oauth2/authenticate"
 	tokenURL = "https://foursquare.com/oauth2/access_token"
 
+	// runCompleteVersion is a cache-busting version number of the
+	// importer code. It should be incremented whenever the
+	// behavior of this importer is updated enough to warrant a
+	// complete run.  Otherwise, if the importer runs to
+	// completion, this version number is recorded on the account
+	// permanode and subsequent importers can stop early.
+	runCompleteVersion = "1"
+
 	// Permanode attributes on account node:
-	acctAttrUserId      = "foursquareUserId"
-	acctAttrUserFirst   = "foursquareFirstName"
-	acctAttrUserLast    = "foursquareLastName"
-	acctAttrAccessToken = "oauthAccessToken"
+	acctAttrUserId           = "foursquareUserId"
+	acctAttrUserFirst        = "foursquareFirstName"
+	acctAttrUserLast         = "foursquareLastName"
+	acctAttrAccessToken      = "oauthAccessToken"
+	acctAttrCompletedVersion = "completedVersion"
 )
 
 func init() {
@@ -105,7 +114,11 @@ func (im *imp) AccountSetupHTML(host *importer.Host) string {
 // A run is our state for a given run of the importer.
 type run struct {
 	*importer.RunContext
-	im *imp
+	im          *imp
+	incremental bool // whether we've completed a run in the past
+
+	mu     sync.Mutex // guards anyErr
+	anyErr bool
 }
 
 func (r *run) token() string {
@@ -114,14 +127,33 @@ func (r *run) token() string {
 
 func (im *imp) Run(ctx *importer.RunContext) error {
 	r := &run{
-		RunContext: ctx,
-		im:         im,
+		RunContext:  ctx,
+		im:          im,
+		incremental: ctx.AccountNode().Attr(acctAttrCompletedVersion) == runCompleteVersion,
 	}
 
 	if err := r.importCheckins(); err != nil {
 		return err
 	}
+
+	r.mu.Lock()
+	anyErr := r.anyErr
+	r.mu.Unlock()
+
+	if !anyErr {
+		if err := r.AccountNode().SetAttrs(acctAttrCompletedVersion, runCompleteVersion); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+func (r *run) errorf(format string, args ...interface{}) {
+	log.Printf(format, args...)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.anyErr = true
 }
 
 // urlFileRef slurps urlstr from the net, writes to a file and returns its
@@ -144,7 +176,7 @@ func (r *run) urlFileRef(urlstr, filename string) string {
 
 	fileRef, err := schema.WriteFileFromReader(r.Host.Target(), filename, res.Body)
 	if err != nil {
-		log.Printf("couldn't write file: %v", err)
+		r.errorf("couldn't write file: %v", err)
 		return ""
 	}
 
@@ -190,24 +222,32 @@ func (r *run) importCheckins() error {
 		}
 
 		sort.Sort(byCreatedAt(resp.Response.Checkins.Items))
+		sawOldItem := false
 		for _, checkin := range resp.Response.Checkins.Items {
 			placeNode, err := r.importPlace(placesNode, &checkin.Venue)
 			if err != nil {
-				log.Printf("Foursquare importer: error importing place %s %v", checkin.Venue.Id, err)
+				r.errorf("Foursquare importer: error importing place %s %v", checkin.Venue.Id, err)
 				continue
 			}
 
 			_, dup, err := r.importCheckin(checkinsNode, checkin, placeNode.PermanodeRef())
 			if err != nil {
-				log.Printf("Foursquare importer: error importing checkin %s %v", checkin.Id, err)
+				r.errorf("Foursquare importer: error importing checkin %s %v", checkin.Id, err)
 				continue
+			}
+
+			if dup {
+				sawOldItem = true
 			}
 
 			err = r.importPhotos(placeNode, dup)
 			if err != nil {
-				log.Printf("Foursquare importer: error importing photos for checkin %s %v", checkin.Id, err)
+				r.errorf("Foursquare importer: error importing photos for checkin %s %v", checkin.Id, err)
 				continue
 			}
+		}
+		if sawOldItem && r.incremental {
+			break
 		}
 	}
 
@@ -266,11 +306,11 @@ func (r *run) importPhotos(placeNode *importer.Object, checkinWasDup bool) error
 			log.Printf("foursquare: importing photo for venue %s: %s", placeNode.Attr("title"), url)
 			ref := r.urlFileRef(url, "")
 			if ref == "" {
-				log.Printf("Error slurping photo: %s", url)
+				r.errorf("Error slurping photo: %s", url)
 				continue
 			}
 			if err := photosNode.SetAttr(attr, ref); err != nil {
-				log.Printf("Error adding venue photo: %#v", err)
+				r.errorf("Error adding venue photo: %#v", err)
 			}
 		}
 	}
