@@ -23,6 +23,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -57,12 +58,19 @@ func ExplicitServer() string {
 	return flagServer
 }
 
-var configOnce sync.Once
-var config *clientconfig.Config
+var (
+	configOnce sync.Once
+	config     *clientconfig.Config
+
+	configDisabled, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_CLIENT_CONFIG_FILE"))
+)
 
 func parseConfig() {
 	if android.OnAndroid() {
 		panic("parseConfig should never have been called on Android")
+	}
+	if configDisabled {
+		panic("parseConfig should never have been called with CAMLI_DISABLE_CLIENT_CONFIG_FILE set")
 	}
 	configPath := osutil.UserClientConfigPath()
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
@@ -281,9 +289,19 @@ func (c *Client) useTLS() bool {
 
 // SetupAuth sets the client's authMode. It tries from the environment first if we're on android or in dev mode, and then from the client configuration.
 func (c *Client) SetupAuth() error {
+	if c.paramsOnly {
+		if c.authMode != nil {
+			if _, ok := c.authMode.(*auth.None); !ok {
+				return nil
+			}
+		}
+		return errors.New("client: paramsOnly set; auth should not be configured from config or env vars.")
+	}
 	// env var takes precedence, but only if we're in dev mode or on android.
 	// Too risky otherwise.
-	if android.OnAndroid() || os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "" {
+	if android.OnAndroid() ||
+		os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "" ||
+		configDisabled {
 		authMode, err := auth.FromEnv()
 		if err == nil {
 			c.authMode = authMode
@@ -337,6 +355,13 @@ func (c *Client) SecretRingFile() string {
 	if android.OnAndroid() {
 		panic("on android, so CAMLI_SECRET_RING should have been defined, or --secret-keyring used.")
 	}
+	if c.paramsOnly {
+		log.Print("client: paramsOnly set; cannot get secret ring file from config or env vars.")
+		return ""
+	}
+	if configDisabled {
+		panic("Need a secret ring, and config file disabled")
+	}
 	configOnce.Do(parseConfig)
 	if config.IdentitySecretRing == "" {
 		return osutil.SecretRingFile()
@@ -358,6 +383,10 @@ func (c *Client) SignerPublicKeyBlobref() blob.Ref {
 }
 
 func (c *Client) initSignerPublicKeyBlobref() {
+	if c.paramsOnly {
+		log.Print("client: paramsOnly set; cannot get public key from config or env vars.")
+		return
+	}
 	keyId := os.Getenv("CAMLI_KEYID")
 	if keyId == "" {
 		configOnce.Do(parseConfig)
@@ -384,12 +413,15 @@ func (c *Client) initSignerPublicKeyBlobref() {
 }
 
 func (c *Client) initTrustedCerts() {
+	if c.paramsOnly {
+		return
+	}
 	if e := os.Getenv("CAMLI_TRUSTED_CERT"); e != "" {
 		c.trustedCerts = strings.Split(e, ",")
 		return
 	}
 	c.trustedCerts = []string{}
-	if android.OnAndroid() {
+	if android.OnAndroid() || configDisabled {
 		return
 	}
 	if c.server == "" {
@@ -424,12 +456,15 @@ func (c *Client) initIgnoredFiles() {
 	defer func() {
 		c.ignoreChecker = newIgnoreChecker(c.ignoredFiles)
 	}()
+	if c.paramsOnly {
+		return
+	}
 	if e := os.Getenv("CAMLI_IGNORED_FILES"); e != "" {
 		c.ignoredFiles = strings.Split(e, ",")
 		return
 	}
 	c.ignoredFiles = []string{}
-	if android.OnAndroid() {
+	if android.OnAndroid() || configDisabled {
 		return
 	}
 	configOnce.Do(parseConfig)
