@@ -69,3 +69,27 @@ func TestParseBuckets(t *testing.T) {
 		dump(want)
 	}
 }
+
+func TestValidBucketNames(t *testing.T) {
+	m := []struct {
+		in   string
+		want bool
+	}{
+		{"myawsbucket", true},
+		{"my.aws.bucket", true},
+		{"my-aws-bucket.1", true},
+		{"my---bucket.1", true},
+		{".myawsbucket", false},
+		{"-myawsbucket", false},
+		{"myawsbucket.", false},
+		{"myawsbucket-", false},
+		{"my..awsbucket", false},
+	}
+
+	for _, bt := range m {
+		got := IsValidBucket(bt.in)
+		if got != bt.want {
+			t.Errorf("func(%q) = %v; want %v", bt.in, got, bt.want)
+		}
+	}
+}

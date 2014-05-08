@@ -79,6 +79,9 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
+	if !s3.IsValidBucket(sto.bucket) {
+		return nil, fmt.Errorf("Not a valid bucket name: %v", sto.bucket)
+	}
 	if !skipStartupCheck {
 		// TODO: skip this check if a file
 		// ~/.camli/.configcheck/sha1-("IS GOOD: s3: sha1(access key +

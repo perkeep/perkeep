@@ -57,6 +57,10 @@ func (c *Client) httpClient() *http.Client {
 	return http.DefaultClient
 }
 
+func (c *Client) blobURL(bucket, key string) string {
+	return fmt.Sprintf("https://%s/%s/%s", c.hostname(), bucket, key)
+}
+
 func newReq(url_ string) *http.Request {
 	req, err := http.NewRequest("GET", url_, nil)
 	if err != nil {
@@ -94,8 +98,8 @@ func parseListAllMyBuckets(r io.Reader) ([]*Bucket, error) {
 }
 
 // Returns 0, os.ErrNotExist if not on S3, otherwise reterr is real.
-func (c *Client) Stat(name, bucket string) (size int64, reterr error) {
-	req := newReq("https://" + bucket + "." + c.hostname() + "/" + name)
+func (c *Client) Stat(key, bucket string) (size int64, reterr error) {
+	req := newReq(c.blobURL(bucket, key))
 	req.Method = "HEAD"
 	c.Auth.SignRequest(req)
 	res, err := c.httpClient().Do(req)
@@ -111,11 +115,11 @@ func (c *Client) Stat(name, bucket string) (size int64, reterr error) {
 	case http.StatusOK:
 		return strconv.ParseInt(res.Header.Get("Content-Length"), 10, 64)
 	}
-	return 0, fmt.Errorf("s3: Unexpected status code %d statting object %v", res.StatusCode, name)
+	return 0, fmt.Errorf("s3: Unexpected status code %d statting object %v", res.StatusCode, key)
 }
 
-func (c *Client) PutObject(name, bucket string, md5 hash.Hash, size int64, body io.Reader) error {
-	req := newReq("https://" + bucket + "." + c.hostname() + "/" + name)
+func (c *Client) PutObject(key, bucket string, md5 hash.Hash, size int64, body io.Reader) error {
+	req := newReq(c.blobURL(bucket, key))
 	req.Method = "PUT"
 	req.ContentLength = size
 	if md5 != nil {
@@ -172,8 +176,8 @@ func (c *Client) ListBucket(bucket string, startAt string, maxKeys int) (items [
 		}
 		var bres listBucketResults
 
-		url_ := fmt.Sprintf("https://%s.%s/?marker=%s&max-keys=%d",
-			bucket, c.hostname(), url.QueryEscape(marker), fetchN)
+		url_ := fmt.Sprintf("https://%s/%s/?marker=%s&max-keys=%d",
+			c.hostname(), bucket, url.QueryEscape(marker), fetchN)
 
 		// Try the enumerate three times, since Amazon likes to close
 		// https connections a lot, and Go sucks at dealing with it:
@@ -233,8 +237,7 @@ func (c *Client) ListBucket(bucket string, startAt string, maxKeys int) (items [
 }
 
 func (c *Client) Get(bucket, key string) (body io.ReadCloser, size int64, err error) {
-	url_ := fmt.Sprintf("https://%s.%s/%s", bucket, c.hostname(), key)
-	req := newReq(url_)
+	req := newReq(c.blobURL(bucket, key))
 	c.Auth.SignRequest(req)
 	var res *http.Response
 	res, err = c.httpClient().Do(req)
@@ -258,8 +261,7 @@ func (c *Client) Get(bucket, key string) (body io.ReadCloser, size int64, err er
 }
 
 func (c *Client) Delete(bucket, key string) error {
-	url_ := fmt.Sprintf("https://%s.%s/%s", bucket, c.hostname(), key)
-	req := newReq(url_)
+	req := newReq(c.blobURL(bucket, key))
 	req.Method = "DELETE"
 	c.Auth.SignRequest(req)
 	res, err := c.httpClient().Do(req)
@@ -274,4 +276,43 @@ func (c *Client) Delete(bucket, key string) error {
 		return nil
 	}
 	return fmt.Errorf("Amazon HTTP error on DELETE: %d", res.StatusCode)
+}
+
+// IsValid reports whether bucket is a valid bucket name, per Amazon's naming restrictions.
+//
+// See http://docs.aws.amazon.com/AmazonS3/latest/dev/BucketRestrictions.html
+func IsValidBucket(bucket string) bool {
+	l := len(bucket)
+	if l < 3 || l > 63 {
+		return false
+	}
+
+	valid := false
+	prev := byte('.')
+	for i := 0; i < len(bucket); i++ {
+		c := bucket[i]
+		switch {
+		default:
+			return false
+		case 'a' <= c && c <= 'z':
+			valid = true
+		case '0' <= c && c <= '9':
+			// Is allowed, but bucketname can't be just numbers.
+			// Therefore, don't set valid to true
+		case c == '-':
+			if prev == '.' {
+				return false
+			}
+		case c == '.':
+			if prev == '.' || prev == '-' {
+				return false
+			}
+		}
+		prev = c
+	}
+
+	if prev == '-' || prev == '.' {
+		return false
+	}
+	return valid
 }
