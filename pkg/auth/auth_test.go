@@ -37,7 +37,7 @@ func TestFromConfig(t *testing.T) {
 		{in: "userpass:alice:secret:+localhost", want: &UserPass{Username: "alice", Password: "secret", OrLocalhost: true, VivifyPass: ""}},
 		{in: "userpass:alice:secret:+localhost:vivify=foo", want: &UserPass{Username: "alice", Password: "secret", OrLocalhost: true, VivifyPass: "foo"}},
 		{in: "devauth:port3179", want: &DevAuth{Password: "port3179", VivifyPass: "viviport3179"}},
-		{in: "basic:alice:secret", want: &Basic{Username: "alice", Password: "secret", OrLocalhost: true, VivifyPass: ""}},
+		{in: "basic:alice:secret", want: &UserPass{Username: "alice", Password: "secret", OrLocalhost: false, VivifyPass: ""}},
 		{in: "basic:alice:secret:+localhost", wanterr: `invalid basic auth syntax. got "alice:secret:+localhost", want "username:password"`},
 		{in: "basic:alice:secret:+vivify=foo", wanterr: `invalid basic auth syntax. got "alice:secret:+vivify=foo", want "username:password"`},
 	}
