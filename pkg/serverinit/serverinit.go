@@ -42,6 +42,7 @@ import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/server/app"
 	"camlistore.org/pkg/types/serverconfig"
 )
 
@@ -333,10 +334,20 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		return
 	}
 
-	hh, err := blobserver.CreateHandler(h.htype, hl, h.conf)
-	if err != nil {
-		exitFailure("error instantiating handler for prefix %q, type %q: %v",
-			h.prefix, h.htype, err)
+	var hh http.Handler
+	if h.htype == "app" {
+		ap, err := app.New(h.conf, hl.baseURL+"/")
+		if err != nil {
+			exitFailure("error setting up app for prefix %q: %v", h.prefix, err)
+		}
+		hh = ap
+	} else {
+		var err error
+		hh, err = blobserver.CreateHandler(h.htype, hl, h.conf)
+		if err != nil {
+			exitFailure("error instantiating handler for prefix %q, type %q: %v",
+				h.prefix, h.htype, err)
+		}
 	}
 
 	hl.handler[prefix] = hh
@@ -345,7 +356,7 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		wrappedHandler = unauthorizedHandler{}
 	} else {
 		wrappedHandler = &httputil.PrefixHandler{prefix, hh}
-		if handerTypeWantsAuth(h.htype) {
+		if handlerTypeWantsAuth(h.htype) {
 			wrappedHandler = auth.Handler{wrappedHandler}
 		}
 	}
@@ -358,7 +369,7 @@ func (unauthorizedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Unauthorized", http.StatusUnauthorized)
 }
 
-func handerTypeWantsAuth(handlerType string) bool {
+func handlerTypeWantsAuth(handlerType string) bool {
 	// TODO(bradfitz): ask the handler instead? This is a bit of a
 	// weird spot for this policy maybe?
 	switch handlerType {
@@ -375,6 +386,10 @@ type Config struct {
 	jsonconfig.Obj
 	UIPath     string // Not valid until after InstallHandlers
 	configPath string // Filesystem path
+
+	// apps is the list of server apps configured during InstallHandlers,
+	// and that should be started after camlistored has started serving.
+	apps []*app.AppHandler
 }
 
 // detectConfigChange returns an informative error if conf contains obsolete keys.
@@ -527,7 +542,11 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reind
 
 	// Now that everything is setup, run any handlers' InitHandler
 	// methods.
+	// And register apps that will be started later.
 	for pfx, handler := range hl.handler {
+		if starter, ok := handler.(*app.AppHandler); ok {
+			config.apps = append(config.apps, starter)
+		}
 		if in, ok := handler.(blobserver.HandlerIniter); ok {
 			if err := in.InitHandler(hl); err != nil {
 				return nil, fmt.Errorf("Error calling InitHandler on %s: %v", pfx, err)
@@ -542,6 +561,19 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reind
 		hi.Handle("/debug/pprof/", profileHandler{})
 	}
 	return multiCloser(hl.closers), nil
+}
+
+// StartApps starts all the server applications that were configured
+// during InstallHandlers. It should only be called after camlistored
+// has started serving, since these apps might request some configuration
+// from Camlistore to finish initializing.
+func (config *Config) StartApps() error {
+	for _, ap := range config.apps {
+		if err := ap.Start(); err != nil {
+			return fmt.Errorf("error starting app %v: %v", ap.Name(), err)
+		}
+	}
+	return nil
 }
 
 func mustCreate(path string) *os.File {

@@ -1,0 +1,24 @@
+Camlistore applications run with the following environment variables set:
+
+CAMLI_APP_BASEURL (string):
+  URL prefix of the application's root, always ending in a trailing slash. Examples:
+    https://foo.org:3178/pub/
+    https://foo.org/pub/
+    http://192.168.0.1/
+    http://192.168.0.1:1234/
+
+CAMLI_APP_CONFIG_URL (string):
+  URL containing JSON configuration for the app. The body of this URL comes from the
+  "appConfig" part of the config file.
+
+CAMLI_AUTH (string):
+  Username and password (username:password) that the app should use to authenticate
+  over HTTP basic auth with the Camlistore server. Basic auth is unencrypted, hence
+  it should only be used with HTTPS or in a secure (local loopback) environment.
+
+CAMLI_SERVER (string):
+  URL prefix of Camlistore's root, always ending in a trailing slash. Examples:
+    https://foo.org:3178/pub/
+    https://foo.org/pub/
+    http://192.168.0.1/
+    http://192.168.0.1:1234/

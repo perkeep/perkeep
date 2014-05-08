@@ -395,6 +395,10 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		osutil.DieOnParentDeath()
 	}
 
+	if err := config.StartApps(); err != nil {
+		exitf("StartApps: %v", err)
+	}
+
 	// Block forever, except during tests.
 	up <- struct{}{}
 	<-down
