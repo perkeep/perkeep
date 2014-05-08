@@ -153,6 +153,10 @@ func (n *mutDir) populate() error {
 			log.Printf("child not described: %v", childRef)
 			continue
 		}
+		if child.Permanode == nil {
+			log.Printf("invalid child, not a permanode: %v", childRef)
+			continue
+		}
 		if target := child.Permanode.Attr.Get("camliSymlinkTarget"); target != "" {
 			// This is a symlink.
 			n.maybeAddChild(name, child.Permanode, &mutFile{
