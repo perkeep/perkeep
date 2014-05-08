@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -36,7 +37,7 @@ type Auth struct {
 	SecretAccessKey string
 
 	// Hostname is the S3 hostname to use.
-	// If empty, the stanard US region of "s3.amazonaws.com" is
+	// If empty, the standard US region of "s3.amazonaws.com" is
 	// used.
 	Hostname string
 }
@@ -56,6 +57,7 @@ func (a *Auth) SignRequest(req *http.Request) {
 	}
 	hm := hmac.New(sha1.New, []byte(a.SecretAccessKey))
 	ss := a.stringToSign(req)
+	// log.Printf("String to sign: %q (%x)", ss, ss)
 	io.WriteString(hm, ss)
 
 	authHeader := new(bytes.Buffer)
@@ -145,18 +147,40 @@ func (a *Auth) writeCanonicalizedAmzHeaders(buf *bytes.Buffer, req *http.Request
 	}
 }
 
+// Must be sorted:
+var subResList = []string{"acl", "lifecycle", "location", "logging", "notification", "partNumber", "policy", "requestPayment", "torrent", "uploadId", "uploads", "versionId", "versioning", "versions", "website"}
+
 // From the Amazon docs:
 //
 // CanonicalizedResource = [ "/" + Bucket ] +
 // 	  <HTTP-Request-URI, from the protocol name up to the query string> +
 // 	  [ sub-resource, if present. For example "?acl", "?location", "?logging", or "?torrent"];
 func (a *Auth) writeCanonicalizedResource(buf *bytes.Buffer, req *http.Request) {
-	if bucket := a.bucketFromHostname(req); bucket != "" {
+	bucket := a.bucketFromHostname(req)
+	if bucket != "" {
 		buf.WriteByte('/')
 		buf.WriteString(bucket)
 	}
 	buf.WriteString(req.URL.Path)
-	// TODO: subresource
+	if req.URL.RawQuery != "" {
+		n := 0
+		vals, _ := url.ParseQuery(req.URL.RawQuery)
+		for _, subres := range subResList {
+			if vv, ok := vals[subres]; ok && len(vv) > 0 {
+				n++
+				if n == 1 {
+					buf.WriteByte('?')
+				} else {
+					buf.WriteByte('&')
+				}
+				buf.WriteString(subres)
+				if len(vv[0]) > 0 {
+					buf.WriteByte('=')
+					buf.WriteString(url.QueryEscape(vv[0]))
+				}
+			}
+		}
+	}
 }
 
 // hasDotSuffix reports whether s ends with "." + suffix.

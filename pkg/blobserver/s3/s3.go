@@ -35,7 +35,8 @@ package s3
 
 import (
 	"fmt"
-	"net/http"
+	"log"
+	"strings"
 
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/fault"
@@ -68,7 +69,6 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 			SecretAccessKey: config.RequiredString("aws_secret_access_key"),
 			Hostname:        hostname,
 		},
-		HTTPClient: http.DefaultClient,
 	}
 	sto := &s3Storage{
 		s3Client: client,
@@ -79,23 +79,41 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	if !s3.IsValidBucket(sto.bucket) {
-		return nil, fmt.Errorf("Not a valid bucket name: %v", sto.bucket)
-	}
 	if !skipStartupCheck {
-		// TODO: skip this check if a file
-		// ~/.camli/.configcheck/sha1-("IS GOOD: s3: sha1(access key +
-		// secret key)") exists and has recent time?
-		buckets, err := client.Buckets()
+		_, err := client.ListBucket(sto.bucket, "", 1)
+		if serr, ok := err.(*s3.Error); ok {
+			if serr.AmazonCode == "NoSuchBucket" {
+				return nil, fmt.Errorf("Bucket %q doesn't exist.", sto.bucket)
+			}
+
+			// This code appears when the hostname has dots in it:
+			if serr.AmazonCode == "PermanentRedirect" {
+				loc, lerr := client.BucketLocation(sto.bucket)
+				if lerr != nil {
+					return nil, fmt.Errorf("Wrong server for bucket %q; and error determining bucket's location: %v", sto.bucket, lerr)
+				}
+				client.Auth.Hostname = loc
+				_, err = client.ListBucket(sto.bucket, "", 1)
+				if err == nil {
+					log.Printf("Warning: s3 server should be %q, not %q. Change config file to avoid start-up latency.", client.Auth.Hostname, hostname)
+				}
+			}
+
+			// This path occurs when the user set the
+			// wrong server, or didn't set one at all, but
+			// the bucket doesn't have dots in it:
+			if serr.UseEndpoint != "" {
+				// UseEndpoint will be e.g. "brads3test-ca.s3-us-west-1.amazonaws.com"
+				// But we only want the "s3-us-west-1.amazonaws.com" part.
+				client.Auth.Hostname = strings.TrimPrefix(serr.UseEndpoint, sto.bucket+".")
+				_, err = client.ListBucket(sto.bucket, "", 1)
+				if err == nil {
+					log.Printf("Warning: s3 server should be %q, not %q. Change config file to avoid start-up latency.", client.Auth.Hostname, hostname)
+				}
+			}
+		}
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get bucket list from S3: %v", err)
-		}
-		haveBucket := make(map[string]bool)
-		for _, b := range buckets {
-			haveBucket[b.Name] = true
-		}
-		if !haveBucket[sto.bucket] {
-			return nil, fmt.Errorf("S3 bucket %q doesn't exist. Create it first at https://console.aws.amazon.com/s3/home", sto.bucket)
+			return nil, fmt.Errorf("Error listing bucket %s: %v", sto.bucket, err)
 		}
 	}
 	return sto, nil
