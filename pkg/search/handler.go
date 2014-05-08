@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -57,6 +58,8 @@ func init() {
 type Handler struct {
 	index index.Interface
 	owner blob.Ref
+	// optional for search aliases
+	fetcher blob.Fetcher
 
 	// Corpus optionally specifies the full in-memory metadata corpus
 	// to use.
@@ -92,6 +95,16 @@ func NewHandler(ix index.Interface, owner blob.Ref) *Handler {
 	return sh
 }
 
+func (h *Handler) InitHandler(lh blobserver.FindHandlerByTyper) error {
+	_, handler, err := lh.FindHandlerByType("storage-filesystem")
+	if err != nil || handler == nil {
+		return nil
+	}
+	h.fetcher = handler.(blob.Fetcher)
+	registerKeyword(newNamedSearch(h))
+	return nil
+}
+
 func (h *Handler) subscribeToNewBlobs() {
 	ch := make(chan blob.Ref, buffered)
 	blobserver.GetHub(h.index).RegisterListener(ch)
@@ -121,6 +134,7 @@ func (h *Handler) SendStatusUpdate(status json.RawMessage) {
 func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler, error) {
 	indexPrefix := conf.RequiredString("index") // TODO: add optional help tips here?
 	ownerBlobStr := conf.RequiredString("owner")
+
 	devBlockStartupPrefix := conf.OptionalString("devBlockStartupOn", "")
 	slurpToMemory := conf.OptionalBool("slurpToMemory", false)
 	if err := conf.Validate(); err != nil {
@@ -159,6 +173,7 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 		h.SetCorpus(corpus)
 		ii.Unlock()
 	}
+
 	return h, nil
 }
 
@@ -857,6 +872,71 @@ func (h *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	httputil.ReturnJSON(rw, res)
+}
+
+// EvalSearchInput checks if its input is JSON. If so it returns a Constraint constructed from that JSON. Otherwise
+// it assumes the input to be a search expression. It parses the expression and returns the parsed Constraint.
+func evalSearchInput(in string) (*Constraint, error) {
+	if len(in) == 0 {
+		return nil, fmt.Errorf("empty expression")
+	}
+	if strings.HasPrefix(in, "{") && strings.HasSuffix(in, "}") {
+		cs := new(Constraint)
+		if err := json.NewDecoder(strings.NewReader(in)).Decode(&cs); err != nil {
+			return nil, err
+		}
+		return cs, nil
+	} else {
+		sq, err := parseExpression(context.TODO(), in)
+		if err != nil {
+			return nil, err
+		}
+		return sq.Constraint.Logical.B, nil
+	}
+}
+
+// getNamed displays the search expression or constraint json for the requested alias.
+func (sh *Handler) getNamed(name string) (string, error) {
+	if sh.fetcher == nil {
+		return "", fmt.Errorf("GetNamed functionality not available")
+	}
+	sr, err := sh.Query(NamedSearch(name))
+	if err != nil {
+		return "", err
+	}
+
+	if len(sr.Blobs) < 1 {
+		return "", fmt.Errorf("No named search found for: %s", name)
+	}
+	permaRef := sr.Blobs[0].Blob
+	substRefS := sr.Describe.Meta.Get(permaRef).Permanode.Attr.Get("camliContent")
+	br, ok := blob.Parse(substRefS)
+	if !ok {
+		return "", fmt.Errorf("Invalid blob ref: %s", substRefS)
+	}
+
+	reader, _, err := sh.fetcher.Fetch(br)
+	if err != nil {
+		return "", err
+	}
+	result, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return "", err
+	}
+	return string(result), nil
+}
+
+// NamedSearch returns a *SearchQuery to find the permanode of the search alias "name".
+func NamedSearch(name string) *SearchQuery {
+	return &SearchQuery{
+		Constraint: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr:  "camliNamedSearch",
+				Value: name,
+			},
+		},
+		Describe: &DescribeRequest{},
+	}
 }
 
 const camliTypePrefix = "application/json; camliType="

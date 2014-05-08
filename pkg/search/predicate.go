@@ -691,6 +691,33 @@ func (h hasLocation) Predicate(ctx context.Context, args []string) (*Constraint,
 	}, nil
 }
 
+// NamedSearch lets you use the search aliases you defined with SetNamed from the search handler.
+type namedSearch struct {
+	matchPrefix
+	sh *Handler
+}
+
+func newNamedSearch(sh *Handler) keyword {
+	return namedSearch{newMatchPrefix("named"), sh}
+}
+
+func (n namedSearch) Description() string {
+	return "Uses substitution of a predefined search. Set with $searchRoot/camli/search/setnamed?name=foo&substitute=attr:bar:baz" +
+		"\nSee what the substitute is with $searchRoot/camli/search/getnamed?named=foo"
+}
+
+func (n namedSearch) Predicate(ctx context.Context, args []string) (*Constraint, error) {
+	return n.namedConstraint(args[0])
+}
+
+func (n namedSearch) namedConstraint(name string) (*Constraint, error) {
+	subst, err := n.sh.getNamed(name)
+	if err != nil {
+		return nil, err
+	}
+	return evalSearchInput(subst)
+}
+
 // Helpers
 
 func permWithAttr(attr, val string) *Constraint {
