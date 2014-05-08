@@ -134,7 +134,8 @@ func (id *IndexDeps) advanceTime() time.Time {
 	return id.now
 }
 
-func (id *IndexDeps) lastTime() time.Time {
+// LastTime returns the time of the most recent mutation (claim).
+func (id *IndexDeps) LastTime() time.Time {
 	return id.now
 }
 
@@ -146,7 +147,7 @@ func (id *IndexDeps) SetAttribute(permaNode blob.Ref, attr, value string) blob.R
 
 func (id *IndexDeps) SetAttribute_NoTimeMove(permaNode blob.Ref, attr, value string) blob.Ref {
 	m := schema.NewSetAttributeClaim(permaNode, attr, value)
-	m.SetClaimDate(id.lastTime())
+	m.SetClaimDate(id.LastTime())
 	return id.uploadAndSign(m)
 }
 
@@ -290,22 +291,22 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	pn := id.NewPermanode()
 	t.Logf("uploaded permanode %q", pn)
 	br1 := id.SetAttribute(pn, "tag", "foo1")
-	br1Time := id.lastTime()
+	br1Time := id.LastTime()
 	t.Logf("set attribute %q", br1)
 	br2 := id.SetAttribute(pn, "tag", "foo2")
-	br2Time := id.lastTime()
+	br2Time := id.LastTime()
 	t.Logf("set attribute %q", br2)
 	rootClaim := id.SetAttribute(pn, "camliRoot", "rootval")
-	rootClaimTime := id.lastTime()
+	rootClaimTime := id.LastTime()
 	t.Logf("set attribute %q", rootClaim)
 
 	pnChild := id.NewPermanode()
 	br3 := id.SetAttribute(pnChild, "tag", "bar")
-	br3Time := id.lastTime()
+	br3Time := id.LastTime()
 	t.Logf("set attribute %q", br3)
 	memberRef := id.AddAttribute(pn, "camliMember", pnChild.String())
 	t.Logf("add-attribute claim %q points to member permanode %q", memberRef, pnChild)
-	memberRefTime := id.lastTime()
+	memberRefTime := id.LastTime()
 
 	// TODO(bradfitz): add EXIF tests here, once that stuff is ready.
 	if false {
@@ -352,7 +353,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		time.Now(),
 	)
 
-	lastPermanodeMutation := id.lastTime()
+	lastPermanodeMutation := id.LastTime()
 
 	key := "signerkeyid:sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
 	if g, e := id.Get(key), "2931A67C26F5ABDA"; g != e {
@@ -492,7 +493,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 
 	// Delete value "pony" of type "title" (which does not actually exist) for pn
 	br4 := id.DelAttribute(pn, "title", "pony")
-	br4Time := id.lastTime()
+	br4Time := id.LastTime()
 	// and verify it is not found when searching by attr
 	{
 		ch := make(chan blob.Ref, 10)
@@ -687,9 +688,9 @@ func PathsOfSignerTarget(t *testing.T, initIdx func() *index.Index) {
 	t.Logf("uploaded permanode %q", pn)
 
 	claim1 := id.SetAttribute(pn, "camliPath:somedir", "targ-123")
-	claim1Time := id.lastTime().UTC()
+	claim1Time := id.LastTime().UTC()
 	claim2 := id.SetAttribute(pn, "camliPath:with|pipe", "targ-124")
-	claim2Time := id.lastTime().UTC()
+	claim2Time := id.LastTime().UTC()
 	t.Logf("made path claims %q and %q", claim1, claim2)
 
 	type test struct {
@@ -965,7 +966,7 @@ func Delete(t *testing.T, initIdx func() *index.Index) {
 	pn1 := id.NewPermanode()
 	t.Logf("uploaded permanode %q", pn1)
 	cl1 := id.SetAttribute(pn1, "tag", "foo1")
-	cl1Time := id.lastTime()
+	cl1Time := id.LastTime()
 	t.Logf("set attribute %q", cl1)
 
 	// delete pn1

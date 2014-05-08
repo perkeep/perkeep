@@ -530,7 +530,7 @@ func (c *Corpus) mergeFileTimesRow(k, v []byte) error {
 	if !ok {
 		return fmt.Errorf("unexpected filetimes blobref in key %q", k)
 	}
-	c.ss = strutil.AppendSplitN(c.ss[:0], string(v), ",", -1)
+	c.ss = strutil.AppendSplitN(c.ss[:0], urld(string(v)), ",", -1)
 	times := c.ss
 	c.mutateFileInfo(br, func(fi *camtypes.FileInfo) {
 		updateFileInfoTimes(fi, times)
@@ -691,31 +691,24 @@ func (c *Corpus) EnumerateBlobMetaLocked(ctx *context.Context, ch chan<- camtype
 }
 
 // pnAndTime is a value type wrapping a permanode blobref and its modtime.
-// It's used by EnumeratePermanodesLastModified.
+// It's used by EnumeratePermanodesLastModified and EnumeratePermanodesCreated.
 type pnAndTime struct {
 	pn blob.Ref
 	t  time.Time
 }
 
-type byPermanodeModtime []pnAndTime
+type byPermanodeTime []pnAndTime
 
-func (s byPermanodeModtime) Len() int      { return len(s) }
-func (s byPermanodeModtime) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-func (s byPermanodeModtime) Less(i, j int) bool {
+func (s byPermanodeTime) Len() int      { return len(s) }
+func (s byPermanodeTime) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s byPermanodeTime) Less(i, j int) bool {
 	if s[i].t.Equal(s[j].t) {
 		return s[i].pn.Less(s[j].pn)
 	}
 	return s[i].t.Before(s[j].t)
 }
 
-// EnumeratePermanodesLastModified sends all permanodes, sorted by most recently modified first, to ch,
-// or until ctx is done.
-//
-// The Corpus must already be locked with RLock.
-func (c *Corpus) EnumeratePermanodesLastModifiedLocked(ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
-	defer close(ch)
-
-	// TODO: keep these sorted in memory
+func (c *Corpus) permanodesByModtimeLocked() []pnAndTime {
 	pns := make([]pnAndTime, 0, len(c.permanodes))
 	for pn := range c.permanodes {
 		if c.IsDeletedLocked(pn) {
@@ -725,7 +718,11 @@ func (c *Corpus) EnumeratePermanodesLastModifiedLocked(ctx *context.Context, ch 
 			pns = append(pns, pnAndTime{pn, modt})
 		}
 	}
-	sort.Sort(sort.Reverse(byPermanodeModtime(pns)))
+	return pns
+}
+
+// corpus must be (read) locked.
+func (c *Corpus) sendPermanodes(ctx *context.Context, ch chan<- camtypes.BlobMeta, pns []pnAndTime) error {
 	for _, cand := range pns {
 		bm := c.blobs[cand.pn]
 		if bm == nil {
@@ -739,6 +736,50 @@ func (c *Corpus) EnumeratePermanodesLastModifiedLocked(ctx *context.Context, ch 
 		}
 	}
 	return nil
+}
+
+// EnumeratePermanodesLastModified sends all permanodes, sorted by most recently modified first, to ch,
+// or until ctx is done.
+//
+// The Corpus must already be locked with RLock.
+func (c *Corpus) EnumeratePermanodesLastModifiedLocked(ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+	defer close(ch)
+
+	pns := c.permanodesByModtimeLocked()
+	sort.Sort(sort.Reverse(byPermanodeTime(pns)))
+	return c.sendPermanodes(ctx, ch, pns)
+}
+
+func (c *Corpus) permanodesByTimeLocked() []pnAndTime {
+	// TODO: cache this
+	pns := make([]pnAndTime, 0, len(c.permanodes))
+	for pn := range c.permanodes {
+		if c.IsDeletedLocked(pn) {
+			continue
+		}
+		if pt, ok := c.PermanodeAnyTimeLocked(pn); ok {
+			pns = append(pns, pnAndTime{pn, pt})
+		}
+	}
+	return pns
+}
+
+// EnumeratePermanodesCreatedLocked sends all permanodes to ch, or until ctx is done.
+// They are sorted using the contents creation date if any, the permanode modtime
+// otherwise, and in the order specified by newestFirst.
+//
+// The Corpus must already be locked with RLock.
+func (c *Corpus) EnumeratePermanodesCreatedLocked(ctx *context.Context, ch chan<- camtypes.BlobMeta, newestFirst bool) error {
+	defer close(ch)
+
+	pns := c.permanodesByTimeLocked()
+	if newestFirst {
+		sort.Sort(sort.Reverse(byPermanodeTime(pns)))
+	} else {
+		sort.Sort(byPermanodeTime(pns))
+	}
+
+	return c.sendPermanodes(ctx, ch, pns)
 }
 
 func (c *Corpus) GetBlobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
@@ -764,6 +805,30 @@ func (c *Corpus) KeyId(signer blob.Ref) (string, error) {
 	return "", sorted.ErrNotFound
 }
 
+var (
+	errUnsupportedNodeType = errors.New("unsupported nodeType")
+	errNoNodeAttr          = errors.New("attribute not found")
+)
+
+// typeSpecificNodeTimeLocked returns the time that is set as a specific permanode attribute.
+// That attribute, if any, depends on the nodeType ("camliNodeType" attribute) value, which
+// may be empty as well.
+func (c *Corpus) typeSpecificNodeTimeLocked(nodeType string, pn blob.Ref) (t time.Time, err error) {
+	attr := ""
+	switch nodeType {
+	case "foursquare.com:checkin":
+		attr = "startDate"
+	// TODO(mpl): other nodeTypes from importers
+	default:
+		return t, errUnsupportedNodeType
+	}
+	timeStr := c.PermanodeAttrValueLocked(pn, attr, time.Time{}, blob.Ref{})
+	if timeStr == "" {
+		return t, errNoNodeAttr
+	}
+	return time.Parse(time.RFC3339, timeStr)
+}
+
 // PermanodeTimeLocked returns the time of the content in permanode.
 func (c *Corpus) PermanodeTimeLocked(pn blob.Ref) (t time.Time, ok bool) {
 	// TODO(bradfitz): keep this time property cached on the permanode / files
@@ -773,10 +838,22 @@ func (c *Corpus) PermanodeTimeLocked(pn blob.Ref) (t time.Time, ok bool) {
 	// Priorities:
 	// -- Permanode explicit "camliTime" property
 	// -- EXIF GPS time
-	// -- Exif camera time
+	// -- Exif camera time - this one is actually already in the FileInfo,
+	// because we use schema.FileTime (which returns the EXIF time, if available)
+	// to index the time when receiving a file.
 	// -- File time
 	// -- File modtime
 	// -- camliContent claim set time
+
+	// First check the type-specific time (e.g. from importers)
+	nodeType := c.PermanodeAttrValueLocked(pn, "camliNodeType", time.Time{}, blob.Ref{})
+	if nodeType != "" {
+		if t, err := c.typeSpecificNodeTimeLocked(nodeType, pn); err == nil {
+			return t, true
+		}
+	}
+
+	// Otherwise check time from the FileInfo
 	ccRef, ccTime, ok := c.pnCamliContentLocked(pn)
 	if !ok {
 		return
@@ -792,6 +869,15 @@ func (c *Corpus) PermanodeTimeLocked(pn blob.Ref) (t time.Time, ok bool) {
 		}
 	}
 	return ccTime, true
+}
+
+// PermanodeAnyTimeLocked returns the time that best qualifies the permanode.
+// It tries content-specific times first, the permanode modtime otherwise.
+func (c *Corpus) PermanodeAnyTimeLocked(pn blob.Ref) (t time.Time, ok bool) {
+	if t, ok := c.PermanodeTimeLocked(pn); ok {
+		return t, ok
+	}
+	return c.PermanodeModtimeLocked(pn)
 }
 
 func (c *Corpus) pnCamliContentLocked(pn blob.Ref) (cc blob.Ref, t time.Time, ok bool) {
@@ -838,25 +924,6 @@ func (c *Corpus) PermanodeModtimeLocked(pn blob.Ref) (t time.Time, ok bool) {
 	pm, ok := c.permanodes[pn]
 	if !ok {
 		return
-	}
-
-	// TODO: this is a temporary hack. We really want the default
-	// search sorting mode to be created-descending, but it's
-	// currently modtime-descending, and all my foursquare
-	// checkins (thousands) are currently at the top, and not
-	// inter-mingled in time where they should be.  This doesn't
-	// demo well, so hack it for now by lying about the
-	// modtime. This can be deleted (or at least moved to its
-	// proper place) when I finish the other TODOs about changing
-	// the default search.
-	nodeType := c.PermanodeAttrValueLocked(pn, "camliNodeType", time.Time{}, blob.Ref{})
-	if nodeType == "foursquare.com:checkin" {
-		if timeStr := c.PermanodeAttrValueLocked(pn, "startDate", time.Time{}, blob.Ref{}); timeStr != "" {
-			t, err := time.Parse(time.RFC3339, timeStr)
-			if err == nil {
-				return t, true
-			}
-		}
 	}
 
 	// Note: We intentionally don't try to derive any information

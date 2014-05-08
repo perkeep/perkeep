@@ -27,3 +27,5 @@ func ExportBufferedConst() int { return buffered }
 func (s *SearchQuery) ExportPlannedQuery() *SearchQuery {
 	return s.plannedQuery(nil)
 }
+
+var SortName = sortName

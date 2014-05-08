@@ -133,7 +133,7 @@ func (q *SearchQuery) plannedQuery(expr *SearchQuery) *SearchQuery {
 	}
 	if pq.Sort == 0 {
 		if pq.Constraint.onlyMatchesPermanode() {
-			pq.Sort = LastModifiedDesc // TODO: CreatedDesc
+			pq.Sort = CreatedDesc
 		}
 	}
 	if pq.Limit == 0 {
@@ -184,7 +184,14 @@ func (q *SearchQuery) addContinueConstraint() error {
 		if !ok {
 			return errors.New("Unexpected continue token")
 		}
-		if q.Sort == LastModifiedDesc { // TODO: || q.Sort == CreatedDesc {
+		if q.Sort == LastModifiedDesc || q.Sort == CreatedDesc {
+			var lastMod, lastCreated time.Time
+			switch q.Sort {
+			case LastModifiedDesc:
+				lastMod = tokent
+			case CreatedDesc:
+				lastCreated = tokent
+			}
 			baseConstraint := q.Constraint
 			q.Constraint = &Constraint{
 				Logical: &LogicalConstraint{
@@ -192,8 +199,9 @@ func (q *SearchQuery) addContinueConstraint() error {
 					A: &Constraint{
 						Permanode: &PermanodeConstraint{
 							Continue: &PermanodeContinueConstraint{
-								LastMod: tokent,
-								Last:    lastbr,
+								LastCreated: lastCreated,
+								LastMod:     lastMod,
+								Last:        lastbr,
 							},
 						},
 					},
@@ -621,7 +629,9 @@ type PermanodeContinueConstraint struct {
 	// that was seen. One of this or LastCreated will be set.
 	LastMod time.Time
 
-	// TODO: LastCreated time.Time
+	// LastCreated if non-zero is the creation time of the last
+	// item that was seen.
+	LastCreated time.Time
 
 	// Last is the last blobref that was shown at the time
 	// given in ModLessEqual or CreateLessEqual.
@@ -630,6 +640,13 @@ type PermanodeContinueConstraint struct {
 	// If the time is past this in the scroll position, then this
 	// field is ignored.
 	Last blob.Ref
+}
+
+func (pcc *PermanodeContinueConstraint) checkValid() error {
+	if pcc.LastMod.IsZero() == pcc.LastCreated.IsZero() {
+		return errors.New("exactly one of PermanodeContinueConstraint LastMod or LastCreated must be defined")
+	}
+	return nil
 }
 
 type RelationConstraint struct {
@@ -867,15 +884,21 @@ func (q *SearchQuery) setResultContinue(corpus *index.Corpus, res *SearchResult)
 	if !q.Constraint.onlyMatchesPermanode() {
 		return
 	}
-	if q.Sort != LastModifiedDesc {
-		// Unsupported so far.
+	var pnTimeFunc func(blob.Ref) (t time.Time, ok bool)
+	switch q.Sort {
+	case LastModifiedDesc:
+		pnTimeFunc = corpus.PermanodeModtimeLocked
+	case CreatedDesc:
+		pnTimeFunc = corpus.PermanodeAnyTimeLocked
+	default:
 		return
 	}
+
 	if q.Limit <= 0 || len(res.Blobs) != q.Limit {
 		return
 	}
 	lastpn := res.Blobs[len(res.Blobs)-1].Blob
-	t, ok := corpus.PermanodeModtimeLocked(lastpn)
+	t, ok := pnTimeFunc(lastpn)
 	if !ok {
 		return
 	}
@@ -915,13 +938,22 @@ func (q *SearchQuery) pickCandidateSource(s *search) (src candidateSource) {
 	corpus := s.h.corpus
 	if corpus != nil {
 		if c.onlyMatchesPermanode() {
-			if q.Sort == LastModifiedDesc {
-				src.sorted = true
+			src.sorted = true
+			switch q.Sort {
+			case LastModifiedDesc:
 				src.name = "corpus_permanode_lastmod"
 				src.send = func(ctx *context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
 					return corpus.EnumeratePermanodesLastModifiedLocked(ctx, dst)
 				}
 				return
+			case CreatedDesc:
+				src.name = "corpus_permanode_created"
+				src.send = func(ctx *context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
+					return corpus.EnumeratePermanodesCreatedLocked(ctx, dst, true)
+				}
+				return
+			default:
+				src.sorted = false
 			}
 		}
 		if c.AnyCamliType || c.CamliType != "" {
@@ -1117,6 +1149,11 @@ func (c *PermanodeConstraint) checkValid() error {
 			return err
 		}
 	}
+	if pcc := c.Continue; pcc != nil {
+		if err := pcc.checkValid(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -1201,7 +1238,7 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 
 	if c.Time != nil {
 		if corpus != nil {
-			t, ok := corpus.PermanodeTimeLocked(br)
+			t, ok := corpus.PermanodeAnyTimeLocked(br)
 			if !ok || !c.Time.timeMatches(t) {
 				return false, nil
 			}
@@ -1233,24 +1270,34 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 			// scroll. At least for now.
 			return false, nil
 		}
-		if !cc.LastMod.IsZero() {
-			mt, ok := corpus.PermanodeModtimeLocked(br)
-			if !ok || mt.After(cc.LastMod) {
+		var pnTime time.Time
+		var ok bool
+		switch {
+		case !cc.LastMod.IsZero():
+			pnTime, ok = corpus.PermanodeModtimeLocked(br)
+			if !ok || pnTime.After(cc.LastMod) {
 				return false, nil
 			}
-			// Blobs are sorted by modtime, and then by
-			// blobref, and then reversed overall.  From
-			// top of page, imagining this scenario, where
-			// the user requested a page size Limit of 4:
-			//     mod5, sha1-25
-			//     mod4, sha1-72
-			//     mod3, sha1-cc
-			//     mod3, sha1-bb <--- last seen ite, continue = "pn:mod3:sha1-bb"
-			//     mod3, sha1-aa  <-- and we want this one next.
-			// In the case above, we'll see all of cc, bb, and cc for mod3.
-			if mt.Equal(cc.LastMod) && !br.Less(cc.Last) {
+		case !cc.LastCreated.IsZero():
+			pnTime, ok = corpus.PermanodeAnyTimeLocked(br)
+			if !ok || pnTime.After(cc.LastCreated) {
 				return false, nil
 			}
+		default:
+			panic("Continue constraint without a LastMod or a LastCreated")
+		}
+		// Blobs are sorted by modtime, and then by
+		// blobref, and then reversed overall.  From
+		// top of page, imagining this scenario, where
+		// the user requested a page size Limit of 4:
+		//     mod5, sha1-25
+		//     mod4, sha1-72
+		//     mod3, sha1-cc
+		//     mod3, sha1-bb <--- last seen item, continue = "pn:mod3:sha1-bb"
+		//     mod3, sha1-aa  <-- and we want this one next.
+		// In the case above, we'll see all of cc, bb, and cc for mod3.
+		if (pnTime.Equal(cc.LastMod) || pnTime.Equal(cc.LastCreated)) && !br.Less(cc.Last) {
+			return false, nil
 		}
 	}
 	return true, nil
