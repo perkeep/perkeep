@@ -133,7 +133,7 @@ func main() {
 	// TODO(mpl): main is getting long. We could probably move all the mirroring
 	// dance to its own func.
 	// We copy all *.go files from camRoot's goDirs to buildSrcDir.
-	goDirs := []string{"cmd", "pkg", "dev", "server/camlistored", "third_party"}
+	goDirs := []string{"app", "cmd", "pkg", "dev", "server/camlistored", "third_party"}
 	if *onlysync {
 		goDirs = append(goDirs, "server/appengine", "config")
 	}
@@ -168,6 +168,7 @@ func main() {
 		"camlistore.org/cmd/camput",
 		"camlistore.org/cmd/camtool",
 		"camlistore.org/server/camlistored",
+		"camlistore.org/app/hello",
 	}
 	switch *targets {
 	case "*":
@@ -227,6 +228,7 @@ func main() {
 
 	if buildAll {
 		args = append(args,
+			"camlistore.org/app/...",
 			"camlistore.org/pkg/...",
 			"camlistore.org/server/...",
 			"camlistore.org/third_party/...",

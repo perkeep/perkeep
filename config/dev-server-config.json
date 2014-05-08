@@ -17,6 +17,17 @@
 			}
 		},
 
+		"/hello/": {
+			"handler": "app",
+			"handlerArgs": {
+				"program": "hello",
+				"baseURL": "http://localhost:3178/",
+				"appConfig": {
+					"word": "world"
+				}
+			}
+		},
+
 		"/blog/": {
 			"enabled": ["_env", "${CAMLI_PUBLISH_ENABLED}"],
 			"handler": "publish",

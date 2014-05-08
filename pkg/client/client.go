@@ -770,6 +770,21 @@ func (c *Client) doDiscovery() error {
 	return nil
 }
 
+// GetJSON sends a GET request to url, and unmarshals the returned
+// JSON response into data. The URL's host must match the client's
+// configured server.
+func (c *Client) GetJSON(url string, data interface{}) error {
+	if !strings.HasPrefix(url, c.discoRoot()) {
+		return fmt.Errorf("wrong URL (%q) for this server", url)
+	}
+	hreq := c.newRequest("GET", url)
+	resp, err := c.expect2XX(hreq)
+	if err != nil {
+		return err
+	}
+	return httputil.DecodeJSON(resp, data)
+}
+
 func (c *Client) newRequest(method, url string, body ...io.Reader) *http.Request {
 	var bodyR io.Reader
 	if len(body) > 0 {

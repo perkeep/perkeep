@@ -82,6 +82,7 @@ var authConstructor = map[string]AuthConfigParser{
 	"localhost": newLocalhostAuth,
 	"userpass":  newUserPassAuth,
 	"devauth":   newDevAuth,
+	"basic":     newBasicAuth,
 }
 
 // RegisterAuth registers a new authentication scheme.
@@ -111,7 +112,7 @@ func newDevAuth(pw string) (AuthMode, error) {
 func newUserPassAuth(arg string) (AuthMode, error) {
 	pieces := strings.Split(arg, ":")
 	if len(pieces) < 2 {
-		return nil, fmt.Errorf("Wrong userpass auth string; needs to be \"userpass:user:password\"")
+		return nil, fmt.Errorf("Wrong userpass auth string; needs to be \"user:password\"")
 	}
 	username := pieces[0]
 	password := pieces[1]
@@ -128,6 +129,23 @@ func newUserPassAuth(arg string) (AuthMode, error) {
 		}
 	}
 	return mode, nil
+}
+
+func newBasicAuth(arg string) (AuthMode, error) {
+	pieces := strings.Split(arg, ":")
+	if len(pieces) != 2 {
+		return nil, fmt.Errorf("invalid basic auth syntax. got %q, want \"username:password\"", arg)
+	}
+	return NewBasicAuth(pieces[0], pieces[1]), nil
+}
+
+// NewBasicAuth returns a UserPass Authmode, adequate to support HTTP
+// basic authentication.
+func NewBasicAuth(username, password string) AuthMode {
+	return &UserPass{
+		Username: username,
+		Password: password,
+	}
 }
 
 // ErrNoAuth is returned when there is no configured authentication.
@@ -347,9 +365,15 @@ func ProcessRandom() string {
 }
 
 func genProcessRand() {
-	buf := make([]byte, 20)
+	processRand = RandToken(20)
+}
+
+// RandToken genererates (with crypto/rand.Read) and returns a token
+// that is the hex version (2x size) of size bytes of randomness.
+func RandToken(size int) string {
+	buf := make([]byte, size)
 	if n, err := rand.Read(buf); err != nil || n != len(buf) {
 		panic("failed to get random: " + err.Error())
 	}
-	processRand = fmt.Sprintf("%x", buf)
+	return fmt.Sprintf("%x", buf)
 }
