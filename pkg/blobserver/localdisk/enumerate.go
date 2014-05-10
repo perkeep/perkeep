@@ -135,7 +135,9 @@ func (ds *DiskStorage) readBlobs(opts readBlobRequest) error {
 			ropts := opts
 			ropts.blobPrefix = newBlobPrefix
 			ropts.pathInto = opts.pathInto + "/" + name
-			ds.readBlobs(ropts)
+			if err := ds.readBlobs(ropts); err != nil {
+				return err
+			}
 			continue
 		}
 
