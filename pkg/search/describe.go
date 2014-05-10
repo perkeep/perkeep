@@ -609,7 +609,7 @@ func (dr *DescribeRequest) depth() int {
 	if dr.Depth > 0 {
 		return dr.Depth
 	}
-	return 4
+	return 1
 }
 
 func (dr *DescribeRequest) maxDirChildren() int {
