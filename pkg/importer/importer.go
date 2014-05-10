@@ -111,6 +111,19 @@ func newFromConfig(ld blobserver.Loader, cfg jsonconfig.Obj) (http.Handler, erro
 		importerBase: ld.BaseURL() + ld.MyPrefix(),
 		imp:          make(map[string]*importer),
 	}
+	var err error
+	h.tmpl, err = tmpl.Clone()
+	if err != nil {
+		return nil, err
+	}
+	h.tmpl = h.tmpl.Funcs(map[string]interface{}{
+		"bloblink": func(br blob.Ref) template.HTML {
+			if h.uiPrefix == "" {
+				return template.HTML(br.String())
+			}
+			return template.HTML(fmt.Sprintf("<a href=\"%s?b=%s\">%s</a>", h.uiPrefix, br, br))
+		},
+	})
 	for k, impl := range importers {
 		h.importers = append(h.importers, k)
 		var clientID, clientSecret string
@@ -214,6 +227,7 @@ func (rc *RunContext) RootNode() *Object { return rc.ia.root }
 // Host is the HTTP handler and state for managing all the importers
 // linked into the binary, even if they're not configured.
 type Host struct {
+	tmpl         *template.Template
 	importers    []string // sorted; e.g. dummy flickr foursquare picasa twitter
 	imp          map[string]*importer
 	baseURL      string
@@ -221,6 +235,7 @@ type Host struct {
 	target       blobserver.StatReceiver
 	search       *search.Handler
 	signer       *schema.Signer
+	uiPrefix     string // or empty if no UI handler
 
 	// client optionally specifies how to fetch external network
 	// resources.  If nil, http.DefaultClient is used.
@@ -229,6 +244,10 @@ type Host struct {
 }
 
 func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
+	if prefix, _, err := hl.FindHandlerByType("ui"); err == nil {
+		h.uiPrefix = prefix
+	}
+
 	_, handler, err := hl.FindHandlerByType("root")
 	if err != nil || handler == nil {
 		return errors.New("importer requires a 'root' handler")
@@ -251,6 +270,7 @@ func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
 	if h.signer == nil {
 		return errors.New("importer requires a 'jsonsign' handler")
 	}
+	go h.startPeriodicImporters()
 	return nil
 }
 
@@ -299,7 +319,7 @@ func (h *Host) serveImportersRoot(w http.ResponseWriter, r *http.Request) {
 	for _, v := range h.importers {
 		body.Importers = append(body.Importers, h.imp[v])
 	}
-	execTemplate(w, r, importersRootPage{
+	h.execTemplate(w, r, importersRootPage{
 		Title: "Importers",
 		Body:  body,
 	})
@@ -318,7 +338,7 @@ func (h *Host) serveImporter(w http.ResponseWriter, r *http.Request, imp *import
 		setup = setuper.AccountSetupHTML(h)
 	}
 
-	execTemplate(w, r, importerPage{
+	h.execTemplate(w, r, importerPage{
 		Title: "Importer - " + imp.Name(),
 		Body: importerBody{
 			Host:      h,
@@ -389,6 +409,20 @@ func (h *Host) serveImporterAccount(w http.ResponseWriter, r *http.Request, imp 
 		return
 	}
 	ia.ServeHTTP(w, r)
+}
+
+func (h *Host) startPeriodicImporters() {
+	res, err := h.search.Query(&search.SearchQuery{
+		Expression: "attr:camliNodeType:importerAccount",
+		Describe: &search.DescribeRequest{
+			Depth: 1,
+		},
+	})
+	if err != nil {
+		log.Printf("periodic importer search fail: %v", err)
+		return
+	}
+	log.Printf("TODO: periodic importer search: %#v", res)
 }
 
 // BaseURL returns the root of the whole server, without trailing
@@ -742,7 +776,7 @@ func (ia *importerAcct) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		title += ia.acct.PermanodeRef().String()
 	}
-	execTemplate(w, r, acctPage{
+	ia.im.host.execTemplate(w, r, acctPage{
 		Title: title,
 		Body:  body,
 	})

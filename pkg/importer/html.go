@@ -23,12 +23,14 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"camlistore.org/pkg/blob"
 )
 
-func execTemplate(w http.ResponseWriter, r *http.Request, data interface{}) {
+func (h *Host) execTemplate(w http.ResponseWriter, r *http.Request, data interface{}) {
 	tmplName := strings.TrimPrefix(fmt.Sprintf("%T", data), "importer.")
 	var buf bytes.Buffer
-	err := tmpl.ExecuteTemplate(&buf, tmplName, data)
+	err := h.tmpl.ExecuteTemplate(&buf, tmplName, data)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error executing template %q: %v", tmplName, err), 500)
 		return
@@ -72,7 +74,11 @@ type acctBody struct {
 	LastError  string
 }
 
-var tmpl = template.Must(template.New("root").Parse(`
+var tmpl = template.Must(template.New("root").Funcs(map[string]interface{}{
+	"bloblink": func(br blob.Ref) string {
+		panic("should be overridden; this one won't be called")
+	},
+}).Parse(`
 {{define "pageTop"}}
 <html>
 <head>
@@ -113,7 +119,7 @@ var tmpl = template.Must(template.New("root").Parse(`
 {{define "importerBody"}}
 <p>[<a href="{{.Host.ImporterBaseURL}}">&lt;&lt; Back</a>]</p>
 <ul>
-  <li>Importer configuration permanode: {{.Importer.Node.PermanodeRef}}</li>
+  <li>Importer configuration permanode: {{.Importer.Node.PermanodeRef | bloblink}}</li>
   <li>Status: {{.Importer.Status}}</li>
 </ul>
 
@@ -157,8 +163,8 @@ var tmpl = template.Must(template.New("root").Parse(`
 <p>[<a href="./">&lt;&lt; Back</a>]</p>
 <ul>
    <li>Account type: {{.AcctType}}</li>
-   <li>Account metadata permanode: {{.Acct.AccountObject.PermanodeRef}}</li>
-   <li>Import root permanode: {{if .Acct.RootObject}}{{.Acct.RootObject.PermanodeRef}}{{else}}(none){{end}}</li>
+   <li>Account metadata permanode: {{.Acct.AccountObject.PermanodeRef | bloblink}}</li>
+   <li>Import root permanode: {{if .Acct.RootObject}}{{.Acct.RootObject.PermanodeRef | bloblink}}{{else}}(none){{end}}</li>
    <li>Configured: {{.Acct.IsAccountReady}}</li>
    <li>Summary: {{.Acct.AccountLinkSummary}}</li>
    <li>Import interval: {{if .Acct.RefreshInterval}}{{.Acct.RefreshInterval}}{{else}}(manual){{end}}</li>
