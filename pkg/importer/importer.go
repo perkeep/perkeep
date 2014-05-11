@@ -422,7 +422,38 @@ func (h *Host) startPeriodicImporters() {
 		log.Printf("periodic importer search fail: %v", err)
 		return
 	}
-	log.Printf("TODO: periodic importer search: %#v", res)
+	if res.Describe == nil {
+		log.Printf("No describe response in search result")
+		return
+	}
+	for _, resBlob := range res.Blobs {
+		blob := resBlob.Blob
+		desBlob, ok := res.Describe.Meta[blob.String()]
+		if !ok || desBlob.Permanode == nil {
+			continue
+		}
+		attrs := desBlob.Permanode.Attr
+		if attrs.Get("camliNodeType") != "importerAccount" {
+			panic("Search result returned non-importerAccount")
+		}
+		impType := attrs.Get("importerType")
+		imp, ok := h.imp[impType]
+		if !ok {
+			continue
+		}
+		duration, err := time.ParseDuration(attrs.Get(attrImportAuto))
+		if duration == 0 || err != nil {
+			continue
+		}
+		ia, err := imp.account(blob)
+		if err != nil {
+			log.Printf("Can't load importer account %v for regular importing: %v", blob, err)
+			continue
+		}
+		log.Printf("Starting regular periodic %v import for account %v: %v", impType, blob, ia)
+		go ia.start()
+		// TODO: do it more than once on start-up.
+	}
 }
 
 // BaseURL returns the root of the whole server, without trailing
