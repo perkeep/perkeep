@@ -8,10 +8,13 @@ import (
 	"syscall"
 )
 
-func mount(dir string) (fusefd int, errmsg string) {
+func mount(dir string, ready chan<- struct{}, errp *error) (fusefd *os.File, err error) {
+	// linux mount is never delayed
+	close(ready)
+
 	fds, err := syscall.Socketpair(syscall.AF_FILE, syscall.SOCK_STREAM, 0)
 	if err != nil {
-		return -1, fmt.Sprintf("socketpair error: %v", err)
+		return nil, fmt.Errorf("socketpair error: %v", err)
 	}
 	defer syscall.Close(fds[0])
 	defer syscall.Close(fds[1])
@@ -25,20 +28,20 @@ func mount(dir string) (fusefd int, errmsg string) {
 
 	out, err := cmd.CombinedOutput()
 	if len(out) > 0 || err != nil {
-		return -1, fmt.Sprintf("fusermount: %q, %v", out, err)
+		return nil, fmt.Errorf("fusermount: %q, %v", out, err)
 	}
 
 	readFile := os.NewFile(uintptr(fds[1]), "fusermount-parent-reads")
 	defer readFile.Close()
 	c, err := net.FileConn(readFile)
 	if err != nil {
-		return -1, fmt.Sprintf("FileConn from fusermount socket: %v", err)
+		return nil, fmt.Errorf("FileConn from fusermount socket: %v", err)
 	}
 	defer c.Close()
 
 	uc, ok := c.(*net.UnixConn)
 	if !ok {
-		return -1, fmt.Sprintf("unexpected FileConn type; expected UnixConn, got %T", c)
+		return nil, fmt.Errorf("unexpected FileConn type; expected UnixConn, got %T", c)
 	}
 
 	buf := make([]byte, 32) // expect 1 byte
@@ -46,18 +49,19 @@ func mount(dir string) (fusefd int, errmsg string) {
 	_, oobn, _, _, err := uc.ReadMsgUnix(buf, oob)
 	scms, err := syscall.ParseSocketControlMessage(oob[:oobn])
 	if err != nil {
-		return -1, fmt.Sprintf("ParseSocketControlMessage: %v", err)
+		return nil, fmt.Errorf("ParseSocketControlMessage: %v", err)
 	}
 	if len(scms) != 1 {
-		return -1, fmt.Sprintf("expected 1 SocketControlMessage; got scms = %#v", scms)
+		return nil, fmt.Errorf("expected 1 SocketControlMessage; got scms = %#v", scms)
 	}
 	scm := scms[0]
 	gotFds, err := syscall.ParseUnixRights(&scm)
 	if err != nil {
-		return -1, fmt.Sprintf("syscall.ParseUnixRights: %v", err)
+		return nil, fmt.Errorf("syscall.ParseUnixRights: %v", err)
 	}
 	if len(gotFds) != 1 {
-		return -1, fmt.Sprintf("wanted 1 fd; got %#v", gotFds)
+		return nil, fmt.Errorf("wanted 1 fd; got %#v", gotFds)
 	}
-	return gotFds[0], ""
+	f := os.NewFile(uintptr(gotFds[0]), "/dev/fuse")
+	return f, nil
 }
