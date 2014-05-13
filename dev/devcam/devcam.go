@@ -148,6 +148,11 @@ func handleSignals(camliProc *os.Process) {
 }
 
 func checkCamliSrcRoot() {
+	args := flag.Args()
+	if len(args) > 0 && args[0] == "review" {
+		// exception for devcam review, which does its own check.
+		return
+	}
 	if _, err := os.Stat("make.go"); err != nil {
 		if !os.IsNotExist(err) {
 			log.Fatalf("Could not stat make.go: %v", err)
@@ -198,7 +203,7 @@ func build(path string) error {
 }
 
 func main() {
-	checkCamliSrcRoot()
+	cmdmain.CheckCwd = checkCamliSrcRoot
 	// TODO(mpl): usage error is not really correct for devcam.
 	// See if I can reimplement it while still using cmdmain.Main().
 	cmdmain.Main()

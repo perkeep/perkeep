@@ -3,26 +3,19 @@
 use strict;
 use FindBin qw($Bin);
 
-my $hook_file = "$Bin/../.git/hooks/commit-msg";
+my $devcam_binpath = "";
+my $gopath = $ENV{'GOPATH'};
 
-unless (-e $hook_file) {
-    print <<EOF;
-Presubmit hook to add Change-Id to commit messages is missing.
-Copying to $hook_file.
-EOF
-
-system("cp", "-p", "$Bin/commit-msg.githook", $hook_file) and die "cp failed.\n";
-
-    print <<EOF;
-Amending last commit to add Change-Id.
-Please re-save description without making changes.
-
-Press Enter to continue.
-EOF
-
-scalar(<STDIN>);
-
-    system("git", "commit", "--amend") and die "git commit --amend fail\n";
+if (-e "$Bin/../bin/devcam") {
+	$devcam_binpath = "$Bin/../bin/devcam";
+} elsif (-e "$gopath/bin/devcam") {
+	$devcam_binpath = "$gopath/bin/devcam";
+} elsif (-e "$Bin\\..\\bin\\devcam.exe") {
+	$devcam_binpath = "$Bin\\..\\bin\\devcam.exe";
+} elsif (-e "$gopath\\bin\\devcam.exe") {
+	$devcam_binpath = "$gopath\\bin\\devcam.exe";
+} else {
+	die "devcam binary not found\n";
 }
 
-exec("git", "push", "https://camlistore.googlesource.com/camlistore", "HEAD:refs/for/master");
+exec($devcam_binpath, "review");
