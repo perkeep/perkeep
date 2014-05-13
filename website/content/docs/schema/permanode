@@ -100,7 +100,7 @@
 </p>
 <ul>
   <li>
-    <code>tag</code>: a set of zero or more keywords (or phrases) indexed
+    <code>tag</code>: A set of zero or more keywords (or phrases) indexed
     completely, for searching by tag. No HTML.
   </li>
   <li>
@@ -122,7 +122,7 @@
     we're a part of it.
   </li>
   <li>
-    <code>camliPath:*</code>: camliPath attributes are set on permanodes
+    <code>camliPath*</code>: camliPath attributes are set on permanodes
     which represent dynamic directories. If a permanode has attributes:
     <pre>
     camliPath:dir2 = $blobref_dir2_permandode
@@ -131,10 +131,16 @@
     It will appear as a directory containing "dir2" and
     "bar.txt".
     <br>
-    These are used by a few things, including the website UI, the
+    These are used by a few things, including the web UI, the
     "publish" code (declaring you want a photo at a URL and then the
     HTTP front end resolving each directory link in
     http://myhostname.com/pics/x/y/x/funny.jpg), and the FUSE
     read/write filesystem code.
+  </li>
+  <li>
+    <code>camliRoot</code>: A root name for the permanode. This will cause it to
+    show up as a named folder in the FUSE filesystem under <code>roots/</code>.
+    Creating a directory in <code>roots/</code> will cause a new permanode to be
+    created with this attr set. You can also browse roots in the web UI.
   </li>
 </ul>
