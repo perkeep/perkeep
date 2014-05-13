@@ -47,6 +47,9 @@ var (
 	// ExitWithFailure determines whether the command exits
 	// with a non-zero exit status.
 	ExitWithFailure bool
+	// CheckCwd checks the current working directory, and possibly
+	// changes it, or aborts the run if needed.
+	CheckCwd = func() {}
 )
 
 var ErrUsage = UsageError("invalid command")
@@ -233,6 +236,7 @@ func Main() {
 		setCommandLineOutput(Stderr)
 	}
 	flag.Parse()
+	CheckCwd()
 
 	args := flag.Args()
 	if *FlagVersion {

@@ -93,6 +93,6 @@ $ ln -s ../../misc/pre-commit.githook pre-commit
 
 Finally, submit your code to gerrit with:
 
-$ ./misc/review
+$ devcam review
 
 Please update this file as appropriate.
