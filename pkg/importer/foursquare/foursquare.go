@@ -70,6 +70,8 @@ var _ importer.ImporterSetupHTMLer = (*imp)(nil)
 type imp struct {
 	mu           sync.Mutex          // guards following
 	imageFileRef map[string]blob.Ref // url to file schema blob
+
+	importer.OAuth2 // for CallbackRequestAccount and CallbackURLParameters
 }
 
 func (im *imp) NeedsAPIKey() bool { return true }
@@ -432,6 +434,7 @@ func doGet(ctx *context.Context, url string, form url.Values) (*http.Response, e
 	return res, nil
 }
 
+// auth returns a new oauth.Config
 func auth(ctx *importer.SetupContext) (*oauth.Config, error) {
 	clientId, secret, err := ctx.Credentials()
 	if err != nil {
@@ -444,18 +447,20 @@ func auth(ctx *importer.SetupContext) (*oauth.Config, error) {
 		TokenURL:     tokenURL,
 		RedirectURL:  ctx.CallbackURL(),
 	}, nil
-
 }
-
-// possibly common methods for accessing oauth2 sites
 
 func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) error {
 	oauthConfig, err := auth(ctx)
-	if err == nil {
-		state := "no_clue_what_this_is" // TODO: ask adg to document this. or send him a CL.
-		http.Redirect(w, r, oauthConfig.AuthCodeURL(state), 302)
+	if err != nil {
+		return err
 	}
-	return err
+	oauthConfig.RedirectURL = im.RedirectURL(im, ctx)
+	state, err := im.RedirectState(im, ctx)
+	if err != nil {
+		return err
+	}
+	http.Redirect(w, r, oauthConfig.AuthCodeURL(state), http.StatusFound)
+	return nil
 }
 
 func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
