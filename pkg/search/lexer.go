@@ -50,15 +50,14 @@ const (
 )
 
 // IsSearchWordRune defines the runes that can be used in unquoted predicate arguments
-// or unquoted literals. These are all unicode letters, digits and punctuation,
-// execpt for ':', which is used for predicate marking,  and '(', ')', which are used
-// for predicate grouping.
+// or unquoted literals. These are all non-space unicode characters except ':' which is
+// used for predicate marking,  and '(', ')', which are used for predicate grouping.
 func isSearchWordRune(r rune) bool {
 	switch r {
-	case ':', ')', '(':
+	case ':', ')', '(', eof:
 		return false
 	}
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsPunct(r)
+	return !unicode.IsSpace(r)
 }
 
 type token struct {

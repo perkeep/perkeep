@@ -61,284 +61,13 @@ var attrgorunC = &Constraint{
 	},
 }
 
-type atomTestCase struct {
-	name        string
-	in          string
-	want        *Constraint
-	errContains string
-}
-
-var parseImageAtomTests = []atomTestCase{
-	{
-		in:   "is:pano",
-		want: ispanoC,
-	},
-
-	{
-		in: "height:0-640",
-		want: &Constraint{
-			Permanode: &PermanodeConstraint{
-				Attr: "camliContent",
-				ValueInSet: &Constraint{
-					File: &FileConstraint{
-						IsImage: true,
-						Height: &IntConstraint{
-							ZeroMin: true,
-							Max:     640,
-						},
-					},
-				},
-			},
-		},
-	},
-
-	{
-		in: "width:0-640",
-		want: &Constraint{
-			Permanode: &PermanodeConstraint{
-				Attr: "camliContent",
-				ValueInSet: &Constraint{
-					File: &FileConstraint{
-						IsImage: true,
-						Width: &IntConstraint{
-							ZeroMin: true,
-							Max:     640,
-						},
-					},
-				},
-			},
-		},
-	},
-
-	{
-		in:          "height:++0",
-		errContains: "bogus range or value",
-	},
-
-	{
-		in: "height:480",
-		want: &Constraint{
-			Permanode: &PermanodeConstraint{
-				Attr: "camliContent",
-				ValueInSet: &Constraint{
-					File: &FileConstraint{
-						IsImage: true,
-						Height: &IntConstraint{
-							Min: 480,
-							Max: 480,
-						},
-					},
-				},
-			},
-		},
-	},
-
-	{
-		in:          "width:++0",
-		errContains: "bogus range or value",
-	},
-
-	{
-		in: "width:640",
-		want: &Constraint{
-			Permanode: &PermanodeConstraint{
-				Attr: "camliContent",
-				ValueInSet: &Constraint{
-					File: &FileConstraint{
-						IsImage: true,
-						Width: &IntConstraint{
-							Min: 640,
-							Max: 640,
-						},
-					},
-				},
-			},
-		},
-	},
-}
-
-func doAtomChecking(name string, t *testing.T, tt atomTestCase, got *Constraint, err error) {
-	cj := func(c *Constraint) []byte {
-		v, err := json.MarshalIndent(c, "", "  ")
-		if err != nil {
-			panic(err)
-		}
-		return v
-	}
-	if err != nil {
-		if tt.errContains != "" && strings.Contains(err.Error(), tt.errContains) {
-			return
-		}
-		t.Errorf("%v: %s(%q) error: %v", tt.name, name, tt.in, err)
-		return
-	}
-	if tt.errContains != "" {
-		t.Errorf("%v: %s(%q) succeeded; want error containing %q", tt.name, name, tt.in, tt.errContains)
-		return
-	}
-	if !reflect.DeepEqual(got, tt.want) {
-		t.Errorf("%v: %s(%q) got:\n%s\n\nwant:%s\n", tt.name, name, tt.in, cj(got), cj(tt.want))
-	}
-}
-
-func TestParseImageAtom(t *testing.T) {
-	for _, tt := range parseImageAtomTests {
-		got, err := parseImageAtom(context.TODO(), tt.in)
-		doAtomChecking("parseImageAtom", t, tt, got, err)
-	}
-}
-
-func TestParseWHExpression(t *testing.T) {
-	tests := []struct {
-		in          string
-		wantMin     string
-		wantMax     string
-		errContains string
-	}{
-		{in: "450-470", wantMin: "450", wantMax: "470"},
-		{in: "450-470+", errContains: "bogus"},
-		{in: "450", wantMin: "450", wantMax: "450"},
-	}
-
-	for _, tt := range tests {
-		gotMin, gotMax, err := parseWHExpression(tt.in)
-		if err != nil {
-			if tt.errContains != "" && strings.Contains(err.Error(), tt.errContains) {
-				continue
-			}
-			t.Errorf("parseWHExpression(%v) error: %v", tt.in, err)
-			continue
-		}
-		if tt.errContains != "" {
-			t.Errorf("parseWHExpression(%v) succeeded; want error containing %v got: %s,%s ", tt.in, tt.errContains, gotMin, gotMax)
-			continue
-		}
-		if !reflect.DeepEqual(gotMin, tt.wantMin) {
-			t.Errorf("parseWHExpression(%s) min  = %v; want %v", tt.in, gotMin, tt.wantMin)
-		}
-		if !reflect.DeepEqual(gotMax, tt.wantMax) {
-			t.Errorf("parseWHExpression(%s) max  = %v; want %v", tt.in, gotMax, tt.wantMax)
-		}
-	}
-}
-
-var parseLocationAtomTests = []atomTestCase{
-	{
-		in: "has:location",
-		want: &Constraint{
-			Permanode: &PermanodeConstraint{
-				Attr: "camliContent",
-				ValueInSet: &Constraint{
-
-					File: &FileConstraint{
-						IsImage: true,
-						Location: &LocationConstraint{
-							Any: true,
-						},
-					},
-				},
-			},
-		},
-	},
-}
-
-func TestParseLocationAtom(t *testing.T) {
-	for _, tt := range parseLocationAtomTests {
-		got, err := parseLocationAtom(context.TODO(), tt.in)
-		doAtomChecking("parseLocationAtom", t, tt, got, err)
-	}
-}
-
-var parseCoreAtomTests = []atomTestCase{
-	{
-		name: "tag with spaces",
-		in:   `tag:Foo Bar`,
-		want: &Constraint{
-			Permanode: &PermanodeConstraint{
-				Attr:       "tag",
-				Value:      "Foo Bar",
-				SkipHidden: true,
-			},
-		},
-	},
-
-	{
-		name: "attribute search",
-		in:   "attr:foo:bar",
-		want: &Constraint{
-			Permanode: &PermanodeConstraint{
-				Attr:       "foo",
-				Value:      "bar",
-				SkipHidden: true,
-			},
-		},
-	},
-
-	{
-		name: "attribute search with space in value",
-		in:   `attr:foo:fun bar`,
-		want: &Constraint{
-			Permanode: &PermanodeConstraint{
-				Attr:       "foo",
-				Value:      "fun bar",
-				SkipHidden: true,
-			},
-		},
-	},
-
-	{
-		in: "tag:funny",
-		want: &Constraint{
-			Permanode: &PermanodeConstraint{
-				Attr:       "tag",
-				Value:      "funny",
-				SkipHidden: true,
-			},
-		},
-	},
-
-	{
-		in: "title:Doggies",
-		want: &Constraint{
-			Permanode: &PermanodeConstraint{
-				Attr: "title",
-				ValueMatches: &StringConstraint{
-					Contains:        "Doggies",
-					CaseInsensitive: true,
-				},
-				SkipHidden: true,
-			},
-		},
-	},
-
-	{
-		in: "childrenof:sha1-f00ba4",
-		want: &Constraint{
-			Permanode: &PermanodeConstraint{
-				Relation: &RelationConstraint{
-					Relation: "parent",
-					Any: &Constraint{
-						BlobRefPrefix: "sha1-f00ba4",
-					},
-				},
-			},
-		},
-	},
-}
-
-func TestParseCoreAtom(t *testing.T) {
-	for _, tt := range parseCoreAtomTests {
-		got, err := parseCoreAtom(context.TODO(), tt.in)
-		doAtomChecking("parseCoreAtom", t, tt, got, err)
-	}
-}
-
 var parseExpressionTests = []struct {
 	name        string
 	in          string
 	inList      []string
 	want        *SearchQuery
 	errContains string
+	ctx         *context.Context
 }{
 	{
 		name:   "empty search",
@@ -508,6 +237,45 @@ var parseExpressionTests = []struct {
 			},
 		},
 	},
+	// Location predicates
+	{
+		in: "loc:Uitdam", // Small dutch town
+		want: &SearchQuery{
+			Constraint: andConst(skiphiddenC, orConst(&Constraint{
+				Permanode: &PermanodeConstraint{
+					Attr: "camliContent",
+					ValueInSet: &Constraint{
+						File: &FileConstraint{
+							IsImage:  true,
+							Location: uitdamLC,
+						},
+					},
+				},
+			}, &Constraint{
+				Permanode: &PermanodeConstraint{
+					Location: uitdamLC,
+				},
+			})),
+		},
+		ctx: newGeocodeContext(),
+	},
+
+	{
+		in: "has:location",
+		want: &SearchQuery{
+			Constraint: andConst(skiphiddenC, &Constraint{
+				Permanode: &PermanodeConstraint{
+					Attr: "camliContent",
+					ValueInSet: &Constraint{
+						File: &FileConstraint{
+							IsImage:  true,
+							Location: &LocationConstraint{Any: true},
+						},
+					},
+				},
+			}),
+		},
+	},
 
 	// TODO: at least 'x' will go away eventually.
 	/*
@@ -522,7 +290,7 @@ func TestParseExpression(t *testing.T) {
 	qj := func(sq *SearchQuery) []byte {
 		v, err := json.MarshalIndent(sq, "", "  ")
 		if err != nil {
-			panic(err)
+			t.Fatal(err)
 		}
 		return v
 	}
@@ -532,7 +300,11 @@ func TestParseExpression(t *testing.T) {
 			ins = []string{tt.in}
 		}
 		for _, in := range ins {
-			got, err := parseExpression(context.TODO(), in)
+			ctx := tt.ctx
+			if ctx == nil {
+				ctx = context.TODO()
+			}
+			got, err := parseExpression(ctx, in)
 			if err != nil {
 				if tt.errContains != "" && strings.Contains(err.Error(), tt.errContains) {
 					continue
@@ -790,6 +562,205 @@ func TestParseOperand(t *testing.T) {
 }
 
 var parseExpTests = []parserTestCase{
+	{
+		in: "attr:foo:",
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr:       "foo",
+				Value:      "",
+				SkipHidden: true,
+			},
+		},
+	},
+
+	{
+		in:          "after:foo",
+		errContains: "as \"2006\" at position 0",
+	},
+
+	{
+		in:          "     attr:foo",
+		errContains: "expected attribute value at position 5",
+	},
+
+	{
+		in: "has:location",
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr: "camliContent",
+				ValueInSet: &Constraint{
+					File: &FileConstraint{
+						IsImage: true,
+						Location: &LocationConstraint{
+							Any: true,
+						},
+					},
+				},
+			},
+		},
+	},
+
+	{
+		in:   "is:pano",
+		want: ispanoC,
+	},
+
+	{
+		in: "height:0-640",
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr: "camliContent",
+				ValueInSet: &Constraint{
+					File: &FileConstraint{
+						IsImage: true,
+						Height: &IntConstraint{
+							ZeroMin: true,
+							Max:     640,
+						},
+					},
+				},
+			},
+		},
+	},
+
+	{
+		in: "width:0-640",
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr: "camliContent",
+				ValueInSet: &Constraint{
+					File: &FileConstraint{
+						IsImage: true,
+						Width: &IntConstraint{
+							ZeroMin: true,
+							Max:     640,
+						},
+					},
+				},
+			},
+		},
+	},
+
+	{
+		in:          "height:++0",
+		errContains: "Unable to parse \"++0\" as range, wanted something like 480-1024, 480-, -1024 or 1024 at position 0",
+	},
+
+	{
+		in: "height:480",
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr: "camliContent",
+				ValueInSet: &Constraint{
+					File: &FileConstraint{
+						IsImage: true,
+						Height: &IntConstraint{
+							Min: 480,
+							Max: 480,
+						},
+					},
+				},
+			},
+		},
+	},
+
+	{
+		in:          "width:++0",
+		errContains: "Unable to parse \"++0\" as range, wanted something like 480-1024, 480-, -1024 or 1024 at position 0",
+	},
+
+	{
+		in: "width:640",
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr: "camliContent",
+				ValueInSet: &Constraint{
+					File: &FileConstraint{
+						IsImage: true,
+						Width: &IntConstraint{
+							Min: 640,
+							Max: 640,
+						},
+					},
+				},
+			},
+		},
+	},
+	{
+		name: "tag with spaces",
+		in:   `tag:"Foo Bar"`,
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr:       "tag",
+				Value:      "Foo Bar",
+				SkipHidden: true,
+			},
+		},
+	},
+
+	{
+		name: "attribute search",
+		in:   "attr:foo:bar",
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr:       "foo",
+				Value:      "bar",
+				SkipHidden: true,
+			},
+		},
+	},
+
+	{
+		name: "attribute search with space in value",
+		in:   `attr:foo:"fun bar"`,
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr:       "foo",
+				Value:      "fun bar",
+				SkipHidden: true,
+			},
+		},
+	},
+
+	{
+		in: "tag:funny",
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr:       "tag",
+				Value:      "funny",
+				SkipHidden: true,
+			},
+		},
+	},
+
+	{
+		in: "title:Doggies",
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr: "title",
+				ValueMatches: &StringConstraint{
+					Contains:        "Doggies",
+					CaseInsensitive: true,
+				},
+				SkipHidden: true,
+			},
+		},
+	},
+
+	{
+		in: "childrenof:sha1-f00ba4",
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Relation: &RelationConstraint{
+					Relation: "parent",
+					Any: &Constraint{
+						BlobRefPrefix: "sha1-f00ba4",
+					},
+				},
+			},
+		},
+	},
+
 	{
 		name:        "Unmatched quote",
 		in:          `is:pano and "foo`,
