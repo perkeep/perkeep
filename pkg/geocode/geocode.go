@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"io"
 	"log"
-	"net/http"
 	"net/url"
 	"sync"
 
@@ -60,7 +59,7 @@ func Lookup(ctx *context.Context, address string) ([]Rect, error) {
 	rectsi, err := sf.Do(address, func() (interface{}, error) {
 		// TODO: static data files from OpenStreetMap, Wikipedia, etc?
 		urlStr := "https://maps.googleapis.com/maps/api/geocode/json?address=" + url.QueryEscape(address) + "&sensor=false"
-		res, err := http.Get(urlStr)
+		res, err := ctx.HTTPClient().Get(urlStr)
 		if err != nil {
 			return nil, err
 		}

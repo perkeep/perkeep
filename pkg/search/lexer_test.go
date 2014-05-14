@@ -12,6 +12,15 @@ var lexerTests = []struct {
 	want []token
 }{
 	{
+		in: "width:++1",
+		want: []token{
+			{tokenPredicate, "width", 0},
+			{tokenColon, ":", 5},
+			{tokenArg, "++1", 6},
+		},
+	},
+
+	{
 		in: "and and and",
 		want: []token{
 			{tokenLiteral, "and", 0},
@@ -148,6 +157,15 @@ var lexerTests = []struct {
 		in: scaryQuote,
 		want: []token{
 			{tokenQuotedLiteral, scaryQuote, 0}},
+	},
+
+	{
+		in: "foo:",
+		want: []token{
+			{tokenPredicate, "foo", 0},
+			{tokenColon, ":", 3},
+			{tokenArg, "", 4},
+		},
 	},
 }
 
