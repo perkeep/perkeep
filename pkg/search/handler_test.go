@@ -1,5 +1,5 @@
 /*
-Copyright 2011 Google Inc.
+Copyright 2011 The Camlistore Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -178,7 +178,13 @@ var handlerTests = []handlerTest{
 	{
 		name:  "describe-permanode",
 		setup: handlerDescribeTestSetup,
-		query: "describe?blobref=perma-123",
+		query: "describe",
+		postBody: `{
+ "blobref": "perma-123",
+ "rules": [
+    {"attrs": ["camliContent"]}
+ ]
+}`,
 		want: parseJSON(`{
 			"meta": {
 				"fakeref-232": {
@@ -204,7 +210,13 @@ var handlerTests = []handlerTest{
 	{
 		name:  "describe-permanode-image",
 		setup: handlerDescribeTestSetupWithImage,
-		query: "describe?blobref=perma-123",
+		query: "describe",
+		postBody: `{
+ "blobref": "perma-123",
+ "rules": [
+    {"attrs": ["camliContent", "camliContentImage"]}
+ ]
+}`,
 		want: parseJSON(`{
 			"meta": {
 				"fakeref-232": {
@@ -232,10 +244,12 @@ var handlerTests = []handlerTest{
 		}`),
 	},
 
+	// TODO(bradfitz): we'll probably will want to delete or redo this
+	// test when we remove depth=N support from describe.
 	{
 		name:  "describe-permanode-embedded-references",
 		setup: handlerDescribeTestSetupWithEmbeddedRefs,
-		query: "describe?blobref=perma-123",
+		query: "describe?blobref=perma-123&depth=2",
 		want: parseJSON(`{
 			"meta": {
 				"fakeref-01": {
@@ -304,7 +318,14 @@ var handlerTests = []handlerTest{
 	{
 		name:  "describe-permanode-timetravel",
 		setup: handlerDescribeTestSetup,
-		query: "describe?blobref=perma-123&at=" + addToClockOrigin(3*time.Second),
+		query: "describe",
+		postBody: `{
+ "blobref": "perma-123",
+ "at": "` + addToClockOrigin(3*time.Second) + `",
+ "rules": [
+    {"attrs": ["camliContent"]}
+ ]
+}`,
 		want: parseJSON(`{
 			"meta": {
 				"fakeref-232": {
@@ -338,7 +359,13 @@ var handlerTests = []handlerTest{
 			fi.AddMeta(blob.MustParse("fakeref-123"), "", 123)
 			return fi
 		},
-		query: "describe?blobref=perma-123",
+		query: "describe",
+		postBody: `{
+ "blobref": "perma-123",
+ "rules": [
+    {"attrs": ["camliPath:*"]}
+ ]
+}`,
 		want: parseJSON(`{
   "meta": {
 	"fakeref-123": {

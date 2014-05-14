@@ -341,7 +341,7 @@ type FileConstraint struct {
 
 type MediaTagConstraint struct {
 	// Tag is the tag to match.
-	// For ID3, this includes: title, artist, album, genre, year, track, disc, mediaref, durationms.
+	// For ID3, this includes: title, artist, album, genre, musicbrainzalbumid, year, track, disc, mediaref, durationms.
 	Tag string `json:"tag"`
 
 	String *StringConstraint `json:"string,omitempty"`
