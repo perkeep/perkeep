@@ -349,39 +349,37 @@ func stringFromMixedArray(parts []interface{}) string {
 	return buf.String()
 }
 
-func mixedArrayFromString(s string) []interface{} {
-	buf := []byte(s)
-	var name []interface{}
-	n := 0
-	for n < len(buf) {
-		part, offset := nextStringOrByte(buf[n:])
-		name = append(name, part)
-		n += offset
+// mixedArrayFromString is the inverse of stringFromMixedArray. It
+// splits a string to a series of either UTF-8 strings and non-UTF-8
+// bytes.
+func mixedArrayFromString(s string) (parts []interface{}) {
+	for len(s) > 0 {
+		if n := utf8StrLen(s); n > 0 {
+			parts = append(parts, s[:n])
+			s = s[n:]
+		} else {
+			parts = append(parts, s[0])
+			s = s[1:]
+		}
 	}
-
-	return name
+	return parts
 }
 
-func nextStringOrByte(b []byte) (interface{}, int) {
-	n := 0
-	var s []byte
-	for n < len(b) {
-		r, size := utf8.DecodeRune(b[n:])
-		if r == utf8.RuneError {
-			// If we already have a UTF8 string segment, return it
-			if len(s) > 0 {
-				return string(s), n
+// utf8StrLen returns how many prefix bytes of s are valid UTF-8.
+func utf8StrLen(s string) int {
+	for i, r := range s {
+		for r == utf8.RuneError {
+			// The RuneError value can be an error
+			// sentinel value (if it's size 1) or the same
+			// value encoded properly. Decode it to see if
+			// it's the 1 byte sentinel value.
+			_, size := utf8.DecodeRuneInString(s[i:])
+			if size == 1 {
+				return i
 			}
-			// Return the single byte and an offset of 1
-			return b[n], 1
 		}
-		n += size // We have consumed size bytes
-		c := make([]byte, utf8.RuneLen(r))
-		_ = utf8.EncodeRune(c, r)
-		s = append(s, c...)
 	}
-
-	return string(s), n
+	return len(s)
 }
 
 func (ss *superset) SumPartsSize() (size uint64) {

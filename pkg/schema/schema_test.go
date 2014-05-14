@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -81,6 +82,47 @@ func TestSymlink(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 	t.Logf("Got json for symlink file: [%s]\n", json)
+}
+
+func TestUtf8StrLen(t *testing.T) {
+	tests := []struct {
+		in   string
+		want int
+	}{
+		{"", 0},
+		{"a", 1},
+		{"foo", 3},
+		{"Здравствуйте!", 25},
+		{"foo\x80", 3},
+		{"\x80foo", 0},
+	}
+	for _, tt := range tests {
+		got := utf8StrLen(tt.in)
+		if got != tt.want {
+			t.Errorf("utf8StrLen(%q) = %v; want %v", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestMixedArrayFromString(t *testing.T) {
+	b80 := byte('\x80')
+	tests := []struct {
+		in   string
+		want []interface{}
+	}{
+		{"foo", []interface{}{"foo"}},
+		{"\x80foo", []interface{}{b80, "foo"}},
+		{"foo\x80foo", []interface{}{"foo", b80, "foo"}},
+		{"foo\x80", []interface{}{"foo", b80}},
+		{"\x80", []interface{}{b80}},
+		{"\x80\x80", []interface{}{b80, b80}},
+	}
+	for _, tt := range tests {
+		got := mixedArrayFromString(tt.in)
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("mixedArrayFromString(%q) = %#v; want %#v", tt.in, got, tt.want)
+		}
+	}
 }
 
 type mixPartsTest struct {
