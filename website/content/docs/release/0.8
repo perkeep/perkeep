@@ -23,11 +23,13 @@ Or browse at Github: <a href="https://github.com/bradfitz/camlistore/tree/0.8">g
 <ul>
         <li>Deletion of selected permanodes.</li>
         <li>Image representation for any kind of content (camliContentImage is now a well-supported permanode attribute in the importers, web UI, search, etc).</li>
+        <li>"Aspects" ... multiple view options for a given blob or permanode</li>
 </ul>
 <h3>Storage</h3>
 <ul>
 	<li>Rewritten blob sync handler (the server's background async replication), now bug fixes, better UI status, and option to run a full validation.</li>
 	<li>Store blobs in MongoDB. (in addition to the index)</li>
+        <li>Switched MySQL driver to go-mysql-driver</li>
 </ul>
 <h3>Search</h3>
 <ul>
@@ -38,12 +40,17 @@ Or browse at Github: <a href="https://github.com/bradfitz/camlistore/tree/0.8">g
         <li>Searches can contain parenthesized subexpressions and accept 'and' and 'or'. A whitespace separation still means and.</li>
         <li>Permanode deletions now taken into account by index corpus, hence in search results too.</li>
         <li>Cleaned up subdirs in ./pkg/index. Cleaned up ./pkg/sorted/ API. Tests with docker for mongo, mysql, postgres.</li>
+        <li>Describe rules, eliminating the previous inflexible and over-aggressive "describe depth" parameter.</li>
+        <li>Indexing of MusicBrainz album IDs</li>
 </ul>
 <h3>Importers</h3>
 <ul>
+        <li>Importer account setup UI at /importer/</li>
+        <li>Regular, recurring import</li>
         <li>Foursquare venue and check-in importer.</li>
         <li>Picasaweb (Google Photos) importer.</li>
         <li>Twitter importer.</li>
+        <li>Feeds (RSS, Atom, RDF)</li>
 </ul>
 <h3>Tools</h3>
 <ul>
