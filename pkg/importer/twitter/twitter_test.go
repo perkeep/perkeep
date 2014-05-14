@@ -34,7 +34,7 @@ func TestGetUserID(t *testing.T) {
 			apiURL + userInfoAPIPath: test.FileResponder(filepath.FromSlash("testdata/verify_credentials-res.json")),
 		}),
 	})
-	inf, err := getUserInfo(ctx, &oauth.Client{}, &oauth.Credentials{})
+	inf, err := getUserInfo(oauthContext{ctx, &oauth.Client{}, &oauth.Credentials{}})
 	if err != nil {
 		t.Fatal(err)
 	}

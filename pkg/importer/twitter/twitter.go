@@ -112,6 +112,10 @@ type run struct {
 	accessCreds *oauth.Credentials // No need to guard, used read-only.
 }
 
+func (r *run) oauthContext() oauthContext {
+	return oauthContext{r.Context, r.oauthClient, r.accessCreds}
+}
+
 func (im *imp) Run(ctx *importer.RunContext) error {
 	clientId, secret, err := ctx.Credentials()
 	if err != nil {
@@ -168,7 +172,7 @@ func (r *run) importTweets(userID string) error {
 		}
 
 		var resp []*tweetItem
-		if err := doAPI(r.Context, r.oauthClient, r.accessCreds, &resp, "statuses/user_timeline.json",
+		if err := r.oauthContext().doAPI(&resp, "statuses/user_timeline.json",
 			"user_id", userID,
 			"count", strconv.Itoa(tweetRequestLimit),
 			"max_id", maxId); err != nil {
@@ -246,63 +250,15 @@ type userInfo struct {
 	Name       string `json:"name,omitempty"`
 }
 
-func getUserInfo(ctx *context.Context, oauthClient *oauth.Client, creds *oauth.Credentials) (userInfo, error) {
+func getUserInfo(ctx oauthContext) (userInfo, error) {
 	var ui userInfo
-	if err := doAPI(ctx, oauthClient, creds, &ui, userInfoAPIPath); err != nil {
+	if err := ctx.doAPI(&ui, userInfoAPIPath); err != nil {
 		return ui, err
 	}
 	if ui.ID == "" {
 		return ui, fmt.Errorf("No userid returned")
 	}
 	return ui, nil
-}
-
-func doAPI(ctx *context.Context, oauthClient *oauth.Client, creds *oauth.Credentials, result interface{}, apiPath string, keyval ...string) error {
-	if len(keyval)%2 == 1 {
-		panic("Incorrect number of keyval arguments. must be even.")
-	}
-
-	if creds == nil {
-		return errors.New("No authentication creds")
-	}
-	if oauthClient == nil {
-		return errors.New("No authentication client")
-	}
-
-	form := url.Values{}
-	for i := 0; i < len(keyval); i += 2 {
-		if keyval[i+1] != "" {
-			form.Set(keyval[i], keyval[i+1])
-		}
-	}
-
-	fullURL := apiURL + apiPath
-	res, err := doGet(ctx, oauthClient, creds, fullURL, form)
-	if err != nil {
-		return err
-	}
-	err = httputil.DecodeJSON(res, result)
-	if err != nil {
-		return fmt.Errorf("could not parse response for %s: %v", fullURL, err)
-	}
-	return nil
-}
-
-func doGet(ctx *context.Context, oauthClient *oauth.Client, creds *oauth.Credentials, url string, form url.Values) (*http.Response, error) {
-	if creds == nil {
-		return nil, errors.New("No OAuth credentials. Not logged in?")
-	}
-	if creds == nil {
-		return nil, errors.New("No OAuth client.")
-	}
-	res, err := oauthClient.Get(ctx.HTTPClient(), creds, url, form)
-	if err != nil {
-		return nil, fmt.Errorf("Error fetching %s: %v", url, err)
-	}
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Get request on %s failed with: %s", url, res.Status)
-	}
-	return res, nil
 }
 
 func newOauthClient(ctx *importer.SetupContext) (*oauth.Client, error) {
@@ -392,7 +348,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		return
 	}
 
-	u, err := getUserInfo(ctx.Context, oauthClient, tokenCred)
+	u, err := getUserInfo(oauthContext{ctx.Context, oauthClient, tokenCred})
 	if err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Couldn't get user info: %v", err))
 		return
@@ -414,4 +370,52 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)
+}
+
+// oauthContext is used as a value type, wrapping a context and oauth information.
+//
+// TODO: move this up to pkg/importer?
+type oauthContext struct {
+	*context.Context
+	client *oauth.Client
+	creds  *oauth.Credentials
+}
+
+func (ctx oauthContext) doAPI(result interface{}, apiPath string, keyval ...string) error {
+	if len(keyval)%2 == 1 {
+		panic("Incorrect number of keyval arguments. must be even.")
+	}
+	form := url.Values{}
+	for i := 0; i < len(keyval); i += 2 {
+		if keyval[i+1] != "" {
+			form.Set(keyval[i], keyval[i+1])
+		}
+	}
+	fullURL := apiURL + apiPath
+	res, err := ctx.doGet(fullURL, form)
+	if err != nil {
+		return err
+	}
+	err = httputil.DecodeJSON(res, result)
+	if err != nil {
+		return fmt.Errorf("could not parse response for %s: %v", fullURL, err)
+	}
+	return nil
+}
+
+func (ctx oauthContext) doGet(url string, form url.Values) (*http.Response, error) {
+	if ctx.creds == nil {
+		return nil, errors.New("No OAuth credentials. Not logged in?")
+	}
+	if ctx.client == nil {
+		return nil, errors.New("No OAuth client.")
+	}
+	res, err := ctx.client.Get(ctx.HTTPClient(), ctx.creds, url, form)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching %s: %v", url, err)
+	}
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Get request on %s failed with: %s", url, res.Status)
+	}
+	return res, nil
 }
