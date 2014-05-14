@@ -72,6 +72,7 @@ import (
 
 	// Importers:
 	_ "camlistore.org/pkg/importer/dummy"
+	_ "camlistore.org/pkg/importer/feed"
 	//_ "camlistore.org/pkg/importer/flickr"
 	_ "camlistore.org/pkg/importer/foursquare"
 	//_ "camlistore.org/pkg/importer/picasa"
