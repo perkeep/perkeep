@@ -203,36 +203,14 @@ func (s *storage) walkPack(verbose bool, packID int,
 		}
 		size = uint32(size64)
 
-		// maybe deleted?
-		state, deleted := 0, true
-		if chunk[0] == 'x' {
-		Loop:
-			for _, c := range chunk[:i] {
-				switch state {
-				case 0:
-					if c != 'x' {
-						if c == '-' {
-							state++
-						} else {
-							deleted = false
-							break Loop
-						}
-					}
-				case 1:
-					if c != '0' {
-						deleted = false
-						break Loop
-					}
-				}
-			}
-		}
-		if deleted {
+		if deletedBlobRef.Match(chunk[:i]) {
 			ref = blob.Ref{}
 			if verbose {
 				log.Printf("found deleted at %d", pos)
 			}
 		} else {
-			ref, ok := blob.Parse(string(chunk[:i]))
+			var ok bool
+			ref, ok = blob.Parse(string(chunk[:i]))
 			if !ok {
 				return errAt("", fmt.Sprintf("cannot parse %q as blobref", chunk[:i]))
 			}

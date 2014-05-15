@@ -41,6 +41,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -468,12 +469,6 @@ func headerLength(digest string, size uint32) int {
 	return len(fmt.Sprintf("[%s %d]", digest, size))
 }
 
-// The header of deleted blobs has a digest in which the hash type is
-// set to all 'x', but the correct size.
-func isDeletedRef(digest string) bool {
-	return strings.HasPrefix(digest, "x")
-}
-
 // Type readSeekNopCloser is an io.ReadSeeker with a no-op Close method.
 type readSeekNopCloser struct {
 	io.ReadSeeker
@@ -484,6 +479,10 @@ func (readSeekNopCloser) Close() error { return nil }
 func newReadSeekNopCloser(rs io.ReadSeeker) types.ReadSeekCloser {
 	return readSeekNopCloser{rs}
 }
+
+// The header of deleted blobs has a digest in which the hash type is
+// set to all 'x', the hash value is all '0', and has the correct size.
+var deletedBlobRef = regexp.MustCompile(`^x+-0+$`)
 
 // StreamBlobs Implements the blobserver.StreamBlobs interface.
 func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string, limitBytes int64) (nextContinueToken string, err error) {
@@ -556,7 +555,7 @@ func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, cont
 		}
 
 		offsetToAdd += int64(headerLength(digest, size))
-		if isDeletedRef(digest) {
+		if deletedBlobRef.MatchString(digest) {
 			// Skip over deletion padding
 			_, err = io.CopyN(ioutil.Discard, r, int64(size))
 			if err != nil {
