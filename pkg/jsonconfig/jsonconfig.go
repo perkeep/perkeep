@@ -174,6 +174,32 @@ func (jc Obj) int(key string, def *int) int {
 	return int(b)
 }
 
+func (jc Obj) RequiredInt64(key string) int64 {
+	return jc.int64(key, nil)
+}
+
+func (jc Obj) OptionalInt64(key string, def int64) int64 {
+	return jc.int64(key, &def)
+}
+
+func (jc Obj) int64(key string, def *int64) int64 {
+	jc.noteKnownKey(key)
+	ei, ok := jc[key]
+	if !ok {
+		if def != nil {
+			return *def
+		}
+		jc.appendError(fmt.Errorf("Missing required config key %q (integer)", key))
+		return 0
+	}
+	b, ok := ei.(float64)
+	if !ok {
+		jc.appendError(fmt.Errorf("Expected config key %q to be a number", key))
+		return 0
+	}
+	return int64(b)
+}
+
 func (jc Obj) RequiredList(key string) []string {
 	return jc.requiredList(key, true)
 }
