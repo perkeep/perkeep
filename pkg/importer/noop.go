@@ -24,7 +24,9 @@ import (
 
 var TODOImporter Importer = todoImp{}
 
-type todoImp struct{}
+type todoImp struct {
+	OAuth1 // for CallbackRequestAccount and CallbackURLParameters
+}
 
 func (todoImp) NeedsAPIKey() bool { return false }
 

@@ -61,7 +61,9 @@ func init() {
 
 var _ importer.ImporterSetupHTMLer = (*imp)(nil)
 
-type imp struct{}
+type imp struct {
+	importer.OAuth1 // for CallbackRequestAccount and CallbackURLParameters
+}
 
 func (im *imp) NeedsAPIKey() bool { return true }
 
