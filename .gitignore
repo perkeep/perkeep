@@ -21,6 +21,7 @@ build/root
 bin/cam*
 bin/devcam
 bin/*_*
+bin/hello
 tmp
 server/camlistored/newui/all.js
 server/camlistored/newui/all.js.map
