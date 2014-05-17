@@ -98,7 +98,6 @@ type ImporterSetupHTMLer interface {
 var importers = make(map[string]Importer)
 
 func init() {
-	Register("flickr", TODOImporter)
 	Register("picasa", TODOImporter)
 }
 
