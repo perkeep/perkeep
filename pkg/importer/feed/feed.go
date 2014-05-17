@@ -52,6 +52,8 @@ func init() {
 type imp struct {
 	mu         sync.Mutex          // guards following
 	urlFileRef map[string]blob.Ref // url to file schema blob
+
+	importer.OAuth1 // for CallbackRequestAccount and CallbackURLParameters
 }
 
 func (im *imp) NeedsAPIKey() bool { return false }
