@@ -1,0 +1,54 @@
+<!--
+Copyright 2014 Google Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<!doctype html>
+<html>
+	<head>
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=0.75">
+
+		<link rel="shortcut icon" sizes="16x16" href="safe1-16.png">
+		<link rel="shortcut icon" sizes="32x32" href="safe1-32.png">
+		<link rel="apple-touch-icon" sizes="16x16" href="safe1-16.png">
+		<link rel="apple-touch-icon" sizes="32x32" href="safe1-32.png">
+
+		<script src="closure/goog/base.js"></script>
+		<script src="./deps.js"></script>
+		<script src="?camli.mode=config&var=CAMLISTORE_CONFIG"></script>
+		<script src="react/react-with-addons.js"></script>
+
+		<script>
+			goog.DEBUG = false;
+			goog.require('cam.DebugConsole');
+
+			goog.require('goog.object');
+		</script>
+
+		<title>Brad's ghetto console thing</title>
+	</head>
+	<body>
+		<script>
+			if (!window.opener.__debugConsoleClient) {
+				throw new Error('Could not find debug console client');
+			} else {
+				React.renderComponent(cam.DebugConsole({
+						client: window.opener.__debugConsoleClient,
+					}),
+					document.body
+				);
+			}
+		</script>
+	</body>
+</html>

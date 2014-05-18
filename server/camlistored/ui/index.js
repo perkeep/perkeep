@@ -326,10 +326,23 @@ cam.IndexPage = React.createClass({
 	},
 
 	handleKeyPress_: function(e) {
-		if (String.fromCharCode(e.charCode) == '/') {
-			this.refs.nav.open();
-			this.refs.search.focus();
-			e.preventDefault();
+		switch (String.fromCharCode(e.charCode)) {
+			case '/': {
+				this.refs.nav.open();
+				this.refs.search.focus();
+				e.preventDefault();
+				break;
+			}
+
+			case '|': {
+				window.__debugConsoleClient = {
+					getSelectedItems: function() {
+						return this.state.selection;
+					}.bind(this),
+				};
+				window.open('debug_console.html', 'debugconsole', 'width=400,height=300');
+				break;
+			}
 		}
 	},
 
