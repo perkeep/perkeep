@@ -125,6 +125,29 @@ cam.BlobItemVideoContent = React.createClass({
 	},
 });
 
+cam.BlobItemVideoContent.isVideo = function(rm) {
+	// From http://en.wikipedia.org/wiki/List_of_file_formats
+	// TODO(aa): Fix this quick hack once the server indexes movies and gives us more information.
+	var extensions = [
+		'3gp',
+		'aav',
+		'asf',
+		'avi',
+		'dat',
+		'm1v',
+		'm2v',
+		'm4v',
+		'mov',
+		'mp4',
+		'mpe',
+		'mpeg',
+		'mpg',
+		'ogg',
+		'wmv',
+	];
+	return rm && rm.file && goog.array.some(extensions, goog.string.endsWith.bind(null, rm.file.fileName.toLowerCase()));
+};
+
 cam.BlobItemVideoContent.getHandler = function(blobref, searchSession, href) {
 	var rm = searchSession.getResolvedMeta(blobref);
 
@@ -147,7 +170,7 @@ cam.BlobItemVideoContent.getHandler = function(blobref, searchSession, href) {
 		'ogg',
 		'wmv',
 	];
-	if (rm && rm.file && goog.array.some(extensions, goog.string.endsWith.bind(null, rm.file.fileName.toLowerCase()))) {
+	if (cam.BlobItemVideoContent.isVideo(rm)) {
 		return new cam.BlobItemVideoContent.Handler(rm, href)
 	}
 
