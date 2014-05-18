@@ -326,6 +326,10 @@ cam.IndexPage = React.createClass({
 	},
 
 	handleKeyPress_: function(e) {
+		if (e.target.tagName == 'INPUT' || e.target.tagName == 'TEXTAREA') {
+			return;
+		}
+
 		switch (String.fromCharCode(e.charCode)) {
 			case '/': {
 				this.refs.nav.open();
