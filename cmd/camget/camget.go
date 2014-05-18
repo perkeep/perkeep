@@ -198,6 +198,7 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 		_, err = io.Copy(f, r)
 		return err
 	}
+	rc.Close()
 
 	switch b.Type() {
 	case "directory":
