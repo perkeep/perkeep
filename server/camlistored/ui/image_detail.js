@@ -16,6 +16,7 @@ limitations under the License.
 
 goog.provide('cam.ImageDetail');
 
+goog.require('cam.BlobItemVideoContent');
 goog.require('cam.PropertySheetContainer');
 goog.require('cam.Thumber');
 
@@ -35,9 +36,17 @@ cam.ImageDetail = React.createClass({
 		width: React.PropTypes.number.isRequired,
 	},
 
+	isVideo_: function() {
+		return !this.isImage_();
+	},
+
+	isImage_: function() {
+		return Boolean(this.props.resolvedMeta.image);
+	},
+
 	componentWillReceiveProps: function(nextProps) {
 		if (this.props == nextProps || this.props.resolvedMeta.blobRef != nextProps.resolvedMeta.blobRef) {
-			this.thumber_ = cam.Thumber.fromImageMeta(nextProps.resolvedMeta);
+			this.thumber_ = nextProps.resolvedMeta.image && cam.Thumber.fromImageMeta(nextProps.resolvedMeta);
 			this.setState({imgHasLoaded: false});
 		}
 	},
@@ -124,16 +133,18 @@ cam.ImageDetail = React.createClass({
 	getImg_: function() {
 		var transition = React.addons.TransitionGroup({transitionName: 'detail-img'}, []);
 		if (this.imgSize_) {
+			var ctor = this.props.resolvedMeta.image ? React.DOM.img : React.DOM.video;
 			transition.props.children.push(
-				React.DOM.img({
+				ctor({
 					className: React.addons.classSet({
 						'detail-view-img': true,
-						'detail-view-img-loaded': this.state.imgHasLoaded
+						'detail-view-img-loaded': this.isImage_() ? this.state.imgHasLoaded : true,
 					}),
+					controls: true,
 					// We want each image to have its own node in the DOM so that during the crossfade, we don't see the image jump to the next image's size.
 					key: 'img' + this.props.resolvedMeta.blobRef,
-					onLoad: this.onImgLoad_,
-					src: this.thumber_.getSrc(this.imgSize_.height),
+					onLoad: this.isImage_() ? this.onImgLoad_ : null,
+					src: this.isImage_() ? this.thumber_.getSrc(this.imgSize_.height) : './download/' + this.props.resolvedMeta.blobRef + '/' + this.props.resolvedMeta.file.fileName,
 					style: this.getCenteredProps_(this.imgSize_.width, this.imgSize_.height)
 				})
 			);
@@ -143,7 +154,7 @@ cam.ImageDetail = React.createClass({
 
 	getPiggy_: function() {
 		var transition = React.addons.TransitionGroup({transitionName: 'detail-piggy'}, []);
-		if (!this.state.imgHasLoaded) {
+		if (this.isImage_() && !this.state.imgHasLoaded) {
 			transition.props.children.push(
 				cam.SpritedAnimation({
 					src: 'glitch/npc_piggy__x1_walk_png_1354829432.png',
@@ -173,8 +184,8 @@ cam.ImageDetail = React.createClass({
 	},
 
 	getImgSize_: function() {
-		if (!this.props.resolvedMeta.image) {
-			return null;
+		if (this.isVideo_()) {
+			return new goog.math.Size(this.props.width, this.props.height);
 		}
 		var rawSize = new goog.math.Size(this.props.resolvedMeta.image.width, this.props.resolvedMeta.image.height);
 		var available = new goog.math.Size(
@@ -212,7 +223,7 @@ cam.ImageDetail.getAspect = function(blobref, searchSession) {
 		pm = null;
 	}
 
-	return rm && rm.image ? new cam.ImageDetail.Aspect(rm, pm) : null;
+	return rm && (rm.image || cam.BlobItemVideoContent.isVideo(rm)) ? new cam.ImageDetail.Aspect(rm, pm) : null;
 
 	// We don't handle camliContentImage like BlobItemImage.getHandler does because that only tells us what image to display in the search results. It doesn't actually make the permanode an image or anything.
 };
@@ -223,7 +234,7 @@ cam.ImageDetail.Aspect = function(resolvedMeta, permanodeMeta) {
 };
 
 cam.ImageDetail.Aspect.prototype.getTitle = function() {
-	return 'Image';
+	return this.resolvedMeta_.image ? 'Image' : 'Video';
 };
 
 // TODO(aa): Piggy should move into cam.Detail and use an onload handler to turn on/off.
