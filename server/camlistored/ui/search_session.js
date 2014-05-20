@@ -55,7 +55,7 @@ cam.SearchSession.SEARCH_SESSION_CHANGE_TYPE = {
 	UPDATE: 3
 };
 
-cam.SearchSession.prototype.PAGE_SIZE_ = 50;
+cam.SearchSession.PAGE_SIZE_ = 50;
 
 cam.SearchSession.DESCRIBE_REQUEST = {
 	// This size doesn't matter, we don't use it. We only care about the aspect ratio.
@@ -189,7 +189,7 @@ cam.SearchSession.prototype.initSocketUri_ = function(currentUri) {
 };
 
 cam.SearchSession.prototype.getContinuation_ = function(changeType, opt_continuationToken, opt_limit) {
-	return this.connection_.search.bind(this.connection_, this.query_, this.constructor.DESCRIBE_REQUEST, opt_limit || this.PAGE_SIZE_, opt_continuationToken,
+	return this.connection_.search.bind(this.connection_, this.query_, this.constructor.DESCRIBE_REQUEST, opt_limit || this.constructor.PAGE_SIZE_, opt_continuationToken,
 		this.searchDone_.bind(this, changeType));
 };
 
