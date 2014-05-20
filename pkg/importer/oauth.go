@@ -27,6 +27,13 @@ import (
 	"camlistore.org/pkg/blob"
 )
 
+const (
+	AcctAttrTempToken         = "oauthTempToken"
+	AcctAttrTempSecret        = "oauthTempSecret"
+	AcctAttrAccessToken       = "oauthAccessToken"
+	AcctAttrAccessTokenSecret = "oauthAccessTokenSecret"
+)
+
 // OAuth1 provides methods that the importer implementations can use to
 // help with OAuth authentication.
 type OAuth1 struct{}
