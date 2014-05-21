@@ -378,11 +378,8 @@ func (h *Host) serveImporterAcctCallback(w http.ResponseWriter, r *http.Request,
 		http.Error(w, "invalid 'acct' param: "+err.Error(), 400)
 		return
 	}
-	if ia.current.Context == nil {
-		ia.current.Context = context.New()
-	}
 	imp.impl.ServeCallback(w, r, &SetupContext{
-		Context:     ia.current.Context,
+		Context:     context.TODO(),
 		Host:        h,
 		AccountNode: ia.acct,
 		ia:          ia,
@@ -888,11 +885,8 @@ func (ia *importerAcct) serveHTTPPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ia *importerAcct) setup(w http.ResponseWriter, r *http.Request) {
-	if ia.current.Context == nil {
-		ia.current.Context = context.New()
-	}
 	if err := ia.im.impl.ServeSetup(w, r, &SetupContext{
-		Context:     ia.current.Context,
+		Context:     context.TODO(),
 		Host:        ia.im.host,
 		AccountNode: ia.acct,
 		ia:          ia,

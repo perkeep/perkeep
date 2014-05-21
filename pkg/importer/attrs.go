@@ -56,6 +56,9 @@ const (
 	// http://schema.org/description
 	// Value is plain text, no HTML, newlines are newlines.
 	AttrDescription = "description"
+	// Free-flowing text definition of a location or place, such
+	// as a city name, or a full postal address.
+	AttrLocationText = "locationText"
 	// http://schema.org/lastReviewed
 	// Value is in RFC3339 format.
 	AttrLastReviewed = "lastReviewed"

@@ -55,17 +55,21 @@ func newImporter() *imp {
 	return &imp{
 		importer.NewExtendedOAuth2(
 			oauth.Config{AuthURL: authURL, TokenURL: tokenURL, Scope: scopeURL},
-			func(ctx *context.Context, accessToken string) (string, string, string, error) {
+			func(ctx *context.Context, accessToken string) (*importer.UserInfo, error) {
 				u, err := getUserInfo(ctx, accessToken)
 				if err != nil {
-					return "", "", "", err
+					return nil, err
 				}
 				firstName, lastName := u.Name, ""
 				i := strings.LastIndex(u.Name, " ")
 				if i >= 0 {
 					firstName, lastName = u.Name[:i], u.Name[i+1:]
 				}
-				return u.ID, firstName, lastName, nil
+				return &importer.UserInfo{
+					ID:        u.ID,
+					FirstName: firstName,
+					LastName:  lastName,
+				}, nil
 			}),
 	}
 }
@@ -148,7 +152,7 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album, clien
 		"camliNodeType", "picasaweb.google.com:album",
 		importer.AttrTitle, album.Title,
 		importer.AttrName, album.Name,
-		"location", album.Location,
+		importer.AttrLocationText, album.Location,
 	); err != nil {
 		return fmt.Errorf("error setting album attributes: %v", err)
 	}
@@ -249,7 +253,7 @@ func (r *run) importPhoto(albumNode *importer.Object, photo picago.Photo, client
 		importer.AttrTitle, photo.Title,
 		"caption", photo.Summary,
 		importer.AttrDescription, photo.Description,
-		"location", photo.Location,
+		importer.AttrLocationText, photo.Location,
 		"latitude", fmt.Sprintf("%f", photo.Latitude),
 		"longitude", fmt.Sprintf("%f", photo.Longitude),
 		"dateModified", schema.RFC3339FromTime(photo.Updated),
