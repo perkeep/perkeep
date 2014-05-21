@@ -47,7 +47,10 @@ const (
 )
 
 var (
-	mode AuthMode // the auth logic depending on the choosen auth mechanism
+	// Each mode defines an auth logic which depends on the choosen auth mechanism.
+	// Access is allowed if any of the modes allows it.
+	// No need to guard for now as all the writes are done sequentially during setup.
+	modes []AuthMode
 )
 
 // An AuthMode is the interface implemented by diffent authentication
@@ -177,9 +180,16 @@ func FromConfig(authConfig string) (AuthMode, error) {
 	return nil, fmt.Errorf("Unknown auth type: %q", authType)
 }
 
-// SetMode sets the authentication mode for future requests.
+// SetMode sets the given authentication mode as the only allowed one for
+// future requests. That is, it replaces all modes that were previously added.
 func SetMode(m AuthMode) {
-	mode = m
+	modes = []AuthMode{m}
+}
+
+// AddMode adds the given authentication mode to the list of modes that
+// future requests can authenticate against.
+func AddMode(am AuthMode) {
+	modes = append(modes, am)
 }
 
 // UserPass is used when the auth string provided in the config
@@ -284,17 +294,26 @@ func IsLocalhost(req *http.Request) bool {
 	return httputil.IsLocalhost(req)
 }
 
-// TODO(mpl): if/when we ever need it:
-// func AllowedWithAuth(am AuthMode, req *http.Request, op Operation) bool
-
-// Allowed returns whether the given request
-// has access to perform all the operations in op.
-func Allowed(req *http.Request, op Operation) bool {
+// AllowedWithAuth returns whether the given request
+// has access to perform all the operations in op
+// against am.
+func AllowedWithAuth(am AuthMode, req *http.Request, op Operation) bool {
 	if op&OpUpload != 0 {
 		// upload (at least from camput) requires stat and get too
 		op = op | OpVivify
 	}
-	return mode.AllowedAccess(req)&op == op
+	return am.AllowedAccess(req)&op == op
+}
+
+// Allowed returns whether the given request
+// has access to perform all the operations in op.
+func Allowed(req *http.Request, op Operation) bool {
+	for _, m := range modes {
+		if AllowedWithAuth(m, req, op) {
+			return true
+		}
+	}
+	return false
 }
 
 func websocketTokenMatches(req *http.Request) bool {
@@ -310,13 +329,23 @@ func TriedAuthorization(req *http.Request) bool {
 }
 
 func SendUnauthorized(rw http.ResponseWriter, req *http.Request) {
-	if us, ok := mode.(UnauthorizedSender); ok {
-		if us.SendUnauthorized(rw, req) {
-			return
+	for _, m := range modes {
+		if us, ok := m.(UnauthorizedSender); ok {
+			if us.SendUnauthorized(rw, req) {
+				return
+			}
 		}
 	}
 	realm := "camlistored"
-	if devAuth, ok := mode.(*DevAuth); ok {
+	hasDevAuth := func() (*DevAuth, bool) {
+		for _, m := range modes {
+			if devAuth, ok := m.(*DevAuth); ok {
+				return devAuth, ok
+			}
+		}
+		return nil, false
+	}
+	if devAuth, ok := hasDevAuth(); ok {
 		realm = "Any username, password is: " + devAuth.Password
 	}
 	rw.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=%q", realm))

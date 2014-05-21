@@ -18,6 +18,7 @@ package auth
 
 import (
 	"fmt"
+	"net/http"
 	"reflect"
 	"testing"
 )
@@ -53,4 +54,42 @@ func TestFromConfig(t *testing.T) {
 			t.Errorf("FromConfig(%q) = %#v; want %#v", tt.in, am, tt.want)
 		}
 	}
+}
+
+func TestMultiMode(t *testing.T) {
+	req, err := http.NewRequest("GET", "/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	(&UserPass{Username: "foo", Password: "bar"}).AddAuthHeader(req)
+
+	modes = []AuthMode{
+		&UserPass{
+			Username: "foo",
+			Password: "baz",
+		},
+	}
+
+	if Allowed(req, OpAll) == true {
+		t.Fatalf("req should not be allowed")
+	}
+
+	AddMode(&UserPass{
+		Username: "foo",
+		Password: "bar",
+	})
+
+	if Allowed(req, OpAll) == false {
+		t.Fatalf("req should now be allowed")
+	}
+
+	SetMode(&UserPass{
+		Username: "foo",
+		Password: "baz",
+	})
+
+	if Allowed(req, OpAll) == true {
+		t.Fatalf("req should not be allowed anymore")
+	}
+
 }
