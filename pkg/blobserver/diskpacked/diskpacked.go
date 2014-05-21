@@ -31,11 +31,13 @@ Example low-level config:
 package diskpacked
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"expvar"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -438,6 +440,160 @@ func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef
 		i++
 	}
 	return nil
+}
+
+// The continuation token will be in the form: "<pack#> <offset>"
+func parseContToken(token string) (pack int, offset int64, err error) {
+	// Special case
+	if token == "" {
+		pack = 0
+		offset = 0
+		return
+	}
+	_, err = fmt.Sscan(token, &pack, &offset)
+
+	return
+}
+
+func readHeader(r io.Reader) (digest string, size uint32, err error) {
+	_, err = fmt.Fscanf(r, "[%s %d]", &digest, &size)
+
+	return
+}
+
+func headerLength(digest string, size uint32) int {
+	// Assumes that the size in the header is always in base-10
+	// format, and also that precisely one space separates the
+	// digest and the size.
+	return len(fmt.Sprintf("[%s %d]", digest, size))
+}
+
+// The header of deleted blobs has a digest in which the hash type is
+// set to all 'x', but the correct size.
+func isDeletedRef(digest string) bool {
+	return strings.HasPrefix(digest, "x")
+}
+
+// Type readSeekNopCloser is an io.ReadSeeker with a no-op Close method.
+type readSeekNopCloser struct {
+	io.ReadSeeker
+}
+
+func (readSeekNopCloser) Close() error { return nil }
+
+func newReadSeekNopCloser(rs io.ReadSeeker) types.ReadSeekCloser {
+	return readSeekNopCloser{rs}
+}
+
+// StreamBlobs Implements the blobserver.StreamBlobs interface.
+func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string, limitBytes int64) (nextContinueToken string, err error) {
+	defer close(dest)
+
+	i, offset, err := parseContToken(contToken)
+	if err != nil {
+		return
+	}
+	debug.Printf("Continuing blob streaming from pack %s, offset %d",
+		s.filename(i), offset)
+
+	fd, err := os.Open(s.filename(i))
+	if err != nil {
+		return
+	}
+	defer fd.Close()
+
+	// ContToken always refers to the exact next place we will read from
+	_, err = fd.Seek(offset, os.SEEK_SET)
+	if err != nil {
+		return
+	}
+
+	const ioBufSize = 256 * 1024
+
+	// We'll use bufio to avoid read system call overhead.
+	r := bufio.NewReaderSize(fd, ioBufSize)
+
+	var offsetToAdd int64 = 0
+	var sent int64 = 0
+	setNextContToken := func() {
+		nextContinueToken = fmt.Sprintf("%d %d", i, offset+offsetToAdd)
+	}
+	for {
+		if sent >= limitBytes {
+			setNextContToken()
+			break
+		}
+
+		//  Are we at the EOF of this pack?
+		_, err = r.Peek(1)
+		if err != nil {
+			if err == io.EOF {
+				// Continue to the next pack, if there's any
+				i += 1
+				offset = 0
+				offsetToAdd = 0
+				fd.Close() // Close the previous pack
+				fd, err = os.Open(s.filename(i))
+				if err != nil {
+					if os.IsNotExist(err) {
+						return "", nil
+					}
+					return
+				}
+				defer fd.Close()
+				r = bufio.NewReaderSize(fd, ioBufSize)
+				continue
+			}
+
+			return
+		}
+
+		var digest string
+		var size uint32
+		digest, size, err = readHeader(r)
+		if err != nil {
+			return
+		}
+
+		offsetToAdd += int64(headerLength(digest, size))
+		if isDeletedRef(digest) {
+			// Skip over deletion padding
+			_, err = io.CopyN(ioutil.Discard, r, int64(size))
+			if err != nil {
+				return
+			}
+			offsetToAdd += int64(size)
+			continue
+		}
+
+		// Finally, read and send the blob
+		data := make([]byte, size)
+		_, err = io.ReadFull(r, data)
+		if err != nil {
+			return
+		}
+		offsetToAdd += int64(size)
+		newReader := func() types.ReadSeekCloser {
+			return newReadSeekNopCloser(bytes.NewReader(data))
+		}
+		ref, ok := blob.Parse(digest)
+		if !ok {
+			err = fmt.Errorf("diskpacked: Invalid blobref %s",
+				digest)
+			return
+		}
+		blob := blob.NewBlob(ref, size, newReader)
+
+		select {
+		case dest <- blob:
+			sent += int64(size)
+		case <-ctx.Done():
+			err = context.ErrCanceled
+			return
+		}
+	}
+
+	return
 }
 
 func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sbr blob.SizedRef, err error) {
