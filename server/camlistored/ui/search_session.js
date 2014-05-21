@@ -57,34 +57,6 @@ cam.SearchSession.SEARCH_SESSION_CHANGE_TYPE = {
 
 cam.SearchSession.PAGE_SIZE_ = 50;
 
-cam.SearchSession.DESCRIBE_REQUEST = {
-	// This size doesn't matter, we don't use it. We only care about the aspect ratio.
-	// TODO(aa): This needs to die: https://code.google.com/p/camlistore/issues/detail?id=321
-	thumbnailSize: 1000,
-
-	// TODO(aa): This is not perfect. The describe request will return some data we don't care about:
-	// - Properties we don't use
-	// See: https://code.google.com/p/camlistore/issues/detail?id=319
-
-	depth: 1,
-	rules: [
-		{
-			attrs: ['camliContent', 'camliContentImage']
-		},
-		{
-			ifCamliNodeType: 'foursquare.com:checkin',
-			attrs: ['foursquareVenuePermanode']
-		},
-		{
-			ifCamliNodeType: 'foursquare.com:venue',
-			attrs: ['camliPath:photos'],
-                        rules: [
-                            { attrs: ['camliPath:*'] }
-                        ]
-		}
-	]
-};
-
 cam.SearchSession.instanceCount_ = 0;
 
 cam.SearchSession.prototype.getQuery = function() {
@@ -189,7 +161,7 @@ cam.SearchSession.prototype.initSocketUri_ = function(currentUri) {
 };
 
 cam.SearchSession.prototype.getContinuation_ = function(changeType, opt_continuationToken, opt_limit) {
-	return this.connection_.search.bind(this.connection_, this.query_, this.constructor.DESCRIBE_REQUEST, opt_limit || this.constructor.PAGE_SIZE_, opt_continuationToken,
+	return this.connection_.search.bind(this.connection_, this.query_, cam.ServerConnection.DESCRIBE_REQUEST, opt_limit || this.constructor.PAGE_SIZE_, opt_continuationToken,
 		this.searchDone_.bind(this, changeType));
 };
 
@@ -232,7 +204,7 @@ cam.SearchSession.prototype.startSocketQuery_ = function() {
 	if (this.data_ && this.data_.blobs) {
 		numResults = this.data_.blobs.length;
 	}
-	var query = this.connection_.buildQuery(this.query_, this.constructor.DESCRIBE_REQUEST, Math.max(numResults, this.constructor.PAGE_SIZE_));
+	var query = this.connection_.buildQuery(this.query_, cam.ServerConnection.DESCRIBE_REQUEST, Math.max(numResults, this.constructor.PAGE_SIZE_));
 
 	this.socket_ = new WebSocket(this.socketUri_.toString());
 	this.socket_.onopen = function() {

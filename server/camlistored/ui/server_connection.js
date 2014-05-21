@@ -36,6 +36,34 @@ cam.ServerConnection = function(config, opt_sendXhr) {
 	this.worker_ = null;
 };
 
+cam.ServerConnection.DESCRIBE_REQUEST = {
+	// This size doesn't matter, we don't use it. We only care about the aspect ratio.
+	// TODO(aa): This needs to die: https://code.google.com/p/camlistore/issues/detail?id=321
+	thumbnailSize: 1000,
+
+	// TODO(aa): This is not perfect. The describe request will return some data we don't care about:
+	// - Properties we don't use
+	// See: https://code.google.com/p/camlistore/issues/detail?id=319
+
+	depth: 1,
+	rules: [
+		{
+			attrs: ['camliContent', 'camliContentImage']
+		},
+		{
+			ifCamliNodeType: 'foursquare.com:checkin',
+			attrs: ['foursquareVenuePermanode']
+		},
+		{
+			ifCamliNodeType: 'foursquare.com:venue',
+			attrs: ['camliPath:photos'],
+                        rules: [
+                            { attrs: ['camliPath:*'] }
+                        ]
+		}
+	]
+};
+
 cam.ServerConnection.prototype.getWorker_ = function() {
 	if (!this.worker_) {
 		var r = new Date().getTime(); // For cachebusting the worker. Sigh. We need content stamping.
@@ -165,6 +193,21 @@ cam.ServerConnection.prototype.describeWithThumbnails = function(blobref, thumbn
 	// TODO(mpl): should we URI encode the value? doc does not say...
 	path = goog.uri.utils.appendParam(path, 'thumbnails', thumbnailSize);
 	this.sendXhr_(path, goog.bind(this.genericHandleSearch_, this, success, this.safeFail_(opt_fail)));
+};
+
+// @param {string} blobref Permanode blobref.
+// @param {number} thumbnailSize
+cam.ServerConnection.prototype.describe = function(blobref, thumbnailSize, callback) {
+	var constraint = {
+		blobRefPrefix: blobref,
+		camliType: 'permanode'
+	};
+	var describeReq = this.constructor.DESCRIBE_REQUEST;
+	describeReq.thumbnailSize = thumbnailSize;
+	var path = goog.uri.utils.appendPath(this.config_.searchRoot, 'camli/search/query');
+	this.sendXhr_(path,
+		goog.bind(this.genericHandleSearch_, this, callback, this.safeFail_()),
+		"POST", JSON.stringify(this.buildQuery(constraint, describeReq)));
 };
 
 // @param {string} signer permanode must belong to signer.

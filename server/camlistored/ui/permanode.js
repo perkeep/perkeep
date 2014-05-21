@@ -110,17 +110,15 @@ cam.PermanodePage.prototype.exitDocument = function() {
 // @param {string} permanode Permanode this blobRef is now the content of.
 cam.PermanodePage.prototype.describeBlob_ = function() {
 	var permanode = getPermanodeParam();
-	this.connection_.describeWithThumbnails(permanode, this.blobItemContainer_.thumbnailSize_,
-		goog.bind(this.handleDescribeBlob_, this, permanode),
-		function(msg) {
-			alert("failed to get blob description: " + msg);
-		}
+	this.connection_.describe(permanode, this.blobItemContainer_.thumbnailSize_,
+		goog.bind(this.handleDescribeBlob_, this, permanode)
 	);
 };
 
 // @param {string} permanode Node to describe.
-// @param {Object} describeResult Object of properties for the node.
-cam.PermanodePage.prototype.handleDescribeBlob_ = function(permanode, describeResult) {
+// @param {Object} searchResponse Response for the search query on the permanode.
+cam.PermanodePage.prototype.handleDescribeBlob_ = function(permanode, searchResponse) {
+	var describeResult = searchResponse.description;
 	var meta = describeResult.meta;
 	if (!meta[permanode]) {
 		alert("didn't get blob " + permanode);
