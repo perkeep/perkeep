@@ -341,6 +341,7 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 			exitFailure("error setting up app for prefix %q: %v", h.prefix, err)
 		}
 		hh = ap
+		auth.AddMode(ap.AuthMode())
 	} else {
 		var err error
 		hh, err = blobserver.CreateHandler(h.htype, hl, h.conf)

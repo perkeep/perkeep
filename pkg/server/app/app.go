@@ -162,3 +162,10 @@ func (a *AppHandler) Start() error {
 func (a *AppHandler) Name() string {
 	return a.name
 }
+
+// AuthMode returns the app handler's auth mode, which is also the auth that the
+// app's client will be configured with. This mode should be registered with
+// the server's auth modes, for the app to have access to the server's resources.
+func (a *AppHandler) AuthMode() auth.AuthMode {
+	return a.auth
+}
