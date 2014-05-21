@@ -51,6 +51,8 @@ const (
 	AttrID = "ID"
 	// http://schema.org/title
 	AttrTitle = "title"
+	// http://schema.org/name
+	AttrName = "name"
 	// http://schema.org/description
 	// Value is plain text, no HTML, newlines are newlines.
 	AttrDescription = "description"

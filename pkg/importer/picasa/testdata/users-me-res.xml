@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:gphoto="http://schemas.google.com/photos/2007" xmlns:openSearch="http://a9.com/-/spec/opensearchrss/1.0/">
+  <id>https://picasaweb.google.com/data/feed/api/user/default/contacts</id>
+  <updated>2014-04-14T20:44:46.102Z</updated>
+  <category scheme="http://schemas.google.com/g/2005#kind" term="http://schemas.google.com/photos/2007#user"/>
+  <title type="text">11047045264</title>
+  <subtitle type="text"/>
+  <icon>https://lh4.googleusercontent.com/-qqMg344/AAAAAAAAAAI/AAAAAAABcbg/TXl3f2K9dzI/s64-c/11047045264.jpg</icon>
+  <link rel="http://schemas.google.com/g/2005#feed" type="application/atom+xml" href="https://picasaweb.google.com/data/feed/api/user/11047045264/contacts"/>
+  <link rel="http://schemas.google.com/g/2005#post" type="application/atom+xml" href="https://picasaweb.google.com/data/feed/api/user/11047045264/contacts"/>
+  <link rel="alternate" type="text/html" href="https://picasaweb.google.com/lh/favorites?uname=11047045264"/>
+  <link rel="self" type="application/atom+xml" href="https://picasaweb.google.com/data/feed/api/user/11047045264/contacts?start-index=1&amp;max-results=500&amp;kind=user"/>
+  <author>
+    <name>Tamás Gulácsi</name>
+    <uri>https://picasaweb.google.com/11047045264</uri>
+  </author>
+  <generator version="1.00" uri="http://picasaweb.google.com/">Picasaweb</generator>
+  <openSearch:totalResults>2</openSearch:totalResults>
+  <openSearch:startIndex>1</openSearch:startIndex>
+  <openSearch:itemsPerPage>500</openSearch:itemsPerPage>
+  <gphoto:user>110415264</gphoto:user>
+  <gphoto:nickname>Tamás </gphoto:nickname>
+  <gphoto:thumbnail>https://lh4.googleusercontent.com/-qqove344/AAAAAAAAAAI/AAAAAAABcbg/TXl3f2K9dzI/s64-c/11047045264.jpg</gphoto:thumbnail>
+  <gphoto:quotalimit>38654705664</gphoto:quotalimit>
+  <gphoto:quotacurrent>17032238989</gphoto:quotacurrent>
+  <gphoto:maxPhotosPerAlbum>2000</gphoto:maxPhotosPerAlbum>
+  <entry>
+    <id>https://picasaweb.google.com/data/entry/api/user/110415264/contacts/106948621299403</id>
+    <published>2013-12-17T18:40:10.000Z</published>
+    <updated>2014-04-14T20:44:46.102Z</updated>
+    <category scheme="http://schemas.google.com/g/2005#kind" term="http://schemas.google.com/photos/2007#user"/>
+    <title type="text">106948621299403</title>
+    <summary type="text"/>
+    <link rel="http://schemas.google.com/g/2005#feed" type="application/atom+xml" href="https://picasaweb.google.com/data/feed/api/user/106948621299403"/>
+    <link rel="alternate" type="text/html" href="https://picasaweb.google.com/106948621299403"/>
+    <link rel="self" type="application/atom+xml" href="https://picasaweb.google.com/data/entry/api/user/11047045264/contacts/106948621299403"/>
+    <link rel="edit" type="application/atom+xml" href="https://picasaweb.google.com/data/entry/api/user/11047045264/contacts/106948621299403"/>
+    <author>
+      <name>Petra </name>
+      <uri>https://picasaweb.google.com/106948621299403</uri>
+    </author>
+    <gphoto:user>106948621299403</gphoto:user>
+    <gphoto:nickname>Petra </gphoto:nickname>
+    <gphoto:thumbnail>https://lh5.googleusercontent.com/-CiCHgcc/AAAAAAAAAAI/AAAAAAAAAAA/moXXlYbkPsk/s64-c/106948621299403.jpg</gphoto:thumbnail>
+    <gphoto:showLink>true</gphoto:showLink>
+    <gphoto:subscribed>true</gphoto:subscribed>
+  </entry>
+  <entry>
+    <id>https://picasaweb.google.com/data/entry/api/user/11047045264/contacts/1163008697</id>
+    <published>1970-01-01T00:00:00.000Z</published>
+    <updated>2014-04-14T20:44:46.102Z</updated>
+    <category scheme="http://schemas.google.com/g/2005#kind" term="http://schemas.google.com/photos/2007#user"/>
+    <title type="text">1163008697</title>
+    <summary type="text"/>
+    <link rel="http://schemas.google.com/g/2005#feed" type="application/atom+xml" href="https://picasaweb.google.com/data/feed/api/user/1163008697"/>
+    <link rel="alternate" type="text/html" href="https://picasaweb.google.com/1163008697"/>
+    <link rel="self" type="application/atom+xml" href="https://picasaweb.google.com/data/entry/api/user/11047045264/contacts/1163008697"/>
+    <link rel="edit" type="application/atom+xml" href="https://picasaweb.google.com/data/entry/api/user/11047045264/contacts/1163008697"/>
+    <author>
+      <name>Viktória </name>
+      <uri>https://picasaweb.google.com/1163008697</uri>
+    </author>
+    <gphoto:user>1163008697</gphoto:user>
+    <gphoto:nickname>Viktória </gphoto:nickname>
+    <gphoto:thumbnail>https://lh3.googleusercontent.com/-HmzwFI/AAAAAAAAAAI/AAAAAAAAAAA/g7DJ3IovKMY/s64-c/1163008697.jpg</gphoto:thumbnail>
+    <gphoto:showLink>true</gphoto:showLink>
+    <gphoto:subscribed>true</gphoto:subscribed>
+  </entry>
+</feed>

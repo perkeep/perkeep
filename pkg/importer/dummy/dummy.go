@@ -22,6 +22,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -183,7 +184,7 @@ func (im *imp) CallbackRequestAccount(r *http.Request) (blob.Ref, error) {
 	return importer.OAuth1{}.CallbackRequestAccount(r)
 }
 
-func (im *imp) CallbackURLParameters(acctRef blob.Ref) string {
+func (im *imp) CallbackURLParameters(acctRef blob.Ref) url.Values {
 	// See comment in CallbackRequestAccount.
 	return importer.OAuth1{}.CallbackURLParameters(acctRef)
 }
