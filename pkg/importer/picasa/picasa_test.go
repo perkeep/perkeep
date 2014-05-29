@@ -18,12 +18,10 @@ package picasa
 
 import (
 	"net/http"
-	"os"
 	"testing"
 
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/test"
-	"camlistore.org/pkg/types"
 
 	"camlistore.org/third_party/github.com/tgulacsi/picago"
 )
@@ -31,7 +29,7 @@ import (
 func TestGetUserId(t *testing.T) {
 	userID := "11047045264"
 	ctx := context.New()
-	responder := fileResponder("testdata/users-me-res.xml")
+	responder := test.FileResponder("testdata/users-me-res.xml")
 	ctx.SetHTTPClient(&http.Client{
 		Transport: test.NewFakeTransport(map[string]func() *http.Response{
 			"https://picasaweb.google.com/data/feed/api/user/default/contacts?kind=user":        responder,
@@ -50,15 +48,5 @@ func TestGetUserId(t *testing.T) {
 	}
 	if inf != want {
 		t.Errorf("user info = %+v; want %+v", inf, want)
-	}
-}
-
-func fileResponder(filename string) func() *http.Response {
-	return func() *http.Response {
-		f, err := os.Open(filename)
-		if err != nil {
-			return &http.Response{StatusCode: 404, Status: "404 Not Found", Body: types.EmptyBody}
-		}
-		return &http.Response{StatusCode: 200, Status: "200 OK", Body: f}
 	}
 }
