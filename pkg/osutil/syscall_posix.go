@@ -18,8 +18,35 @@ limitations under the License.
 
 package osutil
 
-import "syscall"
+import (
+	"net"
+	"os"
+	"path/filepath"
+	"syscall"
+)
 
 func Mkfifo(path string, mode uint32) (err error) {
 	return syscall.Mkfifo(path, mode)
+}
+
+// Mksocket creates a socket file (a Unix Domain Socket) named path.
+func Mksocket(path string) (err error) {
+	dir := filepath.Dir(path)
+	base := filepath.Base(path)
+	tmp := filepath.Join(dir, "."+base)
+	l, err := net.ListenUnix("unix", &net.UnixAddr{tmp, "unix"})
+	if err != nil {
+		return err
+	}
+
+	err = os.Rename(tmp, path)
+	if err != nil {
+		l.Close()
+		os.Remove(tmp) // Ignore error
+		return err
+	}
+
+	l.Close()
+
+	return nil
 }

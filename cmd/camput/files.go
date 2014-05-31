@@ -393,7 +393,7 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 		// including mode & os.ModeCharDevice
 		fallthrough
 	case mode&os.ModeSocket != 0:
-		fallthrough
+		bb.SetType("socket")
 	case mode&os.ModeNamedPipe != 0: // fifo
 		bb.SetType("fifo")
 	default:

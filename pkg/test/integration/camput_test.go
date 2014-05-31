@@ -65,3 +65,41 @@ func TestCamputFIFO(t *testing.T) {
 	out = test.MustRunCmd(t, w.Cmd("camget", br))
 	t.Logf("Retrieved stored fifo schema: %s", out)
 }
+
+// mkTmpSocket makes a socket in a temporary directory and returns the
+// path to it and a function to clean-up when done.
+func mkTmpSocket(t *testing.T) (path string, cleanup func()) {
+	tdir, err := ioutil.TempDir("", "socket-test-")
+	if err != nil {
+		t.Fatalf("iouti.TempDir(): %v", err)
+	}
+	cleanup = func() {
+		os.RemoveAll(tdir)
+	}
+
+	path = filepath.Join(tdir, "socket")
+	err = osutil.Mksocket(path)
+	if err != nil {
+		t.Fatalf("osutil.Mksocket(): %v", err)
+	}
+
+	return
+}
+
+// Test that `camput' can upload sockets correctly.
+func TestCamputSocket(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.SkipNow()
+	}
+
+	socket, cleanup := mkTmpSocket(t)
+	defer cleanup()
+
+	// Can we successfully upload a socket?
+	w := test.GetWorld(t)
+	out := test.MustRunCmd(t, w.Cmd("camput", "file", socket))
+
+	br := strings.Split(out, "\n")[0]
+	out = test.MustRunCmd(t, w.Cmd("camget", br))
+	t.Logf("Retrieved stored socket schema: %s", out)
+}
