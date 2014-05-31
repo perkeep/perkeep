@@ -25,12 +25,12 @@ import (
 	"syscall"
 )
 
-func Mkfifo(path string, mode uint32) (err error) {
+func Mkfifo(path string, mode uint32) error {
 	return syscall.Mkfifo(path, mode)
 }
 
 // Mksocket creates a socket file (a Unix Domain Socket) named path.
-func Mksocket(path string) (err error) {
+func Mksocket(path string) error {
 	dir := filepath.Dir(path)
 	base := filepath.Base(path)
 	tmp := filepath.Join(dir, "."+base)

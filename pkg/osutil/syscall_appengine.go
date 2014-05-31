@@ -18,13 +18,5 @@ limitations under the License.
 
 package osutil
 
-import "errors"
-
-func Mkfifo(path string, mode uint32) (err error) {
-	return errors.New("not supported")
-}
-
-// Mksocket always fails on Appengine.
-func Mksocket(path string) (err error) {
-	return errors.New("not supported")
-}
+func Mkfifo(path string, mode uint32) error { return ErrNotSupported }
+func Mksocket(path string) error            { return ErrNotSupported }

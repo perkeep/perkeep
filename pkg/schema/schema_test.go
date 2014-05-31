@@ -22,7 +22,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -530,10 +529,6 @@ func TestStaticFileAndStaticSymlink(t *testing.T) {
 }
 
 func TestStaticFIFO(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.SkipNow()
-	}
-
 	tdir, err := ioutil.TempDir("", "schema-test-")
 	if err != nil {
 		t.Fatalf("ioutil.TempDir(): %v", err)
@@ -542,6 +537,9 @@ func TestStaticFIFO(t *testing.T) {
 
 	fifoPath := filepath.Join(tdir, "fifo")
 	err = osutil.Mkfifo(fifoPath, 0660)
+	if err == osutil.ErrNotSupported {
+		t.SkipNow()
+	}
 	if err != nil {
 		t.Fatalf("osutil.Mkfifo(): %v", err)
 	}
@@ -568,10 +566,6 @@ func TestStaticFIFO(t *testing.T) {
 }
 
 func TestStaticSocket(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.SkipNow()
-	}
-
 	tdir, err := ioutil.TempDir("", "schema-test-")
 	if err != nil {
 		t.Fatalf("ioutil.TempDir(): %v", err)
@@ -580,6 +574,9 @@ func TestStaticSocket(t *testing.T) {
 
 	sockPath := filepath.Join(tdir, "socket")
 	err = osutil.Mksocket(sockPath)
+	if err == osutil.ErrNotSupported {
+		t.SkipNow()
+	}
 	if err != nil {
 		t.Fatalf("osutil.Mksocket(): %v", err)
 	}

@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/buildinfo"
@@ -318,12 +317,6 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 	case "fifo":
 		name := filepath.Join(targ, b.FileName())
 
-		if runtime.GOOS == "windows" {
-			log.Printf("Skipping FIFO: %s: Unsupported filetype",
-				name)
-			return nil
-		}
-
 		sf, ok := b.AsStaticFile()
 		if !ok {
 			return errors.New("blob is not a static file")
@@ -334,11 +327,15 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 		}
 
 		if _, err := os.Lstat(name); err == nil {
-			log.Printf("Skipping FIFO: %s: A file with that name already exists", name)
+			log.Printf("Skipping FIFO %s: A file with that name already exists", name)
 			return nil
 		}
 
 		err = osutil.Mkfifo(name, 0600)
+		if err == osutil.ErrNotSupported {
+			log.Printf("Skipping FIFO %s: Unsupported filetype", name)
+			return nil
+		}
 		if err != nil {
 			return fmt.Errorf("%s: osutil.Mkfifo(): %v", name, err)
 		}
@@ -352,12 +349,6 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 	case "socket":
 		name := filepath.Join(targ, b.FileName())
 
-		if runtime.GOOS == "windows" {
-			log.Printf("Skipping socket: %s: Unsupported filetype",
-				name)
-			return nil
-		}
-
 		sf, ok := b.AsStaticFile()
 		if !ok {
 			return errors.New("blob is not a static file")
@@ -368,11 +359,15 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 		}
 
 		if _, err := os.Lstat(name); err == nil {
-			log.Printf("Skipping socket: %s: A file with that name already exists", name)
+			log.Printf("Skipping socket %s: A file with that name already exists", name)
 			return nil
 		}
 
 		err = osutil.Mksocket(name)
+		if err == osutil.ErrNotSupported {
+			log.Printf("Skipping socket %s: Unsupported filetype", name)
+			return nil
+		}
 		if err != nil {
 			return fmt.Errorf("%s: %v", name, err)
 		}
