@@ -308,7 +308,11 @@ func (p *parser) parseAtom(ctx *context.Context) (*Constraint, error) {
 	}
 	var c *Constraint
 	for _, k := range keywords {
-		if k.Match(a) {
+		matched, err := k.Match(a)
+		if err != nil {
+			return nil, newParseExpError(err.Error(), faultToken())
+		}
+		if matched {
 			c, err = k.Predicate(ctx, a.args)
 			if err != nil {
 				return nil, newParseExpError(err.Error(), faultToken())

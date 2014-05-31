@@ -579,8 +579,13 @@ var parseExpTests = []parserTestCase{
 	},
 
 	{
+		in:          "after:foo:bar",
+		errContains: `Wrong number of arguments for "after", given 2, expected 1 at position 0, token: "after:foo:bar"`,
+	},
+
+	{
 		in:          "     attr:foo",
-		errContains: "expected attribute value at position 5",
+		errContains: `Wrong number of arguments for "attr", given 1, expected 2 at position 5, token: "attr:foo"`,
 	},
 
 	{
