@@ -35,6 +35,7 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
+	"camlistore.org/pkg/types"
 )
 
 var (
@@ -172,7 +173,8 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 	if err != nil {
 		return err
 	}
-	defer rc.Close()
+	rcc := types.NewOnceCloser(rc)
+	defer rcc.Close()
 
 	sniffer := index.NewBlobSniffer(br)
 	_, err = io.CopyN(sniffer, rc, sniffSize)
@@ -199,7 +201,7 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 		_, err = io.Copy(f, r)
 		return err
 	}
-	rc.Close()
+	rcc.Close()
 
 	switch b.Type() {
 	case "directory":
