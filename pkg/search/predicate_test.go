@@ -185,12 +185,6 @@ var keywordTests = []keywordTestcase{
 	},
 
 	{
-		object:      newAttribute(),
-		args:        []string{"foo"},
-		errContains: "expected attribute value",
-	},
-
-	{
 		object: newAttribute(),
 		args:   []string{"foo", "bar"},
 		want:   attrfoobarC,
@@ -579,25 +573,29 @@ func TestMatchEqual(t *testing.T) {
 	me := matchEqual("foo:bar:baz")
 	a := atom{"foo", []string{"bar", "baz"}}
 
-	if !me.Match(a) {
+	if m, _ := me.Match(a); !m {
 		t.Error("Expected a match")
 	}
 
 	a = atom{"foo", []string{"foo", "baz"}}
-	if me.Match(a) {
+	if m, _ := me.Match(a); m {
 		t.Error("Did not expect a match")
 	}
 }
 
 func TestMatchPrefix(t *testing.T) {
-	mp := matchPrefix("foo")
+	mp := matchPrefix{"foo", 1}
 	a := atom{"foo", []string{"bar"}}
-	if !mp.Match(a) {
+	if m, err := mp.Match(a); err != nil || !m {
 		t.Error("Expected a match")
 	}
 
-	a = atom{"baz", []string{}}
-	if mp.Match(a) {
-		t.Error("Did not expect a match")
+	a = atom{"foo", []string{}}
+	if _, err := mp.Match(a); err == nil {
+		t.Error("Expected an error got nil")
+	}
+	a = atom{"bar", []string{}}
+	if m, err := mp.Match(a); err != nil || m {
+		t.Error("Expected simple mismatch")
 	}
 }
