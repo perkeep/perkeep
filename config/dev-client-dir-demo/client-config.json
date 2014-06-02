@@ -1,0 +1,12 @@
+{
+	"servers": {
+		"devcam": {
+			"server": "http://localhost:3179/",
+			"auth": "devauth:camli3179",
+			"default": true
+		}
+	},
+	"ignoredFiles": [".DS_Store"],
+	"identity": "26F5ABDA",
+	"identitySecretRing": ["_env", "${HOME}/src/camlistore.org/pkg/jsonsign/testdata/test-secring.gpg"]
+}
