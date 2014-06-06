@@ -18,6 +18,7 @@ fi
 
 #gofmt and trailing space errors
 committed=`git diff-index --cached --name-only HEAD`
+needFmt=""
 for c in $committed
 do
 	if [ ! -e "$c" ]
@@ -31,7 +32,7 @@ do
 		fmtdiff=`git show ":$c" | gofmt -d 2>&1`
 		if [ -n "$fmtdiff" ]
 		then
-			echo "gofmt needed on "$c
+			needFmt="$needFmt $gofile"
 			exitstatus=1
 		fi
 	fi
@@ -47,6 +48,10 @@ do
 done
 if [ "$exitstatus" -ne 0 ]
 then
+	if [ -n "$needFmt" ]
+	then
+		echo "gofmt -w $needFmt"
+	fi
 	echo "You can override this check with 'git commit --no-verify'"
 fi
 
