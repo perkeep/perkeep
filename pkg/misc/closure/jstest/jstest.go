@@ -39,13 +39,25 @@ func checkSystemRequirements() error {
 		}
 	}
 
-	c := exec.Command("npm", "list", "--depth=0")
-	b, _ := c.Output()
-	s := string(b)
-	modules := []string{"mocha", "assert"}
-	for _, m := range modules {
-		if !strings.Contains(s, fmt.Sprintf(" %s@", m)) {
-			return fmt.Errorf("Required npm module %v not present", m)
+	checkModules := func(globally bool) error {
+		args := []string{"list", "--depth=0"}
+		if globally {
+			args = append([]string{"-g"}, args...)
+		}
+		c := exec.Command("npm", args...)
+		b, _ := c.Output()
+		s := string(b)
+		modules := []string{"mocha", "assert"}
+		for _, m := range modules {
+			if !strings.Contains(s, fmt.Sprintf(" %s@", m)) {
+				return fmt.Errorf("Required npm module %v not present", m)
+			}
+		}
+		return nil
+	}
+	if err := checkModules(true); err != nil {
+		if err := checkModules(false); err != nil {
+			return err
 		}
 	}
 	return nil
