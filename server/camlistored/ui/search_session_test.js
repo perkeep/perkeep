@@ -146,3 +146,24 @@ describe('cam.SearchSession', function() {
 		});
 	});
 });
+
+describe('cam.SearchSession', function() {
+	var session = null;
+	var response = {};
+
+	before(function() {
+		var currentUri = null;
+		var query = null;
+		session = new cam.SearchSession(new MockServerConnection(response), currentUri, query);
+	});
+
+	describe('new session, no results', function() {
+		it('should not hit a null', function() {
+			// resetData_ gives us a safe to use data_ (non null fields).
+			assert(session.data_.blobs);
+			assert(session.data_.description);
+			assert(session.data_.description.meta);
+		});
+	});
+
+});
