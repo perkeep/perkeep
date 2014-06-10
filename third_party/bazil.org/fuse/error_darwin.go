@@ -4,6 +4,14 @@ import (
 	"syscall"
 )
 
+type getxattrError struct {
+	error
+}
+
+func (getxattrError) Errno() Errno {
+	return Errno(syscall.ENOATTR)
+}
+
 // getxattr return value for "extended attribute does not exist" is
 // ENOATTR on OS X, and ENODATA on Linux and apparently at least
 // NetBSD. There may be a #define ENOATTR too, but the value is
@@ -15,9 +23,14 @@ import (
 // http://mail-index.netbsd.org/tech-kern/2012/04/30/msg013097.html
 // http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/errno.h.html
 func translateGetxattrError(err Error) Error {
-	switch err {
-	case ENODATA:
-		return Errno(syscall.ENOATTR)
+	ferr, ok := err.(ErrorNumber)
+	if !ok {
+		return err
 	}
-	return err
+
+	if ferr.Errno() != ENODATA {
+		return err
+	}
+
+	return getxattrError{err}
 }

@@ -3,10 +3,10 @@
 package fs
 
 import (
+	"encoding/binary"
 	"fmt"
 	"hash/fnv"
 	"io"
-	"path"
 	"reflect"
 	"strings"
 	"sync"
@@ -66,6 +66,25 @@ type FSDestroyer interface {
 	// On normal FUSE filesystems, use Forget of the root Node to
 	// do actions at unmount time.
 	Destroy()
+}
+
+type FSInodeGenerator interface {
+	// GenerateInode is called to pick a dynamic inode number when it
+	// would otherwise be 0.
+	//
+	// Not all filesystems bother tracking inodes, but FUSE requires
+	// the inode to be set, and fewer duplicates in general makes UNIX
+	// tools work better.
+	//
+	// Operations where the nodes may return 0 inodes include Getattr,
+	// Setattr and ReadDir.
+	//
+	// If FS does not implement FSInodeGenerator, GenerateDynamicInode
+	// is used.
+	//
+	// Implementing this is useful to e.g. constrain the range of
+	// inode values used for dynamic inodes.
+	GenerateInode(parentInode uint64, name string) uint64
 }
 
 // A Node is the interface required of a file or directory.
@@ -271,18 +290,37 @@ type HandleReleaser interface {
 	Release(*fuse.ReleaseRequest, Intr) fuse.Error
 }
 
+type Server struct {
+	FS FS
+
+	// Function to send debug log messages to. If nil, use fuse.Debug.
+	// Note that changing this or fuse.Debug may not affect existing
+	// calls to Serve.
+	Debug func(msg interface{})
+}
+
 // Serve serves the FUSE connection by making calls to the methods
 // of fs and the Nodes and Handles it makes available.  It returns only
 // when the connection has been closed or an unexpected error occurs.
-func Serve(c *fuse.Conn, fs FS) error {
-	sc := serveConn{}
-	sc.req = map[fuse.RequestID]*serveRequest{}
+func (s *Server) Serve(c *fuse.Conn) error {
+	sc := serveConn{
+		fs:           s.FS,
+		debug:        s.Debug,
+		req:          map[fuse.RequestID]*serveRequest{},
+		dynamicInode: GenerateDynamicInode,
+	}
+	if sc.debug == nil {
+		sc.debug = fuse.Debug
+	}
+	if dyn, ok := sc.fs.(FSInodeGenerator); ok {
+		sc.dynamicInode = dyn.GenerateInode
+	}
 
-	root, err := fs.Root()
+	root, err := sc.fs.Root()
 	if err != nil {
 		return fmt.Errorf("cannot obtain root node: %v", syscall.Errno(err.(fuse.Errno)).Error())
 	}
-	sc.node = append(sc.node, nil, &serveNode{name: "/", node: root, refs: 1})
+	sc.node = append(sc.node, nil, &serveNode{inode: 1, node: root, refs: 1})
 	sc.handle = append(sc.handle, nil)
 
 	for {
@@ -294,21 +332,33 @@ func Serve(c *fuse.Conn, fs FS) error {
 			return err
 		}
 
-		go sc.serve(fs, req)
+		go sc.serve(req)
 	}
 	return nil
+}
+
+// Serve serves a FUSE connection with the default settings. See
+// Server.Serve.
+func Serve(c *fuse.Conn, fs FS) error {
+	server := Server{
+		FS: fs,
+	}
+	return server.Serve(c)
 }
 
 type nothing struct{}
 
 type serveConn struct {
-	meta       sync.Mutex
-	req        map[fuse.RequestID]*serveRequest
-	node       []*serveNode
-	handle     []*serveHandle
-	freeNode   []fuse.NodeID
-	freeHandle []fuse.HandleID
-	nodeGen    uint64
+	meta         sync.Mutex
+	fs           FS
+	req          map[fuse.RequestID]*serveRequest
+	node         []*serveNode
+	handle       []*serveHandle
+	freeNode     []fuse.NodeID
+	freeHandle   []fuse.HandleID
+	nodeGen      uint64
+	debug        func(msg interface{})
+	dynamicInode func(parent uint64, name string) uint64
 }
 
 type serveRequest struct {
@@ -317,23 +367,17 @@ type serveRequest struct {
 }
 
 type serveNode struct {
-	name string
-	node Node
-	refs uint64
+	inode uint64
+	node  Node
+	refs  uint64
 }
 
 func (sn *serveNode) attr() (attr fuse.Attr) {
 	attr = nodeAttr(sn.node)
 	if attr.Inode == 0 {
-		attr.Inode = hash(sn.name)
+		attr.Inode = sn.inode
 	}
 	return
-}
-
-func hash(s string) uint64 {
-	f := fnv.New64()
-	f.Write([]byte(s))
-	return f.Sum64()
 }
 
 type serveHandle struct {
@@ -362,7 +406,7 @@ type nodeRef interface {
 	nodeRef() *NodeRef
 }
 
-func (c *serveConn) saveNode(name string, node Node) (id fuse.NodeID, gen uint64, sn *serveNode) {
+func (c *serveConn) saveNode(inode uint64, node Node) (id fuse.NodeID, gen uint64) {
 	c.meta.Lock()
 	defer c.meta.Unlock()
 
@@ -374,13 +418,13 @@ func (c *serveConn) saveNode(name string, node Node) (id fuse.NodeID, gen uint64
 			// dropNode guarantees that NodeRef is zeroed at the same
 			// time as the NodeID is removed from serveConn.node, as
 			// guarded by c.meta; this means sn cannot be nil here
-			sn = c.node[ref.id]
+			sn := c.node[ref.id]
 			sn.refs++
-			return ref.id, ref.generation, sn
+			return ref.id, ref.generation
 		}
 	}
 
-	sn = &serveNode{name: name, node: node, refs: 1}
+	sn := &serveNode{inode: inode, node: node, refs: 1}
 	if n := len(c.freeNode); n > 0 {
 		id = c.freeNode[n-1]
 		c.freeNode = c.freeNode[:n-1]
@@ -432,7 +476,7 @@ func (c *serveConn) dropNode(id fuse.NodeID, n uint64) (forget bool) {
 		// this should only happen if refcounts kernel<->us disagree
 		// *and* two ForgetRequests for the same node race each other;
 		// this indicates a bug somewhere
-		fuse.Debug(nodeRefcountDropBug{N: n, Node: id})
+		c.debug(nodeRefcountDropBug{N: n, Node: id})
 
 		// we may end up triggering Forget twice, but that's better
 		// than not even once, and that's the best we can do
@@ -440,7 +484,7 @@ func (c *serveConn) dropNode(id fuse.NodeID, n uint64) (forget bool) {
 	}
 
 	if n > snode.refs {
-		fuse.Debug(nodeRefcountDropBug{N: n, Refs: snode.refs, Node: id})
+		c.debug(nodeRefcountDropBug{N: n, Refs: snode.refs, Node: id})
 		n = snode.refs
 	}
 
@@ -481,7 +525,7 @@ func (c *serveConn) getHandle(id fuse.HandleID) (shandle *serveHandle) {
 		shandle = c.handle[uint(id)]
 	}
 	if shandle == nil {
-		fuse.Debug(missingHandle{
+		c.debug(missingHandle{
 			Handle:    id,
 			MaxHandle: fuse.HandleID(len(c.handle)),
 		})
@@ -511,17 +555,37 @@ type response struct {
 	Op      string
 	Request logResponseHeader
 	Out     interface{} `json:",omitempty"`
-	Error   fuse.Error  `json:",omitempty"`
+	// Errno contains the errno value as a string, for example "EPERM".
+	Errno string `json:",omitempty"`
+	// Error may contain a free form error message.
+	Error string `json:",omitempty"`
+}
+
+func (r response) errstr() string {
+	s := r.Errno
+	if r.Error != "" {
+		// prefix the errno constant to the long form message
+		s = s + ": " + r.Error
+	}
+	return s
 }
 
 func (r response) String() string {
 	switch {
-	case r.Error != nil && r.Out != nil:
-		return fmt.Sprintf("-> %s error=%s %s", r.Request, r.Error, r.Out)
-	case r.Error != nil:
-		return fmt.Sprintf("-> %s error=%s", r.Request, r.Error)
+	case r.Errno != "" && r.Out != nil:
+		return fmt.Sprintf("-> %s error=%s %s", r.Request, r.errstr(), r.Out)
+	case r.Errno != "":
+		return fmt.Sprintf("-> %s error=%s", r.Request, r.errstr())
 	case r.Out != nil:
-		return fmt.Sprintf("-> %s %s", r.Request, r.Out)
+		// make sure (seemingly) empty values are readable
+		switch r.Out.(type) {
+		case string:
+			return fmt.Sprintf("-> %s %q", r.Request, r.Out)
+		case []byte:
+			return fmt.Sprintf("-> %s [% x]", r.Request, r.Out)
+		default:
+			return fmt.Sprintf("-> %s %s", r.Request, r.Out)
+		}
 	default:
 		return fmt.Sprintf("-> %s", r.Request)
 	}
@@ -556,11 +620,11 @@ func (m *renameNewDirNodeNotFound) String() string {
 	return fmt.Sprintf("In RenameRequest (request %#x), node %d not found", m.Request.Hdr().ID, m.In.NewDir)
 }
 
-func (c *serveConn) serve(fs FS, r fuse.Request) {
+func (c *serveConn) serve(r fuse.Request) {
 	intr := make(Intr)
 	req := &serveRequest{Request: r, Intr: intr}
 
-	fuse.Debug(request{
+	c.debug(request{
 		Op:      opName(r),
 		Request: r.Hdr(),
 		In:      r,
@@ -575,10 +639,10 @@ func (c *serveConn) serve(fs FS, r fuse.Request) {
 		}
 		if snode == nil {
 			c.meta.Unlock()
-			fuse.Debug(response{
+			c.debug(response{
 				Op:      opName(r),
 				Request: logResponseHeader{ID: hdr.ID},
-				Error:   fuse.ESTALE,
+				Error:   fuse.ESTALE.ErrnoName(),
 				// this is the only place that sets both Error and
 				// Out; not sure if i want to do that; might get rid
 				// of len(c.node) things altogether
@@ -611,12 +675,23 @@ func (c *serveConn) serve(fs FS, r fuse.Request) {
 			Op:      opName(r),
 			Request: logResponseHeader{ID: hdr.ID},
 		}
-		if err, ok := resp.(fuse.Error); ok {
-			msg.Error = err
+		if err, ok := resp.(error); ok {
+			msg.Error = err.Error()
+			if ferr, ok := err.(fuse.ErrorNumber); ok {
+				errno := ferr.Errno()
+				msg.Errno = errno.ErrnoName()
+				if errno == err {
+					// it's just a fuse.Errno with no extra detail;
+					// skip the textual message for log readability
+					msg.Error = ""
+				}
+			} else {
+				msg.Errno = fuse.DefaultErrno.ErrnoName()
+			}
 		} else {
 			msg.Out = resp
 		}
-		fuse.Debug(msg)
+		c.debug(msg)
 
 		c.meta.Lock()
 		delete(c.req, hdr.ID)
@@ -636,7 +711,7 @@ func (c *serveConn) serve(fs FS, r fuse.Request) {
 		s := &fuse.InitResponse{
 			MaxWrite: 4096,
 		}
-		if fs, ok := fs.(FSIniter); ok {
+		if fs, ok := c.fs.(FSIniter); ok {
 			if err := fs.Init(r, s, intr); err != nil {
 				done(err)
 				r.RespondError(err)
@@ -648,7 +723,7 @@ func (c *serveConn) serve(fs FS, r fuse.Request) {
 
 	case *fuse.StatfsRequest:
 		s := &fuse.StatfsResponse{}
-		if fs, ok := fs.(FSStatfser); ok {
+		if fs, ok := c.fs.(FSStatfser); ok {
 			if err := fs.Statfs(r, s, intr); err != nil {
 				done(err)
 				r.RespondError(err)
@@ -742,7 +817,7 @@ func (c *serveConn) serve(fs FS, r fuse.Request) {
 		}
 		c.meta.Unlock()
 		if oldNode == nil {
-			fuse.Debug(logLinkRequestOldNodeNotFound{
+			c.debug(logLinkRequestOldNodeNotFound{
 				Request: r.Hdr(),
 				In:      r,
 			})
@@ -976,7 +1051,7 @@ func (c *serveConn) serve(fs FS, r fuse.Request) {
 					var data []byte
 					for _, dir := range dirs {
 						if dir.Inode == 0 {
-							dir.Inode = hash(path.Join(snode.name, dir.Name))
+							dir.Inode = c.dynamicInode(snode.inode, dir.Name)
 						}
 						data = fuse.AppendDirent(data, dir)
 					}
@@ -1086,7 +1161,7 @@ func (c *serveConn) serve(fs FS, r fuse.Request) {
 		r.Respond()
 
 	case *fuse.DestroyRequest:
-		if fs, ok := fs.(FSDestroyer); ok {
+		if fs, ok := c.fs.(FSDestroyer); ok {
 			fs.Destroy()
 		}
 		done(nil)
@@ -1100,7 +1175,7 @@ func (c *serveConn) serve(fs FS, r fuse.Request) {
 		}
 		c.meta.Unlock()
 		if newDirNode == nil {
-			fuse.Debug(renameNewDirNodeNotFound{
+			c.debug(renameNewDirNodeNotFound{
 				Request: r.Hdr(),
 				In:      r,
 			})
@@ -1188,16 +1263,18 @@ func (c *serveConn) serve(fs FS, r fuse.Request) {
 }
 
 func (c *serveConn) saveLookup(s *fuse.LookupResponse, snode *serveNode, elem string, n2 Node) {
-	name := path.Join(snode.name, elem)
-	var sn *serveNode
-	s.Node, s.Generation, sn = c.saveNode(name, n2)
+	s.Attr = nodeAttr(n2)
+	if s.Attr.Inode == 0 {
+		s.Attr.Inode = c.dynamicInode(snode.inode, elem)
+	}
+
+	s.Node, s.Generation = c.saveNode(s.Attr.Inode, n2)
 	if s.EntryValid == 0 {
 		s.EntryValid = entryValidTime
 	}
 	if s.AttrValid == 0 {
 		s.AttrValid = attrValidTime
 	}
-	s.Attr = sn.attr()
 }
 
 // DataHandle returns a read-only Handle that satisfies reads
@@ -1212,4 +1289,28 @@ type dataHandle struct {
 
 func (d *dataHandle) ReadAll(intr Intr) ([]byte, fuse.Error) {
 	return d.data, nil
+}
+
+// GenerateDynamicInode returns a dynamic inode.
+//
+// The parent inode and current entry name are used as the criteria
+// for choosing a pseudorandom inode. This makes it likely the same
+// entry will get the same inode on multiple runs.
+func GenerateDynamicInode(parent uint64, name string) uint64 {
+	h := fnv.New64a()
+	var buf [8]byte
+	binary.LittleEndian.PutUint64(buf[:], parent)
+	_, _ = h.Write(buf[:])
+	_, _ = h.Write([]byte(name))
+	var inode uint64
+	for {
+		inode = h.Sum64()
+		if inode != 0 {
+			break
+		}
+		// there's a tiny probability that result is zero; change the
+		// input a little and try again
+		_, _ = h.Write([]byte{'x'})
+	}
+	return inode
 }

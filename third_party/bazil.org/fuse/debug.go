@@ -11,4 +11,4 @@ func stack() string {
 
 func nop(msg interface{}) {}
 
-var Debug = nop
+var Debug func(msg interface{}) = nop
