@@ -17,6 +17,7 @@ limitations under the License.
 package index_test
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -337,5 +338,148 @@ func testEnumerateOrder(t *testing.T,
 		if v.Ref != want[k] {
 			t.Fatalf("Wrong result from enumeration. Got %v, wanted %v.", v.Ref, want[k])
 		}
+	}
+}
+
+// should be run with -race
+func TestCacheSortedPermanodes_ModtimeRace(t *testing.T) {
+	testCacheSortedPermanodesRace(t,
+		func(c *index.Corpus, ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+			return c.EnumeratePermanodesLastModifiedLocked(ctx, ch)
+		},
+	)
+}
+
+// should be run with -race
+func TestCacheSortedPermanodes_CreateTimeRace(t *testing.T) {
+	testCacheSortedPermanodesRace(t,
+		func(c *index.Corpus, ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+			return c.EnumeratePermanodesCreatedLocked(ctx, ch, true)
+		},
+	)
+}
+
+func testCacheSortedPermanodesRace(t *testing.T,
+	enumFunc func(*index.Corpus, *context.Context, chan<- camtypes.BlobMeta) error) {
+	idx := index.NewMemoryIndex()
+	idxd := indextest.NewIndexDeps(idx)
+	idxd.Fataler = t
+	c, err := idxd.Index.KeepInMemory()
+	if err != nil {
+		t.Fatalf("error slurping index to memory: %v", err)
+	}
+	donec := make(chan struct{})
+	go func() {
+		for i := 0; i < 100; i++ {
+			nth := fmt.Sprintf("%d", i)
+			pn := idxd.NewPlannedPermanode(nth)
+			idxd.SetAttribute(pn, "tag", nth)
+		}
+		donec <- struct{}{}
+	}()
+	go func() {
+		for i := 0; i < 10; i++ {
+			ch := make(chan camtypes.BlobMeta, 10)
+			errc := make(chan error, 1)
+			c.RLock()
+			go func() { errc <- enumFunc(c, context.TODO(), ch) }()
+			for _ = range ch {
+			}
+			err := <-errc
+			c.RUnlock()
+			if err != nil {
+				t.Fatalf("Could not enumerate permanodes: %v", err)
+			}
+		}
+		donec <- struct{}{}
+	}()
+	<-donec
+	<-donec
+}
+
+func TestLazySortedPermanodes(t *testing.T) {
+	idx := index.NewMemoryIndex()
+	idxd := indextest.NewIndexDeps(idx)
+	idxd.Fataler = t
+	c, err := idxd.Index.KeepInMemory()
+	if err != nil {
+		t.Fatalf("error slurping index to memory: %v", err)
+	}
+
+	lsp := c.Exp_LSPByTime(false)
+	if len(lsp) != 0 {
+		t.Fatal("LazySortedPermanodes cache should be empty on startup")
+	}
+
+	pn := idxd.NewPlannedPermanode("one")
+	idxd.SetAttribute(pn, "tag", "one")
+
+	enum := func(reverse bool) {
+		ch := make(chan camtypes.BlobMeta, 10)
+		errc := make(chan error, 1)
+		c.RLock()
+		go func() { errc <- c.EnumeratePermanodesCreatedLocked(context.TODO(), ch, reverse) }()
+		for _ = range ch {
+		}
+		err := <-errc
+		c.RUnlock()
+		if err != nil {
+			t.Fatalf("Could not enumerate permanodes: %v", err)
+		}
+	}
+	enum(false)
+	lsp = c.Exp_LSPByTime(false)
+	if len(lsp) != 1 {
+		t.Fatalf("LazySortedPermanodes after 1st enum: got %v items, wanted 1", len(lsp))
+	}
+	lsp = c.Exp_LSPByTime(true)
+	if len(lsp) != 0 {
+		t.Fatalf("LazySortedPermanodes reversed after 1st enum: got %v items, wanted 0", len(lsp))
+	}
+
+	enum(true)
+	lsp = c.Exp_LSPByTime(false)
+	if len(lsp) != 1 {
+		t.Fatalf("LazySortedPermanodes after 2nd enum: got %v items, wanted 1", len(lsp))
+	}
+	lsp = c.Exp_LSPByTime(true)
+	if len(lsp) != 1 {
+		t.Fatalf("LazySortedPermanodes reversed after 2nd enum: got %v items, wanted 1", len(lsp))
+	}
+
+	pn = idxd.NewPlannedPermanode("two")
+	idxd.SetAttribute(pn, "tag", "two")
+
+	enum(true)
+	lsp = c.Exp_LSPByTime(false)
+	if len(lsp) != 0 {
+		t.Fatalf("LazySortedPermanodes after 2nd permanode: got %v items, wanted 0 because of cache invalidation", len(lsp))
+	}
+	lsp = c.Exp_LSPByTime(true)
+	if len(lsp) != 2 {
+		t.Fatalf("LazySortedPermanodes reversed after 2nd permanode: got %v items, wanted 2", len(lsp))
+	}
+
+	pn = idxd.NewPlannedPermanode("three")
+	idxd.SetAttribute(pn, "tag", "three")
+
+	enum(false)
+	lsp = c.Exp_LSPByTime(true)
+	if len(lsp) != 0 {
+		t.Fatalf("LazySortedPermanodes reversed after 3rd permanode: got %v items, wanted 0 because of cache invalidation", len(lsp))
+	}
+	lsp = c.Exp_LSPByTime(false)
+	if len(lsp) != 3 {
+		t.Fatalf("LazySortedPermanodes after 3rd permanode: got %v items, wanted 3", len(lsp))
+	}
+
+	enum(true)
+	lsp = c.Exp_LSPByTime(false)
+	if len(lsp) != 3 {
+		t.Fatalf("LazySortedPermanodes after 5th enum: got %v items, wanted 3", len(lsp))
+	}
+	lsp = c.Exp_LSPByTime(true)
+	if len(lsp) != 3 {
+		t.Fatalf("LazySortedPermanodes reversed after 5th enum: got %v items, wanted 3", len(lsp))
 	}
 }
