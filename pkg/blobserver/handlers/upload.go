@@ -27,7 +27,6 @@ import (
 	"net/http"
 	"path"
 	"strings"
-	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -135,9 +134,9 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blob.SizedRef)
 	// 1) the permanode's signature
 	// 2) the camliContent attribute claim's "claimDate"
 	// 3) the signature time of 2)
-	claimDate, err := time.Parse(time.RFC3339, fr.FileSchema().UnixMtime)
-	if err != nil {
-		return fmt.Errorf("While parsing modtime for file %v: %v", fr.FileSchema().FileName, err)
+	claimDate := fr.UnixMtime()
+	if claimDate.IsZero() {
+		return fmt.Errorf("While parsing modtime for file %v: %v", fr.FileName(), err)
 	}
 
 	permanodeBB := schema.NewHashPlannedPermanode(h)

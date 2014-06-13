@@ -25,6 +25,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/singleflight"
@@ -129,10 +130,17 @@ func (fr *FileReader) LoadAllChunks() {
 	go fr.GetChunkOffsets(offsetc)
 }
 
-// FileSchema returns the reader's schema superset. Don't mutate it.
-func (fr *FileReader) FileSchema() *superset {
-	return fr.ss
+// UnixMtime returns the file schema's UnixMtime field, or the zero value.
+func (fr *FileReader) UnixMtime() time.Time {
+	t, err := time.Parse(time.RFC3339, fr.ss.UnixMtime)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
 }
+
+// FileName returns the file schema's filename, if any.
+func (fr *FileReader) FileName() string { return fr.ss.FileName }
 
 func (fr *FileReader) Close() error {
 	// TODO: close cached blobs?

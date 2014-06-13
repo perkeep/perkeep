@@ -58,9 +58,8 @@ func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 	}
 	defer fr.Close()
 
-	schema := fr.FileSchema()
 	h := rw.Header()
-	h.Set("Content-Length", fmt.Sprintf("%d", schema.SumPartsSize()))
+	h.Set("Content-Length", fmt.Sprintf("%d", fr.Size()))
 	h.Set("Expires", time.Now().Add(oneYear).Format(http.TimeFormat))
 
 	mimeType := magic.MIMETypeFromReaderAt(fr)
