@@ -818,6 +818,8 @@ func (c *Corpus) typeSpecificNodeTimeLocked(nodeType string, pn blob.Ref) (t tim
 	switch nodeType {
 	case "foursquare.com:checkin":
 		attr = "startDate"
+	case "twitter.com:tweet":
+		attr = "startDate"
 	// TODO(mpl): other nodeTypes from importers
 	default:
 		return t, errUnsupportedNodeType
