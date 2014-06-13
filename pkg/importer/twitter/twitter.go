@@ -18,19 +18,26 @@ limitations under the License.
 package twitter
 
 import (
+	"archive/zip"
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
+	"camlistore.org/pkg/syncutil"
 	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
 )
 
@@ -41,18 +48,36 @@ const (
 	tokenRequestURL               = "https://api.twitter.com/oauth/access_token"
 	userInfoAPIPath               = "account/verify_credentials.json"
 
-	// Permanode attributes on account node:
-	acctAttrUserID     = "twitterUserID"
-	acctAttrScreenName = "twitterScreenName"
-	acctAttrUserFirst  = "twitterFirstName"
-	acctAttrUserLast   = "twitterLastName"
+	// runCompleteVersion is a cache-busting version number of the
+	// importer code. It should be incremented whenever the
+	// behavior of this importer is updated enough to warrant a
+	// complete run.  Otherwise, if the importer runs to
+	// completion, this version number is recorded on the account
+	// permanode and subsequent importers can stop early.
+	runCompleteVersion = "1"
+
 	// TODO(mpl): refactor these 4 below into an oauth package when doing flickr.
 	acctAttrTempToken         = "oauthTempToken"
 	acctAttrTempSecret        = "oauthTempSecret"
 	acctAttrAccessToken       = "oauthAccessToken"
 	acctAttrAccessTokenSecret = "oauthAccessTokenSecret"
 
+	// acctAttrTweetZip specifies an optional attribte for the account permanode.
+	// If set, it should be of a "file" schema blob referencing the tweets.zip
+	// file that Twitter makes available for the full archive download.
+	// The Twitter API doesn't go back forever in time, so if you started using
+	// the Camlistore importer too late, you need to "camput file tweets.zip"
+	// once downloading it from Twitter, and then:
+	//   $ camput attr <acct-permanode> twitterArchiveZipFileRef <zip-fileref>
+	// ... and re-do an import.
+	acctAttrTweetZip = "twitterArchiveZipFileRef"
+
+	// acctAttrTweetDoneVersion is updated at the end of a successful zip import and
+	// is used to determine whether the zip file needs to be re-imported in a future run.
+	acctAttrTweetDoneVersion = "twitterZipDoneVersion" // == "<fileref>:<runCompleteVersion>"
+
 	tweetRequestLimit = 200 // max number of tweets we can get in a user_timeline request
+	tweetsAtOnce      = 20  // how many tweets to import at once
 )
 
 func init() {
@@ -68,7 +93,7 @@ type imp struct {
 func (im *imp) NeedsAPIKey() bool { return true }
 
 func (im *imp) IsAccountReady(acctNode *importer.Object) (ok bool, err error) {
-	if acctNode.Attr(acctAttrUserID) != "" && acctNode.Attr(acctAttrAccessToken) != "" {
+	if acctNode.Attr(importer.AcctAttrUserID) != "" && acctNode.Attr(acctAttrAccessToken) != "" {
 		return true, nil
 	}
 	return false, nil
@@ -82,11 +107,15 @@ func (im *imp) SummarizeAccount(acct *importer.Object) string {
 	if !ok {
 		return "Not configured"
 	}
-	if acct.Attr(acctAttrUserFirst) == "" && acct.Attr(acctAttrUserLast) == "" {
-		return fmt.Sprintf("@%s", acct.Attr(acctAttrScreenName))
+	s := fmt.Sprintf("@%s (%s), twitter id %s",
+		acct.Attr(importer.AcctAttrUserName),
+		acct.Attr(importer.AcctAttrName),
+		acct.Attr(importer.AcctAttrUserID),
+	)
+	if acct.Attr(acctAttrTweetZip) != "" {
+		s += " + zip file"
 	}
-	return fmt.Sprintf("@%s (%s %s)", acct.Attr(acctAttrScreenName),
-		acct.Attr(acctAttrUserFirst), acct.Attr(acctAttrUserLast))
+	return s
 }
 
 func (im *imp) AccountSetupHTML(host *importer.Host) string {
@@ -110,8 +139,14 @@ func (im *imp) AccountSetupHTML(host *importer.Host) string {
 type run struct {
 	*importer.RunContext
 	im          *imp
+	incremental bool // whether we've completed a run in the past
+
 	oauthClient *oauth.Client      // No need to guard, used read-only.
 	accessCreds *oauth.Credentials // No need to guard, used read-only.
+
+	mu       sync.Mutex // guards anyErr and apiTweet
+	anyErr   bool
+	apiTweet map[string]bool // twitter ID imported via API (not zip file) => true
 }
 
 func (r *run) oauthContext() oauthContext {
@@ -130,8 +165,11 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		return errors.New("access credentials not found")
 	}
 	r := &run{
-		RunContext: ctx,
-		im:         im,
+		RunContext:  ctx,
+		im:          im,
+		incremental: ctx.AccountNode().Attr(importer.AcctAttrCompletedVersion) == runCompleteVersion,
+		apiTweet:    map[string]bool{},
+
 		oauthClient: &oauth.Client{
 			TemporaryCredentialRequestURI: temporaryCredentialRequestURL,
 			ResourceOwnerAuthorizationURI: resourceOwnerAuthorizationURL,
@@ -146,7 +184,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 			Secret: accessSecret,
 		},
 	}
-	userID := ctx.AccountNode().Attr(acctAttrUserID)
+	userID := ctx.AccountNode().Attr(importer.AcctAttrUserID)
 	if userID == "" {
 		return errors.New("UserID hasn't been set by account setup.")
 	}
@@ -154,7 +192,56 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 	if err := r.importTweets(userID); err != nil {
 		return err
 	}
+
+	if zipRef := ctx.AccountNode().Attr(acctAttrTweetZip); zipRef != "" {
+		zipbr, ok := blob.Parse(zipRef)
+		if !ok {
+			return fmt.Errorf("invalid zip file blobref %q", zipRef)
+		}
+		fr, err := schema.NewFileReader(r.Host.BlobSource(), zipbr)
+		if err != nil {
+			return fmt.Errorf("error opening zip %v: %v", zipbr, err)
+		}
+		defer fr.Close()
+		zr, err := zip.NewReader(fr, fr.Size())
+		if err != nil {
+			return fmt.Errorf("Error opening twitter zip file %v: %v", zipRef, err)
+		}
+		if err := r.importTweetsFromZip(userID, zr); err != nil {
+			return err
+		}
+	}
+
+	r.mu.Lock()
+	anyErr := r.anyErr
+	r.mu.Unlock()
+
+	if !anyErr {
+		if err := r.AccountNode().SetAttrs(importer.AcctAttrCompletedVersion, runCompleteVersion); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+func (r *run) errorf(format string, args ...interface{}) {
+	log.Printf(format, args...)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.anyErr = true
+}
+
+func (r *run) noteAPITweet(t *tweetItem) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.apiTweet[t.Id] = true
+}
+
+func (r *run) wasAPITweet(t *tweetItem) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.apiTweet[t.Id]
 }
 
 type tweetItem struct {
@@ -167,22 +254,25 @@ func (r *run) importTweets(userID string) error {
 	maxId := ""
 	continueRequests := true
 
+	tweetsNode, err := r.getTopLevelNode("tweets", "Tweets")
+	if err != nil {
+		return err
+	}
+
+	numTweets := 0
+
 	for continueRequests {
 		if r.Context.IsCanceled() {
-			log.Printf("Twitter importer: interrupted")
+			r.errorf("Twitter importer: interrupted")
 			return context.ErrCanceled
 		}
 
 		var resp []*tweetItem
+		log.Printf("Fetching tweets for userid %s with max ID %q", userID, maxId)
 		if err := r.oauthContext().doAPI(&resp, "statuses/user_timeline.json",
 			"user_id", userID,
 			"count", strconv.Itoa(tweetRequestLimit),
 			"max_id", maxId); err != nil {
-			return err
-		}
-
-		tweetsNode, err := r.getTopLevelNode("tweets", "Tweets")
-		if err != nil {
 			return err
 		}
 
@@ -195,42 +285,151 @@ func (r *run) importTweets(userID string) error {
 			maxId = lastTweet.Id
 		}
 
-		for _, tweet := range resp {
-			if r.Context.IsCanceled() {
-				log.Printf("Twitter importer: interrupted")
-				return context.ErrCanceled
-			}
-			err = r.importTweet(tweetsNode, tweet)
-			if err != nil {
-				log.Printf("Twitter importer: error importing tweet %s %v", tweet.Id, err)
-				continue
-			}
+		var (
+			allDupMu sync.Mutex
+			allDups  = true
+			gate     = syncutil.NewGate(tweetsAtOnce)
+			grp      syncutil.Group
+		)
+		for i := range resp {
+			tweet := resp[i]
+			gate.Start()
+			grp.Go(func() error {
+				defer gate.Done()
+				dup, err := r.importTweet(tweetsNode, tweet)
+				if !dup {
+					allDupMu.Lock()
+					allDups = false
+					allDupMu.Unlock()
+				}
+				if err != nil {
+					r.errorf("Twitter importer: error importing tweet %s %v", tweet.Id, err)
+				}
+				r.noteAPITweet(tweet)
+				return err
+			})
+		}
+		if err := grp.Err(); err != nil {
+			return err
+		}
+		numTweets += len(resp)
+		log.Printf("Imported %d tweets.", numTweets)
+		if r.incremental && allDups {
+			log.Printf("twitter incremental import found end batch")
+			break
 		}
 	}
-
+	log.Printf("Successfully did full run of importing %d tweets", numTweets)
 	return nil
 }
 
-func (r *run) importTweet(parent *importer.Object, tweet *tweetItem) error {
-	tweetNode, err := parent.ChildPathObject(tweet.Id)
+func tweetsFromZipFile(zf *zip.File) (tweets []*tweetItem, err error) {
+	rc, err := zf.Open()
+	if err != nil {
+		return nil, err
+	}
+	slurp, err := ioutil.ReadAll(rc)
+	rc.Close()
+	if err != nil {
+		return nil, err
+	}
+	i := bytes.IndexByte(slurp, '[')
+	if i < 0 {
+		return nil, errors.New("No '[' found in zip file")
+	}
+	slurp = slurp[i:]
+	if err := json.Unmarshal(slurp, &tweets); err != nil {
+		return nil, fmt.Errorf("JSON error: %v", err)
+	}
+	return
+}
+
+func (r *run) importTweetsFromZip(userID string, zr *zip.Reader) error {
+	log.Printf("Processing zip file with %d files", len(zr.File))
+
+	tweetsNode, err := r.getTopLevelNode("tweets", "Tweets")
 	if err != nil {
 		return err
 	}
 
-	title := "Tweet id " + tweet.Id
+	var (
+		gate = syncutil.NewGate(tweetsAtOnce)
+		grp  syncutil.Group
+	)
+	total, skipped := 0, 0
+	for _, zf := range zr.File {
+		if !(strings.HasPrefix(zf.Name, "data/js/tweets/2") && strings.HasSuffix(zf.Name, ".js")) {
+			continue
+		}
+		tweets, err := tweetsFromZipFile(zf)
+		if err != nil {
+			return fmt.Errorf("error reading tweets from %s: %v", zf.Name, err)
+		}
 
-	createdTime, err := time.Parse(time.RubyDate, tweet.CreatedAt)
+		for i := range tweets {
+			total++
+			tweet := tweets[i]
+			if r.wasAPITweet(tweet) {
+				skipped++
+				continue
+			}
+			gate.Start()
+			grp.Go(func() error {
+				defer gate.Done()
+				_, err := r.importTweet(tweetsNode, tweet)
+				return err
+			})
+		}
+	}
+	err = grp.Err()
+	log.Printf("zip import of tweets: %d total, %d skipped (were in API), err = %v", total, skipped, err)
+	return err
+}
+
+func timeParseFirstFormat(timeStr string, format ...string) (t time.Time, err error) {
+	if len(format) == 0 {
+		panic("need more than 1 format")
+	}
+	for _, f := range format {
+		t, err = time.Parse(f, timeStr)
+		if err == nil {
+			break
+		}
+	}
+	return
+}
+
+func (r *run) importTweet(parent *importer.Object, tweet *tweetItem) (dup bool, err error) {
+	if r.Context.IsCanceled() {
+		r.errorf("Twitter importer: interrupted")
+		return false, context.ErrCanceled
+	}
+	tweetNode, err := parent.ChildPathObject(tweet.Id)
 	if err != nil {
-		return fmt.Errorf("could not parse time %q: %v", tweet.CreatedAt, err)
+		return false, err
+	}
+
+	// e.g. "2014-06-12 19:11:51 +0000"
+	createdTime, err := timeParseFirstFormat(tweet.CreatedAt, time.RubyDate, "2006-01-02 15:04:05 -0700")
+	if err != nil {
+		return false, fmt.Errorf("could not parse time %q: %v", tweet.CreatedAt, err)
 	}
 
 	// TODO: import photos referenced in tweets
-	return tweetNode.SetAttrs(
+	url := fmt.Sprintf("https://twitter.com/%s/status/%v",
+		r.AccountNode().Attr(importer.AcctAttrUserName),
+		tweet.Id)
+	changes, err := tweetNode.SetAttrs2(
 		"twitterId", tweet.Id,
 		"camliNodeType", "twitter.com:tweet",
-		"startDate", schema.RFC3339FromTime(createdTime),
+		importer.AttrStartDate, schema.RFC3339FromTime(createdTime),
 		"content", tweet.Text,
-		"title", title)
+		importer.AttrURL, url,
+	)
+	if err == nil && changes {
+		log.Printf("Imported tweet %s", url)
+	}
+	return !changes, err
 }
 
 func (r *run) getTopLevelNode(path string, title string) (*importer.Object, error) {
@@ -355,18 +554,10 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		httputil.ServeError(w, r, fmt.Errorf("Couldn't get user info: %v", err))
 		return
 	}
-	firstName, lastName := "", ""
-	if u.Name != "" {
-		if pieces := strings.Fields(u.Name); len(pieces) == 2 {
-			firstName = pieces[0]
-			lastName = pieces[1]
-		}
-	}
 	if err := ctx.AccountNode.SetAttrs(
-		acctAttrUserID, u.ID,
-		acctAttrUserFirst, firstName,
-		acctAttrUserLast, lastName,
-		acctAttrScreenName, u.ScreenName,
+		importer.AcctAttrUserID, u.ID,
+		importer.AcctAttrName, u.Name,
+		importer.AcctAttrUserName, u.ScreenName,
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
 		return
