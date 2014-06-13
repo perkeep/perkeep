@@ -343,6 +343,7 @@ cam.IndexPage = React.createClass({
 					getSelectedItems: function() {
 						return this.state.selection;
 					}.bind(this),
+					serverConnection: this.props.serverConnection,
 				};
 				window.open('debug_console.html', 'debugconsole', 'width=400,height=300');
 				break;
