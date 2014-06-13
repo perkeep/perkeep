@@ -31,6 +31,13 @@ const (
 	// Example: "johnSmith" from Twitter's "@johnSmith".
 	AcctAttrUserName = "userName"
 
+	// AcctAttrCompletedVersion records the importer-specific
+	// "version number" that last ran to completion, doing a full
+	// importer. When importers are updated with new behavior,
+	// they update their version number and that triggers a full
+	// import, rather than incremental imports.
+	AcctAttrCompletedVersion = "completedVersion"
+
 	// AcctAttrName is a longer or alternate public representation of the account's name.
 	// It is often the full name of the person's account (family name and given name), thus
 	// sometimes redundant with the combination of acctAttrFamilyName and acctAttrGivenName.
@@ -62,6 +69,13 @@ const (
 	// http://schema.org/lastReviewed
 	// Value is in RFC3339 format.
 	AttrLastReviewed = "lastReviewed"
+	// AttrURL is the item's original or origin URL.
+	AttrURL = "url"
+
+	// AttrStartDate is http://schema.org/startDate: The start
+	// date and time of the event or item (in ISO 8601 date
+	// format)
+	AttrStartDate = "startDate"
 
 	// Image, photo.
 
