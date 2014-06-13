@@ -151,6 +151,7 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 	f("<html><head><title>Status</title></head>")
 	f("<body><h2>Status</h2>")
 	f("<p>As JSON: <a href='status.json'>status.json</a>; and the <a href='%s?camli.mode=config'>discovery JSON</a>.</p>", st.rootPrefix)
+	f("<p>TODO: not yet integrated into status:</p><ul><li><a href='/importer/'>Importers</a></li></ul>")
 	f("<p>Not yet pretty HTML UI:</p>")
 	js, err := json.MarshalIndent(st, "", "  ")
 	if err != nil {
