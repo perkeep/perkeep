@@ -54,7 +54,7 @@ const (
 	// complete run.  Otherwise, if the importer runs to
 	// completion, this version number is recorded on the account
 	// permanode and subsequent importers can stop early.
-	runCompleteVersion = "1"
+	runCompleteVersion = "2"
 
 	// TODO(mpl): refactor these 4 below into an oauth package when doing flickr.
 	acctAttrTempToken         = "oauthTempToken"
@@ -72,9 +72,9 @@ const (
 	// ... and re-do an import.
 	acctAttrTweetZip = "twitterArchiveZipFileRef"
 
-	// acctAttrTweetDoneVersion is updated at the end of a successful zip import and
+	// acctAttrZipDoneVersion is updated at the end of a successful zip import and
 	// is used to determine whether the zip file needs to be re-imported in a future run.
-	acctAttrTweetDoneVersion = "twitterZipDoneVersion" // == "<fileref>:<runCompleteVersion>"
+	acctAttrZipDoneVersion = "twitterZipDoneVersion" // == "<fileref>:<runCompleteVersion>"
 
 	tweetRequestLimit = 200 // max number of tweets we can get in a user_timeline request
 	tweetsAtOnce      = 20  // how many tweets to import at once
@@ -158,16 +158,16 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 	if err != nil {
 		return fmt.Errorf("no API credentials: %v", err)
 	}
-	accountNode := ctx.AccountNode()
-	accessToken := accountNode.Attr(acctAttrAccessToken)
-	accessSecret := accountNode.Attr(acctAttrAccessTokenSecret)
+	acctNode := ctx.AccountNode()
+	accessToken := acctNode.Attr(acctAttrAccessToken)
+	accessSecret := acctNode.Attr(acctAttrAccessTokenSecret)
 	if accessToken == "" || accessSecret == "" {
 		return errors.New("access credentials not found")
 	}
 	r := &run{
 		RunContext:  ctx,
 		im:          im,
-		incremental: ctx.AccountNode().Attr(importer.AcctAttrCompletedVersion) == runCompleteVersion,
+		incremental: acctNode.Attr(importer.AcctAttrCompletedVersion) == runCompleteVersion,
 		apiTweet:    map[string]bool{},
 
 		oauthClient: &oauth.Client{
@@ -184,7 +184,8 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 			Secret: accessSecret,
 		},
 	}
-	userID := ctx.AccountNode().Attr(importer.AcctAttrUserID)
+
+	userID := acctNode.Attr(importer.AcctAttrUserID)
 	if userID == "" {
 		return errors.New("UserID hasn't been set by account setup.")
 	}
@@ -193,7 +194,9 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		return err
 	}
 
-	if zipRef := ctx.AccountNode().Attr(acctAttrTweetZip); zipRef != "" {
+	zipRef := acctNode.Attr(acctAttrTweetZip)
+	zipDoneVal := zipRef + ":" + runCompleteVersion
+	if zipRef != "" && !(r.incremental && acctNode.Attr(acctAttrZipDoneVersion) == zipDoneVal) {
 		zipbr, ok := blob.Parse(zipRef)
 		if !ok {
 			return fmt.Errorf("invalid zip file blobref %q", zipRef)
@@ -210,6 +213,9 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		if err := r.importTweetsFromZip(userID, zr); err != nil {
 			return err
 		}
+		if err := acctNode.SetAttrs(acctAttrZipDoneVersion, zipDoneVal); err != nil {
+			return err
+		}
 	}
 
 	r.mu.Lock()
@@ -217,7 +223,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 	r.mu.Unlock()
 
 	if !anyErr {
-		if err := r.AccountNode().SetAttrs(importer.AcctAttrCompletedVersion, runCompleteVersion); err != nil {
+		if err := acctNode.SetAttrs(importer.AcctAttrCompletedVersion, runCompleteVersion); err != nil {
 			return err
 		}
 	}
