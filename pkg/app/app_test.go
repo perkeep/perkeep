@@ -98,7 +98,7 @@ func TestListenAddress(t *testing.T) {
 		},
 	}
 	for _, v := range tests {
-		os.Setenv("CAMLI_APP_BASEURL", v.baseURL)
+		os.Setenv("CAMLI_APP_BACKEND_URL", v.baseURL)
 		got, err := ListenAddress()
 		if v.wantErr {
 			if err == nil {

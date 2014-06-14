@@ -336,7 +336,7 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 
 	var hh http.Handler
 	if h.htype == "app" {
-		ap, err := app.New(h.conf, hl.baseURL+"/")
+		ap, err := app.NewHandler(h.conf, hl.baseURL+"/", prefix)
 		if err != nil {
 			exitFailure("error setting up app for prefix %q: %v", h.prefix, err)
 		}
@@ -390,7 +390,7 @@ type Config struct {
 
 	// apps is the list of server apps configured during InstallHandlers,
 	// and that should be started after camlistored has started serving.
-	apps []*app.AppHandler
+	apps []*app.Handler
 }
 
 // detectConfigChange returns an informative error if conf contains obsolete keys.
@@ -545,7 +545,7 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reind
 	// methods.
 	// And register apps that will be started later.
 	for pfx, handler := range hl.handler {
-		if starter, ok := handler.(*app.AppHandler); ok {
+		if starter, ok := handler.(*app.Handler); ok {
 			config.apps = append(config.apps, starter)
 		}
 		if in, ok := handler.(blobserver.HandlerIniter); ok {
@@ -571,7 +571,7 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reind
 func (config *Config) StartApps() error {
 	for _, ap := range config.apps {
 		if err := ap.Start(); err != nil {
-			return fmt.Errorf("error starting app %v: %v", ap.Name(), err)
+			return fmt.Errorf("error starting app %v: %v", ap.ProgramName(), err)
 		}
 	}
 	return nil
