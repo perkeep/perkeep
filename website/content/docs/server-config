@@ -72,14 +72,14 @@ config, as used by <code>devcam server</code>.</p>
 <pre>
 "publish": {
 	"/pics/": {
-		"rootPermanode": "sha1-6cbe9e1c35e854eab028cba43d099d35ceae0de8",
-		"style": "pics.css",
-		"js": "pics.js",
+		"camliRoot": "mypics",
+		"baseURL": "http://localhost:3178/",
+		"cacheRoot": "/home/joe/var/camlistore/blobs/cache",
 		"goTemplate": "gallery.html"
 	}
 }
 </pre>
-<p>One can create any permanode with camput or the UI and use it as the rootPermanode.</p>
+<p>One can create any permanode with camput or the UI, and set its camliRoot attribute to the value set in the config, to use it as the root permanode for publishing.</p>
 
 <p>Please see the <a href="/gw/doc/publishing/README"">publishing README</a> if you want to make/contribute more publishing views.</p>
 

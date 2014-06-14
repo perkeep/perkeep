@@ -639,53 +639,6 @@ func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 	httputil.ReturnJSON(rw, res)
 }
 
-// Given a blobref and a few hex characters of the digest of the next hop, return the complete
-// blobref of the prefix, if that's a valid next hop.
-func (sh *Handler) ResolvePrefixHop(parent blob.Ref, prefix string) (child blob.Ref, err error) {
-	// TODO: this is a linear scan right now. this should be
-	// optimized to use a new database table of members so this is
-	// a quick lookup.  in the meantime it should be in memcached
-	// at least.
-	if len(prefix) < 8 {
-		return blob.Ref{}, fmt.Errorf("Member prefix %q too small", prefix)
-	}
-	dr := sh.NewDescribeRequest()
-	dr.Describe(parent, 1)
-	res, err := dr.Result()
-	if err != nil {
-		return
-	}
-	des, ok := res[parent.String()]
-	if !ok {
-		return blob.Ref{}, fmt.Errorf("Failed to describe member %q in parent %q", prefix, parent)
-	}
-	if des.Permanode != nil {
-		cr, ok := des.ContentRef()
-		if ok && strings.HasPrefix(cr.Digest(), prefix) {
-			return cr, nil
-		}
-		for _, member := range des.Members() {
-			if strings.HasPrefix(member.BlobRef.Digest(), prefix) {
-				return member.BlobRef, nil
-			}
-		}
-		_, err := dr.DescribeSync(cr)
-		if err != nil {
-			return blob.Ref{}, fmt.Errorf("Failed to describe content %q of parent %q", cr, parent)
-		}
-		if _, _, ok := des.PermanodeDir(); ok {
-			return sh.ResolvePrefixHop(cr, prefix)
-		}
-	} else if des.Dir != nil {
-		for _, child := range des.DirChildren {
-			if strings.HasPrefix(child.Digest(), prefix) {
-				return child, nil
-			}
-		}
-	}
-	return blob.Ref{}, fmt.Errorf("Member prefix %q not found in %q", prefix, parent)
-}
-
 func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 	ret := jsonMap()
 	defer httputil.ReturnJSON(rw, ret)

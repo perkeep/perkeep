@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package server
+package main
 
 import (
 	"archive/zip"
@@ -31,12 +31,13 @@ import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/types/camtypes"
 )
 
 type zipHandler struct {
 	fetcher blob.Fetcher
-	search  *search.Handler
-	// the "parent" permanode of everything to zip.
+	cl      client // Used for search and describe requests.
+	// root is the "parent" permanode of everything to zip.
 	// Either a directory permanode, or a permanode with members.
 	root blob.Ref
 	// Optional name to use in the response header
@@ -58,17 +59,47 @@ func (s sortedFiles) Less(i, j int) bool { return s[i].path < s[j].path }
 func (s sortedFiles) Len() int           { return len(s) }
 func (s sortedFiles) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
+func (zh *zipHandler) describeMembers(br blob.Ref) (*search.DescribeResponse, error) {
+	res, err := zh.cl.Search(&search.SearchQuery{
+		Constraint: &search.Constraint{
+			BlobRefPrefix: br.String(),
+			CamliType:     "permanode",
+		},
+		Describe: &search.DescribeRequest{
+			ThumbnailSize: 1000,
+			Depth:         1,
+			Rules: []*search.DescribeRule{
+				{
+					Attrs: []string{"camliContent", "camliContentImage", "camliMember"},
+				},
+			},
+		},
+		Limit: -1,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("Could not describe %v: %v", br, err)
+	}
+	if res == nil || res.Describe == nil {
+		return nil, fmt.Errorf("no describe result for %v", br)
+	}
+	return res.Describe, nil
+}
+
 // blobList returns the list of file blobs "under" dirBlob.
 // It traverses permanode directories and permanode with members (collections).
 func (zh *zipHandler) blobList(dirPath string, dirBlob blob.Ref) ([]*blobFile, error) {
-	dr := zh.search.NewDescribeRequest()
-	dr.Describe(dirBlob, 3)
-	res, err := dr.Result()
+	//	dr := zh.search.NewDescribeRequest()
+	//	dr.Describe(dirBlob, 3)
+	//	res, err := dr.Result()
+	//	if err != nil {
+	//		return nil, fmt.Errorf("Could not describe %v: %v", dirBlob, err)
+	//	}
+	res, err := zh.describeMembers(dirBlob)
 	if err != nil {
-		return nil, fmt.Errorf("Could not describe %v: %v", dirBlob, err)
+		return nil, err
 	}
 
-	described := res[dirBlob.String()]
+	described := res.Meta[dirBlob.String()]
 	members := described.Members()
 	dirBlobPath, _, isDir := described.PermanodeDir()
 	if len(members) == 0 && !isDir {
@@ -85,13 +116,13 @@ func (zh *zipHandler) blobList(dirPath string, dirBlob blob.Ref) ([]*blobFile, e
 		return list, nil
 	}
 	for _, member := range members {
-		if fileBlobPath, fileInfo, ok := member.PermanodeFile(); ok {
+		if fileBlobPath, fileInfo, ok := getFileInfo(member.BlobRef, res.Meta); ok {
 			// file
 			list = append(list,
 				&blobFile{fileBlobPath[1], path.Join(dirPath, fileInfo.FileName)})
 			continue
 		}
-		if dirBlobPath, dirInfo, ok := member.PermanodeDir(); ok {
+		if dirBlobPath, dirInfo, ok := getDirInfo(member.BlobRef, res.Meta); ok {
 			// directory
 			newZipRoot := dirBlobPath[1]
 			children, err := zh.blobsFromDir(
@@ -257,4 +288,22 @@ func (zh *zipHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		log.Printf("Could not close zipwriter: %v", err)
 		return
 	}
+}
+
+// TODO(mpl): refactor with getFileInfo
+func getDirInfo(item blob.Ref, peers map[string]*search.DescribedBlob) (path []blob.Ref, di *camtypes.FileInfo, ok bool) {
+	described := peers[item.String()]
+	if described == nil ||
+		described.Permanode == nil ||
+		described.Permanode.Attr == nil {
+		return
+	}
+	contentRef := described.Permanode.Attr.Get("camliContent")
+	if contentRef == "" {
+		return
+	}
+	if cdes := peers[contentRef]; cdes != nil && cdes.Dir != nil {
+		return []blob.Ref{described.BlobRef, cdes.BlobRef}, cdes.Dir, true
+	}
+	return
 }

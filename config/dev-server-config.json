@@ -28,31 +28,17 @@
 			}
 		},
 
-		"/blog/": {
-			"enabled": ["_env", "${CAMLI_PUBLISH_ENABLED}"],
-			"handler": "publish",
-			"handlerArgs": {
-				"rootName": "dev-blog-root",
-				"blobRoot": "/bs/",
-				"searchRoot": "/my-search/",
-				"cache": "/cache/",
-				"goTemplate": "blog.html",
-				"devBootstrapPermanodeUsing": "/sighelper/"
-			}
-		},
-
 		"/pics/": {
+			"handler": "app",
 			"enabled": ["_env", "${CAMLI_PUBLISH_ENABLED}"],
-			"handler": "publish",
 			"handlerArgs": {
-				"rootName": "dev-pics-root",
-				"blobRoot": "/bs/",
-				"searchRoot": "/my-search/",
-				"cache": "/cache/",
-				"css": ["pics.css"],
-				"js": ["pics.js"],
-				"goTemplate": "gallery.html",
-				"devBootstrapPermanodeUsing": "/sighelper/"
+				"program": "publisher",
+				"appConfig": {
+					"camliRoot": "dev-pics-root",
+					"sourceRoot": ["_env", "${CAMLI_DEV_CAMLI_ROOT}", ""],
+					"cacheRoot": ["_env", "${CAMLI_ROOT_CACHE}"],
+					"goTemplate": "gallery.html"
+				}
 			}
 		},
 
@@ -72,8 +58,7 @@
 				"scaledImage": {
 					"type": "kv",
 					"file": ["_env", "${CAMLI_ROOT_CACHE}/thumbnails.kv", ""]
-				},
-				"publishRoots": ["/blog/", "/pics/"]
+				}
 			}
 		},
 

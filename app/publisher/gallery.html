@@ -3,12 +3,6 @@
 {{if $header := call .Header}}
 	<head>
 	<title>{{$header.Title}}</title>
-	{{range $js := $header.JSDeps}}
-		<script src='{{$js}}'></script>
-	{{end}}
-	{{if $header.CamliClosure}}
-		<script>goog.require('{{$header.CamliClosure}}');</script>
-	{{end}}
 	{{range $css := $header.CSSFiles}}
 		<link rel='stylesheet' type='text/css' href='{{$css}}'>
 	{{end}}
@@ -52,14 +46,6 @@
 			</li>
 		{{end}}
 		</ul>
-	{{end}}
-	{{end}}
-	{{if $header.CamliClosure}}
-	{{if $header.ViewerIsOwner}}
-		<script>
-			var page = new {{$header.CamliClosure}}(CAMLISTORE_CONFIG);
-			page.decorate(document.body);
-		</script>
 	{{end}}
 	{{end}}
 {{end}}

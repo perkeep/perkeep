@@ -169,6 +169,7 @@ func main() {
 		"camlistore.org/cmd/camtool",
 		"camlistore.org/server/camlistored",
 		"camlistore.org/app/hello",
+		"camlistore.org/app/publisher",
 	}
 	switch *targets {
 	case "*":
@@ -345,7 +346,7 @@ func buildSrcPath(fromSrc string) string {
 // kept in between runs.
 func genEmbeds() error {
 	cmdName := exeName(filepath.Join(buildGoPath, "bin", "genfileembed"))
-	for _, embeds := range []string{"server/camlistored/ui", "pkg/server", "third_party/react", "third_party/glitch", "third_party/fontawesome"} {
+	for _, embeds := range []string{"server/camlistored/ui", "pkg/server", "third_party/react", "third_party/glitch", "third_party/fontawesome", "app/publisher"} {
 		embeds := buildSrcPath(embeds)
 		args := []string{embeds}
 		cmd := exec.Command(cmdName, args...)
