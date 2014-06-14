@@ -19,9 +19,9 @@
 
 		"/hello/": {
 			"handler": "app",
+			"enabled": ["_env", "${CAMLI_HELLO_ENABLED}"],
 			"handlerArgs": {
 				"program": "hello",
-				"baseURL": "http://localhost:3178/",
 				"appConfig": {
 					"word": "world"
 				}
