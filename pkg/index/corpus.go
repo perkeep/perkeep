@@ -1137,7 +1137,7 @@ func (c *Corpus) PermanodeLatLongLocked(pn blob.Ref, at time.Time) (lat, long fl
 		}
 		return c.PermanodeLatLongLocked(venuePn, at)
 	}
-	if nodeType == "foursquare.com:venue" {
+	if nodeType == "foursquare.com:venue" || nodeType == "twitter.com:tweet" {
 		var err error
 		lat, err = strconv.ParseFloat(c.PermanodeAttrValueLocked(pn, "latitude", at, blob.Ref{}), 64)
 		if err != nil {

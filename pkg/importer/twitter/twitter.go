@@ -54,7 +54,7 @@ const (
 	// complete run.  Otherwise, if the importer runs to
 	// completion, this version number is recorded on the account
 	// permanode and subsequent importers can stop early.
-	runCompleteVersion = "2"
+	runCompleteVersion = "3"
 
 	// TODO(mpl): refactor these 4 below into an oauth package when doing flickr.
 	acctAttrTempToken         = "oauthTempToken"
@@ -250,12 +250,6 @@ func (r *run) wasAPITweet(t *tweetItem) bool {
 	return r.apiTweet[t.Id]
 }
 
-type tweetItem struct {
-	Id        string `json:"id_str"`
-	Text      string
-	CreatedAt string `json:"created_at"`
-}
-
 func (r *run) importTweets(userID string) error {
 	maxId := ""
 	continueRequests := true
@@ -425,13 +419,21 @@ func (r *run) importTweet(parent *importer.Object, tweet *tweetItem) (dup bool, 
 	url := fmt.Sprintf("https://twitter.com/%s/status/%v",
 		r.AccountNode().Attr(importer.AcctAttrUserName),
 		tweet.Id)
-	changes, err := tweetNode.SetAttrs2(
+	attrs := []string{
+
 		"twitterId", tweet.Id,
 		"camliNodeType", "twitter.com:tweet",
 		importer.AttrStartDate, schema.RFC3339FromTime(createdTime),
 		"content", tweet.Text,
 		importer.AttrURL, url,
-	)
+	}
+	if lat, long, ok := tweet.LatLong(); ok {
+		attrs = append(attrs,
+			"latitude", fmt.Sprint(lat),
+			"longitude", fmt.Sprint(long),
+		)
+	}
+	changes, err := tweetNode.SetAttrs2(attrs...)
 	if err == nil && changes {
 		log.Printf("Imported tweet %s", url)
 	}
@@ -617,4 +619,38 @@ func (ctx oauthContext) doGet(url string, form url.Values) (*http.Response, erro
 		return nil, fmt.Errorf("Get request on %s failed with: %s", url, res.Status)
 	}
 	return res, nil
+}
+
+type tweetItem struct {
+	Id        string `json:"id_str"`
+	Text      string
+	CreatedAt string `json:"created_at"`
+
+	// One or both might be present:
+	Geo         *geo    `json:"geo"`         // lat, long
+	Coordinates *coords `json:"coordinates"` // geojson: long, lat
+}
+
+func (t *tweetItem) LatLong() (lat, long float64, ok bool) {
+	if g := t.Geo; g != nil && len(g.Coordinates) == 2 {
+		c := g.Coordinates
+		if c[0] != 0 && c[1] != 0 {
+			return c[0], c[1], true
+		}
+	}
+	if g := t.Coordinates; g != nil && len(g.Coordinates) == 2 {
+		c := g.Coordinates
+		if c[0] != 0 && c[1] != 0 {
+			return c[1], c[0], true
+		}
+	}
+	return
+}
+
+type geo struct {
+	Coordinates []float64 `json:"coordinates"` // lat,long
+}
+
+type coords struct {
+	Coordinates []float64 `json:"coordinates"` // long,lat
 }
