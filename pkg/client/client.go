@@ -785,6 +785,22 @@ func (c *Client) GetJSON(url string, data interface{}) error {
 	return httputil.DecodeJSON(resp, data)
 }
 
+// Post is like http://golang.org/pkg/net/http/#Client.Post
+// but with implementation details like gated requests. The
+// URL's host must match the client's configured server.
+func (c *Client) Post(url string, bodyType string, body io.Reader) error {
+	if !strings.HasPrefix(url, c.discoRoot()) {
+		return fmt.Errorf("wrong URL (%q) for this server", url)
+	}
+	req := c.newRequest("POST", url, body)
+	req.Header.Set("Content-Type", bodyType)
+	res, err := c.expect2XX(req)
+	if err != nil {
+		return err
+	}
+	return res.Body.Close()
+}
+
 func (c *Client) newRequest(method, url string, body ...io.Reader) *http.Request {
 	var bodyR io.Reader
 	if len(body) > 0 {

@@ -87,6 +87,9 @@ func (cl ClaimsByDate) String() string {
 type FileInfo struct {
 	FileName string `json:"fileName"`
 
+	// TODO(mpl): I've noticed that Size is actually set to the
+	// number of entries in the dir. fix the doc or the behaviour?
+
 	// Size is the size of files. It is not set for directories.
 	Size int64 `json:"size"`
 

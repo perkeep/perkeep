@@ -27,30 +27,33 @@ import (
 
 const memLRUSize = 1024 // arbitrary
 
-// thumbMeta is a mapping from an image's scaling parameters (encoding
+var errCacheMiss = errors.New("not in cache")
+
+// ThumbMeta is a mapping from an image's scaling parameters (encoding
 // as an opaque "key" string) and the blobref of the thumbnail
-// (currently it's file schema blob)
+// (currently its file schema blob).
+// ThumbMeta is safe for concurrent use by multiple goroutines.
 //
 // The key will be some string containing the original full-sized image's
 // blobref, its target dimensions, and any possible transformations on
 // it (e.g. cropping it to square).
-
-var errCacheMiss = errors.New("not in cache")
-
-type thumbMeta struct {
-	mem *lru.Cache      // string (see key format) -> blob.Ref
+type ThumbMeta struct {
+	mem *lru.Cache      // key -> blob.Ref
 	kv  sorted.KeyValue // optional
 }
 
-// kv is optional
-func newThumbMeta(kv sorted.KeyValue) *thumbMeta {
-	return &thumbMeta{
+// NewThumbMeta returns a new in-memory ThumbMeta, backed with the
+// optional kv.
+// If kv is nil, key/value pairs are stored in memory only.
+func NewThumbMeta(kv sorted.KeyValue) *ThumbMeta {
+	return &ThumbMeta{
 		mem: lru.New(memLRUSize),
 		kv:  kv,
 	}
 }
 
-func (m *thumbMeta) Get(key string) (br blob.Ref, err error) {
+func (m *ThumbMeta) Get(key string) (blob.Ref, error) {
+	var br blob.Ref
 	if v, ok := m.mem.Get(key); ok {
 		return v.(blob.Ref), nil
 	}
@@ -72,7 +75,7 @@ func (m *thumbMeta) Get(key string) (br blob.Ref, err error) {
 	return br, errCacheMiss
 }
 
-func (m *thumbMeta) Put(key string, br blob.Ref) error {
+func (m *ThumbMeta) Put(key string, br blob.Ref) error {
 	m.mem.Add(key, br)
 	if m.kv != nil {
 		return m.kv.Set(key, br.String())

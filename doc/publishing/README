@@ -1,14 +1,13 @@
-Camlistore uses Go html templates (http://golang.org/pkg/text/template/) to publish pages.
+Camlistore delegates publishing to the publisher server application, which uses Go html templates (http://golang.org/pkg/text/template/) to publish pages.
 
-Resources for publishing, such as go templates, javascript and css files should be placed in server/camlistored/ui/, so they can be served directly when using the dev server or automatically embedded when using camlistored directly.
+Resources for publishing, such as go templates, javascript and css files should be placed in the application source directory - app/publisher/ - so they can be served directly when using the dev server or automatically embedded in production.
 
-You can then specify those resources through the configuration file. For example, there already is a go template (gallery.html), javascript file (pics.js) and css file (pics.css) that work together to provide publishing for image galleries. The dev server config (config/dev-server-config.json) already uses them. Here is how one would use them in the server config ($HOME/.config/camlistore/server-config.json):
+You should then specify the Go template to be used through the configuration file. The CSS files are automatically all available to the app. For example, there already is a go template (gallery.html), and css file (pics.css) that work together to provide publishing for image galleries. The dev server config (config/dev-server-config.json) already uses them. Here is how one would configure publishing for an image gallery in the server config ($HOME/.config/camlistore/server-config.json):
 
 "publish": {
 	"/pics/": {
-		"rootPermanode": "sha1-6cbe9e1c35e854eab028cba43d099d35ceae0de8",
-		"style": "pics.css",
-		"js": "pics.js",
+		"camliRoot": "mypics",
+		"cacheRoot": "/home/joe/var/camlistore/blobs/cache",
 		"goTemplate": "gallery.html"
 	}
 }

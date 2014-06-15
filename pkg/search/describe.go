@@ -456,32 +456,6 @@ func (b *DescribedBlob) peerBlob(br blob.Ref) *DescribedBlob {
 	return &DescribedBlob{Request: b.Request, BlobRef: br, Stub: true}
 }
 
-// HasSecureLinkTo returns true if there's a valid link from this blob
-// to the other blob. This is used in access control (hence the
-// somewhat redundant "Secure" in the name) and should be paranoid
-// against e.g. random user/attacker-control attributes making links
-// to other blobs.
-//
-// TODO: don't linear scan here.  rewrite this in terms of ResolvePrefixHop,
-// passing down some policy perhaps?  or maybe that's enough.
-func (b *DescribedBlob) HasSecureLinkTo(other blob.Ref) bool {
-	if b == nil || !other.Valid() {
-		return false
-	}
-	ostr := other.String()
-	if b.Permanode != nil {
-		if b.Permanode.Attr.Get("camliContent") == ostr {
-			return true
-		}
-		for _, mstr := range b.Permanode.Attr["camliMember"] {
-			if mstr == ostr {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func (b *DescribedBlob) isPermanode() bool {
 	return b.Permanode != nil
 }

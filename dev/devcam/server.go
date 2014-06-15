@@ -55,7 +55,7 @@ type serverCmd struct {
 
 	fullClosure bool
 	mini        bool
-	publish     bool // whether to start the publish handlers
+	publish     bool // whether to build and start the publisher app(s)
 	hello       bool // whether to build and start the hello demo app
 
 	openBrowser      bool
@@ -82,7 +82,7 @@ func init() {
 		flags.BoolVar(&cmd.tls, "tls", false, "Use TLS.")
 		flags.BoolVar(&cmd.wipe, "wipe", false, "Wipe the blobs on disk and the indexer.")
 		flags.BoolVar(&cmd.debug, "debug", false, "Enable http debugging.")
-		flags.BoolVar(&cmd.publish, "publish", true, "Enable publish handlers")
+		flags.BoolVar(&cmd.publish, "publish", true, "Enable publisher app(s)")
 		flags.BoolVar(&cmd.hello, "hello", false, "Enable hello (demo) app")
 		flags.BoolVar(&cmd.mini, "mini", false, "Enable minimal mode, where all optional features are disabled. (Currently just publishing)")
 
@@ -383,6 +383,9 @@ func (c *serverCmd) RunCommand(args []string) error {
 		}
 		if c.hello {
 			targets = append(targets, filepath.Join("app", "hello"))
+		}
+		if c.publish {
+			targets = append(targets, filepath.Join("app", "publisher"))
 		}
 		for _, name := range targets {
 			err := build(name)

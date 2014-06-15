@@ -13,24 +13,15 @@
 			}
 		},
 		"/blog/": {
-			"handler": "publish",
+			"handler": "app",
 			"handlerArgs": {
-				"blobRoot": "/bs-and-maybe-also-index/",
-				"cache": "/cache/",
-				"css": [
-					"blog-purple.css"
-				],
-				"goTemplate": "blog.html",
-				"rootName": "blogRoot",
-				"rootPermanode": [
-					"/sighelper/",
-					"sha1-2790ec1ec6fd44b9620b21155c8738aa08d4e3a0"
-				],
-				"scaledImage": {
-					"file": "/tmp/camli-cache/blog-thumbnails.kv",
-					"type": "kv"
-				},
-				"searchRoot": "/my-search/"
+				"program": "publisher",
+				"baseURL": "http://localhost:3178/",
+				"appConfig": {
+					"camliRoot": "blogRoot",
+					"goTemplate": "blog.html",
+					"cacheRoot": "/tmp/blobs/cache"
+				}
 			}
 		},
 		"/bs-and-index/": {
@@ -123,9 +114,6 @@
 			"handlerArgs": {
 				"cache": "/cache/",
 				"jsonSignRoot": "/sighelper/",
-				"publishRoots": [
-					"/blog/"
-				],
 				"scaledImage": {
 					"file": "/tmp/blobs/thumbmeta.kv",
 					"type": "kv"

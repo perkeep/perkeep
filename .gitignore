@@ -22,6 +22,7 @@ bin/cam*
 bin/devcam
 bin/*_*
 bin/hello
+bin/publisher
 tmp
 server/camlistored/newui/all.js
 server/camlistored/newui/all.js.map

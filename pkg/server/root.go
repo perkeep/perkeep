@@ -143,7 +143,7 @@ func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if req.URL.Path == "/favicon.ico" {
-		serveStaticFile(rw, req, Files, "favicon.ico")
+		ServeStaticFile(rw, req, Files, "favicon.ico")
 		return
 	}
 	f := func(p string, a ...interface{}) {
