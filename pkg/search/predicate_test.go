@@ -493,17 +493,7 @@ var keywordTests = []keywordTestcase{
 
 	{
 		object: newHasLocation(),
-		want: &Constraint{
-			Permanode: &PermanodeConstraint{
-				Attr: "camliContent",
-				ValueInSet: &Constraint{
-					File: &FileConstraint{
-						IsImage:  true,
-						Location: &LocationConstraint{Any: true},
-					},
-				},
-			},
-		},
+		want:   hasLocationC,
 	},
 }
 
