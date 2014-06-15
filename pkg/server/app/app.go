@@ -33,7 +33,6 @@ import (
 	"camlistore.org/pkg/auth"
 	camhttputil "camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/pkg/osutil"
 )
 
 // Handler acts as a reverse proxy for a server application started by
@@ -112,8 +111,7 @@ func randPortBackendURL(apiHost, appHandlerPrefix string) (string, error) {
 // The conf object has the following members, related to the vars described in
 // doc/app-environment.txt:
 // "program", string, required. File name of the app's program executable. Either
-// an absolute path or the name of a file located in your PATH or in the bin
-// directory of the Camlistore source tree.
+// an absolute path, or the name of a file located in CAMLI_APP_BINDIR or in PATH.
 // "backendURL", string, optional. Automatic if absent. It sets CAMLI_APP_BACKEND_URL.
 // "appConfig", object, optional. Additional configuration that the app can request from Camlistore.
 func NewHandler(conf jsonconfig.Obj, apiHost, appHandlerPrefix string) (*Handler, error) {
@@ -176,18 +174,18 @@ func (a *Handler) Start() error {
 	if name == "" {
 		return fmt.Errorf("invalid app name: %q", name)
 	}
-	// first look for it in PATH
-	binPath, err := exec.LookPath(name)
-	if err != nil {
-		log.Printf("%q binary not found in PATH. now trying in the camlistore tree.", name)
-		// else try in the camlistore tree
-		binDir, err := osutil.GoPackagePath("camlistore.org/bin")
+	var binPath string
+	var err error
+	if e := os.Getenv("CAMLI_APP_BINDIR"); e != "" {
+		binPath, err = exec.LookPath(filepath.Join(e, name))
 		if err != nil {
-			return fmt.Errorf("bin dir in camlistore tree was not found: %v", err)
+			log.Printf("%q executable not found in %q", e)
 		}
-		binPath = filepath.Join(binDir, name)
-		if _, err = os.Stat(binPath); err != nil {
-			return fmt.Errorf("could not find %v binary at %v: %v", name, binPath, err)
+	}
+	if err != nil {
+		binPath, err = exec.LookPath(name)
+		if err != nil {
+			return fmt.Errorf("%q executable not found in PATH.", name)
 		}
 	}
 
@@ -220,8 +218,7 @@ func (a *Handler) Start() error {
 }
 
 // ProgramName returns the name of the app's binary. It may be a file name in
-// PATH or in the bin directory of the Camlistore source tree, or an absolute
-// path.
+// CAMLI_APP_BINDIR or PATH, or an absolute path.
 func (a *Handler) ProgramName() string {
 	return a.name
 }
