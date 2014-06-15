@@ -61,6 +61,22 @@ var attrgorunC = &Constraint{
 	},
 }
 
+var hasLocationC = orConst(&Constraint{
+	Permanode: &PermanodeConstraint{
+		Attr: "camliContent",
+		ValueInSet: &Constraint{
+			File: &FileConstraint{
+				IsImage:  true,
+				Location: &LocationConstraint{Any: true},
+			},
+		},
+	},
+}, &Constraint{
+	Permanode: &PermanodeConstraint{
+		Location: &LocationConstraint{Any: true},
+	},
+})
+
 var parseExpressionTests = []struct {
 	name        string
 	in          string
@@ -263,17 +279,7 @@ var parseExpressionTests = []struct {
 	{
 		in: "has:location",
 		want: &SearchQuery{
-			Constraint: andConst(skiphiddenC, &Constraint{
-				Permanode: &PermanodeConstraint{
-					Attr: "camliContent",
-					ValueInSet: &Constraint{
-						File: &FileConstraint{
-							IsImage:  true,
-							Location: &LocationConstraint{Any: true},
-						},
-					},
-				},
-			}),
+			Constraint: andConst(skiphiddenC, hasLocationC),
 		},
 	},
 
@@ -589,20 +595,8 @@ var parseExpTests = []parserTestCase{
 	},
 
 	{
-		in: "has:location",
-		want: &Constraint{
-			Permanode: &PermanodeConstraint{
-				Attr: "camliContent",
-				ValueInSet: &Constraint{
-					File: &FileConstraint{
-						IsImage: true,
-						Location: &LocationConstraint{
-							Any: true,
-						},
-					},
-				},
-			},
-		},
+		in:   "has:location",
+		want: hasLocationC,
 	},
 
 	{

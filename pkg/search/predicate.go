@@ -485,7 +485,7 @@ func newLocation() keyword {
 }
 
 func (l location) Description() string {
-	return "uses the EXIF GPS fields to match images having a location near\n" +
+	return "matches images and permanodes having a location near\n" +
 		"the specified location.  Locations are resolved using\n" +
 		"maps.googleapis.com. For example: loc:\"new york, new york\" "
 }
@@ -535,18 +535,25 @@ func newHasLocation() keyword {
 }
 
 func (h hasLocation) Description() string {
-	return "image has a location (GPSLatitude and GPSLongitude can be\n" +
+	return "matches images and permanodes that have a location (GPSLatitude and GPSLongitude can be\n" +
 		"retrieved from the image's EXIF tags)."
 }
 
 func (h hasLocation) Predicate(ctx *context.Context, args []string) (*Constraint, error) {
-	c := permOfFile(&FileConstraint{
+	fileLoc := permOfFile(&FileConstraint{
 		IsImage: true,
 		Location: &LocationConstraint{
 			Any: true,
 		},
 	})
-	return c, nil
+	permLoc := &Constraint{
+		Permanode: &PermanodeConstraint{
+			Location: &LocationConstraint{
+				Any: true,
+			},
+		},
+	}
+	return orConst(fileLoc, permLoc), nil
 }
 
 // Helpers
