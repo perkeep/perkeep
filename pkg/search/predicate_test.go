@@ -589,3 +589,31 @@ func TestMatchPrefix(t *testing.T) {
 		t.Error("Expected simple mismatch")
 	}
 }
+
+func TestLocationConstraint(t *testing.T) {
+	var c LocationConstraint
+	if c.matchesLatLong(1, 2) {
+		t.Error("zero value shouldn't match")
+	}
+	c.Any = true
+	if !c.matchesLatLong(1, 2) {
+		t.Error("Any should match")
+	}
+
+	c = LocationConstraint{North: 2, South: 1, West: 0, East: 2}
+	tests := []struct {
+		lat, long float64
+		want      bool
+	}{
+		{1, 1, true},
+		{3, 1, false},  // too north
+		{1, 3, false},  // too east
+		{1, -1, false}, // too west
+		{0, 1, false},  // too south
+	}
+	for _, tt := range tests {
+		if got := c.matchesLatLong(tt.lat, tt.long); got != tt.want {
+			t.Errorf("matches(%v, %v) = %v; want %v", tt.lat, tt.long, got, tt.want)
+		}
+	}
+}
