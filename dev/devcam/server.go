@@ -283,6 +283,7 @@ func (c *serverCmd) setEnvVars() error {
 		setenv("CAMLI_TWITTER_API_KEY", c.twitterAPIKey)
 	}
 	setenv("CAMLI_CONFIG_DIR", "config")
+	setenv("CAMLI_APP_BINDIR", "bin")
 	return nil
 }
 
