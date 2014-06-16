@@ -342,6 +342,11 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		}
 		hh = ap
 		auth.AddMode(ap.AuthMode())
+		if ap.ProgramName() == "publisher" {
+			if err := hl.initPublisherRootNode(ap); err != nil {
+				exitFailure("Error looking/setting up root node for publisher on %v: %v", h.prefix, err)
+			}
+		}
 	} else {
 		var err error
 		hh, err = blobserver.CreateHandler(h.htype, hl, h.conf)
