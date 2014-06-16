@@ -11,6 +11,10 @@ AWS_ACCESS_KEY_SECRET (string):
   Used in s3 tests.  If not set some tests are skip.  If set, queries will be
   sent to Amazon's S3 service.
 
+CAMLI_APP_BINDIR (string):
+  Path to the directory where Camlistore first looks for the server applications
+  executables, when starting them. It looks in PATH otherwise.
+
 CAMLI_AUTH (string):
   See http://camlistore.org/docs/server-config
   Used as a fallback in pkg/client.Client (except on android) when

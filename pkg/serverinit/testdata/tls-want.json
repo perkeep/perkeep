@@ -99,6 +99,19 @@
 				"to": "/index/"
 			}
 		},
+		"/pics/": {
+			"handler": "app",
+			"handlerArgs": {
+				"program": "publisher",
+				"appConfig": {
+					"camliRoot": "picsRoot",
+					"goTemplate": "gallery.html",
+					"cacheRoot": "/tmp/blobs/cache",
+					"httpsCert": "/tls.crt",
+					"httpsKey": "/tls.key"
+				}
+			}
+		},
 		"/ui/": {
 			"handler": "ui",
 			"handlerArgs": {
