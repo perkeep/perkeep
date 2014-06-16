@@ -7,9 +7,15 @@
 	"blobPath": "/tmp/blobs",
 	"identity": "26F5ABDA",
 	"identitySecretRing": "/path/to/secring",
-        "kvIndexFile": "/path/to/indexkv.db",
+	"kvIndexFile": "/path/to/indexkv.db",
 	"s3": "",
 	"replicateTo": [],
-	"publish": {},
+	"publish": {
+		"/pics/": {
+			"camliRoot": "picsRoot",
+			"cacheRoot": "/tmp/blobs/cache",
+			"goTemplate": "gallery.html"
+		}
+	},
 	"shareHandler": true
 }
