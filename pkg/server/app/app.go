@@ -182,7 +182,7 @@ func (a *Handler) Start() error {
 			log.Printf("%q executable not found in %q", e)
 		}
 	}
-	if err != nil {
+	if binPath == "" || err != nil {
 		binPath, err = exec.LookPath(name)
 		if err != nil {
 			return fmt.Errorf("%q executable not found in PATH.", name)
