@@ -54,7 +54,7 @@ const (
 	// complete run.  Otherwise, if the importer runs to
 	// completion, this version number is recorded on the account
 	// permanode and subsequent importers can stop early.
-	runCompleteVersion = "3"
+	runCompleteVersion = "4"
 
 	// TODO(mpl): refactor these 4 below into an oauth package when doing flickr.
 	acctAttrTempToken         = "oauthTempToken"
@@ -75,6 +75,9 @@ const (
 	// acctAttrZipDoneVersion is updated at the end of a successful zip import and
 	// is used to determine whether the zip file needs to be re-imported in a future run.
 	acctAttrZipDoneVersion = "twitterZipDoneVersion" // == "<fileref>:<runCompleteVersion>"
+
+	// Per-tweet note of how we imported it: either "zip" or "api"
+	attrImportMethod = "twitterImportMethod"
 
 	tweetRequestLimit = 200 // max number of tweets we can get in a user_timeline request
 	tweetsAtOnce      = 20  // how many tweets to import at once
@@ -144,9 +147,8 @@ type run struct {
 	oauthClient *oauth.Client      // No need to guard, used read-only.
 	accessCreds *oauth.Credentials // No need to guard, used read-only.
 
-	mu       sync.Mutex // guards anyErr and apiTweet
-	anyErr   bool
-	apiTweet map[string]bool // twitter ID imported via API (not zip file) => true
+	mu     sync.Mutex // guards anyErr
+	anyErr bool
 }
 
 func (r *run) oauthContext() oauthContext {
@@ -168,7 +170,6 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		RunContext:  ctx,
 		im:          im,
 		incremental: acctNode.Attr(importer.AcctAttrCompletedVersion) == runCompleteVersion,
-		apiTweet:    map[string]bool{},
 
 		oauthClient: &oauth.Client{
 			TemporaryCredentialRequestURI: temporaryCredentialRequestURL,
@@ -238,18 +239,6 @@ func (r *run) errorf(format string, args ...interface{}) {
 	r.anyErr = true
 }
 
-func (r *run) noteAPITweet(t *tweetItem) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.apiTweet[t.Id] = true
-}
-
-func (r *run) wasAPITweet(t *tweetItem) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.apiTweet[t.Id]
-}
-
 func (r *run) importTweets(userID string) error {
 	maxId := ""
 	continueRequests := true
@@ -260,6 +249,7 @@ func (r *run) importTweets(userID string) error {
 	}
 
 	numTweets := 0
+	sawTweet := map[string]bool{}
 
 	for continueRequests {
 		if r.Context.IsCanceled() {
@@ -276,27 +266,28 @@ func (r *run) importTweets(userID string) error {
 			return err
 		}
 
-		itemcount := len(resp)
-		log.Printf("Twitter importer: Importing %d tweets", itemcount)
-		if itemcount < tweetRequestLimit {
-			continueRequests = false
-		} else {
-			lastTweet := resp[len(resp)-1]
-			maxId = lastTweet.Id
-		}
-
 		var (
-			allDupMu sync.Mutex
-			allDups  = true
-			gate     = syncutil.NewGate(tweetsAtOnce)
-			grp      syncutil.Group
+			newThisBatch = 0
+			allDupMu     sync.Mutex
+			allDups      = true
+			gate         = syncutil.NewGate(tweetsAtOnce)
+			grp          syncutil.Group
 		)
 		for i := range resp {
 			tweet := resp[i]
+
+			// Dup-suppression.
+			if sawTweet[tweet.Id] {
+				continue
+			}
+			sawTweet[tweet.Id] = true
+			newThisBatch++
+			maxId = tweet.Id
+
 			gate.Start()
 			grp.Go(func() error {
 				defer gate.Done()
-				dup, err := r.importTweet(tweetsNode, tweet)
+				dup, err := r.importTweet(tweetsNode, tweet, true)
 				if !dup {
 					allDupMu.Lock()
 					allDups = false
@@ -305,19 +296,19 @@ func (r *run) importTweets(userID string) error {
 				if err != nil {
 					r.errorf("Twitter importer: error importing tweet %s %v", tweet.Id, err)
 				}
-				r.noteAPITweet(tweet)
 				return err
 			})
 		}
 		if err := grp.Err(); err != nil {
 			return err
 		}
-		numTweets += len(resp)
-		log.Printf("Imported %d tweets.", numTweets)
+		numTweets += newThisBatch
+		log.Printf("Imported %d tweets this batch; %d total.", newThisBatch, numTweets)
 		if r.incremental && allDups {
 			log.Printf("twitter incremental import found end batch")
 			break
 		}
+		continueRequests = newThisBatch > 0
 	}
 	log.Printf("Successfully did full run of importing %d tweets", numTweets)
 	return nil
@@ -356,7 +347,7 @@ func (r *run) importTweetsFromZip(userID string, zr *zip.Reader) error {
 		gate = syncutil.NewGate(tweetsAtOnce)
 		grp  syncutil.Group
 	)
-	total, skipped := 0, 0
+	total := 0
 	for _, zf := range zr.File {
 		if !(strings.HasPrefix(zf.Name, "data/js/tweets/2") && strings.HasSuffix(zf.Name, ".js")) {
 			continue
@@ -369,20 +360,16 @@ func (r *run) importTweetsFromZip(userID string, zr *zip.Reader) error {
 		for i := range tweets {
 			total++
 			tweet := tweets[i]
-			if r.wasAPITweet(tweet) {
-				skipped++
-				continue
-			}
 			gate.Start()
 			grp.Go(func() error {
 				defer gate.Done()
-				_, err := r.importTweet(tweetsNode, tweet)
+				_, err := r.importTweet(tweetsNode, tweet, false)
 				return err
 			})
 		}
 	}
 	err = grp.Err()
-	log.Printf("zip import of tweets: %d total, %d skipped (were in API), err = %v", total, skipped, err)
+	log.Printf("zip import of tweets: %d total, err = %v", total, err)
 	return err
 }
 
@@ -399,7 +386,8 @@ func timeParseFirstFormat(timeStr string, format ...string) (t time.Time, err er
 	return
 }
 
-func (r *run) importTweet(parent *importer.Object, tweet *tweetItem) (dup bool, err error) {
+// viaAPI is true if it came via the REST API, or false if it came via a zip file.
+func (r *run) importTweet(parent *importer.Object, tweet *tweetItem, viaAPI bool) (dup bool, err error) {
 	if r.Context.IsCanceled() {
 		r.errorf("Twitter importer: interrupted")
 		return false, context.ErrCanceled
@@ -407,6 +395,9 @@ func (r *run) importTweet(parent *importer.Object, tweet *tweetItem) (dup bool, 
 	tweetNode, err := parent.ChildPathObject(tweet.Id)
 	if err != nil {
 		return false, err
+	}
+	if tweetNode.Attr(attrImportMethod) == "api" && !viaAPI {
+		return true, nil
 	}
 
 	// e.g. "2014-06-12 19:11:51 +0000"
@@ -432,6 +423,11 @@ func (r *run) importTweet(parent *importer.Object, tweet *tweetItem) (dup bool, 
 			"latitude", fmt.Sprint(lat),
 			"longitude", fmt.Sprint(long),
 		)
+	}
+	if viaAPI {
+		attrs = append(attrs, attrImportMethod, "api")
+	} else {
+		attrs = append(attrs, attrImportMethod, "zip")
 	}
 	changes, err := tweetNode.SetAttrs2(attrs...)
 	if err == nil && changes {
