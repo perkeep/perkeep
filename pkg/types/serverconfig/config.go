@@ -92,4 +92,7 @@ type Publish struct {
 	// caching blobserver (for images). No caching if empty.
 	// An example value is Config.BlobPath + "/cache".
 	CacheRoot string `json:"cacheRoot,omitempty"`
+
+	HTTPSCert string `json:"httpsCert,omitempty"` // path to the HTTPS certificate file.
+	HTTPSKey  string `json:"httpsKey,omitempty"`  // path to the HTTPS key file.
 }

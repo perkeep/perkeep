@@ -67,6 +67,8 @@ var (
 // config is used to unmarshal the application configuration JSON
 // that we get from Camlistore when we request it at $CAMLI_APP_CONFIG_URL.
 type config struct {
+	HTTPSCert      string `json:"httpsCert,omitempty"`      // Path to the HTTPS certificate file.
+	HTTPSKey       string `json:"httpsKey,omitempty"`       // Path to the HTTPS key file.
 	RootName       string `json:"camliRoot"`                // Publish root name (i.e. value of the camliRoot attribute on the root permanode).
 	MaxResizeBytes int64  `json:"maxResizeBytes,omitempty"` // See constants.DefaultMaxResizeMem
 	SourceRoot     string `json:"sourceRoot,omitempty"`     // Path to the app's resources dir, such as html and css files.
@@ -111,10 +113,12 @@ func main() {
 	ph.initRootNode()
 	ws := webserver.New()
 	ws.Handle("/", ph)
+	if conf.HTTPSCert != "" && conf.HTTPSKey != "" {
+		ws.SetTLS(conf.HTTPSCert, conf.HTTPSKey)
+	}
 	if err := ws.Listen(listenAddr); err != nil {
 		log.Fatalf("Listen: %v", err)
 	}
-
 	ws.Serve()
 }
 

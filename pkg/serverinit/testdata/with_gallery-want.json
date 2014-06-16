@@ -72,6 +72,8 @@
 				"program": "publisher",
 				"baseURL": "http://localhost:3178/",
 				"appConfig": {
+					"httpsCert": "/tls.crt",
+					"httpsKey": "/tls.key",
 					"camliRoot": "picsRoot",
 					"goTemplate": "gallery.html",
 					"cacheRoot": "/tmp/blobs/cache"

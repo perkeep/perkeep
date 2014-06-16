@@ -54,6 +54,7 @@ func Client() (*client.Client, error) {
 // ListenAddress returns the host:[port] network address, derived from the environment,
 // that the application should listen on.
 func ListenAddress() (string, error) {
+	// TODO(mpl): IPv6 support
 	baseURL := os.Getenv("CAMLI_APP_BACKEND_URL")
 	if baseURL == "" {
 		return "", errors.New("CAMLI_APP_BACKEND_URL is undefined")
