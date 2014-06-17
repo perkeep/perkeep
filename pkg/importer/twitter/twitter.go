@@ -27,6 +27,8 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -155,6 +157,8 @@ func (r *run) oauthContext() oauthContext {
 	return oauthContext{r.Context, r.oauthClient, r.accessCreds}
 }
 
+var forceFullImport, _ = strconv.ParseBool(os.Getenv("CAMLI_TWITTER_FULL_IMPORT"))
+
 func (im *imp) Run(ctx *importer.RunContext) error {
 	clientId, secret, err := ctx.Credentials()
 	if err != nil {
@@ -169,7 +173,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 	r := &run{
 		RunContext:  ctx,
 		im:          im,
-		incremental: acctNode.Attr(importer.AcctAttrCompletedVersion) == runCompleteVersion,
+		incremental: !forceFullImport && acctNode.Attr(importer.AcctAttrCompletedVersion) == runCompleteVersion,
 
 		oauthClient: &oauth.Client{
 			TemporaryCredentialRequestURI: temporaryCredentialRequestURL,
@@ -257,7 +261,7 @@ func (r *run) importTweets(userID string) error {
 			return context.ErrCanceled
 		}
 
-		var resp []*tweetItem
+		var resp []*apiTweetItem
 		log.Printf("Fetching tweets for userid %s with max ID %q", userID, maxId)
 		if err := r.oauthContext().doAPI(&resp, "statuses/user_timeline.json",
 			"user_id", userID,
@@ -314,7 +318,7 @@ func (r *run) importTweets(userID string) error {
 	return nil
 }
 
-func tweetsFromZipFile(zf *zip.File) (tweets []*tweetItem, err error) {
+func tweetsFromZipFile(zf *zip.File) (tweets []*zipTweetItem, err error) {
 	rc, err := zf.Open()
 	if err != nil {
 		return nil, err
@@ -387,12 +391,13 @@ func timeParseFirstFormat(timeStr string, format ...string) (t time.Time, err er
 }
 
 // viaAPI is true if it came via the REST API, or false if it came via a zip file.
-func (r *run) importTweet(parent *importer.Object, tweet *tweetItem, viaAPI bool) (dup bool, err error) {
+func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool) (dup bool, err error) {
 	if r.Context.IsCanceled() {
 		r.errorf("Twitter importer: interrupted")
 		return false, context.ErrCanceled
 	}
-	tweetNode, err := parent.ChildPathObject(tweet.Id)
+	id := tweet.ID()
+	tweetNode, err := parent.ChildPathObject(id)
 	if err != nil {
 		return false, err
 	}
@@ -401,21 +406,21 @@ func (r *run) importTweet(parent *importer.Object, tweet *tweetItem, viaAPI bool
 	}
 
 	// e.g. "2014-06-12 19:11:51 +0000"
-	createdTime, err := timeParseFirstFormat(tweet.CreatedAt, time.RubyDate, "2006-01-02 15:04:05 -0700")
+	createdTime, err := timeParseFirstFormat(tweet.CreatedAt(), time.RubyDate, "2006-01-02 15:04:05 -0700")
 	if err != nil {
-		return false, fmt.Errorf("could not parse time %q: %v", tweet.CreatedAt, err)
+		return false, fmt.Errorf("could not parse time %q: %v", tweet.CreatedAt(), err)
 	}
 
-	// TODO: import photos referenced in tweets
 	url := fmt.Sprintf("https://twitter.com/%s/status/%v",
 		r.AccountNode().Attr(importer.AcctAttrUserName),
-		tweet.Id)
+		id)
+
 	attrs := []string{
 
-		"twitterId", tweet.Id,
+		"twitterId", id,
 		"camliNodeType", "twitter.com:tweet",
 		importer.AttrStartDate, schema.RFC3339FromTime(createdTime),
-		"content", tweet.Text,
+		"content", tweet.Text(),
 		importer.AttrURL, url,
 	}
 	if lat, long, ok := tweet.LatLong(); ok {
@@ -429,6 +434,27 @@ func (r *run) importTweet(parent *importer.Object, tweet *tweetItem, viaAPI bool
 	} else {
 		attrs = append(attrs, attrImportMethod, "zip")
 	}
+
+	for i, m := range tweet.Media() {
+		filename := m.BaseFilename()
+		if tweetNode.Attr("camliPath:"+filename) != "" && (i > 0 || tweetNode.Attr("camliContentImage") != "") {
+			// Don't re-import media we've already fetched.
+			continue
+		}
+		res, err := r.HTTPClient().Get(m.URL())
+		if err != nil {
+			return false, fmt.Errorf("Error fetching %s for tweet %s : %v", m.URL(), url)
+		}
+		fileRef, err := schema.WriteFileFromReader(r.Host.Target(), filename, res.Body)
+		res.Body.Close()
+		attrs = append(attrs, "camliPath:"+filename, fileRef.String())
+		if i == 0 {
+			attrs = append(attrs, "camliContentImage", fileRef.String())
+		}
+		log.Printf("Slurped %s as %s for tweet %s (%v)", m.URL(), fileRef.String(), url, tweetNode.PermanodeRef())
+
+	}
+
 	changes, err := tweetNode.SetAttrs2(attrs...)
 	if err == nil && changes {
 		log.Printf("Imported tweet %s", url)
@@ -617,28 +643,98 @@ func (ctx oauthContext) doGet(url string, form url.Values) (*http.Response, erro
 	return res, nil
 }
 
-type tweetItem struct {
-	Id        string `json:"id_str"`
-	Text      string
-	CreatedAt string `json:"created_at"`
+type tweetItem interface {
+	ID() string
+	LatLong() (lat, long float64, ok bool)
+	CreatedAt() string
+	Text() string
+	Media() []tweetMedia
+}
+
+type tweetMedia interface {
+	Type() string // "photo"
+	URL() string
+	BackupURLs() []string // if URL 404s
+	BaseFilename() string
+}
+
+type apiTweetItem struct {
+	Id           string   `json:"id_str"`
+	TextStr      string   `json:"text"`
+	CreatedAtStr string   `json:"created_at"`
+	Entities     entities `json:"entities"`
 
 	// One or both might be present:
 	Geo         *geo    `json:"geo"`         // lat, long
 	Coordinates *coords `json:"coordinates"` // geojson: long, lat
 }
 
-func (t *tweetItem) LatLong() (lat, long float64, ok bool) {
-	if g := t.Geo; g != nil && len(g.Coordinates) == 2 {
-		c := g.Coordinates
-		if c[0] != 0 && c[1] != 0 {
-			return c[0], c[1], true
+// zipTweetItem is like apiTweetItem, but twitter is annoying and the schema for the JSON inside zip files is slightly different.
+type zipTweetItem struct {
+	Id           string `json:"id_str"`
+	TextStr      string `json:"text"`
+	CreatedAtStr string `json:"created_at"`
+
+	// One or both might be present:
+	Geo         *geo    `json:"geo"`         // lat, long
+	Coordinates *coords `json:"coordinates"` // geojson: long, lat
+}
+
+func (t *apiTweetItem) ID() string {
+	if t.Id == "" {
+		panic("empty id")
+	}
+	return t.Id
+}
+
+func (t *zipTweetItem) ID() string {
+	if t.Id == "" {
+		panic("empty id")
+	}
+	return t.Id
+}
+
+func (t *apiTweetItem) CreatedAt() string { return t.CreatedAtStr }
+func (t *zipTweetItem) CreatedAt() string { return t.CreatedAtStr }
+
+func (t *apiTweetItem) Text() string { return t.TextStr }
+func (t *zipTweetItem) Text() string { return t.TextStr }
+
+func (t *apiTweetItem) LatLong() (lat, long float64, ok bool) {
+	return latLong(t.Geo, t.Coordinates)
+}
+
+func (t *zipTweetItem) LatLong() (lat, long float64, ok bool) {
+	return latLong(t.Geo, t.Coordinates)
+}
+
+func latLong(g *geo, c *coords) (lat, long float64, ok bool) {
+	if g != nil && len(g.Coordinates) == 2 {
+		co := g.Coordinates
+		if co[0] != 0 && co[1] != 0 {
+			return co[0], co[1], true
 		}
 	}
-	if g := t.Coordinates; g != nil && len(g.Coordinates) == 2 {
-		c := g.Coordinates
-		if c[0] != 0 && c[1] != 0 {
-			return c[1], c[0], true
+	if c != nil && len(c.Coordinates) == 2 {
+		co := g.Coordinates
+		if co[0] != 0 && co[1] != 0 {
+			return co[1], co[0], true
 		}
+	}
+	return
+}
+
+func (t *zipTweetItem) Media() []tweetMedia {
+	// TODO: support media in zip files. The "Sizes" field is
+	// different, annoyingly.  We'll have to guess the ":large"
+	// suffix and fall back to the base one (or ":medium") if it
+	// 404s.
+	return nil
+}
+
+func (t *apiTweetItem) Media() (ret []tweetMedia) {
+	for _, m := range t.Entities.Media {
+		ret = append(ret, m)
 	}
 	return
 }
@@ -649,4 +745,57 @@ type geo struct {
 
 type coords struct {
 	Coordinates []float64 `json:"coordinates"` // long,lat
+}
+
+type entities struct {
+	Media []*media `json:"media"`
+}
+
+type media struct {
+	Id            string `json:"id_str"`
+	IdNum         int64  `json:"id"`
+	MediaURL      string `json:"media_url"`
+	MediaURLHTTPS string `json:"media_url_https"`
+	Sizes         map[string]mediaSize
+	Type_         string `json:"type"`
+}
+
+func (m *media) Type() string { return m.Type_ }
+
+func (m *media) URL() string {
+	u := m.baseURL()
+	if u == "" {
+		return ""
+	}
+	return u + m.largestMediaSuffix()
+}
+
+func (m *media) BackupURLs() []string { return nil }
+
+func (m *media) baseURL() string {
+	if v := m.MediaURLHTTPS; v != "" {
+		return v
+	}
+	return m.MediaURL
+}
+
+func (m *media) BaseFilename() string {
+	return path.Base(m.baseURL())
+}
+
+func (m *media) largestMediaSuffix() string {
+	bestPixels := 0
+	bestSuffix := ""
+	for k, sz := range m.Sizes {
+		if px := sz.W * sz.H; px > bestPixels {
+			bestPixels = px
+			bestSuffix = ":" + k
+		}
+	}
+	return bestSuffix
+}
+
+type mediaSize struct {
+	W int `json:"w"`
+	H int `json:"h"`
 }
