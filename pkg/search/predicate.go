@@ -21,7 +21,6 @@ package search
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -69,7 +68,8 @@ type keyword interface {
 	Description() string
 	// Match gets called with the predicate and arguments that were parsed.
 	// It should return true if it wishes to handle this search atom.
-	Match(a atom) bool
+	// An error if the number of arguments mismatches.
+	Match(a atom) (bool, error)
 	// Predicates will be called with the args array from an atom instance.
 	// Note that len(args) > 0 (see atom-struct comment above).
 	// It should return a pointer to a Constraint object, expressing the meaning of
@@ -130,20 +130,35 @@ func (me matchEqual) Name() string {
 	return string(me)
 }
 
-func (me matchEqual) Match(a atom) bool {
-	return string(me) == a.String()
+func (me matchEqual) Match(a atom) (bool, error) {
+	return string(me) == a.String(), nil
 }
 
 // Helper implementation for mixing into keyword implementations
 // that match only the beginning of the keyword, and get their paramertes from
 // the rest, i.e. 'width:' for searches like 'width:100-200'.
-type matchPrefix string
+type matchPrefix struct {
+	prefix string
+	count  int
+}
+
+func newMatchPrefix(p string) matchPrefix {
+	return matchPrefix{prefix: p, count: 1}
+}
 
 func (mp matchPrefix) Name() string {
-	return string(mp)
+	return mp.prefix
 }
-func (mp matchPrefix) Match(a atom) bool {
-	return string(mp) == a.predicate
+func (mp matchPrefix) Match(a atom) (bool, error) {
+	if mp.prefix == a.predicate {
+		if len(a.args) != mp.count {
+			return true, fmt.Errorf("Wrong number of arguments for %q, given %d, expected %d", mp.prefix, len(a.args), mp.count)
+		} else {
+			return true, nil
+		}
+	} else {
+		return false, nil
+	}
 }
 
 // Core predicates
@@ -153,7 +168,7 @@ type after struct {
 }
 
 func newAfter() keyword {
-	return after{"after"}
+	return after{newMatchPrefix("after")}
 }
 
 func (a after) Description() string {
@@ -181,7 +196,7 @@ type before struct {
 }
 
 func newBefore() keyword {
-	return before{"before"}
+	return before{newMatchPrefix("before")}
 }
 
 func (b before) Description() string {
@@ -209,7 +224,7 @@ type attribute struct {
 }
 
 func newAttribute() keyword {
-	return attribute{"attr"}
+	return attribute{matchPrefix{"attr", 2}}
 }
 
 func (a attribute) Description() string {
@@ -218,9 +233,6 @@ func (a attribute) Description() string {
 }
 
 func (a attribute) Predicate(ctx *context.Context, args []string) (*Constraint, error) {
-	if len(args) < 2 {
-		return nil, errors.New("expected attribute value")
-	}
 	c := &Constraint{
 		Permanode: &PermanodeConstraint{
 			Attr:       args[0],
@@ -236,7 +248,7 @@ type childrenOf struct {
 }
 
 func newChildrenOf() keyword {
-	return childrenOf{"childrenof"}
+	return childrenOf{newMatchPrefix("childrenof")}
 }
 
 func (k childrenOf) Description() string {
@@ -263,7 +275,7 @@ type format struct {
 }
 
 func newFormat() keyword {
-	return format{"format"}
+	return format{newMatchPrefix("format")}
 }
 
 func (f format) Description() string {
@@ -288,7 +300,7 @@ type tag struct {
 }
 
 func newTag() keyword {
-	return tag{"tag"}
+	return tag{newMatchPrefix("tag")}
 }
 
 func (t tag) Description() string {
@@ -311,7 +323,7 @@ type title struct {
 }
 
 func newTitle() keyword {
-	return title{"title"}
+	return title{newMatchPrefix("title")}
 }
 
 func (t title) Description() string {
@@ -413,7 +425,7 @@ type width struct {
 }
 
 func newWidth() keyword {
-	return width{"width"}
+	return width{newMatchPrefix("width")}
 }
 
 func (w width) Description() string {
@@ -440,7 +452,7 @@ type height struct {
 }
 
 func newHeight() keyword {
-	return height{"height"}
+	return height{newMatchPrefix("height")}
 }
 
 func (h height) Description() string {
@@ -469,11 +481,11 @@ type location struct {
 }
 
 func newLocation() keyword {
-	return location{"loc"}
+	return location{newMatchPrefix("loc")}
 }
 
 func (l location) Description() string {
-	return "uses the EXIF GPS fields to match images having a location near\n" +
+	return "matches images and permanodes having a location near\n" +
 		"the specified location.  Locations are resolved using\n" +
 		"maps.googleapis.com. For example: loc:\"new york, new york\" "
 }
@@ -523,18 +535,25 @@ func newHasLocation() keyword {
 }
 
 func (h hasLocation) Description() string {
-	return "image has a location (GPSLatitude and GPSLongitude can be\n" +
+	return "matches images and permanodes that have a location (GPSLatitude and GPSLongitude can be\n" +
 		"retrieved from the image's EXIF tags)."
 }
 
 func (h hasLocation) Predicate(ctx *context.Context, args []string) (*Constraint, error) {
-	c := permOfFile(&FileConstraint{
+	fileLoc := permOfFile(&FileConstraint{
 		IsImage: true,
 		Location: &LocationConstraint{
 			Any: true,
 		},
 	})
-	return c, nil
+	permLoc := &Constraint{
+		Permanode: &PermanodeConstraint{
+			Location: &LocationConstraint{
+				Any: true,
+			},
+		},
+	}
+	return orConst(fileLoc, permLoc), nil
 }
 
 // Helpers

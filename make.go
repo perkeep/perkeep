@@ -68,7 +68,7 @@ var (
 	// Our temporary source tree root and build dir, i.e: buildGoPath + "src/camlistore.org"
 	buildSrcDir string
 	// files mirrored from camRoot to buildSrcDir
-	rxMirrored = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(?:camli|css|eot|err|gif|go|gpg|html|ico|jpg|js|json|min\.css|min\.js|mp3|otf|png|svg|pdf|psd|tiff|ttf|woff|xcf|tar\.gz|gz|tar\.xz|tbz2|zip))$`)
+	rxMirrored = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(?:camli|css|eot|err|gif|go|gpg|html|ico|jpg|js|json|xml|min\.css|min\.js|mp3|otf|png|svg|pdf|psd|tiff|ttf|woff|xcf|tar\.gz|gz|tar\.xz|tbz2|zip))$`)
 )
 
 func main() {
@@ -169,6 +169,7 @@ func main() {
 		"camlistore.org/cmd/camtool",
 		"camlistore.org/server/camlistored",
 		"camlistore.org/app/hello",
+		"camlistore.org/app/publisher",
 	}
 	switch *targets {
 	case "*":
@@ -345,7 +346,7 @@ func buildSrcPath(fromSrc string) string {
 // kept in between runs.
 func genEmbeds() error {
 	cmdName := exeName(filepath.Join(buildGoPath, "bin", "genfileembed"))
-	for _, embeds := range []string{"server/camlistored/ui", "pkg/server", "third_party/react", "third_party/glitch", "third_party/fontawesome"} {
+	for _, embeds := range []string{"server/camlistored/ui", "pkg/server", "third_party/react", "third_party/glitch", "third_party/fontawesome", "app/publisher"} {
 		embeds := buildSrcPath(embeds)
 		args := []string{embeds}
 		cmd := exec.Command(cmdName, args...)

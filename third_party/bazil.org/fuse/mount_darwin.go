@@ -1,120 +1,116 @@
-// See the file LICENSE for copyright and licensing information.
-
-// TODO: Rewrite using package syscall not cgo
-
 package fuse
 
-/*
+import (
+	"bytes"
+	"errors"
+	"os"
+	"os/exec"
+	"strconv"
+	"syscall"
+)
 
-// Adapted from Plan 9 from User Space's src/cmd/9pfuse/fuse.c,
-// which carries this notice:
-//
-// The files in this directory are subject to the following license.
-//
-// The author of this software is Russ Cox.
-//
-//         Copyright (c) 2006 Russ Cox
-//
-// Permission to use, copy, modify, and distribute this software for any
-// purpose without fee is hereby granted, provided that this entire notice
-// is included in all copies of any software which is or includes a copy
-// or modification of this software and in all copies of the supporting
-// documentation for such software.
-//
-// THIS SOFTWARE IS BEING PROVIDED "AS IS", WITHOUT ANY EXPRESS OR IMPLIED
-// WARRANTY.  IN PARTICULAR, THE AUTHOR MAKES NO REPRESENTATION OR WARRANTY
-// OF ANY KIND CONCERNING THE MERCHANTABILITY OF THIS SOFTWARE OR ITS
-// FITNESS FOR ANY PARTICULAR PURPOSE.
+var errNoAvail = errors.New("no available fuse devices")
 
-#include <stdlib.h>
-#include <sys/param.h>
-#include <sys/mount.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdio.h>
-#include <errno.h>
-#include <fcntl.h>
+var errNotLoaded = errors.New("osxfusefs is not loaded")
 
-#define nil ((void*)0)
-
-static int
-mountfuse(char *mtpt, char **err)
-{
-	int i, pid, fd, r;
-	char buf[200];
-	struct vfsconf vfs;
-	char *f;
-
-	if(getvfsbyname("fusefs", &vfs) < 0){
-		if(access(f="/Library/Filesystems/osxfusefs.fs"
-			"/Support/load_osxfusefs", 0) < 0){
-		         *err = strdup("cannot find load_fusefs");
-			return -1;
-		}
-		if((r=system(f)) < 0){
-			snprintf(buf, sizeof buf, "%s: %s", f, strerror(errno));
-			*err = strdup(buf);
-			return -1;
-		}
-		if(r != 0){
-			snprintf(buf, sizeof buf, "load_fusefs failed: exit %d", r);
-			*err = strdup(buf);
-			return -1;
-		}
-		if(getvfsbyname("osxfusefs", &vfs) < 0){
-			snprintf(buf, sizeof buf, "getvfsbyname osxfusefs: %s", strerror(errno));
-			*err = strdup(buf);
-			return -1;
-		}
-	}
-
-	// Look for available FUSE device.
-	for(i=0;; i++){
-		snprintf(buf, sizeof buf, "/dev/osxfuse%d", i);
-		if(access(buf, 0) < 0){
-			*err = strdup("no available fuse devices");
-			return -1;
-		}
-		if((fd = open(buf, O_RDWR)) >= 0)
-			break;
-	}
-
-	pid = fork();
-	if(pid < 0)
-		return -1;
-	if(pid == 0){
-		snprintf(buf, sizeof buf, "%d", fd);
-		setenv("MOUNT_FUSEFS_CALL_BY_LIB", "", 1);
-		// Different versions of MacFUSE put the
-		// mount_fusefs binary in different places.
-		// Try all.
-		// Leopard location
-		setenv("MOUNT_FUSEFS_DAEMON_PATH",
-			   "/Library/Filesystems/osxfusefs.fs/Support/mount_osxfusefs", 1);
-		execl("/Library/Filesystems/osxfusefs.fs/Support/mount_osxfusefs",
-			  "mount_osxfusefs",
-			  "-o", "iosize=4096", buf, mtpt, nil);
-		fprintf(stderr, "exec mount_osxfusefs: %s\n", strerror(errno));
-		_exit(1);
-	}
-	return fd;
+func loadOSXFUSE() error {
+	cmd := exec.Command("/Library/Filesystems/osxfusefs.fs/Support/load_osxfusefs")
+	cmd.Dir = "/"
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+	return err
 }
 
-*/
-import "C"
+func openOSXFUSEDev() (*os.File, error) {
+	var f *os.File
+	var err error
+	for i := uint64(0); ; i++ {
+		path := "/dev/osxfuse" + strconv.FormatUint(i, 10)
+		f, err = os.OpenFile(path, os.O_RDWR, 0000)
+		if os.IsNotExist(err) {
+			if i == 0 {
+				// not even the first device was found -> fuse is not loaded
+				return nil, errNotLoaded
+			}
 
-import "unsafe"
+			// we've run out of kernel-provided devices
+			return nil, errNoAvail
+		}
 
-func mount(dir string) (int, string) {
-	errp := (**C.char)(C.malloc(16))
-	*errp = nil
-	defer C.free(unsafe.Pointer(errp))
-	cdir := C.CString(dir)
-	defer C.free(unsafe.Pointer(cdir))
-	fd := C.mountfuse(cdir, errp)
-	var err string
-	if *errp != nil {
-		err = C.GoString(*errp)
+		if err2, ok := err.(*os.PathError); ok && err2.Err == syscall.EBUSY {
+			// try the next one
+			continue
+		}
+
+		if err != nil {
+			return nil, err
+		}
+		return f, nil
 	}
-	return int(fd), err
+}
+
+func callMount(dir string, f *os.File, ready chan<- struct{}, errp *error) error {
+	bin := "/Library/Filesystems/osxfusefs.fs/Support/mount_osxfusefs"
+	cmd := exec.Command(
+		bin,
+		// Tell osxfuse-kext how large our buffer is. It must split
+		// writes larger than this into multiple writes.
+		//
+		// TODO add buffer reuse, bump this up significantly
+		//
+		// TODO what's the relation of `-o iosize=` vs InitResponse.MaxWrite?
+		"-o", "iosize=4096",
+		// refers to fd passed in cmd.ExtraFiles
+		"3",
+		dir,
+	)
+	cmd.ExtraFiles = []*os.File{f}
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, "MOUNT_FUSEFS_CALL_BY_LIB=")
+	// TODO this is used for fs typenames etc, let app influence it
+	cmd.Env = append(cmd.Env, "MOUNT_FUSEFS_DAEMON_PATH="+bin)
+	var buf bytes.Buffer
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+
+	err := cmd.Start()
+	if err != nil {
+		return err
+	}
+	go func() {
+		err = cmd.Wait()
+		if err != nil {
+			if buf.Len() > 0 {
+				output := buf.Bytes()
+				output = bytes.TrimRight(output, "\n")
+				msg := err.Error() + ": " + string(output)
+				err = errors.New(msg)
+			}
+		}
+		*errp = err
+		close(ready)
+	}()
+	return err
+}
+
+func mount(dir string, ready chan<- struct{}, errp *error) (*os.File, error) {
+	f, err := openOSXFUSEDev()
+	if err == errNotLoaded {
+		err = loadOSXFUSE()
+		if err != nil {
+			return nil, err
+		}
+		// try again
+		f, err = openOSXFUSEDev()
+	}
+	if err != nil {
+		return nil, err
+	}
+	err = callMount(dir, f, ready, errp)
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	return f, nil
 }

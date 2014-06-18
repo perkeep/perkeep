@@ -241,8 +241,8 @@ func (s Share) IsExpired() bool {
 	return !t.IsZero() && clockNow().After(t)
 }
 
-// A StaticFile is a Blob representing a file or symlink (or FIFO or
-// device file, when support for these is added)
+// A StaticFile is a Blob representing a file, symlink fifo or socket
+// (or device file, when support for these is added).
 type StaticFile struct {
 	b *Blob
 }
@@ -256,15 +256,25 @@ func (sf StaticFile) FileName() string {
 // one. Otherwise, it returns false in the boolean parameter and the
 // zero value of StaticFile.
 func (b *Blob) AsStaticFile() (sf StaticFile, ok bool) {
-	// TODO (marete) Add support for FIFOs and device files to
+	// TODO (marete) Add support for device files to
 	// Camlistore and change the implementation of StaticFile to
 	// reflect that.
 	t := b.ss.Type
-	if t == "file" || t == "symlink" {
+	if t == "file" || t == "symlink" || t == "fifo" || t == "socket" {
 		return StaticFile{b}, true
 	}
 
 	return
+}
+
+// A StaticFIFO is a StaticFile that is also a fifo.
+type StaticFIFO struct {
+	StaticFile
+}
+
+// A StaticSocket is a StaticFile that is also a socket.
+type StaticSocket struct {
+	StaticFile
 }
 
 // A StaticSymlink is a StaticFile that is also a symbolic link.
@@ -287,6 +297,28 @@ func (sl StaticSymlink) SymlinkTargetString() string {
 func (sf StaticFile) AsStaticSymlink() (s StaticSymlink, ok bool) {
 	if sf.b.ss.Type == "symlink" {
 		return StaticSymlink{sf}, true
+	}
+
+	return
+}
+
+// AsStaticFIFO returns the StatifFile as a StaticFIFO if the
+// StaticFile represents a fifo. Otherwise, it returns the zero value
+// of StaticFIFO and false.
+func (sf StaticFile) AsStaticFIFO() (fifo StaticFIFO, ok bool) {
+	if sf.b.ss.Type == "fifo" {
+		return StaticFIFO{sf}, true
+	}
+
+	return
+}
+
+// AsSataticSocket returns the StaticFile as a StaticSocket if the
+// StaticFile represents a socket. Otherwise, it returns the zero
+// value of StaticSocket and false.
+func (sf StaticFile) AsStaticSocket() (ss StaticSocket, ok bool) {
+	if sf.b.ss.Type == "socket" {
+		return StaticSocket{sf}, true
 	}
 
 	return

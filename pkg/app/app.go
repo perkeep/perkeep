@@ -32,9 +32,9 @@ import (
 // Client returns a client from pkg/client, configured by environment variables
 // for applications, and ready to be used to connect to the Camlistore server.
 func Client() (*client.Client, error) {
-	server := os.Getenv("CAMLI_SERVER")
+	server := os.Getenv("CAMLI_API_HOST")
 	if server == "" {
-		return nil, errors.New("CAMLI_SERVER var not set")
+		return nil, errors.New("CAMLI_API_HOST var not set")
 	}
 	authString := os.Getenv("CAMLI_AUTH")
 	if authString == "" {
@@ -54,9 +54,10 @@ func Client() (*client.Client, error) {
 // ListenAddress returns the host:[port] network address, derived from the environment,
 // that the application should listen on.
 func ListenAddress() (string, error) {
-	baseURL := os.Getenv("CAMLI_APP_BASEURL")
+	// TODO(mpl): IPv6 support
+	baseURL := os.Getenv("CAMLI_APP_BACKEND_URL")
 	if baseURL == "" {
-		return "", errors.New("CAMLI_APP_BASEURL is undefined")
+		return "", errors.New("CAMLI_APP_BACKEND_URL is undefined")
 	}
 	defaultPort := "80"
 	noScheme := strings.TrimPrefix(baseURL, "http://")
@@ -66,7 +67,7 @@ func ListenAddress() (string, error) {
 	}
 	hostPortPrefix := strings.SplitN(noScheme, "/", 2)
 	if len(hostPortPrefix) != 2 {
-		return "", fmt.Errorf("invalid CAMLI_APP_BASEURL: %q (no trailing slash?)", baseURL)
+		return "", fmt.Errorf("invalid CAMLI_APP_BACKEND_URL: %q (no trailing slash?)", baseURL)
 	}
 	if !strings.Contains(hostPortPrefix[0], ":") {
 		return fmt.Sprintf("%s:%s", hostPortPrefix[0], defaultPort), nil

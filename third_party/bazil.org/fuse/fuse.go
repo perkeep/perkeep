@@ -19,7 +19,7 @@
 // OF ANY KIND CONCERNING THE MERCHANTABILITY OF THIS SOFTWARE OR ITS
 // FITNESS FOR ANY PARTICULAR PURPOSE.
 
-// Package fuse enables writing FUSE file systems on FreeBSD, Linux, and OS X.
+// Package fuse enables writing FUSE file systems on Linux, OS X, and FreeBSD.
 //
 // On OS X, it requires OSXFUSE (http://osxfuse.github.com/).
 //
@@ -95,21 +95,40 @@ import (
 
 // A Conn represents a connection to a mounted FUSE file system.
 type Conn struct {
-	fd  int
+	// Ready is closed when the mount is complete or has failed.
+	Ready <-chan struct{}
+
+	// MountError stores any error from the mount process. Only valid
+	// after Ready is closed.
+	MountError error
+
+	dev *os.File
 	buf []byte
 	wio sync.Mutex
 }
 
 // Mount mounts a new FUSE connection on the named directory
 // and returns a connection for reading and writing FUSE messages.
+//
+// After a successful return, caller must call Close to free
+// resources.
+//
+// Even on successful return, the new mount is not guaranteed to be
+// visible until after Conn.Ready is closed. See Conn.MountError for
+// possible errors. Incoming requests on Conn must be served to make
+// progress.
 func Mount(dir string) (*Conn, error) {
 	// TODO(rsc): mount options (...string?)
-	fd, errstr := mount(dir)
-	if errstr != "" {
-		return nil, errors.New(errstr)
+	ready := make(chan struct{}, 1)
+	c := &Conn{
+		Ready: ready,
 	}
-
-	return &Conn{fd: fd}, nil
+	f, err := mount(dir, ready, &c.MountError)
+	if err != nil {
+		return nil, err
+	}
+	c.dev = f
+	return c, nil
 }
 
 // A Request represents a single FUSE request received from the kernel.
@@ -159,8 +178,24 @@ func (h *Header) Hdr() *Header {
 }
 
 // An Error is a FUSE error.
-type Error interface {
-	errno() int32
+//
+// Errors messages will be visible in the debug log as part of the
+// response.
+//
+// The FUSE interface can only communicate POSIX errno error numbers
+// to file system clients, the message is not visible to file system
+// clients. The returned error can implement ErrorNumber to control
+// the errno returned. Without ErrorNumber, a generic errno (EIO) is
+// returned.
+type Error error
+
+// An ErrorNumber is an error with a specific error number.
+//
+// Operations may return an error value that implements ErrorNumber to
+// control what specific error number (errno) to return.
+type ErrorNumber interface {
+	// Errno returns the the error number (errno) for this error.
+	Errno() Errno
 }
 
 const (
@@ -183,6 +218,10 @@ const (
 	ENOTSUP = Errno(syscall.ENOTSUP)
 )
 
+// DefaultErrno is the errno used when error returned does not
+// implement ErrorNumber.
+const DefaultErrno = EIO
+
 var errnoNames = map[Errno]string{
 	ENOSYS:  "ENOSYS",
 	ESTALE:  "ESTALE",
@@ -193,35 +232,48 @@ var errnoNames = map[Errno]string{
 	ENODATA: "ENODATA",
 }
 
-type errno int
-
-func (e errno) errno() int32 {
-	return int32(e)
-}
-
-// Errno implements Error using a syscall.Errno.
+// Errno implements Error and ErrorNumber using a syscall.Errno.
 type Errno syscall.Errno
 
-func (e Errno) errno() int32 {
-	return int32(e)
+var _ = ErrorNumber(Errno(0))
+var _ = Error(Errno(0))
+var _ = error(Errno(0))
+
+func (e Errno) Errno() Errno {
+	return e
 }
 
 func (e Errno) String() string {
 	return syscall.Errno(e).Error()
 }
 
-func (e Errno) MarshalText() ([]byte, error) {
+func (e Errno) Error() string {
+	return syscall.Errno(e).Error()
+}
+
+// ErrnoName returns the short non-numeric identifier for this errno.
+// For example, "EIO".
+func (e Errno) ErrnoName() string {
 	s := errnoNames[e]
 	if s == "" {
-		s = fmt.Sprint(e.errno())
+		s = fmt.Sprint(e.Errno())
 	}
+	return s
+}
+
+func (e Errno) MarshalText() ([]byte, error) {
+	s := e.ErrnoName()
 	return []byte(s), nil
 }
 
 func (h *Header) RespondError(err Error) {
+	errno := DefaultErrno
+	if ferr, ok := err.(ErrorNumber); ok {
+		errno = ferr.Errno()
+	}
 	// FUSE uses negative errors!
 	// TODO: File bug report against OSXFUSE: positive error causes kernel panic.
-	out := &outHeader{Error: -err.errno(), Unique: uint64(h.ID)}
+	out := &outHeader{Error: -int32(errno), Unique: uint64(h.ID)}
 	h.Conn.respond(out, unsafe.Sizeof(*out))
 }
 
@@ -309,10 +361,25 @@ func (malformedMessage) String() string {
 	return "malformed message"
 }
 
+// Close closes the FUSE connection.
+func (c *Conn) Close() error {
+	return c.dev.Close()
+}
+
+func (c *Conn) fd() int {
+	return int(c.dev.Fd())
+}
+
 func (c *Conn) ReadRequest() (Request, error) {
 	// TODO: Some kind of buffer reuse.
 	m := newMessage(c)
-	n, err := syscall.Read(c.fd, m.buf)
+loop:
+	n, err := syscall.Read(c.fd(), m.buf)
+	if err == syscall.EINTR {
+		// OSXFUSE sends EINTR to userspace when a request interrupt
+		// completed before it got sent to userspace?
+		goto loop
+	}
 	if err != nil && err != syscall.ENODEV {
 		return nil, err
 	}
@@ -748,8 +815,21 @@ unrecognized:
 
 type bugShortKernelWrite struct {
 	Written int64
+	Length  int64
 	Error   string
 	Stack   string
+}
+
+func (b bugShortKernelWrite) String() string {
+	return fmt.Sprintf("short kernel write: written=%d/%d error=%q stack=\n%s", b.Written, b.Length, b.Error, b.Stack)
+}
+
+// safe to call even with nil error
+func errorString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 func (c *Conn) respond(out *outHeader, n uintptr) {
@@ -757,11 +837,12 @@ func (c *Conn) respond(out *outHeader, n uintptr) {
 	defer c.wio.Unlock()
 	out.Len = uint32(n)
 	msg := (*[1 << 30]byte)(unsafe.Pointer(out))[:n]
-	nn, err := syscall.Write(c.fd, msg)
+	nn, err := syscall.Write(c.fd(), msg)
 	if nn != len(msg) || err != nil {
 		Debug(bugShortKernelWrite{
 			Written: int64(nn),
-			Error:   err.Error(),
+			Length:  int64(len(msg)),
+			Error:   errorString(err),
 			Stack:   stack(),
 		})
 	}
@@ -775,7 +856,7 @@ func (c *Conn) respondData(out *outHeader, n uintptr, data []byte) {
 	msg := make([]byte, out.Len)
 	copy(msg, (*[1 << 30]byte)(unsafe.Pointer(out))[:n])
 	copy(msg[n:], data)
-	syscall.Write(c.fd, msg)
+	syscall.Write(c.fd(), msg)
 }
 
 // An InitRequest is the first request sent on a FUSE file system.
@@ -1671,6 +1752,10 @@ type LinkRequest struct {
 	Header  `json:"-"`
 	OldNode NodeID
 	NewName string
+}
+
+func (r *LinkRequest) String() string {
+	return fmt.Sprintf("Link [%s] node %d to %q", &r.Header, r.OldNode, r.NewName)
 }
 
 func (r *LinkRequest) Respond(resp *LookupResponse) {

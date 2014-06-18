@@ -818,6 +818,8 @@ func (c *Corpus) typeSpecificNodeTimeLocked(nodeType string, pn blob.Ref) (t tim
 	switch nodeType {
 	case "foursquare.com:checkin":
 		attr = "startDate"
+	case "twitter.com:tweet":
+		attr = "startDate"
 	// TODO(mpl): other nodeTypes from importers
 	default:
 		return t, errUnsupportedNodeType
@@ -1135,7 +1137,7 @@ func (c *Corpus) PermanodeLatLongLocked(pn blob.Ref, at time.Time) (lat, long fl
 		}
 		return c.PermanodeLatLongLocked(venuePn, at)
 	}
-	if nodeType == "foursquare.com:venue" {
+	if nodeType == "foursquare.com:venue" || nodeType == "twitter.com:tweet" {
 		var err error
 		lat, err = strconv.ParseFloat(c.PermanodeAttrValueLocked(pn, "latitude", at, blob.Ref{}), 64)
 		if err != nil {

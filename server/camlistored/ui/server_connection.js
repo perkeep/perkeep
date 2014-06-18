@@ -195,21 +195,6 @@ cam.ServerConnection.prototype.describeWithThumbnails = function(blobref, thumbn
 	this.sendXhr_(path, goog.bind(this.genericHandleSearch_, this, success, this.safeFail_(opt_fail)));
 };
 
-// @param {string} blobref Permanode blobref.
-// @param {number} thumbnailSize
-cam.ServerConnection.prototype.describe = function(blobref, thumbnailSize, callback) {
-	var constraint = {
-		blobRefPrefix: blobref,
-		camliType: 'permanode'
-	};
-	var describeReq = this.constructor.DESCRIBE_REQUEST;
-	describeReq.thumbnailSize = thumbnailSize;
-	var path = goog.uri.utils.appendPath(this.config_.searchRoot, 'camli/search/query');
-	this.sendXhr_(path,
-		goog.bind(this.genericHandleSearch_, this, callback, this.safeFail_()),
-		"POST", JSON.stringify(this.buildQuery(constraint, describeReq)));
-};
-
 // @param {string} signer permanode must belong to signer.
 // @param {string} attr searched attribute.
 // @param {string} value value of the searched attribute.

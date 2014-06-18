@@ -21,6 +21,7 @@ package app
 import (
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -32,12 +33,11 @@ import (
 	"camlistore.org/pkg/auth"
 	camhttputil "camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/pkg/osutil"
 )
 
-// AppHandler acts as a reverse proxy for a server application started by
+// Handler acts as a reverse proxy for a server application started by
 // Camlistore. It can also serve some extra JSON configuration to the app.
-type AppHandler struct {
+type Handler struct {
 	name    string            // Name of the app's program.
 	envVars map[string]string // Variables set in the app's process environment. See pkg/app/vars.txt.
 
@@ -47,7 +47,7 @@ type AppHandler struct {
 	proxy *httputil.ReverseProxy // For redirecting requests to the app.
 }
 
-func (a *AppHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (a *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if camhttputil.PathSuffix(req) == "config.json" {
 		if a.auth.AllowedAccess(req)&auth.OpGet == auth.OpGet {
 			camhttputil.ReturnJSON(rw, a.appConfig)
@@ -63,20 +63,61 @@ func (a *AppHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	a.proxy.ServeHTTP(rw, req)
 }
 
-// New returns a configured AppHandler that Camlistore can use during server initialization
-// as a handler that proxies request to an app. It is also used to start the app.
-// The conf object has the following members, related to the vars described in doc/app-environment.text:
-// "program", string, required. Name of the app's program.
-// "baseURL", string, required. See CAMLI_APP_BASEURL.
-// "server", string, optional, overrides the camliBaseURL argument. See CAMLI_SERVER.
-// "appConfig", object, optional. Additional configuration that the app can request from Camlistore.
-func New(conf jsonconfig.Obj, serverBaseURL string) (*AppHandler, error) {
-	name := conf.RequiredString("program")
-	server := conf.OptionalString("server", serverBaseURL)
-	if server == "" {
-		return nil, fmt.Errorf("could not initialize AppHandler for %q: Camlistore baseURL is unknown", name)
+// randPortBackendURL picks a random free port to listen on, and combines it
+// with apiHost and appHandlerPrefix to create the appBackendURL that the app
+// will listen on, and that the app handler will proxy to.
+func randPortBackendURL(apiHost, appHandlerPrefix string) (string, error) {
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	if err != nil {
+		return "", err
 	}
-	baseURL := conf.RequiredString("baseURL")
+	listener, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return "", fmt.Errorf("could not listen to find random port: %v", err)
+	}
+	randAddr := listener.Addr().(*net.TCPAddr)
+	if err := listener.Close(); err != nil {
+		return "", fmt.Errorf("could not close random listener: %v", err)
+	}
+
+	scheme := "https://"
+	noScheme := strings.TrimPrefix(apiHost, scheme)
+	if strings.HasPrefix(noScheme, "http://") {
+		scheme = "http://"
+		noScheme = strings.TrimPrefix(noScheme, scheme)
+	}
+	hostPortPrefix := strings.SplitN(noScheme, "/", 2)
+	if len(hostPortPrefix) != 2 {
+		return "", fmt.Errorf("invalid apiHost: %q (no trailing slash?)", apiHost)
+	}
+	var host string
+	if strings.Contains(hostPortPrefix[0], "]") {
+		// we've got some IPv6 probably
+		hostPort := strings.Split(hostPortPrefix[0], "]")
+		host = hostPort[0] + "]"
+	} else {
+		hostPort := strings.Split(hostPortPrefix[0], ":")
+		host = hostPort[0]
+	}
+	return fmt.Sprintf("%s%s:%d%s", scheme, host, randAddr.Port, appHandlerPrefix), nil
+}
+
+// NewHandler returns a Handler that proxies requests to an app. Start() on the
+// Handler starts the app.
+// The apiHost must end in a slash and is the camlistored API server for the app
+// process to hit.
+// The appHandlerPrefix is the URL path prefix on apiHost where the app is mounted.
+// It must end in a slash, and be at minimum "/".
+// The conf object has the following members, related to the vars described in
+// doc/app-environment.txt:
+// "program", string, required. File name of the app's program executable. Either
+// an absolute path, or the name of a file located in CAMLI_APP_BINDIR or in PATH.
+// "backendURL", string, optional. Automatic if absent. It sets CAMLI_APP_BACKEND_URL.
+// "appConfig", object, optional. Additional configuration that the app can request from Camlistore.
+func NewHandler(conf jsonconfig.Obj, apiHost, appHandlerPrefix string) (*Handler, error) {
+	// TODO: remove the appHandlerPrefix if/when we change where the app config JSON URL is made available.
+	name := conf.RequiredString("program")
+	backendURL := conf.OptionalString("backendURL", "")
 	appConfig := conf.OptionalObject("appConfig")
 	// TODO(mpl): add an auth token in the extra config of the dev server config,
 	// that the hello app can use to setup a status handler than only responds
@@ -85,24 +126,41 @@ func New(conf jsonconfig.Obj, serverBaseURL string) (*AppHandler, error) {
 		return nil, err
 	}
 
+	if apiHost == "" {
+		return nil, fmt.Errorf("app: could not initialize Handler for %q: Camlistore apiHost is unknown", name)
+	}
+	if appHandlerPrefix == "" {
+		return nil, fmt.Errorf("app: could not initialize Handler for %q: empty appHandlerPrefix", name)
+	}
+
+	if backendURL == "" {
+		var err error
+		// If not specified in the conf, we're dynamically picking the port of the CAMLI_APP_BACKEND_URL
+		// now (instead of letting the app itself do it), because we need to know it in advance in order
+		// to set the app handler's proxy.
+		backendURL, err = randPortBackendURL(apiHost, appHandlerPrefix)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	username, password := auth.RandToken(20), auth.RandToken(20)
 	camliAuth := username + ":" + password
 	basicAuth := auth.NewBasicAuth(username, password)
 	envVars := map[string]string{
-		"CAMLI_SERVER":      server,
-		"CAMLI_AUTH":        camliAuth,
-		"CAMLI_APP_BASEURL": baseURL,
+		"CAMLI_API_HOST":        apiHost,
+		"CAMLI_AUTH":            camliAuth,
+		"CAMLI_APP_BACKEND_URL": backendURL,
 	}
 	if appConfig != nil {
-		appConfigURL := fmt.Sprintf("%s/%s/%s", strings.TrimSuffix(server, "/"), name, "config.json")
-		envVars["CAMLI_APP_CONFIG_URL"] = appConfigURL
+		envVars["CAMLI_APP_CONFIG_URL"] = apiHost + strings.TrimPrefix(appHandlerPrefix, "/") + "config.json"
 	}
 
-	proxyURL, err := url.Parse(baseURL)
+	proxyURL, err := url.Parse(backendURL)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse baseURL %q: %v", baseURL, err)
+		return nil, fmt.Errorf("could not parse backendURL %q: %v", backendURL, err)
 	}
-	return &AppHandler{
+	return &Handler{
 		name:      name,
 		envVars:   envVars,
 		auth:      basicAuth,
@@ -111,23 +169,23 @@ func New(conf jsonconfig.Obj, serverBaseURL string) (*AppHandler, error) {
 	}, nil
 }
 
-func (a *AppHandler) Start() error {
+func (a *Handler) Start() error {
 	name := a.name
 	if name == "" {
 		return fmt.Errorf("invalid app name: %q", name)
 	}
-	// first look for it in PATH
-	binPath, err := exec.LookPath(name)
-	if err != nil {
-		log.Printf("%q binary not found in PATH. now trying in the camlistore tree.", name)
-		// else try in the camlistore tree
-		binDir, err := osutil.GoPackagePath("camlistore.org/bin")
+	var binPath string
+	var err error
+	if e := os.Getenv("CAMLI_APP_BINDIR"); e != "" {
+		binPath, err = exec.LookPath(filepath.Join(e, name))
 		if err != nil {
-			return fmt.Errorf("bin dir in camlistore tree was not found: %v", err)
+			log.Printf("%q executable not found in %q", e)
 		}
-		binPath = filepath.Join(binDir, name)
-		if _, err = os.Stat(binPath); err != nil {
-			return fmt.Errorf("could not find %v binary at %v: %v", name, binPath, err)
+	}
+	if binPath == "" || err != nil {
+		binPath, err = exec.LookPath(name)
+		if err != nil {
+			return fmt.Errorf("%q executable not found in PATH.", name)
 		}
 	}
 
@@ -159,13 +217,21 @@ func (a *AppHandler) Start() error {
 	return nil
 }
 
-func (a *AppHandler) Name() string {
+// ProgramName returns the name of the app's binary. It may be a file name in
+// CAMLI_APP_BINDIR or PATH, or an absolute path.
+func (a *Handler) ProgramName() string {
 	return a.name
 }
 
 // AuthMode returns the app handler's auth mode, which is also the auth that the
 // app's client will be configured with. This mode should be registered with
 // the server's auth modes, for the app to have access to the server's resources.
-func (a *AppHandler) AuthMode() auth.AuthMode {
+func (a *Handler) AuthMode() auth.AuthMode {
 	return a.auth
+}
+
+// AppConfig returns the optional configuration parameters object that the app
+// can request from the app handler. It can be nil.
+func (a *Handler) AppConfig() map[string]interface{} {
+	return a.appConfig
 }

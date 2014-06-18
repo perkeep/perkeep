@@ -18,7 +18,6 @@ limitations under the License.
 package serverconfig
 
 import (
-	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/types"
 )
 
@@ -70,14 +69,30 @@ type Config struct {
 	Picasa string `json:"picasa,omitempty"` // picasa importer.
 }
 
-// Publish holds the server configuration values specific to publishing, i.e. to a publish handler.
+// Publish holds the server configuration values specific to a publisher, i.e. to a publish prefix.
 type Publish struct {
-	// Root is the permanode used as the root for all the paths served by this publish handler. The camliRoot value that is the root path for this handler is a property of this permanode.
-	Root blob.Ref `json:"rootPermanode"`
-	// GoTemplate is the name of the Go template file used by this publish handler to represent the data. This file should live in server/camlistored/ui/.
+	// Program is the server app program to run as the publisher.
+	// Defaults to "publisher".
+	Program string `json:"program"`
+
+	// CamliRoot value that defines our root permanode for this
+	// publisher. The root permanode is used as the root for all the
+	// paths served by this publisher.
+	CamliRoot string `json:"camliRoot"`
+
+	// Base URL the app will run at.
+	BaseURL string `json:"baseURL,omitempty"`
+
+	// GoTemplate is the name of the Go template file used by this
+	// publisher to represent the data. This file should live in
+	// app/publisher/.
 	GoTemplate string `json:"goTemplate"`
-	// Javascript is the name of an optional javascript file used for additional features. This file should live in server/camlistored/ui/.
-	Javascript string `json:"js,omitempty"`
-	// Style is the name of an optional css file. This file should live in server/camlistored/ui/.
-	Style string `json:"style,omitempty"`
+
+	// CacheRoot is the path that will be used as the root for the
+	// caching blobserver (for images). No caching if empty.
+	// An example value is Config.BlobPath + "/cache".
+	CacheRoot string `json:"cacheRoot,omitempty"`
+
+	HTTPSCert string `json:"httpsCert,omitempty"` // path to the HTTPS certificate file.
+	HTTPSKey  string `json:"httpsKey,omitempty"`  // path to the HTTPS key file.
 }

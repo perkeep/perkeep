@@ -2,23 +2,22 @@
 	"listen": "localhost:3179",
 	"auth": "userpass:camlistore:pass3179",
 	"blobPath": "/tmp/blobs",
-        "kvIndexFile": "/path/to/indexkv.db",
+	"kvIndexFile": "/path/to/indexkv.db",
 	"identity": "26F5ABDA",
 	"identitySecretRing": "/path/to/secring",
 	"ownerName": "Alice",
 	"shareHandlerPath": "/share/",
-    "publish": {
-        "/pics/": {
-           "rootPermanode": "sha1-046c6aae4ec8245dfe63edc4a2abb407824a4b5a",
-            "style": "pics.css",
-            "js": "pics.js",
-            "goTemplate": "gallery.html"
-            },
-        "/music/": {
-           "rootPermanode": "sha1-999c6aae4ec8245dfe63edc4a2abb407824a4b5a",
-            "style": "pics.css",
-            "js": "pics.js",
-            "goTemplate": "gallery.html"
-            }
-    }
+	"publish": {
+		"/pics/": {
+			"camliRoot": "picsRoot",
+			"cacheRoot": "/tmp/blobs/cache",
+			"goTemplate": "gallery.html"
+		},
+		"/music/": {
+			"camliRoot": "musicRoot",
+			"baseURL": "http://localhost:3178/",
+			"cacheRoot": "/tmp/blobs/cache",
+			"goTemplate": "music.html"
+		}
+	}
 }

@@ -38,6 +38,7 @@ import (
 	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/misc/closure"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/server/app"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/syncutil"
 	uistatic "camlistore.org/server/camlistored/ui"
@@ -77,8 +78,7 @@ type UIHandler struct {
 	// if we start having clients (like phones) that we want to upload
 	// but don't trust to have private signing keys?
 	JSONSignRoot string
-
-	publishRoots map[string]*PublishHandler
+	publishRoots map[string]*publishRoot
 
 	prefix string // of the UI handler itself
 	root   *RootHandler
@@ -90,7 +90,7 @@ type UIHandler struct {
 
 	// Limit peak RAM used by concurrent image thumbnail calls.
 	resizeSem *syncutil.Sem
-	thumbMeta *thumbMeta // optional thumbnail key->blob.Ref cache
+	thumbMeta *ThumbMeta // optional thumbnail key->blob.Ref cache
 
 	// sourceRoot optionally specifies the path to root of Camlistore's
 	// source. If empty, the UI files must be compiled in to the
@@ -127,7 +127,6 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		resizeSem: syncutil.NewSem(int64(conf.OptionalInt("maxResizeBytes",
 			constants.DefaultMaxResizeMem))),
 	}
-	pubRoots := conf.OptionalList("publishRoots")
 	cachePrefix := conf.OptionalString("cache", "")
 	scaledImageConf := conf.OptionalObject("scaledImage")
 	if err = conf.Validate(); err != nil {
@@ -139,24 +138,6 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		if sigh, ok := h.(*signhandler.Handler); ok {
 			ui.sigh = sigh
 		}
-	}
-
-	if os.Getenv("CAMLI_PUBLISH_ENABLED") == "false" {
-		// Hack for dev server, to simplify its config with devcam server --publish=false.
-		pubRoots = nil
-	}
-
-	ui.publishRoots = make(map[string]*PublishHandler)
-	for _, pubRoot := range pubRoots {
-		h, err := ld.GetHandler(pubRoot)
-		if err != nil {
-			return nil, fmt.Errorf("UI handler's publishRoots references invalid %q", pubRoot)
-		}
-		pubh, ok := h.(*PublishHandler)
-		if !ok {
-			return nil, fmt.Errorf("UI handler's publishRoots references invalid %q; not a PublishHandler", pubRoot)
-		}
-		ui.publishRoots[pubRoot] = pubh
 	}
 
 	checkType := func(key string, htype string) {
@@ -190,7 +171,7 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 			return nil, fmt.Errorf("UI handler's cache of %q error: %v", cachePrefix, err)
 		}
 		ui.Cache = bs
-		ui.thumbMeta = newThumbMeta(scaledImageKV)
+		ui.thumbMeta = NewThumbMeta(scaledImageKV)
 	}
 
 	if ui.sourceRoot == "" {
@@ -257,6 +238,79 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 	}
 
 	return ui, nil
+}
+
+type publishRoot struct {
+	Name      string
+	Permanode blob.Ref
+	Prefix    string
+}
+
+// InitHandler goes through all the other configured handlers to discover
+// the publisher ones, and uses them to populate ui.publishRoots.
+func (ui *UIHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
+	searchPrefix, _, err := hl.FindHandlerByType("search")
+	if err != nil {
+		return errors.New("No search handler configured, which is necessary for the ui handler")
+	}
+	var sh *search.Handler
+	htype, hi := hl.AllHandlers()
+	if h, ok := hi[searchPrefix]; !ok {
+		return errors.New("failed to find the \"search\" handler")
+	} else {
+		sh = h.(*search.Handler)
+	}
+	camliRootQuery := func(camliRoot string) (*search.SearchResult, error) {
+		return sh.Query(&search.SearchQuery{
+			Limit: 1,
+			Constraint: &search.Constraint{
+				Permanode: &search.PermanodeConstraint{
+					Attr:  "camliRoot",
+					Value: camliRoot,
+				},
+			},
+		})
+	}
+	for prefix, typ := range htype {
+		if typ != "app" {
+			continue
+		}
+		ah, ok := hi[prefix].(*app.Handler)
+		if !ok {
+			panic(fmt.Sprintf("UI: handler for %v has type \"app\" but is not app.Handler", prefix))
+		}
+		if ah.ProgramName() != "publisher" {
+			continue
+		}
+		appConfig := ah.AppConfig()
+		if appConfig == nil {
+			log.Printf("UI: app handler for %v has no appConfig", prefix)
+			continue
+		}
+		camliRoot, ok := appConfig["camliRoot"].(string)
+		if !ok {
+			log.Printf("UI: camliRoot in appConfig is %T, want string, was %T", appConfig["camliRoot"])
+			continue
+		}
+		result, err := camliRootQuery(camliRoot)
+		if err != nil {
+			log.Printf("UI: could not find permanode for camliRoot %v: %v", camliRoot, err)
+			continue
+		}
+		if len(result.Blobs) == 0 || !result.Blobs[0].Blob.Valid() {
+			log.Printf("UI: no valid permanode for camliRoot %v", camliRoot)
+			continue
+		}
+		if ui.publishRoots == nil {
+			ui.publishRoots = make(map[string]*publishRoot)
+		}
+		ui.publishRoots[prefix] = &publishRoot{
+			Name:      camliRoot,
+			Prefix:    prefix,
+			Permanode: result.Blobs[0].Blob,
+		}
+	}
+	return nil
 }
 
 func (ui *UIHandler) makeClosureHandler(root string) (http.Handler, error) {
@@ -415,11 +469,12 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			serveDepsJS(rw, req, ui.uiDir)
 			return
 		}
-		serveStaticFile(rw, req, uistatic.Files, file)
+		ServeStaticFile(rw, req, uistatic.Files, file)
 	}
 }
 
-func serveStaticFile(rw http.ResponseWriter, req *http.Request, root http.FileSystem, file string) {
+// ServeStaticFile serves file from the root virtual filesystem.
+func ServeStaticFile(rw http.ResponseWriter, req *http.Request, root http.FileSystem, file string) {
 	f, err := root.Open("/" + file)
 	if err != nil {
 		http.NotFound(rw, req)
@@ -441,19 +496,13 @@ func serveStaticFile(rw http.ResponseWriter, req *http.Request, root http.FileSy
 
 func (ui *UIHandler) populateDiscoveryMap(m map[string]interface{}) {
 	pubRoots := map[string]interface{}{}
-	for key, pubh := range ui.publishRoots {
+	for _, v := range ui.publishRoots {
 		m := map[string]interface{}{
-			"name":   pubh.RootName,
-			"prefix": []string{key},
-			// TODO: include gpg key id
+			"name":             v.Name,
+			"prefix":           []string{v.Prefix},
+			"currentPermanode": v.Permanode.String(),
 		}
-		if sh, ok := ui.root.SearchHandler(); ok {
-			pn, err := sh.Index().PermanodeOfSignerAttrValue(sh.Owner(), "camliRoot", pubh.RootName)
-			if err == nil {
-				m["currentPermanode"] = pn.String()
-			}
-		}
-		pubRoots[pubh.RootName] = m
+		pubRoots[v.Name] = m
 	}
 
 	uiDisco := map[string]interface{}{
@@ -537,8 +586,8 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 		Cache:     ui.Cache,
 		MaxWidth:  width,
 		MaxHeight: height,
-		thumbMeta: ui.thumbMeta,
-		resizeSem: ui.resizeSem,
+		ThumbMeta: ui.thumbMeta,
+		ResizeSem: ui.resizeSem,
 	}
 	th.ServeHTTP(rw, req, blobref)
 }
@@ -597,7 +646,7 @@ func (ui *UIHandler) serveFromDiskOrStatic(rw http.ResponseWriter, req *http.Req
 		req.URL.Path = "/" + file
 		disk.ServeHTTP(rw, req)
 	} else {
-		serveStaticFile(rw, req, static, file)
+		ServeStaticFile(rw, req, static, file)
 	}
 
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2011 Google Inc.
+Copyright 2014 The Camlistore Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,15 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package server
+package main
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	camliClient "camlistore.org/pkg/client"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
@@ -113,6 +115,29 @@ func setupContent(rootName string) *indextest.IndexDeps {
 	return idxd
 }
 
+type fakeClient struct {
+	*camliClient.Client // for blob.Fetcher
+	sh                  *search.Handler
+}
+
+func (fc *fakeClient) Search(req *search.SearchQuery) (*search.SearchResult, error) {
+	return fc.sh.Query(req)
+}
+
+func (fc *fakeClient) Describe(req *search.DescribeRequest) (*search.DescribeResponse, error) {
+	return fc.sh.Describe(req)
+}
+
+func (fc *fakeClient) GetJSON(url string, data interface{}) error {
+	// no need to implement
+	return nil
+}
+
+func (fc *fakeClient) Post(url string, bodyType string, body io.Reader) error {
+	// no need to implement
+	return nil
+}
+
 func TestPublishURLs(t *testing.T) {
 	rootName := "foo"
 	idxd := setupContent(rootName)
@@ -122,9 +147,14 @@ func TestPublishURLs(t *testing.T) {
 		t.Fatalf("error slurping index to memory: %v", err)
 	}
 	sh.SetCorpus(corpus)
-	ph := &PublishHandler{
-		RootName: rootName,
-		Search:   sh,
+	cl := camliClient.New("http://whatever.fake")
+	fcl := &fakeClient{cl, sh}
+	ph := &publishHandler{
+		rootName: rootName,
+		cl:       fcl,
+	}
+	if err := ph.initRootNode(); err != nil {
+		t.Fatalf("initRootNode: %v", err)
 	}
 
 	for ti, tt := range publishURLTests {
@@ -137,9 +167,12 @@ func TestPublishURLs(t *testing.T) {
 		pfxh := &httputil.PrefixHandler{
 			Prefix: "/pics/",
 			Handler: http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
-				pr := ph.NewRequest(rw, req)
+				pr, err := ph.NewRequest(rw, req)
+				if err != nil {
+					t.Fatalf("test #%d, NewRequest: %v", ti, err)
+				}
 
-				err := pr.findSubject()
+				err = pr.findSubject()
 				if tt.subject != "" {
 					if err != nil {
 						t.Errorf("test #%d, findSubject: %v", ti, err)
@@ -168,9 +201,11 @@ func TestPublishMembers(t *testing.T) {
 		t.Fatalf("error slurping index to memory: %v", err)
 	}
 	sh.SetCorpus(corpus)
-	ph := &PublishHandler{
-		RootName: rootName,
-		Search:   sh,
+	cl := camliClient.New("http://whatever.fake")
+	fcl := &fakeClient{cl, sh}
+	ph := &publishHandler{
+		rootName: rootName,
+		cl:       fcl,
 	}
 
 	rw := httptest.NewRecorder()
@@ -179,17 +214,17 @@ func TestPublishMembers(t *testing.T) {
 	pfxh := &httputil.PrefixHandler{
 		Prefix: "/pics/",
 		Handler: http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
-			pr := ph.NewRequest(rw, req)
-
-			dr := pr.ph.Search.NewDescribeRequest()
-			dr.Describe(pr.subject, 3)
-			res, err := dr.Result()
+			pr, err := ph.NewRequest(rw, req)
 			if err != nil {
-				t.Errorf("Result: %v", err)
-				return
+				t.Fatalf("NewRequest: %v", err)
 			}
 
-			members, err := pr.subjectMembers(res)
+			res, err := pr.ph.deepDescribe(pr.subject)
+			if err != nil {
+				t.Fatalf("deepDescribe: %v", err)
+			}
+
+			members, err := pr.subjectMembers(res.Meta)
 			if len(members.Members) != 2 {
 				t.Errorf("Expected two members in publish root (one camlipath, one camlimember), got %d", len(members.Members))
 			}

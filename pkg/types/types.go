@@ -28,6 +28,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -211,6 +212,28 @@ func U32(n int64) uint32 {
 		panic("bad size " + fmt.Sprint(n))
 	}
 	return uint32(n)
+}
+
+// NewOnceCloser returns a Closer wrapping c which only calls Close on c
+// once. Subsequent calls to Close return nil.
+func NewOnceCloser(c io.Closer) io.Closer {
+	return &onceCloser{c: c}
+}
+
+type onceCloser struct {
+	mu sync.Mutex
+	c  io.Closer
+}
+
+func (c *onceCloser) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.c == nil {
+		return nil
+	}
+	err := c.c.Close()
+	c.c = nil
+	return err
 }
 
 // TB is a copy of Go 1.2's testing.TB.

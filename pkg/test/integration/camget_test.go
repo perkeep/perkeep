@@ -20,6 +20,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -87,5 +88,71 @@ func TestCamgetSymlink(t *testing.T) {
 	_, err = os.Stat(symlink)
 	if err != nil {
 		t.Fatalf("os.Stat(): %v", err)
+	}
+}
+
+// Test that `camget -o' can restore a fifo correctly.
+func TestCamgetFIFO(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.SkipNow()
+	}
+
+	fifo, cleanup := mkTmpFIFO(t)
+	defer cleanup()
+
+	// Upload the fifo
+	w := test.GetWorld(t)
+	out := test.MustRunCmd(t, w.Cmd("camput", "file", fifo))
+	br := strings.Split(out, "\n")[0]
+
+	// Try and get it back
+	tdir, err := ioutil.TempDir("", "fifo-test-")
+	if err != nil {
+		t.Fatalf("ioutil.TempDir(): %v", err)
+	}
+	defer os.RemoveAll(tdir)
+	test.MustRunCmd(t, w.Cmd("camget", "-o", tdir, br))
+
+	// Ensure it is actually a fifo
+	name := filepath.Join(tdir, filepath.Base(fifo))
+	fi, err := os.Lstat(name)
+	if err != nil {
+		t.Fatalf("os.Lstat(): %v", err)
+	}
+	if mask := fi.Mode() & os.ModeNamedPipe; mask == 0 {
+		t.Fatalf("Retrieved file %s: Not a FIFO", name)
+	}
+}
+
+// Test that `camget -o' can restore a socket correctly.
+func TestCamgetSocket(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.SkipNow()
+	}
+
+	socket, cleanup := mkTmpSocket(t)
+	defer cleanup()
+
+	// Upload the socket
+	w := test.GetWorld(t)
+	out := test.MustRunCmd(t, w.Cmd("camput", "file", socket))
+	br := strings.Split(out, "\n")[0]
+
+	// Try and get it back
+	tdir, err := ioutil.TempDir("", "socket-test-")
+	if err != nil {
+		t.Fatalf("ioutil.TempDir(): %v", err)
+	}
+	defer os.RemoveAll(tdir)
+	test.MustRunCmd(t, w.Cmd("camget", "-o", tdir, br))
+
+	// Ensure it is actually a socket
+	name := filepath.Join(tdir, filepath.Base(socket))
+	fi, err := os.Lstat(name)
+	if err != nil {
+		t.Fatalf("os.Lstat(): %v", err)
+	}
+	if mask := fi.Mode() & os.ModeSocket; mask == 0 {
+		t.Fatalf("Retrieved file %s: Not a socket", name)
 	}
 }

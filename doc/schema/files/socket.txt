@@ -1,0 +1,9 @@
+socket schema
+
+{"camliVersion": 1,
+ "camliType": "socket",
+
+  //
+  // INCLUDE ALL REQUIRED & ANY OPTIONAL FIELDS FROM file-common.txt
+  //
+}

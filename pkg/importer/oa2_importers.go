@@ -39,13 +39,13 @@ import (
 type ExtendedOAuth2 struct {
 	OAuth2
 	oauthConfig oauth.Config
-	getUserInfo func(ctx *context.Context, accessToken string) (string, string, string, error)
+	getUserInfo func(ctx *context.Context, accessToken string) (*UserInfo, error)
 }
 
 // NewExtendedOAuth2 returns a default implementation of
 // some common methods for OAuth2-based importers.
 func NewExtendedOAuth2(oauthConfig oauth.Config,
-	getUserInfo func(ctx *context.Context, accessToken string) (string, string, string, error),
+	getUserInfo func(ctx *context.Context, accessToken string) (*UserInfo, error),
 ) ExtendedOAuth2 {
 	return ExtendedOAuth2{oauthConfig: oauthConfig, getUserInfo: getUserInfo}
 }
@@ -85,7 +85,15 @@ func (im ExtendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, c
 		http.Error(w, "Expected a code", 400)
 		return
 	}
-	transport := &oauth.Transport{Config: oauthConfig}
+
+	// picago calls take an *http.Client, so we need to provide one which already
+	// has a transport set up correctly wrt to authentication. In particular, it
+	// needs to have the access token that is obtained during Exchange.
+	picagoCtx := ctx.Context.New()
+	transport := &oauth.Transport{
+		Config:    oauthConfig,
+		Transport: picagoCtx.HTTPClient().Transport,
+	}
 	token, err := transport.Exchange(code)
 	log.Printf("Token = %#v, error %v", token, err)
 	if err != nil {
@@ -93,18 +101,9 @@ func (im ExtendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, c
 		httputil.ServeError(w, r, fmt.Errorf("token exchange error: %v", err))
 		return
 	}
+	picagoCtx.SetHTTPClient(&http.Client{Transport: transport})
 
-	// copy the client before modifying it
-	client := *ctx.Context.HTTPClient()
-	client.Transport = transport
-
-	// FIXME(tgulacsi): this will panic if ctx.Context is nil - which happens if
-	// the caller just used context.TODO().
-	// Maybe a better solution would be to replicate the logic of auth which
-	// creates/prepares this transport, and use that where we need it.
-	ctx.Context.SetHTTPClient(&client)
-
-	uId, uFirstName, uLastName, err := im.getUserInfo(ctx.Context, token.AccessToken)
+	userInfo, err := im.getUserInfo(picagoCtx, token.AccessToken)
 	if err != nil {
 		log.Printf("Couldn't get username: %v", err)
 		httputil.ServeError(w, r, fmt.Errorf("can't get username: %v", err))
@@ -112,9 +111,9 @@ func (im ExtendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, c
 	}
 
 	if err := ctx.AccountNode.SetAttrs(
-		AcctAttrUserID, uId,
-		AcctAttrGivenName, uFirstName,
-		AcctAttrFamilyName, uLastName,
+		AcctAttrUserID, userInfo.ID,
+		AcctAttrGivenName, userInfo.FirstName,
+		AcctAttrFamilyName, userInfo.LastName,
 		AcctAttrAccessToken, token.AccessToken,
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
@@ -131,4 +130,14 @@ func (im ExtendedOAuth2) auth(ctx *SetupContext) (*oauth.Config, error) {
 	conf := im.oauthConfig
 	conf.ClientId, conf.ClientSecret, conf.RedirectURL = clientId, secret, ctx.CallbackURL()
 	return &conf, nil
+}
+
+// UserInfo contains basic information about the identity of the imported
+// account owner. Its use is discouraged as it might be refactored soon.
+// Importer implementations should rather make their own dedicated type for
+// now.
+type UserInfo struct {
+	ID        string
+	FirstName string
+	LastName  string
 }

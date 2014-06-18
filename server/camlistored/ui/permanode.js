@@ -106,11 +106,22 @@ cam.PermanodePage.prototype.exitDocument = function() {
 	cam.PermanodePage.superClass_.exitDocument.call(this);
 };
 
-// @param {string} blobRef BlobRef for the uploaded file.
-// @param {string} permanode Permanode this blobRef is now the content of.
 cam.PermanodePage.prototype.describeBlob_ = function() {
 	var permanode = getPermanodeParam();
-	this.connection_.describe(permanode, this.blobItemContainer_.thumbnailSize_,
+	var constraint = {
+		blobRefPrefix: permanode,
+		camliType: 'permanode'
+	};
+	var describeReq = {
+		depth: 1,
+		thumbnailSize: this.blobItemContainer_.thumbnailSize_,
+		rules: [
+			{
+				attrs: ['camliContent', 'camliContentImage', 'camliMember']
+			}
+		],
+	};
+	this.connection_.search(constraint, describeReq, null, null,
 		goog.bind(this.handleDescribeBlob_, this, permanode)
 	);
 };

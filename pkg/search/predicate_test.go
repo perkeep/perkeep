@@ -185,12 +185,6 @@ var keywordTests = []keywordTestcase{
 	},
 
 	{
-		object:      newAttribute(),
-		args:        []string{"foo"},
-		errContains: "expected attribute value",
-	},
-
-	{
 		object: newAttribute(),
 		args:   []string{"foo", "bar"},
 		want:   attrfoobarC,
@@ -499,17 +493,7 @@ var keywordTests = []keywordTestcase{
 
 	{
 		object: newHasLocation(),
-		want: &Constraint{
-			Permanode: &PermanodeConstraint{
-				Attr: "camliContent",
-				ValueInSet: &Constraint{
-					File: &FileConstraint{
-						IsImage:  true,
-						Location: &LocationConstraint{Any: true},
-					},
-				},
-			},
-		},
+		want:   hasLocationC,
 	},
 }
 
@@ -579,25 +563,57 @@ func TestMatchEqual(t *testing.T) {
 	me := matchEqual("foo:bar:baz")
 	a := atom{"foo", []string{"bar", "baz"}}
 
-	if !me.Match(a) {
+	if m, _ := me.Match(a); !m {
 		t.Error("Expected a match")
 	}
 
 	a = atom{"foo", []string{"foo", "baz"}}
-	if me.Match(a) {
+	if m, _ := me.Match(a); m {
 		t.Error("Did not expect a match")
 	}
 }
 
 func TestMatchPrefix(t *testing.T) {
-	mp := matchPrefix("foo")
+	mp := matchPrefix{"foo", 1}
 	a := atom{"foo", []string{"bar"}}
-	if !mp.Match(a) {
+	if m, err := mp.Match(a); err != nil || !m {
 		t.Error("Expected a match")
 	}
 
-	a = atom{"baz", []string{}}
-	if mp.Match(a) {
-		t.Error("Did not expect a match")
+	a = atom{"foo", []string{}}
+	if _, err := mp.Match(a); err == nil {
+		t.Error("Expected an error got nil")
+	}
+	a = atom{"bar", []string{}}
+	if m, err := mp.Match(a); err != nil || m {
+		t.Error("Expected simple mismatch")
+	}
+}
+
+func TestLocationConstraint(t *testing.T) {
+	var c LocationConstraint
+	if c.matchesLatLong(1, 2) {
+		t.Error("zero value shouldn't match")
+	}
+	c.Any = true
+	if !c.matchesLatLong(1, 2) {
+		t.Error("Any should match")
+	}
+
+	c = LocationConstraint{North: 2, South: 1, West: 0, East: 2}
+	tests := []struct {
+		lat, long float64
+		want      bool
+	}{
+		{1, 1, true},
+		{3, 1, false},  // too north
+		{1, 3, false},  // too east
+		{1, -1, false}, // too west
+		{0, 1, false},  // too south
+	}
+	for _, tt := range tests {
+		if got := c.matchesLatLong(tt.lat, tt.long); got != tt.want {
+			t.Errorf("matches(%v, %v) = %v; want %v", tt.lat, tt.long, got, tt.want)
+		}
 	}
 }

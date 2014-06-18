@@ -63,8 +63,8 @@ type ImageHandler struct {
 	Cache               blobserver.Storage // optional
 	MaxWidth, MaxHeight int
 	Square              bool
-	thumbMeta           *thumbMeta // optional cache for scaled images
-	resizeSem           *syncutil.Sem
+	ThumbMeta           *ThumbMeta    // optional cache index for scaled images
+	ResizeSem           *syncutil.Sem // Limit peak RAM used by concurrent image thumbnail calls.
 }
 
 type subImager interface {
@@ -117,7 +117,7 @@ func (ih *ImageHandler) cacheScaled(thumbBytes []byte, name string) error {
 	if err != nil {
 		return err
 	}
-	ih.thumbMeta.Put(name, br)
+	ih.ThumbMeta.Put(name, br)
 	return nil
 }
 
@@ -178,7 +178,7 @@ func cacheKey(bref string, width int, height int) string {
 // Almost all errors are not interesting. Real errors will be logged.
 func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file blob.Ref) (format string) {
 	key := cacheKey(file.String(), ih.MaxWidth, ih.MaxHeight)
-	br, err := ih.thumbMeta.Get(key)
+	br, err := ih.ThumbMeta.Get(key)
 	if err == errCacheMiss {
 		return
 	}
@@ -188,6 +188,9 @@ func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file blob.Ref) (format s
 	}
 	fr, err := ih.cached(br)
 	if err != nil {
+		if imageDebug {
+			log.Printf("Could not get cached image %v: %v\n", br, err)
+		}
 		return
 	}
 	defer fr.Close()
@@ -247,10 +250,10 @@ func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 	// images being resized concurrently.
 	ramSize := int64(conf.Width) * int64(conf.Height) * 3
 
-	if err = ih.resizeSem.Acquire(ramSize); err != nil {
+	if err = ih.ResizeSem.Acquire(ramSize); err != nil {
 		return nil, err
 	}
-	defer ih.resizeSem.Release(ramSize)
+	defer ih.ResizeSem.Release(ramSize)
 
 	i, imConfig, err := images.Decode(sr, &images.DecodeOpts{
 		MaxWidth:  ih.MaxWidth,
@@ -325,7 +328,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	var imageData []byte
 	format := ""
 	cacheHit := false
-	if ih.thumbMeta != nil && !disableThumbCache {
+	if ih.ThumbMeta != nil && !disableThumbCache {
 		var buf bytes.Buffer
 		format = ih.scaledCached(&buf, file)
 		if format != "" {
@@ -346,7 +349,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		im := imi.(*formatAndImage)
 		imageData = im.image
 		format = im.format
-		if ih.thumbMeta != nil {
+		if ih.ThumbMeta != nil {
 			err := ih.cacheScaled(imageData, key)
 			if err != nil {
 				log.Printf("image resize: %v", err)

@@ -33,7 +33,9 @@ import (
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
+	"camlistore.org/pkg/types"
 )
 
 var (
@@ -171,7 +173,8 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 	if err != nil {
 		return err
 	}
-	defer rc.Close()
+	rcc := types.NewOnceCloser(rc)
+	defer rcc.Close()
 
 	sniffer := index.NewBlobSniffer(br)
 	_, err = io.CopyN(sniffer, rc, sniffSize)
@@ -198,6 +201,7 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 		_, err = io.Copy(f, r)
 		return err
 	}
+	rcc.Close()
 
 	switch b.Type() {
 	case "directory":
@@ -313,6 +317,69 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 		// os.Chtimes always dereferences (does not act on the
 		// symlink but its target).
 		return err
+	case "fifo":
+		name := filepath.Join(targ, b.FileName())
+
+		sf, ok := b.AsStaticFile()
+		if !ok {
+			return errors.New("blob is not a static file")
+		}
+		_, ok = sf.AsStaticFIFO()
+		if !ok {
+			return errors.New("blob is not a static FIFO")
+		}
+
+		if _, err := os.Lstat(name); err == nil {
+			log.Printf("Skipping FIFO %s: A file with that name already exists", name)
+			return nil
+		}
+
+		err = osutil.Mkfifo(name, 0600)
+		if err == osutil.ErrNotSupported {
+			log.Printf("Skipping FIFO %s: Unsupported filetype", name)
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("%s: osutil.Mkfifo(): %v", name, err)
+		}
+
+		if err := setFileMeta(name, b); err != nil {
+			log.Print(err)
+		}
+
+		return nil
+
+	case "socket":
+		name := filepath.Join(targ, b.FileName())
+
+		sf, ok := b.AsStaticFile()
+		if !ok {
+			return errors.New("blob is not a static file")
+		}
+		_, ok = sf.AsStaticSocket()
+		if !ok {
+			return errors.New("blob is not a static socket")
+		}
+
+		if _, err := os.Lstat(name); err == nil {
+			log.Printf("Skipping socket %s: A file with that name already exists", name)
+			return nil
+		}
+
+		err = osutil.Mksocket(name)
+		if err == osutil.ErrNotSupported {
+			log.Printf("Skipping socket %s: Unsupported filetype", name)
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("%s: %v", name, err)
+		}
+
+		if err := setFileMeta(name, b); err != nil {
+			log.Print(err)
+		}
+
+		return nil
 
 	default:
 		return errors.New("unknown blob type: " + b.Type())

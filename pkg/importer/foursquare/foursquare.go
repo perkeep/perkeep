@@ -52,11 +52,10 @@ const (
 	runCompleteVersion = "1"
 
 	// Permanode attributes on account node:
-	acctAttrUserId           = "foursquareUserId"
-	acctAttrUserFirst        = "foursquareFirstName"
-	acctAttrUserLast         = "foursquareLastName"
-	acctAttrAccessToken      = "oauthAccessToken"
-	acctAttrCompletedVersion = "completedVersion"
+	acctAttrUserId      = "foursquareUserId"
+	acctAttrUserFirst   = "foursquareFirstName"
+	acctAttrUserLast    = "foursquareLastName"
+	acctAttrAccessToken = "oauthAccessToken"
 )
 
 func init() {
@@ -131,7 +130,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 	r := &run{
 		RunContext:  ctx,
 		im:          im,
-		incremental: ctx.AccountNode().Attr(acctAttrCompletedVersion) == runCompleteVersion,
+		incremental: ctx.AccountNode().Attr(importer.AcctAttrCompletedVersion) == runCompleteVersion,
 	}
 
 	if err := r.importCheckins(); err != nil {
@@ -143,7 +142,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 	r.mu.Unlock()
 
 	if !anyErr {
-		if err := r.AccountNode().SetAttrs(acctAttrCompletedVersion, runCompleteVersion); err != nil {
+		if err := r.AccountNode().SetAttrs(importer.AcctAttrCompletedVersion, runCompleteVersion); err != nil {
 			return err
 		}
 	}

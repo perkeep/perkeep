@@ -243,6 +243,7 @@ type Host struct {
 	baseURL      string
 	importerBase string
 	target       blobserver.StatReceiver
+	blobSource   blob.Fetcher // e.g. twitter reading zip file
 	search       *search.Handler
 	signer       *schema.Signer
 	uiPrefix     string // or empty if no UI handler
@@ -272,6 +273,7 @@ func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
 		return errors.New("importer requires a 'root' handler with 'blobRoot' defined.")
 	}
 	h.target = rh.Storage
+	h.blobSource = rh.Storage
 
 	_, handler, _ = hl.FindHandlerByType("jsonsign")
 	if sigh, ok := handler.(*signhandler.Handler); ok {
@@ -378,11 +380,8 @@ func (h *Host) serveImporterAcctCallback(w http.ResponseWriter, r *http.Request,
 		http.Error(w, "invalid 'acct' param: "+err.Error(), 400)
 		return
 	}
-	if ia.current.Context == nil {
-		ia.current.Context = context.New()
-	}
 	imp.impl.ServeCallback(w, r, &SetupContext{
-		Context:     ia.current.Context,
+		Context:     context.TODO(),
 		Host:        h,
 		AccountNode: ia.acct,
 		ia:          ia,
@@ -507,6 +506,10 @@ func (h *Host) ImporterBaseURL() string {
 
 func (h *Host) Target() blobserver.StatReceiver {
 	return h.target
+}
+
+func (h *Host) BlobSource() blob.Fetcher {
+	return h.blobSource
 }
 
 func (h *Host) Search() *search.Handler {
@@ -888,11 +891,8 @@ func (ia *importerAcct) serveHTTPPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ia *importerAcct) setup(w http.ResponseWriter, r *http.Request) {
-	if ia.current.Context == nil {
-		ia.current.Context = context.New()
-	}
 	if err := ia.im.impl.ServeSetup(w, r, &SetupContext{
-		Context:     ia.current.Context,
+		Context:     context.TODO(),
 		Host:        ia.im.host,
 		AccountNode: ia.acct,
 		ia:          ia,
@@ -1053,8 +1053,17 @@ func (o *Object) SetAttr(key, value string) error {
 	return nil
 }
 
-// SetAttrs sets multiple attributes. The provided keyval should be an even number of alternating key/value pairs to set.
+// SetAttrs sets multiple attributes. The provided keyval should be an
+// even number of alternating key/value pairs to set.
 func (o *Object) SetAttrs(keyval ...string) error {
+	_, err := o.SetAttrs2(keyval...)
+	return err
+}
+
+// SetAttrs2 sets multiple attributes and returns whether there were
+// any changes. The provided keyval should be an even number of
+// alternating key/value pairs to set.
+func (o *Object) SetAttrs2(keyval ...string) (changes bool, err error) {
 	if len(keyval)%2 == 1 {
 		panic("importer.SetAttrs: odd argument count")
 	}
@@ -1063,12 +1072,13 @@ func (o *Object) SetAttrs(keyval ...string) error {
 	for i := 0; i < len(keyval); i += 2 {
 		key, val := keyval[i], keyval[i+1]
 		if val != o.Attr(key) {
+			changes = true
 			g.Go(func() error {
 				return o.SetAttr(key, val)
 			})
 		}
 	}
-	return g.Err()
+	return changes, g.Err()
 }
 
 // SetAttrValues sets multi-valued attribute.

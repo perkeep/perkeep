@@ -60,27 +60,15 @@
 			}
 		},
 		"/music/": {
-			"handler": "publish",
+			"handler": "app",
 			"handlerArgs": {
-				"blobRoot": "/bs-and-maybe-also-index/",
-				"cache": "/cache/",
-				"css": [
-					"pics.css"
-				],
-				"goTemplate": "gallery.html",
-				"js": [
-					"pics.js"
-				],
-				"rootName": "musicRoot",
-				"rootPermanode": [
-					"/sighelper/",
-					"sha1-999c6aae4ec8245dfe63edc4a2abb407824a4b5a"
-				],
-				"scaledImage": {
-					"file": "/tmp/camli-cache/music-thumbnails.kv",
-					"type": "kv"
-				},
-				"searchRoot": "/my-search/"
+				"program": "publisher",
+				"baseURL": "http://localhost:3178/",
+				"appConfig": {
+					"camliRoot": "musicRoot",
+					"goTemplate": "music.html",
+					"cacheRoot": "/tmp/blobs/cache"
+				}
 			}
 		},
 		"/my-search/": {
@@ -92,27 +80,14 @@
 			}
 		},
 		"/pics/": {
-			"handler": "publish",
+			"handler": "app",
 			"handlerArgs": {
-				"blobRoot": "/bs-and-maybe-also-index/",
-				"cache": "/cache/",
-				"css": [
-					"pics.css"
-				],
-				"goTemplate": "gallery.html",
-				"js": [
-					"pics.js"
-				],
-				"rootName": "picsRoot",
-				"rootPermanode": [
-					"/sighelper/",
-					"sha1-046c6aae4ec8245dfe63edc4a2abb407824a4b5a"
-				],
-				"scaledImage": {
-					"file": "/tmp/camli-cache/pics-thumbnails.kv",
-					"type": "kv"
-				},
-				"searchRoot": "/my-search/"
+				"program": "publisher",
+				"appConfig": {
+					"camliRoot": "picsRoot",
+					"goTemplate": "gallery.html",
+					"cacheRoot": "/tmp/blobs/cache"
+				}
 			}
 		},
 		"/setup/": {
@@ -151,10 +126,6 @@
 			"handlerArgs": {
 				"cache": "/cache/",
 				"jsonSignRoot": "/sighelper/",
-				"publishRoots": [
-					"/music/",
-					"/pics/"
-				],
 				"scaledImage": {
 					"file": "/tmp/blobs/thumbmeta.kv",
 					"type": "kv"

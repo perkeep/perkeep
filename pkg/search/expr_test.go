@@ -61,6 +61,22 @@ var attrgorunC = &Constraint{
 	},
 }
 
+var hasLocationC = orConst(&Constraint{
+	Permanode: &PermanodeConstraint{
+		Attr: "camliContent",
+		ValueInSet: &Constraint{
+			File: &FileConstraint{
+				IsImage:  true,
+				Location: &LocationConstraint{Any: true},
+			},
+		},
+	},
+}, &Constraint{
+	Permanode: &PermanodeConstraint{
+		Location: &LocationConstraint{Any: true},
+	},
+})
+
 var parseExpressionTests = []struct {
 	name        string
 	in          string
@@ -263,17 +279,7 @@ var parseExpressionTests = []struct {
 	{
 		in: "has:location",
 		want: &SearchQuery{
-			Constraint: andConst(skiphiddenC, &Constraint{
-				Permanode: &PermanodeConstraint{
-					Attr: "camliContent",
-					ValueInSet: &Constraint{
-						File: &FileConstraint{
-							IsImage:  true,
-							Location: &LocationConstraint{Any: true},
-						},
-					},
-				},
-			}),
+			Constraint: andConst(skiphiddenC, hasLocationC),
 		},
 	},
 
@@ -579,25 +585,18 @@ var parseExpTests = []parserTestCase{
 	},
 
 	{
-		in:          "     attr:foo",
-		errContains: "expected attribute value at position 5",
+		in:          "after:foo:bar",
+		errContains: `Wrong number of arguments for "after", given 2, expected 1 at position 0, token: "after:foo:bar"`,
 	},
 
 	{
-		in: "has:location",
-		want: &Constraint{
-			Permanode: &PermanodeConstraint{
-				Attr: "camliContent",
-				ValueInSet: &Constraint{
-					File: &FileConstraint{
-						IsImage: true,
-						Location: &LocationConstraint{
-							Any: true,
-						},
-					},
-				},
-			},
-		},
+		in:          "     attr:foo",
+		errContains: `Wrong number of arguments for "attr", given 1, expected 2 at position 5, token: "attr:foo"`,
+	},
+
+	{
+		in:   "has:location",
+		want: hasLocationC,
 	},
 
 	{

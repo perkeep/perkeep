@@ -58,48 +58,55 @@ var (
 	noMkdir bool // for tests to not call os.Mkdir
 )
 
+type tlsOpts struct {
+	httpsCert string
+	httpsKey  string
+}
+
 func addPublishedConfig(prefixes jsonconfig.Obj,
 	published map[string]*serverconfig.Publish,
-	sourceRoot string) ([]string, error) {
+	sourceRoot string, tlsO *tlsOpts) ([]string, error) {
 	var pubPrefixes []string
 	for k, v := range published {
-		name := strings.Replace(k, "/", "", -1)
-		rootName := name + "Root"
-		if !v.Root.Valid() {
-			return nil, fmt.Errorf("Invalid or missing \"rootPermanode\" key in configuration for %s.", k)
+		if v.CamliRoot == "" {
+			return nil, fmt.Errorf("Missing \"camliRoot\" key in configuration for %s.", k)
 		}
 		if v.GoTemplate == "" {
 			return nil, fmt.Errorf("Missing \"goTemplate\" key in configuration for %s.", k)
 		}
 		ob := map[string]interface{}{}
-		ob["handler"] = "publish"
+		ob["handler"] = "app"
+
+		appConfig := map[string]interface{}{
+			"camliRoot":  v.CamliRoot,
+			"cacheRoot":  v.CacheRoot,
+			"goTemplate": v.GoTemplate,
+		}
+		if v.HTTPSCert != "" && v.HTTPSKey != "" {
+			// user can specify these directly in the publish section
+			appConfig["httpsCert"] = v.HTTPSCert
+			appConfig["httpsKey"] = v.HTTPSKey
+		} else {
+			// default to Camlistore parameters, if any
+			if tlsO != nil {
+				appConfig["httpsCert"] = tlsO.httpsCert
+				appConfig["httpsKey"] = tlsO.httpsKey
+			}
+		}
+
 		handlerArgs := map[string]interface{}{
-			"rootName":      rootName,
-			"blobRoot":      "/bs-and-maybe-also-index/",
-			"searchRoot":    "/my-search/",
-			"cache":         "/cache/",
-			"rootPermanode": []interface{}{"/sighelper/", v.Root.String()},
+			"program":   v.Program,
+			"appConfig": appConfig,
 		}
-		if sourceRoot != "" {
-			handlerArgs["sourceRoot"] = sourceRoot
+		if v.BaseURL != "" {
+			handlerArgs["baseURL"] = v.BaseURL
 		}
-		handlerArgs["goTemplate"] = v.GoTemplate
-		if v.Style != "" {
-			handlerArgs["css"] = []interface{}{v.Style}
+		program := "publisher"
+		if v.Program != "" {
+			program = v.Program
 		}
-		if v.Javascript != "" {
-			handlerArgs["js"] = []interface{}{v.Javascript}
-		}
-		// TODO(mpl): we'll probably want to use osutil.CacheDir() if thumbnails.kv
-		// contains private info? same for some of the other "camli-cache" ones?
-		thumbsCacheDir := filepath.Join(tempDir(), "camli-cache")
-		handlerArgs["scaledImage"] = map[string]interface{}{
-			"type": "kv",
-			"file": filepath.Join(thumbsCacheDir, name+"-thumbnails.kv"),
-		}
-		if err := os.MkdirAll(thumbsCacheDir, 0700); err != nil {
-			return nil, fmt.Errorf("Could not create cache dir %s: %v", thumbsCacheDir, err)
-		}
+		handlerArgs["program"] = program
+
 		ob["handlerArgs"] = handlerArgs
 		prefixes[k] = ob
 		pubPrefixes = append(pubPrefixes, k)
@@ -111,19 +118,11 @@ func addPublishedConfig(prefixes jsonconfig.Obj,
 func addUIConfig(params *configPrefixesParams,
 	prefixes jsonconfig.Obj,
 	uiPrefix string,
-	published []string,
 	sourceRoot string) {
 
 	args := map[string]interface{}{
 		"jsonSignRoot": "/sighelper/",
 		"cache":        "/cache/",
-	}
-	if len(published) > 0 {
-		var publishedAsList []interface{}
-		for _, v := range published {
-			publishedAsList = append(publishedAsList, v)
-		}
-		args["publishRoots"] = publishedAsList
 	}
 	if sourceRoot != "" {
 		args["sourceRoot"] = sourceRoot
@@ -674,19 +673,27 @@ func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err err
 		}
 	}
 
-	var published []string
 	if len(conf.Publish) > 0 {
 		if !runIndex {
 			return nil, fmt.Errorf("publishing requires an index")
 		}
-		published, err = addPublishedConfig(prefixes, conf.Publish, conf.SourceRoot)
+		var tlsO *tlsOpts
+		httpsCert, ok1 := obj["httpsCert"].(string)
+		httpsKey, ok2 := obj["httpsKey"].(string)
+		if ok1 && ok2 {
+			tlsO = &tlsOpts{
+				httpsCert: httpsCert,
+				httpsKey:  httpsKey,
+			}
+		}
+		_, err = addPublishedConfig(prefixes, conf.Publish, conf.SourceRoot, tlsO)
 		if err != nil {
 			return nil, fmt.Errorf("Could not generate config for published: %v", err)
 		}
 	}
 
 	if runIndex {
-		addUIConfig(prefixesParams, prefixes, "/ui/", published, conf.SourceRoot)
+		addUIConfig(prefixesParams, prefixes, "/ui/", conf.SourceRoot)
 	}
 
 	if conf.MySQL != "" {
