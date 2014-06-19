@@ -110,7 +110,9 @@ func main() {
 	}
 	conf := appConfig()
 	ph := newPublishHandler(conf)
-	ph.initRootNode()
+	if err := ph.initRootNode(); err != nil {
+		log.Printf("%v", err)
+	}
 	ws := webserver.New()
 	ws.Handle("/", ph)
 	if conf.HTTPSCert != "" && conf.HTTPSKey != "" {
