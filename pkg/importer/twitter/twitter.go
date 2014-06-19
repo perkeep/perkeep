@@ -29,6 +29,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -195,8 +196,11 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		return errors.New("UserID hasn't been set by account setup.")
 	}
 
-	if err := r.importTweets(userID); err != nil {
-		return err
+	skipAPITweets, _ := strconv.ParseBool(os.Getenv("CAMLI_TWITTER_SKIP_API_IMPORT"))
+	if !skipAPITweets {
+		if err := r.importTweets(userID); err != nil {
+			return err
+		}
 	}
 
 	zipRef := acctNode.Attr(acctAttrTweetZip)
@@ -401,6 +405,13 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 	if err != nil {
 		return false, err
 	}
+
+	// Because the zip format and the API format differ a bit, and
+	// might diverge more in the future, never use the zip content
+	// to overwrite data fetched via the API. If we add new
+	// support for different fields in the future, we might want
+	// to revisit this decision.  Be wary of flip/flopping data if
+	// modifying this, though.
 	if tweetNode.Attr(attrImportMethod) == "api" && !viaAPI {
 		return true, nil
 	}
@@ -416,7 +427,6 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 		id)
 
 	attrs := []string{
-
 		"twitterId", id,
 		"camliNodeType", "twitter.com:tweet",
 		importer.AttrStartDate, schema.RFC3339FromTime(createdTime),
@@ -441,18 +451,38 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 			// Don't re-import media we've already fetched.
 			continue
 		}
-		res, err := r.HTTPClient().Get(m.URL())
-		if err != nil {
-			return false, fmt.Errorf("Error fetching %s for tweet %s : %v", m.URL(), url)
+		tried, gotMedia := 0, false
+		for _, mediaURL := range m.URLs() {
+			tried++
+			res, err := r.HTTPClient().Get(mediaURL)
+			if err != nil {
+				return false, fmt.Errorf("Error fetching %s for tweet %s : %v", mediaURL, url)
+			}
+			if res.StatusCode == http.StatusNotFound {
+				continue
+			}
+			if res.StatusCode != 200 {
+				return false, fmt.Errorf("HTTP status %s fetching %s for tweet %s", res.StatusCode, mediaURL, url)
+			}
+			if !viaAPI {
+				log.Printf("For zip tweet %s, reading %v", url, mediaURL)
+			}
+			fileRef, err := schema.WriteFileFromReader(r.Host.Target(), filename, res.Body)
+			res.Body.Close()
+			if err != nil {
+				return false, fmt.Errorf("Error fetching media %s for tweet %s: %v", mediaURL, url, err)
+			}
+			attrs = append(attrs, "camliPath:"+filename, fileRef.String())
+			if i == 0 {
+				attrs = append(attrs, "camliContentImage", fileRef.String())
+			}
+			log.Printf("Slurped %s as %s for tweet %s (%v)", mediaURL, fileRef.String(), url, tweetNode.PermanodeRef())
+			gotMedia = true
+			break
 		}
-		fileRef, err := schema.WriteFileFromReader(r.Host.Target(), filename, res.Body)
-		res.Body.Close()
-		attrs = append(attrs, "camliPath:"+filename, fileRef.String())
-		if i == 0 {
-			attrs = append(attrs, "camliContentImage", fileRef.String())
+		if !gotMedia && tried > 0 {
+			return false, fmt.Errorf("All media URLs 404s for tweet %s", url)
 		}
-		log.Printf("Slurped %s as %s for tweet %s (%v)", m.URL(), fileRef.String(), url, tweetNode.PermanodeRef())
-
 	}
 
 	changes, err := tweetNode.SetAttrs2(attrs...)
@@ -652,9 +682,7 @@ type tweetItem interface {
 }
 
 type tweetMedia interface {
-	Type() string // "photo"
-	URL() string
-	BackupURLs() []string // if URL 404s
+	URLs() []string // use first non-404 one
 	BaseFilename() string
 }
 
@@ -676,8 +704,9 @@ type zipTweetItem struct {
 	CreatedAtStr string `json:"created_at"`
 
 	// One or both might be present:
-	Geo         *geo    `json:"geo"`         // lat, long
-	Coordinates *coords `json:"coordinates"` // geojson: long, lat
+	Geo         *geo        `json:"geo"`         // lat, long
+	Coordinates *coords     `json:"coordinates"` // geojson: long, lat
+	Entities    zipEntities `json:"entities"`
 }
 
 func (t *apiTweetItem) ID() string {
@@ -724,18 +753,19 @@ func latLong(g *geo, c *coords) (lat, long float64, ok bool) {
 	return
 }
 
-func (t *zipTweetItem) Media() []tweetMedia {
-	// TODO: support media in zip files. The "Sizes" field is
-	// different, annoyingly.  We'll have to guess the ":large"
-	// suffix and fall back to the base one (or ":medium") if it
-	// 404s.
-	return nil
+func (t *zipTweetItem) Media() (ret []tweetMedia) {
+	for _, m := range t.Entities.Media {
+		ret = append(ret, m)
+	}
+	ret = append(ret, getImagesFromURLs(t.Entities.URLs)...)
+	return
 }
 
 func (t *apiTweetItem) Media() (ret []tweetMedia) {
 	for _, m := range t.Entities.Media {
 		ret = append(ret, m)
 	}
+	ret = append(ret, getImagesFromURLs(t.Entities.URLs)...)
 	return
 }
 
@@ -748,29 +778,88 @@ type coords struct {
 }
 
 type entities struct {
-	Media []*media `json:"media"`
+	Media []*media     `json:"media"`
+	URLs  []*urlEntity `json:"urls"`
 }
 
+type zipEntities struct {
+	Media []*zipMedia  `json:"media"`
+	URLs  []*urlEntity `json:"urls"`
+}
+
+// e.g.  {
+//   "indices" : [ 105, 125 ],
+//   "url" : "http:\/\/t.co\/gbGO8Qep",
+//   "expanded_url" : "http:\/\/twitpic.com\/6mdqac",
+//   "display_url" : "twitpic.com\/6mdqac"
+// }
+type urlEntity struct {
+	URL         string `json:"url"`
+	ExpandedURL string `json:"expanded_url"`
+	DisplayURL  string `json:"display_url"`
+}
+
+var (
+	twitpicRx = regexp.MustCompile(`\btwitpic\.com/(\w\w\w+)`)
+	imgurRx   = regexp.MustCompile(`\bimgur\.com/(\w\w\w+)`)
+)
+
+func getImagesFromURLs(urls []*urlEntity) (ret []tweetMedia) {
+	// TODO: extract these regexps from tweet text too. Happens in
+	// a few cases I've seen in my history.
+	for _, u := range urls {
+		if strings.HasPrefix(u.DisplayURL, "twitpic.com") {
+			ret = append(ret, twitpicImage(strings.TrimPrefix(u.DisplayURL, "twitpic.com/")))
+			continue
+		}
+		if m := imgurRx.FindStringSubmatch(u.DisplayURL); m != nil {
+			ret = append(ret, imgurImage(m[1]))
+			continue
+		}
+	}
+	return
+}
+
+// The Media entity from the Rest API. See also: zipMedia.
 type media struct {
-	Id            string `json:"id_str"`
-	IdNum         int64  `json:"id"`
-	MediaURL      string `json:"media_url"`
-	MediaURLHTTPS string `json:"media_url_https"`
-	Sizes         map[string]mediaSize
-	Type_         string `json:"type"`
+	Id            string               `json:"id_str"`
+	IdNum         int64                `json:"id"`
+	MediaURL      string               `json:"media_url"`
+	MediaURLHTTPS string               `json:"media_url_https"`
+	Sizes         map[string]mediaSize `json:"sizes"`
+	Type_         string               `json:"type"`
 }
 
-func (m *media) Type() string { return m.Type_ }
+// The Media entity from the zip file JSON. Similar but different to
+// media. Thanks, Twitter.
+type zipMedia struct {
+	Id            string      `json:"id_str"`
+	IdNum         int64       `json:"id"`
+	MediaURL      string      `json:"media_url"`
+	MediaURLHTTPS string      `json:"media_url_https"`
+	Sizes         []mediaSize `json:"sizes"` // without a key! useless.
+}
 
-func (m *media) URL() string {
+func (m *media) URLs() []string {
 	u := m.baseURL()
 	if u == "" {
-		return ""
+		return nil
 	}
-	return u + m.largestMediaSuffix()
+	return []string{u + m.largestMediaSuffix(), u}
 }
 
-func (m *media) BackupURLs() []string { return nil }
+func (m *zipMedia) URLs() []string {
+	// We don't get any suffix names, so just try some common
+	// ones. The first non-404 will be used:
+	u := m.baseURL()
+	if u == "" {
+		return nil
+	}
+	return []string{
+		u + ":large",
+		u,
+	}
+}
 
 func (m *media) baseURL() string {
 	if v := m.MediaURLHTTPS; v != "" {
@@ -779,7 +868,18 @@ func (m *media) baseURL() string {
 	return m.MediaURL
 }
 
+func (m *zipMedia) baseURL() string {
+	if v := m.MediaURLHTTPS; v != "" {
+		return v
+	}
+	return m.MediaURL
+}
+
 func (m *media) BaseFilename() string {
+	return path.Base(m.baseURL())
+}
+
+func (m *zipMedia) BaseFilename() string {
 	return path.Base(m.baseURL())
 }
 
@@ -796,6 +896,27 @@ func (m *media) largestMediaSuffix() string {
 }
 
 type mediaSize struct {
-	W int `json:"w"`
-	H int `json:"h"`
+	W      int    `json:"w"`
+	H      int    `json:"h"`
+	Resize string `json:"resize"`
+}
+
+// An image from twitpic.
+type twitpicImage string
+
+func (im twitpicImage) BaseFilename() string { return string(im) }
+
+func (im twitpicImage) URLs() []string {
+	return []string{"https://twitpic.com/show/large/" + string(im)}
+}
+
+// An image from imgur
+type imgurImage string
+
+func (im imgurImage) BaseFilename() string { return string(im) }
+
+func (im imgurImage) URLs() []string {
+	// Imgur ignores the suffix if it's .gif, .png, or .jpg. So just pick .gif.
+	// The actual content will be returned.
+	return []string{"https://i.imgur.com/" + string(im) + ".gif"}
 }
