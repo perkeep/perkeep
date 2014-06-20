@@ -196,14 +196,23 @@ func compressFile(r io.Reader) ([]byte, int64) {
 
 func quote(bs []byte) []byte {
 	var qb bytes.Buffer
-	qb.WriteByte('"')
+	qb.WriteString(`fileembed.JoinStrings("`)
 	run := 0
+	concatCount := 0
 	for _, b := range bs {
 		if b == '\n' {
 			qb.WriteString(`\n`)
 		}
 		if b == '\n' || run > 80 {
-			qb.WriteString("\" +\n\t\"")
+			// Prevent too many strings from being concatenated together.
+			// See https://code.google.com/p/go/issues/detail?id=8240
+			concatCount++
+			if concatCount < 50 {
+				qb.WriteString("\" +\n\t\"")
+			} else {
+				concatCount = 0
+				qb.WriteString("\",\n\t\"")
+			}
 			run = 0
 		}
 		if b == '\n' {
@@ -224,7 +233,7 @@ func quote(bs []byte) []byte {
 		}
 		fmt.Fprintf(&qb, "\\x%02x", b)
 	}
-	qb.WriteByte('"')
+	qb.WriteString(`")`)
 	return qb.Bytes()
 }
 
