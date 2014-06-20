@@ -572,9 +572,9 @@ var parseExpTests = []parserTestCase{
 		in: "attr:foo:",
 		want: &Constraint{
 			Permanode: &PermanodeConstraint{
-				Attr:       "foo",
-				Value:      "",
-				SkipHidden: true,
+				Attr:         "foo",
+				ValueMatches: &StringConstraint{Empty: true},
+				SkipHidden:   true,
 			},
 		},
 	},
