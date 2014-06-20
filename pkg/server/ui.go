@@ -249,6 +249,8 @@ type publishRoot struct {
 // InitHandler goes through all the other configured handlers to discover
 // the publisher ones, and uses them to populate ui.publishRoots.
 func (ui *UIHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
+	// InitHandler is called after all handlers have been setup, so the bootstrap
+	// of the camliRoot node for publishers in dev-mode is already done.
 	searchPrefix, _, err := hl.FindHandlerByType("search")
 	if err != nil {
 		return errors.New("No search handler configured, which is necessary for the ui handler")

@@ -15,3 +15,7 @@ cd ~/builbot
 go build -o master master.go
 #hack on builder.go
 ./master -verbose -buildersrc ./builder.go -builderopts -verbose=true,-skipgo1build=true,-faketests=true
+
+Or, if you want the bot(s) to pull from a local repo (so you can trigger some test commits), here is a setup example script:
+https://github.com/mpl/misc/blob/master/camlistore.org/misc/buildbot/prepbot
+

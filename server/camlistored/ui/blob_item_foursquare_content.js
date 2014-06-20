@@ -21,6 +21,7 @@ goog.require('goog.math.Size');
 goog.require('goog.object');
 goog.require('goog.string');
 
+goog.require('cam.dateUtils');
 goog.require('cam.math');
 goog.require('cam.permanodeUtils');
 goog.require('cam.Thumber');
@@ -55,37 +56,9 @@ cam.BlobItemFoursquareContent = React.createClass({
 						)
 					)
 				),
-				React.DOM.div({className:'cam-blobitem-fs-checkin-when'}, this.formatDate_())
+				React.DOM.div({className:'cam-blobitem-fs-checkin-when'}, cam.dateUtils.formatDateShort(this.props.date))
 			)
 		);
-	},
-
-	formatDate_: function() {
-		var seconds = Math.floor((Date.now() - this.props.date) / 1000);
-		var interval = Math.floor(seconds / 31536000);
-
-		return (function() {
-			if (interval > 1) {
-				return interval + ' years';
-			}
-			interval = Math.floor(seconds / 2592000);
-			if (interval > 1) {
-				return interval + ' months';
-			}
-			interval = Math.floor(seconds / 86400);
-			if (interval > 1) {
-				return interval + ' days';
-			}
-			interval = Math.floor(seconds / 3600);
-			if (interval > 1) {
-				return interval + ' hours';
-			}
-			interval = Math.floor(seconds / 60);
-			if (interval > 1) {
-				return interval + ' minutes';
-			}
-			return Math.floor(seconds) + ' seconds';
-		})() + ' ago';
 	},
 });
 
