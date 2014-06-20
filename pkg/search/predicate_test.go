@@ -191,6 +191,21 @@ var keywordTests = []keywordTestcase{
 	},
 
 	{
+		object: newAttribute(),
+		args:   []string{"foo", "~bar"},
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr: "foo",
+				ValueMatches: &StringConstraint{
+					Contains:        "bar",
+					CaseInsensitive: true,
+				},
+				SkipHidden: true,
+			},
+		},
+	},
+
+	{
 		object: newChildrenOf(),
 		args:   []string{"foo"},
 		want: &Constraint{

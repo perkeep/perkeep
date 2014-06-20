@@ -233,7 +233,8 @@ func newAttribute() keyword {
 
 func (a attribute) Description() string {
 	return "match on attribute. Use attr:foo:bar to match nodes having their foo\n" +
-		"attribute set to bar."
+		"attribute set to bar or attr:foo:~bar to do a substring\n" +
+		"case-insensitive search for 'bar' in attribute foo"
 }
 
 func (a attribute) Predicate(ctx *context.Context, args []string) (*Constraint, error) {
@@ -243,6 +244,14 @@ func (a attribute) Predicate(ctx *context.Context, args []string) (*Constraint, 
 			SkipHidden: true,
 			Value:      args[1],
 		},
+	}
+	if strings.HasPrefix(args[1], "~") {
+		// Substring. Hack. Figure out better way to do this.
+		c.Permanode.Value = ""
+		c.Permanode.ValueMatches = &StringConstraint{
+			Contains:        args[1][1:],
+			CaseInsensitive: true,
+		}
 	}
 	return c, nil
 }
@@ -539,8 +548,8 @@ func newHasLocation() keyword {
 }
 
 func (h hasLocation) Description() string {
-	return "matches images and permanodes that have a location (GPSLatitude and GPSLongitude can be\n" +
-		"retrieved from the image's EXIF tags)."
+	return "matches images and permanodes that have a location (GPSLatitude\n" +
+		"and GPSLongitude can be retrieved from the image's EXIF tags)."
 }
 
 func (h hasLocation) Predicate(ctx *context.Context, args []string) (*Constraint, error) {
