@@ -86,6 +86,7 @@ describe('cam.blob', function() {
     it('should calculate the right hash', function() {
         assert.equal(cam.blob.refFromString(''), 'sha1-da39a3ee5e6b4b0d3255bfef95601890afd80709');
         assert.equal(cam.blob.refFromString('The quick brown fox jumps over the lazy dog'), 'sha1-2fd4e1c67a2d28fced849ee1bb76e7391b93eb12');
+        assert.equal(cam.blob.refFromString('Les caractères accentués, quelle plaie.'), 'sha1-2ad8f499b8721a7fe35504bce86df451db37dd66');
     });
   });
 

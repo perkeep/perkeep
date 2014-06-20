@@ -34,7 +34,8 @@ cam.blob.refFromHash = function(hash) {
 // @returns {!string}
 cam.blob.refFromString = function(str) {
 	var hash = cam.blob.createHash();
-	hash.update(str);
+	// update only supports 8 bit chars: http://docs.closure-library.googlecode.com/git/class_goog_crypt_Sha1.html
+	hash.update(goog.crypt.stringToUtf8ByteArray(str));
 	return cam.blob.refFromHash(hash);
 };
 
