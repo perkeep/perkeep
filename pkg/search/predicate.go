@@ -117,6 +117,10 @@ func init() {
 	registerKeyword(newIsPortait())
 	registerKeyword(newWidth())
 
+	// Custom predicates
+	registerKeyword(newIsPost())
+	registerKeyword(newIsCheckin())
+
 	// Location predicates
 	registerKeyword(newHasLocation())
 	registerKeyword(newLocation())
@@ -627,4 +631,48 @@ func mimeFromFormat(v string) (string, error) {
 		return "application/pdf", nil // RFC 3778
 	}
 	return "", fmt.Errorf("Unknown format: %s", v)
+}
+
+// Custom predicates
+
+type isPost struct {
+	matchEqual
+}
+
+func newIsPost() keyword {
+	return isPost{"is:post"}
+}
+
+func (k isPost) Description() string {
+	return "matches tweets, status updates, blog posts, etc"
+}
+
+func (k isPost) Predicate(ctx *context.Context, args []string) (*Constraint, error) {
+	return &Constraint{
+		Permanode: &PermanodeConstraint{
+			Attr:  "camliNodeType",
+			Value: "twitter.com:tweet",
+		},
+	}, nil
+}
+
+type isCheckin struct {
+	matchEqual
+}
+
+func newIsCheckin() keyword {
+	return isCheckin{"is:checkin"}
+}
+
+func (k isCheckin) Description() string {
+	return "matches location check-ins (foursquare, etc)"
+}
+
+func (k isCheckin) Predicate(ctx *context.Context, args []string) (*Constraint, error) {
+	return &Constraint{
+		Permanode: &PermanodeConstraint{
+			Attr:  "camliNodeType",
+			Value: "foursquare.com:checkin",
+		},
+	}, nil
 }
