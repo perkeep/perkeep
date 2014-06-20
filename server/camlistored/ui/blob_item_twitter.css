@@ -1,0 +1,63 @@
+/*
+Copyright 2014 The Camlistore Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+.cam-blobitem-twitter-tweet {
+	color: black;
+	display: block;
+	font-size: 90%;
+	position: relative;
+	overflow: hidden;
+	white-space: normal;
+	border-radius: 7%;
+}
+
+.cam-blobitem-twitter-tweet table {
+	border-spacing: 0;
+	background-color: #e1e8ed;
+	width: 100%;
+	height: 100%;
+}
+
+.cam-blobitem-twitter-tweet-icon {
+	position: absolute;
+	width: 100%;
+	bottom: 0;
+}
+
+.cam-blobitem-twitter-tweet-icon img {
+	width: 4em;
+	height: 4em;
+	position: absolute;
+	bottom: 1em;
+	right: 1em;
+	opacity: 1;
+}
+
+.cam-blobitem-twitter-tweet-meta {
+	text-align: left;
+	vertical-align: top;
+	padding: 0.8em;
+}
+
+.cam-blobitem-twitter-tweet-date {
+	color: #aaa;
+}
+
+.cam-blobitem-twitter-tweet-image {
+	background-position: top;
+	background-size: cover;
+	height: 100%;
+}

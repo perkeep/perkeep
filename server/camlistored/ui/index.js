@@ -26,11 +26,12 @@ goog.require('goog.Uri');
 
 goog.require('cam.BlobDetail');
 goog.require('cam.BlobItemContainerReact');
+goog.require('cam.BlobItemDemoContent');
 goog.require('cam.BlobItemFoursquareContent');
 goog.require('cam.BlobItemGenericContent');
-goog.require('cam.BlobItemVideoContent');
 goog.require('cam.BlobItemImageContent');
-goog.require('cam.BlobItemDemoContent');
+goog.require('cam.BlobItemTwitterContent');
+goog.require('cam.BlobItemVideoContent');
 goog.require('cam.ContainerDetail');
 goog.require('cam.DetailView');
 goog.require('cam.DirectoryDetail');
@@ -53,12 +54,14 @@ cam.IndexPage = React.createClass({
 		RAW: 'raw'
 	},
 
+	// Note that these are ordered by priority.
 	BLOB_ITEM_HANDLERS_: [
 		cam.BlobItemDemoContent.getHandler,
 		cam.BlobItemFoursquareContent.getHandler,
+		cam.BlobItemTwitterContent.getHandler,
 		cam.BlobItemImageContent.getHandler,
 		cam.BlobItemVideoContent.getHandler,
-		cam.BlobItemGenericContent.getHandler // must be last
+		cam.BlobItemGenericContent.getHandler
 	],
 
 	propTypes: {
