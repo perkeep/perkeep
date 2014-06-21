@@ -60,7 +60,7 @@ cam.BlobItem.prototype.update = function(blobRef, metaBag, opt_contentLink) {
 	this.metaData_ = this.metaBag_[this.blobRef_];
 	this.resolvedMetaData_ = cam.BlobItem.resolve(this.blobRef_, this.metaBag_);
 
-	if (this.resolvedMetaData_.image) {
+	if (this.resolvedMetaData_ && this.resolvedMetaData_.image) {
 		this.thumber_ = cam.Thumber.fromImageMeta(this.resolvedMetaData_);
 	} else {
 		this.thumber_ = new cam.Thumber(this.metaData_.thumbnailSrc);
