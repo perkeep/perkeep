@@ -192,6 +192,18 @@ var keywordTests = []keywordTestcase{
 
 	{
 		object: newAttribute(),
+		args:   []string{"foo", ""},
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr:         "foo",
+				ValueMatches: &StringConstraint{Empty: true},
+				SkipHidden:   true,
+			},
+		},
+	},
+
+	{
+		object: newAttribute(),
 		args:   []string{"foo", "~bar"},
 		want: &Constraint{
 			Permanode: &PermanodeConstraint{
@@ -253,6 +265,31 @@ var keywordTests = []keywordTestcase{
 				SkipHidden: true,
 			},
 		},
+	},
+
+	{
+		object: newTag(),
+		args:   []string{""},
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr:         "tag",
+				ValueMatches: &StringConstraint{Empty: true},
+				SkipHidden:   true,
+			},
+		},
+	},
+
+	{
+		object: newTitle(),
+		args:   []string{""},
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Attr:       "title",
+				SkipHidden: true,
+				ValueMatches: &StringConstraint{
+					CaseInsensitive: true,
+				},
+			}},
 	},
 
 	{

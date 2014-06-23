@@ -238,13 +238,7 @@ func (a attribute) Description() string {
 }
 
 func (a attribute) Predicate(ctx *context.Context, args []string) (*Constraint, error) {
-	c := &Constraint{
-		Permanode: &PermanodeConstraint{
-			Attr:       args[0],
-			SkipHidden: true,
-			Value:      args[1],
-		},
-	}
+	c := attrConst(args[0], args[1])
 	if strings.HasPrefix(args[1], "~") {
 		// Substring. Hack. Figure out better way to do this.
 		c.Permanode.Value = ""
@@ -321,14 +315,7 @@ func (t tag) Description() string {
 }
 
 func (t tag) Predicate(ctx *context.Context, args []string) (*Constraint, error) {
-	c := &Constraint{
-		Permanode: &PermanodeConstraint{
-			Attr:       "tag",
-			SkipHidden: true,
-			Value:      args[0],
-		},
-	}
-	return c, nil
+	return attrConst("tag", args[0]), nil
 }
 
 type title struct {
@@ -570,6 +557,21 @@ func (h hasLocation) Predicate(ctx *context.Context, args []string) (*Constraint
 }
 
 // Helpers
+
+func attrConst(attr, val string) *Constraint {
+	c := &Constraint{
+		Permanode: &PermanodeConstraint{
+			Attr:       attr,
+			SkipHidden: true,
+		},
+	}
+	if val == "" {
+		c.Permanode.ValueMatches = &StringConstraint{Empty: true}
+	} else {
+		c.Permanode.Value = val
+	}
+	return c
+}
 
 func permOfFile(fc *FileConstraint) *Constraint {
 	return &Constraint{

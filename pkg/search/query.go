@@ -225,7 +225,7 @@ func (q *SearchQuery) checkValid(ctx *context.Context) (sq *SearchQuery, err err
 				return nil, fmt.Errorf("Error parsing search expression %q: %v", expr, err)
 			}
 			if err := sq.Constraint.checkValid(); err != nil {
-				log.Fatalf("Internal error: parseExpression(%q) returned invalid constraint: %v", expr, err)
+				return nil, fmt.Errorf("Internal error: parseExpression(%q) returned invalid constraint: %v", expr, err)
 			}
 			return sq, nil
 		}
