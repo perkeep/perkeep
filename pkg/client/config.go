@@ -65,7 +65,15 @@ var (
 	configDisabled, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_CLIENT_CONFIG_FILE"))
 )
 
+// config parsing in the global environment.
 func parseConfig() {
+	var nilClient *Client
+	nilClient.parseConfig()
+}
+
+// lazy config parsing when there's a known client already.
+// The client c may be nil.
+func (c *Client) parseConfig() {
 	if android.OnAndroid() {
 		panic("parseConfig should never have been called on Android")
 	}
@@ -74,6 +82,9 @@ func parseConfig() {
 	}
 	configPath := osutil.UserClientConfigPath()
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		if c != nil && c.isSharePrefix {
+			return
+		}
 		errMsg := fmt.Sprintf("Client configuration file %v does not exist. See 'camput init' to generate it.", configPath)
 		if keyId := serverKeyId(); keyId != "" {
 			hint := fmt.Sprintf("\nThe key id %v was found in the server config %v, so you might want:\n'camput init -gpgkey %v'", keyId, osutil.UserServerConfigPath(), keyId)
@@ -428,7 +439,7 @@ func (c *Client) initTrustedCerts() {
 		log.Printf("No server defined: can not define trustedCerts for this client.")
 		return
 	}
-	trustedCerts := serverTrustedCerts(c.server)
+	trustedCerts := c.serverTrustedCerts(c.server)
 	if trustedCerts == nil {
 		return
 	}
@@ -438,8 +449,11 @@ func (c *Client) initTrustedCerts() {
 }
 
 // serverTrustedCerts returns the trusted certs for server from the config.
-func serverTrustedCerts(server string) []string {
-	configOnce.Do(parseConfig)
+func (c *Client) serverTrustedCerts(server string) []string {
+	configOnce.Do(c.parseConfig)
+	if config == nil {
+		return nil
+	}
 	alias := config.Alias(server)
 	if alias == "" {
 		return nil
