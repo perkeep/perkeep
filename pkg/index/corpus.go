@@ -104,6 +104,9 @@ type Corpus struct {
 
 	mediaTags map[blob.Ref]map[string]string // wholeref -> "album" -> "foo"
 
+	permanodesByTime    *lazySortedPermanodes // cache of permanodes sorted by creation time.
+	permanodesByModtime *lazySortedPermanodes // cache of permanodes sorted by modtime.
+
 	// scratch string slice
 	ss []string
 }
@@ -146,7 +149,7 @@ type PermanodeMeta struct {
 }
 
 func newCorpus() *Corpus {
-	return &Corpus{
+	c := &Corpus{
 		blobs:        make(map[blob.Ref]*camtypes.BlobMeta),
 		camBlobs:     make(map[string]map[blob.Ref]*camtypes.BlobMeta),
 		files:        make(map[blob.Ref]camtypes.FileInfo),
@@ -161,6 +164,15 @@ func newCorpus() *Corpus {
 		deletes:      make(map[blob.Ref][]deletion),
 		claimBack:    make(map[blob.Ref][]*camtypes.Claim),
 	}
+	c.permanodesByModtime = &lazySortedPermanodes{
+		c:      c,
+		pnTime: c.PermanodeModtimeLocked,
+	}
+	c.permanodesByTime = &lazySortedPermanodes{
+		c:      c,
+		pnTime: c.PermanodeAnyTimeLocked,
+	}
+	return c
 }
 
 func NewCorpusFromStorage(s sorted.KeyValue) (*Corpus, error) {
@@ -708,16 +720,73 @@ func (s byPermanodeTime) Less(i, j int) bool {
 	return s[i].t.Before(s[j].t)
 }
 
-func (c *Corpus) permanodesByModtimeLocked() []pnAndTime {
-	pns := make([]pnAndTime, 0, len(c.permanodes))
-	for pn := range c.permanodes {
-		if c.IsDeletedLocked(pn) {
-			continue
+type lazySortedPermanodes struct {
+	c      *Corpus
+	pnTime func(blob.Ref) (time.Time, bool) // returns permanode's time (if any) to sort on
+
+	mu                  sync.Mutex  // guards sortedCache and ofGen
+	sortedCache         []pnAndTime // nil if invalidated
+	sortedCacheReversed []pnAndTime // nil if invalidated
+	ofGen               int64       // the Corpus.gen from which sortedCache was built
+}
+
+func reversedCopy(original []pnAndTime) []pnAndTime {
+	l := len(original)
+	reversed := make([]pnAndTime, l)
+	for k, v := range original {
+		reversed[l-1-k] = v
+	}
+	return reversed
+}
+
+// The Corpus must already be locked with RLock.
+func (lsp *lazySortedPermanodes) sorted(reverse bool) []pnAndTime {
+	lsp.mu.Lock()
+	defer lsp.mu.Unlock()
+	if lsp.ofGen == lsp.c.gen {
+		// corpus hasn't changed -> caches are still valid, if they exist.
+		if reverse {
+			if lsp.sortedCacheReversed != nil {
+				return lsp.sortedCacheReversed
+			}
+			if lsp.sortedCache != nil {
+				// using sortedCache to quickly build sortedCacheReversed
+				lsp.sortedCacheReversed = reversedCopy(lsp.sortedCache)
+				return lsp.sortedCacheReversed
+			}
 		}
-		if modt, ok := c.PermanodeModtimeLocked(pn); ok {
-			pns = append(pns, pnAndTime{pn, modt})
+		if !reverse {
+			if lsp.sortedCache != nil {
+				return lsp.sortedCache
+			}
+			if lsp.sortedCacheReversed != nil {
+				// using sortedCacheReversed to quickly build sortedCache
+				lsp.sortedCache = reversedCopy(lsp.sortedCacheReversed)
+				return lsp.sortedCache
+			}
 		}
 	}
+	// invalidate the caches
+	lsp.sortedCache = nil
+	lsp.sortedCacheReversed = nil
+	pns := make([]pnAndTime, 0, len(lsp.c.permanodes))
+	for pn := range lsp.c.permanodes {
+		if lsp.c.IsDeletedLocked(pn) {
+			continue
+		}
+		if pt, ok := lsp.pnTime(pn); ok {
+			pns = append(pns, pnAndTime{pn, pt})
+		}
+	}
+	// and rebuild one of them
+	if reverse {
+		sort.Sort(sort.Reverse(byPermanodeTime(pns)))
+		lsp.sortedCacheReversed = pns
+	} else {
+		sort.Sort(byPermanodeTime(pns))
+		lsp.sortedCache = pns
+	}
+	lsp.ofGen = lsp.c.gen
 	return pns
 }
 
@@ -745,23 +814,7 @@ func (c *Corpus) sendPermanodes(ctx *context.Context, ch chan<- camtypes.BlobMet
 func (c *Corpus) EnumeratePermanodesLastModifiedLocked(ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
 	defer close(ch)
 
-	pns := c.permanodesByModtimeLocked()
-	sort.Sort(sort.Reverse(byPermanodeTime(pns)))
-	return c.sendPermanodes(ctx, ch, pns)
-}
-
-func (c *Corpus) permanodesByTimeLocked() []pnAndTime {
-	// TODO: cache this
-	pns := make([]pnAndTime, 0, len(c.permanodes))
-	for pn := range c.permanodes {
-		if c.IsDeletedLocked(pn) {
-			continue
-		}
-		if pt, ok := c.PermanodeAnyTimeLocked(pn); ok {
-			pns = append(pns, pnAndTime{pn, pt})
-		}
-	}
-	return pns
+	return c.sendPermanodes(ctx, ch, c.permanodesByModtime.sorted(true))
 }
 
 // EnumeratePermanodesCreatedLocked sends all permanodes to ch, or until ctx is done.
@@ -772,14 +825,7 @@ func (c *Corpus) permanodesByTimeLocked() []pnAndTime {
 func (c *Corpus) EnumeratePermanodesCreatedLocked(ctx *context.Context, ch chan<- camtypes.BlobMeta, newestFirst bool) error {
 	defer close(ch)
 
-	pns := c.permanodesByTimeLocked()
-	if newestFirst {
-		sort.Sort(sort.Reverse(byPermanodeTime(pns)))
-	} else {
-		sort.Sort(byPermanodeTime(pns))
-	}
-
-	return c.sendPermanodes(ctx, ch, pns)
+	return c.sendPermanodes(ctx, ch, c.permanodesByTime.sorted(newestFirst))
 }
 
 func (c *Corpus) GetBlobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
