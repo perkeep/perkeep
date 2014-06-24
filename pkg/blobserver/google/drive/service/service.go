@@ -24,6 +24,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"os"
 
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 	client "camlistore.org/third_party/code.google.com/p/google-api-go-client/drive/v2"
@@ -42,28 +43,38 @@ type DriveService struct {
 	parentId   string
 }
 
-// New initiates a new DriveService.
+// New initiates a new DriveService. parentId is the ID of the directory
+// that will be used as the current directory in methods on the returned
+// DriveService (such as Get). If empty, it defaults to the root of the
+// drive.
 func New(transport *oauth.Transport, parentId string) (*DriveService, error) {
 	apiservice, err := client.New(transport.Client())
 	if err != nil {
 		return nil, err
 	}
+	if parentId == "" {
+		// because "root" is known as a special alias for the root directory in drive.
+		parentId = "root"
+	}
 	service := &DriveService{transport: transport, apiservice: apiservice, parentId: parentId}
 	return service, err
 }
 
-// Get retrieves a file with its title
+// Get retrieves a file with its title equal to the provided id and a child of
+// the parentId as given to New. If not found, os.ErrNotExist is returned.
 func (s *DriveService) Get(id string) (*client.File, error) {
 	req := s.apiservice.Files.List()
 	// TODO: use field selectors
 	query := fmt.Sprintf("'%s' in parents and title = '%s'", s.parentId, id)
 	req.Q(query)
 	files, err := req.Do()
-
-	if err != nil || len(files.Items) < 1 {
+	if err != nil {
 		return nil, err
 	}
-	return files.Items[0], err
+	if len(files.Items) < 1 {
+		return nil, os.ErrNotExist
+	}
+	return files.Items[0], nil
 }
 
 // Lists the folder identified by parentId.
@@ -104,14 +115,25 @@ func (s *DriveService) Upsert(id string, data io.Reader) (file *client.File, err
 	return s.apiservice.Files.Update(file.Id, file).Media(data).Do()
 }
 
+var errNoDownload = errors.New("file can not be downloaded directly (conversion needed?)")
+
 // Fetch retrieves the metadata and contents of a file.
 func (s *DriveService) Fetch(id string) (body io.ReadCloser, size uint32, err error) {
 	file, err := s.Get(id)
-
+	if err != nil {
+		return
+	}
 	// TODO: maybe in the case of no download link, remove the file.
 	// The file should have malformed or converted to a Docs file
 	// unwantedly.
-	if err != nil || file == nil || file.DownloadUrl != "" {
+	// TODO(mpl): I do not think the above comment is accurate. It
+	// looks like at least one case we do not get a DownloadUrl is when
+	// the UI would make you pick a conversion format first (spreadsheet,
+	// doc, etc). -> we should see if the API offers the possibility to do
+	// that conversion. and we could pass the type(s) we want (pdf, xls, doc...)
+	// as arguments (in an options struct) to Fetch.
+	if file.DownloadUrl == "" {
+		err = errNoDownload
 		return
 	}
 
