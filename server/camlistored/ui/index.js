@@ -97,6 +97,9 @@ cam.IndexPage = React.createClass({
 	},
 
 	componentDidMount: function() {
+		goog.global.getSearchSession = function() {
+			return this.searchSession_;
+		}.bind(this);
 		this.eh_.listen(this.props.eventTarget, 'keypress', this.handleKeyPress_);
 	},
 
