@@ -409,7 +409,7 @@ type isPortait struct {
 }
 
 func newIsPortait() keyword {
-	return isPortait{"is:portait"}
+	return isPortait{"is:portrait"}
 }
 
 func (k isPortait) Description() string {
