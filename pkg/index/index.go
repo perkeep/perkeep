@@ -51,10 +51,6 @@ type Index struct {
 
 	KeyFetcher blob.Fetcher // for verifying claims
 
-	// BlobSource is used for fetching blobs when indexing files and other
-	// blobs types that reference other objects.
-	BlobSource blobserver.FetcherEnumerator
-
 	// TODO(mpl): do not init and use deletes when we have a corpus. Since corpus has its own deletes now, they are redundant.
 
 	// deletes is a cache to keep track of the deletion status (deleted vs undeleted)
@@ -64,7 +60,7 @@ type Index struct {
 
 	corpus *Corpus // or nil, if not being kept in memory
 
-	mu sync.Mutex // guards following
+	mu sync.RWMutex // guards following
 	// needs maps from a blob to the missing blobs it needs to
 	// finish indexing.
 	needs map[blob.Ref][]blob.Ref
@@ -72,6 +68,12 @@ type Index struct {
 	// and the value(s) are blobs waiting to be reindexed.
 	neededBy     map[blob.Ref][]blob.Ref
 	readyReindex map[blob.Ref]bool // set of things ready to be re-indexed
+	oooRunning   bool              // whether outOfOrderIndexerLoop is running.
+	// blobSource is used for fetching blobs when indexing files and other
+	// blobs types that reference other objects.
+	// The only write access to blobSource should be its initialization (transition
+	// from nil to non-nil), once, and protected by mu.
+	blobSource blobserver.FetcherEnumerator
 
 	tickleOoo chan bool // tickle out-of-order reindex loop, whenever readyReindex is added to
 }
@@ -101,6 +103,26 @@ func MustNew(t types.TB, s sorted.KeyValue) *Index {
 	return ix
 }
 
+// InitBlobSource sets the index's blob source and starts the background
+// out-of-order indexing loop. It panics if the blobSource is already set.
+// If the index's key fetcher is nil, it is also set to the blobSource
+// argument.
+func (x *Index) InitBlobSource(blobSource blobserver.FetcherEnumerator) {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	if x.blobSource != nil {
+		panic("blobSource of Index already set")
+	}
+	x.blobSource = blobSource
+	if x.oooRunning {
+		panic("outOfOrderIndexerLoop should never have previously started without a blobSource")
+	}
+	if x.KeyFetcher == nil {
+		x.KeyFetcher = blobSource
+	}
+	go x.outOfOrderIndexerLoop()
+}
+
 // New returns a new index using the provided key/value storage implementation.
 func New(s sorted.KeyValue) (*Index, error) {
 	idx := &Index{
@@ -112,7 +134,6 @@ func New(s sorted.KeyValue) (*Index, error) {
 	}
 	if aboutToReindex {
 		idx.deletes = newDeletionCache()
-		go idx.outOfOrderIndexerLoop()
 		return idx, nil
 	}
 
@@ -142,7 +163,6 @@ func New(s sorted.KeyValue) (*Index, error) {
 	if err := idx.initNeededMaps(); err != nil {
 		return nil, fmt.Errorf("Could not initialize index's missing blob maps: %v", err)
 	}
-	go idx.outOfOrderIndexerLoop()
 	return idx, nil
 }
 
@@ -167,10 +187,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 		ix.Close()
 		return nil, err
 	}
-	ix.BlobSource = sto
-
-	// Good enough, for now:
-	ix.KeyFetcher = ix.BlobSource
+	ix.InitBlobSource(sto)
 
 	return ix, err
 }
@@ -219,7 +236,7 @@ func (x *Index) Reindex() error {
 		defer close(blobc)
 		donec := enumCtx.Done()
 		var lastTick time.Time
-		enumErr <- blobserver.EnumerateAll(enumCtx, x.BlobSource, func(sb blob.SizedRef) error {
+		enumErr <- blobserver.EnumerateAll(enumCtx, x.blobSource, func(sb blob.SizedRef) error {
 			now := time.Now()
 			if lastTick.Before(now.Add(-1 * time.Second)) {
 				log.Printf("Reindexing at %v", sb.Ref)

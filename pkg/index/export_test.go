@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/types/camtypes"
 )
 
@@ -105,4 +106,10 @@ func (c *Corpus) Exp_LSPByTime(reverse bool) []ExpPnAndTime {
 		}
 	}
 	return nil
+}
+
+func (x *Index) Exp_BlobSource() blobserver.FetcherEnumerator {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	return x.blobSource
 }

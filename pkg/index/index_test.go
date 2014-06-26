@@ -312,7 +312,7 @@ func TestOutOfOrderIndexing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ix.BlobSource = tf
+	ix.InitBlobSource(tf)
 
 	t.Logf("file ref = %v", fileBlobRef)
 	t.Logf("missing data chunks = %v, %v, %v", chunk1ref, chunk2ref, chunk3ref)
@@ -390,9 +390,9 @@ func TestIndexingClaimMissingPubkey(t *testing.T) {
 	}
 
 	// Now make it available again:
-	idx.KeyFetcher = idx.BlobSource
+	idx.KeyFetcher = idx.Exp_BlobSource()
 
-	if err := copyBlob(id.SignerBlobRef, idx.BlobSource.(*test.Fetcher), goodKeyFetcher); err != nil {
+	if err := copyBlob(id.SignerBlobRef, idx.Exp_BlobSource().(*test.Fetcher), goodKeyFetcher); err != nil {
 		t.Errorf("Error copying public key to BlobSource: %v", err)
 	}
 	if err := copyBlob(id.SignerBlobRef, idx, goodKeyFetcher); err != nil {

@@ -49,10 +49,7 @@ func newMemoryIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blob
 	}
 
 	ix := NewMemoryIndex()
-	ix.BlobSource = sto
-
-	// Good enough, for now:
-	ix.KeyFetcher = ix.BlobSource
+	ix.InitBlobSource(sto)
 
 	return ix, err
 }

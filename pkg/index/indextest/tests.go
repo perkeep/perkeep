@@ -280,7 +280,7 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 	}
 	id.PublicKeyFetcher.AddBlob(pubKey)
 	id.Index.KeyFetcher = id.PublicKeyFetcher
-	id.Index.BlobSource = id.BlobSource
+	id.Index.InitBlobSource(id.BlobSource)
 	return id
 }
 
