@@ -79,3 +79,30 @@ func (x *Index) Exp_AwaitReindexing(t *testing.T) {
 	}
 	t.Fatal("timeout waiting for readyReindex to drain")
 }
+
+type ExpPnAndTime pnAndTime
+
+// Exp_LSPByTime returns the sorted cache lazySortedPermanodes for
+// permanodesByTime (or the reverse sorted one).
+func (c *Corpus) Exp_LSPByTime(reverse bool) []ExpPnAndTime {
+	if c.permanodesByTime == nil {
+		return nil
+	}
+	var pn []ExpPnAndTime
+	if reverse {
+		if c.permanodesByTime.sortedCacheReversed != nil {
+			for _, v := range c.permanodesByTime.sortedCacheReversed {
+				pn = append(pn, ExpPnAndTime(v))
+			}
+			return pn
+		}
+	} else {
+		if c.permanodesByTime.sortedCache != nil {
+			for _, v := range c.permanodesByTime.sortedCache {
+				pn = append(pn, ExpPnAndTime(v))
+			}
+			return pn
+		}
+	}
+	return nil
+}
