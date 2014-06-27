@@ -146,12 +146,12 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album, clien
 		return err
 	}
 
+	// Data reference: https://developers.google.com/picasa-web/docs/2.0/reference
 	// TODO(tgulacsi): add more album info
 	if err = albumNode.SetAttrs(
-		importer.AttrID, album.ID,
+		"picasaId", album.ID,
 		"camliNodeType", "picasaweb.google.com:album",
 		importer.AttrTitle, album.Title,
-		importer.AttrName, album.Name,
 		importer.AttrLocationText, album.Location,
 	); err != nil {
 		return fmt.Errorf("error setting album attributes: %v", err)
@@ -247,9 +247,8 @@ func (r *run) importPhoto(albumNode *importer.Object, photo picago.Photo, client
 	// TODO(tgulacsi): add more attrs (comments ?)
 	// for names, see http://schema.org/ImageObject and http://schema.org/CreativeWork
 	if err = photoNode.SetAttrs(
-		"camliPath", photo.ID+"-"+photo.Filename(),
 		"camliContent", fileRef.String(),
-		importer.AttrID, photo.ID,
+		"picasaId", photo.ID,
 		importer.AttrTitle, photo.Title,
 		"caption", photo.Summary,
 		importer.AttrDescription, photo.Description,
