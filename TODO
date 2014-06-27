@@ -4,6 +4,19 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- reindexing:
+   * review blob streaming interface & diskpacked implementation thereof.
+     notably: should the continuation token come per-blob? then we could
+     remove the limitBytes parameter too, and just let the caller cancel when
+     they want.
+   * add streaming interface to localdisk? maybe, even though not ideal, but
+     really: migrate my personal instance from localdisk to diskpacked
+   * add blobserver.EnumerateAllUnsorted.
+
+   * add buffered sorted.KeyValue implementation: a memory one (of
+     configurable max size) in front of a real disk one. add a Flush method
+     to it. also Flush when memory gets big enough.
+
 -- stop using the "cond" blob router storage type in genconfig, as
    well as the /bs-and-index/ "replica" storage type, and just let the
    index register its own AddReceiveHook like the sync handler
