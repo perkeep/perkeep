@@ -39,16 +39,17 @@ import (
 )
 
 var (
-	flagVersion     = flag.Bool("version", false, "show version")
-	flagVerbose     = flag.Bool("verbose", false, "be verbose")
-	flagHTTP        = flag.Bool("verbose_http", false, "show HTTP request summaries")
-	flagCheck       = flag.Bool("check", false, "just check for the existence of listed blobs; returning 0 if all are present")
-	flagOutput      = flag.String("o", "-", "Output file/directory to create.  Use -f to overwrite.")
-	flagGraph       = flag.Bool("graph", false, "Output a graphviz directed graph .dot file of the provided root schema blob, to be rendered with 'dot -Tsvg -o graph.svg graph.dot'")
-	flagContents    = flag.Bool("contents", false, "If true and the target blobref is a 'bytes' or 'file' schema blob, the contents of that file are output instead.")
-	flagShared      = flag.String("shared", "", "If non-empty, the URL of a \"share\" blob. The URL will be used as the root of future fetches. Only \"haveref\" shares are currently supported.")
-	flagTrustedCert = flag.String("cert", "", "If non-empty, the fingerprint (20 digits lowercase prefix of the SHA256 of the complete certificate) of the TLS certificate we trust for the share URL. Requires --shared.")
-	flagInsecureTLS = flag.Bool("insecure", false, "If set, when using TLS, the server's certificates verification is disabled, and they are not checked against the trustedCerts in the client configuration either.")
+	flagVersion       = flag.Bool("version", false, "show version")
+	flagVerbose       = flag.Bool("verbose", false, "be verbose")
+	flagHTTP          = flag.Bool("verbose_http", false, "show HTTP request summaries")
+	flagCheck         = flag.Bool("check", false, "just check for the existence of listed blobs; returning 0 if all are present")
+	flagOutput        = flag.String("o", "-", "Output file/directory to create.  Use -f to overwrite.")
+	flagGraph         = flag.Bool("graph", false, "Output a graphviz directed graph .dot file of the provided root schema blob, to be rendered with 'dot -Tsvg -o graph.svg graph.dot'")
+	flagContents      = flag.Bool("contents", false, "If true and the target blobref is a 'bytes' or 'file' schema blob, the contents of that file are output instead.")
+	flagShared        = flag.String("shared", "", "If non-empty, the URL of a \"share\" blob. The URL will be used as the root of future fetches. Only \"haveref\" shares are currently supported.")
+	flagTrustedCert   = flag.String("cert", "", "If non-empty, the fingerprint (20 digits lowercase prefix of the SHA256 of the complete certificate) of the TLS certificate we trust for the share URL. Requires --shared.")
+	flagInsecureTLS   = flag.Bool("insecure", false, "If set, when using TLS, the server's certificates verification is disabled, and they are not checked against the trustedCerts in the client configuration either.")
+	flagSkipIrregular = flag.Bool("skip_irregular", false, "If true, symlinks, device files, and other special file types are skipped.")
 )
 
 func main() {
@@ -287,6 +288,9 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 		}
 		return nil
 	case "symlink":
+		if *flagSkipIrregular {
+			return nil
+		}
 		sf, ok := b.AsStaticFile()
 		if !ok {
 			return errors.New("blob is not a static file")
@@ -307,10 +311,8 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 			return errors.New("symlink without target")
 		}
 
-		// TODO (marete): The Go docs promise that everything
-		// in pkg os should work the same everywhere. Not true
-		// for os.Symlin() at the moment. See what to do for
-		// windows here.
+		// On Windows, os.Symlink isn't yet implemented as of Go 1.3.
+		// See https://code.google.com/p/go/issues/detail?id=5750
 		err := os.Symlink(target, name)
 		// We won't call setFileMeta for a symlink because:
 		// the permissions of a symlink do not matter and Go's
@@ -318,6 +320,9 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 		// symlink but its target).
 		return err
 	case "fifo":
+		if *flagSkipIrregular {
+			return nil
+		}
 		name := filepath.Join(targ, b.FileName())
 
 		sf, ok := b.AsStaticFile()
@@ -350,6 +355,9 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 		return nil
 
 	case "socket":
+		if *flagSkipIrregular {
+			return nil
+		}
 		name := filepath.Join(targ, b.FileName())
 
 		sf, ok := b.AsStaticFile()
