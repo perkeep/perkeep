@@ -46,11 +46,19 @@ import (
 	"camlistore.org/third_party/github.com/hjfreyer/taglib-go/taglib"
 )
 
+// outOfOrderIndexerLoop asynchronously reindexes blobs received
+// out of order. It panics if started more than once or if the
+// index has no blobSource.
 func (ix *Index) outOfOrderIndexerLoop() {
-	if ix.BlobSource == nil {
-		// Bail early. Nothing will work later anyway. (for tests)
-		return
+	ix.mu.RLock()
+	if ix.oooRunning == true {
+		panic("outOfOrderIndexerLoop is already running")
 	}
+	if ix.blobSource == nil {
+		panic("index has no blobSource")
+	}
+	ix.oooRunning = true
+	ix.mu.RUnlock()
 WaitTickle:
 	for _ = range ix.tickleOoo {
 		for {
@@ -80,9 +88,11 @@ WaitTickle:
 }
 
 func (ix *Index) indexBlob(br blob.Ref) error {
-	bs := ix.BlobSource
+	ix.mu.RLock()
+	bs := ix.blobSource
+	ix.mu.RUnlock()
 	if bs == nil {
-		return fmt.Errorf("index: can't re-index %v: no BlobSource", br)
+		panic(fmt.Sprintf("index: can't re-index %v: no blobSource", br))
 	}
 	rc, _, err := bs.Fetch(br)
 	if err != nil {
@@ -194,7 +204,7 @@ func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.Siz
 	sniffer.Parse()
 
 	fetcher := &missTrackFetcher{
-		fetcher: ix.BlobSource,
+		fetcher: ix.blobSource,
 	}
 
 	mm, err := ix.populateMutationMap(fetcher, blobRef, sniffer)
@@ -354,7 +364,7 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 	var copyDest io.Writer = sha1
 	var imageBuf *keepFirstN // or nil
 	if strings.HasPrefix(mime, "image/") {
-		// Emperically derived 1MiB assuming CR2 images require more than any
+		// Empirically derived 1MiB assuming CR2 images require more than any
 		// other filetype we support:
 		//   https://gist.github.com/wathiede/7982372
 		imageBuf = &keepFirstN{N: 1 << 20}
