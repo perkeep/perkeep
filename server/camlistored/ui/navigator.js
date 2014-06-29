@@ -51,9 +51,12 @@ cam.Navigator.prototype.navigate = function(url) {
 
 // Handles navigations initiated via clicking a hyperlink.
 cam.Navigator.prototype.handleClick_ = function(e) {
-	if (e.button != 0) {
+	// We are conservative and only try to handle left clicks that are unmodified.
+	// For any other kind of click, assume that something fancy (e.g., context menu, open in new tab, etc) is about to happen and let whatever it happen as normal.
+	if (e.button != 0 || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) {
 		return;
 	}
+
 	for (var elm = e.target; ; elm = elm.parentElement) {
 		if (!elm) {
 			return;
