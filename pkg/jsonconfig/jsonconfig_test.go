@@ -43,7 +43,7 @@ func TestIncludeLoop(t *testing.T) {
 		t.Fatal("expected an error about import cycles.")
 	}
 	if !strings.Contains(err.Error(), "include cycle detected") {
-		t.Fatal("expected an error about import cycles; got: %v", err)
+		t.Fatalf("expected an error about import cycles; got: %v", err)
 	}
 }
 

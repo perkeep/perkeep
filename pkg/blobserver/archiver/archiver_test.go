@@ -114,7 +114,7 @@ func TestArchiverStress(t *testing.T) {
 			zips = append(zips, zipd)
 			for _, sbr := range brs {
 				if archived[sbr.Ref] {
-					t.Error("duplicate archive of %v", sbr.Ref)
+					t.Errorf("duplicate archive of %v", sbr.Ref)
 				}
 				archived[sbr.Ref] = true
 			}
