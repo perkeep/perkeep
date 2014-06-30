@@ -480,7 +480,7 @@ func setup() {
 		if os.IsNotExist(err) {
 			log.Printf("%q missing. No additional remote master(s) will receive build report.", masterHostsFile)
 		} else {
-			log.Println("Error parsing master hosts file %q: %v",
+			log.Printf("Error parsing master hosts file %q: %v",
 				masterHostsFile, err)
 		}
 	}
@@ -550,7 +550,7 @@ func setup() {
 
 	// get camlistore source
 	if err := os.Chdir(cacheDir); err != nil {
-		log.Fatal("Could not cd to %v: %v", cacheDir, err)
+		log.Fatalf("Could not cd to %v: %v", cacheDir, err)
 	}
 	camliRoot, err = filepath.Abs("camlistore.org")
 	if err != nil {
@@ -744,7 +744,7 @@ func cleanBuildGopaths() {
 	defer f.Close()
 	names, err := f.Readdirnames(-1)
 	if err != nil {
-		log.Fatal("Could not read %v: %v", tmpDir, err)
+		log.Fatalf("Could not read %v: %v", tmpDir, err)
 	}
 	for _, v := range names {
 		if strings.HasPrefix(v, "build-gopath") {

@@ -440,7 +440,7 @@ func TestIssue305(t *testing.T) {
 		t.Fatal(err)
 	}
 	if blob.BlobRef() != inref {
-		t.Error("original ref = %s; want %s", blob.BlobRef(), inref)
+		t.Errorf("original ref = %s; want %s", blob.BlobRef(), inref)
 	}
 	bb := blob.Builder()
 	jback, err := bb.JSON()

@@ -85,11 +85,11 @@ func TestHandleGetViaSharing(t *testing.T) {
 	}
 
 	if err = get(share.Blob().BlobRef().String()); err != nil {
-		t.Error("Expected to successfully fetch share, but got: %s", err)
+		t.Errorf("Expected to successfully fetch share, but got: %s", err)
 	}
 
 	if err = get(fmt.Sprintf("%s?via=%s", linkRef, share.Blob().BlobRef())); err != nil {
-		t.Error("Expected to successfully fetch link via share, but got: %s", err)
+		t.Errorf("Expected to successfully fetch link via share, but got: %s", err)
 	}
 
 	if err = get(fmt.Sprintf("%s?via=%s,%s", contentRef, share.Blob().BlobRef(), linkRef)); err == nil || err.code != shareNotTransitive {
@@ -104,7 +104,7 @@ func TestHandleGetViaSharing(t *testing.T) {
 
 	putRaw(contentRef, content)
 	if err = get(fmt.Sprintf("%s?via=%s,%s", contentRef, share.Blob().BlobRef(), linkRef)); err != nil {
-		t.Error("Expected to succesfully fetch via link via share, but got: %s", err)
+		t.Errorf("Expected to succesfully fetch via link via share, but got: %s", err)
 	}
 
 	share.SetShareExpiration(time.Now().Add(-time.Duration(10) * time.Minute))
@@ -116,7 +116,7 @@ func TestHandleGetViaSharing(t *testing.T) {
 	share.SetShareExpiration(time.Now().Add(time.Duration(10) * time.Minute))
 	put(share.Blob())
 	if err = get(fmt.Sprintf("%s?via=%s,%s", contentRef, share.Blob().BlobRef(), linkRef)); err != nil {
-		t.Error("Expected to successfully fetch unexpired share, but got: %s", err)
+		t.Errorf("Expected to successfully fetch unexpired share, but got: %s", err)
 	}
 
 	// TODO(aa): assemble
