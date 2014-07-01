@@ -456,7 +456,7 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 			tried++
 			res, err := r.HTTPClient().Get(mediaURL)
 			if err != nil {
-				return false, fmt.Errorf("Error fetching %s for tweet %s : %v", mediaURL, url)
+				return false, fmt.Errorf("Error fetching %s for tweet %s : %v", mediaURL, url, err)
 			}
 			if res.StatusCode == http.StatusNotFound {
 				continue

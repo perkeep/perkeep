@@ -150,7 +150,7 @@ func testSizedBlob(t *testing.T, r io.Reader, b1 blob.Ref, size int64) {
 		t.Fatalf("error reading from %s: %v", r, err)
 	}
 	if n != size {
-		t.Fatalf("read %d bytes from %s, metadata said %d!", n, size)
+		t.Fatalf("read %d bytes from %s, metadata said %d!", n, r, size)
 	}
 	b2 := blob.RefFromHash(h)
 	if b2 != b1 {

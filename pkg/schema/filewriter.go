@@ -106,7 +106,7 @@ func writeFileMapOld(bs blobserver.StatReceiver, file *Builder, r io.Reader) (bl
 				return blob.Ref{}, err
 			}
 			if want := (blob.SizedRef{br, uint32(n)}); sb != want {
-				return blob.Ref{}, fmt.Errorf("schema/filewriter: wrote %s, expect", sb, want)
+				return blob.Ref{}, fmt.Errorf("schema/filewriter: wrote %s, expect %s", sb, want)
 			}
 		}
 

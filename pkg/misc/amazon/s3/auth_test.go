@@ -31,7 +31,7 @@ type reqAndExpected struct {
 func req(s string) *http.Request {
 	req, err := http.ReadRequest(bufio.NewReader(strings.NewReader(s)))
 	if err != nil {
-		panic(fmt.Sprintf("bad request in test: %q (error: %v)", req, err))
+		panic(fmt.Sprintf("bad request in test: %v (error: %v)", req, err))
 	}
 	return req
 }

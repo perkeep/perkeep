@@ -185,7 +185,7 @@ func ParseDeps(r io.Reader) (providedBy map[string]string, requires map[string][
 			}
 			providedBy[namespace] = jsfile
 			if _, ok := requires[namespace]; ok {
-				return nil, nil, fmt.Errorf("Name %v has two sets of dependencies")
+				return nil, nil, fmt.Errorf("Name %v has two sets of dependencies", namespace)
 			}
 			if required != nil {
 				requires[namespace] = required
