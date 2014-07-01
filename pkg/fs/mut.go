@@ -380,6 +380,12 @@ func (n *mutDir) creat(name string, typ nodeType) (fs.Node, error) {
 			_, err = n.fs.client.UploadAndSignBlob(claim)
 			return
 		})
+		grp.Go(func() (err error) {
+			// Set the permanode title to the directory name
+			claim := schema.NewSetAttributeClaim(pr.BlobRef, "title", name)
+			_, err = n.fs.client.UploadAndSignBlob(claim)
+			return
+		})
 	}
 	if err := grp.Err(); err != nil {
 		return nil, err
@@ -478,11 +484,24 @@ func (n *mutDir) Rename(req *fuse.RenameRequest, newDir fs.Node, intr fs.Intr) f
 		return fuse.EIO
 	}
 
-	delClaim := schema.NewDelAttributeClaim(n.permanode, "camliPath:"+req.OldName, "")
-	delClaim.SetClaimDate(now)
-	_, err = n.fs.client.UploadAndSignBlob(delClaim)
-	if err != nil {
-		log.Printf("Upload rename src unlink error: %v", err)
+	var grp syncutil.Group
+	// Unlink the dest permanode from the source.
+	grp.Go(func() (err error) {
+		delClaim := schema.NewDelAttributeClaim(n.permanode, "camliPath:"+req.OldName, "")
+		delClaim.SetClaimDate(now)
+		_, err = n.fs.client.UploadAndSignBlob(delClaim)
+		return
+	})
+	// If target is a directory then update its title.
+	if dir, ok := target.(*mutDir); ok {
+		grp.Go(func() (err error) {
+			claim := schema.NewSetAttributeClaim(dir.permanode, "title", req.NewName)
+			_, err = n.fs.client.UploadAndSignBlob(claim)
+			return
+		})
+	}
+	if err := grp.Err(); err != nil {
+		log.Printf("Upload rename unlink/title error: %v", err)
 		return fuse.EIO
 	}
 

@@ -305,10 +305,20 @@ func (n *rootsDir) Mkdir(req *fuse.MkdirRequest, intr fs.Intr) (fs.Node, fuse.Er
 		return nil, fuse.EIO
 	}
 
+	var grp syncutil.Group
 	// Add a camliRoot attribute to the root permanode.
-	claim := schema.NewSetAttributeClaim(pr.BlobRef, "camliRoot", name)
-	_, err = n.fs.client.UploadAndSignBlob(claim)
-	if err != nil {
+	grp.Go(func() (err error) {
+		claim := schema.NewSetAttributeClaim(pr.BlobRef, "camliRoot", name)
+		_, err = n.fs.client.UploadAndSignBlob(claim)
+		return
+	})
+	// Set the title of the root permanode to the root name.
+	grp.Go(func() (err error) {
+		claim := schema.NewSetAttributeClaim(pr.BlobRef, "title", name)
+		_, err = n.fs.client.UploadAndSignBlob(claim)
+		return
+	})
+	if err := grp.Err(); err != nil {
 		log.Printf("rootsDir.Create(%q): %v", name, err)
 		return nil, fuse.EIO
 	}
