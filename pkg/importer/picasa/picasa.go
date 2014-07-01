@@ -23,7 +23,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/context"
