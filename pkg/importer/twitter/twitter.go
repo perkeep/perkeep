@@ -191,6 +191,12 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		},
 	}
 
+	rootNode := r.RootNode()
+	if rootNode.Attr("title") == "" {
+		screenName := acctNode.Attr(importer.AcctAttrUserName)
+		rootNode.SetAttr("title", fmt.Sprintf("%s's Tweets", screenName))
+	}
+
 	userID := acctNode.Attr(importer.AcctAttrUserID)
 	if userID == "" {
 		return errors.New("UserID hasn't been set by account setup.")
@@ -251,11 +257,7 @@ func (r *run) importTweets(userID string) error {
 	maxId := ""
 	continueRequests := true
 
-	tweetsNode, err := r.getTopLevelNode("tweets", "Tweets")
-	if err != nil {
-		return err
-	}
-
+	tweetsNode := r.RootNode()
 	numTweets := 0
 	sawTweet := map[string]bool{}
 
@@ -346,10 +348,7 @@ func tweetsFromZipFile(zf *zip.File) (tweets []*zipTweetItem, err error) {
 func (r *run) importTweetsFromZip(userID string, zr *zip.Reader) error {
 	log.Printf("Processing zip file with %d files", len(zr.File))
 
-	tweetsNode, err := r.getTopLevelNode("tweets", "Tweets")
-	if err != nil {
-		return err
-	}
+	tweetsNode := r.RootNode()
 
 	var (
 		gate = syncutil.NewGate(tweetsAtOnce)
@@ -376,7 +375,7 @@ func (r *run) importTweetsFromZip(userID string, zr *zip.Reader) error {
 			})
 		}
 	}
-	err = grp.Err()
+	err := grp.Err()
 	log.Printf("zip import of tweets: %d total, err = %v", total, err)
 	return err
 }
@@ -490,17 +489,6 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 		log.Printf("Imported tweet %s", url)
 	}
 	return !changes, err
-}
-
-func (r *run) getTopLevelNode(path string, title string) (*importer.Object, error) {
-	tweets, err := r.RootNode().ChildPathObject(path)
-	if err != nil {
-		return nil, err
-	}
-	if err := tweets.SetAttr("title", title); err != nil {
-		return nil, err
-	}
-	return tweets, nil
 }
 
 // TODO(mpl): move to an api.go when we it gets bigger.
@@ -618,6 +606,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		importer.AcctAttrUserID, u.ID,
 		importer.AcctAttrName, u.Name,
 		importer.AcctAttrUserName, u.ScreenName,
+		"title", fmt.Sprintf("%s's Twitter Account", u.ScreenName),
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
 		return
