@@ -89,6 +89,10 @@ cam.BlobItemTwitterContent.getHandler = function(blobref, searchSession, href) {
 
 	var content = cam.permanodeUtils.getSingleAttr(m.permanode, 'content');
 	var date = cam.permanodeUtils.getSingleAttr(m.permanode, 'startDate');
+	if (!content || !date) {
+		return null;
+	}
+
 	var username = cam.permanodeUtils.getSingleAttr(m.permanode, 'url').match(/^https:\/\/twitter.com\/(.+?)\//)[1];
 	var imageMeta = cam.permanodeUtils.getSingleAttr(m.permanode, 'camliContentImage');
 	if (imageMeta) {
