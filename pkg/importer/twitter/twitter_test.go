@@ -28,12 +28,12 @@ import (
 )
 
 func TestGetUserID(t *testing.T) {
-	ctx := context.New()
-	ctx.SetHTTPClient(&http.Client{
+	ctx := context.New(context.WithHTTPClient(&http.Client{
 		Transport: test.NewFakeTransport(map[string]func() *http.Response{
 			apiURL + userInfoAPIPath: test.FileResponder(filepath.FromSlash("testdata/verify_credentials-res.json")),
 		}),
-	})
+	}))
+	defer ctx.Cancel()
 	inf, err := getUserInfo(oauthContext{ctx, &oauth.Client{}, &oauth.Credentials{}})
 	if err != nil {
 		t.Fatal(err)

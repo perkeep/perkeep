@@ -65,6 +65,16 @@ func (im ExtendedOAuth2) CallbackURLParameters(acctRef blob.Ref) url.Values {
 	return url.Values{}
 }
 
+// notOAuthTransport returns c's Transport, or its underlying transport if c.Transport
+// is an OAuth Transport.
+func notOAuthTransport(c *http.Client) (tr http.RoundTripper) {
+	tr = c.Transport
+	if otr, ok := tr.(*oauth.Transport); ok {
+		tr = otr.Transport
+	}
+	return
+}
+
 func (im ExtendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *SetupContext) {
 	if im.getUserInfo == nil {
 		panic("No getUserInfo is provided, don't use the default ServeCallback!")
@@ -89,10 +99,9 @@ func (im ExtendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, c
 	// picago calls take an *http.Client, so we need to provide one which already
 	// has a transport set up correctly wrt to authentication. In particular, it
 	// needs to have the access token that is obtained during Exchange.
-	picagoCtx := ctx.Context.New()
 	transport := &oauth.Transport{
 		Config:    oauthConfig,
-		Transport: picagoCtx.HTTPClient().Transport,
+		Transport: notOAuthTransport(ctx.HTTPClient()),
 	}
 	token, err := transport.Exchange(code)
 	log.Printf("Token = %#v, error %v", token, err)
@@ -101,7 +110,9 @@ func (im ExtendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, c
 		httputil.ServeError(w, r, fmt.Errorf("token exchange error: %v", err))
 		return
 	}
-	picagoCtx.SetHTTPClient(&http.Client{Transport: transport})
+
+	picagoCtx := ctx.Context.New(context.WithHTTPClient(&http.Client{Transport: transport}))
+	defer picagoCtx.Cancel()
 
 	userInfo, err := im.getUserInfo(picagoCtx, token.AccessToken)
 	if err != nil {
