@@ -21,6 +21,7 @@ package indextest
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -28,10 +29,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
@@ -375,7 +378,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	}
 
 	key = "have:" + pn.String()
-	pnSizeStr := id.Get(key)
+	pnSizeStr := strings.TrimSuffix(id.Get(key), "|indexed")
 	if pnSizeStr == "" {
 		t.Fatalf("missing key %q", key)
 	}
@@ -1162,4 +1165,207 @@ func (s searchResults) String() string {
 	}
 	buf.WriteString("]")
 	return buf.String()
+}
+
+func Reindex(t *testing.T, initIdx func() *index.Index) {
+	defaultReindexMaxProcs := index.ReindexMaxProcs()
+	// if not startOoo, the outOfOrderIndexerLoop will not be started,
+	// which should demonstrate that:
+	// since delpn1 will be enumerated before pn1, and indexing of delpn1
+	// requires pn1, reindexing will fail.
+	reindex := func(t *testing.T, initIdx func() *index.Index, startOoo bool) {
+		if startOoo {
+			index.SetReindexMaxProcs(defaultReindexMaxProcs)
+			os.Setenv("CAMLI_TESTREINDEX_DISABLE_OOO", "false")
+		} else {
+			// We set the concurrency to 1, otherwise we could get "lucky" as the
+			// 2nd goroutine could index pn1 before the 1st goroutine notices it
+			// is missing as a dependency of delpn1 (which is the point of our test).
+			index.SetReindexMaxProcs(1)
+			os.Setenv("CAMLI_TESTREINDEX_DISABLE_OOO", "true")
+		}
+		idx := initIdx()
+		id := NewIndexDeps(idx)
+		id.Fataler = t
+
+		pn1 := id.NewPlannedPermanode("foo1") // sha1-f06e30253644014922f955733a641cbc64d43d73
+		t.Logf("uploaded permanode %q", pn1)
+
+		// delete pn1
+		delpn1 := id.Delete(pn1) // sha1-1d4c60cb3ce967edfb3194afd36124ce3f87ece0
+		t.Logf("del claim %q deletes %q", delpn1, pn1)
+		deleted := idx.IsDeleted(pn1)
+		if !deleted {
+			t.Fatal("pn1 should be deleted")
+		}
+
+		err := id.Index.Reindex()
+		if !startOoo && err == nil {
+			t.Fatal("Reindexing without outOfOrderIndexerLoop should have failed")
+		}
+		if startOoo && err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	reindex(t, initIdx, false)
+	reindex(t, initIdx, true)
+}
+
+type enumArgs struct {
+	ctx   *context.Context
+	dest  chan blob.SizedRef
+	after string
+	limit int
+}
+
+func checkEnumerate(idx *index.Index, want []blob.SizedRef, args *enumArgs) error {
+	if args == nil {
+		args = &enumArgs{}
+	}
+	if args.ctx == nil {
+		args.ctx = context.New()
+	}
+	if args.dest == nil {
+		args.dest = make(chan blob.SizedRef)
+	}
+	if args.limit == 0 {
+		args.limit = 5000
+	}
+	errCh := make(chan error)
+	go func() {
+		errCh <- idx.EnumerateBlobs(args.ctx, args.dest, args.after, args.limit)
+	}()
+	for k, sbr := range want {
+		got, ok := <-args.dest
+		if !ok {
+			return fmt.Errorf("could not enumerate blob %d", k)
+		}
+		if got != sbr {
+			return fmt.Errorf("enumeration %d: got %v, wanted %v", k, got, sbr)
+		}
+	}
+	_, ok := <-args.dest
+	if ok {
+		return errors.New("chan was not closed after enumeration")
+	}
+	return <-errCh
+}
+
+func checkStat(idx *index.Index, want []blob.SizedRef) error {
+	dest := make(chan blob.SizedRef)
+	defer close(dest)
+	errCh := make(chan error)
+	input := make([]blob.Ref, len(want))
+	for _, sbr := range want {
+		input = append(input, sbr.Ref)
+	}
+	go func() {
+		errCh <- idx.StatBlobs(dest, input)
+	}()
+	for k, sbr := range want {
+		got, ok := <-dest
+		if !ok {
+			return fmt.Errorf("could not get stat number %d", k)
+		}
+		if got != sbr {
+			return fmt.Errorf("stat %d: got %v, wanted %v", k, got, sbr)
+		}
+	}
+	return <-errCh
+}
+
+func EnumStat(t *testing.T, initIdx func() *index.Index) {
+	idx := initIdx()
+	id := NewIndexDeps(idx)
+	id.Fataler = t
+
+	type step func() error
+
+	// so we can refer to the added permanodes without using hardcoded blobRefs
+	added := make(map[string]blob.Ref)
+
+	stepAdd := func(contents string) step { // add the blob
+		return func() error {
+			pn := id.NewPlannedPermanode(contents)
+			t.Logf("uploaded permanode %q", pn)
+			added[contents] = pn
+			return nil
+		}
+	}
+
+	stepEnumCheck := func(want []blob.SizedRef, args *enumArgs) step { // check the blob
+		return func() error {
+			if err := checkEnumerate(idx, want, args); err != nil {
+				return err
+			}
+			return nil
+		}
+	}
+
+	missingBlob := blob.MustParse("sha1-0000000000000000000000000000000000000000")
+	stepDelete := func(toDelete blob.Ref) step {
+		return func() error {
+			del := id.Delete(missingBlob)
+			t.Logf("added del claim %v to delete %v", del, toDelete)
+			return nil
+		}
+	}
+
+	stepStatCheck := func(want []blob.SizedRef) step {
+		return func() error {
+			if err := checkStat(idx, want); err != nil {
+				return err
+			}
+			return nil
+		}
+	}
+
+	for _, v := range []string{
+		"foo",
+		"barr",
+		"bazzz",
+	} {
+		stepAdd(v)()
+	}
+	foo := blob.SizedRef{ // sha1-95d7290eb38520b257ef88d32f5b8d6be4fa9203
+		Ref:  blob.MustParse(added["foo"].String()),
+		Size: 534,
+	}
+	bar := blob.SizedRef{ // sha1-88c232875c2d6cfedfe91a2b06ea5c236e0389f4
+		Ref:  blob.MustParse(added["barr"].String()),
+		Size: 535,
+	}
+	baz := blob.SizedRef{ // sha1-718177762f7aba80a8b156bdd2b5a775b15a3132
+		Ref:  blob.MustParse(added["bazzz"].String()),
+		Size: 536,
+	}
+	delMissing := blob.SizedRef{ // sha1-a0b4db6c57851e5c63bfa81f5bdfd1eb9e32624e
+		Ref:  blob.MustParse("sha1-a0b4db6c57851e5c63bfa81f5bdfd1eb9e32624e"),
+		Size: 649,
+	}
+
+	if err := stepEnumCheck([]blob.SizedRef{baz, bar, foo}, nil)(); err != nil {
+		t.Fatalf("first enum, testing order: %v", err)
+	}
+
+	// Now again, but skipping baz's blob
+	if err := stepEnumCheck([]blob.SizedRef{bar, foo},
+		&enumArgs{
+			after: added["bazzz"].String(),
+		},
+	)(); err != nil {
+		t.Fatalf("second enum, testing skipping with after: %v", err)
+	}
+
+	// Now add a delete claim with a missing dep, which should add an "have" row in the old format,
+	// i.e. without the "|indexed" suffix. So we can test if we're still compatible with old rows.
+	stepDelete(missingBlob)()
+	if err := stepEnumCheck([]blob.SizedRef{baz, bar, foo, delMissing}, nil)(); err != nil {
+		t.Fatalf("third enum, testing old \"have\" row compat: %v", err)
+	}
+
+	if err := stepStatCheck([]blob.SizedRef{foo, bar, baz, delMissing})(); err != nil {
+		t.Fatalf("stat check: %v", err)
+	}
 }

@@ -94,3 +94,11 @@ func TestEdgesTo_Kvfile(t *testing.T) {
 func TestDelete_Kvfile(t *testing.T) {
 	indexTest(t, newKvfileSorted, indextest.Delete)
 }
+
+func TestReindex_Kvfile(t *testing.T) {
+	indexTest(t, newKvfileSorted, indextest.Reindex)
+}
+
+func TestEnumStat_Kvfile(t *testing.T) {
+	indexTest(t, newKvfileSorted, indextest.EnumStat)
+}
