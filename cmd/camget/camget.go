@@ -33,6 +33,7 @@ import (
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
+	"camlistore.org/pkg/legal/legalprint"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/types"
@@ -58,6 +59,10 @@ func main() {
 
 	if *flagVersion {
 		fmt.Fprintf(os.Stderr, "camget version: %s\n", buildinfo.Version())
+		return
+	}
+
+	if legalprint.MaybePrint(os.Stderr) {
 		return
 	}
 

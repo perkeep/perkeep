@@ -36,6 +36,7 @@ import (
 	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/fs"
+	"camlistore.org/pkg/legal/legalprint"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/search"
 	"camlistore.org/third_party/bazil.org/fuse"
@@ -62,6 +63,10 @@ func main() {
 	client.AddFlags()
 	flag.Usage = usage
 	flag.Parse()
+
+	if legalprint.MaybePrint(os.Stderr) {
+		return
+	}
 
 	narg := flag.NArg()
 	if narg > 2 {
