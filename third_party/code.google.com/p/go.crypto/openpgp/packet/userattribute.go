@@ -7,9 +7,10 @@ package packet
 import (
 	"bytes"
 	"image"
-	"image/jpeg"
 	"io"
 	"io/ioutil"
+
+	"camlistore.org/third_party/go/pkg/image/jpeg"
 )
 
 const UserAttrImageSubpacket = 1

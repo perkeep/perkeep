@@ -22,7 +22,6 @@ import (
 	"expvar"
 	"fmt"
 	"image"
-	"image/jpeg"
 	"image/png"
 	"io"
 	"io/ioutil"
@@ -45,6 +44,7 @@ import (
 	"camlistore.org/pkg/types"
 
 	_ "camlistore.org/third_party/github.com/nf/cr2"
+	"camlistore.org/third_party/go/pkg/image/jpeg"
 )
 
 const imageDebug = false
