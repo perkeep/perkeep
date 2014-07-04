@@ -45,12 +45,14 @@ import (
 	"syscall"
 	"time"
 
+	"camlistore.org/pkg/netutil"
 	"camlistore.org/pkg/osutil"
 )
 
 const (
-	interval = 60 * time.Second // polling frequency
-	warmup   = 30 * time.Second // duration before we test if devcam server has started properly
+	interval           = 60 * time.Second // polling frequency
+	warmup             = 30 * time.Second // duration before we test if devcam server has started properly
+	camlistoredTimeOut = time.Minute      // how long we try to dial camlistored after warmup
 )
 
 var (
@@ -841,8 +843,8 @@ func hitCamliUi() error {
 	return nil
 }
 
-func hitURL(url string) (err error) {
-	tsk := newTask("http.Get", url)
+func hitURL(uri string) (err error) {
+	tsk := newTask("http.Get", uri)
 	defer func() {
 		if err != nil {
 			tsk.Err = fmt.Sprintf("%v", err)
@@ -853,8 +855,17 @@ func hitURL(url string) (err error) {
 	}()
 	dbg.Println(tsk.String())
 	tsk.Start = time.Now()
+	u, err := url.Parse(uri)
+	if err != nil {
+		return fmt.Errorf("%v: could not get host:port to dial from %v: %v\n", tsk.String(), uri, err)
+	}
+	hostPort := u.Host
+	err = netutil.AwaitReachable(hostPort, camlistoredTimeOut)
+	if err != nil {
+		return fmt.Errorf("%v: camlistored unreachable at %v after %v: %v\n", tsk.String(), hostPort, camlistoredTimeOut, err)
+	}
 	var resp *http.Response
-	resp, err = http.Get(url)
+	resp, err = http.Get(uri)
 	if err != nil {
 		return fmt.Errorf("%v: %v\n", tsk.String(), err)
 	}
