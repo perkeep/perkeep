@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Packaage context provides a Context type to propagate state and cancellation
+// Package context provides a Context type to propagate state and cancellation
 // information.
 package context
 
@@ -86,7 +86,7 @@ func (p httpParam) modify(c *Context) {
 
 // New returns a child context attached to the receiver parent context c.
 // The returned context is done when the parent is done, but the returned child
-// context can be canceled indepedently without affecting the parent.
+// context can be canceled independently without affecting the parent.
 func (c *Context) New(params ...Param) *Context {
 	subc := New()
 	subc.parent = c
@@ -103,7 +103,7 @@ func (c *Context) New(params ...Param) *Context {
 	return subc
 }
 
-// Done returns a channel that is closed when the Context is cancelled
+// Done returns a channel that is closed when the Context is canceled
 // or finished.
 func (c *Context) Done() <-chan struct{} {
 	if c == nil {
