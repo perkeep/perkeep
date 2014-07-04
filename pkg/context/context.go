@@ -39,14 +39,20 @@ type Context struct {
 	cancelOnce sync.Once
 	done       chan struct{}
 
+	parent     *Context
 	httpClient *http.Client // nil means default
 }
 
 // New returns a new Context.
-func New() *Context {
-	return &Context{
+// Any provided params modify the returned context.
+func New(params ...Param) *Context {
+	c := &Context{
 		done: make(chan struct{}),
 	}
+	for _, p := range params {
+		p.modify(c)
+	}
+	return c
 }
 
 // HTTPClient returns the HTTP Client to use for this context.
@@ -55,21 +61,38 @@ func (c *Context) HTTPClient() *http.Client {
 		if cl := c.httpClient; cl != nil {
 			return cl
 		}
+		return c.parent.HTTPClient()
 	}
 	return http.DefaultClient
 }
 
-// SetHTTPClient sets the HTTP client as returned by HTTPClient.
-// SetHTTPClient must not be called concurrently with HTTPClient.
-func (c *Context) SetHTTPClient(cl *http.Client) {
-	c.httpClient = cl
+// WithHTTPClient sets the HTTP client as returned by HTTPClient.
+func WithHTTPClient(cl *http.Client) Param {
+	return httpParam{cl}
+}
+
+// A Param modifies a Context as returned by New.
+type Param interface {
+	modify(*Context)
+}
+
+type httpParam struct {
+	cl *http.Client
+}
+
+func (p httpParam) modify(c *Context) {
+	c.httpClient = p.cl
 }
 
 // New returns a child context attached to the receiver parent context c.
 // The returned context is done when the parent is done, but the returned child
 // context can be canceled indepedently without affecting the parent.
-func (c *Context) New() *Context {
+func (c *Context) New(params ...Param) *Context {
 	subc := New()
+	subc.parent = c
+	for _, p := range params {
+		p.modify(subc)
+	}
 	if c == nil {
 		return subc
 	}

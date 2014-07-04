@@ -86,7 +86,7 @@ func (ds *DiskStorage) migrate3to2() error {
 			}
 			dst := ds.blobPath(br)
 			if fi, err := os.Stat(dst); !os.IsNotExist(err) {
-				return fmt.Errorf("Expected %s to not exist; got stat %v, %v", fi, err)
+				return fmt.Errorf("Expected %s to not exist; got stat %v, %v", dst, fi, err)
 			}
 			if err := os.Rename(path, dst); err != nil {
 				return err

@@ -60,11 +60,9 @@ var uitdamLC = &LocationConstraint{
 }
 
 func newGeocodeContext() *context.Context {
-	ctx := context.New()
 	url := "https://maps.googleapis.com/maps/api/geocode/json?address=Uitdam&sensor=false"
 	transport := test.NewFakeTransport(map[string]func() *http.Response{url: test.StaticResponder(uitdamGoogle)})
-	ctx.SetHTTPClient(&http.Client{Transport: transport})
-	return ctx
+	return context.New(context.WithHTTPClient(&http.Client{Transport: transport}))
 }
 
 var uitdamGoogle = `HTTP/1.1 200 OK

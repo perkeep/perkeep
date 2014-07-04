@@ -26,12 +26,12 @@ import (
 
 func TestGetUserId(t *testing.T) {
 	im := &imp{}
-	ctx := context.New()
-	ctx.SetHTTPClient(&http.Client{
+	ctx := context.New(context.WithHTTPClient(&http.Client{
 		Transport: test.NewFakeTransport(map[string]func() *http.Response{
 			"https://api.foursquare.com/v2/users/self?oauth_token=footoken&v=20140225": test.FileResponder("testdata/users-me-res.json"),
 		}),
-	})
+	}))
+	defer ctx.Cancel()
 	inf, err := im.getUserInfo(ctx, "footoken")
 	if err != nil {
 		t.Fatal(err)

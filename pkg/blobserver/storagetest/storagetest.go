@@ -67,7 +67,7 @@ func Test(t *testing.T, fn func(*testing.T) (sto blobserver.Storage, cleanup fun
 			t.Fatalf("ReceiveBlob of %s: %v", b1, err)
 		}
 		if b1s != b1.SizedRef() {
-			t.Fatal("Received %v; want %v", b1s, b1.SizedRef())
+			t.Fatalf("Received %v; want %v", b1s, b1.SizedRef())
 		}
 		blobs = append(blobs, b1)
 		blobRefs = append(blobRefs, b1.BlobRef())
@@ -150,7 +150,7 @@ func testSizedBlob(t *testing.T, r io.Reader, b1 blob.Ref, size int64) {
 		t.Fatalf("error reading from %s: %v", r, err)
 	}
 	if n != size {
-		t.Fatalf("read %d bytes from %s, metadata said %d!", n, size)
+		t.Fatalf("read %d bytes from %s, metadata said %d!", n, r, size)
 	}
 	b2 := blob.RefFromHash(h)
 	if b2 != b1 {
@@ -168,7 +168,7 @@ func CheckEnumerate(sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts .
 		case int:
 			n = v
 		default:
-			panic("bad option of type " + fmt.Sprint("%T", v))
+			panic("bad option of type " + fmt.Sprintf("%T", v))
 		}
 	}
 

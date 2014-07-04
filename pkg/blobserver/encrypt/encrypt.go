@@ -273,7 +273,7 @@ func (s *storage) ReceiveBlob(plainBR blob.Ref, source io.Reader) (sb blob.Sized
 
 	err = s.index.Set(plainBR.String(), meta)
 	if err != nil {
-		return sb, fmt.Errorf("encrypt: error updating index for encrypted %v (plaintext %v): %v", err)
+		return sb, fmt.Errorf("encrypt: error updating index for encrypted %v (plaintext %v): %v", encBR, plainBR, err)
 	}
 
 	return blob.SizedRef{plainBR, uint32(plainSize)}, nil

@@ -23,7 +23,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/context"
@@ -246,7 +245,7 @@ func (r *run) importPhoto(albumNode *importer.Object, photo picago.Photo, client
 
 	// TODO(tgulacsi): add more attrs (comments ?)
 	// for names, see http://schema.org/ImageObject and http://schema.org/CreativeWork
-	if err = photoNode.SetAttrs(
+	if err := photoNode.SetAttrs(
 		"camliContent", fileRef.String(),
 		"picasaId", photo.ID,
 		importer.AttrTitle, photo.Title,
@@ -257,11 +256,10 @@ func (r *run) importPhoto(albumNode *importer.Object, photo picago.Photo, client
 		"longitude", fmt.Sprintf("%f", photo.Longitude),
 		"dateModified", schema.RFC3339FromTime(photo.Updated),
 		"datePublished", schema.RFC3339FromTime(photo.Published),
-		"uploadDate", schema.RFC3339FromTime(time.Now()),
 	); err != nil {
 		return nil, fmt.Errorf("error adding file to photo node: %v", err)
 	}
-	if err = photoNode.SetAttrValues("tag", photo.Keywords); err != nil {
+	if err := photoNode.SetAttrValues("tag", photo.Keywords); err != nil {
 		return nil, fmt.Errorf("error setting photoNode's tags: %v", err)
 	}
 

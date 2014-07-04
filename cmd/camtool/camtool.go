@@ -43,7 +43,7 @@ func newClient(server string) *client.Client {
 	} else {
 		cl = client.New(server)
 		if err := cl.SetupAuth(); err != nil {
-			log.Fatal("Could not setup auth for connecting to %v: %v", server, err)
+			log.Fatalf("Could not setup auth for connecting to %v: %v", server, err)
 		}
 	}
 	cl.SetHTTPClient(&http.Client{

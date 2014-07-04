@@ -55,7 +55,7 @@ func HostPortToIP(hostport string, ctx *net.TCPAddr) (hostaddr *net.TCPAddr, err
 	}
 	iport, err := strconv.Atoi(port)
 	if err != nil || iport < 0 || iport > 0xFFFF {
-		return nil, fmt.Errorf("invalid port %s", iport)
+		return nil, fmt.Errorf("invalid port %d", iport)
 	}
 	var addr net.IP
 	if ctx != nil && host == "localhost" {

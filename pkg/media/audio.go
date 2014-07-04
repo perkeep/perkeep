@@ -42,7 +42,7 @@ func HasID3v1Tag(r types.SizeReaderAt) (bool, error) {
 
 	buf := make([]byte, len(id3v1Magic), len(id3v1Magic))
 	if _, err := r.ReadAt(buf, r.Size()-ID3v1TagLength); err != nil {
-		return false, fmt.Errorf("Failed to read ID3v1 data: ", err)
+		return false, fmt.Errorf("Failed to read ID3v1 data: %v", err)
 	}
 	if bytes.Equal(buf, id3v1Magic) {
 		return true, nil

@@ -28,14 +28,14 @@ import (
 
 func TestGetUserId(t *testing.T) {
 	userID := "11047045264"
-	ctx := context.New()
 	responder := test.FileResponder("testdata/users-me-res.xml")
-	ctx.SetHTTPClient(&http.Client{
+	ctx := context.New(context.WithHTTPClient(&http.Client{
 		Transport: test.NewFakeTransport(map[string]func() *http.Response{
 			"https://picasaweb.google.com/data/feed/api/user/default/contacts?kind=user":        responder,
 			"https://picasaweb.google.com/data/feed/api/user/" + userID + "/contacts?kind=user": responder,
 		}),
-	})
+	}))
+	defer ctx.Cancel()
 	inf, err := getUserInfo(ctx, "footoken")
 	if err != nil {
 		t.Fatal(err)

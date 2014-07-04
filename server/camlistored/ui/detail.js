@@ -119,10 +119,14 @@ cam.DetailView = React.createClass({
 		this.eh_.dispose();
 	},
 
-	handleAspectClick_: function(name) {
-		this.setState({
-			selectedAspect: name,
-		});
+	handleAspectClick_: function(name, e) {
+		// Mathieu requests that middle and right-click do nothing until we can make real URLs work.
+		if (e.button == 0) {
+			this.setState({
+				selectedAspect: name,
+			});
+		}
+		return false;
 	},
 
 	handleKeyUp_: function(e) {

@@ -8,8 +8,9 @@ import (
 	"bytes"
 	"encoding/base64"
 	"image/color"
-	"image/jpeg"
 	"testing"
+
+	"camlistore.org/third_party/go/pkg/image/jpeg"
 )
 
 func TestParseUserAttribute(t *testing.T) {
