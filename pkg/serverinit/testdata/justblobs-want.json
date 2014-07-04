@@ -23,10 +23,6 @@
 				"path": "/tmp/blobs/cache"
 			}
 		},
-		"/importer/": {
-			"handler": "importer",
-			"handlerArgs": {}
-		},
 		"/setup/": {
 			"handler": "setup"
 		},
