@@ -22,9 +22,7 @@ goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
 goog.require('goog.events.FileDropHandler');
 goog.require('goog.ui.Component');
-
 goog.require('cam.BlobItem');
-goog.require('cam.BlobItemContainer');
 goog.require('cam.ServerConnection');
 
 // @param {cam.ServerType.DiscoveryDocument} config Global config of the current server this page is being rendered for.
@@ -37,9 +35,6 @@ cam.PermanodePage = function(config, opt_domHelper) {
 	this.config_ = config;
 
 	this.connection_ = new cam.ServerConnection(config);
-
-	this.blobItemContainer_ = new cam.BlobItemContainer(this.connection_, opt_domHelper);
-	this.blobItemContainer_.thumbnailSize_ = cam.BlobItemContainer.THUMBNAIL_SIZES_[3];
 
 	this.describeResponse_ = null;
 };
@@ -71,17 +66,6 @@ cam.PermanodePage.prototype.enterDocument = function() {
 	goog.events.listen(goog.dom.getElement('formTitle'), goog.events.EventType.SUBMIT, this.handleFormTitleSubmit_, false, this);
 	goog.events.listen(goog.dom.getElement('formTags'), goog.events.EventType.SUBMIT, this.handleFormTagsSubmit_, false, this);
 	goog.events.listen(goog.dom.getElement('formAccess'), goog.events.EventType.SUBMIT, this.handleFormAccessSubmit_, false, this);
-	goog.events.listen(goog.dom.getElement('btnGallery'), goog.events.EventType.CLICK, function() {
-		var btnGallery = goog.dom.getElement('btnGallery');
-		if (btnGallery.value == "list") {
-			goog.dom.setTextContent(btnGallery, "List");
-			btnGallery.value = "thumbnails";
-		} else {
-			goog.dom.setTextContent(btnGallery, "Thumbnails");
-			btnGallery.value = "list";
-		}
-		this.reloadMembers_();
-	}, false, this);
 
 	// set publish roots
 	this.setupRootsDropdown_();
@@ -89,11 +73,9 @@ cam.PermanodePage.prototype.enterDocument = function() {
 	// set dnd and form for file upload
 	this.setupFilesHandlers_();
 
-	this.describeBlob_()
+	this.updateAll_();
 
 	this.buildPathsList_()
-
-	this.blobItemContainer_.render(goog.dom.getElement('membersThumbs'));
 };
 
 // Gets the |p| query parameter, assuming that it looks like a blobref.
@@ -106,6 +88,24 @@ cam.PermanodePage.prototype.exitDocument = function() {
 	cam.PermanodePage.superClass_.exitDocument.call(this);
 };
 
+cam.PermanodePage.prototype.updateAll_ = function() {
+	if (parent && parent.getSearchSession) {
+		var ss = parent.getSearchSession();
+		if (ss) {
+			var permanode = getPermanodeParam();
+			var results = ss.getCurrentResults();
+			if (results.description.meta[permanode]) {
+				this.handleDescribeBlob_(permanode, results);
+				return;
+			}
+			// TODO(mpl): use ss to query.
+		}
+	}
+	// else we've got no SearchSession, so we proceed with the old way.
+	// TODO(mpl): create new SearchSession instead.
+	this.describeBlob_(results);
+};
+
 cam.PermanodePage.prototype.describeBlob_ = function() {
 	var permanode = getPermanodeParam();
 	var constraint = {
@@ -114,7 +114,6 @@ cam.PermanodePage.prototype.describeBlob_ = function() {
 	};
 	var describeReq = {
 		depth: 1,
-		thumbnailSize: this.blobItemContainer_.thumbnailSize_,
 		rules: [
 			{
 				attrs: ['camliContent', 'camliContentImage', 'camliMember']
@@ -132,7 +131,7 @@ cam.PermanodePage.prototype.handleDescribeBlob_ = function(permanode, searchResp
 	var describeResult = searchResponse.description;
 	var meta = describeResult.meta;
 	if (!meta[permanode]) {
-		alert("didn't get blob " + permanode);
+		alert(permanode + " was not described");
 		return;
 	}
 	var permObj = meta[permanode].permanode;
@@ -168,35 +167,29 @@ cam.PermanodePage.prototype.handleDescribeBlob_ = function(permanode, searchResp
 	// handle type detection
 	handleType(permObj);
 
-	// TODO(mpl): add a line showing something like
-	// "Content: file (blobref)" or
-	// "Content: directory (blobref)" or
-	// "Content: None (has members)".
-
 	// members
 	this.reloadMembers_();
 
-	// TODO(mpl): use a permanent blobItemContainer instead?
 	/* blob content */
 	var camliContent = permObj.attr.camliContent;
+	if (!camliContent) {
+		camliContent = permObj.attr.camliContentImage;
+	}
 	if (camliContent && camliContent.length > 0) {
 		var content = goog.dom.getElement('content');
 		content.innerHTML = '';
 		var useFileBlobrefAsLink = "true";
-		var blobItem = new cam.BlobItem(permanode, meta, useFileBlobrefAsLink);
+		var blobItem = new cam.BlobItem(camliContent[0], meta);
 		blobItem.decorate(content);
 		blobItem.setSize(300, 300);
-		// TODO(mpl): ideally this should be done by handleType, but it's easier
-		// to do it now that we have a blobItem object to work with.
-		var isdir = blobItem.getDirBlobref_()
 		var mountTip = goog.dom.getElement("cammountTip");
 		goog.dom.removeChildren(mountTip);
-		if (isdir != "") {
+		if (blobItem.isDir()) {
 			var tip = "Mount with:";
 			goog.dom.setTextContent(mountTip, tip);
 			goog.dom.appendChild(mountTip, goog.dom.createDom("br"));
 			var codeTip = goog.dom.createDom("code");
-			goog.dom.setTextContent(codeTip, "$ cammount /some/mountpoint " + isdir);
+			goog.dom.setTextContent(codeTip, "$ cammount /some/mountpoint " + blobitem.blobRef_);
 			goog.dom.appendChild(mountTip, codeTip);
 		}
 	}
@@ -256,19 +249,16 @@ cam.PermanodePage.prototype.isCamliPathAttribute_ = function(name) {
 
 cam.PermanodePage.prototype.reloadMembers_ = function() {
 	var membersList = goog.dom.getElement('membersList');
-	var membersThumbs = goog.dom.getElement('membersThumbs');
 	membersList.innerHTML = '';
 
 	var meta = this.describeResponse_.meta;
 	var permanode = meta[getPermanodeParam()].permanode;
 	var attrs = permanode.attr;
 	var hasMembers = false;
-	var btnGallery = goog.dom.getElement('btnGallery');
-	var doThumbnails = (btnGallery.value == "thumbnails");
 
 	if (attrs.camliMember) {
 		attrs.camliMember.forEach(function(m) {
-			this.addMember_(m, "camliMember", meta, doThumbnails);
+			this.addMember_(m, "camliMember", meta);
 			hasMembers = true;
 		}.bind(this));
 	}
@@ -277,52 +267,45 @@ cam.PermanodePage.prototype.reloadMembers_ = function() {
 		if (this.isCamliPathAttribute_(name)) {
 			var attr = permAttr(permanode, name);
 			if (attr) {
-				this.addMember_(attr, name, meta, doThumbnails);
+				this.addMember_(attr, name, meta);
 				hasMembers = true;
 			}
 		}
 	}
-
-	if (hasMembers) {
-		if (doThumbnails) {
-			this.blobItemContainer_.show_();
-		} else {
-			this.blobItemContainer_.hide_();
-			this.blobItemContainer_.resetChildren_();
-		}
-	}
 };
 
-// @param {string} pn child permanode.
-// @param {Object} meta meta in describe response.
-// @param {boolean} thumbnails whether to display thumbnails or a list
-cam.PermanodePage.prototype.addMember_ = function(pn, path, meta, thumbnails) {
-	var blobItem = new cam.BlobItem(pn, meta);
-	if (thumbnails) {
-		this.blobItemContainer_.addChild(blobItem, true)
+cam.PermanodePage.prototype.addMember_ = function(br, path, meta) {
+	var blobItem = new cam.BlobItem(br, meta);
+	var membersList = goog.dom.getElement("membersList");
+	var ul;
+	if (membersList.innerHTML == "") {
+		ul = goog.dom.createDom("ul");
+		goog.dom.appendChild(membersList, ul);
 	} else {
-		var membersList = goog.dom.getElement("membersList");
-		var ul;
-		if (membersList.innerHTML == "") {
-			ul = goog.dom.createDom("ul");
-			goog.dom.appendChild(membersList, ul);
-		} else {
-			ul = membersList.firstChild;
-		}
-		var li = goog.dom.createDom("li");
-		var a = goog.dom.createDom("a");
-		a.href = "./?p=" + pn;
-		goog.dom.setTextContent(a, blobItem.getTitle_());
-
-		var del = goog.dom.createDom("span");
-		del.className = 'cam-permanode-del';
-		goog.dom.setTextContent(del, "x");
-		goog.events.listen(del, goog.events.EventType.CLICK, this.deleteMemberFunc_(pn, path, a, li), false, this);
-
-		goog.dom.appendChild(li, a);
-		goog.dom.appendChild(li, del);
-		goog.dom.appendChild(ul, li);
+		ul = membersList.firstChild;
 	}
+	var li = goog.dom.createDom("li");
+	var a = goog.dom.createDom("a");
+	a.href = './?p=' + br;
+	var title = blobItem.getTitle_();
+	// if this member happens to have been described, we might have
+	// gotten an interesting title. Otherwise we default to:
+	if (title == '') {
+		if (path == 'camliMember') {
+			title = br;
+		} else {
+			title = path;
+		}
+	}
+	goog.dom.setTextContent(a, title);
+	goog.dom.appendChild(li, a);
+
+	var del = goog.dom.createDom("span");
+	del.className = 'cam-permanode-del';
+	goog.dom.setTextContent(del, "x");
+	goog.events.listen(del, goog.events.EventType.CLICK, this.deleteMemberFunc_(br, path, a, li), false, this);
+	goog.dom.appendChild(li, del);
+	goog.dom.appendChild(ul, li);
 };
 
 // @param {string} member child permanode
@@ -336,7 +319,7 @@ cam.PermanodePage.prototype.deleteMemberFunc_ = function(member, path, strikeEle
 			goog.bind(function() {
 				removeEle.parentNode.removeChild(removeEle);
 				// TODO(mpl): refreshing the whole thing is kindof heavy, maybe?
-				this.describeBlob_();
+				this.updateAll_();
 			}, this),
 			function(msg) {
 				alert(msg);
@@ -385,7 +368,7 @@ cam.PermanodePage.prototype.handleFormTitleSubmit_ = function(e) {
 			setTimeout(goog.bind(function() {
 				inputTitle.disabled = false;
 				btnSaveTitle.disabled = false;
-				this.describeBlob_();
+				this.updateAll_();
 			},this), Math.max(250 - elapsedMs, 0));
 		}, this),
 		function(msg) {
@@ -419,7 +402,7 @@ cam.PermanodePage.prototype.handleFormTagsSubmit_ = function(e) {
 				input.value = '';
 				input.disabled = false;
 				btn.disabled = false;
-				this.describeBlob_();
+				this.updateAll_();
 			}, this), Math.max(250 - elapsedMs, 0));
 		}
 	}, this);
@@ -683,7 +666,7 @@ cam.PermanodePage.prototype.startFileUpload_ = function(file) {
 			goog.bind(function(filepn) {
 				var doneWithAll = goog.bind(function() {
 					setStatus("- done");
-					this.describeBlob_();
+					this.updateAll_();
 				}, this);
 				var addMemberToParent = function() {
 					setStatus("adding member");
@@ -755,16 +738,13 @@ function handleType(permObj) {
 	var disablePublish = false;
 	var selType = goog.dom.getElement("type");
 	var dnd = goog.dom.getElement("dnd");
-	var btnGallery = goog.dom.getElement("btnGallery");
 	var membersDiv = goog.dom.getElement("members");
 	dnd.style.display = "none";
-	btnGallery.style.visibility = 'hidden';
 	goog.dom.setTextContent(membersDiv, "");
 	if (permAttr(permObj, "camliRoot")) {
 		disablePublish = true;	// can't give a URL to a root with a claim
 	} else if (hasNamedMembers(permObj) || hasUnnamedMembers(permObj)) {
 		dnd.style.display = "block";
-		btnGallery.style.visibility = 'visible';
 		goog.dom.setTextContent(membersDiv, "Members:");
 	}
 

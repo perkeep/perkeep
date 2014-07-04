@@ -22,21 +22,18 @@ goog.require('goog.events.EventHandler');
 goog.require('goog.events.EventType');
 goog.require('goog.ui.Control');
 
+goog.require('cam.permanodeUtils');
 goog.require('cam.ServerType');
 goog.require('cam.Thumber');
 
 
-// @fileoverview An item showing in a blob item container; represents a blob that has already been uploaded in the system, or acts as a placeholder for a new blob.
-// @param {string} blobRef BlobRef for the item.
-// @param {cam.ServerType.IndexerMetaBag} metaBag Maps blobRefs to metadata for this blob and related blobs.
-// @param {string} opt_contentLink if "true", use the contained file blob as link when decorating
-// @param {goog.dom.DomHelper=} opt_domHelper DOM helper to use.
-// @extends {goog.ui.Control}
-// @constructor
-cam.BlobItem = function(blobRef, metaBag, opt_contentLink, opt_domHelper) {
+// BlobItem represents a blob item (blobRef) in a container. MetaBag is the meta
+// map obtained in a describe response upon a search or describe query. It maps
+// blobRefs to metadata for this blob and related blobs.
+cam.BlobItem = function(blobRef, metaBag, opt_domHelper) {
 	goog.base(this, null, null, opt_domHelper);
 
-	this.update(blobRef, metaBag, opt_contentLink);
+	this.update(blobRef, metaBag);
 
 	this.setSupportedState(goog.ui.Component.State.CHECKED, true);
 	this.setSupportedState(goog.ui.Component.State.DISABLED, true);
@@ -47,21 +44,15 @@ cam.BlobItem = function(blobRef, metaBag, opt_contentLink, opt_domHelper) {
 };
 goog.inherits(cam.BlobItem, goog.ui.Control);
 
-cam.BlobItem.prototype.update = function(blobRef, metaBag, opt_contentLink) {
-	// TODO(mpl): Hack so we know when to decorate with the blobref of the contained file, instead of with the permanode, as the link. Idiomatic alternative suggestion very welcome.
-
-	this.useContentAsLink_ = "false";
-	if (typeof opt_contentLink !== "undefined" && opt_contentLink == "true") {
-		this.useContentAsLink_ = opt_contentLink;
-	}
-
+cam.BlobItem.prototype.update = function(blobRef, metaBag) {
 	this.blobRef_ = blobRef;
 	this.metaBag_ = metaBag;
 	this.metaData_ = this.metaBag_[this.blobRef_];
-	this.resolvedMetaData_ = cam.BlobItem.resolve(this.blobRef_, this.metaBag_);
-
-	if (this.resolvedMetaData_ && this.resolvedMetaData_.image) {
-		this.thumber_ = cam.Thumber.fromImageMeta(this.resolvedMetaData_);
+	if (!this.metaData_) {
+		return;
+	}
+	if (this.isImage()) {
+		this.thumber_ = cam.Thumber.fromImageMeta(this.metaData_);
 	} else {
 		this.thumber_ = new cam.Thumber(this.metaData_.thumbnailSrc);
 	}
@@ -69,45 +60,18 @@ cam.BlobItem.prototype.update = function(blobRef, metaBag, opt_contentLink) {
 
 cam.BlobItem.TITLE_HEIGHT = 21;
 
-// TODO(bslatkin): Handle more permanode types.
-// @param {string} blobRef string BlobRef to resolve.
-// @param {cam.ServerType.IndexerMetaBag} metaBag Metadata bag to use for resolving the blobref.
-// @return {cam.ServerType.IndexerMeta?}
-cam.BlobItem.resolve = function(blobRef, metaBag) {
-	var metaData = metaBag[blobRef];
-	if (metaData.camliType == 'permanode' && metaData.permanode && metaData.permanode.attr) {
-		if (metaData.permanode.attr.camliContent) {
-			// Permanode is pointing at another blob.
-			var content = metaData.permanode.attr.camliContent;
-			if (content.length == 1) {
-				return metaBag[content[0]];
-			}
-		} else {
-			// Permanode is its own content.
-			return metaData;
-		}
-	}
-	return null;
-};
-
-cam.BlobItem.prototype.isCollection = function() {
-	// TODO(mpl): for now disallow being a collection if it
-	// has members. What else to check?
-	if (!this.resolvedMetaData_ || this.resolvedMetaData_.camliType != 'permanode' || !this.resolvedMetaData_.permanode || !this.resolvedMetaData_.permanode.attr || this.resolvedMetaData_.permanode.attr.camliContent) {
-			return false;
-	}
-	return true;
-};
-
 cam.BlobItem.prototype.getBlobRef = function() {
 	return this.blobRef_;
 };
 
 cam.BlobItem.prototype.getThumbAspect = function() {
-	if (!this.metaData_.thumbnailWidth || !this.metaData_.thumbnailHeight) {
+	if (!this.isImage()) {
 		return 0;
 	}
-	return this.metaData_.thumbnailWidth / this.metaData_.thumbnailHeight;
+	if (!this.metaData_.image.width || !this.metaData_.image.height) {
+		return 0;
+	}
+	return this.metaData_.image.width / this.metaData_.image.height;
 };
 
 cam.BlobItem.prototype.getWidth = function() {
@@ -168,6 +132,9 @@ cam.BlobItem.prototype.setThumbSize = function(w, h) {
 	this.loading_.style.top = Math.round((h - 85) / 2) + 'px';
 	this.loading_.style.left = Math.round((w - 70) / 2) + 'px';
 
+	if (!this.thumber_) {
+		return;
+	}
 	// It's important to only assign the new src if it has changed. Assigning a src causes layout and style recalc.
 	var newThumb = this.thumber_.getSrc(adjustedHeight);
 	if (newThumb != this.thumb_.getAttribute('src')) {
@@ -176,16 +143,31 @@ cam.BlobItem.prototype.setThumbSize = function(w, h) {
 };
 
 cam.BlobItem.prototype.isImage = function() {
-	return Boolean(this.resolvedMetaData_.image);
+	if (!this.metaData_) {
+		return false;
+	}
+	return Boolean(this.metaData_.image);
+};
+
+cam.BlobItem.prototype.camliType = function() {
+	return this.metaData_ ? this.metaData_.camliType : "";
+}
+
+cam.BlobItem.prototype.isPermanode = function() {
+	return Boolean(this.camliType() == 'permanode');
+};
+
+cam.BlobItem.prototype.isDir = function() {
+	return Boolean(this.camliType() == 'directory');
+};
+
+cam.BlobItem.prototype.isFile = function() {
+	return Boolean(this.camliType() == 'file');
 };
 
 cam.BlobItem.prototype.getLink_ = function() {
-	if (this.useContentAsLink_ == "true") {
-		var b = this.getFileBlobref_();
-		if (b == "") {
-			b = this.getDirBlobref_();
-		}
-		return './?b=' + b;
+	if (!this.isPermanode()) {
+		return './?b=' + this.blobRef_;
 	}
 
 	// The new detail page looks ridiculous for non-images, so don't go to it for those yet.
@@ -197,46 +179,77 @@ cam.BlobItem.prototype.getLink_ = function() {
 	return uri.toString();
 };
 
-cam.BlobItem.prototype.getFileBlobref_ = function() {
-	if (this.resolvedMetaData_ && this.resolvedMetaData_.camliType == 'file') {
-		return this.resolvedMetaData_.blobRef;
+cam.BlobItem.prototype.getContent_ = function() {
+	if (!this.metaData_) {
+		return '';
 	}
-	return "";
-}
-
-cam.BlobItem.prototype.getDirBlobref_ = function() {
-	if (this.resolvedMetaData_ && this.resolvedMetaData_.camliType == 'directory') {
-		return this.resolvedMetaData_.blobRef;
+	var metaData = this.metaData_;
+	if (metaData.camliType == 'permanode' &&
+		!!metaData.permanode &&
+		!!metaData.permanode.attr) {
+		var content = cam.permanodeUtils.getSingleAttr(metaData.permanode, 'camliContent');
+		if (content) {
+			return content;
+		}
+		content = cam.permanodeUtils.getSingleAttr(metaData.permanode, 'camliContentImage');
+		if (content) {
+			return content;
+		}
 	}
-	return "";
-}
+	return '';
+};
 
 cam.BlobItem.prototype.getTitle_ = function() {
-	if (this.metaData_) {
-		if (this.metaData_.camliType == 'permanode' &&
-			!!this.metaData_.permanode &&
-			!!this.metaData_.permanode.attr &&
-			!!this.metaData_.permanode.attr.title) {
-			return this.metaData_.permanode.attr.title;
-		}
+	if (!!this.title_) {
+		return this.title_;
 	}
-	if (this.resolvedMetaData_) {
-		if (this.resolvedMetaData_.camliType == 'file' &&
-			!!this.resolvedMetaData_.file) {
-			return this.resolvedMetaData_.file.fileName;
-		}
-		if (this.resolvedMetaData_.camliType == 'directory' &&
-					!!this.resolvedMetaData_.dir) {
-				return this.resolvedMetaData_.dir.fileName;
+	if (!this.metaData_) {
+		return '';
+	}
+	var metaData = this.metaData_;
+	if (metaData.camliType == 'permanode') {
+		if (!!metaData.permanode &&
+			!!metaData.permanode.attr) {
+			var title = cam.permanodeUtils.getSingleAttr(metaData.permanode, 'title');
+			if (title) {
+				this.title_ = metaData.permanode.attr.title;
+				return this.title_;
 			}
-		if (this.resolvedMetaData_.camliType == 'permanode' &&
-			!!this.resolvedMetaData_.permanode &&
-			!!this.resolvedMetaData_.permanode.attr &&
-			!!this.resolvedMetaData_.permanode.attr.title) {
-			return this.resolvedMetaData_.permanode.attr.title;
 		}
+		var content = this.getContent_();
+		if (content != '') {
+			var contentTitle = this.getTitleFrom_(content);
+			if (contentTitle != '') {
+				this.title_ = contentTitle;
+				return this.title_;
+			}
+		}
+		// TODO(mpl): add call to getSpecialTitle_ that would
+		// return the twitterId if a twitter.com:tweet for example.
+		this.title_ = this.blobRef_;
+		return this.title_;
 	}
-	return 'Unknown title';
+	if (metaData.camliType == 'file' &&
+		!!metaData.file) {
+		this.title_ = metaData.file.fileName;
+		return this.title_;
+	}
+	if (metaData.camliType == 'directory' &&
+		!!metaData.dir) {
+		this.title_ = metaData.dir.fileName;
+		return this.title_;
+	}
+	return '';
+};
+
+cam.BlobItem.prototype.getTitleFrom_ = function(br) {
+	// Probably overkill in resources usage but at least it's a
+	// readable recursion instead of the resolvedMetaData mess.
+	// TODO(mpl): if need be, we could cache this child as
+	// this.contentChild_ or something.
+	var child = new cam.BlobItem(br, this.metaBag_);
+	var title = child.getTitle_();
+	return child.getTitle_();
 };
 
 cam.BlobItem.prototype.createDom = function() {
