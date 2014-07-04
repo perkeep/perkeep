@@ -50,10 +50,24 @@ type imp struct {
 	importer.ExtendedOAuth2
 }
 
+var baseOAuthConfig = oauth.Config{
+	AuthURL:  authURL,
+	TokenURL: tokenURL,
+	Scope:    scopeURL,
+
+	// AccessType needs to be "offline", as the user is not here all the time;
+	// ApprovalPrompt needs to be "force" to be able to get a RefreshToken
+	// everytime, even for Re-logins, too.
+	//
+	// Source: https://developers.google.com/youtube/v3/guides/authentication#server-side-apps
+	AccessType:     "offline",
+	ApprovalPrompt: "force",
+}
+
 func newImporter() *imp {
 	return &imp{
 		importer.NewExtendedOAuth2(
-			oauth.Config{AuthURL: authURL, TokenURL: tokenURL, Scope: scopeURL},
+			baseOAuthConfig,
 			func(ctx *context.Context, accessToken string) (*importer.UserInfo, error) {
 				u, err := getUserInfo(ctx, accessToken)
 				if err != nil {
@@ -93,8 +107,7 @@ and click "CREATE PROJECT".</p>
 // A run is our state for a given run of the importer.
 type run struct {
 	*importer.RunContext
-	im     *imp
-	client *http.Client
+	im *imp
 }
 
 func (im *imp) Run(ctx *importer.RunContext) error {
@@ -102,20 +115,16 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 	if err != nil {
 		return err
 	}
-	client := ctx.Host.HTTPClient()
-	client.Transport = &oauth.Transport{
-		Config: &oauth.Config{
-			ClientId:     clientId,
-			ClientSecret: secret,
-			AuthURL:      authURL,
-			TokenURL:     tokenURL,
-			Scope:        scopeURL,
-		},
-		Token: &oauth.Token{
-			AccessToken: ctx.AccountNode().Attr(importer.AcctAttrAccessToken),
-		},
+	ocfg := baseOAuthConfig
+	ocfg.ClientId, ocfg.ClientSecret = clientId, secret
+	token := importer.DecodeToken(ctx.AccountNode().Attr(importer.AcctAttrOAuthToken))
+	transport := &oauth.Transport{
+		Config:    &ocfg,
+		Token:     &token,
+		Transport: importer.NotOAuthTransport(ctx.HTTPClient()),
 	}
-	r := &run{RunContext: ctx, im: im, client: client}
+	ctx.Context = ctx.Context.New(context.WithHTTPClient(transport.Client()))
+	r := &run{RunContext: ctx, im: im}
 	if err := r.importAlbums(); err != nil {
 		return err
 	}
@@ -123,16 +132,16 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 }
 
 func (r *run) importAlbums() error {
-	albums, err := picago.GetAlbums(r.client, "default")
+	albums, err := picago.GetAlbums(r.HTTPClient(), "default")
 	if err != nil {
-		return err
+		return fmt.Errorf("importAlbums: error listing albums: %v", err)
 	}
 	albumsNode, err := r.getTopLevelNode("albums", "Albums")
 	for _, album := range albums {
 		if r.Context.IsCanceled() {
 			return context.ErrCanceled
 		}
-		if err := r.importAlbum(albumsNode, album, r.client); err != nil {
+		if err := r.importAlbum(albumsNode, album, r.HTTPClient()); err != nil {
 			return fmt.Errorf("picasa importer: error importing album %s: %v", album, err)
 		}
 	}
@@ -142,7 +151,7 @@ func (r *run) importAlbums() error {
 func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album, client *http.Client) error {
 	albumNode, err := albumsNode.ChildPathObject(album.Name)
 	if err != nil {
-		return err
+		return fmt.Errorf("importAlbum: error listing album: %v", err)
 	}
 
 	// Data reference: https://developers.google.com/picasa-web/docs/2.0/reference
@@ -222,7 +231,7 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album, clien
 func (r *run) importPhoto(albumNode *importer.Object, photo picago.Photo, client *http.Client) (*importer.Object, error) {
 	body, err := picago.DownloadPhoto(client, photo.URL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("importPhoto: DownloadPhoto error: %v", err)
 	}
 	fileRef, err := schema.WriteFileFromReader(
 		r.Host.Target(),

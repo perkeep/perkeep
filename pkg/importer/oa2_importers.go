@@ -22,6 +22,9 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
+	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/context"
@@ -65,9 +68,9 @@ func (im ExtendedOAuth2) CallbackURLParameters(acctRef blob.Ref) url.Values {
 	return url.Values{}
 }
 
-// notOAuthTransport returns c's Transport, or its underlying transport if c.Transport
+// NotOAuthTransport returns c's Transport, or its underlying transport if c.Transport
 // is an OAuth Transport.
-func notOAuthTransport(c *http.Client) (tr http.RoundTripper) {
+func NotOAuthTransport(c *http.Client) (tr http.RoundTripper) {
 	tr = c.Transport
 	if otr, ok := tr.(*oauth.Transport); ok {
 		tr = otr.Transport
@@ -101,7 +104,7 @@ func (im ExtendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, c
 	// needs to have the access token that is obtained during Exchange.
 	transport := &oauth.Transport{
 		Config:    oauthConfig,
-		Transport: notOAuthTransport(ctx.HTTPClient()),
+		Transport: NotOAuthTransport(ctx.HTTPClient()),
 	}
 	token, err := transport.Exchange(code)
 	log.Printf("Token = %#v, error %v", token, err)
@@ -111,7 +114,7 @@ func (im ExtendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, c
 		return
 	}
 
-	picagoCtx := ctx.Context.New(context.WithHTTPClient(&http.Client{Transport: transport}))
+	picagoCtx := ctx.Context.New(context.WithHTTPClient(transport.Client()))
 	defer picagoCtx.Cancel()
 
 	userInfo, err := im.getUserInfo(picagoCtx, token.AccessToken)
@@ -125,12 +128,52 @@ func (im ExtendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, c
 		AcctAttrUserID, userInfo.ID,
 		AcctAttrGivenName, userInfo.FirstName,
 		AcctAttrFamilyName, userInfo.LastName,
-		AcctAttrAccessToken, token.AccessToken,
+		AcctAttrOAuthToken, encodeToken(token),
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)
+}
+
+// encodeToken encodes the oauth.Token as
+// AccessToken + " " + RefreshToken + " " + Expiry.Unix()
+func encodeToken(token *oauth.Token) string {
+	if token == nil {
+		return "  0"
+	}
+	var seconds int64
+	if !token.Expiry.IsZero() {
+		seconds = token.Expiry.Unix()
+	}
+	return token.AccessToken + " " + token.RefreshToken + " " + strconv.FormatInt(seconds, 10)
+}
+
+// DecodeToken decodes from format of access + " " + refresh + " " + expiry
+// to oauth.Token.
+// It does not return an error, just decodes till it can.
+func DecodeToken(encoded string) oauth.Token {
+	var token oauth.Token
+	i := strings.IndexByte(encoded, ' ')
+	if i < 0 {
+		token.AccessToken = encoded
+		return token
+	}
+	token.AccessToken, encoded = encoded[:i], encoded[i+1:]
+	i = strings.IndexByte(encoded, ' ')
+	if i < 0 {
+		token.RefreshToken = encoded
+		return token
+	}
+	token.RefreshToken, encoded = encoded[:i], encoded[i+1:]
+	if len(encoded) == 0 {
+		return token
+	}
+	seconds, err := strconv.ParseInt(encoded, 10, 64)
+	if err == nil {
+		token.Expiry = time.Unix(seconds, 0)
+	}
+	return token
 }
 
 func (im ExtendedOAuth2) auth(ctx *SetupContext) (*oauth.Config, error) {
