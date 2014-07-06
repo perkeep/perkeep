@@ -36,7 +36,7 @@ type googinitCmd struct {
 func init() {
 	cmdmain.RegisterCommand("googinit", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(googinitCmd)
-		flags.StringVar(&cmd.storageType, "type", "drive", "Storage type: drive or cloud")
+		flags.StringVar(&cmd.storageType, "type", "", "Storage type: drive or cloud")
 		return cmd
 	})
 }
@@ -58,7 +58,7 @@ func (c *googinitCmd) RunCommand(args []string) error {
 	)
 
 	if c.storageType != "drive" && c.storageType != "cloud" {
-		return cmdmain.UsageError("Invalid storage type.")
+		return cmdmain.UsageError("Invalid storage type: must be drive for Google Drive or cloud for Google Cloud Storage.")
 	}
 
 	if clientId, clientSecret, err = getClientInfo(); err != nil {
