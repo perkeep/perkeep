@@ -110,7 +110,7 @@ starts with <code>{</code> and is <a href="http://json.org/">valid JSON</a> in i
   <p>A permanent reference to a mutable object then is simply the blobref of
      the permanode.</p>
 
-  <p>The signer of a permanode is its owner and search server and
+  <p>The signer of a permanode is its owner. The search server and
      indexer will take this into account.  While multiple users may collaborate
      on mutating an object (by all creating new, signed mutation schema blobs),
      the owner ultimately decides the policies on how the mutations are respected.</p>
