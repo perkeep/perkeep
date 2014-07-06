@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2014 The Camlistore Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,189 +19,181 @@ goog.provide('cam.Nav.Item');
 goog.provide('cam.Nav.LinkItem');
 goog.provide('cam.Nav.SearchItem');
 
-goog.require('goog.dom');
-goog.require('goog.dom.classes');
 goog.require('goog.events.KeyCodes');
-goog.require('goog.ui.Container');
-goog.require('goog.ui.Component');
-goog.require('goog.ui.Control');
-goog.require('goog.ui.Button');
 
+goog.require('cam.object');
+goog.require('cam.reactUtil');
 goog.require('cam.style');
-goog.require('cam.Navigator');
 
-// A vertical, fixed-position expandy collapsy navigation bar thingy.
-cam.Nav = function(domHelper, opt_delegate) {
-	goog.base(this, null, null, domHelper);
+cam.Nav = React.createClass({
+	displayName: 'Nav',
 
-	this.delegate_ = opt_delegate;
-	this.expandTimer_ = 0;
-};
-goog.inherits(cam.Nav, goog.ui.Container);
+	propTypes: {
+		onOpen: React.PropTypes.func.isRequired,
+		onClose: React.PropTypes.func.isRequired,
+		open: React.PropTypes.bool.isRequired,
+		timer: React.PropTypes.shape({setTimeout: React.PropTypes.func.isRequired, clearTimeout: React.PropTypes.func.isRequired,}).isRequired,
+	},
 
-cam.Nav.prototype.createDom = function() {
-	this.setElementInternal(this.dom_.createDom('div'));
-	goog.dom.classes.add(this.element_, 'cam-nav');
+	componentWillMount: function() {
+		this.expandTimer_ = 0;
+	},
 
-	this.closeButton_ = this.dom_.createDom('img', 'cam-nav-close');
-	this.closeButton_.src = 'close.svg';
-	this.getElement().appendChild(this.closeButton_);
+	render: function() {
+		return React.DOM.div({
+				className: React.addons.classSet({
+					'cam-nav': true,
+					'cam-nav-collapsed': !this.props.open,
+				}),
+				onMouseEnter: this.handleMouseEnter_,
+				onMouseLeave: this.handleMouseLeave_,
+				onKeyUp: this.handleKeyUp_,
+			},
+			React.DOM.img({className:'cam-nav-close', src:'close.svg', onClick: this.handleCloseClick_}),
+			this.props.children
+		);
+	},
 
-	this.close();
-};
+	open: function() {
+		this.clearExpandTimer_();
+		this.props.onOpen();
+	},
 
-cam.Nav.prototype.enterDocument = function() {
-	goog.base(this, 'enterDocument');
+	close: function() {
+		this.clearExpandTimer_();
+		this.props.onClose();
+	},
 
-	this.getHandler().listen(this.getElement(), 'mouseover', this.handleMouseOver_);
-	this.getHandler().listen(this.getElement(), 'mouseout', this.handleMouseOut_);
+	handleMouseEnter_: function(e) {
+		this.clearExpandTimer_();
+		this.expandTimer_ = this.props.timer.setTimeout(this.open, 250);
+	},
 
-	this.getHandler().listen(this.closeButton_, 'click', function(e) {
-		e.stopPropagation();
-		this.close();
-	}.bind(this));
-
-	this.getHandler().listen(this.getElement(), 'keyup', function(e) {
-		if (e.keyCode == goog.events.KeyCodes.ESC) {
-			this.close();
-			e.preventDefault();
+	clearExpandTimer_: function() {
+		if (this.expandTimer_) {
+			this.props.timer.clearTimeout(this.expandTimer_);
+			this.expandTimer_ = 0;
 		}
-	});
-};
+	},
 
-cam.Nav.prototype.open = function() {
-	if (this.delegate_) {
-		this.delegate_.onNavOpen();
-	}
-	goog.dom.classes.remove(this.getElement(), 'cam-nav-collapsed');
-};
+	handleMouseLeave_: this.clearExpandTimer_,
 
-cam.Nav.prototype.close = function() {
-	if (this.delegate_) {
-		this.delegate_.onNavClose();
-	}
+	handleKeyUp_: function(e) {
+		if (e.keyCode == goog.events.KeyCodes.ESC) {
+			e.preventDefault();
+			this.close();
+		}
+	},
 
-	goog.dom.classes.add(this.getElement(), 'cam-nav-collapsed');
-};
-
-cam.Nav.prototype.isOpen = function() {
-	return !goog.dom.classes.has(this.getElement(), 'cam-nav-collapsed');
-};
-
-cam.Nav.prototype.toggle = function() {
-	if (this.isOpen()) {
+	handleCloseClick_: function(e) {
+		e.stopPropagation();
 		this.close();
-		return false;
-	} else {
-		this.open();
-		return true;
-	}
+	},
+});
+
+cam.Nav.ItemBase = {
+	propTypes: {
+		iconSrc: React.PropTypes.string.isRequired,
+	},
+
+	getRootProps_: function(opt_extraClassName) {
+		var className = 'cam-nav-item';
+		if (opt_extraClassName) {
+			className += ' ' + opt_extraClassName;
+		}
+		return {
+			className: className,
+			style: {backgroundImage:cam.style.getURLValue(this.props.iconSrc)},
+		};
+	},
 };
 
-cam.Nav.prototype.handleMouseOver_ = function() {
-	this.expandTimer_ = window.setTimeout(function() {
-		this.expandTimer_ = 0;
-		this.open();
-	}.bind(this), 250);
-};
+cam.Nav.Item = React.createClass(cam.reactUtil.extend(cam.Nav.ItemBase, {
+	propTypes: {
+		onClick: React.PropTypes.func,
+	},
 
-cam.Nav.prototype.handleMouseOut_ = function() {
-	if (this.expandTimer_) {
-		window.clearTimeout(this.expandTimer_);
-		this.expandTimer_ = 0;
-	}
-};
+	render: function() {
+		return React.DOM.button(cam.object.extend(this.getRootProps_(), {
+				onClick: this.props.onClick
+			}), this.props.children);
+	},
+}));
 
 
-cam.Nav.Item = function(domHelper, iconSrc, content) {
-	goog.base(this, content, null, domHelper);
-	this.iconSrc_ = iconSrc;
-	this.addClassName('cam-nav-item');
-};
-goog.inherits(cam.Nav.Item, goog.ui.Button);
+cam.Nav.SearchItem = React.createClass(cam.reactUtil.extend(cam.Nav.ItemBase, {
+	propTypes: {
+		value: React.PropTypes.string,
+		onSearch: React.PropTypes.func.isRequired,
+	},
 
-cam.Nav.Item.prototype.onClick = function() {};
+	getDefaultProps: function() {
+		return {
+			value: '',
+		}
+	},
 
-cam.Nav.Item.prototype.createDom = function() {
-	goog.base(this, 'createDom');
-	this.setIcon(this.iconSrc_);
-};
+	render: function() {
+		if (!goog.isString(this.props.children)) {
+			throw new Error('Children of cam.Nav.SearchItem must be a single string.');
+		}
 
-cam.Nav.Item.prototype.enterDocument = function() {
-	this.getHandler().listen(this.getElement(), 'click', function(e) {
-		this.onClick();
-		e.stopPropagation();
-	});
-};
+		return React.DOM.div(this.getRootProps_('cam-nav-searchitem'),
+			React.DOM.form({onClick:this.focus, onSubmit:this.handleSubmit_},
+				React.DOM.input({
+					ref:'input',
+					placeholder:this.props.children,
+					defaultValue: this.props.value,
+					onChange: this.handleChange_,
+					onMouseEnter: this.focus,
+				})
+			)
+		);
+	},
 
-cam.Nav.Item.prototype.setIcon = function(src) {
-	this.iconSrc_ = src;
-	if (this.element_) {
-		this.element_.style.backgroundImage = cam.style.getURLValue(src);
-	}
-};
+	focus: function() {
+		this.getInputNode_().focus();
+	},
 
+	blur: function() {
+		this.getInputNode_().blur();
+	},
 
-cam.Nav.SearchItem = function(domHelper, iconSrc, label) {
-	goog.base(this, domHelper, iconSrc, label);
-	this.setAllowTextSelection(true);
-	this.addClassName('cam-nav-searchitem');
-};
-goog.inherits(cam.Nav.SearchItem, cam.Nav.Item);
+	clear: function() {
+		this.getInputNode_().value = '';
+	},
 
-cam.Nav.SearchItem.prototype.onSearch = function(value) {};
-
-cam.Nav.SearchItem.prototype.setText = function(text) {
-	if (this.input_) {
-		this.input_.value = text;
-	}
-};
-
-cam.Nav.SearchItem.prototype.focus = function() {
-	this.input_.focus();
-};
-
-cam.Nav.SearchItem.prototype.blur = function() {
-	this.input_.blur();
-};
-
-cam.Nav.SearchItem.prototype.createDom = function() {
-	this.setElementInternal(this.dom_.createDom('div', this.getExtraClassNames()));
-	this.form_ = this.dom_.createDom('form');
-	this.input_ = this.dom_.createDom('input', {'placeholder': this.getContent()});
-	this.form_.appendChild(this.input_);
-	this.getElement().appendChild(this.form_);
-	this.setIcon(this.iconSrc_);
-};
-
-cam.Nav.SearchItem.prototype.enterDocument = function() {
-	goog.base(this, 'enterDocument');
-
-	this.getHandler().listen(this.input_, 'mouseover', this.input_.focus.bind(this.input_));
-
-	this.getHandler().listen(this.getElement(), 'click', function(e) {
-		this.input_.focus();
-		e.stopPropagation();
-	}.bind(this));
-
-	this.getHandler().listen(this.form_, 'submit', function(e) {
-		this.onSearch(this.input_.value);
+	handleSubmit_: function(e) {
+		this.props.onSearch(this.getInputNode_().value);
 		e.preventDefault();
-	});
-};
+	},
+
+	getInputNode_: function() {
+		return this.refs.input.getDOMNode();
+	}
+}));
 
 
-cam.Nav.LinkItem = function(domHelper, iconSrc, label, linkUrl) {
-	goog.base(this, domHelper, iconSrc, label);
-	this.linkUrl_ = linkUrl;
-	this.addClassName('cam-nav-linkitem');
-};
-goog.inherits(cam.Nav.LinkItem, cam.Nav.Item);
+cam.Nav.LinkItem = React.createClass(cam.reactUtil.extend(cam.Nav.ItemBase, {
+	propTypes: {
+		extraClassName: React.PropTypes.string,
+		href: React.PropTypes.string.isRequired,
+	},
 
-cam.Nav.LinkItem.prototype.onClick = function(url) {};
+	getDefaultProps: function() {
+		return {
+			extraClassName: '',
+		};
+	},
 
-cam.Nav.LinkItem.prototype.createDom = function() {
-	this.setElementInternal(this.dom_.createDom('a', this.getExtraClassNames(), this.getContent()));
-	this.getElement().href = this.linkUrl_;
-	this.setIcon(this.iconSrc_);
-};
+	render: function() {
+		var extraClassName = 'cam-nav-linkitem';
+		if (this.props.extraClassName != '') {
+			extraClassName += ' ' + this.props.extraClassName;
+		}
+		return React.DOM.a(
+			cam.object.extend(this.getRootProps_(extraClassName), {href:this.props.href}),
+			this.props.children
+		);
+	},
+}));

@@ -36,7 +36,7 @@ goog.require('cam.ContainerDetail');
 goog.require('cam.DetailView');
 goog.require('cam.DirectoryDetail');
 goog.require('cam.Navigator');
-goog.require('cam.NavReact');
+goog.require('cam.Nav');
 goog.require('cam.PermanodeDetail');
 goog.require('cam.reactUtil');
 goog.require('cam.SearchSession');
@@ -72,7 +72,7 @@ cam.IndexPage = React.createClass({
 		history: React.PropTypes.shape({pushState:React.PropTypes.func.isRequired, replaceState:React.PropTypes.func.isRequired, go:React.PropTypes.func.isRequired, state:React.PropTypes.object}).isRequired,
 		location: React.PropTypes.shape({href:React.PropTypes.string.isRequired, reload:React.PropTypes.func.isRequired}).isRequired,
 		serverConnection: React.PropTypes.instanceOf(cam.ServerConnection).isRequired,
-		timer: cam.NavReact.originalSpec.propTypes.timer,
+		timer: cam.Nav.originalSpec.propTypes.timer,
 	},
 
 	componentWillMount: function() {
@@ -217,17 +217,17 @@ cam.IndexPage = React.createClass({
 		if (!this.isSearchMode_(this.state.currentURL)) {
 			return null;
 		}
-		return cam.NavReact({key:'nav', ref:'nav', timer:this.props.timer, open:this.state.isNavOpen, onOpen:this.handleNavOpen_, onClose:this.handleNavClose_}, [
-			cam.NavReact.SearchItem({key:'search', ref:'search', iconSrc:'magnifying_glass.svg', onSearch:this.setSearch_}, 'Search'),
+		return cam.Nav({key:'nav', ref:'nav', timer:this.props.timer, open:this.state.isNavOpen, onOpen:this.handleNavOpen_, onClose:this.handleNavClose_}, [
+			cam.Nav.SearchItem({key:'search', ref:'search', iconSrc:'magnifying_glass.svg', onSearch:this.setSearch_}, 'Search'),
 			this.getCreateSetWithSelectionItem_(),
-			cam.NavReact.Item({key:'roots', iconSrc:'icon_27307.svg', onClick:this.handleShowSearchRoots_}, 'Search roots'),
+			cam.Nav.Item({key:'roots', iconSrc:'icon_27307.svg', onClick:this.handleShowSearchRoots_}, 'Search roots'),
 			this.getSelectAsCurrentSetItem_(),
 			this.getAddToCurrentSetItem_(),
 			this.getClearSelectionItem_(),
 			this.getDeleteSelectionItem_(),
-			cam.NavReact.Item({key:'up', iconSrc:'up.svg', onClick:this.handleEmbiggen_}, 'Moar bigger'),
-			cam.NavReact.Item({key:'down', iconSrc:'down.svg', onClick:this.handleEnsmallen_}, 'Less bigger'),
-			cam.NavReact.LinkItem({key:'logo', iconSrc:'/favicon.ico', href:this.baseURL_.toString(), extraClassName:'cam-logo'}, 'Camlistore'),
+			cam.Nav.Item({key:'up', iconSrc:'up.svg', onClick:this.handleEmbiggen_}, 'Moar bigger'),
+			cam.Nav.Item({key:'down', iconSrc:'down.svg', onClick:this.handleEnsmallen_}, 'Less bigger'),
+			cam.Nav.LinkItem({key:'logo', iconSrc:'/favicon.ico', href:this.baseURL_.toString(), extraClassName:'cam-logo'}, 'Camlistore'),
 		]);
 	},
 
@@ -384,14 +384,14 @@ cam.IndexPage = React.createClass({
 			return null;
 		}
 
-		return cam.NavReact.Item({key:'selectascurrent', iconSrc:'target.svg', onClick:this.handleSelectAsCurrentSet_}, 'Select as current set');
+		return cam.Nav.Item({key:'selectascurrent', iconSrc:'target.svg', onClick:this.handleSelectAsCurrentSet_}, 'Select as current set');
 	},
 
 	getAddToCurrentSetItem_: function() {
 		if (!this.currentSet_ || !goog.object.getAnyKey(this.state.selection)) {
 			return null;
 		}
-		return cam.NavReact.Item({key:'addtoset', iconSrc:'icon_16716.svg', onClick:this.handleAddToSet_}, 'Add to current set');
+		return cam.Nav.Item({key:'addtoset', iconSrc:'icon_16716.svg', onClick:this.handleAddToSet_}, 'Add to current set');
 	},
 
 	getCreateSetWithSelectionItem_: function() {
@@ -402,14 +402,14 @@ cam.IndexPage = React.createClass({
 		} else if (numItems > 1) {
 			label += goog.string.subs(' with %s items', numItems);
 		}
-		return cam.NavReact.Item({key:'createsetwithselection', iconSrc:'circled_plus.svg', onClick:this.handleCreateSetWithSelection_}, label);
+		return cam.Nav.Item({key:'createsetwithselection', iconSrc:'circled_plus.svg', onClick:this.handleCreateSetWithSelection_}, label);
 	},
 
 	getClearSelectionItem_: function() {
 		if (!goog.object.getAnyKey(this.state.selection)) {
 			return null;
 		}
-		return cam.NavReact.Item({key:'clearselection', iconSrc:'clear.svg', onClick:this.handleClearSelection_}, 'Clear selection');
+		return cam.Nav.Item({key:'clearselection', iconSrc:'clear.svg', onClick:this.handleClearSelection_}, 'Clear selection');
 	},
 
 	getDeleteSelectionItem_: function() {
@@ -424,7 +424,7 @@ cam.IndexPage = React.createClass({
 			label += goog.string.subs(' (%s) selected items', numItems);
 		}
 		// TODO(mpl): better icon in another CL, with Font Awesome.
-		return cam.NavReact.Item({key:'deleteselection', iconSrc:'trash.svg', onClick:this.handleDeleteSelection_}, label);
+		return cam.Nav.Item({key:'deleteselection', iconSrc:'trash.svg', onClick:this.handleDeleteSelection_}, label);
 	},
 
 	handleSelectionChange_: function(newSelection) {
