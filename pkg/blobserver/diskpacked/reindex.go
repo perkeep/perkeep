@@ -39,7 +39,7 @@ var camliDebug, _ = strconv.ParseBool(os.Getenv("CAMLI_DEBUG"))
 func Reindex(root string, overwrite bool) (err error) {
 	// there is newStorage, but that may open a file for writing
 	var s = &storage{root: root}
-	index, err := kvfile.NewStorage(filepath.Join(root, "index.kv"))
+	index, err := kvfile.NewStorage(filepath.Join(root, indexKV))
 	if err != nil {
 		return err
 	}
