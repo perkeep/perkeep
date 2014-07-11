@@ -95,7 +95,8 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 }
 
 func (r *run) importFeed() error {
-	feedURL, err := url.Parse(r.RunContext.AccountNode().Attr(acctAttrFeedURL))
+	accountNode := r.RunContext.AccountNode()
+	feedURL, err := url.Parse(accountNode.Attr(acctAttrFeedURL))
 	if err != nil {
 		return err
 	}
@@ -121,9 +122,12 @@ func (r *run) importFeed() error {
 	if err != nil {
 		return err
 	}
-	itemsNode, err := r.getTopLevelNode("items", "Items")
-	if err != nil {
-		return err
+	itemsNode := r.RootNode()
+	if accountNode.Attr("title") == "" {
+		accountNode.SetAttr("title", fmt.Sprintf("%s Feed", feed.Title))
+	}
+	if itemsNode.Attr("title") == "" {
+		itemsNode.SetAttr("title", fmt.Sprintf("%s Items", feed.Title))
 	}
 	for _, item := range feed.Items {
 		if err := r.importItem(itemsNode, item); err != nil {
@@ -155,18 +159,6 @@ func (r *run) importItem(parent *importer.Object, item *item) error {
 		return err
 	}
 	return nil
-}
-
-func (r *run) getTopLevelNode(path string, title string) (*importer.Object, error) {
-	childObject, err := r.RootNode().ChildPathObject(path)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := childObject.SetAttr("title", title); err != nil {
-		return nil, err
-	}
-	return childObject, nil
 }
 
 // autodiscover takes an HTML document and returns the autodiscovered feed
