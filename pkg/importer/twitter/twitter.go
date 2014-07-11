@@ -745,7 +745,7 @@ func latLong(g *geo, c *coords) (lat, long float64, ok bool) {
 		}
 	}
 	if c != nil && len(c.Coordinates) == 2 {
-		co := g.Coordinates
+		co := c.Coordinates
 		if co[0] != 0 && co[1] != 0 {
 			return co[1], co[0], true
 		}
