@@ -29,6 +29,7 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/buildinfo"
+	"camlistore.org/pkg/legal/legalprint"
 )
 
 var (
@@ -245,6 +246,9 @@ func Main() {
 	}
 	if *FlagHelp {
 		usage("")
+	}
+	if legalprint.MaybePrint(Stderr) {
+		return
 	}
 	if len(args) == 0 {
 		usage("No mode given.")
