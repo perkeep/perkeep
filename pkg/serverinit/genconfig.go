@@ -435,9 +435,11 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 		"handler": "status",
 	}
 	importerArgs := map[string]interface{}{}
-	m["/importer/"] = map[string]interface{}{
-		"handler":     "importer",
-		"handlerArgs": importerArgs,
+	if haveIndex {
+		m["/importer/"] = map[string]interface{}{
+			"handler":     "importer",
+			"handlerArgs": importerArgs,
+		}
 	}
 
 	if params.shareHandlerPath != "" {

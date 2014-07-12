@@ -34,15 +34,15 @@ import (
 // A nil Closer is returned if an error occurred. Otherwise, close that
 // Closer to release the lock.
 //
-// On Linux and OSX, a lock has the same semantics as fcntl(2)'s advisory
-// locks.  In particular, closing any other file descriptor for the same
-// file will release the lock prematurely.
+// On Linux, FreeBSD and OSX, a lock has the same semantics as fcntl(2)'s
+// advisory locks.  In particular, closing any other file descriptor for the
+// same file will release the lock prematurely.
 //
 // Attempting to lock a file that is already locked by the current process
 // has undefined behavior.
 //
-// Lock is not yet implemented on other operating systems, and calling it
-// will return an error.
+// On other operating systems, lock will fallback to using the presence and
+// content of a file named name + '.lock' to implement locking behavior.
 func Lock(name string) (io.Closer, error) {
 	return lockFn(name)
 }

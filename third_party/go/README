@@ -1,0 +1,3 @@
+This directory contains portions of the standard library imported from tip to
+take advantage of new features and bug fixes before they're available in the
+stable branch.

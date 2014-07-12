@@ -40,6 +40,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/buildinfo"
+	"camlistore.org/pkg/legal/legalprint"
 	"camlistore.org/pkg/misc"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/serverinit"
@@ -338,6 +339,9 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 	if *flagVersion {
 		fmt.Fprintf(os.Stderr, "camlistored version: %s\nGo version: %s (%s/%s)\n",
 			buildinfo.Version(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
+		return
+	}
+	if legalprint.MaybePrint(os.Stderr) {
 		return
 	}
 	if *flagReindex {

@@ -19,8 +19,9 @@ import (
 	"encoding/binary"
 	"image"
 	"image/color"
-	"image/jpeg"
 	"io"
+
+	"camlistore.org/third_party/go/pkg/image/jpeg"
 )
 
 // A FormatError reports that the input is not a valid TIFF image.
