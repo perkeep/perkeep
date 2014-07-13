@@ -39,9 +39,11 @@ type checkinsList struct {
 }
 
 type checkinItem struct {
-	Id        string
-	CreatedAt int64 // unix time in seconds from 4sq
-	Venue     venueItem
+	Id             string
+	CreatedAt      int64  // unix time in seconds from 4sq
+	TimeZoneOffset int    // offset in minutes. positive is east.
+	Shout          string // "Message from check-in, if present and visible to the acting user."
+	Venue          venueItem
 }
 
 type venueItem struct {
