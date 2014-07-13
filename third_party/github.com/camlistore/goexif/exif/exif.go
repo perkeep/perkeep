@@ -202,8 +202,10 @@ func (x *Exif) Walk(w Walker) error {
 // The error will be TagNotPresentErr if none of those tags
 // were found, or a generic error if the tag value was
 // not a string, or the error returned by time.Parse.
+//
+// If the EXIF lacks timezone information or GPS time, the returned
+// time's Location will be time.Local.
 func (x *Exif) DateTime() (time.Time, error) {
-	// TODO(mpl): investigate the time zone question.
 	var dt time.Time
 	tag, err := x.Get(DateTimeOriginal)
 	if err != nil {
@@ -217,7 +219,9 @@ func (x *Exif) DateTime() (time.Time, error) {
 	}
 	exifTimeLayout := "2006:01:02 15:04:05"
 	dateStr := strings.TrimRight(string(tag.Val), "\x00")
-	return time.Parse(exifTimeLayout, dateStr)
+	// TODO(bradfitz,mpl): look for timezone offset, GPS time, etc.
+	// For now, just always return the time.Local timezone.
+	return time.ParseInLocation(exifTimeLayout, dateStr, time.Local)
 }
 
 // String returns a pretty text representation of the decoded exif data.
