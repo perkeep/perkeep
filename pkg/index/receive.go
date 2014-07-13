@@ -492,39 +492,9 @@ func indexEXIF(wholeRef blob.Ref, header []byte, mm *mutationMap) {
 		return nil
 	}))
 
-	longTag, err := ex.Get(exif.FieldName("GPSLongitude"))
-	if err != nil {
-		return
+	if lat, long, ok := ex.LatLong(); ok {
+		mm.Set(keyEXIFGPS.Key(wholeRef), keyEXIFGPS.Val(fmt.Sprint(lat), fmt.Sprint(long)))
 	}
-	ewTag, err := ex.Get(exif.FieldName("GPSLongitudeRef"))
-	if err != nil {
-		return
-	}
-	latTag, err := ex.Get(exif.FieldName("GPSLatitude"))
-	if err != nil {
-		return
-	}
-	nsTag, err := ex.Get(exif.FieldName("GPSLatitudeRef"))
-	if err != nil {
-		return
-	}
-	long := tagDegrees(longTag)
-	lat := tagDegrees(latTag)
-	if ewTag.StringVal() == "W" {
-		long *= -1.0
-	}
-	if nsTag.StringVal() == "S" {
-		lat *= -1.0
-	}
-	mm.Set(keyEXIFGPS.Key(wholeRef), keyEXIFGPS.Val(fmt.Sprint(lat), fmt.Sprint(long)))
-}
-
-func ratFloat(num, dem int64) float64 {
-	return float64(num) / float64(dem)
-}
-
-func tagDegrees(tag *tiff.Tag) float64 {
-	return ratFloat(tag.Rat2(0)) + ratFloat(tag.Rat2(1))/60 + ratFloat(tag.Rat2(2))/3600
 }
 
 // indexMusic adds mutations to index the wholeRef by attached metadata and other properties.
