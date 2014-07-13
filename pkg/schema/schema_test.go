@@ -18,6 +18,7 @@ package schema
 
 import (
 	"encoding/json"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -607,5 +608,36 @@ func TestStaticSocket(t *testing.T) {
 	_, ok = sf.AsStaticSocket()
 	if !ok {
 		t.Fatalf("StaticFile.AsStaticSocket(): Expected true, got false")
+	}
+}
+
+func TestTimezoneEXIFCorrection(t *testing.T) {
+	// Test that we get UTC times for photos taken in two
+	// different timezones.
+	// Both only have local time + GPS in the exif.
+	tests := []struct {
+		file, want, wantUTC string
+	}{
+		{"coffee-sf.jpg", "2014-07-11 08:44:34 -0700 PDT", "2014-07-11 15:44:34 +0000 UTC"},
+		{"gocon-tokyo.jpg", "2014-05-31 13:34:04 +0900 JST", "2014-05-31 04:34:04 +0000 UTC"},
+	}
+	for _, tt := range tests {
+		f, err := os.Open("testdata/" + tt.file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Hide *os.File type from FileTime, so it can't use modtime:
+		tm, err := FileTime(struct{ io.ReaderAt }{f})
+		f.Close()
+		if err != nil {
+			t.Errorf("%s: %v", tt.file, err)
+			continue
+		}
+		if got := tm.String(); got != tt.want {
+			t.Errorf("%s: time = %q; want %q", tt.file, got, tt.want)
+		}
+		if got := tm.UTC().String(); got != tt.wantUTC {
+			t.Errorf("%s: utc time = %q; want %q", tt.file, got, tt.wantUTC)
+		}
 	}
 }

@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"log"
 	"os"
 	"reflect"
 	"strconv"
@@ -40,7 +41,9 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/types"
+	"camlistore.org/third_party/github.com/bradfitz/latlong"
 	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
+	"camlistore.org/third_party/github.com/camlistore/goexif/tiff"
 )
 
 // MaxSchemaBlobSize represents the upper bound for how large
@@ -905,5 +908,69 @@ func FileTime(f io.ReaderAt) (time.Time, error) {
 	if err != nil {
 		return defaultTime()
 	}
+	// If the EXIF file only had local timezone, but it did have
+	// GPS, then lookup the timezone and correct the time.
+	if ct.Location() == time.Local {
+		if lat, long, ok := ex.LatLong(); ok {
+			if loc := lookupLocation(latlong.LookupZoneName(lat, long)); loc != nil {
+				if t, err := exifDateTimeInLocation(ex, loc); err == nil {
+					return t, nil
+				}
+			}
+		}
+	}
 	return ct, nil
+}
+
+// This is basically a copy of the exif.Exif.DateTime() method, except:
+//   * it takes a *time.Location to assume
+//   * the caller already assumes there's no timezone offset or GPS time
+//     in the EXIF, so any of that code can be ignored.
+func exifDateTimeInLocation(x *exif.Exif, loc *time.Location) (time.Time, error) {
+	tag, err := x.Get(exif.DateTimeOriginal)
+	if err != nil {
+		tag, err = x.Get(exif.DateTime)
+		if err != nil {
+			return time.Time{}, err
+		}
+	}
+	if tag.Format() != tiff.StringVal {
+		return time.Time{}, errors.New("DateTime[Original] not in string format")
+	}
+	const exifTimeLayout = "2006:01:02 15:04:05"
+	dateStr := strings.TrimRight(string(tag.Val), "\x00")
+	return time.ParseInLocation(exifTimeLayout, dateStr, loc)
+}
+
+var zoneCache struct {
+	sync.RWMutex
+	m map[string]*time.Location
+}
+
+func lookupLocation(zone string) *time.Location {
+	if zone == "" {
+		return nil
+	}
+	zoneCache.RLock()
+	l, ok := zoneCache.m[zone]
+	zoneCache.RUnlock()
+	if ok {
+		return l
+	}
+	// could use singleflight here, but doesn't really
+	// matter if two callers both do this.
+	loc, err := time.LoadLocation(zone)
+
+	zoneCache.Lock()
+	if zoneCache.m == nil {
+		zoneCache.m = make(map[string]*time.Location)
+	}
+	zoneCache.m[zone] = loc // even if nil
+	zoneCache.Unlock()
+
+	if err != nil {
+		log.Printf("failed to lookup timezone %q: %v", zone, err)
+		return nil
+	}
+	return loc
 }
