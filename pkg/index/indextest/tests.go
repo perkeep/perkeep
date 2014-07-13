@@ -285,6 +285,10 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 }
 
 func Index(t *testing.T, initIdx func() *index.Index) {
+	oldLocal := time.Local
+	time.Local = time.UTC
+	defer func() { time.Local = oldLocal }()
+
 	id := NewIndexDeps(initIdx())
 	id.Fataler = t
 	defer id.DumpIndex(t)
