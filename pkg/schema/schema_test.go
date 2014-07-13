@@ -63,26 +63,34 @@ func TestRegularFile(t *testing.T) {
 }
 
 func TestSymlink(t *testing.T) {
-	// We create the symlink now because make.go does not mirror
-	// symlinks properly, and it is less intrusive to do that here.
-	defer os.RemoveAll("testdata")
-	err := os.Mkdir("testdata", 0755)
-	AssertNil(t, err, "Mkdir")
-	err = os.Chdir("testdata")
-	AssertNil(t, err, "Chdir")
-	err = os.Symlink("test-target", "test-symlink")
-	AssertNil(t, err, "creating test-symlink")
-	err = os.Chdir("..")
-	AssertNil(t, err, "Chdir")
-	fileName := filepath.Join("testdata", "test-symlink")
-	fi, err := os.Lstat(fileName)
-	AssertNil(t, err, "test-symlink stat")
-	m := NewCommonFileMap(fileName, fi)
+	td, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(td)
+
+	symFile := filepath.Join(td, "test-symlink")
+	if err := os.Symlink("test-target", symFile); err != nil {
+		t.Fatal(err)
+	}
+
+	// Shouldn't be accessed:
+	if err := ioutil.WriteFile(filepath.Join(td, "test-target"), []byte("foo bar"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	fi, err := os.Lstat(symFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := NewCommonFileMap(symFile, fi)
 	json, err := m.JSON()
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	t.Logf("Got json for symlink file: [%s]\n", json)
+	if strings.Contains(string(json), "unixPermission") {
+		t.Errorf("JSON unexpectedly contains unixPermission: [%s]\n", json)
+	}
 }
 
 func TestUtf8StrLen(t *testing.T) {
