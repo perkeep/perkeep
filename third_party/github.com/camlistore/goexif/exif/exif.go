@@ -224,6 +224,44 @@ func (x *Exif) DateTime() (time.Time, error) {
 	return time.ParseInLocation(exifTimeLayout, dateStr, time.Local)
 }
 
+func ratFloat(num, dem int64) float64 {
+	return float64(num) / float64(dem)
+}
+
+func tagDegrees(tag *tiff.Tag) float64 {
+	return ratFloat(tag.Rat2(0)) + ratFloat(tag.Rat2(1))/60 + ratFloat(tag.Rat2(2))/3600
+}
+
+// LatLong returns the latitude and longitude of the photo and
+// whether it was present.
+func (x *Exif) LatLong() (lat, long float64, ok bool) {
+	longTag, err := x.Get(FieldName("GPSLongitude"))
+	if err != nil {
+		return
+	}
+	ewTag, err := x.Get(FieldName("GPSLongitudeRef"))
+	if err != nil {
+		return
+	}
+	latTag, err := x.Get(FieldName("GPSLatitude"))
+	if err != nil {
+		return
+	}
+	nsTag, err := x.Get(FieldName("GPSLatitudeRef"))
+	if err != nil {
+		return
+	}
+	long = tagDegrees(longTag)
+	lat = tagDegrees(latTag)
+	if ewTag.StringVal() == "W" {
+		long *= -1.0
+	}
+	if nsTag.StringVal() == "S" {
+		lat *= -1.0
+	}
+	return lat, long, true
+}
+
 // String returns a pretty text representation of the decoded exif data.
 func (x *Exif) String() string {
 	var buf bytes.Buffer
