@@ -273,7 +273,7 @@ func TestDateTime(t *testing.T) {
 		t.Fatal(err)
 	}
 	exifTimeLayout := "2006:01:02 15:04:05"
-	want, err := time.Parse(exifTimeLayout, "2012:11:04 05:42:02")
+	want, err := time.ParseInLocation(exifTimeLayout, "2012:11:04 05:42:02", time.Local)
 	if err != nil {
 		t.Fatal(err)
 	}
