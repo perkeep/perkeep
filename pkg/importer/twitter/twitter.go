@@ -50,6 +50,7 @@ const (
 	resourceOwnerAuthorizationURL = "https://api.twitter.com/oauth/authorize"
 	tokenRequestURL               = "https://api.twitter.com/oauth/access_token"
 	userInfoAPIPath               = "account/verify_credentials.json"
+	userTimeLineAPIPath           = "statuses/user_timeline.json"
 
 	// runCompleteVersion is a cache-busting version number of the
 	// importer code. It should be incremented whenever the
@@ -58,12 +59,6 @@ const (
 	// completion, this version number is recorded on the account
 	// permanode and subsequent importers can stop early.
 	runCompleteVersion = "4"
-
-	// TODO(mpl): refactor these 4 below into an oauth package when doing flickr.
-	acctAttrTempToken         = "oauthTempToken"
-	acctAttrTempSecret        = "oauthTempSecret"
-	acctAttrAccessToken       = "oauthAccessToken"
-	acctAttrAccessTokenSecret = "oauthAccessTokenSecret"
 
 	// acctAttrTweetZip specifies an optional attribte for the account permanode.
 	// If set, it should be of a "file" schema blob referencing the tweets.zip
@@ -99,7 +94,7 @@ type imp struct {
 func (im *imp) NeedsAPIKey() bool { return true }
 
 func (im *imp) IsAccountReady(acctNode *importer.Object) (ok bool, err error) {
-	if acctNode.Attr(importer.AcctAttrUserID) != "" && acctNode.Attr(acctAttrAccessToken) != "" {
+	if acctNode.Attr(importer.AcctAttrUserID) != "" && acctNode.Attr(importer.AcctAttrAccessToken) != "" {
 		return true, nil
 	}
 	return false, nil
@@ -166,8 +161,8 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		return fmt.Errorf("no API credentials: %v", err)
 	}
 	acctNode := ctx.AccountNode()
-	accessToken := acctNode.Attr(acctAttrAccessToken)
-	accessSecret := acctNode.Attr(acctAttrAccessTokenSecret)
+	accessToken := acctNode.Attr(importer.AcctAttrAccessToken)
+	accessSecret := acctNode.Attr(importer.AcctAttrAccessTokenSecret)
 	if accessToken == "" || accessSecret == "" {
 		return errors.New("access credentials not found")
 	}
@@ -259,6 +254,12 @@ func (r *run) importTweets(userID string) error {
 	numTweets := 0
 	sawTweet := map[string]bool{}
 
+	// If attrs is changed, so should the expected responses accordingly for the
+	// RoundTripper of MakeTestData (testdata.go).
+	attrs := []string{
+		"user_id", userID,
+		"count", strconv.Itoa(tweetRequestLimit),
+	}
 	for continueRequests {
 		if r.Context.IsCanceled() {
 			r.errorf("Twitter importer: interrupted")
@@ -266,11 +267,15 @@ func (r *run) importTweets(userID string) error {
 		}
 
 		var resp []*apiTweetItem
-		log.Printf("Fetching tweets for userid %s with max ID %q", userID, maxId)
-		if err := r.oauthContext().doAPI(&resp, "statuses/user_timeline.json",
-			"user_id", userID,
-			"count", strconv.Itoa(tweetRequestLimit),
-			"max_id", maxId); err != nil {
+		if maxId == "" {
+			log.Printf("Fetching tweets for userid %s", userID)
+			err = r.oauthContext().doAPI(&resp, userTimeLineAPIPath, attrs...)
+		} else {
+			log.Printf("Fetching tweets for userid %s with max ID %s", userID, maxId)
+			err = r.oauthContext().doAPI(&resp, userTimeLineAPIPath,
+				append(attrs, "max_id", maxId)...)
+		}
+		if err != nil {
 			return err
 		}
 
@@ -552,8 +557,8 @@ func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.
 		return err
 	}
 	if err := ctx.AccountNode.SetAttrs(
-		acctAttrTempToken, tempCred.Token,
-		acctAttrTempSecret, tempCred.Secret,
+		importer.AcctAttrTempToken, tempCred.Token,
+		importer.AcctAttrTempSecret, tempCred.Secret,
 	); err != nil {
 		err = fmt.Errorf("Error saving temp creds: %v", err)
 		httputil.ServeError(w, r, err)
@@ -566,8 +571,8 @@ func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.
 }
 
 func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
-	tempToken := ctx.AccountNode.Attr(acctAttrTempToken)
-	tempSecret := ctx.AccountNode.Attr(acctAttrTempSecret)
+	tempToken := ctx.AccountNode.Attr(importer.AcctAttrTempToken)
+	tempSecret := ctx.AccountNode.Attr(importer.AcctAttrTempSecret)
 	if tempToken == "" || tempSecret == "" {
 		log.Printf("twitter: no temp creds in callback")
 		httputil.BadRequestError(w, "no temp creds in callback")
@@ -602,8 +607,8 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		return
 	}
 	if err := ctx.AccountNode.SetAttrs(
-		acctAttrAccessToken, tokenCred.Token,
-		acctAttrAccessTokenSecret, tokenCred.Secret,
+		importer.AcctAttrAccessToken, tokenCred.Token,
+		importer.AcctAttrAccessTokenSecret, tokenCred.Secret,
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting token attributes: %v", err))
 		return

@@ -89,6 +89,15 @@ type Importer interface {
 	CallbackURLParameters(acctRef blob.Ref) url.Values
 }
 
+// TestDataMaker is an optional interface that may be implemented by Importers to
+// generate test data locally. The returned Roundtripper will be used as the
+// transport of the HTTPClient, in the RunContext that will be passed to Run
+// during tests and devcam server --makethings.
+// (See http://camlistore.org/issue/417).
+type TestDataMaker interface {
+	MakeTestData() http.RoundTripper
+}
+
 // ImporterSetupHTMLer is an optional interface that may be implemented by
 // Importers to return some HTML to be included on the importer setup page.
 type ImporterSetupHTMLer interface {
