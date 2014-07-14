@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/context"
-	"camlistore.org/pkg/test"
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/types"
 )
 
@@ -61,7 +61,7 @@ var uitdamLC = &LocationConstraint{
 
 func newGeocodeContext() *context.Context {
 	url := "https://maps.googleapis.com/maps/api/geocode/json?address=Uitdam&sensor=false"
-	transport := test.NewFakeTransport(map[string]func() *http.Response{url: test.StaticResponder(uitdamGoogle)})
+	transport := httputil.NewFakeTransport(map[string]func() *http.Response{url: httputil.StaticResponder(uitdamGoogle)})
 	return context.New(context.WithHTTPClient(&http.Client{Transport: transport}))
 }
 
