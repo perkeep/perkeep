@@ -22,15 +22,15 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/context"
-	"camlistore.org/pkg/test"
+	"camlistore.org/pkg/httputil"
 
 	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
 )
 
 func TestGetUserID(t *testing.T) {
 	ctx := context.New(context.WithHTTPClient(&http.Client{
-		Transport: test.NewFakeTransport(map[string]func() *http.Response{
-			apiURL + userInfoAPIPath: test.FileResponder(filepath.FromSlash("testdata/verify_credentials-res.json")),
+		Transport: httputil.NewFakeTransport(map[string]func() *http.Response{
+			apiURL + userInfoAPIPath: httputil.FileResponder(filepath.FromSlash("testdata/verify_credentials-res.json")),
 		}),
 	}))
 	defer ctx.Cancel()

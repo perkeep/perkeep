@@ -21,14 +21,14 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/context"
-	"camlistore.org/pkg/test"
+	"camlistore.org/pkg/httputil"
 )
 
 func TestGetUserId(t *testing.T) {
 	im := &imp{}
 	ctx := context.New(context.WithHTTPClient(&http.Client{
-		Transport: test.NewFakeTransport(map[string]func() *http.Response{
-			"https://api.foursquare.com/v2/users/self?oauth_token=footoken&v=20140225": test.FileResponder("testdata/users-me-res.json"),
+		Transport: httputil.NewFakeTransport(map[string]func() *http.Response{
+			"https://api.foursquare.com/v2/users/self?oauth_token=footoken&v=20140225": httputil.FileResponder("testdata/users-me-res.json"),
 		}),
 	}))
 	defer ctx.Cancel()
