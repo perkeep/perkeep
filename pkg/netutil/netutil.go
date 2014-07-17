@@ -17,7 +17,7 @@ limitations under the License.
 package netutil
 
 import (
-	"errors"
+	"fmt"
 	"net"
 	"time"
 )
@@ -34,5 +34,5 @@ func AwaitReachable(addr string, maxWait time.Duration) error {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	return errors.New("timeout")
+	return fmt.Errorf("%v unreachable for %v", addr, maxWait)
 }

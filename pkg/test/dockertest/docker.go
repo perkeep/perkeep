@@ -118,7 +118,7 @@ func IP(containerID string) (string, error) {
 	if ip := c[0].NetworkSettings.IPAddress; ip != "" {
 		return ip, nil
 	}
-	return "", fmt.Errorf("could not find an IP for %v. Not running?", containerID)
+	return "", errors.New("could not find an IP. Not running?")
 }
 
 type ContainerID string
@@ -153,13 +153,11 @@ func (c ContainerID) KillRemove(t *testing.T) {
 func (c ContainerID) lookup(port int, timeout time.Duration) (ip string, err error) {
 	ip, err = c.IP()
 	if err != nil {
-		err = fmt.Errorf("Error getting container IP: %v", err)
+		err = fmt.Errorf("error getting IP: %v", err)
 		return
 	}
 	addr := fmt.Sprintf("%s:%d", ip, port)
-	if err = netutil.AwaitReachable(addr, timeout); err != nil {
-		err = fmt.Errorf("timeout trying to reach %s for container %v: %v", addr, c, err)
-	}
+	err = netutil.AwaitReachable(addr, timeout)
 	return
 }
 
@@ -179,7 +177,7 @@ func setupContainer(t *testing.T, image string, port int, timeout time.Duration,
 	ip, err = c.lookup(port, timeout)
 	if err != nil {
 		c.KillRemove(t)
-		t.Fatalf("container lookup: %v", err)
+		t.Skipf("Skipping test for container %v: %v", c, err)
 	}
 	return
 }
