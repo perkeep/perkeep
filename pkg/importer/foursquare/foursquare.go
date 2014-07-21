@@ -43,6 +43,9 @@ const (
 	authURL  = "https://foursquare.com/oauth2/authenticate"
 	tokenURL = "https://foursquare.com/oauth2/access_token"
 
+	apiVersion      = "20140225"
+	checkinsAPIPath = "users/self/checkins"
+
 	// runCompleteVersion is a cache-busting version number of the
 	// importer code. It should be incremented whenever the
 	// behavior of this importer is updated enough to warrant a
@@ -56,6 +59,9 @@ const (
 	acctAttrUserFirst   = "foursquareFirstName"
 	acctAttrUserLast    = "foursquareLastName"
 	acctAttrAccessToken = "oauthAccessToken"
+
+	checkinsRequestLimit = 100 // max number of checkins we will ask for in a checkins list requset
+	photosRequestLimit   = 5
 )
 
 func init() {
@@ -194,13 +200,13 @@ func (s byCreatedAt) Len() int           { return len(s) }
 func (s byCreatedAt) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 func (r *run) importCheckins() error {
-	limit := 100
+	limit := checkinsRequestLimit
 	offset := 0
 	continueRequests := true
 
 	for continueRequests {
 		resp := checkinsList{}
-		if err := r.im.doAPI(r.Context, r.token(), &resp, "users/self/checkins", "limit", strconv.Itoa(limit), "offset", strconv.Itoa(offset)); err != nil {
+		if err := r.im.doAPI(r.Context, r.token(), &resp, checkinsAPIPath, "limit", strconv.Itoa(limit), "offset", strconv.Itoa(offset)); err != nil {
 			return err
 		}
 
@@ -273,7 +279,7 @@ func (r *run) importPhotos(placeNode *importer.Object, checkinWasDup bool) error
 			nHave++
 		}
 	})
-	nWant := 5
+	nWant := photosRequestLimit
 	if checkinWasDup {
 		nWant = 1
 	}
@@ -398,7 +404,7 @@ func (im *imp) doAPI(ctx *context.Context, accessToken string, result interface{
 	}
 
 	form := url.Values{}
-	form.Set("v", "20140225") // 4sq requires this to version their API
+	form.Set("v", apiVersion) // 4sq requires this to version their API
 	form.Set("oauth_token", accessToken)
 	for i := 0; i < len(keyval); i += 2 {
 		form.Set(keyval[i], keyval[i+1])
