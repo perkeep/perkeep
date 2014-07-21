@@ -87,8 +87,23 @@ func NewCopyEnv() *Env {
 }
 
 func (e *Env) SetCamdevVars(altkey bool) {
-	e.Set("CAMLI_CONFIG_DIR", filepath.Join("config", "dev-client-dir"))
-	e.Set("CAMLI_AUTH", "userpass:camlistore:pass3179")
+	setCamdevVarsFor(e, altkey)
+}
+
+func setCamdevVars() {
+	setCamdevVarsFor(nil, false)
+}
+
+func setCamdevVarsFor(e *Env, altkey bool) {
+	var setenv func(string, string) error
+	if e != nil {
+		setenv = func(k, v string) error { e.Set(k, v); return nil }
+	} else {
+		setenv = os.Setenv
+	}
+
+	setenv("CAMLI_CONFIG_DIR", filepath.Join("config", "dev-client-dir"))
+	setenv("CAMLI_AUTH", "userpass:camlistore:pass3179")
 
 	secring := defaultSecring
 	identity := defaultIdentity
@@ -116,8 +131,8 @@ func (e *Env) SetCamdevVars(altkey bool) {
 	}
 	pubKeyRef := blob.SHA1FromString(armoredPublicKey)
 
-	e.Set("CAMLI_SECRET_RING", secring)
-	e.Set("CAMLI_KEYID", identity)
-	e.Set("CAMLI_PUBKEY_BLOBREF", pubKeyRef.String())
-	e.Set("CAMLI_KV_VERIFY", "true")
+	setenv("CAMLI_SECRET_RING", secring)
+	setenv("CAMLI_KEYID", identity)
+	setenv("CAMLI_PUBKEY_BLOBREF", pubKeyRef.String())
+	setenv("CAMLI_KV_VERIFY", "true")
 }

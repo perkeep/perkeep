@@ -19,17 +19,26 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
+	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
+	"camlistore.org/pkg/context"
+	"camlistore.org/pkg/importer"
+	_ "camlistore.org/pkg/importer/allimporters"
+	"camlistore.org/pkg/netutil"
 	"camlistore.org/pkg/osutil"
 )
 
@@ -40,6 +49,7 @@ type serverCmd struct {
 	port     string
 	tls      bool
 	wipe     bool
+	things   bool
 	debug    bool
 
 	mongo    bool
@@ -81,6 +91,7 @@ func init() {
 		flags.StringVar(&cmd.port, "port", "3179", "Port to listen on.")
 		flags.BoolVar(&cmd.tls, "tls", false, "Use TLS.")
 		flags.BoolVar(&cmd.wipe, "wipe", false, "Wipe the blobs on disk and the indexer.")
+		flags.BoolVar(&cmd.things, "makethings", false, "Create various test data on startup (twitter imports for now). Requires wipe. Conflicts with mini.")
 		flags.BoolVar(&cmd.debug, "debug", false, "Enable http debugging.")
 		flags.BoolVar(&cmd.publish, "publish", true, "Enable publisher app(s)")
 		flags.BoolVar(&cmd.hello, "hello", false, "Enable hello (demo) app")
@@ -128,6 +139,16 @@ func (c *serverCmd) Describe() string {
 func (c *serverCmd) checkFlags(args []string) error {
 	if len(args) != 0 {
 		c.Usage()
+	}
+	if c.mini {
+		if c.things {
+			return cmdmain.UsageError("--mini and --makethings are mutually exclusive.")
+		}
+		c.publish = false
+		c.hello = false
+	}
+	if c.things && !c.wipe {
+		return cmdmain.UsageError("--makethings requires --wipe.")
 	}
 	nindex := 0
 	for _, v := range []bool{c.mongo, c.mysql, c.postgres, c.sqlite} {
@@ -367,11 +388,84 @@ func (c *serverCmd) setFullClosure() error {
 	return nil
 }
 
-func (c *serverCmd) RunCommand(args []string) error {
-	if c.mini {
-		c.publish = false
-		c.hello = false
+func (c *serverCmd) makeThings() error {
+	const importerPrefix = "/importer/"
+	// check that "/importer/" prefix is in config, just in case it ever changes.
+	configFile := filepath.Join(camliSrcRoot, "config", "dev-server-config.json")
+	config, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		return fmt.Errorf("could not read config file %v: %v", configFile, err)
 	}
+	if !bytes.Contains(config, []byte(importerPrefix)) {
+		return fmt.Errorf("%s prefix not found in dev config. Did it change?", importerPrefix)
+	}
+
+	if err := netutil.AwaitReachable("localhost:"+c.port, time.Minute); err != nil {
+		return err
+	}
+
+	osutil.AddSecretRingFlag()
+	setCamdevVars()
+
+	baseURL := c.env.m["CAMLI_BASEURL"]
+	if baseURL == "" {
+		return errors.New("CAMLI_BASEURL is not set")
+	}
+
+	cl := client.New(baseURL)
+	signer, err := cl.Signer()
+	if err != nil {
+		return err
+	}
+	ClientId := make(map[string]string)
+	ClientSecret := make(map[string]string)
+	for name := range importer.All() {
+		ClientId[name] = "fakeStaticClientId"
+		ClientSecret[name] = "fakeStaticClientSecret"
+	}
+	hc := importer.HostConfig{
+		BaseURL:      baseURL,
+		Prefix:       importerPrefix,
+		Target:       cl,
+		BlobSource:   cl,
+		Signer:       signer,
+		Search:       cl,
+		ClientId:     ClientId,
+		ClientSecret: ClientSecret,
+	}
+
+	for name, imp := range importer.All() {
+		mk, ok := imp.(importer.TestDataMaker)
+		if !ok {
+			continue
+		}
+
+		tr := mk.MakeTestData()
+
+		hc.HTTPClient = &http.Client{Transport: tr}
+		host, err := importer.NewHost(hc)
+		if err != nil {
+			return fmt.Errorf("could not obtain Host: %v", err)
+		}
+
+		rc, err := importer.CreateAccount(host, name)
+		if err != nil {
+			return err
+		}
+
+		if err := mk.SetTestAccount(rc.AccountNode()); err != nil {
+			return fmt.Errorf("could not set fake account node for importer %v: %v", name, err)
+		}
+
+		rc.Context = context.New(context.WithHTTPClient(&http.Client{Transport: tr}))
+		if err := imp.Run(rc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *serverCmd) RunCommand(args []string) error {
 	err := c.checkFlags(args)
 	if err != nil {
 		return cmdmain.UsageError(fmt.Sprint(err))
@@ -422,6 +516,16 @@ func (c *serverCmd) RunCommand(args []string) error {
 	}
 	if c.extraArgs != "" {
 		cmdArgs = append(cmdArgs, strings.Split(c.extraArgs, ",")...)
+	}
+	if c.things {
+		// force camlistored to be run as a child process instead of with
+		// syscall.Exec, so c.makeThings() is able to run.
+		sysExec = nil
+		go func() {
+			if err := c.makeThings(); err != nil {
+				log.Fatalf("%v", err)
+			}
+		}()
 	}
 	return runExec(camliBin, cmdArgs, c.env)
 }

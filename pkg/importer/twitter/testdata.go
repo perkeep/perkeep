@@ -33,8 +33,17 @@ import (
 
 var _ importer.TestDataMaker = (*imp)(nil)
 
-func (im *imp) MakeTestData() http.RoundTripper {
+func (im *imp) SetTestAccount(acctNode *importer.Object) error {
+	return acctNode.SetAttrs(
+		importer.AcctAttrAccessToken, "fakeAccessToken",
+		importer.AcctAttrAccessTokenSecret, "fakeAccessSecret",
+		importer.AcctAttrUserID, "fakeUserID",
+		importer.AcctAttrName, "fakeName",
+		importer.AcctAttrUserName, "fakeScreenName",
+	)
+}
 
+func (im *imp) MakeTestData() http.RoundTripper {
 	const (
 		fakeMaxId = int64(486450108201201664) // Most recent tweet.
 		nTweets   = 300                       // Arbitrary number of tweets generated.

@@ -96,6 +96,9 @@ type Importer interface {
 // (See http://camlistore.org/issue/417).
 type TestDataMaker interface {
 	MakeTestData() http.RoundTripper
+	// SetTestAccount allows an importer to set some needed attributes on the importer
+	// account node before a run is started.
+	SetTestAccount(acctNode *Object) error
 }
 
 // ImporterSetupHTMLer is an optional interface that may be implemented by
@@ -105,6 +108,12 @@ type ImporterSetupHTMLer interface {
 }
 
 var importers = make(map[string]Importer)
+
+// All returns the map of importer implementation name to implementation. This
+// map should not be mutated.
+func All() map[string]Importer {
+	return importers
+}
 
 // Register registers a site-specific importer. It should only be called from init,
 // and not from concurrent goroutines.
@@ -120,10 +129,27 @@ func init() {
 	blobserver.RegisterHandlerConstructor("importer", newFromConfig)
 }
 
-func newFromConfig(ld blobserver.Loader, cfg jsonconfig.Obj) (http.Handler, error) {
+// HostConfig holds the parameters to set up a Host.
+type HostConfig struct {
+	BaseURL      string
+	Prefix       string                  // URL prefix for the importer handler
+	Target       blobserver.StatReceiver // storage for the imported object blobs
+	BlobSource   blob.Fetcher            // for additional resources, such as twitter zip file
+	Signer       *schema.Signer
+	Search       search.QueryDescriber
+	ClientId     map[string]string // optionally maps importer impl name to a clientId credential
+	ClientSecret map[string]string // optionally maps importer impl name to a clientSecret credential
+
+	// HTTPClient optionally specifies how to fetch external network
+	// resources. The Host will use http.DefaultClient otherwise.
+	HTTPClient *http.Client
+	// TODO: add more if/when needed
+}
+
+func NewHost(hc HostConfig) (*Host, error) {
 	h := &Host{
-		baseURL:      ld.BaseURL(),
-		importerBase: ld.BaseURL() + ld.MyPrefix(),
+		baseURL:      hc.BaseURL,
+		importerBase: hc.BaseURL + hc.Prefix,
 		imp:          make(map[string]*importer),
 	}
 	var err error
@@ -141,40 +167,63 @@ func newFromConfig(ld blobserver.Loader, cfg jsonconfig.Obj) (http.Handler, erro
 	})
 	for k, impl := range importers {
 		h.importers = append(h.importers, k)
-		var clientID, clientSecret string
-		if impConf := cfg.OptionalObject(k); impConf != nil {
-			clientID = impConf.OptionalString("clientID", "")
-			clientSecret = impConf.OptionalString("clientSecret", "")
-			// Special case: allow clientSecret to be of form "clientID:clientSecret"
-			// if the clientID is empty.
-			if clientID == "" && strings.Contains(clientSecret, ":") {
-				if f := strings.SplitN(clientSecret, ":", 2); len(f) == 2 {
-					clientID, clientSecret = f[0], f[1]
-				}
-			}
-			if err := impConf.Validate(); err != nil {
-				return nil, fmt.Errorf("Invalid static configuration for importer %q: %v", k, err)
-			}
-		}
-		if clientSecret != "" && clientID == "" {
-			return nil, fmt.Errorf("Invalid static configuration for importer %q: clientSecret specified without clientID", k)
+		clientId, clientSecret := hc.ClientId[k], hc.ClientSecret[k]
+		if clientSecret != "" && clientId == "" {
+			return nil, fmt.Errorf("Invalid static configuration for importer %q: clientSecret specified without clientId", k)
 		}
 		imp := &importer{
 			host:         h,
 			name:         k,
 			impl:         impl,
-			clientID:     clientID,
+			clientID:     clientId,
 			clientSecret: clientSecret,
 		}
 		h.imp[k] = imp
 	}
 
+	sort.Strings(h.importers)
+
+	h.target = hc.Target
+	h.blobSource = hc.BlobSource
+	h.signer = hc.Signer
+	h.search = hc.Search
+	h.client = hc.HTTPClient
+
+	return h, nil
+}
+
+func newFromConfig(ld blobserver.Loader, cfg jsonconfig.Obj) (http.Handler, error) {
+	hc := HostConfig{
+		BaseURL: ld.BaseURL(),
+		Prefix:  ld.MyPrefix(),
+	}
+	ClientId := make(map[string]string)
+	ClientSecret := make(map[string]string)
+	for k, _ := range importers {
+		var clientId, clientSecret string
+		if impConf := cfg.OptionalObject(k); impConf != nil {
+			clientId = impConf.OptionalString("clientID", "")
+			clientSecret = impConf.OptionalString("clientSecret", "")
+			// Special case: allow clientSecret to be of form "clientId:clientSecret"
+			// if the clientId is empty.
+			if clientId == "" && strings.Contains(clientSecret, ":") {
+				if f := strings.SplitN(clientSecret, ":", 2); len(f) == 2 {
+					clientId, clientSecret = f[0], f[1]
+				}
+			}
+			if err := impConf.Validate(); err != nil {
+				return nil, fmt.Errorf("Invalid static configuration for importer %q: %v", k, err)
+			}
+			ClientId[k] = clientId
+			ClientSecret[k] = clientSecret
+		}
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-
-	sort.Strings(h.importers)
-	return h, nil
+	hc.ClientId = ClientId
+	hc.ClientSecret = ClientSecret
+	return NewHost(hc)
 }
 
 var _ blobserver.HandlerIniter = (*Host)(nil)
@@ -217,6 +266,25 @@ type RunContext struct {
 	lastProgress *ProgressMessage
 }
 
+// CreateAccount creates a new importer account for the Host h, and the importer
+// implementation named impl. It returns a RunContext setup with that account.
+func CreateAccount(h *Host, impl string) (*RunContext, error) {
+	imp, ok := h.imp[impl]
+	if !ok {
+		return nil, fmt.Errorf("host does not have a %v importer", impl)
+	}
+	ia, err := imp.newAccount()
+	if err != nil {
+		return nil, fmt.Errorf("could not create new account for importer %v: %v", impl, err)
+	}
+	return &RunContext{
+		// TODO: context plumbing
+		Context: context.New(),
+		Host:    ia.im.host,
+		ia:      ia,
+	}, nil
+}
+
 // Credentials returns the credentials for the importer. This is
 // typically the OAuth1, OAuth2, or equivalent client ID (api token)
 // and client secret (api secret).
@@ -253,12 +321,12 @@ type Host struct {
 	importerBase string
 	target       blobserver.StatReceiver
 	blobSource   blob.Fetcher // e.g. twitter reading zip file
-	search       *search.Handler
+	search       search.QueryDescriber
 	signer       *schema.Signer
 	uiPrefix     string // or empty if no UI handler
 
-	// client optionally specifies how to fetch external network
-	// resources.  If nil, http.DefaultClient is used.
+	// HTTPClient optionally specifies how to fetch external network
+	// resources. Defaults to http.DefaultClient.
 	client    *http.Client
 	transport http.RoundTripper
 }
@@ -519,10 +587,6 @@ func (h *Host) Target() blobserver.StatReceiver {
 
 func (h *Host) BlobSource() blob.Fetcher {
 	return h.blobSource
-}
-
-func (h *Host) Search() *search.Handler {
-	return h.search
 }
 
 // importer is an importer for a certain site, but not a specific account on that site.
@@ -917,6 +981,7 @@ func (ia *importerAcct) start() {
 		return
 	}
 	rc := &RunContext{
+		// TODO: context plumbing
 		Context: context.New(),
 		Host:    ia.im.host,
 		ia:      ia,
