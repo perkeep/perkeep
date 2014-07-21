@@ -60,7 +60,7 @@ const (
 	acctAttrUserLast    = "foursquareLastName"
 	acctAttrAccessToken = "oauthAccessToken"
 
-	checkinsRequestLimit = 100 // max number of checkins we will ask for in a checkins list requset
+	checkinsRequestLimit = 100 // max number of checkins we will ask for in a checkins list request
 	photosRequestLimit   = 5
 )
 
