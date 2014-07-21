@@ -60,7 +60,7 @@ func (s sortedFiles) Len() int           { return len(s) }
 func (s sortedFiles) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 func (zh *zipHandler) describeMembers(br blob.Ref) (*search.DescribeResponse, error) {
-	res, err := zh.cl.Search(&search.SearchQuery{
+	res, err := zh.cl.Query(&search.SearchQuery{
 		Constraint: &search.Constraint{
 			BlobRefPrefix: br.String(),
 			CamliType:     "permanode",

@@ -505,7 +505,7 @@ func (c *Client) GetClaims(req *search.ClaimsRequest) (*search.ClaimsResponse, e
 	return res, nil
 }
 
-func (c *Client) Search(req *search.SearchQuery) (*search.SearchResult, error) {
+func (c *Client) Query(req *search.SearchQuery) (*search.SearchResult, error) {
 	sr, err := c.SearchRoot()
 	if err != nil {
 		return nil, err

@@ -22,3 +22,8 @@ limitations under the License.
 // are not considered modifications and therefore the time at which they
 // occured does not affect the result.
 package search
+
+type QueryDescriber interface {
+	Query(*SearchQuery) (*SearchResult, error)
+	Describe(*DescribeRequest) (*DescribeResponse, error)
+}
