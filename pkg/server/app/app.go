@@ -179,7 +179,7 @@ func (a *Handler) Start() error {
 	if e := os.Getenv("CAMLI_APP_BINDIR"); e != "" {
 		binPath, err = exec.LookPath(filepath.Join(e, name))
 		if err != nil {
-			log.Printf("%q executable not found in %q", e)
+			log.Printf("%q executable not found in %q", name, e)
 		}
 	}
 	if binPath == "" || err != nil {

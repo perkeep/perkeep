@@ -176,7 +176,7 @@ func genSelfTLS(listen string) error {
 
 	keyOut, err := os.OpenFile(defKey, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		return fmt.Errorf("failed to open %s for writing:", defKey, err)
+		return fmt.Errorf("failed to open %s for writing: %s", defKey, err)
 	}
 	pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
 	keyOut.Close()

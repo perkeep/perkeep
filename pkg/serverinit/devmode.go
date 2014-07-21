@@ -61,7 +61,7 @@ func (hl *handlerLoader) initPublisherRootNode(ah *app.Handler) error {
 	}
 	camliRoot, ok := appConfig["camliRoot"].(string)
 	if !ok {
-		return fmt.Errorf("camliRoot in publisher app handler appConfig is %T, want string, was %T", appConfig["camliRoot"])
+		return fmt.Errorf("camliRoot in publisher app handler appConfig is %T, want string", appConfig["camliRoot"])
 	}
 	result, err := camliRootQuery(camliRoot)
 	if err == nil && len(result.Blobs) > 0 && result.Blobs[0].Blob.Valid() {
