@@ -17,6 +17,7 @@ limitations under the License.
 package images
 
 import (
+	"bytes"
 	"image"
 	"os"
 	"path/filepath"
@@ -252,6 +253,48 @@ func TestRescaleEXIF(t *testing.T) {
 		}
 		if !equals(rescaledIm, smallStraightF) {
 			t.Errorf("(max) %v pixels not equal", name)
+		}
+	}
+}
+
+// TestUpscale verifies we don't resize up.
+func TestUpscale(t *testing.T) {
+	b := new(bytes.Buffer)
+	w, h := 64, 48
+	if err := jpeg.Encode(b, image.NewNRGBA(image.Rect(0, 0, w, h)), nil); err != nil {
+		t.Fatal(err)
+	}
+	sizes := []struct {
+		mw, mh       int
+		wantW, wantH int
+	}{
+		{wantW: w, wantH: h},
+		{mw: w, mh: h, wantW: w, wantH: h},
+		{mw: w, mh: 2 * h, wantW: w, wantH: h},
+		{mw: 2 * w, mh: w, wantW: w, wantH: h},
+		{mw: 2 * w, mh: 2 * h, wantW: w, wantH: h},
+		{mw: w / 2, mh: h / 2, wantW: w / 2, wantH: h / 2},
+		{mw: w / 2, mh: 2 * h, wantW: w / 2, wantH: h / 2},
+		{mw: 2 * w, mh: h / 2, wantW: w / 2, wantH: h / 2},
+	}
+	for i, size := range sizes {
+		var opts DecodeOpts
+		switch {
+		case size.mw != 0 && size.mh != 0:
+			opts = DecodeOpts{MaxWidth: size.mw, MaxHeight: size.mh}
+		case size.mw != 0:
+			opts = DecodeOpts{MaxWidth: size.mw}
+		case size.mh != 0:
+			opts = DecodeOpts{MaxHeight: size.mh}
+		}
+		im, _, err := Decode(bytes.NewReader(b.Bytes()), &opts)
+		if err != nil {
+			t.Error(i, err)
+		}
+		gotW := im.Bounds().Dx()
+		gotH := im.Bounds().Dy()
+		if gotW != size.wantW || gotH != size.wantH {
+			t.Errorf("%d got %dx%d want %dx%d", i, gotW, gotH, size.wantW, size.wantH)
 		}
 	}
 }
