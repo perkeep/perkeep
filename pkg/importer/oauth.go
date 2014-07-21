@@ -32,6 +32,8 @@ const (
 	AcctAttrTempSecret        = "oauthTempSecret"
 	AcctAttrAccessToken       = "oauthAccessToken"
 	AcctAttrAccessTokenSecret = "oauthAccessTokenSecret"
+	// AcctAttrOAuthToken stores `access + " " + refresh + " " + expiry`
+	AcctAttrOAuthToken = "oauthToken"
 )
 
 // OAuth1 provides methods that the importer implementations can use to
