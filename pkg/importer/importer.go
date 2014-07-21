@@ -279,7 +279,7 @@ func CreateAccount(h *Host, impl string) (*RunContext, error) {
 	}
 	return &RunContext{
 		// TODO: context plumbing
-		Context: context.New(),
+		Context: context.New(context.WithHTTPClient(ia.im.host.HTTPClient())),
 		Host:    ia.im.host,
 		ia:      ia,
 	}, nil
@@ -982,7 +982,7 @@ func (ia *importerAcct) start() {
 	}
 	rc := &RunContext{
 		// TODO: context plumbing
-		Context: context.New(),
+		Context: context.New(context.WithHTTPClient(ia.im.host.HTTPClient())),
 		Host:    ia.im.host,
 		ia:      ia,
 	}

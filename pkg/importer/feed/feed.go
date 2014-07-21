@@ -219,7 +219,7 @@ func (r *run) urlFileRef(urlstr string) string {
 	}
 	im.mu.Unlock()
 
-	res, err := r.Host.HTTPClient().Get(urlstr)
+	res, err := r.HTTPClient().Get(urlstr)
 	if err != nil {
 		log.Printf("couldn't get file: %v", err)
 		return ""
