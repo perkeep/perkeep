@@ -35,7 +35,6 @@ import (
 
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/importer"
 	_ "camlistore.org/pkg/importer/allimporters"
 	"camlistore.org/pkg/netutil"
@@ -457,7 +456,6 @@ func (c *serverCmd) makeThings() error {
 			return fmt.Errorf("could not set fake account node for importer %v: %v", name, err)
 		}
 
-		rc.Context = context.New(context.WithHTTPClient(&http.Client{Transport: tr}))
 		if err := imp.Run(rc); err != nil {
 			return err
 		}
