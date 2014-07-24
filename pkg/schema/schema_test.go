@@ -158,6 +158,21 @@ func TestStringFromMixedArray(t *testing.T) {
 	}
 }
 
+func TestParseInLocation_UnknownLocation(t *testing.T) {
+	// Example of parsing a time from an API (e.g. Flickr) that
+	// doesn't know its timezone.
+	const format = "2006-01-02 15:04:05"
+	const when = "2010-11-12 13:14:15"
+	tm, err := time.ParseInLocation(format, when, UnknownLocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, want := RFC3339FromTime(tm), "2010-11-12T13:14:15-00:01"
+	if got != want {
+		t.Errorf("parsed %v to %s; want %s", tm, got, want)
+	}
+}
+
 func TestIsZoneKnown(t *testing.T) {
 	if !IsZoneKnown(time.Now()) {
 		t.Errorf("should know Now's zone")
