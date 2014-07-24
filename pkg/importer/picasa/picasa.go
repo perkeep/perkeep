@@ -28,6 +28,7 @@ import (
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
+	"camlistore.org/pkg/schema/nodeattr"
 
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 	"camlistore.org/third_party/github.com/tgulacsi/picago"
@@ -159,7 +160,7 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album, clien
 	if err = albumNode.SetAttrs(
 		"picasaId", album.ID,
 		"camliNodeType", "picasaweb.google.com:album",
-		importer.AttrTitle, album.Title,
+		nodeattr.Title, album.Title,
 		importer.AttrLocationText, album.Location,
 	); err != nil {
 		return fmt.Errorf("error setting album attributes: %v", err)
@@ -257,9 +258,9 @@ func (r *run) importPhoto(albumNode *importer.Object, photo picago.Photo, client
 	if err := photoNode.SetAttrs(
 		"camliContent", fileRef.String(),
 		"picasaId", photo.ID,
-		importer.AttrTitle, photo.Title,
+		nodeattr.Title, photo.Title,
 		"caption", photo.Summary,
-		importer.AttrDescription, photo.Description,
+		nodeattr.Description, photo.Description,
 		importer.AttrLocationText, photo.Location,
 		"latitude", fmt.Sprintf("%f", photo.Latitude),
 		"longitude", fmt.Sprintf("%f", photo.Longitude),

@@ -56,13 +56,8 @@ const (
 	// ItemAttrID is the generic identifier of an item when nothing suitable and more specific
 	// was found on http://schema.org. Usually a number.
 	AttrID = "ID"
-	// http://schema.org/title
-	AttrTitle = "title"
 	// http://schema.org/name
 	AttrName = "name"
-	// http://schema.org/description
-	// Value is plain text, no HTML, newlines are newlines.
-	AttrDescription = "description"
 	// Free-flowing text definition of a location or place, such
 	// as a city name, or a full postal address.
 	AttrLocationText = "locationText"

@@ -30,6 +30,7 @@ import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
+	"camlistore.org/pkg/schema/nodeattr"
 	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
 )
 
@@ -38,6 +39,8 @@ const (
 	temporaryCredentialRequestURL = "https://www.flickr.com/services/oauth/request_token"
 	resourceOwnerAuthorizationURL = "https://www.flickr.com/services/oauth/authorize"
 	tokenRequestURL               = "https://www.flickr.com/services/oauth/access_token"
+
+	attrFlickrId = "flickrId"
 )
 
 func init() {
@@ -198,9 +201,9 @@ func (r *run) importPhotoset(parent *importer.Object, photoset *photosetsGetList
 	}
 
 	if err := photosetNode.SetAttrs(
-		importer.AttrID, photoset.ID,
-		importer.AttrTitle, photoset.Title.Content,
-		importer.AttrDescription, photoset.Description.Content,
+		attrFlickrId, photoset.ID,
+		nodeattr.Title, photoset.Title.Content,
+		nodeattr.Description, photoset.Description.Content,
 		importer.AttrPrimaryImageOfPage, photoset.PrimaryPhotoID); err != nil {
 		return 0, err
 	}
@@ -254,18 +257,18 @@ type photosSearch struct {
 type photosSearchItem struct {
 	ID             string `json:"id"`
 	Title          string
-	Ispublic       int
-	Isfriend       int
-	Isfamily       int
+	IsPublic       int
+	IsFriend       int
+	IsFamily       int
 	Description    contentString
-	Dateupload     string
-	Datetaken      string
-	Originalformat string
-	Lastupdate     string
+	DateUpload     string // Unix timestamp, in GMT.
+	DateTaken      string // formatted as "2006-01-02 15:04:05", so no timezone info.
+	OriginalFormat string
+	LastUpdate     string
 	Latitude       float32
 	Longitude      float32
 	Tags           string
-	Machinetags    string `json:"machine_tags"`
+	MachineTags    string `json:"machine_tags"`
 	Views          string
 	Media          string
 	URL            string `json:"url_o"`
@@ -321,24 +324,41 @@ func (r *run) importPhotosPage(page int) (int, error) {
 // * Conflicts: For all metadata changes, prefer any non-imported claims
 // * Test!
 func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) error {
-	filename := fmt.Sprintf("%s.%s", photo.ID, photo.Originalformat)
+	filename := fmt.Sprintf("%s.%s", photo.ID, photo.OriginalFormat)
 	photoNode, err := parent.ChildPathObject(filename)
 	if err != nil {
 		return err
 	}
 
+	// https://www.flickr.com/services/api/misc.dates.html
+	dateTaken, err := time.ParseInLocation("2006-01-02 15:04:05", photo.DateTaken, schema.UnknownLocation)
+	if err != nil {
+		// default to the published date otherwise
+		log.Printf("Flickr importer: problem with date taken of photo %v, defaulting to published date instead.", photo.ID)
+		seconds, err := strconv.ParseInt(photo.DateUpload, 10, 64)
+		if err != nil {
+			return fmt.Errorf("could not parse date upload time %q for image %v: %v", photo.DateUpload, photo.ID, err)
+		}
+		dateTaken = time.Unix(seconds, 0)
+	}
+
+	attrs := []string{
+		attrFlickrId, photo.ID,
+		nodeattr.DateCreated, schema.RFC3339FromTime(dateTaken),
+		nodeattr.Description, photo.Description.Content,
+	}
+	if schema.IsInterestingTitle(photo.Title) {
+		attrs = append(attrs, nodeattr.Title, photo.Title)
+	}
 	// Import all the metadata. SetAttrs() is a no-op if the value hasn't changed, so there's no cost to doing these on every run.
 	// And this way if we add more things to import, they will get picked up.
-	if err := photoNode.SetAttrs(
-		importer.AttrID, photo.ID,
-		importer.AttrTitle, photo.Title,
-		importer.AttrDescription, photo.Description.Content); err != nil {
+	if err := photoNode.SetAttrs(attrs...); err != nil {
 		return err
 	}
 
 	// Import the photo itself. Since it is expensive to fetch the image, we store its lastupdate and only refetch if it might have changed.
 	// lastupdate is a Unix timestamp according to https://www.flickr.com/services/api/flickr.photos.getInfo.html
-	seconds, err := strconv.ParseInt(photo.Lastupdate, 10, 64)
+	seconds, err := strconv.ParseInt(photo.LastUpdate, 10, 64)
 	if err != nil {
 		return fmt.Errorf("could not parse lastupdate time for image %v: %v", photo.ID, err)
 	}
@@ -387,7 +407,7 @@ func (r *run) getTopLevelNode(path string, title string) (*importer.Object, erro
 		return nil, err
 	}
 
-	if err := photos.SetAttr(importer.AttrTitle, title); err != nil {
+	if err := photos.SetAttr(nodeattr.Title, title); err != nil {
 		return nil, err
 	}
 	return photos, nil

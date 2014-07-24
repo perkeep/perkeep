@@ -33,6 +33,7 @@ import (
 	"log"
 	"os"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -999,4 +1000,13 @@ func lookupLocation(zone string) *time.Location {
 		return nil
 	}
 	return loc
+}
+
+var boringTitlePattern = regexp.MustCompile(`^(?:IMG_|DSC|PANO_|ESR_).*$`)
+
+// IsInterestingTitle returns whether title would be interesting information as
+// a title for a permanode. For example, filenames automatically created by
+// cameras, such as IMG_XXXX.JPG, do not add any interesting value.
+func IsInterestingTitle(title string) bool {
+	return !boringTitlePattern.MatchString(title)
 }

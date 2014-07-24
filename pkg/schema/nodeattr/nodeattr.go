@@ -23,4 +23,10 @@ const (
 	// Camlistore's addition that zone -00:01 means localtime:
 	// unknown timezone).
 	DateCreated = "dateCreated"
+
+	// http://schema.org/title
+	Title = "title"
+	// http://schema.org/description
+	// Value is plain text, no HTML, newlines are newlines.
+	Description = "description"
 )
