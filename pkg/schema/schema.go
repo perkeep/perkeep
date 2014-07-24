@@ -828,14 +828,40 @@ func NewDeleteClaim(target blob.Ref) *Builder {
 // This is the "send a link to a friend" access model.
 const ShareHaveRef = "haveref"
 
-// RFC3339FromTime returns an RFC3339-formatted time in UTC.
+// UnknownLocation is a magic timezone value used when the actual location
+// of a time is unknown. For instance, EXIF files commonly have a time without
+// a corresponding location or timezone offset.
+var UnknownLocation = time.FixedZone("Unknown", -60) // 1 minute west
+
+// IsZoneKnown reports whether t is in a known timezone.
+// Camlistore uses the magic timezone offset of 1 minute west of UTC
+// to mean that the timezone wasn't known.
+func IsZoneKnown(t time.Time) bool {
+	if t.Location() == UnknownLocation {
+		return false
+	}
+	if _, off := t.Zone(); off == -60 {
+		return false
+	}
+	return true
+}
+
+// RFC3339FromTime returns an RFC3339-formatted time.
+//
+// If the timezone is known, the time will be converted to UTC and
+// returned with a "Z" suffix. For unknown zones, the timezone will be
+// "-00:01" (1 minute west of UTC).
+//
 // Fractional seconds are only included if the time has fractional
 // seconds.
 func RFC3339FromTime(t time.Time) string {
-	if t.UnixNano()%1e9 == 0 {
-		return t.UTC().Format(time.RFC3339)
+	if IsZoneKnown(t) {
+		t = t.UTC()
 	}
-	return t.UTC().Format(time.RFC3339Nano)
+	if t.UnixNano()%1e9 == 0 {
+		return t.Format(time.RFC3339)
+	}
+	return t.Format(time.RFC3339Nano)
 }
 
 var bytesCamliVersion = []byte("camliVersion")

@@ -158,11 +158,27 @@ func TestStringFromMixedArray(t *testing.T) {
 	}
 }
 
+func TestIsZoneKnown(t *testing.T) {
+	if !IsZoneKnown(time.Now()) {
+		t.Errorf("should know Now's zone")
+	}
+	if !IsZoneKnown(time.Now().UTC()) {
+		t.Errorf("UTC should be known")
+	}
+	if IsZoneKnown(time.Now().In(UnknownLocation)) {
+		t.Errorf("with explicit unknown location, should be false")
+	}
+	if IsZoneKnown(time.Now().In(time.FixedZone("xx", -60))) {
+		t.Errorf("with other fixed zone at -60, should be false")
+	}
+}
+
 func TestRFC3339(t *testing.T) {
 	tests := []string{
 		"2012-05-13T15:02:47Z",
 		"2012-05-13T15:02:47.1234Z",
 		"2012-05-13T15:02:47.123456789Z",
+		"2012-05-13T15:02:47-00:01",
 	}
 	for _, in := range tests {
 		tm, err := time.Parse(time.RFC3339, in)
@@ -170,8 +186,18 @@ func TestRFC3339(t *testing.T) {
 			t.Errorf("error parsing %q", in)
 			continue
 		}
-		if out := RFC3339FromTime(tm); in != out {
+		knownZone := IsZoneKnown(tm)
+		out := RFC3339FromTime(tm)
+		if in != out {
 			t.Errorf("RFC3339FromTime(%q) = %q; want %q", in, out, in)
+		}
+
+		sub := "Z"
+		if !knownZone {
+			sub = "-00:01"
+		}
+		if !strings.Contains(out, sub) {
+			t.Errorf("expected substring %q in %q", sub, out)
 		}
 	}
 }
