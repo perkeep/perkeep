@@ -126,7 +126,8 @@ func getAlbums(albums []Album, client *http.Client, url string, startIndex int) 
 			URL:         albumURL,
 		})
 	}
-	return albums, startIndex+len(feed.Entries) < feed.TotalResults, nil
+	// since startIndex starts at 1, we need to compensate for this, just as we do for photos.
+	return albums, startIndex+len(feed.Entries) <= feed.TotalResults, nil
 }
 
 func GetPhotos(client *http.Client, userID, albumID string) ([]Photo, error) {
@@ -206,18 +207,19 @@ func getPhotos(photos []Photo, client *http.Client, url string, startIndex int) 
 			Longitude: long,
 		})
 	}
-	return photos, len(photos) < feed.NumPhotos, nil
+	// startIndex starts with 1, we need to compensate for it.
+	return photos, startIndex+len(feed.Entries) <= feed.NumPhotos, nil
 }
 
 func downloadAndParse(client *http.Client, url string) (*Atom, error) {
 	resp, err := client.Get(url)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("downloadAndParse: get %q: %v", url, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= http.StatusBadRequest {
 		buf, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("downloadAndParse(%s) got %s\n%s", url, resp.Status, buf)
+		return nil, fmt.Errorf("downloadAndParse(%s) got %s (%s)", url, resp.Status, buf)
 	}
 	var r io.Reader = resp.Body
 	if DebugDir != "" {
@@ -253,7 +255,7 @@ func GetUser(client *http.Client, userID string) (User, error) {
 	url := strings.Replace(userURL, "{userID}", userID, 1)
 	feed, err := downloadAndParse(client, url)
 	if err != nil {
-		return User{}, err
+		return User{}, fmt.Errorf("GetUser: downloading %s: %v", url, err)
 	}
 	uri := feed.Author.URI
 	id := uri
