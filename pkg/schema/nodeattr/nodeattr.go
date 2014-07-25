@@ -36,12 +36,11 @@ const (
 	// Well-defined ones are documented in doc/schema/claims/attributes.txt.
 	Type = "camliNodeType"
 
-	// Content is "camliContent", the blobref of the permanode's content.
+	// CamliContent is "camliContent", the blobref of the permanode's content.
 	// For files or images, the camliContent is fileref (the blobref of
 	// the "file" schema blob).
-	Content = "camliContent"
+	CamliContent = "camliContent"
 
-	Latitude = "latitude"
+	Latitude  = "latitude"
 	Longitude = "longitude"
-
 )
