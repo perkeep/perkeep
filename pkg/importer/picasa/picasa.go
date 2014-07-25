@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 
@@ -89,12 +90,19 @@ func newImporter() *imp {
 }
 
 func (im imp) AccountSetupHTML(host *importer.Host) string {
-	base := host.ImporterBaseURL() + "picasa"
+	// Picasa doens't allow a path in the origin. Remove it.
+	origin := host.ImporterBaseURL()
+	if u, err := url.Parse(origin); err == nil {
+		u.Path = ""
+		origin = u.String()
+	}
+
+	callback := host.ImporterBaseURL() + "picasa/callback"
 	return fmt.Sprintf(`
 <h1>Configuring Picasa</h1>
 <p>Visit <a href='https://console.developers.google.com/'>https://console.developers.google.com/</a>
-and click "CREATE PROJECT".</p>
-<p>Then under "APIs & auth" click on "Credentials", then "CREATE NEW CLIENT ID".</p>
+and click <b>"Create Project"</b>.</p>
+<p>Then under "APIs & Auth" in the left sidebar, click on "Credentials", then click the button <b>"Create new Client ID"</b>.</p>
 <p>Use the following settings:</p>
 <ul>
   <li>Web application</li>
@@ -102,7 +110,7 @@ and click "CREATE PROJECT".</p>
   <li>Authorized Redirect URI: <b>%s</b></li>
 </ul>
 <p>Click "Create Client ID".  Copy the "Client ID" and "Client Secret" into the boxes above.</p>
-`, base, base+"/callback")
+`, origin, callback)
 }
 
 // A run is our state for a given run of the importer.
