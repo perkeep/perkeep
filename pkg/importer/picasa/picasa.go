@@ -262,7 +262,7 @@ func (r *run) importPhoto(albumNode *importer.Object, photo picago.Photo, client
 	}
 
 	attrs := []string{
-		nodeattr.Content, fileRef.String(),
+		nodeattr.CamliContent, fileRef.String(),
 		"picasaId", photo.ID,
 		nodeattr.Title, photo.Title,
 		"caption", photo.Summary,

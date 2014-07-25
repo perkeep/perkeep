@@ -36,12 +36,23 @@ const (
 	// Well-defined ones are documented in doc/schema/claims/attributes.txt.
 	Type = "camliNodeType"
 
-	// Content is "camliContent", the blobref of the permanode's content.
+	// CamliContent is "camliContent", the blobref of the permanode's content.
 	// For files or images, the camliContent is fileref (the blobref of
 	// the "file" schema blob).
-	Content = "camliContent"
+	CamliContent = "camliContent"
 
-	Latitude = "latitude"
+	// Content is "content", used e.g. for the content of a tweet.
+	// TODO: define this more
+	Content = "content"
+
+	// StartDate is http://schema.org/startDate: The start
+	// date and time of the event or item (in RFC 3339 date
+	// format).
+	StartDate = "startDate"
+
+	// URL is the item's original or origin URL.
+	URL = "url"
+
+	Latitude  = "latitude"
 	Longitude = "longitude"
-
 )
