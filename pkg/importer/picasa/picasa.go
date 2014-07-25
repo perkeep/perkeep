@@ -49,7 +49,7 @@ func init() {
 var _ importer.ImporterSetupHTMLer = (*imp)(nil)
 
 type imp struct {
-	importer.ExtendedOAuth2
+	extendedOAuth2
 }
 
 var baseOAuthConfig = oauth.Config{
@@ -68,9 +68,9 @@ var baseOAuthConfig = oauth.Config{
 
 func newImporter() *imp {
 	return &imp{
-		importer.NewExtendedOAuth2(
+		newExtendedOAuth2(
 			baseOAuthConfig,
-			func(ctx *context.Context, accessToken string) (*importer.UserInfo, error) {
+			func(ctx *context.Context, accessToken string) (*userInfo, error) {
 				u, err := getUserInfo(ctx, accessToken)
 				if err != nil {
 					return nil, err
@@ -80,7 +80,7 @@ func newImporter() *imp {
 				if i >= 0 {
 					firstName, lastName = u.Name[:i], u.Name[i+1:]
 				}
-				return &importer.UserInfo{
+				return &userInfo{
 					ID:        u.ID,
 					FirstName: firstName,
 					LastName:  lastName,
@@ -126,11 +126,11 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 	}
 	ocfg := baseOAuthConfig
 	ocfg.ClientId, ocfg.ClientSecret = clientId, secret
-	token := importer.DecodeToken(ctx.AccountNode().Attr(importer.AcctAttrOAuthToken))
+	token := decodeToken(ctx.AccountNode().Attr(acctAttrOAuthToken))
 	transport := &oauth.Transport{
 		Config:    &ocfg,
 		Token:     &token,
-		Transport: importer.NotOAuthTransport(ctx.HTTPClient()),
+		Transport: notOAuthTransport(ctx.HTTPClient()),
 	}
 	ctx.Context = ctx.Context.New(context.WithHTTPClient(transport.Client()))
 	r := &run{RunContext: ctx, im: im}

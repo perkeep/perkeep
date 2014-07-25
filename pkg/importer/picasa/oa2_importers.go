@@ -14,8 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package importer imports content from third-party websites.
-package importer
+package picasa
 
 import (
 	"fmt"
@@ -29,31 +28,46 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/importer"
 
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 )
 
-// ExtendedOAuth2 provides implementation for some common importer methods regarding authentication.
+const (
+	// acctAttrOAuthToken stores `access + " " + refresh + " " + expiry`
+	// See encodeToken and decodeToken.
+	acctAttrOAuthToken = "oauthToken"
+)
+
+// extendedOAuth2 provides implementation for some common importer methods regarding authentication.
 //
 // The oauthConfig is used in the authentications - think Scope and AuthURL.
 //
 // The getUserInfo function (if provided) should return the
 // user ID, first name and last name of the user.
-type ExtendedOAuth2 struct {
-	OAuth2
+type extendedOAuth2 struct {
+	importer.OAuth2
 	oauthConfig oauth.Config
-	getUserInfo func(ctx *context.Context, accessToken string) (*UserInfo, error)
+	getUserInfo func(ctx *context.Context, accessToken string) (*userInfo, error)
 }
 
-// NewExtendedOAuth2 returns a default implementation of
+// newExtendedOAuth2 returns a default implementation of
 // some common methods for OAuth2-based importers.
-func NewExtendedOAuth2(oauthConfig oauth.Config,
-	getUserInfo func(ctx *context.Context, accessToken string) (*UserInfo, error),
-) ExtendedOAuth2 {
-	return ExtendedOAuth2{oauthConfig: oauthConfig, getUserInfo: getUserInfo}
+func newExtendedOAuth2(oauthConfig oauth.Config,
+	getUserInfo func(ctx *context.Context, accessToken string) (*userInfo, error),
+) extendedOAuth2 {
+	return extendedOAuth2{oauthConfig: oauthConfig, getUserInfo: getUserInfo}
 }
 
-func (im ExtendedOAuth2) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *SetupContext) error {
+func (extendedOAuth2) IsAccountReady(acctNode *importer.Object) (ok bool, err error) {
+	if acctNode.Attr(importer.AcctAttrUserID) != "" && acctNode.Attr(acctAttrOAuthToken) != "" {
+		return true, nil
+	}
+	return false, nil
+}
+
+
+func (im extendedOAuth2) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) error {
 	oauthConfig, err := im.auth(ctx)
 	if err == nil {
 		// we will get back this with the token, so use it for preserving account info
@@ -64,13 +78,13 @@ func (im ExtendedOAuth2) ServeSetup(w http.ResponseWriter, r *http.Request, ctx 
 }
 
 // CallbackURLParameters returns the needed callback parameters - empty for Google Picasa.
-func (im ExtendedOAuth2) CallbackURLParameters(acctRef blob.Ref) url.Values {
+func (im extendedOAuth2) CallbackURLParameters(acctRef blob.Ref) url.Values {
 	return url.Values{}
 }
 
-// NotOAuthTransport returns c's Transport, or its underlying transport if c.Transport
+// notOAuthTransport returns c's Transport, or its underlying transport if c.Transport
 // is an OAuth Transport.
-func NotOAuthTransport(c *http.Client) (tr http.RoundTripper) {
+func notOAuthTransport(c *http.Client) (tr http.RoundTripper) {
 	tr = c.Transport
 	if otr, ok := tr.(*oauth.Transport); ok {
 		tr = otr.Transport
@@ -78,7 +92,7 @@ func NotOAuthTransport(c *http.Client) (tr http.RoundTripper) {
 	return
 }
 
-func (im ExtendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *SetupContext) {
+func (im extendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
 	if im.getUserInfo == nil {
 		panic("No getUserInfo is provided, don't use the default ServeCallback!")
 	}
@@ -104,7 +118,7 @@ func (im ExtendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, c
 	// needs to have the access token that is obtained during Exchange.
 	transport := &oauth.Transport{
 		Config:    oauthConfig,
-		Transport: NotOAuthTransport(ctx.HTTPClient()),
+		Transport: notOAuthTransport(ctx.HTTPClient()),
 	}
 	token, err := transport.Exchange(code)
 	log.Printf("Token = %#v, error %v", token, err)
@@ -125,10 +139,10 @@ func (im ExtendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, c
 	}
 
 	if err := ctx.AccountNode.SetAttrs(
-		AcctAttrUserID, userInfo.ID,
-		AcctAttrGivenName, userInfo.FirstName,
-		AcctAttrFamilyName, userInfo.LastName,
-		AcctAttrOAuthToken, encodeToken(token),
+		importer.AcctAttrUserID, userInfo.ID,
+		importer.AcctAttrGivenName, userInfo.FirstName,
+		importer.AcctAttrFamilyName, userInfo.LastName,
+		acctAttrOAuthToken, encodeToken(token),
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
 		return
@@ -140,7 +154,7 @@ func (im ExtendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, c
 // AccessToken + " " + RefreshToken + " " + Expiry.Unix()
 func encodeToken(token *oauth.Token) string {
 	if token == nil {
-		return "  0"
+		return ""
 	}
 	var seconds int64
 	if !token.Expiry.IsZero() {
@@ -149,34 +163,28 @@ func encodeToken(token *oauth.Token) string {
 	return token.AccessToken + " " + token.RefreshToken + " " + strconv.FormatInt(seconds, 10)
 }
 
-// DecodeToken decodes from format of access + " " + refresh + " " + expiry
-// to oauth.Token.
-// It does not return an error, just decodes till it can.
-func DecodeToken(encoded string) oauth.Token {
-	var token oauth.Token
-	i := strings.IndexByte(encoded, ' ')
-	if i < 0 {
-		token.AccessToken = encoded
-		return token
+// decodeToken parses an access token, refresh token, and optional
+// expiry unix timestamp separated by spaces into an oauth.Token.
+// It returns as much as it can.
+func decodeToken(encoded string) oauth.Token {
+	var t oauth.Token
+	f := strings.Fields(encoded)
+	if len(f) > 0 {
+		t.AccessToken = f[0]
 	}
-	token.AccessToken, encoded = encoded[:i], encoded[i+1:]
-	i = strings.IndexByte(encoded, ' ')
-	if i < 0 {
-		token.RefreshToken = encoded
-		return token
+	if len(f) > 1 {
+		t.RefreshToken = f[1]
 	}
-	token.RefreshToken, encoded = encoded[:i], encoded[i+1:]
-	if len(encoded) == 0 {
-		return token
+	if len(f) > 2 && f[2] != "0" {
+		sec, err := strconv.ParseInt(f[2], 10, 64)
+		if err == nil {
+			t.Expiry = time.Unix(sec, 0)
+		}
 	}
-	seconds, err := strconv.ParseInt(encoded, 10, 64)
-	if err == nil {
-		token.Expiry = time.Unix(seconds, 0)
-	}
-	return token
+	return t
 }
 
-func (im ExtendedOAuth2) auth(ctx *SetupContext) (*oauth.Config, error) {
+func (im extendedOAuth2) auth(ctx *importer.SetupContext) (*oauth.Config, error) {
 	clientId, secret, err := ctx.Credentials()
 	if err != nil {
 		return nil, err
@@ -186,11 +194,11 @@ func (im ExtendedOAuth2) auth(ctx *SetupContext) (*oauth.Config, error) {
 	return &conf, nil
 }
 
-// UserInfo contains basic information about the identity of the imported
+// userInfo contains basic information about the identity of the imported
 // account owner. Its use is discouraged as it might be refactored soon.
 // Importer implementations should rather make their own dedicated type for
 // now.
-type UserInfo struct {
+type userInfo struct {
 	ID        string
 	FirstName string
 	LastName  string
