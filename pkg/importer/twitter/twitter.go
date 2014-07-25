@@ -247,7 +247,7 @@ func (r *run) importTweets(userID string) error {
 	maxId := ""
 	continueRequests := true
 
-	tweetsNode, err := r.getTopLevelNode("tweets", "Tweets")
+	tweetsNode, err := r.getTopLevelNode("tweets")
 	if err != nil {
 		return err
 	}
@@ -353,7 +353,7 @@ func tweetsFromZipFile(zf *zip.File) (tweets []*zipTweetItem, err error) {
 func (r *run) importTweetsFromZip(userID string, zr *zip.Reader) error {
 	log.Printf("Processing zip file with %d files", len(zr.File))
 
-	tweetsNode, err := r.getTopLevelNode("tweets", "Tweets")
+	tweetsNode, err := r.getTopLevelNode("tweets")
 	if err != nil {
 		return err
 	}
@@ -435,15 +435,15 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 
 	attrs := []string{
 		"twitterId", id,
-		"camliNodeType", "twitter.com:tweet",
-		importer.AttrStartDate, schema.RFC3339FromTime(createdTime),
-		"content", tweet.Text(),
-		importer.AttrURL, url,
+		nodeattr.Type, "twitter.com:tweet",
+		nodeattr.StartDate, schema.RFC3339FromTime(createdTime),
+		nodeattr.Content, tweet.Text(),
+		nodeattr.URL, url,
 	}
 	if lat, long, ok := tweet.LatLong(); ok {
 		attrs = append(attrs,
-			"latitude", fmt.Sprint(lat),
-			"longitude", fmt.Sprint(long),
+			nodeattr.Latitude, fmt.Sprint(lat),
+			nodeattr.Longitude, fmt.Sprint(long),
 		)
 	}
 	if viaAPI {
@@ -499,10 +499,26 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 	return !changes, err
 }
 
-func (r *run) getTopLevelNode(path string, title string) (*importer.Object, error) {
-	obj, err := r.RootNode().ChildPathObject(path)
+// The path be one of "tweets".
+// In the future: "lists", "direct_messages", etc.
+func (r *run) getTopLevelNode(path string) (*importer.Object, error) {
+	acctNode := r.AccountNode()
+
+	root := r.RootNode()
+	rootTitle := fmt.Sprintf("%s's Twitter Account", acctNode.Attr(importer.AcctAttrUserName))
+	log.Printf("root title = %q; want %q", root.Attr(nodeattr.Title), rootTitle)
+	if err := root.SetAttr(nodeattr.Title, rootTitle); err != nil {
+		return nil, err
+	}
+
+	obj, err := root.ChildPathObject(path)
 	if err != nil {
 		return nil, err
+	}
+	var title string
+	switch path {
+	case "tweets":
+		title = fmt.Sprintf("%s's Tweets", acctNode.Attr(importer.AcctAttrUserName))
 	}
 	return obj, obj.SetAttr(nodeattr.Title, title)
 }
