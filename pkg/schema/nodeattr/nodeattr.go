@@ -41,6 +41,18 @@ const (
 	// the "file" schema blob).
 	CamliContent = "camliContent"
 
+	// Content is "content", used e.g. for the content of a tweet.
+	// TODO: define this more
+	Content = "content"
+
+	// StartDate is http://schema.org/startDate: The start
+	// date and time of the event or item (in RFC 3339 date
+	// format).
+	StartDate = "startDate"
+
+	// URL is the item's original or origin URL.
+	URL = "url"
+
 	Latitude  = "latitude"
 	Longitude = "longitude"
 )
