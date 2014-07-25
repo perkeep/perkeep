@@ -269,6 +269,7 @@ func (r *run) importTweets(userID string) error {
 		}
 
 		var resp []*apiTweetItem
+		var err error
 		if maxId == "" {
 			log.Printf("Fetching tweets for userid %s", userID)
 			err = r.oauthContext().doAPI(&resp, userTimeLineAPIPath, attrs...)
