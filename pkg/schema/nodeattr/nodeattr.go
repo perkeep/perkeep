@@ -24,9 +24,10 @@ const (
 	// unknown timezone).
 	DateCreated = "dateCreated"
 
-	// http://schema.org/title
+	// Title is http://schema.org/title
 	Title = "title"
-	// http://schema.org/description
+
+	// Description is http://schema.org/description
 	// Value is plain text, no HTML, newlines are newlines.
 	Description = "description"
 )

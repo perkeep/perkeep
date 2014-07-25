@@ -40,6 +40,7 @@ import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
+	"camlistore.org/pkg/schema/nodeattr"
 	"camlistore.org/pkg/syncutil"
 	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
 )
@@ -187,9 +188,9 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 	}
 
 	rootNode := r.RootNode()
-	if rootNode.Attr("title") == "" {
+	if rootNode.Attr(nodeattr.Title) == "" {
 		screenName := acctNode.Attr(importer.AcctAttrUserName)
-		rootNode.SetAttr("title", fmt.Sprintf("%s's Tweets", screenName))
+		rootNode.SetAttr(nodeattr.Title, fmt.Sprintf("%s's Tweets", screenName))
 	}
 
 	userID := acctNode.Attr(importer.AcctAttrUserID)
@@ -612,7 +613,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		importer.AcctAttrUserID, u.ID,
 		importer.AcctAttrName, u.Name,
 		importer.AcctAttrUserName, u.ScreenName,
-		"title", fmt.Sprintf("%s's Twitter Account", u.ScreenName),
+		nodeattr.Title, fmt.Sprintf("%s's Twitter Account", u.ScreenName),
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
 		return
