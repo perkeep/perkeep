@@ -30,4 +30,18 @@ const (
 	// Description is http://schema.org/description
 	// Value is plain text, no HTML, newlines are newlines.
 	Description = "description"
+
+	// Type is the Camlistore permanode type ("camliNodeType").
+	// Importer-specific ones are of the form "domain.com:objecttype".
+	// Well-defined ones are documented in doc/schema/claims/attributes.txt.
+	Type = "camliNodeType"
+
+	// Content is "camliContent", the blobref of the permanode's content.
+	// For files or images, the camliContent is fileref (the blobref of
+	// the "file" schema blob).
+	Content = "camliContent"
+
+	Latitude = "latitude"
+	Longitude = "longitude"
+
 )

@@ -159,7 +159,7 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album, clien
 	// TODO(tgulacsi): add more album info
 	if err = albumNode.SetAttrs(
 		"picasaId", album.ID,
-		"camliNodeType", "picasaweb.google.com:album",
+		nodeattr.Type, "picasaweb.google.com:album",
 		nodeattr.Title, album.Title,
 		importer.AttrLocationText, album.Location,
 	); err != nil {
@@ -171,7 +171,7 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album, clien
 		return err
 	}
 
-	log.Printf("Importing %d photos from album %q (%s)", len(photos), albumNode.Attr("title"),
+	log.Printf("Importing %d photos from album %q (%s)", len(photos), albumNode.Attr(nodeattr.Title),
 		albumNode.PermanodeRef())
 
 	for _, photo := range photos {
@@ -253,20 +253,26 @@ func (r *run) importPhoto(albumNode *importer.Object, photo picago.Photo, client
 			photo.Filename(), albumNode.Attr("name"), err)
 	}
 
-	// TODO(tgulacsi): add more attrs (comments ?)
-	// for names, see http://schema.org/ImageObject and http://schema.org/CreativeWork
-	if err := photoNode.SetAttrs(
-		"camliContent", fileRef.String(),
+	attrs := []string{
+		nodeattr.Content, fileRef.String(),
 		"picasaId", photo.ID,
 		nodeattr.Title, photo.Title,
 		"caption", photo.Summary,
 		nodeattr.Description, photo.Description,
 		importer.AttrLocationText, photo.Location,
-		"latitude", fmt.Sprintf("%f", photo.Latitude),
-		"longitude", fmt.Sprintf("%f", photo.Longitude),
 		"dateModified", schema.RFC3339FromTime(photo.Updated),
 		"datePublished", schema.RFC3339FromTime(photo.Published),
-	); err != nil {
+	}
+	if photo.Latitude != 0 || photo.Longitude != 0 {
+		attrs = append(attrs,
+			nodeattr.Latitude, fmt.Sprintf("%f", photo.Latitude),
+			nodeattr.Longitude, fmt.Sprintf("%f", photo.Longitude),
+		)
+	}
+
+	// TODO(tgulacsi): add more attrs (comments ?)
+	// for names, see http://schema.org/ImageObject and http://schema.org/CreativeWork
+	if err := photoNode.SetAttrs(attrs...); err != nil {
 		return nil, fmt.Errorf("error adding file to photo node: %v", err)
 	}
 	if err := photoNode.SetAttrValues("tag", photo.Keywords); err != nil {
@@ -282,7 +288,7 @@ func (r *run) getTopLevelNode(path string, title string) (*importer.Object, erro
 		return nil, err
 	}
 
-	if err := childObject.SetAttr("title", title); err != nil {
+	if err := childObject.SetAttr(nodeattr.Title, title); err != nil {
 		return nil, err
 	}
 	return childObject, nil
