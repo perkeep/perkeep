@@ -500,14 +500,11 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 }
 
 func (r *run) getTopLevelNode(path string, title string) (*importer.Object, error) {
-	tweets, err := r.RootNode().ChildPathObject(path)
+	obj, err := r.RootNode().ChildPathObject(path)
 	if err != nil {
 		return nil, err
 	}
-	if err := tweets.SetAttr("title", title); err != nil {
-		return nil, err
-	}
-	return tweets, nil
+	return obj, obj.SetAttr(nodeattr.Title, title)
 }
 
 // TODO(mpl): move to an api.go when we it gets bigger.
