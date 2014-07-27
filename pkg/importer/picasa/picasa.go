@@ -196,6 +196,7 @@ func (r *run) importAlbums() error {
 }
 
 func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album) error {
+	log.Printf("Importing album %v: %v/%v (published %v, updated %v)", album.ID, album.Name, album.Title, album.Published, album.Updated)
 	albumNode, err := albumsNode.ChildPathObject(album.Name)
 	if err != nil {
 		return fmt.Errorf("importAlbum: error listing album: %v", err)
@@ -213,8 +214,9 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album) error
 	}
 
 	// TODO(bradfitz): GetPhotos does multiple HTTP requests to
-	// return a slice of all photos. Care? I think it's bounded at
-	// 1000 photos per album anyway.
+	// return a slice of all photos. My "InstantUpload/Auto
+	// Backup" album has 6678 photos (and growing) and this
+	// currently takes like 40 seconds. Fix.
 	photos, err := picago.GetPhotos(r.HTTPClient(), "default", album.ID)
 	if err != nil {
 		return err
