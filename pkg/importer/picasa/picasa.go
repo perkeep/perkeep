@@ -20,10 +20,12 @@ package picasa
 import (
 	"fmt"
 	"log"
-	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/context"
@@ -40,6 +42,14 @@ const (
 	authURL  = "https://accounts.google.com/o/oauth2/auth"
 	tokenURL = "https://accounts.google.com/o/oauth2/token"
 	scopeURL = "https://picasaweb.google.com/data/"
+
+	// runCompleteVersion is a cache-busting version number of the
+	// importer code. It should be incremented whenever the
+	// behavior of this importer is updated enough to warrant a
+	// complete run.  Otherwise, if the importer runs to
+	// completion, this version number is recorded on the account
+	// permanode and subsequent importers can stop early.
+	runCompleteVersion = "1"
 )
 
 func init() {
@@ -70,8 +80,8 @@ func newImporter() *imp {
 	return &imp{
 		newExtendedOAuth2(
 			baseOAuthConfig,
-			func(ctx *context.Context, accessToken string) (*userInfo, error) {
-				u, err := getUserInfo(ctx, accessToken)
+			func(ctx *context.Context) (*userInfo, error) {
+				u, err := getUserInfo(ctx)
 				if err != nil {
 					return nil, err
 				}
@@ -89,8 +99,8 @@ func newImporter() *imp {
 	}
 }
 
-func (im imp) AccountSetupHTML(host *importer.Host) string {
-	// Picasa doens't allow a path in the origin. Remove it.
+func (*imp) AccountSetupHTML(host *importer.Host) string {
+	// Picasa doesn't allow a path in the origin. Remove it.
 	origin := host.ImporterBaseURL()
 	if u, err := url.Parse(origin); err == nil {
 		u.Path = ""
@@ -116,27 +126,55 @@ and click <b>"Create Project"</b>.</p>
 // A run is our state for a given run of the importer.
 type run struct {
 	*importer.RunContext
-	im *imp
+	im          *imp
+	incremental bool // whether we've completed a run in the past
+
+	mu     sync.Mutex // guards anyErr
+	anyErr bool
 }
+
+func (r *run) errorf(format string, args ...interface{}) {
+	log.Printf(format, args...)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.anyErr = true
+}
+
+var forceFullImport, _ = strconv.ParseBool(os.Getenv("CAMLI_PICASA_FULL_IMPORT"))
 
 func (im *imp) Run(ctx *importer.RunContext) error {
 	clientId, secret, err := ctx.Credentials()
 	if err != nil {
 		return err
 	}
+	acctNode := ctx.AccountNode()
 	ocfg := baseOAuthConfig
 	ocfg.ClientId, ocfg.ClientSecret = clientId, secret
-	token := decodeToken(ctx.AccountNode().Attr(acctAttrOAuthToken))
+	token := decodeToken(acctNode.Attr(acctAttrOAuthToken))
 	transport := &oauth.Transport{
 		Config:    &ocfg,
 		Token:     &token,
 		Transport: notOAuthTransport(ctx.HTTPClient()),
 	}
 	ctx.Context = ctx.Context.New(context.WithHTTPClient(transport.Client()))
-	r := &run{RunContext: ctx, im: im}
+	r := &run{
+		RunContext:  ctx,
+		im:          im,
+		incremental: !forceFullImport && acctNode.Attr(importer.AcctAttrCompletedVersion) == runCompleteVersion,
+	}
 	if err := r.importAlbums(); err != nil {
 		return err
 	}
+
+	r.mu.Lock()
+	anyErr := r.anyErr
+	r.mu.Unlock()
+	if !anyErr {
+		if err := acctNode.SetAttrs(importer.AcctAttrCompletedVersion, runCompleteVersion); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -150,14 +188,14 @@ func (r *run) importAlbums() error {
 		if r.Context.IsCanceled() {
 			return context.ErrCanceled
 		}
-		if err := r.importAlbum(albumsNode, album, r.HTTPClient()); err != nil {
+		if err := r.importAlbum(albumsNode, album); err != nil {
 			return fmt.Errorf("picasa importer: error importing album %s: %v", album, err)
 		}
 	}
 	return nil
 }
 
-func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album, client *http.Client) error {
+func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album) error {
 	albumNode, err := albumsNode.ChildPathObject(album.Name)
 	if err != nil {
 		return fmt.Errorf("importAlbum: error listing album: %v", err)
@@ -174,7 +212,10 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album, clien
 		return fmt.Errorf("error setting album attributes: %v", err)
 	}
 
-	photos, err := picago.GetPhotos(client, "default", album.ID)
+	// TODO(bradfitz): GetPhotos does multiple HTTP requests to
+	// return a slice of all photos. Care? I think it's bounded at
+	// 1000 photos per album anyway.
+	photos, err := picago.GetPhotos(r.HTTPClient(), "default", album.ID)
 	if err != nil {
 		return err
 	}
@@ -188,7 +229,8 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album, clien
 		}
 		// TODO(tgulacsi): check when does the photo.ID changes
 
-		attr := "camliPath:" + photo.ID + "-" + photo.Filename()
+		idFilename := photo.ID + "-" + photo.Filename()
+		attr := "camliPath:" + idFilename
 		if refString := albumNode.Attr(attr); refString != "" {
 			// Check the photoNode's modtime - skip only if it hasn't changed.
 			if photoRef, ok := blob.Parse(refString); !ok {
@@ -204,32 +246,31 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album, clien
 						log.Printf("No dateModified on %s, re-import.", refString)
 					case schema.RFC3339FromTime(photo.Updated):
 						// Assume we have this photo already and don't need to refetch.
-						log.Printf("Skipping photo with %s, we already have it.", attr)
 						continue
 					default: // modtimes differ - import again
 						switch filepath.Ext(photo.Filename()) {
 						case ".mp4", ".m4v":
-							log.Printf("photo %s is a video, cannot rely on its modtime, so not importing again.",
-								attr[10:])
+							// photo is a video, cannot rely on its modtime, so not importing again.
+							// TODO(bradfitz): why is that comment true?
 							continue
 						default:
 							log.Printf("photo %s imported(%s) != remote(%s), so importing again",
-								attr[10:], modtime, schema.RFC3339FromTime(photo.Updated))
+								idFilename, modtime, schema.RFC3339FromTime(photo.Updated))
 						}
 					}
 				}
 			}
 		}
 
-		log.Printf("importing %s", attr[10:])
-		photoNode, err := r.importPhoto(albumNode, photo, client)
+		log.Printf("importing %s", idFilename)
+		photoNode, err := r.importPhoto(albumNode, photo)
 		if err != nil {
-			log.Printf("error importing photo %s: %v", photo.URL, err)
+			r.errorf("error importing photo %s: %v", photo.URL, err)
 			continue
 		}
 		err = albumNode.SetAttr(attr, photoNode.PermanodeRef().String())
 		if err != nil {
-			log.Printf("Error adding photo to album: %v", err)
+			r.errorf("Error adding photo to album: %v", err)
 			continue
 		}
 	}
@@ -237,18 +278,13 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album, clien
 	return nil
 }
 
-func (r *run) importPhoto(albumNode *importer.Object, photo picago.Photo, client *http.Client) (*importer.Object, error) {
-	body, err := picago.DownloadPhoto(client, photo.URL)
+func (r *run) importPhoto(albumNode *importer.Object, photo picago.Photo) (*importer.Object, error) {
+	body, err := picago.DownloadPhoto(r.HTTPClient(), photo.URL)
 	if err != nil {
 		return nil, fmt.Errorf("importPhoto: DownloadPhoto error: %v", err)
 	}
-	fileRef, err := schema.WriteFileFromReader(
-		r.Host.Target(),
-		fmt.Sprintf("%s--%s-%s",
-			strings.Replace(albumNode.Attr("name"), "/", "--", -1),
-			photo.ID,
-			photo.Filename()),
-		body)
+	defer body.Close()
+	fileRef, err := schema.WriteFileFromReader(r.Host.Target(), photo.Filename(), body)
 	if err != nil {
 		return nil, fmt.Errorf("error writing file: %v", err)
 	}
@@ -302,6 +338,6 @@ func (r *run) getTopLevelNode(path string, title string) (*importer.Object, erro
 	return childObject, nil
 }
 
-func getUserInfo(ctx *context.Context, accessToken string) (picago.User, error) {
-	return picago.GetUser(ctx.HTTPClient(), "")
+func getUserInfo(ctx *context.Context) (picago.User, error) {
+	return picago.GetUser(ctx.HTTPClient(), "default")
 }

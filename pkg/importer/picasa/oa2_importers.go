@@ -48,13 +48,13 @@ const (
 type extendedOAuth2 struct {
 	importer.OAuth2
 	oauthConfig oauth.Config
-	getUserInfo func(ctx *context.Context, accessToken string) (*userInfo, error)
+	getUserInfo func(ctx *context.Context) (*userInfo, error)
 }
 
 // newExtendedOAuth2 returns a default implementation of
 // some common methods for OAuth2-based importers.
 func newExtendedOAuth2(oauthConfig oauth.Config,
-	getUserInfo func(ctx *context.Context, accessToken string) (*userInfo, error),
+	getUserInfo func(ctx *context.Context) (*userInfo, error),
 ) extendedOAuth2 {
 	return extendedOAuth2{oauthConfig: oauthConfig, getUserInfo: getUserInfo}
 }
@@ -66,6 +66,19 @@ func (extendedOAuth2) IsAccountReady(acctNode *importer.Object) (ok bool, err er
 	return false, nil
 }
 
+func (im extendedOAuth2) SummarizeAccount(acct *importer.Object) string {
+	ok, err := im.IsAccountReady(acct)
+	if err != nil || !ok {
+		return ""
+	}
+	if acct.Attr(importer.AcctAttrGivenName) == "" && acct.Attr(importer.AcctAttrFamilyName) == "" {
+		return fmt.Sprintf("userid %s", acct.Attr(importer.AcctAttrUserID))
+	}
+	return fmt.Sprintf("userid %s (%s %s)",
+		acct.Attr(importer.AcctAttrUserID),
+		acct.Attr(importer.AcctAttrGivenName),
+		acct.Attr(importer.AcctAttrFamilyName))
+}
 
 func (im extendedOAuth2) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) error {
 	oauthConfig, err := im.auth(ctx)
@@ -131,7 +144,7 @@ func (im extendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, c
 	picagoCtx := ctx.Context.New(context.WithHTTPClient(transport.Client()))
 	defer picagoCtx.Cancel()
 
-	userInfo, err := im.getUserInfo(picagoCtx, token.AccessToken)
+	userInfo, err := im.getUserInfo(picagoCtx)
 	if err != nil {
 		log.Printf("Couldn't get username: %v", err)
 		httputil.ServeError(w, r, fmt.Errorf("can't get username: %v", err))
