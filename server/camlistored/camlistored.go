@@ -386,7 +386,6 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		urlToOpen += config.UIPath
 	}
 
-	log.Printf("Available on %s", urlToOpen)
 	if *flagOpenBrowser {
 		go osutil.OpenURL(urlToOpen)
 	}
@@ -399,6 +398,10 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 	if err := config.StartApps(); err != nil {
 		exitf("StartApps: %v", err)
 	}
+
+	// TODO(mpl): wait for all the apps to somehow signal they have started (or failed to)
+	// before printing the one below?
+	log.Printf("Available on %s", urlToOpen)
 
 	// Block forever, except during tests.
 	up <- struct{}{}

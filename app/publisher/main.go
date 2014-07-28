@@ -62,7 +62,10 @@ var (
 	flagVersion = flag.Bool("version", false, "show version")
 )
 
-// TODO(mpl): logger with a "PUBLISHER" prefix.
+var (
+	logger = log.New(os.Stderr, "PUBLISHER: ", log.LstdFlags)
+	logf   = logger.Printf
+)
 
 // config is used to unmarshal the application configuration JSON
 // that we get from Camlistore when we request it at $CAMLI_APP_CONFIG_URL.
@@ -79,15 +82,15 @@ type config struct {
 func appConfig() *config {
 	configURL := os.Getenv("CAMLI_APP_CONFIG_URL")
 	if configURL == "" {
-		log.Fatalf("Publisher application needs a CAMLI_APP_CONFIG_URL env var")
+		logger.Fatalf("Publisher application needs a CAMLI_APP_CONFIG_URL env var")
 	}
 	cl, err := app.Client()
 	if err != nil {
-		log.Fatalf("could not get a client to fetch extra config: %v", err)
+		logger.Fatalf("could not get a client to fetch extra config: %v", err)
 	}
 	conf := &config{}
 	if err := cl.GetJSON(configURL, conf); err != nil {
-		log.Fatalf("could not get app config at %v: %v", configURL, err)
+		logger.Fatalf("could not get app config at %v: %v", configURL, err)
 	}
 	return conf
 }
@@ -101,25 +104,26 @@ func main() {
 		return
 	}
 
-	log.Printf("Starting publisher version %s; Go %s (%s/%s)", buildinfo.Version(), runtime.Version(),
+	logf("Starting publisher version %s; Go %s (%s/%s)", buildinfo.Version(), runtime.Version(),
 		runtime.GOOS, runtime.GOARCH)
 
 	listenAddr, err := app.ListenAddress()
 	if err != nil {
-		log.Fatalf("Listen address: %v", err)
+		logger.Fatalf("Listen address: %v", err)
 	}
 	conf := appConfig()
 	ph := newPublishHandler(conf)
 	if err := ph.initRootNode(); err != nil {
-		log.Printf("%v", err)
+		logf("%v", err)
 	}
 	ws := webserver.New()
+	ws.Logger = logger
 	ws.Handle("/", ph)
 	if conf.HTTPSCert != "" && conf.HTTPSKey != "" {
 		ws.SetTLS(conf.HTTPSCert, conf.HTTPSKey)
 	}
 	if err := ws.Listen(listenAddr); err != nil {
-		log.Fatalf("Listen: %v", err)
+		logger.Fatalf("Listen: %v", err)
 	}
 	ws.Serve()
 }
@@ -127,10 +131,10 @@ func main() {
 func newPublishHandler(conf *config) *publishHandler {
 	cl, err := app.Client()
 	if err != nil {
-		log.Fatalf("could not get a client for the publish handler %v", err)
+		logger.Fatalf("could not get a client for the publish handler %v", err)
 	}
 	if conf.RootName == "" {
-		log.Fatal("camliRoot not found in the app configuration")
+		logger.Fatal("camliRoot not found in the app configuration")
 	}
 	maxResizeBytes := conf.MaxResizeBytes
 	if maxResizeBytes == 0 {
@@ -146,12 +150,12 @@ func newPublishHandler(conf *config) *publishHandler {
 		// Apparently not, but retry later.
 		dir, err := os.Open(appRoot)
 		if err != nil {
-			log.Fatal(err)
+			logger.Fatal(err)
 		}
 		defer dir.Close()
 		names, err := dir.Readdirnames(-1)
 		if err != nil {
-			log.Fatal(err)
+			logger.Fatal(err)
 		}
 		for _, v := range names {
 			if strings.HasSuffix(v, ".css") {
@@ -162,12 +166,12 @@ func newPublishHandler(conf *config) *publishHandler {
 		Files.Listable = true
 		dir, err := Files.Open("/")
 		if err != nil {
-			log.Fatal(err)
+			logger.Fatal(err)
 		}
 		defer dir.Close()
 		fis, err := dir.Readdir(-1)
 		if err != nil {
-			log.Fatal(err)
+			logger.Fatal(err)
 		}
 		for _, v := range fis {
 			name := v.Name()
@@ -178,33 +182,33 @@ func newPublishHandler(conf *config) *publishHandler {
 	}
 	// TODO(mpl): add all htmls found in Files to the template if none specified?
 	if conf.GoTemplate == "" {
-		log.Fatal("a go template is required in the app configuration")
+		logger.Fatal("a go template is required in the app configuration")
 	}
 	goTemplate, err := goTemplate(Files, conf.GoTemplate)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 	serverURL := os.Getenv("CAMLI_API_HOST")
 	if serverURL == "" {
-		log.Fatal("CAMLI_API_HOST var not set")
+		logger.Fatal("CAMLI_API_HOST var not set")
 	}
 	var cache blobserver.Storage
 	var thumbMeta *server.ThumbMeta
 	if conf.CacheRoot != "" {
 		cache, err = localdisk.New(conf.CacheRoot)
 		if err != nil {
-			log.Fatalf("Could not create localdisk cache: %v", err)
+			logger.Fatalf("Could not create localdisk cache: %v", err)
 		}
 		thumbsCacheDir := filepath.Join(os.TempDir(), "camli-publisher-cache")
 		if err := os.MkdirAll(thumbsCacheDir, 0700); err != nil {
-			log.Fatalf("Could not create cache dir %s for %v publisher: %v", thumbsCacheDir, conf.RootName, err)
+			logger.Fatalf("Could not create cache dir %s for %v publisher: %v", thumbsCacheDir, conf.RootName, err)
 		}
 		kv, err := sorted.NewKeyValue(map[string]interface{}{
 			"type": "kv",
 			"file": filepath.Join(thumbsCacheDir, conf.RootName+"-thumbnails.kv"),
 		})
 		if err != nil {
-			log.Fatalf("Could not create kv for %v's thumbs cache: %v", conf.RootName, err)
+			logger.Fatalf("Could not create kv for %v's thumbs cache: %v", conf.RootName, err)
 		}
 		thumbMeta = server.NewThumbMeta(kv)
 	}
@@ -485,7 +489,7 @@ func (pr *publishRequest) serveHTTP() {
 			pr.rw.WriteHeader(404)
 			return
 		}
-		log.Printf("Error looking up %s/%q: %v", pr.rootpn, pr.suffix, err)
+		logf("Error looking up %s/%q: %v", pr.rootpn, pr.suffix, err)
 		pr.rw.WriteHeader(500)
 		return
 	}
@@ -645,7 +649,7 @@ func (pr *publishRequest) serveSubjectTemplate() {
 	fileFunc := func() *publish.PageFile {
 		file, err := pr.subjectFile(res.Meta)
 		if err != nil {
-			log.Printf("%v", err)
+			logf("%v", err)
 			return nil
 		}
 		return file
@@ -653,7 +657,7 @@ func (pr *publishRequest) serveSubjectTemplate() {
 	membersFunc := func() *publish.PageMembers {
 		members, err := pr.subjectMembers(res.Meta)
 		if err != nil {
-			log.Printf("%v", err)
+			logf("%v", err)
 			return nil
 		}
 		return members
@@ -666,7 +670,7 @@ func (pr *publishRequest) serveSubjectTemplate() {
 
 	err = pr.ph.goTemplate.Execute(pr.rw, page)
 	if err != nil {
-		log.Printf("Error serving subject template: %v", err)
+		logf("Error serving subject template: %v", err)
 		http.Error(pr.rw, "Error serving template", http.StatusInternalServerError)
 		return
 	}
@@ -689,7 +693,7 @@ func (ph *publishHandler) cacheDescribed(described map[string]*search.DescribedB
 func (pr *publishRequest) serveFileDownload(des *search.DescribedBlob) {
 	fileref, fileinfo, ok := pr.fileSchemaRefFromBlob(des)
 	if !ok {
-		log.Printf("Didn't get file schema from described blob %q", des.BlobRef)
+		logf("Didn't get file schema from described blob %q", des.BlobRef)
 		return
 	}
 	mime := ""
@@ -954,7 +958,7 @@ func (pr *publishRequest) memberPath(member blob.Ref) string {
 func (pr *publishRequest) serveSubresFileDownload() {
 	des, err := pr.ph.describe(pr.subject)
 	if err != nil {
-		log.Printf("error describing subject %q: %v", pr.subject, err)
+		logf("error describing subject %q: %v", pr.subject, err)
 		return
 	}
 	pr.serveFileDownload(des)
@@ -966,7 +970,7 @@ func (pr *publishRequest) serveSubresImage() {
 	mh, _ := strconv.Atoi(params.Get("mh"))
 	des, err := pr.ph.describe(pr.subject)
 	if err != nil {
-		log.Printf("error describing subject %q: %v", pr.subject, err)
+		logf("error describing subject %q: %v", pr.subject, err)
 		return
 	}
 	pr.serveScaledImage(des, mw, mh, params.Get("square") == "1")
@@ -975,7 +979,7 @@ func (pr *publishRequest) serveSubresImage() {
 func (pr *publishRequest) serveScaledImage(des *search.DescribedBlob, maxWidth, maxHeight int, square bool) {
 	fileref, _, ok := pr.fileSchemaRefFromBlob(des)
 	if !ok {
-		log.Printf("scaled image fail; failed to get file schema from des %q", des.BlobRef)
+		logf("scaled image fail; failed to get file schema from des %q", des.BlobRef)
 		return
 	}
 	ih := &server.ImageHandler{
