@@ -40,6 +40,10 @@ const (
 	resourceOwnerAuthorizationURL = "https://www.flickr.com/services/oauth/authorize"
 	tokenRequestURL               = "https://www.flickr.com/services/oauth/access_token"
 
+	photosetsAPIPath = "flickr.photosets.getList"
+	photosetAPIPath  = "flickr.photosets.getPhotos"
+	photosAPIPath    = "flickr.people.getPhotos"
+
 	attrFlickrId = "flickrId"
 )
 
@@ -137,38 +141,36 @@ func (imp) Run(ctx *importer.RunContext) error {
 	return nil
 }
 
-type photosetsGetList struct {
-	Photosets struct {
-		Page     int
-		Pages    int
-		Perpage  int
-		Photoset []*photosetsGetListItem
-	}
+type photosetList struct {
+	Page     int
+	Pages    int
+	PerPage  int
+	Photoset []*photosetInfo
 }
 
-type photosetsGetListItem struct {
-	ID             string `json:"id"`
-	PrimaryPhotoID string `json:"primary"`
+type photosetInfo struct {
+	Id             string `json:"id"`
+	PrimaryPhotoId string `json:"primary"`
 	Title          contentString
 	Description    contentString
 }
 
-type photosetsGetPhotos struct {
-	Photoset struct {
-		ID    string `json:"id"`
-		Page  int    `json:",string"`
-		Pages int
-		Photo []struct {
-			ID             string
-			Originalformat string
-		}
+type photosetItems struct {
+	Id    string `json:"id"`
+	Page  int    `json:",string"`
+	Pages int
+	Photo []struct {
+		Id             string
+		OriginalFormat string
 	}
 }
 
 func (r *run) importPhotosets() error {
-	resp := photosetsGetList{}
+	resp := struct {
+		Photosets photosetList
+	}{}
 	if err := r.oauthContext().flickrAPIRequest(&resp,
-		"flickr.photosets.getList", "user_id", r.userID); err != nil {
+		photosetsAPIPath, "user_id", r.userID); err != nil {
 		return err
 	}
 
@@ -186,7 +188,7 @@ func (r *run) importPhotosets() error {
 		for page := 1; page >= 1; {
 			page, err = r.importPhotoset(setsNode, item, page)
 			if err != nil {
-				log.Printf("Flickr importer: error importing photoset %s: %s", item.ID, err)
+				log.Printf("Flickr importer: error importing photoset %s: %s", item.Id, err)
 				continue
 			}
 		}
@@ -194,27 +196,29 @@ func (r *run) importPhotosets() error {
 	return nil
 }
 
-func (r *run) importPhotoset(parent *importer.Object, photoset *photosetsGetListItem, page int) (int, error) {
-	photosetNode, err := parent.ChildPathObject(photoset.ID)
+func (r *run) importPhotoset(parent *importer.Object, photoset *photosetInfo, page int) (int, error) {
+	photosetNode, err := parent.ChildPathObject(photoset.Id)
 	if err != nil {
 		return 0, err
 	}
 
 	if err := photosetNode.SetAttrs(
-		attrFlickrId, photoset.ID,
+		attrFlickrId, photoset.Id,
 		nodeattr.Title, photoset.Title.Content,
 		nodeattr.Description, photoset.Description.Content,
-		importer.AttrPrimaryImageOfPage, photoset.PrimaryPhotoID); err != nil {
+		importer.AttrPrimaryImageOfPage, photoset.PrimaryPhotoId); err != nil {
 		return 0, err
 	}
 
-	resp := photosetsGetPhotos{}
-	if err := r.oauthContext().flickrAPIRequest(&resp, "flickr.photosets.getPhotos", "user_id", r.userID,
-		"page", fmt.Sprintf("%d", page), "photoset_id", photoset.ID, "extras", "original_format"); err != nil {
+	resp := struct {
+		Photoset photosetItems
+	}{}
+	if err := r.oauthContext().flickrAPIRequest(&resp, photosetAPIPath, "user_id", r.userID,
+		"page", fmt.Sprintf("%d", page), "photoset_id", photoset.Id, "extras", "original_format"); err != nil {
 		return 0, err
 	}
 
-	log.Printf("Importing page %d from photoset %s", page, photoset.ID)
+	log.Printf("Importing page %d from photoset %s", page, photoset.Id)
 
 	photosNode, err := r.getPhotosNode()
 	if err != nil {
@@ -222,16 +226,16 @@ func (r *run) importPhotoset(parent *importer.Object, photoset *photosetsGetList
 	}
 
 	for _, item := range resp.Photoset.Photo {
-		filename := fmt.Sprintf("%s.%s", item.ID, item.Originalformat)
+		filename := fmt.Sprintf("%s.%s", item.Id, item.OriginalFormat)
 		photoNode, err := photosNode.ChildPathObject(filename)
 		if err != nil {
 			log.Printf("Flickr importer: error finding photo node %s for addition to photoset %s: %s",
-				item.ID, photoset.ID, err)
+				item.Id, photoset.Id, err)
 			continue
 		}
 		if err := photosetNode.SetAttr("camliPath:"+filename, photoNode.PermanodeRef().String()); err != nil {
 			log.Printf("Flickr importer: error adding photo %s to photoset %s: %s",
-				item.ID, photoset.ID, err)
+				item.Id, photoset.Id, err)
 		}
 	}
 
@@ -247,7 +251,7 @@ type photosSearch struct {
 		Page    int
 		Pages   int
 		Perpage int
-		Total   int `json:",string"`
+		Total   int
 		Photo   []*photosSearchItem
 	}
 
@@ -255,7 +259,7 @@ type photosSearch struct {
 }
 
 type photosSearchItem struct {
-	ID             string `json:"id"`
+	Id             string `json:"id"`
 	Title          string
 	IsPublic       int
 	IsFriend       int
@@ -264,7 +268,7 @@ type photosSearchItem struct {
 	DateUpload     string // Unix timestamp, in GMT.
 	DateTaken      string // formatted as "2006-01-02 15:04:05", so no timezone info.
 	OriginalFormat string
-	LastUpdate     string
+	LastUpdate     string // Unix timestamp.
 	Latitude       float32
 	Longitude      float32
 	Tags           string
@@ -291,8 +295,8 @@ func (r *run) importPhotos() error {
 
 func (r *run) importPhotosPage(page int) (int, error) {
 	resp := photosSearch{}
-	if err := r.oauthContext().flickrAPIRequest(&resp, "flickr.people.getPhotos", "user_id", r.userID, "page", fmt.Sprintf("%d", page),
-		"extras", "description, date_upload, date_taken, original_format, last_update, geo, tags, machine_tags, views, media, url_o"); err != nil {
+	if err := r.oauthContext().flickrAPIRequest(&resp, photosAPIPath, "user_id", r.userID, "page", fmt.Sprintf("%d", page),
+		"extras", "description,date_upload,date_taken,original_format,last_update,geo,tags,machine_tags,views,media,url_o"); err != nil {
 		return 0, err
 	}
 
@@ -304,7 +308,7 @@ func (r *run) importPhotosPage(page int) (int, error) {
 
 	for _, item := range resp.Photos.Photo {
 		if err := r.importPhoto(photosNode, item); err != nil {
-			log.Printf("Flickr importer: error importing %s: %s", item.ID, err)
+			log.Printf("Flickr importer: error importing %s: %s", item.Id, err)
 			continue
 		}
 	}
@@ -324,7 +328,7 @@ func (r *run) importPhotosPage(page int) (int, error) {
 // * Conflicts: For all metadata changes, prefer any non-imported claims
 // * Test!
 func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) error {
-	filename := fmt.Sprintf("%s.%s", photo.ID, photo.OriginalFormat)
+	filename := fmt.Sprintf("%s.%s", photo.Id, photo.OriginalFormat)
 	photoNode, err := parent.ChildPathObject(filename)
 	if err != nil {
 		return err
@@ -334,16 +338,16 @@ func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) erro
 	dateTaken, err := time.ParseInLocation("2006-01-02 15:04:05", photo.DateTaken, schema.UnknownLocation)
 	if err != nil {
 		// default to the published date otherwise
-		log.Printf("Flickr importer: problem with date taken of photo %v, defaulting to published date instead.", photo.ID)
+		log.Printf("Flickr importer: problem with date taken of photo %v, defaulting to published date instead.", photo.Id)
 		seconds, err := strconv.ParseInt(photo.DateUpload, 10, 64)
 		if err != nil {
-			return fmt.Errorf("could not parse date upload time %q for image %v: %v", photo.DateUpload, photo.ID, err)
+			return fmt.Errorf("could not parse date upload time %q for image %v: %v", photo.DateUpload, photo.Id, err)
 		}
 		dateTaken = time.Unix(seconds, 0)
 	}
 
 	attrs := []string{
-		attrFlickrId, photo.ID,
+		attrFlickrId, photo.Id,
 		nodeattr.DateCreated, schema.RFC3339FromTime(dateTaken),
 		nodeattr.Description, photo.Description.Content,
 	}
@@ -360,13 +364,13 @@ func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) erro
 	// lastupdate is a Unix timestamp according to https://www.flickr.com/services/api/flickr.photos.getInfo.html
 	seconds, err := strconv.ParseInt(photo.LastUpdate, 10, 64)
 	if err != nil {
-		return fmt.Errorf("could not parse lastupdate time for image %v: %v", photo.ID, err)
+		return fmt.Errorf("could not parse lastupdate time for image %v: %v", photo.Id, err)
 	}
 	lastUpdate := time.Unix(seconds, 0)
 	if lastUpdateString := photoNode.Attr(importer.AttrLastReviewed); lastUpdateString != "" {
 		oldLastUpdate, err := time.Parse(time.RFC3339, lastUpdateString)
 		if err != nil {
-			return fmt.Errorf("could not parse last stored update time for image %v: %v", photo.ID, err)
+			return fmt.Errorf("could not parse last stored update time for image %v: %v", photo.Id, err)
 		}
 		if lastUpdate.Equal(oldLastUpdate) {
 			return nil
