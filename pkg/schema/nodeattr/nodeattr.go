@@ -15,22 +15,14 @@ limitations under the License.
 */
 
 // Package nodeattr contains constants for permanode attribute names.
+//
+// For all date values in RFC 3339 format, Camlistore additionally
+// treats the special timezone offset -00:01 (one minute west of UTC)
+// as meaning that the local time was known, but the location or
+// timezone was not. Usually this is from EXIF files.
 package nodeattr
 
 const (
-	// DateCreated is http://schema.org/dateCreated: The date on
-	// which an item was created, in RFC 3339 format (with
-	// Camlistore's addition that zone -00:01 means localtime:
-	// unknown timezone).
-	DateCreated = "dateCreated"
-
-	// Title is http://schema.org/title
-	Title = "title"
-
-	// Description is http://schema.org/description
-	// Value is plain text, no HTML, newlines are newlines.
-	Description = "description"
-
 	// Type is the Camlistore permanode type ("camliNodeType").
 	// Importer-specific ones are of the form "domain.com:objecttype".
 	// Well-defined ones are documented in doc/schema/claims/attributes.txt.
@@ -41,17 +33,39 @@ const (
 	// the "file" schema blob).
 	CamliContent = "camliContent"
 
+	// DateCreated is http://schema.org/dateCreated in RFC 3339
+	// format.
+	DateCreated = "dateCreated"
+
+	// StartDate is http://schema.org/startDate, the start date
+	// and time of the event or item, in RFC 3339 format.
+	StartDate = "startDate"
+
+	// DateModified is http://schema.org/dateModified, in RFC 3339
+	// format.
+	DateModified = "dateModified"
+
+	// DatePublished is http://schema.org/datePublished in RFC
+	// 3339 format.
+	DatePublished = "datePublished"
+
+	// Title is http://schema.org/title
+	Title = "title"
+
+	// Description is http://schema.org/description
+	// Value is plain text, no HTML, newlines are newlines.
+	Description = "description"
+
 	// Content is "content", used e.g. for the content of a tweet.
 	// TODO: define this more
 	Content = "content"
 
-	// StartDate is http://schema.org/startDate: The start
-	// date and time of the event or item (in RFC 3339 date
-	// format).
-	StartDate = "startDate"
-
 	// URL is the item's original or origin URL.
 	URL = "url"
+
+	// LocationText is free-flowing text definition of a location or place, such
+	// as a city name, or a full postal address.
+	LocationText = "locationText"
 
 	Latitude  = "latitude"
 	Longitude = "longitude"
