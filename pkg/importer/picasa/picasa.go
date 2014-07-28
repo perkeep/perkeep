@@ -18,6 +18,7 @@ limitations under the License.
 package picasa
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -195,23 +196,41 @@ func (r *run) importAlbums() error {
 	return nil
 }
 
-func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album) error {
-	log.Printf("Importing album %v: %v/%v (published %v, updated %v)", album.ID, album.Name, album.Title, album.Published, album.Updated)
-	albumNode, err := albumsNode.ChildPathObject(album.Name)
+func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album) (ret error) {
+	if album.ID == "" {
+		return errors.New("album has no ID")
+	}
+	albumNode, err := albumsNode.ChildPathObject(album.ID)
 	if err != nil {
 		return fmt.Errorf("importAlbum: error listing album: %v", err)
 	}
 
+	dateMod := schema.RFC3339FromTime(album.Updated)
+
 	// Data reference: https://developers.google.com/picasa-web/docs/2.0/reference
 	// TODO(tgulacsi): add more album info
-	if err = albumNode.SetAttrs(
+	changes, err := albumNode.SetAttrs2(
 		"picasaId", album.ID,
 		nodeattr.Type, "picasaweb.google.com:album",
 		nodeattr.Title, album.Title,
-		importer.AttrLocationText, album.Location,
-	); err != nil {
+		nodeattr.DatePublished, schema.RFC3339FromTime(album.Published),
+		nodeattr.LocationText, album.Location,
+	)
+	if err != nil {
 		return fmt.Errorf("error setting album attributes: %v", err)
 	}
+	if !changes && r.incremental && albumNode.Attr(nodeattr.DateModified) == dateMod {
+		return nil
+	}
+	defer func() {
+		// Don't update DateModified on the album node until
+		// we've successfully imported all the photos.
+		if ret == nil {
+			ret = albumNode.SetAttr(nodeattr.DateModified, dateMod)
+		}
+	}()
+
+	log.Printf("Importing album %v: %v/%v (published %v, updated %v)", album.ID, album.Name, album.Title, album.Published, album.Updated)
 
 	// TODO(bradfitz): GetPhotos does multiple HTTP requests to
 	// return a slice of all photos. My "InstantUpload/Auto
