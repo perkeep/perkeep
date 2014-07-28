@@ -21,18 +21,18 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 
-	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/schema/nodeattr"
+	"camlistore.org/pkg/syncutil"
 
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 	"camlistore.org/third_party/github.com/tgulacsi/picago"
@@ -82,7 +82,7 @@ func newImporter() *imp {
 		newExtendedOAuth2(
 			baseOAuthConfig,
 			func(ctx *context.Context) (*userInfo, error) {
-				u, err := getUserInfo(ctx)
+				u, err := picago.GetUser(ctx.HTTPClient(), "default")
 				if err != nil {
 					return nil, err
 				}
@@ -129,6 +129,7 @@ type run struct {
 	*importer.RunContext
 	im          *imp
 	incremental bool // whether we've completed a run in the past
+	photoGate   *syncutil.Gate
 
 	mu     sync.Mutex // guards anyErr
 	anyErr bool
@@ -162,6 +163,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		RunContext:  ctx,
 		im:          im,
 		incremental: !forceFullImport && acctNode.Attr(importer.AcctAttrCompletedVersion) == runCompleteVersion,
+		photoGate:   syncutil.NewGate(3),
 	}
 	if err := r.importAlbums(); err != nil {
 		return err
@@ -244,89 +246,68 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album) (ret 
 	log.Printf("Importing %d photos from album %q (%s)", len(photos), albumNode.Attr(nodeattr.Title),
 		albumNode.PermanodeRef())
 
-	for _, photo := range photos {
+	var grp syncutil.Group
+	for i := range photos {
 		if r.Context.IsCanceled() {
 			return context.ErrCanceled
 		}
-		// TODO(tgulacsi): check when does the photo.ID changes
-
-		idFilename := photo.ID + "-" + photo.Filename()
-		attr := "camliPath:" + idFilename
-		if refString := albumNode.Attr(attr); refString != "" {
-			// Check the photoNode's modtime - skip only if it hasn't changed.
-			if photoRef, ok := blob.Parse(refString); !ok {
-				log.Printf("error parsing attr %s (%s) as ref: %v", attr, refString, err)
-			} else {
-				photoNode, err := r.Host.ObjectFromRef(photoRef)
-				if err != nil {
-					log.Printf("error getting object %s: %v", refString, err)
-				} else {
-					modtime := photoNode.Attr("dateModified")
-					switch modtime {
-					case "": // no modtime to check against - import again
-						log.Printf("No dateModified on %s, re-import.", refString)
-					case schema.RFC3339FromTime(photo.Updated):
-						// Assume we have this photo already and don't need to refetch.
-						continue
-					default: // modtimes differ - import again
-						switch filepath.Ext(photo.Filename()) {
-						case ".mp4", ".m4v":
-							// photo is a video, cannot rely on its modtime, so not importing again.
-							// TODO(bradfitz): why is that comment true?
-							continue
-						default:
-							log.Printf("photo %s imported(%s) != remote(%s), so importing again",
-								idFilename, modtime, schema.RFC3339FromTime(photo.Updated))
-						}
-					}
-				}
-			}
-		}
-
-		log.Printf("importing %s", idFilename)
-		photoNode, err := r.importPhoto(albumNode, photo)
-		if err != nil {
-			r.errorf("error importing photo %s: %v", photo.URL, err)
-			continue
-		}
-		err = albumNode.SetAttr(attr, photoNode.PermanodeRef().String())
-		if err != nil {
-			r.errorf("Error adding photo to album: %v", err)
-			continue
-		}
+		photo := photos[i]
+		r.photoGate.Start()
+		grp.Go(func() error {
+			defer r.photoGate.Done()
+			return r.updatePhotoInAlbum(albumNode, photo)
+		})
 	}
-
-	return nil
+	return grp.Err()
 }
 
-func (r *run) importPhoto(albumNode *importer.Object, photo picago.Photo) (*importer.Object, error) {
-	body, err := picago.DownloadPhoto(r.HTTPClient(), photo.URL)
-	if err != nil {
-		return nil, fmt.Errorf("importPhoto: DownloadPhoto error: %v", err)
+func (r *run) updatePhotoInAlbum(albumNode *importer.Object, photo picago.Photo) (ret error) {
+	if photo.ID == "" {
+		return errors.New("photo has no ID")
 	}
-	defer body.Close()
-	fileRef, err := schema.WriteFileFromReader(r.Host.Target(), photo.Filename(), body)
+	idFilename := photo.ID + "-" + photo.Filename()
+	photoNode, err := albumNode.ChildPathObject(idFilename)
 	if err != nil {
-		return nil, fmt.Errorf("error writing file: %v", err)
-	}
-	if !fileRef.Valid() {
-		return nil, fmt.Errorf("Error slurping photo: %s", photo.URL)
-	}
-	photoNode, err := r.Host.NewObject()
-	if err != nil {
-		return nil, fmt.Errorf("error creating photo permanode %s under %s: %v",
-			photo.Filename(), albumNode.Attr("name"), err)
+		return err
 	}
 
+	fileRefStr := photoNode.Attr(nodeattr.CamliContent)
+
+	// Only re-download the source photo if its URL has changed.
+	// Empirically this seems to work: cropping a photo in the
+	// photos.google.com UI causes its URL to change. And it makes
+	// sense, looking at the ugliness of the URLs with all their
+	// encoded/signed state.
+	const attrMediaURL = "picasaMediaURL"
+	if photoNode.Attr(attrMediaURL) != photo.URL {
+		log.Printf("Importing media from %v", photo.URL)
+		cl := r.HTTPClient()
+		resp, err := cl.Get(photo.URL)
+		if err != nil {
+			return fmt.Errorf("importing photo %d: %v", photo.ID, err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("importing photo %d: status code = %d", photo.ID, resp.StatusCode)
+		}
+		fileRef, err := schema.WriteFileFromReader(r.Host.Target(), photo.Filename(), resp.Body)
+		if err != nil {
+			return err
+		}
+		fileRefStr = fileRef.String()
+	}
+
+	// TODO(tgulacsi): add more attrs (comments ?)
+	// for names, see http://schema.org/ImageObject and http://schema.org/CreativeWork
 	attrs := []string{
-		nodeattr.CamliContent, fileRef.String(),
+		nodeattr.CamliContent, fileRefStr,
 		"picasaId", photo.ID,
 		nodeattr.Title, photo.Title,
 		"caption", photo.Summary,
 		nodeattr.Description, photo.Description,
-		importer.AttrLocationText, photo.Location,
-		"dateModified", schema.RFC3339FromTime(photo.Updated),
-		"datePublished", schema.RFC3339FromTime(photo.Published),
+		nodeattr.LocationText, photo.Location,
+		nodeattr.DateModified, schema.RFC3339FromTime(photo.Updated),
+		nodeattr.DatePublished, schema.RFC3339FromTime(photo.Published),
 	}
 	if photo.Latitude != 0 || photo.Longitude != 0 {
 		attrs = append(attrs,
@@ -334,17 +315,20 @@ func (r *run) importPhoto(albumNode *importer.Object, photo picago.Photo) (*impo
 			nodeattr.Longitude, fmt.Sprintf("%f", photo.Longitude),
 		)
 	}
-
-	// TODO(tgulacsi): add more attrs (comments ?)
-	// for names, see http://schema.org/ImageObject and http://schema.org/CreativeWork
 	if err := photoNode.SetAttrs(attrs...); err != nil {
-		return nil, fmt.Errorf("error adding file to photo node: %v", err)
+		return err
 	}
 	if err := photoNode.SetAttrValues("tag", photo.Keywords); err != nil {
-		return nil, fmt.Errorf("error setting photoNode's tags: %v", err)
+		return err
 	}
 
-	return photoNode, nil
+	// Do this last, after we're sure the "camliContent" attribute
+	// has been saved successfully, because this is the one that
+	// causes us to do it again in the future or not.
+	if err := photoNode.SetAttrs(attrMediaURL, photo.URL); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *run) getTopLevelNode(path string, title string) (*importer.Object, error) {
@@ -357,8 +341,4 @@ func (r *run) getTopLevelNode(path string, title string) (*importer.Object, erro
 		return nil, err
 	}
 	return childObject, nil
-}
-
-func getUserInfo(ctx *context.Context) (picago.User, error) {
-	return picago.GetUser(ctx.HTTPClient(), "default")
 }

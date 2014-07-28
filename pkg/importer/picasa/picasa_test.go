@@ -36,7 +36,7 @@ func TestGetUserId(t *testing.T) {
 		}),
 	}))
 	defer ctx.Cancel()
-	inf, err := getUserInfo(ctx, "footoken")
+	inf, err := picago.GetUser(ctx.HTTPClient(), "default")
 	if err != nil {
 		t.Fatal(err)
 	}
