@@ -45,6 +45,8 @@ type Server struct {
 	listener net.Listener
 	verbose  bool // log HTTP requests and response codes
 
+	Logger *log.Logger // or nil.
+
 	enableTLS               bool
 	tlsCertFile, tlsKeyFile string
 
@@ -58,6 +60,22 @@ func New() *Server {
 		mux:     http.NewServeMux(),
 		verbose: verbose,
 	}
+}
+
+func (s *Server) printf(format string, v ...interface{}) {
+	if s.Logger != nil {
+		s.Logger.Printf(format, v...)
+		return
+	}
+	log.Printf(format, v...)
+}
+
+func (s *Server) fatalf(format string, v ...interface{}) {
+	if s.Logger != nil {
+		s.Logger.Fatalf(format, v...)
+		return
+	}
+	log.Fatalf(format, v...)
 }
 
 func (s *Server) SetTLS(certFile, keyFile string) {
@@ -97,13 +115,13 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		s.reqs++
 		n = s.reqs
 		s.mu.Unlock()
-		log.Printf("Request #%d: %s %s (from %s) ...", n, req.Method, req.RequestURI, req.RemoteAddr)
+		s.printf("Request #%d: %s %s (from %s) ...", n, req.Method, req.RequestURI, req.RemoteAddr)
 		rw = &trackResponseWriter{ResponseWriter: rw}
 	}
 	s.mux.ServeHTTP(rw, req)
 	if s.verbose {
 		tw := rw.(*trackResponseWriter)
-		log.Printf("Request #%d: %s %s = code %d, %d bytes", n, req.Method, req.RequestURI, tw.code, tw.resSize)
+		s.printf("Request #%d: %s %s = code %d, %d bytes", n, req.Method, req.RequestURI, tw.code, tw.resSize)
 	}
 }
 
@@ -144,7 +162,7 @@ func (s *Server) Listen(addr string) error {
 	}
 	base := s.ListenURL()
 	if doLog {
-		log.Printf("Starting to listen on %s\n", base)
+		s.printf("Starting to listen on %s\n", base)
 	}
 
 	if s.enableTLS {
@@ -162,7 +180,7 @@ func (s *Server) Listen(addr string) error {
 	}
 
 	if doLog && strings.HasSuffix(base, ":0") {
-		log.Printf("Now listening on %s\n", s.ListenURL())
+		s.printf("Now listening on %s\n", s.ListenURL())
 	}
 
 	return nil
@@ -187,12 +205,12 @@ func (s *Server) throttleListener() net.Listener {
 
 func (s *Server) Serve() {
 	if err := s.Listen(""); err != nil {
-		log.Fatalf("Listen error: %v", err)
+		s.fatalf("Listen error: %v", err)
 	}
 	go runTestHarnessIntegration(s.listener)
 	err := http.Serve(s.throttleListener(), s)
 	if err != nil {
-		log.Printf("Error in http server: %v\n", err)
+		s.printf("Error in http server: %v\n", err)
 		os.Exit(1)
 	}
 }
