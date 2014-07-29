@@ -159,6 +159,17 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		Transport: notOAuthTransport(ctx.HTTPClient()),
 	}
 	ctx.Context = ctx.Context.New(context.WithHTTPClient(transport.Client()))
+
+	root := ctx.RootNode()
+	if root.Attr(nodeattr.Title) == "" {
+		if err := root.SetAttr(nodeattr.Title,
+			fmt.Sprintf("%s %s - Google/Picasa Photos",
+				acctNode.Attr(importer.AcctAttrGivenName),
+				acctNode.Attr(importer.AcctAttrFamilyName))); err != nil {
+			return err
+		}
+	}
+
 	r := &run{
 		RunContext:  ctx,
 		im:          im,
