@@ -321,11 +321,17 @@ func (c *Constraint) onlyMatchesPermanode() bool {
 type FileConstraint struct {
 	// (All non-zero fields must match)
 
-	FileSize *IntConstraint `json:"fileSize,omitempty"`
-	FileName *StringConstraint
-	MIMEType *StringConstraint
-	Time     *TimeConstraint
-	ModTime  *TimeConstraint
+	FileSize *IntConstraint    `json:"fileSize,omitempty"`
+	FileName *StringConstraint `json:"fileName,omitempty"`
+	MIMEType *StringConstraint `json:"mimeType,omitempty"`
+	Time     *TimeConstraint   `json:"time,omitempty"`
+	ModTime  *TimeConstraint   `json:"modTime,omitempty"`
+
+	// WholeRef if non-zero only matches if the entire checksum of the
+	// file (the concatenation of all its blobs) is equal to the
+	// provided blobref. The index may not have every file's digest for
+	// every known hash algorithm.
+	WholeRef blob.Ref `json:"wholeRef,omitempty"`
 
 	// For images:
 	IsImage  bool                `json:"isImage,omitempty"`
@@ -1403,6 +1409,15 @@ func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMet
 		}
 	}
 	corpus := s.h.corpus
+	if c.WholeRef.Valid() {
+		if corpus == nil {
+			return false, nil
+		}
+		wholeRef, ok := corpus.GetWholeRefLocked(br)
+		if !ok || wholeRef != c.WholeRef {
+			return false, nil
+		}
+	}
 	var width, height int64
 	if c.Width != nil || c.Height != nil || c.WHRatio != nil {
 		if corpus == nil {

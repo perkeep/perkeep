@@ -569,6 +569,35 @@ func TestQueryFileConstraint(t *testing.T) {
 	})
 }
 
+func TestQueryFileConstraint_WholeRef(t *testing.T) {
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+		fileRef, _ := id.UploadFile("some-stuff.txt", "hello", time.Unix(123, 0))
+		qt.t.Logf("fileRef = %q", fileRef)
+		p1 := id.NewPlannedPermanode("1")
+		id.SetAttribute(p1, "camliContent", fileRef.String())
+
+		fileRef2, _ := id.UploadFile("other-file", "hellooooo", time.Unix(456, 0))
+		qt.t.Logf("fileRef2 = %q", fileRef2)
+		p2 := id.NewPlannedPermanode("2")
+		id.SetAttribute(p2, "camliContent", fileRef2.String())
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Permanode: &PermanodeConstraint{
+					Attr: "camliContent",
+					ValueInSet: &Constraint{
+						File: &FileConstraint{
+							WholeRef: blob.SHA1FromString("hello"),
+						},
+					},
+				},
+			},
+		}
+		qt.wantRes(sq, p1)
+	})
+}
+
 func TestQueryPermanodeModtime(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id

@@ -1156,6 +1156,11 @@ func (c *Corpus) GetMediaTagsLocked(fileRef blob.Ref) (map[string]string, error)
 	return tags, nil
 }
 
+func (c *Corpus) GetWholeRefLocked(fileRef blob.Ref) (wholeRef blob.Ref, ok bool) {
+	wholeRef, ok = c.fileWholeRef[fileRef]
+	return
+}
+
 func (c *Corpus) FileLatLongLocked(fileRef blob.Ref) (lat, long float64, ok bool) {
 	wholeRef, ok := c.fileWholeRef[fileRef]
 	if !ok {
