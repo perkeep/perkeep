@@ -17,6 +17,9 @@ limitations under the License.
 // Package picasa implements an importer for picasa.com accounts.
 package picasa
 
+// TODO: videos don't import correctly. it currently imports a still
+// preview frame from the video, instead of the video bytes.
+
 import (
 	"errors"
 	"fmt"
