@@ -20,6 +20,7 @@ package picasa
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -276,8 +277,25 @@ func (r *run) updatePhotoInAlbum(albumNode *importer.Object, photo picago.Photo)
 	if photo.ID == "" {
 		return errors.New("photo has no ID")
 	}
+
+	getMediaBytes := func() (io.ReadCloser, error) {
+		log.Printf("Importing media from %v", photo.URL)
+		resp, err := r.HTTPClient().Get(photo.URL)
+		if err != nil {
+			return nil, fmt.Errorf("importing photo %d: %v", photo.ID, err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			return nil, fmt.Errorf("importing photo %d: status code = %d", photo.ID, resp.StatusCode)
+		}
+		return resp.Body, nil
+	}
+
 	idFilename := photo.ID + "-" + photo.Filename()
-	photoNode, err := albumNode.ChildPathObject(idFilename)
+	photoNode, err := albumNode.ChildPathObjectOrFunc(idFilename, func() (*importer.Object, error) {
+		// TODO: slurp N bytes of photos, hash it, look for existing suitable permanode
+		return r.Host.NewObject()
+	})
 	if err != nil {
 		return err
 	}
@@ -291,17 +309,12 @@ func (r *run) updatePhotoInAlbum(albumNode *importer.Object, photo picago.Photo)
 	// encoded/signed state.
 	const attrMediaURL = "picasaMediaURL"
 	if photoNode.Attr(attrMediaURL) != photo.URL {
-		log.Printf("Importing media from %v", photo.URL)
-		cl := r.HTTPClient()
-		resp, err := cl.Get(photo.URL)
+		rc, err := getMediaBytes()
 		if err != nil {
-			return fmt.Errorf("importing photo %d: %v", photo.ID, err)
+			return err
 		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("importing photo %d: status code = %d", photo.ID, resp.StatusCode)
-		}
-		fileRef, err := schema.WriteFileFromReader(r.Host.Target(), photo.Filename(), resp.Body)
+		fileRef, err := schema.WriteFileFromReader(r.Host.Target(), photo.Filename(), rc)
+		rc.Close()
 		if err != nil {
 			return err
 		}
