@@ -34,6 +34,7 @@ import (
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/schema/nodeattr"
+	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/syncutil"
 
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
@@ -53,6 +54,8 @@ const (
 	// completion, this version number is recorded on the account
 	// permanode and subsequent importers can stop early.
 	runCompleteVersion = "2"
+
+	attrPicasaId = "picasaId"
 )
 
 func init() {
@@ -305,12 +308,10 @@ func (r *run) updatePhotoInAlbum(albumNode *importer.Object, photo picago.Photo)
 			return nil, err
 		}
 		fileRefStr = fileRef.String()
-		// TODO: do a search on r.Host to look for an existing
-		// permanode that has that the wholeref of h, and no
-		// conflicting attributes set (e.g. it's not a Flickr
-		// photo with a different DatePublished or
-		// whatnot). If it's just a boring file permanode,
-		// then we'll re-use it
+		wholeRef := blob.RefFromHash(h)
+		if pn, err := findExistingPermanode(r.Host.Searcher(), wholeRef); err == nil {
+			return r.Host.ObjectFromRef(pn)
+		}
 		return r.Host.NewObject()
 	})
 	if err != nil {
@@ -343,7 +344,7 @@ func (r *run) updatePhotoInAlbum(albumNode *importer.Object, photo picago.Photo)
 	// for names, see http://schema.org/ImageObject and http://schema.org/CreativeWork
 	attrs := []string{
 		nodeattr.CamliContent, fileRefStr,
-		"picasaId", photo.ID,
+		attrPicasaId, photo.ID,
 		nodeattr.Title, photo.Title,
 		"caption", photo.Summary,
 		nodeattr.Description, photo.Description,
@@ -383,4 +384,59 @@ func (r *run) getTopLevelNode(path string, title string) (*importer.Object, erro
 		return nil, err
 	}
 	return childObject, nil
+}
+
+var sensitiveAttrs = []string{
+	nodeattr.Type,
+	attrPicasaId,
+	nodeattr.Title,
+	nodeattr.DateModified,
+	nodeattr.DatePublished,
+	nodeattr.Latitude,
+	nodeattr.Longitude,
+	nodeattr.Description,
+}
+
+// findExistingPermanode finds an existing permanode that has a
+// camliContent pointing to a file with the provided wholeRef and
+// doesn't have any conflicting attributes that would prevent the
+// picasa importer from re-using that permanode for its own use.
+func findExistingPermanode(qs search.QueryDescriber, wholeRef blob.Ref) (pn blob.Ref, err error) {
+	res, err := qs.Query(&search.SearchQuery{
+		Constraint: &search.Constraint{
+			Permanode: &search.PermanodeConstraint{
+				Attr: "camliContent",
+				ValueInSet: &search.Constraint{
+					File: &search.FileConstraint{
+						WholeRef: wholeRef,
+					},
+				},
+			},
+		},
+		Describe: &search.DescribeRequest{
+			Depth: 1,
+		},
+	})
+	if err != nil {
+		return
+	}
+	if res.Describe == nil {
+		return pn, os.ErrNotExist
+	}
+Res:
+	for _, resBlob := range res.Blobs {
+		br := resBlob.Blob
+		desBlob, ok := res.Describe.Meta[br.String()]
+		if !ok || desBlob.Permanode == nil {
+			continue
+		}
+		attrs := desBlob.Permanode.Attr
+		for _, attr := range sensitiveAttrs {
+			if attrs.Get(attr) != "" {
+				continue Res
+			}
+		}
+		return br, nil
+	}
+	return pn, os.ErrNotExist
 }

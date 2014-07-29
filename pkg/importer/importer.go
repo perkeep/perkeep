@@ -589,6 +589,8 @@ func (h *Host) BlobSource() blob.Fetcher {
 	return h.blobSource
 }
 
+func (h *Host) Searcher() search.QueryDescriber { return h.search }
+
 // importer is an importer for a certain site, but not a specific account on that site.
 type importer struct {
 	host *Host
