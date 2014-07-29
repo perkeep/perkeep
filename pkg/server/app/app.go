@@ -44,7 +44,8 @@ type Handler struct {
 	auth      auth.AuthMode  // Used for basic HTTP authenticating against the app requests.
 	appConfig jsonconfig.Obj // Additional parameters the app can request, or nil.
 
-	proxy *httputil.ReverseProxy // For redirecting requests to the app.
+	proxy      *httputil.ReverseProxy // For redirecting requests to the app.
+	backendURL string                 // URL that we proxy to (i.e. base URL of the app).
 }
 
 func (a *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -80,6 +81,7 @@ func randPortBackendURL(apiHost, appHandlerPrefix string) (string, error) {
 		return "", fmt.Errorf("could not close random listener: %v", err)
 	}
 
+	// TODO(mpl): see if can use netutil.TCPAddress.
 	scheme := "https://"
 	noScheme := strings.TrimPrefix(apiHost, scheme)
 	if strings.HasPrefix(noScheme, "http://") {
@@ -161,11 +163,12 @@ func NewHandler(conf jsonconfig.Obj, apiHost, appHandlerPrefix string) (*Handler
 		return nil, fmt.Errorf("could not parse backendURL %q: %v", backendURL, err)
 	}
 	return &Handler{
-		name:      name,
-		envVars:   envVars,
-		auth:      basicAuth,
-		appConfig: appConfig,
-		proxy:     httputil.NewSingleHostReverseProxy(proxyURL),
+		name:       name,
+		envVars:    envVars,
+		auth:       basicAuth,
+		appConfig:  appConfig,
+		proxy:      httputil.NewSingleHostReverseProxy(proxyURL),
+		backendURL: backendURL,
 	}, nil
 }
 
@@ -234,4 +237,9 @@ func (a *Handler) AuthMode() auth.AuthMode {
 // can request from the app handler. It can be nil.
 func (a *Handler) AppConfig() map[string]interface{} {
 	return a.appConfig
+}
+
+// BackendURL returns the appBackendURL that the app handler will proxy to.
+func (a *Handler) BackendURL() string {
+	return a.backendURL
 }

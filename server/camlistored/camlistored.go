@@ -42,6 +42,7 @@ import (
 	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/legal/legalprint"
 	"camlistore.org/pkg/misc"
+	"camlistore.org/pkg/netutil"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/serverinit"
 	"camlistore.org/pkg/webserver"
@@ -399,8 +400,16 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		exitf("StartApps: %v", err)
 	}
 
-	// TODO(mpl): wait for all the apps to somehow signal they have started (or failed to)
-	// before printing the one below?
+	for appName, appURL := range config.AppURL() {
+		addr, err := netutil.HostPort(appURL)
+		if err != nil {
+			log.Printf("Could not get app %v address: %v", appName, err)
+			continue
+		}
+		if err := netutil.AwaitReachable(addr, 5*time.Second); err != nil {
+			log.Printf("Could not reach app %v: %v", appName, err)
+		}
+	}
 	log.Printf("Available on %s", urlToOpen)
 
 	// Block forever, except during tests.
