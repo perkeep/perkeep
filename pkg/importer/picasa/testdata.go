@@ -124,7 +124,7 @@ func fakeAlbum(counter int) picago.Entry {
 	author := picago.Author{
 		Name: "fakeAuthorName",
 	}
-	media := picago.Media{
+	media := &picago.Media{
 		Description: "fakeAlbumDescription",
 		Keywords:    "fakeKeyword1,fakeKeyword2",
 	}
@@ -186,11 +186,11 @@ func fakePhotoEntry(photoNbr int, albumNbr int) picago.Entry {
 		URL:  "https://camlistore.org/pic/pudgy2.png",
 		Type: "image/png",
 	}
-	media := picago.Media{
+	media := &picago.Media{
 		Title:       "fakePhotoTitle",
 		Description: "fakePhotoDescription",
 		Keywords:    "fakeKeyword1,fakeKeyword2",
-		Content:     mediaContent,
+		Content:     []picago.MediaContent{mediaContent},
 	}
 	// to be consistent, all the pics times should be anterior to their respective albums times. whatever.
 	day := time.Hour * 24
@@ -199,7 +199,7 @@ func fakePhotoEntry(photoNbr int, albumNbr int) picago.Entry {
 	published := created.Add(day)
 	updated := published.Add(day)
 
-	exif := picago.Exif{
+	exif := &picago.Exif{
 		FStop:       7.7,
 		Make:        "whatisthis?", // not obvious to me, needs doc in picago
 		Model:       "potato",

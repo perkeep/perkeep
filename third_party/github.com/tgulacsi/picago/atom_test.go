@@ -6,6 +6,7 @@ package picago
 
 import (
 	"encoding/xml"
+	"os"
 	"testing"
 )
 
@@ -248,5 +249,41 @@ func TestAtom(t *testing.T) {
 			t.Errorf("Unmarshal error: %v", err)
 		}
 		t.Logf("result: %#v", result)
+	}
+}
+
+func mustParseAtom(t *testing.T, file string) *Atom {
+	f, err := os.Open(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	a := new(Atom)
+	if err := xml.NewDecoder(f).Decode(a); err != nil {
+		t.Fatal(err)
+	}
+	return a
+}
+
+func TestVideoInGallery(t *testing.T) {
+	atom := mustParseAtom(t, "testdata/gallery-with-a-video.xml")
+	if len(atom.Entries) != 3 {
+		t.Fatalf("num entries = %d; want 3", len(atom.Entries))
+	}
+	p, err := atom.Entries[2].photo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Type != "video/mpeg4" {
+		t.Errorf("type = %q; want video/mpeg4", p.Type)
+	}
+	if got, want := p.URL, "https://foo.googlevideo.com/bar.mp4"; got != want {
+		t.Errorf("URL = %q; want %q", got, want)
+	}
+
+	for i, ent := range atom.Entries {
+		t.Logf("%d. Media = %#v", i, ent.Media)
+		p, _ := ent.photo()
+		t.Logf("%d. %#v", i, p)
 	}
 }

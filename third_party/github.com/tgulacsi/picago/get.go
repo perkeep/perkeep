@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	neturl "net/url"
 	"os"
@@ -26,7 +25,7 @@ const (
 	userURL  = "https://picasaweb.google.com/data/feed/api/user/{userID}/contacts?kind=user"
 )
 
-var DebugDir string
+var DebugDir = os.Getenv("PICAGO_DEBUG_DIR")
 
 type User struct {
 	ID, URI, Name, Thumbnail string
@@ -40,13 +39,27 @@ type Album struct {
 	URL                                             string
 }
 
+// A Photo is a photo (or video) in a Picasaweb (or G+) gallery.
 type Photo struct {
-	ID, Title, Summary, Description, Location string
-	Keywords                                  []string
-	Published, Updated                        time.Time
-	Latitude, Longitude                       float64
-	URL, Type                                 string
-	Exif                                      Exif
+	ID, Title, Summary, Description string
+	Keywords                        []string
+	Published, Updated              time.Time
+
+	// Latitude and Longitude optionally contain the GPS coordinates
+	// of the photo.
+	Latitude, Longitude float64
+
+	// Location is free-form text describing the location of the
+	// photo.
+	Location string
+
+	// URL is the URL of the photo or video.
+	URL string
+
+	// Type is the Content-Type.
+	Type string
+
+	Exif *Exif
 }
 
 // Filename returns the filename of the photo (from title or ID + type).
@@ -111,16 +124,22 @@ func getAlbums(albums []Album, client *http.Client, url string, startIndex int) 
 				break
 			}
 		}
+		var des string
+		var kw []string
+		if entry.Media != nil {
+			des = entry.Media.Description
+			kw = strings.Split(entry.Media.Keywords, ",")
+		}
 		albums = append(albums, Album{
 			ID:          entry.ID,
 			Name:        entry.Name,
 			Summary:     entry.Summary,
 			Title:       entry.Title,
-			Description: entry.Media.Description,
+			Description: des,
 			Location:    entry.Location,
 			AuthorName:  entry.Author.Name,
 			AuthorURI:   entry.Author.URI,
-			Keywords:    strings.Split(entry.Media.Keywords, ","),
+			Keywords:    kw,
 			Published:   entry.Published,
 			Updated:     entry.Updated,
 			URL:         albumURL,
@@ -162,53 +181,83 @@ func getPhotos(photos []Photo, client *http.Client, url string, startIndex int) 
 	if len(feed.Entries) == 0 {
 		return nil, false, nil
 	}
-	if cap(photos)-len(photos) < len(feed.Entries) {
-		photos = append(photos, make([]Photo, 0, len(feed.Entries))...)
-	}
 	for _, entry := range feed.Entries {
-		var lat, long float64
-		i := strings.Index(entry.Point, " ")
-		if i >= 1 {
-			lat, err = strconv.ParseFloat(entry.Point[:i], 64)
-			if err != nil {
-				log.Printf("cannot parse %q as latitude: %v", entry.Point[:i], err)
-			}
-			long, err = strconv.ParseFloat(entry.Point[i+1:], 64)
-			if err != nil {
-				log.Printf("cannot parse %q as longitude: %v", entry.Point[i+1:], err)
-			}
+		p, err := entry.photo()
+		if err != nil {
+			return nil, false, err
 		}
-		if entry.Point != "" && lat == 0 && long == 0 {
-			log.Fatalf("point=%q but couldn't parse it as lat/long", entry.Point)
-		}
-		url, typ := entry.Content.URL, entry.Content.Type
-		if url == "" {
-			url, typ = entry.Media.Content.URL, entry.Media.Content.Type
-		}
-		title := entry.Title
-		if title == "" {
-			title = entry.Media.Title
-		}
-		photos = append(photos, Photo{
-			ID:          entry.ID,
-			Exif:        entry.Exif,
-			Summary:     entry.Summary,
-			Title:       title,
-			Description: entry.Media.Description,
-			Location:    entry.Location,
-			//AuthorName:  entry.Author.Name,
-			//AuthorURI:   entry.Author.URI,
-			Keywords:  strings.Split(entry.Media.Keywords, ","),
-			Published: entry.Published,
-			Updated:   entry.Updated,
-			URL:       url,
-			Type:      typ,
-			Latitude:  lat,
-			Longitude: long,
-		})
+		photos = append(photos, p)
 	}
 	// startIndex starts with 1, we need to compensate for it.
 	return photos, startIndex+len(feed.Entries) <= feed.NumPhotos, nil
+}
+
+func (e *Entry) photo() (p Photo, err error) {
+	var lat, long float64
+	i := strings.Index(e.Point, " ")
+	if i >= 1 {
+		lat, err = strconv.ParseFloat(e.Point[:i], 64)
+		if err != nil {
+			return p, fmt.Errorf("cannot parse %q as latitude: %v", e.Point[:i], err)
+		}
+		long, err = strconv.ParseFloat(e.Point[i+1:], 64)
+		if err != nil {
+			return p, fmt.Errorf("cannot parse %q as longitude: %v", e.Point[i+1:], err)
+		}
+	}
+	if e.Point != "" && lat == 0 && long == 0 {
+		return p, fmt.Errorf("point=%q but couldn't parse it as lat/long", e.Point)
+	}
+	p = Photo{
+		ID:        e.ID,
+		Exif:      e.Exif,
+		Summary:   e.Summary,
+		Title:     e.Title,
+		Location:  e.Location,
+		Published: e.Published,
+		Updated:   e.Updated,
+		Latitude:  lat,
+		Longitude: long,
+	}
+	if e.Media != nil {
+		p.Keywords = strings.Split(e.Media.Keywords, ",")
+		p.Description = e.Media.Description
+		if mc, ok := e.Media.bestContent(); ok {
+			p.URL, p.Type = mc.URL, mc.Type
+		}
+		if p.Title == "" {
+			p.Title = e.Media.Title
+		}
+	}
+	return p, nil
+}
+
+func (m *Media) bestContent() (ret MediaContent, ok bool) {
+	// Find largest non-Flash video.
+	var bestPixels int64
+	for _, mc := range m.Content {
+		thisPixels := int64(mc.Width) * int64(mc.Height)
+		if mc.Medium == "video" && mc.Type != "application/x-shockwave-flash" && thisPixels > bestPixels {
+			ret = mc
+			ok = true
+			bestPixels = thisPixels
+		}
+	}
+	if ok {
+		return
+	}
+
+	// Else, just find largest anything.
+	bestPixels = 0
+	for _, mc := range m.Content {
+		thisPixels := int64(mc.Width) * int64(mc.Height)
+		if thisPixels > bestPixels {
+			ret = mc
+			ok = true
+			bestPixels = thisPixels
+		}
+	}
+	return
 }
 
 func downloadAndParse(client *http.Client, url string) (*Atom, error) {

@@ -40,8 +40,8 @@ type Entry struct {
 	Location  string       `xml:"http://schemas.google.com/photos/2007 location"`
 	NumPhotos int          `xml:"numphotos"`
 	Content   EntryContent `xml:"content"`
-	Media     Media        `xml:"group"`
-	Exif      Exif         `xml:"tags"`
+	Media     *Media       `xml:"group"`
+	Exif      *Exif        `xml:"tags"`
 	Point     string       `xml:"where>Point>pos"`
 }
 
@@ -64,15 +64,19 @@ type Link struct {
 }
 
 type Media struct {
-	Title       string       `xml:"http://search.yahoo.com/mrss title"`
-	Description string       `xml:"description"`
-	Keywords    string       `xml:"keywords"`
-	Content     MediaContent `xml:"content"`
+	Title       string         `xml:"http://search.yahoo.com/mrss title"`
+	Description string         `xml:"description"`
+	Keywords    string         `xml:"keywords"`
+	Content     []MediaContent `xml:"content"`
+	Thumbnail   []MediaContent `xml:"thumbnail"`
 }
 
 type MediaContent struct {
-	URL  string `xml:"url,attr"`
-	Type string `xml:"type,attr"`
+	URL    string `xml:"url,attr"`
+	Type   string `xml:"type,attr"`
+	Width  int    `xml:"width,attr"`
+	Height int    `xml:"height,attr"`
+	Medium string `xml:"medium,attr"` // "image" or "video" for Picasa at least
 }
 
 type EntryContent struct {

@@ -17,9 +17,6 @@ limitations under the License.
 // Package picasa implements an importer for picasa.com accounts.
 package picasa
 
-// TODO: videos don't import correctly. it currently imports a still
-// preview frame from the video, instead of the video bytes.
-
 import (
 	"errors"
 	"fmt"
@@ -55,7 +52,7 @@ const (
 	// complete run.  Otherwise, if the importer runs to
 	// completion, this version number is recorded on the account
 	// permanode and subsequent importers can stop early.
-	runCompleteVersion = "1"
+	runCompleteVersion = "2"
 )
 
 func init() {
