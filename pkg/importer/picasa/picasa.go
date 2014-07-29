@@ -29,6 +29,7 @@ import (
 	"strings"
 	"sync"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
@@ -291,34 +292,51 @@ func (r *run) updatePhotoInAlbum(albumNode *importer.Object, photo picago.Photo)
 		return resp.Body, nil
 	}
 
+	var fileRefStr string
 	idFilename := photo.ID + "-" + photo.Filename()
 	photoNode, err := albumNode.ChildPathObjectOrFunc(idFilename, func() (*importer.Object, error) {
-		// TODO: slurp N bytes of photos, hash it, look for existing suitable permanode
+		h := blob.NewHash()
+		rc, err := getMediaBytes()
+		if err != nil {
+			return nil, err
+		}
+		fileRef, err := schema.WriteFileFromReader(r.Host.Target(), photo.Filename(), io.TeeReader(rc, h))
+		if err != nil {
+			return nil, err
+		}
+		fileRefStr = fileRef.String()
+		// TODO: do a search on r.Host to look for an existing
+		// permanode that has that the wholeref of h, and no
+		// conflicting attributes set (e.g. it's not a Flickr
+		// photo with a different DatePublished or
+		// whatnot). If it's just a boring file permanode,
+		// then we'll re-use it
 		return r.Host.NewObject()
 	})
 	if err != nil {
 		return err
 	}
 
-	fileRefStr := photoNode.Attr(nodeattr.CamliContent)
-
-	// Only re-download the source photo if its URL has changed.
-	// Empirically this seems to work: cropping a photo in the
-	// photos.google.com UI causes its URL to change. And it makes
-	// sense, looking at the ugliness of the URLs with all their
-	// encoded/signed state.
 	const attrMediaURL = "picasaMediaURL"
-	if photoNode.Attr(attrMediaURL) != photo.URL {
-		rc, err := getMediaBytes()
-		if err != nil {
-			return err
+	if fileRefStr == "" {
+		fileRefStr = photoNode.Attr(nodeattr.CamliContent)
+		// Only re-download the source photo if its URL has changed.
+		// Empirically this seems to work: cropping a photo in the
+		// photos.google.com UI causes its URL to change. And it makes
+		// sense, looking at the ugliness of the URLs with all their
+		// encoded/signed state.
+		if photoNode.Attr(attrMediaURL) != photo.URL {
+			rc, err := getMediaBytes()
+			if err != nil {
+				return err
+			}
+			fileRef, err := schema.WriteFileFromReader(r.Host.Target(), photo.Filename(), rc)
+			rc.Close()
+			if err != nil {
+				return err
+			}
+			fileRefStr = fileRef.String()
 		}
-		fileRef, err := schema.WriteFileFromReader(r.Host.Target(), photo.Filename(), rc)
-		rc.Close()
-		if err != nil {
-			return err
-		}
-		fileRefStr = fileRef.String()
 	}
 
 	// TODO(tgulacsi): add more attrs (comments ?)
