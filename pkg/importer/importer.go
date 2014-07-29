@@ -1201,37 +1201,32 @@ func asSet(elts []string) map[string]bool {
 // from the permanode o, given by the "camliPath:xxxx" attribute,
 // where xxx is the provided path.
 func (o *Object) ChildPathObject(path string) (*Object, error) {
+	return o.ChildPathObjectOrFunc(path, o.h.NewObject)
+}
+
+// ChildPathObject returns the child object from the permanode o,
+// given by the "camliPath:xxxx" attribute, where xxx is the provided
+// path. If the path doesn't exist, the provided func should return an
+// appropriate object. If the func fails, the return error is
+// returned directly without any attempt to make a permanode.
+func (o *Object) ChildPathObjectOrFunc(path string, fn func() (*Object, error)) (*Object, error) {
 	attrName := "camliPath:" + path
 	if v := o.Attr(attrName); v != "" {
 		br, ok := blob.Parse(v)
-		if ok {
-			return o.h.ObjectFromRef(br)
+		if !ok {
+			return nil, fmt.Errorf("invalid blobref %q already stored at camliPath %q", br, path)
 		}
+		return o.h.ObjectFromRef(br)
 	}
-
-	childBlobRef, err := o.h.upload(schema.NewUnsignedPermanode())
+	newObj, err := fn()
 	if err != nil {
 		return nil, err
 	}
-
-	if err := o.SetAttr(attrName, childBlobRef.String()); err != nil {
+	if err := o.SetAttr(attrName, newObj.PermanodeRef().String()); err != nil {
 		return nil, err
 	}
-
-	return &Object{
-		h:  o.h,
-		pn: childBlobRef,
-	}, nil
+	return newObj, nil
 }
-
-// TODO: auto-migrate people from the old way? It was:
-/*
-	res, err := h.search.GetPermanodesWithAttr(&search.WithAttrRequest{
-		N:     2, // only expect 1
-		Attr:  "camliImportRoot",
-		Value: "TODO", // h.imp.Prefix(),
-	})
-*/
 
 // ObjectFromRef returns the object given by the named permanode
 func (h *Host) ObjectFromRef(permanodeRef blob.Ref) (*Object, error) {
