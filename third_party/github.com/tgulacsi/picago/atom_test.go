@@ -7,7 +7,9 @@ package picago
 import (
 	"encoding/xml"
 	"os"
+	"reflect"
 	"testing"
+	"time"
 )
 
 const albumsXML = `<?xml version='1.0' encoding='utf-8'?>
@@ -280,10 +282,42 @@ func TestVideoInGallery(t *testing.T) {
 	if got, want := p.URL, "https://foo.googlevideo.com/bar.mp4"; got != want {
 		t.Errorf("URL = %q; want %q", got, want)
 	}
+	wantKW := []string{"keyboard", "stuff"}
+	if !reflect.DeepEqual(p.Keywords, wantKW) {
+		t.Errorf("Keywords = %q; want %q", p.Keywords, wantKW)
+	}
+}
 
-	for i, ent := range atom.Entries {
-		t.Logf("%d. Media = %#v", i, ent.Media)
-		p, _ := ent.photo()
-		t.Logf("%d. %#v", i, p)
+func TestAlbumFromEntry(t *testing.T) {
+	atom := mustParseAtom(t, "testdata/album-list.xml")
+	if len(atom.Entries) != 3 {
+		t.Fatalf("num entries = %d; want 3", len(atom.Entries))
+	}
+	var got []Album
+	for _, ent := range atom.Entries {
+		got = append(got, ent.album())
+	}
+	tm := func(s string) time.Time {
+		ret, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ret
+	}
+	want := []Album{
+		Album{ID: "6040139514831220113", Name: "BikingWithBlake", Title: "Biking with Blake", Description: "Description is biking up San Bruno mountain.\n\nAnd a newline.", Location: "San Bruno Mt, CA", AuthorName: "Gast Erson", AuthorURI: "https://picasaweb.google.com/114403741484702971746", Published: tm("2014-07-22T07:00:00.000Z"), Updated: tm("2014-07-28T22:22:25.577Z"), URL: "https://picasaweb.google.com/114403741484702971746/BikingWithBlake"},
+		Album{ID: "6041693388376552305", Name: "Mexico", Title: "Mexico", Description: "", Location: "", AuthorName: "Gast Erson", AuthorURI: "https://picasaweb.google.com/114403741484702971746", Published: tm("2014-07-30T03:36:00.000Z"), Updated: tm("2014-07-30T19:46:05.346Z"), URL: "https://picasaweb.google.com/114403741484702971746/Mexico"},
+		Album{ID: "6041709940397032273", Name: "TestingOver2048", Title: "testing over 2048", Description: "", Location: "", AuthorName: "Gast Erson", AuthorURI: "https://picasaweb.google.com/114403741484702971746", Published: tm("2014-07-30T04:40:14.000Z"), Updated: tm("2014-07-30T05:01:02.919Z"), URL: "https://picasaweb.google.com/114403741484702971746/TestingOver2048"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d entries, want %d", len(got), len(want))
+	}
+	if reflect.DeepEqual(got, want) {
+		return
+	}
+	for i := range got {
+		if !reflect.DeepEqual(got[i], want[i]) {
+			t.Errorf("index %d doesn't match:\n got: %+v\nwant: %+v\n", i, got[i], want[i])
+		}
 	}
 }

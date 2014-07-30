@@ -31,12 +31,47 @@ type User struct {
 	ID, URI, Name, Thumbnail string
 }
 
+// An Album is a collection of Picasaweb or Google+ photos.
 type Album struct {
-	ID, Name, Title, Summary, Description, Location string
-	AuthorName, AuthorURI                           string
-	Keywords                                        []string
-	Published, Updated                              time.Time
-	URL                                             string
+	// ID is the stable identifier for an album.
+	// e.g. "6041693388376552305"
+	ID string
+
+	// Name appears to be the Title, but with spaces removed. It
+	// shows up in URLs but is not a stable
+	// identifier. e.g. "BikingWithBlake"
+	Name string
+
+	// Title is the title of the album.
+	// e.g. "Biking with Blake"
+	Title string
+
+	// Description is the Picasaweb "Description" field, and does
+	// not appear available or shown in G+ Photos. It may be
+	// contain newlines.
+	Description string
+
+	// Location is free-form location text. e.g. "San Bruno Mountain"
+	Location string
+
+	// URL is the main human-oriented (HTML) URL to the album.
+	URL string
+
+	// Published is the either the time the user actually created
+	// and published the gallery or (in the case of Picasaweb at
+	// least), the date that the user set on the gallery.  It will
+	// be at day granularity, but the hour will be adjusted based
+	// on whatever timezone the user is it. For instance, setting
+	// July 21, 2014 while in California results in a time of
+	// 2014-07-21T07:00:00.000Z since that was the UTC time at
+	// which it became July 21st in US/Pacific on that day.
+	Published time.Time
+
+	// Updated is the server time any property of the gallery was
+	// changed.  It appears to be at millisecond granularity.
+	Updated time.Time
+
+	AuthorName, AuthorURI string
 }
 
 // A Photo is a photo (or video) in a Picasaweb (or G+) gallery.
@@ -58,6 +93,10 @@ type Photo struct {
 
 	// Type is the Content-Type.
 	Type string
+
+	// Position is the 1-based position within a gallery.
+	// It is zero if unknown.
+	Position int
 
 	Exif *Exif
 }
@@ -110,43 +149,37 @@ func getAlbums(albums []Album, client *http.Client, url string, startIndex int) 
 	if err != nil {
 		return nil, false, err
 	}
-	if len(feed.Entries) == 0 {
-		return nil, false, nil
-	}
-	if cap(albums)-len(albums) < len(feed.Entries) {
-		albums = append(albums, make([]Album, 0, len(feed.Entries))...)
-	}
 	for _, entry := range feed.Entries {
-		albumURL := ""
-		for _, link := range entry.Links {
-			if link.Rel == "http://schemas.google.com/g/2005#feed" {
-				albumURL = link.URL
-				break
-			}
-		}
-		var des string
-		var kw []string
-		if entry.Media != nil {
-			des = entry.Media.Description
-			kw = strings.Split(entry.Media.Keywords, ",")
-		}
-		albums = append(albums, Album{
-			ID:          entry.ID,
-			Name:        entry.Name,
-			Summary:     entry.Summary,
-			Title:       entry.Title,
-			Description: des,
-			Location:    entry.Location,
-			AuthorName:  entry.Author.Name,
-			AuthorURI:   entry.Author.URI,
-			Keywords:    kw,
-			Published:   entry.Published,
-			Updated:     entry.Updated,
-			URL:         albumURL,
-		})
+		albums = append(albums, entry.album())
 	}
 	// since startIndex starts at 1, we need to compensate for this, just as we do for photos.
 	return albums, startIndex+len(feed.Entries) <= feed.TotalResults, nil
+}
+
+func (e *Entry) album() Album {
+	a := Album{
+		ID:          e.ID,
+		Name:        e.Name,
+		Title:       e.Title,
+		Location:    e.Location,
+		AuthorName:  e.Author.Name,
+		AuthorURI:   e.Author.URI,
+		Published:   e.Published,
+		Updated:     e.Updated,
+		Description: e.Summary,
+	}
+	for _, link := range e.Links {
+		if link.Rel == "alternate" && link.Type == "text/html" {
+			a.URL = link.URL
+			break
+		}
+	}
+	if e.Media != nil {
+		if a.Description == "" {
+			a.Description = e.Media.Description
+		}
+	}
+	return a
 }
 
 func GetPhotos(client *http.Client, userID, albumID string) ([]Photo, error) {
@@ -181,11 +214,12 @@ func getPhotos(photos []Photo, client *http.Client, url string, startIndex int) 
 	if len(feed.Entries) == 0 {
 		return nil, false, nil
 	}
-	for _, entry := range feed.Entries {
+	for i, entry := range feed.Entries {
 		p, err := entry.photo()
 		if err != nil {
 			return nil, false, err
 		}
+		p.Position = startIndex + i
 		photos = append(photos, p)
 	}
 	// startIndex starts with 1, we need to compensate for it.
@@ -220,7 +254,11 @@ func (e *Entry) photo() (p Photo, err error) {
 		Longitude: long,
 	}
 	if e.Media != nil {
-		p.Keywords = strings.Split(e.Media.Keywords, ",")
+		for _, kw := range strings.Split(e.Media.Keywords, ",") {
+			if kw := strings.TrimSpace(kw); kw != "" {
+				p.Keywords = append(p.Keywords, kw)
+			}
+		}
 		p.Description = e.Media.Description
 		if mc, ok := e.Media.bestContent(); ok {
 			p.URL, p.Type = mc.URL, mc.Type

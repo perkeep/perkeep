@@ -69,4 +69,11 @@ const (
 
 	Latitude  = "latitude"
 	Longitude = "longitude"
+
+	// CamliPathOrderColon is the prefix "camliPathOrder:".
+	// The attribute key should be followed by a uint64. The attribute value
+	// is an existing value of a camliPath element.
+	// CamliPathOrder optionally sorts sets already using "camliPath:foo" keys.
+	// The integers do not need to be contiguous, nor 0- (or 1-) based.
+	CamliPathOrderColon = "camliPathOrder:"
 )

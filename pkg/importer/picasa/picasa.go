@@ -17,6 +17,8 @@ limitations under the License.
 // Package picasa implements an importer for picasa.com accounts.
 package picasa
 
+// TODO: removing camliPath from gallery permanode when pic deleted from gallery
+
 import (
 	"errors"
 	"fmt"
@@ -53,8 +55,9 @@ const (
 	// complete run.  Otherwise, if the importer runs to
 	// completion, this version number is recorded on the account
 	// permanode and subsequent importers can stop early.
-	runCompleteVersion = "2"
+	runCompleteVersion = "3"
 
+	// attrPicasaId is used for both picasa photo IDs and gallery IDs.
 	attrPicasaId = "picasaId"
 )
 
@@ -228,11 +231,12 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album) (ret 
 	// Data reference: https://developers.google.com/picasa-web/docs/2.0/reference
 	// TODO(tgulacsi): add more album info
 	changes, err := albumNode.SetAttrs2(
-		"picasaId", album.ID,
+		attrPicasaId, album.ID,
 		nodeattr.Type, "picasaweb.google.com:album",
 		nodeattr.Title, album.Title,
 		nodeattr.DatePublished, schema.RFC3339FromTime(album.Published),
 		nodeattr.LocationText, album.Location,
+		nodeattr.Description, album.Description,
 	)
 	if err != nil {
 		return fmt.Errorf("error setting album attributes: %v", err)
@@ -363,6 +367,13 @@ func (r *run) updatePhotoInAlbum(albumNode *importer.Object, photo picago.Photo)
 	}
 	if err := photoNode.SetAttrValues("tag", photo.Keywords); err != nil {
 		return err
+	}
+	if photo.Position > 0 {
+		if err := albumNode.SetAttr(
+			nodeattr.CamliPathOrderColon+strconv.Itoa(photo.Position-1),
+			photoNode.PermanodeRef().String()); err != nil {
+			return err
+		}
 	}
 
 	// Do this last, after we're sure the "camliContent" attribute
