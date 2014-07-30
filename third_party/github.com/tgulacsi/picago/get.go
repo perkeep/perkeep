@@ -76,9 +76,17 @@ type Album struct {
 
 // A Photo is a photo (or video) in a Picasaweb (or G+) gallery.
 type Photo struct {
-	ID, Title, Summary, Description string
-	Keywords                        []string
-	Published, Updated              time.Time
+	// ID is the stable identifier for the photo.
+	ID string
+
+	// Filename is the image's filename from the Atom title field.
+	Filename string
+
+	// Description is the caption of the photo.
+	Description string
+
+	Keywords           []string
+	Published, Updated time.Time
 
 	// Latitude and Longitude optionally contain the GPS coordinates
 	// of the photo.
@@ -99,24 +107,6 @@ type Photo struct {
 	Position int
 
 	Exif *Exif
-}
-
-// Filename returns the filename of the photo (from title or ID + type).
-func (p Photo) Filename() string {
-	fn := p.Title
-	if fn == "" {
-		if len(p.URL) > 8 {
-			bn := filepath.Base(p.URL[8:])
-			if len(bn) < 128 {
-				ext := filepath.Ext(bn)
-				fn = bn[:len(bn)-len(ext)] + "-" + p.ID + ext
-			}
-			if fn == "" {
-				fn = p.ID + "." + strings.SplitN(p.Type, "/", 2)[1]
-			}
-		}
-	}
-	return fn
 }
 
 // GetAlbums returns the list of albums of the given userID.
@@ -243,15 +233,15 @@ func (e *Entry) photo() (p Photo, err error) {
 		return p, fmt.Errorf("point=%q but couldn't parse it as lat/long", e.Point)
 	}
 	p = Photo{
-		ID:        e.ID,
-		Exif:      e.Exif,
-		Summary:   e.Summary,
-		Title:     e.Title,
-		Location:  e.Location,
-		Published: e.Published,
-		Updated:   e.Updated,
-		Latitude:  lat,
-		Longitude: long,
+		ID:          e.ID,
+		Exif:        e.Exif,
+		Description: e.Summary,
+		Filename:    e.Title,
+		Location:    e.Location,
+		Published:   e.Published,
+		Updated:     e.Updated,
+		Latitude:    lat,
+		Longitude:   long,
 	}
 	if e.Media != nil {
 		for _, kw := range strings.Split(e.Media.Keywords, ",") {
@@ -259,12 +249,14 @@ func (e *Entry) photo() (p Photo, err error) {
 				p.Keywords = append(p.Keywords, kw)
 			}
 		}
-		p.Description = e.Media.Description
+		if p.Description == "" {
+			p.Description = e.Media.Description
+		}
 		if mc, ok := e.Media.bestContent(); ok {
 			p.URL, p.Type = mc.URL, mc.Type
 		}
-		if p.Title == "" {
-			p.Title = e.Media.Title
+		if p.Filename == "" {
+			p.Filename = e.Media.Title
 		}
 	}
 	return p, nil

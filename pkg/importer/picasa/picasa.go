@@ -300,14 +300,14 @@ func (r *run) updatePhotoInAlbum(albumNode *importer.Object, photo picago.Photo)
 	}
 
 	var fileRefStr string
-	idFilename := photo.ID + "-" + photo.Filename()
+	idFilename := photo.ID + "-" + photo.Filename
 	photoNode, err := albumNode.ChildPathObjectOrFunc(idFilename, func() (*importer.Object, error) {
 		h := blob.NewHash()
 		rc, err := getMediaBytes()
 		if err != nil {
 			return nil, err
 		}
-		fileRef, err := schema.WriteFileFromReader(r.Host.Target(), photo.Filename(), io.TeeReader(rc, h))
+		fileRef, err := schema.WriteFileFromReader(r.Host.Target(), photo.Filename, io.TeeReader(rc, h))
 		if err != nil {
 			return nil, err
 		}
@@ -335,7 +335,7 @@ func (r *run) updatePhotoInAlbum(albumNode *importer.Object, photo picago.Photo)
 			if err != nil {
 				return err
 			}
-			fileRef, err := schema.WriteFileFromReader(r.Host.Target(), photo.Filename(), rc)
+			fileRef, err := schema.WriteFileFromReader(r.Host.Target(), photo.Filename, rc)
 			rc.Close()
 			if err != nil {
 				return err
@@ -344,13 +344,20 @@ func (r *run) updatePhotoInAlbum(albumNode *importer.Object, photo picago.Photo)
 		}
 	}
 
+	title := strings.TrimSpace(photo.Description)
+	if strings.Contains(title, "\n") {
+		title = title[:strings.Index(title, "\n")]
+	}
+	if title == "" && schema.IsInterestingTitle(photo.Filename) {
+		title = photo.Filename
+	}
+
 	// TODO(tgulacsi): add more attrs (comments ?)
 	// for names, see http://schema.org/ImageObject and http://schema.org/CreativeWork
 	attrs := []string{
 		nodeattr.CamliContent, fileRefStr,
 		attrPicasaId, photo.ID,
-		nodeattr.Title, photo.Title,
-		"caption", photo.Summary,
+		nodeattr.Title, title,
 		nodeattr.Description, photo.Description,
 		nodeattr.LocationText, photo.Location,
 		nodeattr.DateModified, schema.RFC3339FromTime(photo.Updated),
