@@ -202,11 +202,12 @@ func (r *run) importPhotoset(parent *importer.Object, photoset *photosetInfo, pa
 		return 0, err
 	}
 
+	// TODO(mpl): set CamliContentImage on photosetNode as the fileref of the photo with photoset.PrimaryPhotoId
+	// We can't do it here since the photo might have not been downloaded yet.
 	if err := photosetNode.SetAttrs(
 		attrFlickrId, photoset.Id,
 		nodeattr.Title, photoset.Title.Content,
-		nodeattr.Description, photoset.Description.Content,
-		importer.AttrPrimaryImageOfPage, photoset.PrimaryPhotoId); err != nil {
+		nodeattr.Description, photoset.Description.Content); err != nil {
 		return 0, err
 	}
 
@@ -251,7 +252,7 @@ type photosSearch struct {
 		Page    int
 		Pages   int
 		Perpage int
-		Total   int
+		Total   int `json:",string"`
 		Photo   []*photosSearchItem
 	}
 
@@ -367,7 +368,7 @@ func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) erro
 		return fmt.Errorf("could not parse lastupdate time for image %v: %v", photo.Id, err)
 	}
 	lastUpdate := time.Unix(seconds, 0)
-	if lastUpdateString := photoNode.Attr(importer.AttrLastReviewed); lastUpdateString != "" {
+	if lastUpdateString := photoNode.Attr(nodeattr.DateModified); lastUpdateString != "" {
 		oldLastUpdate, err := time.Parse(time.RFC3339, lastUpdateString)
 		if err != nil {
 			return fmt.Errorf("could not parse last stored update time for image %v: %v", photo.Id, err)
@@ -389,11 +390,11 @@ func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) erro
 	if err != nil {
 		return err
 	}
-	if err := photoNode.SetAttr("camliContent", fileRef.String()); err != nil {
+	if err := photoNode.SetAttr(nodeattr.CamliContent, fileRef.String()); err != nil {
 		return err
 	}
 	// Write lastupdate last, so that if any of the preceding fails, we will try again next time.
-	if err := photoNode.SetAttr(importer.AttrLastReviewed, lastUpdate.Format(time.RFC3339)); err != nil {
+	if err := photoNode.SetAttr(nodeattr.DateModified, schema.RFC3339FromTime(lastUpdate)); err != nil {
 		return err
 	}
 

@@ -258,7 +258,7 @@ func fakePhotosPage(page, pages, perPage int, photoIds []string) string {
 			Page    int
 			Pages   int
 			Perpage int
-			Total   int
+			Total   int `json:",string"`
 			Photo   []*photosSearchItem
 		}{
 			Page:    page,
