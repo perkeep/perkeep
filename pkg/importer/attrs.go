@@ -61,9 +61,6 @@ const (
 	// Free-flowing text definition of a location or place, such
 	// as a city name, or a full postal address.
 	AttrLocationText = "locationText"
-	// http://schema.org/lastReviewed
-	// Value is in RFC3339 format.
-	AttrLastReviewed = "lastReviewed"
 	// AttrURL is the item's original or origin URL.
 	AttrURL = "url"
 
@@ -74,6 +71,4 @@ const (
 
 	// Image, photo.
 
-	// http://schema.org/primaryImageOfPage
-	AttrPrimaryImageOfPage = "primaryImageOfPage"
 )
