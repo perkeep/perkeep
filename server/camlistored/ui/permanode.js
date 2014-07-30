@@ -74,8 +74,6 @@ cam.PermanodePage.prototype.enterDocument = function() {
 	this.setupFilesHandlers_();
 
 	this.updateAll_();
-
-	this.buildPathsList_()
 };
 
 // Gets the |p| query parameter, assuming that it looks like a blobref.
@@ -130,10 +128,15 @@ cam.PermanodePage.prototype.describeBlob_ = function() {
 cam.PermanodePage.prototype.handleDescribeBlob_ = function(permanode, searchResponse) {
 	var describeResult = searchResponse.description;
 	var meta = describeResult.meta;
-	if (!meta[permanode]) {
-		alert(permanode + " was not described");
+	if (!meta[permanode] || meta[permanode].camliType != 'permanode') {
+		// Cope with the case where we loaded that page but we're actually not on a permanode.
+		console.log(permanode + " was not described as a permanode.");
+		goog.dom.setTextContent(goog.dom.getElement('mainTitle'), 'Not described');
+		goog.dom.getElement('permanode').innerHTML = "";
+		goog.dom.getElement('permanodeBlob').innerHTML = "<a href='./?b=" + permanode + "'>Reload as blob</a>";
 		return;
 	}
+
 	var permObj = meta[permanode].permanode;
 	if (!permObj) {
 		alert("blob " + permanode + " isn't a permanode");
@@ -196,6 +199,8 @@ cam.PermanodePage.prototype.handleDescribeBlob_ = function(permanode, searchResp
 
 	// debug attrs
 	goog.dom.setTextContent(goog.dom.getElement("debugattrs"), JSON.stringify(permObj.attr, null, 2));
+
+	this.buildPathsList_()
 };
 
 // TODO(mpl): pass directly the permanode object
