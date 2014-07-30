@@ -35,6 +35,7 @@ import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
+	"camlistore.org/pkg/schema/nodeattr"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 )
 
@@ -62,6 +63,10 @@ const (
 
 	checkinsRequestLimit = 100 // max number of checkins we will ask for in a checkins list request
 	photosRequestLimit   = 5
+
+	attrFoursquareId             = "foursquareId"
+	attrFoursquareVenuePermanode = "foursquareVenuePermanode"
+	attrFoursquareCategoryName   = "foursquareCategoryName"
 )
 
 func init() {
@@ -268,8 +273,8 @@ func (r *run) importPhotos(placeNode *importer.Object, checkinWasDup bool) error
 	}
 
 	if err := photosNode.SetAttrs(
-		"title", "Photos of "+placeNode.Attr("title"),
-		"camliDefVis", "hide"); err != nil {
+		nodeattr.Title, "Photos of "+placeNode.Attr("title"),
+		nodeattr.DefaultVisibility, "hide"); err != nil {
 		return err
 	}
 
@@ -289,7 +294,7 @@ func (r *run) importPhotos(placeNode *importer.Object, checkinWasDup bool) error
 
 	resp := photosList{}
 	if err := r.im.doAPI(r.Context, r.token(), &resp,
-		"venues/"+placeNode.Attr("foursquareId")+"/photos",
+		"venues/"+placeNode.Attr(attrFoursquareId)+"/photos",
 		"limit", strconv.Itoa(nWant)); err != nil {
 		return err
 	}
@@ -303,14 +308,15 @@ func (r *run) importPhotos(placeNode *importer.Object, checkinWasDup bool) error
 	}
 
 	if len(need) > 0 {
-		log.Printf("foursquare: importing %d photos for venue %s", len(need), placeNode.Attr("title"))
+		venueTitle := placeNode.Attr(nodeattr.Title)
+		log.Printf("foursquare: importing %d photos for venue %s", len(need), venueTitle)
 		for _, photo := range need {
 			attr := "camliPath:" + photo.Id + filepath.Ext(photo.Suffix)
 			if photosNode.Attr(attr) != "" {
 				continue
 			}
 			url := photo.Prefix + "original" + photo.Suffix
-			log.Printf("foursquare: importing photo for venue %s: %s", placeNode.Attr("title"), url)
+			log.Printf("foursquare: importing photo for venue %s: %s", venueTitle, url)
 			ref := r.urlFileRef(url, "")
 			if ref == "" {
 				r.errorf("Error slurping photo: %s", url)
@@ -332,13 +338,13 @@ func (r *run) importCheckin(parent *importer.Object, checkin *checkinItem, place
 	}
 
 	title := fmt.Sprintf("Checkin at %s", checkin.Venue.Name)
-	dup = checkinNode.Attr("startDate") != ""
+	dup = checkinNode.Attr(nodeattr.StartDate) != ""
 	if err := checkinNode.SetAttrs(
-		"foursquareId", checkin.Id,
-		"foursquareVenuePermanode", placeRef.String(),
-		"camliNodeType", "foursquare.com:checkin",
-		"startDate", schema.RFC3339FromTime(time.Unix(checkin.CreatedAt, 0)),
-		"title", title); err != nil {
+		attrFoursquareId, checkin.Id,
+		attrFoursquareVenuePermanode, placeRef.String(),
+		nodeattr.Type, "foursquare.com:checkin",
+		nodeattr.StartDate, schema.RFC3339FromTime(time.Unix(checkin.CreatedAt, 0)),
+		nodeattr.Title, title); err != nil {
 		return nil, false, err
 	}
 	return checkinNode, dup, nil
@@ -357,18 +363,18 @@ func (r *run) importPlace(parent *importer.Object, place *venueItem) (*importer.
 
 	icon := place.icon()
 	if err := placeNode.SetAttrs(
-		"foursquareId", place.Id,
-		"camliNodeType", "foursquare.com:venue",
-		"camliContentImage", r.urlFileRef(icon, path.Base(icon)),
-		"foursquareCategoryName", catName,
-		"title", place.Name,
-		"streetAddress", place.Location.Address,
-		"addressLocality", place.Location.City,
-		"postalCode", place.Location.PostalCode,
-		"addressRegion", place.Location.State,
-		"addressCountry", place.Location.Country,
-		"latitude", fmt.Sprint(place.Location.Lat),
-		"longitude", fmt.Sprint(place.Location.Lng)); err != nil {
+		attrFoursquareId, place.Id,
+		nodeattr.Type, "foursquare.com:venue",
+		nodeattr.CamliContentImage, r.urlFileRef(icon, path.Base(icon)),
+		attrFoursquareCategoryName, catName,
+		nodeattr.Title, place.Name,
+		nodeattr.StreetAddress, place.Location.Address,
+		nodeattr.AddressLocality, place.Location.City,
+		nodeattr.PostalCode, place.Location.PostalCode,
+		nodeattr.AddressRegion, place.Location.State,
+		nodeattr.AddressCountry, place.Location.Country,
+		nodeattr.Latitude, fmt.Sprint(place.Location.Lat),
+		nodeattr.Longitude, fmt.Sprint(place.Location.Lng)); err != nil {
 		return nil, err
 	}
 
@@ -381,7 +387,7 @@ func (r *run) getTopLevelNode(path string, title string) (*importer.Object, erro
 		return nil, err
 	}
 
-	if err := childObject.SetAttr("title", title); err != nil {
+	if err := childObject.SetAttr(nodeattr.Title, title); err != nil {
 		return nil, err
 	}
 	return childObject, nil

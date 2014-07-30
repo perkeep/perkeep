@@ -33,6 +33,10 @@ const (
 	// the "file" schema blob).
 	CamliContent = "camliContent"
 
+	// CamliContentImage is "camliContentImage", for when CamliContent is
+	// already set to the blobref of a non-image.
+	CamliContentImage = "camliContentImage"
+
 	// DateCreated is http://schema.org/dateCreated in RFC 3339
 	// format.
 	DateCreated = "dateCreated"
@@ -70,10 +74,33 @@ const (
 	Latitude  = "latitude"
 	Longitude = "longitude"
 
+	// StreetAddress is http://schema.org/streetAddress
+	StreetAddress = "streetAddress"
+
+	// AddressLocality is http://schema.org/addressLocality
+	// City, town, village, etc. name, plus any additional locality
+	// information, such as suburb name. Not as restricted as
+	// the UK postal meaning.
+	AddressLocality = "addressLocality"
+
+	// PostalCode is http://schema.org/postalCode
+	PostalCode = "postalCode"
+
+	// AddressRegion is http://schema.org/addressRegion
+	// Region, or state name.
+	AddressRegion = "addressRegion"
+
+	// AddressCountry is http://schema.org/addressCountry
+	AddressCountry = "addressCountry"
+
 	// CamliPathOrderColon is the prefix "camliPathOrder:".
 	// The attribute key should be followed by a uint64. The attribute value
 	// is an existing value of a camliPath element.
 	// CamliPathOrder optionally sorts sets already using "camliPath:foo" keys.
 	// The integers do not need to be contiguous, nor 0- (or 1-) based.
 	CamliPathOrderColon = "camliPathOrder:"
+
+	// DefaultVisibility is "camliDefVis", which affects the default
+	// visibility of the concerned permanode in the web UI.
+	DefaultVisibility = "camliDefVis"
 )
