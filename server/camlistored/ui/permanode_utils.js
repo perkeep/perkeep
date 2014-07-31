@@ -25,3 +25,7 @@ cam.permanodeUtils.getSingleAttr = function(permanode, name) {
 	}
 	return null;
 };
+
+cam.permanodeUtils.isContainer = function(permanode) {
+	return goog.object.some(permanode.attr, function(v, k) { return k == 'camliMember' || goog.string.startsWith(k, 'camliPath:'); });
+};

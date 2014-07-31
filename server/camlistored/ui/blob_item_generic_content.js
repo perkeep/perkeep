@@ -103,6 +103,7 @@ cam.BlobItemGenericContent.Handler.prototype.getAspectRatio = function() {
 };
 
 cam.BlobItemGenericContent.Handler.prototype.createContent = function(size) {
+	// TODO(aa): In the case of a permanode that is a container (cam.permanodeUtils.isContainer()) and has a camliContentImage, it would be nice to show that image somehow along with the folder icon.
 	return cam.BlobItemGenericContent({
 		href: this.href_,
 		size: size,
@@ -127,6 +128,7 @@ cam.BlobItemGenericContent.Handler.prototype.getThumbType_ = function() {
 	}
 
 	// Using the directory icon for any random permanode is a bit weird. Ideally we'd use file for that. The problem is that we can't tell the difference between a permanode that is representing an empty dynamic set and a permanode that is representing something else entirely.
+	// And unfortunately, the UI has a big prominent button that says 'new set', and it looks funny if the new set is shown as a file icon :(
 	if (m.camliType == 'permanode') {
 		return 'folder';
 	}
