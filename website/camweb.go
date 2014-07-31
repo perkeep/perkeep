@@ -291,7 +291,11 @@ func (h *noWwwHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	host := strings.ToLower(r.Host)
 	if host == "www.camlistore.org" {
-		http.Redirect(rw, r, "http://camlistore.org"+r.URL.RequestURI(), http.StatusFound)
+		scheme := "https"
+		if r.TLS == nil {
+			scheme = "http"
+		}
+		http.Redirect(rw, r, scheme+"://camlistore.org"+r.URL.RequestURI(), http.StatusFound)
 		return
 	}
 	h.Handler.ServeHTTP(rw, r)
