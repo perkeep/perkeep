@@ -282,6 +282,9 @@ func TestVideoInGallery(t *testing.T) {
 	if got, want := p.URL, "https://foo.googlevideo.com/bar.mp4"; got != want {
 		t.Errorf("URL = %q; want %q", got, want)
 	}
+	if got, want := p.PageURL, "https://picasaweb.google.com/114403741484702971746/BikingWithBlake#6041225428268790466"; got != want {
+		t.Errorf("PageURL = %q; want %q", got, want)
+	}
 	wantKW := []string{"keyboard", "stuff"}
 	if !reflect.DeepEqual(p.Keywords, wantKW) {
 		t.Errorf("Keywords = %q; want %q", p.Keywords, wantKW)

@@ -55,7 +55,7 @@ const (
 	// complete run.  Otherwise, if the importer runs to
 	// completion, this version number is recorded on the account
 	// permanode and subsequent importers can stop early.
-	runCompleteVersion = "3"
+	runCompleteVersion = "4"
 
 	// attrPicasaId is used for both picasa photo IDs and gallery IDs.
 	attrPicasaId = "picasaId"
@@ -233,6 +233,7 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album) (ret 
 		nodeattr.DatePublished, schema.RFC3339FromTime(album.Published),
 		nodeattr.LocationText, album.Location,
 		nodeattr.Description, album.Description,
+		nodeattr.URL, album.URL,
 	)
 	if err != nil {
 		return fmt.Errorf("error setting album attributes: %v", err)
@@ -358,6 +359,7 @@ func (r *run) updatePhotoInAlbum(albumNode *importer.Object, photo picago.Photo)
 		nodeattr.LocationText, photo.Location,
 		nodeattr.DateModified, schema.RFC3339FromTime(photo.Updated),
 		nodeattr.DatePublished, schema.RFC3339FromTime(photo.Published),
+		nodeattr.URL, photo.PageURL,
 	}
 	if photo.Latitude != 0 || photo.Longitude != 0 {
 		attrs = append(attrs,

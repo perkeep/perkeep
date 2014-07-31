@@ -99,6 +99,9 @@ type Photo struct {
 	// URL is the URL of the photo or video.
 	URL string
 
+	// PageURL is the URL to the page showing just this image.
+	PageURL string
+
 	// Type is the Content-Type.
 	Type string
 
@@ -242,6 +245,12 @@ func (e *Entry) photo() (p Photo, err error) {
 		Updated:     e.Updated,
 		Latitude:    lat,
 		Longitude:   long,
+	}
+	for _, link := range e.Links {
+		if link.Rel == "alternate" && link.Type == "text/html" {
+			p.PageURL = link.URL
+			break
+		}
 	}
 	if e.Media != nil {
 		for _, kw := range strings.Split(e.Media.Keywords, ",") {
