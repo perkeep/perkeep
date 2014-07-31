@@ -330,7 +330,7 @@ func (r *run) updatePhotoInAlbum(albumNode *importer.Object, photo picago.Photo)
 		// photos.google.com UI causes its URL to change. And it makes
 		// sense, looking at the ugliness of the URLs with all their
 		// encoded/signed state.
-		if photoNode.Attr(attrMediaURL) != photo.URL {
+		if !mediaURLsEqual(photoNode.Attr(attrMediaURL), photo.URL) {
 			rc, err := getMediaBytes()
 			if err != nil {
 				return err
@@ -457,4 +457,14 @@ Res:
 		return br, nil
 	}
 	return pn, os.ErrNotExist
+}
+
+func mediaURLsEqual(a, b string) bool {
+	const sub = ".googleusercontent.com/"
+	ai := strings.Index(a, sub)
+	bi := strings.Index(b, sub)
+	if ai >= 0 && bi >= 0 {
+		return a[ai:] == b[bi:]
+	}
+	return a == b
 }

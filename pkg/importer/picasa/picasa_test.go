@@ -50,3 +50,12 @@ func TestGetUserId(t *testing.T) {
 		t.Errorf("user info = %+v; want %+v", inf, want)
 	}
 }
+
+func TestMediaURLsEqual(t *testing.T) {
+	if !mediaURLsEqual("https://lh1.googleusercontent.com/foo.jpg", "https://lh100.googleusercontent.com/foo.jpg") {
+		t.Fatal("want equal")
+	}
+	if mediaURLsEqual("https://foo.com/foo.jpg", "https://bar.com/foo.jpg") {
+		t.Fatal("want not equal")
+	}
+}
