@@ -33,6 +33,7 @@ import (
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
+	"camlistore.org/pkg/schema/nodeattr"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/strutil"
 	"camlistore.org/pkg/syncutil"
@@ -856,31 +857,18 @@ var (
 	errNoNodeAttr          = errors.New("attribute not found")
 )
 
-// typeSpecificNodeTimeLocked returns the time that is set as a specific permanode attribute.
-// That attribute, if any, depends on the nodeType ("camliNodeType" attribute) value, which
-// may be empty as well.
-func (c *Corpus) typeSpecificNodeTimeLocked(nodeType string, pn blob.Ref) (t time.Time, err error) {
-	attr := ""
-	switch nodeType {
-	case "foursquare.com:checkin":
-		attr = "startDate"
-	case "twitter.com:tweet":
-		attr = "startDate"
-	// TODO(mpl): other nodeTypes from importers
-	default:
-		return t, errUnsupportedNodeType
+func (c *Corpus) pnTimeAttrLocked(pn blob.Ref, attr string) (t time.Time, ok bool) {
+	if v := c.PermanodeAttrValueLocked(pn, attr, time.Time{}, blob.Ref{}); v != "" {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			return t, true
+		}
 	}
-	timeStr := c.PermanodeAttrValueLocked(pn, attr, time.Time{}, blob.Ref{})
-	if timeStr == "" {
-		return t, errNoNodeAttr
-	}
-	return time.Parse(time.RFC3339, timeStr)
+	return
 }
 
 // PermanodeTimeLocked returns the time of the content in permanode.
 func (c *Corpus) PermanodeTimeLocked(pn blob.Ref) (t time.Time, ok bool) {
 	// TODO(bradfitz): keep this time property cached on the permanode / files
-
 	// TODO(bradfitz): finish implmenting all these
 
 	// Priorities:
@@ -893,30 +881,34 @@ func (c *Corpus) PermanodeTimeLocked(pn blob.Ref) (t time.Time, ok bool) {
 	// -- File modtime
 	// -- camliContent claim set time
 
-	// First check the type-specific time (e.g. from importers)
-	nodeType := c.PermanodeAttrValueLocked(pn, "camliNodeType", time.Time{}, blob.Ref{})
-	if nodeType != "" {
-		if t, err := c.typeSpecificNodeTimeLocked(nodeType, pn); err == nil {
-			return t, true
-		}
-	}
-
-	// Otherwise check time from the FileInfo
-	ccRef, ccTime, ok := c.pnCamliContentLocked(pn)
-	if !ok {
+	if t, ok = c.pnTimeAttrLocked(pn, nodeattr.StartDate); ok {
 		return
 	}
-
-	fi, ok := c.files[ccRef]
-	if ok {
-		if fi.Time != nil {
-			return time.Time(*fi.Time), true
-		}
-		if fi.ModTime != nil {
-			return time.Time(*fi.ModTime), true
-		}
+	if t, ok = c.pnTimeAttrLocked(pn, nodeattr.DateCreated); ok {
+		return
 	}
-	return ccTime, true
+	var fi camtypes.FileInfo
+	ccRef, ccTime, ok := c.pnCamliContentLocked(pn)
+	if ok {
+		fi, _ = c.files[ccRef]
+	}
+	if fi.Time != nil {
+		return time.Time(*fi.Time), true
+	}
+
+	if t, ok = c.pnTimeAttrLocked(pn, nodeattr.DatePublished); ok {
+		return
+	}
+	if t, ok = c.pnTimeAttrLocked(pn, nodeattr.DateModified); ok {
+		return
+	}
+	if fi.ModTime != nil {
+		return time.Time(*fi.ModTime), true
+	}
+	if ok {
+		return ccTime, true
+	}
+	return time.Time{}, false
 }
 
 // PermanodeAnyTimeLocked returns the time that best qualifies the permanode.
