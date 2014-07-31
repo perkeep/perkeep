@@ -94,6 +94,11 @@ type run struct {
 	*importer.RunContext
 	oauthClient *oauth.Client      // No need to guard, used read-only.
 	accessCreds *oauth.Credentials // No need to guard, used read-only.
+
+	// primaryPhoto maps an album id to the id of its primary photo.
+	// If some concurrency is added to some of the importing routines,
+	// it will need some guarding.
+	primaryPhoto map[string]string
 }
 
 // TODO(mpl): same as in twitter. refactor.
@@ -132,6 +137,7 @@ func (imp) Run(ctx *importer.RunContext) error {
 			Token:  accessToken,
 			Secret: accessSecret,
 		},
+		primaryPhoto: make(map[string]string),
 	}
 
 	if err := r.importPhotosets(); err != nil {
@@ -204,14 +210,15 @@ func (r *run) importPhotoset(parent *importer.Object, photoset *photosetInfo, pa
 		return 0, err
 	}
 
-	// TODO(mpl): set CamliContentImage on photosetNode as the fileref of the photo with photoset.PrimaryPhotoId
-	// We can't do it here since the photo might have not been downloaded yet.
 	if err := photosetNode.SetAttrs(
 		attrFlickrId, photoset.Id,
 		nodeattr.Title, photoset.Title.Content,
 		nodeattr.Description, photoset.Description.Content); err != nil {
 		return 0, err
 	}
+	// keep track of primary photo so we can set the fileRef of the photo as CamliContentImage
+	// on photosetNode when we eventually know that fileRef.
+	r.primaryPhoto[photoset.Id] = photoset.PrimaryPhotoId
 
 	resp := struct {
 		Photoset photosetItems
@@ -376,6 +383,9 @@ func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) erro
 			return fmt.Errorf("could not parse last stored update time for image %v: %v", photo.Id, err)
 		}
 		if lastUpdate.Equal(oldLastUpdate) {
+			if err := r.updatePrimaryPhoto(photoNode); err != nil {
+				return err
+			}
 			return nil
 		}
 	}
@@ -395,11 +405,42 @@ func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) erro
 	if err := photoNode.SetAttr(nodeattr.CamliContent, fileRef.String()); err != nil {
 		return err
 	}
+	if err := r.updatePrimaryPhoto(photoNode); err != nil {
+		return err
+	}
 	// Write lastupdate last, so that if any of the preceding fails, we will try again next time.
 	if err := photoNode.SetAttr(nodeattr.DateModified, schema.RFC3339FromTime(lastUpdate)); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+// updatePrimaryPhoto uses the camliContent of photoNode to set the
+// camliContentImage of any album for which photoNode is the primary photo.
+func (r *run) updatePrimaryPhoto(photoNode *importer.Object) error {
+	photoId := photoNode.Attr(attrFlickrId)
+	for album, photo := range r.primaryPhoto {
+		if photoId != photo {
+			continue
+		}
+		setsNode, err := r.getTopLevelNode("sets", "Sets")
+		if err != nil {
+			return fmt.Errorf("could not set %v as primary photo of %v, no root sets: %v", photoId, album, err)
+		}
+		setNode, err := setsNode.ChildPathObject(album)
+		if err != nil {
+			return fmt.Errorf("could not set %v as primary photo of %v, no album: %v", photoId, album, err)
+		}
+		fileRef := photoNode.Attr(nodeattr.CamliContent)
+		if fileRef == "" {
+			return fmt.Errorf("could not set %v as primary photo of %v: fileRef of photo is unknown", photoId, album)
+		}
+		if err := setNode.SetAttr(nodeattr.CamliContentImage, fileRef); err != nil {
+			return fmt.Errorf("could not set %v as primary photo of %v: %v", photoId, album, err)
+		}
+		delete(r.primaryPhoto, album)
+	}
 	return nil
 }
 
