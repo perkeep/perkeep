@@ -66,6 +66,14 @@ type imp struct {
 	categoryRef map[string]blob.Ref // URL -> file schema ref
 }
 
+func (*imp) SupportsIncremental() bool {
+	// SupportsIncremental signals to the importer host that this
+	// importer has been optimized to be run regularly (e.g. every 5
+	// minutes or half hour).  If it returns false, the user must
+	// manually start imports.
+	return false
+}
+
 func (*imp) NeedsAPIKey() bool {
 	// This tells the importer framework that we our importer will
 	// be calling the {RunContext,SetupContext}.Credentials method

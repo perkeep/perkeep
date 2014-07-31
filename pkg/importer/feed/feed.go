@@ -58,6 +58,8 @@ type imp struct {
 
 func (im *imp) NeedsAPIKey() bool { return false }
 
+func (im *imp) SupportsIncremental() bool { return true }
+
 func (im *imp) IsAccountReady(acctNode *importer.Object) (ok bool, err error) {
 	if acctNode.Attr(acctAttrFeedURL) != "" {
 		return true, nil

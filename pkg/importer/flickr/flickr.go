@@ -59,6 +59,8 @@ type imp struct {
 
 func (imp) NeedsAPIKey() bool { return true }
 
+func (imp) SupportsIncremental() bool { return false }
+
 func (imp) IsAccountReady(acctNode *importer.Object) (ok bool, err error) {
 	return acctNode.Attr(importer.AcctAttrUserName) != "" && acctNode.Attr(importer.AcctAttrAccessToken) != "", nil
 }

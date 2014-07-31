@@ -70,6 +70,13 @@ type Importer interface {
 	// can return false here.
 	NeedsAPIKey() bool
 
+	// SupportsIncremental reports whether this importer has been optimized
+	// to run efficiently in regular incremental runs. (e.g. every 5 minutes
+	// or half hour). Eventually all importers might support this and we'll
+	// make it required, in which case we might delete this option.
+	// For now, some importers (e.g. Flickr) don't yet support this.
+	SupportsIncremental() bool
+
 	// IsAccountReady reports whether the provided account node
 	// is configured.
 	IsAccountReady(acctNode *Object) (ok bool, err error)
@@ -862,6 +869,9 @@ func (ia *importerAcct) delete() error {
 
 func (ia *importerAcct) toggleAuto() error {
 	old := ia.acct.Attr(attrImportAuto)
+	if old == "" && !ia.im.impl.SupportsIncremental() {
+		return fmt.Errorf("Importer %q doesn't support automatic mode.", ia.im.name)
+	}
 	var new string
 	if old == "" {
 		new = "30m" // TODO: configurable?

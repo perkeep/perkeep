@@ -61,15 +61,13 @@ const (
 	attrPicasaId = "picasaId"
 )
 
-func init() {
-	importer.Register("picasa", newImporter())
-}
-
-var _ importer.ImporterSetupHTMLer = (*imp)(nil)
+var _ importer.ImporterSetupHTMLer = imp{}
 
 type imp struct {
 	extendedOAuth2
 }
+
+func (imp) SupportsIncremental() bool { return true }
 
 var baseOAuthConfig = oauth.Config{
 	AuthURL:  authURL,
@@ -85,8 +83,8 @@ var baseOAuthConfig = oauth.Config{
 	ApprovalPrompt: "force",
 }
 
-func newImporter() *imp {
-	return &imp{
+func init() {
+	importer.Register("picasa", imp{
 		newExtendedOAuth2(
 			baseOAuthConfig,
 			func(ctx *context.Context) (*userInfo, error) {
@@ -105,10 +103,10 @@ func newImporter() *imp {
 					LastName:  lastName,
 				}, nil
 			}),
-	}
+	})
 }
 
-func (*imp) AccountSetupHTML(host *importer.Host) string {
+func (imp) AccountSetupHTML(host *importer.Host) string {
 	// Picasa doesn't allow a path in the origin. Remove it.
 	origin := host.ImporterBaseURL()
 	if u, err := url.Parse(origin); err == nil {
@@ -135,7 +133,6 @@ and click <b>"Create Project"</b>.</p>
 // A run is our state for a given run of the importer.
 type run struct {
 	*importer.RunContext
-	im          *imp
 	incremental bool // whether we've completed a run in the past
 	photoGate   *syncutil.Gate
 
@@ -152,7 +149,7 @@ func (r *run) errorf(format string, args ...interface{}) {
 
 var forceFullImport, _ = strconv.ParseBool(os.Getenv("CAMLI_PICASA_FULL_IMPORT"))
 
-func (im *imp) Run(ctx *importer.RunContext) error {
+func (imp) Run(ctx *importer.RunContext) error {
 	clientId, secret, err := ctx.Credentials()
 	if err != nil {
 		return err
@@ -180,7 +177,6 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 
 	r := &run{
 		RunContext:  ctx,
-		im:          im,
 		incremental: !forceFullImport && acctNode.Attr(importer.AcctAttrCompletedVersion) == runCompleteVersion,
 		photoGate:   syncutil.NewGate(3),
 	}

@@ -30,6 +30,8 @@ type todoImp struct {
 
 func (todoImp) NeedsAPIKey() bool { return false }
 
+func (todoImp) SupportsIncremental() bool { return false }
+
 func (todoImp) Run(*RunContext) error {
 	return errors.New("fake error from todo importer")
 }
