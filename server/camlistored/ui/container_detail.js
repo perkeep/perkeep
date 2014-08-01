@@ -27,7 +27,7 @@ cam.ContainerDetail.getAspect = function(detailURL, handlers, history, getSearch
 	}
 
 	// TODO(aa): Also handle directories and static sets.
-	if (!goog.object.some(m.permanode.attr, function(v, k) { return k == 'camliMember' || goog.string.startsWith(k, 'camliPath:'); })) {
+	if (!cam.permanodeUtils.isContainer(m.permanode)) {
 		return null;
 	}
 

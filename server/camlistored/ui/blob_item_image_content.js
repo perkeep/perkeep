@@ -19,6 +19,7 @@ goog.provide('cam.BlobItemImageContent');
 goog.require('goog.math.Size');
 
 goog.require('cam.math');
+goog.require('cam.permanodeUtils');
 goog.require('cam.PyramidThrobber');
 goog.require('cam.Thumber');
 
@@ -110,13 +111,20 @@ cam.BlobItemImageContent.getHandler = function(blobref, searchSession, href) {
 	}
 
 	var m = searchSession.getMeta(blobref);
-	if (m.camliType == 'permanode') {
-		var cci = cam.permanodeUtils.getSingleAttr(m.permanode, 'camliContentImage');
-		if (cci) {
-			var ccim = searchSession.getResolvedMeta(cci);
-			if (ccim) {
-				return new cam.BlobItemImageContent.Handler(ccim, href, searchSession.getTitle(blobref));
-			}
+	if (m.camliType != 'permanode') {
+		return null;
+	}
+
+	// Sets can have the camliContentImage attr to indicate a user-chosen "cover image" for the entire set. Until we have some rendering for those, the folder in the generic handler is a better fit than the single image.
+	if (cam.permanodeUtils.isContainer(m.permanode)) {
+		return null;
+	}
+
+	var cci = cam.permanodeUtils.getSingleAttr(m.permanode, 'camliContentImage');
+	if (cci) {
+		var ccim = searchSession.getResolvedMeta(cci);
+		if (ccim) {
+			return new cam.BlobItemImageContent.Handler(ccim, href, searchSession.getTitle(blobref));
 		}
 	}
 
