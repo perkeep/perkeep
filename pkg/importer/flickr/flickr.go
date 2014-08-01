@@ -101,11 +101,6 @@ type run struct {
 	primaryPhoto map[string]string
 }
 
-// TODO(mpl): same as in twitter. refactor.
-func (r *run) oauthContext() oauthContext {
-	return oauthContext{r.Context, r.oauthClient, r.accessCreds}
-}
-
 func (imp) Run(ctx *importer.RunContext) error {
 	clientID, secret, err := ctx.Credentials()
 	if err != nil {
@@ -177,7 +172,7 @@ func (r *run) importPhotosets() error {
 	resp := struct {
 		Photosets photosetList
 	}{}
-	if err := r.oauthContext().flickrAPIRequest(&resp,
+	if err := r.flickrAPIRequest(&resp,
 		photosetsAPIPath, "user_id", r.userID); err != nil {
 		return err
 	}
@@ -223,7 +218,7 @@ func (r *run) importPhotoset(parent *importer.Object, photoset *photosetInfo, pa
 	resp := struct {
 		Photoset photosetItems
 	}{}
-	if err := r.oauthContext().flickrAPIRequest(&resp, photosetAPIPath, "user_id", r.userID,
+	if err := r.flickrAPIRequest(&resp, photosetAPIPath, "user_id", r.userID,
 		"page", fmt.Sprintf("%d", page), "photoset_id", photoset.Id, "extras", "original_format"); err != nil {
 		return 0, err
 	}
@@ -305,7 +300,7 @@ func (r *run) importPhotos() error {
 
 func (r *run) importPhotosPage(page int) (int, error) {
 	resp := photosSearch{}
-	if err := r.oauthContext().flickrAPIRequest(&resp, photosAPIPath, "user_id", r.userID, "page", fmt.Sprintf("%d", page),
+	if err := r.flickrAPIRequest(&resp, photosAPIPath, "user_id", r.userID, "page", fmt.Sprintf("%d", page),
 		"extras", "description,date_upload,date_taken,original_format,last_update,geo,tags,machine_tags,views,media,url_o"); err != nil {
 		return 0, err
 	}
@@ -391,7 +386,7 @@ func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) erro
 	}
 	form := url.Values{}
 	form.Set("user_id", r.userID)
-	res, err := r.oauthContext().flickrRequest(photo.URL, form)
+	res, err := r.fetch(photo.URL, form)
 	if err != nil {
 		log.Printf("Flickr importer: Could not fetch %s: %s", photo.URL, err)
 		return err
@@ -448,7 +443,6 @@ func (r *run) getPhotosNode() (*importer.Object, error) {
 	return r.getTopLevelNode("photos", "Photos")
 }
 
-// TODO(mpl): same in twitter. refactor.
 func (r *run) getTopLevelNode(path string, title string) (*importer.Object, error) {
 	photos, err := r.RootNode().ChildPathObject(path)
 	if err != nil {
@@ -461,54 +455,19 @@ func (r *run) getTopLevelNode(path string, title string) (*importer.Object, erro
 	return photos, nil
 }
 
-// TODO(mpl): same as in twitter. refactor.
-// oauthContext is used as a value type, wrapping a context and oauth information.
-type oauthContext struct {
-	*context.Context
-	client *oauth.Client
-	creds  *oauth.Credentials
+func (r *run) flickrAPIRequest(result interface{}, method string, keyval ...string) error {
+	keyval = append([]string{"method", method, "format", "json", "nojsoncallback", "1"}, keyval...)
+	return importer.OAuthContext{
+		r.Context,
+		r.oauthClient,
+		r.accessCreds}.PopulateJSONFromURL(result, apiURL, keyval...)
 }
 
-func (ctx oauthContext) flickrAPIRequest(result interface{}, method string, keyval ...string) error {
-	if len(keyval)%2 == 1 {
-		panic("Incorrect number of keyval arguments. must be even.")
-	}
-
-	form := url.Values{}
-	form.Set("method", method)
-	form.Set("format", "json")
-	form.Set("nojsoncallback", "1")
-	for i := 0; i < len(keyval); i += 2 {
-		form.Set(keyval[i], keyval[i+1])
-	}
-
-	res, err := ctx.flickrRequest(apiURL, form)
-	if err != nil {
-		return err
-	}
-	err = httputil.DecodeJSON(res, result)
-	if err != nil {
-		return fmt.Errorf("could not parse response for %s: %v", apiURL, err)
-	}
-	return err
-}
-
-// TODO(mpl): same in twitter. refactor.
-func (ctx oauthContext) flickrRequest(url string, form url.Values) (*http.Response, error) {
-	if ctx.creds == nil {
-		return nil, errors.New("No OAuth credentials. Not logged in?")
-	}
-	if ctx.client == nil {
-		return nil, errors.New("No OAuth client.")
-	}
-	res, err := ctx.client.Get(ctx.HTTPClient(), ctx.creds, url, form)
-	if err != nil {
-		return nil, fmt.Errorf("Error fetching %s: %v", url, err)
-	}
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Get request on %s failed with: %s", url, res.Status)
-	}
-	return res, nil
+func (r *run) fetch(url string, form url.Values) (*http.Response, error) {
+	return importer.OAuthContext{
+		r.Context,
+		r.oauthClient,
+		r.accessCreds}.Get(url, form)
 }
 
 // TODO(mpl): same in twitter. refactor.
