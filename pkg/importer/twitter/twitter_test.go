@@ -23,6 +23,7 @@ import (
 
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/importer"
 
 	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
 )
@@ -34,7 +35,7 @@ func TestGetUserID(t *testing.T) {
 		}),
 	}))
 	defer ctx.Cancel()
-	inf, err := getUserInfo(oauthContext{ctx, &oauth.Client{}, &oauth.Credentials{}})
+	inf, err := getUserInfo(importer.OAuthContext{ctx, &oauth.Client{}, &oauth.Credentials{}})
 	if err != nil {
 		t.Fatal(err)
 	}

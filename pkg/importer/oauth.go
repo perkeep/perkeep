@@ -25,6 +25,9 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/context"
+	"camlistore.org/pkg/httputil"
+	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
 )
 
 const (
@@ -142,4 +145,54 @@ func (im OAuth2) SummarizeAccount(acct *Object) string {
 		acct.Attr(AcctAttrUserID),
 		acct.Attr(AcctAttrGivenName),
 		acct.Attr(AcctAttrFamilyName))
+}
+
+// OAuthContext wraps the OAuth1 state needed to perform API calls.
+//
+// It is used as a value type.
+type OAuthContext struct {
+	Ctx    *context.Context
+	Client *oauth.Client
+	Creds  *oauth.Credentials
+}
+
+// Get fetches through octx the resource defined by url and the values in form.
+func (octx OAuthContext) Get(url string, form url.Values) (*http.Response, error) {
+	if octx.Creds == nil {
+		return nil, errors.New("No OAuth credentials. Not logged in?")
+	}
+	if octx.Client == nil {
+		return nil, errors.New("No OAuth client.")
+	}
+	res, err := octx.Client.Get(octx.Ctx.HTTPClient(), octx.Creds, url, form)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching %s: %v", url, err)
+	}
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Get request on %s failed with: %s", url, res.Status)
+	}
+	return res, nil
+}
+
+// PopulateJSONFromURL makes a GET call at apiURL, using keyval as parameters of
+// the associated form. The JSON response is decoded into result.
+func (ctx OAuthContext) PopulateJSONFromURL(result interface{}, apiURL string, keyval ...string) error {
+	if len(keyval)%2 == 1 {
+		return errors.New("Incorrect number of keyval arguments. must be even.")
+	}
+
+	form := url.Values{}
+	for i := 0; i < len(keyval); i += 2 {
+		form.Set(keyval[i], keyval[i+1])
+	}
+
+	hres, err := ctx.Get(apiURL, form)
+	if err != nil {
+		return err
+	}
+	err = httputil.DecodeJSON(hres, result)
+	if err != nil {
+		return fmt.Errorf("could not parse response for %s: %v", apiURL, err)
+	}
+	return err
 }
