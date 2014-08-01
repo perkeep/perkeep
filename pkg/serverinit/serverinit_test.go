@@ -26,6 +26,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -101,7 +103,9 @@ type namedReadSeeker struct {
 func (n namedReadSeeker) Name() string { return n.name }
 func (n namedReadSeeker) Close() error { return nil }
 
-// configParser returns a custom jsonconfig ConfigParser whose reader rewrites "/path/to/secring" to the absolute path of the jsonconfig test-secring.gpg file.
+// configParser returns a custom jsonconfig ConfigParser whose reader rewrites
+// "/path/to/secring" to the absolute path of the jsonconfig test-secring.gpg file.
+// On windows, it also fixes the slash separated paths.
 func configParser() *jsonconfig.ConfigParser {
 	return &jsonconfig.ConfigParser{
 		Open: func(path string) (jsonconfig.File, error) {
@@ -109,6 +113,7 @@ func configParser() *jsonconfig.ConfigParser {
 			if err != nil {
 				return nil, err
 			}
+			slurp = backslashEscape(slurp)
 			return namedReadSeeker{path, bytes.NewReader(slurp)}, nil
 		},
 	}
@@ -120,11 +125,36 @@ func replaceRingPath(path string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Could not get absolute path of %v: %v", relativeRing, err)
 	}
+	secRing = strings.Replace(secRing, `\`, `\\`, -1)
 	slurpBytes, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
+
 	return bytes.Replace(slurpBytes, []byte(secringPlaceholder), []byte(secRing), 1), nil
+}
+
+// We just need to make sure that we don't match the prefix handlers too.
+var unixPathPattern = regexp.MustCompile(`"/.*/.+"`)
+
+// backslashEscape, on windows, changes all the slash separated paths (which
+// match unixPathPattern, to omit the prefix handler paths) with escaped
+// backslashes.
+func backslashEscape(b []byte) []byte {
+	if runtime.GOOS != "windows" {
+		return b
+	}
+	unixPaths := unixPathPattern.FindAll(b, -1)
+	if unixPaths == nil {
+		return b
+	}
+	var oldNew []string
+	for _, v := range unixPaths {
+		bStr := string(v)
+		oldNew = append(oldNew, bStr, strings.Replace(bStr, `/`, `\\`, -1))
+	}
+	r := strings.NewReplacer(oldNew...)
+	return []byte(r.Replace(string(b)))
 }
 
 func testConfig(name string, t *testing.T) {
@@ -142,6 +172,7 @@ func testConfig(name string, t *testing.T) {
 	if err != nil {
 		t.Fatalf("Could not read %s: %v", name, err)
 	}
+	b = backslashEscape(b)
 	var hiLevelConf serverconfig.Config
 	if err := json.Unmarshal(b, &hiLevelConf); err != nil {
 		t.Fatalf("Could not unmarshal %s into a serverconfig.Config: %v", name, err)
