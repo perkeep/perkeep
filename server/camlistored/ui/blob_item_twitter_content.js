@@ -87,13 +87,14 @@ cam.BlobItemTwitterContent.getHandler = function(blobref, searchSession, href) {
 		return null;
 	}
 
-	var content = cam.permanodeUtils.getSingleAttr(m.permanode, 'content');
 	var date = cam.permanodeUtils.getSingleAttr(m.permanode, 'startDate');
-	if (!content || !date) {
+	var username = cam.permanodeUtils.getSingleAttr(m.permanode, 'url').match(/^https:\/\/twitter.com\/(.+?)\//)[1];
+	if (!date || !username) {
 		return null;
 	}
 
-	var username = cam.permanodeUtils.getSingleAttr(m.permanode, 'url').match(/^https:\/\/twitter.com\/(.+?)\//)[1];
+	// It's OK to not have any content. Tweets can be just images or whatever.
+	var content = cam.permanodeUtils.getSingleAttr(m.permanode, 'content');
 	var imageMeta = cam.permanodeUtils.getSingleAttr(m.permanode, 'camliContentImage');
 	if (imageMeta) {
 		imageMeta = searchSession.getResolvedMeta(imageMeta);
