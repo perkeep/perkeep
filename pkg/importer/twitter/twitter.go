@@ -81,6 +81,12 @@ const (
 	tweetsAtOnce      = 20  // how many tweets to import at once
 )
 
+var oAuthURIs = importer.OAuthURIs{
+	TemporaryCredentialRequestURI: temporaryCredentialRequestURL,
+	ResourceOwnerAuthorizationURI: resourceOwnerAuthorizationURL,
+	TokenRequestURI:               tokenRequestURL,
+}
+
 func init() {
 	importer.Register("twitter", &imp{})
 }
@@ -543,24 +549,8 @@ func getUserInfo(ctx importer.OAuthContext) (userInfo, error) {
 	return ui, nil
 }
 
-func newOauthClient(ctx *importer.SetupContext) (*oauth.Client, error) {
-	clientId, secret, err := ctx.Credentials()
-	if err != nil {
-		return nil, err
-	}
-	return &oauth.Client{
-		TemporaryCredentialRequestURI: temporaryCredentialRequestURL,
-		ResourceOwnerAuthorizationURI: resourceOwnerAuthorizationURL,
-		TokenRequestURI:               tokenRequestURL,
-		Credentials: oauth.Credentials{
-			Token:  clientId,
-			Secret: secret,
-		},
-	}, nil
-}
-
 func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) error {
-	oauthClient, err := newOauthClient(ctx)
+	oauthClient, err := ctx.NewOAuthClient(oAuthURIs)
 	if err != nil {
 		err = fmt.Errorf("error getting OAuth client: %v", err)
 		httputil.ServeError(w, r, err)
@@ -599,7 +589,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		httputil.BadRequestError(w, "unexpected oauth_token")
 		return
 	}
-	oauthClient, err := newOauthClient(ctx)
+	oauthClient, err := ctx.NewOAuthClient(oAuthURIs)
 	if err != nil {
 		err = fmt.Errorf("error getting OAuth client: %v", err)
 		httputil.ServeError(w, r, err)

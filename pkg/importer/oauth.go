@@ -196,3 +196,28 @@ func (ctx OAuthContext) PopulateJSONFromURL(result interface{}, apiURL string, k
 	}
 	return err
 }
+
+// OAuthURIs holds the URIs needed to initialize an OAuth 1 client.
+type OAuthURIs struct {
+	TemporaryCredentialRequestURI string
+	ResourceOwnerAuthorizationURI string
+	TokenRequestURI               string
+}
+
+// NewOAuthClient returns an oauth Client configured with uris and the
+// credentials obtained from ctx.
+func (ctx *SetupContext) NewOAuthClient(uris OAuthURIs) (*oauth.Client, error) {
+	clientId, secret, err := ctx.Credentials()
+	if err != nil {
+		return nil, err
+	}
+	return &oauth.Client{
+		TemporaryCredentialRequestURI: uris.TemporaryCredentialRequestURI,
+		ResourceOwnerAuthorizationURI: uris.ResourceOwnerAuthorizationURI,
+		TokenRequestURI:               uris.TokenRequestURI,
+		Credentials: oauth.Credentials{
+			Token:  clientId,
+			Secret: secret,
+		},
+	}, nil
+}
