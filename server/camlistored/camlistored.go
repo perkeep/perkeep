@@ -81,7 +81,7 @@ var (
 	flagVersion    = flag.Bool("version", false, "show version")
 	flagConfigFile = flag.String("configfile", "",
 		"Config file to use, relative to the Camlistore configuration directory root. If blank, the default is used or auto-generated.")
-	listenFlag      = flag.String("listen", "", "host:port to listen on, or :0 to auto-select. If blank, the value in the config will be used instead.")
+	flagListen      = flag.String("listen", "", "host:port to listen on, or :0 to auto-select. If blank, the value in the config will be used instead.")
 	flagOpenBrowser = flag.Bool("openbrowser", true, "Launches the UI on startup")
 	flagReindex     = flag.Bool("reindex", false, "Reindex all blobs on startup")
 	flagPollParent  bool
@@ -311,7 +311,7 @@ func handleSignals(shutdownc <-chan io.Closer) {
 // and base URL from the command-line flags and provided config.
 func listenAndBaseURL(config *serverinit.Config) (listen, baseURL string) {
 	baseURL = config.OptionalString("baseURL", "")
-	listen = *listenFlag
+	listen = *flagListen
 	listenConfig := config.OptionalString("listen", "")
 	// command-line takes priority over config
 	if listen == "" {
