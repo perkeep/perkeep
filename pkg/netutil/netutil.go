@@ -19,6 +19,8 @@ package netutil
 import (
 	"fmt"
 	"net"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -35,4 +37,33 @@ func AwaitReachable(addr string, maxWait time.Duration) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 	return fmt.Errorf("%v unreachable for %v", addr, maxWait)
+}
+
+// HostPort takes a urlStr string URL, and returns a host:port string suitable
+// to passing to net.Dial, with the port set as the scheme's default port if
+// absent.
+func HostPort(urlStr string) (string, error) {
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		return "", fmt.Errorf("could not parse %q as a url: %v", urlStr, err)
+	}
+	if u.Scheme == "" {
+		return "", fmt.Errorf("url %q has no scheme", urlStr)
+	}
+	hostPort := u.Host
+	if hostPort == "" || strings.HasPrefix(hostPort, ":") {
+		return "", fmt.Errorf("url %q has no host", urlStr)
+	}
+	idx := strings.Index(hostPort, "]")
+	if idx == -1 {
+		idx = 0
+	}
+	if !strings.Contains(hostPort[idx:], ":") {
+		if u.Scheme == "https" {
+			hostPort += ":443"
+		} else {
+			hostPort += ":80"
+		}
+	}
+	return hostPort, nil
 }

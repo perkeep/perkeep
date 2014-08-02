@@ -59,6 +59,8 @@ func ListenAddress() (string, error) {
 	if baseURL == "" {
 		return "", errors.New("CAMLI_APP_BACKEND_URL is undefined")
 	}
+
+	// TODO(mpl): see if can use netutil.TCPAddress (and get IP6 for free).
 	defaultPort := "80"
 	noScheme := strings.TrimPrefix(baseURL, "http://")
 	if strings.HasPrefix(baseURL, "https://") {

@@ -582,6 +582,16 @@ func (config *Config) StartApps() error {
 	return nil
 }
 
+// AppURL returns a map of app name to app base URL for all the configured
+// server apps.
+func (config *Config) AppURL() map[string]string {
+	appURL := make(map[string]string, len(config.apps))
+	for _, ap := range config.apps {
+		appURL[ap.ProgramName()] = ap.BackendURL()
+	}
+	return appURL
+}
+
 func mustCreate(path string) *os.File {
 	f, err := os.Create(path)
 	if err != nil {
