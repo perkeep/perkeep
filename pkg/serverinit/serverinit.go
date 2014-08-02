@@ -390,8 +390,7 @@ func handlerTypeWantsAuth(handlerType string) bool {
 // the Load function always returns the Config in its low-level format.
 type Config struct {
 	jsonconfig.Obj
-	UIPath     string // Not valid until after InstallHandlers
-	configPath string // Filesystem path
+	UIPath string // Not valid until after InstallHandlers
 
 	// apps is the list of server apps configured during InstallHandlers,
 	// and that should be started after camlistored has started serving.
@@ -418,8 +417,7 @@ func Load(filename string) (*Config, error) {
 		return nil, err
 	}
 	conf := &Config{
-		Obj:        obj,
-		configPath: filename,
+		Obj: obj,
 	}
 
 	if lowLevel := obj.OptionalBool("handlerConfig", false); lowLevel {
@@ -453,8 +451,6 @@ func Load(filename string) (*Config, error) {
 		jsconf, _ := json.MarshalIndent(conf.Obj, "", "  ")
 		log.Printf("From high-level config, generated low-level config: %s", jsconf)
 	}
-	conf.configPath = absConfigPath
-
 	return conf, nil
 }
 
