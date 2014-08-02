@@ -20,6 +20,7 @@ limitations under the License.
 package serverinit
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"expvar"
@@ -30,7 +31,6 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
-	"path/filepath"
 	"runtime"
 	rpprof "runtime/pprof"
 	"strconv"
@@ -407,15 +407,52 @@ func detectConfigChange(conf jsonconfig.Obj) error {
 	return nil
 }
 
-// Load returns a low-level "handler config" from the provided filename.
+// LoadFile returns a low-level "handler config" from the provided filename.
 // If the config file doesn't contain a top-level JSON key of "handlerConfig"
 // with boolean value true, the configuration is assumed to be a high-level
 // "user config" file, and transformed into a low-level config.
-func Load(filename string) (*Config, error) {
-	obj, err := jsonconfig.ReadFile(filename)
+func LoadFile(filename string) (*Config, error) {
+	return load(filename, nil, nil)
+}
+
+type jsonFileImpl struct {
+	*bytes.Reader
+	name string
+}
+
+func (jsonFileImpl) Close() error   { return nil }
+func (f jsonFileImpl) Name() string { return f.name }
+
+// Load returns a low-level "handler config" from the provided config.
+// If the config doesn't contain a top-level JSON key of "handlerConfig"
+// with boolean value true, the configuration is assumed to be a high-level
+// "user config" file, and transformed into a low-level config.
+func Load(config []byte) (*Config, error) {
+	return load("", config, func(filename string) (jsonconfig.File, error) {
+		if filename != "" {
+			return nil, errors.New("JSON files with includes not supported with jsonconfig.Load")
+		}
+		return jsonFileImpl{bytes.NewReader(config), "config file"}, nil
+	})
+}
+
+func load(filename string, rootConfig []byte, opener func(filename string) (jsonconfig.File, error)) (*Config, error) {
+	if filename == "" {
+		if rootConfig == nil || opener == nil {
+			panic("internal error")
+		}
+	} else {
+		if rootConfig != nil || opener != nil {
+			panic("internal error")
+		}
+	}
+
+	c := &jsonconfig.ConfigParser{Open: opener}
+	m, err := c.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
+	obj := jsonconfig.Obj(m)
 	conf := &Config{
 		Obj: obj,
 	}
@@ -428,24 +465,23 @@ func Load(filename string) (*Config, error) {
 		return nil, err
 	}
 
-	absConfigPath, err := filepath.Abs(filename)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to expand absolute path for %s: %v", filename, err)
+	if rootConfig == nil {
+		rootConfig, err = ioutil.ReadFile(filename)
+		if err != nil {
+			return nil, fmt.Errorf("Could not read %s: %v", filename, err)
+		}
 	}
-	b, err := ioutil.ReadFile(absConfigPath)
-	if err != nil {
-		return nil, fmt.Errorf("Could not read %s: %v", absConfigPath, err)
-	}
+
 	var hiLevelConf serverconfig.Config
-	if err := json.Unmarshal(b, &hiLevelConf); err != nil {
-		return nil, fmt.Errorf("Could not unmarshal %s into a serverconfig.Config: %v", absConfigPath, err)
+	if err := json.Unmarshal(rootConfig, &hiLevelConf); err != nil {
+		return nil, fmt.Errorf("Could not unmarshal %s into a serverconfig.Config: %v", filename, err)
 	}
 
 	conf, err = genLowLevelConfig(&hiLevelConf)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"Failed to transform user config file %q into internal handler configuration: %v",
-			filename, err)
+			"failed to transform user config file into internal handler configuration: %v",
+			err)
 	}
 	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG_CONFIG")); v {
 		jsconf, _ := json.MarshalIndent(conf.Obj, "", "  ")

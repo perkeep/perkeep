@@ -30,6 +30,7 @@ import (
 	"log"
 	"math/big"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -80,7 +81,9 @@ import (
 var (
 	flagVersion    = flag.Bool("version", false, "show version")
 	flagConfigFile = flag.String("configfile", "",
-		"Config file to use, relative to the Camlistore configuration directory root. If blank, the default is used or auto-generated.")
+		"Config file to use, relative to the Camlistore configuration directory root. "+
+			"If blank, the default is used or auto-generated. "+
+			"If it starts with 'http:' or 'https:', it is fetched from the network.")
 	flagListen      = flag.String("listen", "", "host:port to listen on, or :0 to auto-select. If blank, the value in the config will be used instead.")
 	flagOpenBrowser = flag.Bool("openbrowser", true, "Launches the UI on startup")
 	flagReindex     = flag.Bool("reindex", false, "Reindex all blobs on startup")
@@ -185,18 +188,41 @@ func genSelfTLS(listen string) error {
 	return nil
 }
 
-// findConfigFile returns the absolute path of the user's
-// config file.
-// The provided file may be absolute or relative
-// to the user's configuration directory.
-// If file is empty, a default high-level config is written
-// for the user.
-func findConfigFile(file string) (absPath string, isNewConfig bool, err error) {
+func slurpURL(urls string, limit int64) ([]byte, error) {
+	res, err := http.Get(urls)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	return ioutil.ReadAll(io.LimitReader(res.Body, limit))
+}
+
+// loadConfig returns the server's parsed config file, locating it using the provided arg.
+//
+// The arg may be of the form:
+// - empty, to mean automatic (will write a default high-level config if
+//   no cloud config is available)
+// - a filepath absolute or relative to the user's configuration directory,
+// - a URL
+func loadConfig(arg string) (conf *serverinit.Config, isNewConfig bool, err error) {
+	if strings.HasPrefix(arg, "http://") || strings.HasPrefix(arg, "https://") {
+		contents, err := slurpURL(arg, 256<<10)
+		if err != nil {
+			return nil, false, err
+		}
+		conf, err = serverinit.Load(contents)
+		return conf, false, err
+	}
+	var absPath string
 	switch {
-	case file == "":
+	case arg == "":
+		// TODO: check if running on GCE/EC2 and metadata available
 		absPath = osutil.UserServerConfigPath()
 		_, err = os.Stat(absPath)
-		if os.IsNotExist(err) {
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return
+			}
 			err = os.MkdirAll(osutil.CamliConfigDir(), 0700)
 			if err != nil {
 				return
@@ -206,13 +232,12 @@ func findConfigFile(file string) (absPath string, isNewConfig bool, err error) {
 				isNewConfig = true
 			}
 		}
-		return
-	case filepath.IsAbs(file):
-		absPath = file
+	case filepath.IsAbs(arg):
+		absPath = arg
 	default:
-		absPath = filepath.Join(osutil.CamliConfigDir(), file)
+		absPath = filepath.Join(osutil.CamliConfigDir(), arg)
 	}
-	_, err = os.Stat(absPath)
+	conf, err = serverinit.LoadFile(absPath)
 	return
 }
 
@@ -350,14 +375,9 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 	shutdownc := make(chan io.Closer, 1) // receives io.Closer to cleanly shut down
 	go handleSignals(shutdownc)
 
-	fileName, isNewConfig, err := findConfigFile(*flagConfigFile)
+	config, isNewConfig, err := loadConfig(*flagConfigFile)
 	if err != nil {
-		exitf("Error finding config file %q: %v", fileName, err)
-	}
-	log.Printf("Using config file %s", fileName)
-	config, err := serverinit.Load(fileName)
-	if err != nil {
-		exitf("Could not load server config: %v", err)
+		exitf("Error loading config file %q: %v", *flagConfigFile, err)
 	}
 
 	ws := webserver.New()

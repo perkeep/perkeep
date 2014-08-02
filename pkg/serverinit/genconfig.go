@@ -620,6 +620,9 @@ func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err err
 		indexFileDir = filepath.Dir(conf.KVFile)
 	}
 
+	if conf.Identity == "" {
+		return nil, errors.New("no 'identity' in server config")
+	}
 	entity, err := jsonsign.EntityFromSecring(conf.Identity, conf.IdentitySecretRing)
 	if err != nil {
 		return nil, err
