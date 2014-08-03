@@ -44,20 +44,34 @@ var _ blobserver.MaxEnumerateConfig = (*Storage)(nil)
 func (gs *Storage) MaxEnumerate() int { return 1000 }
 
 func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
-	auth := config.RequiredObject("auth")
+	var (
+		auth   = config.RequiredObject("auth")
+		bucket = config.RequiredString("bucket")
 
-	gs := &Storage{
-		bucket: config.RequiredString("bucket"),
-		client: googlestorage.NewClient(googlestorage.MakeOauthTransport(
-			auth.RequiredString("client_id"),
-			auth.RequiredString("client_secret"),
-			auth.RequiredString("refresh_token"))),
-	}
+		clientID     = auth.RequiredString("client_id") // or "auto" for service accounts
+		clientSecret = auth.OptionalString("client_secret", "")
+		refreshToken = auth.OptionalString("refresh_token", "")
+	)
+
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	if err := auth.Validate(); err != nil {
 		return nil, err
+	}
+
+	gs := &Storage{bucket: bucket}
+	if clientID == "auto" {
+		gs.client = googlestorage.NewServiceClient()
+	} else {
+		if clientSecret == "" {
+			return nil, errors.New("missing required parameter 'client_secret'")
+		}
+		if refreshToken == "" {
+			return nil, errors.New("missing required parameter 'refresh_token'")
+		}
+		gs.client = googlestorage.NewClient(googlestorage.MakeOauthTransport(
+			clientID, clientSecret, refreshToken))
 	}
 	return gs, nil
 }

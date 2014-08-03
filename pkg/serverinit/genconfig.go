@@ -340,12 +340,23 @@ func addGoogleDriveConfig(params *configPrefixesParams, prefixes jsonconfig.Obj,
 	return nil
 }
 
+var errGCSUsage = errors.New(`genconfig: expected "googlecloudstorage" field to be of form "client_id:client_secret:refresh_token:bucket" or ":bucketname"`)
+
 func addGoogleCloudStorageConfig(params *configPrefixesParams, prefixes jsonconfig.Obj, highCfg string) error {
+	var clientID, secret, refreshToken, bucket string
 	f := strings.SplitN(highCfg, ":", 4)
-	if len(f) != 4 {
-		return errors.New(`genconfig: expected "googlecloudstorage" field to be of form "client_id:client_secret:refresh_token:bucket"`)
+	switch len(f) {
+	default:
+		return errGCSUsage
+	case 4:
+		clientID, secret, refreshToken, bucket = f[0], f[1], f[2], f[3]
+	case 2:
+		if f[0] != "" {
+			return errGCSUsage
+		}
+		bucket = f[1]
+		clientID = "auto"
 	}
-	clientId, secret, refreshToken, bucket := f[0], f[1], f[2], f[3]
 
 	isPrimary := false
 	if _, ok := prefixes["/bs/"]; !ok {
@@ -364,7 +375,7 @@ func addGoogleCloudStorageConfig(params *configPrefixesParams, prefixes jsonconf
 		"handlerArgs": map[string]interface{}{
 			"bucket": bucket,
 			"auth": map[string]interface{}{
-				"client_id":     clientId,
+				"client_id":     clientID,
 				"client_secret": secret,
 				"refresh_token": refreshToken,
 				// If high-level config is for the common user then fullSyncOnStart = true

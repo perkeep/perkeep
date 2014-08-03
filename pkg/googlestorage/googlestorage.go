@@ -29,6 +29,7 @@ import (
 
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
+	"camlistore.org/third_party/github.com/bradfitz/gce"
 )
 
 const (
@@ -36,8 +37,8 @@ const (
 )
 
 type Client struct {
-	transport *oauth.Transport
 	client    *http.Client
+	transport *oauth.Transport // nil for service clients
 }
 
 type Object struct {
@@ -50,8 +51,15 @@ type SizedObject struct {
 	Size int64
 }
 
+// NewServiceClient returns a Client for use when running on Google
+// Compute Engine.  This client can access buckets owned by the samre
+// project ID as the VM.
+func NewServiceClient() *Client {
+	return &Client{client: gce.Client}
+}
+
 func NewClient(transport *oauth.Transport) *Client {
-	return &Client{transport, transport.Client()}
+	return &Client{transport.Client(), transport}
 }
 
 func (gso Object) String() string {
@@ -71,7 +79,11 @@ func (sgso SizedObject) String() string {
 // true, then shouldRetry will be true.
 // One of resp or err will always be nil.
 func (gsa *Client) doRequest(req *http.Request, canResend bool) (resp *http.Response, err error, shouldRetry bool) {
-	if resp, err = gsa.client.Do(req); err != nil {
+	resp, err = gsa.client.Do(req)
+	if err != nil {
+		return
+	}
+	if gsa.transport == nil {
 		return
 	}
 
