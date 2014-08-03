@@ -1,0 +1,5 @@
+Package gce provides access to Google Compute Engine (GCE) metadata and
+API service accounts.
+
+See the code for docs, or as HTML at http://godoc.org/github.com/bradfitz/gce .
+
