@@ -17,6 +17,7 @@ import (
 	"net/textproto"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -30,19 +31,57 @@ type ContentTyper interface {
 
 const Version = "0.5"
 
+// Error contains an error response from the server.
 type Error struct {
-	Code    int    `json:"code"`
+	// Code is the HTTP response status code and will always be populated.
+	Code int `json:"code"`
+	// Message is the server response message and is only populated when
+	// explicitly referenced by the JSON server response.
+	Message string `json:"message"`
+	// Body is the raw response returned by the server.
+	// It is often but not always JSON, depending on how the request fails.
+	Body string
+
+	Errors []ErrorItem
+}
+
+// ErrorItem is a detailed error code & message from the Google API frontend.
+type ErrorItem struct {
+	// Reason is the typed error code. For example: "some_example".
+	Reason string `json:"reason"`
+	// Message is the human-readable description of the error.
 	Message string `json:"message"`
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("googleapi: Error %d: %s", e.Code, e.Message)
+	if len(e.Errors) == 0 && e.Message == "" {
+		return fmt.Sprintf("googleapi: got HTTP response code %d with body: %v", e.Code, e.Body)
+	}
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "googleapi: Error %d: ", e.Code)
+	if e.Message != "" {
+		fmt.Fprintf(&buf, "%s", e.Message)
+	}
+	if len(e.Errors) == 0 {
+		return strings.TrimSpace(buf.String())
+	}
+	if len(e.Errors) == 1 && e.Errors[0].Message == e.Message {
+		fmt.Fprintf(&buf, ", %s", e.Errors[0].Reason)
+		return buf.String()
+	}
+	fmt.Fprintln(&buf, "\nMore details:")
+	for _, v := range e.Errors {
+		fmt.Fprintf(&buf, "Reason: %s, Message: %s\n", v.Reason, v.Message)
+	}
+	return buf.String()
 }
 
 type errorReply struct {
 	Error *Error `json:"error"`
 }
 
+// CheckResponse returns an error (of type *Error) if the response
+// status code is not 2xx.
 func CheckResponse(res *http.Response) error {
 	if res.StatusCode >= 200 && res.StatusCode <= 299 {
 		return nil
@@ -52,11 +91,17 @@ func CheckResponse(res *http.Response) error {
 		jerr := new(errorReply)
 		err = json.Unmarshal(slurp, jerr)
 		if err == nil && jerr.Error != nil {
+			if jerr.Error.Code == 0 {
+				jerr.Error.Code = res.StatusCode
+			}
+			jerr.Error.Body = string(slurp)
 			return jerr.Error
 		}
 	}
-	return fmt.Errorf("googleapi: got HTTP response code %d and error reading body: %v",
-		res.StatusCode, err)
+	return &Error{
+		Code: res.StatusCode,
+		Body: string(slurp),
+	}
 }
 
 type MarshalStyle bool
@@ -263,4 +308,70 @@ func SetOpaque(u *url.URL) {
 	if !has4860Fix {
 		u.Opaque = u.Scheme + ":" + u.Opaque
 	}
+}
+
+// Find {encoded} strings
+var findEncodedStrings = regexp.MustCompile(`(\{[A-Za-z_]+\})`)
+
+// Expand subsitutes any {encoded} strings in the URL passed in using
+// the map supplied.
+//
+// This calls SetOpaque to avoid encoding of the parameters in the URL path.
+func Expand(u *url.URL, expansions map[string]string) {
+	u.Path = findEncodedStrings.ReplaceAllStringFunc(u.Path, func(replace string) string {
+		argument := replace[1 : len(replace)-1]
+		value, ok := expansions[argument]
+		if !ok {
+			// Expansion not found - leave unchanged
+			return replace
+		}
+		// Would like to call url.escape(value, encodePath) here
+		encodedValue := url.QueryEscape(value)
+		encodedValue = strings.Replace(encodedValue, "+", "%20", -1)
+		return encodedValue
+	})
+	SetOpaque(u)
+}
+
+// CloseBody is used to close res.Body.
+// Prior to calling Close, it also tries to Read a small amount to see an EOF.
+// Not seeing an EOF can prevent HTTP Transports from reusing connections.
+func CloseBody(res *http.Response) {
+	if res == nil || res.Body == nil {
+		return
+	}
+	// Justification for 3 byte reads: two for up to "\r\n" after
+	// a JSON/XML document, and then 1 to see EOF if we haven't yet.
+	// TODO(bradfitz): detect Go 1.3+ and skip these reads.
+	// See https://codereview.appspot.com/58240043
+	// and https://codereview.appspot.com/49570044
+	buf := make([]byte, 1)
+	for i := 0; i < 3; i++ {
+		_, err := res.Body.Read(buf)
+		if err != nil {
+			break
+		}
+	}
+	res.Body.Close()
+
+}
+
+// VariantType returns the type name of the given variant.
+// If the map doesn't contain the named key or the value is not a []interface{}, "" is returned.
+// This is used to support "variant" APIs that can return one of a number of different types.
+func VariantType(t map[string]interface{}) string {
+	s, _ := t["type"].(string)
+	return s
+}
+
+// ConvertVariant uses the JSON encoder/decoder to fill in the struct 'dst' with the fields found in variant 'v'.
+// This is used to support "variant" APIs that can return one of a number of different types.
+// It reports whether the conversion was successful.
+func ConvertVariant(v map[string]interface{}, dst interface{}) bool {
+	var buf bytes.Buffer
+	err := json.NewEncoder(&buf).Encode(v)
+	if err != nil {
+		return false
+	}
+	return json.Unmarshal(buf.Bytes(), dst) == nil
 }
