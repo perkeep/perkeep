@@ -21,11 +21,13 @@ package cloudstorage
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -38,11 +40,23 @@ import (
 type Storage struct {
 	bucket string // the gs bucket containing blobs
 	client *googlestorage.Client
+
+	// For blobserver.Generationer:
+	genTime   time.Time
+	genRandom string
 }
 
-var _ blobserver.MaxEnumerateConfig = (*Storage)(nil)
+var (
+	_ blobserver.MaxEnumerateConfig = (*Storage)(nil)
+	_ blobserver.Generationer       = (*Storage)(nil)
+)
 
 func (gs *Storage) MaxEnumerate() int { return 1000 }
+
+func (gs *Storage) StorageGeneration() (time.Time, string, error) {
+	return gs.genTime, gs.genRandom, nil
+}
+func (gs *Storage) ResetStorageGeneration() error { return errors.New("not supported") }
 
 func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
 	var (
@@ -83,7 +97,10 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 	if err != nil {
 		return nil, fmt.Errorf("error statting bucket %q: %v", bucket, err)
 	}
-	log.Printf("Bucket info: %#v", bi)
+	hash := sha1.New()
+	fmt.Fprintf(hash, "%v%v", bi.TimeCreated, bi.Metageneration)
+	gs.genRandom = fmt.Sprintf("%x", hash.Sum(nil))
+	gs.genTime, _ = time.Parse(time.RFC3339, bi.TimeCreated)
 
 	return gs, nil
 }
