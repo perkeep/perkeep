@@ -20,6 +20,7 @@ package googlestorage
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -54,8 +55,16 @@ type SizedObject struct {
 // NewServiceClient returns a Client for use when running on Google
 // Compute Engine.  This client can access buckets owned by the samre
 // project ID as the VM.
-func NewServiceClient() *Client {
-	return &Client{client: gce.Client}
+func NewServiceClient() (*Client, error) {
+	if !gce.OnGCE() {
+		return nil, errors.New("not running on Google Compute Engine")
+	}
+	scopes, _ := gce.Scopes("default")
+	if !scopes.Contains("https://www.googleapis.com/auth/devstorage.full_control") &&
+		!scopes.Contains("https://www.googleapis.com/auth/devstorage.read_write") {
+		return nil, errors.New("when this Google Compute Engine VM instance was created, it wasn't granted access to Cloud Storage")
+	}
+	return &Client{client: gce.Client}, nil
 }
 
 func NewClient(transport *oauth.Transport) *Client {

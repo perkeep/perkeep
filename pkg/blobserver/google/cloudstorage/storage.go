@@ -62,7 +62,11 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 
 	gs := &Storage{bucket: bucket}
 	if clientID == "auto" {
-		gs.client = googlestorage.NewServiceClient()
+		var err error
+		gs.client, err = googlestorage.NewServiceClient()
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		if clientSecret == "" {
 			return nil, errors.New("missing required parameter 'client_secret'")
