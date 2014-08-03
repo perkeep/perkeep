@@ -77,23 +77,64 @@ func metaValueTrim(suffix string) (s string, err error) {
 	return
 }
 
+type cachedValue struct {
+	k    string
+	trim bool
+	mu   sync.Mutex
+	v    string
+}
+
 var (
-	projOnce sync.Once
-	proj     string
+	proj   = &cachedValue{k: "project/project-id", trim: true}
+	projID = &cachedValue{k: "project/numeric-project-id", trim: true}
+	instID = &cachedValue{k: "instance/id", trim: true}
 )
+
+func (c *cachedValue) get() (v string, err error) {
+	defer c.mu.Unlock()
+	c.mu.Lock()
+	if c.v != "" {
+		return c.v, nil
+	}
+	if c.trim {
+		v, err = metaValueTrim(c.k)
+	} else {
+		v, err = MetadataValue(c.k)
+	}
+	if err == nil {
+		c.v = v
+	}
+	return
+}
+
+var onGCE struct {
+	sync.Mutex
+	set bool
+	v   bool
+}
 
 // OnGCE reports whether this process is running on Google Compute Engine.
 func OnGCE() bool {
-	// TODO: maybe something cheaper? this is pretty cheap, though.
-	return ProjectID() != ""
+	defer onGCE.Unlock()
+	onGCE.Lock()
+	if onGCE.set {
+		return onGCE.v
+	}
+	onGCE.set = true
+
+	res, err := metaClient.Get("http://metadata.google.internal")
+	if err != nil {
+		return false
+	}
+	onGCE.v = res.Header.Get("Metadata-Flavor") == "Google"
+	return onGCE.v
 }
 
-// ProjectID returns the current instance's project ID string or the empty string
-// if not running on GCE.
-func ProjectID() string {
-	projOnce.Do(setProj)
-	return proj
-}
+// ProjectID returns the current instance's project ID string.
+func ProjectID() (string, error) { return proj.get() }
+
+// NumericProjectID returns the current instance's numeric project ID.
+func NumericProjectID() (string, error) { return projID.get() }
 
 // InternalIP returns the instance's primary internal IP address.
 func InternalIP() (string, error) {
@@ -115,10 +156,6 @@ func Hostname() (string, error) {
 	return metaValueTrim("network-interfaces/0/ip")
 }
 
-func setProj() {
-	proj, _ = MetadataValue("project/project-id")
-}
-
 // InstanceTags returns the list of user-defined instance tags,
 // assigned when initially creating a GCE instance.
 func InstanceTags() (Strings, error) {
@@ -135,7 +172,7 @@ func InstanceTags() (Strings, error) {
 
 // InstanceID returns the current VM's numeric instance ID.
 func InstanceID() (string, error) {
-	return metaValueTrim("instance/id")
+	return instID.get()
 }
 
 // InstanceAttributes returns the list of user-defined attributes,
@@ -237,11 +274,34 @@ func (t *transport) getToken() (string, error) {
 	return t.token, nil
 }
 
+// cloneRequest returns a clone of the provided *http.Request.
+// The clone is a shallow copy of the struct and its Header map.
+func cloneRequest(r *http.Request) *http.Request {
+	// shallow copy of the struct
+	r2 := new(http.Request)
+	*r2 = *r
+	// deep copy of the Header
+	r2.Header = make(http.Header)
+	for k, s := range r.Header {
+		r2.Header[k] = s
+	}
+	return r2
+}
+
 func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	token, err := t.getToken()
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Add("Authorization", "Bearer "+token)
-	return t.base.RoundTrip(req)
+
+	newReq := cloneRequest(req)
+	newReq.Header.Set("Authorization", "Bearer "+token)
+
+	// Needed for some APIs, like Google Cloud Storage?
+	// See https://developers.google.com/storage/docs/projects
+	// Which despite saying XML, also seems to fix JSON API?
+	projID, _ := ProjectID()
+	newReq.Header["x-goog-project-id"] = []string{projID}
+
+	return t.base.RoundTrip(newReq)
 }
