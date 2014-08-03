@@ -30,6 +30,7 @@ import (
 
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
+	api "camlistore.org/third_party/code.google.com/p/google-api-go-client/storage/v1"
 	"camlistore.org/third_party/github.com/bradfitz/gce"
 )
 
@@ -40,6 +41,7 @@ const (
 type Client struct {
 	client    *http.Client
 	transport *oauth.Transport // nil for service clients
+	service   *api.Service
 }
 
 type Object struct {
@@ -64,11 +66,18 @@ func NewServiceClient() (*Client, error) {
 		!scopes.Contains("https://www.googleapis.com/auth/devstorage.read_write") {
 		return nil, errors.New("when this Google Compute Engine VM instance was created, it wasn't granted access to Cloud Storage")
 	}
-	return &Client{client: gce.Client}, nil
+	service, _ := api.New(gce.Client)
+	return &Client{client: gce.Client, service: service}, nil
 }
 
 func NewClient(transport *oauth.Transport) *Client {
-	return &Client{transport.Client(), transport}
+	client := transport.Client()
+	service, _ := api.New(client)
+	return &Client{
+		client:    transport.Client(),
+		transport: transport,
+		service:   service,
+	}
 }
 
 func (gso Object) String() string {
@@ -250,4 +259,8 @@ func (gsa *Client) EnumerateObjects(bucket, after string, limit int) ([]SizedObj
 	}
 
 	return result.Contents, nil
+}
+
+func (c *Client) BucketInfo(bucket string) (*api.Bucket, error) {
+	return c.service.Buckets.Get(bucket).Do()
 }

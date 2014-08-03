@@ -22,6 +22,7 @@ package cloudstorage
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -77,6 +78,13 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		gs.client = googlestorage.NewClient(googlestorage.MakeOauthTransport(
 			clientID, clientSecret, refreshToken))
 	}
+
+	bi, err := gs.client.BucketInfo(bucket)
+	if err != nil {
+		return nil, fmt.Errorf("error statting bucket %q: %v", bucket, err)
+	}
+	log.Printf("Bucket info: %#v", bi)
+
 	return gs, nil
 }
 
