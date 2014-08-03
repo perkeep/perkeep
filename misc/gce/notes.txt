@@ -1,0 +1,8 @@
+gcutil --project=camanaged addinstance \
+       --image=projects/coreos-cloud/global/images/coreos-alpha-394-0-0-v20140801 \
+       --persistent_boot_disk \
+       --zone=us-central1-a --machine_type=n1-standard-1 \   
+       --external_ip_address=107.178.208.16 \
+       --auto_delete_boot_disk \
+       --tags=http-server,https-server \
+       --metadata_from_file=user-data:cloud-config.yaml core1
