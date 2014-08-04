@@ -269,19 +269,20 @@ func NewFromShareRoot(shareBlobURL string, opts ...ClientOption) (c *Client, tar
 	req := c.newRequest("GET", shareBlobURL, nil)
 	res, err := c.expect2XX(req)
 	if err != nil {
-		return nil, blob.Ref{}, fmt.Errorf("Error fetching %s: %v", shareBlobURL, err)
+		return nil, blob.Ref{}, fmt.Errorf("error fetching %s: %v", shareBlobURL, err)
 	}
 	defer res.Body.Close()
-	b, err := schema.BlobFromReader(blob.ParseOrZero(root), res.Body)
+	var buf bytes.Buffer
+	b, err := schema.BlobFromReader(blob.ParseOrZero(root), io.TeeReader(res.Body, &buf))
 	if err != nil {
-		return nil, blob.Ref{}, fmt.Errorf("Error parsing JSON from %s: %v", shareBlobURL, err)
+		return nil, blob.Ref{}, fmt.Errorf("error parsing JSON from %s: %v , with response: %q", shareBlobURL, err, buf.Bytes())
 	}
 	if b.ShareAuthType() != schema.ShareHaveRef {
-		return nil, blob.Ref{}, fmt.Errorf("Unknown share authType of %q", b.ShareAuthType())
+		return nil, blob.Ref{}, fmt.Errorf("unknown share authType of %q", b.ShareAuthType())
 	}
 	target = b.ShareTarget()
 	if !target.Valid() {
-		return nil, blob.Ref{}, fmt.Errorf("No target.")
+		return nil, blob.Ref{}, fmt.Errorf("no target.")
 	}
 	c.via[target.String()] = root
 	return c, target, nil
