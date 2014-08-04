@@ -94,6 +94,6 @@ $ PREV=0.7; echo "$(git shortlog -e -s $PREV..HEAD | sed -e 's/^.*<//;s/>.*$//' 
         <li>kv: all the <a href="https://github.com/cznic/kv">kv</a>
         verifydb flags are on by default in dev mode, to help with
         detecting corruption. One known kv corruption bug remains.</li>
-        <li><code>devcam --makethings</code> pre-populates your dev server with fake importer content to aid in UI development work</li>
+        <li><code>devcam server --makethings</code> pre-populates your dev server with fake importer content to aid in UI development work</li>
         <li>Photos with GPS location in the EXIF but no timezone information (most cameraphone photos) now map the latitude and longitude to a timezone using the <a href="https://github.com/bradfitz/latlong"><code>latlong</code> package</a> so they sort properly with respect to other events in your stream (e.g. Tweets, Foursquare checkins, etc.) Useful for anybody who travels or doesn't live in UTC..</li>
 </ul>
