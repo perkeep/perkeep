@@ -52,7 +52,7 @@ func (c *dumpconfigCmd) RunCommand(args []string) error {
 	default:
 		return errors.New("More than 1 argument not allowed")
 	}
-	cfg, err := serverinit.Load(file)
+	cfg, err := serverinit.LoadFile(file)
 	if err != nil {
 		return err
 	}

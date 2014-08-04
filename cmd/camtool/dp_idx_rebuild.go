@@ -58,7 +58,7 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 	var path string
 	switch {
 	case len(args) == 0:
-		cfg, err := serverinit.Load(osutil.UserServerConfigPath())
+		cfg, err := serverinit.LoadFile(osutil.UserServerConfigPath())
 		if err != nil {
 			return err
 		}

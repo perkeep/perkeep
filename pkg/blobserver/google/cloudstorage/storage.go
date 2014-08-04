@@ -21,10 +21,13 @@ package cloudstorage
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -37,28 +40,68 @@ import (
 type Storage struct {
 	bucket string // the gs bucket containing blobs
 	client *googlestorage.Client
+
+	// For blobserver.Generationer:
+	genTime   time.Time
+	genRandom string
 }
 
-var _ blobserver.MaxEnumerateConfig = (*Storage)(nil)
+var (
+	_ blobserver.MaxEnumerateConfig = (*Storage)(nil)
+	_ blobserver.Generationer       = (*Storage)(nil)
+)
 
 func (gs *Storage) MaxEnumerate() int { return 1000 }
 
-func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
-	auth := config.RequiredObject("auth")
+func (gs *Storage) StorageGeneration() (time.Time, string, error) {
+	return gs.genTime, gs.genRandom, nil
+}
+func (gs *Storage) ResetStorageGeneration() error { return errors.New("not supported") }
 
-	gs := &Storage{
-		bucket: config.RequiredString("bucket"),
-		client: googlestorage.NewClient(googlestorage.MakeOauthTransport(
-			auth.RequiredString("client_id"),
-			auth.RequiredString("client_secret"),
-			auth.RequiredString("refresh_token"))),
-	}
+func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
+	var (
+		auth   = config.RequiredObject("auth")
+		bucket = config.RequiredString("bucket")
+
+		clientID     = auth.RequiredString("client_id") // or "auto" for service accounts
+		clientSecret = auth.OptionalString("client_secret", "")
+		refreshToken = auth.OptionalString("refresh_token", "")
+	)
+
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	if err := auth.Validate(); err != nil {
 		return nil, err
 	}
+
+	gs := &Storage{bucket: bucket}
+	if clientID == "auto" {
+		var err error
+		gs.client, err = googlestorage.NewServiceClient()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		if clientSecret == "" {
+			return nil, errors.New("missing required parameter 'client_secret'")
+		}
+		if refreshToken == "" {
+			return nil, errors.New("missing required parameter 'refresh_token'")
+		}
+		gs.client = googlestorage.NewClient(googlestorage.MakeOauthTransport(
+			clientID, clientSecret, refreshToken))
+	}
+
+	bi, err := gs.client.BucketInfo(bucket)
+	if err != nil {
+		return nil, fmt.Errorf("error statting bucket %q: %v", bucket, err)
+	}
+	hash := sha1.New()
+	fmt.Fprintf(hash, "%v%v", bi.TimeCreated, bi.Metageneration)
+	gs.genRandom = fmt.Sprintf("%x", hash.Sum(nil))
+	gs.genTime, _ = time.Parse(time.RFC3339, bi.TimeCreated)
+
 	return gs, nil
 }
 

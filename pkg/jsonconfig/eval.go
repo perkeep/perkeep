@@ -18,6 +18,7 @@ package jsonconfig
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -77,7 +78,12 @@ func (c *ConfigParser) open(filename string) (File, error) {
 // Validates variable names for config _env expresssions
 var envPattern = regexp.MustCompile(`\$\{[A-Za-z0-9_]+\}`)
 
+// ReadFile parses the provided path and returns the config file.
+// If path is empty, the c.Open function must be defined.
 func (c *ConfigParser) ReadFile(path string) (m map[string]interface{}, err error) {
+	if path == "" && c.Open == nil {
+		return nil, errors.New("ReadFile of empty string but Open hook not defined")
+	}
 	c.touchedFiles = make(map[string]bool)
 	c.rootJSON, err = c.recursiveReadJSON(path)
 	return c.rootJSON, err
@@ -85,19 +91,20 @@ func (c *ConfigParser) ReadFile(path string) (m map[string]interface{}, err erro
 
 // Decodes and evaluates a json config file, watching for include cycles.
 func (c *ConfigParser) recursiveReadJSON(configPath string) (decodedObject map[string]interface{}, err error) {
+	if configPath != "" {
+		absConfigPath, err := filepath.Abs(configPath)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to expand absolute path for %s", configPath)
+		}
+		if c.touchedFiles[absConfigPath] {
+			return nil, fmt.Errorf("ConfigParser include cycle detected reading config: %v",
+				absConfigPath)
+		}
+		c.touchedFiles[absConfigPath] = true
 
-	absConfigPath, err := filepath.Abs(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to expand absolute path for %s", configPath)
+		c.includeStack.Push(absConfigPath)
+		defer c.includeStack.Pop()
 	}
-	if c.touchedFiles[absConfigPath] {
-		return nil, fmt.Errorf("ConfigParser include cycle detected reading config: %v",
-			absConfigPath)
-	}
-	c.touchedFiles[absConfigPath] = true
-
-	c.includeStack.Push(absConfigPath)
-	defer c.includeStack.Pop()
 
 	var f File
 	if f, err = c.open(configPath); err != nil {

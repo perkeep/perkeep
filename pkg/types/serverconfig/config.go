@@ -40,7 +40,7 @@ type Config struct {
 	BlobPath           string `json:"blobPath,omitempty"`           // path to the directory containing the blobs.
 	PackBlobs          bool   `json:"packBlobs,omitempty"`          // use diskpacked instead of the default filestorage.
 	S3                 string `json:"s3,omitempty"`                 // Amazon S3 credentials: access_key_id:secret_access_key:bucket[:hostname].
-	GoogleCloudStorage string `json:"googlecloudstorage,omitempty"` // Google Cloud credentials: clientId:clientSecret:refreshToken:bucket.
+	GoogleCloudStorage string `json:"googlecloudstorage,omitempty"` // Google Cloud credentials: clientId:clientSecret:refreshToken:bucket or ":bucket" for auto on GCE
 	GoogleDrive        string `json:"googledrive,omitempty"`        // Google Drive credentials: clientId:clientSecret:refreshToken:parentId.
 	ShareHandler       bool   `json:"shareHandler,omitempty"`       // enable the share handler. If true, and shareHandlerPath is empty then shareHandlerPath will default to "/share/" when generating the low-level config.
 	ShareHandlerPath   string `json:"shareHandlerPath,omitempty"`   // URL prefix for the share handler. If set, overrides shareHandler.

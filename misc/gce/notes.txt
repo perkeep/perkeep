@@ -1,0 +1,31 @@
+non-core dev:
+gcutil --service_version="v1" --project="camanaged" addinstance "camlistore" --zone="us-central1-b" --machine_type="n1-standard-1" --network="default" --external_ip_address="107.178.214.163" --metadata="cam-key-1:cam-value-1" --metadata="cam-key-2:cam-value-2" --metadata="sshKeys:bradfitz:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCw6Dk3iskKylP2zginCOAzIunMA38vGL9b/i18UG/Iuq+jKczZXB/1dlcZGSOs3+LtGh/C341TXTioydxTw+ux1AbmUk4c6L404skl85XFOys/GLxA4sHxBSb5we0Q57yohSgeZNlQd+Scmu5v7WC0N7I3hOK0lJgtxRNyC2nncGC0UOm+IGPTWcqPJERTauH/OhoAddWQehf1ugxTJYFU9atl3Op/mDXfyGBSLweWAQ84fhVKRZnl4i9Yhk1b357Q8cVKH6UQUADVamo7CQOsenzx99UL0thFRTSbuKALyf9e+SPwJrtIxZaX+skVSR+CzooRbypIamLbNXhfbxNz bradfitz@Bradleys-MacBook-Air.local" --service_account_scopes="https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/compute.readonly,https://www.googleapis.com/auth/devstorage.full_control,https://www.googleapis.com/auth/sqlservice,https://www.googleapis.com/auth/sqlservice.admin,https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/datastore,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/compute,https://www.googleapis.com/auth/devstorage.full_control,https://www.googleapis.com/auth/taskqueue,https://www.googleapis.com/auth/bigquery,https://www.googleapis.com/auth/sqlservice,https://www.googleapis.com/auth/datastore" --tags="tag,tag2,http-server,https-server" --persistent_boot_disk="true" --auto_delete_boot_disk="false" --image=projects/debian-cloud/global/images/backports-debian-7-wheezy-v20140718
+
+$ curl -H "Metadata-Flavor:Google" http://metadata/computeMetadata/v1/instance/service-accounts/default/scopes
+https://www.googleapis.com/auth/bigquery
+https://www.googleapis.com/auth/cloud-platform
+https://www.googleapis.com/auth/compute
+https://www.googleapis.com/auth/compute.readonly
+https://www.googleapis.com/auth/datastore
+https://www.googleapis.com/auth/devstorage.full_control
+https://www.googleapis.com/auth/sqlservice
+https://www.googleapis.com/auth/sqlservice.admin
+https://www.googleapis.com/auth/taskqueue
+https://www.googleapis.com/auth/userinfo.email
+
+gcutil --project=camanaged addinstance \
+       --image=projects/coreos-cloud/global/images/coreos-alpha-394-0-0-v20140801 \
+       --persistent_boot_disk \
+       --zone=us-central1-a --machine_type=n1-standard-1 \   
+       --external_ip_address=107.178.208.16 \
+       --auto_delete_boot_disk \
+       --tags=http-server,https-server \
+       --metadata_from_file=user-data:cloud-config.yaml core1
+
+TODO:
+- allow config from /gcs/bucket/key; add pkg for os.Stat/os.Open wrappers checking
+  prefix
+- use that package for:
+   "httpsCert": "/home/bradfitz/keys/camlihouse/ssl.crt",
+   "httpsKey": "/home/bradfitz/keys/camlihouse/ssl.key",
+   "identitySecretRing": "/home/bradfitz/.config/camlistore/identity-secring.gpg",

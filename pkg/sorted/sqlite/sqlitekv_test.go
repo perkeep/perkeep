@@ -28,6 +28,9 @@ import (
 )
 
 func TestSQLiteKV(t *testing.T) {
+	if !CompiledIn() {
+		t.Skip(ErrNotCompiled.Error())
+	}
 	tmpDir, err := ioutil.TempDir("", "camlistore-sqlitekv_test")
 	if err != nil {
 		t.Fatal(err)

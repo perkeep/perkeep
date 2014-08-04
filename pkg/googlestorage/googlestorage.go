@@ -20,6 +20,7 @@ package googlestorage
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -29,6 +30,8 @@ import (
 
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
+	api "camlistore.org/third_party/code.google.com/p/google-api-go-client/storage/v1"
+	"camlistore.org/third_party/github.com/bradfitz/gce"
 )
 
 const (
@@ -36,8 +39,9 @@ const (
 )
 
 type Client struct {
-	transport *oauth.Transport
 	client    *http.Client
+	transport *oauth.Transport // nil for service clients
+	service   *api.Service
 }
 
 type Object struct {
@@ -50,8 +54,30 @@ type SizedObject struct {
 	Size int64
 }
 
+// NewServiceClient returns a Client for use when running on Google
+// Compute Engine.  This client can access buckets owned by the samre
+// project ID as the VM.
+func NewServiceClient() (*Client, error) {
+	if !gce.OnGCE() {
+		return nil, errors.New("not running on Google Compute Engine")
+	}
+	scopes, _ := gce.Scopes("default")
+	if !scopes.Contains("https://www.googleapis.com/auth/devstorage.full_control") &&
+		!scopes.Contains("https://www.googleapis.com/auth/devstorage.read_write") {
+		return nil, errors.New("when this Google Compute Engine VM instance was created, it wasn't granted access to Cloud Storage")
+	}
+	service, _ := api.New(gce.Client)
+	return &Client{client: gce.Client, service: service}, nil
+}
+
 func NewClient(transport *oauth.Transport) *Client {
-	return &Client{transport, transport.Client()}
+	client := transport.Client()
+	service, _ := api.New(client)
+	return &Client{
+		client:    transport.Client(),
+		transport: transport,
+		service:   service,
+	}
 }
 
 func (gso Object) String() string {
@@ -71,7 +97,11 @@ func (sgso SizedObject) String() string {
 // true, then shouldRetry will be true.
 // One of resp or err will always be nil.
 func (gsa *Client) doRequest(req *http.Request, canResend bool) (resp *http.Response, err error, shouldRetry bool) {
-	if resp, err = gsa.client.Do(req); err != nil {
+	resp, err = gsa.client.Do(req)
+	if err != nil {
+		return
+	}
+	if gsa.transport == nil {
 		return
 	}
 
@@ -229,4 +259,8 @@ func (gsa *Client) EnumerateObjects(bucket, after string, limit int) ([]SizedObj
 	}
 
 	return result.Contents, nil
+}
+
+func (c *Client) BucketInfo(bucket string) (*api.Bucket, error) {
+	return c.service.Buckets.Get(bucket).Do()
 }
