@@ -1,8 +1,28 @@
-<h1>Release 0.8 ("XXXXXX")</h1>
+<h1>Release 0.8 ("Tokyo")</h1>
 
-<p><b>2014-mm-dd</b></p>
+<p><b>2014-08-03</b></p>
 
-<p></p>
+<p>
+Forgive us Internet, for we have slacked. It has been over 5 months since
+our last release.
+</p>
+
+<p>
+But we've been busy hacking away and have good stuff for you. The
+most exciting thing in this release is probably the new importer
+system and implementation of a bunch of importer types, slurping in
+your content from elsewhere on the web and mapping it into
+Camlistore's data model and letting you search it. In addition to
+importers we've improved search, started pulling code out of the core
+into separate "apps", and just made general improvements and bug fixes
+all over the place. Enjoy!
+</p>
+
+<p>And if you find yourself in Tokyo for a <a href="http://connpass.com/series/312/">GoCon conference</a>, be sure to check out <a
+href="https://www.google.com/search?q=Robot+Restaurant">Robot
+Restaurant</a>. It's wonderfully bizarre. This release may not have
+robots, but it does have importers which can run automatically, which
+is almost the same? Okay, maybe not.</p>
 
 <center>
 <div style='font-size:18pt;font-weight:bold;'><a href="https://github.com/bradfitz/camlistore/archive/0.8.zip">camlistore-0.8.zip</a></div>
@@ -11,28 +31,34 @@ Or browse at Github: <a href="https://github.com/bradfitz/camlistore/tree/0.8">g
 </center>
 
 <h2>Release stats</h2>
-<p>n total committers over n commits since <a href="/docs/release/0.7">0.7</a> (just %v ago), including TODO</p>
+<!--
+$ PREV=0.7; echo "$(git shortlog -e -s $PREV..HEAD | sed -e 's/^.*<//;s/>.*$//' | uniq | wc -l) total commiters over $(git log --format=oneline $PREV..HEAD | wc -l) commits since $PREV (), including $(i=0; git shortlog -s $PREV..HEAD | cut -c8- | fgrep ' ' | while read nm; do i=$(($i + 1)); if [ $i -ge 2 ]; then echo -n ', '; fi; echo -n "$nm"; done)."
+-->
+
+<p>30 total commiters over 610 commits since <a href="/docs/release/0.7">0.7</a>, including Aaron Boodman, Andrew Gerrand, Antti Rasinen, Bill Thiede, Brad Fitzpatrick, Bret Comnes, Brian Gitonga Marete, Daniel Coonce, Daniel Erat, Edward Sheffler III, Eric Drechsel, Govert Versluis, Hernan Grecco, Joshua Gay, Mario Russo, Mathieu Lonjaret, Matt Jibson, Nick O'Neill, Philip Snowberger, Piotr S. Staszewski, Ritesh Sinha, Rob Young, Robert Kroeger, Steven L. Speek, Tamás Gulácsi.</p>
 
 <p>Thank you!</p>
 
 <h2>New in 0.8</h2>
 <h3>Apps</h3>
 <ul>
-        <li>Hello app, serves as a prototype and example.</li>
-        <li>Publisher app, replaces publish handler.</li>
+        <li>Hello app, serves as a prototype and example. We're in the process of removing more code from the main camlistored server process and kicking them out into client applications which can be sandboxed (both for CPU instructions, and for API data access) into separate processes. This will also force our APIs to improve if they're found to be lacking.</li>
+        <li>Publisher app, replaces publish handler. The publishing code (for putting photo galleries on the web for others to see) has been removed from the core of camlistored and is now an external process, but one that can be managed by camlistored.</li>
 </ul>
 <h3>Web UI</h3>
 <ul>
-        <li>Deletion of selected permanodes.</li>
-        <li>Image representation for any kind of content (camliContentImage is now a well-supported permanode attribute in the importers, web UI, search, etc).</li>
+        <li>Selected permanodes may deleted.</li>
+        <li>Image representation for any kind of content (<code>camliContentImage</code> is now a well-supported permanode attribute in the importers, web UI, search, etc).</li>
         <li>"Aspects" ... multiple view options for a given blob or permanode</li>
-        <li>Debug UI window invoked by pressing the "|" (pipe) key for doing bulk operations on selected items. Currently only tagging.</li>
+        <li>Debug UI window invoked by pressing the <code>"|"</code> (pipe) key for doing bulk operations on selected items. Currently only tagging.</li>
 </ul>
 <h3>Storage</h3>
 <ul>
 	<li>Rewritten blob sync handler (the server's background async replication), now bug fixes, better UI status, and option to run a full validation.</li>
-	<li>Store blobs in MongoDB. (in addition to the index)</li>
-        <li>Switched MySQL driver to go-mysql-driver</li>
+	<li>Store blobs in MongoDB. (previously only the Camlistore index could be stored in MongoDB)</li>
+        <li>Switched MySQL driver to <code><a href="https://github.com/go-sql-driver/mysql">go-mysql-driver</a></code></li>
+        <li>Google Cloud Storage auth works automatically when run on Google Compute Engine.</li>
+        <li>Google Cloud Storage supports reporting its storage generation, so <code>camput</code> will cache more.</li>
 </ul>
 <h3>Search</h3>
 <ul>
@@ -40,27 +66,34 @@ Or browse at Github: <a href="https://github.com/bradfitz/camlistore/tree/0.8">g
         <li>RelationConstraint implemented for Relation type "parent"</li>
         <li>Search operator syntax for searching permanodes for arbitrary attributes: <code>attr:&lt;attribute_name&gt;:&lt;attribute_value&gt;</code></li>
         <li>Search operator syntax for searching permanodes by their parent permanode(s): <code>childrenof:sha1-xxxxx</code></li>
-        <li>Searches can contain parenthesized subexpressions and accept 'and' and 'or'. A whitespace separation still means and.</li>
+        <li>Searches can contain parenthesized subexpressions and accept 'and' and 'or'. A whitespace separation still means 'and'.</li>
         <li>Permanode deletions now taken into account by index corpus, hence in search results too.</li>
-        <li>Cleaned up subdirs in ./pkg/index. Cleaned up ./pkg/sorted/ API. Tests with docker for mongo, mysql, postgres.</li>
+        <li>Cleaned up subdirs in <tt>./pkg/index</tt>. Cleaned up <tt>./pkg/sorted/</tt> API. Many tests now use Docker to test dependencies (mongo, mysql, postgres, etc) rather than using the host machine's database.</li>
         <li>Describe rules, eliminating the previous inflexible and over-aggressive "describe depth" parameter.</li>
-        <li>Indexing of MusicBrainz album IDs</li>
+        <li>Indexing of MusicBrainz album IDs.</li>
+        <li>Sorting of permanodes by time now recognizes a handful of common date-related schema attributes as used by the importers. The default search response's sort order should be sane for most people now, showing newer content first.</li>
+        <li>Allow searching for files by their "wholeref" (complete digest)</li>https://github.com/go-sql-driver/mysql
 </ul>
 <h3>Importers</h3>
 <ul>
-        <li>Importer account setup UI at /importer/</li>
-        <li>Regular, recurring import</li>
+        <li>Importer account setup UI at /importer/. Importers are no longer configured in the config file.</li>
+        <li>Regular, recurring imports. (Optional, per account per importer type.)</li>
         <li>Foursquare venue and check-in importer.</li>
         <li>Picasaweb (Google Photos) importer.</li>
         <li>Twitter importer.</li>
-        <li>Feeds (RSS, Atom, RDF)</li>
+        <li>Feed (RSS, Atom, RDF) importer.</li>
 </ul>
 <h3>Tools</h3>
 <ul>
         <li>Added <code>camtool search</code> subcommand.</li>
         <li><code>camtool sync</code>: warn about differing identities.</li>
+        <li><code>camtool googinit</code>: help setup Google Cloud Storage or Driver.</li>
 </ul>
 <h3>General</h3>
 <ul>
-        <li>kv: all the verifydb flags are on by default on dev, to help with detecting corruptions.</li>
+        <li>kv: all the <a href="https://github.com/cznic/kv">kv</a>
+        verifydb flags are on by default in dev mode, to help with
+        detecting corruption. One known kv corruption bug remains.</li>
+        <li><code>devcam --makethings</code> pre-populates your dev server with fake importer content to aid in UI development work</li>
+        <li>Photos with GPS location in the EXIF but no timezone information (most cameraphone photos) now map the latitude and longitude to a timezone using the <a href="https://github.com/bradfitz/latlong"><code>latlong</code> package</a> so they sort properly with respect to other events in your stream (e.g. Tweets, Foursquare checkins, etc.) Useful for anybody who travels or doesn't live in UTC..</li>
 </ul>
