@@ -65,6 +65,7 @@ var (
 	masterHosts    = flag.String("masterhosts", "localhost:8080", "listening hostname and port of the master bots, i.e where to send the test suite reports. Comma separated list.")
 	ourOS          = flag.String("os", "", "The OS we report the master(s). Defaults to runtime.GOOS.")
 	skipGo1Build   = flag.Bool("skipgo1build", false, "skip initial go1 build, for debugging and quickly going to the next steps.")
+	skip           = flag.String("skip", "", "Test suite to skip. Valid values are \"go1\", \"gotip\", or \"all\".")
 	verbose        = flag.Bool("verbose", false, "print what's going on")
 	skipTLSCheck   = flag.Bool("skiptlscheck", false, "accept any certificate presented by server when uploading results.")
 	taskLifespan   = flag.Int("timeout", 600, "Lifespan (in seconds) for each task run by this builder, after which the task automatically terminates. 0 or negative means infinite.")
@@ -327,6 +328,10 @@ func main() {
 			goDir = goTipDir
 		}
 		switchGo(goDir)
+		if doSkip(isTip) {
+			endOfSuite(nil)
+			continue
+		}
 		if *fakeTests {
 			if err := fakeRun(); err != nil {
 				endOfSuite(err)
@@ -372,6 +377,10 @@ func main() {
 	}
 	sanitizeRevs()
 	sendReport()
+}
+
+func doSkip(isTip bool) bool {
+	return *skip == "all" || (isTip && *skip == "gotip") || (!isTip && *skip == "go1")
 }
 
 func sanitizeRevs() {
