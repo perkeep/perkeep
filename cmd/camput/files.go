@@ -145,6 +145,12 @@ func (c *fileCmd) RunCommand(args []string) error {
 	if c.deleteAfterUpload && !c.filePermanodes {
 		return cmdmain.UsageError("Can't set use --delete_after_upload without --filenodes")
 	}
+	// TODO(mpl): do it for other modes too. Or even better, do it once for all modes.
+	if *cmdmain.FlagVerbose {
+		log.SetOutput(cmdmain.Stderr)
+	} else {
+		log.SetOutput(ioutil.Discard)
+	}
 	up := getUploader()
 	if c.memstats {
 		sr := new(statspkg.Receiver)
@@ -246,9 +252,6 @@ func (c *fileCmd) RunCommand(args []string) error {
 			if up.fileOpts.wantVivify() {
 				vlog.Printf("Directories not supported in vivify mode; skipping %v\n", filename)
 				continue
-			}
-			if !*cmdmain.FlagVerbose {
-				log.SetOutput(ioutil.Discard)
 			}
 			t := up.NewTreeUpload(filename)
 			t.Start()

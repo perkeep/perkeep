@@ -208,9 +208,24 @@ func (w *World) Cmd(binary string, args ...string) *exec.Cmd {
 }
 
 func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cmd {
-	cmd := exec.Command(filepath.Join(w.camRoot, "bin", binary), args...)
+	hasVerbose := func() bool {
+		for _, v := range args {
+			if v == "-verbose" || v == "--verbose" {
+				return true
+			}
+		}
+		return false
+	}
+	var cmd *exec.Cmd
 	switch binary {
 	case "camget", "camput", "camtool", "cammount":
+		// TODO(mpl): lift the camput restriction when we have a unified logging mechanism
+		if binary == "camput" && !hasVerbose() {
+			// camput and camtool are the only ones to have a -verbose flag through cmdmain
+			// but camtool is never used. (and cammount does not even have a -verbose).
+			args = append([]string{"-verbose"}, args...)
+		}
+		cmd = exec.Command(filepath.Join(w.camRoot, "bin", binary), args...)
 		clientConfigDir := filepath.Join(w.camRoot, "config", "dev-client-dir")
 		cmd.Env = append([]string{
 			"CAMLI_CONFIG_DIR=" + clientConfigDir,
@@ -267,7 +282,7 @@ func RunCmd(c *exec.Cmd) (output string, err error) {
 	c.Stdout = &stdout
 	err = c.Run()
 	if err != nil {
-		return "", fmt.Errorf("Error running command %+v: Stdout:\n%s\nStderrr:\n%s\n", c, stdout.String(), stderr.String())
+		return "", fmt.Errorf("Error running command %+v: Stdout:\n%s\nStderr:\n%s\n", c, stdout.String(), stderr.String())
 	}
 	return stdout.String(), nil
 }
