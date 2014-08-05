@@ -51,7 +51,7 @@ func (p *StatResponse) MarshalJSON() ([]byte, error) {
 // See doc/protocol/blob-upload-protocol.txt.
 type UploadResponse struct {
 	Received  []*RefAndSize `json:"received"`
-	ErrorText string        `json:"errortext,omitempty"`
+	ErrorText string        `json:"errorText,omitempty"`
 }
 
 func (p *UploadResponse) MarshalJSON() ([]byte, error) {
