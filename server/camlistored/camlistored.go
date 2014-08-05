@@ -47,6 +47,8 @@ import (
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/serverinit"
 	"camlistore.org/pkg/webserver"
+	"camlistore.org/pkg/wkfs"
+	"camlistore.org/third_party/github.com/bradfitz/gce"
 
 	// Storage options:
 	_ "camlistore.org/pkg/blobserver/cond"
@@ -162,7 +164,7 @@ func genSelfTLS(listen string) error {
 
 	defCert := osutil.DefaultTLSCert()
 	defKey := osutil.DefaultTLSKey()
-	certOut, err := os.Create(defCert)
+	certOut, err := wkfs.Create(defCert)
 	if err != nil {
 		return fmt.Errorf("failed to open %s for writing: %s", defCert, err)
 	}
@@ -178,7 +180,7 @@ func genSelfTLS(listen string) error {
 		`"trustedCerts": ["` + sig + `"],`
 	log.Printf(hint)
 
-	keyOut, err := os.OpenFile(defKey, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	keyOut, err := wkfs.OpenFile(defKey, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to open %s for writing: %s", defKey, err)
 	}
@@ -216,14 +218,18 @@ func loadConfig(arg string) (conf *serverinit.Config, isNewConfig bool, err erro
 	var absPath string
 	switch {
 	case arg == "":
-		// TODO: check if running on GCE/EC2 and metadata available
-		absPath = osutil.UserServerConfigPath()
-		_, err = os.Stat(absPath)
+		if gce.OnGCE() {
+			// TODO: check if running on GCE/EC2 and metadata available
+			absPath = osutil.UserServerConfigPath()
+		} else {
+			absPath = osutil.UserServerConfigPath()
+		}
+		_, err = wkfs.Stat(absPath)
 		if err != nil {
 			if !os.IsNotExist(err) {
 				return
 			}
-			err = os.MkdirAll(osutil.CamliConfigDir(), 0700)
+			err = wkfs.MkdirAll(osutil.CamliConfigDir(), 0700)
 			if err != nil {
 				return
 			}
@@ -253,8 +259,8 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, listen string) {
 	defCert := osutil.DefaultTLSCert()
 	defKey := osutil.DefaultTLSKey()
 	if cert == defCert && key == defKey {
-		_, err1 := os.Stat(cert)
-		_, err2 := os.Stat(key)
+		_, err1 := wkfs.Stat(cert)
+		_, err2 := wkfs.Stat(key)
 		if err1 != nil || err2 != nil {
 			if os.IsNotExist(err1) || os.IsNotExist(err2) {
 				if err := genSelfTLS(listen); err != nil {

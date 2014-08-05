@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/url"
 	"os"
@@ -33,6 +32,7 @@ import (
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/types/serverconfig"
+	"camlistore.org/pkg/wkfs"
 )
 
 // various parameters derived from the high-level user config
@@ -791,7 +791,7 @@ func WriteDefaultConfigFile(filePath string, useSQLite bool) error {
 		ReplicateTo: make([]interface{}, 0),
 	}
 	blobDir := osutil.CamliBlobRoot()
-	if err := os.MkdirAll(blobDir, 0700); err != nil {
+	if err := wkfs.MkdirAll(blobDir, 0700); err != nil {
 		return fmt.Errorf("Could not create default blobs directory: %v", err)
 	}
 	conf.BlobPath = blobDir
@@ -803,7 +803,7 @@ func WriteDefaultConfigFile(filePath string, useSQLite bool) error {
 
 	var keyId string
 	secRing := osutil.SecretRingFile()
-	_, err := os.Stat(secRing)
+	_, err := wkfs.Stat(secRing)
 	switch {
 	case err == nil:
 		keyId, err = jsonsign.KeyIdFromRing(secRing)
@@ -829,7 +829,7 @@ func WriteDefaultConfigFile(filePath string, useSQLite bool) error {
 		return fmt.Errorf("Could not json encode config file : %v", err)
 	}
 
-	if err := ioutil.WriteFile(filePath, confData, 0600); err != nil {
+	if err := wkfs.WriteFile(filePath, confData, 0600); err != nil {
 		return fmt.Errorf("Could not create or write default server config: %v", err)
 	}
 
