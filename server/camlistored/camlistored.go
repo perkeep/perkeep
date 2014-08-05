@@ -390,7 +390,7 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 
 	config, isNewConfig, err := loadConfig(*flagConfigFile)
 	if err != nil {
-		exitf("Error loading config file %q: %v", *flagConfigFile, err)
+		exitf("Error loading config file: %v", err)
 	}
 
 	ws := webserver.New()
