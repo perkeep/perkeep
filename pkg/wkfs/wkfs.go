@@ -29,6 +29,7 @@ package wkfs
 
 import (
 	"io"
+	"io/ioutil"
 	"os"
 	"strings"
 )
@@ -117,4 +118,13 @@ func WriteFile(filename string, data []byte, perm os.FileMode) error {
 		err = err1
 	}
 	return err
+}
+
+func ReadFile(filename string) ([]byte, error) {
+	f, err := Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return ioutil.ReadAll(f)
 }

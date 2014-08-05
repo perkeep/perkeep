@@ -26,7 +26,6 @@ import (
 	"expvar"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/pprof"
@@ -44,6 +43,7 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/server/app"
 	"camlistore.org/pkg/types/serverconfig"
+	"camlistore.org/pkg/wkfs"
 )
 
 const camliPrefix = "/camli/"
@@ -466,7 +466,7 @@ func load(filename string, rootConfig []byte, opener func(filename string) (json
 	}
 
 	if rootConfig == nil {
-		rootConfig, err = ioutil.ReadFile(filename)
+		rootConfig, err = wkfs.ReadFile(filename)
 		if err != nil {
 			return nil, fmt.Errorf("Could not read %s: %v", filename, err)
 		}
