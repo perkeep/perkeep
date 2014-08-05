@@ -31,6 +31,7 @@ import (
 
 	"camlistore.org/pkg/errorutil"
 	"camlistore.org/pkg/osutil"
+	"camlistore.org/pkg/wkfs"
 )
 
 type stringVector struct {
@@ -70,7 +71,7 @@ type ConfigParser struct {
 
 func (c *ConfigParser) open(filename string) (File, error) {
 	if c.Open == nil {
-		return os.Open(filename)
+		return wkfs.Open(filename)
 	}
 	return c.Open(filename)
 }

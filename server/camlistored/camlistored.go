@@ -49,6 +49,7 @@ import (
 	"camlistore.org/pkg/serverinit"
 	"camlistore.org/pkg/webserver"
 	"camlistore.org/pkg/wkfs"
+	_ "camlistore.org/pkg/wkfs/gcs"
 	"camlistore.org/third_party/github.com/bradfitz/gce"
 
 	// Storage options:

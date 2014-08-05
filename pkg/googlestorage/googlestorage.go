@@ -25,6 +25,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 
@@ -144,7 +145,9 @@ func (gsa *Client) GetObject(obj *Object) (io.ReadCloser, int64, error) {
 	if err != nil {
 		return nil, 0, fmt.Errorf("GS GET request failed: %v\n", err)
 	}
-
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, 0, os.ErrNotExist
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, 0, fmt.Errorf("GS GET request failed status: %v\n", resp.Status)
 	}
