@@ -33,6 +33,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -219,8 +220,14 @@ func loadConfig(arg string) (conf *serverinit.Config, isNewConfig bool, err erro
 	switch {
 	case arg == "":
 		if gce.OnGCE() {
-			// TODO: check if running on GCE/EC2 and metadata available
-			absPath = osutil.UserServerConfigPath()
+			confBucket, _ := gce.InstanceAttributeValue("camlistore-config-bucket")
+			if confBucket == "" {
+				return nil, false, fmt.Errorf("Running on GCE, but metadata attribute 'camlistore-config-bucket' not set")
+			}
+			if strings.HasPrefix(confBucket, "gs://") {
+				confBucket = "/gcs/" + confBucket[len("gs://"):]
+			}
+			absPath = path.Join(confBucket, "server-config.json")
 		} else {
 			absPath = osutil.UserServerConfigPath()
 		}
