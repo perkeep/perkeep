@@ -478,7 +478,7 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 				continue
 			}
 			if res.StatusCode != 200 {
-				return false, fmt.Errorf("HTTP status %s fetching %s for tweet %s", res.StatusCode, mediaURL, url)
+				return false, fmt.Errorf("HTTP status %d fetching %s for tweet %s", res.StatusCode, mediaURL, url)
 			}
 			if !viaAPI {
 				log.Printf("For zip tweet %s, reading %v", url, mediaURL)
