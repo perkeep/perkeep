@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"strings"
@@ -54,9 +53,6 @@ type gcsFS struct {
 }
 
 func (fs *gcsFS) parseName(name string) (bucket, key string, err error) {
-	defer func() {
-		log.Printf("Parsename(%q) = %q, %q, %v", name, bucket, key, err)
-	}()
 	if fs.err != nil {
 		return "", "", fs.err
 	}
@@ -69,7 +65,6 @@ func (fs *gcsFS) parseName(name string) (bucket, key string, err error) {
 }
 
 func (fs *gcsFS) Open(name string) (wkfs.File, error) {
-	log.Printf("open of %q", name)
 	bucket, key, err := fs.parseName(name)
 	if err != nil {
 		return nil, fs.err
@@ -78,7 +73,6 @@ func (fs *gcsFS) Open(name string) (wkfs.File, error) {
 		Bucket: bucket,
 		Key:    key,
 	})
-	log.Printf("Get of %q, %q = size %d, %v", bucket, key, size, err)
 	if err != nil {
 		return nil, err
 	}
@@ -106,14 +100,12 @@ func (fs *gcsFS) Lstat(name string) (os.FileInfo, error) {
 		Bucket: bucket,
 		Key:    key,
 	})
-	log.Printf("Stat = %v, %v, %v", size, exists, err)
 	if err != nil {
 		return nil, err
 	}
 	if !exists {
 		return nil, os.ErrNotExist
 	}
-	log.Printf("returning good stat")
 	return &statInfo{
 		name: name,
 		size: size,
