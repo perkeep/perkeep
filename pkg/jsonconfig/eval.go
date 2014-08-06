@@ -137,16 +137,32 @@ func (c *ConfigParser) recursiveReadJSON(configPath string) (decodedObject map[s
 	return decodedObject, nil
 }
 
+var regFunc = map[string]expanderFunc{}
+
+// RegisterFunc registers a new function that may be called from JSON
+// configs using an array of the form ["_name", arg0, argN...].
+// The provided name must begin with an underscore.
+func RegisterFunc(name string, fn func(c *ConfigParser, v []interface{}) (interface{}, error)) {
+	if len(name) < 2 || !strings.HasPrefix(name, "_") {
+		panic("illegal name")
+	}
+	if _, dup := regFunc[name]; dup {
+		panic("duplicate registration of " + name)
+	}
+	regFunc[name] = fn
+}
+
 type expanderFunc func(c *ConfigParser, v []interface{}) (interface{}, error)
 
-func namedExpander(name string) (expanderFunc, bool) {
+func namedExpander(name string) (fn expanderFunc, ok bool) {
 	switch name {
 	case "_env":
-		return expanderFunc((*ConfigParser).expandEnv), true
+		return (*ConfigParser).expandEnv, true
 	case "_fileobj":
-		return expanderFunc((*ConfigParser).expandFile), true
+		return (*ConfigParser).expandFile, true
 	}
-	return nil, false
+	fn, ok = regFunc[name]
+	return
 }
 
 func (c *ConfigParser) evalValue(v interface{}) (interface{}, error) {
