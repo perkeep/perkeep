@@ -5,7 +5,7 @@
 <p>Or, the canonical git repo is:</p>
 <pre>$ git clone https://camlistore.googlesource.com/camlistore</pre>
 
-<p><a href="http://golang.org/doc/install">Download and install Go</a> if you don't have that installed already. Camlistore requires Go 1.1 but we recommend 1.3.</p>
+<p><a href="http://golang.org/doc/install">Download and install Go</a> if you don't have that installed already. Camlistore requires <a href="https://golang.org/dl/">Go 1.3 or newer</a>.</p>
 
 <p>Build Camlistore by running this command in the folder you downloaded or checked out:</p>
 

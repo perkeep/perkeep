@@ -453,9 +453,10 @@ func verifyCamlistoreRoot(dir string) {
 }
 
 func verifyGoVersion() {
+	const neededMinor = '3'
 	_, err := exec.LookPath("go")
 	if err != nil {
-		log.Fatalf("Go doesn't appeared to be installed ('go' isn't in your PATH). Install Go 1.1 or newer.")
+		log.Fatalf("Go doesn't appeared to be installed ('go' isn't in your PATH). Install Go 1.%c or newer.", neededMinor)
 	}
 	out, err := exec.Command("go", "version").Output()
 	if err != nil {
@@ -466,10 +467,18 @@ func verifyGoVersion() {
 		log.Fatalf("Unexpected output while checking 'go version': %q", out)
 	}
 	version := fields[2]
-	switch version {
-	case "go1", "go1.0.1", "go1.0.2", "go1.0.3":
-		log.Fatalf("Your version of Go (%s) is too old. Camlistore requires Go 1.1 or later.", version)
+	if version == "devel" {
+		return
 	}
+	// this check is still needed for the "go1" case.
+	if len(version) < len("go1.") {
+		log.Fatalf("Your version of Go (%s) is too old. Camlistore requires Go 1.%c or later.", version, neededMinor)
+	}
+	minorChar := strings.TrimPrefix(version, "go1.")[0]
+	if minorChar >= neededMinor && minorChar <= '9' {
+		return
+	}
+	log.Fatalf("Your version of Go (%s) is too old. Camlistore requires Go 1.%c or later.", version, neededMinor)
 }
 
 type mirrorOpts struct {
