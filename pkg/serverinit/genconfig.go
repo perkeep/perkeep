@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"camlistore.org/pkg/blob"
@@ -165,14 +166,35 @@ func addMongoConfig(prefixes jsonconfig.Obj, dbname string, dbinfo string) {
 	prefixes["/index/"] = ob
 }
 
-func addSQLConfig(rdbms string, prefixes jsonconfig.Obj, dbname string, dbinfo string) {
-	fields := strings.Split(dbinfo, "@")
-	if len(fields) != 2 {
-		exitFailure("Malformed " + rdbms + " config string. Want: \"user@host:password\"")
+// parses "user@host:password", which you think would be easy, but we
+// documented this format without thinking about port numbers, so this
+// uses heuristics to guess what extra colons mean.
+func parseUserHostPass(v string) (user, host, password string, ok bool) {
+	f := strings.SplitN(v, "@", 2)
+	if len(f) != 2 {
+		return
 	}
-	user := fields[0]
-	fields = strings.Split(fields[1], ":")
-	if len(fields) != 2 {
+	user = f[0]
+	f = strings.Split(f[1], ":")
+	if len(f) < 2 {
+		return "", "", "", false
+	}
+	host = f[0]
+	f = f[1:]
+	if len(f) >= 2 {
+		if _, err := strconv.ParseUint(f[0], 10, 16); err == nil {
+			host = host + ":" + f[0]
+			f = f[1:]
+		}
+	}
+	password = strings.Join(f, ":")
+	ok = true
+	return
+}
+
+func addSQLConfig(rdbms string, prefixes jsonconfig.Obj, dbname string, dbinfo string) {
+	user, host, password, ok := parseUserHostPass(dbinfo)
+	if !ok {
 		exitFailure("Malformed " + rdbms + " config string. Want: \"user@host:password\"")
 	}
 	ob := map[string]interface{}{}
@@ -182,9 +204,9 @@ func addSQLConfig(rdbms string, prefixes jsonconfig.Obj, dbname string, dbinfo s
 		"blobSource": "/bs/",
 		"storage": map[string]interface{}{
 			"type":     rdbms,
-			"host":     fields[0],
+			"host":     host,
 			"user":     user,
-			"password": fields[1],
+			"password": password,
 			"database": dbname,
 		},
 	}
