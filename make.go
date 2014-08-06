@@ -49,20 +49,23 @@ var haveSQLite = checkHaveSQLite()
 
 var (
 	embedResources = flag.Bool("embed_static", true, "Whether to embed resources needed by the UI such as images, css, and javascript.")
-	sqlFlag        = flag.String("sqlite", "auto", "Whether you want SQLite in your build: yes, no, or auto.")
+	sqlFlag        = flag.String("sqlite", "auto", "Whether you want SQLite in your build: true, false, or auto.")
 	all            = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
 	race           = flag.Bool("race", false, "Build race-detector version of binaries (they will run slowly)")
 	verbose        = flag.Bool("v", false, "Verbose mode")
 	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. '*' builds everything.  Empty builds defaults for this platform. Example: camlistore.org/server/camlistored,camlistore.org/cmd/camput")
 	quiet          = flag.Bool("quiet", false, "Don't print anything unless there's a failure.")
 	onlysync       = flag.Bool("onlysync", false, "Only populate the temporary source/build tree and output its full path. It is meant to prepare the environment for running the full test suite with 'devcam test'.")
-	// TODO(mpl): looks like ifModsSince is not used anywhere?
-	ifModsSince = flag.Int64("if_mods_since", 0, "If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
+	useGoPath      = flag.Bool("use_gopath", false, "Use GOPATH from the environment and work from there. Do not create a temporary source tree with a new GOPATH in it.")
+	// TODO(mpl): implement ifModsSince, or remove it from all places where we use make.go, because we shouldn't lie.
+	ifModsSince = flag.Int64("if_mods_since", 0, "Not implemented yet. If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
 	buildARCH   = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
 	buildOS     = flag.String("os", runtime.GOOS, "Operating system to build for.")
 )
 
 var (
+	// camRoot is the original Camlistore project root, from where the source files are mirrored.
+	camRoot string
 	// buildGoPath becomes our child "go" processes' GOPATH environment variable
 	buildGoPath string
 	// Our temporary source tree root and build dir, i.e: buildGoPath + "src/camlistore.org"
@@ -75,90 +78,42 @@ func main() {
 	log.SetFlags(0)
 	flag.Parse()
 
-	camRoot, err := os.Getwd()
-	if err != nil {
-		log.Fatalf("Failed to get current directory: %v", err)
-	}
-	verifyCamlistoreRoot(camRoot)
+	verifyGoVersion()
 
-	cross := runtime.GOOS != *buildOS || runtime.GOARCH != *buildARCH
-	var sql bool
-	if *sqlFlag == "auto" {
-		sql = !cross && haveSQLite
-	} else {
-		sql, err = strconv.ParseBool(*sqlFlag)
+	sql := withSQLite()
+	if useEnvGoPath, _ := strconv.ParseBool(os.Getenv("CAMLI_MAKE_USEGOPATH")); useEnvGoPath {
+		*useGoPath = true
+	}
+	if *useGoPath {
+		buildGoPath = os.Getenv("GOPATH")
+		var err error
+		camRoot, err = goPackagePath("camlistore.org")
 		if err != nil {
-			log.Fatalf("Bad boolean --sql flag %q", *sqlFlag)
+			log.Fatalf("Cannot run make.go with --use_gopath: %v (is GOPATH not set?)", err)
+		}
+		buildSrcDir = camRoot
+	} else {
+		var err error
+		camRoot, err = os.Getwd()
+		if err != nil {
+			log.Fatalf("Failed to get current directory: %v", err)
+		}
+		mirror(sql)
+		if *onlysync {
+			mirrorFile("make.go", filepath.Join(buildSrcDir, "make.go"))
+			deleteUnwantedOldMirrorFiles(buildSrcDir, true)
+			fmt.Println(buildGoPath)
+			return
 		}
 	}
-
-	if cross && sql {
-		log.Fatalf("SQLite isn't available when cross-compiling to another OS. Set --sqlite=false.")
-	}
-	if sql && !haveSQLite {
-		log.Printf("SQLite not found. Either install it, or run make.go with --sqlite=false  See https://code.google.com/p/camlistore/wiki/SQLite")
-		switch runtime.GOOS {
-		case "darwin":
-			log.Printf("On OS X, run 'brew install sqlite3 pkg-config'. Get brew from http://mxcl.github.io/homebrew/")
-		case "linux":
-			log.Printf("On Linux, run 'sudo apt-get install libsqlite3-dev' or equivalent.")
-		case "windows":
-			log.Printf("SQLite is not easy on windows. Please see http://camlistore.org/docs/server-config#windows")
-		}
-		os.Exit(2)
-	}
-
-	buildBaseDir := "build-gopath"
-	if !sql {
-		buildBaseDir += "-nosqlite"
-	}
-
-	buildGoPath = filepath.Join(camRoot, "tmp", buildBaseDir)
 	binDir := filepath.Join(camRoot, "bin")
-	buildSrcDir = filepath.Join(buildGoPath, "src", "camlistore.org")
-
-	if err := os.MkdirAll(buildSrcDir, 0755); err != nil {
-		log.Fatal(err)
-	}
-
-	version := getVersion(camRoot)
+	version := getVersion()
 
 	if *verbose {
 		log.Printf("Camlistore version = %s", version)
 		log.Printf("SQLite included: %v", sql)
 		log.Printf("Temporary source: %s", buildSrcDir)
 		log.Printf("Output binaries: %s", binDir)
-	}
-
-	// TODO(mpl): main is getting long. We could probably move all the mirroring
-	// dance to its own func.
-	// We copy all *.go files from camRoot's goDirs to buildSrcDir.
-	goDirs := []string{"app", "cmd", "pkg", "dev", "server/camlistored", "third_party"}
-	if *onlysync {
-		goDirs = append(goDirs, "server/appengine", "config")
-	}
-	// Copy files we do want in our mirrored GOPATH.  This has the side effect of
-	// populating wantDestFile, populated by mirrorFile.
-	var latestSrcMod time.Time
-	for _, dir := range goDirs {
-		oriPath := filepath.Join(camRoot, filepath.FromSlash(dir))
-		dstPath := buildSrcPath(dir)
-		if maxMod, err := mirrorDir(oriPath, dstPath, mirrorOpts{sqlite: sql}); err != nil {
-			log.Fatalf("Error while mirroring %s to %s: %v", oriPath, dstPath, err)
-		} else {
-			if maxMod.After(latestSrcMod) {
-				latestSrcMod = maxMod
-			}
-		}
-	}
-
-	verifyGoVersion()
-
-	if *onlysync {
-		mirrorFile("make.go", filepath.Join(buildSrcDir, "make.go"))
-		deleteUnwantedOldMirrorFiles(buildSrcDir, true)
-		fmt.Println(buildGoPath)
-		return
 	}
 
 	buildAll := false
@@ -188,25 +143,15 @@ func main() {
 
 	withCamlistored := stringListContains(targs, "camlistore.org/server/camlistored")
 	if *embedResources && withCamlistored {
-		if *verbose {
-			log.Printf("Embedding resources...")
-		}
-		closureEmbed := buildSrcPath("server/camlistored/ui/closure/z_data.go")
-		closureSrcDir := filepath.Join(camRoot, filepath.FromSlash("third_party/closure/lib"))
-		err := embedClosure(closureSrcDir, closureEmbed)
-		if err != nil {
-			log.Fatal(err)
-		}
-		wantDestFile[closureEmbed] = true
-		if err = buildGenfileembed(); err != nil {
-			log.Fatal(err)
-		}
-		if err = genEmbeds(); err != nil {
-			log.Fatal(err)
-		}
+		// TODO(mpl): in doEmbed, it looks like we not only always recreate the closure
+		// z_data.go, but we also always regenerate the zembed.*.go, at least for the
+		// integration tests. I'll look into it.
+		doEmbed()
 	}
 
-	deleteUnwantedOldMirrorFiles(buildSrcDir, withCamlistored)
+	if !*useGoPath {
+		deleteUnwantedOldMirrorFiles(buildSrcDir, withCamlistored)
+	}
 
 	tags := ""
 	if sql {
@@ -270,6 +215,43 @@ func main() {
 
 	if !*quiet {
 		log.Printf("Success. Binaries are in %s", actualBinDir(binDir))
+	}
+}
+
+// create the tmp GOPATH, and mirror to it from camRoot.
+func mirror(sql bool) {
+	verifyCamlistoreRoot(camRoot)
+
+	buildBaseDir := "build-gopath"
+	if !sql {
+		buildBaseDir += "-nosqlite"
+	}
+
+	buildGoPath = filepath.Join(camRoot, "tmp", buildBaseDir)
+	buildSrcDir = filepath.Join(buildGoPath, "src", "camlistore.org")
+
+	if err := os.MkdirAll(buildSrcDir, 0755); err != nil {
+		log.Fatal(err)
+	}
+
+	// We copy all *.go files from camRoot's goDirs to buildSrcDir.
+	goDirs := []string{"app", "cmd", "pkg", "dev", "server/camlistored", "third_party"}
+	if *onlysync {
+		goDirs = append(goDirs, "server/appengine", "config")
+	}
+	// Copy files we do want in our mirrored GOPATH.  This has the side effect of
+	// populating wantDestFile, populated by mirrorFile.
+	var latestSrcMod time.Time
+	for _, dir := range goDirs {
+		srcPath := filepath.Join(camRoot, filepath.FromSlash(dir))
+		dstPath := buildSrcPath(dir)
+		if maxMod, err := mirrorDir(srcPath, dstPath, mirrorOpts{sqlite: sql}); err != nil {
+			log.Fatalf("Error while mirroring %s to %s: %v", srcPath, dstPath, err)
+		} else {
+			if maxMod.After(latestSrcMod) {
+				latestSrcMod = maxMod
+			}
+		}
 	}
 }
 
@@ -410,12 +392,12 @@ func buildGenfileembed() error {
 
 // getVersion returns the version of Camlistore. Either from a VERSION file at the root,
 // or from git.
-func getVersion(camRoot string) string {
+func getVersion() string {
 	slurp, err := ioutil.ReadFile(filepath.Join(camRoot, "VERSION"))
 	if err == nil {
 		return strings.TrimSpace(string(slurp))
 	}
-	return gitVersion(camRoot)
+	return gitVersion()
 }
 
 var gitVersionRx = regexp.MustCompile(`\b\d\d\d\d-\d\d-\d\d-[0-9a-f]{7,7}\b`)
@@ -423,7 +405,7 @@ var gitVersionRx = regexp.MustCompile(`\b\d\d\d\d-\d\d-\d\d-[0-9a-f]{7,7}\b`)
 // gitVersion returns the git version of the git repo at camRoot as a
 // string of the form "yyyy-mm-dd-xxxxxxx", with an optional trailing
 // '+' if there are any local uncomitted modifications to the tree.
-func gitVersion(camRoot string) string {
+func gitVersion() string {
 	cmd := exec.Command("git", "rev-list", "--max-count=1", "--pretty=format:'%ad-%h'", "--date=short", "HEAD")
 	cmd.Dir = camRoot
 	out, err := cmd.Output()
@@ -576,13 +558,44 @@ func deleteUnwantedOldMirrorFiles(dir string, withCamlistored bool) {
 				// have to put it back into place later.
 				return nil
 			}
-			if !*quiet {
+			if *verbose {
 				log.Printf("Deleting old file from temp build dir: %s", path)
 			}
 			return os.Remove(path)
 		}
 		return nil
 	})
+}
+
+func withSQLite() bool {
+	cross := runtime.GOOS != *buildOS || runtime.GOARCH != *buildARCH
+	var sql bool
+	var err error
+	if *sqlFlag == "auto" {
+		sql = !cross && haveSQLite
+	} else {
+		sql, err = strconv.ParseBool(*sqlFlag)
+		if err != nil {
+			log.Fatalf("Bad boolean --sql flag %q", *sqlFlag)
+		}
+	}
+
+	if cross && sql {
+		log.Fatalf("SQLite isn't available when cross-compiling to another OS. Set --sqlite=false.")
+	}
+	if sql && !haveSQLite {
+		log.Printf("SQLite not found. Either install it, or run make.go with --sqlite=false  See https://code.google.com/p/camlistore/wiki/SQLite")
+		switch runtime.GOOS {
+		case "darwin":
+			log.Printf("On OS X, run 'brew install sqlite3 pkg-config'. Get brew from http://mxcl.github.io/homebrew/")
+		case "linux":
+			log.Printf("On Linux, run 'sudo apt-get install libsqlite3-dev' or equivalent.")
+		case "windows":
+			log.Printf("SQLite is not easy on windows. Please see http://camlistore.org/docs/server-config#windows")
+		}
+		os.Exit(2)
+	}
+	return sql
 }
 
 func checkHaveSQLite() bool {
@@ -610,6 +623,25 @@ func checkHaveSQLite() bool {
 		log.Fatalf("Can't determine whether sqlite3 is available, and where. pkg-config error was: %v, %s", err, out)
 	}
 	return strings.TrimSpace(string(out)) != ""
+}
+
+func doEmbed() {
+	if *verbose {
+		log.Printf("Embedding resources...")
+	}
+	closureEmbed := buildSrcPath("server/camlistored/ui/closure/z_data.go")
+	closureSrcDir := filepath.Join(camRoot, filepath.FromSlash("third_party/closure/lib"))
+	err := embedClosure(closureSrcDir, closureEmbed)
+	if err != nil {
+		log.Fatal(err)
+	}
+	wantDestFile[closureEmbed] = true
+	if err = buildGenfileembed(); err != nil {
+		log.Fatal(err)
+	}
+	if err = genEmbeds(); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func embedClosure(closureDir, embedFile string) error {
@@ -727,4 +759,31 @@ func exeName(s string) string {
 		return s + ".exe"
 	}
 	return s
+}
+
+// goPackagePath returns the path to the provided Go package's
+// source directory.
+// pkg may be a path prefix without any *.go files.
+// The error is os.ErrNotExist if GOPATH is unset or the directory
+// doesn't exist in any GOPATH component.
+func goPackagePath(pkg string) (path string, err error) {
+	gp := os.Getenv("GOPATH")
+	if gp == "" {
+		return path, os.ErrNotExist
+	}
+	for _, p := range filepath.SplitList(gp) {
+		dir := filepath.Join(p, "src", filepath.FromSlash(pkg))
+		fi, err := os.Stat(dir)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		if !fi.IsDir() {
+			continue
+		}
+		return dir, nil
+	}
+	return path, os.ErrNotExist
 }

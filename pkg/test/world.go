@@ -94,6 +94,7 @@ func (w *World) Start() error {
 
 	// Build.
 	{
+		// TODO(mpl): when running with -v (either with go test or devcam test), append it for make.go as well
 		cmd := exec.Command("go", "run", "make.go")
 		cmd.Dir = w.camRoot
 		log.Print("Running make.go to build camlistore binaries for testing...")
@@ -184,7 +185,9 @@ func (w *World) Stop() {
 	if w == nil {
 		return
 	}
-	w.server.Process.Kill()
+	if err := w.server.Process.Kill(); err != nil {
+		log.Fatalf("killed failed: %v", err)
+	}
 
 	if d := w.tempDir; d != "" {
 		os.RemoveAll(d)
