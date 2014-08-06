@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +28,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/osutil"
+	"camlistore.org/pkg/wkfs"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/packet"
 )
@@ -77,7 +77,7 @@ func (ce *CachingEntityFetcher) FetchEntity(keyId string) (*openpgp.Entity, erro
 }
 
 func (fe *FileEntityFetcher) FetchEntity(keyId string) (*openpgp.Entity, error) {
-	f, err := os.Open(fe.File)
+	f, err := wkfs.Open(fe.File)
 	if err != nil {
 		return nil, fmt.Errorf("jsonsign: FetchEntity: %v", err)
 	}
@@ -182,7 +182,7 @@ func (sr *SignRequest) Sign() (signedJSON string, err error) {
 		if file == "" {
 			return "", errors.New("jsonsign: no EntityFetcher, and no secret ring file defined.")
 		}
-		secring, err := os.Open(sr.secretRingPath())
+		secring, err := wkfs.Open(sr.secretRingPath())
 		if err != nil {
 			return "", fmt.Errorf("jsonsign: failed to open secret ring file %q: %v", sr.secretRingPath(), err)
 		}

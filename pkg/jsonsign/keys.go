@@ -27,7 +27,7 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/osutil"
-
+	"camlistore.org/pkg/wkfs"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/armor"
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/packet"
@@ -49,7 +49,7 @@ func ParseArmoredPublicKey(r io.Reader) (shortKeyId, armoredKey string, err erro
 }
 
 func VerifyPublicKeyFile(file, keyid string) (bool, error) {
-	f, err := os.Open(file)
+	f, err := wkfs.Open(file)
 	if err != nil {
 		return false, err
 	}
@@ -105,7 +105,7 @@ func EntityFromSecring(keyId, keyFile string) (*openpgp.Entity, error) {
 	if keyFile == "" {
 		keyFile = osutil.SecretRingFile()
 	}
-	secring, err := os.Open(keyFile)
+	secring, err := wkfs.Open(keyFile)
 	if err != nil {
 		return nil, fmt.Errorf("jsonsign: failed to open keyring: %v", err)
 	}
@@ -177,7 +177,7 @@ func WriteKeyRing(w io.Writer, el openpgp.EntityList) error {
 // ring file secRing. It expects only one keyId in this secret ring
 // and returns an error otherwise.
 func KeyIdFromRing(secRing string) (keyId string, err error) {
-	f, err := os.Open(secRing)
+	f, err := wkfs.Open(secRing)
 	if err != nil {
 		return "", fmt.Errorf("Could not open secret ring file %v: %v", secRing, err)
 	}
@@ -204,7 +204,7 @@ func GenerateNewSecRing(secRing string) (keyId string, err error) {
 	if err := os.MkdirAll(filepath.Dir(secRing), 0700); err != nil {
 		return "", err
 	}
-	f, err := os.OpenFile(secRing, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	f, err := wkfs.OpenFile(secRing, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return "", err
 	}
