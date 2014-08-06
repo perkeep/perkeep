@@ -30,6 +30,8 @@ is almost the same? Okay, maybe not.</p>
 Or browse at Github: <a href="https://github.com/bradfitz/camlistore/tree/0.8">github.com/bradfitz/camlistore/tree/0.8</a></div>
 </center>
 
+<p>Please note that <a href="https://golang.org/dl/">Go 1.3 or newer</a> is now required for this release.</p>
+
 <h2>Release stats</h2>
 <!--
 $ PREV=0.7; echo "$(git shortlog -e -s $PREV..HEAD | sed -e 's/^.*<//;s/>.*$//' | uniq | wc -l) total commiters over $(git log --format=oneline $PREV..HEAD | wc -l) commits since $PREV (), including $(i=0; git shortlog -s $PREV..HEAD | cut -c8- | fgrep ' ' | while read nm; do i=$(($i + 1)); if [ $i -ge 2 ]; then echo -n ', '; fi; echo -n "$nm"; done)."
