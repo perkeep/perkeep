@@ -33,6 +33,7 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/serverinit"
 	"camlistore.org/pkg/test"
 	"camlistore.org/pkg/types/serverconfig"
@@ -223,4 +224,32 @@ func canonicalizeGolden(t *testing.T, v []byte) []byte {
 		v = append(v, '\n')
 	}
 	return v
+}
+
+func TestExpansionsInHighlevelConfig(t *testing.T) {
+	camroot, err := osutil.GoPackagePath("camlistore.org")
+	if err != nil {
+		t.Fatalf("failed to find camlistore.org GOPATH root: %v", err)
+	}
+	const keyID = "26F5ABDA"
+	os.Setenv("TMP_EXPANSION_TEST", keyID)
+	os.Setenv("TMP_EXPANSION_SECRING", filepath.Join(camroot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")))
+	conf, err := serverinit.Load([]byte(`
+{
+    "auth": "localhost",
+    "listen": ":4430",
+    "https": false,
+    "identity": ["_env", "${TMP_EXPANSION_TEST}"],
+    "identitySecretRing": ["_env", "${TMP_EXPANSION_SECRING}"],
+    "googlecloudstorage": ":camlistore-dev-blobs",
+    "kvIndexFile": "/tmp/camli-index.kvdb"
+}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := fmt.Sprintf("%#v", conf)
+	if !strings.Contains(got, keyID) {
+		t.Errorf("Expected key %q in resulting low-level config. Got: %s", got)
+	}
 }

@@ -43,7 +43,6 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/server/app"
 	"camlistore.org/pkg/types/serverconfig"
-	"camlistore.org/pkg/wkfs"
 )
 
 const camliPrefix = "/camli/"
@@ -412,7 +411,7 @@ func detectConfigChange(conf jsonconfig.Obj) error {
 // with boolean value true, the configuration is assumed to be a high-level
 // "user config" file, and transformed into a low-level config.
 func LoadFile(filename string) (*Config, error) {
-	return load(filename, nil, nil)
+	return load(filename, nil)
 }
 
 type jsonFileImpl struct {
@@ -428,7 +427,7 @@ func (f jsonFileImpl) Name() string { return f.name }
 // with boolean value true, the configuration is assumed to be a high-level
 // "user config" file, and transformed into a low-level config.
 func Load(config []byte) (*Config, error) {
-	return load("", config, func(filename string) (jsonconfig.File, error) {
+	return load("", func(filename string) (jsonconfig.File, error) {
 		if filename != "" {
 			return nil, errors.New("JSON files with includes not supported with jsonconfig.Load")
 		}
@@ -436,17 +435,7 @@ func Load(config []byte) (*Config, error) {
 	})
 }
 
-func load(filename string, rootConfig []byte, opener func(filename string) (jsonconfig.File, error)) (*Config, error) {
-	if filename == "" {
-		if rootConfig == nil || opener == nil {
-			panic("internal error")
-		}
-	} else {
-		if rootConfig != nil || opener != nil {
-			panic("internal error")
-		}
-	}
-
+func load(filename string, opener func(filename string) (jsonconfig.File, error)) (*Config, error) {
 	c := &jsonconfig.ConfigParser{Open: opener}
 	m, err := c.ReadFile(filename)
 	if err != nil {
@@ -461,20 +450,23 @@ func load(filename string, rootConfig []byte, opener func(filename string) (json
 		return conf, nil
 	}
 
+	// Check whether the high-level config uses the old names.
 	if err := detectConfigChange(obj); err != nil {
 		return nil, err
 	}
 
-	if rootConfig == nil {
-		rootConfig, err = wkfs.ReadFile(filename)
-		if err != nil {
-			return nil, fmt.Errorf("Could not read %s: %v", filename, err)
-		}
+	// Because the original high-level config might have expanded
+	// through the use of functions, we re-encode the map back to
+	// JSON here so we can unmarshal it into the hiLevelConf
+	// struct later.
+	highExpandedJSON, err := json.Marshal(m)
+	if err != nil {
+		return nil, fmt.Errorf("Can't re-marshal high-level JSON config: %v", err)
 	}
 
 	var hiLevelConf serverconfig.Config
-	if err := json.Unmarshal(rootConfig, &hiLevelConf); err != nil {
-		return nil, fmt.Errorf("Could not unmarshal %s into a serverconfig.Config: %v", filename, err)
+	if err := json.Unmarshal(highExpandedJSON, &hiLevelConf); err != nil {
+		return nil, fmt.Errorf("Could not unmarshal into a serverconfig.Config: %v", err)
 	}
 
 	conf, err = genLowLevelConfig(&hiLevelConf)
