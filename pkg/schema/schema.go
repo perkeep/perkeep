@@ -279,7 +279,7 @@ type superset struct {
 
 func parseSuperset(r io.Reader) (*superset, error) {
 	var ss superset
-	if err := json.NewDecoder(io.LimitReader(r, 1<<20)).Decode(&ss); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r, MaxSchemaBlobSize)).Decode(&ss); err != nil {
 		return nil, err
 	}
 	return &ss, nil
