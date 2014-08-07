@@ -69,38 +69,25 @@ func (kv *KeyValue) sql(v string) string {
 type batchTx struct {
 	tx  *sql.Tx
 	err error // sticky
-
-	// SetFunc is an optional func to use when REPLACE INTO does not exist
-	SetFunc func(*sql.Tx, string, string) error
-
-	// PlaceHolderFunc optionally replaces ? placeholders with the right ones for the rdbms
-	// in use
-	PlaceHolderFunc func(string) string
-}
-
-func (b *batchTx) sql(v string) string {
-	if f := b.PlaceHolderFunc; f != nil {
-		return f(v)
-	}
-	return v
+	kv  *KeyValue
 }
 
 func (b *batchTx) Set(key, value string) {
 	if b.err != nil {
 		return
 	}
-	if b.SetFunc != nil {
-		b.err = b.SetFunc(b.tx, key, value)
+	if b.kv.BatchSetFunc != nil {
+		b.err = b.kv.BatchSetFunc(b.tx, key, value)
 		return
 	}
-	_, b.err = b.tx.Exec(b.sql("REPLACE INTO /*TPRE*/rows (k, v) VALUES (?, ?)"), key, value)
+	_, b.err = b.tx.Exec(b.kv.sql("REPLACE INTO /*TPRE*/rows (k, v) VALUES (?, ?)"), key, value)
 }
 
 func (b *batchTx) Delete(key string) {
 	if b.err != nil {
 		return
 	}
-	_, b.err = b.tx.Exec(b.sql("DELETE FROM /*TPRE*/rows WHERE k=?"), key)
+	_, b.err = b.tx.Exec(b.kv.sql("DELETE FROM /*TPRE*/rows WHERE k=?"), key)
 }
 
 func (kv *KeyValue) BeginBatch() sorted.BatchMutation {
@@ -108,11 +95,13 @@ func (kv *KeyValue) BeginBatch() sorted.BatchMutation {
 		kv.mu.Lock()
 	}
 	tx, err := kv.DB.Begin()
+	if err != nil {
+		log.Printf("SQL BEGIN BATCH: %v", err)
+	}
 	return &batchTx{
-		tx:              tx,
-		err:             err,
-		SetFunc:         kv.BatchSetFunc,
-		PlaceHolderFunc: kv.PlaceHolderFunc,
+		tx:  tx,
+		err: err,
+		kv:  kv,
 	}
 }
 
