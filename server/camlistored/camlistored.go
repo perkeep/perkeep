@@ -33,7 +33,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -49,8 +48,9 @@ import (
 	"camlistore.org/pkg/serverinit"
 	"camlistore.org/pkg/webserver"
 	"camlistore.org/pkg/wkfs"
-	_ "camlistore.org/pkg/wkfs/gcs"
-	"camlistore.org/third_party/github.com/bradfitz/gce"
+
+	// VM environments:
+	_ "camlistore.org/pkg/osutil/gce"
 
 	// Storage options:
 	_ "camlistore.org/pkg/blobserver/cond"
@@ -220,18 +220,7 @@ func loadConfig(arg string) (conf *serverinit.Config, isNewConfig bool, err erro
 	var absPath string
 	switch {
 	case arg == "":
-		if gce.OnGCE() {
-			confBucket, _ := gce.InstanceAttributeValue("camlistore-config-bucket")
-			if confBucket == "" {
-				return nil, false, fmt.Errorf("Running on GCE, but metadata attribute 'camlistore-config-bucket' not set")
-			}
-			if strings.HasPrefix(confBucket, "gs://") {
-				confBucket = "/gcs/" + confBucket[len("gs://"):]
-			}
-			absPath = path.Join(confBucket, "server-config.json")
-		} else {
-			absPath = osutil.UserServerConfigPath()
-		}
+		absPath = osutil.UserServerConfigPath()
 		_, err = wkfs.Stat(absPath)
 		if err != nil {
 			if !os.IsNotExist(err) {

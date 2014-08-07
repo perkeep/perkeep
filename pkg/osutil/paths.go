@@ -104,10 +104,24 @@ func CamliBlobRoot() string {
 	return filepath.Join(CamliVarDir(), "blobs")
 }
 
+// RegisterConfigDirFunc registers a func f to return the Camlistore configuration directory.
+// It may skip by returning the empty string.
+func RegisterConfigDirFunc(f func() string) {
+	configDirFuncs = append(configDirFuncs, f)
+}
+
+var configDirFuncs []func() string
+
 func CamliConfigDir() string {
 	if p := os.Getenv("CAMLI_CONFIG_DIR"); p != "" {
 		return p
 	}
+	for _, f := range configDirFuncs {
+		if v := f(); v != "" {
+			return v
+		}
+	}
+
 	failInTests()
 	return camliConfigDir()
 }

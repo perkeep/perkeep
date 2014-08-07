@@ -14,13 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+// Package gce configures hooks for running Camlistore for Google Compute Engine.
+package gce
 
 import (
 	"errors"
 	"fmt"
+	"path"
+	"strings"
 
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/osutil"
+	_ "camlistore.org/pkg/wkfs/gcs"
 	"camlistore.org/third_party/github.com/bradfitz/gce"
 )
 
@@ -28,6 +33,13 @@ func init() {
 	if !gce.OnGCE() {
 		return
 	}
+	osutil.RegisterConfigDirFunc(func() string {
+		v, _ := gce.InstanceAttributeValue("camlistore-config-bucket")
+		if v == "" {
+			return v
+		}
+		return path.Clean("/gcs/" + strings.TrimPrefix(v, "gs://"))
+	})
 	jsonconfig.RegisterFunc("_gce_instance_meta", func(c *jsonconfig.ConfigParser, v []interface{}) (interface{}, error) {
 		if len(v) != 1 {
 			return nil, errors.New("only 1 argument supported after _gce_instance_meta")

@@ -24,6 +24,7 @@ import (
 
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/osutil"
+	_ "camlistore.org/pkg/osutil/gce"
 	"camlistore.org/pkg/serverinit"
 )
 
