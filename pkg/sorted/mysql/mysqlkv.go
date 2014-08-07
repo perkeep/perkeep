@@ -47,6 +47,10 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	}
 	var err error
 	if host != "" {
+		host, err = maybeRemapCloudSQL(host)
+		if err != nil {
+			return nil, err
+		}
 		if !strings.Contains(host, ":") {
 			host += ":3306"
 		}
@@ -65,7 +69,7 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	}
 
 	for _, tableSQL := range SQLCreateTables() {
-		tableSQL = strings.Replace(tableSQL, "/*DB*/", database+".", -1)
+		tableSQL = strings.Replace(tableSQL, "/*DB*/", database, -1)
 		if _, err := db.Exec(tableSQL); err != nil {
 			return nil, fmt.Errorf("error creating table with %q: %v", tableSQL, err)
 		}
