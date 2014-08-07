@@ -488,6 +488,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 		}
 	}
 
+	// TODO(mpl): use struct type instead of map for res.
 	ures, err := c.responseJSONMap("upload", resp)
 	if err != nil {
 		return errorf("json parse from upload error: %v", err)
