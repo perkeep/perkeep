@@ -284,7 +284,7 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, listen string) {
 		cert = defCert
 		key = defKey
 	}
-	data, err := ioutil.ReadFile(cert)
+	data, err := wkfs.ReadFile(cert)
 	if err != nil {
 		exitf("Failed to read pem certificate: %s", err)
 	}
