@@ -21,12 +21,14 @@ package gcs
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"camlistore.org/pkg/googlestorage"
@@ -115,7 +117,72 @@ func (fs *gcsFS) Lstat(name string) (os.FileInfo, error) {
 func (fs *gcsFS) MkdirAll(path string, perm os.FileMode) error { return nil }
 
 func (fs *gcsFS) OpenFile(name string, flag int, perm os.FileMode) (wkfs.FileWriter, error) {
-	panic(fmt.Sprintf("OpenFile not implemented for %q flag=%d, perm=%d", name, flag, perm))
+	bucket, key, err := fs.parseName(name)
+	if err != nil {
+		return nil, err
+	}
+	switch flag {
+	case os.O_WRONLY | os.O_CREATE | os.O_EXCL:
+	case os.O_WRONLY | os.O_CREATE | os.O_TRUNC:
+	default:
+		return nil, fmt.Errorf("Unsupported OpenFlag flag mode %d on Google Cloud Storage", flag)
+	}
+	if flag&os.O_EXCL != 0 {
+		if _, err := fs.Stat(name); err == nil {
+			return nil, os.ErrExist
+		}
+	}
+	return &fileWriter{
+		fs:     fs,
+		name:   name,
+		bucket: bucket,
+		key:    key,
+		flag:   flag,
+		perm:   perm,
+	}, nil
+}
+
+type fileWriter struct {
+	fs                *gcsFS
+	name, bucket, key string
+	flag              int
+	perm              os.FileMode
+
+	buf bytes.Buffer
+
+	mu     sync.Mutex
+	closed bool
+}
+
+func (w *fileWriter) Write(p []byte) (n int, err error) {
+	if len(p)+w.buf.Len() > maxSize {
+		return 0, &os.PathError{
+			Op:   "Write",
+			Path: w.name,
+			Err:  errors.New("file too large"),
+		}
+	}
+	return w.buf.Write(p)
+}
+
+func (w *fileWriter) Close() (err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.closed {
+		return nil
+	}
+	w.closed = true
+	var retry bool
+	for tries := 0; tries < 2; tries++ {
+		retry, err = w.fs.client.PutObject(&googlestorage.Object{
+			Bucket: w.bucket,
+			Key:    w.key,
+		}, ioutil.NopCloser(bytes.NewReader(w.buf.Bytes())))
+		if retry {
+			continue
+		}
+	}
+	return err
 }
 
 type statInfo struct {
