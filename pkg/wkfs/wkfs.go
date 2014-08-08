@@ -56,7 +56,9 @@ func OpenFile(name string, flag int, perm os.FileMode) (FileWriter, error) {
 	return fs(name).OpenFile(name, flag, perm)
 }
 func Create(name string) (FileWriter, error) {
-	return OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+	// like os.Create but WRONLY instead of RDWR because we don't
+	// expose a Reader here.
+	return OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 }
 
 func fs(name string) FileSystem {
