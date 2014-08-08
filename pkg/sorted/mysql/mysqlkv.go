@@ -20,6 +20,7 @@ package mysql
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -68,6 +69,9 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		return nil, err
 	}
 
+	if err := CreateDB(db, database); err != nil {
+		return nil, err
+	}
 	for _, tableSQL := range SQLCreateTables() {
 		tableSQL = strings.Replace(tableSQL, "/*DB*/", database, -1)
 		if _, err := db.Exec(tableSQL); err != nil {
@@ -106,6 +110,17 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	}
 
 	return kv, nil
+}
+
+// CreateDB creates the named database if it does not already exist.
+func CreateDB(db *sql.DB, dbname string) error {
+	if dbname == "" {
+		return errors.New("can not create database: database name is missing")
+	}
+	if _, err := db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", dbname)); err != nil {
+		return fmt.Errorf("error creating database %v: %v", dbname, err)
+	}
+	return nil
 }
 
 // We keep a cache of open database handles.

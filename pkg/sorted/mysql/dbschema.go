@@ -28,7 +28,6 @@ func SchemaVersion() int {
 // which is purely about bytes.
 func SQLCreateTables() []string {
 	return []string{
-		`CREATE DATABASE IF NOT EXISTS /*DB*/`,
 		`CREATE TABLE IF NOT EXISTS /*DB*/.rows (
  k VARCHAR(255) NOT NULL PRIMARY KEY,
  v VARCHAR(255))

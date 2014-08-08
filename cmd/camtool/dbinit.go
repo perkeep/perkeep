@@ -169,9 +169,11 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		}
 		doQuery(db, fmt.Sprintf(`SELECT replaceintometa('version', '%d')`, postgres.SchemaVersion()))
 	case "mysql":
-		for _, tableSql := range mysql.SQLCreateTables() {
-			tableSql = strings.Replace(tableSql, "/*DB*/", dbname, -1)
-			do(db, tableSql)
+		if err := mysql.CreateDB(db, dbname); err != nil {
+			exitf("%v", err)
+		}
+		for _, tableSQL := range mysql.SQLCreateTables() {
+			do(db, tableSQL)
 		}
 		do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, mysql.SchemaVersion()))
 	case "sqlite":
