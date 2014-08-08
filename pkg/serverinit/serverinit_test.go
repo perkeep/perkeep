@@ -66,8 +66,8 @@ func sortedKeys(m map[string]interface{}) (keys []string) {
 	return
 }
 
-func prettyPrint(t *testing.T, w io.Writer, i interface{}, indent int) {
-	out, err := json.MarshalIndent(i, "", "  ")
+func prettyPrint(t *testing.T, w io.Writer, v interface{}) {
+	out, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,8 +196,8 @@ func testConfig(name string, t *testing.T) {
 		t.Fatalf("test %s: ReadFile: %v", name, err)
 	}
 	var got, want bytes.Buffer
-	prettyPrint(t, &got, lowLevelConf.Obj, 0)
-	prettyPrint(t, &want, wantConf, 0)
+	prettyPrint(t, &got, lowLevelConf.Obj)
+	prettyPrint(t, &want, wantConf)
 	if *updateGolden {
 		contents, err := json.MarshalIndent(lowLevelConf.Obj, "", "\t")
 		if err != nil {

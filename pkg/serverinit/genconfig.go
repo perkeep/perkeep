@@ -24,7 +24,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -36,24 +36,6 @@ import (
 	"camlistore.org/pkg/wkfs"
 )
 
-// various parameters derived from the high-level user config
-// and needed to set up the low-level config.
-type configPrefixesParams struct {
-	secretRing       string
-	keyId            string
-	haveIndex        bool
-	haveSQLite       bool
-	blobPath         string
-	packBlobs        bool
-	searchOwner      blob.Ref
-	shareHandlerPath string
-	flickr           string
-	picasa           string
-	memoryIndex      bool
-
-	indexFileDir string // if sqlite or kvfile, its directory. else "".
-}
-
 var (
 	tempDir = os.TempDir
 	noMkdir bool // for tests to not call os.Mkdir
@@ -64,19 +46,97 @@ type tlsOpts struct {
 	httpsKey  string
 }
 
-func addPublishedConfig(prefixes jsonconfig.Obj,
-	published map[string]*serverconfig.Publish,
-	sourceRoot string, tlsO *tlsOpts) ([]string, error) {
-	var pubPrefixes []string
+// genLowLevelConfig returns a low-level config from a high-level config.
+func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err error) {
+	b := &lowBuilder{
+		high: conf,
+		low: jsonconfig.Obj{
+			"prefixes": make(map[string]interface{}),
+		},
+	}
+	return b.build()
+}
+
+// A lowBuilder builds a low-level config from a high-level config.
+type lowBuilder struct {
+	high *serverconfig.Config // high-level config (input)
+	low  jsonconfig.Obj       // low-level handler config (output)
+}
+
+// args is an alias for map[string]interface{} just to cut down on
+// noise below.  But we take care to convert it back to
+// map[string]interface{} in the one place where we accept it.
+type args map[string]interface{}
+
+func (b *lowBuilder) addPrefix(at, handler string, a args) {
+	v := map[string]interface{}{
+		"handler": handler,
+	}
+	if a != nil {
+		v["handlerArgs"] = (map[string]interface{})(a)
+	}
+	b.low["prefixes"].(map[string]interface{})[at] = v
+}
+
+func (b *lowBuilder) hasPrefix(p string) bool {
+	_, ok := b.low["prefixes"].(map[string]interface{})[p]
+	return ok
+}
+
+func (b *lowBuilder) runIndex() bool    { return b.high.RunIndex.Get() }
+func (b *lowBuilder) memoryIndex() bool { return b.high.MemoryIndex.Get() }
+
+// dbName returns which database to use for the provided user ("of").
+// The user key be a key as describe in pkg/types/serverconfig/config.go's
+// description of DBNames: "index", "queue-sync-to-index", etc.
+func (b *lowBuilder) dbName(of string) string {
+	if v, ok := b.high.DBNames[of]; ok && v != "" {
+		return v
+	}
+	if of == "index" {
+		if b.high.DBName != "" {
+			return b.high.DBName
+		}
+		username := osutil.Username()
+		if username == "" {
+			envVar := "USER"
+			if runtime.GOOS == "windows" {
+				envVar += "NAME"
+			}
+			panic("No database name configured and no " + envVar + " environment variable is set, which would have been used to make a default dataase name")
+		}
+		return "camli" + username
+	}
+	panic(fmt.Sprintf("unknown dbName value %q", of))
+}
+
+var errNoOwner = errors.New("no owner")
+
+// Error is errNoOwner if no identity configured
+func (b *lowBuilder) searchOwner() (br blob.Ref, err error) {
+	if b.high.Identity == "" {
+		return br, errNoOwner
+	}
+	entity, err := jsonsign.EntityFromSecring(b.high.Identity, b.high.IdentitySecretRing)
+	if err != nil {
+		return br, err
+	}
+	armoredPublicKey, err := jsonsign.ArmoredPublicKey(entity)
+	if err != nil {
+		return br, err
+	}
+	return blob.SHA1FromString(armoredPublicKey), nil
+}
+
+func (b *lowBuilder) addPublishedConfig(tlsO *tlsOpts) error {
+	published := b.high.Publish
 	for k, v := range published {
 		if v.CamliRoot == "" {
-			return nil, fmt.Errorf("Missing \"camliRoot\" key in configuration for %s.", k)
+			return fmt.Errorf("Missing \"camliRoot\" key in configuration for %s.", k)
 		}
 		if v.GoTemplate == "" {
-			return nil, fmt.Errorf("Missing \"goTemplate\" key in configuration for %s.", k)
+			return fmt.Errorf("Missing \"goTemplate\" key in configuration for %s.", k)
 		}
-		ob := map[string]interface{}{}
-		ob["handler"] = "app"
 
 		appConfig := map[string]interface{}{
 			"camliRoot":  v.CamliRoot,
@@ -94,76 +154,57 @@ func addPublishedConfig(prefixes jsonconfig.Obj,
 				appConfig["httpsKey"] = tlsO.httpsKey
 			}
 		}
-
-		handlerArgs := map[string]interface{}{
+		a := args{
 			"program":   v.Program,
 			"appConfig": appConfig,
 		}
 		if v.BaseURL != "" {
-			handlerArgs["baseURL"] = v.BaseURL
+			a["baseURL"] = v.BaseURL
 		}
 		program := "publisher"
 		if v.Program != "" {
 			program = v.Program
 		}
-		handlerArgs["program"] = program
-
-		ob["handlerArgs"] = handlerArgs
-		prefixes[k] = ob
-		pubPrefixes = append(pubPrefixes, k)
+		a["program"] = program
+		b.addPrefix(k, "app", a)
 	}
-	sort.Strings(pubPrefixes)
-	return pubPrefixes, nil
+	return nil
 }
 
-func addUIConfig(params *configPrefixesParams,
-	prefixes jsonconfig.Obj,
-	uiPrefix string,
-	sourceRoot string) {
-
+func (b *lowBuilder) addUIConfig() {
 	args := map[string]interface{}{
 		"jsonSignRoot": "/sighelper/",
 		"cache":        "/cache/",
 	}
-	if sourceRoot != "" {
-		args["sourceRoot"] = sourceRoot
+	if b.high.SourceRoot != "" {
+		args["sourceRoot"] = b.high.SourceRoot
 	}
-	if params.blobPath != "" {
+	if b.high.BlobPath != "" {
 		args["scaledImage"] = map[string]interface{}{
 			"type": "kv",
-			"file": filepath.Join(params.blobPath, "thumbmeta.kv"),
+			"file": filepath.Join(b.high.BlobPath, "thumbmeta.kv"),
 		}
 	}
-	prefixes[uiPrefix] = map[string]interface{}{
-		"handler":     "ui",
-		"handlerArgs": args,
-	}
+	b.addPrefix("/ui/", "ui", args)
 }
 
-func addMongoConfig(prefixes jsonconfig.Obj, dbname string, dbinfo string) {
-	fields := strings.Split(dbinfo, "@")
-	if len(fields) != 2 {
-		exitFailure("Malformed mongo config string. Got \"%v\", want: \"user:password@host\"", dbinfo)
+func (b *lowBuilder) mongoIndexStorage(confStr string) (map[string]interface{}, error) {
+	fields := strings.Split(confStr, "@")
+	if len(fields) == 2 {
+		host := fields[1]
+		fields = strings.Split(fields[0], ":")
+		if len(fields) == 2 {
+			user, pass := fields[0], fields[1]
+			return map[string]interface{}{
+				"type":     "mongo",
+				"host":     host,
+				"user":     user,
+				"password": pass,
+				"database": b.dbName("index"),
+			}, nil
+		}
 	}
-	host := fields[1]
-	fields = strings.Split(fields[0], ":")
-	if len(fields) != 2 {
-		exitFailure("Malformed mongo config string. Got \"%v\", want: \"user:password\"", fields[0])
-	}
-	ob := map[string]interface{}{}
-	ob["enabled"] = true
-	ob["handler"] = "storage-index"
-	ob["handlerArgs"] = map[string]interface{}{
-		"blobSource": "/bs/",
-		"storage": map[string]interface{}{
-			"type":     "mongo",
-			"host":     host,
-			"user":     fields[0],
-			"password": fields[1],
-			"database": dbname,
-		},
-	}
-	prefixes["/index/"] = ob
+	return nil, errors.New("Malformed mongo config string; want form: \"user:password@host\"")
 }
 
 // parses "user@host:password", which you think would be easy, but we
@@ -192,62 +233,46 @@ func parseUserHostPass(v string) (user, host, password string, ok bool) {
 	return
 }
 
-func addSQLConfig(rdbms string, prefixes jsonconfig.Obj, dbname string, dbinfo string) {
-	user, host, password, ok := parseUserHostPass(dbinfo)
+func (b *lowBuilder) dbIndexStorage(rdbms string, confStr string) (map[string]interface{}, error) {
+	user, host, password, ok := parseUserHostPass(confStr)
 	if !ok {
-		exitFailure("Malformed " + rdbms + " config string. Want: \"user@host:password\"")
+		return nil, fmt.Errorf("Malformed %s config string. Want: \"user@host:password\"", rdbms)
 	}
-	ob := map[string]interface{}{}
-	ob["enabled"] = true
-	ob["handler"] = "storage-index"
-	ob["handlerArgs"] = map[string]interface{}{
-		"blobSource": "/bs/",
-		"storage": map[string]interface{}{
-			"type":     rdbms,
-			"host":     host,
-			"user":     user,
-			"password": password,
-			"database": dbname,
-		},
+	return map[string]interface{}{
+		"type":     rdbms,
+		"host":     host,
+		"user":     user,
+		"password": password,
+		"database": b.dbName("index"),
+	}, nil
+}
+
+func (b *lowBuilder) indexStorage() (map[string]interface{}, error) {
+	if b.high.MySQL != "" {
+		return b.dbIndexStorage("mysql", b.high.MySQL)
 	}
-	prefixes["/index/"] = ob
-}
-
-func addPostgresConfig(prefixes jsonconfig.Obj, dbname string, dbinfo string) {
-	addSQLConfig("postgres", prefixes, dbname, dbinfo)
-}
-
-func addMySQLConfig(prefixes jsonconfig.Obj, dbname string, dbinfo string) {
-	addSQLConfig("mysql", prefixes, dbname, dbinfo)
-}
-
-func addSQLiteConfig(prefixes jsonconfig.Obj, file string) {
-	ob := map[string]interface{}{}
-	ob["handler"] = "storage-index"
-	ob["handlerArgs"] = map[string]interface{}{
-		"blobSource": "/bs/",
-		"storage": map[string]interface{}{
+	if b.high.PostgreSQL != "" {
+		return b.dbIndexStorage("postgres", b.high.PostgreSQL)
+	}
+	if b.high.Mongo != "" {
+		return b.mongoIndexStorage(b.high.Mongo)
+	}
+	if b.high.SQLite != "" {
+		return map[string]interface{}{
 			"type": "sqlite",
-			"file": file,
-		},
+			"file": b.high.SQLite,
+		}, nil
 	}
-	prefixes["/index/"] = ob
+	if b.high.KVFile != "" {
+		return map[string]interface{}{
+			"type": "kv",
+			"file": b.high.KVFile,
+		}, nil
+	}
+	panic("indexArgs called when not in index mode")
 }
 
-func addKVConfig(prefixes jsonconfig.Obj, file string) {
-	prefixes["/index/"] = map[string]interface{}{
-		"handler": "storage-index",
-		"handlerArgs": map[string]interface{}{
-			"blobSource": "/bs/",
-			"storage": map[string]interface{}{
-				"type": "kv",
-				"file": file,
-			},
-		},
-	}
-}
-
-func addS3Config(params *configPrefixesParams, prefixes jsonconfig.Obj, s3 string) error {
+func (b *lowBuilder) addS3Config(s3 string) error {
 	f := strings.SplitN(s3, ":", 4)
 	if len(f) < 3 {
 		return errors.New(`genconfig: expected "s3" field to be of form "access_key_id:secret_access_key:bucket"`)
@@ -257,106 +282,81 @@ func addS3Config(params *configPrefixesParams, prefixes jsonconfig.Obj, s3 strin
 	if len(f) == 4 {
 		hostname = f[3]
 	}
-	isPrimary := false
-	if _, ok := prefixes["/bs/"]; !ok {
-		isPrimary = true
-	}
+	isPrimary := !b.hasPrefix("/bs/")
 	s3Prefix := ""
 	if isPrimary {
 		s3Prefix = "/bs/"
 	} else {
 		s3Prefix = "/sto-s3/"
 	}
-	args := map[string]interface{}{
+	a := args{
 		"aws_access_key":        accessKey,
 		"aws_secret_access_key": secret,
 		"bucket":                bucket,
 	}
 	if hostname != "" {
-		args["hostname"] = hostname
+		a["hostname"] = hostname
 	}
-	prefixes[s3Prefix] = map[string]interface{}{
-		"handler":     "storage-s3",
-		"handlerArgs": args,
-	}
+	b.addPrefix(s3Prefix, "storage-s3", a)
 	if isPrimary {
 		// TODO(mpl): s3CacheBucket
 		// See http://code.google.com/p/camlistore/issues/detail?id=85
-		prefixes["/cache/"] = map[string]interface{}{
-			"handler": "storage-filesystem",
-			"handlerArgs": map[string]interface{}{
-				"path": filepath.Join(tempDir(), "camli-cache"),
-			},
-		}
+		b.addPrefix("/cache/", "storage-filesystem", args{
+			"path": filepath.Join(tempDir(), "camli-cache"),
+		})
 	} else {
-		if params.blobPath == "" {
+		if b.high.BlobPath == "" {
 			panic("unexpected empty blobpath with sync-to-s3")
 		}
-		prefixes["/sync-to-s3/"] = map[string]interface{}{
-			"handler": "sync",
-			"handlerArgs": map[string]interface{}{
-				"from": "/bs/",
-				"to":   s3Prefix,
-				"queue": map[string]interface{}{
-					"type": "kv",
-					"file": filepath.Join(params.blobPath, "sync-to-s3-queue.kv"),
-				},
+		b.addPrefix("/sync-to-s3/", "sync", args{
+			"from": "/bs/",
+			"to":   s3Prefix,
+			"queue": map[string]interface{}{
+				"type": "kv",
+				"file": filepath.Join(b.high.BlobPath, "sync-to-s3-queue.kv"),
 			},
-		}
+		})
 	}
 	return nil
 }
 
-func addGoogleDriveConfig(params *configPrefixesParams, prefixes jsonconfig.Obj, highCfg string) error {
-	f := strings.SplitN(highCfg, ":", 4)
+func (b *lowBuilder) addGoogleDriveConfig(v string) error {
+	f := strings.SplitN(v, ":", 4)
 	if len(f) != 4 {
 		return errors.New(`genconfig: expected "googledrive" field to be of form "client_id:client_secret:refresh_token:parent_id"`)
 	}
 	clientId, secret, refreshToken, parentId := f[0], f[1], f[2], f[3]
 
-	isPrimary := false
-	if _, ok := prefixes["/bs/"]; !ok {
-		isPrimary = true
-	}
-
+	isPrimary := !b.hasPrefix("/bs/")
 	prefix := ""
 	if isPrimary {
 		prefix = "/bs/"
 	} else {
 		prefix = "/sto-googledrive/"
 	}
-	prefixes[prefix] = map[string]interface{}{
-		"handler": "storage-googledrive",
-		"handlerArgs": map[string]interface{}{
-			"parent_id": parentId,
-			"auth": map[string]interface{}{
-				"client_id":     clientId,
-				"client_secret": secret,
-				"refresh_token": refreshToken,
-			},
+	b.addPrefix(prefix, "storage-googledrive", args{
+		"parent_id": parentId,
+		"auth": map[string]interface{}{
+			"client_id":     clientId,
+			"client_secret": secret,
+			"refresh_token": refreshToken,
 		},
-	}
+	})
 
 	if isPrimary {
-		prefixes["/cache/"] = map[string]interface{}{
-			"handler": "storage-filesystem",
-			"handlerArgs": map[string]interface{}{
-				"path": filepath.Join(tempDir(), "camli-cache"),
-			},
-		}
+		b.addPrefix("/cache/", "storage-filesystem", args{
+			"path": filepath.Join(tempDir(), "camli-cache"),
+		})
 	} else {
-		prefixes["/sync-to-googledrive/"] = map[string]interface{}{
-			"handler": "sync",
-			"handlerArgs": map[string]interface{}{
-				"from": "/bs/",
-				"to":   prefix,
-				"queue": map[string]interface{}{
-					"type": "kv",
-					"file": filepath.Join(params.blobPath,
-						"sync-to-googledrive-queue.kv"),
-				},
+		b.addPrefix("/sync-to-googledrive/", "sync", args{
+			"from": "/bs/",
+			"to":   prefix,
+			"queue": map[string]interface{}{
+				"type": "kv",
+				"file": filepath.Join(b.high.BlobPath,
+					"sync-to-googledrive-queue.kv"),
 			},
-		}
+		})
 	}
 
 	return nil
@@ -364,9 +364,9 @@ func addGoogleDriveConfig(params *configPrefixesParams, prefixes jsonconfig.Obj,
 
 var errGCSUsage = errors.New(`genconfig: expected "googlecloudstorage" field to be of form "client_id:client_secret:refresh_token:bucket" or ":bucketname"`)
 
-func addGoogleCloudStorageConfig(params *configPrefixesParams, prefixes jsonconfig.Obj, highCfg string) error {
+func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 	var clientID, secret, refreshToken, bucket string
-	f := strings.SplitN(highCfg, ":", 4)
+	f := strings.SplitN(v, ":", 4)
 	switch len(f) {
 	default:
 		return errGCSUsage
@@ -380,11 +380,7 @@ func addGoogleCloudStorageConfig(params *configPrefixesParams, prefixes jsonconf
 		clientID = "auto"
 	}
 
-	isPrimary := false
-	if _, ok := prefixes["/bs/"]; !ok {
-		isPrimary = true
-	}
-
+	isPrimary := !b.hasPrefix("/bs/")
 	gsPrefix := ""
 	if isPrimary {
 		gsPrefix = "/bs/"
@@ -392,54 +388,54 @@ func addGoogleCloudStorageConfig(params *configPrefixesParams, prefixes jsonconf
 		gsPrefix = "/sto-googlecloudstorage/"
 	}
 
-	prefixes[gsPrefix] = map[string]interface{}{
-		"handler": "storage-googlecloudstorage",
-		"handlerArgs": map[string]interface{}{
-			"bucket": bucket,
-			"auth": map[string]interface{}{
-				"client_id":     clientID,
-				"client_secret": secret,
-				"refresh_token": refreshToken,
-				// If high-level config is for the common user then fullSyncOnStart = true
-				// Then the default just works.
-				//"fullSyncOnStart": true,
-				//"blockingFullSyncOnStart": false
-			},
+	b.addPrefix(gsPrefix, "storage-googlecloudstorage", args{
+		"bucket": bucket,
+		"auth": map[string]interface{}{
+			"client_id":     clientID,
+			"client_secret": secret,
+			"refresh_token": refreshToken,
+			// If high-level config is for the common user then fullSyncOnStart = true
+			// Then the default just works.
+			//"fullSyncOnStart": true,
+			//"blockingFullSyncOnStart": false
 		},
-	}
+	})
 
 	if isPrimary {
 		// TODO: cacheBucket like s3CacheBucket?
-		prefixes["/cache/"] = map[string]interface{}{
-			"handler": "storage-filesystem",
-			"handlerArgs": map[string]interface{}{
-				"path": filepath.Join(tempDir(), "camli-cache"),
-			},
-		}
+		b.addPrefix("/cache/", "storage-filesystem", args{
+			"path": filepath.Join(tempDir(), "camli-cache"),
+		})
 	} else {
-		prefixes["/sync-to-googlecloudstorage/"] = map[string]interface{}{
-			"handler": "sync",
-			"handlerArgs": map[string]interface{}{
-				"from": "/bs/",
-				"to":   gsPrefix,
-				"queue": map[string]interface{}{
-					"type": "kv",
-					"file": filepath.Join(params.blobPath,
-						"sync-to-googlecloud-queue.kv"),
-				},
+		b.addPrefix("/sync-to-googlecloudstorage/", "sync", args{
+			"from": "/bs/",
+			"to":   gsPrefix,
+			"queue": map[string]interface{}{
+				"type": "kv",
+				"file": filepath.Join(b.high.BlobPath,
+					"sync-to-googlecloud-queue.kv"),
 			},
-		}
+		})
 	}
 	return nil
 }
 
-func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m jsonconfig.Obj) {
-	m = make(jsonconfig.Obj)
+// indexFileDir returns the directory of the sqlite or kv file, or the
+// empty string.
+func (b *lowBuilder) indexFileDir() string {
+	switch {
+	case b.high.SQLite != "":
+		return filepath.Dir(b.high.SQLite)
+	case b.high.KVFile != "":
+		return filepath.Dir(b.high.KVFile)
+	}
+	return ""
+}
 
-	haveIndex := params.haveIndex
+func (b *lowBuilder) genLowLevelPrefixes() error {
 	root := "/bs/"
 	pubKeyDest := root
-	if haveIndex {
+	if b.runIndex() {
 		root = "/bs-and-maybe-also-index/"
 		pubKeyDest = "/bs-and-index/"
 	}
@@ -449,82 +445,57 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 		"blobRoot":   root,
 		"statusRoot": "/status/",
 	}
-	if ownerName != "" {
-		rootArgs["ownerName"] = ownerName
+	if b.high.OwnerName != "" {
+		rootArgs["ownerName"] = b.high.OwnerName
 	}
-	m["/"] = map[string]interface{}{
-		"handler":     "root",
-		"handlerArgs": rootArgs,
+	if b.runIndex() {
+		rootArgs["searchRoot"] = "/my-search/"
 	}
-	if haveIndex {
-		setMap(m, "/", "handlerArgs", "searchRoot", "/my-search/")
-	}
+	b.addPrefix("/", "root", rootArgs)
+	b.addPrefix("/setup/", "setup", nil)
+	b.addPrefix("/status/", "status", nil)
 
-	m["/setup/"] = map[string]interface{}{
-		"handler": "setup",
-	}
-
-	m["/status/"] = map[string]interface{}{
-		"handler": "status",
-	}
-	importerArgs := map[string]interface{}{}
-	if haveIndex {
-		m["/importer/"] = map[string]interface{}{
-			"handler":     "importer",
-			"handlerArgs": importerArgs,
+	importerArgs := args{}
+	if b.high.Flickr != "" {
+		importerArgs["flickr"] = map[string]interface{}{
+			"clientSecret": b.high.Flickr,
 		}
 	}
-
-	if params.shareHandlerPath != "" {
-		m[params.shareHandlerPath] = map[string]interface{}{
-			"handler": "share",
-			"handlerArgs": map[string]interface{}{
-				"blobRoot": "/bs/",
-			},
+	if b.high.Picasa != "" {
+		importerArgs["picasa"] = map[string]interface{}{
+			"clientSecret": b.high.Picasa,
 		}
 	}
-
-	m["/sighelper/"] = map[string]interface{}{
-		"handler": "jsonsign",
-		"handlerArgs": map[string]interface{}{
-			"secretRing":    params.secretRing,
-			"keyId":         params.keyId,
-			"publicKeyDest": pubKeyDest,
-		},
+	if b.runIndex() {
+		b.addPrefix("/importer/", "importer", importerArgs)
 	}
+
+	if path := b.high.ShareHandlerPath; path != "" {
+		b.addPrefix(path, "share", args{
+			"blobRoot": "/bs/",
+		})
+	}
+
+	b.addPrefix("/sighelper/", "jsonsign", args{
+		"secretRing":    b.high.IdentitySecretRing,
+		"keyId":         b.high.Identity,
+		"publicKeyDest": pubKeyDest,
+	})
 
 	storageType := "filesystem"
-	if params.packBlobs {
+	if b.high.PackBlobs {
 		storageType = "diskpacked"
 	}
-	if params.blobPath != "" {
-		m["/bs/"] = map[string]interface{}{
-			"handler": "storage-" + storageType,
-			"handlerArgs": map[string]interface{}{
-				"path": params.blobPath,
-			},
-		}
-
-		m["/cache/"] = map[string]interface{}{
-			"handler": "storage-" + storageType,
-			"handlerArgs": map[string]interface{}{
-				"path": filepath.Join(params.blobPath, "/cache"),
-			},
-		}
+	if b.high.BlobPath != "" {
+		b.addPrefix("/bs/", "storage-"+storageType, args{
+			"path": b.high.BlobPath,
+		})
+		b.addPrefix("/cache/", "storage-"+storageType, args{
+			"path": filepath.Join(b.high.BlobPath, "/cache"),
+		})
 	}
 
-	if params.flickr != "" {
-		importerArgs["flickr"] = map[string]interface{}{
-			"clientSecret": params.flickr,
-		}
-	}
-	if params.picasa != "" {
-		importerArgs["picasa"] = map[string]interface{}{
-			"clientSecret": params.picasa,
-		}
-	}
-
-	if haveIndex {
+	if b.runIndex() {
 		syncArgs := map[string]interface{}{
 			"from": "/bs/",
 			"to":   "/index/",
@@ -533,18 +504,18 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 		// TODO: currently when using s3, the index must be
 		// sqlite or kvfile, since only through one of those
 		// can we get a directory.
-		if params.blobPath == "" && params.indexFileDir == "" {
+		if b.high.BlobPath == "" && b.indexFileDir() == "" {
 			// We don't actually have a working sync handler, but we keep a stub registered
 			// so it can be referred to from other places.
 			// See http://camlistore.org/issue/201
 			syncArgs["idle"] = true
 		} else {
-			dir := params.blobPath
+			dir := b.high.BlobPath
 			if dir == "" {
-				dir = params.indexFileDir
+				dir = b.indexFileDir()
 			}
 			typ := "kv"
-			if params.haveSQLite {
+			if b.high.SQLite != "" {
 				typ = "sqlite"
 			}
 			syncArgs["queue"] = map[string]interface{}{
@@ -552,59 +523,50 @@ func genLowLevelPrefixes(params *configPrefixesParams, ownerName string) (m json
 				"file": filepath.Join(dir, "sync-to-index-queue."+typ),
 			}
 		}
-		m["/sync/"] = map[string]interface{}{
-			"handler":     "sync",
-			"handlerArgs": syncArgs,
-		}
+		b.addPrefix("/sync/", "sync", syncArgs)
 
-		m["/bs-and-index/"] = map[string]interface{}{
-			"handler": "storage-replica",
-			"handlerArgs": map[string]interface{}{
-				"backends": []interface{}{"/bs/", "/index/"},
+		b.addPrefix("/bs-and-index/", "storage-replica", args{
+			"backends": []interface{}{"/bs/", "/index/"},
+		})
+
+		b.addPrefix("/bs-and-maybe-also-index/", "storage-cond", args{
+			"write": map[string]interface{}{
+				"if":   "isSchema",
+				"then": "/bs-and-index/",
+				"else": "/bs/",
 			},
-		}
+			"read": "/bs/",
+		})
 
-		m["/bs-and-maybe-also-index/"] = map[string]interface{}{
-			"handler": "storage-cond",
-			"handlerArgs": map[string]interface{}{
-				"write": map[string]interface{}{
-					"if":   "isSchema",
-					"then": "/bs-and-index/",
-					"else": "/bs/",
-				},
-				"read": "/bs/",
-			},
+		owner, err := b.searchOwner()
+		if err != nil {
+			return err
 		}
-
-		searchArgs := map[string]interface{}{
+		searchArgs := args{
 			"index": "/index/",
-			"owner": params.searchOwner.String(),
+			"owner": owner.String(),
 		}
-		if params.memoryIndex {
+		if b.memoryIndex() {
 			searchArgs["slurpToMemory"] = true
 		}
-		m["/my-search/"] = map[string]interface{}{
-			"handler":     "search",
-			"handlerArgs": searchArgs,
-		}
+		b.addPrefix("/my-search/", "search", searchArgs)
 	}
 
-	return
+	return nil
 }
 
-// genLowLevelConfig returns a low-level config from a high-level config.
-func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err error) {
-	obj := jsonconfig.Obj{}
+func (b *lowBuilder) build() (*Config, error) {
+	conf, low := b.high, b.low
 	if conf.HTTPS {
 		if (conf.HTTPSCert != "") != (conf.HTTPSKey != "") {
 			return nil, errors.New("Must set both httpsCert and httpsKey (or neither to generate a self-signed cert)")
 		}
 		if conf.HTTPSCert != "" {
-			obj["httpsCert"] = conf.HTTPSCert
-			obj["httpsKey"] = conf.HTTPSKey
+			low["httpsCert"] = conf.HTTPSCert
+			low["httpsKey"] = conf.HTTPSKey
 		} else {
-			obj["httpsCert"] = osutil.DefaultTLSCert()
-			obj["httpsKey"] = osutil.DefaultTLSKey()
+			low["httpsCert"] = osutil.DefaultTLSCert()
+			low["httpsKey"] = osutil.DefaultTLSKey()
 		}
 	}
 
@@ -617,52 +579,27 @@ func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err err
 			return nil, fmt.Errorf("baseURL can't have a path, only a scheme, host, and optional port.")
 		}
 		u.Path = ""
-		obj["baseURL"] = u.String()
+		low["baseURL"] = u.String()
 	}
 	if conf.Listen != "" {
-		obj["listen"] = conf.Listen
+		low["listen"] = conf.Listen
 	}
-	obj["https"] = conf.HTTPS
-	obj["auth"] = conf.Auth
+	low["https"] = conf.HTTPS
+	low["auth"] = conf.Auth
 
-	username := ""
-	if conf.DBName == "" {
-		username = osutil.Username()
-		if username == "" {
-			return nil, fmt.Errorf("USER (USERNAME on windows) env var not set; needed to define dbname")
-		}
-		conf.DBName = "camli" + username
-	}
-
-	var haveSQLite bool
-	var indexFileDir string // filesystem directory of sqlite, kv, or similar
 	numIndexers := numSet(conf.Mongo, conf.MySQL, conf.PostgreSQL, conf.SQLite, conf.KVFile)
-	runIndex := conf.RunIndex.Get()
 
 	switch {
-	case runIndex && numIndexers == 0:
+	case b.runIndex() && numIndexers == 0:
 		return nil, fmt.Errorf("Unless runIndex is set to false, you must specify an index option (kvIndexFile, mongo, mysql, postgres, sqlite).")
-	case runIndex && numIndexers != 1:
+	case b.runIndex() && numIndexers != 1:
 		return nil, fmt.Errorf("With runIndex set true, you can only pick exactly one indexer (mongo, mysql, postgres, sqlite).")
-	case !runIndex && numIndexers != 0:
+	case !b.runIndex() && numIndexers != 0:
 		return nil, fmt.Errorf("With runIndex disabled, you can't specify any of mongo, mysql, postgres, sqlite.")
-	case conf.SQLite != "":
-		haveSQLite = true
-		indexFileDir = filepath.Dir(conf.SQLite)
-	case conf.KVFile != "":
-		indexFileDir = filepath.Dir(conf.KVFile)
 	}
 
 	if conf.Identity == "" {
 		return nil, errors.New("no 'identity' in server config")
-	}
-	entity, err := jsonsign.EntityFromSecring(conf.Identity, conf.IdentitySecretRing)
-	if err != nil {
-		return nil, err
-	}
-	armoredPublicKey, err := jsonsign.ArmoredPublicKey(entity)
-	if err != nil {
-		return nil, err
 	}
 
 	nolocaldisk := conf.BlobPath == ""
@@ -679,22 +616,10 @@ func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err err
 		conf.ShareHandlerPath = "/share/"
 	}
 
-	prefixesParams := &configPrefixesParams{
-		secretRing:       conf.IdentitySecretRing,
-		keyId:            conf.Identity,
-		haveIndex:        runIndex,
-		haveSQLite:       haveSQLite,
-		blobPath:         conf.BlobPath,
-		packBlobs:        conf.PackBlobs,
-		searchOwner:      blob.SHA1FromString(armoredPublicKey),
-		shareHandlerPath: conf.ShareHandlerPath,
-		flickr:           conf.Flickr,
-		picasa:           conf.Picasa,
-		memoryIndex:      conf.MemoryIndex.Get(),
-		indexFileDir:     indexFileDir,
+	if err := b.genLowLevelPrefixes(); err != nil {
+		return nil, err
 	}
 
-	prefixes := genLowLevelPrefixes(prefixesParams, conf.OwnerName)
 	var cacheDir string
 	if nolocaldisk {
 		// Whether camlistored is run from EC2 or not, we use
@@ -712,65 +637,52 @@ func genLowLevelConfig(conf *serverconfig.Config) (lowLevelConf *Config, err err
 	}
 
 	if len(conf.Publish) > 0 {
-		if !runIndex {
+		if !b.runIndex() {
 			return nil, fmt.Errorf("publishing requires an index")
 		}
 		var tlsO *tlsOpts
-		httpsCert, ok1 := obj["httpsCert"].(string)
-		httpsKey, ok2 := obj["httpsKey"].(string)
+		httpsCert, ok1 := low["httpsCert"].(string)
+		httpsKey, ok2 := low["httpsKey"].(string)
 		if ok1 && ok2 {
 			tlsO = &tlsOpts{
 				httpsCert: httpsCert,
 				httpsKey:  httpsKey,
 			}
 		}
-		_, err = addPublishedConfig(prefixes, conf.Publish, conf.SourceRoot, tlsO)
-		if err != nil {
+		if err := b.addPublishedConfig(tlsO); err != nil {
 			return nil, fmt.Errorf("Could not generate config for published: %v", err)
 		}
 	}
 
-	if runIndex {
-		addUIConfig(prefixesParams, prefixes, "/ui/", conf.SourceRoot)
+	if b.runIndex() {
+		b.addUIConfig()
+		sto, err := b.indexStorage()
+		if err != nil {
+			return nil, err
+		}
+		b.addPrefix("/index/", "storage-index", args{
+			"blobSource": "/bs/",
+			"storage":    sto,
+		})
 	}
 
-	if conf.MySQL != "" {
-		addMySQLConfig(prefixes, conf.DBName, conf.MySQL)
-	}
-	if conf.PostgreSQL != "" {
-		addPostgresConfig(prefixes, conf.DBName, conf.PostgreSQL)
-	}
-	if conf.Mongo != "" {
-		addMongoConfig(prefixes, conf.DBName, conf.Mongo)
-	}
-	if conf.SQLite != "" {
-		addSQLiteConfig(prefixes, conf.SQLite)
-	}
-	if conf.KVFile != "" {
-		addKVConfig(prefixes, conf.KVFile)
-	}
 	if conf.S3 != "" {
-		if err := addS3Config(prefixesParams, prefixes, conf.S3); err != nil {
+		if err := b.addS3Config(conf.S3); err != nil {
 			return nil, err
 		}
 	}
 	if conf.GoogleDrive != "" {
-		if err := addGoogleDriveConfig(prefixesParams, prefixes, conf.GoogleDrive); err != nil {
+		if err := b.addGoogleDriveConfig(conf.GoogleDrive); err != nil {
 			return nil, err
 		}
 	}
 	if conf.GoogleCloudStorage != "" {
-		if err := addGoogleCloudStorageConfig(prefixesParams, prefixes, conf.GoogleCloudStorage); err != nil {
+		if err := b.addGoogleCloudStorageConfig(conf.GoogleCloudStorage); err != nil {
 			return nil, err
 		}
 	}
 
-	obj["prefixes"] = (map[string]interface{})(prefixes)
-
-	lowLevelConf = &Config{
-		Obj: obj,
-	}
-	return lowLevelConf, nil
+	return &Config{Obj: b.low}, nil
 }
 
 func numSet(vv ...interface{}) (num int) {
@@ -789,17 +701,6 @@ func numSet(vv ...interface{}) (num int) {
 		}
 	}
 	return
-}
-
-func setMap(m map[string]interface{}, v ...interface{}) {
-	if len(v) < 2 {
-		panic("too few args")
-	}
-	if len(v) == 2 {
-		m[v[0].(string)] = v[1]
-		return
-	}
-	setMap(m[v[0].(string)].(map[string]interface{}), v[1:]...)
 }
 
 // WriteDefaultConfigFile generates a new default high-level server configuration

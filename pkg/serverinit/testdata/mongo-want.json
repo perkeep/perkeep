@@ -50,7 +50,6 @@
 			"handlerArgs": {}
 		},
 		"/index/": {
-			"enabled": true,
 			"handler": "storage-index",
 			"handlerArgs": {
 				"blobSource": "/bs/",
