@@ -201,11 +201,7 @@ func (c *ConfigParser) evaluateExpressions(m map[string]interface{}, seenKeys []
 	for k, ei := range m {
 		thisPath := append(seenKeys, k)
 		switch subval := ei.(type) {
-		case string:
-			continue
-		case bool:
-			continue
-		case float64:
+		case string, bool, float64, nil:
 			continue
 		case []interface{}:
 			if len(subval) == 0 {
