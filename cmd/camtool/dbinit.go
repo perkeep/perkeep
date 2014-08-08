@@ -170,6 +170,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		doQuery(db, fmt.Sprintf(`SELECT replaceintometa('version', '%d')`, postgres.SchemaVersion()))
 	case "mysql":
 		for _, tableSql := range mysql.SQLCreateTables() {
+			tableSql = strings.Replace(tableSql, "/*DB*/", dbname, -1)
 			do(db, tableSql)
 		}
 		do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, mysql.SchemaVersion()))
@@ -188,7 +189,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 func do(db *sql.DB, sql string) {
 	_, err := db.Exec(sql)
 	if err != nil {
-		exitf("Error %v running SQL: %s", err, sql)
+		exitf("Error %q running SQL: %q", err, sql)
 	}
 }
 
@@ -198,7 +199,7 @@ func doQuery(db *sql.DB, sql string) {
 		r.Close()
 		return
 	}
-	exitf("Error %v running SQL: %s", err, sql)
+	exitf("Error %q running SQL: %q", err, sql)
 }
 
 func (c *dbinitCmd) dbExists(db *sql.DB) bool {
@@ -249,7 +250,7 @@ func exitf(format string, args ...interface{}) {
 	if !strings.HasSuffix(format, "\n") {
 		format = format + "\n"
 	}
-	cmdmain.Errorf(format, args)
+	cmdmain.Errorf(format, args...)
 	cmdmain.Exit(1)
 }
 
