@@ -188,7 +188,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 func do(db *sql.DB, sql string) {
 	_, err := db.Exec(sql)
 	if err != nil {
-		exitf("Error %v running SQL: %s", err, sql)
+		exitf("Error %q running SQL: %q", err, sql)
 	}
 }
 
@@ -198,7 +198,7 @@ func doQuery(db *sql.DB, sql string) {
 		r.Close()
 		return
 	}
-	exitf("Error %v running SQL: %s", err, sql)
+	exitf("Error %q running SQL: %q", err, sql)
 }
 
 func (c *dbinitCmd) dbExists(db *sql.DB) bool {
@@ -249,7 +249,7 @@ func exitf(format string, args ...interface{}) {
 	if !strings.HasSuffix(format, "\n") {
 		format = format + "\n"
 	}
-	cmdmain.Errorf(format, args)
+	cmdmain.Errorf(format, args...)
 	cmdmain.Exit(1)
 }
 
