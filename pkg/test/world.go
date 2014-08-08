@@ -94,8 +94,33 @@ func (w *World) Start() error {
 
 	// Build.
 	{
+		targs := []string{
+			"camget",
+			"camput",
+			"camtool",
+			"camlistored",
+		}
+		// TODO(mpl): investigate why we still rebuild camlistored everytime if run through devcam test.
+		// it looks like it's because we always resync the UI files and hence redo the embeds. Next CL.
+		var latestModtime time.Time
+		for _, target := range targs {
+			binPath := filepath.Join(w.camRoot, "bin", target)
+			fi, err := os.Stat(binPath)
+			if err != nil {
+				if !os.IsNotExist(err) {
+					return fmt.Errorf("could not stat %v: %v", binPath, err)
+				}
+			} else {
+				modTime := fi.ModTime()
+				if modTime.After(latestModtime) {
+					latestModtime = modTime
+				}
+			}
+		}
 		// TODO(mpl): when running with -v (either with go test or devcam test), append it for make.go as well
-		cmd := exec.Command("go", "run", "make.go")
+		cmd := exec.Command("go", "run", "make.go",
+			fmt.Sprintf("--if_mods_since=%d", latestModtime.Unix()),
+		)
 		cmd.Dir = w.camRoot
 		log.Print("Running make.go to build camlistore binaries for testing...")
 		out, err := cmd.CombinedOutput()
