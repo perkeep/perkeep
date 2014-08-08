@@ -35,6 +35,7 @@ import (
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/types/clientconfig"
+	"camlistore.org/pkg/wkfs"
 )
 
 // If set, flagServer overrides the JSON config file
@@ -81,7 +82,7 @@ func (c *Client) parseConfig() {
 		panic("parseConfig should never have been called with CAMLI_DISABLE_CLIENT_CONFIG_FILE set")
 	}
 	configPath := osutil.UserClientConfigPath()
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+	if _, err := wkfs.Stat(configPath); os.IsNotExist(err) {
 		if c != nil && c.isSharePrefix {
 			return
 		}
@@ -215,7 +216,7 @@ func printConfigChangeHelp(conf jsonconfig.Obj) {
 // It returns the empty string otherwise.
 func serverKeyId() string {
 	serverConfigFile := osutil.UserServerConfigPath()
-	if _, err := os.Stat(serverConfigFile); err != nil {
+	if _, err := wkfs.Stat(serverConfigFile); err != nil {
 		if os.IsNotExist(err) {
 			return ""
 		}
