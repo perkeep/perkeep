@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/throttle"
+	"camlistore.org/pkg/wkfs"
 	"camlistore.org/third_party/github.com/bradfitz/runsit/listen"
 )
 
@@ -172,7 +173,8 @@ func (s *Server) Listen(addr string) error {
 			NextProtos: []string{"http/1.1"},
 		}
 		config.Certificates = make([]tls.Certificate, 1)
-		config.Certificates[0], err = tls.LoadX509KeyPair(s.tlsCertFile, s.tlsKeyFile)
+
+		config.Certificates[0], err = loadX509KeyPair(s.tlsCertFile, s.tlsKeyFile)
 		if err != nil {
 			return fmt.Errorf("Failed to load TLS cert: %v", err)
 		}
@@ -239,4 +241,17 @@ func runTestHarnessIntegration(listener net.Listener) {
 			return
 		}
 	}
+}
+
+// loadX509KeyPair is a copy of tls.LoadX509KeyPair but using wkfs.
+func loadX509KeyPair(certFile, keyFile string) (cert tls.Certificate, err error) {
+	certPEMBlock, err := wkfs.ReadFile(certFile)
+	if err != nil {
+		return
+	}
+	keyPEMBlock, err := wkfs.ReadFile(keyFile)
+	if err != nil {
+		return
+	}
+	return tls.X509KeyPair(certPEMBlock, keyPEMBlock)
 }
