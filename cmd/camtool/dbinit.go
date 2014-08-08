@@ -170,6 +170,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		doQuery(db, fmt.Sprintf(`SELECT replaceintometa('version', '%d')`, postgres.SchemaVersion()))
 	case "mysql":
 		for _, tableSql := range mysql.SQLCreateTables() {
+			tableSql = strings.Replace(tableSql, "/*DB*/", dbname, -1)
 			do(db, tableSql)
 		}
 		do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, mysql.SchemaVersion()))
