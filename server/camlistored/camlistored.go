@@ -170,9 +170,13 @@ func genSelfTLS(listen string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open %s for writing: %s", defCert, err)
 	}
-	pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-	certOut.Close()
-	log.Printf("written %s\n", defCert)
+	if err := pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
+		return err
+	}
+	if err := certOut.Close(); err != nil {
+		return fmt.Errorf("Writing writing self-signed HTTPS cert: %v", err)
+	}
+	log.Printf("Wrote %s", defCert)
 	cert, err := x509.ParseCertificate(derBytes)
 	if err != nil {
 		return fmt.Errorf("Failed to parse certificate: %v", err)
@@ -184,11 +188,15 @@ func genSelfTLS(listen string) error {
 
 	keyOut, err := wkfs.OpenFile(defKey, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		return fmt.Errorf("failed to open %s for writing: %s", defKey, err)
+		return fmt.Errorf("failed to open %s for writing: %v", defKey, err)
 	}
-	pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
-	keyOut.Close()
-	log.Printf("written %s\n", defKey)
+	if err := pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}); err != nil {
+		return fmt.Errorf("Error writing self-signed HTTPS private key: %v", err)
+	}
+	if err := keyOut.Close(); err != nil {
+		return fmt.Errorf("Error writing self-signed HTTPS private key: %v", err)
+	}
+	log.Printf("Wrote %s", defKey)
 	return nil
 }
 
