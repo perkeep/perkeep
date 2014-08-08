@@ -488,53 +488,34 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 		}
 	}
 
-	// TODO(mpl): use struct type instead of map for res.
-	ures, err := c.responseJSONMap("upload", resp)
-	if err != nil {
-		return errorf("json parse from upload error: %v", err)
+	var ures protocol.UploadResponse
+	if err := httputil.DecodeJSON(resp, &ures); err != nil {
+		return errorf("error in upload response: %v", err)
 	}
 
-	errorText, ok := ures["errorText"].(string)
-	if ok {
-		c.log.Printf("Blob server reports error: %s", errorText)
+	if ures.ErrorText != "" {
+		c.log.Printf("Blob server reports error: %s", ures.ErrorText)
 	}
 
-	received, ok := ures["received"].([]interface{})
-	if !ok {
-		return errorf("upload json validity error: no 'received'")
-	}
+	expectedSize := uint32(bodySize)
 
-	expectedSize := bodySize
-
-	for _, rit := range received {
-		it, ok := rit.(map[string]interface{})
-		if !ok {
-			return errorf("upload json validity error: 'received' is malformed")
+	for _, sb := range ures.Received {
+		if sb.Ref != h.BlobRef {
+			continue
 		}
-		if it["blobRef"] == blobrefStr {
-			switch size := it["size"].(type) {
-			case nil:
-				return errorf("upload json validity error: 'received' is missing 'size'")
-			case float64:
-				if int64(size) == expectedSize {
-					// Success!
-					c.statsMutex.Lock()
-					c.stats.Uploads.Blobs++
-					c.stats.Uploads.Bytes += expectedSize
-					c.statsMutex.Unlock()
-					if pr.Size <= 0 {
-						pr.Size = uint32(expectedSize)
-					}
-					c.haveCache.NoteBlobExists(pr.BlobRef, uint32(expectedSize))
-					return pr, nil
-				} else {
-					return errorf("Server got blob, but reports wrong length (%v; we sent %d)",
-						size, expectedSize)
-				}
-			default:
-				return errorf("unsupported type of 'size' in received response")
-			}
+		if sb.Size != expectedSize {
+			return errorf("Server got blob %v, but reports wrong length (%v; we sent %d)",
+				sb.Ref, sb.Size, expectedSize)
 		}
+		c.statsMutex.Lock()
+		c.stats.Uploads.Blobs++
+		c.stats.Uploads.Bytes += bodySize
+		c.statsMutex.Unlock()
+		if pr.Size <= 0 {
+			pr.Size = sb.Size
+		}
+		c.haveCache.NoteBlobExists(pr.BlobRef, pr.Size)
+		return pr, nil
 	}
 
 	return nil, errors.New("Server didn't receive blob.")

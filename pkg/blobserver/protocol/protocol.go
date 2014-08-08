@@ -23,6 +23,8 @@ import (
 	"camlistore.org/pkg/blob"
 )
 
+// TODO(mpl): try and replace RefAndSize with blob.SizedRef everywhere, then we can ditch RefAndSize.
+
 type RefAndSize struct {
 	Ref  blob.Ref `json:"blobRef"`
 	Size uint32   `json:"size"`
