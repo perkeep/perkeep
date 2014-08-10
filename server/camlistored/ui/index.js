@@ -385,8 +385,7 @@ cam.IndexPage = React.createClass({
 		var callback = function() {
 			if (++numComplete == blobrefs.length) {
 				this.setState({selection:{}});
-				this.targetSearchSession_.refreshIfNecessary();
-				this.chilSearchSession_.refreshIfNecessary();
+				this.refreshIfNecessary_();
 			}
 		}.bind(this);
 
@@ -418,8 +417,7 @@ cam.IndexPage = React.createClass({
 			this.props.serverConnection.newDeleteClaim(br, function() {
 				if (++numDeleted == blobrefs.length) {
 					this.setState({selection:{}});
-					this.targetSearchSession_.refreshIfNecessary();
-					this.childSearchSession_.refreshIfNecessary();
+					this.refreshIfNecessary_();
 				}
 			}.bind(this));
 		}.bind(this));
@@ -561,5 +559,14 @@ cam.IndexPage = React.createClass({
 
 	getContentWidth_: function() {
 		return this.props.availWidth;
+	},
+
+	refreshIfNecessary_: function() {
+		if (this.targetSearchSession_) {
+			this.targetSearchSession_.refreshIfNecessary_();
+		}
+		if (this.childSearchSession_) {
+			this.childSearchSession_.refreshIfNecessary_();
+		}
 	},
 });

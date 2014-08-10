@@ -61,10 +61,6 @@ cam.Header = React.createClass({
 		};
 	},
 
-	componentWillMount: function() {
-		this.supportsMouseOver_ = false;
-	},
-
 	componentWillReceiveProps: function(nextProps) {
 		if (nextProps.currentSearch != this.props.currentSearch) {
 			this.setState({currentSearch: nextProps.currentSearch});
@@ -234,13 +230,10 @@ cam.Header = React.createClass({
 	},
 
 	handleClick_: function() {
-		if (!this.supportsMouseOver_) {
-			this.setState({menuVisible: !this.state.menuVisible});
-		}
+		this.setState({menuVisible: !this.state.menuVisible});
 	},
 
 	handleMouseEnter_: function() {
-		this.supportsMouseOver_ = true;
 		this.clearTimer_();
 		this.setTimer_(true);
 	},
