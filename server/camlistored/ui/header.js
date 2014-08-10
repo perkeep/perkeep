@@ -61,6 +61,10 @@ cam.Header = React.createClass({
 		};
 	},
 
+	componentWillMount: function() {
+		this.supportsMouseOver_ = false;
+	},
+
 	componentWillReceiveProps: function(nextProps) {
 		if (nextProps.currentSearch != this.props.currentSearch) {
 			this.setState({currentSearch: nextProps.currentSearch});
@@ -101,6 +105,7 @@ cam.Header = React.createClass({
 				style: {
 					minWidth: this.getPiggyWidth_() + this.PIGGY_MARGIN.LEFT + this.PIGGY_MARGIN.RIGHT,
 				},
+				onClick: this.handleClick_,
 				onMouseEnter: this.handleMouseEnter_,
 				onMouseLeave: this.handleMouseLeave_,
 			},
@@ -125,6 +130,7 @@ cam.Header = React.createClass({
 		return React.DOM.td(
 			{
 				className: 'cam-header-item cam-header-title',
+				onClick: this.handleClick_,
 				onMouseEnter: this.handleMouseEnter_,
 				onMouseLeave: this.handleMouseLeave_,
 			},
@@ -227,7 +233,14 @@ cam.Header = React.createClass({
 		return this.getPiggyHeight_() / this.PIGGY_NATIVE_HEIGHT;
 	},
 
+	handleClick_: function() {
+		if (!this.supportsMouseOver_) {
+			this.setState({menuVisible: !this.state.menuVisible});
+		}
+	},
+
 	handleMouseEnter_: function() {
+		this.supportsMouseOver_ = true;
 		this.clearTimer_();
 		this.setTimer_(true);
 	},
@@ -237,9 +250,10 @@ cam.Header = React.createClass({
 		this.setTimer_(false);
 	},
 
-	handleDropdownClick_: function() {
+	handleDropdownClick_: function(e) {
 		this.clearTimer_();
 		this.setState({menuVisible:false});
+		e.stopPropagation();
 	},
 
 	setTimer_: function(show) {
