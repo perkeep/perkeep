@@ -16,6 +16,7 @@ limitations under the License.
 
 goog.provide('cam.IndexPage');
 
+goog.require('goog.array');
 goog.require('goog.dom');
 goog.require('goog.dom.classlist');
 goog.require('goog.events.EventHandler');
@@ -35,8 +36,8 @@ goog.require('cam.BlobItemVideoContent');
 goog.require('cam.ContainerDetail');
 goog.require('cam.DetailView');
 goog.require('cam.DirectoryDetail');
+goog.require('cam.Header');
 goog.require('cam.Navigator');
-goog.require('cam.Nav');
 goog.require('cam.PermanodeDetail');
 goog.require('cam.reactUtil');
 goog.require('cam.SearchSession');
@@ -45,14 +46,11 @@ goog.require('cam.ServerConnection');
 cam.IndexPage = React.createClass({
 	displayName: 'IndexPage',
 
-	NAV_WIDTH_CLOSED_: 36,
-	NAV_WIDTH_OPEN_: 239,
-
-	THUMBNAIL_SIZES_: [75, 100, 150, 200, 250, 300],
-
+	HEADER_HEIGHT_: 38,
 	SEARCH_PREFIX_: {
 		RAW: 'raw'
 	},
+	THUMBNAIL_SIZE_: 200,
 
 	// Note that these are ordered by priority.
 	BLOB_ITEM_HANDLERS_: [
@@ -71,8 +69,9 @@ cam.IndexPage = React.createClass({
 		eventTarget: React.PropTypes.shape({addEventListener:React.PropTypes.func.isRequired}).isRequired,
 		history: React.PropTypes.shape({pushState:React.PropTypes.func.isRequired, replaceState:React.PropTypes.func.isRequired, go:React.PropTypes.func.isRequired, state:React.PropTypes.object}).isRequired,
 		location: React.PropTypes.shape({href:React.PropTypes.string.isRequired, reload:React.PropTypes.func.isRequired}).isRequired,
+		scrolling: cam.BlobItemContainerReact.originalSpec.propTypes.scrolling,
 		serverConnection: React.PropTypes.instanceOf(cam.ServerConnection).isRequired,
-		timer: cam.Nav.originalSpec.propTypes.timer,
+		timer: cam.Header.originalSpec.propTypes.timer,
 	},
 
 	componentWillMount: function() {
@@ -80,10 +79,8 @@ cam.IndexPage = React.createClass({
 		this.currentSet_ = null;
 		this.dragEndTimer_ = 0;
 		this.navigator_ = null;
-		this.searchSession_ = null;
-
-		// TODO(aa): Move this to index.css once conversion to React is complete (index.css is shared between React and non-React).
-		goog.dom.getDocumentScrollElement().style.overflow = 'hidden';
+		this.targetSearchSession_ = null;
+		this.childSearchSession_ = null;
 
 		this.eh_ = new goog.events.EventHandler(this);
 
@@ -97,8 +94,9 @@ cam.IndexPage = React.createClass({
 	},
 
 	componentDidMount: function() {
+		// TODO(aa): Brad says we can remove support for the old UI pages.
 		goog.global.getSearchSession = function() {
-			return this.searchSession_;
+			return this.childSearchSession_;
 		}.bind(this);
 		this.eh_.listen(this.props.eventTarget, 'keypress', this.handleKeyPress_);
 	},
@@ -112,18 +110,58 @@ cam.IndexPage = React.createClass({
 		return {
 			currentURL: null,
 			dropActive: false,
-			isNavOpen: false,
 			selection: {},
-			thumbnailSizeIndex: 3,
 		};
 	},
 
 	render: function() {
+		var aspects = this.getAspects_();
+		var selectedAspect = goog.array.findIndex(aspects, function(v) {
+			return v.getFragment() == this.state.currentURL.getFragment();
+		}, this);
+
+		if (selectedAspect == -1) {
+			selectedAspect = 0;
+		}
+
+		var backwardPiggy = false;
+		var contentSize = new goog.math.Size(this.props.availWidth, this.props.availHeight - this.HEADER_HEIGHT_);
 		return React.DOM.div({onDragEnter:this.handleDragStart_, onDragOver:this.handleDragStart_, onDrop:this.handleDrop_}, [
-			this.getNav_(),
-			this.getBlobItemContainer_(),
-			this.getDetailView_(),
+			this.getHeader_(aspects, selectedAspect),
+			React.DOM.div(
+				{
+					className: 'cam-content-wrap',
+					style: {
+						top: this.HEADER_HEIGHT_,
+					},
+				},
+				aspects[selectedAspect] && aspects[selectedAspect].createContent(contentSize, backwardPiggy)
+			)
 		]);
+	},
+
+	getAspects_: function() {
+		return [
+			this.getSearchAspect_,
+			cam.ImageDetail.getAspect,
+			cam.PermanodeDetail.getAspect.bind(null, this.state.currentURL),
+			cam.DirectoryDetail.getAspect.bind(null, this.state.currentURL),
+			cam.BlobDetail.getAspect.bind(null, this.state.currentURL),
+		].map(function(f) {
+			return f(this.state.currentURL.getParameterValue('p'), this.targetSearchSession_);
+		}, this).filter(goog.functions.identity);
+	},
+
+	getSearchAspect_: function(blobref, targetSearchSession_) {
+		if (this.childSearchSession_ && this.childSearchSession_.getCurrentResults().blobs.length) {
+			return {
+				getTitle: function() { return blobref ? 'Contents' : 'Search' },
+				getFragment: function() { return blobref ? 'contents': 'search' },
+				createContent: this.getBlobItemContainer_.bind(this),
+			};
+		} else {
+			return null;
+		}
 	},
 
 	handleDragStart_: function(e) {
@@ -182,63 +220,124 @@ cam.IndexPage = React.createClass({
 			}
 		}
 
-		if (!this.isSearchMode_(newURL) && !this.isDetailMode_(newURL)) {
+		if (!goog.string.startsWith(newURL.toString(), this.baseURL_.toString())) {
 			return false;
 		}
 
-		this.updateSearchSession_(newURL);
+		this.updateTargetSearchSession_(newURL);
+		this.updateChildSearchSession_(newURL);
 		this.setState({currentURL: newURL});
 		return true;
 	},
 
-	updateSearchSession_: function(newURL) {
-		var query = newURL.getParameterValue('q');
-		if (!query) {
-			query = ' ';
+	updateTargetSearchSession_: function(newURL) {
+		var query = newURL.getParameterValue('p');
+		if (query) {
+			query = {
+				blobRefPrefix: query,
+			};
 		}
 
-		// TODO(aa): Remove this when the server can do something like the 'raw' operator.
-		if (goog.string.startsWith(query, this.SEARCH_PREFIX_.RAW + ':')) {
-			query = JSON.parse(query.substring(this.SEARCH_PREFIX_.RAW.length + 1));
-		}
-
-		if (this.searchSession_ && JSON.stringify(this.searchSession_.getQuery()) == JSON.stringify(query)) {
+		if (this.targetSearchSession_ && JSON.stringify(this.targetSearchSession_.getQuery()) == JSON.stringify(query)) {
 			return;
 		}
 
-		if (this.searchSession_) {
-			this.searchSession_.close();
+		if (this.targetSearchSession_) {
+			this.targetSearchSession_.close();
+			this.targetSearchSession_ = null;
 		}
 
-		this.searchSession_ = new cam.SearchSession(this.props.serverConnection, newURL.clone(), query);
-	},
-
-	getNav_: function() {
-		if (!this.isSearchMode_(this.state.currentURL)) {
-			return null;
+		if (query) {
+			this.targetSearchSession_ = new cam.SearchSession(this.props.serverConnection, newURL.clone(), query);
+			this.eh_.listen(this.targetSearchSession_, cam.SearchSession.SEARCH_SESSION_CHANGED, function() { this.forceUpdate(); });
+			this.targetSearchSession_.loadMoreResults();
 		}
-		return cam.Nav({key:'nav', ref:'nav', timer:this.props.timer, open:this.state.isNavOpen, onOpen:this.handleNavOpen_, onClose:this.handleNavClose_}, [
-			cam.Nav.SearchItem({key:'search', ref:'search', iconSrc:'magnifying_glass.svg', onSearch:this.setSearch_}, 'Search'),
-			this.getCreateSetWithSelectionItem_(),
-			cam.Nav.Item({key:'roots', iconSrc:'icon_27307.svg', onClick:this.handleShowSearchRoots_}, 'Search roots'),
-			this.getSelectAsCurrentSetItem_(),
-			this.getAddToCurrentSetItem_(),
-			this.getClearSelectionItem_(),
-			this.getDeleteSelectionItem_(),
-			cam.Nav.Item({key:'up', iconSrc:'up.svg', onClick:this.handleEmbiggen_}, 'Moar bigger'),
-			cam.Nav.Item({key:'down', iconSrc:'down.svg', onClick:this.handleEnsmallen_}, 'Less bigger'),
-			cam.Nav.LinkItem({key:'logo', iconSrc:'/favicon.ico', href:this.baseURL_.toString(), extraClassName:'cam-logo'}, 'Camlistore'),
-		]);
 	},
 
-	handleNavOpen_: function() {
-		this.setState({isNavOpen:true});
+	updateChildSearchSession_: function(newURL) {
+		var permanode = newURL.getParameterValue('p');
+		var query = newURL.getParameterValue('q');
+
+		if (permanode) {
+			query = {
+				permanode: {
+					relation: {
+						relation: 'parent',
+						any: { blobRefPrefix: permanode },
+					},
+				},
+			};
+		} else if (query) {
+			// TODO(aa): Remove this when the server can do something like the 'raw' operator.
+			if (goog.string.startsWith(query, this.SEARCH_PREFIX_.RAW + ':')) {
+				query = JSON.parse(query.substring(this.SEARCH_PREFIX_.RAW.length + 1));
+			}
+		} else {
+			query = ' ';
+		}
+
+		if (this.childSearchSession_ && JSON.stringify(this.childSearchSession_.getQuery()) == JSON.stringify(query)) {
+			return;
+		}
+
+		if (this.childSearchSession_) {
+			this.childSearchSession_.close();
+			this.childSearchSession_ = null;
+		}
+
+		if (query) {
+			this.childSearchSession_ = new cam.SearchSession(this.props.serverConnection, newURL.clone(), query);
+			this.eh_.listen(this.childSearchSession_, cam.SearchSession.SEARCH_SESSION_CHANGED, function() { this.forceUpdate(); });
+			this.childSearchSession_.loadMoreResults();
+		}
 	},
 
-	handleNavClose_: function() {
-		this.refs.search.clear();
-		this.refs.search.blur();
-		this.setState({isNavOpen:false});
+	getHeader_: function(aspects, selectedAspectIndex) {
+		// We don't show the chooser if there's only one thing to choose from.
+		if (aspects.length == 1) {
+			aspects = [];
+		}
+
+		// TODO(aa): It would be cool to normalize the query and single target case, by supporting searches like is:<blobref>, that way we can always show something in the searchbox, even when we're not in a listview.
+		var permanode = this.state.currentURL.getParameterValue('p');
+		var query = '';
+		if (permanode) {
+			query = 'ref:' + permanode;
+		} else {
+			query = this.state.currentURL.getParameterValue('q') || '';
+		}
+
+		return cam.Header(
+			{
+				currentSearch: query,
+				height: 38,
+				mainControls: aspects.map(function(val, idx) {
+					return React.DOM.a(
+						{
+							className: React.addons.classSet({
+								'cam-header-main-control-active': idx == selectedAspectIndex,
+							}),
+							href: this.state.currentURL.clone().setFragment(val.getFragment()).toString(),
+						},
+						val.getTitle()
+					);
+				}, this),
+				onHome: this.handleHome_,
+				onNewPermanode: this.handleCreateSetWithSelection_,
+				onSearch: this.setSearch_,
+				onSearchRoots: this.handleShowSearchRoots_,
+				ref: 'header',
+				subControls: [
+					this.getClearSelectionItem_(),
+					this.getCreateSetWithSelectionItem_(),
+					this.getSelectAsCurrentSetItem_(),
+					this.getAddToCurrentSetItem_(),
+					this.getDeleteSelectionItem_()
+				].filter(function(c) { return c }),
+				timer: this.props.timer,
+				width: this.props.availWidth,
+			}
+		)
 	},
 
 	handleNewPermanode_: function() {
@@ -265,6 +364,10 @@ cam.IndexPage = React.createClass({
 		this.addMembersToSet_(this.currentSet_, goog.object.getKeys(this.state.selection));
 	},
 
+	handleHome_: function() {
+		this.navigator_.navigate(this.baseURL_);
+	},
+
 	handleCreateSetWithSelection_: function() {
 		var selection = goog.object.getKeys(this.state.selection);
 		this.props.serverConnection.createPermanode(function(permanode) {
@@ -279,7 +382,8 @@ cam.IndexPage = React.createClass({
 		var callback = function() {
 			if (++numComplete == blobrefs.length) {
 				this.setState({selection:{}});
-				this.searchSession_.refreshIfNecessary();
+				this.targetSearchSession_.refreshIfNecessary();
+				this.chilSearchSession_.refreshIfNecessary();
 			}
 		}.bind(this);
 
@@ -311,24 +415,11 @@ cam.IndexPage = React.createClass({
 			this.props.serverConnection.newDeleteClaim(br, function() {
 				if (++numDeleted == blobrefs.length) {
 					this.setState({selection:{}});
-					this.searchSession_.refreshIfNecessary();
+					this.targetSearchSession_.refreshIfNecessary();
+					this.childSearchSession_.refreshIfNecessary();
 				}
 			}.bind(this));
 		}.bind(this));
-	},
-
-	handleEmbiggen_: function() {
-		var newSizeIndex = this.state.thumbnailSizeIndex + 1;
-		if (newSizeIndex < this.THUMBNAIL_SIZES_.length) {
-			this.setState({thumbnailSizeIndex:newSizeIndex});
-		}
-	},
-
-	handleEnsmallen_: function() {
-		var newSizeIndex = this.state.thumbnailSizeIndex - 1;
-		if (newSizeIndex >= 0) {
-			this.setState({thumbnailSizeIndex:newSizeIndex});
-		}
 	},
 
 	handleKeyPress_: function(e) {
@@ -338,8 +429,7 @@ cam.IndexPage = React.createClass({
 
 		switch (String.fromCharCode(e.charCode)) {
 			case '/': {
-				this.refs.nav.open();
-				this.refs.search.focus();
+				this.refs['header'].focusSearch();
 				e.preventDefault();
 				break;
 			}
@@ -370,7 +460,12 @@ cam.IndexPage = React.createClass({
 
 	setSearch_: function(query) {
 		var searchURL = this.baseURL_.clone();
-		searchURL.setParameterValue('q', query);
+		var match = query.match(/^ref:(.+)/);
+		if (match) {
+			searchURL.setParameterValue('p', match[1]);
+		} else {
+			searchURL.setParameterValue('q', query);
+		}
 		this.navigator_.navigate(searchURL);
 	},
 
@@ -380,36 +475,39 @@ cam.IndexPage = React.createClass({
 		}
 
 		var blobref = goog.object.getAnyKey(this.state.selection);
-		if (this.searchSession_.getMeta(blobref).camliType != 'permanode') {
+		if (this.childSearchSession_.getMeta(blobref).camliType != 'permanode') {
 			return null;
 		}
 
-		return cam.Nav.Item({key:'selectascurrent', iconSrc:'target.svg', onClick:this.handleSelectAsCurrentSet_}, 'Select as current set');
+		return React.DOM.button({key:'selectascurrent', onClick:this.handleSelectAsCurrentSet_}, 'Select as current set');
 	},
 
 	getAddToCurrentSetItem_: function() {
 		if (!this.currentSet_ || !goog.object.getAnyKey(this.state.selection)) {
 			return null;
 		}
-		return cam.Nav.Item({key:'addtoset', iconSrc:'icon_16716.svg', onClick:this.handleAddToSet_}, 'Add to current set');
+		return React.DOM.button({key:'addtoset', onClick:this.handleAddToSet_}, 'Add to current set');
 	},
 
 	getCreateSetWithSelectionItem_: function() {
 		var numItems = goog.object.getCount(this.state.selection);
+		if (numItems == 0) {
+			return null;
+		}
 		var label = 'Create set';
 		if (numItems == 1) {
 			label += ' with item';
 		} else if (numItems > 1) {
 			label += goog.string.subs(' with %s items', numItems);
 		}
-		return cam.Nav.Item({key:'createsetwithselection', iconSrc:'circled_plus.svg', onClick:this.handleCreateSetWithSelection_}, label);
+		return React.DOM.button({key:'createsetwithselection', onClick:this.handleCreateSetWithSelection_}, label);
 	},
 
 	getClearSelectionItem_: function() {
 		if (!goog.object.getAnyKey(this.state.selection)) {
 			return null;
 		}
-		return cam.Nav.Item({key:'clearselection', iconSrc:'clear.svg', onClick:this.handleClearSelection_}, 'Clear selection');
+		return React.DOM.button({key:'clearselection', onClick:this.handleClearSelection_}, 'Clear selection');
 	},
 
 	getDeleteSelectionItem_: function() {
@@ -424,29 +522,14 @@ cam.IndexPage = React.createClass({
 			label += goog.string.subs(' (%s) selected items', numItems);
 		}
 		// TODO(mpl): better icon in another CL, with Font Awesome.
-		return cam.Nav.Item({key:'deleteselection', iconSrc:'trash.svg', onClick:this.handleDeleteSelection_}, label);
+		return React.DOM.button({key:'deleteselection', onClick:this.handleDeleteSelection_}, label);
 	},
 
 	handleSelectionChange_: function(newSelection) {
 		this.setState({selection:newSelection});
 	},
 
-	isSearchMode_: function(url) {
-		// This is super finicky. We should improve the URL scheme and give things that are different different paths.
-		var query = url.getQueryData();
-		return query.getCount() == 0 || (query.getCount() == 1 && query.containsKey('q'));
-	},
-
-	isDetailMode_: function(url) {
-		var query = url.getQueryData();
-		return query.containsKey('p') && query.get('newui') == '1';
-	},
-
 	getBlobItemContainer_: function() {
-		if (!this.isSearchMode_(this.state.currentURL)) {
-			return null;
-		}
-
 		return cam.BlobItemContainerReact({
 			key: 'blobitemcontainer',
 			ref: 'blobItemContainer',
@@ -454,83 +537,26 @@ cam.IndexPage = React.createClass({
 			handlers: this.BLOB_ITEM_HANDLERS_,
 			history: this.props.history,
 			onSelectionChange: this.handleSelectionChange_,
-			searchSession: this.searchSession_,
+			scrolling: this.props.scrolling,
+			searchSession: this.childSearchSession_,
 			selection: this.state.selection,
 			style: this.getBlobItemContainerStyle_(),
-			thumbnailSize: this.THUMBNAIL_SIZES_[this.state.thumbnailSizeIndex],
+			thumbnailSize: this.THUMBNAIL_SIZE_,
+			translateY: goog.object.getAnyKey(this.state.selection) ? 36 : 0,
 		});
 	},
 
 	getBlobItemContainerStyle_: function() {
-		// TODO(aa): Constant values can go into CSS when we switch over to react.
-		var style = {
-			left: this.NAV_WIDTH_CLOSED_,
-			overflowX: 'hidden',
-			overflowY: 'scroll',
+		return {
+			left: 0,
 			position: 'absolute',
 			top: 0,
+			height: this.props.availHeight,
 			width: this.getContentWidth_(),
 		};
-
-		var closedWidth = style.width;
-		var openWidth = closedWidth - this.NAV_WIDTH_OPEN_;
-		var openScale = openWidth / closedWidth;
-
-		// TODO(aa): This can move to CSS when the conversion to React is complete.
-		style[cam.reactUtil.getVendorProp('transformOrigin')] = 'right top 0';
-
-		// The 3d transform is important. See: https://code.google.com/p/camlistore/issues/detail?id=284.
-		var scale = this.state.isNavOpen ? openScale : 1;
-		style[cam.reactUtil.getVendorProp('transform')] = goog.string.subs('scale3d(%s, %s, 1)', scale, scale);
-
-		style.height = this.state.isNavOpen ? this.props.availHeight / scale : this.props.availHeight;
-
-		return style;
-	},
-
-	getDetailView_: function() {
-		if (!this.isDetailMode_(this.state.currentURL)) {
-			return null;
-		}
-
-		var searchURL = this.baseURL_.clone();
-		if (this.state.currentURL.getQueryData().containsKey('q')) {
-			searchURL.setParameterValue('q', this.state.currentURL.getParameterValue('q'));
-		}
-
-		return cam.DetailView({
-			key: 'detailview',
-			aspects: {
-				'image': cam.ImageDetail.getAspect,
-				'container': cam.ContainerDetail.getAspect.bind(null, this.handleDetailURL_, this.BLOB_ITEM_HANDLERS_, this.props.history, this.getChildSearchSession_, this.THUMBNAIL_SIZES_[this.state.thumbnailSizeIndex]),
-				'directory': cam.DirectoryDetail.getAspect.bind(null, this.baseURL_),
-				'permanode': cam.PermanodeDetail.getAspect.bind(null, this.baseURL_),
-				'blob': cam.BlobDetail.getAspect.bind(null, this.baseURL_),
-			},
-			blobref: this.state.currentURL.getParameterValue('p'),
-			history: this.props.history,
-			searchSession: this.searchSession_,
-			searchURL: searchURL,
-			getDetailURL: this.handleDetailURL_,
-			navigator: this.navigator_,
-			keyEventTarget: this.props.eventTarget,
-			width: this.props.availWidth,
-			height: this.props.availHeight,
-		});
-	},
-
-	getChildSearchSession_: function(blobref) {
-		return new cam.SearchSession(this.props.serverConnection, this.baseURL_.clone(), {
-			permanode: {
-				relation: {
-					relation: 'parent',
-					any: { blobRefPrefix: blobref }
-				}
-			}
-		});
 	},
 
 	getContentWidth_: function() {
-		return this.props.availWidth - this.NAV_WIDTH_CLOSED_;
+		return this.props.availWidth;
 	},
 });

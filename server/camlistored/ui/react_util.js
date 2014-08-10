@@ -62,6 +62,18 @@ cam.reactUtil.getVendorProp = function(prop, opt_testStyle) {
 	return null;
 };
 
+// Returns a copy of an object with all properties vendor-prefixed as required by the current ua.
+// @param {object} o The object to fix.
+// @param {CSSStyleDeclaration=} style A style object to test on. This can be any DOM style object, e.g., document.body.style.
+// @return {object} A copy of o with all properties vendor-prefixed as appropriate.
+cam.reactUtil.getVendorProps = function(o, opt_testStyle) {
+	var n = {};
+	for (var p in o) {
+		n[cam.reactUtil.getVendorProp(p, opt_testStyle)] = o[p];
+	}
+	return n;
+};
+
 // Like cam.object.extend(), except that special care is taken to also merge together some known child properties that are part of React specifications.
 // @param Object parentSpec
 // @param Object childSpec

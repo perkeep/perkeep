@@ -5,7 +5,11 @@ goog.provide('cam.object');
 
 cam.object.extend = function(o, n) {
 	var obj = {};
-	goog.mixin(obj, o);
-	goog.mixin(obj, n);
+	if (o) {
+		goog.mixin(obj, o);
+	}
+	if (n) {
+		goog.mixin(obj, n);
+	}
 	return obj;
 }

@@ -27,8 +27,13 @@ cam.CacheBusterIframe = React.createClass({
 		width: React.PropTypes.number.isRequired,
 	},
 
+	componentDidMount: function() {
+		this.getDOMNode().contentWindow.addEventListener('DOMContentLoaded', this.updateSize_);
+	},
+
 	getInitialState: function() {
 		return {
+			height: this.props.height,
 			r: Date.now(),
 		}
 	},
@@ -37,9 +42,22 @@ cam.CacheBusterIframe = React.createClass({
 		var uri = this.props.src.clone();
 		uri.setParameterValue('r', this.state.r);
 		return React.DOM.iframe({
-			height: this.props.height,
+			height: this.state.height,
 			src: uri.toString(),
+			style: {
+				border: 'none',
+			},
 			width: this.props.width,
 		});
+	},
+
+	updateSize_: function() {
+		if (!this.isMounted()) {
+			return;
+		}
+
+		this.getDOMNode().contentDocument.body.style.overflowY = 'hidden';
+		this.setState({height: this.getDOMNode().contentDocument.documentElement.offsetHeight });
+		window.setTimeout(this.updateSize_, 200);
 	},
 });

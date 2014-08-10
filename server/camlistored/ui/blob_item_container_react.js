@@ -45,10 +45,16 @@ cam.BlobItemContainerReact = React.createClass({
 		handlers: React.PropTypes.array.isRequired,
 		history: React.PropTypes.shape({replaceState:React.PropTypes.func.isRequired}).isRequired,
 		onSelectionChange: React.PropTypes.func,
+		scrolling: React.PropTypes.shape({
+			target:React.PropTypes.shape({addEventListener:React.PropTypes.func.isRequired, removeEventListener:React.PropTypes.func.isRequired}),
+			get: React.PropTypes.func.isRequired,
+			set: React.PropTypes.func.isRequired,
+		}).isRequired,
 		searchSession: React.PropTypes.shape({getCurrentResults:React.PropTypes.func.isRequired, addEventListener:React.PropTypes.func.isRequired, loadMoreResults:React.PropTypes.func.isRequired}),
 		selection: React.PropTypes.object.isRequired,
 		style: React.PropTypes.object,
 		thumbnailSize: React.PropTypes.number.isRequired,
+		translateY: React.PropTypes.number,
 	},
 
 	getDefaultProps: function() {
@@ -60,7 +66,6 @@ cam.BlobItemContainerReact = React.createClass({
 	componentWillMount: function() {
 		this.eh_ = new goog.events.EventHandler(this);
 		this.lastCheckedIndex_ = -1;
-		this.scrollbarWidth_ = goog.style.getScrollbarWidth();
 		this.layoutHeight_ = 0;
 
 		// Minimal information we keep about every single child. We construct the actual child lazily when the user scrolls it into view using handler.
@@ -76,8 +81,9 @@ cam.BlobItemContainerReact = React.createClass({
 
 	componentDidMount: function() {
 		this.eh_.listen(this.props.searchSession, cam.SearchSession.SEARCH_SESSION_CHANGED, this.handleSearchSessionChanged_);
+		this.eh_.listen(this.props.scrolling.target, 'scroll', this.handleScroll_);
 		if (this.props.history.state && this.props.history.state.scroll) {
-			this.getDOMNode().scrollTop = this.props.history.state.scroll;
+			this.props.scrolling.set(this.props.history.state.scroll);
 		}
 		this.fillVisibleAreaWithResults_();
 	},
@@ -137,7 +143,16 @@ cam.BlobItemContainerReact = React.createClass({
 		// If we haven't filled the window with results, add some more.
 		this.fillVisibleAreaWithResults_();
 
-		return React.DOM.div({className:'cam-blobitemcontainer', style:this.props.style, onMouseDown:this.handleMouseDown_, onScroll:this.handleScroll_}, childControls);
+		return React.DOM.div(
+			{
+				className: 'cam-blobitemcontainer',
+				style: cam.object.extend(this.props.style, cam.reactUtil.getVendorProps({
+					transform: 'translateY(' + (this.props.translateY || 0) + 'px)',
+				})),
+				onMouseDown: this.handleMouseDown_,
+			},
+			childControls
+		);
 	},
 
 	updateChildItems_: function() {
@@ -169,7 +184,7 @@ cam.BlobItemContainerReact = React.createClass({
 
 		for (var i = rowStart; i <= lastItem; i++) {
 			var item = items[i];
-			var availWidth = this.props.style.width - this.scrollbarWidth_;
+			var availWidth = this.props.style.width;
 			var nextWidth = currentWidth + this.props.thumbnailSize * item.handler.getAspectRatio() + this.BLOB_ITEM_MARGIN_;
 			if (i != lastItem && nextWidth < availWidth) {
 				currentWidth = nextWidth;
@@ -285,7 +300,7 @@ cam.BlobItemContainerReact = React.createClass({
 
 	handleScroll_: function() {
 		this.updateHistoryThrottle_.fire();
-		this.setState({scroll:this.getDOMNode().scrollTop});
+		this.setState({scroll:this.props.scrolling.get()});
 		this.fillVisibleAreaWithResults_();
 	},
 
@@ -295,7 +310,7 @@ cam.BlobItemContainerReact = React.createClass({
 
 	// NOTE: This method causes the URL bar to throb for a split second (at least on Chrome), so it should not be called constantly.
 	updateHistory_: function() {
-		this.props.history.replaceState({scroll:this.getDOMNode().scrollTop});
+		this.props.history.replaceState({scroll:this.props.scrolling.get()});
 	},
 
 	fillVisibleAreaWithResults_: function() {
@@ -303,7 +318,7 @@ cam.BlobItemContainerReact = React.createClass({
 			return;
 		}
 
-		if ((this.layoutHeight_ - this.getDOMNode().scrollTop - this.props.style.height) > this.INFINITE_SCROLL_THRESHOLD_PX_) {
+		if ((this.layoutHeight_ - this.state.scroll - this.props.style.height) > this.INFINITE_SCROLL_THRESHOLD_PX_) {
 			return;
 		}
 

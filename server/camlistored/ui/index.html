@@ -42,8 +42,8 @@ limitations under the License.
 		<link rel="stylesheet" href="blob_item_foursquare.css" type="text/css">
 		<link rel="stylesheet" href="blob_item_twitter.css" type="text/css">
 		<link rel="stylesheet" href="detail.css" type="text/css">
+		<link rel="stylesheet" href="header.css" type="text/css">
 		<link rel="stylesheet" href="index.css" type="text/css">
-		<link rel="stylesheet" href="nav.css" type="text/css">
 		<link rel="stylesheet" href="property_sheet.css" type="text/css">
 		<link rel="stylesheet" href="pyramid_throbber.css" type="text/css">
 		<link rel="stylesheet" href="fontawesome/css/font-awesome.min.css">
@@ -55,7 +55,7 @@ limitations under the License.
 			var lastWidth = -1;
 			var lastHeight = -1;
 			var render = function() {
-				var currentWidth = window.innerWidth;
+				var currentWidth = document.documentElement.offsetWidth;
 				var currentHeight = window.innerHeight;
 				if (currentWidth == lastWidth && currentHeight == lastHeight) {
 					return;
@@ -70,6 +70,11 @@ limitations under the License.
 					eventTarget: window,
 					history: window.history,
 					location: window.location,
+					scrolling: {
+						target: window,
+						get: function() { return document.body.scrollTop; },
+						set: function(val) { document.body.scrollTop = val; },
+					},
 					serverConnection: new cam.ServerConnection(CAMLISTORE_CONFIG),
 					timer: window,
 				});

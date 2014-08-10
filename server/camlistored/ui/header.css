@@ -1,0 +1,161 @@
+.cam-header {
+	cursor: default;
+	font-family: 'Open Sans', sans-serif;
+	font-weight: 700;
+	font-size: 13px;
+	left: 0;
+	position: fixed;
+	top: 0;
+	z-index: 100;
+	-webkit-transform: translateZ(0);
+}
+
+.cam-header-main {
+	background: #3a3a3a;
+	border-collapse: true;
+	border-spacing: 0;
+	box-shadow: 0.1em 0 0.5em 0.1em rgba(0, 0, 0, 0.4);
+	color: #e4e4e4;
+	height: 38px;
+	position: relative;
+	width: 100%;
+	z-index: 3;
+}
+
+.cam-header.cam-header-sub-active .cam-header-main {
+	box-shadow: none;
+}
+
+.cam-header-sub {
+	background: #eee;
+	height: 36px;
+	left: 0;
+	position: absolute;
+	text-align: center;
+	top: 38px;
+	width: 100%;
+	-webkit-transform: translate3d(0, -100%, 0);
+	-webkit-transition: transform 75ms ease-out;
+	z-index: 1;
+}
+
+.cam-header.cam-header-sub-active .cam-header-sub {
+	box-shadow: 0.1em 0 0.5em 0.1em rgba(0, 0, 0, 0.4);
+	-webkit-transform: translate3d(0, 0, 0);
+}
+
+.cam-header-item {
+	padding: 0;
+	position: relative;
+	vertical-align: middle;
+	white-space: nowrap;
+}
+
+.cam-header-title {
+	margin-top: 10px;
+	padding-right: 2em;
+}
+
+.cam-header-title span {
+	font-size: 14px;
+}
+
+.cam-header-title span:first-child {
+	margin-right: 5px;
+}
+
+.cam-header-menu-dropdown {
+	box-shadow: 0.1em 0 1em 0.3em rgba(0, 0, 0, 0.25);
+	cursor: default;
+	left: 0;
+	font-weight: 500;
+	position: absolute;
+	top: 38px;
+	transition: -webkit-transform 100ms ease-out;
+	transition: -moz-transform 100ms ease-out;
+	transition: -ms-transform 100ms ease-out;
+	z-index: 2;
+}
+
+.cam-header-menu-item {
+	background: #3a3a3a;
+	border-top: 1px solid #666;
+	color: #eee;
+	padding: 10px 24px;
+	transition: background-color 100ms ease-out;
+}
+
+.cam-header-menu-item:hover {
+	background-color: #444;
+}
+
+.cam-header-main input {
+	color: white;
+	height: 30px;
+	width: 100%;
+	background: #444;
+	border: 1px solid #555;
+	outline: none;
+	padding: 1ex;
+	font-size: 110%;
+	font-family: default;
+	font-weight: normal;
+	transition: border-color 100ms ease-out;
+}
+
+.cam-header-main input:focus {
+	background: #4c4c4c;
+	border-color: #888;
+}
+
+.cam-header-main-controls {
+	padding-left: 1em;
+}
+
+.cam-header-main-controls.cam-header-main-controls-empty {
+	padding-left: 6px;
+}
+
+.cam-header-main-controls a {
+	color: #eee;
+	display: inline-block;
+	height: 38px;
+	font-family: 'Open Sans', sans-serif;
+	font-weight: 500;
+	font-size: 13px;
+	line-height: 38px;
+	padding-left: 1em;
+	padding-right: 1em;
+	text-decoration: none;
+	white-space: nowrap;
+}
+
+.cam-header-main-controls a:hover {
+	background: #555;
+}
+
+.cam-header-main-controls a.cam-header-main-control-active {
+	height: 38px;
+	border-bottom: 3px solid rgb(232,139,131);
+}
+
+.cam-header-sub button {
+	background: transparent;
+	border: none;
+	color: #444;
+	font-family: 'Open Sans', sans-serif;
+	font-weight: 600;
+	font-size: 12px;
+	height: 36px;
+	padding-left: 2em;
+	padding-right: 2em;
+	white-space: nowrap;
+}
+
+.cam-header-sub button:hover {
+	background: #ddd;
+}
+
+.cam-header-sub button:active {
+	outline: none;
+}

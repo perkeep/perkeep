@@ -65,7 +65,7 @@ cam.SearchSession.prototype.getQuery = function() {
 
 // Returns all the data we currently have loaded.
 // It is guaranteed to return the following properties:
-// blobs // non-zero length
+// blobs // non-null
 // description
 // description.meta
 cam.SearchSession.prototype.getCurrentResults = function() {
@@ -150,6 +150,7 @@ cam.SearchSession.prototype.initSocketUri_ = function(currentUri) {
 	}
 
 	this.socketUri_ = currentUri;
+	this.socketUri_.setFragment('');
 	var config = this.connection_.getConfig();
 	this.socketUri_.setPath(goog.uri.utils.appendPath(config.searchRoot, 'camli/search/ws'));
 	this.socketUri_.setQuery(goog.Uri.QueryData.createFromMap({authtoken: config.wsAuthToken || ''}));

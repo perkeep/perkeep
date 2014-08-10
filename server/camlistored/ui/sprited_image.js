@@ -20,22 +20,37 @@ goog.require('goog.object');
 goog.require('goog.string');
 
 goog.require('cam.object');
+goog.require('cam.reactUtil');
 
 cam.SpritedImage = React.createClass({
+	propTypes: {
+		className: React.PropTypes.string,
+		index: React.PropTypes.number.isRequired,
+		sheetWidth: React.PropTypes.number.isRequired,
+		spriteHeight: React.PropTypes.number.isRequired,
+		spriteWidth: React.PropTypes.number.isRequired,
+		src: React.PropTypes.string.isRequired,
+		style: React.PropTypes.object,
+	},
+
 	render: function() {
 		return (
-			React.DOM.div({className: this.props.className, style: cam.object.extend(this.props.style, {overflow: 'hidden'})},
+			React.DOM.div({
+					className: this.props.className,
+					style: cam.object.extend(this.props.style, {
+						height: this.props.spriteHeight,
+						overflow: 'hidden',
+						width: this.props.spriteWidth,
+					})
+				},
 				React.DOM.img({src: this.props.src, style: this.getImgStyle_()})));
 	},
 
 	getImgStyle_: function() {
 		var x = this.props.index % this.props.sheetWidth;
 		var y = Math.floor(this.props.index / this.props.sheetWidth);
-		if (y >= this.props.sheetHeight) {
-			throw new Error(goog.string.subs('Index %s out of range', this.props.index));
-		}
-		var style = {};
-		style[cam.reactUtil.getVendorProp('transform')] = goog.string.subs('translate3d(%spx, %spx, 0)', -x * this.props.spriteWidth, -y * this.props.spriteHeight);
-		return style;
+		return cam.reactUtil.getVendorProps({
+			transform: goog.string.subs('translate3d(%spx, %spx, 0)', -x * this.props.spriteWidth, -y * this.props.spriteHeight),
+		});
 	}
 });

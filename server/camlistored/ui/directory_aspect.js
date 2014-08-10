@@ -18,9 +18,13 @@ goog.provide('cam.DirectoryDetail');
 
 goog.require('cam.CacheBusterIframe');
 
-cam.DirectoryDetail.getAspect = function(baseURL, blobref, searchSession) {
-	var rm = searchSession.getResolvedMeta(blobref);
-	if (rm.camliType == 'directory') {
+cam.DirectoryDetail.getAspect = function(baseURL, blobref, targetSearchSession) {
+	if (!targetSearchSession) {
+		return;
+	}
+
+	var rm = targetSearchSession.getResolvedMeta(blobref);
+	if (rm && rm.camliType == 'directory') {
 		return new cam.DirectoryDetail.Aspect(baseURL, rm.blobRef);
 	} else {
 		return null;
@@ -30,6 +34,10 @@ cam.DirectoryDetail.getAspect = function(baseURL, blobref, searchSession) {
 cam.DirectoryDetail.Aspect = function(baseURL, blobref) {
 	this.baseURL_ = baseURL;
 	this.blobref_ = blobref;
+};
+
+cam.DirectoryDetail.Aspect.prototype.getFragment = function() {
+	return 'directory';
 };
 
 cam.DirectoryDetail.Aspect.prototype.getTitle = function() {

@@ -18,9 +18,13 @@ goog.provide('cam.PermanodeDetail');
 
 goog.require('cam.CacheBusterIframe');
 
-cam.PermanodeDetail.getAspect = function(baseURL, blobref, searchSession) {
-	var pm = searchSession.getMeta(blobref);
-	if (pm.camliType == 'permanode') {
+cam.PermanodeDetail.getAspect = function(baseURL, blobref, targetSearchSession) {
+	if (!targetSearchSession) {
+		return null;
+	}
+
+	var pm = targetSearchSession.getMeta(blobref);
+	if (pm && pm.camliType == 'permanode') {
 		return new cam.PermanodeDetail.Aspect(baseURL, blobref);
 	} else {
 		return null;
@@ -32,6 +36,10 @@ cam.PermanodeDetail.Aspect = function(baseURL, blobref) {
 	this.blobref_ = blobref;
 };
 
+cam.PermanodeDetail.Aspect.prototype.getFragment = function() {
+	return 'permanode';
+};
+
 cam.PermanodeDetail.Aspect.prototype.getTitle = function() {
 	return 'Permanode';
 };
@@ -39,8 +47,10 @@ cam.PermanodeDetail.Aspect.prototype.getTitle = function() {
 cam.PermanodeDetail.Aspect.prototype.createContent = function(size) {
 	var url = this.baseURL_.clone();
 	url.setParameterValue('p', this.blobref_);
+	url.removeParameter('newui');
 	return cam.CacheBusterIframe({
 		height: size.height,
+		key: 'permanode',
 		src: url,
 		width: size.width,
 	});

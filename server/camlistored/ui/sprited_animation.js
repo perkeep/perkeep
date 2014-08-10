@@ -20,6 +20,17 @@ goog.require('cam.SpritedImage');
 goog.require('cam.object');
 
 cam.SpritedAnimation = React.createClass({
+	propTypes: {
+		className: React.PropTypes.string,
+		interval: React.PropTypes.number.isRequired,
+		numFrames: React.PropTypes.number.isRequired,
+		sheetWidth: React.PropTypes.number.isRequired,
+		spriteHeight: React.PropTypes.number.isRequired,
+		spriteWidth: React.PropTypes.number.isRequired,
+		src: React.PropTypes.string.isRequired,
+		style: React.PropTypes.object,
+	},
+
 	getInitialState: function() {
 		return {
 			index: 0
@@ -29,7 +40,7 @@ cam.SpritedAnimation = React.createClass({
 	componentDidMount: function(root) {
 		this.timerId_ = window.setInterval(function() {
 			this.setState({
-				index: ++this.state.index % (this.props.sheetWidth * this.props.sheetHeight)
+				index: ++this.state.index % this.props.numFrames
 			})
 		}.bind(this), this.props.interval);
 	},

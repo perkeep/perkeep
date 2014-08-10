@@ -16,6 +16,8 @@ limitations under the License.
 
 body {
 	margin: 0;
+	overflow-x: hidden;
+	overflow-y: scroll;
 }
 
 /* http://www.paulirish.com/2012/box-sizing-border-box-ftw/ */
@@ -36,4 +38,8 @@ body {
 /* TODO(aa): A better drop effect. */
 .cam-dropactive {
 	background: #e5efff;
+}
+
+.cam-content-wrap {
+	position: relative;
 }
