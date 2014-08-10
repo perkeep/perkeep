@@ -226,7 +226,10 @@ cam.IndexPage = React.createClass({
 
 		this.updateTargetSearchSession_(newURL);
 		this.updateChildSearchSession_(newURL);
-		this.setState({currentURL: newURL});
+		this.setState({
+			currentURL: newURL,
+			selection: {},
+		});
 		return true;
 	},
 
