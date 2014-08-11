@@ -16,11 +16,18 @@ limitations under the License.
 
 package org.camlistore;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
+import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
@@ -34,6 +41,10 @@ import android.preference.PreferenceActivity;
 import android.preference.PreferenceScreen;
 import android.text.TextUtils;
 import android.util.Log;
+import android.widget.Toast;
+
+import com.google.zxing.integration.android.IntentIntegrator;
+import com.google.zxing.integration.android.IntentResult;
 
 public class SettingsActivity extends PreferenceActivity {
     private static final String TAG = "SettingsActivity";
@@ -52,6 +63,8 @@ public class SettingsActivity extends PreferenceActivity {
     private SharedPreferences mSharedPrefs;
     private Preferences mPrefs;
 
+    private Map<CharSequence, String> prefToParam;
+
     private final ServiceConnection mServiceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
@@ -67,6 +80,15 @@ public class SettingsActivity extends PreferenceActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        Map<CharSequence, String> m = new HashMap<CharSequence, String>();
+        m.put(Preferences.HOST, "server");
+        m.put(Preferences.TRUSTED_CERT, "certFingerprint");
+        m.put(Preferences.USERNAME, "username");
+        m.put(Preferences.PASSWORD, "password");
+        m.put(Preferences.AUTO, "autoUpload");
+        m.put(Preferences.MAX_CACHE_MB, "maxCacheSize");
+        prefToParam = Collections.unmodifiableMap(m);
 
         getPreferenceManager().setSharedPreferencesName(Preferences.NAME);
         addPreferencesFromResource(R.xml.preferences);
@@ -122,6 +144,77 @@ public class SettingsActivity extends PreferenceActivity {
         usernamePref.setOnPreferenceChangeListener(onChange);
         maxCacheSizePref.setOnPreferenceChangeListener(onChange);
         devIPPref.setOnPreferenceChangeListener(onChange);
+    }
+
+    /**
+     * Receives the results from the custome QRPreference's call to the barcode scanner intent.
+     * 
+     * This is never called if the user doesn't have a zxing barcode scanner app installed.
+     */
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent intent) {
+        IntentResult scanResult = IntentIntegrator.parseActivityResult(requestCode, resultCode, intent);
+        if (scanResult != null && scanResult.getContents() != null) {
+            // handle scan result
+            Log.v(TAG, "Scan result" + scanResult);
+            Uri uri = Uri.parse(scanResult.getContents());
+            confirmNewSettingsDialog(uri);
+        } else {
+            // else continue with any other code you need in the method
+            Log.v(TAG, "No result");
+        }
+    }
+
+    /**
+     * confirmNewSettingsDialog will set preferences based on the parameters
+     * in uri.
+     *
+     * It is expected the schema of uri is 'camli' and the host is 'settings'.
+     * Uri parameters expected are server, certFingerprint, username,
+     * autoUpload, maxCacheSize, and password
+     */
+    private final void confirmNewSettingsDialog(final Uri uri) {
+        Log.v(TAG, "QR resolved to: " + uri);
+        if (!(uri.getScheme().equals("camli") && uri.getHost().equals("settings"))) {
+            Toast.makeText(this, "QR code not a camli://settings/ URL", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        StringBuilder confirmation = new StringBuilder();
+
+        for (Map.Entry<CharSequence, String> pref : prefToParam.entrySet()) {
+            confirmation.append(findPreference(pref.getKey()).getTitle());
+            confirmation.append(": ");
+            confirmation.append(uri.getQueryParameter(pref.getValue()));
+            confirmation.append("\n");
+        }
+
+        builder.setMessage(confirmation.toString())
+                .setTitle(R.string.settings_confirmation_dialog_title);
+
+        builder.setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int id) {
+                hostPref.setText(uri.getQueryParameter("server"));
+                trustedCertPref.setText(uri.getQueryParameter("certFingerprint"));
+                usernamePref.setText(uri.getQueryParameter("username"));
+                String auto = uri.getQueryParameter("autoUpload");
+                autoPref.setChecked(auto != null && auto.equals("1"));
+                maxCacheSizePref.setText(uri.getQueryParameter("maxCacheSize"));
+                // Password isn't a value that can be set on /ui/mobile.html.  It
+                // seems like a security risk to do so.  If there's a smart way to do it,
+                // I'm up for suggestions.  In the meantime, if a person manually
+                // adds it to the QR code URL, use it (helpful during development)
+                // -wathiede.
+                passwordPref.setText(uri.getQueryParameter("password"));
+
+                updatePreferenceSummaries();
+            }
+        });
+        builder.setNegativeButton(R.string.cancel, null);
+
+        builder.create().show();
     }
 
     private final SharedPreferences.OnSharedPreferenceChangeListener prefChangedHandler = new SharedPreferences.OnSharedPreferenceChangeListener() {
