@@ -24,6 +24,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -38,6 +39,9 @@ type Fetcher struct {
 	mu     sync.RWMutex
 	m      map[string]*Blob // keyed by blobref string
 	sorted []string         // blobrefs sorted
+
+	blobsFetched int64
+	bytesFetched int64
 
 	// ReceiveErr optionally returns the error to return on receive.
 	ReceiveErr error
@@ -82,6 +86,9 @@ func (tf *Fetcher) Fetch(ref blob.Ref) (file io.ReadCloser, size uint32, err err
 		return
 	}
 	size = uint32(len(tb.Contents))
+	atomic.AddInt64(&tf.blobsFetched, 1)
+	atomic.AddInt64(&tf.bytesFetched, int64(len(tb.Contents)))
+
 	return struct {
 		*io.SectionReader
 		io.Closer
@@ -141,6 +148,20 @@ func (tf *Fetcher) NumBlobs() int {
 	tf.mu.RLock()
 	defer tf.mu.RUnlock()
 	return len(tf.m)
+}
+
+func (tf *Fetcher) SumBlobSize() int64 {
+	tf.mu.RLock()
+	defer tf.mu.RUnlock()
+	var n int64
+	for _, b := range tf.m {
+		n += int64(len(b.Contents))
+	}
+	return n
+}
+
+func (tf *Fetcher) Stats() (blobsFetched, bytesFetched int64) {
+	return atomic.LoadInt64(&tf.blobsFetched), atomic.LoadInt64(&tf.bytesFetched)
 }
 
 // BlobrefStrings returns the sorted stringified blobrefs stored in this fetcher.
