@@ -31,7 +31,9 @@ import (
 
 type testCmd struct {
 	// start of flag vars
-	short bool
+	verbose bool
+	short   bool
+	run     string
 	// end of flag vars
 
 	// buildGoPath becomes our child "go" processes' GOPATH environment variable
@@ -42,16 +44,18 @@ func init() {
 	cmdmain.RegisterCommand("test", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(testCmd)
 		flags.BoolVar(&cmd.short, "short", false, "Use '-short' with go test.")
+		flags.BoolVar(&cmd.verbose, "v", false, "Use '-v' (for verbose) with go test.")
+		flags.StringVar(&cmd.run, "run", "", "Use '-run' with go test.")
 		return cmd
 	})
 }
 
 func (c *testCmd) Usage() {
-	fmt.Fprintf(cmdmain.Stderr, "Usage: devcam test\n")
+	fmt.Fprintf(cmdmain.Stderr, "Usage: devcam test [test_opts] [targets]\n")
 }
 
 func (c *testCmd) Describe() string {
-	return "run the full test suite."
+	return "run the full test suite, or the tests in the specified target packages."
 }
 
 func (c *testCmd) RunCommand(args []string) error {
@@ -79,6 +83,7 @@ func (c *testCmd) env() *Env {
 	env := NewCopyEnv()
 	env.NoGo()
 	env.Set("GOPATH", c.buildGoPath)
+	env.Set("CAMLI_MAKE_USEGOPATH", "true")
 	return env
 }
 
@@ -122,6 +127,12 @@ func (c *testCmd) runTests(args []string) error {
 	}
 	if c.short {
 		targs = append(targs, "-short")
+	}
+	if c.verbose {
+		targs = append(targs, "-v")
+	}
+	if c.run != "" {
+		targs = append(targs, "-run="+c.run)
 	}
 	if len(args) > 0 {
 		targs = append(targs, args...)
