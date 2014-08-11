@@ -222,6 +222,81 @@ func TestReaderSeekStress(t *testing.T) {
 	}
 }
 
+/*
+
+1KB ReadAt calls before:
+fileread_test.go:253: Blob Size: 4194304 raw, 4201523 with meta (1.00172x)
+fileread_test.go:283: Blobs fetched: 4160 (63.03x)
+fileread_test.go:284: Bytes fetched: 361174780 (85.96x)
+
+2KB ReadAt calls before:
+fileread_test.go:253: Blob Size: 4194304 raw, 4201523 with meta (1.00172x)
+fileread_test.go:283: Blobs fetched: 2112 (32.00x)
+fileread_test.go:284: Bytes fetched: 182535389 (43.45x)
+
+After fix:
+fileread_test.go:253: Blob Size: 4194304 raw, 4201523 with meta (1.00172x)
+fileread_test.go:283: Blobs fetched: 66 (1.00x)
+fileread_test.go:284: Bytes fetched: 4201523 (1.00x)
+*/
+func TestReaderEfficiency(t *testing.T) {
+	const fileSize = 4 << 20
+	bigFile := make([]byte, fileSize)
+	rnd := rand.New(rand.NewSource(1))
+	for i := range bigFile {
+		bigFile[i] = byte(rnd.Intn(256))
+	}
+
+	sto := new(test.Fetcher) // in-memory blob storage
+	fileMap := NewFileMap("testfile")
+	fileref, err := WriteFileMap(sto, fileMap, bytes.NewReader(bigFile))
+	if err != nil {
+		t.Fatalf("WriteFileMap: %v", err)
+	}
+
+	fr, err := NewFileReader(sto, fileref)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	numBlobs := sto.NumBlobs()
+	t.Logf("Num blobs = %d", numBlobs)
+	sumSize := sto.SumBlobSize()
+	t.Logf("Blob Size: %d raw, %d with meta (%.05fx)", fileSize, sumSize, float64(sumSize)/float64(fileSize))
+
+	const readSize = 2 << 10
+	buf := make([]byte, readSize)
+	for off := int64(0); off < fileSize; off += readSize {
+		n, err := fr.ReadAt(buf, off)
+		if err != nil {
+			t.Fatalf("ReadAt at offset %d: %v", off, err)
+		}
+		if n != readSize {
+			t.Fatalf("Read %d bytes at offset %d; want %d", n, off, readSize)
+		}
+		got, want := buf, bigFile[off:off+readSize]
+		if !bytes.Equal(buf, want) {
+			t.Errorf("Incorrect read at offset %d:\n  got: %s\n want: %s", off, summary(got), summary(want))
+			off := 0
+			for len(got) > 0 && len(want) > 0 && got[0] == want[0] {
+				off++
+				got = got[1:]
+				want = want[1:]
+			}
+			t.Errorf("  differences start at offset %d:\n    got: %s\n   want: %s\n", off, summary(got), summary(want))
+			break
+		}
+	}
+	fr.Close()
+	blobsFetched, bytesFetched := sto.Stats()
+	if blobsFetched != int64(numBlobs) {
+		t.Errorf("Fetched %d blobs; want %d", blobsFetched, numBlobs)
+	}
+	if bytesFetched != sumSize {
+		t.Errorf("Fetched %d bytes; want %d", bytesFetched, sumSize)
+	}
+}
+
 type summary []byte
 
 func (s summary) String() string {
