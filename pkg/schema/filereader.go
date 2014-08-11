@@ -48,8 +48,8 @@ type FileReader struct {
 
 	sfg singleflight.Group // for loading blobrefs for ssm
 
-	ssmmu sync.Mutex           // guards ssm
-	ssm   map[string]*superset // blobref -> superset
+	ssmmu sync.Mutex             // guards ssm
+	ssm   map[blob.Ref]*superset // blobref -> superset
 }
 
 // NewFileReader returns a new FileReader reading the contents of fileBlobRef,
@@ -104,7 +104,7 @@ func (ss *superset) NewFileReader(fetcher blob.Fetcher) (*FileReader, error) {
 		fetcher: fetcher,
 		ss:      ss,
 		size:    size,
-		ssm:     make(map[string]*superset),
+		ssm:     make(map[blob.Ref]*superset),
 	}
 	fr.SectionReader = io.NewSectionReader(fr, 0, size)
 	return fr, nil
@@ -279,7 +279,7 @@ func (fr *FileReader) getSuperset(br blob.Ref) (*superset, error) {
 	brStr := br.String()
 	ssi, err := fr.sfg.Do(brStr, func() (interface{}, error) {
 		fr.ssmmu.Lock()
-		ss, ok := fr.ssm[brStr]
+		ss, ok := fr.ssm[br]
 		fr.ssmmu.Unlock()
 		if ok {
 			return ss, nil
@@ -295,7 +295,7 @@ func (fr *FileReader) getSuperset(br blob.Ref) (*superset, error) {
 		}
 		fr.ssmmu.Lock()
 		defer fr.ssmmu.Unlock()
-		fr.ssm[brStr] = ss
+		fr.ssm[br] = ss
 		return ss, nil
 	})
 	if err != nil {
@@ -337,7 +337,9 @@ func (fr *FileReader) readerForOffset(off int64) (io.ReadCloser, error) {
 	case p0.BlobRef.Valid() && p0.BytesRef.Valid():
 		return nil, fmt.Errorf("part illegally contained both a blobRef and bytesRef")
 	case !p0.BlobRef.Valid() && !p0.BytesRef.Valid():
-		return &nZeros{int(p0.Size - uint64(offRemain))}, nil
+		return ioutil.NopCloser(
+			io.LimitReader(zeroReader{},
+				int64(p0.Size-uint64(offRemain)))), nil
 	case p0.BlobRef.Valid():
 		blob, err := blob.FromFetcher(fr.fetcher, p0.BlobRef)
 		if err != nil {
@@ -379,21 +381,11 @@ func (fr *FileReader) readerForOffset(off int64) (io.ReadCloser, error) {
 	}, nil
 }
 
-// nZeros is a ReadCloser that reads remain zeros before EOF.
-type nZeros struct {
-	remain int
-}
+type zeroReader struct{}
 
-func (z *nZeros) Read(p []byte) (n int, err error) {
-	for len(p) > 0 && z.remain > 0 {
-		p[0] = 0
-		n++
-		z.remain--
+func (zeroReader) Read(p []byte) (n int, err error) {
+	for i := range p {
+		p[i] = 0
 	}
-	if n == 0 && z.remain == 0 {
-		err = io.EOF
-	}
-	return
+	return len(p), nil
 }
-
-func (*nZeros) Close() error { return nil }
