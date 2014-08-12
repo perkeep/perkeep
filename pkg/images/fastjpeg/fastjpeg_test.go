@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"reflect"
+	"runtime"
 	"strconv"
 	"testing"
 
@@ -131,6 +132,27 @@ func TestUnavailable(t *testing.T) {
 	}
 	if _, err := fastjpeg.DecodeDownsample(bytes.NewReader(tis[0].buf), 2); err != fastjpeg.ErrDjpegNotFound {
 		t.Errorf("Wanted ErrDjpegNotFound, got %v", err)
+	}
+}
+
+func TestFailed(t *testing.T) {
+	switch runtime.GOOS {
+	case "darwin", "freebsd", "linux":
+	default:
+		t.Skip("test only runs on UNIX")
+	}
+	oldPath := os.Getenv("PATH")
+	defer os.Setenv("PATH", oldPath)
+	// Use djpeg that exits after calling false.
+	os.Setenv("PATH", "testdata")
+
+	tis, err := makeTestImages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = fastjpeg.DecodeDownsample(bytes.NewReader(tis[0].buf), 2)
+	if _, ok := err.(fastjpeg.DjpegFailedError); !ok {
+		t.Errorf("Got err type %T want ErrDjpegFailed, ", err)
 	}
 }
 

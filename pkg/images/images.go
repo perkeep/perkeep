@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
+	"image/jpeg"
 	"io"
 	"log"
 	"os"
@@ -422,12 +423,20 @@ func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image,
 	if format == "jpeg" && fastjpeg.Available() {
 		factor := fastjpeg.Factor(ic.Width, ic.Height, sw, sh)
 		if factor > 1 {
-			im, err = fastjpeg.DecodeDownsample(mr, factor)
-			if err != nil {
+			var buf bytes.Buffer
+			tr := io.TeeReader(mr, &buf)
+			im, err = fastjpeg.DecodeDownsample(tr, factor)
+			switch err.(type) {
+			case fastjpeg.DjpegFailedError:
+				log.Printf("djpeg failed, retrying with jpeg.Decode: %v", err)
+				im, err = jpeg.Decode(io.MultiReader(&buf, mr))
+			case nil:
+				// fallthrough to rescale() below.
+			default:
 				return nil, format, err, false
 			}
-			return rescale(im, sw, sh), format, err, true
 		}
+		return rescale(im, sw, sh), format, err, true
 	}
 
 	// Fall-back to normal decode.

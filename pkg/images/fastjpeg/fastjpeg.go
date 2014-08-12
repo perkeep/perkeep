@@ -44,6 +44,17 @@ var (
 	ErrDjpegNotFound = errors.New("fastjpeg: djpeg not found in path")
 )
 
+// DjpegFailedError wraps errors returned when calling djpeg and handling its
+// response.  Used for type asserting and retrying with other jpeg decoders,
+// i.e. the standard library's jpeg.Decode.
+type DjpegFailedError struct {
+	Err error
+}
+
+func (dfe DjpegFailedError) Error() string {
+	return dfe.Err.Error()
+}
+
 // TODO(wathiede): do we need to conditionally add ".exe" on Windows? I have
 // no access to test on Windows.
 const djpegBin = "djpeg"
@@ -142,6 +153,8 @@ func Factor(w, h, sw, sh int) int {
 
 // DecodeDownsample decodes JPEG data in r, down-sampling it by factor.
 // If djpeg is not found, err is ErrDjpegNotFound and r is not read from.
+// If the execution of djpeg, or decoding the resulting PNM fails, error will
+// be of type DjpegFailedError.
 func DecodeDownsample(r io.Reader, factor int) (image.Image, error) {
 	if !Available() {
 		return nil, ErrDjpegNotFound
@@ -185,9 +198,13 @@ func DecodeDownsample(r io.Reader, factor int) (image.Image, error) {
 	cmd.Stderr = stderrW
 	if err = cmd.Run(); err != nil {
 		djpegFailureVar.Add(1)
-		return nil, fmt.Errorf("%v: %s", err, stderrW)
+		return nil, DjpegFailedError{Err: fmt.Errorf("%v: %s", err, stderrW)}
 	}
 	djpegSuccessVar.Add(1)
 	djpegBytesReadVar.Add(int64(w.Len()))
-	return readPNM(w)
+	m, err := readPNM(w)
+	if err != nil {
+		return m, DjpegFailedError{Err: err}
+	}
+	return m, nil
 }
