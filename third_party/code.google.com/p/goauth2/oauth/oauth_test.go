@@ -23,7 +23,7 @@ var requests = []struct {
 }{
 	{
 		path:        "/token",
-		query:       "grant_type=authorization_code&code=c0d3&client_id=cl13nt1d&client_secret=s3cr3t",
+		query:       "grant_type=authorization_code&code=c0d3&client_id=cl13nt1d",
 		contenttype: "application/json",
 		auth:        "Basic Y2wxM250MWQ6czNjcjN0",
 		body: `
@@ -38,7 +38,7 @@ var requests = []struct {
 	{path: "/secure", auth: "Bearer token1", body: "first payload"},
 	{
 		path:        "/token",
-		query:       "grant_type=refresh_token&refresh_token=refreshtoken1&client_id=cl13nt1d&client_secret=s3cr3t",
+		query:       "grant_type=refresh_token&refresh_token=refreshtoken1&client_id=cl13nt1d",
 		contenttype: "application/json",
 		auth:        "Basic Y2wxM250MWQ6czNjcjN0",
 		body: `
@@ -53,7 +53,7 @@ var requests = []struct {
 	{path: "/secure", auth: "Bearer token2", body: "second payload"},
 	{
 		path:        "/token",
-		query:       "grant_type=refresh_token&refresh_token=refreshtoken2&client_id=cl13nt1d&client_secret=s3cr3t",
+		query:       "grant_type=refresh_token&refresh_token=refreshtoken2&client_id=cl13nt1d",
 		contenttype: "application/x-www-form-urlencoded",
 		body:        "access_token=token3&refresh_token=refreshtoken3&id_token=idtoken3&expires_in=3600",
 		auth:        "Basic Y2wxM250MWQ6czNjcjN0",
@@ -61,7 +61,7 @@ var requests = []struct {
 	{path: "/secure", auth: "Bearer token3", body: "third payload"},
 	{
 		path:        "/token",
-		query:       "grant_type=client_credentials&client_id=cl13nt1d&client_secret=s3cr3t",
+		query:       "grant_type=client_credentials&client_id=cl13nt1d",
 		contenttype: "application/json",
 		auth:        "Basic Y2wxM250MWQ6czNjcjN0",
 		body: `
@@ -171,9 +171,14 @@ func checkToken(t *testing.T, tok *Token, access, refresh, id string) {
 	if g, w := tok.Extra["id_token"], id; g != w {
 		t.Errorf("Extra['id_token'] = %q, want %q", g, w)
 	}
-	exp := tok.Expiry.Sub(time.Now())
-	if (time.Hour-time.Second) > exp || exp > time.Hour {
-		t.Errorf("Expiry = %v, want ~1 hour", exp)
+	if tok.Expiry.IsZero() {
+		t.Errorf("Expiry is zero; want ~1 hour")
+	} else {
+		exp := tok.Expiry.Sub(time.Now())
+		const slop = 3 * time.Second // time moving during test
+		if (time.Hour-slop) > exp || exp > time.Hour {
+			t.Errorf("Expiry = %v, want ~1 hour", exp)
+		}
 	}
 }
 
