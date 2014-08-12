@@ -57,10 +57,9 @@ var (
 	quiet          = flag.Bool("quiet", false, "Don't print anything unless there's a failure.")
 	onlysync       = flag.Bool("onlysync", false, "Only populate the temporary source/build tree and output its full path. It is meant to prepare the environment for running the full test suite with 'devcam test'.")
 	useGoPath      = flag.Bool("use_gopath", false, "Use GOPATH from the environment and work from there. Do not create a temporary source tree with a new GOPATH in it.")
-	// TODO(mpl): implement ifModsSince, or remove it from all places where we use make.go, because we shouldn't lie.
-	ifModsSince = flag.Int64("if_mods_since", 0, "Not implemented yet. If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
-	buildARCH   = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
-	buildOS     = flag.String("os", runtime.GOOS, "Operating system to build for.")
+	ifModsSince    = flag.Int64("if_mods_since", 0, "If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
+	buildARCH      = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
+	buildOS        = flag.String("os", runtime.GOOS, "Operating system to build for.")
 )
 
 var (
@@ -84,6 +83,7 @@ func main() {
 	if useEnvGoPath, _ := strconv.ParseBool(os.Getenv("CAMLI_MAKE_USEGOPATH")); useEnvGoPath {
 		*useGoPath = true
 	}
+	latestSrcMod := time.Now()
 	if *useGoPath {
 		buildGoPath = os.Getenv("GOPATH")
 		var err error
@@ -92,19 +92,25 @@ func main() {
 			log.Fatalf("Cannot run make.go with --use_gopath: %v (is GOPATH not set?)", err)
 		}
 		buildSrcDir = camRoot
+		if *ifModsSince > 0 {
+			latestSrcMod = walkDirs(sql)
+		}
 	} else {
 		var err error
 		camRoot, err = os.Getwd()
 		if err != nil {
 			log.Fatalf("Failed to get current directory: %v", err)
 		}
-		mirror(sql)
+		latestSrcMod = mirror(sql)
 		if *onlysync {
 			mirrorFile("make.go", filepath.Join(buildSrcDir, "make.go"))
 			deleteUnwantedOldMirrorFiles(buildSrcDir, true)
 			fmt.Println(buildGoPath)
 			return
 		}
+	}
+	if latestSrcMod.Before(time.Unix(*ifModsSince, 0)) {
+		return
 	}
 	binDir := filepath.Join(camRoot, "bin")
 	version := getVersion()
@@ -219,7 +225,8 @@ func main() {
 }
 
 // create the tmp GOPATH, and mirror to it from camRoot.
-func mirror(sql bool) {
+// return the latest modtime among all of the walked files.
+func mirror(sql bool) (latestSrcMod time.Time) {
 	verifyCamlistoreRoot(camRoot)
 
 	buildBaseDir := "build-gopath"
@@ -241,11 +248,10 @@ func mirror(sql bool) {
 	}
 	// Copy files we do want in our mirrored GOPATH.  This has the side effect of
 	// populating wantDestFile, populated by mirrorFile.
-	var latestSrcMod time.Time
 	for _, dir := range goDirs {
 		srcPath := filepath.Join(camRoot, filepath.FromSlash(dir))
 		dstPath := buildSrcPath(dir)
-		if maxMod, err := mirrorDir(srcPath, dstPath, mirrorOpts{sqlite: sql}); err != nil {
+		if maxMod, err := mirrorDir(srcPath, dstPath, walkOpts{sqlite: sql}); err != nil {
 			log.Fatalf("Error while mirroring %s to %s: %v", srcPath, dstPath, err)
 		} else {
 			if maxMod.After(latestSrcMod) {
@@ -253,6 +259,35 @@ func mirror(sql bool) {
 			}
 		}
 	}
+	return
+}
+
+// TODO(mpl): see if walkDirs and mirror can be refactored further.
+
+// walk all the dirs in camRoot, to return the latest
+// modtime among all of the walked files.
+func walkDirs(sql bool) (latestSrcMod time.Time) {
+	d, err := os.Open(camRoot)
+	if err != nil {
+		log.Fatal(err)
+	}
+	dirs, err := d.Readdirnames(-1)
+	d.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, dir := range dirs {
+		srcPath := filepath.Join(camRoot, filepath.FromSlash(dir))
+		if maxMod, err := walkDir(srcPath, walkOpts{sqlite: sql}); err != nil {
+			log.Fatalf("Error while walking %s: %v", srcPath, err)
+		} else {
+			if maxMod.After(latestSrcMod) {
+				latestSrcMod = maxMod
+			}
+		}
+	}
+	return
 }
 
 func actualBinDir(dir string) string {
@@ -463,11 +498,12 @@ func verifyGoVersion() {
 	log.Fatalf("Your version of Go (%s) is too old. Camlistore requires Go 1.%c or later.", version, neededMinor)
 }
 
-type mirrorOpts struct {
-	sqlite bool // want sqlite package?
+type walkOpts struct {
+	dst    string // if non empty, mirror walked files to this destination.
+	sqlite bool   // want sqlite package?
 }
 
-func mirrorDir(src, dst string, opts mirrorOpts) (maxMod time.Time, err error) {
+func walkDir(src string, opts walkOpts) (maxMod time.Time, err error) {
 	err = filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -489,9 +525,17 @@ func mirrorDir(src, dst string, opts mirrorOpts) (maxMod time.Time, err error) {
 		if t := fi.ModTime(); t.After(maxMod) {
 			maxMod = t
 		}
-		return mirrorFile(path, filepath.Join(dst, suffix))
+		if opts.dst != "" {
+			return mirrorFile(path, filepath.Join(opts.dst, suffix))
+		}
+		return nil
 	})
 	return
+}
+
+func mirrorDir(src, dst string, opts walkOpts) (maxMod time.Time, err error) {
+	opts.dst = dst
+	return walkDir(src, opts)
 }
 
 var wantDestFile = make(map[string]bool) // full dest filename => true
