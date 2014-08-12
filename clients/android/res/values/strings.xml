@@ -2,14 +2,19 @@
 <resources>
 
     <string name="app_name">Camlistore Uploader</string>
+    <string name="settings_confirmation_dialog_title">Use these settings?</string>
     <string name="settings_host_title">Camlistore server</string>
     <string name="settings_host_summary">e.g. https://foo.example.com or &quot;example.com:3179&quot;</string>
+    <string name="settings_qr_title">QR</string>
+    <string name="settings_qr_summary">Scan QR code from /ui/mobile.html</string>
     <string name="settings_trusted_cert_title">Self-signed cert fingerprint</string>
     <string name="settings_trusted_cert_summary">The fingerprint of your self-signed certificate. Not needed for commercial certs.</string>
     <string name="settings_username_title">Username</string>
     <string name="settings_password_title">Password</string>
     <string name="settings_max_cache_size_title">Maximum cache size</string>
     <string name="settings_max_cache_size_summary">%d MB</string>
+    <string name="cancel">Cancel</string>
+    <string name="ok">OK</string>
     <string name="pause_resume">Pause / Resume</string>
     <string name="pause">Pause</string>
     <string name="resume">Resume</string>

@@ -2,6 +2,10 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     android:key="first_preferencescreen" >
 
+    <org.camlistore.QRPreference
+        android:key="camli.qr"
+	    android:summary="@string/settings_qr_summary"
+        android:title="@string/settings_qr_title"/>
     <EditTextPreference
         android:key="camli.host"
         android:persistent="true"
