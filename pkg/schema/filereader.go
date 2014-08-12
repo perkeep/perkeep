@@ -23,7 +23,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -39,8 +38,8 @@ var errClosed = errors.New("filereader is closed")
 // A FileReader reads the bytes of "file" and "bytes" schema blobrefs.
 type FileReader struct {
 	// Immutable stuff:
-	*io.SectionReader             // provides Read, etc.
-	parent            *FileReader // or nil for sub-region readers to find the ssm map in getSuperset
+	*io.SectionReader             // provides Read, Seek, and Size.
+	parent            *FileReader // or nil. for sub-region readers to find the top.
 	rootOff           int64       // this FileReader's offset from the root
 	fetcher           blob.Fetcher
 	ss                *superset
@@ -55,13 +54,20 @@ type FileReader struct {
 	ssm   map[blob.Ref]*superset // blobref -> superset
 }
 
+var _ interface {
+	io.Seeker
+	io.ReaderAt
+	io.Reader
+	io.Closer
+	Size() int64
+} = (*FileReader)(nil)
+
 // NewFileReader returns a new FileReader reading the contents of fileBlobRef,
 // fetching blobs from fetcher.  The fileBlobRef must be of a "bytes" or "file"
 // schema blob.
 //
 // The caller should call Close on the FileReader when done reading.
 func NewFileReader(fetcher blob.Fetcher, fileBlobRef blob.Ref) (*FileReader, error) {
-	// TODO(bradfitz): make this take a blobref.FetcherAt instead?
 	// TODO(bradfitz): rename this into bytes reader? but for now it's still
 	//                 named FileReader, but can also read a "bytes" schema.
 	if !fileBlobRef.Valid() {
@@ -145,17 +151,8 @@ func (fr *FileReader) UnixMtime() time.Time {
 // FileName returns the file schema's filename, if any.
 func (fr *FileReader) FileName() string { return fr.ss.FileName }
 
-func (fr *FileReader) Close() error {
-	// TODO: close cached blobs?
-	return nil
-}
-
-var _ interface {
-	io.ReaderAt
-	io.Reader
-	io.Closer
-	Size() int64
-} = (*FileReader)(nil)
+// Close currently does nothing.
+func (fr *FileReader) Close() error { return nil }
 
 func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 	if offset < 0 {
@@ -166,15 +163,14 @@ func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 	}
 	want := len(p)
 	for len(p) > 0 && err == nil {
-		var rc io.ReadCloser
-		rc, err = fr.readerForOffset(offset)
+		rc, err := fr.readerForOffset(offset)
 		if err != nil {
-			return
+			return n, err
 		}
-		var n1 int64 // never bigger than an int
-		n1, err = io.CopyN(&sliceWriter{p}, rc, int64(len(p)))
+		var n1 int
+		n1, err = io.ReadFull(rc, p)
 		rc.Close()
-		if err == io.EOF {
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			err = nil
 		}
 		if n1 == 0 {
@@ -182,7 +178,7 @@ func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 		}
 		p = p[n1:]
 		offset += int64(n1)
-		n += int(n1)
+		n += n1
 	}
 	if n < want && err == nil {
 		err = io.ErrUnexpectedEOF
@@ -255,18 +251,6 @@ func (fr *FileReader) sendPartsChunks(c chan<- int64, firstErrc chan error, off 
 	}
 	return retErr
 }
-
-type sliceWriter struct {
-	dst []byte
-}
-
-func (sw *sliceWriter) Write(p []byte) (n int, err error) {
-	n = copy(sw.dst, p)
-	sw.dst = sw.dst[n:]
-	return n, nil
-}
-
-var eofReader io.ReadCloser = ioutil.NopCloser(strings.NewReader(""))
 
 func (fr *FileReader) rootReader() *FileReader {
 	if fr.parent != nil {
@@ -341,7 +325,7 @@ func (fr *FileReader) readerForOffset(off int64) (io.ReadCloser, error) {
 		panic("negative offset")
 	}
 	if off >= fr.size {
-		return eofReader, nil
+		return types.EmptyBody, nil
 	}
 	offRemain := off
 	var skipped int64
@@ -352,7 +336,7 @@ func (fr *FileReader) readerForOffset(off int64) (io.ReadCloser, error) {
 		parts = parts[1:]
 	}
 	if len(parts) == 0 {
-		return eofReader, nil
+		return types.EmptyBody, nil
 	}
 	p0 := parts[0]
 	var rsc types.ReadSeekCloser
