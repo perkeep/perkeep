@@ -31,7 +31,7 @@ const (
 
 func MakeOauthTransport(clientId string, clientSecret string, refreshToken string) *oauth.Transport {
 	return &oauth.Transport{
-		&oauth.Config{
+		Config: &oauth.Config{
 			ClientId:     clientId,
 			ClientSecret: clientSecret,
 			Scope:        Scope,
@@ -39,11 +39,10 @@ func MakeOauthTransport(clientId string, clientSecret string, refreshToken strin
 			TokenURL:     TokenURL,
 			RedirectURL:  RedirectURL,
 		},
-		&oauth.Token{
+		Token: &oauth.Token{
 			AccessToken:  "",
 			RefreshToken: refreshToken,
 			Expiry:       time.Time{}, // no expiry
 		},
-		nil,
 	}
 }
