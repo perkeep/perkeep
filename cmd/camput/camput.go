@@ -163,7 +163,9 @@ func newUploader() *Uploader {
 		httpStats, _ = tr.(*httputil.StatsTransport)
 		cc.SetHTTPClient(&http.Client{Transport: tr})
 	}
-	if !*cmdmain.FlagVerbose {
+	if *cmdmain.FlagVerbose {
+		cc.SetLogger(log.New(cmdmain.Stderr, "", log.LstdFlags))
+	} else {
 		cc.SetLogger(nil)
 	}
 
