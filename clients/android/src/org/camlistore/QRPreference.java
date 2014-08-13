@@ -10,7 +10,7 @@ import com.google.zxing.integration.android.IntentIntegrator;
 
 /**
  * QRPrefence implements a custom {@link Preference} for scanning barcodes.
- * 
+ *
  * It will launch a barcode scanner intent configured for scanning QR codes using {@link IntentIntegrator}. If no barcode scanner app is installed {@link IntentIntegrator} will prompt the user to install one from the Google Play market.
  */
 public class QRPreference extends Preference {
@@ -24,12 +24,8 @@ public class QRPreference extends Preference {
 
     @Override
     protected void onClick() {
-        Log.v(TAG, "onClick");
         SettingsActivity activity = (SettingsActivity) this.getContext();
         IntentIntegrator integrator = new IntentIntegrator(activity);
-        AlertDialog alert = integrator.initiateScan(IntentIntegrator.QR_CODE_TYPES);
-        if (alert != null) {
-            Log.v(TAG, "user was prompted to install barcode scanner app.");
-        }
+        integrator.initiateScan(IntentIntegrator.QR_CODE_TYPES);
     }
 }
