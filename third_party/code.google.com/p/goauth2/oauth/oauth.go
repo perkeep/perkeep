@@ -367,23 +367,37 @@ func (t *Transport) AuthenticateClient() error {
 	return t.updateToken(t.Token, url.Values{"grant_type": {"client_credentials"}})
 }
 
+// providerAuthHeaderWorks reports whether the OAuth2 server identified by the tokenURL
+// implements the OAuth2 spec correctly
+// See https://code.google.com/p/goauth2/issues/detail?id=31 for background.
+// In summary:
+// - Reddit only accepts client_secret in Authorization header.
+// - Dropbox accepts either, but not both.
+// - Google only accepts client_secret (not spec compliant?)
+func providerAuthHeaderWorks(tokenURL string) bool {
+	if strings.HasPrefix(tokenURL, "https://accounts.google.com/") {
+		// Google fails to implement the OAuth2 spec fully?
+		return false
+	}
+	return true
+}
+
 // updateToken mutates both tok and v.
 func (t *Transport) updateToken(tok *Token, v url.Values) error {
 	v.Set("client_id", t.ClientId)
-	// Note that we're not setting v's client_secret to t.ClientSecret, due
-	// to https://code.google.com/p/goauth2/issues/detail?id=31
-	// Reddit only accepts client_secret in Authorization header.
-	// Dropbox accepts either, but not both.
-	// The spec requires servers to always support the Authorization header,
-	// so that's all we use.
-
+	bustedAuth := !providerAuthHeaderWorks(t.TokenURL)
+	if bustedAuth {
+		v.Set("client_secret", t.ClientSecret)
+	}
 	client := &http.Client{Transport: t.transport()}
 	req, err := http.NewRequest("POST", t.TokenURL, strings.NewReader(v.Encode()))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.SetBasicAuth(t.ClientId, t.ClientSecret)
+	if !bustedAuth {
+		req.SetBasicAuth(t.ClientId, t.ClientSecret)
+	}
 	r, err := client.Do(req)
 	if err != nil {
 		return err
