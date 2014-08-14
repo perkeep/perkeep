@@ -16,39 +16,24 @@ limitations under the License.
 
 package strutil
 
-// StringFromBytes returns string(v), minimizing copies for common values of v.
-func StringFromBytes(v []byte) string {
-	// From net/textproto's reader.go...
-	if len(v) == 0 {
-		return ""
+var internStr = map[string]string{}
+
+// RegisterCommonString adds common strings to the interned string
+// table.  This should be called during init from the main
+// goroutine, not later at runtime.
+func RegisterCommonString(s ...string) {
+	for _, v := range s {
+		internStr[v] = v
 	}
-	lo, hi := 0, len(commonStrings)
-	for i, c := range v {
-		if lo < hi {
-			for lo < hi && (len(commonStrings[lo]) <= i || commonStrings[lo][i] < c) {
-				lo++
-			}
-			for hi > lo && commonStrings[hi-1][i] > c {
-				hi--
-			}
-		} else {
-			break
-		}
-	}
-	if lo < hi && len(commonStrings[lo]) == len(v) {
-		return commonStrings[lo]
-	}
-	return string(v)
 }
 
-// NOTE: must be sorted
-var commonStrings = []string{
-	"bytes",
-	"claim",
-	"directory",
-	"file",
-	"permanode",
-	"share",
-	"static-set",
-	"symlink",
+// StringFromBytes returns string(v), minimizing copies for common values of v
+// as previously registered with RegisterCommonString.
+func StringFromBytes(v []byte) string {
+	// In Go 1.3, this string conversion in the map lookup does not allocate
+	// to make a new string. We depend on Go 1.3, so this is always free:
+	if s, ok := internStr[string(v)]; ok {
+		return s
+	}
+	return string(v)
 }

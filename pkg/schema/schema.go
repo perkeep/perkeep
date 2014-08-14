@@ -41,11 +41,27 @@ import (
 	"unicode/utf8"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/strutil"
 	"camlistore.org/pkg/types"
 	"camlistore.org/third_party/github.com/bradfitz/latlong"
 	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
 	"camlistore.org/third_party/github.com/camlistore/goexif/tiff"
 )
+
+func init() {
+	// Intern common strings as used by schema blobs (camliType values), to reduce
+	// index memory usage, which uses strutil.StringFromBytes.
+	strutil.RegisterCommonString(
+		"bytes",
+		"claim",
+		"directory",
+		"file",
+		"permanode",
+		"share",
+		"static-set",
+		"symlink",
+	)
+}
 
 // MaxSchemaBlobSize represents the upper bound for how large
 // a schema blob may be.
