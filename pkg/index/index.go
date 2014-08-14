@@ -120,6 +120,10 @@ func (x *Index) InitBlobSource(blobSource blobserver.FetcherEnumerator) {
 	if x.KeyFetcher == nil {
 		x.KeyFetcher = blobSource
 	}
+	if disableOoo, _ := strconv.ParseBool(os.Getenv("CAMLI_TESTREINDEX_DISABLE_OOO")); disableOoo {
+		// For Reindex test in pkg/index/indextest/tests.go
+		return
+	}
 	go x.outOfOrderIndexerLoop()
 }
 
@@ -205,7 +209,31 @@ func (x *Index) isEmpty() bool {
 	return !hasRows
 }
 
+// reindexMaxProcs is the number of concurrent goroutines that will be used for reindexing.
+var reindexMaxProcs = struct {
+	sync.RWMutex
+	v int
+}{v: 4}
+
+// SetReindexMaxProcs sets the maximum number of concurrent goroutines that are
+// used during reindexing.
+func SetReindexMaxProcs(n int) {
+	reindexMaxProcs.Lock()
+	defer reindexMaxProcs.Unlock()
+	reindexMaxProcs.v = n
+}
+
+// ReindexMaxProcs returns the maximum number of concurrent goroutines that are
+// used during reindexing.
+func ReindexMaxProcs() int {
+	reindexMaxProcs.RLock()
+	defer reindexMaxProcs.RUnlock()
+	return reindexMaxProcs.v
+}
+
 func (x *Index) Reindex() error {
+	reindexMaxProcs.RLock()
+	defer reindexMaxProcs.RUnlock()
 	ctx := context.TODO()
 
 	wiper, ok := x.s.(sorted.Wiper)
@@ -253,9 +281,8 @@ func (x *Index) Reindex() error {
 			}
 		})
 	}()
-	const j = 4 // arbitrary concurrency level
 	var wg sync.WaitGroup
-	for i := 0; i < j; i++ {
+	for i := 0; i < reindexMaxProcs.v; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

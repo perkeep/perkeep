@@ -36,10 +36,11 @@ func (ix *Index) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef,
 		}
 	}()
 
+	afterKey := "have:" + after
 	n := int(0)
 	for n < limit && it.Next() {
 		k := it.Key()
-		if k <= after {
+		if k <= afterKey {
 			continue
 		}
 		if !strings.HasPrefix(k, "have:") {
@@ -47,8 +48,11 @@ func (ix *Index) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef,
 		}
 		n++
 		br, ok := blob.Parse(k[len("have:"):])
-		size, err := strconv.ParseUint(it.Value(), 10, 32)
-		if ok && err == nil {
+		if !ok {
+			continue
+		}
+		size, err := parseHaveVal(it.Value())
+		if err == nil {
 			select {
 			case dest <- blob.SizedRef{br, uint32(size)}:
 			case <-ctx.Done():
@@ -69,11 +73,24 @@ func (ix *Index) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 		if err != nil {
 			return fmt.Errorf("error looking up key %q: %v", key, err)
 		}
-		size, err := strconv.ParseInt(v, 10, 64)
+		size, err := parseHaveVal(v)
 		if err != nil {
 			return fmt.Errorf("invalid size for key %q = %q", key, v)
 		}
 		dest <- blob.SizedRef{br, uint32(size)}
 	}
 	return nil
+}
+
+// parseHaveVal takes the value part of an "have" index row and returns
+// the blob size found in that value. Examples:
+// parseHaveVal("324|indexed") == 324
+// parseHaveVal("654") == 654
+func parseHaveVal(val string) (size uint64, err error) {
+	pipei := strings.Index(val, "|")
+	if pipei >= 0 {
+		// filter out the "indexed" suffix
+		val = val[:pipei]
+	}
+	return strconv.ParseUint(val, 10, 32)
 }
