@@ -197,8 +197,10 @@ func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.Siz
 	if err != nil {
 		return
 	}
-	if _, haveErr := ix.s.Get("have:" + blobRef.String()); haveErr == nil {
-		return blob.SizedRef{blobRef, uint32(written)}, nil
+	if haveVal, haveErr := ix.s.Get("have:" + blobRef.String()); haveErr == nil {
+		if strings.HasSuffix(haveVal, "|indexed") {
+			return blob.SizedRef{blobRef, uint32(written)}, nil
+		}
 	}
 
 	sniffer.Parse()
@@ -209,10 +211,13 @@ func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.Siz
 
 	mm, err := ix.populateMutationMap(fetcher, blobRef, sniffer)
 	if err != nil {
+		if err != errMissingDep {
+			return
+		}
 		fetcher.mu.Lock()
 		defer fetcher.mu.Unlock()
 		if len(fetcher.missing) == 0 {
-			return
+			panic("errMissingDep happened, but no fetcher.missing recorded")
 		}
 		missingDeps = true
 		allRecorded := true
@@ -282,33 +287,43 @@ func (ix *Index) commit(mm *mutationMap) error {
 // the blobref can be trusted at this point (it's been fully consumed
 // and verified to match), and the sniffer has been populated.
 func (ix *Index) populateMutationMap(fetcher *missTrackFetcher, br blob.Ref, sniffer *BlobSniffer) (*mutationMap, error) {
-	// TODO(mpl): shouldn't we remove these two from the map (so they don't get committed) when
-	// e.g in populateClaim we detect a bogus claim (which does not yield an error)?
 	mm := &mutationMap{
 		kv: map[string]string{
-			"have:" + br.String(): fmt.Sprintf("%d", sniffer.Size()),
 			"meta:" + br.String(): fmt.Sprintf("%d|%s", sniffer.Size(), sniffer.MIMEType()),
 		},
 	}
-
+	var err error
 	if blob, ok := sniffer.SchemaBlob(); ok {
 		switch blob.Type() {
 		case "claim":
-			if err := ix.populateClaim(fetcher, blob, mm); err != nil {
-				return nil, err
-			}
+			err = ix.populateClaim(fetcher, blob, mm)
 		case "file":
-			if err := ix.populateFile(fetcher, blob, mm); err != nil {
-				return nil, err
-			}
+			err = ix.populateFile(fetcher, blob, mm)
 		case "directory":
-			if err := ix.populateDir(fetcher, blob, mm); err != nil {
-				return nil, err
-			}
+			err = ix.populateDir(fetcher, blob, mm)
 		}
 	}
-
-	return mm, nil
+	if err != nil && err != errMissingDep {
+		return nil, err
+	}
+	var haveVal string
+	if err == errMissingDep {
+		haveVal = fmt.Sprintf("%d", sniffer.Size())
+	} else {
+		haveVal = fmt.Sprintf("%d|indexed", sniffer.Size())
+	}
+	mm.kv["have:"+br.String()] = haveVal
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	if len(fetcher.missing) == 0 {
+		// If err == nil, we're good. Else (err == errMissingDep), we
+		// know the error did not come from a fetching miss (because
+		// len(fetcher.missing) == 0) , but from an index miss. Therefore
+		// we know the miss has already been noted and will be dealt with
+		// later, so we can also pretend everything's fine.
+		return mm, nil
+	}
+	return mm, err
 }
 
 // keepFirstN keeps the first N bytes written to it in Bytes.
@@ -342,6 +357,7 @@ func (f *missTrackFetcher) Fetch(br blob.Ref) (blob io.ReadCloser, size uint32, 
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		f.missing = append(f.missing, br)
+		err = errMissingDep
 	}
 	return
 }
@@ -594,38 +610,45 @@ func (ix *Index) populateDir(fetcher blob.Fetcher, b *schema.Blob, mm *mutationM
 	return nil
 }
 
+var errMissingDep = errors.New("blob was not fully indexed because of a missing dependency")
+
 // populateDeleteClaim adds to mm the entries resulting from the delete claim cl.
 // It is assumed cl is a valid claim, and vr has already been verified.
-func (ix *Index) populateDeleteClaim(cl schema.Claim, vr *jsonsign.VerifyRequest, mm *mutationMap) {
+func (ix *Index) populateDeleteClaim(cl schema.Claim, vr *jsonsign.VerifyRequest, mm *mutationMap) error {
 	br := cl.Blob().BlobRef()
 	target := cl.Target()
 	if !target.Valid() {
 		log.Print(fmt.Errorf("no valid target for delete claim %v", br))
-		return
+		return nil
 	}
 	meta, err := ix.GetBlobMeta(target)
 	if err != nil {
 		if err == os.ErrNotExist {
-			// TODO: return a dependency error type, to schedule re-indexing in the future
+			if err := ix.noteNeeded(br, target); err != nil {
+				return fmt.Errorf("could not note that delete claim %v depends on %v: %v", br, target, err)
+			}
+			return errMissingDep
 		}
 		log.Print(fmt.Errorf("Could not get mime type of target blob %v: %v", target, err))
-		return
+		return nil
 	}
+
 	// TODO(mpl): create consts somewhere for "claim" and "permanode" as camliTypes, and use them,
 	// instead of hardcoding. Unless they already exist ? (didn't find them).
 	if meta.CamliType != "permanode" && meta.CamliType != "claim" {
 		log.Print(fmt.Errorf("delete claim target in %v is neither a permanode nor a claim: %v", br, meta.CamliType))
-		return
+		return nil
 	}
 	mm.Set(keyDeleted.Key(target, cl.ClaimDateString(), br), "")
 	if meta.CamliType == "claim" {
-		return
+		return nil
 	}
 	recentKey := keyRecentPermanode.Key(vr.SignerKeyId, cl.ClaimDateString(), br)
 	mm.Set(recentKey, target.String())
 	attr, value := cl.Attribute(), cl.Value()
 	claimKey := keyPermanodeClaim.Key(target, vr.SignerKeyId, cl.ClaimDateString(), br)
 	mm.Set(claimKey, keyPermanodeClaim.Val(cl.ClaimType(), attr, value, vr.CamliSigner))
+	return nil
 }
 
 func (ix *Index) populateClaim(fetcher *missTrackFetcher, b *schema.Blob, mm *mutationMap) error {
@@ -650,7 +673,9 @@ func (ix *Index) populateClaim(fetcher *missTrackFetcher, b *schema.Blob, mm *mu
 	mm.Set("signerkeyid:"+vr.CamliSigner.String(), verifiedKeyId)
 
 	if claim.ClaimType() == string(schema.DeleteClaim) {
-		ix.populateDeleteClaim(claim, vr, mm)
+		if err := ix.populateDeleteClaim(claim, vr, mm); err != nil {
+			return err
+		}
 		mm.noteDelete(claim)
 		return nil
 	}
