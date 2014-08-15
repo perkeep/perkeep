@@ -52,6 +52,8 @@ cam.IndexPage = React.createClass({
 	},
 	THUMBNAIL_SIZE_: 200,
 
+	SEARCH_SESSION_CACHE_SIZE_: 3,
+
 	// Note that these are ordered by priority.
 	BLOB_ITEM_HANDLERS_: [
 		cam.BlobItemDemoContent.getHandler,
@@ -79,6 +81,7 @@ cam.IndexPage = React.createClass({
 		this.currentSet_ = null;
 		this.dragEndTimer_ = 0;
 		this.navigator_ = null;
+		this.searchSessionCache_ = [];
 		this.targetSearchSession_ = null;
 		this.childSearchSession_ = null;
 
@@ -226,6 +229,7 @@ cam.IndexPage = React.createClass({
 
 		this.updateTargetSearchSession_(newURL);
 		this.updateChildSearchSession_(newURL);
+		this.pruneSearchSessionCache_();
 		this.setState({
 			currentURL: newURL,
 			selection: {},
@@ -234,26 +238,11 @@ cam.IndexPage = React.createClass({
 	},
 
 	updateTargetSearchSession_: function(newURL) {
-		var query = newURL.getParameterValue('p');
-		if (query) {
-			query = {
-				blobRefPrefix: query,
-			};
-		}
-
-		if (this.targetSearchSession_ && JSON.stringify(this.targetSearchSession_.getQuery()) == JSON.stringify(query)) {
-			return;
-		}
-
-		if (this.targetSearchSession_) {
-			this.targetSearchSession_.close();
+		var permanode = newURL.getParameterValue('p');
+		if (permanode) {
+			this.targetSearchSession_ = this.getSearchSession_(permanode, {blobRefPrefix:permanode});
+		} else {
 			this.targetSearchSession_ = null;
-		}
-
-		if (query) {
-			this.targetSearchSession_ = new cam.SearchSession(this.props.serverConnection, newURL.clone(), query);
-			this.eh_.listen(this.targetSearchSession_, cam.SearchSession.SEARCH_SESSION_CHANGED, function() { this.forceUpdate(); });
-			this.targetSearchSession_.loadMoreResults();
 		}
 	},
 
@@ -279,20 +268,47 @@ cam.IndexPage = React.createClass({
 			query = ' ';
 		}
 
-		if (this.childSearchSession_ && JSON.stringify(this.childSearchSession_.getQuery()) == JSON.stringify(query)) {
-			return;
-		}
-
-		if (this.childSearchSession_) {
-			this.childSearchSession_.close();
+		if (query) {
+			this.childSearchSession_ = this.getSearchSession_(null, query);
+		} else {
 			this.childSearchSession_ = null;
 		}
+	},
 
-		if (query) {
-			this.childSearchSession_ = new cam.SearchSession(this.props.serverConnection, newURL.clone(), query);
-			this.eh_.listen(this.childSearchSession_, cam.SearchSession.SEARCH_SESSION_CHANGED, function() { this.forceUpdate(); });
-			this.childSearchSession_.loadMoreResults();
+	getSearchSession_: function(targetBlobref, query) {
+		// This whole business of reusing search session relies on the assumption that we use the same describe rules for both detail queries and search queries.
+		var queryString = JSON.stringify(query);
+		var cached = goog.array.findIndex(this.searchSessionCache_, function(ss, index) {
+			if (targetBlobref && ss.getMeta(targetBlobref)) {
+				console.log('Found existing SearchSession for blobref %s at position %d', targetBlobref, index);
+				return true;
+			} else if (JSON.stringify(ss.getQuery()) == queryString) {
+				console.log('Found existing SearchSession for query %s at position %d', queryString, index);
+				return true;
+			} else {
+				return false;
+			}
+		});
+
+		if (cached > -1) {
+			this.searchSessionCache_.splice(0, 0, this.searchSessionCache_.splice(cached, 1)[0]);
+			return this.searchSessionCache_[0];
 		}
+
+		console.log('Creating new search session for query %s', queryString);
+		var ss = new cam.SearchSession(this.props.serverConnection, this.baseURL_.clone(), query);
+		this.eh_.listen(ss, cam.SearchSession.SEARCH_SESSION_CHANGED, function() { this.forceUpdate(); });
+		ss.loadMoreResults();
+		this.searchSessionCache_.splice(0, 0, ss);
+		return ss;
+	},
+
+	pruneSearchSessionCache_: function() {
+		for (var i = this.SEARCH_SESSION_CACHE_SIZE_; i < this.searchSessionCache_.length; i++) {
+			this.searchSessionCache_[i].close();
+		}
+
+		this.searchSessionCache_.length = Math.min(this.searchSessionCache_.length, this.SEARCH_SESSION_CACHE_SIZE_);
 	},
 
 	getHeader_: function(aspects, selectedAspectIndex) {
