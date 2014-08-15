@@ -14,19 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fastjpeg_test
+package fastjpeg
 
 import (
 	"bytes"
 	"image"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strconv"
+	"sync"
 	"testing"
 
-	"camlistore.org/pkg/images/fastjpeg"
 	"camlistore.org/third_party/go/pkg/image/jpeg"
 )
 
@@ -75,7 +76,8 @@ func makeTestImages() ([]testImage, error) {
 }
 
 func TestDecodeDownsample(t *testing.T) {
-	if !fastjpeg.Available() {
+	checkAvailability = sync.Once{}
+	if !Available() {
 		t.Skip("djpeg isn't available.")
 	}
 
@@ -84,12 +86,12 @@ func TestDecodeDownsample(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := fastjpeg.DecodeDownsample(bytes.NewReader(tis[0].buf), 0); err == nil {
+	if _, err := DecodeDownsample(bytes.NewReader(tis[0].buf), 0); err == nil {
 		t.Errorf("Expect error for invalid sample factor 0")
 	}
 	for i, ti := range tis {
 		for factor := 1; factor <= 8; factor *= 2 {
-			im, err := fastjpeg.DecodeDownsample(bytes.NewReader(ti.buf), factor)
+			im, err := DecodeDownsample(bytes.NewReader(ti.buf), factor)
 			if err != nil {
 				t.Errorf("%d: Sample factor %d failed: %v", i, factor, err)
 				continue
@@ -112,6 +114,8 @@ func TestDecodeDownsample(t *testing.T) {
 // It sets the environment variable CAMLI_DISABLE_DJPEG and spawns
 // a subprocess to simulate unavailability.
 func TestUnavailable(t *testing.T) {
+	checkAvailability = sync.Once{}
+	defer os.Setenv("CAMLI_DISABLE_DJPEG", "0")
 	if ok, _ := strconv.ParseBool(os.Getenv("CAMLI_DISABLE_DJPEG")); !ok {
 		os.Setenv("CAMLI_DISABLE_DJPEG", "1")
 		out, err := exec.Command(os.Args[0], "-test.v",
@@ -122,7 +126,7 @@ func TestUnavailable(t *testing.T) {
 		return
 	}
 
-	if fastjpeg.Available() {
+	if Available() {
 		t.Fatal("djpeg shouldn't be available when run with CAMLI_DISABLE_DJPEG set.")
 	}
 
@@ -130,12 +134,13 @@ func TestUnavailable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fastjpeg.DecodeDownsample(bytes.NewReader(tis[0].buf), 2); err != fastjpeg.ErrDjpegNotFound {
+	if _, err := DecodeDownsample(bytes.NewReader(tis[0].buf), 2); err != ErrDjpegNotFound {
 		t.Errorf("Wanted ErrDjpegNotFound, got %v", err)
 	}
 }
 
 func TestFailed(t *testing.T) {
+	checkAvailability = sync.Once{}
 	switch runtime.GOOS {
 	case "darwin", "freebsd", "linux":
 	default:
@@ -144,20 +149,27 @@ func TestFailed(t *testing.T) {
 	oldPath := os.Getenv("PATH")
 	defer os.Setenv("PATH", oldPath)
 	// Use djpeg that exits after calling false.
-	os.Setenv("PATH", "testdata")
+	newPath, err := filepath.Abs("testdata")
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Setenv("PATH", newPath)
+	t.Log("PATH", os.Getenv("PATH"))
+	t.Log(exec.LookPath("djpeg"))
 
 	tis, err := makeTestImages()
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = fastjpeg.DecodeDownsample(bytes.NewReader(tis[0].buf), 2)
-	if _, ok := err.(fastjpeg.DjpegFailedError); !ok {
-		t.Errorf("Got err type %T want ErrDjpegFailed, ", err)
+	_, err = DecodeDownsample(bytes.NewReader(tis[0].buf), 2)
+	if _, ok := err.(DjpegFailedError); !ok {
+		t.Errorf("Got err type %T want ErrDjpegFailed: %v", err, err)
 	}
 }
 
 func TestFactor(t *testing.T) {
-	if !fastjpeg.Available() {
+	checkAvailability = sync.Once{}
+	if !Available() {
 		t.Skip("djpeg isn't available.")
 	}
 
@@ -190,7 +202,7 @@ func TestFactor(t *testing.T) {
 		{width/8 - 1, height/8 - 1, 8},
 	}
 	for _, tc := range testCases {
-		if got := fastjpeg.Factor(width, height, tc.w, tc.h); got != tc.want {
+		if got := Factor(width, height, tc.w, tc.h); got != tc.want {
 			t.Errorf("%dx%d -> %dx%d got %d want %d", width, height,
 				tc.w, tc.h, got, tc.want)
 		}
