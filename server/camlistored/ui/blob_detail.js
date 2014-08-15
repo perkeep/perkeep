@@ -18,41 +18,29 @@ goog.provide('cam.BlobDetail');
 
 goog.require('cam.CacheBusterIframe');
 
-cam.BlobDetail.getAspect = function(baseURL, blobref, targetSearchSession) {
+cam.BlobDetail.getAspect = function(baseURL, onChildFrameClick, blobref, targetSearchSession) {
 	if(!targetSearchSession) {
 		return;
 	}
 
 	var m = targetSearchSession.getMeta(blobref);
-	if (m) {
-		return new cam.BlobDetail.Aspect(baseURL, blobref);
-	} else {
+	if (!m) {
 		return null;
 	}
-};
 
-cam.BlobDetail.Aspect = function(baseURL, blobref) {
-	this.baseURL_ = baseURL;
-	this.blobref_ = blobref;
-};
-
-cam.BlobDetail.Aspect.prototype.getFragment = function() {
-	return 'blob';
-};
-
-cam.BlobDetail.Aspect.prototype.getTitle = function() {
-	return 'Blob';
-};
-
-cam.BlobDetail.Aspect.prototype.createContent = function(size) {
-	var url = this.baseURL_.clone();
-	url.setParameterValue('b', this.blobref_);
-	url.removeParameter('p');
-	url.removeParameter('newui');
-	return cam.CacheBusterIframe({
-		height: size.height,
-		key: 'blob',
-		src: url,
-		width: size.width,
-	});
+	return {
+		fragment: 'blob',
+		title: 'Blob',
+		createContent: function(size) {
+			var url = baseURL.clone();
+			url.setParameterValue('b', blobref);
+			return cam.CacheBusterIframe({
+				height: size.height,
+				onChildFrameClick: onChildFrameClick,
+				key: 'blob',
+				src: url,
+				width: size.width,
+			});
+		},
+	};
 };
