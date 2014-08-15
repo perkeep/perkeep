@@ -13,7 +13,7 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && apt-get upgrade -y
 RUN apt-get install -y curl make git
 
-RUN curl -o /tmp/go.tar.gz https://go.googlecode.com/files/go1.2.linux-amd64.tar.gz
+RUN curl -o /tmp/go.tar.gz https://storage.googleapis.com/golang/go1.3.1.linux-amd64.tar.gz
 RUN tar -C /usr/local -zxvf /tmp/go.tar.gz
 RUN rm /tmp/go.tar.gz
 RUN /usr/local/go/bin/go version
