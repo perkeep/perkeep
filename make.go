@@ -515,7 +515,9 @@ func walkDir(src string, opts walkOpts) (maxMod time.Time, err error) {
 			}
 			return nil
 		}
-		if strings.HasPrefix(base, ".#") || !rxMirrored.MatchString(base) {
+		dir, _ := filepath.Split(path)
+		parent := filepath.Base(dir)
+		if (strings.HasPrefix(base, ".#") || !rxMirrored.MatchString(base)) && parent != "testdata" {
 			return nil
 		}
 		suffix, err := filepath.Rel(src, path)
