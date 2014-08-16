@@ -87,7 +87,7 @@ cam.IndexPage = React.createClass({
 		this.eh_ = new goog.events.EventHandler(this);
 
 		var newURL = new goog.Uri(this.props.location.href);
-		this.baseURL_ = newURL.resolve(new goog.Uri(CAMLISTORE_CONFIG.uiRoot));
+		this.baseURL_ = newURL.resolve(new goog.Uri(this.props.config.uiRoot));
 
 		this.navigator_ = new cam.Navigator(this.props.eventTarget, this.props.location, this.props.history);
 		this.navigator_.onNavigate = this.handleNavigate_;
@@ -96,7 +96,7 @@ cam.IndexPage = React.createClass({
 	},
 
 	componentDidMount: function() {
-		// TODO(aa): Brad says we can remove support for the old UI pages.
+		// TODO(aa): This supports some of the old iframed pages. We can remove it once they are dead.
 		goog.global.getSearchSession = function() {
 			return this.childSearchSession_;
 		}.bind(this);
@@ -335,6 +335,7 @@ cam.IndexPage = React.createClass({
 			{
 				currentSearch: query,
 				height: 38,
+				homeURL: this.baseURL_,
 				mainControls: aspects.map(function(val, idx) {
 					return React.DOM.a(
 						{
@@ -346,10 +347,10 @@ cam.IndexPage = React.createClass({
 						val.title
 					);
 				}, this),
-				onHome: this.handleHome_,
 				onNewPermanode: this.handleCreateSetWithSelection_,
 				onSearch: this.setSearch_,
-				onSearchRoots: this.handleShowSearchRoots_,
+				searchRootsURL: this.getSearchRootsURL_(),
+				syncStatusURL: this.baseURL_.resolve(new goog.Uri(this.props.config.statusRoot)),
 				ref: 'header',
 				subControls: [
 					this.getClearSelectionItem_(),
@@ -368,15 +369,18 @@ cam.IndexPage = React.createClass({
 		this.props.serverConnection.createPermanode(this.getDetailURL_.bind(this));
 	},
 
-	handleShowSearchRoots_: function() {
-		this.setSearch_(this.SEARCH_PREFIX_.RAW + ':' + JSON.stringify({
-			permanode: {
-				attr: 'camliRoot',
-				numValue: {
-					min: 1
+	getSearchRootsURL_: function() {
+		return this.baseURL_.clone().setParameterValue(
+			'q',
+			this.SEARCH_PREFIX_.RAW + ':' + JSON.stringify({
+				permanode: {
+					attr: 'camliRoot',
+					numValue: {
+						min: 1
+					}
 				}
-			}
-		}));
+			})
+		);
 	},
 
 	handleSelectAsCurrentSet_: function() {
@@ -386,10 +390,6 @@ cam.IndexPage = React.createClass({
 
 	handleAddToSet_: function() {
 		this.addMembersToSet_(this.currentSet_, goog.object.getKeys(this.state.selection));
-	},
-
-	handleHome_: function() {
-		this.navigator_.navigate(this.baseURL_);
 	},
 
 	handleCreateSetWithSelection_: function() {
@@ -584,10 +584,10 @@ cam.IndexPage = React.createClass({
 
 	refreshIfNecessary_: function() {
 		if (this.targetSearchSession_) {
-			this.targetSearchSession_.refreshIfNecessary_();
+			this.targetSearchSession_.refreshIfNecessary();
 		}
 		if (this.childSearchSession_) {
-			this.childSearchSession_.refreshIfNecessary_();
+			this.childSearchSession_.refreshIfNecessary();
 		}
 	},
 });

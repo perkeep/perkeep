@@ -69,6 +69,7 @@
 	cursor: default;
 	left: 0;
 	font-weight: 500;
+	min-width: 140px;
 	position: absolute;
 	top: 38px;
 	transition: -webkit-transform 100ms ease-out;
@@ -81,7 +82,10 @@
 	background: #3a3a3a;
 	border-top: 1px solid #666;
 	color: #eee;
+	cursor: pointer;
+	display: block;
 	padding: 10px 24px;
+	text-decoration: none;
 	transition: background-color 100ms ease-out;
 }
 

@@ -16,6 +16,8 @@ limitations under the License.
 
 goog.provide('cam.Header');
 
+goog.require('goog.Uri');
+
 goog.require('cam.reactUtil');
 goog.require('cam.SpritedImage');
 
@@ -37,13 +39,14 @@ cam.Header = React.createClass({
 	},
 
 	propTypes: {
+		homeURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		currentSearch: React.PropTypes.string,
 		height: React.PropTypes.number.isRequired,
 		mainControls: React.PropTypes.arrayOf(React.PropTypes.renderable),
-		onHome: React.PropTypes.func,
 		onNewPermanode: React.PropTypes.func,
 		onSearch: React.PropTypes.func,
-		onSearchRoots: React.PropTypes.func,
+		searchRootsURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
+		syncStatusURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		subControls: React.PropTypes.arrayOf(React.PropTypes.renderable),
 		timer: React.PropTypes.shape({setTimeout:React.PropTypes.func.isRequired, clearTimeout:React.PropTypes.func.isRequired}).isRequired,
 		width: React.PropTypes.number.isRequired,
@@ -183,13 +186,29 @@ cam.Header = React.createClass({
 					transform: 'translate3d(0, ' + this.getMenuTranslate_() + '%, 0)',
 				}),
 			},
-			this.getMenuItem_('Home', this.props.onHome),
-			this.getMenuItem_('New permanode', this.props.onNewPermanode),
-			this.getMenuItem_('Search roots', this.props.onSearchRoots)
+			this.getMenuItemLink_('Home', this.props.homeURL),
+
+			// TODO(aa): Create a new permanode UI that delays creating the permanode until the user confirms, then change this to a link to that UI.
+			// TODO(aa): Also I keep going back and forth about whether we should call this 'permanode' or 'set' in the UI. Hrm.
+			this.getMenuItemButton_('New set', this.props.onNewPermanode),
+
+			this.getMenuItemLink_('Search roots', this.props.searchRootsURL),
+			this.getMenuItemLink_('Sync status', this.props.syncStatusURL)
 		);
 	},
 
-	getMenuItem_: function(text, handler) {
+	getMenuItemLink_: function(text, link) {
+		return React.DOM.a(
+			{
+				className: 'cam-header-menu-item',
+				href: link.toString(),
+			},
+			text
+		);
+	},
+
+	// TODO(aa): All the menu items should ideally be links, so that you can right-click them and so-on.
+	getMenuItemButton_: function(text, handler) {
 		return React.DOM.div(
 			{
 				className: 'cam-header-menu-item',
@@ -246,7 +265,6 @@ cam.Header = React.createClass({
 	handleDropdownClick_: function(e) {
 		this.clearTimer_();
 		this.setState({menuVisible:false});
-		e.stopPropagation();
 	},
 
 	setTimer_: function(show) {
