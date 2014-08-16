@@ -33,7 +33,6 @@ goog.require('cam.BlobItemGenericContent');
 goog.require('cam.BlobItemImageContent');
 goog.require('cam.BlobItemTwitterContent');
 goog.require('cam.BlobItemVideoContent');
-goog.require('cam.ContainerDetail');
 goog.require('cam.DetailView');
 goog.require('cam.DirectoryDetail');
 goog.require('cam.Header');

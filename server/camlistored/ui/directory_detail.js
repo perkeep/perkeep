@@ -34,7 +34,7 @@ cam.DirectoryDetail.getAspect = function(baseURL, onChildFrameClick, blobref, ta
 		title: 'Directory',
 		createContent: function(size) {
 			var url = baseURL.clone();
-			url.setParameterValue('d', blobref);
+			url.setParameterValue('d', rm.blobRef);
 			return cam.CacheBusterIframe({
 				height: size.height,
 				onChildFrameClick: onChildFrameClick,
