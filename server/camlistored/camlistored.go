@@ -52,6 +52,7 @@ import (
 
 	// VM environments:
 	_ "camlistore.org/pkg/osutil/gce"
+	"camlistore.org/third_party/github.com/bradfitz/gce"
 
 	// Storage options:
 	_ "camlistore.org/pkg/blobserver/cond"
@@ -364,6 +365,12 @@ func listenAndBaseURL(config *serverinit.Config) (listen, baseURL string) {
 	return
 }
 
+func redirectFromHTTP(base string) {
+	http.ListenAndServe(":80", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, base, http.StatusFound)
+	}))
+}
+
 // main wraps Main so tests (which generate their own func main) can still run Main.
 func main() {
 	Main(nil, nil)
@@ -454,6 +461,10 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		}
 	}
 	log.Printf("Available on %s", urlToOpen)
+
+	if gce.OnGCE() && strings.HasPrefix(baseURL, "https://") {
+		go redirectFromHTTP(baseURL)
+	}
 
 	// Block forever, except during tests.
 	up <- struct{}{}
