@@ -33,7 +33,6 @@ goog.require('cam.BlobItemGenericContent');
 goog.require('cam.BlobItemImageContent');
 goog.require('cam.BlobItemTwitterContent');
 goog.require('cam.BlobItemVideoContent');
-goog.require('cam.ContainerDetail');
 goog.require('cam.DetailView');
 goog.require('cam.DirectoryDetail');
 goog.require('cam.Header');
@@ -120,7 +119,7 @@ cam.IndexPage = React.createClass({
 	render: function() {
 		var aspects = this.getAspects_();
 		var selectedAspect = goog.array.findIndex(aspects, function(v) {
-			return v.getFragment() == this.state.currentURL.getFragment();
+			return v.fragment == this.state.currentURL.getFragment();
 		}, this);
 
 		if (selectedAspect == -1) {
@@ -143,23 +142,29 @@ cam.IndexPage = React.createClass({
 		]);
 	},
 
+	getTargetBlobref_: function(opt_url) {
+		var url = opt_url || this.state.currentURL;
+		return url.getParameterValue('p') || url.getParameterValue('b') || url.getParameterValue('d');
+	},
+
 	getAspects_: function() {
+		var childFrameClickHandler = this.navigator_.navigate.bind(this.navigator_);
 		return [
 			this.getSearchAspect_,
 			cam.ImageDetail.getAspect,
-			cam.PermanodeDetail.getAspect.bind(null, this.state.currentURL),
-			cam.DirectoryDetail.getAspect.bind(null, this.state.currentURL),
-			cam.BlobDetail.getAspect.bind(null, this.state.currentURL),
+			cam.PermanodeDetail.getAspect.bind(null, this.baseURL_, childFrameClickHandler),
+			cam.DirectoryDetail.getAspect.bind(null, this.baseURL_, childFrameClickHandler),
+			cam.BlobDetail.getAspect.bind(null, this.baseURL_, childFrameClickHandler),
 		].map(function(f) {
-			return f(this.state.currentURL.getParameterValue('p'), this.targetSearchSession_);
+			return f(this.getTargetBlobref_(), this.targetSearchSession_);
 		}, this).filter(goog.functions.identity);
 	},
 
 	getSearchAspect_: function(blobref, targetSearchSession_) {
 		if (this.childSearchSession_ && this.childSearchSession_.getCurrentResults().blobs.length) {
 			return {
-				getTitle: function() { return blobref ? 'Contents' : 'Search' },
-				getFragment: function() { return blobref ? 'contents': 'search' },
+				title: blobref ? 'Contents' : 'Search',
+				fragment: blobref ? 'contents': 'search',
 				createContent: this.getBlobItemContainer_.bind(this),
 			};
 		} else {
@@ -227,8 +232,9 @@ cam.IndexPage = React.createClass({
 			return false;
 		}
 
-		this.updateTargetSearchSession_(newURL);
-		this.updateChildSearchSession_(newURL);
+		var targetBlobref = this.getTargetBlobref_(newURL);
+		this.updateTargetSearchSession_(targetBlobref);
+		this.updateChildSearchSession_(targetBlobref, newURL);
 		this.pruneSearchSessionCache_();
 		this.setState({
 			currentURL: newURL,
@@ -237,16 +243,15 @@ cam.IndexPage = React.createClass({
 		return true;
 	},
 
-	updateTargetSearchSession_: function(newURL) {
-		var permanode = newURL.getParameterValue('p');
-		if (permanode) {
-			this.targetSearchSession_ = this.getSearchSession_(permanode, {blobRefPrefix:permanode});
+	updateTargetSearchSession_: function(targetBlobref) {
+		if (targetBlobref) {
+			this.targetSearchSession_ = this.getSearchSession_(targetBlobref, {blobRefPrefix: targetBlobref});
 		} else {
 			this.targetSearchSession_ = null;
 		}
 	},
 
-	updateChildSearchSession_: function(newURL) {
+	updateChildSearchSession_: function(targetBlobref, newURL) {
 		var permanode = newURL.getParameterValue('p');
 		var query = newURL.getParameterValue('q');
 
@@ -264,7 +269,7 @@ cam.IndexPage = React.createClass({
 			if (goog.string.startsWith(query, this.SEARCH_PREFIX_.RAW + ':')) {
 				query = JSON.parse(query.substring(this.SEARCH_PREFIX_.RAW.length + 1));
 			}
-		} else {
+		} else if (!targetBlobref) {
 			query = ' ';
 		}
 
@@ -318,10 +323,10 @@ cam.IndexPage = React.createClass({
 		}
 
 		// TODO(aa): It would be cool to normalize the query and single target case, by supporting searches like is:<blobref>, that way we can always show something in the searchbox, even when we're not in a listview.
-		var permanode = this.state.currentURL.getParameterValue('p');
+		var target = this.getTargetBlobref_();
 		var query = '';
-		if (permanode) {
-			query = 'ref:' + permanode;
+		if (target) {
+			query = 'ref:' + target;
 		} else {
 			query = this.state.currentURL.getParameterValue('q') || '';
 		}
@@ -336,9 +341,9 @@ cam.IndexPage = React.createClass({
 							className: React.addons.classSet({
 								'cam-header-main-control-active': idx == selectedAspectIndex,
 							}),
-							href: this.state.currentURL.clone().setFragment(val.getFragment()).toString(),
+							href: this.state.currentURL.clone().setFragment(val.fragment).toString(),
 						},
-						val.getTitle()
+						val.title
 					);
 				}, this),
 				onHome: this.handleHome_,

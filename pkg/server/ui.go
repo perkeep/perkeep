@@ -398,13 +398,7 @@ func wantsUploadHelper(req *http.Request) bool {
 }
 
 func wantsPermanode(req *http.Request) bool {
-	if httputil.IsGet(req) && blob.ValidRefString(req.FormValue("p")) {
-		// The new UI is handled by index.html.
-		if req.FormValue("newui") != "1" {
-			return true
-		}
-	}
-	return false
+	return httputil.IsGet(req) && blob.ValidRefString(req.FormValue("p"))
 }
 
 func wantsBlobInfo(req *http.Request) bool {
@@ -454,6 +448,8 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			file = m[1]
 		} else {
 			switch {
+			case req.FormValue("newui") == "1":
+				file = "index.html"
 			case wantsPermanode(req):
 				file = "permanode.html"
 			case wantsBlobInfo(req):

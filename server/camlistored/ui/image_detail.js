@@ -161,32 +161,23 @@ cam.ImageDetail.getAspect = function(blobref, searchSession) {
 		pm = null;
 	}
 
-	return rm && (rm.image || cam.BlobItemVideoContent.isVideo(rm)) ? new cam.ImageDetail.Aspect(rm, pm) : null;
-
 	// We don't handle camliContentImage like BlobItemImage.getHandler does because that only tells us what image to display in the search results. It doesn't actually make the permanode an image or anything.
-};
-
-cam.ImageDetail.Aspect = function(resolvedMeta, permanodeMeta) {
-	this.resolvedMeta_ = resolvedMeta;
-	this.permanodeMeta_ = permanodeMeta;
-};
-
-cam.ImageDetail.Aspect.prototype.getFragment = function() {
-	return 'image';
-};
-
-cam.ImageDetail.Aspect.prototype.getTitle = function() {
-	return 'Image';
-};
-
-// TODO(aa): Piggy should move into cam.Detail and use an onload handler to turn on/off.
-cam.ImageDetail.Aspect.prototype.createContent = function(size, backwardPiggy) {
-	return cam.ImageDetail({
-		backwardPiggy: backwardPiggy,
-		key: 'image',
-		height: size.height,
-		permanodeMeta: this.permanodeMeta_,
-		resolvedMeta: this.resolvedMeta_,
-		width: size.width,
-	});
+	if (rm && (rm.image || cam.BlobItemVideoContent.isVideo(rm))) {
+		return {
+			fragment: 'image',
+			title: 'Image',
+			createContent: function(size) {
+				return cam.ImageDetail({
+					backwardPiggy: false,
+					key: 'image',
+					height: size.height,
+					permanodeMeta: pm,
+					resolvedMeta: rm,
+					width: size.width,
+				});
+			},
+		};
+	} else {
+		return null;
+	}
 };

@@ -18,38 +18,29 @@ goog.provide('cam.DirectoryDetail');
 
 goog.require('cam.CacheBusterIframe');
 
-cam.DirectoryDetail.getAspect = function(baseURL, blobref, targetSearchSession) {
+// TODO(aa): Rename file.
+cam.DirectoryDetail.getAspect = function(baseURL, onChildFrameClick, blobref, targetSearchSession) {
 	if (!targetSearchSession) {
 		return;
 	}
 
 	var rm = targetSearchSession.getResolvedMeta(blobref);
-	if (rm && rm.camliType == 'directory') {
-		return new cam.DirectoryDetail.Aspect(baseURL, rm.blobRef);
-	} else {
+	if (!rm || rm.camliType != 'directory') {
 		return null;
 	}
-};
 
-cam.DirectoryDetail.Aspect = function(baseURL, blobref) {
-	this.baseURL_ = baseURL;
-	this.blobref_ = blobref;
-};
-
-cam.DirectoryDetail.Aspect.prototype.getFragment = function() {
-	return 'directory';
-};
-
-cam.DirectoryDetail.Aspect.prototype.getTitle = function() {
-	return 'Directory';
-};
-
-cam.DirectoryDetail.Aspect.prototype.createContent = function(size) {
-	var url = this.baseURL_.clone();
-	url.setParameterValue('d', this.blobref_);
-	return cam.CacheBusterIframe({
-		height: size.height,
-		src: url,
-		width: size.width,
-	});
+	return {
+		fragment: 'directory',
+		title: 'Directory',
+		createContent: function(size) {
+			var url = baseURL.clone();
+			url.setParameterValue('d', rm.blobRef);
+			return cam.CacheBusterIframe({
+				height: size.height,
+				onChildFrameClick: onChildFrameClick,
+				src: url,
+				width: size.width,
+			});
+		},
+	};
 };

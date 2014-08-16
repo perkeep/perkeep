@@ -192,7 +192,7 @@ cam.PermanodePage.prototype.handleDescribeBlob_ = function(permanode, searchResp
 			goog.dom.setTextContent(mountTip, tip);
 			goog.dom.appendChild(mountTip, goog.dom.createDom("br"));
 			var codeTip = goog.dom.createDom("code");
-			goog.dom.setTextContent(codeTip, "$ cammount /some/mountpoint " + blobitem.blobRef_);
+			goog.dom.setTextContent(codeTip, "$ cammount /some/mountpoint " + blobItem.blobRef_);
 			goog.dom.appendChild(mountTip, codeTip);
 		}
 	}
