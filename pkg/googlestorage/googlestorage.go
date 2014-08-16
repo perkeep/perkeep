@@ -20,15 +20,18 @@ limitations under the License.
 package googlestorage
 
 import (
+	"bytes"
 	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
@@ -206,22 +209,33 @@ func (gsa *Client) StatObject(obj *Object) (size int64, exists bool, err error) 
 // shouldRetry will be true if the put failed due to authorization, but
 // credentials have been refreshed and another attempt is likely to succeed.
 // In this case, content will have been consumed.
-func (gsa *Client) PutObject(obj *Object, content io.ReadCloser) (shouldRetry bool, err error) {
+func (gsa *Client) PutObject(obj *Object, content io.Reader) (shouldRetry bool, err error) {
 	if err := obj.valid(); err != nil {
 		return false, err
 	}
+	const maxSlurp = 2 << 20
+	var buf bytes.Buffer
+	n, err := io.CopyN(&buf, content, maxSlurp)
+	if err != nil && err != io.EOF {
+		return false, err
+	}
+	contentType := http.DetectContentType(buf.Bytes())
+	if contentType == "application/octet-stream" && n < maxSlurp && utf8.Valid(buf.Bytes()) {
+		contentType = "text/plain; charset=utf-8"
+	}
+
 	objURL := gsAccessURL + "/" + obj.Bucket + "/" + obj.Key
 	var req *http.Request
-	if req, err = http.NewRequest("PUT", objURL, content); err != nil {
+	if req, err = http.NewRequest("PUT", objURL, ioutil.NopCloser(io.MultiReader(&buf, content))); err != nil {
 		return
 	}
 	req.Header.Set("x-goog-api-version", "2")
+	req.Header.Set("Content-Type", contentType)
 
 	var resp *http.Response
 	if resp, err, shouldRetry = gsa.doRequest(req, false); err != nil {
 		return
 	}
-	resp.Body.Close() // should be empty
 
 	if resp.StatusCode != http.StatusOK {
 		return shouldRetry, fmt.Errorf("Bad put response code: %v", resp.Status)
