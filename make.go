@@ -60,6 +60,7 @@ var (
 	ifModsSince    = flag.Int64("if_mods_since", 0, "If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
 	buildARCH      = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
 	buildOS        = flag.String("os", runtime.GOOS, "Operating system to build for.")
+	dockerMode     = flag.Bool("docker_camlistored", false, "If true, only build camlistored suitable for a Linux Docker image.")
 )
 
 var (
@@ -78,6 +79,17 @@ func main() {
 	flag.Parse()
 
 	verifyGoVersion()
+
+	if *dockerMode {
+		if *sqlFlag != "auto" || *targets != "" {
+			log.Fatalf("Incompatible set of flags with --docker_camlistored")
+		}
+		*targets = "camlistore.org/server/camlistored"
+		*buildOS = "linux"
+		*buildARCH = "amd64"
+		*sqlFlag = "false"
+		*all = true
+	}
 
 	sql := withSQLite()
 	if useEnvGoPath, _ := strconv.ParseBool(os.Getenv("CAMLI_MAKE_USEGOPATH")); useEnvGoPath {
@@ -170,9 +182,12 @@ func main() {
 	if *race {
 		baseArgs = append(baseArgs, "-race")
 	}
-	baseArgs = append(baseArgs,
-		"--ldflags=-X camlistore.org/pkg/buildinfo.GitInfo "+version,
-		"--tags="+tags)
+	ldFlags := "-X camlistore.org/pkg/buildinfo.GitInfo " + version
+	if *dockerMode {
+		tags = "netgo"
+		ldFlags = "-w " + ldFlags
+	}
+	baseArgs = append(baseArgs, "--ldflags="+ldFlags, "--tags="+tags)
 
 	// First install command: build just the final binaries, installed to a GOBIN
 	// under <camlistore_root>/bin:
@@ -191,6 +206,12 @@ func main() {
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
 	)
+	if *dockerMode {
+		cmd.Env = append(cmd.Env,
+			"GOBIN="+filepath.Join(camRoot, "misc", "docker", "camlistored"),
+			"CGO_ENABLED=0",
+		)
+	}
 	var output bytes.Buffer
 	if *quiet {
 		cmd.Stdout = &output
@@ -204,6 +225,10 @@ func main() {
 	}
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error building main binaries: %v\n%s", err, output.String())
+	}
+	if *dockerMode {
+		log.Printf("Wrote docker camlistored binary to misc/docker/camlistored")
+		return
 	}
 
 	// Copy the binaries from $CAMROOT/tmp/build-gopath-foo/bin to $CAMROOT/bin.

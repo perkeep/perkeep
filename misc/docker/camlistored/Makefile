@@ -1,8 +1,10 @@
 docker: Dockerfile camlistored
 	docker build -t camlistore/camlistored .
 
+.PHONY: camlistored
+
 camlistored:
-	CGO_ENABLED=0 GOOS=linux go build -a -tags netgo -ldflags '-w' -o camlistored camlistore.org/server/camlistored
+	(cd ../../../; go run make.go --docker_camlistored)
 
 push: docker
 	docker push camlistore/camlistored
