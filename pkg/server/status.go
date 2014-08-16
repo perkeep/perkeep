@@ -74,9 +74,15 @@ type status struct {
 	Sync       map[string]syncStatus    `json:"sync"`
 	Storage    map[string]storageStatus `json:"storage"`
 	rootPrefix string
+
+	ImporterRoot     string      `json:"importerRoot"`
+	ImporterAccounts interface{} `json:"importerAccounts"`
 }
 
 func (st *status) isHandler(pfx string) bool {
+	if pfx == st.ImporterRoot {
+		return true
+	}
 	if _, ok := st.Sync[pfx]; ok {
 		return true
 	}
@@ -108,6 +114,14 @@ func (sh *StatusHandler) currentStatus() *status {
 	}
 	rh := hi.(*RootHandler)
 	res.rootPrefix = rh.Prefix
+
+	if pfx, h, err := sh.handlerFinder.FindHandlerByType("importer"); err == nil {
+		res.ImporterRoot = pfx
+		as := h.(interface {
+			AccountsStatus() interface{}
+		})
+		res.ImporterAccounts = as.AccountsStatus()
+	}
 
 	types, handlers := sh.handlerFinder.AllHandlers()
 
@@ -151,7 +165,6 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 	f("<html><head><title>Status</title></head>")
 	f("<body><h2>Status</h2>")
 	f("<p>As JSON: <a href='status.json'>status.json</a>; and the <a href='%s?camli.mode=config'>discovery JSON</a>.</p>", st.rootPrefix)
-	f("<p>TODO: not yet integrated into status:</p><ul><li><a href='/importer/'>Importers</a></li></ul>")
 	f("<p>Not yet pretty HTML UI:</p>")
 	js, err := json.MarshalIndent(st, "", "  ")
 	if err != nil {

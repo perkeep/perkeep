@@ -338,6 +338,50 @@ type Host struct {
 	transport http.RoundTripper
 }
 
+// accountStatus is the JSON representation of the status of a configured importer account.
+type accountStatus struct {
+	Name string `json:"name"` // display name
+	Type string `json:"type"`
+	Href string `json:"href"`
+
+	StartedUnixSec      int64  `json:"startedUnixSec"`  // zero if not running
+	LastFinishedUnixSec int64  `json:"finishedUnixSec"` // zero if no previous run
+	LastError           string `json:"lastRunError"`    // empty if last run was success
+}
+
+// AccountsStatus returns the currently configured accounts and their status for
+// inclusion in the status.json document, as rendered by the web UI.
+func (h *Host) AccountsStatus() interface{} {
+	var s []accountStatus
+	for _, impName := range h.importers {
+		imp := h.imp[impName]
+		accts, _ := imp.Accounts()
+		for _, ia := range accts {
+			as := accountStatus{
+				Type: impName,
+				Href: ia.AccountURL(),
+				Name: ia.AccountLinkSummary(),
+			}
+			ia.mu.Lock()
+			if ia.current != nil {
+				as.StartedUnixSec = ia.lastRunStart.Unix()
+			}
+			if !ia.lastRunDone.IsZero() {
+				as.LastFinishedUnixSec = ia.lastRunDone.Unix()
+			}
+			if ia.lastRunErr != nil {
+				as.LastError = ia.lastRunErr.Error()
+			}
+			ia.mu.Unlock()
+			s = append(s, as)
+		}
+	}
+	s = append(s, accountStatus{
+		Name: "hi",
+	})
+	return s
+}
+
 func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
 	if prefix, _, err := hl.FindHandlerByType("ui"); err == nil {
 		h.uiPrefix = prefix
@@ -771,6 +815,7 @@ func (im *importer) addAccountLocked(ia *importerAcct) {
 func (im *importer) Accounts() ([]*importerAcct, error) {
 	var accts []*importerAcct
 
+	// TODO: cache this search. invalidate when new accounts are made.
 	res, err := im.host.search.Query(&search.SearchQuery{
 		Expression: fmt.Sprintf("attr:%s:%s attr:%s:%s",
 			attrNodeType, nodeTypeImporterAccount,
