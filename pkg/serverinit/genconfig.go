@@ -724,28 +724,12 @@ func WriteDefaultConfigFile(filePath string, useSQLite bool) error {
 		conf.KVFile = filepath.Join(osutil.CamliVarDir(), "camli-index.kvdb")
 	}
 
-	var keyId string
-	secRing := osutil.SecretRingFile()
-	_, err := wkfs.Stat(secRing)
-	switch {
-	case err == nil:
-		keyId, err = jsonsign.KeyIdFromRing(secRing)
-		if err != nil {
-			return fmt.Errorf("Could not find any keyId in file %q: %v", secRing, err)
-		}
-		log.Printf("Re-using identity with keyId %q found in file %s", keyId, secRing)
-	case os.IsNotExist(err):
-		keyId, err = jsonsign.GenerateNewSecRing(secRing)
-		if err != nil {
-			return fmt.Errorf("Could not generate new secRing at file %q: %v", secRing, err)
-		}
-		log.Printf("Generated new identity with keyId %q in file %s", keyId, secRing)
-	}
+	keyID, secretRing, err := getOrMakeKeyring()
 	if err != nil {
-		return fmt.Errorf("Could not stat secret ring %q: %v", secRing, err)
+		return err
 	}
-	conf.Identity = keyId
-	conf.IdentitySecretRing = secRing
+	conf.Identity = keyID
+	conf.IdentitySecretRing = secretRing
 
 	confData, err := json.MarshalIndent(conf, "", "    ")
 	if err != nil {
@@ -757,4 +741,28 @@ func WriteDefaultConfigFile(filePath string, useSQLite bool) error {
 	}
 
 	return nil
+}
+
+func getOrMakeKeyring() (keyID, secRing string, err error) {
+	secRing = osutil.SecretRingFile()
+	_, err = wkfs.Stat(secRing)
+	switch {
+	case err == nil:
+		keyID, err = jsonsign.KeyIdFromRing(secRing)
+		if err != nil {
+			err = fmt.Errorf("Could not find any keyID in file %q: %v", secRing, err)
+			return
+		}
+		log.Printf("Re-using identity with keyID %q found in file %s", keyID, secRing)
+	case os.IsNotExist(err):
+		keyID, err = jsonsign.GenerateNewSecRing(secRing)
+		if err != nil {
+			err = fmt.Errorf("Could not generate new secRing at file %q: %v", secRing, err)
+			return
+		}
+		log.Printf("Generated new identity with keyID %q in file %s", keyID, secRing)
+	default:
+		err = fmt.Errorf("Could not stat secret ring %q: %v", secRing, err)
+	}
+	return
 }
