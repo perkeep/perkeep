@@ -17,7 +17,6 @@ limitations under the License.
 package serverinit
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -36,13 +35,13 @@ func DefaultEnvConfig() (*Config, error) {
 	auth := "none"
 	user, _ := gce.InstanceAttributeValue("camlistore-username")
 	pass, _ := gce.InstanceAttributeValue("camlistore-password")
-	confBucket, _ := gce.InstanceAttributeValue("camlistore-config-bucket")
-	blobBucket, _ := gce.InstanceAttributeValue("camlistore-blob-bucket")
-	if confBucket == "" {
-		return nil, errors.New("VM instance metadata key 'camlistore-config-bucket' not set.")
+	confBucket, err := gce.InstanceAttributeValue("camlistore-config-bucket")
+	if confBucket == "" || err != nil {
+		return nil, fmt.Errorf("VM instance metadata key 'camlistore-config-bucket' not set: %v", err)
 	}
-	if blobBucket == "" {
-		return nil, errors.New("VM instance metadata key 'camlistore-blob-bucket' not set.")
+	blobBucket, err := gce.InstanceAttributeValue("camlistore-blob-bucket")
+	if blobBucket == "" || err != nil {
+		return nil, fmt.Errorf("VM instance metadata key 'camlistore-blob-bucket' not set: %v", err)
 	}
 	if user != "" && pass != "" {
 		auth = "userpass:" + user + ":" + pass
@@ -56,8 +55,15 @@ func DefaultEnvConfig() (*Config, error) {
 		return nil, err
 	}
 
+	ipOrHost, _ := gce.ExternalIP()
+	host, _ := gce.InstanceAttributeValue("camlistore-hostname")
+	if host != "" {
+		ipOrHost = host
+	}
+
 	return genLowLevelConfig(&serverconfig.Config{
 		Auth:               auth,
+		BaseURL:            fmt.Sprintf("https://%s", ipOrHost),
 		HTTPS:              true,
 		Listen:             "0.0.0.0:443",
 		Identity:           keyId,
