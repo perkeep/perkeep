@@ -193,7 +193,7 @@ cam.Header = React.createClass({
 			this.getMenuItemButton_('New set', this.props.onNewPermanode),
 
 			this.getMenuItemLink_('Search roots', this.props.searchRootsURL),
-			this.getMenuItemLink_('Sync status', this.props.syncStatusURL)
+			this.getMenuItemLink_('Server status', this.props.syncStatusURL)
 		);
 	},
 
