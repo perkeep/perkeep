@@ -18,17 +18,24 @@ goog.provide('cam.CacheBusterIframe');
 
 goog.require('goog.Uri');
 
+goog.require('cam.Navigator');
+
 // Reload/shift-reload doesn't actually reload iframes from server in Chrome.
 // We should implement content stamping, but for now, this is a workaround.
 cam.CacheBusterIframe = React.createClass({
 	propTypes: {
 		height: React.PropTypes.number.isRequired,
+		onChildFrameClick: React.PropTypes.func,
 		src: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		width: React.PropTypes.number.isRequired,
 	},
 
 	componentDidMount: function() {
-		this.getDOMNode().contentWindow.addEventListener('DOMContentLoaded', this.updateSize_);
+		this.getDOMNode().contentWindow.addEventListener('DOMContentLoaded', this.handleDOMContentLoaded_);
+	},
+
+	componentDidUpdate: function() {
+		this.componentDidMount();
 	},
 
 	getInitialState: function() {
@@ -51,13 +58,49 @@ cam.CacheBusterIframe = React.createClass({
 		});
 	},
 
+	handleDOMContentLoaded_: function() {
+		this.updateSize_();
+		if (this.props.onChildFrameClick) {
+			this.getDOMNode().contentWindow.addEventListener('click', this.handleChildFrameClick_);
+		}
+	},
+
+	handleChildFrameClick_: function(e) {
+		var elm = cam.Navigator.shouldHandleClick(e);
+		if (!elm) {
+			return;
+		}
+
+		var oldURL = new goog.Uri(e.target.href);
+		var newURL = oldURL.clone();
+		if (newURL.getParameterValue('newui') != 1) {
+			newURL = newURL.clone();
+			newURL.setParameterValue('newui', '1');
+			if (newURL.getParameterValue('b')) {
+				newURL.setFragment('blob');
+			}
+		}
+
+		try {
+			if (this.props.onChildFrameClick(newURL)) {
+				e.preventDefault();
+			}
+		} catch (ex) {
+			e.preventDefault();
+			throw ex;
+		}
+	},
+
 	updateSize_: function() {
 		if (!this.isMounted()) {
 			return;
 		}
 
-		this.getDOMNode().contentDocument.body.style.overflowY = 'hidden';
-		this.setState({height: this.getDOMNode().contentDocument.documentElement.offsetHeight });
+		var node = this.getDOMNode();
+		if (node && node.contentDocument && node.contentDocument.body) {
+			node.contentDocument.body.style.overflowY = 'hidden';
+			this.setState({height: node.contentDocument.documentElement.offsetHeight });
+		}
 		window.setTimeout(this.updateSize_, 200);
 	},
 });

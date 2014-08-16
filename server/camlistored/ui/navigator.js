@@ -34,6 +34,26 @@ cam.Navigator = function(win, location, history) {
 	this.win_.addEventListener('popstate', this.handlePopState_.bind(this));
 };
 
+cam.Navigator.shouldHandleClick = function(e) {
+	// We are conservative and only try to handle left clicks that are unmodified.
+	// For any other kind of click, assume that something fancy (e.g., context menu, open in new tab, etc) is about to happen and let whatever it happen as normal.
+	if (e.button != 0 || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) {
+		return null;
+	}
+
+	for (var elm = e.target; ; elm = elm.parentElement) {
+		if (!elm) {
+			return null;
+		}
+		if (elm.nodeName == 'A' && elm.href) {
+			return elm;
+		}
+	}
+
+	throw new Error('Should never get here');
+	return null;
+};
+
 // Client should set this to handle navigation.
 // If this method returns true, then Navigator considers the navigation handled locally, and will add an entry to history using pushState(). If this method returns false, Navigator lets the navigation fall through to the browser.
 // @param goog.Uri newURL The URL to navigate to. At this point location.href has already been updated - this is just the parsed representation.
@@ -42,29 +62,22 @@ cam.Navigator.prototype.onNavigate = function(newURL) {};
 
 // Programmatically initiate a navigation to a URL. Useful for triggering navigations from things other than hyperlinks.
 // @param goog.Uri url The URL to navigate to.
+// @return boolean Whether the navigation was handled locally.
 cam.Navigator.prototype.navigate = function(url) {
 	if (this.dispatchImpl_(url, true)) {
-		return;
+		return false;
 	}
 	this.location_.href = url.toString();
+	return true;
 };
 
 // Handles navigations initiated via clicking a hyperlink.
 cam.Navigator.prototype.handleClick_ = function(e) {
-	// We are conservative and only try to handle left clicks that are unmodified.
-	// For any other kind of click, assume that something fancy (e.g., context menu, open in new tab, etc) is about to happen and let whatever it happen as normal.
-	if (e.button != 0 || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) {
+	var elm = cam.Navigator.shouldHandleClick(e);
+	if (!elm) {
 		return;
 	}
 
-	for (var elm = e.target; ; elm = elm.parentElement) {
-		if (!elm) {
-			return;
-		}
-		if (elm.nodeName == 'A' && elm.href) {
-			break;
-		}
-	}
 	try {
 		if (this.dispatchImpl_(new goog.Uri(elm.href), true)) {
 			e.preventDefault();
