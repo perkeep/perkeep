@@ -41,6 +41,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/buildinfo"
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/legal/legalprint"
 	"camlistore.org/pkg/misc"
 	"camlistore.org/pkg/netutil"
@@ -385,6 +386,13 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 
 	shutdownc := make(chan io.Closer, 1) // receives io.Closer to cleanly shut down
 	go handleSignals(shutdownc)
+
+	// In case we're running in a Docker container with no
+	// filesytem from which to load the root CAs, this
+	// conditionally installs a static set if necessary. We do
+	// this before we load the config file, which might come from
+	// an https URL.
+	httputil.InstallCerts()
 
 	config, isNewConfig, err := loadConfig(*flagConfigFile)
 	if err != nil {
