@@ -127,7 +127,7 @@ func exitf(pattern string, args ...interface{}) {
 // 2) is satisfied by doing our own checks,
 // See pkg/client
 func genSelfTLS(listen string) error {
-	priv, err := rsa.GenerateKey(rand.Reader, 1024)
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return fmt.Errorf("failed to generate private key: %s", err)
 	}
