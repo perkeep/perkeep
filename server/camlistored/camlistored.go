@@ -236,7 +236,7 @@ func loadConfig(arg string) (conf *serverinit.Config, isNewConfig bool, err erro
 				return
 			}
 			conf, err = serverinit.DefaultEnvConfig()
-			if err == nil && conf != nil {
+			if err != nil || conf != nil {
 				return
 			}
 			err = wkfs.MkdirAll(osutil.CamliConfigDir(), 0700)
