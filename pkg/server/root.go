@@ -71,10 +71,7 @@ func init() {
 }
 
 func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
-	username, err := getUserName()
-	if err != nil {
-		return
-	}
+	username, _ := getUserName()
 	root := &RootHandler{
 		BlobRoot:   conf.OptionalString("blobRoot", ""),
 		SearchRoot: conf.OptionalString("searchRoot", ""),
