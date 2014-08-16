@@ -3,22 +3,26 @@ package main
 import (
 	"bufio"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 	compute "camlistore.org/third_party/code.google.com/p/google-api-go-client/compute/v1"
+	storage "camlistore.org/third_party/code.google.com/p/google-api-go-client/storage/v1"
 )
 
 var (
-	projFlag     = flag.String("project", "", "name of Project")
-	zoneFlag     = flag.String("zone", "us-central1-a", "GCE zone")
-	machFlag     = flag.String("machinetype", "g1-small", "e.g. n1-standard-1, f1-micro, g1-small")
-	instanceFlag = flag.String("instance_name", "camlistore-server", "Name of VM instance.")
+	proj     = flag.String("project", "", "name of Project")
+	zone     = flag.String("zone", "us-central1-a", "GCE zone")
+	mach     = flag.String("machinetype", "g1-small", "e.g. n1-standard-1, f1-micro, g1-small")
+	instance = flag.String("instance_name", "camlistore-server", "Name of VM instance.")
+	sshPub   = flag.String("ssh_public_key", "", "ssh public key file to authorize. Can modify later in Google's web UI anyway.")
 )
 
 func readFile(v string) string {
@@ -47,16 +51,40 @@ var config = &oauth.Config{
 
 func main() {
 	flag.Parse()
-	if *projFlag == "" {
+	if *proj == "" {
 		log.Fatalf("Missing --project flag")
 	}
-	proj := *projFlag
-	prefix := "https://www.googleapis.com/compute/v1/projects/" + proj
+	prefix := "https://www.googleapis.com/compute/v1/projects/" + *proj
 	imageURL := "https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-alpha-402-2-0-v20140807"
-	machType := prefix + "/zones/" + *zoneFlag + "/machineTypes/" + *machFlag
+	machType := prefix + "/zones/" + *zone + "/machineTypes/" + *mach
 
 	tr := &oauth.Transport{
 		Config: config,
+	}
+
+	cloudConfig := `#cloud-config
+coreos:
+  units:
+    - name: camlistored.service
+      command: start
+      content: |
+        [Unit]
+        Description=Camlistore
+        After=docker.service
+        Requires=docker.service
+        
+        [Service]
+        ExecStart=/usr/bin/docker run -p 80:80 -p 443:443 camlistore/camlistored
+        RestartSec=500ms
+        Restart=always
+        
+        [Install]
+        WantedBy=multi-user.target
+`
+
+	if *sshPub != "" {
+		key := strings.TrimSpace(readFile(*sshPub))
+		cloudConfig += fmt.Sprintf("\nssh_authorized_keys:\n    - %s\n", key)
 	}
 
 	tokenCache := oauth.CacheFile("token.dat")
@@ -76,10 +104,47 @@ func main() {
 	}
 
 	tr.Token = token
-	service, _ := compute.New(&http.Client{Transport: tr})
+	computeService, _ := compute.New(&http.Client{Transport: tr})
+	storageService, _ := storage.New(&http.Client{Transport: tr})
+
+	blobBucket := *proj + "-camlistore-blobs"
+	configBucket := *proj + "-camlistore-config"
+	needBucket := map[string]bool{
+		blobBucket:   true,
+		configBucket: true,
+	}
+
+	buckets, err := storageService.Buckets.List(*proj).Do()
+	if err != nil {
+		log.Fatalf("Error listing buckets: %v", err)
+	}
+	for _, it := range buckets.Items {
+		delete(needBucket, it.Name)
+	}
+	if len(needBucket) > 0 {
+		log.Printf("Need to create buckets: %v", needBucket)
+		var waitBucket sync.WaitGroup
+		for name := range needBucket {
+			name := name
+			waitBucket.Add(1)
+			go func() {
+				defer waitBucket.Done()
+				log.Printf("Creating bucket %s", name)
+				b, err := storageService.Buckets.Insert(*proj, &storage.Bucket{
+					Id:   name,
+					Name: name,
+				}).Do()
+				if err != nil {
+					log.Fatalf("Error creating bucket %s: %v", name, err)
+				}
+				log.Printf("Created bucket %s: %+v", name, b)
+			}()
+		}
+		waitBucket.Wait()
+	}
 
 	instance := &compute.Instance{
-		Name:        *instanceFlag,
+		Name:        *instance,
 		Description: "Camlistore server",
 		MachineType: machType,
 		Disks: []*compute.AttachedDisk{
@@ -90,6 +155,33 @@ func main() {
 				InitializeParams: &compute.AttachedDiskInitializeParams{
 					DiskName:    "camlistore-coreos-stateless-pd",
 					SourceImage: imageURL,
+				},
+			},
+		},
+		Tags: &compute.Tags{
+			Items: []string{"http-server", "https-server"},
+		},
+		Metadata: &compute.Metadata{
+			Items: []*compute.MetadataItems{
+				{
+					Key:   "camlistore-username",
+					Value: "test",
+				},
+				{
+					Key:   "camlistore-password",
+					Value: "insecure", // TODO: this won't be cleartext later
+				},
+				{
+					Key:   "camlistore-blob-bucket",
+					Value: "gs://" + blobBucket,
+				},
+				{
+					Key:   "camlistore-config-bucket",
+					Value: "gs://" + configBucket,
+				},
+				{
+					Key:   "user-data",
+					Value: cloudConfig,
 				},
 			},
 		},
@@ -129,19 +221,23 @@ func main() {
 		})
 	}
 
-	op, err := service.Instances.Insert(*projFlag, *zoneFlag, instance).Do()
+	log.Printf("Creating instance...")
+	op, err := computeService.Instances.Insert(*proj, *zone, instance).Do()
 	if err != nil {
 		log.Fatalf("Failed to create instance: %v", err)
 	}
 	opName := op.Name
+	log.Printf("Created. Waiting on operation %v", opName)
 	for {
-		op, err := service.ZoneOperations.Get(*projFlag, *zoneFlag, opName).Do()
+		time.Sleep(2 * time.Second)
+		op, err := computeService.ZoneOperations.Get(*proj, *zone, opName).Do()
 		if err != nil {
 			log.Fatalf("Failed to get op %s: %v", opName, err)
 		}
 		switch op.Status {
 		case "PENDING", "RUNNING":
-			time.Sleep(1 * time.Second)
+			log.Printf("Waiting on operation %v", opName)
+			continue
 		case "DONE":
 			if op.Error != nil {
 				for _, operr := range op.Error.Errors {
