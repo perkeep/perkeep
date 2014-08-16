@@ -69,6 +69,7 @@
 	cursor: default;
 	left: 0;
 	font-weight: 500;
+	min-width: 140px;
 	position: absolute;
 	top: 38px;
 	transition: -webkit-transform 100ms ease-out;

@@ -189,7 +189,8 @@ cam.Header = React.createClass({
 			this.getMenuItemLink_('Home', this.props.homeURL),
 
 			// TODO(aa): Create a new permanode UI that delays creating the permanode until the user confirms, then change this to a link to that UI.
-			this.getMenuItemButton_('New permanode', this.props.onNewPermanode),
+			// TODO(aa): Also I keep going back and forth about whether we should call this 'permanode' or 'set' in the UI. Hrm.
+			this.getMenuItemButton_('New set', this.props.onNewPermanode),
 
 			this.getMenuItemLink_('Search roots', this.props.searchRootsURL),
 			this.getMenuItemLink_('Sync status', this.props.syncStatusURL)

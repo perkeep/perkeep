@@ -584,10 +584,10 @@ cam.IndexPage = React.createClass({
 
 	refreshIfNecessary_: function() {
 		if (this.targetSearchSession_) {
-			this.targetSearchSession_.refreshIfNecessary_();
+			this.targetSearchSession_.refreshIfNecessary();
 		}
 		if (this.childSearchSession_) {
-			this.childSearchSession_.refreshIfNecessary_();
+			this.childSearchSession_.refreshIfNecessary();
 		}
 	},
 });
