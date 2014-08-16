@@ -53,7 +53,12 @@ var metaClient = &http.Client{
 // MetadataValue returns a value from the metadata service.
 // The suffix is appended to "http://metadata/computeMetadata/v1/".
 func MetadataValue(suffix string) (string, error) {
-	url := "http://metadata/computeMetadata/v1/" + suffix
+	// Using 169.254.169.254 instead of "metadata" here because Go
+	// binaries built with the "netgo" tag and without cgo won't
+	// know the search suffix for "metadata" is
+	// ".google.internal", and this IP address is documented as
+	// being stable anyway.
+	url := "http://169.254.169.254/computeMetadata/v1/" + suffix
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Set("Metadata-Flavor", "Google")
 	res, err := metaClient.Do(req)
