@@ -47,6 +47,8 @@ var (
 
 	chunkThreshold = flag.Int64("chunk-threshold", 0, "If non-zero, the maximum size of a file before it's cut up into content-addressable chunks with a rolling checksum")
 	chunkPackage   = flag.String("chunk-package", "", "Package to hold chunks")
+
+	destFilesStderr = flag.Bool("output-files-stderr", false, "Write the absolute path of all output files to stderr prefixed with OUTPUT:")
 )
 
 const (
@@ -66,6 +68,10 @@ func main() {
 	flag.Usage = usage
 	flag.Parse()
 
+	absPath, err := os.Getwd() // absolute path of output directory
+	if err != nil {
+		log.Fatal(err)
+	}
 	dir := "."
 	switch flag.NArg() {
 	case 0:
@@ -73,6 +79,11 @@ func main() {
 		dir = flag.Arg(0)
 		if err := os.Chdir(dir); err != nil {
 			log.Fatalf("chdir(%q) = %v", dir, err)
+		}
+		if filepath.IsAbs(dir) {
+			absPath = dir
+		} else {
+			absPath = filepath.Join(absPath, dir)
 		}
 	default:
 		flag.Usage()
@@ -90,6 +101,9 @@ func main() {
 		}
 
 		embedName := "zembed_" + strings.Replace(fileName, string(filepath.Separator), "_", -1) + ".go"
+		if *destFilesStderr {
+			fmt.Fprintf(os.Stderr, "OUTPUT:%s\n", filepath.Join(absPath, embedName))
+		}
 		zfi, zerr := os.Stat(embedName)
 		genFile := func() bool {
 			if *processAll || zerr != nil {

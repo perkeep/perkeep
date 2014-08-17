@@ -28,6 +28,7 @@ package main
 
 import (
 	"archive/zip"
+	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
@@ -390,31 +391,39 @@ func genEmbeds() error {
 	cmdName := exeName(filepath.Join(buildGoPath, "bin", "genfileembed"))
 	for _, embeds := range []string{"server/camlistored/ui", "pkg/server", "third_party/react", "third_party/glitch", "third_party/fontawesome", "app/publisher"} {
 		embeds := buildSrcPath(embeds)
-		args := []string{embeds}
+		args := []string{"--output-files-stderr", embeds}
 		cmd := exec.Command(cmdName, args...)
 		cmd.Env = append(cleanGoEnv(),
 			"GOPATH="+buildGoPath,
 		)
 		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		stderr, err := cmd.StderrPipe()
+		if err != nil {
+			log.Fatal(err)
+		}
 		if *verbose {
 			log.Printf("Running %s %s", cmdName, embeds)
 		}
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("Error running %s %s: %v", cmdName, embeds, err)
+		if err := cmd.Start(); err != nil {
+			return fmt.Errorf("Error starting %s %s: %v", cmdName, embeds, err)
 		}
-		// We mark all the zembeds in builddir as wanted, so that we do not
-		// have to regen them next time, unless they need updating.
-		if err := filepath.Walk(embeds, func(path string, _ os.FileInfo, err error) error {
-			if strings.HasPrefix(filepath.Base(path), "zembed_") {
-				wantDestFile[path] = true
-			}
-			return err
-		}); err != nil {
-			return err
+		parseGenEmbedOutputLines(stderr)
+		if err := cmd.Wait(); err != nil {
+			return fmt.Errorf("Error running %s %s: %v", cmdName, embeds, err)
 		}
 	}
 	return nil
+}
+
+func parseGenEmbedOutputLines(r io.Reader) {
+	sc := bufio.NewScanner(r)
+	for sc.Scan() {
+		ln := sc.Text()
+		if !strings.HasPrefix(ln, "OUTPUT:") {
+			continue
+		}
+		wantDestFile[strings.TrimSpace(strings.TrimPrefix(ln, "OUTPUT:"))] = true
+	}
 }
 
 func buildGenfileembed() error {
@@ -630,8 +639,9 @@ func deleteUnwantedOldMirrorFiles(dir string, withCamlistored bool) {
 		if fi.IsDir() {
 			return nil
 		}
+		base := filepath.Base(path)
 		if !wantDestFile[path] {
-			if !withCamlistored && (strings.Contains(path, "zembed_") || strings.Contains(path, "z_data.go")) {
+			if !withCamlistored && (strings.HasPrefix(base, "zembed_") || strings.Contains(path, "z_data.go")) {
 				// If we're not building the camlistored binary,
 				// no need to clean up the embedded Closure, JS,
 				// CSS, HTML, etc. Doing so would just mean we'd
