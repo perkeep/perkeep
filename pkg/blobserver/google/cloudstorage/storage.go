@@ -35,6 +35,7 @@ import (
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/syncutil"
 )
 
 type Storage struct {
@@ -146,22 +147,29 @@ func (gs *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, er
 }
 
 func (gs *Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
-	var reterr error
-
-	// TODO: do a batch API call, or at least keep N of these in flight at a time. No need to do them all serially.
-	for _, br := range blobs {
-		size, _, err := gs.client.StatObject(
-			&googlestorage.Object{Bucket: gs.bucket, Key: br.String()})
-		if err == nil {
+	var grp syncutil.Group
+	gate := syncutil.NewGate(20) // arbitrary cap
+	for i := range blobs {
+		br := blobs[i]
+		gate.Start()
+		grp.Go(func() error {
+			defer gate.Done()
+			size, exists, err := gs.client.StatObject(
+				&googlestorage.Object{Bucket: gs.bucket, Key: br.String()})
+			if err != nil {
+				return err
+			}
+			if !exists {
+				return nil
+			}
 			if size > constants.MaxBlobSize {
-				return errors.New("object too big")
+				return fmt.Errorf("blob %s stat size too large (%d)", br, size)
 			}
 			dest <- blob.SizedRef{Ref: br, Size: uint32(size)}
-		} else {
-			reterr = err
-		}
+			return nil
+		})
 	}
-	return reterr
+	return grp.Err()
 }
 
 func (gs *Storage) Fetch(blob blob.Ref) (file io.ReadCloser, size uint32, err error) {
