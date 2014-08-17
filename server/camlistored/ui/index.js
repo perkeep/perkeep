@@ -33,6 +33,7 @@ goog.require('cam.BlobItemGenericContent');
 goog.require('cam.BlobItemImageContent');
 goog.require('cam.BlobItemTwitterContent');
 goog.require('cam.BlobItemVideoContent');
+goog.require('cam.blobref');
 goog.require('cam.DetailView');
 goog.require('cam.DirectoryDetail');
 goog.require('cam.Header');
@@ -62,6 +63,8 @@ cam.IndexPage = React.createClass({
 		cam.BlobItemVideoContent.getHandler,
 		cam.BlobItemGenericContent.getHandler
 	],
+
+	BLOBREF_PATTERN_: new RegExp('^' + cam.blobref.PATTERN + '$'),
 
 	propTypes: {
 		availWidth: React.PropTypes.number.isRequired,
@@ -147,7 +150,7 @@ cam.IndexPage = React.createClass({
 		var suffix = url.getPath().substr(this.baseURL_.getPath().length);
 
 		// TODO(aa): Need to implement something like ref.go that knows about the other hash types.
-		var match = suffix.match(/^sha1-[0-9a-f]{40}$/);
+		var match = suffix.match(this.BLOBREF_PATTERN_);
 		return match && match[0];
 	},
 
@@ -158,7 +161,7 @@ cam.IndexPage = React.createClass({
 			cam.ImageDetail.getAspect,
 			cam.PermanodeDetail.getAspect.bind(null, this.baseURL_, childFrameClickHandler),
 			cam.DirectoryDetail.getAspect.bind(null, this.baseURL_, childFrameClickHandler),
-			cam.BlobDetail.getAspect.bind(null, this.baseURL_, childFrameClickHandler),
+			cam.BlobDetail.getAspect.bind(null, this.getDetailURL_, this.props.serverConnection),
 		].map(function(f) {
 			return f(this.getTargetBlobref_(), this.targetSearchSession_);
 		}, this).filter(goog.functions.identity);

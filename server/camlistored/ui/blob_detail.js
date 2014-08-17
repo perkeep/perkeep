@@ -16,9 +16,99 @@ limitations under the License.
 
 goog.provide('cam.BlobDetail');
 
-goog.require('cam.CacheBusterIframe');
+goog.require('cam.blobref');
+goog.require('cam.ServerConnection');
 
-cam.BlobDetail.getAspect = function(baseURL, onChildFrameClick, blobref, targetSearchSession) {
+cam.BlobDetail = React.createClass({
+	BLOBREF_PATTERN_: new RegExp(cam.blobref.PATTERN, 'g'),
+	propTypes: {
+		getDetailURL: React.PropTypes.func.isRequired,
+		meta: React.PropTypes.object.isRequired,
+		serverConnection: React.PropTypes.instanceOf(cam.ServerConnection).isRequired,
+	},
+
+	getInitialState: function() {
+		return {
+			content: null,
+			metadata: null,
+			claims: null,
+		};
+	},
+
+	componentWillMount: function() {
+		this.props.serverConnection.getBlobContents(this.props.meta.blobRef, this.handleBlobContents_);
+		this.props.serverConnection.permanodeClaims(this.props.meta.blobRef, this.handleClaims_);
+	},
+
+	render: function() {
+		var children = [
+			this.getHeader_("Blob content"),
+			this.getCodeBlock_(this.state.content),
+			this.getHeader_("Indexer metadata"),
+			this.getCodeBlock_(this.props.meta),
+		];
+
+		// TODO(aa): This should really move to permanode detail.
+		if (this.state.claims) {
+			children.push(this.getHeader_("Mutation claims"));
+			children.push(this.getCodeBlock_(this.state.claims));
+		}
+
+		return React.DOM.div(
+			{
+				style: {
+					fontFamily: 'Open Sans',
+					margin: '1.5em 2em',
+				}
+			},
+			children);
+	},
+
+	getHeader_: function(title) {
+		return React.DOM.h1(
+			{
+				style: {
+					fontSize: '1.5em',
+				}
+			},
+			title
+		);
+	},
+
+	getCodeBlock_: function(stuff) {
+		return React.DOM.pre(
+			{
+				style: {
+					overflowX: 'auto',
+				},
+			},
+			stuff ? this.linkify_(JSON.stringify(stuff, null, 2)) : null
+		);
+	},
+
+	linkify_: function(code) {
+		var result = [];
+		var match;
+		var index = 0;
+		while ((match = this.BLOBREF_PATTERN_.exec(code)) !== null) {
+			result.push(code.substring(index, match.index));
+			result.push(React.DOM.a({href: this.props.getDetailURL(match[0]).toString()}, match[0]));
+			index = match.index + match[0].length;
+		}
+		result.push(code.substring(index));
+		return result;
+	},
+
+	handleBlobContents_: function(data) {
+		this.setState({content: JSON.parse(data)});
+	},
+
+	handleClaims_: function(data) {
+		this.setState({claims: data});
+	},
+});
+
+cam.BlobDetail.getAspect = function(getDetailURL, serverConnection, blobref, targetSearchSession) {
 	if(!targetSearchSession) {
 		return;
 	}
@@ -32,15 +122,10 @@ cam.BlobDetail.getAspect = function(baseURL, onChildFrameClick, blobref, targetS
 		fragment: 'blob',
 		title: 'Blob',
 		createContent: function(size) {
-			var url = baseURL.clone();
-			url.setParameterValue('b', blobref);
-			return cam.CacheBusterIframe({
-				baseURL: baseURL,
-				height: size.height,
-				onChildFrameClick: onChildFrameClick,
-				key: 'blob',
-				src: url,
-				width: size.width,
+			return cam.BlobDetail({
+				getDetailURL: getDetailURL,
+				meta: m,
+				serverConnection: serverConnection,
 			});
 		},
 	};
