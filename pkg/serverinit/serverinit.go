@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"regexp"
 	"runtime"
 	rpprof "runtime/pprof"
 	"strconv"
@@ -590,6 +591,7 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reind
 	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_HTTP_PPROF")); v {
 		hi.Handle("/debug/pprof/", profileHandler{})
 	}
+	hi.Handle("/debug/config", auth.RequireAuth(configHandler{config}, auth.OpAll))
 	return multiCloser(hl.closers), nil
 }
 
@@ -650,6 +652,26 @@ func (expvarHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(w, "%q: %s", kv.Key, kv.Value)
 	})
 	fmt.Fprintf(w, "\n}\n")
+}
+
+type configHandler struct {
+	c *Config
+}
+
+var (
+	knownKeys     = regexp.MustCompile(`(?ms)^\s+"_knownkeys": {.+?},?\n`)
+	sensitiveLine = regexp.MustCompile(`(?m)^\s+\"(auth|aws_secret_access_key|password)\": "[^\"]+".*\n`)
+)
+
+func (h configHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	b, _ := json.MarshalIndent(h.c.Obj, "", "    ")
+	b = knownKeys.ReplaceAll(b, nil)
+	b = sensitiveLine.ReplaceAllFunc(b, func(ln []byte) []byte {
+		i := bytes.IndexByte(ln, ':')
+		return []byte(string(ln[:i+1]) + " REDACTED\n")
+	})
+	w.Write(b)
 }
 
 // profileHandler publishes server profile information.
