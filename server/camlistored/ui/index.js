@@ -144,7 +144,11 @@ cam.IndexPage = React.createClass({
 
 	getTargetBlobref_: function(opt_url) {
 		var url = opt_url || this.state.currentURL;
-		return url.getParameterValue('p') || url.getParameterValue('b') || url.getParameterValue('d');
+		var suffix = url.getPath().substr(this.baseURL_.getPath().length);
+
+		// TODO(aa): Need to implement something like ref.go that knows about the other hash types.
+		var match = suffix.match(/^sha1-[0-9a-f]{40}$/);
+		return match && match[0];
 	},
 
 	getAspects_: function() {
@@ -222,12 +226,6 @@ cam.IndexPage = React.createClass({
 	},
 
 	handleNavigate_: function(newURL) {
-		if (this.state.currentURL) {
-			if (this.state.currentURL.getPath() != newURL.getPath()) {
-				return false;
-			}
-		}
-
 		if (!goog.string.startsWith(newURL.toString(), this.baseURL_.toString())) {
 			return false;
 		}
@@ -252,15 +250,14 @@ cam.IndexPage = React.createClass({
 	},
 
 	updateChildSearchSession_: function(targetBlobref, newURL) {
-		var permanode = newURL.getParameterValue('p');
 		var query = newURL.getParameterValue('q');
 
-		if (permanode) {
+		if (targetBlobref) {
 			query = {
 				permanode: {
 					relation: {
 						relation: 'parent',
-						any: { blobRefPrefix: permanode },
+						any: { blobRefPrefix: targetBlobref },
 					},
 				},
 			};
@@ -269,7 +266,7 @@ cam.IndexPage = React.createClass({
 			if (goog.string.startsWith(query, this.SEARCH_PREFIX_.RAW + ':')) {
 				query = JSON.parse(query.substring(this.SEARCH_PREFIX_.RAW.length + 1));
 			}
-		} else if (!targetBlobref) {
+		} else {
 			query = ' ';
 		}
 
@@ -474,19 +471,16 @@ cam.IndexPage = React.createClass({
 	},
 
 	getDetailURL_: function(blobref) {
-		var detailURL = this.state.currentURL.clone();
-		detailURL.setParameterValue('p', blobref);
-		detailURL.setParameterValue('newui', '1');
-		return detailURL;
+		return this.baseURL_.clone().setPath(this.baseURL_.getPath() + blobref);
 	},
 
 	setSearch_: function(query) {
-		var searchURL = this.baseURL_.clone();
+		var searchURL;
 		var match = query.match(/^ref:(.+)/);
 		if (match) {
-			searchURL.setParameterValue('p', match[1]);
+			searchURL = this.getDetailURL_(match[1]);
 		} else {
-			searchURL.setParameterValue('q', query);
+			searchURL = this.baseURL_.clone().setParameterValue('q', query);
 		}
 		this.navigator_.navigate(searchURL);
 	},

@@ -35,6 +35,7 @@ cam.PermanodeDetail.getAspect = function(baseURL, onChildFrameClick, blobref, ta
 			var url = baseURL.clone();
 			url.setParameterValue('p', blobref);
 			return cam.CacheBusterIframe({
+				baseURL: baseURL,
 				height: size.height,
 				onChildFrameClick: onChildFrameClick,
 				key: 'permanode',
