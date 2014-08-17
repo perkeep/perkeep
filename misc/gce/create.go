@@ -65,6 +65,9 @@ func main() {
 	cloudConfig := `#cloud-config
 coreos:
   units:
+    - name: systemd-journal-gatewayd.socket
+      command: start
+      enable: true
     - name: camlistored.service
       command: start
       content: |
