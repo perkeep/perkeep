@@ -802,8 +802,11 @@ func writeFileIfDifferent(filename string, contents []byte) error {
 
 func contentsEqual(filename string, contents []byte) bool {
 	got, err := ioutil.ReadFile(filename)
-	if err != nil {
+	if os.IsNotExist(err) {
 		return false
+	}
+	if err != nil {
+		log.Fatalf("Error reading %v: %v", filename, err)
 	}
 	return bytes.Equal(got, contents)
 }
