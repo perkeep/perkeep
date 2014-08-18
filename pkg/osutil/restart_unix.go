@@ -21,6 +21,7 @@ package osutil
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"runtime"
 	"syscall"
@@ -29,7 +30,13 @@ import (
 // if non-nil, osSelfPath is used from selfPath.
 var osSelfPath func() (string, error)
 
-func selfPath() (string, error) {
+// TODO(mpl): document the symlink behaviour in SelfPath for the BSDs when
+// I know for sure.
+
+// SelfPath returns the path of the executable for the currently running
+// process. At least on linux, the returned path is a symlink to the actual
+// executable.
+func SelfPath() (string, error) {
 	if f := osSelfPath; f != nil {
 		return f()
 	}
@@ -45,16 +52,16 @@ func selfPath() (string, error) {
 		// See https://codereview.appspot.com/6736069/
 		return os.Args[0], nil
 	}
-	return "", errors.New("No restart because selfPath() not implemented for " + runtime.GOOS)
+	return "", errors.New("SelfPath not implemented for " + runtime.GOOS)
 }
 
-// restartProcess returns an error if things couldn't be
+// RestartProcess returns an error if things couldn't be
 // restarted.  On success, this function never returns
 // because the process becomes the new process.
 func RestartProcess() error {
-	path, err := selfPath()
+	path, err := SelfPath()
 	if err != nil {
-		return err
+		return fmt.Errorf("RestartProcess failed: %v", err)
 	}
 	return syscall.Exec(path, os.Args, os.Environ())
 }
