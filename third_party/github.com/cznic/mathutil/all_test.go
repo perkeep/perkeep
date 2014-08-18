@@ -1,13 +1,10 @@
-// Copyright (c) 2011 CZ.NIC z.s.p.o. All rights reserved.
+// Copyright (c) 2014 The mathutil Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
-
-// blame: jnml, labs.nic.cz
 
 package mathutil
 
 import (
-	"fmt"
 	"math"
 	"math/big"
 	"math/rand"
@@ -522,7 +519,6 @@ func BenchmarkIsPrime(b *testing.B) {
 }
 
 func BenchmarkNextPrime(b *testing.B) {
-	//TODO see bellow @ 64
 	b.StopTimer()
 	n := make([]uint32, b.N)
 	rng := rand.New(rand.NewSource(1))
@@ -1512,121 +1508,6 @@ func BenchmarkUintptrBits(b *testing.B) {
 	}
 }
 
-func TestUint64ToBigInt(t *testing.T) {
-	const N = 2e5
-	data := []uint64{0, 1, math.MaxInt64 - 1, math.MaxInt64, math.MaxInt64 + 1, math.MaxUint64 - 1, math.MaxUint64}
-
-	var e big.Int
-	f := func(n uint64) {
-		g := Uint64ToBigInt(n)
-		e.SetString(fmt.Sprintf("%d", n), 10)
-		if g.Cmp(&e) != 0 {
-			t.Fatalf("got %s(%#x), exp %d(%#x)", g, g, n, n)
-		}
-	}
-
-	for _, v := range data {
-		f(v)
-	}
-
-	for n := uint64(1); n != 0; n <<= 1 {
-		f(n - 1)
-		f(n)
-		f(n + 1)
-	}
-
-	r := r64()
-	for i := 0; i < N; i++ {
-		f(uint64(r.Next().Int64()))
-	}
-}
-
-func BenchmarkUint64ToBigInt(b *testing.B) {
-	const N = 1 << 16
-	b.StopTimer()
-	a := make([]uint64, N)
-	r := r64()
-	for i := range a {
-		a[i] = uint64(r.Next().Int64())
-	}
-	runtime.GC()
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		Uint64ToBigInt(a[i&(N-1)])
-	}
-}
-
-func TestUint64FromBigInt(t *testing.T) {
-	const N = 2e5
-	data := []struct {
-		s  string
-		e  uint64
-		ok bool
-	}{
-		{"-2", 0, false},
-		{"-1", 0, false},
-		{"0", 0, true},
-		{"1", 1, true},
-		{"2", 2, true},
-
-		{"4294967294", 4294967294, true},
-		{"4294967295", 4294967295, true},
-		{"4294967296", 4294967296, true},
-		{"4294967297", 4294967297, true},
-		{"4294967298", 4294967298, true},
-
-		{"18446744073709551613", 18446744073709551613, true},
-		{"18446744073709551614", 18446744073709551614, true},
-		{"18446744073709551615", 18446744073709551615, true},
-		{"18446744073709551616", 0, false},
-		{"18446744073709551617", 0, false},
-		{"18446744073709551618", 0, false},
-	}
-
-	var x big.Int
-	f := func(s string, e uint64, ok bool) {
-		x.SetString(s, 10)
-		switch g, gok := Uint64FromBigInt(&x); {
-		case gok != ok:
-			t.Errorf("%s: got %t, exp %t", s, gok, ok)
-		case ok && g != e:
-			t.Errorf("%s: got %d, exp %d", s, g, s)
-		}
-
-	}
-
-	for _, v := range data {
-		f(v.s, v.e, v.ok)
-	}
-
-	for n := uint64(1); n != 0; n <<= 1 {
-		f(fmt.Sprintf("%d", n-1), n-1, true)
-		f(fmt.Sprintf("%d", n), n, true)
-		f(fmt.Sprintf("%d", n+1), n+1, true)
-	}
-
-	r := r64()
-	for i := 0; i < N; i++ {
-		n := uint64(r.Next().Int64())
-		f(fmt.Sprintf("%d", n), n, true)
-	}
-}
-
-func BenchmarkUint64FromBigInt(b *testing.B) {
-	const N = 1 << 16
-	b.StopTimer()
-	a := make([]*big.Int, N)
-	r := r64()
-	for i := range a {
-		a[i] = Uint64ToBigInt(uint64(r.Next().Int64()))
-	}
-	runtime.GC()
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		Uint64FromBigInt(a[i&(N-1)])
-	}
-}
-
 func TestModPowByte(t *testing.T) {
 	data := []struct{ b, e, m, r byte }{
 		{0, 1, 1, 0},
@@ -1826,14 +1707,14 @@ func TestModPowBigInt(t *testing.T) {
 		}
 		b, e, r := big.NewInt(v.b), big.NewInt(v.e), big.NewInt(v.r)
 		if g, e := ModPowBigInt(b, e, &m), r; g.Cmp(e) != 0 {
-			t.Errorf("b %s e %s m %s: got %s, exp %s", b, e, m, g, e)
+			t.Errorf("b %s e %s m %v: got %s, exp %s", b, e, m, g, e)
 		}
 	}
 
 	s := func(n string) *big.Int {
 		i, ok := big.NewInt(0).SetString(n, 10)
 		if !ok {
-			t.Fatal()
+			t.Fatal(ok)
 		}
 
 		return i
@@ -1841,7 +1722,7 @@ func TestModPowBigInt(t *testing.T) {
 
 	if g, e := ModPowBigInt(
 		s("36893488147419103343"), s("36893488147419103454"), s("36893488147419103565")), s("34853007610367449339"); g.Cmp(e) != 0 {
-		t.Fatal()
+		t.Fatal(g, e)
 	}
 }
 
@@ -1961,11 +1842,11 @@ func TestAdd128(t *testing.T) {
 	var mm big.Int
 	for i := 0; i < N; i++ {
 		a, b := uint64(r.Next().Int64()), uint64(r.Next().Int64())
-		aa, bb := Uint64ToBigInt(a), Uint64ToBigInt(b)
+		aa, bb := big.NewInt(0).SetUint64(a), big.NewInt(0).SetUint64(b)
 		mhi, mlo := AddUint128_64(a, b)
-		m := Uint64ToBigInt(mhi)
+		m := big.NewInt(0).SetUint64(mhi)
 		m.Lsh(m, 64)
-		m.Add(m, Uint64ToBigInt(mlo))
+		m.Add(m, big.NewInt(0).SetUint64(mlo))
 		mm.Add(aa, bb)
 		if m.Cmp(&mm) != 0 {
 			t.Fatalf("%d\na %40d\nb %40d\ng %40s %032x\ne %40s %032x", i, a, b, m, m, &mm, &mm)
@@ -1978,11 +1859,11 @@ func TestMul128(t *testing.T) {
 	r := r64()
 	var mm big.Int
 	f := func(a, b uint64) {
-		aa, bb := Uint64ToBigInt(a), Uint64ToBigInt(b)
+		aa, bb := big.NewInt(0).SetUint64(a), big.NewInt(0).SetUint64(b)
 		mhi, mlo := MulUint128_64(a, b)
-		m := Uint64ToBigInt(mhi)
+		m := big.NewInt(0).SetUint64(mhi)
 		m.Lsh(m, 64)
-		m.Add(m, Uint64ToBigInt(mlo))
+		m.Add(m, big.NewInt(0).SetUint64(mlo))
 		mm.Mul(aa, bb)
 		if m.Cmp(&mm) != 0 {
 			t.Fatalf("\na %40d\nb %40d\ng %40s %032x\ne %40s %032x", a, b, m, m, &mm, &mm)
@@ -2093,16 +1974,16 @@ func TestProbablyPrimeUint32(t *testing.T) {
 		}
 	}
 	if !ProbablyPrimeUint32(5, 2) {
-		t.Fatal()
+		t.Fatal(false)
 	}
 	if !ProbablyPrimeUint32(7, 2) {
-		t.Fatal()
+		t.Fatal(false)
 	}
 	if ProbablyPrimeUint32(9, 2) {
-		t.Fatal()
+		t.Fatal(true)
 	}
 	if !ProbablyPrimeUint32(11, 2) {
-		t.Fatal()
+		t.Fatal(false)
 	}
 	// http://oeis.org/A014233
 	f(5, 2047, []uint32{2})
@@ -2151,16 +2032,16 @@ func TestProbablyPrimeUint64_32(t *testing.T) {
 		}
 	}
 	if !ProbablyPrimeUint64_32(5, 2) {
-		t.Fatal()
+		t.Fatal(false)
 	}
 	if !ProbablyPrimeUint64_32(7, 2) {
-		t.Fatal()
+		t.Fatal(false)
 	}
 	if ProbablyPrimeUint64_32(9, 2) {
-		t.Fatal()
+		t.Fatal(true)
 	}
 	if !ProbablyPrimeUint64_32(11, 2) {
-		t.Fatal()
+		t.Fatal(false)
 	}
 	// http://oeis.org/A014233
 	f(5, 2047, []uint32{2})
@@ -2198,7 +2079,7 @@ func BenchmarkProbablyPrimeUint64_32(b *testing.B) {
 
 func TestProbablyPrimeBigInt_32(t *testing.T) {
 	f := func(n0, firstFail0 uint64, primes []uint32) {
-		n, firstFail := Uint64ToBigInt(n0), Uint64ToBigInt(firstFail0)
+		n, firstFail := big.NewInt(0).SetUint64(n0), big.NewInt(0).SetUint64(firstFail0)
 		for ; n.Cmp(firstFail) <= 0; n.Add(n, _2) {
 			prp := true
 			for _, a := range primes {
@@ -2214,16 +2095,16 @@ func TestProbablyPrimeBigInt_32(t *testing.T) {
 		}
 	}
 	if !ProbablyPrimeBigInt_32(big.NewInt(5), 2) {
-		t.Fatal()
+		t.Fatal(false)
 	}
 	if !ProbablyPrimeBigInt_32(big.NewInt(7), 2) {
-		t.Fatal()
+		t.Fatal(false)
 	}
 	if ProbablyPrimeBigInt_32(big.NewInt(9), 2) {
-		t.Fatal()
+		t.Fatal(true)
 	}
 	if !ProbablyPrimeBigInt_32(big.NewInt(11), 2) {
-		t.Fatal()
+		t.Fatal(false)
 	}
 	// http://oeis.org/A014233
 	f(5, 2047, []uint32{2})
@@ -2249,7 +2130,7 @@ func BenchmarkProbablyPrimeBigInt_32(b *testing.B) {
 		for a <= 1 {
 			a = uint32(r.Next())
 		}
-		data[i] = t{Uint64ToBigInt(n), a}
+		data[i] = t{big.NewInt(0).SetUint64(n), a}
 	}
 	runtime.GC()
 	b.StartTimer()
@@ -2261,7 +2142,7 @@ func BenchmarkProbablyPrimeBigInt_32(b *testing.B) {
 
 func TestProbablyPrimeBigInt(t *testing.T) {
 	f := func(n0, firstFail0 uint64, primes []uint32) {
-		n, firstFail := Uint64ToBigInt(n0), Uint64ToBigInt(firstFail0)
+		n, firstFail := big.NewInt(0).SetUint64(n0), big.NewInt(0).SetUint64(firstFail0)
 		for ; n.Cmp(firstFail) <= 0; n.Add(n, _2) {
 			prp := true
 			var a big.Int
@@ -2279,16 +2160,16 @@ func TestProbablyPrimeBigInt(t *testing.T) {
 		}
 	}
 	if !ProbablyPrimeBigInt(big.NewInt(5), _2) {
-		t.Fatal()
+		t.Fatal(false)
 	}
 	if !ProbablyPrimeBigInt(big.NewInt(7), _2) {
-		t.Fatal()
+		t.Fatal(false)
 	}
 	if ProbablyPrimeBigInt(big.NewInt(9), _2) {
-		t.Fatal()
+		t.Fatal(true)
 	}
 	if !ProbablyPrimeBigInt(big.NewInt(11), _2) {
-		t.Fatal()
+		t.Fatal(false)
 	}
 	// http://oeis.org/A014233
 	f(5, 2047, []uint32{2})
@@ -2315,7 +2196,7 @@ func BenchmarkProbablyPrimeBigInt64(b *testing.B) {
 		for a <= 1 {
 			a = uint64(r.Next().Int64())
 		}
-		data[i] = t{Uint64ToBigInt(n), Uint64ToBigInt(uint64(a))}
+		data[i] = t{big.NewInt(0).SetUint64(n), big.NewInt(0).SetUint64(uint64(a))}
 	}
 	runtime.GC()
 	b.StartTimer()
@@ -2337,12 +2218,12 @@ func BenchmarkProbablyPrimeBigInt128(b *testing.B) {
 	data := make([]t, N)
 	r := r64()
 	for i := range data {
-		n := Uint64ToBigInt(uint64(r.Next().Int64()))
+		n := big.NewInt(0).SetUint64(uint64(r.Next().Int64()))
 		n.Lsh(n, 64)
-		n.Add(n, Uint64ToBigInt(uint64(r.Next().Int64())|1))
-		a := Uint64ToBigInt(uint64(r.Next().Int64()))
+		n.Add(n, big.NewInt(0).SetUint64(uint64(r.Next().Int64())|1))
+		a := big.NewInt(0).SetUint64(uint64(r.Next().Int64()))
 		a.Lsh(a, 64)
-		a.Add(a, Uint64ToBigInt(uint64(r.Next().Int64())))
+		a.Add(a, big.NewInt(0).SetUint64(uint64(r.Next().Int64())))
 		data[i] = t{n, a}
 	}
 	runtime.GC()
@@ -2535,7 +2416,7 @@ func TestPowerizeUint32BigInt(t *testing.T) {
 
 			gp.Div(gp, big.NewInt(int64(base)))
 			if gp.Sign() > 0 && gp.Cmp(&nn) >= 0 {
-				t.Fatal()
+				t.Fatal(gp.Sign(), gp.Cmp(&nn))
 			}
 		}
 	}
@@ -2705,7 +2586,7 @@ func TestPowerizeBigInt(t *testing.T) {
 
 			gp.Div(gp, &b)
 			if gp.Sign() > 0 && gp.Cmp(&nn) >= 0 {
-				t.Fatal()
+				t.Fatal(gp.Sign(), gp.Cmp(&nn))
 			}
 		}
 	}
@@ -2915,7 +2796,7 @@ func TestEnvelope(t *testing.T) {
 func TestMaxInt(t *testing.T) {
 	n := int64(MaxInt)
 	if n != math.MaxInt32 && n != math.MaxInt64 {
-		t.Error()
+		t.Error(n)
 	}
 
 	t.Logf("64 bit ints: %t, MaxInt: %d", n == math.MaxInt64, n)
@@ -2924,7 +2805,7 @@ func TestMaxInt(t *testing.T) {
 func TestMinInt(t *testing.T) {
 	n := int64(MinInt)
 	if n != math.MinInt32 && n != math.MinInt64 {
-		t.Error()
+		t.Error(n)
 	}
 
 	t.Logf("64 bit ints: %t. MinInt: %d", n == math.MinInt64, n)
@@ -2933,7 +2814,7 @@ func TestMinInt(t *testing.T) {
 func TestMaxUint(t *testing.T) {
 	n := uint64(MaxUint)
 	if n != math.MaxUint32 && n != math.MaxUint64 {
-		t.Error()
+		t.Error(n)
 	}
 
 	t.Logf("64 bit uints: %t. MaxUint: %d", n == math.MaxUint64, n)
@@ -3563,4 +3444,42 @@ func BenchmarkPopCountBigInt1e5(b *testing.B) {
 
 func BenchmarkPopCountBigInt1e6(b *testing.B) {
 	benchmarkPopCountBigInt(b, 1e6)
+}
+
+func TestToBase(t *testing.T) {
+	x := ToBase(big.NewInt(0), 42)
+	e := []int{0}
+	if g, e := len(x), len(e); g != e {
+		t.Fatal(g, e)
+	}
+
+	for i, g := range x {
+		if e := e[i]; g != e {
+			t.Fatal(i, g, e)
+		}
+	}
+
+	x = ToBase(big.NewInt(2047), 22)
+	e = []int{1, 5, 4}
+	if g, e := len(x), len(e); g != e {
+		t.Fatal(g, e)
+	}
+
+	for i, g := range x {
+		if e := e[i]; g != e {
+			t.Fatal(i, g, e)
+		}
+	}
+
+	x = ToBase(big.NewInt(-2047), 22)
+	e = []int{-1, -5, -4}
+	if g, e := len(x), len(e); g != e {
+		t.Fatal(g, e)
+	}
+
+	for i, g := range x {
+		if e := e[i]; g != e {
+			t.Fatal(i, g, e)
+		}
+	}
 }

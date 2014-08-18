@@ -1,8 +1,6 @@
-// Copyright (c) 2011 CZ.NIC z.s.p.o. All rights reserved.
+// Copyright (c) 2014 The mathutil Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
-
-// blame: jnml, labs.nic.cz
 
 package mathutil
 
@@ -131,7 +129,7 @@ func (r *FC32) Seed(seed int64) {
 }
 
 // Seek sets Pos to |pos| % Cycle.
-func (r *FC32) Seek(pos int64) {
+func (r *FC32) Seek(pos int64) { //vet:ignore
 	if pos < 0 {
 		pos = -pos
 	}

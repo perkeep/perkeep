@@ -118,7 +118,7 @@ func handleStat(conn http.ResponseWriter, req *http.Request, storage blobserver.
 		}()
 
 		for sb := range blobch {
-			res.Stat = append(res.Stat, &protocol.RefAndSize{
+			res.Stat = append(res.Stat, blob.SizedRef{
 				Ref:  sb.Ref,
 				Size: uint32(sb.Size),
 			})

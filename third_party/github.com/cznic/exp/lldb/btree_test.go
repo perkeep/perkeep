@@ -1,4 +1,4 @@
-// Copyright 2013 The Go Authors. All rights reserved.
+// Copyright 2014 The lldb Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -1257,8 +1257,6 @@ func TestDeleteAny(t *testing.T) {
 }
 
 func benchmarkBTreeSetFiler(b *testing.B, f Filer, sz int) {
-	b.SetBytes(int64(sz))
-
 	if err := f.BeginUpdate(); err != nil {
 		b.Error(err)
 		return
@@ -1330,16 +1328,15 @@ func BenchmarkBTreeSetMemFiler1e3(b *testing.B) {
 }
 
 func benchmarkBTreeSetSimpleFileFiler(b *testing.B, sz int) {
-	os.Remove(testDbName)
+	dir, testDbName := temp()
+	defer os.RemoveAll(dir)
+
 	f, err := os.OpenFile(testDbName, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	defer func() {
-		f.Close()
-		os.Remove(testDbName)
-	}()
+	defer f.Close()
 
 	benchmarkBTreeSetFiler(b, NewSimpleFileFiler(f), sz)
 }
@@ -1361,16 +1358,15 @@ func BenchmarkBTreeSetSimpleFileFiler1e3(b *testing.B) {
 }
 
 func benchmarkBTreeSetRollbackFiler(b *testing.B, sz int) {
-	os.Remove(testDbName)
+	dir, testDbName := temp()
+	defer os.RemoveAll(dir)
+
 	f, err := os.OpenFile(testDbName, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	defer func() {
-		f.Close()
-		os.Remove(testDbName)
-	}()
+	defer f.Close()
 
 	g := NewSimpleFileFiler(f)
 	var filer *RollbackFiler
@@ -1409,27 +1405,22 @@ func BenchmarkBTreeSetRollbackFiler1e3(b *testing.B) {
 }
 
 func benchmarkBTreeSetACIDFiler(b *testing.B, sz int) {
-	os.Remove(testDbName)
-	os.Remove(walName)
+	dir, testDbName := temp()
+	defer os.RemoveAll(dir)
+
 	f, err := os.OpenFile(testDbName, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	defer func() {
-		f.Close()
-		os.Remove(testDbName)
-	}()
+	defer f.Close()
 
-	wal, err := os.OpenFile(walName, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
+	wal, err := os.OpenFile(testDbName+".wal", os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	defer func() {
-		wal.Close()
-		os.Remove(walName)
-	}()
+	defer wal.Close()
 
 	filer, err := NewACIDFiler(NewSimpleFileFiler(f), wal)
 	if err != nil {

@@ -1,4 +1,4 @@
-// Copyright 2013 The Go Authors. All rights reserved.
+// Copyright 2014 The dbm Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -470,6 +470,7 @@ func (a *Array) Enumerator(asc bool) (en *Enumerator, err error) {
 	return &e, nil
 }
 
+// Enumerator provides visiting all K/V pairs in a DB/range.
 type Enumerator struct {
 	db *DB
 	en *lldb.BTreeEnumerator

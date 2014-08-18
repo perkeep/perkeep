@@ -1,4 +1,4 @@
-// Copyright 2013 The Go Authors. All rights reserved.
+// Copyright 2014 The lldb Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -391,7 +391,6 @@ func BenchmarkRollbackFiler(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	b.SetBytes(1)
 	b.ResetTimer()
 	for _, v := range a {
 		if _, err := r.WriteAt(v.b, v.off); err != nil {

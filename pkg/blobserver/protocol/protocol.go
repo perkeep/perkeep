@@ -23,26 +23,19 @@ import (
 	"camlistore.org/pkg/blob"
 )
 
-// TODO(mpl): try and replace RefAndSize with blob.SizedRef everywhere, then we can ditch RefAndSize.
-
-type RefAndSize struct {
-	Ref  blob.Ref `json:"blobRef"`
-	Size uint32   `json:"size"`
-}
-
 // StatResponse is the JSON document returned from the blob batch stat
 // handler.
 //
 // See doc/protocol/blob-stat-protocol.txt.
 type StatResponse struct {
-	Stat        []*RefAndSize `json:"stat"`
-	CanLongPoll bool          `json:"canLongPoll"` // TODO: move this to discovery?
+	Stat        []blob.SizedRef `json:"stat"`
+	CanLongPoll bool            `json:"canLongPoll"` // TODO: move this to discovery?
 }
 
 func (p *StatResponse) MarshalJSON() ([]byte, error) {
 	v := *p
 	if v.Stat == nil {
-		v.Stat = []*RefAndSize{}
+		v.Stat = []blob.SizedRef{}
 	}
 	return json.Marshal(v)
 }
@@ -52,14 +45,14 @@ func (p *StatResponse) MarshalJSON() ([]byte, error) {
 //
 // See doc/protocol/blob-upload-protocol.txt.
 type UploadResponse struct {
-	Received  []*RefAndSize `json:"received"`
-	ErrorText string        `json:"errorText,omitempty"`
+	Received  []blob.SizedRef `json:"received"`
+	ErrorText string          `json:"errorText,omitempty"`
 }
 
 func (p *UploadResponse) MarshalJSON() ([]byte, error) {
 	v := *p
 	if v.Received == nil {
-		v.Received = []*RefAndSize{}
+		v.Received = []blob.SizedRef{}
 	}
 	return json.Marshal(v)
 }

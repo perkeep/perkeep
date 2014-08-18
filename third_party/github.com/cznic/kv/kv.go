@@ -1,4 +1,4 @@
-// Copyright 2013 The Go Authors. All rights reserved.
+// Copyright 2014 The kv Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -291,15 +291,14 @@ func (db *DB) Close() (err error) {
 		}
 	}
 
+	doLeave = false
+	if e = db.leave(&err); err == nil {
+		err = e
+	}
 	if db.opts.VerifyDbBeforeClose {
 		if e = verifyAllocator(db.alloc); err == nil {
 			err = e
 		}
-	}
-
-	doLeave = false
-	if e = db.leave(&err); err == nil {
-		err = e
 	}
 	if e = db.close(); err == nil {
 		err = e
@@ -352,15 +351,12 @@ func (db *DB) Name() string {
 
 // Size returns the size of the DB file.
 func (db *DB) Size() (sz int64, err error) {
-	if err = db.enter(); err != nil {
-		return
-	}
-
+	db.bkl.Lock()
 	defer func() {
 		if e := recover(); e != nil {
 			err = fmt.Errorf("%v", e)
 		}
-		db.leave(&err)
+		db.bkl.Unlock()
 	}()
 
 	return db.filer.Size()
@@ -442,14 +438,14 @@ func (db *DB) leave(err *error) error {
 }
 
 func (db *DB) timeout() {
-	db.bkl.Lock()
-	defer db.bkl.Unlock()
-
 	db.closeMu.Lock()
 	defer db.closeMu.Unlock()
 	if db.closed {
 		return
 	}
+
+	db.bkl.Lock()
+	defer db.bkl.Unlock()
 
 	switch db.acidState {
 	default:
@@ -562,7 +558,7 @@ func (db *DB) Rollback() (err error) {
 // only if Verify succeeded, ie. it didn't reported anything to log and it
 // returned a nil error.
 func (db *DB) Verify(log func(error) bool, stats *lldb.AllocStats) (err error) {
-	bitmapf, err := fileutil.TempFile(".", "verifier", ".tmp")
+	bitmapf, err := fileutil.TempFile("", "verifier", ".tmp")
 	if err != nil {
 		return
 	}
@@ -624,13 +620,9 @@ func (db *DB) Extract(buf, key []byte) (value []byte, err error) {
 //
 // First is atomic and it is safe for concurrent use by multiple goroutines.
 func (db *DB) First() (key, value []byte, err error) {
-	if err = db.enter(); err != nil {
-		return
-	}
-
-	key, value, err = db.root.First()
-	db.leave(&err)
-	return
+	db.bkl.Lock()
+	defer db.bkl.Unlock()
+	return db.root.First()
 }
 
 // Get returns the value associated with key, or nil if no such value exists.
@@ -640,13 +632,9 @@ func (db *DB) First() (key, value []byte, err error) {
 //
 // Get is atomic and it is safe for concurrent use by multiple goroutines.
 func (db *DB) Get(buf, key []byte) (value []byte, err error) {
-	if err = db.enter(); err != nil {
-		return
-	}
-
-	value, err = db.root.Get(buf, key)
-	db.leave(&err)
-	return
+	db.bkl.Lock()
+	defer db.bkl.Unlock()
+	return db.root.Get(buf, key)
 }
 
 // Last returns the last KV pair of the DB, if it exists. Otherwise key ==
@@ -654,13 +642,9 @@ func (db *DB) Get(buf, key []byte) (value []byte, err error) {
 //
 // Last is atomic and it is safe for concurrent use by multiple goroutines.
 func (db *DB) Last() (key, value []byte, err error) {
-	if err = db.enter(); err != nil {
-		return
-	}
-
-	key, value, err = db.root.Last()
-	db.leave(&err)
-	return
+	db.bkl.Lock()
+	defer db.bkl.Unlock()
+	return db.root.Last()
 }
 
 // Put combines Get and Set in a more efficient way where the DB is searched
@@ -700,12 +684,8 @@ func (db *DB) Put(buf, key []byte, upd func(key, old []byte) (new []byte, write 
 //
 // Seek is atomic and it is safe for concurrent use by multiple goroutines.
 func (db *DB) Seek(key []byte) (enum *Enumerator, hit bool, err error) {
-	if err = db.enter(); err != nil {
-		return
-	}
-
-	defer db.leave(&err)
-
+	db.bkl.Lock()
+	defer db.bkl.Unlock()
 	enum0, hit, err := db.root.Seek(key)
 	if err != nil {
 		return
@@ -724,12 +704,8 @@ func (db *DB) Seek(key []byte) (enum *Enumerator, hit bool, err error) {
 // SeekFirst is atomic and it is safe for concurrent use by multiple
 // goroutines.
 func (db *DB) SeekFirst() (enum *Enumerator, err error) {
-	if err = db.enter(); err != nil {
-		return
-	}
-
-	defer db.leave(&err)
-
+	db.bkl.Lock()
+	defer db.bkl.Unlock()
 	enum0, err := db.root.SeekFirst()
 	if err != nil {
 		return
@@ -748,12 +724,8 @@ func (db *DB) SeekFirst() (enum *Enumerator, err error) {
 // SeekLast is atomic and it is safe for concurrent use by multiple
 // goroutines.
 func (db *DB) SeekLast() (enum *Enumerator, err error) {
-	if err = db.enter(); err != nil {
-		return
-	}
-
-	defer db.leave(&err)
-
+	db.bkl.Lock()
+	defer db.bkl.Unlock()
 	enum0, err := db.root.SeekLast()
 	if err != nil {
 		return
@@ -797,11 +769,8 @@ type Enumerator struct {
 //
 // Next is atomic and it is safe for concurrent use by multiple goroutines.
 func (e *Enumerator) Next() (key, value []byte, err error) {
-	if err = e.db.enter(); err != nil {
-		return
-	}
-
-	defer e.db.leave(&err)
+	e.db.bkl.Lock()
+	defer e.db.bkl.Unlock()
 	return e.enum.Next()
 }
 
@@ -811,11 +780,8 @@ func (e *Enumerator) Next() (key, value []byte, err error) {
 //
 // Prev is atomic and it is safe for concurrent use by multiple goroutines.
 func (e *Enumerator) Prev() (key, value []byte, err error) {
-	if err = e.db.enter(); err != nil {
-		return
-	}
-
-	defer e.db.leave(&err)
+	e.db.bkl.Lock()
+	defer e.db.bkl.Unlock()
 	return e.enum.Prev()
 }
 

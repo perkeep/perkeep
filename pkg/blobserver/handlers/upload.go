@@ -239,12 +239,7 @@ func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiv
 		receivedBlobs = append(receivedBlobs, blobGot)
 	}
 
-	for _, got := range receivedBlobs {
-		res.Received = append(res.Received, &protocol.RefAndSize{
-			Ref:  got.Ref,
-			Size: uint32(got.Size),
-		})
-	}
+	res.Received = receivedBlobs
 
 	if req.Header.Get("X-Camlistore-Vivify") == "1" {
 		for _, got := range receivedBlobs {
