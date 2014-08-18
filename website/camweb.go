@@ -34,6 +34,8 @@ import (
 	"strings"
 	txttemplate "text/template"
 	"time"
+
+	"camlistore.org/pkg/types/camtypes"
 )
 
 const defaultAddr = ":31798" // default webserver address
@@ -52,8 +54,8 @@ var (
 	buildbotHost    = flag.String("buildbot_host", "", "Hostname to map to the buildbot_backend. If an HTTP request with this hostname is received, it proxies to buildbot_backend.")
 	alsoRun         = flag.String("also_run", "", "Optional path to run as a child process. (Used to run camlistore.org's ./scripts/run-blob-server)")
 
-	pageHtml, errorHtml *template.Template
-	packageHTML         *txttemplate.Template
+	pageHTML, errorHTML, camliErrorHTML *template.Template
+	packageHTML                         *txttemplate.Template
 )
 
 var fmap = template.FuncMap{
@@ -136,7 +138,7 @@ func servePage(w http.ResponseWriter, title, subtitle string, content []byte) {
 		template.HTML(content),
 	}
 
-	if err := pageHtml.Execute(w, &d); err != nil {
+	if err := pageHTML.Execute(w, &d); err != nil {
 		log.Printf("godocHTML.Execute: %s", err)
 	}
 }
@@ -155,14 +157,15 @@ func readTemplate(name string) *template.Template {
 }
 
 func readTemplates() {
-	pageHtml = readTemplate("page.html")
-	errorHtml = readTemplate("error.html")
+	pageHTML = readTemplate("page.html")
+	errorHTML = readTemplate("error.html")
+	camliErrorHTML = readTemplate("camlierror.html")
 	// TODO(mpl): see about not using text template anymore?
 	packageHTML = readTextTemplate("package.html")
 }
 
 func serveError(w http.ResponseWriter, r *http.Request, relpath string, err error) {
-	contents := applyTemplate(errorHtml, "errorHtml", err) // err may contain an absolute path!
+	contents := applyTemplate(errorHTML, "errorHTML", err) // err may contain an absolute path!
 	w.WriteHeader(http.StatusNotFound)
 	servePage(w, "File "+relpath, "", contents)
 }
@@ -341,6 +344,7 @@ func main() {
 	mux.Handle("/talks/", http.StripPrefix("/talks/", http.FileServer(http.Dir(filepath.Join(*root, "talks")))))
 	mux.Handle(pkgPattern, godocHandler{})
 	mux.Handle(cmdPattern, godocHandler{})
+	mux.HandleFunc(errPattern, errHandler)
 
 	mux.HandleFunc("/r/", gerritRedirect)
 	mux.HandleFunc("/debugz/ip", ipHandler)
@@ -459,4 +463,27 @@ func ipHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	str = str[:pos]
 	w.Write([]byte(str))
+}
+
+const errPattern = "/err/"
+
+func errHandler(w http.ResponseWriter, r *http.Request) {
+	errString := strings.TrimPrefix(r.URL.Path, errPattern)
+
+	defer func() {
+		if x := recover(); x != nil {
+			http.Error(w, fmt.Sprintf("unknown error: %v", errString), http.StatusNotFound)
+		}
+	}()
+	err := camtypes.Err(errString)
+	data := struct {
+		Code        string
+		Description string
+	}{
+		Code:        errString,
+		Description: err.Error(),
+	}
+	contents := applyTemplate(camliErrorHTML, "camliErrorHTML", data)
+	w.WriteHeader(http.StatusFound)
+	servePage(w, errString, "", contents)
 }
