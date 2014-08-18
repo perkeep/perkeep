@@ -1,4 +1,4 @@
-// Copyright 2013 The Go Authors. All rights reserved.
+// Copyright 2014 The lldb Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -1074,8 +1074,6 @@ func TestRollbackAllocator(t *testing.T) {
 }
 
 func benchmarkAllocatorAlloc(b *testing.B, f Filer, sz int) {
-	b.SetBytes(int64(sz))
-
 	if err := f.BeginUpdate(); err != nil {
 		b.Error(err)
 		return
@@ -1136,16 +1134,15 @@ func BenchmarkAllocatorAllocMemFiler1e3(b *testing.B) {
 }
 
 func benchmarkAllocatorAllocSimpleFileFiler(b *testing.B, sz int) {
-	os.Remove(testDbName)
+	dir, testDbName := temp()
+	defer os.RemoveAll(dir)
+
 	f, err := os.OpenFile(testDbName, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	defer func() {
-		f.Close()
-		os.Remove(testDbName)
-	}()
+	defer f.Close()
 
 	benchmarkAllocatorAlloc(b, NewSimpleFileFiler(f), sz)
 }
@@ -1167,16 +1164,15 @@ func BenchmarkAllocatorAllocSimpleFileFiler1e3(b *testing.B) {
 }
 
 func benchmarkAllocatorAllocRollbackFiler(b *testing.B, sz int) {
-	os.Remove(testDbName)
+	dir, testDbName := temp()
+	defer os.RemoveAll(dir)
+
 	f, err := os.OpenFile(testDbName, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	defer func() {
-		f.Close()
-		os.Remove(testDbName)
-	}()
+	defer f.Close()
 
 	g := NewSimpleFileFiler(f)
 	var filer *RollbackFiler
@@ -1215,27 +1211,22 @@ func BenchmarkAllocatorAllocRollbackFiler1e3(b *testing.B) {
 }
 
 func benchmarkAllocatorAllocACIDFiler(b *testing.B, sz int) {
-	os.Remove(testDbName)
-	os.Remove(walName)
+	dir, testDbName := temp()
+	defer os.RemoveAll(dir)
+
 	f, err := os.OpenFile(testDbName, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	defer func() {
-		f.Close()
-		os.Remove(testDbName)
-	}()
+	defer f.Close()
 
-	wal, err := os.OpenFile(walName, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
+	wal, err := os.OpenFile(testDbName+".wal", os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	defer func() {
-		wal.Close()
-		os.Remove(walName)
-	}()
+	defer wal.Close()
 
 	filer, err := NewACIDFiler(NewSimpleFileFiler(f), wal)
 	if err != nil {
@@ -1263,8 +1254,6 @@ func BenchmarkAllocatorAllocACIDFiler1e3(b *testing.B) {
 }
 
 func benchmarkAllocatorRndFree(b *testing.B, f Filer, sz int) {
-	b.SetBytes(int64(sz))
-
 	if err := f.BeginUpdate(); err != nil {
 		b.Error(err)
 		return
@@ -1346,17 +1335,15 @@ func BenchmarkAllocatorRndFreeMemFiler1e3(b *testing.B) {
 }
 
 func benchmarkAllocatorRndFreeSimpleFileFiler(b *testing.B, sz int) {
-	os.Remove(testDbName)
-	<-time.After(5 * time.Second)
+	dir, testDbName := temp()
+	defer os.RemoveAll(dir)
+
 	f, err := os.OpenFile(testDbName, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	defer func() {
-		f.Close()
-		os.Remove(testDbName)
-	}()
+	defer f.Close()
 
 	benchmarkAllocatorRndFree(b, NewSimpleFileFiler(f), sz)
 }
@@ -1378,17 +1365,15 @@ func BenchmarkAllocatorRndFreeSimpleFileFiler1e3(b *testing.B) {
 }
 
 func benchmarkAllocatorRndFreeRollbackFiler(b *testing.B, sz int) {
-	os.Remove(testDbName)
-	<-time.After(5 * time.Second)
+	dir, testDbName := temp()
+	defer os.RemoveAll(dir)
+
 	f, err := os.OpenFile(testDbName, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	defer func() {
-		f.Close()
-		os.Remove(testDbName)
-	}()
+	defer f.Close()
 
 	g := NewSimpleFileFiler(f)
 	var filer *RollbackFiler
@@ -1427,28 +1412,22 @@ func BenchmarkAllocatorRndFreeRollbackFiler1e3(b *testing.B) {
 }
 
 func benchmarkAllocatorRndFreeACIDFiler(b *testing.B, sz int) {
-	os.Remove(testDbName)
-	os.Remove(walName)
-	<-time.After(5 * time.Second)
+	dir, testDbName := temp()
+	defer os.RemoveAll(dir)
+
 	f, err := os.OpenFile(testDbName, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	defer func() {
-		f.Close()
-		os.Remove(testDbName)
-	}()
+	defer f.Close()
 
-	wal, err := os.OpenFile(walName, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
+	wal, err := os.OpenFile(testDbName+".wal", os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	defer func() {
-		wal.Close()
-		os.Remove(walName)
-	}()
+	defer wal.Close()
 
 	filer, err := NewACIDFiler(NewSimpleFileFiler(f), wal)
 	if err != nil {
@@ -1476,8 +1455,6 @@ func BenchmarkAllocatorRndFreeACIDFiler1e3(b *testing.B) {
 }
 
 func benchmarkAllocatorRndGet(b *testing.B, f Filer, sz int) {
-	b.SetBytes(int64(sz))
-
 	if err := f.BeginUpdate(); err != nil {
 		b.Error(err)
 		return

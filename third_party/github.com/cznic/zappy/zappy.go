@@ -1,4 +1,4 @@
-// Copyright 2013 The Go Authors. All rights reserved.
+// Copyright 2014 The zappy Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -221,6 +221,13 @@ The package builds with CGO_ENABLED=0 as well, but the performance is worse.
  Benchmark_ZFlat17             113.02       196.65    1.74x
  $
 
+Build tags
+
+If a constraint 'purego' appears in the build constraints [5] then a pure Go
+version is built regardless of the $CGO_ENABLED value.
+
+	$ touch zappy.go ; go install -tags purego github.com/cznic/zappy # for example
+
 Information sources
 
 ... referenced from the above documentation.
@@ -229,5 +236,6 @@ Information sources
  [2]: http://code.google.com/p/snappy/
  [3]: http://code.google.com/p/snappy/source/browse/trunk/format_description.txt
  [4]: http://golang.org/pkg/encoding/binary/
+ [5]: http://golang.org/pkg/go/build/#hdr-Build_Constraints
 */
 package zappy

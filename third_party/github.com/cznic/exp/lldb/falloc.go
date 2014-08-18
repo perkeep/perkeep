@@ -1,4 +1,4 @@
-// Copyright 2013 The Go Authors. All rights reserved.
+// Copyright 2014 The lldb Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -35,13 +35,15 @@ type Options struct{}
 // AllocStats record statistics about a Filer. It can be optionally filled by
 // Allocator.Verify, if successful.
 type AllocStats struct {
-	Handles     int64 // total valid handles in use
-	Compression int64 // number of compressed blocks
-	TotalAtoms  int64 // total number of atoms == AllocAtoms + FreeAtoms
-	AllocBytes  int64 // bytes allocated (after decompression, if/where used)
-	AllocAtoms  int64 // atoms allocated/used, including relocation atoms
-	Relocations int64 // number of relocated used blocks
-	FreeAtoms   int64 // atoms unused
+	Handles     int64           // total valid handles in use
+	Compression int64           // number of compressed blocks
+	TotalAtoms  int64           // total number of atoms == AllocAtoms + FreeAtoms
+	AllocBytes  int64           // bytes allocated (after decompression, if/where used)
+	AllocAtoms  int64           // atoms allocated/used, including relocation atoms
+	Relocations int64           // number of relocated used blocks
+	FreeAtoms   int64           // atoms unused
+	AllocMap    map[int64]int64 // allocated block size in atoms -> count of such blocks
+	FreeMap     map[int64]int64 // free block size in atoms -> count of such blocks
 }
 
 /*
@@ -1432,8 +1434,11 @@ func (a *Allocator) Verify(bitmap Filer, log func(error) bool, stats *AllocStats
 		prevH, h, atoms int64
 		wasOn           bool
 		tag             byte
-		st              AllocStats
-		dlen            int
+		st              = AllocStats{
+			AllocMap: map[int64]int64{},
+			FreeMap:  map[int64]int64{},
+		}
+		dlen int
 	)
 
 	fsz, err := a.f.Size()
@@ -1474,12 +1479,14 @@ func (a *Allocator) Verify(bitmap Filer, log func(error) bool, stats *AllocStats
 				st.Compression++
 			}
 			st.AllocAtoms += atoms
-			if tag != tagUsedRelocated {
+			switch {
+			case tag == tagUsedRelocated:
+				st.AllocMap[1]++
+				st.Relocations++
+			default:
+				st.AllocMap[atoms]++
 				st.AllocBytes += int64(dlen)
 				st.Handles++
-			}
-			if tag == tagUsedRelocated {
-				st.Relocations++
 			}
 		case tagFreeShort, tagFreeLong:
 			if prevTag == tagFreeShort || prevTag == tagFreeLong {
@@ -1492,6 +1499,7 @@ func (a *Allocator) Verify(bitmap Filer, log func(error) bool, stats *AllocStats
 				return
 			}
 
+			st.FreeMap[atoms]++
 			st.FreeAtoms += atoms
 		}
 

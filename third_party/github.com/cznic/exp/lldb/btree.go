@@ -1,4 +1,4 @@
-// Copyright 2013 The Go Authors. All rights reserved.
+// Copyright 2014 The lldb Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -1389,7 +1389,7 @@ func (p btreeDataPage) insertItem(a btreeStore, index int, key, value []byte) (b
 
 func (p btreeDataPage) split(a btreeStore, root, ph, parent int64, parentIndex, index int, key, value []byte) (btreeDataPage, error) {
 	right, rh, err := newBTreeDataPageAlloc(a)
-	defer bufs.GCache.Put(right)
+	// fails defer bufs.GCache.Put(right)
 	if err != nil {
 		return nil, err
 	}
@@ -1764,7 +1764,7 @@ func (root btree) String(a btreeStore) string {
 
 		m[h] = true
 		var b btreePage = bufs.GCache.Get(maxBuf)
-		bufs.GCache.Put(b)
+		defer bufs.GCache.Put(b)
 		var err error
 		if b, err = a.Get(b, h); err != nil {
 			panic(err)

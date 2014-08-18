@@ -1,4 +1,4 @@
-// Copyright (c) 2013 jnml. All rights reserved.
+// Copyright (c) 2014 The fileutil Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -67,7 +67,10 @@ var puncher = func(f *os.File, off, len int64) error {
 		uintptr(off),
 		uintptr(len),
 		0, 0)
-	return os.NewSyscallError("SYS_FALLOCATE", errno)
+	if errno != 0 {
+		return os.NewSyscallError("SYS_FALLOCATE", errno)
+	}
+	return nil
 }
 
 // PunchHole deallocates space inside a file in the byte range starting at

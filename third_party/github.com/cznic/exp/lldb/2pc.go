@@ -1,4 +1,4 @@
-// Copyright 2013 The Go Authors. All rights reserved.
+// Copyright 2014 The lldb Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -19,12 +19,17 @@ import (
 
 var _ Filer = &ACIDFiler0{} // Ensure ACIDFiler0 is a Filer
 
+type acidWrite struct {
+	b   []byte
+	off int64
+}
+
 type acidWriter0 ACIDFiler0
 
 func (a *acidWriter0) WriteAt(b []byte, off int64) (n int, err error) {
 	f := (*ACIDFiler0)(a)
 	if f.bwal == nil { // new epoch
-		f.data = NewBTree(nil)
+		f.data = f.data[:0]
 		f.bwal = bufio.NewWriter(f.wal)
 		if err = a.writePacket([]interface{}{wpt00Header, walTypeACIDFiler0, ""}); err != nil {
 			return
@@ -35,9 +40,8 @@ func (a *acidWriter0) WriteAt(b []byte, off int64) (n int, err error) {
 		return
 	}
 
-	var key [8]byte
-	binary.BigEndian.PutUint64(key[:], uint64(off))
-	return len(b), f.data.Set(key[:], b) //DONE: verify memory BTree can handle more than maxRq
+	f.data = append(f.data, acidWrite{b, off})
+	return len(b), nil
 }
 
 func (a *acidWriter0) writePacket(items []interface{}) (err error) {
@@ -94,7 +98,7 @@ type ACIDFiler0 struct {
 	*RollbackFiler
 	wal               *os.File
 	bwal              *bufio.Writer
-	data              *BTree
+	data              []acidWrite
 	testHook          bool  // keeps WAL untruncated (once)
 	peakWal           int64 // tracks WAL maximum used size
 	peakBitFilerPages int   // track maximum transaction memory
@@ -154,30 +158,8 @@ func NewACIDFiler(db Filer, wal *os.File) (r *ACIDFiler0, err error) {
 
 			// Phase 1 commit complete
 
-			enum, err := r.data.seekFirst()
-			if err != nil {
-				return
-			}
-
-			for {
-				k, v, err := enum.current()
-				if err != nil {
-					if fileutil.IsEOF(err) {
-						break
-					}
-
-					return err
-				}
-
-				if _, err := db.WriteAt(v, int64(binary.BigEndian.Uint64(k))); err != nil {
-					return err
-				}
-
-				if err = enum.next(); err != nil {
-					if fileutil.IsEOF(err) {
-						break
-					}
-
+			for _, v := range r.data {
+				if _, err := db.WriteAt(v.b, v.off); err != nil {
 					return err
 				}
 			}

@@ -1,8 +1,6 @@
-// Copyright (c) 2011 CZ.NIC z.s.p.o. All rights reserved.
+// Copyright (c) 2014 The mathutil Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
-
-// blame: jnml, labs.nic.cz
 
 package mathutil
 
@@ -16,7 +14,7 @@ func PermutationFirst(data sort.Interface) {
 }
 
 // Generate the next permutation of data if possible and return true.
-// If there is no more permutation left return false.
+// Return false if there is no more permutation left.
 // Based on the algorithm described here:
 // http://en.wikipedia.org/wiki/Permutation#Generation_in_lexicographic_order
 func PermutationNext(data sort.Interface) bool {

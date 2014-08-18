@@ -1,4 +1,4 @@
-// Copyright 2013 The Go Authors. All rights reserved.
+// Copyright 2014 The kv Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -8,12 +8,14 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math"
 	"os"
 	"path"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"testing"
@@ -24,9 +26,15 @@ import (
 
 const sz0 = 144 // size of an empty KV DB
 
-var oKeep = flag.Bool("keep", false, "do not delete test DB (some tests)")
+var (
+	oDB   = flag.String("db", "", "DB to use in BenchmarkEnumerateDB")
+	oKeep = flag.Bool("keep", false, "do not delete test DB (some tests)")
+)
 
 func dbg(s string, va ...interface{}) {
+	if s == "" {
+		s = strings.Repeat("%v ", len(va))
+	}
 	_, fn, fl, _ := runtime.Caller(1)
 	fmt.Printf("%s:%d: ", path.Base(fn), fl)
 	fmt.Printf(s, va...)
@@ -43,24 +51,28 @@ func opts() *Options {
 	}
 }
 
+func temp() (dir, name string) {
+	dir, err := ioutil.TempDir("", "test-kv-")
+	if err != nil {
+		panic(err)
+	}
+
+	return dir, filepath.Join(dir, "test.tmp")
+}
+
 func TestCreate(t *testing.T) {
-	const name = "_testdata/tempname"
-	os.Remove(name)
 	o := opts()
+
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
 	db, err := Create(name, o)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer func() {
-		err := db.Close()
-		if err := os.Remove(name); err != nil {
-			t.Error(err)
-		}
-		if err := os.Remove(o._WAL); err != nil {
-			t.Error(err)
-		}
-		if err != nil {
+		if err := db.Close(); err != nil {
 			t.Error(err)
 		}
 	}()
@@ -89,28 +101,50 @@ func TestCreateMem(t *testing.T) {
 
 func TestCreateTemp(t *testing.T) {
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer func() {
-		name := db.Name()
-		err := db.Close()
-		if err := os.Remove(name); err != nil {
-			t.Error(err)
-		}
-		if err := os.Remove(o._WAL); err != nil {
-			t.Error(err)
-		}
-		if err != nil {
+		if err := db.Close(); err != nil {
 			t.Error(err)
 		}
 	}()
 }
 
+func cp(dest, src string) {
+	b, err := ioutil.ReadFile(src)
+	if err != nil {
+		panic(err)
+	}
+
+	f, err := os.Create(dest)
+	if err != nil {
+		panic(err)
+	}
+
+	n, err := f.Write(b)
+	if n != len(b) {
+		panic(n)
+	}
+
+	if err != nil {
+		panic(err)
+	}
+}
+
 func TestOpen(t *testing.T) {
-	db, err := Open("_testdata/open.db", opts())
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	name := filepath.Join(dir, "open.db")
+	cp(name, "_testdata/open.db")
+	cp(filepath.Join(dir, ".2196ad2c3cbc669595720f0cfb6f0dd888bc64bc"), "_testdata/.2196ad2c3cbc669595720f0cfb6f0dd888bc64bc")
+	db, err := Open(name, opts())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,16 +156,18 @@ func TestOpen(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	defer func(n string) {
+	defer func() {
 		db.Close()
-		os.Remove(n)
-		os.Remove(o._WAL)
-	}(db.Name())
+	}()
 
 	go db.Close()
 	if err := db.Close(); err != nil {
@@ -147,19 +183,18 @@ func TestClose(t *testing.T) {
 
 func TestName(t *testing.T) {
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	defer func(n string) {
-		db.Close()
-		os.Remove(n)
-		os.Remove(o._WAL)
-	}(db.Name())
+	defer db.Close()
 
 	if n := db.Name(); n == "" ||
-		!strings.Contains(n, "_testdata") ||
+		!strings.Contains(n, dir) ||
 		!strings.HasPrefix(filepath.Base(n), "temp") ||
 		!strings.HasSuffix(filepath.Base(n), ".db") ||
 		path.Base(n) == "temp.db" {
@@ -169,16 +204,15 @@ func TestName(t *testing.T) {
 
 func TestSize(t *testing.T) {
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	defer func(n string) {
-		db.Close()
-		os.Remove(n)
-		os.Remove(o._WAL)
-	}(db.Name())
+	defer db.Close()
 
 	sz, err := db.Size()
 	if err != nil {
@@ -193,24 +227,15 @@ func TestSize(t *testing.T) {
 
 func TestVerify(t *testing.T) {
 	o := opts()
-	db, err := CreateTemp("", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	defer func() {
-		name := db.Name()
-		err := db.Close()
-		if err := os.Remove(name); err != nil {
-			t.Error(err)
-		}
-		if err := os.Remove(o._WAL); err != nil {
-			t.Error(err)
-		}
-		if err != nil {
-			t.Error(err)
-		}
-	}()
+	defer db.Close()
 
 	t.Log(db.Name(), o._WAL)
 	if err := db.Verify(nil, nil); err != nil {
@@ -252,22 +277,16 @@ func TestDelete(t *testing.T) {
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	dbname := db.Name()
-	defer func(n string) {
-		db.Close()
-		switch *oKeep {
-		case true:
-			t.Log(n)
-		case false:
-			os.Remove(n)
-			os.Remove(o._WAL)
-		}
-	}(dbname)
+	defer db.Close()
 
 	rng := fc()
 	var keys []int
@@ -323,17 +342,15 @@ func BenchmarkDelete16(b *testing.B) {
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	dbname := db.Name()
-	defer func(n string) {
-		db.Close()
-		os.Remove(n)
-		os.Remove(o._WAL)
-	}(dbname)
+	defer db.Close()
 
 	rng := fc()
 	var keys []int
@@ -374,22 +391,16 @@ func TestExtract(t *testing.T) {
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	dbname := db.Name()
-	defer func(n string) {
-		db.Close()
-		switch *oKeep {
-		case true:
-			t.Log(n)
-		case false:
-			os.Remove(n)
-			os.Remove(o._WAL)
-		}
-	}(dbname)
+	defer db.Close()
 
 	rng := fc()
 	var keys, vals []int
@@ -457,17 +468,15 @@ func BenchmarkExtract16(b *testing.B) {
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	dbname := db.Name()
-	defer func(n string) {
-		db.Close()
-		os.Remove(n)
-		os.Remove(o._WAL)
-	}(dbname)
+	defer db.Close()
 
 	rng := fc()
 	var keys, vals []int
@@ -504,17 +513,15 @@ func BenchmarkExtract16(b *testing.B) {
 
 func TestFirst(t *testing.T) {
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	dbname := db.Name()
-	defer func(n string) {
-		db.Close()
-		os.Remove(n)
-		os.Remove(o._WAL)
-	}(dbname)
+	defer db.Close()
 
 	k, v, err := db.First()
 	if err != nil {
@@ -632,17 +639,18 @@ func BenchmarkFirst16(b *testing.B) {
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	dbname := db.Name()
-	defer func(n string) {
+	defer func() {
 		db.Close()
-		os.Remove(n)
 		os.Remove(o._WAL)
-	}(dbname)
+	}()
 
 	rng := fc()
 	for i := 0; i < n; i++ {
@@ -665,22 +673,18 @@ func TestGet(t *testing.T) {
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	dbname := db.Name()
-	defer func(n string) {
+	defer func() {
 		db.Close()
-		switch *oKeep {
-		case true:
-			t.Log(n)
-		case false:
-			os.Remove(n)
-			os.Remove(o._WAL)
-		}
-	}(dbname)
+		os.Remove(o._WAL)
+	}()
 
 	rng := fc()
 	var keys, vals []int
@@ -734,17 +738,15 @@ func BenchmarkGet16(b *testing.B) {
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	dbname := db.Name()
-	defer func(n string) {
-		db.Close()
-		os.Remove(n)
-		os.Remove(o._WAL)
-	}(dbname)
+	defer db.Close()
 
 	rng := fc()
 	var keys, vals []int
@@ -783,22 +785,17 @@ func TestInc(t *testing.T) {
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	dbname := db.Name()
-	defer func(n string) {
+	defer func() {
 		db.Close()
-		switch *oKeep {
-		case true:
-			t.Log(n)
-		case false:
-			os.Remove(n)
-			os.Remove(o._WAL)
-		}
-	}(dbname)
+	}()
 
 	v, err := db.Inc(nil, 1)
 	if err != nil {
@@ -864,22 +861,17 @@ func TestInc2(t *testing.T) {
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	dbname := db.Name()
-	defer func(n string) {
+	defer func() {
 		db.Close()
-		switch *oKeep {
-		case true:
-			t.Log(n)
-		case false:
-			os.Remove(n)
-			os.Remove(o._WAL)
-		}
-	}(dbname)
+	}()
 
 	c := make(chan int)
 	var wg sync.WaitGroup
@@ -923,17 +915,15 @@ func BenchmarkInc(b *testing.B) {
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	dbname := db.Name()
-	defer func(n string) {
-		db.Close()
-		os.Remove(n)
-		os.Remove(o._WAL)
-	}(dbname)
+	defer db.Close()
 
 	c := make(chan int)
 	var wg sync.WaitGroup
@@ -955,17 +945,17 @@ func BenchmarkInc(b *testing.B) {
 
 func TestLast(t *testing.T) {
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	dbname := db.Name()
-	defer func(n string) {
+	defer func() {
 		db.Close()
-		os.Remove(n)
-		os.Remove(o._WAL)
-	}(dbname)
+	}()
 
 	k, v, err := db.Last()
 	if err != nil {
@@ -1115,23 +1105,17 @@ func TestPut(t *testing.T) {
 	)
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
+
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	dbname := db.Name()
-	defer func(n string) {
-		db.Close()
-		switch *oKeep {
-		case true:
-			t.Log(n)
-		case false:
-			os.Remove(n)
-			os.Remove(o._WAL)
-		}
-	}(dbname)
+	defer db.Close()
 
 	rng := fc()
 	var keys, vals []int
@@ -1189,17 +1173,15 @@ func BenchmarkPut16(b *testing.B) {
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	dbname := db.Name()
-	defer func(n string) {
-		db.Close()
-		os.Remove(n)
-		os.Remove(o._WAL)
-	}(dbname)
+	defer db.Close()
 
 	rng := fc()
 	var keys, vals []int
@@ -1240,22 +1222,15 @@ func TestSet(t *testing.T) {
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	dbname := db.Name()
-	defer func(n string) {
-		db.Close()
-		switch *oKeep {
-		case true:
-			t.Log(n)
-		case false:
-			os.Remove(n)
-			os.Remove(o._WAL)
-		}
-	}(dbname)
+	defer db.Close()
 
 	rng := fc()
 	var keys, vals []int
@@ -1310,17 +1285,15 @@ func BenchmarkSet16(b *testing.B) {
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	dbname := db.Name()
-	defer func(n string) {
-		db.Close()
-		os.Remove(n)
-		os.Remove(o._WAL)
-	}(dbname)
+	defer db.Close()
 
 	rng := fc()
 	var keys, vals []int
@@ -1546,17 +1519,15 @@ func BenchmarkSeek(b *testing.B) {
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	dbname := db.Name()
-	defer func(n string) {
-		db.Close()
-		os.Remove(n)
-		os.Remove(o._WAL)
-	}(dbname)
+	defer db.Close()
 
 	rng := fc()
 	var keys, vals []int
@@ -1595,17 +1566,15 @@ func BenchmarkNext1e3(b *testing.B) {
 	g := runtime.GOMAXPROCS(0)
 	defer runtime.GOMAXPROCS(g)
 	o := opts()
-	db, err := CreateTemp("_testdata", "temp", ".db", o)
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	dbname := db.Name()
-	defer func(n string) {
-		db.Close()
-		os.Remove(n)
-		os.Remove(o._WAL)
-	}(dbname)
+	defer db.Close()
 
 	for i := 0; i < N; i++ {
 		if err := db.Set(n2b(i), n2b(17*i)); err != nil {
@@ -1881,4 +1850,61 @@ func TestCreateWithNonEmptyWAL(t *testing.T) {
 		t.Error("Unexpected success")
 		return
 	}
+}
+
+func BenchmarkEnumerateDB(b *testing.B) {
+	g := runtime.GOMAXPROCS(0)
+	defer runtime.GOMAXPROCS(g)
+	var db *DB
+	var err error
+	switch nm := *oDB; {
+	case nm != "":
+		db, err = Open(nm, &Options{
+			VerifyDbBeforeOpen:  true,
+			VerifyDbAfterOpen:   true,
+			VerifyDbBeforeClose: true,
+			VerifyDbAfterClose:  true,
+		})
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		defer db.Close()
+	default:
+		db, err = CreateMem(&Options{})
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		for i := 0; i < 1e3; i++ {
+			if err := db.Set(n2b(i), n2b(i)); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+
+	var n int
+	debug.FreeOSMemory()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		n = 0
+		en, err := db.SeekFirst()
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		for {
+			_, _, err := en.Next()
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+
+				b.Fatal(err)
+			}
+
+			n++
+		}
+	}
+	b.StopTimer()
 }
