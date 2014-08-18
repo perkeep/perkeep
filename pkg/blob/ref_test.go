@@ -220,3 +220,58 @@ func BenchmarkParseBlob(b *testing.B) {
 		}
 	}
 }
+
+func TestJSONUnmarshalSized(t *testing.T) {
+	var sb SizedRef
+	if err := json.Unmarshal([]byte(`{
+		"blobRef": "sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659",
+		"size": 123}`), &sb); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	want := SizedRef{
+		Ref:  MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"),
+		Size: 123,
+	}
+	if sb != want {
+		t.Fatalf("got %q, want %q", sb, want)
+	}
+
+	sb = SizedRef{}
+	if err := json.Unmarshal([]byte(`{}`), &sb); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if sb.Valid() {
+		t.Fatal("sized blobref is valid and shouldn't be")
+	}
+
+	sb = SizedRef{}
+	if err := json.Unmarshal([]byte(`{"blobRef":null, "size": 456}`), &sb); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if sb.Valid() {
+		t.Fatal("sized blobref is valid and shouldn't be")
+	}
+}
+
+func TestJSONMarshalSized(t *testing.T) {
+	sb := SizedRef{
+		Ref:  MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"),
+		Size: 123,
+	}
+	b, err := json.Marshal(sb)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if g, e := string(b), `{"blobRef":"sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659","size":123}`; g != e {
+		t.Fatalf("got %q, want %q", g, e)
+	}
+
+	sb = SizedRef{}
+	b, err = json.Marshal(sb)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if g, e := string(b), `{"blobRef":null,"size":0}`; g != e {
+		t.Fatalf("got %q, want %q", g, e)
+	}
+}
