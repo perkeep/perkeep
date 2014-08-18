@@ -68,6 +68,36 @@ coreos:
     - name: systemd-journal-gatewayd.socket
       command: start
       enable: true
+    - name: cam-journal-gatewayd.service
+      content: |
+        [Unit]
+        Description=Journal Gateway Service
+        Requires=cam-journal-gatewayd.socket
+        
+        [Service]
+        ExecStart=/usr/lib/systemd/systemd-journal-gatewayd
+        User=systemd-journal-gateway
+        Group=systemd-journal-gateway
+        SupplementaryGroups=systemd-journal
+        PrivateTmp=yes
+        PrivateDevices=yes
+        PrivateNetwork=yes
+        ProtectSystem=full
+        ProtectHome=yes
+        
+        [Install]
+        Also=cam-journal-gatewayd.socket
+    - name: cam-journal-gatewayd.socket
+      command: start
+      content: |
+        [Unit]
+        Description=Journal Gateway Service Socket
+        
+        [Socket]
+        ListenStream=/run/camjournald.sock
+        
+        [Install]
+        WantedBy=sockets.target
     - name: camlistored.service
       command: start
       content: |
@@ -77,7 +107,7 @@ coreos:
         Requires=docker.service
         
         [Service]
-        ExecStart=/usr/bin/docker run -p 80:80 -p 443:443 camlistore/camlistored
+        ExecStart=/usr/bin/docker run -p 80:80 -p 443:443 -v /run/camjournald.sock:/run/camjournald.sock camlistore/camlistored
         RestartSec=500ms
         Restart=always
         
@@ -156,7 +186,7 @@ coreos:
 				Boot:       true,
 				Type:       "PERSISTENT",
 				InitializeParams: &compute.AttachedDiskInitializeParams{
-					DiskName:    "camlistore-coreos-stateless-pd",
+					DiskName:    *instance + "-coreos-stateless-pd",
 					SourceImage: imageURL,
 				},
 			},

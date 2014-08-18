@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -592,6 +593,7 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reind
 		hi.Handle("/debug/pprof/", profileHandler{})
 	}
 	hi.Handle("/debug/config", auth.RequireAuth(configHandler{config}, auth.OpAll))
+	hi.Handle("/debug/logs", auth.RequireAuth(http.HandlerFunc(logsHandler), auth.OpAll))
 	return multiCloser(hl.closers), nil
 }
 
@@ -688,4 +690,21 @@ func (profileHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	default:
 		pprof.Index(rw, req)
 	}
+}
+
+func logsHandler(w http.ResponseWriter, r *http.Request) {
+	c := &http.Client{
+		Transport: &http.Transport{
+			Dial: func(network, addr string) (net.Conn, error) {
+				return net.Dial("unix", "/run/camjournald.sock")
+			},
+		},
+	}
+	res, err := c.Get("http://journal/entries")
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	io.Copy(w, res.Body)
 }
