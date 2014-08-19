@@ -24,6 +24,7 @@ goog.require('cam.Navigator');
 // We should implement content stamping, but for now, this is a workaround.
 cam.CacheBusterIframe = React.createClass({
 	propTypes: {
+		baseURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		height: React.PropTypes.number.isRequired,
 		onChildFrameClick: React.PropTypes.func,
 		src: React.PropTypes.instanceOf(goog.Uri).isRequired,
@@ -72,13 +73,13 @@ cam.CacheBusterIframe = React.createClass({
 		}
 
 		var oldURL = new goog.Uri(e.target.href);
-		var newURL = oldURL.clone();
-		if (newURL.getParameterValue('newui') != 1) {
-			newURL = newURL.clone();
-			newURL.setParameterValue('newui', '1');
-			if (newURL.getParameterValue('b')) {
-				newURL.setFragment('blob');
-			}
+		var newURL = this.props.baseURL.clone();
+		var query = oldURL.getParameterValue('q');
+
+		if (query) {
+			newURL.setParameterValue('q', query);
+		} else {
+			newURL.setPath(newURL.getPath() + (oldURL.getParameterValue('p') || oldURL.getParameterValue('d') || oldURL.getParameterValue('b')));
 		}
 
 		try {

@@ -173,9 +173,6 @@ cam.BlobItem.prototype.getLink_ = function() {
 	// The new detail page looks ridiculous for non-images, so don't go to it for those yet.
 	var uri = new goog.Uri(location.href);
 	uri.setParameterValue('p', this.blobRef_);
-	if (this.isImage()) {
-		uri.setParameterValue('newui', '1');
-	}
 	return uri.toString();
 };
 

@@ -387,6 +387,11 @@ func camliMode(req *http.Request) string {
 	return req.URL.Query().Get("camli.mode")
 }
 
+func wantsBlobRef(req *http.Request) bool {
+	_, ok := blob.ParseKnown(httputil.PathSuffix(req))
+	return ok
+}
+
 func wantsDiscovery(req *http.Request) bool {
 	return httputil.IsGet(req) &&
 		(req.Header.Get("Accept") == "text/x-camli-configuration" ||
@@ -448,7 +453,7 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			file = m[1]
 		} else {
 			switch {
-			case req.FormValue("newui") == "1":
+			case wantsBlobRef(req):
 				file = "index.html"
 			case wantsPermanode(req):
 				file = "permanode.html"
