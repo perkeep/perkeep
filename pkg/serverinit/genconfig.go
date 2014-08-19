@@ -103,7 +103,7 @@ func (b *lowBuilder) dbName(of string) string {
 			if runtime.GOOS == "windows" {
 				envVar += "NAME"
 			}
-			panic("No database name configured and no " + envVar + " environment variable is set, which would have been used to make a default dataase name")
+			return "camlistore_index"
 		}
 		return "camli" + username
 	}
