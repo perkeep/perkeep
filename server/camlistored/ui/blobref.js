@@ -1,5 +1,5 @@
 /*
-Copyright 2011 The Camlistore Authors
+Copyright 2014 The Camlistore Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,16 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-.cam-blobinfo-page {
-	font: 16px/1.4 normal Arial, sans-serif;
-}
-.cam-blobinfo-page #blobdata {
-	overflow: auto;
-	max-width: 800px;
-}
-.cam-blobinfo-nav:before {
-	content: "[";
-}
-.cam-blobinfo-nav:after {
-	content: "]";
-}
+goog.provide('cam.blobref');
+
+// TODO(aa): Need to eventually implement something like ref.go, which understands all the different types of hashes.
+cam.blobref.PATTERN = 'sha1-[0-9a-f]{40}';
