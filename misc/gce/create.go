@@ -103,16 +103,31 @@ coreos:
         
         [Install]
         WantedBy=sockets.target
+    - name: mysql.service
+      command: start
+      content: |
+        [Unit]
+        Description=MySQL
+        After=docker.service
+        Requires=docker.service
+        
+        [Service]
+        ExecStart=/usr/bin/docker run --name=db google/mysql
+        RestartSec=500ms
+        Restart=always
+        
+        [Install]
+        WantedBy=multi-user.target
     - name: camlistored.service
       command: start
       content: |
         [Unit]
         Description=Camlistore
         After=docker.service
-        Requires=docker.service
+        Requires=docker.service mysql.service
         
         [Service]
-        ExecStart=/usr/bin/docker run -p 80:80 -p 443:443 -v /run/camjournald.sock:/run/camjournald.sock -v /tmp/camlistore-tmp:/tmp camlistore/camlistored
+        ExecStart=/usr/bin/docker run -p 80:80 -p 443:443 -v /run/camjournald.sock:/run/camjournald.sock -v /tmp/camlistore-tmp:/tmp --link=db:mysqldb camlistore/camlistored
         RestartSec=500ms
         Restart=always
         
@@ -120,6 +135,10 @@ coreos:
         WantedBy=multi-user.target
 `
 
+	const maxCloudConfig = 32 << 10 // per compute API docs
+	if len(cloudConfig) > maxCloudConfig {
+		log.Fatalf("cloud config length of %d bytes is over %d byte limit", len(cloudConfig), maxCloudConfig)
+	}
 	if *sshPub != "" {
 		key := strings.TrimSpace(readFile(*sshPub))
 		cloudConfig += fmt.Sprintf("\nssh_authorized_keys:\n    - %s\n", key)
