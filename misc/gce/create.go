@@ -63,6 +63,11 @@ func main() {
 	}
 
 	cloudConfig := `#cloud-config
+write_files:
+  - path: /tmp/camlistore-tmp/README
+    permissions: 0644
+    content: |
+      This is the Camlistore /tmp directory.
 coreos:
   units:
     - name: systemd-journal-gatewayd.socket
@@ -107,7 +112,7 @@ coreos:
         Requires=docker.service
         
         [Service]
-        ExecStart=/usr/bin/docker run -p 80:80 -p 443:443 -v /run/camjournald.sock:/run/camjournald.sock camlistore/camlistored
+        ExecStart=/usr/bin/docker run -p 80:80 -p 443:443 -v /run/camjournald.sock:/run/camjournald.sock -v /tmp/camlistore-tmp:/tmp camlistore/camlistored
         RestartSec=500ms
         Restart=always
         
