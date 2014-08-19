@@ -142,8 +142,9 @@ coreos:
 	}
 
 	tr.Token = token
-	computeService, _ := compute.New(&http.Client{Transport: tr})
-	storageService, _ := storage.New(&http.Client{Transport: tr})
+	oauthClient := &http.Client{Transport: tr}
+	computeService, _ := compute.New(oauthClient)
+	storageService, _ := storage.New(oauthClient)
 
 	blobBucket := *proj + "-camlistore-blobs"
 	configBucket := *proj + "-camlistore-config"
