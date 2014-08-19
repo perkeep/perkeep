@@ -1,7 +1,7 @@
-// +build appengine
+// +build windows
 
 /*
-Copyright 2012 The Camlistore Authors.
+Copyright 2014 The Camlistore Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,15 +19,30 @@ limitations under the License.
 package osutil
 
 import (
-	"errors"
 	"log"
-	"runtime"
+	"syscall"
+	"unicode/utf16"
+	"unsafe"
 )
 
 // SelfPath returns the path of the executable for the currently running
 // process.
 func SelfPath() (string, error) {
-	return "", errors.New("SelfPath not implemented on App Engine.")
+	kernel32, err := syscall.LoadDLL("kernel32.dll")
+	if err != nil {
+		return "", err
+	}
+	sysproc, err := kernel32.FindProc("GetModuleFileNameW")
+	if err != nil {
+		return "", err
+	}
+	b := make([]uint16, syscall.MAX_PATH)
+	r, _, err := sysproc.Call(0, uintptr(unsafe.Pointer(&b[0])), uintptr(len(b)))
+	n := uint32(r)
+	if n == 0 {
+		return "", err
+	}
+	return string(utf16.Decode(b[0:n])), nil
 }
 
 // RestartProcess returns an error if things couldn't be
