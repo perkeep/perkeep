@@ -167,16 +167,26 @@ cam.IndexPage = React.createClass({
 		}, this).filter(goog.functions.identity);
 	},
 
-	getSearchAspect_: function(blobref, targetSearchSession_) {
-		if (this.childSearchSession_ && this.childSearchSession_.getCurrentResults().blobs.length) {
-			return {
-				title: blobref ? 'Contents' : 'Search',
-				fragment: blobref ? 'contents': 'search',
-				createContent: this.getBlobItemContainer_.bind(this),
-			};
-		} else {
+	getSearchAspect_: function(blobref, targetSearchSession) {
+		if (blobref) {
+			var m = targetSearchSession.getMeta(blobref);
+			if (!m || !m.permanode) {
+				// We have a target, but it's not a permanode. So don't show the contents view.
+				// TODO(aa): Maybe we do want to for directories though?
+				return null;
+			}
+		}
+
+		// This can happen when a user types a raw (JSON) query that is invalid.
+		if (!this.childSearchSession_) {
 			return null;
 		}
+
+		return {
+			title: blobref ? 'Contents' : 'Search',
+			fragment: blobref ? 'contents': 'search',
+			createContent: this.getBlobItemContainer_.bind(this),
+		};
 	},
 
 	handleDragStart_: function(e) {
@@ -267,7 +277,12 @@ cam.IndexPage = React.createClass({
 		} else if (query) {
 			// TODO(aa): Remove this when the server can do something like the 'raw' operator.
 			if (goog.string.startsWith(query, this.SEARCH_PREFIX_.RAW + ':')) {
-				query = JSON.parse(query.substring(this.SEARCH_PREFIX_.RAW.length + 1));
+				try {
+					query = JSON.parse(query.substring(this.SEARCH_PREFIX_.RAW.length + 1));
+				} catch (e) {
+					console.error('Raw search is invalid JSON', e);
+					query = null;
+				}
 			}
 		} else {
 			query = ' ';
