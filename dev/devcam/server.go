@@ -167,11 +167,11 @@ func (c *serverCmd) checkFlags(args []string) error {
 
 func (c *serverCmd) setRoot() error {
 	if c.root == "" {
-		user := osutil.Username()
-		if user == "" {
-			return errors.New("Could not get username from environment")
+		if root, err := rootInTmpDir(); err != nil {
+			return err
+		} else {
+			c.root = filepath.Join(root, "port"+c.port)
 		}
-		c.root = filepath.Join(os.TempDir(), "camliroot-"+user, "port"+c.port)
 	}
 	log.Printf("Temp dir root is %v", c.root)
 	if c.wipe {
@@ -303,6 +303,7 @@ func (c *serverCmd) setEnvVars() error {
 		setenv("CAMLI_TWITTER_API_KEY", c.twitterAPIKey)
 	}
 	setenv("CAMLI_CONFIG_DIR", "config")
+	setenv("CAMLI_CACHE_DIR", filepath.Join(c.root, "cache"))
 	setenv("CAMLI_APP_BINDIR", "bin")
 	return nil
 }

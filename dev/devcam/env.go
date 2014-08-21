@@ -17,13 +17,16 @@ limitations under the License.
 package main
 
 import (
+	"errors"
 	"flag"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/jsonsign"
+	"camlistore.org/pkg/osutil"
 )
 
 const (
@@ -94,6 +97,14 @@ func setCamdevVars() {
 	setCamdevVarsFor(nil, false)
 }
 
+func rootInTmpDir() (string, error) {
+	user := osutil.Username()
+	if user == "" {
+		return "", errors.New("Could not get username from environment")
+	}
+	return filepath.Join(os.TempDir(), "camliroot-"+user), nil
+}
+
 func setCamdevVarsFor(e *Env, altkey bool) {
 	var setenv func(string, string) error
 	if e != nil {
@@ -102,8 +113,14 @@ func setCamdevVarsFor(e *Env, altkey bool) {
 		setenv = os.Setenv
 	}
 
-	setenv("CAMLI_CONFIG_DIR", filepath.Join("config", "dev-client-dir"))
 	setenv("CAMLI_AUTH", "userpass:camlistore:pass3179")
+	// env values for clients. server will overwrite them anyway in its setEnvVars.
+	root, err := rootInTmpDir()
+	if err != nil {
+		log.Fatal(err)
+	}
+	setenv("CAMLI_CACHE_DIR", filepath.Join(root, "client", "cache"))
+	setenv("CAMLI_CONFIG_DIR", filepath.Join("config", "dev-client-dir"))
 
 	secring := defaultSecring
 	identity := defaultIdentity
