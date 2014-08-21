@@ -376,7 +376,7 @@ cam.IndexPage = React.createClass({
 				onNewPermanode: this.handleCreateSetWithSelection_,
 				onSearch: this.setSearch_,
 				searchRootsURL: this.getSearchRootsURL_(),
-				syncStatusURL: this.baseURL_.resolve(new goog.Uri(this.props.config.statusRoot)),
+				statusURL: this.baseURL_.resolve(new goog.Uri(this.props.config.statusRoot)),
 				ref: 'header',
 				subControls: [
 					this.getClearSelectionItem_(),
