@@ -140,13 +140,15 @@ func getAlbums(albums []Album, client *http.Client, url string, startIndex int) 
 	feed, err := downloadAndParse(client,
 		strings.Replace(url, "{startIndex}", strconv.Itoa(startIndex), 1))
 	if err != nil {
-		return nil, false, err
+		return albums, false, err
+	}
+	if len(feed.Entries) == 0 {
+		return albums, false, nil
 	}
 	for _, entry := range feed.Entries {
 		albums = append(albums, entry.album())
 	}
-	// since startIndex starts at 1, we need to compensate for this, just as we do for photos.
-	return albums, startIndex+len(feed.Entries) <= feed.TotalResults, nil
+	return albums, true, nil
 }
 
 func (e *Entry) album() Album {
@@ -205,7 +207,7 @@ func getPhotos(photos []Photo, client *http.Client, url string, startIndex int) 
 		return nil, false, err
 	}
 	if len(feed.Entries) == 0 {
-		return nil, false, nil
+		return photos, false, nil
 	}
 	for i, entry := range feed.Entries {
 		p, err := entry.photo()
@@ -215,8 +217,12 @@ func getPhotos(photos []Photo, client *http.Client, url string, startIndex int) 
 		p.Position = startIndex + i
 		photos = append(photos, p)
 	}
-	// startIndex starts with 1, we need to compensate for it.
-	return photos, startIndex+len(feed.Entries) <= feed.NumPhotos, nil
+
+	// The number of photos can change while the import is happening. More
+	// realistically, Aaron Boodman has observed feed.NumPhotos disagreeing with
+	// len(feed.Entries). So to be on the safe side, just keep trying until we
+	// get a response with zero entries.
+	return photos, true, nil
 }
 
 func (e *Entry) photo() (p Photo, err error) {
