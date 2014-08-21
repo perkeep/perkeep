@@ -175,6 +175,17 @@ cam.IndexPage = React.createClass({
 				// TODO(aa): Maybe we do want to for directories though?
 				return null;
 			}
+
+			// This is a hard case: if we're looking at a permanode and it doesn't have any children, should we render a contents view or not?
+			//
+			// If we do render a contents view, then we have this stupid empty contents view for lots of permanodes types that will probably never have children, like images, tweets, or foursquare checkins.
+			//
+			// If we don't render a contents view, then permanodes that are meant to actually be sets, but are currently empty won't have a contents view to drag items on to. And when you delete the last item from a set, the contents view will disappear.
+			//
+			// I'm not sure what the right long term solution is, but not showing a contents view in this case seems less crappy for now.
+			if (this.childSearchSession_ && !this.childSearchSession_.getCurrentResults().length) {
+				return null;
+			}
 		}
 
 		// This can happen when a user types a raw (JSON) query that is invalid.
