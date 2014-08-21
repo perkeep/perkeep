@@ -494,6 +494,11 @@ func (c *serverCmd) RunCommand(args []string) error {
 	if err := c.setEnvVars(); err != nil {
 		return fmt.Errorf("Could not setup the env vars: %v", err)
 	}
+	// wipeCacheDir needs to be called after setEnvVars, because that is where
+	// CAMLI_CACHE_DIR is defined.
+	if *wipeCache {
+		c.env.wipeCacheDir()
+	}
 	if err := c.setupIndexer(); err != nil {
 		return fmt.Errorf("Could not setup the indexer: %v", err)
 	}
