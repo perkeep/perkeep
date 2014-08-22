@@ -17,11 +17,10 @@ RUN echo y | android update sdk -u -t android-17
 
 # Update the GOVERS to depend on a new version of Go.
 #
-# The 70499e5fbe5b version is in the Go 1.3 dev cycle (2014-02-21),
-# after I fixed some net/http bugs (that are also worked around in
-# Camlistore, but...), and after some Go 1.3 GC precision fixes. It
-# enables precise stack scanning too, for better or worse (risk).
-ENV GOVERS 70499e5fbe5b
+# The 073fc578434b version is Go 1.3.1 (2014-02-21),
+# to satisfy the dependency for Go 1.3 in the Docker build of
+# camput.
+ENV GOVERS 073fc578434b
 
 RUN cd /usr/local && curl -O http://go.googlecode.com/archive/$GOVERS.zip
 RUN cd /usr/local && unzip -q $GOVERS.zip
