@@ -278,6 +278,8 @@ public class UploadService extends Service {
         ArrayList<String> dirs = new ArrayList<String>();
         if (mPrefs.autoDirPhotos()) {
             dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/Camera");
+            dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/100MEDIA");
+            dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/100ANDRO");
             dirs.add(Environment.getExternalStorageDirectory() + "/Eye-Fi");
         }
         if (mPrefs.autoDirMyTracks()) {
@@ -336,6 +338,8 @@ public class UploadService extends Service {
         Log.d(TAG, "Starting background watchers...");
         synchronized (UploadService.this) {
             maybeAddObserver("DCIM/Camera");
+            maybeAddObserver("DCIM/100MEDIA");
+            maybeAddObserver("DCIM/100ANDRO");
             maybeAddObserver("Eye-Fi");
             maybeAddObserver("gpx");
         }
