@@ -159,7 +159,7 @@ cam.IndexPage = React.createClass({
 		return [
 			this.getSearchAspect_,
 			cam.ImageDetail.getAspect,
-			cam.PermanodeDetail.getAspect.bind(null, this.baseURL_, childFrameClickHandler),
+			cam.PermanodeDetail.getAspect.bind(null, this.props.serverConnection, this.props.timer),
 			cam.DirectoryDetail.getAspect.bind(null, this.baseURL_, childFrameClickHandler),
 			cam.BlobDetail.getAspect.bind(null, this.getDetailURL_, this.props.serverConnection),
 		].map(function(f) {
@@ -183,7 +183,7 @@ cam.IndexPage = React.createClass({
 			// If we don't render a contents view, then permanodes that are meant to actually be sets, but are currently empty won't have a contents view to drag items on to. And when you delete the last item from a set, the contents view will disappear.
 			//
 			// I'm not sure what the right long term solution is, but not showing a contents view in this case seems less crappy for now.
-			if (this.childSearchSession_ && !this.childSearchSession_.getCurrentResults().length) {
+			if (this.childSearchSession_ && !this.childSearchSession_.getCurrentResults().blobs.length) {
 				return null;
 			}
 		}
