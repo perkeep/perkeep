@@ -34,6 +34,7 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
+	"camlistore.org/pkg/types/camtypes"
 	"camlistore.org/pkg/types/clientconfig"
 	"camlistore.org/pkg/wkfs"
 )
@@ -270,7 +271,7 @@ func serverOrDie() string {
 	}
 	server := defaultServer()
 	if server == "" {
-		log.Fatalf("No valid server defined with CAMLI_SERVER, or with -server, or in %q", osutil.UserClientConfigPath())
+		camtypes.ErrClientNoServer.Fatal()
 	}
 	return cleanServer(server)
 }

@@ -465,7 +465,12 @@ func ipHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(str))
 }
 
-const errPattern = "/err/"
+const (
+	errPattern  = "/err/"
+	toHyperlink = `<a href="$1$2">$1$2</a>`
+)
+
+var camliURLPattern = regexp.MustCompile(`(https?://camlistore.org)([a-zA-Z0-9\-\_/]+)?`)
 
 func errHandler(w http.ResponseWriter, r *http.Request) {
 	errString := strings.TrimPrefix(r.URL.Path, errPattern)
@@ -478,10 +483,10 @@ func errHandler(w http.ResponseWriter, r *http.Request) {
 	err := camtypes.Err(errString)
 	data := struct {
 		Code        string
-		Description string
+		Description template.HTML
 	}{
 		Code:        errString,
-		Description: err.Error(),
+		Description: template.HTML(camliURLPattern.ReplaceAllString(err.Error(), toHyperlink)),
 	}
 	contents := applyTemplate(camliErrorHTML, "camliErrorHTML", data)
 	w.WriteHeader(http.StatusFound)
