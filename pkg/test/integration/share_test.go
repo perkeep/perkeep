@@ -51,8 +51,25 @@ func share(t *testing.T, file string) {
 
 	// test that we can get it through the share
 	test.MustRunCmd(t, w.Cmd("camget", "-o", testDir, "-shared", fmt.Sprintf("%v/share/%v", w.ServerBaseURL(), shareRef)))
-	if _, err := os.Stat(filepath.Join(testDir, filepath.Base(file))); err != nil {
+	filePath := filepath.Join(testDir, filepath.Base(file))
+	fi, err := os.Stat(filePath)
+	if err != nil {
 		t.Fatalf("camget -shared failed to get %v: %v", file, err)
+	}
+	if fi.IsDir() {
+		// test that we also get the dir contents
+		d, err := os.Open(filePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer d.Close()
+		names, err := d.Readdirnames(-1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(names) == 0 {
+			t.Fatalf("camget did not fetch contents of directory %v", file)
+		}
 	}
 
 	// test that we're not allowed to get it directly
