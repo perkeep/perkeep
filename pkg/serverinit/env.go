@@ -70,12 +70,14 @@ func DefaultEnvConfig() (*Config, error) {
 		Identity:           keyId,
 		IdentitySecretRing: secRing,
 		GoogleCloudStorage: ":" + strings.TrimSuffix(strings.TrimPrefix(blobBucket, "gs://"), "/"),
+		DBNames:            map[string]string{},
 	}
 
 	// Detect a linked Docker MySQL container. It must have alias "mysqldb".
 	if v := os.Getenv("MYSQLDB_PORT"); strings.HasPrefix(v, "tcp://") {
 		hostPort := strings.TrimPrefix(v, "tcp://")
 		highConf.MySQL = "root@" + hostPort + ":" // no password
+		highConf.DBNames["queue-sync-to-index"] = "camsyncqueue_index"
 	} else {
 		// TODO: also detect Cloud SQL.
 		highConf.KVFile = "/index.kv"
