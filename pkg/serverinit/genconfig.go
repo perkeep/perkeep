@@ -107,7 +107,7 @@ func (b *lowBuilder) dbName(of string) string {
 		}
 		return "camli" + username
 	}
-	panic(fmt.Sprintf("unknown dbName value %q", of))
+	return ""
 }
 
 var errNoOwner = errors.New("no owner")
@@ -188,7 +188,7 @@ func (b *lowBuilder) addUIConfig() {
 	b.addPrefix("/ui/", "ui", args)
 }
 
-func (b *lowBuilder) mongoIndexStorage(confStr string) (map[string]interface{}, error) {
+func (b *lowBuilder) mongoIndexStorage(confStr, sortedType string) (map[string]interface{}, error) {
 	fields := strings.Split(confStr, "@")
 	if len(fields) == 2 {
 		host := fields[1]
@@ -200,7 +200,7 @@ func (b *lowBuilder) mongoIndexStorage(confStr string) (map[string]interface{}, 
 				"host":     host,
 				"user":     user,
 				"password": pass,
-				"database": b.dbName("index"),
+				"database": b.dbName(sortedType),
 			}, nil
 		}
 	}
@@ -233,7 +233,7 @@ func parseUserHostPass(v string) (user, host, password string, ok bool) {
 	return
 }
 
-func (b *lowBuilder) dbIndexStorage(rdbms string, confStr string) (map[string]interface{}, error) {
+func (b *lowBuilder) dbIndexStorage(rdbms string, confStr string, use string) (map[string]interface{}, error) {
 	user, host, password, ok := parseUserHostPass(confStr)
 	if !ok {
 		return nil, fmt.Errorf("Malformed %s config string. Want: \"user@host:password\"", rdbms)
@@ -243,19 +243,22 @@ func (b *lowBuilder) dbIndexStorage(rdbms string, confStr string) (map[string]in
 		"host":     host,
 		"user":     user,
 		"password": password,
-		"database": b.dbName("index"),
+		"database": b.dbName(use),
 	}, nil
 }
 
-func (b *lowBuilder) indexStorage() (map[string]interface{}, error) {
+func (b *lowBuilder) sortedStorage(sortedType string) (map[string]interface{}, error) {
 	if b.high.MySQL != "" {
-		return b.dbIndexStorage("mysql", b.high.MySQL)
+		return b.dbIndexStorage("mysql", b.high.MySQL, sortedType)
 	}
 	if b.high.PostgreSQL != "" {
-		return b.dbIndexStorage("postgres", b.high.PostgreSQL)
+		return b.dbIndexStorage("postgres", b.high.PostgreSQL, sortedType)
 	}
 	if b.high.Mongo != "" {
-		return b.mongoIndexStorage(b.high.Mongo)
+		return b.mongoIndexStorage(b.high.Mongo, sortedType)
+	}
+	if sortedType != "index" {
+		return nil, fmt.Errorf("TODO: finish SQLite & KVFile for non-index queues")
 	}
 	if b.high.SQLite != "" {
 		return map[string]interface{}{
@@ -432,6 +435,49 @@ func (b *lowBuilder) indexFileDir() string {
 	return ""
 }
 
+func (b *lowBuilder) syncToIndexArgs() (map[string]interface{}, error) {
+	a := map[string]interface{}{
+		"from": "/bs/",
+		"to":   "/index/",
+	}
+
+	const sortedType = "queue-sync-to-index"
+	if dbName := b.dbName(sortedType); dbName != "" {
+		qj, err := b.sortedStorage(sortedType)
+		if err != nil {
+			return nil, err
+		}
+		a["queue"] = qj
+		return a, nil
+	}
+
+	// TODO: currently when using s3, the index must be
+	// sqlite or kvfile, since only through one of those
+	// can we get a directory.
+	if b.high.BlobPath == "" && b.indexFileDir() == "" {
+		// We don't actually have a working sync handler, but we keep a stub registered
+		// so it can be referred to from other places.
+		// See http://camlistore.org/issue/201
+		a["idle"] = true
+		return a, nil
+	}
+
+	dir := b.high.BlobPath
+	if dir == "" {
+		dir = b.indexFileDir()
+	}
+	typ := "kv"
+	if b.high.SQLite != "" {
+		typ = "sqlite"
+	}
+	a["queue"] = map[string]interface{}{
+		"type": typ,
+		"file": filepath.Join(dir, "sync-to-index-queue."+typ),
+	}
+
+	return a, nil
+}
+
 func (b *lowBuilder) genLowLevelPrefixes() error {
 	root := "/bs/"
 	pubKeyDest := root
@@ -496,32 +542,9 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 	}
 
 	if b.runIndex() {
-		syncArgs := map[string]interface{}{
-			"from": "/bs/",
-			"to":   "/index/",
-		}
-
-		// TODO: currently when using s3, the index must be
-		// sqlite or kvfile, since only through one of those
-		// can we get a directory.
-		if b.high.BlobPath == "" && b.indexFileDir() == "" {
-			// We don't actually have a working sync handler, but we keep a stub registered
-			// so it can be referred to from other places.
-			// See http://camlistore.org/issue/201
-			syncArgs["idle"] = true
-		} else {
-			dir := b.high.BlobPath
-			if dir == "" {
-				dir = b.indexFileDir()
-			}
-			typ := "kv"
-			if b.high.SQLite != "" {
-				typ = "sqlite"
-			}
-			syncArgs["queue"] = map[string]interface{}{
-				"type": typ,
-				"file": filepath.Join(dir, "sync-to-index-queue."+typ),
-			}
+		syncArgs, err := b.syncToIndexArgs()
+		if err != nil {
+			return err
 		}
 		b.addPrefix("/sync/", "sync", syncArgs)
 
@@ -656,7 +679,7 @@ func (b *lowBuilder) build() (*Config, error) {
 
 	if b.runIndex() {
 		b.addUIConfig()
-		sto, err := b.indexStorage()
+		sto, err := b.sortedStorage("index")
 		if err != nil {
 			return nil, err
 		}
