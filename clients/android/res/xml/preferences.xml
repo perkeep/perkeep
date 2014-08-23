@@ -46,6 +46,12 @@
             android:persistent="true"
             android:summary="Wait for Wifi to auto-upload"
             android:title="Require Wifi" />
+        <EditTextPreference
+            android:key="camli.auto.required_wifi_ssid"
+            android:persistent="true"
+            android:singleLine="true"
+            android:summary="Restrict auto-upload to this SSID"
+            android:title="@string/settings_auto_required_ssid" />
         <CheckBoxPreference
             android:defaultValue="false"
             android:key="camli.auto.require_power"

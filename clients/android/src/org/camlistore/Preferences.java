@@ -32,6 +32,7 @@ public final class Preferences {
     public static final String DEV_IP = "camli.dev_ip";
     public static final String AUTO_REQUIRE_POWER = "camli.auto.require_power";
     public static final String AUTO_REQUIRE_WIFI = "camli.auto.require_wifi";
+    public static final String AUTO_REQUIRED_WIFI_SSID = "camli.auto.required_wifi_ssid";
     public static final String AUTO_DIR_PHOTOS = "camli.auto.photos";
     public static final String AUTO_DIR_MYTRACKS = "camli.auto.mytracks";
 
@@ -47,6 +48,10 @@ public final class Preferences {
 
     public boolean autoRequiresWifi() {
         return mSP.getBoolean(AUTO_REQUIRE_WIFI, false);
+    }
+
+    public String autoRequiredWifiSSID() {
+        return mSP.getString(AUTO_REQUIRED_WIFI_SSID, "");
     }
 
     public boolean autoUpload() {
