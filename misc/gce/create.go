@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -21,7 +22,7 @@ var (
 	proj     = flag.String("project", "", "name of Project")
 	zone     = flag.String("zone", "us-central1-a", "GCE zone")
 	mach     = flag.String("machinetype", "g1-small", "e.g. n1-standard-1, f1-micro, g1-small")
-	instance = flag.String("instance_name", "camlistore-server", "Name of VM instance.")
+	instName = flag.String("instance_name", "camlistore-server", "Name of VM instance.")
 	sshPub   = flag.String("ssh_public_key", "", "ssh public key file to authorize. Can modify later in Google's web UI anyway.")
 )
 
@@ -62,6 +63,27 @@ func main() {
 		Config: config,
 	}
 
+	tokenCache := oauth.CacheFile("token.dat")
+	token, err := tokenCache.Token()
+	if err != nil {
+		log.Printf("Error getting token from %s: %v", string(tokenCache), err)
+		log.Printf("Get auth code from %v", config.AuthCodeURL("my-state"))
+		os.Stdout.Write([]byte("\nEnter auth code: "))
+		sc := bufio.NewScanner(os.Stdin)
+		sc.Scan()
+		authCode := strings.TrimSpace(sc.Text())
+		token, err = tr.Exchange(authCode)
+		if err != nil {
+			log.Fatalf("Error exchanging auth code for a token: %v", err)
+		}
+		tokenCache.PutToken(token)
+	}
+
+	tr.Token = token
+	oauthClient := &http.Client{Transport: tr}
+	computeService, _ := compute.New(oauthClient)
+	storageService, _ := storage.New(oauthClient)
+
 	cloudConfig := `#cloud-config
 write_files:
   - path: /tmp/camlistore-tmp/README
@@ -70,9 +92,6 @@ write_files:
       This is the Camlistore /tmp directory.
 coreos:
   units:
-    - name: systemd-journal-gatewayd.socket
-      command: start
-      enable: true
     - name: cam-journal-gatewayd.service
       content: |
         [Unit]
@@ -112,9 +131,12 @@ coreos:
         Requires=docker.service
         
         [Service]
-        ExecStart=/usr/bin/docker run --name=db google/mysql
-        RestartSec=500ms
+        ExecStartPre=/usr/bin/docker run --rm -v /opt/bin:/opt/bin ibuildthecloud/systemd-docker
+        ExecStart=/opt/bin/systemd-docker run --rm --name %n google/mysql
+        RestartSec=1s
         Restart=always
+        Type=notify
+        NotifyAccess=all
         
         [Install]
         WantedBy=multi-user.target
@@ -127,9 +149,12 @@ coreos:
         Requires=docker.service mysql.service
         
         [Service]
-        ExecStart=/usr/bin/docker run -p 80:80 -p 443:443 -v /run/camjournald.sock:/run/camjournald.sock -v /tmp/camlistore-tmp:/tmp --link=db:mysqldb camlistore/camlistored
-        RestartSec=500ms
+        ExecStartPre=/usr/bin/docker run --rm -v /opt/bin:/opt/bin ibuildthecloud/systemd-docker
+        ExecStart=/opt/bin/systemd-docker run --rm -p 80:80 -p 443:443 --name %n -v /run/camjournald.sock:/run/camjournald.sock -v /tmp/camlistore-tmp:/tmp --link=mysql.service:mysqldb camlistore/camlistored
+        RestartSec=1s
         Restart=always
+        Type=notify
+        NotifyAccess=all
         
         [Install]
         WantedBy=multi-user.target
@@ -143,27 +168,6 @@ coreos:
 		key := strings.TrimSpace(readFile(*sshPub))
 		cloudConfig += fmt.Sprintf("\nssh_authorized_keys:\n    - %s\n", key)
 	}
-
-	tokenCache := oauth.CacheFile("token.dat")
-	token, err := tokenCache.Token()
-	if err != nil {
-		log.Printf("Error getting token from %s: %v", string(tokenCache), err)
-		log.Printf("Get auth code from %v", config.AuthCodeURL("my-state"))
-		os.Stdout.Write([]byte("\nEnter auth code: "))
-		sc := bufio.NewScanner(os.Stdin)
-		sc.Scan()
-		authCode := strings.TrimSpace(sc.Text())
-		token, err = tr.Exchange(authCode)
-		if err != nil {
-			log.Fatalf("Error exchanging auth code for a token: %v", err)
-		}
-		tokenCache.PutToken(token)
-	}
-
-	tr.Token = token
-	oauthClient := &http.Client{Transport: tr}
-	computeService, _ := compute.New(oauthClient)
-	storageService, _ := storage.New(oauthClient)
 
 	blobBucket := *proj + "-camlistore-blobs"
 	configBucket := *proj + "-camlistore-config"
@@ -202,7 +206,7 @@ coreos:
 	}
 
 	instance := &compute.Instance{
-		Name:        *instance,
+		Name:        *instName,
 		Description: "Camlistore server",
 		MachineType: machType,
 		Disks: []*compute.AttachedDisk{
@@ -211,7 +215,7 @@ coreos:
 				Boot:       true,
 				Type:       "PERSISTENT",
 				InitializeParams: &compute.AttachedDiskInitializeParams{
-					DiskName:    *instance + "-coreos-stateless-pd",
+					DiskName:    *instName + "-coreos-stateless-pd",
 					SourceImage: imageURL,
 				},
 			},
@@ -286,6 +290,7 @@ coreos:
 	}
 	opName := op.Name
 	log.Printf("Created. Waiting on operation %v", opName)
+OpLoop:
 	for {
 		time.Sleep(2 * time.Second)
 		op, err := computeService.ZoneOperations.Get(*proj, *zone, opName).Do()
@@ -304,9 +309,16 @@ coreos:
 				log.Fatalf("Failed to start.")
 			}
 			log.Printf("Success. %+v", op)
-			return
+			break OpLoop
 		default:
 			log.Fatalf("Unknown status %q: %+v", op.Status, op)
 		}
 	}
+
+	inst, err := computeService.Instances.Get(*proj, *zone, *instName).Do()
+	if err != nil {
+		log.Fatalf("Error getting instance after creation: %v", err)
+	}
+	ij, _ := json.MarshalIndent(inst, "", "    ")
+	log.Printf("Instance: %s", ij)
 }
