@@ -23,22 +23,32 @@ import (
 	"camlistore.org/pkg/osutil"
 )
 
-//TODO(mpl): move pkg/camerrors stuff in here
+// TODO(mpl): move pkg/camerrors stuff in here
 
 var camErrors = map[string]*camErr{}
 
 var (
-	ErrClientNoServer    = addCamError("client-no-server", fmt.Sprintf("No valid server defined. It can be set with the CAMLI_SERVER environment variable, or the --server flag, or in the \"servers\" section of %q (see https://camlistore.org/docs/client-config).", osutil.UserClientConfigPath()))
-	ErrClientNoPublicKey = addCamError("client-no-public-key", "No public key configured: see 'camput init'.")
+	ErrClientNoServer = addCamError("client-no-server", funcStr(func() string {
+		return fmt.Sprintf("No valid server defined. It can be set with the CAMLI_SERVER environment variable, or the --server flag, or in the \"servers\" section of %q (see https://camlistore.org/docs/client-config).", osutil.UserClientConfigPath())
+	}))
+	ErrClientNoPublicKey = addCamError("client-no-public-key", str("No public key configured: see 'camput init'."))
 )
+
+type str string
+
+func (s str) String() string { return string(s) }
+
+type funcStr func() string
+
+func (f funcStr) String() string { return f() }
 
 type camErr struct {
 	key string
-	des string // full error description
+	des fmt.Stringer
 }
 
 func (ce *camErr) Error() string {
-	return ce.des
+	return ce.des.String()
 }
 
 func (ce *camErr) Fatal() {
@@ -63,7 +73,7 @@ func Err(key string) error {
 	return v
 }
 
-func addCamError(key, des string) *camErr {
+func addCamError(key string, des fmt.Stringer) *camErr {
 	if e, ok := camErrors[key]; ok {
 		panic(fmt.Sprintf("error %v already registered as %q", key, e.Error()))
 	}
