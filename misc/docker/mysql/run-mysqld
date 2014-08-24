@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# Modified from
+# https://github.com/GoogleCloudPlatform/compute-docker-mysql which is
+# also Apache licensed, like Camlistore.
+
+env
+set -e
+
+: ${ROOT:="/mysql"}
+: ${INNODB_LOG_FILE_SIZE:=$((64 * 1024 * 1024))}
+: ${INNODB_BUFFER_POOL_SIZE_PCT:=40}
+: ${INNODB_BUFFER_POOL_SIZE:=$((
+      $(cat /proc/meminfo | grep MemTotal: | awk '{print $2}') * 1024 *
+      ${INNODB_BUFFER_POOL_SIZE_PCT} / 100
+      ))}
+
+bootstrap() {
+  if [[ -d ${ROOT}/datadir ]]
+  then
+    return
+  fi
+
+  mkdir -p ${ROOT}/datadir/mysql ${ROOT}/tmp
+
+  (
+    echo 'use mysql;'
+    cat /usr/share/mysql/mysql_system_tables.sql
+    cat /usr/share/mysql/mysql_system_tables_data.sql |
+    sed -e "s/^SELECT.*INTO @current_hostname;$/SELECT '%' INTO @current_hostname;/"
+  ) |
+  /usr/sbin/mysqld \
+    --no-defaults --bootstrap \
+    --datadir=${ROOT}/datadir \
+    --tmpdir=${ROOT}/tmp/ \
+    --lc-messages-dir=/usr/share/mysql \
+    --character-sets-dir=/usr/share/mysql/charsets \
+    --innodb_log_file_size=${INNODB_LOG_FILE_SIZE} \
+    --innodb_buffer_pool_size=${INNODB_BUFFER_POOL_SIZE}
+}
+
+bootstrap
+
+exec /usr/sbin/mysqld \
+  --no-defaults \
+  --datadir=${ROOT}/datadir \
+  --tmpdir=${ROOT}/tmp/ \
+  --lc-messages-dir=/usr/share/mysql \
+  --character-sets-dir=/usr/share/mysql/charsets \
+  --sock=${ROOT}/mysql.sock \
+  --pid-file=${ROOT}/mysql.pid \
+  --innodb_file_per_table \
+  --skip-name-resolve \
+  --user=root \
+  --port=3306 \
+  --innodb_log_file_size=${INNODB_LOG_FILE_SIZE} \
+  --innodb_buffer_pool_size=${INNODB_BUFFER_POOL_SIZE} 

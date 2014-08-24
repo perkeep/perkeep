@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -90,6 +91,10 @@ write_files:
     permissions: 0644
     content: |
       This is the Camlistore /tmp directory.
+  - path: /var/lib/mysql-camli/README
+    permissions: 0644
+    content: |
+      This is the Camlistore MySQL data directory.
 coreos:
   units:
     - name: cam-journal-gatewayd.service
@@ -132,7 +137,7 @@ coreos:
         
         [Service]
         ExecStartPre=/usr/bin/docker run --rm -v /opt/bin:/opt/bin ibuildthecloud/systemd-docker
-        ExecStart=/opt/bin/systemd-docker run --rm --name %n google/mysql
+        ExecStart=/opt/bin/systemd-docker run --rm --name %n -v /var/lib/mysql-camli:/mysql -e INNODB_BUFFER_POOL_SIZE=NNN camlistore/mysql
         RestartSec=1s
         Restart=always
         Type=notify
@@ -159,6 +164,7 @@ coreos:
         [Install]
         WantedBy=multi-user.target
 `
+	cloudConfig = strings.Replace(cloudConfig, "INNODB_BUFFER_POOL_SIZE=NNN", "INNODB_BUFFER_POOL_SIZE="+strconv.Itoa(innodbBufferPoolSize(*mach)), -1)
 
 	const maxCloudConfig = 32 << 10 // per compute API docs
 	if len(cloudConfig) > maxCloudConfig {
@@ -321,4 +327,21 @@ OpLoop:
 	}
 	ij, _ := json.MarshalIndent(inst, "", "    ")
 	log.Printf("Instance: %s", ij)
+}
+
+// returns the MySQL InnoDB buffer pool size (in bytes) as a function
+// of the GCE machine type.
+func innodbBufferPoolSize(machType string) int {
+	// Totally arbitrary. We don't need much here because
+	// camlistored slurps this all into its RAM on start-up
+	// anyway. So this is all prety overkill and more than the
+	// 8MB default.
+	switch machType {
+	case "f1-micro":
+		return 32 << 20
+	case "g1-small":
+		return 64 << 20
+	default:
+		return 128 << 20
+	}
 }
