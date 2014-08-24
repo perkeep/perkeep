@@ -36,9 +36,10 @@ import (
 )
 
 var (
-	noBuild  = flag.Bool("nobuild", false, "do not rebuild anything")
-	race     = flag.Bool("race", false, "build with race detector")
-	quiet, _ = strconv.ParseBool(os.Getenv("CAMLI_QUIET"))
+	noBuild   = flag.Bool("nobuild", false, "do not rebuild anything")
+	race      = flag.Bool("race", false, "build with race detector")
+	quiet, _  = strconv.ParseBool(os.Getenv("CAMLI_QUIET"))
+	wipeCache = flag.Bool("wipecache", false, "wipe the cache directory. Server cache with devcam server, client cache otherwise.")
 	// Whether to build the subcommand with sqlite support. This only
 	// concerns the server subcommand, which sets it to serverCmd.sqlite.
 	withSqlite bool
@@ -246,6 +247,7 @@ func build(path string) error {
 
 func main() {
 	cmdmain.CheckCwd = checkCamliSrcRoot
+
 	if err := checkModtime(); err != nil {
 		log.Printf("Skipping freshness check: %v", err)
 	}
