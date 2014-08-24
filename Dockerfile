@@ -38,7 +38,7 @@ USER camli
 
 ENV GOPATH /gopath
 
-RUN go install \
+RUN go install --tags=purego \
     camlistore.org/server/camlistored \
     camlistore.org/cmd/camput \
     camlistore.org/cmd/camget \

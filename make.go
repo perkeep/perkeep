@@ -172,9 +172,9 @@ func main() {
 		deleteUnwantedOldMirrorFiles(buildSrcDir, withCamlistored)
 	}
 
-	tags := ""
+	tags := []string{"purego"} // for cznic/zappy
 	if sql {
-		tags = "with_sqlite"
+		tags = append(tags, "with_sqlite")
 	}
 	baseArgs := []string{"install", "-v"}
 	if *all {
@@ -185,10 +185,12 @@ func main() {
 	}
 	ldFlags := "-X camlistore.org/pkg/buildinfo.GitInfo " + version
 	if *dockerMode {
-		tags = "netgo"
+		// Use libc-free net package for a static binary.
+		// And -w appears to be required too.
+		tags = append(tags, "netgo")
 		ldFlags = "-w " + ldFlags
 	}
-	baseArgs = append(baseArgs, "--ldflags="+ldFlags, "--tags="+tags)
+	baseArgs = append(baseArgs, "--ldflags="+ldFlags, "--tags="+strings.Join(tags, ","))
 
 	// First install command: build just the final binaries, installed to a GOBIN
 	// under <camlistore_root>/bin:
