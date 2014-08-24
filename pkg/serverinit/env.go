@@ -77,7 +77,8 @@ func DefaultEnvConfig() (*Config, error) {
 	if v := os.Getenv("MYSQLDB_PORT"); strings.HasPrefix(v, "tcp://") {
 		hostPort := strings.TrimPrefix(v, "tcp://")
 		highConf.MySQL = "root@" + hostPort + ":" // no password
-		highConf.DBNames["queue-sync-to-index"] = "camsyncqueue_index"
+		highConf.DBNames["queue-sync-to-index"] = "sync_index_queue"
+		highConf.DBNames["ui_thumbcache"] = "ui_thumbmeta_cache"
 	} else {
 		// TODO: also detect Cloud SQL.
 		highConf.KVFile = "/index.kv"
