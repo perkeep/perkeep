@@ -270,7 +270,7 @@ func mirror(sql bool) (latestSrcMod time.Time) {
 	}
 
 	// We copy all *.go files from camRoot's goDirs to buildSrcDir.
-	goDirs := []string{"app", "cmd", "pkg", "dev", "server/camlistored", "third_party"}
+	goDirs := []string{"app", "cmd", "depcheck", "pkg", "dev", "server/camlistored", "third_party"}
 	if *onlysync {
 		goDirs = append(goDirs, "server/appengine", "config")
 	}

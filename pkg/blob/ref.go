@@ -30,7 +30,7 @@ import (
 	// This is a pretty low-level package, so add the Go minimum
 	// version dependency check here at least.  This avoids
 	// adding it in many other places.
-	_ "camlistore.org/pkg/depcheck"
+	_ "camlistore.org/depcheck"
 )
 
 // Pattern is the regular expression which matches a blobref.
