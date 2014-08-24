@@ -179,16 +179,30 @@ func (b *lowBuilder) addUIConfig() {
 	if b.high.SourceRoot != "" {
 		args["sourceRoot"] = b.high.SourceRoot
 	}
+	var thumbCache map[string]interface{}
 	if b.high.BlobPath != "" {
-		args["scaledImage"] = map[string]interface{}{
+		thumbCache = map[string]interface{}{
 			"type": "kv",
 			"file": filepath.Join(b.high.BlobPath, "thumbmeta.kv"),
 		}
+	}
+	if thumbCache == nil {
+		sorted, err := b.sortedStorage("ui_thumbcache")
+		if err == nil {
+			thumbCache = sorted
+		}
+	}
+	if thumbCache != nil {
+		args["scaledImage"] = thumbCache
 	}
 	b.addPrefix("/ui/", "ui", args)
 }
 
 func (b *lowBuilder) mongoIndexStorage(confStr, sortedType string) (map[string]interface{}, error) {
+	dbName := b.dbName(sortedType)
+	if dbName == "" {
+		return nil, fmt.Errorf("no database name configured for sorted store %q", sortedType)
+	}
 	fields := strings.Split(confStr, "@")
 	if len(fields) == 2 {
 		host := fields[1]
@@ -200,7 +214,7 @@ func (b *lowBuilder) mongoIndexStorage(confStr, sortedType string) (map[string]i
 				"host":     host,
 				"user":     user,
 				"password": pass,
-				"database": b.dbName(sortedType),
+				"database": dbName,
 			}, nil
 		}
 	}
@@ -233,7 +247,11 @@ func parseUserHostPass(v string) (user, host, password string, ok bool) {
 	return
 }
 
-func (b *lowBuilder) dbIndexStorage(rdbms string, confStr string, use string) (map[string]interface{}, error) {
+func (b *lowBuilder) dbIndexStorage(rdbms string, confStr string, sortedType string) (map[string]interface{}, error) {
+	dbName := b.dbName(sortedType)
+	if dbName == "" {
+		return nil, fmt.Errorf("no database name configured for sorted store %q", sortedType)
+	}
 	user, host, password, ok := parseUserHostPass(confStr)
 	if !ok {
 		return nil, fmt.Errorf("Malformed %s config string. Want: \"user@host:password\"", rdbms)
@@ -243,7 +261,7 @@ func (b *lowBuilder) dbIndexStorage(rdbms string, confStr string, use string) (m
 		"host":     host,
 		"user":     user,
 		"password": password,
-		"database": b.dbName(use),
+		"database": b.dbName(sortedType),
 	}, nil
 }
 
@@ -397,10 +415,6 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 			"client_id":     clientID,
 			"client_secret": secret,
 			"refresh_token": refreshToken,
-			// If high-level config is for the common user then fullSyncOnStart = true
-			// Then the default just works.
-			//"fullSyncOnStart": true,
-			//"blockingFullSyncOnStart": false
 		},
 	})
 
