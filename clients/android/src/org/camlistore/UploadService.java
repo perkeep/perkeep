@@ -51,6 +51,7 @@ import android.os.PowerManager;
 import android.os.RemoteException;
 import android.provider.MediaStore;
 import android.util.Log;
+import android.widget.Toast;
 
 public class UploadService extends Service {
     private static final String TAG = "UploadService";
@@ -173,7 +174,15 @@ public class UploadService extends Service {
                     }
                 } else if (INTENT_NETWORK_WIFI.equals(action)) {
                     if (!mPrefs.autoRequiresPower() || WifiPowerReceiver.onPower(this)) {
-                        startAuto = true;
+                        String ssid = "";
+                        String requiredSSID = mPrefs.autoRequiredWifiSSID();
+                        if (intent.hasExtra("SSID")) {
+                            ssid = intent.getStringExtra("SSID");
+                        }
+                        Log.d(TAG, "SSID: '" + ssid +"' / Required SSID: '" + requiredSSID + "'");
+                        if (requiredSSID.equals("") || requiredSSID.equals(ssid)) {
+                            startAuto = true;
+                        }
                     }
                 } else if (INTENT_POWER_DISCONNECTED.equals(action)) {
                     stopAuto = mPrefs.autoRequiresPower();

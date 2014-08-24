@@ -34,5 +34,6 @@
     <string name="upload_all">Upload All</string>
     <string name="browse">Browse</string>
     <string name="results">Results</string>
+    <string name="settings_auto_required_ssid">Required SSID</string>
 
 </resources>
