@@ -87,11 +87,11 @@ func main() {
 
 	cloudConfig := `#cloud-config
 write_files:
-  - path: /tmp/camlistore-tmp/README
+  - path: /var/lib/camlistore/tmp/README
     permissions: 0644
     content: |
       This is the Camlistore /tmp directory.
-  - path: /var/lib/mysql-camli/README
+  - path: /var/lib/camlistore/mysql/README
     permissions: 0644
     content: |
       This is the Camlistore MySQL data directory.
@@ -137,7 +137,7 @@ coreos:
         
         [Service]
         ExecStartPre=/usr/bin/docker run --rm -v /opt/bin:/opt/bin ibuildthecloud/systemd-docker
-        ExecStart=/opt/bin/systemd-docker run --rm --name %n -v /var/lib/mysql-camli:/mysql -e INNODB_BUFFER_POOL_SIZE=NNN camlistore/mysql
+        ExecStart=/opt/bin/systemd-docker run --rm --name %n -v /var/lib/camlistore/mysql:/mysql -e INNODB_BUFFER_POOL_SIZE=NNN camlistore/mysql
         RestartSec=1s
         Restart=always
         Type=notify
@@ -155,7 +155,7 @@ coreos:
         
         [Service]
         ExecStartPre=/usr/bin/docker run --rm -v /opt/bin:/opt/bin ibuildthecloud/systemd-docker
-        ExecStart=/opt/bin/systemd-docker run --rm -p 80:80 -p 443:443 --name %n -v /run/camjournald.sock:/run/camjournald.sock -v /tmp/camlistore-tmp:/tmp --link=mysql.service:mysqldb camlistore/camlistored
+        ExecStart=/opt/bin/systemd-docker run --rm -p 80:80 -p 443:443 --name %n -v /run/camjournald.sock:/run/camjournald.sock -v /var/lib/camlistore/tmp:/tmp --link=mysql.service:mysqldb camlistore/camlistored
         RestartSec=1s
         Restart=always
         Type=notify
