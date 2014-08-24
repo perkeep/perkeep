@@ -76,12 +76,14 @@ public class WifiPowerReceiver extends BroadcastReceiver {
         if (ni != null && ni.isConnected()
                 && (ni.getType() == ConnectivityManager.TYPE_WIFI || ni.getType() == ConnectivityManager.TYPE_ETHERNET)) {
             WifiManager wifiMgr = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
-            WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
-            String ssid = wifiInfo.getSSID();
-            if (ssid.startsWith("\"") && ssid.endsWith("\"")){
-                ssid = ssid.substring(1, ssid.length()-1);
+            if (wifiMgr != null) {
+                WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
+                String ssid = wifiInfo.getSSID();
+                if (ssid.startsWith("\"") && ssid.endsWith("\"")){
+                    ssid = ssid.substring(1, ssid.length()-1);
+                }
+                return ssid;
             }
-            return ssid;
         }
         return "";
     }
