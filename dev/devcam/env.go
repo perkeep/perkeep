@@ -153,3 +153,16 @@ func setCamdevVarsFor(e *Env, altkey bool) {
 	setenv("CAMLI_PUBKEY_BLOBREF", pubKeyRef.String())
 	setenv("CAMLI_KV_VERIFY", "true")
 }
+
+func (e *Env) wipeCacheDir() {
+	cacheDir, _ := e.m["CAMLI_CACHE_DIR"]
+	if cacheDir == "" {
+		log.Fatal("Could not wipe cache dir, CAMLI_CACHE_DIR not defined")
+	}
+	if err := os.RemoveAll(cacheDir); err != nil {
+		log.Fatalf("Could not remove cache dir %v: %v", cacheDir, err)
+	}
+	if err := os.MkdirAll(cacheDir, 0700); err != nil {
+		log.Fatalf("Could not recreate cache dir %v: %v", cacheDir, err)
+	}
+}

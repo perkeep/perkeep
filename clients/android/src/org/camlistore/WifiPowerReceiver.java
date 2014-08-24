@@ -21,6 +21,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.util.Log;
 
 public class WifiPowerReceiver extends BroadcastReceiver {
@@ -47,6 +49,9 @@ public class WifiPowerReceiver extends BroadcastReceiver {
             boolean wifi = onWifi(context);
             Log.d(TAG, "onWifi = " + wifi);
             Intent cmd = new Intent(wifi ? UploadService.INTENT_NETWORK_WIFI : UploadService.INTENT_NETWORK_NOT_WIFI);
+            String ssid = getSSID(context);
+            cmd.putExtra("SSID", ssid);
+            Log.d(TAG, "extra ssid (chk)= " + cmd.getStringExtra("SSID"));
             cmd.setClass(context, UploadService.class);
             context.startService(cmd);
         }
@@ -64,5 +69,20 @@ public class WifiPowerReceiver extends BroadcastReceiver {
             return true;
         }
         return false;
+    }
+
+    public static String getSSID(Context context) {
+        NetworkInfo ni = ((ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE)).getActiveNetworkInfo();
+        if (ni != null && ni.isConnected()
+                && (ni.getType() == ConnectivityManager.TYPE_WIFI || ni.getType() == ConnectivityManager.TYPE_ETHERNET)) {
+            WifiManager wifiMgr = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+            WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
+            String ssid = wifiInfo.getSSID();
+            if (ssid.startsWith("\"") && ssid.endsWith("\"")){
+                ssid = ssid.substring(1, ssid.length()-1);
+            }
+            return ssid;
+        }
+        return "";
     }
 }

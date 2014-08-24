@@ -66,6 +66,11 @@ func (c *toolCmd) RunCommand(args []string) error {
 		}
 	}
 	c.env.SetCamdevVars(c.altkey)
+	// wipeCacheDir needs to be called after SetCamdevVars, because that is
+	// where CAMLI_CACHE_DIR is defined.
+	if *wipeCache {
+		c.env.wipeCacheDir()
+	}
 
 	cmdBin := filepath.Join("bin", "camtool")
 	return runExec(cmdBin, args, c.env)

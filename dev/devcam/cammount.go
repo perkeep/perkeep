@@ -92,6 +92,11 @@ func (c *mountCmd) RunCommand(args []string) error {
 		}
 	}
 	c.env.SetCamdevVars(c.altkey)
+	// wipeCacheDir needs to be called after SetCamdevVars, because that is
+	// where CAMLI_CACHE_DIR is defined.
+	if *wipeCache {
+		c.env.wipeCacheDir()
+	}
 
 	tryUnmount(mountpoint)
 	if err := os.Mkdir(mountpoint, 0700); err != nil && !os.IsExist(err) {
