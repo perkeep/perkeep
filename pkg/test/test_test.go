@@ -28,7 +28,7 @@ import (
 var _ index.Interface = (*FakeIndex)(nil)
 
 type tbLogger struct {
-	TB
+	testing.TB
 	log []string
 }
 

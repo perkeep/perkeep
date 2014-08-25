@@ -49,13 +49,13 @@ func (i indexType) String() string {
 }
 
 type queryTest struct {
-	t  test.TB
+	t  testing.TB
 	id *indextest.IndexDeps
 
 	Handler func() *Handler
 }
 
-func querySetup(t test.TB) (*indextest.IndexDeps, *Handler) {
+func querySetup(t testing.TB) (*indextest.IndexDeps, *Handler) {
 	idx := index.NewMemoryIndex() // string key-value pairs in memory, as if they were on disk
 	id := indextest.NewIndexDeps(idx)
 	id.Fataler = t
@@ -63,11 +63,11 @@ func querySetup(t test.TB) (*indextest.IndexDeps, *Handler) {
 	return id, h
 }
 
-func testQuery(t test.TB, fn func(*queryTest)) {
+func testQuery(t testing.TB, fn func(*queryTest)) {
 	testQueryTypes(t, allIndexTypes, fn)
 }
 
-func testQueryTypes(t test.TB, types []indexType, fn func(*queryTest)) {
+func testQueryTypes(t testing.TB, types []indexType, fn func(*queryTest)) {
 	defer test.TLog(t)()
 	for _, it := range types {
 		if *queryType == "" || *queryType == it.String() {
@@ -77,7 +77,7 @@ func testQueryTypes(t test.TB, types []indexType, fn func(*queryTest)) {
 	}
 }
 
-func testQueryType(t test.TB, fn func(*queryTest), itype indexType) {
+func testQueryType(t testing.TB, fn func(*queryTest), itype indexType) {
 	defer index.SetVerboseCorpusLogging(true)
 	index.SetVerboseCorpusLogging(false)
 
