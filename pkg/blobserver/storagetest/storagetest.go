@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"reflect"
 	"sort"
 	"strconv"
@@ -81,9 +82,6 @@ func Test(t *testing.T, fn func(*testing.T) (sto blobserver.Storage, cleanup fun
 	}
 	b1 := blobs[0]
 
-	// finish here if you want to examine the test directory
-	//t.Fatalf("FINISH")
-
 	t.Logf("Testing Fetch")
 	for i, b2 := range blobs {
 		rc, size, err := sto.Fetch(b2.BlobRef())
@@ -139,6 +137,44 @@ func Test(t *testing.T, fn func(*testing.T) (sto blobserver.Storage, cleanup fun
 			t.Logf("RemoveBlob %s: %v", b1, err)
 		} else {
 			t.Fatalf("RemoveBlob %s: %v", b1, err)
+		}
+	}
+
+	testSubFetcher(t, sto)
+}
+
+func testSubFetcher(t *testing.T, sto blobserver.Storage) {
+	sf, ok := sto.(blob.SubFetcher)
+	if !ok {
+		t.Logf("%T is not a SubFetcher", sto)
+		return
+	}
+	t.Logf("Testing SubFetch")
+	big := &test.Blob{"Some big blob"}
+	if _, err := sto.ReceiveBlob(big.BlobRef(), big.Reader()); err != nil {
+		t.Fatal(err)
+	}
+	regions := []struct {
+		off, limit int64
+		want       string
+		errok      bool
+	}{
+		{5, 3, "big", false},
+		{5, 8, "big blob", false},
+		{5, 100, "big blob", true},
+	}
+	for _, tt := range regions {
+		r, err := sf.SubFetch(big.BlobRef(), tt.off, tt.limit)
+		if err != nil {
+			t.Fatal("Error fetching big blob for SubFetch: %v", err)
+		}
+		all, err := ioutil.ReadAll(r)
+		r.Close()
+		if err != nil && !tt.errok {
+			t.Errorf("Unexpected error reading SubFetch region %+v: %v", tt, err)
+		}
+		if string(all) != tt.want {
+			t.Errorf("SubFetch region %+v got %q; want %q", tt, all, tt.want)
 		}
 	}
 }
@@ -212,6 +248,14 @@ func CheckEnumerate(sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts .
 	if len(got) == 0 && len(want) == 0 {
 		return nil
 	}
+	var gotSet = map[blob.SizedRef]bool{}
+	for _, sb := range got {
+		if gotSet[sb] {
+			return fmt.Errorf("duplicate blob %v returned in enumerate", sb)
+		}
+		gotSet[sb] = true
+	}
+
 	if !reflect.DeepEqual(got, want) {
 		return fmt.Errorf("Enumerate mismatch. Got %d; want %d.\n Got: %v\nWant: %v\n",
 			len(got), len(want), got, want)
