@@ -46,7 +46,7 @@ cam.Header = React.createClass({
 		onNewPermanode: React.PropTypes.func,
 		onSearch: React.PropTypes.func,
 		searchRootsURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
-		syncStatusURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
+		statusURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		subControls: React.PropTypes.arrayOf(React.PropTypes.renderable),
 		timer: React.PropTypes.shape({setTimeout:React.PropTypes.func.isRequired, clearTimeout:React.PropTypes.func.isRequired}).isRequired,
 		width: React.PropTypes.number.isRequired,
@@ -60,8 +60,16 @@ cam.Header = React.createClass({
 	getInitialState: function() {
 		return {
 			currentSearch: this.props.currentSearch,
+			importerRoot: null,
 			menuVisible: false,
 		};
+	},
+
+	componentWillMount: function() {
+		var req = new XMLHttpRequest();
+		req.open('GET', this.props.statusURL.resolve(new goog.Uri('status.json')), true);
+		req.onload = this.handleStatusLoad_;
+		req.send(null);
 	},
 
 	componentWillReceiveProps: function(nextProps) {
@@ -192,12 +200,17 @@ cam.Header = React.createClass({
 			// TODO(aa): Also I keep going back and forth about whether we should call this 'permanode' or 'set' in the UI. Hrm.
 			this.getMenuItemButton_('New set', this.props.onNewPermanode),
 
-			this.getMenuItemLink_('Search roots', this.props.searchRootsURL),
-			this.getMenuItemLink_('Server status', this.props.syncStatusURL)
+			this.getMenuItemLink_('Importers', this.state.importerRoot),
+			this.getMenuItemLink_('Server status', this.props.statusURL),
+			this.getMenuItemLink_('Search roots', this.props.searchRootsURL)
 		);
 	},
 
 	getMenuItemLink_: function(text, link) {
+		if (!text || !link) {
+			return null;
+		}
+
 		return React.DOM.a(
 			{
 				className: 'cam-header-menu-item',
@@ -292,5 +305,9 @@ cam.Header = React.createClass({
 
 	getSearchNode_: function() {
 		return this.refs['searchbox'].getDOMNode();
+	},
+
+	handleStatusLoad_: function(e) {
+		this.setState({importerRoot: this.props.homeURL.resolve(new goog.Uri(JSON.parse(e.target.responseText)['importerRoot']))});
 	},
 });

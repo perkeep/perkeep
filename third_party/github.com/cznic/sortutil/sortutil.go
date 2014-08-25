@@ -1,4 +1,4 @@
-// Copyright 2009 The Go Authors. All rights reserved.
+// Copyright 2014 The sortutil Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -203,4 +203,25 @@ func (s RuneSlice) Sort() {
 // as specified by sort.Search. The slice must be sorted in ascending order.
 func SearchRunes(a []rune, x rune) int {
 	return sort.Search(len(a), func(i int) bool { return a[i] >= x })
+}
+
+// Dedupe returns n, the number of distinct elements in data. The resulting
+// elements are sorted in elements [0, n) or data[:n] for a slice.
+func Dedupe(data sort.Interface) (n int) {
+	if n = data.Len(); n < 2 {
+		return n
+	}
+
+	sort.Sort(data)
+	a, b := 0, 1
+	for b < n {
+		if data.Less(a, b) {
+			a++
+			if a != b {
+				data.Swap(a, b)
+			}
+		}
+		b++
+	}
+	return a + 1
 }

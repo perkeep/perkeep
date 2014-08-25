@@ -1,4 +1,4 @@
-// Copyright 2013 The Go Authors. All rights reserved.
+// Copyright 2014 The lldb Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -664,7 +664,6 @@ func BenchmarkMemFilerWrSeq(b *testing.B) {
 	for i := range buf {
 		buf[i] = byte(rand.Int())
 	}
-	b.SetBytes(filerTestChunkSize)
 	f := newMemFiler()
 	runtime.GC()
 	b.StartTimer()
@@ -685,7 +684,6 @@ func BenchmarkMemFilerRdSeq(b *testing.B) {
 	for i := range buf {
 		buf[i] = byte(rand.Int())
 	}
-	b.SetBytes(filerTestChunkSize)
 	f := newMemFiler()
 	var ofs int64
 	for i := 0; i < b.N; i++ {
@@ -733,7 +731,6 @@ func BenchmarkMemFilerWrRand(b *testing.B) {
 		f.WriteAt(data[:n], int64(v))
 	}
 	b.StopTimer()
-	b.SetBytes(bytes / int64(b.N))
 }
 
 func BenchmarkMemFilerRdRand(b *testing.B) {
@@ -764,5 +761,4 @@ func BenchmarkMemFilerRdRand(b *testing.B) {
 		f.ReadAt(data, int64(v))
 	}
 	b.StopTimer()
-	b.SetBytes(bytes / int64(b.N))
 }

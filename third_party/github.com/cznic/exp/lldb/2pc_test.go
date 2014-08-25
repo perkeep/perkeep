@@ -1,4 +1,4 @@
-// Copyright 2013 The Go Authors. All rights reserved.
+// Copyright 2014 The lldb Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -98,7 +98,7 @@ func TestACIDFiler0(t *testing.T) {
 
 	// Phase 1: Create a DB, fill with it with data.
 
-	wal, err := ioutil.TempFile(".", "test-acidfiler0-wal-")
+	wal, err := ioutil.TempFile("", "test-acidfiler0-wal-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestACIDFiler0(t *testing.T) {
 		defer os.Remove(wal.Name())
 	}
 
-	db, err := ioutil.TempFile(".", "test-acidfiler0-db-")
+	db, err := ioutil.TempFile("", "test-acidfiler0-db-")
 	if err != nil {
 		t.Fatal(err)
 	}

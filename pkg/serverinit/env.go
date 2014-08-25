@@ -18,6 +18,7 @@ package serverinit
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"camlistore.org/pkg/osutil"
@@ -61,7 +62,7 @@ func DefaultEnvConfig() (*Config, error) {
 		ipOrHost = host
 	}
 
-	return genLowLevelConfig(&serverconfig.Config{
+	highConf := &serverconfig.Config{
 		Auth:               auth,
 		BaseURL:            fmt.Sprintf("https://%s", ipOrHost),
 		HTTPS:              true,
@@ -69,6 +70,19 @@ func DefaultEnvConfig() (*Config, error) {
 		Identity:           keyId,
 		IdentitySecretRing: secRing,
 		GoogleCloudStorage: ":" + strings.TrimSuffix(strings.TrimPrefix(blobBucket, "gs://"), "/"),
-		KVFile:             "/index.kv", // TODO: switch to Cloud SQL or local MySQL
-	})
+		DBNames:            map[string]string{},
+	}
+
+	// Detect a linked Docker MySQL container. It must have alias "mysqldb".
+	if v := os.Getenv("MYSQLDB_PORT"); strings.HasPrefix(v, "tcp://") {
+		hostPort := strings.TrimPrefix(v, "tcp://")
+		highConf.MySQL = "root@" + hostPort + ":" // no password
+		highConf.DBNames["queue-sync-to-index"] = "sync_index_queue"
+		highConf.DBNames["ui_thumbcache"] = "ui_thumbmeta_cache"
+	} else {
+		// TODO: also detect Cloud SQL.
+		highConf.KVFile = "/index.kv"
+	}
+
+	return genLowLevelConfig(highConf)
 }

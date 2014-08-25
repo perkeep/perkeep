@@ -948,7 +948,7 @@ func (c *Client) signerInit() {
 func (c *Client) buildSigner() (*schema.Signer, error) {
 	c.initSignerPublicKeyBlobrefOnce.Do(c.initSignerPublicKeyBlobref)
 	if !c.signerPublicKeyRef.Valid() {
-		return nil, camtypes.Err("client-no-public-key")
+		return nil, camtypes.ErrClientNoPublicKey
 	}
 	return schema.NewSigner(c.signerPublicKeyRef, strings.NewReader(c.publicKeyArmored), c.SecretRingFile())
 }

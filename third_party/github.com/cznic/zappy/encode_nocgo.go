@@ -1,10 +1,12 @@
-// Copyright 2013 The Go Authors. All rights reserved.
+// Copyright 2014 The zappy Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
 // Copyright 2011 The Snappy-Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the SNAPPY-GO-LICENSE file.
+
+// +build !cgo purego
 
 package zappy
 
@@ -14,13 +16,15 @@ import (
 	"math"
 )
 
+func puregoEncode() bool { return true }
+
 // Encode returns the encoded form of src. The returned slice may be a sub-
-// slice of dst if dst was large enough to hold the entire encoded block.
+// slice of buf if buf was large enough to hold the entire encoded block.
 // Otherwise, a newly allocated slice will be returned.
-// It is valid to pass a nil dst.
-func Encode(dst, src []byte) ([]byte, error) {
-	if n := MaxEncodedLen(len(src)); len(dst) < n {
-		dst = make([]byte, n)
+// It is valid to pass a nil buf.
+func Encode(buf, src []byte) ([]byte, error) {
+	if n := MaxEncodedLen(len(src)); len(buf) < n {
+		buf = make([]byte, n)
 	}
 
 	if len(src) > math.MaxInt32 {
@@ -28,14 +32,14 @@ func Encode(dst, src []byte) ([]byte, error) {
 	}
 
 	// The block starts with the varint-encoded length of the decompressed bytes.
-	d := binary.PutUvarint(dst, uint64(len(src)))
+	d := binary.PutUvarint(buf, uint64(len(src)))
 
 	// Return early if src is short.
 	if len(src) <= 4 {
 		if len(src) != 0 {
-			d += emitLiteral(dst[d:], src)
+			d += emitLiteral(buf[d:], src)
 		}
-		return dst[:d], nil
+		return buf[:d], nil
 	}
 
 	// Iterate over the source bytes.
@@ -66,7 +70,7 @@ func Encode(dst, src []byte) ([]byte, error) {
 
 		// Otherwise, we have a match. First, emit any pending literal bytes.
 		if lit != s {
-			d += emitLiteral(dst[d:], src[lit:s])
+			d += emitLiteral(buf[d:], src[lit:s])
 		}
 		// Extend the match to be as long as possible.
 		s0 := s
@@ -76,13 +80,13 @@ func Encode(dst, src []byte) ([]byte, error) {
 			t++
 		}
 		// Emit the copied bytes.
-		d += emitCopy(dst[d:], s-t, s-s0)
+		d += emitCopy(buf[d:], s-t, s-s0)
 		lit = s
 	}
 
 	// Emit any final pending literal bytes and return.
 	if lit != len(src) {
-		d += emitLiteral(dst[d:], src[lit:])
+		d += emitLiteral(buf[d:], src[lit:])
 	}
-	return dst[:d], nil
+	return buf[:d], nil
 }

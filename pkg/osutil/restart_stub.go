@@ -1,4 +1,4 @@
-// +build windows appengine
+// +build appengine
 
 /*
 Copyright 2012 The Camlistore Authors.
@@ -19,13 +19,21 @@ limitations under the License.
 package osutil
 
 import (
+	"errors"
 	"log"
+	"runtime"
 )
 
-// restartProcess returns an error if things couldn't be
+// SelfPath returns the path of the executable for the currently running
+// process.
+func SelfPath() (string, error) {
+	return "", errors.New("SelfPath not implemented on App Engine.")
+}
+
+// RestartProcess returns an error if things couldn't be
 // restarted.  On success, this function never returns
 // because the process becomes the new process.
 func RestartProcess() error {
-	log.Print("RestartProcess not implemented on windows")
+	log.Print("RestartProcess not implemented on this platform.")
 	return nil
 }

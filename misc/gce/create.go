@@ -2,12 +2,14 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,7 +23,7 @@ var (
 	proj     = flag.String("project", "", "name of Project")
 	zone     = flag.String("zone", "us-central1-a", "GCE zone")
 	mach     = flag.String("machinetype", "g1-small", "e.g. n1-standard-1, f1-micro, g1-small")
-	instance = flag.String("instance_name", "camlistore-server", "Name of VM instance.")
+	instName = flag.String("instance_name", "camlistore-server", "Name of VM instance.")
 	sshPub   = flag.String("ssh_public_key", "", "ssh public key file to authorize. Can modify later in Google's web UI anyway.")
 )
 
@@ -62,31 +64,6 @@ func main() {
 		Config: config,
 	}
 
-	cloudConfig := `#cloud-config
-coreos:
-  units:
-    - name: camlistored.service
-      command: start
-      content: |
-        [Unit]
-        Description=Camlistore
-        After=docker.service
-        Requires=docker.service
-        
-        [Service]
-        ExecStart=/usr/bin/docker run -p 80:80 -p 443:443 camlistore/camlistored
-        RestartSec=500ms
-        Restart=always
-        
-        [Install]
-        WantedBy=multi-user.target
-`
-
-	if *sshPub != "" {
-		key := strings.TrimSpace(readFile(*sshPub))
-		cloudConfig += fmt.Sprintf("\nssh_authorized_keys:\n    - %s\n", key)
-	}
-
 	tokenCache := oauth.CacheFile("token.dat")
 	token, err := tokenCache.Token()
 	if err != nil {
@@ -104,8 +81,99 @@ coreos:
 	}
 
 	tr.Token = token
-	computeService, _ := compute.New(&http.Client{Transport: tr})
-	storageService, _ := storage.New(&http.Client{Transport: tr})
+	oauthClient := &http.Client{Transport: tr}
+	computeService, _ := compute.New(oauthClient)
+	storageService, _ := storage.New(oauthClient)
+
+	cloudConfig := `#cloud-config
+write_files:
+  - path: /var/lib/camlistore/tmp/README
+    permissions: 0644
+    content: |
+      This is the Camlistore /tmp directory.
+  - path: /var/lib/camlistore/mysql/README
+    permissions: 0644
+    content: |
+      This is the Camlistore MySQL data directory.
+coreos:
+  units:
+    - name: cam-journal-gatewayd.service
+      content: |
+        [Unit]
+        Description=Journal Gateway Service
+        Requires=cam-journal-gatewayd.socket
+        
+        [Service]
+        ExecStart=/usr/lib/systemd/systemd-journal-gatewayd
+        User=systemd-journal-gateway
+        Group=systemd-journal-gateway
+        SupplementaryGroups=systemd-journal
+        PrivateTmp=yes
+        PrivateDevices=yes
+        PrivateNetwork=yes
+        ProtectSystem=full
+        ProtectHome=yes
+        
+        [Install]
+        Also=cam-journal-gatewayd.socket
+    - name: cam-journal-gatewayd.socket
+      command: start
+      content: |
+        [Unit]
+        Description=Journal Gateway Service Socket
+        
+        [Socket]
+        ListenStream=/run/camjournald.sock
+        
+        [Install]
+        WantedBy=sockets.target
+    - name: mysql.service
+      command: start
+      content: |
+        [Unit]
+        Description=MySQL
+        After=docker.service
+        Requires=docker.service
+        
+        [Service]
+        ExecStartPre=/usr/bin/docker run --rm -v /opt/bin:/opt/bin ibuildthecloud/systemd-docker
+        ExecStart=/opt/bin/systemd-docker run --rm --name %n -v /var/lib/camlistore/mysql:/mysql -e INNODB_BUFFER_POOL_SIZE=NNN camlistore/mysql
+        RestartSec=1s
+        Restart=always
+        Type=notify
+        NotifyAccess=all
+        
+        [Install]
+        WantedBy=multi-user.target
+    - name: camlistored.service
+      command: start
+      content: |
+        [Unit]
+        Description=Camlistore
+        After=docker.service
+        Requires=docker.service mysql.service
+        
+        [Service]
+        ExecStartPre=/usr/bin/docker run --rm -v /opt/bin:/opt/bin ibuildthecloud/systemd-docker
+        ExecStart=/opt/bin/systemd-docker run --rm -p 80:80 -p 443:443 --name %n -v /run/camjournald.sock:/run/camjournald.sock -v /var/lib/camlistore/tmp:/tmp --link=mysql.service:mysqldb camlistore/camlistored
+        RestartSec=1s
+        Restart=always
+        Type=notify
+        NotifyAccess=all
+        
+        [Install]
+        WantedBy=multi-user.target
+`
+	cloudConfig = strings.Replace(cloudConfig, "INNODB_BUFFER_POOL_SIZE=NNN", "INNODB_BUFFER_POOL_SIZE="+strconv.Itoa(innodbBufferPoolSize(*mach)), -1)
+
+	const maxCloudConfig = 32 << 10 // per compute API docs
+	if len(cloudConfig) > maxCloudConfig {
+		log.Fatalf("cloud config length of %d bytes is over %d byte limit", len(cloudConfig), maxCloudConfig)
+	}
+	if *sshPub != "" {
+		key := strings.TrimSpace(readFile(*sshPub))
+		cloudConfig += fmt.Sprintf("\nssh_authorized_keys:\n    - %s\n", key)
+	}
 
 	blobBucket := *proj + "-camlistore-blobs"
 	configBucket := *proj + "-camlistore-config"
@@ -144,7 +212,7 @@ coreos:
 	}
 
 	instance := &compute.Instance{
-		Name:        *instance,
+		Name:        *instName,
 		Description: "Camlistore server",
 		MachineType: machType,
 		Disks: []*compute.AttachedDisk{
@@ -153,7 +221,7 @@ coreos:
 				Boot:       true,
 				Type:       "PERSISTENT",
 				InitializeParams: &compute.AttachedDiskInitializeParams{
-					DiskName:    "camlistore-coreos-stateless-pd",
+					DiskName:    *instName + "-coreos-stateless-pd",
 					SourceImage: imageURL,
 				},
 			},
@@ -228,6 +296,7 @@ coreos:
 	}
 	opName := op.Name
 	log.Printf("Created. Waiting on operation %v", opName)
+OpLoop:
 	for {
 		time.Sleep(2 * time.Second)
 		op, err := computeService.ZoneOperations.Get(*proj, *zone, opName).Do()
@@ -246,9 +315,33 @@ coreos:
 				log.Fatalf("Failed to start.")
 			}
 			log.Printf("Success. %+v", op)
-			return
+			break OpLoop
 		default:
 			log.Fatalf("Unknown status %q: %+v", op.Status, op)
 		}
+	}
+
+	inst, err := computeService.Instances.Get(*proj, *zone, *instName).Do()
+	if err != nil {
+		log.Fatalf("Error getting instance after creation: %v", err)
+	}
+	ij, _ := json.MarshalIndent(inst, "", "    ")
+	log.Printf("Instance: %s", ij)
+}
+
+// returns the MySQL InnoDB buffer pool size (in bytes) as a function
+// of the GCE machine type.
+func innodbBufferPoolSize(machType string) int {
+	// Totally arbitrary. We don't need much here because
+	// camlistored slurps this all into its RAM on start-up
+	// anyway. So this is all prety overkill and more than the
+	// 8MB default.
+	switch machType {
+	case "f1-micro":
+		return 32 << 20
+	case "g1-small":
+		return 64 << 20
+	default:
+		return 128 << 20
 	}
 }

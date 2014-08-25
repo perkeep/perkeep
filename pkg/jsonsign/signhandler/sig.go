@@ -74,19 +74,22 @@ func init() {
 }
 
 func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler, error) {
-	pubKeyDestPrefix := conf.OptionalString("publicKeyDest", "")
+	var (
+		// either a short form ("26F5ABDA") or one the longer forms.
+		keyId = conf.RequiredString("keyId")
 
-	// either a short form ("26F5ABDA") or one the longer forms.
-	keyId := conf.RequiredString("keyId")
-
-	h := &Handler{
-		secretRing: conf.OptionalString("secretRing", ""),
-	}
-	var err error
-	if err = conf.Validate(); err != nil {
+		pubKeyDestPrefix = conf.OptionalString("publicKeyDest", "")
+		secretRing       = conf.OptionalString("secretRing", "")
+	)
+	if err := conf.Validate(); err != nil {
 		return nil, err
 	}
 
+	h := &Handler{
+		secretRing: secretRing,
+	}
+
+	var err error
 	h.entity, err = jsonsign.EntityFromSecring(keyId, h.secretRingPath())
 	if err != nil {
 		return nil, err
@@ -142,10 +145,7 @@ func (h *Handler) uploadPublicKey() error {
 		return nil
 	}
 	_, err = blobserver.Receive(sto, h.pubKeyBlobRef, strings.NewReader(h.pubKey))
-	log.Printf("uploadPublicKey(%T, %v) = %v", sto, h.pubKeyBlobRef, err)
-	if err == nil {
-		h.pubKeyUploaded = true
-	}
+	h.pubKeyUploaded = (err == nil)
 	return err
 }
 
@@ -256,7 +256,9 @@ func (h *Handler) handleSign(rw http.ResponseWriter, req *http.Request) {
 		badReq(fmt.Sprintf("%v", err))
 		return
 	}
-	h.uploadPublicKey()
+	if err := h.uploadPublicKey(); err != nil {
+		log.Printf("signing handler failed to upload public key: %v", err)
+	}
 	rw.Write([]byte(signedJSON))
 }
 
@@ -280,6 +282,8 @@ func (h *Handler) Sign(bb *schema.Builder) (string, error) {
 	} else {
 		sreq.SignatureTime = claimTime
 	}
-	h.uploadPublicKey()
+	if err := h.uploadPublicKey(); err != nil {
+		log.Printf("signing handler failed to upload public key: %v", err)
+	}
 	return sreq.Sign()
 }

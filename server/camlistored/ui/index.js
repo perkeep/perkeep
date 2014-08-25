@@ -33,6 +33,7 @@ goog.require('cam.BlobItemGenericContent');
 goog.require('cam.BlobItemImageContent');
 goog.require('cam.BlobItemTwitterContent');
 goog.require('cam.BlobItemVideoContent');
+goog.require('cam.blobref');
 goog.require('cam.DetailView');
 goog.require('cam.DirectoryDetail');
 goog.require('cam.Header');
@@ -62,6 +63,8 @@ cam.IndexPage = React.createClass({
 		cam.BlobItemVideoContent.getHandler,
 		cam.BlobItemGenericContent.getHandler
 	],
+
+	BLOBREF_PATTERN_: new RegExp('^' + cam.blobref.PATTERN + '$'),
 
 	propTypes: {
 		availWidth: React.PropTypes.number.isRequired,
@@ -144,7 +147,11 @@ cam.IndexPage = React.createClass({
 
 	getTargetBlobref_: function(opt_url) {
 		var url = opt_url || this.state.currentURL;
-		return url.getParameterValue('p') || url.getParameterValue('b') || url.getParameterValue('d');
+		var suffix = url.getPath().substr(this.baseURL_.getPath().length);
+
+		// TODO(aa): Need to implement something like ref.go that knows about the other hash types.
+		var match = suffix.match(this.BLOBREF_PATTERN_);
+		return match && match[0];
 	},
 
 	getAspects_: function() {
@@ -152,24 +159,45 @@ cam.IndexPage = React.createClass({
 		return [
 			this.getSearchAspect_,
 			cam.ImageDetail.getAspect,
-			cam.PermanodeDetail.getAspect.bind(null, this.baseURL_, childFrameClickHandler),
+			cam.PermanodeDetail.getAspect.bind(null, this.props.serverConnection, this.props.timer),
 			cam.DirectoryDetail.getAspect.bind(null, this.baseURL_, childFrameClickHandler),
-			cam.BlobDetail.getAspect.bind(null, this.baseURL_, childFrameClickHandler),
+			cam.BlobDetail.getAspect.bind(null, this.getDetailURL_, this.props.serverConnection),
 		].map(function(f) {
 			return f(this.getTargetBlobref_(), this.targetSearchSession_);
 		}, this).filter(goog.functions.identity);
 	},
 
-	getSearchAspect_: function(blobref, targetSearchSession_) {
-		if (this.childSearchSession_ && this.childSearchSession_.getCurrentResults().blobs.length) {
-			return {
-				title: blobref ? 'Contents' : 'Search',
-				fragment: blobref ? 'contents': 'search',
-				createContent: this.getBlobItemContainer_.bind(this),
-			};
-		} else {
+	getSearchAspect_: function(blobref, targetSearchSession) {
+		if (blobref) {
+			var m = targetSearchSession.getMeta(blobref);
+			if (!m || !m.permanode) {
+				// We have a target, but it's not a permanode. So don't show the contents view.
+				// TODO(aa): Maybe we do want to for directories though?
+				return null;
+			}
+
+			// This is a hard case: if we're looking at a permanode and it doesn't have any children, should we render a contents view or not?
+			//
+			// If we do render a contents view, then we have this stupid empty contents view for lots of permanodes types that will probably never have children, like images, tweets, or foursquare checkins.
+			//
+			// If we don't render a contents view, then permanodes that are meant to actually be sets, but are currently empty won't have a contents view to drag items on to. And when you delete the last item from a set, the contents view will disappear.
+			//
+			// I'm not sure what the right long term solution is, but not showing a contents view in this case seems less crappy for now.
+			if (this.childSearchSession_ && !this.childSearchSession_.getCurrentResults().blobs.length) {
+				return null;
+			}
+		}
+
+		// This can happen when a user types a raw (JSON) query that is invalid.
+		if (!this.childSearchSession_) {
 			return null;
 		}
+
+		return {
+			title: blobref ? 'Contents' : 'Search',
+			fragment: blobref ? 'contents': 'search',
+			createContent: this.getBlobItemContainer_.bind(this),
+		};
 	},
 
 	handleDragStart_: function(e) {
@@ -222,12 +250,6 @@ cam.IndexPage = React.createClass({
 	},
 
 	handleNavigate_: function(newURL) {
-		if (this.state.currentURL) {
-			if (this.state.currentURL.getPath() != newURL.getPath()) {
-				return false;
-			}
-		}
-
 		if (!goog.string.startsWith(newURL.toString(), this.baseURL_.toString())) {
 			return false;
 		}
@@ -252,24 +274,28 @@ cam.IndexPage = React.createClass({
 	},
 
 	updateChildSearchSession_: function(targetBlobref, newURL) {
-		var permanode = newURL.getParameterValue('p');
 		var query = newURL.getParameterValue('q');
 
-		if (permanode) {
+		if (targetBlobref) {
 			query = {
 				permanode: {
 					relation: {
 						relation: 'parent',
-						any: { blobRefPrefix: permanode },
+						any: { blobRefPrefix: targetBlobref },
 					},
 				},
 			};
 		} else if (query) {
 			// TODO(aa): Remove this when the server can do something like the 'raw' operator.
 			if (goog.string.startsWith(query, this.SEARCH_PREFIX_.RAW + ':')) {
-				query = JSON.parse(query.substring(this.SEARCH_PREFIX_.RAW.length + 1));
+				try {
+					query = JSON.parse(query.substring(this.SEARCH_PREFIX_.RAW.length + 1));
+				} catch (e) {
+					console.error('Raw search is invalid JSON', e);
+					query = null;
+				}
 			}
-		} else if (!targetBlobref) {
+		} else {
 			query = ' ';
 		}
 
@@ -350,7 +376,7 @@ cam.IndexPage = React.createClass({
 				onNewPermanode: this.handleCreateSetWithSelection_,
 				onSearch: this.setSearch_,
 				searchRootsURL: this.getSearchRootsURL_(),
-				syncStatusURL: this.baseURL_.resolve(new goog.Uri(this.props.config.statusRoot)),
+				statusURL: this.baseURL_.resolve(new goog.Uri(this.props.config.statusRoot)),
 				ref: 'header',
 				subControls: [
 					this.getClearSelectionItem_(),
@@ -474,19 +500,16 @@ cam.IndexPage = React.createClass({
 	},
 
 	getDetailURL_: function(blobref) {
-		var detailURL = this.state.currentURL.clone();
-		detailURL.setParameterValue('p', blobref);
-		detailURL.setParameterValue('newui', '1');
-		return detailURL;
+		return this.baseURL_.clone().setPath(this.baseURL_.getPath() + blobref);
 	},
 
 	setSearch_: function(query) {
-		var searchURL = this.baseURL_.clone();
+		var searchURL;
 		var match = query.match(/^ref:(.+)/);
 		if (match) {
-			searchURL.setParameterValue('p', match[1]);
+			searchURL = this.getDetailURL_(match[1]);
 		} else {
-			searchURL.setParameterValue('q', query);
+			searchURL = this.baseURL_.clone().setParameterValue('q', query);
 		}
 		this.navigator_.navigate(searchURL);
 	},

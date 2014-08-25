@@ -1,4 +1,4 @@
-// Copyright 2013 The Go Authors. All rights reserved.
+// Copyright 2014 The lldb Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -6,7 +6,9 @@ package lldb
 
 import (
 	"encoding/hex"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 )
@@ -29,4 +31,13 @@ func die() {
 func stack() string {
 	buf := make([]byte, 1<<16)
 	return string(buf[:runtime.Stack(buf, false)])
+}
+
+func temp() (dir, name string) {
+	dir, err := ioutil.TempDir("", "test-lldb-")
+	if err != nil {
+		panic(err)
+	}
+
+	return dir, filepath.Join(dir, "test.tmp")
 }

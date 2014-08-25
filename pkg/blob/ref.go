@@ -26,6 +26,11 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+
+	// This is a pretty low-level package, so add the Go minimum
+	// version dependency check here at least.  This avoids
+	// adding it in many other places.
+	_ "camlistore.org/depcheck"
 )
 
 // Pattern is the regular expression which matches a blobref.
@@ -45,9 +50,18 @@ type Ref struct {
 // SizedRef is like a Ref but includes a size.
 // It should also be used as a value type and supports equality.
 type SizedRef struct {
-	Ref
-	Size uint32
+	Ref  Ref    `json:"blobRef"`
+	Size uint32 `json:"size"`
 }
+
+// Less reports whether sr sorts before o. Invalid references blobs sort first.
+func (sr SizedRef) Less(o SizedRef) bool {
+	return sr.Ref.Less(o.Ref)
+}
+
+func (sr SizedRef) Valid() bool { return sr.Ref.Valid() }
+
+func (sr SizedRef) HashMatches(h hash.Hash) bool { return sr.Ref.HashMatches(h) }
 
 func (sr SizedRef) String() string {
 	return fmt.Sprintf("[%s; %d bytes]", sr.Ref.String(), sr.Size)
@@ -582,7 +596,7 @@ func (s ByRef) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 type SizedByRef []SizedRef
 
 func (s SizedByRef) Len() int           { return len(s) }
-func (s SizedByRef) Less(i, j int) bool { return s[i].Less(s[j].Ref) }
+func (s SizedByRef) Less(i, j int) bool { return s[i].Less(s[j]) }
 func (s SizedByRef) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 // TypeAlphabet returns the valid characters in the given blobref type.

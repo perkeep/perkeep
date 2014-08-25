@@ -120,6 +120,23 @@ func newKVOrNil(conf jsonconfig.Obj) (sorted.KeyValue, error) {
 }
 
 func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
+	checkType := func(key string, htype string) {
+		v := conf.OptionalString(key, "")
+		if v == "" {
+			return
+		}
+		ct := ld.GetHandlerType(v)
+		if ct == "" {
+			err = fmt.Errorf("UI handler's %q references non-existant %q", key, v)
+		} else if ct != htype {
+			err = fmt.Errorf("UI handler's %q references %q of type %q; expected type %q", key, v, ct, htype)
+		}
+	}
+	checkType("searchRoot", "search")
+	checkType("jsonSignRoot", "jsonsign")
+	if err != nil {
+		return
+	}
 	ui := &UIHandler{
 		prefix:       ld.MyPrefix(),
 		JSONSignRoot: conf.OptionalString("jsonSignRoot", ""),
@@ -138,24 +155,6 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		if sigh, ok := h.(*signhandler.Handler); ok {
 			ui.sigh = sigh
 		}
-	}
-
-	checkType := func(key string, htype string) {
-		v := conf.OptionalString(key, "")
-		if v == "" {
-			return
-		}
-		ct := ld.GetHandlerType(v)
-		if ct == "" {
-			err = fmt.Errorf("UI handler's %q references non-existant %q", key, v)
-		} else if ct != htype {
-			err = fmt.Errorf("UI handler's %q references %q of type %q; expected type %q", key, v, ct, htype)
-		}
-	}
-	checkType("searchRoot", "search")
-	checkType("jsonSignRoot", "jsonsign")
-	if err != nil {
-		return
 	}
 
 	scaledImageKV, err := newKVOrNil(scaledImageConf)
@@ -387,6 +386,11 @@ func camliMode(req *http.Request) string {
 	return req.URL.Query().Get("camli.mode")
 }
 
+func wantsBlobRef(req *http.Request) bool {
+	_, ok := blob.ParseKnown(httputil.PathSuffix(req))
+	return ok
+}
+
 func wantsDiscovery(req *http.Request) bool {
 	return httputil.IsGet(req) &&
 		(req.Header.Get("Accept") == "text/x-camli-configuration" ||
@@ -448,7 +452,7 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			file = m[1]
 		} else {
 			switch {
-			case req.FormValue("newui") == "1":
+			case wantsBlobRef(req):
 				file = "index.html"
 			case wantsPermanode(req):
 				file = "permanode.html"

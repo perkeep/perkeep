@@ -29,14 +29,17 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"camlistore.org/pkg/cmdmain"
+	"camlistore.org/pkg/osutil"
 )
 
 var (
-	noBuild  = flag.Bool("nobuild", false, "do not rebuild anything")
-	race     = flag.Bool("race", false, "build with race detector")
-	quiet, _ = strconv.ParseBool(os.Getenv("CAMLI_QUIET"))
+	noBuild   = flag.Bool("nobuild", false, "do not rebuild anything")
+	race      = flag.Bool("race", false, "build with race detector")
+	quiet, _  = strconv.ParseBool(os.Getenv("CAMLI_QUIET"))
+	wipeCache = flag.Bool("wipecache", false, "wipe the cache directory. Server cache with devcam server, client cache otherwise.")
 	// Whether to build the subcommand with sqlite support. This only
 	// concerns the server subcommand, which sets it to serverCmd.sqlite.
 	withSqlite bool
@@ -166,6 +169,46 @@ func checkCamliSrcRoot() {
 	camliSrcRoot = cwd
 }
 
+func selfModTime() (time.Time, error) {
+	var modTime time.Time
+	devcamBin, err := osutil.SelfPath()
+	if err != nil {
+		return modTime, err
+	}
+	fi, err := os.Stat(devcamBin)
+	if err != nil {
+		return modTime, err
+	}
+	return fi.ModTime(), nil
+}
+
+func checkModtime() error {
+	binModtime, err := selfModTime()
+	if err != nil {
+		return fmt.Errorf("could not get ModTime of current devcam executable: %v", err)
+	}
+
+	devcamDir := filepath.Join(camliSrcRoot, "dev", "devcam")
+	d, err := os.Open(devcamDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer d.Close()
+	fis, err := d.Readdir(-1)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, fi := range fis {
+		if fi.ModTime().After(binModtime) {
+			log.Printf("**************************************************************")
+			log.Printf("WARNING: your devcam binary is outdated, you should rebuild it")
+			log.Printf("**************************************************************")
+			return nil
+		}
+	}
+	return nil
+}
+
 // Build builds the camlistore command at the given path from the source tree root.
 func build(path string) error {
 	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_FAST_DEV")); v {
@@ -204,6 +247,10 @@ func build(path string) error {
 
 func main() {
 	cmdmain.CheckCwd = checkCamliSrcRoot
+
+	if err := checkModtime(); err != nil {
+		log.Printf("Skipping freshness check: %v", err)
+	}
 	// TODO(mpl): usage error is not really correct for devcam.
 	// See if I can reimplement it while still using cmdmain.Main().
 	cmdmain.Main()

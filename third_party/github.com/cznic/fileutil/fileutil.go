@@ -1,12 +1,6 @@
-// Copyright (c) 2011 CZ.NIC z.s.p.o. All rights reserved.
+// Copyright (c) 2014 The fileutil Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
-
-// Copyright 2010 The Go Authors.  All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
-// blame: jnml, labs.nic.cz
 
 // Package fileutil collects some file utility functions.
 package fileutil

@@ -51,6 +51,7 @@ import android.os.PowerManager;
 import android.os.RemoteException;
 import android.provider.MediaStore;
 import android.util.Log;
+import android.widget.Toast;
 
 public class UploadService extends Service {
     private static final String TAG = "UploadService";
@@ -173,7 +174,15 @@ public class UploadService extends Service {
                     }
                 } else if (INTENT_NETWORK_WIFI.equals(action)) {
                     if (!mPrefs.autoRequiresPower() || WifiPowerReceiver.onPower(this)) {
-                        startAuto = true;
+                        String ssid = "";
+                        String requiredSSID = mPrefs.autoRequiredWifiSSID();
+                        if (intent.hasExtra("SSID")) {
+                            ssid = intent.getStringExtra("SSID");
+                        }
+                        Log.d(TAG, "SSID: '" + ssid +"' / Required SSID: '" + requiredSSID + "'");
+                        if (requiredSSID.equals("") || requiredSSID.equals(ssid)) {
+                            startAuto = true;
+                        }
                     }
                 } else if (INTENT_POWER_DISCONNECTED.equals(action)) {
                     stopAuto = mPrefs.autoRequiresPower();
@@ -278,6 +287,8 @@ public class UploadService extends Service {
         ArrayList<String> dirs = new ArrayList<String>();
         if (mPrefs.autoDirPhotos()) {
             dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/Camera");
+            dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/100MEDIA");
+            dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/100ANDRO");
             dirs.add(Environment.getExternalStorageDirectory() + "/Eye-Fi");
         }
         if (mPrefs.autoDirMyTracks()) {
@@ -336,6 +347,8 @@ public class UploadService extends Service {
         Log.d(TAG, "Starting background watchers...");
         synchronized (UploadService.this) {
             maybeAddObserver("DCIM/Camera");
+            maybeAddObserver("DCIM/100MEDIA");
+            maybeAddObserver("DCIM/100ANDRO");
             maybeAddObserver("Eye-Fi");
             maybeAddObserver("gpx");
         }
