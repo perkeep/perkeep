@@ -29,6 +29,10 @@ import (
 )
 
 func TestAppEngineBuilds(t *testing.T) {
+	t.Skip("Currently broken until App Engine supports Go 1.3")
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping on Windows; don't want to deal with escaping backslashes")
+	}
 	camRoot, err := osutil.GoPackagePath("camlistore.org")
 	if err != nil {
 		t.Errorf("No camlistore.org package in GOPATH: %v", err)
@@ -64,6 +68,7 @@ func TestAppEngineBuilds(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	appenginePkg := filepath.Join(sdk, "goroot", "pkg", runtime.GOOS+"_"+runtime.GOARCH+"_appengine")
 	cmd := exec.Command(gab,
 		"-app_base", appBase,
 		"-arch", archChar(),
@@ -71,15 +76,24 @@ func TestAppEngineBuilds(t *testing.T) {
 		"-dynamic",
 		"-extra_imports", "appengine_internal/init",
 		"-goroot", filepath.Join(sdk, "goroot"),
+		"-gcflags", "-I,"+appenginePkg,
+		"-ldflags", "-L,"+appenginePkg,
 		"-nobuild_files", "^^$",
 		"-unsafe",
 		"-work_dir", td,
 		"-gopath", os.Getenv("GOPATH"),
+		// "-v",
 	)
 	for _, f := range srcFilesAll {
 		if strings.HasSuffix(f, ".go") {
 			cmd.Args = append(cmd.Args, filepath.Join("camli", f))
 		}
+	}
+	for _, pair := range os.Environ() {
+		if strings.HasPrefix(pair, "GOROOT=") {
+			continue
+		}
+		cmd.Env = append(cmd.Env, pair)
 	}
 
 	out, err := cmd.CombinedOutput()
