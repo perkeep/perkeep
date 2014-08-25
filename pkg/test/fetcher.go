@@ -98,6 +98,30 @@ func (tf *Fetcher) Fetch(ref blob.Ref) (file io.ReadCloser, size uint32, err err
 	}, size, nil
 }
 
+func (tf *Fetcher) SubFetch(ref blob.Ref, offset, length int64) (io.ReadCloser, error) {
+	if tf.FetchErr != nil {
+		if err := tf.FetchErr(); err != nil {
+			return nil, err
+		}
+	}
+	tf.mu.RLock()
+	defer tf.mu.RUnlock()
+	tb, ok := tf.m[ref.String()]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	atomic.AddInt64(&tf.blobsFetched, 1)
+	atomic.AddInt64(&tf.bytesFetched, length)
+
+	return struct {
+		*io.SectionReader
+		io.Closer
+	}{
+		io.NewSectionReader(strings.NewReader(tb.Contents), offset, int64(length)),
+		types.NopCloser,
+	}, nil
+}
+
 func (tf *Fetcher) BlobContents(br blob.Ref) (contents string, ok bool) {
 	tf.mu.RLock()
 	defer tf.mu.RUnlock()

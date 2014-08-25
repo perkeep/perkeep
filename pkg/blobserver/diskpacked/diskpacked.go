@@ -324,6 +324,19 @@ func (s *storage) Close() error {
 }
 
 func (s *storage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
+	return s.fetch(br, 0, -1)
+}
+
+func (s *storage) SubFetch(br blob.Ref, offset, length int64) (io.ReadCloser, error) {
+	if offset < 0 || length < 0 {
+		return nil, errors.New("invalid offset or length")
+	}
+	rc, _, err := s.fetch(br, offset, length)
+	return rc, err
+}
+
+// length of -1 means all
+func (s *storage) fetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, size uint32, err error) {
 	meta, err := s.meta(br)
 	if err != nil {
 		return nil, 0, err
@@ -333,7 +346,19 @@ func (s *storage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
 		return nil, 0, fmt.Errorf("diskpacked: attempt to fetch blob from out of range pack file %d > %d", meta.file, len(s.fds))
 	}
 	rac := s.fds[meta.file]
-	var rs io.ReadSeeker = io.NewSectionReader(rac, meta.offset, int64(meta.size))
+	var rs io.ReadSeeker
+	if length == -1 {
+		// normal Fetch mode
+		rs = io.NewSectionReader(rac, meta.offset, int64(meta.size))
+	} else {
+		if offset > int64(meta.size) {
+			offset = int64(meta.size)
+			length = 0
+		} else if offset+length > int64(meta.size) {
+			length = int64(meta.size) - offset
+		}
+		rs = io.NewSectionReader(rac, meta.offset+offset, length)
+	}
 	fn := rac.Name()
 	// Ensure entry is in map.
 	readVar.Add(fn, 0)

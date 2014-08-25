@@ -31,6 +31,7 @@ Example low-level config:
 package localdisk
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -116,13 +117,26 @@ func (ds *DiskStorage) tryRemoveDir(dir string) {
 	os.Remove(dir) // ignore error
 }
 
-func (ds *DiskStorage) Fetch(blob blob.Ref) (io.ReadCloser, uint32, error) {
-	fileName := ds.blobPath(blob)
+func (ds *DiskStorage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
+	return ds.fetch(br, 0, -1)
+}
+
+func (ds *DiskStorage) SubFetch(br blob.Ref, offset, length int64) (io.ReadCloser, error) {
+	if offset < 0 || length < 0 {
+		return nil, errors.New("invalid offset or length")
+	}
+	rc, _, err := ds.fetch(br, offset, length)
+	return rc, err
+}
+
+// length -1 means entire file
+func (ds *DiskStorage) fetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, size uint32, err error) {
+	fileName := ds.blobPath(br)
 	stat, err := os.Stat(fileName)
 	if os.IsNotExist(err) {
 		return nil, 0, os.ErrNotExist
 	}
-	size := types.U32(stat.Size())
+	size = types.U32(stat.Size())
 	file, err := os.Open(fileName)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -130,7 +144,18 @@ func (ds *DiskStorage) Fetch(blob blob.Ref) (io.ReadCloser, uint32, error) {
 		}
 		return nil, 0, err
 	}
-	return file, size, nil
+	// normal Fetch:
+	if length < 0 {
+		return file, size, nil
+	}
+	// SubFetch:
+	return struct {
+		io.Reader
+		io.Closer
+	}{
+		io.NewSectionReader(file, offset, length),
+		file,
+	}, 0 /* unused */, err
 }
 
 func (ds *DiskStorage) RemoveBlobs(blobs []blob.Ref) error {
