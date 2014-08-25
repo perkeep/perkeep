@@ -43,6 +43,16 @@ type Fetcher interface {
 	Fetch(Ref) (blob io.ReadCloser, size uint32, err error)
 }
 
+// A SubFetcher is a Fetcher that can retrieve part of a blob.
+type SubFetcher interface {
+	// SubFetch returns part of a blob.
+	// The caller must close the returned io.ReadCloser.
+	// The Reader may return fewer than 'length' bytes. Callers should
+	// check. The returned error should be os.ErrNotExist if the blob
+	// doesn't exist.
+	SubFetch(ref Ref, offset, length int64) (io.ReadCloser, error)
+}
+
 func NewSerialFetcher(fetchers ...Fetcher) Fetcher {
 	return &serialFetcher{fetchers}
 }
