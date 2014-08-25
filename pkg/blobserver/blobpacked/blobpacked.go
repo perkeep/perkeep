@@ -53,9 +53,14 @@ import (
 	"camlistore.org/pkg/strutil"
 )
 
+type subFetcherStorage interface {
+	blobserver.Storage
+	blob.SubFetcher
+}
+
 type storage struct {
 	small blobserver.Storage
-	large blobserver.Storage
+	large subFetcherStorage
 
 	// meta key -> value rows are:
 	//   sha1-xxxx -> "<size> s"
@@ -84,13 +89,18 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 	if err != nil {
 		return nil, fmt.Errorf("failed to load largeBlobs at %s: %v", largePrefix, err)
 	}
+	largeSubber, ok := large.(subFetcherStorage)
+	if !ok {
+		return nil, fmt.Errorf("largeBlobs at %q of type %T doesn't support fetching sub-ranges of blobs",
+			largePrefix, large)
+	}
 	meta, err := sorted.NewKeyValue(metaConf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup blobpacked metaIndex: %v", err)
 	}
 	sto := &storage{
 		small: small,
-		large: large,
+		large: largeSubber,
 		meta:  meta,
 	}
 	return sto, nil
@@ -214,16 +224,22 @@ func (s *storage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
 	if !m.exists {
 		return nil, 0, os.ErrNotExist
 	}
-	if m.largeRef.Valid() {
-		return s.large.Fetch(br)
-	} else {
+	if !m.largeRef.Valid() {
 		return s.small.Fetch(br)
 	}
+	rc, err := s.large.SubFetch(m.largeRef, int64(m.largeOff), int64(m.size))
+	if err != nil {
+		return nil, 0, err
+	}
+	return rc, m.size, nil
 }
 
 func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
-	// TODO: how to support? only delete from index? delete from small if only there?
-	// if in big file, re-break apart into its chunks? no reverse index, though.
+	// TODO: how to support? only delete from index? delete from
+	// small if only there?  if in big file, re-break apart into
+	// its chunks? no reverse index from big chunk to all its
+	// constituent chunks, though. I suppose we could read the chunks
+	// from the metadata file in the zip.
 	return errors.New("not implemented")
 }
 
