@@ -21,6 +21,24 @@ import (
 	"testing"
 )
 
+// this test demonstrates why http://camlistore.org/r/2296 was needed for
+// matching to correctly work when the checker has more than one pattern of the
+// same kind. Before the fix, this test would fail because the first
+// isShellPatternMatch closure of the checker would not end up using the
+// intended "*.jpg" pattern.
+func TestIgnoreMultiPattern(t *testing.T) {
+	ignoredShellPattern := []string{
+		"*.jpg",
+		"*.png",
+		"*.gif",
+	}
+	ignoreChecker := newIgnoreChecker(ignoredShellPattern)
+	toIgnore := "/home/foo/Downloads/pony.jpg"
+	if ignoreChecker(toIgnore) != true {
+		t.Errorf("Failed to ignore %v with %q among multiple shell patterns in ignore list.", toIgnore, ignoredShellPattern[0])
+	}
+}
+
 func TestIsIgnoredFile(t *testing.T) {
 	old := osutilHomeDir
 	defer func() { osutilHomeDir = old }()
