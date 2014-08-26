@@ -116,7 +116,7 @@ func (gs *Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRe
 	for _, obj := range objs {
 		br, ok := blob.Parse(obj.Key)
 		if !ok {
-			continue
+			return fmt.Errorf("Non-Camlistore object named %q found in bucket", obj.Key)
 		}
 		select {
 		case dest <- blob.SizedRef{Ref: br, Size: uint32(obj.Size)}:
