@@ -56,14 +56,15 @@ type Config struct {
 	HTTPSKey  string `json:"httpsKey,omitempty"`  // path to the HTTPS key file.
 
 	// Index.
-	MemoryIndex types.InvertedBool `json:"memoryIndex,omitempty"` // copy disk-based index to memory on start-up.
-	RunIndex    types.InvertedBool `json:"runIndex,omitempty"`    // if logically false: no search, no UI, etc.
-	DBName      string             `json:"dbname,omitempty"`      // name of the database for mysql, postgres, mongo.
-	KVFile      string             `json:"kvIndexFile,omitempty"` // path to the kv file, for indexing with github.com/cznic/kv.
-	MySQL       string             `json:"mysql,omitempty"`       // MySQL credentials (username@host:password), for indexing with MySQL.
-	Mongo       string             `json:"mongo,omitempty"`       // MongoDB credentials ([username:password@]host), for indexing with MongoDB.
-	PostgreSQL  string             `json:"postgres,omitempty"`    // PostgreSQL credentials (username@host:password), for indexing with PostgreSQL.
-	SQLite      string             `json:"sqlite,omitempty"`      // path to the SQLite file, for indexing with SQLite.
+	RunIndex          types.InvertedBool `json:"runIndex,omitempty"`          // if logically false: no search, no UI, etc.
+	CopyIndexToMemory types.InvertedBool `json:"copyIndexToMemory,omitempty"` // copy disk-based index to memory on start-up.
+	MemoryIndex       bool               `json:"memoryIndex,omitempty"`       // use memory-only indexer.
+	DBName            string             `json:"dbname,omitempty"`            // name of the database for mysql, postgres, mongo.
+	KVFile            string             `json:"kvIndexFile,omitempty"`       // path to the kv file, for indexing with github.com/cznic/kv.
+	MySQL             string             `json:"mysql,omitempty"`             // MySQL credentials (username@host:password), for indexing with MySQL.
+	Mongo             string             `json:"mongo,omitempty"`             // MongoDB credentials ([username:password@]host), for indexing with MongoDB.
+	PostgreSQL        string             `json:"postgres,omitempty"`          // PostgreSQL credentials (username@host:password), for indexing with PostgreSQL.
+	SQLite            string             `json:"sqlite,omitempty"`            // path to the SQLite file, for indexing with SQLite.
 
 	// DBNames lists which database names to use for various types of key/value stores. The keys may be:
 	//    "index"               (overrides 'dbname' key above)

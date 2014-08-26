@@ -205,6 +205,17 @@
 			}
 		},
 
+		"/index-memory/": {
+			"enabled": ["_env", "${CAMLI_MEMINDEX_ENABLED}"],
+			"handler": "storage-index",
+			"handlerArgs": {
+				"blobSource": "/bs/",
+				"storage": {
+					"type": "memory"
+				}
+			}
+		},
+
 		"/index-kv/": {
 			"enabled": ["_env", "${CAMLI_KVINDEX_ENABLED}"],
 			"handler": "storage-index",

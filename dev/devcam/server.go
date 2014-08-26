@@ -55,6 +55,7 @@ type serverCmd struct {
 	mysql    bool
 	postgres bool
 	sqlite   bool
+	memory   bool
 
 	slow     bool
 	throttle int
@@ -96,10 +97,11 @@ func init() {
 		flags.BoolVar(&cmd.hello, "hello", false, "Enable hello (demo) app")
 		flags.BoolVar(&cmd.mini, "mini", false, "Enable minimal mode, where all optional features are disabled. (Currently just publishing)")
 
-		flags.BoolVar(&cmd.mongo, "mongo", false, "Use mongodb as the indexer. Excludes -mysql, -postgres, -sqlite.")
-		flags.BoolVar(&cmd.mysql, "mysql", false, "Use mysql as the indexer. Excludes -mongo, -postgres, -sqlite.")
-		flags.BoolVar(&cmd.postgres, "postgres", false, "Use postgres as the indexer. Excludes -mongo, -mysql, -sqlite.")
-		flags.BoolVar(&cmd.sqlite, "sqlite", false, "Use sqlite as the indexer. Excludes -mongo, -mysql, -postgres.")
+		flags.BoolVar(&cmd.mongo, "mongo", false, "Use mongodb as the indexer. Excludes -mysql, -postgres, -sqlite, -memory.")
+		flags.BoolVar(&cmd.mysql, "mysql", false, "Use mysql as the indexer. Excludes -mongo, -postgres, -sqlite, -memory.")
+		flags.BoolVar(&cmd.postgres, "postgres", false, "Use postgres as the indexer. Excludes -mongo, -mysql, -sqlite, -memory.")
+		flags.BoolVar(&cmd.sqlite, "sqlite", false, "Use sqlite as the indexer. Excludes -mongo, -mysql, -postgres, -memory.")
+		flags.BoolVar(&cmd.memory, "memory", false, "Use a memory-only indexer. Excludes -mongo, -mysql, -postgres, -sqlite.")
 
 		flags.BoolVar(&cmd.slow, "slow", false, "Add artificial latency.")
 		flags.IntVar(&cmd.throttle, "throttle", 150, "If -slow, this is the rate in kBps, to which we should throttle.")
@@ -150,7 +152,7 @@ func (c *serverCmd) checkFlags(args []string) error {
 		return cmdmain.UsageError("--makethings requires --wipe.")
 	}
 	nindex := 0
-	for _, v := range []bool{c.mongo, c.mysql, c.postgres, c.sqlite} {
+	for _, v := range []bool{c.mongo, c.mysql, c.postgres, c.sqlite, c.memory} {
 		if v {
 			nindex++
 		}
@@ -215,10 +217,14 @@ func (c *serverCmd) setEnvVars() error {
 	setenv("CAMLI_POSTGRES_ENABLED", "false")
 	setenv("CAMLI_SQLITE_ENABLED", "false")
 	setenv("CAMLI_KVINDEX_ENABLED", "false")
+	setenv("CAMLI_MEMINDEX_ENABLED", "false")
 
 	setenv("CAMLI_PUBLISH_ENABLED", strconv.FormatBool(c.publish))
 	setenv("CAMLI_HELLO_ENABLED", strconv.FormatBool(c.hello))
 	switch {
+	case c.memory:
+		setenv("CAMLI_MEMINDEX_ENABLED", "true")
+		setenv("CAMLI_INDEXER_PATH", "/index-memory/")
 	case c.mongo:
 		setenv("CAMLI_MONGO_ENABLED", "true")
 		setenv("CAMLI_INDEXER_PATH", "/index-mongo/")
