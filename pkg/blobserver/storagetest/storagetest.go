@@ -36,19 +36,46 @@ import (
 	"camlistore.org/pkg/test"
 )
 
+type Opts struct {
+	// New is required and must return the storage server to test, along with a func to
+	// clean it up. The cleanup may be nil.
+	New func(*testing.T) (sto blobserver.Storage, cleanup func())
+
+	// Retries specifies how long to wait to retry after each failure
+	// that may be an eventual consistency issue (enumerate, stat), etc.
+	Retries []time.Duration
+}
+
 func Test(t *testing.T, fn func(*testing.T) (sto blobserver.Storage, cleanup func())) {
-	sto, cleanup := fn(t)
+	TestOpt(t, Opts{New: fn})
+}
+
+type run struct {
+	t   *testing.T
+	opt Opts
+	sto blobserver.Storage
+}
+
+func TestOpt(t *testing.T, opt Opts) {
+	sto, cleanup := opt.New(t)
 	defer func() {
 		if t.Failed() {
 			t.Logf("test %T FAILED, skipping cleanup!", sto)
 		} else {
-			cleanup()
+			if cleanup != nil {
+				cleanup()
+			}
 		}
 	}()
+	r := &run{
+		t:   t,
+		opt: opt,
+		sto: sto,
+	}
 	t.Logf("Testing blobserver storage %T", sto)
 
 	t.Logf("Testing Enumerate for empty")
-	testEnumerate(t, sto, nil)
+	r.testEnumerate(nil)
 
 	var blobs []*test.Blob
 	var blobRefs []blob.Ref
@@ -61,8 +88,11 @@ func Test(t *testing.T, fn func(*testing.T) (sto blobserver.Storage, cleanup fun
 		}
 	}
 	t.Logf("Testing receive")
-	for _, x := range contents {
+	for i, x := range contents {
 		b1 := &test.Blob{x}
+		if testing.Short() {
+			t.Logf("blob[%d] = %s: %q", i, b1.BlobRef(), x)
+		}
 		b1s, err := sto.ReceiveBlob(b1.BlobRef(), b1.Reader())
 		if err != nil {
 			t.Fatalf("ReceiveBlob of %s: %v", b1, err)
@@ -77,7 +107,7 @@ func Test(t *testing.T, fn func(*testing.T) (sto blobserver.Storage, cleanup fun
 		switch len(blobSizedRefs) {
 		case 1, 5, 100:
 			t.Logf("Testing Enumerate for %d blobs", len(blobSizedRefs))
-			testEnumerate(t, sto, blobSizedRefs)
+			r.testEnumerate(blobSizedRefs)
 		}
 	}
 	b1 := blobs[0]
@@ -105,30 +135,30 @@ func Test(t *testing.T, fn func(*testing.T) (sto blobserver.Storage, cleanup fun
 	sort.Sort(blob.SizedByRef(blobSizedRefs))
 
 	t.Logf("Testing Enumerate on all")
-	testEnumerate(t, sto, blobSizedRefs)
+	r.testEnumerate(blobSizedRefs)
 
 	t.Logf("Testing Enumerate 'limit' param")
-	testEnumerate(t, sto, blobSizedRefs[:3], 3)
+	r.testEnumerate(blobSizedRefs[:3], 3)
 
 	// Enumerate 'after'
 	{
 		after := blobSizedRefs[2].Ref.String()
 		t.Logf("Testing Enumerate 'after' param; after %q", after)
-		testEnumerate(t, sto, blobSizedRefs[3:], after)
+		r.testEnumerate(blobSizedRefs[3:], after)
 	}
 
 	// Enumerate 'after' + limit
 	{
 		after := blobSizedRefs[2].Ref.String()
 		t.Logf("Testing Enumerate 'after' + 'limit' param; after %q, limit 1", after)
-		testEnumerate(t, sto, blobSizedRefs[3:4], after, 1)
+		r.testEnumerate(blobSizedRefs[3:4], after, 1)
 	}
 
 	// Enumerate 'after' with prefix of a blobref + limit
 	{
 		after := "a"
 		t.Logf("Testing Enumerate 'after' + 'limit' param; after %q, limit 1", after)
-		testEnumerate(t, sto, blobSizedRefs[:1], after, 1)
+		r.testEnumerate(blobSizedRefs[:1], after, 1)
 	}
 
 	t.Logf("Testing Remove")
@@ -223,11 +253,16 @@ func CheckEnumerate(sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts .
 		return nil
 	})
 	grp.Go(func() error {
+		var lastRef blob.Ref
 		for sb := range sbc {
 			if !sb.Valid() {
 				return fmt.Errorf("invalid blobref %#v received in enumerate", sb)
 			}
 			got = append(got, sb)
+			if lastRef.Valid() && sb.Ref.Less(lastRef) {
+				return fmt.Errorf("blobs appearing out of order")
+			}
+			lastRef = sb.Ref
 		}
 		sawEnd <- true
 		return nil
@@ -263,9 +298,24 @@ func CheckEnumerate(sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts .
 	return nil
 }
 
-func testEnumerate(t *testing.T, sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts ...interface{}) {
-	if err := CheckEnumerate(sto, wantUnsorted, opts...); err != nil {
-		t.Fatalf("%v", err)
+func (r *run) testEnumerate(wantUnsorted []blob.SizedRef, opts ...interface{}) {
+	if err := r.withRetries(func() error {
+		return CheckEnumerate(r.sto, wantUnsorted, opts...)
+	}); err != nil {
+		r.t.Fatalf("%v", err)
+	}
+}
+
+func (r *run) withRetries(fn func() error) error {
+	delays := r.opt.Retries
+	for {
+		err := fn()
+		if err == nil || len(delays) == 0 {
+			return err
+		}
+		r.t.Logf("(operation failed; retrying after %v)", delays[0])
+		time.Sleep(delays[0])
+		delays = delays[1:]
 	}
 }
 
