@@ -48,10 +48,14 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/pools"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/strutil"
 )
+
+// TODO: evaluate whether this should even be 0, to keep the schema blobs together at least.
+const packThreshold = 512 << 10
 
 type subFetcherStorage interface {
 	blobserver.Storage
@@ -184,13 +188,16 @@ func parseMetaRow(v []byte) (m meta, err error) {
 }
 
 func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
-	var buf bytes.Buffer // TODO: reuse?
-	if _, err := io.Copy(&buf, source); err != nil {
+	buf := pools.BytesBuffer()
+	defer pools.PutBuffer(buf)
+
+	if _, err := io.Copy(buf, source); err != nil {
 		return sb, err
 	}
 	size := uint32(buf.Len())
 	isFile := false
-	if b, err := schema.BlobFromReader(br, bytes.NewReader(buf.Bytes())); err == nil && b.Type() == "file" {
+	fileBlob, err := schema.BlobFromReader(br, bytes.NewReader(buf.Bytes()))
+	if err == nil && fileBlob.Type() == "file" {
 		isFile = true
 	}
 	meta, err := s.getMetaRow(br)
@@ -198,21 +205,21 @@ func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, 
 		return sb, err
 	}
 	if meta.exists {
-		if isFile {
-			// TODO try to reconstruct
+		sb = blob.SizedRef{Size: size, Ref: br}
+	} else {
+		sb, err = s.small.ReceiveBlob(br, buf)
+		if err != nil {
+			return sb, err
 		}
-		return blob.SizedRef{Size: size, Ref: br}, nil
+		if err := s.meta.Set(br.String(), fmt.Sprintf("%d s", size)); err != nil {
+			return sb, err
+		}
 	}
-	sb, err = s.small.ReceiveBlob(br, &buf)
-	if err != nil {
-		return
+	if !isFile || meta.largeRef.Valid() || fileBlob.PartsSize() < packThreshold {
+		return sb, nil
 	}
-	if isFile {
-		// TODO try to reconstruct
-	}
-	if err := s.meta.Set(br.String(), fmt.Sprintf("%d s", size)); err != nil {
-		return sb, err
-	}
+
+	println("TODO: pack into large")
 	return sb, nil
 }
 

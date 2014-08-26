@@ -17,11 +17,14 @@ limitations under the License.
 package blobpacked
 
 import (
+	"bytes"
+	"math/rand"
 	"testing"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
+	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/test"
 )
@@ -74,4 +77,27 @@ func TestParseMetaRow(t *testing.T) {
 			t.Errorf("For %q, parseMetaRow = %+v; want %+v", tt.in, got, tt.want)
 		}
 	}
+}
+
+func TestPack(t *testing.T) {
+	small, large := new(test.Fetcher), new(test.Fetcher)
+	sto := &storage{
+		small: small,
+		large: large,
+		meta:  sorted.NewMemoryKeyValue(),
+	}
+
+	const fileSize = 5 << 20
+	fileContents := make([]byte, fileSize)
+	for i := range fileContents {
+		fileContents[i] = byte(rand.Int63())
+	}
+	const fileName = "foo.dat"
+	ref, err := schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("wrote file %v", ref)
+	t.Logf("items in small: %v", small.NumBlobs())
+	t.Logf("items in large: %v", large.NumBlobs())
 }
