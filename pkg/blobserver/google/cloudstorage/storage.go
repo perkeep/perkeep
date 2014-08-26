@@ -182,15 +182,17 @@ func (gs *Storage) Fetch(blob blob.Ref) (file io.ReadCloser, size uint32, err er
 }
 
 func (gs *Storage) RemoveBlobs(blobs []blob.Ref) error {
-	var reterr error
-	// TODO: do a batch API call, or at least keep N of these in flight at a time. No need to do them all serially.
-	for _, br := range blobs {
-		err := gs.client.DeleteObject(&googlestorage.Object{Bucket: gs.bucket, Key: br.String()})
-		if err != nil {
-			reterr = err
-		}
+	gate := syncutil.NewGate(50) // arbitrary
+	var grp syncutil.Group
+	for i := range blobs {
+		gate.Start()
+		br := blobs[i]
+		grp.Go(func() error {
+			defer gate.Done()
+			return gs.client.DeleteObject(&googlestorage.Object{Bucket: gs.bucket, Key: br.String()})
+		})
 	}
-	return reterr
+	return grp.Err()
 }
 
 func init() {
