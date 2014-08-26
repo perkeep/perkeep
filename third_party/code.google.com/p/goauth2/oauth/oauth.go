@@ -167,7 +167,10 @@ type Token struct {
 
 // Expired reports whether the token has expired or is invalid.
 func (t *Token) Expired() bool {
-	if t.Expiry.IsZero() || t.AccessToken == "" {
+	if t.AccessToken == "" {
+		return true
+	}
+	if t.Expiry.IsZero() {
 		return false
 	}
 	return t.Expiry.Before(time.Now())
