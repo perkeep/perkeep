@@ -21,9 +21,7 @@ limitations under the License.
 // particular is at https://github.com/apenwarr/bup/blob/master/lib/bup/bupsplit.c
 package rollsum // import "perkeep.org/pkg/rollsum"
 
-import ()
-
-const windowSize = 64
+const windowSize = 64 // Roll assumes windowSize is a power of 2
 const charOffset = 31
 
 const blobBits = 13
@@ -42,15 +40,17 @@ func New() *RollSum {
 	}
 }
 
-func (rs *RollSum) add(drop, add uint8) {
-	rs.s1 += uint32(add) - uint32(drop)
-	rs.s2 += rs.s1 - uint32(windowSize)*(uint32(drop)+charOffset)
+func (rs *RollSum) add(drop, add uint32) {
+	s1 := rs.s1 + add - drop
+	rs.s1 = s1
+	rs.s2 += s1 - uint32(windowSize)*(drop+charOffset)
 }
 
 func (rs *RollSum) Roll(ch byte) {
-	rs.add(rs.window[rs.wofs], ch)
-	rs.window[rs.wofs] = ch
-	rs.wofs = (rs.wofs + 1) % windowSize
+	wp := &rs.window[rs.wofs]
+	rs.add(uint32(*wp), uint32(ch))
+	*wp = ch
+	rs.wofs = (rs.wofs + 1) & (windowSize - 1)
 }
 
 // OnSplit returns whether at least 13 consecutive trailing bits of
