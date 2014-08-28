@@ -954,12 +954,14 @@ func FileTime(f io.ReaderAt) (time.Time, error) {
 	// If the EXIF file only had local timezone, but it did have
 	// GPS, then lookup the timezone and correct the time.
 	if ct.Location() == time.Local {
-		if lat, long, ok := ex.LatLong(); ok {
+		if lat, long, err := ex.LatLong(); err == nil {
 			if loc := lookupLocation(latlong.LookupZoneName(lat, long)); loc != nil {
 				if t, err := exifDateTimeInLocation(ex, loc); err == nil {
 					return t, nil
 				}
 			}
+		} else if !exif.IsTagNotPresentError(err) {
+			log.Printf("Invalid EXIF GPS data: %v", err)
 		}
 	}
 	return ct, nil
@@ -977,7 +979,7 @@ func exifDateTimeInLocation(x *exif.Exif, loc *time.Location) (time.Time, error)
 			return time.Time{}, err
 		}
 	}
-	if tag.TypeCategory() != tiff.StringVal {
+	if tag.Format() != tiff.StringVal {
 		return time.Time{}, errors.New("DateTime[Original] not in string format")
 	}
 	const exifTimeLayout = "2006:01:02 15:04:05"

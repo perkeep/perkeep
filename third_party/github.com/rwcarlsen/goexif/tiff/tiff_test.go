@@ -215,7 +215,10 @@ func TestDecodeTag_blob(t *testing.T) {
 	}
 
 	t.Logf("tag: %v+\n", tg)
-	n, d := tg.Rat2(0)
+	n, d, err := tg.Rat2(0)
+	if err != nil {
+		t.Fatalf("tag decoded wrong type: %v", err)
+	}
 	t.Logf("tag rat val: %v/%v\n", n, d)
 }
 
