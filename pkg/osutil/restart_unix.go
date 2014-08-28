@@ -1,5 +1,5 @@
 // +build !appengine
-// +build linux darwin freebsd netbsd openbsd
+// +build linux darwin freebsd netbsd openbsd solaris
 
 /*
 Copyright 2012 The Camlistore Authors.

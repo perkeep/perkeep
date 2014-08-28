@@ -1,7 +1,7 @@
-// +build !windows,!appengine,!solaris
+// +build solaris
 
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2014 The Camlistore Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,7 +26,8 @@ import (
 )
 
 func Mkfifo(path string, mode uint32) error {
-	return syscall.Mkfifo(path, mode)
+	// Mkfifo is missing from syscall, thus call Mknod as it does on Linux.
+	return syscall.Mknod(path, mode|syscall.S_IFIFO, 0)
 }
 
 // Mksocket creates a socket file (a Unix Domain Socket) named path.
