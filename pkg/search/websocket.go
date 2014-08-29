@@ -45,10 +45,13 @@ type wsHub struct {
 	sh             *Handler
 	register       chan *wsConn
 	unregister     chan *wsConn
-	conns          map[*wsConn]bool
 	watchReq       chan watchReq
 	newBlobRecv    chan string // new blob received. string is camliType.
 	updatedResults chan *watchedQuery
+	statusUpdate   chan json.RawMessage
+
+	// Owned by func run:
+	conns map[*wsConn]bool
 }
 
 func newWebsocketHub(sh *Handler) *wsHub {
@@ -60,14 +63,26 @@ func newWebsocketHub(sh *Handler) *wsHub {
 		watchReq:       make(chan watchReq, buffered),
 		newBlobRecv:    make(chan string, buffered),
 		updatedResults: make(chan *watchedQuery, buffered),
+		statusUpdate:   make(chan json.RawMessage, buffered),
 	}
 }
 
 func (h *wsHub) run() {
+	var lastStatusMsg []byte
 	for {
 		select {
+		case st := <-h.statusUpdate:
+			const prefix = `{"tag":"_status","status":`
+			lastStatusMsg = make([]byte, 0, len(prefix)+len(st)+1)
+			lastStatusMsg = append(lastStatusMsg, prefix...)
+			lastStatusMsg = append(lastStatusMsg, st...)
+			lastStatusMsg = append(lastStatusMsg, '}')
+			for c := range h.conns {
+				c.send <- lastStatusMsg
+			}
 		case c := <-h.register:
 			h.conns[c] = true
+			c.send <- lastStatusMsg
 		case c := <-h.unregister:
 			delete(h.conns, c)
 			close(c.send)
@@ -205,7 +220,7 @@ func (c *wsConn) readPump() {
 		if err != nil {
 			break
 		}
-		log.Printf("Got websocket message %q", message)
+		log.Printf("Got websocket message %#q", message)
 		cm := new(wsClientMessage)
 		if err := json.Unmarshal(message, cm); err != nil {
 			log.Printf("Ignoring bogus websocket message. Err: %v", err)

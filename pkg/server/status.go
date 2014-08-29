@@ -22,14 +22,17 @@ import (
 	"html"
 	"log"
 	"net/http"
+	"reflect"
 	"regexp"
 	"strings"
+	"time"
 
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/search"
 )
 
 // StatusHandler publishes server status information.
@@ -42,6 +45,8 @@ func init() {
 	blobserver.RegisterHandlerConstructor("status", newStatusFromConfig)
 }
 
+var _ blobserver.HandlerIniter = (*StatusHandler)(nil)
+
 func newStatusFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
 	if err := conf.Validate(); err != nil {
 		return nil, err
@@ -50,6 +55,31 @@ func newStatusFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Hand
 		prefix:        ld.MyPrefix(),
 		handlerFinder: ld,
 	}, nil
+}
+
+func (sh *StatusHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
+	_, h, err := hl.FindHandlerByType("search")
+	if err == blobserver.ErrHandlerTypeNotFound {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	go func() {
+		var lastSend *status
+		for {
+			cur := sh.currentStatus()
+			if reflect.DeepEqual(cur, lastSend) {
+				// TODO: something better. get notified on interesting events.
+				time.Sleep(10 * time.Second)
+				continue
+			}
+			lastSend = cur
+			js, _ := json.MarshalIndent(cur, "", "  ")
+			h.(*search.Handler).SendStatusUpdate(js)
+		}
+	}()
+	return nil
 }
 
 func (sh *StatusHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -96,8 +126,8 @@ type storageStatus struct {
 	Primary     bool        `json:"primary,omitempty"`
 	IsIndex     bool        `json:"isIndex,omitempty"`
 	Type        string      `json:"type"`
-	ApproxBlobs int         `json:"approximateBlobs"`
-	ApproxBytes int         `json:"approximateBytes"`
+	ApproxBlobs int         `json:"approxBlobs,omitempty"`
+	ApproxBytes int         `json:"approxBytes,omitempty"`
 	ImplStatus  interface{} `json:"implStatus,omitempty"`
 }
 

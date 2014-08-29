@@ -18,6 +18,7 @@ package search
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -105,6 +106,11 @@ func (sh *Handler) subscribeToNewBlobs() {
 
 func (h *Handler) SetCorpus(c *index.Corpus) {
 	h.corpus = c
+}
+
+// SendStatusUpdate sends a JSON status map to any connected WebSocket clients.
+func (h *Handler) SendStatusUpdate(status json.RawMessage) {
+	h.wsHub.statusUpdate <- status
 }
 
 func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler, error) {
