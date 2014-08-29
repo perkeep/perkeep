@@ -55,7 +55,14 @@ import (
 )
 
 // TODO: evaluate whether this should even be 0, to keep the schema blobs together at least.
+// Files under this size aren't packed.
 const packThreshold = 512 << 10
+
+// meta key prefixes
+const (
+	blobMetaPrefix      = "b:"
+	blobMetaPrefixLimit = "b;"
+)
 
 type subFetcherStorage interface {
 	blobserver.Storage
@@ -67,8 +74,17 @@ type storage struct {
 	large subFetcherStorage
 
 	// meta key -> value rows are:
-	//   sha1-xxxx -> "<size> s"
-	//   sha1-xxxx -> "<size> l <big-blobref> <big-offset>"
+	//
+	// For logical blobs, "b:" prefix:
+	//   b:sha1-xxxx -> "<size> s"
+	//   b:sha1-xxxx -> "<size> l <big-blobref> <offset_u32>"
+	//
+	// For wholerefs:
+	//   w:sha1-xxxx(wholeref) -> "<nbytes_total_u64> <nchunks_u32>"
+	// Then for each big nchunk of the file:
+	//   w:sha1-xxxx:0 -> "<big-blobref> <offset_u32> <length_u32>"
+	//   w:sha1-xxxx:1 -> "<big-blobref> <offset_u32> <length_u32>"
+	//   ...
 	meta sorted.KeyValue
 }
 
@@ -127,7 +143,7 @@ type meta struct {
 
 // if not found, err == nil.
 func (s *storage) getMetaRow(br blob.Ref) (meta, error) {
-	v, err := s.meta.Get(br.String())
+	v, err := s.meta.Get(blobMetaPrefix + br.String())
 	if err == sorted.ErrNotFound {
 		return meta{}, nil
 	}
@@ -137,8 +153,8 @@ func (s *storage) getMetaRow(br blob.Ref) (meta, error) {
 var singleSpace = []byte{' '}
 
 // parses one of:
-// "<size> s"
-// "<size> l <big-blobref> <big-offset>"
+// "<size_u32> s"
+// "<size_u32> l <big-blobref> <big-offset>"
 func parseMetaRow(v []byte) (m meta, err error) {
 	row := v
 	sp := bytes.IndexByte(v, ' ')
@@ -187,6 +203,18 @@ func parseMetaRow(v []byte) (m meta, err error) {
 	return meta{}, fmt.Errorf("invalid metarow %q: %v", row, err)
 }
 
+func parseMetaRowSizeOnly(v []byte) (size uint32, err error) {
+	sp := bytes.IndexByte(v, ' ')
+	if sp < 1 || sp == len(v)-1 {
+		return 0, fmt.Errorf("invalid metarow %q", v)
+	}
+	size64, err := strutil.ParseUintBytes(v[:sp], 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("invalid metarow size %q", v)
+	}
+	return uint32(size64), nil
+}
+
 func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
 	buf := pools.BytesBuffer()
 	defer pools.PutBuffer(buf)
@@ -211,7 +239,7 @@ func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, 
 		if err != nil {
 			return sb, err
 		}
-		if err := s.meta.Set(br.String(), fmt.Sprintf("%d s", size)); err != nil {
+		if err := s.meta.Set(blobMetaPrefix+br.String(), fmt.Sprintf("%d s", size)); err != nil {
 			return sb, err
 		}
 	}
@@ -265,7 +293,7 @@ func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (err er
 
 func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
 	defer close(dest)
-	t := s.meta.Find(after, "")
+	t := s.meta.Find(blobMetaPrefix+after, blobMetaPrefixLimit)
 	defer func() {
 		closeErr := t.Close()
 		if err == nil {
@@ -273,24 +301,22 @@ func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef
 		}
 	}()
 	n := 0
+	afterb := []byte(after)
 	for n < limit && t.Next() {
-		if n == 0 && t.Key() == after {
+		key := t.KeyBytes()[len(blobMetaPrefix):]
+		if n == 0 && bytes.Equal(key, afterb) {
 			continue
 		}
 		n++
-		key, val := t.KeyBytes(), t.ValueBytes()
 		br, ok := blob.ParseBytes(key)
 		if !ok {
-			return fmt.Errorf("unknown key %q in meta index", key)
+			return fmt.Errorf("unknown key %q in meta index", t.Key())
 		}
-		m, err := parseMetaRow(val)
+		size, err := parseMetaRowSizeOnly(t.ValueBytes())
 		if err != nil {
 			return err
 		}
-		if !m.exists {
-			panic("should exist if here")
-		}
-		dest <- blob.SizedRef{Ref: br, Size: m.size}
+		dest <- blob.SizedRef{Ref: br, Size: size}
 	}
 	return nil
 }
