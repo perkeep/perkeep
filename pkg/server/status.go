@@ -22,6 +22,7 @@ import (
 	"html"
 	"log"
 	"net/http"
+	"os"
 	"reflect"
 	"regexp"
 	"strings"
@@ -33,6 +34,7 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/types/camtypes"
 )
 
 // StatusHandler publishes server status information.
@@ -100,13 +102,20 @@ func (sh *StatusHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 type status struct {
 	Version    string                   `json:"version"`
-	Error      string                   `json:"error,omitempty"`
+	Errors     []camtypes.StatusError   `json:"errors,omitempty"`
 	Sync       map[string]syncStatus    `json:"sync"`
 	Storage    map[string]storageStatus `json:"storage"`
 	rootPrefix string
 
 	ImporterRoot     string      `json:"importerRoot"`
 	ImporterAccounts interface{} `json:"importerAccounts"`
+}
+
+func (st *status) addError(msg, url string) {
+	st.Errors = append(st.Errors, camtypes.StatusError{
+		Error: msg,
+		URL:   url,
+	})
 }
 
 func (st *status) isHandler(pfx string) bool {
@@ -137,9 +146,12 @@ func (sh *StatusHandler) currentStatus() *status {
 		Storage: make(map[string]storageStatus),
 		Sync:    make(map[string]syncStatus),
 	}
+	if v := os.Getenv("CAMLI_FAKE_STATUS_ERROR"); v != "" {
+		res.addError(v, "/status/#fakeerror")
+	}
 	_, hi, err := sh.handlerFinder.FindHandlerByType("root")
 	if err != nil {
-		res.Error = fmt.Sprintf("Error finding root handler: %v", err)
+		res.addError(fmt.Sprintf("Error finding root handler: %v", err), "")
 		return res
 	}
 	rh := hi.(*RootHandler)
@@ -148,9 +160,11 @@ func (sh *StatusHandler) currentStatus() *status {
 	if pfx, h, err := sh.handlerFinder.FindHandlerByType("importer"); err == nil {
 		res.ImporterRoot = pfx
 		as := h.(interface {
-			AccountsStatus() interface{}
+			AccountsStatus() (interface{}, []camtypes.StatusError)
 		})
-		res.ImporterAccounts = as.AccountsStatus()
+		var errs []camtypes.StatusError
+		res.ImporterAccounts, errs = as.AccountsStatus()
+		res.Errors = append(res.Errors, errs...)
 	}
 
 	types, handlers := sh.handlerFinder.AllHandlers()

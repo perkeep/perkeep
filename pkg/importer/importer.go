@@ -39,6 +39,7 @@ import (
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/server"
 	"camlistore.org/pkg/syncutil"
+	"camlistore.org/pkg/types/camtypes"
 )
 
 const (
@@ -351,8 +352,9 @@ type accountStatus struct {
 
 // AccountsStatus returns the currently configured accounts and their status for
 // inclusion in the status.json document, as rendered by the web UI.
-func (h *Host) AccountsStatus() interface{} {
+func (h *Host) AccountsStatus() (interface{}, []camtypes.StatusError) {
 	var s []accountStatus
+	var errs []camtypes.StatusError
 	for _, impName := range h.importers {
 		imp := h.imp[impName]
 		accts, _ := imp.Accounts()
@@ -371,15 +373,16 @@ func (h *Host) AccountsStatus() interface{} {
 			}
 			if ia.lastRunErr != nil {
 				as.LastError = ia.lastRunErr.Error()
+				errs = append(errs, camtypes.StatusError{
+					Error: ia.lastRunErr.Error(),
+					URL:   ia.AccountURL(),
+				})
 			}
 			ia.mu.Unlock()
 			s = append(s, as)
 		}
 	}
-	s = append(s, accountStatus{
-		Name: "hi",
-	})
-	return s
+	return s, errs
 }
 
 func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
