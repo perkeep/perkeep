@@ -28,6 +28,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/singleflight"
+	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types"
 )
 
@@ -120,24 +121,34 @@ func (ss *superset) NewFileReader(fetcher blob.Fetcher) (*FileReader, error) {
 	return fr, nil
 }
 
-// LoadAllChunks causes all chunks of the file to be loaded as quickly
-// as possible.  The contents are immediately discarded, so it is
-// assumed that the fetcher is a caching fetcher.
+// LoadAllChunks starts a process of loading all chunks of this file
+// as quickly as possible. The contents are immediately discarded, so
+// it is assumed that the fetcher is a caching fetcher.
 func (fr *FileReader) LoadAllChunks() {
-	offsetc := make(chan int64, 16)
-	go func() {
-		for off := range offsetc {
-			go func(off int64) {
-				rc, err := fr.readerForOffset(off)
-				if err == nil {
-					defer rc.Close()
-					var b [1]byte
-					rc.Read(b[:]) // fault in the blob
-				}
-			}(off)
+	// TODO: ask the underlying blobserver to do this if it would
+	// prefer.  Some blobservers (like blobpacked) might not want
+	// to do this at all.
+	go fr.loadAllChunksSync()
+}
+
+func (fr *FileReader) loadAllChunksSync() {
+	gate := syncutil.NewGate(20) // num readahead chunk loads at a time
+	fr.ForeachChunk(func(schema blob.Ref, p BytesPart) error {
+		if !p.BlobRef.Valid() {
+			return nil
 		}
-	}()
-	go fr.GetChunkOffsets(offsetc)
+		gate.Start()
+		go func(br blob.Ref) {
+			defer gate.Done()
+			rc, _, err := fr.fetcher.Fetch(br)
+			if err == nil {
+				defer rc.Close()
+				var b [1]byte
+				rc.Read(b[:]) // fault in the blob
+			}
+		}(p.BlobRef)
+		return nil
+	})
 }
 
 // UnixMtime returns the file schema's UnixMtime field, or the zero value.
@@ -222,72 +233,6 @@ func (fr *FileReader) ForeachChunk(fn func(schema blob.Ref, p BytesPart) error) 
 		}
 	}
 	return nil
-}
-
-// GetChunkOffsets sends c each of the file's chunk offsets.
-// The offsets are not necessarily sent in order, and all ranges of the file
-// are not necessarily represented if the file contains zero holes.
-// The channel c is closed before the function returns, regardless of error.
-func (fr *FileReader) GetChunkOffsets(c chan<- int64) error {
-	defer close(c)
-	firstErrc := make(chan error, 1)
-	return fr.sendPartsChunks(c, firstErrc, 0, fr.ss.Parts)
-}
-
-// firstErrc is a communication mechanism amongst all outstanding
-// superset-fetching goroutines to see if anybody else has failed.  If
-// so (a non-blocking read returns something), then the recursive call
-// to sendPartsChunks is skipped, hopefully preventing unnecessary
-// work.  Whenever a caller receives on firstErrc, it should also send
-// back to it.  It's buffered.
-func (fr *FileReader) sendPartsChunks(c chan<- int64, firstErrc chan error, off int64, parts []*BytesPart) error {
-	var errcs []chan error
-	for _, p := range parts {
-		switch {
-		case p.BlobRef.Valid() && p.BytesRef.Valid():
-			return fmt.Errorf("part in %v illegally contained both a blobRef and bytesRef", fr.ss.BlobRef)
-		case !p.BlobRef.Valid() && !p.BytesRef.Valid():
-			// Don't send
-		case p.BlobRef.Valid():
-			c <- off
-		case p.BytesRef.Valid():
-			errc := make(chan error, 1)
-			errcs = append(errcs, errc)
-			br := p.BytesRef
-			go func(off int64) (err error) {
-				defer func() {
-					errc <- err
-					if err != nil {
-						select {
-						case firstErrc <- err: // pump
-						default:
-						}
-					}
-				}()
-				select {
-				case err = <-firstErrc:
-					// There was already an error elsewhere in the file.
-					// Avoid doing more work.
-					return
-				default:
-					ss, err := fr.getSuperset(br)
-					if err != nil {
-						return err
-					}
-					return fr.sendPartsChunks(c, firstErrc, off, ss.Parts)
-				}
-			}(off)
-		}
-		off += int64(p.Size)
-	}
-
-	var retErr error
-	for _, errc := range errcs {
-		if err := <-errc; err != nil && retErr == nil {
-			retErr = err
-		}
-	}
-	return retErr
 }
 
 func (fr *FileReader) rootReader() *FileReader {
