@@ -82,6 +82,7 @@ func NewFileReader(fetcher blob.Fetcher, fileBlobRef blob.Ref) (*FileReader, err
 	if err != nil {
 		return nil, fmt.Errorf("schema/filereader: decoding file schema blob: %v", err)
 	}
+	ss.BlobRef = fileBlobRef
 	if ss.Type != "file" && ss.Type != "bytes" {
 		return nil, fmt.Errorf("schema/filereader: expected \"file\" or \"bytes\" schema blob, got %q", ss.Type)
 	}
@@ -186,6 +187,43 @@ func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 	return n, err
 }
 
+// ForeachChunk calls fn for each chunk of fr, in order.
+//
+// The schema argument will be the "file" or "bytes" schema blob in
+// which the part is defined. The BytesPart will be the actual
+// chunk. The fn function will not be called with BytesParts
+// referencing a "BytesRef"; those are followed recursively instead.
+//
+// If fn returns an error, iteration stops and that error is returned
+// from ForeachChunk. Other errors may be returned from ForeachChunk
+// if schema blob fetches fail.
+func (fr *FileReader) ForeachChunk(fn func(schema blob.Ref, p BytesPart) error) error {
+	for _, bp := range fr.ss.Parts {
+		if bp.BytesRef.Valid() && bp.BlobRef.Valid() {
+			return fmt.Errorf("part in %v illegally contained both a blobRef and bytesRef", fr.ss.BlobRef)
+		}
+		if bp.BytesRef.Valid() {
+			ss, err := fr.getSuperset(bp.BytesRef)
+			if err != nil {
+				return err
+			}
+			subfr, err := ss.NewFileReader(fr.fetcher)
+			if err != nil {
+				return err
+			}
+			subfr.parent = fr
+			if err := subfr.ForeachChunk(fn); err != nil {
+				return err
+			}
+		} else {
+			if err := fn(fr.ss.BlobRef, *bp); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // GetChunkOffsets sends c each of the file's chunk offsets.
 // The offsets are not necessarily sent in order, and all ranges of the file
 // are not necessarily represented if the file contains zero holes.
@@ -207,7 +245,7 @@ func (fr *FileReader) sendPartsChunks(c chan<- int64, firstErrc chan error, off 
 	for _, p := range parts {
 		switch {
 		case p.BlobRef.Valid() && p.BytesRef.Valid():
-			return fmt.Errorf("part illegally contained both a blobRef and bytesRef")
+			return fmt.Errorf("part in %v illegally contained both a blobRef and bytesRef", fr.ss.BlobRef)
 		case !p.BlobRef.Valid() && !p.BytesRef.Valid():
 			// Don't send
 		case p.BlobRef.Valid():
@@ -301,6 +339,7 @@ func (fr *FileReader) getSuperset(br blob.Ref) (*superset, error) {
 		if err != nil {
 			return nil, err
 		}
+		ss.BlobRef = br
 		fr.ssmmu.Lock()
 		defer fr.ssmmu.Unlock()
 		fr.ssm[br] = ss

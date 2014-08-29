@@ -19,11 +19,13 @@ package schema
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"testing"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/test"
 )
 
@@ -294,6 +296,72 @@ func TestReaderEfficiency(t *testing.T) {
 	}
 	if bytesFetched != sumSize {
 		t.Errorf("Fetched %d bytes; want %d", bytesFetched, sumSize)
+	}
+}
+
+func TestReaderForeachChunk(t *testing.T) {
+	fileSize := 4 << 20
+	if testing.Short() {
+		fileSize = 1 << 20
+	}
+	bigFile := make([]byte, fileSize)
+	rnd := rand.New(rand.NewSource(1))
+	for i := range bigFile {
+		bigFile[i] = byte(rnd.Intn(256))
+	}
+	sto := new(test.Fetcher) // in-memory blob storage
+	fileMap := NewFileMap("testfile")
+	fileref, err := WriteFileMap(sto, fileMap, bytes.NewReader(bigFile))
+	if err != nil {
+		t.Fatalf("WriteFileMap: %v", err)
+	}
+
+	fr, err := NewFileReader(sto, fileref)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var back bytes.Buffer
+	var totSize uint64
+	err = fr.ForeachChunk(func(sref blob.Ref, p BytesPart) error {
+		if !sref.Valid() {
+			t.Fatal("invalid schema blob")
+		}
+		if p.BytesRef.Valid() {
+			t.Fatal("should never see a valid BytesRef")
+		}
+		if !p.BlobRef.Valid() {
+			t.Fatal("saw part with invalid blobref")
+		}
+		rc, size, err := sto.Fetch(p.BlobRef)
+		if err != nil {
+			return fmt.Errorf("Error fetching blobref of chunk %+v: %v", p, err)
+		}
+		defer rc.Close()
+		totSize += p.Size
+		if uint64(size) != p.Size {
+			return fmt.Errorf("fetched size %d doesn't match expected for chunk %+v", size, p)
+		}
+		n, err := io.Copy(&back, rc)
+		if err != nil {
+			return err
+		}
+		if n != int64(size) {
+			return fmt.Errorf("Copied unexpected %d bytes of chunk %+v", n, p)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal("ForeachChunk = %v", err)
+	}
+	if back.Len() != fileSize {
+		t.Fatalf("Read file is %d bytes; want %d", back.Len(), fileSize)
+	}
+	if totSize != uint64(fileSize) {
+		t.Errorf("sum of parts = %d; want %d", totSize, fileSize)
+	}
+	if !bytes.Equal(back.Bytes(), bigFile) {
+		t.Errorf("file read mismatch")
 	}
 }
 
