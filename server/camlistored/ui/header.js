@@ -27,10 +27,10 @@ cam.Header = React.createClass({
 	PIGGY_NATIVE_WIDTH: 88,
 	PIGGY_NATIVE_HEIGHT: 62,
 	PIGGY_MARGIN: {
-		LEFT: 2,
-		RIGHT: 5,
-		TOP: 0,
-		BOTTOM: 2,
+		LEFT: 1,
+		RIGHT: 4,
+		TOP: -1,
+		BOTTOM: 1,
 	},
 
 	SEARCH_MARGIN: {
@@ -60,7 +60,7 @@ cam.Header = React.createClass({
 	getInitialState: function() {
 		return {
 			currentSearch: this.props.currentSearch,
-			importerRoot: null,
+			serverStatus: null,
 			menuVisible: false,
 		};
 	},
@@ -106,6 +106,36 @@ cam.Header = React.createClass({
 	},
 
 	getPiggy_: function() {
+		var props = {
+			sheetWidth: 11,
+			spriteWidth: this.PIGGY_NATIVE_WIDTH,
+			spriteHeight: this.PIGGY_NATIVE_HEIGHT,
+			style: cam.reactUtil.getVendorProps({
+				position: 'absolute',
+				left: this.PIGGY_MARGIN.LEFT,
+				top: this.PIGGY_MARGIN.TOP,
+				transform: 'scale(' + this.getPiggyScale_() + ')',
+				transformOrigin: '0 0',
+			}),
+		};
+
+		var image = function(errors) {
+			if (errors.length) {
+				return cam.SpritedAnimation(cam.object.extend(props, {
+					key: 'error',
+					loopDelay: 10 * 1000,
+					numFrames: 65,
+					src: 'glitch/npc_piggy__x1_too_much_nibble_png_1354829441.png',
+				}));
+			} else {
+				return cam.SpritedImage(cam.object.extend(props, {
+					key: 'ok',
+					index: 5,
+					src: 'glitch/npc_piggy__x1_chew_png_1354829433.png',
+				}));
+			}
+		};
+
 		return React.DOM.td(
 			{
 				className: 'cam-header-item',
@@ -116,20 +146,7 @@ cam.Header = React.createClass({
 				onMouseEnter: this.handleMouseEnter_,
 				onMouseLeave: this.handleMouseLeave_,
 			},
-			cam.SpritedImage({
-				index: 5,
-				src: 'glitch/npc_piggy__x1_chew_png_1354829433.png',
-				sheetWidth: 11,
-				spriteWidth: this.PIGGY_NATIVE_WIDTH,
-				spriteHeight: this.PIGGY_NATIVE_HEIGHT,
-				style: cam.reactUtil.getVendorProps({
-					position: 'absolute',
-					left: this.PIGGY_MARGIN.LEFT,
-					top: this.PIGGY_MARGIN.TOP,
-					transform: 'scale(' + this.getPiggyScale_() + ')',
-					transformOrigin: '0 0',
-				})
-			})
+			image(this.getErrors_())
 		)
 	},
 
@@ -184,6 +201,14 @@ cam.Header = React.createClass({
 	},
 
 	getMenuDropdown_: function() {
+		var errorItems = this.getErrors_().map(function(err) {
+			var children = [
+				React.DOM.i({className: 'fa fa-exclamation-circle cam-header-menu-item-icon'}),
+				err.error
+			];
+			return this.getMenuItemLink_(children, err.url, 'cam-header-menu-item-error');
+		}, this);
+
 		return React.DOM.div(
 			{
 				className: 'cam-header-menu-dropdown',
@@ -200,20 +225,25 @@ cam.Header = React.createClass({
 			// TODO(aa): Also I keep going back and forth about whether we should call this 'permanode' or 'set' in the UI. Hrm.
 			this.getMenuItemButton_('New set', this.props.onNewPermanode),
 
-			this.getMenuItemLink_('Importers', this.state.importerRoot),
+			this.getMenuItemLink_('Importers', this.state.serverStatus && new goog.Uri(this.state.serverStatus.importerRoot)),
 			this.getMenuItemLink_('Server status', this.props.statusURL),
-			this.getMenuItemLink_('Search roots', this.props.searchRootsURL)
+			this.getMenuItemLink_('Search roots', this.props.searchRootsURL),
+			errorItems
 		);
 	},
 
-	getMenuItemLink_: function(text, link) {
+	getMenuItemLink_: function(text, link, opt_class) {
 		if (!text || !link) {
 			return null;
 		}
 
+		var className = 'cam-header-menu-item';
+		if (opt_class) {
+			className += ' ' + opt_class;
+		}
 		return React.DOM.a(
 			{
-				className: 'cam-header-menu-item',
+				className: className,
 				href: link.toString(),
 			},
 			text
@@ -308,6 +338,12 @@ cam.Header = React.createClass({
 	},
 
 	handleStatusLoad_: function(e) {
-		this.setState({importerRoot: this.props.homeURL.resolve(new goog.Uri(JSON.parse(e.target.responseText)['importerRoot']))});
+		this.setState({
+			serverStatus: JSON.parse(e.target.responseText),
+		});
+	},
+
+	getErrors_: function() {
+		return (this.state.serverStatus && this.state.serverStatus.errors) || [];
 	},
 });
