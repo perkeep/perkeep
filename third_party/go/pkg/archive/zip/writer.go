@@ -22,6 +22,12 @@ type Writer struct {
 	dir    []*header
 	last   *fileWriter
 	closed bool
+
+	// LastDataOffset is the offset from the beginning of the zip
+	// file where the most recently created file's data will be
+	// (possibly be compressed). This offset is past the zip
+	// header.
+	LastDataOffset int64
 }
 
 type header struct {
@@ -219,6 +225,7 @@ func (w *Writer) CreateHeader(fh *FileHeader) (io.Writer, error) {
 		return nil, err
 	}
 
+	w.LastDataOffset = w.cw.count
 	w.last = fw
 	return fw, nil
 }

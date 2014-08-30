@@ -1,3 +1,14 @@
-This directory contains portions of the standard library imported from tip to
-take advantage of new features and bug fixes before they're available in the
-stable branch.
+This directory contains code from the Go standard library either
+imported from tip (to take advantage of new features and bug fixes
+before they're available in the stable branch), or modified in ways
+that Camlistore needs.
+
+A summary:
+
+* pkg/image/jpeg: performance improvements going into Go 1.4
+  such as https://codereview.appspot.com/109050045/
+
+* pkg/archive/zip: new writing LastDataOffset accessor needed for
+  blobpacked
+
+See the git history for more details.
