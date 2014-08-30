@@ -161,7 +161,9 @@ func (fr *FileReader) UnixMtime() time.Time {
 }
 
 // FileName returns the file schema's filename, if any.
-func (fr *FileReader) FileName() string { return fr.ss.FileName }
+func (fr *FileReader) FileName() string { return fr.ss.FileNameString() }
+
+func (fr *FileReader) ModTime() time.Time { return fr.ss.ModTime() }
 
 // Close currently does nothing.
 func (fr *FileReader) Close() error { return nil }

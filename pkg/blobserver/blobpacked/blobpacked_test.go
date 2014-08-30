@@ -31,11 +31,13 @@ import (
 
 func TestStorage(t *testing.T) {
 	storagetest.Test(t, func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
-		return &storage{
+		s := &storage{
 			small: new(test.Fetcher),
 			large: new(test.Fetcher),
 			meta:  sorted.NewMemoryKeyValue(),
-		}, func() {}
+		}
+		s.init()
+		return s, func() {}
 	})
 }
 
@@ -86,6 +88,7 @@ func TestPack(t *testing.T) {
 		large: large,
 		meta:  sorted.NewMemoryKeyValue(),
 	}
+	sto.init()
 
 	const fileSize = 5 << 20
 	fileContents := make([]byte, fileSize)
@@ -100,4 +103,15 @@ func TestPack(t *testing.T) {
 	t.Logf("wrote file %v", ref)
 	t.Logf("items in small: %v", small.NumBlobs())
 	t.Logf("items in large: %v", large.NumBlobs())
+	if large.NumBlobs() != 1 {
+		t.Errorf("num large blobs = %d; want 1", large.NumBlobs())
+	}
+	// TODO: so many more tests:
+	// -- verify it's a zip
+	// -- verify deleting from the source
+	// -- verify we can reconstruct it all from the zip
+	// -- verify the meta before & after
+	// -- verify we can still get each blob. and enumerate.
+	// -- overflowing the 16MB chunk size with huge initial chunks
+	// -- zips spanning more than one 16MB zip
 }
