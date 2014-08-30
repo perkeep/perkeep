@@ -69,12 +69,14 @@
 	cursor: default;
 	left: 0;
 	font-weight: 500;
-	min-width: 140px;
 	position: absolute;
 	top: 38px;
 	transition: -webkit-transform 100ms ease-out;
 	transition: -moz-transform 100ms ease-out;
 	transition: -ms-transform 100ms ease-out;
+	white-space: nowrap;
+	min-width: 140px;
+	max-width: 280px;
 	z-index: 2;
 }
 
@@ -85,8 +87,21 @@
 	cursor: pointer;
 	display: block;
 	padding: 10px 24px;
+	position: relative;
 	text-decoration: none;
 	transition: background-color 100ms ease-out;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.cam-header-menu-item-icon {
+	position: absolute;
+	left: 8px;
+	top: 13px;
+}
+
+.cam-header-menu-item-error {
+	color: rgb(255, 157, 148);
 }
 
 .cam-header-menu-item:hover {

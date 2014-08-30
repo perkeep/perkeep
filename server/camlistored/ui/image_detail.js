@@ -106,7 +106,6 @@ cam.ImageDetail = React.createClass({
 					spriteWidth: this.PIGGY_WIDTH,
 					spriteHeight: this.PIGGY_HEIGHT,
 					sheetWidth: 8,
-					interval: 30,
 					style: this.getCenteredProps_(this.PIGGY_WIDTH, this.PIGGY_HEIGHT)
 				}));
 		}
