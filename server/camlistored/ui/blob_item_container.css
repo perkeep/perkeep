@@ -14,14 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+@import (less) "prefix-free.css";
+
+
 .cam-blobitemcontainer {
 	outline: 0; /* Do not show an outline when container has focus. */
 	border: 1px solid rgba(0,0,0,0);
 	position: relative;
 	white-space: nowrap;
-	transition: -webkit-transform 75ms ease-out;
-	transition: -moz-transform 75ms ease-out;
-	transition: -ms-transform 75ms ease-out;
+	.transition-transform(75ms ease-out);
 }
 
 .cam-blobitemcontainer.cam-dropactive {

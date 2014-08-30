@@ -14,17 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+@import (less) "prefix-free.css";
+
+
+/* http://www.paulirish.com/2012/box-sizing-border-box-ftw/ */
+*, *:before, *:after {
+	.box-sizing(border-box);
+}
+
 body {
 	margin: 0;
 	overflow-x: hidden;
 	overflow-y: scroll;
-}
-
-/* http://www.paulirish.com/2012/box-sizing-border-box-ftw/ */
-*, *:before, *:after {
-	-moz-box-sizing: border-box;
-	-webkit-box-sizing: border-box;
-	box-sizing: border-box;
 }
 
 .cam-index-page {
@@ -45,8 +46,5 @@ body {
 }
 
 .cam-unselectable {
-	-moz-user-select: none;
-	-khtml-user-select: none;
-	-webkit-user-select: none;
-	-o-user-select: none;
+	.user-select(none);
 }
