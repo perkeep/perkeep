@@ -22,6 +22,7 @@ The response is a JSON document:
   "blobRoot": "/bs-and-maybe-also-index/",
   "directoryHelper": "/ui/tree/",
   "downloadHelper": "/ui/download/",
+  "importerRoot": "/importer/",
   "jsonSignRoot": "/sighelper/",
   "ownerName": "The User Name",
   "publishRoots": {},

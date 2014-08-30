@@ -39,9 +39,17 @@ cam.Header = React.createClass({
 	},
 
 	propTypes: {
-		homeURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		currentSearch: React.PropTypes.string,
+		errors: React.PropTypes.arrayOf(
+			React.PropTypes.shape({
+				error: React.PropTypes.string.isRequired,
+				onClick: React.PropTypes.func,
+				url: React.PropTypes.string,
+			}).isRequired
+		).isRequired,
+		homeURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		height: React.PropTypes.number.isRequired,
+		importersURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		mainControls: React.PropTypes.arrayOf(React.PropTypes.renderable),
 		onNewPermanode: React.PropTypes.func,
 		onSearch: React.PropTypes.func,
@@ -60,16 +68,8 @@ cam.Header = React.createClass({
 	getInitialState: function() {
 		return {
 			currentSearch: this.props.currentSearch,
-			serverStatus: null,
 			menuVisible: false,
 		};
-	},
-
-	componentWillMount: function() {
-		var req = new XMLHttpRequest();
-		req.open('GET', this.props.statusURL.resolve(new goog.Uri('status.json')), true);
-		req.onload = this.handleStatusLoad_;
-		req.send(null);
 	},
 
 	componentWillReceiveProps: function(nextProps) {
@@ -119,8 +119,8 @@ cam.Header = React.createClass({
 			}),
 		};
 
-		var image = function(errors) {
-			if (errors.length) {
+		var image = function() {
+			if (this.props.errors.length) {
 				return cam.SpritedAnimation(cam.object.extend(props, {
 					key: 'error',
 					loopDelay: 10 * 1000,
@@ -146,7 +146,7 @@ cam.Header = React.createClass({
 				onMouseEnter: this.handleMouseEnter_,
 				onMouseLeave: this.handleMouseLeave_,
 			},
-			image(this.getErrors_())
+			image.call(this)
 		)
 	},
 
@@ -201,12 +201,12 @@ cam.Header = React.createClass({
 	},
 
 	getMenuDropdown_: function() {
-		var errorItems = this.getErrors_().map(function(err) {
+		var errorItems = this.props.errors.map(function(err) {
 			var children = [
 				React.DOM.i({className: 'fa fa-exclamation-circle cam-header-menu-item-icon'}),
 				err.error
 			];
-			return this.getMenuItemLink_(children, err.url, 'cam-header-menu-item-error');
+			return this.getMenuItem_(children, err.url, err.onClick, 'cam-header-menu-item-error');
 		}, this);
 
 		return React.DOM.div(
@@ -219,21 +219,21 @@ cam.Header = React.createClass({
 					transform: 'translate3d(0, ' + this.getMenuTranslate_() + '%, 0)',
 				}),
 			},
-			this.getMenuItemLink_('Home', this.props.homeURL),
+			this.getMenuItem_('Home', this.props.homeURL),
 
 			// TODO(aa): Create a new permanode UI that delays creating the permanode until the user confirms, then change this to a link to that UI.
 			// TODO(aa): Also I keep going back and forth about whether we should call this 'permanode' or 'set' in the UI. Hrm.
-			this.getMenuItemButton_('New set', this.props.onNewPermanode),
+			this.getMenuItem_('New set', null, this.props.onNewPermanode),
 
-			this.getMenuItemLink_('Importers', this.state.serverStatus && new goog.Uri(this.state.serverStatus.importerRoot)),
-			this.getMenuItemLink_('Server status', this.props.statusURL),
-			this.getMenuItemLink_('Search roots', this.props.searchRootsURL),
+			this.getMenuItem_('Importers', this.props.importersURL),
+			this.getMenuItem_('Server status', this.props.statusURL),
+			this.getMenuItem_('Search roots', this.props.searchRootsURL),
 			errorItems
 		);
 	},
 
-	getMenuItemLink_: function(text, link, opt_class) {
-		if (!text || !link) {
+	getMenuItem_: function(text, opt_link, opt_onClick, opt_class) {
+		if (!text || (!opt_onClick && !opt_link)) {
 			return null;
 		}
 
@@ -241,21 +241,13 @@ cam.Header = React.createClass({
 		if (opt_class) {
 			className += ' ' + opt_class;
 		}
-		return React.DOM.a(
+
+		var ctor = opt_link ? React.DOM.a : React.DOM.div;
+		return ctor(
 			{
 				className: className,
-				href: link.toString(),
-			},
-			text
-		);
-	},
-
-	// TODO(aa): All the menu items should ideally be links, so that you can right-click them and so-on.
-	getMenuItemButton_: function(text, handler) {
-		return React.DOM.div(
-			{
-				className: 'cam-header-menu-item',
-				onClick: handler,
+				href: opt_link,
+				onClick: opt_onClick,
 			},
 			text
 		);
@@ -335,15 +327,5 @@ cam.Header = React.createClass({
 
 	getSearchNode_: function() {
 		return this.refs['searchbox'].getDOMNode();
-	},
-
-	handleStatusLoad_: function(e) {
-		this.setState({
-			serverStatus: JSON.parse(e.target.responseText),
-		});
-	},
-
-	getErrors_: function() {
-		return (this.state.serverStatus && this.state.serverStatus.errors) || [];
 	},
 });

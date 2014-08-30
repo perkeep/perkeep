@@ -101,13 +101,13 @@ func (sh *StatusHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 type status struct {
-	Version    string                   `json:"version"`
-	Errors     []camtypes.StatusError   `json:"errors,omitempty"`
-	Sync       map[string]syncStatus    `json:"sync"`
-	Storage    map[string]storageStatus `json:"storage"`
-	rootPrefix string
+	Version      string                   `json:"version"`
+	Errors       []camtypes.StatusError   `json:"errors,omitempty"`
+	Sync         map[string]syncStatus    `json:"sync"`
+	Storage      map[string]storageStatus `json:"storage"`
+	importerRoot string
+	rootPrefix   string
 
-	ImporterRoot     string      `json:"importerRoot"`
 	ImporterAccounts interface{} `json:"importerAccounts"`
 }
 
@@ -119,7 +119,7 @@ func (st *status) addError(msg, url string) {
 }
 
 func (st *status) isHandler(pfx string) bool {
-	if pfx == st.ImporterRoot {
+	if pfx == st.importerRoot {
 		return true
 	}
 	if _, ok := st.Sync[pfx]; ok {
@@ -158,7 +158,7 @@ func (sh *StatusHandler) currentStatus() *status {
 	res.rootPrefix = rh.Prefix
 
 	if pfx, h, err := sh.handlerFinder.FindHandlerByType("importer"); err == nil {
-		res.ImporterRoot = pfx
+		res.importerRoot = pfx
 		as := h.(interface {
 			AccountsStatus() (interface{}, []camtypes.StatusError)
 		})

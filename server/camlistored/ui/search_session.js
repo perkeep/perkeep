@@ -34,9 +34,11 @@ cam.SearchSession = function(connection, currentUri, query) {
 	goog.base(this);
 
 	this.connection_ = connection;
+	this.currentUri_ = currentUri;
 	this.initSocketUri_(currentUri);
+	this.hasSocketError_ = false;
 	this.query_ = query;
-	this.instance_ = this.constructor.instanceCount_++;
+	this.tag_ = 'q' + (this.constructor.instanceCount_++);
 	this.continuation_ = this.getContinuation_(this.constructor.SEARCH_SESSION_CHANGE_TYPE.NEW);
 	this.socket_ = null;
 	this.supportsWebSocket_ = false;
@@ -47,6 +49,12 @@ goog.inherits(cam.SearchSession, goog.events.EventTarget);
 
 // We fire this event when the data changes in any way.
 cam.SearchSession.SEARCH_SESSION_CHANGED = 'search-session-change';
+
+// We fire this event when the search session receives general server status data.
+cam.SearchSession.SEARCH_SESSION_STATUS = 'search-session-status';
+
+// We fire this event when the search session encounters an error.
+cam.SearchSession.SEARCH_SESSION_ERROR = 'search-session-error';
 
 // TODO(aa): This is only used by BlobItemContainer. Once we switch over to BlobItemContainerReact completely, it can be removed.
 cam.SearchSession.SEARCH_SESSION_CHANGE_TYPE = {
@@ -70,6 +78,10 @@ cam.SearchSession.prototype.getQuery = function() {
 // description.meta
 cam.SearchSession.prototype.getCurrentResults = function() {
 	return this.data_;
+};
+
+cam.SearchSession.prototype.hasSocketError = function() {
+	return this.hasSocketError_;
 };
 
 // Loads the next page of data. This is safe to call while a load is in progress; multiple calls for the same page will be collapsed. The SEARCH_SESSION_CHANGED event will be dispatched when the new data is available.
@@ -192,6 +204,20 @@ cam.SearchSession.prototype.searchDone_ = function(changeType, result) {
 	}
 };
 
+cam.SearchSession.prototype.handleError_ = function(message) {
+	this.hasSocketError_ = true;
+	this.dispatchEvent({type: this.constructor.SEARCH_SESSION_ERROR});
+};
+
+cam.SearchSession.prototype.handleStatus_ = function(data) {
+	if (data.tag == '_status') {
+		this.dispatchEvent({
+			type: this.constructor.SEARCH_SESSION_STATUS,
+			status: data.status,
+		});
+	}
+};
+
 cam.SearchSession.prototype.startSocketQuery_ = function() {
 	if (!this.socketUri_) {
 		return;
@@ -210,17 +236,25 @@ cam.SearchSession.prototype.startSocketQuery_ = function() {
 	this.socket_ = new WebSocket(this.socketUri_.toString());
 	this.socket_.onopen = function() {
 		var message = {
-			tag: 'q' + this.instance_,
+			tag: this.tag_,
 			query: query
 		};
 		this.socket_.send(JSON.stringify(message));
 	}.bind(this);
-	this.socket_.onmessage = function() {
+	this.socket_.onclose =
+	this.socket_.onerror = function(e) {
+		this.handleError_('WebSocket error - click to reload');
+	}.bind(this);
+	this.socket_.onmessage = function(e) {
 		this.supportsWebSocket_ = true;
+		this.handleStatus_(JSON.parse(e.data));
 		// Ignore the first response.
 		this.socket_.onmessage = function(e) {
 			var result = JSON.parse(e.data);
-			this.searchDone_(this.constructor.SEARCH_SESSION_CHANGE_TYPE.UPDATE, result.result);
+			this.handleStatus_(result);
+			if (result.tag == this.tag_) {
+				this.searchDone_(this.constructor.SEARCH_SESSION_CHANGE_TYPE.UPDATE, result.result);
+			}
 		}.bind(this);
 	}.bind(this);
 };
