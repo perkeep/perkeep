@@ -116,6 +116,7 @@ cam.IndexPage = React.createClass({
 			currentURL: null,
 			dropActive: false,
 			selection: {},
+			serverStatus: null,
 		};
 	},
 
@@ -328,7 +329,17 @@ cam.IndexPage = React.createClass({
 
 		console.log('Creating new search session for query %s', queryString);
 		var ss = new cam.SearchSession(this.props.serverConnection, this.baseURL_.clone(), query);
-		this.eh_.listen(ss, cam.SearchSession.SEARCH_SESSION_CHANGED, function() { this.forceUpdate(); });
+		this.eh_.listen(ss, cam.SearchSession.SEARCH_SESSION_CHANGED, function() {
+			this.forceUpdate();
+		});
+		this.eh_.listen(ss, cam.SearchSession.SEARCH_SESSION_STATUS, function(e) {
+			this.setState({
+				serverStatus: e.status,
+			});
+		});
+		this.eh_.listen(ss, cam.SearchSession.SEARCH_SESSION_ERROR, function() {
+			this.forceUpdate();
+		});
 		ss.loadMoreResults();
 		this.searchSessionCache_.splice(0, 0, ss);
 		return ss;
@@ -360,6 +371,7 @@ cam.IndexPage = React.createClass({
 		return cam.Header(
 			{
 				currentSearch: query,
+				errors: this.getErrors_(),
 				height: 38,
 				homeURL: this.baseURL_,
 				importersURL: this.baseURL_.resolve(new goog.Uri(this.props.config.importerRoot)),
@@ -613,5 +625,17 @@ cam.IndexPage = React.createClass({
 		if (this.childSearchSession_) {
 			this.childSearchSession_.refreshIfNecessary();
 		}
+	},
+
+	getErrors_: function() {
+		var errors = (this.state.serverStatus && this.state.serverStatus.errors) || [];
+		if ((this.targetSearchSession_ && this.targetSearchSession_.hasSocketError()) ||
+			(this.childSearchSession_ && this.childSearchSession_.hasSocketError())) {
+			errors.push({
+				error: 'WebSocket error - click to reload',
+				onClick: this.props.location.reload.bind(this.props.location, true),
+			});
+		}
+		return errors;
 	},
 });
