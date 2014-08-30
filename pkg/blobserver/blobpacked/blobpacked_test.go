@@ -18,15 +18,19 @@ package blobpacked
 
 import (
 	"bytes"
+	"encoding/json"
+	"io/ioutil"
 	"math/rand"
 	"testing"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/test"
+	"camlistore.org/third_party/go/pkg/archive/zip"
 )
 
 func TestStorage(t *testing.T) {
@@ -104,10 +108,64 @@ func TestPack(t *testing.T) {
 	t.Logf("items in small: %v", small.NumBlobs())
 	t.Logf("items in large: %v", large.NumBlobs())
 	if large.NumBlobs() != 1 {
-		t.Errorf("num large blobs = %d; want 1", large.NumBlobs())
+		t.Fatalf("num large blobs = %d; want 1", large.NumBlobs())
 	}
+
+	var zipRef blob.Ref
+	blobserver.EnumerateAll(context.New(), large, func(sb blob.SizedRef) error {
+		zipRef = sb.Ref
+		return nil
+	})
+	if !zipRef.Valid() {
+		t.Fatal("didn't get zip ref from enumerate")
+	}
+	t.Logf("large ref = %v", zipRef)
+	rc, _, err := large.Fetch(zipRef)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zipBytes, err := ioutil.ReadAll(rc)
+	rc.Close()
+	zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
+	if err != nil {
+		t.Fatalf("Error reading resulting zip file: %v", err)
+	}
+	if len(zr.File) == 0 {
+		t.Fatal("zip is empty")
+	}
+	nameSeen := map[string]bool{}
+	for i, zf := range zr.File {
+		if nameSeen[zf.Name] {
+			t.Errorf("duplicate name %q seen", zf.Name)
+		}
+		nameSeen[zf.Name] = true
+		t.Logf("zip[%d] size %d, %v", i, zf.UncompressedSize64, zf.Name)
+	}
+	mfr, err := zr.File[len(zr.File)-1].Open()
+	if err != nil {
+		t.Fatalf("Error opening manifest JSON: %v", err)
+	}
+	maniJSON, err := ioutil.ReadAll(mfr)
+	if err != nil {
+		t.Fatalf("Error reading manifest JSON: %v", err)
+	}
+	var mf zipManifest
+	if err := json.Unmarshal(maniJSON, &mf); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	// Verify each chunk described in the manifest:
+	for _, bo := range mf.Blobs {
+		h := bo.Ref.Hash()
+		h.Write(zipBytes[bo.Offset : bo.Offset+int64(bo.Size)])
+		if !bo.Ref.HashMatches(h) {
+			t.Errorf("blob %+v didn't describe the actual data in the zip", bo)
+		}
+	}
+	t.Logf("Manifest: %s", maniJSON)
+
 	// TODO: so many more tests:
-	// -- verify it's a zip
+	// -- first file is named "manifest.json" or like a blobref, in which case we should name it "data"
 	// -- verify deleting from the source
 	// -- verify we can reconstruct it all from the zip
 	// -- verify the meta before & after

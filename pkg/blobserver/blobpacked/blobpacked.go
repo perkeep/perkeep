@@ -83,7 +83,6 @@ package blobpacked
 // TODO: option to not even delete from the source?
 
 import (
-	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -91,6 +90,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"runtime"
 	"sync"
 
 	"camlistore.org/pkg/blob"
@@ -103,6 +103,7 @@ import (
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/strutil"
 	"camlistore.org/pkg/syncutil"
+	"camlistore.org/third_party/go/pkg/archive/zip"
 )
 
 // TODO: evaluate whether this should even be 0, to keep the schema blobs together at least.
@@ -529,8 +530,28 @@ type needsTruncatedAfterError struct{ blob.Ref }
 
 func (e needsTruncatedAfterError) Error() string { return "needs truncation after " + e.Ref.String() }
 
+// check should only be used for things which really shouldn't ever happen, but should
+// still be checked. If there is interesting logic in the 'else', then don't use this.
+func check(err error) {
+	if err != nil {
+		b := make([]byte, 2<<10)
+		b = b[:runtime.Stack(b, false)]
+		log.Printf("Unlikely error condition triggered: %v at %s", err, b)
+		panic(err)
+	}
+}
+
 // trunc is a hint about which blob to truncate after. It may be zero.
-func (pk *packer) writeAZip(trunc blob.Ref) error {
+func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			if v, ok := e.(error); ok && err == nil {
+				err = v
+			} else {
+				panic(e)
+			}
+		}
+	}()
 	mf := zipManifest{
 		WholeRef:       pk.wholeRef,
 		WholeSize:      pk.wholeSize,
@@ -551,9 +572,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) error {
 	fh.SetModTime(pk.fr.ModTime())
 	fh.SetMode(0644)
 	fw, err := zw.CreateHeader(fh)
-	if err != nil {
-		return err
-	}
+	check(err)
 
 	chunks := pk.chunksRemain
 	truncated := false
@@ -571,10 +590,8 @@ func (pk *packer) writeAZip(trunc blob.Ref) error {
 		parent := pk.schemaParent[dr]
 		schemaBlobsSave := schemaBlobs
 		if !schemaBlobSeen[parent] {
+			schemaBlobSeen[parent] = true
 			schemaBlobs = append(schemaBlobs, parent)
-
-			// But don't add it to writeSchemaBlob parent yet, in case
-			// we need to roll it back. We add to the map below.
 			approxSize += int(pk.schemaBlob[parent].Size())
 		}
 
@@ -588,9 +605,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) error {
 
 		// Copy the data to the zip.
 		rc, size, err := pk.src.Fetch(dr)
-		if err != nil {
-			return err
-		}
+		check(err)
 		if size != thisSize {
 			rc.Close()
 			return errors.New("unexpected size")
@@ -605,35 +620,42 @@ func (pk *packer) writeAZip(trunc blob.Ref) error {
 		chunks = chunks[1:]
 	}
 
-	for _, sb := range schemaBlobs {
-		fw, err := zw.Create(sb.String())
-		if err != nil {
-			return err
-		}
-		rc := pk.schemaBlob[sb].Open()
+	dataOffset := zw.LastDataOffset
+	for _, br := range dataRefsWritten {
+		size := pk.dataSize[br]
+		mf.Blobs = append(mf.Blobs, blobAndPos{blob.SizedRef{br, size}, dataOffset})
+		dataOffset += int64(size)
+	}
+
+	// TODO: if a top-level file schema has a 'bytesref' that only
+	// then references another 'bytesref' which has real 'blobref'
+	// chunks, that middle bytesref will be lost because
+	// ForeachChunk only yields the data chunks. Change
+	// ForeachChunk. Write tests.
+	for _, br := range schemaBlobs {
+		fw, err := zw.CreateHeader(&zip.FileHeader{
+			Name:   br.String(),
+			Method: zip.Store, // uncompressed
+		})
+		check(err)
+		b := pk.schemaBlob[br]
+		mf.Blobs = append(mf.Blobs, blobAndPos{blob.SizedRef{br, b.Size()}, zw.LastDataOffset})
+		rc := b.Open()
 		_, err = io.Copy(fw, rc)
 		rc.Close()
-		if err != nil {
-			return err
-		}
+		check(err)
 	}
 
 	// Manifest file
 	fw, err = zw.Create("manifest.json")
-	if err != nil {
-		return err
-	}
+	check(err)
 	enc, err := json.MarshalIndent(mf, "", "  ")
-	if err != nil {
-		return err
-	}
-	if _, err := fw.Write(enc); err != nil {
-		return err
-	}
+	check(err)
+	_, err = fw.Write(enc)
+	check(err)
+	err = zw.Close()
+	check(err)
 
-	if err := zw.Close(); err != nil {
-		return err
-	}
 	if zbuf.Len() > constants.MaxBlobSize {
 		// We guessed wrong. Back up. Find out how many blobs we went over.
 		overage := zbuf.Len() - constants.MaxBlobSize
@@ -661,16 +683,16 @@ func (pk *packer) writeAZip(trunc blob.Ref) error {
 	return nil
 }
 
-type blobAndOffset struct {
-	Blob   blob.Ref `json:"blob"`
-	Offset uint32   `json:"offset"`
+type blobAndPos struct {
+	blob.SizedRef
+	Offset int64 `json:"offset"`
 }
 
 type zipManifest struct {
-	WholeRef       blob.Ref        `json:"wholeRef"`
-	WholeSize      int64           `json:"wholeSize"`
-	WholePartIndex int             `json:"wholePartIndex"`
-	Blobs          []blobAndOffset `json:"blobs"`
+	WholeRef       blob.Ref     `json:"wholeRef"`
+	WholeSize      int64        `json:"wholeSize"`
+	WholePartIndex int          `json:"wholePartIndex"`
+	Blobs          []blobAndPos `json:"blobs"`
 }
 
 func (mf *zipManifest) approxSerializedSize() int {
