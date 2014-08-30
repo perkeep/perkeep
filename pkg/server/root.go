@@ -46,10 +46,11 @@ type RootHandler struct {
 
 	// URL prefixes (path or full URL) to the primary blob and
 	// search root.
-	BlobRoot   string
-	SearchRoot string
-	statusRoot string
-	Prefix     string // root handler's prefix
+	BlobRoot     string
+	SearchRoot   string
+	importerRoot string
+	statusRoot   string
+	Prefix       string // root handler's prefix
 
 	Storage blobserver.Storage // of BlobRoot, or nil
 
@@ -110,6 +111,10 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 			root.searchHandler = h.(*search.Handler)
 			root.searchInit = nil
 		}
+	}
+
+	if pfx, _, _ := ld.FindHandlerByType("importer"); err == nil {
+		root.importerRoot = pfx
 	}
 
 	return root, nil
@@ -178,6 +183,7 @@ func (b byFromTo) Less(i, j int) bool {
 func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 	m := map[string]interface{}{
 		"blobRoot":     rh.BlobRoot,
+		"importerRoot": rh.importerRoot,
 		"searchRoot":   rh.SearchRoot,
 		"ownerName":    rh.OwnerName,
 		"username":     rh.Username,

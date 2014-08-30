@@ -42,6 +42,7 @@ cam.Header = React.createClass({
 		homeURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		currentSearch: React.PropTypes.string,
 		height: React.PropTypes.number.isRequired,
+		importersURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		mainControls: React.PropTypes.arrayOf(React.PropTypes.renderable),
 		onNewPermanode: React.PropTypes.func,
 		onSearch: React.PropTypes.func,
@@ -225,7 +226,7 @@ cam.Header = React.createClass({
 			// TODO(aa): Also I keep going back and forth about whether we should call this 'permanode' or 'set' in the UI. Hrm.
 			this.getMenuItemButton_('New set', this.props.onNewPermanode),
 
-			this.getMenuItemLink_('Importers', this.state.serverStatus && new goog.Uri(this.state.serverStatus.importerRoot)),
+			this.getMenuItemLink_('Importers', this.props.importersURL),
 			this.getMenuItemLink_('Server status', this.props.statusURL),
 			this.getMenuItemLink_('Search roots', this.props.searchRootsURL),
 			errorItems
