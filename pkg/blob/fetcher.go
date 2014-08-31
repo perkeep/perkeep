@@ -17,15 +17,11 @@ limitations under the License.
 package blob
 
 import (
-	"crypto"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"os"
-	"strings"
-	"sync"
 )
 
 // Fetcher is the minimal interface for retrieving a blob from storage.
@@ -96,40 +92,4 @@ func (df *DirFetcher) Fetch(r Ref) (file io.ReadCloser, size uint32, err error) 
 	}
 	size = uint32(stat.Size())
 	return
-}
-
-// MemoryStore stores blobs in memory and is a Fetcher and
-// Fetcher. Its zero value is usable.
-type MemoryStore struct {
-	lk sync.Mutex
-	m  map[string]string
-}
-
-func (s *MemoryStore) AddBlob(hashtype crypto.Hash, data string) (Ref, error) {
-	if hashtype != crypto.SHA1 {
-		return Ref{}, errors.New("blobref: unsupported hash type")
-	}
-	hash := hashtype.New()
-	hash.Write([]byte(data))
-	bstr := fmt.Sprintf("sha1-%x", hash.Sum(nil))
-	s.lk.Lock()
-	defer s.lk.Unlock()
-	if s.m == nil {
-		s.m = make(map[string]string)
-	}
-	s.m[bstr] = data
-	return MustParse(bstr), nil
-}
-
-func (s *MemoryStore) Fetch(b Ref) (file io.ReadCloser, size uint32, err error) {
-	s.lk.Lock()
-	defer s.lk.Unlock()
-	if s.m == nil {
-		return nil, 0, os.ErrNotExist
-	}
-	str, ok := s.m[b.String()]
-	if !ok {
-		return nil, 0, os.ErrNotExist
-	}
-	return ioutil.NopCloser(strings.NewReader(str)), uint32(len(str)), nil
 }

@@ -19,7 +19,6 @@ limitations under the License.
 package signhandler
 
 import (
-	"crypto"
 	"fmt"
 	"log"
 	"net/http"
@@ -29,6 +28,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/gethandler"
+	"camlistore.org/pkg/blobserver/memory"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign"
@@ -97,10 +97,10 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 
 	h.pubKey, err = jsonsign.ArmoredPublicKey(h.entity)
 
-	ms := new(blob.MemoryStore)
-	h.pubKeyBlobRef, err = ms.AddBlob(crypto.SHA1, h.pubKey)
-	if err != nil {
-		return nil, err
+	ms := &memory.Storage{}
+	h.pubKeyBlobRef = blob.SHA1FromString(h.pubKey)
+	if _, err := ms.ReceiveBlob(h.pubKeyBlobRef, strings.NewReader(h.pubKey)); err != nil {
+		return nil, fmt.Errorf("could not store pub key blob: %v", err)
 	}
 	h.pubKeyFetcher = ms
 
