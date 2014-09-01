@@ -26,6 +26,7 @@ import (
 	"sync"
 	"testing"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver/stats"
 	"camlistore.org/pkg/test"
 )
@@ -94,18 +95,16 @@ func TestWriteThenRead(t *testing.T) {
 		t.Error("bytes differ")
 	}
 
-	var offc chan int64
 	var offs []int
 
 	getOffsets := func() error {
 		offs = offs[:0]
-		offc = make(chan int64)
-		go func() {
-			for off := range offc {
-				offs = append(offs, int(off))
-			}
-		}()
-		return fr.GetChunkOffsets(offc)
+		var off int
+		return fr.ForeachChunk(func(schemaRef blob.Ref, p BytesPart) error {
+			offs = append(offs, off)
+			off += int(p.Size)
+			return err
+		})
 	}
 
 	if err := getOffsets(); err != nil {
