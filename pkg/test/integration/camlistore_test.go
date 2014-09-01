@@ -90,6 +90,15 @@ func TestWebsocketQuery(t *testing.T) {
 			errc <- err
 			return
 		}
+		if !strings.HasPrefix(string(inMsg), `{"tag":"_status"`) {
+			errc <- fmt.Errorf("unexpected message type=%d msg=%q, wanted status update", inType, inMsg)
+			return
+		}
+		inType, inMsg, err = wc.ReadMessage()
+		if err != nil {
+			errc <- err
+			return
+		}
 		if strings.Contains(string(inMsg), pn.String()) {
 			errc <- nil
 			return
