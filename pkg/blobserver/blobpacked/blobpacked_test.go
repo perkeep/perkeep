@@ -149,15 +149,19 @@ func TestPack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error reading manifest JSON: %v", err)
 	}
-	var mf zipManifest
+	var mf Manifest
 	if err := json.Unmarshal(maniJSON, &mf); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 
 	// Verify each chunk described in the manifest:
-	for _, bo := range mf.Blobs {
+	baseOffset, err := zr.File[0].DataOffset()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, bo := range mf.DataBlobs {
 		h := bo.Ref.Hash()
-		h.Write(zipBytes[bo.Offset : bo.Offset+int64(bo.Size)])
+		h.Write(zipBytes[baseOffset+bo.Offset : baseOffset+bo.Offset+int64(bo.Size)])
 		if !bo.Ref.HashMatches(h) {
 			t.Errorf("blob %+v didn't describe the actual data in the zip", bo)
 		}

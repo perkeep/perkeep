@@ -41,21 +41,23 @@ as metadata about how the file is cut up. The zip file will have the
 following structure:
 
     foo.jpg       (or whatever)
-    sha1-beb1df0b75952c7d277905ad14de71ef7ef90c44 (some file ref)
-    sha1-a0ceb10b04403c9cc1d032e07a9071db5e711c9a (some bytes ref)
-    sha1-7b4d9c8529c27d592255c6dfb17188493db96ccc (another bytes ref)
-    manifest.json
+    camlistore/sha1-beb1df0b75952c7d277905ad14de71ef7ef90c44.json (some file ref)
+    camlistore/sha1-a0ceb10b04403c9cc1d032e07a9071db5e711c9a.json (some bytes ref)
+    camlistore/sha1-7b4d9c8529c27d592255c6dfb17188493db96ccc.json (another bytes ref)
+    camlistore/camlistore-pack-manifest.json
 
-The manifest.json is of the form:
+The camlistore-pack-manifest.json is documented on the exported
+Manifest type. It looks like this:
 
     {
       "wholeRef": "sha1-0e64816d731a56915e8bb4ae4d0ac7485c0b84da",
       "wholeSize": 2962227200, // 2.8GB; so will require ~176-180 16MB chunks
       "wholePartIndex": 17,    // 0-based
-      "blobs": [
-          {"blob": "sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15", "offset": 16},
-          {"blob": "sha1-e242ed3bffccdf271b7fbaf34ed72d089537b42f", "offset": 273048},
-          {"blob": "sha1-6eadeac2dade6347e87c0d24fd455feffa7069f0", "offset": 385831},
+      "dataBlobsOrigin": "sha1-355705cf62a56669303d2561f29e0620a676c36e",
+      "dataBlobs": [
+          {"blob": "sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15", "offset": 0, "size": 273048},
+          {"blob": "sha1-e242ed3bffccdf271b7fbaf34ed72d089537b42f", "offset": 273048, "size": 112783},
+          {"blob": "sha1-6eadeac2dade6347e87c0d24fd455feffa7069f0", "offset": 385831, ...},
           {"blob": "sha1-beb1df0b75952c7d277905ad14de71ef7ef90c44", "offset": ...},
           {"blob": "sha1-a0ceb10b04403c9cc1d032e07a9071db5e711c9a", "offset": ...},
           {"blob": "sha1-7b4d9c8529c27d592255c6dfb17188493db96ccc", "offset": ...}
@@ -91,6 +93,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 
 	"camlistore.org/pkg/blob"
@@ -552,7 +555,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 			}
 		}
 	}()
-	mf := zipManifest{
+	mf := Manifest{
 		WholeRef:       pk.wholeRef,
 		WholeSize:      pk.wholeSize,
 		WholePartIndex: len(pk.zips),
@@ -565,8 +568,12 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	var schemaBlobSeen = map[blob.Ref]bool{}
 	var schemaBlobs []blob.Ref // to add after the main file
 
+	baseFileName := pk.fr.FileName()
+	if strings.Contains(baseFileName, "/") || strings.Contains(baseFileName, "\\") {
+		return fmt.Errorf("File schema blob %v filename had a slash in it: %q", pk.fr.SchemaBlobRef(), baseFileName)
+	}
 	fh := &zip.FileHeader{
-		Name:   pk.fr.FileName(),
+		Name:   baseFileName,
 		Method: zip.Store, // uncompressed
 	}
 	fh.SetModTime(pk.fr.ModTime())
@@ -576,6 +583,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 
 	chunks := pk.chunksRemain
 	truncated := false
+	chunkWholeHash := blob.NewHash()
 	for len(chunks) > 0 {
 		dr := chunks[0] // the next chunk to maybe write
 
@@ -610,7 +618,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 			rc.Close()
 			return errors.New("unexpected size")
 		}
-		if n, err := io.Copy(fw, rc); err != nil || n != int64(size) {
+		if n, err := io.Copy(io.MultiWriter(fw, chunkWholeHash), rc); err != nil || n != int64(size) {
 			rc.Close()
 			return fmt.Errorf("copy to zip = %v, %v; want %v bytes", n, err, size)
 		}
@@ -619,11 +627,12 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 		dataRefsWritten = append(dataRefsWritten, dr)
 		chunks = chunks[1:]
 	}
+	mf.DataBlobsOrigin = blob.RefFromHash(chunkWholeHash)
 
-	dataOffset := zw.LastDataOffset
+	var dataOffset int64
 	for _, br := range dataRefsWritten {
 		size := pk.dataSize[br]
-		mf.Blobs = append(mf.Blobs, blobAndPos{blob.SizedRef{br, size}, dataOffset})
+		mf.DataBlobs = append(mf.DataBlobs, BlobAndPos{blob.SizedRef{br, size}, dataOffset})
 		dataOffset += int64(size)
 	}
 
@@ -634,12 +643,11 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	// ForeachChunk. Write tests.
 	for _, br := range schemaBlobs {
 		fw, err := zw.CreateHeader(&zip.FileHeader{
-			Name:   br.String(),
+			Name:   "camlistore/" + br.String() + ".json",
 			Method: zip.Store, // uncompressed
 		})
 		check(err)
 		b := pk.schemaBlob[br]
-		mf.Blobs = append(mf.Blobs, blobAndPos{blob.SizedRef{br, b.Size()}, zw.LastDataOffset})
 		rc := b.Open()
 		_, err = io.Copy(fw, rc)
 		rc.Close()
@@ -647,7 +655,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	}
 
 	// Manifest file
-	fw, err = zw.Create("manifest.json")
+	fw, err = zw.Create("camlistore/camlistore-pack-manifest.json")
 	check(err)
 	enc, err := json.MarshalIndent(mf, "", "  ")
 	check(err)
@@ -670,9 +678,15 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	}
 
 	zipRef := blob.SHA1FromBytes(zbuf.Bytes())
-	if _, err := blobserver.ReceiveNoHash(pk.s.large, zipRef, bytes.NewReader(zbuf.Bytes())); err != nil {
+	zipSB, err := blobserver.ReceiveNoHash(pk.s.large, zipRef, bytes.NewReader(zbuf.Bytes()))
+	if err != nil {
 		return err
 	}
+
+	pk.zips = append(pk.zips, writtenZip{
+		SizedRef: zipSB,
+		dataRefs: dataRefsWritten,
+	})
 
 	// TODO: record it in meta
 
@@ -683,19 +697,43 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	return nil
 }
 
-type blobAndPos struct {
+type BlobAndPos struct {
 	blob.SizedRef
 	Offset int64 `json:"offset"`
 }
 
-type zipManifest struct {
-	WholeRef       blob.Ref     `json:"wholeRef"`
-	WholeSize      int64        `json:"wholeSize"`
-	WholePartIndex int          `json:"wholePartIndex"`
-	Blobs          []blobAndPos `json:"blobs"`
+// Manifest is the JSON description type representing the
+// "camlistore/camlistore-pack-manifest.json" file found in a blobpack
+// zip file.
+type Manifest struct {
+	// WholeRef is the blobref of the entire file that this zip is
+	// either fully or partially describing.  For files under
+	// around 16MB, the WholeRef and DataBlobsOrigin will be
+	// the same.
+	WholeRef blob.Ref `json:"wholeRef"`
+
+	// WholeSize is the number of bytes in the original file being
+	// cut up.
+	WholeSize int64 `json:"wholeSize"`
+
+	// WholePartIndex is the chunk number (0-based) of this zip file.
+	// If a client has 'n' zip files with the same WholeRef whose
+	// WholePartIndexes are contiguous (including 0) and the sum of
+	// the DataBlobs equals WholeSize, the client has the entire
+	// original file.
+	WholePartIndex int `json:"wholePartIndex"`
+
+	// DataBlobsOrigin is the blobref of the contents of the first
+	// file in the zip pack file. It is the origin of all the logical data
+	// blobs referenced in DataBlobs.
+	DataBlobsOrigin blob.Ref `json:"dataBlobsOrigin"`
+
+	// DataBlobs describes all the logical blobs that are
+	// concatenated together in the DataBlobsOrigin.
+	DataBlobs []BlobAndPos `json:"dataBlobs"`
 }
 
-func (mf *zipManifest) approxSerializedSize() int {
+func (mf *Manifest) approxSerializedSize() int {
 	// Conservative:
-	return 250 + len(mf.Blobs)*100
+	return 250 + len(mf.DataBlobs)*100
 }

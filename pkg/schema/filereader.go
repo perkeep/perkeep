@@ -165,6 +165,8 @@ func (fr *FileReader) FileName() string { return fr.ss.FileNameString() }
 
 func (fr *FileReader) ModTime() time.Time { return fr.ss.ModTime() }
 
+func (fr *FileReader) SchemaBlobRef() blob.Ref { return fr.ss.BlobRef }
+
 // Close currently does nothing.
 func (fr *FileReader) Close() error { return nil }
 
