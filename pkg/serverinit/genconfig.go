@@ -83,8 +83,8 @@ func (b *lowBuilder) hasPrefix(p string) bool {
 	return ok
 }
 
-func (b *lowBuilder) runIndex() bool    { return b.high.RunIndex.Get() }
-func (b *lowBuilder) memoryIndex() bool { return b.high.MemoryIndex.Get() }
+func (b *lowBuilder) runIndex() bool          { return b.high.RunIndex.Get() }
+func (b *lowBuilder) copyIndexToMemory() bool { return b.high.CopyIndexToMemory.Get() }
 
 // dbName returns which database to use for the provided user ("of").
 // The user key be a key as describe in pkg/types/serverconfig/config.go's
@@ -288,6 +288,11 @@ func (b *lowBuilder) sortedStorage(sortedType string) (map[string]interface{}, e
 		return map[string]interface{}{
 			"type": "kv",
 			"file": b.high.KVFile,
+		}, nil
+	}
+	if b.high.MemoryIndex {
+		return map[string]interface{}{
+			"type": "memory",
 		}, nil
 	}
 	panic("indexArgs called when not in index mode")
@@ -583,7 +588,7 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 			"index": "/index/",
 			"owner": owner.String(),
 		}
-		if b.memoryIndex() {
+		if b.copyIndexToMemory() {
 			searchArgs["slurpToMemory"] = true
 		}
 		b.addPrefix("/my-search/", "search", searchArgs)
@@ -624,13 +629,13 @@ func (b *lowBuilder) build() (*Config, error) {
 	low["https"] = conf.HTTPS
 	low["auth"] = conf.Auth
 
-	numIndexers := numSet(conf.Mongo, conf.MySQL, conf.PostgreSQL, conf.SQLite, conf.KVFile)
+	numIndexers := numSet(conf.Mongo, conf.MySQL, conf.PostgreSQL, conf.SQLite, conf.KVFile, conf.MemoryIndex)
 
 	switch {
 	case b.runIndex() && numIndexers == 0:
-		return nil, fmt.Errorf("Unless runIndex is set to false, you must specify an index option (kvIndexFile, mongo, mysql, postgres, sqlite).")
+		return nil, fmt.Errorf("Unless runIndex is set to false, you must specify an index option (kvIndexFile, mongo, mysql, postgres, sqlite, memoryIndex).")
 	case b.runIndex() && numIndexers != 1:
-		return nil, fmt.Errorf("With runIndex set true, you can only pick exactly one indexer (mongo, mysql, postgres, sqlite).")
+		return nil, fmt.Errorf("With runIndex set true, you can only pick exactly one indexer (mongo, mysql, postgres, sqlite, kvIndexFile, memoryIndex).")
 	case !b.runIndex() && numIndexers != 0:
 		return nil, fmt.Errorf("With runIndex disabled, you can't specify any of mongo, mysql, postgres, sqlite.")
 	}

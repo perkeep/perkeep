@@ -95,6 +95,9 @@ CAMLI_KV_VERIFY (bool):
   Enable all the VerifyDb* options in cznic/kv, to e.g. track down
   corruptions.
 
+CAMLI_MEMINDEX_ENABLED (bool):
+  Use a memory-only indexer. Supported only by devcam server.
+
 CAMLI_MONGO_WIPE (bool):
   Wipe out mongo based index on startup.
 
