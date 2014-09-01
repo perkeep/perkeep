@@ -47,7 +47,8 @@ const (
 type errorCode int
 
 const (
-	assembleNonTransitive errorCode = iota
+	noError errorCode = iota
+	assembleNonTransitive
 	invalidMethod
 	invalidURL
 	invalidVia
@@ -118,6 +119,8 @@ func handleGetViaSharing(conn http.ResponseWriter, req *http.Request,
 	if !httputil.IsGet(req) {
 		return &shareError{code: invalidMethod, response: badRequest, message: "Invalid method"}
 	}
+
+	conn.Header().Set("Access-Control-Allow-Origin", "*")
 
 	viaPathOkay := false
 	startTime := time.Now()
