@@ -179,15 +179,26 @@ cam.SearchSession.prototype.getContinuation_ = function(changeType, opt_continua
 };
 
 cam.SearchSession.prototype.searchDone_ = function(changeType, result) {
+	if (!result) {
+		result = {};
+	}
+	if (!result.blobs) {
+		result.blobs = [];
+	}
+	if (!result.description) {
+		result.description = {};
+	}
+
+	var changes = false;
+
 	if (changeType == this.constructor.SEARCH_SESSION_CHANGE_TYPE.APPEND) {
+		changes = Boolean(result.blobs.length);
 		this.data_.blobs = this.data_.blobs.concat(result.blobs);
 		goog.mixin(this.data_.description.meta, result.description.meta);
 	} else {
+		changes = true;
 		this.data_.blobs = result.blobs;
 		this.data_.description = result.description;
-	}
-	if (!this.data_.blobs || this.data_.blobs.length == 0) {
-		this.resetData_();
 	}
 
 	if (result.continue) {
@@ -196,11 +207,12 @@ cam.SearchSession.prototype.searchDone_ = function(changeType, result) {
 		this.continuation_ = null;
 	}
 
-	this.dispatchEvent({type: this.constructor.SEARCH_SESSION_CHANGED, changeType: changeType});
+	if (changes) {
+		this.dispatchEvent({type: this.constructor.SEARCH_SESSION_CHANGED, changeType: changeType});
 
-	if (changeType == this.constructor.SEARCH_SESSION_CHANGE_TYPE.NEW ||
-		changeType == this.constructor.SEARCH_SESSION_CHANGE_TYPE.APPEND) {
-		this.startSocketQuery_();
+		if (changeType == this.constructor.SEARCH_SESSION_CHANGE_TYPE.NEW || changeType == this.constructor.SEARCH_SESSION_CHANGE_TYPE.APPEND) {
+			this.startSocketQuery_();
+		}
 	}
 };
 
