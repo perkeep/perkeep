@@ -116,6 +116,8 @@ cam.SearchSession.prototype.refreshIfNecessary = function() {
 
 cam.SearchSession.prototype.close = function() {
 	if (this.socket_) {
+		this.socket_.onerror = null;
+		this.socket_.onclose = null;
 		this.socket_.close();
 	}
 };
@@ -235,9 +237,7 @@ cam.SearchSession.prototype.startSocketQuery_ = function() {
 		return;
 	}
 
-	if (this.socket_) {
-		this.socket_.close();
-	}
+	this.close();
 
 	var numResults = 0;
 	if (this.data_ && this.data_.blobs) {
