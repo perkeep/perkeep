@@ -434,7 +434,7 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 }
 
 func tagFormatString(tag *tiff.Tag) string {
-	switch tag.Format() {
+	switch tag.TypeCategory() {
 	case tiff.IntVal:
 		return "int"
 	case tiff.RatVal:
@@ -472,13 +472,13 @@ func indexEXIF(wholeRef blob.Ref, header []byte, mm *mutationMap) {
 			return nil
 		}
 		key := keyEXIFTag.Key(wholeRef, fmt.Sprintf("%04x", tag.Id))
-		numComp := int(tag.Ncomp)
-		if tag.Format() == tiff.StringVal {
+		numComp := int(tag.Count)
+		if tag.TypeCategory() == tiff.StringVal {
 			numComp = 1
 		}
 		var val bytes.Buffer
 		val.WriteString(keyEXIFTag.Val(tagFmt, numComp, ""))
-		if tag.Format() == tiff.StringVal {
+		if tag.TypeCategory() == tiff.StringVal {
 			str := tag.StringVal()
 			if containsUnsafeRawStrByte(str) {
 				val.WriteString(urle(str))
@@ -486,7 +486,7 @@ func indexEXIF(wholeRef blob.Ref, header []byte, mm *mutationMap) {
 				val.WriteString(str)
 			}
 		} else {
-			for i := 0; i < int(tag.Ncomp); i++ {
+			for i := 0; i < int(tag.Count); i++ {
 				if i > 0 {
 					val.WriteByte('|')
 				}

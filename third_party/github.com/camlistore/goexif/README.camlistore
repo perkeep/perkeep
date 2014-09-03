@@ -1,82 +1,78 @@
 Changing code under third_party/github.com/camlistore/goexif
 ============================================================
 
-These instructions assume you have a github.com account.
+Syncing updates from upstream
+-----------------------------
 
-Sync github.com/rwcarlsen/goexif -> github.com/camlistore/goexif
-----------------------------------------------------------------
-1.  Issue a pull request at https://github.com/camlistore/goexif/pulls, set
-	the base fork to camlistore/goexif go1 branch, and the head fork as
-	rwcarlsen/goexif go1 branch.  Follow the normal github workflow until
-	someone on the camlistore project merges in the changes.
+These instructions assume you have a github.com account. Further it is assumed
+that your camlistore copy is at $GOPATH/src/camlistore.org
 
-Sync github.com/camlistore/goexif -> camlistore.org/third_party/github.com/camlistore/goexif
---------------------------------------------------------------------------------------------
-1.  Once someone on the camlistore team merges in the latest from upstream,
-	checkout a local copy:
+1.	Checkout the github.com/rwcarlsen/goexif by calling
+	$ go get -u github.com/rwcarlsen/goexif
+	$ cd $GOPATH/src/github.com/rwcarlsen/goexif
 
-	$ git clone https://github.com/camlistore/goexif 
-	$ cd goexif
+2.	Use git show to determine the revision.
+	$ git show commit cf045e9d6ba052fd348f82394d364cca4937589a
 
-2.  Make a patch to apply to the camlistore.org copy.  You'll need to know the
-	git rev of github.com/camlistore/goexif that was last merged to
-	camlistore.org/third_party, for this example we'll use 030a4566:
+3.	Start merging using your favorite tools (vimdiff, meld, kdiff3, etc.)
 
-	# Create individual patches that have been applied upstream.
-	$ git format-patch -o /tmp/patches 030a4566
-	$ cd /path/to/camlistore.org/third_party/github.com/camlistore/goexif
-	# Create new branch to temporarily apply each upstream change.
-	$ git checkout -b patches_individual
-	# Apply patches.
-	$ git am --directory=third_party/github.com/camlistore/goexif /tmp/patches/*
+4.	For the moment make sure to rewrite any new goexif import paths. For
+	example,
 
-	# If something fails to apply try:
-	$ git apply <PATCH THAT FAILED> --reject
-	$ edit edit edit
-	$ git add <ANY FIXED FILES>
-	$ git am --resolved
+	import "github.com/rwcarlsen/goexif/tiff"
 
-	# If it is a patch camlistore already had, because we created it and
-	# pushed it upstream, you can skip it with:
-	$ git am --skip
+	needs to be rewritten to
 
-	# Now create a new branch to squash all the changes into one. Keeping a
-	# record of upstream commits in the default commit message of a single
-	# commit.
-	$ git checkout -b patches_squashed master
-	$ git merge --squash patches_individual
+	import "camlistore.org/third_party/github.com/camlistore/goexif/tiff"
 
-	# Verify no new files have been added that require import path updating:
-	$ cd /path/to/camlistore.org/third_party/
-	$ ./rewrite-imports.sh -l
-	# If any rewrites are required, run:
-	$ ./rewrite-imports.sh -w
+	NOTE: Currently, you cannot use rewrite-imports.sh. This is going to change
+	in the future, as "third_party/github.com/camlistore/goexif/" is going to
+	be renamed to "third_party/github.com/rwcarlsen/goexif/".
 
-	# Now create a commit that will be sent for review.
-	$ git commit -v 
+5.	Camlistore does not need to have all test data of upstream goexif in its
+	repository. For that reason, do not merge the file
+	exif/regress_expected_test.go and the subfolder 'exif/samples' to
+	camlistore. When merging exif_test.go, make sure to keep the test path to
+	be "." instead of "samples".
+
+	Rationale: regress_expected_test.go is generated anew by exif_test.go (func
+	TestRegenRegress()), when the non-exported boolean variable 'regenRegress'
+	is set to true.  In upstream, this file is generated on the subfolder
+	called 'samples', which contains some JPGs. Since Camlistore omits the samples
+	folder, we change the exif_test.go to use the goexif/exif folder directly
+	(which contains the single sample1.jpg) instead of the samples subfolder.
+	Unless new test images are added, regress_expected_test.go does not need to
+	be regenerated. It is unlikely that Camlistore will add new test data.
+
+6.	Ensure all Camlistore code still compiles and all tests run through:
+    $ devcam test
+
+7.	# Now create a commit that will be sent for review.
+	$ git commit -v
 
 	# Enter your commit message on the first line per usual.
-	# You should see summaries of all the changes merged in the commit
-	# message. Leave these, they will be useful next sync as we'll know what
-	# commits were sync'd. Send the change for review.
-	$ ./misc/review
+    # Add the goexif revision from step 1. to the commit message as well
+    # as the commit messages of any noteworthy commits from upstream.
+	$ devcam review
 
-Sync camlistore.org/third_party/github.com/camlistore/goexif -> github.com/camlistore/goexif
-----------------------------------------------------------------------------------------------
-1.  TODO(wathiede): this should follow a similar process as 'Sync
-	github.com/camlistore/goexif ->
-	camlistore.org/third_party/github.com/camlistore/goexif'  Basically use
-	format-patch to generate a patch for each change we've made in
-	camlistore.org's repo and apply to a fork of github.com/camlistore/goexif.
-	Maybe skip the 'merge --squash' step, and keep each change in the log of
-	github.com/camlistore/goexif.
 
-Sync github.com/camlistore/goexif -> github.com/rwcarlsen/goexif 
---------------------------------------------------------------------
-1.  This should follow the standard github pull-request workflow.  Issue a
-	pull request at https://github.com/request/goexif/pulls, set the base fork
-	to rwcarlsen/goexif go1 branch, and the head fork as camlistore/goexif go1
-	branch.
+Syncing Camlistore contributions back to upstream goexif
+------------------------------------------------------------
 
-2.  Address any feedback during review and rwcarlsen will merge changes to
-	github.com/rwcarlsen/goexif as appropriate.
+1.	Use a merge tool like meld, kdiff3, or similar to manually merge the code.
+	$ meld $GOPATH/src/camlistore.org/third_party/github.com/camlistore/goexif \
+		$GOPATH/src/github.com/rwcarlsen/goexif
+
+2.	While merging, make sure to have the correct goexif import paths. For
+	example,
+
+	import "camlistore.org/third_party/github.com/camlistore/goexif/tiff"
+
+	needs to be
+
+	import "github.com/rwcarlsen/goexif/tiff"
+
+3.	Make sure the samples folder path in exif_test.go stays "sample".
+
+4.	Follow the github.com procedures to commit and submit a Pull Request.
+
