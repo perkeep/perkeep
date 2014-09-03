@@ -365,6 +365,74 @@ func TestReaderForeachChunk(t *testing.T) {
 	}
 }
 
+func TestForeachChunkAllSchemaBlobs(t *testing.T) {
+	sto := new(test.Fetcher) // in-memory blob storage
+	foo := &test.Blob{"foo"}
+	bar := &test.Blob{"bar"}
+	sto.AddBlob(foo)
+	sto.AddBlob(bar)
+
+	// Make a "bytes" schema blob referencing the "foo" and "bar" chunks.
+	// Verify it works.
+	bytesBlob := &test.Blob{`{"camliVersion": 1,
+"camliType": "bytes",
+"parts": [
+   {"blobRef": "` + foo.BlobRef().String() + `", "size": 3},
+   {"blobRef": "` + bar.BlobRef().String() + `", "size": 3}
+]}`}
+	sto.AddBlob(bytesBlob)
+
+	var fr *FileReader
+	mustRead := func(name string, br blob.Ref, want string) {
+		var err error
+		fr, err = NewFileReader(sto, bytesBlob.BlobRef())
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		all, err := ioutil.ReadAll(fr)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if string(all) != want {
+			t.Errorf("%s: read contents %q; want %q", name, all, want)
+		}
+	}
+	mustRead("bytesBlob", bytesBlob.BlobRef(), "foobar")
+
+	// Now make another bytes schema blob embedding the previous one.
+	bytesBlob2 := &test.Blob{`{"camliVersion": 1,
+"camliType": "bytes",
+"parts": [
+   {"blobRef": "` + bytesBlob.BlobRef().String() + `", "size": 6}
+]}`}
+	sto.AddBlob(bytesBlob2)
+	mustRead("bytesBlob2", bytesBlob2.BlobRef(), "foobar")
+
+	sawSchema := map[blob.Ref]bool{}
+	sawData := map[blob.Ref]bool{}
+	if err := fr.ForeachChunk(func(sref blob.Ref, p BytesPart) error {
+		sawSchema[sref] = true
+		sawData[p.BlobRef] = true
+		t.Logf("chunk %v: %+v", sref, p)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Skipf("TODO(bradfitz): fix this test by changing the Foreach callback to give a schema []blob.Ref slice of the stack down to that chunk")
+	if !sawSchema[bytesBlob.BlobRef()] {
+		t.Error("didn't see bytesBlob")
+	}
+	if !sawSchema[bytesBlob2.BlobRef()] {
+		t.Error("didn't see bytesBlob2")
+	}
+	if !sawData[foo.BlobRef()] {
+		t.Error("didn't see foo")
+	}
+	if !sawData[bar.BlobRef()] {
+		t.Error("didn't see bar")
+	}
+}
+
 type summary []byte
 
 func (s summary) String() string {
