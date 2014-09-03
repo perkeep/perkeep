@@ -39,6 +39,7 @@ goog.require('cam.DirectoryDetail');
 goog.require('cam.Header');
 goog.require('cam.Navigator');
 goog.require('cam.PermanodeDetail');
+goog.require('cam.permanodeUtils');
 goog.require('cam.reactUtil');
 goog.require('cam.SearchSession');
 goog.require('cam.ServerConnection');
@@ -184,7 +185,11 @@ cam.IndexPage = React.createClass({
 			// If we don't render a contents view, then permanodes that are meant to actually be sets, but are currently empty won't have a contents view to drag items on to. And when you delete the last item from a set, the contents view will disappear.
 			//
 			// I'm not sure what the right long term solution is, but not showing a contents view in this case seems less crappy for now.
-			if (this.childSearchSession_ && !this.childSearchSession_.getCurrentResults().blobs.length) {
+			//
+			// TODO(aa): This relies on the fact that the target search session currently returns attributes, even though that is inefficient and we ideally wouldn't want it to. See bug 435 for details.
+			// If we didn't want to rely on this, we'd have to wait for the child search session to come back to know whether we should show this aspect, which is fine, except it causes the UI to stutter -- initially we show no container aspect, then change our mind and show it.
+			// Ideally, I think the target search session should just include whether there are any children at all. We don't need to know their details in the target search session, but we do need to know whether any exist for optimal UI.
+			if (!cam.permanodeUtils.isContainer(m.permanode)) {
 				return null;
 			}
 		}
