@@ -352,7 +352,7 @@ func TestReaderForeachChunk(t *testing.T) {
 		return nil
 	})
 	if err != nil {
-		t.Fatal("ForeachChunk = %v", err)
+		t.Fatalf("ForeachChunk = %v", err)
 	}
 	if back.Len() != fileSize {
 		t.Fatalf("Read file is %d bytes; want %d", back.Len(), fileSize)
