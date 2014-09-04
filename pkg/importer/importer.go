@@ -231,7 +231,12 @@ func newFromConfig(ld blobserver.Loader, cfg jsonconfig.Obj) (http.Handler, erro
 	}
 	hc.ClientId = ClientId
 	hc.ClientSecret = ClientSecret
-	return NewHost(hc)
+	host, err := NewHost(hc)
+	if err != nil {
+		return nil, err
+	}
+	host.didInit.Add(1)
+	return host, nil
 }
 
 var _ blobserver.HandlerIniter = (*Host)(nil)
@@ -333,6 +338,14 @@ type Host struct {
 	signer       *schema.Signer
 	uiPrefix     string // or empty if no UI handler
 
+	// didInit is incremented by newFromConfig and marked done
+	// after InitHandler. Any method on Host that requires Init
+	// then calls didInit.Wait to guard against initialization
+	// races where serverinit calls InitHandler in a random
+	// order on start-up and different handlers access the
+	// not-yet-initialized Host (notably from a goroutine)
+	didInit sync.WaitGroup
+
 	// HTTPClient optionally specifies how to fetch external network
 	// resources. Defaults to http.DefaultClient.
 	client    *http.Client
@@ -353,6 +366,7 @@ type accountStatus struct {
 // AccountsStatus returns the currently configured accounts and their status for
 // inclusion in the status.json document, as rendered by the web UI.
 func (h *Host) AccountsStatus() (interface{}, []camtypes.StatusError) {
+	h.didInit.Wait()
 	var s []accountStatus
 	var errs []camtypes.StatusError
 	for _, impName := range h.importers {
@@ -413,6 +427,7 @@ func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
 	if h.signer == nil {
 		return errors.New("importer requires a 'jsonsign' handler")
 	}
+	h.didInit.Done()
 	go h.startPeriodicImporters()
 	return nil
 }
