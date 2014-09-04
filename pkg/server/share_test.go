@@ -55,6 +55,23 @@ func TestHandleGetViaSharing(t *testing.T) {
 		return nil
 	}
 
+	testGet := func(path string, expectedError errorCode) {
+		err := get(path)
+		if expectedError != noError {
+			if err == nil || err.code != expectedError {
+				t.Errorf("Fetching %s, expected error %#v, but got %#v", path, expectedError, err)
+			}
+		} else {
+			if err != nil {
+				t.Errorf("Fetching %s, expected success but got %#v", path, err)
+			}
+		}
+
+		if wr.HeaderMap.Get("Access-Control-Allow-Origin") != "*" {
+			t.Errorf("Fetching %s, share response did not contain expected CORS header", path)
+		}
+	}
+
 	content := "monkey"
 	contentRef := blob.SHA1FromString(content)
 
@@ -68,56 +85,31 @@ func TestHandleGetViaSharing(t *testing.T) {
 		SetSigner(blob.SHA1FromString("irrelevant")).
 		SetRawStringField("camliSig", "alsounused")
 
-	var err *shareError
-
-	if err = get(share.Blob().BlobRef().String()); err == nil || err.code != shareFetchFailed {
-		t.Error("Expected missing blob error")
-	}
+	testGet(share.Blob().BlobRef().String(), shareFetchFailed)
 
 	put(share.Blob())
-	if err = get(fmt.Sprintf("%s?via=%s", contentRef, share.Blob().BlobRef())); err == nil || err.code != shareTargetInvalid {
-		t.Error("Expected invalid target error")
-	}
+	testGet(fmt.Sprintf("%s?via=%s", contentRef, share.Blob().BlobRef()), shareTargetInvalid)
 
 	putRaw(linkRef, link)
-	if err = get(linkRef.String()); err == nil || err.code != shareReadFailed {
-		t.Error("Expected invalid share blob error")
-	}
-
-	if err = get(share.Blob().BlobRef().String()); err != nil {
-		t.Errorf("Expected to successfully fetch share, but got: %s", err)
-	}
-
-	if err = get(fmt.Sprintf("%s?via=%s", linkRef, share.Blob().BlobRef())); err != nil {
-		t.Errorf("Expected to successfully fetch link via share, but got: %s", err)
-	}
-
-	if err = get(fmt.Sprintf("%s?via=%s,%s", contentRef, share.Blob().BlobRef(), linkRef)); err == nil || err.code != shareNotTransitive {
-		t.Error("Expected share not transitive error")
-	}
+	testGet(linkRef.String(), shareReadFailed)
+	testGet(share.Blob().BlobRef().String(), noError)
+	testGet(fmt.Sprintf("%s?via=%s", linkRef, share.Blob().BlobRef()), noError)
+	testGet(fmt.Sprintf("%s?via=%s,%s", contentRef, share.Blob().BlobRef(), linkRef), shareNotTransitive)
 
 	share.SetShareIsTransitive(true)
 	put(share.Blob())
-	if err = get(fmt.Sprintf("%s?via=%s,%s", linkRef, share.Blob().BlobRef(), linkRef)); err == nil || err.code != viaChainInvalidLink {
-		t.Error("Expected via chain invalid link err")
-	}
+	testGet(fmt.Sprintf("%s?via=%s,%s", linkRef, share.Blob().BlobRef(), linkRef), viaChainInvalidLink)
 
 	putRaw(contentRef, content)
-	if err = get(fmt.Sprintf("%s?via=%s,%s", contentRef, share.Blob().BlobRef(), linkRef)); err != nil {
-		t.Errorf("Expected to succesfully fetch via link via share, but got: %s", err)
-	}
+	testGet(fmt.Sprintf("%s?via=%s,%s", contentRef, share.Blob().BlobRef(), linkRef), noError)
 
 	share.SetShareExpiration(time.Now().Add(-time.Duration(10) * time.Minute))
 	put(share.Blob())
-	if err = get(fmt.Sprintf("%s?via=%s,%s", contentRef, share.Blob().BlobRef(), linkRef)); err == nil || err.code != shareExpired {
-		t.Error("Expected share expired error")
-	}
+	testGet(fmt.Sprintf("%s?via=%s,%s", contentRef, share.Blob().BlobRef(), linkRef), shareExpired)
 
 	share.SetShareExpiration(time.Now().Add(time.Duration(10) * time.Minute))
 	put(share.Blob())
-	if err = get(fmt.Sprintf("%s?via=%s,%s", contentRef, share.Blob().BlobRef(), linkRef)); err != nil {
-		t.Errorf("Expected to successfully fetch unexpired share, but got: %s", err)
-	}
+	testGet(fmt.Sprintf("%s?via=%s,%s", contentRef, share.Blob().BlobRef(), linkRef), noError)
 
 	// TODO(aa): assemble
 }
