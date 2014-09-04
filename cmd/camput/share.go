@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"time"
@@ -24,9 +25,11 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/schema"
+	"camlistore.org/pkg/search"
 )
 
 type shareCmd struct {
+	search     string
 	transitive bool
 	duration   time.Duration // zero means forever
 }
@@ -34,6 +37,7 @@ type shareCmd struct {
 func init() {
 	cmdmain.RegisterCommand("share", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(shareCmd)
+		flags.StringVar(&cmd.search, "search", "", "share a search result, rather than a single blob. Should be the JSON representation of a search.SearchQuery (see https://camlistore.org/pkg/search/#SearchQuery for details). Exclusive with, and overrides the <blobref> parameter.")
 		flags.BoolVar(&cmd.transitive, "transitive", false, "share everything reachable from the given blobref")
 		flags.DurationVar(&cmd.duration, "duration", 0, "how long the share claim is valid for. The default of 0 means forever. For valid formats, see http://golang.org/pkg/time/#ParseDuration")
 		return cmd
@@ -41,29 +45,44 @@ func init() {
 }
 
 func (c *shareCmd) Describe() string {
-	return `Grant access to a resource by making a "share" blob.`
+	return `Grant access to a resource or search by making a "share" blob.`
 }
 
 func (c *shareCmd) Usage() {
-	fmt.Fprintf(cmdmain.Stderr, `Usage: camput share [opts] <blobref>
+	fmt.Fprintf(cmdmain.Stderr, `Usage: camput share [opts] [<blobref>]
 `)
 }
 
 func (c *shareCmd) Examples() []string {
 	return []string{
-		"[opts] <blobref to share via haveref>",
+		"-transitive sha1-83896fcb182db73b653181652129d739280766b5",
+		`-search='{"expression":"tag:blogphotos is:image","limit":42}'`,
 	}
 }
 
 func (c *shareCmd) RunCommand(args []string) error {
-	if len(args) != 1 {
-		return cmdmain.UsageError("share takes exactly one argument, a blobref")
+	unsigned := schema.NewShareRef(schema.ShareHaveRef, c.transitive)
+
+	if c.search != "" {
+		if len(args) != 0 {
+			return cmdmain.UsageError("when using the -search flag, share takes zero arguments")
+		}
+		var q search.SearchQuery
+		if err := json.Unmarshal([]byte(c.search), &q); err != nil {
+			return cmdmain.UsageError(fmt.Sprintf("invalid search: %s", err))
+		}
+		unsigned.SetShareSearch(q)
+	} else {
+		if len(args) != 1 {
+			return cmdmain.UsageError("share takes at most one argument")
+		}
+		target, ok := blob.Parse(args[0])
+		if !ok {
+			return cmdmain.UsageError("invalid blobref")
+		}
+		unsigned.SetShareTarget(target)
 	}
-	target, ok := blob.Parse(args[0])
-	if !ok {
-		return cmdmain.UsageError("invalid blobref")
-	}
-	unsigned := schema.NewShareRef(schema.ShareHaveRef, target, c.transitive)
+
 	if c.duration != 0 {
 		unsigned.SetShareExpiration(time.Now().Add(c.duration))
 	}

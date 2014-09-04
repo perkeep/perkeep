@@ -148,6 +148,10 @@ type dirEntry struct {
 	dr      *DirReader  // or nil if not a directory
 }
 
+// A SearchQuery must be of type search.SearchQuery.
+// This type breaks an otherwise-circular dependency.
+type SearchQuery interface{}
+
 func (de *dirEntry) CamliType() string {
 	return de.ss.Type
 }
@@ -281,6 +285,8 @@ type superset struct {
 	Entries blob.Ref   `json:"entries"` // for directories, a blobref to a static-set
 	Members []blob.Ref `json:"members"` // for static sets (for directory static-sets: blobrefs to child dirs/files)
 
+	// Search allows a "share" blob to share an entire search. Contrast with "target".
+	Search SearchQuery `json:"search"`
 	// Target is a "share" blob's target (the thing being shared)
 	// Or it is the object being deleted in a DeleteClaim claim.
 	Target blob.Ref `json:"target"`
@@ -778,7 +784,6 @@ func populateClaimMap(m map[string]interface{}, cp *claimParam) {
 	switch cp.claimType {
 	case ShareClaim:
 		m["authType"] = cp.authType
-		m["target"] = cp.target.String()
 		m["transitive"] = cp.transitive
 	case DeleteClaim:
 		m["target"] = cp.target.String()
@@ -792,11 +797,10 @@ func populateClaimMap(m map[string]interface{}, cp *claimParam) {
 }
 
 // NewShareRef creates a *Builder for a "share" claim.
-func NewShareRef(authType string, target blob.Ref, transitive bool) *Builder {
+func NewShareRef(authType string, transitive bool) *Builder {
 	return newClaim(&claimParam{
 		claimType:  ShareClaim,
 		authType:   authType,
-		target:     target,
 		transitive: transitive,
 	})
 }

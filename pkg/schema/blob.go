@@ -135,7 +135,7 @@ func (b *Blob) AsShare() (s Share, ok bool) {
 		return
 	}
 
-	if ClaimType(b.ss.ClaimType) == ShareClaim && b.ss.AuthType == ShareHaveRef && b.ss.Target.Valid() {
+	if ClaimType(b.ss.ClaimType) == ShareClaim && b.ss.AuthType == ShareHaveRef && (b.ss.Target.Valid() || b.ss.Search != nil) {
 		return Share{c}, true
 	}
 	return s, false
@@ -339,10 +339,31 @@ func NewBuilder() *Builder {
 	}}
 }
 
+// SetShareTarget sets the target of share claim.
+// It panics if bb isn't a "share" claim type.
+func (bb *Builder) SetShareTarget(t blob.Ref) *Builder {
+	if bb.Type() != "claim" || bb.ClaimType() != ShareClaim {
+		panic("called SetShareTarget on non-share")
+	}
+	bb.m["target"] = t.String()
+	return bb
+}
+
+// SetShareTarget sets the target of share claim.
+// q is assumed to be of type *search.SearchQuery.
+// It panics if bb isn't a "share" claim type.
+func (bb *Builder) SetShareSearch(q interface{}) *Builder {
+	if bb.Type() != "claim" || bb.ClaimType() != ShareClaim {
+		panic("called SetShareSearch on non-share")
+	}
+	bb.m["search"] = q
+	return bb
+}
+
 // SetShareExpiration sets the expiration time on share claim.
 // It panics if bb isn't a "share" claim type.
 // If t is zero, the expiration is removed.
-func (bb *Builder) SetShareExpiration(t time.Time) {
+func (bb *Builder) SetShareExpiration(t time.Time) *Builder {
 	if bb.Type() != "claim" || bb.ClaimType() != ShareClaim {
 		panic("called SetShareExpiration on non-share")
 	}
@@ -351,9 +372,10 @@ func (bb *Builder) SetShareExpiration(t time.Time) {
 	} else {
 		bb.m["expires"] = RFC3339FromTime(t)
 	}
+	return bb
 }
 
-func (bb *Builder) SetShareIsTransitive(b bool) {
+func (bb *Builder) SetShareIsTransitive(b bool) *Builder {
 	if bb.Type() != "claim" || bb.ClaimType() != ShareClaim {
 		panic("called SetShareIsTransitive on non-share")
 	}
@@ -362,6 +384,7 @@ func (bb *Builder) SetShareIsTransitive(b bool) {
 	} else {
 		bb.m["transitive"] = true
 	}
+	return bb
 }
 
 // SetRawStringField sets a raw string field in the underlying map.

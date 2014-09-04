@@ -81,7 +81,8 @@ func TestHandleGetViaSharing(t *testing.T) {
 	link := contentRef.String()
 	linkRef := blob.SHA1FromString(link)
 
-	share := schema.NewShareRef(schema.ShareHaveRef, linkRef, false).
+	share := schema.NewShareRef(schema.ShareHaveRef, false).
+		SetShareTarget(linkRef).
 		SetSigner(blob.SHA1FromString("irrelevant")).
 		SetRawStringField("camliSig", "alsounused")
 

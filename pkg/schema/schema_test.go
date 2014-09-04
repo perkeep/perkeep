@@ -371,16 +371,21 @@ func TestAsClaimAndAsShare(t *testing.T) {
 	signer := blob.MustParse("yyy-5678")
 
 	bb := NewSetAttributeClaim(br, "title", "Test Title")
-	bb = bb.SetSigner(signer)
-	bb = bb.SetClaimDate(time.Now())
-	c1 := bb.Blob()
-	c1.ss.Sig = "non-null-sig" // required by AsShare
+	getBlob := func() *Blob {
+		var c *Blob
+		c = bb.Blob()
+		c.ss.Sig = "non-null-sig" // required by AsShare
+		return c
+	}
 
-	bb = NewShareRef(ShareHaveRef, br, true)
 	bb = bb.SetSigner(signer)
 	bb = bb.SetClaimDate(time.Now())
-	c2 := bb.Blob()
-	c2.ss.Sig = "non-null-sig" // required by AsShare
+	c1 := getBlob()
+
+	bb = NewShareRef(ShareHaveRef, true)
+	bb = bb.SetSigner(signer)
+	bb = bb.SetClaimDate(time.Now())
+	c2 := getBlob()
 
 	if !br.Valid() {
 		t.Error("Blobref not valid")
@@ -401,9 +406,25 @@ func TestAsClaimAndAsShare(t *testing.T) {
 		t.Error("Title claim returned share", s)
 	}
 
-	s, ok = c2.AsShare()
+	_, ok = c2.AsShare()
+	if ok {
+		t.Error("Share claim returned share without target or search")
+	}
+
+	bb.SetShareTarget(br)
+	s, ok = getBlob().AsShare()
 	if !ok {
-		t.Error("Share claim failed to return share")
+		t.Error("Share claim failed to return share with target")
+	}
+
+	bb = NewShareRef(ShareHaveRef, true)
+	bb = bb.SetSigner(signer)
+	bb = bb.SetClaimDate(time.Now())
+	// Would be better to use search.SearchQuery but we can't reference it here.
+	bb.SetShareSearch(&struct{}{})
+	s, ok = getBlob().AsShare()
+	if !ok {
+		t.Error("Share claim failed to return share with search")
 	}
 }
 
