@@ -128,7 +128,7 @@ func RegisterHandlerConstructor(typ string, ctor HandlerConstructor) {
 // provided JSON configuration, and finding peer handlers and
 // configuration from the environment in 'loader'.
 //
-// The handler 'typ' must have bee previously registered with
+// The handler 'typ' must have been previously registered with
 // RegisterHandlerConstructor.
 func CreateHandler(typ string, loader Loader, config jsonconfig.Obj) (http.Handler, error) {
 	mapLock.Lock()
