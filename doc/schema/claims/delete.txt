@@ -3,7 +3,7 @@ A claim can delete a permanode or another claim.
 is never considered as a modtime in the context of time constrained searches.
 -----
 
-{"camliVersion": 1,"
+{"camliVersion": 1,
  "camliType": "claim",
  "camliSigner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
  "claimDate": "2010-07-10T17:20:03.9212Z",
