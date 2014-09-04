@@ -391,7 +391,7 @@ func buildSrcPath(fromSrc string) string {
 // kept in between runs.
 func genEmbeds() error {
 	cmdName := exeName(filepath.Join(buildGoPath, "bin", "genfileembed"))
-	for _, embeds := range []string{"server/camlistored/ui", "pkg/server", "third_party/react", "third_party/glitch", "third_party/fontawesome", "app/publisher"} {
+	for _, embeds := range []string{"server/camlistored/ui", "pkg/server", "third_party/react", "third_party/less", "third_party/glitch", "third_party/fontawesome", "app/publisher"} {
 		embeds := buildSrcPath(embeds)
 		args := []string{"--output-files-stderr", embeds}
 		cmd := exec.Command(cmdName, args...)

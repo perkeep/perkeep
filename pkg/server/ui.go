@@ -47,10 +47,11 @@ import (
 	fontawesomestatic "camlistore.org/third_party/fontawesome"
 	glitchstatic "camlistore.org/third_party/glitch"
 	reactstatic "camlistore.org/third_party/react"
+        lessstatic "camlistore.org/third_party/less"
 )
 
 var (
-	staticFilePattern = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(html|js|css|png|jpg|gif|svg))$`)
+	staticFilePattern = regexp.MustCompile(`^([a-zA-Z0-9\-\_\.]+\.(html|js|css|png|jpg|gif|svg))$`)
 	identOrDotPattern = regexp.MustCompile(`^[a-zA-Z\_]+(\.[a-zA-Z\_]+)*$`)
 
 	// Download URL suffix:
@@ -62,6 +63,7 @@ var (
 	thumbnailPattern   = regexp.MustCompile(`^thumbnail/([^/]+)(/.*)?$`)
 	treePattern        = regexp.MustCompile(`^tree/([^/]+)(/.*)?$`)
 	closurePattern     = regexp.MustCompile(`^closure/(([^/]+)(/.*)?)$`)
+        lessPattern        = regexp.MustCompile(`^less/(.+)$`)
 	reactPattern       = regexp.MustCompile(`^react/(.+)$`)
 	fontawesomePattern = regexp.MustCompile(`^fontawesome/(.+)$`)
 	glitchPattern      = regexp.MustCompile(`^glitch/(.+)$`)
@@ -101,6 +103,7 @@ type UIHandler struct {
 	uiDir string // if sourceRoot != "", this is sourceRoot+"/server/camlistored/ui"
 
 	closureHandler         http.Handler
+        fileLessHandler        http.Handler
 	fileReactHandler       http.Handler
 	fileFontawesomeHandler http.Handler
 	fileGlitchHandler      http.Handler
@@ -440,6 +443,8 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ui.serveQR(rw, req)
 	case getSuffixMatches(req, closurePattern):
 		ui.serveClosure(rw, req)
+        case getSuffixMatches(req, lessPattern):
+		ui.serveFromDiskOrStatic(rw, req, lessPattern, ui.fileLessHandler, lessstatic.Files)
 	case getSuffixMatches(req, reactPattern):
 		ui.serveFromDiskOrStatic(rw, req, reactPattern, ui.fileReactHandler, reactstatic.Files)
 	case getSuffixMatches(req, glitchPattern):
