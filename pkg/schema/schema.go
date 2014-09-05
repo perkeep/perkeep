@@ -44,8 +44,8 @@ import (
 	"camlistore.org/pkg/strutil"
 	"camlistore.org/pkg/types"
 	"camlistore.org/third_party/github.com/bradfitz/latlong"
-	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
-	"camlistore.org/third_party/github.com/camlistore/goexif/tiff"
+	"camlistore.org/third_party/github.com/rwcarlsen/goexif/exif"
+	"camlistore.org/third_party/github.com/rwcarlsen/goexif/tiff"
 )
 
 func init() {

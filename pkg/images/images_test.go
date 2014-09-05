@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
+	"camlistore.org/third_party/github.com/rwcarlsen/goexif/exif"
 	"camlistore.org/third_party/go/pkg/image/jpeg"
 )
 

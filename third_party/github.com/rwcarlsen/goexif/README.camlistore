@@ -1,0 +1,17 @@
+Syncing updates from upstream goexif
+====================================
+
+Camlistore does not need to have all test data of upstream goexif in its
+repository. For that reason, do not merge the file
+exif/regress_expected_test.go and the subfolder 'exif/samples' to
+camlistore. When merging exif_test.go, make sure to keep the test path to
+be "." instead of "samples".
+
+Rationale: regress_expected_test.go is generated anew by exif_test.go (func
+TestRegenRegress()), when the non-exported boolean variable 'regenRegress'
+is set to true.  In upstream, this file is generated on the subfolder
+called 'samples', which contains some JPGs. Since Camlistore omits the samples
+folder, we change the exif_test.go to use the goexif/exif folder directly
+(which contains the single sample1.jpg) instead of the samples subfolder.
+Unless new test images are added, regress_expected_test.go does not need to
+be regenerated. It is unlikely that Camlistore will add new test data.

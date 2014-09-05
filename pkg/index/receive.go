@@ -40,9 +40,9 @@ import (
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/types"
 
-	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
-	"camlistore.org/third_party/github.com/camlistore/goexif/tiff"
 	"camlistore.org/third_party/github.com/hjfreyer/taglib-go/taglib"
+	"camlistore.org/third_party/github.com/rwcarlsen/goexif/exif"
+	"camlistore.org/third_party/github.com/rwcarlsen/goexif/tiff"
 	_ "camlistore.org/third_party/go/pkg/image/jpeg"
 )
 

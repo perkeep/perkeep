@@ -33,8 +33,8 @@ import (
 
 	"camlistore.org/pkg/images/fastjpeg"
 	"camlistore.org/pkg/images/resize"
-	"camlistore.org/third_party/github.com/camlistore/goexif/exif"
 	"camlistore.org/third_party/github.com/nf/cr2"
+	"camlistore.org/third_party/github.com/rwcarlsen/goexif/exif"
 )
 
 var disableThumbCache, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_THUMB_CACHE"))

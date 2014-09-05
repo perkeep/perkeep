@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"camlistore.org/third_party/github.com/camlistore/goexif/tiff"
+	"camlistore.org/third_party/github.com/rwcarlsen/goexif/tiff"
 )
 
 // switch to true to regenerate regression expected values
