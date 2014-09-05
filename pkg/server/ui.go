@@ -226,6 +226,10 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		if err != nil {
 			return nil, fmt.Errorf("Could not make fontawesome handler: %s", err)
 		}
+		ui.fileLessHandler, err = makeFileServer(ui.sourceRoot, filepath.Join("third_party", "less"), "less.js")
+		if err != nil {
+			return nil, fmt.Errorf("Could not make less handler: %s", err)
+		}
 	}
 
 	rootPrefix, _, err := ld.FindHandlerByType("root")
