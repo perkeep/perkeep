@@ -14,6 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+@import (less) "prefix-free.css";
+
+
 .cam-pyramid-throbber {
 	position: relative;
 }
@@ -24,8 +27,7 @@ limitations under the License.
 	height: 0;
 	border-bottom: 50px solid rgb(220,220,220);
 	border-left: 35px solid transparent;
-	-webkit-animation: leftcolors 1.0s infinite ease-in-out;
-	animation: leftcolors 1.0s infinite ease-in-out;
+	.animation(leftcolors 1.0s infinite ease-in-out);
 }
 
 .cam-pyramid-throbber .leftbottom {
@@ -35,8 +37,7 @@ limitations under the License.
 	height: 0;
 	border-top: 15px solid rgb(220,220,220);
 	border-left: 35px solid transparent;
-	-webkit-animation: leftcolors 1.0s infinite ease-in-out;
-	animation: leftcolors 1.0s infinite ease-in-out;
+	.animation(leftcolors 1.0s infinite ease-in-out);
 }
 
 .cam-pyramid-throbber .righttop {
@@ -46,8 +47,7 @@ limitations under the License.
 	height: 0;
 	border-bottom: 50px solid rgb(180,180,180);
 	border-right: 35px solid transparent;
-	-webkit-animation: rightcolors 1.0s infinite ease-in-out;
-	animation: rightcolors 1.0s infinite ease-in-out;
+	.animation(rightcolors 1.0s infinite ease-in-out);
 }
 
 .cam-pyramid-throbber .rightbottom {
@@ -58,8 +58,7 @@ limitations under the License.
 	height: 0;
 	border-top: 15px solid rgb(180,180,180);
 	border-right: 35px solid transparent;
-	-webkit-animation: rightcolors 1.0s infinite ease-in-out;
-	animation: rightcolors 1.0s infinite ease-in-out;
+	.animation(rightcolors 1.0s infinite ease-in-out);
 }
 
 @-webkit-keyframes leftcolors {
@@ -69,6 +68,18 @@ limitations under the License.
 }
 
 @-webkit-keyframes rightcolors {
+	0% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+	50% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+	100% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+}
+
+@-moz-keyframes leftcolors {
+	0% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+	50% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
+	100% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
+}
+
+@-moz-keyframes rightcolors {
 	0% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
 	50% { border-bottom-color: rgb(220,220,220); border-top-color: rgb(220,220,220) }
 	100% { border-bottom-color: rgb(180,180,180); border-top-color: rgb(180,180,180) }
