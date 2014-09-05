@@ -1,62 +1,142 @@
 package exif
 
 import (
+	"flag"
+	"fmt"
+	"io"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"camlistore.org/third_party/github.com/camlistore/goexif/tiff"
 )
 
-func TestDecode(t *testing.T) {
-	name := "sample1.jpg"
-	f, err := os.Open(name)
-	if err != nil {
-		t.Fatalf("%v\n", err)
+// switch to true to regenerate regression expected values
+var regenRegress = false
+
+var dataDir = flag.String("test_data_dir", ".", "Directory where the data files for testing are located")
+
+// TestRegenRegress regenerates the expected image exif fields/values for
+// sample images.
+func TestRegenRegress(t *testing.T) {
+	if !regenRegress {
+		return
 	}
 
-	x, err := Decode(f)
+	dst, err := os.Create("regress_expected_test.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if x == nil {
-		t.Fatalf("No error and yet %v was not decoded\n", name)
+	defer dst.Close()
+
+	dir, err := os.Open(".")
+	if err != nil {
+		t.Fatal(err)
 	}
+	defer dir.Close()
 
-	val, err := x.Get("Model")
-	t.Logf("Model: %v", val)
-	t.Log(x)
+	names, err := dir.Readdirnames(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, name := range names {
+		names[i] = filepath.Join(".", name)
+	}
+	makeExpected(names, dst)
 }
 
-type walker struct {
-	t *testing.T
+func makeExpected(files []string, w io.Writer) {
+	fmt.Fprintf(w, "package exif\n\n")
+	fmt.Fprintf(w, "var regressExpected = map[string]map[FieldName]string{\n")
+
+	for _, name := range files {
+		f, err := os.Open(name)
+		if err != nil {
+			continue
+		}
+
+		x, err := Decode(f)
+		if err != nil {
+			f.Close()
+			continue
+		}
+
+		fmt.Fprintf(w, "\t\"%v\": map[FieldName]string{\n", filepath.Base(name))
+		x.Walk(&regresswalk{w})
+		fmt.Fprintf(w, "\t},\n")
+		f.Close()
+	}
+	fmt.Fprintf(w, "}\n")
 }
 
-func (w *walker) Walk(name FieldName, tag *tiff.Tag) error {
-	w.t.Logf("%v: %v", name, tag)
+type regresswalk struct {
+	wr io.Writer
+}
+
+func (w *regresswalk) Walk(name FieldName, tag *tiff.Tag) error {
+	if strings.HasPrefix(string(name), UnknownPrefix) {
+		fmt.Fprintf(w.wr, "\t\t\"%v\": `%v`,\n", name, tag.String())
+	} else {
+		fmt.Fprintf(w.wr, "\t\t%v: `%v`,\n", name, tag.String())
+	}
 	return nil
 }
 
-func TestWalk(t *testing.T) {
-	name := "sample1.jpg"
-	f, err := os.Open(name)
+func TestDecode(t *testing.T) {
+	fpath := filepath.Join(*dataDir, "")
+	f, err := os.Open(fpath)
 	if err != nil {
-		t.Fatalf("%v\n", err)
+		t.Fatalf("Could not open sample directory '%s': %v", fpath, err)
 	}
 
-	x, err := Decode(f)
+	names, err := f.Readdirnames(0)
 	if err != nil {
-		t.Error(err)
-	}
-	if x == nil {
-		t.Fatal("bad err")
+		t.Fatalf("Could not read sample directory '%s': %v", fpath, err)
 	}
 
-	x.Walk(&walker{t})
+	cnt := 0
+	for _, name := range names {
+		if !strings.HasSuffix(name, ".jpg") {
+			t.Logf("skipping non .jpg file %v", name)
+			continue
+		}
+		t.Logf("testing file %v", name)
+		f, err := os.Open(filepath.Join(fpath, name))
+		if err != nil {
+			t.Fatal(err)
+		}
 
+		x, err := Decode(f)
+		if err != nil {
+			t.Fatal(err)
+		} else if x == nil {
+			t.Fatalf("No error and yet %v was not decoded", name)
+		}
+
+		x.Walk(&walker{name, t})
+		cnt++
+	}
+	if cnt != len(regressExpected) {
+		t.Errorf("Did not process enough samples, got %d, want %d", cnt, len(regressExpected))
+	}
+}
+
+type walker struct {
+	picName string
+	t       *testing.T
+}
+
+func (w *walker) Walk(field FieldName, tag *tiff.Tag) error {
+	// this needs to be commented out when regenerating regress expected vals
+	if v := regressExpected[w.picName][field]; v != tag.String() {
+		w.t.Errorf("pic %v:  expected '%v' got '%v'", w.picName, v, tag.String())
+	}
+	return nil
 }
 
 func TestMarshal(t *testing.T) {
-	name := "sample1.jpg"
+	name := filepath.Join(*dataDir, "sample1.jpg")
 	f, err := os.Open(name)
 	if err != nil {
 		t.Fatalf("%v\n", err)

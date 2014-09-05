@@ -977,7 +977,7 @@ func exifDateTimeInLocation(x *exif.Exif, loc *time.Location) (time.Time, error)
 			return time.Time{}, err
 		}
 	}
-	if tag.Format() != tiff.StringVal {
+	if tag.TypeCategory() != tiff.StringVal {
 		return time.Time{}, errors.New("DateTime[Original] not in string format")
 	}
 	const exifTimeLayout = "2006:01:02 15:04:05"

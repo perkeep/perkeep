@@ -1,5 +1,5 @@
 // Package exif implements decoding of EXIF data as defined in the EXIF 2.2
-// specification.
+// specification (http://www.exif.org/Exif2-2.PDF).
 package exif
 
 import (
@@ -10,28 +10,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"strings"
 	"time"
 
 	"camlistore.org/third_party/github.com/camlistore/goexif/tiff"
 )
 
-var validField map[FieldName]bool
-
-func init() {
-	validField = make(map[FieldName]bool)
-	for _, name := range exifFields {
-		validField[name] = true
-	}
-	for _, name := range gpsFields {
-		validField[name] = true
-	}
-	for _, name := range interopFields {
-		validField[name] = true
-	}
-}
-
 const (
+	jpeg_APP1 = 0xE1
+
 	exifPointer    = 0x8769
 	gpsPointer     = 0x8825
 	interopPointer = 0xA005
@@ -45,31 +33,94 @@ func (tag TagNotPresentError) Error() string {
 	return fmt.Sprintf("exif: tag %q is not present", string(tag))
 }
 
-func isTagNotPresentErr(err error) bool {
-	_, ok := err.(TagNotPresentError)
-	return ok
+// Parser allows the registration of custom parsing and field loading
+// in the Decode function.
+type Parser interface {
+	// Parse should read data from x and insert parsed fields into x via
+	// LoadTags.
+	Parse(x *Exif) error
 }
 
+var parsers []Parser
+
+func init() {
+	RegisterParsers(&parser{})
+}
+
+// RegisterParsers registers one or more parsers to be automatically called
+// when decoding EXIF data via the Decode function.
+func RegisterParsers(ps ...Parser) {
+	parsers = append(parsers, ps...)
+}
+
+type parser struct{}
+
+func (p *parser) Parse(x *Exif) error {
+	x.LoadTags(x.Tiff.Dirs[0], exifFields, false)
+
+	// thumbnails
+	if len(x.Tiff.Dirs) >= 2 {
+		x.LoadTags(x.Tiff.Dirs[1], thumbnailFields, false)
+	}
+
+	// recurse into exif, gps, and interop sub-IFDs
+	if err := loadSubDir(x, ExifIFDPointer, exifFields); err != nil {
+		return err
+	}
+	if err := loadSubDir(x, GPSInfoIFDPointer, gpsFields); err != nil {
+		return err
+	}
+
+	return loadSubDir(x, InteroperabilityIFDPointer, interopFields)
+}
+
+func loadSubDir(x *Exif, ptr FieldName, fieldMap map[uint16]FieldName) error {
+	r := bytes.NewReader(x.Raw)
+
+	tag, err := x.Get(ptr)
+	if err != nil {
+		return nil
+	}
+	offset := tag.Int(0)
+
+	_, err = r.Seek(offset, 0)
+	if err != nil {
+		return errors.New("exif: seek to sub-IFD failed: " + err.Error())
+	}
+	subDir, _, err := tiff.DecodeDir(r, x.Tiff.Order)
+	if err != nil {
+		return errors.New("exif: sub-IFD decode failed: " + err.Error())
+	}
+	x.LoadTags(subDir, fieldMap, false)
+	return nil
+}
+
+// Exif provides access to decoded EXIF metadata fields and values.
 type Exif struct {
-	tif *tiff.Tiff
-
+	Tiff *tiff.Tiff
 	main map[FieldName]*tiff.Tag
+	Raw  []byte
 }
 
-// Decode parses EXIF-encoded data from r and returns a queryable Exif object.
+// Decode parses EXIF-encoded data from r and returns a queryable Exif
+// object. After the exif data section is called and the tiff structure
+// decoded, each registered parser is called (in order of registration). If
+// one parser returns an error, decoding terminates and the remaining
+// parsers are not called.
 func Decode(r io.Reader) (*Exif, error) {
 	// EXIF data in JPEG is stored in the APP1 marker. EXIF data uses the TIFF
 	// format to store data.
 	// If we're parsing a TIFF image, we don't need to strip away any data.
 	// If we're parsing a JPEG image, we need to strip away the JPEG APP1
 	// marker and also the EXIF header.
+
 	header := make([]byte, 4)
 	n, err := r.Read(header)
-	if n < len(header) {
-		return nil, errors.New("exif: short read on header")
-	}
 	if err != nil {
 		return nil, err
+	}
+	if n < len(header) {
+		return nil, errors.New("exif: short read on header")
 	}
 
 	var isTiff bool
@@ -100,9 +151,9 @@ func Decode(r io.Reader) (*Exif, error) {
 		tif, err = tiff.Decode(tr)
 		er = bytes.NewReader(b.Bytes())
 	} else {
-		// Strip away JPEG APP1 header.
+		// Locate the JPEG APP1 header.
 		var sec *appSec
-		sec, err = newAppSec(0xE1, r)
+		sec, err = newAppSec(jpeg_APP1, r)
 		if err != nil {
 			return nil, err
 		}
@@ -115,55 +166,47 @@ func Decode(r io.Reader) (*Exif, error) {
 	}
 
 	if err != nil {
-		return nil, errors.New("exif: decode failed: " + err.Error())
+		return nil, fmt.Errorf("exif: decode failed (%v) ", err)
+	}
+
+	er.Seek(0, 0)
+	raw, err := ioutil.ReadAll(er)
+	if err != nil {
+		return nil, fmt.Errorf("exif: decode failed (%v) ", err)
 	}
 
 	// build an exif structure from the tiff
 	x := &Exif{
 		main: map[FieldName]*tiff.Tag{},
-		tif:  tif,
+		Tiff: tif,
+		Raw:  raw,
 	}
 
-	ifd0 := tif.Dirs[0]
-	for _, tag := range ifd0.Tags {
-		name := exifFields[tag.Id]
-		x.main[name] = tag
-	}
-
-	// recurse into exif, gps, and interop sub-IFDs
-	if err = x.loadSubDir(er, exifIFDPointer, exifFields); err != nil {
-		return x, err
-	}
-	if err = x.loadSubDir(er, gpsInfoIFDPointer, gpsFields); err != nil {
-		return x, err
-	}
-	if err = x.loadSubDir(er, interoperabilityIFDPointer, interopFields); err != nil {
-		return x, err
+	for i, p := range parsers {
+		if err := p.Parse(x); err != nil {
+			return x, fmt.Errorf("exif: parser %v failed (%v)", i, err)
+		}
 	}
 
 	return x, nil
 }
 
-func (x *Exif) loadSubDir(r *bytes.Reader, ptrName FieldName, fieldMap map[uint16]FieldName) error {
-	tag, ok := x.main[ptrName]
-	if !ok {
-		return nil
-	}
-	offset := tag.Int(0)
-
-	_, err := r.Seek(offset, 0)
-	if err != nil {
-		return errors.New("exif: seek to sub-IFD failed: " + err.Error())
-	}
-	subDir, _, err := tiff.DecodeDir(r, x.tif.Order)
-	if err != nil {
-		return errors.New("exif: sub-IFD decode failed: " + err.Error())
-	}
-	for _, tag := range subDir.Tags {
+// LoadTags loads tags into the available fields from the tiff Directory
+// using the given tagid-fieldname mapping.  Used to load makernote and
+// other meta-data.  If showMissing is true, tags in d that are not in the
+// fieldMap will be loaded with the FieldName UnknownPrefix followed by the
+// tag ID (in hex format).
+func (x *Exif) LoadTags(d *tiff.Dir, fieldMap map[uint16]FieldName, showMissing bool) {
+	for _, tag := range d.Tags {
 		name := fieldMap[tag.Id]
+		if name == "" {
+			if !showMissing {
+				continue
+			}
+			name = FieldName(fmt.Sprintf("%v%x", UnknownPrefix, tag.Id))
+		}
 		x.main[name] = tag
 	}
-	return nil
 }
 
 // Get retrieves the EXIF tag for the given field name.
@@ -171,22 +214,21 @@ func (x *Exif) loadSubDir(r *bytes.Reader, ptrName FieldName, fieldMap map[uint1
 // If the tag is not known or not present, an error is returned. If the
 // tag name is known, the error will be a TagNotPresentError.
 func (x *Exif) Get(name FieldName) (*tiff.Tag, error) {
-	if !validField[name] {
-		return nil, fmt.Errorf("exif: invalid tag name %q", name)
-	} else if tg, ok := x.main[name]; ok {
+	if tg, ok := x.main[name]; ok {
 		return tg, nil
 	}
 	return nil, TagNotPresentError(name)
 }
 
-// Walker is the interface used to traverse all exif fields of an Exif object.
-// Returning a non-nil error aborts the walk/traversal.
+// Walker is the interface used to traverse all fields of an Exif object.
 type Walker interface {
+	// Walk is called for each non-nil EXIF field. Returning a non-nil
+	// error aborts the walk/traversal.
 	Walk(name FieldName, tag *tiff.Tag) error
 }
 
-// Walk calls the Walk method of w with the name and tag for every non-nil exif
-// field.
+// Walk calls the Walk method of w with the name and tag for every non-nil
+// EXIF field.  If w aborts the walk with an error, that error is returned.
 func (x *Exif) Walk(w Walker) error {
 	for name, tag := range x.main {
 		if err := w.Walk(name, tag); err != nil {
@@ -214,7 +256,7 @@ func (x *Exif) DateTime() (time.Time, error) {
 			return dt, err
 		}
 	}
-	if tag.Format() != tiff.StringVal {
+	if tag.TypeCategory() != tiff.StringVal {
 		return dt, errors.New("DateTime[Original] not in string format")
 	}
 	exifTimeLayout := "2006:01:02 15:04:05"
@@ -271,6 +313,22 @@ func (x *Exif) String() string {
 	return buf.String()
 }
 
+// JpegThumbnail returns the jpeg thumbnail if it exists. If it doesn't exist,
+// TagNotPresentError will be returned
+func (x *Exif) JpegThumbnail() ([]byte, error) {
+	offset, err := x.Get(ThumbJPEGInterchangeFormat)
+	if err != nil {
+		return nil, err
+	}
+	length, err := x.Get(ThumbJPEGInterchangeFormatLength)
+	if err != nil {
+		return nil, err
+	}
+	return x.Raw[offset.Int(0) : offset.Int(0)+length.Int(0)], nil
+}
+
+// MarshalJson implements the encoding/json.Marshaler interface providing output of
+// all EXIF fields present (names and values).
 func (x Exif) MarshalJSON() ([]byte, error) {
 	return json.Marshal(x.main)
 }
@@ -285,7 +343,7 @@ type appSec struct {
 func newAppSec(marker byte, r io.Reader) (*appSec, error) {
 	br := bufio.NewReader(r)
 	app := &appSec{marker: marker}
-	var dataLen uint16
+	var dataLen int
 
 	// seek to marker
 	for dataLen == 0 {
@@ -303,16 +361,16 @@ func newAppSec(marker byte, r io.Reader) (*appSec, error) {
 		if err != nil {
 			return nil, err
 		}
-		dataLen = binary.BigEndian.Uint16(dataLenBytes)
+		dataLen = int(binary.BigEndian.Uint16(dataLenBytes))
 	}
 
 	// read section data
 	nread := 0
-	for nread < int(dataLen) {
-		s := make([]byte, int(dataLen)-nread)
+	for nread < dataLen {
+		s := make([]byte, dataLen-nread)
 		n, err := br.Read(s)
 		nread += n
-		if err != nil && nread < int(dataLen) {
+		if err != nil && nread < dataLen {
 			return nil, err
 		}
 		app.data = append(app.data, s[:n]...)
