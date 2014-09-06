@@ -380,10 +380,7 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 	var copyDest io.Writer = sha1
 	var imageBuf *keepFirstN // or nil
 	if strings.HasPrefix(mime, "image/") {
-		// Empirically derived 1MiB assuming CR2 images require more than any
-		// other filetype we support:
-		//   https://gist.github.com/wathiede/7982372
-		imageBuf = &keepFirstN{N: 1 << 20}
+		imageBuf = &keepFirstN{N: 512 << 10}
 		copyDest = io.MultiWriter(copyDest, imageBuf)
 	}
 	size, err := io.Copy(copyDest, reader)
@@ -393,7 +390,14 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 	wholeRef := blob.RefFromHash(sha1)
 
 	if imageBuf != nil {
-		if conf, err := images.DecodeConfig(bytes.NewReader(imageBuf.Bytes)); err == nil {
+		conf, err := images.DecodeConfig(bytes.NewReader(imageBuf.Bytes))
+		// If our optimistic 512KB in-memory prefix from above was too short to get the dimensions, pass the whole thing instead and try again.
+		if err == io.ErrUnexpectedEOF {
+			if fr, e := b.NewFileReader(fetcher); e == nil {
+				conf, err = images.DecodeConfig(fr)
+			}
+		}
+		if err == nil {
 			mm.Set(keyImageSize.Key(blobRef), keyImageSize.Val(fmt.Sprint(conf.Width), fmt.Sprint(conf.Height)))
 		}
 		if ft, err := schema.FileTime(bytes.NewReader(imageBuf.Bytes)); err == nil {
@@ -403,7 +407,15 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 			log.Printf("filename %q exif = %v, %v", b.FileName(), ft, err)
 		}
 
-		indexEXIF(wholeRef, imageBuf.Bytes, mm)
+		err = indexEXIF(wholeRef, bytes.NewReader(imageBuf.Bytes), mm)
+		if err == io.EOF {
+			if fr, e := b.NewFileReader(fetcher); e == nil {
+				err = indexEXIF(wholeRef, fr, mm)
+			}
+		}
+		if err != nil {
+			log.Printf("error parsing EXIF: %v", err)
+		}
 	}
 
 	var sortTimes []time.Time
@@ -451,8 +463,10 @@ type exifWalkFunc func(name exif.FieldName, tag *tiff.Tag) error
 
 func (f exifWalkFunc) Walk(name exif.FieldName, tag *tiff.Tag) error { return f(name, tag) }
 
-func indexEXIF(wholeRef blob.Ref, header []byte, mm *mutationMap) {
-	ex, err := exif.Decode(bytes.NewReader(header))
+var errEXIFPanic = errors.New("EXIF library panicked while walking fields")
+
+func indexEXIF(wholeRef blob.Ref, reader io.Reader, mm *mutationMap) (err error) {
+	ex, err := exif.Decode(reader)
 	if err != nil {
 		return
 	}
@@ -462,11 +476,11 @@ func indexEXIF(wholeRef blob.Ref, header []byte, mm *mutationMap) {
 		// recover here, instead of crashing on an invalid
 		// EXIF file.
 		if e := recover(); e != nil {
-			log.Printf("Ignoring invalid EXIF file. Caught panic: %v", e)
+			err = errEXIFPanic
 		}
 	}()
 
-	ex.Walk(exifWalkFunc(func(name exif.FieldName, tag *tiff.Tag) error {
+	err = ex.Walk(exifWalkFunc(func(name exif.FieldName, tag *tiff.Tag) error {
 		tagFmt := tagFormatString(tag)
 		if tagFmt == "" {
 			return nil
@@ -525,12 +539,16 @@ func indexEXIF(wholeRef blob.Ref, header []byte, mm *mutationMap) {
 		mm.Set(key, valStr)
 		return nil
 	}))
+	if err != nil {
+		return
+	}
 
 	if lat, long, err := ex.LatLong(); err == nil {
 		mm.Set(keyEXIFGPS.Key(wholeRef), keyEXIFGPS.Val(fmt.Sprint(lat), fmt.Sprint(long)))
 	} else if !exif.IsTagNotPresentError(err) {
 		log.Printf("Invalid EXIF GPS data: %v", err)
 	}
+	return nil
 }
 
 // indexMusic adds mutations to index the wholeRef by attached metadata and other properties.
