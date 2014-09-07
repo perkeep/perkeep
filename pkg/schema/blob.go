@@ -352,7 +352,7 @@ func (bb *Builder) SetShareTarget(t blob.Ref) *Builder {
 // SetShareTarget sets the target of share claim.
 // q is assumed to be of type *search.SearchQuery.
 // It panics if bb isn't a "share" claim type.
-func (bb *Builder) SetShareSearch(q interface{}) *Builder {
+func (bb *Builder) SetShareSearch(q SearchQuery) *Builder {
 	if bb.Type() != "claim" || bb.ClaimType() != ShareClaim {
 		panic("called SetShareSearch on non-share")
 	}

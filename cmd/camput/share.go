@@ -71,7 +71,7 @@ func (c *shareCmd) RunCommand(args []string) error {
 		if err := json.Unmarshal([]byte(c.search), &q); err != nil {
 			return cmdmain.UsageError(fmt.Sprintf("invalid search: %s", err))
 		}
-		unsigned.SetShareSearch(q)
+		unsigned.SetShareSearch(&q)
 	} else {
 		if len(args) != 1 {
 			return cmdmain.UsageError("share takes at most one argument")

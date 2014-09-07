@@ -148,7 +148,7 @@ type dirEntry struct {
 	dr      *DirReader  // or nil if not a directory
 }
 
-// A SearchQuery must be of type search.SearchQuery.
+// A SearchQuery must be of type *search.SearchQuery.
 // This type breaks an otherwise-circular dependency.
 type SearchQuery interface{}
 
