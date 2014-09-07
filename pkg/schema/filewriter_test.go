@@ -100,7 +100,7 @@ func TestWriteThenRead(t *testing.T) {
 	getOffsets := func() error {
 		offs = offs[:0]
 		var off int
-		return fr.ForeachChunk(func(schemaRef blob.Ref, p BytesPart) error {
+		return fr.ForeachChunk(func(_ []blob.Ref, p BytesPart) error {
 			offs = append(offs, off)
 			off += int(p.Size)
 			return err

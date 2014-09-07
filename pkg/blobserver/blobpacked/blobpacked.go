@@ -425,7 +425,7 @@ func newPacker(s *storage, fileRef blob.Ref, fr *schema.FileReader) *packer {
 		fr:           fr,
 		dataSize:     map[blob.Ref]uint32{},
 		schemaBlob:   map[blob.Ref]*blob.Blob{},
-		schemaParent: map[blob.Ref]blob.Ref{},
+		schemaParent: map[blob.Ref][]blob.Ref{},
 	}
 }
 
@@ -444,7 +444,7 @@ type packer struct {
 
 	schemaRefs   []blob.Ref // in order, but irrelevant
 	schemaBlob   map[blob.Ref]*blob.Blob
-	schemaParent map[blob.Ref]blob.Ref // data blob -> its parent schema blob // TODO: need all the parents up?
+	schemaParent map[blob.Ref][]blob.Ref // data blob -> its parent/ancestor schema blob(s)
 
 	chunksRemain []blob.Ref
 	zips         []writtenZip
@@ -502,7 +502,7 @@ MakingZips:
 
 func (pk *packer) scanChunks() error {
 	schemaSeen := map[blob.Ref]bool{}
-	return pk.fr.ForeachChunk(func(schemaRef blob.Ref, p schema.BytesPart) error {
+	return pk.fr.ForeachChunk(func(schemaPath []blob.Ref, p schema.BytesPart) error {
 		if !p.BlobRef.Valid() {
 			return errors.New("sparse files are not packed")
 		}
@@ -511,9 +511,12 @@ func (pk *packer) scanChunks() error {
 			// these sorts of files.
 			return errors.New("file uses complicated schema. not packing.")
 		}
-		pk.schemaParent[p.BlobRef] = schemaRef
+		pk.schemaParent[p.BlobRef] = append([]blob.Ref(nil), schemaPath...) // clone it
 		pk.dataSize[p.BlobRef] = uint32(p.Size)
-		if !schemaSeen[schemaRef] {
+		for _, schemaRef := range schemaPath {
+			if schemaSeen[schemaRef] {
+				continue
+			}
 			schemaSeen[schemaRef] = true
 			pk.schemaRefs = append(pk.schemaRefs, schemaRef)
 			if b, err := blob.FromFetcher(pk.src, schemaRef); err != nil {
@@ -595,12 +598,13 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 			break
 		}
 
-		parent := pk.schemaParent[dr]
 		schemaBlobsSave := schemaBlobs
-		if !schemaBlobSeen[parent] {
-			schemaBlobSeen[parent] = true
-			schemaBlobs = append(schemaBlobs, parent)
-			approxSize += int(pk.schemaBlob[parent].Size())
+		for _, parent := range pk.schemaParent[dr] {
+			if !schemaBlobSeen[parent] {
+				schemaBlobSeen[parent] = true
+				schemaBlobs = append(schemaBlobs, parent)
+				approxSize += int(pk.schemaBlob[parent].Size())
+			}
 		}
 
 		thisSize := pk.dataSize[dr]

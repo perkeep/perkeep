@@ -323,9 +323,14 @@ func TestReaderForeachChunk(t *testing.T) {
 
 	var back bytes.Buffer
 	var totSize uint64
-	err = fr.ForeachChunk(func(sref blob.Ref, p BytesPart) error {
-		if !sref.Valid() {
-			t.Fatal("invalid schema blob")
+	err = fr.ForeachChunk(func(sref []blob.Ref, p BytesPart) error {
+		if len(sref) < 1 {
+			t.Fatal("expected at least one schemaPath blob")
+		}
+		for i, br := range sref {
+			if !br.Valid() {
+				t.Fatalf("invalid schema blob in path index %d", i)
+			}
 		}
 		if p.BytesRef.Valid() {
 			t.Fatal("should never see a valid BytesRef")
@@ -385,7 +390,7 @@ func TestForeachChunkAllSchemaBlobs(t *testing.T) {
 	var fr *FileReader
 	mustRead := func(name string, br blob.Ref, want string) {
 		var err error
-		fr, err = NewFileReader(sto, bytesBlob.BlobRef())
+		fr, err = NewFileReader(sto, br)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
@@ -403,33 +408,36 @@ func TestForeachChunkAllSchemaBlobs(t *testing.T) {
 	bytesBlob2 := &test.Blob{`{"camliVersion": 1,
 "camliType": "bytes",
 "parts": [
-   {"blobRef": "` + bytesBlob.BlobRef().String() + `", "size": 6}
+   {"bytesRef": "` + bytesBlob.BlobRef().String() + `", "size": 6}
 ]}`}
 	sto.AddBlob(bytesBlob2)
 	mustRead("bytesBlob2", bytesBlob2.BlobRef(), "foobar")
 
 	sawSchema := map[blob.Ref]bool{}
 	sawData := map[blob.Ref]bool{}
-	if err := fr.ForeachChunk(func(sref blob.Ref, p BytesPart) error {
-		sawSchema[sref] = true
+	if err := fr.ForeachChunk(func(path []blob.Ref, p BytesPart) error {
+		for _, sref := range path {
+			sawSchema[sref] = true
+		}
 		sawData[p.BlobRef] = true
-		t.Logf("chunk %v: %+v", sref, p)
 		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
-	t.Skipf("TODO(bradfitz): fix this test by changing the Foreach callback to give a schema []blob.Ref slice of the stack down to that chunk")
-	if !sawSchema[bytesBlob.BlobRef()] {
-		t.Error("didn't see bytesBlob")
+	want := []struct {
+		name string
+		tb   *test.Blob
+		m    map[blob.Ref]bool
+	}{
+		{"bytesBlob", bytesBlob, sawSchema},
+		{"bytesBlob2", bytesBlob2, sawSchema},
+		{"foo", foo, sawData},
+		{"bar", bar, sawData},
 	}
-	if !sawSchema[bytesBlob2.BlobRef()] {
-		t.Error("didn't see bytesBlob2")
-	}
-	if !sawData[foo.BlobRef()] {
-		t.Error("didn't see foo")
-	}
-	if !sawData[bar.BlobRef()] {
-		t.Error("didn't see bar")
+	for _, tt := range want {
+		if b := tt.tb.BlobRef(); !tt.m[b] {
+			t.Errorf("didn't see %s (%s)", tt.name, b)
+		}
 	}
 }
 

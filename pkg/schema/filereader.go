@@ -133,7 +133,7 @@ func (fr *FileReader) LoadAllChunks() {
 
 func (fr *FileReader) loadAllChunksSync() {
 	gate := syncutil.NewGate(20) // num readahead chunk loads at a time
-	fr.ForeachChunk(func(schema blob.Ref, p BytesPart) error {
+	fr.ForeachChunk(func(_ []blob.Ref, p BytesPart) error {
 		if !p.BlobRef.Valid() {
 			return nil
 		}
@@ -204,15 +204,22 @@ func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 
 // ForeachChunk calls fn for each chunk of fr, in order.
 //
-// The schema argument will be the "file" or "bytes" schema blob in
-// which the part is defined. The BytesPart will be the actual
-// chunk. The fn function will not be called with BytesParts
-// referencing a "BytesRef"; those are followed recursively instead.
+// The schemaPath argument will be the path from the "file" or "bytes"
+// schema blob down to possibly other "bytes" schema blobs, the final
+// one of which references the given BytesPart. The BytesPart will be
+// the actual chunk. The fn function will not be called with
+// BytesParts referencing a "BytesRef"; those are followed recursively
+// instead. The fn function must not retain or mutate schemaPath.
 //
 // If fn returns an error, iteration stops and that error is returned
 // from ForeachChunk. Other errors may be returned from ForeachChunk
 // if schema blob fetches fail.
-func (fr *FileReader) ForeachChunk(fn func(schema blob.Ref, p BytesPart) error) error {
+func (fr *FileReader) ForeachChunk(fn func(schemaPath []blob.Ref, p BytesPart) error) error {
+	return fr.foreachChunk(fn, nil)
+}
+
+func (fr *FileReader) foreachChunk(fn func([]blob.Ref, BytesPart) error, path []blob.Ref) error {
+	path = append(path, fr.ss.BlobRef)
 	for _, bp := range fr.ss.Parts {
 		if bp.BytesRef.Valid() && bp.BlobRef.Valid() {
 			return fmt.Errorf("part in %v illegally contained both a blobRef and bytesRef", fr.ss.BlobRef)
@@ -227,11 +234,11 @@ func (fr *FileReader) ForeachChunk(fn func(schema blob.Ref, p BytesPart) error) 
 				return err
 			}
 			subfr.parent = fr
-			if err := subfr.ForeachChunk(fn); err != nil {
+			if err := subfr.foreachChunk(fn, path); err != nil {
 				return err
 			}
 		} else {
-			if err := fn(fr.ss.BlobRef, *bp); err != nil {
+			if err := fn(path, *bp); err != nil {
 				return err
 			}
 		}
