@@ -22,12 +22,6 @@ type Writer struct {
 	dir    []*header
 	last   *fileWriter
 	closed bool
-
-	// LastDataOffset is the offset from the beginning of the zip
-	// file where the most recently created file's data will be
-	// (possibly be compressed). This offset is past the zip
-	// header.
-	LastDataOffset int64
 }
 
 type header struct {
@@ -38,6 +32,12 @@ type header struct {
 // NewWriter returns a new Writer writing a zip file to w.
 func NewWriter(w io.Writer) *Writer {
 	return &Writer{cw: &countWriter{w: bufio.NewWriter(w)}}
+}
+
+// Flush flushes any buffered data to the underlying writer.
+// Calling Flush is not normally necessary; calling Close is sufficient.
+func (w *Writer) Flush() error {
+	return w.cw.w.(*bufio.Writer).Flush()
 }
 
 // Close finishes writing the zip file by writing the central directory.
@@ -225,7 +225,6 @@ func (w *Writer) CreateHeader(fh *FileHeader) (io.Writer, error) {
 		return nil, err
 	}
 
-	w.LastDataOffset = w.cw.count
 	w.last = fw
 	return fw, nil
 }
