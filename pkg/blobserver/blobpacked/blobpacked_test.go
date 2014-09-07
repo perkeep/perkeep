@@ -19,6 +19,7 @@ package blobpacked
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"testing"
@@ -85,7 +86,26 @@ func TestParseMetaRow(t *testing.T) {
 	}
 }
 
-func TestPack(t *testing.T) {
+func TestPackNormal(t *testing.T) {
+	const fileSize = 5 << 20
+	fileContents := make([]byte, fileSize)
+	for i := range fileContents {
+		fileContents[i] = byte(rand.Int63())
+	}
+	const fileName = "foo.dat"
+	testPack(t, func(sto blobserver.Storage) (blob.Ref, error) {
+		return schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
+	})
+}
+
+func testPack(t *testing.T, writeFile func(sto blobserver.Storage) (blob.Ref, error)) {
+	// Figure out the logical baseline blobs we'll later expect in the packed storage.
+	logical := new(test.Fetcher)
+	if _, err := writeFile(logical); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("items in logical storage: %d", logical.NumBlobs())
+
 	small, large := new(test.Fetcher), new(test.Fetcher)
 	sto := &storage{
 		small: small,
@@ -93,18 +113,12 @@ func TestPack(t *testing.T) {
 		meta:  sorted.NewMemoryKeyValue(),
 	}
 	sto.init()
-
-	const fileSize = 5 << 20
-	fileContents := make([]byte, fileSize)
-	for i := range fileContents {
-		fileContents[i] = byte(rand.Int63())
-	}
-	const fileName = "foo.dat"
-	ref, err := schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
+	fileRef, err := writeFile(sto)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("wrote file %v", ref)
+
+	t.Logf("wrote file %v", fileRef)
 	t.Logf("items in small: %v", small.NumBlobs())
 	t.Logf("items in large: %v", large.NumBlobs())
 	if large.NumBlobs() != 1 {
@@ -167,6 +181,37 @@ func TestPack(t *testing.T) {
 		}
 	}
 	t.Logf("Manifest: %s", maniJSON)
+
+	// Verify that each chunk in the logical mapping is in the meta.
+	logBlobs := 0
+	if err := blobserver.EnumerateAll(context.New(), logical, func(sb blob.SizedRef) error {
+		v, err := sto.meta.Get(blobMetaPrefix + sb.Ref.String())
+		if err != nil {
+			return fmt.Errorf("error looking up logical blob %v in meta: %v", sb.Ref, err)
+		}
+		m, err := parseMetaRow([]byte(v))
+		if err != nil {
+			return fmt.Errorf("error parsing logical blob %v meta %q: %v", sb.Ref, v, err)
+		}
+		if !m.exists || m.size != sb.Size || m.largeRef != zipRef {
+			return fmt.Errorf("logical blob %v = %+v; want in zip", sb.Ref, m)
+		}
+		h := sb.Ref.Hash()
+		h.Write(zipBytes[m.largeOff : m.largeOff+sb.Size])
+		if !sb.Ref.HashMatches(h) {
+			t.Errorf("blob %v not found matching in zip", sb.Ref)
+		}
+		logBlobs++
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if logBlobs != logical.NumBlobs() {
+		t.Error("enumerate over logical blobs didn't work?")
+	}
+	if logical.NumBlobs() != small.NumBlobs() {
+		t.Errorf("logical blobs = %d; small blobs after = %d", logical.NumBlobs(), small.NumBlobs())
+	}
 
 	// TODO: so many more tests:
 	// -- first file is named "manifest.json" or like a blobref, in which case we should name it "data"

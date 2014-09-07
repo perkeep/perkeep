@@ -143,8 +143,8 @@ type storage struct {
 	// For wholerefs:
 	//   w:sha1-xxxx(wholeref) -> "<nbytes_total_u64> <nchunks_u32>"
 	// Then for each big nchunk of the file:
-	//   w:sha1-xxxx:0 -> "<big-blobref> <offset_u32> <length_u32>"
-	//   w:sha1-xxxx:1 -> "<big-blobref> <offset_u32> <length_u32>"
+	//   w:sha1-xxxx:0 -> "<chunk-blobref> <offset-in-whole_u64> <length_u32>"
+	//   w:sha1-xxxx:1 -> "<chunk-blobref> <offset_in-whole-u64> <length_u32>"
 	//   ...
 	meta sorted.KeyValue
 
@@ -564,7 +564,8 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 		WholePartIndex: len(pk.zips),
 	}
 	var zbuf bytes.Buffer
-	zw := zip.NewWriter(&zbuf)
+	cw := &countWriter{w: &zbuf}
+	zw := zip.NewWriter(cw)
 
 	var approxSize int // can't use zbuf.Len because zw buffers
 	var dataRefsWritten []blob.Ref
@@ -583,6 +584,8 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	fh.SetMode(0644)
 	fw, err := zw.CreateHeader(fh)
 	check(err)
+	check(zw.Flush())
+	dataStart := cw.n
 
 	chunks := pk.chunksRemain
 	truncated := false
@@ -633,29 +636,35 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	}
 	mf.DataBlobsOrigin = blob.RefFromHash(chunkWholeHash)
 
+	// zipBlobs is where a schema or data blob is relative to the beginning
+	// of the zip file.
+	var zipBlobs []BlobAndPos
+
 	var dataOffset int64
 	for _, br := range dataRefsWritten {
 		size := pk.dataSize[br]
 		mf.DataBlobs = append(mf.DataBlobs, BlobAndPos{blob.SizedRef{br, size}, dataOffset})
+
+		zipBlobs = append(zipBlobs, BlobAndPos{blob.SizedRef{br, size}, dataStart + dataOffset})
 		dataOffset += int64(size)
 	}
 
-	// TODO: if a top-level file schema has a 'bytesref' that only
-	// then references another 'bytesref' which has real 'blobref'
-	// chunks, that middle bytesref will be lost because
-	// ForeachChunk only yields the data chunks. Change
-	// ForeachChunk. Write tests.
 	for _, br := range schemaBlobs {
 		fw, err := zw.CreateHeader(&zip.FileHeader{
 			Name:   "camlistore/" + br.String() + ".json",
 			Method: zip.Store, // uncompressed
 		})
 		check(err)
+		check(zw.Flush())
 		b := pk.schemaBlob[br]
+		zipBlobs = append(zipBlobs, BlobAndPos{blob.SizedRef{br, b.Size()}, cw.n})
 		rc := b.Open()
-		_, err = io.Copy(fw, rc)
+		n, err := io.Copy(fw, rc)
 		rc.Close()
 		check(err)
+		if n != int64(b.Size()) {
+			return fmt.Errorf("failed to write all of schema blob %v: %n bytes, not wanted %d", br, n, b.Size())
+		}
 	}
 
 	// Manifest file
@@ -692,7 +701,13 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 		dataRefs: dataRefsWritten,
 	})
 
-	// TODO: record it in meta
+	bm := pk.s.meta.BeginBatch()
+	for _, zb := range zipBlobs {
+		bm.Set(blobMetaPrefix+zb.Ref.String(), fmt.Sprintf("%d l %v %d", zb.Size, zipRef, zb.Offset))
+	}
+	if err := pk.s.meta.CommitBatch(bm); err != nil {
+		return err
+	}
 
 	_ = truncated
 
@@ -740,4 +755,15 @@ type Manifest struct {
 func (mf *Manifest) approxSerializedSize() int {
 	// Conservative:
 	return 250 + len(mf.DataBlobs)*100
+}
+
+type countWriter struct {
+	w io.Writer
+	n int64
+}
+
+func (cw *countWriter) Write(p []byte) (n int, err error) {
+	n, err = cw.w.Write(p)
+	cw.n += int64(n)
+	return
 }
