@@ -435,8 +435,8 @@ func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image,
 			default:
 				return nil, format, err, false
 			}
+			return rescale(im, sw, sh), format, err, true
 		}
-		return rescale(im, sw, sh), format, err, true
 	}
 
 	// Fall-back to normal decode.
