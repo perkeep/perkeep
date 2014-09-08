@@ -170,7 +170,7 @@ func NewHost(hc HostConfig) (*Host, error) {
 			if h.uiPrefix == "" {
 				return template.HTML(br.String())
 			}
-			return template.HTML(fmt.Sprintf("<a href=\"%s?b=%s\">%s</a>", h.uiPrefix, br, br))
+			return template.HTML(fmt.Sprintf("<a href=\"%s/%s\">%s</a>", h.uiPrefix, br, br))
 		},
 	})
 	for k, impl := range importers {
