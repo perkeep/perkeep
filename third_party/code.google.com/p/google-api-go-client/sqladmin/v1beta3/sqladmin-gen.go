@@ -4,7 +4,7 @@
 //
 // Usage example:
 //
-//   import "code.google.com/p/google-api-go-client/sqladmin/v1beta3"
+//   import "camlistore.org/third_party/code.google.com/p/google-api-go-client/sqladmin/v1beta3"
 //   ...
 //   sqladminService, err := sqladmin.New(oauthHttpClient)
 package sqladmin

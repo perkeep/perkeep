@@ -4,7 +4,7 @@
 //
 // Usage example:
 //
-//   import "code.google.com/p/google-api-go-client/storage/v1"
+//   import "camlistore.org/third_party/code.google.com/p/google-api-go-client/storage/v1"
 //   ...
 //   storageService, err := storage.New(oauthHttpClient)
 package storage
