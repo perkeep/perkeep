@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -62,7 +63,7 @@ const (
 	// complete run.  Otherwise, if the importer runs to
 	// completion, this version number is recorded on the account
 	// permanode and subsequent importers can stop early.
-	runCompleteVersion = "4"
+	runCompleteVersion = "5"
 
 	// acctAttrTweetZip specifies an optional attribte for the account permanode.
 	// If set, it should be of a "file" schema blob referencing the tweets.zip
@@ -756,8 +757,8 @@ func (t *zipTweetItem) ID() string {
 func (t *apiTweetItem) CreatedAt() string { return t.CreatedAtStr }
 func (t *zipTweetItem) CreatedAt() string { return t.CreatedAtStr }
 
-func (t *apiTweetItem) Text() string { return t.TextStr }
-func (t *zipTweetItem) Text() string { return t.TextStr }
+func (t *apiTweetItem) Text() string { return html.UnescapeString(t.TextStr) }
+func (t *zipTweetItem) Text() string { return html.UnescapeString(t.TextStr) }
 
 func (t *apiTweetItem) LatLong() (lat, long float64, ok bool) {
 	return latLong(t.Geo, t.Coordinates)
