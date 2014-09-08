@@ -212,10 +212,13 @@ cam.PermanodeDetail = React.createClass({
 	},
 
 	commitChanges_: function() {
+		var changes = this.getChanges_();
+		if (changes.adds.length == 0 && changes.deletes.length == 0) {
+			return;
+		}
 		this.setState({
 			status: 'Saving...',
 		});
-		var changes = this.getChanges_();
 		var promises = changes.adds.map(function(add) {
 			return new goog.labs.Promise(this.props.serverConnection.newAddAttributeClaim.bind(this.props.serverConnection, this.props.meta.blobRef, add.name, add.value));
 		}, this).concat(changes.deletes.map(function(del) {
