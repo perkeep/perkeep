@@ -324,3 +324,51 @@ func TestDateTime(t *testing.T) {
 		t.Fatalf("Creation times differ; got %v, want: %v\n", got, want)
 	}
 }
+
+var issue513tests = []image.Rectangle{
+	// These test image bounds give a fastjpeg.Factor() result of 1 since
+	// they give dim/max == 1, but require rescaling.
+	image.Rect(0, 0, 500, 500), // The file, bug.jpeg, in issue 315 is a black 500x500.
+	image.Rect(0, 0, 1, 257),
+	image.Rect(0, 0, 1, 511),
+	image.Rect(0, 0, 2001, 1),
+	image.Rect(0, 0, 3999, 1),
+
+	// These test image bounds give either a fastjpeg.Factor() > 1 or
+	// do not require rescaling.
+	image.Rect(0, 0, 1, 256),
+	image.Rect(0, 0, 1, 512),
+	image.Rect(0, 0, 2000, 1),
+	image.Rect(0, 0, 4000, 1),
+}
+
+// Test that decode does not hand off a nil image when using
+// fastjpeg, and fastjpeg.Factor() == 1.
+// See https://camlistore.org/issue/513
+func TestIssue513(t *testing.T) {
+	opts := &DecodeOpts{MaxWidth: 2000, MaxHeight: 256}
+	for _, rect := range issue513tests {
+		buf := &bytes.Buffer{}
+		err := jpeg.Encode(buf, image.NewRGBA(rect), nil)
+		if err != nil {
+			t.Fatalf("Failed to encode test image: %v", err)
+		}
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("Unexpected panic for image size %dx%d: %v", rect.Dx(), rect.Dy(), r)
+				}
+			}()
+			_, format, err, needsRescale := decode(buf, opts, false)
+			if err != nil {
+				t.Errorf("Unexpected error for image size %dx%d: %v", rect.Dx(), rect.Dy(), err)
+			}
+			if format != "jpeg" {
+				t.Errorf("Unexpected format for image size %dx%d: got %q want %q", rect.Dx(), rect.Dy(), format, "jpeg")
+			}
+			if needsRescale != (rect.Dx() > opts.MaxWidth || rect.Dy() > opts.MaxHeight) {
+				t.Errorf("Unexpected rescale for image size %dx%d: needsRescale = %t", rect.Dx(), rect.Dy(), needsRescale)
+			}
+		}()
+	}
+}
