@@ -43,9 +43,13 @@ goog.require('cam.permanodeUtils');
 goog.require('cam.reactUtil');
 goog.require('cam.SearchSession');
 goog.require('cam.ServerConnection');
+goog.require('cam.TagsControl');
 
 cam.IndexPage = React.createClass({
 	displayName: 'IndexPage',
+
+	// TODO: flag to hide tagging functionality until development complete
+	DEBUG_TAGS: false,
 
 	HEADER_HEIGHT_: 38,
 	SEARCH_PREFIX_: {
@@ -118,6 +122,7 @@ cam.IndexPage = React.createClass({
 			dropActive: false,
 			selection: {},
 			serverStatus: null,
+			tagsControlVisible: false,
 		};
 	},
 
@@ -135,6 +140,7 @@ cam.IndexPage = React.createClass({
 		var contentSize = new goog.math.Size(this.props.availWidth, this.props.availHeight - this.HEADER_HEIGHT_);
 		return React.DOM.div({onDragEnter:this.handleDragStart_, onDragOver:this.handleDragStart_, onDrop:this.handleDrop_}, [
 			this.getHeader_(aspects, selectedAspect),
+			this.getTagsControl_(),
 			React.DOM.div(
 				{
 					className: 'cam-content-wrap',
@@ -145,6 +151,15 @@ cam.IndexPage = React.createClass({
 				aspects[selectedAspect] && aspects[selectedAspect].createContent(contentSize, backwardPiggy)
 			)
 		]);
+	},
+
+	setSelection_: function(selection) {
+		this.setState({selection: selection});
+
+		// leave contextual controls open if items are still selected
+		if (goog.object.isEmpty(selection)) {
+			this.setState({tagsControlVisible: false});
+		}
 	},
 
 	getTargetBlobref_: function(opt_url) {
@@ -264,10 +279,8 @@ cam.IndexPage = React.createClass({
 		this.updateTargetSearchSession_(targetBlobref);
 		this.updateChildSearchSession_(targetBlobref, newURL);
 		this.pruneSearchSessionCache_();
-		this.setState({
-			currentURL: newURL,
-			selection: {},
-		});
+		this.setState({currentURL: newURL});
+		this.setSelection_({});
 		return true;
 	},
 
@@ -401,7 +414,8 @@ cam.IndexPage = React.createClass({
 					this.getCreateSetWithSelectionItem_(),
 					this.getSelectAsCurrentSetItem_(),
 					this.getAddToCurrentSetItem_(),
-					this.getDeleteSelectionItem_()
+					this.getDeleteSelectionItem_(),
+					this.getTagsControlItem_()
 				].filter(function(c) { return c }),
 				timer: this.props.timer,
 				width: this.props.availWidth,
@@ -429,7 +443,7 @@ cam.IndexPage = React.createClass({
 
 	handleSelectAsCurrentSet_: function() {
 		this.currentSet_ = goog.object.getAnyKey(this.state.selection);
-		this.setState({selection:{}});
+		this.setSelection_({});
 	},
 
 	handleAddToSet_: function() {
@@ -449,7 +463,7 @@ cam.IndexPage = React.createClass({
 		var numComplete = -1;
 		var callback = function() {
 			if (++numComplete == blobrefs.length) {
-				this.setState({selection:{}});
+				this.setSelection_({});
 				this.refreshIfNecessary_();
 			}
 		}.bind(this);
@@ -462,7 +476,7 @@ cam.IndexPage = React.createClass({
 	},
 
 	handleClearSelection_: function() {
-		this.setState({selection:{}});
+		this.setSelection_({});
 	},
 
 	handleDeleteSelection_: function() {
@@ -481,7 +495,7 @@ cam.IndexPage = React.createClass({
 		blobrefs.forEach(function(br) {
 			this.props.serverConnection.newDeleteClaim(br, function() {
 				if (++numDeleted == blobrefs.length) {
-					this.setState({selection:{}});
+					this.setSelection_({});
 					this.refreshIfNecessary_();
 				}
 			}.bind(this));
@@ -588,8 +602,47 @@ cam.IndexPage = React.createClass({
 		return React.DOM.button({key:'deleteselection', onClick:this.handleDeleteSelection_}, label);
 	},
 
+	getTagsControl_: function() {
+		if (!this.state.tagsControlVisible) {
+			return null;
+		}
+
+		return cam.TagsControl(
+			{
+				selectedItems: this.state.selection,
+				searchSession: this.childSearchSession_,
+				serverConnection: this.props.serverConnection,
+				onCloseControl: this.handleTagsControlClose_
+			}
+		);
+	},
+
+	getTagsControlItem_: function() {
+		// TODO: remove when launching functionality
+		if (!this.DEBUG_TAGS) {
+			return null;
+		}
+
+		var numItems = goog.object.getCount(this.state.selection);
+		if (numItems == 0) {
+			return null;
+		}
+
+		var label = goog.string.subs('Tag (%s) items', numItems);
+
+		return React.DOM.button({key:'tagselection', onClick:this.handleTagSelection_}, label);
+	},
+
+	handleTagSelection_: function() {
+		this.setState({tagsControlVisible: !this.state.tagsControlVisible});
+	},
+
+	handleTagsControlClose_: function() {
+		this.setState({tagsControlVisible: false});
+	},
+
 	handleSelectionChange_: function(newSelection) {
-		this.setState({selection:newSelection});
+		this.setSelection_(newSelection);
 	},
 
 	getBlobItemContainer_: function() {

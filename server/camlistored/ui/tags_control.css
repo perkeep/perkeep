@@ -1,0 +1,138 @@
+/*
+Copyright 2014 The Camlistore Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+@import (less) "prefix-free.css";
+
+@color-background: #3a3a3a;
+@color-green: #44c767;
+@color-darker-green: #18ab29;
+@color-brighter-green: #5cbf2a;
+@control-width: 300px;
+
+.cam-tagscontrol-main {
+	width: @control-width;
+	margin-left: -1 * (@control-width / 2);
+	padding: 7px;
+
+	position: fixed;
+	top: 170px;
+	left: 50%;
+	z-index: 3; /* this should render above anything in the blob container */
+
+	background: @color-background;
+	box-shadow: 1px 2px 4px 2px black;
+}
+
+.cam-tagscontrol-header {
+	color: #e4e4e4;
+	font-family: 'Open Sans', sans-serif;
+	font-size: 14px;
+	margin-bottom: 5px;
+	text-align: center;
+
+	i {
+		float: right;
+		cursor: pointer;
+	}
+}
+
+.cam-addtagsinput-form {
+	margin-bottom: 5px;
+
+	input {
+		width: 100%;
+		padding: 3px;
+	}
+
+	div {
+		margin: 3px;
+		color: red;
+		font-size: 12px;
+		font-style: italic;
+	}
+}
+
+.cam-edittagscontrol-main {
+	max-height: 300px;
+	overflow-y: auto;
+}
+
+.cam-edittagscontrol-button-group {
+	margin: 3px;
+	display: inline-block;
+
+	button {
+		color: #ffffff;
+		font-size: 13px;
+		border: 1px solid @color-darker-green;
+	}
+
+	button:active:enabled {
+		position: relative;
+		top: 1px;
+	}
+}
+
+.cam-edittagscontrol-button-all-tagged {
+	background-color: @color-green;
+	padding: 2px 7px 2px 10px;
+	margin-right: 0px;
+	margin-left: 0px;
+
+	border-top-left-radius: 10px;
+	border-bottom-left-radius: 10px;
+	border-top-right-radius: 0px;
+	border-bottom-right-radius: 0px;
+
+	text-shadow: 0px 1px 0px #2f6627;
+}
+
+.cam-edittagscontrol-button-some-tagged {
+	background-color: @color-background;
+	padding: 2px 10px;
+
+	margin-right: 0px;
+	margin-left: 0px;
+
+	cursor: pointer;
+
+	border-top-left-radius: 10px;
+	border-bottom-left-radius: 10px;
+	border-top-right-radius: 0px;
+	border-bottom-right-radius: 0px;
+
+	&:hover:enabled {
+		background-color: @color-green;
+	}
+}
+
+.cam-edittagscontrol-button-remove-tag {
+	background-color: @color-green;
+	margin-left: -1px;
+	margin-right: 0px;
+	padding: 2px 10px 2px 7px;
+
+	cursor: pointer;
+
+	border-top-left-radius: 0px;
+	border-bottom-left-radius: 0px;
+	border-top-right-radius: 10px;
+	border-bottom-right-radius: 10px;
+
+	&:hover:enabled {
+		background-color: @color-brighter-green;
+	}
+}
