@@ -273,16 +273,3 @@ func uidFromProcReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader
 	}
 	panic("unreachable")
 }
-
-// Localhost returns the first address found when
-// doing a lookup of "localhost".
-func Localhost() (net.IP, error) {
-	ips, err := net.LookupIP("localhost")
-	if err != nil {
-		return nil, err
-	}
-	if len(ips) < 1 {
-		return nil, errors.New("IP lookup for localhost returned no result")
-	}
-	return ips[0], nil
-}
