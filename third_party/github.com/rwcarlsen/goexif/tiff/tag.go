@@ -12,18 +12,27 @@ import (
 	"unicode/utf8"
 )
 
-// TypeCategory specifies the Go type equivalent used to represent the basic
+// Format specifies the Go type equivalent used to represent the basic
 // tiff data types.
-type TypeCategory int
+type Format int
 
 const (
-	IntVal TypeCategory = iota
+	IntVal Format = iota
 	FloatVal
 	RatVal
 	StringVal
 	UndefVal
 	OtherVal
 )
+
+var formatNames = map[Format]string{
+	IntVal:    "int",
+	FloatVal:  "float",
+	RatVal:    "rational",
+	StringVal: "string",
+	UndefVal:  "undefined",
+	OtherVal:  "other",
+}
 
 // DataType represents the basic tiff tag data types.
 type DataType uint16
@@ -42,6 +51,21 @@ const (
 	DTFloat              = 11
 	DTDouble             = 12
 )
+
+var typeNames = map[DataType]string{
+	DTByte:      "byte",
+	DTAscii:     "ascii",
+	DTShort:     "short",
+	DTLong:      "long",
+	DTRational:  "rational",
+	DTSByte:     "signed byte",
+	DTUndefined: "undefined",
+	DTSShort:    "signed short",
+	DTSLong:     "signed long",
+	DTSRational: "signed rational",
+	DTFloat:     "float",
+	DTDouble:    "double",
+}
 
 // typeSize specifies the size in bytes of each type.
 var typeSize = map[DataType]uint32{
@@ -75,12 +99,12 @@ type Tag struct {
 	// field.
 	ValOffset uint32
 
-	order binary.ByteOrder
-
+	order     binary.ByteOrder
 	intVals   []int64
 	floatVals []float64
 	ratVals   [][]int64
 	strVal    string
+	format    Format
 }
 
 // DecodeTag parses a tiff-encoded IFD tag from r and returns a Tag object. The
@@ -127,12 +151,10 @@ func DecodeTag(r ReadAtReader, order binary.ByteOrder) (*Tag, error) {
 		t.Val = val
 	}
 
-	t.convertVals()
-
-	return t, nil
+	return t, t.convertVals()
 }
 
-func (t *Tag) convertVals() {
+func (t *Tag) convertVals() error {
 	r := bytes.NewReader(t.Val)
 
 	switch t.Type {
@@ -145,7 +167,9 @@ func (t *Tag) convertVals() {
 		t.intVals = make([]int64, int(t.Count))
 		for i := range t.intVals {
 			err := binary.Read(r, t.order, &v)
-			panicOn(err)
+			if err != nil {
+				return err
+			}
 			t.intVals[i] = int64(v)
 		}
 	case DTShort:
@@ -153,7 +177,9 @@ func (t *Tag) convertVals() {
 		t.intVals = make([]int64, int(t.Count))
 		for i := range t.intVals {
 			err := binary.Read(r, t.order, &v)
-			panicOn(err)
+			if err != nil {
+				return err
+			}
 			t.intVals[i] = int64(v)
 		}
 	case DTLong:
@@ -161,7 +187,9 @@ func (t *Tag) convertVals() {
 		t.intVals = make([]int64, int(t.Count))
 		for i := range t.intVals {
 			err := binary.Read(r, t.order, &v)
-			panicOn(err)
+			if err != nil {
+				return err
+			}
 			t.intVals[i] = int64(v)
 		}
 	case DTSByte:
@@ -169,7 +197,9 @@ func (t *Tag) convertVals() {
 		t.intVals = make([]int64, int(t.Count))
 		for i := range t.intVals {
 			err := binary.Read(r, t.order, &v)
-			panicOn(err)
+			if err != nil {
+				return err
+			}
 			t.intVals[i] = int64(v)
 		}
 	case DTSShort:
@@ -177,7 +207,9 @@ func (t *Tag) convertVals() {
 		t.intVals = make([]int64, int(t.Count))
 		for i := range t.intVals {
 			err := binary.Read(r, t.order, &v)
-			panicOn(err)
+			if err != nil {
+				return err
+			}
 			t.intVals[i] = int64(v)
 		}
 	case DTSLong:
@@ -185,7 +217,9 @@ func (t *Tag) convertVals() {
 		t.intVals = make([]int64, int(t.Count))
 		for i := range t.intVals {
 			err := binary.Read(r, t.order, &v)
-			panicOn(err)
+			if err != nil {
+				return err
+			}
 			t.intVals[i] = int64(v)
 		}
 	case DTRational:
@@ -193,9 +227,13 @@ func (t *Tag) convertVals() {
 		for i := range t.ratVals {
 			var n, d uint32
 			err := binary.Read(r, t.order, &n)
-			panicOn(err)
+			if err != nil {
+				return err
+			}
 			err = binary.Read(r, t.order, &d)
-			panicOn(err)
+			if err != nil {
+				return err
+			}
 			t.ratVals[i] = []int64{int64(n), int64(d)}
 		}
 	case DTSRational:
@@ -203,9 +241,13 @@ func (t *Tag) convertVals() {
 		for i := range t.ratVals {
 			var n, d int32
 			err := binary.Read(r, t.order, &n)
-			panicOn(err)
+			if err != nil {
+				return err
+			}
 			err = binary.Read(r, t.order, &d)
-			panicOn(err)
+			if err != nil {
+				return err
+			}
 			t.ratVals[i] = []int64{int64(n), int64(d)}
 		}
 	case DTFloat: // float32
@@ -213,7 +255,9 @@ func (t *Tag) convertVals() {
 		for i := range t.floatVals {
 			var v float32
 			err := binary.Read(r, t.order, &v)
-			panicOn(err)
+			if err != nil {
+				return err
+			}
 			t.floatVals[i] = float64(v)
 		}
 	case DTDouble:
@@ -221,103 +265,129 @@ func (t *Tag) convertVals() {
 		for i := range t.floatVals {
 			var u float64
 			err := binary.Read(r, t.order, &u)
-			panicOn(err)
+			if err != nil {
+				return err
+			}
 			t.floatVals[i] = u
 		}
 	}
-}
 
-// TypeCategory returns a value indicating which method can be called to retrieve the
-// tag's value properly typed (e.g. integer, rational, etc.).
-func (t *Tag) TypeCategory() TypeCategory {
 	switch t.Type {
 	case DTByte, DTShort, DTLong, DTSByte, DTSShort, DTSLong:
-		return IntVal
+		t.format = IntVal
 	case DTRational, DTSRational:
-		return RatVal
+		t.format = RatVal
 	case DTFloat, DTDouble:
-		return FloatVal
+		t.format = FloatVal
 	case DTAscii:
-		return StringVal
+		t.format = StringVal
 	case DTUndefined:
-		return UndefVal
+		t.format = UndefVal
+	default:
+		t.format = OtherVal
 	}
-	return OtherVal
+
+	return nil
 }
 
-// Rat returns the tag's i'th value as a rational number. It panics if the tag
-// TypeCategory is not RatVal, if the denominator is zero, or if the tag has no
-// i'th component. If a denominator could be zero, use Rat2.
-func (t *Tag) Rat(i int) *big.Rat {
-	n, d := t.Rat2(i)
-	return big.NewRat(n, d)
+// Format returns a value indicating which method can be called to retrieve the
+// tag's value properly typed (e.g. integer, rational, etc.).
+func (t *Tag) Format() Format { return t.format }
+
+func (t *Tag) typeErr(to Format) error {
+	return &wrongFmtErr{typeNames[t.Type], formatNames[to]}
+}
+
+// Rat returns the tag's i'th value as a rational number. It returns a nil and
+// an error if this tag's Format is not RatVal.  It panics for zero deminators
+// or if i is out of range.
+func (t *Tag) Rat(i int) (*big.Rat, error) {
+	n, d, err := t.Rat2(i)
+	if err != nil {
+		return nil, err
+	}
+	return big.NewRat(n, d), nil
 }
 
 // Rat2 returns the tag's i'th value as a rational number represented by a
-// numerator-denominator pair. It panics if the tag TypeCategory is not RatVal
-// or if the tag value has no i'th component.
-func (t *Tag) Rat2(i int) (num, den int64) {
-	if t.TypeCategory() != RatVal {
-		panic("Tag type category is not 'rational'")
+// numerator-denominator pair. It returns an error if the tag's Format is not
+// RatVal. It panics if i is out of range.
+func (t *Tag) Rat2(i int) (num, den int64, err error) {
+	if t.format != RatVal {
+		return 0, 0, t.typeErr(RatVal)
 	}
-	return t.ratVals[i][0], t.ratVals[i][1]
+	return t.ratVals[i][0], t.ratVals[i][1], nil
 }
 
-// Int returns the tag's i'th value as an integer. It panics if the tag
-// TypeCategory is not IntVal or if the tag value has no i'th component.
-func (t *Tag) Int(i int) int64 {
-	if t.TypeCategory() != IntVal {
-		panic("Tag type category is not 'int'")
+// Int64 returns the tag's i'th value as an integer. It returns an error if the
+// tag's Format is not IntVal. It panics if i is out of range.
+func (t *Tag) Int64(i int) (int64, error) {
+	if t.format != IntVal {
+		return 0, t.typeErr(IntVal)
 	}
-	return t.intVals[i]
+	return t.intVals[i], nil
 }
 
-// Float returns the tag's i'th value as a float. It panics if the tag
-// TypeCategory is not FloatVal or if the tag value has no i'th component.
-func (t *Tag) Float(i int) float64 {
-	if t.TypeCategory() != FloatVal {
-		panic("Tag type category is not 'float'")
+// Int returns the tag's i'th value as an integer. It returns an error if the
+// tag's Format is not IntVal. It panics if i is out of range.
+func (t *Tag) Int(i int) (int, error) {
+	if t.format != IntVal {
+		return 0, t.typeErr(IntVal)
 	}
-	return t.floatVals[i]
+	return int(t.intVals[i]), nil
 }
 
-// StringVal returns the tag's value as a string. It panics if the tag
-// TypeCategory is not StringVal.
-func (t *Tag) StringVal() string {
-	if t.TypeCategory() != StringVal {
-		panic("Tag type category is not 'ascii string'")
+// Float returns the tag's i'th value as a float. It returns an error if the
+// tag's Format is not IntVal.  It panics if i is out of range.
+func (t *Tag) Float(i int) (float64, error) {
+	if t.format != FloatVal {
+		return 0, t.typeErr(FloatVal)
 	}
-	return t.strVal
+	return t.floatVals[i], nil
+}
+
+// StringVal returns the tag's value as a string. It returns an error if the
+// tag's Format is not StringVal. It panics if i is out of range.
+func (t *Tag) StringVal() (string, error) {
+	if t.format != StringVal {
+		return "", t.typeErr(StringVal)
+	}
+	return t.strVal, nil
 }
 
 // String returns a nicely formatted version of the tag.
 func (t *Tag) String() string {
 	data, err := t.MarshalJSON()
-	panicOn(err)
-	val := string(data)
-	return fmt.Sprintf("{Id: %X, Val: %v}", t.Id, val)
+	if err != nil {
+		return "ERROR: " + err.Error()
+	}
+
+	if t.Count == 1 {
+		return strings.Trim(fmt.Sprintf("%s", data), "[]")
+	}
+	return fmt.Sprintf("%s", data)
 }
 
 func (t *Tag) MarshalJSON() ([]byte, error) {
-	f := t.TypeCategory()
-
-	switch f {
+	switch t.format {
 	case StringVal, UndefVal:
 		return nullString(t.Val), nil
 	case OtherVal:
-		panic(fmt.Sprintf("Unhandled tag type=%v", t.Type))
+		return []byte(fmt.Sprintf("unknown tag type '%v'", t.Type)), nil
 	}
 
 	rv := []string{}
 	for i := 0; i < int(t.Count); i++ {
-		switch f {
+		switch t.format {
 		case RatVal:
-			n, d := t.Rat2(i)
+			n, d, _ := t.Rat2(i)
 			rv = append(rv, fmt.Sprintf(`"%v/%v"`, n, d))
 		case FloatVal:
-			rv = append(rv, fmt.Sprintf("%v", t.Float(i)))
+			v, _ := t.Float(i)
+			rv = append(rv, fmt.Sprintf("%v", v))
 		case IntVal:
-			rv = append(rv, fmt.Sprintf("%v", t.Int(i)))
+			v, _ := t.Int(i)
+			rv = append(rv, fmt.Sprintf("%v", v))
 		}
 	}
 	return []byte(fmt.Sprintf(`[%s]`, strings.Join(rv, ","))), nil
@@ -339,8 +409,10 @@ func nullString(in []byte) []byte {
 	return []byte(`""`)
 }
 
-func panicOn(err error) {
-	if err != nil {
-		panic("unexpected error: " + err.Error())
-	}
+type wrongFmtErr struct {
+	From, To string
+}
+
+func (e *wrongFmtErr) Error() string {
+	return fmt.Sprintf("cannot convert tag type '%v' into '%v'", e.From, e.To)
 }

@@ -31,7 +31,7 @@ func (_ *canon) Parse(x *exif.Exif) error {
 		return nil
 	}
 
-	if mk.StringVal() != "Canon" {
+	if val, err := mk.StringVal(); err != nil || val != "Canon" {
 		return nil
 	}
 

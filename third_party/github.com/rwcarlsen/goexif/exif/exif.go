@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,6 +33,11 @@ type TagNotPresentError FieldName
 
 func (tag TagNotPresentError) Error() string {
 	return fmt.Sprintf("exif: tag %q is not present", string(tag))
+}
+
+func IsTagNotPresentError(err error) bool {
+	_, ok := err.(TagNotPresentError)
+	return ok
 }
 
 // Parser allows the registration of custom parsing and field loading
@@ -81,7 +88,10 @@ func loadSubDir(x *Exif, ptr FieldName, fieldMap map[uint16]FieldName) error {
 	if err != nil {
 		return nil
 	}
-	offset := tag.Int(0)
+	offset, err := tag.Int64(0)
+	if err != nil {
+		return nil
+	}
 
 	_, err = r.Seek(offset, 0)
 	if err != nil {
@@ -256,7 +266,7 @@ func (x *Exif) DateTime() (time.Time, error) {
 			return dt, err
 		}
 	}
-	if tag.TypeCategory() != tiff.StringVal {
+	if tag.Format() != tiff.StringVal {
 		return dt, errors.New("DateTime[Original] not in string format")
 	}
 	exifTimeLayout := "2006:01:02 15:04:05"
@@ -270,13 +280,103 @@ func ratFloat(num, dem int64) float64 {
 	return float64(num) / float64(dem)
 }
 
-func tagDegrees(tag *tiff.Tag) float64 {
-	return ratFloat(tag.Rat2(0)) + ratFloat(tag.Rat2(1))/60 + ratFloat(tag.Rat2(2))/3600
+// Tries to parse a Geo degrees value from a string as it was found in some
+// EXIF data.
+// Supported formats so far:
+// - "52,00000,50,00000,34,01180" ==> 52 deg 50'34.0118"
+//   Probably due to locale the comma is used as decimal mark as well as the
+//   separator of three floats (degrees, minutes, seconds)
+//   http://en.wikipedia.org/wiki/Decimal_mark#Hindu.E2.80.93Arabic_numeral_system
+// - "52.0,50.0,34.01180" ==> 52deg50'34.0118"
+// - "52,50,34.01180"     ==> 52deg50'34.0118"
+func parseTagDegreesString(s string) (float64, error) {
+	const unparsableErrorFmt = "Unknown coordinate format: %s"
+	isSplitRune := func(c rune) bool {
+		return c == ',' || c == ';'
+	}
+	parts := strings.FieldsFunc(s, isSplitRune)
+	var degrees, minutes, seconds float64
+	var err error
+	switch len(parts) {
+	case 6:
+		degrees, err = strconv.ParseFloat(parts[0]+"."+parts[1], 64)
+		if err != nil {
+			return 0.0, fmt.Errorf(unparsableErrorFmt, s)
+		}
+		minutes, err = strconv.ParseFloat(parts[2]+"."+parts[3], 64)
+		if err != nil {
+			return 0.0, fmt.Errorf(unparsableErrorFmt, s)
+		}
+		minutes = math.Copysign(minutes, degrees)
+		seconds, err = strconv.ParseFloat(parts[4]+"."+parts[5], 64)
+		if err != nil {
+			return 0.0, fmt.Errorf(unparsableErrorFmt, s)
+		}
+		seconds = math.Copysign(seconds, degrees)
+	case 3:
+		degrees, err = strconv.ParseFloat(parts[0], 64)
+		if err != nil {
+			return 0.0, fmt.Errorf(unparsableErrorFmt, s)
+		}
+		minutes, err = strconv.ParseFloat(parts[1], 64)
+		if err != nil {
+			return 0.0, fmt.Errorf(unparsableErrorFmt, s)
+		}
+		minutes = math.Copysign(minutes, degrees)
+		seconds, err = strconv.ParseFloat(parts[2], 64)
+		if err != nil {
+			return 0.0, fmt.Errorf(unparsableErrorFmt, s)
+		}
+		seconds = math.Copysign(seconds, degrees)
+	default:
+		return 0.0, fmt.Errorf(unparsableErrorFmt, s)
+	}
+	return degrees + minutes/60.0 + seconds/3600.0, nil
+}
+
+func parse3Rat2(tag *tiff.Tag) ([3]float64, error) {
+	v := [3]float64{}
+	for i := range v {
+		num, den, err := tag.Rat2(i)
+		if err != nil {
+			return v, err
+		}
+		v[i] = ratFloat(num, den)
+		if tag.Count < uint32(i+2) {
+			break
+		}
+	}
+	return v, nil
+}
+
+func tagDegrees(tag *tiff.Tag) (float64, error) {
+	switch tag.Format() {
+	case tiff.RatVal:
+		// The usual case, according to the Exif spec
+		// (http://www.kodak.com/global/plugins/acrobat/en/service/digCam/exifStandard2.pdf,
+		// sec 4.6.6, p. 52 et seq.)
+		v, err := parse3Rat2(tag)
+		if err != nil {
+			return 0.0, err
+		}
+		return v[0] + v[1]/60 + v[2]/3600.0, nil
+	case tiff.StringVal:
+		// Encountered this weird case with a panorama picture taken with a HTC phone
+		s, err := tag.StringVal()
+		if err != nil {
+			return 0.0, err
+		}
+		return parseTagDegreesString(s)
+	default:
+		// don't know how to parse value, give up
+		return 0.0, fmt.Errorf("Malformed EXIF Tag Degrees")
+	}
 }
 
 // LatLong returns the latitude and longitude of the photo and
 // whether it was present.
-func (x *Exif) LatLong() (lat, long float64, ok bool) {
+func (x *Exif) LatLong() (lat, long float64, err error) {
+	// All calls of x.Get might return an TagNotPresentError
 	longTag, err := x.Get(FieldName("GPSLongitude"))
 	if err != nil {
 		return
@@ -293,15 +393,25 @@ func (x *Exif) LatLong() (lat, long float64, ok bool) {
 	if err != nil {
 		return
 	}
-	long = tagDegrees(longTag)
-	lat = tagDegrees(latTag)
-	if ewTag.StringVal() == "W" {
+	if long, err = tagDegrees(longTag); err != nil {
+		return 0, 0, fmt.Errorf("Cannot parse longitude: %v", err)
+	}
+	if lat, err = tagDegrees(latTag); err != nil {
+		return 0, 0, fmt.Errorf("Cannot parse latitude: %v", err)
+	}
+	ew, err := ewTag.StringVal()
+	if err == nil && ew == "W" {
 		long *= -1.0
+	} else if err != nil {
+		return 0, 0, fmt.Errorf("Cannot parse longitude: %v", err)
 	}
-	if nsTag.StringVal() == "S" {
+	ns, err := nsTag.StringVal()
+	if err == nil && ns == "S" {
 		lat *= -1.0
+	} else if err != nil {
+		return 0, 0, fmt.Errorf("Cannot parse longitude: %v", err)
 	}
-	return lat, long, true
+	return lat, long, nil
 }
 
 // String returns a pretty text representation of the decoded exif data.
@@ -320,11 +430,21 @@ func (x *Exif) JpegThumbnail() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	start, err := offset.Int(0)
+	if err != nil {
+		return nil, err
+	}
+
 	length, err := x.Get(ThumbJPEGInterchangeFormatLength)
 	if err != nil {
 		return nil, err
 	}
-	return x.Raw[offset.Int(0) : offset.Int(0)+length.Int(0)], nil
+	l, err := length.Int(0)
+	if err != nil {
+		return nil, err
+	}
+
+	return x.Raw[start : start+l], nil
 }
 
 // MarshalJson implements the encoding/json.Marshaler interface providing output of

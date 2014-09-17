@@ -434,7 +434,7 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 }
 
 func tagFormatString(tag *tiff.Tag) string {
-	switch tag.TypeCategory() {
+	switch tag.Format() {
 	case tiff.IntVal:
 		return "int"
 	case tiff.RatVal:
@@ -473,13 +473,17 @@ func indexEXIF(wholeRef blob.Ref, header []byte, mm *mutationMap) {
 		}
 		key := keyEXIFTag.Key(wholeRef, fmt.Sprintf("%04x", tag.Id))
 		numComp := int(tag.Count)
-		if tag.TypeCategory() == tiff.StringVal {
+		if tag.Format() == tiff.StringVal {
 			numComp = 1
 		}
 		var val bytes.Buffer
 		val.WriteString(keyEXIFTag.Val(tagFmt, numComp, ""))
-		if tag.TypeCategory() == tiff.StringVal {
-			str := tag.StringVal()
+		if tag.Format() == tiff.StringVal {
+			str, err := tag.StringVal()
+			if err != nil {
+				log.Printf("Invalid EXIF string data: %v", err)
+				return nil
+			}
 			if containsUnsafeRawStrByte(str) {
 				val.WriteString(urle(str))
 			} else {
@@ -492,12 +496,26 @@ func indexEXIF(wholeRef blob.Ref, header []byte, mm *mutationMap) {
 				}
 				switch tagFmt {
 				case "int":
-					fmt.Fprintf(&val, "%d", tag.Int(i))
+					v, err := tag.Int(i)
+					if err != nil {
+						log.Printf("Invalid EXIF int data: %v", err)
+						return nil
+					}
+					fmt.Fprintf(&val, "%d", v)
 				case "rat":
-					n, d := tag.Rat2(i)
+					n, d, err := tag.Rat2(i)
+					if err != nil {
+						log.Printf("Invalid EXIF rat data: %v", err)
+						return nil
+					}
 					fmt.Fprintf(&val, "%d/%d", n, d)
 				case "float":
-					fmt.Fprintf(&val, "%v", tag.Float(i))
+					v, err := tag.Float(i)
+					if err != nil {
+						log.Printf("Invalid EXIF float data: %v", err)
+						return nil
+					}
+					fmt.Fprintf(&val, "%v", v)
 				default:
 					panic("shouldn't get here")
 				}
@@ -508,8 +526,10 @@ func indexEXIF(wholeRef blob.Ref, header []byte, mm *mutationMap) {
 		return nil
 	}))
 
-	if lat, long, ok := ex.LatLong(); ok {
+	if lat, long, err := ex.LatLong(); err == nil {
 		mm.Set(keyEXIFGPS.Key(wholeRef), keyEXIFGPS.Val(fmt.Sprint(lat), fmt.Sprint(long)))
+	} else if !exif.IsTagNotPresentError(err) {
+		log.Printf("Invalid EXIF GPS data: %v", err)
 	}
 }
 
