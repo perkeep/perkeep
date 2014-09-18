@@ -44,6 +44,8 @@ type Opts struct {
 	// Retries specifies how long to wait to retry after each failure
 	// that may be an eventual consistency issue (enumerate, stat), etc.
 	Retries []time.Duration
+
+	SkipEnum bool // for when EnumerateBlobs is not implemented
 }
 
 func Test(t *testing.T, fn func(*testing.T) (sto blobserver.Storage, cleanup func())) {
@@ -299,6 +301,10 @@ func CheckEnumerate(sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts .
 }
 
 func (r *run) testEnumerate(wantUnsorted []blob.SizedRef, opts ...interface{}) {
+	if r.opt.SkipEnum {
+		r.t.Log("Skipping enum test")
+		return
+	}
 	if err := r.withRetries(func() error {
 		return CheckEnumerate(r.sto, wantUnsorted, opts...)
 	}); err != nil {
