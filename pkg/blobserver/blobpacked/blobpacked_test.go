@@ -214,7 +214,6 @@ func testPack(t *testing.T, writeFile func(sto blobserver.Storage) (blob.Ref, er
 	}
 
 	// TODO: so many more tests:
-	// -- first file is named "manifest.json" or like a blobref, in which case we should name it "data"
 	// -- verify deleting from the source
 	// -- verify we can reconstruct it all from the zip
 	// -- verify the meta before & after
