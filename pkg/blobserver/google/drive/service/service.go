@@ -60,12 +60,12 @@ func New(transport *oauth.Transport, parentId string) (*DriveService, error) {
 	return service, err
 }
 
-// Get retrieves a file with its title equal to the provided id and a child of
+// Get retrieves a file with its title equal to the provided title and a child of
 // the parentId as given to New. If not found, os.ErrNotExist is returned.
-func (s *DriveService) Get(id string) (*client.File, error) {
+func (s *DriveService) Get(title string) (*client.File, error) {
 	req := s.apiservice.Files.List()
 	// TODO: use field selectors
-	query := fmt.Sprintf("'%s' in parents and title = '%s'", s.parentId, id)
+	query := fmt.Sprintf("'%s' in parents and title = '%s'", s.parentId, title)
 	req.Q(query)
 	files, err := req.Do()
 	if err != nil {
@@ -98,12 +98,14 @@ func (s *DriveService) List(pageToken string, limit int) (files []*client.File, 
 }
 
 // Upsert inserts a file, or updates if such a file exists.
-func (s *DriveService) Upsert(id string, data io.Reader) (file *client.File, err error) {
-	if file, err = s.Get(id); err != nil {
-		return
+func (s *DriveService) Upsert(title string, data io.Reader) (file *client.File, err error) {
+	if file, err = s.Get(title); err != nil {
+		if !os.IsNotExist(err) {
+			return
+		}
 	}
 	if file == nil {
-		file = &client.File{Title: id}
+		file = &client.File{Title: title}
 		file.Parents = []*client.ParentReference{
 			&client.ParentReference{Id: s.parentId},
 		}
@@ -118,8 +120,8 @@ func (s *DriveService) Upsert(id string, data io.Reader) (file *client.File, err
 var errNoDownload = errors.New("file can not be downloaded directly (conversion needed?)")
 
 // Fetch retrieves the metadata and contents of a file.
-func (s *DriveService) Fetch(id string) (body io.ReadCloser, size uint32, err error) {
-	file, err := s.Get(id)
+func (s *DriveService) Fetch(title string) (body io.ReadCloser, size uint32, err error) {
+	file, err := s.Get(title)
 	if err != nil {
 		return
 	}
@@ -150,16 +152,23 @@ func (s *DriveService) Fetch(id string) (body io.ReadCloser, size uint32, err er
 
 // Stat retrieves file metadata and returns
 // file size. Returns error if file is not found.
-func (s *DriveService) Stat(id string) (int64, error) {
-	file, err := s.Get(id)
+func (s *DriveService) Stat(title string) (int64, error) {
+	file, err := s.Get(title)
 	if err != nil || file == nil {
 		return 0, err
 	}
 	return file.FileSize, err
 }
 
-// Trash trashes an existing file.
-func (s *DriveService) Trash(id string) (err error) {
-	_, err = s.apiservice.Files.Trash(id).Do()
+// Trash trashes the file with the given title.
+func (s *DriveService) Trash(title string) (err error) {
+	file, err := s.Get(title)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	_, err = s.apiservice.Files.Trash(file.Id).Do()
 	return
 }
