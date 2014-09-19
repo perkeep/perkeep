@@ -81,6 +81,7 @@ func (s *storage) reindexOne(ctx *context.Context, index sorted.KeyValue, overwr
 
 	// TODO(tgulacsi): proper verbose from context
 	verbose := camliDebug
+	misses := make(map[blob.Ref]string, 8)
 	err := s.walkPack(verbose, packID,
 		func(packID int, ref blob.Ref, offset int64, size uint32) error {
 			if !ref.Valid() {
@@ -92,23 +93,36 @@ func (s *storage) reindexOne(ctx *context.Context, index sorted.KeyValue, overwr
 			meta := blobMeta{packID, offset, size}.String()
 			if overwrite && batch != nil {
 				batch.Set(ref.String(), meta)
-			} else {
-				if old, err := index.Get(ref.String()); err != nil {
+				return nil
+			}
+			if _, ok := misses[ref]; ok { // maybe this is the last of this blob.
+				delete(misses, ref)
+			}
+			if old, err := index.Get(ref.String()); err != nil {
+				allOk = false
+				if err == sorted.ErrNotFound {
+					log.Println(ref.String() + ": cannot find in index!")
+				} else {
+					log.Println(ref.String()+": error getting from index: ", err.Error())
+				}
+			} else if old != meta {
+				if old > meta {
+					misses[ref] = meta
+					log.Printf("WARN: possible duplicate blob %s", ref.String())
+				} else {
 					allOk = false
-					if err == sorted.ErrNotFound {
-						log.Println(ref.String() + ": cannot find in index!")
-					} else {
-						log.Println(ref.String()+": error getting from index: ", err.Error())
-					}
-				} else if old != meta {
-					allOk = false
-					log.Printf("%s: index mismatch - index=%s data=%s", ref.String(), old, meta)
+					log.Printf("ERROR: index mismatch for %s - index=%s, meta=%s!", ref.String(), old, meta)
 				}
 			}
 			return nil
 		})
 	if err != nil {
 		return err
+	}
+
+	for ref, meta := range misses {
+		log.Printf("ERROR: index mismatch for %s (%s)!", ref.String(), meta)
+		allOk = false
 	}
 
 	if overwrite && batch != nil {

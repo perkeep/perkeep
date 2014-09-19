@@ -17,6 +17,7 @@ limitations under the License.
 package diskpacked
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -27,6 +28,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/test"
 )
 
@@ -195,4 +197,58 @@ func TestDelete(t *testing.T) {
 			}
 		}
 	}
+}
+
+var dummyErr = errors.New("dummy fail")
+
+func TestDoubleReceiveFailingIndex(t *testing.T) {
+	sto, cleanup := newTempDiskpacked(t)
+	defer cleanup()
+
+	sto.(*storage).index = &failingIndex{KeyValue: sto.(*storage).index}
+
+	size := func(n int) int64 {
+		path := sto.(*storage).filename(n)
+		fi, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return fi.Size()
+	}
+
+	const blobSize = 5 << 10
+	b := &test.Blob{Contents: strings.Repeat("a", blobSize)}
+	br := b.BlobRef()
+
+	_, err := blobserver.Receive(sto, br, b.Reader())
+	if err != nil {
+		if err != dummyErr {
+			t.Fatal(err)
+		}
+		t.Logf("dummy fail")
+	}
+	if size(0) >= blobSize {
+		t.Fatalf("size = %d; want zero (at most %d)", size(0), blobSize-1)
+	}
+
+	_, err = blobserver.Receive(sto, br, b.Reader())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if size(0) < blobSize {
+		t.Fatalf("size = %d; want at least %d", size(0), blobSize)
+	}
+}
+
+type failingIndex struct {
+	sorted.KeyValue
+	setCount int
+}
+
+func (idx *failingIndex) Set(key string, value string) error {
+	idx.setCount++
+	if idx.setCount == 1 { // fail the first time
+		return dummyErr
+	}
+	return idx.KeyValue.Set(key, value)
 }
