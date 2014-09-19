@@ -357,12 +357,16 @@ func DecodeConfig(r io.Reader) (Config, error) {
 		if err != nil {
 			imageDebug(`No "Orientation" tag in EXIF.`)
 		} else {
-			orient := tag.Int(0)
-			switch orient {
-			// those are the orientations that require
-			// a rotation of ±90
-			case leftSideTop, rightSideTop, rightSideBottom, leftSideBottom:
-				swapDimensions = true
+			orient, err := tag.Int(0)
+			if err == nil {
+				switch orient {
+				// those are the orientations that require
+				// a rotation of ±90
+				case leftSideTop, rightSideTop, rightSideBottom, leftSideBottom:
+					swapDimensions = true
+				}
+			} else {
+				imageDebug(fmt.Sprintf("EXIF Error: %v", err))
 			}
 		}
 	}
@@ -435,8 +439,8 @@ func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image,
 			default:
 				return nil, format, err, false
 			}
+			return rescale(im, sw, sh), format, err, true
 		}
-		return rescale(im, sw, sh), format, err, true
 	}
 
 	// Fall-back to normal decode.
@@ -464,7 +468,11 @@ func exifOrientation(r io.Reader) (int, FlipDirection) {
 		imageDebug(`No "Orientation" tag in EXIF; will not rotate or flip.`)
 		return 0, 0
 	}
-	orient := tag.Int(0)
+	orient, err := tag.Int(0)
+	if err != nil {
+		imageDebug(fmt.Sprintf("EXIF error: %v", err))
+		return 0, 0
+	}
 	switch orient {
 	case topLeftSide:
 		// do nothing

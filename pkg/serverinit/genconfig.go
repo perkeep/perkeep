@@ -298,6 +298,15 @@ func (b *lowBuilder) sortedStorage(sortedType string) (map[string]interface{}, e
 	panic("indexArgs called when not in index mode")
 }
 
+func (b *lowBuilder) thatQueueUnlessMemory(thatQueue map[string]interface{}) (queue map[string]interface{}) {
+	if b.high.MemoryStorage {
+		return map[string]interface{}{
+			"type": "memory",
+		}
+	}
+	return thatQueue
+}
+
 func (b *lowBuilder) addS3Config(s3 string) error {
 	f := strings.SplitN(s3, ":", 4)
 	if len(f) < 3 {
@@ -331,16 +340,17 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 			"path": filepath.Join(tempDir(), "camli-cache"),
 		})
 	} else {
-		if b.high.BlobPath == "" {
+		if b.high.BlobPath == "" && !b.high.MemoryStorage {
 			panic("unexpected empty blobpath with sync-to-s3")
 		}
 		b.addPrefix("/sync-to-s3/", "sync", args{
 			"from": "/bs/",
 			"to":   s3Prefix,
-			"queue": map[string]interface{}{
-				"type": "kv",
-				"file": filepath.Join(b.high.BlobPath, "sync-to-s3-queue.kv"),
-			},
+			"queue": b.thatQueueUnlessMemory(
+				map[string]interface{}{
+					"type": "kv",
+					"file": filepath.Join(b.high.BlobPath, "sync-to-s3-queue.kv"),
+				}),
 		})
 	}
 	return nil
@@ -377,11 +387,11 @@ func (b *lowBuilder) addGoogleDriveConfig(v string) error {
 		b.addPrefix("/sync-to-googledrive/", "sync", args{
 			"from": "/bs/",
 			"to":   prefix,
-			"queue": map[string]interface{}{
-				"type": "kv",
-				"file": filepath.Join(b.high.BlobPath,
-					"sync-to-googledrive-queue.kv"),
-			},
+			"queue": b.thatQueueUnlessMemory(
+				map[string]interface{}{
+					"type": "kv",
+					"file": filepath.Join(b.high.BlobPath, "sync-to-googledrive-queue.kv"),
+				}),
 		})
 	}
 
@@ -432,11 +442,11 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 		b.addPrefix("/sync-to-googlecloudstorage/", "sync", args{
 			"from": "/bs/",
 			"to":   gsPrefix,
-			"queue": map[string]interface{}{
-				"type": "kv",
-				"file": filepath.Join(b.high.BlobPath,
-					"sync-to-googlecloud-queue.kv"),
-			},
+			"queue": b.thatQueueUnlessMemory(
+				map[string]interface{}{
+					"type": "kv",
+					"file": filepath.Join(b.high.BlobPath, "sync-to-googlecloud-queue.kv"),
+				}),
 		})
 	}
 	return nil
@@ -473,7 +483,7 @@ func (b *lowBuilder) syncToIndexArgs() (map[string]interface{}, error) {
 	// TODO: currently when using s3, the index must be
 	// sqlite or kvfile, since only through one of those
 	// can we get a directory.
-	if b.high.BlobPath == "" && b.indexFileDir() == "" {
+	if !b.high.MemoryStorage && b.high.BlobPath == "" && b.indexFileDir() == "" {
 		// We don't actually have a working sync handler, but we keep a stub registered
 		// so it can be referred to from other places.
 		// See http://camlistore.org/issue/201
@@ -489,10 +499,11 @@ func (b *lowBuilder) syncToIndexArgs() (map[string]interface{}, error) {
 	if b.high.SQLite != "" {
 		typ = "sqlite"
 	}
-	a["queue"] = map[string]interface{}{
-		"type": typ,
-		"file": filepath.Join(dir, "sync-to-index-queue."+typ),
-	}
+	a["queue"] = b.thatQueueUnlessMemory(
+		map[string]interface{}{
+			"type": typ,
+			"file": filepath.Join(dir, "sync-to-index-queue."+typ),
+		})
 
 	return a, nil
 }
@@ -558,6 +569,9 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 		b.addPrefix("/cache/", "storage-"+storageType, args{
 			"path": filepath.Join(b.high.BlobPath, "/cache"),
 		})
+	} else if b.high.MemoryStorage {
+		b.addPrefix("/bs/", "storage-memory", nil)
+		b.addPrefix("/cache/", "storage-memory", nil)
 	}
 
 	if b.runIndex() {
@@ -646,12 +660,14 @@ func (b *lowBuilder) build() (*Config, error) {
 
 	nolocaldisk := conf.BlobPath == ""
 	if nolocaldisk {
-		if conf.S3 == "" && conf.GoogleCloudStorage == "" {
-			return nil, errors.New("You need at least one of blobPath (for localdisk) or s3 or googlecloudstorage configured for a blobserver.")
+		if !conf.MemoryStorage && conf.S3 == "" && conf.GoogleCloudStorage == "" {
+			return nil, errors.New("Unless memoryStorage is set, you must specify at least one storage option for your blobserver (blobPath (for localdisk), s3, googlecloudstorage).")
 		}
-		if conf.S3 != "" && conf.GoogleCloudStorage != "" {
+		if !conf.MemoryStorage && conf.S3 != "" && conf.GoogleCloudStorage != "" {
 			return nil, errors.New("Using S3 as a primary storage and Google Cloud Storage as a mirror is not supported for now.")
 		}
+	} else if conf.MemoryStorage {
+		return nil, errors.New("memoryStorage and blobPath are mutually exclusive.")
 	}
 
 	if conf.ShareHandler && conf.ShareHandlerPath == "" {
@@ -663,6 +679,9 @@ func (b *lowBuilder) build() (*Config, error) {
 	}
 
 	var cacheDir string
+	if conf.MemoryStorage {
+		noMkdir = true
+	}
 	if nolocaldisk {
 		// Whether camlistored is run from EC2 or not, we use
 		// a temp dir as the cache when primary storage is S3.

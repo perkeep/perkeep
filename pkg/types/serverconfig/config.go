@@ -42,6 +42,7 @@ type Config struct {
 	OwnerName  string `json:"ownerName,omitempty"`
 
 	// Blob storage.
+	MemoryStorage      bool   `json:"memoryStorage,omitempty"`      // do not store anything (blobs or queues) on localdisk, use memory instead.
 	BlobPath           string `json:"blobPath,omitempty"`           // path to the directory containing the blobs.
 	PackBlobs          bool   `json:"packBlobs,omitempty"`          // use diskpacked instead of the default filestorage.
 	S3                 string `json:"s3,omitempty"`                 // Amazon S3 credentials: access_key_id:secret_access_key:bucket[:hostname].
