@@ -148,8 +148,18 @@ type storage struct {
 	//   ...
 	meta sorted.KeyValue
 
+	// assumeSmall determines whether a meta lookup failure falls
+	// back to assuming a blob might exist on the small
+	// storage. This is useful for lazy migrations to
+	// blobpacked. This also affects enumerate.
+	assumeSmall bool
+
 	packGate *syncutil.Gate
 }
+
+var (
+	_ blobserver.BlobStreamer = (*storage)(nil)
+)
 
 func (s *storage) String() string {
 	return fmt.Sprintf("\"blobpacked\" storage")
@@ -167,6 +177,7 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 		smallPrefix = conf.RequiredString("smallBlobs")
 		largePrefix = conf.RequiredString("largeBlobs")
 		metaConf    = conf.RequiredObject("metaIndex")
+		assumeSmall = conf.OptionalBool("assumeSmall", true)
 	)
 	if err := conf.Validate(); err != nil {
 		return nil, err
@@ -189,9 +200,10 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 		return nil, fmt.Errorf("failed to setup blobpacked metaIndex: %v", err)
 	}
 	sto := &storage{
-		small: small,
-		large: largeSubber,
-		meta:  meta,
+		small:       small,
+		large:       largeSubber,
+		meta:        meta,
+		assumeSmall: assumeSmall,
 	}
 	sto.init()
 	return sto, nil
@@ -335,6 +347,9 @@ func (s *storage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
 		return nil, 0, err
 	}
 	if !m.exists {
+		if s.assumeSmall {
+			return s.fallbackFetch(br)
+		}
 		return nil, 0, os.ErrNotExist
 	}
 	if !m.largeRef.Valid() {
@@ -345,6 +360,17 @@ func (s *storage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
 		return nil, 0, err
 	}
 	return rc, m.size, nil
+}
+
+func (s *storage) fallbackFetch(br blob.Ref) (io.ReadCloser, uint32, error) {
+	rc, size, err := s.small.Fetch(br)
+	if err != nil {
+		return nil, 0, err
+	}
+	// TODO: populate meta? might just be redundant information, with both
+	// having an index. perhaps we should just always assumeSmall and remove
+	// the "s nnnnn" meta rows altogether.
+	return rc, size, err
 }
 
 func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
@@ -370,6 +396,7 @@ func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (err er
 }
 
 func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
+	// TODO: merged numerate if s.assumeSmall
 	defer close(dest)
 	t := s.meta.Find(blobMetaPrefix+after, blobMetaPrefixLimit)
 	defer func() {
@@ -397,6 +424,17 @@ func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef
 		dest <- blob.SizedRef{Ref: br, Size: size}
 	}
 	return nil
+}
+
+func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string, limitBytes int64) (nextContinueToken string, err error) {
+	defer close(dest)
+	// Continuation token is:
+	// "s*" if we're in the small blobs,
+	// "l*" if we're in the large blobs,
+	// First it streams from small (if available, else enumerates)
+	// Then it streams from large (if available, else enumerates),
+	// and for each large, streams the contents of the zips.
+	panic("TODO")
 }
 
 func (s *storage) blobSource() blob.Fetcher {
