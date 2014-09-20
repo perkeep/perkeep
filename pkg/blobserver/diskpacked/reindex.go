@@ -24,22 +24,24 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/context"
+	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/sorted/kvfile"
+
+	// possible index formats
+	_ "camlistore.org/pkg/sorted/kvfile"
 )
 
 var camliDebug, _ = strconv.ParseBool(os.Getenv("CAMLI_DEBUG"))
 
 // Reindex rewrites the index files of the diskpacked .pack files
-func Reindex(root string, overwrite bool) (err error) {
+func Reindex(root string, overwrite bool, indexConf jsonconfig.Obj) (err error) {
 	// there is newStorage, but that may open a file for writing
 	var s = &storage{root: root}
-	index, err := kvfile.NewStorage(filepath.Join(root, indexKV))
+	index, err := newIndex(root, indexConf)
 	if err != nil {
 		return err
 	}

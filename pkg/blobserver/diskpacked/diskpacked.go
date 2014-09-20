@@ -16,7 +16,9 @@ limitations under the License.
 
 /*
 Package diskpacked registers the "diskpacked" blobserver storage type,
-storing blobs in sequence of monolithic data files indexed by a kvfile index.
+storing blobs packed together into monolithic data files
+with an index listing the sizes and offsets of the little blobs
+within the large files.
 
 Example low-level config:
 
@@ -51,7 +53,6 @@ import (
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/sorted/kvfile"
 	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types"
 	"camlistore.org/third_party/github.com/camlistore/lock"
@@ -104,11 +105,12 @@ var (
 	writeTotVar = expvar.NewMap("diskpacked-total-write-bytes")
 )
 
-const indexKV = "index.kv"
+const defaultIndexType = "kv"
+const defaultIndexFile = "index." + defaultIndexType
 
 // IsDir reports whether dir is a diskpacked directory.
 func IsDir(dir string) (bool, error) {
-	_, err := os.Stat(filepath.Join(dir, indexKV))
+	_, err := os.Stat(filepath.Join(dir, defaultIndexFile))
 	if os.IsNotExist(err) {
 		return false, nil
 	}
@@ -127,6 +129,17 @@ func New(dir string) (blobserver.Storage, error) {
 	return newStorage(dir, maxSize, nil)
 }
 
+// newIndex returns a new sorted.KeyValue, using either the given config, or the default.
+func newIndex(root string, indexConf jsonconfig.Obj) (sorted.KeyValue, error) {
+	if len(indexConf) > 0 {
+		return sorted.NewKeyValue(indexConf)
+	}
+	return sorted.NewKeyValue(jsonconfig.Obj{
+		"type": defaultIndexType,
+		"file": filepath.Join(root, defaultIndexFile),
+	})
+}
+
 // newStorage returns a new storage in path root with the given maxFileSize,
 // or defaultMaxFileSize (512MB) if <= 0
 func newStorage(root string, maxFileSize int64, indexConf jsonconfig.Obj) (s *storage, err error) {
@@ -140,12 +153,7 @@ func newStorage(root string, maxFileSize int64, indexConf jsonconfig.Obj) (s *st
 	if !fi.IsDir() {
 		return nil, fmt.Errorf("storage root %q exists but is not a directory.", root)
 	}
-	var index sorted.KeyValue
-	if len(indexConf) > 0 {
-		index, err = sorted.NewKeyValue(indexConf)
-	} else {
-		index, err = kvfile.NewStorage(filepath.Join(root, indexKV))
-	}
+	index, err := newIndex(root, indexConf)
 	if err != nil {
 		return nil, err
 	}

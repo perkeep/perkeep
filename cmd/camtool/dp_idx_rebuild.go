@@ -39,7 +39,7 @@ func init() {
 		func(flags *flag.FlagSet) cmdmain.CommandRunner {
 			cmd := new(reindexdpCmd)
 			flags.BoolVar(&cmd.overwrite, "overwrite", false,
-				"Whether to overwrite the existing index.kv. If false, only check.")
+				"Whether to overwrite the existing index. If false, only check.")
 			return cmd
 		})
 }
@@ -56,57 +56,67 @@ func (c *reindexdpCmd) Usage() {
 
 func (c *reindexdpCmd) RunCommand(args []string) error {
 	var path string
-	switch {
-	case len(args) == 0:
-		cfg, err := serverinit.LoadFile(osutil.UserServerConfigPath())
-		if err != nil {
-			return err
-		}
-		prefixes, ok := cfg.Obj["prefixes"].(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("No 'prefixes' object in low-level (or converted) config file %s", osutil.UserServerConfigPath())
-		}
-		paths := []string{}
-		for prefix, vei := range prefixes {
-			pmap, ok := vei.(map[string]interface{})
-			if !ok {
-				log.Printf("prefix %q value is a %T, not an object", prefix, vei)
-				continue
-			}
-			pconf := jsonconfig.Obj(pmap)
-			handlerType := pconf.RequiredString("handler")
-			handlerArgs := pconf.OptionalObject("handlerArgs")
-			// no pconf.Validate, as this is a recover tool
-			if handlerType != "storage-diskpacked" {
-				continue
-			}
-			if handlerArgs == nil {
-				log.Printf("no handlerArgs for %q", prefix)
-				continue
-			}
-			aconf := jsonconfig.Obj(handlerArgs)
-			path = aconf.RequiredString("path")
-			// no aconv.Validate, as this is a recover tool
-			if path != "" {
-				paths = append(paths, path)
-			}
-		}
-		if len(paths) == 0 {
-			return fmt.Errorf("Server config file %s doesn't specify a disk-packed storage handler.",
-				osutil.UserServerConfigPath())
-		}
-		if len(paths) > 1 {
-			return fmt.Errorf("Ambiguity. Server config file %s d specify more than 1 disk-packed storage handler. Please specify one of: %v", osutil.UserServerConfigPath(), paths)
-		}
-		path = paths[0]
-	case len(args) == 1:
+	var indexConf jsonconfig.Obj
+
+	switch len(args) {
+	case 0:
+	case 1:
 		path = args[0]
 	default:
 		return errors.New("More than 1 argument not allowed")
 	}
+	cfg, err := serverinit.LoadFile(osutil.UserServerConfigPath())
+	if err != nil {
+		return err
+	}
+	prefixes, ok := cfg.Obj["prefixes"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("No 'prefixes' object in low-level (or converted) config file %s", osutil.UserServerConfigPath())
+	}
+	paths := []string{}
+	for prefix, vei := range prefixes {
+		pmap, ok := vei.(map[string]interface{})
+		if !ok {
+			log.Printf("prefix %q value is a %T, not an object", prefix, vei)
+			continue
+		}
+		pconf := jsonconfig.Obj(pmap)
+		handlerType := pconf.RequiredString("handler")
+		handlerArgs := pconf.OptionalObject("handlerArgs")
+		// no pconf.Validate, as this is a recover tool
+		if handlerType != "storage-diskpacked" {
+			continue
+		}
+		log.Printf("handlerArgs of %q: %v", prefix, handlerArgs)
+		if handlerArgs == nil {
+			log.Printf("no handlerArgs for %q", prefix)
+			continue
+		}
+		aconf := jsonconfig.Obj(handlerArgs)
+		apath := aconf.RequiredString("path")
+		// no aconv.Validate, as this is a recover tool
+		if apath == "" {
+			log.Printf("path is missing for %q", prefix)
+			continue
+		}
+		if path != "" && path != apath {
+			continue
+		}
+		paths = append(paths, apath)
+		indexConf = jsonconfig.Obj(aconf["metaIndex"].(map[string]interface{}))
+		log.Printf("indexConf: %v", indexConf)
+	}
+	if len(paths) == 0 {
+		return fmt.Errorf("Server config file %s doesn't specify a disk-packed storage handler.",
+			osutil.UserServerConfigPath())
+	}
+	if len(paths) > 1 {
+		return fmt.Errorf("Ambiguity. Server config file %s d specify more than 1 disk-packed storage handler. Please specify one of: %v", osutil.UserServerConfigPath(), paths)
+	}
+	path = paths[0]
 	if path == "" {
 		return errors.New("no path is given/found")
 	}
 
-	return diskpacked.Reindex(path, c.overwrite)
+	return diskpacked.Reindex(path, c.overwrite, indexConf)
 }
