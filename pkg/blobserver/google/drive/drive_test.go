@@ -28,7 +28,7 @@ import (
 )
 
 var (
-	parentId       = flag.String("parentDir", "", "id of the directory on google drive to use for testing. If empty or \"root\", testing is skipped.")
+	parentId     = flag.String("parentDir", "", "id of the directory on google drive to use for testing. If empty or \"root\", testing is skipped.")
 	clientID     = flag.String("client_id", "", "OAuth2 client_id for testing")
 	clientSecret = flag.String("client_secret", "", "OAuth2 client secret for testing")
 	tokenCache   = flag.String("token_cache", ".tokencache", "Token cache file.")
