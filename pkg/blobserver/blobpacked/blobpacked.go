@@ -154,6 +154,10 @@ type storage struct {
 	// blobpacked. This also affects enumerate.
 	assumeSmall bool
 
+	// If non-zero, the maximum size of a zip blob.
+	// It defaults to constants.MaxBlobSize.
+	forceMaxZipBlobSize int
+
 	packGate *syncutil.Gate
 }
 
@@ -167,6 +171,13 @@ func (s *storage) String() string {
 
 func (s *storage) init() {
 	s.packGate = syncutil.NewGate(10)
+}
+
+func (s *storage) maxZipBlobSize() int {
+	if s.forceMaxZipBlobSize > 0 {
+		return s.forceMaxZipBlobSize
+	}
+	return constants.MaxBlobSize
 }
 
 func init() {
@@ -586,6 +597,9 @@ func check(err error) {
 }
 
 // trunc is a hint about which blob to truncate after. It may be zero.
+// If the returned error is of type 'needsTruncatedAfterError', then
+// the zip should be attempted to be written again, but truncating the
+// data after the listed blob.
 func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
@@ -625,6 +639,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	check(zw.Flush())
 	dataStart := cw.n
 
+	zipMax := pk.s.maxZipBlobSize()
 	chunks := pk.chunksRemain
 	truncated := false
 	chunkWholeHash := blob.NewHash()
@@ -650,7 +665,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 
 		thisSize := pk.dataSize[dr]
 		approxSize += int(thisSize)
-		if approxSize+mf.approxSerializedSize()+zipOverhead > constants.MaxBlobSize {
+		if approxSize+mf.approxSerializedSize()+zipOverhead > zipMax {
 			schemaBlobs = schemaBlobsSave // restore it
 			truncated = true
 			break
@@ -715,9 +730,9 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	err = zw.Close()
 	check(err)
 
-	if zbuf.Len() > constants.MaxBlobSize {
+	if zbuf.Len() > zipMax {
 		// We guessed wrong. Back up. Find out how many blobs we went over.
-		overage := zbuf.Len() - constants.MaxBlobSize
+		overage := zbuf.Len() - zipMax
 		for i := len(dataRefsWritten) - 1; i >= 0; i-- {
 			dr := dataRefsWritten[i]
 			if overage <= 0 {
