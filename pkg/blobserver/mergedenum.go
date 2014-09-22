@@ -23,13 +23,25 @@ import (
 
 const buffered = 8
 
-// TODO: it'd be nice to make sources be []BlobEnumerator, but that
-// makes callers more complex since assignable interfaces' slice forms
-// aren't assignable.
-func MergedEnumerate(ctx *context.Context, dest chan<- blob.SizedRef, sources []Storage, after string, limit int) error {
+// MergedEnumerate implements the BlobEnumerator interface by
+// merge-joining 0 or more sources.
+func MergedEnumerate(ctx *context.Context, dest chan<- blob.SizedRef, sources []BlobEnumerator, after string, limit int) error {
+	return mergedEnumerate(ctx, dest, len(sources), func(i int) BlobEnumerator { return sources[i] }, after, limit)
+}
+
+// MergedEnumerateStorage implements the BlobEnumerator interface by
+// merge-joining 0 or more sources.
+//
+// In this version, the sources implement the Storage interface, even
+// though only the BlobEnumerator interface is used.
+func MergedEnumerateStorage(ctx *context.Context, dest chan<- blob.SizedRef, sources []Storage, after string, limit int) error {
+	return mergedEnumerate(ctx, dest, len(sources), func(i int) BlobEnumerator { return sources[i] }, after, limit)
+}
+
+func mergedEnumerate(ctx *context.Context, dest chan<- blob.SizedRef, nsrc int, getSource func(int) BlobEnumerator, after string, limit int) error {
 	defer close(dest)
 
-	startEnum := func(source Storage) (*blob.ChanPeeker, <-chan error) {
+	startEnum := func(source BlobEnumerator) (*blob.ChanPeeker, <-chan error) {
 		ch := make(chan blob.SizedRef, buffered)
 		errch := make(chan error, 1)
 		go func() {
@@ -38,10 +50,10 @@ func MergedEnumerate(ctx *context.Context, dest chan<- blob.SizedRef, sources []
 		return &blob.ChanPeeker{Ch: ch}, errch
 	}
 
-	peekers := make([]*blob.ChanPeeker, 0, len(sources))
-	errs := make([]<-chan error, 0, len(sources))
-	for _, source := range sources {
-		peeker, errch := startEnum(source)
+	peekers := make([]*blob.ChanPeeker, 0, nsrc)
+	errs := make([]<-chan error, 0, nsrc)
+	for i := 0; i < nsrc; i++ {
+		peeker, errch := startEnum(getSource(i))
 		peekers = append(peekers, peeker)
 		errs = append(errs, errch)
 	}

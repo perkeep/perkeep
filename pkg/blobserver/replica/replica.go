@@ -265,7 +265,7 @@ func (sto *replicaStorage) RemoveBlobs(blobs []blob.Ref) error {
 }
 
 func (sto *replicaStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
-	return blobserver.MergedEnumerate(ctx, dest, sto.readReplicas, after, limit)
+	return blobserver.MergedEnumerateStorage(ctx, dest, sto.readReplicas, after, limit)
 }
 
 func (sto *replicaStorage) ResetStorageGeneration() error {

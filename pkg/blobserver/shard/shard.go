@@ -119,7 +119,7 @@ func (sto *shardStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) 
 }
 
 func (sto *shardStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
-	return blobserver.MergedEnumerate(ctx, dest, sto.shards, after, limit)
+	return blobserver.MergedEnumerateStorage(ctx, dest, sto.shards, after, limit)
 }
 
 func init() {
