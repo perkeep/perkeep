@@ -237,7 +237,7 @@ func (it *iter) end() bool {
 	return false
 }
 
-func (it *iter) Next() (ret bool) {
+func (it *iter) Next() bool {
 	if it.err != nil {
 		return false
 	}
