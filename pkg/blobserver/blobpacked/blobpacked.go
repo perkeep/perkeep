@@ -91,7 +91,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -137,7 +136,6 @@ type storage struct {
 	// meta key -> value rows are:
 	//
 	// For logical blobs, "b:" prefix:
-	//   b:sha1-xxxx -> "<size> s"
 	//   b:sha1-xxxx -> "<size> l <big-blobref> <offset_u32>"
 	//
 	// For wholerefs:
@@ -147,12 +145,6 @@ type storage struct {
 	//   w:sha1-xxxx:1 -> "<chunk-blobref> <offset_in-whole-u64> <length_u32>"
 	//   ...
 	meta sorted.KeyValue
-
-	// assumeSmall determines whether a meta lookup failure falls
-	// back to assuming a blob might exist on the small
-	// storage. This is useful for lazy migrations to
-	// blobpacked. This also affects enumerate.
-	assumeSmall bool
 
 	// If non-zero, the maximum size of a zip blob.
 	// It defaults to constants.MaxBlobSize.
@@ -188,7 +180,6 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 		smallPrefix = conf.RequiredString("smallBlobs")
 		largePrefix = conf.RequiredString("largeBlobs")
 		metaConf    = conf.RequiredObject("metaIndex")
-		assumeSmall = conf.OptionalBool("assumeSmall", true)
 	)
 	if err := conf.Validate(); err != nil {
 		return nil, err
@@ -211,10 +202,9 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 		return nil, fmt.Errorf("failed to setup blobpacked metaIndex: %v", err)
 	}
 	sto := &storage{
-		small:       small,
-		large:       largeSubber,
-		meta:        meta,
-		assumeSmall: assumeSmall,
+		small: small,
+		large: largeSubber,
+		meta:  meta,
 	}
 	sto.init()
 	return sto, nil
@@ -242,8 +232,7 @@ func (s *storage) getMetaRow(br blob.Ref) (meta, error) {
 
 var singleSpace = []byte{' '}
 
-// parses one of:
-// "<size_u32> s"
+// parses:
 // "<size_u32> l <big-blobref> <big-offset>"
 func parseMetaRow(v []byte) (m meta, err error) {
 	row := v
@@ -261,11 +250,6 @@ func parseMetaRow(v []byte) (m meta, err error) {
 	switch v[0] {
 	default:
 		return meta{}, fmt.Errorf("invalid metarow type %q", v)
-	case 's':
-		if len(v) > 1 {
-			return meta{}, fmt.Errorf("invalid small metarow %q", v)
-		}
-		return
 	case 'l':
 		if len(v) < 2 || v[1] != ' ' {
 			err = errors.New("length")
@@ -329,9 +313,6 @@ func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, 
 		if err != nil {
 			return sb, err
 		}
-		if err := s.meta.Set(blobMetaPrefix+br.String(), fmt.Sprintf("%d s", size)); err != nil {
-			return sb, err
-		}
 	}
 	if !isFile || meta.largeRef.Valid() || fileBlob.PartsSize() < packThreshold {
 		return sb, nil
@@ -357,13 +338,7 @@ func (s *storage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	if !m.exists {
-		if s.assumeSmall {
-			return s.fallbackFetch(br)
-		}
-		return nil, 0, os.ErrNotExist
-	}
-	if !m.largeRef.Valid() {
+	if !m.exists || !m.largeRef.Valid() {
 		return s.small.Fetch(br)
 	}
 	rc, err := s.large.SubFetch(m.largeRef, int64(m.largeOff), int64(m.size))
@@ -371,17 +346,6 @@ func (s *storage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
 		return nil, 0, err
 	}
 	return rc, m.size, nil
-}
-
-func (s *storage) fallbackFetch(br blob.Ref) (io.ReadCloser, uint32, error) {
-	rc, size, err := s.small.Fetch(br)
-	if err != nil {
-		return nil, 0, err
-	}
-	// TODO: populate meta? might just be redundant information, with both
-	// having an index. perhaps we should just always assumeSmall and remove
-	// the "s nnnnn" meta rows altogether.
-	return rc, size, err
 }
 
 func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
@@ -393,7 +357,9 @@ func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 	return errors.New("not implemented")
 }
 
-func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (err error) {
+func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+	// TODO: parallel?
+	var trySmall []blob.Ref
 	for _, br := range blobs {
 		m, err := s.getMetaRow(br)
 		if err != nil {
@@ -401,19 +367,19 @@ func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (err er
 		}
 		if m.exists {
 			dest <- blob.SizedRef{Ref: br, Size: m.size}
+		} else {
+			trySmall = append(trySmall, br)
 		}
+
 	}
-	return nil
+	return s.small.StatBlobs(dest, trySmall)
 }
 
 func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
-	if s.assumeSmall {
-		return blobserver.MergedEnumerate(ctx, dest, []blobserver.BlobEnumerator{
-			s.small,
-			enumerator{s},
-		}, after, limit)
-	}
-	return enumerator{s}.EnumerateBlobs(ctx, dest, after, limit)
+	return blobserver.MergedEnumerate(ctx, dest, []blobserver.BlobEnumerator{
+		s.small,
+		enumerator{s},
+	}, after, limit)
 }
 
 // enumerator implements EnumerateBlobs.

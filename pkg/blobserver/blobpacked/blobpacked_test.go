@@ -52,7 +52,6 @@ func TestParseMetaRow(t *testing.T) {
 		want meta
 		err  bool
 	}{
-		{in: "123 s", want: meta{exists: true, size: 123}},
 		{in: "123 sx", err: true},
 		{in: "-123 s", err: true},
 		{in: "", err: true},
@@ -220,4 +219,49 @@ func testPack(t *testing.T, writeFile func(sto blobserver.Storage) (blob.Ref, er
 	// -- verify we can still get each blob. and enumerate.
 	// -- overflowing the 16MB chunk size with huge initial chunks
 	// -- zips spanning more than one 16MB zip
+}
+
+// see if storage proxies through to small for Fetch, Stat, and Enumerate.
+func TestSmallFallback(t *testing.T) {
+	small := new(test.Fetcher)
+	s := &storage{
+		small: small,
+		large: new(test.Fetcher),
+		meta:  sorted.NewMemoryKeyValue(),
+	}
+	s.init()
+	b1 := &test.Blob{"foo"}
+	b1.MustUpload(t, small)
+	wantSB := b1.SizedRef()
+
+	// Fetch
+	rc, _, err := s.Fetch(b1.BlobRef())
+	if err != nil {
+		t.Errorf("failed to Get blob: %v", err)
+	} else {
+		rc.Close()
+	}
+
+	// Stat.
+	sb, err := blobserver.StatBlob(s, b1.BlobRef())
+	if err != nil {
+		t.Errorf("failed to Stat blob: %v", err)
+	} else if sb != wantSB {
+		t.Errorf("Stat = %v; want %v", sb, wantSB)
+	}
+
+	// Enumerate
+	saw := false
+	if err := blobserver.EnumerateAll(context.New(), s, func(sb blob.SizedRef) error {
+		if sb != wantSB {
+			return fmt.Errorf("saw blob %v; want %v", sb, wantSB)
+		}
+		saw = true
+		return nil
+	}); err != nil {
+		t.Errorf("EnuerateAll: %v", err)
+	}
+	if !saw {
+		t.Error("didn't see blob in Enumerate")
+	}
 }

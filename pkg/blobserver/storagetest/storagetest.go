@@ -126,12 +126,14 @@ func TestOpt(t *testing.T, opt Opts) {
 
 	t.Logf("Testing Stat")
 	dest := make(chan blob.SizedRef)
+	errc := make(chan error, 1)
 	go func() {
-		if err := sto.StatBlobs(dest, blobRefs); err != nil {
-			t.Fatalf("error stating blobs %s: %v", blobRefs, err)
-		}
+		errc <- sto.StatBlobs(dest, blobRefs)
 	}()
 	testStat(t, dest, blobSizedRefs)
+	if err := <-errc; err != nil {
+		t.Fatalf("error stating blobs %s: %v", blobRefs, err)
+	}
 
 	// Enumerate tests.
 	sort.Sort(blob.SizedByRef(blobSizedRefs))
