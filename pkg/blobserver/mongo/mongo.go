@@ -69,13 +69,24 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 	return newMongoStorage(cfg)
 }
 
+var uniqueKeyIndex = mgo.Index{
+	Key:        []string{"key"},
+	Unique:     true,
+	DropDups:   false,
+	Background: false,
+	Sparse:     false,
+}
+
 func newMongoStorage(cfg config) (blobserver.Storage, error) {
 	session, err := getConnection(cfg.url())
 	if err != nil {
 		return nil, err
 	}
 	c := session.DB(cfg.database).C(cfg.collection)
-
+	err = c.EnsureIndex(uniqueKeyIndex)
+	if err != nil {
+		return nil, err
+	}
 	return blobserver.Storage(&mongoStorage{c: c}), nil
 
 }
