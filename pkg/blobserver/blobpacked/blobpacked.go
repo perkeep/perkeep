@@ -407,7 +407,21 @@ func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (err er
 }
 
 func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
-	// TODO: merged numerate if s.assumeSmall
+	if s.assumeSmall {
+		return blobserver.MergedEnumerate(ctx, dest, []blobserver.BlobEnumerator{
+			s.small,
+			enumerator{s},
+		}, after, limit)
+	}
+	return enumerator{s}.EnumerateBlobs(ctx, dest, after, limit)
+}
+
+// enumerator implements EnumerateBlobs.
+type enumerator struct {
+	*storage
+}
+
+func (s enumerator) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
 	defer close(dest)
 	t := s.meta.Find(blobMetaPrefix+after, blobMetaPrefixLimit)
 	defer func() {
