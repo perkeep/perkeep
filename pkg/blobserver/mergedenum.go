@@ -70,8 +70,8 @@ func mergedEnumerate(ctx *context.Context, dest chan<- blob.SizedRef, nsrc int, 
 			if peeker.Closed() {
 				continue
 			}
-			sb := peeker.MustPeek()                                       // can't be nil if not Closed
-			if lowestIdx == -1 || sb.Ref.String() < lowest.Ref.String() { // TODO: add cheaper Ref comparison function, avoiding String
+			sb := peeker.MustPeek() // can't be nil if not Closed
+			if lowestIdx == -1 || sb.Ref.Less(lowest.Ref) {
 				lowestIdx = idx
 				lowest = sb
 			}
