@@ -649,6 +649,8 @@ func (s *storage) append(br blob.SizedRef, r io.Reader) error {
 	if s.closed {
 		return errors.New("diskpacked: write to closed storage")
 	}
+	// to be able to undo the append
+	origOffset := s.size
 
 	fn := s.writer.Name()
 	n, err := fmt.Fprintf(s.writer, "[%v %v]", br.Ref.String(), br.Size)
@@ -690,7 +692,17 @@ func (s *storage) append(br blob.SizedRef, r io.Reader) error {
 			return err
 		}
 	}
-	return s.index.Set(br.Ref.String(), blobMeta{packIdx, offset, br.Size}.String())
+	err = s.index.Set(br.Ref.String(), blobMeta{packIdx, offset, br.Size}.String())
+	if err != nil {
+		if _, seekErr := s.writer.Seek(origOffset, os.SEEK_SET); seekErr != nil {
+			log.Printf("ERROR seeking back to the original offset: %v", seekErr)
+		} else if truncErr := s.writer.Truncate(origOffset); truncErr != nil {
+			log.Printf("ERROR truncating file after index error: %v", truncErr)
+		} else {
+			s.size = origOffset
+		}
+	}
+	return err
 }
 
 // meta fetches the metadata for the specified blob from the index.
