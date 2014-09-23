@@ -41,11 +41,14 @@ func MergedEnumerateStorage(ctx *context.Context, dest chan<- blob.SizedRef, sou
 func mergedEnumerate(ctx *context.Context, dest chan<- blob.SizedRef, nsrc int, getSource func(int) BlobEnumerator, after string, limit int) error {
 	defer close(dest)
 
+	subctx := ctx.New()
+	defer subctx.Cancel()
+
 	startEnum := func(source BlobEnumerator) (*blob.ChanPeeker, <-chan error) {
 		ch := make(chan blob.SizedRef, buffered)
 		errch := make(chan error, 1)
 		go func() {
-			errch <- source.EnumerateBlobs(ctx, ch, after, limit)
+			errch <- source.EnumerateBlobs(subctx, ch, after, limit)
 		}()
 		return &blob.ChanPeeker{Ch: ch}, errch
 	}
@@ -59,12 +62,13 @@ func mergedEnumerate(ctx *context.Context, dest chan<- blob.SizedRef, nsrc int, 
 	}
 
 	nSent := 0
-	lastSent := ""
+	var lastSent blob.Ref
+	tooLow := func(br blob.Ref) bool { return lastSent.Valid() && (br == lastSent || br.Less(lastSent)) }
 	for nSent < limit {
 		lowestIdx := -1
 		var lowest blob.SizedRef
 		for idx, peeker := range peekers {
-			for !peeker.Closed() && peeker.MustPeek().Ref.String() <= lastSent {
+			for !peeker.Closed() && tooLow(peeker.MustPeek().Ref) {
 				peeker.Take()
 			}
 			if peeker.Closed() {
@@ -83,13 +87,7 @@ func mergedEnumerate(ctx *context.Context, dest chan<- blob.SizedRef, nsrc int, 
 
 		dest <- lowest
 		nSent++
-		lastSent = lowest.Ref.String()
-	}
-
-	// Once we've gotten enough, ignore the rest of whatever's
-	// coming in.
-	for _, peeker := range peekers {
-		go peeker.ConsumeAll()
+		lastSent = lowest.Ref
 	}
 
 	// If any part returns an error, we return an error.
