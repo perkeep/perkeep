@@ -18,6 +18,8 @@ package serverinit
 
 var GenLowLevelConfig = genLowLevelConfig
 
+var DefaultBaseConfig = defaultBaseConfig
+
 func SetTempDirFunc(f func() string) {
 	tempDir = f
 }

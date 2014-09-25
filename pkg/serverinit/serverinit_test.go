@@ -24,19 +24,34 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"sort"
 	"strings"
 	"testing"
 
+	"camlistore.org/pkg/auth"
+	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/osutil"
+	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/server"
 	"camlistore.org/pkg/serverinit"
 	"camlistore.org/pkg/test"
 	"camlistore.org/pkg/types/serverconfig"
+
+	// For registering all the handler constructors needed in TestInstallHandlers
+	_ "camlistore.org/pkg/blobserver/cond"
+	_ "camlistore.org/pkg/blobserver/replica"
+	_ "camlistore.org/pkg/importer/allimporters"
+	_ "camlistore.org/pkg/search"
+	_ "camlistore.org/pkg/server"
 )
 
 var (
@@ -251,5 +266,156 @@ func TestExpansionsInHighlevelConfig(t *testing.T) {
 	got := fmt.Sprintf("%#v", conf)
 	if !strings.Contains(got, keyID) {
 		t.Errorf("Expected key %q in resulting low-level config. Got: %s", got)
+	}
+}
+
+func TestInstallHandlers(t *testing.T) {
+	camroot, err := osutil.GoPackagePath("camlistore.org")
+	if err != nil {
+		t.Fatalf("failed to find camlistore.org GOPATH root: %v", err)
+	}
+	conf := serverinit.DefaultBaseConfig
+	conf.Identity = "26F5ABDA"
+	conf.IdentitySecretRing = filepath.Join(camroot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg"))
+	conf.MemoryStorage = true
+	conf.MemoryIndex = true
+
+	confData, err := json.MarshalIndent(conf, "", "    ")
+	if err != nil {
+		t.Fatalf("Could not json encode config: %v", err)
+	}
+
+	lowConf, err := serverinit.Load(confData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// because these two are normally consumed in camlistored.go
+	// TODO(mpl): serverinit.Load should consume these 2 as well. Once
+	// consumed, we should keep all the answers as private fields, and then we
+	// put accessors on serverinit.Config. Maybe we even stop embedding
+	// jsonconfig.Obj in serverinit.Config too, so none of those methods are
+	// accessible.
+	lowConf.OptionalBool("https", true)
+	lowConf.OptionalString("listen", "")
+
+	reindex := false
+	var context *http.Request // only used by App Engine. See handlerLoader in serverinit.go
+	hi := http.NewServeMux()
+	address := "http://" + conf.Listen
+	_, err = lowConf.InstallHandlers(hi, address, reindex, context)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		prefix        string
+		authWrapped   bool
+		prefixWrapped bool
+		handlerType   reflect.Type
+	}{
+		{
+			prefix:        "/",
+			handlerType:   reflect.TypeOf(&server.RootHandler{}),
+			prefixWrapped: true,
+		},
+
+		{
+			prefix:        "/sync/",
+			handlerType:   reflect.TypeOf(&server.SyncHandler{}),
+			prefixWrapped: true,
+			authWrapped:   true,
+		},
+
+		{
+			prefix:        "/my-search/",
+			handlerType:   reflect.TypeOf(&search.Handler{}),
+			prefixWrapped: true,
+			authWrapped:   true,
+		},
+
+		{
+			prefix:        "/ui/",
+			handlerType:   reflect.TypeOf(&server.UIHandler{}),
+			prefixWrapped: true,
+			authWrapped:   true,
+		},
+
+		{
+			prefix:        "/importer/",
+			handlerType:   reflect.TypeOf(&importer.Host{}),
+			prefixWrapped: true,
+		},
+
+		{
+			prefix:        "/sighelper/",
+			handlerType:   reflect.TypeOf(&signhandler.Handler{}),
+			prefixWrapped: true,
+			authWrapped:   true,
+		},
+
+		{
+			prefix:        "/status/",
+			handlerType:   reflect.TypeOf(&server.StatusHandler{}),
+			prefixWrapped: true,
+			authWrapped:   true,
+		},
+
+		{
+			prefix:        "/setup/",
+			handlerType:   reflect.TypeOf(&server.SetupHandler{}),
+			prefixWrapped: true,
+		},
+
+		{
+			prefix:      "/bs/camli/",
+			handlerType: reflect.TypeOf(http.HandlerFunc(nil)),
+		},
+
+		{
+			prefix:      "/index/camli/",
+			handlerType: reflect.TypeOf(http.HandlerFunc(nil)),
+		},
+
+		{
+			prefix:      "/bs-and-index/camli/",
+			handlerType: reflect.TypeOf(http.HandlerFunc(nil)),
+		},
+
+		{
+			prefix:      "/bs-and-maybe-also-index/camli/",
+			handlerType: reflect.TypeOf(http.HandlerFunc(nil)),
+		},
+
+		{
+			prefix:      "/cache/camli/",
+			handlerType: reflect.TypeOf(http.HandlerFunc(nil)),
+		},
+	}
+	for _, v := range tests {
+		req, err := http.NewRequest("GET", address+v.prefix, nil)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		h, _ := hi.Handler(req)
+		if v.authWrapped {
+			ah, ok := h.(auth.Handler)
+			if !ok {
+				t.Errorf("handler for %v should be auth wrapped", v.prefix)
+				continue
+			}
+			h = ah.Handler
+		}
+		if v.prefixWrapped {
+			ph, ok := h.(*httputil.PrefixHandler)
+			if !ok {
+				t.Errorf("handler for %v should be prefix wrapped", v.prefix)
+				continue
+			}
+			h = ph.Handler
+		}
+		if reflect.TypeOf(h) != v.handlerType {
+			t.Errorf("for %v: want %v, got %v", v.prefix, v.handlerType, reflect.TypeOf(h))
+		}
 	}
 }

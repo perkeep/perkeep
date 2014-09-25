@@ -764,16 +764,17 @@ func numSet(vv ...interface{}) (num int) {
 	return
 }
 
+var defaultBaseConfig = serverconfig.Config{
+	Listen: ":3179",
+	HTTPS:  false,
+	Auth:   "localhost",
+}
+
 // WriteDefaultConfigFile generates a new default high-level server configuration
 // file at filePath. If useSQLite, the default indexer will use SQLite, otherwise
 // kv. If filePath already exists, it is overwritten.
 func WriteDefaultConfigFile(filePath string, useSQLite bool) error {
-	conf := serverconfig.Config{
-		Listen:      ":3179",
-		HTTPS:       false,
-		Auth:        "localhost",
-		ReplicateTo: make([]interface{}, 0),
-	}
+	conf := defaultBaseConfig
 	blobDir := osutil.CamliBlobRoot()
 	if err := wkfs.MkdirAll(blobDir, 0700); err != nil {
 		return fmt.Errorf("Could not create default blobs directory: %v", err)
