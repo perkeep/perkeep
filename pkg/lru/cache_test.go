@@ -54,3 +54,18 @@ func TestLRU(t *testing.T) {
 	expectHit("2", "two")
 	expectMiss("1")
 }
+
+func TestRemoveOldest(t *testing.T) {
+	c := New(2)
+	c.Add("1", "one")
+	c.Add("2", "two")
+	if k, v := c.RemoveOldest(); k != "1" || v != "one" {
+		t.Fatalf("oldest = %q, %q; want 1, one", k, v)
+	}
+	if k, v := c.RemoveOldest(); k != "2" || v != "two" {
+		t.Fatalf("oldest = %q, %q; want 2, two", k, v)
+	}
+	if k, v := c.RemoveOldest(); k != "" || v != nil {
+		t.Fatalf("oldest = %v, %v; want \"\", nil", k, v)
+	}
+}
