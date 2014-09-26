@@ -32,6 +32,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/lru"
 	"camlistore.org/pkg/types"
 )
 
@@ -39,9 +40,15 @@ import (
 // interface. It also includes other convenience methods used by
 // tests.
 type Storage struct {
-	mu     sync.RWMutex        // guards following 2 fields.
-	m      map[blob.Ref][]byte // maps blob ref to its contents
-	sorted []string            // blobrefs sorted
+	maxSize int64 // or zero if no limit
+
+	mu   sync.RWMutex        // guards following 2 fields.
+	m    map[blob.Ref][]byte // maps blob ref to its contents
+	size int64               // sum of len(values(m))
+
+	// lru is non-nil if we're in cache mode.
+	// Else it maps blobref.String() to a nil value.
+	lru *lru.Cache
 
 	blobsFetched int64 // atomic
 	bytesFetched int64 // atomic
@@ -58,9 +65,21 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 	return &Storage{}, nil
 }
 
+// NewCache returns a cache that won't store more than size bytes.
+// Blobs are evicted in LRU order.
+func NewCache(size int64) *Storage {
+	return &Storage{
+		maxSize: size,
+		lru:     lru.New(1 << 31), // ~infinite items; we evict by size, not count
+	}
+}
+
 func (s *Storage) Fetch(ref blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if s.lru != nil {
+		s.lru.Get(ref.String()) // force to head
+	}
 	if s.m == nil {
 		err = os.ErrNotExist
 		return
@@ -126,8 +145,17 @@ func (s *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, err
 	_, had := s.m[br]
 	if !had {
 		s.m[br] = all
-		s.sorted = append(s.sorted, br.String())
-		sort.Strings(s.sorted)
+		if s.lru != nil {
+			s.lru.Add(br.String(), nil)
+		}
+		s.size += int64(len(all))
+		for s.maxSize != 0 && s.size > s.maxSize {
+			if key, _ := s.lru.RemoveOldest(); key != "" {
+				s.removeBlobLocked(blob.MustParse(key))
+			} else {
+				break // shouldn't happen
+			}
+		}
 	}
 	return blob.SizedRef{br, uint32(len(all))}, nil
 }
@@ -148,12 +176,24 @@ func (s *Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef
 	defer close(dest)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	// TODO(bradfitz): care about keeping this sorted like we used
+	// to? I think it was more expensive than it was worth before,
+	// since maintaining it was more costly than how often it was
+	// used. But perhaps it'd make sense to maintain it lazily:
+	// construct it on EnumerateBlobs but invalidate it everywhere
+	// else.  Probably doesn't matter much.
+	sorted := make([]blob.Ref, 0, len(s.m))
+	for br := range s.m {
+		sorted = append(sorted, br)
+	}
+	sort.Sort(blob.ByRef(sorted))
+
 	n := 0
-	for _, k := range s.sorted {
-		if k <= after {
+	for _, br := range sorted {
+		if after != "" && br.String() <= after {
 			continue
 		}
-		br := blob.MustParse(k)
 		select {
 		case dest <- blob.SizedRef{br, uint32(len(s.m[br]))}:
 		case <-ctx.Done():
@@ -171,14 +211,18 @@ func (s *Storage) RemoveBlobs(blobs []blob.Ref) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, br := range blobs {
-		delete(s.m, br)
+		s.removeBlobLocked(br)
 	}
-	s.sorted = s.sorted[:0]
-	for k := range s.m {
-		s.sorted = append(s.sorted, k.String())
-	}
-	sort.Strings(s.sorted)
 	return nil
+}
+
+func (s *Storage) removeBlobLocked(br blob.Ref) {
+	v, had := s.m[br]
+	if !had {
+		return
+	}
+	s.size -= int64(len(v))
+	delete(s.m, br)
 }
 
 // BlobContents returns as a string the contents of the blob br.
@@ -203,19 +247,18 @@ func (s *Storage) NumBlobs() int {
 func (s *Storage) SumBlobSize() int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var n int64
-	for _, b := range s.m {
-		n += int64(len(b))
-	}
-	return n
+	return s.size
 }
 
 // BlobrefStrings returns the sorted stringified blobrefs stored in s.
 func (s *Storage) BlobrefStrings() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	sorted := make([]string, len(s.sorted))
-	copy(sorted, s.sorted)
+	sorted := make([]string, 0, len(s.m))
+	for br := range s.m {
+		sorted = append(sorted, br.String())
+	}
+	sort.Strings(sorted)
 	return sorted
 }
 

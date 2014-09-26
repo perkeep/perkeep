@@ -17,11 +17,13 @@ limitations under the License.
 package memory_test
 
 import (
+	"strings"
 	"testing"
 
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/memory"
 	"camlistore.org/pkg/blobserver/storagetest"
+	"camlistore.org/pkg/test"
 )
 
 // TestMemoryStorage tests against an in-memory blobserver.
@@ -30,4 +32,24 @@ func TestMemoryStorage(t *testing.T) {
 	storagetest.Test(t, func(t *testing.T) (blobserver.Storage, func()) {
 		return &memory.Storage{}, func() {}
 	})
+}
+
+func TestCache(t *testing.T) {
+	c := memory.NewCache(1024)
+	(&test.Blob{"foo"}).MustUpload(t, c)
+	if got, want := c.SumBlobSize(), int64(3); got != want {
+		t.Errorf("size = %d; want %d", got, want)
+	}
+	(&test.Blob{"bar"}).MustUpload(t, c)
+	if got, want := c.SumBlobSize(), int64(6); got != want {
+		t.Errorf("size = %d; want %d", got, want)
+	}
+	(&test.Blob{strings.Repeat("x", 1020)}).MustUpload(t, c)
+	if got, want := c.SumBlobSize(), int64(1023); got != want {
+		t.Errorf("size = %d; want %d", got, want)
+	}
+	(&test.Blob{"five!"}).MustUpload(t, c)
+	if got, want := c.SumBlobSize(), int64(5); got != want {
+		t.Errorf("size = %d; want %d", got, want)
+	}
 }
