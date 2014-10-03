@@ -190,7 +190,7 @@ func main() {
 		tags = append(tags, "netgo")
 		ldFlags = "-w " + ldFlags
 	}
-	baseArgs = append(baseArgs, "--ldflags="+ldFlags, "--tags="+strings.Join(tags, ","))
+	baseArgs = append(baseArgs, "--ldflags="+ldFlags, "--tags="+strings.Join(tags, " "))
 
 	// First install command: build just the final binaries, installed to a GOBIN
 	// under <camlistore_root>/bin:
