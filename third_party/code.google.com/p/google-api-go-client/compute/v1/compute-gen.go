@@ -4,7 +4,7 @@
 //
 // Usage example:
 //
-//   import "code.google.com/p/google-api-go-client/compute/v1"
+//   import "camlistore.org/third_party/code.google.com/p/google-api-go-client/compute/v1"
 //   ...
 //   computeService, err := compute.New(oauthHttpClient)
 package compute
