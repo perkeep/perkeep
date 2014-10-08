@@ -393,7 +393,8 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 		conf, err := images.DecodeConfig(bytes.NewReader(imageBuf.Bytes))
 		// If our optimistic 512KB in-memory prefix from above was too short to get the dimensions, pass the whole thing instead and try again.
 		if err == io.ErrUnexpectedEOF {
-			fr, err := b.NewFileReader(fetcher)
+			var fr *schema.FileReader
+			fr, err = b.NewFileReader(fetcher)
 			if err == nil {
 				conf, err = images.DecodeConfig(fr)
 				fr.Close()
@@ -411,7 +412,8 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 
 		err = indexEXIF(wholeRef, bytes.NewReader(imageBuf.Bytes), mm)
 		if err == io.EOF {
-			fr, err := b.NewFileReader(fetcher)
+			var fr *schema.FileReader
+			fr, err = b.NewFileReader(fetcher)
 			if err == nil {
 				err = indexEXIF(wholeRef, fr, mm)
 				fr.Close()
