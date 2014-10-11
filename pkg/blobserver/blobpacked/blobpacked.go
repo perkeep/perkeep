@@ -154,7 +154,8 @@ type storage struct {
 }
 
 var (
-	_ blobserver.BlobStreamer = (*storage)(nil)
+// TODO:
+// _ blobserver.BlobStreamer = (*storage)(nil)
 )
 
 func (s *storage) String() string {
