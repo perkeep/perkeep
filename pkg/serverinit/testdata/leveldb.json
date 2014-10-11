@@ -2,7 +2,7 @@
 	"listen": "localhost:3179",
 	"auth": "userpass:camlistore:pass3179",
 	"blobPath": "/tmp/blobs",
-	"kvIndexFile": "/path/to/indexkv.db",
+	"levelDB": "/path/to/indexleveldb.ldb",
 	"identity": "26F5ABDA",
 	"identitySecretRing": "/path/to/secring",
 	"ownerName": "Alice",
