@@ -50,8 +50,9 @@ type Storage struct {
 }
 
 var (
-	_ blobserver.MaxEnumerateConfig = (*Storage)(nil)
+	_ blob.SubFetcher               = (*Storage)(nil)
 	_ blobserver.Generationer       = (*Storage)(nil)
+	_ blobserver.MaxEnumerateConfig = (*Storage)(nil)
 )
 
 func (gs *Storage) MaxEnumerate() int { return 1000 }
@@ -195,7 +196,10 @@ func (s *Storage) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) 
 		err = errors.New("object too big")
 	}
 	return rc, uint32(sz), err
+}
 
+func (s *Storage) SubFetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, err error) {
+	return s.client.GetPartialObject(googlestorage.Object{Bucket: s.bucket, Key: br.String()}, offset, length)
 }
 
 func (s *Storage) RemoveBlobs(blobs []blob.Ref) error {

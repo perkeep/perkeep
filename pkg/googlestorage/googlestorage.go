@@ -162,22 +162,62 @@ func (gsa *Client) simpleRequest(method, url_ string) (resp *http.Response, err 
 
 // GetObject fetches a Google Cloud Storage object.
 // The caller must close rc.
-func (gsa *Client) GetObject(obj *Object) (rc io.ReadCloser, size int64, err error) {
+func (c *Client) GetObject(obj *Object) (rc io.ReadCloser, size int64, err error) {
 	if err = obj.valid(); err != nil {
 		return
 	}
-	resp, err := gsa.simpleRequest("GET", gsAccessURL+"/"+obj.Bucket+"/"+obj.Key)
+	resp, err := c.simpleRequest("GET", gsAccessURL+"/"+obj.Bucket+"/"+obj.Key)
 	if err != nil {
 		return nil, 0, fmt.Errorf("GS GET request failed: %v\n", err)
 	}
 	if resp.StatusCode == http.StatusNotFound {
+		resp.Body.Close()
 		return nil, 0, os.ErrNotExist
 	}
 	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
 		return nil, 0, fmt.Errorf("GS GET request failed status: %v\n", resp.Status)
 	}
 
 	return resp.Body, resp.ContentLength, nil
+}
+
+// GetPartialObject fetches part of a Google Cloud Storage object.
+// If length is negative, the rest of the object is returned.
+// The caller must close rc.
+func (c *Client) GetPartialObject(obj Object, offset, length int64) (rc io.ReadCloser, err error) {
+	if offset < 0 {
+		return nil, errors.New("invalid negative length")
+	}
+	if err = obj.valid(); err != nil {
+		return
+	}
+
+	req, err := http.NewRequest("GET", gsAccessURL+"/"+obj.Bucket+"/"+obj.Key, nil)
+	if err != nil {
+		return
+	}
+	req.Header.Set("x-goog-api-version", "2")
+	if length >= 0 {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", offset, offset+length-1))
+	} else {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
+	}
+
+	resp, err, _ := c.doRequest(req, true)
+	if err != nil {
+		return nil, fmt.Errorf("GS GET request failed: %v\n", err)
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		resp.Body.Close()
+		return nil, os.ErrNotExist
+	}
+	if !(resp.StatusCode == http.StatusPartialContent || (offset == 0 && resp.StatusCode == http.StatusOK)) {
+		resp.Body.Close()
+		return nil, fmt.Errorf("GS GET request failed status: %v\n", resp.Status)
+	}
+
+	return resp.Body, nil
 }
 
 // StatObject checks for the size & existence of a Google Cloud Storage object.

@@ -200,7 +200,10 @@ func testSubFetcher(t *testing.T, sto blobserver.Storage) {
 	for _, tt := range regions {
 		r, err := sf.SubFetch(big.BlobRef(), tt.off, tt.limit)
 		if err != nil {
-			t.Fatal("Error fetching big blob for SubFetch: %v", err)
+			t.Fatalf("Error fetching big blob for SubFetch: %v", err)
+		}
+		if r == nil {
+			t.Fatal("SubFetch returned nil, nil")
 		}
 		all, err := ioutil.ReadAll(r)
 		r.Close()
