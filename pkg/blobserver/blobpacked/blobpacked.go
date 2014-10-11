@@ -350,11 +350,14 @@ func (s *storage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
 }
 
 func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
-	// TODO: how to support? only delete from index? delete from
-	// small if only there?  if in big file, re-break apart into
-	// its chunks? no reverse index from big chunk to all its
-	// constituent chunks, though. I suppose we could read the chunks
-	// from the metadata file in the zip.
+	// Plan:
+	//  -- delete from small (if it's there, or speculatively)
+	//  -- if in big, update the meta index to note that it's there, but deleted.
+	//  -- fetch big's zip file (constructed from a ReaderAt that is all dummy zeros +
+	//     the zip's TOC only, relying on big being a SubFetcher, and keeping info in
+	//     the meta about the offset of the TOC+total size of each big's zip)
+	//  -- iterate over the zip's blobs. If all are marked deleted, actually RemoveBlob
+	//     on big to delete the full zip and then delete all the meta rows.
 	return errors.New("not implemented")
 }
 
