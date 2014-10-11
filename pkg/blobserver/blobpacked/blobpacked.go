@@ -417,7 +417,7 @@ func (s enumerator) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedR
 	return nil
 }
 
-func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string, limitBytes int64) (nextContinueToken string, err error) {
+func (s *storage) todo_StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string, limitBytes int64) (nextContinueToken string, err error) {
 	defer close(dest)
 	// Continuation token is:
 	// "s*" if we're in the small blobs,
