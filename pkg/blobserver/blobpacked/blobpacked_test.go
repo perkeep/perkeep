@@ -19,6 +19,7 @@ package blobpacked
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -31,11 +32,14 @@ import (
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
+	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/test"
 	"camlistore.org/third_party/go/pkg/archive/zip"
 )
 
 const debug = false
+
+var brokenTests = flag.Bool("broken", false, "also test known-broken tests")
 
 func TestStorage(t *testing.T) {
 	storagetest.Test(t, func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
@@ -110,8 +114,9 @@ func TestPackNormal(t *testing.T) {
 	const fileName = "foo.dat"
 	fileContents := randBytes(fileSize)
 	testPack(t,
-		func(sto blobserver.Storage) (blob.Ref, error) {
-			return schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
+		func(sto blobserver.Storage) error {
+			_, err := schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
+			return err
 		},
 		wantNumLargeBlobs(1),
 		wantNumSmallBlobs(0),
@@ -123,8 +128,9 @@ func TestPackNoDelete(t *testing.T) {
 	const fileName = "foo.dat"
 	fileContents := randBytes(fileSize)
 	testPack(t,
-		func(sto blobserver.Storage) (blob.Ref, error) {
-			return schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
+		func(sto blobserver.Storage) error {
+			_, err := schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
+			return err
 		},
 		func(pt *packTest) { pt.sto.skipDelete = true },
 		wantNumLargeBlobs(1),
@@ -140,11 +146,34 @@ func TestPackLarge(t *testing.T) {
 	const fileName = "foo.dat"
 	fileContents := randBytes(fileSize)
 	testPack(t,
-		func(sto blobserver.Storage) (blob.Ref, error) {
-			return schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
+		func(sto blobserver.Storage) error {
+			_, err := schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
+			return err
 		},
 		wantNumLargeBlobs(2),
 		wantNumSmallBlobs(0),
+	)
+}
+
+func TestPackTwoIdenticalfiles(t *testing.T) {
+	if !*brokenTests {
+		t.Skip("TODO: known broken test; skipping")
+	}
+	const fileSize = 1 << 20
+	fileContents := randBytes(fileSize)
+	testPack(t,
+		func(sto blobserver.Storage) (err error) {
+			if _, err = schema.WriteFileFromReader(sto, "a.txt", bytes.NewReader(fileContents)); err != nil {
+				return
+			}
+			if _, err = schema.WriteFileFromReader(sto, "b.txt", bytes.NewReader(fileContents)); err != nil {
+				return
+			}
+			return
+		},
+		func(pt *packTest) { pt.sto.packGate = syncutil.NewGate(1) }, // one pack at a time
+		wantNumLargeBlobs(1),
+		wantNumSmallBlobs(1), // just the "b.txt" file schema blob
 	)
 }
 
@@ -158,7 +187,7 @@ type packTest struct {
 }
 
 func testPack(t *testing.T,
-	writeFile func(sto blobserver.Storage) (blob.Ref, error),
+	write func(sto blobserver.Storage) error,
 	checks ...func(*packTest),
 ) {
 	logical := new(test.Fetcher)
@@ -169,7 +198,7 @@ func testPack(t *testing.T,
 		large:   large,
 	}
 	// Figure out the logical baseline blobs we'll later expect in the packed storage.
-	if _, err := writeFile(logical); err != nil {
+	if err := write(logical); err != nil {
 		t.Fatal(err)
 	}
 	t.Logf("items in logical storage: %d", logical.NumBlobs())
@@ -185,14 +214,25 @@ func testPack(t *testing.T,
 		setOpt(pt)
 	}
 
-	fileRef, err := writeFile(pt.sto)
-	if err != nil {
+	if err := write(pt.sto); err != nil {
 		t.Fatal(err)
 	}
 
-	t.Logf("wrote file %v", fileRef)
 	t.Logf("items in small: %v", small.NumBlobs())
 	t.Logf("items in large: %v", large.NumBlobs())
+
+	it := pt.sto.meta.Find("", "")
+	skipPrefix := []byte("b:")
+	for it.Next() {
+		if bytes.HasPrefix(it.KeyBytes(), skipPrefix) {
+			// boring row
+			continue
+		}
+		t.Logf("meta %q = %q", it.KeyBytes(), it.ValueBytes())
+	}
+	if err := it.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	if want, ok := pt.wantLargeBlobs.(int); ok && want != large.NumBlobs() {
 		t.Fatalf("num large blobs = %d; want %d", large.NumBlobs(), want)

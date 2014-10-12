@@ -82,7 +82,8 @@ file will have a different 'wholePartIndex' number, starting at index
 package blobpacked
 
 // TODO: BlobStreamer using the zip manifests, for recovery.
-// TODO: option to not even delete from the source?
+// TODO: drop the " l " from the meta values, now that we always merge
+// TODO: write the final wholeMetaPrefix row out. only the per-chunk ones are done now.
 
 import (
 	"bytes"
@@ -138,12 +139,12 @@ type storage struct {
 	// For logical blobs, "b:" prefix:
 	//   b:sha1-xxxx -> "<size> l <big-blobref> <offset_u32>"
 	//
-	// For wholerefs:
+	// For wholerefs: (wholeMetaPrefix)
 	//   w:sha1-xxxx(wholeref) -> "<nbytes_total_u64> <nchunks_u32>"
 	// Then for each big nchunk of the file:
-	//   w:sha1-xxxx:0 -> "<chunk-blobref> <offset-in-whole_u64> <length_u32>"
-	//   w:sha1-xxxx:1 -> "<chunk-blobref> <offset_in-whole-u64> <length_u32>"
-	//   ...
+	//   w:sha1-xxxx:0 -> "<zipchunk-blobref> <offset-in-zipchunk-blobref> <offset-in-whole_u64> <length_u32>"
+	//   w:sha1-xxxx:...
+	//   w:sha1-xxxx:(nchunks-1)
 	meta sorted.KeyValue
 
 	// If non-zero, the maximum size of a zip blob.
@@ -323,6 +324,7 @@ func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, 
 
 	// Pack the blob.
 	s.packGate.Start()
+	// TODO: why is this in a goroutine?
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -469,8 +471,9 @@ type packer struct {
 	schemaBlob   map[blob.Ref]*blob.Blob
 	schemaParent map[blob.Ref][]blob.Ref // data blob -> its parent/ancestor schema blob(s)
 
-	chunksRemain []blob.Ref
-	zips         []writtenZip
+	chunksRemain      []blob.Ref
+	zips              []writtenZip
+	wholeBytesWritten int64 // sum of zips.dataRefs.size
 }
 
 type writtenZip struct {
@@ -489,10 +492,10 @@ func (pk *packer) pack() error {
 	// Maybe we'd have knobs in the future. Ideally not.
 
 	// Don't pack a file if we already have its wholeref stored
-	// otherwise (perhaps under a different filename). But that means
-	// we have to compute its wholeref first. We assume the blobSource
-	// will cache these lookups so it's not too expensive to do two
-	// passes over the input.
+	// otherwise (perhaps under a different filename). But that
+	// means we have to compute its wholeref first. We assume the
+	// blob source will cache these lookups so it's not too
+	// expensive to do two passes over the input.
 	h := blob.NewHash()
 	var err error
 	pk.wholeSize, err = io.Copy(h, pk.fr)
@@ -500,7 +503,8 @@ func (pk *packer) pack() error {
 		return err
 	}
 	pk.wholeRef = blob.RefFromHash(h)
-	if _, err = pk.s.meta.Get(wholeMetaPrefix + pk.wholeRef.String()); err == nil {
+	_, err = pk.s.meta.Get(wholeMetaPrefix + pk.wholeRef.String())
+	if err == nil {
 		// Nil error means there was some knowledge of this wholeref.
 		return fmt.Errorf("already have wholeref %v packed; not packing again", pk.wholeRef)
 	} else if err != sorted.ErrNotFound {
@@ -595,6 +599,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 
 	var approxSize int // can't use zbuf.Len because zw buffers
 	var dataRefsWritten []blob.Ref
+	var dataBytesWritten int64
 	var schemaBlobSeen = map[blob.Ref]bool{}
 	var schemaBlobs []blob.Ref // to add after the main file
 
@@ -656,6 +661,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 		rc.Close()
 
 		dataRefsWritten = append(dataRefsWritten, dr)
+		dataBytesWritten += int64(size)
 		chunks = chunks[1:]
 	}
 	mf.DataBlobsOrigin = blob.RefFromHash(chunkWholeHash)
@@ -720,12 +726,20 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 		return err
 	}
 
+	bm := pk.s.meta.BeginBatch()
+	bm.Set(fmt.Sprintf("%s%s:%d", wholeMetaPrefix, pk.wholeRef, len(pk.zips)),
+		fmt.Sprintf("%s %d %d %d",
+			zipRef,
+			dataStart,
+			pk.wholeBytesWritten,
+			dataBytesWritten))
+
+	pk.wholeBytesWritten += dataBytesWritten
 	pk.zips = append(pk.zips, writtenZip{
 		SizedRef: zipSB,
 		dataRefs: dataRefsWritten,
 	})
 
-	bm := pk.s.meta.BeginBatch()
 	for _, zb := range zipBlobs {
 		bm.Set(blobMetaPrefix+zb.Ref.String(), fmt.Sprintf("%d l %v %d", zb.Size, zipRef, zb.Offset))
 	}
