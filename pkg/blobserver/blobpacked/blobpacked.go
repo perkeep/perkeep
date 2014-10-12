@@ -432,18 +432,8 @@ func (s *storage) todo_StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob,
 	panic("TODO")
 }
 
-func (s *storage) blobSource() blob.Fetcher {
-	// TODO: find or use a cache. make all uploaded blobs to the
-	// server go to the cache too. Put the cache on fast local
-	// disk or memory. Make sure it works well no GCE too, where
-	// reconstruction of the packFile in the common case should
-	// never do GET requests to Google Cloud Storage.
-	// For now, just use the small store:
-	return s.small
-}
-
 func (s *storage) packFile(fileRef blob.Ref) error {
-	fr, err := schema.NewFileReader(s.blobSource(), fileRef)
+	fr, err := schema.NewFileReader(s, fileRef)
 	if err != nil {
 		return err
 	}
@@ -453,7 +443,6 @@ func (s *storage) packFile(fileRef blob.Ref) error {
 func newPacker(s *storage, fileRef blob.Ref, fr *schema.FileReader) *packer {
 	return &packer{
 		s:            s,
-		src:          s.blobSource(),
 		fileRef:      fileRef,
 		fr:           fr,
 		dataSize:     map[blob.Ref]uint32{},
@@ -466,7 +455,6 @@ func newPacker(s *storage, fileRef blob.Ref, fr *schema.FileReader) *packer {
 type packer struct {
 	s       *storage
 	fileRef blob.Ref
-	src     blob.Fetcher
 	fr      *schema.FileReader
 
 	wholeRef  blob.Ref
@@ -552,7 +540,7 @@ func (pk *packer) scanChunks() error {
 			}
 			schemaSeen[schemaRef] = true
 			pk.schemaRefs = append(pk.schemaRefs, schemaRef)
-			if b, err := blob.FromFetcher(pk.src, schemaRef); err != nil {
+			if b, err := blob.FromFetcher(pk.s, schemaRef); err != nil {
 				return err
 			} else {
 				pk.schemaBlob[schemaRef] = b
@@ -656,7 +644,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 		}
 
 		// Copy the data to the zip.
-		rc, size, err := pk.src.Fetch(dr)
+		rc, size, err := pk.s.Fetch(dr)
 		check(err)
 		if size != thisSize {
 			rc.Close()
