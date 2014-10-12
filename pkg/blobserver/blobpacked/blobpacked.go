@@ -150,6 +150,8 @@ type storage struct {
 	// It defaults to constants.MaxBlobSize.
 	forceMaxZipBlobSize int
 
+	skipDelete bool // don't delete from small after packing
+
 	packGate *syncutil.Gate
 }
 
@@ -613,7 +615,6 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 
 	zipMax := pk.s.maxZipBlobSize()
 	chunks := pk.chunksRemain
-	truncated := false
 	chunkWholeHash := blob.NewHash()
 	for len(chunks) > 0 {
 		dr := chunks[0] // the next chunk to maybe write
@@ -622,7 +623,6 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 			if approxSize == 0 {
 				return errors.New("first blob is too large to pack, once you add the zip overhead")
 			}
-			truncated = true
 			break
 		}
 
@@ -639,7 +639,6 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 		approxSize += int(thisSize)
 		if approxSize+mf.approxSerializedSize()+zipOverhead > zipMax {
 			schemaBlobs = schemaBlobsSave // restore it
-			truncated = true
 			break
 		}
 
@@ -734,13 +733,25 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 		return err
 	}
 
-	_ = truncated
+	// Delete from small
+	if !pk.s.skipDelete {
+		toDelete := make([]blob.Ref, 0, len(dataRefsWritten)+len(schemaBlobs))
+		toDelete = append(toDelete, dataRefsWritten...)
+		toDelete = append(toDelete, schemaBlobs...)
+		if err := pk.s.small.RemoveBlobs(toDelete); err != nil {
+			// Can't really do anything about it and doesn't really matter, so
+			// just log for now.
+			log.Printf("Error removing blobs from %s: %v", pk.s.small, err)
+		}
+	}
 
 	// On success, consume the chunks we wrote from pk.chunksRemain.
 	pk.chunksRemain = pk.chunksRemain[len(dataRefsWritten):]
 	return nil
 }
 
+// A BlobAndPos is a blobref, its size, and where it is located within
+// a larger group of bytes.
 type BlobAndPos struct {
 	blob.SizedRef
 	Offset int64 `json:"offset"`
@@ -773,7 +784,9 @@ type Manifest struct {
 	DataBlobsOrigin blob.Ref `json:"dataBlobsOrigin"`
 
 	// DataBlobs describes all the logical blobs that are
-	// concatenated together in the DataBlobsOrigin.
+	// concatenated together in the first file in the zip file.
+	// The offsets are relative to the beginning of that first
+	// file, not the beginning of the zip file itself.
 	DataBlobs []BlobAndPos `json:"dataBlobs"`
 }
 

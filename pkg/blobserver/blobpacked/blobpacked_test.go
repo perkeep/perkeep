@@ -92,18 +92,43 @@ func wantNumLargeBlobs(want int) func(*packTest) {
 	return func(pt *packTest) { pt.wantLargeBlobs = want }
 }
 
+func wantNumSmallBlobs(want int) func(*packTest) {
+	return func(pt *packTest) { pt.wantSmallBlobs = want }
+}
+
+func randBytes(n int) []byte {
+	r := rand.New(rand.NewSource(42))
+	s := make([]byte, n)
+	for i := range s {
+		s[i] = byte(r.Int63())
+	}
+	return s
+}
+
 func TestPackNormal(t *testing.T) {
 	const fileSize = 5 << 20
-	fileContents := make([]byte, fileSize)
-	for i := range fileContents {
-		fileContents[i] = byte(rand.Int63())
-	}
 	const fileName = "foo.dat"
+	fileContents := randBytes(fileSize)
 	testPack(t,
 		func(sto blobserver.Storage) (blob.Ref, error) {
 			return schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
 		},
 		wantNumLargeBlobs(1),
+		wantNumSmallBlobs(0),
+	)
+}
+
+func TestPackNoDelete(t *testing.T) {
+	const fileSize = 1 << 20
+	const fileName = "foo.dat"
+	fileContents := randBytes(fileSize)
+	testPack(t,
+		func(sto blobserver.Storage) (blob.Ref, error) {
+			return schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
+		},
+		func(pt *packTest) { pt.sto.skipDelete = true },
+		wantNumLargeBlobs(1),
+		wantNumSmallBlobs(15), // empirically
 	)
 }
 
@@ -112,16 +137,14 @@ func TestPackLarge(t *testing.T) {
 		t.Skip("skipping in short mode")
 	}
 	const fileSize = 17 << 20 // more than 16 MB, so more than one zip
-	fileContents := make([]byte, fileSize)
-	for i := range fileContents {
-		fileContents[i] = byte(rand.Int63())
-	}
 	const fileName = "foo.dat"
+	fileContents := randBytes(fileSize)
 	testPack(t,
 		func(sto blobserver.Storage) (blob.Ref, error) {
 			return schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
 		},
 		wantNumLargeBlobs(2),
+		wantNumSmallBlobs(0),
 	)
 }
 
@@ -131,6 +154,7 @@ type packTest struct {
 	logical, small, large *test.Fetcher
 
 	wantLargeBlobs interface{} // nil means disabled, else int
+	wantSmallBlobs interface{} // nil means disabled, else int
 }
 
 func testPack(t *testing.T,
@@ -171,7 +195,10 @@ func testPack(t *testing.T,
 	t.Logf("items in large: %v", large.NumBlobs())
 
 	if want, ok := pt.wantLargeBlobs.(int); ok && want != large.NumBlobs() {
-		t.Fatalf("num large blogs = %d; want %d", large.NumBlobs(), want)
+		t.Fatalf("num large blobs = %d; want %d", large.NumBlobs(), want)
+	}
+	if want, ok := pt.wantSmallBlobs.(int); ok && want != small.NumBlobs() {
+		t.Fatalf("num small blobs = %d; want %d", small.NumBlobs(), want)
 	}
 
 	var zipRefs []blob.Ref
@@ -273,12 +300,7 @@ func testPack(t *testing.T,
 		t.Error("enumerate over logical blobs didn't work?")
 	}
 
-	if logical.NumBlobs() != small.NumBlobs() {
-		t.Errorf("logical blobs = %d; small blobs after = %d", logical.NumBlobs(), small.NumBlobs())
-	}
-
 	// TODO: so many more tests:
-	// -- that things in small get deleted
 	// -- that uploading an identical-but-different-named file doesn't make a new large
 	// -- that uploading a 49% identical one does.
 	// -- verify deleting from the source
