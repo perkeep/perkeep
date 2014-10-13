@@ -48,9 +48,6 @@ goog.require('cam.TagsControl');
 cam.IndexPage = React.createClass({
 	displayName: 'IndexPage',
 
-	// TODO: flag to hide tagging functionality until development complete
-	DEBUG_TAGS: false,
-
 	HEADER_HEIGHT_: 38,
 	SEARCH_PREFIX_: {
 		RAW: 'raw'
@@ -618,11 +615,6 @@ cam.IndexPage = React.createClass({
 	},
 
 	getTagsControlItem_: function() {
-		// TODO: remove when launching functionality
-		if (!this.DEBUG_TAGS) {
-			return null;
-		}
-
 		var numItems = goog.object.getCount(this.state.selection);
 		if (numItems == 0) {
 			return null;
