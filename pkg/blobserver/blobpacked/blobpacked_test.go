@@ -101,6 +101,15 @@ func wantNumSmallBlobs(want int) func(*packTest) {
 	return func(pt *packTest) { pt.wantSmallBlobs = want }
 }
 
+func okayWithoutMeta(refStr string) func(*packTest) {
+	return func(pt *packTest) {
+		if pt.okayNoMeta == nil {
+			pt.okayNoMeta = map[blob.Ref]bool{}
+		}
+		pt.okayNoMeta[blob.MustParse(refStr)] = true
+	}
+}
+
 func randBytes(n int) []byte {
 	r := rand.New(rand.NewSource(42))
 	s := make([]byte, n)
@@ -157,9 +166,6 @@ func TestPackLarge(t *testing.T) {
 }
 
 func TestPackTwoIdenticalfiles(t *testing.T) {
-	if !*brokenTests {
-		t.Skip("TODO: known broken test; skipping")
-	}
 	const fileSize = 1 << 20
 	fileContents := randBytes(fileSize)
 	testPack(t,
@@ -175,6 +181,7 @@ func TestPackTwoIdenticalfiles(t *testing.T) {
 		func(pt *packTest) { pt.sto.packGate = syncutil.NewGate(1) }, // one pack at a time
 		wantNumLargeBlobs(1),
 		wantNumSmallBlobs(1), // just the "b.txt" file schema blob
+		okayWithoutMeta("sha1-cb4399f6b3b31ace417e1ec9326f9818bb3f8387"),
 	)
 }
 
@@ -185,6 +192,8 @@ type packTest struct {
 
 	wantLargeBlobs interface{} // nil means disabled, else int
 	wantSmallBlobs interface{} // nil means disabled, else int
+
+	okayNoMeta map[blob.Ref]bool
 }
 
 func testPack(t *testing.T,
@@ -317,7 +326,11 @@ func testPack(t *testing.T,
 	// Verify that each chunk in the logical mapping is in the meta.
 	logBlobs := 0
 	if err := blobserver.EnumerateAll(context.New(), logical, func(sb blob.SizedRef) error {
+		logBlobs++
 		v, err := pt.sto.meta.Get(blobMetaPrefix + sb.Ref.String())
+		if err == sorted.ErrNotFound && pt.okayNoMeta[sb.Ref] {
+			return nil
+		}
 		if err != nil {
 			return fmt.Errorf("error looking up logical blob %v in meta: %v", sb.Ref, err)
 		}
@@ -333,7 +346,6 @@ func testPack(t *testing.T,
 		if !sb.Ref.HashMatches(h) {
 			t.Errorf("blob %v not found matching in zip", sb.Ref)
 		}
-		logBlobs++
 		return nil
 	}); err != nil {
 		t.Fatal(err)

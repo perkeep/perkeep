@@ -83,7 +83,6 @@ package blobpacked
 
 // TODO: BlobStreamer using the zip manifests, for recovery.
 // TODO: drop the " l " from the meta values, now that we always merge
-// TODO: write the final wholeMetaPrefix row out. only the per-chunk ones are done now.
 
 import (
 	"bytes"
@@ -525,7 +524,8 @@ func (pk *packer) pack() error {
 		return err
 	}
 	pk.wholeRef = blob.RefFromHash(h)
-	_, err = pk.s.meta.Get(wholeMetaPrefix + pk.wholeRef.String())
+	wholeKey := wholeMetaPrefix + pk.wholeRef.String()
+	_, err = pk.s.meta.Get(wholeKey)
 	if err == nil {
 		// Nil error means there was some knowledge of this wholeref.
 		return fmt.Errorf("already have wholeref %v packed; not packing again", pk.wholeRef)
@@ -546,6 +546,13 @@ MakingZips:
 		}
 		trunc = blob.Ref{}
 	}
+
+	// Record the final wholeMetaPrefix record:
+	err = pk.s.meta.Set(wholeKey, fmt.Sprintf("%d %d", pk.wholeSize, len(pk.zips)))
+	if err != nil {
+		return fmt.Errorf("Error setting %s: %v", wholeKey, err)
+	}
+
 	return nil
 }
 
