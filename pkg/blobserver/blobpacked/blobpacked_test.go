@@ -47,6 +47,7 @@ func TestStorage(t *testing.T) {
 			small: new(test.Fetcher),
 			large: new(test.Fetcher),
 			meta:  sorted.NewMemoryKeyValue(),
+			log:   test.NewLogger(t, "blobpacked: "),
 		}
 		s.init()
 		return s, func() {}
@@ -207,6 +208,7 @@ func testPack(t *testing.T,
 		small: small,
 		large: large,
 		meta:  sorted.NewMemoryKeyValue(),
+		log:   test.NewLogger(t, "blobpacked: "),
 	}
 	pt.sto.init()
 
@@ -357,6 +359,7 @@ func TestSmallFallback(t *testing.T) {
 		small: small,
 		large: new(test.Fetcher),
 		meta:  sorted.NewMemoryKeyValue(),
+		log:   test.NewLogger(t, "blobpacked: "),
 	}
 	s.init()
 	b1 := &test.Blob{"foo"}

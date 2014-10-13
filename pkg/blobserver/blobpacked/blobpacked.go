@@ -92,6 +92,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -154,6 +155,9 @@ type storage struct {
 	skipDelete bool // don't delete from small after packing
 
 	packGate *syncutil.Gate
+
+	loggerOnce sync.Once
+	log        *log.Logger // nil means default
 }
 
 var (
@@ -163,6 +167,21 @@ var (
 
 func (s *storage) String() string {
 	return fmt.Sprintf("\"blobpacked\" storage")
+}
+
+func (s *storage) Logf(format string, args ...interface{}) {
+	s.logger().Printf(format, args...)
+}
+
+func (s *storage) logger() *log.Logger {
+	s.loggerOnce.Do(s.initLogger)
+	return s.log
+}
+
+func (s *storage) initLogger() {
+	if s.log == nil {
+		s.log = log.New(os.Stderr, "blobpacked: ", log.LstdFlags)
+	}
 }
 
 func (s *storage) init() {
@@ -324,17 +343,11 @@ func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, 
 
 	// Pack the blob.
 	s.packGate.Start()
-	// TODO: why is this in a goroutine?
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer s.packGate.Done()
-		defer wg.Done()
-		if err := s.packFile(br); err != nil {
-			log.Printf("Error packing file %s: %v", br, err)
-		}
-	}()
-	wg.Wait()
+	defer s.packGate.Done()
+	// We ignore the return value from packFile since we can't
+	// really recover. At least be happy that we have all the
+	// data on 'small' already. packFile will log at least.
+	s.packFile(br)
 	return sb, nil
 }
 
@@ -436,7 +449,16 @@ func (s *storage) todo_StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob,
 	panic("TODO")
 }
 
-func (s *storage) packFile(fileRef blob.Ref) error {
+func (s *storage) packFile(fileRef blob.Ref) (err error) {
+	s.Logf("Packing file %s ...", fileRef)
+	defer func() {
+		if err == nil {
+			s.Logf("Packed file %s", fileRef)
+		} else {
+			s.Logf("Error packing file %s", fileRef)
+		}
+	}()
+
 	fr, err := schema.NewFileReader(s, fileRef)
 	if err != nil {
 		return err
@@ -755,7 +777,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 		if err := pk.s.small.RemoveBlobs(toDelete); err != nil {
 			// Can't really do anything about it and doesn't really matter, so
 			// just log for now.
-			log.Printf("Error removing blobs from %s: %v", pk.s.small, err)
+			pk.s.Logf("Error removing blobs from %s: %v", pk.s.small, err)
 		}
 	}
 
