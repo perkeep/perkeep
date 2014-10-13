@@ -65,3 +65,8 @@ func (w *twriter) Write(p []byte) (n int, err error) {
 		io.CopyN(ioutil.Discard, &w.buf, int64(i)+1)
 	}
 }
+
+// NewLogger returns a logger that logs to t with the given prefix.
+func NewLogger(t *testing.T, prefix string) *log.Logger {
+	return log.New(&twriter{t: t}, prefix, log.LstdFlags)
+}
