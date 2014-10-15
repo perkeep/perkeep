@@ -82,7 +82,6 @@ file will have a different 'wholePartIndex' number, starting at index
 package blobpacked
 
 // TODO: BlobStreamer using the zip manifests, for recovery.
-// TODO: add test for context goroutine leaks
 
 import (
 	"bytes"

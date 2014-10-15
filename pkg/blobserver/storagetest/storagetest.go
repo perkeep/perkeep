@@ -254,7 +254,9 @@ func CheckEnumerate(sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts .
 	var grp syncutil.Group
 	sawEnd := make(chan bool, 1)
 	grp.Go(func() error {
-		if err := sto.EnumerateBlobs(context.New(), sbc, after, n); err != nil {
+		ctx := context.New()
+		defer ctx.Cancel()
+		if err := sto.EnumerateBlobs(ctx, sbc, after, n); err != nil {
 			return fmt.Errorf("EnumerateBlobs(%q, %d): %v", after, n, err)
 		}
 		return nil

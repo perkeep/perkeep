@@ -23,7 +23,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"runtime"
 	"testing"
+	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -200,6 +202,9 @@ func testPack(t *testing.T,
 	write func(sto blobserver.Storage) error,
 	checks ...func(*packTest),
 ) {
+	ctx := context.New()
+	defer ctx.Cancel()
+
 	logical := new(test.Fetcher)
 	small, large := new(test.Fetcher), new(test.Fetcher)
 	pt := &packTest{
@@ -254,7 +259,7 @@ func testPack(t *testing.T,
 
 	var zipRefs []blob.Ref
 	var zipSeen = map[blob.Ref]bool{}
-	blobserver.EnumerateAll(context.New(), large, func(sb blob.SizedRef) error {
+	blobserver.EnumerateAll(ctx, large, func(sb blob.SizedRef) error {
 		zipRefs = append(zipRefs, sb.Ref)
 		zipSeen[sb.Ref] = true
 		return nil
@@ -325,7 +330,7 @@ func testPack(t *testing.T,
 
 	// Verify that each chunk in the logical mapping is in the meta.
 	logBlobs := 0
-	if err := blobserver.EnumerateAll(context.New(), logical, func(sb blob.SizedRef) error {
+	if err := blobserver.EnumerateAll(ctx, logical, func(sb blob.SizedRef) error {
 		logBlobs++
 		v, err := pt.sto.meta.Get(blobMetaPrefix + sb.Ref.String())
 		if err == sorted.ErrNotFound && pt.okayNoMeta[sb.Ref] {
@@ -355,8 +360,10 @@ func testPack(t *testing.T,
 	}
 
 	// TODO: so many more tests:
-	// -- that uploading an identical-but-different-named file doesn't make a new large
-	// -- that uploading a 49% identical one does.
+
+	// -- like TestPackTwoIdenticalfiles, but instead of testing
+	// no dup for 100% identical file bytes, test that uploading a
+	// 49% identical one does denormalize and repack.
 	// -- verify deleting from the source
 	// -- verify we can reconstruct it all from the zip
 	// -- verify the meta before & after
@@ -396,7 +403,9 @@ func TestSmallFallback(t *testing.T) {
 
 	// Enumerate
 	saw := false
-	if err := blobserver.EnumerateAll(context.New(), s, func(sb blob.SizedRef) error {
+	ctx := context.New()
+	defer ctx.Cancel()
+	if err := blobserver.EnumerateAll(ctx, s, func(sb blob.SizedRef) error {
 		if sb != wantSB {
 			return fmt.Errorf("saw blob %v; want %v", sb, wantSB)
 		}
@@ -407,5 +416,18 @@ func TestSmallFallback(t *testing.T) {
 	}
 	if !saw {
 		t.Error("didn't see blob in Enumerate")
+	}
+}
+
+func TestZ_LeakCheck(t *testing.T) {
+	if testing.Short() {
+		return
+	}
+	time.Sleep(50 * time.Millisecond) // let goroutines schedule & die off
+	buf := make([]byte, 1<<20)
+	buf = buf[:runtime.Stack(buf, true)]
+	n := bytes.Count(buf, []byte("[chan receive]:"))
+	if n > 1 {
+		t.Errorf("%d goroutines in chan receive: %s", n, buf)
 	}
 }
