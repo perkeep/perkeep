@@ -67,11 +67,11 @@ func TestParseMetaRow(t *testing.T) {
 		{in: " ", err: true},
 		{in: "123 x", err: true},
 		{in: "123 l", err: true},
-		{in: "123 l sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15", err: true},
-		{in: "123 l notaref 12", err: true},
-		{in: "123 l sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15 42 extra", err: true},
-		{in: "123 l sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15 42 ", err: true},
-		{in: "123 l sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15 42", want: meta{
+		{in: "123 sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15", err: true},
+		{in: "123 notaref 12", err: true},
+		{in: "123 sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15 42 extra", err: true},
+		{in: "123 sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15 42 ", err: true},
+		{in: "123 sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15 42", want: meta{
 			exists:   true,
 			size:     123,
 			largeRef: blob.MustParse("sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15"),

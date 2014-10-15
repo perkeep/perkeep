@@ -82,7 +82,7 @@ file will have a different 'wholePartIndex' number, starting at index
 package blobpacked
 
 // TODO: BlobStreamer using the zip manifests, for recovery.
-// TODO: drop the " l " from the meta values, now that we always merge
+// TODO: add test for context goroutine leaks
 
 import (
 	"bytes"
@@ -136,8 +136,8 @@ type storage struct {
 
 	// meta key -> value rows are:
 	//
-	// For logical blobs, "b:" prefix:
-	//   b:sha1-xxxx -> "<size> l <big-blobref> <offset_u32>"
+	// For logical blobs packed within a large blog, "b:" prefix:
+	//   b:sha1-xxxx -> "<size> <big-blobref> <offset_u32>"
 	//
 	// For wholerefs: (wholeMetaPrefix)
 	//   w:sha1-xxxx(wholeref) -> "<nbytes_total_u64> <nchunks_u32>"
@@ -255,7 +255,7 @@ func (s *storage) getMetaRow(br blob.Ref) (meta, error) {
 var singleSpace = []byte{' '}
 
 // parses:
-// "<size_u32> l <big-blobref> <big-offset>"
+// "<size_u32> <big-blobref> <big-offset>"
 func parseMetaRow(v []byte) (m meta, err error) {
 	row := v
 	sp := bytes.IndexByte(v, ' ')
@@ -269,15 +269,8 @@ func parseMetaRow(v []byte) (m meta, err error) {
 	}
 	m.size = uint32(size)
 	v = v[sp+1:]
-	switch v[0] {
-	default:
-		return meta{}, fmt.Errorf("invalid metarow type %q", v)
-	case 'l':
-		if len(v) < 2 || v[1] != ' ' {
-			err = errors.New("length")
-			break
-		}
-		v = v[2:] // remains: "<big-blobref> <big-offset>"
+	for { // not looped; just for the break control flow
+		// remains: "<big-blobref> <big-offset>"
 		if bytes.Count(v, singleSpace) != 1 {
 			err = errors.New("number of spaces")
 			break
@@ -770,7 +763,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	})
 
 	for _, zb := range zipBlobs {
-		bm.Set(blobMetaPrefix+zb.Ref.String(), fmt.Sprintf("%d l %v %d", zb.Size, zipRef, zb.Offset))
+		bm.Set(blobMetaPrefix+zb.Ref.String(), fmt.Sprintf("%d %v %d", zb.Size, zipRef, zb.Offset))
 	}
 	if err := pk.s.meta.CommitBatch(bm); err != nil {
 		return err
