@@ -61,7 +61,8 @@ to <code>pkg/genconfig</code> welcome.</p>
 <p>Unless <b><code>runIndex</code></b> is set to <code>false</code>, exactly one of these must be set:</p>
 <ul>
 <li><b><code>sqlite</code></b>: path to SQLite database file to use for indexing</li>
-<li><b><code>kvIndexFile</code></b>: path to kv (https://github.com/cznic/kv) database file to use for indexing</li>
+<li><b><code>kvIndexFile</code></b>: path to kv (<a href="https://github.com/cznic/kv">https://github.com/cznic/kv</a>) database file to use for indexing</li>
+<li><b><code>levelDB</code></b>: path to levelDB (<a href="https://github.com/syndtr/goleveldb">https://github.com/syndtr/goleveldb</a>) database file to use for indexing</li>
 <li><b><code>mongo</code></b>: user:password@host</li>
 <li><b><code>mysql</code></b>: user@host:password</li>
 <li><b><code>postgres</code></b>: user@host:password</li>
