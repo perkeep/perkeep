@@ -49,6 +49,8 @@ var (
 	chunkPackage   = flag.String("chunk-package", "", "Package to hold chunks")
 
 	destFilesStderr = flag.Bool("output-files-stderr", false, "Write the absolute path of all output files to stderr prefixed with OUTPUT:")
+
+	patternFilename = flag.String("pattern-file", "fileembed.go", "Filepath relative to <dir> from which to read the #fileembed pattern")
 )
 
 const (
@@ -91,7 +93,7 @@ func main() {
 
 	pkgName, filePattern, fileEmbedModTime, err := parseFileEmbed()
 	if err != nil {
-		log.Fatalf("Error parsing %s/fileembed.go: %v", dir, err)
+		log.Fatalf("Error parsing %s/%s: %v", dir, *patternFilename, err)
 	}
 
 	for _, fileName := range matchingFiles(filePattern) {
@@ -274,7 +276,7 @@ func matchingFiles(p *regexp.Regexp) []string {
 }
 
 func parseFileEmbed() (pkgName string, filePattern *regexp.Regexp, modTime time.Time, err error) {
-	fe, err := os.Open("fileembed.go")
+	fe, err := os.Open(*patternFilename)
 	if err != nil {
 		return
 	}
@@ -287,7 +289,7 @@ func parseFileEmbed() (pkgName string, filePattern *regexp.Regexp, modTime time.
 	modTime = fi.ModTime()
 
 	fs := token.NewFileSet()
-	astf, err := parser.ParseFile(fs, "fileembed.go", fe, parser.PackageClauseOnly|parser.ParseComments)
+	astf, err := parser.ParseFile(fs, *patternFilename, fe, parser.PackageClauseOnly|parser.ParseComments)
 	if err != nil {
 		return
 	}
