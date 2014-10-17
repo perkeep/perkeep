@@ -17,29 +17,56 @@ limitations under the License.
 package s3
 
 import (
-	"os"
+	"flag"
+	"log"
+	"strings"
 	"testing"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
+	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/jsonconfig"
 )
 
+var (
+	key    = flag.String("s3_key", "", "AWS access Key ID")
+	secret = flag.String("s3_secret", "", "AWS access secret")
+	bucket = flag.String("s3_bucket", "", "Bucket name to use for testing. If empty, testing is skipped. If non-empty, it must begin with 'camlistore-' and end in '-test' and have zero items in it.")
+)
+
 func TestS3(t *testing.T) {
-	cfgFile := os.Getenv("CAMLI_S3_TEST_CONFIG_JSON")
-	if cfgFile == "" {
-		t.Skip("Skipping manual test. To enable, set the environment variable CAMLI_S3_TEST_CONFIG_JSON to the path of a JSON configuration for the s3 storage type.")
+	if *bucket == "" || *key == "" || *secret == "" {
+		t.Skip("Skipping test because at least one of -s3_key, -s3_secret, or -s3_bucket flags has not been provided.")
 	}
-	conf, err := jsonconfig.ReadFile(cfgFile)
-	if err != nil {
-		t.Fatalf("Error reading s3 configuration file %s: %v", cfgFile, err)
+	if !strings.HasPrefix(*bucket, "camlistore-") || !strings.HasSuffix(*bucket, "-test") {
+		t.Fatalf("bogus bucket name %q; must begin with 'camlistore-' and end in '-test'", *bucket)
 	}
 	storagetest.Test(t, func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
-		sto, err := newFromConfig(nil, conf)
+		sto, err := newFromConfig(nil, jsonconfig.Obj{
+			"aws_access_key":        *key,
+			"aws_secret_access_key": *secret,
+			"bucket":                *bucket,
+		})
 		if err != nil {
 			t.Fatalf("newFromConfig error: %v", err)
 		}
-		return sto, func() {}
+		if !testing.Short() {
+			log.Printf("Warning: this test does many serial operations. Without the go test -short flag, this test will be very slow.")
+		}
+		clearBucket := func() {
+			var all []blob.Ref
+			blobserver.EnumerateAll(context.New(), sto, func(sb blob.SizedRef) error {
+				t.Logf("Deleting: %v", sb.Ref)
+				all = append(all, sb.Ref)
+				return nil
+			})
+			if err := sto.RemoveBlobs(all); err != nil {
+				t.Fatalf("Error removing blobs during cleanup: %v", err)
+			}
+		}
+		clearBucket()
+		return sto, clearBucket
 	})
 }
 
