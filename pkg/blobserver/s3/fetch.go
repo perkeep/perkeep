@@ -34,3 +34,7 @@ func (sto *s3Storage) Fetch(blob blob.Ref) (file io.ReadCloser, size uint32, err
 	file, sz, err := sto.s3Client.Get(sto.bucket, blob.String())
 	return file, uint32(sz), err
 }
+
+func (sto *s3Storage) SubFetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, err error) {
+	return sto.s3Client.GetPartial(sto.bucket, br.String(), offset, length)
+}
