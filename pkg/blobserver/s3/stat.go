@@ -30,6 +30,7 @@ func (sto *s3Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (er
 	if faultStat.FailErr(&err) {
 		return
 	}
+	// TODO: use sto.cache
 	var wg syncutil.Group
 	for _, br := range blobs {
 		br := br
