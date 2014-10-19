@@ -38,11 +38,17 @@ import (
 	"log"
 	"strings"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/memory"
 	"camlistore.org/pkg/fault"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/misc/amazon/s3"
+)
+
+var (
+	_ blob.SubFetcher               = (*s3Storage)(nil)
+	_ blobserver.MaxEnumerateConfig = (*s3Storage)(nil)
 )
 
 var (
