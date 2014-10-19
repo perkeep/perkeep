@@ -298,6 +298,38 @@ func (c *Client) Get(bucket, key string) (body io.ReadCloser, size int64, err er
 	}
 }
 
+// GetPartial fetches part of the s3 key object in bucket.
+// If length is negative, the rest of the object is returned.
+// The caller must close rc.
+func (c *Client) GetPartial(bucket, key string, offset, length int64) (rc io.ReadCloser, err error) {
+	if offset < 0 {
+		return nil, errors.New("invalid negative length")
+	}
+
+	req := newReq(c.keyURL(bucket, key))
+	if length >= 0 {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", offset, offset+length-1))
+	} else {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
+	}
+	c.Auth.SignRequest(req)
+
+	res, err := c.transport().RoundTrip(req)
+	if err != nil {
+		return
+	}
+	switch res.StatusCode {
+	case http.StatusOK, http.StatusPartialContent:
+		return res.Body, nil
+	case http.StatusNotFound:
+		res.Body.Close()
+		return nil, os.ErrNotExist
+	default:
+		res.Body.Close()
+		return nil, fmt.Errorf("Amazon HTTP error on GET: %d", res.StatusCode)
+	}
+}
+
 func (c *Client) Delete(bucket, key string) error {
 	req := newReq(c.keyURL(bucket, key))
 	req.Method = "DELETE"

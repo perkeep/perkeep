@@ -117,15 +117,22 @@ func (w *World) Start() error {
 				}
 			}
 		}
-		// TODO(mpl): when running with -v (either with go test or devcam test), append it for make.go as well
 		cmd := exec.Command("go", "run", "make.go",
 			fmt.Sprintf("--if_mods_since=%d", latestModtime.Unix()),
 		)
+		if testing.Verbose() {
+			// TODO(mpl): do the same when -verbose with devcam test. Even better: see if testing.Verbose
+			// can be made true if devcam test -verbose ?
+			cmd.Args = append(cmd.Args, "-v=true")
+		}
 		cmd.Dir = w.camRoot
 		log.Print("Running make.go to build camlistore binaries for testing...")
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("Error building world: %v, %s", err, string(out))
+		}
+		if testing.Verbose() {
+			log.Printf("%s\n", out)
 		}
 		log.Print("Ran make.go.")
 	}
@@ -140,8 +147,13 @@ func (w *World) Start() error {
 			"--pollparent=true",
 		)
 		var buf bytes.Buffer
-		w.server.Stdout = &buf
-		w.server.Stderr = &buf
+		if testing.Verbose() {
+			w.server.Stdout = os.Stdout
+			w.server.Stderr = os.Stderr
+		} else {
+			w.server.Stdout = &buf
+			w.server.Stderr = &buf
+		}
 		w.server.Dir = w.tempDir
 		w.server.Env = append(os.Environ(),
 			"CAMLI_DEBUG=1",
@@ -306,8 +318,13 @@ func GetWorldMaybe(t *testing.T) *World {
 // all output.
 func RunCmd(c *exec.Cmd) (output string, err error) {
 	var stdout, stderr bytes.Buffer
-	c.Stderr = &stderr
-	c.Stdout = &stdout
+	if testing.Verbose() {
+		c.Stderr = os.Stdout
+		c.Stdout = os.Stderr
+	} else {
+		c.Stderr = &stderr
+		c.Stdout = &stdout
+	}
 	err = c.Run()
 	if err != nil {
 		return "", fmt.Errorf("Error running command %+v: Stdout:\n%s\nStderr:\n%s\n", c, stdout.String(), stderr.String())
