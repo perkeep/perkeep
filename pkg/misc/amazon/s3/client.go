@@ -282,25 +282,20 @@ func (c *Client) ListBucket(bucket string, startAt string, maxKeys int) (items [
 func (c *Client) Get(bucket, key string) (body io.ReadCloser, size int64, err error) {
 	req := newReq(c.keyURL(bucket, key))
 	c.Auth.SignRequest(req)
-	var res *http.Response
-	res, err = c.transport().RoundTrip(req)
+	res, err := c.transport().RoundTrip(req)
 	if err != nil {
 		return
 	}
-	if res.StatusCode != http.StatusOK && res != nil && res.Body != nil {
-		defer func() {
-			io.Copy(os.Stderr, res.Body)
-		}()
+	switch res.StatusCode {
+	case http.StatusOK:
+		return res.Body, res.ContentLength, nil
+	case http.StatusNotFound:
+		res.Body.Close()
+		return nil, 0, os.ErrNotExist
+	default:
+		res.Body.Close()
+		return nil, 0, fmt.Errorf("Amazon HTTP error on GET: %d", res.StatusCode)
 	}
-	if res.StatusCode == http.StatusNotFound {
-		err = os.ErrNotExist
-		return
-	}
-	if res.StatusCode != http.StatusOK {
-		err = fmt.Errorf("Amazon HTTP error on GET: %d", res.StatusCode)
-		return
-	}
-	return res.Body, res.ContentLength, nil
 }
 
 func (c *Client) Delete(bucket, key string) error {
