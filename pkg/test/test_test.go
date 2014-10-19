@@ -48,8 +48,7 @@ func TestTLog(t *testing.T) {
 	want := []string{
 		"hello",
 		"hello",
-		"some text",
-		"and more text",
+		"some text\nand more text",
 	}
 	if !reflect.DeepEqual(tb.log, want) {
 		t.Errorf("Got %q; want %q", tb.log, want)

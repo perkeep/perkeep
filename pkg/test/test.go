@@ -20,6 +20,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -34,7 +35,7 @@ func BrokenTest(t *testing.T) {
 // TLog changes the log package's output to log to t and returns a function
 // to reset it back to stderr.
 func TLog(t testing.TB) func() {
-	log.SetOutput(&twriter{t: t})
+	log.SetOutput(twriter{t: t})
 	return func() {
 		log.SetOutput(os.Stderr)
 	}
@@ -44,11 +45,14 @@ type twriter struct {
 	t testing.TB
 }
 
-func (w *twriter) Write(p []byte) (n int, err error) {
-	t.Logf("%s", p)
+func (w twriter) Write(p []byte) (n int, err error) {
+	if w.t != nil {
+		w.t.Log(strings.TrimSuffix(string(p), "\n"))
+	}
+	return len(p), nil
 }
 
 // NewLogger returns a logger that logs to t with the given prefix.
 func NewLogger(t *testing.T, prefix string) *log.Logger {
-	return log.New(&twriter{t: t}, prefix, log.LstdFlags)
+	return log.New(twriter{t: t}, prefix, log.LstdFlags)
 }
