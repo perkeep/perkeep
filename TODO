@@ -4,10 +4,6 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
--- put a memory.Storage cache in blobserver/s3, like blobserver/google/cloudstorage.
-   (for blobpacked being fast to re-GET a recent blob after an upload of a file,
-    without doing actual HTTP GETs to get the small blobs back)
-
 -- reindexing:
    * review blob streaming interface & diskpacked implementation thereof.
      notably: should the continuation token come per-blob? then we could

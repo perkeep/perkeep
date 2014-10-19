@@ -39,6 +39,7 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/blobserver/memory"
 	"camlistore.org/pkg/fault"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/misc/amazon/s3"
@@ -55,6 +56,7 @@ type s3Storage struct {
 	s3Client *s3.Client
 	bucket   string
 	hostname string
+	cache    *memory.Storage // or nil for no cache
 }
 
 func (s *s3Storage) String() string {
@@ -63,6 +65,7 @@ func (s *s3Storage) String() string {
 
 func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
 	hostname := config.OptionalString("hostname", "s3.amazonaws.com")
+	cacheSize := config.OptionalInt64("cacheSize", 32<<20)
 	client := &s3.Client{
 		Auth: &s3.Auth{
 			AccessKey:       config.RequiredString("aws_access_key"),
@@ -78,6 +81,9 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 	skipStartupCheck := config.OptionalBool("skipStartupCheck", false)
 	if err := config.Validate(); err != nil {
 		return nil, err
+	}
+	if cacheSize != 0 {
+		sto.cache = memory.NewCache(cacheSize)
 	}
 	if !skipStartupCheck {
 		_, err := client.ListBucket(sto.bucket, "", 1)

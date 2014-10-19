@@ -51,6 +51,8 @@ var (
 	destFilesStderr = flag.Bool("output-files-stderr", false, "Write the absolute path of all output files to stderr prefixed with OUTPUT:")
 
 	patternFilename = flag.String("pattern-file", "fileembed.go", "Filepath relative to <dir> from which to read the #fileembed pattern")
+
+	buildTags = flag.String("build-tags", "", "Add these tags as +build constraints to the resulting zembed_*.go files")
 )
 
 const (
@@ -151,7 +153,11 @@ func main() {
 
 		var b bytes.Buffer
 		fmt.Fprintf(&b, "// THIS FILE IS AUTO-GENERATED FROM %s\n", fileName)
-		fmt.Fprintf(&b, "// DO NOT EDIT.\n\n")
+		fmt.Fprintf(&b, "// DO NOT EDIT.\n")
+		if *buildTags != "" {
+			fmt.Fprintf(&b, "// +build %s\n", *buildTags)
+		}
+		fmt.Fprintf(&b, "\n")
 		fmt.Fprintf(&b, "package %s\n\n", pkgName)
 		fmt.Fprintf(&b, "import \"time\"\n\n")
 		fmt.Fprintf(&b, "import \""+*fileEmbedPkgPath+"\"\n\n")
