@@ -74,6 +74,12 @@ func searchDescribeSetup(fi *test.FakeIndex) index.Interface {
 	addPermanode(fi, "somevenuepic-0",
 		"foo", "bar",
 	)
+	addPermanode(fi, "venuepic-2",
+		"camliContent", "somevenuepic-2",
+	)
+	addPermanode(fi, "somevenuepic-2",
+		"foo", "baz",
+	)
 
 	addPermanode(fi, "homedir-0",
 		"camliPath:subdir.1", "homedir-1",
@@ -83,6 +89,11 @@ func searchDescribeSetup(fi *test.FakeIndex) index.Interface {
 	)
 	addPermanode(fi, "homedir-2",
 		"foo", "bar",
+	)
+
+	addPermanode(fi, "set-0",
+		"camliMember", "venuepic-1",
+		"camliMember", "venuepic-2",
 	)
 
 	return fi
@@ -205,6 +216,23 @@ var searchDescribeTests = []handlerTest{
 			},
 		}),
 		wantDescribed: []string{"homedir-0", "homedir-1", "homedir-2"},
+	},
+
+	{
+		name: "find members",
+		postBody: marshalJSON(&search.DescribeRequest{
+			BlobRef: blob.MustParse("set-0"),
+			Rules: []*search.DescribeRule{
+				{
+					IfResultRoot: true,
+					Attrs:        []string{"camliMember"},
+					Rules: []*search.DescribeRule{
+						{Attrs: []string{"camliContent"}},
+					},
+				},
+			},
+		}),
+		wantDescribed: []string{"set-0", "venuepic-1", "venuepic-2", "somevenuepic-0", "somevenuepic-2"},
 	},
 }
 

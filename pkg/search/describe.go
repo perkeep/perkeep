@@ -249,6 +249,13 @@ func (m MetaMap) Get(br blob.Ref) *DescribedBlob {
 	return m[br.String()]
 }
 
+// URLSuffixPost returns the URL suffix for POST requests.
+func (r *DescribeRequest) URLSuffixPost() string {
+	return "camli/search/describe"
+}
+
+// URLSuffix returns the URL suffix for GET requests.
+// This is deprecated.
 func (r *DescribeRequest) URLSuffix() string {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "camli/search/describe?depth=%d&maxdirchildren=%d",

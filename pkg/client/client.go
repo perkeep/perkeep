@@ -475,8 +475,12 @@ func (c *Client) Describe(req *search.DescribeRequest) (*search.DescribeResponse
 	if err != nil {
 		return nil, err
 	}
-	url := sr + req.URLSuffix()
-	hreq := c.newRequest("GET", url)
+	url := sr + req.URLSuffixPost()
+	body, err := json.MarshalIndent(req, "", "\t")
+	if err != nil {
+		return nil, err
+	}
+	hreq := c.newRequest("POST", url, bytes.NewReader(body))
 	hres, err := c.expect2XX(hreq)
 	if err != nil {
 		return nil, err
