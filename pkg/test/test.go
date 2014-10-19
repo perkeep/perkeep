@@ -17,9 +17,6 @@ limitations under the License.
 package test
 
 import (
-	"bytes"
-	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
@@ -43,27 +40,12 @@ func TLog(t testing.TB) func() {
 	}
 }
 
-// TODO: This is unnecessarily complicated. I previously missed that
-// the log package actually guarantees a 1:1 relationship between log
-// method calls and Write calls:
-// "Each logging operation makes a single call to the Writer's Write method"
 type twriter struct {
-	t   testing.TB
-	buf bytes.Buffer
+	t testing.TB
 }
 
 func (w *twriter) Write(p []byte) (n int, err error) {
-	n, err = w.buf.Write(p)
-	for {
-		i := bytes.IndexByte(w.buf.Bytes(), '\n')
-		if i < 0 {
-			return
-		}
-		if i > 0 {
-			w.t.Log(string(w.buf.Bytes()[:i]))
-		}
-		io.CopyN(ioutil.Discard, &w.buf, int64(i)+1)
-	}
+	t.Logf("%s", p)
 }
 
 // NewLogger returns a logger that logs to t with the given prefix.

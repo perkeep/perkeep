@@ -140,12 +140,16 @@ func TestUnavailable(t *testing.T) {
 }
 
 func TestFailed(t *testing.T) {
-	checkAvailability = sync.Once{}
 	switch runtime.GOOS {
 	case "darwin", "freebsd", "linux":
 	default:
 		t.Skip("test only runs on UNIX")
 	}
+	checkAvailability = sync.Once{}
+	if !Available() {
+		t.Skip("djpeg isn't available.")
+	}
+
 	oldPath := os.Getenv("PATH")
 	defer os.Setenv("PATH", oldPath)
 	// Use djpeg that exits after calling false.
