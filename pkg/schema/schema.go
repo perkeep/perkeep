@@ -475,9 +475,12 @@ func (b *Blob) FileMode() os.FileMode {
 
 func (ss *superset) FileMode() os.FileMode {
 	var mode os.FileMode
-	m64, err := strconv.ParseUint(ss.UnixPermission, 8, 64)
-	if err == nil {
-		mode = mode | os.FileMode(m64)
+	hasPerm := ss.UnixPermission != ""
+	if hasPerm {
+		m64, err := strconv.ParseUint(ss.UnixPermission, 8, 64)
+		if err == nil {
+			mode = mode | os.FileMode(m64)
+		}
 	}
 
 	// TODO: add other types (block, char, etc)
@@ -492,6 +495,14 @@ func (ss *superset) FileMode() os.FileMode {
 		mode = mode | os.ModeNamedPipe
 	case "socket":
 		mode = mode | os.ModeSocket
+	}
+	if !hasPerm {
+		switch ss.Type {
+		case "directory":
+			mode |= 0755
+		default:
+			mode |= 0644
+		}
 	}
 	return mode
 }
