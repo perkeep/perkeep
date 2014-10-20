@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/cmdmain"
@@ -112,8 +113,19 @@ func (c *makeStaticCmd) RunCommand(args []string) error {
 
 	b := ss.Blob()
 	_, err = cl.UploadBlob(b)
+	if err != nil {
+		return err
+	}
+	title := pnDes.Title()
+	title = strings.Replace(title, string(os.PathSeparator), "", -1)
+	if title == "" {
+		title = pn.String()
+	}
+	dir := schema.NewDirMap(title).PopulateDirectoryMap(b.BlobRef())
+	dirBlob := dir.Blob()
+	_, err = cl.UploadBlob(dirBlob)
 	if err == nil {
-		fmt.Println(b.BlobRef().String())
+		fmt.Println(dirBlob.BlobRef().String())
 	}
 	return err
 }
