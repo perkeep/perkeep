@@ -98,7 +98,7 @@ func extractUsername(authToken string) string {
 }
 
 type imp struct {
-	*importer.OAuth1 // for CallbackRequestAccount and CallbackURLParameters
+	importer.OAuth1 // for CallbackRequestAccount and CallbackURLParameters
 }
 
 func (imp) SupportsIncremental() bool { return false }
@@ -254,7 +254,7 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 	start := time.Now()
 
 	u := fmt.Sprintf(fetchUrl, authToken, batchLimit, r.nextCursor)
-	resp, err := http.Get(u)
+	resp, err := r.HTTPClient().Get(u)
 	if err != nil {
 		return false, err
 	}
@@ -296,6 +296,7 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 			return false, context.ErrCanceled
 		}
 
+		post := post
 		r.postGate.Start()
 		grp.Go(func() error {
 			defer r.postGate.Done()
@@ -303,7 +304,7 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 		})
 	}
 
-	log.Printf("pinboarder: Imported batch of %d posts in %s.", postCount, time.Now().Sub(start))
+	log.Printf("pinboard: Imported batch of %d posts in %s.", postCount, time.Now().Sub(start))
 
 	r.nextCursor = postBatch[postCount-1].Time
 	r.lastPause = pauseInterval
