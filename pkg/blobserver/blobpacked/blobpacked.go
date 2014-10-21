@@ -64,11 +64,8 @@ Manifest type. It looks like this:
       ],
     }
 
-The 'blobs' property list all the logical blobs. Those are the blobs that
-Camlistore reports that it has and were previously stored individually. Now
-they're stored as part of a larger blob. The manifest.json ensures that if
-the metadata index is lost, the data can be reconstructed from the raw zip
-files (using the BlobStreamer interface).
+The manifest.json ensures that if the metadata index is lost, all the
+data can be reconstructed from the raw zip files.
 
 The 'wholeRef' property specifies which large file that this zip is building
 up.  If the file is less than 15.5 MB or so (leaving room for the zip
