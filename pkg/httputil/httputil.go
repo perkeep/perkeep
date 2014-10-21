@@ -40,35 +40,35 @@ func IsGet(r *http.Request) bool {
 	return r.Method == "GET" || r.Method == "HEAD"
 }
 
-func ErrorRouting(conn http.ResponseWriter, req *http.Request) {
-	http.Error(conn, "Handlers wired up wrong; this path shouldn't be hit", 500)
+func ErrorRouting(rw http.ResponseWriter, req *http.Request) {
+	http.Error(rw, "Handlers wired up wrong; this path shouldn't be hit", 500)
 	log.Printf("Internal routing error on %q", req.URL.Path)
 }
 
-func BadRequestError(conn http.ResponseWriter, errorMessage string, args ...interface{}) {
-	conn.WriteHeader(http.StatusBadRequest)
+func BadRequestError(rw http.ResponseWriter, errorMessage string, args ...interface{}) {
+	rw.WriteHeader(http.StatusBadRequest)
 	log.Printf("Bad request: %s", fmt.Sprintf(errorMessage, args...))
-	fmt.Fprintf(conn, "<h1>Bad Request</h1>")
+	fmt.Fprintf(rw, "<h1>Bad Request</h1>")
 }
 
-func ForbiddenError(conn http.ResponseWriter, errorMessage string, args ...interface{}) {
-	conn.WriteHeader(http.StatusForbidden)
+func ForbiddenError(rw http.ResponseWriter, errorMessage string, args ...interface{}) {
+	rw.WriteHeader(http.StatusForbidden)
 	log.Printf("Forbidden: %s", fmt.Sprintf(errorMessage, args...))
-	fmt.Fprintf(conn, "<h1>Forbidden</h1>")
+	fmt.Fprintf(rw, "<h1>Forbidden</h1>")
 }
 
-func RequestEntityTooLargeError(conn http.ResponseWriter) {
-	conn.WriteHeader(http.StatusRequestEntityTooLarge)
-	fmt.Fprintf(conn, "<h1>Request entity is too large</h1>")
+func RequestEntityTooLargeError(rw http.ResponseWriter) {
+	rw.WriteHeader(http.StatusRequestEntityTooLarge)
+	fmt.Fprintf(rw, "<h1>Request entity is too large</h1>")
 }
 
-func ServeError(conn http.ResponseWriter, req *http.Request, err error) {
-	conn.WriteHeader(http.StatusInternalServerError)
+func ServeError(rw http.ResponseWriter, req *http.Request, err error) {
+	rw.WriteHeader(http.StatusInternalServerError)
 	if IsLocalhost(req) || os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "" {
-		fmt.Fprintf(conn, "Server error: %s\n", err)
+		fmt.Fprintf(rw, "Server error: %s\n", err)
 		return
 	}
-	fmt.Fprintf(conn, "An internal error occured, sorry.")
+	fmt.Fprintf(rw, "An internal error occured, sorry.")
 }
 
 func ReturnJSON(rw http.ResponseWriter, data interface{}) {
