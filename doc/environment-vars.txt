@@ -120,6 +120,9 @@ CAMLI_FAST_DEV (bool):
   Used by dev/demo.sh for giving presentations with devcam server/put/etc
   for faster pre-built builds, without calling make.go.
 
+CAMLI_FORCE_OSARCH (bool):
+  Used by make.go to force building an unrecommended OS/ARCH pair.
+
 CAMLI_SECRET_RING (string):
   Path to the GPG secret keyring, which is otherwise set by identitySecretRing
   in the server config, and secretRing in the client config.

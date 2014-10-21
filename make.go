@@ -79,6 +79,12 @@ func main() {
 	log.SetFlags(0)
 	flag.Parse()
 
+	if *buildARCH == "386" && *buildOS == "darwin" {
+		if ok, _ := strconv.ParseBool(os.Getenv("CAMLI_FORCE_OSARCH")); !ok {
+			log.Fatalf("You're trying to build a 32-bit binary for a Mac. That is almost always a mistake.\nTo do it anyway, set env CAMLI_FORCE_OSARCH=1 and run again.\n")
+		}
+	}
+
 	verifyGoVersion()
 
 	if *dockerMode {
