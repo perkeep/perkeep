@@ -79,6 +79,7 @@ file will have a different 'wholePartIndex' number, starting at index
 package blobpacked
 
 // TODO: BlobStreamer using the zip manifests, for recovery.
+// TODO: be a SubFetcher ourselves?
 
 import (
 	"bytes"
@@ -156,8 +157,7 @@ type storage struct {
 }
 
 var (
-// TODO:
-// _ blobserver.BlobStreamer = (*storage)(nil)
+	_ blobserver.BlobStreamer = (*storage)(nil)
 )
 
 func (s *storage) String() string {
@@ -225,6 +225,17 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 		meta:  meta,
 	}
 	sto.init()
+
+	// TODO: check quickly if size(meta) == 0, but size(large) !=
+	// 0. If so, fail with a "known corrupt" message and refuse to
+	// start unless in recovery mode (perhaps a new environment
+	// var? or flag passed down?) using StreamBlobs starting at
+	// "l:".  Could even do it automatically if total size is
+	// small or fast enough? But that's confusing if it only
+	// sometimes finishes recovery. We probably want various
+	// server start-up modes anyway: "check", "recover", "garbage
+	// collect", "readonly".  So might as well introduce that
+	// concept now.
 	return sto, nil
 }
 
@@ -424,17 +435,6 @@ func (s enumerator) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedR
 		dest <- blob.SizedRef{Ref: br, Size: size}
 	}
 	return nil
-}
-
-func (s *storage) todo_StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string, limitBytes int64) (nextContinueToken string, err error) {
-	defer close(dest)
-	// Continuation token is:
-	// "s*" if we're in the small blobs,
-	// "l*" if we're in the large blobs,
-	// First it streams from small (if available, else enumerates)
-	// Then it streams from large (if available, else enumerates),
-	// and for each large, streams the contents of the zips.
-	panic("TODO")
 }
 
 func (s *storage) packFile(fileRef blob.Ref) (err error) {

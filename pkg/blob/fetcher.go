@@ -22,6 +22,9 @@ import (
 	"io"
 	"math"
 	"os"
+	"sync"
+
+	"camlistore.org/pkg/types"
 )
 
 // Fetcher is the minimal interface for retrieving a blob from storage.
@@ -92,4 +95,55 @@ func (df *DirFetcher) Fetch(r Ref) (file io.ReadCloser, size uint32, err error) 
 	}
 	size = uint32(stat.Size())
 	return
+}
+
+// NewLazyReadSeekCloser returns a ReadSeekCloser that does no work
+// until one of its Read, Seek, or Close methods is called, but then
+// fetches the ref from src. Any fetch error is returned in the Read,
+// Seek, or Close call.
+func NewLazyReadSeekCloser(src Fetcher, br Ref) types.ReadSeekCloser {
+	return &lazyReadSeekCloser{src: src, br: br}
+}
+
+type lazyReadSeekCloser struct {
+	once sync.Once // guards init
+	src  Fetcher
+	br   Ref
+
+	// after init, exactly one is set:
+	err error
+	rsc types.ReadSeekCloser
+}
+
+func (r *lazyReadSeekCloser) init() {
+	b, err := FromFetcher(r.src, r.br)
+	if err != nil {
+		r.err = err
+		return
+	}
+	r.rsc = b.Open()
+}
+
+func (r *lazyReadSeekCloser) Read(p []byte) (n int, err error) {
+	r.once.Do(r.init)
+	if r.err != nil {
+		return 0, r.err
+	}
+	return r.rsc.Read(p)
+}
+
+func (r *lazyReadSeekCloser) Seek(offset int64, whence int) (int64, error) {
+	r.once.Do(r.init)
+	if r.err != nil {
+		return 0, r.err
+	}
+	return r.rsc.Seek(offset, whence)
+}
+
+func (r *lazyReadSeekCloser) Close() error {
+	r.once.Do(r.init)
+	if r.err != nil {
+		return r.err
+	}
+	return r.rsc.Close()
 }

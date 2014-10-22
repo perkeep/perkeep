@@ -368,6 +368,7 @@ func testPack(t *testing.T,
 	// -- verify we can reconstruct it all from the zip
 	// -- verify the meta before & after
 	// -- verify we can still get each blob. and enumerate.
+	// -- test StreamBlobs in all its various flavours, and recovering from stream blobs.
 	// -- overflowing the 16MB chunk size with huge initial chunks
 }
 
