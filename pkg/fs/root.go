@@ -35,10 +35,11 @@ import (
 type root struct {
 	fs *CamliFileSystem
 
-	mu     sync.Mutex // guards recent
-	recent *recentDir
-	roots  *rootsDir
-	atDir  *atDir
+	mu          sync.Mutex
+	recent      *recentDir
+	roots       *rootsDir
+	atDir       *atDir
+	versionsDir *versionsDir
 }
 
 var (
@@ -63,6 +64,7 @@ func (n *root) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 		{Name: "roots"},
 		{Name: "at"},
 		{Name: "sha1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},
+		{Name: "versions"},
 	}, nil
 }
 
@@ -93,6 +95,15 @@ func (n *root) getAtDir() *atDir {
 	return n.atDir
 }
 
+func (n *root) getVersionsDir() *versionsDir {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.versionsDir == nil {
+		n.versionsDir = &versionsDir{fs: n.fs}
+	}
+	return n.versionsDir
+}
+
 func (n *root) Lookup(ctx context.Context, name string) (fs.Node, error) {
 	log.Printf("root.Lookup(%s)", name)
 	switch name {
@@ -108,6 +119,8 @@ func (n *root) Lookup(ctx context.Context, name string) (fs.Node, error) {
 		return n.getAtDir(), nil
 	case "roots":
 		return n.getRootsDir(), nil
+	case "versions":
+		return n.getVersionsDir(), nil
 	case "sha1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx":
 		return notImplementDirNode{}, nil
 	case ".camli_fs_stats":
