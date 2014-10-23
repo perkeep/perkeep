@@ -351,6 +351,7 @@ func main() {
 	mux.Handle("/docs/contributing", redirTo("/code#contributing"))
 	mux.Handle("/lists", redirTo("/community"))
 
+	mux.HandleFunc("/contributors", contribHandler())
 	mux.HandleFunc("/", mainHandler)
 
 	if *buildbotHost != "" && *buildbotBackend != "" {

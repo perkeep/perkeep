@@ -1,0 +1,10 @@
+<h1>Contributors</h1>
+
+<p>Camlistore contributors include:</p>
+
+<ul>
+{{range .}}<li>{{if .URL}}<a href="{{.URL}}">{{index .Names 0}}</a>{{else}}{{index .Names 0}}{{end}}{{if .Role}}:  <i>{{.Role}}</i>{{end}}</li>
+{{end}}
+</ul>
+
+<p>Want to help?  See <a href="/docs/contributing">contributing</a>.</p>
