@@ -25,46 +25,70 @@ var (
 	mach     = flag.String("machinetype", "g1-small", "e.g. n1-standard-1, f1-micro, g1-small")
 	instName = flag.String("instance_name", "camlistore-server", "Name of VM instance.")
 	sshPub   = flag.String("ssh_public_key", "", "ssh public key file to authorize. Can modify later in Google's web UI anyway.")
+	help     = flag.Bool("help", false, "print a few hints to help with getting started.")
+)
+
+const (
+	clientIdDat       = "client-id.dat"
+	clientSecretDat   = "client-secret.dat"
+	helpCreateProject = "Create new project: go to https://console.developers.google.com to create a new Project."
+	helpEnableAuth    = `Enable authentication: in your project console, navigate to "APIs and auth", "Credentials", click on "Create new Client ID"¸ and pick "Installed application", with type "Other". Copy the CLIENT ID to ` + clientIdDat + `, and the CLIENT SECRET to ` + clientSecretDat
+	helpEnableAPIs    = `Enable the project APIs: in your project console, navigate to "APIs and auth", "APIs". In the list, enable "Google Cloud Storage", "Google Cloud Storage JSON API", and "Google Compute Engine".`
 )
 
 func readFile(v string) string {
 	slurp, err := ioutil.ReadFile(v)
 	if err != nil {
+		if os.IsNotExist(err) {
+			log.Fatalf("%v does not exist.\n%s", v, helpEnableAuth)
+		}
 		log.Fatalf("Error reading %s: %v", v, err)
 	}
 	return strings.TrimSpace(string(slurp))
 }
 
-var config = &oauth.Config{
-	// The client-id and secret should be for an "Installed Application" when using
-	// the CLI. Later we'll use a web application with a callback.
-	ClientId:     readFile("client-id.dat"),
-	ClientSecret: readFile("client-secret.dat"),
-	Scope: strings.Join([]string{
-		compute.DevstorageFull_controlScope,
-		compute.ComputeScope,
-		"https://www.googleapis.com/auth/sqlservice",
-		"https://www.googleapis.com/auth/sqlservice.admin",
-	}, " "),
-	AuthURL:     "https://accounts.google.com/o/oauth2/auth",
-	TokenURL:    "https://accounts.google.com/o/oauth2/token",
-	RedirectURL: "urn:ietf:wg:oauth:2.0:oob",
+func printHelp() {
+	for _, v := range []string{helpCreateProject, helpEnableAuth, helpEnableAPIs} {
+		fmt.Printf("%v\n", v)
+	}
 }
 
 func main() {
 	flag.Parse()
+	if *help {
+		printHelp()
+		return
+	}
 	if *proj == "" {
-		log.Fatalf("Missing --project flag")
+		log.Printf("Missing --project flag.")
+		printHelp()
+		return
 	}
 	prefix := "https://www.googleapis.com/compute/v1/projects/" + *proj
 	imageURL := "https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-alpha-402-2-0-v20140807"
 	machType := prefix + "/zones/" + *zone + "/machineTypes/" + *mach
 
+	config := &oauth.Config{
+		// The client-id and secret should be for an "Installed Application" when using
+		// the CLI. Later we'll use a web application with a callback.
+		ClientId:     readFile(clientIdDat),
+		ClientSecret: readFile(clientSecretDat),
+		Scope: strings.Join([]string{
+			compute.DevstorageFull_controlScope,
+			compute.ComputeScope,
+			"https://www.googleapis.com/auth/sqlservice",
+			"https://www.googleapis.com/auth/sqlservice.admin",
+		}, " "),
+		AuthURL:     "https://accounts.google.com/o/oauth2/auth",
+		TokenURL:    "https://accounts.google.com/o/oauth2/token",
+		RedirectURL: "urn:ietf:wg:oauth:2.0:oob",
+	}
+
 	tr := &oauth.Transport{
 		Config: config,
 	}
 
-	tokenCache := oauth.CacheFile("token.dat")
+	tokenCache := oauth.CacheFile(*proj + "-token.dat")
 	token, err := tokenCache.Token()
 	if err != nil {
 		log.Printf("Error getting token from %s: %v", string(tokenCache), err)
