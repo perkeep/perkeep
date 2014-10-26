@@ -35,6 +35,7 @@ goog.require('cam.BlobItemTwitterContent');
 goog.require('cam.BlobItemVideoContent');
 goog.require('cam.blobref');
 goog.require('cam.DetailView');
+goog.require('cam.Dialog');
 goog.require('cam.DirectoryDetail');
 goog.require('cam.Header');
 goog.require('cam.Navigator');
@@ -120,6 +121,8 @@ cam.IndexPage = React.createClass({
 			selection: {},
 			serverStatus: null,
 			tagsControlVisible: false,
+			numUploadsTotal: 0,
+			numUploadsComplete: 0,
 		};
 	},
 
@@ -146,7 +149,8 @@ cam.IndexPage = React.createClass({
 					},
 				},
 				aspects[selectedAspect] && aspects[selectedAspect].createContent(contentSize, backwardPiggy)
-			)
+			),
+			this.getUploadDialog_(),
 		]);
 	},
 
@@ -222,12 +226,12 @@ cam.IndexPage = React.createClass({
 		this.clearDragTimer_();
 		e.preventDefault();
 		this.dragEndTimer_ = window.setTimeout(this.handleDragStop_, 2000);
-		goog.dom.classlist.add(this.getDOMNode().parentElement, 'cam-dropactive');
+		this.setState({dropActive: true});
 	},
 
 	handleDragStop_: function() {
 		this.clearDragTimer_();
-		goog.dom.classlist.remove(this.getDOMNode().parentElement, 'cam-dropactive');
+		this.setState({dropActive: false});
 	},
 
 	clearDragTimer_: function() {
@@ -245,10 +249,15 @@ cam.IndexPage = React.createClass({
 		e.preventDefault();
 
 		var files = e.nativeEvent.dataTransfer.files;
-		var numComplete = 0;
 		var sc = this.props.serverConnection;
 
-		console.log('Uploading %d files...', files.length);
+		this.setState({
+			dropActive: false,
+			numUploadsTotal: files.length,
+			numUploadsComplete: 0,
+		});
+
+		console.log('Uploading %d files...', this.state.numUploadsTotal);
 		goog.labs.Promise.all(Array.prototype.map.call(files, function(file) {
 			var upload = new goog.labs.Promise(sc.uploadFile.bind(sc, file));
 			var createPermanode = new goog.labs.Promise(sc.createPermanode.bind(sc));
@@ -260,11 +269,18 @@ cam.IndexPage = React.createClass({
 			}).thenCatch(function(e) {
 				console.error('File upload fall down go boom. file: %s, error: %s', file.name, e);
 			}).then(function() {
-				console.log('%d of %d files complete.', ++numComplete, files.length);
-			});
-		})).then(function() {
+				console.log('%d of %d files complete.', this.state.numUploadsComplete, this.state.numUploadsTotal);
+				this.setState({
+					numUploadsComplete: this.state.numUploadsComplete + 1,
+				});
+			}.bind(this));
+		}.bind(this))).then(function() {
 			console.log('All complete');
-		});
+			this.setState({
+				numUploadsComplete: 0,
+				numUploadsTotal: 0,
+			});
+		}.bind(this));
 	},
 
 	handleNavigate_: function(newURL) {
@@ -625,6 +641,79 @@ cam.IndexPage = React.createClass({
 		return React.DOM.button({key:'tagselection', onClick:this.handleTagSelection_}, label);
 	},
 
+	isUploading_: function() {
+		return this.state.numUploadsTotal > 0;
+	},
+
+	getUploadDialog_: function() {
+		if (!this.state.dropActive && !this.state.numUploadsTotal) {
+			return null;
+		}
+
+		var piggyWidth = 88;
+		var piggyHeight = 62;
+		var borderWidth = 18;
+		var w = this.props.availWidth * 0.8;
+		var h = this.props.availHeight * 0.8;
+		var marginRight = this.isUploading_() ? 5 : 0;
+		var iconProps = {
+			key: 'icon',
+			sheetWidth: 10,
+			spriteWidth: piggyWidth,
+			spriteHeight: piggyHeight,
+			style: {
+				'margin-right': marginRight,
+				position: 'relative',
+				display: 'inline-block',
+			}
+		};
+
+		function getIcon() {
+			if (this.isUploading_()) {
+				return cam.SpritedAnimation(cam.object.extend(iconProps, {
+					numFrames: 48,
+					src: 'glitch/npc_piggy__x1_chew_png_1354829433.png',
+				}));
+			} else {
+				return cam.SpritedImage(cam.object.extend(iconProps, {
+					index: 20,
+					src: 'glitch/npc_piggy__x1_look_screen_png_1354829434.png',
+				}));
+			}
+		}
+
+		function getText() {
+			if (this.isUploading_()) {
+				return goog.string.subs('Uploading (%s of %s)...', this.state.numUploadsComplete, this.state.numUploadsTotal);
+			} else {
+				return 'Drop files anywhere to upload...';
+			}
+		}
+
+		return cam.Dialog(
+			{
+				availWidth: this.props.availWidth,
+				availHeight: this.props.availHeight,
+				width: w,
+				height: h,
+				borderWidth: borderWidth,
+			},
+			React.DOM.div(
+				{
+					className: 'cam-index-upload-dialog',
+					style: {
+						'line-height': h - borderWidth * 2,
+						'text-align': 'center',
+						position: 'relative',
+						left: -piggyWidth / 2,
+					},
+				},
+				getIcon.call(this),
+				getText.call(this)
+			)
+		);
+	},
+
 	handleTagSelection_: function() {
 		this.setState({tagsControlVisible: !this.state.tagsControlVisible});
 	},
@@ -657,9 +746,10 @@ cam.IndexPage = React.createClass({
 	getBlobItemContainerStyle_: function() {
 		return {
 			left: 0,
+			overflowY: this.state.dropActive ? 'hidden' : '',
 			position: 'absolute',
 			top: 0,
-			height: this.props.availHeight,
+			height: this.props.availHeight - this.HEADER_HEIGHT_,
 			width: this.getContentWidth_(),
 		};
 	},
