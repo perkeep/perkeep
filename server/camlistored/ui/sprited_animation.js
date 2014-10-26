@@ -29,12 +29,13 @@ cam.SpritedAnimation = React.createClass({
 		spriteHeight: React.PropTypes.number.isRequired,
 		spriteWidth: React.PropTypes.number.isRequired,
 		src: React.PropTypes.string.isRequired,
+		startFrame: React.PropTypes.number,
 		style: React.PropTypes.object,
 	},
 
 	getInitialState: function() {
 		return {
-			index: 0
+			index: this.props.startFrame || 0,
 		}
 	},
 

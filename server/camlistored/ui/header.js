@@ -220,6 +220,7 @@ cam.Header = React.createClass({
 				}),
 			},
 			this.getMenuItem_('Home', this.props.homeURL),
+			this.getMenuItem_('Upload...', null, this.props.onUpload),
 
 			// TODO(aa): Create a new permanode UI that delays creating the permanode until the user confirms, then change this to a link to that UI.
 			// TODO(aa): Also I keep going back and forth about whether we should call this 'permanode' or 'set' in the UI. Hrm.

@@ -117,10 +117,12 @@ cam.IndexPage = React.createClass({
 	getInitialState: function() {
 		return {
 			currentURL: null,
-			dropActive: false,
 			selection: {},
 			serverStatus: null,
 			tagsControlVisible: false,
+
+			uploadDialogVisible: false,
+			dropActive: false,
 			numUploadsTotal: 0,
 			numUploadsComplete: 0,
 		};
@@ -226,7 +228,10 @@ cam.IndexPage = React.createClass({
 		this.clearDragTimer_();
 		e.preventDefault();
 		this.dragEndTimer_ = window.setTimeout(this.handleDragStop_, 2000);
-		this.setState({dropActive: true});
+		this.setState({
+			dropActive: true,
+			uploadDialogVisible: false,
+		});
 	},
 
 	handleDragStop_: function() {
@@ -417,6 +422,7 @@ cam.IndexPage = React.createClass({
 						val.title
 					);
 				}, this),
+				onUpload: this.handleUpload_,
 				onNewPermanode: this.handleCreateSetWithSelection_,
 				onSearch: this.setSearch_,
 				searchRootsURL: this.getSearchRootsURL_(),
@@ -461,6 +467,12 @@ cam.IndexPage = React.createClass({
 
 	handleAddToSet_: function() {
 		this.addMembersToSet_(this.currentSet_, goog.object.getKeys(this.state.selection));
+	},
+
+	handleUpload_: function() {
+		this.setState({
+			uploadDialogVisible: true,
+		});
 	},
 
 	handleCreateSetWithSelection_: function() {
@@ -646,7 +658,7 @@ cam.IndexPage = React.createClass({
 	},
 
 	getUploadDialog_: function() {
-		if (!this.state.dropActive && !this.state.numUploadsTotal) {
+		if (!this.state.uploadDialogVisible && !this.state.dropActive && !this.state.numUploadsTotal) {
 			return null;
 		}
 
@@ -655,14 +667,13 @@ cam.IndexPage = React.createClass({
 		var borderWidth = 18;
 		var w = this.props.availWidth * 0.8;
 		var h = this.props.availHeight * 0.8;
-		var marginRight = this.isUploading_() ? 5 : 0;
 		var iconProps = {
 			key: 'icon',
 			sheetWidth: 10,
 			spriteWidth: piggyWidth,
 			spriteHeight: piggyHeight,
 			style: {
-				'margin-right': marginRight,
+				'margin-right': 3,
 				position: 'relative',
 				display: 'inline-block',
 			}
@@ -674,9 +685,16 @@ cam.IndexPage = React.createClass({
 					numFrames: 48,
 					src: 'glitch/npc_piggy__x1_chew_png_1354829433.png',
 				}));
+			} else if (this.state.dropActive) {
+				return cam.SpritedAnimation(cam.object.extend(iconProps, {
+					loopDelay: 4000,
+					numFrames: 48,
+					src: 'glitch/npc_piggy__x1_look_screen_png_1354829434.png',
+					startFrame: 6,
+				}));
 			} else {
 				return cam.SpritedImage(cam.object.extend(iconProps, {
-					index: 20,
+					index: 0,
 					src: 'glitch/npc_piggy__x1_look_screen_png_1354829434.png',
 				}));
 			}
@@ -686,7 +704,7 @@ cam.IndexPage = React.createClass({
 			if (this.isUploading_()) {
 				return goog.string.subs('Uploading (%s of %s)...', this.state.numUploadsComplete, this.state.numUploadsTotal);
 			} else {
-				return 'Drop files anywhere to upload...';
+				return 'Drop files here to upload...';
 			}
 		}
 
@@ -697,6 +715,7 @@ cam.IndexPage = React.createClass({
 				width: w,
 				height: h,
 				borderWidth: borderWidth,
+				onClose: this.state.uploadDialogVisible ? this.handleCloseUploadDialog_ : null,
 			},
 			React.DOM.div(
 				{
@@ -712,6 +731,12 @@ cam.IndexPage = React.createClass({
 				getText.call(this)
 			)
 		);
+	},
+
+	handleCloseUploadDialog_: function() {
+		this.setState({
+			uploadDialogVisible: false,
+		});
 	},
 
 	handleTagSelection_: function() {

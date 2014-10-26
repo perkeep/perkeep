@@ -39,3 +39,11 @@ limitations under the License.
 	font-size: 24px;
 	text-align: center;
 }
+
+.cam-dialog .cam-dialog-close {
+	position: absolute;
+	right: 14px;
+	top: 14px;
+	color: #555;
+	cursor: pointer;
+}

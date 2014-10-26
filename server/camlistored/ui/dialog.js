@@ -23,6 +23,7 @@ cam.Dialog = React.createClass({
 		width: React.PropTypes.number.isRequired,
 		height: React.PropTypes.number.isRequired,
 		borderWidth: React.PropTypes.number.isRequired,
+		onClose: React.PropTypes.func,
 	},
 
 	render: function() {
@@ -41,8 +42,20 @@ cam.Dialog = React.createClass({
 						'border-width': this.props.borderWidth,
 					},
 				},
+				this.getClose_(),
 				this.props.children
 			)
 		);
+	},
+
+	getClose_: function() {
+		if (!this.props.onClose) {
+			return null;
+		}
+
+		return React.DOM.i({
+			className: 'fa fa-times fa-lg fa-border cam-dialog-close',
+			onClick: this.props.onClose,
+		});
 	},
 });
