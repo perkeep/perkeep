@@ -264,6 +264,13 @@ func (sh *SetupHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				"</body></html>\n")
 		return
 	}
+	http.Redirect(rw, req, "http://camlistore.org/docs/server-config", http.StatusMovedPermanently)
+	return
+
+	// TODO: this file and the code in wizard-html.go is outdated. Anyone interested enough
+	// can take care of updating it as something nicer which would fit better with the
+	// react UI. But in the meantime we don't link to it anymore.
+
 	if req.Method == "POST" {
 		err := req.ParseMultipartForm(10e6)
 		if err != nil {
