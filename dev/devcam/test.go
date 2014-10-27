@@ -157,7 +157,7 @@ func (c *testCmd) runTests(args []string) error {
 }
 
 func (c *testCmd) runPrecommitHook() error {
-	out, err := exec.Command("./misc/pre-commit.githook", "test").CombinedOutput()
+	out, err := exec.Command(filepath.FromSlash("./misc/pre-commit.githook"), "test").CombinedOutput()
 	if err != nil {
 		fmt.Println(string(out))
 	}
