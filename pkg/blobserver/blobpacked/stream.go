@@ -18,6 +18,7 @@ package blobpacked
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"camlistore.org/pkg/blob"
@@ -46,7 +47,7 @@ func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, cont
 	case strings.HasPrefix(contToken, "l:"):
 		return s.streamLargeBlobs(ctx, dest, strings.TrimPrefix(contToken, "l:"), limitBytes)
 	default:
-		return "", errors.New("invalid continue token")
+		return "", fmt.Errorf("invalid continue token %q", contToken)
 	}
 }
 
@@ -62,15 +63,16 @@ func (s *storage) streamSmallBlobs(ctx *context.Context, dest chan<- *blob.Blob,
 		}
 		return next, err
 	}
-	if contToken != "" || !strings.HasPrefix(contToken, "after:") {
-		return "", errors.New("invalid continue token")
+	if contToken != "" && !strings.HasPrefix(contToken, "after:") {
+		return "", fmt.Errorf("invalid small continue token %q", contToken)
 	}
 	enumCtx := ctx.New()
 	enumDone := enumCtx.Done()
 	defer enumCtx.Cancel()
-	sbc := make(chan blob.SizedRef, 100)
+	sbc := make(chan blob.SizedRef) // unbuffered
 	enumErrc := make(chan error, 1)
 	go func() {
+		defer close(sbc)
 		enumErrc <- blobserver.EnumerateAllFrom(enumCtx, s.small, strings.TrimPrefix(contToken, "after:"), func(sb blob.SizedRef) error {
 			select {
 			case sbc <- sb:
@@ -81,34 +83,34 @@ func (s *storage) streamSmallBlobs(ctx *context.Context, dest chan<- *blob.Blob,
 		})
 	}()
 	var sent int64
-	var enumErr error
-	var sawEnumEnd bool
 	var lastRef blob.Ref
 	for sent < limitBytes {
+		sb, ok := <-sbc
+		if !ok {
+			break
+		}
+		opener := func() types.ReadSeekCloser {
+			return blob.NewLazyReadSeekCloser(s.small, sb.Ref)
+		}
 		select {
-		case sb := <-sbc:
-			opener := func() types.ReadSeekCloser {
-				return blob.NewLazyReadSeekCloser(s.small, sb.Ref)
-			}
-			select {
-			case dest <- blob.NewBlob(sb.Ref, sb.Size, opener):
-				lastRef = sb.Ref
-				sent += int64(sb.Size)
-			case <-ctx.Done():
-				return "", context.ErrCanceled
-			}
-		case err := <-enumErrc:
-			sawEnumEnd = true
-			enumErr = err
+		case dest <- blob.NewBlob(sb.Ref, sb.Size, opener):
+			lastRef = sb.Ref
+			sent += int64(sb.Size)
+		case <-ctx.Done():
+			return "", context.ErrCanceled
 		}
 	}
+
+	enumCtx.Cancel() // redundant if sbc was already closed, but harmless.
+	enumErr := <-enumErrc
+	if enumErr == nil {
+		return "l:", nil
+	}
+
 	// See if we didn't send anything due to enumeration errors.
 	if sent == 0 {
 		enumCtx.Cancel()
-		if !sawEnumEnd {
-			enumErr = <-enumErrc
-		}
-		return "", enumErr
+		return "l:", enumErr
 	}
 	return "s:after:" + lastRef.String(), nil
 }

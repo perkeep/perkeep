@@ -23,7 +23,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"reflect"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 
@@ -430,5 +432,47 @@ func TestZ_LeakCheck(t *testing.T) {
 	n := bytes.Count(buf, []byte("[chan receive]:"))
 	if n > 1 {
 		t.Errorf("%d goroutines in chan receive: %s", n, buf)
+	}
+}
+
+func TestStreamBlobs(t *testing.T) {
+	small := new(test.Fetcher)
+	s := &storage{
+		small: small,
+		large: new(test.Fetcher),
+		meta:  sorted.NewMemoryKeyValue(),
+		log:   test.NewLogger(t, "blobpacked: "),
+	}
+	s.init()
+
+	all := map[blob.Ref]bool{}
+	for i := 0; i < 10; i++ {
+		b := &test.Blob{strconv.Itoa(i)}
+		b.MustUpload(t, small)
+		all[b.BlobRef()] = true
+	}
+	ctx := context.New()
+	defer ctx.Cancel()
+	token := "" // beginning
+
+	got := map[blob.Ref]bool{}
+	dest := make(chan *blob.Blob, 16)
+	done := make(chan bool)
+	go func() {
+		defer close(done)
+		for b := range dest {
+			got[b.Ref()] = true
+		}
+	}()
+	nextToken, err := s.StreamBlobs(ctx, dest, token, 1<<63-1)
+	if err != nil {
+		t.Fatalf("StreamBlobs = %v", err)
+	}
+	if nextToken != "l:" {
+		t.Fatalf("nextToken = %q; want \"l:\"", nextToken)
+	}
+	<-done
+	if !reflect.DeepEqual(got, all) {
+		t.Errorf("Got blobs %v; want %v", got, all)
 	}
 }
