@@ -42,5 +42,5 @@ Host: example.com
 
 Response:
 
-HTTP/1.1 404 OK
+HTTP/1.1 404 Not Found
 
