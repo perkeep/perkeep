@@ -31,9 +31,10 @@ import (
 
 type testCmd struct {
 	// start of flag vars
-	verbose bool
-	short   bool
-	run     string
+	verbose   bool
+	precommit bool
+	short     bool
+	run       string
 	// end of flag vars
 
 	// buildGoPath becomes our child "go" processes' GOPATH environment variable
@@ -44,6 +45,7 @@ func init() {
 	cmdmain.RegisterCommand("test", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(testCmd)
 		flags.BoolVar(&cmd.short, "short", false, "Use '-short' with go test.")
+		flags.BoolVar(&cmd.precommit, "precommit", true, "Run misc/pre-commit.githook as part of tests.")
 		flags.BoolVar(&cmd.verbose, "v", false, "Use '-v' (for verbose) with go test.")
 		flags.StringVar(&cmd.run, "run", "", "Use '-run' with go test.")
 		return cmd
@@ -59,6 +61,11 @@ func (c *testCmd) Describe() string {
 }
 
 func (c *testCmd) RunCommand(args []string) error {
+	if c.precommit {
+		if err := c.runPrecommitHook(); err != nil {
+			return err
+		}
+	}
 	if err := c.syncSrc(); err != nil {
 		return err
 	}
@@ -147,4 +154,13 @@ func (c *testCmd) runTests(args []string) error {
 	env := c.env()
 	env.Set("SKIP_DEP_TESTS", "1")
 	return runExec("go", targs, env)
+}
+
+func (c *testCmd) runPrecommitHook() error {
+	out, err := exec.Command("./misc/pre-commit.githook", "test").CombinedOutput()
+	if err != nil {
+		fmt.Println(string(out))
+	}
+	return err
+
 }

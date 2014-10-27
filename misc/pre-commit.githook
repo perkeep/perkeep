@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
 
+mode=${1:-"precommit"}
 exitstatus=0
 
 #third_party imports.
@@ -13,7 +14,7 @@ then
 	do
 		echo $r
 	done
-	echo "The above need their imports to be fixed. Use rewrite-imports.sh -w"
+	echo "The above need their imports to be fixed. Use third_party/rewrite-imports.sh -w"
 fi
 
 #gofmt and trailing space errors
@@ -52,7 +53,9 @@ then
 	then
 		echo "gofmt -w $needFmt"
 	fi
-	echo "You can override this check with 'git commit --no-verify'"
+	if [ "$mode" != "test" ]; then
+		echo "You can override this check with 'git commit --no-verify'"
+	fi
 fi
 
 exit $exitstatus
