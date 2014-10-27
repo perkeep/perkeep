@@ -365,16 +365,56 @@ func (s *storage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
 	return rc, m.size, nil
 }
 
+const removeLookups = 50 // arbitrary
+
 func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 	// Plan:
-	//  -- delete from small (if it's there, or speculatively)
+	//  -- delete from small (if it's there)
 	//  -- if in big, update the meta index to note that it's there, but deleted.
 	//  -- fetch big's zip file (constructed from a ReaderAt that is all dummy zeros +
 	//     the zip's TOC only, relying on big being a SubFetcher, and keeping info in
 	//     the meta about the offset of the TOC+total size of each big's zip)
-	//  -- iterate over the zip's blobs. If all are marked deleted, actually RemoveBlob
+	//  -- iterate over the zip's blobs (at some point). If all are marked deleted, actually RemoveBlob
 	//     on big to delete the full zip and then delete all the meta rows.
-	return errors.New("not implemented")
+	var (
+		mu       sync.Mutex
+		smallDel []blob.Ref
+		largeDel []blob.Ref
+	)
+	var grp syncutil.Group
+	delGate := syncutil.NewGate(removeLookups)
+	for _, br := range blobs {
+		br := br
+		delGate.Start()
+		grp.Go(func() error {
+			defer delGate.Done()
+			m, err := s.getMetaRow(br)
+			if err != nil {
+				return err
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if m.largeRef.Valid() {
+				largeDel = append(largeDel, br)
+			} else {
+				smallDel = append(smallDel, br)
+			}
+			return nil
+		})
+	}
+	if err := grp.Err(); err != nil {
+		return err
+	}
+	// TODO: could do these small & large deletes concurrently
+	if len(smallDel) > 0 {
+		if err := s.small.RemoveBlobs(smallDel); err != nil {
+			return err
+		}
+	}
+	if len(largeDel) > 0 {
+		return errors.New("TODO: deleting from large blobs not yet done")
+	}
+	return nil
 }
 
 func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
