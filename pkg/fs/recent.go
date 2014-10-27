@@ -111,7 +111,7 @@ func (n *recentDir) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
 		}
 		if name == "" || n.ents[name] != nil {
 			ext := filepath.Ext(name)
-			if ext == "" && strings.HasSuffix(ccMeta.File.MIMEType, "image/jpeg") {
+			if ext == "" && ccMeta.File != nil && strings.HasSuffix(ccMeta.File.MIMEType, "image/jpeg") {
 				ext = ".jpg"
 			}
 			name = strings.TrimPrefix(ccMeta.BlobRef.String(), "sha1-")[:10] + ext

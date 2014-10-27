@@ -1,5 +1,5 @@
 /*
-Copyright 2012 Google Inc.
+Copyright 2014 Google Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,33 +17,33 @@ limitations under the License.
 @import (less) "prefix-free.css";
 
 
-/* http://www.paulirish.com/2012/box-sizing-border-box-ftw/ */
-*, *:before, *:after {
-	.box-sizing(border-box);
+.cam-dialog-mask {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 2;
+	background: rgba(200,200,200,0.85);
 }
 
-body {
-	margin: 0;
-	overflow-x: hidden;
-	overflow-y: scroll;
+.cam-dialog {
+	position: fixed;
+	padding: 0 2em;
+	border: solid #E56A5E;
+	background: #eee;
+	color: #444;
+	z-index: 3;
+	box-shadow: 0 0 1em 0.2em rgba(0, 0, 0, 0.4);
+	font-family: 'Open Sans', sans-serif;
+	font-size: 24px;
+	text-align: center;
 }
 
-.cam-index-page {
-	font: 16px/1.4 normal Arial, sans-serif;
-}
-
-.cam-index-title {
-	display: inline-block;
-}
-
-.cam-content-wrap {
-	position: relative;
-}
-
-.cam-unselectable {
-	.user-select(none);
-}
-
-.cam-index-upload-dialog>* {
-	vertical-align: middle;
+.cam-dialog .cam-dialog-close {
+	position: absolute;
+	right: 14px;
+	top: 14px;
+	color: #555;
+	cursor: pointer;
 }

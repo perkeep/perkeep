@@ -16,6 +16,10 @@ limitations under the License.
 
 package server
 
+// TODO: this file and the code in wizard.go is outdated. Anyone interested enough
+// can take care of updating it as something nicer which would fit better with the
+// react UI. But in the meantime we don't link to it anymore.
+
 const topWizard = `
 <!doctype html>
 <html>
