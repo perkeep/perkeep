@@ -9,41 +9,38 @@ package storage
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
-func newfile(t *testing.T) Accessor {
-	f, err := NewFile(*fFlag, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0666)
+func newfile(t *testing.T) (string, string, Accessor) {
+	dir, err := ioutil.TempDir("", "test-storage-")
+	if err != nil {
+		panic(err)
+	}
+
+	name := filepath.Join(dir, "test.tmp")
+	f, err := NewFile(name, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0666)
 	if err != nil {
 		t.Fatal("newfile", err)
 	}
 
-	return f
+	return dir, name, f
 }
 
-func openfile(t *testing.T) Accessor {
-	f, err := OpenFile(*fFlag, os.O_RDONLY, 0666)
-	if err != nil {
-		t.Fatal("openfile", err)
-	}
-
-	return f
-}
-
-func readfile(t *testing.T) (b []byte) {
+func readfile(t *testing.T, name string) (b []byte) {
 	var err error
-	if b, err = ioutil.ReadFile(*fFlag); err != nil {
+	if b, err = ioutil.ReadFile(name); err != nil {
 		t.Fatal("readfile")
 	}
 
 	return
 }
 
-func newcache(t *testing.T) (c *Cache) {
-	f := newfile(t)
+func newcache(t *testing.T) (dir, name string, c *Cache) {
+	dir, name, f := newfile(t)
 	var err error
-	c, err = NewCache(f, 1<<20, nil)
-	if err != nil {
+	if c, err = NewCache(f, 1<<20, nil); err != nil {
 		t.Fatal("newCache", err)
 	}
 
@@ -51,18 +48,22 @@ func newcache(t *testing.T) (c *Cache) {
 }
 
 func TestCache0(t *testing.T) {
-	c := newcache(t)
+	dir, name, c := newcache(t)
+	defer os.RemoveAll(dir)
+
 	if err := c.Close(); err != nil {
 		t.Fatal(10, err)
 	}
 
-	if b := readfile(t); len(b) != 0 {
+	if b := readfile(t, name); len(b) != 0 {
 		t.Fatal(20, len(b), 0)
 	}
 }
 
 func TestCache1(t *testing.T) {
-	c := newcache(t)
+	dir, name, c := newcache(t)
+	defer os.RemoveAll(dir)
+
 	if n, err := c.WriteAt([]byte{0xa5}, 0); n != 1 {
 		t.Fatal(20, n, err)
 	}
@@ -71,7 +72,7 @@ func TestCache1(t *testing.T) {
 		t.Fatal(10, err)
 	}
 
-	b := readfile(t)
+	b := readfile(t, name)
 	if len(b) != 1 {
 		t.Fatal(30, len(b), 1)
 	}
