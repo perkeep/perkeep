@@ -205,14 +205,14 @@ func SecretRingFile() string {
 // file that is used (creating if necessary) when TLS is specified
 // without the cert file.
 func DefaultTLSCert() string {
-	return filepath.Join(CamliConfigDir(), "selfgen_pem.crt")
+	return filepath.Join(CamliConfigDir(), "tls.crt")
 }
 
 // DefaultTLSKey returns the path to the default TLS key
 // file that is used (creating if necessary) when TLS is specified
 // without the key file.
 func DefaultTLSKey() string {
-	return filepath.Join(CamliConfigDir(), "selfgen_pem.key")
+	return filepath.Join(CamliConfigDir(), "tls.key")
 }
 
 // Find the correct absolute path corresponding to a relative path,
