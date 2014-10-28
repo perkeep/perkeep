@@ -26,6 +26,7 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -477,6 +478,92 @@ func TestStreamBlobs(t *testing.T) {
 	}
 }
 
+func TestForeachZipBlob(t *testing.T) {
+	const fileSize = 2 << 20
+	const fileName = "foo.dat"
+	fileContents := randBytes(fileSize)
+
+	ctx := context.New()
+	defer ctx.Cancel()
+
+	var pt *packTest
+	testPack(t,
+		func(sto blobserver.Storage) error {
+			_, err := schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
+			return err
+		},
+		wantNumLargeBlobs(1),
+		wantNumSmallBlobs(0),
+		func(v *packTest) {
+			pt = v
+		},
+	)
+
+	zipBlob, err := singleBlob(pt.large)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zipBytes := slurpBlob(t, pt.large, zipBlob.Ref)
+
+	all := map[blob.Ref]blob.SizedRef{}
+	if err := blobserver.EnumerateAll(ctx, pt.logical, func(sb blob.SizedRef) error {
+		all[sb.Ref] = sb
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	foreachSaw := 0
+	if err := pt.sto.foreachZipBlob(zipBlob.Ref, func(bap BlobAndPos) error {
+		foreachSaw++
+		want, ok := all[bap.Ref]
+		if !ok {
+			t.Error("unwanted blob ref returned from foreachZipBlob: %v", bap.Ref)
+			return nil
+		}
+		delete(all, bap.Ref)
+		if want.Size != bap.Size {
+			t.Error("for %v, foreachZipBlob size = %d; want %d", bap.Ref, bap.Size, want.Size)
+			return nil
+		}
+
+		// Verify the offset.
+		h := bap.Ref.Hash()
+		h.Write(zipBytes[bap.Offset : bap.Offset+int64(bap.Size)])
+		if !bap.Ref.HashMatches(h) {
+			return fmt.Errorf("foreachZipBlob returned blob %v at offset %d that failed validation", bap.Ref, bap.Offset)
+		}
+
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("foreachZipBlob enumerated %d blobs", foreachSaw)
+	if len(all) > 0 {
+		t.Errorf("foreachZipBlob forgot to enumerate %d blobs: %v", len(all), all)
+	}
+}
+
+// singleBlob assumes that sto contains a single blob and returns it.
+// If there are more or fewer than one blob, it's an error.
+func singleBlob(sto blobserver.BlobEnumerator) (ret blob.SizedRef, err error) {
+	ctx := context.New()
+	defer ctx.Cancel()
+
+	n := 0
+	if err = blobserver.EnumerateAll(ctx, sto, func(sb blob.SizedRef) error {
+		ret = sb
+		n++
+		return nil
+	}); err != nil {
+		return blob.SizedRef{}, err
+	}
+	if n != 1 {
+		return blob.SizedRef{}, fmt.Errorf("saw %d blobs; want 1", n)
+	}
+	return
+}
+
 func TestRemoveBlobs(t *testing.T) {
 	ctx := context.New()
 	defer ctx.Cancel()
@@ -509,6 +596,19 @@ func TestRemoveBlobs(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+
+	// Find the zip
+	zipBlob, err := singleBlob(sto.large)
+	if err != nil {
+		t.Fatalf("failed to find packed zip: %v", err)
+	}
+
+	// The zip file is in use, so verify we can't delete it.
+	if err := sto.deleteZipPack(zipBlob.Ref); err == nil {
+		t.Fatalf("zip pack blob deleted but it should not have been allowed")
+	}
+
+	// Delete everything
 	for len(all) > 0 {
 		del := all[0].Ref
 		all = all[1:]
@@ -520,7 +620,40 @@ func TestRemoveBlobs(t *testing.T) {
 		}
 	}
 
-	// TODO: verify the metarow for "d:" is there.
-	// TODO: and then force a scan to delete zips, and verify 0 blobs everywhere
-	// TODO: and then verify the metarow for "d:" is gone.
+	dRows := func() (n int) {
+		if err := sorted.ForeachInRange(sto.meta, "d:", "", func(key, value string) error {
+			if strings.HasPrefix(key, "d:") {
+				n++
+			}
+			return nil
+		}); err != nil {
+			t.Fatal("meta iteration error: %v", err)
+		}
+		return
+	}
+
+	if n := dRows(); n == 0 {
+		t.Fatalf("expected a 'd:' row after deletes")
+	}
+
+	// TODO: test the background pack-deleter loop? figure out its design first.
+	if err := sto.deleteZipPack(zipBlob.Ref); err != nil {
+		t.Errorf("error deleting zip %v: %v", zipBlob.Ref, err)
+	}
+	if n := dRows(); n != 0 {
+		t.Errorf("expected the 'd:' row to be deleted")
+	}
+}
+
+func slurpBlob(t *testing.T, sto blob.Fetcher, br blob.Ref) []byte {
+	rc, _, err := sto.Fetch(br)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rc.Close()
+	slurp, err := ioutil.ReadAll(rc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return slurp
 }

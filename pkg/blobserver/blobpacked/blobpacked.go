@@ -123,6 +123,10 @@ const (
 	wholeMetaPrefix = "w:"
 )
 
+const (
+	zipManifestPath = "camlistore/camlistore-pack-manifest.json"
+)
+
 type subFetcherStorage interface {
 	blobserver.Storage
 	blob.SubFetcher
@@ -802,7 +806,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	}
 
 	// Manifest file
-	fw, err = zw.Create("camlistore/camlistore-pack-manifest.json")
+	fw, err = zw.Create(zipManifestPath)
 	check(err)
 	enc, err := json.MarshalIndent(mf, "", "  ")
 	check(err)
@@ -866,6 +870,130 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	// On success, consume the chunks we wrote from pk.chunksRemain.
 	pk.chunksRemain = pk.chunksRemain[len(dataRefsWritten):]
 	return nil
+}
+
+// foreachZipBlob calls fn for each blob in the zip pack blob
+// identified by zipRef.  If fn returns a non-nil error,
+// foreachZipBlob stops enumerating with that error.
+func (s *storage) foreachZipBlob(zipRef blob.Ref, fn func(BlobAndPos) error) error {
+	sb, err := blobserver.StatBlob(s.large, zipRef)
+	if err != nil {
+		return err
+	}
+	zr, err := zip.NewReader(blob.ReaderAt(s.large, zipRef), int64(sb.Size))
+	if err != nil {
+		return err
+	}
+	var maniFile *zip.File // or nil if not found
+	var firstOff int64     // offset of first file (the packed data chunks)
+	for i, f := range zr.File {
+		if i == 0 {
+			firstOff, err = f.DataOffset()
+			if err != nil {
+				return err
+			}
+		}
+		if f.Name == zipManifestPath {
+			maniFile = f
+			break
+		}
+	}
+	if maniFile == nil {
+		return errors.New("no camlistore manifest file found in zip")
+	}
+	for _, f := range zr.File {
+		if !strings.HasPrefix(f.Name, "camlistore/") || f.Name == zipManifestPath ||
+			!strings.HasSuffix(f.Name, ".json") {
+			continue
+		}
+		brStr := strings.TrimSuffix(strings.TrimPrefix(f.Name, "camlistore/"), ".json")
+		br, ok := blob.Parse(brStr)
+		if ok {
+			off, err := f.DataOffset()
+			if err != nil {
+				return err
+			}
+			if err := fn(BlobAndPos{
+				SizedRef: blob.SizedRef{br, uint32(f.UncompressedSize64)},
+				Offset:   off,
+			}); err != nil {
+				return err
+			}
+		}
+	}
+	maniRC, err := maniFile.Open()
+	if err != nil {
+		return err
+	}
+	defer maniRC.Close()
+	var mf Manifest
+	if err := json.NewDecoder(maniRC).Decode(&mf); err != nil {
+		return err
+	}
+	if !mf.WholeRef.Valid() || mf.WholeSize == 0 || !mf.DataBlobsOrigin.Valid() {
+		return errors.New("incomplete blobpack manifest JSON")
+	}
+	for _, bap := range mf.DataBlobs {
+		bap.Offset += firstOff
+		if err := fn(bap); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// deleteZipPack deletes the zip pack file br, but only if that zip
+// file's parts are deleted already from the meta index.
+func (s *storage) deleteZipPack(br blob.Ref) error {
+	inUse, err := s.zipPartsInUse(br)
+	if err != nil {
+		return err
+	}
+	if len(inUse) > 0 {
+		return fmt.Errorf("can't delete zip pack %v: %d parts in use: %v", br, len(inUse), inUse)
+	}
+	if err := s.large.RemoveBlobs([]blob.Ref{br}); err != nil {
+		return err
+	}
+	return s.meta.Delete("d:" + br.String())
+}
+
+func (s *storage) zipPartsInUse(br blob.Ref) ([]blob.Ref, error) {
+	var (
+		mu    sync.Mutex
+		inUse []blob.Ref
+	)
+	var grp syncutil.Group
+	gate := syncutil.NewGate(20) // arbitrary constant
+	err := s.foreachZipBlob(br, func(bap BlobAndPos) error {
+		gate.Start()
+		grp.Go(func() error {
+			defer gate.Done()
+			mr, err := s.getMetaRow(bap.Ref)
+			if err != nil {
+				return err
+			}
+			if mr.largeRef.Valid() {
+				mu.Lock()
+				inUse = append(inUse, mr.largeRef)
+				mu.Unlock()
+			}
+			return nil
+		})
+		return nil
+	})
+	if os.IsNotExist(err) {
+		// An already-deleted blob from large isn't considered
+		// to be in-use.
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := grp.Err(); err != nil {
+		return nil, err
+	}
+	return inUse, nil
 }
 
 // A BlobAndPos is a blobref, its size, and where it is located within
