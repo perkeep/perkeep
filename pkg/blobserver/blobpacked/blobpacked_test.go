@@ -476,3 +476,51 @@ func TestStreamBlobs(t *testing.T) {
 		t.Errorf("Got blobs %v; want %v", got, all)
 	}
 }
+
+func TestRemoveBlobs(t *testing.T) {
+	ctx := context.New()
+	defer ctx.Cancel()
+
+	// The basic small cases are handled via storagetest in TestStorage,
+	// so this only tests removing packed blobs.
+
+	small := new(test.Fetcher)
+	large := new(test.Fetcher)
+	sto := &storage{
+		small: small,
+		large: large,
+		meta:  sorted.NewMemoryKeyValue(),
+		log:   test.NewLogger(t, "blobpacked: "),
+	}
+	sto.init()
+
+	const fileSize = 1 << 20
+	fileContents := randBytes(fileSize)
+	if _, err := schema.WriteFileFromReader(sto, "foo.dat", bytes.NewReader(fileContents)); err != nil {
+		t.Fatal(err)
+	}
+	if small.NumBlobs() != 0 || large.NumBlobs() == 0 {
+		t.Fatalf("small, large counts == %d, %d; want 0, non-zero", small.NumBlobs(), large.NumBlobs())
+	}
+	var all []blob.SizedRef
+	if err := blobserver.EnumerateAll(ctx, sto, func(sb blob.SizedRef) error {
+		all = append(all, sb)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for len(all) > 0 {
+		del := all[0].Ref
+		all = all[1:]
+		if err := sto.RemoveBlobs([]blob.Ref{del}); err != nil {
+			t.Fatalf("RemoveBlobs: %v", err)
+		}
+		if err := storagetest.CheckEnumerate(sto, all); err != nil {
+			t.Fatalf("After deleting %v, %v", del, err)
+		}
+	}
+
+	// TODO: verify the metarow for "d:" is there.
+	// TODO: and then force a scan to delete zips, and verify 0 blobs everywhere
+	// TODO: and then verify the metarow for "d:" is gone.
+}

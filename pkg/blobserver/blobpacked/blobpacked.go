@@ -92,6 +92,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -142,6 +143,10 @@ type storage struct {
 	//   w:sha1-xxxx:0 -> "<zipchunk-blobref> <offset-in-zipchunk-blobref> <offset-in-whole_u64> <length_u32>"
 	//   w:sha1-xxxx:...
 	//   w:sha1-xxxx:(nchunks-1)
+	//
+	// For marking that zips that have blobs (possibly all)
+	// deleted from inside them: (deleted zip)
+	//   d:sha1-xxxxxx -> <unix-time-of-delete>
 	meta sorted.KeyValue
 
 	// If non-zero, the maximum size of a zip blob.
@@ -378,8 +383,9 @@ func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 	//     on big to delete the full zip and then delete all the meta rows.
 	var (
 		mu       sync.Mutex
-		smallDel []blob.Ref
-		largeDel []blob.Ref
+		unpacked []blob.Ref
+		packed   []blob.Ref
+		large    = map[blob.Ref]bool{} // the large blobs that packed are in
 	)
 	var grp syncutil.Group
 	delGate := syncutil.NewGate(removeLookups)
@@ -395,9 +401,10 @@ func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 			mu.Lock()
 			defer mu.Unlock()
 			if m.largeRef.Valid() {
-				largeDel = append(largeDel, br)
+				packed = append(packed, br)
+				large[m.largeRef] = true
 			} else {
-				smallDel = append(smallDel, br)
+				unpacked = append(unpacked, br)
 			}
 			return nil
 		})
@@ -405,16 +412,25 @@ func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 	if err := grp.Err(); err != nil {
 		return err
 	}
-	// TODO: could do these small & large deletes concurrently
-	if len(smallDel) > 0 {
-		if err := s.small.RemoveBlobs(smallDel); err != nil {
-			return err
-		}
+	if len(unpacked) > 0 {
+		grp.Go(func() error {
+			return s.small.RemoveBlobs(unpacked)
+		})
 	}
-	if len(largeDel) > 0 {
-		return errors.New("TODO: deleting from large blobs not yet done")
+	if len(packed) > 0 {
+		grp.Go(func() error {
+			bm := s.meta.BeginBatch()
+			now := time.Now()
+			for zipRef := range large {
+				bm.Set("d:"+zipRef.String(), fmt.Sprint(now.Unix()))
+			}
+			for _, br := range packed {
+				bm.Delete("b:" + br.String())
+			}
+			return s.meta.CommitBatch(bm)
+		})
 	}
-	return nil
+	return grp.Err()
 }
 
 func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
