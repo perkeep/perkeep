@@ -58,7 +58,7 @@ func (jc Obj) obj(key string, optional bool) Obj {
 		jc.appendError(fmt.Errorf("Expected config key %q to be an object, not %T", key, ei))
 		return make(Obj)
 	}
-	return Obj(m)
+	return m
 }
 
 func (jc Obj) RequiredString(key string) string {
