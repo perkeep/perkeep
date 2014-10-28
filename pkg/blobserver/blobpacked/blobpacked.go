@@ -281,27 +281,23 @@ func parseMetaRow(v []byte) (m meta, err error) {
 	}
 	m.size = uint32(size)
 	v = v[sp+1:]
-	for { // not looped; just for the break control flow
-		// remains: "<big-blobref> <big-offset>"
-		if bytes.Count(v, singleSpace) != 1 {
-			err = errors.New("number of spaces")
-			break
-		}
-		sp := bytes.IndexByte(v, ' ')
-		largeRef, ok := blob.ParseBytes(v[:sp])
-		if !ok {
-			err = fmt.Errorf("bad blobref %q", v[:sp])
-			break
-		}
-		m.largeRef = largeRef
-		off, err := strutil.ParseUintBytes(v[sp+1:], 10, 32)
-		if err != nil {
-			break
-		}
-		m.largeOff = uint32(off)
-		return m, nil
+
+	// remains: "<big-blobref> <big-offset>"
+	if bytes.Count(v, singleSpace) != 1 {
+		return meta{}, fmt.Errorf("invalid metarow %q: wrong number of spaces", row, err)
 	}
-	return meta{}, fmt.Errorf("invalid metarow %q: %v", row, err)
+	sp = bytes.IndexByte(v, ' ')
+	largeRef, ok := blob.ParseBytes(v[:sp])
+	if !ok {
+		return meta{}, fmt.Errorf("invalid metarow %q: bad blobref %q", row, v[:sp])
+	}
+	m.largeRef = largeRef
+	off, err := strutil.ParseUintBytes(v[sp+1:], 10, 32)
+	if err != nil {
+		return meta{}, fmt.Errorf("invalid metarow %q: bad offset: %v", row, err)
+	}
+	m.largeOff = uint32(off)
+	return m, nil
 }
 
 func parseMetaRowSizeOnly(v []byte) (size uint32, err error) {
