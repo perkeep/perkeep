@@ -147,3 +147,22 @@ func (r *lazyReadSeekCloser) Close() error {
 	}
 	return r.rsc.Close()
 }
+
+// ReaderAt returns an io.ReaderAt of br, fetching against sf.
+func ReaderAt(sf SubFetcher, br Ref) io.ReaderAt {
+	return readerAt{sf, br}
+}
+
+type readerAt struct {
+	sf SubFetcher
+	br Ref
+}
+
+func (ra readerAt) ReadAt(p []byte, off int64) (n int, err error) {
+	rc, err := ra.sf.SubFetch(ra.br, off, int64(len(p)))
+	if err != nil {
+		return 0, err
+	}
+	defer rc.Close()
+	return io.ReadFull(rc, p)
+}
