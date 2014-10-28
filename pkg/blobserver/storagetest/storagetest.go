@@ -112,7 +112,6 @@ func TestOpt(t *testing.T, opt Opts) {
 			r.testEnumerate(blobSizedRefs)
 		}
 	}
-	b1 := blobs[0]
 
 	t.Logf("Testing Fetch")
 	for i, b2 := range blobs {
@@ -165,19 +164,26 @@ func TestOpt(t *testing.T, opt Opts) {
 		r.testEnumerate(blobSizedRefs[:1], after, 1)
 	}
 
+	r.testRemove(blobRefs)
+
+	r.testSubFetcher()
+}
+
+func (r *run) testRemove(blobRefs []blob.Ref) {
+	t, sto := r.t, r.sto
 	t.Logf("Testing Remove")
 	if err := sto.RemoveBlobs(blobRefs); err != nil {
 		if strings.Contains(err.Error(), "not implemented") {
-			t.Logf("RemoveBlob %s: %v", b1, err)
+			t.Logf("RemoveBlobs: %v", err)
 		} else {
-			t.Fatalf("RemoveBlob %s: %v", b1, err)
+			t.Fatalf("RemoveBlobs: %v", err)
 		}
 	}
-
-	testSubFetcher(t, sto)
+	r.testEnumerate(nil) // verify they're all gone
 }
 
-func testSubFetcher(t *testing.T, sto blobserver.Storage) {
+func (r *run) testSubFetcher() {
+	t, sto := r.t, r.sto
 	sf, ok := sto.(blob.SubFetcher)
 	if !ok {
 		t.Logf("%T is not a SubFetcher", sto)
