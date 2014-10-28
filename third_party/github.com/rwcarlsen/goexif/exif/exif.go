@@ -62,6 +62,69 @@ func RegisterParsers(ps ...Parser) {
 
 type parser struct{}
 
+type tiffErrors map[tiffError]string
+
+func (te tiffErrors) Error() string {
+	var allErrors []string
+	for k, v := range te {
+		allErrors = append(allErrors, fmt.Sprintf("%s: %v\n", stagePrefix[k], v))
+	}
+	return strings.Join(allErrors, "\n")
+}
+
+// IsCriticalError, given the error returned by Decode, reports whether the
+// returned *Exif may contain usable information.
+func IsCriticalError(err error) bool {
+	_, ok := err.(tiffErrors)
+	return !ok
+}
+
+// IsExifError reports whether the error happened while decoding the EXIF
+// sub-IFD.
+func IsExifError(err error) bool {
+	if te, ok := err.(tiffErrors); ok {
+		_, isExif := te[loadExif]
+		return isExif
+	}
+	return false
+}
+
+// IsGPSError reports whether the error happened while decoding the GPS sub-IFD.
+func IsGPSError(err error) bool {
+	if te, ok := err.(tiffErrors); ok {
+		_, isGPS := te[loadExif]
+		return isGPS
+	}
+	return false
+}
+
+// IsInteroperabilityError reports whether the error happened while decoding the
+// Interoperability sub-IFD.
+func IsInteroperabilityError(err error) bool {
+	if te, ok := err.(tiffErrors); ok {
+		_, isInterop := te[loadInteroperability]
+		return isInterop
+	}
+	return false
+}
+
+type tiffError int
+
+const (
+	loadExif tiffError = iota
+	loadGPS
+	loadInteroperability
+)
+
+var stagePrefix = map[tiffError]string{
+	loadExif:             "loading EXIF sub-IFD",
+	loadGPS:              "loading GPS sub-IFD",
+	loadInteroperability: "loading Interoperability sub-IFD",
+}
+
+// Parse reads data from the tiff data in x and populates the tags
+// in x. If parsing a sub-IFD fails, the error is recorded and
+// parsing continues with the remaining sub-IFDs.
 func (p *parser) Parse(x *Exif) error {
 	x.LoadTags(x.Tiff.Dirs[0], exifFields, false)
 
@@ -70,15 +133,23 @@ func (p *parser) Parse(x *Exif) error {
 		x.LoadTags(x.Tiff.Dirs[1], thumbnailFields, false)
 	}
 
+	te := make(tiffErrors)
+
 	// recurse into exif, gps, and interop sub-IFDs
 	if err := loadSubDir(x, ExifIFDPointer, exifFields); err != nil {
-		return err
+		te[loadExif] = err.Error()
 	}
 	if err := loadSubDir(x, GPSInfoIFDPointer, gpsFields); err != nil {
-		return err
+		te[loadGPS] = err.Error()
 	}
 
-	return loadSubDir(x, InteroperabilityIFDPointer, interopFields)
+	if err := loadSubDir(x, InteroperabilityIFDPointer, interopFields); err != nil {
+		te[loadInteroperability] = err.Error()
+	}
+	if len(te) > 0 {
+		return te
+	}
+	return nil
 }
 
 func loadSubDir(x *Exif, ptr FieldName, fieldMap map[uint16]FieldName) error {
@@ -95,11 +166,11 @@ func loadSubDir(x *Exif, ptr FieldName, fieldMap map[uint16]FieldName) error {
 
 	_, err = r.Seek(offset, 0)
 	if err != nil {
-		return errors.New("exif: seek to sub-IFD failed: " + err.Error())
+		return fmt.Errorf("exif: seek to sub-IFD %s failed: %v", ptr, err)
 	}
 	subDir, _, err := tiff.DecodeDir(r, x.Tiff.Order)
 	if err != nil {
-		return errors.New("exif: sub-IFD decode failed: " + err.Error())
+		return fmt.Errorf("exif: sub-IFD %s decode failed: %v", ptr, err)
 	}
 	x.LoadTags(subDir, fieldMap, false)
 	return nil
@@ -117,6 +188,8 @@ type Exif struct {
 // decoded, each registered parser is called (in order of registration). If
 // one parser returns an error, decoding terminates and the remaining
 // parsers are not called.
+// The error can be inspected with functions such as IsCriticalError to
+// determine whether the returned object might still be usable.
 func Decode(r io.Reader) (*Exif, error) {
 	// EXIF data in JPEG is stored in the APP1 marker. EXIF data uses the TIFF
 	// format to store data.
@@ -194,6 +267,11 @@ func Decode(r io.Reader) (*Exif, error) {
 
 	for i, p := range parsers {
 		if err := p.Parse(x); err != nil {
+			if _, ok := err.(tiffErrors); ok {
+				return x, err
+			}
+			// This should never happen, as Parse always returns a tiffError
+			// for now, but that could change.
 			return x, fmt.Errorf("exif: parser %v failed (%v)", i, err)
 		}
 	}
