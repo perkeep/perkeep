@@ -231,17 +231,51 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 	}
 	sto.init()
 
-	// TODO: check quickly if size(meta) == 0, but size(large) !=
-	// 0. If so, fail with a "known corrupt" message and refuse to
-	// start unless in recovery mode (perhaps a new environment
-	// var? or flag passed down?) using StreamBlobs starting at
-	// "l:".  Could even do it automatically if total size is
-	// small or fast enough? But that's confusing if it only
-	// sometimes finishes recovery. We probably want various
-	// server start-up modes anyway: "check", "recover", "garbage
-	// collect", "readonly".  So might as well introduce that
-	// concept now.
+	// Check for a weird state: zip files exist, but no metadata about them
+	// is recorded. This is probably a corrupt state, and the user likely
+	// wants to recover.
+	if !sto.anyMeta() && sto.anyZipPacks() {
+		log.Printf("Warning: blobpacked storage detects non-zero packed zips, but no metadata. Please re-start in recovery mode.")
+		// TODO: add a recovery mode.
+		// Old TODO was:
+		// fail with a "known corrupt" message and refuse to
+		// start unless in recovery mode (perhaps a new environment
+		// var? or flag passed down?) using StreamBlobs starting at
+		// "l:".  Could even do it automatically if total size is
+		// small or fast enough? But that's confusing if it only
+		// sometimes finishes recovery. We probably want various
+		// server start-up modes anyway: "check", "recover", "garbage
+		// collect", "readonly".  So might as well introduce that
+		// concept now.
+
+		// TODO: test start-up recovery mode, once it works.
+	}
 	return sto, nil
+}
+
+func (s *storage) anyMeta() (v bool) {
+	// TODO: we only care about getting 1 row, but the
+	// sorted.KeyValue interface doesn't let us give it that
+	// hint. Care?
+	sorted.Foreach(s.meta, func(_, _ string) error {
+		v = true
+		return errors.New("stop")
+	})
+	return
+}
+
+func (s *storage) anyZipPacks() (v bool) {
+	ctx := context.New()
+	defer ctx.Cancel()
+	dest := make(chan blob.SizedRef, 1)
+	if err := s.large.EnumerateBlobs(ctx, dest, "", 1); err != nil {
+		// Not a great interface in general, but only needed
+		// by the start-up check for now, where it doesn't
+		// really matter.
+		return false
+	}
+	_, ok := <-dest
+	return ok
 }
 
 func (s *storage) Close() error {
