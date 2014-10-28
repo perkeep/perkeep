@@ -191,3 +191,24 @@ func NewKeyValue(cfg jsonconfig.Obj) (KeyValue, error) {
 	}
 	return s, cfg.Validate()
 }
+
+// Foreach runs fn for each key/value pair in kv. If fn returns an error,
+// that same error is returned from Foreach and iteration stops.
+func Foreach(kv KeyValue, fn func(key, value string) error) error {
+	return ForeachInRange(kv, "", "", fn)
+}
+
+// ForeachInRange runs fn for each key/value pair in kv in the range
+// of start and end, which behave the same as kv.Find. If fn returns
+// an error, that same error is returned from Foreach and iteration
+// stops.
+func ForeachInRange(kv KeyValue, start, end string, fn func(key, value string) error) error {
+	it := kv.Find(start, end)
+	for it.Next() {
+		if err := fn(it.Key(), it.Value()); err != nil {
+			it.Close()
+			return err
+		}
+	}
+	return it.Close()
+}
