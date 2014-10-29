@@ -13,7 +13,6 @@ import (
 
 var (
 	devFlag = flag.Bool("dev", false, "enable dev tests")
-	fFlag   = flag.String("f", "test.tmp", "test file name")
 	goFlag  = flag.Int("go", 1, "GOMAXPROCS")
 )
 
