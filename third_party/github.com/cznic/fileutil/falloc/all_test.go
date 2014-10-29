@@ -11,16 +11,18 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"camlistore.org/third_party/github.com/cznic/fileutil"
-	"camlistore.org/third_party/github.com/cznic/fileutil/storage"
-	"camlistore.org/third_party/github.com/cznic/mathutil"
 	"io/ioutil"
 	"log"
 	"math"
 	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
+
+	"camlistore.org/third_party/github.com/cznic/fileutil"
+	"camlistore.org/third_party/github.com/cznic/fileutil/storage"
+	"camlistore.org/third_party/github.com/cznic/mathutil"
 )
 
 var (
@@ -30,7 +32,6 @@ var (
 	devFlag        = flag.Bool("dev", false, "enable dev tests")
 	dropFlag       = flag.Bool("drop", false, "drop system file cache for some of the dev tests before measurement")
 	fadviseFlag    = flag.Bool("fadvise", false, "hint kernel about random file access")
-	fnFlag         = flag.String("f", "test.tmp", "test file name")
 	nFlag          = flag.Int("n", 1, "parameter for some of the dev tests")
 	probeFlag      = flag.Bool("probe", false, "report store probe statistics")
 	optGo          = flag.Int("go", 3, "GOMAXPROCS")
@@ -39,6 +40,16 @@ var (
 func init() {
 	flag.Parse()
 	runtime.GOMAXPROCS(*optGo)
+}
+
+func temp() (dir, name string) {
+	dir, err := ioutil.TempDir("", "test-falloc-")
+	if err != nil {
+		panic(err)
+	}
+
+	name = filepath.Join(dir, "test.db")
+	return dir, name
 }
 
 type balancedAcid struct {
@@ -397,13 +408,16 @@ func reaudit(t *testing.T, f *File, fn string) (of *File) {
 }
 
 func TestCreate(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer func() {
-		err := os.Remove(*fnFlag)
+		err := os.Remove(name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -416,7 +430,7 @@ func TestCreate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	b, err := ioutil.ReadFile(*fnFlag)
+	b, err := ioutil.ReadFile(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,7 +447,10 @@ func TestCreate(t *testing.T) {
 }
 
 func TestOpen(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -441,7 +458,7 @@ func TestOpen(t *testing.T) {
 	defer func() {
 		probed(t, f)
 		ec := f.Close()
-		er := os.Remove(*fnFlag)
+		er := os.Remove(name)
 		if ec != nil {
 			t.Fatal(ec)
 		}
@@ -455,7 +472,7 @@ func TestOpen(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if f, err = fopen(*fnFlag); err != nil {
+	if f, err = fopen(name); err != nil {
 		t.Fatal(err)
 	}
 
@@ -485,14 +502,17 @@ func realloc(f *File, atom int64, b []byte, keepHandle bool) (y int64) {
 }
 
 func testContentEncodingDecoding(t *testing.T, min, max int) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer func() {
 		ec := f.Close()
-		er := os.Remove(*fnFlag)
+		er := os.Remove(name)
 		if ec != nil {
 			t.Fatal(ec)
 		}
@@ -549,7 +569,7 @@ func testContentEncodingDecoding(t *testing.T, min, max int) {
 
 	f = nil
 	runtime.GC()
-	if f, err = fopen(*fnFlag); err != nil {
+	if f, err = fopen(name); err != nil {
 		t.Fatal(err)
 	}
 
@@ -613,7 +633,7 @@ func testContentEncodingDecoding(t *testing.T, min, max int) {
 		t.Fatal(auditblocks, blocks)
 	}
 
-	if f = reaudit(t, f, *fnFlag); err != nil {
+	if f = reaudit(t, f, name); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -644,14 +664,17 @@ func free(f *File, h int64) {
 }
 
 func testFreeTail(t *testing.T, b []byte) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer func() {
 		ec := f.Close()
-		er := os.Remove(*fnFlag)
+		er := os.Remove(name)
 		if ec != nil {
 			t.Fatal(ec)
 		}
@@ -687,7 +710,7 @@ func testFreeTail(t *testing.T, b []byte) {
 
 	f = nil
 	runtime.GC()
-	if f, err = fopen(*fnFlag); err != nil {
+	if f, err = fopen(name); err != nil {
 		t.Fatal(err)
 	}
 
@@ -729,14 +752,17 @@ func TestFreeTail(t *testing.T) {
 }
 
 func testFreeTail2(t *testing.T, b []byte) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer func() {
 		ec := f.Close()
-		er := os.Remove(*fnFlag)
+		er := os.Remove(name)
 		if ec != nil {
 			t.Fatal(ec)
 		}
@@ -774,7 +800,7 @@ func testFreeTail2(t *testing.T, b []byte) {
 
 	f = nil
 	runtime.GC()
-	if f, err = fopen(*fnFlag); err != nil {
+	if f, err = fopen(name); err != nil {
 		t.Fatal(err)
 	}
 
@@ -816,14 +842,17 @@ func TestFreeTail2(t *testing.T) {
 }
 
 func testFreeIsolated(t *testing.T, b []byte) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer func() {
 		ec := f.Close()
-		er := os.Remove(*fnFlag)
+		er := os.Remove(name)
 		if ec != nil {
 			t.Fatal(ec)
 		}
@@ -894,7 +923,7 @@ func testFreeIsolated(t *testing.T, b []byte) {
 
 	f = nil
 	runtime.GC()
-	if f, err = fopen(*fnFlag); err != nil {
+	if f, err = fopen(name); err != nil {
 		t.Fatal(err)
 	}
 
@@ -955,7 +984,10 @@ func testFreeBlockList(t *testing.T, a, b int) {
 	var h [2]int64
 
 	t.Log(a, b)
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -969,7 +1001,7 @@ func testFreeBlockList(t *testing.T, a, b int) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	used0, total0, err := f.audit()
@@ -989,7 +1021,7 @@ func testFreeBlockList(t *testing.T, a, b int) {
 
 	f = nil
 	runtime.GC()
-	if f, err = fopen(*fnFlag); err != nil {
+	if f, err = fopen(name); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1020,7 +1052,7 @@ func testFreeBlockList(t *testing.T, a, b int) {
 
 	f = nil
 	runtime.GC()
-	if f, err = fopen(*fnFlag); err != nil {
+	if f, err = fopen(name); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1042,7 +1074,10 @@ func TestFreeBlockList(t *testing.T) {
 func testFreeBlockList2(t *testing.T, a, b, c int) {
 	var h [3]int64
 
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1056,7 +1091,7 @@ func testFreeBlockList2(t *testing.T, a, b, c int) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	used0, total0, err := f.audit()
@@ -1078,7 +1113,7 @@ func testFreeBlockList2(t *testing.T, a, b, c int) {
 
 	f = nil
 	runtime.GC()
-	if f, err = fopen(*fnFlag); err != nil {
+	if f, err = fopen(name); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1110,7 +1145,7 @@ func testFreeBlockList2(t *testing.T, a, b, c int) {
 
 	f = nil
 	runtime.GC()
-	if f, err = fopen(*fnFlag); err != nil {
+	if f, err = fopen(name); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1158,7 +1193,10 @@ func testFreeBlockList3(t *testing.T, n, mod int) {
 		t.Fatal(err)
 	}
 
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1172,7 +1210,7 @@ func testFreeBlockList3(t *testing.T, n, mod int) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	ha := make([]int64, n)
@@ -1185,7 +1223,7 @@ func testFreeBlockList3(t *testing.T, n, mod int) {
 			t.Fatal(h)
 		}
 	}
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 	del := map[int64]bool{}
 	for _ = range ha {
 		i := rng.Next()
@@ -1195,7 +1233,7 @@ func testFreeBlockList3(t *testing.T, n, mod int) {
 			del[h] = true
 		}
 	}
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 	for _, h := range ha {
 		if !del[h] {
 			exp := content(b, h)
@@ -1215,7 +1253,10 @@ func TestFreeBlockList3(t *testing.T) {
 }
 
 func TestRealloc1(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1229,7 +1270,7 @@ func TestRealloc1(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -1256,7 +1297,7 @@ func TestRealloc1(t *testing.T) {
 		t.Fatal(len(got), 0)
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -1277,7 +1318,10 @@ func TestRealloc1(t *testing.T) {
 }
 
 func TestRealloc1Keep(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1291,7 +1335,7 @@ func TestRealloc1Keep(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -1318,7 +1362,7 @@ func TestRealloc1Keep(t *testing.T) {
 		t.Fatal(len(got), 0)
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -1339,7 +1383,10 @@ func TestRealloc1Keep(t *testing.T) {
 }
 
 func TestRealloc2(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1353,7 +1400,7 @@ func TestRealloc2(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -1380,7 +1427,7 @@ func TestRealloc2(t *testing.T) {
 		t.Fatal(len(got), 0)
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -1401,7 +1448,10 @@ func TestRealloc2(t *testing.T) {
 }
 
 func TestRealloc2Keep(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1415,7 +1465,7 @@ func TestRealloc2Keep(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -1442,7 +1492,7 @@ func TestRealloc2Keep(t *testing.T) {
 		t.Fatal(len(got), 0)
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -1463,7 +1513,10 @@ func TestRealloc2Keep(t *testing.T) {
 }
 
 func TestRealloc3(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1477,7 +1530,7 @@ func TestRealloc3(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -1505,7 +1558,7 @@ func TestRealloc3(t *testing.T) {
 		t.Fatal(len(got), 0)
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(handle); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -1526,7 +1579,10 @@ func TestRealloc3(t *testing.T) {
 }
 
 func TestRealloc3Keep(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1540,7 +1596,7 @@ func TestRealloc3Keep(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -1568,7 +1624,7 @@ func TestRealloc3Keep(t *testing.T) {
 		t.Fatal(len(got), 0)
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(handle); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -1589,7 +1645,10 @@ func TestRealloc3Keep(t *testing.T) {
 }
 
 func TestRealloc4Keep(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1603,7 +1662,7 @@ func TestRealloc4Keep(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -1631,7 +1690,7 @@ func TestRealloc4Keep(t *testing.T) {
 		t.Fatal(len(got), 0)
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(handle); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -1652,7 +1711,10 @@ func TestRealloc4Keep(t *testing.T) {
 }
 
 func TestRealloc5(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1666,7 +1728,7 @@ func TestRealloc5(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -1696,7 +1758,7 @@ func TestRealloc5(t *testing.T) {
 		t.Fatal(len(got), 0)
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(handle); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -1717,7 +1779,10 @@ func TestRealloc5(t *testing.T) {
 }
 
 func TestRealloc5Keep(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1731,7 +1796,7 @@ func TestRealloc5Keep(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -1761,7 +1826,7 @@ func TestRealloc5Keep(t *testing.T) {
 		t.Fatal(len(got), 0)
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(handle); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -1782,7 +1847,10 @@ func TestRealloc5Keep(t *testing.T) {
 }
 
 func TestRealloc6(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1796,7 +1864,7 @@ func TestRealloc6(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -1826,7 +1894,7 @@ func TestRealloc6(t *testing.T) {
 		t.Fatal(len(got), 0)
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(handle); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -1847,7 +1915,10 @@ func TestRealloc6(t *testing.T) {
 }
 
 func TestRealloc6Keep(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1861,7 +1932,7 @@ func TestRealloc6Keep(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -1891,7 +1962,7 @@ func TestRealloc6Keep(t *testing.T) {
 		t.Fatal(len(got), 0)
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(handle); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -1912,7 +1983,10 @@ func TestRealloc6Keep(t *testing.T) {
 }
 
 func TestRelocRealloc1(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1926,7 +2000,7 @@ func TestRelocRealloc1(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -1957,7 +2031,7 @@ func TestRelocRealloc1(t *testing.T) {
 		t.Fatal(len(got), 0)
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -1978,7 +2052,10 @@ func TestRelocRealloc1(t *testing.T) {
 }
 
 func TestRelocRealloc1Keep(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1992,7 +2069,7 @@ func TestRelocRealloc1Keep(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -2023,7 +2100,7 @@ func TestRelocRealloc1Keep(t *testing.T) {
 		t.Fatal(len(got), 0)
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -2044,7 +2121,10 @@ func TestRelocRealloc1Keep(t *testing.T) {
 }
 
 func TestRelocRealloc2(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2058,7 +2138,7 @@ func TestRelocRealloc2(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -2087,7 +2167,7 @@ func TestRelocRealloc2(t *testing.T) {
 		t.Fatal(len(got), len(exp))
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -2104,7 +2184,10 @@ func TestRelocRealloc2(t *testing.T) {
 }
 
 func TestRelocRealloc2Keep(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2118,7 +2201,7 @@ func TestRelocRealloc2Keep(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -2147,7 +2230,7 @@ func TestRelocRealloc2Keep(t *testing.T) {
 		t.Fatal(len(got), len(exp))
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -2164,7 +2247,10 @@ func TestRelocRealloc2Keep(t *testing.T) {
 }
 
 func TestRelocRealloc3(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2178,7 +2264,7 @@ func TestRelocRealloc3(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -2207,7 +2293,7 @@ func TestRelocRealloc3(t *testing.T) {
 		t.Fatal(len(got), len(exp))
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -2224,7 +2310,10 @@ func TestRelocRealloc3(t *testing.T) {
 }
 
 func TestRelocRealloc3Keep(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2238,7 +2327,7 @@ func TestRelocRealloc3Keep(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -2267,7 +2356,7 @@ func TestRelocRealloc3Keep(t *testing.T) {
 		t.Fatal(len(got), len(exp))
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -2284,7 +2373,10 @@ func TestRelocRealloc3Keep(t *testing.T) {
 }
 
 func TestRelocRealloc4(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2298,7 +2390,7 @@ func TestRelocRealloc4(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -2331,7 +2423,7 @@ func TestRelocRealloc4(t *testing.T) {
 		t.Fatal(len(got), len(exp))
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -2348,7 +2440,10 @@ func TestRelocRealloc4(t *testing.T) {
 }
 
 func TestRelocRealloc4Keep(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2362,7 +2457,7 @@ func TestRelocRealloc4Keep(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -2395,7 +2490,7 @@ func TestRelocRealloc4Keep(t *testing.T) {
 		t.Fatal(len(got), len(exp))
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -2412,7 +2507,10 @@ func TestRelocRealloc4Keep(t *testing.T) {
 }
 
 func TestRelocRealloc5(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2426,7 +2524,7 @@ func TestRelocRealloc5(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -2455,7 +2553,7 @@ func TestRelocRealloc5(t *testing.T) {
 		t.Fatal(len(got), len(exp))
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -2472,7 +2570,10 @@ func TestRelocRealloc5(t *testing.T) {
 }
 
 func TestRelocRealloc5Keep(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2486,7 +2587,7 @@ func TestRelocRealloc5Keep(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -2515,7 +2616,7 @@ func TestRelocRealloc5Keep(t *testing.T) {
 		t.Fatal(len(got), len(exp))
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -2532,7 +2633,10 @@ func TestRelocRealloc5Keep(t *testing.T) {
 }
 
 func TestRelocRealloc6(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2546,7 +2650,7 @@ func TestRelocRealloc6(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -2571,7 +2675,7 @@ func TestRelocRealloc6(t *testing.T) {
 		t.Fatal(len(got), len(exp))
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -2588,7 +2692,10 @@ func TestRelocRealloc6(t *testing.T) {
 }
 
 func TestRelocRealloc6Keep(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2602,7 +2709,7 @@ func TestRelocRealloc6Keep(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -2627,7 +2734,7 @@ func TestRelocRealloc6Keep(t *testing.T) {
 		t.Fatal(len(got), len(exp))
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, exp) {
 		t.Fatal(len(got), len(exp))
@@ -2644,7 +2751,10 @@ func TestRelocRealloc6Keep(t *testing.T) {
 }
 
 func TestFreespaceReuse(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2658,7 +2768,7 @@ func TestFreespaceReuse(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -2694,7 +2804,7 @@ func TestFreespaceReuse(t *testing.T) {
 		t.Fatal()
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, c10) {
 		t.Fatal()
@@ -2719,7 +2829,10 @@ func TestFreespaceReuse(t *testing.T) {
 }
 
 func TestFreespaceReuse2(t *testing.T) {
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2733,7 +2846,7 @@ func TestFreespaceReuse2(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -2769,7 +2882,7 @@ func TestFreespaceReuse2(t *testing.T) {
 		t.Fatal()
 	}
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	if got, _ := f.readUsed(h10); !bytes.Equal(got, c10) {
 		t.Fatal()
@@ -2796,7 +2909,11 @@ func TestFreespaceReuse2(t *testing.T) {
 func testBug1(t *testing.T, swap bool) {
 	// Free lists table item for size 3856 points to list of free blocks
 	// NOT of size 3856 but at least 3856.
-	f, err := fcreate(*fnFlag)
+
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2810,7 +2927,7 @@ func testBug1(t *testing.T, swap bool) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	_ = alloc(f, nil)
@@ -2831,7 +2948,7 @@ func testBug1(t *testing.T, swap bool) {
 	free(f, f2)
 	_ = alloc(f, nil)
 
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 
 	used, total, err := f.audit() // c+3, c+4
 	if err != nil {
@@ -2864,7 +2981,10 @@ func TestMix(t *testing.T) {
 	}
 
 	t.Log(n)
-	f, err := fcreate(*fnFlag)
+	dir, name := temp()
+	defer os.RemoveAll(dir)
+
+	f, err := fcreate(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2878,7 +2998,7 @@ func TestMix(t *testing.T) {
 
 		f = nil
 		runtime.GC()
-		os.Remove(*fnFlag)
+		os.Remove(name)
 	}()
 
 	b := make([]byte, 61680)
@@ -2903,7 +3023,7 @@ func TestMix(t *testing.T) {
 	t.Logf("write time A %.3g", dt)
 
 	// verify
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 	t.Logf("size A %d for %d bytes (fill factor %3.1f%%)", f.atoms<<4, payload, 100*float64(payload)/float64(f.atoms<<4))
 	t0 = time.Now()
 	for _ = range ha {
@@ -2926,7 +3046,7 @@ func TestMix(t *testing.T) {
 	t.Logf("free time A %.3g", dt)
 
 	// verify
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 	t.Logf("size B %d (freeing half of the blocks)", f.atoms<<4)
 	t0 = time.Now()
 	for _ = range ha {
@@ -2955,7 +3075,7 @@ func TestMix(t *testing.T) {
 		}
 
 		c := content(b, int64(r))
-		//f = reaudit(t, f, *fnFlag)
+		//f = reaudit(t, f, name)
 		if h2 := realloc(f, h, c, true); h2 != h {
 			t.Fatal()
 		}
@@ -2964,7 +3084,7 @@ func TestMix(t *testing.T) {
 	t.Logf("realoc time B %.3g", dt)
 
 	// verify
-	f = reaudit(t, f, *fnFlag)
+	f = reaudit(t, f, name)
 	t.Logf("size C %d for %d bytes (reallocated all used blocks to double size, fill factor %3.1f%%", f.atoms<<4, payload, 100*float64(payload)/float64(f.atoms<<4))
 
 	t0 = time.Now()

@@ -1,7 +1,12 @@
-.PHONY: all clean
+# Copyright (c) 2014 The fileutil authors. All rights reserved.
+# Use of this source code is governed by a BSD-style
+# license that can be found in the LICENSE file.
+
+.PHONY: all clean editor todo
 
 all: editor
 	go vet
+	golint .
 	go install
 	make todo
 
@@ -12,10 +17,10 @@ editor:
 	go build
 
 todo:
-	@grep -n ^[[:space:]]*_[[:space:]]*=[[:space:]][[:alpha:]][[:alnum:]]* *.go *.y || true
-	@grep -n TODO *.go *.y || true
-	@grep -n BUG *.go *.y || true
-	@grep -n println *.go *.y || true
+	@grep -n ^[[:space:]]*_[[:space:]]*=[[:space:]][[:alpha:]][[:alnum:]]* *.go || true
+	@grep -n TODO *.go || true
+	@grep -n BUG *.go || true
+	@grep -n println *.go || true
 
 clean:
 	@go clean
