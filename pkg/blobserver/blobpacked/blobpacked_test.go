@@ -160,6 +160,12 @@ func TestPackLarge(t *testing.T) {
 	const fileSize = 17 << 20 // more than 16 MB, so more than one zip
 	const fileName = "foo.dat"
 	fileContents := randBytes(fileSize)
+
+	hash := blob.NewHash()
+	hash.Write(fileContents)
+	wholeRef := blob.RefFromHash(hash)
+
+	var pt *packTest
 	testPack(t,
 		func(sto blobserver.Storage) error {
 			_, err := schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
@@ -167,7 +173,28 @@ func TestPackLarge(t *testing.T) {
 		},
 		wantNumLargeBlobs(2),
 		wantNumSmallBlobs(0),
+		func(v *packTest) { pt = v },
 	)
+
+	// Verify we wrote the correct "w:*" meta rows.
+	got := map[string]string{}
+	want := map[string]string{
+		"w:" + wholeRef.String():        "17825792 2",
+		"w:" + wholeRef.String() + ":0": "sha1-fdff4384dc6f3e69d70e6112b845fe1fbd903e45 37 0 16606256",
+		"w:" + wholeRef.String() + ":1": "sha1-50257fbe2ca5c9580140c462470c01c8c6f59875 37 16606256 1219536",
+	}
+	if err := sorted.Foreach(pt.sto.meta, func(key, value string) error {
+		if strings.HasPrefix(key, "b:") {
+			return nil
+		}
+		got[key] = value
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("'w:*' meta rows = %v; want %v", got, want)
+	}
 }
 
 func TestPackTwoIdenticalfiles(t *testing.T) {
@@ -239,19 +266,6 @@ func testPack(t *testing.T,
 
 	t.Logf("items in small: %v", small.NumBlobs())
 	t.Logf("items in large: %v", large.NumBlobs())
-
-	it := pt.sto.meta.Find("", "")
-	skipPrefix := []byte("b:")
-	for it.Next() {
-		if bytes.HasPrefix(it.KeyBytes(), skipPrefix) {
-			// boring row
-			continue
-		}
-		t.Logf("meta %q = %q", it.KeyBytes(), it.ValueBytes())
-	}
-	if err := it.Close(); err != nil {
-		t.Fatal(err)
-	}
 
 	if want, ok := pt.wantLargeBlobs.(int); ok && want != large.NumBlobs() {
 		t.Fatalf("num large blobs = %d; want %d", large.NumBlobs(), want)
@@ -362,15 +376,10 @@ func testPack(t *testing.T,
 		t.Error("enumerate over logical blobs didn't work?")
 	}
 
-	// TODO: so many more tests:
-
+	// TODO, more tests:
 	// -- like TestPackTwoIdenticalfiles, but instead of testing
 	// no dup for 100% identical file bytes, test that uploading a
-	// 49% identical one does denormalize and repack.
-	// -- verify deleting from the source
-	// -- verify we can reconstruct it all from the zip
-	// -- verify the meta before & after
-	// -- verify we can still get each blob. and enumerate.
+	// 49% identical one does not denormalize and repack.
 	// -- test StreamBlobs in all its various flavours, and recovering from stream blobs.
 	// -- overflowing the 16MB chunk size with huge initial chunks
 }
@@ -494,9 +503,7 @@ func TestForeachZipBlob(t *testing.T) {
 		},
 		wantNumLargeBlobs(1),
 		wantNumSmallBlobs(0),
-		func(v *packTest) {
-			pt = v
-		},
+		func(v *packTest) { pt = v },
 	)
 
 	zipBlob, err := singleBlob(pt.large)
