@@ -105,7 +105,7 @@ type Directory interface {
 	// slice and a nil os.Error. If it encounters an error before the
 	// end of the directory, Readdir returns the DirectoryEntry read
 	// until that point and a non-nil error.
-	Readdir(count int) ([]DirectoryEntry, error)
+	Readdir(n int) ([]DirectoryEntry, error)
 }
 
 type Symlink interface {
