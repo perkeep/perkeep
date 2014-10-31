@@ -946,7 +946,7 @@ func FileTime(f io.ReaderAt) (time.Time, error) {
 		if osf, ok := f.(*os.File); ok {
 			fi, err := osf.Stat()
 			if err != nil {
-				return ct, fmt.Errorf("Failed to find a modtime: lstat: %v", err)
+				return ct, fmt.Errorf("Failed to find a modtime: stat: %v", err)
 			}
 			return fi.ModTime(), nil
 		}
