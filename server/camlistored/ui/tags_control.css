@@ -16,48 +16,22 @@ limitations under the License.
 
 @import (less) "prefix-free.css";
 
-@color-background: #3a3a3a;
-@color-green: #44c767;
-@color-darker-green: #18ab29;
-@color-brighter-green: #5cbf2a;
+@color-button-border: #39463C;
+@color-button-partial: #eee;
+@color-button-full: #81A18A;
+@color-button-hover: #576D5D;
+
 @control-width: 300px;
 
-.cam-tagscontrol-main {
-	width: @control-width;
-	margin-left: -1 * (@control-width / 2);
-	padding: 7px;
-
-	position: fixed;
-	top: 170px;
-	left: 50%;
-	z-index: 3; /* this should render above anything in the blob container */
-
-	background: @color-background;
-	box-shadow: 1px 2px 4px 2px black;
-}
-
-.cam-tagscontrol-header {
-	color: #e4e4e4;
-	font-family: 'Open Sans', sans-serif;
-	font-size: 14px;
-	margin-bottom: 5px;
-	text-align: center;
-
-	i {
-		float: right;
-		cursor: pointer;
-	}
-}
-
 .cam-addtagsinput-form {
-	margin-bottom: 5px;
+	margin: 5px 0;
 
-	input {
+	> input {
 		width: 100%;
-		padding: 3px;
+		padding: 0;
 	}
 
-	div {
+	> div {
 		margin: 3px;
 		color: red;
 		font-size: 12px;
@@ -74,20 +48,20 @@ limitations under the License.
 	margin: 3px;
 	display: inline-block;
 
-	button {
-		color: #ffffff;
+	> button {
 		font-size: 13px;
-		border: 1px solid @color-darker-green;
+		border: 1px solid @color-button-border;
 	}
 
-	button:active:enabled {
+	> button:active:enabled {
 		position: relative;
 		top: 1px;
 	}
 }
 
 .cam-edittagscontrol-button-all-tagged {
-	background-color: @color-green;
+	background-color: @color-button-full;
+	color: #fff;
 	padding: 2px 7px 2px 10px;
 	margin-right: 0px;
 	margin-left: 0px;
@@ -101,7 +75,7 @@ limitations under the License.
 }
 
 .cam-edittagscontrol-button-some-tagged {
-	background-color: @color-background;
+	background-color: @color-button-partial;
 	padding: 2px 10px;
 
 	margin-right: 0px;
@@ -115,12 +89,14 @@ limitations under the License.
 	border-bottom-right-radius: 0px;
 
 	&:hover:enabled {
-		background-color: @color-green;
+		background-color: @color-button-full;
+		color: #ffffff;
 	}
 }
 
 .cam-edittagscontrol-button-remove-tag {
-	background-color: @color-green;
+	background-color: @color-button-full;
+	color: #fff;
 	margin-left: -1px;
 	margin-right: 0px;
 	padding: 2px 10px 2px 7px;
@@ -133,6 +109,6 @@ limitations under the License.
 	border-bottom-right-radius: 10px;
 
 	&:hover:enabled {
-		background-color: @color-brighter-green;
+		background-color: @color-button-hover;
 	}
 }

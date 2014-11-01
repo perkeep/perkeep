@@ -22,7 +22,13 @@ limitations under the License.
 	border: 1px solid rgba(0,0,0,0);
 	position: relative;
 	white-space: nowrap;
-	.transition-transform(75ms ease-out);
+}
+
+.cam-blobitemcontainer-transform {
+	position: absolute;
+	left: 0;
+	top: 0;
+	.transition-transform(100ms ease-out);
 }
 
 .cam-blobitemcontainer.cam-dropactive {
@@ -33,6 +39,6 @@ limitations under the License.
 	display: none;
 }
 
-.cam-blobitemcontainer>.cam-blobitem {
+.cam-blobitemcontainer>.cam-blobitemcontainer-transform>.cam-blobitem {
 	position: absolute;
 }

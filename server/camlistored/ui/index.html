@@ -40,7 +40,6 @@ limitations under the License.
 		<link rel="stylesheet" href="fontawesome/css/font-awesome.min.css">
 		<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Open+Sans:300,400,600,700,800">
 		<link rel="stylesheet" href="closure/goog/css/common.css" type="text/css">
-		<link rel="stylesheet/less" href="tags_control.css" type="text/css">
 
 		<link rel="stylesheet/less" href="index.css" type="text/css">
 		<link rel="stylesheet/less" href="header.css" type="text/css">
@@ -55,7 +54,8 @@ limitations under the License.
 		<link rel="stylesheet/less" href="permanode_detail.css" type="text/css">
 		<link rel="stylesheet/less" href="property_sheet.css" type="text/css">
 		<link rel="stylesheet/less" href="pyramid_throbber.css" type="text/css">
-
+		<link rel="stylesheet/less" href="sidebar.css" type="text/css">
+		<link rel="stylesheet/less" href="tags_control.css" type="text/css">
 		<script src="less/less.js"></script>
 	</head>
 	<body class="cam-index-page">
@@ -71,6 +71,7 @@ limitations under the License.
 
 				lastWidth = currentWidth;
 				lastHeight = currentHeight;
+
 				var index = cam.IndexPage({
 					availWidth: currentWidth,
 					availHeight: currentHeight,
@@ -80,6 +81,7 @@ limitations under the License.
 					location: window.location,
 					scrolling: {
 						target: window,
+						// Note that calling get() can cause layout, so should be used only once per scroll event.
 						get: function() { return document.body.scrollTop; },
 						set: function(val) { document.body.scrollTop = val; },
 					},

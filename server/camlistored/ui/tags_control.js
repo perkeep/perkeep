@@ -37,11 +37,6 @@ cam.TagsControl = React.createClass({
 		selectedItems: React.PropTypes.object.isRequired,
 		searchSession: React.PropTypes.shape({getMeta:React.PropTypes.func.isRequired}),
 		serverConnection: React.PropTypes.instanceOf(cam.ServerConnection).isRequired,
-		onCloseControl: React.PropTypes.func.isRequired
-	},
-
-	handleCloseControl_: function(e) {
-		this.props.onCloseControl();
 	},
 
 	doesBlobHaveTag: function(blobref, tag) {
@@ -92,15 +87,7 @@ cam.TagsControl = React.createClass({
 			React.DOM.div(
 				{
 					className: 'cam-tagscontrol-header'
-				},
-				React.DOM.span({}, 'Update tags for ' + blobrefs.length + ' item(s)'),
-				React.DOM.i(
-					{
-						className: 'fa fa-times-circle fa-lg',
-						key: 'close-tag-control',
-						onClick: this.handleCloseControl_,
-					}
-				)
+				}
 			),
 			cam.AddTagsInput(
 				{

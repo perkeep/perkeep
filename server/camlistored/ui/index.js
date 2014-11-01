@@ -20,6 +20,7 @@ goog.require('goog.array');
 goog.require('goog.dom');
 goog.require('goog.dom.classlist');
 goog.require('goog.events.EventHandler');
+goog.require('goog.functions');
 goog.require('goog.labs.Promise');
 goog.require('goog.object');
 goog.require('goog.string');
@@ -44,10 +45,13 @@ goog.require('cam.permanodeUtils');
 goog.require('cam.reactUtil');
 goog.require('cam.SearchSession');
 goog.require('cam.ServerConnection');
+goog.require('cam.Sidebar');
 goog.require('cam.TagsControl');
 
 cam.IndexPage = React.createClass({
 	displayName: 'IndexPage',
+
+	SIDEBAR_OPEN_WIDTH_: 250,
 
 	HEADER_HEIGHT_: 38,
 	SEARCH_PREFIX_: {
@@ -83,7 +87,6 @@ cam.IndexPage = React.createClass({
 
 	componentWillMount: function() {
 		this.baseURL_ = null;
-		this.currentSet_ = null;
 		this.dragEndTimer_ = 0;
 		this.navigator_ = null;
 		this.searchSessionCache_ = [];
@@ -117,12 +120,15 @@ cam.IndexPage = React.createClass({
 	getInitialState: function() {
 		return {
 			currentURL: null,
+			currentSet: '',
+			dropActive: false,
 			selection: {},
 			serverStatus: null,
-			tagsControlVisible: false,
+
+			// TODO: This should be calculated by whether selection is empty, and not need separate state.
+			sidebarVisible: false,
 
 			uploadDialogVisible: false,
-			dropActive: false,
 			numUploadsTotal: 0,
 			numUploadsComplete: 0,
 		};
@@ -142,7 +148,6 @@ cam.IndexPage = React.createClass({
 		var contentSize = new goog.math.Size(this.props.availWidth, this.props.availHeight - this.HEADER_HEIGHT_);
 		return React.DOM.div({onDragEnter:this.handleDragStart_, onDragOver:this.handleDragStart_, onDrop:this.handleDrop_}, [
 			this.getHeader_(aspects, selectedAspect),
-			this.getTagsControl_(),
 			React.DOM.div(
 				{
 					className: 'cam-content-wrap',
@@ -152,17 +157,14 @@ cam.IndexPage = React.createClass({
 				},
 				aspects[selectedAspect] && aspects[selectedAspect].createContent(contentSize, backwardPiggy)
 			),
-			this.getUploadDialog_(),
+			this.getSidebar_(aspects[selectedAspect]),
+			this.getUploadDialog_()
 		]);
 	},
 
 	setSelection_: function(selection) {
 		this.setState({selection: selection});
-
-		// leave contextual controls open if items are still selected
-		if (goog.object.isEmpty(selection)) {
-			this.setState({tagsControlVisible: false});
-		}
+		this.setState({sidebarVisible: !goog.object.isEmpty(selection)});
 	},
 
 	getTargetBlobref_: function(opt_url) {
@@ -428,14 +430,6 @@ cam.IndexPage = React.createClass({
 				searchRootsURL: this.getSearchRootsURL_(),
 				statusURL: this.baseURL_.resolve(new goog.Uri(this.props.config.statusRoot)),
 				ref: 'header',
-				subControls: [
-					this.getClearSelectionItem_(),
-					this.getCreateSetWithSelectionItem_(),
-					this.getSelectAsCurrentSetItem_(),
-					this.getAddToCurrentSetItem_(),
-					this.getDeleteSelectionItem_(),
-					this.getTagsControlItem_()
-				].filter(function(c) { return c }),
 				timer: this.props.timer,
 				width: this.props.availWidth,
 			}
@@ -461,12 +455,17 @@ cam.IndexPage = React.createClass({
 	},
 
 	handleSelectAsCurrentSet_: function() {
-		this.currentSet_ = goog.object.getAnyKey(this.state.selection);
+		this.setState({
+			currentSet: goog.object.getAnyKey(this.state.selection),
+		});
 		this.setSelection_({});
+		alert('Now, select the items to add to this set and click "Add to picked set" in the sidebar.\n\n' +
+			  'Sorry this is lame, we\'re working on it.');
 	},
 
 	handleAddToSet_: function() {
-		this.addMembersToSet_(this.currentSet_, goog.object.getKeys(this.state.selection));
+		this.addMembersToSet_(this.state.currentSet, goog.object.getKeys(this.state.selection));
+		alert('Done!');
 	},
 
 	handleUpload_: function() {
@@ -581,76 +580,91 @@ cam.IndexPage = React.createClass({
 			return null;
 		}
 
-		return React.DOM.button({key:'selectascurrent', onClick:this.handleSelectAsCurrentSet_}, 'Select as current set');
+		return React.DOM.button(
+			{
+				key:'selectascurrent',
+				onClick:this.handleSelectAsCurrentSet_
+			},
+			'Add items to set'
+		);
 	},
 
 	getAddToCurrentSetItem_: function() {
-		if (!this.currentSet_ || !goog.object.getAnyKey(this.state.selection)) {
+		if (!this.state.currentSet) {
 			return null;
 		}
-		return React.DOM.button({key:'addtoset', onClick:this.handleAddToSet_}, 'Add to current set');
+
+		return React.DOM.button(
+			{
+				key:'addtoset',
+				onClick:this.handleAddToSet_
+			},
+			'Add to picked set'
+		);
 	},
 
 	getCreateSetWithSelectionItem_: function() {
-		var numItems = goog.object.getCount(this.state.selection);
-		if (numItems == 0) {
-			return null;
-		}
-		var label = 'Create set';
-		if (numItems == 1) {
-			label += ' with item';
-		} else if (numItems > 1) {
-			label += goog.string.subs(' with %s items', numItems);
-		}
-		return React.DOM.button({key:'createsetwithselection', onClick:this.handleCreateSetWithSelection_}, label);
+		return React.DOM.button(
+			{
+				key:'createsetwithselection',
+				onClick:this.handleCreateSetWithSelection_
+			},
+			'Create set with items'
+		);
 	},
 
 	getClearSelectionItem_: function() {
-		if (!goog.object.getAnyKey(this.state.selection)) {
-			return null;
-		}
-		return React.DOM.button({key:'clearselection', onClick:this.handleClearSelection_}, 'Clear selection');
+		return React.DOM.button(
+			{
+				key:'clearselection',
+				onClick:this.handleClearSelection_
+			},
+			'Clear selection'
+		);
 	},
 
 	getDeleteSelectionItem_: function() {
-		if (!goog.object.getAnyKey(this.state.selection)) {
+		return React.DOM.button(
+			{
+				key:'deleteselection',
+				onClick:this.handleDeleteSelection_
+			},
+			'Delete items'
+		);
+	},
+
+	getSidebar_: function(selectedAspect) {
+		// We don't support the sidebar in other aspects (maybe we should though).
+		if (!selectedAspect || selectedAspect.fragment != 'search')
 			return null;
-		}
-		var numItems = goog.object.getCount(this.state.selection);
-		var label = 'Delete';
-		if (numItems == 1) {
-			label += ' selected item';
-		} else if (numItems > 1) {
-			label += goog.string.subs(' (%s) selected items', numItems);
-		}
-		// TODO(mpl): better icon in another CL, with Font Awesome.
-		return React.DOM.button({key:'deleteselection', onClick:this.handleDeleteSelection_}, label);
+
+		return cam.Sidebar({
+			isExpanded: this.state.sidebarVisible,
+			mainControls: [
+				{
+					"displayTitle": "Update Tags",
+					"control": this.getTagsControl_()
+				}
+			].filter(goog.functions.identity),
+			selectionControls: [
+				this.getClearSelectionItem_(),
+				this.getCreateSetWithSelectionItem_(),
+				this.getSelectAsCurrentSetItem_(),
+				this.getAddToCurrentSetItem_(),
+				this.getDeleteSelectionItem_(),
+			].filter(goog.functions.identity),
+			selectedItems: this.state.selection
+		});
 	},
 
 	getTagsControl_: function() {
-		if (!this.state.tagsControlVisible) {
-			return null;
-		}
-
 		return cam.TagsControl(
 			{
 				selectedItems: this.state.selection,
 				searchSession: this.childSearchSession_,
-				serverConnection: this.props.serverConnection,
-				onCloseControl: this.handleTagsControlClose_
+				serverConnection: this.props.serverConnection
 			}
 		);
-	},
-
-	getTagsControlItem_: function() {
-		var numItems = goog.object.getCount(this.state.selection);
-		if (numItems == 0) {
-			return null;
-		}
-
-		var label = goog.string.subs('Tag (%s) items', numItems);
-
-		return React.DOM.button({key:'tagselection', onClick:this.handleTagSelection_}, label);
 	},
 
 	isUploading_: function() {
@@ -739,32 +753,31 @@ cam.IndexPage = React.createClass({
 		});
 	},
 
-	handleTagSelection_: function() {
-		this.setState({tagsControlVisible: !this.state.tagsControlVisible});
-	},
-
-	handleTagsControlClose_: function() {
-		this.setState({tagsControlVisible: false});
-	},
-
 	handleSelectionChange_: function(newSelection) {
 		this.setSelection_(newSelection);
 	},
 
 	getBlobItemContainer_: function() {
+		var sidebarClosedWidth = this.props.availWidth;
+		var sidebarOpenWidth = sidebarClosedWidth - this.SIDEBAR_OPEN_WIDTH_;
+		var scale = sidebarOpenWidth / sidebarClosedWidth;
+
 		return cam.BlobItemContainerReact({
 			key: 'blobitemcontainer',
 			ref: 'blobItemContainer',
+			availHeight: this.props.availHeight,
+			availWidth: this.props.availWidth,
 			detailURL: this.handleDetailURL_,
 			handlers: this.BLOB_ITEM_HANDLERS_,
 			history: this.props.history,
 			onSelectionChange: this.handleSelectionChange_,
+			scale: scale,
+			scaleEnabled: this.state.sidebarVisible,
 			scrolling: this.props.scrolling,
 			searchSession: this.childSearchSession_,
 			selection: this.state.selection,
 			style: this.getBlobItemContainerStyle_(),
 			thumbnailSize: this.THUMBNAIL_SIZE_,
-			translateY: goog.object.getAnyKey(this.state.selection) ? 36 : 0,
 		});
 	},
 
@@ -774,8 +787,6 @@ cam.IndexPage = React.createClass({
 			overflowY: this.state.dropActive ? 'hidden' : '',
 			position: 'absolute',
 			top: 0,
-			height: this.props.availHeight - this.HEADER_HEIGHT_,
-			width: this.getContentWidth_(),
 		};
 	},
 

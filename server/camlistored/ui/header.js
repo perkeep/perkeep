@@ -55,7 +55,6 @@ cam.Header = React.createClass({
 		onSearch: React.PropTypes.func,
 		searchRootsURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		statusURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
-		subControls: React.PropTypes.arrayOf(React.PropTypes.renderable),
 		timer: React.PropTypes.shape({setTimeout:React.PropTypes.func.isRequired, clearTimeout:React.PropTypes.func.isRequired}).isRequired,
 		width: React.PropTypes.number.isRequired,
 	},
@@ -81,10 +80,7 @@ cam.Header = React.createClass({
 	render: function() {
 		return React.DOM.div(
 			{
-				className: React.addons.classSet({
-					'cam-header': true,
-					'cam-header-sub-active': this.props.subControls.length,
-				}),
+				className: 'cam-header',
 				style: {
 					width: this.props.width,
 				},
@@ -100,7 +96,6 @@ cam.Header = React.createClass({
 					this.getMainControls_()
 				)
 			),
-			this.getSubheader_(),
 			this.getMenuDropdown_()
 		)
 	},
@@ -251,15 +246,6 @@ cam.Header = React.createClass({
 				onClick: opt_onClick,
 			},
 			text
-		);
-	},
-
-	getSubheader_: function() {
-		return React.DOM.div(
-			{
-				className: 'cam-header-sub',
-			},
-			this.props.subControls
 		);
 	},
 
