@@ -44,11 +44,11 @@ func NewDirReader(fetcher blob.Fetcher, dirBlobRef blob.Ref) (*DirReader, error)
 		return nil, err
 	}
 	if ss.Type != "directory" {
-		return nil, fmt.Errorf("schema/filereader: expected \"directory\" schema blob for %s, got %q", dirBlobRef, ss.Type)
+		return nil, fmt.Errorf("schema/dirreader: expected \"directory\" schema blob for %s, got %q", dirBlobRef, ss.Type)
 	}
 	dr, err := ss.NewDirReader(fetcher)
 	if err != nil {
-		return nil, fmt.Errorf("schema/filereader: creating DirReader for %s: %v", dirBlobRef, err)
+		return nil, fmt.Errorf("schema/dirreader: creating DirReader for %s: %v", dirBlobRef, err)
 	}
 	dr.current = 0
 	return dr, nil
@@ -67,16 +67,16 @@ func (ss *superset) NewDirReader(fetcher blob.Fetcher) (*DirReader, error) {
 
 func (ss *superset) setFromBlobRef(fetcher blob.Fetcher, blobRef blob.Ref) error {
 	if !blobRef.Valid() {
-		return errors.New("schema/filereader: blobref invalid")
+		return errors.New("schema/dirreader: blobref invalid")
 	}
 	ss.BlobRef = blobRef
 	rc, _, err := fetcher.Fetch(blobRef)
 	if err != nil {
-		return fmt.Errorf("schema/filereader: fetching schema blob %s: %v", blobRef, err)
+		return fmt.Errorf("schema/dirreader: fetching schema blob %s: %v", blobRef, err)
 	}
 	defer rc.Close()
 	if err := json.NewDecoder(rc).Decode(ss); err != nil {
-		return fmt.Errorf("schema/filereader: decoding schema blob %s: %v", blobRef, err)
+		return fmt.Errorf("schema/dirreader: decoding schema blob %s: %v", blobRef, err)
 	}
 	return nil
 }
@@ -88,23 +88,23 @@ func (dr *DirReader) StaticSet() ([]blob.Ref, error) {
 	}
 	staticSetBlobref := dr.ss.Entries
 	if !staticSetBlobref.Valid() {
-		return nil, fmt.Errorf("schema/filereader: Invalid blobref\n")
+		return nil, errors.New("schema/dirreader: Invalid blobref")
 	}
 	rsc, _, err := dr.fetcher.Fetch(staticSetBlobref)
 	if err != nil {
-		return nil, fmt.Errorf("schema/filereader: fetching schema blob %s: %v", staticSetBlobref, err)
+		return nil, fmt.Errorf("schema/dirreader: fetching schema blob %s: %v", staticSetBlobref, err)
 	}
 	defer rsc.Close()
 	ss, err := parseSuperset(rsc)
 	if err != nil {
-		return nil, fmt.Errorf("schema/filereader: decoding schema blob %s: %v", staticSetBlobref, err)
+		return nil, fmt.Errorf("schema/dirreader: decoding schema blob %s: %v", staticSetBlobref, err)
 	}
 	if ss.Type != "static-set" {
-		return nil, fmt.Errorf("schema/filereader: expected \"static-set\" schema blob for %s, got %q", staticSetBlobref, ss.Type)
+		return nil, fmt.Errorf("schema/dirreader: expected \"static-set\" schema blob for %s, got %q", staticSetBlobref, ss.Type)
 	}
 	for _, member := range ss.Members {
 		if !member.Valid() {
-			return nil, fmt.Errorf("schema/filereader: invalid (static-set member) blobref\n")
+			return nil, fmt.Errorf("schema/dirreader: invalid (static-set member) blobref referred by \"static-set\" schema blob %v", staticSetBlobref)
 		}
 		dr.staticSet = append(dr.staticSet, member)
 	}
@@ -115,7 +115,7 @@ func (dr *DirReader) StaticSet() ([]blob.Ref, error) {
 func (dr *DirReader) Readdir(n int) (entries []DirectoryEntry, err error) {
 	sts, err := dr.StaticSet()
 	if err != nil {
-		return nil, fmt.Errorf("schema/filereader: can't get StaticSet: %v\n", err)
+		return nil, fmt.Errorf("schema/dirreader: can't get StaticSet: %v", err)
 	}
 	up := dr.current + n
 	if n <= 0 {
@@ -156,7 +156,7 @@ func (dr *DirReader) Readdir(n int) (entries []DirectoryEntry, err error) {
 	for _, c := range cs {
 		res := <-c
 		if res.err != nil {
-			return nil, fmt.Errorf("schema/filereader: can't create dirEntry: %v\n", err)
+			return nil, fmt.Errorf("schema/dirreader: can't create dirEntry: %v", err)
 		}
 		entries = append(entries, res.ent)
 	}
