@@ -34,6 +34,9 @@ import (
 	"camlistore.org/pkg/netutil"
 )
 
+// Debug, if set, prevents any container from being removed.
+var Debug bool
+
 /// runLongTest checks all the conditions for running a docker container
 // based on image.
 func runLongTest(t *testing.T, image string) {
@@ -133,7 +136,10 @@ func (c ContainerID) Kill() error {
 
 // Remove runs "docker rm" on the container
 func (c ContainerID) Remove() error {
-	return exec.Command("docker", "rm", string(c)).Run()
+	if Debug {
+		return nil
+	}
+	return exec.Command("docker", "rm", "-v", string(c)).Run()
 }
 
 // KillRemove calls Kill on the container, and then Remove if there was
