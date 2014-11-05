@@ -735,10 +735,10 @@ cam.IndexPage = React.createClass({
 				{
 					className: 'cam-index-upload-dialog',
 					style: {
-						'line-height': h - borderWidth * 2,
 						'text-align': 'center',
 						position: 'relative',
 						left: -piggyWidth / 2,
+						top: (h - piggyHeight - borderWidth * 2) / 2,
 					},
 				},
 				getIcon.call(this),
