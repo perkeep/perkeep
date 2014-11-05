@@ -42,3 +42,12 @@ limitations under the License.
 .cam-blobitemcontainer>.cam-blobitemcontainer-transform>.cam-blobitem {
 	position: absolute;
 }
+
+.cam-blobitemcontainer-no-results {
+	position: relative;
+
+	color: #444;
+	font-family: 'Open Sans', sans-serif;
+	font-size: 24px;
+	text-align: center;
+}

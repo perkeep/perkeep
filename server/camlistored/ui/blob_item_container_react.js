@@ -27,6 +27,7 @@ goog.require('goog.style');
 
 goog.require('cam.BlobItemReact');
 goog.require('cam.SearchSession');
+goog.require('cam.SpritedImage');
 
 cam.BlobItemContainerReact = React.createClass({
 	displayName: 'BlobItemContainerReact',
@@ -134,6 +135,10 @@ cam.BlobItemContainerReact = React.createClass({
 
 		// If we haven't filled the window with results, add some more.
 		this.fillVisibleAreaWithResults_();
+
+		if (childControls.length == 0 && this.props.searchSession.isComplete()) {
+			childControls.push(this.getNoResultsMessage_());
+		}
 
 		var transformStyle = {};
 		var scale = this.props.scaleEnabled ? this.props.scale : 1;
@@ -263,6 +268,39 @@ cam.BlobItemContainerReact = React.createClass({
 		}
 
 		return rowHeight;
+	},
+
+	getNoResultsMessage_: function() {
+		var piggyWidth = 88;
+		var piggyHeight = 62;
+		var w = 350;
+		var h = 100;
+
+		return React.DOM.div(
+			{
+				className: 'cam-blobitemcontainer-no-results',
+				style: {
+					width: w,
+					height: h,
+					left: (this.props.availWidth - w) / 2,
+					top: (this.props.availHeight - h) / 3
+				},
+			},
+			React.DOM.div(null, 'No results found'),
+			cam.SpritedImage(
+				{
+					key: 'icon',
+					index: 6,
+					sheetWidth: 10,
+					spriteWidth: piggyWidth,
+					spriteHeight: piggyHeight,
+					src: 'glitch/npc_piggy__x1_rooked1_png_1354829442.png',
+					style: {
+						'margin-left': (w - piggyWidth) / 2
+					}
+				}
+			)
+		);
 	},
 
 	getScrollFraction_: function() {
