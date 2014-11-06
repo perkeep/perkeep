@@ -28,6 +28,7 @@ ADD website /gopath/src/camlistore.org/website
 ADD third_party /gopath/src/camlistore.org/third_party
 ADD server /gopath/src/camlistore.org/server
 ADD dev /gopath/src/camlistore.org/dev
+ADD depcheck /gopath/src/camlistore.org/depcheck
 
 RUN adduser --disabled-password --quiet --gecos Camli camli
 RUN mkdir -p /gopath/bin
