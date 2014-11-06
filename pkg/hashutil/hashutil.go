@@ -14,10 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package misc contains stuff which should probably move elsewhere.
-//
-// This is a gross place to put code.
-package misc
+// Package hashutil contains misc hashing functions lacking homes elsewhere.
+package hashutil
 
 import (
 	"crypto/sha256"

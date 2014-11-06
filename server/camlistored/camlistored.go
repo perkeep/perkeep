@@ -41,9 +41,9 @@ import (
 	"time"
 
 	"camlistore.org/pkg/buildinfo"
+	"camlistore.org/pkg/hashutil"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/legal/legalprint"
-	"camlistore.org/pkg/misc"
 	"camlistore.org/pkg/netutil"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/serverinit"
@@ -184,7 +184,7 @@ func genSelfTLS(listen string) error {
 	if err != nil {
 		return fmt.Errorf("Failed to parse certificate: %v", err)
 	}
-	sig := misc.SHA256Prefix(cert.Raw)
+	sig := hashutil.SHA256Prefix(cert.Raw)
 	hint := "You must add this certificate's fingerprint to your client's trusted certs list to use it. Like so:\n" +
 		`"trustedCerts": ["` + sig + `"],`
 	log.Printf(hint)
@@ -303,7 +303,7 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, listen string) {
 	if err != nil {
 		exitf("Failed to parse certificate: %v", err)
 	}
-	sig := misc.SHA256Prefix(certif.Raw)
+	sig := hashutil.SHA256Prefix(certif.Raw)
 	log.Printf("TLS enabled, with SHA-256 certificate fingerprint: %v", sig)
 	ws.SetTLS(cert, key)
 }

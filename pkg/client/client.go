@@ -39,8 +39,8 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client/android"
+	"camlistore.org/pkg/hashutil"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/misc"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
@@ -930,7 +930,7 @@ func (c *Client) DialFunc() func(network, addr string) (net.Conn, error) {
 		if certs == nil || len(certs) < 1 {
 			return nil, errors.New("Could not get server's certificate from the TLS connection.")
 		}
-		sig := misc.SHA256Prefix(certs[0].Raw)
+		sig := hashutil.SHA256Prefix(certs[0].Raw)
 		for _, v := range trustedCerts {
 			if v == sig {
 				return conn, nil
