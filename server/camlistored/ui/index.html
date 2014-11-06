@@ -79,6 +79,7 @@ limitations under the License.
 					config: CAMLISTORE_CONFIG,
 					eventTarget: window,
 					history: window.history,
+					openWindow: function(url) { return window.open(url); },
 					location: window.location,
 					scrolling: {
 						target: window,

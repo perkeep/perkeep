@@ -70,12 +70,17 @@ func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 		mimeType = "application/octet-stream"
 	}
 	h.Set("Content-Type", mimeType)
+
 	if mimeType == "application/octet-stream" {
 		// Chrome seems to silently do nothing on
 		// application/octet-stream unless this is set.
 		// Maybe it's confused by lack of URL it recognizes
 		// along with lack of mime type?
-		rw.Header().Set("Content-Disposition", "attachment; filename=file-"+file.String()+".dat")
+		fileName := fr.FileName()
+		if fileName == "" {
+			fileName = "file-" + file.String() + ".dat"
+		}
+		rw.Header().Set("Content-Disposition", "attachment; filename="+fileName)
 	}
 
 	if req.Method == "HEAD" && req.FormValue("verifycontents") != "" {
