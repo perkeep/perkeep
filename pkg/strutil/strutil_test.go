@@ -136,3 +136,27 @@ func TestContainsFold(t *testing.T) {
 		}
 	}
 }
+
+func TestIsPlausibleJSON(t *testing.T) {
+	tests := []struct {
+		in   string
+		want bool
+	}{
+		{"{}", true},
+		{" {}", true},
+		{"{} ", true},
+		{"\n\r\t {}\t \r \n", true},
+
+		{"\n\r\t {x\t \r \n", false},
+		{"{x", false},
+		{"x}", false},
+		{"x", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		got := IsPlausibleJSON(tt.in)
+		if got != tt.want {
+			t.Errorf("IsPlausibleJSON(%q) = %v; want %v", tt.in, got, tt.want)
+		}
+	}
+}

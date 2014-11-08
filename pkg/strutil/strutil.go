@@ -104,3 +104,40 @@ func ContainsFold(s, substr string) bool {
 	}
 	return false
 }
+
+// IsPlausibleJSON reports whether s likely contains a JSON object, without
+// actually parsing it. It's meant to be a light heuristic.
+func IsPlausibleJSON(s string) bool {
+	return startsWithOpenBrace(s) && endsWithCloseBrace(s)
+}
+
+func isASCIIWhite(b byte) bool { return b == ' ' || b == '\n' || b == '\r' || b == '\t' }
+
+func startsWithOpenBrace(s string) bool {
+	for len(s) > 0 {
+		switch {
+		case s[0] == '{':
+			return true
+		case isASCIIWhite(s[0]):
+			s = s[1:]
+		default:
+			return false
+		}
+	}
+	return false
+}
+
+func endsWithCloseBrace(s string) bool {
+	for len(s) > 0 {
+		last := len(s) - 1
+		switch {
+		case s[last] == '}':
+			return true
+		case isASCIIWhite(s[last]):
+			s = s[:last]
+		default:
+			return false
+		}
+	}
+	return false
+}

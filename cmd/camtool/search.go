@@ -26,6 +26,7 @@ import (
 
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/strutil"
 )
 
 type searchCmd struct {
@@ -77,7 +78,7 @@ func (c *searchCmd) RunCommand(args []string) error {
 	req := &search.SearchQuery{
 		Limit: c.limit,
 	}
-	if plausibleJSON(q) {
+	if strutil.IsPlausibleJSON(q) {
 		cs := new(search.Constraint)
 		if err := json.NewDecoder(strings.NewReader(q)).Decode(&cs); err != nil {
 			return err
@@ -102,8 +103,4 @@ func (c *searchCmd) RunCommand(args []string) error {
 	resj = append(resj, '\n')
 	_, err = os.Stdout.Write(resj)
 	return err
-}
-
-func plausibleJSON(s string) bool {
-	return strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}")
 }
