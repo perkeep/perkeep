@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"runtime"
 	"syscall"
 )
@@ -50,7 +51,7 @@ func SelfPath() (string, error) {
 	case "darwin":
 		// TODO(mpl): maybe do the right thing for darwin too, but that may require changes to runtime.
 		// See https://codereview.appspot.com/6736069/
-		return os.Args[0], nil
+		return exec.LookPath(os.Args[0])
 	}
 	return "", errors.New("SelfPath not implemented for " + runtime.GOOS)
 }

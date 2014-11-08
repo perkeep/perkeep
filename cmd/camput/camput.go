@@ -100,7 +100,7 @@ func initUploader() {
 
 func handleResult(what string, pr *client.PutResult, err error) error {
 	if err != nil {
-		log.Printf("Error putting %s: %s", what, err)
+		cmdmain.Errorf("Error putting %s: %s\n", what, err)
 		cmdmain.ExitWithFailure = true
 		return err
 	}

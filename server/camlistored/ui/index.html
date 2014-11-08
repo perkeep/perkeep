@@ -31,6 +31,7 @@ limitations under the License.
 
 		<script>
 			goog.DEBUG = false;
+			goog.require('goog.dom');
 			goog.require('goog.Uri');
 			goog.require('cam.AnimationLoop');
 			goog.require('cam.IndexPage');
@@ -82,8 +83,8 @@ limitations under the License.
 					scrolling: {
 						target: window,
 						// Note that calling get() can cause layout, so should be used only once per scroll event.
-						get: function() { return document.body.scrollTop; },
-						set: function(val) { document.body.scrollTop = val; },
+						get: function() { return goog.dom.getDocumentScrollElement().scrollTop; },
+						set: function(val) { goog.dom.getDocumentScrollElement().scrollTop = val; },
 					},
 					serverConnection: new cam.ServerConnection(CAMLISTORE_CONFIG),
 					timer: window,
