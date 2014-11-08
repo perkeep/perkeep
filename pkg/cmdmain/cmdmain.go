@@ -290,7 +290,7 @@ func Main() {
 	if err != nil {
 		if !ExitWithFailure {
 			// because it was already logged if ExitWithFailure
-			log.Printf("Error: %v", err)
+			Errorf("Error: %v\n", err)
 		}
 		Exit(2)
 	}
