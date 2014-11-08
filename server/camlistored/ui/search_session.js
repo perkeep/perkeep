@@ -42,6 +42,7 @@ cam.SearchSession = function(connection, currentUri, query) {
 	this.continuation_ = this.getContinuation_(this.constructor.SEARCH_SESSION_CHANGE_TYPE.NEW);
 	this.socket_ = null;
 	this.supportsWebSocket_ = false;
+	this.isComplete_ = false;
 
 	this.resetData_();
 };
@@ -97,7 +98,7 @@ cam.SearchSession.prototype.loadMoreResults = function() {
 
 // Returns true if it is known that all data which can be loaded for this query has been.
 cam.SearchSession.prototype.isComplete = function() {
-	return !this.continuation_;
+	return this.isComplete_;
 }
 
 cam.SearchSession.prototype.supportsChangeNotifications = function() {
@@ -207,6 +208,7 @@ cam.SearchSession.prototype.searchDone_ = function(changeType, result) {
 		this.continuation_ = this.getContinuation_(this.constructor.SEARCH_SESSION_CHANGE_TYPE.APPEND, result.continue);
 	} else {
 		this.continuation_ = null;
+		this.isComplete_ = true;
 	}
 
 	if (changes) {
