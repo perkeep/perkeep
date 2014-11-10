@@ -73,9 +73,6 @@ Offline list:
    diskpacked/localdisk) and getting all the "uploaded" messages back
    for the data chunks that were written-but-not-synced.
 
--- benchmark uploading a 100MB file to localdisk & diskpacked
-   from camput.
-
 -- measure FUSE operations, latency, round-trips, performance.
    see next item:
 
