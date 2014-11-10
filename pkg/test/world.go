@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -338,8 +339,8 @@ func GetWorldMaybe(t *testing.T) *World {
 func RunCmd(c *exec.Cmd) (output string, err error) {
 	var stdout, stderr bytes.Buffer
 	if testing.Verbose() {
-		c.Stderr = os.Stdout
-		c.Stdout = os.Stderr
+		c.Stderr = io.MultiWriter(os.Stderr, &stderr)
+		c.Stdout = io.MultiWriter(os.Stdout, &stdout)
 	} else {
 		c.Stderr = &stderr
 		c.Stdout = &stdout
