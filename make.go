@@ -216,10 +216,7 @@ func main() {
 		"GOPATH="+buildGoPath,
 	)
 	if *dockerMode {
-		cmd.Env = append(cmd.Env,
-			"GOBIN="+filepath.Join(camRoot, "misc", "docker", "camlistored"),
-			"CGO_ENABLED=0",
-		)
+		cmd.Env = append(cmd.Env, "CGO_ENABLED=0")
 	}
 	var output bytes.Buffer
 	if *quiet {
@@ -236,6 +233,12 @@ func main() {
 		log.Fatalf("Error building main binaries: %v\n%s", err, output.String())
 	}
 	if *dockerMode {
+		// See comment below.
+		src := filepath.Join(actualBinDir(filepath.Join(buildGoPath, "bin")), "camlistored")
+		dst := filepath.Join(camRoot, "misc", "docker", "camlistored", "camlistored")
+		if err := mirrorFile(src, dst); err != nil {
+			log.Fatalf("Error copying %s to %s: %v", src, dst, err)
+		}
 		log.Printf("Wrote docker camlistored binary to misc/docker/camlistored")
 		return
 	}
