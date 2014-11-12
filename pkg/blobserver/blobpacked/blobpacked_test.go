@@ -524,12 +524,12 @@ func TestForeachZipBlob(t *testing.T) {
 		foreachSaw++
 		want, ok := all[bap.Ref]
 		if !ok {
-			t.Error("unwanted blob ref returned from foreachZipBlob: %v", bap.Ref)
+			t.Errorf("unwanted blob ref returned from foreachZipBlob: %v", bap.Ref)
 			return nil
 		}
 		delete(all, bap.Ref)
 		if want.Size != bap.Size {
-			t.Error("for %v, foreachZipBlob size = %d; want %d", bap.Ref, bap.Size, want.Size)
+			t.Errorf("for %v, foreachZipBlob size = %d; want %d", bap.Ref, bap.Size, want.Size)
 			return nil
 		}
 
@@ -634,7 +634,7 @@ func TestRemoveBlobs(t *testing.T) {
 			}
 			return nil
 		}); err != nil {
-			t.Fatal("meta iteration error: %v", err)
+			t.Fatalf("meta iteration error: %v", err)
 		}
 		return
 	}

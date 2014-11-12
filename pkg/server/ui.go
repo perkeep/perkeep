@@ -297,7 +297,7 @@ func (ui *UIHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 		}
 		camliRoot, ok := appConfig["camliRoot"].(string)
 		if !ok {
-			log.Printf("UI: camliRoot in appConfig is %T, want string, was %T", appConfig["camliRoot"])
+			log.Printf("UI: camliRoot in appConfig is %T, want string", appConfig["camliRoot"])
 			continue
 		}
 		result, err := camliRootQuery(camliRoot)

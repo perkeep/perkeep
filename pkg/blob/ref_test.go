@@ -213,10 +213,10 @@ func BenchmarkParseBlob(b *testing.B) {
 	refb := []byte(ref)
 	for i := 0; i < b.N; i++ {
 		if _, ok := Parse(ref); !ok {
-			b.Fatal()
+			b.FailNow()
 		}
 		if _, ok := ParseBytes(refb); !ok {
-			b.Fatal()
+			b.FailNow()
 		}
 	}
 }
