@@ -404,7 +404,7 @@ func (b *lowBuilder) addGoogleDriveConfig(v string) error {
 	return nil
 }
 
-var errGCSUsage = errors.New(`genconfig: expected "googlecloudstorage" field to be of form "client_id:client_secret:refresh_token:bucket" or ":bucketname"`)
+var errGCSUsage = errors.New(`genconfig: expected "googlecloudstorage" field to be of form "client_id:client_secret:refresh_token:bucket[/dir/]" or ":bucketname[/dir/]"`)
 
 func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 	var clientID, secret, refreshToken, bucket string
