@@ -17,13 +17,23 @@ limitations under the License.
 package httputil
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"fmt"
+	"math/big"
 	"net/http"
+	"os"
 	"runtime"
 	"sync"
+	"time"
 
+	"camlistore.org/pkg/hashutil"
 	"camlistore.org/pkg/legal"
+	"camlistore.org/pkg/wkfs"
 )
 
 var (
@@ -35,6 +45,73 @@ var (
 	sysRootsOnce sync.Once
 	sysRootsGood bool
 )
+
+// GenSelfTLS generates a self-signed certificate and key for hostname,
+// and writes them to the given paths. If it succeeds it also returns
+// the SHA256 prefix of the new cert.
+func GenSelfTLS(hostname, certPath, keyPath string) (error, string) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return fmt.Errorf("failed to generate private key: %s", err), ""
+	}
+
+	now := time.Now()
+
+	// TODO(mpl): if no host is specified in the listening address
+	// (e.g ":3179") we'll end up in this case, and the self-signed
+	// will have "localhost" as a CommonName. But I don't think
+	// there's anything we can do about it. Maybe warn...
+	if hostname == "" {
+		hostname = "localhost"
+	}
+	template := x509.Certificate{
+		SerialNumber: new(big.Int).SetInt64(0),
+		Subject: pkix.Name{
+			CommonName:   hostname,
+			Organization: []string{hostname},
+		},
+		NotBefore:    now.Add(-5 * time.Minute).UTC(),
+		NotAfter:     now.AddDate(1, 0, 0).UTC(),
+		SubjectKeyId: []byte{1, 2, 3, 4},
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		IsCA:         true,
+		BasicConstraintsValid: true,
+	}
+
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	if err != nil {
+		return fmt.Errorf("Failed to create certificate: %s", err), ""
+	}
+
+	certOut, err := wkfs.Create(certPath)
+	if err != nil {
+		return fmt.Errorf("failed to open %s for writing: %s", certPath, err), ""
+	}
+	if err := pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
+		return err, ""
+	}
+	if err := certOut.Close(); err != nil {
+		return fmt.Errorf("Writing writing self-signed HTTPS cert: %v", err), ""
+	}
+
+	cert, err := x509.ParseCertificate(derBytes)
+	if err != nil {
+		return fmt.Errorf("Failed to parse certificate: %v", err), ""
+	}
+	sig := hashutil.SHA256Prefix(cert.Raw)
+
+	keyOut, err := wkfs.OpenFile(keyPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to open %s for writing: %v", keyPath, err), ""
+	}
+	if err := pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}); err != nil {
+		return fmt.Errorf("Error writing self-signed HTTPS private key: %v", err), ""
+	}
+	if err := keyOut.Close(); err != nil {
+		return fmt.Errorf("Error writing self-signed HTTPS private key: %v", err), ""
+	}
+	return nil, sig
+}
 
 // InstallCerts adds Mozilla's Certificate Authority root set to
 // http.DefaultTransport's configuration if the current operating

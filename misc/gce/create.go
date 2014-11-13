@@ -9,10 +9,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/osutil"
 
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 	compute "camlistore.org/third_party/code.google.com/p/google-api-go-client/compute/v1"
@@ -20,12 +24,15 @@ import (
 )
 
 var (
-	proj     = flag.String("project", "", "name of Project")
-	zone     = flag.String("zone", "us-central1-a", "GCE zone")
+	proj     = flag.String("project", "", "Name of Project.")
+	zone     = flag.String("zone", "us-central1-a", "GCE zone.")
 	mach     = flag.String("machinetype", "g1-small", "e.g. n1-standard-1, f1-micro, g1-small")
 	instName = flag.String("instance_name", "camlistore-server", "Name of VM instance.")
-	sshPub   = flag.String("ssh_public_key", "", "ssh public key file to authorize. Can modify later in Google's web UI anyway.")
-	help     = flag.Bool("help", false, "print a few hints to help with getting started.")
+	hostname = flag.String("hostname", "", "Hostname for the instance and self-signed certificates. Must be given if generating self-signed certs.")
+	certFile = flag.String("cert", "", "Certificate file for TLS. A self-signed one will be generated if this flag is omitted.")
+	keyFile  = flag.String("key", "", "Key file for the TLS certificate. Must be given with --cert")
+	sshPub   = flag.String("ssh_public_key", "", "SSH public key file to authorize. Can modify later in Google's web UI anyway.")
+	verbose  = flag.Bool("verbose", false, "Be verbose.")
 )
 
 const (
@@ -49,19 +56,33 @@ func readFile(v string) string {
 
 func printHelp() {
 	for _, v := range []string{helpCreateProject, helpEnableAuth, helpEnableAPIs} {
-		fmt.Printf("%v\n", v)
+		fmt.Fprintf(os.Stderr, "%v\n", v)
 	}
 }
 
+func usage() {
+	fmt.Fprintf(os.Stderr, "Usage:\n\n    %s\n    %s\n\n",
+		"go run create.go --project=<project> --hostname=<hostname> [options]",
+		"go run create.go --project=<project> --cert=<cert file> --key=<key file> [options]")
+	flag.PrintDefaults()
+	fmt.Fprintln(os.Stderr, "\nTo get started with this script:\n")
+	printHelp()
+}
+
 func main() {
+	flag.Usage = usage
 	flag.Parse()
-	if *help {
-		printHelp()
+	if *proj == "" {
+		log.Print("Missing --project flag.")
+		usage()
 		return
 	}
-	if *proj == "" {
-		log.Printf("Missing --project flag.")
-		printHelp()
+	if (*certFile == "") != (*keyFile == "") {
+		log.Print("--cert and --key must both be given together.")
+		return
+	}
+	if *certFile == "" && *hostname == "" {
+		log.Print("Either --hostname, or --cert & --key must provided.")
 		return
 	}
 	prefix := "https://www.googleapis.com/compute/v1/projects/" + *proj
@@ -235,6 +256,41 @@ coreos:
 		waitBucket.Wait()
 	}
 
+	if *certFile == "" {
+		// A bit paranoid since these are illigal GCE project name characters anyway but it doesn't hurt.
+		r := strings.NewReplacer(".", "_", "/", "_", "\\", "_")
+		*certFile = r.Replace(*proj) + ".crt"
+		*keyFile = r.Replace(*proj) + ".key"
+
+		_, errc := os.Stat(*certFile)
+		_, errk := os.Stat(*keyFile)
+		switch {
+		case os.IsNotExist(errc) && os.IsNotExist(errk):
+			log.Printf("Generating self-signed certificate for %v ...", *hostname)
+			err, sig := httputil.GenSelfTLS(*hostname, *certFile, *keyFile)
+			if err != nil {
+				log.Fatalf("Error generating certificates: %v", err)
+			}
+			log.Printf("Wrote key to %s, and certificate to %s with fingerprint %s", *keyFile, *certFile, sig)
+		case errc != nil:
+			log.Fatalf("Couldn't stat cert: %v", errc)
+		case errk != nil:
+			log.Fatalf("Couldn't stat key: %v", errk)
+		default:
+			log.Printf("Using certificate %s and key %s", *certFile, *keyFile)
+		}
+	}
+
+	log.Print("Uploading certificate and key...")
+	err = uploadFile(storageService, *certFile, configBucket, filepath.Base(osutil.DefaultTLSCert()))
+	if err != nil {
+		log.Fatalf("Cert upload failed: %v", err)
+	}
+	err = uploadFile(storageService, *keyFile, configBucket, filepath.Base(osutil.DefaultTLSKey()))
+	if err != nil {
+		log.Fatalf("Key upload failed: %v", err)
+	}
+
 	instance := &compute.Instance{
 		Name:        *instName,
 		Description: "Camlistore server",
@@ -300,6 +356,12 @@ coreos:
 			},
 		},
 	}
+	if *hostname != "" {
+		instance.Metadata.Items = append(instance.Metadata.Items, &compute.MetadataItems{
+			Key:   "camlistore-hostname",
+			Value: *hostname,
+		})
+	}
 	const localMySQL = false // later
 	if localMySQL {
 		instance.Disks = append(instance.Disks, &compute.AttachedDisk{
@@ -313,13 +375,15 @@ coreos:
 		})
 	}
 
-	log.Printf("Creating instance...")
+	log.Print("Creating instance...")
 	op, err := computeService.Instances.Insert(*proj, *zone, instance).Do()
 	if err != nil {
 		log.Fatalf("Failed to create instance: %v", err)
 	}
 	opName := op.Name
-	log.Printf("Created. Waiting on operation %v", opName)
+	if *verbose {
+		log.Printf("Created. Waiting on operation %v", opName)
+	}
 OpLoop:
 	for {
 		time.Sleep(2 * time.Second)
@@ -329,7 +393,9 @@ OpLoop:
 		}
 		switch op.Status {
 		case "PENDING", "RUNNING":
-			log.Printf("Waiting on operation %v", opName)
+			if *verbose {
+				log.Printf("Waiting on operation %v", opName)
+			}
 			continue
 		case "DONE":
 			if op.Error != nil {
@@ -338,7 +404,9 @@ OpLoop:
 				}
 				log.Fatalf("Failed to start.")
 			}
-			log.Printf("Success. %+v", op)
+			if *verbose {
+				log.Printf("Success. %+v", op)
+			}
 			break OpLoop
 		default:
 			log.Fatalf("Unknown status %q: %+v", op.Status, op)
@@ -349,8 +417,27 @@ OpLoop:
 	if err != nil {
 		log.Fatalf("Error getting instance after creation: %v", err)
 	}
-	ij, _ := json.MarshalIndent(inst, "", "    ")
-	log.Printf("Instance: %s", ij)
+
+	if *verbose {
+		ij, _ := json.MarshalIndent(inst, "", "    ")
+		log.Printf("Instance: %s", ij)
+	}
+
+	addr := inst.NetworkInterfaces[0].AccessConfigs[0].NatIP
+	log.Printf("Instance is up at %s", addr)
+}
+
+func uploadFile(service *storage.Service, localFilename, bucketName, objectName string) error {
+	file, err := os.Open(localFilename)
+	defer file.Close()
+	if err != nil {
+		return fmt.Errorf("Error opening %v: %v", localFilename, err)
+	}
+	_, err = service.Objects.Insert(bucketName, &storage.Object{Name: objectName}).Media(file).Do()
+	if err != nil {
+		return fmt.Errorf("Objects.Insert for %v failed: %v", localFilename, err)
+	}
+	return nil
 }
 
 // returns the MySQL InnoDB buffer pool size (in bytes) as a function
