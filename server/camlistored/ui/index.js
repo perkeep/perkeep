@@ -20,6 +20,7 @@ goog.require('goog.array');
 goog.require('goog.dom');
 goog.require('goog.dom.classlist');
 goog.require('goog.events.EventHandler');
+goog.require('goog.format');
 goog.require('goog.functions');
 goog.require('goog.labs.Promise');
 goog.require('goog.object');
@@ -129,8 +130,8 @@ cam.IndexPage = React.createClass({
 			sidebarVisible: false,
 
 			uploadDialogVisible: false,
-			numUploadsTotal: 0,
-			numUploadsComplete: 0,
+			totalBytesToUpload: 0,
+			totalBytesComplete: 0,
 		};
 	},
 
@@ -248,6 +249,38 @@ cam.IndexPage = React.createClass({
 		}
 	},
 
+	onUploadStart_: function(files) {
+		var numFiles = files.length;
+		var totalBytes = Array.prototype.reduce.call(files, function(sum, file) { return sum + file.size; }, 0);
+
+		this.setState({
+			dropActive: false,
+			totalBytesToUpload: totalBytes,
+			totalBytesComplete: 0,
+		});
+
+		console.log('Uploading %d files (%d bytes)...', numFiles, totalBytes);
+	},
+
+	onUploadProgressUpdate_: function(file) {
+		var completedBytes = this.state.totalBytesComplete + file.size;
+
+		this.setState({
+			totalBytesComplete: completedBytes
+		});
+
+		console.log('Uploaded %d of %d bytes', completedBytes, this.state.totalBytesToUpload);
+	},
+
+	onUploadComplete_: function() {
+		console.log('Upload complete!');
+
+		this.setState({
+			totalBytesToUpload: 0,
+			totalBytesComplete: 0,
+		});
+	},
+
 	handleDrop_: function(e) {
 		if (!e.nativeEvent.dataTransfer.files) {
 			return;
@@ -258,36 +291,51 @@ cam.IndexPage = React.createClass({
 		var files = e.nativeEvent.dataTransfer.files;
 		var sc = this.props.serverConnection;
 
-		this.setState({
-			dropActive: false,
-			numUploadsTotal: files.length,
-			numUploadsComplete: 0,
-		});
+		this.onUploadStart_(files);
 
-		console.log('Uploading %d files...', this.state.numUploadsTotal);
-		goog.labs.Promise.all(Array.prototype.map.call(files, function(file) {
-			var upload = new goog.labs.Promise(sc.uploadFile.bind(sc, file));
+		goog.labs.Promise.all(
+			Array.prototype.map.call(files, function(file) {
+				return uploadFileAndCreatePermanode(file)
+					.then(transformResults)
+					.then(createPermanodeAssociations.bind(this))
+					.thenCatch(function(e) {
+						console.error('File upload fall down go boom. file: %s, error: %s', file.name, e);
+					})
+					.then(this.onUploadProgressUpdate_.bind(this, file));
+			}.bind(this))
+		).thenCatch(function(e) {
+			console.error('File upload failed with error: %s', e);
+		}).then(this.onUploadComplete_);
+
+		function uploadFileAndCreatePermanode(file) {
+			var uploadFile = new goog.labs.Promise(sc.uploadFile.bind(sc, file));
 			var createPermanode = new goog.labs.Promise(sc.createPermanode.bind(sc));
-			return goog.labs.Promise.all([upload, createPermanode]).then(function(results) {
-				// TODO(aa): Icky manual destructuring of results. Seems like there must be a better way?
-				var fileRef = results[0];
-				var permanodeRef = results[1];
-				return new goog.labs.Promise(sc.newSetAttributeClaim.bind(sc, permanodeRef, 'camliContent', fileRef));
-			}).thenCatch(function(e) {
-				console.error('File upload fall down go boom. file: %s, error: %s', file.name, e);
-			}).then(function() {
-				console.log('%d of %d files complete.', this.state.numUploadsComplete, this.state.numUploadsTotal);
-				this.setState({
-					numUploadsComplete: this.state.numUploadsComplete + 1,
-				});
-			}.bind(this));
-		}.bind(this))).then(function() {
-			console.log('All complete');
-			this.setState({
-				numUploadsComplete: 0,
-				numUploadsTotal: 0,
-			});
-		}.bind(this));
+
+			return goog.labs.Promise.all([uploadFile, createPermanode]);
+		}
+
+		// 'readable-ify' the blob references returned from upload/create
+		function transformResults(blobIds) {
+			return {
+				'fileRef': blobIds[0],
+				'permanodeRef': blobIds[1]
+			};
+		}
+
+		function createPermanodeAssociations(refs) {
+			// associate uploaded file to new permanode
+			var camliContent = new goog.labs.Promise(sc.newSetAttributeClaim.bind(sc, refs.permanodeRef, 'camliContent', refs.fileRef));
+			var promises = [camliContent];
+
+			// if currently viewing a set, make new permanode a member of the set
+			var parentPermanodeRef = this.getTargetBlobref_();
+			if (parentPermanodeRef) {
+				var camliMember = new goog.labs.Promise(sc.newAddAttributeClaim.bind(sc, parentPermanodeRef, 'camliMember', refs.permanodeRef));
+				promises.push(camliMember);
+			}
+
+			return goog.labs.Promise.all(promises);
+		}
 	},
 
 	handleNavigate_: function(newURL) {
@@ -668,11 +716,11 @@ cam.IndexPage = React.createClass({
 	},
 
 	isUploading_: function() {
-		return this.state.numUploadsTotal > 0;
+		return this.state.totalBytesToUpload > 0;
 	},
 
 	getUploadDialog_: function() {
-		if (!this.state.uploadDialogVisible && !this.state.dropActive && !this.state.numUploadsTotal) {
+		if (!this.state.uploadDialogVisible && !this.state.dropActive && !this.state.totalBytesToUpload) {
 			return null;
 		}
 
@@ -716,10 +764,20 @@ cam.IndexPage = React.createClass({
 
 		function getText() {
 			if (this.isUploading_()) {
-				return goog.string.subs('Uploading (%s of %s)...', this.state.numUploadsComplete, this.state.numUploadsTotal);
+				return goog.string.subs('Uploaded %s (%s%)',
+					goog.format.numBytesToString(this.state.totalBytesComplete, 2),
+					getUploadProgressPercent.call(this));
 			} else {
 				return 'Drop files here to upload...';
 			}
+		}
+
+		function getUploadProgressPercent() {
+			if (!this.state.totalBytesToUpload) {
+				return 0;
+			}
+
+			return Math.round(100 * (this.state.totalBytesComplete / this.state.totalBytesToUpload));
 		}
 
 		return cam.Dialog(
