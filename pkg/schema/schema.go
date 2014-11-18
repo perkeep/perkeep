@@ -958,9 +958,13 @@ func FileTime(f io.ReaderAt) (time.Time, error) {
 		size = 256 << 10 // enough to get the EXIF
 	}
 	r := io.NewSectionReader(f, 0, size)
+	var tiffErr error
 	ex, err := exif.Decode(r)
 	if err != nil {
-		return defaultTime()
+		tiffErr = err
+		if exif.IsCriticalError(err) || exif.IsExifError(err) {
+			return defaultTime()
+		}
 	}
 	ct, err = ex.DateTime()
 	if err != nil {
@@ -969,6 +973,10 @@ func FileTime(f io.ReaderAt) (time.Time, error) {
 	// If the EXIF file only had local timezone, but it did have
 	// GPS, then lookup the timezone and correct the time.
 	if ct.Location() == time.Local {
+		if exif.IsGPSError(tiffErr) {
+			log.Printf("Invalid EXIF GPS data: %v", tiffErr)
+			return ct, nil
+		}
 		if lat, long, err := ex.LatLong(); err == nil {
 			if loc := lookupLocation(latlong.LookupZoneName(lat, long)); loc != nil {
 				if t, err := exifDateTimeInLocation(ex, loc); err == nil {

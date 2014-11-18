@@ -410,6 +410,7 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 			log.Printf("filename %q exif = %v, %v", b.FileName(), ft, err)
 		}
 
+		// TODO(mpl): find (generate?) more broken EXIF images to experiment with.
 		err = indexEXIF(wholeRef, bytes.NewReader(imageBuf.Bytes), mm)
 		if err == io.EOF {
 			var fr *schema.FileReader
@@ -472,9 +473,14 @@ func (f exifWalkFunc) Walk(name exif.FieldName, tag *tiff.Tag) error { return f(
 var errEXIFPanic = errors.New("EXIF library panicked while walking fields")
 
 func indexEXIF(wholeRef blob.Ref, reader io.Reader, mm *mutationMap) (err error) {
+	var tiffErr error
 	ex, err := exif.Decode(reader)
 	if err != nil {
-		return
+		tiffErr = err
+		if exif.IsCriticalError(err) {
+			return
+		}
+		log.Printf("Non critical TIFF decoding error: %v", err)
 	}
 	defer func() {
 		// The EXIF library panics if you access a field past
@@ -549,6 +555,10 @@ func indexEXIF(wholeRef blob.Ref, reader io.Reader, mm *mutationMap) (err error)
 		return
 	}
 
+	if exif.IsGPSError(tiffErr) {
+		log.Printf("Invalid EXIF GPS data: %v", tiffErr)
+		return nil
+	}
 	if lat, long, err := ex.LatLong(); err == nil {
 		mm.Set(keyEXIFGPS.Key(wholeRef), keyEXIFGPS.Val(fmt.Sprint(lat), fmt.Sprint(long)))
 	} else if !exif.IsTagNotPresentError(err) {

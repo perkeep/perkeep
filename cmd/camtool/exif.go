@@ -32,9 +32,18 @@ func showEXIF(file string) {
 	defer f.Close()
 	ex, err := exif.Decode(f)
 	if err != nil {
-		log.Fatalf("exif.Decode: %v", err)
+		if exif.IsCriticalError(err) {
+			log.Fatalf("exif.Decode, critical error: %v", err)
+		}
+		log.Printf("exif.Decode, warning: %v", err)
 	}
-	fmt.Printf("exif.Decode = %#v\n", ex)
+	fmt.Printf("%v\n", ex)
+	if exif.IsExifError(err) {
+		// the error happened while decoding the EXIF sub-IFD, so as DateTime is
+		// part of it, we have to assume (until there's a better "decode effort"
+		// strategy in goexif) that it's not usable.
+		return
+	}
 	ct, err := ex.DateTime()
 	fmt.Printf("exif.DateTime = %v, %v\n", ct, err)
 }
