@@ -155,7 +155,7 @@ func (ih *ImageHandler) cached(br blob.Ref) (io.ReadCloser, error) {
 	}
 	fr, err := fileBlob.NewFileReader(ih.Cache)
 	if err != nil {
-		log.Printf("cached(%d) NewFileReader = %v", br, err)
+		log.Printf("cached(%v) NewFileReader = %v", br, err)
 		return nil, err
 	}
 	thumbCacheHitFile.Add(1)

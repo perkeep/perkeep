@@ -322,7 +322,7 @@ func parseMetaRow(v []byte) (m meta, err error) {
 
 	// remains: "<big-blobref> <big-offset>"
 	if bytes.Count(v, singleSpace) != 1 {
-		return meta{}, fmt.Errorf("invalid metarow %q: wrong number of spaces", row, err)
+		return meta{}, fmt.Errorf("invalid metarow %q: wrong number of spaces", row)
 	}
 	sp = bytes.IndexByte(v, ' ')
 	largeRef, ok := blob.ParseBytes(v[:sp])
@@ -801,7 +801,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 		rc.Close()
 		check(err)
 		if n != int64(b.Size()) {
-			return fmt.Errorf("failed to write all of schema blob %v: %n bytes, not wanted %d", br, n, b.Size())
+			return fmt.Errorf("failed to write all of schema blob %v: %d bytes, not wanted %d", br, n, b.Size())
 		}
 	}
 

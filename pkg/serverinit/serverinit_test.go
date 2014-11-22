@@ -265,7 +265,7 @@ func TestExpansionsInHighlevelConfig(t *testing.T) {
 	}
 	got := fmt.Sprintf("%#v", conf)
 	if !strings.Contains(got, keyID) {
-		t.Errorf("Expected key %q in resulting low-level config. Got: %s", got)
+		t.Errorf("Expected key %s in resulting low-level config. Got: %s", keyID, got)
 	}
 }
 
