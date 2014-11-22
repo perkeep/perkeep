@@ -432,7 +432,7 @@ func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image,
 			im, err = fastjpeg.DecodeDownsample(tr, factor)
 			switch err.(type) {
 			case fastjpeg.DjpegFailedError:
-				log.Printf("djpeg failed, retrying with jpeg.Decode: %v", err)
+				log.Printf("Retrying with jpeg.Decode, because djpeg failed with: %v", err)
 				im, err = jpeg.Decode(io.MultiReader(&buf, mr))
 			case nil:
 				// fallthrough to rescale() below.
