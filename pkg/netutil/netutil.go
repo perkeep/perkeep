@@ -69,17 +69,14 @@ func HostPort(urlStr string) (string, error) {
 	return hostPort, nil
 }
 
-// ListenOnLocalRandomPort returns a tcp listener on a local (see LoopbackIP) random port.
+// ListenOnLocalRandomPort returns a TCP listener on a random
+// localhost port.
 func ListenOnLocalRandomPort() (net.Listener, error) {
 	ip, err := Localhost()
 	if err != nil {
 		return nil, err
 	}
-	l, err := net.ListenTCP("tcp", &net.TCPAddr{IP: ip, Port: 0})
-	if err != nil {
-		return nil, err
-	}
-	return l, nil
+	return net.ListenTCP("tcp", &net.TCPAddr{IP: ip, Port: 0})
 }
 
 // Localhost returns the first address found when
@@ -103,20 +100,17 @@ func localhostLookup() net.IP {
 	return nil
 }
 
-const flagUpLoopback = net.FlagUp | net.FlagLoopback
-
-// loopbackIP finds the first loopback IP address sniffing network interfaces.
+// loopbackIP returns the first loopback IP address sniffing network
+// interfaces or nil if none is found.
 func loopbackIP() net.IP {
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		return nil
 	}
 	for _, inf := range interfaces {
+		const flagUpLoopback = net.FlagUp | net.FlagLoopback
 		if inf.Flags&flagUpLoopback == flagUpLoopback {
-			addrs, err := inf.Addrs()
-			if err != nil {
-				continue
-			}
+			addrs, _ := inf.Addrs()
 			for _, addr := range addrs {
 				ip, _, err := net.ParseCIDR(addr.String())
 				if err == nil && ip.IsLoopback() {
