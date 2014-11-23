@@ -17,6 +17,8 @@ limitations under the License.
 package netutil
 
 import (
+	"net"
+	"strconv"
 	"testing"
 )
 
@@ -117,6 +119,63 @@ func TestHostPort(t *testing.T) {
 		}
 		if got != v.wantNetAddr {
 			t.Errorf("got: %v for %v, want: %v", got, v.baseURL, v.wantNetAddr)
+		}
+	}
+}
+
+func testLocalhostResolver(t *testing.T, resolve func() net.IP) {
+	ip := resolve()
+	if ip == nil {
+		t.Fatal("no ip found.")
+	}
+	if !ip.IsLoopback() {
+		t.Errorf("expected a loopback address: %s", ip)
+	}
+}
+
+func testLocalhost(t *testing.T) {
+	testLocalhostResolver(t, localhostLookup)
+}
+
+func testLoopbackIp(t *testing.T) {
+	testLocalhostResolver(t, loopbackIP)
+}
+
+func TestLocalhost(t *testing.T) {
+	_, err := Localhost()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestListenOnLocalRandomPort(t *testing.T) {
+	l, err := ListenOnLocalRandomPort()
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+	defer l.Close()
+
+	_, port, err := net.SplitHostPort(l.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p, _ := strconv.Atoi(port); p < 1 {
+		t.Fatalf("expected port(%d) to be > 0", p)
+	}
+}
+
+func BenchmarkLocalhostLookup(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		if ip := localhostLookup(); ip == nil {
+			b.Fatal("no ip found.")
+		}
+	}
+}
+
+func BenchmarkLoopbackIP(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		if ip := loopbackIP(); ip == nil {
+			b.Fatal("no ip found.")
 		}
 	}
 }
