@@ -38,6 +38,7 @@ import (
 
 	"camlistore.org/pkg/throttle"
 	"camlistore.org/pkg/wkfs"
+	"camlistore.org/third_party/github.com/bradfitz/http2"
 	"camlistore.org/third_party/github.com/bradfitz/runsit/listen"
 )
 
@@ -47,6 +48,9 @@ type Server struct {
 	verbose  bool // log HTTP requests and response codes
 
 	Logger *log.Logger // or nil.
+
+	// H2Server is the HTTP/2 server config.
+	H2Server http2.Server
 
 	enableTLS               bool
 	tlsCertFile, tlsKeyFile string
@@ -170,7 +174,7 @@ func (s *Server) Listen(addr string) error {
 		config := &tls.Config{
 			Rand:       rand.Reader,
 			Time:       time.Now,
-			NextProtos: []string{"http/1.1"},
+			NextProtos: []string{http2.NextProtoTLS, "http/1.1"},
 		}
 		config.Certificates = make([]tls.Certificate, 1)
 
@@ -210,7 +214,17 @@ func (s *Server) Serve() {
 		s.fatalf("Listen error: %v", err)
 	}
 	go runTestHarnessIntegration(s.listener)
-	err := http.Serve(s.throttleListener(), s)
+
+	srv := &http.Server{
+		Handler: s,
+	}
+	// TODO: allow configuring src.ErrorLog (and plumb through to
+	// Google Cloud Logging when run on GCE, eventually)
+
+	// Setup the NPN NextProto map for HTTP/2 support:
+	http2.ConfigureServer(srv, &s.H2Server)
+
+	err := srv.Serve(s.throttleListener())
 	if err != nil {
 		s.printf("Error in http server: %v\n", err)
 		os.Exit(1)
