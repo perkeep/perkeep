@@ -71,7 +71,7 @@ func newServerTester(t *testing.T, handler http.HandlerFunc) *serverTester {
 	}
 	cc, err := tls.Dial("tcp", ts.Listener.Addr().String(), &tls.Config{
 		InsecureSkipVerify: true,
-		NextProtos:         []string{npnProto},
+		NextProtos:         []string{NextProtoTLS},
 	})
 	if err != nil {
 		t.Fatal(err)

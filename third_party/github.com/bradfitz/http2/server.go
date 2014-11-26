@@ -133,19 +133,19 @@ func ConfigureServer(s *http.Server, conf *Server) {
 	}
 	haveNPN := false
 	for _, p := range s.TLSConfig.NextProtos {
-		if p == npnProto {
+		if p == NextProtoTLS {
 			haveNPN = true
 			break
 		}
 	}
 	if !haveNPN {
-		s.TLSConfig.NextProtos = append(s.TLSConfig.NextProtos, npnProto)
+		s.TLSConfig.NextProtos = append(s.TLSConfig.NextProtos, NextProtoTLS)
 	}
 
 	if s.TLSNextProto == nil {
 		s.TLSNextProto = map[string]func(*http.Server, *tls.Conn, http.Handler){}
 	}
-	s.TLSNextProto[npnProto] = func(hs *http.Server, c *tls.Conn, h http.Handler) {
+	s.TLSNextProto[NextProtoTLS] = func(hs *http.Server, c *tls.Conn, h http.Handler) {
 		if testHookOnConn != nil {
 			testHookOnConn()
 		}

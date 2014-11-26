@@ -36,7 +36,9 @@ const (
 	// http://http2.github.io/http2-spec/#rfc.section.6.5.2
 	initialMaxFrameSize = 16384
 
-	npnProto = "h2-14"
+	// NextProtoTLS is the NPN/ALPN protocol negotiated during
+	// HTTP/2's TLS setup.
+	NextProtoTLS = "h2-14"
 
 	// http://http2.github.io/http2-spec/#SettingValues
 	initialHeaderTableSize = 4096
