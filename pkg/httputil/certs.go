@@ -17,16 +17,17 @@ limitations under the License.
 package httputil
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"net/http"
-	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -46,21 +47,15 @@ var (
 	sysRootsGood bool
 )
 
-// GenSelfTLS generates a self-signed certificate and key for hostname,
-// and writes them to the given paths. If it succeeds it also returns
-// the SHA256 prefix of the new cert.
-func GenSelfTLS(hostname, certPath, keyPath string) (error, string) {
+// GenSelfTLS generates a self-signed certificate and key for hostname.
+func GenSelfTLS(hostname string) (certPEM, keyPEM []byte, err error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return fmt.Errorf("failed to generate private key: %s", err), ""
+		return certPEM, keyPEM, fmt.Errorf("failed to generate private key: %s", err)
 	}
 
 	now := time.Now()
 
-	// TODO(mpl): if no host is specified in the listening address
-	// (e.g ":3179") we'll end up in this case, and the self-signed
-	// will have "localhost" as a CommonName. But I don't think
-	// there's anything we can do about it. Maybe warn...
 	if hostname == "" {
 		hostname = "localhost"
 	}
@@ -80,37 +75,54 @@ func GenSelfTLS(hostname, certPath, keyPath string) (error, string) {
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
 	if err != nil {
-		return fmt.Errorf("Failed to create certificate: %s", err), ""
+		return certPEM, keyPEM, fmt.Errorf("failed to create certificate: %s", err)
 	}
+	var buf bytes.Buffer
+	if err := pem.Encode(&buf, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
+		return certPEM, keyPEM, fmt.Errorf("error writing self-signed HTTPS cert: %v", err)
+	}
+	certPEM = []byte(string(buf.Bytes()))
 
-	certOut, err := wkfs.Create(certPath)
-	if err != nil {
-		return fmt.Errorf("failed to open %s for writing: %s", certPath, err), ""
+	buf.Reset()
+	if err := pem.Encode(&buf, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}); err != nil {
+		return certPEM, keyPEM, fmt.Errorf("error writing self-signed HTTPS private key: %v", err)
 	}
-	if err := pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
-		return err, ""
-	}
-	if err := certOut.Close(); err != nil {
-		return fmt.Errorf("Writing writing self-signed HTTPS cert: %v", err), ""
-	}
+	keyPEM = buf.Bytes()
+	return certPEM, keyPEM, nil
+}
 
-	cert, err := x509.ParseCertificate(derBytes)
-	if err != nil {
-		return fmt.Errorf("Failed to parse certificate: %v", err), ""
+// CertFingerprint returns the SHA-256 prefix of the x509 certificate encoded in certPEM.
+func CertFingerprint(certPEM []byte) (string, error) {
+	p, _ := pem.Decode(certPEM)
+	if p == nil {
+		return "", errors.New("no valid PEM data found")
 	}
-	sig := hashutil.SHA256Prefix(cert.Raw)
+	cert, err := x509.ParseCertificate(p.Bytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse certificate: %v", err)
+	}
+	return hashutil.SHA256Prefix(cert.Raw), nil
+}
 
-	keyOut, err := wkfs.OpenFile(keyPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+// GenSelfTLSFiles generates a self-signed certificate and key for hostname,
+// and writes them to the given paths. If it succeeds it also returns
+// the SHA256 prefix of the new cert.
+func GenSelfTLSFiles(hostname, certPath, keyPath string) (fingerprint string, err error) {
+	cert, key, err := GenSelfTLS(hostname)
 	if err != nil {
-		return fmt.Errorf("failed to open %s for writing: %v", keyPath, err), ""
+		return "", err
 	}
-	if err := pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}); err != nil {
-		return fmt.Errorf("Error writing self-signed HTTPS private key: %v", err), ""
+	sig, err := CertFingerprint(cert)
+	if err != nil {
+		return "", fmt.Errorf("could not get SHA-256 fingerprint of certificate: %v", err)
 	}
-	if err := keyOut.Close(); err != nil {
-		return fmt.Errorf("Error writing self-signed HTTPS private key: %v", err), ""
+	if err := wkfs.WriteFile(certPath, cert, 0666); err != nil {
+		return "", fmt.Errorf("failed to write self-signed TLS cert: %v", err)
 	}
-	return nil, sig
+	if err := wkfs.WriteFile(keyPath, key, 0600); err != nil {
+		return "", fmt.Errorf("failed to write self-signed TLS key: %v", err)
+	}
+	return sig, nil
 }
 
 // InstallCerts adds Mozilla's Certificate Authority root set to

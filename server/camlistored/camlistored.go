@@ -18,8 +18,6 @@ limitations under the License.
 package main
 
 import (
-	"crypto/x509"
-	"encoding/pem"
 	"flag"
 	"fmt"
 	"io"
@@ -37,7 +35,6 @@ import (
 	"time"
 
 	"camlistore.org/pkg/buildinfo"
-	"camlistore.org/pkg/hashutil"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/legal/legalprint"
 	"camlistore.org/pkg/netutil"
@@ -197,7 +194,7 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) 
 		_, err2 := wkfs.Stat(key)
 		if err1 != nil || err2 != nil {
 			if os.IsNotExist(err1) || os.IsNotExist(err2) {
-				err, sig := httputil.GenSelfTLS(hostname, defCert, defKey)
+				sig, err := httputil.GenSelfTLSFiles(hostname, defCert, defKey)
 				if err != nil {
 					exitf("Could not generate self-signed TLS cert: %q", err)
 				}
@@ -209,7 +206,7 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) 
 	}
 	// Always generate new certificates if the config's httpsCert and httpsKey are empty.
 	if cert == "" && key == "" {
-		err, sig := httputil.GenSelfTLS(hostname, defCert, defKey)
+		sig, err := httputil.GenSelfTLSFiles(hostname, defCert, defKey)
 		if err != nil {
 			exitf("Could not generate self signed creds: %q", err)
 		}
@@ -221,15 +218,10 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) 
 	if err != nil {
 		exitf("Failed to read pem certificate: %s", err)
 	}
-	block, _ := pem.Decode(data)
-	if block == nil {
-		exitf("Failed to decode pem certificate")
-	}
-	certif, err := x509.ParseCertificate(block.Bytes)
+	sig, err := httputil.CertFingerprint(data)
 	if err != nil {
-		exitf("Failed to parse certificate: %v", err)
+		exitf("certificate error: %v", err)
 	}
-	sig := hashutil.SHA256Prefix(certif.Raw)
 	log.Printf("TLS enabled, with SHA-256 certificate fingerprint: %v", sig)
 	ws.SetTLS(cert, key)
 }
