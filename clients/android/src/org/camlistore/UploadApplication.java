@@ -66,7 +66,7 @@ public class UploadApplication extends Application {
             String writingFilePath = dstFile + ".writing";
             Log.d(TAG, "wrote out " + writingFilePath);
             Runtime.getRuntime().exec("chmod 0777 " + writingFilePath);
-            Log.d(TAG, "did chmod 0700 on " + writingFilePath);
+            Log.d(TAG, "did chmod 0777 on " + writingFilePath);
             Runtime.getRuntime().exec("mv " + writingFilePath + " " + dstFile);
             f = new File(dstFile);
             f.setLastModified(myTime);
