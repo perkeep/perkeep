@@ -46,6 +46,11 @@ func (s *Signer) String() string {
 	return fmt.Sprintf("[*schema.Signer for key=%s pubkey=%s]", s.keyId, s.pubref)
 }
 
+// KeyID returns the short 8 capital hex digit GPG key ID
+func (s *Signer) KeyID() string {
+	return s.keyId
+}
+
 // NewSigner returns an Signer given an armored public key's blobref,
 // its armored content, and its associated private key entity.
 // The privateKeySource must be either an *openpgp.Entity or a string filename to a secret key.

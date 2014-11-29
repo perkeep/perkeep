@@ -359,8 +359,9 @@ func (c *Client) BlobRoot() (string, error) {
 	return prefix + "/", nil
 }
 
-// ServerKeyID returns the server's GPG public key ID.
-// If the server isn't running a sign handler, the error will be ErrNoSigning.
+// ServerKeyID returns the server's GPG public key ID, in its long (16 capital
+// hex digits) format. If the server isn't running a sign handler, the error
+// will be ErrNoSigning.
 func (c *Client) ServerKeyID() (string, error) {
 	if err := c.condDiscovery(); err != nil {
 		return "", err
@@ -983,11 +984,25 @@ func (c *Client) uploadPublicKey() error {
 	return err
 }
 
+// checkMatchingKeys compares the client's and the server's keys and logs if they differ.
+func (c *Client) checkMatchingKeys() {
+	serverKey, err := c.ServerKeyID()
+	// The server provides the full (16 digit) key fingerprint but schema.Signer only stores
+	// the short (8 digit) key ID.
+	if err == nil && len(serverKey) >= 8 {
+		shortServerKey := serverKey[len(serverKey)-8:]
+		if shortServerKey != c.signer.KeyID() {
+			log.Printf("Warning: client (%s) and server (%s) keys differ.", c.signer.KeyID(), shortServerKey)
+		}
+	}
+}
+
 func (c *Client) UploadAndSignBlob(b schema.AnyBlob) (*PutResult, error) {
 	signed, err := c.signBlob(b.Blob(), time.Time{})
 	if err != nil {
 		return nil, err
 	}
+	c.checkMatchingKeys()
 	if err := c.uploadPublicKey(); err != nil {
 		return nil, err
 	}
@@ -1017,6 +1032,7 @@ func (c *Client) UploadPlannedPermanode(key string, sigTime time.Time) (*PutResu
 	if err != nil {
 		return nil, err
 	}
+	c.checkMatchingKeys()
 	if err := c.uploadPublicKey(); err != nil {
 		return nil, err
 	}
