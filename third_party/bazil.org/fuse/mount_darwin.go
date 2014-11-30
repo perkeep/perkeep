@@ -3,9 +3,11 @@ package fuse
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -50,17 +52,25 @@ func openOSXFUSEDev() (*os.File, error) {
 	}
 }
 
-func callMount(dir string, f *os.File, ready chan<- struct{}, errp *error) error {
+func callMount(dir string, conf *MountConfig, f *os.File, ready chan<- struct{}, errp *error) error {
 	bin := "/Library/Filesystems/osxfusefs.fs/Support/mount_osxfusefs"
+
+	for k, v := range conf.options {
+		if strings.Contains(k, ",") || strings.Contains(v, ",") {
+			// Silly limitation but the mount helper does not
+			// understand any escaping. See TestMountOptionCommaError.
+			return fmt.Errorf("mount options cannot contain commas on OS X: %q=%q", k, v)
+		}
+	}
 	cmd := exec.Command(
 		bin,
+		"-o", conf.getOptions(),
 		// Tell osxfuse-kext how large our buffer is. It must split
 		// writes larger than this into multiple writes.
 		//
-		// TODO add buffer reuse, bump this up significantly
-		//
-		// TODO what's the relation of `-o iosize=` vs InitResponse.MaxWrite?
-		"-o", "iosize=4096",
+		// OSXFUSE seems to ignore InitResponse.MaxWrite, and uses
+		// this instead.
+		"-o", "iosize="+strconv.FormatUint(maxWrite, 10),
 		// refers to fd passed in cmd.ExtraFiles
 		"3",
 		dir,
@@ -94,7 +104,7 @@ func callMount(dir string, f *os.File, ready chan<- struct{}, errp *error) error
 	return err
 }
 
-func mount(dir string, ready chan<- struct{}, errp *error) (*os.File, error) {
+func mount(dir string, conf *MountConfig, ready chan<- struct{}, errp *error) (*os.File, error) {
 	f, err := openOSXFUSEDev()
 	if err == errNotLoaded {
 		err = loadOSXFUSE()
@@ -107,7 +117,7 @@ func mount(dir string, ready chan<- struct{}, errp *error) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = callMount(dir, f, ready, errp)
+	err = callMount(dir, conf, f, ready, errp)
 	if err != nil {
 		f.Close()
 		return nil, err
