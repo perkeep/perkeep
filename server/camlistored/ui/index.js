@@ -80,6 +80,7 @@ cam.IndexPage = React.createClass({
 		config: React.PropTypes.object.isRequired,
 		eventTarget: React.PropTypes.shape({addEventListener:React.PropTypes.func.isRequired}).isRequired,
 		history: React.PropTypes.shape({pushState:React.PropTypes.func.isRequired, replaceState:React.PropTypes.func.isRequired, go:React.PropTypes.func.isRequired, state:React.PropTypes.object}).isRequired,
+		openWindow: React.PropTypes.func.isRequired,
 		location: React.PropTypes.shape({href:React.PropTypes.string.isRequired, reload:React.PropTypes.func.isRequired}).isRequired,
 		scrolling: cam.BlobItemContainerReact.originalSpec.propTypes.scrolling,
 		serverConnection: React.PropTypes.instanceOf(cam.ServerConnection).isRequired,
@@ -574,6 +575,10 @@ cam.IndexPage = React.createClass({
 		}.bind(this));
 	},
 
+	handleOpenWindow_: function(url) {
+		this.props.openWindow(url);
+	},
+
 	handleKeyPress_: function(e) {
 		if (e.target.tagName == 'INPUT' || e.target.tagName == 'TEXTAREA') {
 			return;
@@ -681,28 +686,57 @@ cam.IndexPage = React.createClass({
 		);
 	},
 
-	getSidebar_: function(selectedAspect) {
-		// We don't support the sidebar in other aspects (maybe we should though).
-		if (!selectedAspect || selectedAspect.fragment != 'search')
+	getViewOriginalSelectionItem_: function() {
+		if (goog.object.getCount(this.state.selection) != 1) {
 			return null;
+		}
 
-		return cam.Sidebar({
-			isExpanded: this.state.sidebarVisible,
-			mainControls: [
-				{
-					"displayTitle": "Update Tags",
-					"control": this.getTagsControl_()
-				}
-			].filter(goog.functions.identity),
-			selectionControls: [
-				this.getClearSelectionItem_(),
-				this.getCreateSetWithSelectionItem_(),
-				this.getSelectAsCurrentSetItem_(),
-				this.getAddToCurrentSetItem_(),
-				this.getDeleteSelectionItem_(),
-			].filter(goog.functions.identity),
-			selectedItems: this.state.selection
-		});
+		var blobref = goog.object.getAnyKey(this.state.selection);
+		var rm = this.childSearchSession_.getResolvedMeta(blobref);
+		if (!rm || !rm.file) {
+			return null;
+		}
+
+		var fileName = '';
+		if (rm.file.fileName) {
+			fileName = goog.string.subs('/%s', rm.file.fileName);
+		}
+
+		var downloadUrl = goog.string.subs('%s/%s%s', this.props.config.downloadHelper, rm.blobRef, fileName);
+		return React.DOM.button(
+			{
+				key:'viewSelection',
+				onClick: this.handleOpenWindow_.bind(this, downloadUrl),
+			},
+			'View original'
+		);
+	},
+
+	getSidebar_: function(selectedAspect) {
+		if (selectedAspect) {
+			if (selectedAspect.fragment == 'search' || selectedAspect.fragment == 'contents') {
+				return cam.Sidebar( {
+					isExpanded: this.state.sidebarVisible,
+					mainControls: [
+						{
+							"displayTitle": "Update Tags",
+							"control": this.getTagsControl_()
+						}
+					].filter(goog.functions.identity),
+					selectionControls: [
+						this.getClearSelectionItem_(),
+						this.getCreateSetWithSelectionItem_(),
+						this.getSelectAsCurrentSetItem_(),
+						this.getAddToCurrentSetItem_(),
+						this.getDeleteSelectionItem_(),
+						this.getViewOriginalSelectionItem_(),
+					].filter(goog.functions.identity),
+					selectedItems: this.state.selection
+				});
+			}
+		}
+
+		return null;
 	},
 
 	getTagsControl_: function() {
