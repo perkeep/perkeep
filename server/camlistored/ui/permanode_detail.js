@@ -80,9 +80,9 @@ cam.PermanodeDetail = React.createClass({
 		var headerText = function(name, column) {
 			var children = [name];
 			if (this.state.sortBy == column) {
-				children.push(' ');
 				children.push(
 					React.DOM.i({
+						key: goog.string.subs('%s-sort-icon', name),
 						className: React.addons.classSet({
 							'fa': true,
 							'fa-caret-up': this.state.sortAsc,

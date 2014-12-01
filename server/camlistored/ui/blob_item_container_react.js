@@ -278,6 +278,7 @@ cam.BlobItemContainerReact = React.createClass({
 
 		return React.DOM.div(
 			{
+				key: 'no-results',
 				className: 'cam-blobitemcontainer-no-results',
 				style: {
 					width: w,
@@ -289,7 +290,6 @@ cam.BlobItemContainerReact = React.createClass({
 			React.DOM.div(null, 'No results found'),
 			cam.SpritedImage(
 				{
-					key: 'icon',
 					index: 6,
 					sheetWidth: 10,
 					spriteWidth: piggyWidth,

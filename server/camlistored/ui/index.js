@@ -148,7 +148,7 @@ cam.IndexPage = React.createClass({
 
 		var backwardPiggy = false;
 		var contentSize = new goog.math.Size(this.props.availWidth, this.props.availHeight - this.HEADER_HEIGHT_);
-		return React.DOM.div({onDragEnter:this.handleDragStart_, onDragOver:this.handleDragStart_, onDrop:this.handleDrop_}, [
+		return React.DOM.div({onDragEnter:this.handleDragStart_, onDragOver:this.handleDragStart_, onDrop:this.handleDrop_},
 			this.getHeader_(aspects, selectedAspect),
 			React.DOM.div(
 				{
@@ -161,7 +161,7 @@ cam.IndexPage = React.createClass({
 			),
 			this.getSidebar_(aspects[selectedAspect]),
 			this.getUploadDialog_()
-		]);
+		);
 	},
 
 	setSelection_: function(selection) {
@@ -179,7 +179,7 @@ cam.IndexPage = React.createClass({
 	},
 
 	getAspects_: function() {
-		var childFrameClickHandler = this.navigator_.navigate.bind(this.navigator_);
+		var childFrameClickHandler = this.navigator_.navigate.bind(null, this.navigator_);
 		return [
 			this.getSearchAspect_,
 			cam.ImageDetail.getAspect,
@@ -224,7 +224,7 @@ cam.IndexPage = React.createClass({
 		return {
 			title: blobref ? 'Contents' : 'Search',
 			fragment: blobref ? 'contents': 'search',
-			createContent: this.getBlobItemContainer_.bind(this),
+			createContent: this.getBlobItemContainer_.bind(null, this),
 		};
 	},
 
@@ -465,6 +465,7 @@ cam.IndexPage = React.createClass({
 				mainControls: aspects.map(function(val, idx) {
 					return React.DOM.a(
 						{
+							key: val.title,
 							className: React.addons.classSet({
 								'cam-header-main-control-active': idx == selectedAspectIndex,
 							}),
@@ -706,7 +707,7 @@ cam.IndexPage = React.createClass({
 		return React.DOM.button(
 			{
 				key:'viewSelection',
-				onClick: this.handleOpenWindow_.bind(this, downloadUrl),
+				onClick: this.handleOpenWindow_.bind(null, this, downloadUrl),
 			},
 			'View original'
 		);
@@ -901,7 +902,7 @@ cam.IndexPage = React.createClass({
 			(this.childSearchSession_ && this.childSearchSession_.hasSocketError())) {
 			errors.push({
 				error: 'WebSocket error - click to reload',
-				onClick: this.props.location.reload.bind(this.props.location, true),
+				onClick: this.props.location.reload.bind(null, this.props.location, true),
 			});
 		}
 		return errors;
