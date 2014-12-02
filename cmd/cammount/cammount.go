@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -161,7 +162,7 @@ func main() {
 	// This doesn't appear to work on OS X:
 	sigc := make(chan os.Signal, 1)
 
-	conn, err = fuse.Mount(mountPoint)
+	conn, err = fuse.Mount(mountPoint, fuse.VolumeName(filepath.Base(mountPoint)))
 	if err != nil {
 		if err.Error() == "cannot find load_fusefs" && runtime.GOOS == "darwin" {
 			log.Fatal("FUSE not available; install from http://osxfuse.github.io/")
