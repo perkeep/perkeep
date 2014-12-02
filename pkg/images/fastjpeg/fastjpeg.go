@@ -196,9 +196,12 @@ func DecodeDownsample(r io.Reader, factor int) (image.Image, error) {
 
 	stderrW := new(bytes.Buffer)
 	cmd.Stderr = stderrW
-	if err = cmd.Run(); err != nil {
-		djpegFailureVar.Add(1)
-		return nil, DjpegFailedError{Err: fmt.Errorf("%v: %s", err, stderrW)}
+	if err := cmd.Run(); err != nil {
+		if !cmd.ProcessState.Success() {
+			djpegFailureVar.Add(1)
+			return nil, DjpegFailedError{Err: fmt.Errorf("%v: %s", err, stderrW)}
+		}
+		// false alarm, so proceed. See http://camlistore.org/issue/550
 	}
 	djpegSuccessVar.Add(1)
 	djpegBytesReadVar.Add(int64(w.Len()))
