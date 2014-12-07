@@ -56,10 +56,10 @@ cam.ImageDetail = React.createClass({
 
 	render: function() {
 		this.imgSize_ = this.getImgSize_();
-		return React.DOM.div({className:'detail-view', style: this.getStyle_()}, [
+		return React.DOM.div({className:'detail-view', style: this.getStyle_()},
 			this.getImg_(),
-			this.getPiggy_(),
-		]);
+			this.getPiggy_()
+		);
 	},
 
 	getSinglePermanodeAttr_: function(name) {
@@ -97,6 +97,7 @@ cam.ImageDetail = React.createClass({
 		if (this.isImage_() && !this.state.imgHasLoaded) {
 			transition.props.children.push(
 				cam.SpritedAnimation({
+					key: 'piggy-sprite',
 					src: 'glitch/npc_piggy__x1_walk_png_1354829432.png',
 					className: React.addons.classSet({
 						'detail-view-piggy': true,

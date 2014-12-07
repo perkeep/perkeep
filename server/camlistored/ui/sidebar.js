@@ -63,6 +63,7 @@ cam.Sidebar = React.createClass({
 			function(c) {
 				return cam.CollapsibleControl(
 				{
+					key: c.displayTitle,
 					control: c.control,
 					isOpen: this.isControlOpen_(c.displayTitle),
 					onToggleOpen: this.handleToggleControlOpen_,
