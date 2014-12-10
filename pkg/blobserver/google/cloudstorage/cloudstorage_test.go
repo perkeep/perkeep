@@ -19,6 +19,7 @@ package cloudstorage
 import (
 	"flag"
 	"log"
+	"path"
 	"strings"
 	"testing"
 
@@ -26,6 +27,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
 	"camlistore.org/pkg/context"
+	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 )
@@ -39,6 +41,14 @@ var (
 )
 
 func TestStorage(t *testing.T) {
+	testStorage(t, "")
+}
+
+func TestStorageWithBucketDir(t *testing.T) {
+	testStorage(t, "/bl/obs/")
+}
+
+func testStorage(t *testing.T, bucketDir string) {
 	if *bucket == "" {
 		t.Skip("Skipping test without --bucket flag")
 	}
@@ -76,10 +86,12 @@ func TestStorage(t *testing.T) {
 		}
 	}
 
+	bucketWithDir := path.Join(*bucket, bucketDir)
+
 	storagetest.TestOpt(t, storagetest.Opts{
 		New: func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
 			sto, err := newFromConfig(nil, jsonconfig.Obj{
-				"bucket": *bucket,
+				"bucket": bucketWithDir,
 				"auth": map[string]interface{}{
 					"client_id":     *clientID,
 					"client_secret": *clientSecret,
@@ -92,19 +104,52 @@ func TestStorage(t *testing.T) {
 			if !testing.Short() {
 				log.Printf("Warning: this test does many serial operations. Without the go test -short flag, this test will be very slow.")
 			}
-			clearBucket := func() {
-				var all []blob.Ref
-				blobserver.EnumerateAll(context.New(), sto, func(sb blob.SizedRef) error {
-					t.Logf("Deleting: %v", sb.Ref)
-					all = append(all, sb.Ref)
-					return nil
-				})
-				if err := sto.RemoveBlobs(all); err != nil {
-					t.Fatalf("Error removing blobs during cleanup: %v", err)
+			if bucketWithDir != *bucket {
+				// Adding "a", and "c" objects in the bucket to make sure objects out of the
+				// "directory" are not touched and have no influence.
+				for _, key := range []string{"a", "c"} {
+					for tries, shouldRetry := 0, true; tries < 2 && shouldRetry; tries++ {
+						shouldRetry, err = sto.(*Storage).client.PutObject(
+							&googlestorage.Object{Bucket: sto.(*Storage).bucket, Key: key},
+							strings.NewReader(key))
+					}
+					if err != nil {
+						t.Fatalf("could not insert object %s in bucket %v: %v", key, sto.(*Storage).bucket, err)
+					}
 				}
 			}
-			clearBucket()
-			return sto, clearBucket
+
+			clearBucket := func(beforeTests bool) func() {
+				return func() {
+					var all []blob.Ref
+					blobserver.EnumerateAll(context.New(), sto, func(sb blob.SizedRef) error {
+						t.Logf("Deleting: %v", sb.Ref)
+						all = append(all, sb.Ref)
+						return nil
+					})
+					if err := sto.RemoveBlobs(all); err != nil {
+						t.Fatalf("Error removing blobs during cleanup: %v", err)
+					}
+					if beforeTests {
+						return
+					}
+					if bucketWithDir != *bucket {
+						// checking that "a" and "c" at the root were left untouched.
+						for _, key := range []string{"a", "c"} {
+							if _, _, err := sto.(*Storage).client.GetObject(&googlestorage.Object{Bucket: sto.(*Storage).bucket,
+								Key: key}); err != nil {
+								t.Fatalf("could not find object %s after tests: %v", key, err)
+							}
+							if err := sto.(*Storage).client.DeleteObject(&googlestorage.Object{Bucket: sto.(*Storage).bucket, Key: key}); err != nil {
+								t.Fatalf("could not remove object %s after tests: %v", key, err)
+							}
+
+						}
+					}
+				}
+			}
+			clearBucket(true)()
+			return sto, clearBucket(false)
 		},
 	})
 }

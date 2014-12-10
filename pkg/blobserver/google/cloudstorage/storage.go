@@ -27,6 +27,8 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"path"
+	"strings"
 	"time"
 
 	"camlistore.org/pkg/blob"
@@ -41,8 +43,14 @@ import (
 
 type Storage struct {
 	bucket string // the gs bucket containing blobs
-	client *googlestorage.Client
-	cache  *memory.Storage // or nil for no cache
+	// optional "directory" where the blobs are stored, instead of at the root of the bucket.
+	// gcs is actually flat, which in effect just means that all the objects should have this
+	// dirPrefix as a prefix of their key.
+	// If non empty, it should be a slash separated path with a trailing slash and no starting
+	// slash.
+	dirPrefix string
+	client    *googlestorage.Client
+	cache     *memory.Storage // or nil for no cache
 
 	// For blobserver.Generationer:
 	genTime   time.Time
@@ -80,7 +88,18 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		return nil, err
 	}
 
-	gs := &Storage{bucket: bucket}
+	var dirPrefix string
+	if parts := strings.SplitN(bucket, "/", 2); len(parts) > 1 {
+		dirPrefix = parts[1]
+		bucket = parts[0]
+	}
+	if dirPrefix != "" && !strings.HasSuffix(dirPrefix, "/") {
+		dirPrefix += "/"
+	}
+	gs := &Storage{
+		bucket:    bucket,
+		dirPrefix: dirPrefix,
+	}
 	if clientID == "auto" {
 		var err error
 		gs.client, err = googlestorage.NewServiceClient()
@@ -114,17 +133,21 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 	return gs, nil
 }
 
-func (gs *Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (s *Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
-	objs, err := gs.client.EnumerateObjects(gs.bucket, after, limit)
+	objs, err := s.client.EnumerateObjects(s.bucket, s.dirPrefix+after, limit)
 	if err != nil {
 		log.Printf("gstorage EnumerateObjects: %v", err)
 		return err
 	}
 	for _, obj := range objs {
-		br, ok := blob.Parse(obj.Key)
+		dir, file := path.Split(obj.Key)
+		if dir != s.dirPrefix {
+			continue
+		}
+		br, ok := blob.Parse(file)
 		if !ok {
-			return fmt.Errorf("Non-Camlistore object named %q found in bucket", obj.Key)
+			return fmt.Errorf("Non-Camlistore object named %q found in bucket", file)
 		}
 		select {
 		case dest <- blob.SizedRef{Ref: br, Size: uint32(obj.Size)}:
@@ -144,7 +167,7 @@ func (s *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, err
 
 	for tries, shouldRetry := 0, true; tries < 2 && shouldRetry; tries++ {
 		shouldRetry, err = s.client.PutObject(
-			&googlestorage.Object{Bucket: s.bucket, Key: br.String()},
+			&googlestorage.Object{Bucket: s.bucket, Key: s.dirPrefix + br.String()},
 			ioutil.NopCloser(bytes.NewReader(buf.Bytes())))
 	}
 	if err != nil {
@@ -158,7 +181,7 @@ func (s *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, err
 	return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
 }
 
-func (gs *Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+func (s *Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	// TODO: use cache
 	var grp syncutil.Group
 	gate := syncutil.NewGate(20) // arbitrary cap
@@ -167,8 +190,8 @@ func (gs *Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error 
 		gate.Start()
 		grp.Go(func() error {
 			defer gate.Done()
-			size, exists, err := gs.client.StatObject(
-				&googlestorage.Object{Bucket: gs.bucket, Key: br.String()})
+			size, exists, err := s.client.StatObject(
+				&googlestorage.Object{Bucket: s.bucket, Key: s.dirPrefix + br.String()})
 			if err != nil {
 				return err
 			}
@@ -191,7 +214,7 @@ func (s *Storage) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) 
 			return
 		}
 	}
-	rc, sz, err := s.client.GetObject(&googlestorage.Object{Bucket: s.bucket, Key: br.String()})
+	rc, sz, err := s.client.GetObject(&googlestorage.Object{Bucket: s.bucket, Key: s.dirPrefix + br.String()})
 	if err != nil && sz > constants.MaxBlobSize {
 		err = errors.New("object too big")
 	}
@@ -199,7 +222,7 @@ func (s *Storage) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) 
 }
 
 func (s *Storage) SubFetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, err error) {
-	return s.client.GetPartialObject(googlestorage.Object{Bucket: s.bucket, Key: br.String()}, offset, length)
+	return s.client.GetPartialObject(googlestorage.Object{Bucket: s.bucket, Key: s.dirPrefix + br.String()}, offset, length)
 }
 
 func (s *Storage) RemoveBlobs(blobs []blob.Ref) error {
@@ -213,7 +236,7 @@ func (s *Storage) RemoveBlobs(blobs []blob.Ref) error {
 		br := blobs[i]
 		grp.Go(func() error {
 			defer gate.Done()
-			return s.client.DeleteObject(&googlestorage.Object{Bucket: s.bucket, Key: br.String()})
+			return s.client.DeleteObject(&googlestorage.Object{Bucket: s.bucket, Key: s.dirPrefix + br.String()})
 		})
 	}
 	return grp.Err()
