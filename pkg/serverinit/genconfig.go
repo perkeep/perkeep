@@ -341,7 +341,7 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 	b.addPrefix(s3Prefix, "storage-s3", a)
 	if isPrimary {
 		// TODO(mpl): s3CacheBucket
-		// See http://code.google.com/p/camlistore/issues/detail?id=85
+		// See https://camlistore.org/issue/85
 		b.addPrefix("/cache/", "storage-filesystem", args{
 			"path": filepath.Join(tempDir(), "camli-cache"),
 		})
@@ -694,7 +694,7 @@ func (b *lowBuilder) build() (*Config, error) {
 		// Whether camlistored is run from EC2 or not, we use
 		// a temp dir as the cache when primary storage is S3.
 		// TODO(mpl): s3CacheBucket
-		// See http://code.google.com/p/camlistore/issues/detail?id=85
+		// See https://camlistore.org/issue/85
 		cacheDir = filepath.Join(tempDir(), "camli-cache")
 	} else {
 		cacheDir = filepath.Join(conf.BlobPath, "cache")
