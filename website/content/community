@@ -11,6 +11,7 @@
     <a href="https://groups.google.com/group/camlistore-commits"><b>camlistore-commits</b></a>: Mailing list for commit emails, code reviews
   </li>
   <li><a href="https://camlistore-review.googlesource.com/"><b>Gerrit</b></a>: Code review</li>
-  <li><a href="https://code.google.com/p/camlistore/issues/list"><b>Issues</b></a>: Issue/bug tracker</li>
+  <li><a href="https://github.com/camlistore/camlistore"><b>Github</b></a>: our Github home (issues + source mirror)</li>
+  <li><a href="https://github.com/camlistore/camlistore/issues"><b>Issues</b></a>: Issue/bug tracker</li>
   <li><a href="irc://chat.freenode.net/camlistore"><b>#camlistore</b></a>: Camlistore on Freenode IRC</li>
 </ul>
