@@ -399,7 +399,7 @@ func main() {
 	log.Fatalf("Serve error: %v", <-errc)
 }
 
-var issueNum = regexp.MustCompile(`^/(?:issue(?:s)?|bugs)(/\d*)?$`)
+var issueNum = regexp.MustCompile(`^/(?:issue|bug)s?(/\d*)?$`)
 
 // issueRedirect returns whether the request should be redirected to the
 // issues tracker, and the url for that redirection if yes, the empty
@@ -410,11 +410,11 @@ func issueRedirect(urlPath string) (string, bool) {
 		return "", false
 	}
 	issueNumber := strings.TrimPrefix(m[1], "/")
-	suffix := "list"
+	suffix := ""
 	if issueNumber != "" {
-		suffix = "detail?id=" + issueNumber
+		suffix = "/" + issueNumber
 	}
-	return "https://code.google.com/p/camlistore/issues/" + suffix, true
+	return "https://github.com/camlistore/camlistore/issues" + suffix, true
 }
 
 func gerritRedirect(w http.ResponseWriter, r *http.Request) {
