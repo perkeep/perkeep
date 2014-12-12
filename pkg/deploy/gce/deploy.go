@@ -30,6 +30,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -53,6 +54,8 @@ const (
 	InstanceName = "camlistore-server"
 	Machine      = "g1-small"
 	Zone         = "us-central1-a"
+
+	configDir = "config"
 
 	HelpCreateProject  = "Create new project: go to https://console.developers.google.com to create a new Project."
 	HelpEnableAPIs     = `Enable the project APIs: in your project console, navigate to "APIs and auth", "APIs". In the list, enable "Google Cloud Storage", "Google Cloud Storage JSON API", and "Google Compute Engine".`
@@ -89,8 +92,9 @@ type InstanceConf struct {
 	KeyFile  string // HTTPS key file.
 	Hostname string // Fully qualified domain name.
 
-	configBucket string // Project + "-camlistore-config"
-	blobBucket   string // Project + "-camlistore-blobs"
+	bucketBase string // Project + "-camlistore"
+	configDir  string // bucketBase + "/config"
+	blobDir    string // bucketBase + "/blobs"
 }
 
 // Deployer creates and starts an instance such as defined in Conf.
@@ -179,12 +183,12 @@ func (d *Deployer) createInstance(storageService *storage.Service, computeServic
 					Value: "insecure", // TODO: this won't be cleartext later
 				},
 				{
-					Key:   "camlistore-blob-bucket",
-					Value: "gs://" + d.Conf.blobBucket,
+					Key:   "camlistore-blob-dir",
+					Value: "gs://" + d.Conf.blobDir,
 				},
 				{
-					Key:   "camlistore-config-bucket",
-					Value: "gs://" + d.Conf.configBucket,
+					Key:   "camlistore-config-dir",
+					Value: "gs://" + d.Conf.configDir,
 				},
 				{
 					Key:   "user-data",
@@ -293,11 +297,10 @@ func cloudConfig(conf *InstanceConf) string {
 
 // setBuckets defines the buckets needed by the instance and creates them.
 func (d *Deployer) setBuckets(storageService *storage.Service, ctx *context.Context) error {
-	blobBucket := d.Conf.Project + "-camlistore-blobs"
-	configBucket := d.Conf.Project + "-camlistore-config"
+	projBucket := d.Conf.Project + "-camlistore"
+
 	needBucket := map[string]bool{
-		blobBucket:   true,
-		configBucket: true,
+		projBucket: true,
 	}
 
 	buckets, err := storageService.Buckets.List(d.Conf.Project).Do()
@@ -342,8 +345,9 @@ func (d *Deployer) setBuckets(storageService *storage.Service, ctx *context.Cont
 			return bucketErr
 		}
 	}
-	d.Conf.configBucket = configBucket
-	d.Conf.blobBucket = blobBucket
+	d.Conf.bucketBase = projBucket
+	d.Conf.configDir = path.Join(projBucket, configDir)
+	d.Conf.blobDir = path.Join(projBucket, "blobs")
 	return nil
 }
 
@@ -386,13 +390,13 @@ func (d *Deployer) setupHTTPS(storageService *storage.Service) error {
 	if Verbose {
 		log.Print("Uploading certificate and key...")
 	}
-	_, err = storageService.Objects.Insert(d.Conf.configBucket,
-		&storage.Object{Name: filepath.Base(osutil.DefaultTLSCert())}).Media(cert).Do()
+	_, err = storageService.Objects.Insert(d.Conf.bucketBase,
+		&storage.Object{Name: path.Join(configDir, filepath.Base(osutil.DefaultTLSCert()))}).Media(cert).Do()
 	if err != nil {
 		return fmt.Errorf("cert upload failed: %v", err)
 	}
-	_, err = storageService.Objects.Insert(d.Conf.configBucket,
-		&storage.Object{Name: filepath.Base(osutil.DefaultTLSKey())}).Media(key).Do()
+	_, err = storageService.Objects.Insert(d.Conf.bucketBase,
+		&storage.Object{Name: path.Join(configDir, filepath.Base(osutil.DefaultTLSKey()))}).Media(key).Do()
 	if err != nil {
 		return fmt.Errorf("key upload failed: %v", err)
 	}

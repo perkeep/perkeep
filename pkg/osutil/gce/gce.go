@@ -34,7 +34,7 @@ func init() {
 		return
 	}
 	osutil.RegisterConfigDirFunc(func() string {
-		v, _ := gce.InstanceAttributeValue("camlistore-config-bucket")
+		v, _ := gce.InstanceAttributeValue("camlistore-config-dir")
 		if v == "" {
 			return v
 		}

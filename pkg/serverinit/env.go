@@ -36,13 +36,13 @@ func DefaultEnvConfig() (*Config, error) {
 	auth := "none"
 	user, _ := gce.InstanceAttributeValue("camlistore-username")
 	pass, _ := gce.InstanceAttributeValue("camlistore-password")
-	confBucket, err := gce.InstanceAttributeValue("camlistore-config-bucket")
+	confBucket, err := gce.InstanceAttributeValue("camlistore-config-dir")
 	if confBucket == "" || err != nil {
-		return nil, fmt.Errorf("VM instance metadata key 'camlistore-config-bucket' not set: %v", err)
+		return nil, fmt.Errorf("VM instance metadata key 'camlistore-config-dir' not set: %v", err)
 	}
-	blobBucket, err := gce.InstanceAttributeValue("camlistore-blob-bucket")
+	blobBucket, err := gce.InstanceAttributeValue("camlistore-blob-dir")
 	if blobBucket == "" || err != nil {
-		return nil, fmt.Errorf("VM instance metadata key 'camlistore-blob-bucket' not set: %v", err)
+		return nil, fmt.Errorf("VM instance metadata key 'camlistore-blob-dir' not set: %v", err)
 	}
 	if user != "" && pass != "" {
 		auth = "userpass:" + user + ":" + pass
@@ -69,7 +69,7 @@ func DefaultEnvConfig() (*Config, error) {
 		Listen:             "0.0.0.0:443",
 		Identity:           keyId,
 		IdentitySecretRing: secRing,
-		GoogleCloudStorage: ":" + strings.TrimSuffix(strings.TrimPrefix(blobBucket, "gs://"), "/"),
+		GoogleCloudStorage: ":" + strings.TrimPrefix(blobBucket, "gs://"),
 		DBNames:            map[string]string{},
 	}
 
