@@ -1857,7 +1857,7 @@ func TestBTreeSeekLast(t *testing.T) {
 
 }
 
-// https://code.google.com/p/camlistore/issues/detail?id=216
+// https://camlistore.org/issue/216
 func TestBug216(t *testing.T) {
 	const S = 2*kKV + 2 // 2*kKV+1 ok
 	const N = 300000

@@ -38,12 +38,12 @@ cam.ServerConnection = function(config, opt_sendXhr) {
 
 cam.ServerConnection.DESCRIBE_REQUEST = {
 	// This size doesn't matter, we don't use it. We only care about the aspect ratio.
-	// TODO(aa): This needs to die: https://code.google.com/p/camlistore/issues/detail?id=321
+	// TODO(aa): This needs to die: https://camlistore.org/issue/321
 	thumbnailSize: 1000,
 
 	// TODO(aa): This is not perfect. The describe request will return some data we don't care about:
 	// - Properties we don't use
-	// See: https://code.google.com/p/camlistore/issues/detail?id=319
+	// See: https://camlistore.org/issue/319
 
 	depth: 1,
 	rules: [

@@ -94,7 +94,7 @@ limitations under the License.
 	width: 25px;
 	z-index: 2;
 
-	/* To force us into a graphics layer, otherwise we get weird effects as we transition in and out of one during animation. See: https://code.google.com/p/camlistore/issues/detail?id=284. */
+	/* To force us into a graphics layer, otherwise we get weird effects as we transition in and out of one during animation. See: https://camlistore.org/issue/284. */
 	.transform(scale3d(1, 1, 1));
 }
 
