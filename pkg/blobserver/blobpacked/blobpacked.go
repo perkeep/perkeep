@@ -468,19 +468,41 @@ func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 }
 
 func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
-	// TODO: parallel?
-	var trySmall []blob.Ref
-	for _, br := range blobs {
-		m, err := s.getMetaRow(br)
-		if err != nil {
-			return err
-		}
-		if m.exists {
-			dest <- blob.SizedRef{Ref: br, Size: m.size}
-		} else {
-			trySmall = append(trySmall, br)
-		}
+	if len(blobs) == 0 {
+		return nil
+	}
 
+	var (
+		grp        syncutil.Group
+		trySmallMu sync.Mutex
+		trySmall   []blob.Ref
+	)
+	statGate := syncutil.NewGate(50) // arbitrary
+	for _, br := range blobs {
+		br := br
+		statGate.Start()
+		grp.Go(func() error {
+			defer statGate.Done()
+			m, err := s.getMetaRow(br)
+			if err != nil {
+				return err
+			}
+			if m.exists {
+				dest <- blob.SizedRef{Ref: br, Size: m.size}
+			} else {
+				trySmallMu.Lock()
+				trySmall = append(trySmall, br)
+				// Assume append cannot fail or panic
+				trySmallMu.Unlock()
+			}
+			return nil
+		})
+	}
+	if err := grp.Err(); err != nil {
+		return err
+	}
+	if len(trySmall) == 0 {
+		return nil
 	}
 	return s.small.StatBlobs(dest, trySmall)
 }
