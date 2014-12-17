@@ -26,7 +26,7 @@ func downloadFile(dst, src string) error {
 }
 
 func main() {
-	v, err := gce.InstanceAttributeValue("camlistore-config-bucket")
+	v, err := gce.InstanceAttributeValue("camlistore-config-dir")
 	if err != nil {
 		log.Fatalf("Error getting config bucket: %v", err)
 	}
