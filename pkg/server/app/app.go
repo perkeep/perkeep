@@ -19,6 +19,7 @@ limitations under the License.
 package app
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -29,6 +30,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"camlistore.org/pkg/auth"
 	camhttputil "camlistore.org/pkg/httputil"
@@ -46,6 +48,8 @@ type Handler struct {
 
 	proxy      *httputil.ReverseProxy // For redirecting requests to the app.
 	backendURL string                 // URL that we proxy to (i.e. base URL of the app).
+
+	process *os.Process // The app's Pid. To send it signals on restart, etc.
 }
 
 func (a *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -217,6 +221,7 @@ func (a *Handler) Start() error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("could not start app %v: %v", name, err)
 	}
+	a.process = cmd.Process
 	return nil
 }
 
@@ -242,4 +247,28 @@ func (a *Handler) AppConfig() map[string]interface{} {
 // BackendURL returns the appBackendURL that the app handler will proxy to.
 func (a *Handler) BackendURL() string {
 	return a.backendURL
+}
+
+var errProcessTookTooLong = errors.New("proccess took too long to quit")
+
+// Quit sends the app's process a SIGINT, and waits up to 5 seconds for it
+// to exit, returning an error if it doesn't.
+func (a *Handler) Quit() error {
+	err := a.process.Signal(os.Interrupt)
+	if err != nil {
+		return err
+	}
+
+	c := make(chan error)
+	go func() {
+		_, err := a.process.Wait()
+		c <- err
+	}()
+	select {
+	case err = <-c:
+	case <-time.After(5 * time.Second):
+		// TODO Do we want to SIGKILL here or just leave the app alone?
+		err = errProcessTookTooLong
+	}
+	return err
 }

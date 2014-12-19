@@ -33,7 +33,9 @@ import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/server/app"
 	"camlistore.org/pkg/types/camtypes"
 )
 
@@ -86,6 +88,10 @@ func (sh *StatusHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 
 func (sh *StatusHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	suffix := httputil.PathSuffix(req)
+	if suffix == "restart" {
+		sh.serveRestart(rw, req)
+		return
+	}
 	if !httputil.IsGet(req) {
 		http.Error(rw, "Illegal status method.", http.StatusMethodNotAllowed)
 		return
@@ -208,6 +214,7 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 	}
 	f("<html><head><title>Status</title></head>")
 	f("<body><h2>Status</h2>")
+	f("<form method='post' action='restart' onsubmit='return confirm(\"Really restart now?\")'><button>restart server</button></form>")
 	f("<p>As JSON: <a href='status.json'>status.json</a>; and the <a href='%s?camli.mode=config'>discovery JSON</a>.</p>", st.rootPrefix)
 	f("<p>Not yet pretty HTML UI:</p>")
 	js, err := json.MarshalIndent(st, "", "  ")
@@ -223,4 +230,35 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 		return in
 	})
 	f("<pre>%s</pre>", jsh)
+}
+
+func (sh *StatusHandler) serveRestart(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != "POST" {
+		http.Error(rw, "POST to restart", http.StatusMethodNotAllowed)
+		return
+	}
+
+	_, handlers := sh.handlerFinder.AllHandlers()
+	for _, h := range handlers {
+		ah, ok := h.(*app.Handler)
+		if !ok {
+			continue
+		}
+		log.Printf("Sending SIGINT to %s", ah.ProgramName())
+		err := ah.Quit()
+		if err != nil {
+			msg := fmt.Sprintf("Not restarting: couldn't interrupt app %s: %v", ah.ProgramName(), err)
+			log.Printf(msg)
+			http.Error(rw, msg, http.StatusInternalServerError)
+			return
+		}
+	}
+
+	log.Println("Restarting camlistored")
+	rw.Header().Set("Connection", "close")
+	http.Redirect(rw, req, sh.prefix, http.StatusFound)
+	if f, ok := rw.(http.Flusher); ok {
+		f.Flush()
+	}
+	osutil.RestartProcess()
 }
