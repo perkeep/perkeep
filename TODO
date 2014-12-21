@@ -4,6 +4,13 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- fix the presubmit's gofmt to be happy about emacs:
+
+        go fmt camlistore.org/cmd... camlistore.org/dev... camlistore.org/misc... camlistore.org/pkg... camlistore.org/server...
+        stat pkg/blobserver/.#multistream_test.go: no such file or directory
+        exit status 2
+        make: *** [fmt] Error 1
+
 -- env package to put stuff CAMLI_DEBUG checks? Also, change all:
    -var debug = os.Getenv("CAMLI_DEBUG") != ""
    +var debug, _ = strconv.ParseBool(os.Getenv("CAMLI_DEBUG"))
