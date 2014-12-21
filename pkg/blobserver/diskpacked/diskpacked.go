@@ -53,6 +53,7 @@ import (
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
+	"camlistore.org/pkg/strutil"
 	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types"
 	"camlistore.org/third_party/github.com/camlistore/lock"
@@ -84,13 +85,13 @@ type storage struct {
 
 	writeLock io.Closer // Provided by lock.Lock, and guards other processes from accesing the file open for writes.
 
+	*local.Generationer
+
 	mu     sync.Mutex // Guards all I/O state.
 	closed bool
 	writer *os.File
 	fds    []*os.File
 	size   int64
-
-	*local.Generationer
 }
 
 func (s *storage) String() string {
@@ -489,17 +490,24 @@ func parseContToken(token string) (pack int, offset int64, err error) {
 	return
 }
 
-func readHeader(r io.Reader) (digest string, size uint32, err error) {
-	_, err = fmt.Fscanf(r, "[%s %d]", &digest, &size)
-
-	return
-}
-
-func headerLength(digest string, size uint32) int {
-	// Assumes that the size in the header is always in base-10
-	// format, and also that precisely one space separates the
-	// digest and the size.
-	return len(fmt.Sprintf("[%s %d]", digest, size))
+// readHeader parses "[sha1-fooooo 1234]" from r and returns the
+// number of bytes read (including the starting '[' and ending ']'),
+// the blobref bytes (not necessarily valid) and the number as a
+// uint32.
+// The consumed count returned is only valid if err == nil.
+// The returned digest slice is only valid until the next read from br.
+func readHeader(br *bufio.Reader) (consumed int, digest []byte, size uint32, err error) {
+	line, err := br.ReadSlice(']')
+	if err != nil {
+		return
+	}
+	const minSize = len("[b-c 0]")
+	sp := bytes.IndexByte(line, ' ')
+	size64, err := strutil.ParseUintBytes(line[sp+1:len(line)-1], 10, 32)
+	if len(line) < minSize || line[0] != '[' || line[len(line)-1] != ']' || sp < 0 || err != nil {
+		return 0, nil, 0, errors.New("diskpacked: invalid header reader")
+	}
+	return len(line), line[1:sp], uint32(size64), nil
 }
 
 // Type readSeekNopCloser is an io.ReadSeeker with a no-op Close method.
@@ -517,27 +525,40 @@ func newReadSeekNopCloser(rs io.ReadSeeker) types.ReadSeekCloser {
 // set to all 'x', the hash value is all '0', and has the correct size.
 var deletedBlobRef = regexp.MustCompile(`^x+-0+$`)
 
+var _ blobserver.BlobStreamer = (*storage)(nil)
+
 // StreamBlobs Implements the blobserver.StreamBlobs interface.
-func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string, limitBytes int64) (nextContinueToken string, err error) {
+func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string) (nextContinueToken string, err error) {
 	defer close(dest)
 
-	i, offset, err := parseContToken(contToken)
+	fileNum, offset, err := parseContToken(contToken)
 	if err != nil {
-		return
+		return "", err
 	}
 	debug.Printf("Continuing blob streaming from pack %s, offset %d",
-		s.filename(i), offset)
+		s.filename(fileNum), offset)
 
-	fd, err := os.Open(s.filename(i))
+	fd, err := os.Open(s.filename(fileNum))
 	if err != nil {
-		return
+		return "", err
 	}
-	defer fd.Close()
+	// fd will change over time; Close whichever is current when we exit.
+	defer func() {
+		if fd != nil { // may be nil on os.Open error below
+			fd.Close()
+		}
+	}()
 
-	// ContToken always refers to the exact next place we will read from
+	// ContToken always refers to the exact next place we will read from.
+	// Note that seeking past the end is legal on Unix and for io.Seeker,
+	// but that will just result in a mostly harmless EOF.
+	//
+	// TODO: probably be stricter here and don't allow seek past
+	// the end, since we know the size of closed files and the
+	// size of the file diskpacked currently still writing.
 	_, err = fd.Seek(offset, os.SEEK_SET)
 	if err != nil {
-		return
+		return "", err
 	}
 
 	const ioBufSize = 256 * 1024
@@ -545,87 +566,76 @@ func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, cont
 	// We'll use bufio to avoid read system call overhead.
 	r := bufio.NewReaderSize(fd, ioBufSize)
 
-	var offsetToAdd int64 = 0
-	var sent int64 = 0
-	setNextContToken := func() {
-		nextContinueToken = fmt.Sprintf("%d %d", i, offset+offsetToAdd)
+	var lastSent struct {
+		fileNum int
+		offset  int64
 	}
 	for {
-		if sent >= limitBytes {
-			setNextContToken()
-			break
-		}
-
 		//  Are we at the EOF of this pack?
-		_, err = r.Peek(1)
-		if err != nil {
-			if err == io.EOF {
-				// Continue to the next pack, if there's any
-				i += 1
-				offset = 0
-				offsetToAdd = 0
-				fd.Close() // Close the previous pack
-				fd, err = os.Open(s.filename(i))
-				if err != nil {
-					if os.IsNotExist(err) {
-						return "", nil
-					}
-					return
-				}
-				defer fd.Close()
-				r = bufio.NewReaderSize(fd, ioBufSize)
-				continue
+		if _, err := r.Peek(1); err != nil {
+			if err != io.EOF {
+				return "", err
 			}
-
-			return
-		}
-
-		var digest string
-		var size uint32
-		digest, size, err = readHeader(r)
-		if err != nil {
-			return
-		}
-
-		offsetToAdd += int64(headerLength(digest, size))
-		if deletedBlobRef.MatchString(digest) {
-			// Skip over deletion padding
-			_, err = io.CopyN(ioutil.Discard, r, int64(size))
-			if err != nil {
-				return
+			// EOF case; continue to the next pack, if any.
+			fileNum += 1
+			offset = 0
+			fd.Close() // Close the previous pack
+			fd, err = os.Open(s.filename(fileNum))
+			if os.IsNotExist(err) {
+				// We reached the end.
+				return "", nil
+			} else if err != nil {
+				return "", err
 			}
-			offsetToAdd += int64(size)
+			r.Reset(fd)
 			continue
 		}
 
-		// Finally, read and send the blob
-		data := make([]byte, size)
-		_, err = io.ReadFull(r, data)
+		thisOffset := offset // of current blob's header
+		consumed, digest, size, err := readHeader(r)
 		if err != nil {
-			return
+			return "", err
 		}
-		offsetToAdd += int64(size)
+
+		offset += int64(consumed)
+		if deletedBlobRef.Match(digest) {
+			// Skip over deletion padding
+			if _, err := io.CopyN(ioutil.Discard, r, int64(size)); err != nil {
+				return "", err
+			}
+			offset += int64(size)
+			continue
+		}
+
+		// Finally, read and send the blob.
+
+		// TODO: remove this allocation per blob. We can make one instead
+		// outside of the loop, guarded by a mutex, and re-use it, only to
+		// lock the mutex and clone it if somebody actually calls Open
+		// on the *blob.Blob. Otherwise callers just scanning all the blobs
+		// to see if they have everything incur lots of garbage if they
+		// don't open any blobs.
+		data := make([]byte, size)
+		if _, err := io.ReadFull(r, data); err != nil {
+			return "", err
+		}
+		offset += int64(size)
+		ref, ok := blob.ParseBytes(digest)
+		if !ok {
+			return "", fmt.Errorf("diskpacked: Invalid blobref %q", digest)
+		}
 		newReader := func() types.ReadSeekCloser {
 			return newReadSeekNopCloser(bytes.NewReader(data))
 		}
-		ref, ok := blob.Parse(digest)
-		if !ok {
-			err = fmt.Errorf("diskpacked: Invalid blobref %s",
-				digest)
-			return
-		}
 		blob := blob.NewBlob(ref, size, newReader)
-
 		select {
 		case dest <- blob:
-			sent += int64(size)
+			lastSent.fileNum = fileNum
+			lastSent.offset = thisOffset
 		case <-ctx.Done():
-			err = context.ErrCanceled
-			return
+			return fmt.Sprintf("%d %d", lastSent.fileNum, lastSent.offset), context.ErrCanceled
 		}
 	}
-
-	return
 }
 
 func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sbr blob.SizedRef, err error) {

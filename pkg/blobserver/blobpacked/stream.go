@@ -39,25 +39,25 @@ import (
 // First it streams from small (if available, else enumerates)
 // Then it streams from large (if available, else enumerates),
 // and for each large, streams the contents of the zips.
-func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string, limitBytes int64) (nextContinueToken string, err error) {
+func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string) (nextContinueToken string, err error) {
 	defer close(dest)
 	switch {
 	case contToken == "" || strings.HasPrefix(contToken, "s:"):
-		return s.streamSmallBlobs(ctx, dest, strings.TrimPrefix(contToken, "s:"), limitBytes)
+		return s.streamSmallBlobs(ctx, dest, strings.TrimPrefix(contToken, "s:"))
 	case strings.HasPrefix(contToken, "l:"):
-		return s.streamLargeBlobs(ctx, dest, strings.TrimPrefix(contToken, "l:"), limitBytes)
+		return s.streamLargeBlobs(ctx, dest, strings.TrimPrefix(contToken, "l:"))
 	default:
 		return "", fmt.Errorf("invalid continue token %q", contToken)
 	}
 }
 
-func (s *storage) streamSmallBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string, limitBytes int64) (nextContinueToken string, err error) {
+func (s *storage) streamSmallBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string) (nextContinueToken string, err error) {
 	smallStream, ok := s.small.(blobserver.BlobStreamer)
 	if ok {
 		if contToken != "" || !strings.HasPrefix(contToken, "pt:") {
 			return "", errors.New("invalid pass-through stream token")
 		}
-		next, err := smallStream.StreamBlobs(ctx, dest, strings.TrimPrefix(contToken, "pt"), limitBytes)
+		next, err := smallStream.StreamBlobs(ctx, dest, strings.TrimPrefix(contToken, "pt"))
 		if err == nil || next == "" {
 			next = "l:" // now do large
 		}
@@ -84,7 +84,7 @@ func (s *storage) streamSmallBlobs(ctx *context.Context, dest chan<- *blob.Blob,
 	}()
 	var sent int64
 	var lastRef blob.Ref
-	for sent < limitBytes {
+	for {
 		sb, ok := <-sbc
 		if !ok {
 			break
@@ -115,6 +115,6 @@ func (s *storage) streamSmallBlobs(ctx *context.Context, dest chan<- *blob.Blob,
 	return "s:after:" + lastRef.String(), nil
 }
 
-func (s *storage) streamLargeBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string, limitBytes int64) (nextContinueToken string, err error) {
+func (s *storage) streamLargeBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string) (nextContinueToken string, err error) {
 	panic("TODO")
 }

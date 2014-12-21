@@ -474,7 +474,7 @@ func TestStreamBlobs(t *testing.T) {
 			got[b.Ref()] = true
 		}
 	}()
-	nextToken, err := s.StreamBlobs(ctx, dest, token, 1<<63-1)
+	nextToken, err := s.StreamBlobs(ctx, dest, token)
 	if err != nil {
 		t.Fatalf("StreamBlobs = %v", err)
 	}

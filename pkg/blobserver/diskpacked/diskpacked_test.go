@@ -17,6 +17,7 @@ limitations under the License.
 package diskpacked
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -43,6 +44,7 @@ func newTempDiskpackedMemory(t *testing.T) (sto blobserver.Storage, cleanup func
 }
 
 func newTempDiskpackedWithIndex(t *testing.T, indexConf jsonconfig.Obj) (sto blobserver.Storage, cleanup func()) {
+	restoreLogging := test.TLog(t)
 	dir, err := ioutil.TempDir("", "diskpacked-test")
 	if err != nil {
 		t.Fatal(err)
@@ -54,12 +56,12 @@ func newTempDiskpackedWithIndex(t *testing.T, indexConf jsonconfig.Obj) (sto blo
 	}
 	return s, func() {
 		s.Close()
-
 		if camliDebug {
 			t.Logf("CAMLI_DEBUG set, skipping cleanup of dir %q", dir)
 		} else {
 			os.RemoveAll(dir)
 		}
+		restoreLogging()
 	}
 }
 
@@ -251,4 +253,45 @@ func (idx *failingIndex) Set(key string, value string) error {
 		return dummyErr
 	}
 	return idx.KeyValue.Set(key, value)
+}
+
+func TestReadHeader(t *testing.T) {
+	tests := []struct {
+		in           string
+		wantConsumed int
+		wantDigest   string
+		wantSize     uint32
+		wantErr      bool
+	}{
+		{"[foo-123 234]", 13, "foo-123", 234, false},
+
+		// Too short:
+		{in: "", wantErr: true},
+		{in: "[", wantErr: true},
+		{in: "[]", wantErr: true},
+		// Missing brackets:
+		{in: "[foo-123 234", wantErr: true},
+		{in: "foo-123 234]", wantErr: true},
+		// non-number in size:
+		{in: "[foo-123 234x]", wantErr: true},
+		// No spce:
+		{in: "[foo-abcd1234]", wantErr: true},
+	}
+	for _, tt := range tests {
+		consumed, digest, size, err := readHeader(bufio.NewReader(strings.NewReader(tt.in)))
+		if tt.wantErr {
+			if err == nil {
+				t.Errorf("readHeader(%q) = %d, %q, %v with nil error; but wanted an error",
+					tt.in, consumed, digest, size)
+			}
+		} else if consumed != tt.wantConsumed ||
+			string(digest) != tt.wantDigest ||
+			size != tt.wantSize ||
+			err != nil {
+			t.Errorf("readHeader(%q) = %d, %q, %v, %v; want %d, %q, %v, nil",
+				tt.in,
+				consumed, digest, size, err,
+				tt.wantConsumed, tt.wantDigest, tt.wantSize)
+		}
+	}
 }

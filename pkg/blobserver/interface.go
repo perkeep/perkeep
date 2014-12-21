@@ -97,20 +97,36 @@ type BlobEnumerator interface {
 }
 
 type BlobStreamer interface {
-	// StreamBlobs sends blobs to dest in unspecified order. It is
+	// BlobStream is an optional interface that may be implemented by
+	// Storage implementations.
+	//
+	// StreamBlobs sends blobs to dest in an unspecified order. It is
 	// expected that a Storage implementation implementing
 	// BlobStreamer will send blobs to dest in the most efficient
-	// order possible. StreamBlobs will stop sending blobs to dest
-	// and return an opaque continuation token (in the string
-	// return parameter) when the total size of the blobs it has
-	// sent equals or exceeds limit. A succeeding call to
-	// StreamBlobs should pass the string returned from the
-	// previous call in contToken, or an empty string if the
-	// caller wishes to receive blobs from "the
-	// start". StreamBlobs must unconditionally close dest before
+	// order possible.
+	//
+	// The provided continuation token resumes the stream from a
+	// point.  To start from the beginning, send the empty string.
+	// The token is opaque and must never be interpreted; its
+	// format may change between versions of the server.
+	//
+	// If the content is canceled, the error value is
+	// context.ErrCanceled and the nextContinueToken is a
+	// continuation token to resume exactly _at_ (not after) the
+	// last value sent.  This lets callers receive a blob, decide
+	// its size crosses a threshold, and resume at that blob at a
+	// later point. Callers should thus usually pass an unbuffered
+	// channel, although it is not an error to do otherwise, if
+	// the caller is careful.
+	//
+	// StreamBlobs must unconditionally close dest before
 	// returning, and it must return context.ErrCanceled if
 	// ctx.Done() becomes readable.
-	StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string, limitBytes int64) (nextContinueToken string, err error)
+	//
+	// When StreamBlobs reaches the end, the return value is ("", nil).
+	// The nextContinueToken must only ever be non-empty if err is
+	// context.ErrCanceled.
+	StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string) (nextContinueToken string, err error)
 }
 
 // Cache is the minimal interface expected of a blob cache.
