@@ -101,9 +101,11 @@ cam.IndexPage = React.createClass({
 		this.baseURL_ = newURL.resolve(new goog.Uri(this.props.config.uiRoot));
 
 		this.navigator_ = new cam.Navigator(this.props.eventTarget, this.props.location, this.props.history);
-		this.navigator_.onNavigate = this.handleNavigate_;
+		this.navigator_.onWillNavigate = this.handleWillNavigate_;
+		this.navigator_.onDidNavigate = this.handleDidNavigate_;
 
-		this.handleNavigate_(newURL);
+		this.handleWillNavigate_(newURL);
+		this.handleDidNavigate_();
 	},
 
 	componentDidMount: function() {
@@ -165,6 +167,10 @@ cam.IndexPage = React.createClass({
 	},
 
 	setSelection_: function(selection) {
+		this.props.history.replaceState(cam.object.extend(this.props.history.state, {
+			selection: selection,
+		}), '', this.props.location.href);
+
 		this.setState({selection: selection});
 		this.setState({sidebarVisible: !goog.object.isEmpty(selection)});
 	},
@@ -339,7 +345,7 @@ cam.IndexPage = React.createClass({
 		}
 	},
 
-	handleNavigate_: function(newURL) {
+	handleWillNavigate_: function(newURL) {
 		if (!goog.string.startsWith(newURL.toString(), this.baseURL_.toString())) {
 			return false;
 		}
@@ -349,8 +355,12 @@ cam.IndexPage = React.createClass({
 		this.updateChildSearchSession_(targetBlobref, newURL);
 		this.pruneSearchSessionCache_();
 		this.setState({currentURL: newURL});
-		this.setSelection_({});
 		return true;
+	},
+
+	handleDidNavigate_: function() {
+		var s = this.props.history.state && this.props.history.state.selection;
+		this.setSelection_(s || {});
 	},
 
 	updateTargetSearchSession_: function(targetBlobref) {
@@ -630,7 +640,8 @@ cam.IndexPage = React.createClass({
 		}
 
 		var blobref = goog.object.getAnyKey(this.state.selection);
-		if (this.childSearchSession_.getMeta(blobref).camliType != 'permanode') {
+		var m = this.childSearchSession_.getMeta(blobref);
+		if (!m || m.camliType != 'permanode') {
 			return null;
 		}
 
