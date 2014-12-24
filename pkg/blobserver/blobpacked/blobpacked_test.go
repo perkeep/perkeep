@@ -456,7 +456,8 @@ func TestStreamBlobs(t *testing.T) {
 	s.init()
 
 	all := map[blob.Ref]bool{}
-	for i := 0; i < 10; i++ {
+	const nBlobs = 10
+	for i := 0; i < nBlobs; i++ {
 		b := &test.Blob{strconv.Itoa(i)}
 		b.MustUpload(t, small)
 		all[b.BlobRef()] = true
@@ -482,6 +483,36 @@ func TestStreamBlobs(t *testing.T) {
 	if !reflect.DeepEqual(got, all) {
 		t.Errorf("Got blobs %v; want %v", got, all)
 	}
+	storagetest.TestStreamer(t, s, storagetest.WantN(nBlobs))
+}
+
+func TestStreamBlobs_Loose_Enumerate(t *testing.T) {
+	testStreamBlobsLoose(t, false)
+}
+
+func TestStreamBlobs_Loose_Streamed(t *testing.T) {
+	testStreamBlobsLoose(t, true)
+}
+
+func testStreamBlobsLoose(t *testing.T, streamed bool) {
+	var small blobserver.Storage = new(test.Fetcher)
+	if !streamed {
+		// Hide the BlobStreamer interface impl.
+		small = struct{ blobserver.Storage }{small}
+
+	}
+	s := &storage{
+		small: small,
+		large: new(test.Fetcher), // unused
+		meta:  sorted.NewMemoryKeyValue(),
+		log:   test.NewLogger(t, "blobpacked: "),
+	}
+	s.init()
+	const nBlobs = 10
+	for i := 0; i < nBlobs; i++ {
+		(&test.Blob{strconv.Itoa(i)}).MustUpload(t, small)
+	}
+	storagetest.TestStreamer(t, s, storagetest.WantN(nBlobs))
 }
 
 func TestForeachZipBlob(t *testing.T) {
