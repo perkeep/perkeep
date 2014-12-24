@@ -17,14 +17,15 @@ limitations under the License.
 package blobpacked
 
 import (
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/context"
+	"camlistore.org/pkg/types"
 )
 
 // StreamBlobs impl.
 
 func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
-	panic("TODO")
 	return blobserver.NewMultiBlobStreamer(
 		smallBlobStreamer{s},
 		largeBlobStreamer{s},
@@ -34,12 +35,33 @@ func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobA
 type smallBlobStreamer struct{ sto *storage }
 type largeBlobStreamer struct{ sto *storage }
 
+// stream the loose blobs
 func (st smallBlobStreamer) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
-	panic("TODO")
+	small := st.sto.small
+	if bs, ok := small.(blobserver.BlobStreamer); ok {
+		return bs.StreamBlobs(ctx, dest, contToken)
+	}
+	defer close(dest)
+	donec := ctx.Done()
+	return blobserver.EnumerateAllFrom(ctx, small, contToken, func(sb blob.SizedRef) error {
+		select {
+		case dest <- blobserver.BlobAndToken{
+			Blob: blob.NewBlob(sb.Ref, sb.Size, func() types.ReadSeekCloser {
+				return blob.NewLazyReadSeekCloser(small, sb.Ref)
+			}),
+			Token: sb.Ref.StringMinusOne(), // streamer is >=, enumerate is >
+		}:
+			return nil
+		case <-donec:
+			return context.ErrCanceled
+		}
+	})
 }
 
 func (st largeBlobStreamer) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
-	panic("TODO")
+	defer close(dest)
+	// TODO(bradfitz): implement
+	return nil
 }
 
 // TODO: move some ofthis old pre-NewMultiBlobStreamer code into

@@ -446,7 +446,6 @@ func TestZ_LeakCheck(t *testing.T) {
 }
 
 func TestStreamBlobs(t *testing.T) {
-	t.Skip("TODO: blob streaming isn't done in blobpacked")
 	small := new(test.Fetcher)
 	s := &storage{
 		small: small,
