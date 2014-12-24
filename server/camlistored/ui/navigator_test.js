@@ -60,7 +60,7 @@ describe('cam.Navigator', function() {
 		mockHistory = new MockHistory();
 		handler = new Handler();
 		navigator = new cam.Navigator(mockWindow, mockLocation, mockHistory);
-		navigator.onNavigate = handler.handle;
+		navigator.onWillNavigate = handler.handle;
 	});
 
 	it ('#constructor - seed initial state', function() {
@@ -69,7 +69,7 @@ describe('cam.Navigator', function() {
 
 	it('#navigate - no handler', function() {
 		// We should do network navigation.
-		navigator.onNavigate = function(){};
+		navigator.onWillNavigate = function(){};
 		navigator.navigate(url);
 		assert.equal(mockLocation.href, url.toString());
 		assert.equal(mockHistory.states.length, 1);

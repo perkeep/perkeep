@@ -29,7 +29,11 @@ cam.Navigator = function(win, location, history) {
 	this.location_ = location;
 	this.history_ = history;
 	this.handlers_ = [];
-	this.updateState_('replace', location.href);
+
+	// This is needed so that in handlePopState_, we can differentiate navigating back to this frame from the initial load.
+	// We can't just initialize to {} because there can already be interesting state (e.g., in the case of the user pressing the refresh button).
+	history.replaceState(cam.object.extend(history.state), '', location.href);
+
 	this.win_.addEventListener('click', this.handleClick_.bind(this));
 	this.win_.addEventListener('popstate', this.handlePopState_.bind(this));
 };
@@ -55,10 +59,16 @@ cam.Navigator.shouldHandleClick = function(e) {
 };
 
 // Client should set this to handle navigation.
-// If this method returns true, then Navigator considers the navigation handled locally, and will add an entry to history using pushState(). If this method returns false, Navigator lets the navigation fall through to the browser.
-// @param goog.Uri newURL The URL to navigate to. At this point location.href has already been updated - this is just the parsed representation.
+//
+// This is called before the navigation has actually taken place: location.href will refer to the old URL, not the new one. Also, history.state will refer to previous state.
+//
+// If client returns true, then Navigator considers the navigation handled locally, and will add an entry to history using pushState(). If this method returns false, Navigator lets the navigation fall through to the browser.
+// @param goog.Uri newURL The URL to navigate to.
 // @return boolean Whether the navigation was handled locally.
-cam.Navigator.prototype.onNavigate = function(newURL) {};
+cam.Navigator.prototype.onWillNavigate = function(newURL) {};
+
+// Called after a local (pushState) navigation has been performed. At this point, location.href and history.state have been updated.
+cam.Navigator.prototype.onDidNavigate = function() {};
 
 // Programmatically initiate a navigation to a URL. Useful for triggering navigations from things other than hyperlinks.
 // @param goog.Uri url The URL to navigate to.
@@ -92,6 +102,9 @@ cam.Navigator.prototype.handleClick_ = function(e) {
 
 // Handles navigation via popstate.
 cam.Navigator.prototype.handlePopState_ = function(e) {
+	// WebKit and older Chrome versions will fire a spurious initial popstate event after load.
+	// We can differentiate this event from ones corresponding to frames we generated ourselves with pushState() or replaceState() because our own frames always have a non-empty state.
+	// See: http://stackoverflow.com/questions/6421769/popstate-on-pages-load-in-chrome
 	if (!e.state) {
 		return;
 	}
@@ -101,24 +114,13 @@ cam.Navigator.prototype.handlePopState_ = function(e) {
 };
 
 cam.Navigator.prototype.dispatchImpl_ = function(url, addState) {
-	if (this.onNavigate(url)) {
+	if (this.onWillNavigate(url)) {
 		if (addState) {
-			this.updateState_('push', url.toString());
+			// Pass an empty object rather than null or undefined so that we can filter out spurious initial popstate events in handlePopState_.
+			this.history_.pushState({}, '', url.toString());
 		}
+		this.onDidNavigate();
 		return true;
 	}
 	return false;
-};
-
-// @param {string} type 'push' or 'replace', the type of state modification to do.
-// @param {string} url The URL to update the history state to.
-cam.Navigator.prototype.updateState_ = function(type, url) {
-	var f = (type == 'push' && this.history_.pushState) || (type == 'replace' && this.history_.replaceState) || null;
-	if (!f) {
-		throw new Error('Unexpected type: ' + type);
-	}
-
-	// The empty object is needed to differentiate between the initial load and subsequent navigations because browsers.
-	// It is passed back to us in e.state in handlePopState_. See: http://stackoverflow.com/questions/6421769/popstate-on-pages-load-in-chrome
-	f.call(this.history_, {}, '', url);
 };
