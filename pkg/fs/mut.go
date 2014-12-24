@@ -432,7 +432,7 @@ func (n *mutDir) Remove(req *fuse.RemoveRequest, intr fs.Intr) fuse.Error {
 	claim := schema.NewDelAttributeClaim(n.permanode, "camliPath:"+req.Name, "")
 	_, err := n.fs.client.UploadAndSignBlob(claim)
 	if err != nil {
-		log.Println("mutDir.Create:", err)
+		log.Println("mutDir.Remove:", err)
 		return fuse.EIO
 	}
 	// Remove child from map.
