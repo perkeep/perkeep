@@ -188,6 +188,14 @@ func TestSizedBlobRefString(t *testing.T) {
 	}
 }
 
+func TestRefStringMinusOne(t *testing.T) {
+	br := MustParse("abc-1234")
+	want := "abc-1233"
+	if got := br.StringMinusOne(); got != want {
+		t.Errorf("StringMinusOne = %q; want %q", got, want)
+	}
+}
+
 func TestMarshalBinary(t *testing.T) {
 	br := MustParse("abc-00ff4869")
 	data, _ := br.MarshalBinary()
