@@ -84,8 +84,10 @@ func (x *xattr) set(req *fuse.SetxattrRequest) fuse.Error {
 		return fuse.EIO
 	}
 
+	val := make([]byte, len(req.Xattr))
+	copy(val, req.Xattr)
 	x.mu.Lock()
-	(*x.xattrs)[req.Name] = req.Xattr
+	(*x.xattrs)[req.Name] = val
 	x.mu.Unlock()
 
 	return nil
