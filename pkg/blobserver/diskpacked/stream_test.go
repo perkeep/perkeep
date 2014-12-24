@@ -26,10 +26,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/blobserver/storagetest"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/test"
 )
@@ -125,51 +125,25 @@ func newTestStorage(t *testing.T, packs ...pack) (s *storage, clean func()) {
 	return s, clean
 }
 
-// nBlobs is the optional number of blobs after which to cancel the
-// context. 0 means unlimited.
-//
 // It verifies the size and hash of each
 // before returning and fails the test if any of the checks fail. It
 // also fails the test if StreamBlobs returns a non-nil error.
-func getAllUpToLimit(t *testing.T, s *storage, tok string, nBlobs int) (blobs []*blob.Blob, contToken string) {
+func streamAll(t *testing.T, s *storage) []*blob.Blob {
+	var blobs []*blob.Blob
 	ctx := context.New()
-	ch := make(chan *blob.Blob)
-	nextCh := make(chan string, 1)
+	ch := make(chan blobserver.BlobAndToken)
 	errCh := make(chan error, 1)
 
-	go func() {
-		next, err := s.StreamBlobs(ctx, ch, tok)
-		nextCh <- next
-		errCh <- err
-	}()
+	go func() { errCh <- s.StreamBlobs(ctx, ch, "") }()
 
-	nGot := 0
-	var wantErr error
-	for blob := range ch {
-		verifySizeAndHash(t, blob)
-		blobs = append(blobs, blob)
-		nGot++
-		if nGot == nBlobs {
-			ctx.Cancel()
-			wantErr = context.ErrCanceled
-			break
-		}
+	for bt := range ch {
+		verifySizeAndHash(t, bt.Blob)
+		blobs = append(blobs, bt.Blob)
 	}
-
-	if nGot < nBlobs {
-		t.Fatalf("only got %d blobs; wanted at least %d", nGot, nBlobs)
+	if err := <-errCh; err != nil {
+		t.Fatalf("StreamBlobs error = %v", err)
 	}
-
-	select {
-	case err := <-errCh:
-		if err != wantErr {
-			t.Fatalf("StreamBlobs error = %v; want %v", err, wantErr)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("timeout waiting for StreamBlobs to finish (ignored cancel")
-	}
-
-	return blobs, <-nextCh
+	return blobs
 }
 
 // Tests the streaming of all blobs in a storage, with hash verification.
@@ -178,15 +152,16 @@ func TestBasicStreaming(t *testing.T) {
 	defer clean()
 
 	expected := len(pool00001)
-	blobs, next := getAllUpToLimit(t, s, "", 0)
-
+	blobs := streamAll(t, s)
 	if len(blobs) != expected {
 		t.Fatalf("Wrong blob count: Expected %d, got %d", expected,
 			len(blobs))
 	}
-	if next != "" {
-		t.Fatalf("Got continuation token %q; want empty", next)
+	wantRefs := make([]blob.SizedRef, len(blobs))
+	for i, b := range blobs {
+		wantRefs[i] = b.SizedRef()
 	}
+	storagetest.TestStreamer(t, s, storagetest.WantSizedRefs(wantRefs))
 }
 
 func verifySizeAndHash(t *testing.T, blob *blob.Blob) {
@@ -207,61 +182,15 @@ func verifySizeAndHash(t *testing.T, blob *blob.Blob) {
 	}
 }
 
-// Tests that StreamBlobs returns a continuation token on cancel
-func TestStreamBlobsContinuationToken(t *testing.T) {
-	s, clean := newTestStorage(t, pack{pool00001})
-	defer clean()
-
-	limit := 2 // get the first blob only
-	wantCount := 2
-	blobs, next := getAllUpToLimit(t, s, "", limit)
-
-	for i, b := range blobs {
-		t.Logf("blob[%d] = %v", i, b.Ref())
-	}
-	if len(blobs) != wantCount {
-		t.Fatalf("got %d blobs; want %d", len(blobs), wantCount)
-	}
-
-	// For pool00001, the header + data of the first blob is has len 50
-	if wantContToken := "0 50"; next != wantContToken {
-		t.Fatalf("Got continuation token %q; want %q", next, wantContToken)
-	}
-}
-
-func TestSeekToContToken(t *testing.T) {
-	s, clean := newTestStorage(t, pack{pool00001})
-	defer clean()
-
-	expected := len(pool00001) - 1
-	blobs, next := getAllUpToLimit(t, s, "0 50", 0)
-
-	if len(blobs) != expected {
-		t.Fatalf("Wrong blob count: Expected %d, got %d", expected,
-			len(blobs))
-	}
-
-	if next != "" {
-		t.Fatalf("Unexpected continuation token. Expected \"%s\", got \"%s\"", "", next)
-	}
-}
-
 // Tests that we can correctly switch over to the next pack if we
 // still need to stream more blobs when a pack reaches EOF.
 func TestStreamMultiplePacks(t *testing.T) {
 	s, clean := newTestStorage(t, pack{pool00001}, pack{pool00001})
 	defer clean()
-
-	expected := 2 * len(pool00001)
-	blobs, _ := getAllUpToLimit(t, s, "", 0)
-
-	if len(blobs) != expected {
-		t.Fatalf("Wrong blob count: Expected %d, got %d", expected,
-			len(blobs))
-	}
+	storagetest.TestStreamer(t, s, storagetest.WantN(len(pool00001)+len(pool00001)))
 }
 
-func TestSkipRemovedBlobs(t *testing.T) {
+func TestStreamSkipRemovedBlobs(t *testing.T) {
 	// Note: This is the only streaming test that makes use of the
 	// index (for RemoveBlobs() to succeed). The others do create
 	// an indexed storage but they do not use the index to stream
@@ -279,17 +208,10 @@ func TestSkipRemovedBlobs(t *testing.T) {
 
 	err := s.RemoveBlobs([]blob.Ref{ref})
 	if err != nil {
-		t.Fatalf("blobserver.Storage.RemoveBlobs(): %v", err)
+		t.Fatalf("RemoveBlobs: %v", err)
 	}
 
 	diskpackedSto := s.(*storage)
-
 	expected := len(pool00001) - 1 // We've deleted 1
-	blobs, _ := getAllUpToLimit(t, diskpackedSto, "", 0)
-
-	if len(blobs) != expected {
-		t.Fatalf("Wrong blob count: Expected %d, got %d", expected,
-			len(blobs))
-	}
-
+	storagetest.TestStreamer(t, diskpackedSto, storagetest.WantN(expected))
 }

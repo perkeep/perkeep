@@ -528,19 +528,19 @@ var deletedBlobRef = regexp.MustCompile(`^x+-0+$`)
 var _ blobserver.BlobStreamer = (*storage)(nil)
 
 // StreamBlobs Implements the blobserver.StreamBlobs interface.
-func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string) (nextContinueToken string, err error) {
+func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) error {
 	defer close(dest)
 
 	fileNum, offset, err := parseContToken(contToken)
 	if err != nil {
-		return "", err
+		return errors.New("diskpacked: invalid continuation token")
 	}
 	debug.Printf("Continuing blob streaming from pack %s, offset %d",
 		s.filename(fileNum), offset)
 
 	fd, err := os.Open(s.filename(fileNum))
 	if err != nil {
-		return "", err
+		return err
 	}
 	// fd will change over time; Close whichever is current when we exit.
 	defer func() {
@@ -558,7 +558,7 @@ func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, cont
 	// size of the file diskpacked currently still writing.
 	_, err = fd.Seek(offset, os.SEEK_SET)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	const ioBufSize = 256 * 1024
@@ -566,15 +566,11 @@ func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, cont
 	// We'll use bufio to avoid read system call overhead.
 	r := bufio.NewReaderSize(fd, ioBufSize)
 
-	var lastSent struct {
-		fileNum int
-		offset  int64
-	}
 	for {
 		//  Are we at the EOF of this pack?
 		if _, err := r.Peek(1); err != nil {
 			if err != io.EOF {
-				return "", err
+				return err
 			}
 			// EOF case; continue to the next pack, if any.
 			fileNum += 1
@@ -583,9 +579,9 @@ func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, cont
 			fd, err = os.Open(s.filename(fileNum))
 			if os.IsNotExist(err) {
 				// We reached the end.
-				return "", nil
+				return nil
 			} else if err != nil {
-				return "", err
+				return err
 			}
 			r.Reset(fd)
 			continue
@@ -594,14 +590,14 @@ func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, cont
 		thisOffset := offset // of current blob's header
 		consumed, digest, size, err := readHeader(r)
 		if err != nil {
-			return "", err
+			return err
 		}
 
 		offset += int64(consumed)
 		if deletedBlobRef.Match(digest) {
 			// Skip over deletion padding
 			if _, err := io.CopyN(ioutil.Discard, r, int64(size)); err != nil {
-				return "", err
+				return err
 			}
 			offset += int64(size)
 			continue
@@ -617,23 +613,25 @@ func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, cont
 		// don't open any blobs.
 		data := make([]byte, size)
 		if _, err := io.ReadFull(r, data); err != nil {
-			return "", err
+			return err
 		}
 		offset += int64(size)
 		ref, ok := blob.ParseBytes(digest)
 		if !ok {
-			return "", fmt.Errorf("diskpacked: Invalid blobref %q", digest)
+			return fmt.Errorf("diskpacked: Invalid blobref %q", digest)
 		}
 		newReader := func() types.ReadSeekCloser {
 			return newReadSeekNopCloser(bytes.NewReader(data))
 		}
 		blob := blob.NewBlob(ref, size, newReader)
 		select {
-		case dest <- blob:
-			lastSent.fileNum = fileNum
-			lastSent.offset = thisOffset
+		case dest <- blobserver.BlobAndToken{
+			Blob:  blob,
+			Token: fmt.Sprintf("%d %d", fileNum, thisOffset),
+		}:
+			// Nothing.
 		case <-ctx.Done():
-			return fmt.Sprintf("%d %d", lastSent.fileNum, lastSent.offset), context.ErrCanceled
+			return context.ErrCanceled
 		}
 	}
 }

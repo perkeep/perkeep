@@ -96,6 +96,15 @@ type BlobEnumerator interface {
 		limit int) error
 }
 
+// BlobAndToken is the value used by the BlobStreamer interface,
+// containing both a Blob and a continuation token.
+type BlobAndToken struct {
+	*blob.Blob
+	// Token is the continuation token to resume streaming
+	// starting at this blob in the future.
+	Token string
+}
+
 type BlobStreamer interface {
 	// BlobStream is an optional interface that may be implemented by
 	// Storage implementations.
@@ -105,28 +114,20 @@ type BlobStreamer interface {
 	// BlobStreamer will send blobs to dest in the most efficient
 	// order possible.
 	//
-	// The provided continuation token resumes the stream from a
-	// point.  To start from the beginning, send the empty string.
+	// The provided continuation token resumes the stream at a
+	// point. To start from the beginning, send the empty string.
 	// The token is opaque and must never be interpreted; its
 	// format may change between versions of the server.
 	//
 	// If the content is canceled, the error value is
-	// context.ErrCanceled and the nextContinueToken is a
-	// continuation token to resume exactly _at_ (not after) the
-	// last value sent.  This lets callers receive a blob, decide
-	// its size crosses a threshold, and resume at that blob at a
-	// later point. Callers should thus usually pass an unbuffered
-	// channel, although it is not an error to do otherwise, if
-	// the caller is careful.
+	// context.ErrCanceled.
 	//
 	// StreamBlobs must unconditionally close dest before
 	// returning, and it must return context.ErrCanceled if
 	// ctx.Done() becomes readable.
 	//
-	// When StreamBlobs reaches the end, the return value is ("", nil).
-	// The nextContinueToken must only ever be non-empty if err is
-	// context.ErrCanceled.
-	StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string) (nextContinueToken string, err error)
+	// When StreamBlobs reaches the end, the return value is nil.
+	StreamBlobs(ctx *context.Context, dest chan<- BlobAndToken, contToken string) error
 }
 
 // Cache is the minimal interface expected of a blob cache.

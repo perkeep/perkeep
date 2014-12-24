@@ -20,16 +20,31 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"strings"
 	"testing"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/types"
 )
 
 // Blob is a utility class for unit tests.
 type Blob struct {
 	Contents string // the contents of the blob
+}
+
+func (tb *Blob) Blob() *blob.Blob {
+	s := tb.Contents
+	return blob.NewBlob(tb.BlobRef(), tb.Size(), func() types.ReadSeekCloser {
+		return struct {
+			io.ReadSeeker
+			io.Closer
+		}{
+			io.NewSectionReader(strings.NewReader(s), 0, int64(len(s))),
+			ioutil.NopCloser(nil),
+		}
+	})
 }
 
 func (tb *Blob) BlobRef() blob.Ref {

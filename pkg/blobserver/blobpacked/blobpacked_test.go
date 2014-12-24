@@ -446,6 +446,7 @@ func TestZ_LeakCheck(t *testing.T) {
 }
 
 func TestStreamBlobs(t *testing.T) {
+	t.Skip("TODO: blob streaming isn't done in blobpacked")
 	small := new(test.Fetcher)
 	s := &storage{
 		small: small,
@@ -466,20 +467,17 @@ func TestStreamBlobs(t *testing.T) {
 	token := "" // beginning
 
 	got := map[blob.Ref]bool{}
-	dest := make(chan *blob.Blob, 16)
+	dest := make(chan blobserver.BlobAndToken, 16)
 	done := make(chan bool)
 	go func() {
 		defer close(done)
-		for b := range dest {
-			got[b.Ref()] = true
+		for bt := range dest {
+			got[bt.Blob.Ref()] = true
 		}
 	}()
-	nextToken, err := s.StreamBlobs(ctx, dest, token)
+	err := s.StreamBlobs(ctx, dest, token)
 	if err != nil {
 		t.Fatalf("StreamBlobs = %v", err)
-	}
-	if nextToken != "l:" {
-		t.Fatalf("nextToken = %q; want \"l:\"", nextToken)
 	}
 	<-done
 	if !reflect.DeepEqual(got, all) {

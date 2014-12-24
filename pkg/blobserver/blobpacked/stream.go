@@ -17,59 +17,36 @@ limitations under the License.
 package blobpacked
 
 import (
-	"errors"
-	"fmt"
-	"strings"
-
-	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/context"
-	"camlistore.org/pkg/types"
 )
 
 // StreamBlobs impl.
 
-// Continuation token is:
-// "s*" if we're in the small blobs, (or "" to start):
-//   "s:pt:<underlying token>" (pass through)
-//   "s:after:<last-blobref-set>" (blob ref of already-sent item)
-// "l*" if we're in the large blobs:
-//   "l:<big-blobref,lexically>:<offset>" (of blob data from beginning of zip)
-//   TODO: also care about whether large supports blob streamer?
-// First it streams from small (if available, else enumerates)
-// Then it streams from large (if available, else enumerates),
-// and for each large, streams the contents of the zips.
-func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string) (nextContinueToken string, err error) {
-	defer close(dest)
-	switch {
-	case contToken == "" || strings.HasPrefix(contToken, "s:"):
-		return s.streamSmallBlobs(ctx, dest, strings.TrimPrefix(contToken, "s:"))
-	case strings.HasPrefix(contToken, "l:"):
-		return s.streamLargeBlobs(ctx, dest, strings.TrimPrefix(contToken, "l:"))
-	default:
-		return "", fmt.Errorf("invalid continue token %q", contToken)
-	}
+func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
+	panic("TODO")
+	return blobserver.NewMultiBlobStreamer(
+		smallBlobStreamer{s},
+		largeBlobStreamer{s},
+	).StreamBlobs(ctx, dest, contToken)
 }
 
-func (s *storage) streamSmallBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string) (nextContinueToken string, err error) {
-	smallStream, ok := s.small.(blobserver.BlobStreamer)
-	if ok {
-		if contToken != "" || !strings.HasPrefix(contToken, "pt:") {
-			return "", errors.New("invalid pass-through stream token")
-		}
-		next, err := smallStream.StreamBlobs(ctx, dest, strings.TrimPrefix(contToken, "pt"))
-		if err == nil || next == "" {
-			next = "l:" // now do large
-		}
-		return next, err
-	}
-	if contToken != "" && !strings.HasPrefix(contToken, "after:") {
-		return "", fmt.Errorf("invalid small continue token %q", contToken)
-	}
-	enumCtx := ctx.New()
-	enumDone := enumCtx.Done()
-	defer enumCtx.Cancel()
-	sbc := make(chan blob.SizedRef) // unbuffered
+type smallBlobStreamer struct{ sto *storage }
+type largeBlobStreamer struct{ sto *storage }
+
+func (st smallBlobStreamer) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
+	panic("TODO")
+}
+
+func (st largeBlobStreamer) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
+	panic("TODO")
+}
+
+// TODO: move some ofthis old pre-NewMultiBlobStreamer code into
+// blobserver. in particular, transparently using enumerate for
+// BlobStreamer when the storage doesn't support it should be provided
+// by the blobserver package. inevitably others will want that.
+/*
 	enumErrc := make(chan error, 1)
 	go func() {
 		defer close(sbc)
@@ -114,7 +91,4 @@ func (s *storage) streamSmallBlobs(ctx *context.Context, dest chan<- *blob.Blob,
 	}
 	return "s:after:" + lastRef.String(), nil
 }
-
-func (s *storage) streamLargeBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string) (nextContinueToken string, err error) {
-	panic("TODO")
-}
+*/
