@@ -39,6 +39,8 @@ import (
 // Storage is an in-memory implementation of the blobserver Storage
 // interface. It also includes other convenience methods used by
 // tests.
+//
+// Its zero value is usable.
 type Storage struct {
 	maxSize int64 // or zero if no limit
 
@@ -53,6 +55,8 @@ type Storage struct {
 	blobsFetched int64 // atomic
 	bytesFetched int64 // atomic
 }
+
+var _ blobserver.BlobStreamer = (*Storage)(nil)
 
 func init() {
 	blobserver.RegisterStorageConstructor("memory", blobserver.StorageConstructor(newFromConfig))
@@ -202,6 +206,36 @@ func (s *Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef
 		n++
 		if limit > 0 && n == limit {
 			break
+		}
+	}
+	return nil
+}
+
+func (s *Storage) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) error {
+	// for this impl, contToken is >= blobref.String()
+	defer close(dest)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	sorted := make([]blob.Ref, 0, len(s.m))
+	for br := range s.m {
+		sorted = append(sorted, br)
+	}
+	sort.Sort(blob.ByRef(sorted))
+
+	for _, br := range sorted {
+		if br.String() < contToken {
+			continue
+		}
+		select {
+		case <-ctx.Done():
+			return context.ErrCanceled
+		case dest <- blobserver.BlobAndToken{
+			Blob: blob.NewBlob(br, uint32(len(s.m[br])), func() types.ReadSeekCloser {
+				return blob.NewLazyReadSeekCloser(s, br)
+			}),
+			Token: br.String(),
+		}:
 		}
 	}
 	return nil
