@@ -17,6 +17,11 @@ limitations under the License.
 package app
 
 import (
+	"bufio"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
 	"regexp"
 	"testing"
 )
@@ -146,5 +151,70 @@ func TestRandPortBackendURL(t *testing.T) {
 		if !reg.MatchString(got) {
 			t.Errorf("got: %v for %v, want: %v", got, v.apiHost, v.wantBackendURL)
 		}
+	}
+}
+
+// We just want a helper command that ignores SIGINT.
+func ignoreInterrupt() (*os.Process, error) {
+	script := `trap "echo hello" SIGINT
+echo READY
+sleep 10000`
+	cmd := exec.Command("bash")
+
+	w, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get pipe for helper shell")
+	}
+	go io.WriteString(w, script)
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get pipe for helper shell")
+	}
+
+	err = cmd.Start()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't start helper shell")
+	}
+
+	r := bufio.NewReader(stdout)
+	l, err := r.ReadBytes('\n')
+	if err != nil {
+		return nil, fmt.Errorf("couldn't read from helper shell")
+	}
+	if string(l) != "READY\n" {
+		return nil, fmt.Errorf("unexpected output from helper shell script")
+	}
+	return cmd.Process, nil
+}
+
+func TestQuit(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
+
+	cmd := exec.Command("sleep", "10000")
+	err := cmd.Start()
+	if err != nil {
+		t.Skip("couldn't run test helper command")
+	}
+	h := Handler{
+		process: cmd.Process,
+	}
+	err = h.Quit()
+	if err != nil {
+		t.Errorf("got %v, wanted %v", err, nil)
+	}
+
+	pid, err := ignoreInterrupt()
+	if err != nil {
+		t.Skip("couldn't run test helper command: %v", err)
+	}
+	h = Handler{
+		process: pid,
+	}
+	err = h.Quit()
+	if err != errProcessTookTooLong {
+		t.Errorf("got %v, wanted %v", err, errProcessTookTooLong)
 	}
 }
