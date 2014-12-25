@@ -57,7 +57,7 @@ func (c *permanodeCmd) Usage() {
 func (c *permanodeCmd) Examples() []string {
 	return []string{
 		"                               (create a new permanode)",
-		`-name="Some Name" -tag=foo,bar (with attributes added)`,
+		`-title="Some Title" -tag=foo,bar (with attributes added)`,
 	}
 }
 
