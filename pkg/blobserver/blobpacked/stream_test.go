@@ -108,6 +108,11 @@ func TestStreamBlobs_Packed_Streamed(t *testing.T) {
 	testStreamBlobs(t, streamStore(), streamStore(), populatePacked)
 }
 
+// 2 packed files
+func TestStreamBlobs_Packed2_Streamed(t *testing.T) {
+	testStreamBlobs(t, streamStore(), streamStore(), populatePacked2)
+}
+
 func testStreamBlobs(t *testing.T,
 	small blobserver.Storage,
 	large subFetcherStorage,
@@ -136,6 +141,20 @@ func populatePacked(t *testing.T, s *storage) (wants []storagetest.StreamerTestO
 	const fileName = "foo.dat"
 	fileContents := randBytes(fileSize)
 	_, err := schema.WriteFileFromReader(s, fileName, bytes.NewReader(fileContents))
+	if err != nil {
+		t.Fatalf("WriteFileFromReader: %v", err)
+	}
+	return nil
+}
+
+func populatePacked2(t *testing.T, s *storage) (wants []storagetest.StreamerTestOpt) {
+	const fileSize = 1 << 20
+	data := randBytes(fileSize)
+	_, err := schema.WriteFileFromReader(s, "first-half.dat", bytes.NewReader(data[:fileSize/2]))
+	if err != nil {
+		t.Fatalf("WriteFileFromReader: %v", err)
+	}
+	_, err = schema.WriteFileFromReader(s, "second-half.dat", bytes.NewReader(data[fileSize/2:]))
 	if err != nil {
 		t.Fatalf("WriteFileFromReader: %v", err)
 	}
