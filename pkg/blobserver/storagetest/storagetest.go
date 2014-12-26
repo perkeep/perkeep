@@ -408,7 +408,6 @@ func TestStreamer(t *testing.T, bs StreamEnumerator, opts ...StreamerTestOpt) {
 	}); err != nil {
 		t.Fatalf("Enumerate: %v", err)
 	}
-	t.Logf("enumerated %d blobs in stream test", len(sawEnum))
 
 	// See if, without cancelation, it yields the right
 	// result and without errors.
