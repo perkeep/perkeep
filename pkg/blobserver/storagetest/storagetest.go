@@ -419,7 +419,9 @@ func TestStreamer(t *testing.T, bs StreamEnumerator, opts ...StreamerTestOpt) {
 		errCh <- bs.StreamBlobs(ctx, ch, "")
 	}()
 	var gotRefs []blob.SizedRef
+	sawStreamed := map[blob.Ref]int{}
 	for b := range ch {
+		sawStreamed[b.Ref()]++
 		sbr := b.SizedRef()
 		if _, ok := sawEnum[sbr]; ok {
 			delete(sawEnum, sbr)
@@ -430,6 +432,11 @@ func TestStreamer(t *testing.T, bs StreamEnumerator, opts ...StreamerTestOpt) {
 	}
 	if err := <-errCh; err != nil {
 		t.Errorf("initial uninterrupted StreamBlobs error: %v", err)
+	}
+	for br, n := range sawStreamed {
+		if n > 1 {
+			t.Errorf("Streamed returned duplicate %v, %d times", br, n)
+		}
 	}
 	nMissing := 0
 	for sbr := range sawEnum {
@@ -459,6 +466,7 @@ func TestStreamer(t *testing.T, bs StreamEnumerator, opts ...StreamerTestOpt) {
 	// Each iteration should yield 1 new unique blob and all but
 	// the first and last will return 2 blobs.
 	wantRefs := append([]blob.SizedRef(nil), gotRefs...) // copy
+	sawStreamed = map[blob.Ref]int{}
 	gotRefs = gotRefs[:0]
 	contToken := ""
 	for i := 0; i < len(wantRefs); i++ {
@@ -475,6 +483,10 @@ func TestStreamer(t *testing.T, bs StreamEnumerator, opts ...StreamerTestOpt) {
 			sbr := bt.Blob.SizedRef()
 			isNew := len(gotRefs) == 0 || sbr != gotRefs[len(gotRefs)-1]
 			if isNew {
+				if sawStreamed[sbr.Ref] > 0 {
+					t.Fatalf("In complex pass, returned duplicate blob %v\n\nSo far, before interrupting:\n%v\n\nWant:\n%v", sbr, gotRefs, wantRefs)
+				}
+				sawStreamed[sbr.Ref]++
 				gotRefs = append(gotRefs, sbr)
 				nextToken = bt.Token
 				ctx.Cancel()
@@ -495,9 +507,23 @@ func TestStreamer(t *testing.T, bs StreamEnumerator, opts ...StreamerTestOpt) {
 		contToken = nextToken
 	}
 	if !reflect.DeepEqual(gotRefs, wantRefs) {
-		if len(gotRefs) != len(wantRefs) {
-			t.Errorf("With complex pass, got %d blobs; want %d", len(gotRefs), len(wantRefs))
+		t.Errorf("Mismatch on complex pass (got %d, want %d):\n got %q\nwant %q\n", len(gotRefs), len(wantRefs), gotRefs, wantRefs)
+		wantMap := map[blob.SizedRef]bool{}
+		for _, sbr := range wantRefs {
+			wantMap[sbr] = true
 		}
-		t.Fatalf("Mismatch on complex pass:\n got %q\nwant %q\n", gotRefs, wantRefs)
+		for _, sbr := range gotRefs {
+			if _, ok := wantMap[sbr]; ok {
+				delete(wantMap, sbr)
+			} else {
+				t.Errorf("got has unwanted: %v", sbr)
+			}
+		}
+		missing := wantMap // found stuff has been deleted
+		for sbr := range missing {
+			t.Errorf("got is missing: %v", sbr)
+		}
+
+		t.FailNow()
 	}
 }
