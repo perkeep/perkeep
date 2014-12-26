@@ -25,7 +25,6 @@ import (
 	"math/rand"
 	"reflect"
 	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -443,76 +442,6 @@ func TestZ_LeakCheck(t *testing.T) {
 	if n > 1 {
 		t.Errorf("%d goroutines in chan receive: %s", n, buf)
 	}
-}
-
-func TestStreamBlobs(t *testing.T) {
-	small := new(test.Fetcher)
-	s := &storage{
-		small: small,
-		large: new(test.Fetcher),
-		meta:  sorted.NewMemoryKeyValue(),
-		log:   test.NewLogger(t, "blobpacked: "),
-	}
-	s.init()
-
-	all := map[blob.Ref]bool{}
-	const nBlobs = 10
-	for i := 0; i < nBlobs; i++ {
-		b := &test.Blob{strconv.Itoa(i)}
-		b.MustUpload(t, small)
-		all[b.BlobRef()] = true
-	}
-	ctx := context.New()
-	defer ctx.Cancel()
-	token := "" // beginning
-
-	got := map[blob.Ref]bool{}
-	dest := make(chan blobserver.BlobAndToken, 16)
-	done := make(chan bool)
-	go func() {
-		defer close(done)
-		for bt := range dest {
-			got[bt.Blob.Ref()] = true
-		}
-	}()
-	err := s.StreamBlobs(ctx, dest, token)
-	if err != nil {
-		t.Fatalf("StreamBlobs = %v", err)
-	}
-	<-done
-	if !reflect.DeepEqual(got, all) {
-		t.Errorf("Got blobs %v; want %v", got, all)
-	}
-	storagetest.TestStreamer(t, s, storagetest.WantN(nBlobs))
-}
-
-func TestStreamBlobs_Loose_Enumerate(t *testing.T) {
-	testStreamBlobsLoose(t, false)
-}
-
-func TestStreamBlobs_Loose_Streamed(t *testing.T) {
-	testStreamBlobsLoose(t, true)
-}
-
-func testStreamBlobsLoose(t *testing.T, streamed bool) {
-	var small blobserver.Storage = new(test.Fetcher)
-	if !streamed {
-		// Hide the BlobStreamer interface impl.
-		small = struct{ blobserver.Storage }{small}
-
-	}
-	s := &storage{
-		small: small,
-		large: new(test.Fetcher), // unused
-		meta:  sorted.NewMemoryKeyValue(),
-		log:   test.NewLogger(t, "blobpacked: "),
-	}
-	s.init()
-	const nBlobs = 10
-	for i := 0; i < nBlobs; i++ {
-		(&test.Blob{strconv.Itoa(i)}).MustUpload(t, small)
-	}
-	storagetest.TestStreamer(t, s, storagetest.WantN(nBlobs))
 }
 
 func TestForeachZipBlob(t *testing.T) {

@@ -17,6 +17,11 @@ limitations under the License.
 package blobpacked
 
 import (
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/context"
@@ -58,8 +63,64 @@ func (st smallBlobStreamer) StreamBlobs(ctx *context.Context, dest chan<- blobse
 	})
 }
 
+var errContToken = errors.New("blobpacked: bad continuation token")
+
+// contToken is of forms:
+//    ""                : start from beginning of zip files
+//    "sha1-xxxxx:n"    : start at == (sha1-xxxx, file n), else next zip
 func (st largeBlobStreamer) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
 	defer close(dest)
-	// TODO(bradfitz): implement
-	return nil
+	s := st.sto
+	large := s.large
+
+	var after string // for enumerateAll
+	var skipFiles int
+	var firstRef blob.Ref // first we care about
+
+	if contToken != "" {
+		f := strings.SplitN(contToken, ":", 2)
+		if len(f) != 2 {
+			return errContToken
+		}
+		firstRef, _ = blob.Parse(f[0])
+		skipFiles, err = strconv.Atoi(f[1])
+		if !firstRef.Valid() || err != nil {
+			return errContToken
+		}
+		// EnumerateAllFrom takes a cursor that's greater, but
+		// we want to start _at_ firstRef. So start
+		// enumerating right before our target.
+		after = firstRef.StringMinusOne()
+	}
+	return blobserver.EnumerateAllFrom(ctx, large, after, func(sb blob.SizedRef) error {
+		if firstRef.Valid() {
+			if sb.Ref.Less(firstRef) {
+				// Skip.
+				return nil
+			}
+			if firstRef.Less(sb.Ref) {
+				skipFiles = 0 // reset it.
+			}
+		}
+		fileN := 0
+		return s.foreachZipBlob(sb.Ref, func(bap BlobAndPos) error {
+			if skipFiles > 0 {
+				skipFiles--
+				fileN++
+				return nil
+			}
+			select {
+			case dest <- blobserver.BlobAndToken{
+				Blob: blob.NewBlob(bap.Ref, bap.Size, func() types.ReadSeekCloser {
+					return blob.NewLazyReadSeekCloser(s, bap.Ref)
+				}),
+				Token: fmt.Sprintf("%s:%d", sb.Ref, fileN),
+			}:
+				fileN++
+				return nil
+			case <-ctx.Done():
+				return context.ErrCanceled
+			}
+		})
+	})
 }

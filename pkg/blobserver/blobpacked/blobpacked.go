@@ -904,7 +904,7 @@ func (s *storage) foreachZipBlob(zipRef blob.Ref, fn func(BlobAndPos) error) err
 	}
 	zr, err := zip.NewReader(blob.ReaderAt(s.large, zipRef), int64(sb.Size))
 	if err != nil {
-		return err
+		return err // TODO: return an error of type "zipOpenError" so stream can skip it?
 	}
 	var maniFile *zip.File // or nil if not found
 	var firstOff int64     // offset of first file (the packed data chunks)
