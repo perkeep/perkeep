@@ -128,8 +128,7 @@ func (s *storage) reindexOne(ctx *context.Context, index sorted.KeyValue, overwr
 	}
 
 	if overwrite && batch != nil {
-		log.Printf("overwriting %s from %d", index, packID)
-		if err = index.CommitBatch(batch); err != nil {
+		if err := index.CommitBatch(batch); err != nil {
 			return err
 		}
 	} else if !allOk {

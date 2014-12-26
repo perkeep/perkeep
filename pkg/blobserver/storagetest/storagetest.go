@@ -388,11 +388,29 @@ func (s WantSizedRefs) verify(got []blob.SizedRef) error {
 	return nil
 }
 
+type StreamEnumerator interface {
+	blobserver.BlobStreamer
+	blobserver.BlobEnumerator
+}
+
 // TestStreamer tests that the BlobStreamer implements all of the
 // promised interface behavior and ultimately yields the provided
 // blobs.
-func TestStreamer(t *testing.T, bs blobserver.BlobStreamer, opts ...StreamerTestOpt) {
-	// First see if, without cancelation, it yields the right
+func TestStreamer(t *testing.T, bs StreamEnumerator, opts ...StreamerTestOpt) {
+	// First do an enumerate over all blobs as a baseline. The Streamer should
+	// yield the same blobs, even if it's in a different order.
+	sawEnum := make(map[blob.SizedRef]bool)
+	enumCtx := context.New()
+	defer enumCtx.Cancel()
+	if err := blobserver.EnumerateAll(enumCtx, bs, func(sb blob.SizedRef) error {
+		sawEnum[sb] = true
+		return nil
+	}); err != nil {
+		t.Fatalf("Enumerate: %v", err)
+	}
+	t.Logf("enumerated %d blobs in stream test", len(sawEnum))
+
+	// See if, without cancelation, it yields the right
 	// result and without errors.
 	ch := make(chan blobserver.BlobAndToken)
 	errCh := make(chan error, 1)
@@ -403,10 +421,25 @@ func TestStreamer(t *testing.T, bs blobserver.BlobStreamer, opts ...StreamerTest
 	}()
 	var gotRefs []blob.SizedRef
 	for b := range ch {
-		gotRefs = append(gotRefs, b.SizedRef())
+		sbr := b.SizedRef()
+		if _, ok := sawEnum[sbr]; ok {
+			delete(sawEnum, sbr)
+		} else {
+			t.Errorf("Streamer yielded blob not returned by Enumerate: %v", sbr)
+		}
+		gotRefs = append(gotRefs, sbr)
 	}
 	if err := <-errCh; err != nil {
 		t.Errorf("initial uninterrupted StreamBlobs error: %v", err)
+	}
+	nMissing := 0
+	for sbr := range sawEnum {
+		t.Errorf("Enumerate found %v but Streamer didn't return it", sbr)
+		nMissing++
+		if nMissing == 10 && len(sawEnum) > 10 {
+			t.Errorf("... etc ...")
+			break
+		}
 	}
 	for _, opt := range opts {
 		if err := opt.verify(gotRefs); err != nil {

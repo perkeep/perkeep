@@ -43,13 +43,17 @@ type pack struct {
 	blobs []blobDetails
 }
 
-// TODO: why is this named pool00001? (--bradfitz)
-var pool00001 = []blobDetails{
+var testPack1 = []blobDetails{
 	{"sha1-04f029feccd2c5c3d3ef87329eb85606bbdd2698", "94"},
 	{"sha1-db846319868cf27ecc444bcc34cf126c86bf9a07", "6396"},
 	{"sha1-4316a49fc962f627350ca0a01532421b8b93831d", "b782e7a6"},
 	{"sha1-74801cba6ffe31238f9995cc759b823aed8bd78c", "eedc50aebfa58de1"},
 	{"sha1-bd2a193deeb56aa2554a53eda95d69a95e7bf642", "104c00d6cf9f486f277e8f0493759a21"},
+}
+
+var testPack2 = []blobDetails{
+	{"sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33", fmt.Sprintf("%x", []byte("foo"))},
+	{"sha1-62cdb7020ff920e5aa642c3d4066950dd1f01f4d", fmt.Sprintf("%x", []byte("bar"))},
 }
 
 func uploadTestBlobs(t *testing.T, s blobserver.Storage, blobs []blobDetails) {
@@ -112,6 +116,9 @@ func newTestStorage(t *testing.T, packs ...pack) (s *storage, clean func()) {
 		writePack(t, dir, i, p)
 	}
 
+	if err := Reindex(dir, true, nil); err != nil {
+		t.Fatalf("Reindexing after writing pack files: %v", err)
+	}
 	s, err = newStorage(dir, 0, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -148,10 +155,10 @@ func streamAll(t *testing.T, s *storage) []*blob.Blob {
 
 // Tests the streaming of all blobs in a storage, with hash verification.
 func TestBasicStreaming(t *testing.T) {
-	s, clean := newTestStorage(t, pack{pool00001})
+	s, clean := newTestStorage(t, pack{testPack1})
 	defer clean()
 
-	expected := len(pool00001)
+	expected := len(testPack1)
 	blobs := streamAll(t, s)
 	if len(blobs) != expected {
 		t.Fatalf("Wrong blob count: Expected %d, got %d", expected,
@@ -185,9 +192,9 @@ func verifySizeAndHash(t *testing.T, blob *blob.Blob) {
 // Tests that we can correctly switch over to the next pack if we
 // still need to stream more blobs when a pack reaches EOF.
 func TestStreamMultiplePacks(t *testing.T) {
-	s, clean := newTestStorage(t, pack{pool00001}, pack{pool00001})
+	s, clean := newTestStorage(t, pack{testPack1}, pack{testPack2})
 	defer clean()
-	storagetest.TestStreamer(t, s, storagetest.WantN(len(pool00001)+len(pool00001)))
+	storagetest.TestStreamer(t, s, storagetest.WantN(len(testPack1)+len(testPack2)))
 }
 
 func TestStreamSkipRemovedBlobs(t *testing.T) {
@@ -199,11 +206,11 @@ func TestStreamSkipRemovedBlobs(t *testing.T) {
 	s, cleanup := newTempDiskpacked(t)
 	defer cleanup()
 
-	uploadTestBlobs(t, s, pool00001)
+	uploadTestBlobs(t, s, testPack1)
 
-	ref, ok := blob.Parse(pool00001[0].digest)
+	ref, ok := blob.Parse(testPack1[0].digest)
 	if !ok {
-		t.Fatalf("blob.Parse: %s", pool00001[0].digest)
+		t.Fatalf("blob.Parse: %s", testPack1[0].digest)
 	}
 
 	err := s.RemoveBlobs([]blob.Ref{ref})
@@ -212,6 +219,6 @@ func TestStreamSkipRemovedBlobs(t *testing.T) {
 	}
 
 	diskpackedSto := s.(*storage)
-	expected := len(pool00001) - 1 // We've deleted 1
+	expected := len(testPack1) - 1 // We've deleted 1
 	storagetest.TestStreamer(t, diskpackedSto, storagetest.WantN(expected))
 }
