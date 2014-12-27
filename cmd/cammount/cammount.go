@@ -212,6 +212,12 @@ func main() {
 	select {
 	case err := <-doneServe:
 		log.Printf("conn.Serve returned %v", err)
+
+		// check if the mount process has an error to report
+		<-conn.Ready
+		if err := conn.MountError; err != nil {
+			log.Printf("conn.MountError: %v", err)
+		}
 	case sig := <-sigc:
 		log.Printf("Signal %s received, shutting down.", sig)
 	case <-quitKey:
