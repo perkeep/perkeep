@@ -549,6 +549,7 @@ cam.IndexPage = React.createClass({
 			if (++numComplete == blobrefs.length) {
 				this.setSelection_({});
 				this.refreshIfNecessary_();
+				this.navigator_.navigate(this.getDetailURL_(permanode));
 			}
 		}.bind(this);
 
