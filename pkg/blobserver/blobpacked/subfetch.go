@@ -17,6 +17,7 @@ limitations under the License.
 package blobpacked
 
 import (
+	"errors"
 	"io"
 	"io/ioutil"
 
@@ -37,19 +38,28 @@ func (s *storage) SubFetch(ref blob.Ref, offset, length int64) (io.ReadCloser, e
 		return nil, err
 	}
 	if m.isPacked() {
+		length, err = capOffsetLength(m.size, offset, length)
+		if err != nil {
+			return nil, err
+		}
 		// get the blob from the large subfetcher
 		return s.large.SubFetch(m.largeRef, int64(m.largeOff)+offset, length)
 	}
 	if sf, ok := s.small.(blob.SubFetcher); ok {
 		return sf.SubFetch(ref, offset, length)
 	}
-	rc, _, err := s.small.Fetch(ref)
+	rc, size, err := s.small.Fetch(ref)
 	if err != nil {
 		return rc, err
 	}
+	length, err = capOffsetLength(size, offset, length)
+	if err != nil {
+		rc.Close()
+		return nil, err
+	}
 	if offset != 0 {
 		if _, err = io.CopyN(ioutil.Discard, rc, offset); err != nil {
-			_ = rc.Close()
+			rc.Close()
 			return nil, err
 		}
 	}
@@ -57,4 +67,17 @@ func (s *storage) SubFetch(ref blob.Ref, offset, length int64) (io.ReadCloser, e
 		io.Reader
 		io.Closer
 	}{io.LimitReader(rc, length), rc}, nil
+}
+
+func capOffsetLength(size uint32, offset, length int64) (newLength int64, err error) {
+	if offset < 0 || length < 0 {
+		return 0, errors.New("invalid negative subfetch parameters")
+	}
+	if offset > int64(size) {
+		return 0, errors.New("subfetch offset greater than blob size")
+	}
+	if over := (offset + length) - int64(size); over > 0 {
+		length -= over
+	}
+	return length, nil
 }
