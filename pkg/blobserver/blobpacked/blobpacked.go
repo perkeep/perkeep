@@ -293,6 +293,8 @@ type meta struct {
 	largeOff uint32
 }
 
+func (m *meta) isPacked() bool { return m.largeRef.Valid() }
+
 // if not found, err == nil.
 func (s *storage) getMetaRow(br blob.Ref) (meta, error) {
 	v, err := s.meta.Get(blobMetaPrefix + br.String())
@@ -375,7 +377,7 @@ func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, 
 			return sb, err
 		}
 	}
-	if !isFile || meta.largeRef.Valid() || fileBlob.PartsSize() < packThreshold {
+	if !isFile || meta.isPacked() || fileBlob.PartsSize() < packThreshold {
 		return sb, nil
 	}
 
@@ -394,7 +396,7 @@ func (s *storage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	if !m.exists || !m.largeRef.Valid() {
+	if !m.exists || !m.isPacked() {
 		return s.small.Fetch(br)
 	}
 	rc, err := s.large.SubFetch(m.largeRef, int64(m.largeOff), int64(m.size))
@@ -434,7 +436,7 @@ func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			if m.largeRef.Valid() {
+			if m.isPacked() {
 				packed = append(packed, br)
 				large[m.largeRef] = true
 			} else {
@@ -995,7 +997,7 @@ func (s *storage) zipPartsInUse(br blob.Ref) ([]blob.Ref, error) {
 			if err != nil {
 				return err
 			}
-			if mr.largeRef.Valid() {
+			if mr.isPacked() {
 				mu.Lock()
 				inUse = append(inUse, mr.largeRef)
 				mu.Unlock()
