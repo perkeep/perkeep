@@ -643,6 +643,9 @@ MakingZips:
 		if err := pk.writeAZip(trunc); err != nil {
 			if needTrunc, ok := err.(needsTruncatedAfterError); ok {
 				trunc = needTrunc.Ref
+				// TODO: add a hook here for TestPackerBoundarySplits to verify
+				// we hit this case.
+				// println(fmt.Sprintf("hit truncate error after %v", trunc))
 				continue MakingZips
 			}
 			return err

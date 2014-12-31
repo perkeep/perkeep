@@ -25,6 +25,7 @@ import (
 	"math/rand"
 	"reflect"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -607,6 +608,87 @@ func TestRemoveBlobs(t *testing.T) {
 	if n := dRows(); n != 0 {
 		t.Errorf("expected the 'd:' row to be deleted")
 	}
+}
+
+func TestPackerBoundarySplits(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow test")
+	}
+	// Test a file of two chunk sizes, totalling near the 16 MB
+	// boundary.  The first chunk is always 12 MB (somewhat
+	// arbitrarily), then we binary search the largest chunk we
+	// can append to that to keep it in 1 zip file.  Some will be
+	// in 2 zip files, and that's okay, but we want to exercise
+	// all the boundary cases, and using a binary search to find
+	// the exact size exercises thoses paths while minimizing the
+	// search space.
+	const sizeA = 12 << 20
+	const maxBlobSize = 16 << 20
+	bytesA := randBytes(sizeA)
+	blobA := &test.Blob{string(bytesA)}
+	refA := blobA.BlobRef()
+	bytesBFull := randBytes(maxBlobSize - sizeA) // will be sliced down
+	generatesTwoZips := func(sizeB int) (ret bool) {
+		large := new(test.Fetcher)
+		s := &storage{
+			small: new(test.Fetcher),
+			large: large,
+			meta:  sorted.NewMemoryKeyValue(),
+			log: test.NewLogger(t, "blobpacked: ",
+				// Ignore these phrases:
+				"Packing file ",
+				"Packed file ",
+			),
+		}
+		s.init()
+
+		// Upload first chunk
+		blobA.MustUpload(t, s)
+
+		// Upload second chunk
+		bytesB := bytesBFull[:sizeB]
+		h := blob.NewHash()
+		h.Write(bytesB)
+		refB := blob.RefFromHash(h)
+		_, err := s.ReceiveBlob(refB, bytes.NewReader(bytesB))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Upload the file schema blob.
+		m := schema.NewFileMap("foo.dat")
+		m.PopulateParts(sizeA+int64(sizeB), []schema.BytesPart{
+			schema.BytesPart{
+				Size:    sizeA,
+				BlobRef: refA,
+			},
+			schema.BytesPart{
+				Size:    uint64(sizeB),
+				BlobRef: refB,
+			},
+		})
+		fjson, err := m.JSON()
+		if err != nil {
+			t.Fatalf("schema filemap JSON: %v", err)
+		}
+		fb := &test.Blob{Contents: fjson}
+		fb.MustUpload(t, s)
+		num := large.NumBlobs()
+		if num < 1 || num > 2 {
+			t.Fatalf("for size %d, num packed zip blobs = %d; want 1 or 2", sizeB, num)
+		}
+		return num == 2
+	}
+	maxB := maxBlobSize - sizeA
+	smallestB := sort.Search(maxB, generatesTwoZips)
+	if smallestB == maxB {
+		t.Fatalf("never found a point at which we generated 2 zip files")
+	}
+	t.Logf("After a 12 MB file chunk, the smallest blob that generates two zip files is %d bytes (%.03f MB)", smallestB, float64(smallestB)/(1<<20))
+	t.Logf("Zip overhead (for this two chunk file) = %d bytes", maxBlobSize-1-smallestB-sizeA)
+
+	// TODO: verify we hit the needsTruncatedAfterError case in the packer. So far this test
+	// doesn't seem to trigger it yet.
 }
 
 func slurpBlob(t *testing.T, sto blob.Fetcher, br blob.Ref) []byte {
