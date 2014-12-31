@@ -388,25 +388,27 @@ func (s WantSizedRefs) verify(got []blob.SizedRef) error {
 	return nil
 }
 
-type StreamEnumerator interface {
-	blobserver.BlobStreamer
-	blobserver.BlobEnumerator
-}
-
-// TestStreamer tests that the BlobStreamer implements all of the
+// TestStreamer tests that the BlobStreamer bs implements all of the
 // promised interface behavior and ultimately yields the provided
 // blobs.
-func TestStreamer(t *testing.T, bs StreamEnumerator, opts ...StreamerTestOpt) {
-	// First do an enumerate over all blobs as a baseline. The Streamer should
-	// yield the same blobs, even if it's in a different order.
-	sawEnum := make(map[blob.SizedRef]bool)
-	enumCtx := context.New()
-	defer enumCtx.Cancel()
-	if err := blobserver.EnumerateAll(enumCtx, bs, func(sb blob.SizedRef) error {
-		sawEnum[sb] = true
-		return nil
-	}); err != nil {
-		t.Fatalf("Enumerate: %v", err)
+//
+// If bs also implements BlobEnumerator, the two are compared for
+// consistency.
+func TestStreamer(t *testing.T, bs blobserver.BlobStreamer, opts ...StreamerTestOpt) {
+
+	var sawEnum map[blob.SizedRef]bool
+	if enumer, ok := bs.(blobserver.BlobEnumerator); ok {
+		sawEnum = make(map[blob.SizedRef]bool)
+		// First do an enumerate over all blobs as a baseline. The Streamer should
+		// yield the same blobs, even if it's in a different order.
+		enumCtx := context.New()
+		defer enumCtx.Cancel()
+		if err := blobserver.EnumerateAll(enumCtx, enumer, func(sb blob.SizedRef) error {
+			sawEnum[sb] = true
+			return nil
+		}); err != nil {
+			t.Fatalf("Enumerate: %v", err)
+		}
 	}
 
 	// See if, without cancelation, it yields the right
@@ -423,10 +425,12 @@ func TestStreamer(t *testing.T, bs StreamEnumerator, opts ...StreamerTestOpt) {
 	for b := range ch {
 		sawStreamed[b.Ref()]++
 		sbr := b.SizedRef()
-		if _, ok := sawEnum[sbr]; ok {
-			delete(sawEnum, sbr)
-		} else {
-			t.Errorf("Streamer yielded blob not returned by Enumerate: %v", sbr)
+		if sawEnum != nil {
+			if _, ok := sawEnum[sbr]; ok {
+				delete(sawEnum, sbr)
+			} else {
+				t.Errorf("Streamer yielded blob not returned by Enumerate: %v", sbr)
+			}
 		}
 		gotRefs = append(gotRefs, sbr)
 	}
