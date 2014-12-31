@@ -896,6 +896,15 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	return nil
 }
 
+type zipOpenError struct {
+	zipRef blob.Ref
+	err    error
+}
+
+func (ze zipOpenError) Error() string {
+	return fmt.Sprintf("Error opening packed zip blob %v: %v", ze.zipRef, ze.err)
+}
+
 // foreachZipBlob calls fn for each blob in the zip pack blob
 // identified by zipRef.  If fn returns a non-nil error,
 // foreachZipBlob stops enumerating with that error.
@@ -906,7 +915,7 @@ func (s *storage) foreachZipBlob(zipRef blob.Ref, fn func(BlobAndPos) error) err
 	}
 	zr, err := zip.NewReader(blob.ReaderAt(s.large, zipRef), int64(sb.Size))
 	if err != nil {
-		return err // TODO: return an error of type "zipOpenError" so stream can skip it?
+		return zipOpenError{zipRef, err}
 	}
 	var maniFile *zip.File // or nil if not found
 	var firstOff int64     // offset of first file (the packed data chunks)
