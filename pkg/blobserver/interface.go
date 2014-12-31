@@ -94,6 +94,10 @@ type BlobEnumerator interface {
 		dest chan<- blob.SizedRef,
 		after string,
 		limit int) error
+
+	// TODO: remove limit from this interface, since the caller
+	// can cancel? see if that would simplify implementations and
+	// callers.
 }
 
 // BlobAndToken is the value used by the BlobStreamer interface,
