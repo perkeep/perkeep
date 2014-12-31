@@ -557,7 +557,7 @@ func (s *storage) packFile(fileRef blob.Ref) (err error) {
 		if err == nil {
 			s.Logf("Packed file %s", fileRef)
 		} else {
-			s.Logf("Error packing file %s", fileRef)
+			s.Logf("Error packing file %s: %v", fileRef, err)
 		}
 	}()
 
