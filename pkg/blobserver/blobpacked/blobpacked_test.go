@@ -59,6 +59,28 @@ func TestStorage(t *testing.T) {
 	})
 }
 
+func TestStorageNoSmallSubfetch(t *testing.T) {
+	storagetest.Test(t, func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
+		s := &storage{
+			// We need to hide SubFetcher, to test *storage's SubFetch, as it delegates
+			// to the underlying SubFetcher, if small implements that interface.
+			small: hideSubFetcher(new(test.Fetcher)),
+			large: new(test.Fetcher),
+			meta:  sorted.NewMemoryKeyValue(),
+			log:   test.NewLogger(t, "blobpacked: "),
+		}
+		s.init()
+		return s, func() {}
+	})
+}
+
+func hideSubFetcher(sto blobserver.Storage) blobserver.Storage {
+	if _, ok := sto.(blob.SubFetcher); ok {
+		return struct{ blobserver.Storage }{sto}
+	}
+	return sto
+}
+
 func TestParseMetaRow(t *testing.T) {
 	cases := []struct {
 		in   string

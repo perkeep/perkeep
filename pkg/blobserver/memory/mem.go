@@ -20,6 +20,7 @@ package memory
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -107,11 +108,17 @@ func (s *Storage) Fetch(ref blob.Ref) (file io.ReadCloser, size uint32, err erro
 }
 
 func (s *Storage) SubFetch(ref blob.Ref, offset, length int64) (io.ReadCloser, error) {
+	if offset < 0 || length < 0 {
+		return nil, errors.New("invalid negative subfetch parameters")
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	b, ok := s.m[ref]
 	if !ok {
 		return nil, os.ErrNotExist
+	}
+	if offset > int64(len(b)) {
+		return nil, errors.New("subfetch offset greater than blob size")
 	}
 	atomic.AddInt64(&s.blobsFetched, 1)
 	atomic.AddInt64(&s.bytesFetched, length)

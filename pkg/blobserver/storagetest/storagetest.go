@@ -220,6 +220,26 @@ func (r *run) testSubFetcher() {
 			t.Errorf("SubFetch region %+v got %q; want %q", tt, all, tt.want)
 		}
 	}
+
+	// test invalid offsets
+	invalids := []struct {
+		off, limit int64
+	}{
+		{int64(len(big.Contents)) + 1, 1},
+		{-1, 1},
+		{1, -1},
+	}
+	for _, tt := range invalids {
+		r, err := sf.SubFetch(big.BlobRef(), tt.off, tt.limit)
+		if err == nil {
+			r.Close()
+			t.Errorf("No error fetching with off=%d limit=%d; wanted and error", tt.off, tt.limit)
+			continue
+		}
+		if v := err.Error(); !strings.Contains(v, "negative") && !strings.Contains(v, "offset") {
+			t.Errorf("Unexpected error fetching with off=%d limit=%d: %v", tt.off, tt.limit, err)
+		}
+	}
 }
 
 func testSizedBlob(t *testing.T, r io.Reader, b1 blob.Ref, size int64) {

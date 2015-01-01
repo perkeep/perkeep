@@ -361,8 +361,7 @@ func (s *storage) fetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, si
 		rs = io.NewSectionReader(rac, meta.offset, int64(meta.size))
 	} else {
 		if offset > int64(meta.size) {
-			offset = int64(meta.size)
-			length = 0
+			return nil, 0, errors.New("subfetch offset greater than blob size")
 		} else if offset+length > int64(meta.size) {
 			length = int64(meta.size) - offset
 		}

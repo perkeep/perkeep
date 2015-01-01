@@ -149,6 +149,9 @@ func (ds *DiskStorage) fetch(br blob.Ref, offset, length int64) (rc io.ReadClose
 		return file, size, nil
 	}
 	// SubFetch:
+	if offset < 0 || offset > stat.Size() {
+		return nil, 0, errors.New("invalid offset")
+	}
 	return struct {
 		io.Reader
 		io.Closer
