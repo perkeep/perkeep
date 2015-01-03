@@ -186,18 +186,26 @@ cam.IndexPage = React.createClass({
 
 	getAspects_: function() {
 		var childFrameClickHandler = this.navigator_.navigate.bind(null, this.navigator_);
-		return [
-			this.getSearchAspect_,
+		var target = this.getTargetBlobref_();
+		var getAspect = function(f) {
+			return f(target, this.targetSearchSession_);
+		}.bind(this);
+
+		var specificAspects = [
 			cam.ImageDetail.getAspect,
-			cam.PermanodeDetail.getAspect.bind(null, this.props.serverConnection, this.props.timer),
 			cam.DirectoryDetail.getAspect.bind(null, this.baseURL_, childFrameClickHandler),
+		].map(getAspect).filter(goog.functions.identity);
+
+		var generalAspects = [
+			this.getSearchAspect_.bind(null, specificAspects),
+			cam.PermanodeDetail.getAspect.bind(null, this.props.serverConnection, this.props.timer),
 			cam.BlobDetail.getAspect.bind(null, this.getDetailURL_, this.props.serverConnection),
-		].map(function(f) {
-			return f(this.getTargetBlobref_(), this.targetSearchSession_);
-		}, this).filter(goog.functions.identity);
+		].map(getAspect).filter(goog.functions.identity);
+
+		return specificAspects.concat(generalAspects);
 	},
 
-	getSearchAspect_: function(blobref, targetSearchSession) {
+	getSearchAspect_: function(specificAspects, blobref, targetSearchSession) {
 		if (blobref) {
 			var m = targetSearchSession.getMeta(blobref);
 			if (!m || !m.permanode) {
@@ -206,18 +214,16 @@ cam.IndexPage = React.createClass({
 				return null;
 			}
 
-			// This is a hard case: if we're looking at a permanode and it doesn't have any children, should we render a contents view or not?
-			//
-			// If we do render a contents view, then we have this stupid empty contents view for lots of permanodes types that will probably never have children, like images, tweets, or foursquare checkins.
-			//
-			// If we don't render a contents view, then permanodes that are meant to actually be sets, but are currently empty won't have a contents view to drag items on to. And when you delete the last item from a set, the contents view will disappear.
-			//
-			// I'm not sure what the right long term solution is, but not showing a contents view in this case seems less crappy for now.
-			//
-			// TODO(aa): This relies on the fact that the target search session currently returns attributes, even though that is inefficient and we ideally wouldn't want it to. See bug 435 for details.
-			// If we didn't want to rely on this, we'd have to wait for the child search session to come back to know whether we should show this aspect, which is fine, except it causes the UI to stutter -- initially we show no container aspect, then change our mind and show it.
-			// Ideally, I think the target search session should just include whether there are any children at all. We don't need to know their details in the target search session, but we do need to know whether any exist for optimal UI.
-			if (!cam.permanodeUtils.isContainer(m.permanode)) {
+			// If the permanode already has children, we always show the container view.
+			// Otherwise, show the container view only if there is no more specific type.
+			var showSearchAspect = false;
+			if (cam.permanodeUtils.isContainer(m.permanode)) {
+				showSearchAspect = true;
+			} else if (!cam.permanodeUtils.getCamliNodeType(m.permanode) && specificAspects.length == 0) {
+				showSearchAspect = true;
+			}
+
+			if (!showSearchAspect) {
 				return null;
 			}
 		}
