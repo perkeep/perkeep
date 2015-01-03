@@ -206,12 +206,18 @@ cam.IndexPage = React.createClass({
 				return null;
 			}
 
-			// We treat permanodes as a set if they have children, even if they aren't marked 'set', for backward compatibility.
+			// This is a hard case: if we're looking at a permanode and it doesn't have any children, should we render a contents view or not?
+			//
+			// If we do render a contents view, then we have this stupid empty contents view for lots of permanodes types that will probably never have children, like images, tweets, or foursquare checkins.
+			//
+			// If we don't render a contents view, then permanodes that are meant to actually be sets, but are currently empty won't have a contents view to drag items on to. And when you delete the last item from a set, the contents view will disappear.
+			//
+			// I'm not sure what the right long term solution is, but not showing a contents view in this case seems less crappy for now.
 			//
 			// TODO(aa): This relies on the fact that the target search session currently returns attributes, even though that is inefficient and we ideally wouldn't want it to. See bug 435 for details.
 			// If we didn't want to rely on this, we'd have to wait for the child search session to come back to know whether we should show this aspect, which is fine, except it causes the UI to stutter -- initially we show no container aspect, then change our mind and show it.
 			// Ideally, I think the target search session should just include whether there are any children at all. We don't need to know their details in the target search session, but we do need to know whether any exist for optimal UI.
-			if (cam.permanodeUtils.getSingleAttr(m.permanode, 'camliNodeType') != 'set' && !cam.permanodeUtils.isContainer(m.permanode)) {
+			if (!cam.permanodeUtils.isContainer(m.permanode)) {
 				return null;
 			}
 		}
@@ -490,6 +496,10 @@ cam.IndexPage = React.createClass({
 		)
 	},
 
+	handleNewPermanode_: function() {
+		this.props.serverConnection.createPermanode(this.getDetailURL_.bind(this));
+	},
+
 	getSearchRootsURL_: function() {
 		return this.baseURL_.clone().setParameterValue(
 			'q',
@@ -527,11 +537,9 @@ cam.IndexPage = React.createClass({
 	handleCreateSetWithSelection_: function() {
 		var selection = goog.object.getKeys(this.state.selection);
 		this.props.serverConnection.createPermanode(function(permanode) {
-			var setAttr = this.props.serverConnection.newSetAttributeClaim.bind(this.props.serverConnection, permanode);
-			goog.labs.Promise.all([
-				new goog.labs.Promise(setAttr.bind(null, 'camliNodeType', 'set')),
-				new goog.labs.Promise(setAttr.bind(null, 'title', 'New set'))
-			]).then(this.addMembersToSet_.bind(this, permanode, selection));
+			this.props.serverConnection.newSetAttributeClaim(permanode, 'title', 'New set', function() {
+				this.addMembersToSet_(permanode, selection);
+			}.bind(this));
 		}.bind(this));
 	},
 

@@ -59,8 +59,6 @@ search, FUSE, and web UI.
           attributes later.
         * "file". this permanode will have a "camliContent" later. for
           now, it should be treated as if it's an empty, 0-byte file.
-        * "set". an unordered set. the permanode will have "camliMember"
-          entries for each item in the set.
 
 "camliDefVis" (single-valued)
 
