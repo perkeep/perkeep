@@ -140,7 +140,6 @@ function getBlobParam() {
 	return (blobRef && isPlausibleBlobRef(blobRef)) ? blobRef : null;
 }
 
-// TODO(mpl): move it to a common place (used by permanode.js too).
 // I suppose we could go back to depending on camli.js for these little helpers only. Returns the first value from the query string corresponding to |key|. Returns null if the key isn't present.
 getQueryParam = function(key) {
 	var params = document.location.search.substring(1).split('&');
