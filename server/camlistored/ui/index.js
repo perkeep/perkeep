@@ -571,6 +571,7 @@ cam.IndexPage = React.createClass({
 	},
 
 	handleDeleteSelection_: function() {
+		// TODO(aa): Use promises.
 		var blobrefs = goog.object.getKeys(this.state.selection);
 		var msg = 'Delete';
 		if (blobrefs.length > 1) {
@@ -591,6 +592,28 @@ cam.IndexPage = React.createClass({
 				}
 			}.bind(this));
 		}.bind(this));
+	},
+
+	handleRemoveSelectionFromSet_: function() {
+		var target = this.getTargetBlobref_();
+		var permanode = this.targetSearchSession_.getMeta(target).permanode;
+		var sc = this.props.serverConnection;
+		var changes = [];
+
+		for (var k in permanode.attr) {
+			var values = permanode.attr[k];
+			for (var i = 0; i < values.length; i++) {
+				if (this.state.selection[values[i]]) {
+					if (k == 'camliMember' || goog.string.startsWith(k, 'camliPath:')) {
+						changes.push(new goog.labs.Promise(sc.newDelAttributeClaim.bind(sc, target, k, values[i])));
+					} else {
+						console.error('Unexpected attribute: ', k);
+					}
+				}
+			}
+		}
+
+		goog.labs.Promise.all(changes).then(this.refreshIfNecessary_);
 	},
 
 	handleOpenWindow_: function(url) {
@@ -705,6 +728,34 @@ cam.IndexPage = React.createClass({
 		);
 	},
 
+	getRemoveSelectionFromSetItem_: function() {
+		if (!goog.object.getAnyKey(this.state.selection)) {
+			return null;
+		}
+
+		var target = this.getTargetBlobref_();
+		if (!target) {
+			return null;
+		}
+
+		var meta = this.targetSearchSession_.getMeta(target);
+		if (!meta || !meta.permanode) {
+			return null;
+		}
+
+		if (!cam.permanodeUtils.isContainer(meta.permanode)) {
+			return null;
+		}
+
+		return React.DOM.button(
+			{
+				key: 'removeSelectionFromSet',
+				onClick: this.handleRemoveSelectionFromSet_,
+			},
+			'Remove from set'
+		);
+	},
+
 	getViewOriginalSelectionItem_: function() {
 		if (goog.object.getCount(this.state.selection) != 1) {
 			return null;
@@ -747,6 +798,7 @@ cam.IndexPage = React.createClass({
 						this.getCreateSetWithSelectionItem_(),
 						this.getSelectAsCurrentSetItem_(),
 						this.getAddToCurrentSetItem_(),
+						this.getRemoveSelectionFromSetItem_(),
 						this.getDeleteSelectionItem_(),
 						this.getViewOriginalSelectionItem_(),
 					].filter(goog.functions.identity),
