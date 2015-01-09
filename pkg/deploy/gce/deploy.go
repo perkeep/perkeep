@@ -41,9 +41,10 @@ import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/osutil"
 
-	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 	compute "camlistore.org/third_party/code.google.com/p/google-api-go-client/compute/v1"
 	storage "camlistore.org/third_party/code.google.com/p/google-api-go-client/storage/v1"
+	"camlistore.org/third_party/golang.org/x/oauth2"
+	"camlistore.org/third_party/golang.org/x/oauth2/google"
 )
 
 const (
@@ -66,17 +67,16 @@ const (
 var Verbose bool
 
 // NewOAuthConfig returns an OAuth configuration template.
-func NewOAuthConfig(clientId, clientSecret string) *oauth.Config {
-	return &oauth.Config{
-		Scope: strings.Join([]string{
+func NewOAuthConfig(clientID, clientSecret string) *oauth2.Config {
+	return &oauth2.Config{
+		Scopes: []string{
 			compute.DevstorageFull_controlScope,
 			compute.ComputeScope,
 			"https://www.googleapis.com/auth/sqlservice",
 			"https://www.googleapis.com/auth/sqlservice.admin",
-		}, " "),
-		AuthURL:      "https://accounts.google.com/o/oauth2/auth",
-		TokenURL:     "https://accounts.google.com/o/oauth2/token",
-		ClientId:     clientId,
+		},
+		Endpoint:     google.Endpoint,
+		ClientID:     clientID,
 		ClientSecret: clientSecret,
 	}
 }

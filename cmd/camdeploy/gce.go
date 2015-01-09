@@ -18,12 +18,12 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"strings"
 
@@ -31,7 +31,7 @@ import (
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/deploy/gce"
 
-	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
+	"camlistore.org/third_party/golang.org/x/oauth2"
 )
 
 type gceCmd struct {
@@ -117,7 +117,8 @@ func (c *gceCmd) RunCommand(args []string) error {
 	}
 
 	depl := &gce.Deployer{
-		Cl:   &http.Client{Transport: c.transport(config)},
+		Cl: oauth2.NewClient(oauth2.NoContext, oauth2.ReuseTokenSource(nil,
+			&tokenSource{config: config, cacheFile: c.project + "-token.json"})),
 		Conf: instConf,
 	}
 	inst, err := depl.Create(context.TODO())
@@ -144,25 +145,40 @@ func readFile(v string) string {
 	return strings.TrimSpace(string(slurp))
 }
 
-func (c *gceCmd) transport(config *oauth.Config) *oauth.Transport {
-	tr := &oauth.Transport{
-		Config: config,
-	}
-	tokenCache := oauth.CacheFile(c.project + "-token.dat")
-	token, err := tokenCache.Token()
-	if err != nil {
-		log.Printf("Error getting token from %s: %v", string(tokenCache), err)
-		log.Printf("Get auth code from %v", config.AuthCodeURL("my-state"))
-		io.WriteString(os.Stdout, "\nEnter auth code:")
-		sc := bufio.NewScanner(os.Stdin)
-		sc.Scan()
-		authCode := strings.TrimSpace(sc.Text())
-		token, err = tr.Exchange(authCode)
-		if err != nil {
-			log.Fatalf("Error exchanging auth code for a token: %v", err)
+type tokenSource struct {
+	config    *oauth2.Config
+	cacheFile string
+}
+
+func (src tokenSource) Token() (*oauth2.Token, error) {
+	tok := new(oauth2.Token)
+	tokenData, err := ioutil.ReadFile(src.cacheFile)
+	if err == nil {
+		err = json.Unmarshal(tokenData, tok)
+		if err == nil {
+			if tok.Valid() {
+				return tok, nil
+			}
+			err = errors.New("invalid token")
 		}
-		tokenCache.PutToken(token)
 	}
-	tr.Token = token
-	return tr
+	fmt.Printf("Error getting token from %s: %v\n", src.cacheFile, err)
+	fmt.Println("Get auth code from:")
+	fmt.Printf("%v\n", src.config.AuthCodeURL("my-state", oauth2.AccessTypeOffline, oauth2.ApprovalForce))
+	fmt.Println("Enter auth code:")
+	sc := bufio.NewScanner(os.Stdin)
+	sc.Scan()
+	authCode := strings.TrimSpace(sc.Text())
+	tok, err = src.config.Exchange(oauth2.NoContext, authCode)
+	if err != nil {
+		return nil, fmt.Errorf("could not exchange auth code for a token: %v", err)
+	}
+	tokenData, err = json.Marshal(&tok)
+	if err != nil {
+		return nil, fmt.Errorf("could not encode token as json: %v", err)
+	}
+	if err := ioutil.WriteFile(src.cacheFile, tokenData, 0600); err != nil {
+		return nil, fmt.Errorf("could not cache token in %v: %v", src.cacheFile, err)
+	}
+	return tok, nil
 }
