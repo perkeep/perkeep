@@ -37,6 +37,7 @@ import (
 	"sync"
 	"time"
 
+	"camlistore.org/pkg/constants/google"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/osutil"
@@ -44,7 +45,6 @@ import (
 	compute "camlistore.org/third_party/code.google.com/p/google-api-go-client/compute/v1"
 	storage "camlistore.org/third_party/code.google.com/p/google-api-go-client/storage/v1"
 	"camlistore.org/third_party/golang.org/x/oauth2"
-	"camlistore.org/third_party/golang.org/x/oauth2/google"
 )
 
 const (
