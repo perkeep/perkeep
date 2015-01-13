@@ -147,6 +147,7 @@ func main() {
 		"camlistore.org/cmd/camget",
 		"camlistore.org/cmd/camput",
 		"camlistore.org/cmd/camtool",
+		"camlistore.org/cmd/camdeploy",
 		"camlistore.org/server/camlistored",
 		"camlistore.org/app/hello",
 		"camlistore.org/app/publisher",
