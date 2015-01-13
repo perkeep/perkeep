@@ -17,6 +17,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -25,17 +26,21 @@ var coverSpec = flag.Bool("coverspec", false, "Run spec coverage tests")
 // The global map of sentence coverage for the http2 spec.
 var defaultSpecCoverage specCoverage
 
-func init() {
-	f, err := os.Open("testdata/draft-ietf-httpbis-http2.xml")
-	if err != nil {
+var loadSpecOnce sync.Once
+
+func loadSpec() {
+	if f, err := os.Open("testdata/draft-ietf-httpbis-http2.xml"); err != nil {
 		panic(err)
+	} else {
+		defaultSpecCoverage = readSpecCov(f)
+		f.Close()
 	}
-	defaultSpecCoverage = readSpecCov(f)
 }
 
 // covers marks all sentences for section sec in defaultSpecCoverage. Sentences not
 // "covered" will be included in report outputed by TestSpecCoverage.
 func covers(sec, sentences string) {
+	loadSpecOnce.Do(loadSpec)
 	defaultSpecCoverage.cover(sec, sentences)
 }
 
@@ -280,6 +285,8 @@ func TestSpecCoverage(t *testing.T) {
 	if !*coverSpec {
 		t.Skip()
 	}
+
+	loadSpecOnce.Do(loadSpec)
 
 	var (
 		list     []specPart

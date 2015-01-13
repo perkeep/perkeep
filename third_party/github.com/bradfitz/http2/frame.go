@@ -84,6 +84,9 @@ const (
 
 	// Continuation Frame
 	FlagContinuationEndHeaders Flags = 0x4
+
+	FlagPushPromiseEndHeaders = 0x4
+	FlagPushPromisePadded     = 0x8
 )
 
 var flagName = map[FrameType]map[Flags]string{
@@ -106,6 +109,10 @@ var flagName = map[FrameType]map[Flags]string{
 	FrameContinuation: {
 		FlagContinuationEndHeaders: "END_HEADERS",
 	},
+	FramePushPromise: {
+		FlagPushPromiseEndHeaders: "END_HEADERS",
+		FlagPushPromisePadded:     "PADDED",
+	},
 }
 
 // a frameParser parses a frame given its FrameHeader and payload
@@ -119,7 +126,7 @@ var frameParsers = map[FrameType]frameParser{
 	FramePriority:     parsePriorityFrame,
 	FrameRSTStream:    parseRSTStreamFrame,
 	FrameSettings:     parseSettingsFrame,
-	FramePushPromise:  nil, // TODO
+	FramePushPromise:  parsePushPromise,
 	FramePing:         parsePingFrame,
 	FrameGoAway:       parseGoAwayFrame,
 	FrameWindowUpdate: parseWindowUpdateFrame,
@@ -139,9 +146,22 @@ func typeFrameParser(t FrameType) frameParser {
 type FrameHeader struct {
 	valid bool // caller can access []byte fields in the Frame
 
-	Type     FrameType
-	Flags    Flags
-	Length   uint32 // actually a uint24 max; default is uint16 max
+	// Type is the 1 byte frame type. There are ten standard frame
+	// types, but extension frame types may be written by WriteRawFrame
+	// and will be returned by ReadFrame (as UnknownFrame).
+	Type FrameType
+
+	// Flags are the 1 byte of 8 potential bit flags per frame.
+	// They are specific to the frame type.
+	Flags Flags
+
+	// Length is the length of the frame, not including the 9 byte header.
+	// The maximum size is one byte less than 16MB (uint24), but only
+	// frames up to 16KB are allowed without peer agreement.
+	Length uint32
+
+	// StreamID is which stream this frame is for. Certain frames
+	// are not stream-specific, in which case this field is 0.
 	StreamID uint32
 }
 
@@ -626,9 +646,11 @@ type UnknownFrame struct {
 	p []byte
 }
 
-// Payload returns the frame's payload (after the header).
-// It is not valid to call this method after a subsequent
-// call to Framer.ReadFrame.
+// Payload returns the frame's payload (after the header).  It is not
+// valid to call this method after a subsequent call to
+// Framer.ReadFrame, nor is it valid to retain the returned slice.
+// The memory is owned by the Framer and is invalidated when the next
+// frame is read.
 func (f *UnknownFrame) Payload() []byte {
 	f.checkValid()
 	return f.p
@@ -704,6 +726,10 @@ func (f *HeadersFrame) HeadersEnded() bool {
 
 func (f *HeadersFrame) StreamEnded() bool {
 	return f.FrameHeader.Flags.Has(FlagHeadersEndStream)
+}
+
+func (f *HeadersFrame) HasPriority() bool {
+	return f.FrameHeader.Flags.Has(FlagHeadersPriority)
 }
 
 func parseHeadersFrame(fh FrameHeader, p []byte) (_ Frame, err error) {
@@ -832,8 +858,10 @@ type PriorityParam struct {
 	// Exclusive is whether the dependency is exclusive.
 	Exclusive bool
 
-	// Weight is the stream's weight. It should be set together
-	// with StreamDep, or neither should be set.
+	// Weight is the stream's zero-indexed weight. It should be
+	// set together with StreamDep, or neither should be set.  Per
+	// the spec, "Add one to the value to obtain a weight between
+	// 1 and 256."
 	Weight uint8
 }
 
@@ -942,6 +970,112 @@ func (f *Framer) WriteContinuation(streamID uint32, endHeaders bool, headerBlock
 	}
 	f.startWrite(FrameContinuation, flags, streamID)
 	f.wbuf = append(f.wbuf, headerBlockFragment...)
+	return f.endWrite()
+}
+
+// A PushPromiseFrame is used to initiate a server stream.
+// See http://http2.github.io/http2-spec/#rfc.section.6.6
+type PushPromiseFrame struct {
+	FrameHeader
+	PromiseID     uint32
+	headerFragBuf []byte // not owned
+}
+
+func (f *PushPromiseFrame) HeaderBlockFragment() []byte {
+	f.checkValid()
+	return f.headerFragBuf
+}
+
+func (f *PushPromiseFrame) HeadersEnded() bool {
+	return f.FrameHeader.Flags.Has(FlagPushPromiseEndHeaders)
+}
+
+func parsePushPromise(fh FrameHeader, p []byte) (_ Frame, err error) {
+	pp := &PushPromiseFrame{
+		FrameHeader: fh,
+	}
+	if pp.StreamID == 0 {
+		// PUSH_PROMISE frames MUST be associated with an existing,
+		// peer-initiated stream. The stream identifier of a
+		// PUSH_PROMISE frame indicates the stream it is associated
+		// with. If the stream identifier field specifies the value
+		// 0x0, a recipient MUST respond with a connection error
+		// (Section 5.4.1) of type PROTOCOL_ERROR.
+		return nil, ConnectionError(ErrCodeProtocol)
+	}
+	// The PUSH_PROMISE frame includes optional padding.
+	// Padding fields and flags are identical to those defined for DATA frames
+	var padLength uint8
+	if fh.Flags.Has(FlagPushPromisePadded) {
+		if p, padLength, err = readByte(p); err != nil {
+			return
+		}
+	}
+
+	p, pp.PromiseID, err = readUint32(p)
+	if err != nil {
+		return
+	}
+	pp.PromiseID = pp.PromiseID & (1<<31 - 1)
+
+	if int(padLength) > len(p) {
+		// like the DATA frame, error out if padding is longer than the body.
+		return nil, ConnectionError(ErrCodeProtocol)
+	}
+	pp.headerFragBuf = p[:len(p)-int(padLength)]
+	return pp, nil
+}
+
+// PushPromiseParam are the parameters for writing a PUSH_PROMISE frame.
+type PushPromiseParam struct {
+	// StreamID is the required Stream ID to initiate.
+	StreamID uint32
+
+	// PromiseID is the required Stream ID which this
+	// Push Promises
+	PromiseID uint32
+
+	// BlockFragment is part (or all) of a Header Block.
+	BlockFragment []byte
+
+	// EndHeaders indicates that this frame contains an entire
+	// header block and is not followed by any
+	// CONTINUATION frames.
+	EndHeaders bool
+
+	// PadLength is the optional number of bytes of zeros to add
+	// to this frame.
+	PadLength uint8
+}
+
+// WritePushPromise writes a single PushPromise Frame.
+//
+// As with Header Frames, This is the low level call for writing
+// individual frames. Continuation frames are handled elsewhere.
+//
+// It will perform exactly one Write to the underlying Writer.
+// It is the caller's responsibility to not call other Write methods concurrently.
+func (f *Framer) WritePushPromise(p PushPromiseParam) error {
+	if !validStreamID(p.StreamID) && !f.AllowIllegalWrites {
+		return errStreamID
+	}
+	var flags Flags
+	if p.PadLength != 0 {
+		flags |= FlagPushPromisePadded
+	}
+	if p.EndHeaders {
+		flags |= FlagPushPromiseEndHeaders
+	}
+	f.startWrite(FramePushPromise, flags, p.StreamID)
+	if p.PadLength != 0 {
+		f.writeByte(p.PadLength)
+	}
+	if !validStreamID(p.PromiseID) && !f.AllowIllegalWrites {
+		return errStreamID
+	}
+	f.writeUint32(p.PromiseID)
+	f.wbuf = append(f.wbuf, p.BlockFragment...)
+	f.wbuf = append(f.wbuf, padZeros[:p.PadLength]...)
 	return f.endWrite()
 }
 

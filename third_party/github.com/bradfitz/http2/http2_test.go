@@ -21,6 +21,14 @@ import (
 	"camlistore.org/third_party/github.com/bradfitz/http2/hpack"
 )
 
+var knownFailing = flag.Bool("known_failing", false, "Run known-failing tests.")
+
+func condSkipFailingTest(t *testing.T) {
+	if !*knownFailing {
+		t.Skip("Skipping known-failing test without --known_failing")
+	}
+}
+
 func init() {
 	DebugGoroutines = true
 	flag.BoolVar(&VerboseLogs, "verboseh2", false, "Verbose HTTP/2 debug logging")
@@ -57,51 +65,6 @@ func (w twriter) Write(p []byte) (n int, err error) {
 	}
 	w.t.Logf("%s", p)
 	return len(p), nil
-}
-
-// encodeHeader encodes headers and returns their HPACK bytes. headers
-// must contain an even number of key/value pairs.  There may be
-// multiple pairs for keys (e.g. "cookie").  The :method, :path, and
-// :scheme headers default to GET, / and https.
-func encodeHeader(t *testing.T, headers ...string) []byte {
-	pseudoCount := map[string]int{}
-	if len(headers)%2 == 1 {
-		panic("odd number of kv args")
-	}
-	keys := []string{":method", ":path", ":scheme"}
-	vals := map[string][]string{
-		":method": {"GET"},
-		":path":   {"/"},
-		":scheme": {"https"},
-	}
-	for len(headers) > 0 {
-		k, v := headers[0], headers[1]
-		headers = headers[2:]
-		if _, ok := vals[k]; !ok {
-			keys = append(keys, k)
-		}
-		if strings.HasPrefix(k, ":") {
-			pseudoCount[k]++
-			if pseudoCount[k] == 1 {
-				vals[k] = []string{v}
-			} else {
-				// Allows testing of invalid headers w/ dup pseudo fields.
-				vals[k] = append(vals[k], v)
-			}
-		} else {
-			vals[k] = append(vals[k], v)
-		}
-	}
-	var buf bytes.Buffer
-	enc := hpack.NewEncoder(&buf)
-	for _, k := range keys {
-		for _, v := range vals[k] {
-			if err := enc.WriteField(hpack.HeaderField{Name: k, Value: v}); err != nil {
-				t.Fatalf("HPACK encoding error for %q/%q: %v", k, v, err)
-			}
-		}
-	}
-	return buf.Bytes()
 }
 
 // like encodeHeader, but don't add implicit psuedo headers.

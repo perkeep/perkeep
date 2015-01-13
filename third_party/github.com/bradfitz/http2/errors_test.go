@@ -21,7 +21,7 @@ func TestErrCodeString(t *testing.T) {
 	for i, tt := range tests {
 		got := tt.err.String()
 		if got != tt.want {
-			t.Errorf("%i. Error = %q; want %q", i, got, tt.want)
+			t.Errorf("%d. Error = %q; want %q", i, got, tt.want)
 		}
 	}
 }

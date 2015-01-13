@@ -187,35 +187,24 @@ func (g gate) Done() { g <- struct{}{} }
 func (g gate) Wait() { <-g }
 
 // A closeWaiter is like a sync.WaitGroup but only goes 1 to 0 (open to closed).
-type closeWaiter struct {
-	m      sync.Mutex
-	c      sync.Cond
-	closed bool
-}
+type closeWaiter chan struct{}
 
 // Init makes a closeWaiter usable.
 // It exists because so a closeWaiter value can be placed inside a
 // larger struct and have the Mutex and Cond's memory in the same
 // allocation.
 func (cw *closeWaiter) Init() {
-	cw.c.L = &cw.m
+	*cw = make(chan struct{})
 }
 
-// Close marks the closeWwaiter as closed and unblocks any waiters.
-func (cw *closeWaiter) Close() {
-	cw.m.Lock()
-	cw.closed = true
-	cw.m.Unlock()
-	cw.c.Broadcast()
+// Close marks the closeWaiter as closed and unblocks any waiters.
+func (cw closeWaiter) Close() {
+	close(cw)
 }
 
 // Wait waits for the closeWaiter to become closed.
-func (cw *closeWaiter) Wait() {
-	cw.m.Lock()
-	defer cw.m.Unlock()
-	for !cw.closed {
-		cw.c.Wait()
-	}
+func (cw closeWaiter) Wait() {
+	<-cw
 }
 
 // bufferedWriter is a buffered writer that writes to w.
@@ -257,14 +246,4 @@ func (w *bufferedWriter) Flush() error {
 	bufWriterPool.Put(bw)
 	w.bw = nil
 	return err
-}
-
-type goAwayParams struct {
-	maxStreamID uint32
-	code        ErrCode
-}
-
-type dataWriteParams struct {
-	p   []byte
-	end bool
 }
