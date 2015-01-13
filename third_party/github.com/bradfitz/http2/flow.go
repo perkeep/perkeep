@@ -7,77 +7,45 @@
 
 package http2
 
-import "sync"
-
-// flow is the flow control window's counting semaphore.
+// flow is the flow control window's size.
 type flow struct {
-	c      *sync.Cond // protects size
-	size   int32
-	closed bool
+	// n is the number of DATA bytes we're allowed to send.
+	// A flow is kept both on a conn and a per-stream.
+	n int32
+
+	// conn points to the shared connection-level flow that is
+	// shared by all streams on that conn. It is nil for the flow
+	// that's on the conn directly.
+	conn *flow
 }
 
-func newFlow(n int32) *flow {
-	return &flow{
-		c:    sync.NewCond(new(sync.Mutex)),
-		size: n,
+func (f *flow) setConnFlow(cf *flow) { f.conn = cf }
+
+func (f *flow) available() int32 {
+	n := f.n
+	if f.conn != nil && f.conn.n < n {
+		n = f.conn.n
 	}
+	return n
 }
 
-// cur returns the current number of bytes allow to write.  Obviously
-// it's not safe to call this and assume acquiring that number of
-// bytes from the acquire method won't be block in the presence of
-// concurrent acquisitions.
-func (f *flow) cur() int32 {
-	f.c.L.Lock()
-	defer f.c.L.Unlock()
-	return f.size
-}
-
-// wait waits for between 1 and n bytes (inclusive) to be available
-// and returns the number of quota bytes decremented from the quota
-// and allowed to be written. The returned value will be 0 iff the
-// stream has been killed.
-func (f *flow) wait(n int32) (got int32) {
-	if n < 0 {
-		panic("negative acquire")
+func (f *flow) take(n int32) {
+	if n > f.available() {
+		panic("internal error: took too much")
 	}
-	f.c.L.Lock()
-	defer f.c.L.Unlock()
-	for {
-		if f.closed {
-			return 0
-		}
-		if f.size >= 1 {
-			got = f.size
-			if got > n {
-				got = n
-			}
-			f.size -= got
-			return got
-		}
-		f.c.Wait()
+	f.n -= n
+	if f.conn != nil {
+		f.conn.n -= n
 	}
 }
 
 // add adds n bytes (positive or negative) to the flow control window.
 // It returns false if the sum would exceed 2^31-1.
 func (f *flow) add(n int32) bool {
-	f.c.L.Lock()
-	defer f.c.L.Unlock()
-	remain := (1<<31 - 1) - f.size
+	remain := (1<<31 - 1) - f.n
 	if n > remain {
 		return false
 	}
-	f.size += n
-	f.c.Broadcast()
+	f.n += n
 	return true
-}
-
-// close marks the flow as closed, meaning everybody gets all the
-// tokens they want, because everything else will fail anyway.
-func (f *flow) close() {
-	f.c.L.Lock()
-	defer f.c.L.Unlock()
-	f.closed = true
-	f.c.Broadcast()
 }

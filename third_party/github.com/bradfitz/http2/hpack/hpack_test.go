@@ -127,18 +127,18 @@ func TestDynamicTableAt(t *testing.T) {
 	d := NewDecoder(4096, nil)
 	at := d.mustAt
 	if got, want := at(2), (pair(":method", "GET")); got != want {
-		t.Errorf("at(2) = %q; want %q", got, want)
+		t.Errorf("at(2) = %v; want %v", got, want)
 	}
 	d.dynTab.add(pair("foo", "bar"))
 	d.dynTab.add(pair("blake", "miz"))
 	if got, want := at(len(staticTable)+1), (pair("blake", "miz")); got != want {
-		t.Errorf("at(dyn 1) = %q; want %q", got, want)
+		t.Errorf("at(dyn 1) = %v; want %v", got, want)
 	}
 	if got, want := at(len(staticTable)+2), (pair("foo", "bar")); got != want {
-		t.Errorf("at(dyn 2) = %q; want %q", got, want)
+		t.Errorf("at(dyn 2) = %v; want %v", got, want)
 	}
 	if got, want := at(3), (pair(":method", "POST")); got != want {
-		t.Errorf("at(3) = %q; want %q", got, want)
+		t.Errorf("at(3) = %v; want %v", got, want)
 	}
 }
 
@@ -196,7 +196,7 @@ func TestDynamicTableSizeEvict(t *testing.T) {
 		t.Fatalf("after setMaxSize, size = %d; want %d", d.dynTab.size, want)
 	}
 	if got, want := d.mustAt(len(staticTable)+1), (pair("foo", "bar")); got != want {
-		t.Errorf("at(dyn 1) = %q; want %q", got, want)
+		t.Errorf("at(dyn 1) = %v; want %v", got, want)
 	}
 	add(pair("long", strings.Repeat("x", 500)))
 	if want := uint32(0); d.dynTab.size != want {

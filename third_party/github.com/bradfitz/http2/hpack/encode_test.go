@@ -81,7 +81,7 @@ func TestEncoderWriteField(t *testing.T) {
 		}
 		_, err := d.Write(buf.Bytes())
 		if err != nil {
-			t.Error("%d. Decoder Write = %v", i, err)
+			t.Errorf("%d. Decoder Write = %v", i, err)
 		}
 		if !reflect.DeepEqual(got, tt.hdrs) {
 			t.Errorf("%d. Decoded %+v; want %+v", i, got, tt.hdrs)
@@ -322,10 +322,9 @@ func TestEncoderSetMaxDynamicTableSizeLimit(t *testing.T) {
 		t.Errorf("e.dynTab.maxSize = %v; want %v", got, want)
 	}
 	if got, want := e.maxSizeLimit, uint32(8192); got != want {
-		t.Errorf("e.maxSizeLimit = %v; want %v", got, want);
+		t.Errorf("e.maxSizeLimit = %v; want %v", got, want)
 	}
 }
-
 
 func removeSpace(s string) string {
 	return strings.Replace(s, " ", "", -1)

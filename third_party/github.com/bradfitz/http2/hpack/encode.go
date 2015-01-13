@@ -115,8 +115,8 @@ func (e *Encoder) searchTable(f HeaderField) (i uint64, nameValueMatch bool) {
 }
 
 // SetMaxDynamicTableSize changes the dynamic header table size to v.
-// The actual size is bounded by maxSizeLimit parameter passed to
-// NewEncoder.
+// The actual size is bounded by the value passed to
+// SetMaxDynamicTableSizeLimit.
 func (e *Encoder) SetMaxDynamicTableSize(v uint32) {
 	if v > e.maxSizeLimit {
 		v = e.maxSizeLimit
