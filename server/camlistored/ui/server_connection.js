@@ -544,7 +544,8 @@ cam.ServerConnection.prototype.camliUploadFileHelper_ = function(file, contentsB
 
 	var doUpload = goog.bind(function() {
 		var fd = new FormData();
-		fd.append("TODO-some-uploadHelper-form-name", file);
+		fd.append("modtime", dateToRfc3339String(file.lastModifiedDate));
+		fd.append("ui-upload-file-helper-form", file);
 		this.sendXhr_(
 			this.config_.uploadHelper,
 			goog.bind(this.handleUpload_, this,

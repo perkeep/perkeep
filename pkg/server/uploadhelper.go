@@ -18,11 +18,14 @@ package server
 
 import (
 	"io"
+	"io/ioutil"
+	"log"
 	"net/http"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/schema"
+	"camlistore.org/pkg/types"
 )
 
 // uploadHelperResponse is the response from serveUploadHelper.
@@ -31,9 +34,10 @@ type uploadHelperResponse struct {
 }
 
 type uploadHelperGotItem struct {
-	FileName string   `json:"filename"`
-	FormName string   `json:"formname"`
-	FileRef  blob.Ref `json:"fileref"`
+	FileName string         `json:"filename"`
+	ModTime  types.Time3339 `json:"modtime"`
+	FormName string         `json:"formname"`
+	FileRef  blob.Ref       `json:"fileref"`
 }
 
 func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request) {
@@ -49,6 +53,7 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 	}
 
 	var got []*uploadHelperGotItem
+	var modTime types.Time3339
 	for {
 		part, err := mr.NextPart()
 		if err == io.EOF {
@@ -58,17 +63,27 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 			httputil.ServeJSONError(rw, httputil.ServerError("reading body: "+err.Error()))
 			break
 		}
+		if part.FormName() == "modtime" {
+			payload, err := ioutil.ReadAll(part)
+			if err != nil {
+				log.Printf("ui uploadhelper: unable to read part for modtime: %v", err)
+				continue
+			}
+			modTime = types.ParseTime3339OrZero(string(payload))
+			continue
+		}
 		fileName := part.FileName()
 		if fileName == "" {
 			continue
 		}
-		br, err := schema.WriteFileFromReader(ui.root.Storage, fileName, part)
+		br, err := schema.WriteFileFromReaderWithModTime(ui.root.Storage, fileName, modTime.Time(), part)
 		if err != nil {
 			httputil.ServeJSONError(rw, httputil.ServerError("writing to blobserver: "+err.Error()))
 			return
 		}
 		got = append(got, &uploadHelperGotItem{
 			FileName: part.FileName(),
+			ModTime:  modTime,
 			FormName: part.FormName(),
 			FileRef:  br,
 		})

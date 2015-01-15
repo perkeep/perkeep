@@ -23,6 +23,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -59,16 +60,28 @@ const (
 	tooSmallThreshold = 64 << 10
 )
 
+// WriteFileFromReaderWithModTime creates and uploads a "file" JSON schema
+// composed of chunks of r, also uploading the chunks.  The returned
+// BlobRef is of the JSON file schema blob.
+// Both filename and modTime are optional.
+func WriteFileFromReaderWithModTime(bs blobserver.StatReceiver, filename string, modTime time.Time, r io.Reader) (blob.Ref, error) {
+	if strings.Contains(filename, "/") {
+		return blob.Ref{}, fmt.Errorf("schema.WriteFileFromReader: filename %q shouldn't contain a slash", filename)
+	}
+
+	m := NewFileMap(filename)
+	if !modTime.IsZero() {
+		m.SetModTime(modTime)
+	}
+	return WriteFileMap(bs, m, r)
+}
+
 // WriteFileFromReader creates and uploads a "file" JSON schema
 // composed of chunks of r, also uploading the chunks.  The returned
 // BlobRef is of the JSON file schema blob.
 // The filename is optional.
 func WriteFileFromReader(bs blobserver.StatReceiver, filename string, r io.Reader) (blob.Ref, error) {
-	if strings.Contains(filename, "/") {
-		return blob.Ref{}, fmt.Errorf("schema.WriteFileFromReader: filename %q shouldn't contain a slash", filename)
-	}
-	m := NewFileMap(filename)
-	return WriteFileMap(bs, m, r)
+	return WriteFileFromReaderWithModTime(bs, filename, time.Time{}, r)
 }
 
 // WriteFileMap uploads chunks of r to bs while populating file and
