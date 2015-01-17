@@ -140,7 +140,7 @@ func dockerLogs(container string) ([]byte, error) {
 	out, err = exec.Command("docker", "logs", container).CombinedOutput()
 	exec.Command("docker", "rm", container).Run()
 	if err == nil && exitStatus != 0 {
-		err = fmt.Errorf("exit status %d", exitStatus)
+		err = fmt.Errorf("exit status %d: %s", exitStatus, out)
 	}
 	return out, err
 }

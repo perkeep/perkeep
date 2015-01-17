@@ -234,10 +234,16 @@ func (srv *Server) handleConn(hs *http.Server, c net.Conn, h http.Handler) {
 			return
 		}
 
-		// Client must use SNI:
 		if sc.tlsState.ServerName == "" {
-			sc.rejectConn(ErrCodeProtocol, "client didn't use SNI")
-			return
+			// Client must use SNI, but we don't enforce that anymore,
+			// since it was causing problems when connecting to bare IP
+			// addresses during development.
+			//
+			// TODO: optionally enforce? Or enforce at the time we receive
+			// a new request, and verify the the ServerName matches the :authority?
+			// But that precludes proxy situations, perhaps.
+			//
+			// So for now, do nothing here again.
 		}
 
 		if isBadCipher(sc.tlsState.CipherSuite) {
@@ -251,7 +257,7 @@ func (srv *Server) handleConn(hs *http.Server, c net.Conn, h http.Handler) {
 			// excuses here. If we really must, we could allow an
 			// "AllowInsecureWeakCiphers" option on the server later.
 			// Let's see how it plays out first.
-			sc.rejectConn(ErrCodeInadequateSecurity, "Prohibited TLS 1.2 Cipher Suite")
+			sc.rejectConn(ErrCodeInadequateSecurity, fmt.Sprintf("Prohibited TLS 1.2 Cipher Suite: %x", sc.tlsState.CipherSuite))
 			return
 		}
 	}
@@ -287,6 +293,7 @@ func isBadCipher(cipher uint16) bool {
 }
 
 func (sc *serverConn) rejectConn(err ErrCode, debug string) {
+	log.Printf("REJECTING conn: %v, %s", err, debug)
 	// ignoring errors. hanging up anyway.
 	sc.framer.WriteGoAway(0, err, []byte(debug))
 	sc.bw.Flush()
