@@ -93,8 +93,23 @@ func TestListenAddress(t *testing.T) {
 		},
 
 		{
-			baseURL: "http://foo.com",
-			wantErr: true,
+			baseURL:  "http://foo.com",
+			wantAddr: "foo.com:80",
+		},
+
+		{
+			baseURL:  "https://foo.com",
+			wantAddr: "foo.com:443",
+		},
+
+		{
+			baseURL:  "http://[::1]",
+			wantAddr: "[::1]:80",
+		},
+
+		{
+			baseURL:  "https://[fe80::a288:b4ff:fe49:627c]:8443",
+			wantAddr: "[fe80::a288:b4ff:fe49:627c]:8443",
 		},
 	}
 	for _, v := range tests {

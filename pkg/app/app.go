@@ -27,6 +27,7 @@ import (
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/netutil"
 )
 
 // Client returns a client from pkg/client, configured by environment variables
@@ -54,25 +55,9 @@ func Client() (*client.Client, error) {
 // ListenAddress returns the host:[port] network address, derived from the environment,
 // that the application should listen on.
 func ListenAddress() (string, error) {
-	// TODO(mpl): IPv6 support
 	baseURL := os.Getenv("CAMLI_APP_BACKEND_URL")
 	if baseURL == "" {
 		return "", errors.New("CAMLI_APP_BACKEND_URL is undefined")
 	}
-
-	// TODO(mpl): see if can use netutil.TCPAddress (and get IP6 for free).
-	defaultPort := "80"
-	noScheme := strings.TrimPrefix(baseURL, "http://")
-	if strings.HasPrefix(baseURL, "https://") {
-		noScheme = strings.TrimPrefix(baseURL, "https://")
-		defaultPort = "443"
-	}
-	hostPortPrefix := strings.SplitN(noScheme, "/", 2)
-	if len(hostPortPrefix) != 2 {
-		return "", fmt.Errorf("invalid CAMLI_APP_BACKEND_URL: %q (no trailing slash?)", baseURL)
-	}
-	if !strings.Contains(hostPortPrefix[0], ":") {
-		return fmt.Sprintf("%s:%s", hostPortPrefix[0], defaultPort), nil
-	}
-	return hostPortPrefix[0], nil
+	return netutil.HostPort(baseURL)
 }
