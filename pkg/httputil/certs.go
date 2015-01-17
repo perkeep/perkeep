@@ -26,6 +26,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
 	"runtime"
@@ -59,8 +60,13 @@ func GenSelfTLS(hostname string) (certPEM, keyPEM []byte, err error) {
 	if hostname == "" {
 		hostname = "localhost"
 	}
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		log.Fatalf("failed to generate serial number: %s", err)
+	}
 	template := x509.Certificate{
-		SerialNumber: new(big.Int).SetInt64(0),
+		SerialNumber: serialNumber,
 		Subject: pkix.Name{
 			CommonName:   hostname,
 			Organization: []string{hostname},
