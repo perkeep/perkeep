@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -47,6 +48,7 @@ const (
 	LastModifiedAsc
 	CreatedDesc
 	CreatedAsc
+	BlobRefAsc
 	maxSortType
 )
 
@@ -55,6 +57,7 @@ var sortName = map[SortType][]byte{
 	LastModifiedAsc:  []byte(`"mod"`),
 	CreatedDesc:      []byte(`"-created"`),
 	CreatedAsc:       []byte(`"created"`),
+	BlobRefAsc:       []byte(`"blobref"`),
 }
 
 func (t SortType) MarshalJSON() ([]byte, error) {
@@ -858,7 +861,16 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 		return nil, err
 	}
 	if !cands.sorted {
-		// TODO(bradfitz): sort them
+		switch q.Sort {
+		case UnspecifiedSort:
+			// Nothing to do.
+		case BlobRefAsc:
+			sort.Sort(sortSearchResultBlobs{res.Blobs, func(a, b *SearchResultBlob) bool {
+				return a.Blob.Less(b.Blob)
+			}})
+		default:
+			return nil, errors.New("TODO: unsupported sort+query combination.")
+		}
 		if q.Limit > 0 && len(res.Blobs) > q.Limit {
 			res.Blobs = res.Blobs[:q.Limit]
 		}
@@ -1507,3 +1519,12 @@ func (c *DirConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta
 	// TODO: implement
 	panic("TODO: implement DirConstraint.blobMatches")
 }
+
+type sortSearchResultBlobs struct {
+	s    []*SearchResultBlob
+	less func(a, b *SearchResultBlob) bool
+}
+
+func (ss sortSearchResultBlobs) Len() int           { return len(ss.s) }
+func (ss sortSearchResultBlobs) Swap(i, j int)      { ss.s[i], ss.s[j] = ss.s[j], ss.s[i] }
+func (ss sortSearchResultBlobs) Less(i, j int) bool { return ss.less(ss.s[i], ss.s[j]) }
