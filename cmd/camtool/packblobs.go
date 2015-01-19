@@ -45,7 +45,7 @@ func (c *packBlobsCmd) Describe() string {
 }
 
 func (c *packBlobsCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] packblobs [--start=blobref]>\n")
+	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] packblobs\n")
 }
 
 func (c *packBlobsCmd) Examples() []string {
