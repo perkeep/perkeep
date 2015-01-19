@@ -48,6 +48,7 @@ import (
 	"camlistore.org/third_party/github.com/bradfitz/gce"
 
 	// Storage options:
+	_ "camlistore.org/pkg/blobserver/blobpacked"
 	_ "camlistore.org/pkg/blobserver/cond"
 	_ "camlistore.org/pkg/blobserver/diskpacked"
 	_ "camlistore.org/pkg/blobserver/encrypt"
