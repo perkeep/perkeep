@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net/http"
+	"os"
 	"regexp"
 
 	"camlistore.org/pkg/blob"
@@ -103,8 +105,11 @@ func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (body io.ReadCloser, size ui
 			resp.Body.Close()
 		}
 	}()
-
-	if resp.StatusCode != 200 {
+	if resp.StatusCode == http.StatusNotFound {
+		// Per blob.Fetcher contract:
+		return nil, 0, os.ErrNotExist
+	}
+	if resp.StatusCode != http.StatusOK {
 		return nil, 0, fmt.Errorf("Got status code %d from blobserver for %s", resp.StatusCode, b)
 	}
 
