@@ -99,6 +99,10 @@ func TestConfigs(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range names {
+		if strings.HasPrefix(name, ".#") {
+			// Emacs noise.
+			continue
+		}
 		if *flagOnly != "" && !strings.Contains(name, *flagOnly) {
 			continue
 		}

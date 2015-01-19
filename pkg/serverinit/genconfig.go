@@ -266,6 +266,14 @@ func (b *lowBuilder) dbIndexStorage(rdbms string, confStr string, sortedType str
 }
 
 func (b *lowBuilder) sortedStorage(sortedType string) (map[string]interface{}, error) {
+	return b.sortedStorageAt(sortedType, "")
+}
+
+// filePrefix gives a file path of where to put the database. It can be omitted by
+// some sorted implementations, but is required by others.
+// The filePrefix should be to a file, not a directory, and should not end in a ".ext" extension.
+// An extension like ".kv" or ".sqlite" will be added.
+func (b *lowBuilder) sortedStorageAt(sortedType, filePrefix string) (map[string]interface{}, error) {
 	if b.high.MySQL != "" {
 		return b.dbIndexStorage("mysql", b.high.MySQL, sortedType)
 	}
@@ -275,33 +283,40 @@ func (b *lowBuilder) sortedStorage(sortedType string) (map[string]interface{}, e
 	if b.high.Mongo != "" {
 		return b.mongoIndexStorage(b.high.Mongo, sortedType)
 	}
-	if sortedType != "index" {
-		return nil, fmt.Errorf("TODO: finish SQLite & KVFile for non-index queues")
-	}
-	if b.high.SQLite != "" {
-		return map[string]interface{}{
-			"type": "sqlite",
-			"file": b.high.SQLite,
-		}, nil
-	}
-	if b.high.KVFile != "" {
-		return map[string]interface{}{
-			"type": "kv",
-			"file": b.high.KVFile,
-		}, nil
-	}
-	if b.high.LevelDB != "" {
-		return map[string]interface{}{
-			"type": "leveldb",
-			"file": b.high.LevelDB,
-		}, nil
-	}
 	if b.high.MemoryIndex {
 		return map[string]interface{}{
 			"type": "memory",
 		}, nil
 	}
-	panic("indexArgs called when not in index mode")
+	if sortedType != "index" && filePrefix == "" {
+		return nil, fmt.Errorf("internal error: use of sortedStorageAt with a non-index type and no file location for non-database sorted implementation")
+	}
+	// dbFile returns path directly if sortedType == "index", else it returns filePrefix+"."+ext.
+	dbFile := func(path, ext string) string {
+		if sortedType == "index" {
+			return path
+		}
+		return filePrefix + "." + ext
+	}
+	if b.high.SQLite != "" {
+		return map[string]interface{}{
+			"type": "sqlite",
+			"file": dbFile(b.high.SQLite, "sqlite"),
+		}, nil
+	}
+	if b.high.KVFile != "" {
+		return map[string]interface{}{
+			"type": "kv",
+			"file": dbFile(b.high.KVFile, "kv"),
+		}, nil
+	}
+	if b.high.LevelDB != "" {
+		return map[string]interface{}{
+			"type": "leveldb",
+			"file": dbFile(b.high.LevelDB, "leveldb"),
+		}, nil
+	}
+	panic("internal error: sortedStorageAt didn't find a sorted implementation")
 }
 
 func (b *lowBuilder) thatQueueUnlessMemory(thatQueue map[string]interface{}) (queue map[string]interface{}) {
@@ -420,6 +435,11 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 		}
 		bucket = f[1]
 		clientID = "auto"
+	}
+
+	if b.high.PackRelated {
+		// TODO(mpl): implement
+		return errors.New("TODO: finish genconfig support for GCS+blobpacked")
 	}
 
 	isPrimary := !b.hasPrefix("/bs/")
@@ -571,9 +591,27 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 		storageType = "diskpacked"
 	}
 	if b.high.BlobPath != "" {
-		b.addPrefix("/bs/", "storage-"+storageType, args{
-			"path": b.high.BlobPath,
-		})
+		if b.high.PackRelated {
+			b.addPrefix("/bs-loose/", "storage-filesystem", args{
+				"path": b.high.BlobPath,
+			})
+			b.addPrefix("/bs-packed/", "storage-filesystem", args{
+				"path": filepath.Join(b.high.BlobPath, "packed"),
+			})
+			blobPackedIndex, err := b.sortedStorageAt("blobpacked_index", filepath.Join(b.high.BlobPath, "packed", "packindex"))
+			if err != nil {
+				return err
+			}
+			b.addPrefix("/bs/", "storage-blobpacked", args{
+				"smallBlobs": "/bs-loose/",
+				"largeBlobs": "/bs-packed/",
+				"metaIndex":  blobPackedIndex,
+			})
+		} else {
+			b.addPrefix("/bs/", "storage-"+storageType, args{
+				"path": b.high.BlobPath,
+			})
+		}
 		b.addPrefix("/cache/", "storage-"+storageType, args{
 			"path": filepath.Join(b.high.BlobPath, "/cache"),
 		})
@@ -648,6 +686,12 @@ func (b *lowBuilder) build() (*Config, error) {
 	if conf.Listen != "" {
 		low["listen"] = conf.Listen
 	}
+	if conf.PackBlobs && conf.PackRelated {
+		return nil, errors.New("can't use both packBlobs (for 'diskpacked') and packRelated (for 'blobpacked')")
+	}
+	if conf.PackRelated && numSet(conf.S3, conf.GoogleDrive, conf.MemoryStorage) != 0 {
+		return nil, errors.New("Unsupported packRelated usage. packRelated (blobpacked) only works with localdisk and Google Cloud Storage for now.")
+	}
 	low["https"] = conf.HTTPS
 	low["auth"] = conf.Auth
 
@@ -666,16 +710,18 @@ func (b *lowBuilder) build() (*Config, error) {
 		return nil, errors.New("no 'identity' in server config")
 	}
 
-	nolocaldisk := conf.BlobPath == ""
-	if nolocaldisk {
+	if conf.MemoryStorage && conf.BlobPath != "" {
+		return nil, errors.New("memoryStorage and blobPath are mutually exclusive.")
+	}
+
+	noLocalDisk := conf.BlobPath == ""
+	if noLocalDisk {
 		if !conf.MemoryStorage && conf.S3 == "" && conf.GoogleCloudStorage == "" {
 			return nil, errors.New("Unless memoryStorage is set, you must specify at least one storage option for your blobserver (blobPath (for localdisk), s3, googlecloudstorage).")
 		}
 		if !conf.MemoryStorage && conf.S3 != "" && conf.GoogleCloudStorage != "" {
 			return nil, errors.New("Using S3 as a primary storage and Google Cloud Storage as a mirror is not supported for now.")
 		}
-	} else if conf.MemoryStorage {
-		return nil, errors.New("memoryStorage and blobPath are mutually exclusive.")
 	}
 
 	if conf.ShareHandler && conf.ShareHandlerPath == "" {
@@ -690,7 +736,7 @@ func (b *lowBuilder) build() (*Config, error) {
 	if conf.MemoryStorage {
 		noMkdir = true
 	}
-	if nolocaldisk {
+	if noLocalDisk {
 		// Whether camlistored is run from EC2 or not, we use
 		// a temp dir as the cache when primary storage is S3.
 		// TODO(mpl): s3CacheBucket
