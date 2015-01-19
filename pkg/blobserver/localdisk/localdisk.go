@@ -77,7 +77,15 @@ func New(root string) (*DiskStorage, error) {
 	// Local disk.
 	fi, err := os.Stat(root)
 	if os.IsNotExist(err) {
-		return nil, fmt.Errorf("Storage root %q doesn't exist", root)
+		// As a special case, we auto-created the "packed" directory for subpacked.
+		if filepath.Base(root) == "packed" {
+			if err := os.Mkdir(root, 0700); err != nil {
+				return nil, fmt.Errorf("failed to mkdir packed directory: %v", err)
+			}
+			fi, err = os.Stat(root)
+		} else {
+			return nil, fmt.Errorf("Storage root %q doesn't exist", root)
+		}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("Failed to stat directory %q: %v", root, err)
