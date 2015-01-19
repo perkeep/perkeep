@@ -57,8 +57,8 @@ type wsHub struct {
 func newWebsocketHub(sh *Handler) *wsHub {
 	return &wsHub{
 		sh:             sh,
-		register:       make(chan *wsConn, buffered),
-		unregister:     make(chan *wsConn, buffered),
+		register:       make(chan *wsConn), // unbuffered; issue 563
+		unregister:     make(chan *wsConn), // unbuffered; issue 563
 		conns:          make(map[*wsConn]bool),
 		watchReq:       make(chan watchReq, buffered),
 		newBlobRecv:    make(chan string, buffered),
@@ -173,6 +173,7 @@ type wsConn struct {
 	send chan []byte // Buffered channel of outbound messages.
 	sh   *Handler
 
+	// queries is owned by the wsHub.run goroutine.
 	queries map[string]*watchedQuery // tag -> subscription
 }
 
