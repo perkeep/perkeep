@@ -342,6 +342,9 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 	s3Prefix := ""
 	if isPrimary {
 		s3Prefix = "/bs/"
+		if b.high.PackRelated {
+			return errors.New("TODO: finish packRelated support for S3")
+		}
 	} else {
 		s3Prefix = "/sto-s3/"
 	}
@@ -388,6 +391,9 @@ func (b *lowBuilder) addGoogleDriveConfig(v string) error {
 	prefix := ""
 	if isPrimary {
 		prefix = "/bs/"
+		if b.high.PackRelated {
+			return errors.New("TODO: finish packRelated support for Google Drive")
+		}
 	} else {
 		prefix = "/sto-googledrive/"
 	}
@@ -689,9 +695,6 @@ func (b *lowBuilder) build() (*Config, error) {
 	if conf.PackBlobs && conf.PackRelated {
 		return nil, errors.New("can't use both packBlobs (for 'diskpacked') and packRelated (for 'blobpacked')")
 	}
-	if conf.PackRelated && numSet(conf.S3, conf.GoogleDrive, conf.MemoryStorage) != 0 {
-		return nil, errors.New("Unsupported packRelated usage. packRelated (blobpacked) only works with localdisk and Google Cloud Storage for now.")
-	}
 	low["https"] = conf.HTTPS
 	low["auth"] = conf.Auth
 
@@ -710,10 +713,6 @@ func (b *lowBuilder) build() (*Config, error) {
 		return nil, errors.New("no 'identity' in server config")
 	}
 
-	if conf.MemoryStorage && conf.BlobPath != "" {
-		return nil, errors.New("memoryStorage and blobPath are mutually exclusive.")
-	}
-
 	noLocalDisk := conf.BlobPath == ""
 	if noLocalDisk {
 		if !conf.MemoryStorage && conf.S3 == "" && conf.GoogleCloudStorage == "" {
@@ -723,9 +722,17 @@ func (b *lowBuilder) build() (*Config, error) {
 			return nil, errors.New("Using S3 as a primary storage and Google Cloud Storage as a mirror is not supported for now.")
 		}
 	}
-
 	if conf.ShareHandler && conf.ShareHandlerPath == "" {
 		conf.ShareHandlerPath = "/share/"
+	}
+	if conf.MemoryStorage {
+		noMkdir = true
+		if conf.BlobPath != "" {
+			return nil, errors.New("memoryStorage and blobPath are mutually exclusive.")
+		}
+		if conf.PackRelated {
+			return nil, errors.New("memoryStorage doesn't support packRelated.")
+		}
 	}
 
 	if err := b.genLowLevelPrefixes(); err != nil {
@@ -733,9 +740,6 @@ func (b *lowBuilder) build() (*Config, error) {
 	}
 
 	var cacheDir string
-	if conf.MemoryStorage {
-		noMkdir = true
-	}
 	if noLocalDisk {
 		// Whether camlistored is run from EC2 or not, we use
 		// a temp dir as the cache when primary storage is S3.
