@@ -266,6 +266,9 @@ func (s *Storage) removeBlobLocked(br blob.Ref) {
 	delete(s.m, br)
 }
 
+// TODO(mpl): remove or move BlobContents
+// See comment in https://camlistore-review.googlesource.com/#/c/3986/24/pkg/blobserver/localdisk/localdisk.go
+
 // BlobContents returns as a string the contents of the blob br.
 func (s *Storage) BlobContents(br blob.Ref) (contents string, ok bool) {
 	s.mu.RLock()

@@ -68,6 +68,36 @@ CAMLI_DISABLE_IMPORTERS (bool):
   If true, importers are disabled (at least automatic background
   importing, e.g. at start-up). Mostly for debugging.
 
+CAMLI_FAST_DEV (bool):
+  Used by dev/demo.sh for giving presentations with devcam server/put/etc
+  for faster pre-built builds, without calling make.go.
+
+CAMLI_FORCE_OSARCH (bool):
+  Used by make.go to force building an unrecommended OS/ARCH pair.
+
+CAMLI_GCE_*:
+  Variables prefixed with CAMLI_GCE_ concern the Google Compute Engine deploy handler in
+  pkg/deploy/gce, which is only used by camweb to launch Camlistore on Google Compute
+  Engine. They do not affect Camlistore's behaviour.
+
+CAMLI_GCE_CLIENTID (string):
+  See CAMLI_GCE_* first. This string is used by gce.DeployHandler as the application's
+  OAuth Client ID. If blank, camweb does not enable the Google Compute Engine launcher.
+
+CAMLI_GCE_CLIENTSECRET (string):
+  See CAMLI_GCE_* first. Used by gce.DeployHandler as the application's OAuth Client
+  Secret. If blank, gce.NewDeployHandler returns an error, and camweb fails to start if
+  the Google Compute Engine launcher was enabled.
+
+CAMLI_GCE_DATA (string):
+  See CAMLI_GCE_* first. Path to the directory where gce.DeployHandler stores the
+  instances configuration and state. If blank, the "camli-gce-data" default is used
+  instead.
+
+CAMLI_GCE_XSRFKEY (string):
+  See CAMLI_GCE_* first. Used by gce.DeployHandler as the XSRF protection key. If blank,
+  gce.NewDeployHandler generates a new random key instead.
+
 CAMLI_HTTP_DEBUG (bool):
   Enable per-request logging in pkg/webserver.
 
@@ -119,13 +149,6 @@ CAMLI_PPROF_START (string):
 
 CAMLI_QUIET (bool):
   Used by devcam to enable -verbose flag for camput/camget.
-
-CAMLI_FAST_DEV (bool):
-  Used by dev/demo.sh for giving presentations with devcam server/put/etc
-  for faster pre-built builds, without calling make.go.
-
-CAMLI_FORCE_OSARCH (bool):
-  Used by make.go to force building an unrecommended OS/ARCH pair.
 
 CAMLI_SECRET_RING (string):
   Path to the GPG secret keyring, which is otherwise set by identitySecretRing
