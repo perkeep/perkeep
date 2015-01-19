@@ -82,6 +82,7 @@ package blobpacked
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -166,6 +167,7 @@ type storage struct {
 
 var (
 	_ blobserver.BlobStreamer = (*storage)(nil)
+	_ blobserver.Generationer = (*storage)(nil)
 )
 
 func (s *storage) String() string {
@@ -201,6 +203,7 @@ func (s *storage) maxZipBlobSize() int {
 func init() {
 	blobserver.RegisterStorageConstructor("blobpacked", blobserver.StorageConstructor(newFromConfig))
 }
+
 func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storage, error) {
 	var (
 		smallPrefix = conf.RequiredString("smallBlobs")
@@ -283,6 +286,44 @@ func (s *storage) anyZipPacks() (v bool) {
 
 func (s *storage) Close() error {
 	return nil
+}
+
+func (s *storage) StorageGeneration() (initTime time.Time, random string, err error) {
+	sgen, sok := s.small.(blobserver.Generationer)
+	lgen, lok := s.large.(blobserver.Generationer)
+	if !sok || !lok {
+		return time.Time{}, "", blobserver.GenerationNotSupportedError("underlying storage engines don't support Generationer")
+	}
+	st, srand, err := sgen.StorageGeneration()
+	if err != nil {
+		return
+	}
+	lt, lrand, err := lgen.StorageGeneration()
+	if err != nil {
+		return
+	}
+	hash := sha1.New()
+	io.WriteString(hash, srand)
+	io.WriteString(hash, lrand)
+	maxTime := func(a, b time.Time) time.Time {
+		if a.After(b) {
+			return a
+		}
+		return b
+	}
+	return maxTime(lt, st), fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
+func (s *storage) ResetStorageGeneration() error {
+	var retErr error
+	for _, st := range []blobserver.Storage{s.small, s.large} {
+		if g, ok := st.(blobserver.Generationer); ok {
+			if err := g.ResetStorageGeneration(); err != nil {
+				retErr = err
+			}
+		}
+	}
+	return retErr
 }
 
 type meta struct {
