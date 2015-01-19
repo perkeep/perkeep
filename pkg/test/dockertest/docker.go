@@ -189,7 +189,11 @@ func setupContainer(t *testing.T, image string, port int, timeout time.Duration,
 }
 
 const (
-	mongoImage       = "mpl7/mongo"
+	mongoImage = "mpl7/mongo"
+	// TODO(mpl): there's now an official mysql image at
+	// https://registry.hub.docker.com/_/mysql/ . We should either directly use one from
+	// there or fetch one there anyway to host it at
+	// https://console.developers.google.com/project/camlistore-website
 	mysqlImage       = "orchardup/mysql"
 	MySQLUsername    = "root"
 	MySQLPassword    = "root"

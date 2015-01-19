@@ -25,7 +25,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
+
+	"camlistore.org/pkg/sorted"
 )
 
 const requiredSchemaVersion = 1
@@ -35,10 +38,12 @@ func SchemaVersion() int {
 }
 
 func SQLCreateTables() []string {
+	// sqlite ignores n in VARCHAR(n), but setting it as such for consistency with
+	// other sqls.
 	return []string{
 		`CREATE TABLE rows (
- k VARCHAR(255) NOT NULL PRIMARY KEY,
- v VARCHAR(255))`,
+ k VARCHAR(` + strconv.Itoa(sorted.MaxKeySize) + `) NOT NULL PRIMARY KEY,
+ v VARCHAR(` + strconv.Itoa(sorted.MaxValueSize) + `))`,
 
 		`CREATE TABLE meta (
  metakey VARCHAR(255) NOT NULL PRIMARY KEY,

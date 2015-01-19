@@ -100,6 +100,9 @@ func (kv *KeyValue) Get(key string) (string, error) {
 }
 
 func (kv *KeyValue) Set(key, value string) error {
+	if err := sorted.CheckSizes(key, value); err != nil {
+		return err
+	}
 	kv.mu.RLock()
 	err := kv.buf.Set(key, value)
 	kv.mu.RUnlock()
@@ -158,6 +161,10 @@ func (kv *KeyValue) CommitBatch(bm sorted.BatchMutation) error {
 			}
 			bmback.Delete(m.key)
 			continue
+		} else {
+			if err := sorted.CheckSizes(m.key, m.value); err != nil {
+				return err
+			}
 		}
 		bmbuf.Set(m.key, m.value)
 	}

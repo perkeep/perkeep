@@ -32,6 +32,9 @@ func TestMySQLKV(t *testing.T) {
 	containerID, ip := dockertest.SetupMySQLContainer(t, dbname)
 	defer containerID.KillRemove(t)
 
+	// TODO(mpl): add test for serverVersion once we host the docker image ourselves
+	// (and hence have the control over the version).
+
 	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
 		"type":     "mysql",
 		"host":     ip + ":3306",
