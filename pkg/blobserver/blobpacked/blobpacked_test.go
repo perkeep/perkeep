@@ -27,6 +27,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -202,8 +203,8 @@ func TestPackLarge(t *testing.T) {
 	got := map[string]string{}
 	want := map[string]string{
 		"w:" + wholeRef.String():        "17825792 2",
-		"w:" + wholeRef.String() + ":0": "sha1-fdff4384dc6f3e69d70e6112b845fe1fbd903e45 37 0 16606256",
-		"w:" + wholeRef.String() + ":1": "sha1-50257fbe2ca5c9580140c462470c01c8c6f59875 37 16606256 1219536",
+		"w:" + wholeRef.String() + ":0": "sha1-9b4a3d114c059988075c87293c86ee7cbc6f4af5 37 0 16709479",
+		"w:" + wholeRef.String() + ":1": "sha1-fe6326ac6b389ffe302623e4a501bfc8c6272e8e 37 16709479 1116313",
 	}
 	if err := sorted.Foreach(pt.sto.meta, func(key, value string) error {
 		if strings.HasPrefix(key, "b:") {
@@ -491,6 +492,7 @@ func TestForeachZipBlob(t *testing.T) {
 		t.Fatal(err)
 	}
 	zipBytes := slurpBlob(t, pt.large, zipBlob.Ref)
+	zipSize := len(zipBytes)
 
 	all := map[blob.Ref]blob.SizedRef{}
 	if err := blobserver.EnumerateAll(ctx, pt.logical, func(sb blob.SizedRef) error {
@@ -500,8 +502,10 @@ func TestForeachZipBlob(t *testing.T) {
 		t.Fatal(err)
 	}
 	foreachSaw := 0
+	blobSizeSum := 0
 	if err := pt.sto.foreachZipBlob(zipBlob.Ref, func(bap BlobAndPos) error {
 		foreachSaw++
+		blobSizeSum += int(bap.Size)
 		want, ok := all[bap.Ref]
 		if !ok {
 			t.Errorf("unwanted blob ref returned from foreachZipBlob: %v", bap.Ref)
@@ -529,6 +533,9 @@ func TestForeachZipBlob(t *testing.T) {
 	if len(all) > 0 {
 		t.Errorf("foreachZipBlob forgot to enumerate %d blobs: %v", len(all), all)
 	}
+	// Calculate per-blobref zip overhead (zip file headers/TOC/manifest file, etc)
+	zipOverhead := zipSize - blobSizeSum
+	t.Logf("zip fixed overhead = %d bytes, for %d blobs (%d bytes each)", zipOverhead, foreachSaw, zipOverhead/foreachSaw)
 }
 
 // singleBlob assumes that sto contains a single blob and returns it.
@@ -632,25 +639,64 @@ func TestRemoveBlobs(t *testing.T) {
 	}
 }
 
+func setIntTemporarily(i *int, tempVal int) (restore func()) {
+	old := *i
+	*i = tempVal
+	return func() { *i = old }
+}
+
 func TestPackerBoundarySplits(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping slow test")
 	}
-	// Test a file of two chunk sizes, totalling near the 16 MB
-	// boundary.  The first chunk is always 12 MB (somewhat
-	// arbitrarily), then we binary search the largest chunk we
-	// can append to that to keep it in 1 zip file.  Some will be
-	// in 2 zip files, and that's okay, but we want to exercise
-	// all the boundary cases, and using a binary search to find
-	// the exact size exercises thoses paths while minimizing the
-	// search space.
-	const sizeA = 12 << 20
+	// Test a file of three chunk sizes, totalling near the 16 MB
+	// boundary:
+	//    - 1st chunk is 6 MB. ("blobA")
+	//    - 2nd chunk is 6 MB. ("blobB")
+	//    - 3rd chunk ("blobC") is binary-searched (up to 4MB) to find
+	//      which size causes the packer to write two zip files.
+
+	// During the test we set zip overhead boundaries to 0, to
+	// force the test to into its pathological misprediction code paths,
+	// where it needs to back up and rewrite the zip with one part less.
+	// That's why the test starts with two zip files: so there's at
+	// least one that can be removed to make room.
+	defer setIntTemporarily(&zipPerEntryOverhead, 0)()
+
+	const sizeAB = 12 << 20
 	const maxBlobSize = 16 << 20
-	bytesA := randBytes(sizeA)
-	blobA := &test.Blob{string(bytesA)}
+	bytesAB := randBytes(sizeAB)
+	blobA := &test.Blob{string(bytesAB[:sizeAB/2])}
+	blobB := &test.Blob{string(bytesAB[sizeAB/2:])}
 	refA := blobA.BlobRef()
-	bytesBFull := randBytes(maxBlobSize - sizeA) // will be sliced down
-	generatesTwoZips := func(sizeB int) (ret bool) {
+	refB := blobB.BlobRef()
+	bytesCFull := randBytes(maxBlobSize - sizeAB) // will be sliced down
+
+	// Mechanism to verify we hit the back-up code path:
+	var (
+		mu                    sync.Mutex
+		sawTruncate           blob.Ref
+		stoppedBeforeOverflow bool
+	)
+	testHookSawTruncate = func(after blob.Ref) {
+		if after != refB {
+			t.Errorf("unexpected truncate point %v", after)
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		sawTruncate = after
+	}
+	testHookStopBeforeOverflowing = func() {
+		mu.Lock()
+		defer mu.Unlock()
+		stoppedBeforeOverflow = true
+	}
+	defer func() {
+		testHookSawTruncate = nil
+		testHookStopBeforeOverflowing = nil
+	}()
+
+	generatesTwoZips := func(sizeC int) (ret bool) {
 		large := new(test.Fetcher)
 		s := &storage{
 			small: new(test.Fetcher),
@@ -664,29 +710,34 @@ func TestPackerBoundarySplits(t *testing.T) {
 		}
 		s.init()
 
-		// Upload first chunk
+		// Upload first two chunks
 		blobA.MustUpload(t, s)
+		blobB.MustUpload(t, s)
 
 		// Upload second chunk
-		bytesB := bytesBFull[:sizeB]
+		bytesC := bytesCFull[:sizeC]
 		h := blob.NewHash()
-		h.Write(bytesB)
-		refB := blob.RefFromHash(h)
-		_, err := s.ReceiveBlob(refB, bytes.NewReader(bytesB))
+		h.Write(bytesC)
+		refC := blob.RefFromHash(h)
+		_, err := s.ReceiveBlob(refC, bytes.NewReader(bytesC))
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		// Upload the file schema blob.
 		m := schema.NewFileMap("foo.dat")
-		m.PopulateParts(sizeA+int64(sizeB), []schema.BytesPart{
+		m.PopulateParts(sizeAB+int64(sizeC), []schema.BytesPart{
 			schema.BytesPart{
-				Size:    sizeA,
+				Size:    sizeAB / 2,
 				BlobRef: refA,
 			},
 			schema.BytesPart{
-				Size:    uint64(sizeB),
+				Size:    sizeAB / 2,
 				BlobRef: refB,
+			},
+			schema.BytesPart{
+				Size:    uint64(sizeC),
+				BlobRef: refC,
 			},
 		})
 		fjson, err := m.JSON()
@@ -697,20 +748,25 @@ func TestPackerBoundarySplits(t *testing.T) {
 		fb.MustUpload(t, s)
 		num := large.NumBlobs()
 		if num < 1 || num > 2 {
-			t.Fatalf("for size %d, num packed zip blobs = %d; want 1 or 2", sizeB, num)
+			t.Fatalf("for size %d, num packed zip blobs = %d; want 1 or 2", sizeC, num)
 		}
 		return num == 2
 	}
-	maxB := maxBlobSize - sizeA
-	smallestB := sort.Search(maxB, generatesTwoZips)
-	if smallestB == maxB {
+	maxC := maxBlobSize - sizeAB
+	smallestC := sort.Search(maxC, generatesTwoZips)
+	if smallestC == maxC {
 		t.Fatalf("never found a point at which we generated 2 zip files")
 	}
-	t.Logf("After a 12 MB file chunk, the smallest blob that generates two zip files is %d bytes (%.03f MB)", smallestB, float64(smallestB)/(1<<20))
-	t.Logf("Zip overhead (for this two chunk file) = %d bytes", maxBlobSize-1-smallestB-sizeA)
+	t.Logf("After 12 MB of data (in 2 chunks), the smallest blob that generates two zip files is %d bytes (%.03f MB)", smallestC, float64(smallestC)/(1<<20))
+	t.Logf("Zip overhead (for this two chunk file) = %d bytes", maxBlobSize-1-smallestC-sizeAB)
 
-	// TODO: verify we hit the needsTruncatedAfterError case in the packer. So far this test
-	// doesn't seem to trigger it yet.
+	mu.Lock()
+	if sawTruncate != refB {
+		t.Errorf("truncate after = %v; want %v", sawTruncate, refB)
+	}
+	if !stoppedBeforeOverflow {
+		t.Error("never hit the code path where it calculates that another data chunk would push it over the 16MB boundary")
+	}
 }
 
 func slurpBlob(t *testing.T, sto blob.Fetcher, br blob.Ref) []byte {

@@ -111,9 +111,19 @@ import (
 // Files under this size aren't packed.
 const packThreshold = 512 << 10
 
-// overhead for zip magic, file headers, TOC, footers. Without measuring accurately,
-// saying 50kB for now.
-const zipOverhead = 50 << 10
+// Overhead for zip files.
+// These are only variables so they can be changed by tests, but
+// they're effectively constant.
+var (
+	zipFixedOverhead = 20 /*directory64EndLen*/ +
+		56 /*directory64LocLen */ +
+		22 /*directoryEndLen*/ +
+		512 /* conservative slop space, to get us away from 16 MB zip boundary */
+	zipPerEntryOverhead = 30 /*fileHeaderLen*/ +
+		24 /*dataDescriptor64Len*/ +
+		22 /*directoryEndLen*/ +
+		len("camlistore/sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15.dat")*3/2 /*padding for larger blobrefs*/
+)
 
 // meta key prefixes
 const (
@@ -645,6 +655,11 @@ type writtenZip struct {
 	dataRefs []blob.Ref
 }
 
+var (
+	testHookSawTruncate           func(blob.Ref)
+	testHookStopBeforeOverflowing func()
+)
+
 func (pk *packer) pack() error {
 	if err := pk.scanChunks(); err != nil {
 		return err
@@ -683,9 +698,9 @@ MakingZips:
 		if err := pk.writeAZip(trunc); err != nil {
 			if needTrunc, ok := err.(needsTruncatedAfterError); ok {
 				trunc = needTrunc.Ref
-				// TODO: add a hook here for TestPackerBoundarySplits to verify
-				// we hit this case.
-				// println(fmt.Sprintf("hit truncate error after %v", trunc))
+				if fn := testHookSawTruncate; fn != nil {
+					fn(trunc)
+				}
 				continue MakingZips
 			}
 			return err
@@ -772,7 +787,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	cw := &countWriter{w: &zbuf}
 	zw := zip.NewWriter(cw)
 
-	var approxSize int // can't use zbuf.Len because zw buffers
+	var approxSize = zipFixedOverhead // can't use zbuf.Len because zw buffers
 	var dataRefsWritten []blob.Ref
 	var dataBytesWritten int64
 	var schemaBlobSeen = map[blob.Ref]bool{}
@@ -792,6 +807,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	check(err)
 	check(zw.Flush())
 	dataStart := cw.n
+	approxSize += zipPerEntryOverhead // for the first FileHeader w/ the data
 
 	zipMax := pk.s.maxZipBlobSize()
 	chunks := pk.chunksRemain
@@ -811,13 +827,16 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 			if !schemaBlobSeen[parent] {
 				schemaBlobSeen[parent] = true
 				schemaBlobs = append(schemaBlobs, parent)
-				approxSize += int(pk.schemaBlob[parent].Size())
+				approxSize += int(pk.schemaBlob[parent].Size()) + zipPerEntryOverhead
 			}
 		}
 
 		thisSize := pk.dataSize[dr]
 		approxSize += int(thisSize)
-		if approxSize+mf.approxSerializedSize()+zipOverhead > zipMax {
+		if approxSize+mf.approxSerializedSize() > zipMax {
+			if fn := testHookStopBeforeOverflowing; fn != nil {
+				fn()
+			}
 			schemaBlobs = schemaBlobsSave // restore it
 			break
 		}
@@ -1112,9 +1131,21 @@ type Manifest struct {
 	DataBlobs []BlobAndPos `json:"dataBlobs"`
 }
 
+// approxSerializedSize reports how big this Manifest will be
+// (approximately), once encoded as JSON. This is used as a hint by
+// the packer to decide when to keep trying to add blobs. If this
+// number is too low, the packer backs up (at a slight performance
+// cost) but is still correct. If this approximation returns too large
+// of a number, it just causes multiple zip files to be created when
+// the original blobs might've just barely fit.
 func (mf *Manifest) approxSerializedSize() int {
-	// Conservative:
-	return 250 + len(mf.DataBlobs)*100
+	// Empirically (for sha1-* blobrefs) it's 204 bytes fixed
+	// encoding overhead (pre-compression), and 119 bytes per
+	// encoded DataBlob.
+	// And empirically, it compresses down to 30% of its size with flate.
+	// So use the sha1 numbers but conseratively assume only 50% compression,
+	// to make up for longer sha-3 blobrefs.
+	return (204 + len(mf.DataBlobs)*119) / 2
 }
 
 type countWriter struct {
