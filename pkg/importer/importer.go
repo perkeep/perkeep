@@ -24,7 +24,9 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -612,7 +614,13 @@ func (h *Host) startPeriodicImporters() {
 	}
 }
 
+var disableImporters, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_IMPORTERS"))
+
 func (ia *importerAcct) maybeStart() {
+	if disableImporters {
+		log.Printf("Importers disabled, per environment.")
+		return
+	}
 	acctObj, err := ia.im.host.ObjectFromRef(ia.acct.PermanodeRef())
 	if err != nil {
 		log.Printf("Error maybe starting %v: %v", ia.acct.PermanodeRef(), err)

@@ -64,6 +64,10 @@ CAMLI_DEV_CLOSURE_DIR (string):
   Path override for pkg/server. If specified, this path will be used to serve
   the closure handler.
 
+CAMLI_DISABLE_IMPORTERS (bool):
+  If true, importers are disabled (at least automatic background
+  importing, e.g. at start-up). Mostly for debugging.
+
 CAMLI_HTTP_DEBUG (bool):
   Enable per-request logging in pkg/webserver.
 
