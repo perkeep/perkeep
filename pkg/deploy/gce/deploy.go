@@ -58,7 +58,8 @@ const (
 
 	configDir = "config"
 
-	HelpCreateProject  = "Create new project: go to https://console.developers.google.com to create a new Project."
+	ConsoleURL         = "https://console.developers.google.com"
+	HelpCreateProject  = "Go to " + ConsoleURL + " to create a new Google Cloud project."
 	HelpEnableAPIs     = `Enable the project APIs: in your project console, navigate to "APIs and auth", "APIs". In the list, enable "Google Cloud Storage", "Google Cloud Storage JSON API", and "Google Compute Engine".`
 	HelpDeleteInstance = `Delete an existing Compute Engine instance: in your project console, navigate to "Compute", "Compute Engine", and "VM instances". Select your instance and click "Delete".`
 )
@@ -95,12 +96,15 @@ type InstanceConf struct {
 	bucketBase string // Project + "-camlistore"
 	configDir  string // bucketBase + "/config"
 	blobDir    string // bucketBase + "/blobs"
+
+	Ctime time.Time // Timestamp for this configuration.
 }
 
 // Deployer creates and starts an instance such as defined in Conf.
 type Deployer struct {
-	Cl   *http.Client
-	Conf *InstanceConf
+	Cl              *http.Client
+	Conf            *InstanceConf
+	certFingerprint string // SHA-256 fingerprint of the HTTPS certificate created during setupHTTPS, if any.
 }
 
 // Get returns the Instance corresponding to the Project, Zone, and Name defined in the
@@ -376,11 +380,12 @@ func (d *Deployer) setupHTTPS(storageService *storage.Service) error {
 		if err != nil {
 			return fmt.Errorf("error generating certificates: %v", err)
 		}
+		sig, err := httputil.CertFingerprint(certBytes)
+		if err != nil {
+			return fmt.Errorf("could not get sha256 fingerprint of certificate: %v", err)
+		}
+		d.certFingerprint = sig
 		if Verbose {
-			sig, err := httputil.CertFingerprint(certBytes)
-			if err != nil {
-				return fmt.Errorf("could not get sha256 fingerprint of certificate: %v", err)
-			}
 			log.Printf("Wrote certificate with fingerprint %s", sig)
 		}
 		cert = ioutil.NopCloser(bytes.NewReader(certBytes))
@@ -403,6 +408,12 @@ func (d *Deployer) setupHTTPS(storageService *storage.Service) error {
 	return nil
 }
 
+// CertFingerprint returns the SHA-256 fingerprint of the HTTPS certificate that is
+// generated when the instance is created, if any.
+func (d *Deployer) CertFingerprint() string {
+	return d.certFingerprint
+}
+
 // returns the MySQL InnoDB buffer pool size (in bytes) as a function
 // of the GCE machine type.
 func innodbBufferPoolSize(machine string) int {
@@ -420,6 +431,7 @@ func innodbBufferPoolSize(machine string) int {
 	}
 }
 
+// TODO(mpl): investigate why `curl file.tar | docker load` is not working.
 const baseInstanceConfig = `#cloud-config
 write_files:
   - path: /var/lib/camlistore/tmp/README
@@ -490,7 +502,8 @@ coreos:
 
         [Service]
         ExecStartPre=/usr/bin/docker run --rm -v /opt/bin:/opt/bin ibuildthecloud/systemd-docker
-        ExecStart=/opt/bin/systemd-docker run --rm -p 80:80 -p 443:443 --name %n -v /run/camjournald.sock:/run/camjournald.sock -v /var/lib/camlistore/tmp:/tmp --link=mysql.service:mysqldb camlistore/camlistored
+        ExecStartPre=/bin/bash -c '/usr/bin/curl https://storage.googleapis.com/camlistore-release/docker/camlistored.tar.gz | /bin/gunzip -c | /usr/bin/docker load'
+        ExecStart=/opt/bin/systemd-docker run --rm -p 80:80 -p 443:443 --name %n -v /run/camjournald.sock:/run/camjournald.sock -v /var/lib/camlistore/tmp:/tmp --link=mysql.service:mysqldb camlistored
         RestartSec=1s
         Restart=always
         Type=notify

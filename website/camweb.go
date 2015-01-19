@@ -35,6 +35,7 @@ import (
 	txttemplate "text/template"
 	"time"
 
+	"camlistore.org/pkg/deploy/gce"
 	"camlistore.org/pkg/types/camtypes"
 )
 
@@ -138,7 +139,7 @@ func servePage(w http.ResponseWriter, title, subtitle string, content []byte) {
 		template.HTML(content),
 	}
 
-	if err := pageHTML.Execute(w, &d); err != nil {
+	if err := pageHTML.ExecuteTemplate(w, "page", &d); err != nil {
 		log.Printf("godocHTML.Execute: %s", err)
 	}
 }
@@ -325,6 +326,21 @@ func runAsChild(res string) {
 	}()
 }
 
+func gceDeployHandler(host, prefix string) http.Handler {
+	gceh, err := gce.NewDeployHandler(host, prefix)
+	if err != nil {
+		log.Fatalf("Error initializing gce deploy handler: %v", err)
+	}
+	pageBytes, err := ioutil.ReadFile(filepath.Join(*root, "tmpl", "page.html"))
+	if err != nil {
+		log.Fatalf("Error initializing gce deploy handler: %v", err)
+	}
+	if err := gceh.(*gce.DeployHandler).AddTemplateTheme(string(pageBytes)); err != nil {
+		log.Fatalf("Error initializing gce deploy handler: %v", err)
+	}
+	return gceh
+}
+
 func main() {
 	flag.Parse()
 
@@ -362,6 +378,12 @@ func main() {
 		buildbotHandler := httputil.NewSingleHostReverseProxy(buildbotUrl)
 		bbhpattern := strings.TrimRight(*buildbotHost, "/") + "/"
 		mux.Handle(bbhpattern, buildbotHandler)
+	}
+
+	if *httpsAddr != "" {
+		if e := os.Getenv("CAMLI_GCE_CLIENTID"); e != "" {
+			mux.Handle("/launch/", gceDeployHandler(*httpsAddr, "/launch/"))
+		}
 	}
 
 	var handler http.Handler = &noWwwHandler{Handler: mux}
