@@ -153,6 +153,20 @@ func NewOrFail() *Client {
 	return c
 }
 
+// NewPathClient returns a new client accessing a subpath of c.
+func (c *Client) NewPathClient(path string) *Client {
+	u, err := url.Parse(c.server)
+	if err != nil {
+		// Better than nothing
+		return New(c.server + path)
+	}
+	u.Path = path
+	pc := New(u.String())
+	pc.authMode = c.authMode
+	pc.discoOnce.Do(noop)
+	return pc
+}
+
 // NewStorageClient returns a Client that doesn't use HTTP, but uses s
 // directly. This exists mainly so all the convenience methods on
 // Client (e.g. the Upload variants) are available against storage
