@@ -23,7 +23,7 @@ import (
 	"log"
 	"strings"
 
-	sqladmin "camlistore.org/third_party/code.google.com/p/google-api-go-client/sqladmin/v1beta3"
+	sqladmin "camlistore.org/third_party/google.golang.org/api/sqladmin/v1beta3"
 	"camlistore.org/third_party/github.com/bradfitz/gce"
 )
 

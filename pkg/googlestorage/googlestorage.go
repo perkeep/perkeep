@@ -35,7 +35,7 @@ import (
 
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
-	api "camlistore.org/third_party/code.google.com/p/google-api-go-client/storage/v1"
+	api "camlistore.org/third_party/google.golang.org/api/storage/v1"
 	"camlistore.org/third_party/github.com/bradfitz/gce"
 )
 

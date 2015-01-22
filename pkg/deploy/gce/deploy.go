@@ -42,8 +42,8 @@ import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/osutil"
 
-	compute "camlistore.org/third_party/code.google.com/p/google-api-go-client/compute/v1"
-	storage "camlistore.org/third_party/code.google.com/p/google-api-go-client/storage/v1"
+	compute "camlistore.org/third_party/google.golang.org/api/compute/v1"
+	storage "camlistore.org/third_party/google.golang.org/api/storage/v1"
 	"camlistore.org/third_party/golang.org/x/oauth2"
 )
 

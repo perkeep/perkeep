@@ -45,7 +45,7 @@ import (
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/leveldb"
 
-	compute "camlistore.org/third_party/code.google.com/p/google-api-go-client/compute/v1"
+	compute "camlistore.org/third_party/google.golang.org/api/compute/v1"
 	"camlistore.org/third_party/code.google.com/p/xsrftoken"
 	"camlistore.org/third_party/golang.org/x/oauth2"
 )

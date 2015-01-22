@@ -27,7 +27,7 @@ import (
 	"os"
 
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
-	client "camlistore.org/third_party/code.google.com/p/google-api-go-client/drive/v2"
+	client "camlistore.org/third_party/google.golang.org/api/drive/v2"
 )
 
 const (
