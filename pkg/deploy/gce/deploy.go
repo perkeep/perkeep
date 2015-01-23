@@ -24,6 +24,7 @@ package gce
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -41,6 +42,7 @@ import (
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/osutil"
+	"camlistore.org/pkg/syncutil"
 
 	"camlistore.org/third_party/golang.org/x/oauth2"
 	// TODO(mpl): switch to google.golang.org/cloud/compute
@@ -134,7 +136,7 @@ func (e instanceExistsError) Error() string {
 	if e.project == "" {
 		panic("instanceExistsErr has no project")
 	}
-	msg := "some instance(s) already exist for (" + e.project
+	msg := "some instance(s) already exist as (" + e.project
 	if e.zone != "" {
 		msg += ", " + e.zone
 	}
@@ -146,8 +148,59 @@ func (e instanceExistsError) Error() string {
 }
 
 func isInstanceExistsError(errMsg string) bool {
-	return strings.Contains(errMsg, "some instance(s) already exist for (") &&
+	return strings.Contains(errMsg, "some instance(s) already exist as (") &&
 		strings.Contains(errMsg, "), you need to delete them first.")
+}
+
+// projectHasInstance checks for all the possible zones if there's already an instance for the project.
+// It returns the name of the zone at the first instance it finds, if any.
+func (d *Deployer) projectHasInstance() (zone string, err error) {
+	s, err := compute.New(d.Cl)
+	if err != nil {
+		return "", err
+	}
+	// TODO(mpl): cache the zones for at least one day.
+	zl, err := compute.NewZonesService(s).List(d.Conf.Project).Do()
+	if err != nil {
+		return "", fmt.Errorf("could not get a list of zones: %v", err)
+	}
+	computeService, _ := compute.New(d.Cl)
+	var zoneOnce sync.Once
+	var grp syncutil.Group
+	errc := make(chan error, 1)
+	zonec := make(chan string, 1)
+	timeout := time.NewTimer(30 * time.Second)
+	defer timeout.Stop()
+	for _, z := range zl.Items {
+		z := z
+		grp.Go(func() error {
+			list, err := computeService.Instances.List(d.Conf.Project, z.Name).Do()
+			if err != nil {
+				return fmt.Errorf("could not list existing instances: %v", err)
+			}
+			if len(list.Items) > 0 {
+				zoneOnce.Do(func() {
+					zonec <- z.Name
+				})
+			}
+			return nil
+		})
+	}
+	go func() {
+		errc <- grp.Err()
+	}()
+	// We block until either an instance was found in a zone, or all the instance
+	// listing is done. Or we timed-out.
+	select {
+	case err = <-errc:
+		return "", err
+	case zone = <-zonec:
+		// We voluntarily ignore any listing error if we found at least one instance
+		// because that's what we primarily want to report about.
+		return zone, nil
+	case <-timeout.C:
+		return "", errors.New("timed out")
+	}
 }
 
 // Create sets up and starts a Google Compute Engine instance as defined in d.Conf. It
@@ -162,19 +215,14 @@ func (d *Deployer) Create(ctx *context.Context) (*compute.Instance, error) {
 		return nil, fmt.Errorf("cloud config length of %d bytes is over %d byte limit", len(config), maxCloudConfig)
 	}
 
-	// TODO(mpl): maybe add a wipe mode where we don't perform that check
-	list, err := computeService.Instances.List(d.Conf.Project, d.Conf.Zone).Do()
-	if err != nil {
-		return nil, fmt.Errorf("could not list existing instances: %v", err)
-	}
-	if len(list.Items) > 0 {
-		// TODO(mpl): this check is not enough if there's already a disk for the
-		// same project but for another zone. See explanation/TODO in
-		// createInstance.
+	// TODO(mpl): maybe add a wipe mode where we erase other instances before attempting to create.
+	if zone, err := d.projectHasInstance(); zone != "" {
 		return nil, instanceExistsError{
 			project: d.Conf.Project,
-			zone:    d.Conf.Zone,
+			zone:    zone,
 		}
+	} else if err != nil {
+		return nil, fmt.Errorf("could not scan project for existing instances: %v", err)
 	}
 
 	if err := d.setBuckets(storageService, ctx); err != nil {
@@ -318,23 +366,6 @@ OpLoop:
 			}
 			continue
 		case "DONE":
-			// TODO(mpl): It seems like what defines an instance is the
-			// (project, zone, name) triplet. So when listing the instances in
-			// Create, if we had previously created an instance under the same
-			// project, but with a different zone, it won't show up in the list.
-			// However, when we now try to insert with the new zone, we still get
-			// an error such as "&{Code:RESOURCE_ALREADY_EXISTS Location:
-			// Message:The resource
-			// 'projects/camli-mpl/zones/us-central1-a/disks/camlistore-server-coreos-stateless-pd'
-			// already exists}". Even though the disk does not exist for that new
-			// zone.
-			// Until we know how to deal properly with that, one way would be
-			// to use the presence of e.g. the TLS cert in the config dir as a
-			// hint that we already have an instance installed, and when serving
-			// the error, tell the user to rerun the creation form with "wipe
-			// mode" enabled. Which I could add as a tickbox or something, and
-			// which would delete the disk as well as the buckets contents before
-			// doing the actual creation.
 			if op.Error != nil {
 				for _, operr := range op.Error.Errors {
 					log.Printf("Error: %+v", operr)
