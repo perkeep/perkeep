@@ -85,6 +85,9 @@ First time committers are not always aware about good commit message etiquette.
 These few notes should help them.
 "
 
+If your commit is adding or updating a vendored third party, you must indicate
+in your commit message the version (e.g. git commit hash) of said third party.
+
 You can optionally use our pre-commit hook so that your code gets gofmt'ed
 before being submitted (which should be done anyway).
 
