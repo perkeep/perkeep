@@ -42,9 +42,12 @@ import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/osutil"
 
+	"camlistore.org/third_party/golang.org/x/oauth2"
+	// TODO(mpl): switch to google.golang.org/cloud/compute
 	compute "camlistore.org/third_party/google.golang.org/api/compute/v1"
 	storage "camlistore.org/third_party/google.golang.org/api/storage/v1"
-	"camlistore.org/third_party/golang.org/x/oauth2"
+	"camlistore.org/third_party/google.golang.org/cloud"
+	cloudstorage "camlistore.org/third_party/google.golang.org/cloud/storage"
 )
 
 const (
@@ -61,7 +64,8 @@ const (
 	ConsoleURL         = "https://console.developers.google.com"
 	HelpCreateProject  = "Go to " + ConsoleURL + " to create a new Google Cloud project."
 	HelpEnableAPIs     = `Enable the project APIs: in your project console, navigate to "APIs and auth", "APIs". In the list, enable "Google Cloud Storage", "Google Cloud Storage JSON API", and "Google Compute Engine".`
-	HelpDeleteInstance = `Delete an existing Compute Engine instance: in your project console, navigate to "Compute", "Compute Engine", and "VM instances". Select your instance and click "Delete".`
+	helpDeleteInstance = `To delete an existing Compute Engine instance: in your project console, navigate to "Compute", "Compute Engine", and "VM instances". Select your instance and click "Delete".`
+	HelpManageSSHKeys  = `To manage/add SSH keys: in your project console, navigate to "Compute", "Compute Engine", and "VM instances". Click on your instance name. Scroll down to the SSH Keys section.`
 )
 
 // Verbose enables more info to be printed.
@@ -93,11 +97,14 @@ type InstanceConf struct {
 	KeyFile  string // HTTPS key file.
 	Hostname string // Fully qualified domain name.
 
-	bucketBase string // Project + "-camlistore"
-	configDir  string // bucketBase + "/config"
-	blobDir    string // bucketBase + "/blobs"
+	configDir string // bucketBase() + "/config"
+	blobDir   string // bucketBase() + "/blobs"
 
 	Ctime time.Time // Timestamp for this configuration.
+}
+
+func (conf *InstanceConf) bucketBase() string {
+	return conf.Project + "-camlistore"
 }
 
 // Deployer creates and starts an instance such as defined in Conf.
@@ -109,12 +116,38 @@ type Deployer struct {
 
 // Get returns the Instance corresponding to the Project, Zone, and Name defined in the
 // Deployer's Conf.
-func (d *Deployer) Get(ctx *context.Context) (*compute.Instance, error) {
+func (d *Deployer) Get() (*compute.Instance, error) {
 	computeService, err := compute.New(d.Cl)
 	if err != nil {
 		return nil, err
 	}
 	return computeService.Instances.Get(d.Conf.Project, d.Conf.Zone, d.Conf.Name).Do()
+}
+
+type instanceExistsError struct {
+	project string
+	zone    string
+	name    string
+}
+
+func (e instanceExistsError) Error() string {
+	if e.project == "" {
+		panic("instanceExistsErr has no project")
+	}
+	msg := "some instance(s) already exist for (" + e.project
+	if e.zone != "" {
+		msg += ", " + e.zone
+	}
+	if e.name != "" {
+		msg += ", " + e.name
+	}
+	msg += "), you need to delete them first."
+	return msg
+}
+
+func isInstanceExistsError(errMsg string) bool {
+	return strings.Contains(errMsg, "some instance(s) already exist for (") &&
+		strings.Contains(errMsg, "), you need to delete them first.")
 }
 
 // Create sets up and starts a Google Compute Engine instance as defined in d.Conf. It
@@ -129,6 +162,21 @@ func (d *Deployer) Create(ctx *context.Context) (*compute.Instance, error) {
 		return nil, fmt.Errorf("cloud config length of %d bytes is over %d byte limit", len(config), maxCloudConfig)
 	}
 
+	// TODO(mpl): maybe add a wipe mode where we don't perform that check
+	list, err := computeService.Instances.List(d.Conf.Project, d.Conf.Zone).Do()
+	if err != nil {
+		return nil, fmt.Errorf("could not list existing instances: %v", err)
+	}
+	if len(list.Items) > 0 {
+		// TODO(mpl): this check is not enough if there's already a disk for the
+		// same project but for another zone. See explanation/TODO in
+		// createInstance.
+		return nil, instanceExistsError{
+			project: d.Conf.Project,
+			zone:    d.Conf.Zone,
+		}
+	}
+
 	if err := d.setBuckets(storageService, ctx); err != nil {
 		return nil, fmt.Errorf("could not create buckets: %v", err)
 	}
@@ -137,7 +185,7 @@ func (d *Deployer) Create(ctx *context.Context) (*compute.Instance, error) {
 		return nil, fmt.Errorf("could not setup HTTPS: %v", err)
 	}
 
-	if err := d.createInstance(storageService, computeService, ctx); err != nil {
+	if err := d.createInstance(computeService, ctx); err != nil {
 		return nil, fmt.Errorf("could not create compute instance: %v", err)
 	}
 
@@ -154,7 +202,7 @@ func (d *Deployer) Create(ctx *context.Context) (*compute.Instance, error) {
 
 // createInstance starts the creation of the Compute Engine instance and waits for the
 // result of the creation operation. It should be called after setBuckets and setupHTTPS.
-func (d *Deployer) createInstance(storageService *storage.Service, computeService *compute.Service, ctx *context.Context) error {
+func (d *Deployer) createInstance(computeService *compute.Service, ctx *context.Context) error {
 	prefix := projectsAPIURL + d.Conf.Project
 	machType := prefix + "/zones/" + d.Conf.Zone + "/machineTypes/" + d.Conf.Machine
 	config := cloudConfig(d.Conf)
@@ -256,10 +304,6 @@ func (d *Deployer) createInstance(storageService *storage.Service, computeServic
 OpLoop:
 	for {
 		if ctx.IsCanceled() {
-			// TODO(mpl): should we destroy any created instance (and attached
-			// resources) at this point? So that a subsequent run does not fail
-			// with something like:
-			// 2014/11/25 17:08:58 Error: &{Code:RESOURCE_ALREADY_EXISTS Location: Message:The resource 'projects/camli-mpl/zones/europe-west1-b/disks/camlistore-server-coreos-stateless-pd' already exists}
 			return context.ErrCanceled
 		}
 		time.Sleep(2 * time.Second)
@@ -274,6 +318,23 @@ OpLoop:
 			}
 			continue
 		case "DONE":
+			// TODO(mpl): It seems like what defines an instance is the
+			// (project, zone, name) triplet. So when listing the instances in
+			// Create, if we had previously created an instance under the same
+			// project, but with a different zone, it won't show up in the list.
+			// However, when we now try to insert with the new zone, we still get
+			// an error such as "&{Code:RESOURCE_ALREADY_EXISTS Location:
+			// Message:The resource
+			// 'projects/camli-mpl/zones/us-central1-a/disks/camlistore-server-coreos-stateless-pd'
+			// already exists}". Even though the disk does not exist for that new
+			// zone.
+			// Until we know how to deal properly with that, one way would be
+			// to use the presence of e.g. the TLS cert in the config dir as a
+			// hint that we already have an instance installed, and when serving
+			// the error, tell the user to rerun the creation form with "wipe
+			// mode" enabled. Which I could add as a tickbox or something, and
+			// which would delete the disk as well as the buckets contents before
+			// doing the actual creation.
 			if op.Error != nil {
 				for _, operr := range op.Error.Errors {
 					log.Printf("Error: %+v", operr)
@@ -297,6 +358,23 @@ func cloudConfig(conf *InstanceConf) string {
 		config += fmt.Sprintf("\nssh_authorized_keys:\n    - %s\n", conf.SSHPub)
 	}
 	return config
+}
+
+// getInstalledCert returns the TLS certificate stored on Google Cloud Storage for the
+// instance defined in d.Conf.
+func (d *Deployer) getInstalledCert() ([]byte, error) {
+	ctx := cloud.NewContext(d.Conf.Project, d.Cl)
+	sr, err := cloudstorage.NewReader(ctx, d.Conf.bucketBase(),
+		path.Join(configDir, filepath.Base(osutil.DefaultTLSCert())))
+	if err != nil {
+		return nil, err
+	}
+	contents, err := ioutil.ReadAll(sr)
+	sr.Close()
+	if err != nil {
+		return nil, err
+	}
+	return contents, nil
 }
 
 // setBuckets defines the buckets needed by the instance and creates them.
@@ -349,7 +427,7 @@ func (d *Deployer) setBuckets(storageService *storage.Service, ctx *context.Cont
 			return bucketErr
 		}
 	}
-	d.Conf.bucketBase = projBucket
+
 	d.Conf.configDir = path.Join(projBucket, configDir)
 	d.Conf.blobDir = path.Join(projBucket, "blobs")
 	return nil
@@ -395,23 +473,17 @@ func (d *Deployer) setupHTTPS(storageService *storage.Service) error {
 	if Verbose {
 		log.Print("Uploading certificate and key...")
 	}
-	_, err = storageService.Objects.Insert(d.Conf.bucketBase,
+	_, err = storageService.Objects.Insert(d.Conf.bucketBase(),
 		&storage.Object{Name: path.Join(configDir, filepath.Base(osutil.DefaultTLSCert()))}).Media(cert).Do()
 	if err != nil {
 		return fmt.Errorf("cert upload failed: %v", err)
 	}
-	_, err = storageService.Objects.Insert(d.Conf.bucketBase,
+	_, err = storageService.Objects.Insert(d.Conf.bucketBase(),
 		&storage.Object{Name: path.Join(configDir, filepath.Base(osutil.DefaultTLSKey()))}).Media(key).Do()
 	if err != nil {
 		return fmt.Errorf("key upload failed: %v", err)
 	}
 	return nil
-}
-
-// CertFingerprint returns the SHA-256 fingerprint of the HTTPS certificate that is
-// generated when the instance is created, if any.
-func (d *Deployer) CertFingerprint() string {
-	return d.certFingerprint
 }
 
 // returns the MySQL InnoDB buffer pool size (in bytes) as a function
@@ -431,7 +503,6 @@ func innodbBufferPoolSize(machine string) int {
 	}
 }
 
-// TODO(mpl): investigate why `curl file.tar | docker load` is not working.
 const baseInstanceConfig = `#cloud-config
 write_files:
   - path: /var/lib/camlistore/tmp/README

@@ -45,9 +45,9 @@ import (
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/leveldb"
 
-	compute "camlistore.org/third_party/google.golang.org/api/compute/v1"
 	"camlistore.org/third_party/code.google.com/p/xsrftoken"
 	"camlistore.org/third_party/golang.org/x/oauth2"
+	compute "camlistore.org/third_party/google.golang.org/api/compute/v1"
 )
 
 const (
@@ -98,7 +98,7 @@ type DeployHandler struct {
 	// stores the user submitted configuration as a JSON-encoded InstanceConf
 	instConf blobserver.Storage
 	// key is blobRef of the relevant InstanceConf, value is the current state of
-	// the instance creation process, as json encoded creationState
+	// the instance creation process, as JSON-encoded creationState
 	instState sorted.KeyValue
 
 	recordStateErrMu sync.RWMutex
@@ -158,6 +158,7 @@ func NewDeployHandler(host string, prefix string) (http.Handler, error) {
 			"zones":         template.HTML(helpZones),
 			"ssh":           template.HTML(helpSSH),
 			"changeCert":    template.HTML(helpChangeCert),
+			"changeSSH":     template.HTML(HelpManageSSHKeys),
 		},
 		clientID:     clientID,
 		clientSecret: clientSecret,
@@ -285,11 +286,8 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 		Cl:   oAuthConf.Client(oauth2.NoContext, tok),
 		Conf: instConf,
 	}
-	if inst, err := depl.Get(context.TODO()); err == nil {
-		h.serveError(w,
-			fmt.Errorf("Instance already running at %v. You need to manually delete the old one before creating a new one.", addr(inst)),
-			HelpDeleteInstance,
-		)
+
+	if found := h.serveOldInstance(w, br, depl); found {
 		return
 	}
 
@@ -330,11 +328,11 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 		}
 		if err != nil {
 			h.Printf("could not create instance: %v", err)
-			state.Err = err
+			state.Err = fmt.Sprintf("%v", err)
 		} else {
 			state.InstAddr = addr(inst)
 			state.Success = true
-			state.CertFingerprint = depl.CertFingerprint()
+			state.CertFingerprint = depl.certFingerprint
 		}
 		if err := h.recordState(br, state); err != nil {
 			h.Printf("Could not record creation state for %v: %v", br, err)
@@ -344,6 +342,46 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	h.serveProgress(w, br)
+}
+
+// serveOldInstance looks on GCE for an instance such as defined in depl.Conf, and if
+// found, serves the appropriate page depending on whether the instance is usable. It does
+// not serve anything if the instance is not found.
+func (h *DeployHandler) serveOldInstance(w http.ResponseWriter, br blob.Ref, depl *Deployer) (found bool) {
+	if inst, err := depl.Get(); err == nil {
+		var sig string
+		cert, err := depl.getInstalledCert()
+		if err == nil {
+			sig, err = httputil.CertFingerprint(cert)
+			if err != nil {
+				err = fmt.Errorf("could not get sha256 fingerprint of certificate: %v", err)
+			}
+		}
+		if err != nil {
+			h.Printf("Instance (%v, %v, %v) already exists, but error getting its certificate: %v",
+				depl.Conf.Project, depl.Conf.Name, depl.Conf.Zone, err)
+			h.serveError(w,
+				fmt.Errorf("Instance already running at %v. You need to manually delete the old one before creating a new one.", addr(inst)),
+				helpDeleteInstance,
+			)
+			return true
+		}
+		h.Printf("Reusing existing instance for (%v, %v, %v)", depl.Conf.Project, depl.Conf.Name, depl.Conf.Zone)
+
+		if err := h.recordState(br, &creationState{
+			InstConf:        br,
+			InstAddr:        addr(inst),
+			CertFingerprint: sig,
+			Exists:          true,
+		}); err != nil {
+			h.Printf("Could not record creation state for %v: %v", br, err)
+			h.serveError(w, fmt.Errorf("An error occurred while recording the state of your instance. %v", fileIssue(br.String())))
+			return true
+		}
+		h.serveProgress(w, br)
+		return true
+	}
+	return false
 }
 
 func (h *DeployHandler) serveFormError(w http.ResponseWriter, err error, hints ...string) {
@@ -365,6 +403,10 @@ func (h *DeployHandler) serveFormError(w http.ResponseWriter, err error, hints .
 	}
 }
 
+func fileIssue(br string) string {
+	return fmt.Sprintf("Please file an issue with your instance key (%v) at https://camlistore.org/issue", br)
+}
+
 // serveInstanceState serves the state of the requested Google Cloud Engine VM creation
 // process. If the operation was successful, it serves a success page. If it failed, it
 // serves an error page. If it isn't finished yet, it replies with "running".
@@ -384,16 +426,22 @@ func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Reques
 		httputil.ServeError(w, r, fmt.Errorf("could not json decode instance state: %v", err))
 		return
 	}
-	if state.Err != nil {
+	if state.Err != "" {
 		// No need to log that error here since we're already doing it in serveCallback
-		h.serveError(w, fmt.Errorf("An error occurred while creating your instance: %q. Please file an issue with your instance key (%v) at https://camlistore.org/issue", state.Err, br))
+		errMsg := fmt.Sprintf("An error occurred while creating your instance: %q. ", state.Err)
+		if isInstanceExistsError(state.Err) {
+			errMsg += helpDeleteInstance
+		} else {
+			errMsg += fileIssue(br)
+		}
+		h.serveError(w, errors.New(errMsg))
 		return
 	}
-	if state.Success {
+	if state.Success || state.Exists {
 		conf, err := h.instanceConf(state.InstConf)
 		if err != nil {
 			h.Printf("Could not get parameters for success message: %v", err)
-			h.serveError(w, fmt.Errorf("Your instance was created and should soon be up at https://%s but there might have been a problem in the creation process. Please file an issue with your instance key (%v) at https://camlistore.org/issue", state.Err, br))
+			h.serveError(w, fmt.Errorf("Your instance was created and should soon be up at https://%s but there might have been a problem in the creation process. %v", state.Err, fileIssue(br)))
 			return
 		}
 		h.serveSuccess(w, &TemplateData{
@@ -412,7 +460,7 @@ func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Reques
 	defer h.recordStateErrMu.RUnlock()
 	if _, ok := h.recordStateErr[br]; ok {
 		// No need to log that error here since we're already doing it in serveCallback
-		h.serveError(w, fmt.Errorf("An error occurred while recording the state of your instance. Please file an issue with your instance key (%v) at https://camlistore.org/issue", br))
+		h.serveError(w, fmt.Errorf("An error occurred while recording the state of your instance. %v", fileIssue(br)))
 		return
 	}
 	fmt.Fprintf(w, "running")
@@ -583,12 +631,12 @@ func addr(inst *compute.Instance) string {
 // creationState keeps information all along the creation process of the instance. The
 // fields are only exported because we json encode them.
 type creationState struct {
-	Err             error     // if non nil, creation failed.
-	Ctime           time.Time // so we can drop each creationState from the state kv after a while.
-	InstConf        blob.Ref  // key to the user provided instance configuration.
-	InstAddr        string    // ip address of the instance.
-	CertFingerprint string    // SHA256 prefix fingerprint of the self-signed HTTPS certificate.
-	Success         bool      // whether creation was successful.
+	Err             string   `json:",omitempty"` // if non blank, creation failed.
+	InstConf        blob.Ref // key to the user provided instance configuration.
+	InstAddr        string   // ip address of the instance.
+	CertFingerprint string   // SHA256 prefix fingerprint of the self-signed HTTPS certificate.
+	Success         bool     // whether new instance creation was successful.
+	Exists          bool     // true if an instance with same zone, same project name, and same instance name already exists.
 }
 
 // dataStores returns the blobserver that stores the instances configurations, and the kv
@@ -752,7 +800,7 @@ var tplHTML = `
 	<h1><a href="{{.Prefix}}">Camlistore on Google Cloud</a></h1>
 
 	{{if .InstanceIP}}
-		<p>Creation successful. Your Camlistore instance should soon be up at <a href="https://{{.InstanceIP}}">https://{{.InstanceIP}}</a></p>
+		<p>Success. Your Camlistore instance should be up at <a href="https://{{.InstanceIP}}">https://{{.InstanceIP}}</a>. It can take a couple of minutes to be ready.</p>
 	{{end}}
 	{{if .ProjectConsoleURL}}
 		<p>Manage your instance at <a href="{{.ProjectConsoleURL}}">{{.ProjectConsoleURL}}</a></p>
@@ -764,6 +812,9 @@ var tplHTML = `
 		</p>
 		<p>
 		If you want to use your own HTTPS certificate and key: {{printf (print .Help.changeCert) .Project}} Then <a href="https://{{.InstanceIP}}/status">restart</a> Camlistore.
+		</p>
+		<p>
+		{{.Help.changeSSH}}
 		</p>
 	{{end}}
 	{{if .Err}}
