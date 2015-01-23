@@ -11,11 +11,11 @@ package storage
 
 import (
 	"bytes"
+	"camlistore.org/third_party/golang.org/x/net/context"
+	"camlistore.org/third_party/google.golang.org/api/googleapi"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"camlistore.org/third_party/golang.org/x/net/context"
-	"camlistore.org/third_party/google.golang.org/api/googleapi"
 	"io"
 	"net/http"
 	"net/url"
@@ -4508,6 +4508,11 @@ func (c *ObjectsInsertCall) Do() (*Object, error) {
 		params.Set("uploadType", c.protocol_)
 	}
 	urls += "?" + params.Encode()
+	var contentLength_ int64
+	var hasMedia_ bool
+	if c.protocol_ != "resumable" {
+		contentLength_, hasMedia_ = googleapi.ConditionallyIncludeMedia(c.media_, &body, &ctype)
+	}
 	req, _ := http.NewRequest("POST", urls, body)
 	googleapi.Expand(req.URL, map[string]string{
 		"bucket": c.bucket,
@@ -4522,12 +4527,9 @@ func (c *ObjectsInsertCall) Do() (*Object, error) {
 		if params.Get("name") == "" {
 			return nil, fmt.Errorf("resumable uploads must set the Name parameter.")
 		}
-	} else {
-		contentLength_, hasMedia_ := googleapi.ConditionallyIncludeMedia(c.media_, &body, &ctype)
-		if hasMedia_ {
-			req.ContentLength = contentLength_
-			req.Header.Set("Content-Type", ctype)
-		}
+	} else if hasMedia_ {
+		req.ContentLength = contentLength_
+		req.Header.Set("Content-Type", ctype)
 	}
 	req.Header.Set("User-Agent", "google-api-go-client/0.5")
 	res, err := c.s.client.Do(req)
