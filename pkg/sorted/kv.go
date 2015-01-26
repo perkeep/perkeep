@@ -26,7 +26,7 @@ import (
 
 const (
 	MaxKeySize   = 767   // Maximum size, in bytes, for a key in any store implementing KeyValue.
-	MaxValueSize = 63000 // Maximum size, in bytes, for a value in any store implementing KeyValue. KeyMaxSize and ValueMaxSize values originate from InnoDB and MySQL limitations.
+	MaxValueSize = 63000 // Maximum size, in bytes, for a value in any store implementing KeyValue. MaxKeySize and MaxValueSize values originate from InnoDB and MySQL limitations.
 )
 
 var (
