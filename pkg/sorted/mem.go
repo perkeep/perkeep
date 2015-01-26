@@ -114,6 +114,9 @@ func (mk *memKeys) Find(start, end string) Iterator {
 }
 
 func (mk *memKeys) Set(key, value string) error {
+	if err := CheckSizes(key, value); err != nil {
+		return err
+	}
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
 	return mk.db.Set([]byte(key), []byte(value), nil)
@@ -146,6 +149,9 @@ func (mk *memKeys) CommitBatch(bm BatchMutation) error {
 				return err
 			}
 		} else {
+			if err := CheckSizes(m.Key(), m.Value()); err != nil {
+				return err
+			}
 			if err := mk.db.Set([]byte(m.Key()), []byte(m.Value()), nil); err != nil {
 				return err
 			}

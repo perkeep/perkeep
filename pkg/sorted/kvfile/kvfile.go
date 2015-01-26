@@ -92,6 +92,9 @@ func (is *kvis) Get(key string) (string, error) {
 }
 
 func (is *kvis) Set(key, value string) error {
+	if err := sorted.CheckSizes(key, value); err != nil {
+		return err
+	}
 	return is.db.Set([]byte(key), []byte(value))
 }
 
@@ -158,6 +161,9 @@ func (is *kvis) CommitBatch(bm sorted.BatchMutation) error {
 				return err
 			}
 		} else {
+			if err := sorted.CheckSizes(m.Key(), m.Value()); err != nil {
+				return err
+			}
 			if err := is.db.Set([]byte(m.Key()), []byte(m.Value())); err != nil {
 				return err
 			}

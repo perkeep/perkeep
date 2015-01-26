@@ -110,6 +110,9 @@ func (is *kvis) Get(key string) (string, error) {
 }
 
 func (is *kvis) Set(key, value string) error {
+	if err := sorted.CheckSizes(key, value); err != nil {
+		return err
+	}
 	return is.db.Put([]byte(key), []byte(value), is.writeOpts)
 }
 
@@ -158,10 +161,26 @@ func (is *kvis) BeginBatch() sorted.BatchMutation {
 }
 
 type lvbatch struct {
+	errMu sync.Mutex
+	err   error // Set if one of the mutations had too large a key or value. Sticky.
+
 	batch *leveldb.Batch
 }
 
 func (lvb *lvbatch) Set(key, value string) {
+	lvb.errMu.Lock()
+	defer lvb.errMu.Unlock()
+	if lvb.err != nil {
+		return
+	}
+	if err := sorted.CheckSizes(key, value); err != nil {
+		if err == sorted.ErrKeyTooLarge {
+			lvb.err = fmt.Errorf("%v: %v", err, key)
+		} else {
+			lvb.err = fmt.Errorf("%v: %v", err, value)
+		}
+		return
+	}
 	lvb.batch.Put([]byte(key), []byte(value))
 }
 
@@ -173,6 +192,11 @@ func (is *kvis) CommitBatch(bm sorted.BatchMutation) error {
 	b, ok := bm.(*lvbatch)
 	if !ok {
 		return errors.New("invalid batch type")
+	}
+	b.errMu.Lock()
+	defer b.errMu.Unlock()
+	if b.err != nil {
+		return b.err
 	}
 	return is.db.Write(b.batch, is.writeOpts)
 }

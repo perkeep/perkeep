@@ -76,6 +76,14 @@ func (b *batchTx) Set(key, value string) {
 	if b.err != nil {
 		return
 	}
+	if err := sorted.CheckSizes(key, value); err != nil {
+		if err == sorted.ErrKeyTooLarge {
+			b.err = fmt.Errorf("%v: %v", err, key)
+		} else {
+			b.err = fmt.Errorf("%v: %v", err, value)
+		}
+		return
+	}
 	if b.kv.BatchSetFunc != nil {
 		b.err = b.kv.BatchSetFunc(b.tx, key, value)
 		return
@@ -132,6 +140,9 @@ func (kv *KeyValue) Get(key string) (value string, err error) {
 }
 
 func (kv *KeyValue) Set(key, value string) error {
+	if err := sorted.CheckSizes(key, value); err != nil {
+		return err
+	}
 	if kv.Serial {
 		kv.mu.Lock()
 		defer kv.mu.Unlock()

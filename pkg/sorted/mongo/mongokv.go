@@ -145,6 +145,9 @@ func (kv *keyValue) Find(start, end string) sorted.Iterator {
 }
 
 func (kv *keyValue) Set(key, value string) error {
+	if err := sorted.CheckSizes(key, value); err != nil {
+		return err
+	}
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
 	_, err := kv.db.Upsert(&bson.M{mgoKey: key}, &bson.M{mgoKey: key, mgoValue: value})
@@ -192,6 +195,9 @@ func (kv *keyValue) CommitBatch(bm sorted.BatchMutation) error {
 				return err
 			}
 		} else {
+			if err := sorted.CheckSizes(m.Key(), m.Value()); err != nil {
+				return err
+			}
 			if _, err := kv.db.Upsert(&bson.M{mgoKey: m.Key()}, &bson.M{mgoKey: m.Key(), mgoValue: m.Value()}); err != nil {
 				return err
 			}

@@ -16,7 +16,13 @@ limitations under the License.
 
 package mysql
 
-const requiredSchemaVersion = 21
+import (
+	"strconv"
+
+	"camlistore.org/pkg/sorted"
+)
+
+const requiredSchemaVersion = 22
 
 func SchemaVersion() int {
 	return requiredSchemaVersion
@@ -29,8 +35,8 @@ func SchemaVersion() int {
 func SQLCreateTables() []string {
 	return []string{
 		`CREATE TABLE IF NOT EXISTS /*DB*/.rows (
- k VARCHAR(255) NOT NULL PRIMARY KEY,
- v VARCHAR(255))
+ k VARCHAR(` + strconv.Itoa(sorted.MaxKeySize) + `) NOT NULL PRIMARY KEY,
+ v VARCHAR(` + strconv.Itoa(sorted.MaxValueSize) + `))
  DEFAULT CHARACTER SET binary`,
 
 		`CREATE TABLE IF NOT EXISTS /*DB*/.meta (
