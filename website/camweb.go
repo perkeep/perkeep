@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/deploy/gce"
+	"camlistore.org/pkg/netutil"
 	"camlistore.org/pkg/types/camtypes"
 )
 
@@ -382,7 +383,12 @@ func main() {
 
 	if *httpsAddr != "" {
 		if e := os.Getenv("CAMLI_GCE_CLIENTID"); e != "" {
-			mux.Handle("/launch/", gceDeployHandler(*httpsAddr, "/launch/"))
+			hostPort, err := netutil.HostPort("https://" + *httpsAddr)
+			if err != nil {
+				hostPort = "camlistore.org:443"
+			}
+			log.Printf("Starting Camlistore launcher on https://%s/launch/", hostPort)
+			mux.Handle("/launch/", gceDeployHandler(hostPort, "/launch/"))
 		}
 	}
 
