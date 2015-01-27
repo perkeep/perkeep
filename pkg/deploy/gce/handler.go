@@ -328,7 +328,14 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 		}
 		if err != nil {
 			h.Printf("could not create instance: %v", err)
-			state.Err = fmt.Sprintf("%v", err)
+			switch e := err.(type) {
+			case instanceExistsError:
+				state.Err = fmt.Sprintf("%v %v", e, helpDeleteInstance)
+			case projectIDError:
+				state.Err = fmt.Sprintf("%v", e)
+			default:
+				state.Err = fmt.Sprintf("%v. %v", err, fileIssue(br.String()))
+			}
 		} else {
 			state.InstAddr = addr(inst)
 			state.Success = true
@@ -428,13 +435,7 @@ func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Reques
 	}
 	if state.Err != "" {
 		// No need to log that error here since we're already doing it in serveCallback
-		errMsg := fmt.Sprintf("An error occurred while creating your instance: %q. ", state.Err)
-		if isInstanceExistsError(state.Err) {
-			errMsg += helpDeleteInstance
-		} else {
-			errMsg += fileIssue(br)
-		}
-		h.serveError(w, errors.New(errMsg))
+		h.serveError(w, fmt.Errorf("An error occurred while creating your instance: %q. ", state.Err))
 		return
 	}
 	if state.Success || state.Exists {
@@ -754,7 +755,7 @@ var tplHTML = `
 		img.src = {{.Piggygif}};
 
 		var msg = document.createElement('span');
-		msg.innerHTML = 'Please wait (up to a couple of minutes) while piggy creates your instance...';
+		msg.innerHTML = 'Please wait (up to a couple of minutes) while we create your instance...';
 		msg.style.boxSizing = 'border-box';
 		msg.style.color = '#444';
 		msg.style.display = 'block';
@@ -849,7 +850,7 @@ var tplHTML = `
 		<p> {{.Help.genCert}} </p>
 
 		<table border=0 cellpadding=3>
-			<tr><td align=right>Project name</td><td><input name="project" size=50 value=""></td></tr>
+			<tr><td align=right>Project ID</td><td><input name="project" size=50 value=""></td></tr>
 			<tr><td align=right><a href="{{.Help.domainName}}">Domain name</a></td><td><input name="hostname" size=50 value=""></td></tr>
 			<tr><td align=right><a href="{{.Help.zones}}">Zone</a></td><td><input name="zone" size=50 value="{{.Defaults.zone}}"></td></tr>
 			<tr><td align=right>Instance name</td><td><input name="name" size=50 value="{{.Defaults.name}}"></td></tr>

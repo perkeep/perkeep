@@ -147,11 +147,6 @@ func (e instanceExistsError) Error() string {
 	return msg
 }
 
-func isInstanceExistsError(errMsg string) bool {
-	return strings.Contains(errMsg, "some instance(s) already exist as (") &&
-		strings.Contains(errMsg, "), you need to delete them first.")
-}
-
 // projectHasInstance checks for all the possible zones if there's already an instance for the project.
 // It returns the name of the zone at the first instance it finds, if any.
 func (d *Deployer) projectHasInstance() (zone string, err error) {
@@ -203,9 +198,53 @@ func (d *Deployer) projectHasInstance() (zone string, err error) {
 	}
 }
 
+type projectIDError struct {
+	id    string
+	cause error
+}
+
+func (e projectIDError) Error() string {
+	if e.id == "" {
+		panic("projectIDError without an id")
+	}
+	if e.cause != nil {
+		return fmt.Sprintf("project ID error for %v: %v", e.id, e.cause)
+	}
+	return fmt.Sprintf("project ID error for %v", e.id)
+}
+
+func (d *Deployer) checkProjectID() error {
+	// TODO(mpl): cache the computeService in Deployer, instead of recreating a new one everytime?
+	s, err := compute.New(d.Cl)
+	if err != nil {
+		return projectIDError{
+			id:    d.Conf.Project,
+			cause: err,
+		}
+	}
+	project, err := compute.NewProjectsService(s).Get(d.Conf.Project).Do()
+	if err != nil {
+		return projectIDError{
+			id:    d.Conf.Project,
+			cause: err,
+		}
+	}
+	if project.Name != d.Conf.Project {
+		return projectIDError{
+			id:    d.Conf.Project,
+			cause: fmt.Errorf("project ID do not match: got %q, wanted %q", project.Name, d.Conf.Project),
+		}
+	}
+	return nil
+}
+
 // Create sets up and starts a Google Compute Engine instance as defined in d.Conf. It
 // creates the necessary Google Storage buckets beforehand.
 func (d *Deployer) Create(ctx *context.Context) (*compute.Instance, error) {
+	if err := d.checkProjectID(); err != nil {
+		return nil, err
+	}
+
 	computeService, _ := compute.New(d.Cl)
 	storageService, _ := storage.New(d.Cl)
 
