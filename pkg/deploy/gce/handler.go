@@ -150,15 +150,16 @@ func NewDeployHandler(host string, prefix string) (http.Handler, error) {
 		scheme:         scheme,
 		prefix:         prefix,
 		help: map[string]template.HTML{
-			"createProject": template.HTML(googURLPattern.ReplaceAllString(HelpCreateProject, toHyperlink)),
-			"enableAPIs":    template.HTML(HelpEnableAPIs),
-			"genCert":       template.HTML(helpGenCert),
-			"domainName":    template.HTML(helpDomainName),
-			"machineTypes":  template.HTML(helpMachineTypes),
-			"zones":         template.HTML(helpZones),
-			"ssh":           template.HTML(helpSSH),
-			"changeCert":    template.HTML(helpChangeCert),
-			"changeSSH":     template.HTML(HelpManageSSHKeys),
+			"createProject":   template.HTML(googURLPattern.ReplaceAllString(HelpCreateProject, toHyperlink)),
+			"enableAPIs":      template.HTML(HelpEnableAPIs),
+			"genCert":         template.HTML(helpGenCert),
+			"domainName":      template.HTML(helpDomainName),
+			"machineTypes":    template.HTML(helpMachineTypes),
+			"zones":           template.HTML(helpZones),
+			"ssh":             template.HTML(helpSSH),
+			"changeCert":      template.HTML(helpChangeCert),
+			"changeSSH":       template.HTML(HelpManageSSHKeys),
+			"changeHTTPCreds": template.HTML(HelpManageHTTPCreds),
 		},
 		clientID:     clientID,
 		clientSecret: clientSecret,
@@ -373,6 +374,9 @@ func (h *DeployHandler) serveOldInstance(w http.ResponseWriter, br blob.Ref, dep
 			)
 			return true
 		}
+		// TODO(mpl): get the Password from the instance's metadata, and stuff it in
+		// the creationState. That way, we will display the correct password on the
+		// success page (instead of whatever password was just entered in the form).
 		h.Printf("Reusing existing instance for (%v, %v, %v)", depl.Conf.Project, depl.Conf.Name, depl.Conf.Zone)
 
 		if err := h.recordState(br, &creationState{
@@ -435,6 +439,7 @@ func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Reques
 	}
 	if state.Err != "" {
 		// No need to log that error here since we're already doing it in serveCallback
+		// TODO(mpl): fix overescaping of double quotes.
 		h.serveError(w, fmt.Errorf("An error occurred while creating your instance: %q. ", state.Err))
 		return
 	}
@@ -453,6 +458,7 @@ func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Reques
 			Hostname:          conf.Hostname,
 			CertFingerprint:   state.CertFingerprint,
 			Project:           conf.Project,
+			Password:          conf.Password,
 			Defaults:          formDefaults,
 		})
 		return
@@ -539,6 +545,7 @@ func confFromForm(r *http.Request) (*InstanceConf, error) {
 		Zone:     formValueOrDefault(r, "zone", Zone),
 		Hostname: formValueOrDefault(r, "hostname", "localhost"),
 		SSHPub:   formValueOrDefault(r, "sshPub", ""),
+		Password: formValueOrDefault(r, "password", project),
 		Ctime:    time.Now(),
 	}, nil
 }
@@ -695,6 +702,7 @@ type TemplateData struct {
 	InstanceIP        string // instance IP address that we display after successful creation.
 	CertFingerprint   string // SHA-256 fingerprint of the self-signed HTTPS certificate.
 	ProjectConsoleURL string
+	Password          string // password provided by user. defaults to project ID.
 }
 
 const toHyperlink = `<a href="$1$3">$1$3</a>`
@@ -801,10 +809,12 @@ var tplHTML = `
 	<h1><a href="{{.Prefix}}">Camlistore on Google Cloud</a></h1>
 
 	{{if .InstanceIP}}
-		<p>Success. Your Camlistore instance should be up at <a href="https://{{.InstanceIP}}">https://{{.InstanceIP}}</a>. It can take a couple of minutes to be ready.</p>
+		<p>Success. Your Camlistore instance should be up at <a href="https://{{.InstanceIP}}">https://{{.InstanceIP}}</a> (login: ` + camliUsername + `, password: {{.Password}}). It can take a couple of minutes to be ready.</p>
 	{{end}}
 	{{if .ProjectConsoleURL}}
-		<p>Manage your instance at <a href="{{.ProjectConsoleURL}}">{{.ProjectConsoleURL}}</a></p>
+		<p>
+		Manage your instance at <a href="{{.ProjectConsoleURL}}">{{.ProjectConsoleURL}}</a>. {{.Help.changeHTTPCreds}} Then <a href="https://{{.InstanceIP}}/status">restart</a> Camlistore.
+		</p>
 	{{end}}
 	{{if and .InstanceIP (and .Project (and .Hostname .CertFingerprint))}}
 		<p>
@@ -855,6 +865,7 @@ var tplHTML = `
 			<tr><td align=right><a href="{{.Help.zones}}">Zone</a></td><td><input name="zone" size=50 value="{{.Defaults.zone}}"></td></tr>
 			<tr><td align=right>Instance name</td><td><input name="name" size=50 value="{{.Defaults.name}}"></td></tr>
 			<tr><td align=right><a href="{{.Help.machineTypes}}">Machine type</a></td><td><input name="machine" size=50 value="{{.Defaults.machine}}"></td></tr>
+			<tr><td align=right>Password</td><td><input name="password" size=50 value="{{.Defaults.password}}"></td></tr>
 			<tr><td align=right><a href="{{.Help.ssh}}">SSH public key</a></td><td><input name="sshPub" size=50 value=""></td></tr>
 		</table>
 		<input type='submit' value="Create instance">

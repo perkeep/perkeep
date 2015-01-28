@@ -57,17 +57,21 @@ const (
 	coreosImgURL   = "https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-stable-444-5-0-v20141016"
 
 	// default instance configuration values.
-	InstanceName = "camlistore-server"
-	Machine      = "g1-small"
-	Zone         = "us-central1-a"
+	// TODO(mpl): they can probably be lowercased now that handler.go is in the same
+	// package. Just need to verify camdeploy does not need them.
+	InstanceName  = "camlistore-server"
+	Machine       = "g1-small"
+	Zone          = "us-central1-a"
+	camliUsername = "camlistore" // directly set in compute metadata, so not user settable.
 
 	configDir = "config"
 
-	ConsoleURL         = "https://console.developers.google.com"
-	HelpCreateProject  = "Go to " + ConsoleURL + " to create a new Google Cloud project."
-	HelpEnableAPIs     = `Enable the project APIs: in your project console, navigate to "APIs and auth", "APIs". In the list, enable "Google Cloud Storage", "Google Cloud Storage JSON API", and "Google Compute Engine".`
-	helpDeleteInstance = `To delete an existing Compute Engine instance: in your project console, navigate to "Compute", "Compute Engine", and "VM instances". Select your instance and click "Delete".`
-	HelpManageSSHKeys  = `To manage/add SSH keys: in your project console, navigate to "Compute", "Compute Engine", and "VM instances". Click on your instance name. Scroll down to the SSH Keys section.`
+	ConsoleURL          = "https://console.developers.google.com"
+	HelpCreateProject   = "Go to " + ConsoleURL + " to create a new Google Cloud project."
+	HelpEnableAPIs      = `Enable the project APIs: in your project console, navigate to "APIs and auth", "APIs". In the list, enable "Google Cloud Storage", "Google Cloud Storage JSON API", and "Google Compute Engine".`
+	helpDeleteInstance  = `To delete an existing Compute Engine instance: in your project console, navigate to "Compute", "Compute Engine", and "VM instances". Select your instance and click "Delete".`
+	HelpManageSSHKeys   = `To manage/add SSH keys: in your project console, navigate to "Compute", "Compute Engine", and "VM instances". Click on your instance name. Scroll down to the SSH Keys section.`
+	HelpManageHTTPCreds = `To change your login and password: in your project console, navigate to "Compute", "Compute Engine", and "VM instances". Click on your instance name. Set camlistore-username and/or camlistore-password in the custom metadata section.`
 )
 
 // Verbose enables more info to be printed.
@@ -98,6 +102,7 @@ type InstanceConf struct {
 	CertFile string // HTTPS certificate file.
 	KeyFile  string // HTTPS key file.
 	Hostname string // Fully qualified domain name.
+	Password string // Camlistore HTTP basic auth password. Defaults to project ID.
 
 	configDir string // bucketBase() + "/config"
 	blobDir   string // bucketBase() + "/blobs"
@@ -293,6 +298,10 @@ func (d *Deployer) createInstance(computeService *compute.Service, ctx *context.
 	prefix := projectsAPIURL + d.Conf.Project
 	machType := prefix + "/zones/" + d.Conf.Zone + "/machineTypes/" + d.Conf.Machine
 	config := cloudConfig(d.Conf)
+	password := d.Conf.Password
+	if password == "" {
+		password = d.Conf.Project
+	}
 	instance := &compute.Instance{
 		Name:        d.Conf.Name,
 		Description: "Camlistore server",
@@ -315,11 +324,11 @@ func (d *Deployer) createInstance(computeService *compute.Service, ctx *context.
 			Items: []*compute.MetadataItems{
 				{
 					Key:   "camlistore-username",
-					Value: "test",
+					Value: camliUsername,
 				},
 				{
 					Key:   "camlistore-password",
-					Value: "insecure", // TODO: this won't be cleartext later
+					Value: password,
 				},
 				{
 					Key:   "camlistore-blob-dir",
