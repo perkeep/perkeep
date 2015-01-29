@@ -253,6 +253,11 @@ func (d *Deployer) Create(ctx *context.Context) (*compute.Instance, error) {
 	computeService, _ := compute.New(d.Cl)
 	storageService, _ := storage.New(d.Cl)
 
+	fwc := make(chan error, 1)
+	go func() {
+		fwc <- d.setFirewall(ctx, computeService)
+	}()
+
 	config := cloudConfig(d.Conf)
 	const maxCloudConfig = 32 << 10 // per compute API docs
 	if len(config) > maxCloudConfig {
@@ -288,6 +293,10 @@ func (d *Deployer) Create(ctx *context.Context) (*compute.Instance, error) {
 	if Verbose {
 		ij, _ := json.MarshalIndent(inst, "", "    ")
 		log.Printf("Instance: %s", ij)
+	}
+
+	if err = <-fwc; err != nil {
+		return nil, fmt.Errorf("could not create firewall rules: %v", err)
 	}
 	return inst, nil
 }
@@ -510,6 +519,67 @@ func (d *Deployer) setBuckets(storageService *storage.Service, ctx *context.Cont
 	d.Conf.configDir = path.Join(projBucket, configDir)
 	d.Conf.blobDir = path.Join(projBucket, "blobs")
 	return nil
+}
+
+// setFirewall adds the firewall rules needed for ports 80 & 433 to the default network.
+func (d *Deployer) setFirewall(ctx *context.Context, computeService *compute.Service) error {
+	defaultNet, err := computeService.Networks.Get(d.Conf.Project, "default").Do()
+	if err != nil {
+		return fmt.Errorf("error getting default network: %v", err)
+	}
+
+	needRules := map[string]compute.Firewall{
+		"default-allow-http": compute.Firewall{
+			Name:         "default-allow-http",
+			SourceRanges: []string{"0.0.0.0/0"},
+			SourceTags:   []string{"http-server"},
+			Allowed:      []*compute.FirewallAllowed{{"tcp", []string{"80"}}},
+			Network:      defaultNet.SelfLink,
+		},
+		"default-allow-https": compute.Firewall{
+			Name:         "default-allow-https",
+			SourceRanges: []string{"0.0.0.0/0"},
+			SourceTags:   []string{"https-server"},
+			Allowed:      []*compute.FirewallAllowed{{"tcp", []string{"443"}}},
+			Network:      defaultNet.SelfLink,
+		},
+	}
+
+	rules, err := computeService.Firewalls.List(d.Conf.Project).Do()
+	if err != nil {
+		return fmt.Errorf("error listing rules: %v", err)
+	}
+	for _, it := range rules.Items {
+		delete(needRules, it.Name)
+	}
+	if len(needRules) == 0 {
+		return nil
+	}
+
+	if Verbose {
+		log.Printf("Need to create rules: %v", needRules)
+	}
+	var wg syncutil.Group
+	for name, rule := range needRules {
+		if ctx.IsCanceled() {
+			return context.ErrCanceled
+		}
+		name, rule := name, rule
+		wg.Go(func() error {
+			if Verbose {
+				log.Printf("Creating rule %s", name)
+			}
+			r, err := computeService.Firewalls.Insert(d.Conf.Project, &rule).Do()
+			if err != nil {
+				return fmt.Errorf("error creating rule %s: %v", name, err)
+			}
+			if Verbose {
+				log.Printf("Created rule %s: %+v", name, r)
+			}
+			return nil
+		})
+	}
+	return wg.Err()
 }
 
 // setupHTTPS uploads to the configuration bucket the certificate and key used by the
