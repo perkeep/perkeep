@@ -17,6 +17,7 @@ limitations under the License.
 /*
 #fileembed pattern .+\.(js|css|html|png|svg)$
 */
+
 package main
 
 import (
