@@ -482,6 +482,7 @@ func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Reques
 			Defaults:          formDefaults,
 			ZoneValues:        zoneValues,
 			MachineValues:     machineValues,
+			Zone:              conf.Zone,
 		})
 		return
 	}
@@ -727,6 +728,7 @@ type TemplateData struct {
 	Password          string // password provided by user. defaults to project ID.
 	ZoneValues        []string
 	MachineValues     []string
+	Zone              string
 }
 
 const toHyperlink = `<a href="$1$3">$1$3</a>`
@@ -748,6 +750,8 @@ var noTheme = `
 {{define "footer"}}
 {{end}}
 `
+
+// TODO(mpl): do not hardcode the tls.key and tls.crt names in the template.
 
 var tplHTML = `
 	{{define "progress"}}
@@ -834,11 +838,14 @@ var tplHTML = `
 
 	{{if .InstanceIP}}
 		<p>Success. Your Camlistore instance should be up at <a href="https://{{.InstanceIP}}">https://{{.InstanceIP}}</a> (login: ` + camliUsername + `, password: {{.Password}}). It can take a couple of minutes to be ready.</p>
-		<p>Please bookmark this page in case you need to come back for the instruction.</p>
+		<p>Please save the information on this page in case you need to come back for the instruction.</p>
 	{{end}}
 	{{if .ProjectConsoleURL}}
 		<p>
-		Manage your instance at <a href="{{.ProjectConsoleURL}}">{{.ProjectConsoleURL}}</a>. {{.Help.changeHTTPCreds}} Then <a href="https://{{.InstanceIP}}/status">restart</a> Camlistore.
+		Manage your instance at <a href="{{.ProjectConsoleURL}}">{{.ProjectConsoleURL}}</a>.
+		</p>
+		<p>
+		To change your login and password, go to the <a href="https://console.developers.google.com/project/{{.Project}}/compute/instancesDetail/zones/{{.Zone}}/instances/camlistore-server">camlistore-server instance</a> page. Set camlistore-username and/or camlistore-password in the custom metadata section. Then <a href="https://{{.InstanceIP}}/status">restart</a> Camlistore.
 		</p>
 	{{end}}
 	{{if and .InstanceIP (and .Project (and .Hostname .CertFingerprint))}}
@@ -847,10 +854,10 @@ var tplHTML = `
 		You will need to add an exception for it in your browser when you get a security warning the first time you connect. At which point you should check that the prefix of the SHA-256 fingerprint of the certificate is indeed <code style="color:blue">{{.CertFingerprint}}</code>.
 		</p>
 		<p>
-		If you want to use your own HTTPS certificate and key: {{printf (print .Help.changeCert) .Project}} Then <a href="https://{{.InstanceIP}}/status">restart</a> Camlistore.
+		If you want to use your own HTTPS certificate and key, go to <a href="https://console.developers.google.com/project/{{.Project}}/storage/browser/{{.Project}}-camlistore/config/">the storage browser</a>. Delete "tls.crt", "tls.key", and replace them by uploading your own files (with the same names). Then <a href="https://{{.InstanceIP}}/status">restart</a> Camlistore.
 		</p>
 		<p>
-		{{.Help.changeSSH}}
+		To manage/add SSH keys, go to the <a href="https://console.developers.google.com/project/{{.Project}}/compute/instancesDetail/zones/{{.Zone}}/instances/camlistore-server">camlistore-server instance</a> page. Scroll down to the SSH Keys section.
 		</p>
 	{{end}}
 	{{if .Err}}
