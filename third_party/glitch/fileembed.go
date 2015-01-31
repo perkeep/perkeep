@@ -15,10 +15,10 @@ limitations under the License.
 */
 
 /*
+Package glich embeds the little piggy animation resources.
+
 #fileembed pattern .*\.png
 */
-
-// Package glich embeds the little piggy animation resources.
 package glitch
 
 import "camlistore.org/pkg/fileembed"

@@ -14,9 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// The publisher application serves and renders items published by Camlistore.
-// That is, items that are children, through a (direct or not) camliPath relation,
-// of a camliRoot node (a permanode with a camliRoot attribute set).
 package main
 
 import (
