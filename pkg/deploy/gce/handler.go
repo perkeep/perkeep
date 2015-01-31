@@ -69,6 +69,22 @@ var (
 		"machine": Machine,
 		"zone":    Zone,
 	}
+	// TODO(mpl): query for them, and cache them.
+	zoneValues = []string{
+		"us-central1-a",
+		"us-central1-b",
+		"us-central1-f",
+		"europe-west1-b",
+		"europe-west1-c",
+		"asia-east1-a",
+		"asia-east1-b",
+		"asia-east1-c",
+	}
+	machineValues = []string{
+		"g1-small",
+		"n1-highcpu-2",
+	}
+
 	// DevHandler: if true, use HTTP instead of HTTPS, force permissions prompt for OAuth,
 	// do not actually create an instance. It has no effect if set after NewHandler is
 	// called.
@@ -201,9 +217,11 @@ func (h *DeployHandler) serveRoot(w http.ResponseWriter, r *http.Request) {
 	h.tplMu.RLock()
 	defer h.tplMu.RUnlock()
 	if err := h.tpl.ExecuteTemplate(w, "withform", &TemplateData{
-		Prefix:   h.prefix,
-		Help:     h.help,
-		Defaults: formDefaults,
+		Prefix:        h.prefix,
+		Help:          h.help,
+		Defaults:      formDefaults,
+		ZoneValues:    zoneValues,
+		MachineValues: machineValues,
 	}); err != nil {
 		h.Print(err)
 	}
@@ -404,11 +422,13 @@ func (h *DeployHandler) serveFormError(w http.ResponseWriter, err error, hints .
 	h.tplMu.RLock()
 	defer h.tplMu.RUnlock()
 	if tplErr := h.tpl.ExecuteTemplate(w, "withform", &TemplateData{
-		Prefix:   h.prefix,
-		Help:     h.help,
-		Err:      err,
-		Hints:    topHints,
-		Defaults: formDefaults,
+		Prefix:        h.prefix,
+		Help:          h.help,
+		Err:           err,
+		Hints:         topHints,
+		Defaults:      formDefaults,
+		ZoneValues:    zoneValues,
+		MachineValues: machineValues,
 	}); tplErr != nil {
 		h.Printf("Could not serve form error %q because: %v", err, tplErr)
 	}
@@ -460,6 +480,8 @@ func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Reques
 			Project:           conf.Project,
 			Password:          conf.Password,
 			Defaults:          formDefaults,
+			ZoneValues:        zoneValues,
+			MachineValues:     machineValues,
 		})
 		return
 	}
@@ -703,6 +725,8 @@ type TemplateData struct {
 	CertFingerprint   string // SHA-256 fingerprint of the self-signed HTTPS certificate.
 	ProjectConsoleURL string
 	Password          string // password provided by user. defaults to project ID.
+	ZoneValues        []string
+	MachineValues     []string
 }
 
 const toHyperlink = `<a href="$1$3">$1$3</a>`
@@ -810,6 +834,7 @@ var tplHTML = `
 
 	{{if .InstanceIP}}
 		<p>Success. Your Camlistore instance should be up at <a href="https://{{.InstanceIP}}">https://{{.InstanceIP}}</a> (login: ` + camliUsername + `, password: {{.Password}}). It can take a couple of minutes to be ready.</p>
+		<p>Please bookmark this page in case you need to come back for the instruction.</p>
 	{{end}}
 	{{if .ProjectConsoleURL}}
 		<p>
@@ -850,25 +875,44 @@ var tplHTML = `
 	<form method="post" enctype="multipart/form-data">
 		<input type='hidden' name="mode" value="setupproject">
 
-		<h3>Create a new Google Cloud project</h3>
+		<h3>Deploy Camlistore on Google Cloud</h3>
 
-		<p> {{.Help.createProject}} </p>
-		<p> {{.Help.enableAPIs}} </p>
-
-		<h3>Configure Google Compute Engine</h3>
-
-		<p> {{.Help.genCert}} </p>
+		<p>
+This tool helps you create your own private Camlistore instance running on Google's cloud. Be sure to understand <a href="https://cloud.google.com/compute/pricing#machinetype">Google Compute Engine's pricing</a> before proceeding. To delete your instance and stop paying Google for the virtual machine, visit the <a href="https://console.developers.google.com/">Google Cloud console</a>.
+		</p>
 
 		<table border=0 cellpadding=3>
-			<tr><td align=right>Project ID</td><td><input name="project" size=50 value=""></td></tr>
-			<tr><td align=right><a href="{{.Help.domainName}}">Domain name</a></td><td><input name="hostname" size=50 value=""></td></tr>
-			<tr><td align=right><a href="{{.Help.zones}}">Zone</a></td><td><input name="zone" size=50 value="{{.Defaults.zone}}"></td></tr>
-			<tr><td align=right>Instance name</td><td><input name="name" size=50 value="{{.Defaults.name}}"></td></tr>
-			<tr><td align=right><a href="{{.Help.machineTypes}}">Machine type</a></td><td><input name="machine" size=50 value="{{.Defaults.machine}}"></td></tr>
-			<tr><td align=right>Password</td><td><input name="password" size=50 value="{{.Defaults.password}}"></td></tr>
-			<tr><td align=right><a href="{{.Help.ssh}}">SSH public key</a></td><td><input name="sshPub" size=50 value=""></td></tr>
+			<tr valign=top><td align=right>Project ID</td><td margin=left><input name="project" size=30 value=""><br>
+		<ul style="padding-left:0;margin-left:0;font-size:75%">
+			<li>New or existing <a href="` + ConsoleURL + `">Google Project</a>.</li>
+			<li>Requirements:</li>
+			<ul>
+				<li>Enable billing. (Billing & settings)</li>
+				<li>APIs and auth &gt APIs &gt Google Cloud Storage</li>
+				<li>APIs and auth &gt APIs &gt Google Cloud Storage JSON API</li>
+				<li>APIs and auth &gt APIs &gt Google Compute Engine</li>
+			</ul>
+		</ul>
+		</td></tr>
+			<tr><td align=right>New password</td><td><input name="password" size=30 value="{{.Defaults.password}}"></td><td></td></tr>
+			<tr><td align=right></td><td style="font-size:75%">New password for your Camlistore server.</td><td></td></tr>
+			<tr><td align=right><a href="{{.Help.zones}}">Zone</a></td><td>
+				<select name="zone">
+				{{range $k, $v := .ZoneValues}}
+					<option value={{$v}}>{{$v}}</option>
+				{{end}}
+				</select>
+			</td></tr>
+			<tr><td align=right><a href="{{.Help.machineTypes}}">Machine type</a></td><td>
+				<input name="machine" list="machines" value="g1-small">
+				<datalist id="machines">
+				{{range $k, $v := .MachineValues}}
+					<option value={{$v}}>{{$v}}</option>
+				{{end}}
+				</datalist>
+			</td></tr>
+			<tr><td></td><td><input type='submit' value="Create instance"><br><span style="font-size:75%">(it will ask for permissions)</span></td></tr>
 		</table>
-		<input type='submit' value="Create instance">
 	</form>
 	</div>
 	{{template "footer" .}}
