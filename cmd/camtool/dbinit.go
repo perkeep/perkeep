@@ -17,10 +17,12 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 
@@ -107,7 +109,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=%s", c.user, "postgres", c.host, c.password, c.sslMode)
 		rootdb, err = sql.Open("postgres", conninfo)
 	case "mysql":
-		rootdb, err = sql.Open("mysql", c.user+":"+c.password+"@/mysql")
+		rootdb, err = sql.Open("mysql", c.mysqlDSN("myql"))
 	}
 	if err != nil {
 		exitf("Error connecting to the root %s database: %v", c.dbType, err)
@@ -153,7 +155,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 	case "sqlite":
 		db, err = sql.Open("sqlite3", dbname)
 	default:
-		db, err = sql.Open("mysql", c.user+":"+c.password+"@/"+dbname)
+		db, err = sql.Open("mysql", c.mysqlDSN(dbname))
 	}
 	if err != nil {
 		return fmt.Errorf("Connecting to the %s %s database: %v", dbname, c.dbType, err)
@@ -297,4 +299,18 @@ func (c *dbinitCmd) wipeMongo() error {
 		return err
 	}
 	return nil
+}
+
+func (c *dbinitCmd) mysqlDSN(dbname string) string {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "%s:%s@", c.user, c.password)
+	if c.host != "localhost" {
+		host := c.host
+		if _, _, err := net.SplitHostPort(host); err != nil {
+			host = net.JoinHostPort(host, "3306")
+		}
+		fmt.Fprintf(&buf, "tcp(%s)", host)
+	}
+	fmt.Fprintf(&buf, "/%s", dbname)
+	return buf.String()
 }
