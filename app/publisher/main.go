@@ -700,7 +700,7 @@ func (pr *publishRequest) serveFileDownload(des *search.DescribedBlob) {
 	dh := &server.DownloadHandler{
 		Fetcher:   pr.ph.cl,
 		Cache:     pr.ph.cache,
-		ForceMime: mime,
+		ForceMIME: mime,
 	}
 	dh.ServeHTTP(pr.rw, pr.req, fileref)
 }
