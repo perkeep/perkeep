@@ -67,18 +67,15 @@ type Handler struct {
 	wsHub *wsHub
 }
 
-// IGetRecentPermanodes is the interface encapsulating the GetRecentPermanodes query.
-type IGetRecentPermanodes interface {
+// GetRecentPermanoder is the interface containing the GetRecentPermanodes method.
+type GetRecentPermanoder interface {
 	// GetRecentPermanodes returns recently-modified permanodes.
 	// This is a higher-level query returning more metadata than the index.GetRecentPermanodes,
 	// which only scans the blobrefs but doesn't return anything about the permanodes.
-	// TODO: rename this one?
 	GetRecentPermanodes(*RecentRequest) (*RecentResponse, error)
 }
 
-var (
-	_ IGetRecentPermanodes = (*Handler)(nil)
-)
+var _ GetRecentPermanoder = (*Handler)(nil)
 
 func NewHandler(index index.Interface, owner blob.Ref) *Handler {
 	sh := &Handler{

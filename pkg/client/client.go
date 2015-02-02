@@ -440,9 +440,9 @@ func (c *Client) SyncHandlers() ([]*SyncInfo, error) {
 	return c.syncHandlers, nil
 }
 
-var _ search.IGetRecentPermanodes = (*Client)(nil)
+var _ search.GetRecentPermanoder = (*Client)(nil)
 
-// GetRecentPermanodes implements search.IGetRecentPermanodes against a remote server over HTTP.
+// GetRecentPermanodes implements search.GetRecentPermanoder against a remote server over HTTP.
 func (c *Client) GetRecentPermanodes(req *search.RecentRequest) (*search.RecentResponse, error) {
 	sr, err := c.SearchRoot()
 	if err != nil {
