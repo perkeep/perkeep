@@ -17,7 +17,10 @@ limitations under the License.
 package magic
 
 import (
+	"errors"
+	"io"
 	"io/ioutil"
+	"strings"
 	"testing"
 )
 
@@ -58,4 +61,35 @@ func TestMagic(t *testing.T) {
 			t.Errorf("%d. got %q; want %q", i, mime, tt.want)
 		}
 	}
+}
+
+func TestMIMETypeFromReader(t *testing.T) {
+	someErr := errors.New("some error")
+	const content = "<html>foobar"
+	mime, r := MIMETypeFromReader(io.MultiReader(
+		strings.NewReader(content),
+		&onceErrReader{someErr},
+	))
+	if want := "text/html"; mime != want {
+		t.Errorf("mime = %q; want %q", mime, want)
+	}
+	slurp, err := ioutil.ReadAll(r)
+	if string(slurp) != "<html>foobar" {
+		t.Errorf("read = %q; want %q", slurp, content)
+	}
+	if err != someErr {
+		t.Errorf("read error = %v; want %v", err, someErr)
+	}
+}
+
+// errReader is an io.Reader which just returns err, once.
+type onceErrReader struct{ err error }
+
+func (er *onceErrReader) Read([]byte) (int, error) {
+	if er.err != nil {
+		err := er.err
+		er.err = nil
+		return 0, err
+	}
+	return 0, io.EOF
 }
