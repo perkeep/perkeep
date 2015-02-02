@@ -110,6 +110,23 @@ func CertFingerprint(certPEM []byte) (string, error) {
 	return hashutil.SHA256Prefix(cert.Raw), nil
 }
 
+// CertFingerprints returns a map of hash prefixes of the x509 certificate encoded in
+// certPEM. The hashes are keyed by name ("SHA-1", and "SHA-256").
+func CertFingerprints(certPEM []byte) (map[string]string, error) {
+	p, _ := pem.Decode(certPEM)
+	if p == nil {
+		return nil, errors.New("no valid PEM data found")
+	}
+	cert, err := x509.ParseCertificate(p.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse certificate: %v", err)
+	}
+	return map[string]string{
+		"SHA-1":   hashutil.SHA1Prefix(cert.Raw),
+		"SHA-256": hashutil.SHA256Prefix(cert.Raw),
+	}, nil
+}
+
 // GenSelfTLSFiles generates a self-signed certificate and key for hostname,
 // and writes them to the given paths. If it succeeds it also returns
 // the SHA256 prefix of the new cert.
