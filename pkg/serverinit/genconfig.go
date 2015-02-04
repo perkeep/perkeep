@@ -87,7 +87,7 @@ func (b *lowBuilder) runIndex() bool          { return b.high.RunIndex.Get() }
 func (b *lowBuilder) copyIndexToMemory() bool { return b.high.CopyIndexToMemory.Get() }
 
 // dbName returns which database to use for the provided user ("of").
-// The user key be a key as describe in pkg/types/serverconfig/config.go's
+// The user should be a key as described in pkg/types/serverconfig/config.go's
 // description of DBNames: "index", "queue-sync-to-index", etc.
 func (b *lowBuilder) dbName(of string) string {
 	if v, ok := b.high.DBNames[of]; ok && v != "" {
@@ -443,34 +443,18 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 		clientID = "auto"
 	}
 
-	if b.high.PackRelated {
-		// TODO(mpl): implement
-		return errors.New("TODO: finish genconfig support for GCS+blobpacked")
-	}
-
-	isPrimary := !b.hasPrefix("/bs/")
-	gsPrefix := ""
-	if isPrimary {
-		gsPrefix = "/bs/"
-	} else {
-		gsPrefix = "/sto-googlecloudstorage/"
-	}
-
-	b.addPrefix(gsPrefix, "storage-googlecloudstorage", args{
-		"bucket": bucket,
-		"auth": map[string]interface{}{
-			"client_id":     clientID,
-			"client_secret": secret,
-			"refresh_token": refreshToken,
-		},
-	})
-
-	if isPrimary {
-		// TODO: cacheBucket like s3CacheBucket?
-		b.addPrefix("/cache/", "storage-filesystem", args{
-			"path": filepath.Join(tempDir(), "camli-cache"),
+	isReplica := b.hasPrefix("/bs/")
+	if isReplica {
+		gsPrefix := "/sto-googlecloudstorage/"
+		b.addPrefix(gsPrefix, "storage-googlecloudstorage", args{
+			"bucket": bucket,
+			"auth": map[string]interface{}{
+				"client_id":     clientID,
+				"client_secret": secret,
+				"refresh_token": refreshToken,
+			},
 		})
-	} else {
+
 		b.addPrefix("/sync-to-googlecloudstorage/", "sync", args{
 			"from": "/bs/",
 			"to":   gsPrefix,
@@ -480,7 +464,50 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 					"file": filepath.Join(b.high.BlobPath, "sync-to-googlecloud-queue.kv"),
 				}),
 		})
+		return nil
 	}
+
+	// TODO: cacheBucket like s3CacheBucket?
+	b.addPrefix("/cache/", "storage-filesystem", args{
+		"path": filepath.Join(tempDir(), "camli-cache"),
+	})
+	if b.high.PackRelated {
+		b.addPrefix("/bs-loose/", "storage-googlecloudstorage", args{
+			"bucket": bucket + "/loose",
+			"auth": map[string]interface{}{
+				"client_id":     clientID,
+				"client_secret": secret,
+				"refresh_token": refreshToken,
+			},
+		})
+		b.addPrefix("/bs-packed/", "storage-googlecloudstorage", args{
+			"bucket": bucket + "/packed",
+			"auth": map[string]interface{}{
+				"client_id":     clientID,
+				"client_secret": secret,
+				"refresh_token": refreshToken,
+			},
+		})
+		blobPackedIndex, err := b.sortedStorageAt("blobpacked_index", "")
+		if err != nil {
+			return err
+		}
+		b.addPrefix("/bs/", "storage-blobpacked", args{
+			"smallBlobs": "/bs-loose/",
+			"largeBlobs": "/bs-packed/",
+			"metaIndex":  blobPackedIndex,
+		})
+		return nil
+	}
+	b.addPrefix("/bs/", "storage-googlecloudstorage", args{
+		"bucket": bucket,
+		"auth": map[string]interface{}{
+			"client_id":     clientID,
+			"client_secret": secret,
+			"refresh_token": refreshToken,
+		},
+	})
+
 	return nil
 }
 

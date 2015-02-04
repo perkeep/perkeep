@@ -1,0 +1,17 @@
+{
+	"listen": "localhost:3179",
+	"auth": "userpass:camlistore:pass3179",
+	"googlecloudstorage": "clientId:clientSecret:refreshToken:bucketName/blobs",
+	"packRelated": true,
+	"dbNames": {
+		"index": "camlitest",
+		"queue-sync-to-index": "sync_index_queue",
+		"blobpacked_index": "blobpacked_index",
+		"ui_thumbcache": "ui_thumbmeta_cache"
+	},
+	"mysql": "root@localhost:root",
+	"identity": "26F5ABDA",
+	"identitySecretRing": "/path/to/secring",
+	"ownerName": "Alice",
+	"shareHandlerPath": "/share/"
+}

@@ -71,6 +71,7 @@ func DefaultEnvConfig() (*Config, error) {
 		IdentitySecretRing: secRing,
 		GoogleCloudStorage: ":" + strings.TrimPrefix(blobBucket, "gs://"),
 		DBNames:            map[string]string{},
+		PackRelated:        true,
 	}
 
 	// Detect a linked Docker MySQL container. It must have alias "mysqldb".
@@ -79,6 +80,7 @@ func DefaultEnvConfig() (*Config, error) {
 		highConf.MySQL = "root@" + hostPort + ":" // no password
 		highConf.DBNames["queue-sync-to-index"] = "sync_index_queue"
 		highConf.DBNames["ui_thumbcache"] = "ui_thumbmeta_cache"
+		highConf.DBNames["blobpacked_index"] = "blobpacked_index"
 	} else {
 		// TODO: also detect Cloud SQL.
 		highConf.KVFile = "/index.kv"
