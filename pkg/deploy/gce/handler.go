@@ -380,7 +380,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 func (h *DeployHandler) serveOldInstance(w http.ResponseWriter, br blob.Ref, depl *Deployer) (found bool) {
 	if inst, err := depl.Get(); err == nil {
 		var sigs map[string]string
-		cert, err := depl.getInstalledCert()
+		cert, _, err := depl.getInstalledTLS()
 		if err == nil {
 			sigs, err = httputil.CertFingerprints(cert)
 			if err != nil {
