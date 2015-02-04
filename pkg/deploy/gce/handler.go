@@ -70,6 +70,8 @@ var (
 		"zone":    Zone,
 	}
 	// TODO(mpl): query for them, and cache them.
+	// Also use a datalist in form, with only region values.
+	// And choose ourselves at random the zone suffix, if not provided.
 	zoneValues = []string{
 		"us-central1-a",
 		"us-central1-b",
@@ -100,7 +102,7 @@ type DeployHandler struct {
 	prefix   string                   // prefix is the pattern for which this handler is registered as an http.Handler.
 	help     map[string]template.HTML // various help bits used in the served pages, keyed by relevant names.
 	xsrfKey  string                   // for XSRF protection.
-	piggygif string                   // path to the piggy gif file, defaults to /static/piggy.gif
+	piggyGIF string                   // path to the piggy gif file, defaults to /static/piggy.gif
 	mux      *http.ServeMux
 
 	tplMu sync.RWMutex
@@ -180,7 +182,7 @@ func NewDeployHandler(host string, prefix string) (http.Handler, error) {
 		clientID:     clientID,
 		clientSecret: clientSecret,
 		tpl:          tpl,
-		piggygif:     "/static/piggy.gif",
+		piggyGIF:     "/static/piggy.gif",
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc(prefix+"/callback", func(w http.ResponseWriter, r *http.Request) {
@@ -302,8 +304,8 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	depl := &Deployer{
-		Cl:   oAuthConf.Client(oauth2.NoContext, tok),
-		Conf: instConf,
+		Client: oAuthConf.Client(oauth2.NoContext, tok),
+		Conf:   instConf,
 	}
 
 	if found := h.serveOldInstance(w, br, depl); found {
@@ -325,10 +327,11 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			time.Sleep(7 * time.Second)
 			if err := h.recordState(br, &creationState{
-				InstConf:        br,
-				InstAddr:        "fake.instance.com",
-				Success:         true,
-				CertFingerprint: "XXXXXXXXXXXXXXXXXXXX",
+				InstConf:              br,
+				InstAddr:              "fake.instance.com",
+				Success:               true,
+				CertFingerprintSHA1:   "XXXXXXXXXXXXXXXXXXXX",
+				CertFingerprintSHA256: "YYYYYYYYYYYYYYYYYYYY",
 			}); err != nil {
 				h.Printf("Could not record creation state for %v: %v", br, err)
 				h.recordStateErrMu.Lock()
@@ -358,7 +361,8 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 		} else {
 			state.InstAddr = addr(inst)
 			state.Success = true
-			state.CertFingerprint = depl.certFingerprint
+			state.CertFingerprintSHA1 = depl.certFingerprints["SHA-1"]
+			state.CertFingerprintSHA256 = depl.certFingerprints["SHA-256"]
 		}
 		if err := h.recordState(br, state); err != nil {
 			h.Printf("Could not record creation state for %v: %v", br, err)
@@ -375,12 +379,12 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 // not serve anything if the instance is not found.
 func (h *DeployHandler) serveOldInstance(w http.ResponseWriter, br blob.Ref, depl *Deployer) (found bool) {
 	if inst, err := depl.Get(); err == nil {
-		var sig string
+		var sigs map[string]string
 		cert, err := depl.getInstalledCert()
 		if err == nil {
-			sig, err = httputil.CertFingerprint(cert)
+			sigs, err = httputil.CertFingerprints(cert)
 			if err != nil {
-				err = fmt.Errorf("could not get sha256 fingerprint of certificate: %v", err)
+				err = fmt.Errorf("could not get fingerprints of certificate: %v", err)
 			}
 		}
 		if err != nil {
@@ -392,16 +396,29 @@ func (h *DeployHandler) serveOldInstance(w http.ResponseWriter, br blob.Ref, dep
 			)
 			return true
 		}
-		// TODO(mpl): get the Password from the instance's metadata, and stuff it in
-		// the creationState. That way, we will display the correct password on the
-		// success page (instead of whatever password was just entered in the form).
+		password := depl.Conf.Password
+		for _, item := range inst.Metadata.Items {
+			if item.Key == "camlistore-password" {
+				password = item.Value
+			}
+		}
+		if password != depl.Conf.Password {
+			h.Printf("Instance (%v, %v, %v) already exists, but with different password: %v",
+				depl.Conf.Project, depl.Conf.Name, depl.Conf.Zone, password)
+			h.serveError(w,
+				fmt.Errorf("Instance already running at %v. You need to manually delete the old one before creating a new one.", addr(inst)),
+				helpDeleteInstance,
+			)
+			return true
+		}
 		h.Printf("Reusing existing instance for (%v, %v, %v)", depl.Conf.Project, depl.Conf.Name, depl.Conf.Zone)
 
 		if err := h.recordState(br, &creationState{
-			InstConf:        br,
-			InstAddr:        addr(inst),
-			CertFingerprint: sig,
-			Exists:          true,
+			InstConf:              br,
+			InstAddr:              addr(inst),
+			CertFingerprintSHA1:   sigs["SHA-1"],
+			CertFingerprintSHA256: sigs["SHA-256"],
+			Exists:                true,
 		}); err != nil {
 			h.Printf("Could not record creation state for %v: %v", br, err)
 			h.serveError(w, fmt.Errorf("An error occurred while recording the state of your instance. %v", fileIssue(br.String())))
@@ -471,18 +488,16 @@ func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		h.serveSuccess(w, &TemplateData{
-			Prefix:            h.prefix,
-			Help:              h.help,
-			InstanceIP:        state.InstAddr,
-			ProjectConsoleURL: fmt.Sprintf("%s/project/%s/compute", ConsoleURL, conf.Project),
-			Hostname:          conf.Hostname,
-			CertFingerprint:   state.CertFingerprint,
-			Project:           conf.Project,
-			Password:          conf.Password,
-			Defaults:          formDefaults,
-			ZoneValues:        zoneValues,
-			MachineValues:     machineValues,
-			Zone:              conf.Zone,
+			Prefix:                h.prefix,
+			Help:                  h.help,
+			InstanceIP:            state.InstAddr,
+			ProjectConsoleURL:     fmt.Sprintf("%s/project/%s/compute", ConsoleURL, conf.Project),
+			Conf:                  conf,
+			CertFingerprintSHA1:   state.CertFingerprintSHA1,
+			CertFingerprintSHA256: state.CertFingerprintSHA256,
+			Defaults:              formDefaults,
+			ZoneValues:            zoneValues,
+			MachineValues:         machineValues,
 		})
 		return
 	}
@@ -505,7 +520,7 @@ func (h *DeployHandler) serveProgress(w http.ResponseWriter, instanceKey blob.Re
 	if err := h.tpl.ExecuteTemplate(w, "withform", &TemplateData{
 		Prefix:      h.prefix,
 		InstanceKey: instanceKey.String(),
-		Piggygif:    h.piggygif,
+		PiggyGIF:    h.piggyGIF,
 	}); err != nil {
 		h.Printf("Could not serve progress: %v", err)
 	}
@@ -662,12 +677,13 @@ func addr(inst *compute.Instance) string {
 // creationState keeps information all along the creation process of the instance. The
 // fields are only exported because we json encode them.
 type creationState struct {
-	Err             string   `json:",omitempty"` // if non blank, creation failed.
-	InstConf        blob.Ref // key to the user provided instance configuration.
-	InstAddr        string   // ip address of the instance.
-	CertFingerprint string   // SHA256 prefix fingerprint of the self-signed HTTPS certificate.
-	Success         bool     // whether new instance creation was successful.
-	Exists          bool     // true if an instance with same zone, same project name, and same instance name already exists.
+	Err                   string   `json:",omitempty"` // if non blank, creation failed.
+	InstConf              blob.Ref // key to the user provided instance configuration.
+	InstAddr              string   // ip address of the instance.
+	CertFingerprintSHA1   string   // SHA-1 prefix fingerprint of the self-signed HTTPS certificate.
+	CertFingerprintSHA256 string   // SHA-256 prefix fingerprint of the self-signed HTTPS certificate.
+	Success               bool     // whether new instance creation was successful.
+	Exists                bool     // true if an instance with same zone, same project name, and same instance name already exists.
 }
 
 // dataStores returns the blobserver that stores the instances configurations, and the kv
@@ -712,23 +728,21 @@ func (h *DeployHandler) AddTemplateTheme(text string) error {
 
 // TemplateData is the data passed for templates of tplHTML.
 type TemplateData struct {
-	Title             string
-	Help              map[string]template.HTML // help bits within the form.
-	Hints             []string                 // helping hints printed in case of an error.
-	Defaults          map[string]string        // defaults values for the form fields.
-	Err               error
-	Prefix            string // handler prefix.
-	InstanceKey       string // instance creation identifier, for the JS code to regularly poll for progress.
-	Piggygif          string // URI to the piggy gif for progress animation.
-	Project           string // Project name provided by the user.
-	Hostname          string // FQDN provided by the user.
-	InstanceIP        string // instance IP address that we display after successful creation.
-	CertFingerprint   string // SHA-256 fingerprint of the self-signed HTTPS certificate.
-	ProjectConsoleURL string
-	Password          string // password provided by user. defaults to project ID.
-	ZoneValues        []string
-	MachineValues     []string
-	Zone              string
+	Title                 string
+	Help                  map[string]template.HTML // help bits within the form.
+	Hints                 []string                 // helping hints printed in case of an error.
+	Defaults              map[string]string        // defaults values for the form fields.
+	Err                   error
+	Prefix                string        // handler prefix.
+	InstanceKey           string        // instance creation identifier, for the JS code to regularly poll for progress.
+	PiggyGIF              string        // URI to the piggy gif for progress animation.
+	Conf                  *InstanceConf // Configuration requested by the user
+	InstanceIP            string        // instance IP address that we display after successful creation.
+	CertFingerprintSHA1   string        // SHA-1 fingerprint of the self-signed HTTPS certificate.
+	CertFingerprintSHA256 string        // SHA-256 fingerprint of the self-signed HTTPS certificate.
+	ProjectConsoleURL     string
+	ZoneValues            []string
+	MachineValues         []string
 }
 
 const toHyperlink = `<a href="$1$3">$1$3</a>`
@@ -750,8 +764,6 @@ var noTheme = `
 {{define "footer"}}
 {{end}}
 `
-
-// TODO(mpl): do not hardcode the tls.key and tls.crt names in the template.
 
 var tplHTML = `
 	{{define "progress"}}
@@ -788,7 +800,7 @@ var tplHTML = `
 		imgDiv.style.overflow = 'hidden';
 
 		var img = document.createElement('img');
-		img.src = {{.Piggygif}};
+		img.src = {{.PiggyGIF}};
 
 		var msg = document.createElement('span');
 		msg.innerHTML = 'Please wait (up to a couple of minutes) while we create your instance...';
@@ -837,27 +849,34 @@ var tplHTML = `
 	<h1><a href="{{.Prefix}}">Camlistore on Google Cloud</a></h1>
 
 	{{if .InstanceIP}}
-		<p>Success. Your Camlistore instance should be up at <a href="https://{{.InstanceIP}}">https://{{.InstanceIP}}</a> (login: ` + camliUsername + `, password: {{.Password}}). It can take a couple of minutes to be ready.</p>
+		<p>Success. Your Camlistore instance should be up at <a href="https://{{.InstanceIP}}">https://{{.InstanceIP}}</a> (login: ` + camliUsername + `, password: {{.Conf.Password}}). It can take a couple of minutes to be ready.</p>
 		<p>Please save the information on this page in case you need to come back for the instruction.</p>
-	{{end}}
-	{{if .ProjectConsoleURL}}
+
+		<h4>First connection</h4>
+		<p>
+		A self-signed HTTPS certificate was automatically generated with "{{.Conf.Hostname}}" as the common name.<br>
+		You will need to add an exception for it in your browser when you get a security warning the first time you connect. At which point you should check that the certificate fingerprint matches one of:
+		<table>
+			<tr><td align=right>SHA-1</td><td><code style="color:blue">{{.CertFingerprintSHA1}}</code></td></tr>
+			<tr><td align=right>SHA-256</td><td><code style="color:blue">{{.CertFingerprintSHA256}}</code></td></tr>
+		</table>
+		</p>
+
+		<h4>Further configuration</h4>
 		<p>
 		Manage your instance at <a href="{{.ProjectConsoleURL}}">{{.ProjectConsoleURL}}</a>.
 		</p>
+
 		<p>
-		To change your login and password, go to the <a href="https://console.developers.google.com/project/{{.Project}}/compute/instancesDetail/zones/{{.Zone}}/instances/camlistore-server">camlistore-server instance</a> page. Set camlistore-username and/or camlistore-password in the custom metadata section. Then <a href="https://{{.InstanceIP}}/status">restart</a> Camlistore.
+		To change your login and password, go to the <a href="{{.ProjectConsoleURL}}/instancesDetail/zones/{{.Conf.Zone}}/instances/camlistore-server">camlistore-server instance</a> page. Set camlistore-username and/or camlistore-password in the custom metadata section. Then <a href="https://{{.InstanceIP}}/status">restart</a> Camlistore.
 		</p>
-	{{end}}
-	{{if and .InstanceIP (and .Project (and .Hostname .CertFingerprint))}}
+
 		<p>
-		A self-signed HTTPS certificate was automatically generated with "{{.Hostname}}" as the common name.<br>
-		You will need to add an exception for it in your browser when you get a security warning the first time you connect. At which point you should check that the prefix of the SHA-256 fingerprint of the certificate is indeed <code style="color:blue">{{.CertFingerprint}}</code>.
+		If you want to use your own HTTPS certificate and key, go to <a href="https://console.developers.google.com/project/{{.Conf.Project}}/storage/browser/{{.Conf.Project}}-camlistore/config/">the storage browser</a>. Delete "<b>` + certFilename + `</b>", "<b>` + keyFilename + `</b>", and replace them by uploading your own files (with the same names). Then <a href="https://{{.InstanceIP}}/status">restart</a> Camlistore.
 		</p>
+
 		<p>
-		If you want to use your own HTTPS certificate and key, go to <a href="https://console.developers.google.com/project/{{.Project}}/storage/browser/{{.Project}}-camlistore/config/">the storage browser</a>. Delete "tls.crt", "tls.key", and replace them by uploading your own files (with the same names). Then <a href="https://{{.InstanceIP}}/status">restart</a> Camlistore.
-		</p>
-		<p>
-		To manage/add SSH keys, go to the <a href="https://console.developers.google.com/project/{{.Project}}/compute/instancesDetail/zones/{{.Zone}}/instances/camlistore-server">camlistore-server instance</a> page. Scroll down to the SSH Keys section.
+		To manage/add SSH keys, go to the <a href="{{.ProjectConsoleURL}}/instancesDetail/zones/{{.Conf.Zone}}/instances/camlistore-server">camlistore-server instance</a> page. Scroll down to the SSH Keys section.
 		</p>
 	{{end}}
 	{{if .Err}}

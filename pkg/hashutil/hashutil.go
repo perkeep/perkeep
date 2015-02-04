@@ -18,6 +18,7 @@ limitations under the License.
 package hashutil
 
 import (
+	"crypto/sha1"
 	"crypto/sha256"
 	"fmt"
 )
@@ -26,6 +27,14 @@ import (
 // its first twenty lowercase hex digits.
 func SHA256Prefix(data []byte) string {
 	h := sha256.New()
+	h.Write(data)
+	return fmt.Sprintf("%x", h.Sum(nil))[:20]
+}
+
+// SHA1Prefix computes the SHA-1 digest of data and returns
+// its first twenty lowercase hex digits.
+func SHA1Prefix(data []byte) string {
+	h := sha1.New()
 	h.Write(data)
 	return fmt.Sprintf("%x", h.Sum(nil))[:20]
 }

@@ -74,8 +74,14 @@ const (
 	HelpManageHTTPCreds = `To change your login and password: in your project console, navigate to "Compute", "Compute Engine", and "VM instances". Click on your instance name. Set camlistore-username and/or camlistore-password in the custom metadata section.`
 )
 
-// Verbose enables more info to be printed.
-var Verbose bool
+var (
+	// Verbose enables more info to be printed.
+	Verbose bool
+	// HTTPS certificate file name
+	certFilename = filepath.Base(osutil.DefaultTLSCert())
+	// HTTPS key name
+	keyFilename = filepath.Base(osutil.DefaultTLSKey())
+)
 
 // NewOAuthConfig returns an OAuth configuration template.
 func NewOAuthConfig(clientID, clientSecret string) *oauth2.Config {
@@ -116,15 +122,18 @@ func (conf *InstanceConf) bucketBase() string {
 
 // Deployer creates and starts an instance such as defined in Conf.
 type Deployer struct {
-	Cl              *http.Client
-	Conf            *InstanceConf
-	certFingerprint string // SHA-256 fingerprint of the HTTPS certificate created during setupHTTPS, if any.
+	Client *http.Client
+	Conf   *InstanceConf
+
+	// SHA-1 and SHA-256 fingerprints of the HTTPS certificate created during setupHTTPS, if any.
+	// Keyed by hash name: "SHA-1", and "SHA-256".
+	certFingerprints map[string]string
 }
 
 // Get returns the Instance corresponding to the Project, Zone, and Name defined in the
 // Deployer's Conf.
 func (d *Deployer) Get() (*compute.Instance, error) {
-	computeService, err := compute.New(d.Cl)
+	computeService, err := compute.New(d.Client)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +164,7 @@ func (e instanceExistsError) Error() string {
 // projectHasInstance checks for all the possible zones if there's already an instance for the project.
 // It returns the name of the zone at the first instance it finds, if any.
 func (d *Deployer) projectHasInstance() (zone string, err error) {
-	s, err := compute.New(d.Cl)
+	s, err := compute.New(d.Client)
 	if err != nil {
 		return "", err
 	}
@@ -164,7 +173,7 @@ func (d *Deployer) projectHasInstance() (zone string, err error) {
 	if err != nil {
 		return "", fmt.Errorf("could not get a list of zones: %v", err)
 	}
-	computeService, _ := compute.New(d.Cl)
+	computeService, _ := compute.New(d.Client)
 	var zoneOnce sync.Once
 	var grp syncutil.Group
 	errc := make(chan error, 1)
@@ -220,7 +229,7 @@ func (e projectIDError) Error() string {
 
 func (d *Deployer) checkProjectID() error {
 	// TODO(mpl): cache the computeService in Deployer, instead of recreating a new one everytime?
-	s, err := compute.New(d.Cl)
+	s, err := compute.New(d.Client)
 	if err != nil {
 		return projectIDError{
 			id:    d.Conf.Project,
@@ -250,8 +259,8 @@ func (d *Deployer) Create(ctx *context.Context) (*compute.Instance, error) {
 		return nil, err
 	}
 
-	computeService, _ := compute.New(d.Cl)
-	storageService, _ := storage.New(d.Cl)
+	computeService, _ := compute.New(d.Client)
+	storageService, _ := storage.New(d.Client)
 
 	fwc := make(chan error, 1)
 	go func() {
@@ -451,9 +460,9 @@ func cloudConfig(conf *InstanceConf) string {
 // getInstalledCert returns the TLS certificate stored on Google Cloud Storage for the
 // instance defined in d.Conf.
 func (d *Deployer) getInstalledCert() ([]byte, error) {
-	ctx := cloud.NewContext(d.Conf.Project, d.Cl)
+	ctx := cloud.NewContext(d.Conf.Project, d.Client)
 	sr, err := cloudstorage.NewReader(ctx, d.Conf.bucketBase(),
-		path.Join(configDir, filepath.Base(osutil.DefaultTLSCert())))
+		path.Join(configDir, certFilename))
 	if err != nil {
 		return nil, err
 	}
@@ -607,13 +616,13 @@ func (d *Deployer) setupHTTPS(storageService *storage.Service) error {
 		if err != nil {
 			return fmt.Errorf("error generating certificates: %v", err)
 		}
-		sig, err := httputil.CertFingerprint(certBytes)
+		sigs, err := httputil.CertFingerprints(certBytes)
 		if err != nil {
-			return fmt.Errorf("could not get sha256 fingerprint of certificate: %v", err)
+			return fmt.Errorf("could not get fingerprints of certificate: %v", err)
 		}
-		d.certFingerprint = sig
+		d.certFingerprints = sigs
 		if Verbose {
-			log.Printf("Wrote certificate with fingerprint %s", sig)
+			log.Printf("Wrote certificate with SHA-256 fingerprint %s", sigs["SHA-256"])
 		}
 		cert = ioutil.NopCloser(bytes.NewReader(certBytes))
 		key = ioutil.NopCloser(bytes.NewReader(keyBytes))
@@ -623,12 +632,12 @@ func (d *Deployer) setupHTTPS(storageService *storage.Service) error {
 		log.Print("Uploading certificate and key...")
 	}
 	_, err = storageService.Objects.Insert(d.Conf.bucketBase(),
-		&storage.Object{Name: path.Join(configDir, filepath.Base(osutil.DefaultTLSCert()))}).Media(cert).Do()
+		&storage.Object{Name: path.Join(configDir, certFilename)}).Media(cert).Do()
 	if err != nil {
 		return fmt.Errorf("cert upload failed: %v", err)
 	}
 	_, err = storageService.Objects.Insert(d.Conf.bucketBase(),
-		&storage.Object{Name: path.Join(configDir, filepath.Base(osutil.DefaultTLSKey()))}).Media(key).Do()
+		&storage.Object{Name: path.Join(configDir, keyFilename)}).Media(key).Do()
 	if err != nil {
 		return fmt.Errorf("key upload failed: %v", err)
 	}
