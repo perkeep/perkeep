@@ -19,20 +19,30 @@ package server
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
+	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/types"
 )
 
 const oneYear = 365 * 86400 * time.Second
 
 type DownloadHandler struct {
-	Fetcher   blob.Fetcher
-	Cache     blobserver.Storage
+	Fetcher blob.Fetcher
+	Cache   blobserver.Storage
+
+	// Search is optional. If present, it's used to map a fileref
+	// to a wholeref, if the Fetcher is of a type that knows how
+	// to get at a wholeref more efficiently. (e.g. blobpacked)
+	Search *search.Handler
+
 	ForceMIME string // optional
 }
 
@@ -49,6 +59,13 @@ type fileInfo struct {
 }
 
 func (dh *DownloadHandler) fileInfo(req *http.Request, file blob.Ref) (fi fileInfo, err error) {
+	// Fast path for blobpacked.
+	fi, ok := dh.fileInfoPacked(req, file)
+	// log.Printf("Search is %v; Fetcher is %T; using packed = %v", dh.Search, dh.Fetcher, ok)
+	if ok {
+		return fi, nil
+	}
+
 	fr, err := schema.NewFileReader(dh.blobSource(), file)
 	if err != nil {
 		return
@@ -67,6 +84,58 @@ func (dh *DownloadHandler) fileInfo(req *http.Request, file blob.Ref) (fi fileIn
 		rs:    fr,
 		close: fr.Close,
 	}, nil
+}
+
+// Fast path for blobpacked.
+func (dh *DownloadHandler) fileInfoPacked(req *http.Request, file blob.Ref) (_ fileInfo, ok bool) {
+	if dh.Search == nil {
+		// Required to lookup wholeref from fileref.
+		return
+	}
+	wf, ok := dh.Fetcher.(blobserver.WholeRefFetcher)
+	if !ok {
+		return
+	}
+	if req.Header.Get("Range") != "" {
+		// TODO: not handled yet. Maybe not even important,
+		// considering rarity.
+		return
+	}
+	des, err := dh.Search.Describe(&search.DescribeRequest{BlobRef: file})
+	if err != nil {
+		log.Printf("ui: fileInfoPacked: skipping fast path due to error from search: %v", err)
+		return
+	}
+	db, ok := des.Meta[file.String()]
+	if !ok || db.File == nil {
+		// Unknown to search indexer.
+		return
+	}
+	fi := db.File
+	if !fi.WholeRef.Valid() {
+		return
+	}
+
+	offset := int64(0)
+	rc, wholeSize, err := wf.OpenWholeRef(fi.WholeRef, offset)
+	if err == os.ErrNotExist {
+		return
+	}
+	if wholeSize != fi.Size {
+		log.Printf("ui: fileInfoPacked: OpenWholeRef size %d != index size %d; ignoring fast path", wholeSize, fi.Size)
+		return
+	}
+	if err != nil {
+		log.Printf("ui: fileInfoPacked: skipping fast path due to error from WholeRefFetcher (%T): %v", dh.Fetcher, err)
+		return
+	}
+	return fileInfo{
+		mime:  fi.MIMEType,
+		name:  fi.FileName,
+		size:  fi.Size,
+		rs:    types.NewFakeSeeker(rc, fi.Size-offset),
+		close: rc.Close,
+	}, true
 }
 
 func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, file blob.Ref) {

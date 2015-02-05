@@ -84,6 +84,7 @@ type UIHandler struct {
 
 	prefix string // of the UI handler itself
 	root   *RootHandler
+	search *search.Handler
 	sigh   *signhandler.Handler // or nil
 
 	// Cache optionally specifies a cache blob server, used for
@@ -267,6 +268,7 @@ func (ui *UIHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 		return errors.New("failed to find the \"search\" handler")
 	} else {
 		sh = h.(*search.Handler)
+		ui.search = sh
 	}
 	camliRootQuery := func(camliRoot string) (*search.SearchResult, error) {
 		return sh.Query(&search.SearchQuery{
@@ -558,6 +560,7 @@ func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {
 
 	dh := &DownloadHandler{
 		Fetcher: ui.root.Storage,
+		Search:  ui.search,
 		Cache:   ui.Cache,
 	}
 	dh.ServeHTTP(rw, req, fbr)
