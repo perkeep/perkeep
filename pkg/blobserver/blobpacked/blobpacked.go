@@ -176,8 +176,9 @@ type storage struct {
 }
 
 var (
-	_ blobserver.BlobStreamer = (*storage)(nil)
-	_ blobserver.Generationer = (*storage)(nil)
+	_ blobserver.BlobStreamer    = (*storage)(nil)
+	_ blobserver.Generationer    = (*storage)(nil)
+	_ blobserver.WholeRefFetcher = (*storage)(nil)
 )
 
 func (s *storage) String() string {
