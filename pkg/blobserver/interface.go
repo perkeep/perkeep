@@ -195,6 +195,21 @@ type ShutdownStorage interface {
 	io.Closer
 }
 
+// WholeRefFetcher is an optional fast-path interface exposed by the
+// 'blobpacked' blob storage implementation, which packs pieces of
+// files together and can efficiently serve them contigously.
+type WholeRefFetcher interface {
+	// OpenWholeRef returns a ReadCloser reading from offset bytes
+	// into wholeRef (the blobref of an entire file).
+	//
+	// The returned wholeSize is the size of the file, without
+	// subtracting any offset.
+	//
+	// The err will be os.ErrNotExist if the wholeref is not
+	// known.OpenWholeRef
+	OpenWholeRef(wholeRef blob.Ref, offset int64) (rc io.ReadCloser, wholeSize int64, err error)
+}
+
 // A GenerationNotSupportedError explains why a Storage
 // value implemented the Generationer interface but failed due
 // to a wrapped Storage value not implementing the interface.
