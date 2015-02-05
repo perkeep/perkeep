@@ -86,12 +86,13 @@ func (cl ClaimsByDate) String() string {
 
 // FileInfo describes a file or directory.
 type FileInfo struct {
+	// FileName is the base name of the file or directory.
 	FileName string `json:"fileName"`
 
 	// TODO(mpl): I've noticed that Size is actually set to the
 	// number of entries in the dir. fix the doc or the behaviour?
 
-	// Size is the size of files. It is not set for directories.
+	// Size is the size of file. It is not set for directories.
 	Size int64 `json:"size"`
 
 	// MIMEType may be set for files, but never for directories.
@@ -106,6 +107,11 @@ type FileInfo struct {
 	// original/modification times found. If ModTime doesn't differ
 	// from Time, ModTime is omitted (zero).
 	ModTime *types.Time3339 `json:"modTime,omitempty"`
+
+	// WholeRef is the digest of the entire file contents.
+	// This will be zero for non-regular files, and may also be zero
+	// for files above a certain size threshold.
+	WholeRef blob.Ref `json:"wholeRef,omitempty"`
 }
 
 func (fi *FileInfo) IsImage() bool {

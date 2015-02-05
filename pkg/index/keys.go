@@ -20,6 +20,8 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+
+	"camlistore.org/pkg/blob"
 )
 
 // requiredSchemaVersion is incremented every time
@@ -107,6 +109,14 @@ func (k *keyType) build(isPrefix, isKey bool, parts []part, args ...interface{})
 				panic("doesn't look like a time: " + s)
 			}
 			buf.WriteString(reverseTimeString(s))
+		case typeBlobRef:
+			if br, ok := arg.(blob.Ref); ok {
+				if br.Valid() {
+					buf.WriteString(br.String())
+				}
+				break
+			}
+			fallthrough
 		default:
 			if s, ok := arg.(string); ok {
 				buf.WriteString(s)
@@ -242,6 +252,7 @@ var (
 			{"size", typeIntStr},
 			{"filename", typeStr},
 			{"mimetype", typeStr},
+			{"whole", typeBlobRef},
 		},
 	}
 

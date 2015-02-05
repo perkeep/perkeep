@@ -1021,6 +1021,7 @@ func (x *Index) GetFileInfo(fileRef blob.Ref) (camtypes.FileInfo, error) {
 	}
 	ikey := "fileinfo|" + fileRef.String()
 	tkey := "filetimes|" + fileRef.String()
+	// TODO: switch this to use syncutil.Group
 	wg := new(sync.WaitGroup)
 	wg.Add(2)
 	var iv, tv string // info value, time value
@@ -1040,6 +1041,10 @@ func (x *Index) GetFileInfo(fileRef blob.Ref) (camtypes.FileInfo, error) {
 		log.Printf("index: bogus key %q = %q", ikey, iv)
 		return camtypes.FileInfo{}, os.ErrNotExist
 	}
+	var wholeRef blob.Ref
+	if len(valPart) >= 4 {
+		wholeRef, _ = blob.Parse(valPart[3])
+	}
 	size, err := strconv.ParseInt(valPart[0], 10, 64)
 	if err != nil {
 		log.Printf("index: bogus integer at position 0 in key %q = %q", ikey, iv)
@@ -1050,6 +1055,7 @@ func (x *Index) GetFileInfo(fileRef blob.Ref) (camtypes.FileInfo, error) {
 		Size:     size,
 		FileName: fileName,
 		MIMEType: urld(valPart[2]),
+		WholeRef: wholeRef,
 	}
 
 	if tv != "" {

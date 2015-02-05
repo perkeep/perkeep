@@ -442,7 +442,7 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 	}
 
 	mm.Set(keyWholeToFileRef.Key(wholeRef, blobRef), "1")
-	mm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(size, b.FileName(), mime))
+	mm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(size, b.FileName(), mime, wholeRef))
 	mm.Set(keyFileTimes.Key(blobRef), keyFileTimes.Val(time3339s))
 
 	if strings.HasPrefix(mime, "audio/") {
@@ -657,7 +657,7 @@ func (ix *Index) populateDir(fetcher blob.Fetcher, b *schema.Blob, mm *mutationM
 		return nil
 	}
 
-	mm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(len(sts), b.FileName(), ""))
+	mm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(len(sts), b.FileName(), "", blob.Ref{}))
 	for _, br := range sts {
 		mm.Set(keyStaticDirChild.Key(blobRef, br.String()), "1")
 	}
