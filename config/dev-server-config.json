@@ -117,9 +117,28 @@
 		},
 
 		"/bs/": {
+			"handler": "storage-blobpacked",
+			"handlerArgs": {
+				"smallBlobs": "/bs-loose/",
+				"largeBlobs": "/bs-packed/",
+				"metaIndex": {
+					"type": "kv",
+					"file": ["_env", "${CAMLI_ROOT}/packindex.kv"]
+                                }
+			}
+		},
+
+		"/bs-loose/": {
 			"handler": "storage-filesystem",
 			"handlerArgs": {
-				"path": ["_env", "${CAMLI_ROOT}"]
+				"path": ["_env", "${CAMLI_ROOT}/loose"]
+			}
+		},
+
+		"/bs-packed/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": ["_env", "${CAMLI_ROOT}/packed"]
 			}
 		},
 

@@ -291,6 +291,8 @@ func (c *serverCmd) setEnvVars() error {
 		c.makeSuffixdir(v)
 		setenv(k, v)
 	}
+	c.makeSuffixdir(filepath.Join(fullSuffix("bs"), "packed"))
+	c.makeSuffixdir(filepath.Join(fullSuffix("bs"), "loose"))
 	setenv("CAMLI_PORT", c.port)
 	if c.flickrAPIKey != "" {
 		setenv("CAMLI_FLICKR_ENABLED", "true")
