@@ -117,7 +117,7 @@ func (c *gceCmd) RunCommand(args []string) error {
 	}
 
 	depl := &gce.Deployer{
-		Cl: oauth2.NewClient(oauth2.NoContext, oauth2.ReuseTokenSource(nil,
+		Client: oauth2.NewClient(oauth2.NoContext, oauth2.ReuseTokenSource(nil,
 			&tokenSource{config: config, cacheFile: c.project + "-token.json"})),
 		Conf: instConf,
 	}
