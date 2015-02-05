@@ -17,9 +17,8 @@ limitations under the License.
 // Package gce provides tools to deploy Camlistore on Google Compute Engine.
 package gce
 
-// TODO: we want to host our own docker images under camlistore.org, so we should make a
-// list. For the purposes of this package, we should add to the list camlistore/camlistored
-// and camlistore/mysql.
+// TODO: we want to host our own docker images under gs://camlistore-release/docker, so we should make a
+// list. For the purposes of this package, we should add mysql to the list.
 
 import (
 	"bytes"
@@ -457,21 +456,30 @@ func cloudConfig(conf *InstanceConf) string {
 	return config
 }
 
-// getInstalledCert returns the TLS certificate stored on Google Cloud Storage for the
+// getInstalledTLS returns the TLS certificate and key stored on Google Cloud Storage for the
 // instance defined in d.Conf.
-func (d *Deployer) getInstalledCert() ([]byte, error) {
+func (d *Deployer) getInstalledTLS() (certPEM, keyPEM []byte, err error) {
 	ctx := cloud.NewContext(d.Conf.Project, d.Client)
-	sr, err := cloudstorage.NewReader(ctx, d.Conf.bucketBase(),
-		path.Join(configDir, certFilename))
-	if err != nil {
-		return nil, err
+	getFile := func(name string) ([]byte, error) {
+		sr, err := cloudstorage.NewReader(ctx, d.Conf.bucketBase(),
+			path.Join(configDir, name))
+		if err != nil {
+			return nil, err
+		}
+		defer sr.Close()
+		return ioutil.ReadAll(sr)
 	}
-	contents, err := ioutil.ReadAll(sr)
-	sr.Close()
-	if err != nil {
-		return nil, err
-	}
-	return contents, nil
+	var grp syncutil.Group
+	grp.Go(func() (err error) {
+		certPEM, err = getFile(certFilename)
+		return
+	})
+	grp.Go(func() (err error) {
+		keyPEM, err = getFile(keyFilename)
+		return
+	})
+	err = grp.Err()
+	return
 }
 
 // setBuckets defines the buckets needed by the instance and creates them.
@@ -595,9 +603,23 @@ func (d *Deployer) setFirewall(ctx *context.Context, computeService *compute.Ser
 // instance for HTTPS. It generates them if d.Conf.CertFile or d.Conf.KeyFile is not defined.
 // It should be called after setBuckets.
 func (d *Deployer) setupHTTPS(storageService *storage.Service) error {
+	installedCert, _, err := d.getInstalledTLS()
+	if err == nil {
+		sigs, err := httputil.CertFingerprints(installedCert)
+		if err != nil {
+			return fmt.Errorf("could not get fingerprints of certificate: %v", err)
+		}
+		d.certFingerprints = sigs
+		if Verbose {
+			log.Printf("Reusing existing certificate with fingerprint %v", sigs["SHA-256"])
+		}
+		return nil
+	}
 	var cert, key io.ReadCloser
-	var err error
 	if d.Conf.CertFile != "" && d.Conf.KeyFile != "" {
+		// Note: it is not a bug that we do not set d.certFingerprint in that case, because only
+		// the wizard template cares about d.certFingerprint, and we never get here with the wizard
+		// - but only with camdeploy.
 		cert, err = os.Open(d.Conf.CertFile)
 		if err != nil {
 			return err
@@ -609,6 +631,7 @@ func (d *Deployer) setupHTTPS(storageService *storage.Service) error {
 		}
 		defer key.Close()
 	} else {
+
 		if Verbose {
 			log.Printf("Generating self-signed certificate for %v ...", d.Conf.Hostname)
 		}
