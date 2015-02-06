@@ -68,6 +68,17 @@ func TestHasPrefixFold(t *testing.T) {
 		{"cam", "Cam", true},
 		{"camli", "car", false},
 		{"caml", "camli", false},
+		{"Hello, 世界 dasdsa", "HeLlO, 世界", true},
+		{"Hello, 世界", "HeLlO, 世界-", false},
+
+		{"kelvin", "\u212A" + "elvin", true}, // "\u212A" is the Kelvin temperature sign
+		{"Kelvin", "\u212A" + "elvin", true},
+		{"kelvin", "\u212A" + "el", true},
+		{"Kelvin", "\u212A" + "el", true},
+		{"\u212A" + "elvin", "Kelvin", true},
+		{"\u212A" + "elvin", "kelvin", true},
+		{"\u212A" + "elvin", "Kel", true},
+		{"\u212A" + "elvin", "kel", true},
 	}
 	for _, tt := range tests {
 		r := HasPrefixFold(tt.s, tt.prefix)
@@ -87,6 +98,16 @@ func TestHasSuffixFold(t *testing.T) {
 		{"mli", "MLI", true},
 		{"camli", "ali", false},
 		{"amli", "camli", false},
+		{"asas Hello, 世界", "HeLlO, 世界", true},
+		{"Hello, 世界", "HeLlO, 世界-", false},
+		{"KkkkKKkelvin", "\u212A" + "elvin", true}, // "\u212A" is the Kelvin temperature sign
+
+		{"kelvin", "\u212A" + "elvin", true}, // "\u212A" is the Kelvin temperature sign
+		{"Kelvin", "\u212A" + "elvin", true},
+		{"\u212A" + "elvin", "Kelvin", true},
+		{"\u212A" + "elvin", "kelvin", true},
+		{"\u212A" + "elvin", "vin", true},
+		{"\u212A" + "elvin", "viN", true},
 	}
 	for _, tt := range tests {
 		r := HasSuffixFold(tt.s, tt.suffix)
@@ -98,7 +119,6 @@ func TestHasSuffixFold(t *testing.T) {
 
 func TestContainsFold(t *testing.T) {
 	// TODO: more tests, more languages.
-	// The k,K,Kelvin (for now failing) example once TODO in HasPrefixFold is fixed.
 	tests := []struct {
 		s, substr string
 		result    bool
@@ -128,6 +148,20 @@ func TestContainsFold(t *testing.T) {
 		{"мир", "и", true},
 		{"КАМЛИЙСТОР", "лийс", true},
 		{"КаМлИйСтОр", "лИйС", true},
+
+		{"árvíztűrő tükörfúrógép", "árvíztŰrŐ", true},
+		{"I love ☕", "i love ☕", true},
+
+		{"k", "\u212A", true}, // "\u212A" is the Kelvin temperature sign
+		{"\u212A" + "elvin", "k", true},
+		{"kelvin", "\u212A" + "elvin", true},
+		{"Kelvin", "\u212A" + "elvin", true},
+		{"\u212A" + "elvin", "Kelvin", true},
+		{"\u212A" + "elvin", "kelvin", true},
+		{"273.15 kelvin", "\u212A" + "elvin", true},
+		{"273.15 Kelvin", "\u212A" + "elvin", true},
+		{"273.15 \u212A" + "elvin", "Kelvin", true},
+		{"273.15 \u212A" + "elvin", "kelvin", true},
 	}
 	for _, tt := range tests {
 		r := ContainsFold(tt.s, tt.substr)
@@ -157,6 +191,40 @@ func TestIsPlausibleJSON(t *testing.T) {
 		got := IsPlausibleJSON(tt.in)
 		if got != tt.want {
 			t.Errorf("IsPlausibleJSON(%q) = %v; want %v", tt.in, got, tt.want)
+		}
+	}
+}
+
+func BenchmarkHasSuffixFoldToLower(tb *testing.B) {
+	a, b := "camlik", "AMLI\u212A"
+	for i := 0; i < tb.N; i++ {
+		if !strings.HasSuffix(strings.ToLower(a), strings.ToLower(b)) {
+			tb.Fatalf("%q should have the same suffix as %q", a, b)
+		}
+	}
+}
+func BenchmarkHasSuffixFold(tb *testing.B) {
+	a, b := "camlik", "AMLI\u212A"
+	for i := 0; i < tb.N; i++ {
+		if !HasSuffixFold(a, b) {
+			tb.Fatalf("%q should have the same suffix as %q", a, b)
+		}
+	}
+}
+
+func BenchmarkHasPrefixFoldToLower(tb *testing.B) {
+	a, b := "kamlistore", "\u212AAMLI"
+	for i := 0; i < tb.N; i++ {
+		if !strings.HasPrefix(strings.ToLower(a), strings.ToLower(b)) {
+			tb.Fatalf("%q should have the same suffix as %q", a, b)
+		}
+	}
+}
+func BenchmarkHasPrefixFold(tb *testing.B) {
+	a, b := "kamlistore", "\u212AAMLI"
+	for i := 0; i < tb.N; i++ {
+		if !HasPrefixFold(a, b) {
+			tb.Fatalf("%q should have the same suffix as %q", a, b)
 		}
 	}
 }
