@@ -1,5 +1,8 @@
-docker: Dockerfile camlistored
+docker: Dockerfile camlistored # TODO(mpl): add djpeg-squashed dependency somehow?
 	docker build -t camlistored .
+
+djpeg:
+	(cd ../djpeg; make squashed)
 
 .PHONY: camlistored
 
