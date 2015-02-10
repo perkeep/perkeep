@@ -197,6 +197,7 @@ func DecodeDownsample(r io.Reader, factor int) (image.Image, error) {
 	stderrW := new(bytes.Buffer)
 	cmd.Stderr = stderrW
 	if err := cmd.Run(); err != nil {
+		// TODO(mpl): add cmd.ProcessState == nil check.
 		if !cmd.ProcessState.Success() {
 			djpegFailureVar.Add(1)
 			return nil, DjpegFailedError{Err: fmt.Errorf("%v: %s", err, stderrW)}
