@@ -94,6 +94,17 @@ CAMLI_GCE_DATA (string):
   instances configuration and state. If blank, the "camli-gce-data" default is used
   instead.
 
+CAMLI_GCE_PROJECT (string):
+  See CAMLI_GCE_* first. ID of the Google Project that provides the above client ID and
+  secret. It is used when we query for the list of all the existing zones, since such a
+  query requires a project ID. If blank, a hard-coded list of zones is used instead.
+
+CAMLI_GCE_SERVICE_ACCOUNT (string):
+  See CAMLI_GCE_* first. Path to a Google service account JSON file. This account should
+  have at least compute.readonly permissions on the Google Project wih ID CAMLI_GCE_PROJECT.
+  It is used to authenticate when querying for the list of all the existing zones. If blank,
+  a hard-coded list of zones is used instead.
+
 CAMLI_GCE_XSRFKEY (string):
   See CAMLI_GCE_* first. Used by gce.DeployHandler as the XSRF protection key. If blank,
   gce.NewDeployHandler generates a new random key instead.
