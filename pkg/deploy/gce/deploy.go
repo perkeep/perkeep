@@ -749,7 +749,7 @@ coreos:
       content: |
         [Unit]
         Description=Camlistore
-        After=docker.service
+        After=docker.service mysql.service
         Requires=docker.service mysql.service
 
         [Service]
