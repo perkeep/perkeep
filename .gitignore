@@ -29,3 +29,6 @@ server/camlistored/newui/all.js.map
 server/camlistored/newui/zembed_all.js.go
 server/appengine/source_root/
 config/tls.*
+misc/docker/djpeg-static/djpeg
+misc/docker/camlistored/camlistored*
+misc/docker/camlistored/djpeg

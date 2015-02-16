@@ -82,6 +82,7 @@ func Available() bool {
 
 		if p, err := exec.LookPath(djpegBin); p != "" && err == nil {
 			available = true
+			log.Printf("fastjpeg enabled with %s.", p)
 		}
 		if !available {
 			log.Printf("%s not found in PATH, disabling fastjpeg.", djpegBin)
