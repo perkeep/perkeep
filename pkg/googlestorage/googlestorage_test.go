@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"testing"
 	"time"
 
@@ -75,6 +76,28 @@ func doConfig(t *testing.T) (gsa *Client, bucket string) {
 	return
 }
 
+func TestGetPartialObject(t *testing.T) {
+	gs, bucket := doConfig(t)
+
+	body, err := gs.GetPartialObject(Object{bucket, "test-get"}, 5, 10)
+	if err != nil {
+		t.Fatalf("Fetch failed: %v\n", err)
+	}
+	defer body.Close()
+
+	contents, err := ioutil.ReadAll(body)
+	if err != nil {
+		t.Fatalf("Failed to get object contents: %v", err)
+	}
+	if len(contents) != 10 {
+		t.Fatalf("wrong contents size: got %d, want %d", len(contents), 10)
+	}
+
+	if string(contents) != testObjectContent[5:15] {
+		t.Fatalf("Object has incorrect content.\nExpected: '%v'\nFound: '%v'\n", testObjectContent, string(contents))
+	}
+}
+
 func TestGetObject(t *testing.T) {
 	gs, bucket := doConfig(t)
 
@@ -82,10 +105,14 @@ func TestGetObject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Fetch failed: %v\n", err)
 	}
+	defer body.Close()
 
-	content := make([]byte, size)
-	if _, err = body.Read(content); err != nil {
-		t.Fatalf("Failed to read response body: %v:\n", err)
+	content, err := ioutil.ReadAll(body)
+	if err != nil {
+		t.Fatalf("Failed to get object contents: %v", err)
+	}
+	if len(content) != int(size) {
+		t.Fatalf("wrong contents size: got %d, want %d", len(content), size)
 	}
 
 	if string(content) != testObjectContent {
