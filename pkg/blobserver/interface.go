@@ -31,10 +31,12 @@ import (
 // MaxBlobSize is the size of a single blob in Camlistore.
 const MaxBlobSize = constants.MaxBlobSize
 
-var ErrCorruptBlob = errors.New("corrupt blob; digest doesn't match")
+var (
+	ErrCorruptBlob = errors.New("corrupt blob; digest doesn't match")
 
-// ErrNotImplemented should be returned in methods where the function is not implemented
-var ErrNotImplemented = errors.New("not implemented")
+	// ErrNotImplemented should be returned in methods where the function is not implemented
+	ErrNotImplemented = errors.New("not implemented")
+)
 
 // BlobReceiver is the interface for receiving
 type BlobReceiver interface {

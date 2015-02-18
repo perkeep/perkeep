@@ -233,10 +233,10 @@ func (r *run) testSubFetcher() {
 		r, err := sf.SubFetch(big.BlobRef(), tt.off, tt.limit)
 		if err == nil {
 			r.Close()
-			t.Errorf("No error fetching with off=%d limit=%d; wanted and error", tt.off, tt.limit)
+			t.Errorf("No error fetching with off=%d limit=%d; wanted an error", tt.off, tt.limit)
 			continue
 		}
-		if v := err.Error(); !strings.Contains(v, "negative") && !strings.Contains(v, "offset") {
+		if err != blob.ErrNegativeSubFetch && err != blob.ErrOutOfRangeOffsetSubFetch {
 			t.Errorf("Unexpected error fetching with off=%d limit=%d: %v", tt.off, tt.limit, err)
 		}
 	}

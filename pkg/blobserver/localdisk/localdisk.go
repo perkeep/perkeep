@@ -31,7 +31,6 @@ Example low-level config:
 package localdisk
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -131,7 +130,7 @@ func (ds *DiskStorage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
 
 func (ds *DiskStorage) SubFetch(br blob.Ref, offset, length int64) (io.ReadCloser, error) {
 	if offset < 0 || length < 0 {
-		return nil, errors.New("invalid offset or length")
+		return nil, blob.ErrNegativeSubFetch
 	}
 	rc, _, err := ds.fetch(br, offset, length)
 	return rc, err
@@ -158,7 +157,10 @@ func (ds *DiskStorage) fetch(br blob.Ref, offset, length int64) (rc io.ReadClose
 	}
 	// SubFetch:
 	if offset < 0 || offset > stat.Size() {
-		return nil, 0, errors.New("invalid offset")
+		if offset < 0 {
+			return nil, 0, blob.ErrNegativeSubFetch
+		}
+		return nil, 0, blob.ErrOutOfRangeOffsetSubFetch
 	}
 	return struct {
 		io.Reader
