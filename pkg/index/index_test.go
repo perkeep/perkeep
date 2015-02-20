@@ -161,19 +161,32 @@ func skipFromList(name string) bool {
 	return false
 }
 
-func TestMergeFileInfoRow(t *testing.T) {
+func testMergeFileInfoRow(t *testing.T, wholeRef string) {
 	c := index.ExpNewCorpus()
-	c.Exp_mergeFileInfoRow("fileinfo|sha1-579f7f246bd420d486ddeb0dadbb256cfaf8bf6b",
-		"100|something%2egif|image%2Fgif")
-	fi := c.Exp_files(blob.MustParse("sha1-579f7f246bd420d486ddeb0dadbb256cfaf8bf6b"))
+	value := "100|something%2egif|image%2Fgif"
 	want := camtypes.FileInfo{
 		Size:     100,
 		MIMEType: "image/gif",
 		FileName: "something.gif",
 	}
+	if wholeRef != "" {
+		value += "|" + wholeRef
+		want.WholeRef = blob.MustParse(wholeRef)
+	}
+	c.Exp_mergeFileInfoRow("fileinfo|sha1-579f7f246bd420d486ddeb0dadbb256cfaf8bf6b", value)
+	fi := c.Exp_files(blob.MustParse("sha1-579f7f246bd420d486ddeb0dadbb256cfaf8bf6b"))
 	if !reflect.DeepEqual(want, fi) {
 		t.Errorf("Got %+v; want %+v", fi, want)
 	}
+}
+
+// When requiredSchemaVersion was at 4, i.e. wholeRef hadn't been introduced into fileInfo
+func TestMergeFileInfoRow4(t *testing.T) {
+	testMergeFileInfoRow(t, "")
+}
+
+func TestMergeFileInfoRow(t *testing.T) {
+	testMergeFileInfoRow(t, "sha1-142b504945338158e0149d4ed25a41a522a28e88")
 }
 
 var (

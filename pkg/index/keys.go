@@ -27,7 +27,8 @@ import (
 // requiredSchemaVersion is incremented every time
 // an index key type is added, changed, or removed.
 // Version 4: EXIF tags + GPS
-const requiredSchemaVersion = 4
+// Version 5: wholeRef added to keyFileInfo
+const requiredSchemaVersion = 5
 
 // type of key returns the identifier in k before the first ":" or "|".
 // (Originally we packed keys by hand and there are a mix of styles)

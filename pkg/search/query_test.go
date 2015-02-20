@@ -631,7 +631,7 @@ func TestQueryPermanodeModtime(t *testing.T) {
 func TestDecodeFileInfo(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
-		fileRef, _ := id.UploadFile("file.gif", "GIF87afoo", time.Unix(456, 0))
+		fileRef, wholeRef := id.UploadFile("file.gif", "GIF87afoo", time.Unix(456, 0))
 		res, err := qt.Handler().Describe(&DescribeRequest{
 			BlobRef: fileRef,
 		})
@@ -650,6 +650,10 @@ func TestDecodeFileInfo(t *testing.T) {
 		}
 		if db.File.MIMEType != "image/gif" {
 			qt.t.Errorf("DescribedBlob.File = %+v; mime type is not image/gif", db.File)
+			return
+		}
+		if db.File.WholeRef != wholeRef {
+			qt.t.Errorf("DescribedBlob.WholeRef: got %v, wanted %v", wholeRef, db.File.WholeRef)
 			return
 		}
 	})

@@ -156,6 +156,10 @@ func New(s sorted.KeyValue) (*Index, error) {
 			// the user with a more useful tip:
 			tip = `(For the dev server, run "devcam server --wipe" to wipe both your blobs and index)`
 		} else {
+			if is4To5SchemaBump(schemaVersion) {
+				log.Print("Your index does not have WholeRef in FileInfo entries. It may not be fatal but some things might not work and you should consider reindexing soon.")
+				break
+			}
 			tip = "Run 'camlistored --reindex' (it might take awhile, but shows status). Alternative: 'camtool dbinit' (or just delete the file for a file based index), and then 'camtool sync --all'"
 		}
 		return nil, fmt.Errorf("index schema version is %d; required one is %d. You need to reindex. %s",
@@ -168,6 +172,10 @@ func New(s sorted.KeyValue) (*Index, error) {
 		return nil, fmt.Errorf("Could not initialize index's missing blob maps: %v", err)
 	}
 	return idx, nil
+}
+
+func is4To5SchemaBump(schemaVersion int) bool {
+	return schemaVersion == 4 && requiredSchemaVersion == 5
 }
 
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
