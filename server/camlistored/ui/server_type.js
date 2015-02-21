@@ -19,6 +19,7 @@ cam.ServerType.DiscoveryRoot;
  *   blobRoot: string,
  *   directoryHelper: string,
  *   downloadHelper: string,
+ *   helpRoot: string,
  *   jsonSignRoot: string,
  *   ownerName: string,
  *   publishRoots: Array.<cam.ServerType.DiscoveryRoot>,

@@ -1,10 +1,10 @@
 {
 	"listen": "localhost:3179",
-        "baseURL": "http://foo.com/bar/",
+	"baseURL": "http://foo.com/bar/",
 	"https": false,
 	"auth": "userpass:camlistore:pass3179",
 	"blobPath": "/tmp/blobs",
 	"identity": "26F5ABDA",
 	"identitySecretRing": "/path/to/secring",
-        "kvIndexFile": "/path/to/indexkv.db"
+	"kvIndexFile": "/path/to/indexkv.db"
 }

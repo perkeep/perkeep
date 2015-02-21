@@ -8,6 +8,7 @@
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
 				"jsonSignRoot": "/sighelper/",
+				"helpRoot": "/help/",
 				"searchRoot": "/my-search/",
 				"statusRoot": "/status/",
 				"stealth": false
@@ -47,6 +48,9 @@
 			"handlerArgs": {
 				"path": "/tmp/camli-cache"
 			}
+		},
+		"/help/": {
+			"handler": "help"
 		},
 		"/importer/": {
 			"handler": "importer",

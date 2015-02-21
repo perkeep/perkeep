@@ -25,6 +25,7 @@ import (
 type Discovery struct {
 	BlobRoot     string `json:"blobRoot"`
 	JSONSignRoot string `json:"jsonSignRoot"`
+	HelpRoot     string `json:"helpRoot"`
 	ImporterRoot string `json:"importerRoot"`
 	SearchRoot   string `json:"searchRoot"`
 	StatusRoot   string `json:"statusRoot"`
