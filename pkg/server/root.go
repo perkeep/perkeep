@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/auth"
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/images"
@@ -182,14 +183,15 @@ func (b byFromTo) Less(i, j int) bool {
 
 func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
 	m := map[string]interface{}{
-		"blobRoot":     rh.BlobRoot,
-		"importerRoot": rh.importerRoot,
-		"searchRoot":   rh.SearchRoot,
-		"ownerName":    rh.OwnerName,
-		"username":     rh.Username,
-		"statusRoot":   rh.statusRoot,
-		"wsAuthToken":  auth.ProcessRandom(),
-		"thumbVersion": images.ThumbnailVersion(),
+		"blobRoot":      rh.BlobRoot,
+		"importerRoot":  rh.importerRoot,
+		"searchRoot":    rh.SearchRoot,
+		"ownerName":     rh.OwnerName,
+		"username":      rh.Username,
+		"statusRoot":    rh.statusRoot,
+		"wsAuthToken":   auth.ProcessRandom(),
+		"thumbVersion":  images.ThumbnailVersion(),
+		"blobHashFuncs": blob.HashFuncs(),
 	}
 	if gener, ok := rh.Storage.(blobserver.Generationer); ok {
 		initTime, gen, err := gener.StorageGeneration()

@@ -465,6 +465,15 @@ func init() {
 	}
 }
 
+// HashFuncs returns the names of the supported hash functions.
+func HashFuncs() []string {
+	hashes := make([]string, len(metas))
+	for i, m := range metas {
+		hashes[i] = string(m.name)
+	}
+	return hashes
+}
+
 var sha1Type = reflect.TypeOf(sha1.New())
 
 var metaFromType = map[reflect.Type]*digestMeta{
