@@ -98,6 +98,11 @@ type SearchQuery struct {
 	// query is about permanodes only.
 	Sort SortType `json:"sort,omitempty"`
 
+	// Around specifies that the results, after sorting, should be centered around
+	// this result. If Around is not found the returned results will be empty.
+	// If both Continue and Around are set, an error is returned.
+	Around blob.Ref `json:"around,omitempty"`
+
 	// Continue specifies the opaque token (as returned by a
 	// SearchResult) for where to continue fetching results when
 	// the Limit on a previous query was interrupted.
@@ -105,6 +110,7 @@ type SearchQuery struct {
 	// Limit, and Sort values.
 	// If empty, the top-most query results are returned, as given
 	// by Limit and Sort.
+	// Continue is not compatible with the Around option.
 	Continue string `json:"continue,omitempty"`
 
 	// If Describe is specified, the matched blobs are also described,
@@ -227,6 +233,9 @@ func (q *SearchQuery) addContinueConstraint() error {
 func (q *SearchQuery) checkValid(ctx *context.Context) (sq *SearchQuery, err error) {
 	if q.Sort >= maxSortType || q.Sort < 0 {
 		return nil, errors.New("invalid sort type")
+	}
+	if q.Continue != "" && q.Around.Valid() {
+		return nil, errors.New("Continue and Around parameters are mutually exclusive")
 	}
 	if q.Constraint == nil {
 		if expr := q.Expression; expr != "" {
@@ -848,6 +857,10 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 	defer sendCtx.Cancel()
 	go func() { errc <- cands.send(sendCtx, s, ch) }()
 
+	wantAround, foundAround := false, false
+	if q.Around.Valid() {
+		wantAround = true
+	}
 	blobMatches := q.Constraint.matcher()
 	for meta := range ch {
 		match, err := blobMatches(s, meta.Ref, meta)
@@ -858,14 +871,48 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 			res.Blobs = append(res.Blobs, &SearchResultBlob{
 				Blob: meta.Ref,
 			})
-			if q.Limit > 0 && len(res.Blobs) == q.Limit && cands.sorted {
-				sendCtx.Cancel()
-				break
+			if q.Limit <= 0 || !cands.sorted {
+				continue
+			}
+			if !wantAround || foundAround {
+				if len(res.Blobs) == q.Limit {
+					sendCtx.Cancel()
+					break
+				}
+				continue
+			}
+			if q.Around == meta.Ref {
+				foundAround = true
+				if len(res.Blobs)*2 > q.Limit {
+					// If we've already collected more than half of the Limit when Around is found,
+					// we ditch the surplus from the beginning of the slice of results.
+					// If Limit is even, and the number of results before and after Around
+					// are both greater than half the limit, then there will be one more result before
+					// than after.
+					discard := len(res.Blobs) - q.Limit/2 - 1
+					if discard < 0 {
+						discard = 0
+					}
+					res.Blobs = res.Blobs[discard:]
+				}
+				if len(res.Blobs) == q.Limit {
+					sendCtx.Cancel()
+					break
+				}
+				continue
+			}
+			if len(res.Blobs) == q.Limit {
+				n := copy(res.Blobs, res.Blobs[len(res.Blobs)/2:])
+				res.Blobs = res.Blobs[:n]
 			}
 		}
 	}
 	if err := <-errc; err != nil && err != context.ErrCanceled {
 		return nil, err
+	}
+	if q.Limit > 0 && cands.sorted && wantAround && !foundAround {
+		// results are ignored if Around was not found
+		res.Blobs = nil
 	}
 	if !cands.sorted {
 		switch q.Sort {
@@ -913,7 +960,9 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 		}
 	}
 	if corpus != nil {
-		q.setResultContinue(corpus, res)
+		if !wantAround {
+			q.setResultContinue(corpus, res)
+		}
 		unlockOnce.Do(corpus.RUnlock)
 	}
 
