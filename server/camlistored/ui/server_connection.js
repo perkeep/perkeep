@@ -218,6 +218,8 @@ cam.ServerConnection.prototype.permanodeOfSignerAttrValue = function(signer, att
 // @param {?object} opt_describe The describe property to send for the query
 cam.ServerConnection.prototype.buildQuery = function(callerQuery, opt_describe, opt_limit, opt_continuationToken) {
 	var query = {
+		// TODO(mpl): it'd be better to not ask for a sort when none is needed (less work for server),
+		// e.g. for a plain BlobRefPrefix query.
 		sort: "-created"
 	};
 

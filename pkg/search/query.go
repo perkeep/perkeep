@@ -44,6 +44,7 @@ type SortType int
 
 const (
 	UnspecifiedSort SortType = iota
+	Unsorted
 	LastModifiedDesc
 	LastModifiedAsc
 	CreatedDesc
@@ -53,6 +54,7 @@ const (
 )
 
 var sortName = map[SortType][]byte{
+	Unsorted:         []byte(`"unsorted"`),
 	LastModifiedDesc: []byte(`"-mod"`),
 	LastModifiedAsc:  []byte(`"mod"`),
 	CreatedDesc:      []byte(`"-created"`),
@@ -88,8 +90,13 @@ type SearchQuery struct {
 	Expression string      `json:"expression,omitempty"`
 	Constraint *Constraint `json:"constraint,omitempty"`
 
-	Limit int      `json:"limit,omitempty"` // optional. default is automatic. negative means no limit.
-	Sort  SortType `json:"sort,omitempty"`  // optional. default is automatic or unsorted.
+	// Limit is the maximum number of returned results. A negative value means no
+	// limit. If unspecified, a default (of 200) will be used.
+	Limit int `json:"limit,omitempty"`
+
+	// Sort specifies how the results will be sorted. It defaults to CreatedDesc when the
+	// query is about permanodes only.
+	Sort SortType `json:"sort,omitempty"`
 
 	// Continue specifies the opaque token (as returned by a
 	// SearchResult) for where to continue fetching results when
@@ -134,7 +141,7 @@ func (q *SearchQuery) plannedQuery(expr *SearchQuery) *SearchQuery {
 			pq.Limit = expr.Limit
 		}
 	}
-	if pq.Sort == 0 {
+	if pq.Sort == UnspecifiedSort {
 		if pq.Constraint.onlyMatchesPermanode() {
 			pq.Sort = CreatedDesc
 		}
@@ -862,12 +869,42 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 	}
 	if !cands.sorted {
 		switch q.Sort {
-		case UnspecifiedSort:
+		case UnspecifiedSort, Unsorted:
 			// Nothing to do.
 		case BlobRefAsc:
 			sort.Sort(sortSearchResultBlobs{res.Blobs, func(a, b *SearchResultBlob) bool {
 				return a.Blob.Less(b.Blob)
 			}})
+		case CreatedDesc, CreatedAsc:
+			if corpus == nil {
+				return nil, errors.New("TODO: Sorting without a corpus unsupported")
+			}
+			var err error
+			corpus.RLock()
+			sort.Sort(sortSearchResultBlobs{res.Blobs, func(a, b *SearchResultBlob) bool {
+				if err != nil {
+					return false
+				}
+				ta, ok := corpus.PermanodeAnyTimeLocked(a.Blob)
+				if !ok {
+					err = fmt.Errorf("no ctime or modtime found for %v", a.Blob)
+					return false
+				}
+				tb, ok := corpus.PermanodeAnyTimeLocked(b.Blob)
+				if !ok {
+					err = fmt.Errorf("no ctime or modtime found for %v", b.Blob)
+					return false
+				}
+				if q.Sort == CreatedAsc {
+					return ta.Before(tb)
+				}
+				return tb.Before(ta)
+			}})
+			corpus.RUnlock()
+			if err != nil {
+				return nil, err
+			}
+		// TODO(mpl): LastModifiedDesc, LastModifiedAsc
 		default:
 			return nil, errors.New("TODO: unsupported sort+query combination.")
 		}

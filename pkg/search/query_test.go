@@ -49,8 +49,9 @@ func (i indexType) String() string {
 }
 
 type queryTest struct {
-	t  testing.TB
-	id *indextest.IndexDeps
+	t     testing.TB
+	id    *indextest.IndexDeps
+	itype indexType
 
 	Handler func() *Handler
 }
@@ -90,8 +91,9 @@ func testQueryType(t testing.TB, fn func(*queryTest), itype indexType) {
 		}
 	}
 	qt := &queryTest{
-		t:  t,
-		id: indextest.NewIndexDeps(idx),
+		t:     t,
+		id:    indextest.NewIndexDeps(idx),
+		itype: itype,
 	}
 	qt.id.Fataler = t
 	qt.Handler = func() *Handler {
@@ -118,6 +120,9 @@ func dumpRes(t *testing.T, res *SearchResult) {
 }
 
 func (qt *queryTest) wantRes(req *SearchQuery, wanted ...blob.Ref) {
+	if qt.itype == indexClassic {
+		req.Sort = Unsorted
+	}
 	res, err := qt.Handler().Query(req)
 	if err != nil {
 		qt.t.Fatal(err)
