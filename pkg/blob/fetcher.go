@@ -27,6 +27,11 @@ import (
 	"camlistore.org/pkg/types"
 )
 
+var (
+	ErrNegativeSubFetch         = errors.New("invalid negative subfetch parameters")
+	ErrOutOfRangeOffsetSubFetch = errors.New("subfetch offset greater than blob size")
+)
+
 // Fetcher is the minimal interface for retrieving a blob from storage.
 // The full storage interface is blobserver.Storage.
 type Fetcher interface {
@@ -47,8 +52,10 @@ type SubFetcher interface {
 	// SubFetch returns part of a blob.
 	// The caller must close the returned io.ReadCloser.
 	// The Reader may return fewer than 'length' bytes. Callers should
-	// check. The returned error should be os.ErrNotExist if the blob
-	// doesn't exist.
+	// check. The returned error should be: ErrNegativeSubFetch if any of
+	// offset or length is negative, or os.ErrNotExist if the blob
+	// doesn't exist, or ErrOutOfRangeOffsetSubFetch if offset goes over
+	// the size of the blob.
 	SubFetch(ref Ref, offset, length int64) (io.ReadCloser, error)
 }
 

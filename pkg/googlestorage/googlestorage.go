@@ -33,10 +33,11 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
-	api "camlistore.org/third_party/google.golang.org/api/storage/v1"
 	"camlistore.org/third_party/github.com/bradfitz/gce"
+	api "camlistore.org/third_party/google.golang.org/api/storage/v1"
 )
 
 const (
@@ -186,8 +187,8 @@ func (c *Client) GetObject(obj *Object) (rc io.ReadCloser, size int64, err error
 // If length is negative, the rest of the object is returned.
 // The caller must close rc.
 func (c *Client) GetPartialObject(obj Object, offset, length int64) (rc io.ReadCloser, err error) {
-	if offset < 0 {
-		return nil, errors.New("invalid negative length")
+	if offset < 0 || length < 0 {
+		return nil, blob.ErrNegativeSubFetch
 	}
 	if err = obj.valid(); err != nil {
 		return
@@ -214,6 +215,9 @@ func (c *Client) GetPartialObject(obj Object, offset, length int64) (rc io.ReadC
 	}
 	if !(resp.StatusCode == http.StatusPartialContent || (offset == 0 && resp.StatusCode == http.StatusOK)) {
 		resp.Body.Close()
+		if resp.StatusCode == http.StatusRequestedRangeNotSatisfiable {
+			return nil, blob.ErrOutOfRangeOffsetSubFetch
+		}
 		return nil, fmt.Errorf("GS GET request failed status: %v\n", resp.Status)
 	}
 

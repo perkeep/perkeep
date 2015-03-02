@@ -36,6 +36,7 @@ import (
 	"strings"
 	"time"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
 )
 
@@ -324,6 +325,9 @@ func (c *Client) GetPartial(bucket, key string, offset, length int64) (rc io.Rea
 	case http.StatusNotFound:
 		res.Body.Close()
 		return nil, os.ErrNotExist
+	case http.StatusRequestedRangeNotSatisfiable:
+		res.Body.Close()
+		return nil, blob.ErrOutOfRangeOffsetSubFetch
 	default:
 		res.Body.Close()
 		return nil, fmt.Errorf("Amazon HTTP error on GET: %d", res.StatusCode)

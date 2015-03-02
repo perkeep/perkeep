@@ -17,7 +17,6 @@ limitations under the License.
 package blobpacked
 
 import (
-	"errors"
 	"io"
 	"io/ioutil"
 
@@ -71,10 +70,10 @@ func (s *storage) SubFetch(ref blob.Ref, offset, length int64) (io.ReadCloser, e
 
 func capOffsetLength(size uint32, offset, length int64) (newLength int64, err error) {
 	if offset < 0 || length < 0 {
-		return 0, errors.New("invalid negative subfetch parameters")
+		return 0, blob.ErrNegativeSubFetch
 	}
 	if offset > int64(size) {
-		return 0, errors.New("subfetch offset greater than blob size")
+		return 0, blob.ErrOutOfRangeOffsetSubFetch
 	}
 	if over := (offset + length) - int64(size); over > 0 {
 		length -= over
