@@ -26,8 +26,10 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -47,6 +49,7 @@ import (
 
 	"camlistore.org/third_party/code.google.com/p/xsrftoken"
 	"camlistore.org/third_party/golang.org/x/oauth2"
+	"camlistore.org/third_party/golang.org/x/oauth2/google"
 	compute "camlistore.org/third_party/google.golang.org/api/compute/v1"
 )
 
@@ -69,22 +72,15 @@ var (
 		"machine": Machine,
 		"zone":    Zone,
 	}
-	// TODO(mpl): query for them, and cache them.
-	// Also use a datalist in form, with only region values.
-	// And choose ourselves at random the zone suffix, if not provided.
-	zoneValues = []string{
-		"us-central1-a",
-		"us-central1-b",
-		"us-central1-f",
-		"europe-west1-b",
-		"europe-west1-c",
-		"asia-east1-a",
-		"asia-east1-b",
-		"asia-east1-c",
-	}
 	machineValues = []string{
 		"g1-small",
 		"n1-highcpu-2",
+	}
+
+	backupZones = map[string][]string{
+		"us-central1":  []string{"-a", "-b", "-f"},
+		"europe-west1": []string{"-b", "-c", "-d"},
+		"asia-east1":   []string{"-a", "-b", "-c"},
 	}
 
 	// DevHandler: if true, use HTTP instead of HTTPS, force permissions prompt for OAuth,
@@ -123,6 +119,12 @@ type DeployHandler struct {
 	// recordStateErr maps the blobRef of the relevant InstanceConf to the error
 	// that occurred when recording the creation state.
 	recordStateErr map[string]error
+
+	zonesMu sync.RWMutex
+	// maps a region to all its zones suffixes (e.g. "asia-east1" -> "-a","-b"). updated in the
+	// background every 24 hours. defaults to backupZones.
+	zones   map[string][]string
+	regions []string
 
 	*log.Logger
 }
@@ -196,6 +198,18 @@ func NewDeployHandler(host string, prefix string) (http.Handler, error) {
 	})
 	h.mux = mux
 	h.Logger = log.New(os.Stderr, "", log.LstdFlags)
+	h.zones = backupZones
+	// TODO(mpl): use time.AfterFunc and avoid having a goroutine running all the time almost
+	// doing nothing.
+	refreshZonesFn := func() {
+		for {
+			if err := h.refreshZones(); err != nil {
+				h.Printf("error while refreshing zones: %v", err)
+			}
+			time.Sleep(24 * time.Hour)
+		}
+	}
+	go refreshZonesFn()
 	return h, nil
 }
 
@@ -205,6 +219,67 @@ func (h *DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.mux.ServeHTTP(w, r)
+}
+
+func (h *DeployHandler) refreshZones() error {
+	h.zonesMu.Lock()
+	defer h.zonesMu.Unlock()
+	defer func() {
+		h.regions = make([]string, 0, len(h.zones))
+		for r, _ := range h.zones {
+			h.regions = append(h.regions, r)
+		}
+	}()
+	// TODO(mpl): get projectID and access tokens from metadata once camweb is on GCE.
+	accountFile := os.Getenv("CAMLI_GCE_SERVICE_ACCOUNT")
+	if accountFile == "" {
+		h.Printf("No service account to query for the zones, using hard-coded ones instead.")
+		h.zones = backupZones
+		return nil
+	}
+	project := os.Getenv("CAMLI_GCE_PROJECT")
+	if project == "" {
+		h.Printf("No project we can query on to get the zones, using hard-coded ones instead.")
+		h.zones = backupZones
+		return nil
+	}
+	data, err := ioutil.ReadFile(accountFile)
+	if err != nil {
+		return err
+	}
+	conf, err := google.JWTConfigFromJSON(data, "https://www.googleapis.com/auth/compute.readonly")
+	if err != nil {
+		return err
+	}
+	s, err := compute.New(conf.Client(oauth2.NoContext))
+	if err != nil {
+		return err
+	}
+	rl, err := compute.NewRegionsService(s).List(project).Do()
+	if err != nil {
+		return fmt.Errorf("could not get a list of regions: %v", err)
+	}
+	h.zones = make(map[string][]string)
+	for _, r := range rl.Items {
+		zones := make([]string, 0, len(r.Zones))
+		for _, z := range r.Zones {
+			zone := path.Base(z)
+			if zone == "europe-west1-a" {
+				// Because even though the docs mark it as deprecated, it still shows up here, go figure.
+				continue
+			}
+			zone = strings.Replace(zone, r.Name, "", 1)
+			zones = append(zones, zone)
+		}
+		h.zones[r.Name] = zones
+	}
+	return nil
+}
+
+func (h *DeployHandler) zoneValues() []string {
+	h.zonesMu.RLock()
+	defer h.zonesMu.RUnlock()
+	return h.regions
 }
 
 func (h *DeployHandler) serveRoot(w http.ResponseWriter, r *http.Request) {
@@ -222,7 +297,7 @@ func (h *DeployHandler) serveRoot(w http.ResponseWriter, r *http.Request) {
 		Prefix:        h.prefix,
 		Help:          h.help,
 		Defaults:      formDefaults,
-		ZoneValues:    zoneValues,
+		ZoneValues:    h.zoneValues(),
 		MachineValues: machineValues,
 	}); err != nil {
 		h.Print(err)
@@ -241,7 +316,7 @@ func (h *DeployHandler) serveSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	instConf, err := confFromForm(r)
+	instConf, err := h.confFromForm(r)
 	if err != nil {
 		h.serveFormError(w, err)
 		return
@@ -444,7 +519,7 @@ func (h *DeployHandler) serveFormError(w http.ResponseWriter, err error, hints .
 		Err:           err,
 		Hints:         topHints,
 		Defaults:      formDefaults,
-		ZoneValues:    zoneValues,
+		ZoneValues:    h.zoneValues(),
 		MachineValues: machineValues,
 	}); tplErr != nil {
 		h.Printf("Could not serve form error %q because: %v", err, tplErr)
@@ -496,7 +571,7 @@ func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Reques
 			CertFingerprintSHA1:   state.CertFingerprintSHA1,
 			CertFingerprintSHA256: state.CertFingerprintSHA256,
 			Defaults:              formDefaults,
-			ZoneValues:            zoneValues,
+			ZoneValues:            h.zoneValues(),
 			MachineValues:         machineValues,
 		})
 		return
@@ -571,21 +646,43 @@ func formValueOrDefault(r *http.Request, formField, defValue string) string {
 	return val
 }
 
-func confFromForm(r *http.Request) (*InstanceConf, error) {
+func (h *DeployHandler) confFromForm(r *http.Request) (*InstanceConf, error) {
 	project := r.FormValue("project")
 	if project == "" {
 		return nil, errors.New("missing project parameter")
+	}
+	zone := formValueOrDefault(r, "zone", Zone)
+	// heuristics for region vs zone: region has 1 dash in it, while zone has 2.
+	switch dash := strings.Count(zone, "-"); dash {
+	case 1:
+		zone = h.randomZone(zone)
+	case 2:
+	default:
+		return nil, errors.New("invalid zone")
 	}
 	return &InstanceConf{
 		Name:     formValueOrDefault(r, "name", InstanceName),
 		Project:  project,
 		Machine:  formValueOrDefault(r, "machine", Machine),
-		Zone:     formValueOrDefault(r, "zone", Zone),
+		Zone:     zone,
 		Hostname: formValueOrDefault(r, "hostname", "localhost"),
 		SSHPub:   formValueOrDefault(r, "sshPub", ""),
 		Password: formValueOrDefault(r, "password", project),
 		Ctime:    time.Now(),
 	}, nil
+}
+
+// randomZone picks one of the zone suffixes for region and returns it
+// appended to region, as a fully-qualified zone name.
+// If the given region is invalid, the default Zone is returned instead.
+func (h *DeployHandler) randomZone(region string) string {
+	h.zonesMu.RLock()
+	defer h.zonesMu.RUnlock()
+	zones, ok := h.zones[region]
+	if !ok {
+		return Zone
+	}
+	return region + zones[rand.Intn(len(zones))]
 }
 
 func (h *DeployHandler) SetLogger(logger *log.Logger) {
@@ -923,11 +1020,12 @@ This tool helps you create your own private Camlistore instance running on Googl
 			<tr><td align=right>New password</td><td><input name="password" size=30 value="{{.Defaults.password}}"></td><td></td></tr>
 			<tr><td align=right></td><td style="font-size:75%">New password for your Camlistore server.</td><td></td></tr>
 			<tr><td align=right><a href="{{.Help.zones}}">Zone</a></td><td>
-				<select name="zone">
+				<input name="zone" list="regions" value="` + Zone + `">
+				<datalist id="regions">
 				{{range $k, $v := .ZoneValues}}
 					<option value={{$v}}>{{$v}}</option>
 				{{end}}
-				</select>
+				</datalist>
 			</td></tr>
 			<tr><td align=right><a href="{{.Help.machineTypes}}">Machine type</a></td><td>
 				<input name="machine" list="machines" value="g1-small">

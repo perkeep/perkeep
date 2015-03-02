@@ -167,7 +167,7 @@ func (d *Deployer) projectHasInstance() (zone string, err error) {
 	if err != nil {
 		return "", err
 	}
-	// TODO(mpl): cache the zones for at least one day.
+	// TODO(mpl): make use of the handler's cached zones.
 	zl, err := compute.NewZonesService(s).List(d.Conf.Project).Do()
 	if err != nil {
 		return "", fmt.Errorf("could not get a list of zones: %v", err)
