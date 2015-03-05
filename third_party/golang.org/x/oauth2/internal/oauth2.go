@@ -30,12 +30,12 @@ func ParseKey(key []byte) (*rsa.PrivateKey, error) {
 	if err != nil {
 		parsedKey, err = x509.ParsePKCS1PrivateKey(key)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("private key should be a PEM or plain PKSC1 or PKCS8; parse error: %v", err)
 		}
 	}
 	parsed, ok := parsedKey.(*rsa.PrivateKey)
 	if !ok {
-		return nil, errors.New("oauth2: private key is invalid")
+		return nil, errors.New("private key is invalid")
 	}
 	return parsed, nil
 }

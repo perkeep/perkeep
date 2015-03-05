@@ -25,9 +25,6 @@ import (
 	"camlistore.org/third_party/google.golang.org/cloud/compute/metadata"
 )
 
-// TODO(bradfitz,jbd): import "camlistore.org/third_party/google.golang.org/cloud/compute/metadata" instead of
-// the metaClient and metadata.google.internal stuff below.
-
 // Endpoint is Google's OAuth 2.0 endpoint.
 var Endpoint = oauth2.Endpoint{
 	AuthURL:  "https://accounts.google.com/o/oauth2/auth",
@@ -36,6 +33,39 @@ var Endpoint = oauth2.Endpoint{
 
 // JWTTokenURL is Google's OAuth 2.0 token URL to use with the JWT flow.
 const JWTTokenURL = "https://accounts.google.com/o/oauth2/token"
+
+// JWTConfigFromJSON uses a Google Developers Console client_credentials.json
+// file to construct a config.
+// client_credentials.json can be downloadable from https://console.developers.google.com,
+// under "APIs & Auth" > "Credentials". Download the Web application credentials in the
+// JSON format and provide the contents of the file as jsonKey.
+func ConfigFromJSON(jsonKey []byte, scope ...string) (*oauth2.Config, error) {
+	var j struct {
+		Web struct {
+			ClientID     string   `json:"client_id"`
+			ClientSecret string   `json:"client_secret"`
+			RedirectURIs []string `json:"redirect_uris"`
+			AuthURI      string   `json:"auth_uri"`
+			TokenURI     string   `json:"token_uri"`
+		} `json:"web"`
+	}
+	if err := json.Unmarshal(jsonKey, &j); err != nil {
+		return nil, err
+	}
+	if len(j.Web.RedirectURIs) < 1 {
+		return nil, errors.New("oauth2/google: missing redirect URL in the client_credentials.json")
+	}
+	return &oauth2.Config{
+		ClientID:     j.Web.ClientID,
+		ClientSecret: j.Web.ClientSecret,
+		RedirectURL:  j.Web.RedirectURIs[0],
+		Scopes:       scope,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  j.Web.AuthURI,
+			TokenURL: j.Web.TokenURI,
+		},
+	}, nil
+}
 
 // JWTConfigFromJSON uses a Google Developers service account JSON key file to read
 // the credentials that authorize and authenticate the requests.

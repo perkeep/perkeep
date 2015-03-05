@@ -6,6 +6,7 @@ package google
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"camlistore.org/third_party/golang.org/x/net/context"
 	"camlistore.org/third_party/golang.org/x/oauth2"
 	"camlistore.org/third_party/golang.org/x/oauth2/internal"
 )
@@ -22,11 +24,11 @@ import (
 type sdkCredentials struct {
 	Data []struct {
 		Credential struct {
-			ClientID     string    `json:"client_id"`
-			ClientSecret string    `json:"client_secret"`
-			AccessToken  string    `json:"access_token"`
-			RefreshToken string    `json:"refresh_token"`
-			TokenExpiry  time.Time `json:"token_expiry"`
+			ClientID     string     `json:"client_id"`
+			ClientSecret string     `json:"client_secret"`
+			AccessToken  string     `json:"access_token"`
+			RefreshToken string     `json:"refresh_token"`
+			TokenExpiry  *time.Time `json:"token_expiry"`
 		} `json:"credential"`
 		Key struct {
 			Account string `json:"account"`
@@ -91,6 +93,13 @@ func NewSDKConfig(account string) (*SDKConfig, error) {
 
 	for _, d := range c.Data {
 		if account == "" || d.Key.Account == account {
+			if d.Credential.AccessToken == "" && d.Credential.RefreshToken == "" {
+				return nil, fmt.Errorf("oauth2/google: no token available for account %q", account)
+			}
+			var expiry time.Time
+			if d.Credential.TokenExpiry != nil {
+				expiry = *d.Credential.TokenExpiry
+			}
 			return &SDKConfig{
 				conf: oauth2.Config{
 					ClientID:     d.Credential.ClientID,
@@ -102,7 +111,7 @@ func NewSDKConfig(account string) (*SDKConfig, error) {
 				initialToken: &oauth2.Token{
 					AccessToken:  d.Credential.AccessToken,
 					RefreshToken: d.Credential.RefreshToken,
-					Expiry:       d.Credential.TokenExpiry,
+					Expiry:       expiry,
 				},
 			}, nil
 		}
@@ -115,7 +124,7 @@ func NewSDKConfig(account string) (*SDKConfig, error) {
 // underlying http.RoundTripper will be obtained using the provided
 // context. The returned client and its Transport should not be
 // modified.
-func (c *SDKConfig) Client(ctx oauth2.Context) *http.Client {
+func (c *SDKConfig) Client(ctx context.Context) *http.Client {
 	return &http.Client{
 		Transport: &oauth2.Transport{
 			Source: c.TokenSource(ctx),
@@ -128,7 +137,7 @@ func (c *SDKConfig) Client(ctx oauth2.Context) *http.Client {
 // It will returns the current access token stored in the credentials,
 // and refresh it when it expires, but it won't update the credentials
 // with the new access token.
-func (c *SDKConfig) TokenSource(ctx oauth2.Context) oauth2.TokenSource {
+func (c *SDKConfig) TokenSource(ctx context.Context) oauth2.TokenSource {
 	return c.conf.TokenSource(ctx, c.initialToken)
 }
 
@@ -137,23 +146,20 @@ func (c *SDKConfig) Scopes() []string {
 	return c.conf.Scopes
 }
 
-func sdkConfigPath() (string, error) {
+// sdkConfigPath tries to guess where the gcloud config is located.
+// It can be overridden during tests.
+var sdkConfigPath = func() (string, error) {
 	if runtime.GOOS == "windows" {
 		return filepath.Join(os.Getenv("APPDATA"), "gcloud"), nil
 	}
-	unixHomeDir = guessUnixHomeDir()
-	if unixHomeDir == "" {
-		return "", fmt.Errorf("unable to get current user home directory: os/user lookup failed; $HOME is empty")
+	homeDir := guessUnixHomeDir()
+	if homeDir == "" {
+		return "", errors.New("unable to get current user home directory: os/user lookup failed; $HOME is empty")
 	}
-	return filepath.Join(unixHomeDir, ".config", "gcloud"), nil
+	return filepath.Join(homeDir, ".config", "gcloud"), nil
 }
 
-var unixHomeDir string
-
 func guessUnixHomeDir() string {
-	if unixHomeDir != "" {
-		return unixHomeDir
-	}
 	usr, err := user.Current()
 	if err == nil {
 		return usr.HomeDir

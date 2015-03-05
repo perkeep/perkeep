@@ -25,14 +25,9 @@ import (
 	"camlistore.org/third_party/golang.org/x/net/context"
 )
 
-// Context can be an golang.org/x/net.Context, or an App Engine Context.
-// If you don't care and aren't running on App Engine, you may use NoContext.
-type Context interface{}
-
-// NoContext is the default context. If you're not running this code
-// on App Engine or not using golang.org/x/net.Context to provide a custom
-// HTTP client, you should use NoContext.
-var NoContext Context = nil
+// NoContext is the default context you should supply if not using
+// your own context.Context (see https://golang.org/x/net/context).
+var NoContext = context.TODO()
 
 // Config describes a typical 3-legged OAuth2 flow, with both the
 // client application information and the server's endpoint URLs.
@@ -78,11 +73,11 @@ var (
 	// "access_type" field that gets sent in the URL returned by
 	// AuthCodeURL.
 	//
-	// Online (the default if neither is specified) is the default.
-	// If your application needs to refresh access tokens when the
-	// user is not present at the browser, then use offline. This
-	// will result in your application obtaining a refresh token
-	// the first time your application exchanges an authorization
+	// Online is the default if neither is specified. If your
+	// application needs to refresh access tokens when the user
+	// is not present at the browser, then use offline. This will
+	// result in your application obtaining a refresh token the
+	// first time your application exchanges an authorization
 	// code for a user.
 	AccessTypeOnline  AuthCodeOption = setParam{"access_type", "online"}
 	AccessTypeOffline AuthCodeOption = setParam{"access_type", "offline"}
@@ -134,17 +129,37 @@ func (c *Config) AuthCodeURL(state string, opts ...AuthCodeOption) string {
 	return buf.String()
 }
 
+// PasswordCredentialsToken converts a resource owner username and password
+// pair into a token.
+//
+// Per the RFC, this grant type should only be used "when there is a high
+// degree of trust between the resource owner and the client (e.g., the client
+// is part of the device operating system or a highly privileged application),
+// and when other authorization grant types are not available."
+// See https://tools.ietf.org/html/rfc6749#section-4.3 for more info.
+//
+// The HTTP client to use is derived from the context.
+// If nil, http.DefaultClient is used.
+func (c *Config) PasswordCredentialsToken(ctx context.Context, username, password string) (*Token, error) {
+	return retrieveToken(ctx, c, url.Values{
+		"grant_type": {"password"},
+		"username":   {username},
+		"password":   {password},
+		"scope":      condVal(strings.Join(c.Scopes, " ")),
+	})
+}
+
 // Exchange converts an authorization code into a token.
 //
 // It is used after a resource provider redirects the user back
 // to the Redirect URI (the URL obtained from AuthCodeURL).
 //
-// The HTTP client to use is derived from the context. If nil,
-// http.DefaultClient is used. See the Context type's documentation.
+// The HTTP client to use is derived from the context.
+// If nil, http.DefaultClient is used.
 //
 // The code will be in the *http.Request.FormValue("code"). Before
 // calling Exchange, be sure to validate FormValue("state").
-func (c *Config) Exchange(ctx Context, code string) (*Token, error) {
+func (c *Config) Exchange(ctx context.Context, code string) (*Token, error) {
 	return retrieveToken(ctx, c, url.Values{
 		"grant_type":   {"authorization_code"},
 		"code":         {code},
@@ -157,7 +172,7 @@ func (c *Config) Exchange(ctx Context, code string) (*Token, error) {
 // given a Context value. If it returns an error, the search stops
 // with that error.  If it returns (nil, nil), the search continues
 // down the list of registered funcs.
-type contextClientFunc func(Context) (*http.Client, error)
+type contextClientFunc func(context.Context) (*http.Client, error)
 
 var contextClientFuncs []contextClientFunc
 
@@ -165,7 +180,7 @@ func registerContextClientFunc(fn contextClientFunc) {
 	contextClientFuncs = append(contextClientFuncs, fn)
 }
 
-func contextClient(ctx Context) (*http.Client, error) {
+func contextClient(ctx context.Context) (*http.Client, error) {
 	for _, fn := range contextClientFuncs {
 		c, err := fn(ctx)
 		if err != nil {
@@ -175,15 +190,13 @@ func contextClient(ctx Context) (*http.Client, error) {
 			return c, nil
 		}
 	}
-	if xc, ok := ctx.(context.Context); ok {
-		if hc, ok := xc.Value(HTTPClient).(*http.Client); ok {
-			return hc, nil
-		}
+	if hc, ok := ctx.Value(HTTPClient).(*http.Client); ok {
+		return hc, nil
 	}
 	return http.DefaultClient, nil
 }
 
-func contextTransport(ctx Context) http.RoundTripper {
+func contextTransport(ctx context.Context) http.RoundTripper {
 	hc, err := contextClient(ctx)
 	if err != nil {
 		// This is a rare error case (somebody using nil on App Engine),
@@ -199,53 +212,63 @@ func contextTransport(ctx Context) http.RoundTripper {
 // The token will auto-refresh as necessary. The underlying
 // HTTP transport will be obtained using the provided context.
 // The returned client and its Transport should not be modified.
-func (c *Config) Client(ctx Context, t *Token) *http.Client {
+func (c *Config) Client(ctx context.Context, t *Token) *http.Client {
 	return NewClient(ctx, c.TokenSource(ctx, t))
 }
 
 // TokenSource returns a TokenSource that returns t until t expires,
 // automatically refreshing it as necessary using the provided context.
-// See the the Context documentation.
 //
 // Most users will use Config.Client instead.
-func (c *Config) TokenSource(ctx Context, t *Token) TokenSource {
-	nwn := &reuseTokenSource{t: t}
-	nwn.new = tokenRefresher{
-		ctx:      ctx,
-		conf:     c,
-		oldToken: &nwn.t,
+func (c *Config) TokenSource(ctx context.Context, t *Token) TokenSource {
+	tkr := &tokenRefresher{
+		ctx:  ctx,
+		conf: c,
 	}
-	return nwn
+	if t != nil {
+		tkr.refreshToken = t.RefreshToken
+	}
+	return &reuseTokenSource{
+		t:   t,
+		new: tkr,
+	}
 }
 
 // tokenRefresher is a TokenSource that makes "grant_type"=="refresh_token"
 // HTTP requests to renew a token using a RefreshToken.
 type tokenRefresher struct {
-	ctx      Context // used to get HTTP requests
-	conf     *Config
-	oldToken **Token // pointer to old *Token w/ RefreshToken
+	ctx          context.Context // used to get HTTP requests
+	conf         *Config
+	refreshToken string
 }
 
-func (tf tokenRefresher) Token() (*Token, error) {
-	t := *tf.oldToken
-	if t == nil {
-		return nil, errors.New("oauth2: attempted use of nil Token")
-	}
-	if t.RefreshToken == "" {
+// WARNING: Token is not safe for concurrent access, as it
+// updates the tokenRefresher's refreshToken field.
+// Within this package, it is used by reuseTokenSource which
+// synchronizes calls to this method with its own mutex.
+func (tf *tokenRefresher) Token() (*Token, error) {
+	if tf.refreshToken == "" {
 		return nil, errors.New("oauth2: token expired and refresh token is not set")
 	}
-	return retrieveToken(tf.ctx, tf.conf, url.Values{
+
+	tk, err := retrieveToken(tf.ctx, tf.conf, url.Values{
 		"grant_type":    {"refresh_token"},
-		"refresh_token": {t.RefreshToken},
+		"refresh_token": {tf.refreshToken},
 	})
+
+	if err != nil {
+		return nil, err
+	}
+	if tf.refreshToken != tk.RefreshToken {
+		tf.refreshToken = tk.RefreshToken
+	}
+	return tk, err
 }
 
 // reuseTokenSource is a TokenSource that holds a single token in memory
 // and validates its expiry before each call to retrieve it with
 // Token. If it's expired, it will be auto-refreshed using the
 // new TokenSource.
-//
-// The first call to TokenRefresher must be SetToken.
 type reuseTokenSource struct {
 	new TokenSource // called when t is expired.
 
@@ -270,7 +293,7 @@ func (s *reuseTokenSource) Token() (*Token, error) {
 	return t, nil
 }
 
-func retrieveToken(ctx Context, c *Config, v url.Values) (*Token, error) {
+func retrieveToken(ctx context.Context, c *Config, v url.Values) (*Token, error) {
 	hc, err := contextClient(ctx)
 	if err != nil {
 		return nil, err
@@ -382,14 +405,18 @@ func condVal(v string) []string {
 // - Reddit only accepts client secret in the Authorization header
 // - Dropbox accepts either it in URL param or Auth header, but not both.
 // - Google only accepts URL param (not spec compliant?), not Auth header
+// - Stripe only accepts client secret in Auth header with Bearer method, not Basic
 func providerAuthHeaderWorks(tokenURL string) bool {
 	if strings.HasPrefix(tokenURL, "https://accounts.google.com/") ||
+		strings.HasPrefix(tokenURL, "https://www.googleapis.com/") ||
 		strings.HasPrefix(tokenURL, "https://github.com/") ||
 		strings.HasPrefix(tokenURL, "https://api.instagram.com/") ||
 		strings.HasPrefix(tokenURL, "https://www.douban.com/") ||
 		strings.HasPrefix(tokenURL, "https://api.dropbox.com/") ||
 		strings.HasPrefix(tokenURL, "https://api.soundcloud.com/") ||
-		strings.HasPrefix(tokenURL, "https://www.linkedin.com/") {
+		strings.HasPrefix(tokenURL, "https://www.linkedin.com/") ||
+		strings.HasPrefix(tokenURL, "https://api.twitch.tv/") ||
+		strings.HasPrefix(tokenURL, "https://connect.stripe.com/") {
 		// Some sites fail to implement the OAuth2 spec fully.
 		return false
 	}
@@ -416,7 +443,7 @@ type contextKey struct{}
 // As a special case, if src is nil, a non-OAuth2 client is returned
 // using the provided context. This exists to support related OAuth2
 // packages.
-func NewClient(ctx Context, src TokenSource) *http.Client {
+func NewClient(ctx context.Context, src TokenSource) *http.Client {
 	if src == nil {
 		c, err := contextClient(ctx)
 		if err != nil {
