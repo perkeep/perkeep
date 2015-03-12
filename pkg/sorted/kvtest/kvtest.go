@@ -96,12 +96,14 @@ func testInsertLarge(t *testing.T, kv sorted.KeyValue) {
 	if err := kv.Set(string(largeKey), "whatever"); err != nil {
 		t.Fatalf("Insertion of large key failed: %v", err)
 	}
+
 	// and verify we can get it back, i.e. that the key hasn't been truncated.
 	it := kv.Find(string(largeKey), "")
-	defer it.Close()
 	if !it.Next() || it.Key() != string(largeKey) || it.Value() != "whatever" {
+		it.Close()
 		t.Fatalf("Find(largeKey) = %q, %q; want %q, %q", it.Key(), it.Value(), largeKey, "whatever")
 	}
+	it.Close()
 
 	// insert with large value
 	if err := kv.Set("whatever", string(largeValue)); err != nil {

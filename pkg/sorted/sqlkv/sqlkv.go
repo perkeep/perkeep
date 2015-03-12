@@ -177,6 +177,9 @@ func (kv *KeyValue) Close() error { return kv.DB.Close() }
 func (kv *KeyValue) Find(start, end string) sorted.Iterator {
 	if kv.Serial {
 		kv.mu.Lock()
+		// TODO(mpl): looks like sqlite considers the db locked until we've closed
+		// the iterator, so we can't do anything else until then. We should probably
+		// move that Unlock to the closing of the iterator. Investigating.
 		defer kv.mu.Unlock()
 	}
 	var rows *sql.Rows
