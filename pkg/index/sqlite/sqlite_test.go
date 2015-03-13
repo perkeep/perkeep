@@ -31,7 +31,7 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
-	"camlistore.org/pkg/sorted/sqlite"
+	_ "camlistore.org/pkg/sorted/sqlite"
 
 	_ "camlistore.org/third_party/github.com/mattn/go-sqlite3"
 )
@@ -54,14 +54,6 @@ func newSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := sql.Open("sqlite3", f.Name())
-	if err != nil {
-		t.Fatalf("opening test database: %v", err)
-	}
-	for _, tableSql := range sqlite.SQLCreateTables() {
-		do(db, tableSql)
-	}
-	do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, sqlite.SchemaVersion()))
 
 	kv, err = sorted.NewKeyValue(jsonconfig.Obj{
 		"type": "sqlite",
