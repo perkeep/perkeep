@@ -738,7 +738,7 @@ cam.IndexPage = React.createClass({
 					isExpanded: this.state.sidebarVisible,
 					mainControls: [
 						{
-							"displayTitle": "Update Tags",
+							"displayTitle": "Update tags",
 							"control": this.getTagsControl_()
 						}
 					].filter(goog.functions.identity),
