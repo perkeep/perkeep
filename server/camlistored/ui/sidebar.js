@@ -27,6 +27,7 @@ cam.Sidebar = React.createClass({
 
 	propTypes: {
 		isExpanded: React.PropTypes.bool.isRequired,
+		header: React.PropTypes.renderable,
 		mainControls: React.PropTypes.arrayOf(
 			React.PropTypes.shape(
 				{
@@ -53,6 +54,7 @@ cam.Sidebar = React.createClass({
 					'cam-sidebar-hidden': !this.props.isExpanded,
 				})
 			},
+			this.props.header,
 			this.props.selectionControls,
 			this.getMainControls_()
 		);
