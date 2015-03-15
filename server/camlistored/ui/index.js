@@ -734,8 +734,15 @@ cam.IndexPage = React.createClass({
 	getSidebar_: function(selectedAspect) {
 		if (selectedAspect) {
 			if (selectedAspect.fragment == 'search' || selectedAspect.fragment == 'contents') {
+				var count = goog.object.getCount(this.state.selection);
 				return cam.Sidebar( {
 					isExpanded: this.state.sidebarVisible,
+					header: React.DOM.span(
+						{
+							className: 'header',
+						},
+						goog.string.subs('%s selected item%s', count, count > 1 ? 's' : '')
+					),
 					mainControls: [
 						{
 							"displayTitle": "Update tags",
