@@ -57,6 +57,7 @@ type fileCmd struct {
 	diskUsage         bool // show "du" disk usage only (dry run mode), don't actually upload
 	argsFromInput     bool // Android mode: filenames piped into stdin, one at a time.
 	deleteAfterUpload bool // with fileNodes, deletes the input file once uploaded
+	contentsOnly      bool // do not store any of the file's attributes, only its contents.
 
 	statcache bool
 
@@ -90,11 +91,12 @@ func init() {
 		flags.BoolVar(&cmd.diskUsage, "du", false, "Dry run mode: only show disk usage information, without upload or statting dest. Used for testing skipDirs configs, mostly.")
 
 		if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
-			flags.BoolVar(&cmd.statcache, "statcache", true, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
-			flags.BoolVar(&cmd.memstats, "debug-memstats", false, "Enter debug in-memory mode; collecting stats only. Doesn't upload anything.")
-			flags.StringVar(&cmd.histo, "debug-histogram-file", "", "Optional file to create and write the blob size for each file uploaded.  For use with GNU R and hist(read.table(\"filename\")$V1). Requires debug-memstats.")
-			flags.BoolVar(&cmd.capCtime, "capctime", false, "For file blobs use file modification time as creation time if it would be bigger (newer) than modification time. For stable filenode creation (you can forge mtime, but can't forge ctime).")
-			flags.BoolVar(&flagUseSQLiteChildCache, "sqlitecache", false, "Use sqlite for the statcache and havecache instead of a flat cache.")
+			flags.BoolVar(&cmd.statcache, "statcache", true, "(debug flag) Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
+			flags.BoolVar(&cmd.memstats, "debug-memstats", false, "(debug flag) Enter debug in-memory mode; collecting stats only. Doesn't upload anything.")
+			flags.StringVar(&cmd.histo, "debug-histogram-file", "", "(debug flag) Optional file to create and write the blob size for each file uploaded.  For use with GNU R and hist(read.table(\"filename\")$V1). Requires debug-memstats.")
+			flags.BoolVar(&cmd.capCtime, "capctime", false, "(debug flag) For file blobs use file modification time as creation time if it would be bigger (newer) than modification time. For stable filenode creation (you can forge mtime, but can't forge ctime).")
+			flags.BoolVar(&flagUseSQLiteChildCache, "sqlitecache", false, "(debug flag) Use sqlite for the statcache and havecache instead of a flat cache.")
+			flags.BoolVar(&cmd.contentsOnly, "contents_only", false, "(debug flag) Do not store any of the file's attributes. We write only the file's contents (the blobRefs for its parts) to the created file schema.")
 		} else {
 			cmd.statcache = true
 		}
@@ -145,6 +147,9 @@ func (c *fileCmd) RunCommand(args []string) error {
 	if c.deleteAfterUpload && !c.filePermanodes {
 		return cmdmain.UsageError("Can't set use --delete_after_upload without --filenodes")
 	}
+	if c.filePermanodes && c.contentsOnly {
+		return cmdmain.UsageError("--contents_only and --filenodes are exclusive. Use --permanode instead.")
+	}
 	// TODO(mpl): do it for other modes too. Or even better, do it once for all modes.
 	if *cmdmain.FlagVerbose {
 		log.SetOutput(cmdmain.Stderr)
@@ -166,11 +171,12 @@ func (c *fileCmd) RunCommand(args []string) error {
 		}
 	}
 	up.fileOpts = &fileOptions{
-		permanode: c.filePermanodes,
-		tag:       c.tag,
-		vivify:    c.vivify,
-		exifTime:  c.exifTime,
-		capCtime:  c.capCtime,
+		permanode:    c.filePermanodes,
+		tag:          c.tag,
+		vivify:       c.vivify,
+		exifTime:     c.exifTime,
+		capCtime:     c.capCtime,
+		contentsOnly: c.contentsOnly,
 	}
 
 	var (
@@ -545,7 +551,12 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *sc
 }
 
 func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
-	filebb := schema.NewCommonFileMap(n.fullPath, n.fi)
+	var filebb *schema.Builder
+	if up.fileOpts.contentsOnly {
+		filebb = schema.NewFileMap("")
+	} else {
+		filebb = schema.NewCommonFileMap(n.fullPath, n.fi)
+	}
 	filebb.SetType("file")
 
 	up.fdGate.Start()
@@ -556,20 +567,22 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		return nil, err
 	}
 	defer file.Close()
-	if up.fileOpts.exifTime {
-		ra, ok := file.(io.ReaderAt)
-		if !ok {
-			return nil, errors.New("Error asserting local file to io.ReaderAt")
+	if !up.fileOpts.contentsOnly {
+		if up.fileOpts.exifTime {
+			ra, ok := file.(io.ReaderAt)
+			if !ok {
+				return nil, errors.New("Error asserting local file to io.ReaderAt")
+			}
+			modtime, err := schema.FileTime(ra)
+			if err != nil {
+				log.Printf("warning: getting time from EXIF failed for %v: %v", n.fullPath, err)
+			} else {
+				filebb.SetModTime(modtime)
+			}
 		}
-		modtime, err := schema.FileTime(ra)
-		if err != nil {
-			log.Printf("warning: getting time from EXIF failed for %v: %v", n.fullPath, err)
-		} else {
-			filebb.SetModTime(modtime)
+		if up.fileOpts.capCtime {
+			filebb.CapCreationTime()
 		}
-	}
-	if up.fileOpts.capCtime {
-		filebb.CapCreationTime()
 	}
 
 	var (

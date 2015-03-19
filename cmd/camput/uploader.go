@@ -26,6 +26,8 @@ import (
 	"camlistore.org/pkg/syncutil"
 )
 
+// TODO(mpl): move Uploader to pkg/client, or maybe its own pkg, and clean up files.go
+
 type Uploader struct {
 	*client.Client
 
@@ -57,6 +59,7 @@ type fileOptions struct {
 	vivify   bool
 	exifTime bool // use the time in exif metadata as the modtime if possible.
 	capCtime bool // use mtime as ctime if ctime > mtime
+	contentsOnly bool // do not store any of the file's attributes, only its contents.
 }
 
 func (o *fileOptions) tags() []string {
