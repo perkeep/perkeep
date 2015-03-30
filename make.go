@@ -751,16 +751,12 @@ func embedClosure(closureDir, embedFile string) error {
 		return fmt.Errorf("Could not stat %v: %v", closureDir, err)
 	}
 
-	// first, zip it
-	var zipbuf bytes.Buffer
-	var zipdest io.Writer = &zipbuf
-	if os.Getenv("CAMLI_WRITE_TMP_ZIP") != "" {
-		f, _ := os.Create("/tmp/camli-closure.zip")
-		zipdest = io.MultiWriter(zipdest, f)
-		defer f.Close()
-	}
+	// first collect the files and modTime
 	var modTime time.Time
-	w := zip.NewWriter(zipdest)
+	type pathAndSuffix struct {
+		path, suffix string
+	}
+	var files []pathAndSuffix
 	err := filepath.Walk(closureDir, func(path string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -775,22 +771,43 @@ func embedClosure(closureDir, embedFile string) error {
 		if mt := fi.ModTime(); mt.After(modTime) {
 			modTime = mt
 		}
-		b, err := ioutil.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		f, err := w.Create(filepath.ToSlash(suffix))
-		if err != nil {
-			log.Fatal(err)
-		}
-		_, err = f.Write(b)
-		return err
+		files = append(files, pathAndSuffix{path, suffix})
+		return nil
 	})
 	if err != nil {
 		return err
 	}
-	err = w.Close()
-	if err != nil {
+	// do not regenerate the whole embedFile if it exists and newer than modTime.
+	if fi, err := os.Stat(embedFile); err == nil && fi.Size() > 0 && fi.ModTime().After(modTime) {
+		if *verbose {
+			log.Printf("skipping regeneration of %s", embedFile)
+		}
+		return nil
+	}
+
+	// second, zip it
+	var zipbuf bytes.Buffer
+	var zipdest io.Writer = &zipbuf
+	if os.Getenv("CAMLI_WRITE_TMP_ZIP") != "" {
+		f, _ := os.Create("/tmp/camli-closure.zip")
+		zipdest = io.MultiWriter(zipdest, f)
+		defer f.Close()
+	}
+	w := zip.NewWriter(zipdest)
+	for _, elt := range files {
+		b, err := ioutil.ReadFile(elt.path)
+		if err != nil {
+			return err
+		}
+		f, err := w.Create(filepath.ToSlash(elt.suffix))
+		if err != nil {
+			return err
+		}
+		if _, err = f.Write(b); err != nil {
+			return err
+		}
+	}
+	if err = w.Close(); err != nil {
 		return err
 	}
 
@@ -805,8 +822,6 @@ func embedClosure(closureDir, embedFile string) error {
 	fmt.Fprint(&qb, "\n}\n")
 
 	// and write to a .go file
-	// TODO(mpl): do not regenerate the whole zip file if the modtime
-	// of the z_data.go file is greater than the modtime of all the closure *.js files.
 	if err := writeFileIfDifferent(embedFile, qb.Bytes()); err != nil {
 		return err
 	}
