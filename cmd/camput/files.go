@@ -36,6 +36,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"camlistore.org/internal/chanworker"
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	statspkg "camlistore.org/pkg/blobserver/stats"
@@ -959,7 +960,7 @@ func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err e
 }
 
 // testHookStatCache, if non-nil, runs first in the checkStatCache worker.
-var testHookStatCache func(n *node, ok bool)
+var testHookStatCache func(el interface{}, ok bool)
 
 func (t *TreeUpload) run() {
 	defer close(t.donec)
@@ -1003,25 +1004,27 @@ func (t *TreeUpload) run() {
 	skippedc := make(chan *node)  // didn't even hit blobserver; trusted our stat cache
 
 	uploadsdonec := make(chan bool)
-	var upload chan<- *node
+	var upload chan<- interface{}
 	withPermanode := t.up.fileOpts.wantFilePermanode()
 	if t.DiskUsageMode {
-		upload = NewNodeWorker(1, func(n *node, ok bool) {
+		upload = chanworker.NewWorker(1, func(el interface{}, ok bool) {
 			if !ok {
 				uploadsdonec <- true
 				return
 			}
+			n := el.(*node)
 			if n.fi.IsDir() {
 				fmt.Printf("%d\t%s\n", n.SumBytes()>>10, n.fullPath)
 			}
 		})
 	} else {
-		dirUpload := NewNodeWorker(dirUploadWorkers, func(n *node, ok bool) {
+		dirUpload := chanworker.NewWorker(dirUploadWorkers, func(el interface{}, ok bool) {
 			if !ok {
 				log.Printf("done uploading directories - done with all uploads.")
 				uploadsdonec <- true
 				return
 			}
+			n := el.(*node)
 			put, err := t.up.uploadNode(n)
 			if err != nil {
 				log.Fatalf("Error uploading %s: %v", n.fullPath, err)
@@ -1030,12 +1033,13 @@ func (t *TreeUpload) run() {
 			uploadedc <- n
 		})
 
-		upload = NewNodeWorker(uploadWorkers, func(n *node, ok bool) {
+		upload = chanworker.NewWorker(uploadWorkers, func(el interface{}, ok bool) {
 			if !ok {
 				log.Printf("done with all uploads.")
 				close(dirUpload)
 				return
 			}
+			n := el.(*node)
 			if n.fi.IsDir() {
 				dirUpload <- n
 				return
@@ -1053,9 +1057,9 @@ func (t *TreeUpload) run() {
 		})
 	}
 
-	checkStatCache := NewNodeWorker(statCacheWorkers, func(n *node, ok bool) {
+	checkStatCache := chanworker.NewWorker(statCacheWorkers, func(el interface{}, ok bool) {
 		if hook := testHookStatCache; hook != nil {
-			hook(n, ok)
+			hook(el, ok)
 		}
 		if !ok {
 			if t.up.statCache != nil {
@@ -1064,6 +1068,7 @@ func (t *TreeUpload) run() {
 			close(upload)
 			return
 		}
+		n := el.(*node)
 		if t.DiskUsageMode || t.up.statCache == nil {
 			upload <- n
 			return

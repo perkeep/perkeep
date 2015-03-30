@@ -1,5 +1,5 @@
 /*
-Copyright 2012 Google Inc.
+Copyright 2012 The Camlistore Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,44 +14,45 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Worker pools of functions processing channel input.
-// TODO(brafitz): move this to a common library, making it operate on interface{} instead?
-
-package main
+package chanworker
 
 import (
 	"container/list"
 	"sync"
 )
 
-type nodeWorker struct {
-	c chan *node
+type chanWorker struct {
+	c chan interface{}
 
 	donec chan bool
-	workc chan *node
-	fn    func(n *node, ok bool)
+	workc chan interface{}
+	fn    func(n interface{}, ok bool)
 	buf   *list.List
 }
 
-// NewNodeWorker starts nWorkers goroutines running fn on incoming
-// nodes sent on the returned channel.  fn may block; writes to the
+// TODO: make it configurable if need be. Although so far in camput it wasn't.
+const buffered = 16
+
+// NewWorker starts nWorkers goroutines running fn on incoming
+// items sent on the returned channel.  fn may block; writes to the
 // channel will buffer.
 // If nWorkers is negative, a new goroutine running fn is called for each
 // item sent on the returned channel.
 // When the returned channel is closed, fn is called with (nil, false)
 // after all other calls to fn have completed.
-func NewNodeWorker(nWorkers int, fn func(n *node, ok bool)) chan<- *node {
+// If nWorkers is zero, NewWorker will panic.
+func NewWorker(nWorkers int, fn func(el interface{}, ok bool)) chan<- interface{} {
 	if nWorkers == 0 {
-		panic("invalid nWorkers valid of 0")
+		panic("NewChanWorker: invalid value of 0 for nWorkers")
 	}
-	retc := make(chan *node, buffered)
+	retc := make(chan interface{}, buffered)
 	if nWorkers < 0 {
 		// Unbounded number of workers.
 		go func() {
 			var wg sync.WaitGroup
 			for w := range retc {
 				wg.Add(1)
-				go func(w *node) {
+				go func(w interface{}) {
 					fn(w, true)
 					wg.Done()
 				}(w)
@@ -61,9 +62,9 @@ func NewNodeWorker(nWorkers int, fn func(n *node, ok bool)) chan<- *node {
 		}()
 		return retc
 	}
-	w := &nodeWorker{
+	w := &chanWorker{
 		c:     retc,
-		workc: make(chan *node, buffered),
+		workc: make(chan interface{}, buffered),
 		donec: make(chan bool), // when workers finish
 		fn:    fn,
 		buf:   list.New(),
@@ -81,31 +82,31 @@ func NewNodeWorker(nWorkers int, fn func(n *node, ok bool)) chan<- *node {
 	return retc
 }
 
-func (w *nodeWorker) pump() {
+func (w *chanWorker) pump() {
 	inc := w.c
 	for inc != nil || w.buf.Len() > 0 {
 		outc := w.workc
-		var frontNode *node
+		var frontNode interface{}
 		if e := w.buf.Front(); e != nil {
-			frontNode = e.Value.(*node)
+			frontNode = e.Value
 		} else {
 			outc = nil
 		}
 		select {
 		case outc <- frontNode:
 			w.buf.Remove(w.buf.Front())
-		case n, ok := <-inc:
+		case el, ok := <-inc:
 			if !ok {
 				inc = nil
 				continue
 			}
-			w.buf.PushBack(n)
+			w.buf.PushBack(el)
 		}
 	}
 	close(w.workc)
 }
 
-func (w *nodeWorker) work() {
+func (w *chanWorker) work() {
 	for {
 		select {
 		case n, ok := <-w.workc:
