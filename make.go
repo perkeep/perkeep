@@ -169,9 +169,9 @@ func main() {
 
 	withCamlistored := stringListContains(targs, "camlistore.org/server/camlistored")
 	if *embedResources && withCamlistored {
-		// TODO(mpl): in doEmbed, it looks like we not only always recreate the closure
-		// z_data.go, but we also always regenerate the zembed.*.go, at least for the
-		// integration tests. I'll look into it.
+		// TODO(mpl): it looks like we always regenerate the
+		// zembed.*.go, at least for the integration
+		// tests. I'll look into it.
 		doEmbed()
 	}
 
