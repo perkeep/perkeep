@@ -7,6 +7,7 @@ package http2
 import (
 	"bytes"
 	"reflect"
+	"strings"
 	"testing"
 	"unsafe"
 )
@@ -429,6 +430,34 @@ func testWritePing(t *testing.T, ack bool) {
 }
 
 func TestReadFrameHeader(t *testing.T) {
+	tests := []struct {
+		in   string
+		want FrameHeader
+	}{
+		{in: "\x00\x00\x00" + "\x00" + "\x00" + "\x00\x00\x00\x00", want: FrameHeader{}},
+		{in: "\x01\x02\x03" + "\x04" + "\x05" + "\x06\x07\x08\x09", want: FrameHeader{
+			Length: 66051, Type: 4, Flags: 5, StreamID: 101124105,
+		}},
+		// Ignore high bit:
+		{in: "\xff\xff\xff" + "\xff" + "\xff" + "\xff\xff\xff\xff", want: FrameHeader{
+			Length: 16777215, Type: 255, Flags: 255, StreamID: 2147483647}},
+		{in: "\xff\xff\xff" + "\xff" + "\xff" + "\x7f\xff\xff\xff", want: FrameHeader{
+			Length: 16777215, Type: 255, Flags: 255, StreamID: 2147483647}},
+	}
+	for i, tt := range tests {
+		got, err := readFrameHeader(make([]byte, 9), strings.NewReader(tt.in))
+		if err != nil {
+			t.Errorf("%d. readFrameHeader(%q) = %v", i, tt.in, err)
+			continue
+		}
+		tt.want.valid = true
+		if got != tt.want {
+			t.Errorf("%d. readFrameHeader(%q) = %+v; want %+v", i, tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestReadWriteFrameHeader(t *testing.T) {
 	tests := []struct {
 		len      uint32
 		typ      FrameType

@@ -255,7 +255,6 @@ type Frame interface {
 // A Framer reads and writes Frames.
 type Framer struct {
 	r         io.Reader
-	lr        io.LimitedReader
 	lastFrame Frame
 
 	maxReadSize uint32
@@ -947,6 +946,10 @@ func parseContinuationFrame(fh FrameHeader, p []byte) (Frame, error) {
 	return &ContinuationFrame{fh, p}, nil
 }
 
+func (f *ContinuationFrame) StreamEnded() bool {
+	return f.FrameHeader.Flags.Has(FlagDataEndStream)
+}
+
 func (f *ContinuationFrame) HeaderBlockFragment() []byte {
 	f.checkValid()
 	return f.headerFragBuf
@@ -1099,4 +1102,12 @@ func readUint32(p []byte) (remain []byte, v uint32, err error) {
 		return nil, 0, io.ErrUnexpectedEOF
 	}
 	return p[4:], binary.BigEndian.Uint32(p[:4]), nil
+}
+
+type streamEnder interface {
+	StreamEnded() bool
+}
+
+type headersEnder interface {
+	HeadersEnded() bool
 }

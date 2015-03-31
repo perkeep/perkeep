@@ -40,6 +40,7 @@ func TestSettingString(t *testing.T) {
 		want string
 	}{
 		{Setting{SettingMaxFrameSize, 123}, "[MAX_FRAME_SIZE = 123]"},
+		{Setting{1<<16 - 1, 123}, "[UNKNOWN_SETTING_65535 = 123]"},
 	}
 	for i, tt := range tests {
 		got := fmt.Sprint(tt.s)

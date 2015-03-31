@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -31,14 +32,17 @@ import (
 	"camlistore.org/third_party/github.com/bradfitz/http2/hpack"
 )
 
+var stderrVerbose = flag.Bool("stderr_verbose", false, "Mirror verbosity to stderr, unbuffered")
+
 type serverTester struct {
 	cc        net.Conn // client conn
 	t         testing.TB
 	ts        *httptest.Server
 	fr        *Framer
 	logBuf    *bytes.Buffer
+	logFilter []string   // substrings to filter out
+	scMu      sync.Mutex // guards sc
 	sc        *serverConn
-	logFilter []string // substrings to filter out
 
 	// writing headers:
 	headerBuf bytes.Buffer
@@ -60,6 +64,10 @@ func resetHooks() {
 	testHookOnPanicMu.Unlock()
 }
 
+type serverTesterOpt string
+
+var optOnlyServer = serverTesterOpt("only_server")
+
 func newServerTester(t testing.TB, handler http.HandlerFunc, opts ...interface{}) *serverTester {
 	resetHooks()
 
@@ -68,15 +76,20 @@ func newServerTester(t testing.TB, handler http.HandlerFunc, opts ...interface{}
 
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: true,
-		NextProtos:         []string{NextProtoTLS},
+		// The h2-14 is temporary, until curl is updated. (as used by unit tests
+		// in Docker)
+		NextProtos: []string{NextProtoTLS, "h2-14"},
 	}
 
+	onlyServer := false
 	for _, opt := range opts {
 		switch v := opt.(type) {
 		case func(*tls.Config):
 			v(tlsConfig)
 		case func(*httptest.Server):
 			v(ts)
+		case serverTesterOpt:
+			onlyServer = (v == optOnlyServer)
 		default:
 			t.Fatalf("unknown newServerTester option type %T", v)
 		}
@@ -93,36 +106,41 @@ func newServerTester(t testing.TB, handler http.HandlerFunc, opts ...interface{}
 	}
 	st.hpackEnc = hpack.NewEncoder(&st.headerBuf)
 
+	var stderrv io.Writer = ioutil.Discard
+	if *stderrVerbose {
+		stderrv = os.Stderr
+	}
+
 	ts.TLS = ts.Config.TLSConfig // the httptest.Server has its own copy of this TLS config
-	ts.Config.ErrorLog = log.New(io.MultiWriter(twriter{t: t, st: st}, logBuf), "", log.LstdFlags)
+	ts.Config.ErrorLog = log.New(io.MultiWriter(stderrv, twriter{t: t, st: st}, logBuf), "", log.LstdFlags)
 	ts.StartTLS()
 
 	if VerboseLogs {
 		t.Logf("Running test server at: %s", ts.URL)
 	}
-	var (
-		mu sync.Mutex
-		sc *serverConn
-	)
 	testHookGetServerConn = func(v *serverConn) {
-		mu.Lock()
-		defer mu.Unlock()
-		sc = v
-		sc.testHookCh = make(chan func())
+		st.scMu.Lock()
+		defer st.scMu.Unlock()
+		st.sc = v
+		st.sc.testHookCh = make(chan func())
 	}
-	cc, err := tls.Dial("tcp", ts.Listener.Addr().String(), tlsConfig)
-	if err != nil {
-		t.Fatal(err)
+	log.SetOutput(io.MultiWriter(stderrv, twriter{t: t, st: st}))
+	if !onlyServer {
+		cc, err := tls.Dial("tcp", ts.Listener.Addr().String(), tlsConfig)
+		if err != nil {
+			t.Fatal(err)
+		}
+		st.cc = cc
+		st.fr = NewFramer(cc, cc)
 	}
-	log.SetOutput(twriter{t: t, st: st})
 
-	st.cc = cc
-	st.fr = NewFramer(cc, cc)
-
-	mu.Lock()
-	st.sc = sc
-	mu.Unlock() // unnecessary, but looks weird without.
 	return st
+}
+
+func (st *serverTester) closeConn() {
+	st.scMu.Lock()
+	defer st.scMu.Unlock()
+	st.sc.conn.Close()
 }
 
 func (st *serverTester) addLogFilter(phrase string) {
@@ -148,7 +166,9 @@ func (st *serverTester) streamState(id uint32) streamState {
 
 func (st *serverTester) Close() {
 	st.ts.Close()
-	st.cc.Close()
+	if st.cc != nil {
+		st.cc.Close()
+	}
 	log.SetOutput(os.Stderr)
 }
 
@@ -2103,17 +2123,26 @@ func readBodyHandler(t *testing.T, want string) func(w http.ResponseWriter, r *h
 	}
 }
 
-func TestServerWithCurl(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("skipping Docker test on Darwin; requires --net which won't work with boot2docker anyway")
+// TestServerWithCurl currently fails, hence the LenientCipherSuites test. See:
+//   https://github.com/tatsuhiro-t/nghttp2/issues/140 &
+//   http://sourceforge.net/p/curl/bugs/1472/
+func TestServerWithCurl(t *testing.T)                     { testServerWithCurl(t, false) }
+func TestServerWithCurl_LenientCipherSuites(t *testing.T) { testServerWithCurl(t, true) }
+
+func testServerWithCurl(t *testing.T, permitProhibitedCipherSuites bool) {
+	if runtime.GOOS != "linux" {
+		t.Skip("skipping Docker test when not on Linux; requires --net which won't work with boot2docker anyway")
 	}
 	requireCurl(t)
 	const msg = "Hello from curl!\n"
 	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Foo", "Bar")
+		w.Header().Set("Client-Proto", r.Proto)
 		io.WriteString(w, msg)
 	}))
-	ConfigureServer(ts.Config, &Server{})
+	ConfigureServer(ts.Config, &Server{
+		PermitProhibitedCipherSuites: permitProhibitedCipherSuites,
+	})
 	ts.TLS = ts.Config.TLSConfig // the httptest.Server has its own copy of this TLS config
 	ts.StartTLS()
 	defer ts.Close()
@@ -2138,8 +2167,12 @@ func TestServerWithCurl(t *testing.T) {
 		if err, ok := res.(error); ok {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(res.([]byte)), "< foo:Bar") {
-			t.Errorf("didn't see foo:Bar header")
+		if !strings.Contains(string(res.([]byte)), "foo: Bar") {
+			t.Errorf("didn't see foo: Bar header")
+			t.Logf("Got: %s", res)
+		}
+		if !strings.Contains(string(res.([]byte)), "client-proto: HTTP/2") {
+			t.Errorf("didn't see client-proto: HTTP/2 header")
 			t.Logf("Got: %s", res)
 		}
 		if !strings.Contains(string(res.([]byte)), msg) {
