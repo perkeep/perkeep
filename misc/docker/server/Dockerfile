@@ -6,7 +6,8 @@
 
 FROM scratch
 MAINTAINER Camlistore Contributors <camlistore@googlegroups.com>
-ADD djpeg /usr/bin/djpeg
+# TODO(mpl): uncomment the following line when dock.go builds it:
+# ADD djpeg /usr/bin/djpeg
 ADD camlistore.org /camlistore
 
 EXPOSE 80 443
