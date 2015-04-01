@@ -72,6 +72,10 @@ func DefaultEnvConfig() (*Config, error) {
 		GoogleCloudStorage: ":" + strings.TrimPrefix(blobBucket, "gs://"),
 		DBNames:            map[string]string{},
 		PackRelated:        true,
+
+		// SourceRoot is where we look for the UI js/css/html files, and the Closure resources.
+		// Must be in sync with misc/docker/server/Dockerfile.
+		SourceRoot: "/camlistore",
 	}
 
 	// Detect a linked Docker MySQL container. It must have alias "mysqldb".
