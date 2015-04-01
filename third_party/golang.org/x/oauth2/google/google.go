@@ -2,15 +2,16 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package google provides support for making
-// OAuth2 authorized and authenticated HTTP requests
-// to Google APIs. It supports Web server, client-side,
-// service accounts, Google Compute Engine service accounts,
-// and Google App Engine service accounts authorization
-// and authentications flows:
+// Package google provides support for making OAuth2 authorized and
+// authenticated HTTP requests to Google APIs.
+// It supports the Web server flow, client-side credentials, service accounts,
+// Google Compute Engine service accounts, and Google App Engine service
+// accounts.
 //
 // For more information, please read
-// https://developers.google.com/accounts/docs/OAuth2.
+// https://developers.google.com/accounts/docs/OAuth2
+// and
+// https://developers.google.com/accounts/application-default-credentials.
 package google // import "camlistore.org/third_party/golang.org/x/oauth2/google"
 
 import (
@@ -34,35 +35,46 @@ var Endpoint = oauth2.Endpoint{
 // JWTTokenURL is Google's OAuth 2.0 token URL to use with the JWT flow.
 const JWTTokenURL = "https://accounts.google.com/o/oauth2/token"
 
-// JWTConfigFromJSON uses a Google Developers Console client_credentials.json
+// ConfigFromJSON uses a Google Developers Console client_credentials.json
 // file to construct a config.
 // client_credentials.json can be downloadable from https://console.developers.google.com,
 // under "APIs & Auth" > "Credentials". Download the Web application credentials in the
 // JSON format and provide the contents of the file as jsonKey.
 func ConfigFromJSON(jsonKey []byte, scope ...string) (*oauth2.Config, error) {
+	type cred struct {
+		ClientID     string   `json:"client_id"`
+		ClientSecret string   `json:"client_secret"`
+		RedirectURIs []string `json:"redirect_uris"`
+		AuthURI      string   `json:"auth_uri"`
+		TokenURI     string   `json:"token_uri"`
+	}
 	var j struct {
-		Web struct {
-			ClientID     string   `json:"client_id"`
-			ClientSecret string   `json:"client_secret"`
-			RedirectURIs []string `json:"redirect_uris"`
-			AuthURI      string   `json:"auth_uri"`
-			TokenURI     string   `json:"token_uri"`
-		} `json:"web"`
+		Web       *cred `json:"web"`
+		Installed *cred `json:"installed"`
 	}
 	if err := json.Unmarshal(jsonKey, &j); err != nil {
 		return nil, err
 	}
-	if len(j.Web.RedirectURIs) < 1 {
+	var c *cred
+	switch {
+	case j.Web != nil:
+		c = j.Web
+	case j.Installed != nil:
+		c = j.Installed
+	default:
+		return nil, fmt.Errorf("oauth2/google: no credentials found")
+	}
+	if len(c.RedirectURIs) < 1 {
 		return nil, errors.New("oauth2/google: missing redirect URL in the client_credentials.json")
 	}
 	return &oauth2.Config{
-		ClientID:     j.Web.ClientID,
-		ClientSecret: j.Web.ClientSecret,
-		RedirectURL:  j.Web.RedirectURIs[0],
+		ClientID:     c.ClientID,
+		ClientSecret: c.ClientSecret,
+		RedirectURL:  c.RedirectURIs[0],
 		Scopes:       scope,
 		Endpoint: oauth2.Endpoint{
-			AuthURL:  j.Web.AuthURI,
-			TokenURL: j.Web.TokenURI,
+			AuthURL:  c.AuthURI,
+			TokenURL: c.TokenURI,
 		},
 	}, nil
 }

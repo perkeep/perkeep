@@ -79,22 +79,28 @@ var (
 	// result in your application obtaining a refresh token the
 	// first time your application exchanges an authorization
 	// code for a user.
-	AccessTypeOnline  AuthCodeOption = setParam{"access_type", "online"}
-	AccessTypeOffline AuthCodeOption = setParam{"access_type", "offline"}
+	AccessTypeOnline  AuthCodeOption = SetParam("access_type", "online")
+	AccessTypeOffline AuthCodeOption = SetParam("access_type", "offline")
 
 	// ApprovalForce forces the users to view the consent dialog
 	// and confirm the permissions request at the URL returned
 	// from AuthCodeURL, even if they've already done so.
-	ApprovalForce AuthCodeOption = setParam{"approval_prompt", "force"}
+	ApprovalForce AuthCodeOption = SetParam("approval_prompt", "force")
 )
+
+// An AuthCodeOption is passed to Config.AuthCodeURL.
+type AuthCodeOption interface {
+	setValue(url.Values)
+}
 
 type setParam struct{ k, v string }
 
 func (p setParam) setValue(m url.Values) { m.Set(p.k, p.v) }
 
-// An AuthCodeOption is passed to Config.AuthCodeURL.
-type AuthCodeOption interface {
-	setValue(url.Values)
+// SetParam builds an AuthCodeOption which passes key/value parameters
+// to a provider's authorization endpoint.
+func SetParam(key, value string) AuthCodeOption {
+	return setParam{key, value}
 }
 
 // AuthCodeURL returns a URL to OAuth 2.0 provider's consent page
@@ -155,7 +161,7 @@ func (c *Config) PasswordCredentialsToken(ctx context.Context, username, passwor
 // to the Redirect URI (the URL obtained from AuthCodeURL).
 //
 // The HTTP client to use is derived from the context.
-// If nil, http.DefaultClient is used.
+// If a client is not provided via the context, http.DefaultClient is used.
 //
 // The code will be in the *http.Request.FormValue("code"). Before
 // calling Exchange, be sure to validate FormValue("state").
@@ -308,7 +314,7 @@ func retrieveToken(ctx context.Context, c *Config, v url.Values) (*Token, error)
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	if !bustedAuth && c.ClientSecret != "" {
+	if !bustedAuth {
 		req.SetBasicAuth(c.ClientID, c.ClientSecret)
 	}
 	r, err := hc.Do(req)
@@ -374,11 +380,11 @@ func retrieveToken(ctx context.Context, c *Config, v url.Values) (*Token, error)
 // tokenJSON is the struct representing the HTTP response from OAuth2
 // providers returning a token in JSON form.
 type tokenJSON struct {
-	AccessToken  string `json:"access_token"`
-	TokenType    string `json:"token_type"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int32  `json:"expires_in"`
-	Expires      int32  `json:"expires"` // broken Facebook spelling of expires_in
+	AccessToken  string         `json:"access_token"`
+	TokenType    string         `json:"token_type"`
+	RefreshToken string         `json:"refresh_token"`
+	ExpiresIn    expirationTime `json:"expires_in"` // at least PayPal returns string, while most return number
+	Expires      expirationTime `json:"expires"`    // broken Facebook spelling of expires_in
 }
 
 func (e *tokenJSON) expiry() (t time.Time) {
@@ -391,11 +397,46 @@ func (e *tokenJSON) expiry() (t time.Time) {
 	return
 }
 
+type expirationTime int32
+
+func (e *expirationTime) UnmarshalJSON(b []byte) error {
+	var n json.Number
+	err := json.Unmarshal(b, &n)
+	if err != nil {
+		return err
+	}
+	i, err := n.Int64()
+	if err != nil {
+		return err
+	}
+	*e = expirationTime(i)
+	return nil
+}
+
 func condVal(v string) []string {
 	if v == "" {
 		return nil
 	}
 	return []string{v}
+}
+
+var brokenAuthHeaderProviders = []string{
+	"https://accounts.google.com/",
+	"https://www.googleapis.com/",
+	"https://github.com/",
+	"https://api.instagram.com/",
+	"https://www.douban.com/",
+	"https://api.dropbox.com/",
+	"https://api.soundcloud.com/",
+	"https://www.linkedin.com/",
+	"https://api.twitch.tv/",
+	"https://oauth.vk.com/",
+	"https://api.odnoklassniki.ru/",
+	"https://connect.stripe.com/",
+	"https://api.pushbullet.com/",
+	"https://oauth.sandbox.trainingpeaks.com/",
+	"https://oauth.trainingpeaks.com/",
+	"https://www.strava.com/oauth/",
 }
 
 // providerAuthHeaderWorks reports whether the OAuth2 server identified by the tokenURL
@@ -407,18 +448,11 @@ func condVal(v string) []string {
 // - Google only accepts URL param (not spec compliant?), not Auth header
 // - Stripe only accepts client secret in Auth header with Bearer method, not Basic
 func providerAuthHeaderWorks(tokenURL string) bool {
-	if strings.HasPrefix(tokenURL, "https://accounts.google.com/") ||
-		strings.HasPrefix(tokenURL, "https://www.googleapis.com/") ||
-		strings.HasPrefix(tokenURL, "https://github.com/") ||
-		strings.HasPrefix(tokenURL, "https://api.instagram.com/") ||
-		strings.HasPrefix(tokenURL, "https://www.douban.com/") ||
-		strings.HasPrefix(tokenURL, "https://api.dropbox.com/") ||
-		strings.HasPrefix(tokenURL, "https://api.soundcloud.com/") ||
-		strings.HasPrefix(tokenURL, "https://www.linkedin.com/") ||
-		strings.HasPrefix(tokenURL, "https://api.twitch.tv/") ||
-		strings.HasPrefix(tokenURL, "https://connect.stripe.com/") {
-		// Some sites fail to implement the OAuth2 spec fully.
-		return false
+	for _, s := range brokenAuthHeaderProviders {
+		if strings.HasPrefix(tokenURL, s) {
+			// Some sites fail to implement the OAuth2 spec fully.
+			return false
+		}
 	}
 
 	// Assume the provider implements the spec properly
