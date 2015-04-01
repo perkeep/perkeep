@@ -23,18 +23,19 @@ import (
 	"path"
 	"strings"
 
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
 	_ "camlistore.org/pkg/wkfs/gcs"
-	"camlistore.org/third_party/github.com/bradfitz/gce"
+	"camlistore.org/third_party/google.golang.org/cloud/compute/metadata"
 )
 
 func init() {
-	if !gce.OnGCE() {
+	if !env.OnGCE() {
 		return
 	}
 	osutil.RegisterConfigDirFunc(func() string {
-		v, _ := gce.InstanceAttributeValue("camlistore-config-dir")
+		v, _ := metadata.InstanceAttributeValue("camlistore-config-dir")
 		if v == "" {
 			return v
 		}
@@ -48,7 +49,7 @@ func init() {
 		if !ok {
 			return nil, errors.New("expected argument after _gce_instance_meta to be a string")
 		}
-		val, err := gce.InstanceAttributeValue(attr)
+		val, err := metadata.InstanceAttributeValue(attr)
 		if err != nil {
 			return nil, fmt.Errorf("error reading GCE instance attribute %q: %v", attr, err)
 		}

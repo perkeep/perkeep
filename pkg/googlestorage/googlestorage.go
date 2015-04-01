@@ -36,8 +36,11 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
-	"camlistore.org/third_party/github.com/bradfitz/gce"
+	"camlistore.org/third_party/golang.org/x/net/context"
+	"camlistore.org/third_party/golang.org/x/oauth2"
+	"camlistore.org/third_party/golang.org/x/oauth2/google"
 	api "camlistore.org/third_party/google.golang.org/api/storage/v1"
+	"camlistore.org/third_party/google.golang.org/cloud/compute/metadata"
 )
 
 const (
@@ -78,19 +81,28 @@ type SizedObject struct {
 }
 
 // NewServiceClient returns a Client for use when running on Google
-// Compute Engine.  This client can access buckets owned by the samre
+// Compute Engine.  This client can access buckets owned by the same
 // project ID as the VM.
 func NewServiceClient() (*Client, error) {
-	if !gce.OnGCE() {
+	if !metadata.OnGCE() {
 		return nil, errors.New("not running on Google Compute Engine")
 	}
-	scopes, _ := gce.Scopes("default")
-	if !scopes.Contains("https://www.googleapis.com/auth/devstorage.full_control") &&
-		!scopes.Contains("https://www.googleapis.com/auth/devstorage.read_write") {
+	scopes, _ := metadata.Scopes("default")
+	haveScope := func(scope string) bool {
+		for _, x := range scopes {
+			if x == scope {
+				return true
+			}
+		}
+		return false
+	}
+	if !haveScope("https://www.googleapis.com/auth/devstorage.full_control") &&
+		!haveScope("https://www.googleapis.com/auth/devstorage.read_write") {
 		return nil, errors.New("when this Google Compute Engine VM instance was created, it wasn't granted access to Cloud Storage")
 	}
-	service, _ := api.New(gce.Client)
-	return &Client{client: gce.Client, service: service}, nil
+	client := oauth2.NewClient(context.Background(), google.ComputeTokenSource(""))
+	service, _ := api.New(client)
+	return &Client{client: client, service: service}, nil
 }
 
 func NewClient(transport *oauth.Transport) *Client {

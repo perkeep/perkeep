@@ -33,7 +33,7 @@ import (
 
 	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/wkfs"
-	"camlistore.org/third_party/github.com/bradfitz/gce"
+	"camlistore.org/third_party/google.golang.org/cloud/compute/metadata"
 )
 
 // Max size for all files read or written. This filesystem is only
@@ -42,7 +42,7 @@ import (
 const maxSize = 1 << 20
 
 func init() {
-	if !gce.OnGCE() {
+	if !metadata.OnGCE() {
 		return
 	}
 	client, err := googlestorage.NewServiceClient()

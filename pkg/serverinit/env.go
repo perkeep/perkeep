@@ -21,26 +21,27 @@ import (
 	"os"
 	"strings"
 
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/types/serverconfig"
-	"camlistore.org/third_party/github.com/bradfitz/gce"
+	"camlistore.org/third_party/google.golang.org/cloud/compute/metadata"
 )
 
 // DefaultEnvConfig returns the default configuration when running on a known
 // environment. Currently this just includes Google Compute Engine.
 // If the environment isn't known (nil, nil) is returned.
 func DefaultEnvConfig() (*Config, error) {
-	if !gce.OnGCE() {
+	if !env.OnGCE() {
 		return nil, nil
 	}
 	auth := "none"
-	user, _ := gce.InstanceAttributeValue("camlistore-username")
-	pass, _ := gce.InstanceAttributeValue("camlistore-password")
-	confBucket, err := gce.InstanceAttributeValue("camlistore-config-dir")
+	user, _ := metadata.InstanceAttributeValue("camlistore-username")
+	pass, _ := metadata.InstanceAttributeValue("camlistore-password")
+	confBucket, err := metadata.InstanceAttributeValue("camlistore-config-dir")
 	if confBucket == "" || err != nil {
 		return nil, fmt.Errorf("VM instance metadata key 'camlistore-config-dir' not set: %v", err)
 	}
-	blobBucket, err := gce.InstanceAttributeValue("camlistore-blob-dir")
+	blobBucket, err := metadata.InstanceAttributeValue("camlistore-blob-dir")
 	if blobBucket == "" || err != nil {
 		return nil, fmt.Errorf("VM instance metadata key 'camlistore-blob-dir' not set: %v", err)
 	}
@@ -56,8 +57,8 @@ func DefaultEnvConfig() (*Config, error) {
 		return nil, err
 	}
 
-	ipOrHost, _ := gce.ExternalIP()
-	host, _ := gce.InstanceAttributeValue("camlistore-hostname")
+	ipOrHost, _ := metadata.ExternalIP()
+	host, _ := metadata.InstanceAttributeValue("camlistore-hostname")
 	if host != "" {
 		ipOrHost = host
 	}
