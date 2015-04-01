@@ -33,47 +33,39 @@ var (
 	rev = flag.String("rev", "4e8413c5012c", "Camlistore revision to build (tag or commit hash")
 )
 
-func main() {
-	flag.Parse()
-	if flag.NArg() != 0 {
-		log.Fatalf("Bogus usage. dock does not currently take any arguments.")
+// buildDockerImage builds a docker image from the Dockerfile located in
+// imageDir, which is a path relative to dockDir. The image will be named after
+// imageName. dockDir should have been set behorehand.
+func buildDockerImage(imageDir, imageName string) {
+	if dockDir == "" {
+		panic("dockDir should be set before calling buildDockerImage")
 	}
-
-	camDir, err := osutil.GoPackagePath("camlistore.org")
-	if err != nil {
-		log.Fatalf("Error looking up camlistore.org dir: %v", err)
-	}
-	dockDir := filepath.Join(camDir, "misc", "docker")
-
-	cmd := exec.Command("docker", "build", "-t", "camlistore/go", ".")
-	cmd.Dir = filepath.Join(dockDir, "go")
+	cmd := exec.Command("docker", "build", "-t", imageName, ".")
+	cmd.Dir = filepath.Join(dockDir, imageDir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error building camlistore/go: %v", err)
+		log.Fatalf("Error building docker image %v: %v", imageName, err)
 	}
+}
 
-	// TODO(mpl): build djpeg-static here, like camlistore/go
-	// above (and prefix the -t value with "camlistore/")
-	// (And pull above into a func)
+var dockDir string
 
+const (
+	goDockerImage    = "camlistore/go"
+	djpegDockerImage = "camlistore/djpeg"
+)
+
+func genCamlistore(ctxDir string) {
 	repl := strings.NewReplacer(
 		"[[REV]]", *rev,
 	)
-
-	// ctxDir is where we run "docker build" to produce the final
-	// "FROM scratch" Docker image.
-	ctxDir, err := ioutil.TempDir("", "camli-build")
-	if err != nil {
-		log.Fatal(err)
-	}
 	check(os.Mkdir(filepath.Join(ctxDir, "/camlistore.org"), 0755))
-	defer os.RemoveAll(ctxDir)
 
-	cmd = exec.Command("docker", "run",
+	cmd := exec.Command("docker", "run",
 		"--rm",
 		"--volume="+ctxDir+"/camlistore.org:/OUT",
-		"camlistore/go", "/bin/bash", "-c", repl.Replace(`
+		goDockerImage, "/bin/bash", "-c", repl.Replace(`
 
 # TODO(bradfitz,mpl): rewrite this shell into a Go program that's
 # baked into the camlistore/go image, and then all this shell becomes:
@@ -84,9 +76,9 @@ func main() {
      set -x
      export GOPATH=/gopath;
      export PATH=/usr/local/go/bin:$PATH;
-     mkdir -p /OUT/bin && 
-     mkdir -p /OUT/server/camlistored && 
-     mkdir -p /gopath/src/camlistore.org && 
+     mkdir -p /OUT/bin &&
+     mkdir -p /OUT/server/camlistored &&
+     mkdir -p /gopath/src/camlistore.org &&
      cd /gopath/src/camlistore.org &&
      curl --silent https://camlistore.googlesource.com/camlistore/+archive/[[REV]].tar.gz |
            tar -zxv &&
@@ -101,20 +93,66 @@ func main() {
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error building camlistored in go container: %v", err)
 	}
+}
 
+func copyFinalDockerfile(ctxDir string) {
 	// Copy Dockerfile into the temp dir.
 	serverDockerFile, err := ioutil.ReadFile(filepath.Join(dockDir, "server", "Dockerfile"))
 	check(err)
 	check(ioutil.WriteFile(filepath.Join(ctxDir, "Dockerfile"), serverDockerFile, 0644))
+}
 
-	// TODO(mpl): copy the djpeg out
-	cmd = exec.Command("docker", "build", "-t", "camlistore/server", ".")
+func genDjpeg(ctxDir string) {
+	cmd := exec.Command("docker", "run",
+		"--rm",
+		"--volume="+ctxDir+":/OUT",
+		djpegDockerImage, "/bin/bash", "-c", "mkdir -p /OUT && cp /src/libjpeg-turbo-1.4.0/djpeg /OUT/djpeg")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		log.Fatalf("Error building djpeg in go container: %v", err)
+	}
+}
+
+func buildServer(ctxDir string) {
+	copyFinalDockerfile(ctxDir)
+	cmd := exec.Command("docker", "build", "-t", "camlistore/server", ".")
 	cmd.Dir = ctxDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error building camlistore/server: %v", err)
 	}
+}
+
+func main() {
+	flag.Parse()
+	if flag.NArg() != 0 {
+		log.Fatalf("Bogus usage. dock does not currently take any arguments.")
+	}
+
+	camDir, err := osutil.GoPackagePath("camlistore.org")
+	if err != nil {
+		log.Fatalf("Error looking up camlistore.org dir: %v", err)
+	}
+	dockDir = filepath.Join(camDir, "misc", "docker")
+
+	buildDockerImage("go", goDockerImage)
+	buildDockerImage("djpeg-static", djpegDockerImage)
+
+	// ctxDir is where we run "docker build" to produce the final
+	// "FROM scratch" Docker image.
+	ctxDir, err := ioutil.TempDir("", "camli-build")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(ctxDir)
+
+	genCamlistore(ctxDir)
+
+	genDjpeg(ctxDir)
+
+	buildServer(ctxDir)
 }
 
 func check(err error) {
