@@ -36,6 +36,7 @@ import (
 	"strconv"
 	"sync"
 
+	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/types"
 	_ "camlistore.org/third_party/go/pkg/image/jpeg"
 )
@@ -90,6 +91,18 @@ func Available() bool {
 	})
 
 	return available
+}
+
+func init() {
+	buildinfo.RegisterDjpegStatusFunc(djpegStatus)
+}
+
+func djpegStatus() string {
+	// TODO: more info: its path, whether it works, its version, etc.
+	if Available() {
+		return "djpeg available"
+	}
+	return "djpeg optimizaton unavailable"
 }
 
 func readPNM(buf *bytes.Buffer) (image.Image, error) {
