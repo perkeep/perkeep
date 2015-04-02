@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"sort"
 	"sync"
 	"time"
@@ -30,6 +29,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/buildinfo"
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
@@ -154,7 +154,7 @@ func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	f("<html><body><p>This is camlistored (%s), a "+
 		"<a href='http://camlistore.org'>Camlistore</a> server.</p>", buildinfo.Version())
-	if auth.IsLocalhost(req) && !isDevServer() {
+	if auth.IsLocalhost(req) && !env.IsDev() {
 		f("<p>If you're coming from localhost, configure your Camlistore server at <a href='/setup'>/setup</a>.</p>")
 	}
 	if rh.ui != nil {
@@ -164,10 +164,6 @@ func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		f("<p>To view status, see <a href='%s'>%s</a>", rh.statusRoot, rh.statusRoot)
 	}
 	fmt.Fprintf(rw, "</body></html>")
-}
-
-func isDevServer() bool {
-	return os.Getenv("CAMLI_DEV_CAMLI_ROOT") != ""
 }
 
 type byFromTo []*SyncHandler

@@ -27,12 +27,12 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"strconv"
 	"strings"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/env"
 )
 
 // IsGet reports whether r.Method is a GET or HEAD request.
@@ -64,7 +64,7 @@ func RequestEntityTooLargeError(rw http.ResponseWriter) {
 
 func ServeError(rw http.ResponseWriter, req *http.Request, err error) {
 	rw.WriteHeader(http.StatusInternalServerError)
-	if IsLocalhost(req) || os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "" {
+	if IsLocalhost(req) || env.IsDev() {
 		fmt.Fprintf(rw, "Server error: %s\n", err)
 		return
 	}

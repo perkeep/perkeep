@@ -32,6 +32,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/context"
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
@@ -151,7 +152,7 @@ func New(s sorted.KeyValue) (*Index, error) {
 		}
 	case schemaVersion != requiredSchemaVersion:
 		tip := ""
-		if os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "" {
+		if env.IsDev() {
 			// Good signal that we're using the devcam server, so help out
 			// the user with a more useful tip:
 			tip = `(For the dev server, run "devcam server --wipe" to wipe both your blobs and index)`

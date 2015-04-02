@@ -28,6 +28,7 @@ import (
 	"strings"
 	"sync"
 
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/sqlkv"
@@ -111,7 +112,7 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		if version == 20 && requiredSchemaVersion == 21 {
 			fmt.Fprintf(os.Stderr, fixSchema20to21)
 		}
-		if os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "" {
+		if env.IsDev() {
 			// Good signal that we're using the devcam server, so help out
 			// the user with a more useful tip:
 			return nil, fmt.Errorf("database schema version is %d; expect %d (run \"devcam server --wipe\" to wipe both your blobs and re-populate the database schema)", version, requiredSchemaVersion)

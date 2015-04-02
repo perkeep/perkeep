@@ -18,10 +18,16 @@ limitations under the License.
 package env
 
 import (
+	"os"
 	"sync"
 
 	"camlistore.org/third_party/google.golang.org/cloud/compute/metadata"
 )
+
+// IsDev reports whether this is a development server environment (devcam server).
+func IsDev() bool {
+	return os.Getenv("CAMLI_DEV_CAMLI_ROOT") != ""
+}
 
 // OsGCE reports whether this process is running in a Google Compute
 // Engine (GCE) environment.  This only returns true if the

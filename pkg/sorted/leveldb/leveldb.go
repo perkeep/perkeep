@@ -25,6 +25,7 @@ import (
 	"os"
 	"sync"
 
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 
@@ -55,7 +56,7 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		return nil, err
 	}
 	strictness := opt.DefaultStrict
-	if os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "" {
+	if env.IsDev() {
 		// Be more strict in dev mode.
 		strictness = opt.StrictAll
 	}
