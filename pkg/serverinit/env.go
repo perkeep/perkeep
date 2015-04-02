@@ -59,7 +59,7 @@ func DefaultEnvConfig() (*Config, error) {
 
 	ipOrHost, _ := metadata.ExternalIP()
 	host, _ := metadata.InstanceAttributeValue("camlistore-hostname")
-	if host != "" {
+	if host != "" && host != "localhost" {
 		ipOrHost = host
 	}
 

@@ -384,7 +384,7 @@ func (d *Deployer) createInstance(computeService *compute.Service, ctx *context.
 			},
 		},
 	}
-	if d.Conf.Hostname != "" {
+	if d.Conf.Hostname != "" && d.Conf.Hostname != "localhost" {
 		instance.Metadata.Items = append(instance.Metadata.Items, &compute.MetadataItems{
 			Key:   "camlistore-hostname",
 			Value: d.Conf.Hostname,
