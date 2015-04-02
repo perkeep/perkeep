@@ -114,6 +114,7 @@ cam.IndexPage = React.createClass({
 			return this.childSearchSession_;
 		}.bind(this);
 		this.eh_.listen(this.props.eventTarget, 'keypress', this.handleKeyPress_);
+		this.eh_.listen(this.props.eventTarget, 'keyup', this.handleKeyUp_);
 	},
 
 	componentWillUnmount: function() {
@@ -123,6 +124,7 @@ cam.IndexPage = React.createClass({
 
 	getInitialState: function() {
 		return {
+			backwardPiggy: false,
 			currentURL: null,
 			currentSet: '',
 			dropActive: false,
@@ -148,7 +150,6 @@ cam.IndexPage = React.createClass({
 			selectedAspect = 0;
 		}
 
-		var backwardPiggy = false;
 		var contentSize = new goog.math.Size(this.props.availWidth, this.props.availHeight - this.HEADER_HEIGHT_);
 		return React.DOM.div({onDragEnter:this.handleDragStart_, onDragOver:this.handleDragStart_, onDrop:this.handleDrop_},
 			this.getHeader_(aspects, selectedAspect),
@@ -159,7 +160,7 @@ cam.IndexPage = React.createClass({
 						top: this.HEADER_HEIGHT_,
 					},
 				},
-				aspects[selectedAspect] && aspects[selectedAspect].createContent(contentSize, backwardPiggy)
+				aspects[selectedAspect] && aspects[selectedAspect].createContent(contentSize, this.state.backwardPiggy)
 			),
 			this.getSidebar_(aspects[selectedAspect]),
 			this.getUploadDialog_()
@@ -357,10 +358,14 @@ cam.IndexPage = React.createClass({
 		}
 
 		var targetBlobref = this.getTargetBlobref_(newURL);
-		this.updateTargetSearchSession_(targetBlobref);
+		this.updateTargetSearchSession_(targetBlobref, newURL);
 		this.updateChildSearchSession_(targetBlobref, newURL);
 		this.pruneSearchSessionCache_();
-		this.setState({currentURL: newURL});
+		this.setState({
+			backwardPiggy: false,
+			currentURL: newURL,
+		});
+		this.setSelection_({});
 		return true;
 	},
 
@@ -369,40 +374,17 @@ cam.IndexPage = React.createClass({
 		this.setSelection_(s || {});
 	},
 
-	updateTargetSearchSession_: function(targetBlobref) {
+	updateTargetSearchSession_: function(targetBlobref, newURL) {
 		if (targetBlobref) {
-			this.targetSearchSession_ = this.getSearchSession_(targetBlobref, {blobRefPrefix: targetBlobref});
+			var query = this.buildQuery_(newURL.getParameterValue('q'), newURL.getParameterValue('p'));
+			this.targetSearchSession_ = this.getSearchSession_(targetBlobref, query);
 		} else {
 			this.targetSearchSession_ = null;
 		}
 	},
 
 	updateChildSearchSession_: function(targetBlobref, newURL) {
-		var query = newURL.getParameterValue('q');
-
-		if (targetBlobref) {
-			query = {
-				permanode: {
-					relation: {
-						relation: 'parent',
-						any: { blobRefPrefix: targetBlobref },
-					},
-				},
-			};
-		} else if (query) {
-			// TODO(aa): Remove this when the server can do something like the 'raw' operator.
-			if (goog.string.startsWith(query, this.SEARCH_PREFIX_.RAW + ':')) {
-				try {
-					query = JSON.parse(query.substring(this.SEARCH_PREFIX_.RAW.length + 1));
-				} catch (e) {
-					console.error('Raw search is invalid JSON', e);
-					query = null;
-				}
-			}
-		} else {
-			query = ' ';
-		}
-
+		var query = this.buildQuery_(newURL.getParameterValue('q') || ' ', targetBlobref);
 		if (query) {
 			this.childSearchSession_ = this.getSearchSession_(null, query);
 		} else {
@@ -410,19 +392,68 @@ cam.IndexPage = React.createClass({
 		}
 	},
 
-	getSearchSession_: function(targetBlobref, query) {
-		// This whole business of reusing search session relies on the assumption that we use the same describe rules for both detail queries and search queries.
-		var queryString = JSON.stringify(query);
-		var cached = goog.array.findIndex(this.searchSessionCache_, function(ss, index) {
-			if (targetBlobref && ss.getMeta(targetBlobref)) {
-				console.log('Found existing SearchSession for blobref %s at position %d', targetBlobref, index);
-				return true;
-			} else if (JSON.stringify(ss.getQuery()) == queryString) {
-				console.log('Found existing SearchSession for query %s at position %d', queryString, index);
-				return true;
+	buildQuery_: function(opt_queryString, opt_parentBlobref) {
+		if (opt_parentBlobref) {
+			return {
+				permanode: {
+					relation: {
+						relation: 'parent',
+						any: { blobRefPrefix: opt_parentBlobref },
+					},
+				},
+			};
+		}
+
+		if (opt_queryString) {
+			// TODO(aa): Remove this when the server can do something like the 'raw' operator.
+			if (goog.string.startsWith(opt_queryString, this.SEARCH_PREFIX_.RAW + ':')) {
+				try {
+					return JSON.parse(opt_queryString.substring(this.SEARCH_PREFIX_.RAW.length + 1));
+				} catch (e) {
+					console.error('Raw search is invalid JSON', e);
+					return null;
+				}
 			} else {
+				return opt_queryString;
+			}
+		}
+
+		return null;
+	},
+
+	// Finds an existing cached SearchSession that meets criteria, or creates a new one.
+	//
+	// If opt_query is present, the returned query must be exactly equivalent.
+	// If opt_targetBlobref is present, the returned query must have current results that contain opt_targetBlobref. Otherwise, the returned query must contain the first result.
+	//
+	// If only opt_targetBlobref is set, then any query that happens to currently contain that blobref is acceptable to the caller.
+	getSearchSession_: function(opt_targetBlobref, opt_query) {
+		// This whole business of reusing search session relies on the assumption that we use the same describe rules for both detail queries and search queries.
+		var queryString = JSON.stringify(opt_query);
+
+		var cached = goog.array.findIndex(this.searchSessionCache_, function(ss) {
+			if (opt_targetBlobref) {
+				if (!ss.getMeta(opt_targetBlobref)) {
+					return false;
+				}
+				if (!opt_query) {
+					return true;
+				}
+			}
+
+			if (JSON.stringify(ss.getQuery()) != queryString) {
 				return false;
 			}
+
+			if (!opt_targetBlobref) {
+				return !ss.getAround();
+			}
+
+			// If there's a targetBlobref, we require that it is not at the very edge of the results so that we can implement lefr/right in detail views.
+			var targetIndex = goog.array.findIndex(ss.getCurrentResults().blobs, function(b) {
+				return b.blob == opt_targetBlobref;
+			});
+			return (targetIndex > 0) && (targetIndex < (ss.getCurrentResults().blobs.length - 1));
 		});
 
 		if (cached > -1) {
@@ -431,7 +462,7 @@ cam.IndexPage = React.createClass({
 		}
 
 		console.log('Creating new search session for query %s', queryString);
-		var ss = new cam.SearchSession(this.props.serverConnection, this.baseURL_.clone(), query);
+		var ss = new cam.SearchSession(this.props.serverConnection, this.baseURL_.clone(), opt_query, opt_targetBlobref);
 		this.eh_.listen(ss, cam.SearchSession.SEARCH_SESSION_CHANGED, function() {
 			this.forceUpdate();
 		});
@@ -622,12 +653,76 @@ cam.IndexPage = React.createClass({
 		}
 	},
 
-	handleDetailURL_: function(blobref) {
-		return this.getDetailURL_(blobref);
+	handleKeyUp_: function(e) {
+		var isEsc = (e.keyCode == 27);
+		var isRight = (e.keyCode == 39);
+		var isLeft = (e.keyCode == 37);
+
+		if (isEsc) {
+			// TODO: This isn't right, it should go back to the context URL if there is one.
+			this.navigator_.navigate(this.baseURL_);
+			return;
+		}
+
+		if (!isRight && !isLeft) {
+			return;
+		}
+
+		if (!this.targetSearchSession_) {
+			return;
+		}
+
+		var blobs = this.targetSearchSession_.getCurrentResults().blobs;
+		var target = this.getTargetBlobref_();
+		var idx = goog.array.findIndex(blobs, function(item) {
+			return item.blob == target;
+		});
+
+		if (isRight) {
+			if (idx >= (blobs.length - 1)) {
+				return;
+			}
+			idx++;
+		} else {
+			if (idx <= 0) {
+				return;
+			}
+			idx--;
+		}
+
+		var url = this.getDetailURL_(blobs[idx].blob, this.state.currentURL.getFragment());
+		['q', 'p'].forEach(function(p) {
+			var v = this.state.currentURL.getParameterValue(p);
+			if (v) {
+				url.setParameterValue(p, v);
+			}
+		}, this);
+		this.navigator_.navigate(url);
+		this.setState({
+			backwardPiggy: isLeft,
+		});
 	},
 
-	getDetailURL_: function(blobref) {
-		return this.baseURL_.clone().setPath(this.baseURL_.getPath() + blobref);
+	handleDetailURL_: function(blobref) {
+		return this.getChildDetailURL_(blobref);
+	},
+
+	getChildDetailURL_: function(blobref, opt_fragment) {
+		var query = this.state.currentURL.getParameterValue('q');
+		var targetBlobref = this.getTargetBlobref_();
+		var url = this.getDetailURL_(blobref, opt_fragment);
+		if (targetBlobref) {
+			url.setParameterValue('p', targetBlobref);
+		} else {
+			url.setParameterValue('q', query || ' ');
+		}
+		return url;
+	},
+
+	getDetailURL_: function(blobref, opt_fragment) {
+		var query = this.state.currentURL.getParameterValue('q');
+		var targetBlobref = this.getTargetBlobref_();
+		return url = this.baseURL_.clone().setPath(this.baseURL_.getPath() + blobref).setFragment(opt_fragment || '');
 	},
 
 	setSearch_: function(query) {
