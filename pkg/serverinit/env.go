@@ -18,6 +18,7 @@ package serverinit
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -78,6 +79,8 @@ func DefaultEnvConfig() (*Config, error) {
 		// Must be in sync with misc/docker/server/Dockerfile.
 		SourceRoot: "/camlistore",
 	}
+
+	log.Printf("In serverinit/env.go, setting serverconfig.Config.BaseURL = %q", highConf.BaseURL)
 
 	// Detect a linked Docker MySQL container. It must have alias "mysqldb".
 	if v := os.Getenv("MYSQLDB_PORT"); strings.HasPrefix(v, "tcp://") {
