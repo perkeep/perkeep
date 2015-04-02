@@ -18,19 +18,30 @@ limitations under the License.
 package main
 
 import (
+	"compress/gzip"
 	"flag"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"camlistore.org/pkg/osutil"
+	"camlistore.org/third_party/golang.org/x/oauth2"
+	"camlistore.org/third_party/golang.org/x/oauth2/google"
+	"camlistore.org/third_party/google.golang.org/cloud"
+	"camlistore.org/third_party/google.golang.org/cloud/storage"
 )
 
 var (
 	rev = flag.String("rev", "4e8413c5012c", "Camlistore revision to build (tag or commit hash")
+
+	doBuildServer = flag.Bool("build_server", true, "build the server")
+	doUpload      = flag.Bool("upload", false, "upload a snapshot of the server tarball to http://storage.googleapis.com/camlistore-release/docker/camlistored[-VERSION].tar.gz")
 )
 
 // buildDockerImage builds a docker image from the Dockerfile located in
@@ -125,6 +136,63 @@ func buildServer(ctxDir string) {
 	}
 }
 
+func uploadDockerImage() {
+	proj := "camlistore-website"
+	bucket := "camlistore-release"
+	object := "docker/camlistored.tar.gz" // TODO: this is only tip for now
+
+	log.Printf("Uploading %s/%s ...", bucket, object)
+
+	ts, err := tokenSource(bucket)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	httpClient := oauth2.NewClient(oauth2.NoContext, ts)
+	ctx := cloud.NewContext(proj, httpClient)
+	w := storage.NewWriter(ctx, bucket, object)
+	// If you don't give the owners access, the web UI seems to
+	// have a bug and doesn't have access to see that it's public, so
+	// won't render the "Shared Publicly" link. So we do that, even
+	// though it's dumb and unnecessary otherwise:
+	w.ACL = append(w.ACL, storage.ACLRule{Entity: storage.ACLEntity("project-owners-" + proj), Role: storage.RoleOwner})
+	w.ACL = append(w.ACL, storage.ACLRule{Entity: storage.AllUsers, Role: storage.RoleReader})
+	w.CacheControl = "no-cache" // TODO: remove for non-tip releases? set expirations?
+	w.ContentType = "application/x-gtar"
+
+	dockerSave := exec.Command("docker", "save", "camlistore/server")
+	dockerSave.Stderr = os.Stderr
+	tar, err := dockerSave.StdoutPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+	targz, pw := io.Pipe()
+	go func() {
+		zw := gzip.NewWriter(pw)
+		n, err := io.Copy(zw, tar)
+		if err != nil {
+			log.Fatalf("Error copying to gzip writer: after %d bytes, %v", n, err)
+		}
+		if err := zw.Close(); err != nil {
+			log.Fatalf("gzip.Close: %v", err)
+		}
+		pw.CloseWithError(err)
+	}()
+	if err := dockerSave.Start(); err != nil {
+		log.Fatalf("Error starting docker save camlistore/server: %v", err)
+	}
+	if _, err := io.Copy(w, targz); err != nil {
+		log.Fatalf("io.Copy: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		log.Fatalf("closing GCS storage writer: %v", err)
+	}
+	if err := dockerSave.Wait(); err != nil {
+		log.Fatalf("Error waiting for docker save camlistore/server: %v", err)
+	}
+	log.Printf("Uploaded tarball to %s", object)
+}
+
 func main() {
 	flag.Parse()
 	if flag.NArg() != 0 {
@@ -137,26 +205,73 @@ func main() {
 	}
 	dockDir = filepath.Join(camDir, "misc", "docker")
 
-	buildDockerImage("go", goDockerImage)
-	buildDockerImage("djpeg-static", djpegDockerImage)
+	if *doBuildServer {
+		buildDockerImage("go", goDockerImage)
+		buildDockerImage("djpeg-static", djpegDockerImage)
 
-	// ctxDir is where we run "docker build" to produce the final
-	// "FROM scratch" Docker image.
-	ctxDir, err := ioutil.TempDir("", "camli-build")
-	if err != nil {
-		log.Fatal(err)
+		// ctxDir is where we run "docker build" to produce the final
+		// "FROM scratch" Docker image.
+		ctxDir, err := ioutil.TempDir("", "camli-build")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer os.RemoveAll(ctxDir)
+
+		genCamlistore(ctxDir)
+
+		genDjpeg(ctxDir)
+
+		buildServer(ctxDir)
 	}
-	defer os.RemoveAll(ctxDir)
 
-	genCamlistore(ctxDir)
-
-	genDjpeg(ctxDir)
-
-	buildServer(ctxDir)
+	if *doUpload {
+		uploadDockerImage()
+	}
 }
 
 func check(err error) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func homedir() string {
+	if runtime.GOOS == "windows" {
+		return os.Getenv("HOMEDRIVE") + os.Getenv("HOMEPATH")
+	}
+	return os.Getenv("HOME")
+}
+
+// ProjectTokenSource returns an OAuth2 TokenSource for the given Google Project ID.
+func ProjectTokenSource(proj string, scopes ...string) (oauth2.TokenSource, error) {
+	// TODO(bradfitz): try different strategies too, like
+	// three-legged flow if the service account doesn't exist, and
+	// then cache the token file on disk somewhere. Or maybe that should be an
+	// option, for environments without stdin/stdout available to the user.
+	// We'll figure it out as needed.
+	fileName := filepath.Join(homedir(), "keys", proj+".key.json")
+	jsonConf, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("Missing JSON key configuration. Download the Service Account JSON key from https://console.developers.google.com/project/%s/apiui/credential and place it at %s", proj, fileName)
+		}
+		return nil, err
+	}
+	conf, err := google.JWTConfigFromJSON(jsonConf, scopes...)
+	if err != nil {
+		return nil, fmt.Errorf("reading JSON config from %s: %v", fileName, err)
+	}
+	return conf.TokenSource(oauth2.NoContext), nil
+}
+
+var bucketProject = map[string]string{
+	"camlistore-release": "camlistore-website",
+}
+
+func tokenSource(bucket string) (oauth2.TokenSource, error) {
+	proj, ok := bucketProject[bucket]
+	if !ok {
+		return nil, fmt.Errorf("unknown project for bucket %q", bucket)
+	}
+	return ProjectTokenSource(proj, storage.ScopeReadWrite)
 }
