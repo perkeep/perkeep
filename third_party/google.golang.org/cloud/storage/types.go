@@ -87,7 +87,6 @@ func newBucket(b *raw.Bucket) *Bucket {
 // ObjectAttrs is the user-editable object attributes.
 type ObjectAttrs struct {
 	// Name is the name of the object.
-	// Optional. If not provided, object is not renamed.
 	Name string
 
 	// ContentType is the MIME type of the object's content.
@@ -101,6 +100,10 @@ type ObjectAttrs struct {
 	// ContentEncoding is the optional Content-Encoding of the object
 	// sent it the response headers.
 	ContentEncoding string
+
+	// CacheControl is the optional Cache-Control header of the object
+	// sent in the response headers.
+	CacheControl string
 
 	// ACL is the list of access control rules for the object.
 	// Optional. If nil or empty, existing ACL rules are preserved.
@@ -128,6 +131,7 @@ func (o ObjectAttrs) toRawObject(bucket string) *raw.Object {
 		ContentType:     o.ContentType,
 		ContentEncoding: o.ContentEncoding,
 		ContentLanguage: o.ContentLanguage,
+		CacheControl:    o.CacheControl,
 		Acl:             acl,
 		Metadata:        o.Metadata,
 	}
@@ -146,6 +150,10 @@ type Object struct {
 
 	// ContentLanguage is the content language of the object's content.
 	ContentLanguage string
+
+	// CacheControl is the Cache-Control header to be sent in the response
+	// headers when serving the object data.
+	CacheControl string
 
 	// ACL is the list of access control rules for the object.
 	ACL []ACLRule
@@ -238,6 +246,7 @@ func newObject(o *raw.Object) *Object {
 		Name:            o.Name,
 		ContentType:     o.ContentType,
 		ContentLanguage: o.ContentLanguage,
+		CacheControl:    o.CacheControl,
 		ACL:             acl,
 		Owner:           owner,
 		ContentEncoding: o.ContentEncoding,
@@ -317,8 +326,9 @@ func (c *contentTyper) ContentType() string {
 
 // A Writer writes a Cloud Storage object.
 type Writer struct {
-	// ObjectAttrs are optional attributes to set on the object.
-	// Any attributes must be initialized before the first Write call.
+	// ObjectAttrs are optional attributes to set on the object. Any attributes
+	// must be initialized before the first Write call. Nil or zero-valued
+	// attributes are ignored.
 	ObjectAttrs
 
 	ctx    context.Context
@@ -350,10 +360,12 @@ func (w *Writer) open() {
 
 	go func() {
 		resp, err := rawService(w.ctx).Objects.Insert(
-			w.bucket, attrs.toRawObject(w.bucket)).Media(w.r).Do()
+			w.bucket, attrs.toRawObject(w.bucket)).Media(w.r).Projection("full").Do()
 		w.err = err
 		if err == nil {
 			w.obj = newObject(resp)
+		} else {
+			pr.CloseWithError(w.err)
 		}
 		close(w.donec)
 	}()

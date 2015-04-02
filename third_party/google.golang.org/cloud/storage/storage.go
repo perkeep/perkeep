@@ -66,7 +66,7 @@ const (
 
 // BucketInfo returns the metadata for the specified bucket.
 func BucketInfo(ctx context.Context, name string) (*Bucket, error) {
-	resp, err := rawService(ctx).Buckets.Get(name).Do()
+	resp, err := rawService(ctx).Buckets.Get(name).Projection("full").Do()
 	if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusNotFound {
 		return nil, ErrBucketNotExist
 	}
@@ -80,6 +80,7 @@ func BucketInfo(ctx context.Context, name string) (*Bucket, error) {
 // to filter the results. If q is nil, no filtering is applied.
 func ListObjects(ctx context.Context, bucket string, q *Query) (*Objects, error) {
 	c := rawService(ctx).Objects.List(bucket)
+	c.Projection("full")
 	if q != nil {
 		c.Delimiter(q.Delimiter)
 		c.Prefix(q.Prefix)
@@ -214,7 +215,7 @@ func SignedURL(bucket, name string, opts *SignedURLOptions) (string, error) {
 
 // StatObject returns meta information about the specified object.
 func StatObject(ctx context.Context, bucket, name string) (*Object, error) {
-	o, err := rawService(ctx).Objects.Get(bucket, name).Do()
+	o, err := rawService(ctx).Objects.Get(bucket, name).Projection("full").Do()
 	if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusNotFound {
 		return nil, ErrObjectNotExist
 	}
@@ -227,7 +228,7 @@ func StatObject(ctx context.Context, bucket, name string) (*Object, error) {
 // UpdateAttrs updates an object with the provided attributes.
 // All zero-value attributes are ignored.
 func UpdateAttrs(ctx context.Context, bucket, name string, attrs ObjectAttrs) (*Object, error) {
-	o, err := rawService(ctx).Objects.Patch(bucket, name, attrs.toRawObject(bucket)).Do()
+	o, err := rawService(ctx).Objects.Patch(bucket, name, attrs.toRawObject(bucket)).Projection("full").Do()
 	if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusNotFound {
 		return nil, ErrObjectNotExist
 	}
@@ -250,7 +251,7 @@ func CopyObject(ctx context.Context, bucket, name string, destBucket string, att
 		destName = attrs.Name
 	}
 	o, err := rawService(ctx).Objects.Copy(
-		bucket, name, destBucket, destName, attrs.toRawObject(destBucket)).Do()
+		bucket, name, destBucket, destName, attrs.toRawObject(destBucket)).Projection("full").Do()
 	if err != nil {
 		return nil, err
 	}
@@ -278,9 +279,11 @@ func NewReader(ctx context.Context, bucket, name string) (io.ReadCloser, error) 
 
 // NewWriter returns a storage Writer that writes to the GCS object
 // identified by the specified name.
-// If such object doesn't exist, it creates one.
-// The object is created or modified with the Writer.Attrs.
-// Nil or zero-value attributes are ignored.
+// If such an object doesn't exist, it creates one.
+// Attributes can be set on the object by modifying the returned Writer's
+// ObjectAttrs field before the first call to Write. The name parameter to this
+// function is ignored if the Name field of the ObjectAttrs field is set to a
+// non-empty string.
 //
 // It is the caller's responsibility to call Close when writing is done.
 //
