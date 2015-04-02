@@ -93,7 +93,11 @@ func genCamlistore(ctxDir string) {
      cd /gopath/src/camlistore.org &&
      curl --silent https://camlistore.googlesource.com/camlistore/+archive/[[REV]].tar.gz |
            tar -zxv &&
-     CGO_ENABLED=0 go build -o /OUT/bin/camlistored -x --ldflags="-w -d -linkmode internal" --tags=netgo camlistore.org/server/camlistored &&
+     CGO_ENABLED=0 go build \
+          -o /OUT/bin/camlistored \
+          --ldflags="-w -d -linkmode internal -X camlistore.org/pkg/buildinfo.GitInfo [[REV]]" \
+          --tags=netgo \
+          camlistore.org/server/camlistored &&
      mv /gopath/src/camlistore.org/server/camlistored/ui /OUT/server/camlistored/ui &&
      find /gopath/src/camlistore.org/third_party -type f -name '*.go' -exec rm {} \; &&
      mv /gopath/src/camlistore.org/third_party /OUT/third_party &&
