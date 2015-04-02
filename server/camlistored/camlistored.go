@@ -140,9 +140,6 @@ func loadConfig(arg string) (conf *serverinit.Config, isNewConfig bool, err erro
 				return
 			}
 			conf, err = serverinit.DefaultEnvConfig()
-			if env.OnGCE() {
-				log.Printf("GCE env default config: %#v, %v", conf, err)
-			}
 			if err != nil || conf != nil {
 				return
 			}
@@ -350,12 +347,6 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 	ws := webserver.New()
 	listen, baseURL := listenAndBaseURL(config)
 
-	if env.OnGCE() {
-		log.Printf("loadConfig = %#v", config.Obj)
-		log.Printf("loadConfig.new = %v", isNewConfig)
-		log.Printf("listenAndBaseURL base URL = %q", baseURL)
-	}
-
 	hostname, err := certHostname(listen, baseURL)
 	if err != nil {
 		exitf("Bad baseURL or listen address: %v", err)
@@ -369,9 +360,6 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 
 	if baseURL == "" {
 		baseURL = ws.ListenURL()
-		if env.OnGCE() {
-			log.Printf("baseURL changed from empty to %q", baseURL)
-		}
 	}
 
 	shutdownCloser, err := config.InstallHandlers(ws, baseURL, *flagReindex, nil)
