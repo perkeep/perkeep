@@ -30,7 +30,7 @@ goog.require('cam.ServerConnection');
 // - Initial XHR query can also specify tag. This tag times out if not used rapidly. Send this same tag in socket query.
 // - Socket assumes that client already has first batch of results (slightly racey though)
 // - Prefer to use socket on client-side, test whether it works and fall back to XHR if not.
-cam.SearchSession = function(connection, currentUri, query) {
+cam.SearchSession = function(connection, currentUri, query, opt_aroundBlobref) {
 	goog.base(this);
 
 	this.connection_ = connection;
@@ -38,6 +38,7 @@ cam.SearchSession = function(connection, currentUri, query) {
 	this.initSocketUri_(currentUri);
 	this.hasSocketError_ = false;
 	this.query_ = query;
+	this.around_ = opt_aroundBlobref;
 	this.tag_ = 'q' + (this.constructor.instanceCount_++);
 	this.continuation_ = this.getContinuation_(this.constructor.SEARCH_SESSION_CHANGE_TYPE.NEW);
 	this.socket_ = null;
@@ -70,7 +71,11 @@ cam.SearchSession.instanceCount_ = 0;
 
 cam.SearchSession.prototype.getQuery = function() {
 	return this.query_;
-}
+};
+
+cam.SearchSession.prototype.getAround = function() {
+	return this.around_;
+};
 
 // Returns all the data we currently have loaded.
 // It is guaranteed to return the following properties:
@@ -245,7 +250,7 @@ cam.SearchSession.prototype.startSocketQuery_ = function() {
 	if (this.data_ && this.data_.blobs) {
 		numResults = this.data_.blobs.length;
 	}
-	var query = this.connection_.buildQuery(this.query_, cam.ServerConnection.DESCRIBE_REQUEST, Math.max(numResults, this.constructor.PAGE_SIZE_));
+	var query = this.connection_.buildQuery(this.query_, cam.ServerConnection.DESCRIBE_REQUEST, Math.max(numResults, this.constructor.PAGE_SIZE_), null, this.around_);
 
 	this.socket_ = new WebSocket(this.socketUri_.toString());
 	this.socket_.onopen = function() {

@@ -216,7 +216,7 @@ cam.ServerConnection.prototype.permanodeOfSignerAttrValue = function(signer, att
 
 // @param {string|object} query If string, will be sent as 'expression', otherwise will be sent as 'constraint'.
 // @param {?object} opt_describe The describe property to send for the query
-cam.ServerConnection.prototype.buildQuery = function(callerQuery, opt_describe, opt_limit, opt_continuationToken) {
+cam.ServerConnection.prototype.buildQuery = function(callerQuery, opt_describe, opt_limit, opt_continuationToken, opt_around) {
 	var query = {
 		// TODO(mpl): it'd be better to not ask for a sort when none is needed (less work for server),
 		// e.g. for a plain BlobRefPrefix query.
@@ -235,7 +235,9 @@ cam.ServerConnection.prototype.buildQuery = function(callerQuery, opt_describe, 
 	if (opt_limit) {
 		query.limit = opt_limit;
 	}
-	if (opt_continuationToken) {
+	if (opt_around) {
+		query.around = opt_around;
+	} else if (opt_continuationToken) {
 		query.continue = opt_continuationToken;
 	}
 

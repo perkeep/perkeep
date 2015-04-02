@@ -166,9 +166,9 @@ cam.ImageDetail.getAspect = function(blobref, searchSession) {
 		return {
 			fragment: 'image',
 			title: 'Image',
-			createContent: function(size) {
+			createContent: function(size, backwardPiggy) {
 				return cam.ImageDetail({
-					backwardPiggy: false,
+					backwardPiggy: backwardPiggy,
 					key: 'image',
 					height: size.height,
 					permanodeMeta: pm,
