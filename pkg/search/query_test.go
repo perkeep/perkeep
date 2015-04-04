@@ -1253,7 +1253,7 @@ func TestDescribeMarshal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := string(enc), `{"describe":{"blobref":null,"at":null}}`; got != want {
+	if got, want := string(enc), `{"around":null,"describe":{"blobref":null,"at":null}}`; got != want {
 		t.Errorf("JSON: %s; want %s", got, want)
 	}
 	back := &SearchQuery{}
@@ -1275,7 +1275,7 @@ func TestDescribeMarshal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := string(enc), `{"describe":{"blobrefs":["sha-1234","sha-abcd"],"blobref":null,"at":null}}`; got != want {
+	if got, want := string(enc), `{"around":null,"describe":{"blobrefs":["sha-1234","sha-abcd"],"blobref":null,"at":null}}`; got != want {
 		t.Errorf("JSON: %s; want %s", got, want)
 	}
 	back = &SearchQuery{}
@@ -1293,7 +1293,7 @@ func TestDescribeMarshal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(enc) != "{}" {
+	if string(enc) != `{"around":null}` {
 		t.Errorf(`Zero value: %q; want null`, enc)
 	}
 }
@@ -1311,9 +1311,9 @@ func TestSortMarshal_CreatedDesc(t *testing.T) {
 }
 
 var sortMarshalWant = map[SortType]string{
-	UnspecifiedSort:  "{}",
-	LastModifiedDesc: `{"sort":` + string(SortName[LastModifiedDesc]) + `}`,
-	CreatedDesc:      `{"sort":` + string(SortName[CreatedDesc]) + `}`,
+	UnspecifiedSort:  `{"around":null}`,
+	LastModifiedDesc: `{"sort":` + string(SortName[LastModifiedDesc]) + `,"around":null}`,
+	CreatedDesc:      `{"sort":` + string(SortName[CreatedDesc]) + `,"around":null}`,
 }
 
 func testSortMarshal(t *testing.T, sortType SortType) {
@@ -1342,7 +1342,7 @@ func testSortMarshal(t *testing.T, sortType SortType) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(enc) != "{}" {
+	if string(enc) != `{"around":null}` {
 		t.Errorf("Zero value: %s; want {}", enc)
 	}
 }
