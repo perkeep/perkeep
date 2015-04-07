@@ -27,7 +27,11 @@ import (
 	"testing"
 	"time"
 
+	"camlistore.org/pkg/constants/google"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/oauthutil"
+
+	"camlistore.org/third_party/golang.org/x/oauth2"
 )
 
 const testObjectContent = "Google Storage Test\n"
@@ -66,9 +70,13 @@ func doConfig(t *testing.T) (gsa *Client, bucket string) {
 		t.Fatalf("Invalid config: %v", err)
 	}
 
-	gsa = NewClient(MakeOauthTransport(auth.RequiredString("client_id"),
-		auth.RequiredString("client_secret"),
-		auth.RequiredString("refresh_token")))
+	gsa = NewClient(oauth2.NewClient(oauth2.NoContext, oauthutil.NewRefreshTokenSource(&oauth2.Config{
+		Scopes:       []string{Scope},
+		Endpoint:     google.Endpoint,
+		ClientID:     auth.RequiredString("client_id"),
+		ClientSecret: auth.RequiredString("client_secret"),
+		RedirectURL:  oauthutil.TitleBarRedirectURL,
+	}, auth.RequiredString("refresh_token"))))
 
 	if err := auth.Validate(); err != nil {
 		t.Fatalf("Invalid config: %v", err)
@@ -158,12 +166,8 @@ func TestPutObject(t *testing.T) {
 	testKey := fmt.Sprintf("test-put-%v.%v.%v-%v.%v.%v",
 		now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second())
 
-	shouldRetry, err := gs.PutObject(&Object{bucket, testKey},
+	err := gs.PutObject(&Object{bucket, testKey},
 		&BufferCloser{bytes.NewBufferString(testObjectContent)})
-	if shouldRetry {
-		shouldRetry, err = gs.PutObject(&Object{bucket, testKey},
-			&BufferCloser{bytes.NewBufferString(testObjectContent)})
-	}
 	if err != nil {
 		t.Fatalf("Failed to put object: %v", err)
 	}
@@ -192,7 +196,7 @@ func TestDeleteObject(t *testing.T) {
 	now := time.Now()
 	testKey := fmt.Sprintf("test-delete-%v.%v.%v-%v.%v.%v",
 		now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second())
-	_, err = gs.PutObject(&Object{bucket, testKey},
+	err = gs.PutObject(&Object{bucket, testKey},
 		&BufferCloser{bytes.NewBufferString("Delete Me")})
 	if err != nil {
 		t.Fatalf("Failed to put file to delete.")

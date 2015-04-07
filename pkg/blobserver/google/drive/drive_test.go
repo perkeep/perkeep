@@ -23,11 +23,15 @@ import (
 
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
+	"camlistore.org/pkg/constants/google"
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
+	"camlistore.org/pkg/oauthutil"
+
+	"camlistore.org/third_party/golang.org/x/oauth2"
 )
 
 var (
+	// TODO(mpl): use a config file generated with the help of googinit, like for googlestorage tests.
 	parentId     = flag.String("parentDir", "", "id of the directory on google drive to use for testing. If empty or \"root\", testing is skipped.")
 	clientID     = flag.String("client_id", "", "OAuth2 client_id for testing")
 	clientSecret = flag.String("client_secret", "", "OAuth2 client secret for testing")
@@ -43,20 +47,28 @@ func TestStorage(t *testing.T) {
 		t.Fatal("--client_id and --client_secret required. Obtain from https://console.developers.google.com/ > Project > APIs & Auth > Credentials. Should be a 'native' or 'Installed application'")
 	}
 
-	tokenCache := oauth.CacheFile(*tokenCache)
-	token, err := tokenCache.Token()
+	config := &oauth2.Config{
+		Scopes:       []string{Scope},
+		Endpoint:     google.Endpoint,
+		ClientID:     *clientID,
+		ClientSecret: *clientSecret,
+		RedirectURL:  oauthutil.TitleBarRedirectURL,
+	}
+	token, err := oauth2.ReuseTokenSource(nil,
+		&oauthutil.TokenSource{
+			Config:    config,
+			CacheFile: *tokenCache,
+			AuthCode: func() string {
+				if *authCode == "" {
+					t.Skipf("Re-run using --auth_code= with the value obtained from %s",
+						config.AuthCodeURL("", oauth2.AccessTypeOffline, oauth2.ApprovalForce))
+					return ""
+				}
+				return *authCode
+			},
+		}).Token()
 	if err != nil {
-		tr := MakeOauthTransport(*clientID, *clientSecret, "")
-		config := tr.Config
-		if *authCode != "" {
-			token, err = tr.Exchange(*authCode)
-			if err != nil {
-				t.Fatalf("Error getting a token using auth code: %v", err)
-			}
-			tokenCache.PutToken(token)
-		} else {
-			t.Skipf("Re-run using --auth_code= with the value obtained from %s", config.AuthCodeURL(""))
-		}
+		t.Fatalf("could not acquire token: %v", err)
 	}
 
 	storagetest.TestOpt(t, storagetest.Opts{

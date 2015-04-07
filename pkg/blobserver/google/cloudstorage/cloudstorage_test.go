@@ -26,13 +26,18 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
+	"camlistore.org/pkg/constants/google"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
+	"camlistore.org/pkg/oauthutil"
+
+	"camlistore.org/third_party/golang.org/x/oauth2"
 )
 
 var (
+	// TODO(mpl): use a config file generated with the help of googinit, like for googlestorage tests.
+	// And remove the 'camlistore-*-test' naming requirement ?
 	bucket       = flag.String("bucket", "", "Bucket name to use for testing. If empty, testing is skipped. If non-empty, it must begin with 'camlistore-' and end in '-test' and have zero items in it.")
 	clientID     = flag.String("client_id", "", "OAuth2 client_id for testing")
 	clientSecret = flag.String("client_secret", "", "OAuth2 client secret for testing")
@@ -59,31 +64,28 @@ func testStorage(t *testing.T, bucketDir string) {
 		t.Fatal("--client_id and --client_secret required. Obtain from https://console.developers.google.com/ > Project > APIs & Auth > Credentials. Should be a 'native' or 'Installed application'")
 	}
 
-	tokenCache := oauth.CacheFile(*tokenCache)
-	token, err := tokenCache.Token()
+	config := &oauth2.Config{
+		Scopes:       []string{googlestorage.Scope},
+		Endpoint:     google.Endpoint,
+		ClientID:     *clientID,
+		ClientSecret: *clientSecret,
+		RedirectURL:  oauthutil.TitleBarRedirectURL,
+	}
+	token, err := oauth2.ReuseTokenSource(nil,
+		&oauthutil.TokenSource{
+			Config:    config,
+			CacheFile: *tokenCache,
+			AuthCode: func() string {
+				if *authCode == "" {
+					t.Skipf("Re-run using --auth_code= with the value obtained from %s",
+						config.AuthCodeURL("", oauth2.AccessTypeOffline, oauth2.ApprovalForce))
+					return ""
+				}
+				return *authCode
+			},
+		}).Token()
 	if err != nil {
-		config := &oauth.Config{
-			// The client-id and secret should be for an "Installed Application" when using
-			// the CLI. Later we'll use a web application with a callback.
-			ClientId:     *clientID,
-			ClientSecret: *clientSecret,
-			Scope:        "https://www.googleapis.com/auth/devstorage.full_control",
-			AuthURL:      "https://accounts.google.com/o/oauth2/auth",
-			TokenURL:     "https://accounts.google.com/o/oauth2/token",
-			RedirectURL:  "urn:ietf:wg:oauth:2.0:oob",
-		}
-		if *authCode != "" {
-			tr := &oauth.Transport{
-				Config: config,
-			}
-			token, err = tr.Exchange(*authCode)
-			if err != nil {
-				t.Fatalf("Error getting a token using auth code: %v", err)
-			}
-			tokenCache.PutToken(token)
-		} else {
-			t.Skipf("Re-run using --auth_code= with the value obtained from %s", config.AuthCodeURL(""))
-		}
+		t.Fatalf("could not acquire token: %v", err)
 	}
 
 	bucketWithDir := path.Join(*bucket, bucketDir)
@@ -108,11 +110,9 @@ func testStorage(t *testing.T, bucketDir string) {
 				// Adding "a", and "c" objects in the bucket to make sure objects out of the
 				// "directory" are not touched and have no influence.
 				for _, key := range []string{"a", "c"} {
-					for tries, shouldRetry := 0, true; tries < 2 && shouldRetry; tries++ {
-						shouldRetry, err = sto.(*Storage).client.PutObject(
-							&googlestorage.Object{Bucket: sto.(*Storage).bucket, Key: key},
-							strings.NewReader(key))
-					}
+					err := sto.(*Storage).client.PutObject(
+						&googlestorage.Object{Bucket: sto.(*Storage).bucket, Key: key},
+						strings.NewReader(key))
 					if err != nil {
 						t.Fatalf("could not insert object %s in bucket %v: %v", key, sto.(*Storage).bucket, err)
 					}

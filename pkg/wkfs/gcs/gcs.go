@@ -172,17 +172,10 @@ func (w *fileWriter) Close() (err error) {
 		return nil
 	}
 	w.closed = true
-	var retry bool
-	for tries := 0; tries < 2; tries++ {
-		retry, err = w.fs.client.PutObject(&googlestorage.Object{
-			Bucket: w.bucket,
-			Key:    w.key,
-		}, ioutil.NopCloser(bytes.NewReader(w.buf.Bytes())))
-		if retry {
-			continue
-		}
-	}
-	return err
+	return w.fs.client.PutObject(&googlestorage.Object{
+		Bucket: w.bucket,
+		Key:    w.key,
+	}, ioutil.NopCloser(bytes.NewReader(w.buf.Bytes())))
 }
 
 type statInfo struct {

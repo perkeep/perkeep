@@ -38,4 +38,4 @@ In order to run these tests properly, you will need to:
 	}
 
 
-	You can use 'camtool gsinit' to help obtain the auth config object.
+	You can use 'camtool googinit' to help obtain the auth config object.
