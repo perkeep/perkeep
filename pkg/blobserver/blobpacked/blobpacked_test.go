@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"reflect"
@@ -151,7 +152,12 @@ func TestPackNormal(t *testing.T) {
 	const fileSize = 5 << 20
 	const fileName = "foo.dat"
 	fileContents := randBytes(fileSize)
-	testPack(t,
+
+	hash := blob.NewHash()
+	hash.Write(fileContents)
+	wholeRef := blob.RefFromHash(hash)
+
+	pt := testPack(t,
 		func(sto blobserver.Storage) error {
 			_, err := schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
 			return err
@@ -159,6 +165,8 @@ func TestPackNormal(t *testing.T) {
 		wantNumLargeBlobs(1),
 		wantNumSmallBlobs(0),
 	)
+	// And verify we can read it back out.
+	pt.testOpenWholeRef(t, wholeRef, fileSize)
 }
 
 func TestPackNoDelete(t *testing.T) {
@@ -188,15 +196,13 @@ func TestPackLarge(t *testing.T) {
 	hash.Write(fileContents)
 	wholeRef := blob.RefFromHash(hash)
 
-	var pt *packTest
-	testPack(t,
+	pt := testPack(t,
 		func(sto blobserver.Storage) error {
 			_, err := schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
 			return err
 		},
 		wantNumLargeBlobs(2),
 		wantNumSmallBlobs(0),
-		func(v *packTest) { pt = v },
 	)
 
 	// Verify we wrote the correct "w:*" meta rows.
@@ -217,6 +223,36 @@ func TestPackLarge(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("'w:*' meta rows = %v; want %v", got, want)
+	}
+
+	// And verify we can read it back out.
+	pt.testOpenWholeRef(t, wholeRef, fileSize)
+}
+
+func (pt *packTest) testOpenWholeRef(t *testing.T, wholeRef blob.Ref, wantSize int64) {
+	rc, gotSize, err := pt.sto.OpenWholeRef(wholeRef, 0)
+	if err != nil {
+		t.Errorf("OpenWholeRef = %v", err)
+		return
+	}
+	defer rc.Close()
+	if gotSize != wantSize {
+		t.Errorf("OpenWholeRef size = %v; want %v", gotSize, wantSize)
+		return
+	}
+	h := blob.NewHash()
+	n, err := io.Copy(h, rc)
+	if err != nil {
+		t.Errorf("OpenWholeRef read error: %v", err)
+		return
+	}
+	if n != wantSize {
+		t.Errorf("OpenWholeRef read %v bytes; want %v", n, wantSize)
+		return
+	}
+	gotRef := blob.RefFromHash(h)
+	if gotRef != wholeRef {
+		t.Errorf("OpenWholeRef read contents = %v; want %v", gotRef, wholeRef)
 	}
 }
 
@@ -254,7 +290,7 @@ type packTest struct {
 func testPack(t *testing.T,
 	write func(sto blobserver.Storage) error,
 	checks ...func(*packTest),
-) {
+) *packTest {
 	ctx := context.New()
 	defer ctx.Cancel()
 
@@ -405,6 +441,7 @@ func testPack(t *testing.T,
 	// 49% identical one does not denormalize and repack.
 	// -- test StreamBlobs in all its various flavours, and recovering from stream blobs.
 	// -- overflowing the 16MB chunk size with huge initial chunks
+	return pt
 }
 
 // see if storage proxies through to small for Fetch, Stat, and Enumerate.
@@ -476,15 +513,13 @@ func TestForeachZipBlob(t *testing.T) {
 	ctx := context.New()
 	defer ctx.Cancel()
 
-	var pt *packTest
-	testPack(t,
+	pt := testPack(t,
 		func(sto blobserver.Storage) error {
 			_, err := schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
 			return err
 		},
 		wantNumLargeBlobs(1),
 		wantNumSmallBlobs(0),
-		func(v *packTest) { pt = v },
 	)
 
 	zipBlob, err := singleBlob(pt.large)
