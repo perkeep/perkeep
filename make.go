@@ -53,7 +53,7 @@ var (
 	sqlFlag        = flag.String("sqlite", "auto", "Whether you want SQLite in your build: true, false, or auto.")
 	all            = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
 	race           = flag.Bool("race", false, "Build race-detector version of binaries (they will run slowly)")
-	verbose        = flag.Bool("v", false, "Verbose mode")
+	verbose        = flag.Bool("v", strings.Contains(os.Getenv("CAMLI_DEBUG_X"), "makego"), "Verbose mode")
 	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. '*' builds everything.  Empty builds defaults for this platform. Example: camlistore.org/server/camlistored,camlistore.org/cmd/camput")
 	quiet          = flag.Bool("quiet", false, "Don't print anything unless there's a failure.")
 	onlysync       = flag.Bool("onlysync", false, "Only populate the temporary source/build tree and output its full path. It is meant to prepare the environment for running the full test suite with 'devcam test'.")
@@ -61,6 +61,7 @@ var (
 	ifModsSince    = flag.Int64("if_mods_since", 0, "If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
 	buildARCH      = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
 	buildOS        = flag.String("os", runtime.GOOS, "Operating system to build for.")
+	stampVersion   = flag.Bool("stampversion", false, "Stamp version into buildinfo.GitInfo")
 )
 
 var (
@@ -178,7 +179,15 @@ func main() {
 	if *race {
 		baseArgs = append(baseArgs, "-race")
 	}
-	ldFlags := "-X camlistore.org/pkg/buildinfo.GitInfo " + version
+	if *verbose {
+		log.Printf("version to stamp is %q", version)
+	}
+	var ldFlags string
+	if *stampVersion {
+		// TODO(bradfitz): this is currently broken, at least on my machine.
+		// Maybe my Go 1.4 vs Go 1.5 clients are out of sync. Temporarily disabled.
+		ldFlags = "-X camlistore.org/pkg/buildinfo.GitInfo " + version
+	}
 	baseArgs = append(baseArgs, "--ldflags="+ldFlags, "--tags="+strings.Join(tags, " "))
 
 	// First install command: build just the final binaries, installed to a GOBIN
@@ -199,6 +208,11 @@ func main() {
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
 	)
+
+	if *verbose {
+		log.Printf("Running go %q with Env %q", args, cmd.Env)
+	}
+
 	var output bytes.Buffer
 	if *quiet {
 		cmd.Stdout = &output
