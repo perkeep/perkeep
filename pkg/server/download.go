@@ -62,14 +62,14 @@ type fileInfo struct {
 	whyNot string       // for testing, why fileInfoPacked failed.
 }
 
-func (dh *DownloadHandler) fileInfo(req *http.Request, file blob.Ref) (fi fileInfo, err error) {
+func (dh *DownloadHandler) fileInfo(req *http.Request, file blob.Ref) (fi fileInfo, packed bool, err error) {
 	// Fast path for blobpacked.
 	fi, ok := fileInfoPacked(dh.Search, dh.Fetcher, req, file)
 	if debugPack {
 		log.Printf("download.go: fileInfoPacked: ok=%v, %+v", ok, fi)
 	}
 	if ok {
-		return fi, nil
+		return fi, true, nil
 	}
 	fr, err := schema.NewFileReader(dh.blobSource(), file)
 	if err != nil {
@@ -88,7 +88,7 @@ func (dh *DownloadHandler) fileInfo(req *http.Request, file blob.Ref) (fi fileIn
 		size:  fr.Size(),
 		rs:    fr,
 		close: fr.Close,
-	}, nil
+	}, false, nil
 }
 
 // Fast path for blobpacked.
@@ -152,7 +152,7 @@ func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 		return
 	}
 
-	fi, err := dh.fileInfo(req, file)
+	fi, packed, err := dh.fileInfo(req, file)
 	if err != nil {
 		http.Error(rw, "Can't serve file: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -163,6 +163,9 @@ func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 	h.Set("Content-Length", fmt.Sprint(fi.size))
 	h.Set("Expires", time.Now().Add(oneYear).Format(http.TimeFormat))
 	h.Set("Content-Type", fi.mime)
+	if packed {
+		h.Set("X-Camlistore-Packed", "1")
+	}
 
 	if fi.mime == "application/octet-stream" {
 		// Chrome seems to silently do nothing on
