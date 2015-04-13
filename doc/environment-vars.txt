@@ -46,6 +46,9 @@ CAMLI_DEBUG_CONFIG (bool):
   Causes pkg/serverconfig to dump low-level configuration derived from
   high-level configuation on load.
 
+CAMLI_DEBUG_X (string):
+  String containing magic substring(s) to enable debuggging in code.
+
 CAMLI_DEBUG_UPLOADS (bool):
   Used by pkg/client to enable additional logging.
 

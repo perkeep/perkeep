@@ -22,6 +22,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"camlistore.org/pkg/blob"
@@ -33,6 +34,8 @@ import (
 )
 
 const oneYear = 365 * 86400 * time.Second
+
+var debugPack = strings.Contains(os.Getenv("CAMLI_DEBUG_X"), "packserve")
 
 type DownloadHandler struct {
 	Fetcher blob.Fetcher
@@ -51,21 +54,23 @@ func (dh *DownloadHandler) blobSource() blob.Fetcher {
 }
 
 type fileInfo struct {
-	mime  string
-	name  string
-	size  int64
-	rs    io.ReadSeeker
-	close func() error // release the rs
+	mime   string
+	name   string
+	size   int64
+	rs     io.ReadSeeker
+	close  func() error // release the rs
+	whyNot string       // for testing, why fileInfoPacked failed.
 }
 
 func (dh *DownloadHandler) fileInfo(req *http.Request, file blob.Ref) (fi fileInfo, err error) {
 	// Fast path for blobpacked.
-	fi, ok := dh.fileInfoPacked(req, file)
-	// log.Printf("Search is %v; Fetcher is %T; using packed = %v", dh.Search, dh.Fetcher, ok)
+	fi, ok := fileInfoPacked(dh.Search, dh.Fetcher, req, file)
+	if debugPack {
+		log.Printf("download.go: fileInfoPacked: ok=%v, %+v", ok, fi)
+	}
 	if ok {
 		return fi, nil
 	}
-
 	fr, err := schema.NewFileReader(dh.blobSource(), file)
 	if err != nil {
 		return
@@ -87,47 +92,45 @@ func (dh *DownloadHandler) fileInfo(req *http.Request, file blob.Ref) (fi fileIn
 }
 
 // Fast path for blobpacked.
-func (dh *DownloadHandler) fileInfoPacked(req *http.Request, file blob.Ref) (_ fileInfo, ok bool) {
-	if dh.Search == nil {
-		// Required to lookup wholeref from fileref.
-		return
+func fileInfoPacked(sh *search.Handler, src blob.Fetcher, req *http.Request, file blob.Ref) (packFileInfo fileInfo, ok bool) {
+	if sh == nil {
+		return fileInfo{whyNot: "no search"}, false
 	}
-	wf, ok := dh.Fetcher.(blobserver.WholeRefFetcher)
+	wf, ok := src.(blobserver.WholeRefFetcher)
 	if !ok {
-		return
+		return fileInfo{whyNot: "fetcher type"}, false
 	}
-	if req.Header.Get("Range") != "" {
+	if req != nil && req.Header.Get("Range") != "" {
 		// TODO: not handled yet. Maybe not even important,
 		// considering rarity.
-		return
+		return fileInfo{whyNot: "range header"}, false
 	}
-	des, err := dh.Search.Describe(&search.DescribeRequest{BlobRef: file})
+	des, err := sh.Describe(&search.DescribeRequest{BlobRef: file})
 	if err != nil {
 		log.Printf("ui: fileInfoPacked: skipping fast path due to error from search: %v", err)
-		return
+		return fileInfo{whyNot: "search error"}, false
 	}
 	db, ok := des.Meta[file.String()]
 	if !ok || db.File == nil {
-		// Unknown to search indexer.
-		return
+		return fileInfo{whyNot: "search index doesn't know file"}, false
 	}
 	fi := db.File
 	if !fi.WholeRef.Valid() {
-		return
+		return fileInfo{whyNot: "no wholeref from search index"}, false
 	}
 
 	offset := int64(0)
 	rc, wholeSize, err := wf.OpenWholeRef(fi.WholeRef, offset)
 	if err == os.ErrNotExist {
-		return
+		return fileInfo{whyNot: "WholeRefFetcher returned ErrNotexist"}, false
 	}
 	if wholeSize != fi.Size {
 		log.Printf("ui: fileInfoPacked: OpenWholeRef size %d != index size %d; ignoring fast path", wholeSize, fi.Size)
-		return
+		return fileInfo{whyNot: "WholeRefFetcher and index don't agree"}, false
 	}
 	if err != nil {
-		log.Printf("ui: fileInfoPacked: skipping fast path due to error from WholeRefFetcher (%T): %v", dh.Fetcher, err)
-		return
+		log.Printf("ui: fileInfoPacked: skipping fast path due to error from WholeRefFetcher (%T): %v", src, err)
+		return fileInfo{whyNot: "WholeRefFetcher error"}, false
 	}
 	return fileInfo{
 		mime:  fi.MIMEType,

@@ -602,6 +602,7 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 		MaxHeight: height,
 		ThumbMeta: ui.thumbMeta,
 		ResizeSem: ui.resizeSem,
+		Search:    ui.search,
 	}
 	th.ServeHTTP(rw, req, blobref)
 }

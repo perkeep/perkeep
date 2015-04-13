@@ -60,6 +60,7 @@ var (
 
 type ImageHandler struct {
 	Fetcher             blob.Fetcher
+	Search              *search.Handler    // optional
 	Cache               blobserver.Storage // optional
 	MaxWidth, MaxHeight int
 	Square              bool
@@ -226,8 +227,30 @@ func imageConfigFromReader(r io.Reader) (io.Reader, image.Config, error) {
 	return io.MultiReader(header, r), conf, err
 }
 
+func (ih *ImageHandler) newFileReader(fileRef blob.Ref) (io.ReadCloser, error) {
+	fi, ok := fileInfoPacked(ih.Search, ih.Fetcher, nil, fileRef)
+	if debugPack {
+		log.Printf("pkg/server/image.go: fileInfoPacked: ok=%v, %+v", ok, fi)
+	}
+	if ok {
+		// This would be less gross if fileInfoPacked just
+		// returned an io.ReadCloser, but then the download
+		// handler would need more invasive changes for
+		// ServeContent. So tolerate this for now.
+		return struct {
+			io.Reader
+			io.Closer
+		}{
+			fi.rs,
+			types.CloseFunc(fi.close),
+		}, nil
+	}
+	// Default path, not going through blobpacked's fast path:
+	return schema.NewFileReader(ih.Fetcher, fileRef)
+}
+
 func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
-	fr, err := schema.NewFileReader(ih.Fetcher, fileRef)
+	fr, err := ih.newFileReader(fileRef)
 	if err != nil {
 		return nil, err
 	}
