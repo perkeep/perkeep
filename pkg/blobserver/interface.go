@@ -208,7 +208,7 @@ type WholeRefFetcher interface {
 	// subtracting any offset.
 	//
 	// The err will be os.ErrNotExist if the wholeref is not
-	// known.OpenWholeRef
+	// known.
 	OpenWholeRef(wholeRef blob.Ref, offset int64) (rc io.ReadCloser, wholeSize int64, err error)
 }
 
