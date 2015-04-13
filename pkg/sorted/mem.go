@@ -61,6 +61,10 @@ func (t *memIter) Next() bool {
 }
 
 func (s *memIter) Close() error {
+	if s.lit == nil {
+		// Already closed.
+		return nil
+	}
 	err := s.lit.Close()
 	*s = memIter{} // to cause crashes on future access
 	return err

@@ -27,3 +27,17 @@ func TestMemoryKV(t *testing.T) {
 	kv := sorted.NewMemoryKeyValue()
 	kvtest.TestSorted(t, kv)
 }
+
+// TODO(mpl): move this test into kvtest. But that might require
+// kvtest taking a "func () sorted.KeyValue) constructor param,
+// so kvtest can create several and close in different ways.
+func TestMemoryKV_DoubleClose(t *testing.T) {
+	kv := sorted.NewMemoryKeyValue()
+
+	it := kv.Find("", "")
+	it.Close()
+	it.Close()
+
+	kv.Close()
+	kv.Close()
+}
