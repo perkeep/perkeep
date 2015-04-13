@@ -46,7 +46,8 @@ func TestShareSearchSerialization(t *testing.T) {
   "claimType": "share",
   "search": {
     "expression": "is:image",
-    "limit": 42
+    "limit": 42,
+    "around": null
   },
   "transitive": true
 }`
