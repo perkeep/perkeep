@@ -35,10 +35,14 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/memory"
 	"camlistore.org/pkg/constants"
+	"camlistore.org/pkg/constants/google"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/oauthutil"
 	"camlistore.org/pkg/syncutil"
+
+	"camlistore.org/third_party/golang.org/x/oauth2"
 )
 
 type Storage struct {
@@ -113,8 +117,14 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		if refreshToken == "" {
 			return nil, errors.New("missing required parameter 'refresh_token'")
 		}
-		gs.client = googlestorage.NewClient(googlestorage.MakeOauthTransport(
-			clientID, clientSecret, refreshToken))
+		oAuthClient := oauth2.NewClient(oauth2.NoContext, oauthutil.NewRefreshTokenSource(&oauth2.Config{
+			Scopes:       []string{googlestorage.Scope},
+			Endpoint:     google.Endpoint,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectURL:  oauthutil.TitleBarRedirectURL,
+		}, refreshToken))
+		gs.client = googlestorage.NewClient(oAuthClient)
 	}
 
 	if cacheSize != 0 {
@@ -165,11 +175,9 @@ func (s *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, err
 		return blob.SizedRef{}, err
 	}
 
-	for tries, shouldRetry := 0, true; tries < 2 && shouldRetry; tries++ {
-		shouldRetry, err = s.client.PutObject(
-			&googlestorage.Object{Bucket: s.bucket, Key: s.dirPrefix + br.String()},
-			ioutil.NopCloser(bytes.NewReader(buf.Bytes())))
-	}
+	err = s.client.PutObject(
+		&googlestorage.Object{Bucket: s.bucket, Key: s.dirPrefix + br.String()},
+		ioutil.NopCloser(bytes.NewReader(buf.Bytes())))
 	if err != nil {
 		return blob.SizedRef{}, err
 	}

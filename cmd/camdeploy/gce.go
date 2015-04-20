@@ -18,8 +18,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -30,6 +28,7 @@ import (
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/deploy/gce"
+	"camlistore.org/pkg/oauthutil"
 
 	"camlistore.org/third_party/golang.org/x/oauth2"
 )
@@ -117,8 +116,18 @@ func (c *gceCmd) RunCommand(args []string) error {
 	}
 
 	depl := &gce.Deployer{
-		Client: oauth2.NewClient(oauth2.NoContext, oauth2.ReuseTokenSource(nil,
-			&tokenSource{config: config, cacheFile: c.project + "-token.json"})),
+		Client: oauth2.NewClient(oauth2.NoContext, oauth2.ReuseTokenSource(nil, &oauthutil.TokenSource{
+			Config:    config,
+			CacheFile: c.project + "-token.json",
+			AuthCode: func() string {
+				fmt.Println("Get auth code from:")
+				fmt.Printf("%v\n", config.AuthCodeURL("my-state", oauth2.AccessTypeOffline, oauth2.ApprovalForce))
+				fmt.Println("Enter auth code:")
+				sc := bufio.NewScanner(os.Stdin)
+				sc.Scan()
+				return strings.TrimSpace(sc.Text())
+			},
+		})),
 		Conf: instConf,
 	}
 	inst, err := depl.Create(context.TODO())
@@ -143,42 +152,4 @@ func readFile(v string) string {
 		log.Fatalf("Error reading %s: %v", v, err)
 	}
 	return strings.TrimSpace(string(slurp))
-}
-
-type tokenSource struct {
-	config    *oauth2.Config
-	cacheFile string
-}
-
-func (src tokenSource) Token() (*oauth2.Token, error) {
-	tok := new(oauth2.Token)
-	tokenData, err := ioutil.ReadFile(src.cacheFile)
-	if err == nil {
-		err = json.Unmarshal(tokenData, tok)
-		if err == nil {
-			if tok.Valid() {
-				return tok, nil
-			}
-			err = errors.New("invalid token")
-		}
-	}
-	fmt.Printf("Error getting token from %s: %v\n", src.cacheFile, err)
-	fmt.Println("Get auth code from:")
-	fmt.Printf("%v\n", src.config.AuthCodeURL("my-state", oauth2.AccessTypeOffline, oauth2.ApprovalForce))
-	fmt.Println("Enter auth code:")
-	sc := bufio.NewScanner(os.Stdin)
-	sc.Scan()
-	authCode := strings.TrimSpace(sc.Text())
-	tok, err = src.config.Exchange(oauth2.NoContext, authCode)
-	if err != nil {
-		return nil, fmt.Errorf("could not exchange auth code for a token: %v", err)
-	}
-	tokenData, err = json.Marshal(&tok)
-	if err != nil {
-		return nil, fmt.Errorf("could not encode token as json: %v", err)
-	}
-	if err := ioutil.WriteFile(src.cacheFile, tokenData, 0600); err != nil {
-		return nil, fmt.Errorf("could not cache token in %v: %v", src.cacheFile, err)
-	}
-	return tok, nil
 }
