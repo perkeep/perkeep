@@ -424,8 +424,8 @@ type testTransport struct {
 
 var statusTests = []*testTransport{
 	&testTransport{statusCode: 308, want: 0},
-	&testTransport{statusCode: 308, rangeVal: "0-0", want: 1},
-	&testTransport{statusCode: 308, rangeVal: "0-42", want: 43},
+	&testTransport{statusCode: 308, rangeVal: "bytes=0-0", want: 1},
+	&testTransport{statusCode: 308, rangeVal: "bytes=0-42", want: 43},
 }
 
 func TestTransferStatus(t *testing.T) {
@@ -452,7 +452,7 @@ func (t *interruptedTransport) RoundTrip(req *http.Request) (*http.Response, err
 				StatusCode: http.StatusServiceUnavailable,
 				Header:     http.Header{},
 			}
-			t.rangeVal = fmt.Sprintf("0-%v", len(t.buf)-1) // Set the response for next time
+			t.rangeVal = fmt.Sprintf("bytes=0-%v", len(t.buf)-1) // Set the response for next time
 			return res, nil
 		}
 		m := contentRangeRE.FindStringSubmatch(rng)

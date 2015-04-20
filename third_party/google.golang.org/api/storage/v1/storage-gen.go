@@ -71,8 +71,9 @@ func New(client *http.Client) (*Service, error) {
 }
 
 type Service struct {
-	client   *http.Client
-	BasePath string // API endpoint base URL
+	client    *http.Client
+	BasePath  string // API endpoint base URL
+	UserAgent string // optional additional User-Agent fragment
 
 	BucketAccessControls *BucketAccessControlsService
 
@@ -85,6 +86,13 @@ type Service struct {
 	ObjectAccessControls *ObjectAccessControlsService
 
 	Objects *ObjectsService
+}
+
+func (s *Service) userAgent() string {
+	if s.UserAgent == "" {
+		return googleapi.UserAgent
+	}
+	return googleapi.UserAgent + " " + s.UserAgent
 }
 
 func NewBucketAccessControlsService(s *Service) *BucketAccessControlsService {
@@ -196,9 +204,8 @@ type Bucket struct {
 
 	// StorageClass: The bucket's storage class. This defines how objects in
 	// the bucket are stored and determines the SLA and the cost of storage.
-	// Typical values are STANDARD and DURABLE_REDUCED_AVAILABILITY.
-	// Defaults to STANDARD. See the developer's guide for the authoritative
-	// list.
+	// Values include STANDARD, NEARLINE and DURABLE_REDUCED_AVAILABILITY.
+	// Defaults to STANDARD. For more information, see storage classes.
 	StorageClass string `json:"storageClass,omitempty"`
 
 	// TimeCreated: Creation time of the bucket in RFC 3339 format.
@@ -653,6 +660,21 @@ type Objects struct {
 	Prefixes []string `json:"prefixes,omitempty"`
 }
 
+type RewriteResponse struct {
+	Done bool `json:"done,omitempty"`
+
+	// Kind: The kind of item this is.
+	Kind string `json:"kind,omitempty"`
+
+	ObjectSize uint64 `json:"objectSize,omitempty,string"`
+
+	Resource *Object `json:"resource,omitempty"`
+
+	RewriteToken string `json:"rewriteToken,omitempty"`
+
+	TotalBytesRewritten uint64 `json:"totalBytesRewritten,omitempty,string"`
+}
+
 // method id "storage.bucketAccessControls.delete":
 
 type BucketAccessControlsDeleteCall struct {
@@ -693,7 +715,7 @@ func (c *BucketAccessControlsDeleteCall) Do() error {
 		"bucket": c.bucket,
 		"entity": c.entity,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -773,7 +795,7 @@ func (c *BucketAccessControlsGetCall) Do() (*BucketAccessControl, error) {
 		"bucket": c.bucket,
 		"entity": c.entity,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -864,7 +886,7 @@ func (c *BucketAccessControlsInsertCall) Do() (*BucketAccessControl, error) {
 		"bucket": c.bucket,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -943,7 +965,7 @@ func (c *BucketAccessControlsListCall) Do() (*BucketAccessControls, error) {
 	googleapi.Expand(req.URL, map[string]string{
 		"bucket": c.bucket,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -1031,7 +1053,7 @@ func (c *BucketAccessControlsPatchCall) Do() (*BucketAccessControl, error) {
 		"entity": c.entity,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -1128,7 +1150,7 @@ func (c *BucketAccessControlsUpdateCall) Do() (*BucketAccessControl, error) {
 		"entity": c.entity,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -1236,7 +1258,7 @@ func (c *BucketsDeleteCall) Do() error {
 	googleapi.Expand(req.URL, map[string]string{
 		"bucket": c.bucket,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -1353,7 +1375,7 @@ func (c *BucketsGetCall) Do() (*Bucket, error) {
 	googleapi.Expand(req.URL, map[string]string{
 		"bucket": c.bucket,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -1497,7 +1519,7 @@ func (c *BucketsInsertCall) Do() (*Bucket, error) {
 	req, _ := http.NewRequest("POST", urls, body)
 	googleapi.SetOpaque(req.URL)
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -1625,6 +1647,13 @@ func (c *BucketsListCall) PageToken(pageToken string) *BucketsListCall {
 	return c
 }
 
+// Prefix sets the optional parameter "prefix": Filter results to
+// buckets whose names begin with this prefix.
+func (c *BucketsListCall) Prefix(prefix string) *BucketsListCall {
+	c.opt_["prefix"] = prefix
+	return c
+}
+
 // Projection sets the optional parameter "projection": Set of
 // properties to return. Defaults to noAcl.
 func (c *BucketsListCall) Projection(projection string) *BucketsListCall {
@@ -1651,6 +1680,9 @@ func (c *BucketsListCall) Do() (*Buckets, error) {
 	if v, ok := c.opt_["pageToken"]; ok {
 		params.Set("pageToken", fmt.Sprintf("%v", v))
 	}
+	if v, ok := c.opt_["prefix"]; ok {
+		params.Set("prefix", fmt.Sprintf("%v", v))
+	}
 	if v, ok := c.opt_["projection"]; ok {
 		params.Set("projection", fmt.Sprintf("%v", v))
 	}
@@ -1661,7 +1693,7 @@ func (c *BucketsListCall) Do() (*Buckets, error) {
 	urls += "?" + params.Encode()
 	req, _ := http.NewRequest("GET", urls, body)
 	googleapi.SetOpaque(req.URL)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -1692,6 +1724,11 @@ func (c *BucketsListCall) Do() (*Buckets, error) {
 	//     },
 	//     "pageToken": {
 	//       "description": "A previously-returned page token representing part of the larger set of results to view.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "prefix": {
+	//       "description": "Filter results to buckets whose names begin with this prefix.",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
@@ -1828,7 +1865,7 @@ func (c *BucketsPatchCall) Do() (*Bucket, error) {
 		"bucket": c.bucket,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -2037,7 +2074,7 @@ func (c *BucketsUpdateCall) Do() (*Bucket, error) {
 		"bucket": c.bucket,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -2187,7 +2224,7 @@ func (c *ChannelsStopCall) Do() error {
 	req, _ := http.NewRequest("POST", urls, body)
 	googleapi.SetOpaque(req.URL)
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -2256,7 +2293,7 @@ func (c *DefaultObjectAccessControlsDeleteCall) Do() error {
 		"bucket": c.bucket,
 		"entity": c.entity,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -2336,7 +2373,7 @@ func (c *DefaultObjectAccessControlsGetCall) Do() (*ObjectAccessControl, error) 
 		"bucket": c.bucket,
 		"entity": c.entity,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -2428,7 +2465,7 @@ func (c *DefaultObjectAccessControlsInsertCall) Do() (*ObjectAccessControl, erro
 		"bucket": c.bucket,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -2530,7 +2567,7 @@ func (c *DefaultObjectAccessControlsListCall) Do() (*ObjectAccessControls, error
 	googleapi.Expand(req.URL, map[string]string{
 		"bucket": c.bucket,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -2630,7 +2667,7 @@ func (c *DefaultObjectAccessControlsPatchCall) Do() (*ObjectAccessControl, error
 		"entity": c.entity,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -2727,7 +2764,7 @@ func (c *DefaultObjectAccessControlsUpdateCall) Do() (*ObjectAccessControl, erro
 		"entity": c.entity,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -2831,7 +2868,7 @@ func (c *ObjectAccessControlsDeleteCall) Do() error {
 		"object": c.object,
 		"entity": c.entity,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -2938,7 +2975,7 @@ func (c *ObjectAccessControlsGetCall) Do() (*ObjectAccessControl, error) {
 		"object": c.object,
 		"entity": c.entity,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -3056,7 +3093,7 @@ func (c *ObjectAccessControlsInsertCall) Do() (*ObjectAccessControl, error) {
 		"object": c.object,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -3162,7 +3199,7 @@ func (c *ObjectAccessControlsListCall) Do() (*ObjectAccessControls, error) {
 		"bucket": c.bucket,
 		"object": c.object,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -3277,7 +3314,7 @@ func (c *ObjectAccessControlsPatchCall) Do() (*ObjectAccessControl, error) {
 		"entity": c.entity,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -3401,7 +3438,7 @@ func (c *ObjectAccessControlsUpdateCall) Do() (*ObjectAccessControl, error) {
 		"entity": c.entity,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -3545,7 +3582,7 @@ func (c *ObjectsComposeCall) Do() (*Object, error) {
 		"destinationObject": c.destinationObject,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -3812,7 +3849,7 @@ func (c *ObjectsCopyCall) Do() (*Object, error) {
 		"destinationObject": c.destinationObject,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -4064,7 +4101,7 @@ func (c *ObjectsDeleteCall) Do() error {
 		"bucket": c.bucket,
 		"object": c.object,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -4241,7 +4278,7 @@ func (c *ObjectsGetCall) Do() (*Object, error) {
 		"bucket": c.bucket,
 		"object": c.object,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -4508,10 +4545,12 @@ func (c *ObjectsInsertCall) Do() (*Object, error) {
 		params.Set("uploadType", c.protocol_)
 	}
 	urls += "?" + params.Encode()
-	var contentLength_ int64
-	var hasMedia_ bool
 	if c.protocol_ != "resumable" {
-		contentLength_, hasMedia_ = googleapi.ConditionallyIncludeMedia(c.media_, &body, &ctype)
+		var cancel func()
+		cancel, _ = googleapi.ConditionallyIncludeMedia(c.media_, &body, &ctype)
+		if cancel != nil {
+			defer cancel()
+		}
 	}
 	req, _ := http.NewRequest("POST", urls, body)
 	googleapi.Expand(req.URL, map[string]string{
@@ -4524,14 +4563,10 @@ func (c *ObjectsInsertCall) Do() (*Object, error) {
 		}
 		req.Header.Set("X-Upload-Content-Type", c.mediaType_)
 		req.Body = nil
-		if params.Get("name") == "" {
-			return nil, fmt.Errorf("resumable uploads must set the Name parameter.")
-		}
-	} else if hasMedia_ {
-		req.ContentLength = contentLength_
+	} else {
 		req.Header.Set("Content-Type", ctype)
 	}
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -4544,6 +4579,7 @@ func (c *ObjectsInsertCall) Do() (*Object, error) {
 		loc := res.Header.Get("Location")
 		rx := &googleapi.ResumableUpload{
 			Client:        c.s.client,
+			UserAgent:     c.s.userAgent(),
 			URI:           loc,
 			Media:         c.resumable_,
 			MediaType:     c.mediaType_,
@@ -4554,6 +4590,7 @@ func (c *ObjectsInsertCall) Do() (*Object, error) {
 		if err != nil {
 			return nil, err
 		}
+		defer res.Body.Close()
 	}
 	var ret *Object
 	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
@@ -4778,7 +4815,7 @@ func (c *ObjectsListCall) Do() (*Objects, error) {
 	googleapi.Expand(req.URL, map[string]string{
 		"bucket": c.bucket,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -4986,7 +5023,7 @@ func (c *ObjectsPatchCall) Do() (*Object, error) {
 		"object": c.object,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -5092,6 +5129,383 @@ func (c *ObjectsPatchCall) Do() (*Object, error) {
 	//   },
 	//   "response": {
 	//     "$ref": "Object"
+	//   },
+	//   "scopes": [
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/devstorage.full_control",
+	//     "https://www.googleapis.com/auth/devstorage.read_write"
+	//   ]
+	// }
+
+}
+
+// method id "storage.objects.rewrite":
+
+type ObjectsRewriteCall struct {
+	s                 *Service
+	sourceBucket      string
+	sourceObject      string
+	destinationBucket string
+	destinationObject string
+	object            *Object
+	opt_              map[string]interface{}
+}
+
+// Rewrite: Rewrites a source object to a destination object. Optionally
+// overrides metadata.
+func (r *ObjectsService) Rewrite(sourceBucket string, sourceObject string, destinationBucket string, destinationObject string, object *Object) *ObjectsRewriteCall {
+	c := &ObjectsRewriteCall{s: r.s, opt_: make(map[string]interface{})}
+	c.sourceBucket = sourceBucket
+	c.sourceObject = sourceObject
+	c.destinationBucket = destinationBucket
+	c.destinationObject = destinationObject
+	c.object = object
+	return c
+}
+
+// DestinationPredefinedAcl sets the optional parameter
+// "destinationPredefinedAcl": Apply a predefined set of access controls
+// to the destination object.
+func (c *ObjectsRewriteCall) DestinationPredefinedAcl(destinationPredefinedAcl string) *ObjectsRewriteCall {
+	c.opt_["destinationPredefinedAcl"] = destinationPredefinedAcl
+	return c
+}
+
+// IfGenerationMatch sets the optional parameter "ifGenerationMatch":
+// Makes the operation conditional on whether the destination object's
+// current generation matches the given value.
+func (c *ObjectsRewriteCall) IfGenerationMatch(ifGenerationMatch int64) *ObjectsRewriteCall {
+	c.opt_["ifGenerationMatch"] = ifGenerationMatch
+	return c
+}
+
+// IfGenerationNotMatch sets the optional parameter
+// "ifGenerationNotMatch": Makes the operation conditional on whether
+// the destination object's current generation does not match the given
+// value.
+func (c *ObjectsRewriteCall) IfGenerationNotMatch(ifGenerationNotMatch int64) *ObjectsRewriteCall {
+	c.opt_["ifGenerationNotMatch"] = ifGenerationNotMatch
+	return c
+}
+
+// IfMetagenerationMatch sets the optional parameter
+// "ifMetagenerationMatch": Makes the operation conditional on whether
+// the destination object's current metageneration matches the given
+// value.
+func (c *ObjectsRewriteCall) IfMetagenerationMatch(ifMetagenerationMatch int64) *ObjectsRewriteCall {
+	c.opt_["ifMetagenerationMatch"] = ifMetagenerationMatch
+	return c
+}
+
+// IfMetagenerationNotMatch sets the optional parameter
+// "ifMetagenerationNotMatch": Makes the operation conditional on
+// whether the destination object's current metageneration does not
+// match the given value.
+func (c *ObjectsRewriteCall) IfMetagenerationNotMatch(ifMetagenerationNotMatch int64) *ObjectsRewriteCall {
+	c.opt_["ifMetagenerationNotMatch"] = ifMetagenerationNotMatch
+	return c
+}
+
+// IfSourceGenerationMatch sets the optional parameter
+// "ifSourceGenerationMatch": Makes the operation conditional on whether
+// the source object's generation matches the given value.
+func (c *ObjectsRewriteCall) IfSourceGenerationMatch(ifSourceGenerationMatch int64) *ObjectsRewriteCall {
+	c.opt_["ifSourceGenerationMatch"] = ifSourceGenerationMatch
+	return c
+}
+
+// IfSourceGenerationNotMatch sets the optional parameter
+// "ifSourceGenerationNotMatch": Makes the operation conditional on
+// whether the source object's generation does not match the given
+// value.
+func (c *ObjectsRewriteCall) IfSourceGenerationNotMatch(ifSourceGenerationNotMatch int64) *ObjectsRewriteCall {
+	c.opt_["ifSourceGenerationNotMatch"] = ifSourceGenerationNotMatch
+	return c
+}
+
+// IfSourceMetagenerationMatch sets the optional parameter
+// "ifSourceMetagenerationMatch": Makes the operation conditional on
+// whether the source object's current metageneration matches the given
+// value.
+func (c *ObjectsRewriteCall) IfSourceMetagenerationMatch(ifSourceMetagenerationMatch int64) *ObjectsRewriteCall {
+	c.opt_["ifSourceMetagenerationMatch"] = ifSourceMetagenerationMatch
+	return c
+}
+
+// IfSourceMetagenerationNotMatch sets the optional parameter
+// "ifSourceMetagenerationNotMatch": Makes the operation conditional on
+// whether the source object's current metageneration does not match the
+// given value.
+func (c *ObjectsRewriteCall) IfSourceMetagenerationNotMatch(ifSourceMetagenerationNotMatch int64) *ObjectsRewriteCall {
+	c.opt_["ifSourceMetagenerationNotMatch"] = ifSourceMetagenerationNotMatch
+	return c
+}
+
+// MaxBytesRewrittenPerCall sets the optional parameter
+// "maxBytesRewrittenPerCall": The maximum number of bytes that will be
+// rewritten per Rewrite request. Most callers shouldn't need to specify
+// this parameter - it is primarily in place to support testing. If
+// specified the value must be an integral multiple of 1 MiB (1048576).
+// Also, this only applies to requests where the source and destination
+// span locations and/or storage classes. Finally, this value must not
+// change across Rewrite calls else you'll get an error that the rewrite
+// token is invalid.
+func (c *ObjectsRewriteCall) MaxBytesRewrittenPerCall(maxBytesRewrittenPerCall int64) *ObjectsRewriteCall {
+	c.opt_["maxBytesRewrittenPerCall"] = maxBytesRewrittenPerCall
+	return c
+}
+
+// Projection sets the optional parameter "projection": Set of
+// properties to return. Defaults to noAcl, unless the object resource
+// specifies the acl property, when it defaults to full.
+func (c *ObjectsRewriteCall) Projection(projection string) *ObjectsRewriteCall {
+	c.opt_["projection"] = projection
+	return c
+}
+
+// RewriteToken sets the optional parameter "rewriteToken": Include this
+// field (from the previous Rewrite response) on each Rewrite request
+// after the first one, until the Rewrite response 'done' flag is true.
+// Calls that provide a rewriteToken can omit all other request fields,
+// but if included those fields must match the values provided in the
+// first rewrite request.
+func (c *ObjectsRewriteCall) RewriteToken(rewriteToken string) *ObjectsRewriteCall {
+	c.opt_["rewriteToken"] = rewriteToken
+	return c
+}
+
+// SourceGeneration sets the optional parameter "sourceGeneration": If
+// present, selects a specific revision of the source object (as opposed
+// to the latest version, the default).
+func (c *ObjectsRewriteCall) SourceGeneration(sourceGeneration int64) *ObjectsRewriteCall {
+	c.opt_["sourceGeneration"] = sourceGeneration
+	return c
+}
+
+// Fields allows partial responses to be retrieved.
+// See https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *ObjectsRewriteCall) Fields(s ...googleapi.Field) *ObjectsRewriteCall {
+	c.opt_["fields"] = googleapi.CombineFields(s)
+	return c
+}
+
+func (c *ObjectsRewriteCall) Do() (*RewriteResponse, error) {
+	var body io.Reader = nil
+	body, err := googleapi.WithoutDataWrapper.JSONReader(c.object)
+	if err != nil {
+		return nil, err
+	}
+	ctype := "application/json"
+	params := make(url.Values)
+	params.Set("alt", "json")
+	if v, ok := c.opt_["destinationPredefinedAcl"]; ok {
+		params.Set("destinationPredefinedAcl", fmt.Sprintf("%v", v))
+	}
+	if v, ok := c.opt_["ifGenerationMatch"]; ok {
+		params.Set("ifGenerationMatch", fmt.Sprintf("%v", v))
+	}
+	if v, ok := c.opt_["ifGenerationNotMatch"]; ok {
+		params.Set("ifGenerationNotMatch", fmt.Sprintf("%v", v))
+	}
+	if v, ok := c.opt_["ifMetagenerationMatch"]; ok {
+		params.Set("ifMetagenerationMatch", fmt.Sprintf("%v", v))
+	}
+	if v, ok := c.opt_["ifMetagenerationNotMatch"]; ok {
+		params.Set("ifMetagenerationNotMatch", fmt.Sprintf("%v", v))
+	}
+	if v, ok := c.opt_["ifSourceGenerationMatch"]; ok {
+		params.Set("ifSourceGenerationMatch", fmt.Sprintf("%v", v))
+	}
+	if v, ok := c.opt_["ifSourceGenerationNotMatch"]; ok {
+		params.Set("ifSourceGenerationNotMatch", fmt.Sprintf("%v", v))
+	}
+	if v, ok := c.opt_["ifSourceMetagenerationMatch"]; ok {
+		params.Set("ifSourceMetagenerationMatch", fmt.Sprintf("%v", v))
+	}
+	if v, ok := c.opt_["ifSourceMetagenerationNotMatch"]; ok {
+		params.Set("ifSourceMetagenerationNotMatch", fmt.Sprintf("%v", v))
+	}
+	if v, ok := c.opt_["maxBytesRewrittenPerCall"]; ok {
+		params.Set("maxBytesRewrittenPerCall", fmt.Sprintf("%v", v))
+	}
+	if v, ok := c.opt_["projection"]; ok {
+		params.Set("projection", fmt.Sprintf("%v", v))
+	}
+	if v, ok := c.opt_["rewriteToken"]; ok {
+		params.Set("rewriteToken", fmt.Sprintf("%v", v))
+	}
+	if v, ok := c.opt_["sourceGeneration"]; ok {
+		params.Set("sourceGeneration", fmt.Sprintf("%v", v))
+	}
+	if v, ok := c.opt_["fields"]; ok {
+		params.Set("fields", fmt.Sprintf("%v", v))
+	}
+	urls := googleapi.ResolveRelative(c.s.BasePath, "b/{sourceBucket}/o/{sourceObject}/rewriteTo/b/{destinationBucket}/o/{destinationObject}")
+	urls += "?" + params.Encode()
+	req, _ := http.NewRequest("POST", urls, body)
+	googleapi.Expand(req.URL, map[string]string{
+		"sourceBucket":      c.sourceBucket,
+		"sourceObject":      c.sourceObject,
+		"destinationBucket": c.destinationBucket,
+		"destinationObject": c.destinationObject,
+	})
+	req.Header.Set("Content-Type", ctype)
+	req.Header.Set("User-Agent", c.s.userAgent())
+	res, err := c.s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	var ret *RewriteResponse
+	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Rewrites a source object to a destination object. Optionally overrides metadata.",
+	//   "httpMethod": "POST",
+	//   "id": "storage.objects.rewrite",
+	//   "parameterOrder": [
+	//     "sourceBucket",
+	//     "sourceObject",
+	//     "destinationBucket",
+	//     "destinationObject"
+	//   ],
+	//   "parameters": {
+	//     "destinationBucket": {
+	//       "description": "Name of the bucket in which to store the new object. Overrides the provided object metadata's bucket value, if any.",
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "destinationObject": {
+	//       "description": "Name of the new object. Required when the object metadata is not otherwise provided. Overrides the object metadata's name value, if any.",
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "destinationPredefinedAcl": {
+	//       "description": "Apply a predefined set of access controls to the destination object.",
+	//       "enum": [
+	//         "authenticatedRead",
+	//         "bucketOwnerFullControl",
+	//         "bucketOwnerRead",
+	//         "private",
+	//         "projectPrivate",
+	//         "publicRead"
+	//       ],
+	//       "enumDescriptions": [
+	//         "Object owner gets OWNER access, and allAuthenticatedUsers get READER access.",
+	//         "Object owner gets OWNER access, and project team owners get OWNER access.",
+	//         "Object owner gets OWNER access, and project team owners get READER access.",
+	//         "Object owner gets OWNER access.",
+	//         "Object owner gets OWNER access, and project team members get access according to their roles.",
+	//         "Object owner gets OWNER access, and allUsers get READER access."
+	//       ],
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "ifGenerationMatch": {
+	//       "description": "Makes the operation conditional on whether the destination object's current generation matches the given value.",
+	//       "format": "int64",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "ifGenerationNotMatch": {
+	//       "description": "Makes the operation conditional on whether the destination object's current generation does not match the given value.",
+	//       "format": "int64",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "ifMetagenerationMatch": {
+	//       "description": "Makes the operation conditional on whether the destination object's current metageneration matches the given value.",
+	//       "format": "int64",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "ifMetagenerationNotMatch": {
+	//       "description": "Makes the operation conditional on whether the destination object's current metageneration does not match the given value.",
+	//       "format": "int64",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "ifSourceGenerationMatch": {
+	//       "description": "Makes the operation conditional on whether the source object's generation matches the given value.",
+	//       "format": "int64",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "ifSourceGenerationNotMatch": {
+	//       "description": "Makes the operation conditional on whether the source object's generation does not match the given value.",
+	//       "format": "int64",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "ifSourceMetagenerationMatch": {
+	//       "description": "Makes the operation conditional on whether the source object's current metageneration matches the given value.",
+	//       "format": "int64",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "ifSourceMetagenerationNotMatch": {
+	//       "description": "Makes the operation conditional on whether the source object's current metageneration does not match the given value.",
+	//       "format": "int64",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "maxBytesRewrittenPerCall": {
+	//       "description": "The maximum number of bytes that will be rewritten per Rewrite request. Most callers shouldn't need to specify this parameter - it is primarily in place to support testing. If specified the value must be an integral multiple of 1 MiB (1048576). Also, this only applies to requests where the source and destination span locations and/or storage classes. Finally, this value must not change across Rewrite calls else you'll get an error that the rewrite token is invalid.",
+	//       "format": "int64",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "projection": {
+	//       "description": "Set of properties to return. Defaults to noAcl, unless the object resource specifies the acl property, when it defaults to full.",
+	//       "enum": [
+	//         "full",
+	//         "noAcl"
+	//       ],
+	//       "enumDescriptions": [
+	//         "Include all properties.",
+	//         "Omit the acl property."
+	//       ],
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "rewriteToken": {
+	//       "description": "Include this field (from the previous Rewrite response) on each Rewrite request after the first one, until the Rewrite response 'done' flag is true. Calls that provide a rewriteToken can omit all other request fields, but if included those fields must match the values provided in the first rewrite request.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "sourceBucket": {
+	//       "description": "Name of the bucket in which to find the source object.",
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "sourceGeneration": {
+	//       "description": "If present, selects a specific revision of the source object (as opposed to the latest version, the default).",
+	//       "format": "int64",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "sourceObject": {
+	//       "description": "Name of the source object.",
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     }
+	//   },
+	//   "path": "b/{sourceBucket}/o/{sourceObject}/rewriteTo/b/{destinationBucket}/o/{destinationObject}",
+	//   "request": {
+	//     "$ref": "Object"
+	//   },
+	//   "response": {
+	//     "$ref": "RewriteResponse"
 	//   },
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/cloud-platform",
@@ -5225,7 +5639,7 @@ func (c *ObjectsUpdateCall) Do() (*Object, error) {
 		"object": c.object,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -5452,7 +5866,7 @@ func (c *ObjectsWatchAllCall) Do() (*Channel, error) {
 		"bucket": c.bucket,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err

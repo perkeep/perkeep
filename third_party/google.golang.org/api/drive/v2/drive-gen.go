@@ -11,10 +11,11 @@ package drive
 
 import (
 	"bytes"
+	"camlistore.org/third_party/golang.org/x/net/context"
+	"camlistore.org/third_party/google.golang.org/api/googleapi"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"camlistore.org/third_party/google.golang.org/api/googleapi"
 	"io"
 	"net/http"
 	"net/url"
@@ -33,6 +34,7 @@ var _ = url.Parse
 var _ = googleapi.Version
 var _ = errors.New
 var _ = strings.Replace
+var _ = context.Background
 
 const apiId = "drive:v2"
 const apiName = "drive"
@@ -41,7 +43,7 @@ const basePath = "https://www.googleapis.com/drive/v2/"
 
 // OAuth2 scopes used by this API.
 const (
-	// View and manage the files and documents in your Google Drive
+	// View and manage the files in your Google Drive
 	DriveScope = "https://www.googleapis.com/auth/drive"
 
 	// View and manage its own configuration data in your Google Drive
@@ -54,10 +56,13 @@ const (
 	// with this app
 	DriveFileScope = "https://www.googleapis.com/auth/drive.file"
 
-	// View metadata for files and documents in your Google Drive
+	// View and manage metadata of files in your Google Drive
+	DriveMetadataScope = "https://www.googleapis.com/auth/drive.metadata"
+
+	// View metadata for files in your Google Drive
 	DriveMetadataReadonlyScope = "https://www.googleapis.com/auth/drive.metadata.readonly"
 
-	// View the files and documents in your Google Drive
+	// View the files in your Google Drive
 	DriveReadonlyScope = "https://www.googleapis.com/auth/drive.readonly"
 
 	// Modify your Google Apps Script scripts' behavior
@@ -86,8 +91,9 @@ func New(client *http.Client) (*Service, error) {
 }
 
 type Service struct {
-	client   *http.Client
-	BasePath string // API endpoint base URL
+	client    *http.Client
+	BasePath  string // API endpoint base URL
+	UserAgent string // optional additional User-Agent fragment
 
 	About *AboutService
 
@@ -114,6 +120,13 @@ type Service struct {
 	Replies *RepliesService
 
 	Revisions *RevisionsService
+}
+
+func (s *Service) userAgent() string {
+	if s.UserAgent == "" {
+		return googleapi.UserAgent
+	}
+	return googleapi.UserAgent + " " + s.UserAgent
 }
 
 func NewAboutService(s *Service) *AboutService {
@@ -249,6 +262,10 @@ type About struct {
 
 	// Features: List of additional features enabled on this account.
 	Features []*AboutFeatures `json:"features,omitempty"`
+
+	// FolderColorPalette: The palette of allowable folder colors as RGB hex
+	// strings.
+	FolderColorPalette []string `json:"folderColorPalette,omitempty"`
 
 	// ImportFormats: The allowable import formats.
 	ImportFormats []*AboutImportFormats `json:"importFormats,omitempty"`
@@ -415,7 +432,7 @@ type App struct {
 
 	// OpenUrlTemplate: The template url for opening files with this app.
 	// The template will contain {ids} and/or {exportIds} to be replaced by
-	// the actual file ids.
+	// the actual file ids. See  Open Files  for the full documentation.
 	OpenUrlTemplate string `json:"openUrlTemplate,omitempty"`
 
 	// PrimaryFileExtensions: The list of primary file extensions.
@@ -810,6 +827,13 @@ type File struct {
 	// files with content stored in Drive.
 	FileSize int64 `json:"fileSize,omitempty,string"`
 
+	// FolderColorRgb: Folder color as an RGB hex string if the file is a
+	// folder. The list of supported colors is available in the
+	// folderColorPalette field of the About resource. If an unsupported
+	// color is specified, it will be changed to the closest color in the
+	// palette.
+	FolderColorRgb string `json:"folderColorRgb,omitempty"`
+
 	// HeadRevisionId: The ID of the file's head revision. This will only be
 	// populated for files with content stored in Drive.
 	HeadRevisionId string `json:"headRevisionId,omitempty"`
@@ -921,7 +945,8 @@ type File struct {
 	// files that are not already thumbnailed by Google.
 	Thumbnail *FileThumbnail `json:"thumbnail,omitempty"`
 
-	// ThumbnailLink: A link to the file's thumbnail.
+	// ThumbnailLink: A short-lived link to the file's thumbnail. Typically
+	// lasts on the order of hours.
 	ThumbnailLink string `json:"thumbnailLink,omitempty"`
 
 	// Title: The title of this file.
@@ -1050,7 +1075,9 @@ type FileLabels struct {
 	// Starred: Whether this file is starred by the user.
 	Starred bool `json:"starred,omitempty"`
 
-	// Trashed: Whether this file has been trashed.
+	// Trashed: Whether this file has been trashed. This label applies to
+	// all users accessing the file; however, only owners are allowed to see
+	// and untrash files.
 	Trashed bool `json:"trashed,omitempty"`
 
 	// Viewed: Whether this file has been viewed by this user.
@@ -1058,7 +1085,8 @@ type FileLabels struct {
 }
 
 type FileThumbnail struct {
-	// Image: The URL-safe Base64 encoded bytes of the thumbnail image.
+	// Image: The URL-safe Base64 encoded bytes of the thumbnail image. It
+	// should conform to RFC 4648 section 5.
 	Image string `json:"image,omitempty"`
 
 	// MimeType: The MIME type of the thumbnail.
@@ -1426,7 +1454,7 @@ func (c *AboutGetCall) Do() (*About, error) {
 	urls += "?" + params.Encode()
 	req, _ := http.NewRequest("GET", urls, body)
 	googleapi.SetOpaque(req.URL)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -1473,6 +1501,7 @@ func (c *AboutGetCall) Do() (*About, error) {
 	//     "https://www.googleapis.com/auth/drive",
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ]
@@ -1516,7 +1545,7 @@ func (c *AppsGetCall) Do() (*App, error) {
 	googleapi.Expand(req.URL, map[string]string{
 		"appId": c.appId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -1554,6 +1583,7 @@ func (c *AppsGetCall) Do() (*App, error) {
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.apps.readonly",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ]
@@ -1632,7 +1662,7 @@ func (c *AppsListCall) Do() (*AppList, error) {
 	urls += "?" + params.Encode()
 	req, _ := http.NewRequest("GET", urls, body)
 	googleapi.SetOpaque(req.URL)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -1716,7 +1746,7 @@ func (c *ChangesGetCall) Do() (*Change, error) {
 	googleapi.Expand(req.URL, map[string]string{
 		"changeId": c.changeId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -1754,6 +1784,7 @@ func (c *ChangesGetCall) Do() (*Change, error) {
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.apps.readonly",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ]
@@ -1845,7 +1876,7 @@ func (c *ChangesListCall) Do() (*ChangeList, error) {
 	urls += "?" + params.Encode()
 	req, _ := http.NewRequest("GET", urls, body)
 	googleapi.SetOpaque(req.URL)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -1905,6 +1936,7 @@ func (c *ChangesListCall) Do() (*ChangeList, error) {
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.apps.readonly",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ],
@@ -2005,7 +2037,7 @@ func (c *ChangesWatchCall) Do() (*Channel, error) {
 	req, _ := http.NewRequest("POST", urls, body)
 	googleapi.SetOpaque(req.URL)
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -2069,6 +2101,7 @@ func (c *ChangesWatchCall) Do() (*Channel, error) {
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.apps.readonly",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ],
@@ -2117,7 +2150,7 @@ func (c *ChannelsStopCall) Do() error {
 	req, _ := http.NewRequest("POST", urls, body)
 	googleapi.SetOpaque(req.URL)
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -2141,6 +2174,7 @@ func (c *ChannelsStopCall) Do() error {
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.apps.readonly",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ]
@@ -2187,7 +2221,7 @@ func (c *ChildrenDeleteCall) Do() error {
 		"folderId": c.folderId,
 		"childId":  c.childId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -2267,7 +2301,7 @@ func (c *ChildrenGetCall) Do() (*ChildReference, error) {
 		"folderId": c.folderId,
 		"childId":  c.childId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -2311,6 +2345,7 @@ func (c *ChildrenGetCall) Do() (*ChildReference, error) {
 	//     "https://www.googleapis.com/auth/drive",
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ]
@@ -2362,7 +2397,7 @@ func (c *ChildrenInsertCall) Do() (*ChildReference, error) {
 		"folderId": c.folderId,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -2473,7 +2508,7 @@ func (c *ChildrenListCall) Do() (*ChildList, error) {
 	googleapi.Expand(req.URL, map[string]string{
 		"folderId": c.folderId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -2528,6 +2563,7 @@ func (c *ChildrenListCall) Do() (*ChildList, error) {
 	//     "https://www.googleapis.com/auth/drive",
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ]
@@ -2574,7 +2610,7 @@ func (c *CommentsDeleteCall) Do() error {
 		"fileId":    c.fileId,
 		"commentId": c.commentId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -2666,7 +2702,7 @@ func (c *CommentsGetCall) Do() (*Comment, error) {
 		"fileId":    c.fileId,
 		"commentId": c.commentId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -2765,7 +2801,7 @@ func (c *CommentsInsertCall) Do() (*Comment, error) {
 		"fileId": c.fileId,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -2889,7 +2925,7 @@ func (c *CommentsListCall) Do() (*CommentList, error) {
 	googleapi.Expand(req.URL, map[string]string{
 		"fileId": c.fileId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -3004,7 +3040,7 @@ func (c *CommentsPatchCall) Do() (*Comment, error) {
 		"commentId": c.commentId,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -3102,7 +3138,7 @@ func (c *CommentsUpdateCall) Do() (*Comment, error) {
 		"commentId": c.commentId,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -3269,7 +3305,7 @@ func (c *FilesCopyCall) Do() (*File, error) {
 		"fileId": c.fileId,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -3370,7 +3406,8 @@ type FilesDeleteCall struct {
 	opt_   map[string]interface{}
 }
 
-// Delete: Permanently deletes a file by ID. Skips the trash.
+// Delete: Permanently deletes a file by ID. Skips the trash. The
+// currently authenticated user must own the file.
 func (r *FilesService) Delete(fileId string) *FilesDeleteCall {
 	c := &FilesDeleteCall{s: r.s, opt_: make(map[string]interface{})}
 	c.fileId = fileId
@@ -3398,7 +3435,7 @@ func (c *FilesDeleteCall) Do() error {
 	googleapi.Expand(req.URL, map[string]string{
 		"fileId": c.fileId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -3409,7 +3446,7 @@ func (c *FilesDeleteCall) Do() error {
 	}
 	return nil
 	// {
-	//   "description": "Permanently deletes a file by ID. Skips the trash.",
+	//   "description": "Permanently deletes a file by ID. Skips the trash. The currently authenticated user must own the file.",
 	//   "httpMethod": "DELETE",
 	//   "id": "drive.files.delete",
 	//   "parameterOrder": [
@@ -3465,7 +3502,7 @@ func (c *FilesEmptyTrashCall) Do() error {
 	urls += "?" + params.Encode()
 	req, _ := http.NewRequest("DELETE", urls, body)
 	googleapi.SetOpaque(req.URL)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -3504,9 +3541,19 @@ func (r *FilesService) Get(fileId string) *FilesGetCall {
 
 // AcknowledgeAbuse sets the optional parameter "acknowledgeAbuse":
 // Whether the user is acknowledging the risk of downloading known
-// malware or other abusive files.
+// malware or other abusive files. Ignored unless alt=media is
+// specified.
 func (c *FilesGetCall) AcknowledgeAbuse(acknowledgeAbuse bool) *FilesGetCall {
 	c.opt_["acknowledgeAbuse"] = acknowledgeAbuse
+	return c
+}
+
+// Alt sets the optional parameter "alt": Specifies the type of resource
+// representation to return. The default is 'json' to return file
+// metadata. Specifying 'media' will cause the file content to be
+// returned.
+func (c *FilesGetCall) Alt(alt string) *FilesGetCall {
+	c.opt_["alt"] = alt
 	return c
 }
 
@@ -3514,6 +3561,14 @@ func (c *FilesGetCall) AcknowledgeAbuse(acknowledgeAbuse bool) *FilesGetCall {
 // is deprecated and has no function.
 func (c *FilesGetCall) Projection(projection string) *FilesGetCall {
 	c.opt_["projection"] = projection
+	return c
+}
+
+// RevisionId sets the optional parameter "revisionId": Specifies the
+// Revision ID that should be downloaded. Ignored unless alt=media is
+// specified.
+func (c *FilesGetCall) RevisionId(revisionId string) *FilesGetCall {
+	c.opt_["revisionId"] = revisionId
 	return c
 }
 
@@ -3540,8 +3595,14 @@ func (c *FilesGetCall) Do() (*File, error) {
 	if v, ok := c.opt_["acknowledgeAbuse"]; ok {
 		params.Set("acknowledgeAbuse", fmt.Sprintf("%v", v))
 	}
+	if v, ok := c.opt_["alt"]; ok {
+		params.Set("alt", fmt.Sprintf("%v", v))
+	}
 	if v, ok := c.opt_["projection"]; ok {
 		params.Set("projection", fmt.Sprintf("%v", v))
+	}
+	if v, ok := c.opt_["revisionId"]; ok {
+		params.Set("revisionId", fmt.Sprintf("%v", v))
 	}
 	if v, ok := c.opt_["updateViewedDate"]; ok {
 		params.Set("updateViewedDate", fmt.Sprintf("%v", v))
@@ -3555,7 +3616,7 @@ func (c *FilesGetCall) Do() (*File, error) {
 	googleapi.Expand(req.URL, map[string]string{
 		"fileId": c.fileId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -3579,9 +3640,14 @@ func (c *FilesGetCall) Do() (*File, error) {
 	//   "parameters": {
 	//     "acknowledgeAbuse": {
 	//       "default": "false",
-	//       "description": "Whether the user is acknowledging the risk of downloading known malware or other abusive files.",
+	//       "description": "Whether the user is acknowledging the risk of downloading known malware or other abusive files. Ignored unless alt=media is specified.",
 	//       "location": "query",
 	//       "type": "boolean"
+	//     },
+	//     "alt": {
+	//       "description": "Specifies the type of resource representation to return. The default is 'json' to return file metadata. Specifying 'media' will cause the file content to be returned.",
+	//       "location": "query",
+	//       "type": "string"
 	//     },
 	//     "fileId": {
 	//       "description": "The ID for the file in question.",
@@ -3602,6 +3668,11 @@ func (c *FilesGetCall) Do() (*File, error) {
 	//       "location": "query",
 	//       "type": "string"
 	//     },
+	//     "revisionId": {
+	//       "description": "Specifies the Revision ID that should be downloaded. Ignored unless alt=media is specified.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "updateViewedDate": {
 	//       "default": "false",
 	//       "description": "Whether to update the view date after successfully retrieving the file.",
@@ -3618,6 +3689,7 @@ func (c *FilesGetCall) Do() (*File, error) {
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.apps.readonly",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ],
@@ -3630,10 +3702,14 @@ func (c *FilesGetCall) Do() (*File, error) {
 // method id "drive.files.insert":
 
 type FilesInsertCall struct {
-	s      *Service
-	file   *File
-	opt_   map[string]interface{}
-	media_ io.Reader
+	s          *Service
+	file       *File
+	opt_       map[string]interface{}
+	media_     io.Reader
+	resumable_ googleapi.SizeReaderAt
+	mediaType_ string
+	ctx_       context.Context
+	protocol_  string
 }
 
 // Insert: Insert a new file.
@@ -3700,8 +3776,32 @@ func (c *FilesInsertCall) Visibility(visibility string) *FilesInsertCall {
 	c.opt_["visibility"] = visibility
 	return c
 }
+
+// Media specifies the media to upload in a single chunk.
+// At most one of Media and ResumableMedia may be set.
 func (c *FilesInsertCall) Media(r io.Reader) *FilesInsertCall {
 	c.media_ = r
+	c.protocol_ = "multipart"
+	return c
+}
+
+// ResumableMedia specifies the media to upload in chunks and can be cancelled with ctx.
+// At most one of Media and ResumableMedia may be set.
+// mediaType identifies the MIME media type of the upload, such as "image/png".
+// If mediaType is "", it will be auto-detected.
+func (c *FilesInsertCall) ResumableMedia(ctx context.Context, r io.ReaderAt, size int64, mediaType string) *FilesInsertCall {
+	c.ctx_ = ctx
+	c.resumable_ = io.NewSectionReader(r, 0, size)
+	c.mediaType_ = mediaType
+	c.protocol_ = "resumable"
+	return c
+}
+
+// ProgressUpdater provides a callback function that will be called after every chunk.
+// It should be a low-latency function in order to not slow down the upload operation.
+// This should only be called when using ResumableMedia (as opposed to Media).
+func (c *FilesInsertCall) ProgressUpdater(pu googleapi.ProgressUpdater) *FilesInsertCall {
+	c.opt_["progressUpdater"] = pu
 	return c
 }
 
@@ -3750,19 +3850,37 @@ func (c *FilesInsertCall) Do() (*File, error) {
 		params.Set("fields", fmt.Sprintf("%v", v))
 	}
 	urls := googleapi.ResolveRelative(c.s.BasePath, "files")
-	if c.media_ != nil {
+	var progressUpdater_ googleapi.ProgressUpdater
+	if v, ok := c.opt_["progressUpdater"]; ok {
+		if pu, ok := v.(googleapi.ProgressUpdater); ok {
+			progressUpdater_ = pu
+		}
+	}
+	if c.media_ != nil || c.resumable_ != nil {
 		urls = strings.Replace(urls, "https://www.googleapis.com/", "https://www.googleapis.com/upload/", 1)
-		params.Set("uploadType", "multipart")
+		params.Set("uploadType", c.protocol_)
 	}
 	urls += "?" + params.Encode()
-	contentLength_, hasMedia_ := googleapi.ConditionallyIncludeMedia(c.media_, &body, &ctype)
+	if c.protocol_ != "resumable" {
+		var cancel func()
+		cancel, _ = googleapi.ConditionallyIncludeMedia(c.media_, &body, &ctype)
+		if cancel != nil {
+			defer cancel()
+		}
+	}
 	req, _ := http.NewRequest("POST", urls, body)
 	googleapi.SetOpaque(req.URL)
-	if hasMedia_ {
-		req.ContentLength = contentLength_
+	if c.protocol_ == "resumable" {
+		req.ContentLength = 0
+		if c.mediaType_ == "" {
+			c.mediaType_ = googleapi.DetectMediaType(c.resumable_)
+		}
+		req.Header.Set("X-Upload-Content-Type", c.mediaType_)
+		req.Body = nil
+	} else {
+		req.Header.Set("Content-Type", ctype)
 	}
-	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -3770,6 +3888,23 @@ func (c *FilesInsertCall) Do() (*File, error) {
 	defer googleapi.CloseBody(res)
 	if err := googleapi.CheckResponse(res); err != nil {
 		return nil, err
+	}
+	if c.protocol_ == "resumable" {
+		loc := res.Header.Get("Location")
+		rx := &googleapi.ResumableUpload{
+			Client:        c.s.client,
+			UserAgent:     c.s.userAgent(),
+			URI:           loc,
+			Media:         c.resumable_,
+			MediaType:     c.mediaType_,
+			ContentLength: c.resumable_.Size(),
+			Callback:      progressUpdater_,
+		}
+		res, err = rx.Upload(c.ctx_)
+		if err != nil {
+			return nil, err
+		}
+		defer res.Body.Close()
 	}
 	var ret *File
 	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
@@ -3951,7 +4086,7 @@ func (c *FilesListCall) Do() (*FileList, error) {
 	urls += "?" + params.Encode()
 	req, _ := http.NewRequest("GET", urls, body)
 	googleapi.SetOpaque(req.URL)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -4024,6 +4159,7 @@ func (c *FilesListCall) Do() (*FileList, error) {
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.apps.readonly",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ]
@@ -4200,7 +4336,7 @@ func (c *FilesPatchCall) Do() (*File, error) {
 		"fileId": c.fileId,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -4308,6 +4444,7 @@ func (c *FilesPatchCall) Do() (*File, error) {
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.apps.readonly",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.scripts"
 	//   ]
 	// }
@@ -4350,7 +4487,7 @@ func (c *FilesTouchCall) Do() (*File, error) {
 	googleapi.Expand(req.URL, map[string]string{
 		"fileId": c.fileId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -4387,7 +4524,8 @@ func (c *FilesTouchCall) Do() (*File, error) {
 	//     "https://www.googleapis.com/auth/drive",
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.apps.readonly",
-	//     "https://www.googleapis.com/auth/drive.file"
+	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata"
 	//   ]
 	// }
 
@@ -4429,7 +4567,7 @@ func (c *FilesTrashCall) Do() (*File, error) {
 	googleapi.Expand(req.URL, map[string]string{
 		"fileId": c.fileId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -4508,7 +4646,7 @@ func (c *FilesUntrashCall) Do() (*File, error) {
 	googleapi.Expand(req.URL, map[string]string{
 		"fileId": c.fileId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -4554,11 +4692,15 @@ func (c *FilesUntrashCall) Do() (*File, error) {
 // method id "drive.files.update":
 
 type FilesUpdateCall struct {
-	s      *Service
-	fileId string
-	file   *File
-	opt_   map[string]interface{}
-	media_ io.Reader
+	s          *Service
+	fileId     string
+	file       *File
+	opt_       map[string]interface{}
+	media_     io.Reader
+	resumable_ googleapi.SizeReaderAt
+	mediaType_ string
+	ctx_       context.Context
+	protocol_  string
 }
 
 // Update: Updates file metadata and/or content.
@@ -4656,8 +4798,32 @@ func (c *FilesUpdateCall) UseContentAsIndexableText(useContentAsIndexableText bo
 	c.opt_["useContentAsIndexableText"] = useContentAsIndexableText
 	return c
 }
+
+// Media specifies the media to upload in a single chunk.
+// At most one of Media and ResumableMedia may be set.
 func (c *FilesUpdateCall) Media(r io.Reader) *FilesUpdateCall {
 	c.media_ = r
+	c.protocol_ = "multipart"
+	return c
+}
+
+// ResumableMedia specifies the media to upload in chunks and can be cancelled with ctx.
+// At most one of Media and ResumableMedia may be set.
+// mediaType identifies the MIME media type of the upload, such as "image/png".
+// If mediaType is "", it will be auto-detected.
+func (c *FilesUpdateCall) ResumableMedia(ctx context.Context, r io.ReaderAt, size int64, mediaType string) *FilesUpdateCall {
+	c.ctx_ = ctx
+	c.resumable_ = io.NewSectionReader(r, 0, size)
+	c.mediaType_ = mediaType
+	c.protocol_ = "resumable"
+	return c
+}
+
+// ProgressUpdater provides a callback function that will be called after every chunk.
+// It should be a low-latency function in order to not slow down the upload operation.
+// This should only be called when using ResumableMedia (as opposed to Media).
+func (c *FilesUpdateCall) ProgressUpdater(pu googleapi.ProgressUpdater) *FilesUpdateCall {
+	c.opt_["progressUpdater"] = pu
 	return c
 }
 
@@ -4718,21 +4884,39 @@ func (c *FilesUpdateCall) Do() (*File, error) {
 		params.Set("fields", fmt.Sprintf("%v", v))
 	}
 	urls := googleapi.ResolveRelative(c.s.BasePath, "files/{fileId}")
-	if c.media_ != nil {
+	var progressUpdater_ googleapi.ProgressUpdater
+	if v, ok := c.opt_["progressUpdater"]; ok {
+		if pu, ok := v.(googleapi.ProgressUpdater); ok {
+			progressUpdater_ = pu
+		}
+	}
+	if c.media_ != nil || c.resumable_ != nil {
 		urls = strings.Replace(urls, "https://www.googleapis.com/", "https://www.googleapis.com/upload/", 1)
-		params.Set("uploadType", "multipart")
+		params.Set("uploadType", c.protocol_)
 	}
 	urls += "?" + params.Encode()
-	contentLength_, hasMedia_ := googleapi.ConditionallyIncludeMedia(c.media_, &body, &ctype)
+	if c.protocol_ != "resumable" {
+		var cancel func()
+		cancel, _ = googleapi.ConditionallyIncludeMedia(c.media_, &body, &ctype)
+		if cancel != nil {
+			defer cancel()
+		}
+	}
 	req, _ := http.NewRequest("PUT", urls, body)
 	googleapi.Expand(req.URL, map[string]string{
 		"fileId": c.fileId,
 	})
-	if hasMedia_ {
-		req.ContentLength = contentLength_
+	if c.protocol_ == "resumable" {
+		req.ContentLength = 0
+		if c.mediaType_ == "" {
+			c.mediaType_ = googleapi.DetectMediaType(c.resumable_)
+		}
+		req.Header.Set("X-Upload-Content-Type", c.mediaType_)
+		req.Body = nil
+	} else {
+		req.Header.Set("Content-Type", ctype)
 	}
-	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -4740,6 +4924,23 @@ func (c *FilesUpdateCall) Do() (*File, error) {
 	defer googleapi.CloseBody(res)
 	if err := googleapi.CheckResponse(res); err != nil {
 		return nil, err
+	}
+	if c.protocol_ == "resumable" {
+		loc := res.Header.Get("Location")
+		rx := &googleapi.ResumableUpload{
+			Client:        c.s.client,
+			UserAgent:     c.s.userAgent(),
+			URI:           loc,
+			Media:         c.resumable_,
+			MediaType:     c.mediaType_,
+			ContentLength: c.resumable_.Size(),
+			Callback:      progressUpdater_,
+		}
+		res, err = rx.Upload(c.ctx_)
+		if err != nil {
+			return nil, err
+		}
+		defer res.Body.Close()
 	}
 	var ret *File
 	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
@@ -4856,6 +5057,7 @@ func (c *FilesUpdateCall) Do() (*File, error) {
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.apps.readonly",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.scripts"
 	//   ],
 	//   "supportsMediaUpload": true
@@ -4882,9 +5084,19 @@ func (r *FilesService) Watch(fileId string, channel *Channel) *FilesWatchCall {
 
 // AcknowledgeAbuse sets the optional parameter "acknowledgeAbuse":
 // Whether the user is acknowledging the risk of downloading known
-// malware or other abusive files.
+// malware or other abusive files. Ignored unless alt=media is
+// specified.
 func (c *FilesWatchCall) AcknowledgeAbuse(acknowledgeAbuse bool) *FilesWatchCall {
 	c.opt_["acknowledgeAbuse"] = acknowledgeAbuse
+	return c
+}
+
+// Alt sets the optional parameter "alt": Specifies the type of resource
+// representation to return. The default is 'json' to return file
+// metadata. Specifying 'media' will cause the file content to be
+// returned.
+func (c *FilesWatchCall) Alt(alt string) *FilesWatchCall {
+	c.opt_["alt"] = alt
 	return c
 }
 
@@ -4892,6 +5104,14 @@ func (c *FilesWatchCall) AcknowledgeAbuse(acknowledgeAbuse bool) *FilesWatchCall
 // is deprecated and has no function.
 func (c *FilesWatchCall) Projection(projection string) *FilesWatchCall {
 	c.opt_["projection"] = projection
+	return c
+}
+
+// RevisionId sets the optional parameter "revisionId": Specifies the
+// Revision ID that should be downloaded. Ignored unless alt=media is
+// specified.
+func (c *FilesWatchCall) RevisionId(revisionId string) *FilesWatchCall {
+	c.opt_["revisionId"] = revisionId
 	return c
 }
 
@@ -4923,8 +5143,14 @@ func (c *FilesWatchCall) Do() (*Channel, error) {
 	if v, ok := c.opt_["acknowledgeAbuse"]; ok {
 		params.Set("acknowledgeAbuse", fmt.Sprintf("%v", v))
 	}
+	if v, ok := c.opt_["alt"]; ok {
+		params.Set("alt", fmt.Sprintf("%v", v))
+	}
 	if v, ok := c.opt_["projection"]; ok {
 		params.Set("projection", fmt.Sprintf("%v", v))
+	}
+	if v, ok := c.opt_["revisionId"]; ok {
+		params.Set("revisionId", fmt.Sprintf("%v", v))
 	}
 	if v, ok := c.opt_["updateViewedDate"]; ok {
 		params.Set("updateViewedDate", fmt.Sprintf("%v", v))
@@ -4939,7 +5165,7 @@ func (c *FilesWatchCall) Do() (*Channel, error) {
 		"fileId": c.fileId,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -4963,9 +5189,14 @@ func (c *FilesWatchCall) Do() (*Channel, error) {
 	//   "parameters": {
 	//     "acknowledgeAbuse": {
 	//       "default": "false",
-	//       "description": "Whether the user is acknowledging the risk of downloading known malware or other abusive files.",
+	//       "description": "Whether the user is acknowledging the risk of downloading known malware or other abusive files. Ignored unless alt=media is specified.",
 	//       "location": "query",
 	//       "type": "boolean"
+	//     },
+	//     "alt": {
+	//       "description": "Specifies the type of resource representation to return. The default is 'json' to return file metadata. Specifying 'media' will cause the file content to be returned.",
+	//       "location": "query",
+	//       "type": "string"
 	//     },
 	//     "fileId": {
 	//       "description": "The ID for the file in question.",
@@ -4983,6 +5214,11 @@ func (c *FilesWatchCall) Do() (*Channel, error) {
 	//         "Deprecated",
 	//         "Deprecated"
 	//       ],
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "revisionId": {
+	//       "description": "Specifies the Revision ID that should be downloaded. Ignored unless alt=media is specified.",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
@@ -5006,6 +5242,7 @@ func (c *FilesWatchCall) Do() (*Channel, error) {
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.apps.readonly",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ],
@@ -5054,7 +5291,7 @@ func (c *ParentsDeleteCall) Do() error {
 		"fileId":   c.fileId,
 		"parentId": c.parentId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -5134,7 +5371,7 @@ func (c *ParentsGetCall) Do() (*ParentReference, error) {
 		"fileId":   c.fileId,
 		"parentId": c.parentId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -5178,6 +5415,7 @@ func (c *ParentsGetCall) Do() (*ParentReference, error) {
 	//     "https://www.googleapis.com/auth/drive",
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ]
@@ -5229,7 +5467,7 @@ func (c *ParentsInsertCall) Do() (*ParentReference, error) {
 		"fileId": c.fileId,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -5310,7 +5548,7 @@ func (c *ParentsListCall) Do() (*ParentList, error) {
 	googleapi.Expand(req.URL, map[string]string{
 		"fileId": c.fileId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -5347,6 +5585,7 @@ func (c *ParentsListCall) Do() (*ParentList, error) {
 	//     "https://www.googleapis.com/auth/drive",
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ]
@@ -5393,7 +5632,7 @@ func (c *PermissionsDeleteCall) Do() error {
 		"fileId":       c.fileId,
 		"permissionId": c.permissionId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -5473,7 +5712,7 @@ func (c *PermissionsGetCall) Do() (*Permission, error) {
 		"fileId":       c.fileId,
 		"permissionId": c.permissionId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -5516,6 +5755,7 @@ func (c *PermissionsGetCall) Do() (*Permission, error) {
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/drive",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ]
@@ -5559,7 +5799,7 @@ func (c *PermissionsGetIdForEmailCall) Do() (*PermissionId, error) {
 	googleapi.Expand(req.URL, map[string]string{
 		"email": c.email,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -5597,6 +5837,7 @@ func (c *PermissionsGetIdForEmailCall) Do() (*PermissionId, error) {
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.apps.readonly",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ]
@@ -5670,7 +5911,7 @@ func (c *PermissionsInsertCall) Do() (*Permission, error) {
 		"fileId": c.fileId,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -5761,7 +6002,7 @@ func (c *PermissionsListCall) Do() (*PermissionList, error) {
 	googleapi.Expand(req.URL, map[string]string{
 		"fileId": c.fileId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -5797,6 +6038,7 @@ func (c *PermissionsListCall) Do() (*PermissionList, error) {
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/drive",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ]
@@ -5824,8 +6066,8 @@ func (r *PermissionsService) Patch(fileId string, permissionId string, permissio
 }
 
 // TransferOwnership sets the optional parameter "transferOwnership":
-// Whether changing a role to 'owner' should also downgrade the current
-// owners to writers.
+// Whether changing a role to 'owner' downgrades the current owners to
+// writers. Does nothing if the specified role is not 'owner'.
 func (c *PermissionsPatchCall) TransferOwnership(transferOwnership bool) *PermissionsPatchCall {
 	c.opt_["transferOwnership"] = transferOwnership
 	return c
@@ -5862,7 +6104,7 @@ func (c *PermissionsPatchCall) Do() (*Permission, error) {
 		"permissionId": c.permissionId,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -5899,7 +6141,7 @@ func (c *PermissionsPatchCall) Do() (*Permission, error) {
 	//     },
 	//     "transferOwnership": {
 	//       "default": "false",
-	//       "description": "Whether changing a role to 'owner' should also downgrade the current owners to writers.",
+	//       "description": "Whether changing a role to 'owner' downgrades the current owners to writers. Does nothing if the specified role is not 'owner'.",
 	//       "location": "query",
 	//       "type": "boolean"
 	//     }
@@ -5939,8 +6181,8 @@ func (r *PermissionsService) Update(fileId string, permissionId string, permissi
 }
 
 // TransferOwnership sets the optional parameter "transferOwnership":
-// Whether changing a role to 'owner' should also downgrade the current
-// owners to writers.
+// Whether changing a role to 'owner' downgrades the current owners to
+// writers. Does nothing if the specified role is not 'owner'.
 func (c *PermissionsUpdateCall) TransferOwnership(transferOwnership bool) *PermissionsUpdateCall {
 	c.opt_["transferOwnership"] = transferOwnership
 	return c
@@ -5977,7 +6219,7 @@ func (c *PermissionsUpdateCall) Do() (*Permission, error) {
 		"permissionId": c.permissionId,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -6014,7 +6256,7 @@ func (c *PermissionsUpdateCall) Do() (*Permission, error) {
 	//     },
 	//     "transferOwnership": {
 	//       "default": "false",
-	//       "description": "Whether changing a role to 'owner' should also downgrade the current owners to writers.",
+	//       "description": "Whether changing a role to 'owner' downgrades the current owners to writers. Does nothing if the specified role is not 'owner'.",
 	//       "location": "query",
 	//       "type": "boolean"
 	//     }
@@ -6083,7 +6325,7 @@ func (c *PropertiesDeleteCall) Do() error {
 		"fileId":      c.fileId,
 		"propertyKey": c.propertyKey,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -6125,7 +6367,8 @@ func (c *PropertiesDeleteCall) Do() error {
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/drive",
 	//     "https://www.googleapis.com/auth/drive.appdata",
-	//     "https://www.googleapis.com/auth/drive.file"
+	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata"
 	//   ]
 	// }
 
@@ -6180,7 +6423,7 @@ func (c *PropertiesGetCall) Do() (*Property, error) {
 		"fileId":      c.fileId,
 		"propertyKey": c.propertyKey,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -6230,6 +6473,7 @@ func (c *PropertiesGetCall) Do() (*Property, error) {
 	//     "https://www.googleapis.com/auth/drive",
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ]
@@ -6281,7 +6525,7 @@ func (c *PropertiesInsertCall) Do() (*Property, error) {
 		"fileId": c.fileId,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -6320,7 +6564,8 @@ func (c *PropertiesInsertCall) Do() (*Property, error) {
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/drive",
 	//     "https://www.googleapis.com/auth/drive.appdata",
-	//     "https://www.googleapis.com/auth/drive.file"
+	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata"
 	//   ]
 	// }
 
@@ -6362,7 +6607,7 @@ func (c *PropertiesListCall) Do() (*PropertyList, error) {
 	googleapi.Expand(req.URL, map[string]string{
 		"fileId": c.fileId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -6399,6 +6644,7 @@ func (c *PropertiesListCall) Do() (*PropertyList, error) {
 	//     "https://www.googleapis.com/auth/drive",
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ]
@@ -6463,7 +6709,7 @@ func (c *PropertiesPatchCall) Do() (*Property, error) {
 		"propertyKey": c.propertyKey,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -6515,7 +6761,8 @@ func (c *PropertiesPatchCall) Do() (*Property, error) {
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/drive",
 	//     "https://www.googleapis.com/auth/drive.appdata",
-	//     "https://www.googleapis.com/auth/drive.file"
+	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata"
 	//   ]
 	// }
 
@@ -6578,7 +6825,7 @@ func (c *PropertiesUpdateCall) Do() (*Property, error) {
 		"propertyKey": c.propertyKey,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -6630,7 +6877,8 @@ func (c *PropertiesUpdateCall) Do() (*Property, error) {
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/drive",
 	//     "https://www.googleapis.com/auth/drive.appdata",
-	//     "https://www.googleapis.com/auth/drive.file"
+	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata"
 	//   ]
 	// }
 
@@ -6685,7 +6933,7 @@ func (c *RealtimeGetCall) Do() error {
 	googleapi.Expand(req.URL, map[string]string{
 		"fileId": c.fileId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -6731,10 +6979,14 @@ func (c *RealtimeGetCall) Do() error {
 // method id "drive.realtime.update":
 
 type RealtimeUpdateCall struct {
-	s      *Service
-	fileId string
-	opt_   map[string]interface{}
-	media_ io.Reader
+	s          *Service
+	fileId     string
+	opt_       map[string]interface{}
+	media_     io.Reader
+	resumable_ googleapi.SizeReaderAt
+	mediaType_ string
+	ctx_       context.Context
+	protocol_  string
 }
 
 // Update: Overwrites the Realtime API data model associated with this
@@ -6755,8 +7007,32 @@ func (c *RealtimeUpdateCall) BaseRevision(baseRevision string) *RealtimeUpdateCa
 	c.opt_["baseRevision"] = baseRevision
 	return c
 }
+
+// Media specifies the media to upload in a single chunk.
+// At most one of Media and ResumableMedia may be set.
 func (c *RealtimeUpdateCall) Media(r io.Reader) *RealtimeUpdateCall {
 	c.media_ = r
+	c.protocol_ = "multipart"
+	return c
+}
+
+// ResumableMedia specifies the media to upload in chunks and can be cancelled with ctx.
+// At most one of Media and ResumableMedia may be set.
+// mediaType identifies the MIME media type of the upload, such as "image/png".
+// If mediaType is "", it will be auto-detected.
+func (c *RealtimeUpdateCall) ResumableMedia(ctx context.Context, r io.ReaderAt, size int64, mediaType string) *RealtimeUpdateCall {
+	c.ctx_ = ctx
+	c.resumable_ = io.NewSectionReader(r, 0, size)
+	c.mediaType_ = mediaType
+	c.protocol_ = "resumable"
+	return c
+}
+
+// ProgressUpdater provides a callback function that will be called after every chunk.
+// It should be a low-latency function in order to not slow down the upload operation.
+// This should only be called when using ResumableMedia (as opposed to Media).
+func (c *RealtimeUpdateCall) ProgressUpdater(pu googleapi.ProgressUpdater) *RealtimeUpdateCall {
+	c.opt_["progressUpdater"] = pu
 	return c
 }
 
@@ -6779,23 +7055,41 @@ func (c *RealtimeUpdateCall) Do() error {
 		params.Set("fields", fmt.Sprintf("%v", v))
 	}
 	urls := googleapi.ResolveRelative(c.s.BasePath, "files/{fileId}/realtime")
-	if c.media_ != nil {
+	var progressUpdater_ googleapi.ProgressUpdater
+	if v, ok := c.opt_["progressUpdater"]; ok {
+		if pu, ok := v.(googleapi.ProgressUpdater); ok {
+			progressUpdater_ = pu
+		}
+	}
+	if c.media_ != nil || c.resumable_ != nil {
 		urls = strings.Replace(urls, "https://www.googleapis.com/", "https://www.googleapis.com/upload/", 1)
-		params.Set("uploadType", "multipart")
+		params.Set("uploadType", c.protocol_)
 	}
 	urls += "?" + params.Encode()
 	body = new(bytes.Buffer)
 	ctype := "application/json"
-	contentLength_, hasMedia_ := googleapi.ConditionallyIncludeMedia(c.media_, &body, &ctype)
+	if c.protocol_ != "resumable" {
+		var cancel func()
+		cancel, _ = googleapi.ConditionallyIncludeMedia(c.media_, &body, &ctype)
+		if cancel != nil {
+			defer cancel()
+		}
+	}
 	req, _ := http.NewRequest("PUT", urls, body)
 	googleapi.Expand(req.URL, map[string]string{
 		"fileId": c.fileId,
 	})
-	if hasMedia_ {
-		req.ContentLength = contentLength_
+	if c.protocol_ == "resumable" {
+		req.ContentLength = 0
+		if c.mediaType_ == "" {
+			c.mediaType_ = googleapi.DetectMediaType(c.resumable_)
+		}
+		req.Header.Set("X-Upload-Content-Type", c.mediaType_)
+		req.Body = nil
+	} else {
+		req.Header.Set("Content-Type", ctype)
 	}
-	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -6803,6 +7097,23 @@ func (c *RealtimeUpdateCall) Do() error {
 	defer googleapi.CloseBody(res)
 	if err := googleapi.CheckResponse(res); err != nil {
 		return err
+	}
+	if c.protocol_ == "resumable" {
+		loc := res.Header.Get("Location")
+		rx := &googleapi.ResumableUpload{
+			Client:        c.s.client,
+			UserAgent:     c.s.userAgent(),
+			URI:           loc,
+			Media:         c.resumable_,
+			MediaType:     c.mediaType_,
+			ContentLength: c.resumable_.Size(),
+			Callback:      progressUpdater_,
+		}
+		res, err = rx.Upload(c.ctx_)
+		if err != nil {
+			return err
+		}
+		defer res.Body.Close()
 	}
 	return nil
 	// {
@@ -6893,7 +7204,7 @@ func (c *RepliesDeleteCall) Do() error {
 		"commentId": c.commentId,
 		"replyId":   c.replyId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -6993,7 +7304,7 @@ func (c *RepliesGetCall) Do() (*CommentReply, error) {
 		"commentId": c.commentId,
 		"replyId":   c.replyId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -7102,7 +7413,7 @@ func (c *RepliesInsertCall) Do() (*CommentReply, error) {
 		"commentId": c.commentId,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -7225,7 +7536,7 @@ func (c *RepliesListCall) Do() (*CommentReplyList, error) {
 		"fileId":    c.fileId,
 		"commentId": c.commentId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -7345,7 +7656,7 @@ func (c *RepliesPatchCall) Do() (*CommentReply, error) {
 		"replyId":   c.replyId,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -7453,7 +7764,7 @@ func (c *RepliesUpdateCall) Do() (*CommentReply, error) {
 		"replyId":   c.replyId,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -7550,7 +7861,7 @@ func (c *RevisionsDeleteCall) Do() error {
 		"fileId":     c.fileId,
 		"revisionId": c.revisionId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return err
@@ -7631,7 +7942,7 @@ func (c *RevisionsGetCall) Do() (*Revision, error) {
 		"fileId":     c.fileId,
 		"revisionId": c.revisionId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -7675,6 +7986,7 @@ func (c *RevisionsGetCall) Do() (*Revision, error) {
 	//     "https://www.googleapis.com/auth/drive",
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ]
@@ -7718,7 +8030,7 @@ func (c *RevisionsListCall) Do() (*RevisionList, error) {
 	googleapi.Expand(req.URL, map[string]string{
 		"fileId": c.fileId,
 	})
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -7755,6 +8067,7 @@ func (c *RevisionsListCall) Do() (*RevisionList, error) {
 	//     "https://www.googleapis.com/auth/drive",
 	//     "https://www.googleapis.com/auth/drive.appdata",
 	//     "https://www.googleapis.com/auth/drive.file",
+	//     "https://www.googleapis.com/auth/drive.metadata",
 	//     "https://www.googleapis.com/auth/drive.metadata.readonly",
 	//     "https://www.googleapis.com/auth/drive.readonly"
 	//   ]
@@ -7809,7 +8122,7 @@ func (c *RevisionsPatchCall) Do() (*Revision, error) {
 		"revisionId": c.revisionId,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -7908,7 +8221,7 @@ func (c *RevisionsUpdateCall) Do() (*Revision, error) {
 		"revisionId": c.revisionId,
 	})
 	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", "google-api-go-client/0.5")
+	req.Header.Set("User-Agent", c.s.userAgent())
 	res, err := c.s.client.Do(req)
 	if err != nil {
 		return nil, err
