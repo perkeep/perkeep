@@ -26,9 +26,9 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/third_party/golang.org/x/oauth2"
@@ -38,7 +38,8 @@ import (
 )
 
 var (
-	rev = flag.String("rev", "4e8413c5012c", "Camlistore revision to build (tag or commit hash")
+	rev      = flag.String("rev", "4e8413c5012c", "Camlistore revision to build (tag or commit hash)")
+	localSrc = flag.String("camlisource", "", "(dev flag) Path to a local Camlistore source tree from which to build. This flag is ignored unless -rev=WORKINPROGRESS")
 
 	doBuildServer = flag.Bool("build_server", true, "build the server")
 	doUpload      = flag.Bool("upload", false, "upload a snapshot of the server tarball to http://storage.googleapis.com/camlistore-release/docker/camlistored[-VERSION].tar.gz")
@@ -65,44 +66,27 @@ var dockDir string
 const (
 	goDockerImage    = "camlistore/go"
 	djpegDockerImage = "camlistore/djpeg"
+	goCmd            = "/usr/local/go/bin/go"
+	// Path to where the Camlistore builder is mounted on the camlistore/go image.
+	genCamliProgram = "/usr/local/bin/build-camlistore-server.go"
 )
 
 func genCamlistore(ctxDir string) {
-	repl := strings.NewReplacer(
-		"[[REV]]", *rev,
-	)
 	check(os.Mkdir(filepath.Join(ctxDir, "/camlistore.org"), 0755))
 
-	cmd := exec.Command("docker", "run",
+	args := []string{
+		"run",
 		"--rm",
-		"--volume="+ctxDir+"/camlistore.org:/OUT",
-		goDockerImage, "/bin/bash", "-c", repl.Replace(`
-
-# TODO(bradfitz,mpl): rewrite this shell into a Go program that's
-# baked into the camlistore/go image, and then all this shell becomes:
-# /usr/local/bin/build-camlistore-server $REV
-# (and it would still write to /OUT)
-
-     set -e
-     set -x
-     export GOPATH=/gopath;
-     export PATH=/usr/local/go/bin:$PATH;
-     mkdir -p /OUT/bin &&
-     mkdir -p /OUT/server/camlistored &&
-     mkdir -p /gopath/src/camlistore.org &&
-     cd /gopath/src/camlistore.org &&
-     curl --silent https://camlistore.googlesource.com/camlistore/+archive/[[REV]].tar.gz |
-           tar -zxv &&
-     CGO_ENABLED=0 go build \
-          -o /OUT/bin/camlistored \
-          --ldflags="-w -d -linkmode internal -X camlistore.org/pkg/buildinfo.GitInfo [[REV]]" \
-          --tags=netgo \
-          camlistore.org/server/camlistored &&
-     mv /gopath/src/camlistore.org/server/camlistored/ui /OUT/server/camlistored/ui &&
-     find /gopath/src/camlistore.org/third_party -type f -name '*.go' -exec rm {} \; &&
-     mv /gopath/src/camlistore.org/third_party /OUT/third_party &&
-     echo DONE
-`))
+		"--volume=" + ctxDir + "/camlistore.org:/OUT",
+		"--volume=" + path.Join(dockDir, "server/build-camlistore-server.go") + ":" + genCamliProgram + ":ro",
+	}
+	if *rev == "WORKINPROGRESS" {
+		args = append(args, "--volume="+*localSrc+":/IN:ro",
+			goDockerImage, goCmd, "run", genCamliProgram, "--rev="+*rev, "--camlisource=/IN")
+	} else {
+		args = append(args, goDockerImage, goCmd, "run", genCamliProgram, "--rev="+*rev)
+	}
+	cmd := exec.Command("docker", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -197,11 +181,36 @@ func uploadDockerImage() {
 	log.Printf("Uploaded tarball to %s", object)
 }
 
-func main() {
-	flag.Parse()
+func usage() {
+	fmt.Fprintf(os.Stderr, "Usage:\n")
+	fmt.Fprintf(os.Stderr, "%s [-rev camlistore_revision | -rev WORKINPROGRESS -camlisource dir]\n", os.Args[0])
+	flag.PrintDefaults()
+	os.Exit(1)
+}
+
+func checkFlags() {
 	if flag.NArg() != 0 {
-		log.Fatalf("Bogus usage. dock does not currently take any arguments.")
+		usage()
 	}
+	if *rev == "" {
+		usage()
+	}
+	if *rev == "WORKINPROGRESS" {
+		if *localSrc == "" {
+			usage()
+		}
+		return
+	}
+	if *localSrc != "" {
+		fmt.Fprintf(os.Stderr, "Usage error: --camlisource can only be used with --rev WORKINPROGRESS.\n")
+		usage()
+	}
+}
+
+func main() {
+	flag.Usage = usage
+	flag.Parse()
+	checkFlags()
 
 	camDir, err := osutil.GoPackagePath("camlistore.org")
 	if err != nil {
@@ -222,9 +231,7 @@ func main() {
 		defer os.RemoveAll(ctxDir)
 
 		genCamlistore(ctxDir)
-
 		genDjpeg(ctxDir)
-
 		buildServer(ctxDir)
 	}
 
