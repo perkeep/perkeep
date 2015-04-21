@@ -113,3 +113,9 @@ func (x *Index) Exp_BlobSource() blobserver.FetcherEnumerator {
 	defer x.mu.Unlock()
 	return x.blobSource
 }
+
+func (x *Index) Exp_FixMissingWholeRef(fetcher blob.Fetcher) (err error) {
+	return x.fixMissingWholeRef(fetcher)
+}
+
+var Exp_ErrMissingWholeRef = errMissingWholeRef
