@@ -673,14 +673,14 @@ func copyFiles(fs FileSystem, src, dst string, overwrite bool, depth int, recurs
 	return http.StatusNoContent, nil
 }
 
-// walkFS traverses filesystem fs starting at path up to depth levels.
+// walkFS traverses filesystem fs starting at name up to depth levels.
 //
 // Allowed values for depth are 0, 1 or infiniteDepth. For each visited node,
 // walkFS calls walkFn. If a visited file system node is a directory and
 // walkFn returns filepath.SkipDir, walkFS will skip traversal of this node.
-func walkFS(fs FileSystem, depth int, path string, info os.FileInfo, walkFn filepath.WalkFunc) error {
+func walkFS(fs FileSystem, depth int, name string, info os.FileInfo, walkFn filepath.WalkFunc) error {
 	// This implementation is based on Walk's code in the standard path/filepath package.
-	err := walkFn(path, info, nil)
+	err := walkFn(name, info, nil)
 	if err != nil {
 		if info.IsDir() && err == filepath.SkipDir {
 			return nil
@@ -695,18 +695,18 @@ func walkFS(fs FileSystem, depth int, path string, info os.FileInfo, walkFn file
 	}
 
 	// Read directory names.
-	f, err := fs.OpenFile(path, os.O_RDONLY, 0)
+	f, err := fs.OpenFile(name, os.O_RDONLY, 0)
 	if err != nil {
-		return walkFn(path, info, err)
+		return walkFn(name, info, err)
 	}
 	fileInfos, err := f.Readdir(0)
 	f.Close()
 	if err != nil {
-		return walkFn(path, info, err)
+		return walkFn(name, info, err)
 	}
 
 	for _, fileInfo := range fileInfos {
-		filename := filepath.Join(path, fileInfo.Name())
+		filename := path.Join(name, fileInfo.Name())
 		fileInfo, err := fs.Stat(filename)
 		if err != nil {
 			if err := walkFn(filename, fileInfo, err); err != nil && err != filepath.SkipDir {

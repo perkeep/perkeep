@@ -27,7 +27,6 @@ type PropSystem interface {
 	// only be part of one Propstat element.
 	Find(name string, propnames []xml.Name) ([]Propstat, error)
 
-	// TODO(rost) PROPPATCH.
 	// TODO(nigeltao) merge Find and Allprop?
 
 	// Allprop returns the properties defined for resource name and the
@@ -44,7 +43,28 @@ type PropSystem interface {
 	// Propnames returns the property names defined for resource name.
 	Propnames(name string) ([]xml.Name, error)
 
+	// Patch patches the properties of resource name.
+	//
+	// If all patches can be applied without conflict, Patch returns a slice
+	// of length one and a Propstat element of status 200, naming all patched
+	// properties. In case of conflict, Patch returns an arbitrary long slice
+	// and no Propstat element must have status 200. In either case, properties
+	// in Propstat must not have values.
+	//
+	// Note that the WebDAV RFC requires either all patches to succeed or none.
+	Patch(name string, patches []Proppatch) ([]Propstat, error)
+
 	// TODO(rost) COPY/MOVE/DELETE.
+}
+
+// Proppatch describes a property update instruction as defined in RFC 4918.
+// See http://www.webdav.org/specs/rfc4918.html#METHOD_PROPPATCH
+type Proppatch struct {
+	// Remove specifies whether this patch removes properties. If it does not
+	// remove them, it sets them.
+	Remove bool
+	// Props contains the properties to be set or removed.
+	Props []Property
 }
 
 // Propstat describes a XML propstat element as defined in RFC 4918.
@@ -73,7 +93,6 @@ type Propstat struct {
 // memPS implements an in-memory PropSystem. It supports all of the mandatory
 // live properties of RFC 4918.
 type memPS struct {
-	// TODO(rost) memPS will get writeable in the next CLs.
 	fs FileSystem
 	ls LockSystem
 }
@@ -194,6 +213,17 @@ func (ps *memPS) Allprop(name string, include []xml.Name) ([]Propstat, error) {
 		}
 	}
 	return ps.Find(name, propnames)
+}
+
+func (ps *memPS) Patch(name string, patches []Proppatch) ([]Propstat, error) {
+	// TODO(rost): Support to patch "dead" DAV properties in the next CL.
+	pstat := Propstat{Status: http.StatusForbidden}
+	for _, patch := range patches {
+		for _, p := range patch.Props {
+			pstat.Props = append(pstat.Props, Property{XMLName: p.XMLName})
+		}
+	}
+	return []Propstat{pstat}, nil
 }
 
 func (ps *memPS) findResourceType(name string, fi os.FileInfo) (string, error) {

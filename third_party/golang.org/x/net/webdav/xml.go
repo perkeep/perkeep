@@ -115,13 +115,13 @@ func next(d *xml.Decoder) (xml.Token, error) {
 }
 
 // http://www.webdav.org/specs/rfc4918.html#ELEMENT_prop (for propfind)
-type propnames []xml.Name
+type propfindProps []xml.Name
 
 // UnmarshalXML appends the property names enclosed within start to pn.
 //
 // It returns an error if start does not contain any properties or if
 // properties contain values. Character data between properties is ignored.
-func (pn *propnames) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+func (pn *propfindProps) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	for {
 		t, err := next(d)
 		if err != nil {
@@ -149,11 +149,11 @@ func (pn *propnames) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error 
 
 // http://www.webdav.org/specs/rfc4918.html#ELEMENT_propfind
 type propfind struct {
-	XMLName  xml.Name  `xml:"DAV: propfind"`
-	Allprop  *struct{} `xml:"DAV: allprop"`
-	Propname *struct{} `xml:"DAV: propname"`
-	Prop     propnames `xml:"DAV: prop"`
-	Include  propnames `xml:"DAV: include"`
+	XMLName  xml.Name      `xml:"DAV: propfind"`
+	Allprop  *struct{}     `xml:"DAV: allprop"`
+	Propname *struct{}     `xml:"DAV: propname"`
+	Prop     propfindProps `xml:"DAV: prop"`
+	Include  propfindProps `xml:"DAV: include"`
 }
 
 func readPropfind(r io.Reader) (pf propfind, status int, err error) {
@@ -316,4 +316,112 @@ func (w *multistatusWriter) close() error {
 		}
 	}
 	return w.enc.Flush()
+}
+
+// http://www.webdav.org/specs/rfc4918.html#ELEMENT_prop (for proppatch)
+type proppatchProps []Property
+
+var xmlLangName = xml.Name{Space: "http://www.w3.org/XML/1998/namespace", Local: "lang"}
+
+func xmlLang(s xml.StartElement, d string) string {
+	for _, attr := range s.Attr {
+		if attr.Name == xmlLangName {
+			return attr.Value
+		}
+	}
+	return d
+}
+
+// UnmarshalXML appends the property names and values enclosed within start
+// to ps.
+//
+// An xml:lang attribute that is defined either on the DAV:prop or property
+// name XML element is propagated to the property's Lang field.
+//
+// UnmarshalXML returns an error if start does not contain any properties or if
+// property values contain syntactically incorrect XML.
+func (ps *proppatchProps) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	lang := xmlLang(start, "")
+	for {
+		t, err := next(d)
+		if err != nil {
+			return err
+		}
+		switch t.(type) {
+		case xml.EndElement:
+			if len(*ps) == 0 {
+				return fmt.Errorf("%s must not be empty", start.Name.Local)
+			}
+			return nil
+		case xml.StartElement:
+			p := Property{
+				XMLName: t.(xml.StartElement).Name,
+				Lang:    xmlLang(t.(xml.StartElement), lang),
+			}
+			// The XML value of a property can be arbitrary, mixed-content XML.
+			// To make sure that the unmarshalled value contains all required
+			// namespaces, we encode all the property value XML tokens into a
+			// buffer. This forces the encoder to redeclare any used namespaces.
+			var b bytes.Buffer
+			e := xml.NewEncoder(&b)
+			for {
+				t, err = next(d)
+				if err != nil {
+					return err
+				}
+				if e, ok := t.(xml.EndElement); ok && e.Name == p.XMLName {
+					break
+				}
+				if err = e.EncodeToken(t); err != nil {
+					return err
+				}
+			}
+			err = e.Flush()
+			if err != nil {
+				return err
+			}
+			p.InnerXML = b.Bytes()
+			*ps = append(*ps, p)
+		}
+	}
+}
+
+// http://www.webdav.org/specs/rfc4918.html#ELEMENT_set
+// http://www.webdav.org/specs/rfc4918.html#ELEMENT_remove
+type setRemove struct {
+	XMLName xml.Name
+	Lang    string         `xml:"xml:lang,attr,omitempty"`
+	Prop    proppatchProps `xml:"DAV: prop"`
+}
+
+// http://www.webdav.org/specs/rfc4918.html#ELEMENT_propertyupdate
+type propertyupdate struct {
+	XMLName   xml.Name    `xml:"DAV: propertyupdate"`
+	Lang      string      `xml:"xml:lang,attr,omitempty"`
+	SetRemove []setRemove `xml:",any"`
+}
+
+func readProppatch(r io.Reader) (patches []Proppatch, status int, err error) {
+	var pu propertyupdate
+	if err = xml.NewDecoder(r).Decode(&pu); err != nil {
+		return nil, http.StatusBadRequest, err
+	}
+	for _, op := range pu.SetRemove {
+		remove := false
+		switch op.XMLName {
+		case xml.Name{Space: "DAV:", Local: "set"}:
+			// No-op.
+		case xml.Name{Space: "DAV:", Local: "remove"}:
+			for _, p := range op.Prop {
+				if len(p.InnerXML) > 0 {
+					return nil, http.StatusBadRequest, errInvalidProppatch
+				}
+			}
+			remove = true
+		default:
+			return nil, http.StatusBadRequest, errInvalidProppatch
+		}
+		patches = append(patches, Proppatch{Remove: remove, Props: op.Prop})
+	}
+	return patches, 0, nil
 }

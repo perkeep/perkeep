@@ -58,6 +58,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status, err = h.handleUnlock(w, r)
 		case "PROPFIND":
 			status, err = h.handlePropfind(w, r)
+		case "PROPPATCH":
+			status, err = h.handleProppatch(w, r)
 		}
 	}
 
@@ -512,6 +514,36 @@ func (h *Handler) handlePropfind(w http.ResponseWriter, r *http.Request) (status
 	return 0, mw.close()
 }
 
+func (h *Handler) handleProppatch(w http.ResponseWriter, r *http.Request) (status int, err error) {
+	release, status, err := h.confirmLocks(r, r.URL.Path, "")
+	if err != nil {
+		return status, err
+	}
+	defer release()
+
+	if _, err := h.FileSystem.Stat(r.URL.Path); err != nil {
+		if err == os.ErrNotExist {
+			return http.StatusNotFound, err
+		}
+		return http.StatusMethodNotAllowed, err
+	}
+	patches, status, err := readProppatch(r.Body)
+	if err != nil {
+		return status, err
+	}
+	pstats, err := h.PropSystem.Patch(r.URL.Path, patches)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	mw := multistatusWriter{w: w}
+	writeErr := mw.write(makePropstatResponse(r.URL.Path, pstats))
+	closeErr := mw.close()
+	if writeErr != nil {
+		return http.StatusInternalServerError, writeErr
+	}
+	return 0, closeErr
+}
+
 // davHeaderNames maps the names of DAV properties to their corresponding
 // HTTP response headers.
 var davHeaderNames = map[xml.Name]string{
@@ -613,6 +645,7 @@ var (
 	errInvalidLockInfo         = errors.New("webdav: invalid lock info")
 	errInvalidLockToken        = errors.New("webdav: invalid lock token")
 	errInvalidPropfind         = errors.New("webdav: invalid propfind")
+	errInvalidProppatch        = errors.New("webdav: invalid proppatch")
 	errInvalidResponse         = errors.New("webdav: invalid response")
 	errInvalidTimeout          = errors.New("webdav: invalid timeout")
 	errNoFileSystem            = errors.New("webdav: no file system")

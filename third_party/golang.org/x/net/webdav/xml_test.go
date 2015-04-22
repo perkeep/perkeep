@@ -173,7 +173,7 @@ func TestReadPropfind(t *testing.T) {
 		wantPF: propfind{
 			XMLName: xml.Name{Space: "DAV:", Local: "propfind"},
 			Allprop: new(struct{}),
-			Include: propnames{xml.Name{Space: "DAV:", Local: "displayname"}},
+			Include: propfindProps{xml.Name{Space: "DAV:", Local: "displayname"}},
 		},
 	}, {
 		desc: "propfind: include followed by allprop",
@@ -185,7 +185,7 @@ func TestReadPropfind(t *testing.T) {
 		wantPF: propfind{
 			XMLName: xml.Name{Space: "DAV:", Local: "propfind"},
 			Allprop: new(struct{}),
-			Include: propnames{xml.Name{Space: "DAV:", Local: "displayname"}},
+			Include: propfindProps{xml.Name{Space: "DAV:", Local: "displayname"}},
 		},
 	}, {
 		desc: "propfind: propfind",
@@ -195,7 +195,7 @@ func TestReadPropfind(t *testing.T) {
 			"</A:propfind>",
 		wantPF: propfind{
 			XMLName: xml.Name{Space: "DAV:", Local: "propfind"},
-			Prop:    propnames{xml.Name{Space: "DAV:", Local: "displayname"}},
+			Prop:    propfindProps{xml.Name{Space: "DAV:", Local: "displayname"}},
 		},
 	}, {
 		desc: "propfind: prop with ignored comments",
@@ -208,7 +208,7 @@ func TestReadPropfind(t *testing.T) {
 			"</A:propfind>",
 		wantPF: propfind{
 			XMLName: xml.Name{Space: "DAV:", Local: "propfind"},
-			Prop:    propnames{xml.Name{Space: "DAV:", Local: "displayname"}},
+			Prop:    propfindProps{xml.Name{Space: "DAV:", Local: "displayname"}},
 		},
 	}, {
 		desc: "propfind: propfind with ignored whitespace",
@@ -218,7 +218,7 @@ func TestReadPropfind(t *testing.T) {
 			"</A:propfind>",
 		wantPF: propfind{
 			XMLName: xml.Name{Space: "DAV:", Local: "propfind"},
-			Prop:    propnames{xml.Name{Space: "DAV:", Local: "displayname"}},
+			Prop:    propfindProps{xml.Name{Space: "DAV:", Local: "displayname"}},
 		},
 	}, {
 		desc: "propfind: propfind with ignored mixed-content",
@@ -228,7 +228,7 @@ func TestReadPropfind(t *testing.T) {
 			"</A:propfind>",
 		wantPF: propfind{
 			XMLName: xml.Name{Space: "DAV:", Local: "propfind"},
-			Prop:    propnames{xml.Name{Space: "DAV:", Local: "displayname"}},
+			Prop:    propfindProps{xml.Name{Space: "DAV:", Local: "displayname"}},
 		},
 	}, {
 		desc: "propfind: propname with ignored element (section A.4)",
@@ -612,7 +612,185 @@ loop:
 		gotXML := normalize(rec.Body.String())
 		wantXML := normalize(tc.wantXML)
 		if gotXML != wantXML {
-			t.Errorf("%s: XML body\ngot  %q\nwant %q", tc.desc, gotXML, wantXML)
+			t.Errorf("%s: XML body\ngot  % x\nwant % x", tc.desc, gotXML, wantXML)
+		}
+	}
+}
+
+func TestReadProppatch(t *testing.T) {
+	// TODO(rost): These "golden XML" tests easily break with changes in the
+	// xml package. A whitespace-preserving normalizer of XML content is
+	// required to make these tests more robust.
+	testCases := []struct {
+		desc       string
+		input      string
+		wantPP     []Proppatch
+		wantStatus int
+	}{{
+		desc: "proppatch: section 9.2",
+		input: `` +
+			`<?xml version="1.0" encoding="utf-8" ?>` +
+			`<D:propertyupdate xmlns:D="DAV:"` +
+			`                  xmlns:Z="http://ns.example.com/z/">` +
+			`    <D:set>` +
+			`         <D:prop>` +
+			`              <Z:Authors>` +
+			`              <Z:Author>Jim Whitehead</Z:Author>` +
+			`              <Z:Author>Roy Fielding</Z:Author>` +
+			`              </Z:Authors>` +
+			`         </D:prop>` +
+			`    </D:set>` +
+			`    <D:remove>` +
+			`         <D:prop><Z:Copyright-Owner/></D:prop>` +
+			`    </D:remove>` +
+			`</D:propertyupdate>`,
+		wantPP: []Proppatch{{
+			Props: []Property{{
+				xml.Name{Space: "http://ns.example.com/z/", Local: "Authors"},
+				"",
+				[]byte(`` +
+					`              ` +
+					`<z:Author xmlns:z="http://ns.example.com/z/">` +
+					`Jim Whitehead` +
+					`</z:Author>` +
+					`              ` +
+					`<z:Author xmlns:z="http://ns.example.com/z/">` +
+					`Roy Fielding` +
+					`</z:Author>` +
+					`              `,
+				),
+			}},
+		}, {
+			Remove: true,
+			Props: []Property{{
+				xml.Name{Space: "http://ns.example.com/z/", Local: "Copyright-Owner"},
+				"",
+				nil,
+			}},
+		}},
+	}, {
+		desc: "proppatch: section 4.3.1 (mixed content)",
+		input: `` +
+			`<?xml version="1.0" encoding="utf-8" ?>` +
+			`<D:propertyupdate xmlns:D="DAV:"` +
+			`                  xmlns:Z="http://ns.example.com/z/">` +
+			`  <D:set>` +
+			`     <D:prop xml:lang="en" xmlns:D="DAV:">` +
+			`         <x:author xmlns:x='http://example.com/ns'>` +
+			`            <x:name>Jane Doe</x:name>` +
+			`            <!-- Jane's contact info -->` +
+			`            <x:uri type='email'` +
+			`                   added='2005-11-26'>mailto:jane.doe@example.com</x:uri>` +
+			`            <x:uri type='web'` +
+			`                   added='2005-11-27'>http://www.example.com</x:uri>` +
+			`            <x:notes xmlns:h='http://www.w3.org/1999/xhtml'>` +
+			`              Jane has been working way <h:em>too</h:em> long on the` +
+			`              long-awaited revision of <![CDATA[<RFC2518>]]>.` +
+			`            </x:notes>` +
+			`         </x:author>` +
+			`     </D:prop>` +
+			`  </D:set>` +
+			`</D:propertyupdate>`,
+		wantPP: []Proppatch{{
+			Props: []Property{{
+				xml.Name{Space: "http://example.com/ns", Local: "author"},
+				"en",
+				[]byte(`` +
+					`            ` +
+					`<ns:name xmlns:ns="http://example.com/ns">Jane Doe</ns:name>` +
+					`                        ` +
+					`<ns:uri xmlns:ns="http://example.com/ns" type="email" added="2005-11-26">` +
+					`mailto:jane.doe@example.com` +
+					`</ns:uri>` +
+					`            ` +
+					`<ns:uri xmlns:ns="http://example.com/ns" type="web" added="2005-11-27">` +
+					`http://www.example.com` +
+					`</ns:uri>` +
+					`            ` +
+
+					`<ns:notes xmlns:ns="http://example.com/ns"` +
+					` xmlns:h="http://www.w3.org/1999/xhtml">` +
+					`             ` +
+					` Jane has been working way` +
+					` <h:em>too</h:em>` +
+					` long on the` + `             ` +
+					` long-awaited revision of &lt;RFC2518&gt;.` +
+					`            ` +
+					`</ns:notes>` +
+					`         `,
+				),
+			}},
+		}},
+	}, {
+		desc: "proppatch: lang attribute on prop",
+		input: `` +
+			`<?xml version="1.0" encoding="utf-8" ?>` +
+			`<D:propertyupdate xmlns:D="DAV:">` +
+			`    <D:set>` +
+			`         <D:prop xml:lang="en">` +
+			`              <foo xmlns="http://example.com/ns"/>` +
+			`         </D:prop>` +
+			`    </D:set>` +
+			`</D:propertyupdate>`,
+		wantPP: []Proppatch{{
+			Props: []Property{{
+				xml.Name{Space: "http://example.com/ns", Local: "foo"},
+				"en",
+				nil,
+			}},
+		}},
+	}, {
+		desc: "bad: remove with value",
+		input: `` +
+			`<?xml version="1.0" encoding="utf-8" ?>` +
+			`<D:propertyupdate xmlns:D="DAV:"` +
+			`                  xmlns:Z="http://ns.example.com/z/">` +
+			`    <D:remove>` +
+			`         <D:prop>` +
+			`              <Z:Authors>` +
+			`              <Z:Author>Jim Whitehead</Z:Author>` +
+			`              </Z:Authors>` +
+			`         </D:prop>` +
+			`    </D:remove>` +
+			`</D:propertyupdate>`,
+		wantStatus: http.StatusBadRequest,
+	}, {
+		desc: "bad: empty propertyupdate",
+		input: `` +
+			`<?xml version="1.0" encoding="utf-8" ?>` +
+			`<D:propertyupdate xmlns:D="DAV:"` +
+			`</D:propertyupdate>`,
+		wantStatus: http.StatusBadRequest,
+	}, {
+		desc: "bad: empty prop",
+		input: `` +
+			`<?xml version="1.0" encoding="utf-8" ?>` +
+			`<D:propertyupdate xmlns:D="DAV:"` +
+			`                  xmlns:Z="http://ns.example.com/z/">` +
+			`    <D:remove>` +
+			`        <D:prop/>` +
+			`    </D:remove>` +
+			`</D:propertyupdate>`,
+		wantStatus: http.StatusBadRequest,
+	}}
+
+	for _, tc := range testCases {
+		pp, status, err := readProppatch(strings.NewReader(tc.input))
+		if tc.wantStatus != 0 {
+			if err == nil {
+				t.Errorf("%s: got nil error, want non-nil", tc.desc)
+				continue
+			}
+		} else if err != nil {
+			t.Errorf("%s: %v", tc.desc, err)
+			continue
+		}
+		if status != tc.wantStatus {
+			t.Errorf("%s: got status %d, want %d", tc.desc, status, tc.wantStatus)
+			continue
+		}
+		if !reflect.DeepEqual(pp, tc.wantPP) || status != tc.wantStatus {
+			t.Errorf("%s: proppatch\ngot  %v\nwant %v", tc.desc, pp, tc.wantPP)
 		}
 	}
 }
