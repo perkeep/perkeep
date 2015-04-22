@@ -61,8 +61,6 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		strictness = opt.StrictAll
 	}
 	opts := &opt.Options{
-		// TODO(tgulacsi): decide whether this default 500 is too much or not. Till that go with the default.
-		CachedOpenFiles: 500,
 		// The default is 10,
 		// 8 means 2.126% or 1/47th disk check rate,
 		// 10 means 0.812% error rate (1/2^(bits/1.44)) or 1/123th disk check rate,

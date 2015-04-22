@@ -1,4 +1,4 @@
-package iterator_test
+package leveldb
 
 import (
 	"testing"
@@ -6,6 +6,6 @@ import (
 	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb/testutil"
 )
 
-func TestIterator(t *testing.T) {
-	testutil.RunSuite(t, "Iterator Suite")
+func TestLevelDB(t *testing.T) {
+	testutil.RunSuite(t, "LevelDB Suite")
 }
