@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"io"
 
-	"camlistore.org/third_party/code.google.com/p/snappy-go/snappy"
+	"camlistore.org/third_party/github.com/syndtr/gosnappy/snappy"
 
 	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb/comparer"
 	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb/filter"
