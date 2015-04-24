@@ -68,15 +68,21 @@ cam.BlobDetail = React.createClass({
 			this.getSection_("Blob content", this.state.content),
 			this.getSection_("Indexer metadata", this.props.meta),
 			this.getSection_("Mutation claims", this.state.claims),
-			this.getReferences_(this.state.refs)
+			this.getReferencesSection_(this.state.refs)
 		);
 	},
 
-	getReferences_: function(refs) {
-		var content = 'Loading...';
+	getReferencesSection_: function(refs) {
+		if (!refs) {
+			return this.getReferencesBlock_("Loading...");
+		}
 
-		if (refs) {
-			content = React.DOM.ul(
+		if (refs.length <= 0) {
+			return this.getReferencesBlock_("No references");
+		}
+
+		return this.getReferencesBlock_(
+			React.DOM.ul(
 				null,
 				refs.map(function(blobref) {
 					return React.DOM.li(
@@ -89,14 +95,16 @@ cam.BlobDetail = React.createClass({
 						)
 					);
 				}, this)
-			);
-		}
+			)
+		);
+	},
 
+	getReferencesBlock_: function(content) {
 		return React.DOM.div(
 			{
 				key: 'References',
 			},
-			this.getHeader_('Referenced by'),
+			this.getHeader_("Referenced by"),
 			content
 		);
 	},
