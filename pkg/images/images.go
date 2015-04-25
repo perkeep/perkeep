@@ -351,8 +351,12 @@ func DecodeConfig(r io.Reader) (Config, error) {
 	swapDimensions := false
 
 	ex, err := exif.Decode(tr)
+	// trigger a retry when there isn't enough data for reading exif data from a tiff file
+	if exif.IsShortReadTagValueError(err) {
+		return c, io.ErrUnexpectedEOF
+	}
 	if err != nil {
-		imageDebug("No valid EXIF.")
+		imageDebug(fmt.Sprintf("No valid EXIF, error: %v.", err))
 	} else {
 		tag, err := ex.Get(exif.Orientation)
 		if err != nil {

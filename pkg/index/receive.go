@@ -412,7 +412,7 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 
 		// TODO(mpl): find (generate?) more broken EXIF images to experiment with.
 		err = indexEXIF(wholeRef, bytes.NewReader(imageBuf.Bytes), mm)
-		if err == io.EOF {
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			var fr *schema.FileReader
 			fr, err = b.NewFileReader(fetcher)
 			if err == nil {
@@ -478,6 +478,9 @@ func indexEXIF(wholeRef blob.Ref, reader io.Reader, mm *mutationMap) (err error)
 	if err != nil {
 		tiffErr = err
 		if exif.IsCriticalError(err) {
+			if exif.IsShortReadTagValueError(err) {
+				return io.ErrUnexpectedEOF // trigger a retry with whole file
+			}
 			return
 		}
 		log.Printf("Non critical TIFF decoding error: %v", err)
