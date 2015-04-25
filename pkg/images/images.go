@@ -30,6 +30,7 @@ import (
 
 	_ "image/gif"
 	_ "image/png"
+	_ "camlistore.org/third_party/golang.org/x/image/tiff"
 
 	"camlistore.org/pkg/images/fastjpeg"
 	"camlistore.org/pkg/images/resize"
