@@ -362,6 +362,28 @@ func (f *missTrackFetcher) Fetch(br blob.Ref) (blob io.ReadCloser, size uint32, 
 	return
 }
 
+// filePrefixReader is both a *bytes.Reader and a *schema.FileReader for use in readPrefixOrFile
+type filePrefixReader interface {
+	io.Reader
+	io.ReaderAt
+}
+
+// readPrefixOrFile executes a given func with a reader on the passed prefix and
+// falls back to passing a reader on the whole file if the func returns an error.
+func readPrefixOrFile(prefix []byte, fetcher blob.Fetcher, b *schema.Blob, fn func(filePrefixReader) error) (err error) {
+	pr := bytes.NewReader(prefix)
+	err = fn(pr)
+	if err == io.EOF || err == io.ErrUnexpectedEOF {
+		var fr *schema.FileReader
+		fr, err = b.NewFileReader(fetcher)
+		if err == nil {
+			err = fn(fr)
+			fr.Close()
+		}
+	}
+	return err
+}
+
 // b: the parsed file schema blob
 // mm: keys to populate
 func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutationMap) (err error) {
@@ -374,7 +396,7 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 		return err
 	}
 	defer fr.Close()
-	mime, reader := magic.MIMETypeFromReader(fr)
+	mime, mr := magic.MIMETypeFromReader(fr)
 
 	sha1 := sha1.New()
 	var copyDest io.Writer = sha1
@@ -383,44 +405,37 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 		imageBuf = &keepFirstN{N: 512 << 10}
 		copyDest = io.MultiWriter(copyDest, imageBuf)
 	}
-	size, err := io.Copy(copyDest, reader)
+	size, err := io.Copy(copyDest, mr)
 	if err != nil {
 		return err
 	}
 	wholeRef := blob.RefFromHash(sha1)
 
 	if imageBuf != nil {
-		conf, err := images.DecodeConfig(bytes.NewReader(imageBuf.Bytes))
-		// If our optimistic 512KB in-memory prefix from above was too short to get the dimensions, pass the whole thing instead and try again.
-		if err == io.ErrUnexpectedEOF {
-			var fr *schema.FileReader
-			fr, err = b.NewFileReader(fetcher)
-			if err == nil {
-				conf, err = images.DecodeConfig(fr)
-				fr.Close()
-			}
+		var conf images.Config
+		decodeConfig := func(r filePrefixReader) error {
+			conf, err = images.DecodeConfig(r)
+			return err
 		}
-		if err == nil {
+		if err := readPrefixOrFile(imageBuf.Bytes, fetcher, b, decodeConfig); err == nil {
 			mm.Set(keyImageSize.Key(blobRef), keyImageSize.Val(fmt.Sprint(conf.Width), fmt.Sprint(conf.Height)))
 		}
-		if ft, err := schema.FileTime(bytes.NewReader(imageBuf.Bytes)); err == nil {
-			log.Printf("filename %q exif = %v, %v", b.FileName(), ft, err)
-			times = append(times, ft)
-		} else {
-			log.Printf("filename %q exif = %v, %v", b.FileName(), ft, err)
+
+		var ft time.Time
+		fileTime := func(r filePrefixReader) error {
+			ft, err = schema.FileTime(r)
+			return err
 		}
+		if err = readPrefixOrFile(imageBuf.Bytes, fetcher, b, fileTime); err == nil {
+			times = append(times, ft)
+		}
+		log.Printf("filename %q exif = %v, %v", b.FileName(), ft, err)
 
 		// TODO(mpl): find (generate?) more broken EXIF images to experiment with.
-		err = indexEXIF(wholeRef, bytes.NewReader(imageBuf.Bytes), mm)
-		if err == io.EOF || err == io.ErrUnexpectedEOF {
-			var fr *schema.FileReader
-			fr, err = b.NewFileReader(fetcher)
-			if err == nil {
-				err = indexEXIF(wholeRef, fr, mm)
-				fr.Close()
-			}
+		indexEXIFData := func(r filePrefixReader) error {
+			return indexEXIF(wholeRef, r, mm)
 		}
-		if err != nil {
+		if err = readPrefixOrFile(imageBuf.Bytes, fetcher, b, indexEXIFData); err != nil {
 			log.Printf("error parsing EXIF: %v", err)
 		}
 	}
@@ -472,9 +487,9 @@ func (f exifWalkFunc) Walk(name exif.FieldName, tag *tiff.Tag) error { return f(
 
 var errEXIFPanic = errors.New("EXIF library panicked while walking fields")
 
-func indexEXIF(wholeRef blob.Ref, reader io.Reader, mm *mutationMap) (err error) {
+func indexEXIF(wholeRef blob.Ref, r io.Reader, mm *mutationMap) (err error) {
 	var tiffErr error
-	ex, err := exif.Decode(reader)
+	ex, err := exif.Decode(r)
 	if err != nil {
 		tiffErr = err
 		if exif.IsCriticalError(err) {

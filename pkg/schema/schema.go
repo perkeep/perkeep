@@ -962,6 +962,9 @@ func FileTime(f io.ReaderAt) (time.Time, error) {
 	ex, err := exif.Decode(r)
 	if err != nil {
 		tiffErr = err
+		if exif.IsShortReadTagValueError(err) {
+			return ct, io.ErrUnexpectedEOF
+		}
 		if exif.IsCriticalError(err) || exif.IsExifError(err) {
 			return defaultTime()
 		}
