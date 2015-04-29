@@ -946,7 +946,7 @@ var tplHTML = `
 	<h1><a href="{{.Prefix}}">Camlistore on Google Cloud</a></h1>
 
 	{{if .InstanceIP}}
-		<p>Success. Your Camlistore instance should be up at <a href="https://{{.InstanceIP}}">https://{{.InstanceIP}}</a> (login: ` + camliUsername + `, password: {{.Conf.Password}}). It can take a couple of minutes to be ready.</p>
+		<p>Success. Your Camlistore instance should be up at <a href="https://{{.InstanceIP}}">https://{{.InstanceIP}}</a>. It can take a couple of minutes to be ready.</p>
 		<p>Please save the information on this page in case you need to come back for the instruction.</p>
 
 		<h4>First connection</h4>
