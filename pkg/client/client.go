@@ -725,67 +725,53 @@ func (c *Client) doDiscovery() error {
 		return err
 	}
 
-	// TODO: make a proper struct type for this in another package somewhere:
-	m := make(map[string]interface{})
-	if err := httputil.DecodeJSON(res, &m); err != nil {
+	var disco camtypes.Discovery
+	if err := httputil.DecodeJSON(res, &disco); err != nil {
 		return err
 	}
 
-	searchRoot, ok := m["searchRoot"].(string)
-	if ok {
-		u, err := root.Parse(searchRoot)
-		if err != nil {
-			return fmt.Errorf("client: invalid searchRoot %q; failed to resolve", searchRoot)
-		}
-		c.searchRoot = u.String()
+	u, err := root.Parse(disco.SearchRoot)
+	if err != nil {
+		return fmt.Errorf("client: invalid searchRoot %q; failed to resolve", disco.SearchRoot)
 	}
+	c.searchRoot = u.String()
 
-	downloadHelper, ok := m["downloadHelper"].(string)
-	if ok {
-		u, err := root.Parse(downloadHelper)
-		if err != nil {
-			return fmt.Errorf("client: invalid downloadHelper %q; failed to resolve", downloadHelper)
-		}
-		c.downloadHelper = u.String()
-	}
+	c.storageGen = disco.StorageGeneration
 
-	c.storageGen, _ = m["storageGeneration"].(string)
-
-	blobRoot, ok := m["blobRoot"].(string)
-	if !ok {
-		return fmt.Errorf("No blobRoot in config discovery response")
-	}
-	u, err := root.Parse(blobRoot)
+	u, err = root.Parse(disco.BlobRoot)
 	if err != nil {
 		return fmt.Errorf("client: error resolving blobRoot: %v", err)
 	}
 	c.prefixv = strings.TrimRight(u.String(), "/")
 
-	syncHandlers, ok := m["syncHandlers"].([]interface{})
-	if ok {
-		for _, v := range syncHandlers {
-			vmap := v.(map[string]interface{})
-			from := vmap["from"].(string)
-			ufrom, err := root.Parse(from)
+	if disco.UIDiscovery != nil {
+		u, err = root.Parse(disco.DownloadHelper)
+		if err != nil {
+			return fmt.Errorf("client: invalid downloadHelper %q; failed to resolve", disco.DownloadHelper)
+		}
+		c.downloadHelper = u.String()
+	}
+
+	if disco.SyncHandlers != nil {
+		for _, v := range disco.SyncHandlers {
+			ufrom, err := root.Parse(v.From)
 			if err != nil {
-				return fmt.Errorf("client: invalid %q \"from\" sync; failed to resolve", from)
+				return fmt.Errorf("client: invalid %q \"from\" sync; failed to resolve", v.From)
 			}
-			to := vmap["to"].(string)
-			uto, err := root.Parse(to)
+			uto, err := root.Parse(v.To)
 			if err != nil {
-				return fmt.Errorf("client: invalid %q \"to\" sync; failed to resolve", to)
+				return fmt.Errorf("client: invalid %q \"to\" sync; failed to resolve", v.To)
 			}
-			toIndex, _ := vmap["toIndex"].(bool)
 			c.syncHandlers = append(c.syncHandlers, &SyncInfo{
 				From:    ufrom.String(),
 				To:      uto.String(),
-				ToIndex: toIndex,
+				ToIndex: v.ToIndex,
 			})
 		}
 	}
-	serverSigning, ok := m["signing"].(map[string]interface{})
-	if ok {
-		c.serverKeyID = serverSigning["publicKeyId"].(string)
+
+	if disco.Signing != nil {
+		c.serverKeyID = disco.Signing.PublicKeyID
 	}
 	return nil
 }

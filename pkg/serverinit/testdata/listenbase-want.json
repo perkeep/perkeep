@@ -8,6 +8,7 @@
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
+				"jsonSignRoot": "/sighelper/",
 				"searchRoot": "/my-search/",
 				"statusRoot": "/status/",
 				"stealth": false
@@ -102,7 +103,6 @@
 			"handler": "ui",
 			"handlerArgs": {
 				"cache": "/cache/",
-				"jsonSignRoot": "/sighelper/",
 				"scaledImage": {
 					"file": "/tmp/blobs/thumbmeta.kv",
 					"type": "kv"

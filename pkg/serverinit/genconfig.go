@@ -173,8 +173,7 @@ func (b *lowBuilder) addPublishedConfig(tlsO *tlsOpts) error {
 
 func (b *lowBuilder) addUIConfig() {
 	args := map[string]interface{}{
-		"jsonSignRoot": "/sighelper/",
-		"cache":        "/cache/",
+		"cache": "/cache/",
 	}
 	if b.high.SourceRoot != "" {
 		args["sourceRoot"] = b.high.SourceRoot
@@ -578,9 +577,10 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 	}
 
 	rootArgs := map[string]interface{}{
-		"stealth":    false,
-		"blobRoot":   root,
-		"statusRoot": "/status/",
+		"stealth":      false,
+		"blobRoot":     root,
+		"statusRoot":   "/status/",
+		"jsonSignRoot": "/sighelper/",
 	}
 	if b.high.OwnerName != "" {
 		rootArgs["ownerName"] = b.high.OwnerName

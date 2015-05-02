@@ -35,12 +35,12 @@ import (
 	"camlistore.org/pkg/fileembed"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/misc/closure"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/server/app"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/syncutil"
+	"camlistore.org/pkg/types/camtypes"
 	uistatic "camlistore.org/server/camlistored/ui"
 	closurestatic "camlistore.org/server/camlistored/ui/closure"
 	"camlistore.org/third_party/code.google.com/p/rsc/qr"
@@ -73,19 +73,11 @@ var (
 
 // UIHandler handles serving the UI and discovery JSON.
 type UIHandler struct {
-	// JSONSignRoot is the optional path or full URL to the JSON
-	// Signing helper. Only used by the UI and thus necessary if
-	// UI is true.
-	// TODO(bradfitz): also move this up to the root handler,
-	// if we start having clients (like phones) that we want to upload
-	// but don't trust to have private signing keys?
-	JSONSignRoot string
 	publishRoots map[string]*publishRoot
 
 	prefix string // of the UI handler itself
 	root   *RootHandler
 	search *search.Handler
-	sigh   *signhandler.Handler // or nil
 
 	// Cache optionally specifies a cache blob server, used for
 	// caching image thumbnails and other emphemeral data.
@@ -124,27 +116,9 @@ func newKVOrNil(conf jsonconfig.Obj) (sorted.KeyValue, error) {
 }
 
 func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
-	checkType := func(key string, htype string) {
-		v := conf.OptionalString(key, "")
-		if v == "" {
-			return
-		}
-		ct := ld.GetHandlerType(v)
-		if ct == "" {
-			err = fmt.Errorf("UI handler's %q references non-existant %q", key, v)
-		} else if ct != htype {
-			err = fmt.Errorf("UI handler's %q references %q of type %q; expected type %q", key, v, ct, htype)
-		}
-	}
-	checkType("searchRoot", "search")
-	checkType("jsonSignRoot", "jsonsign")
-	if err != nil {
-		return
-	}
 	ui := &UIHandler{
-		prefix:       ld.MyPrefix(),
-		JSONSignRoot: conf.OptionalString("jsonSignRoot", ""),
-		sourceRoot:   conf.OptionalString("sourceRoot", ""),
+		prefix:     ld.MyPrefix(),
+		sourceRoot: conf.OptionalString("sourceRoot", ""),
 		resizeSem: syncutil.NewSem(int64(conf.OptionalInt("maxResizeBytes",
 			constants.DefaultMaxResizeMem))),
 	}
@@ -152,13 +126,6 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 	scaledImageConf := conf.OptionalObject("scaledImage")
 	if err = conf.Validate(); err != nil {
 		return
-	}
-
-	if ui.JSONSignRoot != "" {
-		h, _ := ld.GetHandler(ui.JSONSignRoot)
-		if sigh, ok := h.(*signhandler.Handler); ok {
-			ui.sigh = sigh
-		}
 	}
 
 	scaledImageKV, err := newKVOrNil(scaledImageConf)
@@ -507,36 +474,25 @@ func ServeStaticFile(rw http.ResponseWriter, req *http.Request, root http.FileSy
 	http.ServeContent(rw, req, file, modTime, f)
 }
 
-func (ui *UIHandler) populateDiscoveryMap(m map[string]interface{}) {
-	pubRoots := map[string]interface{}{}
+func (ui *UIHandler) discovery() *camtypes.UIDiscovery {
+	pubRoots := map[string]*camtypes.PublishRootDiscovery{}
 	for _, v := range ui.publishRoots {
-		m := map[string]interface{}{
-			"name":             v.Name,
-			"prefix":           []string{v.Prefix},
-			"currentPermanode": v.Permanode.String(),
+		rd := &camtypes.PublishRootDiscovery{
+			Name:             v.Name,
+			Prefix:           []string{v.Prefix},
+			CurrentPermanode: v.Permanode,
 		}
-		pubRoots[v.Name] = m
+		pubRoots[v.Name] = rd
 	}
 
-	uiDisco := map[string]interface{}{
-		"jsonSignRoot":    ui.JSONSignRoot,
-		"uiRoot":          ui.prefix,
-		"uploadHelper":    ui.prefix + "?camli.mode=uploadhelper", // hack; remove with better javascript
-		"downloadHelper":  path.Join(ui.prefix, "download") + "/",
-		"directoryHelper": path.Join(ui.prefix, "tree") + "/",
-		"publishRoots":    pubRoots,
+	uiDisco := &camtypes.UIDiscovery{
+		UIRoot:          ui.prefix,
+		UploadHelper:    ui.prefix + "?camli.mode=uploadhelper",
+		DownloadHelper:  path.Join(ui.prefix, "download") + "/",
+		DirectoryHelper: path.Join(ui.prefix, "tree") + "/",
+		PublishRoots:    pubRoots,
 	}
-	// TODO(mpl): decouple discovery of the sig handler from the
-	// existence of a ui handler.
-	if ui.sigh != nil {
-		uiDisco["signing"] = ui.sigh.DiscoveryMap(ui.JSONSignRoot)
-	}
-	for k, v := range uiDisco {
-		if _, ok := m[k]; ok {
-			log.Fatalf("Duplicate discovery key %q", k)
-		}
-		m[k] = v
-	}
+	return uiDisco
 }
 
 func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {

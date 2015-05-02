@@ -23,17 +23,19 @@ import (
 	"net/http"
 	"sort"
 	"sync"
-	"time"
 
 	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/env"
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/types"
+	"camlistore.org/pkg/types/camtypes"
 )
 
 // RootHandler handles serving the about/splash page.
@@ -53,14 +55,19 @@ type RootHandler struct {
 	statusRoot   string
 	Prefix       string // root handler's prefix
 
+	// JSONSignRoot is the optional path or full URL to the JSON
+	// Signing helper.
+	JSONSignRoot string
+
 	Storage blobserver.Storage // of BlobRoot, or nil
 
 	searchInitOnce sync.Once // runs searchInit, which populates searchHandler
 	searchInit     func()
 	searchHandler  *search.Handler // of SearchRoot, or nil
 
-	ui   *UIHandler     // or nil, if none configured
-	sync []*SyncHandler // list of configured sync handlers, for discovery.
+	ui   *UIHandler           // or nil, if none configured
+	sigh *signhandler.Handler // or nil, if none configured
+	sync []*SyncHandler       // list of configured sync handlers, for discovery.
 }
 
 func (rh *RootHandler) SearchHandler() (h *search.Handler, ok bool) {
@@ -73,13 +80,31 @@ func init() {
 }
 
 func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {
+	checkType := func(key string, htype string) {
+		v := conf.OptionalString(key, "")
+		if v == "" {
+			return
+		}
+		ct := ld.GetHandlerType(v)
+		if ct == "" {
+			err = fmt.Errorf("root handler's %q references non-existant %q", key, v)
+		} else if ct != htype {
+			err = fmt.Errorf("root handler's %q references %q of type %q; expected type %q", key, v, ct, htype)
+		}
+	}
+	checkType("searchRoot", "search")
+	checkType("jsonSignRoot", "jsonsign")
+	if err != nil {
+		return
+	}
 	username, _ := getUserName()
 	root := &RootHandler{
-		BlobRoot:   conf.OptionalString("blobRoot", ""),
-		SearchRoot: conf.OptionalString("searchRoot", ""),
-		OwnerName:  conf.OptionalString("ownerName", username),
-		Username:   osutil.Username(),
-		Prefix:     ld.MyPrefix(),
+		BlobRoot:     conf.OptionalString("blobRoot", ""),
+		SearchRoot:   conf.OptionalString("searchRoot", ""),
+		JSONSignRoot: conf.OptionalString("jsonSignRoot", ""),
+		OwnerName:    conf.OptionalString("ownerName", username),
+		Username:     osutil.Username(),
+		Prefix:       ld.MyPrefix(),
 	}
 	root.Stealth = conf.OptionalBool("stealth", false)
 	root.statusRoot = conf.OptionalString("statusRoot", "")
@@ -93,6 +118,13 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 			return nil, fmt.Errorf("Root handler's blobRoot of %q error: %v", root.BlobRoot, err)
 		}
 		root.Storage = bs
+	}
+
+	if root.JSONSignRoot != "" {
+		h, _ := ld.GetHandler(root.JSONSignRoot)
+		if sigh, ok := h.(*signhandler.Handler); ok {
+			root.sigh = sigh
+		}
 	}
 
 	root.searchInit = func() {}
@@ -178,42 +210,45 @@ func (b byFromTo) Less(i, j int) bool {
 }
 
 func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request) {
-	m := map[string]interface{}{
-		"blobRoot":      rh.BlobRoot,
-		"importerRoot":  rh.importerRoot,
-		"searchRoot":    rh.SearchRoot,
-		"ownerName":     rh.OwnerName,
-		"username":      rh.Username,
-		"statusRoot":    rh.statusRoot,
-		"wsAuthToken":   auth.ProcessRandom(),
-		"thumbVersion":  images.ThumbnailVersion(),
-		"blobHashFuncs": blob.HashFuncs(),
+	d := &camtypes.Discovery{
+		BlobRoot:     rh.BlobRoot,
+		JSONSignRoot: rh.JSONSignRoot,
+		ImporterRoot: rh.importerRoot,
+		SearchRoot:   rh.SearchRoot,
+		StatusRoot:   rh.statusRoot,
+		OwnerName:    rh.OwnerName,
+		UserName:     rh.Username,
+		WSAuthToken:  auth.ProcessRandom(),
+		ThumbVersion: images.ThumbnailVersion(),
 	}
 	if gener, ok := rh.Storage.(blobserver.Generationer); ok {
 		initTime, gen, err := gener.StorageGeneration()
 		if err != nil {
-			m["storageGenerationError"] = err.Error()
+			d.StorageGenerationError = err.Error()
 		} else {
-			m["storageInitTime"] = initTime.UTC().Format(time.RFC3339)
-			m["storageGeneration"] = gen
+			d.StorageInitTime = types.Time3339(initTime)
+			d.StorageGeneration = gen
 		}
 	} else {
 		log.Printf("Storage type %T is not a blobserver.Generationer; not sending storageGeneration", rh.Storage)
 	}
 	if rh.ui != nil {
-		rh.ui.populateDiscoveryMap(m)
+		d.UIDiscovery = rh.ui.discovery()
+	}
+	if rh.sigh != nil {
+		d.Signing = rh.sigh.Discovery(rh.JSONSignRoot)
 	}
 	if len(rh.sync) > 0 {
-		var syncHandlers []map[string]interface{}
+		syncHandlers := make([]camtypes.SyncHandlerDiscovery, 0, len(rh.sync))
 		for _, sh := range rh.sync {
-			syncHandlers = append(syncHandlers, sh.discoveryMap())
+			syncHandlers = append(syncHandlers, sh.discovery())
 		}
-		m["syncHandlers"] = syncHandlers
+		d.SyncHandlers = syncHandlers
 	}
-	discoveryHelper(rw, req, m)
+	discoveryHelper(rw, req, d)
 }
 
-func discoveryHelper(rw http.ResponseWriter, req *http.Request, m map[string]interface{}) {
+func discoveryHelper(rw http.ResponseWriter, req *http.Request, dr *camtypes.Discovery) {
 	rw.Header().Set("Content-Type", "text/javascript")
 	if cb := req.FormValue("cb"); identOrDotPattern.MatchString(cb) {
 		fmt.Fprintf(rw, "%s(", cb)
@@ -222,6 +257,10 @@ func discoveryHelper(rw http.ResponseWriter, req *http.Request, m map[string]int
 		fmt.Fprintf(rw, "%s = ", v)
 		defer rw.Write([]byte(";\n"))
 	}
-	bytes, _ := json.MarshalIndent(m, "", "  ")
+	bytes, err := json.MarshalIndent(dr, "", "  ")
+	if err != nil {
+		httputil.ServeJSONError(rw, httputil.ServerError("encoding discovery information: "+err.Error()))
+		return
+	}
 	rw.Write(bytes)
 }
