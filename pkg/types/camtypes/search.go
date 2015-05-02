@@ -239,3 +239,16 @@ type BlobMeta struct {
 
 	// TODO(bradfitz): change CamliTypethis *string to save 8 bytes
 }
+
+// SearchErrorResponse is the JSON error response for a search request.
+type SearchErrorResponse struct {
+	Error     string `json:"error,omitempty"`     // The error message.
+	ErrorType string `json:"errorType,omitempty"` // The type of the error.
+}
+
+// FileSearchResponse is the JSON response to a file search request.
+type FileSearchResponse struct {
+	SearchErrorResponse
+
+	Files []blob.Ref `json:"files,omitempty"` // Refs of the result files.
+}

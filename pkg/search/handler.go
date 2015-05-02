@@ -202,10 +202,11 @@ func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// TODO: discovery for the endpoints & better error message with link to discovery info
-	ret := jsonMap()
-	ret["error"] = "Unsupported search path or method"
-	ret["errorType"] = "input"
-	httputil.ReturnJSON(rw, ret)
+	ret := camtypes.SearchErrorResponse{
+		Error:     "Unsupported search path or method",
+		ErrorType: "input",
+	}
+	httputil.ReturnJSON(rw, &ret)
 }
 
 // sanitizeNumResults takes n as a requested number of search results and sanitizes it.
@@ -643,28 +644,24 @@ func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
-	ret := jsonMap()
-	defer httputil.ReturnJSON(rw, ret)
+	var ret camtypes.FileSearchResponse
+	defer httputil.ReturnJSON(rw, &ret)
 
 	br, ok := blob.Parse(req.FormValue("wholedigest"))
 	if !ok {
-		ret["error"] = "Missing or invalid 'wholedigest' param"
-		ret["errorType"] = "input"
+		ret.Error = "Missing or invalid 'wholedigest' param"
+		ret.ErrorType = "input"
 		return
 	}
 
 	files, err := sh.index.ExistingFileSchemas(br)
 	if err != nil {
-		ret["error"] = err.Error()
-		ret["errorType"] = "server"
+		ret.Error = err.Error()
+		ret.ErrorType = "server"
 		return
 	}
 
-	strList := []string{}
-	for _, br := range files {
-		strList = append(strList, br.String())
-	}
-	ret["files"] = strList
+	ret.Files = files
 	return
 }
 
