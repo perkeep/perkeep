@@ -145,6 +145,10 @@ func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if rh.Stealth {
 		return
 	}
+	if req.RequestURI == "/" && rh.ui != nil {
+		http.Redirect(rw, req, "/ui/", http.StatusMovedPermanently)
+		return
+	}
 	if req.URL.Path == "/favicon.ico" {
 		ServeStaticFile(rw, req, Files, "favicon.ico")
 		return
