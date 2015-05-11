@@ -233,21 +233,19 @@ type LogEntry struct {
 	// ProtoPayload: The log entry payload, represented as a protocol buffer
 	// that is expressed as a JSON object. You can only pass `protoPayload`
 	// values that belong to a set of approved types.
-	ProtoPayload *LogEntryProtoPayload `json:"protoPayload,omitempty"`
+	ProtoPayload LogEntryProtoPayload `json:"protoPayload,omitempty"`
 
 	// StructPayload: The log entry payload, represented as a structure that
 	// is expressed as a JSON object.
-	StructPayload *LogEntryStructPayload `json:"structPayload,omitempty"`
+	StructPayload LogEntryStructPayload `json:"structPayload,omitempty"`
 
 	// TextPayload: The log entry payload, represented as a text string.
 	TextPayload string `json:"textPayload,omitempty"`
 }
 
-type LogEntryProtoPayload struct {
-}
+type LogEntryProtoPayload interface{}
 
-type LogEntryStructPayload struct {
-}
+type LogEntryStructPayload interface{}
 
 type LogEntryMetadata struct {
 	// Labels: A set of (key, value) data that provides additional
@@ -344,7 +342,7 @@ type Status struct {
 
 	// Details: A list of messages that carry the error details. There will
 	// be a common set of message types for APIs to use.
-	Details []*StatusDetails `json:"details,omitempty"`
+	Details []StatusDetails `json:"details,omitempty"`
 
 	// Message: A developer-facing error message, which should be in
 	// English. The user-facing error message should be localized and stored
@@ -352,8 +350,7 @@ type Status struct {
 	Message string `json:"message,omitempty"`
 }
 
-type StatusDetails struct {
-}
+type StatusDetails interface{}
 
 type WriteLogEntriesRequest struct {
 	// CommonLabels: Metadata labels that apply to all entries in this
