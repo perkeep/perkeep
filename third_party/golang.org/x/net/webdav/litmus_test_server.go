@@ -37,7 +37,7 @@ func main() {
 	http.Handle("/", &webdav.Handler{
 		FileSystem: fs,
 		LockSystem: ls,
-		PropSystem: webdav.NewMemPS(fs, ls),
+		PropSystem: webdav.NewMemPS(fs, ls, webdav.ReadWrite),
 		Logger: func(r *http.Request, err error) {
 			litmus := r.Header.Get("X-Litmus")
 			if len(litmus) > 19 {

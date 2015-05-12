@@ -348,12 +348,13 @@ func TestMultistatusWriter(t *testing.T) {
 	///The "section x.y.z" test cases come from section x.y.z of the spec at
 	// http://www.webdav.org/specs/rfc4918.html
 	testCases := []struct {
-		desc      string
-		responses []response
-		respdesc  string
-		wantXML   string
-		wantCode  int
-		wantErr   error
+		desc        string
+		responses   []response
+		respdesc    string
+		writeHeader bool
+		wantXML     string
+		wantCode    int
+		wantErr     error
 	}{{
 		desc: "section 9.2.2 (failed dependency)",
 		responses: []response{{
@@ -472,14 +473,19 @@ func TestMultistatusWriter(t *testing.T) {
 			`</multistatus>`,
 		wantCode: StatusMulti,
 	}, {
-		desc: "bad: no response written",
+		desc: "no response written",
 		// default of http.responseWriter
 		wantCode: http.StatusOK,
 	}, {
-		desc:     "bad: no response written (with description)",
+		desc:     "no response written (with description)",
 		respdesc: "too bad",
 		// default of http.responseWriter
 		wantCode: http.StatusOK,
+	}, {
+		desc:        "empty multistatus with header",
+		writeHeader: true,
+		wantXML:     `<multistatus xmlns="DAV:"></multistatus>`,
+		wantCode:    StatusMulti,
 	}, {
 		desc: "bad: no href",
 		responses: []response{{
@@ -556,6 +562,12 @@ loop:
 	for _, tc := range testCases {
 		rec := httptest.NewRecorder()
 		w := multistatusWriter{w: rec, responseDescription: tc.respdesc}
+		if tc.writeHeader {
+			if err := w.writeHeader(); err != nil {
+				t.Errorf("%s: got writeHeader error %v, want nil", tc.desc, err)
+				continue
+			}
+		}
 		for _, r := range tc.responses {
 			if err := w.write(&r); err != nil {
 				if err != tc.wantErr {
@@ -612,7 +624,7 @@ loop:
 		gotXML := normalize(rec.Body.String())
 		wantXML := normalize(tc.wantXML)
 		if gotXML != wantXML {
-			t.Errorf("%s: XML body\ngot  % x\nwant % x", tc.desc, gotXML, wantXML)
+			t.Errorf("%s: XML body\ngot  %q\nwant %q", tc.desc, gotXML, wantXML)
 		}
 	}
 }
