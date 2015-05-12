@@ -129,10 +129,44 @@ type DeployHandler struct {
 	*log.Logger
 }
 
+// Config is the set of parameters to initialize the DeployHandler.
+type Config struct {
+	ClientID       string `json:"clientID"`       // handler's credentials for OAuth. required.
+	ClientSecret   string `json:"clientSecret"`   // handler's credentials for OAuth. required.
+	Project        string `json:"project"`        // any Google Cloud project we can query to get the valid Google Cloud zones. optional.
+	ServiceAccount string `json:"serviceAccount"` // JSON file with credentials to Project. optional.
+	DataDir        string `json:"dataDir"`        // where to store the instances configurations and states. optional.
+}
+
+// NewDeployHandlerFromConfig initializes a DeployHandler from the JSON config file.
+// Host and prefix have the same meaning as for NewDeployHandler.
+func NewDeployHandlerFromConfig(host, prefix, configFile string) (http.Handler, error) {
+	var cfg Config
+	data, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("Could not read handler's config at %v: %v", configFile, err)
+	}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("Could not JSON decode config at %v: %v", configFile, err)
+	}
+	if cfg.ClientID == "" {
+		return nil, errors.New("oauth2 clientID required in config")
+	}
+	if cfg.ClientSecret == "" {
+		return nil, errors.New("oauth2 clientSecret required in config")
+	}
+	os.Setenv("CAMLI_GCE_CLIENTID", cfg.ClientID)
+	os.Setenv("CAMLI_GCE_CLIENTSECRET", cfg.ClientSecret)
+	os.Setenv("CAMLI_GCE_PROJECT", cfg.Project)
+	os.Setenv("CAMLI_GCE_SERVICE_ACCOUNT", cfg.ServiceAccount)
+	os.Setenv("CAMLI_GCE_DATA", cfg.DataDir)
+	return NewDeployHandler(host, prefix)
+}
+
 // NewDeployHandler initializes a DeployHandler that serves at https://host/prefix/ and returns it.
 // A Google account client ID should be set in CAMLI_GCE_CLIENTID with its corresponding client
 // secret in CAMLI_GCE_CLIENTSECRET.
-func NewDeployHandler(host string, prefix string) (http.Handler, error) {
+func NewDeployHandler(host, prefix string) (http.Handler, error) {
 	clientID := os.Getenv("CAMLI_GCE_CLIENTID")
 	if clientID == "" {
 		return nil, errors.New("Need an oauth2 client ID defined in CAMLI_GCE_CLIENTID")
@@ -791,7 +825,7 @@ func dataStores() (blobserver.Storage, sorted.KeyValue, error) {
 	}
 	dataDir := os.Getenv("CAMLI_GCE_DATA")
 	if dataDir == "" {
-		dataDir = "camli-data"
+		dataDir = "camli-gce-data"
 		log.Printf("data dir not provided as env var CAMLI_GCE_DATA, so defaulting to %v", dataDir)
 	}
 	blobsDir := filepath.Join(dataDir, "instance-conf")

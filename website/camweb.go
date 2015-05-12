@@ -327,8 +327,30 @@ func runAsChild(res string) {
 	}()
 }
 
-func gceDeployHandler(host, prefix string) http.Handler {
-	gceh, err := gce.NewDeployHandler(host, prefix)
+// gceDeployHandler conditionally returns an http.Handler for a GCE launcher,
+// configured to run at /prefix/ (the trailing slash can be omitted).
+// If CAMLI_GCE_CLIENTID is not set, the launcher-config.json file, if present,
+// is used instead of environment variables to initialize the launcher. If a
+// launcher isn't enabled, gceDeployHandler returns nil. If another error occurs,
+// log.Fatal is called.
+func gceDeployHandler(prefix string) http.Handler {
+	hostPort, err := netutil.HostPort("https://" + *httpsAddr)
+	if err != nil {
+		hostPort = "camlistore.org:443"
+	}
+	var gceh http.Handler
+	if e := os.Getenv("CAMLI_GCE_CLIENTID"); e != "" {
+		gceh, err = gce.NewDeployHandler(hostPort, prefix)
+	} else {
+		config := filepath.Join(*root, "launcher-config.json")
+		if _, err := os.Stat(config); err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			log.Fatalf("Could not stat launcher-config.json: %v", err)
+		}
+		gceh, err = gce.NewDeployHandlerFromConfig(hostPort, prefix, config)
+	}
 	if err != nil {
 		log.Fatalf("Error initializing gce deploy handler: %v", err)
 	}
@@ -339,6 +361,7 @@ func gceDeployHandler(host, prefix string) http.Handler {
 	if err := gceh.(*gce.DeployHandler).AddTemplateTheme(string(pageBytes)); err != nil {
 		log.Fatalf("Error initializing gce deploy handler: %v", err)
 	}
+	log.Printf("Starting Camlistore launcher on https://%s%s", hostPort, prefix)
 	return gceh
 }
 
@@ -382,13 +405,8 @@ func main() {
 	}
 
 	if *httpsAddr != "" {
-		if e := os.Getenv("CAMLI_GCE_CLIENTID"); e != "" {
-			hostPort, err := netutil.HostPort("https://" + *httpsAddr)
-			if err != nil {
-				hostPort = "camlistore.org:443"
-			}
-			log.Printf("Starting Camlistore launcher on https://%s/launch/", hostPort)
-			mux.Handle("/launch/", gceDeployHandler(hostPort, "/launch/"))
+		if launcher := gceDeployHandler("/launch/"); launcher != nil {
+			mux.Handle("/launch/", launcher)
 		}
 	}
 
