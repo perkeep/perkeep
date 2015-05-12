@@ -127,9 +127,10 @@ func buildServer(ctxDir string) {
 func uploadDockerImage() {
 	proj := "camlistore-website"
 	bucket := "camlistore-release"
-	object := "docker/camlistored.tar.gz" // TODO: this is only tip for now
+	versionedTarball := "docker/camlistored-" + *rev + ".tar.gz"
+	tarball := "docker/camlistored.tar.gz"
 
-	log.Printf("Uploading %s/%s ...", bucket, object)
+	log.Printf("Uploading %s/%s ...", bucket, versionedTarball)
 
 	ts, err := tokenSource(bucket)
 	if err != nil {
@@ -138,13 +139,14 @@ func uploadDockerImage() {
 
 	httpClient := oauth2.NewClient(oauth2.NoContext, ts)
 	ctx := cloud.NewContext(proj, httpClient)
-	w := storage.NewWriter(ctx, bucket, object)
+	w := storage.NewWriter(ctx, bucket, versionedTarball)
 	// If you don't give the owners access, the web UI seems to
 	// have a bug and doesn't have access to see that it's public, so
 	// won't render the "Shared Publicly" link. So we do that, even
 	// though it's dumb and unnecessary otherwise:
-	w.ACL = append(w.ACL, storage.ACLRule{Entity: storage.ACLEntity("project-owners-" + proj), Role: storage.RoleOwner})
-	w.ACL = append(w.ACL, storage.ACLRule{Entity: storage.AllUsers, Role: storage.RoleReader})
+	acl := append(w.ACL, storage.ACLRule{Entity: storage.ACLEntity("project-owners-" + proj), Role: storage.RoleOwner})
+	acl = append(acl, storage.ACLRule{Entity: storage.AllUsers, Role: storage.RoleReader})
+	w.ACL = acl
 	w.CacheControl = "no-cache" // TODO: remove for non-tip releases? set expirations?
 	w.ContentType = "application/x-gtar"
 
@@ -178,7 +180,19 @@ func uploadDockerImage() {
 	if err := dockerSave.Wait(); err != nil {
 		log.Fatalf("Error waiting for docker save camlistore/server: %v", err)
 	}
-	log.Printf("Uploaded tarball to %s", object)
+	log.Printf("Uploaded tarball to %s", versionedTarball)
+	log.Printf("Copying tarball to %s/%s ...", bucket, tarball)
+	// TODO(mpl): 2015-05-12: update google.golang.org/cloud/storage so we
+	// can specify the dest name in CopyObject, and we get the ACLs from the
+	// src for free too I think.
+	if _, err := storage.CopyObject(ctx, bucket, versionedTarball, bucket, storage.ObjectAttrs{
+		Name:        tarball,
+		ACL:         acl,
+		ContentType: "application/x-gtar",
+	}); err != nil {
+		log.Fatalf("Error uploading %v: %v", tarball, err)
+	}
+	log.Printf("Uploaded tarball to %s", tarball)
 }
 
 func usage() {
