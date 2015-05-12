@@ -191,12 +191,12 @@ func checkModtime() error {
 	devcamDir := filepath.Join(camliSrcRoot, "dev", "devcam")
 	d, err := os.Open(devcamDir)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("could not read devcam source dir %v: %v", devcamDir, err)
 	}
 	defer d.Close()
 	fis, err := d.Readdir(-1)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("could not read devcam source dir %v: %v", devcamDir, err)
 	}
 	for _, fi := range fis {
 		if fi.ModTime().After(binModtime) {
@@ -247,10 +247,13 @@ func build(path string) error {
 
 func main() {
 	cmdmain.CheckCwd = checkCamliSrcRoot
-
-	if err := checkModtime(); err != nil {
-		log.Printf("Skipping freshness check: %v", err)
+	cmdmain.CheckModtime = func() error {
+		if err := checkModtime(); err != nil {
+			log.Printf("Skipping freshness check: %v", err)
+		}
+		return nil
 	}
+
 	// TODO(mpl): usage error is not really correct for devcam.
 	// See if I can reimplement it while still using cmdmain.Main().
 	cmdmain.Main()
