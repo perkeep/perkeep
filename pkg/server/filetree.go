@@ -54,9 +54,6 @@ func (fth *FileTreeHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	var ret FileTreeResponse
-	defer httputil.ReturnJSON(rw, &ret)
-
 	de, err := schema.NewDirectoryEntryFromBlobRef(fth.Fetcher, fth.file)
 	if err != nil {
 		http.Error(rw, "Error reading directory", 500)
@@ -75,7 +72,10 @@ func (fth *FileTreeHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 		log.Printf("reading dir from blobref %s: %v\n", fth.file, err)
 		return
 	}
-	ret.Children = make([]FileTreeNode, 0, len(entries))
+
+	var ret = FileTreeResponse{
+		Children: make([]FileTreeNode, 0, len(entries)),
+	}
 	for _, v := range entries {
 		ret.Children = append(ret.Children, FileTreeNode{
 			Name:    v.FileName(),
@@ -83,4 +83,5 @@ func (fth *FileTreeHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 			BlobRef: v.BlobRef(),
 		})
 	}
+	httputil.ReturnJSON(rw, ret)
 }
