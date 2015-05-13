@@ -16,6 +16,7 @@ type logRecord struct {
 	ip, method, rawpath string
 	responseBytes       int64
 	responseStatus      int
+	responseWritten		bool
 	userAgent, referer  string
 	proto               string // "HTTP/1.1"
 }
@@ -54,6 +55,7 @@ func (h *logHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		userAgent:      r.UserAgent(),
 		referer:        r.Referer(),
 		responseStatus: http.StatusOK,
+		responseWritten	false,
 		proto:          r.Proto,
 		ResponseWriter: rw,
 	}
@@ -115,12 +117,20 @@ func (h *logHandler) logFromChannel() {
 }
 
 func (lr *logRecord) Write(p []byte) (int, error) {
+	if !lr.responseWritten {
+		lr.responseWritten = true
+		lr.responseStatus = http.StatusOK
+	}
 	written, err := lr.ResponseWriter.Write(p)
 	lr.responseBytes += int64(written)
 	return written, err
 }
 
 func (lr *logRecord) WriteHeader(status int) {
+	if lr.responseWritten {
+		return
+	}
 	lr.responseStatus = status
+	lr.responseWritten = true
 	lr.ResponseWriter.WriteHeader(status)
 }
