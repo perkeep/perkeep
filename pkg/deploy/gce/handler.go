@@ -1041,7 +1041,7 @@ This tool helps you create your own private Camlistore instance running on Googl
 		<table border=0 cellpadding=3>
 			<tr valign=top><td align=right>Project ID</td><td margin=left><input name="project" size=30 value=""><br>
 		<ul style="padding-left:0;margin-left:0;font-size:75%">
-			<li>New or existing <a href="` + ConsoleURL + `">Google Project</a>.</li>
+			<li>Select a <a href="` + ConsoleURL + `">Google Project</a> in which to create the VM. If it doesn't already exist, <a href="` + ConsoleURL + `">create it</a> first before using this Camlistore creation tool.</li>
 			<li>Requirements:</li>
 			<ul>
 				<li>Enable billing. (Billing & settings)</li>
