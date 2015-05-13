@@ -264,29 +264,37 @@ func (w *multistatusWriter) write(r *response) error {
 			return errInvalidResponse
 		}
 	}
-	if w.enc == nil {
-		w.w.Header().Add("Content-Type", "text/xml; charset=utf-8")
-		w.w.WriteHeader(StatusMulti)
-		_, err := fmt.Fprintf(w.w, `<?xml version="1.0" encoding="UTF-8"?>`)
-		if err != nil {
-			return err
-		}
-		w.enc = xml.NewEncoder(w.w)
-		err = w.enc.EncodeToken(xml.StartElement{
-			Name: xml.Name{
-				Space: "DAV:",
-				Local: "multistatus",
-			},
-			Attr: []xml.Attr{{
-				Name:  xml.Name{Local: "xmlns"},
-				Value: "DAV:",
-			}},
-		})
-		if err != nil {
-			return err
-		}
+	err := w.writeHeader()
+	if err != nil {
+		return err
 	}
 	return w.enc.Encode(r)
+}
+
+// writeHeader writes a XML multistatus start element on w's underlying
+// http.ResponseWriter and returns the result of the write operation.
+// After the first write attempt, writeHeader becomes a no-op.
+func (w *multistatusWriter) writeHeader() error {
+	if w.enc != nil {
+		return nil
+	}
+	w.w.Header().Add("Content-Type", "text/xml; charset=utf-8")
+	w.w.WriteHeader(StatusMulti)
+	_, err := fmt.Fprintf(w.w, `<?xml version="1.0" encoding="UTF-8"?>`)
+	if err != nil {
+		return err
+	}
+	w.enc = xml.NewEncoder(w.w)
+	return w.enc.EncodeToken(xml.StartElement{
+		Name: xml.Name{
+			Space: "DAV:",
+			Local: "multistatus",
+		},
+		Attr: []xml.Attr{{
+			Name:  xml.Name{Local: "xmlns"},
+			Value: "DAV:",
+		}},
+	})
 }
 
 // Close completes the marshalling of the multistatus response. It returns

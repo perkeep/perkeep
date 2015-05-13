@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 )
 
 // PropSystem manages the properties of named resources. It allows finding
@@ -95,20 +96,51 @@ type Propstat struct {
 type memPS struct {
 	fs FileSystem
 	ls LockSystem
+	m  Mutability
+
+	mu    sync.RWMutex
+	nodes map[string]*memPSNode
 }
 
-// NewMemPS returns a new in-memory PropSystem implementation.
-func NewMemPS(fs FileSystem, ls LockSystem) PropSystem {
-	return &memPS{fs: fs, ls: ls}
+// memPSNode stores the dead properties of a resource.
+type memPSNode struct {
+	mu        sync.RWMutex
+	deadProps map[xml.Name]Property
 }
 
-// davProps contains all supported DAV: properties and their optional
-// propfind functions. A nil findFn indicates a hidden, protected property.
-// The dir field indicates if the property applies to directories in addition
-// to regular files.
-var davProps = map[xml.Name]struct {
+// BUG(rost): In this development version, the in-memory property system does
+// not handle COPY/MOVE/DELETE requests. As a result, dead properties are not
+// released if the according DAV resource is deleted or moved. It is not
+// recommended to use a read-writeable property system in production.
+
+// Mutability indicates the mutability of a property system.
+type Mutability bool
+
+const (
+	ReadOnly  = Mutability(false)
+	ReadWrite = Mutability(true)
+)
+
+// NewMemPS returns a new in-memory PropSystem implementation. A read-only
+// property system rejects all patches. A read-writeable property system
+// stores arbitrary properties but refuses to change any DAV: property
+// specified in RFC 4918. It imposes no limit on the size of property values.
+func NewMemPS(fs FileSystem, ls LockSystem, m Mutability) PropSystem {
+	return &memPS{
+		fs:    fs,
+		ls:    ls,
+		m:     m,
+		nodes: make(map[string]*memPSNode),
+	}
+}
+
+// liveProps contains all supported, protected DAV: properties.
+var liveProps = map[xml.Name]struct {
+	// findFn implements the propfind function of this property. If nil,
+	// it indicates a hidden property.
 	findFn func(*memPS, string, os.FileInfo) (string, error)
-	dir    bool
+	// dir is true if the property applies to directories.
+	dir bool
 }{
 	xml.Name{Space: "DAV:", Local: "resourcetype"}: {
 		findFn: (*memPS).findResourceType,
@@ -138,31 +170,51 @@ var davProps = map[xml.Name]struct {
 		findFn: (*memPS).findContentType,
 		dir:    true,
 	},
-	// memPS implements ETag as the concatenated hex values of a file's
-	// modification time and size. This is not a reliable synchronization
-	// mechanism for directories, so we do not advertise getetag for
-	// DAV collections.
 	xml.Name{Space: "DAV:", Local: "getetag"}: {
 		findFn: (*memPS).findETag,
-		dir:    false,
+		// memPS implements ETag as the concatenated hex values of a file's
+		// modification time and size. This is not a reliable synchronization
+		// mechanism for directories, so we do not advertise getetag for
+		// DAV collections.
+		dir: false,
 	},
 
 	// TODO(nigeltao) Lock properties will be defined later.
-	// xml.Name{Space: "DAV:", Local: "lockdiscovery"}
-	// xml.Name{Space: "DAV:", Local: "supportedlock"}
+	xml.Name{Space: "DAV:", Local: "lockdiscovery"}: {},
+	xml.Name{Space: "DAV:", Local: "supportedlock"}: {},
 }
 
 func (ps *memPS) Find(name string, propnames []xml.Name) ([]Propstat, error) {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
 	fi, err := ps.fs.Stat(name)
 	if err != nil {
 		return nil, err
 	}
 
+	// Lookup the dead properties of this resource. It's OK if there are none.
+	n, ok := ps.nodes[name]
+	if ok {
+		n.mu.RLock()
+		defer n.mu.RUnlock()
+	}
+
 	pm := make(map[int]Propstat)
 	for _, pn := range propnames {
+		// If this node has dead properties, check if they contain pn.
+		if n != nil {
+			if dp, ok := n.deadProps[pn]; ok {
+				pstat := pm[http.StatusOK]
+				pstat.Props = append(pstat.Props, dp)
+				pm[http.StatusOK] = pstat
+				continue
+			}
+		}
+		// Otherwise, it must either be a live property or we don't know it.
 		p := Property{XMLName: pn}
 		s := http.StatusNotFound
-		if prop := davProps[pn]; prop.findFn != nil && (prop.dir || !fi.IsDir()) {
+		if prop := liveProps[pn]; prop.findFn != nil && (prop.dir || !fi.IsDir()) {
 			xmlvalue, err := prop.findFn(ps, name, fi)
 			if err != nil {
 				return nil, err
@@ -188,12 +240,24 @@ func (ps *memPS) Propnames(name string) ([]xml.Name, error) {
 	if err != nil {
 		return nil, err
 	}
-	propnames := make([]xml.Name, 0, len(davProps))
-	for pn, prop := range davProps {
+
+	propnames := make([]xml.Name, 0, len(liveProps))
+	for pn, prop := range liveProps {
 		if prop.findFn != nil && (prop.dir || !fi.IsDir()) {
 			propnames = append(propnames, pn)
 		}
 	}
+
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+	if n, ok := ps.nodes[name]; ok {
+		n.mu.RLock()
+		defer n.mu.RUnlock()
+		for pn := range n.deadProps {
+			propnames = append(propnames, pn)
+		}
+	}
+
 	return propnames, nil
 }
 
@@ -216,14 +280,61 @@ func (ps *memPS) Allprop(name string, include []xml.Name) ([]Propstat, error) {
 }
 
 func (ps *memPS) Patch(name string, patches []Proppatch) ([]Propstat, error) {
-	// TODO(rost): Support to patch "dead" DAV properties in the next CL.
-	pstat := Propstat{Status: http.StatusForbidden}
+	// A DELETE/COPY/MOVE might fly in, so we need to keep all nodes locked until
+	// the end of this PROPPATCH.
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	n, ok := ps.nodes[name]
+	if !ok {
+		n = &memPSNode{deadProps: make(map[xml.Name]Property)}
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	_, err := ps.fs.Stat(name)
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform a dry-run to identify any patch conflicts. A read-only property
+	// system always fails at this stage.
+	pm := make(map[int]Propstat)
 	for _, patch := range patches {
 		for _, p := range patch.Props {
+			s := http.StatusOK
+			if _, ok := liveProps[p.XMLName]; ok || ps.m == ReadOnly {
+				s = http.StatusForbidden
+			}
+			pstat := pm[s]
 			pstat.Props = append(pstat.Props, Property{XMLName: p.XMLName})
+			pm[s] = pstat
 		}
 	}
-	return []Propstat{pstat}, nil
+	// Based on the dry-run, either apply the patches or handle conflicts.
+	if _, ok = pm[http.StatusOK]; ok {
+		if len(pm) == 1 {
+			for _, patch := range patches {
+				for _, p := range patch.Props {
+					if patch.Remove {
+						delete(n.deadProps, p.XMLName)
+					} else {
+						n.deadProps[p.XMLName] = p
+					}
+				}
+			}
+			ps.nodes[name] = n
+		} else {
+			pm[StatusFailedDependency] = pm[http.StatusOK]
+			delete(pm, http.StatusOK)
+		}
+	}
+
+	pstats := make([]Propstat, 0, len(pm))
+	for s, pstat := range pm {
+		pstat.Status = s
+		pstats = append(pstats, pstat)
+	}
+	return pstats, nil
 }
 
 func (ps *memPS) findResourceType(name string, fi os.FileInfo) (string, error) {

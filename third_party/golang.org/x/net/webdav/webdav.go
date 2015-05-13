@@ -500,18 +500,15 @@ func (h *Handler) handlePropfind(w http.ResponseWriter, r *http.Request) (status
 		return mw.write(makePropstatResponse(path, pstats))
 	}
 
-	err = walkFS(h.FileSystem, depth, r.URL.Path, fi, walkFn)
-	if mw.enc == nil {
-		if err == nil {
-			err = errEmptyMultistatus
-		}
-		// Not a single response has been written.
-		return http.StatusInternalServerError, err
+	walkErr := walkFS(h.FileSystem, depth, r.URL.Path, fi, walkFn)
+	closeErr := mw.close()
+	if walkErr != nil {
+		return http.StatusInternalServerError, walkErr
 	}
-	if err != nil {
-		return 0, err
+	if closeErr != nil {
+		return http.StatusInternalServerError, closeErr
 	}
-	return 0, mw.close()
+	return 0, nil
 }
 
 func (h *Handler) handleProppatch(w http.ResponseWriter, r *http.Request) (status int, err error) {
@@ -541,7 +538,10 @@ func (h *Handler) handleProppatch(w http.ResponseWriter, r *http.Request) (statu
 	if writeErr != nil {
 		return http.StatusInternalServerError, writeErr
 	}
-	return 0, closeErr
+	if closeErr != nil {
+		return http.StatusInternalServerError, closeErr
+	}
+	return 0, nil
 }
 
 // davHeaderNames maps the names of DAV properties to their corresponding
@@ -638,7 +638,6 @@ func StatusText(code int) string {
 var (
 	errDestinationEqualsSource = errors.New("webdav: destination equals source")
 	errDirectoryNotEmpty       = errors.New("webdav: directory not empty")
-	errEmptyMultistatus        = errors.New("webdav: empty multistatus response")
 	errInvalidDepth            = errors.New("webdav: invalid depth")
 	errInvalidDestination      = errors.New("webdav: invalid destination")
 	errInvalidIfHeader         = errors.New("webdav: invalid If header")
