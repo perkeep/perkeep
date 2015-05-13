@@ -336,7 +336,7 @@ func SendUnauthorized(rw http.ResponseWriter, req *http.Request) {
 			}
 		}
 	}
-	realm := "camlistored"
+	var realm string
 	hasDevAuth := func() (*DevAuth, bool) {
 		for _, m := range modes {
 			if devAuth, ok := m.(*DevAuth); ok {
@@ -348,6 +348,8 @@ func SendUnauthorized(rw http.ResponseWriter, req *http.Request) {
 	if devAuth, ok := hasDevAuth(); ok {
 		realm = "Any username, password is: " + devAuth.Password
 	}
+	// From what I've tested, it looks like sending just "Basic" would be ok,
+	// but RFC 2617 says realm is mandatory, so probably better to send an empty one.
 	rw.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=%q", realm))
 	rw.WriteHeader(http.StatusUnauthorized)
 	fmt.Fprintf(rw, "<html><body><h1>Unauthorized</h1>")
