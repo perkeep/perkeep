@@ -80,7 +80,7 @@ func init() {
 		cmd := new(fileCmd)
 		flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create an associate a new permanode for the uploaded file or directory.")
 		flags.BoolVar(&cmd.filePermanodes, "filenodes", false, "Create (if necessary) content-based permanodes for each uploaded file.")
-		flags.BoolVar(&cmd.deleteAfterUpload, "delete_after_upload", false, "If using -filenodes, deletes files once they're uploaded, of if they've already been uploaded.")
+		flags.BoolVar(&cmd.deleteAfterUpload, "delete_after_upload", false, "If using -filenodes, deletes files once they're uploaded, or if they've already been uploaded.")
 		flags.BoolVar(&cmd.vivify, "vivify", false,
 			"If true, ask the server to create and sign permanode(s) associated with each uploaded"+
 				" file. This permits the server to have your signing key. Used mostly with untrusted"+
