@@ -34,6 +34,7 @@ import (
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
+	"camlistore.org/pkg/types/camtypes"
 
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
 )
@@ -204,25 +205,23 @@ func (h *Handler) handleVerify(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	m := make(map[string]interface{})
-
 	// TODO: use a different fetcher here that checks memory, disk,
 	// the internet, etc.
 	fetcher := h.pubKeyFetcher
 
+	var res camtypes.VerifyResponse
 	vreq := jsonsign.NewVerificationRequest(sjson, fetcher)
 	if vreq.Verify() {
-		m["signatureValid"] = 1
-		m["signerKeyId"] = vreq.SignerKeyId
-		m["verifiedData"] = vreq.PayloadMap
+		res.SignatureValid = true
+		res.SignerKeyId = vreq.SignerKeyId
+		res.VerifiedData = vreq.PayloadMap
 	} else {
-		errStr := vreq.Err.Error()
-		m["signatureValid"] = 0
-		m["errorMessage"] = errStr
+		res.SignatureValid = false
+		res.ErrorMessage = vreq.Err.Error()
 	}
 
 	rw.WriteHeader(http.StatusOK) // no HTTP response code fun, error info in JSON
-	httputil.ReturnJSON(rw, m)
+	httputil.ReturnJSON(rw, &res)
 }
 
 func (h *Handler) handleSign(rw http.ResponseWriter, req *http.Request) {
