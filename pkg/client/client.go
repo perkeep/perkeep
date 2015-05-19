@@ -874,15 +874,36 @@ func (c *Client) selfVerifiedSSL() bool {
 	return c.useTLS() && len(c.getTrustedCerts()) > 0
 }
 
-// condRewriteURL changes "https://" to "http://" if we are in
-// selfVerifiedSSL mode. We need to do that because we do the TLS
-// dialing ourselves, and we do not want the http transport layer
-// to redo it.
-func (c *Client) condRewriteURL(url string) string {
+// condRewriteURL changes "https://" to "http://" and adds ":443" to
+// the host (if no port was specified) when we are in selfVerifiedSSL
+// mode. We need to do that because we do the TLS dialing ourselves,
+// and we do not want the http transport layer to redo it.
+func (c *Client) condRewriteURL(urlStr string) string {
 	if c.selfVerifiedSSL() || c.insecureTLS() {
-		return strings.Replace(url, "https://", "http://", 1)
+		// url.Parse fails for mismached IPv6 brackets on Go 1.5, but
+		// not 1.4. See https://github.com/golang/go/issues/6530.
+		// SplitHostPort below always fails on mismatched IPv6 brackets,
+		// so overall we get the same behaviour on both 1.4 & 1.5.
+		u, err := url.Parse(urlStr)
+		if err != nil {
+			return urlStr
+		}
+		if u.Scheme == "https" {
+			// Keep the port 443 if no explicit port was specified.
+			_, _, err := net.SplitHostPort(u.Host)
+			if err == nil {
+				u.Scheme = "http"
+				return u.String()
+			}
+			addrerr, ok := err.(*net.AddrError)
+			if ok && addrerr.Err == "missing port in address" {
+				u.Scheme = "http"
+				u.Host += ":443"
+				return u.String()
+			}
+		}
 	}
-	return url
+	return urlStr
 }
 
 // TLSConfig returns the correct tls.Config depending on whether
