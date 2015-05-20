@@ -14,6 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// IndexPage is the top level React component class that owns all the other
+// components of the web UI.
+// See the React documentation and in particular
+// https://facebook.github.io/react/docs/component-specs.html to learn about
+// components.
 goog.provide('cam.IndexPage');
 
 goog.require('goog.array');
@@ -87,6 +92,9 @@ cam.IndexPage = React.createClass({
 		timer: cam.Header.originalSpec.propTypes.timer,
 	},
 
+	// Invoked once right before initial rendering. This is essentially IndexPage's
+	// constructor. We populate non-React helpers that live for the entire lifetime
+	// of IndexPage here.
 	componentWillMount: function() {
 		this.baseURL_ = null;
 		this.dragEndTimer_ = 0;
@@ -108,6 +116,7 @@ cam.IndexPage = React.createClass({
 		this.handleDidNavigate_();
 	},
 
+	// Invoked right after initial rendering.
 	componentDidMount: function() {
 		// TODO(aa): This supports some of the old iframed pages. We can remove it once they are dead.
 		goog.global.getSearchSession = function() {
@@ -122,6 +131,9 @@ cam.IndexPage = React.createClass({
 		this.clearDragTimer_();
 	},
 
+	// Invoked once before everything else on initial rendering. Values are
+	// subsequently in this.state. We use this to set the initial state and
+	// also to document what state fields are possible
 	getInitialState: function() {
 		return {
 			backwardPiggy: false,
@@ -140,6 +152,9 @@ cam.IndexPage = React.createClass({
 		};
 	},
 
+	// render() is called by React every time a component is determined to need
+	// re-rendering. This is typically caused by a call to setState() or a parent
+	// component re-rendering.
 	render: function() {
 		var aspects = this.getAspects_();
 		var selectedAspect = goog.array.findIndex(aspects, function(v) {
