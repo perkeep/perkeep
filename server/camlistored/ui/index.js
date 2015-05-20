@@ -375,50 +375,64 @@ cam.IndexPage = React.createClass({
 	},
 
 	updateTargetSearchSession_: function(targetBlobref, newURL) {
+		this.targetSearchSession_ = null;
 		if (targetBlobref) {
-			var query = this.buildQuery_(newURL.getParameterValue('q'), newURL.getParameterValue('p'));
+			var query = this.queryAsBlob_(targetBlobref);
+			var parentPermanode = newURL.getParameterValue('p');
+			if (parentPermanode) {
+				query = this.queryFromParentPermanode_(parentPermanode);
+			} else {
+				var queryString = newURL.getParameterValue('q');
+				if (queryString) {
+					query = this.queryFromSearchParam_(queryString);
+				}
+			}
 			this.targetSearchSession_ = this.getSearchSession_(targetBlobref, query);
-		} else {
-			this.targetSearchSession_ = null;
 		}
 	},
 
 	updateChildSearchSession_: function(targetBlobref, newURL) {
-		var query = this.buildQuery_(newURL.getParameterValue('q') || ' ', targetBlobref);
-		if (query) {
-			this.childSearchSession_ = this.getSearchSession_(null, query);
+		var query = ' ';
+		if (targetBlobref) {
+			query = this.queryFromParentPermanode_(targetBlobref);
 		} else {
-			this.childSearchSession_ = null;
+			var queryString = newURL.getParameterValue('q');
+			if (queryString) {
+				query = this.queryFromSearchParam_(queryString);
+			}
+		}
+		this.childSearchSession_ = this.getSearchSession_(null, query);
+	},
+
+	queryFromSearchParam_: function(queryString) {
+		// TODO(aa): Remove this when the server can do something like the 'raw' operator.
+		if (goog.string.startsWith(queryString, this.SEARCH_PREFIX_.RAW + ':')) {
+			try {
+				return JSON.parse(queryString.substring(this.SEARCH_PREFIX_.RAW.length + 1));
+			} catch (e) {
+				console.error('Raw search is invalid JSON', e);
+				return null;
+			}
+		} else {
+			return queryString;
 		}
 	},
 
-	buildQuery_: function(opt_queryString, opt_parentBlobref) {
-		if (opt_parentBlobref) {
-			return {
-				permanode: {
-					relation: {
-						relation: 'parent',
-						any: { blobRefPrefix: opt_parentBlobref },
-					},
+	queryFromParentPermanode_: function(blobRef) {
+		return {
+			permanode: {
+				relation: {
+					relation: 'parent',
+					any: { blobRefPrefix: blobRef },
 				},
-			};
-		}
+			},
+		};
+	},
 
-		if (opt_queryString) {
-			// TODO(aa): Remove this when the server can do something like the 'raw' operator.
-			if (goog.string.startsWith(opt_queryString, this.SEARCH_PREFIX_.RAW + ':')) {
-				try {
-					return JSON.parse(opt_queryString.substring(this.SEARCH_PREFIX_.RAW.length + 1));
-				} catch (e) {
-					console.error('Raw search is invalid JSON', e);
-					return null;
-				}
-			} else {
-				return opt_queryString;
-			}
+	queryAsBlob_: function(blobRef) {
+		return {
+			blobRefPrefix: blobRef,
 		}
-
-		return null;
 	},
 
 	// Finds an existing cached SearchSession that meets criteria, or creates a new one.
