@@ -7,6 +7,7 @@
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
+				"jsonSignRoot": "/sighelper/",
 				"ownerName": "Alice",
 				"searchRoot": "/my-search/",
 				"statusRoot": "/status/",
@@ -138,7 +139,6 @@
 			"handler": "ui",
 			"handlerArgs": {
 				"cache": "/cache/",
-				"jsonSignRoot": "/sighelper/",
 				"scaledImage": {
 					"database": "ui_thumbmeta_cache",
 					"host": "localhost",

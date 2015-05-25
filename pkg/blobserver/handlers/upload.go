@@ -124,10 +124,9 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blob.SizedRef)
 	if !ok {
 		return errors.New("handler is not a JSON signhandler")
 	}
-	discoMap := sigHelper.DiscoveryMap(JSONSignRoot)
-	publicKeyBlobRef, ok := discoMap["publicKeyBlobRef"].(string)
-	if !ok {
-		return fmt.Errorf("Discovery: json decoding error: %v", err)
+	publicKeyBlobRef := sigHelper.Discovery(JSONSignRoot).PublicKeyBlobRef
+	if !publicKeyBlobRef.Valid() {
+		return fmt.Errorf("invalid publicKeyBlobRef %v in sign discovery", publicKeyBlobRef)
 	}
 
 	// The file schema must have a modtime to vivify, as the modtime is used for all three of:
@@ -140,29 +139,29 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blob.SizedRef)
 	}
 
 	permanodeBB := schema.NewHashPlannedPermanode(h)
-	permanodeBB.SetSigner(blob.MustParse(publicKeyBlobRef))
+	permanodeBB.SetSigner(publicKeyBlobRef)
 	permanodeBB.SetClaimDate(claimDate)
 	permanodeSigned, err := sigHelper.Sign(permanodeBB)
 	if err != nil {
-		return fmt.Errorf("Signing permanode %v: %v", permanodeSigned, err)
+		return fmt.Errorf("signing permanode %v: %v", permanodeSigned, err)
 	}
 	permanodeRef := blob.SHA1FromString(permanodeSigned)
 	_, err = blobserver.ReceiveNoHash(blobReceiver, permanodeRef, strings.NewReader(permanodeSigned))
 	if err != nil {
-		return fmt.Errorf("While uploading signed permanode %v, %v: %v", permanodeRef, permanodeSigned, err)
+		return fmt.Errorf("while uploading signed permanode %v, %v: %v", permanodeRef, permanodeSigned, err)
 	}
 
 	contentClaimBB := schema.NewSetAttributeClaim(permanodeRef, "camliContent", fileblob.Ref.String())
-	contentClaimBB.SetSigner(blob.MustParse(publicKeyBlobRef))
+	contentClaimBB.SetSigner(publicKeyBlobRef)
 	contentClaimBB.SetClaimDate(claimDate)
 	contentClaimSigned, err := sigHelper.Sign(contentClaimBB)
 	if err != nil {
-		return fmt.Errorf("Signing camliContent claim: %v", err)
+		return fmt.Errorf("signing camliContent claim: %v", err)
 	}
 	contentClaimRef := blob.SHA1FromString(contentClaimSigned)
 	_, err = blobserver.ReceiveNoHash(blobReceiver, contentClaimRef, strings.NewReader(contentClaimSigned))
 	if err != nil {
-		return fmt.Errorf("While uploading signed camliContent claim %v, %v: %v", contentClaimRef, contentClaimSigned, err)
+		return fmt.Errorf("while uploading signed camliContent claim %v, %v: %v", contentClaimRef, contentClaimSigned, err)
 	}
 	return nil
 }

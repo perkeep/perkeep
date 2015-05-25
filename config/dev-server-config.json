@@ -10,6 +10,7 @@
 			"handler": "root",
 			"handlerArgs": {
 				"ownerName": ["_env", "${USER}-dev"],
+				"jsonSignRoot": "/sighelper/",
 				"blobRoot": "/bs-recv/",
 				"statusRoot": "/status/",
 				"searchRoot": "/my-search/",
@@ -53,7 +54,6 @@
 			"handler": "ui",
 			"handlerArgs": {
 				"sourceRoot": ["_env", "${CAMLI_DEV_CAMLI_ROOT}", ""],
-				"jsonSignRoot": "/sighelper/",
 				"cache": "/cache/",
 				"scaledImage": {
 					"type": "kv",

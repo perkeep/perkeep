@@ -41,6 +41,7 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/syncutil"
+	"camlistore.org/pkg/types/camtypes"
 	"camlistore.org/third_party/code.google.com/p/xsrftoken"
 )
 
@@ -236,11 +237,11 @@ func newIdleSyncHandler(fromName, toName string) *SyncHandler {
 	}
 }
 
-func (sh *SyncHandler) discoveryMap() map[string]interface{} {
-	return map[string]interface{}{
-		"from":    sh.fromName,
-		"to":      sh.toName,
-		"toIndex": sh.toIndex,
+func (sh *SyncHandler) discovery() camtypes.SyncHandlerDiscovery {
+	return camtypes.SyncHandlerDiscovery{
+		From:    sh.fromName,
+		To:      sh.toName,
+		ToIndex: sh.toIndex,
 	}
 }
 

@@ -7,6 +7,7 @@
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
+				"jsonSignRoot": "/sighelper/",
 				"searchRoot": "/my-search/",
 				"statusRoot": "/status/",
 				"stealth": false
@@ -112,7 +113,6 @@
 			"handler": "ui",
 			"handlerArgs": {
 				"cache": "/cache/",
-				"jsonSignRoot": "/sighelper/",
 				"scaledImage": {
 					"database": "thumbcache_db",
 					"host": "camlistore.cloudsql.google.internal",
