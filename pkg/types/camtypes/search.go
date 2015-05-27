@@ -250,5 +250,5 @@ type SearchErrorResponse struct {
 type FileSearchResponse struct {
 	SearchErrorResponse
 
-	Files []blob.Ref `json:"files,omitempty"` // Refs of the result files.
+	Files []blob.Ref `json:"files"` // Refs of the result files. Never nil.
 }

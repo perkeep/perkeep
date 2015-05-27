@@ -661,6 +661,11 @@ func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// the ui code expects an object
+	if files == nil {
+		files = []blob.Ref{}
+	}
+
 	ret.Files = files
 	return
 }
