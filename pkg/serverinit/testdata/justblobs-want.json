@@ -8,6 +8,7 @@
 			"handlerArgs": {
 				"blobRoot": "/bs/",
 				"jsonSignRoot": "/sighelper/",
+				"helpRoot": "/help/",
 				"statusRoot": "/status/",
 				"stealth": false
 			}
@@ -23,6 +24,9 @@
 			"handlerArgs": {
 				"path": "/tmp/blobs/cache"
 			}
+		},
+		"/help/": {
+			"handler": "help"
 		},
 		"/setup/": {
 			"handler": "setup"

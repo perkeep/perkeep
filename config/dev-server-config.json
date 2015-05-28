@@ -12,6 +12,7 @@
 				"ownerName": ["_env", "${USER}-dev"],
 				"jsonSignRoot": "/sighelper/",
 				"blobRoot": "/bs-recv/",
+				"helpRoot": "/help/",
 				"statusRoot": "/status/",
 				"searchRoot": "/my-search/",
 				"stealth": false
@@ -64,6 +65,10 @@
 
 		"/status/": {
 			"handler": "status"
+		},
+
+		"/help/": {
+			"handler": "help"
 		},
 
 		"/sync-index/": {

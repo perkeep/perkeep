@@ -105,7 +105,7 @@ func (sh *StatusHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	case "":
 		sh.serveStatusHTML(rw, req)
 	default:
-		http.Error(rw, "Illegal status path.", 404)
+		http.Error(rw, "Illegal status path.", http.StatusNotFound)
 	}
 }
 

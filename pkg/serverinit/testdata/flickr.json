@@ -3,7 +3,7 @@
 	"auth": "userpass:camlistore:pass3179",
 	"blobPath": "/tmp/blobs",
 	"flickr": "monkey:balls",
-        "kvIndexFile": "/path/to/indexkv.db",
+	"kvIndexFile": "/path/to/indexkv.db",
 	"identity": "26F5ABDA",
 	"identitySecretRing": "/path/to/secring",
 	"ownerName": "Alice",

@@ -44,6 +44,7 @@ import (
 	"camlistore.org/pkg/server"
 	"camlistore.org/pkg/serverinit"
 	"camlistore.org/pkg/test"
+	"camlistore.org/pkg/types/clientconfig"
 	"camlistore.org/pkg/types/serverconfig"
 
 	// For registering all the handler constructors needed in TestInstallHandlers
@@ -209,14 +210,13 @@ func testConfig(name string, t *testing.T) {
 		t.Fatalf("Error while parsing low-level conf generated from %v: %v", name, err)
 	}
 
+	// TODO(mpl): should we stop execution (and not update golden files)
+	// if the comparison fails? Currently this is not the case.
 	wantFile := strings.Replace(name, ".json", "-want.json", 1)
 	wantConf, err := configParser().ReadFile(wantFile)
 	if err != nil {
 		t.Fatalf("test %s: ReadFile: %v", name, err)
 	}
-	var got, want bytes.Buffer
-	prettyPrint(t, &got, lowLevelConf.Obj)
-	prettyPrint(t, &want, wantConf)
 	if *updateGolden {
 		contents, err := json.MarshalIndent(lowLevelConf.Obj, "", "\t")
 		if err != nil {
@@ -227,6 +227,14 @@ func testConfig(name string, t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	compareConfigurations(t, name, lowLevelConf.Obj, wantConf)
+}
+
+func compareConfigurations(t *testing.T, name, g interface{}, w interface{}) {
+	var got, want bytes.Buffer
+	prettyPrint(t, &got, g)
+	prettyPrint(t, &want, w)
+
 	if got.String() != want.String() {
 		t.Errorf("test %s configurations differ.\nGot:\n%s\nWant:\n%s\nDiff (want -> got), %s:\n%s",
 			name, &got, &want, name, test.Diff(want.Bytes(), got.Bytes()))
@@ -365,6 +373,13 @@ func TestInstallHandlers(t *testing.T) {
 		},
 
 		{
+			prefix:        "/help/",
+			handlerType:   reflect.TypeOf(&server.HelpHandler{}),
+			prefixWrapped: true,
+			authWrapped:   true,
+		},
+
+		{
 			prefix:        "/setup/",
 			handlerType:   reflect.TypeOf(&server.SetupHandler{}),
 			prefixWrapped: true,
@@ -422,4 +437,41 @@ func TestInstallHandlers(t *testing.T) {
 			t.Errorf("for %v: want %v, got %v", v.prefix, v.handlerType, reflect.TypeOf(h))
 		}
 	}
+}
+
+// TestGenerateClientConfig validates the client config generated for display
+// by the HelpHandler.
+func TestGenerateClientConfig(t *testing.T) {
+	inName := filepath.Join("testdata", "gen_client_config.in")
+	wantName := strings.Replace(inName, ".in", ".out", 1)
+
+	b, err := replaceRingPath(inName)
+	if err != nil {
+		t.Fatalf("Failed to read high-level server config file: %v", err)
+	}
+	b = backslashEscape(b)
+	var hiLevelConf serverconfig.Config
+	if err := json.Unmarshal(b, &hiLevelConf); err != nil {
+		t.Fatalf("Failed to unmarshal server config: %v", err)
+	}
+	lowLevelConf, err := serverinit.GenLowLevelConfig(&hiLevelConf)
+	if err != nil {
+		t.Fatalf("Failed to generate low-level config: %v", err)
+	}
+	generatedConf, err := clientconfig.GenerateClientConfig(lowLevelConf.Obj)
+	if err != nil {
+		t.Fatalf("Failed to generate client config: %v", err)
+	}
+
+	wb, err := replaceRingPath(wantName)
+	if err != nil {
+		t.Fatalf("Failed to read want config file: %v", err)
+	}
+	wb = backslashEscape(wb)
+	var wantConf clientconfig.Config
+	if err := json.Unmarshal(wb, &wantConf); err != nil {
+		t.Fatalf("Failed to unmarshall want config: %v", err)
+	}
+
+	compareConfigurations(t, inName, generatedConf, wantConf)
 }

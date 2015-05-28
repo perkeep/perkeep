@@ -1,0 +1,14 @@
+{
+	"servers": {
+		"default": {
+			"server": "http://1.2.3.4:567",
+			"auth": "userpass:camlistore:pass3179",
+			"default": true
+		}
+	},
+	"identity": "26F5ABDA",
+	"identitySecretRing": "/path/to/secring",
+	"ignoredFiles": [
+		".DS_Store"
+	]
+}

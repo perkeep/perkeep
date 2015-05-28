@@ -51,6 +51,7 @@ type RootHandler struct {
 	// search root.
 	BlobRoot     string
 	SearchRoot   string
+	helpRoot     string
 	importerRoot string
 	statusRoot   string
 	Prefix       string // root handler's prefix
@@ -108,6 +109,7 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 	}
 	root.Stealth = conf.OptionalBool("stealth", false)
 	root.statusRoot = conf.OptionalString("statusRoot", "")
+	root.helpRoot = conf.OptionalString("helpRoot", "")
 	if err = conf.Validate(); err != nil {
 		return
 	}
@@ -197,7 +199,10 @@ func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		f("<p>To manage your content, access the <a href='%s'>%s</a>.</p>", rh.ui.prefix, rh.ui.prefix)
 	}
 	if rh.statusRoot != "" {
-		f("<p>To view status, see <a href='%s'>%s</a>", rh.statusRoot, rh.statusRoot)
+		f("<p>To view status, see <a href='%s'>%s</a>.</p>", rh.statusRoot, rh.statusRoot)
+	}
+	if rh.helpRoot != "" {
+		f("<p>To view more information on accessing the server, see <a href='%s'>%s</a>.</p>", rh.helpRoot, rh.helpRoot)
 	}
 	fmt.Fprintf(rw, "</body></html>")
 }
@@ -217,6 +222,7 @@ func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request)
 	d := &camtypes.Discovery{
 		BlobRoot:     rh.BlobRoot,
 		JSONSignRoot: rh.JSONSignRoot,
+		HelpRoot:     rh.helpRoot,
 		ImporterRoot: rh.importerRoot,
 		SearchRoot:   rh.SearchRoot,
 		StatusRoot:   rh.statusRoot,

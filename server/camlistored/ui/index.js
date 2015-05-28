@@ -536,6 +536,7 @@ cam.IndexPage = React.createClass({
 				currentSearch: query,
 				errors: this.getErrors_(),
 				height: 38,
+				helpURL: this.baseURL_.resolve(new goog.Uri(this.props.config.helpRoot)),
 				homeURL: this.baseURL_,
 				importersURL: this.baseURL_.resolve(new goog.Uri(this.props.config.importerRoot)),
 				mainControls: aspects.map(function(val, idx) {

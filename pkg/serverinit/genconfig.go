@@ -579,6 +579,7 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 	rootArgs := map[string]interface{}{
 		"stealth":      false,
 		"blobRoot":     root,
+		"helpRoot":     "/help/",
 		"statusRoot":   "/status/",
 		"jsonSignRoot": "/sighelper/",
 	}
@@ -591,6 +592,7 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 	b.addPrefix("/", "root", rootArgs)
 	b.addPrefix("/setup/", "setup", nil)
 	b.addPrefix("/status/", "status", nil)
+	b.addPrefix("/help/", "help", nil)
 
 	importerArgs := args{}
 	if b.high.Flickr != "" {
