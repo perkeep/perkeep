@@ -16,6 +16,7 @@ limitations under the License.
 
 goog.provide('cam.Navigator');
 
+goog.require('cam.object');
 goog.require('goog.Uri');
 
 // Navigator intercepts various types of browser navgiations and gives its client an opportunity to decide whether the navigation should be handled with JavaScript or not.
@@ -75,10 +76,10 @@ cam.Navigator.prototype.onDidNavigate = function() {};
 // @return boolean Whether the navigation was handled locally.
 cam.Navigator.prototype.navigate = function(url) {
 	if (this.dispatchImpl_(url, true)) {
-		return false;
+		return true;
 	}
 	this.location_.href = url.toString();
-	return true;
+	return false;
 };
 
 // Handles navigations initiated via clicking a hyperlink.
