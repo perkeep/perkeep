@@ -380,7 +380,6 @@ cam.IndexPage = React.createClass({
 			backwardPiggy: false,
 			currentURL: newURL,
 		});
-		this.setSelection_({});
 		return true;
 	},
 
