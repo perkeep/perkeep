@@ -5,6 +5,7 @@
 package webdav
 
 import (
+	"encoding/xml"
 	"io"
 	"net/http"
 	"os"
@@ -44,6 +45,9 @@ type FileSystem interface {
 
 // A File is returned by a FileSystem's OpenFile method and can be served by a
 // Handler.
+//
+// A File may optionally implement the DeadPropsHolder interface, if it can
+// load and save dead properties.
 type File interface {
 	http.File
 	io.Writer
@@ -401,10 +405,11 @@ type memFSNode struct {
 	// children is protected by memFS.mu.
 	children map[string]*memFSNode
 
-	mu      sync.Mutex
-	data    []byte
-	mode    os.FileMode
-	modTime time.Time
+	mu        sync.Mutex
+	data      []byte
+	mode      os.FileMode
+	modTime   time.Time
+	deadProps map[xml.Name]Property
 }
 
 func (n *memFSNode) stat(name string) *memFileInfo {
@@ -416,6 +421,39 @@ func (n *memFSNode) stat(name string) *memFileInfo {
 		mode:    n.mode,
 		modTime: n.modTime,
 	}
+}
+
+func (n *memFSNode) DeadProps() (map[xml.Name]Property, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if len(n.deadProps) == 0 {
+		return nil, nil
+	}
+	ret := make(map[xml.Name]Property, len(n.deadProps))
+	for k, v := range n.deadProps {
+		ret[k] = v
+	}
+	return ret, nil
+}
+
+func (n *memFSNode) Patch(patches []Proppatch) ([]Propstat, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	pstat := Propstat{Status: http.StatusOK}
+	for _, patch := range patches {
+		for _, p := range patch.Props {
+			pstat.Props = append(pstat.Props, Property{XMLName: p.XMLName})
+			if patch.Remove {
+				delete(n.deadProps, p.XMLName)
+				continue
+			}
+			if n.deadProps == nil {
+				n.deadProps = map[xml.Name]Property{}
+			}
+			n.deadProps[p.XMLName] = p
+		}
+	}
+	return []Propstat{pstat}, nil
 }
 
 type memFileInfo struct {
@@ -442,6 +480,12 @@ type memFile struct {
 	// pos is protected by n.mu.
 	pos int
 }
+
+// A *memFile implements the optional DeadPropsHolder interface.
+var _ DeadPropsHolder = (*memFile)(nil)
+
+func (f *memFile) DeadProps() (map[xml.Name]Property, error)     { return f.n.DeadProps() }
+func (f *memFile) Patch(patches []Proppatch) ([]Propstat, error) { return f.n.Patch(patches) }
 
 func (f *memFile) Close() error {
 	return nil
@@ -582,6 +626,27 @@ func moveFiles(fs FileSystem, src, dst string, overwrite bool) (status int, err 
 	return http.StatusNoContent, nil
 }
 
+func copyProps(dst, src File) error {
+	d, ok := dst.(DeadPropsHolder)
+	if !ok {
+		return nil
+	}
+	s, ok := src.(DeadPropsHolder)
+	if !ok {
+		return nil
+	}
+	m, err := s.DeadProps()
+	if err != nil {
+		return err
+	}
+	props := make([]Property, 0, len(m))
+	for _, prop := range m {
+		props = append(props, prop)
+	}
+	_, err = d.Patch([]Proppatch{{Props: props}})
+	return err
+}
+
 // copyFiles copies files and/or directories from src to dst.
 //
 // See section 9.8.5 for when various HTTP status codes apply.
@@ -658,9 +723,13 @@ func copyFiles(fs FileSystem, src, dst string, overwrite bool, depth int, recurs
 
 		}
 		_, copyErr := io.Copy(dstFile, srcFile)
+		propsErr := copyProps(dstFile, srcFile)
 		closeErr := dstFile.Close()
 		if copyErr != nil {
 			return http.StatusInternalServerError, copyErr
+		}
+		if propsErr != nil {
+			return http.StatusInternalServerError, propsErr
 		}
 		if closeErr != nil {
 			return http.StatusInternalServerError, closeErr

@@ -5,26 +5,43 @@
 // Package webdav etc etc TODO.
 package webdav // import "camlistore.org/third_party/golang.org/x/net/webdav"
 
-// TODO: ETag, properties.
-
 import (
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
+	"strings"
 	"time"
 )
+
+// Package webdav's XML output requires the standard library's encoding/xml
+// package version 1.5 or greater. Otherwise, it will produce malformed XML.
+//
+// As of May 2015, the Go stable release is version 1.4, so we print a message
+// to let users know that this golang.org/x/etc package won't work yet.
+//
+// This package also won't work with Go 1.3 and earlier, but making this
+// runtime version check catch all the earlier versions too, and not just
+// "1.4.x", isn't worth the complexity.
+//
+// TODO: delete this check at some point after Go 1.5 is released.
+var go1Dot4 = strings.HasPrefix(runtime.Version(), "go1.4.")
+
+func init() {
+	if go1Dot4 {
+		log.Println("package webdav requires Go version 1.5 or greater")
+	}
+}
 
 type Handler struct {
 	// FileSystem is the virtual file system.
 	FileSystem FileSystem
 	// LockSystem is the lock management system.
 	LockSystem LockSystem
-	// PropSystem is the property management system.
-	PropSystem PropSystem
 	// Logger is an optional error logger. If non-nil, it will be called
 	// for all HTTP requests.
 	Logger func(*http.Request, error)
@@ -36,8 +53,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		status, err = http.StatusInternalServerError, errNoFileSystem
 	} else if h.LockSystem == nil {
 		status, err = http.StatusInternalServerError, errNoLockSystem
-	} else if h.PropSystem == nil {
-		status, err = http.StatusInternalServerError, errNoPropSystem
 	} else {
 		switch r.Method {
 		case "OPTIONS":
@@ -187,14 +202,14 @@ func (h *Handler) handleGetHeadPost(w http.ResponseWriter, r *http.Request) (sta
 	if err != nil {
 		return http.StatusNotFound, err
 	}
-	pstats, err := h.PropSystem.Find(r.URL.Path, []xml.Name{
-		{Space: "DAV:", Local: "getetag"},
-		{Space: "DAV:", Local: "getcontenttype"},
-	})
-	if err != nil {
-		return http.StatusInternalServerError, err
+	if !fi.IsDir() {
+		etag, err := findETag(h.FileSystem, h.LockSystem, r.URL.Path, fi)
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+		w.Header().Set("ETag", etag)
 	}
-	writeDAVHeaders(w, pstats)
+	// Let ServeContent determine the Content-Type header.
 	http.ServeContent(w, r, r.URL.Path, fi.ModTime(), f)
 	return 0, nil
 }
@@ -229,26 +244,31 @@ func (h *Handler) handlePut(w http.ResponseWriter, r *http.Request) (status int,
 		return status, err
 	}
 	defer release()
+	// TODO(rost): Support the If-Match, If-None-Match headers? See bradfitz'
+	// comments in http.checkEtag.
 
 	f, err := h.FileSystem.OpenFile(r.URL.Path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		return http.StatusNotFound, err
 	}
 	_, copyErr := io.Copy(f, r.Body)
+	fi, statErr := f.Stat()
 	closeErr := f.Close()
+	// TODO(rost): Returning 405 Method Not Allowed might not be appropriate.
 	if copyErr != nil {
 		return http.StatusMethodNotAllowed, copyErr
+	}
+	if statErr != nil {
+		return http.StatusMethodNotAllowed, statErr
 	}
 	if closeErr != nil {
 		return http.StatusMethodNotAllowed, closeErr
 	}
-	pstats, err := h.PropSystem.Find(r.URL.Path, []xml.Name{
-		{Space: "DAV:", Local: "getetag"},
-	})
+	etag, err := findETag(h.FileSystem, h.LockSystem, r.URL.Path, fi)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	writeDAVHeaders(w, pstats)
+	w.Header().Set("ETag", etag)
 	return http.StatusCreated, nil
 }
 
@@ -272,8 +292,6 @@ func (h *Handler) handleMkcol(w http.ResponseWriter, r *http.Request) (status in
 }
 
 func (h *Handler) handleCopyMove(w http.ResponseWriter, r *http.Request) (status int, err error) {
-	// TODO: COPY/MOVE for Properties, as per sections 9.8.2 and 9.9.1.
-
 	hdr := r.Header.Get("Destination")
 	if hdr == "" {
 		return http.StatusBadRequest, errInvalidDestination
@@ -285,9 +303,6 @@ func (h *Handler) handleCopyMove(w http.ResponseWriter, r *http.Request) (status
 	if u.Host != r.Host {
 		return http.StatusBadGateway, errInvalidDestination
 	}
-	// TODO: do we need a webdav.StripPrefix HTTP handler that's like the
-	// standard library's http.StripPrefix handler, but also strips the
-	// prefix in the Destination header?
 
 	dst, src := u.Path, r.URL.Path
 	if dst == "" {
@@ -455,7 +470,7 @@ func (h *Handler) handleUnlock(w http.ResponseWriter, r *http.Request) (status i
 func (h *Handler) handlePropfind(w http.ResponseWriter, r *http.Request) (status int, err error) {
 	fi, err := h.FileSystem.Stat(r.URL.Path)
 	if err != nil {
-		if err == os.ErrNotExist {
+		if os.IsNotExist(err) {
 			return http.StatusNotFound, err
 		}
 		return http.StatusMethodNotAllowed, err
@@ -480,19 +495,19 @@ func (h *Handler) handlePropfind(w http.ResponseWriter, r *http.Request) (status
 		}
 		var pstats []Propstat
 		if pf.Propname != nil {
-			propnames, err := h.PropSystem.Propnames(path)
+			pnames, err := propnames(h.FileSystem, h.LockSystem, path)
 			if err != nil {
 				return err
 			}
 			pstat := Propstat{Status: http.StatusOK}
-			for _, xmlname := range propnames {
+			for _, xmlname := range pnames {
 				pstat.Props = append(pstat.Props, Property{XMLName: xmlname})
 			}
 			pstats = append(pstats, pstat)
 		} else if pf.Allprop != nil {
-			pstats, err = h.PropSystem.Allprop(path, pf.Prop)
+			pstats, err = allprop(h.FileSystem, h.LockSystem, path, pf.Prop)
 		} else {
-			pstats, err = h.PropSystem.Find(path, pf.Prop)
+			pstats, err = props(h.FileSystem, h.LockSystem, path, pf.Prop)
 		}
 		if err != nil {
 			return err
@@ -519,7 +534,7 @@ func (h *Handler) handleProppatch(w http.ResponseWriter, r *http.Request) (statu
 	defer release()
 
 	if _, err := h.FileSystem.Stat(r.URL.Path); err != nil {
-		if err == os.ErrNotExist {
+		if os.IsNotExist(err) {
 			return http.StatusNotFound, err
 		}
 		return http.StatusMethodNotAllowed, err
@@ -528,7 +543,7 @@ func (h *Handler) handleProppatch(w http.ResponseWriter, r *http.Request) (statu
 	if err != nil {
 		return status, err
 	}
-	pstats, err := h.PropSystem.Patch(r.URL.Path, patches)
+	pstats, err := patch(h.FileSystem, h.LockSystem, r.URL.Path, patches)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -542,26 +557,6 @@ func (h *Handler) handleProppatch(w http.ResponseWriter, r *http.Request) (statu
 		return http.StatusInternalServerError, closeErr
 	}
 	return 0, nil
-}
-
-// davHeaderNames maps the names of DAV properties to their corresponding
-// HTTP response headers.
-var davHeaderNames = map[xml.Name]string{
-	xml.Name{Space: "DAV:", Local: "getetag"}:        "ETag",
-	xml.Name{Space: "DAV:", Local: "getcontenttype"}: "Content-Type",
-}
-
-func writeDAVHeaders(w http.ResponseWriter, pstats []Propstat) {
-	for _, pst := range pstats {
-		if pst.Status == http.StatusOK {
-			for _, p := range pst.Props {
-				if n, ok := davHeaderNames[p.XMLName]; ok {
-					w.Header().Set(n, string(p.InnerXML))
-				}
-			}
-			break
-		}
-	}
 }
 
 func makePropstatResponse(href string, pstats []Propstat) *response {
@@ -610,6 +605,29 @@ func parseDepth(s string) int {
 	return invalidDepth
 }
 
+// StripPrefix is like http.StripPrefix but it also strips the prefix from any
+// Destination headers, so that COPY and MOVE requests also see stripped paths.
+func StripPrefix(prefix string, h http.Handler) http.Handler {
+	if prefix == "" {
+		return h
+	}
+	h = http.StripPrefix(prefix, h)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dsts := r.Header["Destination"]
+		for i, dst := range dsts {
+			u, err := url.Parse(dst)
+			if err != nil {
+				continue
+			}
+			if p := strings.TrimPrefix(u.Path, prefix); len(p) < len(u.Path) {
+				u.Path = p
+				dsts[i] = u.String()
+			}
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
 // http://www.webdav.org/specs/rfc4918.html#status.code.extensions.to.http11
 const (
 	StatusMulti               = 207
@@ -649,7 +667,6 @@ var (
 	errInvalidTimeout          = errors.New("webdav: invalid timeout")
 	errNoFileSystem            = errors.New("webdav: no file system")
 	errNoLockSystem            = errors.New("webdav: no lock system")
-	errNoPropSystem            = errors.New("webdav: no property system")
 	errNotADirectory           = errors.New("webdav: not a directory")
 	errRecursionTooDeep        = errors.New("webdav: recursion too deep")
 	errUnsupportedLockInfo     = errors.New("webdav: unsupported lock info")

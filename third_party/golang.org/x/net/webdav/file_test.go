@@ -5,6 +5,7 @@
 package webdav
 
 import (
+	"encoding/xml"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -821,6 +822,115 @@ func BenchmarkMemFileWrite(b *testing.B) {
 		if err := fs.RemoveAll("/xxx"); err != nil {
 			b.Fatalf("RemoveAll: %v", err)
 		}
+	}
+}
+
+func TestCopyMoveProps(t *testing.T) {
+	fs := NewMemFS()
+	create := func(name string) error {
+		f, err := fs.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+		if err != nil {
+			return err
+		}
+		_, wErr := f.Write([]byte("contents"))
+		cErr := f.Close()
+		if wErr != nil {
+			return wErr
+		}
+		return cErr
+	}
+	patch := func(name string, patches ...Proppatch) error {
+		f, err := fs.OpenFile(name, os.O_RDWR, 0666)
+		if err != nil {
+			return err
+		}
+		_, pErr := f.(DeadPropsHolder).Patch(patches)
+		cErr := f.Close()
+		if pErr != nil {
+			return pErr
+		}
+		return cErr
+	}
+	props := func(name string) (map[xml.Name]Property, error) {
+		f, err := fs.OpenFile(name, os.O_RDWR, 0666)
+		if err != nil {
+			return nil, err
+		}
+		m, pErr := f.(DeadPropsHolder).DeadProps()
+		cErr := f.Close()
+		if pErr != nil {
+			return nil, pErr
+		}
+		if cErr != nil {
+			return nil, cErr
+		}
+		return m, nil
+	}
+
+	p0 := Property{
+		XMLName:  xml.Name{Space: "x:", Local: "boat"},
+		InnerXML: []byte("pea-green"),
+	}
+	p1 := Property{
+		XMLName:  xml.Name{Space: "x:", Local: "ring"},
+		InnerXML: []byte("1 shilling"),
+	}
+	p2 := Property{
+		XMLName:  xml.Name{Space: "x:", Local: "spoon"},
+		InnerXML: []byte("runcible"),
+	}
+	p3 := Property{
+		XMLName:  xml.Name{Space: "x:", Local: "moon"},
+		InnerXML: []byte("light"),
+	}
+
+	if err := create("/src"); err != nil {
+		t.Fatalf("create /src: %v", err)
+	}
+	if err := patch("/src", Proppatch{Props: []Property{p0, p1}}); err != nil {
+		t.Fatalf("patch /src +p0 +p1: %v", err)
+	}
+	if _, err := copyFiles(fs, "/src", "/tmp", true, infiniteDepth, 0); err != nil {
+		t.Fatalf("copyFiles /src /tmp: %v", err)
+	}
+	if _, err := moveFiles(fs, "/tmp", "/dst", true); err != nil {
+		t.Fatalf("moveFiles /tmp /dst: %v", err)
+	}
+	if err := patch("/src", Proppatch{Props: []Property{p0}, Remove: true}); err != nil {
+		t.Fatalf("patch /src -p0: %v", err)
+	}
+	if err := patch("/src", Proppatch{Props: []Property{p2}}); err != nil {
+		t.Fatalf("patch /src +p2: %v", err)
+	}
+	if err := patch("/dst", Proppatch{Props: []Property{p1}, Remove: true}); err != nil {
+		t.Fatalf("patch /dst -p1: %v", err)
+	}
+	if err := patch("/dst", Proppatch{Props: []Property{p3}}); err != nil {
+		t.Fatalf("patch /dst +p3: %v", err)
+	}
+
+	gotSrc, err := props("/src")
+	if err != nil {
+		t.Fatalf("props /src: %v", err)
+	}
+	wantSrc := map[xml.Name]Property{
+		p1.XMLName: p1,
+		p2.XMLName: p2,
+	}
+	if !reflect.DeepEqual(gotSrc, wantSrc) {
+		t.Fatalf("props /src:\ngot  %v\nwant %v", gotSrc, wantSrc)
+	}
+
+	gotDst, err := props("/dst")
+	if err != nil {
+		t.Fatalf("props /dst: %v", err)
+	}
+	wantDst := map[xml.Name]Property{
+		p0.XMLName: p0,
+		p3.XMLName: p3,
+	}
+	if !reflect.DeepEqual(gotDst, wantDst) {
+		t.Fatalf("props /dst:\ngot  %v\nwant %v", gotDst, wantDst)
 	}
 }
 

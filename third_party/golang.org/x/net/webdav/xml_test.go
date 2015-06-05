@@ -345,6 +345,10 @@ func TestReadPropfind(t *testing.T) {
 }
 
 func TestMultistatusWriter(t *testing.T) {
+	if go1Dot4 {
+		t.Skip("TestMultistatusWriter requires Go version 1.5 or greater")
+	}
+
 	///The "section x.y.z" test cases come from section x.y.z of the spec at
 	// http://www.webdav.org/specs/rfc4918.html
 	testCases := []struct {
