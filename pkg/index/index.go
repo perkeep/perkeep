@@ -1231,7 +1231,11 @@ func (x *Index) GetMediaTags(fileRef blob.Ref) (tags map[string]string, err erro
 	if x.corpus != nil {
 		return x.corpus.GetMediaTags(fileRef)
 	}
-	it := x.queryPrefix(keyMediaTag, fileRef.String())
+	fi, err := x.GetFileInfo(fileRef)
+	if err != nil {
+		return nil, err
+	}
+	it := x.queryPrefix(keyMediaTag, fi.WholeRef.String())
 	defer closeIterator(it, &err)
 	for it.Next() {
 		tags[it.Key()] = it.Value()
