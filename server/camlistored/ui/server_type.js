@@ -79,9 +79,6 @@ cam.ServerType.IndexerPermanodeMeta;
  *   mimeType: string,
  *   permanode: cam.ServerType.IndexerPermanodeMeta?,
  *   size: number,
- *   thumbnailHeight: number?,
- *   thumbnailWidth: number?,
- *   thumbnailSrc: string?
  * }}
  */
 cam.ServerType.IndexerMeta;

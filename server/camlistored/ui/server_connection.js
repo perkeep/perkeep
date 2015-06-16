@@ -37,10 +37,6 @@ cam.ServerConnection = function(config, opt_sendXhr) {
 };
 
 cam.ServerConnection.DESCRIBE_REQUEST = {
-	// This size doesn't matter, we don't use it. We only care about the aspect ratio.
-	// TODO(aa): This needs to die: https://camlistore.org/issue/321
-	thumbnailSize: 1000,
-
 	// TODO(aa): This is not perfect. The describe request will return some data we don't care about:
 	// - Properties we don't use
 	// See: https://camlistore.org/issue/319
@@ -57,9 +53,9 @@ cam.ServerConnection.DESCRIBE_REQUEST = {
 		{
 			ifCamliNodeType: 'foursquare.com:venue',
 			attrs: ['camliPath:photos'],
-                        rules: [
-                            { attrs: ['camliPath:*'] }
-                        ]
+			rules: [
+				{ attrs: ['camliPath:*'] }
+			]
 		}
 	]
 };
@@ -141,19 +137,6 @@ cam.ServerConnection.prototype.getFileTree = function(blobref, success, opt_fail
 	this.sendXhr_(path, goog.bind(this.handleXhrResponseJson_, this, {success: success, fail: opt_fail}));
 };
 
-
-// @param {string} blobref Permanode blobref.
-// @param {number} thumbnailSize
-// @param {function(cam.ServerType.DescribeResponse)} success.
-// @param {Function=} opt_fail Optional fail callback.
-cam.ServerConnection.prototype.describeWithThumbnails = function(blobref, thumbnailSize, success, opt_fail) {
-	var path = goog.uri.utils.appendPath(
-		this.config_.searchRoot, 'camli/search/describe?blobref=' + blobref);
-
-	// TODO(mpl): should we URI encode the value? doc does not say...
-	path = goog.uri.utils.appendParam(path, 'thumbnails', thumbnailSize);
-	this.sendXhr_(path, goog.bind(this.handleXhrResponseJson_, this, {success: success, fail: opt_fail}));
-};
 
 // @param {string} signer permanode must belong to signer.
 // @param {string} attr searched attribute.

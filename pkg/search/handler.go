@@ -219,14 +219,13 @@ func sanitizeNumResults(n int) int {
 
 // RecentRequest is a request to get a RecentResponse.
 type RecentRequest struct {
-	N             int       // if zero, default number of results
-	Before        time.Time // if zero, now
-	ThumbnailSize int       // if zero, no thumbnails
+	N      int       // if zero, default number of results
+	Before time.Time // if zero, now
 }
 
 func (r *RecentRequest) URLSuffix() string {
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "camli/search/recent?n=%d&thumbnails=%d", r.n(), r.thumbnailSize())
+	fmt.Fprintf(&buf, "camli/search/recent?n=%d", r.n())
 	if !r.Before.IsZero() {
 		fmt.Fprintf(&buf, "&before=%s", types.Time3339(r.Before))
 	}
@@ -236,7 +235,6 @@ func (r *RecentRequest) URLSuffix() string {
 // fromHTTP panics with an httputil value on failure
 func (r *RecentRequest) fromHTTP(req *http.Request) {
 	r.N, _ = strconv.Atoi(req.FormValue("n"))
-	r.ThumbnailSize = thumbnailSize(req)
 	if before := req.FormValue("before"); before != "" {
 		r.Before = time.Time(types.ParseTime3339OrZero(before))
 	}
@@ -245,17 +243,6 @@ func (r *RecentRequest) fromHTTP(req *http.Request) {
 // n returns the sanitized maximum number of search results.
 func (r *RecentRequest) n() int {
 	return sanitizeNumResults(r.N)
-}
-
-func (r *RecentRequest) thumbnailSize() int {
-	v := r.ThumbnailSize
-	if v == 0 {
-		return 0
-	}
-	if v < minThumbSize || v > maxThumbSize {
-		return defThumbSize
-	}
-	return v
 }
 
 // WithAttrRequest is a request to get a WithAttrResponse.
@@ -267,14 +254,13 @@ type WithAttrRequest struct {
 	Attr string
 	// Value of the requested attribute. If blank, permanodes which have
 	// request.Attr as an attribute are searched.
-	Value         string
-	Fuzzy         bool // fulltext search (if supported).
-	ThumbnailSize int  // if zero, no thumbnails
+	Value string
+	Fuzzy bool // fulltext search (if supported).
 }
 
 func (r *WithAttrRequest) URLSuffix() string {
-	return fmt.Sprintf("camli/search/permanodeattr?signer=%v&value=%v&fuzzy=%v&attr=%v&max=%v&thumbnails=%v",
-		r.Signer, url.QueryEscape(r.Value), r.Fuzzy, r.Attr, r.N, r.ThumbnailSize)
+	return fmt.Sprintf("camli/search/permanodeattr?signer=%v&value=%v&fuzzy=%v&attr=%v&max=%v",
+		r.Signer, url.QueryEscape(r.Value), r.Fuzzy, r.Attr, r.N)
 }
 
 // fromHTTP panics with an httputil value on failure
@@ -294,7 +280,6 @@ func (r *WithAttrRequest) fromHTTP(req *http.Request) {
 		fuzzyMatch = true
 	}
 	r.Fuzzy = fuzzyMatch
-	r.ThumbnailSize = thumbnailSize(req)
 	max := req.FormValue("max")
 	if max != "" {
 		maxR, err := strconv.Atoi(max)
@@ -309,20 +294,6 @@ func (r *WithAttrRequest) fromHTTP(req *http.Request) {
 // n returns the sanitized maximum number of search results.
 func (r *WithAttrRequest) n() int {
 	return sanitizeNumResults(r.N)
-}
-
-func (r *WithAttrRequest) thumbnailSize() int {
-	v := r.ThumbnailSize
-	if v == 0 {
-		return 0
-	}
-	if v < minThumbSize {
-		return minThumbSize
-	}
-	if v > maxThumbSize {
-		return maxThumbSize
-	}
-	return v
 }
 
 // ClaimsRequest is a request to get a ClaimsResponse.
@@ -462,26 +433,6 @@ type EdgeItem struct {
 	FromType string   `json:"fromType"`
 }
 
-func thumbnailSize(r *http.Request) int {
-	return thumbnailSizeStr(r.FormValue("thumbnails"))
-}
-
-const (
-	minThumbSize = 25
-	defThumbSize = 50
-	maxThumbSize = 800
-)
-
-func thumbnailSizeStr(s string) int {
-	if s == "" {
-		return 0
-	}
-	if i, _ := strconv.Atoi(s); i >= minThumbSize && i <= maxThumbSize {
-		return i
-	}
-	return defThumbSize
-}
-
 var testHookBug121 = func() {}
 
 // GetRecentPermanodes returns recently-modified permanodes.
@@ -513,7 +464,7 @@ func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, err
 		return nil, err
 	}
 
-	metaMap, err := dr.metaMapThumbs(req.thumbnailSize())
+	metaMap, err := dr.metaMap()
 	if err != nil {
 		return nil, err
 	}
@@ -568,7 +519,7 @@ func (sh *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrRespons
 		})
 	}
 
-	metaMap, err := dr.metaMapThumbs(req.thumbnailSize())
+	metaMap, err := dr.metaMap()
 	if err != nil {
 		return nil, err
 	}

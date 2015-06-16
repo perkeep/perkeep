@@ -66,8 +66,7 @@ func (zh *zipHandler) describeMembers(br blob.Ref) (*search.DescribeResponse, er
 			CamliType:     "permanode",
 		},
 		Describe: &search.DescribeRequest{
-			ThumbnailSize: 1000,
-			Depth:         1,
+			Depth: 1,
 			Rules: []*search.DescribeRule{
 				{
 					Attrs: []string{"camliContent", "camliContentImage", "camliMember"},
