@@ -278,7 +278,7 @@ loop:
 	if conflict {
 		pstatForbidden := Propstat{
 			Status:   http.StatusForbidden,
-			XMLError: `<error xmlns="DAV:"><cannot-modify-protected-property/></error>`,
+			XMLError: `<D:cannot-modify-protected-property xmlns:D="DAV:"/>`,
 		}
 		pstatFailedDep := Propstat{
 			Status: StatusFailedDependency,
@@ -328,7 +328,7 @@ loop:
 
 func findResourceType(fs FileSystem, ls LockSystem, name string, fi os.FileInfo) (string, error) {
 	if fi.IsDir() {
-		return `<collection xmlns="DAV:"/>`, nil
+		return `<D:collection xmlns:D="DAV:"/>`, nil
 	}
 	return "", nil
 }
@@ -377,8 +377,8 @@ func findETag(fs FileSystem, ls LockSystem, name string, fi os.FileInfo) (string
 
 func findSupportedLock(fs FileSystem, ls LockSystem, name string, fi os.FileInfo) (string, error) {
 	return `` +
-		`<lockentry xmlns="DAV:">` +
-		`<lockscope><exclusive/></lockscope>` +
-		`<locktype><write/></locktype>` +
-		`</lockentry>`, nil
+		`<D:lockentry xmlns:D="DAV:">` +
+		`<D:lockscope><D:exclusive/></D:lockscope>` +
+		`<D:locktype><D:write/></D:locktype>` +
+		`</D:lockentry>`, nil
 }

@@ -7,10 +7,12 @@ package webdav
 import (
 	"bytes"
 	"encoding/xml"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -454,20 +456,20 @@ func TestMultistatusWriter(t *testing.T) {
 		respdesc: "There has been an access violation error.",
 		wantXML: `` +
 			`<?xml version="1.0" encoding="UTF-8"?>` +
-			`<multistatus xmlns="DAV:">` +
+			`<multistatus xmlns="DAV:" xmlns:B="http://ns.example.com/boxschema/">` +
 			`  <response>` +
 			`    <href>http://example.com/foo</href>` +
 			`    <propstat>` +
 			`      <prop>` +
-			`        <bigbox xmlns="http://ns.example.com/boxschema/"><BoxType xmlns="http://ns.example.com/boxschema/">Box type A</BoxType></bigbox>` +
-			`        <author xmlns="http://ns.example.com/boxschema/"><Name xmlns="http://ns.example.com/boxschema/">J.J. Johnson</Name></author>` +
+			`        <B:bigbox><B:BoxType>Box type A</B:BoxType></B:bigbox>` +
+			`        <B:author><B:Name>J.J. Johnson</B:Name></B:author>` +
 			`      </prop>` +
 			`      <status>HTTP/1.1 200 OK</status>` +
 			`    </propstat>` +
 			`    <propstat>` +
 			`      <prop>` +
-			`        <DingALing xmlns="http://ns.example.com/boxschema/"></DingALing>` +
-			`        <Random xmlns="http://ns.example.com/boxschema/"></Random>` +
+			`        <B:DingALing/>` +
+			`        <B:Random/>` +
 			`      </prop>` +
 			`      <status>HTTP/1.1 403 Forbidden</status>` +
 			`      <responsedescription>The user does not have access to the DingALing property.</responsedescription>` +
@@ -562,6 +564,7 @@ func TestMultistatusWriter(t *testing.T) {
 		wantCode: http.StatusOK,
 	}}
 
+	n := xmlNormalizer{omitWhitespace: true}
 loop:
 	for _, tc := range testCases {
 		rec := httptest.NewRecorder()
@@ -591,70 +594,46 @@ loop:
 				tc.desc, rec.Code, tc.wantCode)
 			continue
 		}
-
-		// normalize returns the normalized XML content of s. In contrast to
-		// the WebDAV specification, it ignores whitespace within property
-		// values of mixed XML content.
-		normalize := func(s string) string {
-			d := xml.NewDecoder(strings.NewReader(s))
-			var b bytes.Buffer
-			e := xml.NewEncoder(&b)
-			for {
-				tok, err := d.Token()
-				if err != nil {
-					if err == io.EOF {
-						break
-					}
-					t.Fatalf("%s: Token %v", tc.desc, err)
-				}
-				switch val := tok.(type) {
-				case xml.Comment, xml.Directive, xml.ProcInst:
-					continue
-				case xml.CharData:
-					if len(bytes.TrimSpace(val)) == 0 {
-						continue
-					}
-				}
-				if err := e.EncodeToken(tok); err != nil {
-					t.Fatalf("%s: EncodeToken: %v", tc.desc, err)
-				}
-			}
-			if err := e.Flush(); err != nil {
-				t.Fatalf("%s: Flush: %v", tc.desc, err)
-			}
-			return b.String()
+		gotXML := rec.Body.String()
+		eq, err := n.equalXML(strings.NewReader(gotXML), strings.NewReader(tc.wantXML))
+		if err != nil {
+			t.Errorf("%s: equalXML: %v", tc.desc, err)
+			continue
 		}
-
-		gotXML := normalize(rec.Body.String())
-		wantXML := normalize(tc.wantXML)
-		if gotXML != wantXML {
-			t.Errorf("%s: XML body\ngot  %q\nwant %q", tc.desc, gotXML, wantXML)
+		if !eq {
+			t.Errorf("%s: XML body\ngot  %s\nwant %s", tc.desc, gotXML, tc.wantXML)
 		}
 	}
 }
 
 func TestReadProppatch(t *testing.T) {
-	// TODO(rost): These "golden XML" tests easily break with changes in the
-	// xml package. A whitespace-preserving normalizer of XML content is
-	// required to make these tests more robust.
+	ppStr := func(pps []Proppatch) string {
+		var outer []string
+		for _, pp := range pps {
+			var inner []string
+			for _, p := range pp.Props {
+				inner = append(inner, fmt.Sprintf("{XMLName: %q, Lang: %q, InnerXML: %q}",
+					p.XMLName, p.Lang, p.InnerXML))
+			}
+			outer = append(outer, fmt.Sprintf("{Remove: %t, Props: [%s]}",
+				pp.Remove, strings.Join(inner, ", ")))
+		}
+		return "[" + strings.Join(outer, ", ") + "]"
+	}
+
 	testCases := []struct {
 		desc       string
 		input      string
 		wantPP     []Proppatch
 		wantStatus int
 	}{{
-		desc: "proppatch: section 9.2",
+		desc: "proppatch: section 9.2 (with simple property value)",
 		input: `` +
 			`<?xml version="1.0" encoding="utf-8" ?>` +
 			`<D:propertyupdate xmlns:D="DAV:"` +
 			`                  xmlns:Z="http://ns.example.com/z/">` +
 			`    <D:set>` +
-			`         <D:prop>` +
-			`              <Z:Authors>` +
-			`              <Z:Author>Jim Whitehead</Z:Author>` +
-			`              <Z:Author>Roy Fielding</Z:Author>` +
-			`              </Z:Authors>` +
-			`         </D:prop>` +
+			`         <D:prop><Z:Authors>somevalue</Z:Authors></D:prop>` +
 			`    </D:set>` +
 			`    <D:remove>` +
 			`         <D:prop><Z:Copyright-Owner/></D:prop>` +
@@ -664,17 +643,7 @@ func TestReadProppatch(t *testing.T) {
 			Props: []Property{{
 				xml.Name{Space: "http://ns.example.com/z/", Local: "Authors"},
 				"",
-				[]byte(`` +
-					`              ` +
-					`<z:Author xmlns:z="http://ns.example.com/z/">` +
-					`Jim Whitehead` +
-					`</z:Author>` +
-					`              ` +
-					`<z:Author xmlns:z="http://ns.example.com/z/">` +
-					`Roy Fielding` +
-					`</z:Author>` +
-					`              `,
-				),
+				[]byte(`somevalue`),
 			}},
 		}, {
 			Remove: true,
@@ -682,59 +651,6 @@ func TestReadProppatch(t *testing.T) {
 				xml.Name{Space: "http://ns.example.com/z/", Local: "Copyright-Owner"},
 				"",
 				nil,
-			}},
-		}},
-	}, {
-		desc: "proppatch: section 4.3.1 (mixed content)",
-		input: `` +
-			`<?xml version="1.0" encoding="utf-8" ?>` +
-			`<D:propertyupdate xmlns:D="DAV:"` +
-			`                  xmlns:Z="http://ns.example.com/z/">` +
-			`  <D:set>` +
-			`     <D:prop xml:lang="en" xmlns:D="DAV:">` +
-			`         <x:author xmlns:x='http://example.com/ns'>` +
-			`            <x:name>Jane Doe</x:name>` +
-			`            <!-- Jane's contact info -->` +
-			`            <x:uri type='email'` +
-			`                   added='2005-11-26'>mailto:jane.doe@example.com</x:uri>` +
-			`            <x:uri type='web'` +
-			`                   added='2005-11-27'>http://www.example.com</x:uri>` +
-			`            <x:notes xmlns:h='http://www.w3.org/1999/xhtml'>` +
-			`              Jane has been working way <h:em>too</h:em> long on the` +
-			`              long-awaited revision of <![CDATA[<RFC2518>]]>.` +
-			`            </x:notes>` +
-			`         </x:author>` +
-			`     </D:prop>` +
-			`  </D:set>` +
-			`</D:propertyupdate>`,
-		wantPP: []Proppatch{{
-			Props: []Property{{
-				xml.Name{Space: "http://example.com/ns", Local: "author"},
-				"en",
-				[]byte(`` +
-					`            ` +
-					`<ns:name xmlns:ns="http://example.com/ns">Jane Doe</ns:name>` +
-					`                        ` +
-					`<ns:uri xmlns:ns="http://example.com/ns" type="email" added="2005-11-26">` +
-					`mailto:jane.doe@example.com` +
-					`</ns:uri>` +
-					`            ` +
-					`<ns:uri xmlns:ns="http://example.com/ns" type="web" added="2005-11-27">` +
-					`http://www.example.com` +
-					`</ns:uri>` +
-					`            ` +
-
-					`<ns:notes xmlns:ns="http://example.com/ns"` +
-					` xmlns:h="http://www.w3.org/1999/xhtml">` +
-					`             ` +
-					` Jane has been working way` +
-					` <h:em>too</h:em>` +
-					` long on the` + `             ` +
-					` long-awaited revision of &lt;RFC2518&gt;.` +
-					`            ` +
-					`</ns:notes>` +
-					`         `,
-				),
 			}},
 		}},
 	}, {
@@ -806,7 +722,187 @@ func TestReadProppatch(t *testing.T) {
 			continue
 		}
 		if !reflect.DeepEqual(pp, tc.wantPP) || status != tc.wantStatus {
-			t.Errorf("%s: proppatch\ngot  %v\nwant %v", tc.desc, pp, tc.wantPP)
+			t.Errorf("%s: proppatch\ngot  %v\nwant %v", tc.desc, ppStr(pp), ppStr(tc.wantPP))
 		}
 	}
+}
+
+func TestUnmarshalXMLValue(t *testing.T) {
+	testCases := []struct {
+		desc    string
+		input   string
+		wantVal string
+	}{{
+		desc:    "simple char data",
+		input:   "<root>foo</root>",
+		wantVal: "foo",
+	}, {
+		desc:    "empty element",
+		input:   "<root><foo/></root>",
+		wantVal: "<foo/>",
+	}, {
+		desc:    "preserve namespace",
+		input:   `<root><foo xmlns="bar"/></root>`,
+		wantVal: `<foo xmlns="bar"/>`,
+	}, {
+		desc:    "preserve root element namespace",
+		input:   `<root xmlns:bar="bar"><bar:foo/></root>`,
+		wantVal: `<foo xmlns="bar"/>`,
+	}, {
+		desc:    "preserve whitespace",
+		input:   "<root>  \t </root>",
+		wantVal: "  \t ",
+	}, {
+		desc:    "preserve mixed content",
+		input:   `<root xmlns="bar">  <foo>a<bam xmlns="baz"/> </foo> </root>`,
+		wantVal: `  <foo xmlns="bar">a<bam xmlns="baz"/> </foo> `,
+	}, {
+		desc: "section 9.2",
+		input: `` +
+			`<Z:Authors xmlns:Z="http://ns.example.com/z/">` +
+			`  <Z:Author>Jim Whitehead</Z:Author>` +
+			`  <Z:Author>Roy Fielding</Z:Author>` +
+			`</Z:Authors>`,
+		wantVal: `` +
+			`  <Author xmlns="http://ns.example.com/z/">Jim Whitehead</Author>` +
+			`  <Author xmlns="http://ns.example.com/z/">Roy Fielding</Author>`,
+	}, {
+		desc: "section 4.3.1 (mixed content)",
+		input: `` +
+			`<x:author ` +
+			`    xmlns:x='http://example.com/ns' ` +
+			`    xmlns:D="DAV:">` +
+			`  <x:name>Jane Doe</x:name>` +
+			`  <!-- Jane's contact info -->` +
+			`  <x:uri type='email'` +
+			`         added='2005-11-26'>mailto:jane.doe@example.com</x:uri>` +
+			`  <x:uri type='web'` +
+			`         added='2005-11-27'>http://www.example.com</x:uri>` +
+			`  <x:notes xmlns:h='http://www.w3.org/1999/xhtml'>` +
+			`    Jane has been working way <h:em>too</h:em> long on the` +
+			`    long-awaited revision of <![CDATA[<RFC2518>]]>.` +
+			`  </x:notes>` +
+			`</x:author>`,
+		wantVal: `` +
+			`  <name xmlns="http://example.com/ns">Jane Doe</name>` +
+			`  ` +
+			`  <uri type='email'` +
+			`       xmlns="http://example.com/ns" ` +
+			`       added='2005-11-26'>mailto:jane.doe@example.com</uri>` +
+			`  <uri added='2005-11-27'` +
+			`       type='web'` +
+			`       xmlns="http://example.com/ns">http://www.example.com</uri>` +
+			`  <notes xmlns="http://example.com/ns" ` +
+			`         xmlns:h="http://www.w3.org/1999/xhtml">` +
+			`    Jane has been working way <h:em>too</h:em> long on the` +
+			`    long-awaited revision of &lt;RFC2518&gt;.` +
+			`  </notes>`,
+	}}
+
+	var n xmlNormalizer
+	for _, tc := range testCases {
+		d := xml.NewDecoder(strings.NewReader(tc.input))
+		var v xmlValue
+		if err := d.Decode(&v); err != nil {
+			t.Errorf("%s: got error %v, want nil", tc.desc, err)
+			continue
+		}
+		eq, err := n.equalXML(bytes.NewReader(v), strings.NewReader(tc.wantVal))
+		if err != nil {
+			t.Errorf("%s: equalXML: %v", tc.desc, err)
+			continue
+		}
+		if !eq {
+			t.Errorf("%s:\ngot  %s\nwant %s", tc.desc, string(v), tc.wantVal)
+		}
+	}
+}
+
+// xmlNormalizer normalizes XML.
+type xmlNormalizer struct {
+	// omitWhitespace instructs to ignore whitespace between element tags.
+	omitWhitespace bool
+	// omitComments instructs to ignore XML comments.
+	omitComments bool
+}
+
+// normalize writes the normalized XML content of r to w. It applies the
+// following rules
+//
+//     * Rename namespace prefixes according to an internal heuristic.
+//     * Remove unnecessary namespace declarations.
+//     * Sort attributes in XML start elements in lexical order of their
+//       fully qualified name.
+//     * Remove XML directives and processing instructions.
+//     * Remove CDATA between XML tags that only contains whitespace, if
+//       instructed to do so.
+//     * Remove comments, if instructed to do so.
+//
+func (n *xmlNormalizer) normalize(w io.Writer, r io.Reader) error {
+	d := xml.NewDecoder(r)
+	e := xml.NewEncoder(w)
+	for {
+		t, err := d.Token()
+		if err != nil {
+			if t == nil && err == io.EOF {
+				break
+			}
+			return err
+		}
+		switch val := t.(type) {
+		case xml.Directive, xml.ProcInst:
+			continue
+		case xml.Comment:
+			if n.omitComments {
+				continue
+			}
+		case xml.CharData:
+			if n.omitWhitespace && len(bytes.TrimSpace(val)) == 0 {
+				continue
+			}
+		case xml.StartElement:
+			start, _ := xml.CopyToken(val).(xml.StartElement)
+			attr := start.Attr[:0]
+			for _, a := range start.Attr {
+				if a.Name.Space == "xmlns" || a.Name.Local == "xmlns" {
+					continue
+				}
+				attr = append(attr, a)
+			}
+			sort.Sort(byName(attr))
+			start.Attr = attr
+			t = start
+		}
+		err = e.EncodeToken(t)
+		if err != nil {
+			return err
+		}
+	}
+	return e.Flush()
+}
+
+// equalXML tests for equality of the normalized XML contents of a and b.
+func (n *xmlNormalizer) equalXML(a, b io.Reader) (bool, error) {
+	var buf bytes.Buffer
+	if err := n.normalize(&buf, a); err != nil {
+		return false, err
+	}
+	normA := buf.String()
+	buf.Reset()
+	if err := n.normalize(&buf, b); err != nil {
+		return false, err
+	}
+	normB := buf.String()
+	return normA == normB, nil
+}
+
+type byName []xml.Attr
+
+func (a byName) Len() int      { return len(a) }
+func (a byName) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a byName) Less(i, j int) bool {
+	if a[i].Name.Space != a[j].Name.Space {
+		return a[i].Name.Space < a[j].Name.Space
+	}
+	return a[i].Name.Local < a[j].Name.Local
 }

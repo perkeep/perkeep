@@ -206,32 +206,55 @@ type Property struct {
 }
 
 // http://www.webdav.org/specs/rfc4918.html#ELEMENT_error
+// See multistatusWriter for the "D:" namespace prefix.
 type xmlError struct {
-	XMLName  xml.Name `xml:"DAV: error"`
+	XMLName  xml.Name `xml:"D:error"`
 	InnerXML []byte   `xml:",innerxml"`
 }
 
 // http://www.webdav.org/specs/rfc4918.html#ELEMENT_propstat
+// See multistatusWriter for the "D:" namespace prefix.
 type propstat struct {
-	Prop                []Property `xml:"DAV: prop>_ignored_"`
-	Status              string     `xml:"DAV: status"`
-	Error               *xmlError  `xml:"DAV: error"`
-	ResponseDescription string     `xml:"DAV: responsedescription,omitempty"`
+	Prop                []Property `xml:"D:prop>_ignored_"`
+	Status              string     `xml:"D:status"`
+	Error               *xmlError  `xml:"D:error"`
+	ResponseDescription string     `xml:"D:responsedescription,omitempty"`
+}
+
+// MarshalXML prepends the "D:" namespace prefix on properties in the DAV: namespace
+// before encoding. See multistatusWriter.
+func (ps propstat) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	for k, prop := range ps.Prop {
+		if prop.XMLName.Space == "DAV:" {
+			prop.XMLName = xml.Name{Space: "", Local: "D:" + prop.XMLName.Local}
+			ps.Prop[k] = prop
+		}
+	}
+	// Distinct type to avoid infinite recursion of MarshalXML.
+	type newpropstat propstat
+	return e.EncodeElement(newpropstat(ps), start)
 }
 
 // http://www.webdav.org/specs/rfc4918.html#ELEMENT_response
+// See multistatusWriter for the "D:" namespace prefix.
 type response struct {
-	XMLName             xml.Name   `xml:"DAV: response"`
-	Href                []string   `xml:"DAV: href"`
-	Propstat            []propstat `xml:"DAV: propstat"`
-	Status              string     `xml:"DAV: status,omitempty"`
-	Error               *xmlError  `xml:"DAV: error"`
-	ResponseDescription string     `xml:"DAV: responsedescription,omitempty"`
+	XMLName             xml.Name   `xml:"D:response"`
+	Href                []string   `xml:"D:href"`
+	Propstat            []propstat `xml:"D:propstat"`
+	Status              string     `xml:"D:status,omitempty"`
+	Error               *xmlError  `xml:"D:error"`
+	ResponseDescription string     `xml:"D:responsedescription,omitempty"`
 }
 
 // MultistatusWriter marshals one or more Responses into a XML
 // multistatus response.
 // See http://www.webdav.org/specs/rfc4918.html#ELEMENT_multistatus
+// TODO(rsto, mpl): As a workaround, the "D:" namespace prefix, defined as
+// "DAV:" on this element, is prepended on the nested response, as well as on all
+// its nested elements. All property names in the DAV: namespace are prefixed as
+// well. This is because some versions of Mini-Redirector (on windows 7) ignore
+// elements with a default namespace (no prefixed namespace). A less intrusive fix
+// should be possible after golang.org/cl/11074. See https://golang.org/issue/11177
 type multistatusWriter struct {
 	// ResponseDescription contains the optional responsedescription
 	// of the multistatus XML element. Only the latest content before
@@ -291,7 +314,7 @@ func (w *multistatusWriter) writeHeader() error {
 			Local: "multistatus",
 		},
 		Attr: []xml.Attr{{
-			Name:  xml.Name{Local: "xmlns"},
+			Name:  xml.Name{Space: "xmlns", Local: "D"},
 			Value: "DAV:",
 		}},
 	})
@@ -340,6 +363,35 @@ func xmlLang(s xml.StartElement, d string) string {
 	return d
 }
 
+type xmlValue []byte
+
+func (v *xmlValue) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	// The XML value of a property can be arbitrary, mixed-content XML.
+	// To make sure that the unmarshalled value contains all required
+	// namespaces, we encode all the property value XML tokens into a
+	// buffer. This forces the encoder to redeclare any used namespaces.
+	var b bytes.Buffer
+	e := xml.NewEncoder(&b)
+	for {
+		t, err := next(d)
+		if err != nil {
+			return err
+		}
+		if e, ok := t.(xml.EndElement); ok && e.Name == start.Name {
+			break
+		}
+		if err = e.EncodeToken(t); err != nil {
+			return err
+		}
+	}
+	err := e.Flush()
+	if err != nil {
+		return err
+	}
+	*v = b.Bytes()
+	return nil
+}
+
 // UnmarshalXML appends the property names and values enclosed within start
 // to ps.
 //
@@ -355,7 +407,7 @@ func (ps *proppatchProps) UnmarshalXML(d *xml.Decoder, start xml.StartElement) e
 		if err != nil {
 			return err
 		}
-		switch t.(type) {
+		switch elem := t.(type) {
 		case xml.EndElement:
 			if len(*ps) == 0 {
 				return fmt.Errorf("%s must not be empty", start.Name.Local)
@@ -366,29 +418,10 @@ func (ps *proppatchProps) UnmarshalXML(d *xml.Decoder, start xml.StartElement) e
 				XMLName: t.(xml.StartElement).Name,
 				Lang:    xmlLang(t.(xml.StartElement), lang),
 			}
-			// The XML value of a property can be arbitrary, mixed-content XML.
-			// To make sure that the unmarshalled value contains all required
-			// namespaces, we encode all the property value XML tokens into a
-			// buffer. This forces the encoder to redeclare any used namespaces.
-			var b bytes.Buffer
-			e := xml.NewEncoder(&b)
-			for {
-				t, err = next(d)
-				if err != nil {
-					return err
-				}
-				if e, ok := t.(xml.EndElement); ok && e.Name == p.XMLName {
-					break
-				}
-				if err = e.EncodeToken(t); err != nil {
-					return err
-				}
-			}
-			err = e.Flush()
+			err = d.DecodeElement(((*xmlValue)(&p.InnerXML)), &elem)
 			if err != nil {
 				return err
 			}
-			p.InnerXML = b.Bytes()
 			*ps = append(*ps, p)
 		}
 	}

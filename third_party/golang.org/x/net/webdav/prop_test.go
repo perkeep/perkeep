@@ -44,6 +44,15 @@ func TestMemPS(t *testing.T) {
 		return nil
 	}
 
+	const (
+		lockEntry = `` +
+			`<D:lockentry xmlns:D="DAV:">` +
+			`<D:lockscope><D:exclusive/></D:lockscope>` +
+			`<D:locktype><D:write/></D:locktype>` +
+			`</D:lockentry>`
+		statForbiddenError = `<D:cannot-modify-protected-property xmlns:D="DAV:"/>`
+	)
+
 	type propOp struct {
 		op            string
 		name          string
@@ -95,7 +104,7 @@ func TestMemPS(t *testing.T) {
 				Status: http.StatusOK,
 				Props: []Property{{
 					XMLName:  xml.Name{Space: "DAV:", Local: "resourcetype"},
-					InnerXML: []byte(`<collection xmlns="DAV:"/>`),
+					InnerXML: []byte(`<D:collection xmlns:D="DAV:"/>`),
 				}, {
 					XMLName:  xml.Name{Space: "DAV:", Local: "displayname"},
 					InnerXML: []byte("dir"),
@@ -109,13 +118,8 @@ func TestMemPS(t *testing.T) {
 					XMLName:  xml.Name{Space: "DAV:", Local: "getcontenttype"},
 					InnerXML: []byte("text/plain; charset=utf-8"),
 				}, {
-					XMLName: xml.Name{Space: "DAV:", Local: "supportedlock"},
-					InnerXML: []byte(`` +
-						`<lockentry xmlns="DAV:">` +
-						`<lockscope><exclusive/></lockscope>` +
-						`<locktype><write/></locktype>` +
-						`</lockentry>`,
-					),
+					XMLName:  xml.Name{Space: "DAV:", Local: "supportedlock"},
+					InnerXML: []byte(lockEntry),
 				}},
 			}},
 		}, {
@@ -142,13 +146,8 @@ func TestMemPS(t *testing.T) {
 					XMLName:  xml.Name{Space: "DAV:", Local: "getetag"},
 					InnerXML: nil, // Calculated during test.
 				}, {
-					XMLName: xml.Name{Space: "DAV:", Local: "supportedlock"},
-					InnerXML: []byte(`` +
-						`<lockentry xmlns="DAV:">` +
-						`<lockscope><exclusive/></lockscope>` +
-						`<locktype><write/></locktype>` +
-						`</lockentry>`,
-					),
+					XMLName:  xml.Name{Space: "DAV:", Local: "supportedlock"},
+					InnerXML: []byte(lockEntry),
 				}},
 			}},
 		}, {
@@ -179,13 +178,8 @@ func TestMemPS(t *testing.T) {
 					XMLName:  xml.Name{Space: "DAV:", Local: "getetag"},
 					InnerXML: nil, // Calculated during test.
 				}, {
-					XMLName: xml.Name{Space: "DAV:", Local: "supportedlock"},
-					InnerXML: []byte(`` +
-						`<lockentry xmlns="DAV:">` +
-						`<lockscope><exclusive/></lockscope>` +
-						`<locktype><write/></locktype>` +
-						`</lockentry>`,
-					),
+					XMLName:  xml.Name{Space: "DAV:", Local: "supportedlock"},
+					InnerXML: []byte(lockEntry),
 				}}}, {
 				Status: http.StatusNotFound,
 				Props: []Property{{
@@ -204,7 +198,7 @@ func TestMemPS(t *testing.T) {
 				Status: http.StatusOK,
 				Props: []Property{{
 					XMLName:  xml.Name{Space: "DAV:", Local: "resourcetype"},
-					InnerXML: []byte(`<collection xmlns="DAV:"/>`),
+					InnerXML: []byte(`<D:collection xmlns:D="DAV:"/>`),
 				}},
 			}},
 		}, {
@@ -296,7 +290,7 @@ func TestMemPS(t *testing.T) {
 			}},
 			wantPropstats: []Propstat{{
 				Status:   http.StatusForbidden,
-				XMLError: `<error xmlns="DAV:"><cannot-modify-protected-property/></error>`,
+				XMLError: statForbiddenError,
 				Props: []Property{{
 					XMLName: xml.Name{Space: "DAV:", Local: "getetag"},
 				}},
@@ -351,7 +345,7 @@ func TestMemPS(t *testing.T) {
 			}},
 			wantPropstats: []Propstat{{
 				Status:   http.StatusForbidden,
-				XMLError: `<error xmlns="DAV:"><cannot-modify-protected-property/></error>`,
+				XMLError: statForbiddenError,
 				Props: []Property{{
 					XMLName: xml.Name{Space: "DAV:", Local: "displayname"},
 				}},
