@@ -41,7 +41,7 @@ import (
 // Camlistore. It can also serve some extra JSON configuration to the app.
 type Handler struct {
 	name    string            // Name of the app's program.
-	envVars map[string]string // Variables set in the app's process environment. See pkg/app/vars.txt.
+	envVars map[string]string // Variables set in the app's process environment. See doc/app-environment.txt.
 
 	auth      auth.AuthMode  // Used for basic HTTP authenticating against the app requests.
 	appConfig jsonconfig.Obj // Additional parameters the app can request, or nil.
