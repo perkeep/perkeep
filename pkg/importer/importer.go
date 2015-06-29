@@ -930,7 +930,7 @@ func (ia *importerAcct) String() string {
 
 func (ia *importerAcct) delete() error {
 	if err := ia.acct.SetAttrs(
-		attrNodeType, nodeTypeImporter+"-deleted",
+		attrNodeType, nodeTypeImporterAccount+"-deleted",
 	); err != nil {
 		return err
 	}
