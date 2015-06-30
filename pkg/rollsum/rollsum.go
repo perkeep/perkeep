@@ -43,7 +43,7 @@ func New() *RollSum {
 }
 
 func (rs *RollSum) add(drop, add uint8) {
-	rs.s1 += uint32(add) - uint32(drop)
+	rs.s1 += uint32(add + charOffset) - uint32(drop + charOffset)
 	rs.s2 += rs.s1 - uint32(windowSize)*uint32(drop+charOffset)
 }
 
