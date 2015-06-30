@@ -35,10 +35,16 @@ const helpHTML string = `<html>
 		</head>
 		<body>
 			<h2>Help</h2>
-			<p>See the Camlistore <a href='http://camlistore.org/docs/'>online documentation</a> and <a href='http://camlistore.org/community/'>community contacts</a>.</p>
+
+			<h3>Web User Interface</h3>
+			<p><a href='https://camlistore.googlesource.com/camlistore/+/master/doc/search-ui.txt'>Search bar predicates.</a></p>
+
 			<h3>Client Configuration</h3>
 			<p>You will need to use the following <a href='http://camlistore.org/docs/client-config'>client configuration</a> in order to access this server using the Camlistore command line tools.</p>
 			<pre>{{ . }}</pre>
+
+			<h3>Anything Else?</h3>
+			<p>See the Camlistore <a href='http://camlistore.org/docs/'>online documentation</a> and <a href='http://camlistore.org/community/'>community contacts</a>.</p>
 		</body>
 	</html>`
 
