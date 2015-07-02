@@ -38,8 +38,8 @@ type KeyValue struct {
 	SetFunc      func(*sql.DB, string, string) error
 	BatchSetFunc func(*sql.Tx, string, string) error
 
-	// PlaceHolderFunc optionally replaces ? placeholders with the right ones for the rdbms
-	// in use
+	// PlaceHolderFunc optionally replaces ? placeholders
+	// with the right ones for the rdbms in use.
 	PlaceHolderFunc func(string) string
 
 	// Serial determines whether a Go-level mutex protects DB from
@@ -55,15 +55,42 @@ type KeyValue struct {
 	TablePrefix string
 
 	mu sync.Mutex // the mutex used, if Serial is set
+
+	queriesInitOnce sync.Once // guards initialization of both queries and replacer
+	replacer        *strings.Replacer
+
+	queriesMu sync.RWMutex
+	queries   map[string]string
 }
 
-func (kv *KeyValue) sql(v string) string {
-	// TODO(bradfitz): all this string manipulation is redundant at runtime.
-	// We should do it once at the beginning and keep the strings around.
-	if f := kv.PlaceHolderFunc; f != nil {
-		v = f(v)
+// sql returns the query, replacing placeholders using PlaceHolderFunc,
+// and /*TPRE*/ with TablePrefix.
+func (kv *KeyValue) sql(sqlStmt string) string {
+	// string manipulation is done only once
+	kv.queriesInitOnce.Do(func() {
+		kv.queries = make(map[string]string, 8) // we have 8 queries in this file
+		kv.replacer = strings.NewReplacer("/*TPRE*/", kv.TablePrefix)
+	})
+	kv.queriesMu.RLock()
+	sqlQuery, ok := kv.queries[sqlStmt]
+	kv.queriesMu.RUnlock()
+	if ok {
+		return sqlQuery
 	}
-	return strings.Replace(v, "/*TPRE*/", kv.TablePrefix, -1)
+	kv.queriesMu.Lock()
+	// check again, now holding the lock
+	if sqlQuery, ok = kv.queries[sqlStmt]; ok {
+		kv.queriesMu.Unlock()
+		return sqlQuery
+	}
+	sqlQuery = sqlStmt
+	if f := kv.PlaceHolderFunc; f != nil {
+		sqlQuery = f(sqlQuery)
+	}
+	sqlQuery = kv.replacer.Replace(sqlQuery)
+	kv.queries[sqlStmt] = sqlQuery
+	kv.queriesMu.Unlock()
+	return sqlQuery
 }
 
 type batchTx struct {
