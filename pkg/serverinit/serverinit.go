@@ -381,7 +381,7 @@ func handlerTypeWantsAuth(handlerType string) bool {
 	// TODO(bradfitz): ask the handler instead? This is a bit of a
 	// weird spot for this policy maybe?
 	switch handlerType {
-	case "ui", "search", "jsonsign", "sync", "status", "help":
+	case "ui", "search", "jsonsign", "sync", "status", "help", "importer":
 		return true
 	}
 	return false
