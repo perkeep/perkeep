@@ -30,12 +30,15 @@ import (
 
 	_ "image/gif"
 	_ "image/png"
-	_ "camlistore.org/third_party/golang.org/x/image/tiff"
 
 	"camlistore.org/pkg/images/fastjpeg"
 	"camlistore.org/pkg/images/resize"
 	"camlistore.org/third_party/github.com/nf/cr2"
 	"camlistore.org/third_party/github.com/rwcarlsen/goexif/exif"
+
+	// tiff package must be imported after any image packages that decode
+	// tiff-like formats, i.e. CR2 or DNG
+	_ "camlistore.org/third_party/golang.org/x/image/tiff"
 )
 
 var disableThumbCache, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_THUMB_CACHE"))
