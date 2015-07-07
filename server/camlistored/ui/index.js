@@ -201,7 +201,7 @@ cam.IndexPage = React.createClass({
 	},
 
 	getAspects_: function() {
-		var childFrameClickHandler = this.navigator_.navigate.bind(null, this.navigator_);
+		var childFrameClickHandler = this.navigator_.navigate.bind(this.navigator_);
 		var target = this.getTargetBlobref_();
 		var getAspect = function(f) {
 			return f(target, this.targetSearchSession_);
