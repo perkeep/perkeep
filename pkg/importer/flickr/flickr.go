@@ -18,6 +18,8 @@ limitations under the License.
 package flickr
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -151,9 +153,9 @@ func (imp) Run(ctx *importer.RunContext) error {
 }
 
 type photosetList struct {
-	Page     int
-	Pages    int
-	PerPage  int
+	Page     jsonInt
+	Pages    jsonInt
+	PerPage  jsonInt
 	Photoset []*photosetInfo
 }
 
@@ -166,8 +168,8 @@ type photosetInfo struct {
 
 type photosetItems struct {
 	Id    string `json:"id"`
-	Page  int    `json:",string"`
-	Pages int
+	Page  jsonInt
+	Pages jsonInt
 	Photo []struct {
 		Id             string
 		OriginalFormat string
@@ -259,10 +261,10 @@ func (r *run) importPhotoset(parent *importer.Object, photoset *photosetInfo, pa
 
 type photosSearch struct {
 	Photos struct {
-		Page    int
-		Pages   int
-		Perpage int
-		Total   int `json:",string"`
+		Page    jsonInt
+		Pages   jsonInt
+		Perpage jsonInt
+		Total   jsonInt
 		Photo   []*photosSearchItem
 	}
 
@@ -272,16 +274,16 @@ type photosSearch struct {
 type photosSearchItem struct {
 	Id             string `json:"id"`
 	Title          string
-	IsPublic       int
-	IsFriend       int
-	IsFamily       int
+	IsPublic       jsonInt
+	IsFriend       jsonInt
+	IsFamily       jsonInt
 	Description    contentString
 	DateUpload     string // Unix timestamp, in GMT.
 	DateTaken      string // formatted as "2006-01-02 15:04:05", so no timezone info.
 	OriginalFormat string
 	LastUpdate     string // Unix timestamp.
-	Latitude       float32
-	Longitude      float32
+	Latitude       jsonFloat
+	Longitude      jsonFloat
 	Tags           string
 	MachineTags    string `json:"machine_tags"`
 	Views          string
@@ -291,6 +293,30 @@ type photosSearchItem struct {
 
 type contentString struct {
 	Content string `json:"_content"`
+}
+
+// jsonInt is for unmarshaling quoted and unquoted integers ("0" and 0), too.
+type jsonInt int
+
+func (jf jsonInt) MarshalJSON() ([]byte, error) {
+	return json.Marshal(int(jf))
+}
+func (jf *jsonInt) UnmarshalJSON(p []byte) error {
+	return json.Unmarshal(bytes.Trim(p, `"`), (*int)(jf))
+}
+
+// jsonFloat is for unmarshaling quoted and unquoted numbers ("0" and 0), too.
+type jsonFloat float32
+
+func (jf jsonFloat) MarshalJSON() ([]byte, error) {
+	return json.Marshal(float32(jf))
+}
+func (jf *jsonFloat) UnmarshalJSON(p []byte) error {
+	if len(p) == 1 && p[0] == '0' { // shortcut
+		*jf = 0
+		return nil
+	}
+	return json.Unmarshal(bytes.Trim(p, `"`), (*float32)(jf))
 }
 
 func (r *run) importPhotos() error {
