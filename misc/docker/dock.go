@@ -116,7 +116,7 @@ func genBinaries(ctxDir string) {
 		args = append(args, "--volume="+*localSrc+":/IN:ro",
 			image, goCmd, "run", genBinariesProgram, "--rev="+*rev, "--camlisource=/IN", "--os="+*buildOS)
 	} else {
-		args = append(args, image, goCmd, "run", genCamliProgram, "--rev="+*rev, "--os="+*buildOS)
+		args = append(args, image, goCmd, "run", genBinariesProgram, "--rev="+*rev, "--os="+*buildOS)
 	}
 	cmd := exec.Command("docker", args...)
 	cmd.Stdout = os.Stdout
