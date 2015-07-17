@@ -18,6 +18,7 @@ limitations under the License.
 package main
 
 import (
+	"archive/tar"
 	"compress/gzip"
 	"flag"
 	"fmt"
@@ -40,9 +41,12 @@ import (
 var (
 	rev      = flag.String("rev", "4e8413c5012c", "Camlistore revision to build (tag or commit hash)")
 	localSrc = flag.String("camlisource", "", "(dev flag) Path to a local Camlistore source tree from which to build. This flag is ignored unless -rev=WORKINPROGRESS")
+	buildOS  = flag.String("os", runtime.GOOS, "Operating system to build for. Requires --build_binaries.")
 
-	doBuildServer = flag.Bool("build_server", true, "build the server")
+	// TODO(mpl): if we keep the doBinaries functionality in dock.go, then maybe rename build_server to build_image ?
+	doBuildServer = flag.Bool("build_server", true, "build the server as a docker image")
 	doUpload      = flag.Bool("upload", false, "upload a snapshot of the server tarball to http://storage.googleapis.com/camlistore-release/docker/camlistored[-VERSION].tar.gz")
+	doBinaries    = flag.Bool("build_binaries", false, "build the server and tools as standalone binaries to a tarball in misc/docker/release. Requires --build_server=false.")
 )
 
 // buildDockerImage builds a docker image from the Dockerfile located in
@@ -66,9 +70,11 @@ var dockDir string
 const (
 	goDockerImage    = "camlistore/go"
 	djpegDockerImage = "camlistore/djpeg"
+	serverImage      = "camlistore/server"
 	goCmd            = "/usr/local/go/bin/go"
 	// Path to where the Camlistore builder is mounted on the camlistore/go image.
-	genCamliProgram = "/usr/local/bin/build-camlistore-server.go"
+	genCamliProgram    = "/usr/local/bin/build-camlistore-server.go"
+	genBinariesProgram = "/usr/local/bin/build-binaries.go"
 )
 
 func genCamlistore(ctxDir string) {
@@ -94,6 +100,32 @@ func genCamlistore(ctxDir string) {
 	}
 }
 
+func genBinaries(ctxDir string) {
+	check(os.Mkdir(filepath.Join(ctxDir, "/camlistore.org"), 0755))
+	image := goDockerImage
+	if *buildOS != "linux" {
+		image += "-" + *buildOS
+	}
+	args := []string{
+		"run",
+		"--rm",
+		"--volume=" + ctxDir + "/camlistore.org:/OUT",
+		"--volume=" + path.Join(dockDir, "release/build-binaries.go") + ":" + genBinariesProgram + ":ro",
+	}
+	if *rev == "WORKINPROGRESS" {
+		args = append(args, "--volume="+*localSrc+":/IN:ro",
+			image, goCmd, "run", genBinariesProgram, "--rev="+*rev, "--camlisource=/IN", "--os="+*buildOS)
+	} else {
+		args = append(args, image, goCmd, "run", genCamliProgram, "--rev="+*rev, "--os="+*buildOS)
+	}
+	cmd := exec.Command("docker", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		log.Fatalf("Error building binaries in go container: %v", err)
+	}
+}
+
 func copyFinalDockerfile(ctxDir string) {
 	// Copy Dockerfile into the temp dir.
 	serverDockerFile, err := ioutil.ReadFile(filepath.Join(dockDir, "server", "Dockerfile"))
@@ -115,12 +147,12 @@ func genDjpeg(ctxDir string) {
 
 func buildServer(ctxDir string) {
 	copyFinalDockerfile(ctxDir)
-	cmd := exec.Command("docker", "build", "-t", "camlistore/server", ".")
+	cmd := exec.Command("docker", "build", "-t", serverImage, ".")
 	cmd.Dir = ctxDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error building camlistore/server: %v", err)
+		log.Fatalf("Error building %v: %v", serverImage, err)
 	}
 }
 
@@ -150,7 +182,7 @@ func uploadDockerImage() {
 	w.CacheControl = "no-cache" // TODO: remove for non-tip releases? set expirations?
 	w.ContentType = "application/x-gtar"
 
-	dockerSave := exec.Command("docker", "save", "camlistore/server")
+	dockerSave := exec.Command("docker", "save", serverImage)
 	dockerSave.Stderr = os.Stderr
 	tar, err := dockerSave.StdoutPipe()
 	if err != nil {
@@ -169,7 +201,7 @@ func uploadDockerImage() {
 		pw.CloseWithError(err)
 	}()
 	if err := dockerSave.Start(); err != nil {
-		log.Fatalf("Error starting docker save camlistore/server: %v", err)
+		log.Fatalf("Error starting docker save %v: %v", serverImage, err)
 	}
 	if _, err := io.Copy(w, targz); err != nil {
 		log.Fatalf("io.Copy: %v", err)
@@ -178,7 +210,7 @@ func uploadDockerImage() {
 		log.Fatalf("closing GCS storage writer: %v", err)
 	}
 	if err := dockerSave.Wait(); err != nil {
-		log.Fatalf("Error waiting for docker save camlistore/server: %v", err)
+		log.Fatalf("Error waiting for docker save %v: %v", serverImage, err)
 	}
 	log.Printf("Uploaded tarball to %s", versionedTarball)
 	log.Printf("Copying tarball to %s/%s ...", bucket, tarball)
@@ -195,6 +227,75 @@ func uploadDockerImage() {
 	log.Printf("Uploaded tarball to %s", tarball)
 }
 
+func packBinaries(ctxDir string) {
+	binaries := map[string]bool{
+		"camlistored": false,
+		"camget":      false,
+		"camput":      false,
+		"camtool":     false,
+		"cammount":    false,
+		"publisher":   false,
+	}
+	toPack := func(bin string) bool {
+		for k, _ := range binaries {
+			if bin == k {
+				binaries[k] = true
+				return true
+			}
+		}
+		return false
+	}
+	binDir := path.Join(ctxDir, "camlistore.org", "bin")
+	check(os.Chdir(binDir))
+	dir, err := os.Open(binDir)
+	check(err)
+	defer dir.Close()
+
+	// TODO(mpl): packing format should depend on buildOS. tar.gz for everyone for now.
+	fw, err := os.Create(path.Join(dockDir, "release", "camlistore-"+*buildOS+".tar.gz"))
+	check(err)
+	defer func() {
+		check(fw.Close())
+	}()
+	pr, pw := io.Pipe()
+	go func() {
+		tw := tar.NewWriter(pw)
+		fis, err := dir.Readdir(-1)
+		check(err)
+		for _, file := range fis {
+			if !toPack(file.Name()) {
+				continue
+			}
+			hdr, err := tar.FileInfoHeader(file, "")
+			check(err)
+			check(tw.WriteHeader(hdr))
+			fr, err := os.Open(file.Name())
+			check(err)
+			n, err := io.Copy(tw, fr)
+			check(err)
+			fr.Close()
+			if n != file.Size() {
+				log.Fatalf("failed to tar all of %v; got %v, wanted %v", file.Name(), n, file.Size())
+			}
+		}
+		check(tw.Close())
+		check(pw.CloseWithError(io.EOF))
+	}()
+	zw := gzip.NewWriter(fw)
+	n, err := io.Copy(zw, pr)
+	if err != nil {
+		log.Fatalf("Error copying to gzip writer: after %d bytes, %v", n, err)
+	}
+	if err := zw.Close(); err != nil {
+		log.Fatalf("gzip.Close: %v", err)
+	}
+	for name, found := range binaries {
+		if !found {
+			log.Fatalf("%v was not packed in tarball", name)
+		}
+	}
+}
+
 func usage() {
 	fmt.Fprintf(os.Stderr, "Usage:\n")
 	fmt.Fprintf(os.Stderr, "%s [-rev camlistore_revision | -rev WORKINPROGRESS -camlisource dir]\n", os.Args[0])
@@ -204,6 +305,10 @@ func usage() {
 
 func checkFlags() {
 	if flag.NArg() != 0 {
+		usage()
+	}
+	if *doBinaries && (*doBuildServer || *doUpload) {
+		fmt.Fprintf(os.Stderr, "Usage error: --build_binaries and --build_server are mutually exclusive.\n")
 		usage()
 	}
 	if *rev == "" {
@@ -235,7 +340,6 @@ func main() {
 	if *doBuildServer {
 		buildDockerImage("go", goDockerImage)
 		buildDockerImage("djpeg-static", djpegDockerImage)
-
 		// ctxDir is where we run "docker build" to produce the final
 		// "FROM scratch" Docker image.
 		ctxDir, err := ioutil.TempDir("", "camli-build")
@@ -247,6 +351,25 @@ func main() {
 		genCamlistore(ctxDir)
 		genDjpeg(ctxDir)
 		buildServer(ctxDir)
+	}
+
+	// TODO(mpl): maybe *doBinaries should be done by a separate go program,
+	// because the end product is not a docker image. However, we're still
+	// using docker all along, and it's convenient for now for code reuse. I
+	// can refactor it all out of dock.go afterwards if we like the process.
+	if *doBinaries {
+		goDir := "go"
+		if *buildOS != "linux" {
+			goDir = path.Join(goDir, *buildOS)
+		}
+		buildDockerImage(goDir, goDockerImage+"-"+*buildOS)
+		ctxDir, err := ioutil.TempDir("", "camli-build")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer os.RemoveAll(ctxDir)
+		genBinaries(ctxDir)
+		packBinaries(ctxDir)
 	}
 
 	if *doUpload {
