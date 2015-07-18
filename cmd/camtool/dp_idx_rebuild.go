@@ -73,7 +73,7 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 	if !ok {
 		return fmt.Errorf("No 'prefixes' object in low-level (or converted) config file %s", osutil.UserServerConfigPath())
 	}
-	paths := []string{}
+	paths, confs := []string{}, []jsonconfig.Obj{}
 	for prefix, vei := range prefixes {
 		pmap, ok := vei.(map[string]interface{})
 		if !ok {
@@ -103,8 +103,7 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 			continue
 		}
 		paths = append(paths, apath)
-		indexConf = jsonconfig.Obj(aconf["metaIndex"].(map[string]interface{}))
-		log.Printf("indexConf: %v", indexConf)
+		confs = append(confs, aconf)
 	}
 	if len(paths) == 0 {
 		return fmt.Errorf("Server config file %s doesn't specify a disk-packed storage handler.",
@@ -117,6 +116,13 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 	if path == "" {
 		return errors.New("no path is given/found")
 	}
+	// If no index is specified, the default will be used (as on the regular path).
+	if mi := confs[0]["metaIndex"]; mi != nil {
+		if mi, ok := mi.(map[string]interface{}); ok {
+			indexConf = jsonconfig.Obj(mi)
+		}
+	}
+	log.Printf("indexConf: %v", indexConf)
 
 	return diskpacked.Reindex(path, c.overwrite, indexConf)
 }
