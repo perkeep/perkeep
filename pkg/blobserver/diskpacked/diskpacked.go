@@ -611,6 +611,11 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 			continue
 		}
 
+		ref, ok := blob.ParseBytes(digest)
+		if !ok {
+			return fmt.Errorf("diskpacked: Invalid blobref %q", digest)
+		}
+
 		// Finally, read and send the blob.
 
 		// TODO: remove this allocation per blob. We can make one instead
@@ -624,10 +629,6 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 			return err
 		}
 		offset += int64(size)
-		ref, ok := blob.ParseBytes(digest)
-		if !ok {
-			return fmt.Errorf("diskpacked: Invalid blobref %q", digest)
-		}
 		newReader := func() readerutil.ReadSeekCloser {
 			return newReadSeekNopCloser(bytes.NewReader(data))
 		}
