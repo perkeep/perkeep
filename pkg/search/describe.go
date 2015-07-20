@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -32,7 +31,6 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
@@ -75,7 +73,7 @@ func (sh *Handler) Describe(dr *DescribeRequest) (dres *DescribeResponse, err er
 	if err := dr.expandRules(); err != nil {
 		return nil, err
 	}
-	metaMap, err := dr.metaMapThumbs(dr.ThumbnailSize)
+	metaMap, err := dr.metaMap()
 	if err != nil {
 		return nil, err
 	}
@@ -105,10 +103,6 @@ type DescribeRequest struct {
 	// considered, otherwise, any claims after this date will not
 	// be considered.
 	At types.Time3339 `json:"at"`
-
-	// ThumbnailSize sets the max dimension for the thumbnail ULR generated,
-	// or zero for none
-	ThumbnailSize int `json:"thumbnailSize,omitempty"`
 
 	// Rules specifies a set of rules to instruct how to keep
 	// expanding the described set. All rules are tested and
@@ -234,10 +228,6 @@ type DescribedBlob struct {
 	// if camliType "directory"
 	DirChildren []blob.Ref `json:"dirChildren,omitempty"`
 
-	Thumbnail       string `json:"thumbnailSrc,omitempty"`
-	ThumbnailWidth  int    `json:"thumbnailWidth,omitempty"`
-	ThumbnailHeight int    `json:"thumbnailHeight,omitempty"`
-
 	// Stub is set if this is not loaded, but referenced.
 	Stub bool `json:"-"`
 }
@@ -309,7 +299,6 @@ func (r *DescribeRequest) fromHTTPGet(req *http.Request) {
 	}
 	r.Depth = httputil.OptionalInt(req, "depth")
 	r.MaxDirChildren = httputil.OptionalInt(req, "maxdirchildren")
-	r.ThumbnailSize = thumbnailSize(req)
 	r.At = types.ParseTime3339OrZero(req.FormValue("at"))
 }
 
@@ -467,48 +456,6 @@ func (b *DescribedBlob) isPermanode() bool {
 	return b.Permanode != nil
 }
 
-// returns a path relative to the UI handler.
-//
-// Locking: requires that DescribedRequest is done loading or that
-// Request.mu is held (as it is from metaMap)
-func (b *DescribedBlob) thumbnail(thumbSize int) (path string, width, height int, ok bool) {
-	if thumbSize <= 0 || !b.isPermanode() {
-		return
-	}
-	if b.Stub {
-		return "node.png", thumbSize, thumbSize, true
-	}
-
-	if b.Permanode.IsContainer() {
-		return "folder.png", thumbSize, thumbSize, true
-	}
-
-	if content, ok := b.ContentRef(); ok {
-		peer := b.peerBlob(content)
-		if peer.File != nil {
-			ii := peer.Image
-			if peer.File.IsImage() && ii != nil && ii.Height > 0 && ii.Width > 0 {
-				image := fmt.Sprintf("thumbnail/%s/%s?mh=%d&tv=%s", peer.BlobRef,
-					url.QueryEscape(peer.File.FileName), thumbSize, images.ThumbnailVersion())
-				mw, mh := images.ScaledDimensions(
-					int(ii.Width), int(ii.Height),
-					MaxImageSize, thumbSize)
-				return image, mw, mh, true
-			}
-
-			// TODO: different thumbnails based on peer.File.MIMEType.
-			const fileIconAspectRatio = 260.0 / 300.0
-			var width = int(math.Floor(float64(thumbSize)*fileIconAspectRatio + 0.5))
-			return "file.png", width, thumbSize, true
-		}
-		if peer.Dir != nil {
-			return "folder.png", thumbSize, thumbSize, true
-		}
-	}
-
-	return "node.png", thumbSize, thumbSize, true
-}
-
 type DescribedPermanode struct {
 	Attr    url.Values `json:"attr"` // a map[string][]string
 	ModTime time.Time  `json:"modtime,omitempty"`
@@ -598,11 +545,6 @@ func (dr *DescribeRequest) maxDirChildren() int {
 }
 
 func (dr *DescribeRequest) metaMap() (map[string]*DescribedBlob, error) {
-	return dr.metaMapThumbs(0)
-}
-
-func (dr *DescribeRequest) metaMapThumbs(thumbSize int) (map[string]*DescribedBlob, error) {
-	// thumbSize of zero means to not include the thumbnails.
 	dr.wg.Wait()
 	dr.mu.Lock()
 	defer dr.mu.Unlock()
@@ -613,11 +555,6 @@ func (dr *DescribeRequest) metaMapThumbs(thumbSize int) (map[string]*DescribedBl
 	m := make(map[string]*DescribedBlob)
 	for k, desb := range dr.m {
 		m[k] = desb
-		if src, w, h, ok := desb.thumbnail(thumbSize); ok {
-			desb.Thumbnail = src
-			desb.ThumbnailWidth = w
-			desb.ThumbnailHeight = h
-		}
 	}
 	return m, nil
 }

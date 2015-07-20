@@ -414,8 +414,7 @@ func (ph *publishHandler) deepDescribe(br blob.Ref) (*search.DescribeResponse, e
 			CamliType:     "permanode",
 		},
 		Describe: &search.DescribeRequest{
-			ThumbnailSize: 1000,
-			Depth:         1,
+			Depth: 1,
 			Rules: []*search.DescribeRule{
 				{
 					Attrs: []string{"camliContent", "camliContentImage", "camliMember", "camliPath:*"},
@@ -932,8 +931,7 @@ func (ph *publishHandler) describeMembers(br blob.Ref) (*search.SearchResult, er
 			CamliType: "permanode",
 		},
 		Describe: &search.DescribeRequest{
-			ThumbnailSize: 1000,
-			Depth:         1,
+			Depth: 1,
 			Rules: []*search.DescribeRule{
 				{
 					Attrs: []string{"camliContent", "camliContentImage"},
