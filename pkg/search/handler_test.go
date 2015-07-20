@@ -613,10 +613,7 @@ var handlerTests = []handlerTest{
 				   "attr": { "title": [ "Some title" ] },
 					"modtime": "` + addToClockOrigin(1*time.Second) + `"
 				 },
-				 "size": 534,
-				 "thumbnailHeight": 100,
-				 "thumbnailSrc": "node.png",
-				 "thumbnailWidth": 100
+				 "size": 534
 					}
 				}
 			   }`),
