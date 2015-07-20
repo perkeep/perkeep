@@ -356,6 +356,7 @@ func TestInstallHandlers(t *testing.T) {
 			prefix:        "/importer/",
 			handlerType:   reflect.TypeOf(&importer.Host{}),
 			prefixWrapped: true,
+			authWrapped:   true,
 		},
 
 		{
