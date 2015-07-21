@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 // Command dock builds Camlistore's various Docker images.
+// It can also generate a tarball of the Camlistore server and tools.
 package main
 
 import (
@@ -39,14 +40,15 @@ import (
 )
 
 var (
+	// TODO(mpl): update the rev to at least 2c57aff2c1ad3c7a0b87ad562a4fe4ddbe2e36ae (and preferably the one after),
+	// so the repo used has genBinariesProgram.
 	rev      = flag.String("rev", "4e8413c5012c", "Camlistore revision to build (tag or commit hash)")
 	localSrc = flag.String("camlisource", "", "(dev flag) Path to a local Camlistore source tree from which to build. This flag is ignored unless -rev=WORKINPROGRESS")
 	buildOS  = flag.String("os", runtime.GOOS, "Operating system to build for. Requires --build_binaries.")
 
-	// TODO(mpl): if we keep the doBinaries functionality in dock.go, then maybe rename build_server to build_image ?
-	doBuildServer = flag.Bool("build_server", true, "build the server as a docker image")
-	doUpload      = flag.Bool("upload", false, "upload a snapshot of the server tarball to http://storage.googleapis.com/camlistore-release/docker/camlistored[-VERSION].tar.gz")
-	doBinaries    = flag.Bool("build_binaries", false, "build the server and tools as standalone binaries to a tarball in misc/docker/release. Requires --build_server=false.")
+	doImage    = flag.Bool("build_image", true, "build the Camlistore server as a docker image")
+	doUpload   = flag.Bool("upload", false, "upload a snapshot of the server tarball to http://storage.googleapis.com/camlistore-release/docker/camlistored[-VERSION].tar.gz")
+	doBinaries = flag.Bool("build_binaries", false, "build the Camlistore server and tools as standalone binaries to a tarball in misc/docker/release. Requires --build_image=false.")
 )
 
 // buildDockerImage builds a docker image from the Dockerfile located in
@@ -307,8 +309,8 @@ func checkFlags() {
 	if flag.NArg() != 0 {
 		usage()
 	}
-	if *doBinaries && (*doBuildServer || *doUpload) {
-		fmt.Fprintf(os.Stderr, "Usage error: --build_binaries and --build_server are mutually exclusive.\n")
+	if *doBinaries && (*doImage || *doUpload) {
+		fmt.Fprintf(os.Stderr, "Usage error: --build_binaries and --build_image are mutually exclusive.\n")
 		usage()
 	}
 	if *rev == "" {
@@ -337,7 +339,7 @@ func main() {
 	}
 	dockDir = filepath.Join(camDir, "misc", "docker")
 
-	if *doBuildServer {
+	if *doImage {
 		buildDockerImage("go", goDockerImage)
 		buildDockerImage("djpeg-static", djpegDockerImage)
 		// ctxDir is where we run "docker build" to produce the final
