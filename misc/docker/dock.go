@@ -40,9 +40,7 @@ import (
 )
 
 var (
-	// TODO(mpl): update the rev to at least 2c57aff2c1ad3c7a0b87ad562a4fe4ddbe2e36ae (and preferably the one after),
-	// so the repo used has genBinariesProgram.
-	rev      = flag.String("rev", "4e8413c5012c", "Camlistore revision to build (tag or commit hash)")
+	rev      = flag.String("rev", "5ffc23ebd13c", "Camlistore revision to build (tag or commit hash)")
 	localSrc = flag.String("camlisource", "", "(dev flag) Path to a local Camlistore source tree from which to build. This flag is ignored unless -rev=WORKINPROGRESS")
 	buildOS  = flag.String("os", runtime.GOOS, "Operating system to build for. Requires --build_binaries.")
 
