@@ -240,6 +240,18 @@
 			}
 		},
 
+		"/index-leveldb/": {
+			"enabled": ["_env", "${CAMLI_LEVELDB_ENABLED}"],
+			"handler": "storage-index",
+			"handlerArgs": {
+				"blobSource": "/bs/",
+				"storage": {
+					"type": "leveldb",
+					"file": ["_env", "${CAMLI_DBNAME}", ""]
+				}
+			}
+		},
+
 		"/index-kv/": {
 			"enabled": ["_env", "${CAMLI_KVINDEX_ENABLED}"],
 			"handler": "storage-index",
