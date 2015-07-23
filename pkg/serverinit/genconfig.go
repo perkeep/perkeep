@@ -867,6 +867,7 @@ func WriteDefaultConfigFile(filePath string, useSQLite bool) error {
 		return fmt.Errorf("Could not create default blobs directory: %v", err)
 	}
 	conf.BlobPath = blobDir
+	conf.PackRelated = true
 	if useSQLite {
 		conf.SQLite = filepath.Join(osutil.CamliVarDir(), "camli-index.db")
 	} else {
