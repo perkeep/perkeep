@@ -38,6 +38,7 @@ import (
 	"camlistore.org/pkg/deploy/gce"
 	"camlistore.org/pkg/netutil"
 	"camlistore.org/pkg/types/camtypes"
+	"camlistore.org/third_party/github.com/russross/blackfriday"
 )
 
 const defaultAddr = ":31798" // default webserver address
@@ -266,6 +267,8 @@ func serveFile(rw http.ResponseWriter, req *http.Request, relPath, absPath strin
 		serveError(rw, req, absPath, err)
 		return
 	}
+
+	data = blackfriday.MarkdownCommon(data)
 
 	title := ""
 	if m := h1TitlePattern.FindSubmatch(data); len(m) > 1 {

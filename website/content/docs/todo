@@ -1,6 +1,4 @@
-<h1>Contributor Project Ideas</h1>
+# Contributor Project Ideas
 
-<ul>
-	<li>The <a href="https://camlistore.googlesource.com/camlistore/+/master/TODO">TODO file</a></li>
-	<li>The <a href="https://github.com/camlistore/camlistore/issues">issue tracker</a> lists both features and bugs</li>
-</ul>
+* The [TODO file](https://camlistore.googlesource.com/camlistore/+/master/TODO)
+* The [issue tracker](https://github.com/camlistore/camlistore/issues) lists both features and bugs
