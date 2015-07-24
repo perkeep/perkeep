@@ -20,6 +20,7 @@ package main
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"flag"
 	"fmt"
@@ -227,14 +228,24 @@ func uploadDockerImage() {
 	log.Printf("Uploaded tarball to %s", tarball)
 }
 
+func exeName(s string) string {
+	if *buildOS == "windows" {
+		return s + ".exe"
+	}
+	return s
+}
+
 func packBinaries(ctxDir string) {
 	binaries := map[string]bool{
-		"camlistored": false,
-		"camget":      false,
-		"camput":      false,
-		"camtool":     false,
-		"cammount":    false,
-		"publisher":   false,
+		exeName("camlistored"): false,
+		exeName("camget"):      false,
+		exeName("camput"):      false,
+		exeName("camtool"):     false,
+		exeName("publisher"):   false,
+	}
+	switch *buildOS {
+	case "linux", "darwin":
+		binaries["cammount"] = false
 	}
 	toPack := func(bin string) bool {
 		for k, _ := range binaries {
@@ -245,13 +256,46 @@ func packBinaries(ctxDir string) {
 		}
 		return false
 	}
+	defer func() {
+		for name, found := range binaries {
+			if !found {
+				log.Fatalf("%v was not packed in tarball", name)
+			}
+		}
+	}()
+
 	binDir := path.Join(ctxDir, "camlistore.org", "bin")
 	check(os.Chdir(binDir))
 	dir, err := os.Open(binDir)
 	check(err)
 	defer dir.Close()
 
-	// TODO(mpl): packing format should depend on buildOS. tar.gz for everyone for now.
+	if *buildOS == "windows" {
+		fw, err := os.Create(path.Join(dockDir, "release", "camlistore-"+*buildOS+".zip"))
+		check(err)
+		defer func() {
+			check(fw.Close())
+		}()
+		w := zip.NewWriter(fw)
+		defer func() {
+			check(w.Close())
+		}()
+		names, err := dir.Readdirnames(-1)
+		check(err)
+		for _, name := range names {
+			if !toPack(name) {
+				continue
+			}
+			b, err := ioutil.ReadFile(path.Join(binDir, name))
+			check(err)
+			f, err := w.Create(name)
+			check(err)
+			_, err = f.Write(b)
+			check(err)
+		}
+		return
+	}
+
 	fw, err := os.Create(path.Join(dockDir, "release", "camlistore-"+*buildOS+".tar.gz"))
 	check(err)
 	defer func() {
@@ -288,11 +332,6 @@ func packBinaries(ctxDir string) {
 	}
 	if err := zw.Close(); err != nil {
 		log.Fatalf("gzip.Close: %v", err)
-	}
-	for name, found := range binaries {
-		if !found {
-			log.Fatalf("%v was not packed in tarball", name)
-		}
 	}
 }
 
