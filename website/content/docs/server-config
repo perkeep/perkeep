@@ -1,139 +1,190 @@
-<h1>Configuring the server</h1>
+# Configuring the server
 
-<p>The server's config file at $HOME/.config/camlistore/server-config.json is JSON. It can either be in simple mode (for basic configurations), or in low-level mode (for any sort of crazy configuration).</p>
+The server's config file at $HOME/.config/camlistore/server-config.json is
+JSON. It can either be in simple mode (for basic configurations), or in
+low-level mode (for any sort of crazy configuration).
 
-<p>This page documents the simple configuration mode.</p>
+This page documents the simple configuration mode.
 
-<p>If you visit your Camlistore server's /setup page (by default, at
+If you visit your Camlistore server's /setup page (by default, at
 http://localhost:3179/setup) you can modify the config file from your
-web browser and restart the server.</p>
-
-<h1>Configuration Keys &amp; Values</h1>
-
-<ul>
-<li><b><code>auth</code></b>: the authentication mechanism to use. Example values include:
-    <table cellpadding=4 border=1>
-     <tr><td><code>none</code></td><td>No authentication.</td></tr>
-     <tr><td><code>localhost</code></td><td>Accept connections coming from localhost. On Linux, this means connections from localhost that are also from the same user as the user running the server.</td></tr>
-     <tr><td><code>userpass:alice:secret</code></td><td>HTTP basic authentication. Username "alice", password "secret". Only recommended if using HTTPS.</td></tr>
-     <tr><td><code>userpass:alice:secret:+localhost</code></td><td>Same as above, but also accept localhost auth</td></tr>
-     <tr><td><code>userpass:alice:secret:vivify=othersecret</code></td><td>Alice has password "secret", but her Android phone can use password "othersecret" to do a minimal set of operations (upload new things, but not access anything)r</td></tr>
-    </table>
-</li>
-
-<li><b><code>baseURL</code></b>: Optional. If non-empty, this is the root of your URL prefix for your Camlistore server. Useful for when running behind a reverse proxy. Should not end in a slash. e.g. <code>https://yourserver.example.com</code></li>
+web browser and restart the server.
 
 
-<li><b><code>https</code></b>: if "true", HTTPS is used
-  <ul>
-    <li><b><code>httpsCert</code></b>: path to the HTTPS certificate file. This is the public file. It should include the concatenation of any required intermediate certs as well.</li>
-    <li><b><code>httpsKey</code></b>: path to the HTTPS private key file.</li>
-  </ul>
-</li>
+# Configuration Keys & Values
 
-<li><b><code>identity</code></b>: your GPG fingerprint. A keypair is created for new users on start, but this may be changed if you know what you're doing.</li>
-<li><b><code>identitySecretRing</code></b>: your GnuPG secret keyring file. A new keyring is created on start for new users, but may be changed if you know what you're doing.</li>
-<li><b><code>listen</code></b>: The port (like "80" or ":80") or IP & port (like "10.0.0.2:8080") to listen for HTTP(s) connections on.</li>
-<li><b><code>shareHandler</code></b>: if true, the server's sharing functionality is enabled, letting your friends have access to any content you've specifically shared. Its URL prefix path defaults to "<code>/share/</code>".</li>
-<li><b><code>shareHandlerPath</code></b>: Optional. If non-empty, it specifies the URL prefix path to the share handler, and the <b><code>shareHandler</code></b> value is ignored (i.e the share handler is enabled). Example: "<code>/public/</code>".</li>
-<li><b><code>runIndex</code></b>: defaults to true. If "false", no search, no UI, no indexing. (These can be controlled at a more granular level by writing a low-level config file)</li>
-<li><b><code>copyIndexToMemory</code></b>: defaults to true. If "false", don't slurp the whole index into memory on start-up. Specifying false will result in certain queries being slow, unavailable, or unsorted (work in progress). This option may be unsupported in the future. Keeping this set to "true" is recommended. </li>
-<li><b><code>sourceRoot</code></b>: Optional. If non-empty, it specifies the path to an alternative Camlistore source tree, in order to override the embedded UI and/or Closure resources. The UI files will be expected in <code><b>&lt;sourceRoot&gt;</b>/server/camlistored/ui</code> and the Closure library in <code><b>&lt;sourceRoot&gt;</b>/third_party/closure/lib</code>.</li>
-</ul>
+* `auth`: the authentication mechanism to use. Example values include:
 
-<h2 id="storage">Storage options</h2>
-<p>At least one of these must be set:</p>
-<ul>
-<li><b><code>memoryStorage</code></b>: if true, blobs will be stored in memory only. This is generally only useful for debugging & development.</li>
-<li><b><code>blobPath</code></b>: local disk path to store blobs. (valid for diskpacked too).</li>
-<li><b><code>s3</code></b>: "<code>key:secret:bucket</code>" or "<code>key:secret:bucket:hostname</code>" (with colons, but no quotes).</li>
-<li><b><code>googlecloudstorage</code></b>: "<code>clientId:clientSecret:refreshToken:bucketName</code>"</li>
-</ul>
-<p>Additionally:</p>
-<ul>
-<li><b><code>packBlobs</code></b>: if true, diskpacked is used instead of the default filestorage.</li>
-</ul>
-<p>For now, if more than one storage option is set, one of them is the primary storage and the other ones are set up as mirrors. The precedence order is the same as the order they are listed above.</p>
-<p>Others aren't yet supported by the simple config mode. Patches
-to <code>pkg/genconfig</code> welcome.</p>
+  * `none`: No authentication.
+  * `localhost`: Accept connections coming from localhost. On Linux, this means
+    connections from localhost that are also from the same user as the user
+    running the server.
+  * `userpass:alice:secret`: HTTP basic authentication. Username "alice",
+    password "secret". Only recommended if using HTTPS.
+  * `userpass:alice:secret:+localhost`: Same as above, but also accept
+    localhost auth
+  * `userpass:alice:secret:vivify=othersecret`: Alice has password "secret",
+    but her Android phone can use password "othersecret" to do a minimal set of
+    operations (upload new things, but not access anything)r
 
-<h2 id="indexing">Indexing options</h2>
-<p>Unless <b><code>runIndex</code></b> is set to <code>false</code>, exactly one of these must be set:</p>
-<ul>
-<li><b><code>sqlite</code></b>: path to SQLite database file to use for indexing</li>
-<li><b><code>kvIndexFile</code></b>: path to kv (<a href="https://github.com/cznic/kv">https://github.com/cznic/kv</a>) database file to use for indexing</li>
-<li><b><code>levelDB</code></b>: path to levelDB (<a href="https://github.com/syndtr/goleveldb">https://github.com/syndtr/goleveldb</a>) database file to use for indexing</li>
-<li><b><code>mongo</code></b>: user:password@host</li>
-<li><b><code>mysql</code></b>: user@host:password</li>
-<li><b><code>postgres</code></b>: user@host:password</li>
-<li><b><code>memoryIndex</code></b>: if true, a memory-only indexer is used.</li>
-</ul>
+* `baseURL`: Optional. If non-empty, this is the root of your URL prefix for
+  your Camlistore server. Useful for when running behind a reverse proxy.
+  Should not end in a slash. e.g. `https://yourserver.example.com`
 
-<p>Additionally, mongo, mysql, and postgres require the <b><code>dbname</code></b> value set.  Initialize your database with <a href="/cmd/camtool/">camtool dbinit</a>.</p>
+* `https`: if "true", HTTPS is used
 
-<p>There's also an in-memory index type, but only in the low-level
-config, as used by <code>devcam server</code>.</p>
+  * `httpsCert`: path to the HTTPS certificate file. This is the public file.
+    It should include the concatenation of any required intermediate certs as
+    well.
+  * `httpsKey`: path to the HTTPS private key file.
 
-<h2 id="publishing">Publishing options</h2>
-<p>Camlistore uses Go html templates to publish pages, and publishing can be configured through the <b><code>publish</code></b> key. There is already support for an image gallery view, which can be enabled similarly to the example below (obviously, the rootPermanode will be different).</p>
-<pre>
-"publish": {
-	"/pics/": {
-		"camliRoot": "mypics",
-		"baseURL": "http://localhost:3178/",
-		"cacheRoot": "/home/joe/var/camlistore/blobs/cache",
-		"goTemplate": "gallery.html"
-	}
-}
-</pre>
-<p>One can create any permanode with camput or the UI, and set its camliRoot attribute to the value set in the config, to use it as the root permanode for publishing.</p>
+* `identity`: your GPG fingerprint. A keypair is created for new users on
+  start, but this may be changed if you know what you're doing.
 
-<p>Please see the <a href="/gw/doc/publishing/README"">publishing README</a> if you want to make/contribute more publishing views.</p>
+* `identitySecretRing`: your GnuPG secret keyring file. A new keyring is
+  created on start for new users, but may be changed if you know what you're
+  doing.
 
-<h2 id="windows">Windows</h2>
+* `listen`: The port (like "80" or ":80") or IP & port (like "10.0.0.2:8080")
+  to listen for HTTP(s) connections on.
 
-<p>
-The default configuration comes with SQLite for the indexer. However, getting <a href="https://github.com/mattn/go-sqlite3">mattn go-sqlite3</a> to work on windows is not straightforward, so we suggest using one of the other indexers, like MySQL.
-</p>
-<p>
+* `shareHandler`: if true, the server's sharing functionality is enabled,
+  letting your friends have access to any content you've specifically shared.
+  Its URL prefix path defaults to "`/share/`".
+
+* `shareHandlerPath`: Optional. If non-empty, it specifies the URL prefix path
+  to the share handler, and the `shareHandler` value is ignored (i.e the share
+  handler is enabled). Example: "`/public/`".
+
+* `runIndex`: defaults to true. If "false", no search, no UI, no indexing.
+  (These can be controlled at a more granular level by writing a low-level
+  config file)
+
+* `copyIndexToMemory`: defaults to true. If "false", don't slurp the whole
+  index into memory on start-up. Specifying false will result in certain
+  queries being slow, unavailable, or unsorted (work in progress). This option
+  may be unsupported in the future. Keeping this set to "true" is recommended.
+
+* `sourceRoot`: Optional. If non-empty, it specifies the path to an alternative
+  Camlistore source tree, in order to override the embedded UI and/or Closure
+  resources. The UI files will be expected in `<sourceRoot>/server/camlistored/ui`
+  and the Closure library in `<sourceRoot>/third_party/closure/lib`.
+
+
+## Storage options {#storage}
+
+At least one of these must be set:
+
+* `memoryStorage`: if true, blobs will be stored in memory only. This is
+  generally only useful for debugging & development.
+* `blobPath`: local disk path to store blobs. (valid for diskpacked too).
+* `s3`: "`key:secret:bucket`" or "`key:secret:bucket:hostname`" (with colons,
+  but no quotes).
+* `googlecloudstorage`: "`clientId:clientSecret:refreshToken:bucketName`"
+
+Additionally:
+
+* `packBlobs`: if true, diskpacked is used instead of the default filestorage.
+
+For now, if more than one storage option is set, one of them is the primary
+storage and the other ones are set up as mirrors. The precedence order is the
+same as the order they are listed above.
+
+Others aren't yet supported by the simple config mode. Patches to
+`pkg/genconfig` welcome.
+
+
+## Indexing options {#indexing}
+
+Unless `runIndex` is set to `false`, exactly one of these must be set:
+
+* `sqlite`: path to SQLite database file to use for indexing
+* `kvIndexFile`: path to kv (https://github.com/cznic/kv) database file to use for indexing
+* `levelDB`: path to levelDB (https://github.com/syndtr/goleveldb) database file to use for indexing
+* `mongo`: user:password@host
+* `mysql`: user@host:password
+* `postgres`: user@host:password
+* `memoryIndex`: if true, a memory-only indexer is used.
+
+Additionally, mongo, mysql, and postgres require the `dbname` value set.
+Initialize your database with [camtool dbinit](/cmd/camtool/).
+
+There's also an in-memory index type, but only in the low-level config, as used
+by `devcam server`.
+
+
+## Publishing options {#publishing}
+
+Camlistore uses Go html templates to publish pages, and publishing can be
+configured through the `publish` key. There is already support for an image
+gallery view, which can be enabled similarly to the example below (obviously,
+the rootPermanode will be different).
+
+    "publish": {
+      "/pics/": {
+        "camliRoot": "mypics",
+        "baseURL": "http://localhost:3178/",
+        "cacheRoot": "/home/joe/var/camlistore/blobs/cache",
+        "goTemplate": "gallery.html"
+      }
+    }
+
+One can create any permanode with camput or the UI, and set its camliRoot
+attribute to the value set in the config, to use it as the root permanode for
+publishing.
+
+Please see the [publishing README](/gw/doc/publishing/README) if you want to
+make/contribute more publishing views.
+
+
+## Windows {#windows}
+
+The default configuration comes with SQLite for the indexer. However, getting
+[mattn go-sqlite3](https://github.com/mattn/go-sqlite3) to work on windows is
+not straightforward, so we suggest using one of the other indexers, like MySQL.
+
 The following steps should get you started with MySQL:
-<ul>
-<li> Dowload and install <a href="https://downloads.mariadb.org/mariadb/5.5.32/">MariaDB</a> or <a href="http://dev.mysql.com/downloads/windows/installer/">MySQL</a> (the latter requires .NET).</li>
-<li> Edit your server configuration file (if it does not exit yet, running <b>camlistored</b> will automatically create it):
-	<ul>
-	<li> Remove the <b>sqlite</b> option.</li>
-	<li> Add a <b>dbname</b> option. (ex: "dbname": "camliprod")</li>
-	<li> Add a <b>mysql</b> option. (ex: "mysql": "foo@localhost:bar")</li>
-	</ul></li>
-<li> Create a dedicated user/password for your mysql server.</li>
-<li> Initialize the database with <b>camtool</b>: <code>camtool dbinit --user=foo --password=bar --host=localhost --dbname=camliprod --wipe </code></li>
-</ul>
-</p>
 
-<p>
-Setting up MongoDB is even simpler, but the MongoDB indexer is not as well tested as the MySQL one.
-</p>
+* Dowload and install [MariaDB](https://downloads.mariadb.org/mariadb/5.5.32/)
+  or [MySQL](http://dev.mysql.com/downloads/windows/installer/) (the latter
+  requires .NET).
+* Edit your server configuration file (if it does not exit yet, running
+  **camlistored** will automatically create it):
+  * Remove the <b>sqlite</b> option.
+  * Add a <b>dbname</b> option. (ex: "dbname": "camliprod")
+  * Add a <b>mysql</b> option. (ex: "mysql": "foo@localhost:bar")
+* Create a dedicated user/password for your mysql server.
+* Initialize the database with **camtool**: `camtool dbinit --user=foo
+  --password=bar --host=localhost --dbname=camliprod --wipe`
 
-<h2 id="appengine">App Engine</h2>
+Setting up MongoDB is even simpler, but the MongoDB indexer is not as well
+tested as the MySQL one.
 
-<p>
+
+## App Engine {#appengine}
+
 Most configuration doesn't apply on App Engine as it's pre-configured
 to use the App Engine Blobstore and Datastore, as well as App Engine's
 user auth mechanisms. But as of 2013-06-12 we don't yet recommend running
 on App Engine; there are still some sharp corners.
-</p>
 
-<p>
-The UI requires some static resources that are not included by default in the App Engine application directory (<code>server/appengine/</code>). You can define that directory in the server configuration file (<code>server/appengine/config.json</code>), with the <b><code>sourceRoot</code></b> parameter, like so:
-<pre>
-  "/ui/": {
-    "handler": "ui",
-    "handlerArgs": {
-      "sourceRoot": "dir_name",
-      "jsonSignRoot": "/sighelper/"
-    }
-  },
-</pre>
-You will then have to populate that directory with all the necessary resources (UI static files and closure library files).</br>
-Alternatively, you can run <b><code>devcam appengine</code></b> once, which will create and populate the default directory (<code>server/appengine/source_root</code>). Please see the <a href="https://camlistore.googlesource.com/camlistore/+/master/HACKING">HACKING</a> doc to build devcam.
-</p>
+The UI requires some static resources that are not included by default in the
+App Engine application directory (`server/appengine/`). You can define that
+directory in the server configuration file (`server/appengine/config.json`),
+with the `sourceRoot` parameter, like so:
+
+      "/ui/": {
+        "handler": "ui",
+        "handlerArgs": {
+          "sourceRoot": "dir_name",
+          "jsonSignRoot": "/sighelper/"
+        }
+      },
+
+You will then have to populate that directory with all the necessary resources
+(UI static files and closure library files).
+
+Alternatively, you can run `devcam appengine` once, which will create and
+populate the default directory (`server/appengine/source_root`). Please see the
+[HACKING](https://camlistore.googlesource.com/camlistore/+/master/HACKING) doc
+to build devcam.

@@ -1,106 +1,127 @@
-<h1>Camlistore Overview</h1>
+# Camlistore Overview
 
-<p>Camlistore is your <b>personal storage system for life</b>.</p>
+Camlistore is your **personal storage system for life**.
 
-<h2>Summary</h2>
+## Summary
 
 The project began because I wanted to...
-<ul>
-<li>... <b>store all my stuff forever</b>, not worrying about deleting, or losing stuff.</li>
 
-<li>... <b>save stuff easily</b>, and <b>without categorizing it or choosing a location</b> whenever I save it.  I just want a data dumptruck that I can throw stuff at whenever.</li>
+* ... **store all my stuff forever**, not worrying about deleting, or losing
+  stuff.
 
-<li>... <b>never lose anything</b> because nothing can be overwritten (all blobs are content-addressable), and there's no delete support.  (optional garbage collection coming later)</li>
+* ... **save stuff easily**, and **without categorizing it or choosing a
+  location** whenever I save it.  I just want a data dumptruck that I can throw
+  stuff at whenever.
 
-<li>be able to <b>search for anything</b> I once stored.</li>
+* ... **never lose anything** because nothing can be overwritten (all blobs are
+  content-addressable), and there's no delete support.  (optional garbage
+  collection coming later)
 
-<li>be able to <b>browse and visualize</b> stuff I've stored.</li>
+* be able to **search for anything** I once stored.
 
-<li>... <b>not always be forced into a POSIX-y filesystem model</b>. That involves thinking of where to put stuff, and most the time I don't even want filenames. If I take a bunch of photos, those don't have filenames (or not good ones, and not unique). They just exist. They don't need a directory or a name. Likewise with blog posts, comments, likes, bookmarks, etc. They're just objects.</li>
+* be able to **browse and visualize** stuff I've stored.
 
-<li>... <b>have a POSIX-y filesystem when I want one</b>. And it should all be logically available on my tiny laptop's SSD disk, even if my laptop's disk is miniscule compared to my entire repo.  That is, there should actually be a caching virtual filesystem, not a daemon running rsync in the background. If I have to have a complete copy of my data locally, or I have to "choose which folders" to sync, that's broken.</li>
+* ... **not always be forced into a POSIX-y filesystem model**. That involves
+  thinking of where to put stuff, and most the time I don't even want
+  filenames. If I take a bunch of photos, those don't have filenames (or not
+  good ones, and not unique). They just exist. They don't need a directory or a
+  name. Likewise with blog posts, comments, likes, bookmarks, etc. They're just
+  objects.
 
-<li>... <b>be able to synthesize POSIX-y filesystems from search queries</b> over my higher-level objects. e.g. a "recent" directory of recent photos from my Android phone (this all works already in 0.1)</li>
+* ... **have a POSIX-y filesystem when I want one**. And it should all be
+  logically available on my tiny laptop's SSD disk, even if my laptop's disk is
+  miniscule compared to my entire repo.  That is, there should actually be a
+  caching virtual filesystem, not a daemon running rsync in the background. If
+  I have to have a complete copy of my data locally, or I have to "choose which
+  folders" to sync, that's broken.
 
-<li><b>Not write another CMS system, ever</b>. Camlistore should be able to store and model any type of content, so it can just be a backend for other apps.</li>
+* ... **be able to synthesize POSIX-y filesystems from search queries** over my
+  higher-level objects. e.g. a "recent" directory of recent photos from my
+  Android phone (this all works already in 0.1)
 
-<li>... have <b>backups of all my social network content</b> I created daily on other people's servers, to protect myself if my account is hijacked, the company goes evil, changes ownership, or goes out of business..</li>
+* **Not write another CMS system, ever**. Camlistore should be able to store
+  and model any type of content, so it can just be a backend for other apps.
 
-<li>... have both a <b>web UI</b> and <b>command-line tools</b>, as well as a <b>FUSE filesystem</b>.</li>
+* ... have **backups of all my social network content** I created daily on
+  other people's servers, to protect myself if my account is hijacked, the
+  company goes evil, changes ownership, or goes out of business.
 
-<li>... <b>be in control</b> of my data, but also still be able to utilize big companies' infrastructure cloud products if desired.</li>
+* ... have both a **web UI** and **command-line tools**, as well as a **FUSE
+  filesystem**.
 
-<li>... <b>be able to share content</b> with both technical and non-technical friends.</li>
+* ... **be in control** of my data, but also still be able to utilize big
+  companies' infrastructure cloud products if desired.
 
-</ul>
+* ... **be able to share content** with both technical and non-technical
+  friends.
 
-<p>Most of this works as of the 0.1 <a href="/download">release</a>, and the rest and more is in progress.</p>
 
-<h2>Longer Answer</h2>
+Most of this works as of the 0.1 [release](/download), and the rest and more is
+in progress.
 
-<p>Throughout our life, we all continue to generate content, whether
+## Longer Answer
+
+Throughout our life, we all continue to generate content, whether
 that's writing documents, taking photos, writing comments online,
 liking our friends' posts on social networks, etc. Our content is
 typically spread between a mix of different companies' servers ("The
 Cloud") and your own hardware (laptops, phones, etc).  All of these
 things are prone to failure: companies go out of business, change
 ownership, or kill products. Personal harddrives fail, laptops and
-phones are dropped.</p>
+phones are dropped.
 
-<p>It would be nice if we were a bit more in control. At least, it
+It would be nice if we were a bit more in control. At least, it
 would be nice if we had a reliable backup of all our content. Once we
 have all our content, it's then nice to search it, view it, and
 directly serve it or share it out to others (public or with select
-ACLs), regardless of the original host's policies.</p>
+ACLs), regardless of the original host's policies.
 
-<p>Camlistore is a system to do all that.</p>
+Camlistore is a system to do all that.
 
-<p>While Camlistore can store files like a traditional filesystem
+While Camlistore can store files like a traditional filesystem
 (think: "directories", "files", "filenames"), its specialized in
-storing higher-level objects, which can represent anything..</p>
+storing higher-level objects, which can represent anything.
 
-<p>In addition to an implementation, Camlistore is also a schema for
-how to represent many types of content. Much JSON is used.</p>
+In addition to an implementation, Camlistore is also a schema for
+how to represent many types of content. Much JSON is used.
 
-<p>Because every type of content in Camlistore is represented using
+Because every type of content in Camlistore is represented using
 content-addressable blobs (even metadata), it's impossible to
 "overwrite" things. It also means it's easy for Camlistore to sync in
 any direction between your devices and Camlistore storage servers, without
-versioning or conflict resolution issues.</p>
+versioning or conflict resolution issues.
 
-<p>Camlistore can represent both immutable information (like snapshots
+Camlistore can represent both immutable information (like snapshots
 of filesystem trees), but can also represent mutable
 information. Mutable information is represented by storing immutable,
 timestamped, GPG-signed blobs representing a mutation request. The
 current state of an object is just the application of all mutation
 blobs up until that point in time. Thus all history is recorded and
 you can look at an object as it existed at any point in time, just by
-ignoring mutations after a certain point.</p>
+ignoring mutations after a certain point.
 
-<p>Despite using parts of the OpenPGP spec, users don't need to use
+Despite using parts of the OpenPGP spec, users don't need to use
 the GnuPG tools or go to key signing events or anything dorky like
-that.</p>
+that.
 
-<p>You are in control of your Camlistore server(s), whether you run
+You are in control of your Camlistore server(s), whether you run
 your own copy or use a hosted version. In the latter case, you're at
 least logically in control, analagous to how you're in charge of your
 email (and it's your private repository of all your email), even if a
 big company runs your email for you. Of course, you can also store all
 your email in Camlistore too, but Gmail's interface and search is much
-better.</p>
+better.
 
-<p>Responsible (or paranoid) users would set up their Camlistore
+Responsible (or paranoid) users would set up their Camlistore
 servers to cross-replicate and mirror between different big companies'
 cloud platforms if they're not able to run their own servers between
 different geographical areas. (e.g. cross-replicating between
-different big disks stored within a family)</p>
+different big disks stored within a family)
 
-<p>A Camlistore server comprises several parts, all of which are
-optional and can be turn on or off per-instance:</p>
+A Camlistore server comprises several parts, all of which are
+optional and can be turn on or off per-instance:
 
-<ul>
-
- <li><b>Storage</b>: the most basic part of a Camlistore server is
+* **Storage**: the most basic part of a Camlistore server is
   storage. This is anything which can Get or Put a blob (named by its
   content-addressable digest), and enumerate those blobs, sorted by
   their digest. The only metadata a storage server needs to track
@@ -109,9 +130,9 @@ optional and can be turn on or off per-instance:</p>
   disk, Amazon S3, Google Storage, etc. They're also composable, so
   there exists "shard", "replica", "remote", "conditional", and
   "encrypt" (in-progress) storage targets, which layer upon
-  others<.</li>
+  others.
 
-  <li><b>Index</b>: index is implemented in terms of the Storage
+* **Index**: index is implemented in terms of the Storage
   interface, so can be synchronously or asynchronously replicated to
   from other storage types. Putting a blob indexes it, enumerating
   returns what has been indexed, and getting isn't supported. An
@@ -120,20 +141,18 @@ optional and can be turn on or off per-instance:</p>
   can scan in sorted order from a point can be used to store
   Camlistore's indexes. Implementations are likewise trivial and exist
   for memory (for development), SQLite, LevelDB, MySQL, Postgres,
-  MongoDB, App Engine, etc. Dynamo and others would be trivial.</li>
+  MongoDB, App Engine, etc. Dynamo and others would be trivial.
 
-  <li><b>Search</b>: pointing Camlistore's search handlers at an index
-  means you can search for your things.  It's worth pointing out that   
+* **Search**: pointing Camlistore's search handlers at an index
+  means you can search for your things.  It's worth pointing out that
   you can lose your index at any time. If your database holding your index
   goes corrupt, just delete it all and re-replicate from your storage
-  to your index: it'll be re-indexed and search will work again.</li>
+  to your index: it'll be re-indexed and search will work again.
 
-  <li><b>User Interface</b>: the web user interface lets you click
+* **User Interface**: the web user interface lets you click
   around and view your content, and do searches. Of course, you could
-  also just use the command-line tools or API.</li>
+  also just use the command-line tools or API.
 
-</ul>
+Enough words for now.  See [the docs](/docs/) and code for more.
 
-<p>Enough words for now.  See <a href="/docs/">the docs</a> and code for more.</p>
-
-<p><em>Last updated 2013-06-12</em></p>
+*Last updated 2013-06-12*
