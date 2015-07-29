@@ -56,7 +56,7 @@ ACLs), regardless of the original host's policies.</p>
 <p>Camlistore is a system to do all that.</p>
 
 <p>While Camlistore can store files like a traditional filesystem
-(think: "directories", "files", "filenames"), its specialized in
+(think: "directories", "files", "filenames"), it specializes in
 storing higher-level objects, which can represent anything..</p>
 
 <p>In addition to an implementation, Camlistore is also a schema for
