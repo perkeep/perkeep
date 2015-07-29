@@ -1,15 +1,11 @@
-<h1>JSON Signing</h1>
+# JSON Signing
 
-<p>Some Camlistore JSON blobs are signed.</p>
+Some Camlistore JSON blobs are signed.
 
-<h2>Background & spec</h2>
-<p>See <a href="/gw/doc/json-signing/json-signing.txt">doc/json-signing/json-signing.txt</a> in the git repo.</p>
+## Background & spec
 
-<h2>Libraries</h2>
+See [doc/json-signing/json-signing.txt](/gw/doc/json-signing/json-signing.txt) in the git repo.
 
-<ul>
-<li><a href="/pkg/jsonsign">Go</a></li>
-</ul>
+## Libraries
 
-</ul>
-
+* [Go](/pkg/jsonsign)

@@ -18,9 +18,13 @@ pre {
 	-moz-border-radius: 5px;
 	border-radius: 5px;
 	tab-size: 4;
+	overflow-x: auto;
 }
 code {
 	font-weight: bold;
+}
+pre > code {
+	font-weight: inherit;
 }
 pre .comment {
 	color: #375EAB;
@@ -60,6 +64,11 @@ ol {
 li > ul {
 	margin-top: 10px;
 	margin-bottom: 10px;
+}
+
+li > p {
+	margin-left: 0;
+	margin-right: 0;
 }
 
 h1,

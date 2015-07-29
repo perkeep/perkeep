@@ -1,74 +1,84 @@
-<h1>Configuring a client</h1>
+# Configuring a client
 
-<p>The various clients (camput, camget, cammount...) use a common JSON config file. This page documents the configuration parameters in that file. Run <code>camtool env clientconfig</code> to see the default location for that file (<b>$HOME/.config/camlistore/client-config.json</b> on linux). In the following let <b>$CONFIGDIR</b> be the location returned by <code>camtool env configdir</code>.</p>
+The various clients (camput, camget, cammount...) use a common JSON config
+file. This page documents the configuration parameters in that file. Run
+`camtool env clientconfig` to see the default location for that file
+(**$HOME/.config/camlistore/client-config.json** on linux). In the following
+let **$CONFIGDIR** be the location returned by `camtool env configdir`.
 
-<h2>Generating a default config file</h2>
+## Generating a default config file
 
-<p>
-Run <code>camput init</code>.
-</p>
-<p>
+Run `camput init`.
+
 On unix,
-<pre>
-cat $CONFIGDIR/client-config.json
-</pre>
+
+    cat $CONFIGDIR/client-config.json
+
 should look something like:
 
-<pre>
-{
-	"identity": "43AD73B1",
-	"ignoredFiles": [
-		".DS_Store"
-	],
-	"servers": {
-		"localhost": {
-			"auth": "localhost",
-			"default": true,
-			"server": "http://localhost:3179"
-		}
-	}
-}
-</pre>
-</p>
+    {
+      "identity": "43AD73B1",
+      "ignoredFiles": [
+        ".DS_Store"
+      ],
+      "servers": {
+        "localhost": {
+          "auth": "localhost",
+          "default": true,
+          "server": "http://localhost:3179"
+        }
+      }
+    }
 
-<h2>Configuration Keys &amp; Values</h2>
 
-<h3>Top-level keys</h3>
+## Configuration Keys & Values
 
-<ul>
-<li><b><code>identity</code></b>: your GPG fingerprint. Run <code>camput init</code> for help on how to generate a new keypair.</li>
+### Top-level keys
 
-<li><b><code>identitySecretRing</code></b>: Optional. If non-empty, it specifies the location of your GPG secret keyring. Defaults to <b>$CONFIGDIR/identity-secring.gpg</b>. Run <code>camput init</code> for help on how to generate a new keypair.</li>
+* `identity`: your GPG fingerprint. Run `camput init` for help on how to
+  generate a new keypair.
 
-<li><b><code>ignoredFiles</code></b>: Optional. The list of of files that camput should ignore and not try to upload.</li>
-</ul>
+* `identitySecretRing`: Optional. If non-empty, it specifies the location of
+  your GPG secret keyring. Defaults to **$CONFIGDIR/identity-secring.gpg**. Run
+  `camput init` for help on how to generate a new keypair.
 
-<h3>Servers</h3>
+* `ignoredFiles`: Optional. The list of of files that camput should ignore and
+  not try to upload.
 
-<b><code>servers</code></b>: Each server the client connects to may have its own configuration section under an alias name as the key. The <b><code>servers</code></b> key is the collection of server configurations. For example:
+### Servers
 
-<pre>
-	"servers": {
-		"localhost": {
-			"server": "http://localhost:3179",
-			"default": true,
-			"auth": "userpass:foo:bar"
-		},
-		"backup": {
-			"server": "https://some.remote.com",
-			"auth": "userpass:pony:magic",
-			"trustedCerts": ["ffc7730f4b"]
-		}
-	}
-</pre>
+`servers`: Each server the client connects to may have its own configuration
+section under an alias name as the key. The `servers` key is the collection of
+server configurations. For example:
 
-<ul>
-<li><b><code>trustedCerts</code></b>: Optional. This is the list of TLS server certificate fingerprints that the client will trust when using HTTPS. It is required when the server is using a self-signed certificate (as Camlistore generates by default) instead of a Root Certificate Authority-signed cert (sometimes known as a "commercial SSL cert"). The format of each item is the first 20 hex digits of the SHA-256 digest of the cert. Example: <code>"trustedCerts": ["ffc7730f4bf00ba4bad0"]</code></li>
+      "servers": {
+        "localhost": {
+          "server": "http://localhost:3179",
+          "default": true,
+          "auth": "userpass:foo:bar"
+        },
+        "backup": {
+          "server": "https://some.remote.com",
+          "auth": "userpass:pony:magic",
+          "trustedCerts": ["ffc7730f4b"]
+        }
+      }
 
-<li><b><code>auth</code></b>: the authentication mechanism to use. Only supported for now is HTTP basic authentication, of the form: <code>userpass:alice:secret</code>. Username "alice", password "secret".</br>
-If the server is not on the same host, it is highly recommended to use TLS or another form of secure connection to the server.
-</li>
+* `trustedCerts`: Optional. This is the list of TLS server certificate
+  fingerprints that the client will trust when using HTTPS. It is required when
+  the server is using a self-signed certificate (as Camlistore generates by
+  default) instead of a Root Certificate Authority-signed cert (sometimes known
+  as a "commercial SSL cert"). The format of each item is the first 20 hex
+  digits of the SHA-256 digest of the cert. Example: `"trustedCerts":
+  ["ffc7730f4bf00ba4bad0"]`
 
-<li><b><code>server</code></b>: The camlistored server to connect to, of the form: "[http[s]://]host[:port][/prefix]". Defaults to https. This option can be overriden with the "-server" command-line flag.</li>
+* `auth`: the authentication mechanism to use. Only supported for now is HTTP
+  basic authentication, of the form: `userpass:alice:secret`. Username "alice",
+  password "secret".
 
-</ul>
+    If the server is not on the same host, it is highly recommended to use TLS or
+    another form of secure connection to the server.
+
+* `server`: The camlistored server to connect to, of the form:
+  "[http[s]://]host[:port][/prefix]". Defaults to https. This option can be
+  overriden with the "-server" command-line flag.
