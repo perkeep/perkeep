@@ -152,7 +152,10 @@ func handleSignals(camliProc *os.Process) {
 
 func checkCamliSrcRoot() {
 	args := flag.Args()
-	if len(args) > 0 && args[0] == "review" {
+	// TODO(mpl): we should probably get rid of that limitation someday.
+	if len(args) > 0 && args[0] == "review" ||
+		args[0] == "hook" ||
+		args[0] == "fixv" {
 		// exception for devcam review, which does its own check.
 		return
 	}
