@@ -59,7 +59,18 @@ func init() {
 }
 
 func (c *fixvCmd) Usage() {
-	fmt.Fprintf(cmdmain.Stderr, "Usage: devcam [globalopts] fixv [args...]\n")
+	cmdmain.Errorf("Usage: devcam [globalopts] fixv [args...]\n")
+}
+
+func (c *fixvCmd) Describe() string {
+	return "Check, and optionally fix, import statements in vendored files."
+}
+
+func (c *fixvCmd) Examples() []string {
+	return []string{
+		"-w # automatically fix the imports in the vendored files from the git staging area",
+		"/foo/bar.go # assume /foo/bar.go is vendored, and check if it needs to have its import fixed",
+	}
 }
 
 func (c *fixvCmd) RunCommand(args []string) error {
@@ -72,12 +83,19 @@ func (c *fixvCmd) run(args []string) (tofix []string, err error) {
 	if len(args) != 0 {
 		vendoredFiles = args
 	} else {
-		repo := repoRoot()
+		repo, err := repoRoot()
+		if err != nil {
+			return nil, err
+		}
 		if !strings.HasSuffix(repo, string(filepath.Separator)) {
 			repo += string(filepath.Separator)
 		}
 
-		vendoredFiles = addRoot(repo, filter(isVendored, nonBlankLines(cmdOutput("git", "diff-index", "--name-only", "--diff-filter=ACM", "--cached", "HEAD", "--"))))
+		out, err := cmdOutputDirErr(".", "git", "diff-index", "--name-only", "--diff-filter=ACM", "--cached", "HEAD", "--")
+		if err != nil {
+			return nil, err
+		}
+		vendoredFiles = addRoot(repo, filter(isVendored, nonBlankLines(out)))
 		if len(vendoredFiles) == 0 {
 			return nil, nil
 		}
@@ -92,7 +110,7 @@ func (c *fixvCmd) run(args []string) (tofix []string, err error) {
 			continue
 		}
 		if !c.fix {
-			fmt.Fprintf(cmdmain.Stderr, "%v imports need fixing\n", filename)
+			cmdmain.Errorf("%v imports need fixing\n", filename)
 			tofix = append(tofix, filename)
 			continue
 		}
@@ -103,7 +121,7 @@ func (c *fixvCmd) run(args []string) (tofix []string, err error) {
 		if err := ioutil.WriteFile(filename, data, 0600); err != nil {
 			return nil, fmt.Errorf("failed to write modified file %v: %v", filename, err)
 		}
-		fmt.Fprintf(cmdmain.Stderr, "%v imports now fixed\n", filename)
+		cmdmain.Errorf("%v imports now fixed\n", filename)
 	}
 	if !c.fix && len(tofix) > 0 {
 		return tofix, errImportsNeedsFixing

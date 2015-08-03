@@ -26,6 +26,7 @@ import (
 	"os/signal"
 	pathpkg "path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -153,9 +154,9 @@ func handleSignals(camliProc *os.Process) {
 func checkCamliSrcRoot() {
 	args := flag.Args()
 	// TODO(mpl): we should probably get rid of that limitation someday.
-	if len(args) > 0 && args[0] == "review" ||
+	if len(args) > 0 && (args[0] == "review" ||
 		args[0] == "hook" ||
-		args[0] == "fixv" {
+		args[0] == "fixv") {
 		// exception for devcam review, which does its own check.
 		return
 	}
@@ -170,6 +171,26 @@ func checkCamliSrcRoot() {
 		log.Fatal(err)
 	}
 	camliSrcRoot = cwd
+}
+
+func repoRoot() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("could not get current directory: %v", err)
+	}
+	rootlen := 1
+	if runtime.GOOS == "windows" {
+		rootlen += len(filepath.VolumeName(dir))
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return dir, nil
+		}
+		if len(dir) == rootlen && dir[rootlen-1] == filepath.Separator {
+			return "", fmt.Errorf(".git not found. Rerun from within the Camlistore source tree.")
+		}
+		dir = filepath.Dir(dir)
+	}
 }
 
 func selfModTime() (time.Time, error) {
