@@ -106,7 +106,7 @@ var (
 	writeTotVar = expvar.NewMap("diskpacked-total-write-bytes")
 )
 
-const defaultIndexType = "kv"
+const defaultIndexType = sorted.DefaultKVFileType
 const defaultIndexFile = "index." + defaultIndexType
 
 // IsDir reports whether dir is a diskpacked directory.

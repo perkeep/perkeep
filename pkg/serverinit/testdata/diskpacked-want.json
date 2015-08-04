@@ -38,12 +38,20 @@
 		"/bs/": {
 			"handler": "storage-diskpacked",
 			"handlerArgs": {
-				"path": "/tmp/blobs"
+				"path": "/tmp/blobs",
+				"metaIndex": {
+					"file": "/tmp/blobs/index.kv",
+					"type": "kv"
+				}
 			}
 		},
 		"/cache/": {
 			"handler": "storage-diskpacked",
 			"handlerArgs": {
+				"metaIndex": {
+				"file": "/tmp/blobs/cache/index.kv",
+					"type": "kv"
+				},
 				"path": "/tmp/blobs/cache"
 			}
 		},

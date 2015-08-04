@@ -97,8 +97,8 @@
 			"handlerArgs": {
 				"from": "/bs/",
 				"queue": {
-					"file": "/tmp/blobs/sync-to-index-queue.kv",
-					"type": "kv"
+					"file": "/tmp/blobs/sync-to-index-queue.leveldb",
+					"type": "leveldb"
 				},
 				"to": "/index/"
 			}
@@ -108,8 +108,8 @@
 			"handlerArgs": {
 				"cache": "/cache/",
 				"scaledImage": {
-					"file": "/tmp/blobs/thumbmeta.kv",
-					"type": "kv"
+					"file": "/tmp/blobs/thumbmeta.leveldb",
+					"type": "leveldb"
 				}
 			}
 		}

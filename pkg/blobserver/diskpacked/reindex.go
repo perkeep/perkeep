@@ -33,6 +33,8 @@ import (
 
 	// possible index formats
 	_ "camlistore.org/pkg/sorted/kvfile"
+	_ "camlistore.org/pkg/sorted/leveldb"
+	_ "camlistore.org/pkg/sorted/sqlite"
 )
 
 var camliDebug, _ = strconv.ParseBool(os.Getenv("CAMLI_DEBUG"))

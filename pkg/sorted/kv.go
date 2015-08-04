@@ -29,6 +29,8 @@ const (
 	MaxValueSize = 63000 // Maximum size, in bytes, for a value in any store implementing KeyValue. MaxKeySize and MaxValueSize values originate from InnoDB and MySQL limitations.
 )
 
+const DefaultKVFileType = "leveldb"
+
 var (
 	ErrNotFound      = errors.New("sorted: key not found")
 	ErrKeyTooLarge   = fmt.Errorf("sorted: key size is over %v", MaxKeySize)

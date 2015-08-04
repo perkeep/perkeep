@@ -107,8 +107,8 @@
 			"handlerArgs": {
 				"cache": "/cache/",
 				"scaledImage": {
-					"file": "/tmp/blobs/thumbmeta.kv",
-					"type": "kv"
+					"file": "/tmp/blobs/thumbmeta.sqlite",
+					"type": "sqlite"
 				}
 			}
 		}
