@@ -39,7 +39,11 @@ import (
 	"camlistore.org/pkg/netutil"
 	"camlistore.org/pkg/types/camtypes"
 	"camlistore.org/third_party/github.com/russross/blackfriday"
+
+	"google.golang.org/cloud/logging"
 )
+
+const usingCamlistoreCopy = logging.IsCamlistoreDevFork
 
 const defaultAddr = ":31798" // default webserver address
 
