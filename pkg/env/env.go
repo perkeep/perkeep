@@ -21,7 +21,7 @@ import (
 	"os"
 	"sync"
 
-	"camlistore.org/third_party/google.golang.org/cloud/compute/metadata"
+	"google.golang.org/cloud/compute/metadata"
 )
 
 // IsDev reports whether this is a development server environment (devcam server).

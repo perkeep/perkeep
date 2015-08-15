@@ -40,7 +40,7 @@ import (
 	"camlistore.org/third_party/golang.org/x/oauth2"
 	"camlistore.org/third_party/golang.org/x/oauth2/google"
 	api "camlistore.org/third_party/google.golang.org/api/storage/v1"
-	"camlistore.org/third_party/google.golang.org/cloud/compute/metadata"
+	"google.golang.org/cloud/compute/metadata"
 )
 
 const (

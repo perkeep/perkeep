@@ -35,8 +35,8 @@ import (
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/third_party/golang.org/x/oauth2"
 	"camlistore.org/third_party/golang.org/x/oauth2/google"
-	"camlistore.org/third_party/google.golang.org/cloud"
-	"camlistore.org/third_party/google.golang.org/cloud/storage"
+	"google.golang.org/cloud"
+	"google.golang.org/cloud/storage"
 )
 
 var (

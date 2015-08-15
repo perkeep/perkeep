@@ -47,8 +47,8 @@ import (
 	// TODO(mpl): switch to google.golang.org/cloud/compute
 	compute "camlistore.org/third_party/google.golang.org/api/compute/v1"
 	storage "camlistore.org/third_party/google.golang.org/api/storage/v1"
-	"camlistore.org/third_party/google.golang.org/cloud"
-	cloudstorage "camlistore.org/third_party/google.golang.org/cloud/storage"
+	"google.golang.org/cloud"
+	cloudstorage "google.golang.org/cloud/storage"
 )
 
 const (

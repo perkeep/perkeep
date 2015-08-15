@@ -27,7 +27,7 @@ import (
 	"camlistore.org/third_party/golang.org/x/oauth2"
 	"camlistore.org/third_party/golang.org/x/oauth2/google"
 	sqladmin "camlistore.org/third_party/google.golang.org/api/sqladmin/v1beta3"
-	"camlistore.org/third_party/google.golang.org/cloud/compute/metadata"
+	"google.golang.org/cloud/compute/metadata"
 )
 
 const cloudSQLSuffix = ".cloudsql.google.internal"

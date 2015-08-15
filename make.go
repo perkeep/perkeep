@@ -207,6 +207,7 @@ func main() {
 	cmd := exec.Command("go", args...)
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
+		"GO15VENDOREXPERIMENT=1",
 	)
 
 	if *verbose {
@@ -273,6 +274,7 @@ func mirror(sql bool) (latestSrcMod time.Time) {
 		"pkg",
 		"server/camlistored",
 		"third_party",
+		"vendor",
 	}
 	if *onlysync {
 		goDirs = append(goDirs, "server/appengine", "config")
@@ -509,7 +511,7 @@ func verifyCamlistoreRoot(dir string) {
 }
 
 func verifyGoVersion() {
-	const neededMinor = '3'
+	const neededMinor = '5'
 	_, err := exec.LookPath("go")
 	if err != nil {
 		log.Fatalf("Go doesn't appeared to be installed ('go' isn't in your PATH). Install Go 1.%c or newer.", neededMinor)

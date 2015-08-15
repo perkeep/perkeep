@@ -33,7 +33,7 @@ import (
 
 	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/wkfs"
-	"camlistore.org/third_party/google.golang.org/cloud/compute/metadata"
+	"google.golang.org/cloud/compute/metadata"
 )
 
 // Max size for all files read or written. This filesystem is only
