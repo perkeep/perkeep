@@ -419,7 +419,7 @@ func main() {
 
 	var handler http.Handler = &noWwwHandler{Handler: mux}
 	if *logDir != "" || *logStdout {
-		handler = NewLoggingHandler(handler, *logDir, *logStdout)
+		handler = NewLoggingHandler(handler, NewApacheLogger(*logDir, *logStdout))
 	}
 
 	errc := make(chan error)
