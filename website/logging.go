@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"google.golang.org/cloud/logging"
 )
 
 type logRecord struct {
@@ -143,4 +145,24 @@ func (lr *logRecord) Write(p []byte) (int, error) {
 func (lr *logRecord) WriteHeader(status int) {
 	lr.responseStatus = status
 	lr.ResponseWriter.WriteHeader(status)
+}
+
+type gceLogger struct {
+	c *logging.Client
+}
+
+func (lg gceLogger) LogEvent(lr *logRecord) {
+	lg.c.Log(logging.Entry{
+		Time: lr.time,
+		Payload: map[string]interface{}{
+			"ip":            lr.ip,
+			"path":          lr.rawpath,
+			"method":        lr.method,
+			"responseBytes": lr.responseBytes,
+			"status":        lr.responseStatus,
+			"userAgent":     lr.userAgent,
+			"referer":       lr.referer,
+			"proto":         lr.proto,
+		},
+	})
 }

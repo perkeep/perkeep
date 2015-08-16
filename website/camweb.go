@@ -38,8 +38,14 @@ import (
 	"camlistore.org/pkg/deploy/gce"
 	"camlistore.org/pkg/netutil"
 	"camlistore.org/pkg/types/camtypes"
-	"camlistore.org/third_party/github.com/russross/blackfriday"
 
+	"camlistore.org/third_party/github.com/russross/blackfriday"
+	"camlistore.org/third_party/golang.org/x/net/context"
+	"camlistore.org/third_party/golang.org/x/oauth2"
+	"camlistore.org/third_party/golang.org/x/oauth2/google"
+
+	"google.golang.org/cloud"
+	"google.golang.org/cloud/compute/metadata"
 	"google.golang.org/cloud/logging"
 )
 
@@ -60,6 +66,10 @@ var (
 	buildbotBackend = flag.String("buildbot_backend", "", "Build bot status backend URL")
 	buildbotHost    = flag.String("buildbot_host", "", "Hostname to map to the buildbot_backend. If an HTTP request with this hostname is received, it proxies to buildbot_backend.")
 	alsoRun         = flag.String("also_run", "", "Optional path to run as a child process. (Used to run camlistore.org's ./scripts/run-blob-server)")
+
+	gceProjectID = flag.String("gce_project_id", "", "GCE project ID; required if not running on GCE and gce_log_name is specified.")
+	gceLogName   = flag.String("gce_log_name", "", "GCE Cloud Logging log name; if non-empty, logs go to Cloud Logging instead of Apache-style local disk log files")
+	gceJWTFile   = flag.String("gce_jwt_file", "", "If non-empty, a filename to the GCE Service Account's JWT (JSON) config file.")
 
 	pageHTML, errorHTML, camliErrorHTML *template.Template
 	packageHTML                         *txttemplate.Template
@@ -420,6 +430,46 @@ func main() {
 	var handler http.Handler = &noWwwHandler{Handler: mux}
 	if *logDir != "" || *logStdout {
 		handler = NewLoggingHandler(handler, NewApacheLogger(*logDir, *logStdout))
+	}
+	if *gceLogName != "" {
+		projID := *gceProjectID
+		if projID == "" {
+			if v, err := metadata.ProjectID(); v == "" || err != nil {
+				log.Fatalf("Use of --gce_log_name without specifying --gce_project_id (and not running on GCE); metadata error: %v", err)
+			} else {
+				projID = v
+			}
+		}
+		var hc *http.Client
+		if *gceJWTFile != "" {
+			jsonSlurp, err := ioutil.ReadFile(*gceJWTFile)
+			if err != nil {
+				log.Fatalf("Error reading --gce_jwt_file value: %v", err)
+			}
+			jwtConf, err := google.JWTConfigFromJSON(jsonSlurp, logging.Scope)
+			if err != nil {
+				log.Fatalf("Error reading --gce_jwt_file value: %v", err)
+			}
+			hc = jwtConf.Client(context.Background())
+		} else {
+			if !metadata.OnGCE() {
+				log.Fatal("No --gce_jwt_file and not running on GCE.")
+			}
+			var err error
+			hc, err = google.DefaultClient(oauth2.NoContext)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+		ctx := cloud.NewContext(projID, hc)
+		logc, err := logging.NewClient(ctx, *gceLogName)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := logc.Ping(); err != nil {
+			log.Fatalf("Failed to ping Google Cloud Logging: %v", err)
+		}
+		handler = NewLoggingHandler(handler, gceLogger{logc})
 	}
 
 	errc := make(chan error)
