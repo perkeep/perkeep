@@ -18,6 +18,7 @@ limitations under the License.
 package env
 
 import (
+	"io"
 	"os"
 	"sync"
 
@@ -49,4 +50,11 @@ func detectGCE() {
 	}
 	v, _ := metadata.InstanceAttributeValue("camlistore-config-dir")
 	isGCE = v != ""
+}
+
+// LogWriter returns an environment-specific io.Writer suitable for passing
+// to log.SetOutput. It will also include writing to os.Stderr as well.
+func LogWriter() io.Writer {
+	// TODO: use cloud logging if on GCE
+	return os.Stderr
 }

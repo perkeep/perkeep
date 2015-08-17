@@ -322,6 +322,8 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 	if legalprint.MaybePrint(os.Stderr) {
 		return
 	}
+	log.SetOutput(env.LogWriter())
+
 	if *flagReindex {
 		index.SetImpendingReindex()
 	}
