@@ -137,7 +137,7 @@ func genDjpeg(ctxDir string) {
 	cmd := exec.Command("docker", "run",
 		"--rm",
 		"--volume="+ctxDir+":/OUT",
-		djpegDockerImage, "/bin/bash", "-c", "mkdir -p /OUT && cp /src/libjpeg-turbo-1.4.0/djpeg /OUT/djpeg")
+		djpegDockerImage, "/bin/bash", "-c", "mkdir -p /OUT && cp /src/libjpeg-turbo-1.4.1/djpeg /OUT/djpeg")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

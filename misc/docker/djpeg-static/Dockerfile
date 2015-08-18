@@ -11,10 +11,10 @@ RUN tar xf cross-compiler-x86_64.tar.bz2 -C /usr/local/
 ENV PATH /usr/local/cross-compiler-x86_64/bin:$PATH
 
 # Fetch and build djpeg.
-RUN curl -O -L https://downloads.sourceforge.net/project/libjpeg-turbo/1.4.0/libjpeg-turbo-1.4.0.tar.gz
-RUN echo 'a9ed7a99a6090e0848836c5df8e836f300a098b9  libjpeg-turbo-1.4.0.tar.gz' | sha1sum -c
+RUN curl -O -L https://storage.googleapis.com/camlistore-release/djpeg/libjpeg-turbo-1.4.1.tar.gz
+RUN echo '363a149f644211462c45138a19674f38100036d3  libjpeg-turbo-1.4.1.tar.gz' | sha1sum -c
 RUN mkdir /src
-RUN tar xf libjpeg-turbo-1.4.0.tar.gz -C /src
-WORKDIR /src/libjpeg-turbo-1.4.0
+RUN tar xf libjpeg-turbo-1.4.1.tar.gz -C /src
+WORKDIR /src/libjpeg-turbo-1.4.1
 RUN ./configure CXX=x86_64-c++ CC=x86_64-gcc LDFLAGS="-static"
 RUN make LDFLAGS="-all-static"

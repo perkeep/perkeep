@@ -114,6 +114,7 @@ func buildCamlistored() {
 	os.Setenv("GOPATH", "/gopath")
 	os.Setenv("PATH", "/usr/local/go/bin:"+oldPath)
 	os.Setenv("CGO_ENABLED", "0")
+	os.Setenv("GO15VENDOREXPERIMENT", "1")
 	cmd := exec.Command("go", "build",
 		"-o", path.Join(*outDir, "/bin/camlistored"),
 		`--ldflags`, "-w -d -linkmode internal -X camlistore.org/pkg/buildinfo.GitInfo "+*rev,
