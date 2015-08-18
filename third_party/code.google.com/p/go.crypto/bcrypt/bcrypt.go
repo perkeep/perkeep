@@ -6,7 +6,7 @@
 // algorithm. See http://www.usenix.org/event/usenix99/provos/provos.pdf
 package bcrypt
 
-// The code is a port of Provos and Mazières's C implementation. 
+// The code is a port of Provos and Mazières's C implementation.
 import (
 	"camlistore.org/third_party/code.google.com/p/go.crypto/blowfish"
 	"crypto/rand"

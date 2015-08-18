@@ -42,7 +42,7 @@ import (
 	"camlistore.org/pkg/oauthutil"
 	"camlistore.org/pkg/syncutil"
 
-	"camlistore.org/third_party/golang.org/x/oauth2"
+	"golang.org/x/oauth2"
 )
 
 type Storage struct {

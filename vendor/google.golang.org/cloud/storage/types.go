@@ -20,8 +20,8 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/third_party/golang.org/x/net/context"
-	raw "camlistore.org/third_party/google.golang.org/api/storage/v1"
+	"golang.org/x/net/context"
+	raw "google.golang.org/api/storage/v1"
 )
 
 // Bucket represents a Google Cloud Storage bucket.

@@ -41,7 +41,7 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/oauthutil"
 
-	"camlistore.org/third_party/golang.org/x/oauth2"
+	"golang.org/x/oauth2"
 )
 
 // Scope is the OAuth2 scope used for Google Drive.

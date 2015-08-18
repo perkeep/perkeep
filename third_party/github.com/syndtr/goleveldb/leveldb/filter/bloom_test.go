@@ -7,8 +7,8 @@
 package filter
 
 import (
-	"encoding/binary"
 	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb/util"
+	"encoding/binary"
 	"testing"
 )
 

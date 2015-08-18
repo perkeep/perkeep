@@ -22,8 +22,8 @@ type ServerConfig struct {
 	rsa           *rsa.PrivateKey
 	rsaSerialized []byte
 
-	// Rand provides the source of entropy for key exchange. If Rand is 
-	// nil, the cryptographic random reader in package crypto/rand will 
+	// Rand provides the source of entropy for key exchange. If Rand is
+	// nil, the cryptographic random reader in package crypto/rand will
 	// be used.
 	Rand io.Reader
 
@@ -648,7 +648,7 @@ type Listener struct {
 }
 
 // Accept waits for and returns the next incoming SSH connection.
-// The receiver should call Handshake() in another goroutine 
+// The receiver should call Handshake() in another goroutine
 // to avoid blocking the accepter.
 func (l *Listener) Accept() (*ServerConn, error) {
 	c, err := l.listener.Accept()

@@ -149,8 +149,8 @@ func init() {
 	dsakey.X, _ = new(big.Int).SetString("5078D4D29795CBE76D3AACFE48C9AF0BCDBEE91A", 16)
 }
 
-// newMockAuthServer creates a new Server bound to 
-// the loopback interface. The server exits after 
+// newMockAuthServer creates a new Server bound to
+// the loopback interface. The server exits after
 // processing one handshake.
 func newMockAuthServer(t *testing.T) string {
 	l, err := Listen("tcp", "127.0.0.1:0", serverConfig)

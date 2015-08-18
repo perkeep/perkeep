@@ -24,7 +24,7 @@ import (
 
 	"camlistore.org/pkg/wkfs"
 
-	"camlistore.org/third_party/golang.org/x/oauth2"
+	"golang.org/x/oauth2"
 )
 
 // TitleBarRedirectURL is the OAuth2 redirect URL to use when the authorization

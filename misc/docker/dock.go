@@ -33,8 +33,8 @@ import (
 	"runtime"
 
 	"camlistore.org/pkg/osutil"
-	"camlistore.org/third_party/golang.org/x/oauth2"
-	"camlistore.org/third_party/golang.org/x/oauth2/google"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/cloud"
 	"google.golang.org/cloud/storage"
 )

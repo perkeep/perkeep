@@ -21,9 +21,9 @@ import (
 	"net/http"
 	"os"
 
-	"camlistore.org/third_party/golang.org/x/net/context"
-	"camlistore.org/third_party/golang.org/x/oauth2"
-	"camlistore.org/third_party/golang.org/x/oauth2/google"
+	"golang.org/x/net/context"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/cloud"
 )
 

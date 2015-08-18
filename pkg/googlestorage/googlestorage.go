@@ -36,10 +36,10 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
 
-	"camlistore.org/third_party/golang.org/x/net/context"
-	"camlistore.org/third_party/golang.org/x/oauth2"
-	"camlistore.org/third_party/golang.org/x/oauth2/google"
-	api "camlistore.org/third_party/google.golang.org/api/storage/v1"
+	"golang.org/x/net/context"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	api "google.golang.org/api/storage/v1"
 	"google.golang.org/cloud/compute/metadata"
 )
 

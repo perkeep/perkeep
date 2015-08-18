@@ -23,10 +23,10 @@ import (
 	"log"
 	"strings"
 
-	"camlistore.org/third_party/golang.org/x/net/context"
-	"camlistore.org/third_party/golang.org/x/oauth2"
-	"camlistore.org/third_party/golang.org/x/oauth2/google"
-	sqladmin "camlistore.org/third_party/google.golang.org/api/sqladmin/v1beta3"
+	"golang.org/x/net/context"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	sqladmin "google.golang.org/api/sqladmin/v1beta3"
 	"google.golang.org/cloud/compute/metadata"
 )
 

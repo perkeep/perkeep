@@ -30,7 +30,7 @@ import (
 	"camlistore.org/pkg/deploy/gce"
 	"camlistore.org/pkg/oauthutil"
 
-	"camlistore.org/third_party/golang.org/x/oauth2"
+	"golang.org/x/oauth2"
 )
 
 type gceCmd struct {

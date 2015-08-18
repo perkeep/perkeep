@@ -43,10 +43,10 @@ import (
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/syncutil"
 
-	"camlistore.org/third_party/golang.org/x/oauth2"
+	"golang.org/x/oauth2"
 	// TODO(mpl): switch to google.golang.org/cloud/compute
-	compute "camlistore.org/third_party/google.golang.org/api/compute/v1"
-	storage "camlistore.org/third_party/google.golang.org/api/storage/v1"
+	compute "google.golang.org/api/compute/v1"
+	storage "google.golang.org/api/storage/v1"
 	"google.golang.org/cloud"
 	cloudstorage "google.golang.org/cloud/storage"
 )

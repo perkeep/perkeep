@@ -48,9 +48,9 @@ import (
 	"camlistore.org/pkg/sorted/leveldb"
 
 	"camlistore.org/third_party/code.google.com/p/xsrftoken"
-	"camlistore.org/third_party/golang.org/x/oauth2"
-	"camlistore.org/third_party/golang.org/x/oauth2/google"
-	compute "camlistore.org/third_party/google.golang.org/api/compute/v1"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	compute "google.golang.org/api/compute/v1"
 )
 
 const (

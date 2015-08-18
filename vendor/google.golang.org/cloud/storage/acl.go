@@ -17,8 +17,8 @@ package storage
 import (
 	"fmt"
 
-	"camlistore.org/third_party/golang.org/x/net/context"
-	raw "camlistore.org/third_party/google.golang.org/api/storage/v1"
+	"golang.org/x/net/context"
+	raw "google.golang.org/api/storage/v1"
 )
 
 // ACLRole is the the access permission for the entity.

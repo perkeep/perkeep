@@ -28,9 +28,9 @@ import (
 
 	"google.golang.org/cloud/internal"
 
-	"camlistore.org/third_party/golang.org/x/net/context"
-	"camlistore.org/third_party/google.golang.org/api/googleapi"
-	raw "camlistore.org/third_party/google.golang.org/api/pubsub/v1beta1"
+	"golang.org/x/net/context"
+	"google.golang.org/api/googleapi"
+	raw "google.golang.org/api/pubsub/v1beta1"
 )
 
 const (

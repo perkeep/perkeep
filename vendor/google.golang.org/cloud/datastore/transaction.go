@@ -18,7 +18,7 @@ import (
 	"errors"
 	"net/http"
 
-	"camlistore.org/third_party/golang.org/x/net/context"
+	"golang.org/x/net/context"
 
 	pb "google.golang.org/cloud/internal/datastore"
 )

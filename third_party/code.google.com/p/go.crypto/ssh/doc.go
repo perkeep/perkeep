@@ -81,7 +81,7 @@ present a simple terminal interface.
 		return
 	}()
 
-To authenticate with the remote server you must pass at least one implementation of 
+To authenticate with the remote server you must pass at least one implementation of
 ClientAuth via the Auth field in ClientConfig.
 
 	// password implements the ClientPassword interface

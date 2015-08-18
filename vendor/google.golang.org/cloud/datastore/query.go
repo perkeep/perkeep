@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"camlistore.org/third_party/github.com/golang/protobuf/proto"
-	"camlistore.org/third_party/golang.org/x/net/context"
+	"golang.org/x/net/context"
 	pb "google.golang.org/cloud/internal/datastore"
 )
 

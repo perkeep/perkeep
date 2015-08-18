@@ -17,7 +17,7 @@ limitations under the License.
 // Package google contains constants specific to Google.
 package google
 
-import "camlistore.org/third_party/golang.org/x/oauth2"
+import "golang.org/x/oauth2"
 
 var Endpoint = oauth2.Endpoint{
 	AuthURL:  "https://accounts.google.com/o/oauth2/auth",

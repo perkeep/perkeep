@@ -22,7 +22,7 @@ import (
 	"net/http"
 	"sync"
 
-	"camlistore.org/third_party/golang.org/x/net/context"
+	"golang.org/x/net/context"
 )
 
 type contextKey struct{}

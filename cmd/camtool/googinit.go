@@ -29,7 +29,7 @@ import (
 	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/oauthutil"
 
-	"camlistore.org/third_party/golang.org/x/oauth2"
+	"golang.org/x/oauth2"
 )
 
 type googinitCmd struct {

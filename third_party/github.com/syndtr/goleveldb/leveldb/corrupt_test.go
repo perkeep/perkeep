@@ -8,10 +8,10 @@ package leveldb
 
 import (
 	"bytes"
-	"fmt"
 	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb/filter"
 	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb/opt"
 	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb/storage"
+	"fmt"
 	"io"
 	"math/rand"
 	"testing"

@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/third_party/golang.org/x/net/context"
+	"golang.org/x/net/context"
 	"google.golang.org/cloud/internal/testutil"
 )
 

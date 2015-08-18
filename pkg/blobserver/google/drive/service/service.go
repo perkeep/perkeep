@@ -26,7 +26,7 @@ import (
 	"net/http"
 	"os"
 
-	client "camlistore.org/third_party/google.golang.org/api/drive/v2"
+	client "google.golang.org/api/drive/v2"
 )
 
 const (

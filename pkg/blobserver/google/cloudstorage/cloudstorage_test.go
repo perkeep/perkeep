@@ -34,7 +34,7 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/oauthutil"
 
-	"camlistore.org/third_party/golang.org/x/oauth2"
+	"golang.org/x/oauth2"
 )
 
 var (

@@ -24,7 +24,7 @@ import (
 	"reflect"
 
 	"camlistore.org/third_party/github.com/golang/protobuf/proto"
-	"camlistore.org/third_party/golang.org/x/net/context"
+	"golang.org/x/net/context"
 	"google.golang.org/cloud/internal"
 	pb "google.golang.org/cloud/internal/datastore"
 )
