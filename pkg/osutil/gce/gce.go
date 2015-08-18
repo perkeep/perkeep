@@ -20,6 +20,9 @@ package gce
 import (
 	"errors"
 	"fmt"
+	"io"
+	"log"
+	"os"
 	"path"
 	"strings"
 
@@ -27,7 +30,12 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
 	_ "camlistore.org/pkg/wkfs/gcs"
+	"camlistore.org/third_party/golang.org/x/oauth2"
+	"camlistore.org/third_party/golang.org/x/oauth2/google"
+
+	"google.golang.org/cloud"
 	"google.golang.org/cloud/compute/metadata"
+	"google.golang.org/cloud/logging"
 )
 
 func init() {
@@ -55,4 +63,29 @@ func init() {
 		}
 		return val, nil
 	})
+}
+
+// LogWriter returns an environment-specific io.Writer suitable for passing
+// to log.SetOutput. It will also include writing to os.Stderr as well.
+func LogWriter() (w io.Writer) {
+	w = os.Stderr
+	if !env.OnGCE() {
+		return
+	}
+	projID, err := metadata.ProjectID()
+	if projID == "" {
+		log.Printf("Error getting project ID: %v", err)
+		return
+	}
+	hc, err := google.DefaultClient(oauth2.NoContext)
+	if err != nil {
+		log.Printf("Error creating default GCE OAuth2 client: %v", err)
+		return
+	}
+	logc, err := logging.NewClient(cloud.NewContext(projID, hc), "camlistored-stderr")
+	if err != nil {
+		log.Printf("Error creating Google logging client: %v", err)
+		return
+	}
+	return io.MultiWriter(w, logc.Writer(logging.Debug))
 }

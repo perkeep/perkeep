@@ -45,7 +45,7 @@ import (
 	"camlistore.org/pkg/wkfs"
 
 	// VM environments:
-	_ "camlistore.org/pkg/osutil/gce"
+	"camlistore.org/pkg/osutil/gce" // for init side-effects + LogWriter
 
 	// Storage options:
 	_ "camlistore.org/pkg/blobserver/blobpacked"
@@ -322,7 +322,9 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 	if legalprint.MaybePrint(os.Stderr) {
 		return
 	}
-	log.SetOutput(env.LogWriter())
+	if env.OnGCE() {
+		log.SetOutput(gce.LogWriter())
+	}
 
 	if *flagReindex {
 		index.SetImpendingReindex()
