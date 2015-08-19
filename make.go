@@ -395,7 +395,12 @@ func buildSrcPath(fromSrc string) string {
 // It also populates wantDestFile with those files so they're
 // kept in between runs.
 func genEmbeds() error {
-	cmdName := exeName(filepath.Join(buildGoPath, "bin", "genfileembed"))
+	// Note: do not use exeName for genfileembed, as it will run on the current platform,
+	// not on the one we're cross-compiling for.
+	cmdName := filepath.Join(buildGoPath, "bin", "genfileembed")
+	if runtime.GOOS == "windows" {
+		cmdName += ".exe"
+	}
 	for _, embeds := range []string{"server/camlistored/ui", "pkg/server", "third_party/react", "third_party/less", "third_party/glitch", "third_party/fontawesome", "app/publisher"} {
 		embeds := buildSrcPath(embeds)
 		args := []string{"--output-files-stderr", embeds}
