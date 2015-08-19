@@ -27,18 +27,18 @@ var rewritetests = []struct {
 	{"https://foo.bar", "http://foo.bar:443"},
 	{"https://foo.bar/", "http://foo.bar:443/"},
 	{"https://foo.bar:443/", "http://foo.bar:443/"},
-	{"https://foo.bar:/", "http://foo.bar:/"},
 	{"https://foo.bar:baz/", "http://foo.bar:baz/"},
 	{"https://[::0]/", "http://[::0]:443/"},
 	{"https://[::0]:82/", "http://[::0]:82/"},
 	{"https://[2001:DB8::1]:80/", "http://[2001:DB8::1]:80/"},
-	{"https://[2001:DB8::1]:/", "http://[2001:DB8::1]:/"},
 	{"https://[2001:DB8:0:1]/", "http://[2001:DB8:0:1]:443/"},
 	{"https://192.0.2.3/", "http://192.0.2.3:443/"},
 	{"https://192.0.2.3:60/", "http://192.0.2.3:60/"},
 	// Invalid URLs stay exactly the same.
 	{"https://[2001:DB8::1:/", "https://[2001:DB8::1:/"},
 	{"https://foo.bar:443:baz/", "https://foo.bar:443:baz/"},
+	{"https://foo.bar:/", "https://foo.bar:/"},
+	{"https://[2001:DB8::1]:/", "https://[2001:DB8::1]:/"},
 }
 
 func TestCondRewriteURL(t *testing.T) {

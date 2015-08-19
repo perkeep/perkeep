@@ -807,6 +807,8 @@ func (c *Client) Post(url string, bodyType string, body io.Reader) error {
 	return res.Body.Close()
 }
 
+// newRequests creates a request with the authentication header, and with the
+// appropriate scheme and port in the case of self-signed TLS.
 func (c *Client) newRequest(method, url string, body ...io.Reader) *http.Request {
 	var bodyR io.Reader
 	if len(body) > 0 {
@@ -866,12 +868,17 @@ func (c *Client) selfVerifiedSSL() bool {
 // and we do not want the http transport layer to redo it.
 func (c *Client) condRewriteURL(urlStr string) string {
 	if c.selfVerifiedSSL() || c.insecureTLS() {
-		// url.Parse fails for mismached IPv6 brackets on Go 1.5, but
-		// not 1.4. See https://github.com/golang/go/issues/6530.
-		// SplitHostPort below always fails on mismatched IPv6 brackets,
-		// so overall we get the same behaviour on both 1.4 & 1.5.
 		u, err := url.Parse(urlStr)
 		if err != nil {
+			return urlStr
+		}
+		if strings.HasSuffix(u.Host, ":") {
+			// Here we compensate for the fact that, as of
+			// 2015-08-24, when the host part ends with a colon (empty
+			// port), url.Parse only fails when the hostname is an IPv6
+			// address (https://github.com/golang/go/issues/12200).
+			// We instead choose to be consistent and we refuse to
+			// rewrite any URL that ends with a colon.
 			return urlStr
 		}
 		if u.Scheme == "https" {
