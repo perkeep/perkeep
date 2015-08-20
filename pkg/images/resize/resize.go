@@ -124,6 +124,7 @@ func resizeYCbCr(m *image.YCbCr, r image.Rectangle, w, h int) (image.Image, bool
 	case image.YCbCrSubsampleRatio422:
 		verticalRes = 1
 	default:
+		// TODO(wathiede, mpl): add 410 and 411 support ?
 		return nil, false
 	}
 	ww, hh := uint64(w), uint64(h)

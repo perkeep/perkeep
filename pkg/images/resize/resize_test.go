@@ -37,6 +37,8 @@ const (
 	// good for RGB.
 	psnrThreshold = 50.0
 
+	// TODO(wathiede, mpl): figure out why we got an increase from ~3% to ~16% for
+	// YCbCr images in Go 1.5. That is, for halving vs resizing.
 	maxPixelDiffPercentage = 10
 )
 
@@ -71,6 +73,8 @@ func makeImages(r image.Rectangle) []image.Image {
 		image.NewYCbCr(r, image.YCbCrSubsampleRatio422),
 		image.NewYCbCr(r, image.YCbCrSubsampleRatio420),
 		image.NewYCbCr(r, image.YCbCrSubsampleRatio440),
+		image.NewYCbCr(r, image.YCbCrSubsampleRatio410),
+		image.NewYCbCr(r, image.YCbCrSubsampleRatio411),
 	}
 }
 
@@ -266,9 +270,9 @@ func getFilename(im image.Image, method string) string {
 	return fmt.Sprintf("%s.%s.png", imgType, method)
 }
 
-func TestCompareResizeToHavleInplace(t *testing.T) {
+func TestCompareResizeToHalveInplace(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping TestCompareResizeToHavleInplace in short mode.")
+		t.Skip("Skipping TestCompareResizeToHalveInplace in short mode.")
 	}
 	images1, images2 := []image.Image{}, []image.Image{}
 	for _, im := range makeImages(testIm.Bounds()) {
@@ -296,7 +300,7 @@ func TestCompareResizeToHavleInplace(t *testing.T) {
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>Image comparison for TestCompareResizeToHavleInplace</title>
+    <title>Image comparison for TestCompareResizeToHalveInplace</title>
   </head>
   <body style="background-color: grey">
 <table>
