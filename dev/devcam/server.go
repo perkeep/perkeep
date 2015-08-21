@@ -220,6 +220,7 @@ func (c *serverCmd) setEnvVars() error {
 	setenv("CAMLI_SQLITE_ENABLED", "false")
 	setenv("CAMLI_KVINDEX_ENABLED", "false")
 	setenv("CAMLI_MEMINDEX_ENABLED", "false")
+	setenv("CAMLI_LEVELDB_ENABLED", "false")
 
 	setenv("CAMLI_PUBLISH_ENABLED", strconv.FormatBool(c.publish))
 	setenv("CAMLI_HELLO_ENABLED", strconv.FormatBool(c.hello))
