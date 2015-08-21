@@ -54,7 +54,7 @@ const (
 	warmup             = 30 * time.Second // duration before we test if devcam server has started properly
 	camlistoredTimeOut = time.Minute      // how long we try to dial camlistored after warmup
 	go1BaseURL         = "https://storage.googleapis.com/golang/"
-	go1Tarball         = "go1.4.1.linux-amd64.tar.gz"
+	go1Tarball         = "go1.5.linux-amd64.tar.gz"
 	go1URL             = go1BaseURL + go1Tarball
 )
 

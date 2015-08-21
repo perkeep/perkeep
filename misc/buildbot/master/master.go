@@ -1182,7 +1182,7 @@ var statusHTML = `
 	<th>{{$report.OSArch}}</th>
 	<th colspan="1">Go tip hash</th>
 	<th colspan="1">Camli HEAD hash</th>
-	<th colspan="1">Go1.4.1</th>
+	<th colspan="1">Go1.5</th>
 	<th colspan="1">Gotip</th>
 	</tr>
 	{{if $report.Progress}}
@@ -1246,7 +1246,7 @@ var testSuiteHTML = `
 	<body>
 	{{range $ts := .BiTs}}
 		{{if $ts}}
-		<h2> Testsuite for {{if $ts.IsTip}}Go tip{{else}}Go 1.4.1{{end}} at {{$ts.Start}} </h2>
+		<h2> Testsuite for {{if $ts.IsTip}}Go tip{{else}}Go 1.5{{end}} at {{$ts.Start}} </h2>
 		<table class="build">
 		<colgroup class="col-result" span="1"></colgroup>
 		<colgroup class="col-result" span="1"></colgroup>
