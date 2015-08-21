@@ -121,15 +121,12 @@ func (c *hookCmd) RunCommand(args []string) error {
 }
 
 // hookPreCommit does the following checks, in order:
-// gofmt, import paths in vendored files, trailing space.
+// gofmt, and trailing space.
 // If appropriate, any one of these checks prints the action
 // required from the user, and the following checks are not
 // performed.
 func (c *hookCmd) hookPreCommit(args []string) (err error) {
 	if err = c.hookGofmt(); err != nil {
-		return err
-	}
-	if err := c.hookVendoredImports(args); err != nil {
 		return err
 	}
 	return c.hookTrailingSpace()
@@ -164,25 +161,6 @@ func (c *hookCmd) hookTrailingSpace() error {
 		printf("\n%s", out)
 		printf("Trailing whitespace detected, you need to clean it up manually.\n")
 		return errors.New("trailing whitespace.")
-	}
-	return nil
-}
-
-// hookVendoredImports runs devcam fixv on the files in args, if any, or on the
-// files matching the files in the git staging area.
-// If required fixing is found, the appropriate instruction is printed.
-func (c *hookCmd) hookVendoredImports(args []string) error {
-	tofix, err := (&fixvCmd{
-		verbose: c.verbose,
-		fix:     false,
-	}).run(args)
-	if err != nil {
-		if err == errImportsNeedsFixing {
-			printf("You need to fix the imports of vendored files: \n\tdevcam fixv -w %s\n", strings.Join(tofix, " "))
-		} else {
-			printf("devcam fixv reported errors: %v", err)
-		}
-		return err
 	}
 	return nil
 }
