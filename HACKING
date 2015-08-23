@@ -47,6 +47,7 @@ Alternatively, if your Camlistore root is checked out at
 $GOPATH/src/camlistore.org (optional, but natural for Go users), you
 can just:
 
+$ export GO15VENDOREXPERIMENT=1  # required for all Camlistore builds
 $ go install ./dev/devcam
 
 The subcommands of devcam start the server or run camput/camget/etc:
