@@ -11,9 +11,6 @@ Offline list:
         exit status 2
         make: *** [fmt] Error 1
 
--- env package to put stuff CAMLI_DEBUG checks? Also, change all:
-   -var debug = os.Getenv("CAMLI_DEBUG") != ""
-   +var debug, _ = strconv.ParseBool(os.Getenv("CAMLI_DEBUG"))
 
 -- add HTTP handler for blobstreamer. stream a tar file? where to put
    continuation token? special file after each tar entry? special file

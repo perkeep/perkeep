@@ -19,14 +19,25 @@ package env
 
 import (
 	"os"
+	"strconv"
 	"sync"
 
 	"google.golang.org/cloud/compute/metadata"
 )
 
+// IsDebug reports whether this is a debug environment.
+func IsDebug() bool {
+	return isDebug
+}
+
+// DebugUploads reports whether this is a debug environment for uploads.
+func DebugUploads() bool {
+	return isDebugUploads
+}
+
 // IsDev reports whether this is a development server environment (devcam server).
 func IsDev() bool {
-	return os.Getenv("CAMLI_DEV_CAMLI_ROOT") != ""
+	return isDev
 }
 
 // OsGCE reports whether this process is running in a Google Compute
@@ -50,3 +61,9 @@ func detectGCE() {
 	v, _ := metadata.InstanceAttributeValue("camlistore-config-dir")
 	isGCE = v != ""
 }
+
+var (
+	isDev             = os.Getenv("CAMLI_DEV_CAMLI_ROOT") != ""
+	isDebug, _        = strconv.ParseBool(os.Getenv("CAMLI_DEBUG"))
+	isDebugUploads, _ = strconv.ParseBool(os.Getenv("CAMLI_DEBUG_UPLOADS"))
+)

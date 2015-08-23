@@ -34,10 +34,9 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/protocol"
 	"camlistore.org/pkg/constants"
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/httputil"
 )
-
-var debugUploads = os.Getenv("CAMLI_DEBUG_UPLOADS") != ""
 
 // multipartOverhead is how many extra bytes mime/multipart's
 // Writer adds around content
@@ -236,7 +235,7 @@ func (c *Client) doSomeStats() {
 	}
 	c.pendStatMu.Unlock()
 
-	if debugUploads {
+	if env.DebugUploads() {
 		println("doing stat batch of", len(batch))
 	}
 
@@ -405,7 +404,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 			c.haveCache.NoteBlobExists(sbr.Ref, uint32(sbr.Size))
 		}
 		_, serverHasIt := stat.HaveMap[blobrefStr]
-		if debugUploads {
+		if env.DebugUploads() {
 			log.Printf("HTTP Stat(%s) = %v", blobrefStr, serverHasIt)
 		}
 		if !h.Vivify && serverHasIt {
@@ -422,7 +421,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 		}
 	}
 
-	if debugUploads {
+	if env.DebugUploads() {
 		log.Printf("Uploading: %s (%d bytes)", blobrefStr, bodySize)
 	}
 

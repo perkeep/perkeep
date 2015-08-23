@@ -28,6 +28,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/test"
@@ -56,7 +57,7 @@ func newTempDiskpackedWithIndex(t *testing.T, indexConf jsonconfig.Obj) (sto blo
 	}
 	return s, func() {
 		s.Close()
-		if camliDebug {
+		if env.IsDebug() {
 			t.Logf("CAMLI_DEBUG set, skipping cleanup of dir %q", dir)
 		} else {
 			os.RemoveAll(dir)
