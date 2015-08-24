@@ -324,8 +324,10 @@ cam.IndexPage = React.createClass({
 
 		goog.labs.Promise.all(
 			Array.prototype.map.call(files, function(file) {
-				return uploadFileAndCreatePermanode(file)
-					.then(transformResults)
+				return uploadFile(file)
+					.then(fetchExistingPermanode)
+					.then(createPermanodeIfNotExists)
+					.then(nameResults)
 					.then(createPermanodeAssociations.bind(this))
 					.thenCatch(function(e) {
 						console.error('File upload fall down go boom. file: %s, error: %s', file.name, e);
@@ -336,15 +338,32 @@ cam.IndexPage = React.createClass({
 			console.error('File upload failed with error: %s', e);
 		}).then(this.onUploadComplete_);
 
-		function uploadFileAndCreatePermanode(file) {
+		function uploadFile(file) {
 			var uploadFile = new goog.labs.Promise(sc.uploadFile.bind(sc, file));
-			var createPermanode = new goog.labs.Promise(sc.createPermanode.bind(sc));
+			return goog.labs.Promise.all([uploadFile]);
+		}
 
-			return goog.labs.Promise.all([uploadFile, createPermanode]);
+		function fetchExistingPermanode(blobIds) {
+			var fileRef = blobIds[0];
+			var fileUploaded = new goog.labs.Promise.resolve(fileRef);
+			var getPermanode = new goog.labs.Promise(sc.getPermanodeWithContent.bind(sc, fileRef));
+			return goog.labs.Promise.all([fileUploaded, getPermanode]);
+		}
+
+		function createPermanodeIfNotExists(results) {
+			var fileRef = results[0];
+			var permanode = results[1];
+			if (!permanode) {
+				var fileUploaded = new goog.labs.Promise.resolve(fileRef);
+				var createPermanode = new goog.labs.Promise(sc.createPermanode.bind(sc));
+				return goog.labs.Promise.all([fileUploaded, createPermanode]);
+			}
+			// Empty values so the next in chain knows that we're in the "permanode already exists" case.
+			return goog.labs.Promise.resolve(["", ""]);
 		}
 
 		// 'readable-ify' the blob references returned from upload/create
-		function transformResults(blobIds) {
+		function nameResults(blobIds) {
 			return {
 				'fileRef': blobIds[0],
 				'permanodeRef': blobIds[1]
@@ -352,6 +371,12 @@ cam.IndexPage = React.createClass({
 		}
 
 		function createPermanodeAssociations(refs) {
+			if (refs.permanodeRef == "") {
+				// Any value would do, but boolean helps make it clear that we end
+				// here, by resolving the file upload promise chain.
+				return goog.labs.Promise.resolve(true);
+			}
+
 			// associate uploaded file to new permanode
 			var camliContent = new goog.labs.Promise(sc.newSetAttributeClaim.bind(sc, refs.permanodeRef, 'camliContent', refs.fileRef));
 			var promises = [camliContent];

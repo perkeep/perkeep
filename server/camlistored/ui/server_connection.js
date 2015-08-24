@@ -60,6 +60,23 @@ cam.ServerConnection.DESCRIBE_REQUEST = {
 	]
 };
 
+cam.ServerConnection.prototype.getPermanodeWithContent = function(contentRef, success, opt_fail) {
+	var query = {
+		permanode: {
+			attr: "camliContent",
+			value: contentRef,
+		},
+	};
+	var callback = function(result) {
+		if (!result || !result.blobs || result.blobs.length == 0) {
+			success();
+			return;
+		}
+		success(result.blobs[0].blob);
+	}
+	this.search(query, null, null, null, callback);
+};
+
 cam.ServerConnection.prototype.getWorker_ = function() {
 	if (!this.worker_) {
 		var r = new Date().getTime(); // For cachebusting the worker. Sigh. We need content stamping.
