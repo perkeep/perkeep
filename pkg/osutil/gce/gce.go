@@ -77,6 +77,20 @@ func LogWriter() (w io.Writer) {
 		log.Printf("Error getting project ID: %v", err)
 		return
 	}
+	scopes, _ := metadata.Scopes("default")
+	haveScope := func(scope string) bool {
+		for _, x := range scopes {
+			if x == scope {
+				return true
+			}
+		}
+		return false
+	}
+	if !haveScope(logging.Scope) {
+		log.Printf("when this Google Compute Engine VM instance was created, it wasn't granted enough access to use Google Cloud Logging (Scope URL: %v).", logging.Scope)
+		return
+	}
+
 	hc, err := google.DefaultClient(oauth2.NoContext)
 	if err != nil {
 		log.Printf("Error creating default GCE OAuth2 client: %v", err)
