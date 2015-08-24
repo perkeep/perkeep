@@ -53,7 +53,8 @@ import (
 
 const (
 	projectsAPIURL = "https://www.googleapis.com/compute/v1/projects/"
-	coreosImgURL   = "https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-stable-444-5-0-v20141016"
+	// TODO(mpl): automatically pick the latest stable coreos image, if possible.
+	coreosImgURL = "https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-stable-723-3-0-v20150804"
 
 	// default instance configuration values.
 	// TODO(mpl): they can probably be lowercased now that handler.go is in the same
