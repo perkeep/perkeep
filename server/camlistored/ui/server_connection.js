@@ -60,7 +60,7 @@ cam.ServerConnection.DESCRIBE_REQUEST = {
 	]
 };
 
-cam.ServerConnection.prototype.getPermanodeWithContent = function(contentRef, success, opt_fail) {
+cam.ServerConnection.prototype.getPermanodeWithContent = function(contentRef, success) {
 	var query = {
 		permanode: {
 			attr: "camliContent",
@@ -73,6 +73,37 @@ cam.ServerConnection.prototype.getPermanodeWithContent = function(contentRef, su
 			return;
 		}
 		success(result.blobs[0].blob);
+	}
+	this.search(query, null, null, null, callback);
+};
+
+// If child is a camliMember of parent success is called with 'true', otherrwise 'false'
+// @param {string} blobref of the child
+// @param {string} blobref of the parent
+// @param {Function} success callback with data.
+cam.ServerConnection.prototype.isCamliMember = function(child, parent, success) {
+	var query = {
+		logical: {
+			a: {
+				permanode: {
+					attr: "camliMember",
+					ValueInSet: {
+						blobRefPrefix: child,
+					}
+				}
+			},
+			op: "and",
+			b: {
+				blobRefPrefix: parent,
+			}
+		},
+	};
+	var callback = function(result) {
+		if (!result || !result.blobs || result.blobs.length == 0) {
+			success(false);
+			return;
+		}
+		success(true);
 	}
 	this.search(query, null, null, null, callback);
 };
