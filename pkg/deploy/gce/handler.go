@@ -1048,6 +1048,7 @@ This tool helps you create your own private Camlistore instance running on Googl
 				<li>APIs and auth &gt APIs &gt Google Cloud Storage</li>
 				<li>APIs and auth &gt APIs &gt Google Cloud Storage JSON API</li>
 				<li>APIs and auth &gt APIs &gt Google Compute Engine</li>
+				<li>APIs and auth &gt APIs &gt Google Cloud Logging API</li>
 			</ul>
 		</ul>
 		</td></tr>
