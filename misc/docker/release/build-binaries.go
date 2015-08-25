@@ -118,6 +118,7 @@ func fetchCamliSrc() {
 func build() {
 	check(os.Chdir("/gopath/src/camlistore.org"))
 	oldPath := os.Getenv("PATH")
+	// Note: no need to set GO15VENDOREXPERIMENT because make.go does it.
 	os.Setenv("GOPATH", "/gopath")
 	os.Setenv("PATH", "/usr/local/go/bin:"+oldPath)
 	cmd := exec.Command("go", "run", "make.go", "--use_gopath", "--os", *buildOS)
