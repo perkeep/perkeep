@@ -1,8 +1,18 @@
 <h1>Download Camlistore</h1>
 
-<p>The latest release is <a href="/docs/release/0.8">0.8 ("Tokyo")</a>.</p>
+<p>The latest release is <a href="/docs/release/0.9">0.9 ("?")</a>.</p>
 
-<p>Or, the canonical git repo is:</p>
+<h2>Binary releases</h2>
+
+<ul>
+<li><a href="/dl/0.9/camlistore0.9-linux.tar.gz">camlistore0.9-linux.tar.gz</a></li>
+<li><a href="/dl/0.9/camlistore0.9-osx.tar.gz">camlistore0.9-osx.tar.gz</a></li>
+<li><a href="/dl/0.9/camlistore0.9-osx.tar.gz">camlistore0.9-windows.zip</a></li>
+</ul>
+
+<h2>Source code</h2>
+
+<p>The canonical git repo is:</p>
 <pre>$ git clone https://camlistore.googlesource.com/camlistore</pre>
 
 <p><a href="http://golang.org/doc/install">Download and install Go</a> if you don't have that installed already. Camlistore requires <a href="https://golang.org/dl/">Go 1.3 or newer</a>.</p>
@@ -10,8 +20,6 @@
 <p>Build Camlistore by running this command in the folder you downloaded or checked out:</p>
 
 <pre>$ go run make.go</pre>
-
-<p>Eventually we'll distribute binary releases, but for now you should build it yourself.</p>
 
 <h2>Getting started</h2>
 
@@ -28,6 +36,7 @@
 <p>Previous release notes:</p>
 
 <ul>
+<li><a href="/docs/release/0.9">0.9 ("?")</a>, 2015-??-??</li>
 <li><a href="/docs/release/0.8">0.8 ("Tokyo")</a>, 2014-08-03</li>
 <li><a href="/docs/release/0.7">0.7 ("Brussels")</a>, 2014-02-27</li>
 <li><a href="/docs/release/0.6">0.6 ("Cannon Beach")</a>, 2013-12-25</li>

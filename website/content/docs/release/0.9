@@ -1,4 +1,6 @@
+<h1>Release 0.9 ("?")</h1>
 
+<p><b>2015-??-??</b></p>
 
 <p>
 For this release we have mainly focused on making Camlistore run on remote servers, in particular the Google Cloud infrastructure. This goal involved a lot work just to adapt to this particular environment, but it also relies on many improvements to make it a good user experience, and most notably on two major features: the blobpacked blobserver, and HTTP/2.
@@ -14,9 +16,31 @@ The HTTP/2 server Go implementation is not yet in the standard library, but it i
 In a related vein, we have worked on a launcher, to facilitate Camlistore deployment on cloud infrastructures, again with a focus on Google Cloud for now. Try it out at <a href="https://camlistore.org/launch">https://camlistore.org/launch</a>!
 </p>
 
-<!-- release links here, CL https://camlistore-review.googlesource.com/5229 -->
+<p>
+Finally, in addition to the usual source tarball and github repo:
+</p>
 
-<p>Please note that <a href="https://golang.org/dl/">Go 1.4 or newer</a> is now required for this release.</p>
+<center>
+<div style='font-size:18pt;font-weight:bold;'>
+	<a href="https://github.com/camlistore/camlistore/archive/0.9.zip">camlistore0.9-src.zip</a>
+</div>
+<div style='margin-top:0.5em;'>
+Github: <a href="https://github.com/camlistore/camlistore/tree/0.9">github.com/camlistore/camlistore/tree/0.9</a></div>
+</center>
+
+<p>
+we now have binary downloads:
+</p>
+
+<center>
+<div style='font-size:18pt;font-weight:bold;'>
+	<p><a href="/dl/0.9/camlistore0.9-linux.tar.gz">camlistore0.9-linux.tar.gz</a></p>
+	<p><a href="/dl/0.9/camlistore0.9-osx.tar.gz">camlistore0.9-osx.tar.gz</a></p>
+	<p><a href="/dl/0.9/camlistore0.9-windows.zip">camlistore0.9-windows.zip</a></p>
+</div>
+</center>
+
+<p>Please note that <a href="https://golang.org/dl/">Go 1.5 or newer</a> is now required for this release.</p>
 
 <h2>Release stats</h2>
 <!--
