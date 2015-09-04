@@ -9,6 +9,8 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+
+	xdraw "golang.org/x/image/draw"
 )
 
 // Resize returns a scaled copy of the image slice r of m.
@@ -114,9 +116,19 @@ func average(sum []uint64, w, h int, n uint64) image.Image {
 	return ret
 }
 
+// TODO(mpl): it will be gone in next commit
+// it is just to control whether we use Scale from golang.org/x/image/draw in tests/benchs,
+// so we have a good commit history showing it was justified to switch to using it.
+var withXDraw = false
+
 // resizeYCbCr returns a scaled copy of the YCbCr image slice r of m.
 // The returned image has width w and height h.
 func resizeYCbCr(m *image.YCbCr, r image.Rectangle, w, h int) (image.Image, bool) {
+	if withXDraw {
+		dst := image.NewRGBA(image.Rect(0, 0, w, h))
+		xdraw.ApproxBiLinear.Scale(dst, dst.Bounds(), m, m.Bounds(), xdraw.Src, nil)
+		return dst, true
+	}
 	var verticalRes int
 	switch m.SubsampleRatio {
 	case image.YCbCrSubsampleRatio420:
