@@ -47,16 +47,6 @@ func BenchmarkHalveRGBA(b *testing.B) {
 }
 
 func BenchmarkResizeYCrCb(b *testing.B) {
-	withXDraw = false
-	m := image.NewYCbCr(orig, image.YCbCrSubsampleRatio422)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		resize(m)
-	}
-}
-
-func BenchmarkNewResizeYCrCb(b *testing.B) {
-	withXDraw = true
 	m := image.NewYCbCr(orig, image.YCbCrSubsampleRatio422)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

@@ -270,40 +270,20 @@ func getFilename(im image.Image, method string) string {
 	return fmt.Sprintf("%s.%s.png", imgType, method)
 }
 
-func TestCompareOldResizeToHalveInplace(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping TestCompareOldResizeToHalveInplace in short mode.")
-	}
-	testCompareResizeMethods(t, "customResize", "halveInPlace")
-}
-
-func TestCompareNewResizeToHalveInplace(t *testing.T) {
+func TestCompareResizeToHalveInplace(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping TestCompareNewResizeToHalveInplace in short mode.")
 	}
-	testCompareResizeMethods(t, "xDraw", "halveInPlace")
-}
-
-func TestCompareOldResizeToNewResize(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping TestCompareOldResizeToNewResize in short mode.")
-	}
-	testCompareResizeMethods(t, "customResize", "xDraw")
+	testCompareResizeMethods(t, "resize", "halveInPlace")
 }
 
 var resizeMethods = map[string]func(image.Image) image.Image{
-	"customResize": func(im image.Image) image.Image {
-		withXDraw = false
+	"resize": func(im image.Image) image.Image {
 		s := im.Bounds().Size()
 		return Resize(im, im.Bounds(), s.X/2, s.Y/2)
 	},
 	"halveInPlace": func(im image.Image) image.Image {
 		return HalveInplace(im)
-	},
-	"xDraw": func(im image.Image) image.Image {
-		withXDraw = true
-		s := im.Bounds().Size()
-		return Resize(im, im.Bounds(), s.X/2, s.Y/2)
 	},
 }
 
