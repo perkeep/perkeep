@@ -39,6 +39,7 @@ import (
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/blobserver/blobpacked"
 	"camlistore.org/pkg/blobserver/handlers"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
@@ -322,6 +323,13 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 			log.Printf("Reindexing %s ...", h.prefix)
 			if err := ix.Reindex(); err != nil {
 				exitFailure("Error reindexing %s: %v", h.prefix, err)
+			}
+		}
+		// TODO(mpl): make an interface that is "storage that has an internal index" and switch type on it?
+		if h.htype == "storage-blobpacked" && hl.reindex {
+			log.Printf("Wiping %s, because reindexing ...", h.prefix)
+			if err := blobpacked.WipeMeta(pstorage); err != nil {
+				exitFailure("Error wiping %s's meta: %v", h.prefix, err)
 			}
 		}
 		hl.handler[h.prefix] = pstorage
