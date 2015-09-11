@@ -404,6 +404,7 @@ func main() {
 	mux.HandleFunc(errPattern, errHandler)
 
 	mux.HandleFunc("/r/", gerritRedirect)
+	mux.HandleFunc("/dl/", releaseRedirect)
 	mux.HandleFunc("/debugz/ip", ipHandler)
 	mux.Handle("/docs/contributing", redirTo("/code#contributing"))
 	mux.Handle("/lists", redirTo("/community"))
@@ -523,6 +524,14 @@ func issueRedirect(urlPath string) (string, bool) {
 func gerritRedirect(w http.ResponseWriter, r *http.Request) {
 	dest := "https://camlistore-review.googlesource.com/"
 	if len(r.URL.Path) > len("/r/") {
+		dest += r.URL.Path[1:]
+	}
+	http.Redirect(w, r, dest, http.StatusFound)
+}
+
+func releaseRedirect(w http.ResponseWriter, r *http.Request) {
+	dest := "https://storage.googleapis.com/camlistore-release/"
+	if len(r.URL.Path) > len("/dl/") {
 		dest += r.URL.Path[1:]
 	}
 	http.Redirect(w, r, dest, http.StatusFound)
