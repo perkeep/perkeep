@@ -103,9 +103,6 @@ func genCamlistore(ctxDir string) {
 func genBinaries(ctxDir string) {
 	check(os.Mkdir(filepath.Join(ctxDir, "/camlistore.org"), 0755))
 	image := goDockerImage
-	if *buildOS != "linux" {
-		image += "-" + *buildOS
-	}
 	args := []string{
 		"run",
 		"--rm",
@@ -358,11 +355,10 @@ func main() {
 	// using docker all along, and it's convenient for now for code reuse. I
 	// can refactor it all out of dock.go afterwards if we like the process.
 	if *doBinaries {
-		goDir := "go"
-		if *buildOS != "linux" {
-			goDir = path.Join(goDir, *buildOS)
-		}
-		buildDockerImage(goDir, goDockerImage+"-"+*buildOS)
+		// TODO(mpl): consider using an "official" or trusted existing
+		// Go docker image, since we don't do anything special anymore in
+		// ours?
+		buildDockerImage("go", goDockerImage+"-linux")
 		ctxDir, err := ioutil.TempDir("", "camli-build")
 		if err != nil {
 			log.Fatal(err)
