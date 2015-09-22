@@ -112,7 +112,9 @@ func (c *hookCmd) RunCommand(args []string) error {
 	switch args[0] {
 	case "pre-commit":
 		if err := c.hookPreCommit(args[1:]); err != nil {
-			printf("You can override these checks with 'git commit --no-verify'\n")
+			if !(len(args) > 1 && args[1] == "test") {
+				printf("You can override these checks with 'git commit --no-verify'\n")
+			}
 			cmdmain.ExitWithFailure = true
 			return err
 		}
