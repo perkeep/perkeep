@@ -30,10 +30,8 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
 	_ "camlistore.org/pkg/wkfs/gcs"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
+	"golang.org/x/net/context"
 
-	"google.golang.org/cloud"
 	"google.golang.org/cloud/compute/metadata"
 	"google.golang.org/cloud/logging"
 )
@@ -91,12 +89,7 @@ func LogWriter() (w io.Writer) {
 		return
 	}
 
-	hc, err := google.DefaultClient(oauth2.NoContext)
-	if err != nil {
-		log.Printf("Error creating default GCE OAuth2 client: %v", err)
-		return
-	}
-	logc, err := logging.NewClient(cloud.NewContext(projID, hc), "camlistored-stderr")
+	logc, err := logging.NewClient(context.Background(), projID, "camlistored-stderr")
 	if err != nil {
 		log.Printf("Error creating Google logging client: %v", err)
 		return

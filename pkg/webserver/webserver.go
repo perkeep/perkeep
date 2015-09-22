@@ -38,8 +38,8 @@ import (
 
 	"camlistore.org/pkg/throttle"
 	"camlistore.org/pkg/wkfs"
-	"camlistore.org/third_party/github.com/bradfitz/http2"
 	"camlistore.org/third_party/github.com/bradfitz/runsit/listen"
+	"github.com/bradfitz/http2"
 )
 
 type Server struct {

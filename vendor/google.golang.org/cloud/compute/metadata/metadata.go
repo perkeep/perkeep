@@ -17,7 +17,7 @@
 //
 // This package is a wrapper around the GCE metadata service,
 // as documented at https://developers.google.com/compute/docs/metadata.
-package metadata
+package metadata // import "google.golang.org/cloud/compute/metadata"
 
 import (
 	"encoding/json"
@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -48,29 +49,13 @@ var (
 var metaClient = &http.Client{
 	Transport: &internal.Transport{
 		Base: &http.Transport{
-			Dial: dialer().Dial,
+			Dial: (&net.Dialer{
+				Timeout:   750 * time.Millisecond,
+				KeepAlive: 30 * time.Second,
+			}).Dial,
 			ResponseHeaderTimeout: 750 * time.Millisecond,
 		},
 	},
-}
-
-// go13Dialer is nil until we're using Go 1.3+.
-// This is a workaround for https://github.com/golang/oauth2/issues/70, where
-// net.Dialer.KeepAlive is unavailable on Go 1.2 (which App Engine as of
-// Jan 2015 still runs).
-//
-// TODO(bradfitz,jbd,adg,dsymonds): remove this once App Engine supports Go
-// 1.3+ and go-app-builder also supports 1.3+, or when Go 1.2 is no longer an
-// option on App Engine.
-var go13Dialer func() *net.Dialer
-
-func dialer() *net.Dialer {
-	if fn := go13Dialer; fn != nil {
-		return fn()
-	}
-	return &net.Dialer{
-		Timeout: 750 * time.Millisecond,
-	}
 }
 
 // NotDefinedError is returned when requested metadata is not defined.
@@ -86,17 +71,29 @@ func (suffix NotDefinedError) Error() string {
 }
 
 // Get returns a value from the metadata service.
-// The suffix is appended to "http://metadata/computeMetadata/v1/".
+// The suffix is appended to "http://${GCE_METADATA_HOST}/computeMetadata/v1/".
+//
+// If the GCE_METADATA_HOST environment variable is not defined, a default of
+// 169.254.169.254 will be used instead.
 //
 // If the requested metadata is not defined, the returned error will
 // be of type NotDefinedError.
 func Get(suffix string) (string, error) {
-	// Using 169.254.169.254 instead of "metadata" here because Go
-	// binaries built with the "netgo" tag and without cgo won't
-	// know the search suffix for "metadata" is
-	// ".google.internal", and this IP address is documented as
-	// being stable anyway.
-	url := "http://169.254.169.254/computeMetadata/v1/" + suffix
+	// Using a fixed IP makes it very difficult to spoof the metadata service in
+	// a container, which is an important use-case for local testing of cloud
+	// deployments. To enable spoofing of the metadata service, the environment
+	// variable GCE_METADATA_HOST is first inspected to decide where metadata
+	// requests shall go.
+	host := os.Getenv("GCE_METADATA_HOST")
+	if host == "" {
+		// Using 169.254.169.254 instead of "metadata" here because Go
+		// binaries built with the "netgo" tag and without cgo won't
+		// know the search suffix for "metadata" is
+		// ".google.internal", and this IP address is documented as
+		// being stable anyway.
+		host = "169.254.169.254"
+	}
+	url := "http://" + host + "/computeMetadata/v1/" + suffix
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Set("Metadata-Flavor", "Google")
 	res, err := metaClient.Do(req)
@@ -181,14 +178,10 @@ func ExternalIP() (string, error) {
 	return getTrimmed("instance/network-interfaces/0/access-configs/0/external-ip")
 }
 
-// Hostname returns the instance's hostname. This will probably be of
-// the form "INSTANCENAME.c.PROJECT.internal" but that isn't
-// guaranteed.
-//
-// TODO: what is this defined to be? Docs say "The host name of the
-// instance."
+// Hostname returns the instance's hostname. This will be of the form
+// "<instanceID>.c.<projID>.internal".
 func Hostname() (string, error) {
-	return getTrimmed("network-interfaces/0/ip")
+	return getTrimmed("instance/hostname")
 }
 
 // InstanceTags returns the list of user-defined instance tags,
@@ -208,6 +201,25 @@ func InstanceTags() ([]string, error) {
 // InstanceID returns the current VM's numeric instance ID.
 func InstanceID() (string, error) {
 	return instID.get()
+}
+
+// InstanceName returns the current VM's instance ID string.
+func InstanceName() (string, error) {
+	host, err := Hostname()
+	if err != nil {
+		return "", err
+	}
+	return strings.Split(host, ".")[0], nil
+}
+
+// Zone returns the current VM's zone, such as "us-central1-b".
+func Zone() (string, error) {
+	zone, err := getTrimmed("instance/zone")
+	// zone is of the form "projects/<projNum>/zones/<zoneName>".
+	if err != nil {
+		return "", err
+	}
+	return zone[strings.LastIndex(zone, "/")+1:], nil
 }
 
 // InstanceAttributes returns the list of user-defined attributes,

@@ -105,6 +105,10 @@ type ObjectAttrs struct {
 	// sent in the response headers.
 	CacheControl string
 
+	// ContentDisposition is the optional Content-Disposition header of the object
+	// sent in the response headers.
+	ContentDisposition string
+
 	// ACL is the list of access control rules for the object.
 	// Optional. If nil or empty, existing ACL rules are preserved.
 	ACL []ACLRule
@@ -126,14 +130,15 @@ func (o ObjectAttrs) toRawObject(bucket string) *raw.Object {
 		}
 	}
 	return &raw.Object{
-		Bucket:          bucket,
-		Name:            o.Name,
-		ContentType:     o.ContentType,
-		ContentEncoding: o.ContentEncoding,
-		ContentLanguage: o.ContentLanguage,
-		CacheControl:    o.CacheControl,
-		Acl:             acl,
-		Metadata:        o.Metadata,
+		Bucket:             bucket,
+		Name:               o.Name,
+		ContentType:        o.ContentType,
+		ContentEncoding:    o.ContentEncoding,
+		ContentLanguage:    o.ContentLanguage,
+		CacheControl:       o.CacheControl,
+		ContentDisposition: o.ContentDisposition,
+		Acl:                acl,
+		Metadata:           o.Metadata,
 	}
 }
 
@@ -394,6 +399,15 @@ func (w *Writer) Close() error {
 	}
 	<-w.donec
 	return w.err
+}
+
+// CloseWithError aborts the write operation with the provided error.
+// CloseWithError always returns nil.
+func (w *Writer) CloseWithError(err error) error {
+	if !w.opened {
+		return nil
+	}
+	return w.pw.CloseWithError(err)
 }
 
 // Object returns metadata about a successfully-written object.

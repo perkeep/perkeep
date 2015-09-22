@@ -90,7 +90,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if ua == "" {
 		ua = userAgent
 	} else {
-		ua = fmt.Sprintf("%s;%s", ua, userAgent)
+		ua = fmt.Sprintf("%s %s", ua, userAgent)
 	}
 	req.Header.Set("User-Agent", ua)
 	return t.Base.RoundTrip(req)

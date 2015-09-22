@@ -25,14 +25,11 @@ import (
 
 	"golang.org/x/net/context"
 	api "google.golang.org/api/logging/v1beta3"
-	"google.golang.org/cloud/internal"
+	"google.golang.org/cloud"
+	"google.golang.org/cloud/internal/transport"
 )
 
-// TODO(bradfitz): remove this when upstreamed. For now we're developing this inside
-// camlistore.org/vendor/... and this keeps us honest, letting us depend on this symbol
-// from within camlistore.org/... and not use the real version (which will exist later).
-const IsCamlistoreDevFork = true
-
+// Scope is the OAuth2 scope necessary to use Google Cloud Logging.
 const Scope = api.CloudPlatformScope
 
 // Level is the log level.
@@ -380,29 +377,35 @@ func (c *Client) startFlushLocked() {
 
 }
 
-// NewClient returns a new log client, logging to the named log.  The
-// log must exist in the Google Cloud Platform project ID associated
-// with the provided context. Use the google.golang.org/cloud package
-// to create a context.
+const prodAddr = "https://logging.googleapis.com/"
+
+const userAgent = "gcloud-golang-logging/20150922"
+
+// NewClient returns a new log client, logging to the named log in the
+// provided project.
 //
 // The exported fields on the returned client may be modified before
 // the client is used for logging. Once log entries are in flight,
 // the fields must not be modified.
-func NewClient(ctx context.Context, logName string) (*Client, error) {
-	projID := internal.ProjID(ctx)
-	httpClient := internal.HTTPClient(ctx)
-	if projID == "" || httpClient == nil {
-		return nil, errors.New("logging: invalid or non-google.golang.org/cloud Context")
+func NewClient(ctx context.Context, projectID, logName string, opts ...cloud.ClientOption) (*Client, error) {
+	httpClient, endpoint, err := transport.NewHTTPClient(ctx, append([]cloud.ClientOption{
+		cloud.WithEndpoint(prodAddr),
+		cloud.WithScopes(api.CloudPlatformScope),
+		cloud.WithUserAgent(userAgent),
+	}, opts...)...)
+	if err != nil {
+		return nil, err
 	}
 	svc, err := api.New(httpClient)
 	if err != nil {
 		return nil, err
 	}
+	svc.BasePath = endpoint
 	c := &Client{
 		svc:     svc,
 		logs:    api.NewProjectsLogsEntriesService(svc),
 		logName: logName,
-		projID:  projID,
+		projID:  projectID,
 	}
 	for i := range c.writer {
 		level := Level(i)

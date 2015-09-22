@@ -13,6 +13,8 @@
 // limitations under the License.
 
 // Package storage contains a Google Cloud Storage client.
+//
+// This package is experimental and may make backwards-incompatible changes.
 package storage // import "google.golang.org/cloud/storage"
 
 import (
@@ -46,15 +48,15 @@ var (
 const (
 	// ScopeFullControl grants permissions to manage your
 	// data and permissions in Google Cloud Storage.
-	ScopeFullControl = raw.DevstorageFull_controlScope
+	ScopeFullControl = raw.DevstorageFullControlScope
 
 	// ScopeReadOnly grants permissions to
 	// view your data in Google Cloud Storage.
-	ScopeReadOnly = raw.DevstorageRead_onlyScope
+	ScopeReadOnly = raw.DevstorageReadOnlyScope
 
 	// ScopeReadWrite grants permissions to manage your
 	// data in Google Cloud Storage.
-	ScopeReadWrite = raw.DevstorageRead_writeScope
+	ScopeReadWrite = raw.DevstorageReadWriteScope
 )
 
 // TODO(jbd): Add storage.buckets.list.
@@ -171,6 +173,9 @@ type SignedURLOptions struct {
 // Google account or signing in. For more information about the signed
 // URLs, see https://cloud.google.com/storage/docs/accesscontrol#Signed-URLs.
 func SignedURL(bucket, name string, opts *SignedURLOptions) (string, error) {
+	if opts == nil {
+		return "", errors.New("storage: missing required SignedURLOptions")
+	}
 	if opts.GoogleAccessID == "" || opts.PrivateKey == nil {
 		return "", errors.New("storage: missing required credentials to generate a signed URL")
 	}
@@ -201,9 +206,10 @@ func SignedURL(bucket, name string, opts *SignedURLOptions) (string, error) {
 		return "", err
 	}
 	encoded := base64.StdEncoding.EncodeToString(b)
-	u, err := url.Parse(fmt.Sprintf("https://storage.googleapis.com/%s/%s", bucket, name))
-	if err != nil {
-		return "", err
+	u := &url.URL{
+		Scheme: "https",
+		Host:   "storage.googleapis.com",
+		Path:   fmt.Sprintf("/%s/%s", bucket, name),
 	}
 	q := u.Query()
 	q.Set("GoogleAccessId", opts.GoogleAccessID)
@@ -238,20 +244,30 @@ func UpdateAttrs(ctx context.Context, bucket, name string, attrs ObjectAttrs) (*
 	return newObject(o), nil
 }
 
-// DeleteObject deletes the specified object.
+// DeleteObject deletes the single specified object.
 func DeleteObject(ctx context.Context, bucket, name string) error {
 	return rawService(ctx).Objects.Delete(bucket, name).Do()
 }
 
 // CopyObject copies the source object to the destination.
-// The copied object's attributes are overwritten by those given.
-func CopyObject(ctx context.Context, bucket, name string, destBucket string, attrs ObjectAttrs) (*Object, error) {
-	destName := name
-	if attrs.Name != "" {
-		destName = attrs.Name
+// The copied object's attributes are overwritten by attrs if non-nil.
+func CopyObject(ctx context.Context, srcBucket, srcName string, destBucket, destName string, attrs *ObjectAttrs) (*Object, error) {
+	if srcBucket == "" || destBucket == "" {
+		return nil, errors.New("storage: srcBucket and destBucket must both be non-empty")
+	}
+	if srcName == "" || destName == "" {
+		return nil, errors.New("storage: srcName and destName must be non-empty")
+	}
+	var rawObject *raw.Object
+	if attrs != nil {
+		attrs.Name = destName
+		if attrs.ContentType == "" {
+			return nil, errors.New("storage: attrs.ContentType must be non-empty")
+		}
+		rawObject = attrs.toRawObject(destBucket)
 	}
 	o, err := rawService(ctx).Objects.Copy(
-		bucket, name, destBucket, destName, attrs.toRawObject(destBucket)).Projection("full").Do()
+		srcBucket, srcName, destBucket, destName, rawObject).Projection("full").Do()
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +278,12 @@ func CopyObject(ctx context.Context, bucket, name string, destBucket string, att
 // of the object.
 func NewReader(ctx context.Context, bucket, name string) (io.ReadCloser, error) {
 	hc := internal.HTTPClient(ctx)
-	res, err := hc.Get(fmt.Sprintf("https://storage.googleapis.com/%s/%s", bucket, name))
+	u := &url.URL{
+		Scheme: "https",
+		Host:   "storage.googleapis.com",
+		Path:   fmt.Sprintf("/%s/%s", bucket, name),
+	}
+	res, err := hc.Get(u.String())
 	if err != nil {
 		return nil, err
 	}
