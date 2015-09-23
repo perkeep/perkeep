@@ -1,12 +1,12 @@
 {
  "kind": "discovery#restDescription",
- "etag": "\"ye6orv2F-1npMW3u9suM3a7C5Bo/QQDBri1CCUJYH-DcKqF8RNeZMho\"",
+ "etag": "\"ye6orv2F-1npMW3u9suM3a7C5Bo/OK_cUEY_NOfFazu7VbcsL_tulGg\"",
  "discoveryVersion": "v1",
  "id": "storage:v1",
  "name": "storage",
  "version": "v1",
- "revision": "20150326",
- "title": "Cloud Storage API",
+ "revision": "20150909",
+ "title": "Cloud Storage JSON API",
  "description": "Lets you store and retrieve potentially-large, immutable data objects.",
  "ownerDomain": "google.com",
  "ownerName": "Google",
@@ -74,6 +74,9 @@
    "scopes": {
     "https://www.googleapis.com/auth/cloud-platform": {
      "description": "View and manage your data across Google Cloud Platform services"
+    },
+    "https://www.googleapis.com/auth/cloud-platform.read-only": {
+     "description": "View your data across Google Cloud Platform services"
     },
     "https://www.googleapis.com/auth/devstorage.full_control": {
      "description": "Manage your data and permissions in Google Cloud Storage"
@@ -569,13 +572,14 @@
      "description": "Content-Type of the object data.",
      "annotations": {
       "required": [
+       "storage.objects.insert",
        "storage.objects.update"
       ]
      }
     },
     "crc32c": {
      "type": "string",
-     "description": "CRC32c checksum, as described in RFC 4960, Appendix B; encoded using base64."
+     "description": "CRC32c checksum, as described in RFC 4960, Appendix B; encoded using base64 in big-endian byte order. For more information about using the CRC32c checksum, see Hashes and ETags: Best Practices."
     },
     "etag": {
      "type": "string",
@@ -597,7 +601,7 @@
     },
     "md5Hash": {
      "type": "string",
-     "description": "MD5 hash of the data; encoded using base64."
+     "description": "MD5 hash of the data; encoded using base64. For more information about using the MD5 hash, see Hashes and ETags: Best Practices."
     },
     "mediaLink": {
      "type": "string",
@@ -782,10 +786,11 @@
   "RewriteResponse": {
    "id": "RewriteResponse",
    "type": "object",
-   "description": "A Rewrite response.",
+   "description": "A rewrite response.",
    "properties": {
     "done": {
-     "type": "boolean"
+     "type": "boolean",
+     "description": "true if the copy is finished; otherwise, false if the copy is in progress. This property is always present in the response."
     },
     "kind": {
      "type": "string",
@@ -794,16 +799,20 @@
     },
     "objectSize": {
      "type": "string",
+     "description": "The total size of the object being copied in bytes. This property is always present in the response.",
      "format": "uint64"
     },
     "resource": {
-     "$ref": "Object"
+     "$ref": "Object",
+     "description": "A resource containing the metadata for the copied-to object. This property is present in the response only when copying completes."
     },
     "rewriteToken": {
-     "type": "string"
+     "type": "string",
+     "description": "A token to use in subsequent requests to continue copying data. This token is present in the response only when there is more data to copy."
     },
     "totalBytesRewritten": {
      "type": "string",
+     "description": "The total bytes written so far, which can be used to provide a waiting user with a progress indicator. This property is always present in the response.",
      "format": "uint64"
     }
    }
@@ -1068,6 +1077,7 @@
      },
      "scopes": [
       "https://www.googleapis.com/auth/cloud-platform",
+      "https://www.googleapis.com/auth/cloud-platform.read-only",
       "https://www.googleapis.com/auth/devstorage.full_control",
       "https://www.googleapis.com/auth/devstorage.read_only",
       "https://www.googleapis.com/auth/devstorage.read_write"
@@ -1205,6 +1215,7 @@
      },
      "scopes": [
       "https://www.googleapis.com/auth/cloud-platform",
+      "https://www.googleapis.com/auth/cloud-platform.read-only",
       "https://www.googleapis.com/auth/devstorage.full_control",
       "https://www.googleapis.com/auth/devstorage.read_only",
       "https://www.googleapis.com/auth/devstorage.read_write"
@@ -1411,6 +1422,7 @@
      },
      "scopes": [
       "https://www.googleapis.com/auth/cloud-platform",
+      "https://www.googleapis.com/auth/cloud-platform.read-only",
       "https://www.googleapis.com/auth/devstorage.full_control",
       "https://www.googleapis.com/auth/devstorage.read_only",
       "https://www.googleapis.com/auth/devstorage.read_write"
@@ -1634,7 +1646,7 @@
       },
       "object": {
        "type": "string",
-       "description": "Name of the object.",
+       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
        "required": true,
        "location": "path"
       }
@@ -1674,7 +1686,7 @@
       },
       "object": {
        "type": "string",
-       "description": "Name of the object.",
+       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
        "required": true,
        "location": "path"
       }
@@ -1711,7 +1723,7 @@
       },
       "object": {
        "type": "string",
-       "description": "Name of the object.",
+       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
        "required": true,
        "location": "path"
       }
@@ -1750,7 +1762,7 @@
       },
       "object": {
        "type": "string",
-       "description": "Name of the object.",
+       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
        "required": true,
        "location": "path"
       }
@@ -1792,7 +1804,7 @@
       },
       "object": {
        "type": "string",
-       "description": "Name of the object.",
+       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
        "required": true,
        "location": "path"
       }
@@ -1838,7 +1850,7 @@
       },
       "object": {
        "type": "string",
-       "description": "Name of the object.",
+       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
        "required": true,
        "location": "path"
       }
@@ -1876,7 +1888,7 @@
       },
       "destinationObject": {
        "type": "string",
-       "description": "Name of the new object.",
+       "description": "Name of the new object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
        "required": true,
        "location": "path"
       },
@@ -1935,11 +1947,11 @@
      "id": "storage.objects.copy",
      "path": "b/{sourceBucket}/o/{sourceObject}/copyTo/b/{destinationBucket}/o/{destinationObject}",
      "httpMethod": "POST",
-     "description": "Copies an object to a specified location. Optionally overrides metadata.",
+     "description": "Copies a source object to a destination object. Optionally overrides metadata.",
      "parameters": {
       "destinationBucket": {
        "type": "string",
-       "description": "Name of the bucket in which to store the new object. Overrides the provided object metadata's bucket value, if any.",
+       "description": "Name of the bucket in which to store the new object. Overrides the provided object metadata's bucket value, if any.For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
        "required": true,
        "location": "path"
       },
@@ -2045,7 +2057,7 @@
       },
       "sourceObject": {
        "type": "string",
-       "description": "Name of the source object.",
+       "description": "Name of the source object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
        "required": true,
        "location": "path"
       }
@@ -2113,7 +2125,7 @@
       },
       "object": {
        "type": "string",
-       "description": "Name of the object.",
+       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
        "required": true,
        "location": "path"
       }
@@ -2172,7 +2184,7 @@
       },
       "object": {
        "type": "string",
-       "description": "Name of the object.",
+       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
        "required": true,
        "location": "path"
       },
@@ -2199,6 +2211,7 @@
      },
      "scopes": [
       "https://www.googleapis.com/auth/cloud-platform",
+      "https://www.googleapis.com/auth/cloud-platform.read-only",
       "https://www.googleapis.com/auth/devstorage.full_control",
       "https://www.googleapis.com/auth/devstorage.read_only",
       "https://www.googleapis.com/auth/devstorage.read_write"
@@ -2248,7 +2261,7 @@
       },
       "name": {
        "type": "string",
-       "description": "Name of the object. Required when the object metadata is not otherwise provided. Overrides the object metadata's name value, if any.",
+       "description": "Name of the object. Required when the object metadata is not otherwise provided. Overrides the object metadata's name value, if any. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
        "location": "query"
       },
       "predefinedAcl": {
@@ -2337,7 +2350,7 @@
       },
       "maxResults": {
        "type": "integer",
-       "description": "Maximum number of items plus prefixes to return. As duplicate prefixes are omitted, fewer total results may be returned than requested.",
+       "description": "Maximum number of items plus prefixes to return. As duplicate prefixes are omitted, fewer total results may be returned than requested. The default value of this parameter is 1,000 items.",
        "format": "uint32",
        "minimum": "0",
        "location": "query"
@@ -2367,7 +2380,7 @@
       },
       "versions": {
        "type": "boolean",
-       "description": "If true, lists all versions of a file as distinct results.",
+       "description": "If true, lists all versions of an object as distinct results. The default is false. For more information, see Object Versioning.",
        "location": "query"
       }
      },
@@ -2379,6 +2392,7 @@
      },
      "scopes": [
       "https://www.googleapis.com/auth/cloud-platform",
+      "https://www.googleapis.com/auth/cloud-platform.read-only",
       "https://www.googleapis.com/auth/devstorage.full_control",
       "https://www.googleapis.com/auth/devstorage.read_only",
       "https://www.googleapis.com/auth/devstorage.read_write"
@@ -2429,7 +2443,7 @@
       },
       "object": {
        "type": "string",
-       "description": "Name of the object.",
+       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
        "required": true,
        "location": "path"
       },
@@ -2498,7 +2512,7 @@
       },
       "destinationObject": {
        "type": "string",
-       "description": "Name of the new object. Required when the object metadata is not otherwise provided. Overrides the object metadata's name value, if any.",
+       "description": "Name of the new object. Required when the object metadata is not otherwise provided. Overrides the object metadata's name value, if any. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
        "required": true,
        "location": "path"
       },
@@ -2573,7 +2587,7 @@
       },
       "maxBytesRewrittenPerCall": {
        "type": "string",
-       "description": "The maximum number of bytes that will be rewritten per Rewrite request. Most callers shouldn't need to specify this parameter - it is primarily in place to support testing. If specified the value must be an integral multiple of 1 MiB (1048576). Also, this only applies to requests where the source and destination span locations and/or storage classes. Finally, this value must not change across Rewrite calls else you'll get an error that the rewrite token is invalid.",
+       "description": "The maximum number of bytes that will be rewritten per rewrite request. Most callers shouldn't need to specify this parameter - it is primarily in place to support testing. If specified the value must be an integral multiple of 1 MiB (1048576). Also, this only applies to requests where the source and destination span locations and/or storage classes. Finally, this value must not change across rewrite calls else you'll get an error that the rewriteToken is invalid.",
        "format": "int64",
        "location": "query"
       },
@@ -2592,7 +2606,7 @@
       },
       "rewriteToken": {
        "type": "string",
-       "description": "Include this field (from the previous Rewrite response) on each Rewrite request after the first one, until the Rewrite response 'done' flag is true. Calls that provide a rewriteToken can omit all other request fields, but if included those fields must match the values provided in the first rewrite request.",
+       "description": "Include this field (from the previous rewrite response) on each rewrite request after the first one, until the rewrite response 'done' flag is true. Calls that provide a rewriteToken can omit all other request fields, but if included those fields must match the values provided in the first rewrite request.",
        "location": "query"
       },
       "sourceBucket": {
@@ -2609,7 +2623,7 @@
       },
       "sourceObject": {
        "type": "string",
-       "description": "Name of the source object.",
+       "description": "Name of the source object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
        "required": true,
        "location": "path"
       }
@@ -2676,7 +2690,7 @@
       },
       "object": {
        "type": "string",
-       "description": "Name of the object.",
+       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
        "required": true,
        "location": "path"
       },
@@ -2751,7 +2765,7 @@
       },
       "maxResults": {
        "type": "integer",
-       "description": "Maximum number of items plus prefixes to return. As duplicate prefixes are omitted, fewer total results may be returned than requested.",
+       "description": "Maximum number of items plus prefixes to return. As duplicate prefixes are omitted, fewer total results may be returned than requested. The default value of this parameter is 1,000 items.",
        "format": "uint32",
        "minimum": "0",
        "location": "query"
@@ -2781,7 +2795,7 @@
       },
       "versions": {
        "type": "boolean",
-       "description": "If true, lists all versions of a file as distinct results.",
+       "description": "If true, lists all versions of an object as distinct results. The default is false. For more information, see Object Versioning.",
        "location": "query"
       }
      },
@@ -2797,6 +2811,7 @@
      },
      "scopes": [
       "https://www.googleapis.com/auth/cloud-platform",
+      "https://www.googleapis.com/auth/cloud-platform.read-only",
       "https://www.googleapis.com/auth/devstorage.full_control",
       "https://www.googleapis.com/auth/devstorage.read_only",
       "https://www.googleapis.com/auth/devstorage.read_write"

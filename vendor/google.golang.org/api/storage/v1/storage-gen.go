@@ -1,4 +1,4 @@
-// Package storage provides access to the Cloud Storage API.
+// Package storage provides access to the Cloud Storage JSON API.
 //
 // See https://developers.google.com/storage/docs/json_api/
 //
@@ -46,14 +46,17 @@ const (
 	// View and manage your data across Google Cloud Platform services
 	CloudPlatformScope = "https://www.googleapis.com/auth/cloud-platform"
 
+	// View your data across Google Cloud Platform services
+	CloudPlatformReadOnlyScope = "https://www.googleapis.com/auth/cloud-platform.read-only"
+
 	// Manage your data and permissions in Google Cloud Storage
-	DevstorageFull_controlScope = "https://www.googleapis.com/auth/devstorage.full_control"
+	DevstorageFullControlScope = "https://www.googleapis.com/auth/devstorage.full_control"
 
 	// View your data in Google Cloud Storage
-	DevstorageRead_onlyScope = "https://www.googleapis.com/auth/devstorage.read_only"
+	DevstorageReadOnlyScope = "https://www.googleapis.com/auth/devstorage.read_only"
 
 	// Manage your data in Google Cloud Storage
-	DevstorageRead_writeScope = "https://www.googleapis.com/auth/devstorage.read_write"
+	DevstorageReadWriteScope = "https://www.googleapis.com/auth/devstorage.read_write"
 )
 
 func New(client *http.Client) (*Service, error) {
@@ -149,6 +152,7 @@ type ObjectsService struct {
 	s *Service
 }
 
+// Bucket: A bucket.
 type Bucket struct {
 	// Acl: Access controls on the bucket.
 	Acl []*BucketAccessControl `json:"acl,omitempty"`
@@ -239,6 +243,8 @@ type BucketCors struct {
 	ResponseHeader []string `json:"responseHeader,omitempty"`
 }
 
+// BucketLifecycle: The bucket's lifecycle configuration. See lifecycle
+// management for more information.
 type BucketLifecycle struct {
 	// Rule: A lifecycle management rule, which is made of an action to take
 	// and the condition(s) under which the action will be taken.
@@ -253,11 +259,14 @@ type BucketLifecycleRule struct {
 	Condition *BucketLifecycleRuleCondition `json:"condition,omitempty"`
 }
 
+// BucketLifecycleRuleAction: The action to take.
 type BucketLifecycleRuleAction struct {
 	// Type: Type of the action. Currently, only Delete is supported.
 	Type string `json:"type,omitempty"`
 }
 
+// BucketLifecycleRuleCondition: The condition(s) under which the action
+// will be taken.
 type BucketLifecycleRuleCondition struct {
 	// Age: Age of an object (in days). This condition is satisfied when an
 	// object reaches the specified age.
@@ -279,6 +288,9 @@ type BucketLifecycleRuleCondition struct {
 	NumNewerVersions int64 `json:"numNewerVersions,omitempty"`
 }
 
+// BucketLogging: The bucket's logging configuration, which defines the
+// destination bucket and optional name prefix for the current bucket's
+// logs.
 type BucketLogging struct {
 	// LogBucket: The destination bucket where the current bucket's logs
 	// should be placed.
@@ -288,6 +300,8 @@ type BucketLogging struct {
 	LogObjectPrefix string `json:"logObjectPrefix,omitempty"`
 }
 
+// BucketOwner: The owner of the bucket. This is always the project
+// team's owner group.
 type BucketOwner struct {
 	// Entity: The entity, in the form project-owner-projectId.
 	Entity string `json:"entity,omitempty"`
@@ -296,12 +310,14 @@ type BucketOwner struct {
 	EntityId string `json:"entityId,omitempty"`
 }
 
+// BucketVersioning: The bucket's versioning configuration.
 type BucketVersioning struct {
 	// Enabled: While set to true, versioning is fully enabled for this
 	// bucket.
 	Enabled bool `json:"enabled,omitempty"`
 }
 
+// BucketWebsite: The bucket's website configuration.
 type BucketWebsite struct {
 	// MainPageSuffix: Behaves as the bucket's directory index where missing
 	// objects are treated as potential directories.
@@ -312,6 +328,7 @@ type BucketWebsite struct {
 	NotFoundPage string `json:"notFoundPage,omitempty"`
 }
 
+// BucketAccessControl: An access-control entry.
 type BucketAccessControl struct {
 	// Bucket: The name of the bucket.
 	Bucket string `json:"bucket,omitempty"`
@@ -328,19 +345,15 @@ type BucketAccessControl struct {
 	// - user-email
 	// - group-groupId
 	// - group-email
-	//
 	// - domain-domain
 	// - project-team-projectId
 	// - allUsers
-	// -
-	// allAuthenticatedUsers Examples:
-	// - The user liz@example.com would be
-	// user-liz@example.com.
+	// - allAuthenticatedUsers Examples:
+	// - The user liz@example.com would be user-liz@example.com.
 	// - The group example@googlegroups.com would be
 	// group-example@googlegroups.com.
-	// - To refer to all members of the
-	// Google Apps for Business domain example.com, the entity would be
-	// domain-example.com.
+	// - To refer to all members of the Google Apps for Business domain
+	// example.com, the entity would be domain-example.com.
 	Entity string `json:"entity,omitempty"`
 
 	// EntityId: The ID for the entity, if any.
@@ -367,6 +380,8 @@ type BucketAccessControl struct {
 	SelfLink string `json:"selfLink,omitempty"`
 }
 
+// BucketAccessControlProjectTeam: The project team associated with the
+// entity, if any.
 type BucketAccessControlProjectTeam struct {
 	// ProjectNumber: The project number.
 	ProjectNumber string `json:"projectNumber,omitempty"`
@@ -375,6 +390,7 @@ type BucketAccessControlProjectTeam struct {
 	Team string `json:"team,omitempty"`
 }
 
+// BucketAccessControls: An access-control list.
 type BucketAccessControls struct {
 	// Items: The list of items.
 	Items []*BucketAccessControl `json:"items,omitempty"`
@@ -384,6 +400,7 @@ type BucketAccessControls struct {
 	Kind string `json:"kind,omitempty"`
 }
 
+// Buckets: A list of buckets.
 type Buckets struct {
 	// Items: The list of items.
 	Items []*Bucket `json:"items,omitempty"`
@@ -398,6 +415,7 @@ type Buckets struct {
 	NextPageToken string `json:"nextPageToken,omitempty"`
 }
 
+// Channel: An notification channel used to watch for resource changes.
 type Channel struct {
 	// Address: The address where notifications are delivered for this
 	// channel.
@@ -437,6 +455,7 @@ type Channel struct {
 	Type string `json:"type,omitempty"`
 }
 
+// ComposeRequest: A Compose request.
 type ComposeRequest struct {
 	// Destination: Properties of the resulting object.
 	Destination *Object `json:"destination,omitempty"`
@@ -462,6 +481,8 @@ type ComposeRequestSourceObjects struct {
 	ObjectPreconditions *ComposeRequestSourceObjectsObjectPreconditions `json:"objectPreconditions,omitempty"`
 }
 
+// ComposeRequestSourceObjectsObjectPreconditions: Conditions that must
+// be met for this operation to execute.
 type ComposeRequestSourceObjectsObjectPreconditions struct {
 	// IfGenerationMatch: Only perform the composition if the generation of
 	// the source object that would be used matches this value. If this
@@ -470,6 +491,7 @@ type ComposeRequestSourceObjectsObjectPreconditions struct {
 	IfGenerationMatch int64 `json:"ifGenerationMatch,omitempty,string"`
 }
 
+// Object: An object.
 type Object struct {
 	// Acl: Access controls on the object.
 	Acl []*ObjectAccessControl `json:"acl,omitempty"`
@@ -497,7 +519,9 @@ type Object struct {
 	ContentType string `json:"contentType,omitempty"`
 
 	// Crc32c: CRC32c checksum, as described in RFC 4960, Appendix B;
-	// encoded using base64.
+	// encoded using base64 in big-endian byte order. For more information
+	// about using the CRC32c checksum, see Hashes and ETags: Best
+	// Practices.
 	Crc32c string `json:"crc32c,omitempty"`
 
 	// Etag: HTTP 1.1 Entity tag for the object.
@@ -514,7 +538,9 @@ type Object struct {
 	// storage#object.
 	Kind string `json:"kind,omitempty"`
 
-	// Md5Hash: MD5 hash of the data; encoded using base64.
+	// Md5Hash: MD5 hash of the data; encoded using base64. For more
+	// information about using the MD5 hash, see Hashes and ETags: Best
+	// Practices.
 	Md5Hash string `json:"md5Hash,omitempty"`
 
 	// MediaLink: Media download link.
@@ -557,6 +583,8 @@ type Object struct {
 	Updated string `json:"updated,omitempty"`
 }
 
+// ObjectOwner: The owner of the object. This will always be the
+// uploader of the object.
 type ObjectOwner struct {
 	// Entity: The entity, in the form user-userId.
 	Entity string `json:"entity,omitempty"`
@@ -565,6 +593,7 @@ type ObjectOwner struct {
 	EntityId string `json:"entityId,omitempty"`
 }
 
+// ObjectAccessControl: An access-control entry.
 type ObjectAccessControl struct {
 	// Bucket: The name of the bucket.
 	Bucket string `json:"bucket,omitempty"`
@@ -581,19 +610,15 @@ type ObjectAccessControl struct {
 	// - user-email
 	// - group-groupId
 	// - group-email
-	//
 	// - domain-domain
 	// - project-team-projectId
 	// - allUsers
-	// -
-	// allAuthenticatedUsers Examples:
-	// - The user liz@example.com would be
-	// user-liz@example.com.
+	// - allAuthenticatedUsers Examples:
+	// - The user liz@example.com would be user-liz@example.com.
 	// - The group example@googlegroups.com would be
 	// group-example@googlegroups.com.
-	// - To refer to all members of the
-	// Google Apps for Business domain example.com, the entity would be
-	// domain-example.com.
+	// - To refer to all members of the Google Apps for Business domain
+	// example.com, the entity would be domain-example.com.
 	Entity string `json:"entity,omitempty"`
 
 	// EntityId: The ID for the entity, if any.
@@ -625,6 +650,8 @@ type ObjectAccessControl struct {
 	SelfLink string `json:"selfLink,omitempty"`
 }
 
+// ObjectAccessControlProjectTeam: The project team associated with the
+// entity, if any.
 type ObjectAccessControlProjectTeam struct {
 	// ProjectNumber: The project number.
 	ProjectNumber string `json:"projectNumber,omitempty"`
@@ -633,6 +660,7 @@ type ObjectAccessControlProjectTeam struct {
 	Team string `json:"team,omitempty"`
 }
 
+// ObjectAccessControls: An access-control list.
 type ObjectAccessControls struct {
 	// Items: The list of items.
 	Items []interface{} `json:"items,omitempty"`
@@ -642,6 +670,7 @@ type ObjectAccessControls struct {
 	Kind string `json:"kind,omitempty"`
 }
 
+// Objects: A list of objects.
 type Objects struct {
 	// Items: The list of items.
 	Items []*Object `json:"items,omitempty"`
@@ -660,18 +689,32 @@ type Objects struct {
 	Prefixes []string `json:"prefixes,omitempty"`
 }
 
+// RewriteResponse: A rewrite response.
 type RewriteResponse struct {
+	// Done: true if the copy is finished; otherwise, false if the copy is
+	// in progress. This property is always present in the response.
 	Done bool `json:"done,omitempty"`
 
 	// Kind: The kind of item this is.
 	Kind string `json:"kind,omitempty"`
 
+	// ObjectSize: The total size of the object being copied in bytes. This
+	// property is always present in the response.
 	ObjectSize uint64 `json:"objectSize,omitempty,string"`
 
+	// Resource: A resource containing the metadata for the copied-to
+	// object. This property is present in the response only when copying
+	// completes.
 	Resource *Object `json:"resource,omitempty"`
 
+	// RewriteToken: A token to use in subsequent requests to continue
+	// copying data. This token is present in the response only when there
+	// is more data to copy.
 	RewriteToken string `json:"rewriteToken,omitempty"`
 
+	// TotalBytesRewritten: The total bytes written so far, which can be
+	// used to provide a waiting user with a progress indicator. This
+	// property is always present in the response.
 	TotalBytesRewritten uint64 `json:"totalBytesRewritten,omitempty,string"`
 }
 
@@ -701,10 +744,10 @@ func (c *BucketAccessControlsDeleteCall) Fields(s ...googleapi.Field) *BucketAcc
 	return c
 }
 
-func (c *BucketAccessControlsDeleteCall) Do() error {
+func (c *BucketAccessControlsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["fields"]; ok {
 		params.Set("fields", fmt.Sprintf("%v", v))
 	}
@@ -716,7 +759,11 @@ func (c *BucketAccessControlsDeleteCall) Do() error {
 		"entity": c.entity,
 	})
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *BucketAccessControlsDeleteCall) Do() error {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return err
 	}
@@ -781,10 +828,10 @@ func (c *BucketAccessControlsGetCall) Fields(s ...googleapi.Field) *BucketAccess
 	return c
 }
 
-func (c *BucketAccessControlsGetCall) Do() (*BucketAccessControl, error) {
+func (c *BucketAccessControlsGetCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["fields"]; ok {
 		params.Set("fields", fmt.Sprintf("%v", v))
 	}
@@ -796,7 +843,11 @@ func (c *BucketAccessControlsGetCall) Do() (*BucketAccessControl, error) {
 		"entity": c.entity,
 	})
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *BucketAccessControlsGetCall) Do() (*BucketAccessControl, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -867,7 +918,7 @@ func (c *BucketAccessControlsInsertCall) Fields(s ...googleapi.Field) *BucketAcc
 	return c
 }
 
-func (c *BucketAccessControlsInsertCall) Do() (*BucketAccessControl, error) {
+func (c *BucketAccessControlsInsertCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.bucketaccesscontrol)
 	if err != nil {
@@ -875,7 +926,7 @@ func (c *BucketAccessControlsInsertCall) Do() (*BucketAccessControl, error) {
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["fields"]; ok {
 		params.Set("fields", fmt.Sprintf("%v", v))
 	}
@@ -887,7 +938,11 @@ func (c *BucketAccessControlsInsertCall) Do() (*BucketAccessControl, error) {
 	})
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *BucketAccessControlsInsertCall) Do() (*BucketAccessControl, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -952,10 +1007,10 @@ func (c *BucketAccessControlsListCall) Fields(s ...googleapi.Field) *BucketAcces
 	return c
 }
 
-func (c *BucketAccessControlsListCall) Do() (*BucketAccessControls, error) {
+func (c *BucketAccessControlsListCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["fields"]; ok {
 		params.Set("fields", fmt.Sprintf("%v", v))
 	}
@@ -966,7 +1021,11 @@ func (c *BucketAccessControlsListCall) Do() (*BucketAccessControls, error) {
 		"bucket": c.bucket,
 	})
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *BucketAccessControlsListCall) Do() (*BucketAccessControls, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -1033,7 +1092,7 @@ func (c *BucketAccessControlsPatchCall) Fields(s ...googleapi.Field) *BucketAcce
 	return c
 }
 
-func (c *BucketAccessControlsPatchCall) Do() (*BucketAccessControl, error) {
+func (c *BucketAccessControlsPatchCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.bucketaccesscontrol)
 	if err != nil {
@@ -1041,7 +1100,7 @@ func (c *BucketAccessControlsPatchCall) Do() (*BucketAccessControl, error) {
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["fields"]; ok {
 		params.Set("fields", fmt.Sprintf("%v", v))
 	}
@@ -1054,7 +1113,11 @@ func (c *BucketAccessControlsPatchCall) Do() (*BucketAccessControl, error) {
 	})
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *BucketAccessControlsPatchCall) Do() (*BucketAccessControl, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -1130,7 +1193,7 @@ func (c *BucketAccessControlsUpdateCall) Fields(s ...googleapi.Field) *BucketAcc
 	return c
 }
 
-func (c *BucketAccessControlsUpdateCall) Do() (*BucketAccessControl, error) {
+func (c *BucketAccessControlsUpdateCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.bucketaccesscontrol)
 	if err != nil {
@@ -1138,7 +1201,7 @@ func (c *BucketAccessControlsUpdateCall) Do() (*BucketAccessControl, error) {
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["fields"]; ok {
 		params.Set("fields", fmt.Sprintf("%v", v))
 	}
@@ -1151,7 +1214,11 @@ func (c *BucketAccessControlsUpdateCall) Do() (*BucketAccessControl, error) {
 	})
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *BucketAccessControlsUpdateCall) Do() (*BucketAccessControl, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -1239,10 +1306,10 @@ func (c *BucketsDeleteCall) Fields(s ...googleapi.Field) *BucketsDeleteCall {
 	return c
 }
 
-func (c *BucketsDeleteCall) Do() error {
+func (c *BucketsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["ifMetagenerationMatch"]; ok {
 		params.Set("ifMetagenerationMatch", fmt.Sprintf("%v", v))
 	}
@@ -1259,7 +1326,11 @@ func (c *BucketsDeleteCall) Do() error {
 		"bucket": c.bucket,
 	})
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *BucketsDeleteCall) Do() error {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return err
 	}
@@ -1340,6 +1411,10 @@ func (c *BucketsGetCall) IfMetagenerationNotMatch(ifMetagenerationNotMatch int64
 
 // Projection sets the optional parameter "projection": Set of
 // properties to return. Defaults to noAcl.
+//
+// Possible values:
+//   "full" - Include all properties.
+//   "noAcl" - Omit acl and defaultObjectAcl properties.
 func (c *BucketsGetCall) Projection(projection string) *BucketsGetCall {
 	c.opt_["projection"] = projection
 	return c
@@ -1353,10 +1428,10 @@ func (c *BucketsGetCall) Fields(s ...googleapi.Field) *BucketsGetCall {
 	return c
 }
 
-func (c *BucketsGetCall) Do() (*Bucket, error) {
+func (c *BucketsGetCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["ifMetagenerationMatch"]; ok {
 		params.Set("ifMetagenerationMatch", fmt.Sprintf("%v", v))
 	}
@@ -1376,7 +1451,11 @@ func (c *BucketsGetCall) Do() (*Bucket, error) {
 		"bucket": c.bucket,
 	})
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *BucketsGetCall) Do() (*Bucket, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -1435,6 +1514,7 @@ func (c *BucketsGetCall) Do() (*Bucket, error) {
 	//   },
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/cloud-platform.read-only",
 	//     "https://www.googleapis.com/auth/devstorage.full_control",
 	//     "https://www.googleapis.com/auth/devstorage.read_only",
 	//     "https://www.googleapis.com/auth/devstorage.read_write"
@@ -1462,6 +1542,17 @@ func (r *BucketsService) Insert(projectid string, bucket *Bucket) *BucketsInsert
 
 // PredefinedAcl sets the optional parameter "predefinedAcl": Apply a
 // predefined set of access controls to this bucket.
+//
+// Possible values:
+//   "authenticatedRead" - Project team owners get OWNER access, and
+// allAuthenticatedUsers get READER access.
+//   "private" - Project team owners get OWNER access.
+//   "projectPrivate" - Project team members get access according to
+// their roles.
+//   "publicRead" - Project team owners get OWNER access, and allUsers
+// get READER access.
+//   "publicReadWrite" - Project team owners get OWNER access, and
+// allUsers get WRITER access.
 func (c *BucketsInsertCall) PredefinedAcl(predefinedAcl string) *BucketsInsertCall {
 	c.opt_["predefinedAcl"] = predefinedAcl
 	return c
@@ -1470,6 +1561,19 @@ func (c *BucketsInsertCall) PredefinedAcl(predefinedAcl string) *BucketsInsertCa
 // PredefinedDefaultObjectAcl sets the optional parameter
 // "predefinedDefaultObjectAcl": Apply a predefined set of default
 // object access controls to this bucket.
+//
+// Possible values:
+//   "authenticatedRead" - Object owner gets OWNER access, and
+// allAuthenticatedUsers get READER access.
+//   "bucketOwnerFullControl" - Object owner gets OWNER access, and
+// project team owners get OWNER access.
+//   "bucketOwnerRead" - Object owner gets OWNER access, and project
+// team owners get READER access.
+//   "private" - Object owner gets OWNER access.
+//   "projectPrivate" - Object owner gets OWNER access, and project team
+// members get access according to their roles.
+//   "publicRead" - Object owner gets OWNER access, and allUsers get
+// READER access.
 func (c *BucketsInsertCall) PredefinedDefaultObjectAcl(predefinedDefaultObjectAcl string) *BucketsInsertCall {
 	c.opt_["predefinedDefaultObjectAcl"] = predefinedDefaultObjectAcl
 	return c
@@ -1479,6 +1583,10 @@ func (c *BucketsInsertCall) PredefinedDefaultObjectAcl(predefinedDefaultObjectAc
 // properties to return. Defaults to noAcl, unless the bucket resource
 // specifies acl or defaultObjectAcl properties, when it defaults to
 // full.
+//
+// Possible values:
+//   "full" - Include all properties.
+//   "noAcl" - Omit acl and defaultObjectAcl properties.
 func (c *BucketsInsertCall) Projection(projection string) *BucketsInsertCall {
 	c.opt_["projection"] = projection
 	return c
@@ -1492,7 +1600,7 @@ func (c *BucketsInsertCall) Fields(s ...googleapi.Field) *BucketsInsertCall {
 	return c
 }
 
-func (c *BucketsInsertCall) Do() (*Bucket, error) {
+func (c *BucketsInsertCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.bucket)
 	if err != nil {
@@ -1500,7 +1608,7 @@ func (c *BucketsInsertCall) Do() (*Bucket, error) {
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	params.Set("project", fmt.Sprintf("%v", c.projectid))
 	if v, ok := c.opt_["predefinedAcl"]; ok {
 		params.Set("predefinedAcl", fmt.Sprintf("%v", v))
@@ -1520,7 +1628,11 @@ func (c *BucketsInsertCall) Do() (*Bucket, error) {
 	googleapi.SetOpaque(req.URL)
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *BucketsInsertCall) Do() (*Bucket, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -1656,6 +1768,10 @@ func (c *BucketsListCall) Prefix(prefix string) *BucketsListCall {
 
 // Projection sets the optional parameter "projection": Set of
 // properties to return. Defaults to noAcl.
+//
+// Possible values:
+//   "full" - Include all properties.
+//   "noAcl" - Omit acl and defaultObjectAcl properties.
 func (c *BucketsListCall) Projection(projection string) *BucketsListCall {
 	c.opt_["projection"] = projection
 	return c
@@ -1669,10 +1785,10 @@ func (c *BucketsListCall) Fields(s ...googleapi.Field) *BucketsListCall {
 	return c
 }
 
-func (c *BucketsListCall) Do() (*Buckets, error) {
+func (c *BucketsListCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	params.Set("project", fmt.Sprintf("%v", c.projectid))
 	if v, ok := c.opt_["maxResults"]; ok {
 		params.Set("maxResults", fmt.Sprintf("%v", v))
@@ -1694,7 +1810,11 @@ func (c *BucketsListCall) Do() (*Buckets, error) {
 	req, _ := http.NewRequest("GET", urls, body)
 	googleapi.SetOpaque(req.URL)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *BucketsListCall) Do() (*Buckets, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -1758,6 +1878,7 @@ func (c *BucketsListCall) Do() (*Buckets, error) {
 	//   },
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/cloud-platform.read-only",
 	//     "https://www.googleapis.com/auth/devstorage.full_control",
 	//     "https://www.googleapis.com/auth/devstorage.read_only",
 	//     "https://www.googleapis.com/auth/devstorage.read_write"
@@ -1803,6 +1924,17 @@ func (c *BucketsPatchCall) IfMetagenerationNotMatch(ifMetagenerationNotMatch int
 
 // PredefinedAcl sets the optional parameter "predefinedAcl": Apply a
 // predefined set of access controls to this bucket.
+//
+// Possible values:
+//   "authenticatedRead" - Project team owners get OWNER access, and
+// allAuthenticatedUsers get READER access.
+//   "private" - Project team owners get OWNER access.
+//   "projectPrivate" - Project team members get access according to
+// their roles.
+//   "publicRead" - Project team owners get OWNER access, and allUsers
+// get READER access.
+//   "publicReadWrite" - Project team owners get OWNER access, and
+// allUsers get WRITER access.
 func (c *BucketsPatchCall) PredefinedAcl(predefinedAcl string) *BucketsPatchCall {
 	c.opt_["predefinedAcl"] = predefinedAcl
 	return c
@@ -1811,6 +1943,19 @@ func (c *BucketsPatchCall) PredefinedAcl(predefinedAcl string) *BucketsPatchCall
 // PredefinedDefaultObjectAcl sets the optional parameter
 // "predefinedDefaultObjectAcl": Apply a predefined set of default
 // object access controls to this bucket.
+//
+// Possible values:
+//   "authenticatedRead" - Object owner gets OWNER access, and
+// allAuthenticatedUsers get READER access.
+//   "bucketOwnerFullControl" - Object owner gets OWNER access, and
+// project team owners get OWNER access.
+//   "bucketOwnerRead" - Object owner gets OWNER access, and project
+// team owners get READER access.
+//   "private" - Object owner gets OWNER access.
+//   "projectPrivate" - Object owner gets OWNER access, and project team
+// members get access according to their roles.
+//   "publicRead" - Object owner gets OWNER access, and allUsers get
+// READER access.
 func (c *BucketsPatchCall) PredefinedDefaultObjectAcl(predefinedDefaultObjectAcl string) *BucketsPatchCall {
 	c.opt_["predefinedDefaultObjectAcl"] = predefinedDefaultObjectAcl
 	return c
@@ -1818,6 +1963,10 @@ func (c *BucketsPatchCall) PredefinedDefaultObjectAcl(predefinedDefaultObjectAcl
 
 // Projection sets the optional parameter "projection": Set of
 // properties to return. Defaults to full.
+//
+// Possible values:
+//   "full" - Include all properties.
+//   "noAcl" - Omit acl and defaultObjectAcl properties.
 func (c *BucketsPatchCall) Projection(projection string) *BucketsPatchCall {
 	c.opt_["projection"] = projection
 	return c
@@ -1831,7 +1980,7 @@ func (c *BucketsPatchCall) Fields(s ...googleapi.Field) *BucketsPatchCall {
 	return c
 }
 
-func (c *BucketsPatchCall) Do() (*Bucket, error) {
+func (c *BucketsPatchCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.bucket2)
 	if err != nil {
@@ -1839,7 +1988,7 @@ func (c *BucketsPatchCall) Do() (*Bucket, error) {
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["ifMetagenerationMatch"]; ok {
 		params.Set("ifMetagenerationMatch", fmt.Sprintf("%v", v))
 	}
@@ -1866,7 +2015,11 @@ func (c *BucketsPatchCall) Do() (*Bucket, error) {
 	})
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *BucketsPatchCall) Do() (*Bucket, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -2012,6 +2165,17 @@ func (c *BucketsUpdateCall) IfMetagenerationNotMatch(ifMetagenerationNotMatch in
 
 // PredefinedAcl sets the optional parameter "predefinedAcl": Apply a
 // predefined set of access controls to this bucket.
+//
+// Possible values:
+//   "authenticatedRead" - Project team owners get OWNER access, and
+// allAuthenticatedUsers get READER access.
+//   "private" - Project team owners get OWNER access.
+//   "projectPrivate" - Project team members get access according to
+// their roles.
+//   "publicRead" - Project team owners get OWNER access, and allUsers
+// get READER access.
+//   "publicReadWrite" - Project team owners get OWNER access, and
+// allUsers get WRITER access.
 func (c *BucketsUpdateCall) PredefinedAcl(predefinedAcl string) *BucketsUpdateCall {
 	c.opt_["predefinedAcl"] = predefinedAcl
 	return c
@@ -2020,6 +2184,19 @@ func (c *BucketsUpdateCall) PredefinedAcl(predefinedAcl string) *BucketsUpdateCa
 // PredefinedDefaultObjectAcl sets the optional parameter
 // "predefinedDefaultObjectAcl": Apply a predefined set of default
 // object access controls to this bucket.
+//
+// Possible values:
+//   "authenticatedRead" - Object owner gets OWNER access, and
+// allAuthenticatedUsers get READER access.
+//   "bucketOwnerFullControl" - Object owner gets OWNER access, and
+// project team owners get OWNER access.
+//   "bucketOwnerRead" - Object owner gets OWNER access, and project
+// team owners get READER access.
+//   "private" - Object owner gets OWNER access.
+//   "projectPrivate" - Object owner gets OWNER access, and project team
+// members get access according to their roles.
+//   "publicRead" - Object owner gets OWNER access, and allUsers get
+// READER access.
 func (c *BucketsUpdateCall) PredefinedDefaultObjectAcl(predefinedDefaultObjectAcl string) *BucketsUpdateCall {
 	c.opt_["predefinedDefaultObjectAcl"] = predefinedDefaultObjectAcl
 	return c
@@ -2027,6 +2204,10 @@ func (c *BucketsUpdateCall) PredefinedDefaultObjectAcl(predefinedDefaultObjectAc
 
 // Projection sets the optional parameter "projection": Set of
 // properties to return. Defaults to full.
+//
+// Possible values:
+//   "full" - Include all properties.
+//   "noAcl" - Omit acl and defaultObjectAcl properties.
 func (c *BucketsUpdateCall) Projection(projection string) *BucketsUpdateCall {
 	c.opt_["projection"] = projection
 	return c
@@ -2040,7 +2221,7 @@ func (c *BucketsUpdateCall) Fields(s ...googleapi.Field) *BucketsUpdateCall {
 	return c
 }
 
-func (c *BucketsUpdateCall) Do() (*Bucket, error) {
+func (c *BucketsUpdateCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.bucket2)
 	if err != nil {
@@ -2048,7 +2229,7 @@ func (c *BucketsUpdateCall) Do() (*Bucket, error) {
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["ifMetagenerationMatch"]; ok {
 		params.Set("ifMetagenerationMatch", fmt.Sprintf("%v", v))
 	}
@@ -2075,7 +2256,11 @@ func (c *BucketsUpdateCall) Do() (*Bucket, error) {
 	})
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *BucketsUpdateCall) Do() (*Bucket, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -2207,15 +2392,15 @@ func (c *ChannelsStopCall) Fields(s ...googleapi.Field) *ChannelsStopCall {
 	return c
 }
 
-func (c *ChannelsStopCall) Do() error {
+func (c *ChannelsStopCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.channel)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["fields"]; ok {
 		params.Set("fields", fmt.Sprintf("%v", v))
 	}
@@ -2225,7 +2410,11 @@ func (c *ChannelsStopCall) Do() error {
 	googleapi.SetOpaque(req.URL)
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *ChannelsStopCall) Do() error {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return err
 	}
@@ -2245,6 +2434,7 @@ func (c *ChannelsStopCall) Do() error {
 	//   },
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/cloud-platform.read-only",
 	//     "https://www.googleapis.com/auth/devstorage.full_control",
 	//     "https://www.googleapis.com/auth/devstorage.read_only",
 	//     "https://www.googleapis.com/auth/devstorage.read_write"
@@ -2279,10 +2469,10 @@ func (c *DefaultObjectAccessControlsDeleteCall) Fields(s ...googleapi.Field) *De
 	return c
 }
 
-func (c *DefaultObjectAccessControlsDeleteCall) Do() error {
+func (c *DefaultObjectAccessControlsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["fields"]; ok {
 		params.Set("fields", fmt.Sprintf("%v", v))
 	}
@@ -2294,7 +2484,11 @@ func (c *DefaultObjectAccessControlsDeleteCall) Do() error {
 		"entity": c.entity,
 	})
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *DefaultObjectAccessControlsDeleteCall) Do() error {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return err
 	}
@@ -2359,10 +2553,10 @@ func (c *DefaultObjectAccessControlsGetCall) Fields(s ...googleapi.Field) *Defau
 	return c
 }
 
-func (c *DefaultObjectAccessControlsGetCall) Do() (*ObjectAccessControl, error) {
+func (c *DefaultObjectAccessControlsGetCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["fields"]; ok {
 		params.Set("fields", fmt.Sprintf("%v", v))
 	}
@@ -2374,7 +2568,11 @@ func (c *DefaultObjectAccessControlsGetCall) Do() (*ObjectAccessControl, error) 
 		"entity": c.entity,
 	})
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *DefaultObjectAccessControlsGetCall) Do() (*ObjectAccessControl, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -2446,7 +2644,7 @@ func (c *DefaultObjectAccessControlsInsertCall) Fields(s ...googleapi.Field) *De
 	return c
 }
 
-func (c *DefaultObjectAccessControlsInsertCall) Do() (*ObjectAccessControl, error) {
+func (c *DefaultObjectAccessControlsInsertCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.objectaccesscontrol)
 	if err != nil {
@@ -2454,7 +2652,7 @@ func (c *DefaultObjectAccessControlsInsertCall) Do() (*ObjectAccessControl, erro
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["fields"]; ok {
 		params.Set("fields", fmt.Sprintf("%v", v))
 	}
@@ -2466,7 +2664,11 @@ func (c *DefaultObjectAccessControlsInsertCall) Do() (*ObjectAccessControl, erro
 	})
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *DefaultObjectAccessControlsInsertCall) Do() (*ObjectAccessControl, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -2548,10 +2750,10 @@ func (c *DefaultObjectAccessControlsListCall) Fields(s ...googleapi.Field) *Defa
 	return c
 }
 
-func (c *DefaultObjectAccessControlsListCall) Do() (*ObjectAccessControls, error) {
+func (c *DefaultObjectAccessControlsListCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["ifMetagenerationMatch"]; ok {
 		params.Set("ifMetagenerationMatch", fmt.Sprintf("%v", v))
 	}
@@ -2568,7 +2770,11 @@ func (c *DefaultObjectAccessControlsListCall) Do() (*ObjectAccessControls, error
 		"bucket": c.bucket,
 	})
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *DefaultObjectAccessControlsListCall) Do() (*ObjectAccessControls, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -2647,7 +2853,7 @@ func (c *DefaultObjectAccessControlsPatchCall) Fields(s ...googleapi.Field) *Def
 	return c
 }
 
-func (c *DefaultObjectAccessControlsPatchCall) Do() (*ObjectAccessControl, error) {
+func (c *DefaultObjectAccessControlsPatchCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.objectaccesscontrol)
 	if err != nil {
@@ -2655,7 +2861,7 @@ func (c *DefaultObjectAccessControlsPatchCall) Do() (*ObjectAccessControl, error
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["fields"]; ok {
 		params.Set("fields", fmt.Sprintf("%v", v))
 	}
@@ -2668,7 +2874,11 @@ func (c *DefaultObjectAccessControlsPatchCall) Do() (*ObjectAccessControl, error
 	})
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *DefaultObjectAccessControlsPatchCall) Do() (*ObjectAccessControl, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -2744,7 +2954,7 @@ func (c *DefaultObjectAccessControlsUpdateCall) Fields(s ...googleapi.Field) *De
 	return c
 }
 
-func (c *DefaultObjectAccessControlsUpdateCall) Do() (*ObjectAccessControl, error) {
+func (c *DefaultObjectAccessControlsUpdateCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.objectaccesscontrol)
 	if err != nil {
@@ -2752,7 +2962,7 @@ func (c *DefaultObjectAccessControlsUpdateCall) Do() (*ObjectAccessControl, erro
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["fields"]; ok {
 		params.Set("fields", fmt.Sprintf("%v", v))
 	}
@@ -2765,7 +2975,11 @@ func (c *DefaultObjectAccessControlsUpdateCall) Do() (*ObjectAccessControl, erro
 	})
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *DefaultObjectAccessControlsUpdateCall) Do() (*ObjectAccessControl, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -2850,10 +3064,10 @@ func (c *ObjectAccessControlsDeleteCall) Fields(s ...googleapi.Field) *ObjectAcc
 	return c
 }
 
-func (c *ObjectAccessControlsDeleteCall) Do() error {
+func (c *ObjectAccessControlsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["generation"]; ok {
 		params.Set("generation", fmt.Sprintf("%v", v))
 	}
@@ -2869,7 +3083,11 @@ func (c *ObjectAccessControlsDeleteCall) Do() error {
 		"entity": c.entity,
 	})
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *ObjectAccessControlsDeleteCall) Do() error {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return err
 	}
@@ -2907,7 +3125,7 @@ func (c *ObjectAccessControlsDeleteCall) Do() error {
 	//       "type": "string"
 	//     },
 	//     "object": {
-	//       "description": "Name of the object.",
+	//       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
 	//       "type": "string"
@@ -2957,10 +3175,10 @@ func (c *ObjectAccessControlsGetCall) Fields(s ...googleapi.Field) *ObjectAccess
 	return c
 }
 
-func (c *ObjectAccessControlsGetCall) Do() (*ObjectAccessControl, error) {
+func (c *ObjectAccessControlsGetCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["generation"]; ok {
 		params.Set("generation", fmt.Sprintf("%v", v))
 	}
@@ -2976,7 +3194,11 @@ func (c *ObjectAccessControlsGetCall) Do() (*ObjectAccessControl, error) {
 		"entity": c.entity,
 	})
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *ObjectAccessControlsGetCall) Do() (*ObjectAccessControl, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -3018,7 +3240,7 @@ func (c *ObjectAccessControlsGetCall) Do() (*ObjectAccessControl, error) {
 	//       "type": "string"
 	//     },
 	//     "object": {
-	//       "description": "Name of the object.",
+	//       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
 	//       "type": "string"
@@ -3070,7 +3292,7 @@ func (c *ObjectAccessControlsInsertCall) Fields(s ...googleapi.Field) *ObjectAcc
 	return c
 }
 
-func (c *ObjectAccessControlsInsertCall) Do() (*ObjectAccessControl, error) {
+func (c *ObjectAccessControlsInsertCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.objectaccesscontrol)
 	if err != nil {
@@ -3078,7 +3300,7 @@ func (c *ObjectAccessControlsInsertCall) Do() (*ObjectAccessControl, error) {
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["generation"]; ok {
 		params.Set("generation", fmt.Sprintf("%v", v))
 	}
@@ -3094,7 +3316,11 @@ func (c *ObjectAccessControlsInsertCall) Do() (*ObjectAccessControl, error) {
 	})
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *ObjectAccessControlsInsertCall) Do() (*ObjectAccessControl, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -3129,7 +3355,7 @@ func (c *ObjectAccessControlsInsertCall) Do() (*ObjectAccessControl, error) {
 	//       "type": "string"
 	//     },
 	//     "object": {
-	//       "description": "Name of the object.",
+	//       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
 	//       "type": "string"
@@ -3182,10 +3408,10 @@ func (c *ObjectAccessControlsListCall) Fields(s ...googleapi.Field) *ObjectAcces
 	return c
 }
 
-func (c *ObjectAccessControlsListCall) Do() (*ObjectAccessControls, error) {
+func (c *ObjectAccessControlsListCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["generation"]; ok {
 		params.Set("generation", fmt.Sprintf("%v", v))
 	}
@@ -3200,7 +3426,11 @@ func (c *ObjectAccessControlsListCall) Do() (*ObjectAccessControls, error) {
 		"object": c.object,
 	})
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *ObjectAccessControlsListCall) Do() (*ObjectAccessControls, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -3235,7 +3465,7 @@ func (c *ObjectAccessControlsListCall) Do() (*ObjectAccessControls, error) {
 	//       "type": "string"
 	//     },
 	//     "object": {
-	//       "description": "Name of the object.",
+	//       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
 	//       "type": "string"
@@ -3290,7 +3520,7 @@ func (c *ObjectAccessControlsPatchCall) Fields(s ...googleapi.Field) *ObjectAcce
 	return c
 }
 
-func (c *ObjectAccessControlsPatchCall) Do() (*ObjectAccessControl, error) {
+func (c *ObjectAccessControlsPatchCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.objectaccesscontrol)
 	if err != nil {
@@ -3298,7 +3528,7 @@ func (c *ObjectAccessControlsPatchCall) Do() (*ObjectAccessControl, error) {
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["generation"]; ok {
 		params.Set("generation", fmt.Sprintf("%v", v))
 	}
@@ -3315,7 +3545,11 @@ func (c *ObjectAccessControlsPatchCall) Do() (*ObjectAccessControl, error) {
 	})
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *ObjectAccessControlsPatchCall) Do() (*ObjectAccessControl, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -3357,7 +3591,7 @@ func (c *ObjectAccessControlsPatchCall) Do() (*ObjectAccessControl, error) {
 	//       "type": "string"
 	//     },
 	//     "object": {
-	//       "description": "Name of the object.",
+	//       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
 	//       "type": "string"
@@ -3414,7 +3648,7 @@ func (c *ObjectAccessControlsUpdateCall) Fields(s ...googleapi.Field) *ObjectAcc
 	return c
 }
 
-func (c *ObjectAccessControlsUpdateCall) Do() (*ObjectAccessControl, error) {
+func (c *ObjectAccessControlsUpdateCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.objectaccesscontrol)
 	if err != nil {
@@ -3422,7 +3656,7 @@ func (c *ObjectAccessControlsUpdateCall) Do() (*ObjectAccessControl, error) {
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["generation"]; ok {
 		params.Set("generation", fmt.Sprintf("%v", v))
 	}
@@ -3439,7 +3673,11 @@ func (c *ObjectAccessControlsUpdateCall) Do() (*ObjectAccessControl, error) {
 	})
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *ObjectAccessControlsUpdateCall) Do() (*ObjectAccessControl, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -3481,7 +3719,7 @@ func (c *ObjectAccessControlsUpdateCall) Do() (*ObjectAccessControl, error) {
 	//       "type": "string"
 	//     },
 	//     "object": {
-	//       "description": "Name of the object.",
+	//       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
 	//       "type": "string"
@@ -3524,6 +3762,19 @@ func (r *ObjectsService) Compose(destinationBucket string, destinationObject str
 // DestinationPredefinedAcl sets the optional parameter
 // "destinationPredefinedAcl": Apply a predefined set of access controls
 // to the destination object.
+//
+// Possible values:
+//   "authenticatedRead" - Object owner gets OWNER access, and
+// allAuthenticatedUsers get READER access.
+//   "bucketOwnerFullControl" - Object owner gets OWNER access, and
+// project team owners get OWNER access.
+//   "bucketOwnerRead" - Object owner gets OWNER access, and project
+// team owners get READER access.
+//   "private" - Object owner gets OWNER access.
+//   "projectPrivate" - Object owner gets OWNER access, and project team
+// members get access according to their roles.
+//   "publicRead" - Object owner gets OWNER access, and allUsers get
+// READER access.
 func (c *ObjectsComposeCall) DestinationPredefinedAcl(destinationPredefinedAcl string) *ObjectsComposeCall {
 	c.opt_["destinationPredefinedAcl"] = destinationPredefinedAcl
 	return c
@@ -3553,7 +3804,7 @@ func (c *ObjectsComposeCall) Fields(s ...googleapi.Field) *ObjectsComposeCall {
 	return c
 }
 
-func (c *ObjectsComposeCall) Do() (*Object, error) {
+func (c *ObjectsComposeCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.composerequest)
 	if err != nil {
@@ -3561,7 +3812,7 @@ func (c *ObjectsComposeCall) Do() (*Object, error) {
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["destinationPredefinedAcl"]; ok {
 		params.Set("destinationPredefinedAcl", fmt.Sprintf("%v", v))
 	}
@@ -3583,7 +3834,26 @@ func (c *ObjectsComposeCall) Do() (*Object, error) {
 	})
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+// Download fetches the API endpoint's "media" value, instead of the normal
+// API response value. If the returned error is nil, the Response is guaranteed to
+// have a 2xx status code. Callers must close the Response.Body as usual.
+func (c *ObjectsComposeCall) Download() (*http.Response, error) {
+	res, err := c.doRequest("media")
+	if err != nil {
+		return nil, err
+	}
+	if err := googleapi.CheckMediaResponse(res); err != nil {
+		res.Body.Close()
+		return nil, err
+	}
+	return res, nil
+}
+
+func (c *ObjectsComposeCall) Do() (*Object, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -3612,7 +3882,7 @@ func (c *ObjectsComposeCall) Do() (*Object, error) {
 	//       "type": "string"
 	//     },
 	//     "destinationObject": {
-	//       "description": "Name of the new object.",
+	//       "description": "Name of the new object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
 	//       "type": "string"
@@ -3680,8 +3950,8 @@ type ObjectsCopyCall struct {
 	opt_              map[string]interface{}
 }
 
-// Copy: Copies an object to a specified location. Optionally overrides
-// metadata.
+// Copy: Copies a source object to a destination object. Optionally
+// overrides metadata.
 func (r *ObjectsService) Copy(sourceBucket string, sourceObject string, destinationBucket string, destinationObject string, object *Object) *ObjectsCopyCall {
 	c := &ObjectsCopyCall{s: r.s, opt_: make(map[string]interface{})}
 	c.sourceBucket = sourceBucket
@@ -3695,6 +3965,19 @@ func (r *ObjectsService) Copy(sourceBucket string, sourceObject string, destinat
 // DestinationPredefinedAcl sets the optional parameter
 // "destinationPredefinedAcl": Apply a predefined set of access controls
 // to the destination object.
+//
+// Possible values:
+//   "authenticatedRead" - Object owner gets OWNER access, and
+// allAuthenticatedUsers get READER access.
+//   "bucketOwnerFullControl" - Object owner gets OWNER access, and
+// project team owners get OWNER access.
+//   "bucketOwnerRead" - Object owner gets OWNER access, and project
+// team owners get READER access.
+//   "private" - Object owner gets OWNER access.
+//   "projectPrivate" - Object owner gets OWNER access, and project team
+// members get access according to their roles.
+//   "publicRead" - Object owner gets OWNER access, and allUsers get
+// READER access.
 func (c *ObjectsCopyCall) DestinationPredefinedAcl(destinationPredefinedAcl string) *ObjectsCopyCall {
 	c.opt_["destinationPredefinedAcl"] = destinationPredefinedAcl
 	return c
@@ -3773,6 +4056,10 @@ func (c *ObjectsCopyCall) IfSourceMetagenerationNotMatch(ifSourceMetagenerationN
 // Projection sets the optional parameter "projection": Set of
 // properties to return. Defaults to noAcl, unless the object resource
 // specifies the acl property, when it defaults to full.
+//
+// Possible values:
+//   "full" - Include all properties.
+//   "noAcl" - Omit the acl property.
 func (c *ObjectsCopyCall) Projection(projection string) *ObjectsCopyCall {
 	c.opt_["projection"] = projection
 	return c
@@ -3794,7 +4081,7 @@ func (c *ObjectsCopyCall) Fields(s ...googleapi.Field) *ObjectsCopyCall {
 	return c
 }
 
-func (c *ObjectsCopyCall) Do() (*Object, error) {
+func (c *ObjectsCopyCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.object)
 	if err != nil {
@@ -3802,7 +4089,7 @@ func (c *ObjectsCopyCall) Do() (*Object, error) {
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["destinationPredefinedAcl"]; ok {
 		params.Set("destinationPredefinedAcl", fmt.Sprintf("%v", v))
 	}
@@ -3850,7 +4137,26 @@ func (c *ObjectsCopyCall) Do() (*Object, error) {
 	})
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+// Download fetches the API endpoint's "media" value, instead of the normal
+// API response value. If the returned error is nil, the Response is guaranteed to
+// have a 2xx status code. Callers must close the Response.Body as usual.
+func (c *ObjectsCopyCall) Download() (*http.Response, error) {
+	res, err := c.doRequest("media")
+	if err != nil {
+		return nil, err
+	}
+	if err := googleapi.CheckMediaResponse(res); err != nil {
+		res.Body.Close()
+		return nil, err
+	}
+	return res, nil
+}
+
+func (c *ObjectsCopyCall) Do() (*Object, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -3864,7 +4170,7 @@ func (c *ObjectsCopyCall) Do() (*Object, error) {
 	}
 	return ret, nil
 	// {
-	//   "description": "Copies an object to a specified location. Optionally overrides metadata.",
+	//   "description": "Copies a source object to a destination object. Optionally overrides metadata.",
 	//   "httpMethod": "POST",
 	//   "id": "storage.objects.copy",
 	//   "parameterOrder": [
@@ -3875,7 +4181,7 @@ func (c *ObjectsCopyCall) Do() (*Object, error) {
 	//   ],
 	//   "parameters": {
 	//     "destinationBucket": {
-	//       "description": "Name of the bucket in which to store the new object. Overrides the provided object metadata's bucket value, if any.",
+	//       "description": "Name of the bucket in which to store the new object. Overrides the provided object metadata's bucket value, if any.For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
 	//       "type": "string"
@@ -3981,7 +4287,7 @@ func (c *ObjectsCopyCall) Do() (*Object, error) {
 	//       "type": "string"
 	//     },
 	//     "sourceObject": {
-	//       "description": "Name of the source object.",
+	//       "description": "Name of the source object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
 	//       "type": "string"
@@ -4072,10 +4378,10 @@ func (c *ObjectsDeleteCall) Fields(s ...googleapi.Field) *ObjectsDeleteCall {
 	return c
 }
 
-func (c *ObjectsDeleteCall) Do() error {
+func (c *ObjectsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["generation"]; ok {
 		params.Set("generation", fmt.Sprintf("%v", v))
 	}
@@ -4102,7 +4408,11 @@ func (c *ObjectsDeleteCall) Do() error {
 		"object": c.object,
 	})
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *ObjectsDeleteCall) Do() error {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return err
 	}
@@ -4157,7 +4467,7 @@ func (c *ObjectsDeleteCall) Do() error {
 	//       "type": "string"
 	//     },
 	//     "object": {
-	//       "description": "Name of the object.",
+	//       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
 	//       "type": "string"
@@ -4233,6 +4543,10 @@ func (c *ObjectsGetCall) IfMetagenerationNotMatch(ifMetagenerationNotMatch int64
 
 // Projection sets the optional parameter "projection": Set of
 // properties to return. Defaults to noAcl.
+//
+// Possible values:
+//   "full" - Include all properties.
+//   "noAcl" - Omit the acl property.
 func (c *ObjectsGetCall) Projection(projection string) *ObjectsGetCall {
 	c.opt_["projection"] = projection
 	return c
@@ -4246,10 +4560,10 @@ func (c *ObjectsGetCall) Fields(s ...googleapi.Field) *ObjectsGetCall {
 	return c
 }
 
-func (c *ObjectsGetCall) Do() (*Object, error) {
+func (c *ObjectsGetCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["generation"]; ok {
 		params.Set("generation", fmt.Sprintf("%v", v))
 	}
@@ -4279,7 +4593,26 @@ func (c *ObjectsGetCall) Do() (*Object, error) {
 		"object": c.object,
 	})
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+// Download fetches the API endpoint's "media" value, instead of the normal
+// API response value. If the returned error is nil, the Response is guaranteed to
+// have a 2xx status code. Callers must close the Response.Body as usual.
+func (c *ObjectsGetCall) Download() (*http.Response, error) {
+	res, err := c.doRequest("media")
+	if err != nil {
+		return nil, err
+	}
+	if err := googleapi.CheckMediaResponse(res); err != nil {
+		res.Body.Close()
+		return nil, err
+	}
+	return res, nil
+}
+
+func (c *ObjectsGetCall) Do() (*Object, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -4338,7 +4671,7 @@ func (c *ObjectsGetCall) Do() (*Object, error) {
 	//       "type": "string"
 	//     },
 	//     "object": {
-	//       "description": "Name of the object.",
+	//       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
 	//       "type": "string"
@@ -4363,6 +4696,7 @@ func (c *ObjectsGetCall) Do() (*Object, error) {
 	//   },
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/cloud-platform.read-only",
 	//     "https://www.googleapis.com/auth/devstorage.full_control",
 	//     "https://www.googleapis.com/auth/devstorage.read_only",
 	//     "https://www.googleapis.com/auth/devstorage.read_write"
@@ -4440,7 +4774,8 @@ func (c *ObjectsInsertCall) IfMetagenerationNotMatch(ifMetagenerationNotMatch in
 
 // Name sets the optional parameter "name": Name of the object. Required
 // when the object metadata is not otherwise provided. Overrides the
-// object metadata's name value, if any.
+// object metadata's name value, if any. For information about how to
+// URL encode object names to be path safe, see Encoding URI Path Parts.
 func (c *ObjectsInsertCall) Name(name string) *ObjectsInsertCall {
 	c.opt_["name"] = name
 	return c
@@ -4448,6 +4783,19 @@ func (c *ObjectsInsertCall) Name(name string) *ObjectsInsertCall {
 
 // PredefinedAcl sets the optional parameter "predefinedAcl": Apply a
 // predefined set of access controls to this object.
+//
+// Possible values:
+//   "authenticatedRead" - Object owner gets OWNER access, and
+// allAuthenticatedUsers get READER access.
+//   "bucketOwnerFullControl" - Object owner gets OWNER access, and
+// project team owners get OWNER access.
+//   "bucketOwnerRead" - Object owner gets OWNER access, and project
+// team owners get READER access.
+//   "private" - Object owner gets OWNER access.
+//   "projectPrivate" - Object owner gets OWNER access, and project team
+// members get access according to their roles.
+//   "publicRead" - Object owner gets OWNER access, and allUsers get
+// READER access.
 func (c *ObjectsInsertCall) PredefinedAcl(predefinedAcl string) *ObjectsInsertCall {
 	c.opt_["predefinedAcl"] = predefinedAcl
 	return c
@@ -4456,6 +4804,10 @@ func (c *ObjectsInsertCall) PredefinedAcl(predefinedAcl string) *ObjectsInsertCa
 // Projection sets the optional parameter "projection": Set of
 // properties to return. Defaults to noAcl, unless the object resource
 // specifies the acl property, when it defaults to full.
+//
+// Possible values:
+//   "full" - Include all properties.
+//   "noAcl" - Omit the acl property.
 func (c *ObjectsInsertCall) Projection(projection string) *ObjectsInsertCall {
 	c.opt_["projection"] = projection
 	return c
@@ -4497,7 +4849,7 @@ func (c *ObjectsInsertCall) Fields(s ...googleapi.Field) *ObjectsInsertCall {
 	return c
 }
 
-func (c *ObjectsInsertCall) Do() (*Object, error) {
+func (c *ObjectsInsertCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.object)
 	if err != nil {
@@ -4505,7 +4857,7 @@ func (c *ObjectsInsertCall) Do() (*Object, error) {
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["contentEncoding"]; ok {
 		params.Set("contentEncoding", fmt.Sprintf("%v", v))
 	}
@@ -4534,12 +4886,6 @@ func (c *ObjectsInsertCall) Do() (*Object, error) {
 		params.Set("fields", fmt.Sprintf("%v", v))
 	}
 	urls := googleapi.ResolveRelative(c.s.BasePath, "b/{bucket}/o")
-	var progressUpdater_ googleapi.ProgressUpdater
-	if v, ok := c.opt_["progressUpdater"]; ok {
-		if pu, ok := v.(googleapi.ProgressUpdater); ok {
-			progressUpdater_ = pu
-		}
-	}
 	if c.media_ != nil || c.resumable_ != nil {
 		urls = strings.Replace(urls, "https://www.googleapis.com/", "https://www.googleapis.com/upload/", 1)
 		params.Set("uploadType", c.protocol_)
@@ -4557,23 +4903,32 @@ func (c *ObjectsInsertCall) Do() (*Object, error) {
 		"bucket": c.bucket,
 	})
 	if c.protocol_ == "resumable" {
-		req.ContentLength = 0
 		if c.mediaType_ == "" {
 			c.mediaType_ = googleapi.DetectMediaType(c.resumable_)
 		}
 		req.Header.Set("X-Upload-Content-Type", c.mediaType_)
-		req.Body = nil
+		req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	} else {
 		req.Header.Set("Content-Type", ctype)
 	}
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *ObjectsInsertCall) Do() (*Object, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
 	defer googleapi.CloseBody(res)
 	if err := googleapi.CheckResponse(res); err != nil {
 		return nil, err
+	}
+	var progressUpdater_ googleapi.ProgressUpdater
+	if v, ok := c.opt_["progressUpdater"]; ok {
+		if pu, ok := v.(googleapi.ProgressUpdater); ok {
+			progressUpdater_ = pu
+		}
 	}
 	if c.protocol_ == "resumable" {
 		loc := res.Header.Get("Location")
@@ -4656,7 +5011,7 @@ func (c *ObjectsInsertCall) Do() (*Object, error) {
 	//       "type": "string"
 	//     },
 	//     "name": {
-	//       "description": "Name of the object. Required when the object metadata is not otherwise provided. Overrides the object metadata's name value, if any.",
+	//       "description": "Name of the object. Required when the object metadata is not otherwise provided. Overrides the object metadata's name value, if any. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
@@ -4741,7 +5096,8 @@ func (c *ObjectsListCall) Delimiter(delimiter string) *ObjectsListCall {
 
 // MaxResults sets the optional parameter "maxResults": Maximum number
 // of items plus prefixes to return. As duplicate prefixes are omitted,
-// fewer total results may be returned than requested.
+// fewer total results may be returned than requested. The default value
+// of this parameter is 1,000 items.
 func (c *ObjectsListCall) MaxResults(maxResults int64) *ObjectsListCall {
 	c.opt_["maxResults"] = maxResults
 	return c
@@ -4764,13 +5120,18 @@ func (c *ObjectsListCall) Prefix(prefix string) *ObjectsListCall {
 
 // Projection sets the optional parameter "projection": Set of
 // properties to return. Defaults to noAcl.
+//
+// Possible values:
+//   "full" - Include all properties.
+//   "noAcl" - Omit the acl property.
 func (c *ObjectsListCall) Projection(projection string) *ObjectsListCall {
 	c.opt_["projection"] = projection
 	return c
 }
 
 // Versions sets the optional parameter "versions": If true, lists all
-// versions of a file as distinct results.
+// versions of an object as distinct results. The default is false. For
+// more information, see Object Versioning.
 func (c *ObjectsListCall) Versions(versions bool) *ObjectsListCall {
 	c.opt_["versions"] = versions
 	return c
@@ -4784,10 +5145,10 @@ func (c *ObjectsListCall) Fields(s ...googleapi.Field) *ObjectsListCall {
 	return c
 }
 
-func (c *ObjectsListCall) Do() (*Objects, error) {
+func (c *ObjectsListCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["delimiter"]; ok {
 		params.Set("delimiter", fmt.Sprintf("%v", v))
 	}
@@ -4816,7 +5177,11 @@ func (c *ObjectsListCall) Do() (*Objects, error) {
 		"bucket": c.bucket,
 	})
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *ObjectsListCall) Do() (*Objects, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -4849,7 +5214,7 @@ func (c *ObjectsListCall) Do() (*Objects, error) {
 	//       "type": "string"
 	//     },
 	//     "maxResults": {
-	//       "description": "Maximum number of items plus prefixes to return. As duplicate prefixes are omitted, fewer total results may be returned than requested.",
+	//       "description": "Maximum number of items plus prefixes to return. As duplicate prefixes are omitted, fewer total results may be returned than requested. The default value of this parameter is 1,000 items.",
 	//       "format": "uint32",
 	//       "location": "query",
 	//       "minimum": "0",
@@ -4879,7 +5244,7 @@ func (c *ObjectsListCall) Do() (*Objects, error) {
 	//       "type": "string"
 	//     },
 	//     "versions": {
-	//       "description": "If true, lists all versions of a file as distinct results.",
+	//       "description": "If true, lists all versions of an object as distinct results. The default is false. For more information, see Object Versioning.",
 	//       "location": "query",
 	//       "type": "boolean"
 	//     }
@@ -4890,6 +5255,7 @@ func (c *ObjectsListCall) Do() (*Objects, error) {
 	//   },
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/cloud-platform.read-only",
 	//     "https://www.googleapis.com/auth/devstorage.full_control",
 	//     "https://www.googleapis.com/auth/devstorage.read_only",
 	//     "https://www.googleapis.com/auth/devstorage.read_write"
@@ -4962,6 +5328,19 @@ func (c *ObjectsPatchCall) IfMetagenerationNotMatch(ifMetagenerationNotMatch int
 
 // PredefinedAcl sets the optional parameter "predefinedAcl": Apply a
 // predefined set of access controls to this object.
+//
+// Possible values:
+//   "authenticatedRead" - Object owner gets OWNER access, and
+// allAuthenticatedUsers get READER access.
+//   "bucketOwnerFullControl" - Object owner gets OWNER access, and
+// project team owners get OWNER access.
+//   "bucketOwnerRead" - Object owner gets OWNER access, and project
+// team owners get READER access.
+//   "private" - Object owner gets OWNER access.
+//   "projectPrivate" - Object owner gets OWNER access, and project team
+// members get access according to their roles.
+//   "publicRead" - Object owner gets OWNER access, and allUsers get
+// READER access.
 func (c *ObjectsPatchCall) PredefinedAcl(predefinedAcl string) *ObjectsPatchCall {
 	c.opt_["predefinedAcl"] = predefinedAcl
 	return c
@@ -4969,6 +5348,10 @@ func (c *ObjectsPatchCall) PredefinedAcl(predefinedAcl string) *ObjectsPatchCall
 
 // Projection sets the optional parameter "projection": Set of
 // properties to return. Defaults to full.
+//
+// Possible values:
+//   "full" - Include all properties.
+//   "noAcl" - Omit the acl property.
 func (c *ObjectsPatchCall) Projection(projection string) *ObjectsPatchCall {
 	c.opt_["projection"] = projection
 	return c
@@ -4982,7 +5365,7 @@ func (c *ObjectsPatchCall) Fields(s ...googleapi.Field) *ObjectsPatchCall {
 	return c
 }
 
-func (c *ObjectsPatchCall) Do() (*Object, error) {
+func (c *ObjectsPatchCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.object2)
 	if err != nil {
@@ -4990,7 +5373,7 @@ func (c *ObjectsPatchCall) Do() (*Object, error) {
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["generation"]; ok {
 		params.Set("generation", fmt.Sprintf("%v", v))
 	}
@@ -5024,7 +5407,11 @@ func (c *ObjectsPatchCall) Do() (*Object, error) {
 	})
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *ObjectsPatchCall) Do() (*Object, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -5083,7 +5470,7 @@ func (c *ObjectsPatchCall) Do() (*Object, error) {
 	//       "type": "string"
 	//     },
 	//     "object": {
-	//       "description": "Name of the object.",
+	//       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
 	//       "type": "string"
@@ -5166,6 +5553,19 @@ func (r *ObjectsService) Rewrite(sourceBucket string, sourceObject string, desti
 // DestinationPredefinedAcl sets the optional parameter
 // "destinationPredefinedAcl": Apply a predefined set of access controls
 // to the destination object.
+//
+// Possible values:
+//   "authenticatedRead" - Object owner gets OWNER access, and
+// allAuthenticatedUsers get READER access.
+//   "bucketOwnerFullControl" - Object owner gets OWNER access, and
+// project team owners get OWNER access.
+//   "bucketOwnerRead" - Object owner gets OWNER access, and project
+// team owners get READER access.
+//   "private" - Object owner gets OWNER access.
+//   "projectPrivate" - Object owner gets OWNER access, and project team
+// members get access according to their roles.
+//   "publicRead" - Object owner gets OWNER access, and allUsers get
+// READER access.
 func (c *ObjectsRewriteCall) DestinationPredefinedAcl(destinationPredefinedAcl string) *ObjectsRewriteCall {
 	c.opt_["destinationPredefinedAcl"] = destinationPredefinedAcl
 	return c
@@ -5243,13 +5643,13 @@ func (c *ObjectsRewriteCall) IfSourceMetagenerationNotMatch(ifSourceMetagenerati
 
 // MaxBytesRewrittenPerCall sets the optional parameter
 // "maxBytesRewrittenPerCall": The maximum number of bytes that will be
-// rewritten per Rewrite request. Most callers shouldn't need to specify
+// rewritten per rewrite request. Most callers shouldn't need to specify
 // this parameter - it is primarily in place to support testing. If
 // specified the value must be an integral multiple of 1 MiB (1048576).
 // Also, this only applies to requests where the source and destination
 // span locations and/or storage classes. Finally, this value must not
-// change across Rewrite calls else you'll get an error that the rewrite
-// token is invalid.
+// change across rewrite calls else you'll get an error that the
+// rewriteToken is invalid.
 func (c *ObjectsRewriteCall) MaxBytesRewrittenPerCall(maxBytesRewrittenPerCall int64) *ObjectsRewriteCall {
 	c.opt_["maxBytesRewrittenPerCall"] = maxBytesRewrittenPerCall
 	return c
@@ -5258,14 +5658,18 @@ func (c *ObjectsRewriteCall) MaxBytesRewrittenPerCall(maxBytesRewrittenPerCall i
 // Projection sets the optional parameter "projection": Set of
 // properties to return. Defaults to noAcl, unless the object resource
 // specifies the acl property, when it defaults to full.
+//
+// Possible values:
+//   "full" - Include all properties.
+//   "noAcl" - Omit the acl property.
 func (c *ObjectsRewriteCall) Projection(projection string) *ObjectsRewriteCall {
 	c.opt_["projection"] = projection
 	return c
 }
 
 // RewriteToken sets the optional parameter "rewriteToken": Include this
-// field (from the previous Rewrite response) on each Rewrite request
-// after the first one, until the Rewrite response 'done' flag is true.
+// field (from the previous rewrite response) on each rewrite request
+// after the first one, until the rewrite response 'done' flag is true.
 // Calls that provide a rewriteToken can omit all other request fields,
 // but if included those fields must match the values provided in the
 // first rewrite request.
@@ -5290,7 +5694,7 @@ func (c *ObjectsRewriteCall) Fields(s ...googleapi.Field) *ObjectsRewriteCall {
 	return c
 }
 
-func (c *ObjectsRewriteCall) Do() (*RewriteResponse, error) {
+func (c *ObjectsRewriteCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.object)
 	if err != nil {
@@ -5298,7 +5702,7 @@ func (c *ObjectsRewriteCall) Do() (*RewriteResponse, error) {
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["destinationPredefinedAcl"]; ok {
 		params.Set("destinationPredefinedAcl", fmt.Sprintf("%v", v))
 	}
@@ -5352,7 +5756,11 @@ func (c *ObjectsRewriteCall) Do() (*RewriteResponse, error) {
 	})
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *ObjectsRewriteCall) Do() (*RewriteResponse, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -5383,7 +5791,7 @@ func (c *ObjectsRewriteCall) Do() (*RewriteResponse, error) {
 	//       "type": "string"
 	//     },
 	//     "destinationObject": {
-	//       "description": "Name of the new object. Required when the object metadata is not otherwise provided. Overrides the object metadata's name value, if any.",
+	//       "description": "Name of the new object. Required when the object metadata is not otherwise provided. Overrides the object metadata's name value, if any. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
 	//       "type": "string"
@@ -5458,7 +5866,7 @@ func (c *ObjectsRewriteCall) Do() (*RewriteResponse, error) {
 	//       "type": "string"
 	//     },
 	//     "maxBytesRewrittenPerCall": {
-	//       "description": "The maximum number of bytes that will be rewritten per Rewrite request. Most callers shouldn't need to specify this parameter - it is primarily in place to support testing. If specified the value must be an integral multiple of 1 MiB (1048576). Also, this only applies to requests where the source and destination span locations and/or storage classes. Finally, this value must not change across Rewrite calls else you'll get an error that the rewrite token is invalid.",
+	//       "description": "The maximum number of bytes that will be rewritten per rewrite request. Most callers shouldn't need to specify this parameter - it is primarily in place to support testing. If specified the value must be an integral multiple of 1 MiB (1048576). Also, this only applies to requests where the source and destination span locations and/or storage classes. Finally, this value must not change across rewrite calls else you'll get an error that the rewriteToken is invalid.",
 	//       "format": "int64",
 	//       "location": "query",
 	//       "type": "string"
@@ -5477,7 +5885,7 @@ func (c *ObjectsRewriteCall) Do() (*RewriteResponse, error) {
 	//       "type": "string"
 	//     },
 	//     "rewriteToken": {
-	//       "description": "Include this field (from the previous Rewrite response) on each Rewrite request after the first one, until the Rewrite response 'done' flag is true. Calls that provide a rewriteToken can omit all other request fields, but if included those fields must match the values provided in the first rewrite request.",
+	//       "description": "Include this field (from the previous rewrite response) on each rewrite request after the first one, until the rewrite response 'done' flag is true. Calls that provide a rewriteToken can omit all other request fields, but if included those fields must match the values provided in the first rewrite request.",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
@@ -5494,7 +5902,7 @@ func (c *ObjectsRewriteCall) Do() (*RewriteResponse, error) {
 	//       "type": "string"
 	//     },
 	//     "sourceObject": {
-	//       "description": "Name of the source object.",
+	//       "description": "Name of the source object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
 	//       "type": "string"
@@ -5578,6 +5986,19 @@ func (c *ObjectsUpdateCall) IfMetagenerationNotMatch(ifMetagenerationNotMatch in
 
 // PredefinedAcl sets the optional parameter "predefinedAcl": Apply a
 // predefined set of access controls to this object.
+//
+// Possible values:
+//   "authenticatedRead" - Object owner gets OWNER access, and
+// allAuthenticatedUsers get READER access.
+//   "bucketOwnerFullControl" - Object owner gets OWNER access, and
+// project team owners get OWNER access.
+//   "bucketOwnerRead" - Object owner gets OWNER access, and project
+// team owners get READER access.
+//   "private" - Object owner gets OWNER access.
+//   "projectPrivate" - Object owner gets OWNER access, and project team
+// members get access according to their roles.
+//   "publicRead" - Object owner gets OWNER access, and allUsers get
+// READER access.
 func (c *ObjectsUpdateCall) PredefinedAcl(predefinedAcl string) *ObjectsUpdateCall {
 	c.opt_["predefinedAcl"] = predefinedAcl
 	return c
@@ -5585,6 +6006,10 @@ func (c *ObjectsUpdateCall) PredefinedAcl(predefinedAcl string) *ObjectsUpdateCa
 
 // Projection sets the optional parameter "projection": Set of
 // properties to return. Defaults to full.
+//
+// Possible values:
+//   "full" - Include all properties.
+//   "noAcl" - Omit the acl property.
 func (c *ObjectsUpdateCall) Projection(projection string) *ObjectsUpdateCall {
 	c.opt_["projection"] = projection
 	return c
@@ -5598,7 +6023,7 @@ func (c *ObjectsUpdateCall) Fields(s ...googleapi.Field) *ObjectsUpdateCall {
 	return c
 }
 
-func (c *ObjectsUpdateCall) Do() (*Object, error) {
+func (c *ObjectsUpdateCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.object2)
 	if err != nil {
@@ -5606,7 +6031,7 @@ func (c *ObjectsUpdateCall) Do() (*Object, error) {
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["generation"]; ok {
 		params.Set("generation", fmt.Sprintf("%v", v))
 	}
@@ -5640,7 +6065,26 @@ func (c *ObjectsUpdateCall) Do() (*Object, error) {
 	})
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+// Download fetches the API endpoint's "media" value, instead of the normal
+// API response value. If the returned error is nil, the Response is guaranteed to
+// have a 2xx status code. Callers must close the Response.Body as usual.
+func (c *ObjectsUpdateCall) Download() (*http.Response, error) {
+	res, err := c.doRequest("media")
+	if err != nil {
+		return nil, err
+	}
+	if err := googleapi.CheckMediaResponse(res); err != nil {
+		res.Body.Close()
+		return nil, err
+	}
+	return res, nil
+}
+
+func (c *ObjectsUpdateCall) Do() (*Object, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -5699,7 +6143,7 @@ func (c *ObjectsUpdateCall) Do() (*Object, error) {
 	//       "type": "string"
 	//     },
 	//     "object": {
-	//       "description": "Name of the object.",
+	//       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
 	//       "type": "string"
@@ -5786,7 +6230,8 @@ func (c *ObjectsWatchAllCall) Delimiter(delimiter string) *ObjectsWatchAllCall {
 
 // MaxResults sets the optional parameter "maxResults": Maximum number
 // of items plus prefixes to return. As duplicate prefixes are omitted,
-// fewer total results may be returned than requested.
+// fewer total results may be returned than requested. The default value
+// of this parameter is 1,000 items.
 func (c *ObjectsWatchAllCall) MaxResults(maxResults int64) *ObjectsWatchAllCall {
 	c.opt_["maxResults"] = maxResults
 	return c
@@ -5809,13 +6254,18 @@ func (c *ObjectsWatchAllCall) Prefix(prefix string) *ObjectsWatchAllCall {
 
 // Projection sets the optional parameter "projection": Set of
 // properties to return. Defaults to noAcl.
+//
+// Possible values:
+//   "full" - Include all properties.
+//   "noAcl" - Omit the acl property.
 func (c *ObjectsWatchAllCall) Projection(projection string) *ObjectsWatchAllCall {
 	c.opt_["projection"] = projection
 	return c
 }
 
 // Versions sets the optional parameter "versions": If true, lists all
-// versions of a file as distinct results.
+// versions of an object as distinct results. The default is false. For
+// more information, see Object Versioning.
 func (c *ObjectsWatchAllCall) Versions(versions bool) *ObjectsWatchAllCall {
 	c.opt_["versions"] = versions
 	return c
@@ -5829,7 +6279,7 @@ func (c *ObjectsWatchAllCall) Fields(s ...googleapi.Field) *ObjectsWatchAllCall 
 	return c
 }
 
-func (c *ObjectsWatchAllCall) Do() (*Channel, error) {
+func (c *ObjectsWatchAllCall) doRequest(alt string) (*http.Response, error) {
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.channel)
 	if err != nil {
@@ -5837,7 +6287,7 @@ func (c *ObjectsWatchAllCall) Do() (*Channel, error) {
 	}
 	ctype := "application/json"
 	params := make(url.Values)
-	params.Set("alt", "json")
+	params.Set("alt", alt)
 	if v, ok := c.opt_["delimiter"]; ok {
 		params.Set("delimiter", fmt.Sprintf("%v", v))
 	}
@@ -5867,7 +6317,11 @@ func (c *ObjectsWatchAllCall) Do() (*Channel, error) {
 	})
 	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("User-Agent", c.s.userAgent())
-	res, err := c.s.client.Do(req)
+	return c.s.client.Do(req)
+}
+
+func (c *ObjectsWatchAllCall) Do() (*Channel, error) {
+	res, err := c.doRequest("json")
 	if err != nil {
 		return nil, err
 	}
@@ -5900,7 +6354,7 @@ func (c *ObjectsWatchAllCall) Do() (*Channel, error) {
 	//       "type": "string"
 	//     },
 	//     "maxResults": {
-	//       "description": "Maximum number of items plus prefixes to return. As duplicate prefixes are omitted, fewer total results may be returned than requested.",
+	//       "description": "Maximum number of items plus prefixes to return. As duplicate prefixes are omitted, fewer total results may be returned than requested. The default value of this parameter is 1,000 items.",
 	//       "format": "uint32",
 	//       "location": "query",
 	//       "minimum": "0",
@@ -5930,7 +6384,7 @@ func (c *ObjectsWatchAllCall) Do() (*Channel, error) {
 	//       "type": "string"
 	//     },
 	//     "versions": {
-	//       "description": "If true, lists all versions of a file as distinct results.",
+	//       "description": "If true, lists all versions of an object as distinct results. The default is false. For more information, see Object Versioning.",
 	//       "location": "query",
 	//       "type": "boolean"
 	//     }
@@ -5945,6 +6399,7 @@ func (c *ObjectsWatchAllCall) Do() (*Channel, error) {
 	//   },
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/cloud-platform.read-only",
 	//     "https://www.googleapis.com/auth/devstorage.full_control",
 	//     "https://www.googleapis.com/auth/devstorage.read_only",
 	//     "https://www.googleapis.com/auth/devstorage.read_write"

@@ -4,7 +4,7 @@
 
 // Package googleapi contains the common code shared by all Google API
 // libraries.
-package googleapi
+package googleapi // import "google.golang.org/api/googleapi"
 
 import (
 	"bytes"
@@ -122,6 +122,21 @@ func CheckResponse(res *http.Response) error {
 			return jerr.Error
 		}
 	}
+	return &Error{
+		Code: res.StatusCode,
+		Body: string(slurp),
+	}
+}
+
+// CheckMediaResponse returns an error (of type *Error) if the response
+// status code is not 2xx. Unlike CheckResponse it does not assume the
+// body is a JSON error document.
+func CheckMediaResponse(res *http.Response) error {
+	if res.StatusCode >= 200 && res.StatusCode <= 299 {
+		return nil
+	}
+	slurp, _ := ioutil.ReadAll(io.LimitReader(res.Body, 1<<20))
+	res.Body.Close()
 	return &Error{
 		Code: res.StatusCode,
 		Body: string(slurp),
@@ -307,6 +322,7 @@ type ResumableUpload struct {
 
 	mu       sync.Mutex // guards progress
 	progress int64      // number of bytes uploaded so far
+	started  bool       // whether the upload has been started
 
 	// Callback is an optional function that will be called upon every progress update.
 	Callback ProgressUpdater
@@ -354,10 +370,16 @@ type chunk struct {
 }
 
 func (rx *ResumableUpload) transferChunks(ctx context.Context) (*http.Response, error) {
-	start, res, err := rx.transferStatus()
-	if err != nil || res.StatusCode != statusResumeIncomplete {
-		return res, err
+	var start int64
+	var err error
+	res := &http.Response{}
+	if rx.started {
+		start, res, err = rx.transferStatus()
+		if err != nil || res.StatusCode != statusResumeIncomplete {
+			return res, err
+		}
 	}
+	rx.started = true
 
 	for {
 		select { // Check for cancellation
