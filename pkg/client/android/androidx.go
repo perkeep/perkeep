@@ -48,14 +48,6 @@ import (
 // TODO(mpl): distinguish CAMPUT, CAMGET, etc
 var androidOutput, _ = strconv.ParseBool(os.Getenv("CAMPUT_ANDROID_OUTPUT"))
 
-// IsChild reports whether this process is running as an Android
-// child process and should report its output in the form that the
-// Android uploader app expects.
-func IsChild() bool {
-	memOnce.Do(startMemGoroutine)
-	return androidOutput
-}
-
 func PreExit() {
 	if !IsChild() {
 		return
@@ -82,11 +74,6 @@ func dirExists(f string) bool {
 func initOnAndroid() {
 	// Good enough heuristic. Suggestions welcome.
 	onAndroidCache = dirExists("/data/data") && dirExists("/system/etc")
-}
-
-func OnAndroid() bool {
-	detectOnce.Do(initOnAndroid)
-	return onAndroidCache
 }
 
 var pingRx = regexp.MustCompile(`\((.+?)\)`)

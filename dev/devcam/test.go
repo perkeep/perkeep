@@ -131,7 +131,9 @@ func (c *testCmd) buildSelf() error {
 func (c *testCmd) runTests(args []string) error {
 	targs := []string{"test"}
 	if !strings.HasSuffix(c.buildGoPath, "-nosqlite") {
-		targs = append(targs, "--tags=with_sqlite")
+		targs = append(targs, "--tags=with_sqlite fake_android")
+	} else {
+		targs = append(targs, "--tags=fake_android")
 	}
 	if c.short {
 		targs = append(targs, "-short")

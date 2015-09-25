@@ -295,8 +295,7 @@ func (c *Client) serverOrDefault() string {
 }
 
 func (c *Client) useTLS() bool {
-	// TODO(mpl): I think this might be wrong, because sometimes c.server is not the one being used?
-	return strings.HasPrefix(c.server, "https://")
+	return strings.HasPrefix(c.discoRoot(), "https://")
 }
 
 // SetupAuth sets the client's authMode. It tries from the environment first if we're on android or in dev mode, and then from the client configuration.
