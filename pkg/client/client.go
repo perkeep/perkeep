@@ -68,6 +68,7 @@ type Client struct {
 	storageGen     string      // storage generation, or "" if not reported
 	syncHandlers   []*SyncInfo // "from" and "to" url prefix for each syncHandler
 	serverKeyID    string      // Server's GPG public key ID.
+	helpRoot       string      // Handler prefix, or "" if none
 
 	signerOnce sync.Once
 	signer     *schema.Signer
@@ -347,6 +348,9 @@ func (c *Client) Stats() Stats {
 // ErrNoSearchRoot is returned by SearchRoot if the server doesn't support search.
 var ErrNoSearchRoot = errors.New("client: server doesn't support search")
 
+// ErrNoHelpRoot is returned by HelpRoot if the server doesn't have a help handler.
+var ErrNoHelpRoot = errors.New("client: server does not have a help handler")
+
 // ErrNoSigning is returned by ServerKeyID if the server doesn't support signing.
 var ErrNoSigning = fmt.Errorf("client: server doesn't support signing")
 
@@ -393,6 +397,19 @@ func (c *Client) SearchRoot() (string, error) {
 		return "", ErrNoSearchRoot
 	}
 	return c.searchRoot, nil
+}
+
+// HelpRoot returns the server's help handler.
+// If the server isn't running a help handler, the error will be
+// ErrNoHelpRoot.
+func (c *Client) HelpRoot() (string, error) {
+	if err := c.condDiscovery(); err != nil {
+		return "", err
+	}
+	if c.helpRoot == "" {
+		return "", ErrNoHelpRoot
+	}
+	return c.helpRoot, nil
 }
 
 // StorageGeneration returns the server's unique ID for its storage
@@ -731,6 +748,12 @@ func (c *Client) doDiscovery() error {
 		return fmt.Errorf("client: invalid searchRoot %q; failed to resolve", disco.SearchRoot)
 	}
 	c.searchRoot = u.String()
+
+	u, err = root.Parse(disco.HelpRoot)
+	if err != nil {
+		return fmt.Errorf("client: invalid helpRoot %q; failed to resolve", disco.HelpRoot)
+	}
+	c.helpRoot = u.String()
 
 	c.storageGen = disco.StorageGeneration
 

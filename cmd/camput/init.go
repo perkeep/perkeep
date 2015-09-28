@@ -20,11 +20,16 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/client/android"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/jsonsign"
@@ -33,10 +38,12 @@ import (
 )
 
 type initCmd struct {
-	newKey     bool   // whether to create a new GPG ring and key.
-	noconfig   bool   // whether to generate a client config file.
-	keyId      string // GPG key ID to use.
-	secretRing string // GPG secret ring file to use.
+	newKey      bool   // whether to create a new GPG ring and key.
+	noconfig    bool   // whether to generate a client config file.
+	keyId       string // GPG key ID to use.
+	secretRing  string // GPG secret ring file to use.
+	userPass    string // username and password to use when asking a server for the config.
+	insecureTLS bool   // TLS certificate verification disabled
 }
 
 func init() {
@@ -46,6 +53,8 @@ func init() {
 			"Automatically generate a new identity in a new secret ring at the default location (~/.config/camlistore/identity-secring.gpg on linux).")
 		flags.StringVar(&cmd.keyId, "gpgkey", "", "GPG key ID to use for signing (overrides $GPGKEY environment)")
 		flags.BoolVar(&cmd.noconfig, "noconfig", false, "Stop after creating the public key blob, and do not try and create a config file.")
+		flags.StringVar(&cmd.userPass, "userpass", "", "username:password to use when asking a server for a client configuration. Requires --server global option.")
+		flags.BoolVar(&cmd.insecureTLS, "insecure", false, "If set, when getting configuration from a server (with --server and --userpass) over TLS, the server's certificate verification is disabled. Needed when the server is using a self-signed certificate.")
 		return cmd
 	})
 }
@@ -55,14 +64,32 @@ func (c *initCmd) Describe() string {
 }
 
 func (c *initCmd) Usage() {
-	fmt.Fprintf(cmdmain.Stderr, "Usage: camput init [opts]")
+	usage := "Usage: camput [--server host] init [opts]\n\nExamples:\n"
+	for _, v := range c.usageExamples() {
+		usage += v + "\n"
+	}
+	fmt.Fprintf(cmdmain.Stderr, usage)
+}
+
+func (c *initCmd) usageExamples() []string {
+	var examples []string
+	for _, v := range c.Examples() {
+		examples = append(examples, "camput init "+v)
+	}
+	return append(examples,
+		"camput --server=https://localhost:3179 init --userpass=foo:bar --insecure=true")
 }
 
 func (c *initCmd) Examples() []string {
+	// TODO(mpl): I can't add the correct -userpass example to that list, because
+	// it requires the global --server flag, which has to be passed before the
+	// "init" subcommand. We should have a way to override that.
+	// Or I could just add a -server flag to the init subcommand, but it sounds
+	// like a lame hack.
 	return []string{
 		"",
 		"--gpgkey=XXXXX",
-		"--newkey Creates a new identity",
+		"--newkey #Creates a new identity",
 	}
 }
 
@@ -119,6 +146,59 @@ func (c *initCmd) getPublicKeyArmored() ([]byte, error) {
 	return []byte(pubArmor), nil
 }
 
+func (c *initCmd) clientConfigFromServer() (*clientconfig.Config, error) {
+	if c.noconfig {
+		log.Print("--userpass and --noconfig are mutually exclusive")
+		return nil, cmdmain.ErrUsage
+	}
+	server := client.ExplicitServer()
+	if server == "" {
+		log.Print("--userpass requires --server")
+		return nil, cmdmain.ErrUsage
+	}
+	fields := strings.Split(c.userPass, ":")
+	if len(fields) != 2 {
+		log.Printf("wrong userpass; wanted username:password, got %q", c.userPass)
+		return nil, cmdmain.ErrUsage
+	}
+
+	cl := client.NewFromParams(server, auth.NewBasicAuth(fields[0], fields[1]))
+	cl.InsecureTLS = c.insecureTLS
+	cl.SetHTTPClient(&http.Client{Transport: cl.TransportForConfig(nil)})
+	var cc clientconfig.Config
+
+	helpRoot, err := cl.HelpRoot()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := cl.GetJSON(helpRoot+"?clientConfig=true", &cc); err != nil {
+		return nil, err
+	}
+	return &cc, nil
+}
+
+func (c *initCmd) writeConfig(cc *clientconfig.Config) error {
+	configFilePath := osutil.UserClientConfigPath()
+	if _, err := os.Stat(configFilePath); err == nil {
+		return fmt.Errorf("Config file %q already exists; quitting without touching it.", configFilePath)
+	}
+	if err := os.MkdirAll(filepath.Dir(configFilePath), 0700); err != nil {
+		return err
+	}
+
+	jsonBytes, err := json.MarshalIndent(cc, "", "  ")
+	if err != nil {
+		log.Fatalf("JSON serialization error: %v", err)
+	}
+	if err := ioutil.WriteFile(configFilePath, jsonBytes, 0600); err != nil {
+		return fmt.Errorf("could not write client config file %v: %v", configFilePath, err)
+	}
+	log.Printf("Wrote %q; modify as necessary.", configFilePath)
+	return nil
+
+}
+
 func (c *initCmd) RunCommand(args []string) error {
 	if len(args) > 0 {
 		return cmdmain.ErrUsage
@@ -126,6 +206,14 @@ func (c *initCmd) RunCommand(args []string) error {
 
 	if c.newKey && c.keyId != "" {
 		log.Fatal("--newkey and --gpgkey are mutually exclusive")
+	}
+
+	if c.userPass != "" {
+		cc, err := c.clientConfigFromServer()
+		if err != nil {
+			return err
+		}
+		return c.writeConfig(cc)
 	}
 
 	var err error
@@ -157,39 +245,15 @@ func (c *initCmd) RunCommand(args []string) error {
 		return nil
 	}
 
-	configFilePath := osutil.UserClientConfigPath()
-	_, err = os.Stat(configFilePath)
-	if err == nil {
-		log.Fatalf("Config file %q already exists; quitting without touching it.", configFilePath)
-	}
-	if err := os.MkdirAll(filepath.Dir(configFilePath), 0700); err != nil {
-		return err
-	}
-	if f, err := os.OpenFile(configFilePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600); err == nil {
-		defer f.Close()
-		m := &clientconfig.Config{
-			Servers: map[string]*clientconfig.Server{
-				"localhost": {
-					Server:    "http://localhost:3179",
-					IsDefault: true,
-					Auth:      "localhost",
-				},
+	return c.writeConfig(&clientconfig.Config{
+		Servers: map[string]*clientconfig.Server{
+			"localhost": {
+				Server:    "http://localhost:3179",
+				IsDefault: true,
+				Auth:      "localhost",
 			},
-			Identity:     c.keyId,
-			IgnoredFiles: []string{".DS_Store"},
-		}
-
-		jsonBytes, err := json.MarshalIndent(m, "", "  ")
-		if err != nil {
-			log.Fatalf("JSON serialization error: %v", err)
-		}
-		_, err = f.Write(jsonBytes)
-		if err != nil {
-			log.Fatalf("Error writing to %q: %v", configFilePath, err)
-		}
-		log.Printf("Wrote %q; modify as necessary.", configFilePath)
-	} else {
-		return fmt.Errorf("could not write client config file %v: %v", configFilePath, err)
-	}
-	return nil
+		},
+		Identity:     c.keyId,
+		IgnoredFiles: []string{".DS_Store"},
+	})
 }

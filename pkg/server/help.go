@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"strconv"
 	"sync"
 
 	"camlistore.org/pkg/blobserver"
@@ -100,6 +101,12 @@ func (hh *HelpHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	switch suffix {
 	case "":
+		if clientConfig := req.FormValue("clientConfig"); clientConfig != "" {
+			if clientConfigOnly, err := strconv.ParseBool(clientConfig); err == nil && clientConfigOnly {
+				httputil.ReturnJSON(rw, hh.clientConfig)
+				return
+			}
+		}
 		hh.serveHelpHTML(rw, req)
 	default:
 		http.Error(rw, "Illegal help path.", http.StatusNotFound)
