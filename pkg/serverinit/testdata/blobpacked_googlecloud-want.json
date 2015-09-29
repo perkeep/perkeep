@@ -1,0 +1,156 @@
+{
+	"auth": "userpass:camlistore:pass3179",
+	"https": false,
+	"listen": "localhost:3179",
+	"prefixes": {
+		"/": {
+			"handler": "root",
+			"handlerArgs": {
+				"blobRoot": "/bs-and-maybe-also-index/",
+				"jsonSignRoot": "/sighelper/",
+				"helpRoot": "/help/",
+				"ownerName": "Alice",
+				"searchRoot": "/my-search/",
+				"statusRoot": "/status/",
+				"stealth": false
+			}
+		},
+		"/bs-and-index/": {
+			"handler": "storage-replica",
+			"handlerArgs": {
+				"backends": [
+					"/bs/",
+					"/index/"
+				]
+			}
+		},
+		"/bs-and-maybe-also-index/": {
+			"handler": "storage-cond",
+			"handlerArgs": {
+				"read": "/bs/",
+				"write": {
+					"else": "/bs/",
+					"if": "isSchema",
+					"then": "/bs-and-index/"
+				}
+			}
+		},
+		"/bs/": {
+			"handler": "storage-blobpacked",
+			"handlerArgs": {
+				"smallBlobs": "/bs-loose/",
+				"largeBlobs": "/bs-packed/",
+				"metaIndex": {
+					"database": "blobpacked_index",
+					"host": "localhost",
+					"password": "root",
+					"type": "mysql",
+					"user": "root"
+				}
+			}
+		},
+		"/bs-loose/": {
+			"handler": "storage-googlecloudstorage",
+			"handlerArgs": {
+				"auth": {
+					"client_id": "clientId",
+					"client_secret": "clientSecret",
+					"refresh_token": "refreshToken"
+				},
+				"bucket": "bucketName/blobs/loose"
+			}
+		},
+		"/bs-packed/": {
+			"handler": "storage-googlecloudstorage",
+			"handlerArgs": {
+				"auth": {
+					"client_id": "clientId",
+					"client_secret": "clientSecret",
+					"refresh_token": "refreshToken"
+				},
+				"bucket": "bucketName/blobs/packed"
+			}
+		},
+		"/cache/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/tmp/camli-cache"
+			}
+		},
+		"/help/": {
+			"handler": "help"
+		},
+		"/importer/": {
+			"handler": "importer",
+			"handlerArgs": {}
+		},
+		"/index/": {
+			"handler": "storage-index",
+			"handlerArgs": {
+		        "blobSource": "/bs/",
+		        "storage": {
+		          "database": "camlitest",
+		          "host": "localhost",
+		          "password": "root",
+		          "type": "mysql",
+		          "user": "root"
+		        }
+		      }
+		},
+		"/my-search/": {
+			"handler": "search",
+			"handlerArgs": {
+				"index": "/index/",
+				"owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
+				"slurpToMemory": true
+			}
+		},
+		"/setup/": {
+			"handler": "setup"
+		},
+		"/share/": {
+			"handler": "share",
+			"handlerArgs": {
+				"blobRoot": "/bs/"
+			}
+		},
+		"/sighelper/": {
+			"handler": "jsonsign",
+			"handlerArgs": {
+				"keyId": "26F5ABDA",
+				"publicKeyDest": "/bs-and-index/",
+				"secretRing": "/path/to/secring"
+			}
+		},
+		"/status/": {
+			"handler": "status"
+		},
+		"/sync/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"queue": {
+					"database": "sync_index_queue",
+					"type": "mysql",
+					"host": "localhost",
+					"user": "root",
+					"password": "root"
+				},
+				"to": "/index/"
+			}
+		},
+		"/ui/": {
+			"handler": "ui",
+			"handlerArgs": {
+				"cache": "/cache/",
+				"scaledImage": {
+					"database": "ui_thumbmeta_cache",
+					"host": "localhost",
+					"type": "mysql",
+					"user": "root",
+					"password": "root"
+				}
+			}
+		}
+	}
+}

@@ -96,8 +96,11 @@ func MIMEType(hdr []byte) string {
 // reader.
 func MIMETypeFromReader(r io.Reader) (mime string, reader io.Reader) {
 	var buf bytes.Buffer
-	io.CopyN(&buf, r, 1024)
+	_, err := io.Copy(&buf, io.LimitReader(r, 1024))
 	mime = MIMEType(buf.Bytes())
+	if err != nil {
+		return mime, io.MultiReader(&buf, errReader{err})
+	}
 	return mime, io.MultiReader(&buf, r)
 }
 
@@ -108,3 +111,8 @@ func MIMETypeFromReaderAt(ra io.ReaderAt) (mime string) {
 	n, _ := ra.ReadAt(buf[:], 0)
 	return MIMEType(buf[:n])
 }
+
+// errReader is an io.Reader which just returns err.
+type errReader struct{ err error }
+
+func (er errReader) Read([]byte) (int, error) { return 0, er.err }

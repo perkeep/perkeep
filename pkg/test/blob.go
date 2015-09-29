@@ -18,17 +18,33 @@ package test
 
 import (
 	"crypto/sha1"
+	"fmt"
 	"io"
+	"io/ioutil"
 	"strings"
 	"testing"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/types"
 )
 
 // Blob is a utility class for unit tests.
 type Blob struct {
 	Contents string // the contents of the blob
+}
+
+func (tb *Blob) Blob() *blob.Blob {
+	s := tb.Contents
+	return blob.NewBlob(tb.BlobRef(), tb.Size(), func() types.ReadSeekCloser {
+		return struct {
+			io.ReadSeeker
+			io.Closer
+		}{
+			io.NewSectionReader(strings.NewReader(s), 0, int64(len(s))),
+			ioutil.NopCloser(nil),
+		}
+	})
 }
 
 func (tb *Blob) BlobRef() blob.Ref {
@@ -38,15 +54,21 @@ func (tb *Blob) BlobRef() blob.Ref {
 }
 
 func (tb *Blob) SizedRef() blob.SizedRef {
-	return blob.SizedRef{tb.BlobRef(), uint32(len(tb.Contents))}
+	return blob.SizedRef{tb.BlobRef(), tb.Size()}
 }
 
 func (tb *Blob) BlobRefSlice() []blob.Ref {
 	return []blob.Ref{tb.BlobRef()}
 }
 
-func (tb *Blob) Size() int64 {
-	return int64(len(tb.Contents))
+func (tb *Blob) Size() uint32 {
+	// Check that it's not larger than a uint32 (possible with
+	// 64-bit ints).  But while we're here, be more paranoid and
+	// check for over the default max blob size of 16 MB.
+	if len(tb.Contents) > 16<<20 {
+		panic(fmt.Sprintf("test blob of %d bytes is larger than max 16MB allowed in testing", len(tb.Contents)))
+	}
+	return uint32(len(tb.Contents))
 }
 
 func (tb *Blob) Reader() io.Reader {
@@ -54,7 +76,7 @@ func (tb *Blob) Reader() io.Reader {
 }
 
 func (tb *Blob) AssertMatches(t *testing.T, sb blob.SizedRef) {
-	if int64(sb.Size) != tb.Size() {
+	if sb.Size != tb.Size() {
 		t.Fatalf("Got size %d; expected %d", sb.Size, tb.Size())
 	}
 	if sb.Ref != tb.BlobRef() {

@@ -19,9 +19,13 @@ Or:
 The response is a JSON document:
 
 {
+  "blobHashFuncs": [
+    "sha1"
+  ],
   "blobRoot": "/bs-and-maybe-also-index/",
   "directoryHelper": "/ui/tree/",
   "downloadHelper": "/ui/download/",
+  "helpRoot": "/help/",
   "importerRoot": "/importer/",
   "jsonSignRoot": "/sighelper/",
   "ownerName": "The User Name",

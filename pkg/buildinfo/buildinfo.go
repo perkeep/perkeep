@@ -42,3 +42,20 @@ func TestingLinked() bool {
 	}
 	return testingLinked()
 }
+
+// djpegFunc implements DjpegStatus. nil means the images/fastjpeg package
+// isn't linked in.
+var djpegFunc func() string
+
+func RegisterDjpegStatusFunc(fn func() string) {
+	djpegFunc = fn
+}
+
+// DjpegStatus returns a plaintext (non-HTML) string describing the
+// state of djpeg on the system.
+func DjpegStatus() string {
+	if djpegFunc != nil {
+		return djpegFunc()
+	}
+	return "unknown"
+}

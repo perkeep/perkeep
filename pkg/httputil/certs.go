@@ -17,13 +17,25 @@ limitations under the License.
 package httputil
 
 import (
+	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"errors"
+	"fmt"
+	"log"
+	"math/big"
 	"net/http"
 	"runtime"
 	"sync"
+	"time"
 
+	"camlistore.org/pkg/hashutil"
 	"camlistore.org/pkg/legal"
+	"camlistore.org/pkg/wkfs"
 )
 
 var (
@@ -35,6 +47,106 @@ var (
 	sysRootsOnce sync.Once
 	sysRootsGood bool
 )
+
+// GenSelfTLS generates a self-signed certificate and key for hostname.
+func GenSelfTLS(hostname string) (certPEM, keyPEM []byte, err error) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return certPEM, keyPEM, fmt.Errorf("failed to generate private key: %s", err)
+	}
+
+	now := time.Now()
+
+	if hostname == "" {
+		hostname = "localhost"
+	}
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		log.Fatalf("failed to generate serial number: %s", err)
+	}
+	template := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			CommonName:   hostname,
+			Organization: []string{hostname},
+		},
+		NotBefore:    now.Add(-5 * time.Minute).UTC(),
+		NotAfter:     now.AddDate(1, 0, 0).UTC(),
+		SubjectKeyId: []byte{1, 2, 3, 4},
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		IsCA:         true,
+		BasicConstraintsValid: true,
+	}
+
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	if err != nil {
+		return certPEM, keyPEM, fmt.Errorf("failed to create certificate: %s", err)
+	}
+	var buf bytes.Buffer
+	if err := pem.Encode(&buf, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
+		return certPEM, keyPEM, fmt.Errorf("error writing self-signed HTTPS cert: %v", err)
+	}
+	certPEM = []byte(string(buf.Bytes()))
+
+	buf.Reset()
+	if err := pem.Encode(&buf, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}); err != nil {
+		return certPEM, keyPEM, fmt.Errorf("error writing self-signed HTTPS private key: %v", err)
+	}
+	keyPEM = buf.Bytes()
+	return certPEM, keyPEM, nil
+}
+
+// CertFingerprint returns the SHA-256 prefix of the x509 certificate encoded in certPEM.
+func CertFingerprint(certPEM []byte) (string, error) {
+	p, _ := pem.Decode(certPEM)
+	if p == nil {
+		return "", errors.New("no valid PEM data found")
+	}
+	cert, err := x509.ParseCertificate(p.Bytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse certificate: %v", err)
+	}
+	return hashutil.SHA256Prefix(cert.Raw), nil
+}
+
+// CertFingerprints returns a map of hash prefixes of the x509 certificate encoded in
+// certPEM. The hashes are keyed by name ("SHA-1", and "SHA-256").
+func CertFingerprints(certPEM []byte) (map[string]string, error) {
+	p, _ := pem.Decode(certPEM)
+	if p == nil {
+		return nil, errors.New("no valid PEM data found")
+	}
+	cert, err := x509.ParseCertificate(p.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse certificate: %v", err)
+	}
+	return map[string]string{
+		"SHA-1":   hashutil.SHA1Prefix(cert.Raw),
+		"SHA-256": hashutil.SHA256Prefix(cert.Raw),
+	}, nil
+}
+
+// GenSelfTLSFiles generates a self-signed certificate and key for hostname,
+// and writes them to the given paths. If it succeeds it also returns
+// the SHA256 prefix of the new cert.
+func GenSelfTLSFiles(hostname, certPath, keyPath string) (fingerprint string, err error) {
+	cert, key, err := GenSelfTLS(hostname)
+	if err != nil {
+		return "", err
+	}
+	sig, err := CertFingerprint(cert)
+	if err != nil {
+		return "", fmt.Errorf("could not get SHA-256 fingerprint of certificate: %v", err)
+	}
+	if err := wkfs.WriteFile(certPath, cert, 0666); err != nil {
+		return "", fmt.Errorf("failed to write self-signed TLS cert: %v", err)
+	}
+	if err := wkfs.WriteFile(keyPath, key, 0600); err != nil {
+		return "", fmt.Errorf("failed to write self-signed TLS key: %v", err)
+	}
+	return sig, nil
+}
 
 // InstallCerts adds Mozilla's Certificate Authority root set to
 // http.DefaultTransport's configuration if the current operating

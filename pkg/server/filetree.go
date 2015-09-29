@@ -30,13 +30,29 @@ type FileTreeHandler struct {
 	file    blob.Ref
 }
 
+// FileTreeNode represents a file in a file tree.
+// It is part of the FileTreeResponse.
+type FileTreeNode struct {
+	// Name is the basename of the node.
+	Name string `json:"name"`
+	// Type is the camliType of the node. This may be "file", "directory", "symlink"
+	// or other in the future.
+	Type string `json:"type"`
+	// BlobRef is the blob.Ref of the node.
+	BlobRef blob.Ref `json:"blobRef"`
+}
+
+// FileTreeResponse is the JSON response for the FileTreeHandler.
+type FileTreeResponse struct {
+	// Children is the list of children files of a directory.
+	Children []FileTreeNode `json:"children"`
+}
+
 func (fth *FileTreeHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" && req.Method != "HEAD" {
 		http.Error(rw, "Invalid method", 400)
 		return
 	}
-	ret := make(map[string]interface{})
-	defer httputil.ReturnJSON(rw, ret)
 
 	de, err := schema.NewDirectoryEntryFromBlobRef(fth.Fetcher, fth.file)
 	if err != nil {
@@ -56,14 +72,16 @@ func (fth *FileTreeHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 		log.Printf("reading dir from blobref %s: %v\n", fth.file, err)
 		return
 	}
-	children := make([]map[string]interface{}, 0)
-	for _, v := range entries {
-		child := map[string]interface{}{
-			"name":    v.FileName(),
-			"type":    v.CamliType(),
-			"blobRef": v.BlobRef(),
-		}
-		children = append(children, child)
+
+	var ret = FileTreeResponse{
+		Children: make([]FileTreeNode, 0, len(entries)),
 	}
-	ret["children"] = children
+	for _, v := range entries {
+		ret.Children = append(ret.Children, FileTreeNode{
+			Name:    v.FileName(),
+			Type:    v.CamliType(),
+			BlobRef: v.BlobRef(),
+		})
+	}
+	httputil.ReturnJSON(rw, ret)
 }

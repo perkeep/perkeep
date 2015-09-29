@@ -480,7 +480,8 @@ var handlerTests = []handlerTest{
 			  "file": {
 				"fileName": "dude.jpg",
 				"size": 1932,
-				"mimeType": "image/jpeg"
+				"mimeType": "image/jpeg",
+				"wholeRef": "sha1-142b504945338158e0149d4ed25a41a522a28e88"
 			  },
 			  "image": {
 				"width": 50,
@@ -572,7 +573,8 @@ var handlerTests = []handlerTest{
 			  "file": {
 				"fileName": "dude.jpg",
 				"size": 1932,
-				"mimeType": "image/jpeg"
+				"mimeType": "image/jpeg",
+				"wholeRef": "sha1-142b504945338158e0149d4ed25a41a522a28e88"
 			  },
 			  "image": {
 				"width": 50,
@@ -611,10 +613,7 @@ var handlerTests = []handlerTest{
 				   "attr": { "title": [ "Some title" ] },
 					"modtime": "` + addToClockOrigin(1*time.Second) + `"
 				 },
-				 "size": 534,
-				 "thumbnailHeight": 100,
-				 "thumbnailSrc": "node.png",
-				 "thumbnailWidth": 100
+				 "size": 534
 					}
 				}
 			   }`),

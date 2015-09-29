@@ -37,7 +37,6 @@ package fuse
 
 import (
 	"fmt"
-	"os"
 	"syscall"
 	"unsafe"
 )
@@ -132,39 +131,74 @@ var setattrValidNames = []flagName{
 	{uint32(SetattrFlags), "SetattrFlags"},
 }
 
+// Flags that can be seen in OpenRequest.Flags.
+const (
+	// Access modes. These are not 1-bit flags, but alternatives where
+	// only one can be chosen. See the IsReadOnly etc convenience
+	// methods.
+	OpenReadOnly  OpenFlags = syscall.O_RDONLY
+	OpenWriteOnly OpenFlags = syscall.O_WRONLY
+	OpenReadWrite OpenFlags = syscall.O_RDWR
+
+	OpenAppend    OpenFlags = syscall.O_APPEND
+	OpenCreate    OpenFlags = syscall.O_CREAT
+	OpenExclusive OpenFlags = syscall.O_EXCL
+	OpenSync      OpenFlags = syscall.O_SYNC
+	OpenTruncate  OpenFlags = syscall.O_TRUNC
+)
+
+// OpenAccessModeMask is a bitmask that separates the access mode
+// from the other flags in OpenFlags.
+const OpenAccessModeMask OpenFlags = syscall.O_ACCMODE
+
 // OpenFlags are the O_FOO flags passed to open/create/etc calls. For
 // example, os.O_WRONLY | os.O_APPEND.
 type OpenFlags uint32
 
 func (fl OpenFlags) String() string {
 	// O_RDONLY, O_RWONLY, O_RDWR are not flags
-	s := accModeName(uint32(fl) & syscall.O_ACCMODE)
-	flags := uint32(fl) &^ syscall.O_ACCMODE
+	s := accModeName(fl & OpenAccessModeMask)
+	flags := uint32(fl &^ OpenAccessModeMask)
 	if flags != 0 {
 		s = s + "+" + flagString(flags, openFlagNames)
 	}
 	return s
 }
 
-func accModeName(flags uint32) string {
+// Return true if OpenReadOnly is set.
+func (fl OpenFlags) IsReadOnly() bool {
+	return fl&OpenAccessModeMask == OpenReadOnly
+}
+
+// Return true if OpenWriteOnly is set.
+func (fl OpenFlags) IsWriteOnly() bool {
+	return fl&OpenAccessModeMask == OpenWriteOnly
+}
+
+// Return true if OpenReadWrite is set.
+func (fl OpenFlags) IsReadWrite() bool {
+	return fl&OpenAccessModeMask == OpenReadWrite
+}
+
+func accModeName(flags OpenFlags) string {
 	switch flags {
-	case uint32(os.O_RDONLY):
-		return "O_RDONLY"
-	case uint32(os.O_WRONLY):
-		return "O_WRONLY"
-	case uint32(os.O_RDWR):
-		return "O_RDWR"
+	case OpenReadOnly:
+		return "OpenReadOnly"
+	case OpenWriteOnly:
+		return "OpenWriteOnly"
+	case OpenReadWrite:
+		return "OpenReadWrite"
 	default:
 		return ""
 	}
 }
 
 var openFlagNames = []flagName{
-	{uint32(os.O_CREATE), "O_CREATE"},
-	{uint32(os.O_EXCL), "O_EXCL"},
-	{uint32(os.O_TRUNC), "O_TRUNC"},
-	{uint32(os.O_APPEND), "O_APPEND"},
-	{uint32(os.O_SYNC), "O_SYNC"},
+	{uint32(OpenCreate), "OpenCreate"},
+	{uint32(OpenExclusive), "OpenExclusive"},
+	{uint32(OpenTruncate), "OpenTruncate"},
+	{uint32(OpenAppend), "OpenAppend"},
+	{uint32(OpenSync), "OpenSync"},
 }
 
 // The OpenResponseFlags are returned in the OpenResponse.
@@ -194,8 +228,24 @@ var openResponseFlagNames = []flagName{
 type InitFlags uint32
 
 const (
-	InitAsyncRead  InitFlags = 1 << 0
-	InitPosixLocks InitFlags = 1 << 1
+	InitAsyncRead       InitFlags = 1 << 0
+	InitPosixLocks      InitFlags = 1 << 1
+	InitFileOps         InitFlags = 1 << 2
+	InitAtomicTrunc     InitFlags = 1 << 3
+	InitExportSupport   InitFlags = 1 << 4
+	InitBigWrites       InitFlags = 1 << 5
+	InitDontMask        InitFlags = 1 << 6
+	InitSpliceWrite     InitFlags = 1 << 7
+	InitSpliceMove      InitFlags = 1 << 8
+	InitSpliceRead      InitFlags = 1 << 9
+	InitFlockLocks      InitFlags = 1 << 10
+	InitHasIoctlDir     InitFlags = 1 << 11
+	InitAutoInvalData   InitFlags = 1 << 12
+	InitDoReaddirplus   InitFlags = 1 << 13
+	InitReaddirplusAuto InitFlags = 1 << 14
+	InitAsyncDIO        InitFlags = 1 << 15
+	InitWritebackCache  InitFlags = 1 << 16
+	InitNoOpenSupport   InitFlags = 1 << 17
 
 	InitCaseSensitive InitFlags = 1 << 29 // OS X only
 	InitVolRename     InitFlags = 1 << 30 // OS X only
@@ -210,6 +260,23 @@ type flagName struct {
 var initFlagNames = []flagName{
 	{uint32(InitAsyncRead), "InitAsyncRead"},
 	{uint32(InitPosixLocks), "InitPosixLocks"},
+	{uint32(InitFileOps), "InitFileOps"},
+	{uint32(InitAtomicTrunc), "InitAtomicTrunc"},
+	{uint32(InitExportSupport), "InitExportSupport"},
+	{uint32(InitBigWrites), "InitBigWrites"},
+	{uint32(InitDontMask), "InitDontMask"},
+	{uint32(InitSpliceWrite), "InitSpliceWrite"},
+	{uint32(InitSpliceMove), "InitSpliceMove"},
+	{uint32(InitSpliceRead), "InitSpliceRead"},
+	{uint32(InitFlockLocks), "InitFlockLocks"},
+	{uint32(InitHasIoctlDir), "InitHasIoctlDir"},
+	{uint32(InitAutoInvalData), "InitAutoInvalData"},
+	{uint32(InitDoReaddirplus), "InitDoReaddirplus"},
+	{uint32(InitReaddirplusAuto), "InitReaddirplusAuto"},
+	{uint32(InitAsyncDIO), "InitAsyncDIO"},
+	{uint32(InitWritebackCache), "InitWritebackCache"},
+	{uint32(InitNoOpenSupport), "InitNoOpenSupport"},
+
 	{uint32(InitCaseSensitive), "InitCaseSensitive"},
 	{uint32(InitVolRename), "InitVolRename"},
 	{uint32(InitXtimes), "InitXtimes"},
@@ -299,9 +366,6 @@ const (
 	opGetxtimes  = 62
 	opExchange   = 63
 )
-
-// The read buffer is required to be at least 8k but may be much larger
-const minReadBuffer = 8192
 
 type entryOut struct {
 	outHeader
@@ -449,7 +513,7 @@ type writeOut struct {
 	Padding uint32
 }
 
-// The WriteFlags are returned in the WriteResponse.
+// The WriteFlags are passed in WriteRequest.
 type WriteFlags uint32
 
 func (fl WriteFlags) String() string {

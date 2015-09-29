@@ -26,8 +26,7 @@ import (
 	"net/http"
 	"os"
 
-	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
-	client "camlistore.org/third_party/code.google.com/p/google-api-go-client/drive/v2"
+	client "google.golang.org/api/drive/v2"
 )
 
 const (
@@ -38,7 +37,7 @@ const (
 // DriveService wraps Google Drive API to implement utility methods to
 // be performed on the root Drive destination folder.
 type DriveService struct {
-	transport  *oauth.Transport
+	client     *http.Client
 	apiservice *client.Service
 	parentId   string
 }
@@ -47,8 +46,8 @@ type DriveService struct {
 // that will be used as the current directory in methods on the returned
 // DriveService (such as Get). If empty, it defaults to the root of the
 // drive.
-func New(transport *oauth.Transport, parentId string) (*DriveService, error) {
-	apiservice, err := client.New(transport.Client())
+func New(oauthClient *http.Client, parentId string) (*DriveService, error) {
+	apiservice, err := client.New(oauthClient)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +55,7 @@ func New(transport *oauth.Transport, parentId string) (*DriveService, error) {
 		// because "root" is known as a special alias for the root directory in drive.
 		parentId = "root"
 	}
-	service := &DriveService{transport: transport, apiservice: apiservice, parentId: parentId}
+	service := &DriveService{client: oauthClient, apiservice: apiservice, parentId: parentId}
 	return service, err
 }
 
@@ -141,7 +140,7 @@ func (s *DriveService) Fetch(title string) (body io.ReadCloser, size uint32, err
 
 	req, _ := http.NewRequest("GET", file.DownloadUrl, nil)
 	var resp *http.Response
-	if resp, err = s.transport.RoundTrip(req); err != nil {
+	if resp, err = s.client.Transport.RoundTrip(req); err != nil {
 		return
 	}
 	if file.FileSize > math.MaxUint32 || file.FileSize < 0 {

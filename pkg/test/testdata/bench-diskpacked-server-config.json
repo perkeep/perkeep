@@ -1,0 +1,20 @@
+{
+	"handlerConfig": true,
+	"auth": "userpass:testuser:passTestWorld:+localhost",
+	"https": false,
+	"listen": "localhost:3179",
+	"prefixes": {
+		"/": {
+			"handler": "root",
+			"handlerArgs": {
+				"blobRoot": "/bs/"
+			}
+		},
+		"/bs/": {
+			"handler": "storage-diskpacked",
+			"handlerArgs": {
+				"path": ["_env", "${CAMLI_ROOT}"]
+			}
+		}
+	}
+}

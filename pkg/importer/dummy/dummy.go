@@ -23,19 +23,19 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
 )
 
 func init() {
-	if os.Getenv("CAMLI_DEV_CAMLI_ROOT") == "" {
+	if !env.IsDev() {
 		// For this particular example importer, we only
 		// register it if we're in "devcam server" mode.
 		// Normally you'd avoid this check.

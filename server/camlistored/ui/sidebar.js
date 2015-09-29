@@ -27,6 +27,7 @@ cam.Sidebar = React.createClass({
 
 	propTypes: {
 		isExpanded: React.PropTypes.bool.isRequired,
+		header: React.PropTypes.renderable,
 		mainControls: React.PropTypes.arrayOf(
 			React.PropTypes.shape(
 				{
@@ -53,6 +54,7 @@ cam.Sidebar = React.createClass({
 					'cam-sidebar-hidden': !this.props.isExpanded,
 				})
 			},
+			this.props.header,
 			this.props.selectionControls,
 			this.getMainControls_()
 		);
@@ -63,6 +65,7 @@ cam.Sidebar = React.createClass({
 			function(c) {
 				return cam.CollapsibleControl(
 				{
+					key: c.displayTitle,
 					control: c.control,
 					isOpen: this.isControlOpen_(c.displayTitle),
 					onToggleOpen: this.handleToggleControlOpen_,

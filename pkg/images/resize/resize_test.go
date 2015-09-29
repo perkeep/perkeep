@@ -37,6 +37,8 @@ const (
 	// good for RGB.
 	psnrThreshold = 50.0
 
+	// TODO(wathiede, mpl): figure out why we got an increase from ~3% to ~16% for
+	// YCbCr images in Go 1.5. That is, for halving vs resizing.
 	maxPixelDiffPercentage = 10
 )
 
@@ -71,6 +73,8 @@ func makeImages(r image.Rectangle) []image.Image {
 		image.NewYCbCr(r, image.YCbCrSubsampleRatio422),
 		image.NewYCbCr(r, image.YCbCrSubsampleRatio420),
 		image.NewYCbCr(r, image.YCbCrSubsampleRatio440),
+		image.NewYCbCr(r, image.YCbCrSubsampleRatio410),
+		image.NewYCbCr(r, image.YCbCrSubsampleRatio411),
 	}
 }
 
@@ -266,21 +270,36 @@ func getFilename(im image.Image, method string) string {
 	return fmt.Sprintf("%s.%s.png", imgType, method)
 }
 
-func TestCompareResizeToHavleInplace(t *testing.T) {
+func TestCompareResizeToHalveInplace(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping TestCompareResizeToHavleInplace in short mode.")
+		t.Skip("Skipping TestCompareNewResizeToHalveInplace in short mode.")
 	}
-	images1, images2 := []image.Image{}, []image.Image{}
-	for _, im := range makeImages(testIm.Bounds()) {
-		fillTestImage(im)
-		images1 = append(images1, HalveInplace(im))
-	}
-	for _, im := range makeImages(testIm.Bounds()) {
-		fillTestImage(im)
-		s := im.Bounds().Size()
-		images2 = append(images2, Resize(im, im.Bounds(), s.X/2, s.Y/2))
-	}
+	testCompareResizeMethods(t, "resize", "halveInPlace")
+}
 
+var resizeMethods = map[string]func(image.Image) image.Image{
+	"resize": func(im image.Image) image.Image {
+		s := im.Bounds().Size()
+		return Resize(im, im.Bounds(), s.X/2, s.Y/2)
+	},
+	"halveInPlace": func(im image.Image) image.Image {
+		return HalveInplace(im)
+	},
+}
+
+func testCompareResizeMethods(t *testing.T, method1, method2 string) {
+	images1, images2 := []image.Image{}, []image.Image{}
+	var imTypes []string
+	for _, im := range makeImages(testIm.Bounds()) {
+		// keeping track of the types for the final output
+		imTypes = append(imTypes, fmt.Sprintf("%T", im))
+		fillTestImage(im)
+		images1 = append(images1, resizeMethods[method1](im))
+	}
+	for _, im := range makeImages(testIm.Bounds()) {
+		fillTestImage(im)
+		images2 = append(images2, resizeMethods[method2](im))
+	}
 	var (
 		f   io.WriteCloser
 		err error
@@ -296,7 +315,7 @@ func TestCompareResizeToHavleInplace(t *testing.T) {
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>Image comparison for TestCompareResizeToHavleInplace</title>
+    <title>Image comparison for `+method1+` vs `+method2+`</title>
   </head>
   <body style="background-color: grey">
 <table>
@@ -333,14 +352,14 @@ func TestCompareResizeToHavleInplace(t *testing.T) {
 		}
 
 		if res.psnr < psnrThreshold {
-			t.Errorf("%T PSNR too low %.4f", im1, res.psnr)
+			t.Errorf("%v PSNR too low %.4f", imTypes[i], res.psnr)
 		} else {
-			t.Logf("%T PSNR %.4f", im1, res.psnr)
+			t.Logf("%v PSNR %.4f", imTypes[i], res.psnr)
 		}
 		s := im1.Bounds().Size()
 		tot := s.X * s.Y
 		if per := float32(100*res.diffCnt) / float32(tot); per > maxPixelDiffPercentage {
-			t.Errorf("%T not the same %d pixels different %.2f%%", im1, res.diffCnt, per)
+			t.Errorf("%v not the same %d pixels different %.2f%%", imTypes[i], res.diffCnt, per)
 		}
 	}
 

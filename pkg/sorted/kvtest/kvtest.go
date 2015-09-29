@@ -72,7 +72,69 @@ func TestSorted(t *testing.T, kv sorted.KeyValue) {
 	set("y", "x:foo")
 	testEnumerate(t, kv, "x:", "x~")
 
+	testInsertLarge(t, kv)
+	testInsertTooLarge(t, kv)
+
 	// TODO: test batch commits
+}
+
+func testInsertLarge(t *testing.T, kv sorted.KeyValue) {
+	largeKey := make([]byte, sorted.MaxKeySize-1)
+	// setting all the bytes because postgres whines about an invalid byte sequence
+	// otherwise
+	for k, _ := range largeKey {
+		largeKey[k] = 'A'
+	}
+	largeKey[sorted.MaxKeySize-2] = 'B'
+	largeValue := make([]byte, sorted.MaxValueSize-1)
+	for k, _ := range largeValue {
+		largeValue[k] = 'A'
+	}
+	largeValue[sorted.MaxValueSize-2] = 'B'
+
+	// insert with large key
+	if err := kv.Set(string(largeKey), "whatever"); err != nil {
+		t.Fatalf("Insertion of large key failed: %v", err)
+	}
+
+	// and verify we can get it back, i.e. that the key hasn't been truncated.
+	it := kv.Find(string(largeKey), "")
+	if !it.Next() || it.Key() != string(largeKey) || it.Value() != "whatever" {
+		it.Close()
+		t.Fatalf("Find(largeKey) = %q, %q; want %q, %q", it.Key(), it.Value(), largeKey, "whatever")
+	}
+	it.Close()
+
+	// insert with large value
+	if err := kv.Set("whatever", string(largeValue)); err != nil {
+		t.Fatalf("Insertion of large value failed: %v", err)
+	}
+	// and verify we can get it back, i.e. that the value hasn't been truncated.
+	if v, err := kv.Get("whatever"); err != nil || v != string(largeValue) {
+		t.Fatalf("get(\"whatever\") = %q, %v; want %q", v, err, largeValue)
+	}
+
+	// insert with large key and large value
+	if err := kv.Set(string(largeKey), string(largeValue)); err != nil {
+		t.Fatalf("Insertion of large key and value failed: %v", err)
+	}
+	// and verify we can get them back
+	it = kv.Find(string(largeKey), "")
+	defer it.Close()
+	if !it.Next() || it.Key() != string(largeKey) || it.Value() != string(largeValue) {
+		t.Fatalf("Find(largeKey) = %q, %q; want %q, %q", it.Key(), it.Value(), largeKey, largeValue)
+	}
+}
+
+func testInsertTooLarge(t *testing.T, kv sorted.KeyValue) {
+	largeKey := make([]byte, sorted.MaxKeySize+1)
+	largeValue := make([]byte, sorted.MaxValueSize+1)
+	if err := kv.Set(string(largeKey), "whatever"); err == nil || err != sorted.ErrKeyTooLarge {
+		t.Fatalf("Insertion of too large a key should have failed, but err was %v", err)
+	}
+	if err := kv.Set("whatever", string(largeValue)); err == nil || err != sorted.ErrValueTooLarge {
+		t.Fatalf("Insertion of too large a value should have failed, but err was %v", err)
+	}
 }
 
 func testEnumerate(t *testing.T, kv sorted.KeyValue, start, end string, want ...string) {

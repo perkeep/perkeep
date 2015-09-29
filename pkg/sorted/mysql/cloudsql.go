@@ -23,8 +23,11 @@ import (
 	"log"
 	"strings"
 
-	sqladmin "camlistore.org/third_party/code.google.com/p/google-api-go-client/sqladmin/v1beta3"
-	"camlistore.org/third_party/github.com/bradfitz/gce"
+	"golang.org/x/net/context"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	sqladmin "google.golang.org/api/sqladmin/v1beta3"
+	"google.golang.org/cloud/compute/metadata"
 )
 
 const cloudSQLSuffix = ".cloudsql.google.internal"
@@ -34,15 +37,15 @@ func maybeRemapCloudSQL(host string) (out string, err error) {
 		return host, nil
 	}
 	inst := strings.TrimSuffix(host, cloudSQLSuffix)
-	if !gce.OnGCE() {
+	if !metadata.OnGCE() {
 		return "", errors.New("CloudSQL support only available when running on Google Compute Engine.")
 	}
-	proj, err := gce.ProjectID()
+	proj, err := metadata.ProjectID()
 	if err != nil {
 		return "", fmt.Errorf("Failed to lookup GCE project ID: %v", err)
 	}
 
-	admin, _ := sqladmin.New(gce.Client)
+	admin, _ := sqladmin.New(oauth2.NewClient(context.Background(), google.ComputeTokenSource("")))
 	listRes, err := admin.Instances.List(proj).Do()
 	if err != nil {
 		return "", fmt.Errorf("error enumerating Cloud SQL instances: %v", err)

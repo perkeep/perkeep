@@ -9,6 +9,7 @@
          "handlerArgs": {
              "ownerName": "test",
              "blobRoot": "/bs-and-maybe-also-index/",
+             "helpRoot": "/help/",
              "statusRoot": "/status/",
              "searchRoot": "/my-search/",
              "stealth": false
@@ -74,6 +75,7 @@
          "handler": "search",
          "handlerArgs": {
              "index": "/index-mem/",
+             "slurpToMemory": true,
              "owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4"
          }
      },

@@ -28,6 +28,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"html/template"
@@ -419,7 +420,9 @@ func main() {
 	}()
 	setup()
 
+	goTipHash = "Disabled"
 	for {
+
 		if err := pollGoChange(); err != nil {
 			log.Print(err)
 			goto Sleep
@@ -474,20 +477,9 @@ func setup() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// if gotip dir exist, just reuse it
-	if _, err := os.Stat(goTipDir); err != nil {
-		if !os.IsNotExist(err) {
-			log.Fatalf("Could not stat %v: %v", goTipDir, err)
-		}
-		if _, err := hgCloneGoTipCmd.run(); err != nil {
-			log.Fatalf("Could not hg clone %v: %v", goTipDir, err)
-		}
-		if err := os.Rename("go", goTipDir); err != nil {
-			log.Fatalf("Could not rename go dir into %v: %v", goTipDir, err)
-		}
-	}
 
 	if _, err := exec.LookPath("go"); err != nil {
+		log.Fatal("Fetching go tip is not supported anymore. Just setup Go manually (in $PATH) for the master to build the builder.")
 		// Go was not found on this machine, but we've already
 		// downloaded gotip anyway, so let's install it and
 		// use it to build the builder bot.
@@ -545,6 +537,7 @@ func setup() {
 }
 
 func buildGo() error {
+	return errors.New("Building go tip not supported anymore")
 	if err := os.Chdir(filepath.Join(goTipDir, "src")); err != nil {
 		log.Fatalf("Could not cd to %v: %v", goTipDir, err)
 	}
@@ -580,6 +573,10 @@ func handleSignals() {
 }
 
 func pollGoChange() error {
+	// pollGoChange disabled as of 20140126, because we'd need to fix the hg->git change,
+	// and deal with go 1.4 bootstrapping. Not worth the trouble since we're going to
+	// redo the bot soon with gomote and buildlet.
+	return nil
 	doBuildGo = false
 	if err := os.Chdir(goTipDir); err != nil {
 		log.Fatalf("Could not cd to %v: %v", goTipDir, err)
@@ -1185,14 +1182,14 @@ var statusHTML = `
 	<th>{{$report.OSArch}}</th>
 	<th colspan="1">Go tip hash</th>
 	<th colspan="1">Camli HEAD hash</th>
-	<th colspan="1">Go1</th>
+	<th colspan="1">Go1.5</th>
 	<th colspan="1">Gotip</th>
 	</tr>
 	{{if $report.Progress}}
 		<tr class="commit">
 			<td class="hash">{{$report.Progress.Start}}</td>
 			<td class="hash">
-				<a href="{{goRepoURL $report.Progress.GoHash}}">{{shortHash $report.Progress.GoHash}}</a>
+				Disabled
 			</td>
 			<td class="hash">
 				<a href="{{camliRepoURL $report.Progress.CamliHash}}">{{shortHash $report.Progress.CamliHash}}</a>
@@ -1207,7 +1204,7 @@ var statusHTML = `
 			<tr class="commit">
 				<td class="hash">{{$bits.Go1.Start}}</td>
 				<td class="hash">
-					<a href="{{goRepoURL $bits.Go1.GoHash}}">{{shortHash $bits.Go1.GoHash}}</a>
+					Disabled
 				</td>
 				<td class="hash">
 					<a href="{{camliRepoURL $bits.Go1.CamliHash}}">{{shortHash $bits.Go1.CamliHash}}</a>
@@ -1221,11 +1218,7 @@ var statusHTML = `
 				</td>
 				<td class="result">
 				{{if $bits.GoTip}}
-					{{if $bits.GoTip.Err}}
-						<a href="` + failPrefix + `{{$report.OSArch}}/gotip/{{$bits.GoTip.Start}}" class="fail">fail</a>
-					{{else}}
-						<a href="` + okPrefix + `{{$report.OSArch}}/gotip/{{$bits.GoTip.Start}}" class="ok">ok</a>
-					{{end}}
+					Disabled
 				{{else}}
 					<a href="` + currentPrefix + `" class="ok">In progress</a>
 				{{end}}
@@ -1253,7 +1246,7 @@ var testSuiteHTML = `
 	<body>
 	{{range $ts := .BiTs}}
 		{{if $ts}}
-		<h2> Testsuite for {{if $ts.IsTip}}Go tip{{else}}Go 1{{end}} at {{$ts.Start}} </h2>
+		<h2> Testsuite for {{if $ts.IsTip}}Go tip{{else}}Go 1.5{{end}} at {{$ts.Start}} </h2>
 		<table class="build">
 		<colgroup class="col-result" span="1"></colgroup>
 		<colgroup class="col-result" span="1"></colgroup>

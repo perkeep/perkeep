@@ -35,6 +35,14 @@ import (
 	"camlistore.org/pkg/images/resize"
 	"camlistore.org/third_party/github.com/nf/cr2"
 	"camlistore.org/third_party/github.com/rwcarlsen/goexif/exif"
+
+	// TODO(mpl, wathiede): add test(s) to check we can decode both tiff and cr2,
+	// so we don't mess up the import order again.
+	// See https://camlistore-review.googlesource.com/5196 comments.
+
+	// tiff package must be imported after any image packages that decode
+	// tiff-like formats, i.e. CR2 or DNG
+	_ "camlistore.org/third_party/golang.org/x/image/tiff"
 )
 
 var disableThumbCache, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_THUMB_CACHE"))
@@ -350,8 +358,12 @@ func DecodeConfig(r io.Reader) (Config, error) {
 	swapDimensions := false
 
 	ex, err := exif.Decode(tr)
+	// trigger a retry when there isn't enough data for reading exif data from a tiff file
+	if exif.IsShortReadTagValueError(err) {
+		return c, io.ErrUnexpectedEOF
+	}
 	if err != nil {
-		imageDebug("No valid EXIF.")
+		imageDebug(fmt.Sprintf("No valid EXIF, error: %v.", err))
 	} else {
 		tag, err := ex.Get(exif.Orientation)
 		if err != nil {
@@ -432,7 +444,7 @@ func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image,
 			im, err = fastjpeg.DecodeDownsample(tr, factor)
 			switch err.(type) {
 			case fastjpeg.DjpegFailedError:
-				log.Printf("djpeg failed, retrying with jpeg.Decode: %v", err)
+				log.Printf("Retrying with jpeg.Decode, because djpeg failed with: %v", err)
 				im, err = jpeg.Decode(io.MultiReader(&buf, mr))
 			case nil:
 				// fallthrough to rescale() below.

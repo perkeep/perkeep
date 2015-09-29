@@ -72,7 +72,7 @@ func TestArchiver(t *testing.T) {
 		t.Error("no zip data stored")
 	}
 	if len(src.BlobrefStrings()) != 0 {
-		t.Errorf("source still has blobs = %q; want none", src.BlobrefStrings)
+		t.Errorf("source still has blobs = %d; want none", len(src.BlobrefStrings()))
 	}
 	if len(inZip) != 2 {
 		t.Errorf("expected 2 blobs reported as in zip to Store; got %v", inZip)

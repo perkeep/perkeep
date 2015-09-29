@@ -161,19 +161,32 @@ func skipFromList(name string) bool {
 	return false
 }
 
-func TestMergeFileInfoRow(t *testing.T) {
+func testMergeFileInfoRow(t *testing.T, wholeRef string) {
 	c := index.ExpNewCorpus()
-	c.Exp_mergeFileInfoRow("fileinfo|sha1-579f7f246bd420d486ddeb0dadbb256cfaf8bf6b",
-		"100|something%2egif|image%2Fgif")
-	fi := c.Exp_files(blob.MustParse("sha1-579f7f246bd420d486ddeb0dadbb256cfaf8bf6b"))
+	value := "100|something%2egif|image%2Fgif"
 	want := camtypes.FileInfo{
 		Size:     100,
 		MIMEType: "image/gif",
 		FileName: "something.gif",
 	}
+	if wholeRef != "" {
+		value += "|" + wholeRef
+		want.WholeRef = blob.MustParse(wholeRef)
+	}
+	c.Exp_mergeFileInfoRow("fileinfo|sha1-579f7f246bd420d486ddeb0dadbb256cfaf8bf6b", value)
+	fi := c.Exp_files(blob.MustParse("sha1-579f7f246bd420d486ddeb0dadbb256cfaf8bf6b"))
 	if !reflect.DeepEqual(want, fi) {
 		t.Errorf("Got %+v; want %+v", fi, want)
 	}
+}
+
+// When requiredSchemaVersion was at 4, i.e. wholeRef hadn't been introduced into fileInfo
+func TestMergeFileInfoRow4(t *testing.T) {
+	testMergeFileInfoRow(t, "")
+}
+
+func TestMergeFileInfoRow(t *testing.T) {
+	testMergeFileInfoRow(t, "sha1-142b504945338158e0149d4ed25a41a522a28e88")
 }
 
 var (
@@ -418,4 +431,70 @@ func copyBlob(br blob.Ref, dst blobserver.BlobReceiver, src blob.Fetcher) error 
 	defer rc.Close()
 	_, err = dst.ReceiveBlob(br, rc)
 	return err
+}
+
+// tests that we add the missing wholeRef entries in FileInfo rows when going from
+// a version 4 to a version 5 index.
+func TestFixMissingWholeref(t *testing.T) {
+	tf := new(test.Fetcher)
+	s := sorted.NewMemoryKeyValue()
+
+	ix, err := index.New(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ix.InitBlobSource(tf)
+
+	// populate with a file
+	add := func(b *test.Blob) {
+		tf.AddBlob(b)
+		if _, err := ix.ReceiveBlob(b.BlobRef(), b.Reader()); err != nil {
+			t.Fatalf("ReceiveBlob(%v): %v", b.BlobRef(), err)
+		}
+	}
+	add(chunk1)
+	add(chunk2)
+	add(chunk3)
+	add(fileBlob)
+
+	// revert the row to the old form, by stripping the wholeRef suffix
+	key := "fileinfo|" + fileBlobRef.String()
+	val5, err := s.Get(key)
+	if err != nil {
+		t.Fatalf("could not get %v: %v", key, err)
+	}
+	parts := strings.SplitN(val5, "|", 4)
+	val4 := strings.Join(parts[:3], "|")
+	if err := s.Set(key, val4); err != nil {
+		t.Fatalf("could not set (%v, %v): %v", key, val4, err)
+	}
+
+	// revert index version at 4 to trigger the fix
+	if err := s.Set("schemaversion", "4"); err != nil {
+		t.Fatal(err)
+	}
+
+	// init broken index
+	ix, err = index.New(s)
+	if err != index.Exp_ErrMissingWholeRef {
+		t.Fatalf("wrong error upon index initialization: got %v, wanted %v", err, index.Exp_ErrMissingWholeRef)
+	}
+	// and fix it
+	if err := ix.Exp_FixMissingWholeRef(tf); err != nil {
+		t.Fatal(err)
+	}
+
+	// init fixed index
+	ix, err = index.New(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// and check that the value is now actually fixed
+	fi, err := ix.GetFileInfo(fileBlobRef)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.WholeRef.String() != parts[3] {
+		t.Fatalf("index fileInfo wholeref was not fixed: got %q, wanted %v", fi.WholeRef, parts[3])
+	}
 }

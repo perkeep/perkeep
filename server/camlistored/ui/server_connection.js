@@ -37,13 +37,9 @@ cam.ServerConnection = function(config, opt_sendXhr) {
 };
 
 cam.ServerConnection.DESCRIBE_REQUEST = {
-	// This size doesn't matter, we don't use it. We only care about the aspect ratio.
-	// TODO(aa): This needs to die: https://code.google.com/p/camlistore/issues/detail?id=321
-	thumbnailSize: 1000,
-
 	// TODO(aa): This is not perfect. The describe request will return some data we don't care about:
 	// - Properties we don't use
-	// See: https://code.google.com/p/camlistore/issues/detail?id=319
+	// See: https://camlistore.org/issue/319
 
 	depth: 1,
 	rules: [
@@ -57,11 +53,28 @@ cam.ServerConnection.DESCRIBE_REQUEST = {
 		{
 			ifCamliNodeType: 'foursquare.com:venue',
 			attrs: ['camliPath:photos'],
-                        rules: [
-                            { attrs: ['camliPath:*'] }
-                        ]
+			rules: [
+				{ attrs: ['camliPath:*'] }
+			]
 		}
 	]
+};
+
+cam.ServerConnection.prototype.getPermanodeWithContent = function(contentRef, success, opt_fail) {
+	var query = {
+		permanode: {
+			attr: "camliContent",
+			value: contentRef,
+		},
+	};
+	var callback = function(result) {
+		if (!result || !result.blobs || result.blobs.length == 0) {
+			success();
+			return;
+		}
+		success(result.blobs[0].blob);
+	}
+	this.search(query, null, null, null, callback);
 };
 
 cam.ServerConnection.prototype.getWorker_ = function() {
@@ -76,37 +89,6 @@ cam.ServerConnection.prototype.getConfig = function() {
 	return this.config_;
 };
 
-// @param {?Function|undefined} fail Fail func to call if exists.
-// @return {Function}
-cam.ServerConnection.prototype.safeFail_ = function(fail) {
-	return fail || function(msg) {
-		throw new Error(msg);
-	};
-};
-
-// @param {Function} success Success callback.
-// @param {?Function} fail Optional fail callback.
-// @param {goog.events.Event} e Event that triggered this
-cam.ServerConnection.prototype.handleXhrResponseText_ = function(success, fail, e) {
-	var xhr = e.target;
-	var error = !xhr.isSuccess();
-	var result = null;
-	if (!error) {
-		result = xhr.getResponseText();
-		error = !result;
-	}
-	if (error) {
-		if (fail) {
-			fail(xhr.getLastError())
-		} else {
-			// TODO(bslatkin): Add a default failure event handler to this class.
-			console.log('Failed XHR (text) in ServerConnection');
-		}
-		return;
-	}
-	success(result);
-};
-
 // @param {string} blobref blobref whose contents we want.
 // @param {Function} success callback with data.
 // @param {?Function} opt_fail optional failure calback
@@ -114,21 +96,17 @@ cam.ServerConnection.prototype.getBlobContents = function(blobref, success, opt_
 	var path = goog.uri.utils.appendPath(
 		this.config_.blobRoot, 'camli/' + blobref
 	);
-
 	this.sendXhr_(path,
 		goog.bind(this.handleXhrResponseText_, this,
-			success, this.safeFail_(opt_fail)
+			{success: success, fail: opt_fail}
 		)
 	);
 };
 
-// TODO(mpl): set a global timeout ?
-// Brett, would it be worth to use the XhrIo send instance method, with listeners,
-// instead of the send() utility function ?
-// @param {Function} success Success callback.
-// @param {?Function} fail Optional fail callback.
 // @param {goog.events.Event} e Event that triggered this
-cam.ServerConnection.prototype.handleXhrResponseJson_ = function(success, fail, e) {
+cam.ServerConnection.prototype.handleXhrResponseJson_ = function(callbacks, e) {
+	var success = callbacks.success
+	var fail = callbacks.fail
 	var xhr = e.target;
 	var error = !xhr.isSuccess();
 	var result = null;
@@ -140,7 +118,11 @@ cam.ServerConnection.prototype.handleXhrResponseJson_ = function(success, fail, 
 	}
 
 	if (error) {
-		fail(result.error || result);
+		if (fail) {
+			fail(result.error || result);
+		} else {
+			console.log('Failed XHR (JSON) in ServerConnection: ' + result.error || result);
+		}
 	} else {
 		success(result);
 	}
@@ -150,50 +132,28 @@ cam.ServerConnection.prototype.handleXhrResponseJson_ = function(success, fail, 
 // @param {?Function} opt_fail optional failure calback
 cam.ServerConnection.prototype.discoSignRoot = function(success, opt_fail) {
 	var path = goog.uri.utils.appendPath(this.config_.jsonSignRoot, '/camli/sig/discovery');
-	this.sendXhr_(path, goog.bind(this.handleXhrResponseJson_, this, success, this.safeFail_(opt_fail)));
+	this.sendXhr_(path, goog.bind(this.handleXhrResponseJson_, this, {success: success, fail: opt_fail}));
 };
 
 // @param {function(cam.ServerType.StatusResponse)} success.
-// @param {?Function} opt_fail optional failure calback
-cam.ServerConnection.prototype.serverStatus = function(success, opt_fail) {
+cam.ServerConnection.prototype.serverStatus = function(success) {
 	var path = goog.uri.utils.appendPath(this.config_.statusRoot, 'status.json');
 
 	this.sendXhr_(path,
-		goog.bind(this.handleXhrResponseJson_, this, success, function(msg) {
+		goog.bind(this.handleXhrResponseJson_, this, {success: success, fail: function(msg) {
 			console.log("serverStatus error: " + msg);
-		}));
-};
-
-// @param {Function} success Success callback.
-// @param {?Function} opt_fail Optional fail callback.
-// @param {goog.events.Event} e Event that triggered this
-cam.ServerConnection.prototype.genericHandleSearch_ = function(success, opt_fail, e) {
-	this.handleXhrResponseJson_(success, this.safeFail_(opt_fail), e);
+		}}));
 };
 
 // @param {string} blobref root of the tree
 // @param {Function} success callback with data.
 // @param {?Function} opt_fail optional failure calback
 cam.ServerConnection.prototype.getFileTree = function(blobref, success, opt_fail) {
-
 	// TODO(mpl): do it relatively to a discovered root?
 	var path = "./tree/" + blobref;
-	this.sendXhr_(path, goog.bind(this.genericHandleSearch_, this, success, this.safeFail_(opt_fail)));
+	this.sendXhr_(path, goog.bind(this.handleXhrResponseJson_, this, {success: success, fail: opt_fail}));
 };
 
-
-// @param {string} blobref Permanode blobref.
-// @param {number} thumbnailSize
-// @param {function(cam.ServerType.DescribeResponse)} success.
-// @param {Function=} opt_fail Optional fail callback.
-cam.ServerConnection.prototype.describeWithThumbnails = function(blobref, thumbnailSize, success, opt_fail) {
-	var path = goog.uri.utils.appendPath(
-		this.config_.searchRoot, 'camli/search/describe?blobref=' + blobref);
-
-	// TODO(mpl): should we URI encode the value? doc does not say...
-	path = goog.uri.utils.appendParam(path, 'thumbnails', thumbnailSize);
-	this.sendXhr_(path, goog.bind(this.genericHandleSearch_, this, success, this.safeFail_(opt_fail)));
-};
 
 // @param {string} signer permanode must belong to signer.
 // @param {string} attr searched attribute.
@@ -208,16 +168,18 @@ cam.ServerConnection.prototype.permanodeOfSignerAttrValue = function(signer, att
 
 	this.sendXhr_(
 		path,
-		goog.bind(this.genericHandleSearch_, this,
-			success, this.safeFail_(opt_fail)
+		goog.bind(this.handleXhrResponseJson_, this,
+			{success: success, fail: opt_fail}
 		)
 	);
 };
 
 // @param {string|object} query If string, will be sent as 'expression', otherwise will be sent as 'constraint'.
 // @param {?object} opt_describe The describe property to send for the query
-cam.ServerConnection.prototype.buildQuery = function(callerQuery, opt_describe, opt_limit, opt_continuationToken) {
+cam.ServerConnection.prototype.buildQuery = function(callerQuery, opt_describe, opt_limit, opt_continuationToken, opt_around) {
 	var query = {
+		// TODO(mpl): it'd be better to not ask for a sort when none is needed (less work for server),
+		// e.g. for a plain BlobRefPrefix query.
 		sort: "-created"
 	};
 
@@ -233,7 +195,9 @@ cam.ServerConnection.prototype.buildQuery = function(callerQuery, opt_describe, 
 	if (opt_limit) {
 		query.limit = opt_limit;
 	}
-	if (opt_continuationToken) {
+	if (opt_around) {
+		query.around = opt_around;
+	} else if (opt_continuationToken) {
 		query.continue = opt_continuationToken;
 	}
 
@@ -245,7 +209,7 @@ cam.ServerConnection.prototype.buildQuery = function(callerQuery, opt_describe, 
 cam.ServerConnection.prototype.search = function(query, opt_describe, opt_limit, opt_continuationToken, callback) {
 	var path = goog.uri.utils.appendPath(this.config_.searchRoot, 'camli/search/query');
 	this.sendXhr_(path,
-		goog.bind(this.genericHandleSearch_, this, callback, this.safeFail_()),
+		goog.bind(this.handleXhrResponseJson_, this, {success: callback}),
 		"POST", JSON.stringify(this.buildQuery(query, opt_describe, opt_limit, opt_continuationToken)));
 };
 
@@ -254,13 +218,13 @@ cam.ServerConnection.prototype.search = function(query, opt_describe, opt_limit,
 // @param {string} target blobref of permanode we want to find paths to
 // @param {Function} success.
 // @param {Function=} opt_fail Optional fail callback.
-cam.ServerConnection.prototype.pathsOfSignerTarget = function(signer, target, success, opt_fail) {
+cam.ServerConnection.prototype.pathsOfSignerTarget = function(target, success, opt_fail) {
 	var path = goog.uri.utils.appendPath(
 		this.config_.searchRoot, 'camli/search/signerpaths'
 	);
-	path = goog.uri.utils.appendParams(path, 'signer', signer, 'target', target);
+	path = goog.uri.utils.appendParams(path, 'signer', this.config_.signing.publicKeyBlobRef, 'target', target);
 	this.sendXhr_(path,
-		goog.bind(this.genericHandleSearch_, this, success, this.safeFail_(opt_fail)));
+		goog.bind(this.handleXhrResponseJson_, this, {success: success, fail: opt_fail}));
 };
 
 // @param {string} permanode Permanode blobref.
@@ -273,8 +237,8 @@ cam.ServerConnection.prototype.permanodeClaims = function(permanode, success, op
 
 	this.sendXhr_(
 		path,
-		goog.bind(this.genericHandleSearch_, this,
-			success, this.safeFail_(opt_fail)
+		goog.bind(this.handleXhrResponseJson_, this,
+			{success: success, fail: opt_fail}
 		)
 	);
 };
@@ -285,24 +249,24 @@ cam.ServerConnection.prototype.permanodeClaims = function(permanode, success, op
 cam.ServerConnection.prototype.sign_ = function(clearObj, success, opt_fail) {
 	var sigConf = this.config_.signing;
 	if (!sigConf || !sigConf.publicKeyBlobRef) {
-		this.safeFail_(opt_fail)("Missing Camli.config.signing.publicKeyBlobRef");
+		this.failOrLog_(opt_fail, "Missing Camli.config.signing.publicKeyBlobRef");
 		return;
 	}
 
-		clearObj.camliSigner = sigConf.publicKeyBlobRef;
-		var camVersion = clearObj.camliVersion;
-		if (camVersion) {
-			 delete clearObj.camliVersion;
-		}
-		var clearText = JSON.stringify(clearObj, null, "	");
-		if (camVersion) {
-			 clearText = "{\"camliVersion\":" + camVersion + ",\n" + clearText.substr("{\n".length);
-		}
+	clearObj.camliSigner = sigConf.publicKeyBlobRef;
+	var camVersion = clearObj.camliVersion;
+	if (camVersion) {
+		 delete clearObj.camliVersion;
+	}
+	var clearText = JSON.stringify(clearObj, null, "	");
+	if (camVersion) {
+		 clearText = "{\"camliVersion\":" + camVersion + ",\n" + clearText.substr("{\n".length);
+	}
 
 	this.sendXhr_(
 		sigConf.signHandler,
-		goog.bind(this.handlePost_, this,
-			success, this.safeFail_(opt_fail)),
+		goog.bind(this.handleXhrResponseText_, this,
+			{success: success, fail: opt_fail}),
 		"POST",
 		"json=" + encodeURIComponent(clearText),
 		{"Content-Type": "application/x-www-form-urlencoded"}
@@ -315,26 +279,44 @@ cam.ServerConnection.prototype.sign_ = function(clearObj, success, opt_fail) {
 cam.ServerConnection.prototype.verify_ = function(signed, success, opt_fail) {
 	var sigConf = this.config_.signing;
 	if (!sigConf || !sigConf.publicKeyBlobRef) {
-		this.safeFail_(opt_fail)("Missing Camli.config.signing.publicKeyBlobRef");
+		if (opt_fail) {
+			opt_fail("Missing Camli.config.signing.publicKeyBlobRef");
+		} else {
+			console.log("Missing Camli.config.signing.publicKeyBlobRef");
+		}
 		return;
 	}
 	this.sendXhr_(
 		sigConf.verifyHandler,
-		goog.bind(this.handlePost_, this,
-			success, this.safeFail_(opt_fail)),
+		goog.bind(this.handleXhrResponseText_, this,
+			{success: success, fail: opt_fail}),
 		"POST",
 		"sjson=" + encodeURIComponent(signed),
 		{"Content-Type": "application/x-www-form-urlencoded"}
 	);
 };
 
-// @param {Function} success Success callback.
-// @param {?Function} opt_fail Optional fail callback.
 // @param {goog.events.Event} e Event that triggered this
-cam.ServerConnection.prototype.handlePost_ = function(success, opt_fail, e) {
-	this.handleXhrResponseText_(success, opt_fail, e);
+cam.ServerConnection.prototype.handleXhrResponseText_ = function(callbacks, e) {
+	var fail = callbacks.fail;
+	var xhr = e.target;
+	var error = !xhr.isSuccess();
+	var result = null;
+	if (!error) {
+		result = xhr.getResponseText();
+		error = !result;
+	}
+	if (error) {
+		if (fail) {
+			fail(xhr.getLastError());
+		} else {
+			// TODO(bslatkin): Add a default failure event handler to this class.
+			console.log('Failed XHR (text) in ServerConnection: ' + xhr.getLastError());
+		}
+		return;
+	}
+	callbacks.success(result);
 };
-
 
 // @param {string} s String to upload.
 // @param {Function} success Success callback.
@@ -355,8 +337,7 @@ cam.ServerConnection.prototype.uploadString_ = function(s, success, opt_fail) {
 		this.config_.blobRoot + "camli/upload",
 		goog.bind(this.handleUploadString_, this,
 			blobref,
-			success,
-			this.safeFail_(opt_fail)
+			{success: success, fail: opt_fail}
 		),
 		"POST",
 		fd
@@ -364,14 +345,12 @@ cam.ServerConnection.prototype.uploadString_ = function(s, success, opt_fail) {
 };
 
 // @param {string} blobref Uploaded blobRef.
-// @param {Function} success Success callback.
-// @param {?Function} opt_fail Optional fail callback.
 // @param {goog.events.Event} e Event that triggered this
-cam.ServerConnection.prototype.handleUploadString_ = function(blobref, success, opt_fail, e) {
-	this.handlePost_(
-		function(resj) {
+cam.ServerConnection.prototype.handleUploadString_ = function(blobref, callbacks, e) {
+	this.handleXhrResponseText_({
+		success: function(resj) {
 			if (!resj) {
-				alert("upload permanode fail; no response");
+				alert("upload failed; no response");
 				return;
 			}
 			var resObj = JSON.parse(resj);
@@ -379,13 +358,21 @@ cam.ServerConnection.prototype.handleUploadString_ = function(blobref, success, 
 				alert("upload permanode fail, expected blobRef not in response");
 				return;
 			}
-			if (success) {
-				success(blobref);
+			if (callbacks.success) {
+				callbacks.success(blobref);
 			}
 		},
-		this.safeFail_(opt_fail),
+		fail: callbacks.fail},
 		e
 	)
+};
+
+cam.ServerConnection.prototype.failOrLog_ = function(fail, msg) {
+	if (fail) {
+		fail(msg);
+	} else {
+		console.log(msg);
+	}
 };
 
 // @param {Function} success Success callback.
@@ -397,26 +384,14 @@ cam.ServerConnection.prototype.createPermanode = function(success, opt_fail) {
 		"random": ""+Math.random()
 	};
 	this.sign_(json,
-		goog.bind(this.handleSignPermanode_, this, success, this.safeFail_(opt_fail)),
-		function(msg) {
-			this.safeFail_(opt_fail)("sign permanode fail: " + msg);
-		}
+		goog.bind(function(signed) {
+			this.uploadString_(signed, success, opt_fail)
+		}, this),
+		goog.bind(function(msg) {
+			this.failOrLog_(opt_fail, "create permanode: signing failed: " + msg);
+		}, this)
 	);
 };
-
-// @param {Function} success Success callback.
-// @param {?Function} opt_fail Optional fail callback.
-// @param {string} signed Signed string to upload
-cam.ServerConnection.prototype.handleSignPermanode_ = function(success, opt_fail, signed) {
-	this.uploadString_(
-		signed,
-		success,
-		function(msg) {
-			this.safeFail_(opt_fail)("upload permanode fail: " + msg);
-		}
-	)
-};
-
 
 // @param {string} permanode Permanode to change.
 // @param {string} claimType What kind of claim: "add-attribute", "set-attribute"...
@@ -436,10 +411,12 @@ cam.ServerConnection.prototype.changeAttribute_ = function(permanode, claimType,
 		"value": value
 	};
 	this.sign_(json,
-		goog.bind(this.handleSignClaim_, this, success, this.safeFail_(opt_fail)),
-		function(msg) {
-			this.safeFail_(opt_fail)("sign " + claimType + " fail: " + msg);
-		}
+		goog.bind(function(signed) {
+			this.uploadString_(signed, success, opt_fail)
+		}, this),
+		goog.bind(function(msg) {
+			this.failOrLog_(opt_fail, "change attribute: signing failed: " + msg);
+		}, this)
 	);
 };
 
@@ -455,24 +432,13 @@ cam.ServerConnection.prototype.newDeleteClaim = function(permanode, success, opt
 		"claimDate": dateToRfc3339String(new Date())
 	};
 	this.sign_(json,
-		goog.bind(this.handleSignClaim_, this, success, this.safeFail_(opt_fail)),
-		function(msg) {
-			this.safeFail_(opt_fail)("sign delete fail: " + msg);
-		}
+		goog.bind(function(signed) {
+			this.uploadString_(signed, success, opt_fail)
+		}, this),
+		goog.bind(function(msg) {
+			this.failOrLog_(opt_fail, "delete attribute: signing failed: " + msg);
+		}, this)
 	);
-};
-
-// @param {Function} success Success callback.
-// @param {?Function} opt_fail Optional fail callback.
-// @param {string} signed Signed string to upload
-cam.ServerConnection.prototype.handleSignClaim_ = function(success, opt_fail, signed) {
-	this.uploadString_(
-		signed,
-		success,
-		function(msg) {
-			this.safeFail_(opt_fail)("upload " + claimType + " fail: " + msg);
-		}
-	)
 };
 
 // @param {string} permanode Permanode blobref.
@@ -482,7 +448,7 @@ cam.ServerConnection.prototype.handleSignClaim_ = function(success, opt_fail, si
 // @param {?Function} opt_fail Optional fail callback.
 cam.ServerConnection.prototype.newSetAttributeClaim = function(permanode, attribute, value, success, opt_fail) {
 	this.changeAttribute_(permanode, "set-attribute", attribute, value,
-		success, this.safeFail_(opt_fail)
+		success, opt_fail
 	);
 };
 
@@ -494,7 +460,7 @@ cam.ServerConnection.prototype.newSetAttributeClaim = function(permanode, attrib
 // @param {?Function} opt_fail Optional fail callback.
 cam.ServerConnection.prototype.newAddAttributeClaim = function(permanode, attribute, value, success, opt_fail) {
 	this.changeAttribute_(permanode, "add-attribute", attribute, value,
-		success, this.safeFail_(opt_fail)
+		success, opt_fail
 	);
 };
 
@@ -505,10 +471,9 @@ cam.ServerConnection.prototype.newAddAttributeClaim = function(permanode, attrib
 // @param {?Function} opt_fail Optional fail callback.
 cam.ServerConnection.prototype.newDelAttributeClaim = function(permanode, attribute, value, success, opt_fail) {
 	this.changeAttribute_(permanode, "del-attribute", attribute, value,
-		success, this.safeFail_(opt_fail)
+		success, opt_fail
 	);
 };
-
 
 // @param {File} file File to be uploaded.
 // @param {function(string)} success Success callback, called with blobref of
@@ -520,7 +485,7 @@ cam.ServerConnection.prototype.uploadFile = function(file, success, opt_fail, op
 		if (opt_onContentsRef) {
 			opt_onContentsRef(ref);
 		}
-		this.camliUploadFileHelper_(file, ref, success, this.safeFail_(opt_fail));
+		this.camliUploadFileHelper_(file, ref, success, opt_fail);
 	}.bind(this));
 };
 
@@ -538,17 +503,18 @@ cam.ServerConnection.prototype.uploadFile = function(file, success, opt_fail, op
 // @param {?Function} opt_fail Optional fail callback.
 cam.ServerConnection.prototype.camliUploadFileHelper_ = function(file, contentsBlobRef, success, opt_fail) {
 	if (!this.config_.uploadHelper) {
-		this.safeFail_(opt_fail)("no uploadHelper available");
+		this.failOrLog_(opt_fail, "no uploadHelper available");
 		return;
 	}
 
 	var doUpload = goog.bind(function() {
 		var fd = new FormData();
-		fd.append("TODO-some-uploadHelper-form-name", file);
+		fd.append("modtime", dateToRfc3339String(file.lastModifiedDate));
+		fd.append("ui-upload-file-helper-form", file);
 		this.sendXhr_(
 			this.config_.uploadHelper,
 			goog.bind(this.handleUpload_, this,
-				file, contentsBlobRef, success, this.safeFail_(opt_fail)
+				file, contentsBlobRef, {success: success, fail: opt_fail}
 			),
 			"POST",
 			fd
@@ -560,32 +526,29 @@ cam.ServerConnection.prototype.camliUploadFileHelper_ = function(file, contentsB
 		goog.bind(this.dupCheck_, this,
 			doUpload, contentsBlobRef, success
 		),
-		this.safeFail_(opt_fail)
+		opt_fail
 	)
 }
 
 // @param {File} file File to be uploaded.
 // @param {string} contentsBlobRef Blob ref of file as sha1'd locally.
-// @param {Function} success Success callback.
-// @param {?Function} opt_fail Optional fail callback.
 // @param {goog.events.Event} e Event that triggered this
-cam.ServerConnection.prototype.handleUpload_ = function(file, contentsBlobRef, success, opt_fail, e) {
-	this.handlePost_(
-		goog.bind(function(res) {
+cam.ServerConnection.prototype.handleUpload_ = function(file, contentsBlobRef, callbacks, e) {
+	this.handleXhrResponseText_({
+		success: goog.bind(function(res) {
 			var resObj = JSON.parse(res);
 			if (resObj.got && resObj.got.length == 1 && resObj.got[0].fileref) {
 				var fileblob = resObj.got[0].fileref;
 				console.log("uploaded " + contentsBlobRef + " => file blob " + fileblob);
-				success(fileblob);
+				callbacks.success(fileblob);
 			} else {
-				this.safeFail_(opt_fail)("failed to upload " + file.name + ": " + contentsBlobRef + ": " + JSON.stringify(res, null, 2))
+				this.failOrLog_(callbacks.fail, "failed to upload " + file.name + ": " + contentsBlobRef + ": " + JSON.stringify(res, null, 2));
 			}
 		}, this),
-		this.safeFail_(opt_fail),
+		fail: callbacks.fail},
 		e
 	)
 };
-
 
 // @param {string} wholeDigestRef file digest.
 // @param {Function} success callback with data.
@@ -596,12 +559,11 @@ cam.ServerConnection.prototype.findExistingFileSchemas_ = function(wholeDigestRe
 
 	this.sendXhr_(
 		path,
-		goog.bind(this.genericHandleSearch_, this,
-			success, this.safeFail_(opt_fail)
+		goog.bind(this.handleXhrResponseJson_, this,
+			{success: success, fail: opt_fail}
 		)
 	);
 };
-
 
 // @param {Function} doUpload fun that takes care of uploading.
 // @param {string} contentsBlobRef Blob ref of file as sha1'd locally.

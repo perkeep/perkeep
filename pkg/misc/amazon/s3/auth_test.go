@@ -128,12 +128,12 @@ func TestSignRequest(t *testing.T) {
 
 func TestHasDotSuffix(t *testing.T) {
 	if !hasDotSuffix("foo.com", "com") {
-		t.Error()
+		t.Fail()
 	}
 	if hasDotSuffix("foocom", "com") {
-		t.Error()
+		t.Fail()
 	}
 	if hasDotSuffix("com", "com") {
-		t.Error()
+		t.Fail()
 	}
 }

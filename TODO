@@ -1,21 +1,34 @@
 There are two TODO lists. This file (good for airplanes) and the online bug tracker:
 
-     https://code.google.com/p/camlistore/issues/list
+     https://github.com/camlistore/camlistore/issues
 
 Offline list:
 
--- reindexing:
-   * review blob streaming interface & diskpacked implementation thereof.
-     notably: should the continuation token come per-blob? then we could
-     remove the limitBytes parameter too, and just let the caller cancel when
-     they want.
-   * add streaming interface to localdisk? maybe, even though not ideal, but
-     really: migrate my personal instance from localdisk to diskpacked
-   * add blobserver.EnumerateAllUnsorted.
+-- fix the presubmit's gofmt to be happy about emacs:
 
+        go fmt camlistore.org/cmd... camlistore.org/dev... camlistore.org/misc... camlistore.org/pkg... camlistore.org/server...
+        stat pkg/blobserver/.#multistream_test.go: no such file or directory
+        exit status 2
+        make: *** [fmt] Error 1
+
+
+-- add HTTP handler for blobstreamer. stream a tar file? where to put
+   continuation token? special file after each tar entry? special file
+   at the end? HTTP Trailers? (but nobody supports them)
+
+-- reindexing:
+   * add streaming interface to localdisk? maybe, even though not ideal, but
+     really: migrate my personal instance from localdisk to blobpacked +
+     maybe diskpacked for loose blobs? start by migrating to blobpacked and
+     measuring size of loose.
+   * add blobserver.EnumerateAllUnsorted (which could use StreamBlobs
+     if available, else use EnumerateAll, else maybe even use a new
+     interface method that goes forever and can't resume at a point,
+     but can be canceled, and localdisk could implement that at least)
    * add buffered sorted.KeyValue implementation: a memory one (of
      configurable max size) in front of a real disk one. add a Flush method
      to it. also Flush when memory gets big enough.
+     In progress: pkg/sorted/buffer
 
 -- stop using the "cond" blob router storage type in genconfig, as
    well as the /bs-and-index/ "replica" storage type, and just let the
@@ -72,9 +85,6 @@ Offline list:
    optional blobserver.Storage method to fsync (in the case of
    diskpacked/localdisk) and getting all the "uploaded" messages back
    for the data chunks that were written-but-not-synced.
-
--- benchmark uploading a 100MB file to localdisk & diskpacked
-   from camput.
 
 -- measure FUSE operations, latency, round-trips, performance.
    see next item:

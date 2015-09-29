@@ -14,9 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// The publisher application serves and renders items published by Camlistore.
-// That is, items that are children, through a (direct or not) camliPath relation,
-// of a camliRoot node (a permanode with a camliRoot attribute set).
 package main
 
 import (
@@ -417,8 +414,7 @@ func (ph *publishHandler) deepDescribe(br blob.Ref) (*search.DescribeResponse, e
 			CamliType:     "permanode",
 		},
 		Describe: &search.DescribeRequest{
-			ThumbnailSize: 1000,
-			Depth:         1,
+			Depth: 1,
 			Rules: []*search.DescribeRule{
 				{
 					Attrs: []string{"camliContent", "camliContentImage", "camliMember", "camliPath:*"},
@@ -703,7 +699,7 @@ func (pr *publishRequest) serveFileDownload(des *search.DescribedBlob) {
 	dh := &server.DownloadHandler{
 		Fetcher:   pr.ph.cl,
 		Cache:     pr.ph.cache,
-		ForceMime: mime,
+		ForceMIME: mime,
 	}
 	dh.ServeHTTP(pr.rw, pr.req, fileref)
 }
@@ -935,8 +931,7 @@ func (ph *publishHandler) describeMembers(br blob.Ref) (*search.SearchResult, er
 			CamliType: "permanode",
 		},
 		Describe: &search.DescribeRequest{
-			ThumbnailSize: 1000,
-			Depth:         1,
+			Depth: 1,
 			Rules: []*search.DescribeRule{
 				{
 					Attrs: []string{"camliContent", "camliContentImage"},

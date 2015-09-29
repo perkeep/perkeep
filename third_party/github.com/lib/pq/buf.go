@@ -2,8 +2,8 @@ package pq
 
 import (
 	"bytes"
-	"encoding/binary"
 	"camlistore.org/third_party/github.com/lib/pq/oid"
+	"encoding/binary"
 )
 
 type readBuf []byte

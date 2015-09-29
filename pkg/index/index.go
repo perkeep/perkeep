@@ -32,6 +32,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/context"
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
@@ -151,11 +152,14 @@ func New(s sorted.KeyValue) (*Index, error) {
 		}
 	case schemaVersion != requiredSchemaVersion:
 		tip := ""
-		if os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "" {
+		if env.IsDev() {
 			// Good signal that we're using the devcam server, so help out
 			// the user with a more useful tip:
 			tip = `(For the dev server, run "devcam server --wipe" to wipe both your blobs and index)`
 		} else {
+			if is4To5SchemaBump(schemaVersion) {
+				return idx, errMissingWholeRef
+			}
 			tip = "Run 'camlistored --reindex' (it might take awhile, but shows status). Alternative: 'camtool dbinit' (or just delete the file for a file based index), and then 'camtool sync --all'"
 		}
 		return nil, fmt.Errorf("index schema version is %d; required one is %d. You need to reindex. %s",
@@ -170,6 +174,103 @@ func New(s sorted.KeyValue) (*Index, error) {
 	return idx, nil
 }
 
+func is4To5SchemaBump(schemaVersion int) bool {
+	return schemaVersion == 4 && requiredSchemaVersion == 5
+}
+
+var errMissingWholeRef = errors.New("missing wholeRef field in fileInfo rows")
+
+// fixMissingWholeRef appends the wholeRef to all the keyFileInfo rows values. It should
+// only be called to upgrade a version 4 index schema to version 5.
+func (x *Index) fixMissingWholeRef(fetcher blob.Fetcher) (err error) {
+	// We did that check from the caller, but double-check again to prevent from misuse
+	// of that function.
+	if x.schemaVersion() != 4 || requiredSchemaVersion != 5 {
+		panic("fixMissingWholeRef should only be used when upgrading from v4 to v5 of the index schema")
+	}
+	log.Println("index: fixing the missing wholeRef in the fileInfo rows...")
+	defer func() {
+		if err != nil {
+			log.Printf("index: fixing the fileInfo rows failed: %v", err)
+			return
+		}
+		log.Print("index: successfully fixed wholeRef in FileInfo rows.")
+	}()
+
+	// first build a reverted keyWholeToFileRef map, so we can get the wholeRef from the fileRef easily.
+	fileRefToWholeRef := make(map[blob.Ref]blob.Ref)
+	it := x.queryPrefix(keyWholeToFileRef)
+	var keyA [3]string
+	for it.Next() {
+		keyPart := strutil.AppendSplitN(keyA[:0], it.Key(), "|", 3)
+		if len(keyPart) != 3 {
+			return fmt.Errorf("bogus keyWholeToFileRef key: got %q, wanted \"wholetofile|wholeRef|fileRef\"", it.Key())
+		}
+		wholeRef, ok1 := blob.Parse(keyPart[1])
+		fileRef, ok2 := blob.Parse(keyPart[2])
+		if !ok1 || !ok2 {
+			return fmt.Errorf("bogus part in keyWholeToFileRef key: %q", it.Key())
+		}
+		fileRefToWholeRef[fileRef] = wholeRef
+	}
+	if err := it.Close(); err != nil {
+		return err
+	}
+
+	// We record the mutations and set them all after the iteration because of the sqlite locking:
+	// since BeginBatch takes a lock, and Find too, we would deadlock at queryPrefix if we
+	// started a batch mutation before.
+	mutations := make(map[string]string)
+	keyPrefix := keyFileInfo.name + "|"
+	it = x.queryPrefix(keyFileInfo)
+	defer it.Close()
+	var valA [3]string
+	for it.Next() {
+		br, ok := blob.ParseBytes(it.KeyBytes()[len(keyPrefix):])
+		if !ok {
+			return fmt.Errorf("invalid blobRef %q", it.KeyBytes()[len(keyPrefix):])
+		}
+		wholeRef, ok := fileRefToWholeRef[br]
+		if !ok {
+			log.Printf("WARNING: wholeRef for %v not found in index. You should probably rebuild the whole index.", br)
+			continue
+		}
+		valPart := strutil.AppendSplitN(valA[:0], it.Value(), "|", 3)
+		// The old format we're fixing should be: size|filename|mimetype
+		if len(valPart) != 3 {
+			return fmt.Errorf("bogus keyFileInfo value: got %q, wanted \"size|filename|mimetype\"", it.Value())
+		}
+		size_s, filename, mimetype := valPart[0], valPart[1], urld(valPart[2])
+		if strings.Contains(mimetype, "|") {
+			// I think this can only happen for people migrating from a commit at least as recent as
+			// 8229c1985079681a652cb65551b4e80a10d135aa, when wholeRef was introduced to keyFileInfo
+			// but there was no migration code yet.
+			// For the "production" migrations between 0.8 and 0.9, the index should not have any wholeRef
+			// in the keyFileInfo entries. So if something goes wrong and is somehow linked to that happening,
+			// I'd like to know about it, hence the logging.
+			log.Printf("%v: %v already has a wholeRef, not fixing it", it.Key(), it.Value())
+			continue
+		}
+		size, err := strconv.Atoi(size_s)
+		if err != nil {
+			return fmt.Errorf("bogus size in keyFileInfo value %v: %v", it.Value(), err)
+		}
+		mutations[keyFileInfo.Key(br)] = keyFileInfo.Val(size, filename, mimetype, wholeRef)
+	}
+	if err := it.Close(); err != nil {
+		return err
+	}
+	bm := x.s.BeginBatch()
+	for k, v := range mutations {
+		bm.Set(k, v)
+	}
+	bm.Set(keySchemaVersion.name, "5")
+	if err := x.s.CommitBatch(bm); err != nil {
+		return err
+	}
+	return nil
+}
+
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
 	blobPrefix := config.RequiredString("blobSource")
 	kvConfig := config.RequiredObject("storage")
@@ -180,15 +281,25 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	if err != nil {
 		return nil, err
 	}
-
-	ix, err := New(kv)
+	sto, err := ld.GetStorage(blobPrefix)
 	if err != nil {
 		return nil, err
 	}
 
-	sto, err := ld.GetStorage(blobPrefix)
+	ix, err := New(kv)
+	// TODO(mpl): next time we need to do another fix, make a new error
+	// type that lets us apply the needed fix depending on its value or
+	// something. For now just one value/fix.
+	if err == errMissingWholeRef {
+		// TODO: maybe we don't want to do that automatically. Brad says
+		// we have to think about the case on GCE/CoreOS in particular.
+		if err := ix.fixMissingWholeRef(sto); err != nil {
+			ix.Close()
+			return nil, fmt.Errorf("could not fix missing wholeRef entries: %v", err)
+		}
+		ix, err = New(kv)
+	}
 	if err != nil {
-		ix.Close()
 		return nil, err
 	}
 	ix.InitBlobSource(sto)
@@ -1021,6 +1132,7 @@ func (x *Index) GetFileInfo(fileRef blob.Ref) (camtypes.FileInfo, error) {
 	}
 	ikey := "fileinfo|" + fileRef.String()
 	tkey := "filetimes|" + fileRef.String()
+	// TODO: switch this to use syncutil.Group
 	wg := new(sync.WaitGroup)
 	wg.Add(2)
 	var iv, tv string // info value, time value
@@ -1040,6 +1152,10 @@ func (x *Index) GetFileInfo(fileRef blob.Ref) (camtypes.FileInfo, error) {
 		log.Printf("index: bogus key %q = %q", ikey, iv)
 		return camtypes.FileInfo{}, os.ErrNotExist
 	}
+	var wholeRef blob.Ref
+	if len(valPart) >= 4 {
+		wholeRef, _ = blob.Parse(valPart[3])
+	}
 	size, err := strconv.ParseInt(valPart[0], 10, 64)
 	if err != nil {
 		log.Printf("index: bogus integer at position 0 in key %q = %q", ikey, iv)
@@ -1050,6 +1166,7 @@ func (x *Index) GetFileInfo(fileRef blob.Ref) (camtypes.FileInfo, error) {
 		Size:     size,
 		FileName: fileName,
 		MIMEType: urld(valPart[2]),
+		WholeRef: wholeRef,
 	}
 
 	if tv != "" {
@@ -1114,7 +1231,11 @@ func (x *Index) GetMediaTags(fileRef blob.Ref) (tags map[string]string, err erro
 	if x.corpus != nil {
 		return x.corpus.GetMediaTags(fileRef)
 	}
-	it := x.queryPrefix(keyMediaTag, fileRef.String())
+	fi, err := x.GetFileInfo(fileRef)
+	if err != nil {
+		return nil, err
+	}
+	it := x.queryPrefix(keyMediaTag, fi.WholeRef.String())
 	defer closeIterator(it, &err)
 	for it.Next() {
 		tags[it.Key()] = it.Value()

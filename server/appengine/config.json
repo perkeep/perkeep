@@ -8,6 +8,7 @@
          "handlerArgs": {
              "ownerName": "TODO:AppEngineOwnerName",
              "blobRoot": "/bs-and-maybe-also-index/",
+             "helpRoot": "/help/",
              "statusRoot": "/status/",
              "searchRoot": "/my-search/",
              "stealth": false

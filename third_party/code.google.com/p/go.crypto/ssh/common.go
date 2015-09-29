@@ -225,7 +225,7 @@ func buildDataSignedForAuth(sessionId []byte, req userAuthRequestMsg, algo, pubK
 	return ret
 }
 
-// safeString sanitises s according to RFC 4251, section 9.2. 
+// safeString sanitises s according to RFC 4251, section 9.2.
 // All control characters except tab, carriage return and newline are
 // replaced by 0x20.
 func safeString(s string) string {

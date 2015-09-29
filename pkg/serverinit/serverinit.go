@@ -43,6 +43,7 @@ import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/server"
 	"camlistore.org/pkg/server/app"
 	"camlistore.org/pkg/types/serverconfig"
 )
@@ -380,7 +381,7 @@ func handlerTypeWantsAuth(handlerType string) bool {
 	// TODO(bradfitz): ask the handler instead? This is a bit of a
 	// weird spot for this policy maybe?
 	switch handlerType {
-	case "ui", "search", "jsonsign", "sync", "status":
+	case "ui", "search", "jsonsign", "sync", "status", "help", "importer":
 		return true
 	}
 	return false
@@ -578,6 +579,9 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reind
 	for pfx, handler := range hl.handler {
 		if starter, ok := handler.(*app.Handler); ok {
 			config.apps = append(config.apps, starter)
+		}
+		if helpHandler, ok := handler.(*server.HelpHandler); ok {
+			helpHandler.SetServerConfig(config.Obj)
 		}
 		if in, ok := handler.(blobserver.HandlerIniter); ok {
 			if err := in.InitHandler(hl); err != nil {

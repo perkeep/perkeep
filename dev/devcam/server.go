@@ -55,6 +55,7 @@ type serverCmd struct {
 	mysql    bool
 	postgres bool
 	sqlite   bool
+	kvfile   bool
 	memory   bool
 
 	slow     bool
@@ -97,11 +98,12 @@ func init() {
 		flags.BoolVar(&cmd.hello, "hello", false, "Enable hello (demo) app")
 		flags.BoolVar(&cmd.mini, "mini", false, "Enable minimal mode, where all optional features are disabled. (Currently just publishing)")
 
-		flags.BoolVar(&cmd.mongo, "mongo", false, "Use mongodb as the indexer. Excludes -mysql, -postgres, -sqlite, -memory.")
-		flags.BoolVar(&cmd.mysql, "mysql", false, "Use mysql as the indexer. Excludes -mongo, -postgres, -sqlite, -memory.")
-		flags.BoolVar(&cmd.postgres, "postgres", false, "Use postgres as the indexer. Excludes -mongo, -mysql, -sqlite, -memory.")
-		flags.BoolVar(&cmd.sqlite, "sqlite", false, "Use sqlite as the indexer. Excludes -mongo, -mysql, -postgres, -memory.")
-		flags.BoolVar(&cmd.memory, "memory", false, "Use a memory-only indexer. Excludes -mongo, -mysql, -postgres, -sqlite.")
+		flags.BoolVar(&cmd.mongo, "mongo", false, "Use mongodb as the index storage. Excludes -mysql, -postgres, -sqlite, -memory, -kvfile.")
+		flags.BoolVar(&cmd.mysql, "mysql", false, "Use mysql as the index storage. Excludes -mongo, -postgres, -sqlite, -memory, -kvfile.")
+		flags.BoolVar(&cmd.postgres, "postgres", false, "Use postgres as the index storage. Excludes -mongo, -mysql, -sqlite, -memory, -kvfile.")
+		flags.BoolVar(&cmd.sqlite, "sqlite", false, "Use sqlite as the index storage. Excludes -mongo, -mysql, -postgres, -memory, -kvfile.")
+		flags.BoolVar(&cmd.kvfile, "kvfile", false, "Use cznic/kv as the index storage. Excludes -mongo, -mysql, -postgres, -memory, -sqlite.")
+		flags.BoolVar(&cmd.memory, "memory", false, "Use a memory-only index storage. Excludes -mongo, -mysql, -postgres, -sqlite, -kvfile.")
 
 		flags.BoolVar(&cmd.slow, "slow", false, "Add artificial latency.")
 		flags.IntVar(&cmd.throttle, "throttle", 150, "If -slow, this is the rate in kBps, to which we should throttle.")
@@ -152,7 +154,7 @@ func (c *serverCmd) checkFlags(args []string) error {
 		return cmdmain.UsageError("--makethings requires --wipe.")
 	}
 	nindex := 0
-	for _, v := range []bool{c.mongo, c.mysql, c.postgres, c.sqlite, c.memory} {
+	for _, v := range []bool{c.mongo, c.mysql, c.postgres, c.sqlite, c.memory, c.kvfile} {
 		if v {
 			nindex++
 		}
@@ -218,6 +220,7 @@ func (c *serverCmd) setEnvVars() error {
 	setenv("CAMLI_SQLITE_ENABLED", "false")
 	setenv("CAMLI_KVINDEX_ENABLED", "false")
 	setenv("CAMLI_MEMINDEX_ENABLED", "false")
+	setenv("CAMLI_LEVELDB_ENABLED", "false")
 
 	setenv("CAMLI_PUBLISH_ENABLED", strconv.FormatBool(c.publish))
 	setenv("CAMLI_HELLO_ENABLED", strconv.FormatBool(c.hello))
@@ -234,6 +237,13 @@ func (c *serverCmd) setEnvVars() error {
 	case c.mysql:
 		setenv("CAMLI_MYSQL_ENABLED", "true")
 		setenv("CAMLI_INDEXER_PATH", "/index-mysql/")
+	case c.kvfile:
+		setenv("CAMLI_KVINDEX_ENABLED", "true")
+		setenv("CAMLI_INDEXER_PATH", "/index-kv/")
+		if c.root == "" {
+			panic("no root set")
+		}
+		setenv("CAMLI_DBNAME", filepath.Join(c.root, "kvindex.db"))
 	case c.sqlite:
 		setenv("CAMLI_SQLITE_ENABLED", "true")
 		setenv("CAMLI_INDEXER_PATH", "/index-sqlite/")
@@ -242,12 +252,12 @@ func (c *serverCmd) setEnvVars() error {
 		}
 		setenv("CAMLI_DBNAME", filepath.Join(c.root, "sqliteindex.db"))
 	default:
-		setenv("CAMLI_KVINDEX_ENABLED", "true")
-		setenv("CAMLI_INDEXER_PATH", "/index-kv/")
+		setenv("CAMLI_LEVELDB_ENABLED", "true")
+		setenv("CAMLI_INDEXER_PATH", "/index-leveldb/")
 		if c.root == "" {
 			panic("no root set")
 		}
-		setenv("CAMLI_DBNAME", filepath.Join(c.root, "kvindex.db"))
+		setenv("CAMLI_DBNAME", filepath.Join(c.root, "leveldbindex.db"))
 	}
 
 	base := "http://localhost:" + c.port
@@ -291,6 +301,8 @@ func (c *serverCmd) setEnvVars() error {
 		c.makeSuffixdir(v)
 		setenv(k, v)
 	}
+	c.makeSuffixdir(filepath.Join(fullSuffix("bs"), "packed"))
+	c.makeSuffixdir(filepath.Join(fullSuffix("bs"), "loose"))
 	setenv("CAMLI_PORT", c.port)
 	if c.flickrAPIKey != "" {
 		setenv("CAMLI_FLICKR_ENABLED", "true")

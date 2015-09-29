@@ -33,21 +33,26 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
-	api "camlistore.org/third_party/code.google.com/p/google-api-go-client/storage/v1"
-	"camlistore.org/third_party/github.com/bradfitz/gce"
+
+	"golang.org/x/net/context"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	api "google.golang.org/api/storage/v1"
+	"google.golang.org/cloud/compute/metadata"
 )
 
 const (
 	gsAccessURL = "https://storage.googleapis.com"
+	// Scope is the OAuth2 scope used for Google Cloud Storage.
+	Scope = "https://www.googleapis.com/auth/devstorage.read_write"
 )
 
 // A Client provides access to Google Cloud Storage.
 type Client struct {
-	client    *http.Client
-	transport *oauth.Transport // nil for service clients
-	service   *api.Service
+	client  *http.Client
+	service *api.Service
 }
 
 // An Object holds the name of an object (its bucket and key) within
@@ -77,28 +82,35 @@ type SizedObject struct {
 }
 
 // NewServiceClient returns a Client for use when running on Google
-// Compute Engine.  This client can access buckets owned by the samre
+// Compute Engine.  This client can access buckets owned by the same
 // project ID as the VM.
 func NewServiceClient() (*Client, error) {
-	if !gce.OnGCE() {
+	if !metadata.OnGCE() {
 		return nil, errors.New("not running on Google Compute Engine")
 	}
-	scopes, _ := gce.Scopes("default")
-	if !scopes.Contains("https://www.googleapis.com/auth/devstorage.full_control") &&
-		!scopes.Contains("https://www.googleapis.com/auth/devstorage.read_write") {
+	scopes, _ := metadata.Scopes("default")
+	haveScope := func(scope string) bool {
+		for _, x := range scopes {
+			if x == scope {
+				return true
+			}
+		}
+		return false
+	}
+	if !haveScope("https://www.googleapis.com/auth/devstorage.full_control") &&
+		!haveScope("https://www.googleapis.com/auth/devstorage.read_write") {
 		return nil, errors.New("when this Google Compute Engine VM instance was created, it wasn't granted access to Cloud Storage")
 	}
-	service, _ := api.New(gce.Client)
-	return &Client{client: gce.Client, service: service}, nil
+	client := oauth2.NewClient(context.Background(), google.ComputeTokenSource(""))
+	service, _ := api.New(client)
+	return &Client{client: client, service: service}, nil
 }
 
-func NewClient(transport *oauth.Transport) *Client {
-	client := transport.Client()
-	service, _ := api.New(client)
+func NewClient(oauthClient *http.Client) *Client {
+	service, _ := api.New(oauthClient)
 	return &Client{
-		client:    transport.Client(),
-		transport: transport,
-		service:   service,
+		client:  oauthClient,
+		service: service,
 	}
 }
 
@@ -113,40 +125,6 @@ func (so SizedObject) String() string {
 	return fmt.Sprintf("%v/%v (%vB)", so.Bucket, so.Key, so.Size)
 }
 
-// A close relative to http.Client.Do(), helping with token refresh logic.
-// If canResend is true and the initial request's response is an auth error
-// (401 or 403), oauth credentials will be refreshed and the request sent
-// again.  This should only be done for requests with empty bodies, since the
-// Body will be consumed on the first attempt if it exists.
-// If canResend is false, and req would have been resent if canResend were
-// true, then shouldRetry will be true.
-// One of resp or err will always be nil.
-func (gsa *Client) doRequest(req *http.Request, canResend bool) (resp *http.Response, err error, shouldRetry bool) {
-	resp, err = gsa.client.Do(req)
-	if err != nil {
-		return
-	}
-	if gsa.transport == nil {
-		return
-	}
-
-	if resp.StatusCode == 401 || resp.StatusCode == 403 {
-		// Unauth.  Perhaps tokens need refreshing?
-		if err = gsa.transport.Refresh(); err != nil {
-			return
-		}
-		// Refresh succeeded.  req should be resent
-		if !canResend {
-			return resp, nil, true
-		}
-		// Resend req.  First, need to close the soon-overwritten response Body
-		resp.Body.Close()
-		resp, err = gsa.client.Do(req)
-	}
-
-	return
-}
-
 // Makes a simple body-less google storage request
 func (gsa *Client) simpleRequest(method, url_ string) (resp *http.Response, err error) {
 	// Construct the request
@@ -156,8 +134,7 @@ func (gsa *Client) simpleRequest(method, url_ string) (resp *http.Response, err 
 	}
 	req.Header.Set("x-goog-api-version", "2")
 
-	resp, err, _ = gsa.doRequest(req, true)
-	return
+	return gsa.client.Do(req)
 }
 
 // GetObject fetches a Google Cloud Storage object.
@@ -186,8 +163,8 @@ func (c *Client) GetObject(obj *Object) (rc io.ReadCloser, size int64, err error
 // If length is negative, the rest of the object is returned.
 // The caller must close rc.
 func (c *Client) GetPartialObject(obj Object, offset, length int64) (rc io.ReadCloser, err error) {
-	if offset < 0 {
-		return nil, errors.New("invalid negative length")
+	if offset < 0 || length < 0 {
+		return nil, blob.ErrNegativeSubFetch
 	}
 	if err = obj.valid(); err != nil {
 		return
@@ -204,7 +181,7 @@ func (c *Client) GetPartialObject(obj Object, offset, length int64) (rc io.ReadC
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
 	}
 
-	resp, err, _ := c.doRequest(req, true)
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("GS GET request failed: %v\n", err)
 	}
@@ -214,6 +191,9 @@ func (c *Client) GetPartialObject(obj Object, offset, length int64) (rc io.ReadC
 	}
 	if !(resp.StatusCode == http.StatusPartialContent || (offset == 0 && resp.StatusCode == http.StatusOK)) {
 		resp.Body.Close()
+		if resp.StatusCode == http.StatusRequestedRangeNotSatisfiable {
+			return nil, blob.ErrOutOfRangeOffsetSubFetch
+		}
 		return nil, fmt.Errorf("GS GET request failed status: %v\n", resp.Status)
 	}
 
@@ -249,15 +229,15 @@ func (gsa *Client) StatObject(obj *Object) (size int64, exists bool, err error) 
 // shouldRetry will be true if the put failed due to authorization, but
 // credentials have been refreshed and another attempt is likely to succeed.
 // In this case, content will have been consumed.
-func (gsa *Client) PutObject(obj *Object, content io.Reader) (shouldRetry bool, err error) {
+func (gsa *Client) PutObject(obj *Object, content io.Reader) error {
 	if err := obj.valid(); err != nil {
-		return false, err
+		return err
 	}
 	const maxSlurp = 2 << 20
 	var buf bytes.Buffer
 	n, err := io.CopyN(&buf, content, maxSlurp)
 	if err != nil && err != io.EOF {
-		return false, err
+		return err
 	}
 	contentType := http.DetectContentType(buf.Bytes())
 	if contentType == "application/octet-stream" && n < maxSlurp && utf8.Valid(buf.Bytes()) {
@@ -267,20 +247,20 @@ func (gsa *Client) PutObject(obj *Object, content io.Reader) (shouldRetry bool, 
 	objURL := gsAccessURL + "/" + obj.Bucket + "/" + obj.Key
 	var req *http.Request
 	if req, err = http.NewRequest("PUT", objURL, ioutil.NopCloser(io.MultiReader(&buf, content))); err != nil {
-		return
+		return err
 	}
 	req.Header.Set("x-goog-api-version", "2")
 	req.Header.Set("Content-Type", contentType)
 
 	var resp *http.Response
-	if resp, err, shouldRetry = gsa.doRequest(req, false); err != nil {
-		return
+	if resp, err = gsa.client.Do(req); err != nil {
+		return err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return shouldRetry, fmt.Errorf("Bad put response code: %v", resp.Status)
+		return fmt.Errorf("Bad put response code: %v", resp.Status)
 	}
-	return
+	return nil
 }
 
 // DeleteObject removes an object.

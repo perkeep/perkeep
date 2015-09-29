@@ -63,26 +63,21 @@ cam.FiletreePage.prototype.enterDocument = function() {
 	var blobref = getDirBlobrefParam();
 
 	if (blobref) {
-		this.connection_.describeWithThumbnails(
-			blobref,
-			0,
-			goog.bind(this.handleDescribeBlob_, this, blobref),
-			function(msg) {
-				alert("failed to get blob description: " + msg);
-			}
+		this.connection_.search({blobRefPrefix: blobref}, cam.ServerConnection.DESCRIBE_REQUEST, null, null,
+			goog.bind(this.handleDescribeBlob_, this, blobref)
 		);
 	}
 }
 
 // @param {string} blobref blob to describe.
-// @param {cam.ServerType.DescribeResponse} describeResult Object of properties for the node.
+// @param {cam.ServerType.DescribeResponse} response
 cam.FiletreePage.prototype.handleDescribeBlob_ =
-function(blobref, describeResult) {
-	var meta = describeResult.meta;
-	if (!meta[blobref]) {
-		alert("didn't get blob " + blobref);
+function(blobref, response) {
+	if (!response || !response.description || !response.description.meta) {
+		alert("did not get fully described response");
 		return;
 	}
+	var meta = response.description.meta;
 	var binfo = meta[blobref];
 	if (!binfo) {
 		alert("Error describing blob " + blobref);

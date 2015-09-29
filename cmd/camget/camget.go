@@ -269,11 +269,11 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 
 		name := filepath.Join(targ, b.FileName())
 
-		if fi, err := os.Stat(name); err == nil && fi.Size() == fi.Size() {
+		if fi, err := os.Stat(name); err == nil && fi.Size() == fr.Size() {
 			if *flagVerbose {
 				log.Printf("Skipping %s; already exists.", name)
-				return nil
 			}
+			return nil
 		}
 
 		if *flagVerbose {

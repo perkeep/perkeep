@@ -20,12 +20,15 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+
+	"camlistore.org/pkg/blob"
 )
 
 // requiredSchemaVersion is incremented every time
 // an index key type is added, changed, or removed.
 // Version 4: EXIF tags + GPS
-const requiredSchemaVersion = 4
+// Version 5: wholeRef added to keyFileInfo
+const requiredSchemaVersion = 5
 
 // type of key returns the identifier in k before the first ":" or "|".
 // (Originally we packed keys by hand and there are a mix of styles)
@@ -107,6 +110,14 @@ func (k *keyType) build(isPrefix, isKey bool, parts []part, args ...interface{})
 				panic("doesn't look like a time: " + s)
 			}
 			buf.WriteString(reverseTimeString(s))
+		case typeBlobRef:
+			if br, ok := arg.(blob.Ref); ok {
+				if br.Valid() {
+					buf.WriteString(br.String())
+				}
+				break
+			}
+			fallthrough
 		default:
 			if s, ok := arg.(string); ok {
 				buf.WriteString(s)
@@ -242,6 +253,7 @@ var (
 			{"size", typeIntStr},
 			{"filename", typeStr},
 			{"mimetype", typeStr},
+			{"whole", typeBlobRef},
 		},
 	}
 

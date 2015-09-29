@@ -7,6 +7,8 @@
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
+				"jsonSignRoot": "/sighelper/",
+				"helpRoot": "/help/",
 				"ownerName": "Alice",
 				"searchRoot": "/my-search/",
 				"statusRoot": "/status/",
@@ -38,6 +40,9 @@
 		},
 		"/cache/": {
 			"handler": "storage-memory"
+		},
+		"/help/": {
+			"handler": "help"
 		},
 		"/importer/": {
 			"handler": "importer",
@@ -94,8 +99,7 @@
 		"/ui/": {
 			"handler": "ui",
 			"handlerArgs": {
-				"cache": "/cache/",
-				"jsonSignRoot": "/sighelper/"
+				"cache": "/cache/"
 			}
 		}
 	}

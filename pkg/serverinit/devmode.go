@@ -20,21 +20,19 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/server/app"
 )
 
-var isDevcamServer = (os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "")
-
 func (hl *handlerLoader) initPublisherRootNode(ah *app.Handler) error {
-	if !isDevcamServer {
+	if !env.IsDev() {
 		return nil
 	}
 

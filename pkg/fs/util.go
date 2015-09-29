@@ -29,7 +29,7 @@ func Unmount(point string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("diskutil", "umount", "force", point)
+		cmd = exec.Command("/usr/sbin/diskutil", "umount", "force", point)
 	case "linux":
 		cmd = exec.Command("fusermount", "-u", point)
 	default:

@@ -296,7 +296,7 @@ func (n *mutDir) Lookup(name string, intr fs.Intr) (ret fs.Node, err fuse.Error)
 //    foi->flags = O_CREAT | O_RDWR;
 //
 // 2013/07/21 05:26:35 <- &{Create [ID=0x3 Node=0x8 Uid=61652 Gid=5000 Pid=13115] "x" fl=514 mode=-rw-r--r-- fuse.Intr}
-// 2013/07/21 05:26:36 -> 0x3 Create {LookupResponse:{Node:23 Generation:0 EntryValid:1m0s AttrValid:1m0s Attr:{Inode:15976986887557313215 Size:0 Blocks:0 Atime:2013-07-21 05:23:51.537251251 +1200 NZST Mtime:2013-07-21 05:23:51.537251251 +1200 NZST Ctime:2013-07-21 05:23:51.537251251 +1200 NZST Crtime:2013-07-21 05:23:51.537251251 +1200 NZST Mode:-rw------- Nlink:1 Uid:61652 Gid:5000 Rdev:0 Flags:0}} OpenResponse:{Handle:1 Flags:OpenDirectIO}}
+// 2013/07/21 05:26:36 -> 0x3 Create {LookupResponse:{Node:23 Generation:0 EntryValid:1m0s AttrValid:1m0s Attr:{Inode:15976986887557313215 Size:0 Blocks:0 Atime:2013-07-21 05:23:51.537251251 +1200 NZST Mtime:2013-07-21 05:23:51.537251251 +1200 NZST Ctime:2013-07-21 05:23:51.537251251 +1200 NZST Crtime:2013-07-21 05:23:51.537251251 +1200 NZST Mode:-rw------- Nlink:1 Uid:61652 Gid:5000 Rdev:0 Flags:0}} OpenResponse:{Handle:1 Flags:0}}
 func (n *mutDir) Create(req *fuse.CreateRequest, res *fuse.CreateResponse, intr fs.Intr) (fs.Node, fs.Handle, fuse.Error) {
 	child, err := n.creat(req.Name, fileType)
 	if err != nil {
@@ -309,11 +309,6 @@ func (n *mutDir) Create(req *fuse.CreateRequest, res *fuse.CreateResponse, intr 
 	if ferr != nil {
 		return nil, nil, ferr
 	}
-
-	// This isn't required (or even ever been shown to make a
-	// difference), but we do it to match OpenRequest below, where
-	// it causes test failures without:
-	res.OpenResponse.Flags &= ^fuse.OpenDirectIO
 
 	return child, h, nil
 }
@@ -432,7 +427,7 @@ func (n *mutDir) Remove(req *fuse.RemoveRequest, intr fs.Intr) fuse.Error {
 	claim := schema.NewDelAttributeClaim(n.permanode, "camliPath:"+req.Name, "")
 	_, err := n.fs.client.UploadAndSignBlob(claim)
 	if err != nil {
-		log.Println("mutDir.Create:", err)
+		log.Println("mutDir.Remove:", err)
 		return fuse.EIO
 	}
 	// Remove child from map.
@@ -680,10 +675,6 @@ func (n *mutFile) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fs.In
 		log.Printf("mutFile.Open: %v", err)
 		return nil, fuse.EIO
 	}
-
-	// Turn off the OpenDirectIO bit (on by default in rsc fuse server.go),
-	// else append operations don't work for some reason.
-	res.Flags &= ^fuse.OpenDirectIO
 
 	// Read-only.
 	if !isWriteFlags(req.Flags) {

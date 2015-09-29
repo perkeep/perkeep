@@ -31,7 +31,6 @@ Example low-level config:
 package localdisk
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -77,7 +76,15 @@ func New(root string) (*DiskStorage, error) {
 	// Local disk.
 	fi, err := os.Stat(root)
 	if os.IsNotExist(err) {
-		return nil, fmt.Errorf("Storage root %q doesn't exist", root)
+		// As a special case, we auto-created the "packed" directory for subpacked.
+		if filepath.Base(root) == "packed" {
+			if err := os.Mkdir(root, 0700); err != nil {
+				return nil, fmt.Errorf("failed to mkdir packed directory: %v", err)
+			}
+			fi, err = os.Stat(root)
+		} else {
+			return nil, fmt.Errorf("Storage root %q doesn't exist", root)
+		}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("Failed to stat directory %q: %v", root, err)
@@ -123,7 +130,7 @@ func (ds *DiskStorage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
 
 func (ds *DiskStorage) SubFetch(br blob.Ref, offset, length int64) (io.ReadCloser, error) {
 	if offset < 0 || length < 0 {
-		return nil, errors.New("invalid offset or length")
+		return nil, blob.ErrNegativeSubFetch
 	}
 	rc, _, err := ds.fetch(br, offset, length)
 	return rc, err
@@ -149,6 +156,12 @@ func (ds *DiskStorage) fetch(br blob.Ref, offset, length int64) (rc io.ReadClose
 		return file, size, nil
 	}
 	// SubFetch:
+	if offset < 0 || offset > stat.Size() {
+		if offset < 0 {
+			return nil, 0, blob.ErrNegativeSubFetch
+		}
+		return nil, 0, blob.ErrOutOfRangeOffsetSubFetch
+	}
 	return struct {
 		io.Reader
 		io.Closer

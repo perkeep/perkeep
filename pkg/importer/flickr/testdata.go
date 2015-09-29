@@ -202,8 +202,8 @@ func fakePhotoset(photosetId string, page, pages int, photoIds []string) string 
 	}{
 		Photoset: photosetItems{
 			Id:    photosetId,
-			Page:  page,
-			Pages: pages,
+			Page:  jsonInt(page),
+			Pages: jsonInt(pages),
 			Photo: photos,
 		},
 	}
@@ -255,15 +255,15 @@ func fakePhotosPage(page, pages, perPage int, photoIds []string) string {
 
 	photosPage := &photosSearch{
 		Photos: struct {
-			Page    int
-			Pages   int
-			Perpage int
-			Total   int `json:",string"`
+			Page    jsonInt
+			Pages   jsonInt
+			Perpage jsonInt
+			Total   jsonInt
 			Photo   []*photosSearchItem
 		}{
-			Page:    page,
-			Pages:   pages,
-			Perpage: perPage,
+			Page:    jsonInt(page),
+			Pages:   jsonInt(pages),
+			Perpage: jsonInt(perPage),
 			Photo:   photos,
 		},
 	}

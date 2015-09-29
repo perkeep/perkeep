@@ -26,6 +26,7 @@ import (
 	"os/signal"
 	pathpkg "path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -152,7 +153,10 @@ func handleSignals(camliProc *os.Process) {
 
 func checkCamliSrcRoot() {
 	args := flag.Args()
-	if len(args) > 0 && args[0] == "review" {
+	// TODO(mpl): we should probably get rid of that limitation someday.
+	if len(args) > 0 && (args[0] == "review" ||
+		args[0] == "hook" ||
+		args[0] == "fixv") {
 		// exception for devcam review, which does its own check.
 		return
 	}
@@ -167,6 +171,26 @@ func checkCamliSrcRoot() {
 		log.Fatal(err)
 	}
 	camliSrcRoot = cwd
+}
+
+func repoRoot() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("could not get current directory: %v", err)
+	}
+	rootlen := 1
+	if runtime.GOOS == "windows" {
+		rootlen += len(filepath.VolumeName(dir))
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return dir, nil
+		}
+		if len(dir) == rootlen && dir[rootlen-1] == filepath.Separator {
+			return "", fmt.Errorf(".git not found. Rerun from within the Camlistore source tree.")
+		}
+		dir = filepath.Dir(dir)
+	}
 }
 
 func selfModTime() (time.Time, error) {
@@ -191,12 +215,12 @@ func checkModtime() error {
 	devcamDir := filepath.Join(camliSrcRoot, "dev", "devcam")
 	d, err := os.Open(devcamDir)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("could not read devcam source dir %v: %v", devcamDir, err)
 	}
 	defer d.Close()
 	fis, err := d.Readdir(-1)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("could not read devcam source dir %v: %v", devcamDir, err)
 	}
 	for _, fi := range fis {
 		if fi.ModTime().After(binModtime) {
@@ -247,10 +271,13 @@ func build(path string) error {
 
 func main() {
 	cmdmain.CheckCwd = checkCamliSrcRoot
-
-	if err := checkModtime(); err != nil {
-		log.Printf("Skipping freshness check: %v", err)
+	cmdmain.CheckModtime = func() error {
+		if err := checkModtime(); err != nil {
+			log.Printf("Skipping freshness check: %v", err)
+		}
+		return nil
 	}
+
 	// TODO(mpl): usage error is not really correct for devcam.
 	// See if I can reimplement it while still using cmdmain.Main().
 	cmdmain.Main()

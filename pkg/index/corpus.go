@@ -514,18 +514,27 @@ func (c *Corpus) mergeFileInfoRow(k, v []byte) error {
 
 	// TODO: could at least use strutil.ParseUintBytes to not stringify and retain
 	// the length bytes of v.
-	c.ss = strutil.AppendSplitN(c.ss[:0], string(v), "|", 3)
-	if len(c.ss) != 3 {
-		return fmt.Errorf("unexpected fileinfo value %q", k)
+	c.ss = strutil.AppendSplitN(c.ss[:0], string(v), "|", 4)
+	if len(c.ss) != 3 && len(c.ss) != 4 {
+		return fmt.Errorf("unexpected fileinfo value %q", v)
 	}
 	size, err := strconv.ParseInt(c.ss[0], 10, 64)
 	if err != nil {
-		return fmt.Errorf("unexpected fileinfo value %q", k)
+		return fmt.Errorf("unexpected fileinfo value %q", v)
+	}
+	var wholeRef blob.Ref
+	if len(c.ss) == 4 && c.ss[3] != "" { // checking for "" because of special files such as symlinks.
+		var ok bool
+		wholeRef, ok = blob.Parse(urld(c.ss[3]))
+		if !ok {
+			return fmt.Errorf("invalid wholeRef blobref in value %q for fileinfo key %q", v, k)
+		}
 	}
 	c.mutateFileInfo(br, func(fi *camtypes.FileInfo) {
 		fi.Size = size
 		fi.FileName = c.str(urld(c.ss[1]))
 		fi.MIMEType = c.str(urld(c.ss[2]))
+		fi.WholeRef = wholeRef
 	})
 	return nil
 }

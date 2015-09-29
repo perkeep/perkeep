@@ -82,19 +82,20 @@ limitations under the License.
 
 .cam-blobitem .checkmark {
 	background-image: url('checkmark2.svg');
+	background-position: 5px 5px;
 	background-repeat: no-repeat;
-	background-size: 100% 100%;
+	background-size: 42px 42px;
 	cursor: pointer;
-	height: 25px;
-	left: 5px;
+	height: 52px;
+	left: 0;
 	opacity: 0;
 	position: absolute;
-	top: 5px;
+	top: 0;
 	.transition(opacity 0.2s ease);
-	width: 25px;
+	width: 64px;
 	z-index: 2;
 
-	/* To force us into a graphics layer, otherwise we get weird effects as we transition in and out of one during animation. See: https://code.google.com/p/camlistore/issues/detail?id=284. */
+	/* To force us into a graphics layer, otherwise we get weird effects as we transition in and out of one during animation. See: https://camlistore.org/issue/284. */
 	.transform(scale3d(1, 1, 1));
 }
 

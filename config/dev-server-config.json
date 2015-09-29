@@ -3,14 +3,16 @@
 	"baseURL": ["_env", "${CAMLI_BASEURL}"],
 	"auth": ["_env", "${CAMLI_AUTH}"],
 	"https": ["_env", "${CAMLI_TLS}", false],
-	"httpsCert": "config/selfgen_pem.crt",
-	"httpsKey": "config/selfgen_pem.key",
+	"httpsCert": "config/tls.crt",
+	"httpsKey": "config/tls.key",
 	"prefixes": {
 		"/": {
 			"handler": "root",
 			"handlerArgs": {
 				"ownerName": ["_env", "${USER}-dev"],
+				"jsonSignRoot": "/sighelper/",
 				"blobRoot": "/bs-recv/",
+				"helpRoot": "/help/",
 				"statusRoot": "/status/",
 				"searchRoot": "/my-search/",
 				"stealth": false
@@ -53,7 +55,6 @@
 			"handler": "ui",
 			"handlerArgs": {
 				"sourceRoot": ["_env", "${CAMLI_DEV_CAMLI_ROOT}", ""],
-				"jsonSignRoot": "/sighelper/",
 				"cache": "/cache/",
 				"scaledImage": {
 					"type": "kv",
@@ -64,6 +65,10 @@
 
 		"/status/": {
 			"handler": "status"
+		},
+
+		"/help/": {
+			"handler": "help"
 		},
 
 		"/sync-index/": {
@@ -117,9 +122,28 @@
 		},
 
 		"/bs/": {
+			"handler": "storage-blobpacked",
+			"handlerArgs": {
+				"smallBlobs": "/bs-loose/",
+				"largeBlobs": "/bs-packed/",
+				"metaIndex": {
+					"type": "kv",
+					"file": ["_env", "${CAMLI_ROOT}/packindex.kv"]
+                                }
+			}
+		},
+
+		"/bs-loose/": {
 			"handler": "storage-filesystem",
 			"handlerArgs": {
-				"path": ["_env", "${CAMLI_ROOT}"]
+				"path": ["_env", "${CAMLI_ROOT}/loose"]
+			}
+		},
+
+		"/bs-packed/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": ["_env", "${CAMLI_ROOT}/packed"]
 			}
 		},
 
@@ -212,6 +236,18 @@
 				"blobSource": "/bs/",
 				"storage": {
 					"type": "memory"
+				}
+			}
+		},
+
+		"/index-leveldb/": {
+			"enabled": ["_env", "${CAMLI_LEVELDB_ENABLED}"],
+			"handler": "storage-index",
+			"handlerArgs": {
+				"blobSource": "/bs/",
+				"storage": {
+					"type": "leveldb",
+					"file": ["_env", "${CAMLI_DBNAME}", ""]
 				}
 			}
 		},

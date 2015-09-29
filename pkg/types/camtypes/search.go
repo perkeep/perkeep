@@ -19,6 +19,7 @@ package camtypes
 import (
 	"bytes"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -85,12 +86,13 @@ func (cl ClaimsByDate) String() string {
 
 // FileInfo describes a file or directory.
 type FileInfo struct {
+	// FileName is the base name of the file or directory.
 	FileName string `json:"fileName"`
 
 	// TODO(mpl): I've noticed that Size is actually set to the
 	// number of entries in the dir. fix the doc or the behaviour?
 
-	// Size is the size of files. It is not set for directories.
+	// Size is the size of file. It is not set for directories.
 	Size int64 `json:"size"`
 
 	// MIMEType may be set for files, but never for directories.
@@ -105,10 +107,66 @@ type FileInfo struct {
 	// original/modification times found. If ModTime doesn't differ
 	// from Time, ModTime is omitted (zero).
 	ModTime *types.Time3339 `json:"modTime,omitempty"`
+
+	// WholeRef is the digest of the entire file contents.
+	// This will be zero for non-regular files, and may also be zero
+	// for files above a certain size threshold.
+	WholeRef blob.Ref `json:"wholeRef,omitempty"`
 }
 
 func (fi *FileInfo) IsImage() bool {
 	return strings.HasPrefix(fi.MIMEType, "image/")
+}
+
+var videoExtensions = map[string]bool{
+	"3gp":  true,
+	"avi":  true,
+	"flv":  true,
+	"m1v":  true,
+	"m2v":  true,
+	"m4v":  true,
+	"mkv":  true,
+	"mov":  true,
+	"mp4":  true,
+	"mpeg": true,
+	"mpg":  true,
+	"ogv":  true,
+	"wmv":  true,
+}
+
+func (fi *FileInfo) IsVideo() bool {
+	if strings.HasPrefix(fi.MIMEType, "video/") {
+		return true
+	}
+
+	var ext string
+	if e := filepath.Ext(fi.FileName); strings.HasPrefix(e, ".") {
+		ext = e[1:]
+	} else {
+		return false
+	}
+
+	// Case-insensitive lookup.
+	// Optimistically assume a short ASCII extension and be
+	// allocation-free in that case.
+	var buf [10]byte
+	lower := buf[:0]
+	const utf8RuneSelf = 0x80 // from utf8 package, but not importing it.
+	for i := 0; i < len(ext); i++ {
+		c := ext[i]
+		if c >= utf8RuneSelf {
+			// Slow path.
+			return videoExtensions[strings.ToLower(ext)]
+		}
+		if 'A' <= c && c <= 'Z' {
+			lower = append(lower, c+('a'-'A'))
+		} else {
+			lower = append(lower, c)
+		}
+	}
+	// The conversion from []byte to string doesn't allocate in
+	// a map lookup.
+	return videoExtensions[string(lower)]
 }
 
 // ImageInfo describes an image file.
@@ -180,4 +238,17 @@ type BlobMeta struct {
 	CamliType string
 
 	// TODO(bradfitz): change CamliTypethis *string to save 8 bytes
+}
+
+// SearchErrorResponse is the JSON error response for a search request.
+type SearchErrorResponse struct {
+	Error     string `json:"error,omitempty"`     // The error message.
+	ErrorType string `json:"errorType,omitempty"` // The type of the error.
+}
+
+// FileSearchResponse is the JSON response to a file search request.
+type FileSearchResponse struct {
+	SearchErrorResponse
+
+	Files []blob.Ref `json:"files"` // Refs of the result files. Never nil.
 }

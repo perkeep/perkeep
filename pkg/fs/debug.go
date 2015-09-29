@@ -89,6 +89,12 @@ func (s *stat) Attr() fuse.Attr {
 	}
 }
 
+func (s *stat) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fs.Intr) (fs.Handle, fuse.Error) {
+	// Set DirectIO to keep this file from being cached in OS X's kernel.
+	res.Flags |= fuse.OpenDirectIO
+	return s, nil
+}
+
 func (s *stat) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr fs.Intr) fuse.Error {
 	c := s.content()
 	if req.Offset > int64(len(c)) {

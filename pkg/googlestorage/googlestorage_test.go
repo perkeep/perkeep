@@ -23,10 +23,15 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"testing"
 	"time"
 
+	"camlistore.org/pkg/constants/google"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/oauthutil"
+
+	"golang.org/x/oauth2"
 )
 
 const testObjectContent = "Google Storage Test\n"
@@ -65,14 +70,40 @@ func doConfig(t *testing.T) (gsa *Client, bucket string) {
 		t.Fatalf("Invalid config: %v", err)
 	}
 
-	gsa = NewClient(MakeOauthTransport(auth.RequiredString("client_id"),
-		auth.RequiredString("client_secret"),
-		auth.RequiredString("refresh_token")))
+	gsa = NewClient(oauth2.NewClient(oauth2.NoContext, oauthutil.NewRefreshTokenSource(&oauth2.Config{
+		Scopes:       []string{Scope},
+		Endpoint:     google.Endpoint,
+		ClientID:     auth.RequiredString("client_id"),
+		ClientSecret: auth.RequiredString("client_secret"),
+		RedirectURL:  oauthutil.TitleBarRedirectURL,
+	}, auth.RequiredString("refresh_token"))))
 
 	if err := auth.Validate(); err != nil {
 		t.Fatalf("Invalid config: %v", err)
 	}
 	return
+}
+
+func TestGetPartialObject(t *testing.T) {
+	gs, bucket := doConfig(t)
+
+	body, err := gs.GetPartialObject(Object{bucket, "test-get"}, 5, 10)
+	if err != nil {
+		t.Fatalf("Fetch failed: %v\n", err)
+	}
+	defer body.Close()
+
+	contents, err := ioutil.ReadAll(body)
+	if err != nil {
+		t.Fatalf("Failed to get object contents: %v", err)
+	}
+	if len(contents) != 10 {
+		t.Fatalf("wrong contents size: got %d, want %d", len(contents), 10)
+	}
+
+	if string(contents) != testObjectContent[5:15] {
+		t.Fatalf("Object has incorrect content.\nExpected: '%v'\nFound: '%v'\n", testObjectContent, string(contents))
+	}
 }
 
 func TestGetObject(t *testing.T) {
@@ -82,10 +113,14 @@ func TestGetObject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Fetch failed: %v\n", err)
 	}
+	defer body.Close()
 
-	content := make([]byte, size)
-	if _, err = body.Read(content); err != nil {
-		t.Fatalf("Failed to read response body: %v:\n", err)
+	content, err := ioutil.ReadAll(body)
+	if err != nil {
+		t.Fatalf("Failed to get object contents: %v", err)
+	}
+	if len(content) != int(size) {
+		t.Fatalf("wrong contents size: got %d, want %d", len(content), size)
 	}
 
 	if string(content) != testObjectContent {
@@ -131,12 +166,8 @@ func TestPutObject(t *testing.T) {
 	testKey := fmt.Sprintf("test-put-%v.%v.%v-%v.%v.%v",
 		now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second())
 
-	shouldRetry, err := gs.PutObject(&Object{bucket, testKey},
+	err := gs.PutObject(&Object{bucket, testKey},
 		&BufferCloser{bytes.NewBufferString(testObjectContent)})
-	if shouldRetry {
-		shouldRetry, err = gs.PutObject(&Object{bucket, testKey},
-			&BufferCloser{bytes.NewBufferString(testObjectContent)})
-	}
 	if err != nil {
 		t.Fatalf("Failed to put object: %v", err)
 	}
@@ -165,7 +196,7 @@ func TestDeleteObject(t *testing.T) {
 	now := time.Now()
 	testKey := fmt.Sprintf("test-delete-%v.%v.%v-%v.%v.%v",
 		now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second())
-	_, err = gs.PutObject(&Object{bucket, testKey},
+	err = gs.PutObject(&Object{bucket, testKey},
 		&BufferCloser{bytes.NewBufferString("Delete Me")})
 	if err != nil {
 		t.Fatalf("Failed to put file to delete.")

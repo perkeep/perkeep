@@ -83,7 +83,7 @@ cam.BlobItemTwitterContent.getHandler = function(blobref, searchSession, href) {
 		return null;
 	}
 
-	if (cam.permanodeUtils.getSingleAttr(m.permanode, 'camliNodeType') != 'twitter.com:tweet') {
+	if (cam.permanodeUtils.getCamliNodeType(m.permanode) != 'twitter.com:tweet') {
 		return null;
 	}
 

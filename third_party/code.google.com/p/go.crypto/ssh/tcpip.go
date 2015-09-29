@@ -13,8 +13,8 @@ import (
 )
 
 // Dial initiates a connection to the addr from the remote host.
-// addr is resolved using net.ResolveTCPAddr before connection. 
-// This could allow an observer to observe the DNS name of the 
+// addr is resolved using net.ResolveTCPAddr before connection.
+// This could allow an observer to observe the DNS name of the
 // remote host. Consider using ssh.DialTCP to avoid this.
 func (c *ClientConn) Dial(n, addr string) (net.Conn, error) {
 	raddr, err := net.ResolveTCPAddr(n, addr)
@@ -91,7 +91,7 @@ type tcpchan struct {
 	io.Writer
 }
 
-// tcpchanconn fulfills the net.Conn interface without 
+// tcpchanconn fulfills the net.Conn interface without
 // the tcpchan having to hold laddr or raddr directly.
 type tcpchanconn struct {
 	*tcpchan

@@ -1,10 +1,10 @@
 package pq
 
 import (
+	"camlistore.org/third_party/github.com/lib/pq/oid"
 	"database/sql/driver"
 	"encoding/hex"
 	"fmt"
-	"camlistore.org/third_party/github.com/lib/pq/oid"
 	"strconv"
 	"time"
 )

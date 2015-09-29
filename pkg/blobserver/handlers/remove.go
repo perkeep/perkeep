@@ -34,30 +34,34 @@ func CreateRemoveHandler(storage blobserver.Storage) http.Handler {
 	})
 }
 
-func handleRemove(conn http.ResponseWriter, req *http.Request, storage blobserver.Storage) {
+// RemoveResponse is the JSON response to a remove request.
+type RemoveResponse struct {
+	Removed []blob.Ref `json:"removed"` // Refs of the removed blobs.
+}
+
+func handleRemove(rw http.ResponseWriter, req *http.Request, storage blobserver.Storage) {
 	if req.Method != "POST" {
 		log.Fatalf("Invalid method; handlers misconfigured")
 	}
 
 	configer, ok := storage.(blobserver.Configer)
 	if !ok {
-		conn.WriteHeader(http.StatusForbidden)
-		fmt.Fprintf(conn, "Remove handler's blobserver.Storage isn't a blobserver.Configer; can't remove")
+		rw.WriteHeader(http.StatusForbidden)
+		fmt.Fprintf(rw, "Remove handler's blobserver.Storage isn't a blobserver.Configer; can't remove")
 		return
 	}
 	if !configer.Config().Deletable {
-		conn.WriteHeader(http.StatusForbidden)
-		fmt.Fprintf(conn, "storage does not permit deletes.\n")
+		rw.WriteHeader(http.StatusForbidden)
+		fmt.Fprintf(rw, "storage does not permit deletes.\n")
 		return
 	}
 
 	n := 0
 	toRemove := make([]blob.Ref, 0)
-	toRemoveStr := make([]string, 0)
 	for {
 		n++
 		if n > maxRemovesPerRequest {
-			httputil.BadRequestError(conn,
+			httputil.BadRequestError(rw,
 				fmt.Sprintf("Too many removes in this request; max is %d", maxRemovesPerRequest))
 			return
 		}
@@ -68,22 +72,19 @@ func handleRemove(conn http.ResponseWriter, req *http.Request, storage blobserve
 		}
 		ref, ok := blob.Parse(value)
 		if !ok {
-			httputil.BadRequestError(conn, "Bogus blobref for key "+key)
+			httputil.BadRequestError(rw, "Bogus blobref for key "+key)
 			return
 		}
 		toRemove = append(toRemove, ref)
-		toRemoveStr = append(toRemoveStr, ref.String())
 	}
 
 	err := storage.RemoveBlobs(toRemove)
 	if err != nil {
-		conn.WriteHeader(http.StatusInternalServerError)
+		rw.WriteHeader(http.StatusInternalServerError)
 		log.Printf("Server error during remove: %v", err)
-		fmt.Fprintf(conn, "Server error")
+		fmt.Fprintf(rw, "Server error")
 		return
 	}
 
-	reply := make(map[string]interface{}, 0)
-	reply["removed"] = toRemoveStr
-	httputil.ReturnJSON(conn, reply)
+	httputil.ReturnJSON(rw, &RemoveResponse{Removed: toRemove})
 }

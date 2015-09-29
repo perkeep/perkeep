@@ -1,6 +1,6 @@
 To build Camlistore:
 
-1) Install Go 1.1 or later.
+1) Install Go 1.5 or later.
 
 2) cd to the root of the Camlistore source (where this file is)
 

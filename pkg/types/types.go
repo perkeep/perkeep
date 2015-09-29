@@ -236,7 +236,8 @@ func (c *onceCloser) Close() error {
 	return err
 }
 
-// TB is a copy of Go 1.2's testing.TB.
+// TB is a copy of testing.TB so things can take a TB without linking
+// in the testing package (which defines its own flags, etc).
 type TB interface {
 	Error(args ...interface{})
 	Errorf(format string, args ...interface{})
@@ -252,3 +253,8 @@ type TB interface {
 	Skipf(format string, args ...interface{})
 	Skipped() bool
 }
+
+// CloseFunc implements io.Closer with a function.
+type CloseFunc func() error
+
+func (fn CloseFunc) Close() error { return fn() }

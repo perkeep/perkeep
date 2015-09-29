@@ -36,6 +36,7 @@ import (
 	"strconv"
 	"sync"
 
+	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/types"
 	_ "camlistore.org/third_party/go/pkg/image/jpeg"
 )
@@ -82,6 +83,7 @@ func Available() bool {
 
 		if p, err := exec.LookPath(djpegBin); p != "" && err == nil {
 			available = true
+			log.Printf("fastjpeg enabled with %s.", p)
 		}
 		if !available {
 			log.Printf("%s not found in PATH, disabling fastjpeg.", djpegBin)
@@ -89,6 +91,18 @@ func Available() bool {
 	})
 
 	return available
+}
+
+func init() {
+	buildinfo.RegisterDjpegStatusFunc(djpegStatus)
+}
+
+func djpegStatus() string {
+	// TODO: more info: its path, whether it works, its version, etc.
+	if Available() {
+		return "djpeg available"
+	}
+	return "djpeg optimizaton unavailable"
 }
 
 func readPNM(buf *bytes.Buffer) (image.Image, error) {
@@ -196,9 +210,15 @@ func DecodeDownsample(r io.Reader, factor int) (image.Image, error) {
 
 	stderrW := new(bytes.Buffer)
 	cmd.Stderr = stderrW
-	if err = cmd.Run(); err != nil {
-		djpegFailureVar.Add(1)
-		return nil, DjpegFailedError{Err: fmt.Errorf("%v: %s", err, stderrW)}
+	if err := cmd.Run(); err != nil {
+		// cmd.ProcessState == nil happens if /lib/*/ld-x.yz.so is missing, which gives you the ever useful:
+		// "fork/exec /usr/bin/djpeg: no such file or directory" error message.
+		// So of course it only happens on broken systems and this check is probably overkill.
+		if cmd.ProcessState == nil || !cmd.ProcessState.Success() {
+			djpegFailureVar.Add(1)
+			return nil, DjpegFailedError{Err: fmt.Errorf("%v: %s", err, stderrW)}
+		}
+		// false alarm, so proceed. See http://camlistore.org/issue/550
 	}
 	djpegSuccessVar.Add(1)
 	djpegBytesReadVar.Add(int64(w.Len()))

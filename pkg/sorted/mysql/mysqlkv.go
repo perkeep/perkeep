@@ -23,9 +23,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/sqlkv"
@@ -75,7 +78,16 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	for _, tableSQL := range SQLCreateTables() {
 		tableSQL = strings.Replace(tableSQL, "/*DB*/", database, -1)
 		if _, err := db.Exec(tableSQL); err != nil {
-			return nil, fmt.Errorf("error creating table with %q: %v", tableSQL, err)
+			errMsg := "error creating table with %q: %v."
+			createError := err
+			sv, err := serverVersion(db)
+			if err != nil {
+				return nil, err
+			}
+			if !hasLargeVarchar(sv) {
+				errMsg += "\nYour MySQL server is too old (< 5.0.3) to support VARCHAR larger than 255."
+			}
+			return nil, fmt.Errorf(errMsg, tableSQL, createError)
 		}
 	}
 	if _, err := db.Exec(fmt.Sprintf(`REPLACE INTO %s.meta VALUES ('version', '%d')`, database, SchemaVersion())); err != nil {
@@ -100,7 +112,7 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		if version == 20 && requiredSchemaVersion == 21 {
 			fmt.Fprintf(os.Stderr, fixSchema20to21)
 		}
-		if os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "" {
+		if env.IsDev() {
 			// Good signal that we're using the devcam server, so help out
 			// the user with a more useful tip:
 			return nil, fmt.Errorf("database schema version is %d; expect %d (run \"devcam server --wipe\" to wipe both your blobs and re-populate the database schema)", version, requiredSchemaVersion)
@@ -165,3 +177,35 @@ ALTER TABLE rows CONVERT TO CHARACTER SET binary;
 ALTER TABLE meta CONVERT TO CHARACTER SET binary;
 UPDATE meta SET value=21 WHERE metakey='version' AND value=20;
 `
+
+// serverVersion returns the MySQL server version as []int{major, minor, revision}.
+func serverVersion(db *sql.DB) ([]int, error) {
+	versionRx := regexp.MustCompile(`([0-9]+)\.([0-9]+)\.([0-9]+)-.*`)
+	var version string
+	if err := db.QueryRow("SELECT VERSION()").Scan(&version); err != nil {
+		return nil, fmt.Errorf("error getting MySQL server version: %v", err)
+	}
+	m := versionRx.FindStringSubmatch(version)
+	if len(m) < 4 {
+		return nil, fmt.Errorf("bogus MySQL server version: %v", version)
+	}
+	major, _ := strconv.Atoi(m[1])
+	minor, _ := strconv.Atoi(m[2])
+	rev, _ := strconv.Atoi(m[3])
+	return []int{major, minor, rev}, nil
+}
+
+// hasLargeVarchar returns whether the given version (as []int{major, minor, revision})
+// supports VARCHAR larger than 255.
+func hasLargeVarchar(version []int) bool {
+	if len(version) < 3 {
+		panic(fmt.Sprintf("bogus mysql server version %v: ", version))
+	}
+	if version[0] < 5 {
+		return false
+	}
+	if version[1] > 0 {
+		return true
+	}
+	return version[0] == 5 && version[1] == 0 && version[2] >= 3
+}

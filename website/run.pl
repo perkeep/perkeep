@@ -42,7 +42,12 @@ if ($in_prod) {
         print $fh "foo\n";
         close($fh);
     }
-    push @args, "--http=127.0.0.1:8080"; # localhost avoids Mac firewall warning
+    # These https certificate and key are the default ones used by devcam server.
+    die "TLS cert or key not initialized; run devcam server --tls" unless -e "$Bin/../config/tls.crt" && -e "$Bin/../config/tls.key";
+    push @args, "--tlscert=$Bin/../config/tls.crt";
+    push @args, "--tlskey=$Bin/../config/tls.key";
+    push @args, "--http=127.0.0.1:8080";
+    push @args, "--https=127.0.0.1:4430";
     push @args, @ARGV;
     exec(@args);
     die "Failed to exec: $!";

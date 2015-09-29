@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/singleflight"
 	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types"
@@ -307,7 +308,7 @@ func (fr *FileReader) getSuperset(br blob.Ref) (*superset, error) {
 	return ssi.(*superset), nil
 }
 
-var debug = os.Getenv("CAMLI_DEBUG") != ""
+var debug = env.IsDebug()
 
 // readerForOffset returns a ReadCloser that reads some number of bytes and then EOF
 // from the provided offset.  Seeing EOF doesn't mean the end of the whole file; just the

@@ -16,6 +16,12 @@ limitations under the License.
 
 package postgres
 
+import (
+	"strconv"
+
+	"camlistore.org/pkg/sorted"
+)
+
 const requiredSchemaVersion = 2
 
 func SchemaVersion() int {
@@ -25,8 +31,8 @@ func SchemaVersion() int {
 func SQLCreateTables() []string {
 	return []string{
 		`CREATE TABLE IF NOT EXISTS rows (
- k VARCHAR(255) NOT NULL PRIMARY KEY,
- v VARCHAR(255))`,
+ k VARCHAR(` + strconv.Itoa(sorted.MaxKeySize) + `) NOT NULL PRIMARY KEY,
+ v VARCHAR(` + strconv.Itoa(sorted.MaxValueSize) + `))`,
 
 		`CREATE TABLE IF NOT EXISTS meta (
  metakey VARCHAR(255) NOT NULL PRIMARY KEY,

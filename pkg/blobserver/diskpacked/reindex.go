@@ -28,14 +28,15 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/context"
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 
 	// possible index formats
 	_ "camlistore.org/pkg/sorted/kvfile"
+	_ "camlistore.org/pkg/sorted/leveldb"
+	_ "camlistore.org/pkg/sorted/sqlite"
 )
-
-var camliDebug, _ = strconv.ParseBool(os.Getenv("CAMLI_DEBUG"))
 
 // Reindex rewrites the index files of the diskpacked .pack files
 func Reindex(root string, overwrite bool, indexConf jsonconfig.Obj) (err error) {
@@ -82,12 +83,12 @@ func (s *storage) reindexOne(ctx *context.Context, index sorted.KeyValue, overwr
 	allOk := true
 
 	// TODO(tgulacsi): proper verbose from context
-	verbose := camliDebug
+	verbose := env.IsDebug()
 	misses := make(map[blob.Ref]string, 8)
 	err := s.walkPack(verbose, packID,
 		func(packID int, ref blob.Ref, offset int64, size uint32) error {
 			if !ref.Valid() {
-				if camliDebug {
+				if verbose {
 					log.Printf("found deleted blob in %d at %d with size %d", packID, offset, size)
 				}
 				return nil
@@ -128,8 +129,7 @@ func (s *storage) reindexOne(ctx *context.Context, index sorted.KeyValue, overwr
 	}
 
 	if overwrite && batch != nil {
-		log.Printf("overwriting %s from %d", index, packID)
-		if err = index.CommitBatch(batch); err != nil {
+		if err := index.CommitBatch(batch); err != nil {
 			return err
 		}
 	} else if !allOk {
@@ -144,7 +144,7 @@ func (s *storage) Walk(ctx *context.Context,
 	walker func(packID int, ref blob.Ref, offset int64, size uint32) error) error {
 
 	// TODO(tgulacsi): proper verbose flag from context
-	verbose := camliDebug
+	verbose := env.IsDebug()
 
 	for i := 0; i >= 0; i++ {
 		fh, err := os.Open(s.filename(i))

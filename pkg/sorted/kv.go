@@ -24,7 +24,18 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 )
 
-var ErrNotFound = errors.New("index: key not found")
+const (
+	MaxKeySize   = 767   // Maximum size, in bytes, for a key in any store implementing KeyValue.
+	MaxValueSize = 63000 // Maximum size, in bytes, for a value in any store implementing KeyValue. MaxKeySize and MaxValueSize values originate from InnoDB and MySQL limitations.
+)
+
+const DefaultKVFileType = "leveldb"
+
+var (
+	ErrNotFound      = errors.New("sorted: key not found")
+	ErrKeyTooLarge   = fmt.Errorf("sorted: key size is over %v", MaxKeySize)
+	ErrValueTooLarge = fmt.Errorf("sorted: value size is over %v", MaxValueSize)
+)
 
 // KeyValue is a sorted, enumerable key-value interface supporting
 // batch mutations.
@@ -211,4 +222,16 @@ func ForeachInRange(kv KeyValue, start, end string, fn func(key, value string) e
 		}
 	}
 	return it.Close()
+}
+
+// CheckSizes returns ErrKeyTooLarge if key does not respect KeyMaxSize or
+// ErrValueTooLarge if value does not respect ValueMaxSize
+func CheckSizes(key, value string) error {
+	if len(key) > MaxKeySize {
+		return ErrKeyTooLarge
+	}
+	if len(value) > MaxValueSize {
+		return ErrValueTooLarge
+	}
+	return nil
 }

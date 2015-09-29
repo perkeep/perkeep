@@ -21,28 +21,29 @@ import (
 	"os"
 	"strings"
 
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/types/serverconfig"
-	"camlistore.org/third_party/github.com/bradfitz/gce"
+	"google.golang.org/cloud/compute/metadata"
 )
 
 // DefaultEnvConfig returns the default configuration when running on a known
 // environment. Currently this just includes Google Compute Engine.
 // If the environment isn't known (nil, nil) is returned.
 func DefaultEnvConfig() (*Config, error) {
-	if !gce.OnGCE() {
+	if !env.OnGCE() {
 		return nil, nil
 	}
 	auth := "none"
-	user, _ := gce.InstanceAttributeValue("camlistore-username")
-	pass, _ := gce.InstanceAttributeValue("camlistore-password")
-	confBucket, err := gce.InstanceAttributeValue("camlistore-config-bucket")
+	user, _ := metadata.InstanceAttributeValue("camlistore-username")
+	pass, _ := metadata.InstanceAttributeValue("camlistore-password")
+	confBucket, err := metadata.InstanceAttributeValue("camlistore-config-dir")
 	if confBucket == "" || err != nil {
-		return nil, fmt.Errorf("VM instance metadata key 'camlistore-config-bucket' not set: %v", err)
+		return nil, fmt.Errorf("VM instance metadata key 'camlistore-config-dir' not set: %v", err)
 	}
-	blobBucket, err := gce.InstanceAttributeValue("camlistore-blob-bucket")
+	blobBucket, err := metadata.InstanceAttributeValue("camlistore-blob-dir")
 	if blobBucket == "" || err != nil {
-		return nil, fmt.Errorf("VM instance metadata key 'camlistore-blob-bucket' not set: %v", err)
+		return nil, fmt.Errorf("VM instance metadata key 'camlistore-blob-dir' not set: %v", err)
 	}
 	if user != "" && pass != "" {
 		auth = "userpass:" + user + ":" + pass
@@ -56,9 +57,9 @@ func DefaultEnvConfig() (*Config, error) {
 		return nil, err
 	}
 
-	ipOrHost, _ := gce.ExternalIP()
-	host, _ := gce.InstanceAttributeValue("camlistore-hostname")
-	if host != "" {
+	ipOrHost, _ := metadata.ExternalIP()
+	host, _ := metadata.InstanceAttributeValue("camlistore-hostname")
+	if host != "" && host != "localhost" {
 		ipOrHost = host
 	}
 
@@ -69,8 +70,13 @@ func DefaultEnvConfig() (*Config, error) {
 		Listen:             "0.0.0.0:443",
 		Identity:           keyId,
 		IdentitySecretRing: secRing,
-		GoogleCloudStorage: ":" + strings.TrimSuffix(strings.TrimPrefix(blobBucket, "gs://"), "/"),
+		GoogleCloudStorage: ":" + strings.TrimPrefix(blobBucket, "gs://"),
 		DBNames:            map[string]string{},
+		PackRelated:        true,
+
+		// SourceRoot is where we look for the UI js/css/html files, and the Closure resources.
+		// Must be in sync with misc/docker/server/Dockerfile.
+		SourceRoot: "/camlistore",
 	}
 
 	// Detect a linked Docker MySQL container. It must have alias "mysqldb".
@@ -79,6 +85,7 @@ func DefaultEnvConfig() (*Config, error) {
 		highConf.MySQL = "root@" + hostPort + ":" // no password
 		highConf.DBNames["queue-sync-to-index"] = "sync_index_queue"
 		highConf.DBNames["ui_thumbcache"] = "ui_thumbmeta_cache"
+		highConf.DBNames["blobpacked_index"] = "blobpacked_index"
 	} else {
 		// TODO: also detect Cloud SQL.
 		highConf.KVFile = "/index.kv"

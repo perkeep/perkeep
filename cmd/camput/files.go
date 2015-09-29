@@ -36,6 +36,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"camlistore.org/internal/chanworker"
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	statspkg "camlistore.org/pkg/blobserver/stats"
@@ -57,6 +58,7 @@ type fileCmd struct {
 	diskUsage         bool // show "du" disk usage only (dry run mode), don't actually upload
 	argsFromInput     bool // Android mode: filenames piped into stdin, one at a time.
 	deleteAfterUpload bool // with fileNodes, deletes the input file once uploaded
+	contentsOnly      bool // do not store any of the file's attributes, only its contents.
 
 	statcache bool
 
@@ -78,7 +80,7 @@ func init() {
 		cmd := new(fileCmd)
 		flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create an associate a new permanode for the uploaded file or directory.")
 		flags.BoolVar(&cmd.filePermanodes, "filenodes", false, "Create (if necessary) content-based permanodes for each uploaded file.")
-		flags.BoolVar(&cmd.deleteAfterUpload, "delete_after_upload", false, "If using -filenodes, deletes files once they're uploaded, of if they've already been uploaded.")
+		flags.BoolVar(&cmd.deleteAfterUpload, "delete_after_upload", false, "If using -filenodes, deletes files once they're uploaded, or if they've already been uploaded.")
 		flags.BoolVar(&cmd.vivify, "vivify", false,
 			"If true, ask the server to create and sign permanode(s) associated with each uploaded"+
 				" file. This permits the server to have your signing key. Used mostly with untrusted"+
@@ -90,11 +92,12 @@ func init() {
 		flags.BoolVar(&cmd.diskUsage, "du", false, "Dry run mode: only show disk usage information, without upload or statting dest. Used for testing skipDirs configs, mostly.")
 
 		if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
-			flags.BoolVar(&cmd.statcache, "statcache", true, "Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
-			flags.BoolVar(&cmd.memstats, "debug-memstats", false, "Enter debug in-memory mode; collecting stats only. Doesn't upload anything.")
-			flags.StringVar(&cmd.histo, "debug-histogram-file", "", "Optional file to create and write the blob size for each file uploaded.  For use with GNU R and hist(read.table(\"filename\")$V1). Requires debug-memstats.")
-			flags.BoolVar(&cmd.capCtime, "capctime", false, "For file blobs use file modification time as creation time if it would be bigger (newer) than modification time. For stable filenode creation (you can forge mtime, but can't forge ctime).")
-			flags.BoolVar(&flagUseSQLiteChildCache, "sqlitecache", false, "Use sqlite for the statcache and havecache instead of a flat cache.")
+			flags.BoolVar(&cmd.statcache, "statcache", true, "(debug flag) Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
+			flags.BoolVar(&cmd.memstats, "debug-memstats", false, "(debug flag) Enter debug in-memory mode; collecting stats only. Doesn't upload anything.")
+			flags.StringVar(&cmd.histo, "debug-histogram-file", "", "(debug flag) Optional file to create and write the blob size for each file uploaded.  For use with GNU R and hist(read.table(\"filename\")$V1). Requires debug-memstats.")
+			flags.BoolVar(&cmd.capCtime, "capctime", false, "(debug flag) For file blobs use file modification time as creation time if it would be bigger (newer) than modification time. For stable filenode creation (you can forge mtime, but can't forge ctime).")
+			flags.BoolVar(&flagUseSQLiteChildCache, "sqlitecache", false, "(debug flag) Use sqlite for the statcache and havecache instead of a flat cache.")
+			flags.BoolVar(&cmd.contentsOnly, "contents_only", false, "(debug flag) Do not store any of the file's attributes. We write only the file's contents (the blobRefs for its parts) to the created file schema.")
 		} else {
 			cmd.statcache = true
 		}
@@ -145,6 +148,9 @@ func (c *fileCmd) RunCommand(args []string) error {
 	if c.deleteAfterUpload && !c.filePermanodes {
 		return cmdmain.UsageError("Can't set use --delete_after_upload without --filenodes")
 	}
+	if c.filePermanodes && c.contentsOnly {
+		return cmdmain.UsageError("--contents_only and --filenodes are exclusive. Use --permanode instead.")
+	}
 	// TODO(mpl): do it for other modes too. Or even better, do it once for all modes.
 	if *cmdmain.FlagVerbose {
 		log.SetOutput(cmdmain.Stderr)
@@ -166,11 +172,12 @@ func (c *fileCmd) RunCommand(args []string) error {
 		}
 	}
 	up.fileOpts = &fileOptions{
-		permanode: c.filePermanodes,
-		tag:       c.tag,
-		vivify:    c.vivify,
-		exifTime:  c.exifTime,
-		capCtime:  c.capCtime,
+		permanode:    c.filePermanodes,
+		tag:          c.tag,
+		vivify:       c.vivify,
+		exifTime:     c.exifTime,
+		capCtime:     c.capCtime,
+		contentsOnly: c.contentsOnly,
 	}
 
 	var (
@@ -545,7 +552,12 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *sc
 }
 
 func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
-	filebb := schema.NewCommonFileMap(n.fullPath, n.fi)
+	var filebb *schema.Builder
+	if up.fileOpts.contentsOnly {
+		filebb = schema.NewFileMap("")
+	} else {
+		filebb = schema.NewCommonFileMap(n.fullPath, n.fi)
+	}
 	filebb.SetType("file")
 
 	up.fdGate.Start()
@@ -556,20 +568,22 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		return nil, err
 	}
 	defer file.Close()
-	if up.fileOpts.exifTime {
-		ra, ok := file.(io.ReaderAt)
-		if !ok {
-			return nil, errors.New("Error asserting local file to io.ReaderAt")
+	if !up.fileOpts.contentsOnly {
+		if up.fileOpts.exifTime {
+			ra, ok := file.(io.ReaderAt)
+			if !ok {
+				return nil, errors.New("Error asserting local file to io.ReaderAt")
+			}
+			modtime, err := schema.FileTime(ra)
+			if err != nil {
+				log.Printf("warning: getting time from EXIF failed for %v: %v", n.fullPath, err)
+			} else {
+				filebb.SetModTime(modtime)
+			}
 		}
-		modtime, err := schema.FileTime(ra)
-		if err != nil {
-			log.Printf("warning: getting time from EXIF failed for %v: %v", n.fullPath, err)
-		} else {
-			filebb.SetModTime(modtime)
+		if up.fileOpts.capCtime {
+			filebb.CapCreationTime()
 		}
-	}
-	if up.fileOpts.capCtime {
-		filebb.CapCreationTime()
 	}
 
 	var (
@@ -959,7 +973,7 @@ func (t *TreeUpload) statPath(fullPath string, fi os.FileInfo) (nod *node, err e
 }
 
 // testHookStatCache, if non-nil, runs first in the checkStatCache worker.
-var testHookStatCache func(n *node, ok bool)
+var testHookStatCache func(el interface{}, ok bool)
 
 func (t *TreeUpload) run() {
 	defer close(t.donec)
@@ -1003,25 +1017,27 @@ func (t *TreeUpload) run() {
 	skippedc := make(chan *node)  // didn't even hit blobserver; trusted our stat cache
 
 	uploadsdonec := make(chan bool)
-	var upload chan<- *node
+	var upload chan<- interface{}
 	withPermanode := t.up.fileOpts.wantFilePermanode()
 	if t.DiskUsageMode {
-		upload = NewNodeWorker(1, func(n *node, ok bool) {
+		upload = chanworker.NewWorker(1, func(el interface{}, ok bool) {
 			if !ok {
 				uploadsdonec <- true
 				return
 			}
+			n := el.(*node)
 			if n.fi.IsDir() {
 				fmt.Printf("%d\t%s\n", n.SumBytes()>>10, n.fullPath)
 			}
 		})
 	} else {
-		dirUpload := NewNodeWorker(dirUploadWorkers, func(n *node, ok bool) {
+		dirUpload := chanworker.NewWorker(dirUploadWorkers, func(el interface{}, ok bool) {
 			if !ok {
 				log.Printf("done uploading directories - done with all uploads.")
 				uploadsdonec <- true
 				return
 			}
+			n := el.(*node)
 			put, err := t.up.uploadNode(n)
 			if err != nil {
 				log.Fatalf("Error uploading %s: %v", n.fullPath, err)
@@ -1030,12 +1046,13 @@ func (t *TreeUpload) run() {
 			uploadedc <- n
 		})
 
-		upload = NewNodeWorker(uploadWorkers, func(n *node, ok bool) {
+		upload = chanworker.NewWorker(uploadWorkers, func(el interface{}, ok bool) {
 			if !ok {
 				log.Printf("done with all uploads.")
 				close(dirUpload)
 				return
 			}
+			n := el.(*node)
 			if n.fi.IsDir() {
 				dirUpload <- n
 				return
@@ -1053,9 +1070,9 @@ func (t *TreeUpload) run() {
 		})
 	}
 
-	checkStatCache := NewNodeWorker(statCacheWorkers, func(n *node, ok bool) {
+	checkStatCache := chanworker.NewWorker(statCacheWorkers, func(el interface{}, ok bool) {
 		if hook := testHookStatCache; hook != nil {
-			hook(n, ok)
+			hook(el, ok)
 		}
 		if !ok {
 			if t.up.statCache != nil {
@@ -1064,6 +1081,7 @@ func (t *TreeUpload) run() {
 			close(upload)
 			return
 		}
+		n := el.(*node)
 		if t.DiskUsageMode || t.up.statCache == nil {
 			upload <- n
 			return

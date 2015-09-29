@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -45,15 +44,14 @@ type FS interface {
 type FSIniter interface {
 	// Init is called to initialize the FUSE connection.
 	// It can inspect the request and adjust the response as desired.
-	// The default response sets MaxReadahead to 0 and MaxWrite to 4096.
 	// Init must return promptly.
-	Init(*fuse.InitRequest, *fuse.InitResponse, Intr) fuse.Error
+	Init(req *fuse.InitRequest, resp *fuse.InitResponse, intr Intr) fuse.Error
 }
 
 type FSStatfser interface {
 	// Statfs is called to obtain file system metadata.
 	// It should write that data to resp.
-	Statfs(*fuse.StatfsRequest, *fuse.StatfsResponse, Intr) fuse.Error
+	Statfs(req *fuse.StatfsRequest, resp *fuse.StatfsResponse, intr Intr) fuse.Error
 }
 
 type FSDestroyer interface {
@@ -103,38 +101,38 @@ type NodeGetattrer interface {
 	//
 	// If this method is not implemented, the attributes will be
 	// generated based on Attr(), with zero values filled in.
-	Getattr(*fuse.GetattrRequest, *fuse.GetattrResponse, Intr) fuse.Error
+	Getattr(req *fuse.GetattrRequest, resp *fuse.GetattrResponse, intr Intr) fuse.Error
 }
 
 type NodeSetattrer interface {
 	// Setattr sets the standard metadata for the receiver.
-	Setattr(*fuse.SetattrRequest, *fuse.SetattrResponse, Intr) fuse.Error
+	Setattr(req *fuse.SetattrRequest, resp *fuse.SetattrResponse, intr Intr) fuse.Error
 }
 
 type NodeSymlinker interface {
 	// Symlink creates a new symbolic link in the receiver, which must be a directory.
 	//
 	// TODO is the above true about directories?
-	Symlink(*fuse.SymlinkRequest, Intr) (Node, fuse.Error)
+	Symlink(req *fuse.SymlinkRequest, intr Intr) (Node, fuse.Error)
 }
 
 // This optional request will be called only for symbolic link nodes.
 type NodeReadlinker interface {
 	// Readlink reads a symbolic link.
-	Readlink(*fuse.ReadlinkRequest, Intr) (string, fuse.Error)
+	Readlink(req *fuse.ReadlinkRequest, intr Intr) (string, fuse.Error)
 }
 
 type NodeLinker interface {
 	// Link creates a new directory entry in the receiver based on an
 	// existing Node. Receiver must be a directory.
-	Link(r *fuse.LinkRequest, old Node, intr Intr) (Node, fuse.Error)
+	Link(req *fuse.LinkRequest, old Node, intr Intr) (Node, fuse.Error)
 }
 
 type NodeRemover interface {
 	// Remove removes the entry with the given name from
 	// the receiver, which must be a directory.  The entry to be removed
 	// may correspond to a file (unlink) or to a directory (rmdir).
-	Remove(*fuse.RemoveRequest, Intr) fuse.Error
+	Remove(req *fuse.RemoveRequest, intr Intr) fuse.Error
 }
 
 type NodeAccesser interface {
@@ -146,7 +144,7 @@ type NodeAccesser interface {
 	// call but not the open(2) system call. If Access is not
 	// implemented, the Node behaves as if it always returns nil
 	// (permission granted), relying on checks in Open instead.
-	Access(*fuse.AccessRequest, Intr) fuse.Error
+	Access(req *fuse.AccessRequest, intr Intr) fuse.Error
 }
 
 type NodeStringLookuper interface {
@@ -156,30 +154,30 @@ type NodeStringLookuper interface {
 	// the directory, Lookup should return nil, err.
 	//
 	// Lookup need not to handle the names "." and "..".
-	Lookup(string, Intr) (Node, fuse.Error)
+	Lookup(name string, intr Intr) (Node, fuse.Error)
 }
 
 type NodeRequestLookuper interface {
 	// Lookup looks up a specific entry in the receiver.
 	// See NodeStringLookuper for more.
-	Lookup(*fuse.LookupRequest, *fuse.LookupResponse, Intr) (Node, fuse.Error)
+	Lookup(req *fuse.LookupRequest, resp *fuse.LookupResponse, intr Intr) (Node, fuse.Error)
 }
 
 type NodeMkdirer interface {
-	Mkdir(*fuse.MkdirRequest, Intr) (Node, fuse.Error)
+	Mkdir(req *fuse.MkdirRequest, intr Intr) (Node, fuse.Error)
 }
 
 type NodeOpener interface {
 	// Open opens the receiver.
 	// XXX note about access.  XXX OpenFlags.
 	// XXX note that the Node may be a file or directory.
-	Open(*fuse.OpenRequest, *fuse.OpenResponse, Intr) (Handle, fuse.Error)
+	Open(req *fuse.OpenRequest, resp *fuse.OpenResponse, intr Intr) (Handle, fuse.Error)
 }
 
 type NodeCreater interface {
 	// Create creates a new directory entry in the receiver, which
 	// must be a directory.
-	Create(*fuse.CreateRequest, *fuse.CreateResponse, Intr) (Node, Handle, fuse.Error)
+	Create(req *fuse.CreateRequest, resp *fuse.CreateResponse, intr Intr) (Node, Handle, fuse.Error)
 }
 
 type NodeForgetter interface {
@@ -187,16 +185,16 @@ type NodeForgetter interface {
 }
 
 type NodeRenamer interface {
-	Rename(r *fuse.RenameRequest, newDir Node, intr Intr) fuse.Error
+	Rename(req *fuse.RenameRequest, newDir Node, intr Intr) fuse.Error
 }
 
 type NodeMknoder interface {
-	Mknod(r *fuse.MknodRequest, intr Intr) (Node, fuse.Error)
+	Mknod(req *fuse.MknodRequest, intr Intr) (Node, fuse.Error)
 }
 
 // TODO this should be on Handle not Node
 type NodeFsyncer interface {
-	Fsync(r *fuse.FsyncRequest, intr Intr) fuse.Error
+	Fsync(req *fuse.FsyncRequest, intr Intr) fuse.Error
 }
 
 type NodeGetxattrer interface {
@@ -267,27 +265,27 @@ type HandleFlusher interface {
 	// Flush is called each time the file or directory is closed.
 	// Because there can be multiple file descriptors referring to a
 	// single opened file, Flush can be called multiple times.
-	Flush(*fuse.FlushRequest, Intr) fuse.Error
+	Flush(req *fuse.FlushRequest, intr Intr) fuse.Error
 }
 
 type HandleReadAller interface {
-	ReadAll(Intr) ([]byte, fuse.Error)
+	ReadAll(intr Intr) ([]byte, fuse.Error)
 }
 
 type HandleReadDirer interface {
-	ReadDir(Intr) ([]fuse.Dirent, fuse.Error)
+	ReadDir(intrt Intr) ([]fuse.Dirent, fuse.Error)
 }
 
 type HandleReader interface {
-	Read(*fuse.ReadRequest, *fuse.ReadResponse, Intr) fuse.Error
+	Read(req *fuse.ReadRequest, resp *fuse.ReadResponse, intr Intr) fuse.Error
 }
 
 type HandleWriter interface {
-	Write(*fuse.WriteRequest, *fuse.WriteResponse, Intr) fuse.Error
+	Write(req *fuse.WriteRequest, resp *fuse.WriteResponse, intr Intr) fuse.Error
 }
 
 type HandleReleaser interface {
-	Release(*fuse.ReleaseRequest, Intr) fuse.Error
+	Release(req *fuse.ReleaseRequest, intr Intr) fuse.Error
 }
 
 type Server struct {
@@ -296,6 +294,8 @@ type Server struct {
 	// Function to send debug log messages to. If nil, use fuse.Debug.
 	// Note that changing this or fuse.Debug may not affect existing
 	// calls to Serve.
+	//
+	// See fuse.Debug for the rules that log functions must follow.
 	Debug func(msg interface{})
 }
 
@@ -318,7 +318,7 @@ func (s *Server) Serve(c *fuse.Conn) error {
 
 	root, err := sc.fs.Root()
 	if err != nil {
-		return fmt.Errorf("cannot obtain root node: %v", syscall.Errno(err.(fuse.Errno)).Error())
+		return fmt.Errorf("cannot obtain root node: %v", err)
 	}
 	sc.node = append(sc.node, nil, &serveNode{inode: 1, node: root, refs: 1})
 	sc.handle = append(sc.handle, nil)
@@ -709,7 +709,8 @@ func (c *serveConn) serve(r fuse.Request) {
 	// FS operations.
 	case *fuse.InitRequest:
 		s := &fuse.InitResponse{
-			MaxWrite: 4096,
+			MaxWrite: 128 * 1024,
+			Flags:    fuse.InitBigWrites,
 		}
 		if fs, ok := c.fs.(FSIniter); ok {
 			if err := fs.Init(r, s, intr); err != nil {
@@ -904,7 +905,7 @@ func (c *serveConn) serve(r fuse.Request) {
 		r.Respond(s)
 
 	case *fuse.OpenRequest:
-		s := &fuse.OpenResponse{Flags: fuse.OpenDirectIO}
+		s := &fuse.OpenResponse{}
 		var h2 Handle
 		if n, ok := node.(NodeOpener); ok {
 			hh, err := n.Open(r, s, intr)
@@ -929,7 +930,7 @@ func (c *serveConn) serve(r fuse.Request) {
 			r.RespondError(fuse.EPERM)
 			break
 		}
-		s := &fuse.CreateResponse{OpenResponse: fuse.OpenResponse{Flags: fuse.OpenDirectIO}}
+		s := &fuse.CreateResponse{OpenResponse: fuse.OpenResponse{}}
 		n2, h2, err := n.Create(r, s, intr)
 		if err != nil {
 			done(err)

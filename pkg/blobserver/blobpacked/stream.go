@@ -19,6 +19,7 @@ package blobpacked
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"camlistore.org/pkg/blob"
@@ -29,92 +30,97 @@ import (
 
 // StreamBlobs impl.
 
-// Continuation token is:
-// "s*" if we're in the small blobs, (or "" to start):
-//   "s:pt:<underlying token>" (pass through)
-//   "s:after:<last-blobref-set>" (blob ref of already-sent item)
-// "l*" if we're in the large blobs:
-//   "l:<big-blobref,lexically>:<offset>" (of blob data from beginning of zip)
-//   TODO: also care about whether large supports blob streamer?
-// First it streams from small (if available, else enumerates)
-// Then it streams from large (if available, else enumerates),
-// and for each large, streams the contents of the zips.
-func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string, limitBytes int64) (nextContinueToken string, err error) {
-	defer close(dest)
-	switch {
-	case contToken == "" || strings.HasPrefix(contToken, "s:"):
-		return s.streamSmallBlobs(ctx, dest, strings.TrimPrefix(contToken, "s:"), limitBytes)
-	case strings.HasPrefix(contToken, "l:"):
-		return s.streamLargeBlobs(ctx, dest, strings.TrimPrefix(contToken, "l:"), limitBytes)
-	default:
-		return "", fmt.Errorf("invalid continue token %q", contToken)
-	}
+func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
+	return blobserver.NewMultiBlobStreamer(
+		smallBlobStreamer{s},
+		largeBlobStreamer{s},
+	).StreamBlobs(ctx, dest, contToken)
 }
 
-func (s *storage) streamSmallBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string, limitBytes int64) (nextContinueToken string, err error) {
-	smallStream, ok := s.small.(blobserver.BlobStreamer)
-	if ok {
-		if contToken != "" || !strings.HasPrefix(contToken, "pt:") {
-			return "", errors.New("invalid pass-through stream token")
-		}
-		next, err := smallStream.StreamBlobs(ctx, dest, strings.TrimPrefix(contToken, "pt"), limitBytes)
-		if err == nil || next == "" {
-			next = "l:" // now do large
-		}
-		return next, err
+type smallBlobStreamer struct{ sto *storage }
+type largeBlobStreamer struct{ sto *storage }
+
+// stream the loose blobs
+func (st smallBlobStreamer) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
+	small := st.sto.small
+	if bs, ok := small.(blobserver.BlobStreamer); ok {
+		return bs.StreamBlobs(ctx, dest, contToken)
 	}
-	if contToken != "" && !strings.HasPrefix(contToken, "after:") {
-		return "", fmt.Errorf("invalid small continue token %q", contToken)
+	defer close(dest)
+	donec := ctx.Done()
+	return blobserver.EnumerateAllFrom(ctx, small, contToken, func(sb blob.SizedRef) error {
+		select {
+		case dest <- blobserver.BlobAndToken{
+			Blob: blob.NewBlob(sb.Ref, sb.Size, func() types.ReadSeekCloser {
+				return blob.NewLazyReadSeekCloser(small, sb.Ref)
+			}),
+			Token: sb.Ref.StringMinusOne(), // streamer is >=, enumerate is >
+		}:
+			return nil
+		case <-donec:
+			return context.ErrCanceled
+		}
+	})
+}
+
+var errContToken = errors.New("blobpacked: bad continuation token")
+
+// contToken is of forms:
+//    ""                : start from beginning of zip files
+//    "sha1-xxxxx:n"    : start at == (sha1-xxxx, file n), else next zip
+func (st largeBlobStreamer) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
+	defer close(dest)
+	s := st.sto
+	large := s.large
+
+	var after string // for enumerateAll
+	var skipFiles int
+	var firstRef blob.Ref // first we care about
+
+	if contToken != "" {
+		f := strings.SplitN(contToken, ":", 2)
+		if len(f) != 2 {
+			return errContToken
+		}
+		firstRef, _ = blob.Parse(f[0])
+		skipFiles, err = strconv.Atoi(f[1])
+		if !firstRef.Valid() || err != nil {
+			return errContToken
+		}
+		// EnumerateAllFrom takes a cursor that's greater, but
+		// we want to start _at_ firstRef. So start
+		// enumerating right before our target.
+		after = firstRef.StringMinusOne()
 	}
-	enumCtx := ctx.New()
-	enumDone := enumCtx.Done()
-	defer enumCtx.Cancel()
-	sbc := make(chan blob.SizedRef) // unbuffered
-	enumErrc := make(chan error, 1)
-	go func() {
-		defer close(sbc)
-		enumErrc <- blobserver.EnumerateAllFrom(enumCtx, s.small, strings.TrimPrefix(contToken, "after:"), func(sb blob.SizedRef) error {
-			select {
-			case sbc <- sb:
+	return blobserver.EnumerateAllFrom(ctx, large, after, func(sb blob.SizedRef) error {
+		if firstRef.Valid() {
+			if sb.Ref.Less(firstRef) {
+				// Skip.
 				return nil
-			case <-enumDone:
+			}
+			if firstRef.Less(sb.Ref) {
+				skipFiles = 0 // reset it.
+			}
+		}
+		fileN := 0
+		return s.foreachZipBlob(sb.Ref, func(bap BlobAndPos) error {
+			if skipFiles > 0 {
+				skipFiles--
+				fileN++
+				return nil
+			}
+			select {
+			case dest <- blobserver.BlobAndToken{
+				Blob: blob.NewBlob(bap.Ref, bap.Size, func() types.ReadSeekCloser {
+					return blob.NewLazyReadSeekCloser(s, bap.Ref)
+				}),
+				Token: fmt.Sprintf("%s:%d", sb.Ref, fileN),
+			}:
+				fileN++
+				return nil
+			case <-ctx.Done():
 				return context.ErrCanceled
 			}
 		})
-	}()
-	var sent int64
-	var lastRef blob.Ref
-	for sent < limitBytes {
-		sb, ok := <-sbc
-		if !ok {
-			break
-		}
-		opener := func() types.ReadSeekCloser {
-			return blob.NewLazyReadSeekCloser(s.small, sb.Ref)
-		}
-		select {
-		case dest <- blob.NewBlob(sb.Ref, sb.Size, opener):
-			lastRef = sb.Ref
-			sent += int64(sb.Size)
-		case <-ctx.Done():
-			return "", context.ErrCanceled
-		}
-	}
-
-	enumCtx.Cancel() // redundant if sbc was already closed, but harmless.
-	enumErr := <-enumErrc
-	if enumErr == nil {
-		return "l:", nil
-	}
-
-	// See if we didn't send anything due to enumeration errors.
-	if sent == 0 {
-		enumCtx.Cancel()
-		return "l:", enumErr
-	}
-	return "s:after:" + lastRef.String(), nil
-}
-
-func (s *storage) streamLargeBlobs(ctx *context.Context, dest chan<- *blob.Blob, contToken string, limitBytes int64) (nextContinueToken string, err error) {
-	panic("TODO")
+	})
 }

@@ -1,20 +1,209 @@
-UI:
-- new web UI: 03f0f598da7753163b52bca2fa07d62b5805c78d
-  https://groups.google.com/forum/#!topic/camlistore/rKBF_r7iR1Q
-- ui: introduction of tagging controls to new contextual nav bar.
-  5385ff14a93f9f60eb5919d4bfee8b3d771ce611
+<h1>Release 0.9 ("?")</h1>
 
-Importers:
-- pinboard
+<p><b>2015-??-??</b></p>
 
-Indexer:
-- new sorted implementation: levelDB (https://github.com/syndtr/goleveldb)
+<p>
+For this release we have mainly focused on making Camlistore run on remote servers, in particular the Google Cloud infrastructure. This goal involved a lot work just to adapt to this particular environment, but it also relies on many improvements to make it a good user experience, and most notably on two major features: the blobpacked blobserver, and HTTP/2.
+</p>
+<p>
+The blobpacked server allows faster reading, and hence serving, of files because they end up stored in large continuous blobs stored together (basically zip files) instead of many more small randomly distributed blobs. See the <a href="https://camlistore.org/pkg/blobserver/blobpacked">blobpacked package</a> documentation. 
+</p>
+<p>
+The HTTP/2 server Go implementation is not yet in the standard library, but it is already solid and used in the Camlistore server. So you will benefit from it if it is enabled for your browser. See <a href="https://http2.golang.org/">https://http2.golang.org/</a> for more.
+</p>
 
-Performance & bug fixes:
-- major performance optimization/bug fix when reading files: 71a1a1ff8d0afdd116b1776e874d8b8a0729ab11
-- blobpacked: to reduce number of seeks and keep data physically together
-- oauth2 update
+<p>
+In a related vein, we have worked on a launcher, to facilitate Camlistore deployment on cloud infrastructures, again with a focus on Google Cloud for now. Try it out at <a href="https://camlistore.org/launch">https://camlistore.org/launch</a>!
+</p>
 
-Misc:
-- camtool makestatic
+<p>
+Finally, in addition to the usual source tarball and github repo:
+</p>
 
+<center>
+<div style='font-size:18pt;font-weight:bold;'>
+	<a href="https://github.com/camlistore/camlistore/archive/0.9.zip">camlistore0.9-src.zip</a>
+</div>
+<div style='margin-top:0.5em;'>
+Github: <a href="https://github.com/camlistore/camlistore/tree/0.9">github.com/camlistore/camlistore/tree/0.9</a></div>
+</center>
+
+<p>
+we now have binary downloads:
+</p>
+
+<center>
+<div style='font-size:18pt;font-weight:bold;'>
+	<p><a href="/dl/0.9/camlistore0.9-linux.tar.gz">camlistore0.9-linux.tar.gz</a></p>
+	<p><a href="/dl/0.9/camlistore0.9-osx.tar.gz">camlistore0.9-osx.tar.gz</a></p>
+	<p><a href="/dl/0.9/camlistore0.9-windows.zip">camlistore0.9-windows.zip</a></p>
+</div>
+</center>
+
+<p>Please note that <a href="https://golang.org/dl/">Go 1.5 or newer</a> is now required for this release.</p>
+
+<h2>Release stats</h2>
+<!--
+$ PREV=0.8; echo "$(git shortlog -e -s $PREV..HEAD | sed -e 's/^.*<//;s/>.*$//' | uniq | wc -l) total commiters over $(git log --format=oneline $PREV..HEAD | wc -l) commits since $PREV (), including $(i=0; git shortlog -s $PREV..HEAD | cut -c8- | fgrep ' ' | while read nm; do i=$(($i + 1)); if [ $i -ge 2 ]; then echo -n ', '; fi; echo -n "$nm"; done)."
+-->
+<p>
+30 total commiters over 791 commits since 0.8, including Aaron Bieber, Aaron Boodman, Andrew Gerrand, Antonin Amand, Bill Thiede, Brad Fitzpatrick, Emil Hessman, Eric Drechsel, Fabian Reinartz, Fabian Wickborn, Felix Geller, Gina White, Govert Versluis, Jingguo Yao, Lindsey Simon, Mario Russo, Mathieu Lonjaret, Matthieu Rakotojaona, Robert Kroeger, Salman Aljammaz, Salmān Aljammāz, Steven L. Speek, Tamás Gulácsi, Will Norris.
+</p>
+
+<p>Thank you!</p>
+
+<h2>Changes in 0.8</h2>
+
+<h3>Android</h3>
+<ul>
+	<li>Restrict upload by WiFI SSID.</li>
+</ul>
+
+<h3>Camget</h3>
+<ul>
+	<li>Do not fetch file if already exists on local disk.</li>
+</ul>
+
+<h3>Camput</h3>
+<ul>
+	<li>New option for <code>share</code> command: <code>-search</code>.</li>
+	<li>Detect and warn when using wrong GPG key.</li>
+	<li>New otpion for <code>file</code> command: <code>-contents_only</code>.</li>
+</ul>
+
+<h3>Camtool</h3>
+<ul>
+	<li>New <code>makestatic</code> command.</li>
+	<li>New <code>packblobs</code> command.</li>
+	<li>New option for <code>search</code> command: </code>-rawquery</code>.</li>
+</ul>
+
+<h3>Cammount</h3>
+<ul>
+	<li>Use VolumeName on OS X.</li>
+</ul>
+
+<h3>Devcam</h3>
+<ul>
+	<li>Detect and warn when outdated.</li>
+	<li><code>test</code> command does check for bad imports and gofmt.</li>
+	<li>New option for <code>server</code> command: <code>-wipecache</code>.</li>
+	<li>New option for <code>server</code> command: <code>-memindex</code>.</li>
+</ul>
+
+<h3>Deploy</h3>
+<ul>
+	<li>Launcher to help deploy Camlistore on Google Cloud.</li>
+</ul>
+
+<h3>Docker</h3>
+<ul>
+	<li><code>misc/docker/dock.go</code>: new program to generate a docker image for camlistored, as well binaries in isolation.</li>
+</ul>
+
+<h3>Genfileembed</h3>
+<ul>
+	<li>New flag to generate build tags.</li>
+</ul>
+
+<h3>Images</h3>
+<ul>
+	<li>Faster resizing with djpeg.</li>
+	<li>Support for tiff decoding.</li>
+</ul>
+
+<h3>Importers</h3>
+<ul>
+	<li>New importer: pinboard.</li>
+</ul>
+
+<h3>Indexer</h3>
+<ul>
+	<li>Improved MySQL connections handling (share connections between queues).</li>
+	<li>New sorted implementation: levelDB (https://github.com/syndtr/goleveldb).</li>
+	<li>Out of order reindexing finished/fixed.</li>
+	<li>When indexing from images: always try a small prefix buffer first, then read full file if needed.</li>
+	<li>Defined a (large) limit on key and value size for all sorted implementations.</li>
+	<li>The wholeRef of a file is always indexed, for faster file stats everywhere.</li>
+	<li>RDBMS-specific placeholder replacements (and table name replacements) are now cached.</li>
+</ul>
+
+<h3>Misc performance changes, bug fixes, clean-ups, etc.</h3>
+<ul>
+	<li><code>HTTP/2!</code>
+	<li>make.go: improvements, refactoring, and cleanup.</li>
+	<li>Migration to new third_parties: <code>golang.org/x/oauth2</code>, <code>google.golang.org/cloud</code>, etc.</li>
+	<li>goexif: features and fixes, then contributed upstream.</li>
+	<li>Server system status is constantly refreshed over websocket.</li>
+	<li>Most of the JSON maps (e.g. for server responses) should be gone in favor of annotated structs.</li>
+	<li>More robust localhost detection.</li>
+	<li>The setup wizard was removed.</li>
+</ul>
+
+<h3>Ports</h3>
+<ul>
+	<li>Solaris: Camlistore should at least build.</li>
+	<li>Darwin/386: deprecated, and user is warned about it when trying to build.</li>
+</ul>
+
+<h3>Schema</h3>
+<ul>
+	<li>Cache last blob read when reading files -> major performance optimization.</li>
+	<li>File/chunks related changes, often optimizations with blobpacked in mind.</li>
+</ul>
+
+<h3>Search</h3>
+<ul>
+	<li>New "Around" parameter for queries. Introduced to help web UI features.</li>
+</ul>
+
+<h3>Storage</h3>
+<ul>
+	<li>New blobpacked blobserver.</li>
+	<li>Google Cloud Storage: lots of improvements.</li>
+	<li>New SubFetcher interface.</li>
+	<li>New BlobStreamer interface.</li>
+	<li>New WholeRefFetcher interface.</li>
+	<li>New memory blobserver.</li>
+</ul>
+
+<h3>Website</h3>
+<ul>
+	<li>New launcher to deploy Camlistore on Google Cloud: <a href="https://camlistore.org/launch">https://camlistore.org/launch</a>.</li>
+	<li>CONTRIBUTORS are generated from git log.</li>
+	<li>Issue tracker has moved to github.</li>
+</ul>
+
+<h3>Web UI</h3>
+<ul>
+	<li>New style: top search bar, pudgy navigation menu, vertical contextual actions sidebar.</li>
+	<li>Simpler URL blobRef format: <code>/ui/<blobref></code>.</li>
+	<li>Some new features:</li>
+	<ul>
+		<li>Improved uploading: context aware (add to an existing set), duplicate detection/prevention, better drop area, show bytes transfered.</li>
+		<li>Aspects: generic attributes editor for permanode aspect. New directory aspect.</li>
+		<li>Sidebar: mass tagging/deleting.</li>
+		<li>Selections state is saved accross navigation.</li>
+		<li>Download: view original (non-resized) item.</li>
+		<li>Videos rendering.</li>
+	</ul>
+	<li>Pages changes:</li>
+	<ul>
+		<li>Improved status page, with lots more info, and restart camlistored "button".</li>
+		<li>New help page: client tools configuration, and download links.</li>
+		<li>New mobile auto-configuration page with QR code.</li>
+		<li>New /debug/config page.</li>
+	</ul>
+	<li>misc:</li>
+	<ul>
+		<li>Piggy menu shows server errors.</li>
+		<li>Left/right navigation restored.</li>
+		<li>Better layout on mobile.</li>
+		<li>Cleaned out most of the non-React, legacy code.</li>
+	</ul>
+</ul>
+
+<h3>Wkfs</h3>
+<ul>
+	<li>New package that provides a filesystem abstraction layer.</li>
+</ul>

@@ -79,10 +79,10 @@ file will have a different 'wholePartIndex' number, starting at index
 package blobpacked
 
 // TODO: BlobStreamer using the zip manifests, for recovery.
-// TODO: be a SubFetcher ourselves?
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -111,9 +111,19 @@ import (
 // Files under this size aren't packed.
 const packThreshold = 512 << 10
 
-// overhead for zip magic, file headers, TOC, footers. Without measuring accurately,
-// saying 50kB for now.
-const zipOverhead = 50 << 10
+// Overhead for zip files.
+// These are only variables so they can be changed by tests, but
+// they're effectively constant.
+var (
+	zipFixedOverhead = 20 /*directory64EndLen*/ +
+		56 /*directory64LocLen */ +
+		22 /*directoryEndLen*/ +
+		512 /* conservative slop space, to get us away from 16 MB zip boundary */
+	zipPerEntryOverhead = 30 /*fileHeaderLen*/ +
+		24 /*dataDescriptor64Len*/ +
+		22 /*directoryEndLen*/ +
+		len("camlistore/sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15.dat")*3/2 /*padding for larger blobrefs*/
+)
 
 // meta key prefixes
 const (
@@ -166,7 +176,9 @@ type storage struct {
 }
 
 var (
-	_ blobserver.BlobStreamer = (*storage)(nil)
+	_ blobserver.BlobStreamer    = (*storage)(nil)
+	_ blobserver.Generationer    = (*storage)(nil)
+	_ blobserver.WholeRefFetcher = (*storage)(nil)
 )
 
 func (s *storage) String() string {
@@ -202,6 +214,7 @@ func (s *storage) maxZipBlobSize() int {
 func init() {
 	blobserver.RegisterStorageConstructor("blobpacked", blobserver.StorageConstructor(newFromConfig))
 }
+
 func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storage, error) {
 	var (
 		smallPrefix = conf.RequiredString("smallBlobs")
@@ -286,12 +299,52 @@ func (s *storage) Close() error {
 	return nil
 }
 
+func (s *storage) StorageGeneration() (initTime time.Time, random string, err error) {
+	sgen, sok := s.small.(blobserver.Generationer)
+	lgen, lok := s.large.(blobserver.Generationer)
+	if !sok || !lok {
+		return time.Time{}, "", blobserver.GenerationNotSupportedError("underlying storage engines don't support Generationer")
+	}
+	st, srand, err := sgen.StorageGeneration()
+	if err != nil {
+		return
+	}
+	lt, lrand, err := lgen.StorageGeneration()
+	if err != nil {
+		return
+	}
+	hash := sha1.New()
+	io.WriteString(hash, srand)
+	io.WriteString(hash, lrand)
+	maxTime := func(a, b time.Time) time.Time {
+		if a.After(b) {
+			return a
+		}
+		return b
+	}
+	return maxTime(lt, st), fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
+func (s *storage) ResetStorageGeneration() error {
+	var retErr error
+	for _, st := range []blobserver.Storage{s.small, s.large} {
+		if g, ok := st.(blobserver.Generationer); ok {
+			if err := g.ResetStorageGeneration(); err != nil {
+				retErr = err
+			}
+		}
+	}
+	return retErr
+}
+
 type meta struct {
 	exists   bool
 	size     uint32
 	largeRef blob.Ref // if invalid, then on small if exists
 	largeOff uint32
 }
+
+func (m *meta) isPacked() bool { return m.largeRef.Valid() }
 
 // if not found, err == nil.
 func (s *storage) getMetaRow(br blob.Ref) (meta, error) {
@@ -322,7 +375,7 @@ func parseMetaRow(v []byte) (m meta, err error) {
 
 	// remains: "<big-blobref> <big-offset>"
 	if bytes.Count(v, singleSpace) != 1 {
-		return meta{}, fmt.Errorf("invalid metarow %q: wrong number of spaces", row, err)
+		return meta{}, fmt.Errorf("invalid metarow %q: wrong number of spaces", row)
 	}
 	sp = bytes.IndexByte(v, ' ')
 	largeRef, ok := blob.ParseBytes(v[:sp])
@@ -375,7 +428,7 @@ func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, 
 			return sb, err
 		}
 	}
-	if !isFile || meta.largeRef.Valid() || fileBlob.PartsSize() < packThreshold {
+	if !isFile || meta.isPacked() || fileBlob.PartsSize() < packThreshold {
 		return sb, nil
 	}
 
@@ -394,7 +447,7 @@ func (s *storage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	if !m.exists || !m.largeRef.Valid() {
+	if !m.exists || !m.isPacked() {
 		return s.small.Fetch(br)
 	}
 	rc, err := s.large.SubFetch(m.largeRef, int64(m.largeOff), int64(m.size))
@@ -434,7 +487,7 @@ func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			if m.largeRef.Valid() {
+			if m.isPacked() {
 				packed = append(packed, br)
 				large[m.largeRef] = true
 			} else {
@@ -468,19 +521,41 @@ func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 }
 
 func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
-	// TODO: parallel?
-	var trySmall []blob.Ref
-	for _, br := range blobs {
-		m, err := s.getMetaRow(br)
-		if err != nil {
-			return err
-		}
-		if m.exists {
-			dest <- blob.SizedRef{Ref: br, Size: m.size}
-		} else {
-			trySmall = append(trySmall, br)
-		}
+	if len(blobs) == 0 {
+		return nil
+	}
 
+	var (
+		grp        syncutil.Group
+		trySmallMu sync.Mutex
+		trySmall   []blob.Ref
+	)
+	statGate := syncutil.NewGate(50) // arbitrary
+	for _, br := range blobs {
+		br := br
+		statGate.Start()
+		grp.Go(func() error {
+			defer statGate.Done()
+			m, err := s.getMetaRow(br)
+			if err != nil {
+				return err
+			}
+			if m.exists {
+				dest <- blob.SizedRef{Ref: br, Size: m.size}
+			} else {
+				trySmallMu.Lock()
+				trySmall = append(trySmall, br)
+				// Assume append cannot fail or panic
+				trySmallMu.Unlock()
+			}
+			return nil
+		})
+	}
+	if err := grp.Err(); err != nil {
+		return err
+	}
+	if len(trySmall) == 0 {
+		return nil
 	}
 	return s.small.StatBlobs(dest, trySmall)
 }
@@ -533,7 +608,7 @@ func (s *storage) packFile(fileRef blob.Ref) (err error) {
 		if err == nil {
 			s.Logf("Packed file %s", fileRef)
 		} else {
-			s.Logf("Error packing file %s", fileRef)
+			s.Logf("Error packing file %s: %v", fileRef, err)
 		}
 	}()
 
@@ -581,6 +656,11 @@ type writtenZip struct {
 	dataRefs []blob.Ref
 }
 
+var (
+	testHookSawTruncate           func(blob.Ref)
+	testHookStopBeforeOverflowing func()
+)
+
 func (pk *packer) pack() error {
 	if err := pk.scanChunks(); err != nil {
 		return err
@@ -619,6 +699,9 @@ MakingZips:
 		if err := pk.writeAZip(trunc); err != nil {
 			if needTrunc, ok := err.(needsTruncatedAfterError); ok {
 				trunc = needTrunc.Ref
+				if fn := testHookSawTruncate; fn != nil {
+					fn(trunc)
+				}
 				continue MakingZips
 			}
 			return err
@@ -705,7 +788,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	cw := &countWriter{w: &zbuf}
 	zw := zip.NewWriter(cw)
 
-	var approxSize int // can't use zbuf.Len because zw buffers
+	var approxSize = zipFixedOverhead // can't use zbuf.Len because zw buffers
 	var dataRefsWritten []blob.Ref
 	var dataBytesWritten int64
 	var schemaBlobSeen = map[blob.Ref]bool{}
@@ -725,6 +808,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	check(err)
 	check(zw.Flush())
 	dataStart := cw.n
+	approxSize += zipPerEntryOverhead // for the first FileHeader w/ the data
 
 	zipMax := pk.s.maxZipBlobSize()
 	chunks := pk.chunksRemain
@@ -744,13 +828,16 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 			if !schemaBlobSeen[parent] {
 				schemaBlobSeen[parent] = true
 				schemaBlobs = append(schemaBlobs, parent)
-				approxSize += int(pk.schemaBlob[parent].Size())
+				approxSize += int(pk.schemaBlob[parent].Size()) + zipPerEntryOverhead
 			}
 		}
 
 		thisSize := pk.dataSize[dr]
 		approxSize += int(thisSize)
-		if approxSize+mf.approxSerializedSize()+zipOverhead > zipMax {
+		if approxSize+mf.approxSerializedSize() > zipMax {
+			if fn := testHookStopBeforeOverflowing; fn != nil {
+				fn()
+			}
 			schemaBlobs = schemaBlobsSave // restore it
 			break
 		}
@@ -801,7 +888,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 		rc.Close()
 		check(err)
 		if n != int64(b.Size()) {
-			return fmt.Errorf("failed to write all of schema blob %v: %n bytes, not wanted %d", br, n, b.Size())
+			return fmt.Errorf("failed to write all of schema blob %v: %d bytes, not wanted %d", br, n, b.Size())
 		}
 	}
 
@@ -872,6 +959,15 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	return nil
 }
 
+type zipOpenError struct {
+	zipRef blob.Ref
+	err    error
+}
+
+func (ze zipOpenError) Error() string {
+	return fmt.Sprintf("Error opening packed zip blob %v: %v", ze.zipRef, ze.err)
+}
+
 // foreachZipBlob calls fn for each blob in the zip pack blob
 // identified by zipRef.  If fn returns a non-nil error,
 // foreachZipBlob stops enumerating with that error.
@@ -882,7 +978,7 @@ func (s *storage) foreachZipBlob(zipRef blob.Ref, fn func(BlobAndPos) error) err
 	}
 	zr, err := zip.NewReader(blob.ReaderAt(s.large, zipRef), int64(sb.Size))
 	if err != nil {
-		return err
+		return zipOpenError{zipRef, err}
 	}
 	var maniFile *zip.File // or nil if not found
 	var firstOff int64     // offset of first file (the packed data chunks)
@@ -973,7 +1069,7 @@ func (s *storage) zipPartsInUse(br blob.Ref) ([]blob.Ref, error) {
 			if err != nil {
 				return err
 			}
-			if mr.largeRef.Valid() {
+			if mr.isPacked() {
 				mu.Lock()
 				inUse = append(inUse, mr.largeRef)
 				mu.Unlock()
@@ -1036,9 +1132,21 @@ type Manifest struct {
 	DataBlobs []BlobAndPos `json:"dataBlobs"`
 }
 
+// approxSerializedSize reports how big this Manifest will be
+// (approximately), once encoded as JSON. This is used as a hint by
+// the packer to decide when to keep trying to add blobs. If this
+// number is too low, the packer backs up (at a slight performance
+// cost) but is still correct. If this approximation returns too large
+// of a number, it just causes multiple zip files to be created when
+// the original blobs might've just barely fit.
 func (mf *Manifest) approxSerializedSize() int {
-	// Conservative:
-	return 250 + len(mf.DataBlobs)*100
+	// Empirically (for sha1-* blobrefs) it's 204 bytes fixed
+	// encoding overhead (pre-compression), and 119 bytes per
+	// encoded DataBlob.
+	// And empirically, it compresses down to 30% of its size with flate.
+	// So use the sha1 numbers but conseratively assume only 50% compression,
+	// to make up for longer sha-3 blobrefs.
+	return (204 + len(mf.DataBlobs)*119) / 2
 }
 
 type countWriter struct {

@@ -7,6 +7,8 @@
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
+				"jsonSignRoot": "/sighelper/",
+				"helpRoot": "/help/",
 				"ownerName": "Alice",
 				"searchRoot": "/my-search/",
 				"statusRoot": "/status/",
@@ -36,14 +38,25 @@
 		"/bs/": {
 			"handler": "storage-diskpacked",
 			"handlerArgs": {
-				"path": "/tmp/blobs"
+				"path": "/tmp/blobs",
+				"metaIndex": {
+					"file": "/tmp/blobs/index.kv",
+					"type": "kv"
+				}
 			}
 		},
 		"/cache/": {
 			"handler": "storage-diskpacked",
 			"handlerArgs": {
+				"metaIndex": {
+				"file": "/tmp/blobs/cache/index.kv",
+					"type": "kv"
+				},
 				"path": "/tmp/blobs/cache"
 			}
+		},
+		"/help/": {
+			"handler": "help"
 		},
 		"/importer/": {
 			"handler": "importer",
@@ -102,7 +115,6 @@
 			"handler": "ui",
 			"handlerArgs": {
 				"cache": "/cache/",
-				"jsonSignRoot": "/sighelper/",
 				"scaledImage": {
 					"file": "/tmp/blobs/thumbmeta.kv",
 					"type": "kv"

@@ -33,7 +33,7 @@ import (
 
 	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/wkfs"
-	"camlistore.org/third_party/github.com/bradfitz/gce"
+	"google.golang.org/cloud/compute/metadata"
 )
 
 // Max size for all files read or written. This filesystem is only
@@ -42,7 +42,7 @@ import (
 const maxSize = 1 << 20
 
 func init() {
-	if !gce.OnGCE() {
+	if !metadata.OnGCE() {
 		return
 	}
 	client, err := googlestorage.NewServiceClient()
@@ -172,17 +172,10 @@ func (w *fileWriter) Close() (err error) {
 		return nil
 	}
 	w.closed = true
-	var retry bool
-	for tries := 0; tries < 2; tries++ {
-		retry, err = w.fs.client.PutObject(&googlestorage.Object{
-			Bucket: w.bucket,
-			Key:    w.key,
-		}, ioutil.NopCloser(bytes.NewReader(w.buf.Bytes())))
-		if retry {
-			continue
-		}
-	}
-	return err
+	return w.fs.client.PutObject(&googlestorage.Object{
+		Bucket: w.bucket,
+		Key:    w.key,
+	}, ioutil.NopCloser(bytes.NewReader(w.buf.Bytes())))
 }
 
 type statInfo struct {

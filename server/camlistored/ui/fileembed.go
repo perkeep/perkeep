@@ -15,6 +15,8 @@ limitations under the License.
 */
 
 /*
+Package ui contains the resources for the Camlistore web UI.
+
 The below is read by genfileembed.go to determine the files to embed in the
 server binary. Crazy, but true.
 #fileembed pattern .+\.(js|css|html|png|svg)$

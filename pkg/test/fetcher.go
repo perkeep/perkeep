@@ -38,7 +38,10 @@ type Fetcher struct {
 	FetchErr func() error
 }
 
-var _ blobserver.Storage = (*Fetcher)(nil)
+var (
+	_ blobserver.Storage      = (*Fetcher)(nil)
+	_ blobserver.BlobStreamer = (*Fetcher)(nil)
+)
 
 func (tf *Fetcher) Fetch(ref blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	if tf.FetchErr != nil {

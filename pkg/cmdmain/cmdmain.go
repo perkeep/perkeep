@@ -51,6 +51,9 @@ var (
 	// CheckCwd checks the current working directory, and possibly
 	// changes it, or aborts the run if needed.
 	CheckCwd = func() {}
+	// CheckModtime provides a way to check if the currently running binary
+	// is out of date. If it returns an error, the run is aborted.
+	CheckModtime = func() error { return nil }
 )
 
 var ErrUsage = UsageError("invalid command")
@@ -238,6 +241,10 @@ func Main() {
 	}
 	flag.Parse()
 	CheckCwd()
+	if err := CheckModtime(); err != nil {
+		log.Print(err)
+		Exit(1)
+	}
 
 	args := flag.Args()
 	if *FlagVersion {

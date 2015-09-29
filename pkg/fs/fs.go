@@ -276,7 +276,7 @@ func (n *node) populateAttr() error {
 		n.attr.Uid = uint32(os.Getuid())
 		n.attr.Gid = uint32(os.Getgid())
 		executeBit := n.attr.Mode & 0100
-		n.attr.Mode = (n.attr.Mode ^ n.attr.Mode.Perm()) & 0400 & executeBit
+		n.attr.Mode = (n.attr.Mode ^ n.attr.Mode.Perm()) | 0400 | executeBit
 	} else {
 		n.attr.Uid = uint32(meta.MapUid())
 		n.attr.Gid = uint32(meta.MapGid())

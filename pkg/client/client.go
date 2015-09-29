@@ -153,6 +153,20 @@ func NewOrFail() *Client {
 	return c
 }
 
+// NewPathClient returns a new client accessing a subpath of c.
+func (c *Client) NewPathClient(path string) *Client {
+	u, err := url.Parse(c.server)
+	if err != nil {
+		// Better than nothing
+		return New(c.server + path)
+	}
+	u.Path = path
+	pc := New(u.String())
+	pc.authMode = c.authMode
+	pc.discoOnce.Do(noop)
+	return pc
+}
+
 // NewStorageClient returns a Client that doesn't use HTTP, but uses s
 // directly. This exists mainly so all the convenience methods on
 // Client (e.g. the Upload variants) are available against storage
@@ -359,8 +373,9 @@ func (c *Client) BlobRoot() (string, error) {
 	return prefix + "/", nil
 }
 
-// ServerKeyID returns the server's GPG public key ID.
-// If the server isn't running a sign handler, the error will be ErrNoSigning.
+// ServerKeyID returns the server's GPG public key ID, in its long (16 capital
+// hex digits) format. If the server isn't running a sign handler, the error
+// will be ErrNoSigning.
 func (c *Client) ServerKeyID() (string, error) {
 	if err := c.condDiscovery(); err != nil {
 		return "", err
@@ -425,9 +440,9 @@ func (c *Client) SyncHandlers() ([]*SyncInfo, error) {
 	return c.syncHandlers, nil
 }
 
-var _ search.IGetRecentPermanodes = (*Client)(nil)
+var _ search.GetRecentPermanoder = (*Client)(nil)
 
-// GetRecentPermanodes implements search.IGetRecentPermanodes against a remote server over HTTP.
+// GetRecentPermanodes implements search.GetRecentPermanoder against a remote server over HTTP.
 func (c *Client) GetRecentPermanodes(req *search.RecentRequest) (*search.RecentResponse, error) {
 	sr, err := c.SearchRoot()
 	if err != nil {
@@ -710,67 +725,53 @@ func (c *Client) doDiscovery() error {
 		return err
 	}
 
-	// TODO: make a proper struct type for this in another package somewhere:
-	m := make(map[string]interface{})
-	if err := httputil.DecodeJSON(res, &m); err != nil {
+	var disco camtypes.Discovery
+	if err := httputil.DecodeJSON(res, &disco); err != nil {
 		return err
 	}
 
-	searchRoot, ok := m["searchRoot"].(string)
-	if ok {
-		u, err := root.Parse(searchRoot)
-		if err != nil {
-			return fmt.Errorf("client: invalid searchRoot %q; failed to resolve", searchRoot)
-		}
-		c.searchRoot = u.String()
+	u, err := root.Parse(disco.SearchRoot)
+	if err != nil {
+		return fmt.Errorf("client: invalid searchRoot %q; failed to resolve", disco.SearchRoot)
 	}
+	c.searchRoot = u.String()
 
-	downloadHelper, ok := m["downloadHelper"].(string)
-	if ok {
-		u, err := root.Parse(downloadHelper)
-		if err != nil {
-			return fmt.Errorf("client: invalid downloadHelper %q; failed to resolve", downloadHelper)
-		}
-		c.downloadHelper = u.String()
-	}
+	c.storageGen = disco.StorageGeneration
 
-	c.storageGen, _ = m["storageGeneration"].(string)
-
-	blobRoot, ok := m["blobRoot"].(string)
-	if !ok {
-		return fmt.Errorf("No blobRoot in config discovery response")
-	}
-	u, err := root.Parse(blobRoot)
+	u, err = root.Parse(disco.BlobRoot)
 	if err != nil {
 		return fmt.Errorf("client: error resolving blobRoot: %v", err)
 	}
 	c.prefixv = strings.TrimRight(u.String(), "/")
 
-	syncHandlers, ok := m["syncHandlers"].([]interface{})
-	if ok {
-		for _, v := range syncHandlers {
-			vmap := v.(map[string]interface{})
-			from := vmap["from"].(string)
-			ufrom, err := root.Parse(from)
+	if disco.UIDiscovery != nil {
+		u, err = root.Parse(disco.DownloadHelper)
+		if err != nil {
+			return fmt.Errorf("client: invalid downloadHelper %q; failed to resolve", disco.DownloadHelper)
+		}
+		c.downloadHelper = u.String()
+	}
+
+	if disco.SyncHandlers != nil {
+		for _, v := range disco.SyncHandlers {
+			ufrom, err := root.Parse(v.From)
 			if err != nil {
-				return fmt.Errorf("client: invalid %q \"from\" sync; failed to resolve", from)
+				return fmt.Errorf("client: invalid %q \"from\" sync; failed to resolve", v.From)
 			}
-			to := vmap["to"].(string)
-			uto, err := root.Parse(to)
+			uto, err := root.Parse(v.To)
 			if err != nil {
-				return fmt.Errorf("client: invalid %q \"to\" sync; failed to resolve", to)
+				return fmt.Errorf("client: invalid %q \"to\" sync; failed to resolve", v.To)
 			}
-			toIndex, _ := vmap["toIndex"].(bool)
 			c.syncHandlers = append(c.syncHandlers, &SyncInfo{
 				From:    ufrom.String(),
 				To:      uto.String(),
-				ToIndex: toIndex,
+				ToIndex: v.ToIndex,
 			})
 		}
 	}
-	serverSigning, ok := m["signing"].(map[string]interface{})
-	if ok {
-		c.serverKeyID = serverSigning["publicKeyId"].(string)
+
+	if disco.Signing != nil {
+		c.serverKeyID = disco.Signing.PublicKeyID
 	}
 	return nil
 }
@@ -859,15 +860,36 @@ func (c *Client) selfVerifiedSSL() bool {
 	return c.useTLS() && len(c.getTrustedCerts()) > 0
 }
 
-// condRewriteURL changes "https://" to "http://" if we are in
-// selfVerifiedSSL mode. We need to do that because we do the TLS
-// dialing ourselves, and we do not want the http transport layer
-// to redo it.
-func (c *Client) condRewriteURL(url string) string {
+// condRewriteURL changes "https://" to "http://" and adds ":443" to
+// the host (if no port was specified) when we are in selfVerifiedSSL
+// mode. We need to do that because we do the TLS dialing ourselves,
+// and we do not want the http transport layer to redo it.
+func (c *Client) condRewriteURL(urlStr string) string {
 	if c.selfVerifiedSSL() || c.insecureTLS() {
-		return strings.Replace(url, "https://", "http://", 1)
+		// url.Parse fails for mismached IPv6 brackets on Go 1.5, but
+		// not 1.4. See https://github.com/golang/go/issues/6530.
+		// SplitHostPort below always fails on mismatched IPv6 brackets,
+		// so overall we get the same behaviour on both 1.4 & 1.5.
+		u, err := url.Parse(urlStr)
+		if err != nil {
+			return urlStr
+		}
+		if u.Scheme == "https" {
+			// Keep the port 443 if no explicit port was specified.
+			_, _, err := net.SplitHostPort(u.Host)
+			if err == nil {
+				u.Scheme = "http"
+				return u.String()
+			}
+			addrerr, ok := err.(*net.AddrError)
+			if ok && addrerr.Err == "missing port in address" {
+				u.Scheme = "http"
+				u.Host += ":443"
+				return u.String()
+			}
+		}
 	}
-	return url
+	return urlStr
 }
 
 // TLSConfig returns the correct tls.Config depending on whether
@@ -983,11 +1005,25 @@ func (c *Client) uploadPublicKey() error {
 	return err
 }
 
+// checkMatchingKeys compares the client's and the server's keys and logs if they differ.
+func (c *Client) checkMatchingKeys() {
+	serverKey, err := c.ServerKeyID()
+	// The server provides the full (16 digit) key fingerprint but schema.Signer only stores
+	// the short (8 digit) key ID.
+	if err == nil && len(serverKey) >= 8 {
+		shortServerKey := serverKey[len(serverKey)-8:]
+		if shortServerKey != c.signer.KeyID() {
+			log.Printf("Warning: client (%s) and server (%s) keys differ.", c.signer.KeyID(), shortServerKey)
+		}
+	}
+}
+
 func (c *Client) UploadAndSignBlob(b schema.AnyBlob) (*PutResult, error) {
 	signed, err := c.signBlob(b.Blob(), time.Time{})
 	if err != nil {
 		return nil, err
 	}
+	c.checkMatchingKeys()
 	if err := c.uploadPublicKey(); err != nil {
 		return nil, err
 	}
@@ -1017,6 +1053,7 @@ func (c *Client) UploadPlannedPermanode(key string, sigTime time.Time) (*PutResu
 	if err != nil {
 		return nil, err
 	}
+	c.checkMatchingKeys()
 	if err := c.uploadPublicKey(); err != nil {
 		return nil, err
 	}

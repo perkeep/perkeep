@@ -20,20 +20,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/buildinfo"
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/server/app"
 	"camlistore.org/pkg/types/camtypes"
 )
 
@@ -86,6 +91,10 @@ func (sh *StatusHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 
 func (sh *StatusHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	suffix := httputil.PathSuffix(req)
+	if suffix == "restart" {
+		sh.serveRestart(rw, req)
+		return
+	}
 	if !httputil.IsGet(req) {
 		http.Error(rw, "Illegal status method.", http.StatusMethodNotAllowed)
 		return
@@ -96,7 +105,7 @@ func (sh *StatusHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	case "":
 		sh.serveStatusHTML(rw, req)
 	default:
-		http.Error(rw, "Illegal status path.", 404)
+		http.Error(rw, "Illegal status path.", http.StatusNotFound)
 	}
 }
 
@@ -204,10 +213,39 @@ var quotedPrefix = regexp.MustCompile(`[;"]/(\S+?/)[&"]`)
 func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Request) {
 	st := sh.currentStatus()
 	f := func(p string, a ...interface{}) {
-		fmt.Fprintf(rw, p, a...)
+		if len(a) == 0 {
+			io.WriteString(rw, p)
+		} else {
+			fmt.Fprintf(rw, p, a...)
+		}
 	}
-	f("<html><head><title>Status</title></head>")
-	f("<body><h2>Status</h2>")
+	f("<html><head><title>camlistored status</title></head>")
+	f("<body>")
+
+	f("<h1>camlistored status</h1>")
+
+	f("<h2>Versions</h2><ul>")
+	var envStr string
+	if env.OnGCE() {
+		envStr = " (on GCE)"
+	}
+	f("<li><b>Camlistore</b>: %s%s</li>", html.EscapeString(buildinfo.Version()), envStr)
+	f("<li><b>Go</b>: %s/%s %s, cgo=%v</li>", runtime.GOOS, runtime.GOARCH, runtime.Version(), cgoEnabled)
+	f("<li><b>djpeg</b>: %s", html.EscapeString(buildinfo.DjpegStatus()))
+	f("</ul>")
+
+	f("<h2>Logs</h2><ul>")
+	f("  <li><a href='/debug/config'>/debug/config</a> - server config</li>\n")
+	if env.OnGCE() {
+		f("  <li><a href='/debug/logs'>/debug/logs</a> - server logs</li>\n")
+		f("  <li><a href='/debug/logs?TODO'>/debug/logs?XXX</a> - camlistored logs</li>\n")
+	}
+	f("</ul>")
+
+	f("<h2>Admin</h2>")
+	f("<form method='post' action='restart' onsubmit='return confirm(\"Really restart now?\")'><button>restart server</button></form>")
+
+	f("<h2>Handlers</h2>")
 	f("<p>As JSON: <a href='status.json'>status.json</a>; and the <a href='%s?camli.mode=config'>discovery JSON</a>.</p>", st.rootPrefix)
 	f("<p>Not yet pretty HTML UI:</p>")
 	js, err := json.MarshalIndent(st, "", "  ")
@@ -224,3 +262,36 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 	})
 	f("<pre>%s</pre>", jsh)
 }
+
+func (sh *StatusHandler) serveRestart(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != "POST" {
+		http.Error(rw, "POST to restart", http.StatusMethodNotAllowed)
+		return
+	}
+
+	_, handlers := sh.handlerFinder.AllHandlers()
+	for _, h := range handlers {
+		ah, ok := h.(*app.Handler)
+		if !ok {
+			continue
+		}
+		log.Printf("Sending SIGINT to %s", ah.ProgramName())
+		err := ah.Quit()
+		if err != nil {
+			msg := fmt.Sprintf("Not restarting: couldn't interrupt app %s: %v", ah.ProgramName(), err)
+			log.Printf(msg)
+			http.Error(rw, msg, http.StatusInternalServerError)
+			return
+		}
+	}
+
+	log.Println("Restarting camlistored")
+	rw.Header().Set("Connection", "close")
+	http.Redirect(rw, req, sh.prefix, http.StatusFound)
+	if f, ok := rw.(http.Flusher); ok {
+		f.Flush()
+	}
+	osutil.RestartProcess()
+}
+
+var cgoEnabled bool

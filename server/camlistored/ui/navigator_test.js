@@ -60,7 +60,7 @@ describe('cam.Navigator', function() {
 		mockHistory = new MockHistory();
 		handler = new Handler();
 		navigator = new cam.Navigator(mockWindow, mockLocation, mockHistory);
-		navigator.onNavigate = handler.handle;
+		navigator.onWillNavigate = handler.handle;
 	});
 
 	it ('#constructor - seed initial state', function() {
@@ -69,27 +69,30 @@ describe('cam.Navigator', function() {
 
 	it('#navigate - no handler', function() {
 		// We should do network navigation.
-		navigator.onNavigate = function(){};
-		navigator.navigate(url);
+		navigator.onWillNavigate = function(){};
+		var handledLocally = navigator.navigate(url);
 		assert.equal(mockLocation.href, url.toString());
 		assert.equal(mockHistory.states.length, 1);
+		assert.equal(handledLocally, false);
 	});
 
 	it('#navigate - handler returns false', function() {
 		// Both handlers should get called, we should do network navigation.
-		navigator.navigate(url);
+		var handledLocally = navigator.navigate(url);
 		assert.equal(handler.lastURL, url);
 		assert.equal(mockLocation.href, url.toString());
 		assert.equal(mockHistory.states.length, 1);
+		assert.equal(handledLocally, false);
 	});
 
 	it('#navigate - handler returns true', function() {
 		// Both handlers should get called, we should do pushState() navigation.
 		handler.returnsTrue = true;
-		navigator.navigate(url);
+		var handledLocally = navigator.navigate(url);
 		assert.equal(handler.lastURL, url);
 		assert.equal(mockLocation.href, '');
 		assert.deepEqual(mockHistory.states, [{state:{}, url:''}, {state:{}, url:url.toString()}]);
+		assert.equal(handledLocally, true);
 	});
 
 	it('#handleClick_ - handled', function() {

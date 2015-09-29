@@ -47,6 +47,7 @@ Alternatively, if your Camlistore root is checked out at
 $GOPATH/src/camlistore.org (optional, but natural for Go users), you
 can just:
 
+$ export GO15VENDOREXPERIMENT=1  # required for all Camlistore builds
 $ go install ./dev/devcam
 
 The subcommands of devcam start the server or run camput/camget/etc:
@@ -73,17 +74,28 @@ $ devcam test
 You can use your usual git workflow to commit your changes, but for each
 change to be reviewed you should merge your commits into one before submitting
 to gerrit for review.
+
 You should also try to write a meaningful commit message, which at least states
-in the first sentence what part of camlistore this commit is affecting. The
-following text should state what problem the change is addressing, and how.
-An example would be:
+in the first sentence what part or package of camlistore this commit is affecting.
+The following text should state what problem the change is addressing, and how.
+Finally, you should refer to the github issue(s) the commit is addressing, if any,
+and with the appropriate keyword if the commit is fixing the issue. (See
+https://help.github.com/articles/closing-issues-via-commit-messages/).
+
+For example:
 
 "
-HACKING: add tips about writing a commit message.
+pkg/search: add "file" predicate to search by file name
 
-First time committers are not always aware about good commit message etiquette.
-These few notes should help them.
+File names were already indexed but there was no way to query the index for a file
+by its name. The "file" predicate can now be used in search expressions (e.g. in the
+search box of the web user interface) to achieve that.
+
+Fixes #10987
 "
+
+If your commit is adding or updating a vendored third party, you must indicate
+in your commit message the version (e.g. git commit hash) of said third party.
 
 You can optionally use our pre-commit hook so that your code gets gofmt'ed
 before being submitted (which should be done anyway).

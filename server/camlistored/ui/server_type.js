@@ -19,6 +19,7 @@ cam.ServerType.DiscoveryRoot;
  *   blobRoot: string,
  *   directoryHelper: string,
  *   downloadHelper: string,
+ *   helpRoot: string,
  *   jsonSignRoot: string,
  *   ownerName: string,
  *   publishRoots: Array.<cam.ServerType.DiscoveryRoot>,
@@ -78,9 +79,6 @@ cam.ServerType.IndexerPermanodeMeta;
  *   mimeType: string,
  *   permanode: cam.ServerType.IndexerPermanodeMeta?,
  *   size: number,
- *   thumbnailHeight: number?,
- *   thumbnailWidth: number?,
- *   thumbnailSrc: string?
  * }}
  */
 cam.ServerType.IndexerMeta;

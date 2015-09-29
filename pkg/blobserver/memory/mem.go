@@ -39,6 +39,8 @@ import (
 // Storage is an in-memory implementation of the blobserver Storage
 // interface. It also includes other convenience methods used by
 // tests.
+//
+// Its zero value is usable.
 type Storage struct {
 	maxSize int64 // or zero if no limit
 
@@ -53,6 +55,8 @@ type Storage struct {
 	blobsFetched int64 // atomic
 	bytesFetched int64 // atomic
 }
+
+var _ blobserver.BlobStreamer = (*Storage)(nil)
 
 func init() {
 	blobserver.RegisterStorageConstructor("memory", blobserver.StorageConstructor(newFromConfig))
@@ -103,11 +107,17 @@ func (s *Storage) Fetch(ref blob.Ref) (file io.ReadCloser, size uint32, err erro
 }
 
 func (s *Storage) SubFetch(ref blob.Ref, offset, length int64) (io.ReadCloser, error) {
+	if offset < 0 || length < 0 {
+		return nil, blob.ErrNegativeSubFetch
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	b, ok := s.m[ref]
 	if !ok {
 		return nil, os.ErrNotExist
+	}
+	if offset > int64(len(b)) {
+		return nil, blob.ErrOutOfRangeOffsetSubFetch
 	}
 	atomic.AddInt64(&s.blobsFetched, 1)
 	atomic.AddInt64(&s.bytesFetched, length)
@@ -207,6 +217,36 @@ func (s *Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef
 	return nil
 }
 
+func (s *Storage) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) error {
+	// for this impl, contToken is >= blobref.String()
+	defer close(dest)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	sorted := make([]blob.Ref, 0, len(s.m))
+	for br := range s.m {
+		sorted = append(sorted, br)
+	}
+	sort.Sort(blob.ByRef(sorted))
+
+	for _, br := range sorted {
+		if br.String() < contToken {
+			continue
+		}
+		select {
+		case <-ctx.Done():
+			return context.ErrCanceled
+		case dest <- blobserver.BlobAndToken{
+			Blob: blob.NewBlob(br, uint32(len(s.m[br])), func() types.ReadSeekCloser {
+				return blob.NewLazyReadSeekCloser(s, br)
+			}),
+			Token: br.String(),
+		}:
+		}
+	}
+	return nil
+}
+
 func (s *Storage) RemoveBlobs(blobs []blob.Ref) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -224,6 +264,9 @@ func (s *Storage) removeBlobLocked(br blob.Ref) {
 	s.size -= int64(len(v))
 	delete(s.m, br)
 }
+
+// TODO(mpl): remove or move BlobContents
+// See comment in https://camlistore-review.googlesource.com/#/c/3986/24/pkg/blobserver/localdisk/localdisk.go
 
 // BlobContents returns as a string the contents of the blob br.
 func (s *Storage) BlobContents(br blob.Ref) (contents string, ok bool) {

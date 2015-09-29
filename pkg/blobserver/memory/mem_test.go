@@ -28,10 +28,18 @@ import (
 
 // TestMemoryStorage tests against an in-memory blobserver.
 func TestMemoryStorage(t *testing.T) {
-
 	storagetest.Test(t, func(t *testing.T) (blobserver.Storage, func()) {
 		return &memory.Storage{}, func() {}
 	})
+}
+
+func TestStreamer(t *testing.T) {
+	s := new(memory.Storage)
+	phrases := []string{"foo", "bar", "baz", "quux"}
+	for _, str := range phrases {
+		(&test.Blob{str}).MustUpload(t, s)
+	}
+	storagetest.TestStreamer(t, s, storagetest.WantN(len(phrases)))
 }
 
 func TestCache(t *testing.T) {

@@ -61,22 +61,85 @@ func AppendSplitN(dst []string, s, sep string, n int) []string {
 	return genSplit(dst, s, sep, 0, n)
 }
 
-// HasPrefixFold is like strings.HasPrefix but uses Unicode case-folding.
-func HasPrefixFold(s, prefix string) bool {
-	// TODO: Remove assumption that both strings have the same byte length.
-	if len(s) < len(prefix) {
+// equalFoldRune compares a and b runes whether they fold equally.
+//
+// The code comes from strings.EqualFold, but shortened to only one rune.
+func equalFoldRune(sr, tr rune) bool {
+	if sr == tr {
+		return true
+	}
+	// Make sr < tr to simplify what follows.
+	if tr < sr {
+		sr, tr = tr, sr
+	}
+	// Fast check for ASCII.
+	if tr < utf8.RuneSelf && 'A' <= sr && sr <= 'Z' {
+		// ASCII, and sr is upper case.  tr must be lower case.
+		if tr == sr+'a'-'A' {
+			return true
+		}
 		return false
 	}
-	return strings.EqualFold(s[:len(prefix)], prefix)
+
+	// General case.  SimpleFold(x) returns the next equivalent rune > x
+	// or wraps around to smaller values.
+	r := unicode.SimpleFold(sr)
+	for r != sr && r < tr {
+		r = unicode.SimpleFold(r)
+	}
+	if r == tr {
+		return true
+	}
+	return false
+}
+
+// HasPrefixFold is like strings.HasPrefix but uses Unicode case-folding.
+func HasPrefixFold(s, prefix string) bool {
+	if prefix == "" {
+		return true
+	}
+	for _, pr := range prefix {
+		if s == "" {
+			return false
+		}
+		// step with s, too
+		sr, size := utf8.DecodeRuneInString(s)
+		if sr == utf8.RuneError {
+			return false
+		}
+		s = s[size:]
+		if !equalFoldRune(sr, pr) {
+			return false
+		}
+	}
+	return true
 }
 
 // HasSuffixFold is like strings.HasPrefix but uses Unicode case-folding.
 func HasSuffixFold(s, suffix string) bool {
-	// TODO: Remove assumption that both strings have the same byte length.
-	if len(s) < len(suffix) {
-		return false
+	if suffix == "" {
+		return true
 	}
-	return strings.EqualFold(s[len(s)-len(suffix):], suffix)
+	// count the runes and bytes in s, but only till rune count of suffix
+	bo, so := len(s), len(suffix)
+	for bo > 0 && so > 0 {
+		r, size := utf8.DecodeLastRuneInString(s[:bo])
+		if r == utf8.RuneError {
+			return false
+		}
+		bo -= size
+
+		sr, size := utf8.DecodeLastRuneInString(suffix[:so])
+		if sr == utf8.RuneError {
+			return false
+		}
+		so -= size
+
+		if !equalFoldRune(r, sr) {
+			return false
+		}
+	}
+	return so == 0
 }
 
 // ContainsFold is like strings.Contains but uses Unicode case-folding.
@@ -91,15 +154,9 @@ func ContainsFold(s, substr string) bool {
 	if firstRune >= utf8.RuneSelf {
 		firstRune, _ = utf8.DecodeRuneInString(substr)
 	}
-	firstLowerRune := unicode.SimpleFold(firstRune)
 	for i, rune := range s {
-		if len(s)-i < len(substr) {
-			return false
-		}
-		if rune == firstLowerRune || unicode.SimpleFold(rune) == firstLowerRune {
-			if HasPrefixFold(s[i:], substr) {
-				return true
-			}
+		if equalFoldRune(rune, firstRune) && HasPrefixFold(s[i:], substr) {
+			return true
 		}
 	}
 	return false

@@ -17,6 +17,7 @@ limitations under the License.
 package netutil
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -66,4 +67,57 @@ func HostPort(urlStr string) (string, error) {
 		}
 	}
 	return hostPort, nil
+}
+
+// ListenOnLocalRandomPort returns a TCP listener on a random
+// localhost port.
+func ListenOnLocalRandomPort() (net.Listener, error) {
+	ip, err := Localhost()
+	if err != nil {
+		return nil, err
+	}
+	return net.ListenTCP("tcp", &net.TCPAddr{IP: ip, Port: 0})
+}
+
+// Localhost returns the first address found when
+// doing a lookup of "localhost". If not successful,
+// it looks for an ip on the loopback interfaces.
+func Localhost() (net.IP, error) {
+	if ip := localhostLookup(); ip != nil {
+		return ip, nil
+	}
+	if ip := loopbackIP(); ip != nil {
+		return ip, nil
+	}
+	return nil, errors.New("No loopback ip found.")
+}
+
+// localhostLookup looks for a loopback IP by resolving localhost.
+func localhostLookup() net.IP {
+	if ips, err := net.LookupIP("localhost"); err == nil && len(ips) > 0 {
+		return ips[0]
+	}
+	return nil
+}
+
+// loopbackIP returns the first loopback IP address sniffing network
+// interfaces or nil if none is found.
+func loopbackIP() net.IP {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+	for _, inf := range interfaces {
+		const flagUpLoopback = net.FlagUp | net.FlagLoopback
+		if inf.Flags&flagUpLoopback == flagUpLoopback {
+			addrs, _ := inf.Addrs()
+			for _, addr := range addrs {
+				ip, _, err := net.ParseCIDR(addr.String())
+				if err == nil && ip.IsLoopback() {
+					return ip
+				}
+			}
+		}
+	}
+	return nil
 }

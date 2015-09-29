@@ -17,6 +17,9 @@ limitations under the License.
 package integration
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -61,6 +64,7 @@ func TestCamgetSymlink(t *testing.T) {
 	}
 
 	out := test.MustRunCmd(t, w.Cmd("camput", "file", srcDir))
+	// TODO(mpl): rm call and delete pkg.
 	asserts.ExpectBool(t, true, out != "", "camput")
 	br := strings.Split(out, "\n")[0]
 	dstDir, err := ioutil.TempDir("", "camget-test-")
@@ -154,5 +158,58 @@ func TestCamgetSocket(t *testing.T) {
 	}
 	if mask := fi.Mode() & os.ModeSocket; mask == 0 {
 		t.Fatalf("Retrieved file %s: Not a socket", name)
+	}
+}
+
+// Test that:
+// 1) `camget -contents' can restore a regular file correctly.
+// 2) if the file already exists, and has the same size as the one held by the server,
+// stop early and do not even fetch it from the server.
+func TestCamgetFile(t *testing.T) {
+	dirName, err := ioutil.TempDir("", "camli-TestCamgetFile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dirName)
+	f, err := os.Create(filepath.Join(dirName, "test.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	filename := f.Name()
+	contents := "not empty anymore"
+	if _, err := f.Write([]byte(contents)); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	outDir := filepath.Join(dirName, "fetched")
+	if err := os.Mkdir(outDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	w := test.GetWorld(t)
+	out := test.MustRunCmd(t, w.Cmd("camput", "file", filename))
+
+	br := strings.Split(out, "\n")[0]
+	_ = test.MustRunCmd(t, w.Cmd("camget", "-o", outDir, "-contents", br))
+
+	fetchedName := filepath.Join(outDir, "test.txt")
+	b, err := ioutil.ReadFile(fetchedName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != contents {
+		t.Fatalf("fetched file different from original file, got contents %q, wanted %q", b, contents)
+	}
+
+	var stderr bytes.Buffer
+	c := w.Cmd("camget", "-o", outDir, "-contents", "-verbose", br)
+	c.Stderr = &stderr
+	if err := c.Run(); err != nil {
+		t.Fatalf("running second camget: %v", err)
+	}
+	if !strings.Contains(stderr.String(), fmt.Sprintf("Skipping %s; already exists.", fetchedName)) {
+		t.Fatal(errors.New("Was expecting info message about local file already existing"))
 	}
 }

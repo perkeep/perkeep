@@ -156,7 +156,7 @@ func (dr *DirReader) Readdir(n int) (entries []DirectoryEntry, err error) {
 	for _, c := range cs {
 		res := <-c
 		if res.err != nil {
-			return nil, fmt.Errorf("schema/dirreader: can't create dirEntry: %v", err)
+			return nil, fmt.Errorf("schema/dirreader: can't create dirEntry: %v", res.err)
 		}
 		entries = append(entries, res.ent)
 	}

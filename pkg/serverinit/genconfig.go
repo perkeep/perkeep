@@ -32,6 +32,7 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
+	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/types/serverconfig"
 	"camlistore.org/pkg/wkfs"
 )
@@ -87,7 +88,7 @@ func (b *lowBuilder) runIndex() bool          { return b.high.RunIndex.Get() }
 func (b *lowBuilder) copyIndexToMemory() bool { return b.high.CopyIndexToMemory.Get() }
 
 // dbName returns which database to use for the provided user ("of").
-// The user key be a key as describe in pkg/types/serverconfig/config.go's
+// The user should be a key as described in pkg/types/serverconfig/config.go's
 // description of DBNames: "index", "queue-sync-to-index", etc.
 func (b *lowBuilder) dbName(of string) string {
 	if v, ok := b.high.DBNames[of]; ok && v != "" {
@@ -171,10 +172,24 @@ func (b *lowBuilder) addPublishedConfig(tlsO *tlsOpts) error {
 	return nil
 }
 
+// kvFileType returns the file based sorted type defined for index storage, if
+// any. It defaults to "leveldb" otherwise.
+func (b *lowBuilder) kvFileType() string {
+	switch {
+	case b.high.SQLite != "":
+		return "sqlite"
+	case b.high.KVFile != "":
+		return "kv"
+	case b.high.LevelDB != "":
+		return "leveldb"
+	default:
+		return sorted.DefaultKVFileType
+	}
+}
+
 func (b *lowBuilder) addUIConfig() {
 	args := map[string]interface{}{
-		"jsonSignRoot": "/sighelper/",
-		"cache":        "/cache/",
+		"cache": "/cache/",
 	}
 	if b.high.SourceRoot != "" {
 		args["sourceRoot"] = b.high.SourceRoot
@@ -182,8 +197,8 @@ func (b *lowBuilder) addUIConfig() {
 	var thumbCache map[string]interface{}
 	if b.high.BlobPath != "" {
 		thumbCache = map[string]interface{}{
-			"type": "kv",
-			"file": filepath.Join(b.high.BlobPath, "thumbmeta.kv"),
+			"type": b.kvFileType(),
+			"file": filepath.Join(b.high.BlobPath, "thumbmeta."+b.kvFileType()),
 		}
 	}
 	if thumbCache == nil {
@@ -266,6 +281,14 @@ func (b *lowBuilder) dbIndexStorage(rdbms string, confStr string, sortedType str
 }
 
 func (b *lowBuilder) sortedStorage(sortedType string) (map[string]interface{}, error) {
+	return b.sortedStorageAt(sortedType, "")
+}
+
+// filePrefix gives a file path of where to put the database. It can be omitted by
+// some sorted implementations, but is required by others.
+// The filePrefix should be to a file, not a directory, and should not end in a ".ext" extension.
+// An extension like ".kv" or ".sqlite" will be added.
+func (b *lowBuilder) sortedStorageAt(sortedType, filePrefix string) (map[string]interface{}, error) {
 	if b.high.MySQL != "" {
 		return b.dbIndexStorage("mysql", b.high.MySQL, sortedType)
 	}
@@ -275,33 +298,40 @@ func (b *lowBuilder) sortedStorage(sortedType string) (map[string]interface{}, e
 	if b.high.Mongo != "" {
 		return b.mongoIndexStorage(b.high.Mongo, sortedType)
 	}
-	if sortedType != "index" {
-		return nil, fmt.Errorf("TODO: finish SQLite & KVFile for non-index queues")
-	}
-	if b.high.SQLite != "" {
-		return map[string]interface{}{
-			"type": "sqlite",
-			"file": b.high.SQLite,
-		}, nil
-	}
-	if b.high.KVFile != "" {
-		return map[string]interface{}{
-			"type": "kv",
-			"file": b.high.KVFile,
-		}, nil
-	}
-	if b.high.LevelDB != "" {
-		return map[string]interface{}{
-			"type": "leveldb",
-			"file": b.high.LevelDB,
-		}, nil
-	}
 	if b.high.MemoryIndex {
 		return map[string]interface{}{
 			"type": "memory",
 		}, nil
 	}
-	panic("indexArgs called when not in index mode")
+	if sortedType != "index" && filePrefix == "" {
+		return nil, fmt.Errorf("internal error: use of sortedStorageAt with a non-index type and no file location for non-database sorted implementation")
+	}
+	// dbFile returns path directly if sortedType == "index", else it returns filePrefix+"."+ext.
+	dbFile := func(path, ext string) string {
+		if sortedType == "index" {
+			return path
+		}
+		return filePrefix + "." + ext
+	}
+	if b.high.SQLite != "" {
+		return map[string]interface{}{
+			"type": "sqlite",
+			"file": dbFile(b.high.SQLite, "sqlite"),
+		}, nil
+	}
+	if b.high.KVFile != "" {
+		return map[string]interface{}{
+			"type": "kv",
+			"file": dbFile(b.high.KVFile, "kv"),
+		}, nil
+	}
+	if b.high.LevelDB != "" {
+		return map[string]interface{}{
+			"type": "leveldb",
+			"file": dbFile(b.high.LevelDB, "leveldb"),
+		}, nil
+	}
+	panic("internal error: sortedStorageAt didn't find a sorted implementation")
 }
 
 func (b *lowBuilder) thatQueueUnlessMemory(thatQueue map[string]interface{}) (queue map[string]interface{}) {
@@ -327,6 +357,9 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 	s3Prefix := ""
 	if isPrimary {
 		s3Prefix = "/bs/"
+		if b.high.PackRelated {
+			return errors.New("TODO: finish packRelated support for S3")
+		}
 	} else {
 		s3Prefix = "/sto-s3/"
 	}
@@ -341,7 +374,7 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 	b.addPrefix(s3Prefix, "storage-s3", a)
 	if isPrimary {
 		// TODO(mpl): s3CacheBucket
-		// See http://code.google.com/p/camlistore/issues/detail?id=85
+		// See https://camlistore.org/issue/85
 		b.addPrefix("/cache/", "storage-filesystem", args{
 			"path": filepath.Join(tempDir(), "camli-cache"),
 		})
@@ -354,8 +387,8 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 			"to":   s3Prefix,
 			"queue": b.thatQueueUnlessMemory(
 				map[string]interface{}{
-					"type": "kv",
-					"file": filepath.Join(b.high.BlobPath, "sync-to-s3-queue.kv"),
+					"type": b.kvFileType(),
+					"file": filepath.Join(b.high.BlobPath, "sync-to-s3-queue."+b.kvFileType()),
 				}),
 		})
 	}
@@ -373,6 +406,9 @@ func (b *lowBuilder) addGoogleDriveConfig(v string) error {
 	prefix := ""
 	if isPrimary {
 		prefix = "/bs/"
+		if b.high.PackRelated {
+			return errors.New("TODO: finish packRelated support for Google Drive")
+		}
 	} else {
 		prefix = "/sto-googledrive/"
 	}
@@ -395,8 +431,8 @@ func (b *lowBuilder) addGoogleDriveConfig(v string) error {
 			"to":   prefix,
 			"queue": b.thatQueueUnlessMemory(
 				map[string]interface{}{
-					"type": "kv",
-					"file": filepath.Join(b.high.BlobPath, "sync-to-googledrive-queue.kv"),
+					"type": b.kvFileType(),
+					"file": filepath.Join(b.high.BlobPath, "sync-to-googledrive-queue."+b.kvFileType()),
 				}),
 		})
 	}
@@ -404,7 +440,7 @@ func (b *lowBuilder) addGoogleDriveConfig(v string) error {
 	return nil
 }
 
-var errGCSUsage = errors.New(`genconfig: expected "googlecloudstorage" field to be of form "client_id:client_secret:refresh_token:bucket" or ":bucketname"`)
+var errGCSUsage = errors.New(`genconfig: expected "googlecloudstorage" field to be of form "client_id:client_secret:refresh_token:bucket[/dir/]" or ":bucketname[/dir/]"`)
 
 func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 	var clientID, secret, refreshToken, bucket string
@@ -422,15 +458,63 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 		clientID = "auto"
 	}
 
-	isPrimary := !b.hasPrefix("/bs/")
-	gsPrefix := ""
-	if isPrimary {
-		gsPrefix = "/bs/"
-	} else {
-		gsPrefix = "/sto-googlecloudstorage/"
+	isReplica := b.hasPrefix("/bs/")
+	if isReplica {
+		gsPrefix := "/sto-googlecloudstorage/"
+		b.addPrefix(gsPrefix, "storage-googlecloudstorage", args{
+			"bucket": bucket,
+			"auth": map[string]interface{}{
+				"client_id":     clientID,
+				"client_secret": secret,
+				"refresh_token": refreshToken,
+			},
+		})
+
+		b.addPrefix("/sync-to-googlecloudstorage/", "sync", args{
+			"from": "/bs/",
+			"to":   gsPrefix,
+			"queue": b.thatQueueUnlessMemory(
+				map[string]interface{}{
+					"type": b.kvFileType(),
+					"file": filepath.Join(b.high.BlobPath, "sync-to-googlecloud-queue."+b.kvFileType()),
+				}),
+		})
+		return nil
 	}
 
-	b.addPrefix(gsPrefix, "storage-googlecloudstorage", args{
+	// TODO: cacheBucket like s3CacheBucket?
+	b.addPrefix("/cache/", "storage-filesystem", args{
+		"path": filepath.Join(tempDir(), "camli-cache"),
+	})
+	if b.high.PackRelated {
+		b.addPrefix("/bs-loose/", "storage-googlecloudstorage", args{
+			"bucket": bucket + "/loose",
+			"auth": map[string]interface{}{
+				"client_id":     clientID,
+				"client_secret": secret,
+				"refresh_token": refreshToken,
+			},
+		})
+		b.addPrefix("/bs-packed/", "storage-googlecloudstorage", args{
+			"bucket": bucket + "/packed",
+			"auth": map[string]interface{}{
+				"client_id":     clientID,
+				"client_secret": secret,
+				"refresh_token": refreshToken,
+			},
+		})
+		blobPackedIndex, err := b.sortedStorageAt("blobpacked_index", "")
+		if err != nil {
+			return err
+		}
+		b.addPrefix("/bs/", "storage-blobpacked", args{
+			"smallBlobs": "/bs-loose/",
+			"largeBlobs": "/bs-packed/",
+			"metaIndex":  blobPackedIndex,
+		})
+		return nil
+	}
+	b.addPrefix("/bs/", "storage-googlecloudstorage", args{
 		"bucket": bucket,
 		"auth": map[string]interface{}{
 			"client_id":     clientID,
@@ -439,22 +523,6 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 		},
 	})
 
-	if isPrimary {
-		// TODO: cacheBucket like s3CacheBucket?
-		b.addPrefix("/cache/", "storage-filesystem", args{
-			"path": filepath.Join(tempDir(), "camli-cache"),
-		})
-	} else {
-		b.addPrefix("/sync-to-googlecloudstorage/", "sync", args{
-			"from": "/bs/",
-			"to":   gsPrefix,
-			"queue": b.thatQueueUnlessMemory(
-				map[string]interface{}{
-					"type": "kv",
-					"file": filepath.Join(b.high.BlobPath, "sync-to-googlecloud-queue.kv"),
-				}),
-		})
-	}
 	return nil
 }
 
@@ -503,14 +571,10 @@ func (b *lowBuilder) syncToIndexArgs() (map[string]interface{}, error) {
 	if dir == "" {
 		dir = b.indexFileDir()
 	}
-	typ := "kv"
-	if b.high.SQLite != "" {
-		typ = "sqlite"
-	}
 	a["queue"] = b.thatQueueUnlessMemory(
 		map[string]interface{}{
-			"type": typ,
-			"file": filepath.Join(dir, "sync-to-index-queue."+typ),
+			"type": b.kvFileType(),
+			"file": filepath.Join(dir, "sync-to-index-queue."+b.kvFileType()),
 		})
 
 	return a, nil
@@ -525,9 +589,11 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 	}
 
 	rootArgs := map[string]interface{}{
-		"stealth":    false,
-		"blobRoot":   root,
-		"statusRoot": "/status/",
+		"stealth":      false,
+		"blobRoot":     root,
+		"helpRoot":     "/help/",
+		"statusRoot":   "/status/",
+		"jsonSignRoot": "/sighelper/",
 	}
 	if b.high.OwnerName != "" {
 		rootArgs["ownerName"] = b.high.OwnerName
@@ -538,6 +604,7 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 	b.addPrefix("/", "root", rootArgs)
 	b.addPrefix("/setup/", "setup", nil)
 	b.addPrefix("/status/", "status", nil)
+	b.addPrefix("/help/", "help", nil)
 
 	importerArgs := args{}
 	if b.high.Flickr != "" {
@@ -571,12 +638,48 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 		storageType = "diskpacked"
 	}
 	if b.high.BlobPath != "" {
-		b.addPrefix("/bs/", "storage-"+storageType, args{
-			"path": b.high.BlobPath,
-		})
-		b.addPrefix("/cache/", "storage-"+storageType, args{
-			"path": filepath.Join(b.high.BlobPath, "/cache"),
-		})
+		if b.high.PackRelated {
+			b.addPrefix("/bs-loose/", "storage-filesystem", args{
+				"path": b.high.BlobPath,
+			})
+			b.addPrefix("/bs-packed/", "storage-filesystem", args{
+				"path": filepath.Join(b.high.BlobPath, "packed"),
+			})
+			blobPackedIndex, err := b.sortedStorageAt("blobpacked_index", filepath.Join(b.high.BlobPath, "packed", "packindex"))
+			if err != nil {
+				return err
+			}
+			b.addPrefix("/bs/", "storage-blobpacked", args{
+				"smallBlobs": "/bs-loose/",
+				"largeBlobs": "/bs-packed/",
+				"metaIndex":  blobPackedIndex,
+			})
+		} else if b.high.PackBlobs {
+			b.addPrefix("/bs/", "storage-"+storageType, args{
+				"path": b.high.BlobPath,
+				"metaIndex": map[string]interface{}{
+					"type": b.kvFileType(),
+					"file": filepath.Join(b.high.BlobPath, "index."+b.kvFileType()),
+				},
+			})
+		} else {
+			b.addPrefix("/bs/", "storage-"+storageType, args{
+				"path": b.high.BlobPath,
+			})
+		}
+		if b.high.PackBlobs {
+			b.addPrefix("/cache/", "storage-"+storageType, args{
+				"path": filepath.Join(b.high.BlobPath, "/cache"),
+				"metaIndex": map[string]interface{}{
+					"type": b.kvFileType(),
+					"file": filepath.Join(b.high.BlobPath, "cache", "index."+b.kvFileType()),
+				},
+			})
+		} else {
+			b.addPrefix("/cache/", "storage-"+storageType, args{
+				"path": filepath.Join(b.high.BlobPath, "/cache"),
+			})
+		}
 	} else if b.high.MemoryStorage {
 		b.addPrefix("/bs/", "storage-memory", nil)
 		b.addPrefix("/cache/", "storage-memory", nil)
@@ -648,6 +751,9 @@ func (b *lowBuilder) build() (*Config, error) {
 	if conf.Listen != "" {
 		low["listen"] = conf.Listen
 	}
+	if conf.PackBlobs && conf.PackRelated {
+		return nil, errors.New("can't use both packBlobs (for 'diskpacked') and packRelated (for 'blobpacked')")
+	}
 	low["https"] = conf.HTTPS
 	low["auth"] = conf.Auth
 
@@ -666,20 +772,26 @@ func (b *lowBuilder) build() (*Config, error) {
 		return nil, errors.New("no 'identity' in server config")
 	}
 
-	nolocaldisk := conf.BlobPath == ""
-	if nolocaldisk {
+	noLocalDisk := conf.BlobPath == ""
+	if noLocalDisk {
 		if !conf.MemoryStorage && conf.S3 == "" && conf.GoogleCloudStorage == "" {
 			return nil, errors.New("Unless memoryStorage is set, you must specify at least one storage option for your blobserver (blobPath (for localdisk), s3, googlecloudstorage).")
 		}
 		if !conf.MemoryStorage && conf.S3 != "" && conf.GoogleCloudStorage != "" {
 			return nil, errors.New("Using S3 as a primary storage and Google Cloud Storage as a mirror is not supported for now.")
 		}
-	} else if conf.MemoryStorage {
-		return nil, errors.New("memoryStorage and blobPath are mutually exclusive.")
 	}
-
 	if conf.ShareHandler && conf.ShareHandlerPath == "" {
 		conf.ShareHandlerPath = "/share/"
+	}
+	if conf.MemoryStorage {
+		noMkdir = true
+		if conf.BlobPath != "" {
+			return nil, errors.New("memoryStorage and blobPath are mutually exclusive.")
+		}
+		if conf.PackRelated {
+			return nil, errors.New("memoryStorage doesn't support packRelated.")
+		}
 	}
 
 	if err := b.genLowLevelPrefixes(); err != nil {
@@ -687,14 +799,11 @@ func (b *lowBuilder) build() (*Config, error) {
 	}
 
 	var cacheDir string
-	if conf.MemoryStorage {
-		noMkdir = true
-	}
-	if nolocaldisk {
+	if noLocalDisk {
 		// Whether camlistored is run from EC2 or not, we use
 		// a temp dir as the cache when primary storage is S3.
 		// TODO(mpl): s3CacheBucket
-		// See http://code.google.com/p/camlistore/issues/detail?id=85
+		// See https://camlistore.org/issue/85
 		cacheDir = filepath.Join(tempDir(), "camli-cache")
 	} else {
 		cacheDir = filepath.Join(conf.BlobPath, "cache")

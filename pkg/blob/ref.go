@@ -88,6 +88,21 @@ func (r Ref) String() string {
 	return string(r.appendString(buf))
 }
 
+// StringMinusOne returns the first string that's before String.
+func (r Ref) StringMinusOne() string {
+	if r.digest == nil {
+		return "<invalid-blob.Ref>"
+	}
+	// TODO: maybe memoize this.
+	dname := r.digest.digestName()
+	bs := r.digest.bytes()
+	buf := getBuf(len(dname) + 1 + len(bs)*2)[:0]
+	defer putBuf(buf)
+	buf = r.appendString(buf)
+	buf[len(buf)-1]-- // no need to deal with carrying underflow (no 0 bytes ever)
+	return string(buf)
+}
+
 func (r Ref) appendString(buf []byte) []byte {
 	dname := r.digest.digestName()
 	bs := r.digest.bytes()
@@ -448,6 +463,15 @@ func init() {
 			meta: meta,
 		})
 	}
+}
+
+// HashFuncs returns the names of the supported hash functions.
+func HashFuncs() []string {
+	hashes := make([]string, len(metas))
+	for i, m := range metas {
+		hashes[i] = string(m.name)
+	}
+	return hashes
 }
 
 var sha1Type = reflect.TypeOf(sha1.New())

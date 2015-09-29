@@ -34,6 +34,7 @@ import (
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
+	"camlistore.org/pkg/types/camtypes"
 
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
 )
@@ -149,17 +150,18 @@ func (h *Handler) uploadPublicKey() error {
 	return err
 }
 
-func (h *Handler) DiscoveryMap(base string) map[string]interface{} {
-	m := map[string]interface{}{
-		"publicKeyId":   h.entity.PrimaryKey.KeyIdString(),
-		"signHandler":   base + "camli/sig/sign",
-		"verifyHandler": base + "camli/sig/verify",
+// Discovery returns the Discovery response for the signing handler.
+func (h *Handler) Discovery(base string) *camtypes.SignDiscovery {
+	sd := &camtypes.SignDiscovery{
+		PublicKeyID:   h.entity.PrimaryKey.KeyIdString(),
+		SignHandler:   base + "camli/sig/sign",
+		VerifyHandler: base + "camli/sig/verify",
 	}
 	if h.pubKeyBlobRef.Valid() {
-		m["publicKeyBlobRef"] = h.pubKeyBlobRef.String()
-		m["publicKey"] = base + h.pubKeyBlobRefServeSuffix
+		sd.PublicKeyBlobRef = h.pubKeyBlobRef
+		sd.PublicKey = base + h.pubKeyBlobRefServeSuffix
 	}
-	return m
+	return sd
 }
 
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -180,7 +182,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			http.Error(rw, "POST required", 400)
 			return
 		case "camli/sig/discovery":
-			httputil.ReturnJSON(rw, h.DiscoveryMap(base))
+			httputil.ReturnJSON(rw, h.Discovery(base))
 			return
 		}
 	case "POST":
@@ -204,25 +206,23 @@ func (h *Handler) handleVerify(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	m := make(map[string]interface{})
-
 	// TODO: use a different fetcher here that checks memory, disk,
 	// the internet, etc.
 	fetcher := h.pubKeyFetcher
 
+	var res camtypes.VerifyResponse
 	vreq := jsonsign.NewVerificationRequest(sjson, fetcher)
 	if vreq.Verify() {
-		m["signatureValid"] = 1
-		m["signerKeyId"] = vreq.SignerKeyId
-		m["verifiedData"] = vreq.PayloadMap
+		res.SignatureValid = true
+		res.SignerKeyId = vreq.SignerKeyId
+		res.VerifiedData = vreq.PayloadMap
 	} else {
-		errStr := vreq.Err.Error()
-		m["signatureValid"] = 0
-		m["errorMessage"] = errStr
+		res.SignatureValid = false
+		res.ErrorMessage = vreq.Err.Error()
 	}
 
 	rw.WriteHeader(http.StatusOK) // no HTTP response code fun, error info in JSON
-	httputil.ReturnJSON(rw, m)
+	httputil.ReturnJSON(rw, &res)
 }
 
 func (h *Handler) handleSign(rw http.ResponseWriter, req *http.Request) {

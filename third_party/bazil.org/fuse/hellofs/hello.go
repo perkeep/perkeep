@@ -9,6 +9,7 @@ import (
 
 	"camlistore.org/third_party/bazil.org/fuse"
 	"camlistore.org/third_party/bazil.org/fuse/fs"
+	_ "camlistore.org/third_party/bazil.org/fuse/fs/fstestutil"
 )
 
 var Usage = func() {
@@ -27,7 +28,13 @@ func main() {
 	}
 	mountpoint := flag.Arg(0)
 
-	c, err := fuse.Mount(mountpoint)
+	c, err := fuse.Mount(
+		mountpoint,
+		fuse.FSName("helloworld"),
+		fuse.Subtype("hellofs"),
+		fuse.LocalVolume(),
+		fuse.VolumeName("Hello world!"),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -77,10 +84,12 @@ func (Dir) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
 // File implements both Node and Handle for the hello file.
 type File struct{}
 
+const greeting = "hello, world\n"
+
 func (File) Attr() fuse.Attr {
-	return fuse.Attr{Inode: 2, Mode: 0444}
+	return fuse.Attr{Inode: 2, Mode: 0444, Size: uint64(len(greeting))}
 }
 
 func (File) ReadAll(intr fs.Intr) ([]byte, fuse.Error) {
-	return []byte("hello, world\n"), nil
+	return []byte(greeting), nil
 }

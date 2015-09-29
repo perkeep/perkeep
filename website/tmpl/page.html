@@ -1,3 +1,19 @@
+{{define "page"}}
+<html>
+	{{template "header" .}}
+	<body>
+	{{template "banner" .}}
+	{{template "toplinks" .}}
+	<div class='content'>
+		<!-- Content is HTML-escaped elsewhere -->
+		{{.Content}}
+	</div>
+	{{template "footer" .}}
+	</body>
+</html>
+{{end}}
+
+{{define "header"}}
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
@@ -13,12 +29,15 @@
 <script type="text/javascript" src="/static/all-async.js" async="true"></script>
 <script type="text/javascript" src="/static/godocs.js"></script>
 </head>
-<body>
+{{end}}
 
+{{define "banner"}}
 <div id='header'>
 <a href="/"><img width='788' height='161' src='/static/camli-header.jpg' title="Camlistore" border='0' /></a>
 </div>
+{{end}}
 
+{{define "toplinks"}}
 <div class='bar'><div class='hatecss'>
   <a href='/'>Home</a>
   <a href='/download'>Download</a>
@@ -26,12 +45,9 @@
   <a href='/code'>Code</a>
   <a href='/community'>Community</a>
 </div></div>
+{{end}}
 
-<div class='content'>
-   <!-- Content is HTML-escaped elsewhere -->
-  {{.Content}}
-</div>
-
+{{define "footer"}}
 <div class='bar'><div class='hatecss'>
 </div></div>
 <div id='props'>
@@ -39,6 +55,4 @@ Website layout inspired by <a href="http://git-scm.com/">git</a> and <a href="ht
 design done by <a href="http://upallday.com/">up all day</a> creative solutions.<br />
 Content by <a href="/contributors">the authors</a>.
 </div>
-
-</body>
-</html>
+{{end}}

@@ -3,6 +3,7 @@ package pq
 
 import (
 	"bufio"
+	"camlistore.org/third_party/github.com/lib/pq/oid"
 	"crypto/md5"
 	"crypto/tls"
 	"database/sql"
@@ -10,7 +11,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"camlistore.org/third_party/github.com/lib/pq/oid"
 	"io"
 	"net"
 	"os"

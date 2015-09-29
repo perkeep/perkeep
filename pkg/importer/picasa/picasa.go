@@ -287,11 +287,11 @@ func (r *run) updatePhotoInAlbum(albumNode *importer.Object, photo picago.Photo)
 		log.Printf("Importing media from %v", photo.URL)
 		resp, err := r.HTTPClient().Get(photo.URL)
 		if err != nil {
-			return nil, fmt.Errorf("importing photo %d: %v", photo.ID, err)
+			return nil, fmt.Errorf("importing photo %s: %v", photo.ID, err)
 		}
 		if resp.StatusCode != http.StatusOK {
 			resp.Body.Close()
-			return nil, fmt.Errorf("importing photo %d: status code = %d", photo.ID, resp.StatusCode)
+			return nil, fmt.Errorf("importing photo %s: status code = %d", photo.ID, resp.StatusCode)
 		}
 		return resp.Body, nil
 	}

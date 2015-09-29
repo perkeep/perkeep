@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -44,6 +45,7 @@ import (
 // building them, finding them, and wiring them up in an isolated way.
 type World struct {
 	camRoot  string // typically $GOPATH[0]/src/camlistore.org
+	config   string // server config file relative to pkg/test/testdata
 	tempDir  string
 	listener net.Listener // randomly chosen 127.0.0.1 port for the server
 	port     int
@@ -55,18 +57,31 @@ type World struct {
 	cammount *os.Process
 }
 
-// NewWorld returns a new test world.
-// It requires that GOPATH is set to find the "camlistore.org" root.
-func NewWorld() (*World, error) {
+// CamliSourceRoot returns the root of the source tree, or an error.
+func camliSourceRoot() (string, error) {
 	if os.Getenv("GOPATH") == "" {
-		return nil, errors.New("GOPATH environment variable isn't set; required to run Camlistore integration tests")
+		return "", errors.New("GOPATH environment variable isn't set; required to run Camlistore integration tests")
 	}
 	root, err := osutil.GoPackagePath("camlistore.org")
 	if err == os.ErrNotExist {
-		return nil, errors.New("Directory \"camlistore.org\" not found under GOPATH/src; can't run Camlistore integration tests.")
+		return "", errors.New("Directory \"camlistore.org\" not found under GOPATH/src; can't run Camlistore integration tests.")
 	}
+	return root, nil
+}
+
+// NewWorld returns a new test world.
+// It requires that GOPATH is set to find the "camlistore.org" root.
+func NewWorld() (*World, error) {
+	return WorldFromConfig("server-config.json")
+}
+
+// WorldFromConfig returns a new test world based on the given configuration file.
+// This cfg is the server config relative to pkg/test/testdata.
+// It requires that GOPATH is set to find the "camlistore.org" root.
+func WorldFromConfig(cfg string) (*World, error) {
+	root, err := camliSourceRoot()
 	if err != nil {
-		return nil, fmt.Errorf("Error searching for \"camlistore.org\" under GOPATH: %v", err)
+		return nil, err
 	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -75,6 +90,7 @@ func NewWorld() (*World, error) {
 
 	return &World{
 		camRoot:  root,
+		config:   cfg,
 		listener: ln,
 		port:     ln.Addr().(*net.TCPAddr).Port,
 	}, nil
@@ -84,6 +100,11 @@ func (w *World) Addr() string {
 	return w.listener.Addr().String()
 }
 
+// CamliSourceRoot returns the root of the source tree.
+func (w *World) CamliSourceRoot() string {
+	return w.camRoot
+}
+
 // Start builds the Camlistore binaries and starts a server.
 func (w *World) Start() error {
 	var err error
@@ -91,7 +112,6 @@ func (w *World) Start() error {
 	if err != nil {
 		return err
 	}
-
 	// Build.
 	{
 		targs := []string{
@@ -136,13 +156,12 @@ func (w *World) Start() error {
 		}
 		log.Print("Ran make.go.")
 	}
-
 	// Start camlistored.
 	{
 		w.server = exec.Command(
 			filepath.Join(w.camRoot, "bin", "camlistored"),
 			"--openbrowser=false",
-			"--configfile="+filepath.Join(w.camRoot, "pkg", "test", "testdata", "server-config.json"),
+			"--configfile="+filepath.Join(w.camRoot, "pkg", "test", "testdata", w.config),
 			"--listen=FD:3",
 			"--pollparent=true",
 		)
@@ -170,6 +189,7 @@ func (w *World) Start() error {
 			w.serverErr = fmt.Errorf("starting camlistored: %v", err)
 			return w.serverErr
 		}
+
 		atomic.StoreInt32(&w.isRunning, 1)
 		waitc := make(chan error, 1)
 		go func() {
@@ -319,8 +339,8 @@ func GetWorldMaybe(t *testing.T) *World {
 func RunCmd(c *exec.Cmd) (output string, err error) {
 	var stdout, stderr bytes.Buffer
 	if testing.Verbose() {
-		c.Stderr = os.Stdout
-		c.Stdout = os.Stderr
+		c.Stderr = io.MultiWriter(os.Stderr, &stderr)
+		c.Stdout = io.MultiWriter(os.Stdout, &stdout)
 	} else {
 		c.Stderr = &stderr
 		c.Stdout = &stdout
@@ -333,7 +353,7 @@ func RunCmd(c *exec.Cmd) (output string, err error) {
 }
 
 // MustRunCmd wraps RunCmd, failing t if RunCmd returns an error.
-func MustRunCmd(t *testing.T, c *exec.Cmd) string {
+func MustRunCmd(t testing.TB, c *exec.Cmd) string {
 	out, err := RunCmd(c)
 	if err != nil {
 		t.Fatal(err)

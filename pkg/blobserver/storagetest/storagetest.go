@@ -220,6 +220,26 @@ func (r *run) testSubFetcher() {
 			t.Errorf("SubFetch region %+v got %q; want %q", tt, all, tt.want)
 		}
 	}
+
+	// test invalid offsets
+	invalids := []struct {
+		off, limit int64
+	}{
+		{int64(len(big.Contents)) + 1, 1},
+		{-1, 1},
+		{1, -1},
+	}
+	for _, tt := range invalids {
+		r, err := sf.SubFetch(big.BlobRef(), tt.off, tt.limit)
+		if err == nil {
+			r.Close()
+			t.Errorf("No error fetching with off=%d limit=%d; wanted an error", tt.off, tt.limit)
+			continue
+		}
+		if err != blob.ErrNegativeSubFetch && err != blob.ErrOutOfRangeOffsetSubFetch {
+			t.Errorf("Unexpected error fetching with off=%d limit=%d: %v", tt.off, tt.limit, err)
+		}
+	}
 }
 
 func testSizedBlob(t *testing.T, r io.Reader, b1 blob.Ref, size int64) {
@@ -361,5 +381,173 @@ func testStat(t *testing.T, enum <-chan blob.SizedRef, want []blob.SizedRef) {
 		if i >= len(want) {
 			break
 		}
+	}
+}
+
+type StreamerTestOpt interface {
+	verify(got []blob.SizedRef) error
+}
+
+// WantN is a wanted condition, that the caller wants N of the items.
+type WantN int
+
+func (want WantN) verify(got []blob.SizedRef) error {
+	if int(want) != len(got) {
+		return fmt.Errorf("got %d streamed blobs; want %d", len(got), int(want))
+	}
+	return nil
+}
+
+type WantSizedRefs []blob.SizedRef
+
+func (s WantSizedRefs) verify(got []blob.SizedRef) error {
+	want := []blob.SizedRef(s)
+	if !reflect.DeepEqual(got, want) {
+		return fmt.Errorf("Mismatch:\n got %d blobs: %q\nwant %d blobs: %q\n", len(got), got, len(want), want)
+	}
+	return nil
+}
+
+// TestStreamer tests that the BlobStreamer bs implements all of the
+// promised interface behavior and ultimately yields the provided
+// blobs.
+//
+// If bs also implements BlobEnumerator, the two are compared for
+// consistency.
+func TestStreamer(t *testing.T, bs blobserver.BlobStreamer, opts ...StreamerTestOpt) {
+
+	var sawEnum map[blob.SizedRef]bool
+	if enumer, ok := bs.(blobserver.BlobEnumerator); ok {
+		sawEnum = make(map[blob.SizedRef]bool)
+		// First do an enumerate over all blobs as a baseline. The Streamer should
+		// yield the same blobs, even if it's in a different order.
+		enumCtx := context.New()
+		defer enumCtx.Cancel()
+		if err := blobserver.EnumerateAll(enumCtx, enumer, func(sb blob.SizedRef) error {
+			sawEnum[sb] = true
+			return nil
+		}); err != nil {
+			t.Fatalf("Enumerate: %v", err)
+		}
+	}
+
+	// See if, without cancelation, it yields the right
+	// result and without errors.
+	ch := make(chan blobserver.BlobAndToken)
+	errCh := make(chan error, 1)
+	go func() {
+		ctx := context.New()
+		defer ctx.Cancel()
+		errCh <- bs.StreamBlobs(ctx, ch, "")
+	}()
+	var gotRefs []blob.SizedRef
+	sawStreamed := map[blob.Ref]int{}
+	for b := range ch {
+		sawStreamed[b.Ref()]++
+		sbr := b.SizedRef()
+		if sawEnum != nil {
+			if _, ok := sawEnum[sbr]; ok {
+				delete(sawEnum, sbr)
+			} else {
+				t.Errorf("Streamer yielded blob not returned by Enumerate: %v", sbr)
+			}
+		}
+		gotRefs = append(gotRefs, sbr)
+	}
+	if err := <-errCh; err != nil {
+		t.Errorf("initial uninterrupted StreamBlobs error: %v", err)
+	}
+	for br, n := range sawStreamed {
+		if n > 1 {
+			t.Errorf("Streamed returned duplicate %v, %d times", br, n)
+		}
+	}
+	nMissing := 0
+	for sbr := range sawEnum {
+		t.Errorf("Enumerate found %v but Streamer didn't return it", sbr)
+		nMissing++
+		if nMissing == 10 && len(sawEnum) > 10 {
+			t.Errorf("... etc ...")
+			break
+		}
+	}
+	for _, opt := range opts {
+		if err := opt.verify(gotRefs); err != nil {
+			t.Errorf("error after first uninterrupted StreamBlobs pass: %v", err)
+		}
+	}
+	if t.Failed() {
+		return
+	}
+
+	// Next, the "complex pass": test a cancelation at each point,
+	// to test that resume works properly.
+	//
+	// Basic strategy:
+	// -- receive 1 blob, note the blobref, cancel.
+	// -- start again with that blobref, receive 2, cancel. first should be same,
+	//    second should be new. note its blobref.
+	// Each iteration should yield 1 new unique blob and all but
+	// the first and last will return 2 blobs.
+	wantRefs := append([]blob.SizedRef(nil), gotRefs...) // copy
+	sawStreamed = map[blob.Ref]int{}
+	gotRefs = gotRefs[:0]
+	contToken := ""
+	for i := 0; i < len(wantRefs); i++ {
+		ctx := context.New()
+		ch := make(chan blobserver.BlobAndToken)
+		errc := make(chan error, 1)
+		go func() {
+			errc <- bs.StreamBlobs(ctx, ch, contToken)
+		}()
+		nrecv := 0
+		nextToken := ""
+		for bt := range ch {
+			nrecv++
+			sbr := bt.Blob.SizedRef()
+			isNew := len(gotRefs) == 0 || sbr != gotRefs[len(gotRefs)-1]
+			if isNew {
+				if sawStreamed[sbr.Ref] > 0 {
+					t.Fatalf("In complex pass, returned duplicate blob %v\n\nSo far, before interrupting:\n%v\n\nWant:\n%v", sbr, gotRefs, wantRefs)
+				}
+				sawStreamed[sbr.Ref]++
+				gotRefs = append(gotRefs, sbr)
+				nextToken = bt.Token
+				ctx.Cancel()
+				break
+			} else if i == 0 {
+				t.Fatalf("first iteration should receive a new value")
+			} else if nrecv == 2 {
+				t.Fatalf("at cut point %d of testStream, Streamer received 2 values, both not unique. Looping?", i)
+			}
+		}
+		err := <-errc
+		if err != nil && err != context.ErrCanceled {
+			t.Fatalf("StreamBlobs on iteration %d (token %q) returned error: %v", i, contToken, err)
+		}
+		if err == nil {
+			break
+		}
+		contToken = nextToken
+	}
+	if !reflect.DeepEqual(gotRefs, wantRefs) {
+		t.Errorf("Mismatch on complex pass (got %d, want %d):\n got %q\nwant %q\n", len(gotRefs), len(wantRefs), gotRefs, wantRefs)
+		wantMap := map[blob.SizedRef]bool{}
+		for _, sbr := range wantRefs {
+			wantMap[sbr] = true
+		}
+		for _, sbr := range gotRefs {
+			if _, ok := wantMap[sbr]; ok {
+				delete(wantMap, sbr)
+			} else {
+				t.Errorf("got has unwanted: %v", sbr)
+			}
+		}
+		missing := wantMap // found stuff has been deleted
+		for sbr := range missing {
+			t.Errorf("got is missing: %v", sbr)
+		}
+
+		t.FailNow()
 	}
 }

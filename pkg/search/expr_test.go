@@ -427,9 +427,9 @@ var parseOrRHSTests = []sticherTestCase{
 
 func TestParseOrRhs(t *testing.T) {
 	for _, tt := range parseOrRHSTests {
-		p := newParser(tt.in)
+		p := newParser(tt.in, context.TODO())
 
-		got, err := p.parseOrRHS(context.TODO(), tt.lhs)
+		got, err := p.parseOrRHS(tt.lhs)
 
 		doSticherChecking("parseOrRHS", t, tt, got, err, p)
 	}
@@ -460,9 +460,9 @@ var parseAndRHSTests = []sticherTestCase{
 
 func TestParseConjuction(t *testing.T) {
 	for _, tt := range parseAndRHSTests {
-		p := newParser(tt.in)
+		p := newParser(tt.in, context.TODO())
 
-		got, err := p.parseAndRHS(context.TODO(), tt.lhs)
+		got, err := p.parseAndRHS(tt.lhs)
 
 		doSticherChecking("parseAndRHS", t, tt, got, err, p)
 	}
@@ -506,9 +506,9 @@ var parseGroupTests = []struct {
 
 func TestParseGroup(t *testing.T) {
 	for _, tt := range parseGroupTests {
-		p := newParser(tt.in)
+		p := newParser(tt.in, context.TODO())
 
-		got, err := p.parseGroup(context.TODO())
+		got, err := p.parseGroup()
 
 		doChecking("parseGroup", t, tt, got, err, p)
 	}
@@ -559,9 +559,9 @@ var parseOperandTests = []struct {
 
 func TestParseOperand(t *testing.T) {
 	for _, tt := range parseOperandTests {
-		p := newParser(tt.in)
+		p := newParser(tt.in, context.TODO())
 
-		got, err := p.parseOperand(context.TODO())
+		got, err := p.parseOperand()
 
 		doChecking("parseOperand", t, tt, got, err, p)
 	}
@@ -979,9 +979,9 @@ var parseExpTests = []parserTestCase{
 
 func TestParseExp(t *testing.T) {
 	for _, tt := range parseExpTests {
-		p := newParser(tt.in)
+		p := newParser(tt.in, context.TODO())
 
-		got, err := p.parseExp(context.TODO())
+		got, err := p.parseExp()
 
 		doChecking("parseExp", t, tt, got, err, p)
 	}

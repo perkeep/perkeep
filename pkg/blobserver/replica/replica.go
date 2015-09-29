@@ -40,6 +40,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"time"
 
 	"camlistore.org/pkg/blob"
@@ -48,7 +49,10 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 )
 
-var _ blobserver.Generationer = (*replicaStorage)(nil)
+var (
+	_ blobserver.Generationer    = (*replicaStorage)(nil)
+	_ blobserver.WholeRefFetcher = (*replicaStorage)(nil)
+)
 
 const buffered = 8
 
@@ -311,6 +315,22 @@ func (sto *replicaStorage) StorageGeneration() (initTime time.Time, random strin
 		err = errors.New("No replicas support StorageGeneration")
 	}
 	return initTime, buf.String(), err
+}
+
+func (sto *replicaStorage) OpenWholeRef(wholeRef blob.Ref, offset int64) (rc io.ReadCloser, wholeSize int64, err error) {
+	// TODO: race these? first to respond?
+	for _, replica := range sto.readReplicas {
+		if v, ok := replica.(blobserver.WholeRefFetcher); ok {
+			rc, wholeSize, err = v.OpenWholeRef(wholeRef, offset)
+			if err == nil {
+				return
+			}
+		}
+	}
+	if err == nil {
+		err = os.ErrNotExist
+	}
+	return
 }
 
 func init() {

@@ -25,6 +25,8 @@ const (
 	OtherVal
 )
 
+var ErrShortReadTagValue = errors.New("tiff: short read of tag value")
+
 var formatNames = map[Format]string{
 	IntVal:    "int",
 	FloatVal:  "float",
@@ -130,14 +132,32 @@ func DecodeTag(r ReadAtReader, order binary.ByteOrder) (*Tag, error) {
 		return nil, errors.New("tiff: tag component count read failed: " + err.Error())
 	}
 
+	// There seems to be a relatively common corrupt tag which has a Count of
+	// MaxUint32. This is probably not a valid value, so return early.
+	if t.Count == 1<<32-1 {
+		return t, errors.New("invalid Count offset in tag")
+	}
+
 	valLen := typeSize[t.Type] * t.Count
+	if valLen == 0 {
+		return t, errors.New("zero length tag value")
+	}
+
 	if valLen > 4 {
 		binary.Read(r, order, &t.ValOffset)
-		t.Val = make([]byte, valLen)
-		n, err := r.ReadAt(t.Val, int64(t.ValOffset))
-		if n != int(valLen) || err != nil {
+
+		// Use a bytes.Buffer so we don't allocate a huge slice if the tag
+		// is corrupt.
+		var buff bytes.Buffer
+		sr := io.NewSectionReader(r, int64(t.ValOffset), int64(valLen))
+		n, err := io.Copy(&buff, sr)
+		if err != nil {
 			return t, errors.New("tiff: tag value read failed: " + err.Error())
+		} else if n != int64(valLen) {
+			return t, ErrShortReadTagValue
 		}
+		t.Val = buff.Bytes()
+
 	} else {
 		val := make([]byte, valLen)
 		if _, err = io.ReadFull(r, val); err != nil {

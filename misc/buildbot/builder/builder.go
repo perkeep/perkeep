@@ -53,6 +53,9 @@ const (
 	interval           = 60 * time.Second // polling frequency
 	warmup             = 30 * time.Second // duration before we test if devcam server has started properly
 	camlistoredTimeOut = time.Minute      // how long we try to dial camlistored after warmup
+	go1BaseURL         = "https://storage.googleapis.com/golang/"
+	go1Tarball         = "go1.5.linux-amd64.tar.gz"
+	go1URL             = go1BaseURL + go1Tarball
 )
 
 var (
@@ -64,8 +67,8 @@ var (
 	host           = flag.String("host", "0.0.0.0:8081", "listening hostname and port")
 	masterHosts    = flag.String("masterhosts", "localhost:8080", "listening hostname and port of the master bots, i.e where to send the test suite reports. Comma separated list.")
 	ourOS          = flag.String("os", "", "The OS we report the master(s). Defaults to runtime.GOOS.")
-	skipGo1Build   = flag.Bool("skipgo1build", false, "skip initial go1 build, for debugging and quickly going to the next steps.")
-	skip           = flag.String("skip", "", "Test suite to skip. Valid values are \"go1\", \"gotip\", or \"all\".")
+	skipGo1Build   = flag.Bool("skipgo1build", true, "skip initial go1 build, for debugging and quickly going to the next steps.")
+	skip           = flag.String("skip", "gotip", "Test suite to skip. Valid values are \"go1\", \"gotip\", or \"all\".")
 	verbose        = flag.Bool("verbose", false, "print what's going on")
 	skipTLSCheck   = flag.Bool("skiptlscheck", false, "accept any certificate presented by server when uploading results.")
 	taskLifespan   = flag.Int("timeout", 600, "Lifespan (in seconds) for each task run by this builder, after which the task automatically terminates. 0 or negative means infinite.")
@@ -99,6 +102,8 @@ var (
 
 var devcamBin = filepath.Join("bin", "devcam")
 var (
+	fetchGo1Cmd        = newTask("wget", go1URL)
+	untarGo1Cmd        = newTask("tar", "xzf", go1Tarball)
 	hgCloneGo1Cmd      = newTask("hg", "clone", "-u", "release", "https://code.google.com/p/go")
 	hgCloneGoTipCmd    = newTask("hg", "clone", "-u", "tip", "https://code.google.com/p/go")
 	hgPullCmd          = newTask("hg", "pull")
@@ -530,25 +535,23 @@ func setup() {
 	if err != nil {
 		log.Fatalf("Problem with Go tip dir: %v", err)
 	}
-	for _, goDir := range []string{go1Dir, goTipDir} {
-		// if go dirs exist, just reuse them
-		if _, err := os.Stat(goDir); err != nil {
-			if !os.IsNotExist(err) {
-				log.Fatalf("Could not stat %v: %v", goDir, err)
-			}
-			// go1/gotip dir not here, let's clone it.
-			hgCloneCmd := hgCloneGo1Cmd
-			if goDir == goTipDir {
-				hgCloneCmd = hgCloneGoTipCmd
-			}
-			tsk := newTask(hgCloneCmd.Program, hgCloneCmd.Args...)
-			tsk.hidden = true
-			if _, err := tsk.run(); err != nil {
-				log.Fatalf("Could not hg clone %v: %v", goDir, err)
-			}
-			if err := os.Rename("go", goDir); err != nil {
-				log.Fatalf("Could not rename go dir into %v: %v", goDir, err)
-			}
+	// if go1 dir exist, just reuse it
+	if _, err := os.Stat(go1Dir); err != nil {
+		if !os.IsNotExist(err) {
+			log.Fatalf("Could not stat %v: %v", go1Dir, err)
+		}
+		tsk := newTaskFrom(fetchGo1Cmd)
+		tsk.hidden = true
+		if _, err := tsk.run(); err != nil {
+			log.Fatalf("Could not git clone %v: %v", go1URL, err)
+		}
+		tsk = newTaskFrom(untarGo1Cmd)
+		tsk.hidden = true
+		if _, err := tsk.run(); err != nil {
+			log.Fatalf("Could not untar %v: %v", go1Tarball, err)
+		}
+		if err := os.Rename("go", go1Dir); err != nil {
+			log.Fatalf("Could not rename go dir into %v: %v", go1Dir, err)
 		}
 	}
 
@@ -588,6 +591,7 @@ func setup() {
 }
 
 func buildGo1() error {
+	return errors.New("building Go1 from source not supported anymore, use -skipgo1build")
 	if err := os.Chdir(filepath.Join(go1Dir, "src")); err != nil {
 		log.Fatalf("Could not cd to %v: %v", go1Dir, err)
 	}
@@ -623,6 +627,11 @@ func handleSignals() {
 var plausibleHashRx = regexp.MustCompile(`^[a-f0-9]{40}$`)
 
 func prepGoTipTree() error {
+	// Doing go tip disabled as of 20140126, because we'd need to fix the hg->git change,
+	// and deal with go 1.4 bootstrapping. Not worth the trouble since we're going to
+	// redo the bot soon with gomote and buildlet.
+	goTipHash = "Disabled"
+	return nil
 	if err := os.Chdir(goTipDir); err != nil {
 		return fmt.Errorf("Could not cd to %v: %v", goTipDir, err)
 	}
@@ -651,6 +660,8 @@ func prepGoTipTree() error {
 }
 
 func buildGoTip() error {
+	// not building go tip anymore
+	return nil
 	srcDir := filepath.Join(goTipDir, "src")
 	if err := os.Chdir(srcDir); err != nil {
 		return fmt.Errorf("Could not cd to %v: %v", srcDir, err)
@@ -719,6 +730,10 @@ func restorePATH() {
 func switchGo(goDir string) {
 	if runtime.GOOS == "plan9" {
 		panic("plan 9 not unsupported")
+	}
+	if goDir == goTipDir {
+		// not doing gotip anymore
+		return
 	}
 	gobin := filepath.Join(goDir, "bin", "go")
 	if _, err := os.Stat(gobin); err != nil {

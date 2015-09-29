@@ -35,19 +35,17 @@ Example low-level config:
 package drive
 
 import (
-	"net/http"
-	"time"
-
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/google/drive/service"
+	"camlistore.org/pkg/constants/google"
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
+	"camlistore.org/pkg/oauthutil"
+
+	"golang.org/x/oauth2"
 )
 
-const (
-	GoogleOAuth2AuthURL  = "https://accounts.google.com/o/oauth2/auth"
-	GoogleOAuth2TokenURL = "https://accounts.google.com/o/oauth2/token"
-)
+// Scope is the OAuth2 scope used for Google Drive.
+const Scope = "https://www.googleapis.com/auth/drive"
 
 type driveStorage struct {
 	service *service.DriveService
@@ -55,29 +53,18 @@ type driveStorage struct {
 
 func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
 	auth := config.RequiredObject("auth")
-	oauthConf := &oauth.Config{
-		ClientId:     auth.RequiredString("client_id"),
+	oAuthClient := oauth2.NewClient(oauth2.NoContext, oauthutil.NewRefreshTokenSource(&oauth2.Config{
+		Scopes:       []string{Scope},
+		Endpoint:     google.Endpoint,
+		ClientID:     auth.RequiredString("client_id"),
 		ClientSecret: auth.RequiredString("client_secret"),
-		AuthURL:      GoogleOAuth2AuthURL,
-		TokenURL:     GoogleOAuth2TokenURL,
-	}
-
-	// force refreshes the access token on start, make sure
-	// refresh request in parallel are being started
-	transport := &oauth.Transport{
-		Token: &oauth.Token{
-			AccessToken:  "",
-			RefreshToken: auth.RequiredString("refresh_token"),
-			Expiry:       time.Now(),
-		},
-		Config:    oauthConf,
-		Transport: http.DefaultTransport,
-	}
+		RedirectURL:  oauthutil.TitleBarRedirectURL,
+	}, auth.RequiredString("refresh_token")))
 	parent := config.RequiredString("parent_id")
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	service, err := service.New(transport, parent)
+	service, err := service.New(oAuthClient, parent)
 	sto := &driveStorage{
 		service: service,
 	}

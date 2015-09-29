@@ -31,6 +31,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/client/android"
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
@@ -194,16 +195,14 @@ func printConfigChangeHelp(conf jsonconfig.Obj) {
 	oldConfig := false
 	configChangedMsg := fmt.Sprintf("The client configuration file (%s) keys have changed.\n", osutil.UserClientConfigPath())
 	for _, unknown := range conf.UnknownKeys() {
-		for k, v := range rename {
-			if unknown == k {
-				if v != "" {
-					configChangedMsg += fmt.Sprintf("%q should be renamed %q.\n", k, v)
-				} else {
-					configChangedMsg += fmt.Sprintf("%q should be removed.\n", k)
-				}
-				oldConfig = true
-				break
+		v, ok := rename[unknown]
+		if ok {
+			if v != "" {
+				configChangedMsg += fmt.Sprintf("%q should be renamed %q.\n", unknown, v)
+			} else {
+				configChangedMsg += fmt.Sprintf("%q should be removed.\n", unknown)
 			}
+			oldConfig = true
 		}
 	}
 	if oldConfig {
@@ -313,7 +312,7 @@ func (c *Client) SetupAuth() error {
 	// env var takes precedence, but only if we're in dev mode or on android.
 	// Too risky otherwise.
 	if android.OnAndroid() ||
-		os.Getenv("CAMLI_DEV_CAMLI_ROOT") != "" ||
+		env.IsDev() ||
 		configDisabled {
 		authMode, err := auth.FromEnv()
 		if err == nil {

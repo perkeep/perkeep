@@ -20,21 +20,28 @@ package gce
 import (
 	"errors"
 	"fmt"
+	"io"
+	"log"
+	"os"
 	"path"
 	"strings"
 
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
 	_ "camlistore.org/pkg/wkfs/gcs"
-	"camlistore.org/third_party/github.com/bradfitz/gce"
+	"golang.org/x/net/context"
+
+	"google.golang.org/cloud/compute/metadata"
+	"google.golang.org/cloud/logging"
 )
 
 func init() {
-	if !gce.OnGCE() {
+	if !env.OnGCE() {
 		return
 	}
 	osutil.RegisterConfigDirFunc(func() string {
-		v, _ := gce.InstanceAttributeValue("camlistore-config-bucket")
+		v, _ := metadata.InstanceAttributeValue("camlistore-config-dir")
 		if v == "" {
 			return v
 		}
@@ -48,10 +55,44 @@ func init() {
 		if !ok {
 			return nil, errors.New("expected argument after _gce_instance_meta to be a string")
 		}
-		val, err := gce.InstanceAttributeValue(attr)
+		val, err := metadata.InstanceAttributeValue(attr)
 		if err != nil {
 			return nil, fmt.Errorf("error reading GCE instance attribute %q: %v", attr, err)
 		}
 		return val, nil
 	})
+}
+
+// LogWriter returns an environment-specific io.Writer suitable for passing
+// to log.SetOutput. It will also include writing to os.Stderr as well.
+func LogWriter() (w io.Writer) {
+	w = os.Stderr
+	if !env.OnGCE() {
+		return
+	}
+	projID, err := metadata.ProjectID()
+	if projID == "" {
+		log.Printf("Error getting project ID: %v", err)
+		return
+	}
+	scopes, _ := metadata.Scopes("default")
+	haveScope := func(scope string) bool {
+		for _, x := range scopes {
+			if x == scope {
+				return true
+			}
+		}
+		return false
+	}
+	if !haveScope(logging.Scope) {
+		log.Printf("when this Google Compute Engine VM instance was created, it wasn't granted enough access to use Google Cloud Logging (Scope URL: %v).", logging.Scope)
+		return
+	}
+
+	logc, err := logging.NewClient(context.Background(), projID, "camlistored-stderr")
+	if err != nil {
+		log.Printf("Error creating Google logging client: %v", err)
+		return
+	}
+	return io.MultiWriter(w, logc.Writer(logging.Debug))
 }

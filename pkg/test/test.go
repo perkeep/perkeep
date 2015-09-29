@@ -42,10 +42,19 @@ func TLog(t testing.TB) func() {
 }
 
 type twriter struct {
-	t testing.TB
+	t            testing.TB
+	quietPhrases []string
 }
 
 func (w twriter) Write(p []byte) (n int, err error) {
+	if len(w.quietPhrases) > 0 {
+		s := string(p)
+		for _, phrase := range w.quietPhrases {
+			if strings.Contains(s, phrase) {
+				return len(p), nil
+			}
+		}
+	}
 	if w.t != nil {
 		w.t.Log(strings.TrimSuffix(string(p), "\n"))
 	}
@@ -53,6 +62,9 @@ func (w twriter) Write(p []byte) (n int, err error) {
 }
 
 // NewLogger returns a logger that logs to t with the given prefix.
-func NewLogger(t *testing.T, prefix string) *log.Logger {
-	return log.New(twriter{t: t}, prefix, log.LstdFlags)
+//
+// The optional quietPhrases are substrings to match in writes to
+// determine whether those log messages are muted.
+func NewLogger(t *testing.T, prefix string, quietPhrases ...string) *log.Logger {
+	return log.New(twriter{t: t, quietPhrases: quietPhrases}, prefix, log.LstdFlags)
 }

@@ -875,7 +875,7 @@ func Files(t *testing.T, initIdx func() *index.Index) {
 	// FileInfo
 	{
 		key := fmt.Sprintf("fileinfo|%s", fileRef)
-		if g, e := id.Get(key), "31|foo.html|text%2Fhtml"; g != e {
+		if g, e := id.Get(key), "31|foo.html|text%2Fhtml|sha1-153cb1b63a8f120a0e3e14ff34c64f169df9430f"; g != e {
 			t.Fatalf("%q = %q, want %q", key, g, e)
 		}
 
@@ -883,17 +883,20 @@ func Files(t *testing.T, initIdx func() *index.Index) {
 		if err != nil {
 			t.Fatalf("GetFileInfo = %v", err)
 		}
-		if g, e := fi.Size, int64(31); g != e {
-			t.Errorf("Size = %d, want %d", g, e)
+		if got, want := fi.Size, int64(31); got != want {
+			t.Errorf("Size = %d, want %d", got, want)
 		}
-		if g, e := fi.FileName, "foo.html"; g != e {
-			t.Errorf("FileName = %q, want %q", g, e)
+		if got, want := fi.FileName, "foo.html"; got != want {
+			t.Errorf("FileName = %q, want %q", got, want)
 		}
-		if g, e := fi.MIMEType, "text/html"; g != e {
-			t.Errorf("MIMEType = %q, want %q", g, e)
+		if got, want := fi.MIMEType, "text/html"; got != want {
+			t.Errorf("MIMEType = %q, want %q", got, want)
 		}
-		if g, e := fi.Time, fileTime; !g.Time().Equal(e) {
-			t.Errorf("Time = %v; want %v", g, e)
+		if got, want := fi.Time, fileTime; !got.Time().Equal(want) {
+			t.Errorf("Time = %v; want %v", got, want)
+		}
+		if got, want := fi.WholeRef, blob.MustParse("sha1-153cb1b63a8f120a0e3e14ff34c64f169df9430f"); got != want {
+			t.Errorf("WholeRef = %v; want %v", got, want)
 		}
 	}
 }

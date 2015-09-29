@@ -53,7 +53,7 @@ var (
 	sqlFlag        = flag.String("sqlite", "auto", "Whether you want SQLite in your build: true, false, or auto.")
 	all            = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
 	race           = flag.Bool("race", false, "Build race-detector version of binaries (they will run slowly)")
-	verbose        = flag.Bool("v", false, "Verbose mode")
+	verbose        = flag.Bool("v", strings.Contains(os.Getenv("CAMLI_DEBUG_X"), "makego"), "Verbose mode")
 	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. '*' builds everything.  Empty builds defaults for this platform. Example: camlistore.org/server/camlistored,camlistore.org/cmd/camput")
 	quiet          = flag.Bool("quiet", false, "Don't print anything unless there's a failure.")
 	onlysync       = flag.Bool("onlysync", false, "Only populate the temporary source/build tree and output its full path. It is meant to prepare the environment for running the full test suite with 'devcam test'.")
@@ -61,7 +61,7 @@ var (
 	ifModsSince    = flag.Int64("if_mods_since", 0, "If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
 	buildARCH      = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
 	buildOS        = flag.String("os", runtime.GOOS, "Operating system to build for.")
-	dockerMode     = flag.Bool("docker_camlistored", false, "If true, only build camlistored suitable for a Linux Docker image.")
+	stampVersion   = flag.Bool("stampversion", false, "Stamp version into buildinfo.GitInfo")
 )
 
 var (
@@ -86,17 +86,6 @@ func main() {
 	}
 
 	verifyGoVersion()
-
-	if *dockerMode {
-		if *sqlFlag != "auto" || *targets != "" {
-			log.Fatalf("Incompatible set of flags with --docker_camlistored")
-		}
-		*targets = "camlistore.org/server/camlistored"
-		*buildOS = "linux"
-		*buildARCH = "amd64"
-		*sqlFlag = "false"
-		*all = true
-	}
 
 	sql := withSQLite()
 	if useEnvGoPath, _ := strconv.ParseBool(os.Getenv("CAMLI_MAKE_USEGOPATH")); useEnvGoPath {
@@ -147,6 +136,7 @@ func main() {
 		"camlistore.org/cmd/camget",
 		"camlistore.org/cmd/camput",
 		"camlistore.org/cmd/camtool",
+		"camlistore.org/cmd/camdeploy",
 		"camlistore.org/server/camlistored",
 		"camlistore.org/app/hello",
 		"camlistore.org/app/publisher",
@@ -168,9 +158,9 @@ func main() {
 
 	withCamlistored := stringListContains(targs, "camlistore.org/server/camlistored")
 	if *embedResources && withCamlistored {
-		// TODO(mpl): in doEmbed, it looks like we not only always recreate the closure
-		// z_data.go, but we also always regenerate the zembed.*.go, at least for the
-		// integration tests. I'll look into it.
+		// TODO(mpl): it looks like we always regenerate the
+		// zembed.*.go, at least for the integration
+		// tests. I'll look into it.
 		doEmbed()
 	}
 
@@ -189,12 +179,14 @@ func main() {
 	if *race {
 		baseArgs = append(baseArgs, "-race")
 	}
-	ldFlags := "-X camlistore.org/pkg/buildinfo.GitInfo " + version
-	if *dockerMode {
-		// Use libc-free net package for a static binary.
-		// And -w appears to be required too.
-		tags = append(tags, "netgo")
-		ldFlags = "-w " + ldFlags
+	if *verbose {
+		log.Printf("version to stamp is %q", version)
+	}
+	var ldFlags string
+	if *stampVersion {
+		// TODO(bradfitz): this is currently broken, at least on my machine.
+		// Maybe my Go 1.4 vs Go 1.5 clients are out of sync. Temporarily disabled.
+		ldFlags = "-X camlistore.org/pkg/buildinfo.GitInfo " + version
 	}
 	baseArgs = append(baseArgs, "--ldflags="+ldFlags, "--tags="+strings.Join(tags, " "))
 
@@ -208,19 +200,20 @@ func main() {
 			"camlistore.org/pkg/...",
 			"camlistore.org/server/...",
 			"camlistore.org/third_party/...",
+			"camlistore.org/internal/...",
 		)
 	}
 
 	cmd := exec.Command("go", args...)
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
+		"GO15VENDOREXPERIMENT=1",
 	)
-	if *dockerMode {
-		cmd.Env = append(cmd.Env,
-			"GOBIN="+filepath.Join(camRoot, "misc", "docker", "camlistored"),
-			"CGO_ENABLED=0",
-		)
+
+	if *verbose {
+		log.Printf("Running go %q with Env %q", args, cmd.Env)
 	}
+
 	var output bytes.Buffer
 	if *quiet {
 		cmd.Stdout = &output
@@ -234,10 +227,6 @@ func main() {
 	}
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error building main binaries: %v\n%s", err, output.String())
-	}
-	if *dockerMode {
-		log.Printf("Wrote docker camlistored binary to misc/docker/camlistored")
-		return
 	}
 
 	// Copy the binaries from $CAMROOT/tmp/build-gopath-foo/bin to $CAMROOT/bin.
@@ -276,7 +265,17 @@ func mirror(sql bool) (latestSrcMod time.Time) {
 	}
 
 	// We copy all *.go files from camRoot's goDirs to buildSrcDir.
-	goDirs := []string{"app", "cmd", "depcheck", "pkg", "dev", "server/camlistored", "third_party"}
+	goDirs := []string{
+		"app",
+		"cmd",
+		"depcheck",
+		"dev",
+		"internal",
+		"pkg",
+		"server/camlistored",
+		"third_party",
+		"vendor",
+	}
 	if *onlysync {
 		goDirs = append(goDirs, "server/appengine", "config")
 	}
@@ -396,7 +395,12 @@ func buildSrcPath(fromSrc string) string {
 // It also populates wantDestFile with those files so they're
 // kept in between runs.
 func genEmbeds() error {
-	cmdName := exeName(filepath.Join(buildGoPath, "bin", "genfileembed"))
+	// Note: do not use exeName for genfileembed, as it will run on the current platform,
+	// not on the one we're cross-compiling for.
+	cmdName := filepath.Join(buildGoPath, "bin", "genfileembed")
+	if runtime.GOOS == "windows" {
+		cmdName += ".exe"
+	}
 	for _, embeds := range []string{"server/camlistored/ui", "pkg/server", "third_party/react", "third_party/less", "third_party/glitch", "third_party/fontawesome", "app/publisher"} {
 		embeds := buildSrcPath(embeds)
 		args := []string{"--output-files-stderr", embeds}
@@ -512,7 +516,7 @@ func verifyCamlistoreRoot(dir string) {
 }
 
 func verifyGoVersion() {
-	const neededMinor = '3'
+	const neededMinor = '5'
 	_, err := exec.LookPath("go")
 	if err != nil {
 		log.Fatalf("Go doesn't appeared to be installed ('go' isn't in your PATH). Install Go 1.%c or newer.", neededMinor)
@@ -747,16 +751,12 @@ func embedClosure(closureDir, embedFile string) error {
 		return fmt.Errorf("Could not stat %v: %v", closureDir, err)
 	}
 
-	// first, zip it
-	var zipbuf bytes.Buffer
-	var zipdest io.Writer = &zipbuf
-	if os.Getenv("CAMLI_WRITE_TMP_ZIP") != "" {
-		f, _ := os.Create("/tmp/camli-closure.zip")
-		zipdest = io.MultiWriter(zipdest, f)
-		defer f.Close()
-	}
+	// first collect the files and modTime
 	var modTime time.Time
-	w := zip.NewWriter(zipdest)
+	type pathAndSuffix struct {
+		path, suffix string
+	}
+	var files []pathAndSuffix
 	err := filepath.Walk(closureDir, func(path string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -771,22 +771,43 @@ func embedClosure(closureDir, embedFile string) error {
 		if mt := fi.ModTime(); mt.After(modTime) {
 			modTime = mt
 		}
-		b, err := ioutil.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		f, err := w.Create(filepath.ToSlash(suffix))
-		if err != nil {
-			log.Fatal(err)
-		}
-		_, err = f.Write(b)
-		return err
+		files = append(files, pathAndSuffix{path, suffix})
+		return nil
 	})
 	if err != nil {
 		return err
 	}
-	err = w.Close()
-	if err != nil {
+	// do not regenerate the whole embedFile if it exists and newer than modTime.
+	if fi, err := os.Stat(embedFile); err == nil && fi.Size() > 0 && fi.ModTime().After(modTime) {
+		if *verbose {
+			log.Printf("skipping regeneration of %s", embedFile)
+		}
+		return nil
+	}
+
+	// second, zip it
+	var zipbuf bytes.Buffer
+	var zipdest io.Writer = &zipbuf
+	if os.Getenv("CAMLI_WRITE_TMP_ZIP") != "" {
+		f, _ := os.Create("/tmp/camli-closure.zip")
+		zipdest = io.MultiWriter(zipdest, f)
+		defer f.Close()
+	}
+	w := zip.NewWriter(zipdest)
+	for _, elt := range files {
+		b, err := ioutil.ReadFile(elt.path)
+		if err != nil {
+			return err
+		}
+		f, err := w.Create(filepath.ToSlash(elt.suffix))
+		if err != nil {
+			return err
+		}
+		if _, err = f.Write(b); err != nil {
+			return err
+		}
+	}
+	if err = w.Close(); err != nil {
 		return err
 	}
 
@@ -801,8 +822,6 @@ func embedClosure(closureDir, embedFile string) error {
 	fmt.Fprint(&qb, "\n}\n")
 
 	// and write to a .go file
-	// TODO(mpl): do not regenerate the whole zip file if the modtime
-	// of the z_data.go file is greater than the modtime of all the closure *.js files.
 	if err := writeFileIfDifferent(embedFile, qb.Bytes()); err != nil {
 		return err
 	}

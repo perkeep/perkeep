@@ -82,11 +82,12 @@ func notConst(a *Constraint) *Constraint {
 type parser struct {
 	tokens chan token
 	peeked *token
+	ctx    *context.Context
 }
 
-func newParser(exp string) parser {
+func newParser(exp string, ctx *context.Context) parser {
 	_, tokens := lex(exp)
-	return parser{tokens: tokens}
+	return parser{tokens: tokens, ctx: ctx}
 }
 
 func (p *parser) next() *token {
@@ -125,11 +126,11 @@ func (p *parser) stripNot() (negated bool) {
 	}
 }
 
-func (p *parser) parseExp(ctx *context.Context) (c *Constraint, err error) {
+func (p *parser) parseExp() (c *Constraint, err error) {
 	if p.peek().typ == tokenEOF {
 		return
 	}
-	c, err = p.parseOperand(ctx)
+	c, err = p.parseOperand()
 	if err != nil {
 		return
 	}
@@ -139,22 +140,22 @@ func (p *parser) parseExp(ctx *context.Context) (c *Constraint, err error) {
 			p.next()
 		case tokenOr:
 			p.next()
-			return p.parseOrRHS(ctx, c)
+			return p.parseOrRHS(c)
 		case tokenClose, tokenEOF:
 			return
 		}
-		c, err = p.parseAndRHS(ctx, c)
+		c, err = p.parseAndRHS(c)
 		if err != nil {
 			return
 		}
 	}
 }
 
-func (p *parser) parseGroup(ctx *context.Context) (c *Constraint, err error) {
+func (p *parser) parseGroup() (c *Constraint, err error) {
 	i := p.next()
 	switch i.typ {
 	case tokenOpen:
-		c, err = p.parseExp(ctx)
+		c, err = p.parseExp()
 		if err != nil {
 			return
 		}
@@ -170,11 +171,11 @@ func (p *parser) parseGroup(ctx *context.Context) (c *Constraint, err error) {
 	return
 }
 
-func (p *parser) parseOrRHS(ctx *context.Context, lhs *Constraint) (c *Constraint, err error) {
+func (p *parser) parseOrRHS(lhs *Constraint) (c *Constraint, err error) {
 	var rhs *Constraint
 	c = lhs
 	for {
-		rhs, err = p.parseAnd(ctx)
+		rhs, err = p.parseAnd()
 		if err != nil {
 			return
 		}
@@ -188,9 +189,9 @@ func (p *parser) parseOrRHS(ctx *context.Context, lhs *Constraint) (c *Constrain
 	}
 }
 
-func (p *parser) parseAnd(ctx *context.Context) (c *Constraint, err error) {
+func (p *parser) parseAnd() (c *Constraint, err error) {
 	for {
-		c, err = p.parseOperand(ctx)
+		c, err = p.parseOperand()
 		if err != nil {
 			return
 		}
@@ -200,15 +201,15 @@ func (p *parser) parseAnd(ctx *context.Context) (c *Constraint, err error) {
 		case tokenOr, tokenClose, tokenEOF:
 			return
 		}
-		return p.parseAndRHS(ctx, c)
+		return p.parseAndRHS(c)
 	}
 }
 
-func (p *parser) parseAndRHS(ctx *context.Context, lhs *Constraint) (c *Constraint, err error) {
+func (p *parser) parseAndRHS(lhs *Constraint) (c *Constraint, err error) {
 	var rhs *Constraint
 	c = lhs
 	for {
-		rhs, err = p.parseOperand(ctx)
+		rhs, err = p.parseOperand()
 		if err != nil {
 			return
 		}
@@ -224,7 +225,7 @@ func (p *parser) parseAndRHS(ctx *context.Context, lhs *Constraint) (c *Constrai
 	}
 }
 
-func (p *parser) parseOperand(ctx *context.Context) (c *Constraint, err error) {
+func (p *parser) parseOperand() (c *Constraint, err error) {
 	negated := p.stripNot()
 	i := p.peek()
 	switch i.typ {
@@ -238,9 +239,9 @@ func (p *parser) parseOperand(ctx *context.Context) (c *Constraint, err error) {
 		err = newParseExpError(noMatchingOpening, *i)
 		return
 	case tokenLiteral, tokenQuotedLiteral, tokenPredicate, tokenColon, tokenArg:
-		c, err = p.parseAtom(ctx)
+		c, err = p.parseAtom()
 	case tokenOpen:
-		c, err = p.parseGroup(ctx)
+		c, err = p.parseGroup()
 	}
 	if err != nil {
 		return
@@ -294,7 +295,7 @@ func (p *parser) atomWords() (a atom, start int, err error) {
 	}
 }
 
-func (p *parser) parseAtom(ctx *context.Context) (*Constraint, error) {
+func (p *parser) parseAtom() (*Constraint, error) {
 	a, start, err := p.atomWords()
 	if err != nil {
 		return nil, err
@@ -313,7 +314,7 @@ func (p *parser) parseAtom(ctx *context.Context) (*Constraint, error) {
 			return nil, newParseExpError(err.Error(), faultToken())
 		}
 		if matched {
-			c, err = k.Predicate(ctx, a.args)
+			c, err = k.Predicate(p.ctx, a.args)
 			if err != nil {
 				return nil, newParseExpError(err.Error(), faultToken())
 			}
@@ -340,10 +341,9 @@ func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
 	if exp == "" {
 		return sq, nil
 	}
-	_, tokens := lex(exp)
-	p := parser{tokens: tokens}
+	p := newParser(exp, ctx)
 
-	c, err := p.parseExp(ctx)
+	c, err := p.parseExp()
 	if err != nil {
 		return nil, err
 	}

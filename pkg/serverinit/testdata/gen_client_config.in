@@ -1,0 +1,9 @@
+{
+	"listen": "1.2.3.4:567",
+	"https": false,
+	"auth": "userpass:camlistore:pass3179",
+	"blobPath": "/tmp/blobs",
+	"identity": "26F5ABDA",
+	"identitySecretRing": "/path/to/secring",
+	"kvIndexFile": "/path/to/indexkv.db"
+}

@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -161,7 +162,7 @@ func main() {
 	// This doesn't appear to work on OS X:
 	sigc := make(chan os.Signal, 1)
 
-	conn, err = fuse.Mount(mountPoint)
+	conn, err = fuse.Mount(mountPoint, fuse.VolumeName(filepath.Base(mountPoint)))
 	if err != nil {
 		if err.Error() == "cannot find load_fusefs" && runtime.GOOS == "darwin" {
 			log.Fatal("FUSE not available; install from http://osxfuse.github.io/")
@@ -211,6 +212,12 @@ func main() {
 	select {
 	case err := <-doneServe:
 		log.Printf("conn.Serve returned %v", err)
+
+		// check if the mount process has an error to report
+		<-conn.Ready
+		if err := conn.MountError; err != nil {
+			log.Printf("conn.MountError: %v", err)
+		}
 	case sig := <-sigc:
 		log.Printf("Signal %s received, shutting down.", sig)
 	case <-quitKey:

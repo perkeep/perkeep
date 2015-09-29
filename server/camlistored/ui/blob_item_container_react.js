@@ -278,6 +278,7 @@ cam.BlobItemContainerReact = React.createClass({
 
 		return React.DOM.div(
 			{
+				key: 'no-results',
 				className: 'cam-blobitemcontainer-no-results',
 				style: {
 					width: w,
@@ -289,7 +290,6 @@ cam.BlobItemContainerReact = React.createClass({
 			React.DOM.div(null, 'No results found'),
 			cam.SpritedImage(
 				{
-					key: 'icon',
 					index: 6,
 					sheetWidth: 10,
 					spriteWidth: piggyWidth,
@@ -379,7 +379,8 @@ cam.BlobItemContainerReact = React.createClass({
 
 	// NOTE: This method causes the URL bar to throb for a split second (at least on Chrome), so it should not be called constantly.
 	updateHistory_: function() {
-		this.props.history.replaceState({scroll:this.state.scroll});
+		// second argument (title) is ignored on Firefox, but not optional.
+		this.props.history.replaceState(cam.object.extend(this.props.history.state, {scroll:this.state.scroll}), '');
 	},
 
 	fillVisibleAreaWithResults_: function() {

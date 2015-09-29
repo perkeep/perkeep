@@ -7,6 +7,8 @@
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
+				"jsonSignRoot": "/sighelper/",
+				"helpRoot": "/help/",
 				"ownerName": "Brad",
 				"searchRoot": "/my-search/",
 				"statusRoot": "/status/",
@@ -44,6 +46,9 @@
 			"handlerArgs": {
 				"path": "/tmp/blobs/cache"
 			}
+		},
+		"/help/": {
+			"handler": "help"
 		},
 		"/importer/": {
 			"handler": "importer",
@@ -165,7 +170,6 @@
 			"handler": "ui",
 			"handlerArgs": {
 				"cache": "/cache/",
-				"jsonSignRoot": "/sighelper/",
 				"scaledImage": {
 					"file": "/tmp/blobs/thumbmeta.kv",
 					"type": "kv"

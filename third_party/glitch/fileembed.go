@@ -15,6 +15,8 @@ limitations under the License.
 */
 
 /*
+Package glich embeds the little piggy animation resources.
+
 #fileembed pattern .*\.png
 */
 package glitch

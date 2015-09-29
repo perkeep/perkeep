@@ -71,7 +71,7 @@ cam.BlobItemDemoContent = React.createClass({
 cam.BlobItemDemoContent.getHandler = function (blobref, searchSession, href) {
 	var m = searchSession.getMeta(blobref);
 	if (m.camliType == 'permanode') {
-		var typ = cam.permanodeUtils.getSingleAttr(m.permanode, 'camliNodeType');
+		var typ = cam.permanodeUtils.getCamliNodeType(m.permanode);
 		if (typ == 'camlistore.org:demo') {
 			return new cam.BlobItemDemoContent.Handler(m, href)
 		}

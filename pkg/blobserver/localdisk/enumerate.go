@@ -184,12 +184,10 @@ func (ds *DiskStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.Siz
 
 func skipDir(name string) bool {
 	// The partition directory is old. (removed from codebase, but
-	// likely still on disk for some people)
-	// the "cache" directory is just a hack: it's used
-	// by the serverconfig/genconfig code, as a default
-	// location for most users to put their thumbnail
-	// cache.  For now we just also skip it here.
-	return name == "partition" || name == "cache"
+	// likely still on disk for some people) the "cache" and
+	// "packed" directories are used by the serverconfig/genconfig
+	// code, as a default location for most users.
+	return name == "partition" || name == "cache" || name == "packed"
 }
 
 func isShardDir(name string) bool {

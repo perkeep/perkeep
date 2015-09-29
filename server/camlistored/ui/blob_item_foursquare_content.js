@@ -89,7 +89,7 @@ cam.BlobItemFoursquareContent.getHandler = function(blobref, searchSession, href
 		return null;
 	}
 
-	if (cam.permanodeUtils.getSingleAttr(m.permanode, 'camliNodeType') != 'foursquare.com:checkin') {
+	if (cam.permanodeUtils.getCamliNodeType(m.permanode) != 'foursquare.com:checkin') {
 		return null;
 	}
 

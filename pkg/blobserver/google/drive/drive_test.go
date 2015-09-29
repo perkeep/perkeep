@@ -17,46 +17,91 @@ limitations under the License.
 package drive
 
 import (
+	"encoding/json"
 	"flag"
+	"io/ioutil"
 	"log"
 	"testing"
 
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
+	"camlistore.org/pkg/constants/google"
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
+	"camlistore.org/pkg/oauthutil"
+
+	"golang.org/x/oauth2"
 )
 
 var (
-	parentId     = flag.String("parentDir", "", "id of the directory on google drive to use for testing. If empty or \"root\", testing is skipped.")
+	configFile   = flag.String("config", "", "Path to a configuration JSON file. If given, all other configuration flags are ignored. Use \"camtool googinit --type=drive\" to generate the auth parameters.")
+	parentId     = flag.String("parentDir", "", "id of the directory on google drive to use for testing. If empty or \"root\", and --config blank too, testing is skipped.")
 	clientID     = flag.String("client_id", "", "OAuth2 client_id for testing")
 	clientSecret = flag.String("client_secret", "", "OAuth2 client secret for testing")
 	tokenCache   = flag.String("token_cache", ".tokencache", "Token cache file.")
 	authCode     = flag.String("auth_code", "", "Use when instructed to do so, when the --token_cache is empty.")
 )
 
+type Config struct {
+	Auth      AuthConfig `json:"auth"`
+	ParentDir string     `json:"parentDir"`
+}
+
+type AuthConfig struct {
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+	RefreshToken string `json:"refresh_token"`
+}
+
 func TestStorage(t *testing.T) {
+	if (*parentId == "" || *parentId == "root") && *configFile == "" {
+		t.Skip("Skipping test, refusing to use goodle drive's root directory. (you need to specify --parentDir or --config).")
+	}
+	var refreshToken string
+	if *configFile != "" {
+		data, err := ioutil.ReadFile(*configFile)
+		if err != nil {
+			t.Fatalf("Error reading config file %v: %v", *configFile, err)
+		}
+		var conf Config
+		if err := json.Unmarshal(data, &conf); err != nil {
+			t.Fatalf("Error decoding config file %v: %v", *configFile, err)
+		}
+		*clientID = conf.Auth.ClientID
+		*clientSecret = conf.Auth.ClientSecret
+		refreshToken = conf.Auth.RefreshToken
+		*parentId = conf.ParentDir
+	}
 	if *parentId == "" || *parentId == "root" {
-		t.Skip("Skipping test, refusing to use goodle drive's root directory.")
+		t.Fatal("ParentDir must be specified, and not \"root\"")
 	}
 	if *clientID == "" || *clientSecret == "" {
 		t.Fatal("--client_id and --client_secret required. Obtain from https://console.developers.google.com/ > Project > APIs & Auth > Credentials. Should be a 'native' or 'Installed application'")
 	}
-
-	tokenCache := oauth.CacheFile(*tokenCache)
-	token, err := tokenCache.Token()
-	if err != nil {
-		tr := MakeOauthTransport(*clientID, *clientSecret, "")
-		config := tr.Config
-		if *authCode != "" {
-			token, err = tr.Exchange(*authCode)
-			if err != nil {
-				t.Fatalf("Error getting a token using auth code: %v", err)
-			}
-			tokenCache.PutToken(token)
-		} else {
-			t.Skipf("Re-run using --auth_code= with the value obtained from %s", config.AuthCodeURL(""))
+	if *configFile == "" {
+		config := &oauth2.Config{
+			Scopes:       []string{Scope},
+			Endpoint:     google.Endpoint,
+			ClientID:     *clientID,
+			ClientSecret: *clientSecret,
+			RedirectURL:  oauthutil.TitleBarRedirectURL,
 		}
+		token, err := oauth2.ReuseTokenSource(nil,
+			&oauthutil.TokenSource{
+				Config:    config,
+				CacheFile: *tokenCache,
+				AuthCode: func() string {
+					if *authCode == "" {
+						t.Skipf("Re-run using --auth_code= with the value obtained from %s",
+							config.AuthCodeURL("", oauth2.AccessTypeOffline, oauth2.ApprovalForce))
+						return ""
+					}
+					return *authCode
+				},
+			}).Token()
+		if err != nil {
+			t.Fatalf("could not acquire token: %v", err)
+		}
+		refreshToken = token.RefreshToken
 	}
 
 	storagetest.TestOpt(t, storagetest.Opts{
@@ -66,7 +111,7 @@ func TestStorage(t *testing.T) {
 				"auth": map[string]interface{}{
 					"client_id":     *clientID,
 					"client_secret": *clientSecret,
-					"refresh_token": token.RefreshToken,
+					"refresh_token": refreshToken,
 				},
 			})
 			if err != nil {

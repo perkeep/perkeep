@@ -188,6 +188,14 @@ func TestSizedBlobRefString(t *testing.T) {
 	}
 }
 
+func TestRefStringMinusOne(t *testing.T) {
+	br := MustParse("abc-1234")
+	want := "abc-1233"
+	if got := br.StringMinusOne(); got != want {
+		t.Errorf("StringMinusOne = %q; want %q", got, want)
+	}
+}
+
 func TestMarshalBinary(t *testing.T) {
 	br := MustParse("abc-00ff4869")
 	data, _ := br.MarshalBinary()
@@ -213,10 +221,10 @@ func BenchmarkParseBlob(b *testing.B) {
 	refb := []byte(ref)
 	for i := 0; i < b.N; i++ {
 		if _, ok := Parse(ref); !ok {
-			b.Fatal()
+			b.FailNow()
 		}
 		if _, ok := ParseBytes(refb); !ok {
-			b.Fatal()
+			b.FailNow()
 		}
 	}
 }

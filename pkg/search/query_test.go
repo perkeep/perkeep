@@ -49,8 +49,9 @@ func (i indexType) String() string {
 }
 
 type queryTest struct {
-	t  testing.TB
-	id *indextest.IndexDeps
+	t     testing.TB
+	id    *indextest.IndexDeps
+	itype indexType
 
 	Handler func() *Handler
 }
@@ -90,8 +91,9 @@ func testQueryType(t testing.TB, fn func(*queryTest), itype indexType) {
 		}
 	}
 	qt := &queryTest{
-		t:  t,
-		id: indextest.NewIndexDeps(idx),
+		t:     t,
+		id:    indextest.NewIndexDeps(idx),
+		itype: itype,
 	}
 	qt.id.Fataler = t
 	qt.Handler = func() *Handler {
@@ -118,6 +120,9 @@ func dumpRes(t *testing.T, res *SearchResult) {
 }
 
 func (qt *queryTest) wantRes(req *SearchQuery, wanted ...blob.Ref) {
+	if qt.itype == indexClassic {
+		req.Sort = Unsorted
+	}
 	res, err := qt.Handler().Query(req)
 	if err != nil {
 		qt.t.Fatal(err)
@@ -631,7 +636,7 @@ func TestQueryPermanodeModtime(t *testing.T) {
 func TestDecodeFileInfo(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
-		fileRef, _ := id.UploadFile("file.gif", "GIF87afoo", time.Unix(456, 0))
+		fileRef, wholeRef := id.UploadFile("file.gif", "GIF87afoo", time.Unix(456, 0))
 		res, err := qt.Handler().Describe(&DescribeRequest{
 			BlobRef: fileRef,
 		})
@@ -650,6 +655,10 @@ func TestDecodeFileInfo(t *testing.T) {
 		}
 		if db.File.MIMEType != "image/gif" {
 			qt.t.Errorf("DescribedBlob.File = %+v; mime type is not image/gif", db.File)
+			return
+		}
+		if db.File.WholeRef != wholeRef {
+			qt.t.Errorf("DescribedBlob.WholeRef: got %v, wanted %v", wholeRef, db.File.WholeRef)
 			return
 		}
 	})
@@ -990,6 +999,113 @@ func TestQueryChildren(t *testing.T) {
 	})
 }
 
+// 13 permanodes are created. 1 of them the parent, 11 are children
+// (== results), 1 is unrelated to the parent.
+// limit is the limit on the number of results.
+// pos is the position of the around permanode.
+// note: pos is in the permanode creation order, but keep in mind
+// they're enumerated in the opposite order.
+func testAroundChildren(limit, pos int, t *testing.T) {
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+
+		pdir := id.NewPlannedPermanode("some_dir")
+		p0 := id.NewPlannedPermanode("0")
+		p1 := id.NewPlannedPermanode("1")
+		p2 := id.NewPlannedPermanode("2")
+		p3 := id.NewPlannedPermanode("3")
+		p4 := id.NewPlannedPermanode("4")
+		p5 := id.NewPlannedPermanode("5")
+		p6 := id.NewPlannedPermanode("6")
+		p7 := id.NewPlannedPermanode("7")
+		p8 := id.NewPlannedPermanode("8")
+		p9 := id.NewPlannedPermanode("9")
+		p10 := id.NewPlannedPermanode("10")
+		p11 := id.NewPlannedPermanode("11")
+
+		id.AddAttribute(pdir, "camliMember", p0.String())
+		id.AddAttribute(pdir, "camliMember", p1.String())
+		id.AddAttribute(pdir, "camliPath:foo", p2.String())
+		const noMatchIndex = 3
+		id.AddAttribute(pdir, "other", p3.String())
+		id.AddAttribute(pdir, "camliPath:bar", p4.String())
+		id.AddAttribute(pdir, "camliMember", p5.String())
+		id.AddAttribute(pdir, "camliMember", p6.String())
+		id.AddAttribute(pdir, "camliMember", p7.String())
+		id.AddAttribute(pdir, "camliMember", p8.String())
+		id.AddAttribute(pdir, "camliMember", p9.String())
+		id.AddAttribute(pdir, "camliMember", p10.String())
+		id.AddAttribute(pdir, "camliMember", p11.String())
+
+		// Predict the results
+		var around blob.Ref
+		lowLimit := pos - limit/2
+		if lowLimit <= noMatchIndex {
+			// Because 3 is not included in the results
+			lowLimit--
+		}
+		if lowLimit < 0 {
+			lowLimit = 0
+		}
+		highLimit := lowLimit + limit
+		if highLimit >= noMatchIndex {
+			// Because noMatchIndex is not included in the results
+			highLimit++
+		}
+		var want []blob.Ref
+		// Make the permanodes actually exist. (permanodes without attributes are dead)
+		for k, v := range []blob.Ref{p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11} {
+			id.AddAttribute(v, "x", "x")
+			if k == pos {
+				around = v
+			}
+			if k != noMatchIndex && k >= lowLimit && k < highLimit {
+				want = append(want, v)
+			}
+		}
+		// invert the order because the results are appended in reverse creation order
+		// because that's how we enumerate.
+		revWant := make([]blob.Ref, len(want))
+		for k, v := range want {
+			revWant[len(want)-1-k] = v
+		}
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Permanode: &PermanodeConstraint{
+					Relation: &RelationConstraint{
+						Relation: "parent",
+						Any: &Constraint{
+							BlobRefPrefix: pdir.String(),
+						},
+					},
+				},
+			},
+			Limit:  limit,
+			Around: around,
+		}
+		qt.wantRes(sq, revWant...)
+	})
+
+}
+
+// TODO(mpl): more tests. at least the 0 results case.
+
+// Around will be found in the first buffered window of results,
+// because it's a position that fits within the limit.
+// So it doesn't exercice the part of the algorithm that discards
+// the would-be results that are not within the "around zone".
+func TestQueryChildrenAroundNear(t *testing.T) {
+	testAroundChildren(5, 9, t)
+}
+
+// pos is near the end of the results enumeration and the limit is small
+// so this test should go through the part of the algorithm that discards
+// results not within the "around zone".
+func TestQueryChildrenAroundFar(t *testing.T) {
+	testAroundChildren(3, 4, t)
+}
+
 // permanodes tagged "foo" or those in sets where the parent
 // permanode set itself is tagged "foo".
 func TestQueryPermanodeTaggedViaParent(t *testing.T) {
@@ -1137,7 +1253,7 @@ func TestDescribeMarshal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := string(enc), `{"describe":{"blobref":null,"at":null}}`; got != want {
+	if got, want := string(enc), `{"around":null,"describe":{"blobref":null,"at":null}}`; got != want {
 		t.Errorf("JSON: %s; want %s", got, want)
 	}
 	back := &SearchQuery{}
@@ -1159,7 +1275,7 @@ func TestDescribeMarshal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := string(enc), `{"describe":{"blobrefs":["sha-1234","sha-abcd"],"blobref":null,"at":null}}`; got != want {
+	if got, want := string(enc), `{"around":null,"describe":{"blobrefs":["sha-1234","sha-abcd"],"blobref":null,"at":null}}`; got != want {
 		t.Errorf("JSON: %s; want %s", got, want)
 	}
 	back = &SearchQuery{}
@@ -1177,7 +1293,7 @@ func TestDescribeMarshal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(enc) != "{}" {
+	if string(enc) != `{"around":null}` {
 		t.Errorf(`Zero value: %q; want null`, enc)
 	}
 }
@@ -1195,9 +1311,9 @@ func TestSortMarshal_CreatedDesc(t *testing.T) {
 }
 
 var sortMarshalWant = map[SortType]string{
-	UnspecifiedSort:  "{}",
-	LastModifiedDesc: `{"sort":` + string(SortName[LastModifiedDesc]) + `}`,
-	CreatedDesc:      `{"sort":` + string(SortName[CreatedDesc]) + `}`,
+	UnspecifiedSort:  `{"around":null}`,
+	LastModifiedDesc: `{"sort":` + string(SortName[LastModifiedDesc]) + `,"around":null}`,
+	CreatedDesc:      `{"sort":` + string(SortName[CreatedDesc]) + `,"around":null}`,
 }
 
 func testSortMarshal(t *testing.T, sortType SortType) {
@@ -1226,7 +1342,7 @@ func testSortMarshal(t *testing.T, sortType SortType) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(enc) != "{}" {
+	if string(enc) != `{"around":null}` {
 		t.Errorf("Zero value: %s; want {}", enc)
 	}
 }
