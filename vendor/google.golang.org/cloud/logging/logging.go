@@ -13,11 +13,12 @@
 // limitations under the License.
 
 // Package logging contains a Google Cloud Logging client.
+//
+// This package is experimental and subject to API changes.
 package logging // import "google.golang.org/cloud/logging"
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"sync"
@@ -43,16 +44,20 @@ const (
 	Warning
 	Error
 	Critical
+	Alert
+	Emergency
 	nLevel
 )
 
 var levelName = [nLevel]string{
-	Default:  "",
-	Debug:    "DEBUG",
-	Info:     "INFO",
-	Warning:  "WARNING",
-	Error:    "ERROR",
-	Critical: "CRITICAL",
+	Default:   "",
+	Debug:     "DEBUG",
+	Info:      "INFO",
+	Warning:   "WARNING",
+	Error:     "ERROR",
+	Critical:  "CRITICAL",
+	Alert:     "ALERT",
+	Emergency: "EMERGENCY",
 }
 
 func (v Level) String() string {
@@ -76,10 +81,13 @@ type Client struct {
 	timerActive bool        // whether flushTimer is armed
 	inFlight    int         // number of log entries sent to API service but not yet ACKed
 
+	// For testing:
+	timeNow func() time.Time // optional
+
 	// ServiceName may be "appengine.googleapis.com",
 	// "compute.googleapis.com" or "custom.googleapis.com".
 	//
-	// The default is unspecified is "custom.googleapis.com".
+	// The default is "custom.googleapis.com".
 	//
 	// The service name is only used by the API server to
 	// determine which of the labels are used to index the logs.
@@ -89,7 +97,7 @@ type Client struct {
 	// entries in this request, so that you don't have to repeat
 	// them in each log entry's metadata.labels field. If any of
 	// the log entries contains a (key, value) with the same key
-	// that is in commonLabels, then the entry's (key, value)
+	// that is in CommonLabels, then the entry's (key, value)
 	// overrides the one in CommonLabels.
 	CommonLabels map[string]string
 
@@ -108,32 +116,33 @@ type Client struct {
 	// BufferInterval is the maximum amount of time that an item
 	// should remain buffered in memory before being flushed to
 	// the logging service.
+	// The default is currently 1 second.
 	BufferInterval time.Duration
 
-	// Overflow optionally specifies a function which is run
-	// when the Log function overflows its configured buffer
-	// limit. If nil, the log entry is dropped. The return
-	// value is returned by Log.
+	// Overflow is a function which runs when the Log function
+	// overflows its configured buffer limit. If nil, the log
+	// entry is dropped. The return value from Overflow is
+	// returned by Log.
 	Overflow func(*Client, Entry) error
 }
 
 func (c *Client) flushAfter() int {
-	if c.FlushAfter > 0 {
-		return c.FlushAfter
+	if v := c.FlushAfter; v > 0 {
+		return v
 	}
 	return 10
 }
 
 func (c *Client) bufferInterval() time.Duration {
-	if c.BufferInterval > 0 {
-		return c.BufferInterval
+	if v := c.BufferInterval; v > 0 {
+		return v
 	}
 	return time.Second
 }
 
 func (c *Client) bufferLimit() int {
-	if c.BufferLimit > 0 {
-		return c.BufferLimit
+	if v := c.BufferLimit; v > 0 {
+		return v
 	}
 	return 10000
 }
@@ -143,6 +152,13 @@ func (c *Client) serviceName() string {
 		return v
 	}
 	return "custom.googleapis.com"
+}
+
+func (c *Client) now() time.Time {
+	if now := c.timeNow; now != nil {
+		return now()
+	}
+	return time.Now()
 }
 
 // Writer returns an io.Writer for the provided log level.
@@ -180,13 +196,12 @@ type Entry struct {
 	Time time.Time
 
 	// Level is log entry's severity level.
-	// The zero value means undefined.
+	// The zero value means no assigned severity level.
 	Level Level
 
-	// Payload may be either a string or JSON object.
-	// For JSON objects, the type must be either map[string]interface{}
-	// or implement json.Marshaler and encode a JSON object (and not any other
-	// JSON value).
+	// Payload must be either a string, []byte, or something that
+	// marshals via the encoding/json package to a JSON object
+	// (and not any other type of JSON value).
 	Payload interface{}
 
 	// Labels optionally specifies key/value labels for the log entry.
@@ -202,7 +217,7 @@ type Entry struct {
 func (c *Client) apiEntry(e Entry) (*api.LogEntry, error) {
 	t := e.Time
 	if t.IsZero() {
-		t = time.Now()
+		t = c.now()
 	}
 
 	ent := &api.LogEntry{
@@ -216,10 +231,10 @@ func (c *Client) apiEntry(e Entry) (*api.LogEntry, error) {
 	switch p := e.Payload.(type) {
 	case string:
 		ent.TextPayload = p
-	case map[string]interface{}:
-		ent.StructPayload = p
+	case []byte:
+		ent.TextPayload = string(p)
 	default:
-		return nil, fmt.Errorf("unhandled Log Payload type %T", p)
+		ent.StructPayload = api.LogEntryStructPayload(p)
 	}
 	return ent, nil
 }
@@ -242,9 +257,11 @@ var ErrOverflow = errors.New("logging: log entry overflowed buffer limits")
 
 // Log queues an entry to be sent to the logging service, subject to the
 // Client's parameters. By default, the log will be flushed within
-// a second.
-// Log only returns an error if the entry is invalid, or ErrOverflow
-// if the log entry overflows the buffer limit.
+// one second.
+// Log only returns an error if the entry is invalid or the queue is at
+// capacity. If the queue is at capacity and the entry can't be added,
+// Log returns either ErrOverflow when c.Overflow is nil, or the
+// value returned by c.Overflow.
 func (c *Client) Log(e Entry) error {
 	ent, err := c.apiEntry(e)
 	if err != nil {
@@ -252,14 +269,17 @@ func (c *Client) Log(e Entry) error {
 	}
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	buffered := len(c.queued) + c.inFlight
+
 	if buffered >= c.bufferLimit() {
+		c.mu.Unlock()
 		if fn := c.Overflow; fn != nil {
 			return fn(c, e)
 		}
 		return ErrOverflow
 	}
+	defer c.mu.Unlock()
+
 	c.queued = append(c.queued, ent)
 	if len(c.queued) >= c.flushAfter() {
 		c.scheduleFlushLocked(0)
@@ -303,6 +323,9 @@ func (c *Client) scheduleFlushLocked(d time.Duration) {
 // timeoutFlush runs in its own goroutine (from time.AfterFunc) and
 // flushes c.queued.
 func (c *Client) timeoutFlush() {
+	c.mu.Lock()
+	c.timerActive = false
+	c.mu.Unlock()
 	if err := c.Flush(); err != nil {
 		// schedule another try
 		// TODO: smarter back-off?
@@ -323,23 +346,44 @@ func (c *Client) Ping() error {
 
 // Flush flushes any buffered log entries.
 func (c *Client) Flush() error {
+	var numFlush int
+	c.mu.Lock()
 	for {
-		// Easy and final case: nothing to flush.
-		c.mu.Lock()
+		// We're already flushing (or we just started flushing
+		// ourselves), so wait for it to finish.
+		if f := c.curFlush; f != nil {
+			wasEmpty := len(c.queued) == 0
+			c.mu.Unlock()
+			<-f.donec // wait for it
+			numFlush++
+			// Terminate whenever there's an error, we've
+			// already flushed twice (one that was already
+			// in-flight when flush was called, and then
+			// one we instigated), or the queue was empty
+			// when we released the locked (meaning this
+			// in-flight flush removes everything present
+			// when Flush was called, and we don't need to
+			// kick off a new flush for things arriving
+			// afterward)
+			if f.err != nil || numFlush == 2 || wasEmpty {
+				return f.err
+			}
+			// Otherwise, re-obtain the lock and loop,
+			// starting over with seeing if a flush is in
+			// progress, which might've been started by a
+			// different goroutine before aquiring this
+			// lock again.
+			c.mu.Lock()
+			continue
+		}
+
+		// Terminal case:
 		if len(c.queued) == 0 {
 			c.mu.Unlock()
 			return nil
 		}
 
-		if f := c.curFlush; f != nil {
-			c.mu.Unlock()
-			<-f.donec // wait for it
-			if f.err != nil {
-				return f.err
-			}
-		}
 		c.startFlushLocked()
-		c.mu.Unlock()
 	}
 }
 
@@ -358,6 +402,7 @@ func (c *Client) startFlushLocked() {
 	flush := &flushCall{
 		donec: make(chan struct{}),
 	}
+	c.curFlush = flush
 	go func() {
 		defer close(flush.donec)
 		_, err := c.logs.Write(c.projID, c.logName, &api.WriteLogEntriesRequest{
@@ -365,13 +410,14 @@ func (c *Client) startFlushLocked() {
 			Entries:      logEntries,
 		}).Do()
 		flush.err = err
-		log.Printf("Raw write of %d = %v", len(logEntries), err)
 		c.mu.Lock()
 		defer c.mu.Unlock()
 		c.inFlight = 0
 		c.curFlush = nil
 		if err != nil {
 			c.queued = append(c.queued, logEntries...)
+		} else if len(c.queued) > 0 {
+			c.scheduleFlushLocked(c.bufferInterval())
 		}
 	}()
 
