@@ -503,7 +503,12 @@ func (r *run) updatePhotoInAlbum(ctx context.Context, albumNode *importer.Object
 	return nil
 }
 
+var testTopLevelNode *importer.Object
+
 func (r *run) getTopLevelNode(path string, title string) (*importer.Object, error) {
+	if testTopLevelNode != nil {
+		return testTopLevelNode, nil
+	}
 	childObject, err := r.RootNode().ChildPathObject(path)
 	if err != nil {
 		return nil, err
