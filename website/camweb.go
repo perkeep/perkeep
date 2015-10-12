@@ -49,8 +49,6 @@ import (
 	"google.golang.org/cloud/logging"
 )
 
-const usingCamlistoreCopy = logging.IsCamlistoreDevFork
-
 const defaultAddr = ":31798" // default webserver address
 
 var h1TitlePattern = regexp.MustCompile(`<h1>([^<]+)</h1>`)
@@ -463,7 +461,7 @@ func main() {
 			}
 		}
 		ctx := cloud.NewContext(projID, hc)
-		logc, err := logging.NewClient(ctx, *gceLogName)
+		logc, err := logging.NewClient(ctx, projID, *gceLogName)
 		if err != nil {
 			log.Fatal(err)
 		}
