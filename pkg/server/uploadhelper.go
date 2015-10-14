@@ -46,7 +46,7 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 		return
 	}
 
-	mr, err := req.MultipartReader()
+	mr, err := httputil.MultipartReader(req)
 	if err != nil {
 		httputil.ServeJSONError(rw, httputil.ServerError("reading body: "+err.Error()))
 		return
