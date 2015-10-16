@@ -76,6 +76,7 @@ const (
 	// Path to where the Camlistore builder is mounted on the camlistore/go image.
 	genCamliProgram    = "/usr/local/bin/build-camlistore-server.go"
 	genBinariesProgram = "/usr/local/bin/build-binaries.go"
+	WIP                = "WORKINPROGRESS"
 )
 
 func genCamlistore(ctxDir string) {
@@ -87,7 +88,7 @@ func genCamlistore(ctxDir string) {
 		"--volume=" + ctxDir + "/camlistore.org:/OUT",
 		"--volume=" + path.Join(dockDir, "server/build-camlistore-server.go") + ":" + genCamliProgram + ":ro",
 	}
-	if *rev == "WORKINPROGRESS" {
+	if *rev == WIP {
 		args = append(args, "--volume="+*localSrc+":/IN:ro",
 			goDockerImage, goCmd, "run", genCamliProgram, "--rev="+*rev, "--camlisource=/IN")
 	} else {
@@ -110,7 +111,7 @@ func genBinaries(ctxDir string) {
 		"--volume=" + ctxDir + "/camlistore.org:/OUT",
 		"--volume=" + path.Join(dockDir, "release/build-binaries.go") + ":" + genBinariesProgram + ":ro",
 	}
-	if *rev == "WORKINPROGRESS" {
+	if *rev == WIP {
 		args = append(args, "--volume="+*localSrc+":/IN:ro",
 			image, goCmd, "run", genBinariesProgram, "--rev="+*rev, "--camlisource=/IN", "--os="+*buildOS)
 	} else {
@@ -211,11 +212,13 @@ func uploadDockerImage() {
 		log.Fatalf("Error waiting for docker save %v: %v", serverImage, err)
 	}
 	log.Printf("Uploaded tarball to %s", versionedTarball)
-	log.Printf("Copying tarball to %s/%s ...", bucket, tarball)
-	if _, err := storage.CopyObject(ctx, bucket, versionedTarball, bucket, tarball, nil); err != nil {
-		log.Fatalf("Error uploading %v: %v", tarball, err)
+	if *rev != WIP {
+		log.Printf("Copying tarball to %s/%s ...", bucket, tarball)
+		if _, err := storage.CopyObject(ctx, bucket, versionedTarball, bucket, tarball, nil); err != nil {
+			log.Fatalf("Error uploading %v: %v", tarball, err)
+		}
+		log.Printf("Uploaded tarball to %s", tarball)
 	}
-	log.Printf("Uploaded tarball to %s", tarball)
 }
 
 func exeName(s string) string {
