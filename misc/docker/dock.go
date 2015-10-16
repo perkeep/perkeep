@@ -212,14 +212,7 @@ func uploadDockerImage() {
 	}
 	log.Printf("Uploaded tarball to %s", versionedTarball)
 	log.Printf("Copying tarball to %s/%s ...", bucket, tarball)
-	// TODO(mpl): 2015-05-12: update google.golang.org/cloud/storage so we
-	// can specify the dest name in CopyObject, and we get the ACLs from the
-	// src for free too I think.
-	if _, err := storage.CopyObject(ctx, bucket, versionedTarball, bucket, storage.ObjectAttrs{
-		Name:        tarball,
-		ACL:         acl,
-		ContentType: "application/x-gtar",
-	}); err != nil {
+	if _, err := storage.CopyObject(ctx, bucket, versionedTarball, bucket, tarball, nil); err != nil {
 		log.Fatalf("Error uploading %v: %v", tarball, err)
 	}
 	log.Printf("Uploaded tarball to %s", tarball)
