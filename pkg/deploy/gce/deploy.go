@@ -55,7 +55,7 @@ import (
 const (
 	projectsAPIURL = "https://www.googleapis.com/compute/v1/projects/"
 	// TODO(mpl): automatically pick the latest stable coreos image, if possible.
-	coreosImgURL = "https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-stable-723-3-0-v20150804"
+	coreosImgURL = "https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-stable-766-4-0-v20150929"
 
 	// default instance configuration values.
 	// TODO(mpl): they can probably be lowercased now that handler.go is in the same
@@ -739,7 +739,8 @@ coreos:
         Requires=docker.service
 
         [Service]
-        ExecStartPre=/usr/bin/docker run --rm -v /opt/bin:/opt/bin ibuildthecloud/systemd-docker
+        ExecStartPre=/bin/bash -c '/usr/bin/curl https://storage.googleapis.com/camlistore-release/docker/systemd-docker.tar.gz | /bin/gunzip -c | /usr/bin/docker load'
+        ExecStartPre=/usr/bin/docker run --rm -v /opt/bin:/opt/bin camlistore/systemd-docker
         ExecStart=/opt/bin/systemd-docker run --rm --name %n -v /var/lib/camlistore/mysql:/mysql -e INNODB_BUFFER_POOL_SIZE=NNN camlistore/mysql
         RestartSec=1s
         Restart=always
@@ -757,7 +758,7 @@ coreos:
         Requires=docker.service mysql.service
 
         [Service]
-        ExecStartPre=/usr/bin/docker run --rm -v /opt/bin:/opt/bin ibuildthecloud/systemd-docker
+        ExecStartPre=/usr/bin/docker run --rm -v /opt/bin:/opt/bin camlistore/systemd-docker
         ExecStartPre=/bin/bash -c '/usr/bin/curl https://storage.googleapis.com/camlistore-release/docker/camlistored.tar.gz | /bin/gunzip -c | /usr/bin/docker load'
         ExecStart=/opt/bin/systemd-docker run --rm -p 80:80 -p 443:443 --name %n -v /run/camjournald.sock:/run/camjournald.sock -v /var/lib/camlistore/tmp:/tmp --link=mysql.service:mysqldb camlistore/server
         RestartSec=1s
