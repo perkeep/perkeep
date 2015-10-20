@@ -703,6 +703,7 @@ func (h *DeployHandler) confFromForm(r *http.Request) (*InstanceConf, error) {
 		SSHPub:   formValueOrDefault(r, "sshPub", ""),
 		Password: formValueOrDefault(r, "password", project),
 		Ctime:    time.Now(),
+		WIP:      r.FormValue("WIP") == "1",
 	}, nil
 }
 

@@ -116,6 +116,8 @@ type InstanceConf struct {
 	blobDir   string // bucketBase() + "/blobs"
 
 	Ctime time.Time // Timestamp for this configuration.
+
+	WIP bool // Whether to use the camlistored-WORKINPROGRESS.tar.gz tarball instead of the "production" one
 }
 
 func (conf *InstanceConf) bucketBase() string {
@@ -454,6 +456,13 @@ OpLoop:
 
 func cloudConfig(conf *InstanceConf) string {
 	config := strings.Replace(baseInstanceConfig, "INNODB_BUFFER_POOL_SIZE=NNN", "INNODB_BUFFER_POOL_SIZE="+strconv.Itoa(innodbBufferPoolSize(conf.Machine)), -1)
+	camlistoredTarball := "https://storage.googleapis.com/camlistore-release/docker/"
+	if conf.WIP {
+		camlistoredTarball += "camlistored-WORKINPROGRESS.tar.gz"
+	} else {
+		camlistoredTarball += "camlistored.tar.gz"
+	}
+	config = strings.Replace(config, "CAMLISTORED_TARBALL", camlistoredTarball, 1)
 	if conf.SSHPub != "" {
 		config += fmt.Sprintf("\nssh_authorized_keys:\n    - %s\n", conf.SSHPub)
 	}
@@ -759,7 +768,7 @@ coreos:
 
         [Service]
         ExecStartPre=/usr/bin/docker run --rm -v /opt/bin:/opt/bin camlistore/systemd-docker
-        ExecStartPre=/bin/bash -c '/usr/bin/curl https://storage.googleapis.com/camlistore-release/docker/camlistored.tar.gz | /bin/gunzip -c | /usr/bin/docker load'
+        ExecStartPre=/bin/bash -c '/usr/bin/curl CAMLISTORED_TARBALL | /bin/gunzip -c | /usr/bin/docker load'
         ExecStart=/opt/bin/systemd-docker run --rm -p 80:80 -p 443:443 --name %n -v /run/camjournald.sock:/run/camjournald.sock -v /var/lib/camlistore/tmp:/tmp --link=mysql.service:mysqldb camlistore/server
         RestartSec=1s
         Restart=always
