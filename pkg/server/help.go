@@ -18,10 +18,12 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 
 	"camlistore.org/pkg/blobserver"
@@ -69,6 +71,31 @@ func init() {
 	blobserver.RegisterHandlerConstructor("help", newHelpFromConfig)
 }
 
+// fixServerInConfig checks if cc contains a meaningful server (for a client).
+// If not, a newly allocated clone of cc is returned, except req.Host is used for
+// the hostname of the server. Otherwise, cc is returned.
+func fixServerInConfig(cc *clientconfig.Config, req *http.Request) (*clientconfig.Config, error) {
+	if cc == nil {
+		return nil, errors.New("nil client config")
+	}
+	if len(cc.Servers) == 0 || cc.Servers["default"] == nil || cc.Servers["default"].Server == "" {
+		return nil, errors.New("no Server in client config")
+	}
+	listen := strings.TrimPrefix(strings.TrimPrefix(cc.Servers["default"].Server, "http://"), "https://")
+	if !(strings.HasPrefix(listen, "0.0.0.0") || strings.HasPrefix(listen, ":")) {
+		return cc, nil
+	}
+	newCC := *cc
+	server := newCC.Servers["default"]
+	if req.TLS != nil {
+		server.Server = "https://" + req.Host
+	} else {
+		server.Server = "http://" + req.Host
+	}
+	newCC.Servers["default"] = server
+	return &newCC, nil
+}
+
 func (hh *HelpHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 	if hh.serverConfig == nil {
 		return fmt.Errorf("HelpHandler's serverConfig must be set before calling its InitHandler")
@@ -101,20 +128,25 @@ func (hh *HelpHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	switch suffix {
 	case "":
+		cc, err := fixServerInConfig(hh.clientConfig, req)
+		if err != nil {
+			httputil.ServeError(rw, req, err)
+			return
+		}
 		if clientConfig := req.FormValue("clientConfig"); clientConfig != "" {
 			if clientConfigOnly, err := strconv.ParseBool(clientConfig); err == nil && clientConfigOnly {
-				httputil.ReturnJSON(rw, hh.clientConfig)
+				httputil.ReturnJSON(rw, cc)
 				return
 			}
 		}
-		hh.serveHelpHTML(rw, req)
+		hh.serveHelpHTML(cc, rw, req)
 	default:
 		http.Error(rw, "Illegal help path.", http.StatusNotFound)
 	}
 }
 
-func (hh *HelpHandler) serveHelpHTML(rw http.ResponseWriter, req *http.Request) {
-	jsonBytes, err := json.MarshalIndent(hh.clientConfig, "", "  ")
+func (hh *HelpHandler) serveHelpHTML(cc *clientconfig.Config, rw http.ResponseWriter, req *http.Request) {
+	jsonBytes, err := json.MarshalIndent(cc, "", "  ")
 	if err != nil {
 		httputil.ServeError(rw, req, fmt.Errorf("could not serialize client config JSON: %v", err))
 		return
