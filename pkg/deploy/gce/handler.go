@@ -40,7 +40,6 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/localdisk"
-	"camlistore.org/pkg/blobserver/memory"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/osutil"
@@ -82,17 +81,11 @@ var (
 		"europe-west1": []string{"-b", "-c", "-d"},
 		"asia-east1":   []string{"-a", "-b", "-c"},
 	}
-
-	// DevHandler: if true, use HTTP instead of HTTPS, force permissions prompt for OAuth,
-	// do not actually create an instance. It has no effect if set after NewHandler is
-	// called.
-	DevHandler bool
 )
 
 // DeployHandler serves a wizard that helps with the deployment of Camlistore on Google
 // Compute Engine. It must be initialized with NewDeployHandler.
 type DeployHandler struct {
-	debug    bool                     // See DevHandler.
 	scheme   string                   // URL scheme for the URLs served by this handler. Defaults to "https://".
 	host     string                   // URL host for the URLs served by this handler.
 	prefix   string                   // prefix is the pattern for which this handler is registered as an http.Handler.
@@ -182,9 +175,6 @@ func NewDeployHandler(host, prefix string) (http.Handler, error) {
 	host = strings.TrimSuffix(host, "/")
 	prefix = strings.TrimSuffix(prefix, "/")
 	scheme := "https://"
-	if DevHandler {
-		scheme = "http://"
-	}
 	xsrfKey := os.Getenv("CAMLI_GCE_XSRFKEY")
 	if xsrfKey == "" {
 		xsrfKey = auth.RandToken(20)
@@ -195,7 +185,6 @@ func NewDeployHandler(host, prefix string) (http.Handler, error) {
 		return nil, fmt.Errorf("could not initialize conf or state storage: %v", err)
 	}
 	h := &DeployHandler{
-		debug:          DevHandler,
 		host:           host,
 		xsrfKey:        xsrfKey,
 		instConf:       instConf,
@@ -365,9 +354,6 @@ func (h *DeployHandler) serveSetup(w http.ResponseWriter, r *http.Request) {
 	xsrfToken := xsrftoken.Generate(h.xsrfKey, ck.Value, br.String())
 	state := fmt.Sprintf("%s:%x", br.String(), xsrfToken)
 	redirectURL := h.oAuthConfig().AuthCodeURL(state)
-	if h.debug {
-		redirectURL = h.oAuthConfig().AuthCodeURL(state, oauth2.ApprovalForce)
-	}
 	http.Redirect(w, r, redirectURL, http.StatusFound)
 	return
 }
@@ -425,30 +411,6 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 		InstConf: br,
 	}); err != nil {
 		httputil.ServeError(w, r, err)
-		return
-	}
-
-	if h.debug {
-		// We simulate an instance creation, without actually ever doing anything on Google Cloud,
-		// by sleeping for a while. Then, as we would do in the real case, we record a creation
-		// state (but a made-up one). In the meantime, the progress page/animation is served as
-		// usual.
-		go func() {
-			time.Sleep(7 * time.Second)
-			if err := h.recordState(br, &creationState{
-				InstConf:              br,
-				InstAddr:              "fake.instance.com",
-				Success:               true,
-				CertFingerprintSHA1:   "XXXXXXXXXXXXXXXXXXXX",
-				CertFingerprintSHA256: "YYYYYYYYYYYYYYYYYYYY",
-			}); err != nil {
-				h.Printf("Could not record creation state for %v: %v", br, err)
-				h.recordStateErrMu.Lock()
-				defer h.recordStateErrMu.Unlock()
-				h.recordStateErr[br.String()] = err
-			}
-		}()
-		h.serveProgress(w, br)
 		return
 	}
 
@@ -662,9 +624,6 @@ func (h *DeployHandler) serveSuccess(w http.ResponseWriter, data *TemplateData) 
 
 func newCookie() *http.Cookie {
 	expiration := cookieExpiration
-	if DevHandler {
-		expiration = 2 * time.Minute
-	}
 	return &http.Cookie{
 		Name:    "user",
 		Value:   auth.RandToken(15),
@@ -821,9 +780,6 @@ type creationState struct {
 // dataStores returns the blobserver that stores the instances configurations, and the kv
 // store for the instances states.
 func dataStores() (blobserver.Storage, sorted.KeyValue, error) {
-	if DevHandler {
-		return &memory.Storage{}, sorted.NewMemoryKeyValue(), nil
-	}
 	dataDir := os.Getenv("CAMLI_GCE_DATA")
 	if dataDir == "" {
 		dataDir = "camli-gce-data"
