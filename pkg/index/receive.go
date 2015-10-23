@@ -27,6 +27,7 @@ import (
 	"log"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -384,6 +385,8 @@ func readPrefixOrFile(prefix []byte, fetcher blob.Fetcher, b *schema.Blob, fn fu
 	return err
 }
 
+var exifDebug, _ = strconv.ParseBool(os.Getenv("CAMLI_DEBUG_IMAGES"))
+
 // b: the parsed file schema blob
 // mm: keys to populate
 func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutationMap) (err error) {
@@ -429,14 +432,18 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 		if err = readPrefixOrFile(imageBuf.Bytes, fetcher, b, fileTime); err == nil {
 			times = append(times, ft)
 		}
-		log.Printf("filename %q exif = %v, %v", b.FileName(), ft, err)
+		if exifDebug {
+			log.Printf("filename %q exif = %v, %v", b.FileName(), ft, err)
+		}
 
 		// TODO(mpl): find (generate?) more broken EXIF images to experiment with.
 		indexEXIFData := func(r filePrefixReader) error {
 			return indexEXIF(wholeRef, r, mm)
 		}
 		if err = readPrefixOrFile(imageBuf.Bytes, fetcher, b, indexEXIFData); err != nil {
-			log.Printf("error parsing EXIF: %v", err)
+			if exifDebug {
+				log.Printf("error parsing EXIF: %v", err)
+			}
 		}
 	}
 
