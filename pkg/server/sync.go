@@ -168,7 +168,7 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler,
 		didFullSync := make(chan bool, 1)
 		go func() {
 			for {
-				n := sh.runSync("queue", sh.enumeratePendingBlobs)
+				n := sh.runSync("pending blobs queue", sh.enumeratePendingBlobs)
 				if n > 0 {
 					sh.logf("Queue sync copied %d blobs", n)
 					continue
@@ -484,7 +484,7 @@ func (sh *SyncHandler) enumerateQueuedBlobs(dst chan<- blob.SizedRef, intr <-cha
 	return it.Close()
 }
 
-func (sh *SyncHandler) runSync(srcName string, enumSrc func(chan<- blob.SizedRef, <-chan struct{}) error) int {
+func (sh *SyncHandler) runSync(syncType string, enumSrc func(chan<- blob.SizedRef, <-chan struct{}) error) int {
 	enumch := make(chan blob.SizedRef, 8)
 	errch := make(chan error, 1)
 	intr := make(chan struct{})
@@ -519,7 +519,7 @@ FeedWork:
 	}
 
 	if err := <-errch; err != nil {
-		sh.logf("error enumerating from source: %v", err)
+		sh.logf("error enumerating for %v sync: %v", syncType, err)
 	}
 	return nCopied
 }
