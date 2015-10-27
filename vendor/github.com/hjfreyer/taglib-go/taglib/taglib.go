@@ -19,14 +19,11 @@ package taglib
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
-	"camlistore.org/third_party/github.com/hjfreyer/taglib-go/taglib/id3"
-)
-
-var (
-	ErrUnrecognizedFormat = errors.New("taglib: format not recognized")
+	"github.com/hjfreyer/taglib-go/taglib/id3"
 )
 
 // GenericTag is implemented by all the tag types in this project. It
@@ -62,15 +59,17 @@ func Decode(r io.ReaderAt, size int64) (GenericTag, error) {
 	}
 
 	if !bytes.Equal(magic[:3], []byte("ID3")) {
-		return nil, ErrUnrecognizedFormat
+		return nil, errors.New("taglib: format not recognised (not ID3)")
 	}
 
 	switch magic[3] {
+	case 2:
+		return nil, errors.New("taglib: format not supported (ID3 v2.2)")
 	case 3:
 		return id3.Decode23(r)
 	case 4:
 		return id3.Decode24(r)
 	default:
-		return nil, ErrUnrecognizedFormat
+		return nil, fmt.Errorf("taglib: format not supported (ID3 %d)", magic[3])
 	}
 }

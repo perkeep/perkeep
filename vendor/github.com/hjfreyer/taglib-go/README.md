@@ -1,5 +1,5 @@
-gotaglib
-========
+taglib-go
+=========
 
 Apache-licensed audio tag decoding library written in pure
 go. Designed to mirror the structure of
@@ -7,14 +7,14 @@ go. Designed to mirror the structure of
 
 ## tl;dr
 ```
-go get github.com/hjfreyer/gotaglib
+go get github.com/hjfreyer/taglib-go/taglib
 ```
 ```
-import "github.com/hjfreyer/gotaglib"
+import "github.com/hjfreyer/taglib-go/taglib"
 ...
 func main() {
     f, err := os.Open("song.mp3")
-    tag, err := gotaglib.Decode(f)
+    tag, err := taglib.Decode(f)
     fmt.Print(tag.Title())
 }
 ```
@@ -35,6 +35,9 @@ ones I found violate at least one of the goals above.
 ## Why don't you support… ?
 Probably no reason other than it hasn't happened yet. If you need a
 particular format, or an additional feature, or you've found a file
-which gotaglib *should* parse but doesn't, please create an
-[issue](https://github.com/hjfreyer/gotaglib/issues), or better yet,
+which taglib-go *should* parse but doesn't, please create an
+[issue](https://github.com/hjfreyer/taglib-go/issues), or better yet,
 send a patch.
+
+NOTE: Though the copyright for this code is owned by Google, Google
+does not endorse its use.

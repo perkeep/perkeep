@@ -16,6 +16,7 @@ package id3
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -64,6 +65,13 @@ func getTextIdentificationFrame(content []byte) ([]string, error) {
 //
 // Refer to section 4 of http://id3.org/id3v2.4.0-structure
 func parseText(strBytes []byte) (string, error) {
+	if len(strBytes) == 0 {
+		return "", errors.New("empty id3 frame")
+	}
+	if len(strBytes) < 2 {
+		// Not an error according to the spec (because at least 1 byte big)
+		return "", nil
+	}
 	encoding, strBytes := strBytes[0], strBytes[1:]
 
 	switch encoding {

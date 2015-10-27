@@ -262,7 +262,12 @@ func parseId3v24ExtendedHeader(br *bufio.Reader) (result Id3v24ExtendedHeader, e
 
 func hasId3v24Frame(br *bufio.Reader) (bool, error) {
 	data, err := br.Peek(4)
-	if err != nil {
+	if err == io.EOF {
+		// If there are fewer than 4 bytes remaining, assume that they're
+		// padding after the final frame (see section 3.3 of
+		// http://id3.org/id3v2.4.0-structure).
+		return false, nil
+	} else if err != nil {
 		return false, err
 	}
 
