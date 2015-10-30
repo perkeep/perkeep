@@ -655,12 +655,13 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 				"metaIndex":  blobPackedIndex,
 			})
 		} else if b.high.PackBlobs {
+			diskpackedIndex, err := b.sortedStorageAt("diskpacked_index", filepath.Join(b.high.BlobPath, "diskpacked-index"))
+			if err != nil {
+				return err
+			}
 			b.addPrefix("/bs/", "storage-"+storageType, args{
-				"path": b.high.BlobPath,
-				"metaIndex": map[string]interface{}{
-					"type": b.kvFileType(),
-					"file": filepath.Join(b.high.BlobPath, "index."+b.kvFileType()),
-				},
+				"path":      b.high.BlobPath,
+				"metaIndex": diskpackedIndex,
 			})
 		} else {
 			b.addPrefix("/bs/", "storage-"+storageType, args{
