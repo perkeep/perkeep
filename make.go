@@ -50,7 +50,7 @@ var haveSQLite = checkHaveSQLite()
 
 var (
 	embedResources = flag.Bool("embed_static", true, "Whether to embed resources needed by the UI such as images, css, and javascript.")
-	sqlFlag        = flag.String("sqlite", "auto", "Whether you want SQLite in your build: true, false, or auto.")
+	sqlFlag        = flag.String("sqlite", "false", "Whether you want SQLite in your build: true, false, or auto.")
 	all            = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
 	race           = flag.Bool("race", false, "Build race-detector version of binaries (they will run slowly)")
 	verbose        = flag.Bool("v", strings.Contains(os.Getenv("CAMLI_DEBUG_X"), "makego"), "Verbose mode")
