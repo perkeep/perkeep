@@ -35,6 +35,7 @@ import (
 	txttemplate "text/template"
 	"time"
 
+	"camlistore.org/pkg/cloudlaunch"
 	"camlistore.org/pkg/deploy/gce"
 	"camlistore.org/pkg/netutil"
 	"camlistore.org/pkg/types/camtypes"
@@ -380,7 +381,14 @@ func gceDeployHandler(prefix string) http.Handler {
 	return gceh
 }
 
+var launchConfig = &cloudlaunch.Config{
+	Name:         "camweb",
+	BinaryURL:    "https://storage.googleapis.com/camlistore-website-resource/camweb",
+	GCEProjectID: "camlistore-website",
+}
+
 func main() {
+	launchConfig.MaybeDeploy()
 	flag.Parse()
 
 	if *root == "" {
