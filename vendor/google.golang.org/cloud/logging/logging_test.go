@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"golang.org/x/net/context"
+	"golang.org/x/oauth2"
 
 	"google.golang.org/cloud"
 )
@@ -253,7 +254,10 @@ func newLogTest(t *testing.T) *logTest {
 			io.WriteString(w, "unexpected HTTP request")
 		}
 	}))
-	c, err := NewClient(context.Background(), "PROJ-ID", "LOG-NAME", cloud.WithEndpoint(ts.URL))
+	c, err := NewClient(context.Background(), "PROJ-ID", "LOG-NAME",
+		cloud.WithEndpoint(ts.URL),
+		cloud.WithTokenSource(dummyTokenSource{}), // prevent DefaultTokenSource
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -305,4 +309,11 @@ func (lt *logTest) getRequest() string {
 		lt.t.Fatalf("timeout waiting for request")
 		panic("unreachable")
 	}
+}
+
+// dummyTokenSource returns fake oauth2 tokens for local testing.
+type dummyTokenSource struct{}
+
+func (dummyTokenSource) Token() (*oauth2.Token, error) {
+	return new(oauth2.Token), nil
 }
