@@ -17,7 +17,9 @@ limitations under the License.
 package main
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"flag"
 	"fmt"
 	"html/template"
@@ -39,12 +41,10 @@ import (
 	"camlistore.org/pkg/deploy/gce"
 	"camlistore.org/pkg/netutil"
 	"camlistore.org/pkg/types/camtypes"
-
 	"camlistore.org/third_party/github.com/russross/blackfriday"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-
 	"google.golang.org/cloud"
 	"google.golang.org/cloud/compute/metadata"
 	"google.golang.org/cloud/logging"
@@ -75,7 +75,7 @@ var (
 )
 
 var fmap = template.FuncMap{
-	"":        textFmt,
+	//	"":        textFmt,  // Used to work in Go 1.5
 	"html":    htmlFmt,
 	"htmlesc": htmlEscFmt,
 }
@@ -392,7 +392,7 @@ func inProduction() bool {
 		return false
 	}
 	proj, _ := metadata.ProjectID()
-	inst, _ := metadata.InstanceID()
+	inst, _ := metadata.InstanceName()
 	log.Printf("Running on GCE: %v / %v", proj, inst)
 	return proj == "camlistore-website" && inst == "camweb"
 }
@@ -402,10 +402,10 @@ func setProdFlags() {
 		return
 	}
 	*httpAddr = ":80"
-	*httpsAddr = ":443"
+	*httpsAddr = "" // TODO: ":443"
 	*gceLogName = "camweb-access-log"
-	tmpdir, err := ioutil.TempDir("", "camweb_root")
-	if err != nil {
+	*root = "/var/camweb/root"
+	if err := os.MkdirAll(*root, 0755); err != nil {
 		log.Fatal(err)
 	}
 	res, err := http.Get("https://storage.googleapis.com/camlistore-website-resource/website-root.tar.gz")
@@ -413,8 +413,9 @@ func setProdFlags() {
 		log.Fatal(err)
 	}
 	defer res.Body.Close()
-	_ = tmpdir
-	// TODO: untar
+	if err := untar(res.Body, *root); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func main() {
@@ -641,4 +642,78 @@ func errHandler(w http.ResponseWriter, r *http.Request) {
 	contents := applyTemplate(camliErrorHTML, "camliErrorHTML", data)
 	w.WriteHeader(http.StatusFound)
 	servePage(w, errString, "", contents)
+}
+
+// untar reads the gzip-compressed tar file from r and writes it into dir.
+func untar(r io.Reader, dir string) error {
+	zr, err := gzip.NewReader(r)
+	if err != nil {
+		return fmt.Errorf("requires gzip-compressed body: %v", err)
+	}
+	tr := tar.NewReader(zr)
+	for {
+		f, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Printf("tar reading error: %v", err)
+			return fmt.Errorf("tar error: %v", err)
+		}
+		if !validRelPath(f.Name) {
+			return fmt.Errorf("tar file contained invalid name %q", f.Name)
+		}
+		rel := filepath.FromSlash(f.Name)
+		abs := filepath.Join(dir, rel)
+
+		fi := f.FileInfo()
+		mode := fi.Mode()
+		switch {
+		case mode.IsRegular():
+			// Make the directory. This is redundant because it should
+			// already be made by a directory entry in the tar
+			// beforehand. Thus, don't check for errors; the next
+			// write will fail with the same error.
+			os.MkdirAll(filepath.Dir(abs), 0755)
+			wf, err := os.OpenFile(abs, os.O_RDWR|os.O_CREATE|os.O_TRUNC, mode.Perm())
+			if err != nil {
+				return err
+			}
+			n, err := io.Copy(wf, tr)
+			if closeErr := wf.Close(); closeErr != nil && err == nil {
+				err = closeErr
+			}
+			if err != nil {
+				return fmt.Errorf("error writing to %s: %v", abs, err)
+			}
+			if n != f.Size {
+				return fmt.Errorf("only wrote %d bytes to %s; expected %d", n, abs, f.Size)
+			}
+			log.Printf("wrote %s", abs)
+			if !f.ModTime.IsZero() {
+				if err := os.Chtimes(abs, f.ModTime, f.ModTime); err != nil {
+					// benign error. Gerrit doesn't even set the
+					// modtime in these, and we don't end up relying
+					// on it anywhere (the gomote push command relies
+					// on digests only), so this is a little pointless
+					// for now.
+					log.Printf("error changing modtime: %v", err)
+				}
+			}
+		case mode.IsDir():
+			if err := os.MkdirAll(abs, 0755); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("tar file entry %s contained unsupported file type %v", f.Name, mode)
+		}
+	}
+	return nil
+}
+
+func validRelPath(p string) bool {
+	if p == "" || strings.Contains(p, `\`) || strings.HasPrefix(p, "/") || strings.Contains(p, "../") {
+		return false
+	}
+	return true
 }
