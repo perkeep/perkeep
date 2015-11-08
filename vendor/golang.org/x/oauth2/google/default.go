@@ -1,4 +1,4 @@
-// Copyright 2015 The oauth2 Authors. All rights reserved.
+// Copyright 2015 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -28,7 +28,7 @@ import (
 // and use "Application Default Credentials."
 //
 // For more details, see:
-// https://developers.google.com/accounts/application-default-credentials
+// https://developers.google.com/accounts/docs/application-default-credentials
 //
 func DefaultClient(ctx context.Context, scope ...string) (*http.Client, error) {
 	ts, err := DefaultTokenSource(ctx, scope...)
@@ -50,11 +50,12 @@ func DefaultClient(ctx context.Context, scope ...string) (*http.Client, error) {
 //      On Windows, this is %APPDATA%/gcloud/application_default_credentials.json.
 //      On other systems, $HOME/.config/gcloud/application_default_credentials.json.
 //   3. On Google App Engine it uses the appengine.AccessToken function.
-//   4. On Google Compute Engine, it fetches credentials from the metadata server.
+//   4. On Google Compute Engine and Google App Engine Managed VMs, it fetches
+//      credentials from the metadata server.
 //      (In this final case any provided scopes are ignored.)
 //
 // For more details, see:
-// https://developers.google.com/accounts/application-default-credentials
+// https://developers.google.com/accounts/docs/application-default-credentials
 //
 func DefaultTokenSource(ctx context.Context, scope ...string) (oauth2.TokenSource, error) {
 	// First, try the environment variable.
@@ -84,7 +85,7 @@ func DefaultTokenSource(ctx context.Context, scope ...string) (oauth2.TokenSourc
 	}
 
 	// Third, if we're on Google App Engine use those credentials.
-	if appengineTokenFunc != nil {
+	if appengineTokenFunc != nil && !appengineVM {
 		return AppEngineTokenSource(ctx, scope...), nil
 	}
 
@@ -94,7 +95,7 @@ func DefaultTokenSource(ctx context.Context, scope ...string) (oauth2.TokenSourc
 	}
 
 	// None are found; return helpful error.
-	const url = "https://developers.google.com/accounts/application-default-credentials"
+	const url = "https://developers.google.com/accounts/docs/application-default-credentials"
 	return nil, fmt.Errorf("google: could not find default credentials. See %v for more information.", url)
 }
 
