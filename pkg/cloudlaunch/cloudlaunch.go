@@ -20,6 +20,7 @@ package cloudlaunch
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"io"
 	"io/ioutil"
@@ -219,11 +220,9 @@ func getSelfPath() string {
 }
 
 func (cl *cloudLaunch) createInstance() {
-
 	inst := cl.lookupInstance()
 	if inst != nil {
-		ij, _ := json.MarshalIndent(inst, "", "    ")
-		log.Printf("Existing instance: %s", ij)
+		log.Printf("Instance exists; not re-creating.")
 		return
 	}
 
@@ -334,8 +333,8 @@ OpLoop:
 		log.Fatalf("Error getting instance after creation: %v", err)
 	}
 	ij, _ := json.MarshalIndent(inst, "", "    ")
-	log.Printf("Instance: %s", ij)
-
+	log.Printf("%s", ij)
+	log.Printf("Instance created.")
 	os.Exit(0)
 }
 
@@ -351,7 +350,10 @@ func (cl *cloudLaunch) lookupInstance() *compute.Instance {
 }
 
 func (cl *cloudLaunch) instanceDisk() *compute.AttachedDisk {
-	const imageURL = "https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-stable-723-3-0-v20150804"
+	imageURL, err := latestStableCoreOSImage(cl.oauthClient)
+	if err != nil {
+		log.Fatalf("error looking up latest CoreOS stable image: %v", err)
+	}
 	diskName := cl.instName() + "-coreos-stateless-pd"
 	var diskType string
 	if cl.SSD {
@@ -368,4 +370,45 @@ func (cl *cloudLaunch) instanceDisk() *compute.AttachedDisk {
 			DiskType:    diskType,
 		},
 	}
+}
+
+type coreOSImage struct {
+	SelfLink          string
+	CreationTimestamp time.Time
+	Name              string
+}
+
+type coreOSImageList struct {
+	Items []coreOSImage
+}
+
+func latestStableCoreOSImage(cl *http.Client) (string, error) {
+	resp, err := cl.Get("https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	imageList := &coreOSImageList{}
+	if err := json.NewDecoder(resp.Body).Decode(imageList); err != nil {
+		return "", err
+	}
+	if imageList == nil || len(imageList.Items) == 0 {
+		return "", errors.New("no images list in response")
+	}
+
+	imageURL := ""
+	var max time.Time // latest stable image creation time
+	for _, v := range imageList.Items {
+		if !strings.HasPrefix(v.Name, "coreos-stable") {
+			continue
+		}
+		if v.CreationTimestamp.After(max) {
+			max = v.CreationTimestamp
+			imageURL = v.SelfLink
+		}
+	}
+	if imageURL == "" {
+		return "", errors.New("no stable coreOS image found")
+	}
+	return imageURL, nil
 }
