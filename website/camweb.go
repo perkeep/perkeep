@@ -387,9 +387,40 @@ var launchConfig = &cloudlaunch.Config{
 	GCEProjectID: "camlistore-website",
 }
 
+func inProduction() bool {
+	if !metadata.OnGCE() {
+		return false
+	}
+	proj, _ := metadata.ProjectID()
+	inst, _ := metadata.InstanceID()
+	log.Printf("Running on GCE: %v / %v", proj, inst)
+	return proj == "camlistore-website" && inst == "camweb"
+}
+
+func setProdFlags() {
+	if !inProduction() {
+		return
+	}
+	*httpAddr = ":80"
+	*httpsAddr = ":443"
+	*gceLogName = "camweb-access-log"
+	tmpdir, err := ioutil.TempDir("", "camweb_root")
+	if err != nil {
+		log.Fatal(err)
+	}
+	res, err := http.Get("https://storage.googleapis.com/camlistore-website-resource/website-root.tar.gz")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer res.Body.Close()
+	_ = tmpdir
+	// TODO: untar
+}
+
 func main() {
 	launchConfig.MaybeDeploy()
 	flag.Parse()
+	setProdFlags()
 
 	if *root == "" {
 		var err error
