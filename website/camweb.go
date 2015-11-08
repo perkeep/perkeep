@@ -383,7 +383,7 @@ func gceDeployHandler(prefix string) http.Handler {
 
 var launchConfig = &cloudlaunch.Config{
 	Name:         "camweb",
-	BinaryURL:    "https://storage.googleapis.com/camlistore-website-resource/camweb",
+	BinaryBucket: "camlistore-website-resource",
 	GCEProjectID: "camlistore-website",
 }
 

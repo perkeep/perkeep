@@ -19,18 +19,25 @@ limitations under the License.
 package cloudlaunch
 
 import (
+	"encoding/json"
 	"flag"
+	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/api/googleapi"
 	storageapi "google.golang.org/api/storage/v1"
+	"google.golang.org/cloud"
+	"google.golang.org/cloud/storage"
 )
 
 func readFile(v string) string {
@@ -72,13 +79,16 @@ type Config struct {
 	// and the name of the GCE instance.
 	Name string
 
-	// BinaryURL is the URL of the Linux binary to download on
-	// boot and occasionally run. This binary must be public (at
-	// least for now).
-	BinaryURL string
+	// BinaryBucket and BinaryObject are the GCS bucket and object
+	// within that bucket containing the Linux binary to download
+	// on boot and occasionally run. This binary must be public
+	// (at least for now).
+	BinaryBucket string
+	BinaryObject string // defaults to Name
 
 	GCEProjectID string
 	Zone         string // defaults to us-central1-f
+	SSD          bool
 
 	Scopes []string // any additional scopes
 
@@ -86,8 +96,28 @@ type Config struct {
 	InstanceName string
 }
 
-func (c *Config) zone() string        { return strDefault(c.Zone, "us-central1-f") }
-func (c *Config) machineType() string { return strDefault(c.MachineType, "g1-small") }
+// cloudLaunch is a launch of a Config.
+type cloudLaunch struct {
+	*Config
+	oauthClient    *http.Client
+	computeService *compute.Service
+}
+
+func (c *Config) binaryURL() string {
+	return "https://storage.googleapis.com/" + c.BinaryBucket + "/" + c.binaryObject()
+}
+
+func (c *Config) instName() string     { return c.Name } // for now
+func (c *Config) zone() string         { return strDefault(c.Zone, "us-central1-f") }
+func (c *Config) machineType() string  { return strDefault(c.MachineType, "g1-small") }
+func (c *Config) binaryObject() string { return strDefault(c.BinaryObject, c.Name) }
+
+func (c *Config) projectAPIURL() string {
+	return "https://www.googleapis.com/compute/v1/projects/" + c.GCEProjectID
+}
+func (c *Config) machineTypeURL() string {
+	return c.projectAPIURL() + "/zones/" + c.zone() + "/machineTypes/" + c.machineType()
+}
 
 func strDefault(a, b string) string {
 	if a != "" {
@@ -116,73 +146,131 @@ func (c *Config) MaybeDeploy() {
 	}
 	filename := filepath.Join(os.Getenv("HOME"), "keys", c.GCEProjectID+".key.json")
 	log.Printf("Using OAuth config from JSON service file: %s", filename)
-	oauthConfig, err := google.ConfigFromJSON([]byte(readFile(filename)), append([]string{
+	jwtConf, err := google.JWTConfigFromJSON([]byte(readFile(filename)), append([]string{
 		storageapi.DevstorageFullControlScope,
 		compute.ComputeScope,
 		"https://www.googleapis.com/auth/cloud-platform",
 	}, c.Scopes...)...)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("ConfigFromJSON: %v", err)
 	}
-	prefix := "https://www.googleapis.com/compute/v1/projects/" + c.GCEProjectID
-	machType := prefix + "/zones/" + c.zone() + "/machineTypes/" + c.machineType()
-	_ = machType
 
-	oauthClient := oauthConfig.Client(oauth2.NoContext, nil)
-	computeService, _ := compute.New(oauthClient)
-
-	// Try to find it by name.
-	aggAddrList, err := computeService.Addresses.AggregatedList(c.GCEProjectID).Do()
-	if err != nil {
-		log.Fatal(err)
+	cl := &cloudLaunch{
+		Config:      c,
+		oauthClient: jwtConf.Client(oauth2.NoContext),
 	}
-	// https://godoc.org/google.golang.org/api/compute/v1#AddressAggregatedList
-	log.Printf("Addr list: %v", aggAddrList.Items)
-	var ip string
-IPLoop:
-	for _, asl := range aggAddrList.Items {
-		for _, addr := range asl.Addresses {
-			log.Printf("  addr: %#v", addr)
-			if addr.Name == c.Name+"-ip" && addr.Status == "RESERVED" {
-				ip = addr.Address
-				break IPLoop
-			}
-		}
-	}
-	log.Printf("Found IP: %v", ip)
+	cl.computeService, _ = compute.New(cl.oauthClient)
 
-	// TODO: copy binary to GCE
-
+	cl.uploadBinary()
+	cl.createInstance()
 	os.Exit(0)
 }
 
-/*
-	cloudConfig := strings.Replace(baseConfig, "$COORDINATOR", *coordinator, 1)
-	if *sshPub != "" {
-		key := strings.TrimSpace(readFile(*sshPub))
-		cloudConfig += fmt.Sprintf("\nssh_authorized_keys:\n    - %s\n", key)
+// uploadBinary uploads the currently-running Linux binary.
+// It crashes if it fails.
+func (cl *cloudLaunch) uploadBinary() {
+	ctx := cloud.NewContext(cl.GCEProjectID, cl.oauthClient)
+	if cl.BinaryBucket == "" {
+		log.Fatal("cloudlaunch: Config.BinaryBucket is empty")
 	}
-	if os.Getenv("USER") == "bradfitz" {
-		cloudConfig += fmt.Sprintf("\nssh_authorized_keys:\n    - %s\n", "ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAIEAwks9dwWKlRC+73gRbvYtVg0vdCwDSuIlyt4z6xa/YU/jTDynM4R4W10hm2tPjy8iR1k8XhDv4/qdxe6m07NjG/By1tkmGpm1mGwho4Pr5kbAAy/Qg+NLCSdAYnnE00FQEcFOC15GFVMOW2AzDGKisReohwH9eIzHPzdYQNPRWXE= bradfitz@papag.bradfitz.com")
+	w := storage.NewWriter(ctx, cl.BinaryBucket, cl.binaryObject())
+	w.ACL = []storage.ACLRule{
+		// If you don't give the owners access, the web UI seems to
+		// have a bug and doesn't have access to see that it's public, so
+		// won't render the "Shared Publicly" link. So we do that, even
+		// though it's dumb and unnecessary otherwise:
+		{
+			Entity: storage.ACLEntity("project-owners-" + cl.GCEProjectID),
+			Role:   storage.RoleOwner,
+		},
+		// Public, so our systemd unit can get it easily:
+		{
+			Entity: storage.AllUsers,
+			Role:   storage.RoleReader,
+		},
 	}
-	const maxCloudConfig = 32 << 10 // per compute API docs
-	if len(cloudConfig) > maxCloudConfig {
-		log.Fatalf("cloud config length of %d bytes is over %d byte limit", len(cloudConfig), maxCloudConfig)
+	w.CacheControl = "no-cache"
+	selfPath := getSelfPath()
+	log.Printf("Uploading %q to %v", selfPath, cl.binaryURL())
+	f, err := os.Open(selfPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+	n, err := io.Copy(w, f)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("Uploaded %d bytes", n)
+}
+
+func getSelfPath() string {
+	if runtime.GOOS != "linux" {
+		panic("TODO")
+	}
+	v, err := os.Readlink("/proc/self/exe")
+	if err != nil {
+		log.Fatal(err)
+	}
+	return v
+}
+
+func (cl *cloudLaunch) createInstance() {
+
+	inst := cl.lookupInstance()
+	if inst != nil {
+		ij, _ := json.MarshalIndent(inst, "", "    ")
+		log.Printf("Existing instance: %s", ij)
+		return
 	}
 
+	log.Printf("Instance doesn't exist; creating...")
+
+	cloudConfig := strings.NewReplacer(
+		"$NAME", cl.Name,
+		"$URL", cl.binaryURL(),
+	).Replace(baseConfig)
+
+	/*
+	   	// Try to find it by name.
+	   	aggAddrList, err := computeService.Addresses.AggregatedList(c.GCEProjectID).Do()
+	   	if err != nil {
+	   		log.Fatal(err)
+	   	}
+	   	// https://godoc.org/google.golang.org/api/compute/v1#AddressAggregatedList
+	   	log.Printf("Addr list: %v", aggAddrList.Items)
+	   	var ip string
+	   IPLoop:
+	   	for _, asl := range aggAddrList.Items {
+	   		for _, addr := range asl.Addresses {
+	   			log.Printf("  addr: %#v", addr)
+	   			if addr.Name == c.Name+"-ip" && addr.Status == "RESERVED" {
+	   				ip = addr.Address
+	   				break IPLoop
+	   			}
+	   		}
+	   	}
+	   	log.Printf("Found IP: %v", ip)
+	*/
+
+	natIP := ""
+
 	instance := &compute.Instance{
-		Name:        *instName,
-		Description: "Go Builder",
-		MachineType: machType,
-		Disks:       []*compute.AttachedDisk{instanceDisk(computeService)},
+		Name:        cl.instName(),
+		Description: cl.Name,
+		MachineType: cl.machineTypeURL(),
+		Disks:       []*compute.AttachedDisk{cl.instanceDisk()},
 		Tags: &compute.Tags{
-			Items: []string{"http-server", "https-server", "allow-ssh"},
+			Items: []string{"http-server", "https-server"},
 		},
 		Metadata: &compute.Metadata{
 			Items: []*compute.MetadataItems{
 				{
 					Key:   "user-data",
-					Value: googleapi.String(cloudConfig),
+					Value: cloudConfig, // when updated: googleapi.String(cloudConfig),
 				},
 			},
 		},
@@ -195,14 +283,14 @@ IPLoop:
 						NatIP: natIP,
 					},
 				},
-				Network: prefix + "/global/networks/default",
+				Network: cl.projectAPIURL() + "/global/networks/default",
 			},
 		},
 		ServiceAccounts: []*compute.ServiceAccount{
 			{
 				Email: "default",
 				Scopes: []string{
-					compute.DevstorageFullControlScope,
+					storageapi.DevstorageFullControlScope,
 					compute.ComputeScope,
 				},
 			},
@@ -210,7 +298,7 @@ IPLoop:
 	}
 
 	log.Printf("Creating instance...")
-	op, err := computeService.Instances.Insert(*proj, *zone, instance).Do()
+	op, err := cl.computeService.Instances.Insert(cl.GCEProjectID, cl.zone(), instance).Do()
 	if err != nil {
 		log.Fatalf("Failed to create instance: %v", err)
 	}
@@ -219,7 +307,7 @@ IPLoop:
 OpLoop:
 	for {
 		time.Sleep(2 * time.Second)
-		op, err := computeService.ZoneOperations.Get(*proj, *zone, opName).Do()
+		op, err := cl.computeService.ZoneOperations.Get(cl.GCEProjectID, cl.zone(), opName).Do()
 		if err != nil {
 			log.Fatalf("Failed to get op %s: %v", opName, err)
 		}
@@ -241,54 +329,36 @@ OpLoop:
 		}
 	}
 
-	inst, err := computeService.Instances.Get(*proj, *zone, *instName).Do()
+	inst, err = cl.computeService.Instances.Get(cl.GCEProjectID, cl.zone(), cl.instName()).Do()
 	if err != nil {
 		log.Fatalf("Error getting instance after creation: %v", err)
 	}
 	ij, _ := json.MarshalIndent(inst, "", "    ")
 	log.Printf("Instance: %s", ij)
+
+	os.Exit(0)
 }
 
-func instanceDisk(svc *compute.Service) *compute.AttachedDisk {
+// returns nil if instance doesn't exist.
+func (cl *cloudLaunch) lookupInstance() *compute.Instance {
+	inst, err := cl.computeService.Instances.Get(cl.GCEProjectID, cl.zone(), cl.instName()).Do()
+	if ae, ok := err.(*googleapi.Error); ok && ae.Code == 404 {
+		return nil
+	} else if err != nil {
+		log.Fatalf("Instances.Get: %v", err)
+	}
+	return inst
+}
+
+func (cl *cloudLaunch) instanceDisk() *compute.AttachedDisk {
 	const imageURL = "https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-stable-723-3-0-v20150804"
-	diskName := *instName + "-coreos-stateless-pd"
-
-	if *reuseDisk {
-		dl, err := svc.Disks.List(*proj, *zone).Do()
-		if err != nil {
-			log.Fatalf("Error listing disks: %v", err)
-		}
-		for _, disk := range dl.Items {
-			if disk.Name != diskName {
-				continue
-			}
-			return &compute.AttachedDisk{
-				AutoDelete: false,
-				Boot:       true,
-				DeviceName: diskName,
-				Type:       "PERSISTENT",
-				Source:     disk.SelfLink,
-				Mode:       "READ_WRITE",
-
-				// The GCP web UI's "Show REST API" link includes a
-				// "zone" parameter, but it's not in the API
-				// description. But it wants this form (disk.Zone, a
-				// full zone URL, not *zone):
-				// Zone: disk.Zone,
-				// ... but it seems to work without it.  Keep this
-				// comment here until I file a bug with the GCP
-				// people.
-			}
-		}
+	diskName := cl.instName() + "-coreos-stateless-pd"
+	var diskType string
+	if cl.SSD {
+		diskType = cl.projectAPIURL() + "/zones/" + cl.zone() + "/diskTypes/pd-ssd"
 	}
-
-	diskType := ""
-	if *ssd {
-		diskType = "https://www.googleapis.com/compute/v1/projects/" + *proj + "/zones/" + *zone + "/diskTypes/pd-ssd"
-	}
-
 	return &compute.AttachedDisk{
-		AutoDelete: !*reuseDisk,
+		AutoDelete: true,
 		Boot:       true,
 		Type:       "PERSISTENT",
 		InitializeParams: &compute.AttachedDiskInitializeParams{
@@ -299,4 +369,3 @@ func instanceDisk(svc *compute.Service) *compute.AttachedDisk {
 		},
 	}
 }
-*/
