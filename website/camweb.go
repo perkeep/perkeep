@@ -20,12 +20,14 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"html/template"
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -39,6 +41,7 @@ import (
 
 	"camlistore.org/pkg/cloudlaunch"
 	"camlistore.org/pkg/deploy/gce"
+	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/netutil"
 	"camlistore.org/pkg/types/camtypes"
 	"camlistore.org/third_party/github.com/russross/blackfriday"
@@ -402,7 +405,7 @@ func setProdFlags() {
 		return
 	}
 	*httpAddr = ":80"
-	*httpsAddr = "" // TODO: ":443"
+	*httpsAddr = ":443"
 	*gceLogName = "camweb-access-log"
 	*root = "/var/camweb/root"
 	if err := os.MkdirAll(*root, 0755); err != nil {
@@ -529,16 +532,82 @@ func main() {
 	}()
 
 	if *httpsAddr != "" {
-		log.Printf("Starting TLS server on %s", *httpsAddr)
-		httpsServer := new(http.Server)
-		*httpsServer = *httpServer
-		httpsServer.Addr = *httpsAddr
 		go func() {
-			errc <- httpsServer.ListenAndServeTLS(*tlsCertFile, *tlsKeyFile)
+			errc <- serveHTTPS(httpServer)
 		}()
 	}
 
 	log.Fatalf("Serve error: %v", <-errc)
+
+}
+
+func serveHTTPS(httpServer *http.Server) error {
+	log.Printf("Starting TLS server on %s", *httpsAddr)
+	httpsServer := new(http.Server)
+	*httpsServer = *httpServer
+	httpsServer.Addr = *httpsAddr
+	if !inProduction() {
+		return httpsServer.ListenAndServeTLS(*tlsCertFile, *tlsKeyFile)
+	}
+
+	cert, err := tlsCertFromGCS()
+	if err != nil {
+		return err
+	}
+	httpsServer.TLSConfig = &tls.Config{
+		Certificates: []tls.Certificate{*cert},
+	}
+	ln, err := net.Listen("tcp", *httpsAddr)
+	if err != nil {
+		return err
+	}
+	return httpsServer.Serve(tls.NewListener(tcpKeepAliveListener{ln.(*net.TCPListener)}, httpsServer.TLSConfig))
+}
+
+type tcpKeepAliveListener struct {
+	*net.TCPListener
+}
+
+func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
+	tc, err := ln.AcceptTCP()
+	if err != nil {
+		return
+	}
+	tc.SetKeepAlive(true)
+	tc.SetKeepAlivePeriod(3 * time.Minute)
+	return tc, nil
+}
+
+func tlsCertFromGCS() (*tls.Certificate, error) {
+	c, err := googlestorage.NewServiceClient()
+	if err != nil {
+		return nil, err
+	}
+	slurp := func(key string) ([]byte, error) {
+		const bucket = "camlistore-website-resource"
+		rc, _, err := c.GetObject(&googlestorage.Object{
+			Bucket: bucket,
+			Key:    key,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("Error fetching GCS object %q in bucket %q: %v", key, bucket, err)
+		}
+		defer rc.Close()
+		return ioutil.ReadAll(rc)
+	}
+	certPem, err := slurp("ssl.crt")
+	if err != nil {
+		return nil, err
+	}
+	keyPem, err := slurp("ssl.key")
+	if err != nil {
+		return nil, err
+	}
+	cert, err := tls.X509KeyPair(certPem, keyPem)
+	if err != nil {
+		return nil, err
+	}
+	return &cert, nil
 }
 
 var issueNum = regexp.MustCompile(`^/(?:issue|bug)s?(/\d*)?$`)
