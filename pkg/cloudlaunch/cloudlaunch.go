@@ -287,11 +287,8 @@ func (cl *cloudLaunch) createInstance() {
 		},
 		ServiceAccounts: []*compute.ServiceAccount{
 			{
-				Email: "default",
-				Scopes: []string{
-					storageapi.DevstorageFullControlScope,
-					compute.ComputeScope,
-				},
+				Email:  "default",
+				Scopes: cl.Scopes,
 			},
 		},
 	}

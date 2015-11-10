@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
+
+	"camlistore.org/pkg/osutil"
 )
 
 var urlsMap = map[string]author{
@@ -69,6 +72,33 @@ func parseLine(l string) (name, email string, commits int, err error) {
 	return
 }
 
+func gitShortlog() *exec.Cmd {
+	if !*gitContainer {
+		return exec.Command("/bin/bash", "-c", "git log | git shortlog -sen")
+	}
+	args := []string{"run"}
+	if inProduction() {
+		args = append(args,
+			"-v", "/var/camweb:/var/camweb",
+			"--workdir="+prodSrcDir,
+		)
+	} else {
+		hostRoot, err := osutil.GoPackagePath("camlistore.org")
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("Using bind root of %q", hostRoot)
+		args = append(args,
+			"-v", hostRoot+":"+prodSrcDir,
+			"--workdir="+prodSrcDir,
+		)
+	}
+	args = append(args, "camlistore/git", "/bin/bash", "-c", "git log | git shortlog -sen")
+	cmd := exec.Command("docker", args...)
+	cmd.Stderr = os.Stderr
+	return cmd
+}
+
 func genContribPage() ([]byte, error) {
 	contribHTML := readTemplate("contrib.html")
 
@@ -79,18 +109,7 @@ func genContribPage() ([]byte, error) {
 	byEmail := make(map[string]*author)
 	authorMap := make(map[*author]bool)
 
-	gitlog := exec.Command("git", "log")
-	gitlogOut, err := gitlog.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-	err = gitlog.Start()
-	if err != nil {
-		return nil, fmt.Errorf("couldn't run git log: %v", err)
-	}
-
-	shortlog := exec.Command("git", "shortlog", "-sen")
-	shortlog.Stdin = gitlogOut
+	shortlog := gitShortlog()
 	shortlogOut, err := shortlog.StdoutPipe()
 	if err != nil {
 		return nil, err
@@ -128,14 +147,9 @@ func genContribPage() ([]byte, error) {
 	if scn.Err() != nil {
 		return nil, scn.Err()
 	}
-
 	err = shortlog.Wait()
 	if err != nil {
 		return nil, fmt.Errorf("git shortlog failed: %v", err)
-	}
-	err = gitlog.Wait()
-	if err != nil {
-		return nil, fmt.Errorf("git log failed: %v", err)
 	}
 
 	// Add URLs and roles

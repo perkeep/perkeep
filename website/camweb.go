@@ -17,9 +17,7 @@ limitations under the License.
 package main
 
 import (
-	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"crypto/tls"
 	"flag"
 	"fmt"
@@ -48,6 +46,8 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/compute/v1"
+	storageapi "google.golang.org/api/storage/v1"
 	"google.golang.org/cloud"
 	"google.golang.org/cloud/compute/metadata"
 	"google.golang.org/cloud/logging"
@@ -72,6 +72,7 @@ var (
 	gceProjectID = flag.String("gce_project_id", "", "GCE project ID; required if not running on GCE and gce_log_name is specified.")
 	gceLogName   = flag.String("gce_log_name", "", "GCE Cloud Logging log name; if non-empty, logs go to Cloud Logging instead of Apache-style local disk log files")
 	gceJWTFile   = flag.String("gce_jwt_file", "", "If non-empty, a filename to the GCE Service Account's JWT (JSON) config file.")
+	gitContainer = flag.Bool("git_container", false, "Use git in the camlistore/git Docker container.")
 
 	pageHTML, errorHTML, camliErrorHTML *template.Template
 	packageHTML                         *txttemplate.Template
@@ -388,6 +389,11 @@ var launchConfig = &cloudlaunch.Config{
 	Name:         "camweb",
 	BinaryBucket: "camlistore-website-resource",
 	GCEProjectID: "camlistore-website",
+	Scopes: []string{
+		storageapi.DevstorageFullControlScope,
+		compute.ComputeScope,
+		logging.Scope,
+	},
 }
 
 func inProduction() bool {
@@ -400,23 +406,45 @@ func inProduction() bool {
 	return proj == "camlistore-website" && inst == "camweb"
 }
 
+const prodSrcDir = "/var/camweb/camsrc"
+
 func setProdFlags() {
 	if !inProduction() {
 		return
 	}
+	log.Printf("Running in production; configuring prod flags & containers")
 	*httpAddr = ":80"
 	*httpsAddr = ":443"
 	*gceLogName = "camweb-access-log"
-	*root = "/var/camweb/root"
-	if err := os.MkdirAll(*root, 0755); err != nil {
+	*root = filepath.Join(prodSrcDir, "website")
+	*emailsTo = "" // TODO: renable emails on new commits
+	*gitContainer = true
+	os.RemoveAll(prodSrcDir)
+	if err := os.MkdirAll(prodSrcDir, 0755); err != nil {
 		log.Fatal(err)
 	}
-	res, err := http.Get("https://storage.googleapis.com/camlistore-website-resource/website-root.tar.gz")
+	getDockerImage("camlistore/git", "docker-git.tar.gz")
+	out, err := exec.Command("docker", "run",
+		"-v", "/var/camweb:/var/camweb",
+		"camlistore/git",
+		"git",
+		"clone",
+		"https://camlistore.googlesource.com/camlistore",
+		prodSrcDir).CombinedOutput()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("git clone: %v, %s", err, out)
 	}
-	defer res.Body.Close()
-	if err := untar(res.Body, *root); err != nil {
+	os.Chdir(*root)
+}
+
+func getDockerImage(tag, file string) {
+	have, err := exec.Command("docker", "inspect", tag).Output()
+	if err == nil && len(have) > 0 {
+		return // we have it.
+	}
+	url := "https://storage.googleapis.com/camlistore-website-resource/" + file
+	err = exec.Command("/bin/bash", "-c", "curl --silent "+url+" | docker load").Run()
+	if err != nil {
 		log.Fatal(err)
 	}
 }
@@ -711,78 +739,4 @@ func errHandler(w http.ResponseWriter, r *http.Request) {
 	contents := applyTemplate(camliErrorHTML, "camliErrorHTML", data)
 	w.WriteHeader(http.StatusFound)
 	servePage(w, errString, "", contents)
-}
-
-// untar reads the gzip-compressed tar file from r and writes it into dir.
-func untar(r io.Reader, dir string) error {
-	zr, err := gzip.NewReader(r)
-	if err != nil {
-		return fmt.Errorf("requires gzip-compressed body: %v", err)
-	}
-	tr := tar.NewReader(zr)
-	for {
-		f, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Printf("tar reading error: %v", err)
-			return fmt.Errorf("tar error: %v", err)
-		}
-		if !validRelPath(f.Name) {
-			return fmt.Errorf("tar file contained invalid name %q", f.Name)
-		}
-		rel := filepath.FromSlash(f.Name)
-		abs := filepath.Join(dir, rel)
-
-		fi := f.FileInfo()
-		mode := fi.Mode()
-		switch {
-		case mode.IsRegular():
-			// Make the directory. This is redundant because it should
-			// already be made by a directory entry in the tar
-			// beforehand. Thus, don't check for errors; the next
-			// write will fail with the same error.
-			os.MkdirAll(filepath.Dir(abs), 0755)
-			wf, err := os.OpenFile(abs, os.O_RDWR|os.O_CREATE|os.O_TRUNC, mode.Perm())
-			if err != nil {
-				return err
-			}
-			n, err := io.Copy(wf, tr)
-			if closeErr := wf.Close(); closeErr != nil && err == nil {
-				err = closeErr
-			}
-			if err != nil {
-				return fmt.Errorf("error writing to %s: %v", abs, err)
-			}
-			if n != f.Size {
-				return fmt.Errorf("only wrote %d bytes to %s; expected %d", n, abs, f.Size)
-			}
-			log.Printf("wrote %s", abs)
-			if !f.ModTime.IsZero() {
-				if err := os.Chtimes(abs, f.ModTime, f.ModTime); err != nil {
-					// benign error. Gerrit doesn't even set the
-					// modtime in these, and we don't end up relying
-					// on it anywhere (the gomote push command relies
-					// on digests only), so this is a little pointless
-					// for now.
-					log.Printf("error changing modtime: %v", err)
-				}
-			}
-		case mode.IsDir():
-			if err := os.MkdirAll(abs, 0755); err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("tar file entry %s contained unsupported file type %v", f.Name, mode)
-		}
-	}
-	return nil
-}
-
-func validRelPath(p string) bool {
-	if p == "" || strings.Contains(p, `\`) || strings.HasPrefix(p, "/") || strings.Contains(p, "../") {
-		return false
-	}
-	return true
 }

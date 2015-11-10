@@ -1,0 +1,12 @@
+go get golang.org/x/build/cmd/upload
+docker save camlistore/git | gzip | upload --public  --project=camlistore-website camlistore-website-resource/docker-git.tar.gz
+
+
+# Didn't end up using this:
+$ gcloud config set account bradfitz@gmail.com
+$ gcloud auth login
+$ gcloud config set project camlistore-website
+$ docker tag camlistore/git us.gcr.io/camlistore-website/git
+$ gcloud docker push us.gcr.io/camlistore-website/git
+
+
