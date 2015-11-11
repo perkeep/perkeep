@@ -414,7 +414,7 @@ func checkInProduction() bool {
 	return proj == "camlistore-website" && inst == "camweb"
 }
 
-const prodSrcDir = "/var/camweb/camsrc"
+const prodSrcDir = "/var/camweb/src/camlistore.org"
 
 func setProdFlags() {
 	inProd = checkInProduction()
@@ -473,16 +473,16 @@ func runDemoBlobserverLoop() {
 	for {
 		cmd := exec.Command("docker", "run",
 			"--rm",
-			"-e", "CAMLI_ROOT=/var/camweb/camsrc/website/blobserver-example/root",
+			"-e", "CAMLI_ROOT="+prodSrcDir+"/website/blobserver-example/root",
 			"-e", "CAMLI_PASSWORD="+randHex(20),
-			"-v", camSrcDir()+":/var/camweb/camsrc",
+			"-v", camSrcDir()+":"+prodSrcDir,
 			"--net=host",
-			"--workdir=/var/camweb/camsrc",
+			"--workdir="+prodSrcDir,
 			"camlistore/demoblobserver",
 			"camlistored",
 			"--openbrowser=false",
 			"--listen=:3179",
-			"--configfile=/var/camweb/camsrc/website/blobserver-example/example-blobserver-config.json")
+			"--configfile="+prodSrcDir+"/website/blobserver-example/example-blobserver-config.json")
 		err := cmd.Run()
 		if err != nil {
 			log.Printf("Failed to run demo blob server: %v", err)
@@ -498,7 +498,7 @@ func sendStartingEmail() {
 	contentRev, err := exec.Command("docker", "run",
 		"--rm",
 		"-v", "/var/camweb:/var/camweb",
-		"-w", "/var/camweb/camsrc",
+		"-w", prodSrcDir,
 		"camlistore/git",
 		"/bin/bash", "-c",
 		"git show --pretty=format:'%ad-%h' --abbrev-commit --date=short | head -1").Output()
