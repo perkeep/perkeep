@@ -470,9 +470,16 @@ func runDemoBlobserverLoop() {
 	if _, err := exec.LookPath("docker"); err != nil {
 		return
 	}
+	const name = "demoblob3179"
+	if err := exec.Command("docker", "kill", name).Run(); err == nil {
+		// It was actually running.
+		exec.Command("docker", "rm", name).Run()
+		log.Printf("Killed, removed old %q container.", name)
+	}
 	for {
 		cmd := exec.Command("docker", "run",
 			"--rm",
+			"--name="+name,
 			"-e", "CAMLI_ROOT="+prodSrcDir+"/website/blobserver-example/root",
 			"-e", "CAMLI_PASSWORD="+randHex(20),
 			"-v", camSrcDir()+":"+prodSrcDir,

@@ -66,7 +66,7 @@ coreos:
         
         [Service]
         Type=simple
-        ExecStartPre=/bin/sh -c 'mkdir -p /opt/bin && /usr/bin/curl -f -o /opt/bin/$NAME $URL?$(date +%s) && chmod +x /opt/bin/$NAME'
+        ExecStartPre=/bin/sh -c 'mkdir -p /opt/bin && /usr/bin/curl --silent -f -o /opt/bin/$NAME $URL?$(date +%s) && chmod +x /opt/bin/$NAME'
         ExecStart=/opt/bin/$NAME
         RestartSec=10
         Restart=always
