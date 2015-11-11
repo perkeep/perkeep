@@ -22,11 +22,13 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -74,11 +76,25 @@ coreos:
         WantedBy=network-online.target
 `
 
+// RestartPolicy controls whether the binary automatically restarts.
+type RestartPolicy int
+
+const (
+	RestartOnUpdates RestartPolicy = iota
+	RestartNever
+	// TODO: more graceful restarts; make systemd own listening on network sockets,
+	// don't break connections.
+)
+
 type Config struct {
 	// Name is the name of a service to run.
 	// This is the name of the systemd service (without .service)
 	// and the name of the GCE instance.
 	Name string
+
+	// RestartPolicy controls whether the binary automatically restarts
+	// on updates. The zero value means automatic.
+	RestartPolicy RestartPolicy
 
 	// BinaryBucket and BinaryObject are the GCS bucket and object
 	// within that bucket containing the Linux binary to download
@@ -134,6 +150,7 @@ var (
 func (c *Config) MaybeDeploy() {
 	flag.Parse()
 	if !*doLaunch {
+		go c.restartLoop()
 		return
 	}
 	defer os.Exit(1) // backup, in case we return without Fatal or os.Exit later
@@ -165,6 +182,36 @@ func (c *Config) MaybeDeploy() {
 	cl.uploadBinary()
 	cl.createInstance()
 	os.Exit(0)
+}
+
+func (c *Config) restartLoop() {
+	if c.RestartPolicy == RestartNever {
+		return
+	}
+	url := "https://storage.googleapis.com/" + c.BinaryBucket + "/" + c.binaryObject()
+	var lastEtag string
+	for {
+		res, err := http.Head(url + "?" + fmt.Sprint(time.Now().Unix()))
+		if err != nil {
+			log.Printf("Warning: %v", err)
+			time.Sleep(15 * time.Second)
+			continue
+		}
+		etag := res.Header.Get("Etag")
+		if etag == "" {
+			log.Printf("Warning, no ETag in response: %v", res)
+			time.Sleep(15 * time.Second)
+			continue
+		}
+		if lastEtag != "" && etag != lastEtag {
+			log.Printf("Binary updated; restarting.")
+			// TODO: more graceful restart, letting systemd own the network connections.
+			// Then we can finish up requests here.
+			os.Exit(0)
+		}
+		lastEtag = etag
+		time.Sleep(15 * time.Second)
+	}
 }
 
 // uploadBinary uploads the currently-running Linux binary.
@@ -219,6 +266,46 @@ func getSelfPath() string {
 	return v
 }
 
+func zoneInRegion(zone, regionURL string) bool {
+	if zone == "" {
+		panic("empty zone")
+	}
+	if regionURL == "" {
+		panic("empty regionURL")
+	}
+	// zone is like "us-central1-f"
+	// regionURL is like "https://www.googleapis.com/compute/v1/projects/camlistore-website/regions/us-central1"
+	region := path.Base(regionURL) // "us-central1"
+	if region == "" {
+		panic("empty region")
+	}
+	return strings.HasPrefix(zone, region)
+}
+
+// findIP finds an IP address to use, or returns the empty string if none is found.
+// It tries to find a reserved one in the same region where the name of the reserved IP
+// is "NAME-ip" and the IP is not in use.
+func (cl *cloudLaunch) findIP() string {
+	// Try to find it by name.
+	aggAddrList, err := cl.computeService.Addresses.AggregatedList(cl.GCEProjectID).Do()
+	if err != nil {
+		log.Fatal(err)
+	}
+	// https://godoc.org/google.golang.org/api/compute/v1#AddressAggregatedList
+	var ip string
+IPLoop:
+	for _, asl := range aggAddrList.Items {
+		for _, addr := range asl.Addresses {
+			log.Printf("  addr: %#v", addr)
+			if addr.Name == cl.Name+"-ip" && addr.Status == "RESERVED" && zoneInRegion(cl.zone(), addr.Region) {
+				ip = addr.Address
+				break IPLoop
+			}
+		}
+	}
+	return ip
+}
+
 func (cl *cloudLaunch) createInstance() {
 	inst := cl.lookupInstance()
 	if inst != nil {
@@ -228,34 +315,13 @@ func (cl *cloudLaunch) createInstance() {
 
 	log.Printf("Instance doesn't exist; creating...")
 
+	ip := cl.findIP()
+	log.Printf("Found IP: %v", ip)
+
 	cloudConfig := strings.NewReplacer(
 		"$NAME", cl.Name,
 		"$URL", cl.binaryURL(),
 	).Replace(baseConfig)
-
-	/*
-	   	// Try to find it by name.
-	   	aggAddrList, err := computeService.Addresses.AggregatedList(c.GCEProjectID).Do()
-	   	if err != nil {
-	   		log.Fatal(err)
-	   	}
-	   	// https://godoc.org/google.golang.org/api/compute/v1#AddressAggregatedList
-	   	log.Printf("Addr list: %v", aggAddrList.Items)
-	   	var ip string
-	   IPLoop:
-	   	for _, asl := range aggAddrList.Items {
-	   		for _, addr := range asl.Addresses {
-	   			log.Printf("  addr: %#v", addr)
-	   			if addr.Name == c.Name+"-ip" && addr.Status == "RESERVED" {
-	   				ip = addr.Address
-	   				break IPLoop
-	   			}
-	   		}
-	   	}
-	   	log.Printf("Found IP: %v", ip)
-	*/
-
-	natIP := ""
 
 	instance := &compute.Instance{
 		Name:        cl.instName(),
@@ -279,7 +345,7 @@ func (cl *cloudLaunch) createInstance() {
 					&compute.AccessConfig{
 						Type:  "ONE_TO_ONE_NAT",
 						Name:  "External NAT",
-						NatIP: natIP,
+						NatIP: ip,
 					},
 				},
 				Network: cl.projectAPIURL() + "/global/networks/default",

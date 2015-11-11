@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/tls"
 	"flag"
 	"fmt"
@@ -28,11 +29,13 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/smtp"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	txttemplate "text/template"
 	"time"
@@ -41,6 +44,7 @@ import (
 	"camlistore.org/pkg/deploy/gce"
 	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/netutil"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/types/camtypes"
 	"camlistore.org/third_party/github.com/russross/blackfriday"
 	"golang.org/x/net/context"
@@ -73,6 +77,10 @@ var (
 	gceLogName   = flag.String("gce_log_name", "", "GCE Cloud Logging log name; if non-empty, logs go to Cloud Logging instead of Apache-style local disk log files")
 	gceJWTFile   = flag.String("gce_jwt_file", "", "If non-empty, a filename to the GCE Service Account's JWT (JSON) config file.")
 	gitContainer = flag.Bool("git_container", false, "Use git in the camlistore/git Docker container.")
+)
+
+var (
+	inProd bool
 
 	pageHTML, errorHTML, camliErrorHTML *template.Template
 	packageHTML                         *txttemplate.Template
@@ -396,7 +404,7 @@ var launchConfig = &cloudlaunch.Config{
 	},
 }
 
-func inProduction() bool {
+func checkInProduction() bool {
 	if !metadata.OnGCE() {
 		return false
 	}
@@ -409,7 +417,8 @@ func inProduction() bool {
 const prodSrcDir = "/var/camweb/camsrc"
 
 func setProdFlags() {
-	if !inProduction() {
+	inProd = checkInProduction()
+	if !inProd {
 		return
 	}
 	log.Printf("Running in production; configuring prod flags & containers")
@@ -417,24 +426,111 @@ func setProdFlags() {
 	*httpsAddr = ":443"
 	*gceLogName = "camweb-access-log"
 	*root = filepath.Join(prodSrcDir, "website")
-	*emailsTo = "" // TODO: renable emails on new commits
 	*gitContainer = true
+
+	*emailsTo = "camlistore-commits@googlegroups.com"
+	*smtpServer = "50.19.239.94:2500" // double firewall: rinetd allow + AWS
+
 	os.RemoveAll(prodSrcDir)
 	if err := os.MkdirAll(prodSrcDir, 0755); err != nil {
 		log.Fatal(err)
 	}
+	log.Printf("fetching git docker image...")
 	getDockerImage("camlistore/git", "docker-git.tar.gz")
+	getDockerImage("camlistore/demoblobserver", "docker-demoblobserver.tar.gz")
+
+	log.Printf("cloning camlistore git tree...")
 	out, err := exec.Command("docker", "run",
+		"--rm",
 		"-v", "/var/camweb:/var/camweb",
 		"camlistore/git",
 		"git",
 		"clone",
+		"--depth=1",
 		"https://camlistore.googlesource.com/camlistore",
 		prodSrcDir).CombinedOutput()
 	if err != nil {
 		log.Fatalf("git clone: %v, %s", err, out)
 	}
 	os.Chdir(*root)
+	log.Printf("Starting.")
+	sendStartingEmail()
+}
+
+func randHex(n int) string {
+	buf := make([]byte, n/2+1)
+	rand.Read(buf)
+	return fmt.Sprintf("%x", buf)[:n]
+}
+
+func runDemoBlobserverLoop() {
+	if runtime.GOOS != "linux" {
+		return
+	}
+	if _, err := exec.LookPath("docker"); err != nil {
+		return
+	}
+	for {
+		cmd := exec.Command("docker", "run",
+			"--rm",
+			"-e", "CAMLI_ROOT=/var/camweb/camsrc/website/blobserver-example/root",
+			"-e", "CAMLI_PASSWORD="+randHex(20),
+			"-v", camSrcDir()+":/var/camweb/camsrc",
+			"--net=host",
+			"--workdir=/var/camweb/camsrc",
+			"camlistore/demoblobserver",
+			"camlistored",
+			"--openbrowser=false",
+			"--listen=:3179",
+			"--configfile=/var/camweb/camsrc/website/blobserver-example/example-blobserver-config.json")
+		err := cmd.Run()
+		if err != nil {
+			log.Printf("Failed to run demo blob server: %v", err)
+		}
+		if !inProd {
+			return
+		}
+		time.Sleep(10 * time.Second)
+	}
+}
+
+func sendStartingEmail() {
+	contentRev, err := exec.Command("docker", "run",
+		"--rm",
+		"-v", "/var/camweb:/var/camweb",
+		"-w", "/var/camweb/camsrc",
+		"camlistore/git",
+		"/bin/bash", "-c",
+		"git show --pretty=format:'%ad-%h' --abbrev-commit --date=short | head -1").Output()
+
+	cl, err := smtp.Dial(*smtpServer)
+	if err != nil {
+		log.Printf("Failed to connect to SMTP server: %v", err)
+	}
+	defer cl.Quit()
+	if err = cl.Mail("noreply@camlistore.org"); err != nil {
+		return
+	}
+	if err = cl.Rcpt("brad@danga.com"); err != nil {
+		return
+	}
+	if err = cl.Rcpt("mathieu.lonjaret@gmail.com"); err != nil {
+		return
+	}
+	wc, err := cl.Data()
+	if err != nil {
+		return
+	}
+	_, err = fmt.Fprintf(wc, `From: noreply@camlistore.org (Camlistore Website)
+To: brad@danga.com, mathieu.lonjaret@gmail.com
+Subject: Camlistore camweb restarting
+
+Camlistore website starting with binary XXXXTODO and content at git rev %s
+`, contentRev)
+	if err != nil {
+		return
+	}
+	wc.Close()
 }
 
 func getDockerImage(tag, file string) {
@@ -462,6 +558,7 @@ func main() {
 		}
 	}
 	readTemplates()
+	go runDemoBlobserverLoop()
 
 	mux := http.DefaultServeMux
 	mux.Handle("/favicon.ico", http.FileServer(http.Dir(filepath.Join(*root, "static"))))
@@ -474,7 +571,8 @@ func main() {
 
 	mux.HandleFunc("/r/", gerritRedirect)
 	mux.HandleFunc("/dl/", releaseRedirect)
-	mux.HandleFunc("/debugz/ip", ipHandler)
+	mux.HandleFunc("/debug/ip", ipHandler)
+	mux.HandleFunc("/debug/uptime", uptimeHandler)
 	mux.Handle("/docs/contributing", redirTo("/code#contributing"))
 	mux.Handle("/lists", redirTo("/community"))
 
@@ -574,10 +672,9 @@ func serveHTTPS(httpServer *http.Server) error {
 	httpsServer := new(http.Server)
 	*httpsServer = *httpServer
 	httpsServer.Addr = *httpsAddr
-	if !inProduction() {
+	if !inProd {
 		return httpsServer.ListenAndServeTLS(*tlsCertFile, *tlsKeyFile)
 	}
-
 	cert, err := tlsCertFromGCS()
 	if err != nil {
 		return err
@@ -713,6 +810,12 @@ func ipHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(str))
 }
 
+var startTime = time.Now()
+
+func uptimeHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "%v", time.Now().Sub(startTime))
+}
+
 const (
 	errPattern  = "/err/"
 	toHyperlink = `<a href="$1$2">$1$2</a>`
@@ -739,4 +842,15 @@ func errHandler(w http.ResponseWriter, r *http.Request) {
 	contents := applyTemplate(camliErrorHTML, "camliErrorHTML", data)
 	w.WriteHeader(http.StatusFound)
 	servePage(w, errString, "", contents)
+}
+
+func camSrcDir() string {
+	if inProd {
+		return prodSrcDir
+	}
+	dir, err := osutil.GoPackagePath("camlistore.org")
+	if err != nil {
+		log.Fatalf("Failed to find the root of the Camlistore source code via osutil.GoPackagePath: %v", err)
+	}
+	return dir
 }

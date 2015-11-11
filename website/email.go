@@ -71,8 +71,7 @@ var knownCommit = map[string]bool{} // commit -> true
 var diffMarker = []byte("diff --git a/")
 
 func emailCommit(dir, hash string) (err error) {
-	cmd := exec.Command("git", "show", hash)
-	cmd.Dir = dir
+	cmd := execGit(dir, "show", hash)
 	body, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("Error runnning git show: %v\n%s", err, body)
@@ -82,8 +81,7 @@ func emailCommit(dir, hash string) (err error) {
 		return nil
 	}
 
-	cmd = exec.Command("git", "show", "--pretty=oneline", hash)
-	cmd.Dir = dir
+	cmd = execGit(dir, "show", "--pretty=oneline", hash)
 	out, err := cmd.Output()
 	if err != nil {
 		return
@@ -143,10 +141,7 @@ func commitEmailLoop() error {
 		}
 	}()
 
-	dir, err := osutil.GoPackagePath("camlistore.org")
-	if err != nil {
-		return err
-	}
+	dir := camSrcDir()
 
 	hashes, err := recentCommits(dir)
 	if err != nil {
@@ -173,9 +168,27 @@ func commitEmailLoop() error {
 	}
 }
 
+func execGit(dir string, gitArgs ...string) *exec.Cmd {
+	var cmd *exec.Cmd
+	if *gitContainer {
+		args := append([]string{
+			"run",
+			"--rm",
+			"-v", dir + ":" + dir,
+			"--workdir=" + dir,
+			"camlistore/git",
+			"git",
+		}, gitArgs...)
+		cmd = exec.Command("docker", args...)
+	} else {
+		cmd = exec.Command("git", gitArgs...)
+		cmd.Dir = dir
+	}
+	return cmd
+}
+
 func pollCommits(dir string) {
-	cmd := exec.Command("git", "fetch", "origin")
-	cmd.Dir = dir
+	cmd := execGit(dir, "fetch", "origin")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Printf("Error running git fetch origin master in %s: %v\n%s", dir, err, out)
@@ -204,8 +217,7 @@ func pollCommits(dir string) {
 }
 
 func recentCommits(dir string) (hashes []string, err error) {
-	cmd := exec.Command("git", "log", "--since=1 month ago", "--pretty=oneline", "origin/master")
-	cmd.Dir = dir
+	cmd := execGit(dir, "log", "--since=1 month ago", "--pretty=oneline", "origin/master")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("Error running git log in %s: %v\n%s", dir, err, out)

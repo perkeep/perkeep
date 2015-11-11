@@ -76,8 +76,8 @@ func gitShortlog() *exec.Cmd {
 	if !*gitContainer {
 		return exec.Command("/bin/bash", "-c", "git log | git shortlog -sen")
 	}
-	args := []string{"run"}
-	if inProduction() {
+	args := []string{"run", "--rm"}
+	if inProd {
 		args = append(args,
 			"-v", "/var/camweb:/var/camweb",
 			"--workdir="+prodSrcDir,
