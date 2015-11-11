@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/tls"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"html/template"
@@ -355,30 +356,59 @@ func runAsChild(res string) {
 	}()
 }
 
+func gceDeployHandlerConfig() (*gce.Config, error) {
+	if inProd {
+		return deployerCredsFromGCS()
+	}
+	clientId := os.Getenv("CAMLI_GCE_CLIENTID")
+	if clientId != "" {
+		return &gce.Config{
+			ClientID:       clientId,
+			ClientSecret:   os.Getenv("CAMLI_GCE_CLIENTSECRET"),
+			Project:        os.Getenv("CAMLI_GCE_PROJECT"),
+			ServiceAccount: os.Getenv("CAMLI_GCE_SERVICE_ACCOUNT"),
+			DataDir:        os.Getenv("CAMLI_GCE_DATA"),
+		}, nil
+	}
+	configFile := filepath.Join(osutil.CamliConfigDir(), "launcher-config.json")
+	if _, err := os.Stat(configFile); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("Could not stat %v: %v", configFile, err)
+	}
+	data, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		return nil, err
+	}
+	var config gce.Config
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, err
+	}
+	return &config, nil
+}
+
 // gceDeployHandler conditionally returns an http.Handler for a GCE launcher,
 // configured to run at /prefix/ (the trailing slash can be omitted).
-// If CAMLI_GCE_CLIENTID is not set, the launcher-config.json file, if present,
-// is used instead of environment variables to initialize the launcher. If a
-// launcher isn't enabled, gceDeployHandler returns nil. If another error occurs,
+// The launcher is not initialized if:
+// - in production, the launcher-config.json file is not found in the relevant bucket
+// - neither CAMLI_GCE_CLIENTID is set, nor launcher-config.json is found in the
+// camlistore server config dir.
+// If a launcher isn't enabled, gceDeployHandler returns nil. If another error occurs,
 // log.Fatal is called.
 func gceDeployHandler(prefix string) http.Handler {
 	hostPort, err := netutil.HostPort("https://" + *httpsAddr)
 	if err != nil {
 		hostPort = "camlistore.org:443"
 	}
-	var gceh http.Handler
-	if e := os.Getenv("CAMLI_GCE_CLIENTID"); e != "" {
-		gceh, err = gce.NewDeployHandler(hostPort, prefix)
-	} else {
-		config := filepath.Join(*root, "launcher-config.json")
-		if _, err := os.Stat(config); err != nil {
-			if os.IsNotExist(err) {
-				return nil
-			}
-			log.Fatalf("Could not stat launcher-config.json: %v", err)
+	config, err := gceDeployHandlerConfig()
+	if config == nil {
+		if err != nil {
+			log.Printf("Starting without a GCE deploy handler because: %v", err)
 		}
-		gceh, err = gce.NewDeployHandlerFromConfig(hostPort, prefix, config)
+		return nil
 	}
+	gceh, err := gce.NewDeployHandlerFromConfig(hostPort, prefix, config)
 	if err != nil {
 		log.Fatalf("Error initializing gce deploy handler: %v", err)
 	}
@@ -740,6 +770,34 @@ func tlsCertFromGCS() (*tls.Certificate, error) {
 		return nil, err
 	}
 	return &cert, nil
+}
+
+func deployerCredsFromGCS() (*gce.Config, error) {
+	c, err := googlestorage.NewServiceClient()
+	if err != nil {
+		return nil, err
+	}
+	slurp := func(key string) ([]byte, error) {
+		const bucket = "camlistore-website-resource"
+		rc, _, err := c.GetObject(&googlestorage.Object{
+			Bucket: bucket,
+			Key:    key,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("Error fetching GCS object %q in bucket %q: %v", key, bucket, err)
+		}
+		defer rc.Close()
+		return ioutil.ReadAll(rc)
+	}
+	var cfg gce.Config
+	data, err := slurp("launcher-config.json")
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("Could not JSON decode camli GCE launcher config: %v", err)
+	}
+	return &cfg, nil
 }
 
 var issueNum = regexp.MustCompile(`^/(?:issue|bug)s?(/\d*)?$`)

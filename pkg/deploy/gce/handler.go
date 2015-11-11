@@ -40,16 +40,18 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/localdisk"
-	"camlistore.org/pkg/context"
+	camliCtx "camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/leveldb"
 
 	"camlistore.org/third_party/code.google.com/p/xsrftoken"
+	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/cloud/compute/metadata"
 )
 
 const (
@@ -124,23 +126,18 @@ type DeployHandler struct {
 
 // Config is the set of parameters to initialize the DeployHandler.
 type Config struct {
-	ClientID       string `json:"clientID"`       // handler's credentials for OAuth. required.
-	ClientSecret   string `json:"clientSecret"`   // handler's credentials for OAuth. required.
-	Project        string `json:"project"`        // any Google Cloud project we can query to get the valid Google Cloud zones. optional.
-	ServiceAccount string `json:"serviceAccount"` // JSON file with credentials to Project. optional.
-	DataDir        string `json:"dataDir"`        // where to store the instances configurations and states. optional.
+	ClientID       string `json:"clientID"`       // handler's credentials for OAuth. Required.
+	ClientSecret   string `json:"clientSecret"`   // handler's credentials for OAuth. Required.
+	Project        string `json:"project"`        // any Google Cloud project we can query to get the valid Google Cloud zones. Optional. Set from metadata on GCE.
+	ServiceAccount string `json:"serviceAccount"` // JSON file with credentials to Project. Optional. Unused on GCE.
+	DataDir        string `json:"dataDir"`        // where to store the instances configurations and states. Optional.
 }
 
-// NewDeployHandlerFromConfig initializes a DeployHandler from the JSON config file.
-// Host and prefix have the same meaning as for NewDeployHandler.
-func NewDeployHandlerFromConfig(host, prefix, configFile string) (http.Handler, error) {
-	var cfg Config
-	data, err := ioutil.ReadFile(configFile)
-	if err != nil {
-		return nil, fmt.Errorf("Could not read handler's config at %v: %v", configFile, err)
-	}
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("Could not JSON decode config at %v: %v", configFile, err)
+// NewDeployHandlerFromConfig initializes a DeployHandler from cfg.
+// Host and prefix have the same meaning as for NewDeployHandler. cfg should not be nil.
+func NewDeployHandlerFromConfig(host, prefix string, cfg *Config) (http.Handler, error) {
+	if cfg == nil {
+		panic("NewDeployHandlerFromConfig: nil config")
 	}
 	if cfg.ClientID == "" {
 		return nil, errors.New("oauth2 clientID required in config")
@@ -244,6 +241,34 @@ func (h *DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
 }
 
+func (h *DeployHandler) authenticatedClient() (project string, hc *http.Client, err error) {
+	project = os.Getenv("CAMLI_GCE_PROJECT")
+	accountFile := os.Getenv("CAMLI_GCE_SERVICE_ACCOUNT")
+	if project != "" && accountFile != "" {
+		data, errr := ioutil.ReadFile(accountFile)
+		err = errr
+		if err != nil {
+			return
+		}
+		jwtConf, errr := google.JWTConfigFromJSON(data, "https://www.googleapis.com/auth/compute.readonly")
+		err = errr
+		if err != nil {
+			return
+		}
+		hc = jwtConf.Client(context.Background())
+		return
+	}
+	if !metadata.OnGCE() {
+		err = errNoRefresh
+		return
+	}
+	project, _ = metadata.ProjectID()
+	hc, err = google.DefaultClient(oauth2.NoContext)
+	return project, hc, err
+}
+
+var errNoRefresh error = errors.New("not on GCE, and at least one of CAMLI_GCE_PROJECT or CAMLI_GCE_SERVICE_ACCOUNT not defined.")
+
 func (h *DeployHandler) refreshZones() error {
 	h.zonesMu.Lock()
 	defer h.zonesMu.Unlock()
@@ -253,28 +278,16 @@ func (h *DeployHandler) refreshZones() error {
 			h.regions = append(h.regions, r)
 		}
 	}()
-	// TODO(mpl): get projectID and access tokens from metadata once camweb is on GCE.
-	accountFile := os.Getenv("CAMLI_GCE_SERVICE_ACCOUNT")
-	if accountFile == "" {
-		h.Printf("No service account to query for the zones, using hard-coded ones instead.")
-		h.zones = backupZones
-		return nil
-	}
-	project := os.Getenv("CAMLI_GCE_PROJECT")
-	if project == "" {
-		h.Printf("No project we can query on to get the zones, using hard-coded ones instead.")
-		h.zones = backupZones
-		return nil
-	}
-	data, err := ioutil.ReadFile(accountFile)
+	project, hc, err := h.authenticatedClient()
 	if err != nil {
+		if err == errNoRefresh {
+			h.zones = backupZones
+			h.Printf("Cannot refresh zones because %v. Using hard-coded ones instead.")
+			return nil
+		}
 		return err
 	}
-	conf, err := google.JWTConfigFromJSON(data, "https://www.googleapis.com/auth/compute.readonly")
-	if err != nil {
-		return err
-	}
-	s, err := compute.New(conf.Client(oauth2.NoContext))
+	s, err := compute.New(hc)
 	if err != nil {
 		return err
 	}
@@ -415,7 +428,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
-		inst, err := depl.Create(context.TODO())
+		inst, err := depl.Create(camliCtx.TODO())
 		state := &creationState{
 			InstConf: br,
 		}
@@ -782,7 +795,11 @@ type creationState struct {
 func dataStores() (blobserver.Storage, sorted.KeyValue, error) {
 	dataDir := os.Getenv("CAMLI_GCE_DATA")
 	if dataDir == "" {
-		dataDir = "camli-gce-data"
+		var err error
+		dataDir, err = ioutil.TempDir("", "camli-gcedeployer-data")
+		if err != nil {
+			return nil, nil, err
+		}
 		log.Printf("data dir not provided as env var CAMLI_GCE_DATA, so defaulting to %v", dataDir)
 	}
 	blobsDir := filepath.Join(dataDir, "instance-conf")
