@@ -397,9 +397,17 @@ func gceDeployHandlerConfig() (*gce.Config, error) {
 // If a launcher isn't enabled, gceDeployHandler returns nil. If another error occurs,
 // log.Fatal is called.
 func gceDeployHandler(prefix string) http.Handler {
-	hostPort, err := netutil.HostPort("https://" + *httpsAddr)
-	if err != nil {
+	var hostPort string
+	var err error
+	if inProd {
 		hostPort = "camlistore.org:443"
+	} else {
+		hostPort, err = netutil.HostPort("https://" + *httpsAddr)
+		if err != nil {
+			// The deploy handler unfortunately needs to know its own host because of the oauth2 callback
+			log.Print("Starting without a GCE deploy handler because we need -https host:port")
+			return nil
+		}
 	}
 	config, err := gceDeployHandlerConfig()
 	if config == nil {
@@ -626,9 +634,11 @@ func main() {
 		mux.Handle(bbhpattern, buildbotHandler)
 	}
 
+	var gceLauncher *gce.DeployHandler
 	if *httpsAddr != "" {
 		if launcher := gceDeployHandler("/launch/"); launcher != nil {
 			mux.Handle("/launch/", launcher)
+			gceLauncher = launcher.(*gce.DeployHandler)
 		}
 	}
 
@@ -675,6 +685,19 @@ func main() {
 			log.Fatalf("Failed to ping Google Cloud Logging: %v", err)
 		}
 		handler = NewLoggingHandler(handler, gceLogger{logc})
+		if gceLauncher != nil {
+			ctx := cloud.NewContext(projID, hc)
+			logc, err := logging.NewClient(ctx, projID, *gceLogName)
+			if err != nil {
+				log.Fatal(err)
+			}
+			logc.CommonLabels = map[string]string{
+				"from": "camli-gce-launcher",
+			}
+			logger := logc.Logger(logging.Default)
+			logger.SetPrefix("launcher: ")
+			gceLauncher.SetLogger(logger)
+		}
 	}
 
 	errc := make(chan error)

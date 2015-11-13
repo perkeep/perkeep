@@ -121,7 +121,7 @@ type DeployHandler struct {
 	zones   map[string][]string
 	regions []string
 
-	*log.Logger
+	logger *log.Logger // should not be nil.
 }
 
 // Config is the set of parameters to initialize the DeployHandler.
@@ -217,14 +217,14 @@ func NewDeployHandler(host, prefix string) (http.Handler, error) {
 		h.serveRoot(w, r)
 	})
 	h.mux = mux
-	h.Logger = log.New(os.Stderr, "", log.LstdFlags)
+	h.SetLogger(log.New(os.Stderr, "GCE DEPLOYER: ", log.LstdFlags))
 	h.zones = backupZones
 	// TODO(mpl): use time.AfterFunc and avoid having a goroutine running all the time almost
 	// doing nothing.
 	refreshZonesFn := func() {
 		for {
 			if err := h.refreshZones(); err != nil {
-				h.Printf("error while refreshing zones: %v", err)
+				h.logger.Printf("error while refreshing zones: %v", err)
 			}
 			time.Sleep(24 * time.Hour)
 		}
@@ -282,7 +282,7 @@ func (h *DeployHandler) refreshZones() error {
 	if err != nil {
 		if err == errNoRefresh {
 			h.zones = backupZones
-			h.Printf("Cannot refresh zones because %v. Using hard-coded ones instead.")
+			h.logger.Printf("Cannot refresh zones because %v. Using hard-coded ones instead.")
 			return nil
 		}
 		return err
@@ -336,19 +336,19 @@ func (h *DeployHandler) serveRoot(w http.ResponseWriter, r *http.Request) {
 		ZoneValues:    h.zoneValues(),
 		MachineValues: machineValues,
 	}); err != nil {
-		h.Print(err)
+		h.logger.Print(err)
 	}
 }
 
 func (h *DeployHandler) serveSetup(w http.ResponseWriter, r *http.Request) {
 	if r.FormValue("mode") != "setupproject" {
-		httputil.ServeError(w, r, errors.New("bad form"))
+		h.serveError(w, r, errors.New("bad form"))
 		return
 	}
 	ck, err := r.Cookie("user")
 	if err != nil {
 		h.serveFormError(w, errors.New("Cookie expired, or CSRF attempt. Please reload and retry."))
-		h.Printf("Cookie expired, or CSRF attempt on form.")
+		h.logger.Printf("Cookie expired, or CSRF attempt on form.")
 		return
 	}
 
@@ -360,7 +360,7 @@ func (h *DeployHandler) serveSetup(w http.ResponseWriter, r *http.Request) {
 
 	br, err := h.storeInstanceConf(instConf)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("could not store instance configuration: %v", err))
+		h.serveError(w, r, fmt.Errorf("could not store instance configuration: %v", err))
 		return
 	}
 
@@ -377,43 +377,44 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w,
 			fmt.Sprintf("Cookie expired, or CSRF attempt. Restart from %s%s%s", h.scheme, h.host, h.prefix),
 			http.StatusBadRequest)
-		h.Printf("Cookie expired, or CSRF attempt on callback.")
+		h.logger.Printf("Cookie expired, or CSRF attempt on callback.")
 		return
 	}
 	code := r.FormValue("code")
 	if code == "" {
-		httputil.ServeError(w, r, errors.New("No oauth code parameter in callback URL"))
+		h.serveError(w, r, errors.New("No oauth code parameter in callback URL"))
 		return
 	}
-	h.Printf("successful authentication: %v", r.URL.RawQuery)
+	h.logger.Printf("successful authentication: %v", r.URL.RawQuery)
 
 	br, tk, err := fromState(r)
 	if err != nil {
-		httputil.ServeError(w, r, err)
+		h.serveError(w, r, err)
 		return
 	}
 	if !xsrftoken.Valid(tk, h.xsrfKey, ck.Value, br.String()) {
-		httputil.ServeError(w, r, fmt.Errorf("Invalid xsrf token: %q", tk))
+		h.serveError(w, r, fmt.Errorf("Invalid xsrf token: %q", tk))
 		return
 	}
 
 	oAuthConf := h.oAuthConfig()
 	tok, err := oAuthConf.Exchange(oauth2.NoContext, code)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("could not obtain a token: %v", err))
+		h.serveError(w, r, fmt.Errorf("could not obtain a token: %v", err))
 		return
 	}
-	h.Printf("successful authorization with token: %v", tok)
+	h.logger.Printf("successful authorization with token: %v", tok)
 
 	instConf, err := h.instanceConf(br)
 	if err != nil {
-		httputil.ServeError(w, r, err)
+		h.serveError(w, r, err)
 		return
 	}
 
 	depl := &Deployer{
 		Client: oAuthConf.Client(oauth2.NoContext, tok),
 		Conf:   instConf,
+		Logger: h.logger,
 	}
 
 	if found := h.serveOldInstance(w, br, depl); found {
@@ -423,7 +424,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 	if err := h.recordState(br, &creationState{
 		InstConf: br,
 	}); err != nil {
-		httputil.ServeError(w, r, err)
+		h.serveError(w, r, err)
 		return
 	}
 
@@ -433,7 +434,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 			InstConf: br,
 		}
 		if err != nil {
-			h.Printf("could not create instance: %v", err)
+			h.logger.Printf("could not create instance: %v", err)
 			switch e := err.(type) {
 			case instanceExistsError:
 				state.Err = fmt.Sprintf("%v %v", e, helpDeleteInstance)
@@ -449,7 +450,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 			state.CertFingerprintSHA256 = depl.certFingerprints["SHA-256"]
 		}
 		if err := h.recordState(br, state); err != nil {
-			h.Printf("Could not record creation state for %v: %v", br, err)
+			h.logger.Printf("Could not record creation state for %v: %v", br, err)
 			h.recordStateErrMu.Lock()
 			defer h.recordStateErrMu.Unlock()
 			h.recordStateErr[br.String()] = err
@@ -472,9 +473,9 @@ func (h *DeployHandler) serveOldInstance(w http.ResponseWriter, br blob.Ref, dep
 			}
 		}
 		if err != nil {
-			h.Printf("Instance (%v, %v, %v) already exists, but error getting its certificate: %v",
+			h.logger.Printf("Instance (%v, %v, %v) already exists, but error getting its certificate: %v",
 				depl.Conf.Project, depl.Conf.Name, depl.Conf.Zone, err)
-			h.serveError(w,
+			h.serveErrorPage(w,
 				fmt.Errorf("Instance already running at %v. You need to manually delete the old one before creating a new one.", addr(inst)),
 				helpDeleteInstance,
 			)
@@ -487,15 +488,15 @@ func (h *DeployHandler) serveOldInstance(w http.ResponseWriter, br blob.Ref, dep
 			}
 		}
 		if password != depl.Conf.Password {
-			h.Printf("Instance (%v, %v, %v) already exists, but with different password: %v",
+			h.logger.Printf("Instance (%v, %v, %v) already exists, but with different password: %v",
 				depl.Conf.Project, depl.Conf.Name, depl.Conf.Zone, password)
-			h.serveError(w,
+			h.serveErrorPage(w,
 				fmt.Errorf("Instance already running at %v. You need to manually delete the old one before creating a new one.", addr(inst)),
 				helpDeleteInstance,
 			)
 			return true
 		}
-		h.Printf("Reusing existing instance for (%v, %v, %v)", depl.Conf.Project, depl.Conf.Name, depl.Conf.Zone)
+		h.logger.Printf("Reusing existing instance for (%v, %v, %v)", depl.Conf.Project, depl.Conf.Name, depl.Conf.Zone)
 
 		if err := h.recordState(br, &creationState{
 			InstConf:              br,
@@ -504,8 +505,8 @@ func (h *DeployHandler) serveOldInstance(w http.ResponseWriter, br blob.Ref, dep
 			CertFingerprintSHA256: sigs["SHA-256"],
 			Exists:                true,
 		}); err != nil {
-			h.Printf("Could not record creation state for %v: %v", br, err)
-			h.serveError(w, fmt.Errorf("An error occurred while recording the state of your instance. %v", fileIssue(br.String())))
+			h.logger.Printf("Could not record creation state for %v: %v", br, err)
+			h.serveErrorPage(w, fmt.Errorf("An error occurred while recording the state of your instance. %v", fileIssue(br.String())))
 			return true
 		}
 		h.serveProgress(w, br)
@@ -519,7 +520,7 @@ func (h *DeployHandler) serveFormError(w http.ResponseWriter, err error, hints .
 	for _, v := range hints {
 		topHints = append(topHints, v)
 	}
-	h.Print(err)
+	h.logger.Print(err)
 	h.tplMu.RLock()
 	defer h.tplMu.RUnlock()
 	if tplErr := h.tpl.ExecuteTemplate(w, "withform", &TemplateData{
@@ -531,7 +532,7 @@ func (h *DeployHandler) serveFormError(w http.ResponseWriter, err error, hints .
 		ZoneValues:    h.zoneValues(),
 		MachineValues: machineValues,
 	}); tplErr != nil {
-		h.Printf("Could not serve form error %q because: %v", err, tplErr)
+		h.logger.Printf("Could not serve form error %q because: %v", err, tplErr)
 	}
 }
 
@@ -544,7 +545,7 @@ func fileIssue(br string) string {
 // serves an error page. If it isn't finished yet, it replies with "running".
 func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
-		httputil.ServeError(w, r, fmt.Errorf("Wrong method: %v", r.Method))
+		h.serveError(w, r, fmt.Errorf("Wrong method: %v", r.Method))
 		return
 	}
 	br := r.URL.Query().Get("instancekey")
@@ -555,20 +556,20 @@ func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Reques
 	}
 	var state creationState
 	if err := json.Unmarshal([]byte(stateValue), &state); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("could not json decode instance state: %v", err))
+		h.serveError(w, r, fmt.Errorf("could not json decode instance state: %v", err))
 		return
 	}
 	if state.Err != "" {
 		// No need to log that error here since we're already doing it in serveCallback
 		// TODO(mpl): fix overescaping of double quotes.
-		h.serveError(w, fmt.Errorf("An error occurred while creating your instance: %q. ", state.Err))
+		h.serveErrorPage(w, fmt.Errorf("An error occurred while creating your instance: %q. ", state.Err))
 		return
 	}
 	if state.Success || state.Exists {
 		conf, err := h.instanceConf(state.InstConf)
 		if err != nil {
-			h.Printf("Could not get parameters for success message: %v", err)
-			h.serveError(w, fmt.Errorf("Your instance was created and should soon be up at https://%s but there might have been a problem in the creation process. %v", state.Err, fileIssue(br)))
+			h.logger.Printf("Could not get parameters for success message: %v", err)
+			h.serveErrorPage(w, fmt.Errorf("Your instance was created and should soon be up at https://%s but there might have been a problem in the creation process. %v", state.Err, fileIssue(br)))
 			return
 		}
 		h.serveSuccess(w, &TemplateData{
@@ -589,7 +590,7 @@ func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Reques
 	defer h.recordStateErrMu.RUnlock()
 	if _, ok := h.recordStateErr[br]; ok {
 		// No need to log that error here since we're already doing it in serveCallback
-		h.serveError(w, fmt.Errorf("An error occurred while recording the state of your instance. %v", fileIssue(br)))
+		h.serveErrorPage(w, fmt.Errorf("An error occurred while recording the state of your instance. %v", fileIssue(br)))
 		return
 	}
 	fmt.Fprintf(w, "running")
@@ -606,16 +607,16 @@ func (h *DeployHandler) serveProgress(w http.ResponseWriter, instanceKey blob.Re
 		InstanceKey: instanceKey.String(),
 		PiggyGIF:    h.piggyGIF,
 	}); err != nil {
-		h.Printf("Could not serve progress: %v", err)
+		h.logger.Printf("Could not serve progress: %v", err)
 	}
 }
 
-func (h *DeployHandler) serveError(w http.ResponseWriter, err error, hints ...string) {
+func (h *DeployHandler) serveErrorPage(w http.ResponseWriter, err error, hints ...string) {
 	var topHints []string
 	for _, v := range hints {
 		topHints = append(topHints, v)
 	}
-	h.Print(err)
+	h.logger.Print(err)
 	h.tplMu.RLock()
 	defer h.tplMu.RUnlock()
 	if tplErr := h.tpl.ExecuteTemplate(w, "noform", &TemplateData{
@@ -623,7 +624,7 @@ func (h *DeployHandler) serveError(w http.ResponseWriter, err error, hints ...st
 		Err:    err,
 		Hints:  topHints,
 	}); tplErr != nil {
-		h.Printf("Could not serve error %q because: %v", err, tplErr)
+		h.logger.Printf("Could not serve error %q because: %v", err, tplErr)
 	}
 }
 
@@ -631,7 +632,7 @@ func (h *DeployHandler) serveSuccess(w http.ResponseWriter, data *TemplateData) 
 	h.tplMu.RLock()
 	defer h.tplMu.RUnlock()
 	if err := h.tpl.ExecuteTemplate(w, "noform", data); err != nil {
-		h.Printf("Could not serve success: %v", err)
+		h.logger.Printf("Could not serve success: %v", err)
 	}
 }
 
@@ -692,8 +693,15 @@ func (h *DeployHandler) randomZone(region string) string {
 	return region + zones[rand.Intn(len(zones))]
 }
 
-func (h *DeployHandler) SetLogger(logger *log.Logger) {
-	h.Logger = logger
+func (h *DeployHandler) SetLogger(lg *log.Logger) {
+	h.logger = lg
+}
+
+func (h *DeployHandler) serveError(w http.ResponseWriter, r *http.Request, err error) {
+	if h.logger != nil {
+		h.logger.Printf("%v", err)
+	}
+	httputil.ServeError(w, r, err)
 }
 
 func (h *DeployHandler) oAuthConfig() *oauth2.Config {

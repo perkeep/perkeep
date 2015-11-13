@@ -132,6 +132,8 @@ type Deployer struct {
 	// SHA-1 and SHA-256 fingerprints of the HTTPS certificate created during setupHTTPS, if any.
 	// Keyed by hash name: "SHA-1", and "SHA-256".
 	certFingerprints map[string]string
+
+	*log.Logger // Cannot be nil.
 }
 
 // Get returns the Instance corresponding to the Project, Zone, and Name defined in the
@@ -305,7 +307,7 @@ func (d *Deployer) Create(ctx *context.Context) (*compute.Instance, error) {
 	}
 	if Verbose {
 		ij, _ := json.MarshalIndent(inst, "", "    ")
-		log.Printf("Instance: %s", ij)
+		d.Printf("Instance: %s", ij)
 	}
 
 	if err = <-fwc; err != nil {
@@ -410,7 +412,7 @@ func (d *Deployer) createInstance(computeService *compute.Service, ctx *context.
 	}
 
 	if Verbose {
-		log.Print("Creating instance...")
+		d.Print("Creating instance...")
 	}
 	op, err := computeService.Instances.Insert(d.Conf.Project, d.Conf.Zone, instance).Do()
 	if err != nil {
@@ -418,7 +420,7 @@ func (d *Deployer) createInstance(computeService *compute.Service, ctx *context.
 	}
 	opName := op.Name
 	if Verbose {
-		log.Printf("Created. Waiting on operation %v", opName)
+		d.Printf("Created. Waiting on operation %v", opName)
 	}
 OpLoop:
 	for {
@@ -433,18 +435,18 @@ OpLoop:
 		switch op.Status {
 		case "PENDING", "RUNNING":
 			if Verbose {
-				log.Printf("Waiting on operation %v", opName)
+				d.Printf("Waiting on operation %v", opName)
 			}
 			continue
 		case "DONE":
 			if op.Error != nil {
 				for _, operr := range op.Error.Errors {
-					log.Printf("Error: %+v", operr)
+					d.Printf("Error: %+v", operr)
 				}
 				return fmt.Errorf("failed to start.")
 			}
 			if Verbose {
-				log.Printf("Success. %+v", op)
+				d.Printf("Success. %+v", op)
 			}
 			break OpLoop
 		default:
@@ -512,7 +514,7 @@ func (d *Deployer) setBuckets(storageService *storage.Service, ctx *context.Cont
 	}
 	if len(needBucket) > 0 {
 		if Verbose {
-			log.Printf("Need to create buckets: %v", needBucket)
+			d.Printf("Need to create buckets: %v", needBucket)
 		}
 		var waitBucket sync.WaitGroup
 		var bucketErr error
@@ -525,7 +527,7 @@ func (d *Deployer) setBuckets(storageService *storage.Service, ctx *context.Cont
 			go func() {
 				defer waitBucket.Done()
 				if Verbose {
-					log.Printf("Creating bucket %s", name)
+					d.Printf("Creating bucket %s", name)
 				}
 				b, err := storageService.Buckets.Insert(d.Conf.Project, &storage.Bucket{
 					Id:   name,
@@ -536,7 +538,7 @@ func (d *Deployer) setBuckets(storageService *storage.Service, ctx *context.Cont
 					return
 				}
 				if Verbose {
-					log.Printf("Created bucket %s: %+v", name, b)
+					d.Printf("Created bucket %s: %+v", name, b)
 				}
 			}()
 		}
@@ -587,7 +589,7 @@ func (d *Deployer) setFirewall(ctx *context.Context, computeService *compute.Ser
 	}
 
 	if Verbose {
-		log.Printf("Need to create rules: %v", needRules)
+		d.Printf("Need to create rules: %v", needRules)
 	}
 	var wg syncutil.Group
 	for name, rule := range needRules {
@@ -597,14 +599,14 @@ func (d *Deployer) setFirewall(ctx *context.Context, computeService *compute.Ser
 		name, rule := name, rule
 		wg.Go(func() error {
 			if Verbose {
-				log.Printf("Creating rule %s", name)
+				d.Printf("Creating rule %s", name)
 			}
 			r, err := computeService.Firewalls.Insert(d.Conf.Project, &rule).Do()
 			if err != nil {
 				return fmt.Errorf("error creating rule %s: %v", name, err)
 			}
 			if Verbose {
-				log.Printf("Created rule %s: %+v", name, r)
+				d.Printf("Created rule %s: %+v", name, r)
 			}
 			return nil
 		})
@@ -624,7 +626,7 @@ func (d *Deployer) setupHTTPS(storageService *storage.Service) error {
 		}
 		d.certFingerprints = sigs
 		if Verbose {
-			log.Printf("Reusing existing certificate with fingerprint %v", sigs["SHA-256"])
+			d.Printf("Reusing existing certificate with fingerprint %v", sigs["SHA-256"])
 		}
 		return nil
 	}
@@ -646,7 +648,7 @@ func (d *Deployer) setupHTTPS(storageService *storage.Service) error {
 	} else {
 
 		if Verbose {
-			log.Printf("Generating self-signed certificate for %v ...", d.Conf.Hostname)
+			d.Printf("Generating self-signed certificate for %v ...", d.Conf.Hostname)
 		}
 		certBytes, keyBytes, err := httputil.GenSelfTLS(d.Conf.Hostname)
 		if err != nil {
@@ -658,14 +660,14 @@ func (d *Deployer) setupHTTPS(storageService *storage.Service) error {
 		}
 		d.certFingerprints = sigs
 		if Verbose {
-			log.Printf("Wrote certificate with SHA-256 fingerprint %s", sigs["SHA-256"])
+			d.Printf("Wrote certificate with SHA-256 fingerprint %s", sigs["SHA-256"])
 		}
 		cert = ioutil.NopCloser(bytes.NewReader(certBytes))
 		key = ioutil.NopCloser(bytes.NewReader(keyBytes))
 	}
 
 	if Verbose {
-		log.Print("Uploading certificate and key...")
+		d.Print("Uploading certificate and key...")
 	}
 	_, err = storageService.Objects.Insert(d.Conf.bucketBase(),
 		&storage.Object{Name: path.Join(configDir, certFilename)}).Media(cert).Do()
