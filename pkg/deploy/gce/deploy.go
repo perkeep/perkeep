@@ -37,6 +37,7 @@ import (
 	"sync"
 	"time"
 
+	"camlistore.org/pkg/cloudlaunch/gceutil"
 	"camlistore.org/pkg/constants/google"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
@@ -54,8 +55,6 @@ import (
 
 const (
 	projectsAPIURL = "https://www.googleapis.com/compute/v1/projects/"
-	// TODO(mpl): automatically pick the latest stable coreos image, if possible.
-	coreosImgURL = "https://www.googleapis.com/compute/v1/projects/coreos-cloud/global/images/coreos-stable-766-4-0-v20150929"
 
 	// default instance configuration values.
 	// TODO(mpl): they can probably be lowercased now that handler.go is in the same
@@ -319,6 +318,10 @@ func (d *Deployer) Create(ctx *context.Context) (*compute.Instance, error) {
 // createInstance starts the creation of the Compute Engine instance and waits for the
 // result of the creation operation. It should be called after setBuckets and setupHTTPS.
 func (d *Deployer) createInstance(computeService *compute.Service, ctx *context.Context) error {
+	coreosImgURL, err := gceutil.CoreOSImageURL(d.Client)
+	if err != nil {
+		return fmt.Errorf("error looking up latest CoreOS stable image: %v", err)
+	}
 	prefix := projectsAPIURL + d.Conf.Project
 	machType := prefix + "/zones/" + d.Conf.Zone + "/machineTypes/" + d.Conf.Machine
 	config := cloudConfig(d.Conf)
