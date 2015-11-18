@@ -40,7 +40,7 @@
 			"handlerArgs": {
 				"path": "/tmp/blobs",
 				"metaIndex": {
-					"file": "/tmp/blobs/index.kv",
+					"file": "/tmp/blobs/diskpacked-index.kv",
 					"type": "kv"
 				}
 			}
