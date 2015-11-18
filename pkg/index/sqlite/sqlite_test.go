@@ -1,3 +1,5 @@
+// +build with_sqlite
+
 /*
 Copyright 2012 The Camlistore Authors.
 
