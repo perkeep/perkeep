@@ -1,0 +1,8 @@
+go_import_path: camlistore.org
+language: go
+go:
+  - 1.5
+  - tip
+install: GO15VENDOREXPERIMENT=1 go run make.go -v
+before_script: GO15VENDOREXPERIMENT=1 go build -o ./bin/devcam ./dev/devcam
+script: GO15VENDOREXPERIMENT=1 ./bin/devcam test
