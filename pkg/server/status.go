@@ -237,8 +237,8 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 	f("<h2>Logs</h2><ul>")
 	f("  <li><a href='/debug/config'>/debug/config</a> - server config</li>\n")
 	if env.OnGCE() {
-		f("  <li><a href='/debug/logs'>/debug/logs</a> - server logs</li>\n")
-		f("  <li><a href='/debug/logs?TODO'>/debug/logs?XXX</a> - camlistored logs</li>\n")
+		f("  <li><a href='/debug/logs/camlistored'>camlistored logs on Google Cloud Logging</a></li>\n")
+		f("  <li><a href='/debug/logs/system'>system logs from Google Compute Engine</a></li>\n")
 	}
 	f("</ul>")
 

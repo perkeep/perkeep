@@ -46,6 +46,8 @@ import (
 	"camlistore.org/pkg/server"
 	"camlistore.org/pkg/server/app"
 	"camlistore.org/pkg/types/serverconfig"
+
+	"google.golang.org/cloud/compute/metadata"
 )
 
 const camliPrefix = "/camli/"
@@ -597,7 +599,7 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reind
 		hi.Handle("/debug/pprof/", profileHandler{})
 	}
 	hi.Handle("/debug/config", auth.RequireAuth(configHandler{config}, auth.OpAll))
-	hi.Handle("/debug/logs", auth.RequireAuth(http.HandlerFunc(logsHandler), auth.OpAll))
+	hi.Handle("/debug/logs/", auth.RequireAuth(http.HandlerFunc(logsHandler), auth.OpAll))
 	return multiCloser(hl.closers), nil
 }
 
@@ -697,18 +699,33 @@ func (profileHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func logsHandler(w http.ResponseWriter, r *http.Request) {
-	c := &http.Client{
-		Transport: &http.Transport{
-			Dial: func(network, addr string) (net.Conn, error) {
-				return net.Dial("unix", "/run/camjournald.sock")
+	suffix := strings.TrimPrefix(r.URL.Path, "/debug/logs/")
+	switch suffix {
+	case "camlistored":
+		projID, err := metadata.ProjectID()
+		if err != nil {
+			httputil.ServeError(w, r, fmt.Errorf("Error getting project ID: %v", err))
+			return
+		}
+		http.Redirect(w, r,
+			"https://console.developers.google.com/logs?project="+projID+"&service=custom.googleapis.com&logName=camlistored-stderr",
+			http.StatusFound)
+	case "system":
+		c := &http.Client{
+			Transport: &http.Transport{
+				Dial: func(network, addr string) (net.Conn, error) {
+					return net.Dial("unix", "/run/camjournald.sock")
+				},
 			},
-		},
+		}
+		res, err := c.Get("http://journal/entries")
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		io.Copy(w, res.Body)
+	default:
+		http.Error(w, "no such logs", 404)
 	}
-	res, err := c.Get("http://journal/entries")
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	io.Copy(w, res.Body)
 }
