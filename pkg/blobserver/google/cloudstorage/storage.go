@@ -40,7 +40,8 @@ import (
 	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/oauthutil"
-	"camlistore.org/pkg/syncutil"
+
+	"go4.org/syncutil"
 
 	"golang.org/x/oauth2"
 )

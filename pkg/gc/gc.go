@@ -22,7 +22,8 @@ import (
 	"fmt"
 
 	"camlistore.org/pkg/context"
-	"camlistore.org/pkg/syncutil"
+
+	"go4.org/syncutil"
 )
 
 const buffered = 32 // arbitrary

@@ -42,7 +42,8 @@ import (
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/syncutil"
+
+	"go4.org/syncutil"
 
 	"golang.org/x/oauth2"
 	// TODO(mpl): switch to google.golang.org/cloud/compute

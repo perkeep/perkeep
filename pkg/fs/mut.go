@@ -34,7 +34,8 @@ import (
 	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/syncutil"
+
+	"go4.org/syncutil"
 
 	"camlistore.org/third_party/bazil.org/fuse"
 	"camlistore.org/third_party/bazil.org/fuse/fs"

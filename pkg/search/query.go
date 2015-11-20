@@ -35,9 +35,10 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/strutil"
 	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
+
+	"go4.org/strutil"
 )
 
 type SortType int

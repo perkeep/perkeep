@@ -29,8 +29,9 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/singleflight"
-	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types"
+
+	"go4.org/syncutil"
 )
 
 const closedIndex = -1

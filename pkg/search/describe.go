@@ -31,9 +31,10 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
+
+	"go4.org/syncutil"
 )
 
 func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {

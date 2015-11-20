@@ -18,7 +18,8 @@ package mongo
 
 import (
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/syncutil"
+
+	"go4.org/syncutil"
 
 	"camlistore.org/third_party/labix.org/v2/mgo"
 	"camlistore.org/third_party/labix.org/v2/mgo/bson"

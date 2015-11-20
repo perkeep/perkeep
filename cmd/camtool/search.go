@@ -26,7 +26,8 @@ import (
 
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/strutil"
+
+	"go4.org/strutil"
 )
 
 type searchCmd struct {

@@ -53,10 +53,11 @@ import (
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/strutil"
-	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types"
 	"camlistore.org/third_party/github.com/camlistore/lock"
+
+	"go4.org/strutil"
+	"go4.org/syncutil"
 )
 
 // TODO(wathiede): replace with glog.V(2) when we decide our logging story.

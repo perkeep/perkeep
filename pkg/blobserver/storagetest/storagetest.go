@@ -32,8 +32,9 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/context"
-	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/test"
+
+	"go4.org/syncutil"
 )
 
 type Opts struct {

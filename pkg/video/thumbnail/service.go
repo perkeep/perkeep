@@ -40,7 +40,8 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/netutil"
-	"camlistore.org/pkg/syncutil"
+
+	"go4.org/syncutil"
 )
 
 // A Service controls the generation of video thumbnails.

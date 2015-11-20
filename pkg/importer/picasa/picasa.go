@@ -37,7 +37,8 @@ import (
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/schema/nodeattr"
 	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/syncutil"
+
+	"go4.org/syncutil"
 
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 	"camlistore.org/third_party/github.com/tgulacsi/picago"

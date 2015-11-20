@@ -28,9 +28,10 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/syncutil"
 	"camlistore.org/third_party/bazil.org/fuse"
 	"camlistore.org/third_party/bazil.org/fuse/fs"
+
+	"go4.org/syncutil"
 )
 
 const refreshTime = 1 * time.Minute

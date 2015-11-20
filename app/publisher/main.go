@@ -48,9 +48,10 @@ import (
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/server"
 	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types/camtypes"
 	"camlistore.org/pkg/webserver"
+
+	"go4.org/syncutil"
 
 	_ "camlistore.org/pkg/sorted/kvfile"
 )

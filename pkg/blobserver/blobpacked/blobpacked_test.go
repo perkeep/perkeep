@@ -39,9 +39,10 @@ import (
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/test"
 	"camlistore.org/third_party/go/pkg/archive/zip"
+
+	"go4.org/syncutil"
 )
 
 const debug = false

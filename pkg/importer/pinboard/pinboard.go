@@ -57,7 +57,8 @@ import (
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/schema/nodeattr"
-	"camlistore.org/pkg/syncutil"
+
+	"go4.org/syncutil"
 )
 
 func init() {

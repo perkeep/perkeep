@@ -40,8 +40,9 @@ import (
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/server"
-	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types/camtypes"
+
+	"go4.org/syncutil"
 )
 
 const (

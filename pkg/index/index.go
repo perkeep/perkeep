@@ -36,9 +36,10 @@ import (
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/strutil"
 	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
+
+	"go4.org/strutil"
 )
 
 func init() {

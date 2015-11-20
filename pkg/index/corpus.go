@@ -35,9 +35,10 @@ import (
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/schema/nodeattr"
 	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/strutil"
-	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types/camtypes"
+
+	"go4.org/strutil"
+	"go4.org/syncutil"
 )
 
 // Corpus is an in-memory summary of all of a user's blobs' metadata.

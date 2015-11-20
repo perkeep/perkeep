@@ -31,7 +31,8 @@ import (
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/syncutil"
+
+	"go4.org/syncutil"
 )
 
 const buffered = 16 // arbitrary

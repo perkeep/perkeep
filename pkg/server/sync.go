@@ -40,9 +40,10 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types/camtypes"
 	"camlistore.org/third_party/code.google.com/p/xsrftoken"
+
+	"go4.org/syncutil"
 )
 
 const (

@@ -28,7 +28,8 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/rollsum"
-	"camlistore.org/pkg/syncutil"
+
+	"go4.org/syncutil"
 )
 
 const (

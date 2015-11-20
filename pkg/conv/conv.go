@@ -23,7 +23,8 @@ import (
 	"fmt"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/strutil"
+
+	"go4.org/strutil"
 )
 
 func ParseFields(v []byte, dst ...interface{}) error {

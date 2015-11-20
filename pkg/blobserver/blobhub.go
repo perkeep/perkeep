@@ -21,7 +21,8 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/syncutil"
+
+	"go4.org/syncutil"
 )
 
 type BlobHub interface {

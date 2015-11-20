@@ -18,7 +18,8 @@ package s3
 
 import (
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/syncutil"
+
+	"go4.org/syncutil"
 )
 
 var removeGate = syncutil.NewGate(20) // arbitrary

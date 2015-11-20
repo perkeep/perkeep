@@ -40,8 +40,9 @@ import (
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/schema/nodeattr"
-	"camlistore.org/pkg/syncutil"
 	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
+
+	"go4.org/syncutil"
 )
 
 const (

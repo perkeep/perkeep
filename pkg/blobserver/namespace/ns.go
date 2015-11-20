@@ -35,7 +35,8 @@ import (
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/strutil"
+
+	"go4.org/strutil"
 )
 
 type nsto struct {

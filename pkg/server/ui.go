@@ -39,7 +39,6 @@ import (
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/server/app"
 	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/syncutil"
 	"camlistore.org/pkg/types/camtypes"
 	uistatic "camlistore.org/server/camlistored/ui"
 	closurestatic "camlistore.org/server/camlistored/ui/closure"
@@ -48,6 +47,8 @@ import (
 	glitchstatic "camlistore.org/third_party/glitch"
 	lessstatic "camlistore.org/third_party/less"
 	reactstatic "camlistore.org/third_party/react"
+
+	"go4.org/syncutil"
 )
 
 var (

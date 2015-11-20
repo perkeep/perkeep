@@ -102,9 +102,10 @@ import (
 	"camlistore.org/pkg/pools"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/strutil"
-	"camlistore.org/pkg/syncutil"
 	"camlistore.org/third_party/go/pkg/archive/zip"
+
+	"go4.org/strutil"
+	"go4.org/syncutil"
 )
 
 // TODO: evaluate whether this should even be 0, to keep the schema blobs together at least.
