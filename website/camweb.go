@@ -462,6 +462,8 @@ func setProdFlags() {
 	log.Printf("Running in production; configuring prod flags & containers")
 	*httpAddr = ":80"
 	*httpsAddr = ":443"
+	*buildbotBackend = "https://travis-ci.org/camlistore/camlistore"
+	*buildbotHost = "build.camlistore.org"
 	*gceLogName = "camweb-access-log"
 	*root = filepath.Join(prodSrcDir, "website")
 	*gitContainer = true
