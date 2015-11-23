@@ -261,13 +261,8 @@ func savePng(t *testing.T, m image.Image, fn string) error {
 	return png.Encode(f, m)
 }
 
-func getFilename(im image.Image, method string) string {
-	imgType := fmt.Sprintf("%T", im)
-	imgType = imgType[strings.Index(imgType, ".")+1:]
-	if m, ok := im.(*image.YCbCr); ok {
-		imgType += "." + m.SubsampleRatio.String()
-	}
-	return fmt.Sprintf("%s.%s.png", imgType, method)
+func getFilename(imType string, method string) string {
+	return fmt.Sprintf("%s.%s.png", imType, method)
 }
 
 func TestCompareResizeToHalveInplace(t *testing.T) {
@@ -292,7 +287,12 @@ func testCompareResizeMethods(t *testing.T, method1, method2 string) {
 	var imTypes []string
 	for _, im := range makeImages(testIm.Bounds()) {
 		// keeping track of the types for the final output
-		imTypes = append(imTypes, fmt.Sprintf("%T", im))
+		imgType := fmt.Sprintf("%T", im)
+		imgType = imgType[strings.Index(imgType, ".")+1:]
+		if m, ok := im.(*image.YCbCr); ok {
+			imgType += "." + m.SubsampleRatio.String()
+		}
+		imTypes = append(imTypes, imgType)
 		fillTestImage(im)
 		images1 = append(images1, resizeMethods[method1](im))
 	}
@@ -326,14 +326,14 @@ func testCompareResizeMethods(t *testing.T, method1, method2 string) {
 		res := compareImages(im1, im2)
 		if *output != "" {
 			fmt.Fprintf(f, "<tr>")
-			fn := getFilename(im1, "halve")
+			fn := getFilename(imTypes[i], "halve")
 			err := savePng(t, im1, fn)
 			if err != nil {
 				t.Fatal(err)
 			}
 			fmt.Fprintf(f, `<td><img src="%s"><br>%s`, fn, fn)
 
-			fn = getFilename(im1, "resize")
+			fn = getFilename(imTypes[i], "resize")
 			err = savePng(t, im2, fn)
 			if err != nil {
 				t.Fatal(err)
@@ -341,7 +341,7 @@ func testCompareResizeMethods(t *testing.T, method1, method2 string) {
 			fmt.Fprintf(f, `<td><img src="%s"><br>%s`, fn, fn)
 
 			if res.diffIm != nil {
-				fn = getFilename(im1, "diff")
+				fn = getFilename(imTypes[i], "diff")
 				err = savePng(t, res.diffIm, fn)
 				if err != nil {
 					t.Fatal(err)
