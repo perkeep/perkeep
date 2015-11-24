@@ -39,13 +39,13 @@ import (
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/singleflight"
 	"camlistore.org/pkg/types"
-
-	"go4.org/syncutil"
 
 	_ "camlistore.org/third_party/github.com/nf/cr2"
 	"camlistore.org/third_party/go/pkg/image/jpeg"
+
+	"go4.org/syncutil"
+	"go4.org/syncutil/singleflight"
 )
 
 const imageDebug = false

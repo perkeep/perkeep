@@ -25,7 +25,8 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/context"
-	"camlistore.org/pkg/singleflight"
+
+	"go4.org/syncutil/singleflight"
 )
 
 type LatLong struct {

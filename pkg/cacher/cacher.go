@@ -28,7 +28,8 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/localdisk"
 	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/singleflight"
+
+	"go4.org/syncutil/singleflight"
 )
 
 // NewCachingFetcher returns a CachingFetcher that fetches from

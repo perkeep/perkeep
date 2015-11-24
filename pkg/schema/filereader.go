@@ -28,10 +28,10 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/singleflight"
 	"camlistore.org/pkg/types"
 
 	"go4.org/syncutil"
+	"go4.org/syncutil/singleflight"
 )
 
 const closedIndex = -1

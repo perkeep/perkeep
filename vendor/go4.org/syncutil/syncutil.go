@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors
+Copyright 2014 The Camlistore Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,17 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package syncutil
-
-import "testing"
-
-func TestGoroutineID(t *testing.T) {
-	c := make(chan int64, 2)
-	c <- GoroutineID()
-	go func() {
-		c <- GoroutineID()
-	}()
-	if a, b := <-c, <-c; a == b {
-		t.Errorf("both goroutine IDs were %d; expected different", a)
-	}
-}
+// Package syncutil contains synchronization utilities.
+package syncutil // import "go4.org/syncutil"

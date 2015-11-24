@@ -20,8 +20,9 @@ import (
 	"os"
 	"sync"
 
-	"camlistore.org/pkg/singleflight"
 	"camlistore.org/pkg/types"
+
+	"go4.org/syncutil/singleflight"
 )
 
 var (
