@@ -25,7 +25,6 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/context"
-	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/singleflight"
 )
 
@@ -63,7 +62,7 @@ func Lookup(ctx *context.Context, address string) ([]Rect, error) {
 		if err != nil {
 			return nil, err
 		}
-		defer httputil.CloseBody(res.Body)
+		defer res.Body.Close()
 		rects, err := decodeGoogleResponse(res.Body)
 		log.Printf("Google geocode lookup (%q) = %#v, %v", address, rects, err)
 		if err == nil {

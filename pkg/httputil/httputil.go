@@ -294,42 +294,13 @@ func putBuf(b *bytes.Buffer) {
 // res.Body.
 // It defensively caps the JSON at 8 MB for now.
 func DecodeJSON(res *http.Response, dest interface{}) error {
-	defer CloseBody(res.Body)
+	defer res.Body.Close()
 	buf := getBuf()
 	defer putBuf(buf)
 	if err := json.NewDecoder(io.TeeReader(io.LimitReader(res.Body, 8<<20), buf)).Decode(dest); err != nil {
 		return fmt.Errorf("httputil.DecodeJSON: %v, on input: %s", err, buf.Bytes())
 	}
 	return nil
-}
-
-// CloseBody should be used to close an http.Response.Body.
-//
-// It does a final little Read to maybe see EOF (to trigger connection
-// re-use) before calling Close.
-func CloseBody(rc io.ReadCloser) {
-	// Go 1.2 pseudo-bug: the NewDecoder(res.Body).Decode never
-	// sees an EOF, so we have to do this 0-byte copy here to
-	// force the http Transport to see its own EOF and recycle the
-	// connection. In Go 1.1 at least, the Close would cause it to
-	// read to EOF and recycle the connection, but in Go 1.2, a
-	// Close before EOF kills the underlying TCP connection.
-	//
-	// Will hopefully be fixed in Go 1.3, at least for bodies with
-	// Content-Length.  Or maybe Go 1.3's Close itself would look
-	// to see if we're at EOF even if it hasn't been Read.
-
-	// TODO: use a bytepool package somewhere for this byte?
-	// Justification for 3 byte reads: two for up to "\r\n" after
-	// a JSON/XML document, and then 1 to see EOF if we haven't yet.
-	buf := make([]byte, 1)
-	for i := 0; i < 3; i++ {
-		_, err := rc.Read(buf)
-		if err != nil {
-			break
-		}
-	}
-	rc.Close()
 }
 
 func IsWebsocketUpgrade(req *http.Request) bool {

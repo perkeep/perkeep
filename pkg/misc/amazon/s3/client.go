@@ -37,7 +37,6 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/httputil"
 )
 
 const maxList = 1000
@@ -88,7 +87,7 @@ func (c *Client) Buckets() ([]*Bucket, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer httputil.CloseBody(res.Body)
+	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("s3: Unexpected status code %d fetching bucket list", res.StatusCode)
 	}
@@ -145,7 +144,7 @@ func (c *Client) PutObject(key, bucket string, md5 hash.Hash, size int64, body i
 
 	res, err := c.transport().RoundTrip(req)
 	if res != nil && res.Body != nil {
-		defer httputil.CloseBody(res.Body)
+		defer res.Body.Close()
 	}
 	if err != nil {
 		return err
@@ -251,7 +250,7 @@ func (c *Client) ListBucket(bucket string, startAt string, maxKeys int) (items [
 					log.Print(err)
 				}
 			}
-			httputil.CloseBody(res.Body)
+			res.Body.Close()
 			if err != nil {
 				if try < maxTries-1 {
 					continue

@@ -200,7 +200,7 @@ func doGet(ctx *context.Context, url string) ([]byte, error) {
 		log.Printf("Error fetching %s: %v", url, err)
 		return nil, err
 	}
-	defer httputil.CloseBody(res.Body)
+	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("Get request on %s failed with: %s", url, res.Status)
 	}

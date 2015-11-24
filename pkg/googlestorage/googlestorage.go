@@ -34,7 +34,6 @@ import (
 	"unicode/utf8"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/httputil"
 
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
@@ -308,7 +307,7 @@ func (gsa *Client) EnumerateObjects(bucket, after string, limit int) ([]SizedObj
 	var xres struct {
 		Contents []SizedObject
 	}
-	defer httputil.CloseBody(resp.Body)
+	defer resp.Body.Close()
 	if err = xml.NewDecoder(resp.Body).Decode(&xres); err != nil {
 		return nil, err
 	}
