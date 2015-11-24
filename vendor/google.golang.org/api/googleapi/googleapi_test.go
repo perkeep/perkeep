@@ -429,11 +429,12 @@ var statusTests = []*testTransport{
 }
 
 func TestTransferStatus(t *testing.T) {
+	ctx := context.Background()
 	for _, tr := range statusTests {
 		rx := &ResumableUpload{
 			Client: &http.Client{Transport: tr},
 		}
-		g, _, err := rx.transferStatus()
+		g, _, err := rx.transferStatus(ctx)
 		if err != nil {
 			t.Error(err)
 		}
@@ -545,7 +546,7 @@ func TestInterruptedTransferChunks(t *testing.T) {
 		}
 	}
 	if len(tr.buf) != len(slurp) || bytes.Compare(tr.buf, slurp) != 0 {
-		t.Errorf("transfered file corrupted:\ngot %s\nwant %s", tr.buf, slurp)
+		t.Errorf("transferred file corrupted:\ngot %s\nwant %s", tr.buf, slurp)
 	}
 	w := ""
 	for i := chunkSize; i <= st.Size(); i += chunkSize {

@@ -37,17 +37,18 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/cloudlaunch/gceutil"
 	"camlistore.org/pkg/constants/google"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/osutil"
 
+	"go4.org/cloud/gceutil"
 	"go4.org/syncutil"
 
 	"golang.org/x/oauth2"
 	// TODO(mpl): switch to google.golang.org/cloud/compute
 	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/api/googleapi"
 	storage "google.golang.org/api/storage/v1"
 	"google.golang.org/cloud"
 	"google.golang.org/cloud/logging"
@@ -89,7 +90,7 @@ func NewOAuthConfig(clientID, clientSecret string) *oauth2.Config {
 	return &oauth2.Config{
 		Scopes: []string{
 			logging.Scope,
-			compute.DevstorageFull_controlScope,
+			compute.DevstorageFullControlScope,
 			compute.ComputeScope,
 			"https://www.googleapis.com/auth/sqlservice",
 			"https://www.googleapis.com/auth/sqlservice.admin",
@@ -352,23 +353,23 @@ func (d *Deployer) createInstance(computeService *compute.Service, ctx *context.
 			Items: []*compute.MetadataItems{
 				{
 					Key:   "camlistore-username",
-					Value: camliUsername,
+					Value: googleapi.String(camliUsername),
 				},
 				{
 					Key:   "camlistore-password",
-					Value: password,
+					Value: googleapi.String(password),
 				},
 				{
 					Key:   "camlistore-blob-dir",
-					Value: "gs://" + d.Conf.blobDir,
+					Value: googleapi.String("gs://" + d.Conf.blobDir),
 				},
 				{
 					Key:   "camlistore-config-dir",
-					Value: "gs://" + d.Conf.configDir,
+					Value: googleapi.String("gs://" + d.Conf.configDir),
 				},
 				{
 					Key:   "user-data",
-					Value: config,
+					Value: googleapi.String(config),
 				},
 			},
 		},
@@ -388,7 +389,7 @@ func (d *Deployer) createInstance(computeService *compute.Service, ctx *context.
 				Email: "default",
 				Scopes: []string{
 					logging.Scope,
-					compute.DevstorageFull_controlScope,
+					compute.DevstorageFullControlScope,
 					compute.ComputeScope,
 					"https://www.googleapis.com/auth/sqlservice",
 					"https://www.googleapis.com/auth/sqlservice.admin",
@@ -399,7 +400,7 @@ func (d *Deployer) createInstance(computeService *compute.Service, ctx *context.
 	if d.Conf.Hostname != "" && d.Conf.Hostname != "localhost" {
 		instance.Metadata.Items = append(instance.Metadata.Items, &compute.MetadataItems{
 			Key:   "camlistore-hostname",
-			Value: d.Conf.Hostname,
+			Value: googleapi.String(d.Conf.Hostname),
 		})
 	}
 	const localMySQL = false // later
@@ -569,14 +570,14 @@ func (d *Deployer) setFirewall(ctx *context.Context, computeService *compute.Ser
 			Name:         "default-allow-http",
 			SourceRanges: []string{"0.0.0.0/0"},
 			SourceTags:   []string{"http-server"},
-			Allowed:      []*compute.FirewallAllowed{{"tcp", []string{"80"}}},
+			Allowed:      []*compute.FirewallAllowed{{IPProtocol: "tcp", Ports: []string{"80"}}},
 			Network:      defaultNet.SelfLink,
 		},
 		"default-allow-https": compute.Firewall{
 			Name:         "default-allow-https",
 			SourceRanges: []string{"0.0.0.0/0"},
 			SourceTags:   []string{"https-server"},
-			Allowed:      []*compute.FirewallAllowed{{"tcp", []string{"443"}}},
+			Allowed:      []*compute.FirewallAllowed{{IPProtocol: "tcp", Ports: []string{"443"}}},
 			Network:      defaultNet.SelfLink,
 		},
 	}

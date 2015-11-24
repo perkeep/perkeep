@@ -1,11 +1,11 @@
 {
  "kind": "discovery#restDescription",
- "etag": "\"ye6orv2F-1npMW3u9suM3a7C5Bo/xtpwrL4RwrHHosQq_H1kzUTVEH8\"",
+ "etag": "\"ye6orv2F-1npMW3u9suM3a7C5Bo/yTdDeTQGX0QbumSXoV_ilLcKyf0\"",
  "discoveryVersion": "v1",
  "id": "drive:v1",
  "name": "drive",
  "version": "v1",
- "revision": "20141201",
+ "revision": "20150618",
  "title": "Drive API",
  "description": "The API to interact with Drive.",
  "ownerDomain": "google.com",
@@ -70,7 +70,7 @@
   "oauth2": {
    "scopes": {
     "https://www.googleapis.com/auth/drive.file": {
-     "description": "View and manage Google Drive files that you have opened or created with this app"
+     "description": "View and manage Google Drive files and folders that you have opened or created with this app"
     }
    }
   }
@@ -91,8 +91,7 @@
      "description": "A short description of the file"
     },
     "downloadUrl": {
-     "type": "string",
-     "description": "Short term download URL for the file. This will only be populated on files with content stored in Drive."
+     "type": "string"
     },
     "etag": {
      "type": "string",
@@ -321,7 +320,7 @@
       },
       "newRevision": {
        "type": "boolean",
-       "description": "Whether a blob upload should create a new revision. If false, the blob data in the current head revision is replaced. If true or not set, a new blob is created as head revision, and previous revisions are preserved (causing increased use of the user's data storage quota).",
+       "description": "Whether a blob upload should create a new revision. If false, the blob data in the current head revision is replaced. If true or not set, a new blob is created as head revision, and previous unpinned revisions are preserved for a short period of time. Pinned revisions are stored indefinitely, using additional storage quota, up to a maximum of 200 revisions.",
        "default": "true",
        "location": "query"
       },
@@ -365,7 +364,7 @@
       },
       "newRevision": {
        "type": "boolean",
-       "description": "Whether a blob upload should create a new revision. If false, the blob data in the current head revision is replaced. If true or not set, a new blob is created as head revision, and previous revisions are preserved (causing increased use of the user's data storage quota).",
+       "description": "Whether a blob upload should create a new revision. If false, the blob data in the current head revision is replaced. If true or not set, a new blob is created as head revision, and previous unpinned revisions are preserved for a short period of time. Pinned revisions are stored indefinitely, using additional storage quota, up to a maximum of 200 revisions.",
        "default": "true",
        "location": "query"
       },

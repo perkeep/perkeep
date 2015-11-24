@@ -1,11 +1,11 @@
 {
  "kind": "discovery#restDescription",
- "etag": "\"ye6orv2F-1npMW3u9suM3a7C5Bo/bvP9PKeteRErWBIlbiucv-VU2no\"",
+ "etag": "\"ye6orv2F-1npMW3u9suM3a7C5Bo/hPQpcOx1jxdLJJoNmiYxoTv2oFc\"",
  "discoveryVersion": "v1",
  "id": "gmail:v1",
  "name": "gmail",
  "version": "v1",
- "revision": "20141204",
+ "revision": "20150805",
  "title": "Gmail API",
  "description": "The Gmail REST API.",
  "ownerDomain": "google.com",
@@ -75,11 +75,20 @@
     "https://www.googleapis.com/auth/gmail.compose": {
      "description": "Manage drafts and send emails"
     },
+    "https://www.googleapis.com/auth/gmail.insert": {
+     "description": "Insert mail into your mailbox"
+    },
+    "https://www.googleapis.com/auth/gmail.labels": {
+     "description": "Manage mailbox labels"
+    },
     "https://www.googleapis.com/auth/gmail.modify": {
      "description": "View and modify but not delete your email"
     },
     "https://www.googleapis.com/auth/gmail.readonly": {
      "description": "View your emails messages and settings"
+    },
+    "https://www.googleapis.com/auth/gmail.send": {
+     "description": "Send email on your behalf"
     }
    }
   }
@@ -89,7 +98,6 @@
    "id": "Draft",
    "type": "object",
    "description": "A draft email in the user's mailbox.",
-   "externalTypeName": "caribou.api.proto.Draft",
    "properties": {
     "id": {
      "type": "string",
@@ -109,20 +117,97 @@
   "History": {
    "id": "History",
    "type": "object",
-   "description": "A record of a change to the user's mailbox. Each history contains a list of the messages that were affected by this change.",
-   "externalTypeName": "caribou.api.proto.History",
+   "description": "A record of a change to the user's mailbox. Each history change may affect multiple messages in multiple ways.",
    "properties": {
     "id": {
      "type": "string",
      "description": "The mailbox sequence ID.",
      "format": "uint64"
     },
+    "labelsAdded": {
+     "type": "array",
+     "description": "Labels added to messages in this history record.",
+     "items": {
+      "$ref": "HistoryLabelAdded"
+     }
+    },
+    "labelsRemoved": {
+     "type": "array",
+     "description": "Labels removed from messages in this history record.",
+     "items": {
+      "$ref": "HistoryLabelRemoved"
+     }
+    },
     "messages": {
      "type": "array",
-     "description": "The messages that changed in this history record.",
+     "description": "List of messages changed in this history record. The fields for specific change types, such as messagesAdded may duplicate messages in this field. We recommend using the specific change-type fields instead of this.",
      "items": {
       "$ref": "Message"
      }
+    },
+    "messagesAdded": {
+     "type": "array",
+     "description": "Messages added to the mailbox in this history record.",
+     "items": {
+      "$ref": "HistoryMessageAdded"
+     }
+    },
+    "messagesDeleted": {
+     "type": "array",
+     "description": "Messages deleted (not Trashed) from the mailbox in this history record.",
+     "items": {
+      "$ref": "HistoryMessageDeleted"
+     }
+    }
+   }
+  },
+  "HistoryLabelAdded": {
+   "id": "HistoryLabelAdded",
+   "type": "object",
+   "properties": {
+    "labelIds": {
+     "type": "array",
+     "description": "Label IDs added to the message.",
+     "items": {
+      "type": "string"
+     }
+    },
+    "message": {
+     "$ref": "Message"
+    }
+   }
+  },
+  "HistoryLabelRemoved": {
+   "id": "HistoryLabelRemoved",
+   "type": "object",
+   "properties": {
+    "labelIds": {
+     "type": "array",
+     "description": "Label IDs removed from the message.",
+     "items": {
+      "type": "string"
+     }
+    },
+    "message": {
+     "$ref": "Message"
+    }
+   }
+  },
+  "HistoryMessageAdded": {
+   "id": "HistoryMessageAdded",
+   "type": "object",
+   "properties": {
+    "message": {
+     "$ref": "Message"
+    }
+   }
+  },
+  "HistoryMessageDeleted": {
+   "id": "HistoryMessageDeleted",
+   "type": "object",
+   "properties": {
+    "message": {
+     "$ref": "Message"
     }
    }
   },
@@ -130,7 +215,6 @@
    "id": "Label",
    "type": "object",
    "description": "Labels are used to categorize messages and threads within the user's mailbox.",
-   "externalTypeName": "caribou.api.proto.Label",
    "properties": {
     "id": {
      "type": "string",
@@ -226,7 +310,6 @@
   "ListDraftsResponse": {
    "id": "ListDraftsResponse",
    "type": "object",
-   "externalTypeName": "caribou.api.proto.ListDraftsResponse",
    "properties": {
     "drafts": {
      "type": "array",
@@ -249,11 +332,10 @@
   "ListHistoryResponse": {
    "id": "ListHistoryResponse",
    "type": "object",
-   "externalTypeName": "caribou.api.proto.ListHistoryResponse",
    "properties": {
     "history": {
      "type": "array",
-     "description": "List of history records.",
+     "description": "List of history records. Any messages contained in the response will typically only have id and threadId fields populated.",
      "items": {
       "$ref": "History"
      }
@@ -272,7 +354,6 @@
   "ListLabelsResponse": {
    "id": "ListLabelsResponse",
    "type": "object",
-   "externalTypeName": "caribou.api.proto.ListLabelsResponse",
    "properties": {
     "labels": {
      "type": "array",
@@ -286,7 +367,6 @@
   "ListMessagesResponse": {
    "id": "ListMessagesResponse",
    "type": "object",
-   "externalTypeName": "caribou.api.proto.ListMessagesResponse",
    "properties": {
     "messages": {
      "type": "array",
@@ -309,7 +389,6 @@
   "ListThreadsResponse": {
    "id": "ListThreadsResponse",
    "type": "object",
-   "externalTypeName": "caribou.api.proto.ListThreadsResponse",
    "properties": {
     "nextPageToken": {
      "type": "string",
@@ -333,7 +412,6 @@
    "id": "Message",
    "type": "object",
    "description": "An email message.",
-   "externalTypeName": "caribou.api.proto.Message",
    "properties": {
     "historyId": {
      "type": "string",
@@ -343,6 +421,11 @@
     "id": {
      "type": "string",
      "description": "The immutable ID of the message."
+    },
+    "internalDate": {
+     "type": "string",
+     "description": "The internal message creation timestamp (epoch ms), which determines ordering in the inbox. For normal SMTP-received email, this represents the time the message was originally accepted by Google, which is more reliable than the Date header. However, for API-migrated mail, it can be configured by client to be based on the Date header.",
+     "format": "int64"
     },
     "labelIds": {
      "type": "array",
@@ -387,7 +470,6 @@
    "id": "MessagePart",
    "type": "object",
    "description": "A single MIME message part.",
-   "externalTypeName": "caribou.api.proto.MessagePart",
    "properties": {
     "body": {
      "$ref": "MessagePartBody",
@@ -425,7 +507,6 @@
    "id": "MessagePartBody",
    "type": "object",
    "description": "The body of a single MIME message part.",
-   "externalTypeName": "caribou.api.proto.MessagePartBody",
    "properties": {
     "attachmentId": {
      "type": "string",
@@ -446,7 +527,6 @@
   "MessagePartHeader": {
    "id": "MessagePartHeader",
    "type": "object",
-   "externalTypeName": "caribou.api.proto.MessagePart.Header",
    "properties": {
     "name": {
      "type": "string",
@@ -461,7 +541,6 @@
   "ModifyMessageRequest": {
    "id": "ModifyMessageRequest",
    "type": "object",
-   "externalTypeName": "caribou.api.proto.ModifyMessageRequest",
    "properties": {
     "addLabelIds": {
      "type": "array",
@@ -482,7 +561,6 @@
   "ModifyThreadRequest": {
    "id": "ModifyThreadRequest",
    "type": "object",
-   "externalTypeName": "caribou.api.proto.ModifyThreadRequest",
    "properties": {
     "addLabelIds": {
      "type": "array",
@@ -504,7 +582,6 @@
    "id": "Profile",
    "type": "object",
    "description": "Profile for a Gmail user.",
-   "externalTypeName": "caribou.api.proto.Profile",
    "properties": {
     "emailAddress": {
      "type": "string",
@@ -531,7 +608,6 @@
    "id": "Thread",
    "type": "object",
    "description": "A collection of messages representing a conversation.",
-   "externalTypeName": "caribou.api.proto.Thread",
    "properties": {
     "historyId": {
      "type": "string",
@@ -552,6 +628,53 @@
     "snippet": {
      "type": "string",
      "description": "A short part of the message text."
+    }
+   }
+  },
+  "WatchRequest": {
+   "id": "WatchRequest",
+   "type": "object",
+   "description": "Set up or update a new push notification watch on this user's mailbox.",
+   "properties": {
+    "labelFilterAction": {
+     "type": "string",
+     "description": "Filtering behavior of labelIds list specified.",
+     "enum": [
+      "exclude",
+      "include"
+     ],
+     "enumDescriptions": [
+      "",
+      ""
+     ]
+    },
+    "labelIds": {
+     "type": "array",
+     "description": "List of label_ids to restrict notifications about. By default, if unspecified, all changes are pushed out. If specified then dictates which labels are required for a push notification to be generated.",
+     "items": {
+      "type": "string"
+     }
+    },
+    "topicName": {
+     "type": "string",
+     "description": "A fully qualified Google Cloud Pub/Sub API topic name to publish the events to. This topic name **must** already exist in Cloud Pub/Sub and you **must** have already granted gmail \"publish\" permission on it. For example, \"projects/my-project-identifier/topics/my-topic-name\" (using the new Cloud Pub/Sub \"v1beta2\" topic naming format).\n\nNote that the \"my-project-identifier\" portion must exactly match your Google developer project id (the one executing this watch request)."
+    }
+   }
+  },
+  "WatchResponse": {
+   "id": "WatchResponse",
+   "type": "object",
+   "description": "Push notification watch response.",
+   "properties": {
+    "expiration": {
+     "type": "string",
+     "description": "When Gmail will stop sending notifications for mailbox updates (epoch millis). Call watch again before this time to renew the watch.",
+     "format": "int64"
+    },
+    "historyId": {
+     "type": "string",
+     "description": "The ID of the mailbox's current history record.",
+     "format": "uint64"
     }
    }
   }
@@ -582,6 +705,58 @@
      "scopes": [
       "https://mail.google.com/",
       "https://www.googleapis.com/auth/gmail.compose",
+      "https://www.googleapis.com/auth/gmail.modify",
+      "https://www.googleapis.com/auth/gmail.readonly"
+     ]
+    },
+    "stop": {
+     "id": "gmail.users.stop",
+     "path": "{userId}/stop",
+     "httpMethod": "POST",
+     "description": "Stop receiving push notifications for the given user mailbox.",
+     "parameters": {
+      "userId": {
+       "type": "string",
+       "description": "The user's email address. The special value me can be used to indicate the authenticated user.",
+       "default": "me",
+       "required": true,
+       "location": "path"
+      }
+     },
+     "parameterOrder": [
+      "userId"
+     ],
+     "scopes": [
+      "https://mail.google.com/",
+      "https://www.googleapis.com/auth/gmail.modify",
+      "https://www.googleapis.com/auth/gmail.readonly"
+     ]
+    },
+    "watch": {
+     "id": "gmail.users.watch",
+     "path": "{userId}/watch",
+     "httpMethod": "POST",
+     "description": "Set up or update a push notification watch on the given user mailbox.",
+     "parameters": {
+      "userId": {
+       "type": "string",
+       "description": "The user's email address. The special value me can be used to indicate the authenticated user.",
+       "default": "me",
+       "required": true,
+       "location": "path"
+      }
+     },
+     "parameterOrder": [
+      "userId"
+     ],
+     "request": {
+      "$ref": "WatchRequest"
+     },
+     "response": {
+      "$ref": "WatchResponse"
+     },
+     "scopes": [
+      "https://mail.google.com/",
       "https://www.googleapis.com/auth/gmail.modify",
       "https://www.googleapis.com/auth/gmail.readonly"
      ]
@@ -885,7 +1060,7 @@
         },
         "startHistoryId": {
          "type": "string",
-         "description": "Required. Returns history records after the specified startHistoryId. The supplied startHistoryId should be obtained from the historyId of a message, thread, or previous list response. History IDs increase chronologically but are not contiguous with random gaps in between valid IDs. Supplying an invalid or out of date startHistoryId typically returns an HTTP 404 error code. A historyId is typically valid for at least a week, but in some circumstances may be valid for only a few hours. If you receive an HTTP 404 error response, your application should perform a full sync. If you receive no nextPageToken in the response, there are no updates to retrieve and you can store the returned historyId for a future request.",
+         "description": "Required. Returns history records after the specified startHistoryId. The supplied startHistoryId should be obtained from the historyId of a message, thread, or previous list response. History IDs increase chronologically but are not contiguous with random gaps in between valid IDs. Supplying an invalid or out of date startHistoryId typically returns an HTTP 404 error code. A historyId is typically valid for at least a week, but in some rare circumstances may be valid for only a few hours. If you receive an HTTP 404 error response, your application should perform a full sync. If you receive no nextPageToken in the response, there are no updates to retrieve and you can store the returned historyId for a future request.",
          "format": "uint64",
          "location": "query"
         },
@@ -938,6 +1113,7 @@
        },
        "scopes": [
         "https://mail.google.com/",
+        "https://www.googleapis.com/auth/gmail.labels",
         "https://www.googleapis.com/auth/gmail.modify"
        ]
       },
@@ -967,6 +1143,7 @@
        ],
        "scopes": [
         "https://mail.google.com/",
+        "https://www.googleapis.com/auth/gmail.labels",
         "https://www.googleapis.com/auth/gmail.modify"
        ]
       },
@@ -999,6 +1176,7 @@
        },
        "scopes": [
         "https://mail.google.com/",
+        "https://www.googleapis.com/auth/gmail.labels",
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/gmail.readonly"
        ]
@@ -1025,6 +1203,7 @@
        },
        "scopes": [
         "https://mail.google.com/",
+        "https://www.googleapis.com/auth/gmail.labels",
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/gmail.readonly"
        ]
@@ -1061,6 +1240,7 @@
        },
        "scopes": [
         "https://mail.google.com/",
+        "https://www.googleapis.com/auth/gmail.labels",
         "https://www.googleapis.com/auth/gmail.modify"
        ]
       },
@@ -1096,6 +1276,7 @@
        },
        "scopes": [
         "https://mail.google.com/",
+        "https://www.googleapis.com/auth/gmail.labels",
         "https://www.googleapis.com/auth/gmail.modify"
        ]
       }
@@ -1194,6 +1375,12 @@
        "httpMethod": "POST",
        "description": "Imports a message into only this user's mailbox, with standard email delivery scanning and classification similar to receiving via SMTP. Does not send a message.",
        "parameters": {
+        "deleted": {
+         "type": "boolean",
+         "description": "Mark the email as permanently deleted (not TRASH) and only visible in Google Apps Vault to a Vault administrator. Only used for Google Apps for Work accounts.",
+         "default": "false",
+         "location": "query"
+        },
         "internalDateSource": {
          "type": "string",
          "description": "Source for Gmail's internal date of the message.",
@@ -1206,6 +1393,18 @@
           "",
           ""
          ],
+         "location": "query"
+        },
+        "neverMarkSpam": {
+         "type": "boolean",
+         "description": "Ignore the Gmail spam classifier decision and never mark this email as SPAM in the mailbox.",
+         "default": "false",
+         "location": "query"
+        },
+        "processForCalendar": {
+         "type": "boolean",
+         "description": "Process calendar invites in the email and add any extracted meetings to the Google Calendar for this user.",
+         "default": "false",
          "location": "query"
         },
         "userId": {
@@ -1227,6 +1426,7 @@
        },
        "scopes": [
         "https://mail.google.com/",
+        "https://www.googleapis.com/auth/gmail.insert",
         "https://www.googleapis.com/auth/gmail.modify"
        ],
        "supportsMediaUpload": true,
@@ -1253,6 +1453,12 @@
        "httpMethod": "POST",
        "description": "Directly inserts a message into only this user's mailbox similar to IMAP APPEND, bypassing most scanning and classification. Does not send a message.",
        "parameters": {
+        "deleted": {
+         "type": "boolean",
+         "description": "Mark the email as permanently deleted (not TRASH) and only visible in Google Apps Vault to a Vault administrator. Only used for Google Apps for Work accounts.",
+         "default": "false",
+         "location": "query"
+        },
         "internalDateSource": {
          "type": "string",
          "description": "Source for Gmail's internal date of the message.",
@@ -1286,6 +1492,7 @@
        },
        "scopes": [
         "https://mail.google.com/",
+        "https://www.googleapis.com/auth/gmail.insert",
         "https://www.googleapis.com/auth/gmail.modify"
        ],
        "supportsMediaUpload": true,
@@ -1422,7 +1629,8 @@
        "scopes": [
         "https://mail.google.com/",
         "https://www.googleapis.com/auth/gmail.compose",
-        "https://www.googleapis.com/auth/gmail.modify"
+        "https://www.googleapis.com/auth/gmail.modify",
+        "https://www.googleapis.com/auth/gmail.send"
        ],
        "supportsMediaUpload": true,
        "mediaUpload": {

@@ -33,7 +33,7 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/cloudlaunch/gceutil"
+	"go4.org/cloud/gceutil"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -64,7 +64,7 @@ coreos:
         [Unit]
         Description=$NAME service
         After=network.target
-        
+
         [Service]
         Type=simple
         ExecStartPre=/bin/sh -c 'mkdir -p /opt/bin && /usr/bin/curl --silent -f -o /opt/bin/$NAME $URL?$(date +%s) && chmod +x /opt/bin/$NAME'
@@ -72,7 +72,7 @@ coreos:
         RestartSec=10
         Restart=always
         StartLimitInterval=0
-        
+
         [Install]
         WantedBy=network-online.target
 `
@@ -336,7 +336,7 @@ func (cl *cloudLaunch) createInstance() {
 			Items: []*compute.MetadataItems{
 				{
 					Key:   "user-data",
-					Value: cloudConfig, // when updated: googleapi.String(cloudConfig),
+					Value: googleapi.String(cloudConfig),
 				},
 			},
 		},

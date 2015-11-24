@@ -484,7 +484,7 @@ func (h *DeployHandler) serveOldInstance(w http.ResponseWriter, br blob.Ref, dep
 		password := depl.Conf.Password
 		for _, item := range inst.Metadata.Items {
 			if item.Key == "camlistore-password" {
-				password = item.Value
+				password = *(item.Value)
 			}
 		}
 		if password != depl.Conf.Password {

@@ -1,11 +1,11 @@
 {
  "kind": "discovery#restDescription",
- "etag": "\"ye6orv2F-1npMW3u9suM3a7C5Bo/DSBHJ9twjiBLRiS2dA7Be4AsBQk\"",
+ "etag": "\"ye6orv2F-1npMW3u9suM3a7C5Bo/j3Wwh3EWBgWZwRehTCtXuS9oPH4\"",
  "discoveryVersion": "v1",
  "id": "drive:v2",
  "name": "drive",
  "version": "v2",
- "revision": "20150305",
+ "revision": "20151008",
  "title": "Drive API",
  "description": "The API to interact with Drive.",
  "ownerDomain": "google.com",
@@ -79,13 +79,16 @@
      "description": "View your Google Drive apps"
     },
     "https://www.googleapis.com/auth/drive.file": {
-     "description": "View and manage Google Drive files that you have opened or created with this app"
+     "description": "View and manage Google Drive files and folders that you have opened or created with this app"
     },
     "https://www.googleapis.com/auth/drive.metadata": {
      "description": "View and manage metadata of files in your Google Drive"
     },
     "https://www.googleapis.com/auth/drive.metadata.readonly": {
      "description": "View metadata for files in your Google Drive"
+    },
+    "https://www.googleapis.com/auth/drive.photos.readonly": {
+     "description": "View the photos, videos and albums in your Google Photos"
     },
     "https://www.googleapis.com/auth/drive.readonly": {
      "description": "View the files in your Google Drive"
@@ -137,7 +140,7 @@
     },
     "domainSharingPolicy": {
      "type": "string",
-     "description": "The domain sharing policy for the current user."
+     "description": "The domain sharing policy for the current user. Possible values are:  \n- allowed \n- allowedWithWarning \n- incomingOnly \n- disallowed"
     },
     "etag": {
      "type": "string",
@@ -891,6 +894,10 @@
      "type": "boolean",
      "description": "Whether this file is in the Application Data folder."
     },
+    "canComment": {
+     "type": "boolean",
+     "description": "Whether the current user can comment on the file."
+    },
     "copyable": {
      "type": "boolean",
      "description": "Whether the file can be copied by the current user."
@@ -909,8 +916,7 @@
      "description": "A short description of the file."
     },
     "downloadUrl": {
-     "type": "string",
-     "description": "Short lived download URL for the file. This is only populated for files with content stored in Drive."
+     "type": "string"
     },
     "editable": {
      "type": "boolean",
@@ -926,7 +932,7 @@
     },
     "explicitlyTrashed": {
      "type": "boolean",
-     "description": "Whether this file has been explicitly trashed, as opposed to recursively trashed. This will only be populated if the file is trashed."
+     "description": "Whether this file has been explicitly trashed, as opposed to recursively trashed."
     },
     "exportLinks": {
      "type": "object",
@@ -938,20 +944,24 @@
     },
     "fileExtension": {
      "type": "string",
-     "description": "The file extension used when downloading this file. This field is read only. To set the extension, include it in the title when creating the file. This is only populated for files with content stored in Drive."
+     "description": "The final component of fullFileExtension with trailing text that does not appear to be part of the extension removed. This field is only populated for files with content stored in Drive; it is not populated for Google Docs or shortcut files."
     },
     "fileSize": {
      "type": "string",
-     "description": "The size of the file in bytes. This is only populated for files with content stored in Drive.",
+     "description": "The size of the file in bytes. This field is only populated for files with content stored in Drive; it is not populated for Google Docs or shortcut files.",
      "format": "int64"
     },
     "folderColorRgb": {
      "type": "string",
      "description": "Folder color as an RGB hex string if the file is a folder. The list of supported colors is available in the folderColorPalette field of the About resource. If an unsupported color is specified, it will be changed to the closest color in the palette."
     },
+    "fullFileExtension": {
+     "type": "string",
+     "description": "The full file extension; extracted from the title. May contain multiple concatenated extensions, such as \"tar.gz\". Removing an extension from the title does not clear this field; however, changing the extension on the title does update this field. This field is only populated for files with content stored in Drive; it is not populated for Google Docs or shortcut files."
+    },
     "headRevisionId": {
      "type": "string",
-     "description": "The ID of the file's head revision. This will only be populated for files with content stored in Drive."
+     "description": "The ID of the file's head revision. This field is only populated for files with content stored in Drive; it is not populated for Google Docs or shortcut files."
     },
     "iconLink": {
      "type": "string",
@@ -1103,7 +1113,7 @@
       },
       "restricted": {
        "type": "boolean",
-       "description": "Whether viewers are prevented from downloading this file."
+       "description": "Whether viewers and commenters are prevented from downloading, printing, and copying this file."
       },
       "starred": {
        "type": "boolean",
@@ -1134,12 +1144,12 @@
     },
     "markedViewedByMeDate": {
      "type": "string",
-     "description": "Time this file was explicitly marked viewed by the user (formatted RFC 3339 timestamp).",
+     "description": "Deprecated.",
      "format": "date-time"
     },
     "md5Checksum": {
      "type": "string",
-     "description": "An MD5 checksum for the content of this file. This is populated only for files with content stored in Drive."
+     "description": "An MD5 checksum for the content of this file. This field is only populated for files with content stored in Drive; it is not populated for Google Docs or shortcut files."
     },
     "mimeType": {
      "type": "string",
@@ -1164,7 +1174,11 @@
     },
     "originalFilename": {
      "type": "string",
-     "description": "The original filename if the file was uploaded manually, or the original title if the file was inserted through the API. Note that renames of the title will not change the original filename. This will only be populated on files with content stored in Drive."
+     "description": "The original filename if the file was uploaded manually, or the original title if the file was inserted through the API. Note that renames of the title will not change the original filename. This field is only populated for files with content stored in Drive; it is not populated for Google Docs or shortcut files."
+    },
+    "ownedByMe": {
+     "type": "boolean",
+     "description": "Whether the file is owned by the current user."
     },
     "ownerNames": {
      "type": "array",
@@ -1210,6 +1224,10 @@
      "type": "string",
      "description": "A link back to this file."
     },
+    "shareable": {
+     "type": "boolean",
+     "description": "Whether the file's sharing settings can be modified by the current user."
+    },
     "shared": {
      "type": "boolean",
      "description": "Whether the file has been shared."
@@ -1222,6 +1240,13 @@
     "sharingUser": {
      "$ref": "User",
      "description": "User that shared the item with the current user, if available."
+    },
+    "spaces": {
+     "type": "array",
+     "description": "The list of spaces which contain the file. Supported values are 'drive', 'appDataFolder' and 'photos'.",
+     "items": {
+      "type": "string"
+     }
     },
     "thumbnail": {
      "type": "object",
@@ -1322,6 +1347,29 @@
     "selfLink": {
      "type": "string",
      "description": "A link back to this list."
+    }
+   }
+  },
+  "GeneratedIds": {
+   "id": "GeneratedIds",
+   "type": "object",
+   "description": "A list of generated IDs which can be provided in insert requests",
+   "properties": {
+    "ids": {
+     "type": "array",
+     "description": "The IDs generated for the requesting user in the specified space.",
+     "items": {
+      "type": "string"
+     }
+    },
+    "kind": {
+     "type": "string",
+     "description": "This is always drive#generatedIds",
+     "default": "drive#generatedIds"
+    },
+    "space": {
+     "type": "string",
+     "description": "The type of file that can be created with these IDs."
     }
    }
   },
@@ -1754,6 +1802,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ]
     }
@@ -1851,6 +1900,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ]
     },
@@ -1885,6 +1935,11 @@
        "description": "Page token for changes.",
        "location": "query"
       },
+      "spaces": {
+       "type": "string",
+       "description": "A comma-separated list of spaces to query. Supported values are 'drive', 'appDataFolder' and 'photos'.",
+       "location": "query"
+      },
       "startChangeId": {
        "type": "string",
        "description": "Change ID to start listing changes from.",
@@ -1902,6 +1957,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ],
      "supportsSubscription": true
@@ -1937,6 +1993,11 @@
        "description": "Page token for changes.",
        "location": "query"
       },
+      "spaces": {
+       "type": "string",
+       "description": "A comma-separated list of spaces to query. Supported values are 'drive', 'appDataFolder' and 'photos'.",
+       "location": "query"
+      },
       "startChangeId": {
        "type": "string",
        "description": "Change ID to start listing changes from.",
@@ -1958,6 +2019,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ],
      "supportsSubscription": true
@@ -1982,6 +2044,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ]
     }
@@ -2049,6 +2112,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ]
     },
@@ -2100,6 +2164,11 @@
        "minimum": "0",
        "location": "query"
       },
+      "orderBy": {
+       "type": "string",
+       "description": "A comma-separated list of sort keys. Valid keys are 'createdDate', 'folder', 'lastViewedByMeDate', 'modifiedByMeDate', 'modifiedDate', 'quotaBytesUsed', 'recency', 'sharedWithMeDate', 'starred', and 'title'. Each key sorts ascending by default, but may be reversed with the 'desc' modifier. Example usage: ?orderBy=folder,modifiedDate desc,title. Please note that there is a current limitation for users with approximately one million files in which the requested sort order is ignored.",
+       "location": "query"
+      },
       "pageToken": {
        "type": "string",
        "description": "Page token for children.",
@@ -2123,6 +2192,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ]
     }
@@ -2155,8 +2225,7 @@
      ],
      "scopes": [
       "https://www.googleapis.com/auth/drive",
-      "https://www.googleapis.com/auth/drive.file",
-      "https://www.googleapis.com/auth/drive.readonly"
+      "https://www.googleapis.com/auth/drive.file"
      ]
     },
     "get": {
@@ -2372,7 +2441,7 @@
       },
       "ocrLanguage": {
        "type": "string",
-       "description": "If ocr is true, hints at the language to use. Valid values are ISO 639-1 codes.",
+       "description": "If ocr is true, hints at the language to use. Valid values are BCP 47 codes.",
        "location": "query"
       },
       "pinned": {
@@ -2419,7 +2488,8 @@
       "https://www.googleapis.com/auth/drive",
       "https://www.googleapis.com/auth/drive.appdata",
       "https://www.googleapis.com/auth/drive.apps.readonly",
-      "https://www.googleapis.com/auth/drive.file"
+      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/drive.photos.readonly"
      ]
     },
     "delete": {
@@ -2453,6 +2523,37 @@
       "https://www.googleapis.com/auth/drive"
      ]
     },
+    "generateIds": {
+     "id": "drive.files.generateIds",
+     "path": "files/generateIds",
+     "httpMethod": "GET",
+     "description": "Generates a set of file IDs which can be provided in insert requests.",
+     "parameters": {
+      "maxResults": {
+       "type": "integer",
+       "description": "Maximum number of IDs to return.",
+       "default": "10",
+       "format": "int32",
+       "minimum": "1",
+       "maximum": "1000",
+       "location": "query"
+      },
+      "space": {
+       "type": "string",
+       "description": "The space in which the IDs can be used to create new files. Supported values are 'drive' and 'appDataFolder'.",
+       "default": "drive",
+       "location": "query"
+      }
+     },
+     "response": {
+      "$ref": "GeneratedIds"
+     },
+     "scopes": [
+      "https://www.googleapis.com/auth/drive",
+      "https://www.googleapis.com/auth/drive.appdata",
+      "https://www.googleapis.com/auth/drive.file"
+     ]
+    },
     "get": {
      "id": "drive.files.get",
      "path": "files/{fileId}",
@@ -2461,13 +2562,8 @@
      "parameters": {
       "acknowledgeAbuse": {
        "type": "boolean",
-       "description": "Whether the user is acknowledging the risk of downloading known malware or other abusive files. Ignored unless alt=media is specified.",
+       "description": "Whether the user is acknowledging the risk of downloading known malware or other abusive files.",
        "default": "false",
-       "location": "query"
-      },
-      "alt": {
-       "type": "string",
-       "description": "Specifies the type of resource representation to return. The default is 'json' to return file metadata. Specifying 'media' will cause the file content to be returned.",
        "location": "query"
       },
       "fileId": {
@@ -2496,7 +2592,7 @@
       },
       "updateViewedDate": {
        "type": "boolean",
-       "description": "Whether to update the view date after successfully retrieving the file.",
+       "description": "Deprecated: Use files.update with modifiedDateBehavior=noChange, updateViewedDate=true and an empty request body.",
        "default": "false",
        "location": "query"
       }
@@ -2514,6 +2610,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ],
      "supportsMediaDownload": true,
@@ -2539,7 +2636,7 @@
       },
       "ocrLanguage": {
        "type": "string",
-       "description": "If ocr is true, hints at the language to use. Valid values are ISO 639-1 codes.",
+       "description": "If ocr is true, hints at the language to use. Valid values are BCP 47 codes.",
        "location": "query"
       },
       "pinned": {
@@ -2637,6 +2734,11 @@
        "minimum": "0",
        "location": "query"
       },
+      "orderBy": {
+       "type": "string",
+       "description": "A comma-separated list of sort keys. Valid keys are 'createdDate', 'folder', 'lastViewedByMeDate', 'modifiedByMeDate', 'modifiedDate', 'quotaBytesUsed', 'recency', 'sharedWithMeDate', 'starred', and 'title'. Each key sorts ascending by default, but may be reversed with the 'desc' modifier. Example usage: ?orderBy=folder,modifiedDate desc,title. Please note that there is a current limitation for users with approximately one million files in which the requested sort order is ignored.",
+       "location": "query"
+      },
       "pageToken": {
        "type": "string",
        "description": "Page token for files.",
@@ -2659,6 +2761,11 @@
        "type": "string",
        "description": "Query string for searching files.",
        "location": "query"
+      },
+      "spaces": {
+       "type": "string",
+       "description": "A comma-separated list of spaces to query. Supported values are 'drive', 'appDataFolder' and 'photos'.",
+       "location": "query"
       }
      },
      "response": {
@@ -2671,6 +2778,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ]
     },
@@ -2687,7 +2795,7 @@
       },
       "convert": {
        "type": "boolean",
-       "description": "Whether to convert this file to the corresponding Google Docs format.",
+       "description": "This parameter is deprecated and has no function.",
        "default": "false",
        "location": "query"
       },
@@ -2697,9 +2805,30 @@
        "required": true,
        "location": "path"
       },
+      "modifiedDateBehavior": {
+       "type": "string",
+       "description": "Determines the behavior in which modifiedDate is updated. This overrides setModifiedDate.",
+       "enum": [
+        "fromBody",
+        "fromBodyIfNeeded",
+        "fromBodyOrNow",
+        "noChange",
+        "now",
+        "nowIfNeeded"
+       ],
+       "enumDescriptions": [
+        "Set modifiedDate to the value provided in the body of the request. No change if no value was provided.",
+        "Set modifiedDate to the value provided in the body of the request depending on other contents of the update.",
+        "Set modifiedDate to the value provided in the body of the request, or to the current time if no value was provided.",
+        "Maintain the previous value of modifiedDate.",
+        "Set modifiedDate to the current time.",
+        "Set modifiedDate to the current time depending on contents of the update."
+       ],
+       "location": "query"
+      },
       "newRevision": {
        "type": "boolean",
-       "description": "Whether a blob upload should create a new revision. If false, the blob data in the current head revision is replaced. If true or not set, a new blob is created as head revision, and previous revisions are preserved (causing increased use of the user's data storage quota).",
+       "description": "Whether a blob upload should create a new revision. If false, the blob data in the current head revision is replaced. If true or not set, a new blob is created as head revision, and previous unpinned revisions are preserved for a short period of time. Pinned revisions are stored indefinitely, using additional storage quota, up to a maximum of 200 revisions. For details on how revisions are retained, see the Drive Help Center.",
        "default": "true",
        "location": "query"
       },
@@ -2711,7 +2840,7 @@
       },
       "ocrLanguage": {
        "type": "string",
-       "description": "If ocr is true, hints at the language to use. Valid values are ISO 639-1 codes.",
+       "description": "If ocr is true, hints at the language to use. Valid values are BCP 47 codes.",
        "location": "query"
       },
       "pinned": {
@@ -2803,7 +2932,7 @@
      "id": "drive.files.trash",
      "path": "files/{fileId}/trash",
      "httpMethod": "POST",
-     "description": "Moves a file to the trash.",
+     "description": "Moves a file to the trash. The currently authenticated user must own the file.",
      "parameters": {
       "fileId": {
        "type": "string",
@@ -2864,7 +2993,7 @@
       },
       "convert": {
        "type": "boolean",
-       "description": "Whether to convert this file to the corresponding Google Docs format.",
+       "description": "This parameter is deprecated and has no function.",
        "default": "false",
        "location": "query"
       },
@@ -2874,9 +3003,30 @@
        "required": true,
        "location": "path"
       },
+      "modifiedDateBehavior": {
+       "type": "string",
+       "description": "Determines the behavior in which modifiedDate is updated. This overrides setModifiedDate.",
+       "enum": [
+        "fromBody",
+        "fromBodyIfNeeded",
+        "fromBodyOrNow",
+        "noChange",
+        "now",
+        "nowIfNeeded"
+       ],
+       "enumDescriptions": [
+        "Set modifiedDate to the value provided in the body of the request. No change if no value was provided.",
+        "Set modifiedDate to the value provided in the body of the request depending on other contents of the update.",
+        "Set modifiedDate to the value provided in the body of the request, or to the current time if no value was provided.",
+        "Maintain the previous value of modifiedDate.",
+        "Set modifiedDate to the current time.",
+        "Set modifiedDate to the current time depending on contents of the update."
+       ],
+       "location": "query"
+      },
       "newRevision": {
        "type": "boolean",
-       "description": "Whether a blob upload should create a new revision. If false, the blob data in the current head revision is replaced. If true or not set, a new blob is created as head revision, and previous revisions are preserved (causing increased use of the user's data storage quota).",
+       "description": "Whether a blob upload should create a new revision. If false, the blob data in the current head revision is replaced. If true or not set, a new blob is created as head revision, and previous unpinned revisions are preserved for a short period of time. Pinned revisions are stored indefinitely, using additional storage quota, up to a maximum of 200 revisions. For details on how revisions are retained, see the Drive Help Center.",
        "default": "true",
        "location": "query"
       },
@@ -2888,7 +3038,7 @@
       },
       "ocrLanguage": {
        "type": "string",
-       "description": "If ocr is true, hints at the language to use. Valid values are ISO 639-1 codes.",
+       "description": "If ocr is true, hints at the language to use. Valid values are BCP 47 codes.",
        "location": "query"
       },
       "pinned": {
@@ -2974,13 +3124,8 @@
      "parameters": {
       "acknowledgeAbuse": {
        "type": "boolean",
-       "description": "Whether the user is acknowledging the risk of downloading known malware or other abusive files. Ignored unless alt=media is specified.",
+       "description": "Whether the user is acknowledging the risk of downloading known malware or other abusive files.",
        "default": "false",
-       "location": "query"
-      },
-      "alt": {
-       "type": "string",
-       "description": "Specifies the type of resource representation to return. The default is 'json' to return file metadata. Specifying 'media' will cause the file content to be returned.",
        "location": "query"
       },
       "fileId": {
@@ -3009,7 +3154,7 @@
       },
       "updateViewedDate": {
        "type": "boolean",
-       "description": "Whether to update the view date after successfully retrieving the file.",
+       "description": "Deprecated: Use files.update with modifiedDateBehavior=noChange, updateViewedDate=true and an empty request body.",
        "default": "false",
        "location": "query"
       }
@@ -3031,6 +3176,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ],
      "supportsMediaDownload": true,
@@ -3100,6 +3246,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ]
     },
@@ -3156,6 +3303,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ]
     }
@@ -3222,6 +3370,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ]
     },
@@ -3251,6 +3400,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ]
     },
@@ -3316,6 +3466,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ]
     },
@@ -3323,7 +3474,7 @@
      "id": "drive.permissions.patch",
      "path": "files/{fileId}/permissions/{permissionId}",
      "httpMethod": "PATCH",
-     "description": "Updates a permission. This method supports patch semantics.",
+     "description": "Updates a permission using patch semantics.",
      "parameters": {
       "fileId": {
        "type": "string",
@@ -3477,6 +3628,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ]
     },
@@ -3534,6 +3686,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ]
     },
@@ -4015,6 +4168,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ]
     },
@@ -4043,6 +4197,7 @@
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/drive.photos.readonly",
       "https://www.googleapis.com/auth/drive.readonly"
      ]
     },

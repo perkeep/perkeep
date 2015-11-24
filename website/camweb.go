@@ -41,13 +41,14 @@ import (
 	txttemplate "text/template"
 	"time"
 
-	"camlistore.org/pkg/cloudlaunch"
 	"camlistore.org/pkg/deploy/gce"
 	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/netutil"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/types/camtypes"
 	"camlistore.org/third_party/github.com/russross/blackfriday"
+
+	"go4.org/cloud/cloudlaunch"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
