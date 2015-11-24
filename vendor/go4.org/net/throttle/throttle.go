@@ -17,7 +17,7 @@ limitations under the License.
 // Package throttle provides a net.Listener that returns
 // artificially-delayed connections for testing real-world
 // connectivity.
-package throttle
+package throttle // import "go4.org/net/throttle"
 
 import (
 	"fmt"
