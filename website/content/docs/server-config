@@ -10,8 +10,9 @@ If you visit your Camlistore server's /setup page (by default, at
 http://localhost:3179/setup) you can modify the config file from your
 web browser and restart the server.
 
-
 # Configuration Keys & Values
+
+**Note,** if you can't find what you're looking for here, check the API docs: [/pkg/types/serverconfig](https://camlistore.org/pkg/types/serverconfig/).
 
 * `auth`: the authentication mechanism to use. Example values include:
 
@@ -82,8 +83,9 @@ At least one of these must be set:
   but no quotes).
 * `googlecloudstorage`: "`clientId:clientSecret:refreshToken:bucketName`"
 
-Additionally:
+Additionally, there are two mutually exclusive options which only apply if `blobPath` is set:
 
+* `packRelated`: if true, blobs are automatically repacked for fast read access.
 * `packBlobs`: if true, diskpacked is used instead of the default filestorage.
 
 For now, if more than one storage option is set, one of them is the primary
