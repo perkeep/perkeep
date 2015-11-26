@@ -106,9 +106,10 @@ func newLocalhostAuth(string) (AuthMode, error) {
 
 func newDevAuth(pw string) (AuthMode, error) {
 	// the vivify mode password is automatically set to "vivi" + Password
+	vp := "vivi" + pw
 	return &DevAuth{
 		Password:   pw,
-		VivifyPass: "vivi" + pw,
+		VivifyPass: &vp,
 	}, nil
 }
 
@@ -126,7 +127,8 @@ func newUserPassAuth(arg string) (AuthMode, error) {
 			mode.OrLocalhost = true
 		case strings.HasPrefix(opt, "vivify="):
 			// optional vivify mode password: "userpass:joe:ponies:vivify=rainbowdash"
-			mode.VivifyPass = strings.Replace(opt, "vivify=", "", -1)
+			vp := strings.Replace(opt, "vivify=", "", -1)
+			mode.VivifyPass = &vp
 		default:
 			return nil, fmt.Errorf("Unknown userpass option %q", opt)
 		}
@@ -200,9 +202,10 @@ func AddMode(am AuthMode) {
 type UserPass struct {
 	Username, Password string
 	OrLocalhost        bool // if true, allow localhost ident auth too
-	// Alternative password used (only) for the vivify operation.
+
+	// VivifyPass, if not nil, is the alternative password used (only) for the vivify operation.
 	// It is checked when uploading, but Password takes precedence.
-	VivifyPass string
+	VivifyPass *string
 }
 
 func (up *UserPass) AllowedAccess(req *http.Request) Operation {
@@ -212,7 +215,7 @@ func (up *UserPass) AllowedAccess(req *http.Request) Operation {
 			if pass == up.Password {
 				return OpAll
 			}
-			if pass == up.VivifyPass {
+			if up.VivifyPass != nil && pass == *up.VivifyPass {
 				return OpVivify
 			}
 		}
@@ -258,7 +261,7 @@ func (Localhost) AllowedAccess(req *http.Request) (out Operation) {
 type DevAuth struct {
 	Password string
 	// Password for the vivify mode, automatically set to "vivi" + Password
-	VivifyPass string
+	VivifyPass *string
 }
 
 func (da *DevAuth) AllowedAccess(req *http.Request) Operation {
@@ -267,7 +270,7 @@ func (da *DevAuth) AllowedAccess(req *http.Request) Operation {
 		if pass == da.Password {
 			return OpAll
 		}
-		if pass == da.VivifyPass {
+		if da.VivifyPass != nil && pass == *da.VivifyPass {
 			return OpVivify
 		}
 	}
