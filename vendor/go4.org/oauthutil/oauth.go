@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package oauthutil contains OAuth 2 related utilities.
 package oauthutil
 
 import (

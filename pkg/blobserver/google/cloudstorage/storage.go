@@ -39,10 +39,9 @@ import (
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/pkg/oauthutil"
 
+	"go4.org/oauthutil"
 	"go4.org/syncutil"
-
 	"golang.org/x/oauth2"
 )
 

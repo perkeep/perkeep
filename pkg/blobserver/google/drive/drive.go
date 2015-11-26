@@ -39,8 +39,8 @@ import (
 	"camlistore.org/pkg/blobserver/google/drive/service"
 	"camlistore.org/pkg/constants/google"
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/pkg/oauthutil"
 
+	"go4.org/oauthutil"
 	"golang.org/x/oauth2"
 )
 

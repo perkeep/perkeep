@@ -27,8 +27,8 @@ import (
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/constants/google"
 	"camlistore.org/pkg/googlestorage"
-	"camlistore.org/pkg/oauthutil"
 
+	"go4.org/oauthutil"
 	"golang.org/x/oauth2"
 )
 
