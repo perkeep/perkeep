@@ -31,7 +31,8 @@ import (
 
 	"camlistore.org/pkg/errorutil"
 	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/wkfs"
+
+	"go4.org/wkfs"
 )
 
 type stringVector struct {

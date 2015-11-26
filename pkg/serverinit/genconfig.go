@@ -34,7 +34,8 @@ import (
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/types/serverconfig"
-	"camlistore.org/pkg/wkfs"
+
+	"go4.org/wkfs"
 )
 
 var (

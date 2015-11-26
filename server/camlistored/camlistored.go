@@ -42,7 +42,6 @@ import (
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/serverinit"
 	"camlistore.org/pkg/webserver"
-	"camlistore.org/pkg/wkfs"
 
 	// VM environments:
 	"camlistore.org/pkg/osutil/gce" // for init side-effects + LogWriter
@@ -77,6 +76,8 @@ import (
 
 	// Importers:
 	_ "camlistore.org/pkg/importer/allimporters"
+
+	"go4.org/wkfs"
 )
 
 var (

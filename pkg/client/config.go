@@ -37,7 +37,8 @@ import (
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/types/camtypes"
 	"camlistore.org/pkg/types/clientconfig"
-	"camlistore.org/pkg/wkfs"
+
+	"go4.org/wkfs"
 )
 
 // If set, flagServer overrides the JSON config file

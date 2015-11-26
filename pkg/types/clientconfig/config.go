@@ -25,7 +25,8 @@ import (
 
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonconfig"
-	"camlistore.org/pkg/wkfs"
+
+	"go4.org/wkfs"
 )
 
 // Config holds the values from the JSON client config file.

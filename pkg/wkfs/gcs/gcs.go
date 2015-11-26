@@ -32,7 +32,8 @@ import (
 	"time"
 
 	"camlistore.org/pkg/googlestorage"
-	"camlistore.org/pkg/wkfs"
+
+	"go4.org/wkfs"
 	"google.golang.org/cloud/compute/metadata"
 )
 

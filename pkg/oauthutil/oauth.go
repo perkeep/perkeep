@@ -22,8 +22,7 @@ import (
 	"fmt"
 	"time"
 
-	"camlistore.org/pkg/wkfs"
-
+	"go4.org/wkfs"
 	"golang.org/x/oauth2"
 )
 

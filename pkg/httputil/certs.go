@@ -35,7 +35,8 @@ import (
 
 	"camlistore.org/pkg/hashutil"
 	"camlistore.org/pkg/legal"
-	"camlistore.org/pkg/wkfs"
+
+	"go4.org/wkfs"
 )
 
 var (
