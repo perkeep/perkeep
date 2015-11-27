@@ -43,6 +43,7 @@ import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonconfig"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/server"
 	"camlistore.org/pkg/server/app"
 	"camlistore.org/pkg/types/serverconfig"
@@ -441,7 +442,8 @@ func Load(config []byte) (*Config, error) {
 }
 
 func load(filename string, opener func(filename string) (jsonconfig.File, error)) (*Config, error) {
-	c := &jsonconfig.ConfigParser{Open: opener}
+	c := osutil.NewJSONConfigParser()
+	c.Open = opener
 	m, err := c.ReadFile(filename)
 	if err != nil {
 		return nil, err
