@@ -23,8 +23,10 @@ import (
 	"testing"
 )
 
-func TestIncludes(t *testing.T) {
-	obj, err := ReadFile("testdata/include1.json")
+func testIncludes(configFile string, t *testing.T) {
+	var c ConfigParser
+	c.IncludeDirs = []string{"testdata"}
+	obj, err := c.ReadFile(configFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,6 +37,14 @@ func TestIncludes(t *testing.T) {
 	if g, e := two.RequiredString("key"), "value"; g != e {
 		t.Errorf("sub object key = %q; want %q", g, e)
 	}
+}
+
+func TestIncludesCWD(t *testing.T) {
+	testIncludes("testdata/include1.json", t)
+}
+
+func TestIncludesIncludeDirs(t *testing.T) {
+	testIncludes("testdata/include1bis.json", t)
 }
 
 func TestIncludeLoop(t *testing.T) {

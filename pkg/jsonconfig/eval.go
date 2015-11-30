@@ -30,7 +30,6 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/errorutil"
-	"camlistore.org/pkg/osutil"
 
 	"go4.org/wkfs"
 )
@@ -68,6 +67,11 @@ type ConfigParser struct {
 
 	// Open optionally specifies an opener function.
 	Open func(filename string) (File, error)
+
+	// IncludeDirs optionally specifies where to find the other config files which are child
+	// objects of this config, if any. Even if nil, the working directory is always searched
+	// first.
+	IncludeDirs []string
 }
 
 func (c *ConfigParser) open(filename string) (File, error) {
@@ -82,11 +86,12 @@ var envPattern = regexp.MustCompile(`\$\{[A-Za-z0-9_]+\}`)
 
 // ReadFile parses the provided path and returns the config file.
 // If path is empty, the c.Open function must be defined.
-func (c *ConfigParser) ReadFile(path string) (m map[string]interface{}, err error) {
+func (c *ConfigParser) ReadFile(path string) (Obj, error) {
 	if path == "" && c.Open == nil {
 		return nil, errors.New("ReadFile of empty string but Open hook not defined")
 	}
 	c.touchedFiles = make(map[string]bool)
+	var err error
 	c.rootJSON, err = c.recursiveReadJSON(path)
 	return c.rootJSON, err
 }
@@ -282,7 +287,7 @@ func (c *ConfigParser) expandFile(v []interface{}) (exp interface{}, err error) 
 		return "", fmt.Errorf("_file expansion expected 1 arg, got %d", len(v))
 	}
 	var incPath string
-	if incPath, err = osutil.FindCamliInclude(v[0].(string)); err != nil {
+	if incPath, err = c.ConfigFilePath(v[0].(string)); err != nil {
 		return "", fmt.Errorf("Included config does not exist: %v", v[0])
 	}
 	if exp, err = c.recursiveReadJSON(incPath); err != nil {
@@ -290,4 +295,28 @@ func (c *ConfigParser) expandFile(v []interface{}) (exp interface{}, err error) 
 			c.includeStack.Last(), err)
 	}
 	return exp, nil
+}
+
+// ConfigFilePath checks if configFile is found and returns a usable path to it.
+// It first checks if configFile is an absolute path, or if it's found in the
+// current working directory. If not, it then checks if configFile is in one of
+// c.IncludeDirs. It returns an error if configFile is absolute and could not be
+// statted, or os.ErrNotExist if configFile was not found.
+func (c *ConfigParser) ConfigFilePath(configFile string) (path string, err error) {
+	// Try to open as absolute / relative to CWD
+	_, err = os.Stat(configFile)
+	if err != nil && filepath.IsAbs(configFile) {
+		return "", err
+	}
+	if err == nil {
+		return configFile, nil
+	}
+
+	for _, d := range c.IncludeDirs {
+		if _, err := os.Stat(filepath.Join(d, configFile)); err == nil {
+			return filepath.Join(d, configFile), nil
+		}
+	}
+
+	return "", os.ErrNotExist
 }

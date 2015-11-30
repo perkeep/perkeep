@@ -34,9 +34,13 @@ func createTestInclude(path string) error {
 	return cf.Close()
 }
 
+func findCamliInclude(configFile string) (path string, err error) {
+	return NewJSONConfigParser().ConfigFilePath(configFile)
+}
+
 // Calls OpenCamliInclude to open path, and checks that it containts "test"
 func checkOpen(t *testing.T, path string) {
-	found, e := FindCamliInclude(path)
+	found, e := findCamliInclude(path)
 	if e != nil {
 		t.Errorf("Failed to find %v", path)
 		return
@@ -65,7 +69,7 @@ func TestOpenCamliIncludeNoFile(t *testing.T) {
 	defer os.Setenv("CAMLI_CONFIG_DIR", os.Getenv("CAMLI_CONFIG_DIR"))
 	os.Setenv("CAMLI_CONFIG_DIR", filepath.Join(os.TempDir(), "/x/y/z/not-exist"))
 
-	_, e := FindCamliInclude(notExist)
+	_, e := findCamliInclude(notExist)
 	if e == nil {
 		t.Errorf("Successfully opened config which doesn't exist: %v", notExist)
 	}
@@ -80,6 +84,9 @@ func TestOpenCamliIncludeCWD(t *testing.T) {
 	}
 	defer os.Remove(path)
 
+	// Setting CAMLI_CONFIG_DIR just to avoid triggering failInTests in CamliConfigDir
+	defer os.Setenv("CAMLI_CONFIG_DIR", os.Getenv("CAMLI_CONFIG_DIR"))
+	os.Setenv("CAMLI_CONFIG_DIR", "whatever") // Restore after test
 	checkOpen(t, path)
 }
 

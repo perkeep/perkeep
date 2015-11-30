@@ -28,8 +28,9 @@ import (
 // Obj is a JSON configuration map.
 type Obj map[string]interface{}
 
-// Reads json config data from the specified open file, expanding
-// all expressions
+// ReadFile reads JSON config data from the specified open file, expanding
+// all expressions. Use *ConfigParser.ReadFile instead if you
+// need to set c.IncludeDirs.
 func ReadFile(configPath string) (Obj, error) {
 	var c ConfigParser
 	return c.ReadFile(configPath)

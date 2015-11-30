@@ -22,10 +22,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 
 	"camlistore.org/pkg/buildinfo"
+	"camlistore.org/pkg/jsonconfig"
 )
 
 // HomeDir returns the path to the user's home directory.
@@ -215,38 +215,12 @@ func DefaultTLSKey() string {
 	return filepath.Join(CamliConfigDir(), "tls.key")
 }
 
-// Find the correct absolute path corresponding to a relative path,
-// searching the following sequence of directories:
-// 1. Working Directory
-// 2. CAMLI_CONFIG_DIR (deprecated, will complain if this is on env)
-// 3. (windows only) APPDATA/camli
-// 4. All directories in CAMLI_INCLUDE_PATH (standard PATH form for OS)
-func FindCamliInclude(configFile string) (absPath string, err error) {
-	// Try to open as absolute / relative to CWD
-	_, err = os.Stat(configFile)
-	if err == nil {
-		return configFile, nil
-	}
-	if filepath.IsAbs(configFile) {
-		// End of the line for absolute path
-		return "", err
-	}
-
-	// Try the config dir
-	configDir := CamliConfigDir()
-	if _, err = os.Stat(filepath.Join(configDir, configFile)); err == nil {
-		return filepath.Join(configDir, configFile), nil
-	}
-
-	// Finally, search CAMLI_INCLUDE_PATH
-	p := os.Getenv("CAMLI_INCLUDE_PATH")
-	for _, d := range strings.Split(p, string(filepath.ListSeparator)) {
-		if _, err = os.Stat(filepath.Join(d, configFile)); err == nil {
-			return filepath.Join(d, configFile), nil
-		}
-	}
-
-	return "", os.ErrNotExist
+// NewJSONConfigParser returns a jsonconfig.ConfigParser with its IncludeDirs
+// set with CamliConfigDir and the contents of CAMLI_INCLUDE_PATH.
+func NewJSONConfigParser() *jsonconfig.ConfigParser {
+	var cp jsonconfig.ConfigParser
+	cp.IncludeDirs = append([]string{CamliConfigDir()}, filepath.SplitList(os.Getenv("CAMLI_INCLUDE_PATH"))...)
+	return &cp
 }
 
 // GoPackagePath returns the path to the provided Go package's
