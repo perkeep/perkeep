@@ -1,5 +1,5 @@
 /*
-Copyright 2011 Google Inc.
+Copyright 2011 The go4 Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,8 +29,7 @@ import (
 	"strconv"
 	"strings"
 
-	"camlistore.org/pkg/errorutil"
-
+	"go4.org/errorutil"
 	"go4.org/wkfs"
 )
 

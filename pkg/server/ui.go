@@ -34,7 +34,6 @@ import (
 	"camlistore.org/pkg/constants"
 	"camlistore.org/pkg/fileembed"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/misc/closure"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/server/app"
@@ -47,6 +46,7 @@ import (
 	glitchstatic "camlistore.org/third_party/glitch"
 	lessstatic "camlistore.org/third_party/less"
 	reactstatic "camlistore.org/third_party/react"
+	"go4.org/jsonconfig"
 
 	"go4.org/syncutil"
 )

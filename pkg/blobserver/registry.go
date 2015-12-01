@@ -22,7 +22,7 @@ import (
 	"net/http"
 	"sync"
 
-	"camlistore.org/pkg/jsonconfig"
+	"go4.org/jsonconfig"
 )
 
 var ErrHandlerTypeNotFound = errors.New("requested handler type not loaded")

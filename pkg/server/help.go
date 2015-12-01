@@ -28,8 +28,8 @@ import (
 
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/types/clientconfig"
+	"go4.org/jsonconfig"
 )
 
 const helpHTML string = `<html>

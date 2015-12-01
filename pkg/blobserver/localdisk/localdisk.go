@@ -40,9 +40,9 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/local"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/types"
+	"go4.org/jsonconfig"
 )
 
 // DiskStorage implements the blobserver.Storage interface using the

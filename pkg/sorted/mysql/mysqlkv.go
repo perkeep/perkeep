@@ -29,10 +29,10 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/sqlkv"
 	_ "camlistore.org/third_party/github.com/go-sql-driver/mysql"
+	"go4.org/jsonconfig"
 )
 
 func init() {

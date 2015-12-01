@@ -28,9 +28,9 @@ import (
 	"os"
 	"sync"
 
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/kvutil"
 	"camlistore.org/pkg/sorted"
+	"go4.org/jsonconfig"
 
 	"camlistore.org/third_party/github.com/cznic/kv"
 )

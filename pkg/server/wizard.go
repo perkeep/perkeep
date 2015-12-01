@@ -31,8 +31,8 @@ import (
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
+	"go4.org/jsonconfig"
 
 	"camlistore.org/third_party/code.google.com/p/xsrftoken"
 )

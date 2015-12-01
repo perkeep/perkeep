@@ -30,11 +30,11 @@ import (
 	"camlistore.org/pkg/blobserver/gethandler"
 	"camlistore.org/pkg/blobserver/memory"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/types/camtypes"
+	"go4.org/jsonconfig"
 
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
 )

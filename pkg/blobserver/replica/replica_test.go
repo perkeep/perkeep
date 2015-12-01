@@ -22,8 +22,8 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/test"
+	"go4.org/jsonconfig"
 )
 
 func newReplica(t *testing.T, config jsonconfig.Obj) *replicaStorage {

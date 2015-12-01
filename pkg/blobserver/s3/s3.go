@@ -42,8 +42,8 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/memory"
 	"camlistore.org/pkg/fault"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/misc/amazon/s3"
+	"go4.org/jsonconfig"
 )
 
 var (

@@ -33,7 +33,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/context"
-	"camlistore.org/pkg/jsonconfig"
+	"go4.org/jsonconfig"
 )
 
 const (

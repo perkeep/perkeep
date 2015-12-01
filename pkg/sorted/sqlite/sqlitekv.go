@@ -25,9 +25,9 @@ import (
 	"os"
 
 	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/sqlkv"
+	"go4.org/jsonconfig"
 )
 
 func init() {

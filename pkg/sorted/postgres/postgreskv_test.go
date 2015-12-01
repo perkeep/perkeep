@@ -19,11 +19,11 @@ package postgres
 import (
 	"testing"
 
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
 	"camlistore.org/pkg/test/dockertest"
+	"go4.org/jsonconfig"
 )
 
 // TestPostgreSQLKV tests against a real PostgreSQL instance, using a Docker container.

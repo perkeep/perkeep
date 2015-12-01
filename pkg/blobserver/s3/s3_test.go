@@ -26,7 +26,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
 	"camlistore.org/pkg/context"
-	"camlistore.org/pkg/jsonconfig"
+	"go4.org/jsonconfig"
 )
 
 var (

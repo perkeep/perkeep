@@ -20,12 +20,12 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/index/indextest"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
 	_ "camlistore.org/pkg/sorted/postgres"
 	"camlistore.org/pkg/test/dockertest"
+	"go4.org/jsonconfig"
 )
 
 func newPostgresSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {

@@ -26,7 +26,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
 	"camlistore.org/pkg/constants/google"
-	"camlistore.org/pkg/jsonconfig"
+	"go4.org/jsonconfig"
 
 	"go4.org/oauthutil"
 	"golang.org/x/oauth2"

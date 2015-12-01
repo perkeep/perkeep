@@ -21,7 +21,7 @@ import (
 	"net/url"
 	"os/exec"
 
-	"camlistore.org/pkg/jsonconfig"
+	"go4.org/jsonconfig"
 )
 
 // Thumbnailer is the interface that wraps the Command method.

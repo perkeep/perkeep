@@ -30,12 +30,12 @@ import (
 	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/images"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
+	"go4.org/jsonconfig"
 )
 
 // RootHandler handles serving the about/splash page.

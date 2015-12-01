@@ -20,12 +20,12 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/index/indextest"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
 	_ "camlistore.org/pkg/sorted/mongo"
 	"camlistore.org/pkg/test/dockertest"
+	"go4.org/jsonconfig"
 )
 
 func newMongoSorted(t *testing.T) (kv sorted.KeyValue, cleanup func()) {

@@ -19,10 +19,10 @@ package mongo
 import (
 	"testing"
 
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
 	"camlistore.org/pkg/test/dockertest"
+	"go4.org/jsonconfig"
 )
 
 // TestMongoKV tests against a real MongoDB instance, using a Docker container.

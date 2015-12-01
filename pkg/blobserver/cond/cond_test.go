@@ -23,8 +23,8 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/replica"
 	"camlistore.org/pkg/blobserver/storagetest"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/test"
+	"go4.org/jsonconfig"
 )
 
 func newCond(t *testing.T, ld *test.Loader, config jsonconfig.Obj) *condStorage {

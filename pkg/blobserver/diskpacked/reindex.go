@@ -29,8 +29,8 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
+	"go4.org/jsonconfig"
 
 	// possible index formats
 	_ "camlistore.org/pkg/sorted/kvfile"

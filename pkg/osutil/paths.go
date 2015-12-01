@@ -25,7 +25,7 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/buildinfo"
-	"camlistore.org/pkg/jsonconfig"
+	"go4.org/jsonconfig"
 )
 
 // HomeDir returns the path to the user's home directory.

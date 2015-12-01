@@ -33,8 +33,8 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/gethandler"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/schema"
+	"go4.org/jsonconfig"
 )
 
 type responseType int

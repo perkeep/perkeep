@@ -21,7 +21,7 @@ import (
 	"errors"
 	"fmt"
 
-	"camlistore.org/pkg/jsonconfig"
+	"go4.org/jsonconfig"
 )
 
 const (

@@ -24,8 +24,8 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
+	"go4.org/jsonconfig"
 
 	"camlistore.org/third_party/labix.org/v2/mgo"
 	"camlistore.org/third_party/labix.org/v2/mgo/bson"

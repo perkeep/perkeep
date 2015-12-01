@@ -35,12 +35,12 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/server"
 	"camlistore.org/pkg/types/camtypes"
+	"go4.org/jsonconfig"
 
 	"go4.org/syncutil"
 )

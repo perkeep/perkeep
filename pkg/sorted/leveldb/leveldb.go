@@ -26,8 +26,8 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
+	"go4.org/jsonconfig"
 
 	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb"
 	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb/filter"

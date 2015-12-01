@@ -98,11 +98,11 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/constants"
 	"camlistore.org/pkg/context"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/pools"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/third_party/go/pkg/archive/zip"
+	"go4.org/jsonconfig"
 
 	"go4.org/strutil"
 	"go4.org/syncutil"

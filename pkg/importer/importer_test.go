@@ -19,8 +19,8 @@ package importer
 import (
 	"testing"
 
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/test"
+	"go4.org/jsonconfig"
 )
 
 func init() {

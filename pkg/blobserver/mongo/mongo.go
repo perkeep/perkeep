@@ -38,8 +38,8 @@ package mongo
 
 import (
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/third_party/labix.org/v2/mgo"
+	"go4.org/jsonconfig"
 )
 
 type mongoStorage struct {

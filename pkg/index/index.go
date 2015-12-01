@@ -33,11 +33,11 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
+	"go4.org/jsonconfig"
 
 	"go4.org/strutil"
 )

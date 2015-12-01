@@ -31,9 +31,9 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/context"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/lru"
 	"camlistore.org/pkg/types"
+	"go4.org/jsonconfig"
 )
 
 // Storage is an in-memory implementation of the blobserver Storage

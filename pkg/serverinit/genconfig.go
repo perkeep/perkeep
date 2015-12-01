@@ -29,11 +29,11 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/types/serverconfig"
+	"go4.org/jsonconfig"
 
 	"go4.org/wkfs"
 )

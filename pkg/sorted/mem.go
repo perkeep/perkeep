@@ -21,9 +21,9 @@ import (
 	"errors"
 	"sync"
 
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/third_party/code.google.com/p/leveldb-go/leveldb/db"
 	"camlistore.org/third_party/code.google.com/p/leveldb-go/leveldb/memdb"
+	"go4.org/jsonconfig"
 )
 
 // NewMemoryKeyValue returns a KeyValue implementation that's backed only

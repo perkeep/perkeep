@@ -19,11 +19,11 @@ package mysql
 import (
 	"testing"
 
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
 	"camlistore.org/pkg/test/dockertest"
+	"go4.org/jsonconfig"
 )
 
 // TestMySQLKV tests against a real MySQL instance, using a Docker container.

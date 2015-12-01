@@ -34,7 +34,7 @@ import (
 
 	"camlistore.org/pkg/auth"
 	camhttputil "camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/jsonconfig"
+	"go4.org/jsonconfig"
 )
 
 // Handler acts as a reverse proxy for a server application started by

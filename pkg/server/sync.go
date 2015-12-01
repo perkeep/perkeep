@@ -38,10 +38,10 @@ import (
 	"camlistore.org/pkg/constants"
 	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/types/camtypes"
 	"camlistore.org/third_party/code.google.com/p/xsrftoken"
+	"go4.org/jsonconfig"
 
 	"go4.org/syncutil"
 )

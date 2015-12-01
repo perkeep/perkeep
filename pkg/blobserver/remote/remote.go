@@ -42,7 +42,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/context"
-	"camlistore.org/pkg/jsonconfig"
+	"go4.org/jsonconfig"
 )
 
 // remoteStorage is a blobserver.Storage proxy for a remote camlistore

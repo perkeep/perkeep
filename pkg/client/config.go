@@ -32,11 +32,11 @@ import (
 	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/client/android"
 	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/types/camtypes"
 	"camlistore.org/pkg/types/clientconfig"
+	"go4.org/jsonconfig"
 
 	"go4.org/wkfs"
 )

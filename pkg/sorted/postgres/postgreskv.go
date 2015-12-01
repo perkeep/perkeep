@@ -24,9 +24,9 @@ import (
 	"regexp"
 
 	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/sqlkv"
+	"go4.org/jsonconfig"
 
 	_ "camlistore.org/third_party/github.com/lib/pq"
 )

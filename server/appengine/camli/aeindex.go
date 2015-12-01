@@ -23,8 +23,8 @@ import (
 
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
+	"go4.org/jsonconfig"
 
 	"appengine"
 	"appengine/datastore"

@@ -38,8 +38,8 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/netutil"
+	"go4.org/jsonconfig"
 
 	"go4.org/syncutil"
 )

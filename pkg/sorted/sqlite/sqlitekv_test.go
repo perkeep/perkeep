@@ -22,9 +22,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
+	"go4.org/jsonconfig"
 )
 
 func TestSQLiteKV(t *testing.T) {

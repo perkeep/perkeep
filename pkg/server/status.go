@@ -35,11 +35,11 @@ import (
 	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/server/app"
 	"camlistore.org/pkg/types/camtypes"
+	"go4.org/jsonconfig"
 )
 
 // StatusHandler publishes server status information.

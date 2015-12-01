@@ -37,7 +37,6 @@ import (
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/search"
@@ -46,6 +45,7 @@ import (
 	"camlistore.org/pkg/test"
 	"camlistore.org/pkg/types/clientconfig"
 	"camlistore.org/pkg/types/serverconfig"
+	"go4.org/jsonconfig"
 
 	// For registering all the handler constructors needed in TestInstallHandlers
 	_ "camlistore.org/pkg/blobserver/cond"

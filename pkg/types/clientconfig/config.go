@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/jsonconfig"
+	"go4.org/jsonconfig"
 
 	"go4.org/wkfs"
 )

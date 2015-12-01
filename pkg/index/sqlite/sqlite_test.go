@@ -30,10 +30,10 @@ import (
 
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
-	"camlistore.org/pkg/jsonconfig"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/kvtest"
 	_ "camlistore.org/pkg/sorted/sqlite"
+	"go4.org/jsonconfig"
 
 	_ "camlistore.org/third_party/github.com/mattn/go-sqlite3"
 )
