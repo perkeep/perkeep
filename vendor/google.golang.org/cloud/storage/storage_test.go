@@ -18,11 +18,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
 
 	"golang.org/x/net/context"
+	"google.golang.org/cloud"
 )
 
 func TestSignedURL(t *testing.T) {
@@ -146,8 +148,13 @@ func TestCopyObjectMissingFields(t *testing.T) {
 			"srcBucket and destBucket must both be non-empty",
 		},
 	}
+	ctx := context.Background()
+	client, err := NewClient(ctx, cloud.WithBaseHTTP(&http.Client{Transport: &fakeTransport{}}))
+	if err != nil {
+		panic(err)
+	}
 	for i, test := range tests {
-		_, err := CopyObject(context.TODO(), test.srcBucket, test.srcName, test.destBucket, test.destName, nil)
+		_, err := client.CopyObject(ctx, test.srcBucket, test.srcName, test.destBucket, test.destName, nil)
 		if !strings.Contains(err.Error(), test.errMsg) {
 			t.Errorf("CopyObject test #%v: err = %v, want %v", i, err, test.errMsg)
 		}

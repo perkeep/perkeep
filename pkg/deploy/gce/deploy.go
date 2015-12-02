@@ -44,7 +44,6 @@ import (
 
 	"go4.org/cloud/gceutil"
 	"go4.org/syncutil"
-
 	"golang.org/x/oauth2"
 	// TODO(mpl): switch to google.golang.org/cloud/compute
 	compute "google.golang.org/api/compute/v1"
@@ -480,9 +479,9 @@ func cloudConfig(conf *InstanceConf) string {
 // instance defined in d.Conf.
 func (d *Deployer) getInstalledTLS() (certPEM, keyPEM []byte, err error) {
 	ctx := cloud.NewContext(d.Conf.Project, d.Client)
+	stoClient, err := cloudstorage.NewClient(ctx)
 	getFile := func(name string) ([]byte, error) {
-		sr, err := cloudstorage.NewReader(ctx, d.Conf.bucketBase(),
-			path.Join(configDir, name))
+		sr, err := stoClient.Bucket(d.Conf.bucketBase()).Object(path.Join(configDir, name)).NewReader(ctx)
 		if err != nil {
 			return nil, err
 		}

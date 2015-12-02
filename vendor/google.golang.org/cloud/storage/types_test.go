@@ -19,6 +19,8 @@ import (
 	"net/http"
 	"testing"
 
+	"golang.org/x/net/context"
+
 	"google.golang.org/cloud"
 )
 
@@ -29,9 +31,13 @@ func (t *fakeTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func TestErrorOnObjectsInsertCall(t *testing.T) {
-	ctx := cloud.NewContext("project-id", &http.Client{
-		Transport: &fakeTransport{}})
-	wc := NewWriter(ctx, "bucketname", "filename1")
+	ctx := context.Background()
+	hc := &http.Client{Transport: &fakeTransport{}}
+	client, err := NewClient(ctx, cloud.WithBaseHTTP(hc))
+	if err != nil {
+		t.Errorf("error when creating client: %v", err)
+	}
+	wc := client.Bucket("bucketname").Object("filename1").NewWriter(ctx)
 	wc.ContentType = "text/plain"
 	if _, err := wc.Write([]byte("hello world")); err == nil {
 		t.Errorf("expected error on write, got nil")

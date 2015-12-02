@@ -170,7 +170,11 @@ func uploadDockerImage() {
 
 	httpClient := oauth2.NewClient(oauth2.NoContext, ts)
 	ctx := cloud.NewContext(proj, httpClient)
-	w := storage.NewWriter(ctx, bucket, versionedTarball)
+	stoClient, err := storage.NewClient(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	w := stoClient.Bucket(bucket).Object(versionedTarball).NewWriter(ctx)
 	// If you don't give the owners access, the web UI seems to
 	// have a bug and doesn't have access to see that it's public, so
 	// won't render the "Shared Publicly" link. So we do that, even
@@ -214,7 +218,7 @@ func uploadDockerImage() {
 	log.Printf("Uploaded tarball to %s", versionedTarball)
 	if *rev != WIP {
 		log.Printf("Copying tarball to %s/%s ...", bucket, tarball)
-		if _, err := storage.CopyObject(ctx, bucket, versionedTarball, bucket, tarball, nil); err != nil {
+		if _, err := stoClient.CopyObject(ctx, bucket, versionedTarball, bucket, tarball, nil); err != nil {
 			log.Fatalf("Error uploading %v: %v", tarball, err)
 		}
 		log.Printf("Uploaded tarball to %s", tarball)
