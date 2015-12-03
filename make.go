@@ -277,7 +277,7 @@ func mirror(sql bool) (latestSrcMod time.Time) {
 		"vendor",
 	}
 	if *onlysync {
-		goDirs = append(goDirs, "server/appengine", "config")
+		goDirs = append(goDirs, "server/appengine", "config", "misc")
 	}
 	// Copy files we do want in our mirrored GOPATH.  This has the side effect of
 	// populating wantDestFile, populated by mirrorFile.
