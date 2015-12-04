@@ -42,7 +42,6 @@ import (
 	"time"
 
 	"camlistore.org/pkg/deploy/gce"
-	"camlistore.org/pkg/googlestorage"
 	"camlistore.org/pkg/netutil"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/types/camtypes"
@@ -57,6 +56,7 @@ import (
 	"google.golang.org/cloud"
 	"google.golang.org/cloud/compute/metadata"
 	"google.golang.org/cloud/logging"
+	"google.golang.org/cloud/storage"
 )
 
 const defaultAddr = ":31798" // default webserver address
@@ -357,9 +357,9 @@ func runAsChild(res string) {
 	}()
 }
 
-func gceDeployHandlerConfig() (*gce.Config, error) {
+func gceDeployHandlerConfig(ctx context.Context) (*gce.Config, error) {
 	if inProd {
-		return deployerCredsFromGCS()
+		return deployerCredsFromGCS(ctx)
 	}
 	clientId := os.Getenv("CAMLI_GCE_CLIENTID")
 	if clientId != "" {
@@ -397,7 +397,7 @@ func gceDeployHandlerConfig() (*gce.Config, error) {
 // camlistore server config dir.
 // If a launcher isn't enabled, gceDeployHandler returns nil. If another error occurs,
 // log.Fatal is called.
-func gceDeployHandler(prefix string) http.Handler {
+func gceDeployHandler(ctx context.Context, prefix string) http.Handler {
 	var hostPort string
 	var err error
 	if inProd {
@@ -410,7 +410,7 @@ func gceDeployHandler(prefix string) http.Handler {
 			return nil
 		}
 	}
-	config, err := gceDeployHandlerConfig()
+	config, err := gceDeployHandlerConfig(ctx)
 	if config == nil {
 		if err != nil {
 			log.Printf("Starting without a GCE deploy handler because: %v", err)
@@ -593,6 +593,46 @@ func getDockerImage(tag, file string) {
 	}
 }
 
+// ctxt returns a Context suitable for Google Cloud Storage or Google Cloud
+// Logging calls with the projID project ID.
+func ctxt(projID string) context.Context {
+	var hc *http.Client
+	if *gceJWTFile != "" {
+		jsonSlurp, err := ioutil.ReadFile(*gceJWTFile)
+		if err != nil {
+			log.Fatalf("Error reading --gce_jwt_file value: %v", err)
+		}
+		jwtConf, err := google.JWTConfigFromJSON(jsonSlurp, logging.Scope)
+		if err != nil {
+			log.Fatalf("Error reading --gce_jwt_file value: %v", err)
+		}
+		hc = jwtConf.Client(context.Background())
+	} else {
+		if !metadata.OnGCE() {
+			log.Fatal("No --gce_jwt_file and not running on GCE.")
+		}
+		var err error
+		hc, err = google.DefaultClient(oauth2.NoContext)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	return cloud.NewContext(projID, hc)
+}
+
+// projectID returns the GCE project ID used for running this camweb on GCE
+// and/or for logging on Google Cloud Logging, if any.
+func projectID() string {
+	if *gceProjectID != "" {
+		return *gceProjectID
+	}
+	projID, err := metadata.ProjectID()
+	if projID == "" || err != nil {
+		log.Fatalf("GCE project ID needed but --gce_project_id not specified (and not running on GCE); metadata error: %v", err)
+	}
+	return projID
+}
+
 func main() {
 	launchConfig.MaybeDeploy()
 	flag.Parse()
@@ -637,9 +677,18 @@ func main() {
 		mux.Handle(bbhpattern, buildbotHandler)
 	}
 
+	// ctx initialized now, because gceLauncher needs it first (when in prod).
+	// Other users are the GCE logger, and serveHTTPS (in prod).
+	var ctx context.Context
+	var projID string
+	if inProd || *gceLogName != "" {
+		projID = projectID()
+		ctx = ctxt(projID)
+	}
+
 	var gceLauncher *gce.DeployHandler
 	if *httpsAddr != "" {
-		if launcher := gceDeployHandler("/launch/"); launcher != nil {
+		if launcher := gceDeployHandler(ctx, "/launch/"); launcher != nil {
 			mux.Handle("/launch/", launcher)
 			gceLauncher = launcher.(*gce.DeployHandler)
 		}
@@ -650,36 +699,6 @@ func main() {
 		handler = NewLoggingHandler(handler, NewApacheLogger(*logDir, *logStdout))
 	}
 	if *gceLogName != "" {
-		projID := *gceProjectID
-		if projID == "" {
-			if v, err := metadata.ProjectID(); v == "" || err != nil {
-				log.Fatalf("Use of --gce_log_name without specifying --gce_project_id (and not running on GCE); metadata error: %v", err)
-			} else {
-				projID = v
-			}
-		}
-		var hc *http.Client
-		if *gceJWTFile != "" {
-			jsonSlurp, err := ioutil.ReadFile(*gceJWTFile)
-			if err != nil {
-				log.Fatalf("Error reading --gce_jwt_file value: %v", err)
-			}
-			jwtConf, err := google.JWTConfigFromJSON(jsonSlurp, logging.Scope)
-			if err != nil {
-				log.Fatalf("Error reading --gce_jwt_file value: %v", err)
-			}
-			hc = jwtConf.Client(context.Background())
-		} else {
-			if !metadata.OnGCE() {
-				log.Fatal("No --gce_jwt_file and not running on GCE.")
-			}
-			var err error
-			hc, err = google.DefaultClient(oauth2.NoContext)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-		ctx := cloud.NewContext(projID, hc)
 		logc, err := logging.NewClient(ctx, projID, *gceLogName)
 		if err != nil {
 			log.Fatal(err)
@@ -689,7 +708,6 @@ func main() {
 		}
 		handler = NewLoggingHandler(handler, gceLogger{logc})
 		if gceLauncher != nil {
-			ctx := cloud.NewContext(projID, hc)
 			logc, err := logging.NewClient(ctx, projID, *gceLogName)
 			if err != nil {
 				log.Fatal(err)
@@ -722,7 +740,7 @@ func main() {
 
 	if *httpsAddr != "" {
 		go func() {
-			errc <- serveHTTPS(httpServer)
+			errc <- serveHTTPS(ctx, httpServer)
 		}()
 	}
 
@@ -730,7 +748,7 @@ func main() {
 
 }
 
-func serveHTTPS(httpServer *http.Server) error {
+func serveHTTPS(ctx context.Context, httpServer *http.Server) error {
 	log.Printf("Starting TLS server on %s", *httpsAddr)
 	httpsServer := new(http.Server)
 	*httpsServer = *httpServer
@@ -738,7 +756,7 @@ func serveHTTPS(httpServer *http.Server) error {
 	if !inProd {
 		return httpsServer.ListenAndServeTLS(*tlsCertFile, *tlsKeyFile)
 	}
-	cert, err := tlsCertFromGCS()
+	cert, err := tlsCertFromGCS(ctx)
 	if err != nil {
 		return err
 	}
@@ -766,17 +784,14 @@ func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 	return tc, nil
 }
 
-func tlsCertFromGCS() (*tls.Certificate, error) {
-	c, err := googlestorage.NewServiceClient()
+func tlsCertFromGCS(ctx context.Context) (*tls.Certificate, error) {
+	sc, err := storage.NewClient(ctx)
 	if err != nil {
 		return nil, err
 	}
 	slurp := func(key string) ([]byte, error) {
 		const bucket = "camlistore-website-resource"
-		rc, _, err := c.GetObject(&googlestorage.Object{
-			Bucket: bucket,
-			Key:    key,
-		})
+		rc, err := sc.Bucket(bucket).Object(key).NewReader(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("Error fetching GCS object %q in bucket %q: %v", key, bucket, err)
 		}
@@ -798,17 +813,14 @@ func tlsCertFromGCS() (*tls.Certificate, error) {
 	return &cert, nil
 }
 
-func deployerCredsFromGCS() (*gce.Config, error) {
-	c, err := googlestorage.NewServiceClient()
+func deployerCredsFromGCS(ctx context.Context) (*gce.Config, error) {
+	sc, err := storage.NewClient(ctx)
 	if err != nil {
 		return nil, err
 	}
 	slurp := func(key string) ([]byte, error) {
 		const bucket = "camlistore-website-resource"
-		rc, _, err := c.GetObject(&googlestorage.Object{
-			Bucket: bucket,
-			Key:    key,
-		})
+		rc, err := sc.Bucket(bucket).Object(key).NewReader(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("Error fetching GCS object %q in bucket %q: %v", key, bucket, err)
 		}
