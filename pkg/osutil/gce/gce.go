@@ -28,10 +28,10 @@ import (
 
 	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/osutil"
-	_ "camlistore.org/pkg/wkfs/gcs"
-	"go4.org/jsonconfig"
-	"golang.org/x/net/context"
 
+	"go4.org/jsonconfig"
+	_ "go4.org/wkfs/gcs"
+	"golang.org/x/net/context"
 	"google.golang.org/cloud/compute/metadata"
 	"google.golang.org/cloud/logging"
 )
