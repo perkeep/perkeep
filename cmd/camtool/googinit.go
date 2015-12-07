@@ -26,10 +26,10 @@ import (
 	"camlistore.org/pkg/blobserver/google/drive"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/constants/google"
-	"camlistore.org/pkg/googlestorage"
 
 	"go4.org/oauthutil"
 	"golang.org/x/oauth2"
+	"google.golang.org/cloud/storage"
 )
 
 type googinitCmd struct {
@@ -77,7 +77,7 @@ func (c *googinitCmd) RunCommand(args []string) error {
 		}
 	case "cloud":
 		oauthConfig = &oauth2.Config{
-			Scopes:       []string{googlestorage.Scope},
+			Scopes:       []string{storage.ScopeReadWrite},
 			Endpoint:     google.Endpoint,
 			ClientID:     clientId,
 			ClientSecret: clientSecret,
