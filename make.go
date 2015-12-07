@@ -61,7 +61,7 @@ var (
 	ifModsSince    = flag.Int64("if_mods_since", 0, "If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
 	buildARCH      = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
 	buildOS        = flag.String("os", runtime.GOOS, "Operating system to build for.")
-	stampVersion   = flag.Bool("stampversion", false, "Stamp version into buildinfo.GitInfo")
+	stampVersion   = flag.Bool("stampversion", true, "Stamp version into buildinfo.GitInfo")
 )
 
 var (
@@ -184,9 +184,7 @@ func main() {
 	}
 	var ldFlags string
 	if *stampVersion {
-		// TODO(bradfitz): this is currently broken, at least on my machine.
-		// Maybe my Go 1.4 vs Go 1.5 clients are out of sync. Temporarily disabled.
-		ldFlags = "-X camlistore.org/pkg/buildinfo.GitInfo " + version
+		ldFlags = "-X camlistore.org/pkg/buildinfo.GitInfo=" + version
 	}
 	baseArgs = append(baseArgs, "--ldflags="+ldFlags, "--tags="+strings.Join(tags, " "))
 
