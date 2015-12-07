@@ -17,6 +17,8 @@ limitations under the License.
 // Package buildinfo provides information about the current build.
 package buildinfo
 
+import "flag"
+
 // GitInfo is either the empty string (the default)
 // or is set to the git hash of the most recent commit
 // using the -X linker flag. For example, it's set like:
@@ -32,15 +34,9 @@ func Version() string {
 	return "unknown"
 }
 
-var testingLinked func() bool
-
 // TestingLinked reports whether the "testing" package is linked into the binary.
-// It always returns false for Go 1.1.
 func TestingLinked() bool {
-	if testingLinked == nil {
-		return false
-	}
-	return testingLinked()
+	return flag.CommandLine.Lookup("test.v") != nil
 }
 
 // djpegFunc implements DjpegStatus. nil means the images/fastjpeg package

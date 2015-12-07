@@ -17,28 +17,11 @@ limitations under the License.
 package buildinfo
 
 import (
-	"go/build"
 	"testing"
 )
 
 func TestTestingLinked(t *testing.T) {
-	if !isGo12() {
-		t.Skip("skipping test for Go 1.1")
-	}
-	if testingLinked == nil {
-		t.Fatal("go1.2+ but testingLinked is nil")
-	}
-	if !testingLinked() {
+	if !TestingLinked() {
 		t.Error("testingLinked = false; want true")
 	}
-}
-
-// isGo12 reports whether the Go version is 1.2 or higher
-func isGo12() bool {
-	for _, v := range build.Default.ReleaseTags {
-		if v == "go1.2" {
-			return true
-		}
-	}
-	return false
 }
