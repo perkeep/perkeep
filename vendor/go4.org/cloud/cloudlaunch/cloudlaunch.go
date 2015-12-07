@@ -222,7 +222,14 @@ func (cl *cloudLaunch) uploadBinary() {
 	if cl.BinaryBucket == "" {
 		log.Fatal("cloudlaunch: Config.BinaryBucket is empty")
 	}
-	w := storage.NewWriter(ctx, cl.BinaryBucket, cl.binaryObject())
+	stoClient, err := storage.NewClient(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	w := stoClient.Bucket(cl.BinaryBucket).Object(cl.binaryObject()).NewWriter(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
 	w.ACL = []storage.ACLRule{
 		// If you don't give the owners access, the web UI seems to
 		// have a bug and doesn't have access to see that it's public, so
