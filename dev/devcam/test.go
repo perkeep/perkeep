@@ -153,6 +153,7 @@ func (c *testCmd) runTests(args []string) error {
 			"./server/appengine",
 			"./cmd/...",
 			"./misc/docker/...",
+			"./website",
 		}...)
 	}
 	env := c.env()

@@ -78,11 +78,17 @@ const (
 var (
 	// Verbose enables more info to be printed.
 	Verbose bool
-	// HTTPS certificate file name
-	certFilename = filepath.Base(osutil.DefaultTLSCert())
-	// HTTPS key name
-	keyFilename = filepath.Base(osutil.DefaultTLSKey())
 )
+
+// certFilename returns the HTTPS certificate file name
+func certFilename() string {
+	return filepath.Base(osutil.DefaultTLSCert())
+}
+
+// keyFilename returns the HTTPS key name
+func keyFilename() string {
+	return filepath.Base(osutil.DefaultTLSKey())
+}
 
 // NewOAuthConfig returns an OAuth configuration template.
 func NewOAuthConfig(clientID, clientSecret string) *oauth2.Config {
@@ -490,11 +496,11 @@ func (d *Deployer) getInstalledTLS() (certPEM, keyPEM []byte, err error) {
 	}
 	var grp syncutil.Group
 	grp.Go(func() (err error) {
-		certPEM, err = getFile(certFilename)
+		certPEM, err = getFile(certFilename())
 		return
 	})
 	grp.Go(func() (err error) {
-		keyPEM, err = getFile(keyFilename)
+		keyPEM, err = getFile(keyFilename())
 		return
 	})
 	err = grp.Err()
@@ -674,12 +680,12 @@ func (d *Deployer) setupHTTPS(storageService *storage.Service) error {
 		d.Print("Uploading certificate and key...")
 	}
 	_, err = storageService.Objects.Insert(d.Conf.bucketBase(),
-		&storage.Object{Name: path.Join(configDir, certFilename)}).Media(cert).Do()
+		&storage.Object{Name: path.Join(configDir, certFilename())}).Media(cert).Do()
 	if err != nil {
 		return fmt.Errorf("cert upload failed: %v", err)
 	}
 	_, err = storageService.Objects.Insert(d.Conf.bucketBase(),
-		&storage.Object{Name: path.Join(configDir, keyFilename)}).Media(key).Do()
+		&storage.Object{Name: path.Join(configDir, keyFilename())}).Media(key).Do()
 	if err != nil {
 		return fmt.Errorf("key upload failed: %v", err)
 	}

@@ -66,7 +66,6 @@ var (
 	helpMachineTypes = "https://cloud.google.com/compute/docs/machine-types"
 	helpZones        = "https://cloud.google.com/compute/docs/zones#available"
 	helpSSH          = "https://cloud.google.com/compute/docs/console#sshkeys"
-	helpChangeCert   = `in your project console, navigate to "Storage", "Cloud Storage", "Storage browser", "%s-camlistore", "config". Delete "` + filepath.Base(osutil.DefaultTLSCert()) + `", "` + filepath.Base(osutil.DefaultTLSKey()) + `", and replace them by uploading your own files (with the same names).`
 
 	formDefaults = map[string]string{
 		"name":    InstanceName,
@@ -84,6 +83,12 @@ var (
 		"asia-east1":   []string{"-a", "-b", "-c"},
 	}
 )
+
+// helpChangeCert returns the template string used for helping with TLS
+// certificate files, while sidestepping failInTests panics from osutil.
+func helpChangeCert() string {
+	return `in your project console, navigate to "Storage", "Cloud Storage", "Storage browser", "%s-camlistore", "config". Delete "` + filepath.Base(osutil.DefaultTLSKey()) + `", "` + filepath.Base(osutil.DefaultTLSCert()) + `", and replace them by uploading your own files (with the same names).`
+}
 
 // DeployHandler serves a wizard that helps with the deployment of Camlistore on Google
 // Compute Engine. It must be initialized with NewDeployHandler.
@@ -165,7 +170,7 @@ func NewDeployHandler(host, prefix string) (http.Handler, error) {
 	if clientSecret == "" {
 		return nil, errors.New("Need an oauth2 client secret defined in CAMLI_GCE_CLIENTSECRET")
 	}
-	tpl, err := template.New("root").Parse(noTheme + tplHTML)
+	tpl, err := template.New("root").Parse(noTheme + tplHTML())
 	if err != nil {
 		return nil, fmt.Errorf("could not parse template: %v", err)
 	}
@@ -197,7 +202,7 @@ func NewDeployHandler(host, prefix string) (http.Handler, error) {
 			"machineTypes":    template.HTML(helpMachineTypes),
 			"zones":           template.HTML(helpZones),
 			"ssh":             template.HTML(helpSSH),
-			"changeCert":      template.HTML(helpChangeCert),
+			"changeCert":      template.HTML(helpChangeCert()),
 			"changeSSH":       template.HTML(HelpManageSSHKeys),
 			"changeHTTPCreds": template.HTML(HelpManageHTTPCreds),
 		},
@@ -829,7 +834,7 @@ func dataStores() (blobserver.Storage, sorted.KeyValue, error) {
 // effect, text can provide the template definitions for "header", "banner", "toplinks", and
 // "footer".
 func (h *DeployHandler) AddTemplateTheme(text string) error {
-	tpl, err := template.New("root").Parse(text + tplHTML)
+	tpl, err := template.New("root").Parse(text + tplHTML())
 	if err != nil {
 		return err
 	}
@@ -878,7 +883,8 @@ var noTheme = `
 {{end}}
 `
 
-var tplHTML = `
+func tplHTML() string {
+	return `
 	{{define "progress"}}
 	{{if .InstanceKey}}
 	<script>
@@ -985,7 +991,7 @@ var tplHTML = `
 		</p>
 
 		<p>
-		If you want to use your own HTTPS certificate and key, go to <a href="https://console.developers.google.com/project/{{.Conf.Project}}/storage/browser/{{.Conf.Project}}-camlistore/config/">the storage browser</a>. Delete "<b>` + certFilename + `</b>", "<b>` + keyFilename + `</b>", and replace them by uploading your own files (with the same names). Then <a href="https://{{.InstanceIP}}/status">restart</a> Camlistore.
+		If you want to use your own HTTPS certificate and key, go to <a href="https://console.developers.google.com/project/{{.Conf.Project}}/storage/browser/{{.Conf.Project}}-camlistore/config/">the storage browser</a>. Delete "<b>` + certFilename() + `</b>", "<b>` + keyFilename() + `</b>", and replace them by uploading your own files (with the same names). Then <a href="https://{{.InstanceIP}}/status">restart</a> Camlistore.
 		</p>
 
 		<p>
@@ -1083,3 +1089,4 @@ This tool helps you create your own private Camlistore instance running on Googl
 </html>
 {{end}}
 `
+}
