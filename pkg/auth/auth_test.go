@@ -24,6 +24,9 @@ import (
 )
 
 func TestFromConfig(t *testing.T) {
+	newString := func(s string) *string {
+		return &s
+	}
 	tests := []struct {
 		in string
 
@@ -34,11 +37,11 @@ func TestFromConfig(t *testing.T) {
 		{in: "slkdjflksdjf", wanterr: `Unknown auth type: "slkdjflksdjf"`},
 		{in: "none", want: None{}},
 		{in: "localhost", want: Localhost{}},
-		{in: "userpass:alice:secret", want: &UserPass{Username: "alice", Password: "secret", OrLocalhost: false, VivifyPass: ""}},
-		{in: "userpass:alice:secret:+localhost", want: &UserPass{Username: "alice", Password: "secret", OrLocalhost: true, VivifyPass: ""}},
-		{in: "userpass:alice:secret:+localhost:vivify=foo", want: &UserPass{Username: "alice", Password: "secret", OrLocalhost: true, VivifyPass: "foo"}},
-		{in: "devauth:port3179", want: &DevAuth{Password: "port3179", VivifyPass: "viviport3179"}},
-		{in: "basic:alice:secret", want: &UserPass{Username: "alice", Password: "secret", OrLocalhost: false, VivifyPass: ""}},
+		{in: "userpass:alice:secret", want: &UserPass{Username: "alice", Password: "secret", OrLocalhost: false, VivifyPass: nil}},
+		{in: "userpass:alice:secret:+localhost", want: &UserPass{Username: "alice", Password: "secret", OrLocalhost: true, VivifyPass: nil}},
+		{in: "userpass:alice:secret:+localhost:vivify=foo", want: &UserPass{Username: "alice", Password: "secret", OrLocalhost: true, VivifyPass: newString("foo")}},
+		{in: "devauth:port3179", want: &DevAuth{Password: "port3179", VivifyPass: newString("viviport3179")}},
+		{in: "basic:alice:secret", want: &UserPass{Username: "alice", Password: "secret", OrLocalhost: false, VivifyPass: nil}},
 		{in: "basic:alice:secret:+localhost", wanterr: `invalid basic auth syntax. got "alice:secret:+localhost", want "username:password"`},
 		{in: "basic:alice:secret:+vivify=foo", wanterr: `invalid basic auth syntax. got "alice:secret:+vivify=foo", want "username:password"`},
 	}
@@ -92,4 +95,44 @@ func TestMultiMode(t *testing.T) {
 		t.Fatalf("req should not be allowed anymore")
 	}
 
+}
+
+func TestEmptyPasswords(t *testing.T) {
+	tests := []struct {
+		config           string
+		providedPassword string
+
+		allowed bool
+	}{
+		{config: "foo:", providedPassword: "", allowed: true},
+		{config: "foo:", providedPassword: "bar", allowed: false},
+		{config: "foo:bar", providedPassword: "", allowed: false},
+		{config: "foo:bar", providedPassword: "bar", allowed: true},
+		{config: "foo:bar:vivify=", providedPassword: "", allowed: true},
+		{config: "foo:bar:vivify=", providedPassword: "notbar", allowed: false},
+		{config: "foo:bar:vivify=otherbar", providedPassword: "", allowed: false},
+		{config: "foo:bar:vivify=otherbar", providedPassword: "notbar", allowed: false},
+		{config: "foo:bar:vivify=otherbar", providedPassword: "bar", allowed: true},
+		{config: "foo:bar:vivify=otherbar", providedPassword: "otherbar", allowed: true},
+	}
+
+	for _, test := range tests {
+		req, err := http.NewRequest("GET", "/", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		(&UserPass{Username: "foo", Password: test.providedPassword}).AddAuthHeader(req)
+
+		auth, err := newUserPassAuth(test.config)
+		if err != nil {
+			t.Errorf(err.Error())
+			continue
+		}
+		SetMode(auth)
+
+		if Allowed(req, OpVivify) != test.allowed {
+			t.Errorf("Allowed(req, OpVivify) = %#v; want %#v (config: %q, providedPassword: %q)",
+				Allowed(req, OpVivify), test.allowed, test.config, test.providedPassword)
+		}
+	}
 }
