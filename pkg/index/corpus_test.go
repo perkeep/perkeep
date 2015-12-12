@@ -23,11 +23,11 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
+	"golang.org/x/net/context"
 )
 
 func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
@@ -146,7 +146,7 @@ func TestKVClaim(t *testing.T) {
 
 func TestDeletePermanode_Modtime(t *testing.T) {
 	testDeletePermanodes(t,
-		func(c *index.Corpus, ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
 			return c.EnumeratePermanodesLastModifiedLocked(ctx, ch)
 		},
 	)
@@ -154,14 +154,14 @@ func TestDeletePermanode_Modtime(t *testing.T) {
 
 func TestDeletePermanode_CreateTime(t *testing.T) {
 	testDeletePermanodes(t,
-		func(c *index.Corpus, ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
 			return c.EnumeratePermanodesCreatedLocked(ctx, ch, true)
 		},
 	)
 }
 
 func testDeletePermanodes(t *testing.T,
-	enumFunc func(*index.Corpus, *context.Context, chan<- camtypes.BlobMeta) error) {
+	enumFunc func(*index.Corpus, context.Context, chan<- camtypes.BlobMeta) error) {
 	idx := index.NewMemoryIndex()
 	idxd := indextest.NewIndexDeps(idx)
 
@@ -265,7 +265,7 @@ func testDeletePermanodes(t *testing.T,
 
 func TestEnumerateOrder_Modtime(t *testing.T) {
 	testEnumerateOrder(t,
-		func(c *index.Corpus, ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
 			return c.EnumeratePermanodesLastModifiedLocked(ctx, ch)
 		},
 		modtimeOrder,
@@ -274,7 +274,7 @@ func TestEnumerateOrder_Modtime(t *testing.T) {
 
 func TestEnumerateOrder_CreateTime(t *testing.T) {
 	testEnumerateOrder(t,
-		func(c *index.Corpus, ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
 			return c.EnumeratePermanodesCreatedLocked(ctx, ch, true)
 		},
 		createOrder,
@@ -287,7 +287,7 @@ const (
 )
 
 func testEnumerateOrder(t *testing.T,
-	enumFunc func(*index.Corpus, *context.Context, chan<- camtypes.BlobMeta) error,
+	enumFunc func(*index.Corpus, context.Context, chan<- camtypes.BlobMeta) error,
 	order int) {
 	idx := index.NewMemoryIndex()
 	idxd := indextest.NewIndexDeps(idx)
@@ -344,7 +344,7 @@ func testEnumerateOrder(t *testing.T,
 // should be run with -race
 func TestCacheSortedPermanodes_ModtimeRace(t *testing.T) {
 	testCacheSortedPermanodesRace(t,
-		func(c *index.Corpus, ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
 			return c.EnumeratePermanodesLastModifiedLocked(ctx, ch)
 		},
 	)
@@ -353,14 +353,14 @@ func TestCacheSortedPermanodes_ModtimeRace(t *testing.T) {
 // should be run with -race
 func TestCacheSortedPermanodes_CreateTimeRace(t *testing.T) {
 	testCacheSortedPermanodesRace(t,
-		func(c *index.Corpus, ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
 			return c.EnumeratePermanodesCreatedLocked(ctx, ch, true)
 		},
 	)
 }
 
 func testCacheSortedPermanodesRace(t *testing.T,
-	enumFunc func(*index.Corpus, *context.Context, chan<- camtypes.BlobMeta) error) {
+	enumFunc func(*index.Corpus, context.Context, chan<- camtypes.BlobMeta) error) {
 	idx := index.NewMemoryIndex()
 	idxd := indextest.NewIndexDeps(idx)
 	idxd.Fataler = t

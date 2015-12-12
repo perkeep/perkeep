@@ -22,11 +22,11 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/sorted"
+	"golang.org/x/net/context"
 )
 
-func (ix *Index) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
+func (ix *Index) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
 	defer close(dest)
 	it := ix.s.Find("have:"+after, "have~")
 	defer func() {
@@ -56,7 +56,7 @@ func (ix *Index) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef,
 			select {
 			case dest <- blob.SizedRef{br, uint32(size)}:
 			case <-ctx.Done():
-				return context.ErrCanceled
+				return ctx.Err()
 			}
 		}
 	}

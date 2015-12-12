@@ -40,11 +40,11 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/localdisk"
-	camliCtx "camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/leveldb"
+	camliCtx "golang.org/x/net/context"
 
 	"camlistore.org/third_party/code.google.com/p/xsrftoken"
 	"golang.org/x/net/context"

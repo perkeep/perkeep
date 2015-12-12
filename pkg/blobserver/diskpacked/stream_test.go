@@ -30,8 +30,8 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/test"
+	"golang.org/x/net/context"
 )
 
 type blobDetails struct {
@@ -137,7 +137,7 @@ func newTestStorage(t *testing.T, packs ...pack) (s *storage, clean func()) {
 // also fails the test if StreamBlobs returns a non-nil error.
 func streamAll(t *testing.T, s *storage) []*blob.Blob {
 	var blobs []*blob.Blob
-	ctx := context.New()
+	ctx := context.TODO()
 	ch := make(chan blobserver.BlobAndToken)
 	errCh := make(chan error, 1)
 

@@ -97,12 +97,12 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/constants"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/pools"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/third_party/go/pkg/archive/zip"
 	"go4.org/jsonconfig"
+	"golang.org/x/net/context"
 
 	"go4.org/strutil"
 	"go4.org/syncutil"
@@ -283,8 +283,8 @@ func (s *storage) anyMeta() (v bool) {
 }
 
 func (s *storage) anyZipPacks() (v bool) {
-	ctx := context.New()
-	defer ctx.Cancel()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
 	dest := make(chan blob.SizedRef, 1)
 	if err := s.large.EnumerateBlobs(ctx, dest, "", 1); err != nil {
 		// Not a great interface in general, but only needed
@@ -561,7 +561,7 @@ func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	return s.small.StatBlobs(dest, trySmall)
 }
 
-func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
+func (s *storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
 	return blobserver.MergedEnumerate(ctx, dest, []blobserver.BlobEnumerator{
 		s.small,
 		enumerator{s},
@@ -573,7 +573,7 @@ type enumerator struct {
 	*storage
 }
 
-func (s enumerator) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
+func (s enumerator) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
 	defer close(dest)
 	t := s.meta.Find(blobMetaPrefix+after, blobMetaPrefixLimit)
 	defer func() {

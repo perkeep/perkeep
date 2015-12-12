@@ -21,7 +21,7 @@ import (
 	"sort"
 	"testing"
 
-	"camlistore.org/pkg/context"
+	"golang.org/x/net/context"
 )
 
 func sl(v ...string) []string {
@@ -127,7 +127,7 @@ func TestCollector(t *testing.T) {
 			ItemEnumerator: testItemEnum(tt.graph),
 			Deleter:        w,
 		}
-		if err := c.Collect(context.New()); err != nil {
+		if err := c.Collect(context.TODO()); err != nil {
 			t.Errorf("%s: Collect = %v", tt.name, err)
 		}
 		got := w.items()
@@ -139,13 +139,13 @@ func TestCollector(t *testing.T) {
 
 type testEnum []string
 
-func (s testEnum) Enumerate(ctx *context.Context, dest chan<- Item) error {
+func (s testEnum) Enumerate(ctx context.Context, dest chan<- Item) error {
 	defer close(dest)
 	for _, v := range s {
 		select {
 		case dest <- v:
 		case <-ctx.Done():
-			return context.ErrCanceled
+			return ctx.Err()
 		}
 	}
 	return nil
@@ -153,13 +153,13 @@ func (s testEnum) Enumerate(ctx *context.Context, dest chan<- Item) error {
 
 type testItemEnum map[string][]string
 
-func (m testItemEnum) EnumerateItem(ctx *context.Context, it Item, dest chan<- Item) error {
+func (m testItemEnum) EnumerateItem(ctx context.Context, it Item, dest chan<- Item) error {
 	defer close(dest)
 	for _, v := range m[it.(string)] {
 		select {
 		case dest <- v:
 		case <-ctx.Done():
-			return context.ErrCanceled
+			return ctx.Err()
 		}
 	}
 	return nil

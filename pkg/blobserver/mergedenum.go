@@ -18,14 +18,14 @@ package blobserver
 
 import (
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
+	"golang.org/x/net/context"
 )
 
 const buffered = 8
 
 // MergedEnumerate implements the BlobEnumerator interface by
 // merge-joining 0 or more sources.
-func MergedEnumerate(ctx *context.Context, dest chan<- blob.SizedRef, sources []BlobEnumerator, after string, limit int) error {
+func MergedEnumerate(ctx context.Context, dest chan<- blob.SizedRef, sources []BlobEnumerator, after string, limit int) error {
 	return mergedEnumerate(ctx, dest, len(sources), func(i int) BlobEnumerator { return sources[i] }, after, limit)
 }
 
@@ -34,15 +34,15 @@ func MergedEnumerate(ctx *context.Context, dest chan<- blob.SizedRef, sources []
 //
 // In this version, the sources implement the Storage interface, even
 // though only the BlobEnumerator interface is used.
-func MergedEnumerateStorage(ctx *context.Context, dest chan<- blob.SizedRef, sources []Storage, after string, limit int) error {
+func MergedEnumerateStorage(ctx context.Context, dest chan<- blob.SizedRef, sources []Storage, after string, limit int) error {
 	return mergedEnumerate(ctx, dest, len(sources), func(i int) BlobEnumerator { return sources[i] }, after, limit)
 }
 
-func mergedEnumerate(ctx *context.Context, dest chan<- blob.SizedRef, nsrc int, getSource func(int) BlobEnumerator, after string, limit int) error {
+func mergedEnumerate(ctx context.Context, dest chan<- blob.SizedRef, nsrc int, getSource func(int) BlobEnumerator, after string, limit int) error {
 	defer close(dest)
 
-	subctx := ctx.New()
-	defer subctx.Cancel()
+	subctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	startEnum := func(source BlobEnumerator) (*blob.ChanPeeker, <-chan error) {
 		ch := make(chan blob.SizedRef, buffered)

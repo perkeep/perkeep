@@ -25,8 +25,8 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
-	"camlistore.org/pkg/context"
 	"go4.org/jsonconfig"
+	"golang.org/x/net/context"
 )
 
 var (
@@ -56,7 +56,7 @@ func TestS3(t *testing.T) {
 		}
 		clearBucket := func() {
 			var all []blob.Ref
-			blobserver.EnumerateAll(context.New(), sto, func(sb blob.SizedRef) error {
+			blobserver.EnumerateAll(context.TODO(), sto, func(sb blob.SizedRef) error {
 				t.Logf("Deleting: %v", sb.Ref)
 				all = append(all, sb.Ref)
 				return nil

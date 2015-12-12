@@ -37,8 +37,8 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/context"
 	"go4.org/jsonconfig"
+	"golang.org/x/net/context"
 )
 
 type shardStorage struct {
@@ -118,7 +118,7 @@ func (sto *shardStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) 
 	})
 }
 
-func (sto *shardStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (sto *shardStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	return blobserver.MergedEnumerateStorage(ctx, dest, sto.shards, after, limit)
 }
 

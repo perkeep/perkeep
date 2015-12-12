@@ -33,7 +33,6 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/schema"
@@ -41,6 +40,7 @@ import (
 	"camlistore.org/pkg/server"
 	"camlistore.org/pkg/types/camtypes"
 	"go4.org/jsonconfig"
+	"golang.org/x/net/context"
 
 	"go4.org/syncutil"
 )
@@ -63,7 +63,7 @@ type Importer interface {
 	//
 	// The importer should continually or periodically monitor the
 	// context's Done channel to exit early if requested. The
-	// return value should be context.ErrCanceled if the importer
+	// return value should be ctx.Err() if the importer
 	// exits for that reason.
 	Run(*RunContext) error
 
@@ -245,7 +245,7 @@ func newFromConfig(ld blobserver.Loader, cfg jsonconfig.Obj) (http.Handler, erro
 var _ blobserver.HandlerIniter = (*Host)(nil)
 
 type SetupContext struct {
-	*context.Context
+	context.Context
 	Host        *Host
 	AccountNode *Object
 
@@ -273,8 +273,9 @@ func (sc *SetupContext) AccountURL() string {
 // RunContext is the context provided for a given Run of an importer, importing
 // a certain account on a certain importer.
 type RunContext struct {
-	*context.Context
-	Host *Host
+	context.Context
+	Cancel context.CancelFunc
+	Host   *Host
 
 	ia *importerAcct
 
@@ -293,12 +294,14 @@ func CreateAccount(h *Host, impl string) (*RunContext, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create new account for importer %v: %v", impl, err)
 	}
-	return &RunContext{
+	rc := &RunContext{
 		// TODO: context plumbing
-		Context: context.New(context.WithHTTPClient(ia.im.host.HTTPClient())),
-		Host:    ia.im.host,
-		ia:      ia,
-	}, nil
+		Host: ia.im.host,
+		ia:   ia,
+	}
+	rc.Context, rc.Cancel = context.WithCancel(context.WithValue(context.TODO(), "HTTPClient", ia.im.host.HTTPClient()))
+	return rc, nil
+
 }
 
 // Credentials returns the credentials for the importer. This is
@@ -1066,10 +1069,10 @@ func (ia *importerAcct) start() {
 	}
 	rc := &RunContext{
 		// TODO: context plumbing
-		Context: context.New(context.WithHTTPClient(ia.im.host.HTTPClient())),
-		Host:    ia.im.host,
-		ia:      ia,
+		Host: ia.im.host,
+		ia:   ia,
 	}
+	rc.Context, rc.Cancel = context.WithCancel(context.WithValue(context.TODO(), "HTTPClient", ia.im.host.HTTPClient()))
 	ia.current = rc
 	ia.stopped = false
 	ia.lastRunStart = time.Now()
@@ -1097,7 +1100,7 @@ func (ia *importerAcct) stop() {
 	if ia.current == nil || ia.stopped {
 		return
 	}
-	ia.current.Context.Cancel()
+	ia.current.Cancel()
 	ia.stopped = true
 }
 
@@ -1333,4 +1336,11 @@ func (h *Host) ObjectFromRef(permanodeRef blob.Ref) (*Object, error) {
 		pn:   permanodeRef,
 		attr: map[string][]string(db.Permanode.Attr),
 	}, nil
+}
+
+func HTTPClient(ctx context.Context) *http.Client {
+	if x := ctx.Value("HTTPClient"); x != nil {
+		return x.(*http.Client)
+	}
+	return http.DefaultClient
 }

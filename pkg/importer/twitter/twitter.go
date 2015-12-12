@@ -35,7 +35,6 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
@@ -272,9 +271,11 @@ func (r *run) importTweets(userID string) error {
 		"count", strconv.Itoa(tweetRequestLimit),
 	}
 	for continueRequests {
-		if r.Context.IsCanceled() {
+		select {
+		case <-r.Done():
 			r.errorf("Twitter importer: interrupted")
-			return context.ErrCanceled
+			return r.Err()
+		default:
 		}
 
 		var resp []*apiTweetItem
@@ -413,9 +414,11 @@ func timeParseFirstFormat(timeStr string, format ...string) (t time.Time, err er
 
 // viaAPI is true if it came via the REST API, or false if it came via a zip file.
 func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool) (dup bool, err error) {
-	if r.Context.IsCanceled() {
+	select {
+	case <-r.Done():
 		r.errorf("Twitter importer: interrupted")
-		return false, context.ErrCanceled
+		return false, r.Err()
+	default:
 	}
 	id := tweet.ID()
 	tweetNode, err := parent.ChildPathObject(id)
@@ -471,7 +474,7 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 		tried, gotMedia := 0, false
 		for _, mediaURL := range m.URLs() {
 			tried++
-			res, err := r.HTTPClient().Get(mediaURL)
+			res, err := importer.HTTPClient(r).Get(mediaURL)
 			if err != nil {
 				return false, fmt.Errorf("Error fetching %s for tweet %s : %v", mediaURL, url, err)
 			}
@@ -557,7 +560,7 @@ func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.
 		httputil.ServeError(w, r, err)
 		return err
 	}
-	tempCred, err := oauthClient.RequestTemporaryCredentials(ctx.HTTPClient(), ctx.CallbackURL(), nil)
+	tempCred, err := oauthClient.RequestTemporaryCredentials(importer.HTTPClient(ctx), ctx.CallbackURL(), nil)
 	if err != nil {
 		err = fmt.Errorf("Error getting temp cred: %v", err)
 		httputil.ServeError(w, r, err)
@@ -597,7 +600,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		return
 	}
 	tokenCred, vals, err := oauthClient.RequestToken(
-		ctx.Context.HTTPClient(),
+		importer.HTTPClient(ctx),
 		&oauth.Credentials{
 			Token:  tempToken,
 			Secret: tempSecret,

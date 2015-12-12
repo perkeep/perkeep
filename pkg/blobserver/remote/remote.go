@@ -41,8 +41,8 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client"
-	"camlistore.org/pkg/context"
 	"go4.org/jsonconfig"
+	"golang.org/x/net/context"
 )
 
 // remoteStorage is a blobserver.Storage proxy for a remote camlistore
@@ -120,7 +120,7 @@ func (sto *remoteStorage) Fetch(b blob.Ref) (file io.ReadCloser, size uint32, er
 
 func (sto *remoteStorage) MaxEnumerate() int { return 1000 }
 
-func (sto *remoteStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (sto *remoteStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	return sto.client.EnumerateBlobsOpts(ctx, dest, client.EnumerateOpts{
 		After: after,
 		Limit: limit,

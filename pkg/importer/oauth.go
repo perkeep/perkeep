@@ -25,9 +25,9 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
+	"golang.org/x/net/context"
 )
 
 const (
@@ -151,7 +151,7 @@ func (im OAuth2) SummarizeAccount(acct *Object) string {
 //
 // It is used as a value type.
 type OAuthContext struct {
-	Ctx    *context.Context
+	Ctx    context.Context
 	Client *oauth.Client
 	Creds  *oauth.Credentials
 }
@@ -164,7 +164,7 @@ func (octx OAuthContext) Get(url string, form url.Values) (*http.Response, error
 	if octx.Client == nil {
 		return nil, errors.New("No OAuth client.")
 	}
-	res, err := octx.Client.Get(octx.Ctx.HTTPClient(), octx.Creds, url, form)
+	res, err := octx.Client.Get(HTTPClient(octx.Ctx), octx.Creds, url, form)
 	if err != nil {
 		return nil, fmt.Errorf("Error fetching %s: %v", url, err)
 	}

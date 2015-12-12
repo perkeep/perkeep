@@ -25,7 +25,7 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
+	"golang.org/x/net/context"
 )
 
 type readBlobRequest struct {
@@ -155,7 +155,7 @@ func (ds *DiskStorage) readBlobs(opts readBlobRequest) error {
 				select {
 				case opts.ch <- blob.SizedRef{Ref: blobRef, Size: uint32(fi.Size())}:
 				case <-opts.done:
-					return context.ErrCanceled
+					return context.Canceled
 				}
 				(*opts.remain)--
 			}
@@ -166,7 +166,7 @@ func (ds *DiskStorage) readBlobs(opts readBlobRequest) error {
 	return nil
 }
 
-func (ds *DiskStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (ds *DiskStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	if limit == 0 {
 		log.Printf("Warning: localdisk.EnumerateBlobs called with a limit of 0")

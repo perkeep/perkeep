@@ -20,7 +20,6 @@ import (
 	"net/http"
 	"testing"
 
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 
 	"camlistore.org/third_party/github.com/tgulacsi/picago"
@@ -29,14 +28,12 @@ import (
 func TestGetUserId(t *testing.T) {
 	userID := "11047045264"
 	responder := httputil.FileResponder("testdata/users-me-res.xml")
-	ctx := context.New(context.WithHTTPClient(&http.Client{
+	cl := &http.Client{
 		Transport: httputil.NewFakeTransport(map[string]func() *http.Response{
 			"https://picasaweb.google.com/data/feed/api/user/default/contacts?kind=user":        responder,
 			"https://picasaweb.google.com/data/feed/api/user/" + userID + "/contacts?kind=user": responder,
-		}),
-	}))
-	defer ctx.Cancel()
-	inf, err := picago.GetUser(ctx.HTTPClient(), "default")
+		})}
+	inf, err := picago.GetUser(cl, "default")
 	if err != nil {
 		t.Fatal(err)
 	}

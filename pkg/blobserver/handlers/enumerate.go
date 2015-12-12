@@ -26,7 +26,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/context"
+	"golang.org/x/net/context"
 )
 
 const defaultMaxEnumerate = 10000

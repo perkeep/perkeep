@@ -36,11 +36,11 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
 	"camlistore.org/pkg/constants"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/test"
 	"camlistore.org/third_party/go/pkg/archive/zip"
+	"golang.org/x/net/context"
 
 	"go4.org/syncutil"
 )
@@ -292,8 +292,8 @@ func testPack(t *testing.T,
 	write func(sto blobserver.Storage) error,
 	checks ...func(*packTest),
 ) *packTest {
-	ctx := context.New()
-	defer ctx.Cancel()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
 
 	logical := new(test.Fetcher)
 	small, large := new(test.Fetcher), new(test.Fetcher)
@@ -477,8 +477,8 @@ func TestSmallFallback(t *testing.T) {
 
 	// Enumerate
 	saw := false
-	ctx := context.New()
-	defer ctx.Cancel()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
 	if err := blobserver.EnumerateAll(ctx, s, func(sb blob.SizedRef) error {
 		if sb != wantSB {
 			return fmt.Errorf("saw blob %v; want %v", sb, wantSB)
@@ -511,8 +511,8 @@ func TestForeachZipBlob(t *testing.T) {
 	const fileName = "foo.dat"
 	fileContents := randBytes(fileSize)
 
-	ctx := context.New()
-	defer ctx.Cancel()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
 
 	pt := testPack(t,
 		func(sto blobserver.Storage) error {
@@ -577,8 +577,8 @@ func TestForeachZipBlob(t *testing.T) {
 // singleBlob assumes that sto contains a single blob and returns it.
 // If there are more or fewer than one blob, it's an error.
 func singleBlob(sto blobserver.BlobEnumerator) (ret blob.SizedRef, err error) {
-	ctx := context.New()
-	defer ctx.Cancel()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
 
 	n := 0
 	if err = blobserver.EnumerateAll(ctx, sto, func(sb blob.SizedRef) error {
@@ -595,8 +595,8 @@ func singleBlob(sto blobserver.BlobEnumerator) (ret blob.SizedRef, err error) {
 }
 
 func TestRemoveBlobs(t *testing.T) {
-	ctx := context.New()
-	defer ctx.Cancel()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
 
 	// The basic small cases are handled via storagetest in TestStorage,
 	// so this only tests removing packed blobs.

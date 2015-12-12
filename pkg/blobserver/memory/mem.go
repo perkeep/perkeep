@@ -30,10 +30,10 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/lru"
 	"camlistore.org/pkg/types"
 	"go4.org/jsonconfig"
+	"golang.org/x/net/context"
 )
 
 // Storage is an in-memory implementation of the blobserver Storage
@@ -182,7 +182,7 @@ func (s *Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	return nil
 }
 
-func (s *Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (s *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -207,7 +207,7 @@ func (s *Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef
 		select {
 		case dest <- blob.SizedRef{br, uint32(len(s.m[br]))}:
 		case <-ctx.Done():
-			return context.ErrCanceled
+			return ctx.Err()
 		}
 		n++
 		if limit > 0 && n == limit {
@@ -217,7 +217,7 @@ func (s *Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef
 	return nil
 }
 
-func (s *Storage) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) error {
+func (s *Storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAndToken, contToken string) error {
 	// for this impl, contToken is >= blobref.String()
 	defer close(dest)
 	s.mu.RLock()
@@ -235,7 +235,7 @@ func (s *Storage) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobA
 		}
 		select {
 		case <-ctx.Done():
-			return context.ErrCanceled
+			return ctx.Err()
 		case dest <- blobserver.BlobAndToken{
 			Blob: blob.NewBlob(br, uint32(len(s.m[br])), func() types.ReadSeekCloser {
 				return blob.NewLazyReadSeekCloser(s, br)

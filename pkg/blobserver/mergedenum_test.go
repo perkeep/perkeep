@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
+	"golang.org/x/net/context"
 )
 
 var mergedTests = []struct {
@@ -92,7 +92,7 @@ var mergedTests = []struct {
 
 func TestMergedEnumerate(t *testing.T) {
 	for _, tt := range mergedTests {
-		ctx := context.New()
+		ctx := context.TODO()
 		var got []string
 		ch := make(chan blob.SizedRef)
 		errc := make(chan error)
@@ -126,7 +126,7 @@ type testEnum struct {
 	blobs []string
 }
 
-func (te testEnum) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (te testEnum) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	done := 0
 	for _, bs := range te.blobs {

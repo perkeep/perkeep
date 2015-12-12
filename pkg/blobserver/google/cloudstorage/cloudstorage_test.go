@@ -29,9 +29,9 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
 	"camlistore.org/pkg/constants/google"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/googlestorage"
 	"go4.org/jsonconfig"
+	"golang.org/x/net/context"
 
 	"go4.org/oauthutil"
 	"golang.org/x/oauth2"
@@ -159,7 +159,7 @@ func testStorage(t *testing.T, bucketDir string) {
 			clearBucket := func(beforeTests bool) func() {
 				return func() {
 					var all []blob.Ref
-					blobserver.EnumerateAll(context.New(), sto, func(sb blob.SizedRef) error {
+					blobserver.EnumerateAll(context.TODO(), sto, func(sb blob.SizedRef) error {
 						t.Logf("Deleting: %v", sb.Ref)
 						all = append(all, sb.Ref)
 						return nil

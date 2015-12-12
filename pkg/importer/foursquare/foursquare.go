@@ -31,12 +31,12 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/schema/nodeattr"
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
+	"golang.org/x/net/context"
 )
 
 const (
@@ -180,7 +180,7 @@ func (r *run) urlFileRef(urlstr, filename string) string {
 	}
 	im.mu.Unlock()
 
-	res, err := r.HTTPClient().Get(urlstr)
+	res, err := importer.HTTPClient(r).Get(urlstr)
 	if err != nil {
 		log.Printf("couldn't get image: %v", err)
 		return ""
@@ -394,7 +394,7 @@ func (r *run) getTopLevelNode(path string, title string) (*importer.Object, erro
 	return childObject, nil
 }
 
-func (im *imp) getUserInfo(ctx *context.Context, accessToken string) (user, error) {
+func (im *imp) getUserInfo(ctx context.Context, accessToken string) (user, error) {
 	var ui userInfo
 	if err := im.doAPI(ctx, accessToken, &ui, "users/self"); err != nil {
 		return user{}, err
@@ -405,7 +405,7 @@ func (im *imp) getUserInfo(ctx *context.Context, accessToken string) (user, erro
 	return ui.Response.User, nil
 }
 
-func (im *imp) doAPI(ctx *context.Context, accessToken string, result interface{}, apiPath string, keyval ...string) error {
+func (im *imp) doAPI(ctx context.Context, accessToken string, result interface{}, apiPath string, keyval ...string) error {
 	if len(keyval)%2 == 1 {
 		panic("Incorrect number of keyval arguments")
 	}
@@ -429,13 +429,13 @@ func (im *imp) doAPI(ctx *context.Context, accessToken string, result interface{
 	return err
 }
 
-func doGet(ctx *context.Context, url string, form url.Values) (*http.Response, error) {
+func doGet(ctx context.Context, url string, form url.Values) (*http.Response, error) {
 	requestURL := url + "?" + form.Encode()
 	req, err := http.NewRequest("GET", requestURL, nil)
 	if err != nil {
 		return nil, err
 	}
-	res, err := ctx.HTTPClient().Do(req)
+	res, err := importer.HTTPClient(ctx).Do(req)
 	if err != nil {
 		log.Printf("Error fetching %s: %v", url, err)
 		return nil, err

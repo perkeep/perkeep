@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/types/camtypes"
+	"golang.org/x/net/context"
 )
 
 var ClockOrigin = time.Unix(1322443956, 123456)
@@ -220,6 +220,6 @@ func (fi *FakeIndex) EdgesTo(ref blob.Ref, opts *camtypes.EdgesToOpts) ([]*camty
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) EnumerateBlobMeta(ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+func (fi *FakeIndex) EnumerateBlobMeta(ctx context.Context, ch chan<- camtypes.BlobMeta) error {
 	panic("NOIMPL")
 }

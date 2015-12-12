@@ -22,7 +22,7 @@ import (
 	"os"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
+	"golang.org/x/net/context"
 )
 
 // NoImplStorage is an implementation of Storage that returns a not
@@ -44,7 +44,7 @@ func (NoImplStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) erro
 	return errors.New("Stat not implemented")
 }
 
-func (NoImplStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (NoImplStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	return errors.New("EnumerateBlobs not implemented")
 }
 

@@ -30,12 +30,12 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/schema/nodeattr"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/types/camtypes"
+	"golang.org/x/net/context"
 
 	"go4.org/strutil"
 	"go4.org/syncutil"
@@ -680,8 +680,8 @@ func (c *Corpus) br(br blob.Ref) blob.Ref {
 //
 // If camType is empty, all camlistore blobs are sent, otherwise it specifies
 // the camliType to send.
-// ch is closed at the end. The err will either be nil or context.ErrCanceled.
-func (c *Corpus) EnumerateCamliBlobsLocked(ctx *context.Context, camType string, ch chan<- camtypes.BlobMeta) error {
+// ch is closed at the end. The err will either be nil or ctx.Err().
+func (c *Corpus) EnumerateCamliBlobsLocked(ctx context.Context, camType string, ch chan<- camtypes.BlobMeta) error {
 	defer close(ch)
 	for t, m := range c.camBlobs {
 		if camType != "" && camType != t {
@@ -691,7 +691,7 @@ func (c *Corpus) EnumerateCamliBlobsLocked(ctx *context.Context, camType string,
 			select {
 			case ch <- *bm:
 			case <-ctx.Done():
-				return context.ErrCanceled
+				return ctx.Err()
 			}
 		}
 	}
@@ -701,13 +701,13 @@ func (c *Corpus) EnumerateCamliBlobsLocked(ctx *context.Context, camType string,
 // EnumerateBlobMetaLocked sends all known blobs to ch, or until the context is canceled.
 //
 // The Corpus must already be locked with RLock.
-func (c *Corpus) EnumerateBlobMetaLocked(ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+func (c *Corpus) EnumerateBlobMetaLocked(ctx context.Context, ch chan<- camtypes.BlobMeta) error {
 	defer close(ch)
 	for _, bm := range c.blobs {
 		select {
 		case ch <- *bm:
 		case <-ctx.Done():
-			return context.ErrCanceled
+			return ctx.Err()
 		}
 	}
 	return nil
@@ -802,7 +802,7 @@ func (lsp *lazySortedPermanodes) sorted(reverse bool) []pnAndTime {
 }
 
 // corpus must be (read) locked.
-func (c *Corpus) sendPermanodes(ctx *context.Context, ch chan<- camtypes.BlobMeta, pns []pnAndTime) error {
+func (c *Corpus) sendPermanodes(ctx context.Context, ch chan<- camtypes.BlobMeta, pns []pnAndTime) error {
 	for _, cand := range pns {
 		bm := c.blobs[cand.pn]
 		if bm == nil {
@@ -812,7 +812,7 @@ func (c *Corpus) sendPermanodes(ctx *context.Context, ch chan<- camtypes.BlobMet
 		case ch <- *bm:
 			continue
 		case <-ctx.Done():
-			return context.ErrCanceled
+			return ctx.Err()
 		}
 	}
 	return nil
@@ -822,7 +822,7 @@ func (c *Corpus) sendPermanodes(ctx *context.Context, ch chan<- camtypes.BlobMet
 // or until ctx is done.
 //
 // The Corpus must already be locked with RLock.
-func (c *Corpus) EnumeratePermanodesLastModifiedLocked(ctx *context.Context, ch chan<- camtypes.BlobMeta) error {
+func (c *Corpus) EnumeratePermanodesLastModifiedLocked(ctx context.Context, ch chan<- camtypes.BlobMeta) error {
 	defer close(ch)
 
 	return c.sendPermanodes(ctx, ch, c.permanodesByModtime.sorted(true))
@@ -833,7 +833,7 @@ func (c *Corpus) EnumeratePermanodesLastModifiedLocked(ctx *context.Context, ch 
 // otherwise, and in the order specified by newestFirst.
 //
 // The Corpus must already be locked with RLock.
-func (c *Corpus) EnumeratePermanodesCreatedLocked(ctx *context.Context, ch chan<- camtypes.BlobMeta, newestFirst bool) error {
+func (c *Corpus) EnumeratePermanodesCreatedLocked(ctx context.Context, ch chan<- camtypes.BlobMeta, newestFirst bool) error {
 	defer close(ch)
 
 	return c.sendPermanodes(ctx, ch, c.permanodesByTime.sorted(newestFirst))

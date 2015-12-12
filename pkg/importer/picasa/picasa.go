@@ -32,11 +32,12 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/schema/nodeattr"
 	"camlistore.org/pkg/search"
+
+	"golang.org/x/net/context"
 
 	"go4.org/syncutil"
 
@@ -88,8 +89,9 @@ func init() {
 	importer.Register("picasa", imp{
 		newExtendedOAuth2(
 			baseOAuthConfig,
-			func(ctx *context.Context) (*userInfo, error) {
-				u, err := picago.GetUser(ctx.HTTPClient(), "default")
+			func(ctx context.Context) (*userInfo, error) {
+
+				u, err := picago.GetUser(importer.HTTPClient(ctx), "default")
 				if err != nil {
 					return nil, err
 				}
@@ -141,6 +143,10 @@ type run struct {
 	anyErr bool
 }
 
+func (r *run) HTTPClient() *http.Client {
+	return importer.HTTPClient(context.Context(r))
+}
+
 func (r *run) errorf(format string, args ...interface{}) {
 	log.Printf(format, args...)
 	r.mu.Lock()
@@ -162,9 +168,9 @@ func (imp) Run(ctx *importer.RunContext) error {
 	transport := &oauth.Transport{
 		Config:    &ocfg,
 		Token:     &token,
-		Transport: notOAuthTransport(ctx.HTTPClient()),
+		Transport: notOAuthTransport(importer.HTTPClient(ctx)),
 	}
-	ctx.Context = ctx.Context.New(context.WithHTTPClient(transport.Client()))
+	ctx.Context = context.WithValue(ctx.Context, "HTTPClient", transport.Client())
 
 	root := ctx.RootNode()
 	if root.Attr(nodeattr.Title) == "" {
@@ -204,8 +210,10 @@ func (r *run) importAlbums() error {
 	}
 	albumsNode, err := r.getTopLevelNode("albums", "Albums")
 	for _, album := range albums {
-		if r.Context.IsCanceled() {
-			return context.ErrCanceled
+		select {
+		case <-r.Done():
+			return r.Err()
+		default:
 		}
 		if err := r.importAlbum(albumsNode, album); err != nil {
 			return fmt.Errorf("picasa importer: error importing album %s: %v", album, err)
@@ -266,8 +274,10 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album) (ret 
 
 	var grp syncutil.Group
 	for i := range photos {
-		if r.Context.IsCanceled() {
-			return context.ErrCanceled
+		select {
+		case <-r.Done():
+			return r.Err()
+		default:
 		}
 		photo := photos[i]
 		r.photoGate.Start()

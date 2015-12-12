@@ -21,10 +21,12 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	"net/http"
 	"net/url"
 	"sync"
 
-	"camlistore.org/pkg/context"
+	"golang.org/x/net/context"
+	"golang.org/x/net/context/ctxhttp"
 
 	"go4.org/syncutil/singleflight"
 )
@@ -48,7 +50,7 @@ var (
 
 // Lookup returns rectangles for the given address. Currently the only
 // implementation is the Google geocoding service.
-func Lookup(ctx *context.Context, address string) ([]Rect, error) {
+func Lookup(ctx context.Context, address string) ([]Rect, error) {
 	mu.RLock()
 	rects, ok := cache[address]
 	mu.RUnlock()
@@ -59,7 +61,11 @@ func Lookup(ctx *context.Context, address string) ([]Rect, error) {
 	rectsi, err := sf.Do(address, func() (interface{}, error) {
 		// TODO: static data files from OpenStreetMap, Wikipedia, etc?
 		urlStr := "https://maps.googleapis.com/maps/api/geocode/json?address=" + url.QueryEscape(address) + "&sensor=false"
-		res, err := ctx.HTTPClient().Get(urlStr)
+		cl := http.DefaultClient
+		if x := ctx.Value("HTTPClient"); x != nil {
+			cl = x.(*http.Client)
+		}
+		res, err := ctxhttp.Get(ctx, cl, urlStr)
 		if err != nil {
 			return nil, err
 		}

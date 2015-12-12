@@ -21,20 +21,20 @@ import (
 	"path/filepath"
 	"testing"
 
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
+	"golang.org/x/net/context"
 
 	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
 )
 
 func TestGetUserID(t *testing.T) {
-	ctx := context.New(context.WithHTTPClient(&http.Client{
+	ctx, cancel := context.WithCancel(context.WithValue(context.TODO(), "HTTPClient", &http.Client{
 		Transport: httputil.NewFakeTransport(map[string]func() *http.Response{
 			apiURL + userInfoAPIPath: httputil.FileResponder(filepath.FromSlash("testdata/verify_credentials-res.json")),
 		}),
 	}))
-	defer ctx.Cancel()
+	defer cancel()
 	inf, err := getUserInfo(importer.OAuthContext{ctx, &oauth.Client{}, &oauth.Credentials{}})
 	if err != nil {
 		t.Fatal(err)

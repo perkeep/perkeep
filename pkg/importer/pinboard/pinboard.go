@@ -52,7 +52,6 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
@@ -248,14 +247,14 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 	select {
 	case <-r.Done():
 		log.Printf("pinboard: Importer interrupted.")
-		return false, context.ErrCanceled
+		return false, r.Err()
 	case <-time.After(sleepDuration):
 		// just proceed
 	}
 	start := time.Now()
 
 	u := fmt.Sprintf(fetchUrl, authToken, batchLimit, r.nextCursor)
-	resp, err := r.HTTPClient().Get(u)
+	resp, err := importer.HTTPClient(r).Get(u)
 	if err != nil {
 		return false, err
 	}
@@ -292,9 +291,11 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 	log.Printf("pinboard: Importing %d posts...", postCount)
 	var grp syncutil.Group
 	for _, post := range postBatch {
-		if r.Context.IsCanceled() {
+		select {
+		case <-r.Done():
 			log.Printf("pinboard: Importer interrupted")
-			return false, context.ErrCanceled
+			return false, r.Err()
+		default:
 		}
 
 		post := post

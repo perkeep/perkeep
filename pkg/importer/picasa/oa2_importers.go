@@ -26,9 +26,9 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
+	"golang.org/x/net/context"
 
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 )
@@ -48,13 +48,13 @@ const (
 type extendedOAuth2 struct {
 	importer.OAuth2
 	oauthConfig oauth.Config
-	getUserInfo func(ctx *context.Context) (*userInfo, error)
+	getUserInfo func(ctx context.Context) (*userInfo, error)
 }
 
 // newExtendedOAuth2 returns a default implementation of
 // some common methods for OAuth2-based importers.
 func newExtendedOAuth2(oauthConfig oauth.Config,
-	getUserInfo func(ctx *context.Context) (*userInfo, error),
+	getUserInfo func(ctx context.Context) (*userInfo, error),
 ) extendedOAuth2 {
 	return extendedOAuth2{oauthConfig: oauthConfig, getUserInfo: getUserInfo}
 }
@@ -131,7 +131,7 @@ func (im extendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, c
 	// needs to have the access token that is obtained during Exchange.
 	transport := &oauth.Transport{
 		Config:    oauthConfig,
-		Transport: notOAuthTransport(ctx.HTTPClient()),
+		Transport: notOAuthTransport(importer.HTTPClient(ctx)),
 	}
 	token, err := transport.Exchange(code)
 	log.Printf("Token = %#v, error %v", token, err)
@@ -141,8 +141,8 @@ func (im extendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, c
 		return
 	}
 
-	picagoCtx := ctx.Context.New(context.WithHTTPClient(transport.Client()))
-	defer picagoCtx.Cancel()
+	picagoCtx, cancel := context.WithCancel(context.WithValue(ctx, "HTTPClient", transport.Client()))
+	defer cancel()
 
 	userInfo, err := im.getUserInfo(picagoCtx)
 	if err != nil {

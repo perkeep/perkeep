@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"strings"
 
-	"camlistore.org/pkg/context"
+	"golang.org/x/net/context"
 )
 
 // NewMultiBlobStreamer concatenates multiple BlobStreamers into one.
@@ -36,7 +36,7 @@ type multiStreamer struct {
 
 var msTokenPrefixRx = regexp.MustCompile(`^(\d+):`)
 
-func (ms multiStreamer) StreamBlobs(ctx *context.Context, dest chan<- BlobAndToken, contToken string) error {
+func (ms multiStreamer) StreamBlobs(ctx context.Context, dest chan<- BlobAndToken, contToken string) error {
 	defer close(dest)
 	part := 0
 	if contToken != "" {
@@ -60,7 +60,7 @@ func (ms multiStreamer) StreamBlobs(ctx *context.Context, dest chan<- BlobAndTok
 		for bt := range subDest {
 			select {
 			case <-ctx.Done():
-				return context.ErrCanceled
+				return ctx.Err()
 			case dest <- BlobAndToken{Blob: bt.Blob, Token: partStr + ":" + bt.Token}:
 			}
 		}

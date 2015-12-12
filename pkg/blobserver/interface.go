@@ -25,7 +25,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/constants"
-	"camlistore.org/pkg/context"
+	"golang.org/x/net/context"
 )
 
 // MaxBlobSize is the size of a single blob in Camlistore.
@@ -92,7 +92,7 @@ type BlobEnumerator interface {
 	// EnumerateBlobs must close the channel.  (even if limit
 	// was hit and more blobs remain, or an error is returned, or
 	// the ctx is canceled)
-	EnumerateBlobs(ctx *context.Context,
+	EnumerateBlobs(ctx context.Context,
 		dest chan<- blob.SizedRef,
 		after string,
 		limit int) error
@@ -126,14 +126,14 @@ type BlobStreamer interface {
 	// format may change between versions of the server.
 	//
 	// If the content is canceled, the error value is
-	// context.ErrCanceled.
+	// ctx.Err().
 	//
 	// StreamBlobs must unconditionally close dest before
-	// returning, and it must return context.ErrCanceled if
+	// returning, and it must return ctx.Err() if
 	// ctx.Done() becomes readable.
 	//
 	// When StreamBlobs reaches the end, the return value is nil.
-	StreamBlobs(ctx *context.Context, dest chan<- BlobAndToken, contToken string) error
+	StreamBlobs(ctx context.Context, dest chan<- BlobAndToken, contToken string) error
 }
 
 // Cache is the minimal interface expected of a blob cache.

@@ -24,13 +24,13 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/test"
+	"golang.org/x/net/context"
 )
 
 type staticStreamer []*blob.Blob
 
-func (s staticStreamer) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) error {
+func (s staticStreamer) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAndToken, contToken string) error {
 	defer close(dest)
 	var pos int
 	if contToken != "" {
@@ -47,7 +47,7 @@ func (s staticStreamer) StreamBlobs(ctx *context.Context, dest chan<- blobserver
 			pos++
 			s = s[1:]
 		case <-ctx.Done():
-			return context.ErrCanceled
+			return ctx.Err()
 		}
 	}
 	return nil

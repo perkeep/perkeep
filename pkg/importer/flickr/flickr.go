@@ -28,7 +28,6 @@ import (
 	"strconv"
 	"time"
 
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
@@ -192,9 +191,11 @@ func (r *run) importPhotosets() error {
 	log.Printf("Importing %d sets", len(resp.Photosets.Photoset))
 
 	for _, item := range resp.Photosets.Photoset {
-		if r.Context.IsCanceled() {
+		select {
+		case <-r.Done():
 			log.Printf("Flickr importer: interrupted")
-			return context.ErrCanceled
+			return r.Err()
+		default:
 		}
 		for page := 1; page >= 1; {
 			page, err = r.importPhotoset(setsNode, item, page)
@@ -510,7 +511,7 @@ func (imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.Setu
 		httputil.ServeError(w, r, err)
 		return err
 	}
-	tempCred, err := oauthClient.RequestTemporaryCredentials(ctx.HTTPClient(), ctx.CallbackURL(), nil)
+	tempCred, err := oauthClient.RequestTemporaryCredentials(importer.HTTPClient(ctx), ctx.CallbackURL(), nil)
 	if err != nil {
 		err = fmt.Errorf("Error getting temp cred: %v", err)
 		httputil.ServeError(w, r, err)
@@ -550,7 +551,7 @@ func (imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.S
 		return
 	}
 	tokenCred, vals, err := oauthClient.RequestToken(
-		ctx.Context.HTTPClient(),
+		importer.HTTPClient(ctx),
 		&oauth.Credentials{
 			Token:  tempToken,
 			Secret: tempSecret,

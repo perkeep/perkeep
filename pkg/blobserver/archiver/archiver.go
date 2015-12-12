@@ -28,7 +28,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/context"
+	"golang.org/x/net/context"
 )
 
 // DefaultMinZipSize is the default value of Archiver.MinZipSize.
@@ -85,7 +85,7 @@ func (a *Archiver) RunOnce() error {
 		return errors.New("archiver: nil Store func")
 	}
 	pz := &potentialZip{a: a}
-	err := blobserver.EnumerateAll(context.New(), a.Source, func(sb blob.SizedRef) error {
+	err := blobserver.EnumerateAll(context.TODO(), a.Source, func(sb blob.SizedRef) error {
 		if err := pz.addBlob(sb); err != nil {
 			return err
 		}

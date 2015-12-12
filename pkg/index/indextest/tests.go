@@ -34,13 +34,13 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/test"
 	"camlistore.org/pkg/types/camtypes"
+	"golang.org/x/net/context"
 )
 
 // An IndexDeps is a helper for populating and querying an Index for tests.
@@ -1220,7 +1220,7 @@ func Reindex(t *testing.T, initIdx func() *index.Index) {
 }
 
 type enumArgs struct {
-	ctx   *context.Context
+	ctx   context.Context
 	dest  chan blob.SizedRef
 	after string
 	limit int
@@ -1231,7 +1231,7 @@ func checkEnumerate(idx *index.Index, want []blob.SizedRef, args *enumArgs) erro
 		args = &enumArgs{}
 	}
 	if args.ctx == nil {
-		args.ctx = context.New()
+		args.ctx = context.TODO()
 	}
 	if args.dest == nil {
 		args.dest = make(chan blob.SizedRef)

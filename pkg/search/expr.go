@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"strings"
 
-	"camlistore.org/pkg/context"
+	"golang.org/x/net/context"
 )
 
 const seeDocs = "\nSee: https://camlistore.googlesource.com/camlistore/+/master/doc/search-ui.txt"
@@ -82,10 +82,10 @@ func notConst(a *Constraint) *Constraint {
 type parser struct {
 	tokens chan token
 	peeked *token
-	ctx    *context.Context
+	ctx    context.Context
 }
 
-func newParser(exp string, ctx *context.Context) parser {
+func newParser(exp string, ctx context.Context) parser {
 	_, tokens := lex(exp)
 	return parser{tokens: tokens, ctx: ctx}
 }
@@ -327,7 +327,7 @@ func (p *parser) parseAtom() (*Constraint, error) {
 	return nil, err
 }
 
-func parseExpression(ctx *context.Context, exp string) (*SearchQuery, error) {
+func parseExpression(ctx context.Context, exp string) (*SearchQuery, error) {
 	base := &Constraint{
 		Permanode: &PermanodeConstraint{
 			SkipHidden: true,

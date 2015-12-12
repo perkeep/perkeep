@@ -33,10 +33,10 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
+	"golang.org/x/net/context"
 
 	"go4.org/strutil"
 )
@@ -231,7 +231,7 @@ func (q *SearchQuery) addContinueConstraint() error {
 	return errors.New("token not valid for query type")
 }
 
-func (q *SearchQuery) checkValid(ctx *context.Context) (sq *SearchQuery, err error) {
+func (q *SearchQuery) checkValid(ctx context.Context) (sq *SearchQuery, err error) {
 	if q.Sort >= maxSortType || q.Sort < 0 {
 		return nil, errors.New("invalid sort type")
 	}
@@ -792,7 +792,6 @@ type search struct {
 	h   *Handler
 	q   *SearchQuery
 	res *SearchResult
-	ctx *context.Context
 
 	// ss is a scratch string slice to avoid allocations.
 	// We assume (at least so far) that only 1 goroutine is used
@@ -835,9 +834,10 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 		h:   h,
 		q:   q,
 		res: res,
-		ctx: context.TODO(),
 	}
-	defer s.ctx.Cancel()
+	//var cancelSearch context.CancelFunc
+	ctx, cancelSearch := context.WithCancel(context.TODO())
+	defer cancelSearch()
 
 	corpus := h.corpus
 	var unlockOnce sync.Once
@@ -854,8 +854,8 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 		candSourceHook(cands.name)
 	}
 
-	sendCtx := s.ctx.New()
-	defer sendCtx.Cancel()
+	sendCtx, cancelSend := context.WithCancel(ctx)
+	defer cancelSend()
 	go func() { errc <- cands.send(sendCtx, s, ch) }()
 
 	wantAround, foundAround := false, false
@@ -877,7 +877,7 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 			}
 			if !wantAround || foundAround {
 				if len(res.Blobs) == q.Limit {
-					sendCtx.Cancel()
+					cancelSend()
 					break
 				}
 				continue
@@ -897,7 +897,7 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 					res.Blobs = res.Blobs[discard:]
 				}
 				if len(res.Blobs) == q.Limit {
-					sendCtx.Cancel()
+					cancelSend()
 					break
 				}
 				continue
@@ -908,7 +908,7 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 			}
 		}
 	}
-	if err := <-errc; err != nil && err != context.ErrCanceled {
+	if err := <-errc; err != nil && err != context.Canceled {
 		return nil, err
 	}
 	if q.Limit > 0 && cands.sorted && wantAround && !foundAround {
@@ -1035,7 +1035,7 @@ type candidateSource struct {
 
 	// sends sends to the channel and must close it, regardless of error
 	// or interruption from context.Done().
-	send func(*context.Context, *search, chan<- camtypes.BlobMeta) error
+	send func(context.Context, *search, chan<- camtypes.BlobMeta) error
 }
 
 func (q *SearchQuery) pickCandidateSource(s *search) (src candidateSource) {
@@ -1047,13 +1047,13 @@ func (q *SearchQuery) pickCandidateSource(s *search) (src candidateSource) {
 			switch q.Sort {
 			case LastModifiedDesc:
 				src.name = "corpus_permanode_lastmod"
-				src.send = func(ctx *context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
+				src.send = func(ctx context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
 					return corpus.EnumeratePermanodesLastModifiedLocked(ctx, dst)
 				}
 				return
 			case CreatedDesc:
 				src.name = "corpus_permanode_created"
-				src.send = func(ctx *context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
+				src.send = func(ctx context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
 					return corpus.EnumeratePermanodesCreatedLocked(ctx, dst, true)
 				}
 				return
@@ -1064,14 +1064,14 @@ func (q *SearchQuery) pickCandidateSource(s *search) (src candidateSource) {
 		if c.AnyCamliType || c.CamliType != "" {
 			camType := c.CamliType // empty means all
 			src.name = "corpus_blob_meta"
-			src.send = func(ctx *context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
+			src.send = func(ctx context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
 				return corpus.EnumerateCamliBlobsLocked(ctx, camType, dst)
 			}
 			return
 		}
 	}
 	src.name = "index_blob_meta"
-	src.send = func(ctx *context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
+	src.send = func(ctx context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
 		return s.h.index.EnumerateBlobMeta(ctx, dst)
 	}
 	return

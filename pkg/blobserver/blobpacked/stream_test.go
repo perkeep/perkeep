@@ -25,10 +25,10 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/test"
+	"golang.org/x/net/context"
 )
 
 func TestStreamBlobs(t *testing.T) {
@@ -48,8 +48,8 @@ func TestStreamBlobs(t *testing.T) {
 		b.MustUpload(t, small)
 		all[b.BlobRef()] = true
 	}
-	ctx := context.New()
-	defer ctx.Cancel()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
 	token := "" // beginning
 
 	got := map[blob.Ref]bool{}

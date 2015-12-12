@@ -50,11 +50,11 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/local"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/types"
 	"camlistore.org/third_party/github.com/camlistore/lock"
 	"go4.org/jsonconfig"
+	"golang.org/x/net/context"
 
 	"go4.org/strutil"
 	"go4.org/syncutil"
@@ -443,7 +443,7 @@ func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (err er
 	return wg.Err()
 }
 
-func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
+func (s *storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
 	defer close(dest)
 
 	t := s.index.Find(after, "")
@@ -470,7 +470,7 @@ func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef
 		select {
 		case dest <- m.SizedRef(br):
 		case <-ctx.Done():
-			return context.ErrCanceled
+			return ctx.Err()
 		}
 		i++
 	}
@@ -528,7 +528,7 @@ var deletedBlobRef = regexp.MustCompile(`^x+-0+$`)
 var _ blobserver.BlobStreamer = (*storage)(nil)
 
 // StreamBlobs Implements the blobserver.StreamBlobs interface.
-func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) error {
+func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAndToken, contToken string) error {
 	defer close(dest)
 
 	fileNum, offset, err := parseContToken(contToken)
@@ -631,7 +631,7 @@ func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobA
 		}:
 			// Nothing.
 		case <-ctx.Done():
-			return context.ErrCanceled
+			return ctx.Err()
 		}
 	}
 }

@@ -31,13 +31,13 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
 	"go4.org/jsonconfig"
+	"golang.org/x/net/context"
 
 	"go4.org/strutil"
 )
@@ -370,7 +370,7 @@ func (x *Index) Reindex() error {
 
 	blobc := make(chan blob.Ref, 32)
 
-	enumCtx := ctx.New()
+	enumCtx := context.TODO()
 	enumErr := make(chan error, 1)
 	go func() {
 		defer close(blobc)
@@ -387,7 +387,7 @@ func (x *Index) Reindex() error {
 			}
 			select {
 			case <-donec:
-				return context.ErrCanceled
+				return ctx.Err()
 			case blobc <- sb.Ref:
 				return nil
 			}
@@ -1398,7 +1398,7 @@ func enumerateSignerKeyId(s sorted.KeyValue, cb func(blob.Ref, string)) (err err
 }
 
 // EnumerateBlobMeta sends all metadata about all known blobs to ch and then closes ch.
-func (x *Index) EnumerateBlobMeta(ctx *context.Context, ch chan<- camtypes.BlobMeta) (err error) {
+func (x *Index) EnumerateBlobMeta(ctx context.Context, ch chan<- camtypes.BlobMeta) (err error) {
 	if x.corpus != nil {
 		x.corpus.RLock()
 		defer x.corpus.RUnlock()
@@ -1409,7 +1409,7 @@ func (x *Index) EnumerateBlobMeta(ctx *context.Context, ch chan<- camtypes.BlobM
 		select {
 		case ch <- bm:
 		case <-ctx.Done():
-			return context.ErrCanceled
+			return ctx.Err()
 		}
 		return nil
 	})

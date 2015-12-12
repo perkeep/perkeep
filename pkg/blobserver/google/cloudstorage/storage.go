@@ -36,9 +36,9 @@ import (
 	"camlistore.org/pkg/blobserver/memory"
 	"camlistore.org/pkg/constants"
 	"camlistore.org/pkg/constants/google"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/googlestorage"
 	"go4.org/jsonconfig"
+	"golang.org/x/net/context"
 
 	"go4.org/oauthutil"
 	"go4.org/syncutil"
@@ -143,7 +143,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 	return gs, nil
 }
 
-func (s *Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (s *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	objs, err := s.client.EnumerateObjects(s.bucket, s.dirPrefix+after, limit)
 	if err != nil {
@@ -162,7 +162,7 @@ func (s *Storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef
 		select {
 		case dest <- blob.SizedRef{Ref: br, Size: uint32(obj.Size)}:
 		case <-ctx.Done():
-			return context.ErrCanceled
+			return ctx.Err()
 		}
 	}
 	return nil

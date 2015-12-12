@@ -20,11 +20,11 @@ import (
 	"log"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
 	"camlistore.org/third_party/labix.org/v2/mgo/bson"
+	"golang.org/x/net/context"
 )
 
-func (m *mongoStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (m *mongoStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 
 	var b blobDoc
@@ -46,7 +46,7 @@ func (m *mongoStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.Siz
 			if err := iter.Close(); err != nil {
 				log.Printf("Error closing iterator after enumerating: %v", err)
 			}
-			return context.ErrCanceled
+			return ctx.Err()
 		}
 	}
 

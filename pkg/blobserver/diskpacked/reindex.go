@@ -27,10 +27,10 @@ import (
 	"strconv"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/sorted"
 	"go4.org/jsonconfig"
+	"golang.org/x/net/context"
 
 	// possible index formats
 	_ "camlistore.org/pkg/sorted/kvfile"
@@ -74,7 +74,7 @@ func Reindex(root string, overwrite bool, indexConf jsonconfig.Obj) (err error) 
 	return nil
 }
 
-func (s *storage) reindexOne(ctx *context.Context, index sorted.KeyValue, overwrite bool, packID int) error {
+func (s *storage) reindexOne(ctx context.Context, index sorted.KeyValue, overwrite bool, packID int) error {
 
 	var batch sorted.BatchMutation
 	if overwrite {
@@ -140,7 +140,7 @@ func (s *storage) reindexOne(ctx *context.Context, index sorted.KeyValue, overwr
 
 // Walk walks the storage and calls the walker callback with each blobref
 // stops if walker returns non-nil error, and returns that
-func (s *storage) Walk(ctx *context.Context,
+func (s *storage) Walk(ctx context.Context,
 	walker func(packID int, ref blob.Ref, offset int64, size uint32) error) error {
 
 	// TODO(tgulacsi): proper verbose flag from context

@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/types"
+	"golang.org/x/net/context"
 )
 
 func TestSearchHelp(t *testing.T) {
@@ -49,7 +49,7 @@ type keywordTestcase struct {
 	args        []string
 	want        *Constraint
 	errContains string
-	ctx         *context.Context
+	ctx         context.Context
 }
 
 var uitdamLC = &LocationConstraint{
@@ -59,10 +59,10 @@ var uitdamLC = &LocationConstraint{
 	South: 52.4152441,
 }
 
-func newGeocodeContext() *context.Context {
+func newGeocodeContext() context.Context {
 	url := "https://maps.googleapis.com/maps/api/geocode/json?address=Uitdam&sensor=false"
 	transport := httputil.NewFakeTransport(map[string]func() *http.Response{url: httputil.StaticResponder(uitdamGoogle)})
-	return context.New(context.WithHTTPClient(&http.Client{Transport: transport}))
+	return context.WithValue(context.TODO(), "HTTPClient", &http.Client{Transport: transport})
 }
 
 var uitdamGoogle = `HTTP/1.1 200 OK

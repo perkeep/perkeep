@@ -30,12 +30,12 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/third_party/code.google.com/p/go.net/html"
 	"camlistore.org/third_party/code.google.com/p/go.net/html/atom"
+	"golang.org/x/net/context"
 )
 
 const (
@@ -190,12 +190,12 @@ func autoDiscover(body []byte) (feedURL string, err error) {
 	return "", fmt.Errorf("No feed link found")
 }
 
-func doGet(ctx *context.Context, url string) ([]byte, error) {
+func doGet(ctx context.Context, url string) ([]byte, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
-	res, err := ctx.HTTPClient().Do(req)
+	res, err := importer.HTTPClient(ctx).Do(req)
 	if err != nil {
 		log.Printf("Error fetching %s: %v", url, err)
 		return nil, err
@@ -221,7 +221,7 @@ func (r *run) urlFileRef(urlstr string) string {
 	}
 	im.mu.Unlock()
 
-	res, err := r.HTTPClient().Get(urlstr)
+	res, err := importer.HTTPClient(r).Get(urlstr)
 	if err != nil {
 		log.Printf("couldn't get file: %v", err)
 		return ""

@@ -26,8 +26,8 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/deploy/gce"
+	"golang.org/x/net/context"
 
 	"go4.org/oauthutil"
 	"golang.org/x/oauth2"

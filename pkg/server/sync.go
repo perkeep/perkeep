@@ -36,12 +36,12 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/constants"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/types/camtypes"
 	"camlistore.org/third_party/code.google.com/p/xsrftoken"
 	"go4.org/jsonconfig"
+	"golang.org/x/net/context"
 
 	"go4.org/syncutil"
 )
@@ -420,7 +420,7 @@ type copyResult struct {
 	err error
 }
 
-func blobserverEnumerator(ctx *context.Context, src blobserver.BlobEnumerator) func(chan<- blob.SizedRef, <-chan struct{}) error {
+func blobserverEnumerator(ctx context.Context, src blobserver.BlobEnumerator) func(chan<- blob.SizedRef, <-chan struct{}) error {
 	return func(dst chan<- blob.SizedRef, intr <-chan struct{}) error {
 		return blobserver.EnumerateAll(ctx, src, func(sb blob.SizedRef) error {
 			select {
@@ -703,8 +703,8 @@ func (sh *SyncHandler) validateShardPrefix(pfx string) (err error) {
 		}
 		sh.mu.Unlock()
 	}()
-	ctx := context.New()
-	defer ctx.Cancel()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
 	src, serrc := sh.startValidatePrefix(ctx, pfx, false)
 	dst, derrc := sh.startValidatePrefix(ctx, pfx, true)
 	srcErr := &chanError{
@@ -752,7 +752,7 @@ func (sh *SyncHandler) validateShardPrefix(pfx string) (err error) {
 var errNotPrefix = errors.New("sentinel error: hit blob into the next shard")
 
 // doDest is false for source and true for dest.
-func (sh *SyncHandler) startValidatePrefix(ctx *context.Context, pfx string, doDest bool) (<-chan blob.SizedRef, <-chan error) {
+func (sh *SyncHandler) startValidatePrefix(ctx context.Context, pfx string, doDest bool) (<-chan blob.SizedRef, <-chan error) {
 	var e blobserver.BlobEnumerator
 	if doDest {
 		e = sh.to
@@ -793,7 +793,7 @@ func (sh *SyncHandler) startValidatePrefix(ctx *context.Context, pfx string, doD
 				sh.mu.Unlock()
 				return nil
 			case <-ctx.Done():
-				return context.ErrCanceled
+				return ctx.Err()
 			}
 		})
 		if err == errNotPrefix {
@@ -978,7 +978,7 @@ func (sh *SyncHandler) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) er
 	return nil
 }
 
-func (sh *SyncHandler) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (sh *SyncHandler) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	sh.logf("Unexpected EnumerateBlobs call")
 	return nil

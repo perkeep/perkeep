@@ -38,9 +38,9 @@ import (
 	"time"
 
 	"camlistore.org/pkg/constants/google"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/osutil"
+	"golang.org/x/net/context"
 
 	"go4.org/cloud/gceutil"
 	"go4.org/syncutil"
@@ -266,7 +266,7 @@ func (d *Deployer) checkProjectID() error {
 
 // Create sets up and starts a Google Compute Engine instance as defined in d.Conf. It
 // creates the necessary Google Storage buckets beforehand.
-func (d *Deployer) Create(ctx *context.Context) (*compute.Instance, error) {
+func (d *Deployer) Create(ctx context.Context) (*compute.Instance, error) {
 	if err := d.checkProjectID(); err != nil {
 		return nil, err
 	}
@@ -324,7 +324,7 @@ func (d *Deployer) Create(ctx *context.Context) (*compute.Instance, error) {
 
 // createInstance starts the creation of the Compute Engine instance and waits for the
 // result of the creation operation. It should be called after setBuckets and setupHTTPS.
-func (d *Deployer) createInstance(computeService *compute.Service, ctx *context.Context) error {
+func (d *Deployer) createInstance(computeService *compute.Service, ctx context.Context) error {
 	coreosImgURL, err := gceutil.CoreOSImageURL(d.Client)
 	if err != nil {
 		return fmt.Errorf("error looking up latest CoreOS stable image: %v", err)
@@ -434,8 +434,10 @@ func (d *Deployer) createInstance(computeService *compute.Service, ctx *context.
 	}
 OpLoop:
 	for {
-		if ctx.IsCanceled() {
-			return context.ErrCanceled
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
 		}
 		time.Sleep(2 * time.Second)
 		op, err := computeService.ZoneOperations.Get(d.Conf.Project, d.Conf.Zone, opName).Do()
@@ -508,7 +510,7 @@ func (d *Deployer) getInstalledTLS() (certPEM, keyPEM []byte, err error) {
 }
 
 // setBuckets defines the buckets needed by the instance and creates them.
-func (d *Deployer) setBuckets(storageService *storage.Service, ctx *context.Context) error {
+func (d *Deployer) setBuckets(storageService *storage.Service, ctx context.Context) error {
 	projBucket := d.Conf.Project + "-camlistore"
 
 	needBucket := map[string]bool{
@@ -529,8 +531,10 @@ func (d *Deployer) setBuckets(storageService *storage.Service, ctx *context.Cont
 		var waitBucket sync.WaitGroup
 		var bucketErr error
 		for name := range needBucket {
-			if ctx.IsCanceled() {
-				return context.ErrCanceled
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
 			}
 			name := name
 			waitBucket.Add(1)
@@ -564,7 +568,7 @@ func (d *Deployer) setBuckets(storageService *storage.Service, ctx *context.Cont
 }
 
 // setFirewall adds the firewall rules needed for ports 80 & 433 to the default network.
-func (d *Deployer) setFirewall(ctx *context.Context, computeService *compute.Service) error {
+func (d *Deployer) setFirewall(ctx context.Context, computeService *compute.Service) error {
 	defaultNet, err := computeService.Networks.Get(d.Conf.Project, "default").Do()
 	if err != nil {
 		return fmt.Errorf("error getting default network: %v", err)
@@ -603,8 +607,10 @@ func (d *Deployer) setFirewall(ctx *context.Context, computeService *compute.Ser
 	}
 	var wg syncutil.Group
 	for name, rule := range needRules {
-		if ctx.IsCanceled() {
-			return context.ErrCanceled
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
 		}
 		name, rule := name, rule
 		wg.Go(func() error {

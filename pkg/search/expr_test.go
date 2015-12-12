@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"camlistore.org/pkg/context"
+	"golang.org/x/net/context"
 )
 
 var skiphiddenC = &Constraint{
@@ -83,7 +83,7 @@ var parseExpressionTests = []struct {
 	inList      []string
 	want        *SearchQuery
 	errContains string
-	ctx         *context.Context
+	ctx         context.Context
 }{
 	{
 		name:   "empty search",

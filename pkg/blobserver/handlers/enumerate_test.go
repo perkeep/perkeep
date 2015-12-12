@@ -22,14 +22,14 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
 	. "camlistore.org/pkg/test/asserts"
+	"golang.org/x/net/context"
 )
 
 type emptyEnumerator struct {
 }
 
-func (ee *emptyEnumerator) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (ee *emptyEnumerator) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	close(dest)
 	return nil
 }

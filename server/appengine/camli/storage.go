@@ -32,8 +32,8 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/context"
 	"go4.org/jsonconfig"
+	"golang.org/x/net/context"
 )
 
 const (
@@ -338,7 +338,7 @@ func (sto *appengineStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.R
 	return err
 }
 
-func (sto *appengineStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (sto *appengineStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 
 	loan := ctxPool.Get()
@@ -363,7 +363,7 @@ func (sto *appengineStorage) EnumerateBlobs(ctx *context.Context, dest chan<- bl
 		select {
 		case dest <- blob.SizedRef{blob.ParseOrZero(key.StringID()[len(prefix):]), uint32(row.Size)}:
 		case <-ctx.Done():
-			return context.ErrCanceled
+			return ctx.Err()
 		}
 	}
 	return nil

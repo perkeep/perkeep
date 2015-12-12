@@ -24,13 +24,13 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/types"
+	"golang.org/x/net/context"
 )
 
 // StreamBlobs impl.
 
-func (s *storage) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
+func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
 	return blobserver.NewMultiBlobStreamer(
 		smallBlobStreamer{s},
 		largeBlobStreamer{s},
@@ -41,7 +41,7 @@ type smallBlobStreamer struct{ sto *storage }
 type largeBlobStreamer struct{ sto *storage }
 
 // stream the loose blobs
-func (st smallBlobStreamer) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
+func (st smallBlobStreamer) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
 	small := st.sto.small
 	if bs, ok := small.(blobserver.BlobStreamer); ok {
 		return bs.StreamBlobs(ctx, dest, contToken)
@@ -58,7 +58,7 @@ func (st smallBlobStreamer) StreamBlobs(ctx *context.Context, dest chan<- blobse
 		}:
 			return nil
 		case <-donec:
-			return context.ErrCanceled
+			return ctx.Err()
 		}
 	})
 }
@@ -68,7 +68,7 @@ var errContToken = errors.New("blobpacked: bad continuation token")
 // contToken is of forms:
 //    ""                : start from beginning of zip files
 //    "sha1-xxxxx:n"    : start at == (sha1-xxxx, file n), else next zip
-func (st largeBlobStreamer) StreamBlobs(ctx *context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
+func (st largeBlobStreamer) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
 	defer close(dest)
 	s := st.sto
 	large := s.large
@@ -119,7 +119,7 @@ func (st largeBlobStreamer) StreamBlobs(ctx *context.Context, dest chan<- blobse
 				fileN++
 				return nil
 			case <-ctx.Done():
-				return context.ErrCanceled
+				return ctx.Err()
 			}
 		})
 	})

@@ -45,9 +45,9 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/sorted"
 	"go4.org/jsonconfig"
+	"golang.org/x/net/context"
 )
 
 const buffered = 8
@@ -179,7 +179,7 @@ func (sto *sto) RemoveBlobs(blobs []blob.Ref) error {
 	return sto.origin.RemoveBlobs(blobs)
 }
 
-func (sto *sto) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (sto *sto) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	return sto.origin.EnumerateBlobs(ctx, dest, after, limit)
 }
 

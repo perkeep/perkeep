@@ -51,10 +51,10 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/types"
 	"go4.org/jsonconfig"
+	"golang.org/x/net/context"
 )
 
 // Compaction constants
@@ -329,7 +329,7 @@ func (s *storage) Fetch(plainBR blob.Ref) (file io.ReadCloser, size uint32, err 
 	}, uint32(plainSize), nil
 }
 
-func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (s *storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	iter := s.index.Find(after, "")
 	n := 0
@@ -348,7 +348,7 @@ func (s *storage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef
 		select {
 		case dest <- blob.SizedRef{br, plainSize}:
 		case <-ctx.Done():
-			return context.ErrCanceled
+			return ctx.Err()
 		}
 		n++
 		if limit != 0 && n >= limit {

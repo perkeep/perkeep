@@ -24,8 +24,8 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/test"
+	"golang.org/x/net/context"
 )
 
 func newNamespace(t *testing.T, ld *test.Loader) *nsto {

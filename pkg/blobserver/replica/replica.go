@@ -45,8 +45,8 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/context"
 	"go4.org/jsonconfig"
+	"golang.org/x/net/context"
 )
 
 var (
@@ -268,7 +268,7 @@ func (sto *replicaStorage) RemoveBlobs(blobs []blob.Ref) error {
 	return reterr
 }
 
-func (sto *replicaStorage) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (sto *replicaStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	return blobserver.MergedEnumerateStorage(ctx, dest, sto.readReplicas, after, limit)
 }
 

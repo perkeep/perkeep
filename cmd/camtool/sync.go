@@ -31,7 +31,7 @@ import (
 	"camlistore.org/pkg/blobserver/localdisk"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/context"
+	"golang.org/x/net/context"
 )
 
 type syncCmd struct {
@@ -287,7 +287,7 @@ func (c *syncCmd) discoClient() *client.Client {
 	return cl
 }
 
-func enumerateAllBlobs(ctx *context.Context, s blobserver.Storage, destc chan<- blob.SizedRef) error {
+func enumerateAllBlobs(ctx context.Context, s blobserver.Storage, destc chan<- blob.SizedRef) error {
 	// Use *client.Client's support for enumerating all blobs if
 	// possible, since it could probably do a better job knowing
 	// HTTP boundaries and such.
@@ -300,7 +300,7 @@ func enumerateAllBlobs(ctx *context.Context, s blobserver.Storage, destc chan<- 
 		select {
 		case destc <- sb:
 		case <-ctx.Done():
-			return context.ErrCanceled
+			return ctx.Err()
 		}
 		return nil
 	})
@@ -319,19 +319,19 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 	destErr := make(chan error, 1)
 
 	ctx := context.TODO()
-	enumCtx := ctx.New() // used for all (2 or 3) enumerates
-	defer enumCtx.Cancel()
+	enumCtx, cancel := context.WithCancel(ctx) // used for all (2 or 3) enumerates
+	defer cancel()
 	enumerate := func(errc chan<- error, sto blobserver.Storage, blobc chan<- blob.SizedRef) {
 		err := enumerateAllBlobs(enumCtx, sto, blobc)
 		if err != nil {
-			enumCtx.Cancel()
+			cancel()
 		}
 		errc <- err
 	}
 
 	go enumerate(srcErr, src, srcBlobs)
 	checkSourceError := func() {
-		if err := <-srcErr; err != nil && err != context.ErrCanceled {
+		if err := <-srcErr; err != nil && err != context.Canceled {
 			retErr = fmt.Errorf("Enumerate error from source: %v", err)
 		}
 	}
@@ -352,7 +352,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 
 	go enumerate(destErr, dest, destBlobs)
 	checkDestError := func() {
-		if err := <-destErr; err != nil && err != context.ErrCanceled {
+		if err := <-destErr; err != nil && err != context.Canceled {
 			retErr = fmt.Errorf("Enumerate error from destination: %v", err)
 		}
 	}
@@ -383,7 +383,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 		thirdErr := make(chan error, 1)
 		go enumerate(thirdErr, thirdLeg, thirdBlobs)
 		checkThirdError = func() {
-			if err := <-thirdErr; err != nil && err != context.ErrCanceled {
+			if err := <-thirdErr; err != nil && err != context.Canceled {
 				retErr = fmt.Errorf("Enumerate error from third leg: %v", err)
 			}
 		}

@@ -31,8 +31,8 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/context"
 	"camlistore.org/pkg/test"
+	"golang.org/x/net/context"
 
 	"go4.org/syncutil"
 )
@@ -281,8 +281,8 @@ func CheckEnumerate(sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts .
 	var grp syncutil.Group
 	sawEnd := make(chan bool, 1)
 	grp.Go(func() error {
-		ctx := context.New()
-		defer ctx.Cancel()
+		ctx, cancel := context.WithCancel(context.TODO())
+		defer cancel()
 		if err := sto.EnumerateBlobs(ctx, sbc, after, n); err != nil {
 			return fmt.Errorf("EnumerateBlobs(%q, %d): %v", after, n, err)
 		}
@@ -422,8 +422,8 @@ func TestStreamer(t *testing.T, bs blobserver.BlobStreamer, opts ...StreamerTest
 		sawEnum = make(map[blob.SizedRef]bool)
 		// First do an enumerate over all blobs as a baseline. The Streamer should
 		// yield the same blobs, even if it's in a different order.
-		enumCtx := context.New()
-		defer enumCtx.Cancel()
+		enumCtx, cancel := context.WithCancel(context.TODO())
+		defer cancel()
 		if err := blobserver.EnumerateAll(enumCtx, enumer, func(sb blob.SizedRef) error {
 			sawEnum[sb] = true
 			return nil
@@ -437,8 +437,8 @@ func TestStreamer(t *testing.T, bs blobserver.BlobStreamer, opts ...StreamerTest
 	ch := make(chan blobserver.BlobAndToken)
 	errCh := make(chan error, 1)
 	go func() {
-		ctx := context.New()
-		defer ctx.Cancel()
+		ctx, cancel := context.WithCancel(context.TODO())
+		defer cancel()
 		errCh <- bs.StreamBlobs(ctx, ch, "")
 	}()
 	var gotRefs []blob.SizedRef
@@ -495,7 +495,7 @@ func TestStreamer(t *testing.T, bs blobserver.BlobStreamer, opts ...StreamerTest
 	gotRefs = gotRefs[:0]
 	contToken := ""
 	for i := 0; i < len(wantRefs); i++ {
-		ctx := context.New()
+		ctx, cancel := context.WithCancel(context.TODO())
 		ch := make(chan blobserver.BlobAndToken)
 		errc := make(chan error, 1)
 		go func() {
@@ -514,7 +514,7 @@ func TestStreamer(t *testing.T, bs blobserver.BlobStreamer, opts ...StreamerTest
 				sawStreamed[sbr.Ref]++
 				gotRefs = append(gotRefs, sbr)
 				nextToken = bt.Token
-				ctx.Cancel()
+				cancel()
 				break
 			} else if i == 0 {
 				t.Fatalf("first iteration should receive a new value")
@@ -523,7 +523,7 @@ func TestStreamer(t *testing.T, bs blobserver.BlobStreamer, opts ...StreamerTest
 			}
 		}
 		err := <-errc
-		if err != nil && err != context.ErrCanceled {
+		if err != nil && err != context.Canceled {
 			t.Fatalf("StreamBlobs on iteration %d (token %q) returned error: %v", i, contToken, err)
 		}
 		if err == nil {

@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/context"
+	"golang.org/x/net/context"
 )
 
 // EnumerateOpts are the options to Client.EnumerateBlobsOpts.
@@ -37,11 +37,11 @@ type EnumerateOpts struct {
 
 // SimpleEnumerateBlobs sends all blobs to the provided channel.
 // The channel will be closed, regardless of whether an error is returned.
-func (c *Client) SimpleEnumerateBlobs(ctx *context.Context, ch chan<- blob.SizedRef) error {
+func (c *Client) SimpleEnumerateBlobs(ctx context.Context, ch chan<- blob.SizedRef) error {
 	return c.EnumerateBlobsOpts(ctx, ch, EnumerateOpts{})
 }
 
-func (c *Client) EnumerateBlobs(ctx *context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (c *Client) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	if c.sto != nil {
 		return c.sto.EnumerateBlobs(ctx, dest, after, limit)
 	}
@@ -60,7 +60,7 @@ const enumerateBatchSize = 1000
 
 // EnumerateBlobsOpts sends blobs to the provided channel, as directed by opts.
 // The channel will be closed, regardless of whether an error is returned.
-func (c *Client) EnumerateBlobsOpts(ctx *context.Context, ch chan<- blob.SizedRef, opts EnumerateOpts) error {
+func (c *Client) EnumerateBlobsOpts(ctx context.Context, ch chan<- blob.SizedRef, opts EnumerateOpts) error {
 	defer close(ch)
 	if opts.After != "" && opts.MaxWait != 0 {
 		return errors.New("client error: it's invalid to use enumerate After and MaxWaitSec together")
@@ -126,7 +126,7 @@ func (c *Client) EnumerateBlobsOpts(ctx *context.Context, ch chan<- blob.SizedRe
 			select {
 			case ch <- blob.SizedRef{Ref: br, Size: uint32(size)}:
 			case <-ctx.Done():
-				return context.ErrCanceled
+				return ctx.Err()
 			}
 			nSent++
 			if opts.Limit == nSent {
