@@ -126,10 +126,10 @@ type BlobStreamer interface {
 	// format may change between versions of the server.
 	//
 	// If the content is canceled, the error value is
-	// ctx.Err().
+	// context.Canceled.
 	//
 	// StreamBlobs must unconditionally close dest before
-	// returning, and it must return ctx.Err() if
+	// returning, and it must return context.Canceled if
 	// ctx.Done() becomes readable.
 	//
 	// When StreamBlobs reaches the end, the return value is nil.
