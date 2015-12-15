@@ -74,7 +74,7 @@ type Enumerator interface {
 	// value, the channel should be closed.
 	//
 	// If the provided context is closed, Enumerate should return
-	// with an error (typically ctx.Err())
+	// with an error (typically context.Canceled)
 	Enumerate(context.Context, chan<- Item) error
 }
 
