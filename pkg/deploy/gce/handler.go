@@ -44,9 +44,9 @@ import (
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/leveldb"
-	camliCtx "golang.org/x/net/context"
 
 	"camlistore.org/third_party/code.google.com/p/xsrftoken"
+
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -434,7 +434,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
-		inst, err := depl.Create(camliCtx.TODO())
+		inst, err := depl.Create(context.TODO())
 		state := &creationState{
 			InstConf: br,
 		}
