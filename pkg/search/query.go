@@ -835,7 +835,6 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 		q:   q,
 		res: res,
 	}
-	//var cancelSearch context.CancelFunc
 	ctx, cancelSearch := context.WithCancel(context.TODO())
 	defer cancelSearch()
 
