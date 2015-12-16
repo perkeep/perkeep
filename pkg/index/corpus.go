@@ -680,7 +680,7 @@ func (c *Corpus) br(br blob.Ref) blob.Ref {
 //
 // If camType is empty, all camlistore blobs are sent, otherwise it specifies
 // the camliType to send.
-// ch is closed at the end. The err will either be nil or ctx.Err().
+// ch is closed at the end. The err will either be nil or context.Canceled.
 func (c *Corpus) EnumerateCamliBlobsLocked(ctx context.Context, camType string, ch chan<- camtypes.BlobMeta) error {
 	defer close(ch)
 	for t, m := range c.camBlobs {
