@@ -37,7 +37,6 @@ import (
 	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/legal/legalprint"
 	"camlistore.org/pkg/netutil"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/serverinit"
@@ -77,11 +76,16 @@ import (
 	// Importers:
 	_ "camlistore.org/pkg/importer/allimporters"
 
+	// Licence:
+	_ "camlistore.org/pkg/camlegal"
+
+	"go4.org/legal"
 	"go4.org/wkfs"
 )
 
 var (
 	flagVersion    = flag.Bool("version", false, "show version")
+	flagLegal      = flag.Bool("legal", false, "show licenses")
 	flagConfigFile = flag.String("configfile", "",
 		"Config file to use, relative to the Camlistore configuration directory root. "+
 			"If blank, the default is used or auto-generated. "+
@@ -320,7 +324,10 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 			buildinfo.Version(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
 		return
 	}
-	if legalprint.MaybePrint(os.Stderr) {
+	if *flagLegal {
+		for _, l := range legal.Licenses() {
+			fmt.Fprintln(os.Stderr, l)
+		}
 		return
 	}
 	if env.OnGCE() {

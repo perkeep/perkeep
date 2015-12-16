@@ -36,8 +36,8 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/fs"
-	"camlistore.org/pkg/legal/legalprint"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/search"
 	"camlistore.org/third_party/bazil.org/fuse"
@@ -65,7 +65,8 @@ func main() {
 	flag.Usage = usage
 	flag.Parse()
 
-	if legalprint.MaybePrint(os.Stderr) {
+	if *cmdmain.FlagLegal {
+		cmdmain.PrintLicenses()
 		return
 	}
 

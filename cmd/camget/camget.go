@@ -31,9 +31,9 @@ import (
 	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/client"
+	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/legal/legalprint"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/types"
@@ -62,7 +62,8 @@ func main() {
 		return
 	}
 
-	if legalprint.MaybePrint(os.Stderr) {
+	if *cmdmain.FlagLegal {
+		cmdmain.PrintLicenses()
 		return
 	}
 

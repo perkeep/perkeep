@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2015 The Camlistore Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,29 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package legalprint provides a printing helper for the legal package.
-package legalprint
+package camlegal
 
 import (
-	"flag"
-	"fmt"
-	"io"
+	"testing"
 
-	"camlistore.org/pkg/legal"
+	"go4.org/legal"
 )
 
-var (
-	flagLegal = flag.Bool("legal", false, "show licenses")
-)
-
-// MaybePrint will print the licenses if flagLegal has been set.
-// It will return the value of the flagLegal.
-func MaybePrint(out io.Writer) bool {
-	if !*flagLegal {
-		return false
+func TestLicenses(t *testing.T) {
+	legal.RegisterLicense("dummy")
+	licenses := legal.Licenses()
+	if len(licenses) < 2 {
+		t.Fatal("no second license text")
 	}
-	for _, text := range legal.Licenses() {
-		fmt.Fprintln(out, text)
+	if licenses[1] != "dummy" {
+		t.Error("license text mismatch")
 	}
-	return true
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Go4 Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,15 +25,5 @@ func TestRegisterLicense(t *testing.T) {
 	RegisterLicense("dummy")
 	if initial+1 != len(licenses) {
 		t.Fatal("didn't add a license")
-	}
-}
-
-func TestLicenses(t *testing.T) {
-	licenses := Licenses()
-	if len(licenses) < 2 {
-		t.Fatal("no second license text")
-	}
-	if licenses[1] != "dummy" {
-		t.Error("license text mismatch")
 	}
 }

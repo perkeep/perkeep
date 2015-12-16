@@ -34,8 +34,8 @@ import (
 	"time"
 
 	"camlistore.org/pkg/hashutil"
-	"camlistore.org/pkg/legal"
 
+	"go4.org/legal"
 	"go4.org/wkfs"
 )
 

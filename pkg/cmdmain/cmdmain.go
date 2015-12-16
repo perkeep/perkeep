@@ -29,13 +29,15 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/buildinfo"
-	"camlistore.org/pkg/legal/legalprint"
+
+	"go4.org/legal"
 )
 
 var (
 	FlagVersion = flag.Bool("version", false, "show version")
 	FlagHelp    = flag.Bool("help", false, "print usage")
 	FlagVerbose = flag.Bool("verbose", false, "extra debug logging")
+	FlagLegal   = flag.Bool("legal", false, "show licenses")
 )
 
 var (
@@ -232,6 +234,13 @@ var registerFlagOnce sync.Once
 
 var setCommandLineOutput func(io.Writer) // or nil if before Go 1.2
 
+// PrintLicenses prints all the licences registered by go4.org/legal for this program.
+func PrintLicenses() {
+	for _, text := range legal.Licenses() {
+		fmt.Fprintln(Stderr, text)
+	}
+}
+
 // Main is meant to be the core of a command that has
 // subcommands (modes), such as camput or camtool.
 func Main() {
@@ -254,7 +263,8 @@ func Main() {
 	if *FlagHelp {
 		usage("")
 	}
-	if legalprint.MaybePrint(Stderr) {
+	if *FlagLegal {
+		PrintLicenses()
 		return
 	}
 	if len(args) == 0 {
