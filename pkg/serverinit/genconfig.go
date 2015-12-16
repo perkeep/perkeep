@@ -23,6 +23,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -347,39 +348,26 @@ func (b *lowBuilder) thatQueueUnlessMemory(thatQueue map[string]interface{}) (qu
 func (b *lowBuilder) addS3Config(s3 string) error {
 	f := strings.SplitN(s3, ":", 4)
 	if len(f) < 3 {
-		return errors.New(`genconfig: expected "s3" field to be of form "access_key_id:secret_access_key:bucket"`)
+		return errors.New(`genconfig: expected "s3" field to be of form "access_key_id:secret_access_key:bucket[/optional/dir][:hostname]"`)
 	}
 	accessKey, secret, bucket := f[0], f[1], f[2]
 	var hostname string
 	if len(f) == 4 {
 		hostname = f[3]
 	}
-	isPrimary := !b.hasPrefix("/bs/")
+	isReplica := b.hasPrefix("/bs/")
 	s3Prefix := ""
-	if isPrimary {
-		s3Prefix = "/bs/"
-		if b.high.PackRelated {
-			return errors.New("TODO: finish packRelated support for S3")
-		}
-	} else {
-		s3Prefix = "/sto-s3/"
-	}
-	a := args{
+	s3Args := args{
 		"aws_access_key":        accessKey,
 		"aws_secret_access_key": secret,
 		"bucket":                bucket,
 	}
 	if hostname != "" {
-		a["hostname"] = hostname
+		s3Args["hostname"] = hostname
 	}
-	b.addPrefix(s3Prefix, "storage-s3", a)
-	if isPrimary {
-		// TODO(mpl): s3CacheBucket
-		// See https://camlistore.org/issue/85
-		b.addPrefix("/cache/", "storage-filesystem", args{
-			"path": filepath.Join(tempDir(), "camli-cache"),
-		})
-	} else {
+	if isReplica {
+		s3Prefix = "/sto-s3/"
+		b.addPrefix(s3Prefix, "storage-s3", s3Args)
 		if b.high.BlobPath == "" && !b.high.MemoryStorage {
 			panic("unexpected empty blobpath with sync-to-s3")
 		}
@@ -392,7 +380,56 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 					"file": filepath.Join(b.high.BlobPath, "sync-to-s3-queue."+b.kvFileType()),
 				}),
 		})
+		return nil
 	}
+
+	// TODO(mpl): s3CacheBucket
+	// See https://camlistore.org/issue/85
+	b.addPrefix("/cache/", "storage-filesystem", args{
+		"path": filepath.Join(tempDir(), "camli-cache"),
+	})
+
+	s3Prefix = "/bs/"
+	if !b.high.PackRelated {
+		b.addPrefix(s3Prefix, "storage-s3", s3Args)
+		return nil
+	}
+	packedS3Args := func(bucket string) args {
+		a := args{
+			"bucket":                bucket,
+			"aws_access_key":        accessKey,
+			"aws_secret_access_key": secret,
+		}
+		if hostname != "" {
+			a["hostname"] = hostname
+		}
+		return a
+	}
+
+	b.addPrefix("/bs-loose/", "storage-s3", packedS3Args(path.Join(bucket, "loose")))
+	b.addPrefix("/bs-packed/", "storage-s3", packedS3Args(path.Join(bucket, "packed")))
+
+	// TODO(mpl): I think that should be the job of sortedStorageAt, shouldn't
+	// it? It could use its sortedType argument to create a file path if the
+	// filePrefix argument is empty.
+	var packIndexDir string
+	if b.high.SQLite != "" {
+		packIndexDir = b.high.SQLite
+	} else if b.high.KVFile != "" {
+		packIndexDir = b.high.KVFile
+	} else if b.high.LevelDB != "" {
+		packIndexDir = b.high.LevelDB
+	}
+	blobPackedIndex, err := b.sortedStorageAt("blobpacked_index", filepath.Join(filepath.Dir(packIndexDir), "packindex"))
+	if err != nil {
+		return err
+	}
+	b.addPrefix(s3Prefix, "storage-blobpacked", args{
+		"smallBlobs": "/bs-loose/",
+		"largeBlobs": "/bs-packed/",
+		"metaIndex":  blobPackedIndex,
+	})
+
 	return nil
 }
 

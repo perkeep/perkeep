@@ -39,7 +39,7 @@ func (sto *s3Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (er
 		wg.Go(func() error {
 			defer statGate.Done()
 
-			size, err := sto.s3Client.Stat(br.String(), sto.bucket)
+			size, err := sto.s3Client.Stat(sto.dirPrefix+br.String(), sto.bucket)
 			if err == nil {
 				dest <- blob.SizedRef{Ref: br, Size: uint32(size)}
 				return nil

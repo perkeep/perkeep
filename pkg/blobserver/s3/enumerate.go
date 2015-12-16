@@ -18,6 +18,7 @@ package s3
 
 import (
 	"log"
+	"path"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -55,17 +56,22 @@ func (sto *s3Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.Sized
 	if _, ok := blob.Parse(after); ok {
 		startAt = nextStr(after)
 	}
-	objs, err := sto.s3Client.ListBucket(sto.bucket, startAt, limit)
+	objs, err := sto.s3Client.ListBucket(sto.bucket, sto.dirPrefix+startAt, limit)
 	if err != nil {
 		log.Printf("s3 ListBucket: %v", err)
 		return err
 	}
 	for _, obj := range objs {
-		if obj.Key == after {
+		dir, file := path.Split(obj.Key)
+		if dir != sto.dirPrefix {
 			continue
 		}
-		br, ok := blob.Parse(obj.Key)
+		if file == after {
+			continue
+		}
+		br, ok := blob.Parse(file)
 		if !ok {
+			// TODO(mpl): I've noticed that on GCS we error out for this case. Do the same here ?
 			continue
 		}
 		select {

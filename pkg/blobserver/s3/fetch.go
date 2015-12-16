@@ -31,10 +31,13 @@ func (sto *s3Storage) Fetch(blob blob.Ref) (file io.ReadCloser, size uint32, err
 			return
 		}
 	}
-	file, sz, err := sto.s3Client.Get(sto.bucket, blob.String())
+	file, sz, err := sto.s3Client.Get(sto.bucket, sto.dirPrefix+blob.String())
 	return file, uint32(sz), err
 }
 
 func (sto *s3Storage) SubFetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, err error) {
-	return sto.s3Client.GetPartial(sto.bucket, br.String(), offset, length)
+	if offset < 0 || length < 0 {
+		return nil, blob.ErrNegativeSubFetch
+	}
+	return sto.s3Client.GetPartial(sto.bucket, sto.dirPrefix+br.String(), offset, length)
 }
