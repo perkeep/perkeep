@@ -39,8 +39,10 @@ import (
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/schema/nodeattr"
+
 	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
 
+	"go4.org/ctxutil"
 	"go4.org/syncutil"
 )
 
@@ -474,7 +476,7 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 		tried, gotMedia := 0, false
 		for _, mediaURL := range m.URLs() {
 			tried++
-			res, err := importer.HTTPClient(r).Get(mediaURL)
+			res, err := ctxutil.Client(r).Get(mediaURL)
 			if err != nil {
 				return false, fmt.Errorf("Error fetching %s for tweet %s : %v", mediaURL, url, err)
 			}
@@ -560,7 +562,7 @@ func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.
 		httputil.ServeError(w, r, err)
 		return err
 	}
-	tempCred, err := oauthClient.RequestTemporaryCredentials(importer.HTTPClient(ctx), ctx.CallbackURL(), nil)
+	tempCred, err := oauthClient.RequestTemporaryCredentials(ctxutil.Client(ctx), ctx.CallbackURL(), nil)
 	if err != nil {
 		err = fmt.Errorf("Error getting temp cred: %v", err)
 		httputil.ServeError(w, r, err)
@@ -600,7 +602,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		return
 	}
 	tokenCred, vals, err := oauthClient.RequestToken(
-		importer.HTTPClient(ctx),
+		ctxutil.Client(ctx),
 		&oauth.Credentials{
 			Token:  tempToken,
 			Secret: tempSecret,

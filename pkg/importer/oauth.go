@@ -27,6 +27,8 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
+
+	"go4.org/ctxutil"
 	"golang.org/x/net/context"
 )
 
@@ -164,7 +166,7 @@ func (octx OAuthContext) Get(url string, form url.Values) (*http.Response, error
 	if octx.Client == nil {
 		return nil, errors.New("No OAuth client.")
 	}
-	res, err := octx.Client.Get(HTTPClient(octx.Ctx), octx.Creds, url, form)
+	res, err := octx.Client.Get(ctxutil.Client(octx.Ctx), octx.Creds, url, form)
 	if err != nil {
 		return nil, fmt.Errorf("Error fetching %s: %v", url, err)
 	}

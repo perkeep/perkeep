@@ -39,10 +39,11 @@ import (
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/server"
 	"camlistore.org/pkg/types/camtypes"
-	"go4.org/jsonconfig"
-	"golang.org/x/net/context"
 
+	"go4.org/ctxutil"
+	"go4.org/jsonconfig"
 	"go4.org/syncutil"
+	"golang.org/x/net/context"
 )
 
 const (
@@ -274,7 +275,7 @@ func (sc *SetupContext) AccountURL() string {
 // a certain account on a certain importer.
 type RunContext struct {
 	context.Context
-	Cancel context.CancelFunc
+	cancel context.CancelFunc // for when we stop/pause the importing
 	Host   *Host
 
 	ia *importerAcct
@@ -299,7 +300,7 @@ func CreateAccount(h *Host, impl string) (*RunContext, error) {
 		Host: ia.im.host,
 		ia:   ia,
 	}
-	rc.Context, rc.Cancel = context.WithCancel(context.WithValue(context.TODO(), "HTTPClient", ia.im.host.HTTPClient()))
+	rc.Context, rc.cancel = context.WithCancel(context.WithValue(context.TODO(), ctxutil.HTTPClient, ia.im.host.HTTPClient()))
 	return rc, nil
 
 }
@@ -1072,7 +1073,7 @@ func (ia *importerAcct) start() {
 		Host: ia.im.host,
 		ia:   ia,
 	}
-	rc.Context, rc.Cancel = context.WithCancel(context.WithValue(context.TODO(), "HTTPClient", ia.im.host.HTTPClient()))
+	rc.Context, rc.cancel = context.WithCancel(context.WithValue(context.TODO(), ctxutil.HTTPClient, ia.im.host.HTTPClient()))
 	ia.current = rc
 	ia.stopped = false
 	ia.lastRunStart = time.Now()
@@ -1100,7 +1101,7 @@ func (ia *importerAcct) stop() {
 	if ia.current == nil || ia.stopped {
 		return
 	}
-	ia.current.Cancel()
+	ia.current.cancel()
 	ia.stopped = true
 }
 
@@ -1336,11 +1337,4 @@ func (h *Host) ObjectFromRef(permanodeRef blob.Ref) (*Object, error) {
 		pn:   permanodeRef,
 		attr: map[string][]string(db.Permanode.Attr),
 	}, nil
-}
-
-func HTTPClient(ctx context.Context) *http.Client {
-	if x := ctx.Value("HTTPClient"); x != nil {
-		return x.(*http.Client)
-	}
-	return http.DefaultClient
 }

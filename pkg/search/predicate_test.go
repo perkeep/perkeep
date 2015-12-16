@@ -26,6 +26,8 @@ import (
 
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/types"
+
+	"go4.org/ctxutil"
 	"golang.org/x/net/context"
 )
 
@@ -62,7 +64,7 @@ var uitdamLC = &LocationConstraint{
 func newGeocodeContext() context.Context {
 	url := "https://maps.googleapis.com/maps/api/geocode/json?address=Uitdam&sensor=false"
 	transport := httputil.NewFakeTransport(map[string]func() *http.Response{url: httputil.StaticResponder(uitdamGoogle)})
-	return context.WithValue(context.TODO(), "HTTPClient", &http.Client{Transport: transport})
+	return context.WithValue(context.TODO(), ctxutil.HTTPClient, &http.Client{Transport: transport})
 }
 
 var uitdamGoogle = `HTTP/1.1 200 OK

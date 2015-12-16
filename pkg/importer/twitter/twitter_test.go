@@ -23,13 +23,15 @@ import (
 
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
-	"golang.org/x/net/context"
 
 	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
+
+	"go4.org/ctxutil"
+	"golang.org/x/net/context"
 )
 
 func TestGetUserID(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.WithValue(context.TODO(), "HTTPClient", &http.Client{
+	ctx, cancel := context.WithCancel(context.WithValue(context.TODO(), ctxutil.HTTPClient, &http.Client{
 		Transport: httputil.NewFakeTransport(map[string]func() *http.Response{
 			apiURL + userInfoAPIPath: httputil.FileResponder(filepath.FromSlash("testdata/verify_credentials-res.json")),
 		}),

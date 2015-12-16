@@ -21,12 +21,14 @@ import (
 	"testing"
 
 	"camlistore.org/pkg/httputil"
+
+	"go4.org/ctxutil"
 	"golang.org/x/net/context"
 )
 
 func TestGetUserId(t *testing.T) {
 	im := &imp{}
-	ctx, cancel := context.WithCancel(context.WithValue(context.TODO(), "HTTPClient", &http.Client{
+	ctx, cancel := context.WithCancel(context.WithValue(context.TODO(), ctxutil.HTTPClient, &http.Client{
 		Transport: httputil.NewFakeTransport(map[string]func() *http.Response{
 			"https://api.foursquare.com/v2/users/self?oauth_token=footoken&v=20140225": httputil.FileResponder("testdata/users-me-res.json"),
 		}),

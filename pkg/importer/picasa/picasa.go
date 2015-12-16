@@ -37,12 +37,12 @@ import (
 	"camlistore.org/pkg/schema/nodeattr"
 	"camlistore.org/pkg/search"
 
-	"golang.org/x/net/context"
-
-	"go4.org/syncutil"
-
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 	"camlistore.org/third_party/github.com/tgulacsi/picago"
+
+	"go4.org/ctxutil"
+	"go4.org/syncutil"
+	"golang.org/x/net/context"
 )
 
 const (
@@ -91,7 +91,7 @@ func init() {
 			baseOAuthConfig,
 			func(ctx context.Context) (*userInfo, error) {
 
-				u, err := picago.GetUser(importer.HTTPClient(ctx), "default")
+				u, err := picago.GetUser(ctxutil.Client(ctx), "default")
 				if err != nil {
 					return nil, err
 				}
@@ -143,10 +143,6 @@ type run struct {
 	anyErr bool
 }
 
-func (r *run) HTTPClient() *http.Client {
-	return importer.HTTPClient(context.Context(r))
-}
-
 func (r *run) errorf(format string, args ...interface{}) {
 	log.Printf(format, args...)
 	r.mu.Lock()
@@ -168,9 +164,9 @@ func (imp) Run(ctx *importer.RunContext) error {
 	transport := &oauth.Transport{
 		Config:    &ocfg,
 		Token:     &token,
-		Transport: notOAuthTransport(importer.HTTPClient(ctx)),
+		Transport: notOAuthTransport(ctxutil.Client(ctx)),
 	}
-	ctx.Context = context.WithValue(ctx.Context, "HTTPClient", transport.Client())
+	ctx.Context = context.WithValue(ctx.Context, ctxutil.HTTPClient, transport.Client())
 
 	root := ctx.RootNode()
 	if root.Attr(nodeattr.Title) == "" {
@@ -204,7 +200,7 @@ func (imp) Run(ctx *importer.RunContext) error {
 }
 
 func (r *run) importAlbums() error {
-	albums, err := picago.GetAlbums(r.HTTPClient(), "default")
+	albums, err := picago.GetAlbums(ctxutil.Client(r), "default")
 	if err != nil {
 		return fmt.Errorf("importAlbums: error listing albums: %v", err)
 	}
@@ -264,7 +260,7 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album) (ret 
 	// return a slice of all photos. My "InstantUpload/Auto
 	// Backup" album has 6678 photos (and growing) and this
 	// currently takes like 40 seconds. Fix.
-	photos, err := picago.GetPhotos(r.HTTPClient(), "default", album.ID)
+	photos, err := picago.GetPhotos(ctxutil.Client(r), "default", album.ID)
 	if err != nil {
 		return err
 	}
@@ -296,7 +292,7 @@ func (r *run) updatePhotoInAlbum(albumNode *importer.Object, photo picago.Photo)
 
 	getMediaBytes := func() (io.ReadCloser, error) {
 		log.Printf("Importing media from %v", photo.URL)
-		resp, err := r.HTTPClient().Get(photo.URL)
+		resp, err := ctxutil.Client(r).Get(photo.URL)
 		if err != nil {
 			return nil, fmt.Errorf("importing photo %s: %v", photo.ID, err)
 		}

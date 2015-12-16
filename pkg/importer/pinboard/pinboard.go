@@ -57,6 +57,7 @@ import (
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/schema/nodeattr"
 
+	"go4.org/ctxutil"
 	"go4.org/syncutil"
 )
 
@@ -254,7 +255,7 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 	start := time.Now()
 
 	u := fmt.Sprintf(fetchUrl, authToken, batchLimit, r.nextCursor)
-	resp, err := importer.HTTPClient(r).Get(u)
+	resp, err := ctxutil.Client(r).Get(u)
 	if err != nil {
 		return false, err
 	}

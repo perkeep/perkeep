@@ -21,14 +21,13 @@ import (
 	"encoding/json"
 	"io"
 	"log"
-	"net/http"
 	"net/url"
 	"sync"
 
+	"go4.org/ctxutil"
+	"go4.org/syncutil/singleflight"
 	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
-
-	"go4.org/syncutil/singleflight"
 )
 
 type LatLong struct {
@@ -61,11 +60,7 @@ func Lookup(ctx context.Context, address string) ([]Rect, error) {
 	rectsi, err := sf.Do(address, func() (interface{}, error) {
 		// TODO: static data files from OpenStreetMap, Wikipedia, etc?
 		urlStr := "https://maps.googleapis.com/maps/api/geocode/json?address=" + url.QueryEscape(address) + "&sensor=false"
-		cl := http.DefaultClient
-		if x := ctx.Value("HTTPClient"); x != nil {
-			cl = x.(*http.Client)
-		}
-		res, err := ctxhttp.Get(ctx, cl, urlStr)
+		res, err := ctxhttp.Get(ctx, ctxutil.Client(ctx), urlStr)
 		if err != nil {
 			return nil, err
 		}

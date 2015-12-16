@@ -35,7 +35,10 @@ import (
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/schema/nodeattr"
+
 	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
+
+	"go4.org/ctxutil"
 	"golang.org/x/net/context"
 )
 
@@ -180,7 +183,7 @@ func (r *run) urlFileRef(urlstr, filename string) string {
 	}
 	im.mu.Unlock()
 
-	res, err := importer.HTTPClient(r).Get(urlstr)
+	res, err := ctxutil.Client(r).Get(urlstr)
 	if err != nil {
 		log.Printf("couldn't get image: %v", err)
 		return ""
@@ -435,7 +438,7 @@ func doGet(ctx context.Context, url string, form url.Values) (*http.Response, er
 	if err != nil {
 		return nil, err
 	}
-	res, err := importer.HTTPClient(ctx).Do(req)
+	res, err := ctxutil.Client(ctx).Do(req)
 	if err != nil {
 		log.Printf("Error fetching %s: %v", url, err)
 		return nil, err

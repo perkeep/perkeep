@@ -32,7 +32,10 @@ import (
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/schema/nodeattr"
+
 	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
+
+	"go4.org/ctxutil"
 )
 
 const (
@@ -511,7 +514,7 @@ func (imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.Setu
 		httputil.ServeError(w, r, err)
 		return err
 	}
-	tempCred, err := oauthClient.RequestTemporaryCredentials(importer.HTTPClient(ctx), ctx.CallbackURL(), nil)
+	tempCred, err := oauthClient.RequestTemporaryCredentials(ctxutil.Client(ctx), ctx.CallbackURL(), nil)
 	if err != nil {
 		err = fmt.Errorf("Error getting temp cred: %v", err)
 		httputil.ServeError(w, r, err)
@@ -551,7 +554,7 @@ func (imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.S
 		return
 	}
 	tokenCred, vals, err := oauthClient.RequestToken(
-		importer.HTTPClient(ctx),
+		ctxutil.Client(ctx),
 		&oauth.Credentials{
 			Token:  tempToken,
 			Secret: tempSecret,
