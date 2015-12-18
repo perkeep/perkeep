@@ -40,8 +40,11 @@ import (
 )
 
 var (
-	flagVersion       = flag.Bool("version", false, "show version")
-	flagVerbose       = flag.Bool("verbose", false, "be verbose")
+	// Keeping flagVersion and flagVerbose declared like this, so we don't forget and
+	// erroneously redeclare them again in conflict with the cmdmain ones, which is not
+	// caught at build time.
+	flagVersion       = cmdmain.FlagVersion
+	flagVerbose       = cmdmain.FlagVerbose
 	flagHTTP          = flag.Bool("verbose_http", false, "show HTTP request summaries")
 	flagCheck         = flag.Bool("check", false, "just check for the existence of listed blobs; returning 0 if all are present")
 	flagOutput        = flag.String("o", "-", "Output file/directory to create.  Use -f to overwrite.")
