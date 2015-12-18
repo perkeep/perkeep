@@ -18,6 +18,7 @@ package client
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"errors"
 	"fmt"
 	"io"
@@ -36,6 +37,7 @@ import (
 	"camlistore.org/pkg/constants"
 	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/schema"
 )
 
 // multipartOverhead is how many extra bytes mime/multipart's
@@ -518,4 +520,109 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	}
 
 	return nil, errors.New("Server didn't receive blob.")
+}
+
+// FileUploadOptions is optionally provided to UploadFile.
+type FileUploadOptions struct {
+	// FileInfo optionally specifies the FileInfo to populate the schema of the file blob.
+	FileInfo os.FileInfo
+	// WholeRef optionally specifies the digest of the uploaded file contents, which
+	// allows UploadFile to skip computing the digest (needed to check if the contents
+	// are already on the server).
+	WholeRef blob.Ref
+}
+
+// UploadFile uploads the contents of the file, as well as a file blob with
+// filename for these contents. If the contents or the file blob are found on
+// the server, they're not uploaded.
+//
+// Note: this method is still a work in progress, and might change to accomodate
+// the needs of camput file.
+func (cl *Client) UploadFile(filename string, contents io.Reader, opts *FileUploadOptions) (blob.Ref, error) {
+	fileMap := schema.NewFileMap(filename)
+	if opts != nil && opts.FileInfo != nil {
+		fileMap = schema.NewCommonFileMap(filename, opts.FileInfo)
+		modTime := opts.FileInfo.ModTime()
+		if !modTime.IsZero() {
+			fileMap.SetModTime(modTime)
+		}
+	}
+
+	var wholeRef blob.Ref
+	if opts != nil && opts.WholeRef.Valid() {
+		wholeRef = opts.WholeRef
+	} else {
+		var buf bytes.Buffer
+		var err error
+		wholeRef, err = cl.wholeRef(io.TeeReader(contents, &buf))
+		if err != nil {
+			return blob.Ref{}, err
+		}
+		contents = io.MultiReader(&buf, contents)
+	}
+
+	// TODO(mpl): should we consider the case (not covered by fileMapFromDuplicate)
+	// where all the parts are there, but the file schema/blob does not exist? Can that
+	// even happen ? I'm naively assuming it can't for now, since that's what camput file
+	// does too.
+	fileRef, err := cl.fileMapFromDuplicate(fileMap, wholeRef)
+	if err != nil {
+		return blob.Ref{}, err
+	}
+	if fileRef.Valid() {
+		return fileRef, nil
+	}
+
+	return schema.WriteFileMap(cl, fileMap, contents)
+}
+
+func (cl *Client) wholeRef(contents io.Reader) (blob.Ref, error) {
+	// TODO(mpl): use a trackDigestReader once pulled from camput.
+	// and allow for different hash type. maybe also move to another pkg.
+	h := sha1.New()
+	_, err := io.Copy(h, contents)
+	if err != nil {
+		return blob.Ref{}, err
+	}
+	s := fmt.Sprintf("sha1-%x", h.Sum(nil))
+	ref, ok := blob.Parse(s)
+	if !ok {
+		return blob.Ref{}, fmt.Errorf("Invalid blobref: %q", s)
+	}
+	return ref, nil
+}
+
+// fileMapFromDuplicate queries the server's search interface for an
+// existing file blob for the file contents of wholeRef.
+// If the server has it, it's validated, and then fileMap (which must
+// already be partially populated) has its "parts" field populated,
+// and then fileMap is uploaded (if necessary).
+// If no file blob is found, a zero blob.Ref (and no error) is returned.
+func (cl *Client) fileMapFromDuplicate(fileMap *schema.Builder, wholeRef blob.Ref) (blob.Ref, error) {
+	dupFileRef, err := cl.SearchExistingFileSchema(wholeRef)
+	if err != nil {
+		return blob.Ref{}, err
+	}
+	if !dupFileRef.Valid() {
+		// because SearchExistingFileSchema returns blob.Ref{}, nil when file is not found.
+		return blob.Ref{}, nil
+	}
+	dupMap, err := cl.FetchSchemaBlob(dupFileRef)
+	if err != nil {
+		return blob.Ref{}, fmt.Errorf("could not find existing file blob for wholeRef %q: %v", wholeRef, err)
+	}
+	fileMap.PopulateParts(dupMap.PartsSize(), dupMap.ByteParts())
+	json, err := fileMap.JSON()
+	if err != nil {
+		return blob.Ref{}, fmt.Errorf("could not write file map for wholeRef %q: %v", wholeRef, err)
+	}
+	if blob.SHA1FromString(json) == dupFileRef {
+		// Unchanged (same filename, modtime, JSON serialization, etc)
+		return dupFileRef, nil
+	}
+	sbr, err := cl.ReceiveBlob(dupFileRef, strings.NewReader(json))
+	if err != nil {
+		return blob.Ref{}, err
+	}
+	return sbr.Ref, nil
 }
