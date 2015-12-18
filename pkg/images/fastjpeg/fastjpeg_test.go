@@ -19,6 +19,7 @@ package fastjpeg
 import (
 	"bytes"
 	"image"
+	"image/jpeg"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,8 +28,6 @@ import (
 	"strconv"
 	"sync"
 	"testing"
-
-	"camlistore.org/third_party/go/pkg/image/jpeg"
 )
 
 const (

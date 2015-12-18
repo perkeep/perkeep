@@ -1,6 +1,6 @@
 package mknote
 
-import "camlistore.org/third_party/github.com/rwcarlsen/goexif/exif"
+import "github.com/rwcarlsen/goexif/exif"
 
 // Useful resources used in creating these tables:
 //    http://www.exiv2.org/makernote.html

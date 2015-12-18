@@ -19,6 +19,7 @@ package images
 import (
 	"bytes"
 	"image"
+	"image/jpeg"
 	"os"
 	"path/filepath"
 	"sort"
@@ -26,8 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/third_party/github.com/rwcarlsen/goexif/exif"
-	"camlistore.org/third_party/go/pkg/image/jpeg"
+	"github.com/rwcarlsen/goexif/exif"
 )
 
 const datadir = "testdata"

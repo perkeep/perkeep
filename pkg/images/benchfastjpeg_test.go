@@ -19,6 +19,7 @@ package images
 import (
 	"bytes"
 	"image"
+	"image/jpeg"
 	"io"
 	"io/ioutil"
 	"testing"
@@ -26,7 +27,6 @@ import (
 	"camlistore.org/pkg/images/fastjpeg"
 	"camlistore.org/pkg/images/resize"
 	"camlistore.org/pkg/types"
-	"camlistore.org/third_party/go/pkg/image/jpeg"
 )
 
 // The decode routines being benchmarked in this file will use these bytes for

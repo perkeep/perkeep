@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	_ "image/gif"
+	_ "image/jpeg"
 	_ "image/png"
 	"io"
 	"log"
@@ -43,9 +44,8 @@ import (
 
 	"github.com/hjfreyer/taglib-go/taglib"
 
-	"camlistore.org/third_party/github.com/rwcarlsen/goexif/exif"
-	"camlistore.org/third_party/github.com/rwcarlsen/goexif/tiff"
-	_ "camlistore.org/third_party/go/pkg/image/jpeg"
+	"github.com/rwcarlsen/goexif/exif"
+	"github.com/rwcarlsen/goexif/tiff"
 )
 
 // outOfOrderIndexerLoop asynchronously reindexes blobs received

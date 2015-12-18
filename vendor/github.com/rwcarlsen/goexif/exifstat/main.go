@@ -6,9 +6,9 @@ import (
 	"log"
 	"os"
 
-	"camlistore.org/third_party/github.com/rwcarlsen/goexif/exif"
 	"camlistore.org/third_party/github.com/rwcarlsen/goexif/mknote"
-	"camlistore.org/third_party/github.com/rwcarlsen/goexif/tiff"
+	"github.com/rwcarlsen/goexif/exif"
+	"github.com/rwcarlsen/goexif/tiff"
 )
 
 var mnote = flag.Bool("mknote", false, "try to parse makernote data")
