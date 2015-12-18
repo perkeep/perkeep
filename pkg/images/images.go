@@ -33,8 +33,9 @@ import (
 
 	"camlistore.org/pkg/images/fastjpeg"
 	"camlistore.org/pkg/images/resize"
-	"camlistore.org/third_party/github.com/nf/cr2"
-	"camlistore.org/third_party/github.com/rwcarlsen/goexif/exif"
+
+	"github.com/nf/cr2"
+	"github.com/rwcarlsen/goexif/exif"
 
 	// TODO(mpl, wathiede): add test(s) to check we can decode both tiff and cr2,
 	// so we don't mess up the import order again.
@@ -42,7 +43,7 @@ import (
 
 	// tiff package must be imported after any image packages that decode
 	// tiff-like formats, i.e. CR2 or DNG
-	_ "camlistore.org/third_party/golang.org/x/image/tiff"
+	_ "golang.org/x/image/tiff"
 )
 
 var disableThumbCache, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_THUMB_CACHE"))

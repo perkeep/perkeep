@@ -32,6 +32,7 @@ import (
 	"image"
 	"image/color"
 	_ "image/gif"
+	_ "image/jpeg"
 	"image/png"
 	"io"
 	"math/rand"
@@ -48,7 +49,6 @@ import (
 	"camlistore.org/third_party/code.google.com/p/rsc/qr"
 	"camlistore.org/third_party/code.google.com/p/rsc/qr/coding"
 	"camlistore.org/third_party/code.google.com/p/rsc/qr/web/resize"
-	_ "camlistore.org/third_party/go/pkg/image/jpeg"
 )
 
 func runTemplate(c *fs.Context, w http.ResponseWriter, name string, data interface{}) {

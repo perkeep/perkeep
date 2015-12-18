@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/third_party/github.com/rwcarlsen/goexif/tiff"
+	"github.com/rwcarlsen/goexif/tiff"
 )
 
 const (

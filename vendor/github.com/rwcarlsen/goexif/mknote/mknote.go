@@ -4,8 +4,8 @@ package mknote
 import (
 	"bytes"
 
-	"camlistore.org/third_party/github.com/rwcarlsen/goexif/exif"
-	"camlistore.org/third_party/github.com/rwcarlsen/goexif/tiff"
+	"github.com/rwcarlsen/goexif/exif"
+	"github.com/rwcarlsen/goexif/tiff"
 )
 
 var (

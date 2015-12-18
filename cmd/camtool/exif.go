@@ -21,7 +21,7 @@ import (
 	"log"
 	"os"
 
-	"camlistore.org/third_party/github.com/rwcarlsen/goexif/exif"
+	"github.com/rwcarlsen/goexif/exif"
 )
 
 func showEXIF(file string) {

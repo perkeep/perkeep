@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	_ "image/jpeg"
 	"io"
 	"log"
 	"os"
@@ -38,7 +39,6 @@ import (
 
 	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/types"
-	_ "camlistore.org/third_party/go/pkg/image/jpeg"
 )
 
 var (

@@ -16,7 +16,7 @@ import (
 	"io"
 	"io/ioutil"
 
-	"camlistore.org/third_party/golang.org/x/image/tiff/lzw"
+	"golang.org/x/image/tiff/lzw"
 )
 
 // A FormatError reports that the input is not a valid TIFF image.
