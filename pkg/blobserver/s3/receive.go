@@ -38,7 +38,7 @@ func (sto *s3Storage) ReceiveBlob(b blob.Ref, source io.Reader) (sr blob.SizedRe
 		return
 	}
 
-	err = sto.s3Client.PutObject(b.String(), sto.bucket, md5h, size, &buf)
+	err = sto.s3Client.PutObject(sto.dirPrefix+b.String(), sto.bucket, md5h, size, &buf)
 	if err != nil {
 		return sr, err
 	}

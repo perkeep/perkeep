@@ -303,7 +303,7 @@ func (c *Client) Get(bucket, key string) (body io.ReadCloser, size int64, err er
 // The caller must close rc.
 func (c *Client) GetPartial(bucket, key string, offset, length int64) (rc io.ReadCloser, err error) {
 	if offset < 0 {
-		return nil, errors.New("invalid negative length")
+		return nil, errors.New("invalid negative offset")
 	}
 
 	req := newReq(c.keyURL(bucket, key))

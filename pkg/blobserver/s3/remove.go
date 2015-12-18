@@ -35,7 +35,7 @@ func (sto *s3Storage) RemoveBlobs(blobs []blob.Ref) error {
 		removeGate.Start()
 		wg.Go(func() error {
 			defer removeGate.Done()
-			return sto.s3Client.Delete(sto.bucket, blob.String())
+			return sto.s3Client.Delete(sto.bucket, sto.dirPrefix+blob.String())
 		})
 	}
 	return wg.Err()
