@@ -24,17 +24,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"google.golang.org/api/compute/v1"
 )
-
-type coreOSImage struct {
-	SelfLink          string
-	CreationTimestamp time.Time
-	Name              string
-}
-
-type coreOSImageList struct {
-	Items []coreOSImage
-}
 
 // CoreOSImageURL returns the URL of the latest stable CoreOS image for running on Google Compute Engine.
 func CoreOSImageURL(cl *http.Client) (string, error) {
@@ -43,6 +35,17 @@ func CoreOSImageURL(cl *http.Client) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
+
+	type coreOSImage struct {
+		SelfLink          string
+		CreationTimestamp time.Time
+		Name              string
+	}
+
+	type coreOSImageList struct {
+		Items []coreOSImage
+	}
+
 	imageList := &coreOSImageList{}
 	if err := json.NewDecoder(resp.Body).Decode(imageList); err != nil {
 		return "", err
@@ -66,4 +69,42 @@ func CoreOSImageURL(cl *http.Client) (string, error) {
 		return "", errors.New("no stable coreOS image found")
 	}
 	return imageURL, nil
+}
+
+// InstanceGroupAndManager contains both an InstanceGroup and
+// its InstanceGroupManager, if any.
+type InstanceGroupAndManager struct {
+	Group *compute.InstanceGroup
+
+	// Manager is the manager of the Group. It may be nil.
+	Manager *compute.InstanceGroupManager
+}
+
+// InstanceGroups returns all the instance groups in a project's zone, along
+// with their associated InstanceGroupManagers.
+// The returned map is keyed by the instance group identifier URL.
+func InstanceGroups(svc *compute.Service, proj, zone string) (map[string]InstanceGroupAndManager, error) {
+	managerList, err := svc.InstanceGroupManagers.List(proj, zone).Do()
+	if err != nil {
+		return nil, err
+	}
+	if managerList.NextPageToken != "" {
+		return nil, errors.New("too many managers; pagination not supported")
+	}
+	managedBy := make(map[string]*compute.InstanceGroupManager) // instance group URL -> its manager
+	for _, it := range managerList.Items {
+		managedBy[it.InstanceGroup] = it
+	}
+	groupList, err := svc.InstanceGroups.List(proj, zone).Do()
+	if err != nil {
+		return nil, err
+	}
+	if groupList.NextPageToken != "" {
+		return nil, errors.New("too many instance groups; pagination not supported")
+	}
+	ret := make(map[string]InstanceGroupAndManager)
+	for _, it := range groupList.Items {
+		ret[it.SelfLink] = InstanceGroupAndManager{it, managedBy[it.SelfLink]}
+	}
+	return ret, nil
 }

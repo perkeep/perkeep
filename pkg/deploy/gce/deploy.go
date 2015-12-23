@@ -42,7 +42,7 @@ import (
 	"camlistore.org/pkg/osutil"
 	"golang.org/x/net/context"
 
-	"go4.org/cloud/gceutil"
+	"go4.org/cloud/google/gceutil"
 	"go4.org/syncutil"
 	"golang.org/x/oauth2"
 	// TODO(mpl): switch to google.golang.org/cloud/compute
