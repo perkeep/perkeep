@@ -42,12 +42,22 @@ const helpHTML string = `<html>
 			<h3>Web User Interface</h3>
 			<p><a href='https://camlistore.googlesource.com/camlistore/+/master/doc/search-ui.txt'>Search bar predicates.</a></p>
 
-			<h3>Client Configuration</h3>
-			<p>You will need to use the following <a href='http://camlistore.org/docs/client-config'>client configuration</a> in order to access this server using the Camlistore command line tools.</p>
+			<h3>Client tools</h3>
+
+			<p>
+			You can download the Camlistore command line tools in one of the binary releases at:
+			<ul>
+				<li><a href="https://camlistore.org/dl/0.9/camlistore0.9-linux.tar.gz">camlistore0.9-linux.tar.gz</a></li>
+				<li><a href="https://camlistore.org/dl/0.9/camlistore0.9-osx.tar.gz">camlistore0.9-osx.tar.gz</a></li>
+				<li><a href="https://camlistore.org/dl/0.9/camlistore0.9-windows.zip">camlistore0.9-windows.zip</a></li>
+			</ul>
+			</p>
+
+			<p>You will need to use the following <a href='https://camlistore.org/docs/client-config'>client configuration</a> in order to access this server using the command line tools.</p>
 			<pre>{{ . }}</pre>
 
 			<h3>Anything Else?</h3>
-			<p>See the Camlistore <a href='http://camlistore.org/docs/'>online documentation</a> and <a href='http://camlistore.org/community/'>community contacts</a>.</p>
+			<p>See the Camlistore <a href='https://camlistore.org/docs/'>online documentation</a> and <a href='https://camlistore.org/community/'>community contacts</a>.</p>
 		</body>
 	</html>`
 
