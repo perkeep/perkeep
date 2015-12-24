@@ -33,9 +33,9 @@ import (
 )
 
 var (
-	emailNow   = flag.String("email_now", "", "If non-empty, this commit hash is emailed immediately, without starting the webserver.")
-	smtpServer = flag.String("smtp_server", "127.0.0.1:25", "SMTP server")
-	emailsTo   = flag.String("email_dest", "", "If non-empty, the email address to email commit emails.")
+	emailNow   = flag.String("email_now", "", "[debug] if non-empty, this commit hash is emailed immediately, without starting the webserver.")
+	smtpServer = flag.String("smtp_server", "127.0.0.1:25", "[optional] SMTP server for sending emails on new commits.")
+	emailsTo   = flag.String("email_dest", "", "[optional] The email address for new commit emails.")
 )
 
 func startEmailCommitLoop(errc chan<- error) {

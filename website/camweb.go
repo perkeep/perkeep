@@ -51,7 +51,7 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"google.golang.org/api/compute/v1"
+	compute "google.golang.org/api/compute/v1"
 	storageapi "google.golang.org/api/storage/v1"
 	"google.golang.org/cloud"
 	"google.golang.org/cloud/compute/metadata"
@@ -64,21 +64,21 @@ const defaultAddr = ":31798" // default webserver address
 var h1TitlePattern = regexp.MustCompile(`<h1>([^<]+)</h1>`)
 
 var (
-	httpAddr        = flag.String("http", defaultAddr, "HTTP service address (e.g., '"+defaultAddr+"')")
-	httpsAddr       = flag.String("https", "", "HTTPS service address")
+	httpAddr        = flag.String("http", defaultAddr, "HTTP address")
+	httpsAddr       = flag.String("https", "", "HTTPS address")
 	root            = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl")
 	logDir          = flag.String("logdir", "", "Directory to write log files to (one per hour), or empty to not log.")
-	logStdout       = flag.Bool("logstdout", true, "Write to stdout?")
+	logStdout       = flag.Bool("logstdout", true, "Whether to log to stdout")
 	tlsCertFile     = flag.String("tlscert", "", "TLS cert file")
 	tlsKeyFile      = flag.String("tlskey", "", "TLS private key file")
-	buildbotBackend = flag.String("buildbot_backend", "", "Build bot status backend URL")
-	buildbotHost    = flag.String("buildbot_host", "", "Hostname to map to the buildbot_backend. If an HTTP request with this hostname is received, it proxies to buildbot_backend.")
-	alsoRun         = flag.String("also_run", "", "Optional path to run as a child process. (Used to run camlistore.org's ./scripts/run-blob-server)")
+	buildbotBackend = flag.String("buildbot_backend", "", "[optional] Build bot status backend URL")
+	buildbotHost    = flag.String("buildbot_host", "", "[optional] Hostname to map to the buildbot_backend. If an HTTP request with this hostname is received, it proxies to buildbot_backend.")
+	alsoRun         = flag.String("also_run", "", "[optiona] Path to run as a child process. (Used to run camlistore.org's ./scripts/run-blob-server)")
 
 	gceProjectID = flag.String("gce_project_id", "", "GCE project ID; required if not running on GCE and gce_log_name is specified.")
 	gceLogName   = flag.String("gce_log_name", "", "GCE Cloud Logging log name; if non-empty, logs go to Cloud Logging instead of Apache-style local disk log files")
 	gceJWTFile   = flag.String("gce_jwt_file", "", "If non-empty, a filename to the GCE Service Account's JWT (JSON) config file.")
-	gitContainer = flag.Bool("git_container", false, "Use git in the camlistore/git Docker container.")
+	gitContainer = flag.Bool("git_container", false, "Use git from the `camlistore/git` Docker container; if false, the system `git` is used.")
 )
 
 var (
@@ -735,6 +735,7 @@ func main() {
 		WriteTimeout: 30 * time.Minute,
 	}
 	go func() {
+		log.Printf("Listening for HTTP on %v", *httpAddr)
 		errc <- httpServer.ListenAndServe()
 	}()
 
@@ -763,6 +764,7 @@ func serveHTTPS(ctx context.Context, httpServer *http.Server) error {
 	httpsServer.TLSConfig = &tls.Config{
 		Certificates: []tls.Certificate{*cert},
 	}
+	log.Printf("Listening for HTTPS on %v", *httpsAddr)
 	ln, err := net.Listen("tcp", *httpsAddr)
 	if err != nil {
 		return err
