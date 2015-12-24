@@ -43,16 +43,21 @@ we now have binary downloads:
 <p>Please note that <a href="https://golang.org/dl/">Go 1.5 or newer</a> is now required for this release.</p>
 
 <h2>Release stats</h2>
-<!--
-$ PREV=0.8; echo "$(git shortlog -e -s $PREV..HEAD | sed -e 's/^.*<//;s/>.*$//' | uniq | wc -l) total commiters over $(git log --format=oneline $PREV..HEAD | wc -l) commits since $PREV (), including $(i=0; git shortlog -s $PREV..HEAD | cut -c8- | fgrep ' ' | while read nm; do i=$(($i + 1)); if [ $i -ge 2 ]; then echo -n ', '; fi; echo -n "$nm"; done)."
--->
+
 <p>
-30 total commiters over 791 commits since 0.8, including Aaron Bieber, Aaron Boodman, Andrew Gerrand, Antonin Amand, Bill Thiede, Brad Fitzpatrick, Emil Hessman, Eric Drechsel, Fabian Reinartz, Fabian Wickborn, Felix Geller, Gina White, Govert Versluis, Jingguo Yao, Lindsey Simon, Mario Russo, Mathieu Lonjaret, Matthieu Rakotojaona, Robert Kroeger, Salman Aljammaz, Salmān Aljammāz, Steven L. Speek, Tamás Gulácsi, Will Norris.
+33 total commiters over 942 commits since <a
+href="/docs/release/0.8">Camlistore 0.8</a>, including Aaron Bieber,
+Aaron Boodman, Andrew Gerrand, Antonin Amand, Bill Thiede, Brad
+Fitzpatrick, David Jack, Emil Hessman, Eric Drechsel, Fabian Reinartz,
+Fabian Wickborn, Felix Geller, Gina White, Govert Versluis, Jingguo
+Yao, Lindsey Simon, Mario Russo, Mathieu Lonjaret, Matthieu
+Rakotojaona, Patrick Mezard, Robert Kroeger, Salman Aljammaz, Salmān
+Aljammāz, Steven L. Speek, Tamás Gulácsi, Will Norris.
 </p>
 
 <p>Thank you!</p>
 
-<h2>Changes in 0.8</h2>
+<h2>Changes in 0.9</h2>
 
 <h3>Android</h3>
 <ul>
@@ -93,7 +98,7 @@ $ PREV=0.8; echo "$(git shortlog -e -s $PREV..HEAD | sed -e 's/^.*<//;s/>.*$//' 
 
 <h3>Deploy</h3>
 <ul>
-	<li>Launcher to help deploy Camlistore on Google Cloud.</li>
+	<li>Launcher to help deploy Camlistore on Google Cloud Platform.</li>
 </ul>
 
 <h3>Docker</h3>
@@ -108,7 +113,7 @@ $ PREV=0.8; echo "$(git shortlog -e -s $PREV..HEAD | sed -e 's/^.*<//;s/>.*$//' 
 
 <h3>Images</h3>
 <ul>
-	<li>Faster resizing with djpeg.</li>
+	<li>Optional faster resizing with djpeg (if available)</li>
 	<li>Support for tiff decoding.</li>
 </ul>
 
@@ -119,7 +124,7 @@ $ PREV=0.8; echo "$(git shortlog -e -s $PREV..HEAD | sed -e 's/^.*<//;s/>.*$//' 
 
 <h3>Indexer</h3>
 <ul>
-	<li>Improved MySQL connections handling (share connections between queues).</li>
+	<li>Improved MySQL connection handling (switch to <code>go-mysql-driver</code>).</li>
 	<li>New sorted implementation: levelDB (https://github.com/syndtr/goleveldb).</li>
 	<li>Out of order reindexing finished/fixed.</li>
 	<li>When indexing from images: always try a small prefix buffer first, then read full file if needed.</li>
@@ -159,8 +164,8 @@ $ PREV=0.8; echo "$(git shortlog -e -s $PREV..HEAD | sed -e 's/^.*<//;s/>.*$//' 
 
 <h3>Storage</h3>
 <ul>
-	<li>New blobpacked blobserver.</li>
-	<li>Google Cloud Storage: lots of improvements.</li>
+	<li>New <code>blobpacked</code> blobserver: keeps related blobs physically contiguous within zip files.</li>
+	<li>Many Google Cloud Storage improvements.</li>
 	<li>New SubFetcher interface.</li>
 	<li>New BlobStreamer interface.</li>
 	<li>New WholeRefFetcher interface.</li>
