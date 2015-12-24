@@ -2,22 +2,45 @@
 
 <p><b>2015-??-??</b></p>
 
+<p> For this release we have mainly focused on ease of use and ease of
+installation for new users. Recognizing that most users don't have
+their own servers, we've been working on making it easier to run
+Camlistore on cloud providers. Initially we've targeted the <a
+href="https://cloud.google.com/">Google Cloud Platform</a>, making
+sure Camlistore is well-adapted to that environment. We now provide a
+web-based launcher for users go create new instances: </p>
+
+<center>
+<div style='font-size:18pt;font-weight:bold;'>
+   <a href="https://camlistore.org/launch/">camlistore.org/launch</a>
+</div>
+</center>
+
 <p>
-For this release we have mainly focused on making Camlistore run on remote servers, in particular the Google Cloud infrastructure. This goal involved a lot work just to adapt to this particular environment, but it also relies on many improvements to make it a good user experience, and most notably on two major features: the blobpacked blobserver, and HTTP/2.
-</p>
-<p>
-The blobpacked server allows faster reading, and hence serving, of files because they end up stored in large continuous blobs stored together (basically zip files) instead of many more small randomly distributed blobs. See the <a href="https://camlistore.org/pkg/blobserver/blobpacked">blobpacked package</a> documentation. 
-</p>
-<p>
-The HTTP/2 server Go implementation is not yet in the standard library, but it is already solid and used in the Camlistore server. So you will benefit from it if it is enabled for your browser. See <a href="https://http2.golang.org/">https://http2.golang.org/</a> for more.
+Making Camlistore run well on cloud providers required two other major
+features: the <code>blobpacked</code> storage backend (for latency and
+cost reasons) and <a href="https://http2.github.io/">HTTP/2</a> (for
+latency reasons).
 </p>
 
 <p>
-In a related vein, we have worked on a launcher, to facilitate Camlistore deployment on cloud infrastructures, again with a focus on Google Cloud for now. Try it out at <a href="https://camlistore.org/launch">https://camlistore.org/launch</a>!
+The <code>blobpacked</code> storage backend allows faster reading & serving of
+files because it stores related blobs contiguously within larger container blobs (which
+are also valid zip files) instead of many small randomly dispersed blobs. See the <a
+href="https://camlistore.org/pkg/blobserver/blobpacked">blobpacked
+package</a> documentation.
 </p>
 
+<p> The Go <a href="https://http2.github.io/">HTTP/2</a>
+implementation was developed for both Camlistore and the Go standard
+library and will be included in Go 1.6. Camlistore 0.9 only requires
+Go 1.5 but includes a vendored copy of <a
+href="https://godoc.org/golang.org/x/net/http2"><code>golang.org/x/net/http2</code></a>. See
+<a href="https://http2.golang.org/">https://http2.golang.org/</a> for
+a demo.  </p>
+
 <p>
-Finally, in addition to the usual source tarball and github repo:
+Source release:
 </p>
 
 <center>
@@ -29,14 +52,14 @@ Github: <a href="https://github.com/camlistore/camlistore/tree/0.9">github.com/c
 </center>
 
 <p>
-we now have binary downloads:
+Binary release, new in this release:
 </p>
 
 <center>
 <div style='font-size:18pt;font-weight:bold;'>
-	<p><a href="/dl/0.9/camlistore0.9-linux.tar.gz">camlistore0.9-linux.tar.gz</a></p>
-	<p><a href="/dl/0.9/camlistore0.9-osx.tar.gz">camlistore0.9-osx.tar.gz</a></p>
-	<p><a href="/dl/0.9/camlistore0.9-windows.zip">camlistore0.9-windows.zip</a></p>
+	<a href="/dl/0.9/camlistore0.9-linux.tar.gz">Linux</a>,
+	<a href="/dl/0.9/camlistore0.9-osx.tar.gz">OS X</a>,
+	<a href="/dl/0.9/camlistore0.9-windows.zip">Windows</a>
 </div>
 </center>
 
