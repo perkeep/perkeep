@@ -136,7 +136,7 @@
 		"/bs-loose/": {
 			"handler": "storage-filesystem",
 			"handlerArgs": {
-				"path": ["_env", "${CAMLI_ROOT}/loose"]
+				"path": ["_env", "${CAMLI_ROOT}"]
 			}
 		},
 
