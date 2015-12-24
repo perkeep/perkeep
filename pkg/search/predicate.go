@@ -701,7 +701,7 @@ func (fn filename) Description() string {
 	return "Match filename"
 }
 
-func (fn filename) Predicate(ctx *context.Context, args []string) (*Constraint, error) {
+func (fn filename) Predicate(ctx context.Context, args []string) (*Constraint, error) {
 	c := permOfFile(&FileConstraint{
 		FileName: &StringConstraint{
 			Equals: args[0],
