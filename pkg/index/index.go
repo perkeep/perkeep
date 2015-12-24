@@ -218,6 +218,9 @@ func (x *Index) fixMissingWholeRef(fetcher blob.Fetcher) (err error) {
 		return err
 	}
 
+	var fixedEntries, missedEntries int
+	t := time.NewTicker(5 * time.Second)
+	defer t.Stop()
 	// We record the mutations and set them all after the iteration because of the sqlite locking:
 	// since BeginBatch takes a lock, and Find too, we would deadlock at queryPrefix if we
 	// started a batch mutation before.
@@ -227,12 +230,18 @@ func (x *Index) fixMissingWholeRef(fetcher blob.Fetcher) (err error) {
 	defer it.Close()
 	var valA [3]string
 	for it.Next() {
+		select {
+		case <-t.C:
+			log.Printf("Recorded %d missing wholeRef that we'll try to fix, and %d that we can't fix.", fixedEntries, missedEntries)
+		default:
+		}
 		br, ok := blob.ParseBytes(it.KeyBytes()[len(keyPrefix):])
 		if !ok {
 			return fmt.Errorf("invalid blobRef %q", it.KeyBytes()[len(keyPrefix):])
 		}
 		wholeRef, ok := fileRefToWholeRef[br]
 		if !ok {
+			missedEntries++
 			log.Printf("WARNING: wholeRef for %v not found in index. You should probably rebuild the whole index.", br)
 			continue
 		}
@@ -257,10 +266,12 @@ func (x *Index) fixMissingWholeRef(fetcher blob.Fetcher) (err error) {
 			return fmt.Errorf("bogus size in keyFileInfo value %v: %v", it.Value(), err)
 		}
 		mutations[keyFileInfo.Key(br)] = keyFileInfo.Val(size, filename, mimetype, wholeRef)
+		fixedEntries++
 	}
 	if err := it.Close(); err != nil {
 		return err
 	}
+	log.Printf("Starting to commit the missing wholeRef fixes (%d entries) now, this can take a while.", fixedEntries)
 	bm := x.s.BeginBatch()
 	for k, v := range mutations {
 		bm.Set(k, v)
@@ -268,6 +279,9 @@ func (x *Index) fixMissingWholeRef(fetcher blob.Fetcher) (err error) {
 	bm.Set(keySchemaVersion.name, "5")
 	if err := x.s.CommitBatch(bm); err != nil {
 		return err
+	}
+	if missedEntries > 0 {
+		log.Printf("Some missing wholeRef entries were not fixed (%d), you should do a full reindex.", missedEntries)
 	}
 	return nil
 }
