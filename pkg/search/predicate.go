@@ -117,6 +117,9 @@ func init() {
 	registerKeyword(newIsPortait())
 	registerKeyword(newWidth())
 
+	// File predicates
+	registerKeyword(newFilename())
+
 	// Custom predicates
 	registerKeyword(newIsPost())
 	registerKeyword(newIsCheckin())
@@ -686,4 +689,23 @@ func (k isCheckin) Predicate(ctx context.Context, args []string) (*Constraint, e
 			Value: "foursquare.com:checkin",
 		},
 	}, nil
+}
+
+type filename struct {
+	matchPrefix
+}
+
+func newFilename() keyword { return filename{newMatchPrefix("filename")} }
+
+func (fn filename) Description() string {
+	return "Match filename"
+}
+
+func (fn filename) Predicate(ctx *context.Context, args []string) (*Constraint, error) {
+	c := permOfFile(&FileConstraint{
+		FileName: &StringConstraint{
+			Equals: args[0],
+		},
+	})
+	return c, nil
 }
