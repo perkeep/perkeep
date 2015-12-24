@@ -271,6 +271,22 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 	return sto, nil
 }
 
+func WipeMeta(s blobserver.Storage) error {
+	bps, ok := s.(*storage)
+	if !ok {
+		return fmt.Errorf("argument is not blobpacked storage but a %T", s)
+	}
+	wiper, ok := bps.meta.(sorted.Wiper)
+	if !ok {
+		return fmt.Errorf("blobpacked meta storage type %T doesn't support sorted.Wiper", bps.meta)
+	}
+	log.Printf("Wiping blobpacked meta type %T ...", bps.meta)
+	if err := wiper.Wipe(); err != nil {
+		return fmt.Errorf("error wiping blobpacked meta sorted key/value type %T: %v", bps.meta, err)
+	}
+	return nil
+}
+
 func (s *storage) anyMeta() (v bool) {
 	// TODO: we only care about getting 1 row, but the
 	// sorted.KeyValue interface doesn't let us give it that
