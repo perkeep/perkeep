@@ -123,6 +123,29 @@ func TestHostPort(t *testing.T) {
 	}
 }
 
+func TestListenHostPort(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string // or "ERR:"
+	}{
+		{":80", "localhost:80"},
+		{"0.0.0.0:80", "localhost:80"},
+		{"foo:80", "foo:80"},
+		{"foo:0", "foo:0"},
+		{"", "ERR"},
+	}
+	for _, tt := range tests {
+		got, err := ListenHostPort(tt.in)
+		if err != nil {
+			got = "ERR"
+		}
+		if got != tt.want {
+			t.Errorf("ListenHostPort(%q) = %q, %v; want %q", tt.in, got, err, tt.want)
+		}
+	}
+
+}
+
 func testLocalhostResolver(t *testing.T, resolve func() net.IP) {
 	ip := resolve()
 	if ip == nil {

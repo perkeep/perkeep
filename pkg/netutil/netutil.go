@@ -44,6 +44,8 @@ func AwaitReachable(addr string, maxWait time.Duration) error {
 // to passing to net.Dial, with the port set as the scheme's default port if
 // absent.
 func HostPort(urlStr string) (string, error) {
+	// TODO: rename this function to URLHostPort instead, like
+	// ListenHostPort below.
 	u, err := url.Parse(urlStr)
 	if err != nil {
 		return "", fmt.Errorf("could not parse %q as a url: %v", urlStr, err)
@@ -67,6 +69,22 @@ func HostPort(urlStr string) (string, error) {
 		}
 	}
 	return hostPort, nil
+}
+
+// ListenHostPort maps a listen address into a host:port string.
+// If the host part in listenAddr is empty or 0.0.0.0, localhost
+// is used instead.
+func ListenHostPort(listenAddr string) (string, error) {
+	hp := listenAddr
+	if strings.HasPrefix(hp, ":") {
+		hp = "localhost" + hp
+	} else if strings.HasPrefix(hp, "0.0.0.0:") {
+		hp = "localhost:" + hp[len("0.0.0.0:"):]
+	}
+	if _, _, err := net.SplitHostPort(hp); err != nil {
+		return "", err
+	}
+	return hp, nil
 }
 
 // ListenOnLocalRandomPort returns a TCP listener on a random
