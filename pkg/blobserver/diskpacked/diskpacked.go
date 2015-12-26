@@ -251,6 +251,24 @@ func (s *storage) openForWrite(n int) error {
 	return nil
 }
 
+// closePack opens any pack file currently open for writing.
+func (s *storage) closePack() error {
+	var err error
+	if s.writer != nil {
+		err = s.writer.Close()
+		openFdsVar.Add(s.root, -1)
+		s.writer = nil
+	}
+	if s.writeLock != nil {
+		lerr := s.writeLock.Close()
+		if err == nil {
+			err = lerr
+		}
+		s.writeLock = nil
+	}
+	return err
+}
+
 // nextPack will close the current writer and release its lock if open,
 // open the next pack file in sequence for writing, grab its lock, set it
 // to the currently active writer, and open another copy for read-only use.
@@ -258,20 +276,9 @@ func (s *storage) openForWrite(n int) error {
 func (s *storage) nextPack() error {
 	debug.Println("diskpacked: nextPack")
 	s.size = 0
-	if s.writeLock != nil {
-		err := s.writeLock.Close()
-		if err != nil {
-			return err
-		}
-		s.writeLock = nil
+	if err := s.closePack(); err != nil {
+		return err
 	}
-	if s.writer != nil {
-		if err := s.writer.Close(); err != nil {
-			return err
-		}
-		openFdsVar.Add(s.root, -1)
-	}
-
 	n := len(s.fds)
 	if err := s.openForWrite(n); err != nil {
 		return err
@@ -316,18 +323,14 @@ func (s *storage) Close() error {
 			log.Println("diskpacked: closing index:", err)
 		}
 		for _, f := range s.fds {
-			if err := f.Close(); err != nil {
-				closeErr = err
-			}
+			err := f.Close()
 			openFdsVar.Add(s.root, -1)
-		}
-		s.writer = nil
-		if l := s.writeLock; l != nil {
-			err := l.Close()
-			if closeErr == nil {
+			if err != nil {
 				closeErr = err
 			}
-			s.writeLock = nil
+		}
+		if err := s.closePack(); err != nil && closeErr == nil {
+			closeErr = err
 		}
 	}
 	return closeErr

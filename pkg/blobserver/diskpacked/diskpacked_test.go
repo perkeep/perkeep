@@ -19,9 +19,11 @@ package diskpacked
 import (
 	"bufio"
 	"errors"
+	"expvar"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -295,4 +297,45 @@ func TestReadHeader(t *testing.T) {
 				tt.wantConsumed, tt.wantDigest, tt.wantSize)
 		}
 	}
+}
+
+func TestClose(t *testing.T) {
+	fds := func() (n int) {
+		openFdsVar.Do(func(kv expvar.KeyValue) {
+			if i, ok := kv.Value.(*expvar.Int); ok {
+				inc, _ := strconv.Atoi(i.String())
+				n += inc
+			}
+		})
+		return
+	}
+
+	fd0 := fds()
+	sto, cleanup := newTempDiskpackedMemory(t)
+	defer cleanup()
+	fd1 := fds()
+
+	s := sto.(*storage)
+
+	const blobSize = 5 << 10
+	b := &test.Blob{Contents: strings.Repeat("a", blobSize)}
+	br := b.BlobRef()
+
+	fd2 := fds()
+	_, err := blobserver.Receive(sto, br, b.Reader())
+	if err != nil {
+		t.Fatal(err)
+	}
+	fd3 := fds()
+
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	fd4 := fds()
+	got := fmt.Sprintf("%v %v %v %v %v", fd0, fd1, fd2, fd3, fd4)
+	want := "0 2 2 2 0"
+	if got != want {
+		t.Errorf("fd count over time = %q; want %q", got, want)
+	}
+
 }
