@@ -6,9 +6,11 @@
 installation for new users. Recognizing that most users don't have
 their own servers, we've been working on making it easier to run
 Camlistore on cloud providers. Initially we've targeted the <a
-href="https://cloud.google.com/">Google Cloud Platform</a>, making
-sure Camlistore is well-adapted to that environment. We now provide a
-web-based launcher for users go create new instances: </p>
+href="https://cloud.google.com/">Google Cloud Platform</a> and <a
+href="https://www.scaleway.com/">Scaleway</a>, making sure Camlistore
+is well-adapted to those environments. For users wishing to use Google
+Cloud Platform, we now provide a web-based launcher for users to
+create their own Camlistore instances:</p>
 
 <center>
 <div style='font-size:18pt;font-weight:bold;'>
@@ -16,28 +18,31 @@ web-based launcher for users go create new instances: </p>
 </div>
 </center>
 
-<p>
-Making Camlistore run well on cloud providers required two other major
-features: the <code>blobpacked</code> storage backend (for latency and
-cost reasons) and <a href="https://http2.github.io/">HTTP/2</a> (for
-latency reasons).
-</p>
+<p>For users wishing to use Scaleway, see our early <a
+href="https://github.com/scaleway-community/scaleway-camlistore">scaleway-camlistore
+image</a>. Our Scaleway image does not yet use Scaleway's Object Storage service, however,
+and puts all Camlistore data on the same volume as the Camlistore code itself, potentially complicating
+upgrades. It should be considered an early preview.</p>
 
-<p>
-The <code>blobpacked</code> storage backend allows faster reading & serving of
-files because it stores related blobs contiguously within larger container blobs (which
-are also valid zip files) instead of many small randomly dispersed blobs. See the <a
+<p>Making Camlistore run well on cloud providers required two other
+major features: the <code>blobpacked</code> storage backend (for
+latency and cost reasons) and <a
+href="https://http2.github.io/">HTTP/2</a> (for latency reasons).</p>
+
+<p>The <code>blobpacked</code> storage backend allows faster reading &
+serving of files because it stores related blobs contiguously within
+larger container blobs (which are also valid zip files) instead of
+many small randomly dispersed blobs. See the <a
 href="https://camlistore.org/pkg/blobserver/blobpacked">blobpacked
-package</a> documentation.
-</p>
+package</a> documentation.</p>
 
-<p> The Go <a href="https://http2.github.io/">HTTP/2</a>
-implementation was developed for both Camlistore and the Go standard
-library and will be included in Go 1.6. Camlistore 0.9 only requires
-Go 1.5 but includes a vendored copy of <a
+<p>The Go <a href="https://http2.github.io/">HTTP/2</a> implementation
+was developed for both Camlistore and the Go standard library and will
+be included in Go 1.6. Camlistore 0.9 only requires Go 1.5 but
+includes a vendored copy of <a
 href="https://godoc.org/golang.org/x/net/http2"><code>golang.org/x/net/http2</code></a>. See
 <a href="https://http2.golang.org/">https://http2.golang.org/</a> for
-a demo.  </p>
+a demo.</p>
 
 <p>
 Source release:
@@ -158,7 +163,7 @@ Aljammāz, Steven L. Speek, Tamás Gulácsi, Will Norris.
 
 <h3>Misc performance changes, bug fixes, clean-ups, etc.</h3>
 <ul>
-	<li><code>HTTP/2!</code>
+	<li><code>HTTP/2</code></li>
 	<li>make.go: improvements, refactoring, and cleanup.</li>
 	<li>Migration to new third_parties: <code>golang.org/x/oauth2</code>, <code>google.golang.org/cloud</code>, etc.</li>
 	<li>goexif: features and fixes, then contributed upstream.</li>
