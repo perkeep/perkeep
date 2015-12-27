@@ -391,15 +391,17 @@ func gceDeployHandlerConfig(ctx context.Context) (*gce.Config, error) {
 // - in production, the launcher-config.json file is not found in the relevant bucket
 // - neither CAMLI_GCE_CLIENTID is set, nor launcher-config.json is found in the
 // camlistore server config dir.
-func gceDeployHandler(ctx context.Context, prefix string) (http.Handler, error) {
+func gceDeployHandler(ctx context.Context, prefix string) (*gce.DeployHandler, error) {
 	var hostPort string
 	var err error
+	scheme := "https"
 	if inProd {
 		hostPort = "camlistore.org:443"
 	} else {
 		addr := *httpsAddr
 		if *devMode && *httpsAddr == "" {
 			addr = *httpAddr
+			scheme = "http"
 		}
 		hostPort, err = netutil.ListenHostPort(addr)
 		if err != nil {
@@ -416,14 +418,16 @@ func gceDeployHandler(ctx context.Context, prefix string) (http.Handler, error) 
 	if err != nil {
 		return nil, fmt.Errorf("NewDeployHandlerFromConfig: %v", err)
 	}
+
 	pageBytes, err := ioutil.ReadFile(filepath.Join(*root, "tmpl", "page.html"))
 	if err != nil {
 		return nil, err
 	}
-	if err := gceh.(*gce.DeployHandler).AddTemplateTheme(string(pageBytes)); err != nil {
+	if err := gceh.AddTemplateTheme(string(pageBytes)); err != nil {
 		return nil, fmt.Errorf("AddTemplateTheme: %v", err)
 	}
-	log.Printf("Starting Camlistore launcher on https://%s%s", hostPort, prefix)
+	gceh.SetScheme(scheme)
+	log.Printf("Starting Camlistore launcher on %s://%s%s", scheme, hostPort, prefix)
 	return gceh, nil
 }
 
@@ -684,15 +688,14 @@ func main() {
 		ctx = ctxt(projID)
 	}
 
-	var gceLauncher *gce.DeployHandler
-	if h, err := gceDeployHandler(ctx, "/launch/"); err != nil {
+	gceLauncher, err := gceDeployHandler(ctx, "/launch/")
+	if err != nil {
 		log.Printf("Not installing GCE /launch/ handler: %v", err)
 		mux.HandleFunc("/launch/", func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("GCE launcher disabled: %v", err), 500)
 		})
 	} else {
-		mux.Handle("/launch/", h)
-		gceLauncher = h.(*gce.DeployHandler)
+		mux.Handle("/launch/", gceLauncher)
 	}
 
 	var handler http.Handler = &noWwwHandler{Handler: mux}

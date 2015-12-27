@@ -132,8 +132,11 @@ func (conf *InstanceConf) bucketBase() string {
 
 // Deployer creates and starts an instance such as defined in Conf.
 type Deployer struct {
+	// Client is an OAuth2 client, authenticated for working with
+	// the user's Google Cloud resources.
 	Client *http.Client
-	Conf   *InstanceConf
+
+	Conf *InstanceConf
 
 	// SHA-1 and SHA-256 fingerprints of the HTTPS certificate created during setupHTTPS, if any.
 	// Keyed by hash name: "SHA-1", and "SHA-256".
@@ -485,11 +488,19 @@ func cloudConfig(conf *InstanceConf) string {
 
 // getInstalledTLS returns the TLS certificate and key stored on Google Cloud Storage for the
 // instance defined in d.Conf.
+//
+// If either the TLS keypair doesn't exist, the error is os.ErrNotExist.
 func (d *Deployer) getInstalledTLS() (certPEM, keyPEM []byte, err error) {
-	ctx := cloud.NewContext(d.Conf.Project, d.Client)
-	stoClient, err := cloudstorage.NewClient(ctx)
+	ctx := context.Background()
+	stoClient, err := cloudstorage.NewClient(ctx, cloud.WithBaseHTTP(d.Client))
+	if err != nil {
+		return nil, nil, fmt.Errorf("error creating Cloud Storage client to fetch TLS cert & key from new instance: %v", err)
+	}
 	getFile := func(name string) ([]byte, error) {
 		sr, err := stoClient.Bucket(d.Conf.bucketBase()).Object(path.Join(configDir, name)).NewReader(ctx)
+		if err == cloudstorage.ErrObjectNotExist {
+			return nil, os.ErrNotExist
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -635,6 +646,9 @@ func (d *Deployer) setFirewall(ctx context.Context, computeService *compute.Serv
 // It should be called after setBuckets.
 func (d *Deployer) setupHTTPS(storageService *storage.Service) error {
 	installedCert, _, err := d.getInstalledTLS()
+	if err != nil && err != os.ErrNotExist {
+		return err
+	}
 	if err == nil {
 		sigs, err := httputil.CertFingerprints(installedCert)
 		if err != nil {

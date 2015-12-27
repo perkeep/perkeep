@@ -93,7 +93,7 @@ func helpChangeCert() string {
 // DeployHandler serves a wizard that helps with the deployment of Camlistore on Google
 // Compute Engine. It must be initialized with NewDeployHandler.
 type DeployHandler struct {
-	scheme   string                   // URL scheme for the URLs served by this handler. Defaults to "https://".
+	scheme   string                   // URL scheme for the URLs served by this handler. Defaults to "https".
 	host     string                   // URL host for the URLs served by this handler.
 	prefix   string                   // prefix is the pattern for which this handler is registered as an http.Handler.
 	help     map[string]template.HTML // various help bits used in the served pages, keyed by relevant names.
@@ -140,7 +140,7 @@ type Config struct {
 
 // NewDeployHandlerFromConfig initializes a DeployHandler from cfg.
 // Host and prefix have the same meaning as for NewDeployHandler. cfg should not be nil.
-func NewDeployHandlerFromConfig(host, prefix string, cfg *Config) (http.Handler, error) {
+func NewDeployHandlerFromConfig(host, prefix string, cfg *Config) (*DeployHandler, error) {
 	if cfg == nil {
 		panic("NewDeployHandlerFromConfig: nil config")
 	}
@@ -161,7 +161,7 @@ func NewDeployHandlerFromConfig(host, prefix string, cfg *Config) (http.Handler,
 // NewDeployHandler initializes a DeployHandler that serves at https://host/prefix/ and returns it.
 // A Google account client ID should be set in CAMLI_GCE_CLIENTID with its corresponding client
 // secret in CAMLI_GCE_CLIENTSECRET.
-func NewDeployHandler(host, prefix string) (http.Handler, error) {
+func NewDeployHandler(host, prefix string) (*DeployHandler, error) {
 	clientID := os.Getenv("CAMLI_GCE_CLIENTID")
 	if clientID == "" {
 		return nil, errors.New("Need an oauth2 client ID defined in CAMLI_GCE_CLIENTID")
@@ -176,7 +176,7 @@ func NewDeployHandler(host, prefix string) (http.Handler, error) {
 	}
 	host = strings.TrimSuffix(host, "/")
 	prefix = strings.TrimSuffix(prefix, "/")
-	scheme := "https://"
+	scheme := "https"
 	xsrfKey := os.Getenv("CAMLI_GCE_XSRFKEY")
 	if xsrfKey == "" {
 		xsrfKey = auth.RandToken(20)
@@ -246,6 +246,16 @@ func (h *DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
 }
 
+func (h *DeployHandler) SetScheme(scheme string) { h.scheme = scheme }
+
+// authenticatedClient returns the GCE project running the /launch/
+// app (e.g. "camlistore-website" usually for the main instance) and
+// an authenticated OAuth2 client acting as that service account.
+// This is only used for refreshing the list of valid zones to give to
+// the user in a drop-down.
+
+// If we're not running on GCE (e.g. dev mode on localhost) and have
+// no other way to get the info, the error value is is errNoRefresh.
 func (h *DeployHandler) authenticatedClient() (project string, hc *http.Client, err error) {
 	project = os.Getenv("CAMLI_GCE_PROJECT")
 	accountFile := os.Getenv("CAMLI_GCE_SERVICE_ACCOUNT")
@@ -380,7 +390,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 	ck, err := r.Cookie("user")
 	if err != nil {
 		http.Error(w,
-			fmt.Sprintf("Cookie expired, or CSRF attempt. Restart from %s%s%s", h.scheme, h.host, h.prefix),
+			fmt.Sprintf("Cookie expired, or CSRF attempt. Restart from %s://%s%s", h.scheme, h.host, h.prefix),
 			http.StatusBadRequest)
 		h.logger.Printf("Cookie expired, or CSRF attempt on callback.")
 		return
@@ -711,7 +721,7 @@ func (h *DeployHandler) serveError(w http.ResponseWriter, r *http.Request, err e
 
 func (h *DeployHandler) oAuthConfig() *oauth2.Config {
 	oauthConfig := NewOAuthConfig(h.clientID, h.clientSecret)
-	oauthConfig.RedirectURL = fmt.Sprintf("%s%s%s/callback", h.scheme, h.host, h.prefix)
+	oauthConfig.RedirectURL = fmt.Sprintf("%s://%s%s/callback", h.scheme, h.host, h.prefix)
 	return oauthConfig
 }
 
@@ -969,12 +979,12 @@ func tplHTML() string {
 
 	{{if .InstanceIP}}
 		<p>Success. Your Camlistore instance should be up at <a href="https://{{.InstanceIP}}">https://{{.InstanceIP}}</a>. It can take a couple of minutes to be ready.</p>
-		<p>Please save the information on this page in case you need to come back for the instruction.</p>
+		<p>Please save the information on this page.</p>
 
 		<h4>First connection</h4>
 		<p>
 		A self-signed HTTPS certificate was automatically generated with "{{.Conf.Hostname}}" as the common name.<br>
-		You will need to add an exception for it in your browser when you get a security warning the first time you connect. At which point you should check that the certificate fingerprint matches one of:
+		You will need to add an exception for it in your browser when you get a security warning the first time you connect. When you add a trusted certificate, verify that its certificate fingerprint matches one of:
 		<table>
 			<tr><td align=right>SHA-1</td><td><code style="color:blue">{{.CertFingerprintSHA1}}</code></td></tr>
 			<tr><td align=right>SHA-256</td><td><code style="color:blue">{{.CertFingerprintSHA256}}</code></td></tr>
@@ -994,8 +1004,15 @@ func tplHTML() string {
 		If you want to use your own HTTPS certificate and key, go to <a href="https://console.developers.google.com/project/{{.Conf.Project}}/storage/browser/{{.Conf.Project}}-camlistore/config/">the storage browser</a>. Delete "<b>` + certFilename() + `</b>", "<b>` + keyFilename() + `</b>", and replace them by uploading your own files (with the same names). Then <a href="https://{{.InstanceIP}}/status">restart</a> Camlistore.
 		</p>
 
-		<p>
-		To manage/add SSH keys, go to the <a href="{{.ProjectConsoleURL}}/instancesDetail/zones/{{.Conf.Zone}}/instances/camlistore-server">camlistore-server instance</a> page. Scroll down to the SSH Keys section.
+		<p> Camlistore should not require system
+administration but to manage/add SSH keys, go to the <a
+href="{{.ProjectConsoleURL}}/instancesDetail/zones/{{.Conf.Zone}}/instances/camlistore-server">camlistore-server
+instance</a> page. Scroll down to the SSH Keys section. Note that the
+machine can be deleted or wiped at any time without losing
+information. All state is stored in Cloud Storage. The index, however,
+is stored in MySQL on the instance. The index can be rebuilt if lost
+or corrupted.</p>
+
 		</p>
 	{{end}}
 	{{if .Err}}
