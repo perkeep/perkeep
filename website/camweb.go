@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"html/template"
@@ -74,6 +75,7 @@ var (
 	buildbotBackend = flag.String("buildbot_backend", "", "[optional] Build bot status backend URL")
 	buildbotHost    = flag.String("buildbot_host", "", "[optional] Hostname to map to the buildbot_backend. If an HTTP request with this hostname is received, it proxies to buildbot_backend.")
 	alsoRun         = flag.String("also_run", "", "[optiona] Path to run as a child process. (Used to run camlistore.org's ./scripts/run-blob-server)")
+	devMode         = flag.Bool("dev", false, "in dev mode")
 
 	gceProjectID = flag.String("gce_project_id", "", "GCE project ID; required if not running on GCE and gce_log_name is specified.")
 	gceLogName   = flag.String("gce_log_name", "", "GCE Cloud Logging log name; if non-empty, logs go to Cloud Logging instead of Apache-style local disk log files")
@@ -372,15 +374,9 @@ func gceDeployHandlerConfig(ctx context.Context) (*gce.Config, error) {
 		}, nil
 	}
 	configFile := filepath.Join(osutil.CamliConfigDir(), "launcher-config.json")
-	if _, err := os.Stat(configFile); err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("Could not stat %v: %v", configFile, err)
-	}
 	data, err := ioutil.ReadFile(configFile)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error reading launcher-config.json (expected of type https://godoc.org/camlistore.org/pkg/deploy/gce#Config): %v", err)
 	}
 	var config gce.Config
 	if err := json.Unmarshal(data, &config); err != nil {
@@ -389,47 +385,46 @@ func gceDeployHandlerConfig(ctx context.Context) (*gce.Config, error) {
 	return &config, nil
 }
 
-// gceDeployHandler conditionally returns an http.Handler for a GCE launcher,
+// gceDeployHandler returns an http.Handler for a GCE launcher,
 // configured to run at /prefix/ (the trailing slash can be omitted).
 // The launcher is not initialized if:
 // - in production, the launcher-config.json file is not found in the relevant bucket
 // - neither CAMLI_GCE_CLIENTID is set, nor launcher-config.json is found in the
 // camlistore server config dir.
-// If a launcher isn't enabled, gceDeployHandler returns nil. If another error occurs,
-// log.Fatal is called.
-func gceDeployHandler(ctx context.Context, prefix string) http.Handler {
+func gceDeployHandler(ctx context.Context, prefix string) (http.Handler, error) {
 	var hostPort string
 	var err error
 	if inProd {
 		hostPort = "camlistore.org:443"
 	} else {
-		hostPort, err = netutil.HostPort("https://" + *httpsAddr)
+		addr := *httpsAddr
+		if *devMode && *httpsAddr == "" {
+			addr = *httpAddr
+		}
+		hostPort, err = netutil.ListenHostPort(addr)
 		if err != nil {
-			// The deploy handler unfortunately needs to know its own host because of the oauth2 callback
-			log.Print("Starting without a GCE deploy handler because we need -https host:port")
-			return nil
+			// the deploy handler needs to know its own
+			// hostname or IP for the oauth2 callback.
+			return nil, fmt.Errorf("invalid -https flag: %v", err)
 		}
 	}
 	config, err := gceDeployHandlerConfig(ctx)
 	if config == nil {
-		if err != nil {
-			log.Printf("Starting without a GCE deploy handler because: %v", err)
-		}
-		return nil
+		return nil, err
 	}
 	gceh, err := gce.NewDeployHandlerFromConfig(hostPort, prefix, config)
 	if err != nil {
-		log.Fatalf("Error initializing gce deploy handler: %v", err)
+		return nil, fmt.Errorf("NewDeployHandlerFromConfig: %v", err)
 	}
 	pageBytes, err := ioutil.ReadFile(filepath.Join(*root, "tmpl", "page.html"))
 	if err != nil {
-		log.Fatalf("Error initializing gce deploy handler: %v", err)
+		return nil, err
 	}
 	if err := gceh.(*gce.DeployHandler).AddTemplateTheme(string(pageBytes)); err != nil {
-		log.Fatalf("Error initializing gce deploy handler: %v", err)
+		return nil, fmt.Errorf("AddTemplateTheme: %v", err)
 	}
 	log.Printf("Starting Camlistore launcher on https://%s%s", hostPort, prefix)
-	return gceh
+	return gceh, nil
 }
 
 var launchConfig = &cloudlaunch.Config{
@@ -459,6 +454,9 @@ func setProdFlags() {
 	inProd = checkInProduction()
 	if !inProd {
 		return
+	}
+	if *devMode {
+		log.Fatal("can't use dev mode in production")
 	}
 	log.Printf("Running in production; configuring prod flags & containers")
 	*httpAddr = ":80"
@@ -687,11 +685,14 @@ func main() {
 	}
 
 	var gceLauncher *gce.DeployHandler
-	if *httpsAddr != "" {
-		if launcher := gceDeployHandler(ctx, "/launch/"); launcher != nil {
-			mux.Handle("/launch/", launcher)
-			gceLauncher = launcher.(*gce.DeployHandler)
-		}
+	if h, err := gceDeployHandler(ctx, "/launch/"); err != nil {
+		log.Printf("Not installing GCE /launch/ handler: %v", err)
+		mux.HandleFunc("/launch/", func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, fmt.Sprintf("GCE launcher disabled: %v", err), 500)
+		})
+	} else {
+		mux.Handle("/launch/", h)
+		gceLauncher = h.(*gce.DeployHandler)
 	}
 
 	var handler http.Handler = &noWwwHandler{Handler: mux}
@@ -721,8 +722,8 @@ func main() {
 		}
 	}
 
-	errc := make(chan error)
-	startEmailCommitLoop(errc)
+	emailErr := make(chan error)
+	startEmailCommitLoop(emailErr)
 
 	if *alsoRun != "" {
 		runAsChild(*alsoRun)
@@ -734,19 +735,28 @@ func main() {
 		ReadTimeout:  5 * time.Minute,
 		WriteTimeout: 30 * time.Minute,
 	}
+
+	httpErr := make(chan error)
 	go func() {
 		log.Printf("Listening for HTTP on %v", *httpAddr)
-		errc <- httpServer.ListenAndServe()
+		httpErr <- httpServer.ListenAndServe()
 	}()
 
+	httpsErr := make(chan error)
 	if *httpsAddr != "" {
 		go func() {
-			errc <- serveHTTPS(ctx, httpServer)
+			httpsErr <- serveHTTPS(ctx, httpServer)
 		}()
 	}
 
-	log.Fatalf("Serve error: %v", <-errc)
-
+	select {
+	case err := <-emailErr:
+		log.Fatalf("Error sending emails: %v", err)
+	case err := <-httpErr:
+		log.Fatalf("Error serving HTTP: %v", err)
+	case err := <-httpsErr:
+		log.Fatalf("Error serving HTTPS: %v", err)
+	}
 }
 
 func serveHTTPS(ctx context.Context, httpServer *http.Server) error {
@@ -755,11 +765,17 @@ func serveHTTPS(ctx context.Context, httpServer *http.Server) error {
 	*httpsServer = *httpServer
 	httpsServer.Addr = *httpsAddr
 	if !inProd {
+		if *tlsCertFile == "" {
+			return errors.New("unspecified --tlscert flag")
+		}
+		if *tlsKeyFile == "" {
+			return errors.New("unspecified --tlskey flag")
+		}
 		return httpsServer.ListenAndServeTLS(*tlsCertFile, *tlsKeyFile)
 	}
 	cert, err := tlsCertFromGCS(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("error loading TLS certs from GCS: %v", err)
 	}
 	httpsServer.TLSConfig = &tls.Config{
 		Certificates: []tls.Certificate{*cert},
