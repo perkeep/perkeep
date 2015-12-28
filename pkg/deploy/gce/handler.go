@@ -1041,8 +1041,8 @@ before proceeding. Note that Camlistore metadata adds overhead on top of the siz
 of any raw data added to your instance. To delete your
 instance and stop paying Google for the virtual machine, visit the <a
 href="https://console.developers.google.com/">Google Cloud console</a>
-and visit both the "Compute Engine" and "Storage" sections.
-.  </p>
+and visit both the "Compute Engine" and "Storage" sections for your project.
+</p>
 
 		<table border=0 cellpadding=3 style='margin-top: 2em'>
 			<tr valign=top><td align=right><nobr>Google Project ID:</nobr></td><td margin=left><input name="project" size=30 value=""><br>
