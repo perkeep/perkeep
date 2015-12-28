@@ -79,9 +79,9 @@ At least one of these must be set:
 * `memoryStorage`: if true, blobs will be stored in memory only. This is
   generally only useful for debugging & development.
 * `blobPath`: local disk path to store blobs. (valid for diskpacked too).
-* `s3`: "`key:secret:bucket`" or "`key:secret:bucket:hostname`" (with colons,
+* `s3`: "`key:secret:bucket[/optional/dir]`" or "`key:secret:bucket[/optional/dir]:hostname`" (with colons,
   but no quotes).
-* `googlecloudstorage`: "`clientId:clientSecret:refreshToken:bucketName`"
+* `googlecloudstorage`: "`clientId:clientSecret:refreshToken:bucketName[/optional/dir]`"
 
 Additionally, there are two mutually exclusive options which only apply if `blobPath` is set:
 
