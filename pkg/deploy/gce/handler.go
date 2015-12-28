@@ -665,19 +665,20 @@ func (h *DeployHandler) confFromForm(r *http.Request) (*InstanceConf, error) {
 	if project == "" {
 		return nil, errors.New("missing project parameter")
 	}
-	zone := formValueOrDefault(r, "zone", defaultRegion)
-	// heuristics for region vs zone: region has 1 dash in it, while zone has 2.
-	switch dash := strings.Count(zone, "-"); dash {
-	case 1:
-		zone = h.randomZone(zone)
-	case 2:
-	default:
-		return nil, errors.New("invalid zone")
+	var zone string
+	zoneReg := formValueOrDefault(r, "zone", DefaultRegion)
+	if LooksLikeRegion(zoneReg) {
+		region := zoneReg
+		zone = h.randomZone(region)
+	} else if strings.Count(zoneReg, "-") == 2 {
+		zone = zoneReg
+	} else {
+		return nil, errors.New("invalid zone or region")
 	}
 	return &InstanceConf{
-		Name:     formValueOrDefault(r, "name", InstanceName),
+		Name:     formValueOrDefault(r, "name", DefaultInstanceName),
 		Project:  project,
-		Machine:  formValueOrDefault(r, "machine", Machine),
+		Machine:  formValueOrDefault(r, "machine", DefaultMachineType),
 		Zone:     zone,
 		Hostname: formValueOrDefault(r, "hostname", "localhost"),
 		SSHPub:   formValueOrDefault(r, "sshPub", ""),
@@ -1064,7 +1065,7 @@ and visit both the "Compute Engine" and "Storage" sections for your project.
                                    <span style="font-size:75%"><i>(Optional)</i> New password for your Camlistore server's <b>camlistore</b> user. <b>NOT</b> your Google account's password. If blank, a random password is generated and instructions for finding it are provided on the next step.</span>
                           </td></tr>
 			<tr valign=top><td align=right><nobr><a href="{{.Help.zones}}">Zone</a> or Region</nobr>:</td><td>
-				<input name="zone" list="regions" value="` + defaultRegion + `">
+				<input name="zone" list="regions" value="` + DefaultRegion + `">
 				<datalist id="regions">
 				{{range $k, $v := .ZoneValues}}
 					<option value={{$v}}>{{$v}}</option>
@@ -1110,4 +1111,26 @@ and visit both the "Compute Engine" and "Storage" sections for your project.
 </html>
 {{end}}
 `
+}
+
+// TODO(bradfitz,mpl): move this to go4.org/cloud/google/gceutil
+func ZonesOfRegion(hc *http.Client, project, region string) (zones []string, err error) {
+	s, err := compute.New(hc)
+	if err != nil {
+		return nil, err
+	}
+	zl, err := compute.NewZonesService(s).List(project).Do()
+	if err != nil {
+		return nil, fmt.Errorf("could not get a list of zones: %v", err)
+	}
+	if zl.NextPageToken != "" {
+		return nil, errors.New("TODO: more than one page of zones found; use NextPageToken")
+	}
+	for _, z := range zl.Items {
+		if path.Base(z.Region) != region {
+			continue
+		}
+		zones = append(zones, z.Name)
+	}
+	return zones, nil
 }

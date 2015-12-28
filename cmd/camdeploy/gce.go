@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"os"
 	"strings"
 
@@ -49,9 +50,9 @@ func init() {
 	cmdmain.RegisterCommand("gce", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(gceCmd)
 		flags.StringVar(&cmd.project, "project", "", "Name of Project.")
-		flags.StringVar(&cmd.zone, "zone", gce.Zone, "GCE zone.")
-		flags.StringVar(&cmd.machine, "machine", gce.Machine, "e.g. n1-standard-1, f1-micro, g1-small")
-		flags.StringVar(&cmd.instName, "instance_name", gce.InstanceName, "Name of VM instance.")
+		flags.StringVar(&cmd.zone, "zone", gce.DefaultRegion, "GCE zone or region. If a region is given, a random zone in that region is selected. See https://cloud.google.com/compute/docs/zones")
+		flags.StringVar(&cmd.machine, "machine", gce.DefaultMachineType, "GCE machine type (e.g. n1-standard-1, f1-micro, g1-small); see https://cloud.google.com/compute/docs/machine-types")
+		flags.StringVar(&cmd.instName, "instance_name", gce.DefaultInstanceName, "Name of VM instance.")
 		flags.StringVar(&cmd.hostname, "hostname", "", "Hostname for the instance and self-signed certificates. Must be given if generating self-signed certs.")
 		flags.StringVar(&cmd.certFile, "cert", "", "Certificate file for TLS. A self-signed one will be generated if this flag is omitted.")
 		flags.StringVar(&cmd.keyFile, "key", "", "Key file for the TLS certificate. Must be given with --cert")
@@ -99,14 +100,55 @@ func (c *gceCmd) RunCommand(args []string) error {
 	if c.certFile == "" && c.hostname == "" {
 		return cmdmain.UsageError("Either --hostname, or --cert & --key must provided.")
 	}
-	config := gce.NewOAuthConfig(readFile(clientIdDat), readFile(clientSecretDat))
+
+	// We embed the client ID and client secret, per
+	// https://developers.google.com/identity/protocols/OAuth2InstalledApp
+	// Notably: "The client ID and client secret obtained from the
+	// Developers Console are embedded in the source code of your
+	// application. In this context, the client secret is
+	// obviously not treated as a secret."
+	//
+	// These were created at:
+	// https://console.developers.google.com/apis/credentials?project=camlistore-website
+	// (Notes for Brad and Mathieu)
+	const (
+		clientID     = "574004351801-9qqoggh6b5v3jqt722v43ikmgmtv60h3.apps.googleusercontent.com"
+		clientSecret = "Gf1zwaOcbJnRTE5zD4feKaTI" // NOT a secret, despite name
+	)
+	config := gce.NewOAuthConfig(clientID, clientSecret)
 	config.RedirectURL = "urn:ietf:wg:oauth:2.0:oob"
+
+	hc := oauth2.NewClient(oauth2.NoContext, oauth2.ReuseTokenSource(nil, &oauthutil.TokenSource{
+		Config:    config,
+		CacheFile: c.project + "-token.json",
+		AuthCode: func() string {
+			fmt.Println("Get auth code from:")
+			fmt.Printf("%v\n\n", config.AuthCodeURL("my-state", oauth2.AccessTypeOffline, oauth2.ApprovalForce))
+			fmt.Print("Enter auth code: ")
+			sc := bufio.NewScanner(os.Stdin)
+			sc.Scan()
+			return strings.TrimSpace(sc.Text())
+		},
+	}))
+
+	zone := c.zone
+	if gce.LooksLikeRegion(zone) {
+		region := zone
+		zones, err := gce.ZonesOfRegion(hc, c.project, region)
+		if err != nil {
+			return err
+		}
+		if len(zones) == 0 {
+			return fmt.Errorf("no zones found in region %q; invalid region?", region)
+		}
+		zone = zones[rand.Intn(len(zones))]
+	}
 
 	instConf := &gce.InstanceConf{
 		Name:     c.instName,
 		Project:  c.project,
 		Machine:  c.machine,
-		Zone:     c.zone,
+		Zone:     zone,
 		CertFile: c.certFile,
 		KeyFile:  c.keyFile,
 		Hostname: c.hostname,
@@ -115,27 +157,17 @@ func (c *gceCmd) RunCommand(args []string) error {
 		instConf.SSHPub = strings.TrimSpace(readFile(c.sshPub))
 	}
 
+	log.Printf("Creating instance %s (in project %s) in zone %s ...", c.instName, c.project, zone)
 	depl := &gce.Deployer{
-		Client: oauth2.NewClient(oauth2.NoContext, oauth2.ReuseTokenSource(nil, &oauthutil.TokenSource{
-			Config:    config,
-			CacheFile: c.project + "-token.json",
-			AuthCode: func() string {
-				fmt.Println("Get auth code from:")
-				fmt.Printf("%v\n", config.AuthCodeURL("my-state", oauth2.AccessTypeOffline, oauth2.ApprovalForce))
-				fmt.Println("Enter auth code:")
-				sc := bufio.NewScanner(os.Stdin)
-				sc.Scan()
-				return strings.TrimSpace(sc.Text())
-			},
-		})),
-		Conf: instConf,
+		Client: hc,
+		Conf:   instConf,
 	}
-	inst, err := depl.Create(context.TODO())
+	inst, err := depl.Create(context.Background())
 	if err != nil {
 		return err
 	}
 
-	log.Printf("Instance is up at %s", inst.NetworkInterfaces[0].AccessConfigs[0].NatIP)
+	log.Printf("Instance created; starting up at %s", inst.NetworkInterfaces[0].AccessConfigs[0].NatIP)
 	return nil
 }
 

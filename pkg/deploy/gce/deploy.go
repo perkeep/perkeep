@@ -56,16 +56,13 @@ import (
 )
 
 const (
+	DefaultInstanceName = "camlistore-server"
+	DefaultMachineType  = "g1-small"
+	DefaultRegion       = "us-central1"
+
 	projectsAPIURL = "https://www.googleapis.com/compute/v1/projects/"
 
-	// default instance configuration values.
-	// TODO(mpl): they can probably be lowercased now that handler.go is in the same
-	// package. Just need to verify camdeploy does not need them.
-	InstanceName = "camlistore-server"
-	Machine      = "g1-small"
-
-	defaultRegion = "us-central1"
-	fallbackZone  = "us-central1-a"
+	fallbackZone = "us-central1-a"
 
 	camliUsername = "camlistore" // directly set in compute metadata, so not user settable.
 
@@ -115,7 +112,7 @@ type InstanceConf struct {
 	Name     string // Name given to the virtual machine instance.
 	Project  string // Google project ID where the instance is created.
 	Machine  string // Machine type.
-	Zone     string // Geographic zone.
+	Zone     string // GCE zone; see https://cloud.google.com/compute/docs/zones
 	SSHPub   string // SSH public key.
 	CertFile string // HTTPS certificate file.
 	KeyFile  string // HTTPS key file.
@@ -344,6 +341,11 @@ func randPassword() string {
 		log.Fatalf("crypto/rand.Read = %v, %v", n, err)
 	}
 	return fmt.Sprintf("%x", buf)
+}
+
+// LooksLikeRegion reports whether s looks like a GCE region.
+func LooksLikeRegion(s string) bool {
+	return strings.Count(s, "-") == 1
 }
 
 // createInstance starts the creation of the Compute Engine instance and waits for the
