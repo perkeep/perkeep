@@ -67,11 +67,6 @@ var (
 	helpZones        = "https://cloud.google.com/compute/docs/zones#available"
 	helpSSH          = "https://cloud.google.com/compute/docs/console#sshkeys"
 
-	formDefaults = map[string]string{
-		"name":    InstanceName,
-		"machine": Machine,
-		"zone":    Zone,
-	}
 	machineValues = []string{
 		"g1-small",
 		"n1-highcpu-2",
@@ -347,7 +342,6 @@ func (h *DeployHandler) serveRoot(w http.ResponseWriter, r *http.Request) {
 	if err := h.tpl.ExecuteTemplate(w, "withform", &TemplateData{
 		Prefix:        h.prefix,
 		Help:          h.help,
-		Defaults:      formDefaults,
 		ZoneValues:    h.zoneValues(),
 		MachineValues: machineValues,
 	}); err != nil {
@@ -543,7 +537,6 @@ func (h *DeployHandler) serveFormError(w http.ResponseWriter, err error, hints .
 		Help:          h.help,
 		Err:           err,
 		Hints:         topHints,
-		Defaults:      formDefaults,
 		ZoneValues:    h.zoneValues(),
 		MachineValues: machineValues,
 	}); tplErr != nil {
@@ -595,7 +588,6 @@ func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Reques
 			Conf:                  conf,
 			CertFingerprintSHA1:   state.CertFingerprintSHA1,
 			CertFingerprintSHA256: state.CertFingerprintSHA256,
-			Defaults:              formDefaults,
 			ZoneValues:            h.zoneValues(),
 			MachineValues:         machineValues,
 		})
@@ -673,7 +665,7 @@ func (h *DeployHandler) confFromForm(r *http.Request) (*InstanceConf, error) {
 	if project == "" {
 		return nil, errors.New("missing project parameter")
 	}
-	zone := formValueOrDefault(r, "zone", Zone)
+	zone := formValueOrDefault(r, "zone", defaultRegion)
 	// heuristics for region vs zone: region has 1 dash in it, while zone has 2.
 	switch dash := strings.Count(zone, "-"); dash {
 	case 1:
@@ -703,7 +695,7 @@ func (h *DeployHandler) randomZone(region string) string {
 	defer h.zonesMu.RUnlock()
 	zones, ok := h.zones[region]
 	if !ok {
-		return Zone
+		return fallbackZone
 	}
 	return region + zones[rand.Intn(len(zones))]
 }
@@ -859,7 +851,6 @@ type TemplateData struct {
 	Title                 string
 	Help                  map[string]template.HTML // help bits within the form.
 	Hints                 []string                 // helping hints printed in case of an error.
-	Defaults              map[string]string        // defaults values for the form fields.
 	Err                   error
 	Prefix                string        // handler prefix.
 	InstanceKey           string        // instance creation identifier, for the JS code to regularly poll for progress.
@@ -1016,7 +1007,7 @@ or corrupted.</p>
 		</p>
 	{{end}}
 	{{if .Err}}
-		<p style="color:red">{{.Err}}</p>
+		<p style="color:red"><b>Error:</b> {{.Err}}</p>
 		{{range $hint := .Hints}}
 			<p style="color:red">{{$hint}}</p>
 		{{end}}
@@ -1037,16 +1028,26 @@ or corrupted.</p>
 	<form method="post" enctype="multipart/form-data">
 		<input type='hidden' name="mode" value="setupproject">
 
-		<h3>Deploy Camlistore on Google Cloud</h3>
+		<h3>Deploy Camlistore</h3>
 
-		<p>
-This tool helps you create your own private Camlistore instance running on Google's cloud. Be sure to understand <a href="https://cloud.google.com/compute/pricing#machinetype">Google Compute Engine's pricing</a> before proceeding. To delete your instance and stop paying Google for the virtual machine, visit the <a href="https://console.developers.google.com/">Google Cloud console</a>.
-		</p>
+		<p> This tool creates your own private
+Camlistore instance running on <a
+href="https://cloud.google.com/">Google Cloud Platform</a>. Be sure to
+understand <a
+href="https://cloud.google.com/compute/pricing#machinetype">Compute Engine pricing</a>
+and
+<a href="https://cloud.google.com/storage/pricing">Cloud Storage pricing</a>
+before proceeding. Note that Camlistore metadata adds overhead on top of the size
+of any raw data added to your instance. To delete your
+instance and stop paying Google for the virtual machine, visit the <a
+href="https://console.developers.google.com/">Google Cloud console</a>
+and visit both the "Compute Engine" and "Storage" sections.
+.  </p>
 
-		<table border=0 cellpadding=3>
-			<tr valign=top><td align=right>Project ID</td><td margin=left><input name="project" size=30 value=""><br>
+		<table border=0 cellpadding=3 style='margin-top: 2em'>
+			<tr valign=top><td align=right><nobr>Google Project ID:</nobr></td><td margin=left><input name="project" size=30 value=""><br>
 		<ul style="padding-left:0;margin-left:0;font-size:75%">
-			<li>Select a <a href="` + ConsoleURL + `">Google Project</a> in which to create the VM. If it doesn't already exist, <a href="` + ConsoleURL + `">create it</a> first before using this Camlistore creation tool.</li>
+			<li>Select a <a href="https://console.developers.google.com/project">Google Project</a> in which to create the VM. If it doesn't already exist, <a href="https://console.developers.google.com/project">create it</a> first before using this Camlistore creation tool.</li>
 			<li>Requirements:</li>
 			<ul>
 				<li>Enable billing. (Billing & settings)</li>
@@ -1057,25 +1058,28 @@ This tool helps you create your own private Camlistore instance running on Googl
 			</ul>
 		</ul>
 		</td></tr>
-			<tr><td align=right>New password</td><td><input name="password" size=30 value="{{.Defaults.password}}"></td><td></td></tr>
-			<tr><td align=right></td><td style="font-size:75%">New password for your Camlistore server.</td><td></td></tr>
-			<tr><td align=right><a href="{{.Help.zones}}">Zone</a></td><td>
-				<input name="zone" list="regions" value="` + Zone + `">
+			<tr valign=top>
+                           <td align=right><nobr>Password:</nobr></td>
+                           <td><input name="password" size=30><br/>
+                                   <span style="font-size:75%"><i>(Optional)</i> New password for your Camlistore server's <b>camlistore</b> user. <b>NOT</b> your Google account's password. If blank, a random password is generated and instructions for finding it are provided on the next step.</span>
+                          </td></tr>
+			<tr valign=top><td align=right><nobr><a href="{{.Help.zones}}">Zone</a> or Region</nobr>:</td><td>
+				<input name="zone" list="regions" value="` + defaultRegion + `">
 				<datalist id="regions">
 				{{range $k, $v := .ZoneValues}}
 					<option value={{$v}}>{{$v}}</option>
 				{{end}}
-				</datalist>
+				</datalist><br/><span style="font-size:75%">If a region is specified, a random zone (-a, -b, -c, etc) in that region will be selected.</span>
 			</td></tr>
-			<tr><td align=right><a href="{{.Help.machineTypes}}">Machine type</a></td><td>
+			<tr valign=top><td align=right><a href="{{.Help.machineTypes}}">Machine type</a>:</td><td>
 				<input name="machine" list="machines" value="g1-small">
 				<datalist id="machines">
 				{{range $k, $v := .MachineValues}}
 					<option value={{$v}}>{{$v}}</option>
 				{{end}}
-				</datalist>
+				</datalist><br/><span style="font-size:75%">As of 2015-12-27, a g1-small is $13.88 (USD) per month, before storage usage charges. See <a href="https://cloud.google.com/compute/pricing#machinetype">current pricing</a>.</span>
 			</td></tr>
-			<tr><td></td><td><input type='submit' value="Create instance"><br><span style="font-size:75%">(it will ask for permissions)</span></td></tr>
+			<tr><td></td><td><input type='submit' value="Create instance" style='background: #ffdb00; padding: 0.5em; font-weight: bold'><br><span style="font-size:75%">(it will ask for permissions)</span></td></tr>
 		</table>
 	</form>
 	</div>

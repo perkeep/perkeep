@@ -22,6 +22,7 @@ package gce
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -60,9 +61,12 @@ const (
 	// default instance configuration values.
 	// TODO(mpl): they can probably be lowercased now that handler.go is in the same
 	// package. Just need to verify camdeploy does not need them.
-	InstanceName  = "camlistore-server"
-	Machine       = "g1-small"
-	Zone          = "us-central1-a"
+	InstanceName = "camlistore-server"
+	Machine      = "g1-small"
+
+	defaultRegion = "us-central1"
+	fallbackZone  = "us-central1-a"
+
 	camliUsername = "camlistore" // directly set in compute metadata, so not user settable.
 
 	configDir = "config"
@@ -325,6 +329,23 @@ func (d *Deployer) Create(ctx context.Context) (*compute.Instance, error) {
 	return inst, nil
 }
 
+// TODO(bradfitz,mpl): stop generating a password on camlistore.org
+// and have the instance create its own password on first boot
+// instead. We shouldn't even ask users for the initial optional
+// password, though. But let's not block the 0.9 release on this
+// because regardless the users are already trusting us with their GCE
+// OAuth scope to create their instance (so if we were evil we could
+// do whatever already). But it raises unnecessary questions. Once we do
+// ACME (LetsEncrypt.org) on their instance, we also don't need to
+// generate their TLS certs for them.
+func randPassword() string {
+	buf := make([]byte, 5)
+	if n, err := rand.Read(buf); err != nil || n != len(buf) {
+		log.Fatalf("crypto/rand.Read = %v, %v", n, err)
+	}
+	return fmt.Sprintf("%x", buf)
+}
+
 // createInstance starts the creation of the Compute Engine instance and waits for the
 // result of the creation operation. It should be called after setBuckets and setupHTTPS.
 func (d *Deployer) createInstance(computeService *compute.Service, ctx context.Context) error {
@@ -337,7 +358,7 @@ func (d *Deployer) createInstance(computeService *compute.Service, ctx context.C
 	config := cloudConfig(d.Conf)
 	password := d.Conf.Password
 	if password == "" {
-		password = d.Conf.Project
+		password = randPassword()
 	}
 	instance := &compute.Instance{
 		Name:        d.Conf.Name,
