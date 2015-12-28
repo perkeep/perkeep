@@ -1,0 +1,9 @@
+How to build a release tarball:
+
+$ go run ./misc/docker/run.go -build_image=false -build_release=true -rev=$GIT_REVISION -tarball_version=0.9
+
+will generate ./misc/docker/release/camlistore0.9-linux.tar.gz
+
+use -os to build the binaries for another OS: windows or darwin.
+
+use -upload=true to directly upload the tarball to the camlistore-release/0.9/ Google Cloud bucket.
