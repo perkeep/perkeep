@@ -200,6 +200,12 @@ Aljammāz, Steven L. Speek, Tamás Gulácsi, Will Norris.
 	<li>New memory blobserver.</li>
 </ul>
 
+<h3>Vendoring</h3>
+<ul>
+	<li>With the arrival of the <a href="https://golang.org/s/go15vendor">new vendoring mechanism in Go 1.5</a> (on by default in Go 1.6), we started moving our vendored libraries from the <code>third_party</code> directory to the <code>vendor</code> directory (as is the convention for the new mechanism). This means we do not have to modify the import path of the third party packages we use anymore.</li>
+	<li>In addition, we also started moving a fair number of the Camlistore packages out of the <a href="https://camlistore.org">camlistore.org</a> namespace, to independent packages under the <a href="https://go4.org">go4.org</a> namespace. The goal is to make those packages more visible and usable as they can be useful to a larger audience.</li>
+</ul>
+
 <h3>Website</h3>
 <ul>
 	<li>New launcher to deploy Camlistore on Google Cloud: <a href="https://camlistore.org/launch">https://camlistore.org/launch</a>.</li>
