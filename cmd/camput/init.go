@@ -162,8 +162,9 @@ func (c *initCmd) clientConfigFromServer() (*clientconfig.Config, error) {
 		return nil, cmdmain.ErrUsage
 	}
 
-	cl := client.NewFromParams(server, auth.NewBasicAuth(fields[0], fields[1]))
-	cl.InsecureTLS = c.insecureTLS
+	cl := client.NewFromParams(server,
+		auth.NewBasicAuth(fields[0], fields[1]),
+		client.OptionInsecure(c.insecureTLS))
 	cl.SetHTTPClient(&http.Client{Transport: cl.TransportForConfig(nil)})
 	var cc clientconfig.Config
 

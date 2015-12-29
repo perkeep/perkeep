@@ -26,13 +26,15 @@ import (
 )
 
 type discoCmd struct {
-	server string
+	server  string
+	httpVer bool
 }
 
 func init() {
 	cmdmain.RegisterCommand("discovery", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(discoCmd)
 		flags.StringVar(&cmd.server, "server", "", "Server to do discovery against. "+serverFlagHelp)
+		flags.BoolVar(&cmd.httpVer, "httpversion", false, "discover the HTTP version")
 		return cmd
 	})
 }
@@ -54,6 +56,14 @@ func (c *discoCmd) RunCommand(args []string) error {
 		return cmdmain.UsageError("doesn't take args")
 	}
 	cl := newClient(c.server)
+	if c.httpVer {
+		v, err := cl.HTTPVersion()
+		if err != nil {
+			return err
+		}
+		fmt.Println(v)
+		return nil
+	}
 	disco, err := cl.DiscoveryDoc()
 	if err != nil {
 		return err

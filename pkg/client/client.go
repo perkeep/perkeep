@@ -47,6 +47,7 @@ import (
 	"camlistore.org/pkg/types/camtypes"
 
 	"go4.org/syncutil"
+	"golang.org/x/net/http2"
 )
 
 // A Client provides access to a Camlistore server.
@@ -87,18 +88,21 @@ type Client struct {
 	sto blobserver.Storage
 
 	initTrustedCertsOnce sync.Once
+
 	// We define a certificate fingerprint as the 20 digits lowercase prefix
 	// of the SHA256 of the complete certificate (in ASN.1 DER encoding).
 	// trustedCerts contains the fingerprints of the self-signed
 	// certificates we trust.
 	// If not empty, (and if using TLS) the full x509 verification is
 	// disabled, and we instead check the server's certificate against
-	// that list.
+	// this list.
 	// The camlistore server prints the fingerprint to add to the config
 	// when starting.
 	trustedCerts []string
-	// if set, we also skip the check against trustedCerts
-	InsecureTLS bool // TODO: hide this. add accessor?
+
+	// insecureAnyTLSCert disables all TLS cert checking,
+	// including the trustedCerts field above.
+	insecureAnyTLSCert bool
 
 	initIgnoredFilesOnce sync.Once
 	// list of files that camput should ignore.
@@ -134,7 +138,7 @@ const maxParallelHTTP = 5
 // New returns a new Camlistore Client.
 // The provided server is either "host:port" (assumed http, not https) or a URL prefix, with or without a path, or a server alias from the client configuration file. A server alias should not be confused with a hostname, therefore it cannot contain any colon or period.
 // Errors are not returned until subsequent operations.
-func New(server string) *Client {
+func New(server string, opts ...ClientOption) *Client {
 	if !isURLOrHostPort(server) {
 		configOnce.Do(parseConfig)
 		serverConf, ok := config.Servers[server]
@@ -143,11 +147,11 @@ func New(server string) *Client {
 		}
 		server = serverConf.Server
 	}
-	return newFromParams(server, auth.None{})
+	return newFromParams(server, auth.None{}, opts...)
 }
 
-func NewOrFail() *Client {
-	c := New(serverOrDie())
+func NewOrFail(opts ...ClientOption) *Client {
+	c := New(serverOrDie(), opts...)
 	err := c.SetupAuth()
 	if err != nil {
 		log.Fatal(err)
@@ -200,15 +204,28 @@ func (c *Client) TransportForConfig(tc *TransportConfig) http.RoundTripper {
 		return nil
 	}
 	var transport http.RoundTripper
+	useH2 := c.useTLS() && !android.IsChild()
 	proxy := http.ProxyFromEnvironment
 	if tc != nil && tc.Proxy != nil {
 		proxy = tc.Proxy
+		useH2 = false
+	} else {
+		if os.Getenv("HTTPS_PROXY") != "" || os.Getenv("https_proxy") != "" {
+			useH2 = false
+		}
 	}
-	transport = &http.Transport{
-		DialTLS:             c.DialTLSFunc(),
-		Dial:                c.DialFunc(),
-		Proxy:               proxy,
-		MaxIdleConnsPerHost: maxParallelHTTP,
+
+	if useH2 {
+		transport = &http2.Transport{
+			DialTLS: c.http2DialTLSFunc(),
+		}
+	} else {
+		transport = &http.Transport{
+			DialTLS:             c.DialTLSFunc(),
+			Dial:                c.DialFunc(),
+			Proxy:               proxy,
+			MaxIdleConnsPerHost: maxParallelHTTP,
+		}
 	}
 	httpStats := &httputil.StatsTransport{
 		Transport: transport,
@@ -234,7 +251,7 @@ func OptionInsecure(v bool) ClientOption {
 type optionInsecure bool
 
 func (o optionInsecure) modifyClient(c *Client) {
-	c.InsecureTLS = bool(o)
+	c.insecureAnyTLSCert = bool(o)
 }
 
 func OptionTrustedCert(cert string) ClientOption {
@@ -701,6 +718,16 @@ func (c *Client) DiscoveryDoc() (io.Reader, error) {
 	return bytes.NewReader(all), err
 }
 
+// HTTPVersion reports the HTTP version in use.
+func (c *Client) HTTPVersion() (string, error) {
+	req := c.newRequest("HEAD", c.discoRoot(), nil)
+	res, err := c.doReqGated(req)
+	if err != nil {
+		return "", err
+	}
+	return res.Proto, err
+}
+
 func (c *Client) discoveryResp() (*http.Response, error) {
 	// If the path is just "" or "/", do discovery against
 	// the URL to see which path we should actually use.
@@ -871,7 +898,7 @@ func (c *Client) doReqGated(req *http.Request) (*http.Response, error) {
 // insecureTLS returns whether the client is using TLS without any
 // verification of the server's cert.
 func (c *Client) insecureTLS() bool {
-	return c.useTLS() && c.InsecureTLS
+	return c.useTLS() && c.insecureAnyTLSCert
 }
 
 // DialFunc returns the adequate dial function when we're on android.
@@ -887,9 +914,47 @@ func (c *Client) DialFunc() func(network, addr string) (net.Conn, error) {
 	return nil
 }
 
+func (c *Client) http2DialTLSFunc() func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+	trustedCerts := c.getTrustedCerts()
+	if !c.insecureAnyTLSCert && len(trustedCerts) == 0 {
+		// TLS with normal/full verification.
+		// nil means http2 uses its default dialer.
+		return nil
+	}
+	return func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+		// we own cfg, so we can mutate it:
+		cfg.InsecureSkipVerify = true
+		conn, err := tls.Dial(network, addr, cfg)
+		if err != nil {
+			return nil, err
+		}
+		if c.insecureAnyTLSCert {
+			return conn, err
+		}
+		state := conn.ConnectionState()
+		if p := state.NegotiatedProtocol; p != http2.NextProtoTLS {
+			return nil, fmt.Errorf("http2: unexpected ALPN protocol %q; want %q", p, http2.NextProtoTLS)
+		}
+		if !state.NegotiatedProtocolIsMutual {
+			return nil, errors.New("http2: could not negotiate protocol mutually")
+		}
+		certs := state.PeerCertificates
+		if len(certs) < 1 {
+			return nil, fmt.Errorf("no TLS peer certificates from %s", addr)
+		}
+		sig := hashutil.SHA256Prefix(certs[0].Raw)
+		for _, v := range trustedCerts {
+			if v == sig {
+				return conn, nil
+			}
+		}
+		return nil, fmt.Errorf("TLS server at %v presented untrusted certificate (signature %q)", addr, sig)
+	}
+}
+
 // DialTLSFunc returns the adequate dial function, when using SSL, depending on
 // whether we're using insecure TLS (certificate verification is disabled), or we
-// have some trusted certs, or we're on android.
+// have some trusted certs, or we're on android.1
 // If the client's config has some trusted certs, the server's certificate will
 // be checked against those in the config after the TLS handshake.
 func (c *Client) DialTLSFunc() func(network, addr string) (net.Conn, error) {
@@ -898,8 +963,8 @@ func (c *Client) DialTLSFunc() func(network, addr string) (net.Conn, error) {
 	}
 	trustedCerts := c.getTrustedCerts()
 	var stdTLS bool
-	if !c.InsecureTLS && len(trustedCerts) == 0 {
-		// TLS with normal/full verification
+	if !c.insecureAnyTLSCert && len(trustedCerts) == 0 {
+		// TLS with normal/full verification.
 		stdTLS = true
 		if !android.IsChild() {
 			// Not android, so let the stdlib deal with it
@@ -911,7 +976,7 @@ func (c *Client) DialTLSFunc() func(network, addr string) (net.Conn, error) {
 		var conn *tls.Conn
 		var err error
 		if android.IsChild() {
-			con, err := android.Dial(network, addr)
+			ac, err := android.Dial(network, addr)
 			if err != nil {
 				return nil, err
 			}
@@ -924,8 +989,8 @@ func (c *Client) DialTLSFunc() func(network, addr string) (net.Conn, error) {
 			} else {
 				tlsConfig = &tls.Config{InsecureSkipVerify: true}
 			}
-			conn = tls.Client(con, tlsConfig)
-			if err = conn.Handshake(); err != nil {
+			conn = tls.Client(ac, tlsConfig)
+			if err := conn.Handshake(); err != nil {
 				return nil, err
 			}
 		} else {
@@ -934,12 +999,12 @@ func (c *Client) DialTLSFunc() func(network, addr string) (net.Conn, error) {
 				return nil, err
 			}
 		}
-		if c.InsecureTLS {
+		if c.insecureAnyTLSCert {
 			return conn, nil
 		}
 		certs := conn.ConnectionState().PeerCertificates
-		if certs == nil || len(certs) < 1 {
-			return nil, errors.New("Could not get server's certificate from the TLS connection.")
+		if len(certs) < 1 {
+			return nil, fmt.Errorf("no TLS peer certificates from %s", addr)
 		}
 		sig := hashutil.SHA256Prefix(certs[0].Raw)
 		for _, v := range trustedCerts {
@@ -947,7 +1012,7 @@ func (c *Client) DialTLSFunc() func(network, addr string) (net.Conn, error) {
 				return conn, nil
 			}
 		}
-		return nil, fmt.Errorf("Server's certificate %v is not in the trusted list", sig)
+		return nil, fmt.Errorf("TLS server at %v presented untrusted certificate (signature %q)", addr, sig)
 	}
 }
 
@@ -1073,19 +1138,19 @@ func (c *Client) Close() error {
 // NewFromParams returns a Client that uses the specified server base URL
 // and auth but does not use any on-disk config files or environment variables
 // for its configuration. It may still use the disk for caches.
-func NewFromParams(server string, mode auth.AuthMode) *Client {
-	cl := newFromParams(server, mode)
+func NewFromParams(server string, mode auth.AuthMode, opts ...ClientOption) *Client {
+	cl := newFromParams(server, mode, opts...)
 	cl.paramsOnly = true
 	return cl
 }
 
-func newFromParams(server string, mode auth.AuthMode) *Client {
+func newFromParams(server string, mode auth.AuthMode, opts ...ClientOption) *Client {
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			MaxIdleConnsPerHost: maxParallelHTTP,
 		},
 	}
-	return &Client{
+	c := &Client{
 		server:     server,
 		httpClient: httpClient,
 		httpGate:   syncutil.NewGate(maxParallelHTTP),
@@ -1093,4 +1158,8 @@ func newFromParams(server string, mode auth.AuthMode) *Client {
 		log:        log.New(os.Stderr, "", log.Ldate|log.Ltime),
 		authMode:   mode,
 	}
+	for _, v := range opts {
+		v.modifyClient(c)
+	}
+	return c
 }

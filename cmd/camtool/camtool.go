@@ -36,12 +36,12 @@ const serverFlagHelp = "Format is is either a URL prefix (with optional path), a
 //   * an alias, to use that named alias in the config file
 //   * host:port
 //   * https?://host[:port][/path]
-func newClient(server string) *client.Client {
+func newClient(server string, opts ...client.ClientOption) *client.Client {
 	var cl *client.Client
 	if server == "" {
-		cl = client.NewOrFail()
+		cl = client.NewOrFail(opts...)
 	} else {
-		cl = client.New(server)
+		cl = client.New(server, opts...)
 		if err := cl.SetupAuth(); err != nil {
 			log.Fatalf("Could not setup auth for connecting to %v: %v", server, err)
 		}

@@ -184,8 +184,7 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 		c.oneIsDisk = true
 		return disk, nil
 	}
-	cl := client.New(val)
-	cl.InsecureTLS = c.insecureTLS
+	cl := client.New(val, client.OptionInsecure(c.insecureTLS))
 	if httpClient == nil {
 		httpClient = &http.Client{
 			Transport: cl.TransportForConfig(nil),
@@ -244,18 +243,16 @@ func (c *syncCmd) syncAll() error {
 		}
 	}
 	for _, sh := range syncHandlers {
-		from := client.New(sh.From)
+		from := client.New(sh.From, client.OptionInsecure(c.insecureTLS))
 		from.SetLogger(c.logger)
-		from.InsecureTLS = c.insecureTLS
 		from.SetHTTPClient(&http.Client{
 			Transport: from.TransportForConfig(nil),
 		})
 		if err := from.SetupAuth(); err != nil {
 			return fmt.Errorf("could not setup auth for connecting to %v: %v", sh.From, err)
 		}
-		to := client.New(sh.To)
+		to := client.New(sh.To, client.OptionInsecure(c.insecureTLS))
 		to.SetLogger(c.logger)
-		to.InsecureTLS = c.insecureTLS
 		to.SetHTTPClient(&http.Client{
 			Transport: to.TransportForConfig(nil),
 		})
@@ -281,9 +278,8 @@ func (c *syncCmd) syncAll() error {
 // is blank. The returned client can then be used to discover
 // the blobRoot and syncHandlers.
 func (c *syncCmd) discoClient() *client.Client {
-	cl := newClient(c.src)
+	cl := newClient(c.src, client.OptionInsecure(c.insecureTLS))
 	cl.SetLogger(c.logger)
-	cl.InsecureTLS = c.insecureTLS
 	return cl
 }
 

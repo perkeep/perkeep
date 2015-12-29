@@ -96,7 +96,7 @@ func main() {
 		if *flagTrustedCert != "" {
 			log.Fatal("Can't use --cert without --shared.")
 		}
-		cl = client.NewOrFail()
+		cl = client.NewOrFail(client.OptionInsecure(*flagInsecureTLS))
 		for n := 0; n < flag.NArg(); n++ {
 			arg := flag.Arg(n)
 			br, ok := blob.Parse(arg)
@@ -107,7 +107,6 @@ func main() {
 		}
 	}
 
-	cl.InsecureTLS = *flagInsecureTLS
 	tr := cl.TransportForConfig(&client.TransportConfig{
 		Verbose: *flagHTTP,
 	})
