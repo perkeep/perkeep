@@ -117,7 +117,7 @@ func buildCamlistored() {
 	os.Setenv("GO15VENDOREXPERIMENT", "1")
 	cmd := exec.Command("go", "build",
 		"-o", path.Join(*outDir, "/bin/camlistored"),
-		`--ldflags`, "-w -d -linkmode internal -X camlistore.org/pkg/buildinfo.GitInfo "+*rev,
+		`--ldflags`, "-w -d -linkmode internal -X camlistore.org/pkg/buildinfo.GitInfo="+*rev,
 		"--tags=netgo", "camlistore.org/server/camlistored")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
