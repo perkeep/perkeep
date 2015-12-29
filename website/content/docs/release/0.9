@@ -153,7 +153,7 @@ Aljammāz, Steven L. Speek, Tamás Gulácsi, Will Norris.
 <h3>Indexer</h3>
 <ul>
 	<li>Improved MySQL connection handling (switch to <code>go-mysql-driver</code>).</li>
-	<li>New sorted implementation: levelDB (https://github.com/syndtr/goleveldb).</li>
+	<li>New sorted implementation: <a href="https://github.com/syndtr/goleveldb">LevelDB</a>. It is now the default index storage in the server configuration that is generated when no configuration file exists.</li>
 	<li>Out of order reindexing finished/fixed.</li>
 	<li>When indexing from images: always try a small prefix buffer first, then read full file if needed.</li>
 	<li>Defined a (large) limit on key and value size for all sorted implementations.</li>
@@ -218,6 +218,7 @@ Aljammāz, Steven L. Speek, Tamás Gulácsi, Will Norris.
 	<li>CONTRIBUTORS are generated from git log.</li>
 	<li>Issue tracker has moved to github.</li>
 	<li>The <code>camweb</code> binary which runs the camlistore.org website has been updated to run easily on Google Compute Engine and auto-refresh from the Camlistore source tree. This means our website should be more easily updated going forward.</li>
+	<li>Markdown is now supported, and some of the static <code>html</code> content has been converted to it.</li>
 </ul>
 
 <h3>Web UI</h3>
