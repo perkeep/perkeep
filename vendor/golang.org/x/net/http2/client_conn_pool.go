@@ -19,11 +19,12 @@ type ClientConnPool interface {
 
 type clientConnPool struct {
 	t  *Transport
-	mu sync.Mutex // TODO: switch to RWMutex
+	mu sync.Mutex // TODO: maybe switch to RWMutex
 	// TODO: add support for sharing conns based on cert names
 	// (e.g. share conn for googleapis.com and appspot.com)
-	conns map[string][]*ClientConn // key is host:port
-	keys  map[*ClientConn][]string
+	conns   map[string][]*ClientConn // key is host:port
+	dialing map[string]*dialCall     // currently in-flight dials
+	keys    map[*ClientConn][]string
 }
 
 func (p *clientConnPool) GetClientConn(req *http.Request, addr string) (*ClientConn, error) {
@@ -38,26 +39,65 @@ func (p *clientConnPool) getClientConn(req *http.Request, addr string, dialOnMis
 			return cc, nil
 		}
 	}
-	p.mu.Unlock()
 	if !dialOnMiss {
+		p.mu.Unlock()
 		return nil, ErrNoCachedConn
 	}
+	call := p.getStartDialLocked(addr)
+	p.mu.Unlock()
+	<-call.done
+	return call.res, call.err
+}
 
-	// TODO(bradfitz): use a singleflight.Group to only lock once per 'key'.
-	// Probably need to vendor it in as github.com/golang/sync/singleflight
-	// though, since the net package already uses it? Also lines up with
-	// sameer, bcmills, et al wanting to open source some sync stuff.
-	cc, err := p.t.dialClientConn(addr)
-	if err != nil {
-		return nil, err
+// dialCall is an in-flight Transport dial call to a host.
+type dialCall struct {
+	p    *clientConnPool
+	done chan struct{} // closed when done
+	res  *ClientConn   // valid after done is closed
+	err  error         // valid after done is closed
+}
+
+// requires p.mu is held.
+func (p *clientConnPool) getStartDialLocked(addr string) *dialCall {
+	if call, ok := p.dialing[addr]; ok {
+		// A dial is already in-flight. Don't start another.
+		return call
 	}
-	p.addConn(addr, cc)
-	return cc, nil
+	call := &dialCall{p: p, done: make(chan struct{})}
+	if p.dialing == nil {
+		p.dialing = make(map[string]*dialCall)
+	}
+	p.dialing[addr] = call
+	go call.dial(addr)
+	return call
+}
+
+// run in its own goroutine.
+func (c *dialCall) dial(addr string) {
+	c.res, c.err = c.p.t.dialClientConn(addr)
+	close(c.done)
+
+	c.p.mu.Lock()
+	delete(c.p.dialing, addr)
+	if c.err == nil {
+		c.p.addConnLocked(addr, c.res)
+	}
+	c.p.mu.Unlock()
 }
 
 func (p *clientConnPool) addConn(key string, cc *ClientConn) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.addConnLocked(key, cc)
+	p.mu.Unlock()
+}
+
+// p.mu must be held
+func (p *clientConnPool) addConnLocked(key string, cc *ClientConn) {
+	for _, v := range p.conns[key] {
+		if v == cc {
+			return
+		}
+	}
 	if p.conns == nil {
 		p.conns = make(map[string][]*ClientConn)
 	}

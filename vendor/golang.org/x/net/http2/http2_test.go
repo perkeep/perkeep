@@ -166,3 +166,9 @@ func kill(container string) {
 	exec.Command("docker", "kill", container).Run()
 	exec.Command("docker", "rm", container).Run()
 }
+
+func cleanDate(res *http.Response) {
+	if d := res.Header["Date"]; len(d) == 1 {
+		d[0] = "XXX"
+	}
+}

@@ -361,10 +361,22 @@ func (fr *Framer) SetMaxReadFrameSize(v uint32) {
 // sends a frame that is larger than declared with SetMaxReadFrameSize.
 var ErrFrameTooLarge = errors.New("http2: frame too large")
 
+// terminalReadFrameError reports whether err is an unrecoverable
+// error from ReadFrame and no other frames should be read.
+func terminalReadFrameError(err error) bool {
+	if _, ok := err.(StreamError); ok {
+		return false
+	}
+	return err != nil
+}
+
 // ReadFrame reads a single frame. The returned Frame is only valid
 // until the next call to ReadFrame.
-// If the frame is larger than previously set with SetMaxReadFrameSize,
-// the returned error is ErrFrameTooLarge.
+//
+// If the frame is larger than previously set with SetMaxReadFrameSize, the
+// returned error is ErrFrameTooLarge. Other errors may be of type
+// ConnectionError, StreamError, or anything else from from the underlying
+// reader.
 func (fr *Framer) ReadFrame() (Frame, error) {
 	if fr.lastFrame != nil {
 		fr.lastFrame.invalidate()
