@@ -472,56 +472,60 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 // found, serves the appropriate page depending on whether the instance is usable. It does
 // not serve anything if the instance is not found.
 func (h *DeployHandler) serveOldInstance(w http.ResponseWriter, br blob.Ref, depl *Deployer) (found bool) {
-	if inst, err := depl.Get(); err == nil {
-		var sigs map[string]string
-		cert, _, err := depl.getInstalledTLS()
-		if err == nil {
-			sigs, err = httputil.CertFingerprints(cert)
-			if err != nil {
-				err = fmt.Errorf("could not get fingerprints of certificate: %v", err)
-			}
-		}
+	inst, err := depl.Get()
+	if err != nil {
+		// TODO(mpl,bradfitz): log or do something more
+		// drastic if the error is something other than
+		// instance not found.
+		return false
+	}
+	var sigs map[string]string
+	cert, _, err := depl.getInstalledTLS()
+	if err == nil {
+		sigs, err = httputil.CertFingerprints(cert)
 		if err != nil {
-			h.logger.Printf("Instance (%v, %v, %v) already exists, but error getting its certificate: %v",
-				depl.Conf.Project, depl.Conf.Name, depl.Conf.Zone, err)
-			h.serveErrorPage(w,
-				fmt.Errorf("Instance already running at %v. You need to manually delete the old one before creating a new one.", addr(inst)),
-				helpDeleteInstance,
-			)
-			return true
+			err = fmt.Errorf("could not get fingerprints of certificate: %v", err)
 		}
-		password := depl.Conf.Password
-		for _, item := range inst.Metadata.Items {
-			if item.Key == "camlistore-password" {
-				password = *(item.Value)
-			}
-		}
-		if password != depl.Conf.Password {
-			h.logger.Printf("Instance (%v, %v, %v) already exists, but with different password: %v",
-				depl.Conf.Project, depl.Conf.Name, depl.Conf.Zone, password)
-			h.serveErrorPage(w,
-				fmt.Errorf("Instance already running at %v. You need to manually delete the old one before creating a new one.", addr(inst)),
-				helpDeleteInstance,
-			)
-			return true
-		}
-		h.logger.Printf("Reusing existing instance for (%v, %v, %v)", depl.Conf.Project, depl.Conf.Name, depl.Conf.Zone)
-
-		if err := h.recordState(br, &creationState{
-			InstConf:              br,
-			InstAddr:              addr(inst),
-			CertFingerprintSHA1:   sigs["SHA-1"],
-			CertFingerprintSHA256: sigs["SHA-256"],
-			Exists:                true,
-		}); err != nil {
-			h.logger.Printf("Could not record creation state for %v: %v", br, err)
-			h.serveErrorPage(w, fmt.Errorf("An error occurred while recording the state of your instance. %v", fileIssue(br.String())))
-			return true
-		}
-		h.serveProgress(w, br)
+	}
+	if err != nil {
+		h.logger.Printf("Instance (%v, %v, %v) already exists, but error getting its certificate: %v",
+			depl.Conf.Project, depl.Conf.Name, depl.Conf.Zone, err)
+		h.serveErrorPage(w,
+			fmt.Errorf("Instance already running at %v. You need to manually delete the old one before creating a new one.", addr(inst)),
+			helpDeleteInstance,
+		)
 		return true
 	}
-	return false
+	var existPassword string
+	for _, item := range inst.Metadata.Items {
+		if item.Key == "camlistore-password" {
+			existPassword = *(item.Value)
+		}
+	}
+	if depl.Conf.Password != "" && existPassword != depl.Conf.Password {
+		h.logger.Printf("Instance (%v, %v, %v) already exists, but with different password",
+			depl.Conf.Project, depl.Conf.Name, depl.Conf.Zone)
+		h.serveErrorPage(w,
+			fmt.Errorf("Instance already running at %v. You need to manually delete the old one before creating a new one.", addr(inst)),
+			helpDeleteInstance,
+		)
+		return true
+	}
+	h.logger.Printf("Reusing existing instance for (%v, %v, %v)", depl.Conf.Project, depl.Conf.Name, depl.Conf.Zone)
+
+	if err := h.recordState(br, &creationState{
+		InstConf:              br,
+		InstAddr:              addr(inst),
+		CertFingerprintSHA1:   sigs["SHA-1"],
+		CertFingerprintSHA256: sigs["SHA-256"],
+		Exists:                true,
+	}); err != nil {
+		h.logger.Printf("Could not record creation state for %v: %v", br, err)
+		h.serveErrorPage(w, fmt.Errorf("An error occurred while recording the state of your instance. %v", fileIssue(br.String())))
+		return true
+	}
+	h.serveProgress(w, br)
+	return true
 }
 
 func (h *DeployHandler) serveFormError(w http.ResponseWriter, err error, hints ...string) {
@@ -682,7 +686,7 @@ func (h *DeployHandler) confFromForm(r *http.Request) (*InstanceConf, error) {
 		Zone:     zone,
 		Hostname: formValueOrDefault(r, "hostname", "localhost"),
 		SSHPub:   formValueOrDefault(r, "sshPub", ""),
-		Password: formValueOrDefault(r, "password", project),
+		Password: r.FormValue("password"),
 		Ctime:    time.Now(),
 		WIP:      r.FormValue("WIP") == "1",
 	}, nil

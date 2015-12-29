@@ -117,7 +117,7 @@ type InstanceConf struct {
 	CertFile string // HTTPS certificate file.
 	KeyFile  string // HTTPS key file.
 	Hostname string // Fully qualified domain name.
-	Password string // Camlistore HTTP basic auth password. Defaults to project ID.
+	Password string // HTTP basic auth password for user "camlistore"; empty means random
 
 	configDir string // bucketBase() + "/config"
 	blobDir   string // bucketBase() + "/blobs"
