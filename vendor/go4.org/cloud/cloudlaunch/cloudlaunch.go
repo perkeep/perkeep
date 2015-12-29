@@ -35,6 +35,7 @@ import (
 
 	"go4.org/cloud/google/gceutil"
 
+	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
@@ -64,7 +65,7 @@ coreos:
         [Unit]
         Description=$NAME service
         After=network.target
-
+        
         [Service]
         Type=simple
         ExecStartPre=/bin/sh -c 'mkdir -p /opt/bin && /usr/bin/curl --silent -f -o /opt/bin/$NAME $URL?$(date +%s) && chmod +x /opt/bin/$NAME'
@@ -72,7 +73,7 @@ coreos:
         RestartSec=10
         Restart=always
         StartLimitInterval=0
-
+        
         [Install]
         WantedBy=network-online.target
 `
@@ -218,11 +219,11 @@ func (c *Config) restartLoop() {
 // uploadBinary uploads the currently-running Linux binary.
 // It crashes if it fails.
 func (cl *cloudLaunch) uploadBinary() {
-	ctx := cloud.NewContext(cl.GCEProjectID, cl.oauthClient)
+	ctx := context.Background()
 	if cl.BinaryBucket == "" {
 		log.Fatal("cloudlaunch: Config.BinaryBucket is empty")
 	}
-	stoClient, err := storage.NewClient(ctx)
+	stoClient, err := storage.NewClient(ctx, cloud.WithBaseHTTP(cl.oauthClient))
 	if err != nil {
 		log.Fatal(err)
 	}

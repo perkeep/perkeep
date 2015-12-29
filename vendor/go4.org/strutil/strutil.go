@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package strutil contains string and byte processing functions.
-package strutil
+package strutil // import "go4.org/strutil"
 
 import (
 	"strings"
