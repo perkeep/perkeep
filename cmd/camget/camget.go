@@ -159,6 +159,8 @@ func main() {
 
 	if *flagVerbose {
 		log.Printf("HTTP requests: %d\n", httpStats.Requests())
+		h1, h2 := httpStats.ProtoVersions()
+		log.Printf("    responses: %d (h1), %d (h2)\n", h1, h2)
 	}
 }
 

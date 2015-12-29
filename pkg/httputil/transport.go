@@ -27,8 +27,9 @@ import (
 // StatsTransport wraps another RoundTripper (or uses the default one) and
 // counts the number of HTTP requests performed.
 type StatsTransport struct {
-	mu   sync.Mutex
-	reqs int
+	mu     sync.Mutex
+	reqs   int
+	h1, h2 int // responses by protocol type
 
 	// Transport optionally specifies the transport to use.
 	// If nil, http.DefaultTransport is used.
@@ -42,6 +43,13 @@ func (t *StatsTransport) Requests() int {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.reqs
+}
+
+// ProtoVersions returns how many HTTP/1 and HTTP/2 responses were seen.
+func (t *StatsTransport) ProtoVersions() (h1, h2 int) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.h1, t.h2
 }
 
 func (t *StatsTransport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
@@ -68,6 +76,15 @@ func (t *StatsTransport) RoundTrip(req *http.Request) (resp *http.Response, err 
 			resp.Body = &logBody{body: resp.Body, n: n, t0: t0, t1: t1}
 		} else {
 			log.Printf("(%d) %s %s = error: %v (in %v)", n, req.Method, req.URL, err, td)
+		}
+	}
+	if resp != nil {
+		t.mu.Lock()
+		defer t.mu.Unlock()
+		if resp.ProtoMajor == 2 {
+			t.h2++
+		} else {
+			t.h1++
 		}
 	}
 	return
