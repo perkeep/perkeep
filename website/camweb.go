@@ -56,6 +56,7 @@ import (
 	storageapi "google.golang.org/api/storage/v1"
 	"google.golang.org/cloud"
 	"google.golang.org/cloud/compute/metadata"
+	"google.golang.org/cloud/datastore"
 	"google.golang.org/cloud/logging"
 	"google.golang.org/cloud/storage"
 )
@@ -439,6 +440,8 @@ var launchConfig = &cloudlaunch.Config{
 		storageapi.DevstorageFullControlScope,
 		compute.ComputeScope,
 		logging.Scope,
+		datastore.ScopeDatastore,
+		datastore.ScopeUserEmail, // whose email? https://github.com/GoogleCloudPlatform/gcloud-golang/issues/201
 	},
 }
 

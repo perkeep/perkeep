@@ -29,6 +29,9 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/net/context"
+	"google.golang.org/cloud/datastore"
+
 	"camlistore.org/pkg/osutil"
 )
 
@@ -128,8 +131,16 @@ var latestHash struct {
 	s string // hash of the most recent camlistore revision
 }
 
+// dsClient is our datastore client to track which commits we've
+// emailed about. It's only non-nil in production.
+var dsClient *datastore.Client
+
 func commitEmailLoop() error {
 	http.HandleFunc("/mailnow", mailNowHandler)
+
+	var err error
+	dsClient, err = datastore.NewClient(context.Background(), "camlistore-website")
+	log.Printf("datastore = %v, %v", dsClient, err)
 
 	go func() {
 		for {
@@ -143,17 +154,10 @@ func commitEmailLoop() error {
 
 	dir := camSrcDir()
 
-	hashes, err := recentCommits(dir)
-	if err != nil {
-		return err
-	}
-	for _, commit := range hashes {
-		knownCommit[commit] = true
-	}
-	latestHash.Lock()
-	latestHash.s = hashes[0]
-	latestHash.Unlock()
 	http.HandleFunc("/latesthash", latestHashHandler)
+	http.HandleFunc("/debug/email", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "ds = %v, %v", dsClient, err)
+	})
 
 	for {
 		pollCommits(dir)
@@ -187,6 +191,12 @@ func execGit(dir string, gitArgs ...string) *exec.Cmd {
 	return cmd
 }
 
+// GitCommit is a datastore entity to track which commits we've
+// already emailed about.
+type GitCommit struct {
+	Emailed bool
+}
+
 func pollCommits(dir string) {
 	cmd := execGit(dir, "fetch", "origin")
 	out, err := cmd.CombinedOutput()
@@ -195,7 +205,8 @@ func pollCommits(dir string) {
 		return
 	}
 	log.Printf("Ran git fetch.")
-	// TODO: see if .git/refs/remotes/origin/master changed. quicker.
+	// TODO: see if .git/refs/remotes/origin/master
+	// changed. (quicker than running recentCommits each time)
 
 	hashes, err := recentCommits(dir)
 	if err != nil {
@@ -209,9 +220,25 @@ func pollCommits(dir string) {
 		if knownCommit[commit] {
 			continue
 		}
+		if dsClient != nil {
+			ctx := context.Background()
+			key := datastore.NewKey(ctx, "git_commit", commit, 0, nil)
+			var gc GitCommit
+			if err := dsClient.Get(ctx, key, &gc); err == nil && gc.Emailed {
+				log.Printf("Already emailed about commit %v; skipping", commit)
+				knownCommit[commit] = true
+				continue
+			}
+		}
 		if err := emailCommit(dir, commit); err == nil {
-			knownCommit[commit] = true
 			log.Printf("Emailed commit %s", commit)
+			knownCommit[commit] = true
+			if dsClient != nil {
+				ctx := context.Background()
+				key := datastore.NewKey(ctx, "git_commit", commit, 0, nil)
+				_, err := dsClient.Put(ctx, key, &GitCommit{Emailed: true})
+				log.Printf("datastore put of git_commit(%v): %v", commit, err)
+			}
 		}
 	}
 }
