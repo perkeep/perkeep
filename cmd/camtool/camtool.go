@@ -18,7 +18,6 @@ package main
 
 import (
 	"log"
-	"net/http"
 
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
@@ -37,17 +36,12 @@ const serverFlagHelp = "Format is is either a URL prefix (with optional path), a
 //   * host:port
 //   * https?://host[:port][/path]
 func newClient(server string, opts ...client.ClientOption) *client.Client {
-	var cl *client.Client
 	if server == "" {
-		cl = client.NewOrFail(opts...)
-	} else {
-		cl = client.New(server, opts...)
-		if err := cl.SetupAuth(); err != nil {
-			log.Fatalf("Could not setup auth for connecting to %v: %v", server, err)
-		}
+		return client.NewOrFail(opts...)
 	}
-	cl.SetHTTPClient(&http.Client{
-		Transport: cl.TransportForConfig(nil),
-	})
+	cl := client.New(server, opts...)
+	if err := cl.SetupAuth(); err != nil {
+		log.Fatalf("Could not setup auth for connecting to %v: %v", server, err)
+	}
 	return cl
 }

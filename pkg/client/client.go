@@ -127,13 +127,15 @@ type Client struct {
 	// a share.
 	via map[string]string // target => via (target is referenced from via)
 
-	log      *log.Logger // not nil
-	httpGate *syncutil.Gate
+	log             *log.Logger // not nil
+	httpGate        *syncutil.Gate
+	transportConfig *TransportConfig // or nil
 
 	paramsOnly bool // config file and env vars are ignored.
 }
 
-const maxParallelHTTP = 5
+const maxParallelHTTP_h1 = 5
+const maxParallelHTTP_h2 = 50
 
 // New returns a new Camlistore Client.
 // The provided server is either "host:port" (assumed http, not https) or a URL prefix, with or without a path, or a server alias from the client configuration file. A server alias should not be confused with a hostname, therefore it cannot contain any colon or period.
@@ -147,7 +149,7 @@ func New(server string, opts ...ClientOption) *Client {
 		}
 		server = serverConf.Server
 	}
-	return newFromParams(server, auth.None{}, opts...)
+	return newClient(server, auth.None{}, opts...)
 }
 
 func NewOrFail(opts ...ClientOption) *Client {
@@ -195,27 +197,37 @@ type TransportConfig struct {
 	Verbose bool // Verbose enables verbose logging of HTTP requests.
 }
 
-// TransportForConfig returns a transport for the client, setting the correct
+func (c *Client) useHTTP2(tc *TransportConfig) bool {
+	if !c.useTLS() {
+		return false
+	}
+	if android.IsChild() {
+		// No particular reason; just untested so far.
+		return false
+	}
+	if os.Getenv("HTTPS_PROXY") != "" || os.Getenv("https_proxy") != "" ||
+		(tc != nil && tc.Proxy != nil) {
+		// Also just untested. Which proxies support h2 anyway?
+		return false
+	}
+	return true
+}
+
+// transportForConfig returns a transport for the client, setting the correct
 // Proxy, Dial, and TLSClientConfig if needed. It does not mutate c.
 // It is the caller's responsibility to then use that transport to set
 // the client's httpClient with SetHTTPClient.
-func (c *Client) TransportForConfig(tc *TransportConfig) http.RoundTripper {
+func (c *Client) transportForConfig(tc *TransportConfig) http.RoundTripper {
 	if c == nil {
 		return nil
 	}
 	var transport http.RoundTripper
-	useH2 := c.useTLS() && !android.IsChild()
 	proxy := http.ProxyFromEnvironment
 	if tc != nil && tc.Proxy != nil {
 		proxy = tc.Proxy
-		useH2 = false
-	} else {
-		if os.Getenv("HTTPS_PROXY") != "" || os.Getenv("https_proxy") != "" {
-			useH2 = false
-		}
 	}
 
-	if useH2 {
+	if c.useHTTP2(tc) {
 		transport = &http2.Transport{
 			DialTLS: c.http2DialTLSFunc(),
 		}
@@ -224,7 +236,7 @@ func (c *Client) TransportForConfig(tc *TransportConfig) http.RoundTripper {
 			DialTLS:             c.DialTLSFunc(),
 			Dial:                c.DialFunc(),
 			Proxy:               proxy,
-			MaxIdleConnsPerHost: maxParallelHTTP,
+			MaxIdleConnsPerHost: maxParallelHTTP_h1,
 		}
 	}
 	httpStats := &httputil.StatsTransport{
@@ -240,8 +252,27 @@ func (c *Client) TransportForConfig(tc *TransportConfig) http.RoundTripper {
 	return transport
 }
 
+// HTTPStats returns the client's underlying httputil.StatsTransport, if in use.
+// If another transport is being used, nil is returned.
+func (c *Client) HTTPStats() *httputil.StatsTransport {
+	st, _ := c.httpClient.Transport.(*httputil.StatsTransport)
+	return st
+}
+
 type ClientOption interface {
 	modifyClient(*Client)
+}
+
+func OptionTransportConfig(tc *TransportConfig) ClientOption {
+	return optionTransportConfig{tc}
+}
+
+type optionTransportConfig struct {
+	tc *TransportConfig
+}
+
+func (o optionTransportConfig) modifyClient(c *Client) {
+	c.transportConfig = o.tc
 }
 
 func OptionInsecure(v bool) ClientOption {
@@ -281,7 +312,7 @@ func NewFromShareRoot(shareBlobURL string, opts ...ClientOption) (c *Client, tar
 	if m == nil {
 		return nil, blob.Ref{}, fmt.Errorf("Unkown share URL base")
 	}
-	c = New(m[1])
+	c = New(m[1], opts...)
 	c.discoOnce.Do(noop)
 	c.prefixOnce.Do(noop)
 	c.prefixv = m[1]
@@ -289,11 +320,6 @@ func NewFromShareRoot(shareBlobURL string, opts ...ClientOption) (c *Client, tar
 	c.authMode = auth.None{}
 	c.via = make(map[string]string)
 	root = m[2]
-
-	for _, v := range opts {
-		v.modifyClient(c)
-	}
-	c.SetHTTPClient(&http.Client{Transport: c.TransportForConfig(nil)})
 
 	req := c.newRequest("GET", shareBlobURL, nil)
 	res, err := c.expect2XX(req)
@@ -1139,27 +1165,42 @@ func (c *Client) Close() error {
 // and auth but does not use any on-disk config files or environment variables
 // for its configuration. It may still use the disk for caches.
 func NewFromParams(server string, mode auth.AuthMode, opts ...ClientOption) *Client {
-	cl := newFromParams(server, mode, opts...)
+	cl := newClient(server, mode, opts...)
 	cl.paramsOnly = true
 	return cl
 }
 
-func newFromParams(server string, mode auth.AuthMode, opts ...ClientOption) *Client {
-	httpClient := &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConnsPerHost: maxParallelHTTP,
-		},
-	}
+// TODO(bradfitz): move auth mode into a ClientOption? And
+// OptionNoDiskConfig to delete NewFromParams, etc, and just have New?
+
+func newClient(server string, mode auth.AuthMode, opts ...ClientOption) *Client {
 	c := &Client{
-		server:     server,
-		httpClient: httpClient,
-		httpGate:   syncutil.NewGate(maxParallelHTTP),
-		haveCache:  noHaveCache{},
-		log:        log.New(os.Stderr, "", log.Ldate|log.Ltime),
-		authMode:   mode,
+		server:    server,
+		haveCache: noHaveCache{},
+		log:       log.New(os.Stderr, "", log.Ldate|log.Ltime),
+		authMode:  mode,
 	}
 	for _, v := range opts {
 		v.modifyClient(c)
 	}
+	if c.httpClient == nil {
+		c.httpClient = &http.Client{
+			Transport: c.transportForConfig(c.transportConfig),
+		}
+	}
+	c.httpGate = syncutil.NewGate(httpGateSize(c.httpClient.Transport))
 	return c
+}
+
+func httpGateSize(rt http.RoundTripper) int {
+	switch v := rt.(type) {
+	case *httputil.StatsTransport:
+		return httpGateSize(v.Transport)
+	case *http.Transport:
+		return maxParallelHTTP_h1
+	case *http2.Transport:
+		return maxParallelHTTP_h2
+	default:
+		return maxParallelHTTP_h1 // conservative default
+	}
 }

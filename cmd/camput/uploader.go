@@ -42,7 +42,7 @@ type Uploader struct {
 	// of a Client?
 	altStatReceiver blobserver.StatReceiver
 
-	transport *httputil.StatsTransport // for HTTP statistics
+	stats     *httputil.StatsTransport // if non-nil, HTTP statistics
 	pwd       string
 	statCache UploadCache
 	haveCache HaveCache

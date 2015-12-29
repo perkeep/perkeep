@@ -158,7 +158,7 @@ func TestTransportSetup(t *testing.T) {
 		android.OnAndroidHook = func() bool {
 			return tt.onAndroid
 		}
-		rt := cl.TransportForConfig(nil)
+		rt := cl.transportForConfig(nil)
 		var tr *http.Transport
 		if tt.onAndroid {
 			tr = rt.(*android.StatsTransport).Rt.(*httputil.StatsTransport).Transport.(*http.Transport)

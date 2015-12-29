@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 
@@ -32,7 +31,6 @@ import (
 	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
@@ -77,6 +75,10 @@ func main() {
 	var cl *client.Client
 	var items []blob.Ref
 
+	optTransportConfig := client.OptionTransportConfig(&client.TransportConfig{
+		Verbose: *flagHTTP,
+	})
+
 	if *flagShared != "" {
 		if client.ExplicitServer() != "" {
 			log.Fatal("Can't use --shared with an explicit blobserver; blobserver is implicit from the --shared URL.")
@@ -86,7 +88,9 @@ func main() {
 		}
 		cl1, target, err := client.NewFromShareRoot(*flagShared,
 			client.OptionInsecure(*flagInsecureTLS),
-			client.OptionTrustedCert(*flagTrustedCert))
+			client.OptionTrustedCert(*flagTrustedCert),
+			optTransportConfig,
+		)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -96,7 +100,7 @@ func main() {
 		if *flagTrustedCert != "" {
 			log.Fatal("Can't use --cert without --shared.")
 		}
-		cl = client.NewOrFail(client.OptionInsecure(*flagInsecureTLS))
+		cl = client.NewOrFail(client.OptionInsecure(*flagInsecureTLS), optTransportConfig)
 		for n := 0; n < flag.NArg(); n++ {
 			arg := flag.Arg(n)
 			br, ok := blob.Parse(arg)
@@ -107,11 +111,7 @@ func main() {
 		}
 	}
 
-	tr := cl.TransportForConfig(&client.TransportConfig{
-		Verbose: *flagHTTP,
-	})
-	httpStats, _ := tr.(*httputil.StatsTransport)
-	cl.SetHTTPClient(&http.Client{Transport: tr})
+	httpStats := cl.HTTPStats()
 
 	diskCacheFetcher, err := cacher.NewDiskCache(cl)
 	if err != nil {

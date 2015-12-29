@@ -21,7 +21,6 @@ package app
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 
@@ -46,9 +45,6 @@ func Client() (*client.Client, error) {
 		return nil, fmt.Errorf("invalid auth string syntax. got %q, want \"username:password\"", authString)
 	}
 	cl := client.NewFromParams(server, auth.NewBasicAuth(userpass[0], userpass[1]))
-	cl.SetHTTPClient(&http.Client{
-		Transport: cl.TransportForConfig(nil),
-	})
 	return cl, nil
 }
 

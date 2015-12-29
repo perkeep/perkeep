@@ -67,9 +67,9 @@ func init() {
 			stats := up.Stats()
 			if *cmdmain.FlagVerbose {
 				log.Printf("Client stats: %s", stats.String())
-				if up.transport != nil {
-					log.Printf("  #HTTP reqs: %d", up.transport.Requests())
-					h1, h2 := up.transport.ProtoVersions()
+				if up.stats != nil {
+					log.Printf("  #HTTP reqs: %d", up.stats.Requests())
+					h1, h2 := up.stats.ProtoVersions()
 					log.Printf("   responses: %d (h1), %d (h2)\n", h1, h2)
 				}
 			}
@@ -153,18 +153,15 @@ func newUploader() *Uploader {
 		}
 		cc = client.NewStorageClient(ss)
 	} else {
-		cc = client.NewOrFail()
-		proxy := http.ProxyFromEnvironment
+		var proxy func(*http.Request) (*url.URL, error)
 		if flagProxyLocal {
 			proxy = proxyFromEnvironment
 		}
-		tr := cc.TransportForConfig(
-			&client.TransportConfig{
-				Proxy:   proxy,
-				Verbose: *flagHTTP,
-			})
-		httpStats, _ = tr.(*httputil.StatsTransport)
-		cc.SetHTTPClient(&http.Client{Transport: tr})
+		cc = client.NewOrFail(client.OptionTransportConfig(&client.TransportConfig{
+			Proxy:   proxy,
+			Verbose: *flagHTTP,
+		}))
+		httpStats = cc.HTTPStats()
 	}
 	if *cmdmain.FlagVerbose {
 		cc.SetLogger(log.New(cmdmain.Stderr, "", log.LstdFlags))
@@ -178,10 +175,10 @@ func newUploader() *Uploader {
 	}
 
 	return &Uploader{
-		Client:    cc,
-		transport: httpStats,
-		pwd:       pwd,
-		fdGate:    syncutil.NewGate(100), // gate things that waste fds, assuming a low system limit
+		Client: cc,
+		stats:  httpStats,
+		pwd:    pwd,
+		fdGate: syncutil.NewGate(100), // gate things that waste fds, assuming a low system limit
 	}
 }
 

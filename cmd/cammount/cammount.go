@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -114,7 +113,6 @@ func main() {
 			}
 		} else {
 			cl = client.NewOrFail() // automatic from flags
-			cl.SetHTTPClient(&http.Client{Transport: cl.TransportForConfig(nil)})
 
 			var ok bool
 			root, ok = blob.Parse(rootArg)
@@ -137,7 +135,6 @@ func main() {
 		}
 	} else {
 		cl = client.NewOrFail() // automatic from flags
-		cl.SetHTTPClient(&http.Client{Transport: cl.TransportForConfig(nil)})
 	}
 
 	diskCacheFetcher, err := cacher.NewDiskCache(cl)

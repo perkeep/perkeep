@@ -189,7 +189,6 @@ func TestUploadDirectories(t *testing.T) {
 		// uploaded in, so the directory comes before the file. This
 		// was the old deadlock.
 		defer setAndRestore(&uploadWorkers, 1)()
-		defer setAndRestore(&dirUploadWorkers, 1)()
 		defer setAndRestore(&statCacheWorkers, 5)()
 
 		e := &env{

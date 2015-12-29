@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -165,14 +164,13 @@ func (c *initCmd) clientConfigFromServer() (*clientconfig.Config, error) {
 	cl := client.NewFromParams(server,
 		auth.NewBasicAuth(fields[0], fields[1]),
 		client.OptionInsecure(c.insecureTLS))
-	cl.SetHTTPClient(&http.Client{Transport: cl.TransportForConfig(nil)})
-	var cc clientconfig.Config
 
 	helpRoot, err := cl.HelpRoot()
 	if err != nil {
 		return nil, err
 	}
 
+	var cc clientconfig.Config
 	if err := cl.GetJSON(helpRoot+"?clientConfig=true", &cc); err != nil {
 		return nil, err
 	}

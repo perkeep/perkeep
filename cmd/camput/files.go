@@ -71,7 +71,6 @@ var flagUseSQLiteChildCache bool // Use sqlite for the statcache and havecache.
 
 var (
 	uploadWorkers    = 5 // concurrent upload workers (negative means unbounded: memory hog)
-	dirUploadWorkers = 3 // concurrent directory uploading workers
 	statCacheWorkers = 5 // concurrent statcache workers
 )
 
@@ -105,7 +104,6 @@ func init() {
 			flags.BoolVar(&cmd.argsFromInput, "stdinargs", false, "If true, filenames to upload are sent one-per-line on stdin. EOF means to quit the process with exit status 0.")
 			// limit number of goroutines to limit memory
 			uploadWorkers = 2
-			dirUploadWorkers = 2
 			statCacheWorkers = 2
 		}
 		flagCacheLog = flags.Bool("logcache", false, "log caching details")
@@ -843,7 +841,7 @@ func (n *node) SetPutResult(res *client.PutResult, err error) {
 		panic("SetPutResult called twice on node " + n.fullPath)
 	}
 	n.res, n.err = res, err
-	n.cond.Signal()
+	n.cond.Broadcast()
 }
 
 func (n *node) PutResult() (*client.PutResult, error) {
@@ -1031,7 +1029,10 @@ func (t *TreeUpload) run() {
 			}
 		})
 	} else {
-		dirUpload := chanworker.NewWorker(dirUploadWorkers, func(el interface{}, ok bool) {
+		// dirUpload is unbounded because directories can depend on directories.
+		// We bound the number of HTTP requests in flight instead.
+		// TODO(bradfitz): remove this chanworker stuff?
+		dirUpload := chanworker.NewWorker(-1, func(el interface{}, ok bool) {
 			if !ok {
 				log.Printf("done uploading directories - done with all uploads.")
 				uploadsdonec <- true
@@ -1050,6 +1051,7 @@ func (t *TreeUpload) run() {
 			if !ok {
 				log.Printf("done with all uploads.")
 				close(dirUpload)
+				log.Printf("closed dirUpload")
 				return
 			}
 			n := el.(*node)
