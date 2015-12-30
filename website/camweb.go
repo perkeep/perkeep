@@ -889,6 +889,10 @@ func gerritRedirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func releaseRedirect(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/dl" || r.URL.Path == "/dl/" {
+		http.Redirect(w, r, "https://camlistore.org/download/", http.StatusFound)
+		return
+	}
 	dest := "https://storage.googleapis.com/camlistore-release/"
 	if len(r.URL.Path) > len("/dl/") {
 		dest += r.URL.Path[1:]
