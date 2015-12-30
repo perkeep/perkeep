@@ -92,11 +92,19 @@ func KillContainer(container string) error {
 
 // Pull retrieves the docker image with 'docker pull'.
 func Pull(image string) error {
-	out, err := exec.Command("docker", "pull", image).CombinedOutput()
-	if err != nil {
-		err = fmt.Errorf("%v: %s", err, out)
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command("docker", "pull", image)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	out := stdout.String()
+	// TODO(mpl): if it turns out docker respects conventions and the
+	// "Authentication is required" message does come from stderr, then quit
+	// checking stdout.
+	if err != nil || stderr.Len() != 0 || strings.Contains(out, "Authentication is required") {
+		return fmt.Errorf("docker pull failed: stdout: %s, stderr: %s, err: %v", out, stderr.String(), err)
 	}
-	return err
+	return nil
 }
 
 // IP returns the IP address of the container.
