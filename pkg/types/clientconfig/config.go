@@ -67,7 +67,7 @@ func (conf *Config) Alias(server string) string {
 // access a server defined by the provided low-level server configuration.
 func GenerateClientConfig(serverConfig jsonconfig.Obj) (*Config, error) {
 	missingConfig := func(param string) (*Config, error) {
-		return nil, fmt.Errorf("required value for '%s' not found", param)
+		return nil, fmt.Errorf("required value for %q not found", param)
 	}
 
 	if serverConfig == nil {
@@ -159,6 +159,6 @@ func GenerateClientConfig(serverConfig jsonconfig.Obj) (*Config, error) {
 		},
 		Identity:           keyId,
 		IdentitySecretRing: secretRing,
-		IgnoredFiles:       []string{".DS_Store"},
+		IgnoredFiles:       []string{".DS_Store", "*~"},
 	}, nil
 }

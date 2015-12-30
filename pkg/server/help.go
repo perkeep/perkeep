@@ -24,7 +24,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
@@ -45,16 +44,16 @@ const helpHTML string = `<html>
 			<h3>Client tools</h3>
 
 			<p>
-			You can download the Camlistore command line tools in one of the binary releases at:
+			You can download the Camlistore command line tools for Linux, Mac, and Windows at:
 			<ul>
-				<li><a href="https://camlistore.org/dl/0.9/camlistore0.9-linux.tar.gz">camlistore0.9-linux.tar.gz</a></li>
-				<li><a href="https://camlistore.org/dl/0.9/camlistore0.9-osx.tar.gz">camlistore0.9-osx.tar.gz</a></li>
-				<li><a href="https://camlistore.org/dl/0.9/camlistore0.9-windows.zip">camlistore0.9-windows.zip</a></li>
+				<li><a href="https://camlistore.org/download">camlistore.org/download</a></li>
 			</ul>
 			</p>
 
 			<p>You will need to use the following <a href='https://camlistore.org/docs/client-config'>client configuration</a> in order to access this server using the command line tools.</p>
-			<pre>{{ . }}</pre>
+			<pre>{{ .ClientConfigJSON }}</pre>
+
+                        {{ .SecringDownloadHint }}
 
 			<h3>Anything Else?</h3>
 			<p>See the Camlistore <a href='https://camlistore.org/docs/'>online documentation</a> and <a href='https://camlistore.org/community/'>community contacts</a>.</p>
@@ -63,18 +62,18 @@ const helpHTML string = `<html>
 
 // HelpHandler publishes information related to accessing the server
 type HelpHandler struct {
-	clientConfig *clientconfig.Config // generated from serverConfig
-	serverConfig jsonconfig.Obj       // low-level config
-	goTemplate   *template.Template   // for rendering
+	clientConfig  *clientconfig.Config // generated from serverConfig
+	serverConfig  jsonconfig.Obj       // low-level config
+	goTemplate    *template.Template   // for rendering
+	serverSecRing string
 }
-
-// setServerConfigOnce guards operation within SetServerConfig
-var setServerConfigOnce sync.Once
 
 // SetServerConfig enables the handler to receive the server config
 // before InitHandler, which generates a client config from the server config, is called.
 func (hh *HelpHandler) SetServerConfig(config jsonconfig.Obj) {
-	setServerConfigOnce.Do(func() { hh.serverConfig = config })
+	if hh.serverConfig == nil {
+		hh.serverConfig = config
+	}
 }
 
 func init() {
@@ -116,6 +115,9 @@ func (hh *HelpHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 		return fmt.Errorf("error generating client config: %v", err)
 	}
 	hh.clientConfig = clientConfig
+
+	hh.serverSecRing = clientConfig.IdentitySecretRing
+	clientConfig.IdentitySecretRing = "/home/you/.config/camlistore/identity-secring.gpg"
 
 	tmpl, err := template.New("help").Parse(helpHTML)
 	if err != nil {
@@ -162,5 +164,19 @@ func (hh *HelpHandler) serveHelpHTML(cc *clientconfig.Config, rw http.ResponseWr
 		return
 	}
 
-	hh.goTemplate.Execute(rw, string(jsonBytes))
+	var hint template.HTML
+	if strings.HasPrefix(hh.serverSecRing, "/gcs/") {
+		bucketdir := strings.TrimPrefix(hh.serverSecRing, "/gcs/")
+		bucketdir = strings.TrimSuffix(bucketdir, "/identity-secring.gpg")
+		hint = template.HTML(fmt.Sprintf("<p>Download your GnuPG secret ring from <a href=\"https://console.developers.google.com/storage/browser/%s/\">https://console.developers.google.com/storage/browser/%s/</a> and place it in your <a href='https://camlistore.org/docs/client-config'>Camlistore client config directory</a>. Keep it private. It's not encrypted or password-protected and anybody in possession of it can create Camlistore claims as your identity.</p>\n",
+			bucketdir, bucketdir))
+	}
+
+	hh.goTemplate.Execute(rw, struct {
+		ClientConfigJSON    string
+		SecringDownloadHint template.HTML
+	}{
+		ClientConfigJSON:    string(jsonBytes),
+		SecringDownloadHint: hint,
+	})
 }
