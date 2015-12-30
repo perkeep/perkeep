@@ -35,6 +35,7 @@ import (
 )
 
 var (
+	// TODO(mpl): make the flags the same as in dock.go
 	rev      = flag.String("rev", "", "Camlistore revision to build (tag or commit hash)")
 	localSrc = flag.String("camlisource", "", "(dev flag) Path to a local Camlistore source tree from which to build. It is ignored unless -rev=WORKINPROGRESS")
 	outDir   = flag.String("outdir", "/OUT/", "Output directory, where camlistored and all the resources will be written")
@@ -115,6 +116,7 @@ func buildCamlistored() {
 	os.Setenv("PATH", "/usr/local/go/bin:"+oldPath)
 	os.Setenv("CGO_ENABLED", "0")
 	os.Setenv("GO15VENDOREXPERIMENT", "1")
+	// TODO(mpl, bradfitz): stamp the 0.9 version here with ldflags if a version was passed as a flag to the program.
 	cmd := exec.Command("go", "build",
 		"-o", path.Join(*outDir, "/bin/camlistored"),
 		`--ldflags`, "-w -d -linkmode internal -X camlistore.org/pkg/buildinfo.GitInfo="+*rev,
