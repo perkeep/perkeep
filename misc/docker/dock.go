@@ -114,6 +114,7 @@ func genCamlistore(ctxDir string) {
 		"--volume=" + ctxDir + "/camlistore.org:/OUT",
 		"--volume=" + path.Join(dockDir, "server/build-camlistore-server.go") + ":" + genCamliProgram + ":ro",
 	}
+	// TODO(mpl, bradfitz): pass the version to genCamliProgram so it can stamp it into camlistored when building it.
 	if isWIP() {
 		args = append(args, "--volume="+localCamliSource()+":/IN:ro",
 			goDockerImage, goCmd, "run", genCamliProgram, "--rev="+rev(), "--camlisource=/IN")
@@ -298,6 +299,7 @@ func uploadDockerImage() {
 	log.Printf("Uploaded tarball to %s", versionedTarball)
 	if !isWIP() {
 		log.Printf("Copying tarball to %s/%s ...", bucket, tarball)
+		// TODO(mpl, bradfitz): restore the code that forces the destination tarball to be public, so we don't have to make it public manually through the google console.
 		if _, err := stoClient.CopyObject(ctx, bucket, versionedTarball, bucket, tarball, nil); err != nil {
 			log.Fatalf("Error uploading %v: %v", tarball, err)
 		}
