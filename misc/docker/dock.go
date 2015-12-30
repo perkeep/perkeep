@@ -216,11 +216,11 @@ func uploadReleaseTarball() {
 	w := stoClient.Bucket(bucket).Object(versionedTarball).NewWriter(ctx)
 	w.ACL = publicACL(proj)
 	w.CacheControl = "no-cache" // TODO: remove for non-tip releases? set expirations?
+	contentType := "application/x-gtar"
 	if *buildOS == "windows" {
-		w.ContentType = "application/zip"
-	} else {
-		w.ContentType = "application/x-gtar"
+		contentType = "application/zip"
 	}
+	w.ContentType = contentType
 
 	src, err := os.Open(releaseTarball)
 	if err != nil {
@@ -237,7 +237,13 @@ func uploadReleaseTarball() {
 	log.Printf("Uploaded tarball to %s", versionedTarball)
 	if !isWIP() {
 		log.Printf("Copying tarball to %s/%s ...", bucket, tarball)
-		if _, err := stoClient.CopyObject(ctx, bucket, versionedTarball, bucket, tarball, nil); err != nil {
+		if _, err := stoClient.CopyObject(ctx,
+			bucket, versionedTarball,
+			bucket, tarball,
+			&storage.ObjectAttrs{
+				ACL:         publicACL(proj),
+				ContentType: contentType,
+			}); err != nil {
 			log.Fatalf("Error uploading %v: %v", tarball, err)
 		}
 		log.Printf("Uploaded tarball to %s", tarball)
