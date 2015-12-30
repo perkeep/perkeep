@@ -182,19 +182,14 @@ func buildServer(ctxDir string) {
 	}
 }
 
-func prepWriter(w *storage.Writer, proj string) {
-	// If you don't give the owners access, the web UI seems to
-	// have a bug and doesn't have access to see that it's public, so
-	// won't render the "Shared Publicly" link. So we do that, even
-	// though it's dumb and unnecessary otherwise:
-	acl := append(w.ACL, storage.ACLRule{Entity: storage.ACLEntity("project-owners-" + proj), Role: storage.RoleOwner})
-	acl = append(acl, storage.ACLRule{Entity: storage.AllUsers, Role: storage.RoleReader})
-	w.ACL = acl
-	w.CacheControl = "no-cache" // TODO: remove for non-tip releases? set expirations?
-	if *buildOS == "windows" {
-		w.ContentType = "application/zip"
-	} else {
-		w.ContentType = "application/x-gtar"
+func publicACL(proj string) []storage.ACLRule {
+	return []storage.ACLRule{
+		// If you don't give the owners access, the web UI seems to
+		// have a bug and doesn't have access to see that it's public, so
+		// won't render the "Shared Publicly" link. So we do that, even
+		// though it's dumb and unnecessary otherwise:
+		{Entity: storage.ACLEntity("project-owners-" + proj), Role: storage.RoleOwner},
+		{Entity: storage.AllUsers, Role: storage.RoleReader},
 	}
 }
 
@@ -219,7 +214,13 @@ func uploadReleaseTarball() {
 		log.Fatal(err)
 	}
 	w := stoClient.Bucket(bucket).Object(versionedTarball).NewWriter(ctx)
-	prepWriter(w, proj)
+	w.ACL = publicACL(proj)
+	w.CacheControl = "no-cache" // TODO: remove for non-tip releases? set expirations?
+	if *buildOS == "windows" {
+		w.ContentType = "application/zip"
+	} else {
+		w.ContentType = "application/x-gtar"
+	}
 
 	src, err := os.Open(releaseTarball)
 	if err != nil {
@@ -264,7 +265,9 @@ func uploadDockerImage() {
 		log.Fatal(err)
 	}
 	w := stoClient.Bucket(bucket).Object(versionedTarball).NewWriter(ctx)
-	prepWriter(w, proj)
+	w.ACL = publicACL(proj)
+	w.CacheControl = "no-cache" // TODO: remove for non-tip releases? set expirations?
+	w.ContentType = "application/x-gtar"
 
 	dockerSave := exec.Command("docker", "save", serverImage)
 	dockerSave.Stderr = os.Stderr
@@ -299,8 +302,14 @@ func uploadDockerImage() {
 	log.Printf("Uploaded tarball to %s", versionedTarball)
 	if !isWIP() {
 		log.Printf("Copying tarball to %s/%s ...", bucket, tarball)
-		// TODO(mpl, bradfitz): restore the code that forces the destination tarball to be public, so we don't have to make it public manually through the google console.
-		if _, err := stoClient.CopyObject(ctx, bucket, versionedTarball, bucket, tarball, nil); err != nil {
+		if _, err := stoClient.CopyObject(ctx,
+			bucket, versionedTarball,
+			bucket, tarball,
+			&storage.ObjectAttrs{
+				ACL:          publicACL(proj),
+				CacheControl: "no-cache",
+				ContentType:  "application/x-gtar",
+			}); err != nil {
 			log.Fatalf("Error uploading %v: %v", tarball, err)
 		}
 		log.Printf("Uploaded tarball to %s", tarball)
@@ -314,7 +323,7 @@ func exeName(s string) string {
 	return s
 }
 
-// setReleaseTarballName sets releaseTarball
+// setReleaseTarballName sets releaseTarball.
 func setReleaseTarballName() {
 	var filename, extension string
 	if *buildOS == "windows" {
