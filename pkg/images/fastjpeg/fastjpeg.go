@@ -211,14 +211,8 @@ func DecodeDownsample(r io.Reader, factor int) (image.Image, error) {
 	stderrW := new(bytes.Buffer)
 	cmd.Stderr = stderrW
 	if err := cmd.Run(); err != nil {
-		// cmd.ProcessState == nil happens if /lib/*/ld-x.yz.so is missing, which gives you the ever useful:
-		// "fork/exec /usr/bin/djpeg: no such file or directory" error message.
-		// So of course it only happens on broken systems and this check is probably overkill.
-		if cmd.ProcessState == nil || !cmd.ProcessState.Success() {
-			djpegFailureVar.Add(1)
-			return nil, DjpegFailedError{Err: fmt.Errorf("%v: %s", err, stderrW)}
-		}
-		// false alarm, so proceed. See http://camlistore.org/issue/550
+		djpegFailureVar.Add(1)
+		return nil, DjpegFailedError{Err: fmt.Errorf("%v: %s", err, stderrW)}
 	}
 	djpegSuccessVar.Add(1)
 	djpegBytesReadVar.Add(int64(w.Len()))
