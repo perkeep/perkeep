@@ -45,7 +45,7 @@ import (
 
 var (
 	flagRev     = flag.String("rev", "", "Camlistore revision to build (tag or commit hash). For development purposes, you can instead specify the path to a local Camlistore source tree from which to build, with the form \"WIP:/path/to/dir\".")
-	flagVersion = flag.String("tarball_version", "", "For --build_image mode, the version number (e.g. 0.9) used for the release tarball name. It also defines the destination directory where the release tarball is uploaded.")
+	flagVersion = flag.String("tarball_version", "", "For --build_release mode, the version number (e.g. 0.9) used for the release tarball name. It also defines the destination directory where the release tarball is uploaded.")
 	buildOS     = flag.String("os", runtime.GOOS, "Operating system to build for. Requires --build_release.")
 
 	doImage    = flag.Bool("build_image", true, "build the Camlistore server as a docker image. Conflicts with --build_release.")
