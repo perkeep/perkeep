@@ -17,7 +17,9 @@ limitations under the License.
 package client
 
 import (
+	"path"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -42,8 +44,14 @@ func TestIgnoreMultiPattern(t *testing.T) {
 func TestIsIgnoredFile(t *testing.T) {
 	old := osutilHomeDir
 	defer func() { osutilHomeDir = old }()
-	osutilHomeDir = func() string {
-		return "/Fake/Home/Camli"
+	if runtime.GOOS == "windows" {
+		osutilHomeDir = func() string {
+			return `C:\Fake\Users\Camli`
+		}
+	} else {
+		osutilHomeDir = func() string {
+			return "/Fake/Home/Camli"
+		}
 	}
 
 	home := osutilHomeDir()
@@ -86,6 +94,7 @@ type patternTest struct {
 }
 
 func TestIgnoreFns(t *testing.T) {
+	// POSIX tests
 	tests := []patternTest{
 		{
 			name:     "isShellPatternMatch",
@@ -143,6 +152,106 @@ func TestIgnoreFns(t *testing.T) {
 			fullpath: "/home/pony/rainbow.jpg",
 			want:     false,
 		},
+		{
+			name:     "hasComponent",
+			fn:       hasComponent,
+			pattern:  "/home/pony",
+			fullpath: "/home/pony/rainbow.jpg",
+			want:     false,
+		},
+		{
+			name:     "hasComponent",
+			fn:       hasComponent,
+			pattern:  "pony",
+			fullpath: "/home/ponytail/pony/rainbow.jpg",
+			want:     true,
+		},
+		{
+			name:     "hasComponent",
+			fn:       hasComponent,
+			pattern:  "pony",
+			fullpath: "/home/pony/ponytail/rainbow.jpg",
+			want:     true,
+		},
+		{
+			name:     "hasComponent",
+			fn:       hasComponent,
+			pattern:  "rainbow.jpg",
+			fullpath: "/home/ponytail/pony/rainbow.jpg",
+			want:     true,
+		},
+	}
+	if runtime.GOOS == "windows" {
+		// A path starting with a single slash is relative
+		// path on Windows. Prepend a drive letter to it to
+		// make it absolute.
+		// Also clean paths so that the test work on Windows.
+		const driveSpec = "C:"
+		for i := range tests {
+			v := &tests[i]
+			// Check path.IsAbs, not filepath.IsAbs to see
+			// if v.pattern should be absolute.
+			if path.IsAbs(v.pattern) {
+				v.pattern = driveSpec + filepath.Clean(v.pattern)
+			} else {
+				v.pattern = filepath.Clean(v.pattern)
+			}
+			v.fullpath = driveSpec + filepath.Clean(v.fullpath)
+		}
+
+		// On Windows, a volume name such as a drive letter or UNC volume:
+		//  `C:`
+		//  `\\server\sharename`
+		// is considered a single path component. Therefore neither of:
+		//  `server`
+		//  `sharename`
+		//  `server\sharename`
+		// should be accepted for fullpath == `\\server\sharename\...`
+		windowsTests := []patternTest{
+			{
+				name:     "hasComponent",
+				fn:       hasComponent,
+				pattern:  `pony`,
+				fullpath: `C:\pony\rainbow.jpg`,
+				want:     true,
+			},
+			{
+				name:     "hasComponent",
+				fn:       hasComponent,
+				pattern:  `pony`,
+				fullpath: `\\server\sharename\pony\rainbow.jpg`,
+				want:     true,
+			},
+			{
+				name:     "hasComponent",
+				fn:       hasComponent,
+				pattern:  `C:`,
+				fullpath: `C:\windows\system32`,
+				want:     false,
+			},
+			{
+				name:     "hasComponent",
+				fn:       hasComponent,
+				pattern:  `server`,
+				fullpath: `\\server\sharename\rainbow.jpg`,
+				want:     false,
+			},
+			{
+				name:     "hasComponent",
+				fn:       hasComponent,
+				pattern:  `sharename`,
+				fullpath: `\\server\sharename\rainbow.jpg`,
+				want:     false,
+			},
+			{
+				name:     "hasComponent",
+				fn:       hasComponent,
+				pattern:  `server\sharename`,
+				fullpath: `\\server\sharename\rainbow.jpg`,
+				want:     false,
+			},
+		}
+		tests = append(tests, windowsTests...)
 	}
 	for _, v := range tests {
 		if v.fn(v.pattern, v.fullpath) != v.want {

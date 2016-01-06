@@ -547,6 +547,7 @@ func (cl *Client) UploadFile(filename string, contents io.Reader, opts *FileUplo
 			fileMap.SetModTime(modTime)
 		}
 	}
+	fileMap.SetType("file")
 
 	var wholeRef blob.Ref
 	if opts != nil && opts.WholeRef.Valid() {
@@ -616,11 +617,12 @@ func (cl *Client) fileMapFromDuplicate(fileMap *schema.Builder, wholeRef blob.Re
 	if err != nil {
 		return blob.Ref{}, fmt.Errorf("could not write file map for wholeRef %q: %v", wholeRef, err)
 	}
-	if blob.SHA1FromString(json) == dupFileRef {
+	bref := blob.SHA1FromString(json)
+	if bref == dupFileRef {
 		// Unchanged (same filename, modtime, JSON serialization, etc)
 		return dupFileRef, nil
 	}
-	sbr, err := cl.ReceiveBlob(dupFileRef, strings.NewReader(json))
+	sbr, err := cl.ReceiveBlob(bref, strings.NewReader(json))
 	if err != nil {
 		return blob.Ref{}, err
 	}
