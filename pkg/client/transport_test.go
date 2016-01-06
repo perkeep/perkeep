@@ -150,10 +150,10 @@ func TestTransportSetup(t *testing.T) {
 	}
 	for tti, tt := range transportTests {
 		cl := &Client{
-			paramsOnly:   true,
-			server:       tt.server,
-			trustedCerts: tt.trustedCerts,
-			InsecureTLS:  tt.insecureTLS,
+			paramsOnly:         true,
+			server:             tt.server,
+			trustedCerts:       tt.trustedCerts,
+			insecureAnyTLSCert: tt.insecureTLS,
 		}
 		android.OnAndroidHook = func() bool {
 			return tt.onAndroid

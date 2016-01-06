@@ -561,21 +561,27 @@ func hasDirPrefix(dirPrefix, fullpath string) bool {
 	return false
 }
 
-// hasComponent returns whether the pathComponent is a path component of fullpath. i.e it is a part of fullpath that fits exactly between two path separators.
+// hasComponent returns whether the pathComponent is a path component of
+// fullpath. i.e it is a part of fullpath that fits exactly between two path
+// separators.
 func hasComponent(component, fullpath string) bool {
-	idx := strings.Index(fullpath, component)
-	if idx == -1 {
-		return false
+	// trim Windows volume name
+	fullpath = strings.TrimPrefix(fullpath, filepath.VolumeName(fullpath))
+	for {
+		i := strings.Index(fullpath, component)
+		if i == -1 {
+			return false
+		}
+		if i != 0 && fullpath[i-1] == filepath.Separator {
+			componentEnd := i + len(component)
+			if componentEnd == len(fullpath) {
+				return true
+			}
+			if fullpath[componentEnd] == filepath.Separator {
+				return true
+			}
+		}
+		fullpath = fullpath[i+1:]
 	}
-	if fullpath[idx-1] != filepath.Separator {
-		return false
-	}
-	componentEnd := idx + len(component)
-	if componentEnd == len(fullpath) {
-		return true
-	}
-	if fullpath[componentEnd] == filepath.Separator {
-		return true
-	}
-	return false
+	panic("unreachable")
 }
