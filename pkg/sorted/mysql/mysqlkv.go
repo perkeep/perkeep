@@ -95,7 +95,8 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	}
 
 	kv := &keyValue{
-		db: db,
+		dsn: dsn,
+		db:  db,
 		KeyValue: &sqlkv.KeyValue{
 			DB:          db,
 			TablePrefix: database + ".",
@@ -158,7 +159,17 @@ func openOrCachedDB(dsn string) (*sql.DB, error) {
 type keyValue struct {
 	*sqlkv.KeyValue
 
-	db *sql.DB
+	dsn string
+	db  *sql.DB
+}
+
+// Close overrides KeyValue.Close because we need to remove the DB from the pool
+// when closing.
+func (kv *keyValue) Close() error {
+	dbsmu.Lock()
+	defer dbsmu.Unlock()
+	delete(dbs, kv.dsn)
+	return kv.DB.Close()
 }
 
 func (kv *keyValue) ping() error {
