@@ -24,6 +24,8 @@ import (
 
 	"camlistore.org/pkg/client/android"
 	"camlistore.org/pkg/httputil"
+
+	"golang.org/x/net/http2"
 )
 
 var transportTests = []struct {
@@ -35,6 +37,7 @@ var transportTests = []struct {
 	// ouptput
 	dialFunc    bool // whether the transport's Dial is not nil
 	dialTLSFunc bool // whether the transport's DialTLS is not nil
+	http2       bool // whether we're on http2
 }{
 	// All http, not android.
 	{
@@ -44,6 +47,7 @@ var transportTests = []struct {
 		insecureTLS:  false,
 		dialFunc:     false,
 		dialTLSFunc:  false,
+		http2:        false,
 	},
 	{
 		server:       "http://example.com",
@@ -52,6 +56,7 @@ var transportTests = []struct {
 		insecureTLS:  true,
 		dialFunc:     false,
 		dialTLSFunc:  false,
+		http2:        false,
 	},
 	{
 		server:       "http://example.com",
@@ -60,6 +65,7 @@ var transportTests = []struct {
 		insecureTLS:  false,
 		dialFunc:     false,
 		dialTLSFunc:  false,
+		http2:        false,
 	},
 
 	// All http, on android.
@@ -70,6 +76,7 @@ var transportTests = []struct {
 		insecureTLS:  false,
 		dialFunc:     true,
 		dialTLSFunc:  false,
+		http2:        false,
 	},
 	{
 		server:       "http://example.com",
@@ -78,6 +85,7 @@ var transportTests = []struct {
 		insecureTLS:  true,
 		dialFunc:     true,
 		dialTLSFunc:  false,
+		http2:        false,
 	},
 	{
 		server:       "http://example.com",
@@ -86,9 +94,10 @@ var transportTests = []struct {
 		insecureTLS:  false,
 		dialFunc:     true,
 		dialTLSFunc:  false,
+		http2:        false,
 	},
 
-	// All https, not android.
+	// All https, not android, hence http2.
 	{
 		server:       "https://example.com",
 		onAndroid:    false,
@@ -96,6 +105,7 @@ var transportTests = []struct {
 		insecureTLS:  false,
 		dialFunc:     false,
 		dialTLSFunc:  false,
+		http2:        true,
 	},
 	{
 		server:       "https://example.com",
@@ -104,6 +114,7 @@ var transportTests = []struct {
 		insecureTLS:  true,
 		dialFunc:     false,
 		dialTLSFunc:  true,
+		http2:        true,
 	},
 	{
 		server:       "https://example.com",
@@ -112,6 +123,7 @@ var transportTests = []struct {
 		insecureTLS:  false,
 		dialFunc:     false,
 		dialTLSFunc:  true,
+		http2:        true,
 	},
 
 	// All https, on android.
@@ -122,6 +134,7 @@ var transportTests = []struct {
 		insecureTLS:  false,
 		dialFunc:     false,
 		dialTLSFunc:  true,
+		http2:        false,
 	},
 	{
 		server:       "https://example.com",
@@ -130,6 +143,7 @@ var transportTests = []struct {
 		insecureTLS:  true,
 		dialFunc:     false,
 		dialTLSFunc:  true,
+		http2:        false,
 	},
 	{
 		server:       "https://example.com",
@@ -138,6 +152,7 @@ var transportTests = []struct {
 		insecureTLS:  false,
 		dialFunc:     false,
 		dialTLSFunc:  true,
+		http2:        false,
 	},
 }
 
@@ -159,11 +174,29 @@ func TestTransportSetup(t *testing.T) {
 			return tt.onAndroid
 		}
 		rt := cl.transportForConfig(nil)
+		if tt.http2 {
+			tr, ok := rt.(*httputil.StatsTransport).Transport.(*http2.Transport)
+			if !ok {
+				t.Fatalf("test %d for %#v: got %T, wanted *http2.Transport", tti, tt, rt)
+			}
+			if tt.dialTLSFunc != (tr.DialTLS != nil) {
+				t.Errorf("test %d for %#v: dialTLSFunc should be %v", tti, tt, sayNil(!tt.dialTLSFunc))
+			}
+			continue
+		}
+
 		var tr *http.Transport
+		var ok bool
 		if tt.onAndroid {
-			tr = rt.(*android.StatsTransport).Rt.(*httputil.StatsTransport).Transport.(*http.Transport)
+			tr, ok = rt.(*android.StatsTransport).Rt.(*httputil.StatsTransport).Transport.(*http.Transport)
+			if !ok {
+				t.Fatalf("test %d for %#v: got %T, wanted *http.Transport", tti, tt, rt)
+			}
 		} else {
-			tr = rt.(*httputil.StatsTransport).Transport.(*http.Transport)
+			tr, ok = rt.(*httputil.StatsTransport).Transport.(*http.Transport)
+			if !ok {
+				t.Fatalf("test %d for %#v: got %T, wanted *http.Transport", tti, tt, rt)
+			}
 		}
 		if tt.dialTLSFunc != (tr.DialTLS != nil) {
 			t.Errorf("test %d for %#v: dialTLSFunc should be %v", tti, tt, sayNil(!tt.dialTLSFunc))
