@@ -901,6 +901,60 @@ func testRejectRequest(t *testing.T, send func(*serverTester)) {
 	st.wantRSTStream(1, ErrCodeProtocol)
 }
 
+func TestServer_Request_Connect(t *testing.T) {
+	testServerRequest(t, func(st *serverTester) {
+		st.writeHeaders(HeadersFrameParam{
+			StreamID: 1,
+			BlockFragment: st.encodeHeaderRaw(
+				":method", "CONNECT",
+				":authority", "example.com:123",
+			),
+			EndStream:  true,
+			EndHeaders: true,
+		})
+	}, func(r *http.Request) {
+		if g, w := r.Method, "CONNECT"; g != w {
+			t.Errorf("Method = %q; want %q", g, w)
+		}
+		if g, w := r.RequestURI, "example.com:123"; g != w {
+			t.Errorf("RequestURI = %q; want %q", g, w)
+		}
+		if g, w := r.URL.Host, "example.com:123"; g != w {
+			t.Errorf("URL.Host = %q; want %q", g, w)
+		}
+	})
+}
+
+func TestServer_Request_Connect_InvalidPath(t *testing.T) {
+	testServerRejectsStream(t, ErrCodeProtocol, func(st *serverTester) {
+		st.writeHeaders(HeadersFrameParam{
+			StreamID: 1,
+			BlockFragment: st.encodeHeaderRaw(
+				":method", "CONNECT",
+				":authority", "example.com:123",
+				":path", "/bogus",
+			),
+			EndStream:  true,
+			EndHeaders: true,
+		})
+	})
+}
+
+func TestServer_Request_Connect_InvalidScheme(t *testing.T) {
+	testServerRejectsStream(t, ErrCodeProtocol, func(st *serverTester) {
+		st.writeHeaders(HeadersFrameParam{
+			StreamID: 1,
+			BlockFragment: st.encodeHeaderRaw(
+				":method", "CONNECT",
+				":authority", "example.com:123",
+				":scheme", "https",
+			),
+			EndStream:  true,
+			EndHeaders: true,
+		})
+	})
+}
+
 func TestServer_Ping(t *testing.T) {
 	st := newServerTester(t, nil)
 	defer st.Close()
@@ -1222,7 +1276,7 @@ func TestServer_StateTransitions(t *testing.T) {
 
 // test HEADERS w/o EndHeaders + another HEADERS (should get rejected)
 func TestServer_Rejects_HeadersNoEnd_Then_Headers(t *testing.T) {
-	testServerRejects(t, func(st *serverTester) {
+	testServerRejectsConn(t, func(st *serverTester) {
 		st.writeHeaders(HeadersFrameParam{
 			StreamID:      1,
 			BlockFragment: st.encodeHeader(),
@@ -1240,7 +1294,7 @@ func TestServer_Rejects_HeadersNoEnd_Then_Headers(t *testing.T) {
 
 // test HEADERS w/o EndHeaders + PING (should get rejected)
 func TestServer_Rejects_HeadersNoEnd_Then_Ping(t *testing.T) {
-	testServerRejects(t, func(st *serverTester) {
+	testServerRejectsConn(t, func(st *serverTester) {
 		st.writeHeaders(HeadersFrameParam{
 			StreamID:      1,
 			BlockFragment: st.encodeHeader(),
@@ -1255,7 +1309,7 @@ func TestServer_Rejects_HeadersNoEnd_Then_Ping(t *testing.T) {
 
 // test HEADERS w/ EndHeaders + a continuation HEADERS (should get rejected)
 func TestServer_Rejects_HeadersEnd_Then_Continuation(t *testing.T) {
-	testServerRejects(t, func(st *serverTester) {
+	testServerRejectsConn(t, func(st *serverTester) {
 		st.writeHeaders(HeadersFrameParam{
 			StreamID:      1,
 			BlockFragment: st.encodeHeader(),
@@ -1271,7 +1325,7 @@ func TestServer_Rejects_HeadersEnd_Then_Continuation(t *testing.T) {
 
 // test HEADERS w/o EndHeaders + a continuation HEADERS on wrong stream ID
 func TestServer_Rejects_HeadersNoEnd_Then_ContinuationWrongStream(t *testing.T) {
-	testServerRejects(t, func(st *serverTester) {
+	testServerRejectsConn(t, func(st *serverTester) {
 		st.writeHeaders(HeadersFrameParam{
 			StreamID:      1,
 			BlockFragment: st.encodeHeader(),
@@ -1286,7 +1340,7 @@ func TestServer_Rejects_HeadersNoEnd_Then_ContinuationWrongStream(t *testing.T) 
 
 // No HEADERS on stream 0.
 func TestServer_Rejects_Headers0(t *testing.T) {
-	testServerRejects(t, func(st *serverTester) {
+	testServerRejectsConn(t, func(st *serverTester) {
 		st.fr.AllowIllegalWrites = true
 		st.writeHeaders(HeadersFrameParam{
 			StreamID:      0,
@@ -1299,7 +1353,7 @@ func TestServer_Rejects_Headers0(t *testing.T) {
 
 // No CONTINUATION on stream 0.
 func TestServer_Rejects_Continuation0(t *testing.T) {
-	testServerRejects(t, func(st *serverTester) {
+	testServerRejectsConn(t, func(st *serverTester) {
 		st.fr.AllowIllegalWrites = true
 		if err := st.fr.WriteContinuation(0, true, st.encodeHeader()); err != nil {
 			t.Fatal(err)
@@ -1308,7 +1362,7 @@ func TestServer_Rejects_Continuation0(t *testing.T) {
 }
 
 func TestServer_Rejects_PushPromise(t *testing.T) {
-	testServerRejects(t, func(st *serverTester) {
+	testServerRejectsConn(t, func(st *serverTester) {
 		pp := PushPromiseParam{
 			StreamID:  1,
 			PromiseID: 3,
@@ -1319,10 +1373,10 @@ func TestServer_Rejects_PushPromise(t *testing.T) {
 	})
 }
 
-// testServerRejects tests that the server hangs up with a GOAWAY
+// testServerRejectsConn tests that the server hangs up with a GOAWAY
 // frame and a server close after the client does something
 // deserving a CONNECTION_ERROR.
-func testServerRejects(t *testing.T, writeReq func(*serverTester)) {
+func testServerRejectsConn(t *testing.T, writeReq func(*serverTester)) {
 	st := newServerTester(t, func(w http.ResponseWriter, r *http.Request) {})
 	st.addLogFilter("connection error: PROTOCOL_ERROR")
 	defer st.Close()
@@ -1346,6 +1400,16 @@ func testServerRejects(t *testing.T, writeReq func(*serverTester)) {
 	case <-time.After(2 * time.Second):
 		t.Error("timeout waiting for disconnect")
 	}
+}
+
+// testServerRejectsStream tests that the server sends a RST_STREAM with the provided
+// error code after a client sends a bogus request.
+func testServerRejectsStream(t *testing.T, code ErrCode, writeReq func(*serverTester)) {
+	st := newServerTester(t, func(w http.ResponseWriter, r *http.Request) {})
+	defer st.Close()
+	st.greet()
+	writeReq(st)
+	st.wantRSTStream(1, code)
 }
 
 // testServerRequest sets up an idle HTTP/2 connection and lets you
@@ -2408,6 +2472,7 @@ func TestCompressionErrorOnWrite(t *testing.T) {
 		serverConfig = ts.Config
 		serverConfig.MaxHeaderBytes = maxStrLen
 	})
+	st.addLogFilter("connection error: COMPRESSION_ERROR")
 	defer st.Close()
 	st.greet()
 
@@ -2451,6 +2516,7 @@ func TestCompressionErrorOnClose(t *testing.T) {
 	st := newServerTester(t, func(w http.ResponseWriter, r *http.Request) {
 		// No response body.
 	})
+	st.addLogFilter("connection error: COMPRESSION_ERROR")
 	defer st.Close()
 	st.greet()
 
@@ -2765,7 +2831,7 @@ func TestConfigureServer(t *testing.T) {
 			t.Errorf("%s: err = %v; want substring %q", tt.name, err, tt.wantErr)
 		}
 		if err == nil && !tt.in.TLSConfig.PreferServerCipherSuites {
-			t.Error("%s: PreferServerCipherSuite is false; want true", tt.name)
+			t.Errorf("%s: PreferServerCipherSuite is false; want true", tt.name)
 		}
 	}
 }
