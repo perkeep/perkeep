@@ -374,9 +374,9 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 	if h.internal {
 		wrappedHandler = unauthorizedHandler{}
 	} else {
-		wrappedHandler = &httputil.PrefixHandler{prefix, hh}
+		wrappedHandler = &httputil.PrefixHandler{Prefix: prefix, Handler: hh}
 		if handlerTypeWantsAuth(h.htype) {
-			wrappedHandler = auth.Handler{wrappedHandler}
+			wrappedHandler = auth.Handler{Handler: wrappedHandler}
 		}
 	}
 	hl.installer.Handle(prefix, wrappedHandler)

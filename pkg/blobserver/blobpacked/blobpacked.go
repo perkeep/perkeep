@@ -885,9 +885,9 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	var dataOffset int64
 	for _, br := range dataRefsWritten {
 		size := pk.dataSize[br]
-		mf.DataBlobs = append(mf.DataBlobs, BlobAndPos{blob.SizedRef{br, size}, dataOffset})
+		mf.DataBlobs = append(mf.DataBlobs, BlobAndPos{blob.SizedRef{Ref: br, Size: size}, dataOffset})
 
-		zipBlobs = append(zipBlobs, BlobAndPos{blob.SizedRef{br, size}, dataStart + dataOffset})
+		zipBlobs = append(zipBlobs, BlobAndPos{blob.SizedRef{Ref: br, Size: size}, dataStart + dataOffset})
 		dataOffset += int64(size)
 	}
 
@@ -899,7 +899,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 		check(err)
 		check(zw.Flush())
 		b := pk.schemaBlob[br]
-		zipBlobs = append(zipBlobs, BlobAndPos{blob.SizedRef{br, b.Size()}, cw.n})
+		zipBlobs = append(zipBlobs, BlobAndPos{blob.SizedRef{Ref: br, Size: b.Size()}, cw.n})
 		rc := b.Open()
 		n, err := io.Copy(fw, rc)
 		rc.Close()
@@ -1027,7 +1027,7 @@ func (s *storage) foreachZipBlob(zipRef blob.Ref, fn func(BlobAndPos) error) err
 				return err
 			}
 			if err := fn(BlobAndPos{
-				SizedRef: blob.SizedRef{br, uint32(f.UncompressedSize64)},
+				SizedRef: blob.SizedRef{Ref: br, Size: uint32(f.UncompressedSize64)},
 				Offset:   off,
 			}); err != nil {
 				return err
