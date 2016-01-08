@@ -310,7 +310,7 @@ func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if req.Method == "POST" {
 		if req.FormValue("mode") == "validate" {
 			token := req.FormValue("token")
-			if xsrftoken.Valid(token, auth.ProcessRandom(), "user", "runFullValidate") {
+			if xsrftoken.Valid(token, auth.Token(), "user", "runFullValidate") {
 				sh.startFullValidation()
 				http.Redirect(rw, req, "./", http.StatusFound)
 				return
@@ -354,7 +354,7 @@ func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	f("<h2>Validation</h2>")
 	if len(sh.vshards) == 0 {
 		f("Validation disabled")
-		token := xsrftoken.Generate(auth.ProcessRandom(), "user", "runFullValidate")
+		token := xsrftoken.Generate(auth.Token(), "user", "runFullValidate")
 		f("<form method='POST'><input type='hidden' name='mode' value='validate'><input type='hidden' name='token' value='%s'><input type='submit' value='Start validation'></form>", token)
 	} else {
 		f("<p>Background scan of source and destination to ensure that the destination has everything the source does, or is at least enqueued to sync.</p>")

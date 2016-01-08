@@ -173,7 +173,7 @@ cam.SearchSession.prototype.initSocketUri_ = function(currentUri) {
 	this.socketUri_.setFragment('');
 	var config = this.connection_.getConfig();
 	this.socketUri_.setPath(goog.uri.utils.appendPath(config.searchRoot, 'camli/search/ws'));
-	this.socketUri_.setQuery(goog.Uri.QueryData.createFromMap({authtoken: config.wsAuthToken || ''}));
+	this.socketUri_.setQuery(goog.Uri.QueryData.createFromMap({authtoken: config.authToken || ''}));
 	if (this.socketUri_.getScheme() == "https") {
 		this.socketUri_.setScheme("wss");
 	} else {

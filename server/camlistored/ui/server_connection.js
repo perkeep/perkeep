@@ -283,6 +283,11 @@ cam.ServerConnection.prototype.sign_ = function(clearObj, success, opt_fail) {
 		this.failOrLog_(opt_fail, "Missing Camli.config.signing.publicKeyBlobRef");
 		return;
 	}
+	var authToken = this.config_.authToken;
+	if (!authToken) {
+		this.failOrLog_(opt_fail, "Missing Camli.config.authToken");
+		return;
+	}
 
 	clearObj.camliSigner = sigConf.publicKeyBlobRef;
 	var camVersion = clearObj.camliVersion;
@@ -293,14 +298,16 @@ cam.ServerConnection.prototype.sign_ = function(clearObj, success, opt_fail) {
 	if (camVersion) {
 		 clearText = "{\"camliVersion\":" + camVersion + ",\n" + clearText.substr("{\n".length);
 	}
-
 	this.sendXhr_(
 		sigConf.signHandler,
 		goog.bind(this.handleXhrResponseText_, this,
 			{success: success, fail: opt_fail}),
 		"POST",
 		"json=" + encodeURIComponent(clearText),
-		{"Content-Type": "application/x-www-form-urlencoded"}
+		{"Content-Type": "application/x-www-form-urlencoded",
+			"Authorization": "Token "+authToken},
+		0, // opt_timeoutInterval, default is 0 anyway.
+		true // opt_withCredentials
 	);
 };
 
@@ -317,13 +324,21 @@ cam.ServerConnection.prototype.verify_ = function(signed, success, opt_fail) {
 		}
 		return;
 	}
+	var authToken = this.config_.authToken;
+	if (!authToken) {
+		this.failOrLog_(opt_fail, "Missing Camli.config.authToken");
+		return;
+	}
 	this.sendXhr_(
 		sigConf.verifyHandler,
 		goog.bind(this.handleXhrResponseText_, this,
 			{success: success, fail: opt_fail}),
 		"POST",
 		"sjson=" + encodeURIComponent(signed),
-		{"Content-Type": "application/x-www-form-urlencoded"}
+		{"Content-Type": "application/x-www-form-urlencoded",
+			"Authorization": "Token "+authToken},
+		0, // opt_timeoutInterval, default is 0 anyway.
+		true // opt_withCredentials
 	);
 };
 
@@ -353,10 +368,19 @@ cam.ServerConnection.prototype.handleXhrResponseText_ = function(callbacks, e) {
 // @param {Function} success Success callback.
 // @param {?Function} opt_fail Optional fail callback.
 cam.ServerConnection.prototype.uploadString_ = function(s, success, opt_fail) {
+	var authToken = this.config_.authToken;
+	if (!authToken) {
+		this.failOrLog_(opt_fail, "Missing Camli.config.authToken");
+		return;
+	}
 	var blobref = cam.blob.refFromString(s);
-	var parts = [s];
-	var bb = new Blob(parts);
+	var bb = new Blob([s]);
 	var fd = new FormData();
+	// Regarding https://camlistore.org/issue/660 , it seems like doing
+	// fd.append(blobref, s);
+	// instead does not suffer for the "first upload" problem. However,
+	// we get a mismatched blobRef if we do that, which I suppose is a
+	// JSON serialization problem that we could avoid by adopting a convention?
 	fd.append(blobref, bb);
 
 	// TODO: hack, hard-coding the upload URL here.
@@ -371,7 +395,10 @@ cam.ServerConnection.prototype.uploadString_ = function(s, success, opt_fail) {
 			{success: success, fail: opt_fail}
 		),
 		"POST",
-		fd
+		fd,
+		{"Authorization": "Token "+authToken},
+		0, // opt_timeoutInterval, default is 0 anyway.
+		true // opt_withCredentials
 	);
 };
 
@@ -537,7 +564,11 @@ cam.ServerConnection.prototype.camliUploadFileHelper_ = function(file, contentsB
 		this.failOrLog_(opt_fail, "no uploadHelper available");
 		return;
 	}
-
+	var authToken = this.config_.authToken;
+	if (!authToken) {
+		this.failOrLog_(opt_fail, "Missing Camli.config.authToken");
+		return;
+	}
 	var doUpload = goog.bind(function() {
 		var fd = new FormData();
 		fd.append("modtime", dateToRfc3339String(file.lastModifiedDate));
@@ -548,7 +579,10 @@ cam.ServerConnection.prototype.camliUploadFileHelper_ = function(file, contentsB
 				file, contentsBlobRef, {success: success, fail: opt_fail}
 			),
 			"POST",
-			fd
+			fd,
+			{"Authorization": "Token "+authToken},
+			0, // opt_timeoutInterval, default is 0 anyway.
+			true // opt_withCredentials
 		);
 	}, this);
 
