@@ -26,7 +26,21 @@ import (
 	"sync"
 )
 
-var VerboseLogs = strings.Contains(os.Getenv("GODEBUG"), "h2debug=1")
+var (
+	VerboseLogs    bool
+	logFrameWrites bool
+)
+
+func init() {
+	e := os.Getenv("GODEBUG")
+	if strings.Contains(e, "http2debug=1") {
+		VerboseLogs = true
+	}
+	if strings.Contains(e, "http2debug=2") {
+		VerboseLogs = true
+		logFrameWrites = true
+	}
+}
 
 const (
 	// ClientPreface is the string that must be sent by new

@@ -6,6 +6,8 @@ package http2
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -264,6 +266,7 @@ func TestWriteContinuation(t *testing.T) {
 			t.Errorf("test %q: %v", tt.name, err)
 			continue
 		}
+		fr.AllowIllegalReads = true
 		f, err := fr.ReadFrame()
 		if err != nil {
 			t.Errorf("test %q: failed to read the frame back: %v", tt.name, err)
@@ -593,5 +596,140 @@ func TestWritePushPromise(t *testing.T) {
 	}
 	if !reflect.DeepEqual(f, want) {
 		t.Fatalf("parsed back:\n%#v\nwant:\n%#v", f, want)
+	}
+}
+
+// test checkFrameOrder and that HEADERS and CONTINUATION frames can't be intermingled.
+func TestReadFrameOrder(t *testing.T) {
+	head := func(f *Framer, id uint32, end bool) {
+		f.WriteHeaders(HeadersFrameParam{
+			StreamID:      id,
+			BlockFragment: []byte("foo"), // unused, but non-empty
+			EndHeaders:    end,
+		})
+	}
+	cont := func(f *Framer, id uint32, end bool) {
+		f.WriteContinuation(id, end, []byte("foo"))
+	}
+
+	tests := [...]struct {
+		name    string
+		w       func(*Framer)
+		atLeast int
+		wantErr string
+	}{
+		0: {
+			w: func(f *Framer) {
+				head(f, 1, true)
+			},
+		},
+		1: {
+			w: func(f *Framer) {
+				head(f, 1, true)
+				head(f, 2, true)
+			},
+		},
+		2: {
+			wantErr: "got HEADERS for stream 2; expected CONTINUATION following HEADERS for stream 1",
+			w: func(f *Framer) {
+				head(f, 1, false)
+				head(f, 2, true)
+			},
+		},
+		3: {
+			wantErr: "got DATA for stream 1; expected CONTINUATION following HEADERS for stream 1",
+			w: func(f *Framer) {
+				head(f, 1, false)
+			},
+		},
+		4: {
+			w: func(f *Framer) {
+				head(f, 1, false)
+				cont(f, 1, true)
+				head(f, 2, true)
+			},
+		},
+		5: {
+			wantErr: "got CONTINUATION for stream 2; expected stream 1",
+			w: func(f *Framer) {
+				head(f, 1, false)
+				cont(f, 2, true)
+				head(f, 2, true)
+			},
+		},
+		6: {
+			wantErr: "unexpected CONTINUATION for stream 1",
+			w: func(f *Framer) {
+				cont(f, 1, true)
+			},
+		},
+		7: {
+			wantErr: "unexpected CONTINUATION for stream 1",
+			w: func(f *Framer) {
+				cont(f, 1, false)
+			},
+		},
+		8: {
+			wantErr: "HEADERS frame with stream ID 0",
+			w: func(f *Framer) {
+				head(f, 0, true)
+			},
+		},
+		9: {
+			wantErr: "CONTINUATION frame with stream ID 0",
+			w: func(f *Framer) {
+				cont(f, 0, true)
+			},
+		},
+		10: {
+			wantErr: "unexpected CONTINUATION for stream 1",
+			atLeast: 5,
+			w: func(f *Framer) {
+				head(f, 1, false)
+				cont(f, 1, false)
+				cont(f, 1, false)
+				cont(f, 1, false)
+				cont(f, 1, true)
+				cont(f, 1, false)
+			},
+		},
+	}
+	for i, tt := range tests {
+		buf := new(bytes.Buffer)
+		f := NewFramer(buf, buf)
+		f.AllowIllegalWrites = true
+		tt.w(f)
+		f.WriteData(1, true, nil) // to test transition away from last step
+
+		var err error
+		n := 0
+		var log bytes.Buffer
+		for {
+			var got Frame
+			got, err = f.ReadFrame()
+			fmt.Fprintf(&log, "  read %v, %v\n", got, err)
+			if err != nil {
+				break
+			}
+			n++
+		}
+		if err == io.EOF {
+			err = nil
+		}
+		ok := tt.wantErr == ""
+		if ok && err != nil {
+			t.Errorf("%d. after %d good frames, ReadFrame = %v; want success\n%s", i, n, err, log.Bytes())
+			continue
+		}
+		if !ok && err != ConnectionError(ErrCodeProtocol) {
+			t.Errorf("%d. after %d good frames, ReadFrame = %v; want ConnectionError(ErrCodeProtocol)\n%s", i, n, err, log.Bytes())
+			continue
+		}
+		if f.errReason != tt.wantErr {
+			t.Errorf("%d. framer eror = %q; want %q\n%s", i, f.errReason, tt.wantErr, log.Bytes())
+		}
+		if n < tt.atLeast {
+			t.Errorf("%d. framer only read %d frames; want at least %d\n%s", i, n, tt.atLeast, log.Bytes())
+		}
 	}
 }

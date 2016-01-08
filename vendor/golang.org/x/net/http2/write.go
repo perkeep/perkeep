@@ -7,6 +7,7 @@ package http2
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"time"
@@ -136,27 +137,31 @@ type writeResHeaders struct {
 	contentLength string
 }
 
+func encKV(enc *hpack.Encoder, k, v string) {
+	if VerboseLogs {
+		log.Printf("http2: server encoding header %q = %q", k, v)
+	}
+	enc.WriteField(hpack.HeaderField{Name: k, Value: v})
+}
+
 func (w *writeResHeaders) writeFrame(ctx writeContext) error {
 	enc, buf := ctx.HeaderEncoder()
 	buf.Reset()
 
 	if w.httpResCode != 0 {
-		enc.WriteField(hpack.HeaderField{
-			Name:  ":status",
-			Value: httpCodeString(w.httpResCode),
-		})
+		encKV(enc, ":status", httpCodeString(w.httpResCode))
 	}
 
 	encodeHeaders(enc, w.h, w.trailers)
 
 	if w.contentType != "" {
-		enc.WriteField(hpack.HeaderField{Name: "content-type", Value: w.contentType})
+		encKV(enc, "content-type", w.contentType)
 	}
 	if w.contentLength != "" {
-		enc.WriteField(hpack.HeaderField{Name: "content-length", Value: w.contentLength})
+		encKV(enc, "content-length", w.contentLength)
 	}
 	if w.date != "" {
-		enc.WriteField(hpack.HeaderField{Name: "date", Value: w.date})
+		encKV(enc, "date", w.date)
 	}
 
 	headerBlock := buf.Bytes()
@@ -206,7 +211,7 @@ type write100ContinueHeadersFrame struct {
 func (w write100ContinueHeadersFrame) writeFrame(ctx writeContext) error {
 	enc, buf := ctx.HeaderEncoder()
 	buf.Reset()
-	enc.WriteField(hpack.HeaderField{Name: ":status", Value: "100"})
+	encKV(enc, ":status", "100")
 	return ctx.Framer().WriteHeaders(HeadersFrameParam{
 		StreamID:      w.streamID,
 		BlockFragment: buf.Bytes(),
@@ -242,7 +247,7 @@ func encodeHeaders(enc *hpack.Encoder, h http.Header, keys []string) {
 			if isTE && v != "trailers" {
 				continue
 			}
-			enc.WriteField(hpack.HeaderField{Name: k, Value: v})
+			encKV(enc, k, v)
 		}
 	}
 }
