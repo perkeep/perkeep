@@ -26,6 +26,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,7 +95,13 @@ func TestObjects(t *testing.T) {
 			t.Errorf("Can't ReadAll object %v, errored with %v", obj, err)
 		}
 		if got, want := slurp, contents[obj]; !bytes.Equal(got, want) {
-			t.Errorf("Contents (%v) = %q; want %q", obj, got, want)
+			t.Errorf("Contents (%q) = %q; want %q", obj, got, want)
+		}
+		if got, want := rc.Size(), len(contents[obj]); got != int64(want) {
+			t.Errorf("Size (%q) = %d; want %d", obj, got, want)
+		}
+		if got, want := rc.ContentType(), "text/plain"; got != want {
+			t.Errorf("ContentType (%q) = %q; want %q", obj, got, want)
 		}
 		rc.Close()
 
@@ -232,8 +239,8 @@ func TestObjects(t *testing.T) {
 	if err != nil {
 		t.Errorf("ReadAll failed with %v", err)
 	}
-	if string(slurp) != string(contents[publicObj]) {
-		t.Errorf("Public object's content is expected to be %s, found %s", contents[publicObj], slurp)
+	if !bytes.Equal(slurp, contents[publicObj]) {
+		t.Errorf("Public object's content: got %q, want %q", slurp, contents[publicObj])
 	}
 	rc.Close()
 
@@ -322,6 +329,55 @@ func TestACL(t *testing.T) {
 	}
 	if err := bkt.ACL().Delete(ctx, "user-jbd@google.com"); err != nil {
 		t.Errorf("Error while deleting bucket ACL rule: %v", err)
+	}
+}
+
+func TestValidObjectNames(t *testing.T) {
+	ctx := context.Background()
+	client, err := NewClient(ctx, cloud.WithTokenSource(testutil.TokenSource(ctx, ScopeFullControl)))
+	if err != nil {
+		t.Errorf("Could not create client: %v", err)
+	}
+	defer client.Close()
+
+	bkt := client.Bucket(bucket)
+
+	validNames := []string{
+		"gopher",
+		"Гоферови",
+		"a",
+		strings.Repeat("a", 1024),
+	}
+	for _, name := range validNames {
+		w := bkt.Object(name).NewWriter(ctx)
+		if _, err := w.Write([]byte("data")); err != nil {
+			t.Errorf("Object %q write failed: %v. Want success", name, err)
+			continue
+		}
+		if err := w.Close(); err != nil {
+			t.Errorf("Object %q close failed: %v. Want success", name, err)
+			continue
+		}
+		defer bkt.Object(name).Delete(ctx)
+	}
+
+	invalidNames := []string{
+		"", // Too short.
+		strings.Repeat("a", 1025), // Too long.
+		"new\nlines",
+		"bad\xffunicode",
+	}
+	for _, name := range invalidNames {
+		w := bkt.Object(name).NewWriter(ctx)
+		// Invalid object names will either cause failure during Write or Close.
+		if _, err := w.Write([]byte("data")); err != nil {
+			continue
+		}
+		if err := w.Close(); err != nil {
+			continue
+		}
+		defer bkt.Object(name).Delete(ctx)
+		t.Errorf("%q should have failed. Didn't", name)
 	}
 }
 

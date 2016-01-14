@@ -27,11 +27,11 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"google.golang.org/cloud"
 	"google.golang.org/cloud/internal/transport"
@@ -45,6 +45,8 @@ var (
 	ErrBucketNotExist = errors.New("storage: bucket doesn't exist")
 	ErrObjectNotExist = errors.New("storage: object doesn't exist")
 )
+
+const userAgent = "gcloud-golang-storage/20151204"
 
 const (
 	// ScopeFullControl grants permissions to manage your
@@ -67,7 +69,13 @@ type Client struct {
 }
 
 // NewClient creates a new Google Cloud Storage client.
+// The default scope is ScopeFullControl. To use a different scope, like ScopeReadOnly, use cloud.WithScopes.
 func NewClient(ctx context.Context, opts ...cloud.ClientOption) (*Client, error) {
+	o := []cloud.ClientOption{
+		cloud.WithScopes(ScopeFullControl),
+		cloud.WithUserAgent(userAgent),
+	}
+	opts = append(o, opts...)
 	hc, _, err := transport.NewHTTPClient(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("dialing: %v", err)
@@ -100,6 +108,10 @@ type BucketHandle struct {
 
 // Bucket returns a BucketHandle, which provides operations on the named bucket.
 // This call does not perform any network operations.
+//
+// name must contain only lowercase letters, numbers, dashes, underscores, and
+// dots. The full specification for valid bucket names can be found at:
+//   https://cloud.google.com/storage/docs/bucket-naming
 func (c *Client) Bucket(name string) *BucketHandle {
 	return &BucketHandle{
 		c:    c,
@@ -142,6 +154,10 @@ type ObjectHandle struct {
 
 // Object returns an ObjectHandle, which provides operations on the named object.
 // This call does not perform any network operations.
+//
+// name must consist entirely of valid UTF-8-encoded runes. The full specification
+// for valid object names can be found at:
+//   https://cloud.google.com/storage/docs/bucket-naming
 func (b *BucketHandle) Object(name string) *ObjectHandle {
 	return &ObjectHandle{
 		c:      b.c,
@@ -325,6 +341,9 @@ func (o *ObjectHandle) ACL() *ACLHandle {
 // Attrs returns meta information about the object.
 // ErrObjectNotExist will be returned if the object is not found.
 func (o *ObjectHandle) Attrs(ctx context.Context) (*ObjectAttrs, error) {
+	if !utf8.ValidString(o.object) {
+		return nil, fmt.Errorf("storage: object name %q is not valid UTF-8", o.object)
+	}
 	obj, err := o.c.raw.Objects.Get(o.bucket, o.object).Projection("full").Context(ctx).Do()
 	if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusNotFound {
 		return nil, ErrObjectNotExist
@@ -339,6 +358,9 @@ func (o *ObjectHandle) Attrs(ctx context.Context) (*ObjectAttrs, error) {
 // All zero-value attributes are ignored.
 // ErrObjectNotExist will be returned if the object is not found.
 func (o *ObjectHandle) Update(ctx context.Context, attrs ObjectAttrs) (*ObjectAttrs, error) {
+	if !utf8.ValidString(o.object) {
+		return nil, fmt.Errorf("storage: object name %q is not valid UTF-8", o.object)
+	}
 	obj, err := o.c.raw.Objects.Patch(o.bucket, o.object, attrs.toRawObject(o.bucket)).Projection("full").Context(ctx).Do()
 	if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusNotFound {
 		return nil, ErrObjectNotExist
@@ -351,6 +373,9 @@ func (o *ObjectHandle) Update(ctx context.Context, attrs ObjectAttrs) (*ObjectAt
 
 // Delete deletes the single specified object.
 func (o *ObjectHandle) Delete(ctx context.Context) error {
+	if !utf8.ValidString(o.object) {
+		return fmt.Errorf("storage: object name %q is not valid UTF-8", o.object)
+	}
 	return o.c.raw.Objects.Delete(o.bucket, o.object).Context(ctx).Do()
 }
 
@@ -362,6 +387,12 @@ func (c *Client) CopyObject(ctx context.Context, srcBucket, srcName string, dest
 	}
 	if srcName == "" || destName == "" {
 		return nil, errors.New("storage: srcName and destName must be non-empty")
+	}
+	if !utf8.ValidString(srcName) {
+		return nil, fmt.Errorf("storage: srcName %q is not valid UTF-8", srcName)
+	}
+	if !utf8.ValidString(destName) {
+		return nil, fmt.Errorf("storage: destName %q is not valid UTF-8", destName)
 	}
 	var rawObject *raw.Object
 	if attrs != nil {
@@ -379,10 +410,13 @@ func (c *Client) CopyObject(ctx context.Context, srcBucket, srcName string, dest
 	return newObject(o), nil
 }
 
-// NewReader creates a new io.ReadCloser to read the contents
-// of the object.
+// NewReader creates a new Reader to read the contents of the
+// object.
 // ErrObjectNotExist will be returned if the object is not found.
-func (o *ObjectHandle) NewReader(ctx context.Context) (io.ReadCloser, error) {
+func (o *ObjectHandle) NewReader(ctx context.Context) (*Reader, error) {
+	if !utf8.ValidString(o.object) {
+		return nil, fmt.Errorf("storage: object name %q is not valid UTF-8", o.object)
+	}
 	u := &url.URL{
 		Scheme: "https",
 		Host:   "storage.googleapis.com",
@@ -398,9 +432,13 @@ func (o *ObjectHandle) NewReader(ctx context.Context) (io.ReadCloser, error) {
 	}
 	if res.StatusCode < 200 || res.StatusCode > 299 {
 		res.Body.Close()
-		return res.Body, fmt.Errorf("storage: can't read object %v/%v, status code: %v", o.bucket, o.object, res.Status)
+		return nil, fmt.Errorf("storage: can't read object %v/%v, status code: %v", o.bucket, o.object, res.Status)
 	}
-	return res.Body, nil
+	return &Reader{
+		body:        res.Body,
+		size:        res.ContentLength,
+		contentType: res.Header.Get("Content-Type"),
+	}, nil
 }
 
 // NewWriter returns a storage Writer that writes to the GCS object
