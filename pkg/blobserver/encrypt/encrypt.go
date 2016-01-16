@@ -234,7 +234,7 @@ func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 		if err != nil {
 			continue
 		}
-		dest <- blob.SizedRef{br, plainSize}
+		dest <- blob.SizedRef{Ref: br, Size: plainSize}
 	}
 	return nil
 }
@@ -276,7 +276,7 @@ func (s *storage) ReceiveBlob(plainBR blob.Ref, source io.Reader) (sb blob.Sized
 		return sb, fmt.Errorf("encrypt: error updating index for encrypted %v (plaintext %v): %v", encBR, plainBR, err)
 	}
 
-	return blob.SizedRef{plainBR, uint32(plainSize)}, nil
+	return blob.SizedRef{Ref: plainBR, Size: uint32(plainSize)}, nil
 }
 
 func (s *storage) Fetch(plainBR blob.Ref) (file io.ReadCloser, size uint32, err error) {
@@ -346,7 +346,7 @@ func (s *storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef,
 			panic("Bogus encrypt index value: " + iter.Value())
 		}
 		select {
-		case dest <- blob.SizedRef{br, plainSize}:
+		case dest <- blob.SizedRef{Ref: br, Size: plainSize}:
 		case <-ctx.Done():
 			return ctx.Err()
 		}

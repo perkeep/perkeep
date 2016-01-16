@@ -34,7 +34,7 @@ func Mksocket(path string) error {
 	dir := filepath.Dir(path)
 	base := filepath.Base(path)
 	tmp := filepath.Join(dir, "."+base)
-	l, err := net.ListenUnix("unix", &net.UnixAddr{tmp, "unix"})
+	l, err := net.ListenUnix("unix", &net.UnixAddr{Name: tmp, Net: "unix"})
 	if err != nil {
 		return err
 	}

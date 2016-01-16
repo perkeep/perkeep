@@ -201,7 +201,7 @@ func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.Siz
 	}
 	if haveVal, haveErr := ix.s.Get("have:" + blobRef.String()); haveErr == nil {
 		if strings.HasSuffix(haveVal, "|indexed") {
-			return blob.SizedRef{blobRef, uint32(written)}, nil
+			return blob.SizedRef{Ref: blobRef, Size: uint32(written)}, nil
 		}
 	}
 
@@ -233,7 +233,7 @@ func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.Siz
 			// successfully recorded that the blob isn't
 			// indexed, but we'll reindex it later once
 			// the dependent blobs arrive.
-			return blob.SizedRef{blobRef, uint32(written)}, nil
+			return blob.SizedRef{Ref: blobRef, Size: uint32(written)}, nil
 		}
 		return
 	}
@@ -255,7 +255,7 @@ func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.Siz
 	// mimeType := sniffer.MIMEType()
 	// log.Printf("indexer: received %s; type=%v; truncated=%v", blobRef, mimeType, sniffer.IsTruncated())
 
-	return blob.SizedRef{blobRef, uint32(written)}, nil
+	return blob.SizedRef{Ref: blobRef, Size: uint32(written)}, nil
 }
 
 // commit writes the contents of the mutationMap on a batch

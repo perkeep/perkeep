@@ -54,7 +54,7 @@ func (ix *Index) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, 
 		size, err := parseHaveVal(it.Value())
 		if err == nil {
 			select {
-			case dest <- blob.SizedRef{br, uint32(size)}:
+			case dest <- blob.SizedRef{Ref: br, Size: uint32(size)}:
 			case <-ctx.Done():
 				return ctx.Err()
 			}
@@ -77,7 +77,7 @@ func (ix *Index) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 		if err != nil {
 			return fmt.Errorf("invalid size for key %q = %q", key, v)
 		}
-		dest <- blob.SizedRef{br, uint32(size)}
+		dest <- blob.SizedRef{Ref: br, Size: uint32(size)}
 	}
 	return nil
 }

@@ -447,7 +447,7 @@ func (sh *SyncHandler) enumeratePendingBlobs(dst chan<- blob.SizedRef, intr <-ch
 		}
 		toSend = make([]blob.SizedRef, 0, n)
 		for br, size := range sh.needCopy {
-			toSend = append(toSend, blob.SizedRef{br, size})
+			toSend = append(toSend, blob.SizedRef{Ref: br, Size: size})
 			if len(toSend) == n {
 				break
 			}
@@ -477,7 +477,7 @@ func (sh *SyncHandler) enumerateQueuedBlobs(dst chan<- blob.SizedRef, intr <-cha
 			continue
 		}
 		select {
-		case dst <- blob.SizedRef{br, uint32(size)}:
+		case dst <- blob.SizedRef{Ref: br, Size: uint32(size)}:
 		case <-intr:
 			return it.Close()
 		}
@@ -603,7 +603,7 @@ func (sh *SyncHandler) ReceiveBlob(br blob.Ref, r io.Reader) (sb blob.SizedRef, 
 	if err != nil {
 		return
 	}
-	sb = blob.SizedRef{br, uint32(n)}
+	sb = blob.SizedRef{Ref: br, Size: uint32(n)}
 	return sb, sh.enqueue(sb)
 }
 

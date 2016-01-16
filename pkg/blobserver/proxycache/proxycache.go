@@ -128,7 +128,7 @@ func (sto *sto) touchBlob(sb blob.SizedRef) {
 func (sto *sto) Fetch(b blob.Ref) (rc io.ReadCloser, size uint32, err error) {
 	rc, size, err = sto.cache.Fetch(b)
 	if err == nil {
-		sto.touchBlob(blob.SizedRef{b, size})
+		sto.touchBlob(blob.SizedRef{Ref: b, Size: size})
 		return
 	}
 	if err != os.ErrNotExist {
@@ -147,7 +147,7 @@ func (sto *sto) Fetch(b blob.Ref) (rc io.ReadCloser, size uint32, err error) {
 			log.Printf("populating proxycache cache for %v: %v", b, err)
 			return
 		}
-		sto.touchBlob(blob.SizedRef{b, size})
+		sto.touchBlob(blob.SizedRef{Ref: b, Size: size})
 	}()
 	return ioutil.NopCloser(bytes.NewReader(all)), size, nil
 }
