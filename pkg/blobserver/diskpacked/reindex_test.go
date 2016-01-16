@@ -34,7 +34,7 @@ func TestWalkPack(t *testing.T) {
 		{0, "sha1-f7ff9e8b7bb2e09b70935a5d785e0cc5d9d0abf0", 49, 5},
 		{0, "sha1-70c07ec18ef89c5309bbb0937f3a6342411e1fdd", 103, 5},
 		{0, "<invalid-blob.Ref>", 157, 7},
-		{0, "sha1-70c07ec18ef89c5309bbb0937f3a6342411e1fdd", 213, 6},
+		{0, "sha1-4c9c38b87dbe92d701cc0ca889fffb10bb1039b9", 214, 26},
 		{1, "sha1-fe05bcdcdc4928012781a5f1a2a77cbb5398e106", 49, 3},
 		{1, "sha1-ad782ecdac770fc6eb9a62e44f90873fb97fb26b", 101, 3},
 		{1, "sha1-b802f384302cb24fbab0a44997e820bf2e8507bb", 153, 5},
