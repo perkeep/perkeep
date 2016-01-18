@@ -137,11 +137,14 @@ func repro(host, userpass string) error {
 		fmt.Fprint(w, clientCode())
 	})
 	mux.HandleFunc("/apiget", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "NOT A GET", http.StatusBadRequest)
-			return
+		if up.isAllowed(r) {
+			if r.Method != "GET" {
+				http.Error(w, "NOT A GET", http.StatusBadRequest)
+				return
+			}
+			fmt.Fprintf(w, "Hello World, it is %v, and I received a %v for %v.", time.Now(), r.Method, r.URL.Path)
 		}
-		fmt.Fprintf(w, "Hello World, it is %v, and I received a %v for %v.", time.Now(), r.Method, r.URL.Path)
+		sendUnauthorized(w, r)
 	})
 	mux.HandleFunc("/apipost", func(w http.ResponseWriter, r *http.Request) {
 		if up.isAllowed(r) {
