@@ -17,14 +17,16 @@ limitations under the License.
 package main
 
 import (
+	"runtime"
 	"testing"
 )
 
 func TestLooksLikePath(t *testing.T) {
-	tests := []struct {
+	type pathTest struct {
 		v    string
 		want bool
-	}{
+	}
+	tests := []pathTest{
 		{"foo.com", false},
 		{"127.0.0.1:234", false},
 		{"foo", false},
@@ -32,6 +34,17 @@ func TestLooksLikePath(t *testing.T) {
 		{"/foo", true},
 		{"./foo", true},
 		{"../foo", true},
+	}
+	if runtime.GOOS == "windows" {
+		tests = append(tests,
+			pathTest{`\foo`, true},
+			pathTest{`.\foo`, true},
+			pathTest{`..\foo`, true},
+			pathTest{`C:/dir`, true},
+			pathTest{`C:\dir`, true},
+			pathTest{`//server/share/dir`, true},
+			pathTest{`\\server\share\dir`, true},
+		)
 	}
 	for _, tt := range tests {
 		got := looksLikePath(tt.v)

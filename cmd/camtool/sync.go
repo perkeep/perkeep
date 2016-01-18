@@ -22,6 +22,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -206,8 +207,8 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 }
 
 func looksLikePath(v string) bool {
-	prefix := func(s string) bool { return strings.HasPrefix(v, s) }
-	return prefix("./") || prefix("/") || prefix("../")
+	prefix := func(s string) bool { return strings.HasPrefix(filepath.ToSlash(v), s) }
+	return prefix("./") || prefix("/") || prefix("../") || filepath.VolumeName(v) != ""
 }
 
 type SyncStats struct {
