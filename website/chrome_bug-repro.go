@@ -143,6 +143,7 @@ func repro(host, userpass string) error {
 				return
 			}
 			fmt.Fprintf(w, "Hello World, it is %v, and I received a %v for %v.", time.Now(), r.Method, r.URL.Path)
+			return
 		}
 		sendUnauthorized(w, r)
 	})
