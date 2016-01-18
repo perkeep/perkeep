@@ -82,6 +82,8 @@ var (
 	gceLogName   = flag.String("gce_log_name", "", "GCE Cloud Logging log name; if non-empty, logs go to Cloud Logging instead of Apache-style local disk log files")
 	gceJWTFile   = flag.String("gce_jwt_file", "", "If non-empty, a filename to the GCE Service Account's JWT (JSON) config file.")
 	gitContainer = flag.Bool("git_container", false, "Use git from the `camlistore/git` Docker container; if false, the system `git` is used.")
+
+	flagChromeBugRepro = flag.Bool("chrome_bug", false, "Run the chrome bug repro demo for issue #660. True in production.")
 )
 
 var (
@@ -466,6 +468,7 @@ func setProdFlags() {
 		log.Fatal("can't use dev mode in production")
 	}
 	log.Printf("Running in production; configuring prod flags & containers")
+	*flagChromeBugRepro = true
 	*httpAddr = ":80"
 	*httpsAddr = ":443"
 	*buildbotBackend = "https://travis-ci.org/camlistore/camlistore"
@@ -752,6 +755,12 @@ func main() {
 	if *httpsAddr != "" {
 		go func() {
 			httpsErr <- serveHTTPS(ctx, httpServer)
+		}()
+	}
+
+	if *flagChromeBugRepro {
+		go func() {
+			log.Printf("Repro handler failed: %v", repro(":8001", "foo:bar"))
 		}()
 	}
 
