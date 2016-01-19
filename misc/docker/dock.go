@@ -150,6 +150,7 @@ func genBinaries(ctxDir string) {
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error building binaries in go container: %v", err)
 	}
+	fmt.Printf("Camlistore binaries successfully generated in %v\n", filepath.Join(ctxDir, "camlistore.org", "bin"))
 }
 
 func copyFinalDockerfile(ctxDir string) {
@@ -372,6 +373,7 @@ func packBinaries(ctxDir string) {
 				log.Fatalf("%v was not packed in tarball", name)
 			}
 		}
+		fmt.Printf("Camlistore binaries successfully packed in %v\n", releaseTarball)
 	}()
 
 	binDir := path.Join(ctxDir, "camlistore.org", "bin")
@@ -465,8 +467,8 @@ func checkFlags() {
 		fmt.Fprintf(os.Stderr, "Usage error: --build_release and --build_image are mutually exclusive.\n")
 		usage()
 	}
-	if *doBinaries && *flagVersion == "" {
-		fmt.Fprintf(os.Stderr, "Usage error: --tarball_version required when building the release tarball.\n")
+	if *doBinaries && *doUpload && *flagVersion == "" {
+		fmt.Fprintf(os.Stderr, "Usage error: --tarball_version required for uploading the release tarball.\n")
 		usage()
 	}
 	if *doImage && *flagVersion != "" {
