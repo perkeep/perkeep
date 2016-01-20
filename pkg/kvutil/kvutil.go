@@ -24,8 +24,9 @@ import (
 	"os"
 	"strconv"
 
-	"camlistore.org/third_party/github.com/camlistore/lock"
 	"camlistore.org/third_party/github.com/cznic/kv"
+
+	"go4.org/lock"
 )
 
 // Open opens the named kv DB file for reading/writing. It

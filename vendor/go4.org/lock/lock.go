@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// package lock is a file locking library.
 package lock
 
 import (

@@ -52,10 +52,10 @@ import (
 	"camlistore.org/pkg/blobserver/local"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/types"
-	"camlistore.org/third_party/github.com/camlistore/lock"
 	"go4.org/jsonconfig"
 	"golang.org/x/net/context"
 
+	"go4.org/lock"
 	"go4.org/strutil"
 	"go4.org/syncutil"
 )
