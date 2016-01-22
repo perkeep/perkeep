@@ -22,22 +22,27 @@ import (
 	"flag"
 	"io"
 	"log"
+	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
+	"camlistore.org/pkg/schema"
 
 	"go4.org/jsonconfig"
 	"golang.org/x/net/context"
 )
 
 var (
-	key    = flag.String("s3_key", "", "AWS access Key ID")
-	secret = flag.String("s3_secret", "", "AWS access secret")
-	bucket = flag.String("s3_bucket", "", "Bucket name to use for testing. If empty, testing is skipped. If non-empty, it must begin with 'camlistore-' and end in '-test' and have zero items in it.")
+	key          = flag.String("s3_key", "", "AWS access Key ID")
+	secret       = flag.String("s3_secret", "", "AWS access secret")
+	bucket       = flag.String("s3_bucket", "", "Bucket name to use for testing. If empty, testing is skipped. If non-empty, it must begin with 'camlistore-' and end in '-test' and have zero items in it.")
+	flagTestData = flag.String("testdata", "", "Optional directory containing some files to write to the bucket, for additional tests.")
 )
 
 func TestS3(t *testing.T) {
@@ -46,6 +51,36 @@ func TestS3(t *testing.T) {
 
 func TestS3WithBucketDir(t *testing.T) {
 	testStorage(t, "/bl/obs/")
+}
+
+func TestS3WriteFiles(t *testing.T) {
+	if *flagTestData == "" {
+		t.Skipf("testdata dir not specified, skipping test.")
+	}
+	sto, err := newFromConfig(nil, jsonconfig.Obj{
+		"aws_access_key":        *key,
+		"aws_secret_access_key": *secret,
+		"bucket":                *bucket,
+	})
+	if err != nil {
+		t.Fatalf("newFromConfig error: %v", err)
+	}
+	dir, err := os.Open(*flagTestData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dir.Close()
+	names, err := dir.Readdirnames(-1)
+	for _, name := range names {
+		f, err := os.Open(filepath.Join(*flagTestData, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close() // assuming there aren't that many files.
+		if _, err := schema.WriteFileFromReaderWithModTime(sto, name, time.Now(), f); err != nil {
+			t.Fatalf("Error while writing %v to S3: %v", name, err)
+		}
+	}
 }
 
 func testStorage(t *testing.T, bucketDir string) {
