@@ -140,13 +140,17 @@ func okayWithoutMeta(refStr string) func(*packTest) {
 	}
 }
 
-func randBytes(n int) []byte {
-	r := rand.New(rand.NewSource(42))
+func randBytesSrc(n int, src int64) []byte {
+	r := rand.New(rand.NewSource(src))
 	s := make([]byte, n)
 	for i := range s {
 		s[i] = byte(r.Int63())
 	}
 	return s
+}
+
+func randBytes(n int) []byte {
+	return randBytesSrc(n, 42)
 }
 
 func TestPackNormal(t *testing.T) {
@@ -228,6 +232,86 @@ func TestPackLarge(t *testing.T) {
 
 	// And verify we can read it back out.
 	pt.testOpenWholeRef(t, wholeRef, fileSize)
+}
+
+func countSortedRows(t *testing.T, meta sorted.KeyValue) int {
+	rows := 0
+	if err := sorted.Foreach(meta, func(key, value string) error {
+		rows++
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return rows
+}
+
+func TestReindex(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+
+	type file struct {
+		size     int64
+		name     string
+		contents []byte
+	}
+	files := []file{
+		{17 << 20, "foo.dat", randBytesSrc(17<<20, 42)},
+		{10 << 20, "bar.dat", randBytesSrc(10<<20, 43)},
+		{5 << 20, "baz.dat", randBytesSrc(5<<20, 44)},
+	}
+
+	pt := testPack(t,
+		func(sto blobserver.Storage) error {
+			for _, f := range files {
+				if _, err := schema.WriteFileFromReader(sto, f.name, bytes.NewReader(f.contents)); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+		wantNumLargeBlobs(4),
+		wantNumSmallBlobs(0),
+	)
+
+	// backup the meta that is supposed to be lost/erased.
+	// pt.sto.reindex allocates a new pt.sto.meta, so meta != pt.sto.meta after it is called.
+	meta := pt.sto.meta
+
+	// and build new meta index
+	if err := pt.sto.reindex(context.TODO(), func() (sorted.KeyValue, error) {
+		return sorted.NewMemoryKeyValue(), nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// check that new meta is identical to "lost" one
+	newRows := 0
+	if err := sorted.Foreach(pt.sto.meta, func(key, newValue string) error {
+		oldValue, err := meta.Get(key)
+		if err != nil {
+			t.Fatalf("Could not get value for %v in old meta: %v", key, err)
+		}
+		if oldValue != newValue {
+			t.Fatalf("Reindexing error: for key %v, got %v, want %v", key, newValue, oldValue)
+		}
+		newRows++
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// make sure they have the same number of entries too, to be sure that the reindexing
+	// did not miss entries that the old meta had.
+	oldRows := countSortedRows(t, meta)
+	if oldRows != newRows {
+		t.Fatalf("index number of entries mismatch: got %d entries in new index, wanted %d (as in index before reindexing)", newRows, oldRows)
+	}
+
+	// And verify we can read one of the files back out.
+	hash := blob.NewHash()
+	hash.Write(files[0].contents)
+	pt.testOpenWholeRef(t, blob.RefFromHash(hash), files[0].size)
 }
 
 func (pt *packTest) testOpenWholeRef(t *testing.T, wholeRef blob.Ref, wantSize int64) {

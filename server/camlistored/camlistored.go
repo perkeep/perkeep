@@ -46,7 +46,7 @@ import (
 	"camlistore.org/pkg/osutil/gce" // for init side-effects + LogWriter
 
 	// Storage options:
-	_ "camlistore.org/pkg/blobserver/blobpacked"
+	"camlistore.org/pkg/blobserver/blobpacked"
 	_ "camlistore.org/pkg/blobserver/cond"
 	_ "camlistore.org/pkg/blobserver/diskpacked"
 	_ "camlistore.org/pkg/blobserver/encrypt"
@@ -93,6 +93,7 @@ var (
 	flagListen      = flag.String("listen", "", "host:port to listen on, or :0 to auto-select. If blank, the value in the config will be used instead.")
 	flagOpenBrowser = flag.Bool("openbrowser", true, "Launches the UI on startup")
 	flagReindex     = flag.Bool("reindex", false, "Reindex all blobs on startup")
+	flagRecovery    = flag.Bool("recovery", false, "Recovery mode: rebuild the blobpacked meta index if needed. The tasks performed by the recovery mode might change in the future.")
 	flagPollParent  bool
 )
 
@@ -329,6 +330,9 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 			fmt.Fprintln(os.Stderr, l)
 		}
 		return
+	}
+	if *flagRecovery {
+		blobpacked.SetRecovery()
 	}
 	if env.OnGCE() {
 		log.SetOutput(gce.LogWriter())
