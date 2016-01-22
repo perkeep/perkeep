@@ -80,6 +80,7 @@ func TestS3WriteFiles(t *testing.T) {
 		if _, err := schema.WriteFileFromReaderWithModTime(sto, name, time.Now(), f); err != nil {
 			t.Fatalf("Error while writing %v to S3: %v", name, err)
 		}
+		t.Logf("Wrote %v successfully to S3", name)
 	}
 }
 

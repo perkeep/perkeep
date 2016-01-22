@@ -37,6 +37,8 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
+
+	"go4.org/syncutil"
 )
 
 const maxList = 1000
@@ -45,6 +47,10 @@ const maxList = 1000
 type Client struct {
 	*Auth
 	Transport http.RoundTripper // or nil for the default
+	// PutGate limits the number of concurrent PutObject calls, because
+	// apparently S3 throttles us if there are too many. No limit if nil.
+	// Default in S3 blobserver is 5.
+	PutGate *syncutil.Gate
 }
 
 type Bucket struct {
@@ -129,6 +135,10 @@ func (c *Client) Stat(key, bucket string) (size int64, reterr error) {
 }
 
 func (c *Client) PutObject(key, bucket string, md5 hash.Hash, size int64, body io.Reader) error {
+	if c.PutGate != nil {
+		c.PutGate.Start()
+		defer c.PutGate.Done()
+	}
 	req := newReq(c.keyURL(bucket, key))
 	req.Method = "PUT"
 	req.ContentLength = size

@@ -45,6 +45,7 @@ import (
 
 	"go4.org/fault"
 	"go4.org/jsonconfig"
+	"go4.org/syncutil"
 )
 
 var (
@@ -58,6 +59,8 @@ var (
 	faultStat      = fault.NewInjector("s3_stat")
 	faultGet       = fault.NewInjector("s3_get")
 )
+
+const maxParallelHTTP = 5
 
 type s3Storage struct {
 	s3Client *s3.Client
@@ -88,6 +91,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 			SecretAccessKey: config.RequiredString("aws_secret_access_key"),
 			Hostname:        hostname,
 		},
+		PutGate: syncutil.NewGate(maxParallelHTTP),
 	}
 	bucket := config.RequiredString("bucket")
 	var dirPrefix string
