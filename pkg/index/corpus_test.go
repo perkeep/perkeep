@@ -30,7 +30,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
+func newTestCorpusWithPermanode() (*index.Corpus, blob.Ref) {
 	c := index.ExpNewCorpus()
 	pn := blob.MustParse("abc-123")
 	tm := time.Unix(99, 0)
@@ -43,37 +43,51 @@ func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
 			Date:  tm,
 		}
 	}
-	s := func(s ...string) []string { return s }
 
-	c.SetClaims(pn, &index.PermanodeMeta{
-		Claims: []*camtypes.Claim{
-			claim("set", "foo", "foov"), // time 100
+	c.SetClaims(pn, []*camtypes.Claim{
+		claim("set", "foo", "foov"), // time 100
 
-			claim("add", "tag", "a"), // time 101
-			claim("add", "tag", "b"), // time 102
-			claim("del", "tag", ""),
-			claim("add", "tag", "c"),
-			claim("add", "tag", "d"),
-			claim("add", "tag", "e"),
-			claim("del", "tag", "d"),
+		claim("add", "tag", "a"), // time 101
+		claim("add", "tag", "b"), // time 102
+		claim("del", "tag", ""),
+		claim("add", "tag", "c"),
+		claim("add", "tag", "d"),
+		claim("add", "tag", "e"),
+		claim("del", "tag", "d"),
 
-			claim("add", "DelAll", "a"),
-			claim("add", "DelAll", "b"),
-			claim("add", "DelAll", "c"),
-			claim("del", "DelAll", ""),
+		claim("add", "DelAll", "a"),
+		claim("add", "DelAll", "b"),
+		claim("add", "DelAll", "c"),
+		claim("del", "DelAll", ""),
 
-			claim("add", "DelOne", "a"),
-			claim("add", "DelOne", "b"),
-			claim("add", "DelOne", "c"),
-			claim("add", "DelOne", "d"),
-			claim("del", "DelOne", "d"),
-			claim("del", "DelOne", "a"),
+		claim("add", "DelOne", "a"),
+		claim("add", "DelOne", "b"),
+		claim("add", "DelOne", "c"),
+		claim("add", "DelOne", "d"),
+		claim("del", "DelOne", "d"),
+		claim("del", "DelOne", "a"),
 
-			claim("add", "SetAfterAdd", "a"),
-			claim("add", "SetAfterAdd", "b"),
-			claim("set", "SetAfterAdd", "setv"),
+		claim("add", "SetAfterAdd", "a"),
+		claim("add", "SetAfterAdd", "b"),
+		claim("set", "SetAfterAdd", "setv"),
+
+		// add an element with fixed time to test
+		// slow and fast path equivalence
+		// (lookups based on pm.Claims and pm.Attrs, respectively)
+		{
+			Type:  "set-attribute",
+			Attr:  "CacheTest",
+			Value: "foo",
+			Date:  time.Unix(201, 0),
 		},
 	})
+
+	return c, pn
+}
+
+func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
+	c, pn := newTestCorpusWithPermanode()
+	s := func(s ...string) []string { return s }
 
 	tests := []struct {
 		attr string
@@ -97,8 +111,105 @@ func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
 			t.Errorf("%d. attr %q = %q; want %q",
 				i, tt.attr, got, tt.want)
 		}
-	}
 
+		if !tt.t.IsZero() {
+			// skip equivalence test if specific time was given
+			continue
+		}
+		got = c.AppendPermanodeAttrValues(nil, pn, tt.attr, time.Unix(200, 0), blob.Ref{})
+		if len(got) == 0 && len(tt.want) == 0 {
+			continue
+		}
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("%d. attr %q = %q; want %q",
+				i, tt.attr, got, tt.want)
+		}
+	}
+}
+
+func TestCorpusPermanodeAttrValueLocked(t *testing.T) {
+	c, pn := newTestCorpusWithPermanode()
+
+	c.RLock()
+	defer c.RUnlock()
+
+	tests := []struct {
+		attr string
+		want string
+		t    time.Time
+	}{
+		{attr: "not-exist", want: ""},
+		{attr: "DelAll", want: ""},
+		{attr: "DelOne", want: "b"},
+		{attr: "foo", want: "foov"},
+		{attr: "tag", want: "c"},
+		{attr: "tag", want: "a", t: time.Unix(102, 0)},
+		{attr: "SetAfterAdd", want: "setv"},
+	}
+	for i, tt := range tests {
+		got := c.PermanodeAttrValueLocked(pn, tt.attr, tt.t, blob.Ref{})
+		if len(got) == 0 && len(tt.want) == 0 {
+			continue
+		}
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("%d. attr %q = %q; want %q",
+				i, tt.attr, got, tt.want)
+		}
+
+		if !tt.t.IsZero() {
+			// skip equivalence test if specific time was given
+			continue
+		}
+		got = c.PermanodeAttrValueLocked(pn, tt.attr, time.Unix(200, 0), blob.Ref{})
+		if len(got) == 0 && len(tt.want) == 0 {
+			continue
+		}
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("%d. attr %q = %q; want %q",
+				i, tt.attr, got, tt.want)
+		}
+	}
+}
+
+func TestCorpusPermanodeHasAttrValueLocked(t *testing.T) {
+	c, pn := newTestCorpusWithPermanode()
+
+	c.RLock()
+	defer c.RUnlock()
+
+	tests := []struct {
+		attr string
+		val  string
+		want bool
+		t    time.Time
+	}{
+		{attr: "DelAll", val: "a", want: false},
+		{attr: "DelOne", val: "b", want: true},
+		{attr: "DelOne", val: "a", want: false},
+		{attr: "foo", val: "foov", want: true},
+		{attr: "tag", val: "c", want: true},
+		{attr: "tag", val: "a", want: true, t: time.Unix(102, 0)},
+		{attr: "tag", val: "c", want: false, t: time.Unix(102, 0)},
+		{attr: "SetAfterAdd", val: "setv", want: true},
+		{attr: "SetAfterAdd", val: "a", want: false},
+	}
+	for _, tt := range tests {
+		got := c.PermanodeHasAttrValueLocked(pn, tt.t, tt.attr, tt.val)
+		if got != tt.want {
+			t.Errorf("attr %q, val %q = %v; want %v",
+				tt.attr, tt.val, got, tt.want)
+		}
+
+		if !tt.t.IsZero() {
+			// skip equivalence test if specific time was given
+			continue
+		}
+		got = c.PermanodeHasAttrValueLocked(pn, time.Unix(200, 0), tt.attr, tt.val)
+		if got != tt.want {
+			t.Errorf("attr %q, val %q = %v; want %v",
+				tt.attr, tt.val, got, tt.want)
+		}
+	}
 }
 
 func TestKVClaimAllocs(t *testing.T) {

@@ -49,8 +49,12 @@ func ExpKvClaim(k, v string, blobParse func(string) (blob.Ref, bool)) (c camtype
 	return kvClaim(k, v, blobParse)
 }
 
-func (c *Corpus) SetClaims(pn blob.Ref, claims *PermanodeMeta) {
-	c.permanodes[pn] = claims
+func (c *Corpus) SetClaims(pn blob.Ref, claims []*camtypes.Claim) {
+	pm := &PermanodeMeta{
+		Claims: claims,
+	}
+	pm.restoreInvariants()
+	c.permanodes[pn] = pm
 }
 
 func (x *Index) NeededMapsForTest() (needs, neededBy map[blob.Ref][]blob.Ref, ready map[blob.Ref]bool) {
