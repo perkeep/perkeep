@@ -148,6 +148,71 @@ type edge struct {
 type PermanodeMeta struct {
 	// TODO: OwnerKeyId string
 	Claims []*camtypes.Claim // sorted by camtypes.ClaimsByDate
+
+	// latest attributes
+	Attrs map[string][]string
+}
+
+// restoreInvariants sorts claims by date and
+// recalculates latest attributes.
+func (pm *PermanodeMeta) restoreInvariants() {
+	sort.Sort(camtypes.ClaimPtrsByDate(pm.Claims))
+	pm.Attrs = make(map[string][]string)
+	for _, cl := range pm.Claims {
+		pm.appendAttrClaim(cl)
+	}
+}
+
+// fixupLastClaim fixes invariants on the assumption
+// that the all but the last element in Claims are sorted by date
+// and the last element is the only one not yet included in Attrs.
+func (pm *PermanodeMeta) fixupLastClaim() {
+	if pm.Attrs != nil {
+		n := len(pm.Claims)
+		if n < 2 || camtypes.ClaimPtrsByDate(pm.Claims).Less(n-2, n-1) {
+			// already sorted, update Attrs from new Claim
+			pm.appendAttrClaim(pm.Claims[n-1])
+			return
+		}
+	}
+	pm.restoreInvariants()
+}
+
+func (pm *PermanodeMeta) appendAttrClaim(cl *camtypes.Claim) {
+	switch cl.Type {
+	case string(schema.SetAttributeClaim):
+		pm.Attrs[cl.Attr] = []string{cl.Value}
+	case string(schema.AddAttributeClaim):
+		pm.Attrs[cl.Attr] = append(pm.Attrs[cl.Attr], cl.Value)
+	case string(schema.DelAttributeClaim):
+		if cl.Value == "" {
+			pm.Attrs[cl.Attr] = nil
+		} else {
+			a, i := pm.Attrs[cl.Attr], 0
+			for _, v := range a {
+				if v != cl.Value {
+					a[i] = v
+					i++
+				}
+			}
+			pm.Attrs[cl.Attr] = a[:i]
+		}
+	}
+}
+
+// canUseAttrs reports whether pm.Attrs can be used
+// to query values for the permanode attributes.
+func (pm *PermanodeMeta) canUseAttrs(at time.Time) bool {
+	if pm.Attrs == nil {
+		return false
+	}
+	if at.IsZero() {
+		return true
+	}
+	if n := len(pm.Claims); n == 0 || !pm.Claims[n-1].Date.After(at) {
+		return true
+	}
+	return false
 }
 
 func newCorpus() *Corpus {
@@ -293,7 +358,7 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	// Post-load optimizations and restoration of invariants.
 	for _, pm := range c.permanodes {
 		// Restore invariants violated during building:
-		sort.Sort(camtypes.ClaimPtrsByDate(pm.Claims))
+		pm.restoreInvariants()
 
 		// And intern some stuff.
 		for _, cl := range pm.Claims {
@@ -302,7 +367,6 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 			cl.Permanode = c.br(cl.Permanode)
 			cl.Target = c.br(cl.Target)
 		}
-
 	}
 	c.brOfStr = nil // drop this now.
 	c.building = false
@@ -492,8 +556,8 @@ func (c *Corpus) mergeClaimRow(k, v []byte) error {
 	pm.Claims = append(pm.Claims, &cl)
 	if !c.building {
 		// Unless we're still starting up (at which we sort at
-		// the end instead), keep this sorted.
-		sort.Sort(camtypes.ClaimPtrsByDate(pm.Claims))
+		// the end instead), keep claims sorted and attrs in sync.
+		pm.fixupLastClaim()
 	}
 
 	if vbr, ok := blob.Parse(cl.Value); ok {
@@ -1014,10 +1078,17 @@ func (c *Corpus) PermanodeAttrValueLocked(permaNode blob.Ref,
 	if !ok {
 		return ""
 	}
+	if !signerFilter.Valid() && pm.canUseAttrs(at) {
+		v := pm.Attrs[attr]
+		if len(v) != 0 {
+			return v[0]
+		}
+		return ""
+	}
 	if at.IsZero() {
 		at = time.Now()
 	}
-	var v string
+	var v []string
 	for _, cl := range pm.Claims {
 		if cl.Attr != attr || cl.Date.After(at) {
 			continue
@@ -1028,19 +1099,27 @@ func (c *Corpus) PermanodeAttrValueLocked(permaNode blob.Ref,
 		switch cl.Type {
 		case string(schema.DelAttributeClaim):
 			if cl.Value == "" {
-				v = ""
-			} else if v == cl.Value {
-				v = ""
+				v = v[:0]
+			} else {
+				i := 0
+				for _, w := range v {
+					if w != cl.Value {
+						v[i] = w
+						i++
+					}
+				}
+				v = v[:i]
 			}
 		case string(schema.SetAttributeClaim):
-			v = cl.Value
+			v = append(v[:0], cl.Value)
 		case string(schema.AddAttributeClaim):
-			if v == "" {
-				v = cl.Value
-			}
+			v = append(v, cl.Value)
 		}
 	}
-	return v
+	if len(v) != 0 {
+		return v[0]
+	}
+	return ""
 }
 
 func (c *Corpus) AppendPermanodeAttrValuesLocked(dst []string,
@@ -1054,6 +1133,9 @@ func (c *Corpus) AppendPermanodeAttrValuesLocked(dst []string,
 	pm, ok := c.permanodes[permaNode]
 	if !ok {
 		return dst
+	}
+	if !signerFilter.Valid() && pm.canUseAttrs(at) {
+		return append(dst, pm.Attrs[attr]...)
 	}
 	if at.IsZero() {
 		at = time.Now()
@@ -1229,6 +1311,14 @@ func (c *Corpus) PermanodeHasAttrValueLocked(pn blob.Ref, at time.Time, attr, va
 	if !ok {
 		return false
 	}
+	if pm.canUseAttrs(at) {
+		for _, v := range pm.Attrs[attr] {
+			if v == val {
+				return true
+			}
+		}
+		return false
+	}
 	if at.IsZero() {
 		at = time.Now()
 	}
@@ -1249,7 +1339,7 @@ func (c *Corpus) PermanodeHasAttrValueLocked(pn blob.Ref, at time.Time, attr, va
 			ret = (cl.Value == val)
 		case string(schema.AddAttributeClaim):
 			if cl.Value == val {
-				return true
+				ret = true
 			}
 		}
 	}
