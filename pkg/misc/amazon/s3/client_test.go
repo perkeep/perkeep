@@ -22,6 +22,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"go4.org/syncutil"
 )
 
 var tc *Client
@@ -33,7 +35,11 @@ func getTestClient(t *testing.T) bool {
 		t.Logf("Skipping test; no AWS_ACCESS_KEY_ID or AWS_ACCESS_KEY_SECRET set in environment")
 		return false
 	}
-	tc = &Client{&Auth{AccessKey: accessKey, SecretAccessKey: secret}, http.DefaultTransport}
+	tc = &Client{
+		Auth:      &Auth{AccessKey: accessKey, SecretAccessKey: secret},
+		Transport: http.DefaultTransport,
+		PutGate:   syncutil.NewGate(5),
+	}
 	return true
 }
 
