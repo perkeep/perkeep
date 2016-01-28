@@ -34,6 +34,12 @@ func init() {
 	sorted.RegisterKeyValue("sqlite", newKeyValueFromConfig)
 }
 
+// NewStorage is a convenience that calls newKeyValueFromConfig
+// with file as the sqlite storage file.
+func NewStorage(file string) (sorted.KeyValue, error) {
+	return newKeyValueFromConfig(jsonconfig.Obj{"file": file})
+}
+
 func newKeyValueFromConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	if !compiled {
 		return nil, ErrNotCompiled

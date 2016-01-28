@@ -94,6 +94,11 @@ type SyncHandler struct {
 	vdestBytes     int64 // number of blob bytes seen on dest during validate
 	vsrcCount      int   // number of blobs seen on src during validate
 	vsrcBytes      int64 // number of blob bytes seen on src during validate
+
+	// syncLoop tries to send on alarmIdlec each time we've slept for a full
+	// queueSyncInterval. Initialized as a synchronous chan if we're not an
+	// idle sync handler, otherwise nil.
+	alarmIdlec chan struct{}
 }
 
 var (
@@ -215,7 +220,7 @@ func newSyncHandler(fromName, toName string,
 	from blobserver.Storage, to blobReceiverEnumerator,
 	queue sorted.KeyValue) *SyncHandler {
 	return &SyncHandler{
-		copierPoolSize: 2,
+		copierPoolSize: 5,
 		from:           from,
 		to:             to,
 		fromName:       fromName,
@@ -226,6 +231,38 @@ func newSyncHandler(fromName, toName string,
 		needCopy:       make(map[blob.Ref]uint32),
 		lastFail:       make(map[blob.Ref]failDetail),
 		copying:        make(map[blob.Ref]*copyStatus),
+		alarmIdlec:     make(chan struct{}),
+	}
+}
+
+// NewSyncHandler returns a handler that will asynchronously and continuously
+// copy blobs from src to dest, if missing on dest.
+// Blobs waiting to be copied are stored on pendingQueue. srcName and destName are
+// only used for status and debugging messages.
+// N.B: blobs should be added to src with a method that notifies the blob hub,
+// such as blobserver.Receive.
+func NewSyncHandler(srcName, destName string,
+	src blobserver.Storage, dest blobReceiverEnumerator,
+	pendingQueue sorted.KeyValue) *SyncHandler {
+	sh := newSyncHandler(srcName, destName, src, dest, pendingQueue)
+	go sh.syncLoop()
+	blobserver.GetHub(sh.from).AddReceiveHook(sh.enqueue)
+	return sh
+}
+
+// IdleWait waits until the sync handler has finished processing the currently
+// queued blobs.
+func (sh *SyncHandler) IdleWait() {
+	if sh.idle {
+		return
+	}
+	<-sh.alarmIdlec
+}
+
+func (sh *SyncHandler) signalIdle() {
+	select {
+	case sh.alarmIdlec <- struct{}{}:
+	default:
 	}
 }
 
@@ -537,6 +574,7 @@ func (sh *SyncHandler) syncLoop() {
 		d := queueSyncInterval - time.Since(t0)
 		select {
 		case <-time.After(d):
+			sh.signalIdle()
 		case <-sh.wakec:
 		}
 	}
