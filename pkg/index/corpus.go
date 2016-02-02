@@ -1287,6 +1287,26 @@ func (c *Corpus) PermanodeLatLongLocked(pn blob.Ref, at time.Time) (lat, long fl
 	return
 }
 
+// ForeachClaimLocked calls fn for each claim of permaNode.
+// If at is zero, all claims are yielded.
+// If at is non-zero, claims after that point are skipped.
+// If fn returns false, iteration ends.
+// Iteration is in an undefined order.
+func (c *Corpus) ForeachClaimLocked(permaNode blob.Ref, at time.Time, fn func(*camtypes.Claim) bool) {
+	pm, ok := c.permanodes[permaNode]
+	if !ok {
+		return
+	}
+	for _, cl := range pm.Claims {
+		if !at.IsZero() && cl.Date.After(at) {
+			continue
+		}
+		if !fn(cl) {
+			return
+		}
+	}
+}
+
 // ForeachClaimBackLocked calls fn for each claim with a value referencing br.
 // If at is zero, all claims are yielded.
 // If at is non-zero, claims after that point are skipped.

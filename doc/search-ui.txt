@@ -50,3 +50,5 @@ Usable operators:
     filename:      search for permanodes of files with this filename (case sensitive)
     childrenof:    Find child permanodes of a parent permanode (or prefix
                    of a parent permanode): childrenof:sha1-527cf12
+    parentof:      Find parent permanodes of a child permanode (or prefix
+                   of a child permanode): parentof:sha1-527cf12

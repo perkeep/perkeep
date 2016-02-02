@@ -253,6 +253,29 @@ var parseExpressionTests = []struct {
 			},
 		},
 	},
+
+	{
+		in: "parentof:sha1-f00ba4",
+		want: &SearchQuery{
+			Constraint: &Constraint{
+				Logical: &LogicalConstraint{
+					Op: "and",
+					A:  skiphiddenC,
+					B: &Constraint{
+						Permanode: &PermanodeConstraint{
+							Relation: &RelationConstraint{
+								Relation: "child",
+								Any: &Constraint{
+									BlobRefPrefix: "sha1-f00ba4",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+
 	// Location predicates
 	{
 		in: "loc:Uitdam", // Small dutch town
@@ -752,6 +775,20 @@ var parseExpTests = []parserTestCase{
 			Permanode: &PermanodeConstraint{
 				Relation: &RelationConstraint{
 					Relation: "parent",
+					Any: &Constraint{
+						BlobRefPrefix: "sha1-f00ba4",
+					},
+				},
+			},
+		},
+	},
+
+	{
+		in: "parentof:sha1-f00ba4",
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Relation: &RelationConstraint{
+					Relation: "child",
 					Any: &Constraint{
 						BlobRefPrefix: "sha1-f00ba4",
 					},

@@ -697,8 +697,8 @@ type RelationConstraint struct {
 }
 
 func (rc *RelationConstraint) checkValid() error {
-	if rc.Relation != "parent" {
-		return errors.New("only RelationConstraint.Relation of \"parent\" is currently supported")
+	if rc.Relation != "parent" && rc.Relation != "child" {
+		return errors.New("only RelationConstraint.Relation of \"parent\" or \"child\" is currently supported")
 	}
 	if (rc.Any == nil) == (rc.All == nil) {
 		return errors.New("exactly one of RelationConstraint Any or All must be defined")
@@ -721,7 +721,18 @@ func (rc *RelationConstraint) match(s *search, pn blob.Ref, at time.Time) (ok bo
 		return false, errors.New("RelationConstraint requires an in-memory corpus")
 	}
 
-	if rc.Relation != "parent" {
+	var foreachClaim func(pn blob.Ref, at time.Time, f func(cl *camtypes.Claim) bool)
+	// relationRef returns the relevant blobRef from the claim if cl defines
+	// the kind of relation we are looking for, (blob.Ref{}, false) otherwise.
+	var relationRef func(cl *camtypes.Claim) (blob.Ref, bool)
+	switch rc.Relation {
+	case "parent":
+		foreachClaim = corpus.ForeachClaimBackLocked
+		relationRef = func(cl *camtypes.Claim) (blob.Ref, bool) { return cl.Permanode, true }
+	case "child":
+		foreachClaim = corpus.ForeachClaimLocked
+		relationRef = func(cl *camtypes.Claim) (blob.Ref, bool) { return blob.Parse(cl.Value) }
+	default:
 		panic("bogus")
 	}
 
@@ -736,7 +747,7 @@ func (rc *RelationConstraint) match(s *search, pn blob.Ref, at time.Time) (ok bo
 	var anyBad bool
 	var lastChecked blob.Ref
 	var permanodesChecked map[blob.Ref]bool // lazily created to optimize for common case of 1 match
-	corpus.ForeachClaimBackLocked(pn, at, func(cl *camtypes.Claim) bool {
+	foreachClaim(pn, at, func(cl *camtypes.Claim) bool {
 		if !rc.matchesAttr(cl.Attr) {
 			return true // skip claim
 		}
@@ -747,7 +758,13 @@ func (rc *RelationConstraint) match(s *search, pn blob.Ref, at time.Time) (ok bo
 			permanodesChecked[lastChecked] = true
 			lastChecked = blob.Ref{} // back to zero
 		}
-		if permanodesChecked[cl.Permanode] {
+		relRef, ok := relationRef(cl)
+		if !ok {
+			// The claim does not define the kind of relation we're looking for
+			// (e.g. it sets a tag vale), so we continue to the next claim.
+			return true
+		}
+		if permanodesChecked[relRef] {
 			return true // skip checking
 		}
 		if !corpus.PermanodeHasAttrValueLocked(cl.Permanode, at, cl.Attr, cl.Value) {
@@ -755,12 +772,11 @@ func (rc *RelationConstraint) match(s *search, pn blob.Ref, at time.Time) (ok bo
 		}
 
 		var bm camtypes.BlobMeta
-		bm, err = s.blobMeta(cl.Permanode)
+		bm, err = s.blobMeta(relRef)
 		if err != nil {
 			return false
 		}
-		var ok bool
-		ok, err = matcher(s, cl.Permanode, bm)
+		ok, err = matcher(s, relRef, bm)
 		if err != nil {
 			return false
 		}
@@ -775,7 +791,7 @@ func (rc *RelationConstraint) match(s *search, pn blob.Ref, at time.Time) (ok bo
 				return false // fail fast
 			}
 		}
-		lastChecked = cl.Permanode
+		lastChecked = relRef
 		return true
 	})
 	if err != nil {

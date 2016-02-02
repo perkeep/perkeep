@@ -105,6 +105,7 @@ func init() {
 	registerKeyword(newBefore())
 	registerKeyword(newAttribute())
 	registerKeyword(newChildrenOf())
+	registerKeyword(newParentOf())
 	registerKeyword(newFormat())
 	registerKeyword(newTag())
 	registerKeyword(newTitle())
@@ -271,6 +272,33 @@ func (k childrenOf) Predicate(ctx context.Context, args []string) (*Constraint, 
 		Permanode: &PermanodeConstraint{
 			Relation: &RelationConstraint{
 				Relation: "parent",
+				Any: &Constraint{
+					BlobRefPrefix: args[0],
+				},
+			},
+		},
+	}
+	return c, nil
+}
+
+type parentOf struct {
+	matchPrefix
+}
+
+func newParentOf() keyword {
+	return parentOf{newMatchPrefix("parentof")}
+}
+
+func (k parentOf) Description() string {
+	return "Find parent permanodes of a child permanode (or prefix of a child\n" +
+		"permanode): parentof:sha1-527cf12 Only matches permanodes currently."
+}
+
+func (k parentOf) Predicate(ctx context.Context, args []string) (*Constraint, error) {
+	c := &Constraint{
+		Permanode: &PermanodeConstraint{
+			Relation: &RelationConstraint{
+				Relation: "child",
 				Any: &Constraint{
 					BlobRefPrefix: args[0],
 				},
