@@ -24,7 +24,7 @@ import (
 	"unicode/utf8"
 
 	"camlistore.org/pkg/constants"
-	"camlistore.org/pkg/types"
+	"go4.org/readerutil"
 )
 
 // Blob represents a blob. Use the methods Size, SizedRef and
@@ -32,7 +32,7 @@ import (
 type Blob struct {
 	ref       Ref
 	size      uint32
-	newReader func() types.ReadSeekCloser
+	newReader func() readerutil.ReadSeekCloser
 	mem       []byte // if in memory
 }
 
@@ -40,7 +40,7 @@ type Blob struct {
 // returns an io.ReadCloser from which the blob can be read. Any error
 // in the function newReader when constructing the io.ReadCloser should
 // be returned upon the first call to Read or Close.
-func NewBlob(ref Ref, size uint32, newReader func() types.ReadSeekCloser) *Blob {
+func NewBlob(ref Ref, size uint32, newReader func() readerutil.ReadSeekCloser) *Blob {
 	return &Blob{
 		ref:       ref,
 		size:      size,
@@ -63,7 +63,7 @@ func (b *Blob) Ref() Ref { return b.ref }
 
 // Open returns an io.ReadCloser that can be used to read the blob
 // data. The caller must close the io.ReadCloser when finished.
-func (b *Blob) Open() types.ReadSeekCloser {
+func (b *Blob) Open() readerutil.ReadSeekCloser {
 	return b.newReader()
 }
 
@@ -133,7 +133,7 @@ func FromReader(br Ref, r io.Reader, size uint32) (*Blob, error) {
 	if n > 0 {
 		return nil, fmt.Errorf("blob: %v had more than reported %d bytes", br, size)
 	}
-	opener := func() types.ReadSeekCloser {
+	opener := func() readerutil.ReadSeekCloser {
 		return reader{bytes.NewReader(buf)}
 	}
 	b := NewBlob(br, uint32(size), opener)

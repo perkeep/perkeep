@@ -26,7 +26,6 @@ import (
 
 	"camlistore.org/pkg/images/fastjpeg"
 	"camlistore.org/pkg/images/resize"
-	"camlistore.org/pkg/types"
 )
 
 // The decode routines being benchmarked in this file will use these bytes for
@@ -94,7 +93,7 @@ func BenchmarkDjpeg8(b *testing.B) {
 	common(b, decodeDownsample(8))
 }
 
-func testRun(b types.TB, decode decodeFunc) {
+func testRun(b testing.TB, decode decodeFunc) {
 	if !fastjpeg.Available() {
 		b.Skip("Skipping benchmark, djpeg unavailable.")
 	}

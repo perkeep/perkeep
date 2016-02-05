@@ -33,9 +33,9 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
 	"go4.org/jsonconfig"
+	"go4.org/types"
 )
 
 const buffered = 32     // arbitrary channel buffer size

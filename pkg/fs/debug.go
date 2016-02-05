@@ -23,8 +23,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-
-	"camlistore.org/pkg/types"
+	"sync/atomic"
 
 	"camlistore.org/third_party/bazil.org/fuse"
 	"camlistore.org/third_party/bazil.org/fuse/fs"
@@ -57,10 +56,28 @@ func newStat(name string) *stat {
 	return s
 }
 
+// TODO: https://github.com/camlistore/camlistore/issues/679
+
+type atomicInt64 struct {
+	v int64
+}
+
+func (a *atomicInt64) Get() int64 {
+	return atomic.LoadInt64(&a.v)
+}
+
+func (a *atomicInt64) Set(v int64) {
+	atomic.StoreInt64(&a.v, v)
+}
+
+func (a *atomicInt64) Add(delta int64) int64 {
+	return atomic.AddInt64(&a.v, delta)
+}
+
 // A stat is a wrapper around an atomic int64, as is a fuse.Node
 // exporting that data as a decimal.
 type stat struct {
-	n    types.AtomicInt64
+	n    atomicInt64
 	name string
 }
 

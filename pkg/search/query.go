@@ -34,8 +34,8 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
+	"go4.org/types"
 	"golang.org/x/net/context"
 
 	"go4.org/strutil"
@@ -1592,7 +1592,7 @@ func (c *TimeConstraint) timeMatches(t time.Time) bool {
 	if t.IsZero() {
 		return false
 	}
-	if !c.Before.IsZero() {
+	if !c.Before.IsAnyZero() {
 		if !t.Before(time.Time(c.Before)) {
 			return false
 		}

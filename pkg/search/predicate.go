@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/geocode"
-	"camlistore.org/pkg/types"
+	"go4.org/types"
 	"golang.org/x/net/context"
 )
 

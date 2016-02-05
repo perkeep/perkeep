@@ -20,7 +20,6 @@ import (
 	"os"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/types"
 
 	"go4.org/syncutil"
 )
@@ -38,7 +37,7 @@ func (ds *DiskStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) er
 		fi, err := os.Stat(ds.blobPath(ref))
 		switch {
 		case err == nil && fi.Mode().IsRegular():
-			dest <- blob.SizedRef{Ref: ref, Size: types.U32(fi.Size())}
+			dest <- blob.SizedRef{Ref: ref, Size: u32(fi.Size())}
 			return nil
 		case err != nil && !os.IsNotExist(err):
 			return err

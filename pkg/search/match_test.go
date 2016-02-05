@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/types"
+	"go4.org/types"
 )
 
 const year = time.Hour * 24 * 365

@@ -20,8 +20,7 @@ import (
 	"os"
 	"sync"
 
-	"camlistore.org/pkg/types"
-
+	"go4.org/readerutil"
 	"go4.org/syncutil/singleflight"
 )
 
@@ -76,7 +75,7 @@ type openingFile struct {
 
 // OpenSingle opens the given file path for reading, reusing existing file descriptors
 // when possible.
-func OpenSingle(path string) (types.ReaderAtCloser, error) {
+func OpenSingle(path string) (readerutil.ReaderAtCloser, error) {
 	openFileMu.Lock()
 	of := openFiles[path]
 	if of != nil {

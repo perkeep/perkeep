@@ -28,7 +28,8 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/types"
+
+	"go4.org/readerutil"
 )
 
 var kGetPattern = regexp.MustCompile(`/camli/` + blob.Pattern + `$`)
@@ -76,7 +77,7 @@ func ServeBlobRef(rw http.ResponseWriter, req *http.Request, blobRef blob.Ref, f
 	defer rc.Close()
 	rw.Header().Set("Content-Type", "application/octet-stream")
 
-	var content io.ReadSeeker = types.NewFakeSeeker(rc, int64(size))
+	var content io.ReadSeeker = readerutil.NewFakeSeeker(rc, int64(size))
 	rangeHeader := req.Header.Get("Range") != ""
 	const small = 32 << 10
 	var b *blob.Blob

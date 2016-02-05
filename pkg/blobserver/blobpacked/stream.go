@@ -24,7 +24,8 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/types"
+
+	"go4.org/readerutil"
 	"golang.org/x/net/context"
 )
 
@@ -51,7 +52,7 @@ func (st smallBlobStreamer) StreamBlobs(ctx context.Context, dest chan<- blobser
 	return blobserver.EnumerateAllFrom(ctx, small, contToken, func(sb blob.SizedRef) error {
 		select {
 		case dest <- blobserver.BlobAndToken{
-			Blob: blob.NewBlob(sb.Ref, sb.Size, func() types.ReadSeekCloser {
+			Blob: blob.NewBlob(sb.Ref, sb.Size, func() readerutil.ReadSeekCloser {
 				return blob.NewLazyReadSeekCloser(small, sb.Ref)
 			}),
 			Token: sb.Ref.StringMinusOne(), // streamer is >=, enumerate is >
@@ -111,7 +112,7 @@ func (st largeBlobStreamer) StreamBlobs(ctx context.Context, dest chan<- blobser
 			}
 			select {
 			case dest <- blobserver.BlobAndToken{
-				Blob: blob.NewBlob(bap.Ref, bap.Size, func() types.ReadSeekCloser {
+				Blob: blob.NewBlob(bap.Ref, bap.Size, func() readerutil.ReadSeekCloser {
 					return blob.NewLazyReadSeekCloser(s, bap.Ref)
 				}),
 				Token: fmt.Sprintf("%s:%d", sb.Ref, fileN),

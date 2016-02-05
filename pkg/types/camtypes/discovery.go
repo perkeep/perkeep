@@ -18,7 +18,8 @@ package camtypes
 
 import (
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/types"
+
+	"go4.org/types"
 )
 
 // Discovery is the JSON response for discovery requests.

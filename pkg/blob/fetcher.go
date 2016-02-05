@@ -24,7 +24,7 @@ import (
 	"os"
 	"sync"
 
-	"camlistore.org/pkg/types"
+	"go4.org/readerutil"
 )
 
 var (
@@ -108,7 +108,7 @@ func (df *DirFetcher) Fetch(r Ref) (file io.ReadCloser, size uint32, err error) 
 // until one of its Read, Seek, or Close methods is called, but then
 // fetches the ref from src. Any fetch error is returned in the Read,
 // Seek, or Close call.
-func NewLazyReadSeekCloser(src Fetcher, br Ref) types.ReadSeekCloser {
+func NewLazyReadSeekCloser(src Fetcher, br Ref) readerutil.ReadSeekCloser {
 	return &lazyReadSeekCloser{src: src, br: br}
 }
 
@@ -119,7 +119,7 @@ type lazyReadSeekCloser struct {
 
 	// after init, exactly one is set:
 	err error
-	rsc types.ReadSeekCloser
+	rsc readerutil.ReadSeekCloser
 }
 
 func (r *lazyReadSeekCloser) init() {

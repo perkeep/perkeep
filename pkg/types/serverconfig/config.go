@@ -18,7 +18,7 @@ limitations under the License.
 package serverconfig
 
 import (
-	"camlistore.org/pkg/types"
+	"encoding/json"
 )
 
 // Config holds the values from the JSON (high-level) server config
@@ -58,16 +58,16 @@ type Config struct {
 	HTTPSKey  string `json:"httpsKey,omitempty"`  // path to the HTTPS key file.
 
 	// Index.
-	RunIndex          types.InvertedBool `json:"runIndex,omitempty"`          // if logically false: no search, no UI, etc.
-	CopyIndexToMemory types.InvertedBool `json:"copyIndexToMemory,omitempty"` // copy disk-based index to memory on start-up.
-	MemoryIndex       bool               `json:"memoryIndex,omitempty"`       // use memory-only indexer.
-	DBName            string             `json:"dbname,omitempty"`            // name of the database for mysql, postgres, mongo.
-	LevelDB           string             `json:"levelDB,omitempty"`           // path to the levelDB directory, for indexing with github.com/syndtr/goleveldb.
-	KVFile            string             `json:"kvIndexFile,omitempty"`       // path to the kv file, for indexing with github.com/cznic/kv.
-	MySQL             string             `json:"mysql,omitempty"`             // MySQL credentials (username@host:password), for indexing with MySQL.
-	Mongo             string             `json:"mongo,omitempty"`             // MongoDB credentials ([username:password@]host), for indexing with MongoDB.
-	PostgreSQL        string             `json:"postgres,omitempty"`          // PostgreSQL credentials (username@host:password), for indexing with PostgreSQL.
-	SQLite            string             `json:"sqlite,omitempty"`            // path to the SQLite file, for indexing with SQLite.
+	RunIndex          invertedBool `json:"runIndex,omitempty"`          // if logically false: no search, no UI, etc.
+	CopyIndexToMemory invertedBool `json:"copyIndexToMemory,omitempty"` // copy disk-based index to memory on start-up.
+	MemoryIndex       bool         `json:"memoryIndex,omitempty"`       // use memory-only indexer.
+	DBName            string       `json:"dbname,omitempty"`            // name of the database for mysql, postgres, mongo.
+	LevelDB           string       `json:"levelDB,omitempty"`           // path to the levelDB directory, for indexing with github.com/syndtr/goleveldb.
+	KVFile            string       `json:"kvIndexFile,omitempty"`       // path to the kv file, for indexing with github.com/cznic/kv.
+	MySQL             string       `json:"mysql,omitempty"`             // MySQL credentials (username@host:password), for indexing with MySQL.
+	Mongo             string       `json:"mongo,omitempty"`             // MongoDB credentials ([username:password@]host), for indexing with MongoDB.
+	PostgreSQL        string       `json:"postgres,omitempty"`          // PostgreSQL credentials (username@host:password), for indexing with PostgreSQL.
+	SQLite            string       `json:"sqlite,omitempty"`            // path to the SQLite file, for indexing with SQLite.
 
 	// DBNames lists which database names to use for various types of key/value stores. The keys may be:
 	//    "index"               (overrides 'dbname' key above)
@@ -112,4 +112,25 @@ type Publish struct {
 
 	HTTPSCert string `json:"httpsCert,omitempty"` // path to the HTTPS certificate file.
 	HTTPSKey  string `json:"httpsKey,omitempty"`  // path to the HTTPS key file.
+}
+
+// invertedBool is a bool that marshals to and from JSON with the opposite of its in-memory value.
+type invertedBool bool
+
+func (ib invertedBool) MarshalJSON() ([]byte, error) {
+	return json.Marshal(!bool(ib))
+}
+
+func (ib *invertedBool) UnmarshalJSON(b []byte) error {
+	var bo bool
+	if err := json.Unmarshal(b, &bo); err != nil {
+		return err
+	}
+	*ib = invertedBool(!bo)
+	return nil
+}
+
+// Get returns the logical value of ib.
+func (ib invertedBool) Get() bool {
+	return !bool(ib)
 }

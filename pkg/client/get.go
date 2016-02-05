@@ -31,7 +31,7 @@ import (
 	"camlistore.org/pkg/constants"
 	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/types"
+	"go4.org/types"
 )
 
 func (c *Client) FetchSchemaBlob(b blob.Ref) (*schema.Blob, error) {

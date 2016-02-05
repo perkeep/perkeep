@@ -30,7 +30,7 @@ import (
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/types"
+	"go4.org/readerutil"
 )
 
 const oneYear = 365 * 86400 * time.Second
@@ -136,7 +136,7 @@ func fileInfoPacked(sh *search.Handler, src blob.Fetcher, req *http.Request, fil
 		mime:  fi.MIMEType,
 		name:  fi.FileName,
 		size:  fi.Size,
-		rs:    types.NewFakeSeeker(rc, fi.Size-offset),
+		rs:    readerutil.NewFakeSeeker(rc, fi.Size-offset),
 		close: rc.Close,
 	}, true
 }

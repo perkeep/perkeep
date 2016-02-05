@@ -43,6 +43,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -52,8 +53,8 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/types"
 	"go4.org/jsonconfig"
+	"go4.org/types"
 	"golang.org/x/net/context"
 )
 
@@ -316,7 +317,7 @@ func (s *storage) Fetch(plainBR blob.Ref) (file io.ReadCloser, size uint32, err 
 	if err != nil {
 		return nil, 0, err
 	}
-	size = types.U32(plainSize)
+	size = u32(plainSize)
 	if !plainBR.HashMatches(plainHash) {
 		return nil, 0, blobserver.ErrCorruptBlob
 	}
@@ -326,7 +327,15 @@ func (s *storage) Fetch(plainBR blob.Ref) (file io.ReadCloser, size uint32, err 
 	}{
 		bytes.NewReader(plain.Bytes()),
 		types.NopCloser,
-	}, uint32(plainSize), nil
+	}, size, nil
+}
+
+// u32 converts n to an uint32, or panics if n is out of range
+func u32(n int64) uint32 {
+	if n < 0 || n > math.MaxUint32 {
+		panic("bad size " + fmt.Sprint(n))
+	}
+	return uint32(n)
 }
 
 func (s *storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {

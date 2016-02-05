@@ -26,7 +26,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/types"
+	"go4.org/types"
 )
 
 type desCmd struct {

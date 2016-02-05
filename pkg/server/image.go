@@ -40,12 +40,13 @@ import (
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/types"
 
 	_ "github.com/nf/cr2"
 
+	"go4.org/readerutil"
 	"go4.org/syncutil"
 	"go4.org/syncutil/singleflight"
+	"go4.org/types"
 )
 
 const imageDebug = false
@@ -257,7 +258,7 @@ func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 	}
 	defer fr.Close()
 
-	sr := types.NewStatsReader(imageBytesFetchedVar, fr)
+	sr := readerutil.NewStatsReader(imageBytesFetchedVar, fr)
 	sr, conf, err := imageConfigFromReader(sr)
 	if err != nil {
 		return nil, err

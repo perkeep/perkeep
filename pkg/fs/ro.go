@@ -30,7 +30,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/types"
+	"go4.org/types"
 
 	"camlistore.org/third_party/bazil.org/fuse"
 	"camlistore.org/third_party/bazil.org/fuse/fs"

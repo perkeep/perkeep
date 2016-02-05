@@ -26,7 +26,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/types"
+	"go4.org/readerutil"
 )
 
 // Blob is a utility class for unit tests.
@@ -36,7 +36,7 @@ type Blob struct {
 
 func (tb *Blob) Blob() *blob.Blob {
 	s := tb.Contents
-	return blob.NewBlob(tb.BlobRef(), tb.Size(), func() types.ReadSeekCloser {
+	return blob.NewBlob(tb.BlobRef(), tb.Size(), func() readerutil.ReadSeekCloser {
 		return struct {
 			io.ReadSeeker
 			io.Closer

@@ -28,10 +28,11 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/types"
 
+	"go4.org/readerutil"
 	"go4.org/syncutil"
 	"go4.org/syncutil/singleflight"
+	"go4.org/types"
 )
 
 const closedIndex = -1
@@ -336,7 +337,7 @@ func (fr *FileReader) readerForOffset(off int64) (io.ReadCloser, error) {
 		return types.EmptyBody, nil
 	}
 	p0 := parts[0]
-	var rsc types.ReadSeekCloser
+	var rsc readerutil.ReadSeekCloser
 	var err error
 	switch {
 	case p0.BlobRef.Valid() && p0.BytesRef.Valid():

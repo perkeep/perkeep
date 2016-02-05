@@ -34,12 +34,13 @@ import (
 	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
-	"go4.org/jsonconfig"
-	"golang.org/x/net/context"
 
+	"go4.org/jsonconfig"
 	"go4.org/strutil"
+	"go4.org/types"
+
+	"golang.org/x/net/context"
 )
 
 func init() {
@@ -93,16 +94,6 @@ func SetImpendingReindex() {
 	// TODO: remove this function, once we refactor how indexes are created.
 	// They'll probably not all have their own storage constructor registered.
 	aboutToReindex = true
-}
-
-// MustNew is wraps New and fails with a Fatal error on t if New
-// returns an error.
-func MustNew(t types.TB, s sorted.KeyValue) *Index {
-	ix, err := New(s)
-	if err != nil {
-		t.Fatalf("Error creating index: %v", err)
-	}
-	return ix
 }
 
 // InitBlobSource sets the index's blob source and starts the background

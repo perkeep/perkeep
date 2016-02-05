@@ -91,7 +91,7 @@ func (b *Blob) FileName() string {
 func (b *Blob) ClaimDate() (time.Time, error) {
 	var ct time.Time
 	claimDate := b.ss.ClaimDate
-	if claimDate.IsZero() {
+	if claimDate.IsAnyZero() {
 		return ct, MissingFieldError("claimDate")
 	}
 	return claimDate.Time(), nil
@@ -122,7 +122,7 @@ func (b *Blob) Builder() *Builder {
 
 // AsClaim returns a Claim if the receiver Blob has all the required fields.
 func (b *Blob) AsClaim() (c Claim, ok bool) {
-	if b.ss.Signer.Valid() && b.ss.Sig != "" && b.ss.ClaimType != "" && !b.ss.ClaimDate.IsZero() {
+	if b.ss.Signer.Valid() && b.ss.Sig != "" && b.ss.ClaimType != "" && !b.ss.ClaimDate.IsAnyZero() {
 		return Claim{b}, true
 	}
 	return

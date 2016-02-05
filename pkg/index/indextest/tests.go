@@ -38,6 +38,7 @@ import (
 	"camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
+	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/test"
 	"camlistore.org/pkg/types/camtypes"
 	"golang.org/x/net/context"
@@ -1375,4 +1376,14 @@ func EnumStat(t *testing.T, initIdx func() *index.Index) {
 	if err := stepStatCheck([]blob.SizedRef{foo, bar, baz, delMissing})(); err != nil {
 		t.Fatalf("stat check: %v", err)
 	}
+}
+
+// MustNew wraps index.New and fails with a Fatal error on t if New
+// returns an error.
+func MustNew(t *testing.T, s sorted.KeyValue) *index.Index {
+	ix, err := index.New(s)
+	if err != nil {
+		t.Fatalf("Error creating index: %v", err)
+	}
+	return ix
 }

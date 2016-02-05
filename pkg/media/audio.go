@@ -25,7 +25,7 @@ import (
 	"io"
 	"time"
 
-	"camlistore.org/pkg/types"
+	"go4.org/readerutil"
 )
 
 // ID3v1TagLength is the length of an MP3 ID3v1 tag in bytes.
@@ -35,7 +35,7 @@ const ID3v1TagLength = 128
 var id3v1Magic = []byte("TAG")
 
 // HasID3V1Tag returns true if an ID3v1 tag is present at the end of r.
-func HasID3v1Tag(r types.SizeReaderAt) (bool, error) {
+func HasID3v1Tag(r readerutil.SizeReaderAt) (bool, error) {
 	if r.Size() < ID3v1TagLength {
 		return false, nil
 	}
@@ -129,7 +129,7 @@ var infoHeaderName = []byte("Info")
 
 // GetMPEGAudioDuration reads the first frame in r and returns the audio length with millisecond precision.
 // Format details are at http://www.codeproject.com/Articles/8295/MPEG-Audio-Frame-Header.
-func GetMPEGAudioDuration(r types.SizeReaderAt) (time.Duration, error) {
+func GetMPEGAudioDuration(r readerutil.SizeReaderAt) (time.Duration, error) {
 	var header uint32
 	if err := binary.Read(io.NewSectionReader(r, 0, r.Size()), binary.BigEndian, &header); err != nil {
 		return 0, fmt.Errorf("Failed to read MPEG frame header: %v", err)

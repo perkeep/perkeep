@@ -40,12 +40,12 @@ import (
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/media"
 	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/types"
 
 	"github.com/hjfreyer/taglib-go/taglib"
-
 	"github.com/rwcarlsen/goexif/exif"
 	"github.com/rwcarlsen/goexif/tiff"
+	"go4.org/readerutil"
+	"go4.org/types"
 )
 
 // outOfOrderIndexerLoop asynchronously reindexes blobs received
@@ -594,7 +594,7 @@ func indexEXIF(wholeRef blob.Ref, r io.Reader, mm *mutationMap) (err error) {
 }
 
 // indexMusic adds mutations to index the wholeRef by attached metadata and other properties.
-func indexMusic(r types.SizeReaderAt, wholeRef blob.Ref, mm *mutationMap) {
+func indexMusic(r readerutil.SizeReaderAt, wholeRef blob.Ref, mm *mutationMap) {
 	tag, err := taglib.Decode(r, r.Size())
 	if err != nil {
 		log.Print("index: error parsing tag: ", err)

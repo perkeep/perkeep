@@ -24,7 +24,8 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/types"
+
+	"go4.org/types"
 )
 
 type RecentPermanode struct {

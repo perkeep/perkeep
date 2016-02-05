@@ -101,7 +101,7 @@ func (n *recentDir) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
 		switch {
 		case ccMeta.File != nil:
 			name = ccMeta.File.FileName
-			if mt := ccMeta.File.Time; !mt.IsZero() {
+			if mt := ccMeta.File.Time; !mt.IsAnyZero() {
 				modTime = mt.Time()
 			}
 		case ccMeta.Dir != nil:

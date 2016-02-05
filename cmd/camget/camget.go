@@ -34,7 +34,7 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/types"
+	"go4.org/types"
 )
 
 var (

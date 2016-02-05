@@ -38,7 +38,8 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/buildinfo"
-	"camlistore.org/pkg/types"
+
+	"go4.org/readerutil"
 )
 
 var (
@@ -199,7 +200,7 @@ func DecodeDownsample(r io.Reader, factor int) (image.Image, error) {
 	}
 	args := []string{djpegBin, "-scale", fmt.Sprintf("1/%d", factor)}
 	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdin = types.NewStatsReader(djpegBytesWrittenVar, io.MultiReader(buf, r))
+	cmd.Stdin = readerutil.NewStatsReader(djpegBytesWrittenVar, io.MultiReader(buf, r))
 
 	// Allocate space for the RGBA / Gray pixel data plus some extra for PNM
 	// header info.  Explicitly allocate all the memory upfront to prevent

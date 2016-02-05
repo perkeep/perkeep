@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/types"
+	"go4.org/types"
 
 	"go4.org/ctxutil"
 	"golang.org/x/net/context"

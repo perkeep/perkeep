@@ -25,8 +25,8 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
-	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
+	"go4.org/types"
 	"golang.org/x/net/context"
 )
 

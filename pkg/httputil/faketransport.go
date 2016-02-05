@@ -24,7 +24,7 @@ import (
 	"regexp"
 	"strings"
 
-	"camlistore.org/pkg/types"
+	"go4.org/types"
 )
 
 // NewFakeTransport takes a map of URL to function generating a response

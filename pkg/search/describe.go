@@ -31,8 +31,8 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/types"
 	"camlistore.org/pkg/types/camtypes"
+	"go4.org/types"
 
 	"go4.org/syncutil"
 )
@@ -259,7 +259,7 @@ func (r *DescribeRequest) URLSuffix() string {
 		buf.WriteString("&blobref=")
 		buf.WriteString(r.BlobRef.String())
 	}
-	if !r.At.IsZero() {
+	if !r.At.IsAnyZero() {
 		buf.WriteString("&at=")
 		buf.WriteString(r.At.String())
 	}
@@ -798,7 +798,7 @@ func (dr *DescribeRequest) populatePermanodeFields(pi *DescribedPermanode, pn, s
 	sort.Sort(camtypes.ClaimsByDate(claims))
 claimLoop:
 	for _, cl := range claims {
-		if !dr.At.IsZero() {
+		if !dr.At.IsAnyZero() {
 			if cl.Date.After(dr.At.Time()) {
 				continue
 			}

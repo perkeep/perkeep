@@ -33,6 +33,7 @@ package localdisk
 import (
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -41,7 +42,6 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/local"
 	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/types"
 	"go4.org/jsonconfig"
 )
 
@@ -136,6 +136,14 @@ func (ds *DiskStorage) SubFetch(br blob.Ref, offset, length int64) (io.ReadClose
 	return rc, err
 }
 
+// u32 converts n to an uint32, or panics if n is out of range
+func u32(n int64) uint32 {
+	if n < 0 || n > math.MaxUint32 {
+		panic("bad size " + fmt.Sprint(n))
+	}
+	return uint32(n)
+}
+
 // length -1 means entire file
 func (ds *DiskStorage) fetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, size uint32, err error) {
 	fileName := ds.blobPath(br)
@@ -143,7 +151,7 @@ func (ds *DiskStorage) fetch(br blob.Ref, offset, length int64) (rc io.ReadClose
 	if os.IsNotExist(err) {
 		return nil, 0, os.ErrNotExist
 	}
-	size = types.U32(stat.Size())
+	size = u32(stat.Size())
 	file, err := os.Open(fileName)
 	if err != nil {
 		if os.IsNotExist(err) {

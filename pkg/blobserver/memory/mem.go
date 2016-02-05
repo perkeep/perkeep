@@ -31,8 +31,10 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/lru"
-	"camlistore.org/pkg/types"
+
 	"go4.org/jsonconfig"
+	"go4.org/readerutil"
+	"go4.org/types"
 	"golang.org/x/net/context"
 )
 
@@ -237,7 +239,7 @@ func (s *Storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 		case <-ctx.Done():
 			return ctx.Err()
 		case dest <- blobserver.BlobAndToken{
-			Blob: blob.NewBlob(br, uint32(len(s.m[br])), func() types.ReadSeekCloser {
+			Blob: blob.NewBlob(br, uint32(len(s.m[br])), func() readerutil.ReadSeekCloser {
 				return blob.NewLazyReadSeekCloser(s, br)
 			}),
 			Token: br.String(),

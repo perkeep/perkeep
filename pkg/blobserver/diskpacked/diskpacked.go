@@ -51,13 +51,14 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/local"
 	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/types"
-	"go4.org/jsonconfig"
-	"golang.org/x/net/context"
 
+	"go4.org/jsonconfig"
 	"go4.org/lock"
+	"go4.org/readerutil"
 	"go4.org/strutil"
 	"go4.org/syncutil"
+	"go4.org/types"
+	"golang.org/x/net/context"
 )
 
 // TODO(wathiede): replace with glog.V(2) when we decide our logging story.
@@ -375,11 +376,11 @@ func (s *storage) fetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, si
 	// Ensure entry is in map.
 	readVar.Add(fn, 0)
 	if v, ok := readVar.Get(fn).(*expvar.Int); ok {
-		rs = types.NewStatsReadSeeker(v, rs)
+		rs = readerutil.NewStatsReadSeeker(v, rs)
 	}
 	readTotVar.Add(s.root, 0)
 	if v, ok := readTotVar.Get(s.root).(*expvar.Int); ok {
-		rs = types.NewStatsReadSeeker(v, rs)
+		rs = readerutil.NewStatsReadSeeker(v, rs)
 	}
 	rsc := struct {
 		io.ReadSeeker
@@ -520,7 +521,7 @@ type readSeekNopCloser struct {
 
 func (readSeekNopCloser) Close() error { return nil }
 
-func newReadSeekNopCloser(rs io.ReadSeeker) types.ReadSeekCloser {
+func newReadSeekNopCloser(rs io.ReadSeeker) readerutil.ReadSeekCloser {
 	return readSeekNopCloser{rs}
 }
 
@@ -623,7 +624,7 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 		if !ok {
 			return fmt.Errorf("diskpacked: Invalid blobref %q", digest)
 		}
-		newReader := func() types.ReadSeekCloser {
+		newReader := func() readerutil.ReadSeekCloser {
 			return newReadSeekNopCloser(bytes.NewReader(data))
 		}
 		blob := blob.NewBlob(ref, size, newReader)

@@ -16,7 +16,7 @@ import (
 	"camlistore.org/pkg/index/indextest"
 	. "camlistore.org/pkg/search"
 	"camlistore.org/pkg/test"
-	"camlistore.org/pkg/types"
+	"go4.org/types"
 )
 
 // indexType is one of the three ways we test the query handler code.
