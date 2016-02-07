@@ -526,6 +526,7 @@ func runDemoBlobserverLoop() {
 		log.Printf("Killed, removed old %q container.", name)
 	}
 	for {
+		var stderr bytes.Buffer
 		cmd := exec.Command("docker", "run",
 			"--rm",
 			"--name="+name,
@@ -539,9 +540,10 @@ func runDemoBlobserverLoop() {
 			"--openbrowser=false",
 			"--listen=:3179",
 			"--configfile="+prodSrcDir+"/website/blobserver-example/example-blobserver-config.json")
+		cmd.Stderr = &stderr
 		err := cmd.Run()
 		if err != nil {
-			log.Printf("Failed to run demo blob server: %v", err)
+			log.Printf("Failed to run demo blob server: %v, stderr: %v", err, stderr.String())
 		}
 		if !inProd {
 			return
