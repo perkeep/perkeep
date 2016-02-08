@@ -49,6 +49,7 @@ import (
 	"camlistore.org/third_party/github.com/russross/blackfriday"
 
 	"go4.org/cloud/cloudlaunch"
+	"go4.org/writerutil"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -512,6 +513,43 @@ func randHex(n int) string {
 	return fmt.Sprintf("%x", buf)[:n]
 }
 
+func removeDemoContainer(name string) {
+	if err := exec.Command("docker", "kill", name).Run(); err == nil {
+		// It was actually running.
+		log.Printf("Killed old %q container.", name)
+	}
+	if err := exec.Command("docker", "rm", name).Run(); err == nil {
+		// Always try to remove, in case we end up with a stale,
+		// non-running one (which has happened in the past).
+		log.Printf("Removed old %q container.", name)
+	}
+}
+
+// runDemoBlobServerContainer runs the demo blobserver as name in a docker
+// container. It is not run in daemon mode, so it never returns if successful.
+func runDemoBlobServerContainer(name string) error {
+	removeDemoContainer(name)
+	cmd := exec.Command("docker", "run",
+		"--rm",
+		"--name="+name,
+		"-e", "CAMLI_ROOT="+prodSrcDir+"/website/blobserver-example/root",
+		"-e", "CAMLI_PASSWORD="+randHex(20),
+		"-v", camSrcDir()+":"+prodSrcDir,
+		"--net=host",
+		"--workdir="+prodSrcDir,
+		"camlistore/demoblobserver",
+		"camlistored",
+		"--openbrowser=false",
+		"--listen=:3179",
+		"--configfile="+prodSrcDir+"/website/blobserver-example/example-blobserver-config.json")
+	stderr := &writerutil.PrefixSuffixSaver{N: 32 << 10}
+	cmd.Stderr = stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to run demo blob server: %v, stderr: %v", err, string(stderr.Bytes()))
+	}
+	return nil
+}
+
 func runDemoBlobserverLoop() {
 	if runtime.GOOS != "linux" {
 		return
@@ -519,33 +557,12 @@ func runDemoBlobserverLoop() {
 	if _, err := exec.LookPath("docker"); err != nil {
 		return
 	}
-	const name = "demoblob3179"
-	if err := exec.Command("docker", "kill", name).Run(); err == nil {
-		// It was actually running.
-		exec.Command("docker", "rm", name).Run()
-		log.Printf("Killed, removed old %q container.", name)
-	}
 	for {
-		var stderr bytes.Buffer
-		cmd := exec.Command("docker", "run",
-			"--rm",
-			"--name="+name,
-			"-e", "CAMLI_ROOT="+prodSrcDir+"/website/blobserver-example/root",
-			"-e", "CAMLI_PASSWORD="+randHex(20),
-			"-v", camSrcDir()+":"+prodSrcDir,
-			"--net=host",
-			"--workdir="+prodSrcDir,
-			"camlistore/demoblobserver",
-			"camlistored",
-			"--openbrowser=false",
-			"--listen=:3179",
-			"--configfile="+prodSrcDir+"/website/blobserver-example/example-blobserver-config.json")
-		cmd.Stderr = &stderr
-		err := cmd.Run()
-		if err != nil {
-			log.Printf("Failed to run demo blob server: %v, stderr: %v", err, stderr.String())
+		if err := runDemoBlobServerContainer("demoblob3179"); err != nil {
+			log.Printf("%v", err)
 		}
 		if !inProd {
+			// Do not bother retrying if we're most likely just testing on localhost
 			return
 		}
 		time.Sleep(10 * time.Second)
