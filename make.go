@@ -184,7 +184,7 @@ func main() {
 	}
 	var ldFlags string
 	if *stampVersion {
-		ldFlags = "-X camlistore.org/pkg/buildinfo.GitInfo=" + version
+		ldFlags = "-X \"camlistore.org/pkg/buildinfo.GitInfo=" + version + "\""
 	}
 	baseArgs = append(baseArgs, "--ldflags="+ldFlags, "--tags="+strings.Join(tags, " "))
 

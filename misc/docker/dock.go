@@ -114,10 +114,9 @@ func genCamlistore(ctxDir string) {
 		"--volume=" + ctxDir + "/camlistore.org:/OUT",
 		"--volume=" + path.Join(dockDir, "server/build-camlistore-server.go") + ":" + genCamliProgram + ":ro",
 	}
-	// TODO(mpl, bradfitz): pass the version to genCamliProgram so it can stamp it into camlistored when building it.
 	if isWIP() {
 		args = append(args, "--volume="+localCamliSource()+":/IN:ro",
-			goDockerImage, goCmd, "run", genCamliProgram, "--rev="+rev(), "--camlisource=/IN")
+			goDockerImage, goCmd, "run", genCamliProgram, "--rev=WIP:/IN")
 	} else {
 		args = append(args, goDockerImage, goCmd, "run", genCamliProgram, "--rev="+rev())
 	}
@@ -140,9 +139,12 @@ func genBinaries(ctxDir string) {
 	}
 	if isWIP() {
 		args = append(args, "--volume="+localCamliSource()+":/IN:ro",
-			image, goCmd, "run", genBinariesProgram, "--rev="+rev(), "--camlisource=/IN", "--os="+*buildOS)
+			image, goCmd, "run", genBinariesProgram, "--rev=WIP:/IN", "--os="+*buildOS)
 	} else {
 		args = append(args, image, goCmd, "run", genBinariesProgram, "--rev="+rev(), "--os="+*buildOS)
+	}
+	if *flagVersion != "" {
+		args = append(args, "--version="+*flagVersion)
 	}
 	cmd := exec.Command("docker", args...)
 	cmd.Stdout = os.Stdout
