@@ -44,21 +44,21 @@ func mergedEnumerate(ctx context.Context, dest chan<- blob.SizedRef, nsrc int, g
 	subctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	startEnum := func(source BlobEnumerator) (*blob.ChanPeeker, <-chan error) {
+	errch := make(chan error, nsrc+1) // +1 for nil
+	startEnum := func(source BlobEnumerator) *blob.ChanPeeker {
 		ch := make(chan blob.SizedRef, buffered)
-		errch := make(chan error, 1)
 		go func() {
-			errch <- source.EnumerateBlobs(subctx, ch, after, limit)
+			err := source.EnumerateBlobs(subctx, ch, after, limit)
+			if err != nil {
+				errch <- err
+			}
 		}()
-		return &blob.ChanPeeker{Ch: ch}, errch
+		return &blob.ChanPeeker{Ch: ch}
 	}
 
 	peekers := make([]*blob.ChanPeeker, 0, nsrc)
-	errs := make([]<-chan error, 0, nsrc)
 	for i := 0; i < nsrc; i++ {
-		peeker, errch := startEnum(getSource(i))
-		peekers = append(peekers, peeker)
-		errs = append(errs, errch)
+		peekers = append(peekers, startEnum(getSource(i)))
 	}
 
 	nSent := 0
@@ -85,17 +85,18 @@ func mergedEnumerate(ctx context.Context, dest chan<- blob.SizedRef, nsrc int, g
 			break
 		}
 
-		dest <- lowest
-		nSent++
-		lastSent = lowest.Ref
+		select {
+		case dest <- lowest:
+			nSent++
+			lastSent = lowest.Ref
+		case <-ctx.Done():
+			return ctx.Err()
+		case err := <-errch:
+			return err
+		}
 	}
 
 	// If any part returns an error, we return an error.
-	var retErr error
-	for _, errch := range errs {
-		if err := <-errch; err != nil {
-			retErr = err
-		}
-	}
-	return retErr
+	errch <- nil
+	return <-errch
 }
