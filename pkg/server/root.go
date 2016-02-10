@@ -229,7 +229,7 @@ func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request)
 		StatusRoot:   rh.statusRoot,
 		OwnerName:    rh.OwnerName,
 		UserName:     rh.Username,
-		WSAuthToken:  auth.ProcessRandom(),
+		AuthToken:    auth.Token(),
 		ThumbVersion: images.ThumbnailVersion(),
 	}
 	if gener, ok := rh.Storage.(blobserver.Generationer); ok {

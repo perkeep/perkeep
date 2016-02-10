@@ -42,7 +42,10 @@ type Discovery struct {
 	StorageInitTime types.Time3339 `json:"storageInitTime,omitempty"`
 
 	ThumbVersion string `json:"thumbVersion"` // Thumbnailing version.
-	WSAuthToken  string `json:"wsAuthToken"`  // Authentication token for the WebSocket.
+
+	// AuthToken is an auth.OpAll token used by the web UI and the WebSocket.
+	// It is randomly generated the first time discovery is served.
+	AuthToken string `json:"authToken"`
 
 	// SyncHandlers lists discovery information about the available sync handlers.
 	SyncHandlers []SyncHandlerDiscovery `json:"syncHanlders,omitempty"`

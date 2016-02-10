@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -39,6 +40,9 @@ const (
 	OpEnumerate
 	OpRemove
 	OpSign
+	// OpDiscovery note: since we disclose an OpAll token in the discovery
+	// response, please bear in mind that granting OpDiscovery is in effect the
+	// same as granting OpAll for now.
 	OpDiscovery
 	OpRead   = OpEnumerate | OpStat | OpGet | OpDiscovery
 	OpRW     = OpUpload | OpEnumerate | OpStat | OpGet // Not Remove
@@ -221,6 +225,9 @@ func (up *UserPass) AllowedAccess(req *http.Request) Operation {
 		}
 	}
 
+	if authTokenHeaderMatches(req) {
+		return OpAll
+	}
 	if websocketTokenMatches(req) {
 		return OpAll
 	}
@@ -275,6 +282,9 @@ func (da *DevAuth) AllowedAccess(req *http.Request) Operation {
 		}
 	}
 
+	if authTokenHeaderMatches(req) {
+		return OpAll
+	}
 	if websocketTokenMatches(req) {
 		return OpAll
 	}
@@ -319,10 +329,24 @@ func Allowed(req *http.Request, op Operation) bool {
 	return false
 }
 
+var uiTokenPattern = regexp.MustCompile(`^Token ([a-zA-Z0-9]+)`)
+
+func authTokenHeaderMatches(req *http.Request) bool {
+	authHeader := req.Header.Get("Authorization")
+	if authHeader == "" {
+		return false
+	}
+	matches := uiTokenPattern.FindStringSubmatch(authHeader)
+	if len(matches) != 2 {
+		return false
+	}
+	return matches[1] == Token()
+}
+
 func websocketTokenMatches(req *http.Request) bool {
 	return req.Method == "GET" &&
 		req.Header.Get("Upgrade") == "websocket" &&
-		req.FormValue("authtoken") == ProcessRandom()
+		req.FormValue("authtoken") == Token()
 }
 
 func TriedAuthorization(req *http.Request) bool {
@@ -393,7 +417,10 @@ var (
 	processRandOnce sync.Once
 )
 
-func ProcessRandom() string {
+// Token returns a 20 byte token generated (only once, then cached) with RandToken.
+// This token is used for authentication by the Camlistore web UI and its
+// websockets, therefore it should be handled with care.
+func Token() string {
 	processRandOnce.Do(genProcessRand)
 	return processRand
 }
