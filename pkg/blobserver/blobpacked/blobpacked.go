@@ -614,7 +614,11 @@ func (s enumerator) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRe
 		if err != nil {
 			return err
 		}
-		dest <- blob.SizedRef{Ref: br, Size: size}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case dest <- blob.SizedRef{Ref: br, Size: size}:
+		}
 	}
 	return nil
 }
