@@ -94,6 +94,7 @@ func TestIntegrationRun(t *testing.T) {
 	const attrValue = "value"
 
 	w := test.GetWorld(t)
+	defer w.Stop()
 	baseURL := w.ServerBaseURL()
 
 	// TODO(mpl): add a utility in integration package to provide a client that

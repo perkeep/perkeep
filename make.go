@@ -112,6 +112,10 @@ func main() {
 		latestSrcMod = mirror(sql)
 		if *onlysync {
 			mirrorFile("make.go", filepath.Join(buildSrcDir, "make.go"))
+			// Since we have not done the resources embedding, the
+			// z_*.go files have not been marked as wanted and are
+			// going to be removed. And they will have to be
+			// regenerated next time make.go is run.
 			deleteUnwantedOldMirrorFiles(buildSrcDir, true)
 			fmt.Println(buildGoPath)
 			return
@@ -158,9 +162,6 @@ func main() {
 
 	withCamlistored := stringListContains(targs, "camlistore.org/server/camlistored")
 	if *embedResources && withCamlistored {
-		// TODO(mpl): it looks like we always regenerate the
-		// zembed.*.go, at least for the integration
-		// tests. I'll look into it.
 		doEmbed()
 	}
 
