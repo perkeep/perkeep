@@ -28,6 +28,7 @@ import (
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/sqlkv"
 	"go4.org/jsonconfig"
+	"go4.org/syncutil"
 )
 
 func init() {
@@ -64,8 +65,8 @@ func newKeyValueFromConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		file: file,
 		db:   db,
 		KeyValue: &sqlkv.KeyValue{
-			DB:     db,
-			Serial: true,
+			DB:   db,
+			Gate: syncutil.NewGate(1),
 		},
 	}
 
