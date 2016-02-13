@@ -406,7 +406,11 @@ func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		f("<li>Dest bytes seen: %d</li>", sh.vdestBytes)
 		f("<li>Blobs found missing &amp; enqueued: %d</li>", sh.vmissing)
 		if len(sh.vshardErrs) > 0 {
-			f("<li>Validation errors: %s</li>", sh.vshardErrs)
+			f("<li>Validation errors:<ul>\n")
+			for _, e := range sh.vshardErrs {
+				f("  <li>%s</li>\n", html.EscapeString(e))
+			}
+			f("</li>\n")
 		}
 		f("</ul>")
 	}
