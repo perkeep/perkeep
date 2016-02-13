@@ -204,12 +204,10 @@ func (kv *KeyValue) Wipe() error {
 func (kv *KeyValue) Close() error { return kv.DB.Close() }
 
 func (kv *KeyValue) Find(start, end string) sorted.Iterator {
+	var releaseGate func() // nil if unused
 	if kv.Gate != nil {
 		kv.Gate.Start()
-		// TODO(mpl): looks like sqlite considers the db locked until we've closed
-		// the iterator, so we can't do anything else until then. We should probably
-		// move that Unlock to the closing of the iterator. Investigating.
-		defer kv.Gate.Done()
+		releaseGate = kv.Gate.Done
 	}
 	var rows *sql.Rows
 	var err error
@@ -224,9 +222,10 @@ func (kv *KeyValue) Find(start, end string) sorted.Iterator {
 	}
 
 	it := &iter{
-		kv:         kv,
-		rows:       rows,
-		closeCheck: leak.NewChecker(),
+		kv:          kv,
+		rows:        rows,
+		closeCheck:  leak.NewChecker(),
+		releaseGate: releaseGate,
 	}
 	return it
 }
@@ -239,7 +238,8 @@ type iter struct {
 	end string // optional end bound
 	err error  // accumulated error, returned at Close
 
-	closeCheck *leak.Checker
+	closeCheck  *leak.Checker
+	releaseGate func() // if non-nil, called on Close
 
 	rows *sql.Rows // if non-nil, the rows we're reading from
 
@@ -275,6 +275,9 @@ func (t *iter) Close() error {
 	if t.rows != nil {
 		t.rows.Close()
 		t.rows = nil
+	}
+	if t.releaseGate != nil {
+		t.releaseGate()
 	}
 	err := t.err
 	t.err = errClosed
