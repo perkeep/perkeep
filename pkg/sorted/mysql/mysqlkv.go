@@ -33,6 +33,7 @@ import (
 	"camlistore.org/pkg/sorted/sqlkv"
 	_ "camlistore.org/third_party/github.com/go-sql-driver/mysql"
 	"go4.org/jsonconfig"
+	"go4.org/syncutil"
 )
 
 func init() {
@@ -85,6 +86,7 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 				return nil, err
 			}
 			if !hasLargeVarchar(sv) {
+
 				errMsg += "\nYour MySQL server is too old (< 5.0.3) to support VARCHAR larger than 255."
 			}
 			return nil, fmt.Errorf(errMsg, tableSQL, createError)
@@ -100,6 +102,7 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		KeyValue: &sqlkv.KeyValue{
 			DB:          db,
 			TablePrefix: database + ".",
+			Gate:        syncutil.NewGate(20), // arbitrary limit. TODO: configurable, automatically-learned?
 		},
 	}
 	if err := kv.ping(); err != nil {
