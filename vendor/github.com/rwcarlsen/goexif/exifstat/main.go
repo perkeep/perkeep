@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	"camlistore.org/third_party/github.com/rwcarlsen/goexif/mknote"
 	"github.com/rwcarlsen/goexif/exif"
+	"github.com/rwcarlsen/goexif/mknote"
 	"github.com/rwcarlsen/goexif/tiff"
 )
 
