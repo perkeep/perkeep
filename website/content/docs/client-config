@@ -76,9 +76,32 @@ server configurations. For example:
   basic authentication, of the form: `userpass:alice:secret`. Username "alice",
   password "secret".
 
-    If the server is not on the same host, it is highly recommended to use TLS or
-    another form of secure connection to the server.
+    If the server is not on the same host, it is highly recommended to use TLS
+    or another form of secure connection to the server.
 
 * `server`: The camlistored server to connect to, of the form:
   "[http[s]://]host[:port][/prefix]". Defaults to https. This option can be
   overriden with the "-server" command-line flag.
+
+    Most client commands are meant to communicate with a blobserver. For such
+    commands, instead of the client relying on discovery to choose the actual
+    URL, the server URL can point directly to a specific blobserver handler,
+    of the form: "[http[s]://]host[:port][/prefix][/handler/]".
+
+    For example, to speed up syncing with `camtool sync`, one could write
+    directly to the destination's blobserver, instead of the default, which is
+    to write to both the destination blobserver and index.
+    The above configuration sample can be extended by adding the following
+    alias, where "`/bs/`" is the handler of the primary blobserver:
+
+        "servers": {
+          ...
+          "backup-bs": {
+            "server": "https://some.remote.com/bs/",
+            "auth": "userpass:pony:magic",
+            "trustedCerts": ["ffc7730f4b"]
+          }
+        }
+
+    And the alias `backup-bs` can then be used as a destination by
+    `camtool sync`.
