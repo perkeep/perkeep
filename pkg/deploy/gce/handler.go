@@ -558,8 +558,7 @@ func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Reques
 	}
 	if state.Err != "" {
 		// No need to log that error here since we're already doing it in serveCallback
-		// TODO(mpl): fix overescaping of double quotes.
-		h.serveErrorPage(w, fmt.Errorf("An error occurred while creating your instance: %q. ", state.Err))
+		h.serveErrorPage(w, fmt.Errorf("An error occurred while creating your instance: %v.", state.Err))
 		return
 	}
 	if state.Success || state.Exists {
