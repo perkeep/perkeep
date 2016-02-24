@@ -3,7 +3,7 @@ dist: trusty
 go_import_path: camlistore.org
 language: go
 go:
-  - 1.5
+  - 1.6
   - tip
 before_install:
   - sudo apt-get install -qq pkg-config fuse
