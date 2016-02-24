@@ -177,7 +177,7 @@ func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiv
 
 	receivedBlobs := make([]blob.SizedRef, 0, 10)
 
-	multipart, err := httputil.MultipartReader(req)
+	multipart, err := req.MultipartReader()
 	if multipart == nil {
 		httputil.BadRequestError(rw, fmt.Sprintf(
 			"Expected multipart/form-data POST request; %v", err))
