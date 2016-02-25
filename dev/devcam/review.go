@@ -22,7 +22,6 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -93,12 +92,11 @@ func (c *reviewCmd) checkHook() {
 	if !os.IsNotExist(err) {
 		log.Fatal(err)
 	}
-	fmt.Fprintf(cmdmain.Stdout, "Presubmit hook to add Change-Id to commit messages is missing.\nNow automatically creating it at %v from %v\n\n", hookFile, defaultHook)
-	data, err := ioutil.ReadFile(defaultHook)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err := ioutil.WriteFile(hookFile, data, 0700); err != nil {
+	fmt.Fprintf(cmdmain.Stdout, "Presubmit hook to add Change-Id to commit messages is missing.\nNow automatically creating it at %v\n\n", hookFile)
+	cmd := exec.Command("devcam", "hook")
+	cmd.Stdout = cmdmain.Stdout
+	cmd.Stderr = cmdmain.Stderr
+	if err := cmd.Run(); err != nil {
 		log.Fatal(err)
 	}
 	fmt.Fprintf(cmdmain.Stdout, "Amending last commit to add Change-Id.\nPlease re-save description without making changes.\n\n")
@@ -107,7 +105,7 @@ func (c *reviewCmd) checkHook() {
 		log.Fatal(err)
 	}
 
-	cmd := exec.Command("git", []string{"commit", "--amend"}...)
+	cmd = exec.Command("git", []string{"commit", "--amend"}...)
 	cmd.Stdout = cmdmain.Stdout
 	cmd.Stderr = cmdmain.Stderr
 	if err := cmd.Run(); err != nil {
