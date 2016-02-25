@@ -285,7 +285,6 @@ func (d *Deployer) Create(ctx context.Context) (*compute.Instance, error) {
 		return nil, fmt.Errorf("cloud config length of %d bytes is over %d byte limit", len(config), maxCloudConfig)
 	}
 
-	// TODO(mpl): maybe add a wipe mode where we erase other instances before attempting to create.
 	if zone, err := d.projectHasInstance(); zone != "" {
 		return nil, instanceExistsError{
 			project: d.Conf.Project,
