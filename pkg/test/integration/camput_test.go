@@ -17,6 +17,7 @@ limitations under the License.
 package integration
 
 import (
+	"bytes"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -102,4 +103,32 @@ func TestCamputSocket(t *testing.T) {
 	br := strings.Split(out, "\n")[0]
 	out = test.MustRunCmd(t, w.Cmd("camget", br))
 	t.Logf("Retrieved stored socket schema: %s", out)
+}
+
+// Test that camput twice on the same file only uploads once.
+func TestCamputUploadOnce(t *testing.T) {
+	w := test.GetWorld(t)
+
+	wantBlobRef := "sha1-0b3cff9c02e3ba02f745d861cf6550335ef55c2f"
+	out := test.MustRunCmd(t, w.Cmd("camput", "file", filepath.FromSlash("../testdata/server-config.json")))
+	out = strings.TrimSpace(out)
+	if out != wantBlobRef {
+		t.Fatalf("wrong camput output; wanted %v, got %v", wantBlobRef, out)
+	}
+
+	cmd := w.Cmd("camput", "file", filepath.FromSlash("../testdata/server-config.json"))
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("second camput failed: %v, stdout: %v, stderr: %v", err, output, stderr.String())
+	}
+	out = strings.TrimSpace(string(output))
+	if out != wantBlobRef {
+		t.Fatalf("wrong 2nd camput output; wanted %v, got %v", wantBlobRef, out)
+	}
+	wantStats := `[uploadRequests=[blobs=0 bytes=0] uploads=[blobs=0 bytes=0]]`
+	if !strings.Contains(stderr.String(), wantStats) {
+		t.Fatalf("Wrong stats for 2nd camput upload; wanted %v, got %v", wantStats, out)
+	}
 }
