@@ -19,13 +19,16 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -35,6 +38,7 @@ import (
 var hookPath = ".git/hooks/"
 var hookFiles = []string{
 	"pre-commit",
+	"commit-msg",
 }
 
 func (c *hookCmd) installHook() error {
@@ -118,6 +122,74 @@ func (c *hookCmd) RunCommand(args []string) error {
 			cmdmain.ExitWithFailure = true
 			return err
 		}
+	case "commit-msg":
+		if err := c.hookCommitMsg(args[1:]); err != nil {
+			cmdmain.ExitWithFailure = true
+			return err
+		}
+	}
+	return nil
+}
+
+// stripComments strips lines that begin with "#".
+func stripComments(in []byte) []byte {
+	return regexp.MustCompile(`(?m)^#.*\n`).ReplaceAll(in, nil)
+}
+
+// hookCommitMsg is installed as the git commit-msg hook.
+// It adds a Change-Id line to the bottom of the commit message
+// if there is not one already.
+// Code mostly copied from golang.org/x/review/git-codereview/hook.go
+func (c *hookCmd) hookCommitMsg(args []string) error {
+	if len(args) != 1 {
+		return errors.New("usage: devcam hook commit-msg message.txt\n")
+	}
+
+	file := args[0]
+	oldData, err := ioutil.ReadFile(file)
+	if err != nil {
+		return err
+	}
+	data := append([]byte{}, oldData...)
+	data = stripComments(data)
+
+	// Empty message not allowed.
+	if len(bytes.TrimSpace(data)) == 0 {
+		return errors.New("empty commit message")
+	}
+
+	// Insert a blank line between first line and subsequent lines if not present.
+	eol := bytes.IndexByte(data, '\n')
+	if eol != -1 && len(data) > eol+1 && data[eol+1] != '\n' {
+		data = append(data, 0)
+		copy(data[eol+1:], data[eol:])
+		data[eol+1] = '\n'
+	}
+
+	// Complain if two Change-Ids are present.
+	// This can happen during an interactive rebase;
+	// it is easy to forget to remove one of them.
+	nChangeId := bytes.Count(data, []byte("\nChange-Id: "))
+	if nChangeId > 1 {
+		return errors.New("multiple Change-Id lines")
+	}
+
+	// Add Change-Id to commit message if not present.
+	if nChangeId == 0 {
+		n := len(data)
+		for n > 0 && data[n-1] == '\n' {
+			n--
+		}
+		var id [20]byte
+		if _, err := io.ReadFull(rand.Reader, id[:]); err != nil {
+			return fmt.Errorf("could not generate Change-Id: %v", err)
+		}
+		data = append(data[:n], fmt.Sprintf("\n\nChange-Id: I%x\n", id[:])...)
+	}
+
+	// Write back.
+	if !bytes.Equal(data, oldData) {
+		return ioutil.WriteFile(file, data, 0666)
 	}
 	return nil
 }
