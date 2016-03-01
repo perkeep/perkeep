@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -109,14 +110,22 @@ func TestCamputSocket(t *testing.T) {
 func TestCamputUploadOnce(t *testing.T) {
 	w := test.GetWorld(t)
 
-	wantBlobRef := "sha1-0b3cff9c02e3ba02f745d861cf6550335ef55c2f"
-	out := test.MustRunCmd(t, w.Cmd("camput", "file", filepath.FromSlash("../testdata/server-config.json")))
+	camputCmd := func() *exec.Cmd {
+		// Use --contents_only because if test is run from devcam,
+		// server-config.json is going to be the one from within the fake gopath,
+		// hence with a different cTime and with a different blobRef everytime.
+		// Also, CAMLI_DEBUG is needed for --contents_only flag.
+		return w.CmdWithEnv("camput", append(os.Environ(), "CAMLI_DEBUG=1"), "file", "--contents_only=true", filepath.FromSlash("../testdata/server-config.json"))
+	}
+	wantBlobRef := "sha1-46d4023ef523d6a19e45183ae9dab575a496f51f"
+	cmd := camputCmd()
+	out := test.MustRunCmd(t, cmd)
 	out = strings.TrimSpace(out)
 	if out != wantBlobRef {
 		t.Fatalf("wrong camput output; wanted %v, got %v", wantBlobRef, out)
 	}
 
-	cmd := w.Cmd("camput", "file", filepath.FromSlash("../testdata/server-config.json"))
+	cmd = camputCmd()
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	output, err := cmd.Output()
