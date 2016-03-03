@@ -36,10 +36,9 @@ import (
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/schema/nodeattr"
 
-	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
-
 	"go4.org/ctxutil"
 	"golang.org/x/net/context"
+	"golang.org/x/oauth2"
 )
 
 const (
@@ -449,18 +448,21 @@ func doGet(ctx context.Context, url string, form url.Values) (*http.Response, er
 	return res, nil
 }
 
-// auth returns a new oauth.Config
-func auth(ctx *importer.SetupContext) (*oauth.Config, error) {
-	clientId, secret, err := ctx.Credentials()
+// auth returns a new oauth2 Config
+func auth(ctx *importer.SetupContext) (*oauth2.Config, error) {
+	clientID, secret, err := ctx.Credentials()
 	if err != nil {
 		return nil, err
 	}
-	return &oauth.Config{
-		ClientId:     clientId,
+	return &oauth2.Config{
+		ClientID:     clientID,
 		ClientSecret: secret,
-		AuthURL:      authURL,
-		TokenURL:     tokenURL,
-		RedirectURL:  ctx.CallbackURL(),
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  authURL,
+			TokenURL: tokenURL,
+		},
+		RedirectURL: ctx.CallbackURL(),
+		// No scope needed for foursquare as far as I can tell
 	}, nil
 }
 
@@ -494,8 +496,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		http.Error(w, "Expected a code", 400)
 		return
 	}
-	transport := &oauth.Transport{Config: oauthConfig}
-	token, err := transport.Exchange(code)
+	token, err := oauthConfig.Exchange(ctx, code)
 	log.Printf("Token = %#v, error %v", token, err)
 	if err != nil {
 		log.Printf("Token Exchange error: %v", err)
