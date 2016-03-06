@@ -61,6 +61,7 @@ var (
 	ifModsSince    = flag.Int64("if_mods_since", 0, "If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
 	buildARCH      = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
 	buildOS        = flag.String("os", runtime.GOOS, "Operating system to build for.")
+	buildARM       = flag.String("arm", "5", "ARM version to use if building against arm.")
 	stampVersion   = flag.Bool("stampversion", true, "Stamp version into buildinfo.GitInfo")
 )
 
@@ -356,6 +357,9 @@ func cleanGoEnv() (clean []string) {
 	}
 	if *buildARCH != runtime.GOARCH {
 		clean = append(clean, envPair("GOARCH", *buildARCH))
+		if *buildARCH == "arm" {
+			clean = append(clean, envPair("GOARM", *buildARM))
+		}
 	}
 	return
 }
