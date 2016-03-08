@@ -1,6 +1,6 @@
 How to build a release tarball:
 
-$ go run ./misc/docker/run.go -build_image=false -build_release=true -rev=$GIT_REVISION -tarball_version=0.9
+$ go run ./misc/docker/dock.go -build_image=false -build_release=true -rev=$GIT_REVISION -tarball_version=0.9
 
 will generate ./misc/docker/release/camlistore0.9-linux.tar.gz
 
