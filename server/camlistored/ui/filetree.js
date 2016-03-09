@@ -135,12 +135,13 @@ cam.FiletreePage.prototype.onChildrenFound_ = function(div, depth, jres) {
 				false, this
 			);
 			break;
+		case 'symlink':
 		case 'file':
 			goog.dom.setTextContent(alink, " " + children[i].name);
 			alink.href = "./?b=" + alink.id;
 			break;
 		default:
-			alert("not a file or dir");
+			alert("unknown type " + children[i].type + " for " + children[i].blobRef);
 			break;
 		}
 		var newPerm = goog.dom.createElement("span");
