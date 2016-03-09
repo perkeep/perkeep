@@ -29,10 +29,9 @@ import (
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
 
-	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
-
 	"go4.org/ctxutil"
 	"golang.org/x/net/context"
+	"golang.org/x/oauth2"
 )
 
 const (
@@ -49,13 +48,13 @@ const (
 // user ID, first name and last name of the user.
 type extendedOAuth2 struct {
 	importer.OAuth2
-	oauthConfig oauth.Config
+	oauthConfig oauth2.Config
 	getUserInfo func(ctx context.Context) (*userInfo, error)
 }
 
 // newExtendedOAuth2 returns a default implementation of
 // some common methods for OAuth2-based importers.
-func newExtendedOAuth2(oauthConfig oauth.Config,
+func newExtendedOAuth2(oauthConfig oauth2.Config,
 	getUserInfo func(ctx context.Context) (*userInfo, error),
 ) extendedOAuth2 {
 	return extendedOAuth2{oauthConfig: oauthConfig, getUserInfo: getUserInfo}
@@ -87,7 +86,12 @@ func (im extendedOAuth2) ServeSetup(w http.ResponseWriter, r *http.Request, ctx 
 	if err == nil {
 		// we will get back this with the token, so use it for preserving account info
 		state := "acct:" + ctx.AccountNode.PermanodeRef().String()
-		http.Redirect(w, r, oauthConfig.AuthCodeURL(state), 302)
+		// AccessType needs to be "offline", as the user is not here all the time;
+		// ApprovalPrompt needs to be "force" to be able to get a RefreshToken
+		// everytime, even for Re-logins, too.
+		//
+		// Source: https://developers.google.com/youtube/v3/guides/authentication#server-side-apps
+		http.Redirect(w, r, oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce), 302)
 	}
 	return err
 }
@@ -95,16 +99,6 @@ func (im extendedOAuth2) ServeSetup(w http.ResponseWriter, r *http.Request, ctx 
 // CallbackURLParameters returns the needed callback parameters - empty for Google Picasa.
 func (im extendedOAuth2) CallbackURLParameters(acctRef blob.Ref) url.Values {
 	return url.Values{}
-}
-
-// notOAuthTransport returns c's Transport, or its underlying transport if c.Transport
-// is an OAuth Transport.
-func notOAuthTransport(c *http.Client) (tr http.RoundTripper) {
-	tr = c.Transport
-	if otr, ok := tr.(*oauth.Transport); ok {
-		tr = otr.Transport
-	}
-	return
 }
 
 func (im extendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
@@ -128,14 +122,7 @@ func (im extendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, c
 		return
 	}
 
-	// picago calls take an *http.Client, so we need to provide one which already
-	// has a transport set up correctly wrt to authentication. In particular, it
-	// needs to have the access token that is obtained during Exchange.
-	transport := &oauth.Transport{
-		Config:    oauthConfig,
-		Transport: notOAuthTransport(ctxutil.Client(ctx)),
-	}
-	token, err := transport.Exchange(code)
+	token, err := oauthConfig.Exchange(ctx, code)
 	log.Printf("Token = %#v, error %v", token, err)
 	if err != nil {
 		log.Printf("Token Exchange error: %v", err)
@@ -143,7 +130,7 @@ func (im extendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, c
 		return
 	}
 
-	picagoCtx, cancel := context.WithCancel(context.WithValue(ctx, ctxutil.HTTPClient, transport.Client()))
+	picagoCtx, cancel := context.WithCancel(context.WithValue(ctx, ctxutil.HTTPClient, oauthConfig.Client(ctx, token)))
 	defer cancel()
 
 	userInfo, err := im.getUserInfo(picagoCtx)
@@ -165,9 +152,9 @@ func (im extendedOAuth2) ServeCallback(w http.ResponseWriter, r *http.Request, c
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)
 }
 
-// encodeToken encodes the oauth.Token as
+// encodeToken encodes the oauth2.Token as
 // AccessToken + " " + RefreshToken + " " + Expiry.Unix()
-func encodeToken(token *oauth.Token) string {
+func encodeToken(token *oauth2.Token) string {
 	if token == nil {
 		return ""
 	}
@@ -179,10 +166,10 @@ func encodeToken(token *oauth.Token) string {
 }
 
 // decodeToken parses an access token, refresh token, and optional
-// expiry unix timestamp separated by spaces into an oauth.Token.
+// expiry unix timestamp separated by spaces into an oauth2.Token.
 // It returns as much as it can.
-func decodeToken(encoded string) oauth.Token {
-	var t oauth.Token
+func decodeToken(encoded string) oauth2.Token {
+	var t oauth2.Token
 	f := strings.Fields(encoded)
 	if len(f) > 0 {
 		t.AccessToken = f[0]
@@ -199,13 +186,13 @@ func decodeToken(encoded string) oauth.Token {
 	return t
 }
 
-func (im extendedOAuth2) auth(ctx *importer.SetupContext) (*oauth.Config, error) {
-	clientId, secret, err := ctx.Credentials()
+func (im extendedOAuth2) auth(ctx *importer.SetupContext) (*oauth2.Config, error) {
+	clientID, secret, err := ctx.Credentials()
 	if err != nil {
 		return nil, err
 	}
 	conf := im.oauthConfig
-	conf.ClientId, conf.ClientSecret, conf.RedirectURL = clientId, secret, ctx.CallbackURL()
+	conf.ClientID, conf.ClientSecret, conf.RedirectURL = clientID, secret, ctx.CallbackURL()
 	return &conf, nil
 }
 

@@ -37,12 +37,12 @@ import (
 	"camlistore.org/pkg/schema/nodeattr"
 	"camlistore.org/pkg/search"
 
-	"camlistore.org/third_party/code.google.com/p/goauth2/oauth"
 	"camlistore.org/third_party/github.com/tgulacsi/picago"
 
 	"go4.org/ctxutil"
 	"go4.org/syncutil"
 	"golang.org/x/net/context"
+	"golang.org/x/oauth2"
 )
 
 const (
@@ -71,18 +71,12 @@ type imp struct {
 
 func (imp) SupportsIncremental() bool { return true }
 
-var baseOAuthConfig = oauth.Config{
-	AuthURL:  authURL,
-	TokenURL: tokenURL,
-	Scope:    scopeURL,
-
-	// AccessType needs to be "offline", as the user is not here all the time;
-	// ApprovalPrompt needs to be "force" to be able to get a RefreshToken
-	// everytime, even for Re-logins, too.
-	//
-	// Source: https://developers.google.com/youtube/v3/guides/authentication#server-side-apps
-	AccessType:     "offline",
-	ApprovalPrompt: "force",
+var baseOAuthConfig = oauth2.Config{
+	Endpoint: oauth2.Endpoint{
+		AuthURL:  authURL,
+		TokenURL: tokenURL,
+	},
+	Scopes: []string{scopeURL},
 }
 
 func init() {
@@ -153,20 +147,15 @@ func (r *run) errorf(format string, args ...interface{}) {
 var forceFullImport, _ = strconv.ParseBool(os.Getenv("CAMLI_PICASA_FULL_IMPORT"))
 
 func (imp) Run(ctx *importer.RunContext) error {
-	clientId, secret, err := ctx.Credentials()
+	clientID, secret, err := ctx.Credentials()
 	if err != nil {
 		return err
 	}
 	acctNode := ctx.AccountNode()
 	ocfg := baseOAuthConfig
-	ocfg.ClientId, ocfg.ClientSecret = clientId, secret
+	ocfg.ClientID, ocfg.ClientSecret = clientID, secret
 	token := decodeToken(acctNode.Attr(acctAttrOAuthToken))
-	transport := &oauth.Transport{
-		Config:    &ocfg,
-		Token:     &token,
-		Transport: notOAuthTransport(ctxutil.Client(ctx)),
-	}
-	ctx.Context = context.WithValue(ctx.Context, ctxutil.HTTPClient, transport.Client())
+	ctx.Context = context.WithValue(ctx.Context, ctxutil.HTTPClient, (&ocfg).Client(ctx, &token))
 
 	root := ctx.RootNode()
 	if root.Attr(nodeattr.Title) == "" {
