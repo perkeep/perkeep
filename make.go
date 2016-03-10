@@ -518,7 +518,7 @@ func verifyGoVersion() {
 	const neededMinor = '6'
 	_, err := exec.LookPath("go")
 	if err != nil {
-		log.Fatalf("Go doesn't appeared to be installed ('go' isn't in your PATH). Install Go 1.%c or newer.", neededMinor)
+		log.Fatalf("Go doesn't appear to be installed ('go' isn't in your PATH). Install Go 1.%c or newer.", neededMinor)
 	}
 	out, err := exec.Command("go", "version").Output()
 	if err != nil {
