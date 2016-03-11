@@ -61,7 +61,7 @@ var (
 	ifModsSince    = flag.Int64("if_mods_since", 0, "If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
 	buildARCH      = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
 	buildOS        = flag.String("os", runtime.GOOS, "Operating system to build for.")
-	buildARM       = flag.String("arm", "7", "ARM version to use if building against arm.")
+	buildARM       = flag.String("arm", "7", "ARM version to use if building for ARM. Note that this version applies even if the host arch is ARM too (and possibly of a different version).")
 	stampVersion   = flag.Bool("stampversion", true, "Stamp version into buildinfo.GitInfo")
 )
 
@@ -247,15 +247,25 @@ func main() {
 	}
 }
 
+func baseDirName(sql bool) string {
+	buildBaseDir := "build-gopath"
+	if !sql {
+		buildBaseDir += "-nosqlite"
+	}
+	// We don't even consider whether we're cross-compiling. As long as we
+	// build for ARM, we do it in its own versioned dir.
+	if *buildARCH == "arm" {
+		buildBaseDir += "-armv" + *buildARM
+	}
+	return buildBaseDir
+}
+
 // create the tmp GOPATH, and mirror to it from camRoot.
 // return the latest modtime among all of the walked files.
 func mirror(sql bool) (latestSrcMod time.Time) {
 	verifyCamlistoreRoot(camRoot)
 
-	buildBaseDir := "build-gopath"
-	if !sql {
-		buildBaseDir += "-nosqlite"
-	}
+	buildBaseDir := baseDirName(sql)
 
 	buildGoPath = filepath.Join(camRoot, "tmp", buildBaseDir)
 	buildSrcDir = filepath.Join(buildGoPath, "src", "camlistore.org")
@@ -350,18 +360,22 @@ func cleanGoEnv() (clean []string) {
 		if *buildARCH != runtime.GOARCH && strings.HasPrefix(env, "GOARCH=") {
 			continue
 		}
+		// If we're building for ARM (regardless of cross-compiling or not), we reset GOARM
+		if *buildARCH == "arm" && strings.HasPrefix(env, "GOARM=") {
+			continue
+		}
+
 		clean = append(clean, env)
 	}
 	if *buildOS != runtime.GOOS {
 		clean = append(clean, envPair("GOOS", *buildOS))
 	}
-	// TODO: If we ever want to cross-compile on ARMvx to ARMvy, this code below has to be fixed.
-	// See https://github.com/camlistore/camlistore/issues/692
 	if *buildARCH != runtime.GOARCH {
 		clean = append(clean, envPair("GOARCH", *buildARCH))
-		if *buildARCH == "arm" {
-			clean = append(clean, envPair("GOARM", *buildARM))
-		}
+	}
+	// If we're building for ARM (regardless of cross-compiling or not), we reset GOARM
+	if *buildARCH == "arm" {
+		clean = append(clean, envPair("GOARM", *buildARM))
 	}
 	return
 }
