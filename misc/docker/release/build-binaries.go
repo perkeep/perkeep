@@ -31,19 +31,20 @@ import (
 	"os/exec"
 	"path"
 	"runtime"
+	"strings"
 )
 
 var (
-	rev      = flag.String("rev", "", "Camlistore revision to build (tag or commit hash)")
-	localSrc = flag.String("camlisource", "", "(dev flag) Path to a local Camlistore source tree from which to build. It is ignored unless -rev=WORKINPROGRESS")
-	outDir   = flag.String("outdir", "/OUT/", "Output directory, where the binaries will be written")
-	buildOS  = flag.String("os", runtime.GOOS, "Operating system to build for.")
+	flagRev     = flag.String("rev", "", "Camlistore revision to build (tag or commit hash). For development purposes, you can instead specify the path to a local Camlistore source tree from which to build, with the form \"WIP:/path/to/dir\".")
+	flagVersion = flag.String("version", "", "The optional version number (e.g. 0.9) that will be stamped into the binaries, in addition to the revision.")
+	outDir      = flag.String("outdir", "/OUT/", "Output directory, where the binaries will be written")
+	buildOS     = flag.String("os", runtime.GOOS, "Operating system to build for.")
 )
 
 func usage() {
 	fmt.Fprintf(os.Stderr, "Usage:\n")
 	fmt.Fprintf(os.Stderr, "%s --rev=camlistore_revision\n", os.Args[0])
-	fmt.Fprintf(os.Stderr, "%s --rev=WORKINPROGRESS --camlisource=/path/to/camli/source/dir\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "%s --rev=WIP:/path/to/camli/source/dir\n", os.Args[0])
 	flag.PrintDefaults()
 	example(os.Args[0])
 	os.Exit(1)
@@ -52,23 +53,47 @@ func usage() {
 func example(program string) {
 	fmt.Fprintf(os.Stderr, "Examples:\n")
 	fmt.Fprintf(os.Stderr, "\tdocker run --rm --volume=/tmp/camli-build/camlistore.org:/OUT camlistore/go %s --rev=4e8413c5012c\n", program)
-	fmt.Fprintf(os.Stderr, "\tdocker run --rm --volume=/tmp/camli-build/camlistore.org:/OUT --volume=~/camlistore.org:/IN camlistore/go %s --rev=WORKINPROGRESS --camlisource=/IN\n", program)
+	fmt.Fprintf(os.Stderr, "\tdocker run --rm --volume=/tmp/camli-build/camlistore.org:/OUT --volume=~/camlistore.org:/IN camlistore/go %s --rev=WIP:/IN\n", program)
+}
+
+func isWIP() bool {
+	return strings.HasPrefix(*flagRev, "WIP")
+}
+
+// localCamliSource returns the path to the local Camlistore source tree
+// that should be specified in *flagRev if *flagRev starts with "WIP:",
+// empty string otherwise.
+func localCamliSource() string {
+	if !isWIP() {
+		return ""
+	}
+	return strings.TrimPrefix(*flagRev, "WIP:")
+}
+
+func rev() string {
+	if isWIP() {
+		return "WORKINPROGRESS"
+	}
+	return *flagRev
+}
+
+func version() string {
+	if *flagVersion != "" {
+		return fmt.Sprintf("%v (git rev %v)", *flagVersion, rev())
+	}
+	return rev()
 }
 
 func getCamliSrc() {
-	if *localSrc != "" {
-		mirrorCamliSrc(*localSrc)
+	if localCamliSource() != "" {
+		mirrorCamliSrc(localCamliSource())
 	} else {
 		fetchCamliSrc()
 	}
-	// if missing, we insert a VERSION FILE, so make.go does no need git in the container to detect the Camlistore version.
+	// we insert the version in the VERSION file, so make.go does no need git
+	// in the container to detect the Camlistore version.
 	check(os.Chdir("/gopath/src/camlistore.org"))
-	if _, err := os.Stat("VERSION"); err != nil {
-		if !os.IsNotExist(err) {
-			log.Fatal(err)
-		}
-		check(ioutil.WriteFile("VERSION", []byte(*rev), 0777))
-	}
+	check(ioutil.WriteFile("VERSION", []byte(version()), 0777))
 }
 
 func mirrorCamliSrc(srcDir string) {
@@ -85,7 +110,7 @@ func fetchCamliSrc() {
 	check(os.MkdirAll("/gopath/src/camlistore.org", 0777))
 	check(os.Chdir("/gopath/src/camlistore.org"))
 
-	res, err := http.Get("https://camlistore.googlesource.com/camlistore/+archive/" + *rev + ".tar.gz")
+	res, err := http.Get("https://camlistore.googlesource.com/camlistore/+archive/" + *flagRev + ".tar.gz")
 	check(err)
 	defer res.Body.Close()
 	gz, err := gzip.NewReader(res.Body)
@@ -142,17 +167,8 @@ func checkArgs() {
 	if flag.NArg() != 0 {
 		usage()
 	}
-	if *rev == "" {
-		usage()
-	}
-	if *rev == "WORKINPROGRESS" {
-		if *localSrc == "" {
-			usage()
-		}
-		return
-	}
-	if *localSrc != "" {
-		fmt.Fprintf(os.Stderr, "Usage error: --camlisource can only be used with --rev WORKINPROGRESS.\n")
+	if *flagRev == "" {
+		fmt.Fprintf(os.Stderr, "Usage error: --rev is required.\n")
 		usage()
 	}
 }
