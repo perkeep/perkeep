@@ -1,51 +1,41 @@
-# Build everything at least. This is a work in progress.
-#
-# Useful for testing things before a release.
-#
-# Will also be used for running the camlistore.org website and public
-# read-only blobserver.
+# Copyright 2014 The Camlistore Authors.
+# Generic purpose Camlistore image, that builds the server (camlistored)
+# and the command-line clients (camput, camget, camtool, and cammount).
 
-FROM ubuntu:12.04
+# See misc/docker/go to generate camlistore/go
+FROM camlistore/go
 
 MAINTAINER camlistore <camlistore@googlegroups.com>
 
 ENV DEBIAN_FRONTEND noninteractive
-RUN apt-get update && apt-get upgrade -y
-RUN apt-get install -y curl make git
-
-RUN curl -o /tmp/go.tar.gz https://storage.googleapis.com/golang/go1.3.1.linux-amd64.tar.gz
-RUN tar -C /usr/local -zxvf /tmp/go.tar.gz
-RUN rm /tmp/go.tar.gz
-RUN /usr/local/go/bin/go version
-
-ENV GOROOT /usr/local/go
-ENV PATH $GOROOT/bin:/gopath/bin:$PATH
-
-RUN mkdir -p /gopath/src
-ADD pkg /gopath/src/camlistore.org/pkg
-ADD cmd /gopath/src/camlistore.org/cmd
-ADD website /gopath/src/camlistore.org/website
-ADD third_party /gopath/src/camlistore.org/third_party
-ADD server /gopath/src/camlistore.org/server
-ADD dev /gopath/src/camlistore.org/dev
-ADD depcheck /gopath/src/camlistore.org/depcheck
+RUN apt-get -y --no-install-recommends install adduser
 
 RUN adduser --disabled-password --quiet --gecos Camli camli
 RUN mkdir -p /gopath/bin
 RUN chown camli.camli /gopath/bin
 RUN mkdir -p /gopath/pkg
 RUN chown camli.camli /gopath/pkg
-USER camli
 
+RUN mkdir -p /gopath/src
+ADD depcheck /gopath/src/camlistore.org/depcheck
+ADD third_party /gopath/src/camlistore.org/third_party
+ADD internal /gopath/src/camlistore.org/internal
+ADD app /gopath/src/camlistore.org/app
+ADD dev /gopath/src/camlistore.org/dev
+ADD cmd /gopath/src/camlistore.org/cmd
+ADD vendor /gopath/src/camlistore.org/vendor
+ADD server /gopath/src/camlistore.org/server
+ADD pkg /gopath/src/camlistore.org/pkg
+ADD make.go /gopath/src/camlistore.org/make.go
+RUN echo 'dev' > /gopath/src/camlistore.org/VERSION
+
+ENV GOROOT /usr/local/go
+ENV PATH $GOROOT/bin:/gopath/bin:$PATH
 ENV GOPATH /gopath
+ENV CGO_ENABLED 0
 
-RUN go install --tags=purego \
-    camlistore.org/server/camlistored \
-    camlistore.org/cmd/camput \
-    camlistore.org/cmd/camget \
-    camlistore.org/cmd/camtool \
-    camlistore.org/website \
-    camlistore.org/dev/devcam
+WORKDIR /gopath/src/camlistore.org
+RUN go run make.go --use_gopath=true
 
 ENV USER camli
 ENV HOME /home/camli
