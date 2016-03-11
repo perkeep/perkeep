@@ -90,6 +90,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -137,6 +138,29 @@ const (
 const (
 	zipManifestPath = "camlistore/camlistore-pack-manifest.json"
 )
+
+var (
+	recoveryMu sync.Mutex
+	recovery   bool
+)
+
+// TODO(mpl): make SetRecovery a method of type storage if we ever export it.
+
+// SetRecovery notes that the user ran the camlistored binary with the --recovery flag.
+// It means that any blobpacked storage subsequently initialized will
+// automatically start with rebuilding its meta index of zip files if the need is detected.
+func SetRecovery() {
+	recoveryMu.Lock()
+	defer recoveryMu.Unlock()
+	recovery = true
+}
+
+// See SetRecovery.
+func UnsetRecovery() {
+	recoveryMu.Lock()
+	defer recoveryMu.Unlock()
+	recovery = false
+}
 
 type subFetcherStorage interface {
 	blobserver.Storage
@@ -253,22 +277,169 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 	// is recorded. This is probably a corrupt state, and the user likely
 	// wants to recover.
 	if !sto.anyMeta() && sto.anyZipPacks() {
-		log.Printf("Warning: blobpacked storage detects non-zero packed zips, but no metadata. Please re-start in recovery mode.")
-		// TODO: add a recovery mode.
-		// Old TODO was:
-		// fail with a "known corrupt" message and refuse to
-		// start unless in recovery mode (perhaps a new environment
-		// var? or flag passed down?) using StreamBlobs starting at
-		// "l:".  Could even do it automatically if total size is
-		// small or fast enough? But that's confusing if it only
-		// sometimes finishes recovery. We probably want various
-		// server start-up modes anyway: "check", "recover", "garbage
-		// collect", "readonly".  So might as well introduce that
-		// concept now.
-
-		// TODO: test start-up recovery mode, once it works.
+		recoveryMu.Lock()
+		defer recoveryMu.Unlock()
+		if !recovery {
+			log.Printf("Warning: blobpacked storage detects non-zero packed zips, but no metadata. Please re-start in recovery mode with -recovery.")
+		} else {
+			if err := meta.Close(); err != nil {
+				return nil, err
+			}
+			if err := sto.reindex(context.TODO(), func() (sorted.KeyValue, error) {
+				return sorted.NewKeyValue(metaConf)
+			}); err != nil {
+				return nil, err
+			}
+		}
 	}
+
 	return sto, nil
+}
+
+// wholeMetaPrefixInfo is the info needed to write the wholeMetaPrefix entries
+// when Reindexing. For a given file, spread over several zips, each zip has a
+// corresponding wholeMetaPrefixInfo. The wholeMetaPrefix entries pertaining to a
+// file can only be written once all the wholeMetaPrefixInfo have been collected
+// and sorted, because a wholeMetaPrefix entry records the total data offset of the
+// corresponding zip relative to begining the file.
+type wholeMetaPrefixInfo struct {
+	wholePartIndex   int // index of that zip, 0-based
+	zipRef           blob.Ref
+	firstOffset      int64 // position of the data chunk, in the zip.
+	dataBytesWritten int64 // how much (file) data in this zip
+	wholeSize        int64 // not actually needed, but just to check it against what we compute in the end
+}
+
+type wholeMetaPrefixInfos []wholeMetaPrefixInfo
+
+func (w wholeMetaPrefixInfos) Len() int           { return len(w) }
+func (w wholeMetaPrefixInfos) Swap(i, j int)      { w[i], w[j] = w[j], w[i] }
+func (w wholeMetaPrefixInfos) Less(i, j int) bool { return w[i].wholePartIndex < w[j].wholePartIndex }
+
+// TODO(mpl): add client command to call reindex on an "offline" blobpacked. camtool packblobs -reindex maybe?
+
+// reindex rebuilds the meta index for packed blobs. It calls newMeta to create
+// a new KeyValue on which to write the index, and replaces s.meta with it. There
+// is no locking whatsoever so it should not be called when the storage is already
+// in use. its signature might change if/when it gets exported.
+func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, error)) error {
+	meta, err := newMeta()
+	if err != nil {
+		return fmt.Errorf("failed to create new blobpacked meta index: %v", err)
+	}
+
+	wholeMetaByWholeRef := make(map[blob.Ref][]wholeMetaPrefixInfo)
+
+	if err := blobserver.EnumerateAllFrom(ctx, s.large, "", func(sb blob.SizedRef) error {
+		zipRef := sb.Ref
+		zr, err := zip.NewReader(blob.ReaderAt(s.large, zipRef), int64(sb.Size))
+		if err != nil {
+			return zipOpenError{zipRef, err}
+		}
+		var maniFile *zip.File
+		var firstOff int64 // offset of first file (the packed data chunks)
+		for i, f := range zr.File {
+			if i == 0 {
+				firstOff, err = f.DataOffset()
+				if err != nil {
+					return err
+				}
+			}
+			if f.Name == zipManifestPath {
+				maniFile = f
+				break
+			}
+		}
+		if maniFile == nil {
+			return fmt.Errorf("no camlistore manifest file found in zip %v", zipRef)
+		}
+		maniRC, err := maniFile.Open()
+		if err != nil {
+			return err
+		}
+		defer maniRC.Close()
+		var mf Manifest
+		if err := json.NewDecoder(maniRC).Decode(&mf); err != nil {
+			return err
+		}
+		if !mf.WholeRef.Valid() || mf.WholeSize == 0 || !mf.DataBlobsOrigin.Valid() {
+			return fmt.Errorf("incomplete blobpack manifest JSON in %v", zipRef)
+		}
+
+		bm := meta.BeginBatch()
+		// In this loop, we write all the blobMetaPrefix entries for the
+		// data blobs in this zip, and we also compute the dataBytesWritten, for later.
+		var dataBytesWritten int64
+		for _, bp := range mf.DataBlobs {
+			bm.Set(blobMetaPrefix+bp.SizedRef.Ref.String(), fmt.Sprintf("%d %v %d", bp.SizedRef.Size, zipRef, firstOff+bp.Offset))
+			dataBytesWritten += int64(bp.SizedRef.Size)
+		}
+
+		// In this loop, we write all the blobMetaPrefix entries for the schema blobs in this zip
+		for _, f := range zr.File {
+			if !(strings.HasPrefix(f.Name, "camlistore/") && strings.HasSuffix(f.Name, ".json")) ||
+				f.Name == zipManifestPath {
+				continue
+			}
+			br, ok := blob.Parse(strings.TrimSuffix(strings.TrimPrefix(f.Name, "camlistore/"), ".json"))
+			if !ok {
+				return fmt.Errorf("schema file in zip %v does not have blobRef as name: %v", zipRef, f.Name)
+			}
+			offset, err := f.DataOffset()
+			if err != nil {
+				return err
+			}
+			bm.Set(blobMetaPrefix+br.String(), fmt.Sprintf("%d %v %d", f.UncompressedSize64, zipRef, offset))
+		}
+		if err := meta.CommitBatch(bm); err != nil {
+			return err
+		}
+
+		// record that info for later, when we got them all, so we can write the wholeMetaPrefix entries.
+		wholeMetas, _ := wholeMetaByWholeRef[mf.WholeRef]
+		wholeMetas = append(wholeMetas, wholeMetaPrefixInfo{
+			wholePartIndex:   mf.WholePartIndex,
+			zipRef:           zipRef,
+			firstOffset:      firstOff,
+			dataBytesWritten: dataBytesWritten,
+			wholeSize:        mf.WholeSize,
+		})
+		wholeMetaByWholeRef[mf.WholeRef] = wholeMetas
+		return nil
+
+	}); err != nil {
+		return err
+	}
+
+	// finally, write the wholeMetaPrefix entries
+	bm := meta.BeginBatch()
+	for wholeRef, wholeMetas := range wholeMetaByWholeRef {
+		wm := wholeMetaPrefixInfos(wholeMetas)
+		sort.Sort(wm)
+		var wholeBytesWritten int64
+		for _, w := range wm {
+			bm.Set(fmt.Sprintf("%s%s:%d", wholeMetaPrefix, wholeRef, w.wholePartIndex),
+				fmt.Sprintf("%s %d %d %d", w.zipRef, w.firstOffset, wholeBytesWritten, w.dataBytesWritten))
+			wholeBytesWritten += w.dataBytesWritten
+		}
+		if wm[0].wholeSize != wholeBytesWritten {
+			return fmt.Errorf("Sum of all zips (%d bytes) does not match manifest's WholeSize (%d bytes) for %v",
+				wholeBytesWritten, wm[0].wholeSize, wholeRef)
+		}
+		bm.Set(fmt.Sprintf("%s%s", wholeMetaPrefix, wholeRef),
+			fmt.Sprintf("%d %d", wholeBytesWritten, wm[len(wholeMetas)-1].wholePartIndex+1))
+	}
+
+	if err := meta.CommitBatch(bm); err != nil {
+		return err
+	}
+
+	// TODO(mpl): take into account removed blobs. I can't be done for now
+	// (2015-01-29) because RemoveBlobs currently only updates the meta index.
+	// So if the index was lost, all information about removals was lost too.
+
+	s.meta = meta
+	return nil
 }
 
 func WipeMeta(s blobserver.Storage) error {
@@ -769,7 +940,7 @@ func (pk *packer) scanChunks() error {
 	})
 }
 
-// needsTruncatedAfterError is returend by writeAZip if it failed in its estimation and the zip file
+// needsTruncatedAfterError is returned by writeAZip if it failed in its estimation and the zip file
 // was over the 16MB (or whatever) max blob size limit. In this case the caller tries again
 type needsTruncatedAfterError struct{ blob.Ref }
 
@@ -1018,6 +1189,7 @@ func (s *storage) foreachZipBlob(zipRef blob.Ref, fn func(BlobAndPos) error) err
 	if maniFile == nil {
 		return errors.New("no camlistore manifest file found in zip")
 	}
+	// apply fn to all the schema blobs
 	for _, f := range zr.File {
 		if !strings.HasPrefix(f.Name, "camlistore/") || f.Name == zipManifestPath ||
 			!strings.HasSuffix(f.Name, ".json") {
@@ -1050,6 +1222,7 @@ func (s *storage) foreachZipBlob(zipRef blob.Ref, fn func(BlobAndPos) error) err
 	if !mf.WholeRef.Valid() || mf.WholeSize == 0 || !mf.DataBlobsOrigin.Valid() {
 		return errors.New("incomplete blobpack manifest JSON")
 	}
+	// apply fn to all the data blobs
 	for _, bap := range mf.DataBlobs {
 		bap.Offset += firstOff
 		if err := fn(bap); err != nil {
