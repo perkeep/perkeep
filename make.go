@@ -355,6 +355,7 @@ func cleanGoEnv() (clean []string) {
 	if *buildOS != runtime.GOOS {
 		clean = append(clean, envPair("GOOS", *buildOS))
 	}
+	// TODO: If we ever want to cross-compile on ARMvx to ARMvy, this code below has to be fixed.
 	if *buildARCH != runtime.GOARCH {
 		clean = append(clean, envPair("GOARCH", *buildARCH))
 		if *buildARCH == "arm" {
