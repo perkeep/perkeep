@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package serverconfig provides types related to the server configuration file.
-package serverconfig
+package serverconfig // import "camlistore.org/pkg/types/serverconfig"
 
 import (
 	"encoding/json"

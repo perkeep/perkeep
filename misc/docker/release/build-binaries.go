@@ -16,7 +16,7 @@ limitations under the License.
 
 // Command build-binaries builds camlistored and the Camlistore tools.
 // It should be run in a docker container.
-package main
+package main // import "camlistore.org/misc/docker/release"
 
 import (
 	"archive/tar"

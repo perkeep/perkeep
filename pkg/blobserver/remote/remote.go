@@ -31,7 +31,7 @@ Example low-level config:
      },
 
 */
-package remote
+package remote // import "camlistore.org/pkg/blobserver/remote"
 
 import (
 	"io"

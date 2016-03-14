@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package flickr implements an importer for flickr.com accounts.
-package flickr
+package flickr // import "camlistore.org/pkg/importer/flickr"
 
 import (
 	"bytes"

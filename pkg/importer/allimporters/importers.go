@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package allimporters registers all the importer implementations.
-package allimporters
+package allimporters // import "camlistore.org/pkg/importer/allimporters"
 
 import (
 	_ "camlistore.org/pkg/importer/dummy"

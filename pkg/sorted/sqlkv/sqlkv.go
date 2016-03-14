@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package sqlkv implements the sorted.KeyValue interface using an *sql.DB.
-package sqlkv
+package sqlkv // import "camlistore.org/pkg/sorted/sqlkv"
 
 import (
 	"database/sql"

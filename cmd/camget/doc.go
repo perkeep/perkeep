@@ -36,4 +36,4 @@ Like curl, lets you set output file/directory with -o:
 Camget isn't very fleshed out. In general, using 'cammount' to just
 mount a tree is an easier way to get files back.
 */
-package main
+package main // import "camlistore.org/cmd/camget"

@@ -18,7 +18,7 @@ limitations under the License.
 // and stores them somewhere. While generic, it was designed to
 // incrementally create Amazon Glacier archives from many little
 // blobs, rather than creating millions of Glacier archives.
-package archiver
+package archiver // import "camlistore.org/pkg/blobserver/archiver"
 
 import (
 	"archive/zip"

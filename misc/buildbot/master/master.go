@@ -21,7 +21,7 @@ limitations under the License.
 // a test suite, but it can also poll a builder before completion
 // to get a progress report.
 // It also serves the web requests.
-package main
+package main // import "camlistore.org/misc/buildbot/master"
 
 import (
 	"bytes"

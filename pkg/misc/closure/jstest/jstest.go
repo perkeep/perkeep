@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package jstest uses the Go testing package to test JavaScript code using Node and Mocha.
-package jstest
+package jstest // import "camlistore.org/pkg/misc/closure/jstest"
 
 import (
 	"fmt"

@@ -32,7 +32,7 @@ Example low-level config:
       },
     },
 */
-package drive
+package drive // import "camlistore.org/pkg/blobserver/google/drive"
 
 import (
 	"camlistore.org/pkg/blobserver"

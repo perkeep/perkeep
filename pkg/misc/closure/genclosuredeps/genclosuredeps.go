@@ -18,7 +18,7 @@ limitations under the License.
 // outputs to os.Stdout for each .js file, which namespaces
 // it provides, and the namespaces it requires, hence helping
 // the closure library to resolve dependencies between those files.
-package main
+package main // import "camlistore.org/pkg/misc/closure/genclosuredeps"
 
 import (
 	"bytes"

@@ -17,7 +17,7 @@ limitations under the License.
 // Package googlestorage is simple Google Cloud Storage client.
 //
 // It does not include any Camlistore-specific logic.
-package googlestorage
+package googlestorage // import "camlistore.org/pkg/googlestorage"
 
 import (
 	"bytes"

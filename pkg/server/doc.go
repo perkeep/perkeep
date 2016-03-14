@@ -16,4 +16,4 @@ limitations under the License.
 
 // Package server implements the server HTTP interface for the UI,
 // publishing, setup, status, sync, thubnailing, etc.
-package server
+package server // import "camlistore.org/pkg/server"

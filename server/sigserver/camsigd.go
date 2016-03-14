@@ -21,7 +21,7 @@ limitations under the License.
 // possible to configure a signing-only server with
 // serverconfig/genconfig.go.  I think we basically already can. Then
 // we can delete this.
-package main
+package main // import "camlistore.org/server/sigserver"
 
 import (
 	"flag"

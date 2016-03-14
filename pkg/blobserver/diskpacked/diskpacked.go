@@ -30,7 +30,7 @@ Example low-level config:
      },
 
 */
-package diskpacked
+package diskpacked // import "camlistore.org/pkg/blobserver/diskpacked"
 
 import (
 	"bufio"

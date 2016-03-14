@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package conv contains utilities for parsing values delimited by spaces.
-package conv
+package conv // import "camlistore.org/pkg/conv"
 
 import (
 	"bytes"

@@ -31,7 +31,7 @@ Example config:
           }
       },
 */
-package proxycache
+package proxycache // import "camlistore.org/pkg/blobserver/proxycache"
 
 import (
 	"bytes"

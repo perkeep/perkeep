@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package httputil contains a bunch of HTTP utility code, some generic,
 // and some Camlistore-specific.
-package httputil
+package httputil // import "camlistore.org/pkg/httputil"
 
 import (
 	"bytes"

@@ -44,4 +44,4 @@ For mode-specific help:
   devcam <mode> -help
 
 */
-package main
+package main // import "camlistore.org/dev/devcam"

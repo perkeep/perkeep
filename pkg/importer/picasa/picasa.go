@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package picasa implements an importer for picasa.com accounts.
-package picasa
+package picasa // import "camlistore.org/pkg/importer/picasa"
 
 // TODO: removing camliPath from gallery permanode when pic deleted from gallery
 

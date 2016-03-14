@@ -27,7 +27,7 @@ limitations under the License.
 // and configuration details, which are currently subject to change.
 //
 // WARNING: work in progress as of 2013-07-13.
-package encrypt
+package encrypt // import "camlistore.org/pkg/blobserver/encrypt"
 
 import (
 	"bufio"

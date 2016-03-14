@@ -17,7 +17,7 @@ limitations under the License.
 // Command build-camlistore-server builds camlistored and bundles all the
 // necessary resources for a Camlistore server in docker. It should be run in a
 // docker container.
-package main
+package main // import "camlistore.org/misc/docker/server"
 
 import (
 	"archive/tar"

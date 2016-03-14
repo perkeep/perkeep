@@ -29,7 +29,7 @@ Example low-level config:
      },
 
 */
-package shard
+package shard // import "camlistore.org/pkg/blobserver/shard"
 
 import (
 	"errors"

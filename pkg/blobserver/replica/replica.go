@@ -32,7 +32,7 @@ Example config:
           }
       },
 */
-package replica
+package replica // import "camlistore.org/pkg/blobserver/replica"
 
 import (
 	"bytes"

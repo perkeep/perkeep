@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package sorted provides a KeyValue interface and constructor registry.
-package sorted
+package sorted // import "camlistore.org/pkg/sorted"
 
 import (
 	"errors"

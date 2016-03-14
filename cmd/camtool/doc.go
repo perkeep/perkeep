@@ -54,4 +54,4 @@ Global options:
   -verbose=false: extra debug logging
   -version=false: show version
 */
-package main
+package main // import "camlistore.org/cmd/camtool"

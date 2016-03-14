@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package camlegal registers the Camlistore License
-package camlegal
+package camlegal // import "camlistore.org/pkg/camlegal"
 
 import "go4.org/legal"
 

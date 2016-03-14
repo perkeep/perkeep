@@ -17,7 +17,7 @@ limitations under the License.
 // Package constants contains Camlistore constants.
 //
 // This is a leaf package, without dependencies.
-package constants
+package constants // import "camlistore.org/pkg/constants"
 
 // MaxBlobSize is the max size of a single blob in Camlistore, in bytes.
 const MaxBlobSize = 16 << 20

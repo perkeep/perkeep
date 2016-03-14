@@ -16,7 +16,7 @@ limitations under the License.
 
 // The hello application serves as an example on how to make stand-alone
 // server applications, interacting with a Camlistore server.
-package main
+package main // import "camlistore.org/app/hello"
 
 import (
 	"flag"

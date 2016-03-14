@@ -17,7 +17,7 @@ limitations under the License.
 // Package kvfile provides an implementation of sorted.KeyValue
 // on top of a single mutable database file on disk using
 // github.com/cznic/kv.
-package kvfile
+package kvfile // import "camlistore.org/pkg/sorted/kvfile"
 
 import (
 	"bytes"

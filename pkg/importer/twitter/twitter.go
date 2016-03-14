@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package twitter implements a twitter.com importer.
-package twitter
+package twitter // import "camlistore.org/pkg/importer/twitter"
 
 import (
 	"archive/zip"

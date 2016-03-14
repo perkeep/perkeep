@@ -17,7 +17,7 @@ limitations under the License.
 // update_closure_compiler downloads a new version
 // of the closure compiler if the one in tmp/closure-compiler
 // doesn't exist or is older than the requested version.
-package main
+package main // import "camlistore.org/dev"
 
 import (
 	"archive/zip"

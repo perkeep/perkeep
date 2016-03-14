@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package signhandler implements the HTTP interface to signing and verifying
 // Camlistore JSON blobs.
-package signhandler
+package signhandler // import "camlistore.org/pkg/jsonsign/signhandler"
 
 import (
 	"fmt"

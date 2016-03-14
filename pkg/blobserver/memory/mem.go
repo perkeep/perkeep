@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package memory registers the "memory" blobserver storage type, storing blobs
 // in an in-memory map.
-package memory
+package memory // import "camlistore.org/pkg/blobserver/memory"
 
 import (
 	"bytes"

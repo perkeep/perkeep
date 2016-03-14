@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package kvtest tests sorted.KeyValue implementations.
-package kvtest
+package kvtest // import "camlistore.org/pkg/sorted/kvtest"
 
 import (
 	"reflect"

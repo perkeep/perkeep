@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package importer imports content from third-party websites.
-package importer
+package importer // import "camlistore.org/pkg/importer"
 
 import (
 	"errors"

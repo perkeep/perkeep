@@ -43,4 +43,4 @@ for search operations:
    "claim|<permanode-blobref>|<keyid>|<date>|<claim-blobref>" -> "<URL:type>|<URL:attr>|<URL:value>"
 
 */
-package index
+package index // import "camlistore.org/pkg/index"

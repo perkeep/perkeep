@@ -17,4 +17,4 @@ limitations under the License.
 // Package camtypes is like the types package, but higher-level and contains
 // Camlistore-specific types.  It exists mostly to break circular dependencies
 // between index, search, and schema.
-package camtypes
+package camtypes // import "camlistore.org/pkg/types/camtypes"

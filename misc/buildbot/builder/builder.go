@@ -19,7 +19,7 @@ limitations under the License.
 // Go 1, GoTip, Camlistore, and runs a battery of tests for Camlistore.
 // It then sends a report to the master and terminates.
 // It can also respond to progress requests from the master.
-package main
+package main // import "camlistore.org/misc/buildbot/builder"
 
 import (
 	"bufio"

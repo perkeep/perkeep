@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package s3 implements a generic Amazon S3 client, not specific
 // to Camlistore.
-package s3
+package s3 // import "camlistore.org/pkg/misc/amazon/s3"
 
 import (
 	"bytes"

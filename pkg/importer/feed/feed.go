@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package feed implements an importer for RSS, Atom, and RDF feeds.
-package feed
+package feed // import "camlistore.org/pkg/importer/feed"
 
 import (
 	"bytes"

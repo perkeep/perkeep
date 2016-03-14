@@ -16,4 +16,4 @@ limitations under the License.
 
 // Package depcheck does nothing except for fail to build when
 // the system's version of Go is too old.
-package depcheck
+package depcheck // import "camlistore.org/depcheck"

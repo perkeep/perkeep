@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package clientconfig provides types related to the client configuration
 // file.
-package clientconfig
+package clientconfig // import "camlistore.org/pkg/types/clientconfig"
 
 import (
 	"errors"

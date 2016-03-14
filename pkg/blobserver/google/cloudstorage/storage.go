@@ -17,7 +17,7 @@ limitations under the License.
 // Package cloudstorage registers the "googlecloudstorage" blob storage type, storing blobs
 // on Google Cloud Storage (not Google Drive).
 // See https://cloud.google.com/products/cloud-storage
-package cloudstorage
+package cloudstorage // import "camlistore.org/pkg/blobserver/google/cloudstorage"
 
 import (
 	"bytes"

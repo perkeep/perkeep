@@ -34,7 +34,7 @@ collection (optional, defaults to blobs)
 user (optional)
 password (optional)
 */
-package mongo
+package mongo // import "camlistore.org/pkg/blobserver/mongo"
 
 import (
 	"camlistore.org/pkg/blobserver"

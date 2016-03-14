@@ -71,4 +71,4 @@ Global options:
   -verbose_http=false: show HTTP request summaries
   -version=false: show version
 */
-package main
+package main // import "camlistore.org/cmd/camput"

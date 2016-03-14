@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package google contains constants specific to Google.
-package google
+package google // import "camlistore.org/pkg/constants/google"
 
 import "golang.org/x/oauth2"
 

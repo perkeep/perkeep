@@ -1,6 +1,6 @@
 // Program envvardoc will verify all referenced environment variables in go
 // source are properly documented.
-package main
+package main // import "camlistore.org/dev/envvardoc"
 
 import (
 	"bufio"

@@ -21,7 +21,7 @@ of a camliRoot node (a permanode with a camliRoot attribute set).
 
 #fileembed pattern .+\.(js|css|html|png|svg)$
 */
-package main
+package main // import "camlistore.org/app/publisher"
 
 import (
 	"camlistore.org/pkg/fileembed"

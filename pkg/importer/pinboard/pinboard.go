@@ -40,7 +40,7 @@ the future provide an api that lets us query what has changed.  We
 might want to switch to that when available to make the import process
 more light-weight.
 */
-package pinboard
+package pinboard // import "camlistore.org/pkg/importer/pinboard"
 
 import (
 	"encoding/json"

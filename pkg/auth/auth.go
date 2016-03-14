@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package auth implements Camlistore authentication.
-package auth
+package auth // import "camlistore.org/pkg/auth"
 
 import (
 	"crypto/rand"

@@ -17,7 +17,7 @@ limitations under the License.
 // Package asserts provides a bad implementation of test predicate
 // helpers. This package should either go away or dramatically
 // improve.
-package asserts
+package asserts // import "camlistore.org/pkg/test/asserts"
 
 import (
 	"strings"

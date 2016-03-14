@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package sqlindex implements the sorted.KeyValue interface using an *sql.DB.
-package sqlindex
+package sqlindex // import "camlistore.org/pkg/index/sqlindex"
 
 import (
 	"database/sql"

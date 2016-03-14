@@ -18,7 +18,7 @@ limitations under the License.
 // buffers one KeyValue implementation in front of an another. It's
 // used for cases such as reindexing where you need a KeyValue but it
 // doesn't need to be flushed and consistent until the end.
-package buffer
+package buffer // import "camlistore.org/pkg/sorted/buffer"
 
 import (
 	"fmt"

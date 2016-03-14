@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package protocol contains types for Camlistore protocol types.
-package protocol
+package protocol // import "camlistore.org/pkg/blobserver/protocol"
 
 import (
 	"encoding/json"

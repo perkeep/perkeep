@@ -18,7 +18,7 @@ limitations under the License.
 //
 // A schema blob is a JSON-encoded blob that describes other blobs.
 // See documentation in Camlistore's doc/schema/ directory.
-package schema
+package schema // import "camlistore.org/pkg/schema"
 
 import (
 	"bytes"

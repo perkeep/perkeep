@@ -17,7 +17,7 @@ limitations under the License.
 // Package android contains code specific to running the Camlistore client
 // code as a child process on Android. This removes ugly API from the
 // client package itself.
-package android
+package android // import "camlistore.org/pkg/client/android"
 
 import (
 	"bufio"

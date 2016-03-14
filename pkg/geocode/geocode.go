@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package geocode handles mapping user-entered locations into lat/long polygons.
-package geocode
+package geocode // import "camlistore.org/pkg/geocode"
 
 import (
 	"encoding/json"

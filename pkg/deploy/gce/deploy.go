@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package gce provides tools to deploy Camlistore on Google Compute Engine.
-package gce
+package gce // import "camlistore.org/pkg/deploy/gce"
 
 import (
 	"bytes"

@@ -17,7 +17,7 @@ limitations under the License.
 // Package dir implements the blobserver Storage interface for a directory,
 // detecting whether the directory is file-per-blob (localdisk) or diskpacked.
 // If neither, it initializes diskpacked.
-package dir
+package dir // import "camlistore.org/pkg/blobserver/dir"
 
 import (
 	"camlistore.org/pkg/blobserver"

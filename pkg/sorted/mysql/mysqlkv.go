@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package mysql provides an implementation of sorted.KeyValue
 // on top of MySQL.
-package mysql
+package mysql // import "camlistore.org/pkg/sorted/mysql"
 
 import (
 	"database/sql"

@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package app helps with configuring and starting server applications
 // from Camlistore.
-package app
+package app // import "camlistore.org/pkg/server/app"
 
 import (
 	"errors"

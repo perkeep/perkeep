@@ -19,7 +19,7 @@ limitations under the License.
 // Among other things, it can throttle its connections, inherit its
 // listening socket from a file descriptor in the environment, and
 // log all activity.
-package webserver
+package webserver // import "camlistore.org/pkg/webserver"
 
 import (
 	"bufio"

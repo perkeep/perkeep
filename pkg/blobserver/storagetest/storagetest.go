@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package storagetest tests blobserver.Storage implementations
-package storagetest
+package storagetest // import "camlistore.org/pkg/blobserver/storagetest"
 
 import (
 	"errors"

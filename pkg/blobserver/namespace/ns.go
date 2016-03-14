@@ -20,7 +20,7 @@ limitations under the License.
 // has access and visibility to a subset of the blobs which have been
 // uploaded through this namespace. The list of accessible blobs are
 // stored in the provided "inventory" sorted key/value target.
-package namespace
+package namespace // import "camlistore.org/pkg/blobserver/namespace"
 
 import (
 	"bytes"

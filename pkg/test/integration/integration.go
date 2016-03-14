@@ -1,3 +1,1 @@
-package integration
-
-// Dummy stub file. Required as of Go tip (pre-Go 1.3)?
+package integration // import "camlistore.org/pkg/test/integration"

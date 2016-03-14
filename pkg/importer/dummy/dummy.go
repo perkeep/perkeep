@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package dummy is an example importer for development purposes.
-package dummy
+package dummy // import "camlistore.org/pkg/importer/dummy"
 
 import (
 	"fmt"

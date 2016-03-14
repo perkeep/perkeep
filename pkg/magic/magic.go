@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package magic implements MIME type sniffing of data based on the
 // well-known "magic" number prefixes in the file.
-package magic
+package magic // import "camlistore.org/pkg/magic"
 
 import (
 	"bytes"

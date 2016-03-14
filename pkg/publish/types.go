@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package publish exposes the types and functions that can be used
 // from a Go template, for publishing.
-package publish
+package publish // import "camlistore.org/pkg/publish"
 
 import (
 	"html/template"

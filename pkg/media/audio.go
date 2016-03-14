@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package media provides means for querying information about audio and video data.
-package media
+package media // import "camlistore.org/pkg/media"
 
 import (
 	"bytes"

@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package kvutil contains helpers related to
 // github.com/cznic/kv.
-package kvutil
+package kvutil // import "camlistore.org/pkg/kvutil"
 
 import (
 	"fmt"

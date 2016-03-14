@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package postgres provides an implementation of sorted.KeyValue
 // on top of PostgreSQL.
-package postgres
+package postgres // import "camlistore.org/pkg/sorted/postgres"
 
 import (
 	"database/sql"

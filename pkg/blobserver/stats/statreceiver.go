@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package stats contains an in-memory StatReceiver that only stores sizes
 // of received blobs but not their contents.
-package stats
+package stats // import "camlistore.org/pkg/blobserver/stats"
 
 import (
 	"io"

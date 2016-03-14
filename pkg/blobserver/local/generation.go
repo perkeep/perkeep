@@ -18,7 +18,7 @@ limitations under the License.
 Package local implements functionality common to both the "localdisk" and
 "diskpacked" storage mechanisms.
 */
-package local
+package local // import "camlistore.org/pkg/blobserver/local"
 
 import (
 	"bytes"

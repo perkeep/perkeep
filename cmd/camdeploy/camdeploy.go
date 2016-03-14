@@ -16,7 +16,7 @@ limitations under the License.
 
 // The camdeploy program deploys Camlistore on cloud computing platforms such as Google
 // Compute Engine or Amazon EC2.
-package main
+package main // import "camlistore.org/cmd/camdeploy"
 
 import (
 	"camlistore.org/pkg/cmdmain"

@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package sqlite provides an implementation of sorted.KeyValue
 // using an SQLite database file.
-package sqlite
+package sqlite // import "camlistore.org/pkg/sorted/sqlite"
 
 import (
 	"database/sql"

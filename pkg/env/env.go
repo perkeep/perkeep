@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package env detects what sort of environment Camlistore is running in.
-package env
+package env // import "camlistore.org/pkg/env"
 
 import (
 	"os"

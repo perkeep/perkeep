@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package foursquare implements an importer for foursquare.com accounts.
-package foursquare
+package foursquare // import "camlistore.org/pkg/importer/foursquare"
 
 import (
 	"fmt"

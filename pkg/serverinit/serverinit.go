@@ -17,7 +17,7 @@ limitations under the License.
 // Package serverinit is responsible for mapping from a Camlistore
 // configuration file and instantiating HTTP Handlers for all the
 // necessary endpoints.
-package serverinit
+package serverinit // import "camlistore.org/pkg/serverinit"
 
 import (
 	"bytes"

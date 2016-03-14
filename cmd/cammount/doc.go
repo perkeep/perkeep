@@ -27,4 +27,4 @@ Usage:
 	Acceptable forms: https://you.example.com, example.com:1345 (https assumed), or
 	http://you.example.com/alt-root
 */
-package main
+package main // import "camlistore.org/cmd/cammount"

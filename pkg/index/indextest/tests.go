@@ -17,7 +17,7 @@ limitations under the License.
 // Package indextest contains the unit tests for the indexer so they
 // can be re-used for each specific implementation of the index
 // Storage interface.
-package indextest
+package indextest // import "camlistore.org/pkg/index/indextest"
 
 import (
 	"bytes"

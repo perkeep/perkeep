@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package chanworker
+package chanworker // import "camlistore.org/internal/chanworker"
 
 import (
 	"container/list"

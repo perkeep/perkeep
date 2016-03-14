@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package gethandler implements the HTTP handler for fetching blobs.
-package gethandler
+package gethandler // import "camlistore.org/pkg/blobserver/gethandler"
 
 import (
 	"fmt"

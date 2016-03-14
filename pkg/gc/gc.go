@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package gc defines a generic garbage collector.
-package gc
+package gc // import "camlistore.org/pkg/gc"
 
 import (
 	"errors"

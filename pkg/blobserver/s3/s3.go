@@ -31,7 +31,7 @@ Example low-level config:
      },
 
 */
-package s3
+package s3 // import "camlistore.org/pkg/blobserver/s3"
 
 import (
 	"fmt"

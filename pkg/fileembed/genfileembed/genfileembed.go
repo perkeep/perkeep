@@ -16,7 +16,7 @@ limitations under the License.
 
 // The genfileembed command embeds resources into Go files, to eliminate run-time
 // dependencies on files on the filesystem.
-package main
+package main // import "camlistore.org/pkg/fileembed/genfileembed"
 
 import (
 	"bytes"

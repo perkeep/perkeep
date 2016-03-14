@@ -26,7 +26,7 @@ The default implementation uses ffmpeg.
 
 See ServiceFromConfig for accepted configuration.
 */
-package thumbnail
+package thumbnail // import "camlistore.org/pkg/video/thumbnail"
 
 import (
 	"errors"

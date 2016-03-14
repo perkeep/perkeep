@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package client implements a Camlistore client.
-package client
+package client // import "camlistore.org/pkg/client"
 
 import (
 	"bytes"

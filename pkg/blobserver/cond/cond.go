@@ -35,7 +35,7 @@ Example usage:
 	}
   }
 */
-package cond
+package cond // import "camlistore.org/pkg/blobserver/cond"
 
 import (
 	"bytes"

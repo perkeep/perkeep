@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package mongo provides an implementation of sorted.KeyValue
 // using MongoDB.
-package mongo
+package mongo // import "camlistore.org/pkg/sorted/mongo"
 
 import (
 	"bytes"

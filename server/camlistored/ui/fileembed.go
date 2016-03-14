@@ -21,7 +21,7 @@ The below is read by genfileembed.go to determine the files to embed in the
 server binary. Crazy, but true.
 #fileembed pattern .+\.(js|css|html|png|svg)$
 */
-package ui
+package ui // import "camlistore.org/server/camlistored/ui"
 
 import (
 	"camlistore.org/pkg/fileembed"

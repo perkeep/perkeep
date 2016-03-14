@@ -18,7 +18,7 @@ limitations under the License.
 // closure library.
 //
 // See https://code.google.com/p/closure-library/
-package closure
+package closure // import "camlistore.org/pkg/misc/closure"
 
 import (
 	"bufio"

@@ -16,7 +16,7 @@ limitations under the License.
 
 // Command dock builds Camlistore's various Docker images.
 // It can also generate a tarball of the Camlistore server and tools.
-package main
+package main // import "camlistore.org/misc/docker"
 
 import (
 	"archive/tar"

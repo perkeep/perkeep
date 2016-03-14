@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package readerutil provides and operates on io.Readers.
-package readerutil
+package readerutil // import "camlistore.org/pkg/readerutil"
 
 import (
 	"bytes"

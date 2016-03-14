@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package cacher provides various blobref fetching caching mechanisms.
-package cacher
+package cacher // import "camlistore.org/pkg/cacher"
 
 import (
 	"io"

@@ -19,7 +19,7 @@ limitations under the License.
 //
 // Most of the package contains internal details used by genfileembed.
 // Normal applications will simply make a global Files variable.
-package fileembed
+package fileembed // import "camlistore.org/pkg/fileembed"
 
 import (
 	"compress/zlib"

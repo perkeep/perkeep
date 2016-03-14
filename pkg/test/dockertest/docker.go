@@ -17,7 +17,7 @@ limitations under the License.
 /*
 Package dockertest contains helper functions for setting up and tearing down docker containers to aid in testing.
 */
-package dockertest
+package dockertest // import "camlistore.org/pkg/test/dockertest"
 
 import (
 	"bytes"

@@ -17,7 +17,7 @@ limitations under the License.
 // Package leveldb provides an implementation of sorted.KeyValue
 // on top of a single mutable database file on disk using
 // github.com/syndtr/goleveldb.
-package leveldb
+package leveldb // import "camlistore.org/pkg/sorted/leveldb"
 
 import (
 	"errors"

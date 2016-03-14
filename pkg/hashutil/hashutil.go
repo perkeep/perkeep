@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package hashutil contains misc hashing functions lacking homes elsewhere.
-package hashutil
+package hashutil // import "camlistore.org/pkg/hashutil"
 
 import (
 	"crypto/sha1"

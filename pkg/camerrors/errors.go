@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package camerrors define specific errors that are used to
 // decide on how to deal with some failure cases.
-package camerrors
+package camerrors // import "camlistore.org/pkg/camerrors"
 
 import (
 	"errors"

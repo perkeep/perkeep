@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // The camlistored binary is the Camlistore server.
-package main
+package main // import "camlistore.org/server/camlistored"
 
 import (
 	"flag"

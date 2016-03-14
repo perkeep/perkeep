@@ -28,7 +28,7 @@ Example low-level config:
      },
 
 */
-package localdisk
+package localdisk // import "camlistore.org/pkg/blobserver/localdisk"
 
 import (
 	"fmt"
