@@ -306,7 +306,7 @@ func (b *lowBuilder) sortedStorageAt(sortedType, filePrefix string) (map[string]
 		}, nil
 	}
 	if sortedType != "index" && filePrefix == "" {
-		return nil, fmt.Errorf("internal error: use of sortedStorageAt with a non-index type and no file location for non-database sorted implementation")
+		return nil, fmt.Errorf("internal error: use of sortedStorageAt with a non-index type (%v) and no file location for non-database sorted implementation", sortedType)
 	}
 	// dbFile returns path directly if sortedType == "index", else it returns filePrefix+"."+ext.
 	dbFile := func(path, ext string) string {
