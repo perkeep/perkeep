@@ -6,7 +6,6 @@
 	"dbNames": {
 		"index": "camlitest",
 		"queue-sync-to-index": "sync_index_queue",
-		"blobpacked_index": "not_blobpacked_index_default_name",
 		"ui_thumbcache": "ui_thumbmeta_cache"
 	},
 	"mysql": "root@localhost:root",

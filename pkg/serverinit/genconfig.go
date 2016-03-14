@@ -110,6 +110,9 @@ func (b *lowBuilder) dbName(of string) string {
 		}
 		return "camli" + username
 	}
+	if of == "blobpacked_index" {
+		return of
+	}
 	return ""
 }
 
@@ -409,18 +412,12 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 	b.addPrefix("/bs-loose/", "storage-s3", packedS3Args(path.Join(bucket, "loose")))
 	b.addPrefix("/bs-packed/", "storage-s3", packedS3Args(path.Join(bucket, "packed")))
 
-	// TODO(mpl): I think that should be the job of sortedStorageAt, shouldn't
-	// it? It could use its sortedType argument to create a file path if the
-	// filePrefix argument is empty.
-	var packIndexDir string
-	if b.high.SQLite != "" {
-		packIndexDir = b.high.SQLite
-	} else if b.high.KVFile != "" {
-		packIndexDir = b.high.KVFile
-	} else if b.high.LevelDB != "" {
-		packIndexDir = b.high.LevelDB
-	}
-	blobPackedIndex, err := b.sortedStorageAt("blobpacked_index", filepath.Join(filepath.Dir(packIndexDir), "packindex"))
+	// If index is DBMS, then blobPackedIndex is in DBMS too, with
+	// whatever dbname is defined for "blobpacked_index", or defaulting
+	// to "blobpacked_index". Otherwise blobPackedIndex is same
+	// file-based DB as the index, in same dir, but named
+	// packindex.dbtype.
+	blobPackedIndex, err := b.sortedStorageAt("blobpacked_index", filepath.Join(b.indexFileDir(), "packindex"))
 	if err != nil {
 		return err
 	}
@@ -541,7 +538,12 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 				"refresh_token": refreshToken,
 			},
 		})
-		blobPackedIndex, err := b.sortedStorageAt("blobpacked_index", "")
+		// If index is DBMS, then blobPackedIndex is in DBMS too, with
+		// whatever dbname is defined for "blobpacked_index", or defaulting
+		// to "blobpacked_index". Otherwise blobPackedIndex is same
+		// file-based DB as the index, in same dir, but named
+		// packindex.dbtype.
+		blobPackedIndex, err := b.sortedStorageAt("blobpacked_index", filepath.Join(b.indexFileDir(), "packindex"))
 		if err != nil {
 			return err
 		}
