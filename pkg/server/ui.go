@@ -386,10 +386,6 @@ func wantsBlobInfo(req *http.Request) bool {
 	return httputil.IsGet(req) && blob.ValidRefString(req.FormValue("b"))
 }
 
-func wantsFileTreePage(req *http.Request) bool {
-	return httputil.IsGet(req) && blob.ValidRefString(req.FormValue("d"))
-}
-
 func getSuffixMatches(req *http.Request, pattern *regexp.Regexp) bool {
 	if httputil.IsGet(req) {
 		suffix := httputil.PathSuffix(req)
@@ -437,8 +433,6 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				file = "permanode.html"
 			case wantsBlobInfo(req):
 				file = "blobinfo.html"
-			case wantsFileTreePage(req):
-				file = "filetree.html"
 			case req.URL.Path == httputil.PathBase(req):
 				file = "index.html"
 			default:

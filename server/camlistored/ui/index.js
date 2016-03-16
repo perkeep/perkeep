@@ -209,7 +209,8 @@ cam.IndexPage = React.createClass({
 
 		var specificAspects = [
 			cam.ImageDetail.getAspect,
-			cam.DirectoryDetail.getAspect.bind(null, this.baseURL_, childFrameClickHandler),
+			// TODO(mpl): think about whether DirectoryDetail should stay a specificAspect
+			cam.DirectoryDetail.getAspect.bind(null, this.baseURL_, this.props.serverConnection),
 		].map(getAspect).filter(goog.functions.identity);
 
 		var generalAspects = [
