@@ -619,7 +619,7 @@ cam.IndexPage = React.createClass({
 				onUpload: this.handleUpload_,
 				onNewPermanode: this.handleCreateSetWithSelection_,
 				onSearch: this.setSearch_,
-				searchRootsURL: this.getSearchRootsURL_(),
+				favoritesURL: this.getFavoritesURL_(),
 				statusURL: this.baseURL_.resolve(new goog.Uri(this.props.config.statusRoot)),
 				ref: 'header',
 				timer: this.props.timer,
@@ -632,7 +632,7 @@ cam.IndexPage = React.createClass({
 		this.props.serverConnection.createPermanode(this.getDetailURL_.bind(this));
 	},
 
-	getSearchRootsURL_: function() {
+	getFavoritesURL_: function() {
 		return this.baseURL_.clone().setParameterValue(
 			'q',
 			this.SEARCH_PREFIX_.RAW + ':' + JSON.stringify({

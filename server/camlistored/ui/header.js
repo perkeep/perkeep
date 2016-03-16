@@ -54,7 +54,7 @@ cam.Header = React.createClass({
 		mainControls: React.PropTypes.arrayOf(React.PropTypes.renderable),
 		onNewPermanode: React.PropTypes.func,
 		onSearch: React.PropTypes.func,
-		searchRootsURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
+		favoritesURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		statusURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		timer: React.PropTypes.shape({setTimeout:React.PropTypes.func.isRequired, clearTimeout:React.PropTypes.func.isRequired}).isRequired,
 		width: React.PropTypes.number.isRequired,
@@ -224,7 +224,7 @@ cam.Header = React.createClass({
 
 			this.getMenuItem_('Importers', this.props.importersURL),
 			this.getMenuItem_('Server status', this.props.statusURL),
-			this.getMenuItem_('Search roots', this.props.searchRootsURL),
+			this.getMenuItem_('Favorites', this.props.favoritesURL),
 			this.getMenuItem_('Help', this.props.helpURL),
 			errorItems
 		);
