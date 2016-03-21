@@ -27,7 +27,8 @@ Usable operators:
     after:         date format is RFC3339, but can be shortened as required.
     before:        i.e. 2011-01-01 is Jan 1 of year 2011 and "2011" means the same.
     attr:          match on attribute. Use attr:foo:bar to match nodes having their foo
-                   attribute set to bar.
+                   attribute set to bar, or attr:foo:~bar to match nodes whose foo
+                   attribute contains bar (case insensitive substring match).
     format:        file's format (or MIME-type) such as jpg, pdf, tiff.
     has:location   image has a location (GPSLatitude and GPSLongitude can be
                    retrieved from the image's EXIF tags).
