@@ -139,6 +139,19 @@ Please see the [publishing README](/gw/doc/publishing/README) if you want to
 make/contribute more publishing views.
 
 
+## Importers
+
+Camlistore has several built-in importers, including:
+
+ * Feeds (RSS, Atom, and RDF)
+ * Flickr
+ * Foursquare
+ * Picasa
+ * Pinboard
+ * Twitter
+
+These can be setup by visiting the "`/importer/`" URL prefix path, e.g. `http://localhost:3179/importer/`
+
 ## Windows {#windows}
 
 The default configuration comes with SQLite for the indexer. However, getting
