@@ -81,6 +81,11 @@ import (
 
 	"go4.org/legal"
 	"go4.org/wkfs"
+
+	"golang.org/x/net/context"
+	"golang.org/x/oauth2/google"
+	"google.golang.org/cloud"
+	"google.golang.org/cloud/logging"
 )
 
 var (
@@ -97,9 +102,20 @@ var (
 	flagPollParent  bool
 )
 
+// For logging on Google Cloud Logging when not running on Google Compute Engine
+// (for debugging).
+var (
+	flagGCEProjectID string
+	flagGCELogName   string
+	flagGCEJWTFile   string
+)
+
 func init() {
 	if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
 		flag.BoolVar(&flagPollParent, "pollparent", false, "Camlistored regularly polls its parent process to detect if it has been orphaned, and terminates in that case. Mainly useful for tests.")
+		flag.StringVar(&flagGCEProjectID, "gce_project_id", "", "GCE project ID; required by --gce_log_name.")
+		flag.StringVar(&flagGCELogName, "gce_log_name", "", "log all messages to that log name on Google Cloud Logging as well.")
+		flag.StringVar(&flagGCEJWTFile, "gce_jwt_file", "", "Filename to the GCE Service Account's JWT (JSON) config file; required by --gce_log_name.")
 	}
 }
 
@@ -311,6 +327,29 @@ func certHostname(listen, baseURL string) (string, error) {
 	return hostname, nil
 }
 
+func maybeSetupGoogleCloudLogging() {
+	if flagGCEProjectID == "" && flagGCELogName == "" && flagGCEJWTFile == "" {
+		return
+	}
+	if flagGCEProjectID == "" || flagGCELogName == "" || flagGCEJWTFile == "" {
+		exitf("All of --gce_project_id, --gce_log_name, and --gce_jwt_file must be specified for logging on Google Cloud Logging.")
+	}
+	jsonSlurp, err := ioutil.ReadFile(flagGCEJWTFile)
+	if err != nil {
+		exitf("Error reading --gce_jwt_file value: %v", err)
+	}
+	jwtConf, err := google.JWTConfigFromJSON(jsonSlurp, logging.Scope)
+	if err != nil {
+		exitf("Error reading --gce_jwt_file value: %v", err)
+	}
+	ctx := cloud.NewContext(flagGCEProjectID, jwtConf.Client(context.Background()))
+	logc, err := logging.NewClient(ctx, flagGCEProjectID, flagGCELogName)
+	if err != nil {
+		exitf("Error creating GCL client: %v", err)
+	}
+	log.SetOutput(io.MultiWriter(os.Stderr, logc.Writer(logging.Debug)))
+}
+
 // main wraps Main so tests (which generate their own func main) can still run Main.
 func main() {
 	Main(nil, nil)
@@ -336,6 +375,8 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 	}
 	if env.OnGCE() {
 		log.SetOutput(gce.LogWriter())
+	} else {
+		maybeSetupGoogleCloudLogging()
 	}
 
 	if *flagReindex {
