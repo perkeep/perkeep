@@ -125,7 +125,9 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 	return h, nil
 }
 
-func (h *Handler) uploadPublicKey() error {
+// UploadPublicKey writes the public key to the destination blobserver
+// defined for the handler, if needed.
+func (h *Handler) UploadPublicKey() error {
 	h.pubKeyUploadMu.RLock()
 	if h.pubKeyUploaded {
 		h.pubKeyUploadMu.RUnlock()
@@ -256,7 +258,7 @@ func (h *Handler) handleSign(rw http.ResponseWriter, req *http.Request) {
 		badReq(fmt.Sprintf("%v", err))
 		return
 	}
-	if err := h.uploadPublicKey(); err != nil {
+	if err := h.UploadPublicKey(); err != nil {
 		log.Printf("signing handler failed to upload public key: %v", err)
 	}
 	rw.Write([]byte(signedJSON))
@@ -282,7 +284,7 @@ func (h *Handler) Sign(bb *schema.Builder) (string, error) {
 	} else {
 		sreq.SignatureTime = claimTime
 	}
-	if err := h.uploadPublicKey(); err != nil {
+	if err := h.UploadPublicKey(); err != nil {
 		log.Printf("signing handler failed to upload public key: %v", err)
 	}
 	return sreq.Sign()
