@@ -36,7 +36,7 @@ func TestIgnoreMultiPattern(t *testing.T) {
 	}
 	ignoreChecker := newIgnoreChecker(ignoredShellPattern)
 	toIgnore := "/home/foo/Downloads/pony.jpg"
-	if ignoreChecker(toIgnore) != true {
+	if !ignoreChecker(toIgnore) {
 		t.Errorf("Failed to ignore %v with %q among multiple shell patterns in ignore list.", toIgnore, ignoredShellPattern[0])
 	}
 }

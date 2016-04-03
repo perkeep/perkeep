@@ -115,7 +115,7 @@ func (l *lexer) peek() rune {
 }
 
 func (l *lexer) accept(valid string) bool {
-	if strings.IndexRune(valid, l.next()) >= 0 {
+	if strings.ContainsRune(valid, l.next()) {
 		return true
 	}
 	l.backup()
@@ -133,7 +133,7 @@ func (l *lexer) acceptString(s string) bool {
 }
 
 func (l *lexer) acceptRun(valid string) {
-	for strings.IndexRune(valid, l.next()) >= 0 {
+	for strings.ContainsRune(valid, l.next()) {
 	}
 	l.backup()
 }

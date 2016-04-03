@@ -472,7 +472,7 @@ func (s *storage) readAllMetaBlobs() error {
 		if err != nil {
 			close(stopEnumerate)
 			go func() {
-				for _ = range metac {
+				for range metac {
 				}
 			}()
 			// TODO: advertise in this error message a new option or environment variable

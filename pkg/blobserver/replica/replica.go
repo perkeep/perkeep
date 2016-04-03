@@ -172,7 +172,7 @@ func (sto *replicaStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref
 	}
 
 	var retErr error
-	for _ = range sto.readReplicas {
+	for range sto.readReplicas {
 		if err := <-errc; err != nil {
 			retErr = err
 		}
@@ -216,7 +216,7 @@ func (sto *replicaStorage) ReceiveBlob(br blob.Ref, src io.Reader) (_ blob.Sized
 
 	nSuccess := 0
 	var fails []sizedBlobAndError
-	for _ = range sto.replicas {
+	for range sto.replicas {
 		res := <-resc
 		switch {
 		case res.err == nil && int64(res.sb.Size) == size:
@@ -252,7 +252,7 @@ func (sto *replicaStorage) RemoveBlobs(blobs []blob.Ref) error {
 	}
 	var reterr error
 	nSuccess := 0
-	for _ = range sto.replicas {
+	for range sto.replicas {
 		if err := <-errch; err != nil {
 			reterr = err
 		} else {

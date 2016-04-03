@@ -664,10 +664,7 @@ func dirToBeFUSE(dir string) func() bool {
 			return false
 		}
 		if runtime.GOOS == "darwin" {
-			if strings.Contains(string(out), "mount_osxfusefs@") {
-				return true
-			}
-			return false
+			return strings.Contains(string(out), "mount_osxfusefs@")
 		}
 		if runtime.GOOS == "linux" {
 			return strings.Contains(string(out), "/dev/fuse") &&

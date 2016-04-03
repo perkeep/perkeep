@@ -53,7 +53,7 @@ import (
 // index has no blobSource.
 func (ix *Index) outOfOrderIndexerLoop() {
 	ix.mu.RLock()
-	if ix.oooRunning == true {
+	if ix.oooRunning {
 		panic("outOfOrderIndexerLoop is already running")
 	}
 	if ix.blobSource == nil {
@@ -62,7 +62,7 @@ func (ix *Index) outOfOrderIndexerLoop() {
 	ix.oooRunning = true
 	ix.mu.RUnlock()
 WaitTickle:
-	for _ = range ix.tickleOoo {
+	for range ix.tickleOoo {
 		for {
 			ix.mu.Lock()
 			if len(ix.readyReindex) == 0 {

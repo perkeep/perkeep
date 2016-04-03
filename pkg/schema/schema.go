@@ -453,11 +453,11 @@ func (ss *superset) FileNameString() string {
 		v = stringFromMixedArray(ss.FileNameBytes)
 	}
 	if v != "" {
-		if strings.Index(v, "/") != -1 {
+		if strings.Contains(v, "/") {
 			// Bogus schema blob; ignore.
 			return ""
 		}
-		if strings.Index(v, "\\") != -1 {
+		if strings.Contains(v, "\\") {
 			// Bogus schema blob; ignore.
 			return ""
 		}

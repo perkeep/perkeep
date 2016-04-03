@@ -98,7 +98,7 @@ func (sto *shardStorage) batchedShards(blobs []blob.Ref, fn func(blobserver.Stor
 		}()
 	}
 	var reterr error
-	for _ = range m {
+	for range m {
 		if err := <-ch; err != nil {
 			reterr = err
 		}

@@ -494,7 +494,7 @@ func testCacheSortedPermanodesRace(t *testing.T,
 			errc := make(chan error, 1)
 			c.RLock()
 			go func() { errc <- enumFunc(c, context.TODO(), ch) }()
-			for _ = range ch {
+			for range ch {
 			}
 			err := <-errc
 			c.RUnlock()
@@ -530,7 +530,7 @@ func TestLazySortedPermanodes(t *testing.T) {
 		errc := make(chan error, 1)
 		c.RLock()
 		go func() { errc <- c.EnumeratePermanodesCreatedLocked(context.TODO(), ch, reverse) }()
-		for _ = range ch {
+		for range ch {
 		}
 		err := <-errc
 		c.RUnlock()

@@ -73,7 +73,7 @@ func TestMultiMode(t *testing.T) {
 		},
 	}
 
-	if Allowed(req, OpAll) == true {
+	if Allowed(req, OpAll) {
 		t.Fatalf("req should not be allowed")
 	}
 
@@ -82,7 +82,7 @@ func TestMultiMode(t *testing.T) {
 		Password: "bar",
 	})
 
-	if Allowed(req, OpAll) == false {
+	if !Allowed(req, OpAll) {
 		t.Fatalf("req should now be allowed")
 	}
 
@@ -91,7 +91,7 @@ func TestMultiMode(t *testing.T) {
 		Password: "baz",
 	})
 
-	if Allowed(req, OpAll) == true {
+	if Allowed(req, OpAll) {
 		t.Fatalf("req should not be allowed anymore")
 	}
 
