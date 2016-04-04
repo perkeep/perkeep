@@ -1390,18 +1390,6 @@ func enumerateBlobMeta(s sorted.KeyValue, cb func(camtypes.BlobMeta) error) (err
 	return nil
 }
 
-func enumerateSignerKeyId(s sorted.KeyValue, cb func(blob.Ref, string)) (err error) {
-	const pfx = "signerkeyid:"
-	it := queryPrefixString(s, pfx)
-	defer closeIterator(it, &err)
-	for it.Next() {
-		if br, ok := blob.Parse(strings.TrimPrefix(it.Key(), pfx)); ok {
-			cb(br, it.Value())
-		}
-	}
-	return
-}
-
 // EnumerateBlobMeta sends all metadata about all known blobs to ch and then closes ch.
 func (x *Index) EnumerateBlobMeta(ctx context.Context, ch chan<- camtypes.BlobMeta) (err error) {
 	if x.corpus != nil {

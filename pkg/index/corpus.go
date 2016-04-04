@@ -75,18 +75,8 @@ type Corpus struct {
 	fileWholeRef map[blob.Ref]blob.Ref           // fileref -> its wholeref (TODO: multi-valued?)
 	gps          map[blob.Ref]latLong            // wholeRef -> GPS coordinates
 
-	// edge tracks "forward" edges. e.g. from a directory's static-set to
-	// its members. Permanodes' camliMembers aren't tracked, since they
-	// can be obtained from permanodes.Claims.
-	// TODO: implement
-	edge map[blob.Ref][]edge
-
-	// edgeBack tracks "backward" edges. e.g. from a file back to
-	// any directories it's part of.
-	// The map is from target (e.g. file) => owner (static-set).
-	// This only tracks static data structures, not permanodes.
-	// TODO: implement
-	edgeBack map[blob.Ref]map[blob.Ref]bool
+	// Lack of edge tracking implementation is issue #707
+	// (https://github.com/camlistore/camlistore/issues/707)
 
 	// claimBack allows hopping backwards from a Claim's Value
 	// when the Value is a blobref.  It allows, for example,
@@ -138,11 +128,6 @@ func (c *Corpus) IsDeletedLocked(br blob.Ref) bool {
 		}
 	}
 	return false
-}
-
-type edge struct {
-	edgeType string
-	peer     blob.Ref
 }
 
 type PermanodeMeta struct {
@@ -925,11 +910,6 @@ func (c *Corpus) KeyId(signer blob.Ref) (string, error) {
 	}
 	return "", sorted.ErrNotFound
 }
-
-var (
-	errUnsupportedNodeType = errors.New("unsupported nodeType")
-	errNoNodeAttr          = errors.New("attribute not found")
-)
 
 func (c *Corpus) pnTimeAttrLocked(pn blob.Ref, attr string) (t time.Time, ok bool) {
 	if v := c.PermanodeAttrValueLocked(pn, attr, time.Time{}, blob.Ref{}); v != "" {

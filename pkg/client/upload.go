@@ -102,10 +102,6 @@ func calculateMultipartOverhead() int64 {
 	return int64(b.Len()) - 3 // remove what was added
 }
 
-func newResFormatError(s string, arg ...interface{}) ResponseFormatError {
-	return ResponseFormatError(fmt.Errorf(s, arg...))
-}
-
 func parseStatResponse(res *http.Response) (*statResponse, error) {
 	var s = &statResponse{HaveMap: make(map[string]blob.SizedRef)}
 	var pres protocol.StatResponse

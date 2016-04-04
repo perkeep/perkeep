@@ -54,11 +54,7 @@ import (
 	"google.golang.org/cloud/compute/metadata"
 )
 
-const (
-	// duration after which a progress state is dropped from the progress map
-	progressStateExpiration = 7 * 24 * time.Hour
-	cookieExpiration        = 24 * time.Hour
-)
+const cookieExpiration = 24 * time.Hour
 
 var (
 	helpGenCert      = `A self-signed HTTPS certificate will be generated for the chosen domain name (or for "localhost" if left blank) and set as the default. You will be able to set another HTTPS certificate for Camlistore afterwards.`

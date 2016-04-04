@@ -162,10 +162,6 @@ func (h *Handler) Index() index.Interface {
 	return h.index
 }
 
-func jsonMap() map[string]interface{} {
-	return make(map[string]interface{})
-}
-
 var getHandler = map[string]func(*Handler, http.ResponseWriter, *http.Request){
 	"ws":              (*Handler).serveWebSocket,
 	"recent":          (*Handler).serveRecentPermanodes,

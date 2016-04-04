@@ -236,11 +236,6 @@ func (hl *handlerLoader) configType(prefix string) string {
 	return ""
 }
 
-func (hl *handlerLoader) getOrSetup(prefix string) interface{} {
-	hl.setupHandler(prefix)
-	return hl.handler[prefix]
-}
-
 func (hl *handlerLoader) MyPrefix() string {
 	return hl.curPrefix
 }

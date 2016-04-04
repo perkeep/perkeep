@@ -769,10 +769,7 @@ type urlEntity struct {
 	DisplayURL  string `json:"display_url"`
 }
 
-var (
-	twitpicRx = regexp.MustCompile(`\btwitpic\.com/(\w\w\w+)`)
-	imgurRx   = regexp.MustCompile(`\bimgur\.com/(\w\w\w+)`)
-)
+var imgurRx = regexp.MustCompile(`\bimgur\.com/(\w\w\w+)`)
 
 func getImagesFromURLs(urls []*urlEntity) (ret []tweetMedia) {
 	// TODO: extract these regexps from tweet text too. Happens in

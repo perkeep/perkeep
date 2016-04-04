@@ -764,9 +764,8 @@ type claimParam struct {
 	value     string   // optional if Type == DelAttributeClaim
 
 	// Params specific to ShareClaim claims:
-	authType     string
-	transitive   bool
-	shareExpires time.Time // Zero means no expiration
+	authType   string
+	transitive bool
 
 	// Params specific to ShareClaim and DeleteClaim claims.
 	target blob.Ref

@@ -42,7 +42,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"time"
 
 	"camlistore.org/pkg/blob"
@@ -52,8 +51,6 @@ import (
 	"golang.org/x/net/context"
 )
 
-const buffered = 8
-
 // A storageFunc selects a destination for a given blob. It may consume from src but must always return
 // a newSrc that is identical to the original src passed in.
 type storageFunc func(br blob.Ref, src io.Reader) (dest blobserver.Storage, newSrc io.Reader, err error)
@@ -62,8 +59,6 @@ type condStorage struct {
 	storageForReceive storageFunc
 	read              blobserver.Storage
 	remove            blobserver.Storage
-
-	ctx *http.Request // optional per-request context
 }
 
 func (sto *condStorage) StorageGeneration() (initTime time.Time, random string, err error) {

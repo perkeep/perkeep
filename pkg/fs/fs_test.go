@@ -64,12 +64,6 @@ func condSkip(t *testing.T) {
 	}
 }
 
-func brokenTest(t *testing.T) {
-	if v, _ := strconv.ParseBool(os.Getenv("RUN_BROKEN_TESTS")); !v {
-		t.Skipf("Skipping broken tests without RUN_BROKEN_TESTS=1")
-	}
-}
-
 type mountEnv struct {
 	t          *testing.T
 	mountPoint string

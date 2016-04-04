@@ -287,14 +287,6 @@ func defaultServer() string {
 	return ""
 }
 
-func (c *Client) serverOrDefault() string {
-	configOnce.Do(parseConfig)
-	if c.server != "" {
-		return cleanServer(c.server)
-	}
-	return defaultServer()
-}
-
 func (c *Client) useTLS() bool {
 	return strings.HasPrefix(c.discoRoot(), "https://")
 }

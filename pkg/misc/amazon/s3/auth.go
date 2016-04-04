@@ -68,15 +68,6 @@ func (a *Auth) SignRequest(req *http.Request) {
 	req.Header.Set("Authorization", authHeader.String())
 }
 
-func firstNonEmptyString(strs ...string) string {
-	for _, s := range strs {
-		if s != "" {
-			return s
-		}
-	}
-	return ""
-}
-
 // From the Amazon docs:
 //
 // StringToSign = HTTP-Verb + "\n" +

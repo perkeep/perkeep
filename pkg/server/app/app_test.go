@@ -31,7 +31,6 @@ func TestRandPortBackendURL(t *testing.T) {
 		apiHost          string
 		appHandlerPrefix string
 		wantBackendURL   string
-		wantErr          bool
 	}{
 		{
 			apiHost:          "http://foo.com/",

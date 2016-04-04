@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -230,13 +229,10 @@ func (kv *KeyValue) Find(start, end string) sorted.Iterator {
 	return it
 }
 
-var wordThenPunct = regexp.MustCompile(`^\w+\W$`)
-
 // iter is a iterator over sorted key/value pairs in rows.
 type iter struct {
 	kv  *KeyValue
-	end string // optional end bound
-	err error  // accumulated error, returned at Close
+	err error // accumulated error, returned at Close
 
 	closeCheck  *leak.Checker
 	releaseGate func() // if non-nil, called on Close

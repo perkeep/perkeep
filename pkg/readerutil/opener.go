@@ -64,15 +64,6 @@ func (f *openFileHandle) Close() error {
 	return f.openFile.File.Close()
 }
 
-type openingFile struct {
-	path string
-	mu   sync.RWMutex // write-locked until Open is done
-
-	// Results, once mu is unlocked:
-	of  *openFile
-	err error
-}
-
 // OpenSingle opens the given file path for reading, reusing existing file descriptors
 // when possible.
 func OpenSingle(path string) (readerutil.ReaderAtCloser, error) {

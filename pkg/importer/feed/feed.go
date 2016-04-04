@@ -26,8 +26,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"strings"
-	"sync"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
@@ -53,7 +51,6 @@ func init() {
 }
 
 type imp struct {
-	mu         sync.Mutex          // guards following
 	urlFileRef map[string]blob.Ref // url to file schema blob
 
 	importer.OAuth1 // for CallbackRequestAccount and CallbackURLParameters
@@ -208,40 +205,6 @@ func doGet(ctx context.Context, url string) ([]byte, error) {
 		return nil, fmt.Errorf("Get request on %s failed with: %s", url, res.Status)
 	}
 	return ioutil.ReadAll(io.LimitReader(res.Body, 8<<20))
-}
-
-// urlFileRef slurps urlstr from the net, writes to a file and returns its
-// fileref or "" on error
-func (r *run) urlFileRef(urlstr string) string {
-	if urlstr == "" {
-		return ""
-	}
-	im := r.im
-	im.mu.Lock()
-	if br, ok := im.urlFileRef[urlstr]; ok {
-		im.mu.Unlock()
-		return br.String()
-	}
-	im.mu.Unlock()
-
-	res, err := ctxutil.Client(r).Get(urlstr)
-	if err != nil {
-		log.Printf("couldn't get file: %v", err)
-		return ""
-	}
-	defer res.Body.Close()
-
-	filename := urlstr[strings.LastIndex(urlstr, "/")+1:]
-	fileRef, err := schema.WriteFileFromReader(r.Host.Target(), filename, res.Body)
-	if err != nil {
-		log.Printf("couldn't write file: %v", err)
-		return ""
-	}
-
-	im.mu.Lock()
-	defer im.mu.Unlock()
-	im.urlFileRef[urlstr] = fileRef
-	return fileRef.String()
 }
 
 func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) error {

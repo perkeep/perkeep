@@ -72,13 +72,6 @@ func (fi *FakeIndex) LastTime() time.Time {
 	return fi.clock
 }
 
-func camliTypeFromMime(mime string) string {
-	if v := strings.TrimPrefix(mime, "application/json; camliType="); v != mime {
-		return v
-	}
-	return ""
-}
-
 func (fi *FakeIndex) AddMeta(br blob.Ref, camliType string, size uint32) {
 	fi.lk.Lock()
 	defer fi.lk.Unlock()

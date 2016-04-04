@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"hash"
 	"reflect"
-	"regexp"
 	"strings"
 
 	// This is a pretty low-level package, so add the Go minimum
@@ -36,9 +35,6 @@ import (
 // Pattern is the regular expression which matches a blobref.
 // It does not contain ^ or $.
 const Pattern = `\b([a-z][a-z0-9]*)-([a-f0-9]+)\b`
-
-// whole blobref pattern
-var blobRefPattern = regexp.MustCompile("^" + Pattern + "$")
 
 // Ref is a reference to a Camlistore blob.
 // It is used as a value type and supports equality (with ==) and the ability

@@ -86,13 +86,6 @@ func parts(parts ...*BytesPart) []*BytesPart {
 	return parts
 }
 
-func sizeSum(parts []*BytesPart) (s uint64) {
-	for _, p := range parts {
-		s += uint64(p.Size)
-	}
-	return
-}
-
 var readTests = []readTest{
 	{parts(all(blobA)), 0, "AAAAAaaaaa"},
 	{parts(all(blobA)), 2, "AAAaaaaa"},

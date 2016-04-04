@@ -453,10 +453,6 @@ func (b *DescribedBlob) peerBlob(br blob.Ref) *DescribedBlob {
 	return &DescribedBlob{Request: b.Request, BlobRef: br, Stub: true}
 }
 
-func (b *DescribedBlob) isPermanode() bool {
-	return b.Permanode != nil
-}
-
 type DescribedPermanode struct {
 	Attr    url.Values `json:"attr"` // a map[string][]string
 	ModTime time.Time  `json:"modtime,omitempty"`
@@ -474,21 +470,6 @@ func (dp *DescribedPermanode) IsContainer() bool {
 		}
 	}
 	return false
-}
-
-func (dp *DescribedPermanode) jsonMap() map[string]interface{} {
-	m := jsonMap()
-
-	am := jsonMap()
-	m["attr"] = am
-	for k, vv := range dp.Attr {
-		if len(vv) > 0 {
-			vl := make([]string, len(vv))
-			copy(vl[:], vv[:])
-			am[k] = vl
-		}
-	}
-	return m
 }
 
 // NewDescribeRequest returns a new DescribeRequest holding the state
@@ -602,18 +583,6 @@ func (dr *DescribeRequest) Describe(br blob.Ref, depth int) {
 		defer dr.wg.Done()
 		dr.describeReally(br, depth)
 	}()
-}
-
-// requires dr.mu is held
-func (dr *DescribeRequest) isDescribedOrError(br blob.Ref) bool {
-	brs := br.String()
-	if _, ok := dr.m[brs]; ok {
-		return true
-	}
-	if _, ok := dr.errs[brs]; ok {
-		return true
-	}
-	return false
 }
 
 // requires dr.mu be held.

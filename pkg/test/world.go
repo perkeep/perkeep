@@ -53,8 +53,6 @@ type World struct {
 	server    *exec.Cmd
 	isRunning int32 // state of the camlistored server. Access with sync/atomic only.
 	serverErr error
-
-	cammount *os.Process
 }
 
 // CamliSourceRoot returns the root of the source tree, or an error.

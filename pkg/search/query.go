@@ -1025,8 +1025,6 @@ func (q *SearchQuery) setResultContinue(corpus *index.Corpus, res *SearchResult)
 	res.Continue = fmt.Sprintf("pn:%d:%v", t.UnixNano(), lastpn)
 }
 
-const camliTypeMIME = "application/json; camliType="
-
 type matchFn func(*search, blob.Ref, camtypes.BlobMeta) (bool, error)
 
 func alwaysMatch(*search, blob.Ref, camtypes.BlobMeta) (bool, error) {

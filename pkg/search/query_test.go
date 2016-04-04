@@ -64,14 +64,6 @@ func (qt *queryTest) Handler() *Handler {
 	return qt.handler
 }
 
-func querySetup(t testing.TB) (*indextest.IndexDeps, *Handler) {
-	idx := index.NewMemoryIndex() // string key-value pairs in memory, as if they were on disk
-	id := indextest.NewIndexDeps(idx)
-	id.Fataler = t
-	h := NewHandler(idx, id.SignerBlobRef)
-	return id, h
-}
-
 func testQuery(t testing.TB, fn func(*queryTest)) {
 	testQueryTypes(t, allIndexTypes, fn)
 }
@@ -118,13 +110,6 @@ func testQueryType(t testing.TB, fn func(*queryTest), itype indexType) {
 		return h
 	}
 	fn(qt)
-}
-
-func dumpRes(t *testing.T, res *SearchResult) {
-	t.Logf("Got: %#v", res)
-	for i, got := range res.Blobs {
-		t.Logf(" %d. %s", i, got)
-	}
 }
 
 func (qt *queryTest) wantRes(req *SearchQuery, wanted ...blob.Ref) {

@@ -28,7 +28,6 @@ import (
 type attrCmd struct {
 	add bool
 	del bool
-	up  *Uploader
 }
 
 func init() {

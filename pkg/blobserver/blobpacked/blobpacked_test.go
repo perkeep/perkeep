@@ -19,7 +19,6 @@ package blobpacked
 import (
 	"bytes"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -46,8 +45,6 @@ import (
 )
 
 const debug = false
-
-var brokenTests = flag.Bool("broken", false, "also test known-broken tests")
 
 func TestStorage(t *testing.T) {
 	storagetest.Test(t, func(t *testing.T) (sto blobserver.Storage, cleanup func()) {

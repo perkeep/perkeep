@@ -26,7 +26,6 @@ import (
 	"log"
 	"os"
 	"sync"
-	"syscall"
 	"time"
 
 	"camlistore.org/pkg/blob"
@@ -39,8 +38,6 @@ import (
 )
 
 var serverStart = time.Now()
-
-var errNotDir = fuse.Errno(syscall.ENOTDIR)
 
 type CamliFileSystem struct {
 	fetcher blob.Fetcher

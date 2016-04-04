@@ -46,7 +46,6 @@ import (
 )
 
 const (
-	apiURL   = "https://api.picasa.com/v2/"
 	authURL  = "https://accounts.google.com/o/oauth2/auth"
 	tokenURL = "https://accounts.google.com/o/oauth2/token"
 	scopeURL = "https://picasaweb.google.com/data/"
@@ -135,13 +134,6 @@ type run struct {
 
 	mu     sync.Mutex // guards anyErr
 	anyErr bool
-}
-
-func (r *run) errorf(format string, args ...interface{}) {
-	log.Printf(format, args...)
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.anyErr = true
 }
 
 var forceFullImport, _ = strconv.ParseBool(os.Getenv("CAMLI_PICASA_FULL_IMPORT"))

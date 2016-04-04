@@ -921,12 +921,6 @@ func (c *Client) doReqGated(req *http.Request) (*http.Response, error) {
 	return c.httpClient.Do(req)
 }
 
-// insecureTLS returns whether the client is using TLS without any
-// verification of the server's cert.
-func (c *Client) insecureTLS() bool {
-	return c.useTLS() && c.insecureAnyTLSCert
-}
-
 // DialFunc returns the adequate dial function when we're on android.
 func (c *Client) DialFunc() func(network, addr string) (net.Conn, error) {
 	if c.useTLS() {

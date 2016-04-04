@@ -31,7 +31,7 @@ import (
 )
 
 type reindexdpCmd struct {
-	overwrite, verbose bool
+	overwrite bool
 }
 
 func init() {

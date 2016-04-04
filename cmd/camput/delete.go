@@ -25,9 +25,7 @@ import (
 	"camlistore.org/pkg/schema"
 )
 
-type deleteCmd struct {
-	up *Uploader
-}
+type deleteCmd struct{}
 
 func init() {
 	cmdmain.RegisterCommand("delete", func(flags *flag.FlagSet) cmdmain.CommandRunner {

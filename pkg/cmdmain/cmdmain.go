@@ -25,7 +25,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
 	"sync"
 
 	"camlistore.org/pkg/buildinfo"
@@ -116,41 +115,6 @@ func RegisterCommand(mode string, makeCmd func(Flags *flag.FlagSet) CommandRunne
 	wantHelp[mode] = &cmdHelp
 	modeFlags[mode] = flags
 	modeCommand[mode] = makeCmd(flags)
-}
-
-type namedMode struct {
-	Name    string
-	Command CommandRunner
-}
-
-// TODO(mpl): do we actually need this? I changed usage
-// to simply iterate over all of modeCommand and it seems
-// fine.
-func allModes(startModes []string) <-chan namedMode {
-	ch := make(chan namedMode)
-	go func() {
-		defer close(ch)
-		done := map[string]bool{}
-		for _, name := range startModes {
-			done[name] = true
-			cmd := modeCommand[name]
-			if cmd == nil {
-				panic("bogus mode: " + name)
-			}
-			ch <- namedMode{name, cmd}
-		}
-		var rest []string
-		for name := range modeCommand {
-			if !done[name] {
-				rest = append(rest, name)
-			}
-		}
-		sort.Strings(rest)
-		for _, name := range rest {
-			ch <- namedMode{name, modeCommand[name]}
-		}
-	}()
-	return ch
 }
 
 func hasFlags(flags *flag.FlagSet) bool {

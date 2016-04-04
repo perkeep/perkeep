@@ -268,56 +268,6 @@ func findBestAtomLink(links []atom.Link) string {
 	return bestlink
 }
 
-func parseFix(f *feed, feedURL string) (*feed, error) {
-	f.Link = strings.TrimSpace(f.Link)
-	f.Title = html.UnescapeString(strings.TrimSpace(f.Title))
-
-	if u, err := url.Parse(feedURL); err == nil {
-		if ul, err := u.Parse(f.Link); err == nil {
-			f.Link = ul.String()
-		}
-	}
-	base, err := url.Parse(f.Link)
-	if err != nil {
-		log.Printf("unable to parse link: %v", f.Link)
-	}
-
-	var nss []*item
-	now := time.Now()
-	for _, s := range f.Items {
-		s.Created = now
-		s.Link = strings.TrimSpace(s.Link)
-		if s.ID == "" {
-			if s.Link != "" {
-				s.ID = s.Link
-			} else if s.Title != "" {
-				s.ID = s.Title
-			} else {
-				log.Printf("item has no id: %v", s)
-				continue
-			}
-		}
-		// if a story doesn't have a link, see if its id is a URL
-		if s.Link == "" {
-			if u, err := url.Parse(s.ID); err == nil {
-				s.Link = u.String()
-			}
-		}
-		if base != nil && s.Link != "" {
-			link, err := base.Parse(s.Link)
-			if err == nil {
-				s.Link = link.String()
-			} else {
-				log.Printf("unable to resolve link: %v", s.Link)
-			}
-		}
-		nss = append(nss, s)
-	}
-	f.Items = nss
-
-	return f, nil
-}
-
 var dateFormats = []string{
 	"01-02-2006",
 	"01/02/2006",

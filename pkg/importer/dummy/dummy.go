@@ -25,7 +25,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/env"
@@ -62,8 +61,6 @@ type imp struct {
 	// (e.g. category icons) to the fileref once it's been copied
 	// into Camlistore.
 
-	mu          sync.Mutex          // mu guards cache
-	categoryRef map[string]blob.Ref // URL -> file schema ref
 }
 
 func (*imp) SupportsIncremental() bool {

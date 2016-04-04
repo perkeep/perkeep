@@ -22,10 +22,6 @@ import (
 	"camlistore.org/pkg/cmdmain"
 )
 
-type Logger interface {
-	Printf(format string, args ...interface{})
-}
-
 type flagLogger struct {
 	flagPtr **bool
 }

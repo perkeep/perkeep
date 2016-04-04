@@ -29,10 +29,6 @@ import (
 	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
 )
 
-var unsigned = `{"camliVersion": 1,
-"camliType": "foo"
-}`
-
 var pubKey1 = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 Version: GnuPG v1.4.10 (GNU/Linux)
 

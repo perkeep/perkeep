@@ -91,7 +91,6 @@ type kvis struct {
 	opts      *opt.Options
 	readOpts  *opt.ReadOptions
 	writeOpts *opt.WriteOptions
-	txmu      sync.Mutex
 }
 
 func (is *kvis) Get(key string) (string, error) {
@@ -207,10 +206,8 @@ func (is *kvis) Close() error {
 type iter struct {
 	it iterator.Iterator
 
-	key, val   []byte
 	skey, sval *string // for caching string values
 
-	err    error
 	closed bool
 }
 

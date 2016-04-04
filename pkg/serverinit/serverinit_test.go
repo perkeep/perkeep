@@ -30,7 +30,6 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
-	"sort"
 	"strings"
 	"testing"
 
@@ -72,14 +71,6 @@ func init() {
 	// Avoid Linux vs. OS X differences in tests.
 	serverinit.SetTempDirFunc(func() string { return "/tmp" })
 	serverinit.SetNoMkdir(true)
-}
-
-func sortedKeys(m map[string]interface{}) (keys []string) {
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return
 }
 
 func prettyPrint(t *testing.T, w io.Writer, v interface{}) {
