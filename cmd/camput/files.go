@@ -579,7 +579,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 				filebb.SetModTime(modtime)
 			}
 		}
-		if up.fileOpts.capCtime {
+		if up.fileOpts.wantCapCtime() {
 			filebb.CapCreationTime()
 		}
 	}
