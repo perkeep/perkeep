@@ -156,11 +156,7 @@ func testLocalhostResolver(t *testing.T, resolve func() net.IP) {
 	}
 }
 
-func testLocalhost(t *testing.T) {
-	testLocalhostResolver(t, localhostLookup)
-}
-
-func testLoopbackIp(t *testing.T) {
+func TestLoopbackIP(t *testing.T) {
 	testLocalhostResolver(t, loopbackIP)
 }
 
