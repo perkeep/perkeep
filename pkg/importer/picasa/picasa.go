@@ -29,7 +29,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/importer"
@@ -131,9 +130,6 @@ type run struct {
 	*importer.RunContext
 	incremental bool // whether we've completed a run in the past
 	photoGate   *syncutil.Gate
-
-	mu     sync.Mutex // guards anyErr
-	anyErr bool
 }
 
 var forceFullImport, _ = strconv.ParseBool(os.Getenv("CAMLI_PICASA_FULL_IMPORT"))
@@ -168,13 +164,8 @@ func (imp) Run(ctx *importer.RunContext) error {
 		return err
 	}
 
-	r.mu.Lock()
-	anyErr := r.anyErr
-	r.mu.Unlock()
-	if !anyErr {
-		if err := acctNode.SetAttrs(importer.AcctAttrCompletedVersion, runCompleteVersion); err != nil {
-			return err
-		}
+	if err := acctNode.SetAttrs(importer.AcctAttrCompletedVersion, runCompleteVersion); err != nil {
+		return err
 	}
 
 	return nil
