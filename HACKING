@@ -97,6 +97,10 @@ Fixes #10987
 If your commit is adding or updating a vendored third party, you must indicate
 in your commit message the version (e.g. git commit hash) of said third party.
 
+We follow the Go convention for commits (messages) about new Contributors.
+See https://golang.org/doc/contribute.html#copyright , and examples such as
+https://camlistore.googlesource.com/camlistore/+/85bf99a72974d88c2ed5d9753d97ad71766b4023
+
 You can optionally use our pre-commit hook so that your code gets gofmt'ed
 before being submitted (which should be done anyway).
 
