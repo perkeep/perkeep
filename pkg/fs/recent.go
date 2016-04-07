@@ -29,8 +29,9 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/search"
 
-	"camlistore.org/third_party/bazil.org/fuse"
-	"camlistore.org/third_party/bazil.org/fuse/fs"
+	"bazil.org/fuse"
+	"bazil.org/fuse/fs"
+	"golang.org/x/net/context"
 )
 
 // recentDir implements fuse.Node and is a directory of recent
@@ -47,30 +48,35 @@ type recentDir struct {
 	lastNames   []string
 }
 
-func (n *recentDir) Attr() fuse.Attr {
-	return fuse.Attr{
-		Mode: os.ModeDir | 0500,
-		Uid:  uint32(os.Getuid()),
-		Gid:  uint32(os.Getgid()),
-	}
+var (
+	_ fs.Node               = (*recentDir)(nil)
+	_ fs.HandleReadDirAller = (*recentDir)(nil)
+	_ fs.NodeStringLookuper = (*recentDir)(nil)
+)
+
+func (n *recentDir) Attr(ctx context.Context, a *fuse.Attr) error {
+	a.Mode = os.ModeDir | 0500
+	a.Uid = uint32(os.Getuid())
+	a.Gid = uint32(os.Getgid())
+	return nil
 }
 
 const recentSearchInterval = 10 * time.Second
 
-func (n *recentDir) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
+func (n *recentDir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 	var ents []fuse.Dirent
 
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.lastReaddir.After(time.Now().Add(-recentSearchInterval)) {
-		log.Printf("fs.recent: ReadDir from cache")
+		log.Printf("fs.recent: ReadDirAll from cache")
 		for _, name := range n.lastNames {
 			ents = append(ents, fuse.Dirent{Name: name})
 		}
 		return ents, nil
 	}
 
-	log.Printf("fs.recent: ReadDir, doing search")
+	log.Printf("fs.recent: ReadDirAll, doing search")
 
 	n.ents = make(map[string]*search.DescribedBlob)
 	n.modTime = make(map[string]time.Time)
@@ -78,7 +84,7 @@ func (n *recentDir) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
 	req := &search.RecentRequest{N: 100}
 	res, err := n.fs.client.GetRecentPermanodes(req)
 	if err != nil {
-		log.Printf("fs.recent: GetRecentPermanodes error in ReadDir: %v", err)
+		log.Printf("fs.recent: GetRecentPermanodes error in ReadDirAll: %v", err)
 		return nil, fuse.EIO
 	}
 
@@ -132,14 +138,14 @@ func (n *recentDir) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
 	return ents, nil
 }
 
-func (n *recentDir) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
+func (n *recentDir) Lookup(ctx context.Context, name string) (fs.Node, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.ents == nil {
 		// Odd case: a Lookup before a Readdir. Force a readdir to
 		// seed our map. Mostly hit just during development.
-		n.mu.Unlock() // release, since ReadDir will acquire
-		n.ReadDir(intr)
+		n.mu.Unlock() // release, since ReadDirAll will acquire
+		n.ReadDirAll(ctx)
 		n.mu.Lock()
 	}
 	db := n.ents[name]

@@ -22,8 +22,9 @@ import (
 	"log"
 	"os"
 
-	"camlistore.org/third_party/bazil.org/fuse"
-	fusefs "camlistore.org/third_party/bazil.org/fuse/fs"
+	"bazil.org/fuse"
+	fusefs "bazil.org/fuse/fs"
+	"golang.org/x/net/context"
 )
 
 type atDir struct {
@@ -31,15 +32,20 @@ type atDir struct {
 	fs *CamliFileSystem
 }
 
-func (n *atDir) Attr() fuse.Attr {
-	return fuse.Attr{
-		Mode: os.ModeDir | 0500,
-		Uid:  uint32(os.Getuid()),
-		Gid:  uint32(os.Getgid()),
-	}
+var (
+	_ fusefs.Node               = (*atDir)(nil)
+	_ fusefs.HandleReadDirAller = (*atDir)(nil)
+	_ fusefs.NodeStringLookuper = (*atDir)(nil)
+)
+
+func (n *atDir) Attr(ctx context.Context, a *fuse.Attr) error {
+	a.Mode = os.ModeDir | 0500
+	a.Uid = uint32(os.Getuid())
+	a.Gid = uint32(os.Getgid())
+	return nil
 }
 
-func (n *atDir) ReadDir(intr fusefs.Intr) ([]fuse.Dirent, fuse.Error) {
+func (n *atDir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 	return []fuse.Dirent{
 		{Name: "README.txt"},
 	}, nil
@@ -96,7 +102,7 @@ With More Coarse Granularities
 * 2012             (This will be considered the same as 2012-01-01T00:00:00Z)
 `
 
-func (n *atDir) Lookup(name string, intr fusefs.Intr) (fusefs.Node, fuse.Error) {
+func (n *atDir) Lookup(ctx context.Context, name string) (fusefs.Node, error) {
 	log.Printf("fs.atDir: Lookup(%q)", name)
 
 	if name == "README.txt" {

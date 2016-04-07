@@ -39,8 +39,9 @@ import (
 	"camlistore.org/pkg/fs"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/search"
-	"camlistore.org/third_party/bazil.org/fuse"
-	fusefs "camlistore.org/third_party/bazil.org/fuse/fs"
+
+	"bazil.org/fuse"
+	fusefs "bazil.org/fuse/fs"
 )
 
 var (
@@ -162,7 +163,7 @@ func main() {
 
 	conn, err = fuse.Mount(mountPoint, fuse.VolumeName(filepath.Base(mountPoint)))
 	if err != nil {
-		if err.Error() == "cannot find load_fusefs" && runtime.GOOS == "darwin" {
+		if err == fuse.ErrOSXFUSENotFound {
 			log.Fatal("FUSE not available; install from http://osxfuse.github.io/")
 		}
 		log.Fatalf("Mount: %v", err)
