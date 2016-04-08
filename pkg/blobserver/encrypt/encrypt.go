@@ -232,9 +232,6 @@ func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 		if !ok {
 			continue
 		}
-		if err != nil {
-			continue
-		}
 		dest <- blob.SizedRef{Ref: br, Size: plainSize}
 	}
 	return nil
