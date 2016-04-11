@@ -25,8 +25,9 @@ import (
 
 	"camlistore.org/pkg/blob"
 
-	"camlistore.org/third_party/bazil.org/fuse"
-	"camlistore.org/third_party/bazil.org/fuse/fs"
+	"bazil.org/fuse"
+	"bazil.org/fuse/fs"
+	"golang.org/x/net/context"
 )
 
 // root implements fuse.Node and is the typical root of a
@@ -42,15 +43,20 @@ type root struct {
 	atDir  *atDir
 }
 
-func (n *root) Attr() fuse.Attr {
-	return fuse.Attr{
-		Mode: os.ModeDir | 0700,
-		Uid:  uint32(os.Getuid()),
-		Gid:  uint32(os.Getgid()),
-	}
+var (
+	_ fs.Node               = (*root)(nil)
+	_ fs.HandleReadDirAller = (*root)(nil)
+	_ fs.NodeStringLookuper = (*root)(nil)
+)
+
+func (n *root) Attr(ctx context.Context, a *fuse.Attr) error {
+	a.Mode = os.ModeDir | 0700
+	a.Uid = uint32(os.Getuid())
+	a.Gid = uint32(os.Getgid())
+	return nil
 }
 
-func (n *root) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
+func (n *root) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 	return []fuse.Dirent{
 		{Name: "WELCOME.txt"},
 		{Name: "tag"},
@@ -89,7 +95,8 @@ func (n *root) getAtDir() *atDir {
 	return n.atDir
 }
 
-func (n *root) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
+func (n *root) Lookup(ctx context.Context, name string) (fs.Node, error) {
+	log.Printf("root.Lookup(%s)", name)
 	switch name {
 	case ".quitquitquit":
 		log.Fatalf("Shutting down due to root .quitquitquit lookup.")

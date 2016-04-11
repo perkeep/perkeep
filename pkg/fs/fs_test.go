@@ -36,30 +36,40 @@ import (
 	"testing"
 	"time"
 
+	"bazil.org/fuse/syscallx"
 	"camlistore.org/pkg/test"
-	"camlistore.org/third_party/bazil.org/fuse/syscallx"
 )
 
 var (
-	errmu   sync.Mutex
-	lasterr error
+	errmu         sync.Mutex
+	osxFuseMarker string
 )
 
 func condSkip(t *testing.T) {
 	errmu.Lock()
 	defer errmu.Unlock()
-	if lasterr != nil {
-		t.Skipf("Skipping test; some other test already failed.")
-	}
 	if !(runtime.GOOS == "darwin" || runtime.GOOS == "linux") {
 		t.Skipf("Skipping test on OS %q", runtime.GOOS)
 	}
 	if runtime.GOOS == "darwin" {
-		_, err := os.Stat("/Library/Filesystems/osxfusefs.fs/Support/mount_osxfusefs")
-		if os.IsNotExist(err) {
+		// The first path is osxfuse 3.x, the second is 2.x.
+		// TODO: simplify if/when bazil drops 2.x support.
+		osxFusePathToMarkers := map[string]string{
+			"/Library/Filesystems/osxfuse.fs/Contents/Resources/mount_osxfuse": "cammount@osxfuse",
+			"/Library/Filesystems/osxfusefs.fs/Support/mount_osxfusefs":        "mount_osxfusefs@",
+		}
+		for path, marker := range osxFusePathToMarkers {
+			_, err := os.Stat(path)
+			if err == nil {
+				osxFuseMarker = marker
+				break
+			}
+			if !os.IsNotExist(err) {
+				t.Fatal(err)
+			}
+		}
+		if osxFuseMarker == "" {
 			test.DependencyErrorOrSkip(t)
-		} else if err != nil {
-			t.Fatal(err)
 		}
 	}
 }
@@ -658,7 +668,7 @@ func dirToBeFUSE(dir string) func() bool {
 			return false
 		}
 		if runtime.GOOS == "darwin" {
-			return strings.Contains(string(out), "mount_osxfusefs@")
+			return strings.Contains(string(out), osxFuseMarker)
 		}
 		if runtime.GOOS == "linux" {
 			return strings.Contains(string(out), "/dev/fuse") &&

@@ -25,8 +25,9 @@ import (
 	"strconv"
 	"sync/atomic"
 
-	"camlistore.org/third_party/bazil.org/fuse"
-	"camlistore.org/third_party/bazil.org/fuse/fs"
+	"bazil.org/fuse"
+	"bazil.org/fuse/fs"
+	"golang.org/x/net/context"
 )
 
 // If TrackStats is true, statistics are kept on operations.
@@ -81,6 +82,12 @@ type stat struct {
 	name string
 }
 
+var (
+	_ fs.Node         = (*stat)(nil)
+	_ fs.NodeOpener   = (*stat)(nil)
+	_ fs.HandleReader = (*stat)(nil)
+)
+
 func (s *stat) Incr() {
 	if TrackStats {
 		s.n.Add(1)
@@ -94,25 +101,24 @@ func (s *stat) content() []byte {
 	return buf.Bytes()
 }
 
-func (s *stat) Attr() fuse.Attr {
-	return fuse.Attr{
-		Mode:   0400,
-		Uid:    uint32(os.Getuid()),
-		Gid:    uint32(os.Getgid()),
-		Size:   uint64(len(s.content())),
-		Mtime:  serverStart,
-		Ctime:  serverStart,
-		Crtime: serverStart,
-	}
+func (s *stat) Attr(ctx context.Context, a *fuse.Attr) error {
+	a.Mode = 0400
+	a.Uid = uint32(os.Getuid())
+	a.Gid = uint32(os.Getgid())
+	a.Size = uint64(len(s.content()))
+	a.Mtime = serverStart
+	a.Ctime = serverStart
+	a.Crtime = serverStart
+	return nil
 }
 
-func (s *stat) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fs.Intr) (fs.Handle, fuse.Error) {
+func (s *stat) Open(ctx context.Context, req *fuse.OpenRequest, res *fuse.OpenResponse) (fs.Handle, error) {
 	// Set DirectIO to keep this file from being cached in OS X's kernel.
 	res.Flags |= fuse.OpenDirectIO
 	return s, nil
 }
 
-func (s *stat) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr fs.Intr) fuse.Error {
+func (s *stat) Read(ctx context.Context, req *fuse.ReadRequest, res *fuse.ReadResponse) error {
 	c := s.content()
 	if req.Offset > int64(len(c)) {
 		return nil
@@ -131,22 +137,27 @@ func (s *stat) Read(req *fuse.ReadRequest, res *fuse.ReadResponse, intr fs.Intr)
 // ".camli_fs_stats" in the root directory.
 type statsDir struct{}
 
-func (statsDir) Attr() fuse.Attr {
-	return fuse.Attr{
-		Mode: os.ModeDir | 0700,
-		Uid:  uint32(os.Getuid()),
-		Gid:  uint32(os.Getgid()),
-	}
+var (
+	_ fs.Node                = statsDir{}
+	_ fs.NodeRequestLookuper = statsDir{}
+	_ fs.HandleReadDirAller  = statsDir{}
+)
+
+func (statsDir) Attr(ctx context.Context, a *fuse.Attr) error {
+	a.Mode = os.ModeDir | 0700
+	a.Uid = uint32(os.Getuid())
+	a.Gid = uint32(os.Getgid())
+	return nil
 }
 
-func (statsDir) ReadDir(intr fs.Intr) (ents []fuse.Dirent, err fuse.Error) {
+func (statsDir) ReadDirAll(ctx context.Context) (ents []fuse.Dirent, err error) {
 	for k := range statByName {
 		ents = append(ents, fuse.Dirent{Name: k})
 	}
 	return
 }
 
-func (statsDir) Lookup(req *fuse.LookupRequest, res *fuse.LookupResponse, intr fs.Intr) (fs.Node, fuse.Error) {
+func (statsDir) Lookup(ctx context.Context, req *fuse.LookupRequest, res *fuse.LookupResponse) (fs.Node, error) {
 	name := req.Name
 	s, ok := statByName[name]
 	if !ok {

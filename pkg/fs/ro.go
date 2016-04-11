@@ -32,8 +32,9 @@ import (
 	"camlistore.org/pkg/search"
 	"go4.org/types"
 
-	"camlistore.org/third_party/bazil.org/fuse"
-	"camlistore.org/third_party/bazil.org/fuse/fs"
+	"bazil.org/fuse"
+	"bazil.org/fuse/fs"
+	"golang.org/x/net/context"
 )
 
 // roDir is a read-only directory.
@@ -49,6 +50,11 @@ type roDir struct {
 	children map[string]roFileOrDir
 	xattrs   map[string][]byte
 }
+
+var _ fs.Node = (*roDir)(nil)
+var _ fs.HandleReadDirAller = (*roDir)(nil)
+var _ fs.NodeGetxattrer = (*roDir)(nil)
+var _ fs.NodeListxattrer = (*roDir)(nil)
 
 func newRODir(fs *CamliFileSystem, permanode blob.Ref, name string, at time.Time) *roDir {
 	return &roDir{
@@ -67,13 +73,14 @@ func (n *roDir) fullPath() string {
 	return filepath.Join(n.parent.fullPath(), n.name)
 }
 
-func (n *roDir) Attr() fuse.Attr {
-	return fuse.Attr{
+func (n *roDir) Attr(ctx context.Context, a *fuse.Attr) error {
+	*a = fuse.Attr{
 		Inode: n.permanode.Sum64(),
 		Mode:  os.ModeDir | 0500,
 		Uid:   uint32(os.Getuid()),
 		Gid:   uint32(os.Getgid()),
 	}
+	return nil
 }
 
 // populate hits the blobstore to populate map of child nodes.
@@ -163,7 +170,7 @@ func (n *roDir) populate() error {
 	return nil
 }
 
-func (n *roDir) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
+func (n *roDir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 	if err := n.populate(); err != nil {
 		log.Println("populate:", err)
 		return nil, fuse.EIO
@@ -179,7 +186,7 @@ func (n *roDir) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
 		case *roFile:
 			ino = v.permanode.Sum64()
 		default:
-			log.Printf("roDir.ReadDir: unknown child type %T", childNode)
+			log.Printf("roDir.ReadDirAll: unknown child type %T", childNode)
 		}
 
 		// TODO: figure out what Dirent.Type means.
@@ -194,7 +201,9 @@ func (n *roDir) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
 	return ents, nil
 }
 
-func (n *roDir) Lookup(name string, intr fs.Intr) (ret fs.Node, err fuse.Error) {
+var _ fs.NodeStringLookuper = (*roDir)(nil)
+
+func (n *roDir) Lookup(ctx context.Context, name string) (ret fs.Node, err error) {
 	defer func() {
 		log.Printf("roDir(%q).Lookup(%q) = %#v, %v", n.fullPath(), name, ret, err)
 	}()
@@ -226,27 +235,36 @@ type roFile struct {
 	xattrs       map[string][]byte
 }
 
-func (n *roDir) Getxattr(req *fuse.GetxattrRequest, res *fuse.GetxattrResponse, intr fs.Intr) fuse.Error {
+var _ fs.Node = (*roFile)(nil)
+var _ fs.NodeGetxattrer = (*roFile)(nil)
+var _ fs.NodeListxattrer = (*roFile)(nil)
+var _ fs.NodeSetxattrer = (*roFile)(nil)
+var _ fs.NodeRemovexattrer = (*roFile)(nil)
+var _ fs.NodeOpener = (*roFile)(nil)
+var _ fs.NodeFsyncer = (*roFile)(nil)
+var _ fs.NodeReadlinker = (*roFile)(nil)
+
+func (n *roDir) Getxattr(ctx context.Context, req *fuse.GetxattrRequest, res *fuse.GetxattrResponse) error {
 	return n.xattr().get(req, res)
 }
 
-func (n *roDir) Listxattr(req *fuse.ListxattrRequest, res *fuse.ListxattrResponse, intr fs.Intr) fuse.Error {
+func (n *roDir) Listxattr(ctx context.Context, req *fuse.ListxattrRequest, res *fuse.ListxattrResponse) error {
 	return n.xattr().list(req, res)
 }
 
-func (n *roFile) Getxattr(req *fuse.GetxattrRequest, res *fuse.GetxattrResponse, intr fs.Intr) fuse.Error {
+func (n *roFile) Getxattr(ctx context.Context, req *fuse.GetxattrRequest, res *fuse.GetxattrResponse) error {
 	return n.xattr().get(req, res)
 }
 
-func (n *roFile) Listxattr(req *fuse.ListxattrRequest, res *fuse.ListxattrResponse, intr fs.Intr) fuse.Error {
+func (n *roFile) Listxattr(ctx context.Context, req *fuse.ListxattrRequest, res *fuse.ListxattrResponse) error {
 	return n.xattr().list(req, res)
 }
 
-func (n *roFile) Removexattr(req *fuse.RemovexattrRequest, intr fs.Intr) fuse.Error {
+func (n *roFile) Removexattr(ctx context.Context, req *fuse.RemovexattrRequest) error {
 	return fuse.EPERM
 }
 
-func (n *roFile) Setxattr(req *fuse.SetxattrRequest, intr fs.Intr) fuse.Error {
+func (n *roFile) Setxattr(ctx context.Context, req *fuse.SetxattrRequest) error {
 	return fuse.EPERM
 }
 
@@ -258,7 +276,7 @@ func (n *roFile) fullPath() string {
 	return filepath.Join(n.parent.fullPath(), n.name)
 }
 
-func (n *roFile) Attr() fuse.Attr {
+func (n *roFile) Attr(ctx context.Context, a *fuse.Attr) error {
 	// TODO: don't grab n.mu three+ times in here.
 	var mode os.FileMode = 0400 // read-only
 
@@ -274,7 +292,7 @@ func (n *roFile) Attr() fuse.Attr {
 	}
 	n.mu.Unlock()
 
-	return fuse.Attr{
+	*a = fuse.Attr{
 		Inode:  inode,
 		Mode:   mode,
 		Uid:    uint32(os.Getuid()),
@@ -286,6 +304,7 @@ func (n *roFile) Attr() fuse.Attr {
 		Ctime:  serverStart,
 		Crtime: serverStart,
 	}
+	return nil
 }
 
 func (n *roFile) accessTime() time.Time {
@@ -316,7 +335,7 @@ func (n *roFile) modTime() time.Time {
 // open flags are O_WRONLY (1), O_RDONLY (0), or O_RDWR (2). and also
 // bitmaks of O_SYMLINK (0x200000) maybe. (from
 // fuse_filehandle_xlate_to_oflags in macosx/kext/fuse_file.h)
-func (n *roFile) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fs.Intr) (fs.Handle, fuse.Error) {
+func (n *roFile) Open(ctx context.Context, req *fuse.OpenRequest, res *fuse.OpenResponse) (fs.Handle, error) {
 	roFileOpen.Incr()
 
 	if isWriteFlags(req.Flags) {
@@ -343,12 +362,12 @@ func (n *roFile) Open(req *fuse.OpenRequest, res *fuse.OpenResponse, intr fs.Int
 	return &nodeReader{n: nod, fr: r}, nil
 }
 
-func (n *roFile) Fsync(r *fuse.FsyncRequest, intr fs.Intr) fuse.Error {
+func (n *roFile) Fsync(ctx context.Context, r *fuse.FsyncRequest) error {
 	// noop
 	return nil
 }
 
-func (n *roFile) Readlink(req *fuse.ReadlinkRequest, intr fs.Intr) (string, fuse.Error) {
+func (n *roFile) Readlink(ctx context.Context, req *fuse.ReadlinkRequest) (string, error) {
 	log.Printf("roFile.Readlink(%q)", n.fullPath())
 	n.mu.Lock()
 	defer n.mu.Unlock()
