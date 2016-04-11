@@ -36,6 +36,7 @@ import (
 	"testing"
 	"time"
 
+	"bazil.org/fuse"
 	"bazil.org/fuse/syscallx"
 	"camlistore.org/pkg/test"
 )
@@ -52,25 +53,26 @@ func condSkip(t *testing.T) {
 		t.Skipf("Skipping test on OS %q", runtime.GOOS)
 	}
 	if runtime.GOOS == "darwin" {
-		// The first path is osxfuse 3.x, the second is 2.x.
 		// TODO: simplify if/when bazil drops 2.x support.
-		osxFusePathToMarkers := map[string]string{
-			"/Library/Filesystems/osxfuse.fs/Contents/Resources/mount_osxfuse": "cammount@osxfuse",
-			"/Library/Filesystems/osxfusefs.fs/Support/mount_osxfusefs":        "mount_osxfusefs@",
+		_, err := os.Stat(fuse.OSXFUSELocationV3.Mount)
+		if err == nil {
+			osxFuseMarker = "cammount@osxfuse"
+			return
 		}
-		for path, marker := range osxFusePathToMarkers {
-			_, err := os.Stat(path)
-			if err == nil {
-				osxFuseMarker = marker
-				break
-			}
-			if !os.IsNotExist(err) {
-				t.Fatal(err)
-			}
+		if !os.IsNotExist(err) {
+			t.Fatal(err)
 		}
-		if osxFuseMarker == "" {
-			test.DependencyErrorOrSkip(t)
+		_, err = os.Stat(fuse.OSXFUSELocationV2.Mount)
+		if err == nil {
+			osxFuseMarker = "mount_osxfusefs@"
+			// TODO(mpl): add a similar check/warning to pkg/fs or cammount.
+			t.Log("OSXFUSE version 2.x detected. Please consider upgrading to v 3.x.")
+			return
 		}
+		if !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+		test.DependencyErrorOrSkip(t)
 	}
 }
 
