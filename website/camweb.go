@@ -656,6 +656,9 @@ func main() {
 		}
 	}
 	readTemplates()
+	if err := initGithubSyncing(); err != nil {
+		log.Fatalf("error setting up syncing to github: %v")
+	}
 	go runDemoBlobserverLoop()
 
 	mux := http.DefaultServeMux
