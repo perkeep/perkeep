@@ -379,7 +379,7 @@ type DirConstraint struct {
 
 	// TODO: implement. mostly need more things in the index.
 
-	FileName *StringConstraint
+	FileName *StringConstraint `json:"fileName,omitempty"`
 
 	TopFileSize, // not recursive
 	TopFileCount, // not recursive
