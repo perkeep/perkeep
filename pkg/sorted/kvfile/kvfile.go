@@ -32,7 +32,7 @@ import (
 	"camlistore.org/pkg/sorted"
 	"go4.org/jsonconfig"
 
-	"camlistore.org/third_party/github.com/cznic/kv"
+	"github.com/cznic/kv"
 )
 
 var _ sorted.Wiper = (*kvis)(nil)

@@ -36,7 +36,7 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/third_party/github.com/bradfitz/runsit/listen"
+	"github.com/bradfitz/runsit/listen"
 
 	"go4.org/net/throttle"
 	"go4.org/wkfs"

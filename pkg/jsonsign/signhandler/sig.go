@@ -36,7 +36,7 @@ import (
 	"camlistore.org/pkg/types/camtypes"
 	"go4.org/jsonconfig"
 
-	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
+	"code.google.com/p/go.crypto/openpgp"
 )
 
 const kMaxJSONLength = 1024 * 1024

@@ -23,7 +23,7 @@ import (
 	"io/ioutil"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/third_party/labix.org/v2/mgo/bson"
+	"labix.org/v2/mgo/bson"
 )
 
 func (m *mongoStorage) Fetch(ref blob.Ref) (io.ReadCloser, uint32, error) {

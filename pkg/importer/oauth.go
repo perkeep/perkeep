@@ -26,7 +26,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
+	"github.com/garyburd/go-oauth/oauth"
 
 	"go4.org/ctxutil"
 	"golang.org/x/net/context"

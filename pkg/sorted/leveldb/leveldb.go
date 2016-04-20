@@ -29,11 +29,11 @@ import (
 	"camlistore.org/pkg/sorted"
 	"go4.org/jsonconfig"
 
-	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb"
-	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb/filter"
-	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb/iterator"
-	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb/opt"
-	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb/util"
+	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/filter"
+	"github.com/syndtr/goleveldb/leveldb/iterator"
+	"github.com/syndtr/goleveldb/leveldb/opt"
+	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
 var _ sorted.Wiper = (*kvis)(nil)

@@ -23,7 +23,7 @@ import (
 
 	"go4.org/syncutil"
 
-	"camlistore.org/third_party/labix.org/v2/mgo/bson"
+	"labix.org/v2/mgo/bson"
 )
 
 var statGate = syncutil.NewGate(50) // arbitrary

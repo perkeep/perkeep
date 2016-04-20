@@ -17,6 +17,7 @@ limitations under the License.
 package blobpacked
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -38,7 +39,6 @@ import (
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/test"
-	"camlistore.org/third_party/go/pkg/archive/zip"
 	"golang.org/x/net/context"
 
 	"go4.org/syncutil"

@@ -20,8 +20,8 @@ import (
 	"log"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/third_party/labix.org/v2/mgo/bson"
 	"golang.org/x/net/context"
+	"labix.org/v2/mgo/bson"
 )
 
 func (m *mongoStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {

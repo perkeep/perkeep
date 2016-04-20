@@ -28,8 +28,8 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/osutil"
-	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
-	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp/packet"
+	"code.google.com/p/go.crypto/openpgp"
+	"code.google.com/p/go.crypto/openpgp/packet"
 
 	"go4.org/wkfs"
 )

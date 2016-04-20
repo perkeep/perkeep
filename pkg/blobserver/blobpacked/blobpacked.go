@@ -81,6 +81,7 @@ package blobpacked // import "camlistore.org/pkg/blobserver/blobpacked"
 // TODO: BlobStreamer using the zip manifests, for recovery.
 
 import (
+	"archive/zip"
 	"bytes"
 	"crypto/sha1"
 	"encoding/json"
@@ -101,7 +102,6 @@ import (
 	"camlistore.org/pkg/pools"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
-	"camlistore.org/third_party/go/pkg/archive/zip"
 	"go4.org/jsonconfig"
 	"golang.org/x/net/context"
 

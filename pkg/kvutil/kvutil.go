@@ -24,7 +24,7 @@ import (
 	"os"
 	"strconv"
 
-	"camlistore.org/third_party/github.com/cznic/kv"
+	"github.com/cznic/kv"
 
 	"go4.org/lock"
 )

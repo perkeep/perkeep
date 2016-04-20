@@ -36,7 +36,7 @@ import (
 	"camlistore.org/pkg/schema/nodeattr"
 	"camlistore.org/pkg/search"
 
-	"camlistore.org/third_party/github.com/tgulacsi/picago"
+	"github.com/tgulacsi/picago"
 
 	"go4.org/ctxutil"
 	"go4.org/syncutil"

@@ -28,7 +28,7 @@ import (
 	"camlistore.org/pkg/sorted/sqlkv"
 	"go4.org/jsonconfig"
 
-	_ "camlistore.org/third_party/github.com/lib/pq"
+	_ "github.com/lib/pq"
 )
 
 func init() {

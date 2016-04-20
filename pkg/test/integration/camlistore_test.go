@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/test"
-	"camlistore.org/third_party/github.com/gorilla/websocket"
+	"github.com/gorilla/websocket"
 )
 
 // Test that running:

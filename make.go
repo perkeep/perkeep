@@ -278,12 +278,10 @@ func mirror(sql bool) (latestSrcMod time.Time) {
 	goDirs := []string{
 		"app",
 		"cmd",
-		"depcheck",
 		"dev",
 		"internal",
 		"pkg",
 		"server/camlistored",
-		"third_party",
 		"vendor",
 	}
 	if *onlysync {
@@ -420,7 +418,7 @@ func genEmbeds() error {
 	if runtime.GOOS == "windows" {
 		cmdName += ".exe"
 	}
-	for _, embeds := range []string{"server/camlistored/ui", "pkg/server", "third_party/react", "third_party/less", "third_party/glitch", "third_party/fontawesome", "app/publisher"} {
+	for _, embeds := range []string{"server/camlistored/ui", "pkg/server", "vendor/embed/react", "vendor/embed/less", "vendor/embed/glitch", "vendor/embed/fontawesome", "app/publisher"} {
 		embeds := buildSrcPath(embeds)
 		args := []string{"--output-files-stderr", embeds}
 		cmd := exec.Command(cmdName, args...)
@@ -751,7 +749,7 @@ func doEmbed() {
 		log.Printf("Embedding resources...")
 	}
 	closureEmbed := buildSrcPath("server/camlistored/ui/closure/z_data.go")
-	closureSrcDir := filepath.Join(camRoot, filepath.FromSlash("third_party/closure/lib"))
+	closureSrcDir := filepath.Join(camRoot, filepath.FromSlash("vendor/embed/closure/lib"))
 	err := embedClosure(closureSrcDir, closureEmbed)
 	if err != nil {
 		log.Fatal(err)

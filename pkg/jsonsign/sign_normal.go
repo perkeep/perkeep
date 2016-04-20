@@ -26,7 +26,7 @@ import (
 
 	"camlistore.org/pkg/misc/gpgagent"
 	"camlistore.org/pkg/misc/pinentry"
-	"camlistore.org/third_party/code.google.com/p/go.crypto/openpgp"
+	"code.google.com/p/go.crypto/openpgp"
 )
 
 func (fe *FileEntityFetcher) decryptEntity(e *openpgp.Entity) error {

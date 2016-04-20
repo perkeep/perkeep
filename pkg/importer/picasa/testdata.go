@@ -30,7 +30,7 @@ import (
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/osutil"
 
-	"camlistore.org/third_party/github.com/tgulacsi/picago"
+	"github.com/tgulacsi/picago"
 )
 
 var _ importer.TestDataMaker = (*imp)(nil)

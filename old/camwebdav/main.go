@@ -25,8 +25,7 @@ import (
 	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/fs"
-
-//	"camlistore.org/third_party/github.com/hanwen/go-fuse/fuse"
+	//	"github.com/hanwen/go-fuse/fuse"
 )
 
 var (

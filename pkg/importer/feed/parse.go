@@ -29,8 +29,8 @@ import (
 	"camlistore.org/pkg/importer/feed/atom"
 	"camlistore.org/pkg/importer/feed/rdf"
 	"camlistore.org/pkg/importer/feed/rss"
-	"camlistore.org/third_party/code.google.com/p/go-charset/charset"
-	_ "camlistore.org/third_party/code.google.com/p/go-charset/data"
+	"code.google.com/p/go-charset/charset"
+	_ "code.google.com/p/go-charset/data"
 )
 
 type feed struct {

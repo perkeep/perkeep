@@ -35,7 +35,7 @@ import (
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/kvutil"
 	"camlistore.org/pkg/osutil"
-	"camlistore.org/third_party/github.com/cznic/kv"
+	"github.com/cznic/kv"
 )
 
 var errCacheMiss = errors.New("not in cache")

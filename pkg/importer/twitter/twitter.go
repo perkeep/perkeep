@@ -40,7 +40,7 @@ import (
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/schema/nodeattr"
 
-	"camlistore.org/third_party/github.com/garyburd/go-oauth/oauth"
+	"github.com/garyburd/go-oauth/oauth"
 
 	"go4.org/ctxutil"
 	"go4.org/syncutil"

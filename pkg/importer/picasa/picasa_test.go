@@ -22,7 +22,7 @@ import (
 
 	"camlistore.org/pkg/httputil"
 
-	"camlistore.org/third_party/github.com/tgulacsi/picago"
+	"github.com/tgulacsi/picago"
 )
 
 func TestGetUserId(t *testing.T) {

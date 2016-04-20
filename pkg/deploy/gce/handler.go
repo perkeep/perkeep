@@ -45,7 +45,7 @@ import (
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/leveldb"
 
-	"camlistore.org/third_party/code.google.com/p/xsrftoken"
+	"code.google.com/p/xsrftoken"
 
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"

@@ -32,8 +32,8 @@ import (
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
 
-	"camlistore.org/third_party/code.google.com/p/go.net/html"
-	"camlistore.org/third_party/code.google.com/p/go.net/html/atom"
+	"code.google.com/p/go.net/html"
+	"code.google.com/p/go.net/html/atom"
 
 	"go4.org/ctxutil"
 	"golang.org/x/net/context"

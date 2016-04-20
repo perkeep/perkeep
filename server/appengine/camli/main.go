@@ -31,7 +31,6 @@ import (
 	_ "camlistore.org/pkg/blobserver/shard"
 	_ "camlistore.org/pkg/server"   // handlers: UI, publish, thumbnailing, etc
 	"camlistore.org/pkg/serverinit" // wiring up the world from a JSON description
-
 	// TODO(bradfitz): uncomment these config setup
 	// Both require an App Engine context to make HTTP requests too.
 	//_ "camlistore.org/pkg/blobserver/remote"

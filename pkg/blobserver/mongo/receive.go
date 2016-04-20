@@ -22,7 +22,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 
-	"camlistore.org/third_party/labix.org/v2/mgo"
+	"labix.org/v2/mgo"
 )
 
 const (

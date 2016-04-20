@@ -39,7 +39,7 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/types/camtypes"
-	"camlistore.org/third_party/code.google.com/p/xsrftoken"
+	"code.google.com/p/xsrftoken"
 	"go4.org/jsonconfig"
 	"golang.org/x/net/context"
 

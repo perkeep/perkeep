@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/third_party/github.com/gorilla/websocket"
+	"github.com/gorilla/websocket"
 )
 
 const (

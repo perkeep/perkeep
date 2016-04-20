@@ -27,8 +27,8 @@ import (
 	"camlistore.org/pkg/sorted"
 	"go4.org/jsonconfig"
 
-	"camlistore.org/third_party/labix.org/v2/mgo"
-	"camlistore.org/third_party/labix.org/v2/mgo/bson"
+	"labix.org/v2/mgo"
+	"labix.org/v2/mgo/bson"
 )
 
 // We explicitely separate the key and the value in a document,

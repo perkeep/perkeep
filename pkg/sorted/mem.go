@@ -20,10 +20,10 @@ import (
 	"errors"
 	"sync"
 
-	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb/comparer"
-	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb/iterator"
-	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb/memdb"
-	"camlistore.org/third_party/github.com/syndtr/goleveldb/leveldb/util"
+	"github.com/syndtr/goleveldb/leveldb/comparer"
+	"github.com/syndtr/goleveldb/leveldb/iterator"
+	"github.com/syndtr/goleveldb/leveldb/memdb"
+	"github.com/syndtr/goleveldb/leveldb/util"
 	"go4.org/jsonconfig"
 )
 

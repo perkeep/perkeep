@@ -30,9 +30,9 @@ import (
 	"camlistore.org/pkg/sorted/postgres"
 	"camlistore.org/pkg/sorted/sqlite"
 
-	_ "camlistore.org/third_party/github.com/go-sql-driver/mysql"
-	_ "camlistore.org/third_party/github.com/lib/pq"
-	"camlistore.org/third_party/labix.org/v2/mgo"
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
+	"labix.org/v2/mgo"
 )
 
 type dbinitCmd struct {

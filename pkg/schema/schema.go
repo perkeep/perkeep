@@ -41,7 +41,7 @@ import (
 	"unicode/utf8"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/third_party/github.com/bradfitz/latlong"
+	"github.com/bradfitz/latlong"
 
 	"github.com/rwcarlsen/goexif/exif"
 	"github.com/rwcarlsen/goexif/tiff"

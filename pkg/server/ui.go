@@ -29,6 +29,11 @@ import (
 	"strings"
 	"time"
 
+	fontawesomestatic "embed/fontawesome"
+	glitchstatic "embed/glitch"
+	lessstatic "embed/less"
+	reactstatic "embed/react"
+
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/constants"
@@ -41,13 +46,8 @@ import (
 	"camlistore.org/pkg/types/camtypes"
 	uistatic "camlistore.org/server/camlistored/ui"
 	closurestatic "camlistore.org/server/camlistored/ui/closure"
-	"camlistore.org/third_party/code.google.com/p/rsc/qr"
-	fontawesomestatic "camlistore.org/third_party/fontawesome"
-	glitchstatic "camlistore.org/third_party/glitch"
-	lessstatic "camlistore.org/third_party/less"
-	reactstatic "camlistore.org/third_party/react"
+	"code.google.com/p/rsc/qr"
 	"go4.org/jsonconfig"
-
 	"go4.org/syncutil"
 )
 

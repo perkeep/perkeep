@@ -46,7 +46,7 @@ import (
 	"camlistore.org/pkg/netutil"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/types/camtypes"
-	"camlistore.org/third_party/github.com/russross/blackfriday"
+	"github.com/russross/blackfriday"
 
 	"go4.org/cloud/cloudlaunch"
 	"golang.org/x/net/context"

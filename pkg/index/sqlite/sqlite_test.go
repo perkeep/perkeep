@@ -35,7 +35,7 @@ import (
 	_ "camlistore.org/pkg/sorted/sqlite"
 	"go4.org/jsonconfig"
 
-	_ "camlistore.org/third_party/github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
