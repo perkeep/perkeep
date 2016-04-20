@@ -595,9 +595,17 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reind
 	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_HTTP_PPROF")); v {
 		hi.Handle("/debug/pprof/", profileHandler{})
 	}
+	hi.Handle("/debug/goroutines", auth.RequireAuth(http.HandlerFunc(dumpGoroutines), auth.OpRead))
 	hi.Handle("/debug/config", auth.RequireAuth(configHandler{config}, auth.OpAll))
 	hi.Handle("/debug/logs/", auth.RequireAuth(http.HandlerFunc(logsHandler), auth.OpAll))
 	return multiCloser(hl.closers), nil
+}
+
+func dumpGoroutines(w http.ResponseWriter, r *http.Request) {
+	buf := make([]byte, 2<<20)
+	buf = buf[:runtime.Stack(buf, true)]
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write(buf)
 }
 
 // StartApps starts all the server applications that were configured
