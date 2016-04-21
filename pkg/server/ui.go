@@ -70,6 +70,8 @@ var (
 	glitchPattern      = regexp.MustCompile(`^glitch/(.+)$`)
 
 	disableThumbCache, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_THUMB_CACHE"))
+
+	vendorEmbed = filepath.Join("vendor", "embed")
 )
 
 // UIHandler handles serving the UI and discovery JSON.
@@ -183,19 +185,19 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 	}
 
 	if ui.sourceRoot != "" {
-		ui.fileReactHandler, err = makeFileServer(ui.sourceRoot, filepath.Join("third_party", "react"), "react.js")
+		ui.fileReactHandler, err = makeFileServer(ui.sourceRoot, filepath.Join(vendorEmbed, "react"), "react.js")
 		if err != nil {
 			return nil, fmt.Errorf("Could not make react handler: %s", err)
 		}
-		ui.fileGlitchHandler, err = makeFileServer(ui.sourceRoot, filepath.Join("third_party", "glitch"), "npc_piggy__x1_walk_png_1354829432.png")
+		ui.fileGlitchHandler, err = makeFileServer(ui.sourceRoot, filepath.Join(vendorEmbed, "glitch"), "npc_piggy__x1_walk_png_1354829432.png")
 		if err != nil {
 			return nil, fmt.Errorf("Could not make glitch handler: %s", err)
 		}
-		ui.fileFontawesomeHandler, err = makeFileServer(ui.sourceRoot, filepath.Join("third_party", "fontawesome"), "css/font-awesome.css")
+		ui.fileFontawesomeHandler, err = makeFileServer(ui.sourceRoot, filepath.Join(vendorEmbed, "fontawesome"), "css/font-awesome.css")
 		if err != nil {
 			return nil, fmt.Errorf("Could not make fontawesome handler: %s", err)
 		}
-		ui.fileLessHandler, err = makeFileServer(ui.sourceRoot, filepath.Join("third_party", "less"), "less.js")
+		ui.fileLessHandler, err = makeFileServer(ui.sourceRoot, filepath.Join(vendorEmbed, "less"), "less.js")
 		if err != nil {
 			return nil, fmt.Errorf("Could not make less handler: %s", err)
 		}
@@ -325,7 +327,7 @@ func makeClosureHandler(root, handlerName string) (http.Handler, error) {
 		return closureRedirector(root), nil
 	}
 
-	path := filepath.Join("third_party", "closure", "lib", "closure")
+	path := filepath.Join(vendorEmbed, "closure", "lib", "closure")
 	return makeFileServer(root, path, filepath.Join("goog", "base.js"))
 }
 

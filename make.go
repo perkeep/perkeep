@@ -199,7 +199,6 @@ func main() {
 			"camlistore.org/app/...",
 			"camlistore.org/pkg/...",
 			"camlistore.org/server/...",
-			"camlistore.org/third_party/...",
 			"camlistore.org/internal/...",
 		)
 	}

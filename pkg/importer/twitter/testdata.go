@@ -263,5 +263,5 @@ func fakePicture() string {
 	if err != nil {
 		log.Fatalf("Error searching for \"camlistore.org\" under GOPATH: %v", err)
 	}
-	return filepath.Join(camliDir, filepath.FromSlash("third_party/glitch/npc_piggy__x1_walk_png_1354829432.png"))
+	return filepath.Join(camliDir, filepath.FromSlash("vendor/embed/glitch/npc_piggy__x1_walk_png_1354829432.png"))
 }

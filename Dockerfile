@@ -18,7 +18,6 @@ RUN chown camli.camli /gopath/pkg
 
 RUN mkdir -p /gopath/src
 ADD depcheck /gopath/src/camlistore.org/depcheck
-ADD third_party /gopath/src/camlistore.org/third_party
 ADD internal /gopath/src/camlistore.org/internal
 ADD app /gopath/src/camlistore.org/app
 ADD dev /gopath/src/camlistore.org/dev

@@ -118,7 +118,7 @@ func TestCwd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Could not find repository root: %v", err)
 	}
-	baseJS := filepath.Join(repoRoot, "third_party", "closure", "lib", "closure", "goog", "base.js")
+	baseJS := filepath.Join(repoRoot, "vendor", "embed", "closure", "lib", "closure", "goog", "base.js")
 	bootstrap := filepath.Join(filepath.Dir(baseJS), "bootstrap", "nodejs.js")
 	depsFile, err := writeDeps(baseJS, path)
 	if err != nil {

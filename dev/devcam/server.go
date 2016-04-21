@@ -393,14 +393,14 @@ func (c *serverCmd) setFullClosure() error {
 				oldsvn, err)
 		}
 		log.Println("Updating closure library...")
-		args := []string{"run", "third_party/closure/updatelibrary.go", "-verbose"}
+		args := []string{"run", "vendor/embed/closure/updatelibrary.go", "-verbose"}
 		cmd := exec.Command("go", args...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("Could not run updatelibrary.go: %v", err)
 		}
-		c.env.Set("CAMLI_DEV_CLOSURE_DIR", "third_party/closure/lib/closure")
+		c.env.Set("CAMLI_DEV_CLOSURE_DIR", "vendor/embed/closure/lib/closure")
 	}
 	return nil
 }

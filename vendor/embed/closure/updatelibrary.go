@@ -52,7 +52,7 @@ var (
 var (
 	verbose       bool
 	closureGitDir string // where we do the cloning/updating: camliRoot + tmp/closure-lib/
-	destDir       string // install dir: camliRoot + third_party/closure/lib/
+	destDir       string // install dir: camliRoot + vendor/embed/closure/lib/
 )
 
 func init() {
@@ -269,7 +269,7 @@ func setup() string {
 	if err != nil {
 		log.Fatal("Package camlistore.org not found in $GOPATH (or $GOPATH not defined).")
 	}
-	destDir = filepath.Join(camliRootPath, "third_party", "closure", "lib")
+	destDir = filepath.Join(camliRootPath, "vendor", "embed", "closure", "lib")
 	closureGitDir = filepath.Join(camliRootPath, "tmp", "closure-lib")
 	op := "update"
 	_, err = os.Stat(closureGitDir)

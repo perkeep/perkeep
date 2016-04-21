@@ -108,7 +108,7 @@ func (c *gaeCmd) checkSDK() error {
 }
 
 func (c *gaeCmd) mirrorSourceRoot(gaeAppDir string) error {
-	uiDirs := []string{"server/camlistored/ui", "third_party/closure/lib/closure", "pkg/server"}
+	uiDirs := []string{"server/camlistored/ui", "vendor/embed/closure/lib/closure", "pkg/server"}
 	for _, dir := range uiDirs {
 		oriPath := filepath.Join(camliSrcRoot, filepath.FromSlash(dir))
 		dstPath := filepath.Join(gaeAppDir, "source_root", filepath.FromSlash(dir))
