@@ -152,7 +152,7 @@ func setUIResources() {
 		log.Fatalf("Error moving UI dir %v in output dir %v: %v",
 			"/gopath/src/camlistore.org/server/camlistored/ui", path.Join(*outDir, "/server/camlistored/ui"), err)
 	}
-	filepath.Walk("/gopath/src/camlistore.org/third_party", func(path string, fi os.FileInfo, err error) error {
+	filepath.Walk("/gopath/src/camlistore.org/vendor/embed", func(path string, fi os.FileInfo, err error) error {
 		if err != nil {
 			log.Fatalf("Error stating while cleaning %s: %v", path, err)
 		}
@@ -164,10 +164,11 @@ func setUIResources() {
 		}
 		return nil
 	})
-	cmd = exec.Command("mv", "/gopath/src/camlistore.org/third_party", path.Join(*outDir, "/third_party"))
+	check(os.MkdirAll(path.Join(*outDir, "/vendor"), 0777))
+	cmd = exec.Command("mv", "/gopath/src/camlistore.org/vendor/embed", path.Join(*outDir, "/vendor/embed"))
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error moving third_party dir %v in output dir %v: %v",
-			"/gopath/src/camlistore.org/third_party", path.Join(*outDir, "/third_party"), err)
+		log.Fatalf("Error moving vendor/embed dir %v in output dir %v: %v",
+			"/gopath/src/camlistore.org/vendor/embed", path.Join(*outDir, "/vendor/embed"), err)
 	}
 }
 
