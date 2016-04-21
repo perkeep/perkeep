@@ -24,9 +24,9 @@ import (
 	"io"
 	"io/ioutil"
 	"math/rand"
-	"reflect"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -207,13 +207,8 @@ func TestPackLarge(t *testing.T) {
 		wantNumSmallBlobs(0),
 	)
 
-	// Verify we wrote the correct "w:*" meta rows.
+	// Gather the "w:*" meta rows we wrote.
 	got := map[string]string{}
-	want := map[string]string{
-		"w:" + wholeRef.String():        "17825792 2",
-		"w:" + wholeRef.String() + ":0": "sha1-9b4a3d114c059988075c87293c86ee7cbc6f4af5 37 0 16709479",
-		"w:" + wholeRef.String() + ":1": "sha1-fe6326ac6b389ffe302623e4a501bfc8c6272e8e 37 16709479 1116313",
-	}
 	if err := sorted.Foreach(pt.sto.meta, func(key, value string) error {
 		if strings.HasPrefix(key, "b:") {
 			return nil
@@ -223,8 +218,50 @@ func TestPackLarge(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("'w:*' meta rows = %v; want %v", got, want)
+
+	// Verify the two zips are correctly described.
+
+	// There should be one row to say that we have two zip, and
+	// that the overall file is 17MB:
+	keyBase := "w:" + wholeRef.String()
+	if g, w := got[keyBase], "17825792 2"; g != w {
+		t.Fatalf("meta row for key %q = %q; want %q", keyBase, g, w)
+	}
+
+	// ... (and a little helper) ...
+	parseMeta := func(n int) (zipOff, dataOff, dataLen int64) {
+		key := keyBase + ":" + strconv.Itoa(n)
+		v := got[key]
+		f := strings.Fields(v)
+		if len(f) != 4 {
+			t.Fatalf("meta for key %q = %q; expected 4 space-separated fields", key, v)
+		}
+		i64 := func(n int) int64 {
+			i, err := strconv.ParseInt(f[n], 10, 64)
+			if err != nil {
+				t.Fatalf("error parsing int64 %q in field index %d of meta key %q (value %q): %v", f[n], n, key, v, err)
+			}
+			return i
+		}
+		zipOff, dataOff, dataLen = i64(1), i64(2), i64(3)
+		return
+	}
+
+	// And then verify if we have the two "w:<wholeref>:0" and
+	// "w:<wholeref>:1" rows and that they're consistent.
+	z0, d0, l0 := parseMeta(0)
+	z1, d1, l1 := parseMeta(1)
+	if z0 != z1 {
+		t.Errorf("expected zip offset in zip0 and zip1 to match. got %d and %d", z0, z0)
+	}
+	if d0 != 0 {
+		t.Errorf("zip0's data offset = %d; want 0", d0)
+	}
+	if d1 != l0 {
+		t.Errorf("zip1 data offset %d != zip0 data length %d", d1, l0)
+	}
+	if d1+l1 != fileSize {
+		t.Errorf("zip1's offset %d + length %d = %d; want %d (fileSize)", d1, l1, d1+l1, fileSize)
 	}
 
 	// And verify we can read it back out.
