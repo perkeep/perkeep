@@ -44,7 +44,7 @@ import (
 // Corpus is an in-memory summary of all of a user's blobs' metadata.
 type Corpus struct {
 	mu sync.RWMutex
-	//mu syncutil.RWMutexTracker // when debugging
+	// mu syncdebug.RWMutexTracker // when debugging
 
 	// building is true at start while scanning all rows in the
 	// index.  While building, certain invariants (like things
@@ -108,14 +108,14 @@ type latLong struct {
 }
 
 // RLock locks the Corpus for reads. It must be used for any "Locked" methods.
-func (c *Corpus) RLock() { c.mu.RLock() }
+func (c *Corpus) RLock(ctx context.Context) { c.mu.RLock() }
 
 // RUnlock unlocks the Corpus for reads.
 func (c *Corpus) RUnlock() { c.mu.RUnlock() }
 
 // IsDeleted reports whether the provided blobref (of a permanode or claim) should be considered deleted.
-func (c *Corpus) IsDeleted(br blob.Ref) bool {
-	c.RLock()
+func (c *Corpus) IsDeleted(ctx context.Context, br blob.Ref) bool {
+	c.RLock(ctx)
 	defer c.RUnlock()
 	return c.IsDeletedLocked(br)
 }

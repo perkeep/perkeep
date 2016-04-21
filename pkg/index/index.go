@@ -1393,7 +1393,7 @@ func enumerateBlobMeta(s sorted.KeyValue, cb func(camtypes.BlobMeta) error) (err
 // EnumerateBlobMeta sends all metadata about all known blobs to ch and then closes ch.
 func (x *Index) EnumerateBlobMeta(ctx context.Context, ch chan<- camtypes.BlobMeta) (err error) {
 	if x.corpus != nil {
-		x.corpus.RLock()
+		x.corpus.RLock(ctx)
 		defer x.corpus.RUnlock()
 		return x.corpus.EnumerateBlobMetaLocked(ctx, ch)
 	}

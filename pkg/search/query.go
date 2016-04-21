@@ -857,7 +857,7 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 	corpus := h.corpus
 	var unlockOnce sync.Once
 	if corpus != nil {
-		corpus.RLock()
+		corpus.RLock(ctx)
 		defer unlockOnce.Do(corpus.RUnlock)
 	}
 
@@ -943,7 +943,6 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 				return nil, errors.New("TODO: Sorting without a corpus unsupported")
 			}
 			var err error
-			corpus.RLock()
 			sort.Sort(sortSearchResultBlobs{res.Blobs, func(a, b *SearchResultBlob) bool {
 				if err != nil {
 					return false
@@ -963,7 +962,6 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 				}
 				return tb.Before(ta)
 			}})
-			corpus.RUnlock()
 			if err != nil {
 				return nil, err
 			}

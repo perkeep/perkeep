@@ -129,8 +129,9 @@ func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
 
 func TestCorpusPermanodeAttrValueLocked(t *testing.T) {
 	c, pn := newTestCorpusWithPermanode()
+	ctx := context.TODO()
 
-	c.RLock()
+	c.RLock(ctx)
 	defer c.RUnlock()
 
 	tests := []struct {
@@ -174,7 +175,8 @@ func TestCorpusPermanodeAttrValueLocked(t *testing.T) {
 func TestCorpusPermanodeHasAttrValueLocked(t *testing.T) {
 	c, pn := newTestCorpusWithPermanode()
 
-	c.RLock()
+	ctx := context.TODO()
+	c.RLock(ctx)
 	defer c.RUnlock()
 
 	tests := []struct {
@@ -294,7 +296,8 @@ func testDeletePermanodes(t *testing.T,
 	ch := make(chan camtypes.BlobMeta, 10)
 	var got []camtypes.BlobMeta
 	errc := make(chan error, 1)
-	c.RLock()
+	ctx := context.TODO()
+	c.RLock(ctx)
 	go func() { errc <- enumFunc(c, context.TODO(), ch) }()
 	for blobMeta := range ch {
 		got = append(got, blobMeta)
@@ -325,7 +328,7 @@ func testDeletePermanodes(t *testing.T,
 	want = []blob.Ref{foopn}
 	got = got[:0]
 	ch = make(chan camtypes.BlobMeta, 10)
-	c.RLock()
+	c.RLock(ctx)
 	go func() { errc <- enumFunc(c, context.TODO(), ch) }()
 	for blobMeta := range ch {
 		got = append(got, blobMeta)
@@ -347,7 +350,7 @@ func testDeletePermanodes(t *testing.T,
 	want = []blob.Ref{foopn, bazpn}
 	got = got[:0]
 	ch = make(chan camtypes.BlobMeta, 10)
-	c.RLock()
+	c.RLock(ctx)
 	go func() { errc <- enumFunc(c, context.TODO(), ch) }()
 	for blobMeta := range ch {
 		got = append(got, blobMeta)
@@ -432,7 +435,8 @@ func testEnumerateOrder(t *testing.T,
 	ch := make(chan camtypes.BlobMeta, 10)
 	var got []camtypes.BlobMeta
 	errc := make(chan error, 1)
-	c.RLock()
+	ctx := context.TODO()
+	c.RLock(ctx)
 	go func() { errc <- enumFunc(c, context.TODO(), ch) }()
 	for blobMeta := range ch {
 		got = append(got, blobMeta)
@@ -488,11 +492,12 @@ func testCacheSortedPermanodesRace(t *testing.T,
 		}
 		donec <- struct{}{}
 	}()
+	ctx := context.TODO()
 	go func() {
 		for i := 0; i < 10; i++ {
 			ch := make(chan camtypes.BlobMeta, 10)
 			errc := make(chan error, 1)
-			c.RLock()
+			c.RLock(ctx)
 			go func() { errc <- enumFunc(c, context.TODO(), ch) }()
 			for range ch {
 			}
@@ -528,7 +533,8 @@ func TestLazySortedPermanodes(t *testing.T) {
 	enum := func(reverse bool) {
 		ch := make(chan camtypes.BlobMeta, 10)
 		errc := make(chan error, 1)
-		c.RLock()
+		ctx := context.TODO()
+		c.RLock(ctx)
 		go func() { errc <- c.EnumeratePermanodesCreatedLocked(context.TODO(), ch, reverse) }()
 		for range ch {
 		}
