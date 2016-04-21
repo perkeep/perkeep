@@ -72,7 +72,6 @@ var (
 		"README":       false,
 		"server":       true,
 		"TESTS":        false,
-		"third_party":  true,
 		"TODO":         false,
 		"vendor":       true,
 		"website":      true,
