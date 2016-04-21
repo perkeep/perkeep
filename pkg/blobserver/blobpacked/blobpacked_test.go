@@ -20,6 +20,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -319,6 +320,38 @@ func TestReindex(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	validBlobKey := func(key, value string) error {
+		if !strings.HasPrefix(key, "b:") {
+			return errors.New("not a blob meta key")
+		}
+		wantRef, ok := blob.Parse(key[2:])
+		if !ok {
+			return errors.New("bogus blobref in key")
+		}
+		m, err := parseMetaRow([]byte(value))
+		if err != nil {
+			return err
+		}
+		rc, err := pt.large.SubFetch(m.largeRef, int64(m.largeOff), int64(m.size))
+		if err != nil {
+			return err
+		}
+		defer rc.Close()
+		h := wantRef.Hash()
+		n, err := io.Copy(h, rc)
+		if err != nil {
+			return err
+		}
+
+		if !wantRef.HashMatches(h) {
+			return errors.New("content doesn't match")
+		}
+		if n != int64(m.size) {
+			return errors.New("size doesn't match")
+		}
+		return nil
+	}
+
 	// check that new meta is identical to "lost" one
 	newRows := 0
 	if err := sorted.Foreach(pt.sto.meta, func(key, newValue string) error {
@@ -326,11 +359,19 @@ func TestReindex(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Could not get value for %v in old meta: %v", key, err)
 		}
-		if oldValue != newValue {
-			t.Fatalf("Reindexing error: for key %v, got %v, want %v", key, newValue, oldValue)
-		}
 		newRows++
-		return nil
+		// Exact match is fine.
+		if oldValue == newValue {
+			return nil
+		}
+		// If it differs, it should at least be correct. (blob metadata
+		// can now point to different packed zips, depending on sorting)
+		err = validBlobKey(key, newValue)
+		if err == nil {
+			return nil
+		}
+		t.Errorf("Reindexing error: for key %v: %v\n got: %q\nwant: %q", key, err, newValue, oldValue)
+		return nil // keep enumerating, regardless of errors
 	}); err != nil {
 		t.Fatal(err)
 	}
