@@ -687,8 +687,9 @@ type importer struct {
 	nodemu    sync.Mutex // guards nodeCache
 	nodeCache *Object    // or nil if unset
 
-	acctmu sync.Mutex
-	acct   map[blob.Ref]*importerAcct // key: account permanode
+	acctmu    sync.Mutex
+	acct      map[blob.Ref]*importerAcct // key: account permanode
+	allLoaded bool
 }
 
 func (im *importer) Name() string { return im.name }
@@ -808,6 +809,7 @@ func (im *importer) account(nodeRef blob.Ref) (*importerAcct, error) {
 }
 
 func (im *importer) newAccount() (*importerAcct, error) {
+
 	acct, err := im.host.NewObject()
 	if err != nil {
 		return nil, err
@@ -844,25 +846,37 @@ func (im *importer) addAccountLocked(ia *importerAcct) {
 }
 
 func (im *importer) Accounts() ([]*importerAcct, error) {
-	var accts []*importerAcct
+	im.acctmu.Lock()
+	needQuery := !im.allLoaded
+	im.acctmu.Unlock()
 
-	// TODO: cache this search. invalidate when new accounts are made.
-	res, err := im.host.search.Query(&search.SearchQuery{
-		Expression: fmt.Sprintf("attr:%s:%s attr:%s:%s",
-			attrNodeType, nodeTypeImporterAccount,
-			attrImporterType, im.name,
-		),
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, res := range res.Blobs {
-		ia, err := im.account(res.Blob)
+	if needQuery {
+		res, err := im.host.search.Query(&search.SearchQuery{
+			Expression: fmt.Sprintf("attr:%s:%s attr:%s:%s",
+				attrNodeType, nodeTypeImporterAccount,
+				attrImporterType, im.name,
+			),
+		})
 		if err != nil {
 			return nil, err
 		}
+		for _, res := range res.Blobs {
+			_, err := im.account(res.Blob) // caches account
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	im.acctmu.Lock()
+	defer im.acctmu.Unlock()
+	im.allLoaded = true
+
+	accts := make([]*importerAcct, 0, len(im.acct))
+	for _, ia := range im.acct {
 		accts = append(accts, ia)
 	}
+	sort.Sort(byImporterAccountPermanode(accts))
 	return accts, nil
 }
 
@@ -1339,3 +1353,11 @@ func (h *Host) ObjectFromRef(permanodeRef blob.Ref) (*Object, error) {
 		attr: map[string][]string(db.Permanode.Attr),
 	}, nil
 }
+
+type byImporterAccountPermanode []*importerAcct
+
+func (s byImporterAccountPermanode) Len() int { return len(s) }
+func (s byImporterAccountPermanode) Less(i, j int) bool {
+	return s[i].acct.PermanodeRef().Less(s[j].acct.PermanodeRef())
+}
+func (s byImporterAccountPermanode) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
