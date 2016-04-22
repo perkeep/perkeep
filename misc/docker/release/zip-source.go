@@ -1,3 +1,5 @@
+// +build ignore
+
 /*
 Copyright 2016 The Camlistore Authors
 
