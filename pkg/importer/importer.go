@@ -1318,7 +1318,8 @@ func (o *Object) ChildPathObjectOrFunc(path string, fn func() (*Object, error)) 
 
 // ObjectFromRef returns the object given by the named permanode
 func (h *Host) ObjectFromRef(permanodeRef blob.Ref) (*Object, error) {
-	res, err := h.search.Describe(&search.DescribeRequest{
+	ctx := context.TODO()
+	res, err := h.search.Describe(ctx, &search.DescribeRequest{
 		BlobRef: permanodeRef,
 		Depth:   1,
 	})

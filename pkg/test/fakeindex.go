@@ -35,7 +35,7 @@ var ClockOrigin = time.Unix(1322443956, 123456)
 // to controls the results, such as AddMeta, AddClaim,
 // AddSignerAttrValue.
 type FakeIndex struct {
-	lk              sync.Mutex
+	mu              sync.RWMutex
 	meta            map[blob.Ref]camtypes.BlobMeta
 	claims          map[blob.Ref][]camtypes.Claim // permanode -> claims
 	signerAttrValue map[string]blob.Ref           // "<signer>\0<attr>\0<value>" -> blobref
@@ -44,6 +44,11 @@ type FakeIndex struct {
 	cllk  sync.RWMutex
 	clock time.Time
 }
+
+func (x *FakeIndex) Lock()    { x.mu.Lock() }
+func (x *FakeIndex) Unlock()  { x.mu.Unlock() }
+func (x *FakeIndex) RLock()   { x.mu.RLock() }
+func (x *FakeIndex) RUnlock() { x.mu.RUnlock() }
 
 func NewFakeIndex() *FakeIndex {
 	return &FakeIndex{
@@ -73,8 +78,6 @@ func (fi *FakeIndex) LastTime() time.Time {
 }
 
 func (fi *FakeIndex) AddMeta(br blob.Ref, camliType string, size uint32) {
-	fi.lk.Lock()
-	defer fi.lk.Unlock()
 	fi.meta[br] = camtypes.BlobMeta{
 		Ref:       br,
 		Size:      size,
@@ -83,8 +86,6 @@ func (fi *FakeIndex) AddMeta(br blob.Ref, camliType string, size uint32) {
 }
 
 func (fi *FakeIndex) AddClaim(owner, permanode blob.Ref, claimType, attr, value string) {
-	fi.lk.Lock()
-	defer fi.lk.Unlock()
 	date := fi.nextDate()
 
 	claim := camtypes.Claim{
@@ -109,8 +110,6 @@ func (fi *FakeIndex) AddClaim(owner, permanode blob.Ref, claimType, attr, value 
 }
 
 func (fi *FakeIndex) AddSignerAttrValue(signer blob.Ref, attr, val string, latest blob.Ref) {
-	fi.lk.Lock()
-	defer fi.lk.Unlock()
 	fi.signerAttrValue[fmt.Sprintf("%s\x00%s\x00%s", signer, attr, val)] = latest
 }
 
@@ -118,24 +117,22 @@ func (fi *FakeIndex) AddSignerAttrValue(signer blob.Ref, attr, val string, lates
 // Interface implementation
 //
 
-func (fi *FakeIndex) KeyId(blob.Ref) (string, error) {
+func (fi *FakeIndex) KeyId(context.Context, blob.Ref) (string, error) {
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) GetRecentPermanodes(dest chan<- camtypes.RecentPermanode, owner blob.Ref, limit int, before time.Time) error {
+func (fi *FakeIndex) GetRecentPermanodes(ctx context.Context, dest chan<- camtypes.RecentPermanode, owner blob.Ref, limit int, before time.Time) error {
 	panic("NOIMPL")
 }
 
 // TODO(mpl): write real tests
-func (fi *FakeIndex) SearchPermanodesWithAttr(dest chan<- blob.Ref, request *camtypes.PermanodeByAttrRequest) error {
+func (fi *FakeIndex) SearchPermanodesWithAttr(ctx context.Context, dest chan<- blob.Ref, request *camtypes.PermanodeByAttrRequest) error {
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
+func (fi *FakeIndex) AppendClaims(ctx context.Context, dst []camtypes.Claim, permaNode blob.Ref,
 	signerFilter blob.Ref,
 	attrFilter string) ([]camtypes.Claim, error) {
-	fi.lk.Lock()
-	defer fi.lk.Unlock()
 
 	for _, cl := range fi.claims[permaNode] {
 		if signerFilter.Valid() && cl.Signer != signerFilter {
@@ -149,9 +146,7 @@ func (fi *FakeIndex) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 	return dst, nil
 }
 
-func (fi *FakeIndex) GetBlobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
-	fi.lk.Lock()
-	defer fi.lk.Unlock()
+func (fi *FakeIndex) GetBlobMeta(ctx context.Context, br blob.Ref) (camtypes.BlobMeta, error) {
 	bm, ok := fi.meta[br]
 	if !ok {
 		return camtypes.BlobMeta{}, os.ErrNotExist
@@ -163,15 +158,15 @@ func (fi *FakeIndex) ExistingFileSchemas(bytesRef blob.Ref) ([]blob.Ref, error) 
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) GetFileInfo(fileRef blob.Ref) (camtypes.FileInfo, error) {
+func (fi *FakeIndex) GetFileInfo(ctx context.Context, fileRef blob.Ref) (camtypes.FileInfo, error) {
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) GetImageInfo(fileRef blob.Ref) (camtypes.ImageInfo, error) {
+func (fi *FakeIndex) GetImageInfo(ctx context.Context, fileRef blob.Ref) (camtypes.ImageInfo, error) {
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) GetMediaTags(fileRef blob.Ref) (tags map[string]string, err error) {
+func (fi *FakeIndex) GetMediaTags(ctx context.Context, fileRef blob.Ref) (tags map[string]string, err error) {
 	panic("NOIMPL")
 }
 
@@ -179,29 +174,25 @@ func (fi *FakeIndex) GetDirMembers(dir blob.Ref, dest chan<- blob.Ref, limit int
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) PermanodeOfSignerAttrValue(signer blob.Ref, attr, val string) (blob.Ref, error) {
-	fi.lk.Lock()
-	defer fi.lk.Unlock()
+func (fi *FakeIndex) PermanodeOfSignerAttrValue(ctx context.Context, signer blob.Ref, attr, val string) (blob.Ref, error) {
 	if b, ok := fi.signerAttrValue[fmt.Sprintf("%s\x00%s\x00%s", signer, attr, val)]; ok {
 		return b, nil
 	}
 	return blob.Ref{}, os.ErrNotExist
 }
 
-func (fi *FakeIndex) PathsOfSignerTarget(signer, target blob.Ref) ([]*camtypes.Path, error) {
+func (fi *FakeIndex) PathsOfSignerTarget(ctx context.Context, signer, target blob.Ref) ([]*camtypes.Path, error) {
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) PathsLookup(signer, base blob.Ref, suffix string) ([]*camtypes.Path, error) {
+func (fi *FakeIndex) PathsLookup(ctx context.Context, signer, base blob.Ref, suffix string) ([]*camtypes.Path, error) {
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) PathLookup(signer, base blob.Ref, suffix string, at time.Time) (*camtypes.Path, error) {
+func (fi *FakeIndex) PathLookup(ctx context.Context, signer, base blob.Ref, suffix string, at time.Time) (*camtypes.Path, error) {
 	if !at.IsZero() {
 		panic("PathLookup with non-zero 'at' time not supported")
 	}
-	fi.lk.Lock()
-	defer fi.lk.Unlock()
 	if p, ok := fi.path[fmt.Sprintf("%s\x00%s\x00%s", signer, base, suffix)]; ok {
 		return p, nil
 	}

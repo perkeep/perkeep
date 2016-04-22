@@ -40,13 +40,12 @@ import (
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
-
 	_ "github.com/nf/cr2"
-
 	"go4.org/readerutil"
 	"go4.org/syncutil"
 	"go4.org/syncutil/singleflight"
 	"go4.org/types"
+	"golang.org/x/net/context"
 )
 
 const imageDebug = false
@@ -230,7 +229,8 @@ func imageConfigFromReader(r io.Reader) (io.Reader, image.Config, error) {
 }
 
 func (ih *ImageHandler) newFileReader(fileRef blob.Ref) (io.ReadCloser, error) {
-	fi, ok := fileInfoPacked(ih.Search, ih.Fetcher, nil, fileRef)
+	ctx := context.TODO()
+	fi, ok := fileInfoPacked(ctx, ih.Search, ih.Fetcher, nil, fileRef)
 	if debugPack {
 		log.Printf("pkg/server/image.go: fileInfoPacked: ok=%v, %+v", ok, fi)
 	}

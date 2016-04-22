@@ -47,6 +47,7 @@ import (
 	"camlistore.org/pkg/types/camtypes"
 
 	"go4.org/syncutil"
+	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
 )
 
@@ -542,7 +543,8 @@ func (c *Client) GetPermanodesWithAttr(req *search.WithAttrRequest) (*search.Wit
 	return res, nil
 }
 
-func (c *Client) Describe(req *search.DescribeRequest) (*search.DescribeResponse, error) {
+func (c *Client) Describe(ctx context.Context, req *search.DescribeRequest) (*search.DescribeResponse, error) {
+	// TODO: use ctx (wait for Go 1.7?)
 	sr, err := c.SearchRoot()
 	if err != nil {
 		return nil, err

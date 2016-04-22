@@ -42,10 +42,10 @@ import (
 )
 
 // Corpus is an in-memory summary of all of a user's blobs' metadata.
+//
+// A Corpus is not safe for concurrent use. Callers should use Lock or RLock
+// on the parent index instead.
 type Corpus struct {
-	mu sync.RWMutex
-	// mu syncdebug.RWMutexTracker // when debugging
-
 	// building is true at start while scanning all rows in the
 	// index.  While building, certain invariants (like things
 	// being sorted) can be temporarily violated and fixed at the
@@ -107,23 +107,10 @@ type latLong struct {
 	lat, long float64
 }
 
-// RLock locks the Corpus for reads. It must be used for any "Locked" methods.
-func (c *Corpus) RLock(ctx context.Context) { c.mu.RLock() }
-
-// RUnlock unlocks the Corpus for reads.
-func (c *Corpus) RUnlock() { c.mu.RUnlock() }
-
 // IsDeleted reports whether the provided blobref (of a permanode or claim) should be considered deleted.
-func (c *Corpus) IsDeleted(ctx context.Context, br blob.Ref) bool {
-	c.RLock(ctx)
-	defer c.RUnlock()
-	return c.IsDeletedLocked(br)
-}
-
-// IsDeletedLocked is the version of IsDeleted that assumes the Corpus is already locked with RLock.
-func (c *Corpus) IsDeletedLocked(br blob.Ref) bool {
+func (c *Corpus) IsDeleted(br blob.Ref) bool {
 	for _, v := range c.deletes[br] {
-		if !c.IsDeletedLocked(v.deleter) {
+		if !c.IsDeleted(v.deleter) {
 			return true
 		}
 	}
@@ -218,11 +205,11 @@ func newCorpus() *Corpus {
 	}
 	c.permanodesByModtime = &lazySortedPermanodes{
 		c:      c,
-		pnTime: c.PermanodeModtimeLocked,
+		pnTime: c.PermanodeModtime,
 	}
 	c.permanodesByTime = &lazySortedPermanodes{
 		c:      c,
-		pnTime: c.PermanodeAnyTimeLocked,
+		pnTime: c.PermanodeAnyTime,
 	}
 	return c
 }
@@ -317,10 +304,12 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 		log.Printf("Slurping corpus to memory from index... (1/%d: meta rows)", len(slurpPrefixes))
 	}
 
+	scanmu := new(sync.Mutex)
+
 	// We do the "meta" rows first, before the prefixes below, because it
 	// populates the blobs map (used for blobref interning) and the camBlobs
 	// map (used for hinting the size of other maps)
-	if err := c.scanPrefix(s, "meta:"); err != nil {
+	if err := c.scanPrefix(scanmu, s, "meta:"); err != nil {
 		return err
 	}
 	c.files = make(map[blob.Ref]camtypes.FileInfo, len(c.camBlobs["file"]))
@@ -334,7 +323,7 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 				prefix[:len(prefix)-1])
 		}
 		prefix := prefix
-		grp.Go(func() error { return c.scanPrefix(s, prefix) })
+		grp.Go(func() error { return c.scanPrefix(scanmu, s, prefix) })
 	}
 	if err := grp.Err(); err != nil {
 		return err
@@ -372,7 +361,7 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 			float64(memUsed)/(1<<20),
 			len(c.blobs),
 			float64(c.sumBlobBytes)/(1<<30),
-			c.numSchemaBlobsLocked(),
+			c.numSchemaBlobs(),
 			len(c.permanodes),
 			len(c.files),
 			len(c.imageInfo))
@@ -402,14 +391,14 @@ func (c *Corpus) initDeletes(s sorted.KeyValue) (err error) {
 	return err
 }
 
-func (c *Corpus) numSchemaBlobsLocked() (n int64) {
+func (c *Corpus) numSchemaBlobs() (n int64) {
 	for _, m := range c.camBlobs {
 		n += int64(len(m))
 	}
 	return
 }
 
-func (c *Corpus) scanPrefix(s sorted.KeyValue, prefix string) (err error) {
+func (c *Corpus) scanPrefix(mu *sync.Mutex, s sorted.KeyValue, prefix string) (err error) {
 	typeKey := typeOfKey(prefix)
 	fn, ok := corpusMergeFunc[typeKey]
 	if !ok {
@@ -422,10 +411,8 @@ func (c *Corpus) scanPrefix(s sorted.KeyValue, prefix string) (err error) {
 	for it.Next() {
 		n++
 		if n == 1 {
-			// Let the query be sent off and responses start flowing in before
-			// we take the lock. And if no rows: no lock.
-			c.mu.Lock()
-			defer c.mu.Unlock()
+			mu.Lock()
+			defer mu.Unlock()
 		}
 		if err := fn(c, it.KeyBytes(), it.ValueBytes()); err != nil {
 			return err
@@ -438,9 +425,7 @@ func (c *Corpus) scanPrefix(s sorted.KeyValue, prefix string) (err error) {
 	return nil
 }
 
-func (c *Corpus) addBlob(br blob.Ref, mm *mutationMap) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *Corpus) addBlob(ctx context.Context, br blob.Ref, mm *mutationMap) error {
 	if _, dup := c.blobs[br]; dup {
 		return nil
 	}
@@ -723,14 +708,12 @@ func (c *Corpus) br(br blob.Ref) blob.Ref {
 
 // *********** Reading from the corpus
 
-// EnumerateCamliBlobsLocked sends just camlistore meta blobs to ch.
-//
-// The Corpus must already be locked with RLock.
+// EnumerateCamliBlobs sends just camlistore meta blobs to ch.
 //
 // If camType is empty, all camlistore blobs are sent, otherwise it specifies
 // the camliType to send.
 // ch is closed at the end. The err will either be nil or context.Canceled.
-func (c *Corpus) EnumerateCamliBlobsLocked(ctx context.Context, camType string, ch chan<- camtypes.BlobMeta) error {
+func (c *Corpus) EnumerateCamliBlobs(ctx context.Context, camType string, ch chan<- camtypes.BlobMeta) error {
 	defer close(ch)
 	for t, m := range c.camBlobs {
 		if camType != "" && camType != t {
@@ -747,10 +730,8 @@ func (c *Corpus) EnumerateCamliBlobsLocked(ctx context.Context, camType string, 
 	return nil
 }
 
-// EnumerateBlobMetaLocked sends all known blobs to ch, or until the context is canceled.
-//
-// The Corpus must already be locked with RLock.
-func (c *Corpus) EnumerateBlobMetaLocked(ctx context.Context, ch chan<- camtypes.BlobMeta) error {
+// EnumerateBlobMeta sends all known blobs to ch, or until the context is canceled.
+func (c *Corpus) EnumerateBlobMeta(ctx context.Context, ch chan<- camtypes.BlobMeta) error {
 	defer close(ch)
 	for _, bm := range c.blobs {
 		select {
@@ -799,7 +780,6 @@ func reversedCopy(original []pnAndTime) []pnAndTime {
 	return reversed
 }
 
-// The Corpus must already be locked with RLock.
 func (lsp *lazySortedPermanodes) sorted(reverse bool) []pnAndTime {
 	lsp.mu.Lock()
 	defer lsp.mu.Unlock()
@@ -831,7 +811,7 @@ func (lsp *lazySortedPermanodes) sorted(reverse bool) []pnAndTime {
 	lsp.sortedCacheReversed = nil
 	pns := make([]pnAndTime, 0, len(lsp.c.permanodes))
 	for pn := range lsp.c.permanodes {
-		if lsp.c.IsDeletedLocked(pn) {
+		if lsp.c.IsDeleted(pn) {
 			continue
 		}
 		if pt, ok := lsp.pnTime(pn); ok {
@@ -850,7 +830,6 @@ func (lsp *lazySortedPermanodes) sorted(reverse bool) []pnAndTime {
 	return pns
 }
 
-// corpus must be (read) locked.
 func (c *Corpus) sendPermanodes(ctx context.Context, ch chan<- camtypes.BlobMeta, pns []pnAndTime) error {
 	for _, cand := range pns {
 		bm := c.blobs[cand.pn]
@@ -869,32 +848,21 @@ func (c *Corpus) sendPermanodes(ctx context.Context, ch chan<- camtypes.BlobMeta
 
 // EnumeratePermanodesLastModified sends all permanodes, sorted by most recently modified first, to ch,
 // or until ctx is done.
-//
-// The Corpus must already be locked with RLock.
-func (c *Corpus) EnumeratePermanodesLastModifiedLocked(ctx context.Context, ch chan<- camtypes.BlobMeta) error {
+func (c *Corpus) EnumeratePermanodesLastModified(ctx context.Context, ch chan<- camtypes.BlobMeta) error {
 	defer close(ch)
-
 	return c.sendPermanodes(ctx, ch, c.permanodesByModtime.sorted(true))
 }
 
-// EnumeratePermanodesCreatedLocked sends all permanodes to ch, or until ctx is done.
+// EnumeratePermanodesCreated sends all permanodes to ch, or until ctx is done.
 // They are sorted using the contents creation date if any, the permanode modtime
 // otherwise, and in the order specified by newestFirst.
-//
-// The Corpus must already be locked with RLock.
-func (c *Corpus) EnumeratePermanodesCreatedLocked(ctx context.Context, ch chan<- camtypes.BlobMeta, newestFirst bool) error {
+func (c *Corpus) EnumeratePermanodesCreated(ctx context.Context, ch chan<- camtypes.BlobMeta, newestFirst bool) error {
 	defer close(ch)
 
 	return c.sendPermanodes(ctx, ch, c.permanodesByTime.sorted(newestFirst))
 }
 
-func (c *Corpus) GetBlobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.GetBlobMetaLocked(br)
-}
-
-func (c *Corpus) GetBlobMetaLocked(br blob.Ref) (camtypes.BlobMeta, error) {
+func (c *Corpus) GetBlobMeta(ctx context.Context, br blob.Ref) (camtypes.BlobMeta, error) {
 	bm, ok := c.blobs[br]
 	if !ok {
 		return camtypes.BlobMeta{}, os.ErrNotExist
@@ -902,17 +870,15 @@ func (c *Corpus) GetBlobMetaLocked(br blob.Ref) (camtypes.BlobMeta, error) {
 	return *bm, nil
 }
 
-func (c *Corpus) KeyId(signer blob.Ref) (string, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+func (c *Corpus) KeyId(ctx context.Context, signer blob.Ref) (string, error) {
 	if v, ok := c.keyId[signer]; ok {
 		return v, nil
 	}
 	return "", sorted.ErrNotFound
 }
 
-func (c *Corpus) pnTimeAttrLocked(pn blob.Ref, attr string) (t time.Time, ok bool) {
-	if v := c.PermanodeAttrValueLocked(pn, attr, time.Time{}, blob.Ref{}); v != "" {
+func (c *Corpus) pnTimeAttr(pn blob.Ref, attr string) (t time.Time, ok bool) {
+	if v := c.PermanodeAttrValue(pn, attr, time.Time{}, blob.Ref{}); v != "" {
 		if t, err := time.Parse(time.RFC3339, v); err == nil {
 			return t, true
 		}
@@ -920,8 +886,8 @@ func (c *Corpus) pnTimeAttrLocked(pn blob.Ref, attr string) (t time.Time, ok boo
 	return
 }
 
-// PermanodeTimeLocked returns the time of the content in permanode.
-func (c *Corpus) PermanodeTimeLocked(pn blob.Ref) (t time.Time, ok bool) {
+// PermanodeTime returns the time of the content in permanode.
+func (c *Corpus) PermanodeTime(pn blob.Ref) (t time.Time, ok bool) {
 	// TODO(bradfitz): keep this time property cached on the permanode / files
 	// TODO(bradfitz): finish implmenting all these
 
@@ -935,14 +901,14 @@ func (c *Corpus) PermanodeTimeLocked(pn blob.Ref) (t time.Time, ok bool) {
 	// -- File modtime
 	// -- camliContent claim set time
 
-	if t, ok = c.pnTimeAttrLocked(pn, nodeattr.StartDate); ok {
+	if t, ok = c.pnTimeAttr(pn, nodeattr.StartDate); ok {
 		return
 	}
-	if t, ok = c.pnTimeAttrLocked(pn, nodeattr.DateCreated); ok {
+	if t, ok = c.pnTimeAttr(pn, nodeattr.DateCreated); ok {
 		return
 	}
 	var fi camtypes.FileInfo
-	ccRef, ccTime, ok := c.pnCamliContentLocked(pn)
+	ccRef, ccTime, ok := c.pnCamliContent(pn)
 	if ok {
 		fi, _ = c.files[ccRef]
 	}
@@ -950,10 +916,10 @@ func (c *Corpus) PermanodeTimeLocked(pn blob.Ref) (t time.Time, ok bool) {
 		return time.Time(*fi.Time), true
 	}
 
-	if t, ok = c.pnTimeAttrLocked(pn, nodeattr.DatePublished); ok {
+	if t, ok = c.pnTimeAttr(pn, nodeattr.DatePublished); ok {
 		return
 	}
-	if t, ok = c.pnTimeAttrLocked(pn, nodeattr.DateModified); ok {
+	if t, ok = c.pnTimeAttr(pn, nodeattr.DateModified); ok {
 		return
 	}
 	if fi.ModTime != nil {
@@ -965,16 +931,16 @@ func (c *Corpus) PermanodeTimeLocked(pn blob.Ref) (t time.Time, ok bool) {
 	return time.Time{}, false
 }
 
-// PermanodeAnyTimeLocked returns the time that best qualifies the permanode.
+// PermanodeAnyTime returns the time that best qualifies the permanode.
 // It tries content-specific times first, the permanode modtime otherwise.
-func (c *Corpus) PermanodeAnyTimeLocked(pn blob.Ref) (t time.Time, ok bool) {
-	if t, ok := c.PermanodeTimeLocked(pn); ok {
+func (c *Corpus) PermanodeAnyTime(pn blob.Ref) (t time.Time, ok bool) {
+	if t, ok := c.PermanodeTime(pn); ok {
 		return t, ok
 	}
-	return c.PermanodeModtimeLocked(pn)
+	return c.PermanodeModtime(pn)
 }
 
-func (c *Corpus) pnCamliContentLocked(pn blob.Ref) (cc blob.Ref, t time.Time, ok bool) {
+func (c *Corpus) pnCamliContent(pn blob.Ref) (cc blob.Ref, t time.Time, ok bool) {
 	// TODO(bradfitz): keep this property cached
 	pm, ok := c.permanodes[pn]
 	if !ok {
@@ -1006,15 +972,6 @@ func (c *Corpus) pnCamliContentLocked(pn blob.Ref) (cc blob.Ref, t time.Time, ok
 // claim date nor the date of the delete claim affect the modtime of
 // the permanode.
 func (c *Corpus) PermanodeModtime(pn blob.Ref) (t time.Time, ok bool) {
-	// TODO: figure out behavior wrt mutations by different people
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.PermanodeModtimeLocked(pn)
-}
-
-// PermanodeModtimeLocked is like PermanodeModtime but for when the Corpus is
-// already locked via RLock.
-func (c *Corpus) PermanodeModtimeLocked(pn blob.Ref) (t time.Time, ok bool) {
 	pm, ok := c.permanodes[pn]
 	if !ok {
 		return
@@ -1025,7 +982,7 @@ func (c *Corpus) PermanodeModtimeLocked(pn blob.Ref) (t time.Time, ok bool) {
 	// itself. Even though the permanode blob sometimes has the
 	// GPG signature time, we intentionally ignore it.
 	for _, cl := range pm.Claims {
-		if c.IsDeletedLocked(cl.BlobRef) {
+		if c.IsDeleted(cl.BlobRef) {
 			continue
 		}
 		if cl.Date.After(t) {
@@ -1035,22 +992,8 @@ func (c *Corpus) PermanodeModtimeLocked(pn blob.Ref) (t time.Time, ok bool) {
 	return t, !t.IsZero()
 }
 
-// AppendPermanodeAttrValues appends to dst all the values for the attribute
-// attr set on permaNode.
-// signerFilter is optional.
-// dst must start with length 0 (laziness, mostly)
-func (c *Corpus) AppendPermanodeAttrValues(dst []string,
-	permaNode blob.Ref,
-	attr string,
-	at time.Time,
-	signerFilter blob.Ref) []string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.AppendPermanodeAttrValuesLocked(dst, permaNode, attr, at, signerFilter)
-}
-
-// PermanodeAttrValueLocked returns a single-valued attribute or "".
-func (c *Corpus) PermanodeAttrValueLocked(permaNode blob.Ref,
+// PermanodeAttrValue returns a single-valued attribute or "".
+func (c *Corpus) PermanodeAttrValue(permaNode blob.Ref,
 	attr string,
 	at time.Time,
 	signerFilter blob.Ref) string {
@@ -1102,7 +1045,11 @@ func (c *Corpus) PermanodeAttrValueLocked(permaNode blob.Ref,
 	return ""
 }
 
-func (c *Corpus) AppendPermanodeAttrValuesLocked(dst []string,
+// AppendPermanodeAttrValues appends to dst all the values for the attribute
+// attr set on permaNode.
+// signerFilter is optional.
+// dst must start with length 0 (laziness, mostly)
+func (c *Corpus) AppendPermanodeAttrValues(dst []string,
 	permaNode blob.Ref,
 	attr string,
 	at time.Time,
@@ -1150,17 +1097,15 @@ func (c *Corpus) AppendPermanodeAttrValuesLocked(dst []string,
 	return dst
 }
 
-func (c *Corpus) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
+func (c *Corpus) AppendClaims(ctx context.Context, dst []camtypes.Claim, permaNode blob.Ref,
 	signerFilter blob.Ref,
 	attrFilter string) ([]camtypes.Claim, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 	pm, ok := c.permanodes[permaNode]
 	if !ok {
 		return nil, nil
 	}
 	for _, cl := range pm.Claims {
-		if c.IsDeletedLocked(cl.BlobRef) {
+		if c.IsDeleted(cl.BlobRef) {
 			continue
 		}
 		if signerFilter.Valid() && cl.Signer != signerFilter {
@@ -1174,13 +1119,7 @@ func (c *Corpus) AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
 	return dst, nil
 }
 
-func (c *Corpus) GetFileInfo(fileRef blob.Ref) (fi camtypes.FileInfo, err error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.GetFileInfoLocked(fileRef)
-}
-
-func (c *Corpus) GetFileInfoLocked(fileRef blob.Ref) (fi camtypes.FileInfo, err error) {
+func (c *Corpus) GetFileInfo(ctx context.Context, fileRef blob.Ref) (fi camtypes.FileInfo, err error) {
 	fi, ok := c.files[fileRef]
 	if !ok {
 		err = os.ErrNotExist
@@ -1188,13 +1127,7 @@ func (c *Corpus) GetFileInfoLocked(fileRef blob.Ref) (fi camtypes.FileInfo, err 
 	return
 }
 
-func (c *Corpus) GetImageInfo(fileRef blob.Ref) (ii camtypes.ImageInfo, err error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.GetImageInfoLocked(fileRef)
-}
-
-func (c *Corpus) GetImageInfoLocked(fileRef blob.Ref) (ii camtypes.ImageInfo, err error) {
+func (c *Corpus) GetImageInfo(ctx context.Context, fileRef blob.Ref) (ii camtypes.ImageInfo, err error) {
 	ii, ok := c.imageInfo[fileRef]
 	if !ok {
 		err = os.ErrNotExist
@@ -1202,13 +1135,7 @@ func (c *Corpus) GetImageInfoLocked(fileRef blob.Ref) (ii camtypes.ImageInfo, er
 	return
 }
 
-func (c *Corpus) GetMediaTags(fileRef blob.Ref) (map[string]string, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.GetMediaTagsLocked(fileRef)
-}
-
-func (c *Corpus) GetMediaTagsLocked(fileRef blob.Ref) (map[string]string, error) {
+func (c *Corpus) GetMediaTags(ctx context.Context, fileRef blob.Ref) (map[string]string, error) {
 	wholeRef, ok := c.fileWholeRef[fileRef]
 	if !ok {
 		return nil, os.ErrNotExist
@@ -1220,12 +1147,12 @@ func (c *Corpus) GetMediaTagsLocked(fileRef blob.Ref) (map[string]string, error)
 	return tags, nil
 }
 
-func (c *Corpus) GetWholeRefLocked(fileRef blob.Ref) (wholeRef blob.Ref, ok bool) {
+func (c *Corpus) GetWholeRef(ctx context.Context, fileRef blob.Ref) (wholeRef blob.Ref, ok bool) {
 	wholeRef, ok = c.fileWholeRef[fileRef]
 	return
 }
 
-func (c *Corpus) FileLatLongLocked(fileRef blob.Ref) (lat, long float64, ok bool) {
+func (c *Corpus) FileLatLong(fileRef blob.Ref) (lat, long float64, ok bool) {
 	wholeRef, ok := c.fileWholeRef[fileRef]
 	if !ok {
 		return
@@ -1238,27 +1165,27 @@ func (c *Corpus) FileLatLongLocked(fileRef blob.Ref) (lat, long float64, ok bool
 }
 
 // zero value of at means current
-func (c *Corpus) PermanodeLatLongLocked(pn blob.Ref, at time.Time) (lat, long float64, ok bool) {
-	nodeType := c.PermanodeAttrValueLocked(pn, "camliNodeType", at, blob.Ref{})
+func (c *Corpus) PermanodeLatLong(pn blob.Ref, at time.Time) (lat, long float64, ok bool) {
+	nodeType := c.PermanodeAttrValue(pn, "camliNodeType", at, blob.Ref{})
 	if nodeType == "" {
 		return
 	}
 	// TODO: make these pluggable, e.g. registered from an importer or something?
 	// How will that work when they're out-of-process?
 	if nodeType == "foursquare.com:checkin" {
-		venuePn, hasVenue := blob.Parse(c.PermanodeAttrValueLocked(pn, "foursquareVenuePermanode", at, blob.Ref{}))
+		venuePn, hasVenue := blob.Parse(c.PermanodeAttrValue(pn, "foursquareVenuePermanode", at, blob.Ref{}))
 		if !hasVenue {
 			return
 		}
-		return c.PermanodeLatLongLocked(venuePn, at)
+		return c.PermanodeLatLong(venuePn, at)
 	}
 	if nodeType == "foursquare.com:venue" || nodeType == "twitter.com:tweet" {
 		var err error
-		lat, err = strconv.ParseFloat(c.PermanodeAttrValueLocked(pn, "latitude", at, blob.Ref{}), 64)
+		lat, err = strconv.ParseFloat(c.PermanodeAttrValue(pn, "latitude", at, blob.Ref{}), 64)
 		if err != nil {
 			return
 		}
-		long, err = strconv.ParseFloat(c.PermanodeAttrValueLocked(pn, "longitude", at, blob.Ref{}), 64)
+		long, err = strconv.ParseFloat(c.PermanodeAttrValue(pn, "longitude", at, blob.Ref{}), 64)
 		if err != nil {
 			return
 		}
@@ -1267,12 +1194,12 @@ func (c *Corpus) PermanodeLatLongLocked(pn blob.Ref, at time.Time) (lat, long fl
 	return
 }
 
-// ForeachClaimLocked calls fn for each claim of permaNode.
+// ForeachClaim calls fn for each claim of permaNode.
 // If at is zero, all claims are yielded.
 // If at is non-zero, claims after that point are skipped.
 // If fn returns false, iteration ends.
 // Iteration is in an undefined order.
-func (c *Corpus) ForeachClaimLocked(permaNode blob.Ref, at time.Time, fn func(*camtypes.Claim) bool) {
+func (c *Corpus) ForeachClaim(permaNode blob.Ref, at time.Time, fn func(*camtypes.Claim) bool) {
 	pm, ok := c.permanodes[permaNode]
 	if !ok {
 		return
@@ -1287,12 +1214,12 @@ func (c *Corpus) ForeachClaimLocked(permaNode blob.Ref, at time.Time, fn func(*c
 	}
 }
 
-// ForeachClaimBackLocked calls fn for each claim with a value referencing br.
+// ForeachClaimBack calls fn for each claim with a value referencing br.
 // If at is zero, all claims are yielded.
 // If at is non-zero, claims after that point are skipped.
 // If fn returns false, iteration ends.
 // Iteration is in an undefined order.
-func (c *Corpus) ForeachClaimBackLocked(value blob.Ref, at time.Time, fn func(*camtypes.Claim) bool) {
+func (c *Corpus) ForeachClaimBack(value blob.Ref, at time.Time, fn func(*camtypes.Claim) bool) {
 	for _, cl := range c.claimBack[value] {
 		if !at.IsZero() && cl.Date.After(at) {
 			continue
@@ -1303,10 +1230,10 @@ func (c *Corpus) ForeachClaimBackLocked(value blob.Ref, at time.Time, fn func(*c
 	}
 }
 
-// PermanodeHasAttrValueLocked reports whether the permanode pn at
+// PermanodeHasAttrValue reports whether the permanode pn at
 // time at (zero means now) has the given attribute with the given
 // value. If the attribute is multi-valued, any may match.
-func (c *Corpus) PermanodeHasAttrValueLocked(pn blob.Ref, at time.Time, attr, val string) bool {
+func (c *Corpus) PermanodeHasAttrValue(pn blob.Ref, at time.Time, attr, val string) bool {
 	pm, ok := c.permanodes[pn]
 	if !ok {
 		return false

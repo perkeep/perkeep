@@ -25,12 +25,11 @@ import (
 	"sync"
 	"time"
 
+	"bazil.org/fuse"
+	"bazil.org/fuse/fs"
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
-
-	"bazil.org/fuse"
-	"bazil.org/fuse/fs"
 	"go4.org/syncutil"
 	"golang.org/x/net/context"
 )
@@ -78,7 +77,7 @@ func (n *rootsDir) Attr(ctx context.Context, a *fuse.Attr) error {
 func (n *rootsDir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if err := n.condRefresh(); err != nil {
+	if err := n.condRefresh(ctx); err != nil {
 		return nil, fuse.EIO
 	}
 	var ents []fuse.Dirent
@@ -96,7 +95,7 @@ func (n *rootsDir) Remove(ctx context.Context, req *fuse.RemoveRequest) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	if err := n.condRefresh(); err != nil {
+	if err := n.condRefresh(ctx); err != nil {
 		return err
 	}
 	br := n.m[req.Name]
@@ -139,7 +138,7 @@ func (n *rootsDir) Rename(ctx context.Context, req *fuse.RenameRequest, newDir f
 	// Don't allow renames if the root contains content.  Rename
 	// is mostly implemented to make GUIs that create directories
 	// before asking for the directory name.
-	res, err := n.fs.client.Describe(&search.DescribeRequest{BlobRef: target})
+	res, err := n.fs.client.Describe(ctx, &search.DescribeRequest{BlobRef: target})
 	if err != nil {
 		log.Println("rootsDir.Rename:", err)
 		return fuse.EIO
@@ -187,7 +186,7 @@ func (n *rootsDir) Lookup(ctx context.Context, name string) (fs.Node, error) {
 	log.Printf("fs.roots: Lookup(%q)", name)
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if err := n.condRefresh(); err != nil {
+	if err := n.condRefresh(ctx); err != nil {
 		return nil, err
 	}
 	br := n.m[name]
@@ -216,7 +215,7 @@ func (n *rootsDir) Lookup(ctx context.Context, name string) (fs.Node, error) {
 }
 
 // requires n.mu is held
-func (n *rootsDir) condRefresh() error {
+func (n *rootsDir) condRefresh(ctx context.Context) error {
 	if n.lastQuery.After(time.Now().Add(-refreshTime)) {
 		return nil
 	}
@@ -255,7 +254,7 @@ func (n *rootsDir) condRefresh() error {
 		return nil
 	}
 
-	dres, err := n.fs.client.Describe(dr)
+	dres, err := n.fs.client.Describe(ctx, dr)
 	if err != nil {
 		log.Printf("Describe failure: %v", err)
 		return fuse.EIO

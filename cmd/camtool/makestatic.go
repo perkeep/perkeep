@@ -26,6 +26,7 @@ import (
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
+	"golang.org/x/net/context"
 )
 
 type makeStaticCmd struct {
@@ -62,7 +63,7 @@ func (c *makeStaticCmd) RunCommand(args []string) error {
 	}
 
 	cl := newClient(c.server)
-	res, err := cl.Describe(&search.DescribeRequest{
+	res, err := cl.Describe(context.Background(), &search.DescribeRequest{
 		BlobRefs: []blob.Ref{pn},
 		Rules: []*search.DescribeRule{
 			{

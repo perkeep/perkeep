@@ -48,12 +48,12 @@ import (
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/server"
 	"camlistore.org/pkg/sorted"
+	_ "camlistore.org/pkg/sorted/kvfile"
 	"camlistore.org/pkg/types/camtypes"
 	"camlistore.org/pkg/webserver"
 
 	"go4.org/syncutil"
-
-	_ "camlistore.org/pkg/sorted/kvfile"
+	"golang.org/x/net/context"
 )
 
 var (
@@ -398,7 +398,8 @@ func (ph *publishHandler) describe(br blob.Ref) (*search.DescribedBlob, error) {
 		return des, nil
 	}
 	ph.describedCacheMu.RUnlock()
-	res, err := ph.cl.Describe(&search.DescribeRequest{
+	ctx := context.TODO()
+	res, err := ph.cl.Describe(ctx, &search.DescribeRequest{
 		BlobRef: br,
 		Depth:   1,
 	})

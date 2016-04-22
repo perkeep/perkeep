@@ -40,12 +40,12 @@ import (
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/media"
 	"camlistore.org/pkg/schema"
-
 	"github.com/hjfreyer/taglib-go/taglib"
 	"github.com/rwcarlsen/goexif/exif"
 	"github.com/rwcarlsen/goexif/tiff"
 	"go4.org/readerutil"
 	"go4.org/types"
+	"golang.org/x/net/context"
 )
 
 // outOfOrderIndexerLoop asynchronously reindexes blobs received
@@ -64,9 +64,9 @@ func (ix *Index) outOfOrderIndexerLoop() {
 WaitTickle:
 	for range ix.tickleOoo {
 		for {
-			ix.mu.Lock()
+			ix.Lock()
 			if len(ix.readyReindex) == 0 {
-				ix.mu.Unlock()
+				ix.Unlock()
 				continue WaitTickle
 			}
 			var br blob.Ref
@@ -74,25 +74,25 @@ WaitTickle:
 				break
 			}
 			delete(ix.readyReindex, br)
-			ix.mu.Unlock()
+			ix.Unlock()
 
 			err := ix.indexBlob(br)
 			if err != nil {
 				log.Printf("out-of-order indexBlob(%v) = %v", br, err)
-				ix.mu.Lock()
+				ix.Lock()
 				if len(ix.needs[br]) == 0 {
 					ix.readyReindex[br] = true
 				}
-				ix.mu.Unlock()
+				ix.Unlock()
 			}
 		}
 	}
 }
 
 func (ix *Index) indexBlob(br blob.Ref) error {
-	ix.mu.RLock()
+	ix.RLock()
 	bs := ix.blobSource
-	ix.mu.RUnlock()
+	ix.RUnlock()
 	if bs == nil {
 		panic(fmt.Sprintf("index: can't re-index %v: no blobSource", br))
 	}
@@ -149,8 +149,6 @@ func blobsFilteringOut(v []blob.Ref, x blob.Ref) []blob.Ref {
 }
 
 func (ix *Index) noteBlobIndexed(br blob.Ref) {
-	ix.mu.Lock()
-	defer ix.mu.Unlock()
 	for _, needer := range ix.neededBy[br] {
 		newNeeds := blobsFilteringOut(ix.needs[needer], br)
 		if len(newNeeds) == 0 {
@@ -185,6 +183,11 @@ func (ix *Index) removeAllMissingEdges(br blob.Ref) {
 }
 
 func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.SizedRef, err error) {
+	ctx := context.TODO()
+
+	ix.Lock()
+	defer ix.Unlock()
+
 	missingDeps := false
 	defer func() {
 		if err == nil {
@@ -211,7 +214,7 @@ func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.Siz
 		fetcher: ix.blobSource,
 	}
 
-	mm, err := ix.populateMutationMap(fetcher, blobRef, sniffer)
+	mm, err := ix.populateMutationMap(ctx, fetcher, blobRef, sniffer)
 	if err != nil {
 		if err != errMissingDep {
 			return
@@ -243,7 +246,7 @@ func (ix *Index) ReceiveBlob(blobRef blob.Ref, source io.Reader) (retsb blob.Siz
 	}
 
 	if c := ix.corpus; c != nil {
-		if err = c.addBlob(blobRef, mm); err != nil {
+		if err = c.addBlob(ctx, blobRef, mm); err != nil {
 			return
 		}
 	}
@@ -288,7 +291,7 @@ func (ix *Index) commit(mm *mutationMap) error {
 //
 // the blobref can be trusted at this point (it's been fully consumed
 // and verified to match), and the sniffer has been populated.
-func (ix *Index) populateMutationMap(fetcher *missTrackFetcher, br blob.Ref, sniffer *BlobSniffer) (*mutationMap, error) {
+func (ix *Index) populateMutationMap(ctx context.Context, fetcher *missTrackFetcher, br blob.Ref, sniffer *BlobSniffer) (*mutationMap, error) {
 	mm := &mutationMap{
 		kv: map[string]string{
 			"meta:" + br.String(): fmt.Sprintf("%d|%s", sniffer.Size(), sniffer.MIMEType()),
@@ -298,7 +301,7 @@ func (ix *Index) populateMutationMap(fetcher *missTrackFetcher, br blob.Ref, sni
 	if blob, ok := sniffer.SchemaBlob(); ok {
 		switch blob.Type() {
 		case "claim":
-			err = ix.populateClaim(fetcher, blob, mm)
+			err = ix.populateClaim(ctx, fetcher, blob, mm)
 		case "file":
 			err = ix.populateFile(fetcher, blob, mm)
 		case "directory":
@@ -315,8 +318,6 @@ func (ix *Index) populateMutationMap(fetcher *missTrackFetcher, br blob.Ref, sni
 		haveVal = fmt.Sprintf("%d|indexed", sniffer.Size())
 	}
 	mm.kv["have:"+br.String()] = haveVal
-	ix.mu.Lock()
-	defer ix.mu.Unlock()
 	if len(fetcher.missing) == 0 {
 		// If err == nil, we're good. Else (err == errMissingDep), we
 		// know the error did not come from a fetching miss (because
@@ -694,14 +695,14 @@ var errMissingDep = errors.New("blob was not fully indexed because of a missing 
 
 // populateDeleteClaim adds to mm the entries resulting from the delete claim cl.
 // It is assumed cl is a valid claim, and vr has already been verified.
-func (ix *Index) populateDeleteClaim(cl schema.Claim, vr *jsonsign.VerifyRequest, mm *mutationMap) error {
+func (ix *Index) populateDeleteClaim(ctx context.Context, cl schema.Claim, vr *jsonsign.VerifyRequest, mm *mutationMap) error {
 	br := cl.Blob().BlobRef()
 	target := cl.Target()
 	if !target.Valid() {
 		log.Print(fmt.Errorf("no valid target for delete claim %v", br))
 		return nil
 	}
-	meta, err := ix.GetBlobMeta(target)
+	meta, err := ix.GetBlobMeta(ctx, target)
 	if err != nil {
 		if err == os.ErrNotExist {
 			if err := ix.noteNeeded(br, target); err != nil {
@@ -731,7 +732,7 @@ func (ix *Index) populateDeleteClaim(cl schema.Claim, vr *jsonsign.VerifyRequest
 	return nil
 }
 
-func (ix *Index) populateClaim(fetcher *missTrackFetcher, b *schema.Blob, mm *mutationMap) error {
+func (ix *Index) populateClaim(ctx context.Context, fetcher *missTrackFetcher, b *schema.Blob, mm *mutationMap) error {
 	br := b.BlobRef()
 
 	claim, ok := b.AsClaim()
@@ -753,7 +754,7 @@ func (ix *Index) populateClaim(fetcher *missTrackFetcher, b *schema.Blob, mm *mu
 	mm.Set("signerkeyid:"+vr.CamliSigner.String(), verifiedKeyId)
 
 	if claim.ClaimType() == string(schema.DeleteClaim) {
-		if err := ix.populateDeleteClaim(claim, vr, mm); err != nil {
+		if err := ix.populateDeleteClaim(ctx, claim, vr, mm); err != nil {
 			return err
 		}
 		mm.noteDelete(claim)

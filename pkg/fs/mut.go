@@ -128,6 +128,7 @@ func (n *mutFile) Access(ctx context.Context, req *fuse.AccessRequest) error {
 func (n *mutDir) populate() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	ctx := context.TODO()
 
 	// Only re-populate if we haven't done so recently.
 	now := time.Now()
@@ -136,7 +137,7 @@ func (n *mutDir) populate() error {
 	}
 	n.lastPop = now
 
-	res, err := n.fs.client.Describe(&search.DescribeRequest{
+	res, err := n.fs.client.Describe(ctx, &search.DescribeRequest{
 		BlobRef: n.permanode,
 		Depth:   3,
 	})
