@@ -714,7 +714,7 @@ func (rc *RelationConstraint) matchesAttr(attr string) bool {
 }
 
 // The PermanodeConstraint matching of RelationConstraint.
-func (rc *RelationConstraint) match(s *search, pn blob.Ref, at time.Time) (ok bool, err error) {
+func (rc *RelationConstraint) match(ctx context.Context, s *search, pn blob.Ref, at time.Time) (ok bool, err error) {
 	corpus := s.h.corpus
 	if corpus == nil {
 		// TODO: care?
@@ -727,10 +727,10 @@ func (rc *RelationConstraint) match(s *search, pn blob.Ref, at time.Time) (ok bo
 	var relationRef func(cl *camtypes.Claim) (blob.Ref, bool)
 	switch rc.Relation {
 	case "parent":
-		foreachClaim = corpus.ForeachClaimBackLocked
+		foreachClaim = corpus.ForeachClaimBack
 		relationRef = func(cl *camtypes.Claim) (blob.Ref, bool) { return cl.Permanode, true }
 	case "child":
-		foreachClaim = corpus.ForeachClaimLocked
+		foreachClaim = corpus.ForeachClaim
 		relationRef = func(cl *camtypes.Claim) (blob.Ref, bool) { return blob.Parse(cl.Value) }
 	default:
 		panic("bogus")
@@ -767,16 +767,16 @@ func (rc *RelationConstraint) match(s *search, pn blob.Ref, at time.Time) (ok bo
 		if permanodesChecked[relRef] {
 			return true // skip checking
 		}
-		if !corpus.PermanodeHasAttrValueLocked(cl.Permanode, at, cl.Attr, cl.Value) {
+		if !corpus.PermanodeHasAttrValue(cl.Permanode, at, cl.Attr, cl.Value) {
 			return true // claim once matched permanode, but no longer
 		}
 
 		var bm camtypes.BlobMeta
-		bm, err = s.blobMeta(relRef)
+		bm, err = s.blobMeta(ctx, relRef)
 		if err != nil {
 			return false
 		}
-		ok, err = matcher(s, relRef, bm)
+		ok, err = matcher(ctx, s, relRef, bm)
 		if err != nil {
 			return false
 		}
@@ -815,19 +815,19 @@ type search struct {
 	ss []string // scratch
 }
 
-func (s *search) blobMeta(br blob.Ref) (camtypes.BlobMeta, error) {
+func (s *search) blobMeta(ctx context.Context, br blob.Ref) (camtypes.BlobMeta, error) {
 	if c := s.h.corpus; c != nil {
-		return c.GetBlobMetaLocked(br)
+		return c.GetBlobMeta(ctx, br)
 	} else {
-		return s.h.index.GetBlobMeta(br)
+		return s.h.index.GetBlobMeta(ctx, br)
 	}
 }
 
-func (s *search) fileInfo(br blob.Ref) (camtypes.FileInfo, error) {
+func (s *search) fileInfo(ctx context.Context, br blob.Ref) (camtypes.FileInfo, error) {
 	if c := s.h.corpus; c != nil {
-		return c.GetFileInfoLocked(br)
+		return c.GetFileInfo(ctx, br)
 	} else {
-		return s.h.index.GetFileInfo(br)
+		return s.h.index.GetFileInfo(ctx, br)
 	}
 }
 
@@ -851,15 +851,14 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 		q:   q,
 		res: res,
 	}
+
+	h.index.RLock()
+	defer h.index.RUnlock()
+
 	ctx, cancelSearch := context.WithCancel(context.TODO())
 	defer cancelSearch()
 
 	corpus := h.corpus
-	var unlockOnce sync.Once
-	if corpus != nil {
-		corpus.RLock(ctx)
-		defer unlockOnce.Do(corpus.RUnlock)
-	}
 
 	ch := make(chan camtypes.BlobMeta, buffered)
 	errc := make(chan error, 1)
@@ -879,7 +878,7 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 	}
 	blobMatches := q.Constraint.matcher()
 	for meta := range ch {
-		match, err := blobMatches(s, meta.Ref, meta)
+		match, err := blobMatches(ctx, s, meta.Ref, meta)
 		if err != nil {
 			return nil, err
 		}
@@ -947,12 +946,12 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 				if err != nil {
 					return false
 				}
-				ta, ok := corpus.PermanodeAnyTimeLocked(a.Blob)
+				ta, ok := corpus.PermanodeAnyTime(a.Blob)
 				if !ok {
 					err = fmt.Errorf("no ctime or modtime found for %v", a.Blob)
 					return false
 				}
-				tb, ok := corpus.PermanodeAnyTimeLocked(b.Blob)
+				tb, ok := corpus.PermanodeAnyTime(b.Blob)
 				if !ok {
 					err = fmt.Errorf("no ctime or modtime found for %v", b.Blob)
 					return false
@@ -977,7 +976,6 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 		if !wantAround {
 			q.setResultContinue(corpus, res)
 		}
-		unlockOnce.Do(corpus.RUnlock)
 	}
 
 	if q.Describe != nil {
@@ -987,7 +985,7 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 			blobs = append(blobs, srb.Blob)
 		}
 		q.Describe.BlobRefs = blobs
-		res, err := s.h.Describe(q.Describe)
+		res, err := s.h.Describe(ctx, q.Describe)
 		if err != nil {
 			return nil, err
 		}
@@ -1005,9 +1003,9 @@ func (q *SearchQuery) setResultContinue(corpus *index.Corpus, res *SearchResult)
 	var pnTimeFunc func(blob.Ref) (t time.Time, ok bool)
 	switch q.Sort {
 	case LastModifiedDesc:
-		pnTimeFunc = corpus.PermanodeModtimeLocked
+		pnTimeFunc = corpus.PermanodeModtime
 	case CreatedDesc:
-		pnTimeFunc = corpus.PermanodeAnyTimeLocked
+		pnTimeFunc = corpus.PermanodeAnyTime
 	default:
 		return
 	}
@@ -1023,17 +1021,17 @@ func (q *SearchQuery) setResultContinue(corpus *index.Corpus, res *SearchResult)
 	res.Continue = fmt.Sprintf("pn:%d:%v", t.UnixNano(), lastpn)
 }
 
-type matchFn func(*search, blob.Ref, camtypes.BlobMeta) (bool, error)
+type matchFn func(context.Context, *search, blob.Ref, camtypes.BlobMeta) (bool, error)
 
-func alwaysMatch(*search, blob.Ref, camtypes.BlobMeta) (bool, error) {
+func alwaysMatch(context.Context, *search, blob.Ref, camtypes.BlobMeta) (bool, error) {
 	return true, nil
 }
 
-func neverMatch(*search, blob.Ref, camtypes.BlobMeta) (bool, error) {
+func neverMatch(context.Context, *search, blob.Ref, camtypes.BlobMeta) (bool, error) {
 	return false, nil
 }
 
-func anyCamliType(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+func anyCamliType(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 	return bm.CamliType != "", nil
 }
 
@@ -1059,13 +1057,13 @@ func (q *SearchQuery) pickCandidateSource(s *search) (src candidateSource) {
 			case LastModifiedDesc:
 				src.name = "corpus_permanode_lastmod"
 				src.send = func(ctx context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
-					return corpus.EnumeratePermanodesLastModifiedLocked(ctx, dst)
+					return corpus.EnumeratePermanodesLastModified(ctx, dst)
 				}
 				return
 			case CreatedDesc:
 				src.name = "corpus_permanode_created"
 				src.send = func(ctx context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
-					return corpus.EnumeratePermanodesCreatedLocked(ctx, dst, true)
+					return corpus.EnumeratePermanodesCreated(ctx, dst, true)
 				}
 				return
 			default:
@@ -1076,7 +1074,7 @@ func (q *SearchQuery) pickCandidateSource(s *search) (src candidateSource) {
 			camType := c.CamliType // empty means all
 			src.name = "corpus_blob_meta"
 			src.send = func(ctx context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
-				return corpus.EnumerateCamliBlobsLocked(ctx, camType, dst)
+				return corpus.EnumerateCamliBlobs(ctx, camType, dst)
 			}
 			return
 		}
@@ -1090,9 +1088,9 @@ func (q *SearchQuery) pickCandidateSource(s *search) (src candidateSource) {
 
 type allMustMatch []matchFn
 
-func (fns allMustMatch) blobMatches(s *search, br blob.Ref, blobMeta camtypes.BlobMeta) (bool, error) {
+func (fns allMustMatch) blobMatches(ctx context.Context, s *search, br blob.Ref, blobMeta camtypes.BlobMeta) (bool, error) {
 	for _, condFn := range fns {
-		match, err := condFn(s, br, blobMeta)
+		match, err := condFn(ctx, s, br, blobMeta)
 		if !match || err != nil {
 			return match, err
 		}
@@ -1100,7 +1098,7 @@ func (fns allMustMatch) blobMatches(s *search, br blob.Ref, blobMeta camtypes.Bl
 	return true, nil
 }
 
-func (c *Constraint) matcher() func(s *search, br blob.Ref, blobMeta camtypes.BlobMeta) (bool, error) {
+func (c *Constraint) matcher() func(ctx context.Context, s *search, br blob.Ref, blobMeta camtypes.BlobMeta) (bool, error) {
 	c.matcherOnce.Do(c.initMatcherFn)
 	return c.matcherFn
 }
@@ -1130,7 +1128,7 @@ func (c *Constraint) genMatcher() matchFn {
 		addCond(alwaysMatch)
 	}
 	if c.CamliType != "" {
-		addCond(func(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+		addCond(func(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 			return bm.CamliType == c.CamliType, nil
 		})
 	}
@@ -1148,12 +1146,12 @@ func (c *Constraint) genMatcher() matchFn {
 		addCond(c.Dir.blobMatches)
 	}
 	if bs := c.BlobSize; bs != nil {
-		addCond(func(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+		addCond(func(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 			return bs.intMatches(int64(bm.Size)), nil
 		})
 	}
 	if pfx := c.BlobRefPrefix; pfx != "" {
-		addCond(func(s *search, br blob.Ref, meta camtypes.BlobMeta) (bool, error) {
+		addCond(func(ctx context.Context, s *search, br blob.Ref, meta camtypes.BlobMeta) (bool, error) {
 			return strings.HasPrefix(br.String(), pfx), nil
 		})
 	}
@@ -1198,7 +1196,7 @@ func (c *LogicalConstraint) matcher() matchFn {
 	if c.Op != "not" {
 		bmatches = c.B.matcher()
 	}
-	return func(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+	return func(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 
 		// Note: not using multiple goroutines here, because
 		// so far the *search type assumes it's
@@ -1206,7 +1204,7 @@ func (c *LogicalConstraint) matcher() matchFn {
 		// Also, not using multiple goroutines means we can
 		// short-circuit when Op == "and" and av is false.
 
-		av, err := amatches(s, br, bm)
+		av, err := amatches(ctx, s, br, bm)
 		if err != nil {
 			return false, err
 		}
@@ -1225,7 +1223,7 @@ func (c *LogicalConstraint) matcher() matchFn {
 			}
 		}
 
-		bv, err := bmatches(s, br, bm)
+		bv, err := bmatches(ctx, s, br, bm)
 		if err != nil {
 			return false, err
 		}
@@ -1289,7 +1287,7 @@ func (c *PermanodeConstraint) hasValueConstraint() bool {
 		c.ValueInSet != nil
 }
 
-func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (ok bool, err error) {
+func (c *PermanodeConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (ok bool, err error) {
 	if bm.CamliType != "permanode" {
 		return false, nil
 	}
@@ -1297,7 +1295,7 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 
 	var dp *DescribedPermanode
 	if corpus == nil {
-		dr, err := s.h.Describe(&DescribeRequest{BlobRef: br})
+		dr, err := s.h.Describe(ctx, &DescribeRequest{BlobRef: br})
 		if err != nil {
 			return false, err
 		}
@@ -1316,22 +1314,22 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 		if corpus == nil {
 			vals = dp.Attr[c.Attr]
 		} else {
-			s.ss = corpus.AppendPermanodeAttrValuesLocked(
+			s.ss = corpus.AppendPermanodeAttrValues(
 				s.ss[:0], br, c.Attr, c.At, s.h.owner)
 			vals = s.ss
 		}
-		ok, err := c.permanodeMatchesAttrVals(s, vals)
+		ok, err := c.permanodeMatchesAttrVals(ctx, s, vals)
 		if !ok || err != nil {
 			return false, err
 		}
 	}
 
 	if c.SkipHidden && corpus != nil {
-		defVis := corpus.PermanodeAttrValueLocked(br, "camliDefVis", c.At, s.h.owner)
+		defVis := corpus.PermanodeAttrValue(br, "camliDefVis", c.At, s.h.owner)
 		if defVis == "hide" {
 			return false, nil
 		}
-		nodeType := corpus.PermanodeAttrValueLocked(br, "camliNodeType", c.At, s.h.owner)
+		nodeType := corpus.PermanodeAttrValue(br, "camliNodeType", c.At, s.h.owner)
 		if nodeType == "foursquare.com:venue" {
 			// TODO: temporary. remove this, or change
 			// when/where (time) we show these.  But these
@@ -1343,7 +1341,7 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 
 	if c.ModTime != nil {
 		if corpus != nil {
-			mt, ok := corpus.PermanodeModtimeLocked(br)
+			mt, ok := corpus.PermanodeModtime(br)
 			if !ok || !c.ModTime.timeMatches(mt) {
 				return false, nil
 			}
@@ -1354,7 +1352,7 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 
 	if c.Time != nil {
 		if corpus != nil {
-			t, ok := corpus.PermanodeAnyTimeLocked(br)
+			t, ok := corpus.PermanodeAnyTime(br)
 			if !ok || !c.Time.timeMatches(t) {
 				return false, nil
 			}
@@ -1364,7 +1362,7 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 	}
 
 	if rc := c.Relation; rc != nil {
-		ok, err := rc.match(s, br, c.At)
+		ok, err := rc.match(ctx, s, br, c.At)
 		if !ok || err != nil {
 			return ok, err
 		}
@@ -1374,7 +1372,7 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 		if corpus == nil {
 			return false, nil
 		}
-		lat, long, ok := corpus.PermanodeLatLongLocked(br, c.At)
+		lat, long, ok := corpus.PermanodeLatLong(br, c.At)
 		if !ok || !c.Location.matchesLatLong(lat, long) {
 			return false, nil
 		}
@@ -1390,12 +1388,12 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 		var ok bool
 		switch {
 		case !cc.LastMod.IsZero():
-			pnTime, ok = corpus.PermanodeModtimeLocked(br)
+			pnTime, ok = corpus.PermanodeModtime(br)
 			if !ok || pnTime.After(cc.LastMod) {
 				return false, nil
 			}
 		case !cc.LastCreated.IsZero():
-			pnTime, ok = corpus.PermanodeAnyTimeLocked(br)
+			pnTime, ok = corpus.PermanodeAnyTime(br)
 			if !ok || pnTime.After(cc.LastCreated) {
 				return false, nil
 			}
@@ -1422,14 +1420,14 @@ func (c *PermanodeConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.Bl
 // permanodeMatchesAttrVals checks that the values in vals - all of them, if c.ValueAll is set -
 // match the values for c.Attr.
 // vals are the current permanode values of c.Attr.
-func (c *PermanodeConstraint) permanodeMatchesAttrVals(s *search, vals []string) (bool, error) {
+func (c *PermanodeConstraint) permanodeMatchesAttrVals(ctx context.Context, s *search, vals []string) (bool, error) {
 	if c.NumValue != nil && !c.NumValue.intMatches(int64(len(vals))) {
 		return false, nil
 	}
 	if c.hasValueConstraint() {
 		nmatch := 0
 		for _, val := range vals {
-			match, err := c.permanodeMatchesAttrVal(s, val)
+			match, err := c.permanodeMatchesAttrVal(ctx, s, val)
 			if err != nil {
 				return false, err
 			}
@@ -1447,7 +1445,7 @@ func (c *PermanodeConstraint) permanodeMatchesAttrVals(s *search, vals []string)
 	return true, nil
 }
 
-func (c *PermanodeConstraint) permanodeMatchesAttrVal(s *search, val string) (bool, error) {
+func (c *PermanodeConstraint) permanodeMatchesAttrVal(ctx context.Context, s *search, val string) (bool, error) {
 	if c.Value != "" && c.Value != val {
 		return false, nil
 	}
@@ -1469,14 +1467,14 @@ func (c *PermanodeConstraint) permanodeMatchesAttrVal(s *search, val string) (bo
 		if !ok {
 			return false, nil
 		}
-		meta, err := s.blobMeta(br)
+		meta, err := s.blobMeta(ctx, br)
 		if err == os.ErrNotExist {
 			return false, nil
 		}
 		if err != nil {
 			return false, err
 		}
-		return subc.matcher()(s, br, meta)
+		return subc.matcher()(ctx, s, br, meta)
 	}
 	return true, nil
 }
@@ -1485,11 +1483,11 @@ func (c *FileConstraint) checkValid() error {
 	return nil
 }
 
-func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 	if bm.CamliType != "file" {
 		return false, nil
 	}
-	fi, err := s.fileInfo(br)
+	fi, err := s.fileInfo(ctx, br)
 	if err == os.ErrNotExist {
 		return false, nil
 	}
@@ -1523,7 +1521,7 @@ func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMet
 		if corpus == nil {
 			return false, nil
 		}
-		wholeRef, ok := corpus.GetWholeRefLocked(br)
+		wholeRef, ok := corpus.GetWholeRef(ctx, br)
 		if !ok || wholeRef != c.WholeRef {
 			return false, nil
 		}
@@ -1533,7 +1531,7 @@ func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMet
 		if corpus == nil {
 			return false, nil
 		}
-		imageInfo, err := corpus.GetImageInfoLocked(br)
+		imageInfo, err := corpus.GetImageInfo(ctx, br)
 		if err != nil {
 			if os.IsNotExist(err) {
 				return false, nil
@@ -1556,7 +1554,7 @@ func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMet
 		if corpus == nil {
 			return false, nil
 		}
-		lat, long, ok := corpus.FileLatLongLocked(br)
+		lat, long, ok := corpus.FileLatLong(br)
 		if ok && c.Location.Any {
 			// Pass.
 		} else if !ok || !c.Location.matchesLatLong(lat, long) {
@@ -1568,7 +1566,7 @@ func (c *FileConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMet
 			return false, nil
 		}
 		var tagValue string
-		if mediaTags, err := corpus.GetMediaTagsLocked(br); err == nil && mt.Tag != "" {
+		if mediaTags, err := corpus.GetMediaTags(ctx, br); err == nil && mt.Tag != "" {
 			tagValue = mediaTags[mt.Tag]
 		}
 		if mt.Int != nil {
@@ -1609,7 +1607,7 @@ func (c *DirConstraint) checkValid() error {
 	return nil
 }
 
-func (c *DirConstraint) blobMatches(s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+func (c *DirConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 	if bm.CamliType != "directory" {
 		return false, nil
 	}

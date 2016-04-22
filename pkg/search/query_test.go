@@ -17,6 +17,7 @@ import (
 	. "camlistore.org/pkg/search"
 	"camlistore.org/pkg/test"
 	"go4.org/types"
+	"golang.org/x/net/context"
 )
 
 // indexType is one of the three ways we test the query handler code.
@@ -627,10 +628,11 @@ func TestQueryPermanodeModtime(t *testing.T) {
 // TODO: make all the indextest/tests.go
 // also test the three memory build modes that testQuery does.
 func TestDecodeFileInfo(t *testing.T) {
+	ctx := context.Background()
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 		fileRef, wholeRef := id.UploadFile("file.gif", "GIF87afoo", time.Unix(456, 0))
-		res, err := qt.Handler().Describe(&DescribeRequest{
+		res, err := qt.Handler().Describe(ctx, &DescribeRequest{
 			BlobRef: fileRef,
 		})
 		if err != nil {

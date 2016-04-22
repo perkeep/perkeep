@@ -28,6 +28,7 @@ import (
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/search"
+	"golang.org/x/net/context"
 )
 
 type listCmd struct {
@@ -99,7 +100,7 @@ func (c *listCmd) RunCommand(args []string) error {
 			return nil
 		}
 		// TODO(mpl): setting depth to 1, not 0, because otherwise r.depth() in pkg/search/handler.go defaults to 4. Can't remember why we disallowed 0 right now, and I do not want to change that in pkg/search/handler.go and risk breaking things.
-		described, err := c.cl.Describe(&search.DescribeRequest{
+		described, err := c.cl.Describe(context.Background(), &search.DescribeRequest{
 			BlobRefs: blobRefs,
 			Depth:    1,
 		})

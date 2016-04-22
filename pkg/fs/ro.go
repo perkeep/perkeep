@@ -27,13 +27,12 @@ import (
 	"sync"
 	"time"
 
+	"bazil.org/fuse"
+	"bazil.org/fuse/fs"
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 	"go4.org/types"
-
-	"bazil.org/fuse"
-	"bazil.org/fuse/fs"
 	"golang.org/x/net/context"
 )
 
@@ -87,7 +86,7 @@ func (n *roDir) Attr(ctx context.Context, a *fuse.Attr) error {
 func (n *roDir) populate() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-
+	ctx := context.TODO()
 	// Things never change here, so if we've ever populated, we're
 	// populated.
 	if n.children != nil {
@@ -96,7 +95,7 @@ func (n *roDir) populate() error {
 
 	log.Printf("roDir.populate(%q) - Sending request At %v", n.fullPath(), n.at)
 
-	res, err := n.fs.client.Describe(&search.DescribeRequest{
+	res, err := n.fs.client.Describe(ctx, &search.DescribeRequest{
 		BlobRef: n.permanode,
 		Depth:   3,
 		At:      types.Time3339(n.at),

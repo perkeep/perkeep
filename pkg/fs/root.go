@@ -23,10 +23,9 @@ import (
 	"os"
 	"sync"
 
-	"camlistore.org/pkg/blob"
-
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
+	"camlistore.org/pkg/blob"
 	"golang.org/x/net/context"
 )
 

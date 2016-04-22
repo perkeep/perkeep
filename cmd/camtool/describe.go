@@ -27,6 +27,7 @@ import (
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/search"
 	"go4.org/types"
+	"golang.org/x/net/context"
 )
 
 type desCmd struct {
@@ -70,7 +71,7 @@ func (c *desCmd) RunCommand(args []string) error {
 	var at time.Time // TODO: implement. from "2 days ago" "-2d", "-2h", "2013-02-05", etc
 
 	cl := newClient(c.server)
-	res, err := cl.Describe(&search.DescribeRequest{
+	res, err := cl.Describe(context.Background(), &search.DescribeRequest{
 		BlobRefs: blobs,
 		Depth:    c.depth,
 		At:       types.Time3339(at),

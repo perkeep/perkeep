@@ -1,6 +1,7 @@
 package index
 
 import (
+	"sync"
 	"time"
 
 	"camlistore.org/pkg/blob"
@@ -9,22 +10,26 @@ import (
 )
 
 type Interface interface {
+	sync.Locker
+	RLock()
+	RUnlock()
+
 	// os.ErrNotExist should be returned if the blob isn't known
-	GetBlobMeta(blob.Ref) (camtypes.BlobMeta, error)
+	GetBlobMeta(context.Context, blob.Ref) (camtypes.BlobMeta, error)
 
 	// Should return os.ErrNotExist if not found.
-	GetFileInfo(fileRef blob.Ref) (camtypes.FileInfo, error)
+	GetFileInfo(ctx context.Context, fileRef blob.Ref) (camtypes.FileInfo, error)
 
 	// Should return os.ErrNotExist if not found.
-	GetImageInfo(fileRef blob.Ref) (camtypes.ImageInfo, error)
+	GetImageInfo(ctx context.Context, fileRef blob.Ref) (camtypes.ImageInfo, error)
 
 	// Should return os.ErrNotExist if not found.
-	GetMediaTags(fileRef blob.Ref) (map[string]string, error)
+	GetMediaTags(ctx context.Context, fileRef blob.Ref) (map[string]string, error)
 
 	// KeyId returns the GPG keyid (e.g. "2931A67C26F5ABDA)
 	// given the blobref of its ASCII-armored blobref.
 	// The error is ErrNotFound if not found.
-	KeyId(blob.Ref) (string, error)
+	KeyId(context.Context, blob.Ref) (string, error)
 
 	// AppendClaims appends to dst claims on the given permanode.
 	// The signerFilter and attrFilter are both optional.  If non-zero,
@@ -38,7 +43,7 @@ type Interface interface {
 	// and the context lets it be interrupted. The callback should
 	// take the context too, so the channel send's select can read
 	// from the Done channel.
-	AppendClaims(dst []camtypes.Claim, permaNode blob.Ref,
+	AppendClaims(ctx context.Context, dst []camtypes.Claim, permaNode blob.Ref,
 		signerFilter blob.Ref,
 		attrFilter string) ([]camtypes.Claim, error)
 
@@ -47,7 +52,7 @@ type Interface interface {
 
 	// dest must be closed, even when returning an error.
 	// limit <= 0 means unlimited.
-	GetRecentPermanodes(dest chan<- camtypes.RecentPermanode,
+	GetRecentPermanodes(ctx context.Context, dest chan<- camtypes.RecentPermanode,
 		owner blob.Ref,
 		limit int,
 		before time.Time) error
@@ -65,7 +70,7 @@ type Interface interface {
 	// restricted  to the named attribute.
 	//
 	// dest is always closed, regardless of the error return value.
-	SearchPermanodesWithAttr(dest chan<- blob.Ref,
+	SearchPermanodesWithAttr(ctx context.Context, dest chan<- blob.Ref,
 		request *camtypes.PermanodeByAttrRequest) error
 
 	// ExistingFileSchemas returns 0 or more blobrefs of "bytes"
@@ -101,7 +106,7 @@ type Interface interface {
 	// Only attributes white-listed by IsIndexedAttribute are valid.
 	// TODO(bradfitz): ErrNotExist here is a weird error message ("file" not found). change.
 	// TODO(bradfitz): use keyId instead of signer?
-	PermanodeOfSignerAttrValue(signer blob.Ref, attr, val string) (blob.Ref, error)
+	PermanodeOfSignerAttrValue(ctx context.Context, signer blob.Ref, attr, val string) (blob.Ref, error)
 
 	// PathsOfSignerTarget queries the index about "camliPath:"
 	// URL-dispatch attributes.
@@ -113,14 +118,14 @@ type Interface interface {
 	// the name resolution tree backwards ultimately to a
 	// camliRoot permanode (which should know its base URL), and
 	// then the complete URL(s) of a target can be found.
-	PathsOfSignerTarget(signer, target blob.Ref) ([]*camtypes.Path, error)
+	PathsOfSignerTarget(ctx context.Context, signer, target blob.Ref) ([]*camtypes.Path, error)
 
 	// All Path claims for (signer, base, suffix)
-	PathsLookup(signer, base blob.Ref, suffix string) ([]*camtypes.Path, error)
+	PathsLookup(ctx context.Context, signer, base blob.Ref, suffix string) ([]*camtypes.Path, error)
 
 	// Most recent Path claim for (signer, base, suffix) as of
 	// provided time 'at', or most recent if 'at' is nil.
-	PathLookup(signer, base blob.Ref, suffix string, at time.Time) (*camtypes.Path, error)
+	PathLookup(ctx context.Context, signer, base blob.Ref, suffix string, at time.Time) (*camtypes.Path, error)
 
 	// EdgesTo finds references to the provided ref.
 	//

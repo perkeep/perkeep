@@ -34,6 +34,7 @@ import (
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/test"
 	"camlistore.org/pkg/types/camtypes"
+	"golang.org/x/net/context"
 )
 
 func TestReverseTimeString(t *testing.T) {
@@ -436,6 +437,7 @@ func copyBlob(br blob.Ref, dst blobserver.BlobReceiver, src blob.Fetcher) error 
 // tests that we add the missing wholeRef entries in FileInfo rows when going from
 // a version 4 to a version 5 index.
 func TestFixMissingWholeref(t *testing.T) {
+	ctx := context.Background()
 	tf := new(test.Fetcher)
 	s := sorted.NewMemoryKeyValue()
 
@@ -490,7 +492,7 @@ func TestFixMissingWholeref(t *testing.T) {
 		t.Fatal(err)
 	}
 	// and check that the value is now actually fixed
-	fi, err := ix.GetFileInfo(fileBlobRef)
+	fi, err := ix.GetFileInfo(ctx, fileBlobRef)
 	if err != nil {
 		t.Fatal(err)
 	}

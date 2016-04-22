@@ -23,7 +23,11 @@ limitations under the License.
 // occured does not affect the result.
 package search // import "camlistore.org/pkg/search"
 
+import (
+	"golang.org/x/net/context"
+)
+
 type QueryDescriber interface {
 	Query(*SearchQuery) (*SearchResult, error)
-	Describe(*DescribeRequest) (*DescribeResponse, error)
+	Describe(context.Context, *DescribeRequest) (*DescribeResponse, error)
 }
