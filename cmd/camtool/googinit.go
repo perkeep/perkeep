@@ -105,7 +105,8 @@ func (c *googinitCmd) RunCommand(args []string) error {
 		"refresh_token": token.RefreshToken,
 	}
 	enc.Encode(authObj)
-	fmt.Fprint(cmdmain.Stdout, "\n")
+	fmt.Fprint(cmdmain.Stdout, "\n\nFor server-config.json, your 'googlecloudstorage' value (update with your bucket name and path):\n\n")
+	fmt.Fprintf(cmdmain.Stdout, "%s:%s:%s:bucketName[/optional/dir]\n", clientId, clientSecret, token.RefreshToken)
 	return nil
 }
 
@@ -120,7 +121,7 @@ func prompt(promptText string) string {
 // Prompt for client id / secret
 func getClientInfo() (string, string) {
 	fmt.Fprintf(cmdmain.Stdout, "Please provide the client id and client secret \n")
-	fmt.Fprintf(cmdmain.Stdout, "(You can find these at http://code.google.com/apis/console > your project > API Access)\n")
+	fmt.Fprintf(cmdmain.Stdout, "(You can find these at https://console.developers.google.com/apis/credentials)\n")
 	var (
 		clientId     string
 		clientSecret string
