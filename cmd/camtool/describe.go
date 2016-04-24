@@ -33,12 +33,14 @@ import (
 type desCmd struct {
 	server string
 	depth  int
+	at     string
 }
 
 func init() {
 	cmdmain.RegisterCommand("describe", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(desCmd)
 		flags.StringVar(&cmd.server, "server", "", "Server to query. "+serverFlagHelp)
+		flags.StringVar(&cmd.at, "at", "", "Describe at what point in time. RFC3339 only for now. Empty string means current time.")
 		flags.IntVar(&cmd.depth, "depth", 1, "Depth to follow in describe request")
 		return cmd
 	})
@@ -68,7 +70,14 @@ func (c *desCmd) RunCommand(args []string) error {
 		}
 		blobs = append(blobs, br)
 	}
-	var at time.Time // TODO: implement. from "2 days ago" "-2d", "-2h", "2013-02-05", etc
+	var at time.Time // TODO: add "2 days ago" "-2d", "-2h", "2013-02-05", etc
+	if c.at != "" {
+		var err error
+		at, err = time.Parse(time.RFC3339, c.at)
+		if err != nil {
+			return fmt.Errorf("error parsing --at value %q: %v", c.at, err)
+		}
+	}
 
 	cl := newClient(c.server)
 	res, err := cl.Describe(context.Background(), &search.DescribeRequest{
