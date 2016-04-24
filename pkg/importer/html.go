@@ -129,7 +129,7 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]interface{}{
       <input type='hidden' name="mode" value="saveclientidsecret">
       <table border=0 cellpadding=3>
       <tr><td align=right>Client ID</td><td><input name="clientID" size=50 value="{{.Importer.ClientID}}"></td></tr>
-      <tr><td align=right>Client Secret</td><td><input name="clientSecret" size=50 value="{{.Importer.ClientSecret}}"></td></tr>
+      <tr><td align=right>Client Secret</td><td><input name="clientSecret" type=password size=50 value="{{.Importer.ClientSecret}}"></td></tr>
       <tr><td align=right></td><td><input type='submit' value="Save"></td></tr>
       </table>
     </form>
