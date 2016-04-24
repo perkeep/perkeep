@@ -154,7 +154,7 @@ cam.Header = React.createClass({
 				onMouseEnter: this.handleMouseEnter_,
 				onMouseLeave: this.handleMouseLeave_,
 			},
-			React.DOM.span(null, 'Pudgy'),
+			React.DOM.span(null, 'Camli'),
 			React.DOM.span(null, '\u25BE')
 		);
 	},
