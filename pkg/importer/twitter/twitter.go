@@ -19,6 +19,7 @@ package twitter // import "camlistore.org/pkg/importer/twitter"
 
 import (
 	"archive/zip"
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -26,6 +27,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"regexp"
@@ -238,6 +240,64 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 	}
 
 	return nil
+}
+
+var _ importer.LongPoller = (*imp)(nil)
+
+func (im *imp) LongPoll(ctx *importer.RunContext) error {
+	clientId, secret, err := ctx.Credentials()
+	if err != nil {
+		return err
+	}
+
+	acctNode := ctx.AccountNode()
+	accessToken := acctNode.Attr(importer.AcctAttrAccessToken)
+	accessSecret := acctNode.Attr(importer.AcctAttrAccessTokenSecret)
+	if accessToken == "" || accessSecret == "" {
+		return errors.New("access credentials not found")
+	}
+	oauthClient := &oauth.Client{
+		TemporaryCredentialRequestURI: temporaryCredentialRequestURL,
+		ResourceOwnerAuthorizationURI: resourceOwnerAuthorizationURL,
+		TokenRequestURI:               tokenRequestURL,
+		Credentials: oauth.Credentials{
+			Token:  clientId,
+			Secret: secret,
+		},
+	}
+	accessCreds := &oauth.Credentials{
+		Token:  accessToken,
+		Secret: accessSecret,
+	}
+
+	form := url.Values{"with": {"user"}}
+	req, _ := http.NewRequest("GET", "https://userstream.twitter.com/1.1/user.json", nil)
+	req.Header.Set("Authorization", oauthClient.AuthorizationHeader(accessCreds, "GET", req.URL, form))
+	req.URL.RawQuery = form.Encode()
+	req.Cancel = ctx.Done()
+
+	log.Printf("Beginning twitter long poll...")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		return errors.New(res.Status)
+	}
+	bs := bufio.NewScanner(res.Body)
+	for bs.Scan() {
+		line := strings.TrimSpace(bs.Text())
+		if line == "" || strings.HasPrefix(line, `{"friends`) {
+			continue
+		}
+		log.Printf("Twitter long poll saw a tweet: %s", line)
+		return nil
+	}
+	if err := bs.Err(); err != nil {
+		return err
+	}
+	return errors.New("got EOF without a tweet.")
 }
 
 func (r *run) errorf(format string, args ...interface{}) {

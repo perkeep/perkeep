@@ -101,6 +101,18 @@ type Importer interface {
 	CallbackURLParameters(acctRef blob.Ref) url.Values
 }
 
+// LongPoller is optionally implemented by importers which can long
+// poll efficiently to wait for new content.
+// For example, Twitter uses this to subscribe to the user's stream.
+type LongPoller interface {
+	Importer
+
+	// LongPoll waits and returns nil when there's new content.
+	// It does not fetch the content itself.
+	// It returns a non-nil error if it failed to long poll.
+	LongPoll(*RunContext) error
+}
+
 // TestDataMaker is an optional interface that may be implemented by Importers to
 // generate test data locally. The returned Roundtripper will be used as the
 // transport of the HTTPClient, in the RunContext that will be passed to Run
@@ -642,8 +654,27 @@ func (ia *importerAcct) maybeStart() {
 	}
 	if ia.lastRunDone.After(time.Now().Add(-duration)) {
 		sleepFor := ia.lastRunDone.Add(duration).Sub(time.Now())
+		sleepCtx, _ := context.WithTimeout(context.Background(), sleepFor)
 		log.Printf("%v ran recently enough. Sleeping for %v.", ia, sleepFor)
-		time.AfterFunc(sleepFor, ia.maybeStart)
+		timer := time.AfterFunc(sleepFor, ia.maybeStart)
+
+		// Kick off long poller wait if supported.
+		if lp, ok := ia.im.impl.(LongPoller); ok {
+			rc := &RunContext{
+				Context: sleepCtx,
+				Host:    ia.im.host,
+				ia:      ia,
+			}
+			go func() {
+				if err := lp.LongPoll(rc); err == nil {
+					log.Printf("Long poll for %s found an update. Starting run...", ia)
+					timer.Stop()
+					ia.start()
+				} else {
+					log.Printf("failed to long poll %s: %v", ia, err)
+				}
+			}()
+		}
 		return
 	}
 
