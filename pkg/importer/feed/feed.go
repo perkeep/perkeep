@@ -102,7 +102,7 @@ func (r *run) importFeed() error {
 	if err != nil {
 		return err
 	}
-	body, err := doGet(r.Context, feedURL.String())
+	body, err := doGet(r.Context(), feedURL.String())
 	if err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func (r *run) importFeed() error {
 			if autoURL.Host == "" {
 				autoURL.Host = feedURL.Host
 			}
-			body, err = doGet(r.Context, autoURL.String())
+			body, err = doGet(r.Context(), autoURL.String())
 			if err != nil {
 				return err
 			}

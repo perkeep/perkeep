@@ -182,7 +182,7 @@ func (r *run) urlFileRef(urlstr, filename string) string {
 	}
 	im.mu.Unlock()
 
-	res, err := ctxutil.Client(r).Get(urlstr)
+	res, err := ctxutil.Client(r.Context()).Get(urlstr)
 	if err != nil {
 		log.Printf("couldn't get image: %v", err)
 		return ""
@@ -214,7 +214,7 @@ func (r *run) importCheckins() error {
 
 	for continueRequests {
 		resp := checkinsList{}
-		if err := r.im.doAPI(r.Context, r.token(), &resp, checkinsAPIPath, "limit", strconv.Itoa(limit), "offset", strconv.Itoa(offset)); err != nil {
+		if err := r.im.doAPI(r.Context(), r.token(), &resp, checkinsAPIPath, "limit", strconv.Itoa(limit), "offset", strconv.Itoa(offset)); err != nil {
 			return err
 		}
 
@@ -296,7 +296,7 @@ func (r *run) importPhotos(placeNode *importer.Object, checkinWasDup bool) error
 	}
 
 	resp := photosList{}
-	if err := r.im.doAPI(r.Context, r.token(), &resp,
+	if err := r.im.doAPI(r.Context(), r.token(), &resp,
 		"venues/"+placeNode.Attr(attrFoursquareId)+"/photos",
 		"limit", strconv.Itoa(nWant)); err != nil {
 		return err

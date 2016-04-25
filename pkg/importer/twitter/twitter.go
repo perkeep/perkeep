@@ -244,13 +244,13 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 
 var _ importer.LongPoller = (*imp)(nil)
 
-func (im *imp) LongPoll(ctx *importer.RunContext) error {
-	clientId, secret, err := ctx.Credentials()
+func (im *imp) LongPoll(rctx *importer.RunContext) error {
+	clientId, secret, err := rctx.Credentials()
 	if err != nil {
 		return err
 	}
 
-	acctNode := ctx.AccountNode()
+	acctNode := rctx.AccountNode()
 	accessToken := acctNode.Attr(importer.AcctAttrAccessToken)
 	accessSecret := acctNode.Attr(importer.AcctAttrAccessTokenSecret)
 	if accessToken == "" || accessSecret == "" {
@@ -274,7 +274,7 @@ func (im *imp) LongPoll(ctx *importer.RunContext) error {
 	req, _ := http.NewRequest("GET", "https://userstream.twitter.com/1.1/user.json", nil)
 	req.Header.Set("Authorization", oauthClient.AuthorizationHeader(accessCreds, "GET", req.URL, form))
 	req.URL.RawQuery = form.Encode()
-	req.Cancel = ctx.Done()
+	req.Cancel = rctx.Context().Done()
 
 	log.Printf("Beginning twitter long poll...")
 	res, err := http.DefaultClient.Do(req)
@@ -309,7 +309,7 @@ func (r *run) errorf(format string, args ...interface{}) {
 
 func (r *run) doAPI(result interface{}, apiPath string, keyval ...string) error {
 	return importer.OAuthContext{
-		r.Context,
+		r.Context(),
 		r.oauthClient,
 		r.accessCreds}.PopulateJSONFromURL(result, apiURL+apiPath, keyval...)
 }
@@ -334,9 +334,9 @@ func (r *run) importTweets(userID string) error {
 	}
 	for continueRequests {
 		select {
-		case <-r.Done():
+		case <-r.Context().Done():
 			r.errorf("Twitter importer: interrupted")
-			return r.Err()
+			return r.Context().Err()
 		default:
 		}
 
@@ -477,9 +477,9 @@ func timeParseFirstFormat(timeStr string, format ...string) (t time.Time, err er
 // viaAPI is true if it came via the REST API, or false if it came via a zip file.
 func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool) (dup bool, err error) {
 	select {
-	case <-r.Done():
+	case <-r.Context().Done():
 		r.errorf("Twitter importer: interrupted")
-		return false, r.Err()
+		return false, r.Context().Err()
 	default:
 	}
 	id := tweet.ID()
@@ -536,7 +536,7 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 		tried, gotMedia := 0, false
 		for _, mediaURL := range m.URLs() {
 			tried++
-			res, err := ctxutil.Client(r).Get(mediaURL)
+			res, err := ctxutil.Client(r.Context()).Get(mediaURL)
 			if err != nil {
 				return false, fmt.Errorf("Error fetching %s for tweet %s : %v", mediaURL, url, err)
 			}

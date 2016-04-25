@@ -63,9 +63,9 @@ type Importer interface {
 	// Run runs a full or incremental import.
 	//
 	// The importer should continually or periodically monitor the
-	// context's Done channel to exit early if requested. The
-	// return value should be ctx.Err() if the importer
-	// exits for that reason.
+	// RunContext.Context()'s Done channel to exit early if
+	// requested. The return value should be ctx.Err() if the
+	// importer exits for that reason.
 	Run(*RunContext) error
 
 	// NeedsAPIKey reports whether this importer requires an API key
@@ -286,7 +286,7 @@ func (sc *SetupContext) AccountURL() string {
 // RunContext is the context provided for a given Run of an importer, importing
 // a certain account on a certain importer.
 type RunContext struct {
-	context.Context
+	ctx    context.Context
 	cancel context.CancelFunc // for when we stop/pause the importing
 	Host   *Host
 
@@ -294,6 +294,14 @@ type RunContext struct {
 
 	mu           sync.Mutex // guards following
 	lastProgress *ProgressMessage
+}
+
+// Context returns the run's context. It is always non-nil.
+func (rc *RunContext) Context() context.Context {
+	if rc.ctx != nil {
+		return rc.ctx
+	}
+	return context.Background()
 }
 
 // CreateAccount creates a new importer account for the Host h, and the importer
@@ -308,11 +316,10 @@ func CreateAccount(h *Host, impl string) (*RunContext, error) {
 		return nil, fmt.Errorf("could not create new account for importer %v: %v", impl, err)
 	}
 	rc := &RunContext{
-		// TODO: context plumbing
 		Host: ia.im.host,
 		ia:   ia,
 	}
-	rc.Context, rc.cancel = context.WithCancel(context.WithValue(context.TODO(), ctxutil.HTTPClient, ia.im.host.HTTPClient()))
+	rc.ctx, rc.cancel = context.WithCancel(context.WithValue(context.Background(), ctxutil.HTTPClient, ia.im.host.HTTPClient()))
 	return rc, nil
 
 }
@@ -661,9 +668,9 @@ func (ia *importerAcct) maybeStart() {
 		// Kick off long poller wait if supported.
 		if lp, ok := ia.im.impl.(LongPoller); ok {
 			rc := &RunContext{
-				Context: sleepCtx,
-				Host:    ia.im.host,
-				ia:      ia,
+				ctx:  sleepCtx,
+				Host: ia.im.host,
+				ia:   ia,
 			}
 			go func() {
 				if err := lp.LongPoll(rc); err == nil {
@@ -1114,11 +1121,10 @@ func (ia *importerAcct) start() {
 		return
 	}
 	rc := &RunContext{
-		// TODO: context plumbing
 		Host: ia.im.host,
 		ia:   ia,
 	}
-	rc.Context, rc.cancel = context.WithCancel(context.WithValue(context.TODO(), ctxutil.HTTPClient, ia.im.host.HTTPClient()))
+	rc.ctx, rc.cancel = context.WithCancel(context.WithValue(context.Background(), ctxutil.HTTPClient, ia.im.host.HTTPClient()))
 	ia.current = rc
 	ia.stopped = false
 	ia.lastRunStart = time.Now()
