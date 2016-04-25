@@ -242,35 +242,7 @@ func mainHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	relPath := req.URL.Path[1:] // serveFile URL paths start with '/'
-	if strings.Contains(relPath, "..") {
-		return
-	}
-
-	absPath := filepath.Join(*root, "content", relPath)
-	fi, err := os.Lstat(absPath)
-	if err != nil {
-		log.Print(err)
-		serveError(rw, req, relPath, err)
-		return
-	}
-	if fi.IsDir() {
-		relPath += "/index.html"
-		absPath = filepath.Join(*root, "content", relPath)
-		fi, err = os.Lstat(absPath)
-		if err != nil {
-			log.Print(err)
-			serveError(rw, req, relPath, err)
-			return
-		}
-	}
-
-	if !fi.IsDir() {
-		if checkLastModified(rw, req, fi.ModTime()) {
-			return
-		}
-		serveFile(rw, req, relPath, absPath)
-	}
+	findAndServeFile(rw, req, filepath.Join(*root, "content"))
 }
 
 // modtime is the modification time of the resource to be served, or IsZero().
@@ -293,6 +265,63 @@ func checkLastModified(w http.ResponseWriter, r *http.Request, modtime time.Time
 	return false
 }
 
+// findAndServeFile finds the file in root to satisfy req.  This method will
+// map URLs to exact filename matches, falling back to files ending in ".md" or
+// ".html".  For example, a request for "/foo" may be served by a file named
+// foo, foo.md, or foo.html.  Requests that map to directories may be served by
+// an index.html or README.md file in that directory.
+func findAndServeFile(rw http.ResponseWriter, req *http.Request, root string) {
+	relPath := req.URL.Path[1:] // serveFile URL paths start with '/'
+	if strings.Contains(relPath, "..") {
+		return
+	}
+
+	var (
+		absPath string
+		fi      os.FileInfo
+		err     error
+	)
+
+	for _, ext := range []string{"", ".md", ".html"} {
+		absPath = filepath.Join(root, relPath+ext)
+		fi, err = os.Lstat(absPath)
+		if err == nil || !os.IsNotExist(err) {
+			break
+		}
+	}
+	if err != nil {
+		log.Print(err)
+		serveError(rw, req, relPath, err)
+		return
+	}
+
+	// if directory request, try to find an index file
+	if fi.IsDir() {
+		for _, index := range []string{"index.html", "README.md"} {
+			absPath = filepath.Join(root, relPath, index)
+			fi, err = os.Lstat(absPath)
+			if err == nil || !os.IsNotExist(err) {
+				break
+			}
+			if fi.IsDir() {
+				log.Printf("Error serving website content: %q is a directory", absPath)
+				return
+			}
+		}
+	}
+	if err != nil {
+		log.Print(err)
+		serveError(rw, req, relPath, err)
+		return
+	}
+
+	if checkLastModified(rw, req, fi.ModTime()) {
+		return
+	}
+	serveFile(rw, req, relPath, absPath)
+}
+
+// serveFile serves a file from disk, converting any markdown to HTML.
 func serveFile(rw http.ResponseWriter, req *http.Request, relPath, absPath string) {
 	data, err := ioutil.ReadFile(absPath)
 	if err != nil {
