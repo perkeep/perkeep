@@ -316,11 +316,13 @@ func isBot(r *http.Request) bool {
 		strings.Contains(agent, "Ezooms") || strings.Contains(agent, "Googlebot")
 }
 
-type noWwwHandler struct {
+// redirectRootHandler redirects users to strip off "www." prefixes
+// and redirects http to https.
+type redirectRootHandler struct {
 	Handler http.Handler
 }
 
-func (h *noWwwHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (h *redirectRootHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// Some bots (especially Baidu) don't seem to respect robots.txt and swamp gitweb.cgi,
 	// so explicitly protect it from bots.
 	if ru := r.URL.RequestURI(); strings.Contains(ru, "/code/") && strings.Contains(ru, "?") && isBot(r) {
@@ -330,12 +332,8 @@ func (h *noWwwHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	host := strings.ToLower(r.Host)
-	if host == "www.camlistore.org" {
-		scheme := "https"
-		if r.TLS == nil {
-			scheme = "http"
-		}
-		http.Redirect(rw, r, scheme+"://camlistore.org"+r.URL.RequestURI(), http.StatusFound)
+	if host == "www.camlistore.org" || (inProd && r.TLS == nil) {
+		http.Redirect(rw, r, "https://camlistore.org"+r.URL.RequestURI(), http.StatusFound)
 		return
 	}
 	h.Handler.ServeHTTP(rw, r)
@@ -709,7 +707,7 @@ func main() {
 		mux.Handle("/launch/", gceLauncher)
 	}
 
-	var handler http.Handler = &noWwwHandler{Handler: mux}
+	var handler http.Handler = &redirectRootHandler{Handler: mux}
 	if *logDir != "" || *logStdout {
 		handler = NewLoggingHandler(handler, NewApacheLogger(*logDir, *logStdout))
 	}
