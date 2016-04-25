@@ -42,6 +42,7 @@ import (
 	"camlistore.org/pkg/blobserver/handlers"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/index"
+	"camlistore.org/pkg/jsonsign/signhandler"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/server"
 	"camlistore.org/pkg/server/app"
@@ -395,6 +396,10 @@ type Config struct {
 	// apps is the list of server apps configured during InstallHandlers,
 	// and that should be started after camlistored has started serving.
 	apps []*app.Handler
+	// signHandler is found and configured during InstallHandlers, or nil.
+	// It is stored in the Config, so we can call UploadPublicKey on on it as
+	// soon as camlistored is ready for it.
+	signHandler *signhandler.Handler
 }
 
 // detectConfigChange returns an informative error if conf contains obsolete keys.
@@ -582,6 +587,9 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reind
 		if helpHandler, ok := handler.(*server.HelpHandler); ok {
 			helpHandler.SetServerConfig(config.Obj)
 		}
+		if signHandler, ok := handler.(*signhandler.Handler); ok {
+			config.signHandler = signHandler
+		}
 		if in, ok := handler.(blobserver.HandlerIniter); ok {
 			if err := in.InitHandler(hl); err != nil {
 				return nil, fmt.Errorf("Error calling InitHandler on %s: %v", pfx, err)
@@ -619,6 +627,15 @@ func (config *Config) StartApps() error {
 		}
 	}
 	return nil
+}
+
+// UploadPublicKey uploads the public key blob with the sign handler that was
+// configured during InstallHandlers.
+func (config *Config) UploadPublicKey() error {
+	if config.signHandler == nil {
+		return nil
+	}
+	return config.signHandler.UploadPublicKey()
 }
 
 // AppURL returns a map of app name to app base URL for all the configured

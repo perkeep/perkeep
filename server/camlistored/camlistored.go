@@ -400,6 +400,10 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		osutil.DieOnParentDeath()
 	}
 
+	if err := config.UploadPublicKey(); err != nil {
+		exitf("Error uploading public key on startup: %v", err)
+	}
+
 	if err := config.StartApps(); err != nil {
 		exitf("StartApps: %v", err)
 	}
