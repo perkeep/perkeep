@@ -195,9 +195,9 @@ func (r *run) importPhotosets() error {
 
 	for _, item := range resp.Photosets.Photoset {
 		select {
-		case <-r.Done():
+		case <-r.Context().Done():
 			log.Printf("Flickr importer: interrupted")
-			return r.Err()
+			return r.Context().Err()
 		default:
 		}
 		for page := 1; page >= 1; {
@@ -494,14 +494,14 @@ func (r *run) getTopLevelNode(path string, title string) (*importer.Object, erro
 func (r *run) flickrAPIRequest(result interface{}, method string, keyval ...string) error {
 	keyval = append([]string{"method", method, "format", "json", "nojsoncallback", "1"}, keyval...)
 	return importer.OAuthContext{
-		r.Context,
+		r.Context(),
 		r.oauthClient,
 		r.accessCreds}.PopulateJSONFromURL(result, apiURL, keyval...)
 }
 
 func (r *run) fetch(url string, form url.Values) (*http.Response, error) {
 	return importer.OAuthContext{
-		r.Context,
+		r.Context(),
 		r.oauthClient,
 		r.accessCreds}.Get(url, form)
 }

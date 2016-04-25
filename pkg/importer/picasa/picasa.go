@@ -195,8 +195,8 @@ func encodeToken(token *oauth2.Token) string {
 // decodeToken parses an access token, refresh token, and optional
 // expiry unix timestamp separated by spaces into an oauth2.Token.
 // It returns as much as it can.
-func decodeToken(encoded string) oauth2.Token {
-	var t oauth2.Token
+func decodeToken(encoded string) *oauth2.Token {
+	t := new(oauth2.Token)
 	f := strings.Fields(encoded)
 	if len(f) > 0 {
 		t.AccessToken = f[0]
@@ -261,12 +261,12 @@ type run struct {
 
 var forceFullImport, _ = strconv.ParseBool(os.Getenv("CAMLI_PICASA_FULL_IMPORT"))
 
-func (imp) Run(ctx *importer.RunContext) error {
-	clientID, secret, err := ctx.Credentials()
+func (imp) Run(rctx *importer.RunContext) error {
+	clientID, secret, err := rctx.Credentials()
 	if err != nil {
 		return err
 	}
-	acctNode := ctx.AccountNode()
+	acctNode := rctx.AccountNode()
 
 	ocfg := &oauth2.Config{
 		Endpoint:     google.Endpoint,
@@ -276,9 +276,10 @@ func (imp) Run(ctx *importer.RunContext) error {
 	}
 
 	token := decodeToken(acctNode.Attr(acctAttrOAuthToken))
-	ctx.Context = context.WithValue(ctx.Context, ctxutil.HTTPClient, ocfg.Client(ctx, &token))
+	baseCtx := rctx.Context()
+	ctx := context.WithValue(baseCtx, ctxutil.HTTPClient, ocfg.Client(baseCtx, token))
 
-	root := ctx.RootNode()
+	root := rctx.RootNode()
 	if root.Attr(nodeattr.Title) == "" {
 		if err := root.SetAttr(
 			nodeattr.Title,
@@ -289,11 +290,11 @@ func (imp) Run(ctx *importer.RunContext) error {
 	}
 
 	r := &run{
-		RunContext:  ctx,
+		RunContext:  rctx,
 		incremental: !forceFullImport && acctNode.Attr(importer.AcctAttrCompletedVersion) == runCompleteVersion,
 		photoGate:   syncutil.NewGate(3),
 	}
-	if err := r.importAlbums(); err != nil {
+	if err := r.importAlbums(ctx); err != nil {
 		return err
 	}
 
@@ -304,26 +305,26 @@ func (imp) Run(ctx *importer.RunContext) error {
 	return nil
 }
 
-func (r *run) importAlbums() error {
-	albums, err := picago.GetAlbums(ctxutil.Client(r), "default")
+func (r *run) importAlbums(ctx context.Context) error {
+	albums, err := picago.GetAlbums(ctxutil.Client(ctx), "default")
 	if err != nil {
 		return fmt.Errorf("importAlbums: error listing albums: %v", err)
 	}
 	albumsNode, err := r.getTopLevelNode("albums", "Albums")
 	for _, album := range albums {
 		select {
-		case <-r.Done():
-			return r.Err()
+		case <-ctx.Done():
+			return ctx.Err()
 		default:
 		}
-		if err := r.importAlbum(albumsNode, album); err != nil {
+		if err := r.importAlbum(ctx, albumsNode, album); err != nil {
 			return fmt.Errorf("picasa importer: error importing album %s: %v", album, err)
 		}
 	}
 	return nil
 }
 
-func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album) (ret error) {
+func (r *run) importAlbum(ctx context.Context, albumsNode *importer.Object, album picago.Album) (ret error) {
 	if album.ID == "" {
 		return errors.New("album has no ID")
 	}
@@ -365,7 +366,7 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album) (ret 
 	// return a slice of all photos. My "InstantUpload/Auto
 	// Backup" album has 6678 photos (and growing) and this
 	// currently takes like 40 seconds. Fix.
-	photos, err := picago.GetPhotos(ctxutil.Client(r), "default", album.ID)
+	photos, err := picago.GetPhotos(ctxutil.Client(ctx), "default", album.ID)
 	if err != nil {
 		return err
 	}
@@ -376,28 +377,28 @@ func (r *run) importAlbum(albumsNode *importer.Object, album picago.Album) (ret 
 	var grp syncutil.Group
 	for i := range photos {
 		select {
-		case <-r.Done():
-			return r.Err()
+		case <-ctx.Done():
+			return ctx.Err()
 		default:
 		}
 		photo := photos[i]
 		r.photoGate.Start()
 		grp.Go(func() error {
 			defer r.photoGate.Done()
-			return r.updatePhotoInAlbum(albumNode, photo)
+			return r.updatePhotoInAlbum(ctx, albumNode, photo)
 		})
 	}
 	return grp.Err()
 }
 
-func (r *run) updatePhotoInAlbum(albumNode *importer.Object, photo picago.Photo) (ret error) {
+func (r *run) updatePhotoInAlbum(ctx context.Context, albumNode *importer.Object, photo picago.Photo) (ret error) {
 	if photo.ID == "" {
 		return errors.New("photo has no ID")
 	}
 
 	getMediaBytes := func() (io.ReadCloser, error) {
 		log.Printf("Importing media from %v", photo.URL)
-		resp, err := ctxutil.Client(r).Get(photo.URL)
+		resp, err := ctxutil.Client(ctx).Get(photo.URL)
 		if err != nil {
 			return nil, fmt.Errorf("importing photo %s: %v", photo.ID, err)
 		}

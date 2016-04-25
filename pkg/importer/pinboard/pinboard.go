@@ -246,16 +246,16 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 	sleepDuration := r.nextAfter.Sub(time.Now())
 	// block until we either get canceled or until it is time to run
 	select {
-	case <-r.Done():
+	case <-r.Context().Done():
 		log.Printf("pinboard: Importer interrupted.")
-		return false, r.Err()
+		return false, r.Context().Err()
 	case <-time.After(sleepDuration):
 		// just proceed
 	}
 	start := time.Now()
 
 	u := fmt.Sprintf(fetchUrl, authToken, batchLimit, r.nextCursor)
-	resp, err := ctxutil.Client(r).Get(u)
+	resp, err := ctxutil.Client(r.Context()).Get(u)
 	if err != nil {
 		return false, err
 	}
@@ -293,9 +293,9 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 	var grp syncutil.Group
 	for _, post := range postBatch {
 		select {
-		case <-r.Done():
+		case <-r.Context().Done():
 			log.Printf("pinboard: Importer interrupted")
-			return false, r.Err()
+			return false, r.Context().Err()
 		default:
 		}
 
