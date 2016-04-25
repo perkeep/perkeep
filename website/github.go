@@ -26,19 +26,23 @@ import (
 	"path/filepath"
 
 	"go4.org/wkfs"
+	_ "go4.org/wkfs/gcs"
 )
 
 // This is a test comment for github syncing.
 
 const githubSSHKeyGCS = "/gcs/camlistore-website-resource/id_github_camlistorebot_push"
 
-var githubSSHKey string // Also used to detect whether we do the syncs to github
+var (
+	githubSSHKey string // Also used to detect whether we do the syncs to github
+	hostSSHDir   string // path to the ssh config dir on the host
+)
 
 func githubSSHConfig(filename string) string {
 	return `
 Host github.com
   User git
-  IdentityFile ` + filename + `
+  IdentityFile ~/.ssh/` + filename + `
   IdentitiesOnly yes
 `
 }
@@ -49,31 +53,30 @@ func initGithubSyncing() error {
 	}
 	keyData, err := wkfs.ReadFile(githubSSHKeyGCS)
 	if err != nil {
-		log.Print("Not syncing to github, because no ssh key found.")
+		log.Printf("Not syncing to github, because no ssh key found: %v", err)
 		return nil
 	}
 	u, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("can't look up user: %v", err)
 	}
-	dir, err := ioutil.TempDir("", "ssh")
-	if err != nil {
-		return fmt.Errorf("failed to create temp dir for github SSH key: %v", err)
+
+	sshDir := filepath.Join(u.HomeDir, ".ssh")
+	if err := os.MkdirAll(sshDir, 0700); err != nil {
+		return fmt.Errorf("failed to create ssh config dir %v: %v", sshDir, err)
 	}
-	keyFile := filepath.Join(dir, "id_github_camlistorebot_push")
+	keyFile := filepath.Join(sshDir, "id_github_camlistorebot_push")
 	if err := ioutil.WriteFile(keyFile, keyData, 0600); err != nil {
 		return fmt.Errorf("failed to create temp github SSH key: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Join(u.HomeDir, ".ssh"), 0700); err != nil {
-		return fmt.Errorf("failed to create ssh config dir %v: %v", filepath.Join(u.HomeDir, ".ssh"), err)
-	}
 	if err := ioutil.WriteFile(
-		filepath.Join(u.HomeDir, ".ssh", "id_github_camlistorebot_push"),
+		filepath.Join(sshDir, "config"),
 		[]byte(githubSSHConfig(keyFile)),
 		0600); err != nil {
 		return fmt.Errorf("failed to create github SSH config: %v", err)
 	}
-	githubSSHKey = keyFile
+	hostSSHDir = sshDir
+	githubSSHKey = filepath.Base(keyFile)
 	return nil
 }
 
@@ -115,7 +118,10 @@ func syncToGithub(dir, gerritHEAD string) error {
 	if gh == gerritHEAD {
 		return nil
 	}
-	cmd := execGit(dir, "push", "git@github.com:camlistore/camlistore.git", "master:master")
+	mounts := map[string]string{
+		hostSSHDir: filepath.Join("/root", ".ssh"),
+	}
+	cmd := execGit(dir, mounts, "push", "git@github.com:camlistore/camlistore.git", "master:master")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("error running git push to github: %v\n%s", err, out)
