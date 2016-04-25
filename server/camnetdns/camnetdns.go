@@ -77,6 +77,7 @@ func (ds *DNSServer) ServeDNS(rw dns.ResponseWriter, mes *dns.Msg) {
 	resp := new(dns.Msg)
 
 	for _, q := range mes.Question {
+		log.Printf("DNS request from %s: %s", rw.RemoteAddr(), &q)
 		switch q.Qtype {
 		case dns.TypeA, dns.TypeAAAA:
 			val, err := ds.HandleLookup(q.Name)
@@ -138,6 +139,9 @@ func main() {
 		panic(err)
 	}
 	if err := memkv.Set("camlistore.net.", "104.154.231.160"); err != nil {
+		panic(err)
+	}
+	if err := memkv.Set("www.camlistore.net.", "104.154.231.160"); err != nil {
 		panic(err)
 	}
 
