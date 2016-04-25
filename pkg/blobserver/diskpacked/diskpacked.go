@@ -178,11 +178,12 @@ func newStorage(root string, maxFileSize int64, indexConf jsonconfig.Obj) (s *st
 		maxFileSize:  maxFileSize,
 		Generationer: local.NewGenerationer(root),
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if err := s.openAllPacks(); err != nil {
+		s.Close()
 		return nil, err
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if _, _, err := s.StorageGeneration(); err != nil {
 		return nil, fmt.Errorf("Error initialization generation for %q: %v", root, err)
 	}
@@ -244,6 +245,8 @@ func (s *storage) openForWrite(n int) error {
 
 	s.size, err = f.Seek(0, os.SEEK_END)
 	if err != nil {
+		f.Close()
+		l.Close()
 		return err
 	}
 
@@ -299,7 +302,6 @@ func (s *storage) openAllPacks() error {
 			break
 		}
 		if err != nil {
-			s.Close()
 			return err
 		}
 		n++
@@ -314,25 +316,27 @@ func (s *storage) openAllPacks() error {
 	return s.openForWrite(n - 1)
 }
 
+// Close index and all opened fds, with locking.
 func (s *storage) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closed {
+		return nil
+	}
 	var closeErr error
-	if !s.closed {
-		s.closed = true
-		if err := s.index.Close(); err != nil {
-			log.Println("diskpacked: closing index:", err)
-		}
-		for _, f := range s.fds {
-			err := f.Close()
-			openFdsVar.Add(s.root, -1)
-			if err != nil {
-				closeErr = err
-			}
-		}
-		if err := s.closePack(); err != nil && closeErr == nil {
+	s.closed = true
+	if err := s.index.Close(); err != nil {
+		log.Println("diskpacked: closing index:", err)
+	}
+	for _, f := range s.fds {
+		err := f.Close()
+		openFdsVar.Add(s.root, -1)
+		if err != nil {
 			closeErr = err
 		}
+	}
+	if err := s.closePack(); err != nil && closeErr == nil {
+		closeErr = err
 	}
 	return closeErr
 }

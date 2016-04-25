@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -75,7 +76,6 @@ func TestDiskpacked(t *testing.T) {
 func TestDiskpackedAltIndex(t *testing.T) {
 	storagetest.Test(t, newTempDiskpackedMemory)
 }
-
 func TestDoubleReceive(t *testing.T) {
 	sto, cleanup := newTempDiskpacked(t)
 	defer cleanup()
@@ -332,10 +332,38 @@ func TestClose(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 	fd4 := fds()
-	got := fmt.Sprintf("%v %v %v %v %v", fd0, fd1, fd2, fd3, fd4)
-	want := "0 2 2 2 0"
+	got := [...]int{fd1 - fd0, fd2 - fd1, fd3 - fd2, fd4 - fd3}
+	want := [...]int{+2, 0, 0, -2}
 	if got != want {
-		t.Errorf("fd count over time = %q; want %q", got, want)
+		t.Errorf("fd count over time = %v; want %v", got, want)
 	}
 
+}
+
+func TestBadDir(t *testing.T) {
+	s, err := newStorage("hopefully this is a not existing directory", 1<<20, jsonconfig.Obj{"type": "memory"})
+	if err == nil {
+		s.Close()
+		t.Errorf("expected error for non-existing directory")
+	}
+}
+
+func TestWriteError(t *testing.T) {
+	dir, err := ioutil.TempDir("", "diskpacked-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !env.IsDebug() {
+		defer os.RemoveAll(dir)
+	}
+	t.Logf("diskpacked test dir is %q", dir)
+	fn := filepath.Join(dir, "pack-00000.blobs")
+	if err := os.Symlink("/non existing file", fn); err != nil {
+		t.Fatal(err)
+	}
+	s, err := newStorage(dir, 1, jsonconfig.Obj{"type": "memory"})
+	if err == nil {
+		s.Close()
+		t.Fatal("expected error for non-existing directory")
+	}
 }
