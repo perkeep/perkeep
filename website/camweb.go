@@ -68,7 +68,7 @@ var h1TitlePattern = regexp.MustCompile(`<h1>([^<]+)</h1>`)
 var (
 	httpAddr        = flag.String("http", defaultAddr, "HTTP address")
 	httpsAddr       = flag.String("https", "", "HTTPS address")
-	root            = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl")
+	root            = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl)")
 	logDir          = flag.String("logdir", "", "Directory to write log files to (one per hour), or empty to not log.")
 	logStdout       = flag.Bool("logstdout", true, "Whether to log to stdout")
 	tlsCertFile     = flag.String("tlscert", "", "TLS cert file")
@@ -228,6 +228,10 @@ func redirectPath(u *url.URL) string {
 		// Assume it's a commit
 		return gerritURLPrefix + path
 	}
+
+	if strings.HasPrefix(u.Path, "/docs/") {
+		return "/doc/" + strings.TrimPrefix(u.Path, "/docs/")
+	}
 	return ""
 }
 
@@ -243,6 +247,10 @@ func mainHandler(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	findAndServeFile(rw, req, filepath.Join(*root, "content"))
+}
+
+func docHandler(rw http.ResponseWriter, req *http.Request) {
+	findAndServeFile(rw, req, filepath.Join(filepath.Dir(*root), "doc"))
 }
 
 // modtime is the modification time of the resource to be served, or IsZero().
@@ -300,18 +308,22 @@ func findAndServeFile(rw http.ResponseWriter, req *http.Request, root string) {
 		for _, index := range []string{"index.html", "README.md"} {
 			absPath = filepath.Join(root, relPath, index)
 			fi, err = os.Lstat(absPath)
-			if err == nil || !os.IsNotExist(err) {
-				break
-			}
-			if fi.IsDir() {
-				log.Printf("Error serving website content: %q is a directory", absPath)
+			if err != nil {
+				if os.IsNotExist(err) {
+					// didn't find this file, try the next
+					continue
+				}
+				log.Print(err)
+				serveError(rw, req, relPath, err)
 				return
 			}
+			break
 		}
 	}
-	if err != nil {
-		log.Print(err)
-		serveError(rw, req, relPath, err)
+
+	if fi.IsDir() {
+		log.Printf("Error serving website content: %q is a directory", absPath)
+		serveError(rw, req, relPath, fmt.Errorf("error: %q is a directory", absPath))
 		return
 	}
 
@@ -707,6 +719,7 @@ func main() {
 	mux.Handle("/lists", redirTo("/community"))
 
 	mux.HandleFunc("/contributors", contribHandler())
+	mux.Handle("/doc/", http.StripPrefix("/doc", http.HandlerFunc(docHandler)))
 	mux.HandleFunc("/", mainHandler)
 
 	if *buildbotHost != "" && *buildbotBackend != "" {
