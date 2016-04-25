@@ -26,7 +26,23 @@ import (
 
 	"camlistore.org/pkg/sorted"
 	"github.com/miekg/dns"
+	"go4.org/cloud/cloudlaunch"
+	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/cloud/datastore"
+	"google.golang.org/cloud/logging"
 )
+
+var launchConfig = &cloudlaunch.Config{
+	Name:         "camnetdns",
+	BinaryBucket: "camlistore-dnsserver-resource",
+	GCEProjectID: "camlistore-dns-server",
+	Scopes: []string{
+		compute.ComputeScope,
+		logging.Scope,
+		datastore.ScopeDatastore,
+		datastore.ScopeUserEmail, // whose email? https://github.com/GoogleCloudPlatform/gcloud-golang/issues/201
+	},
+}
 
 // DefaultResponseTTL is the record TTL in seconds
 const DefaultResponseTTL = 300
@@ -105,11 +121,15 @@ func (ds *DNSServer) ServeDNS(rw dns.ResponseWriter, mes *dns.Msg) {
 }
 
 func main() {
+	launchConfig.MaybeDeploy()
 	addr := flag.String("addr", "0.0.0.0:5300", "specify address for server to listen on")
 	flag.Parse()
 
 	memkv := sorted.NewMemoryKeyValue()
 	if err := memkv.Set("6401800c.camlistore.net.", "159.203.246.79"); err != nil {
+		panic(err)
+	}
+	if err := memkv.Set("camlistore.net.", "104.154.231.160"); err != nil {
 		panic(err)
 	}
 
