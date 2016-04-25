@@ -241,6 +241,11 @@ func pollCommits(dir string) {
 			}
 		}
 	}
+	if githubSSHKey != "" {
+		if err := syncToGithub(dir, hashes[0]); err != nil {
+			log.Printf("Failed to push to github: %v")
+		}
+	}
 }
 
 func recentCommits(dir string) (hashes []string, err error) {
