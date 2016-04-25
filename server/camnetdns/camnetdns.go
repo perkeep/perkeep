@@ -28,6 +28,7 @@ import (
 	"github.com/miekg/dns"
 	"go4.org/cloud/cloudlaunch"
 	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/cloud/compute/metadata"
 	"google.golang.org/cloud/datastore"
 	"google.golang.org/cloud/logging"
 )
@@ -35,7 +36,7 @@ import (
 var launchConfig = &cloudlaunch.Config{
 	Name:         "camnetdns",
 	BinaryBucket: "camlistore-dnsserver-resource",
-	GCEProjectID: "camlistore-dns-server",
+	GCEProjectID: "camlistore-website",
 	Scopes: []string{
 		compute.ComputeScope,
 		logging.Scope,
@@ -48,6 +49,13 @@ var launchConfig = &cloudlaunch.Config{
 const DefaultResponseTTL = 300
 
 var ErrRecordNotFound = errors.New("record not found")
+
+func defaultListenAddr() string {
+	if metadata.OnGCE() {
+		return ":53"
+	}
+	return ":5300"
+}
 
 // DNSServer implements the dns.Handler interface to serve A and AAAA
 // records using a sorted.KeyValue for the lookups.
@@ -122,7 +130,7 @@ func (ds *DNSServer) ServeDNS(rw dns.ResponseWriter, mes *dns.Msg) {
 
 func main() {
 	launchConfig.MaybeDeploy()
-	addr := flag.String("addr", "0.0.0.0:5300", "specify address for server to listen on")
+	addr := flag.String("addr", defaultListenAddr(), "specify address for server to listen on")
 	flag.Parse()
 
 	memkv := sorted.NewMemoryKeyValue()
