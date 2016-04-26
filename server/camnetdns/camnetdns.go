@@ -121,6 +121,7 @@ func (ds *DNSServer) ServeDNS(rw dns.ResponseWriter, mes *dns.Msg) {
 		}
 	}
 
+	resp.Authoritative = true
 	resp.Id = mes.Id
 	resp.Response = true
 
