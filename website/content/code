@@ -12,13 +12,13 @@
 
 <p>Camlistore is built so that other apps can securely access and store data without running alongside it. Camlistore is the perfect backing store for other web apps and CMSes.</p>
 
-<p>Detailed documention on the HTTP blob retrieval protocol can be found at <a href="/docs/protocol">the protocol documentation</a>. The <a href="/pkg/client">client</a>, <a href="/pkg/search">search</a> and <a href="/pkg/schema">schema</a> packages are also a good place to start.</p>
+<p>Detailed documention on the HTTP blob retrieval protocol can be found at <a href="/doc/protocol">the protocol documentation</a>. The <a href="/pkg/client">client</a>, <a href="/pkg/search">search</a> and <a href="/pkg/schema">schema</a> packages are also a good place to start.</p>
 
 <h2 id="contributing">Contributing to Camlistore</h2>
 
 <ul class='lispaced'>
    <li>Join the <a href="https://groups.google.com/group/camlistore">mailing list</a>.</li>
-   <li>Pick something that interests you, or look through our list of <a href="/docs/todo">potential projects</a> for inspiration. <strong>Discuss it first</strong>, especially if it's large and/or not well designed yet. You'll save yourself a headache if someone is already working on something similar or if there's a more Camlistore-like approach to the issue.</li>
+   <li>Pick something that interests you, or look through our list of <a href="/doc/todo">potential projects</a> for inspiration. <strong>Discuss it first</strong>, especially if it's large and/or not well designed yet. You'll save yourself a headache if someone is already working on something similar or if there's a more Camlistore-like approach to the issue.</li>
    <li>Submit your changes through the review process discussed below.</li>
    <li>Note that you'll need to agree to the appropriate Contributor License Agreement:
        <ul>
