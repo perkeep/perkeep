@@ -180,7 +180,7 @@ func execGit(workdir string, mounts map[string]string, gitArgs ...string) *exec.
 			"--rm",
 		}
 		for host, container := range mounts {
-			args = append(args, "-v", host+":"+container)
+			args = append(args, "-v", host+":"+container+":ro")
 		}
 		args = append(args, []string{
 			"-v", workdir + ":" + workdir,
@@ -203,13 +203,13 @@ type GitCommit struct {
 }
 
 func pollCommits(dir string) {
-	cmd := execGit(dir, nil, "fetch", "origin")
+	cmd := execGit(dir, nil, "pull", "origin")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Printf("Error running git fetch origin master in %s: %v\n%s", dir, err, out)
+		log.Printf("Error running git pull origin master in %s: %v\n%s", dir, err, out)
 		return
 	}
-	log.Printf("Ran git fetch.")
+	log.Printf("Ran git pull.")
 	// TODO: see if .git/refs/remotes/origin/master
 	// changed. (quicker than running recentCommits each time)
 
@@ -248,9 +248,7 @@ func pollCommits(dir string) {
 	}
 	if githubSSHKey != "" {
 		if err := syncToGithub(dir, hashes[0]); err != nil {
-			log.Printf("Failed to push to github: %v", err)
-		} else {
-			log.Printf("Successfully pushed commit %v to github", hashes[0])
+			log.Printf("Failed to push commit %v to github: %v", hashes[0], err)
 		}
 	}
 }

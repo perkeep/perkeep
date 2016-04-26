@@ -65,18 +65,19 @@ func initGithubSyncing() error {
 	if err := os.MkdirAll(sshDir, 0700); err != nil {
 		return fmt.Errorf("failed to create ssh config dir %v: %v", sshDir, err)
 	}
-	keyFile := filepath.Join(sshDir, "id_github_camlistorebot_push")
+	keyFileName := filepath.Base(githubSSHKeyGCS)
+	keyFile := filepath.Join(sshDir, keyFileName)
 	if err := ioutil.WriteFile(keyFile, keyData, 0600); err != nil {
-		return fmt.Errorf("failed to create temp github SSH key: %v", err)
+		return fmt.Errorf("failed to create temp github SSH key %v: %v", keyFile, err)
 	}
 	if err := ioutil.WriteFile(
 		filepath.Join(sshDir, "config"),
-		[]byte(githubSSHConfig(keyFile)),
+		[]byte(githubSSHConfig(keyFileName)),
 		0600); err != nil {
 		return fmt.Errorf("failed to create github SSH config: %v", err)
 	}
 	hostSSHDir = sshDir
-	githubSSHKey = filepath.Base(keyFile)
+	githubSSHKey = keyFileName
 	return nil
 }
 
@@ -115,16 +116,18 @@ func syncToGithub(dir, gerritHEAD string) error {
 	if err != nil {
 		return fmt.Errorf("error looking up the github HEAD commit: %v", err)
 	}
+	log.Printf("HEAD commits: on github=%v, on gerrit=%v", gh, gerritHEAD)
 	if gh == gerritHEAD {
 		return nil
 	}
 	mounts := map[string]string{
-		hostSSHDir: filepath.Join("/root", ".ssh"),
+		hostSSHDir: "/root/.ssh",
 	}
 	cmd := execGit(dir, mounts, "push", "git@github.com:camlistore/camlistore.git", "master:master")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("error running git push to github: %v\n%s", err, out)
 	}
+	log.Printf("Successfully pushed commit %v to github", gerritHEAD)
 	return nil
 }
