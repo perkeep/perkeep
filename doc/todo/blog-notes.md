@@ -9,7 +9,7 @@ publish handler.
 
 * views of the blog we'd like:
 
-  1) reverse chronological (typical blog view)
+  1. reverse chronological (typical blog view)
 
      - needs efficient reverse time index on membership.
 
@@ -22,7 +22,7 @@ publish handler.
        for memberships.  I'm inclined to say keep the model
        and make it fast.
 
-  2) forward chronological by date posted.  (year, month, day view)
+  2. forward chronological by date posted.  (year, month, day view)
 
      - denormalization question.  the date of the blog post should
        be an attribute of the post's permanode (defaulting to the
@@ -34,7 +34,6 @@ publish handler.
        blog posts can be cross-posted to multiple blogs, and keeps
        the number of attributes on the blog permanode lower.
 
-       e.g. blog post can have (add-)attributes:
+         e.g. blog post can have (add-)attributes:
 
-       "inparent" => "<blog-permanode>|
-     
+            "inparent" => "<blog-permanode>"
