@@ -369,6 +369,11 @@ var markdownRenderer = blackfriday.HtmlRenderer(markdownHTMLFlags, "", "")
 
 // serveFile serves a file from disk, converting any markdown to HTML.
 func serveFile(rw http.ResponseWriter, req *http.Request, relPath, absPath string) {
+	if !strings.HasSuffix(absPath, ".html") && !strings.HasSuffix(absPath, ".md") {
+		http.ServeFile(rw, req, absPath)
+		return
+	}
+
 	data, err := ioutil.ReadFile(absPath)
 	if err != nil {
 		serveError(rw, req, absPath, err)
