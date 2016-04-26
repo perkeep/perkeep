@@ -723,6 +723,7 @@ func main() {
 	mux.Handle("/talks/", http.StripPrefix("/talks/", http.FileServer(http.Dir(filepath.Join(*root, "talks")))))
 	mux.Handle(pkgPattern, godocHandler{})
 	mux.Handle(cmdPattern, godocHandler{})
+	mux.Handle(appPattern, godocHandler{})
 	mux.HandleFunc(errPattern, errHandler)
 
 	mux.HandleFunc("/r/", gerritRedirect)

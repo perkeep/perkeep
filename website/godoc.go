@@ -45,10 +45,11 @@ const (
 	domainName       = "camlistore.org"
 	pkgPattern       = "/pkg/"
 	cmdPattern       = "/cmd/"
+	appPattern       = "/app/"
 	fileembedPattern = "fileembed.go"
 )
 
-var docRx = regexp.MustCompile(`^/((?:pkg|cmd)/([\w/]+?)(\.go)??)/?$`)
+var docRx = regexp.MustCompile(`^/((?:pkg|cmd|app)/([\w/]+?)(\.go)??)/?$`)
 
 var tabwidth = 4
 
@@ -232,7 +233,8 @@ func (pi *PageInfo) populateDirs(diskPath string, depth int) {
 
 func getPageInfo(pkgName, diskPath string) (pi PageInfo, err error) {
 	if pkgName == pathpkg.Join(domainName, pkgPattern) ||
-		pkgName == pathpkg.Join(domainName, cmdPattern) {
+		pkgName == pathpkg.Join(domainName, cmdPattern) ||
+		pkgName == pathpkg.Join(domainName, appPattern) {
 		pi.Dirname = diskPath
 		pi.populateDirs(diskPath, -1)
 		return
@@ -397,7 +399,7 @@ func (godocHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m := docRx.FindStringSubmatch(r.URL.Path)
 	suffix := ""
 	if m == nil {
-		if r.URL.Path != pkgPattern && r.URL.Path != cmdPattern {
+		if r.URL.Path != pkgPattern && r.URL.Path != cmdPattern && r.URL.Path != appPattern {
 			http.NotFound(w, r)
 			return
 		}
