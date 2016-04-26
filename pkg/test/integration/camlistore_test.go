@@ -72,6 +72,7 @@ func TestWebsocketQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
+	defer c.Close()
 
 	wc, _, err := websocket.NewClient(c, &url.URL{Host: w.Addr(), Path: w.SearchHandlerPath() + "ws"}, nil, bufSize, bufSize)
 	check(err)
