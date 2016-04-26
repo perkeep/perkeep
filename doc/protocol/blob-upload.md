@@ -1,12 +1,14 @@
+# Blob Upload Protocol
+
 Uploading a single blob is done in two parts:
 
-1) Optional: see if the server already has it with a HEAD request to
+1. Optional: see if the server already has it with a HEAD request to
    its blob URL, or do a multi-stat request with a single blob. If the
    server has it, you're done. Blobs are content-addressable and have
    no metadata or version, so if the server has it, it has the right
    version.
 
-2) PUT that blob to its blob URL (or do a multipart batch put of a
+2. PUT that blob to its blob URL (or do a multipart batch put of a
    single blob)
 
 
@@ -24,22 +26,18 @@ PUT requests with the blobs that the server didn't have.
 If you DON'T have SPDY on both sides, you want to use the batch stat
 and batch upload endpoints, described below.
 
-============================================================================
-Preupload request:
-============================================================================
+## Preupload request:
 
-(see blob-stat-protocol.txt)
+see [blob-stat](blob-stat.md)
 
-============================================================================
-Batch upload request:
-============================================================================
+## Batch upload request:
 
 Things to note about the request:
 
    * You do a POST to $BLOB_ROOT/camli/upload where $BLOB_ROOT is the
      blobserver's root path. You can get the path from
      performing "discovery" on the server and getting the
-     "blobRoot" value. See discovery.txt.
+     "blobRoot" value. See [discovery](discovery.md).
 
    * You MUST provide a "name" parameter in each multipart part's
      Content-Disposition value.  The part's name matters and is the
@@ -71,46 +69,44 @@ Some of these requirements may be relaxed in the future.
 
 Example:
 
-POST /$BLOB_SERVER_PATH_ROOT/camli/upload HTTP/1.1
-Host: upload-server.example.com
-Content-Type: multipart/form-data; boundary=randomboundaryXYZ
+    POST /$BLOB_SERVER_PATH_ROOT/camli/upload HTTP/1.1
+    Host: upload-server.example.com
+    Content-Type: multipart/form-data; boundary=randomboundaryXYZ
 
---randomboundaryXYZ
-Content-Disposition: form-data; name="sha1-9b03f7aca1ac60d40b5e570c34f79a3e07c918e8"; filename="blob1"
-Content-Type: application/octet-stream
+    --randomboundaryXYZ
+    Content-Disposition: form-data; name="sha1-9b03f7aca1ac60d40b5e570c34f79a3e07c918e8"; filename="blob1"
+    Content-Type: application/octet-stream
 
-(binary or text blob data)
---randomboundaryXYZ
-Content-Disposition: form-data; name="sha1-deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"; filename="blob2"
-Content-Type: application/octet-stream
+    (binary or text blob data)
+    --randomboundaryXYZ
+    Content-Disposition: form-data; name="sha1-deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"; filename="blob2"
+    Content-Type: application/octet-stream
 
-(binary or text blob data)
---randomboundaryXYZ--
+    (binary or text blob data)
+    --randomboundaryXYZ--
 
------------------------------------------------------
-Response (status may be a 200 or a 303 to this data)
------------------------------------------------------
+Response (status may be a 200 or a 303 to this data):
 
-HTTP/1.1 200 OK
-Content-Type: text/plain
+    HTTP/1.1 200 OK
+    Content-Type: text/plain
 
-{
-   "received": [
-      {"blobRef": "sha1-9b03f7aca1ac60d40b5e570c34f79a3e07c918e8",
-       "size": 12312},
-      {"blobRef": "sha1-deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
-       "size": 29384933}
-   ]
-}
+    {
+       "received": [
+          {"blobRef": "sha1-9b03f7aca1ac60d40b5e570c34f79a3e07c918e8",
+           "size": 12312},
+          {"blobRef": "sha1-deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+           "size": 29384933}
+       ]
+    }
 
 Response keys:
 
-   received         required   Array of {"blobRef": BLOBREF, "size": INT_bytes}
-                               for blobs that were successfully saved. Empty
-                               list in the case nothing was received.
-   errorText        optional   String error message for protocol errors
-                               not relating to a particular blob.
-                               Mostly for debugging clients.  
+    received         required   Array of {"blobRef": BLOBREF, "size": INT_bytes}
+                                for blobs that were successfully saved. Empty
+                                list in the case nothing was received.
+    errorText        optional   String error message for protocol errors
+                                not relating to a particular blob.
+                                Mostly for debugging clients.
 
 If connection drops during a POST to an upload URL, you should re-do a
 stat request to verify which objects were received by the server
@@ -118,5 +114,5 @@ and which were not.  Also, the URL you received from stat before
 might no longer work, so stat is required to a get a valid upload
 URL.
 
-For information on resuming truncated uploads, read blob-upload-resume.txt
+For information on resuming truncated uploads, read [blob-upload-resume](blob-upload-resume.md).
 
