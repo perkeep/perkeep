@@ -342,6 +342,31 @@ func findAndServeFile(rw http.ResponseWriter, req *http.Request, root string) {
 	serveFile(rw, req, relPath, absPath)
 }
 
+// configure blackfriday options.  These are the same options that
+// blackfriday.MarkdownCommon uses with minor additions.
+const (
+	markdownHTMLFlags = 0 |
+		blackfriday.HTML_USE_XHTML |
+		blackfriday.HTML_USE_SMARTYPANTS |
+		blackfriday.HTML_SMARTYPANTS_FRACTIONS |
+		blackfriday.HTML_SMARTYPANTS_DASHES |
+		blackfriday.HTML_SMARTYPANTS_LATEX_DASHES
+
+	markdownExtensions = 0 |
+		blackfriday.EXTENSION_NO_INTRA_EMPHASIS |
+		blackfriday.EXTENSION_TABLES |
+		blackfriday.EXTENSION_FENCED_CODE |
+		blackfriday.EXTENSION_AUTOLINK |
+		blackfriday.EXTENSION_STRIKETHROUGH |
+		blackfriday.EXTENSION_SPACE_HEADERS |
+		blackfriday.EXTENSION_HEADER_IDS |
+		blackfriday.EXTENSION_BACKSLASH_LINE_BREAK |
+		blackfriday.EXTENSION_DEFINITION_LISTS |
+		blackfriday.EXTENSION_AUTO_HEADER_IDS
+)
+
+var markdownRenderer = blackfriday.HtmlRenderer(markdownHTMLFlags, "", "")
+
 // serveFile serves a file from disk, converting any markdown to HTML.
 func serveFile(rw http.ResponseWriter, req *http.Request, relPath, absPath string) {
 	data, err := ioutil.ReadFile(absPath)
@@ -350,7 +375,7 @@ func serveFile(rw http.ResponseWriter, req *http.Request, relPath, absPath strin
 		return
 	}
 
-	data = blackfriday.MarkdownCommon(data)
+	data = blackfriday.MarkdownOptions(data, markdownRenderer, blackfriday.Options{Extensions: markdownExtensions})
 
 	title := ""
 	if m := h1TitlePattern.FindSubmatch(data); len(m) > 1 {
