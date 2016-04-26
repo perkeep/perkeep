@@ -495,7 +495,6 @@ func setProdFlags() {
 		"camlistore/git",
 		"git",
 		"clone",
-		"--depth=1",
 		"https://camlistore.googlesource.com/camlistore",
 		prodSrcDir).CombinedOutput()
 	if err != nil {
