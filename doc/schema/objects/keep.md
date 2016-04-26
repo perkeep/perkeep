@@ -1,3 +1,5 @@
+# Keep Object
+
 A signed "keep" edge for GC/indexing purposes.  Expresses a user's
 intent to keep an object.
 
@@ -9,8 +11,8 @@ those permanodes)
 This is just the most explicit way when you're not modeling the data
 with permanodes.
 
-{"camliVersion": 1,
- "camliType": "keep",
- "target": "digalg-blobref-of-thing-to-keep",
-<REQUIRED-JSON-SIGNATURE>}
+    {"camliVersion": 1,
+     "camliType": "keep",
+     "target": "digalg-blobref-of-thing-to-keep",
+    <REQUIRED-JSON-SIGNATURE>}
 

@@ -1,11 +1,11 @@
-Inode schema.
+# Inode Schema
 
-{"camliVersion": 1,
- "camliType": "inode",
- "inodeId": 12345  // st_ino
- "deviceId": 53,   // st_dev
- "numLinks": 3,    // st_nlink
-}
+    {"camliVersion": 1,
+     "camliType": "inode",
+     "inodeId": 12345  // st_ino
+     "deviceId": 53,   // st_dev
+     "numLinks": 3,    // st_nlink
+    }
 
 This is optional and probably rarely used, but lets two+ files be
 represented as hardlinks with each other.  If both files point to the
