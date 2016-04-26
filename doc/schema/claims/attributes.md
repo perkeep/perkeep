@@ -1,4 +1,4 @@
-Permanode Attributes
+# Permanode Attributes
 
 While a permanode can have any arbitrary attributes and values (and
 each value can be single-valued or multi-valued), the following are
