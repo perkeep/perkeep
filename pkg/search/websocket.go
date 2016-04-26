@@ -72,9 +72,6 @@ func (h *wsHub) run() {
 	for {
 		select {
 		case st := <-h.statusUpdate:
-			if len(h.conns) == 0 {
-				continue
-			}
 			const prefix = `{"tag":"_status","status":`
 			lastStatusMsg = make([]byte, 0, len(prefix)+len(st)+1)
 			lastStatusMsg = append(lastStatusMsg, prefix...)
