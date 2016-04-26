@@ -304,6 +304,14 @@ func findAndServeFile(rw http.ResponseWriter, req *http.Request, root string) {
 		return
 	}
 
+	// If it's a directory without a trailing slash, redirect to
+	// the URL with a trailing slash so relative links within that
+	// directory work.
+	if fi.IsDir() && !strings.HasSuffix(req.URL.Path, "/") {
+		http.Redirect(rw, req, "/doc"+req.URL.Path+"/", http.StatusFound)
+		return
+	}
+
 	// if directory request, try to find an index file
 	if fi.IsDir() {
 		for _, index := range []string{"index.html", "README.md"} {
