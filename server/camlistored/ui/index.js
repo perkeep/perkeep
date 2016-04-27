@@ -1118,7 +1118,7 @@ cam.IndexPage = React.createClass({
 			(this.childSearchSession_ && this.childSearchSession_.hasSocketError())) {
 			errors.push({
 				error: 'WebSocket error - click to reload',
-				onClick: this.props.location.reload.bind(null, this.props.location, true),
+				onClick: this.props.location.reload.bind(this.props.location, true),
 			});
 		}
 		return errors;
