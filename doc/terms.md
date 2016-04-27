@@ -38,15 +38,15 @@ if things here are confusing or lacking.</p>
        <ul>
 
          <li><a
-         href="/gw/doc/protocol/blob-get-protocol.txt"><b>get</b></a>
+         href="/gw/doc/protocol/blob-get.md"><b>get</b></a>
          a blob by its blobref.</li>
 
          <li><a
-         href="/gw/doc/protocol/blob-upload-protocol.txt"><b>put</b></a>
+         href="/gw/doc/protocol/blob-upload.md"><b>put</b></a>
          a blob by its blobref.</li>
 
          <li><a
-         href="/gw/doc/protocol/blob-enumerate-protocol.txt"><b>enumerate</b></a>
+         href="/gw/doc/protocol/blob-enumerate.md"><b>enumerate</b></a>
          all your blobs, sorted by their blobrefs.  Enumeration is
          only really used by your search server and by a <em>full sync</em>
          between your blob server mirrors.</li>
