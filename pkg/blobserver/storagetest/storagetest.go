@@ -172,15 +172,23 @@ func TestOpt(t *testing.T, opt Opts) {
 
 func (r *run) testRemove(blobRefs []blob.Ref) {
 	t, sto := r.t, r.sto
+	implemented := true
 	t.Logf("Testing Remove")
 	if err := sto.RemoveBlobs(blobRefs); err != nil {
 		if strings.Contains(err.Error(), "not implemented") {
+			implemented = false
 			t.Logf("RemoveBlobs: %v", err)
 		} else {
 			t.Fatalf("RemoveBlobs: %v", err)
 		}
 	}
 	r.testEnumerate(nil) // verify they're all gone
+	if len(blobRefs) > 0 && implemented {
+		t.Logf("Testing double-delete")
+		if err := sto.RemoveBlobs([]blob.Ref{blobRefs[0]}); err != nil {
+			t.Fatalf("Double RemoveBlobs: %v", err)
+		}
+	}
 }
 
 func (r *run) testSubFetcher() {

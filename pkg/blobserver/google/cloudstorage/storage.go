@@ -17,7 +17,7 @@ limitations under the License.
 // Package cloudstorage registers the "googlecloudstorage" blob storage type, storing blobs
 // on Google Cloud Storage (not Google Drive).
 // See https://cloud.google.com/products/cloud-storage
-package cloudstorage // import "camlistore.org/pkg/blobserver/google/cloudstorage"
+package cloudstorage
 
 import (
 	"bytes"
@@ -27,6 +27,8 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
+	"os"
 	"path"
 	"strings"
 	"time"
@@ -35,14 +37,18 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/memory"
 	"camlistore.org/pkg/constants"
-	"camlistore.org/pkg/constants/google"
-	"camlistore.org/pkg/googlestorage"
-	"go4.org/jsonconfig"
-	"golang.org/x/net/context"
 
+	"go4.org/cloud/google/gcsutil"
+	"go4.org/ctxutil"
+	"go4.org/jsonconfig"
 	"go4.org/oauthutil"
 	"go4.org/syncutil"
+	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	"google.golang.org/cloud"
+	"google.golang.org/cloud/compute/metadata"
+	"google.golang.org/cloud/storage"
 )
 
 type Storage struct {
@@ -53,8 +59,12 @@ type Storage struct {
 	// If non empty, it should be a slash separated path with a trailing slash and no starting
 	// slash.
 	dirPrefix string
-	client    *googlestorage.Client
+	client    *storage.Client
 	cache     *memory.Storage // or nil for no cache
+
+	// an OAuth-authenticated HTTP client, for methods that can't yet use a
+	// *storage.Client
+	baseHTTPClient *http.Client
 
 	// For blobserver.Generationer:
 	genTime   time.Time
@@ -104,9 +114,22 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		bucket:    bucket,
 		dirPrefix: dirPrefix,
 	}
+
+	var (
+		ctx = context.Background()
+		ts  oauth2.TokenSource
+		cl  *storage.Client
+		err error
+	)
 	if clientID == "auto" {
-		var err error
-		gs.client, err = googlestorage.NewServiceClient()
+		if !metadata.OnGCE() {
+			return nil, errors.New(`Cannot use "auto" client_id when not running on GCE`)
+		}
+		ts, err = google.DefaultTokenSource(ctx, storage.ScopeReadWrite)
+		if err != nil {
+			return nil, err
+		}
+		cl, err = storage.NewClient(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -117,41 +140,52 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		if refreshToken == "" {
 			return nil, errors.New("missing required parameter 'refresh_token'")
 		}
-		oAuthClient := oauth2.NewClient(oauth2.NoContext, oauthutil.NewRefreshTokenSource(&oauth2.Config{
-			Scopes:       []string{googlestorage.Scope},
+		ts = oauthutil.NewRefreshTokenSource(&oauth2.Config{
+			Scopes:       []string{storage.ScopeReadWrite},
 			Endpoint:     google.Endpoint,
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			RedirectURL:  oauthutil.TitleBarRedirectURL,
-		}, refreshToken))
-		gs.client = googlestorage.NewClient(oAuthClient)
+		}, refreshToken)
+		cl, err = storage.NewClient(ctx, cloud.WithTokenSource(ts))
+		if err != nil {
+			return nil, err
+		}
 	}
+
+	gs.baseHTTPClient = oauth2.NewClient(ctx, ts)
+	gs.client = cl
 
 	if cacheSize != 0 {
 		gs.cache = memory.NewCache(cacheSize)
 	}
 
-	bi, err := gs.client.BucketInfo(bucket)
+	ba, err := gs.client.Bucket(gs.bucket).Attrs(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error statting bucket %q: %v", bucket, err)
+		return nil, fmt.Errorf("error statting bucket %q: %v", gs.bucket, err)
 	}
 	hash := sha1.New()
-	fmt.Fprintf(hash, "%v%v", bi.TimeCreated, bi.Metageneration)
+	fmt.Fprintf(hash, "%v%v", ba.Created, ba.MetaGeneration)
 	gs.genRandom = fmt.Sprintf("%x", hash.Sum(nil))
-	gs.genTime, _ = time.Parse(time.RFC3339, bi.TimeCreated)
+	gs.genTime = ba.Created
 
 	return gs, nil
 }
 
+// TODO(mpl, bradfitz): use a *storage.Client in EnumerateBlobs, instead of hitting the
+// XML API, once we have an efficient replacement for the "marker" from the XML API. See
+// https://github.com/GoogleCloudPlatform/gcloud-golang/issues/197
+
 func (s *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
-	objs, err := s.client.EnumerateObjects(s.bucket, s.dirPrefix+after, limit)
+	ectx := context.WithValue(ctx, ctxutil.HTTPClient, s.baseHTTPClient)
+	objs, err := gcsutil.EnumerateObjects(ectx, s.bucket, s.dirPrefix+after, limit)
 	if err != nil {
 		log.Printf("gstorage EnumerateObjects: %v", err)
 		return err
 	}
 	for _, obj := range objs {
-		dir, file := path.Split(obj.Key)
+		dir, file := path.Split(obj.Name)
 		if dir != s.dirPrefix {
 			continue
 		}
@@ -175,12 +209,15 @@ func (s *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, err
 		return blob.SizedRef{}, err
 	}
 
-	err = s.client.PutObject(
-		&googlestorage.Object{Bucket: s.bucket, Key: s.dirPrefix + br.String()},
-		ioutil.NopCloser(bytes.NewReader(buf.Bytes())))
-	if err != nil {
+	// TODO(mpl): use context from caller, once one is available (issue 733)
+	w := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).NewWriter(context.TODO())
+	if _, err := io.Copy(w, ioutil.NopCloser(bytes.NewReader(buf.Bytes()))); err != nil {
 		return blob.SizedRef{}, err
 	}
+	if err := w.Close(); err != nil {
+		return blob.SizedRef{}, err
+	}
+
 	if s.cache != nil {
 		// NoHash because it's already verified if we read it
 		// without errors on the io.Copy above.
@@ -191,6 +228,8 @@ func (s *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, err
 
 func (s *Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	// TODO: use cache
+	// TODO(mpl): use context from caller, once one is available (issue 733)
+	ctx := context.TODO()
 	var grp syncutil.Group
 	gate := syncutil.NewGate(20) // arbitrary cap
 	for i := range blobs {
@@ -198,14 +237,14 @@ func (s *Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 		gate.Start()
 		grp.Go(func() error {
 			defer gate.Done()
-			size, exists, err := s.client.StatObject(
-				&googlestorage.Object{Bucket: s.bucket, Key: s.dirPrefix + br.String()})
+			attrs, err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).Attrs(ctx)
+			if err == storage.ErrObjectNotExist {
+				return nil
+			}
 			if err != nil {
 				return err
 			}
-			if !exists {
-				return nil
-			}
+			size := attrs.Size
 			if size > constants.MaxBlobSize {
 				return fmt.Errorf("blob %s stat size too large (%d)", br, size)
 			}
@@ -222,21 +261,45 @@ func (s *Storage) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) 
 			return
 		}
 	}
-	rc, sz, err := s.client.GetObject(&googlestorage.Object{Bucket: s.bucket, Key: s.dirPrefix + br.String()})
-	if err != nil && sz > constants.MaxBlobSize {
-		err = errors.New("object too big")
+	// TODO(mpl): use context from caller, once one is available (issue 733)
+	r, err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).NewReader(context.TODO())
+	if r.Size() >= 1<<32 {
+		return nil, 0, errors.New("object larger than a uint32")
 	}
-	return rc, uint32(sz), err
+	size = uint32(r.Size())
+	if err != nil {
+		if err == storage.ErrObjectNotExist {
+			return nil, size, os.ErrNotExist
+		}
+		if size > constants.MaxBlobSize {
+			return nil, size, errors.New("object too big")
+		}
+	}
+	return r, size, err
 }
 
 func (s *Storage) SubFetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, err error) {
-	return s.client.GetPartialObject(googlestorage.Object{Bucket: s.bucket, Key: s.dirPrefix + br.String()}, offset, length)
+	if offset < 0 || length < 0 {
+		return nil, blob.ErrNegativeSubFetch
+	}
+	// TODO(mpl): use context from caller, once one is available (issue 733)
+	ctx := context.WithValue(context.TODO(), ctxutil.HTTPClient, s.baseHTTPClient)
+	rc, err = gcsutil.GetPartialObject(ctx, gcsutil.Object{Bucket: s.bucket, Key: s.dirPrefix + br.String()}, offset, length)
+	if err == gcsutil.ErrInvalidRange {
+		return nil, blob.ErrOutOfRangeOffsetSubFetch
+	}
+	if err == storage.ErrObjectNotExist {
+		return nil, os.ErrNotExist
+	}
+	return rc, err
 }
 
 func (s *Storage) RemoveBlobs(blobs []blob.Ref) error {
 	if s.cache != nil {
 		s.cache.RemoveBlobs(blobs)
 	}
+	// TODO(mpl): use context from caller, once one is available (issue 733)
+	ctx := context.TODO()
 	gate := syncutil.NewGate(50) // arbitrary
 	var grp syncutil.Group
 	for i := range blobs {
@@ -244,7 +307,11 @@ func (s *Storage) RemoveBlobs(blobs []blob.Ref) error {
 		br := blobs[i]
 		grp.Go(func() error {
 			defer gate.Done()
-			return s.client.DeleteObject(&googlestorage.Object{Bucket: s.bucket, Key: s.dirPrefix + br.String()})
+			err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).Delete(ctx)
+			if err == storage.ErrObjectNotExist {
+				return nil
+			}
+			return err
 		})
 	}
 	return grp.Err()
