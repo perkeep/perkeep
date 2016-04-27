@@ -12,12 +12,19 @@ metadata the blob contains.
 Here are some of the data types we've started to formalize a
 [JSON](http://json.org/) schema for:
 
-*   [Files](files/): traditional filesystems.  Files, directories, inodes,
+* [Common Attributes](common.md)
+* [Delete Claim](delete.md)
+* [Directory](directory.md)
+* [FIFO](fifo.md)
+* [Files](file.md/): traditional filesystems.  Files, directories, inodes,
     symlinks, etc. Uses the `file`, `directory`, `symlink`, and `inode`
     camliTypes.
-
-*   [Permanodes](permanode.md): the immutable root "anchor" of mutable Camlistore
-    objects (see [terminology](terms.md)). Users create signed
+* [Inode](inode.md)
+* ["Keep" claims](keep.md): Normally, any object that isn't referenced
+    by a permanode could theoretically be garbage collected. Keep claims prevent
+    that from happening. Indicated by the `keep` camliType.
+* [Permanodes](permanode.md): the immutable root "anchor" of mutable Camlistore
+    objects (see [terminology](../terms.md)). Users create signed
     [claim](permanode.md#claim) schema blobs which reference a permanode and
     define some mutation for the permanode.
 
@@ -25,10 +32,9 @@ Here are some of the data types we've started to formalize a
     mutable files, dynamic directories, and more.
 
     Uses the `permanode` and `claim` camliTypes.
-
-*   [Static Sets](objects/static-set.md): Immutable lists of other blobs by
+* [Permanode Attributes](attributes.md)
+* [Share Claim](share.md)
+* [Socket](socket.md)
+* [Static Sets](static-set.md): Immutable lists of other blobs by
     their refs. Indicated by the `static-set` camliType.
-
-*   ["Keep" claims](objects/keep.md): Normally, any object that isn't referenced
-    by a permanode could theoretically be garbage collected. Keep claims prevent
-    that from happening. Indicated by the `keep` camliType.
+* [Symlink](symlink.md)

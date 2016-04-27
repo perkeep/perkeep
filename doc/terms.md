@@ -104,7 +104,7 @@ starts with <code>{</code> and is <a href="http://json.org/">valid JSON</a> in i
 
   <p>A permanode is simply a <a href="/docs/json-signing">signed</a>
      schema blob with no data inside that would be interesting to
-     mutate.  See <a href="/gw/doc/schema/objects/permanode.txt">the
+     mutate.  See <a href="/gw/doc/schema/permanode.md">the
      permanode spec</a>.</p>
 
   <p>A permanent reference to a mutable object then is simply the blobref of

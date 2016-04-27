@@ -5,7 +5,7 @@ Clean this up and/or break into separate files.
     {"camliVersion": 1,
      "camliType": "claim",
      "camliSigner": "....",
-     "claimDate": "2010-07-10T17:20:03.9212Z", // redundant with data in ascii armored "camliSig", 
+     "claimDate": "2010-07-10T17:20:03.9212Z", // redundant with data in ascii armored "camliSig",
                                                // but required. more legible. takes precedence over
                                                // any date inferred from camliSig
      "permaNode": "dig-xxxxxxx",        // what is being modified
@@ -74,7 +74,7 @@ Tagging something:
       "attribute": "tag",  // utf-8, should have list of valid attributes names, preferrably not made up by us (open social spec?)
       "value": "funny",  // value that doesn’t have lasting value
       "valueRef": "sha1-blobref",  // hefty reference to a lasting value
-     
+
       "claimer?": "sha1-of-the-dude-who’s-signing",
       "claimDate": "2010-07-10T17:20:03.9212Z",
       "claimType", "permanode-become",

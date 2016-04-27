@@ -15,4 +15,3 @@ with permanodes.
      "camliType": "keep",
      "target": "digalg-blobref-of-thing-to-keep",
     <REQUIRED-JSON-SIGNATURE>}
-
