@@ -1,4 +1,0 @@
-See:
-    http://camlistore.org/docs/terms
-or
-    website/content/docs/terms
