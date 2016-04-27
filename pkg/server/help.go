@@ -39,7 +39,7 @@ const helpHTML string = `<html>
 			<h2>Help</h2>
 
 			<h3>Web User Interface</h3>
-			<p><a href='https://camlistore.googlesource.com/camlistore/+/master/doc/search-ui.txt'>Search bar predicates.</a></p>
+			<p><a href='https://camlistore.org/doc/search-ui'>Search bar predicates.</a></p>
 
 			<h3>Client tools</h3>
 
