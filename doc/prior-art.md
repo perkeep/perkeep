@@ -12,8 +12,8 @@
 * [Git](http://git-scm.com/), which exposed me to the idea of hashing
   directories, commits, etc.  But git probably got it from Venti / Fossil:
 
-  * [Venti](http://en.wikipedia.org/wiki/Venti) /
-    [Fossil](http://en.wikipedia.org/wiki/Fossil_(file_system\)), apparently
+  * [Venti](https://en.wikipedia.org/wiki/Venti) /
+    [Fossil](https://en.wikipedia.org/wiki/Fossil_\(file_system\)), apparently
     pioneered the idea of recursive content-addressable file systems.
 
 * [Monotone](http://www.monotone.ca/)'s "Certificates" are similar to Camli
