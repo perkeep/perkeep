@@ -16,13 +16,12 @@ package datastore
 
 import (
 	"errors"
-	"net/http"
 
-	"github.com/golang/protobuf/proto"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 
-	pb "google.golang.org/cloud/internal/datastore"
-	"google.golang.org/cloud/internal/transport"
+	pb "google.golang.org/cloud/datastore/internal/proto"
 )
 
 // ErrConcurrentTransaction is returned when a transaction is rolled back due
@@ -36,21 +35,6 @@ type TransactionOption interface {
 	apply(*pb.BeginTransactionRequest)
 }
 
-type isolation struct {
-	level pb.BeginTransactionRequest_IsolationLevel
-}
-
-func (i isolation) apply(req *pb.BeginTransactionRequest) {
-	req.IsolationLevel = i.level.Enum()
-}
-
-var (
-	// Snapshot causes the transaction to enforce a snapshot isolation level.
-	Snapshot TransactionOption = isolation{pb.BeginTransactionRequest_SNAPSHOT}
-	// Serializable causes the transaction to enforce a serializable isolation level.
-	Serializable TransactionOption = isolation{pb.BeginTransactionRequest_SERIALIZABLE}
-)
-
 // Transaction represents a set of datastore operations to be committed atomically.
 //
 // Operations are enqueued by calling the Put and Delete methods on Transaction
@@ -61,28 +45,32 @@ var (
 //
 // A Transaction must be committed or rolled back exactly once.
 type Transaction struct {
-	id       []byte
-	client   *Client
-	ctx      context.Context
-	mutation *pb.Mutation  // The mutations to apply.
-	pending  []*PendingKey // Incomplete keys pending transaction completion.
+	id        []byte
+	client    *Client
+	ctx       context.Context
+	mutations []*pb.Mutation      // The mutations to apply.
+	pending   map[int]*PendingKey // Map from mutation index to incomplete keys pending transaction completion.
 }
 
 // NewTransaction starts a new transaction.
 func (c *Client) NewTransaction(ctx context.Context, opts ...TransactionOption) (*Transaction, error) {
-	req, resp := &pb.BeginTransactionRequest{}, &pb.BeginTransactionResponse{}
+	req := &pb.BeginTransactionRequest{
+		ProjectId: c.dataset,
+	}
 	for _, o := range opts {
 		o.apply(req)
 	}
-	if err := c.call(ctx, "beginTransaction", req, resp); err != nil {
+	resp, err := c.client.BeginTransaction(ctx, req)
+	if err != nil {
 		return nil, err
 	}
 
 	return &Transaction{
-		id:       resp.Transaction,
-		ctx:      ctx,
-		client:   c,
-		mutation: &pb.Mutation{},
+		id:        resp.Transaction,
+		ctx:       ctx,
+		client:    c,
+		mutations: nil,
+		pending:   make(map[int]*PendingKey),
 	}, nil
 }
 
@@ -131,29 +119,27 @@ func (t *Transaction) Commit() (*Commit, error) {
 		return nil, errExpiredTransaction
 	}
 	req := &pb.CommitRequest{
-		Transaction: t.id,
-		Mutation:    t.mutation,
-		Mode:        pb.CommitRequest_TRANSACTIONAL.Enum(),
+		ProjectId:           t.client.dataset,
+		TransactionSelector: &pb.CommitRequest_Transaction{t.id},
+		Mutations:           t.mutations,
+		Mode:                pb.CommitRequest_TRANSACTIONAL,
 	}
 	t.id = nil
-	resp := &pb.CommitResponse{}
-	if err := t.client.call(t.ctx, "commit", req, resp); err != nil {
-		if e, ok := err.(*transport.ErrHTTP); ok && e.StatusCode == http.StatusConflict {
-			// TODO(jbd): Make sure that we explicitly handle the case where response
-			// has an HTTP 409 and the error message indicates that it's an concurrent
-			// transaction error.
+	resp, err := t.client.client.Commit(t.ctx, req)
+	if err != nil {
+		if grpc.Code(err) == codes.Aborted {
 			return nil, ErrConcurrentTransaction
 		}
 		return nil, err
 	}
 
 	// Copy any newly minted keys into the returned keys.
-	if len(t.pending) != len(resp.MutationResult.InsertAutoIdKey) {
-		return nil, errors.New("datastore: internal error: server returned the wrong number of keys")
-	}
 	commit := &Commit{}
 	for i, p := range t.pending {
-		key, err := protoToKey(resp.MutationResult.InsertAutoIdKey[i])
+		if i >= len(resp.MutationResults) || resp.MutationResults[i].Key == nil {
+			return nil, errors.New("datastore: internal error: server returned the wrong mutation results")
+		}
+		key, err := protoToKey(resp.MutationResults[i].Key)
 		if err != nil {
 			return nil, errors.New("datastore: internal error: server returned an invalid key")
 		}
@@ -171,7 +157,11 @@ func (t *Transaction) Rollback() error {
 	}
 	id := t.id
 	t.id = nil
-	return t.client.call(t.ctx, "rollback", &pb.RollbackRequest{Transaction: id}, &pb.RollbackResponse{})
+	_, err := t.client.client.Rollback(t.ctx, &pb.RollbackRequest{
+		ProjectId:   t.client.dataset,
+		Transaction: id,
+	})
+	return err
 }
 
 // Get is the transaction-specific version of the package function Get.
@@ -180,7 +170,10 @@ func (t *Transaction) Rollback() error {
 // level, another transaction cannot concurrently modify the data that is read
 // or modified by this transaction.
 func (t *Transaction) Get(key *Key, dst interface{}) error {
-	err := t.client.get(t.ctx, []*Key{key}, []interface{}{dst}, &pb.ReadOptions{Transaction: t.id})
+	opts := &pb.ReadOptions{
+		ConsistencyType: &pb.ReadOptions_Transaction{t.id},
+	}
+	err := t.client.get(t.ctx, []*Key{key}, []interface{}{dst}, opts)
 	if me, ok := err.(MultiError); ok {
 		return me[0]
 	}
@@ -192,7 +185,10 @@ func (t *Transaction) GetMulti(keys []*Key, dst interface{}) error {
 	if t.id == nil {
 		return errExpiredTransaction
 	}
-	return t.client.get(t.ctx, keys, dst, &pb.ReadOptions{Transaction: t.id})
+	opts := &pb.ReadOptions{
+		ConsistencyType: &pb.ReadOptions_Transaction{t.id},
+	}
+	return t.client.get(t.ctx, keys, dst, opts)
 }
 
 // Put is the transaction-specific version of the package function Put.
@@ -218,24 +214,24 @@ func (t *Transaction) PutMulti(keys []*Key, src interface{}) ([]*PendingKey, err
 	if t.id == nil {
 		return nil, errExpiredTransaction
 	}
-	mutation, err := putMutation(keys, src)
+	mutations, err := putMutations(keys, src)
 	if err != nil {
 		return nil, err
 	}
-	proto.Merge(t.mutation, mutation)
+	origin := len(t.mutations)
+	t.mutations = append(t.mutations, mutations...)
 
 	// Prepare the returned handles, pre-populating where possible.
 	ret := make([]*PendingKey, len(keys))
 	for i, key := range keys {
-		h := &PendingKey{}
+		p := &PendingKey{}
 		if key.Incomplete() {
 			// This key will be in the final commit result.
-			t.pending = append(t.pending, h)
+			t.pending[origin+i] = p
 		} else {
-			h.key = key
+			p.key = key
 		}
-
-		ret[i] = h
+		ret[i] = p
 	}
 
 	return ret, nil
@@ -257,11 +253,11 @@ func (t *Transaction) DeleteMulti(keys []*Key) error {
 	if t.id == nil {
 		return errExpiredTransaction
 	}
-	mutation, err := deleteMutation(keys)
+	mutations, err := deleteMutations(keys)
 	if err != nil {
 		return err
 	}
-	proto.Merge(t.mutation, mutation)
+	t.mutations = append(t.mutations, mutations...)
 	return nil
 }
 

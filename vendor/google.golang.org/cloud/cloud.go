@@ -42,8 +42,15 @@ func NewContext(projID string, c *http.Client) context.Context {
 func WithContext(parent context.Context, projID string, c *http.Client) context.Context {
 	// TODO(bradfitz): delete internal.Transport. It's too wrappy for what it does.
 	// Do User-Agent some other way.
+	if c == nil {
+		panic("invalid nil *http.Client passed to WithContext")
+	}
 	if _, ok := c.Transport.(*internal.Transport); !ok {
-		c.Transport = &internal.Transport{Base: c.Transport}
+		base := c.Transport
+		if base == nil {
+			base = http.DefaultTransport
+		}
+		c.Transport = &internal.Transport{Base: base}
 	}
 	return internal.WithContext(parent, projID, c)
 }

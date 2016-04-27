@@ -18,89 +18,87 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/golang/protobuf/proto"
 	"golang.org/x/net/context"
-	pb "google.golang.org/cloud/internal/datastore"
+	pb "google.golang.org/cloud/datastore/internal/proto"
+	"google.golang.org/grpc"
 )
 
 var (
 	key1 = &pb.Key{
-		PathElement: []*pb.Key_PathElement{
+		Path: []*pb.Key_PathElement{
 			{
-				Kind: proto.String("Gopher"),
-				Id:   proto.Int64(6),
+				Kind:   "Gopher",
+				IdType: &pb.Key_PathElement_Id{6},
 			},
 		},
 	}
 	key2 = &pb.Key{
-		PathElement: []*pb.Key_PathElement{
+		Path: []*pb.Key_PathElement{
 			{
-				Kind: proto.String("Gopher"),
-				Id:   proto.Int64(6),
+				Kind:   "Gopher",
+				IdType: &pb.Key_PathElement_Id{6},
 			},
 			{
-				Kind: proto.String("Gopher"),
-				Id:   proto.Int64(8),
+				Kind:   "Gopher",
+				IdType: &pb.Key_PathElement_Id{8},
 			},
 		},
 	}
 )
 
-type fakeClient func(req, resp proto.Message) (err error)
-
-func (c fakeClient) Call(ctx context.Context, method string, req, resp proto.Message) error {
-	return c(req, resp)
+type fakeClient struct {
+	pb.DatastoreClient
+	queryFn  func(*pb.RunQueryRequest) (*pb.RunQueryResponse, error)
+	commitFn func(*pb.CommitRequest) (*pb.CommitResponse, error)
 }
 
-func fakeRunQuery(in *pb.RunQueryRequest, out *pb.RunQueryResponse) error {
+func (c *fakeClient) RunQuery(_ context.Context, req *pb.RunQueryRequest, _ ...grpc.CallOption) (*pb.RunQueryResponse, error) {
+	return c.queryFn(req)
+}
+
+func (c *fakeClient) Commit(_ context.Context, req *pb.CommitRequest, _ ...grpc.CallOption) (*pb.CommitResponse, error) {
+	return c.commitFn(req)
+}
+
+func fakeRunQuery(in *pb.RunQueryRequest) (*pb.RunQueryResponse, error) {
 	expectedIn := &pb.RunQueryRequest{
-		Query: &pb.Query{
-			Kind: []*pb.KindExpression{&pb.KindExpression{Name: proto.String("Gopher")}},
-		},
+		QueryType: &pb.RunQueryRequest_Query{&pb.Query{
+			Kind: []*pb.KindExpression{&pb.KindExpression{Name: "Gopher"}},
+		}},
 	}
 	if !proto.Equal(in, expectedIn) {
-		return fmt.Errorf("unsupported argument: got %v want %v", in, expectedIn)
+		return nil, fmt.Errorf("unsupported argument: got %v want %v", in, expectedIn)
 	}
-	*out = pb.RunQueryResponse{
+	return &pb.RunQueryResponse{
 		Batch: &pb.QueryResultBatch{
-			MoreResults:      pb.QueryResultBatch_NO_MORE_RESULTS.Enum(),
-			EntityResultType: pb.EntityResult_FULL.Enum(),
-			EntityResult: []*pb.EntityResult{
+			MoreResults:      pb.QueryResultBatch_NO_MORE_RESULTS,
+			EntityResultType: pb.EntityResult_FULL,
+			EntityResults: []*pb.EntityResult{
 				&pb.EntityResult{
 					Entity: &pb.Entity{
 						Key: key1,
-						Property: []*pb.Property{
-							{
-								Name:  proto.String("Name"),
-								Value: &pb.Value{StringValue: proto.String("George")},
-							},
-							{
-								Name: proto.String("Height"),
-								Value: &pb.Value{
-									IntegerValue: proto.Int64(32),
-								},
-							},
+						Properties: map[string]*pb.Value{
+							"Name":   {ValueType: &pb.Value_StringValue{"George"}},
+							"Height": {ValueType: &pb.Value_IntegerValue{32}},
 						},
 					},
 				},
 				&pb.EntityResult{
 					Entity: &pb.Entity{
 						Key: key2,
-						Property: []*pb.Property{
-							{
-								Name:  proto.String("Name"),
-								Value: &pb.Value{StringValue: proto.String("Rufus")},
-							},
+						Properties: map[string]*pb.Value{
+							"Name": {ValueType: &pb.Value_StringValue{"Rufus"}},
 							// No height for Rufus.
 						},
 					},
 				},
 			},
 		},
-	}
-	return nil
+	}, nil
 }
 
 type StructThatImplementsPLS struct{}
@@ -213,12 +211,12 @@ func TestSimpleQuery(t *testing.T) {
 	struct2 := Gopher{Name: "Rufus"}
 	pList1 := PropertyList{
 		{
-			Name:  "Name",
-			Value: "George",
-		},
-		{
 			Name:  "Height",
 			Value: int64(32),
+		},
+		{
+			Name:  "Name",
+			Value: "George",
 		},
 	}
 	pList2 := PropertyList{
@@ -282,10 +280,12 @@ func TestSimpleQuery(t *testing.T) {
 	for _, tc := range testCases {
 		nCall := 0
 		client := &Client{
-			client: fakeClient(func(in, out proto.Message) error {
-				nCall++
-				return fakeRunQuery(in.(*pb.RunQueryRequest), out.(*pb.RunQueryResponse))
-			}),
+			client: &fakeClient{
+				queryFn: func(req *pb.RunQueryRequest) (*pb.RunQueryResponse, error) {
+					nCall++
+					return fakeRunQuery(req)
+				},
+			},
 		}
 		ctx := context.Background()
 
@@ -327,8 +327,15 @@ func TestSimpleQuery(t *testing.T) {
 			}
 		}
 
+		// Make sure we sort any PropertyList items (the order is not deterministic).
+		if pLists, ok := tc.dst.(*[]PropertyList); ok {
+			for _, p := range *pLists {
+				sort.Sort(byName(p))
+			}
+		}
+
 		if !reflect.DeepEqual(tc.dst, tc.want) {
-			t.Errorf("dst type %T: Entities got %+v, want %+v", tc.dst, tc.dst, tc.want)
+			t.Errorf("dst type %T: Entities\ngot  %+v\nwant %+v", tc.dst, tc.dst, tc.want)
 			continue
 		}
 	}
@@ -451,10 +458,16 @@ func TestNamespaceQuery(t *testing.T) {
 	gotNamespace := make(chan string, 1)
 	ctx := context.Background()
 	client := &Client{
-		client: fakeClient(func(req, resp proto.Message) error {
-			gotNamespace <- req.(*pb.RunQueryRequest).GetPartitionId().GetNamespace()
-			return errors.New("not implemented")
-		}),
+		client: &fakeClient{
+			queryFn: func(req *pb.RunQueryRequest) (*pb.RunQueryResponse, error) {
+				if part := req.PartitionId; part != nil {
+					gotNamespace <- part.NamespaceId
+				} else {
+					gotNamespace <- ""
+				}
+				return nil, errors.New("not implemented")
+			},
+		},
 	}
 
 	var gs []Gopher

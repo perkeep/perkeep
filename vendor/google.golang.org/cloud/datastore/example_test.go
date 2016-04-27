@@ -38,7 +38,6 @@ func Example_auth() *datastore.Client {
 	conf, err := google.JWTConfigFromJSON(
 		jsonKey,
 		datastore.ScopeDatastore,
-		datastore.ScopeUserEmail,
 	)
 	if err != nil {
 		log.Fatal(err)

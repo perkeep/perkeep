@@ -19,7 +19,7 @@ import (
 	"reflect"
 	"time"
 
-	pb "google.golang.org/cloud/internal/datastore"
+	pb "google.golang.org/cloud/datastore/internal/proto"
 )
 
 var (
@@ -58,6 +58,20 @@ type propertyLoader struct {
 }
 
 func (l *propertyLoader) load(codec *structCodec, structValue reflect.Value, p Property, prev map[string]struct{}) string {
+	sl, ok := p.Value.([]interface{})
+	if !ok {
+		return l.loadOneElement(codec, structValue, p, prev)
+	}
+	for _, val := range sl {
+		p.Value = val
+		if errStr := l.loadOneElement(codec, structValue, p, prev); errStr != "" {
+			return errStr
+		}
+	}
+	return ""
+}
+
+func (l *propertyLoader) loadOneElement(codec *structCodec, structValue reflect.Value, p Property, prev map[string]struct{}) string {
 	var sliceOk bool
 	var v reflect.Value
 	// Traverse a struct's struct-typed fields.
@@ -78,6 +92,7 @@ func (l *propertyLoader) load(codec *structCodec, structValue reflect.Value, p P
 			break
 		}
 
+		// If the element is a slice, we need to accommodate it.
 		if v.Kind() == reflect.Slice {
 			if l.m == nil {
 				l.m = make(map[string]int)
@@ -102,9 +117,9 @@ func (l *propertyLoader) load(codec *structCodec, structValue reflect.Value, p P
 		slice = v
 		v = reflect.New(v.Type().Elem()).Elem()
 	} else if _, ok := prev[p.Name]; ok && !sliceOk {
-		// Zero the field back out that was set previously, turns out its a slice and we don't know what to do with it
+		// Zero the field back out that was set previously, turns out
+		// it's a slice and we don't know what to do with it
 		v.Set(reflect.Zero(v.Type()))
-
 		return "multiple-valued property requires a slice field type"
 	}
 
@@ -213,65 +228,53 @@ func (s structPLS) Load(props []Property) error {
 }
 
 func protoToProperties(src *pb.Entity) []Property {
-	props := src.Property
+	props := src.Properties
 	out := make([]Property, 0, len(props))
-	for {
-		var (
-			x       *pb.Property
-			noIndex bool
-		)
-		if len(props) > 0 {
-			x, props = props[0], props[1:]
-			noIndex = !x.GetValue().GetIndexed()
-		} else {
-			break
-		}
-
-		if x.Value.ListValue == nil {
-			out = append(out, Property{
-				Name:     x.GetName(),
-				Value:    propValue(x.Value),
-				NoIndex:  noIndex,
-				Multiple: false,
-			})
-		} else {
-			for _, v := range x.Value.ListValue {
-				out = append(out, Property{
-					Name:     x.GetName(),
-					Value:    propValue(v),
-					NoIndex:  noIndex,
-					Multiple: true,
-				})
-			}
-		}
+	for name, val := range props {
+		out = append(out, Property{
+			Name:    name,
+			Value:   propToValue(val),
+			NoIndex: val.ExcludeFromIndexes,
+		})
 	}
 	return out
 }
 
-// propValue returns a Go value that combines the raw PropertyValue with a
-// meaning. For example, an Int64Value with GD_WHEN becomes a time.Time.
-func propValue(v *pb.Value) interface{} {
-	//TODO(PSG-Luna): Support EntityValue
-	//TODO(PSG-Luna): GeoPoint seems gone from the v1 proto, reimplement it once it's readded
-	switch {
-	case v.IntegerValue != nil:
-		return *v.IntegerValue
-	case v.TimestampMicrosecondsValue != nil:
-		return fromUnixMicro(*v.TimestampMicrosecondsValue)
-	case v.BooleanValue != nil:
-		return *v.BooleanValue
-	case v.StringValue != nil:
-		return *v.StringValue
-	case v.BlobValue != nil:
-		return []byte(v.BlobValue)
-	case v.BlobKeyValue != nil:
-		return *v.BlobKeyValue
-	case v.DoubleValue != nil:
-		return *v.DoubleValue
-	case v.KeyValue != nil:
+// propToValue returns a Go value that represents the PropertyValue. For
+// example, a TimestampValue becomes a time.Time.
+func propToValue(v *pb.Value) interface{} {
+	switch v := v.ValueType.(type) {
+	case *pb.Value_NullValue:
+		return nil
+	case *pb.Value_BooleanValue:
+		return v.BooleanValue
+	case *pb.Value_IntegerValue:
+		return v.IntegerValue
+	case *pb.Value_DoubleValue:
+		return v.DoubleValue
+	case *pb.Value_TimestampValue:
+		return time.Unix(v.TimestampValue.Seconds, int64(v.TimestampValue.Nanos))
+	case *pb.Value_KeyValue:
 		// TODO(djd): Don't drop this error.
 		key, _ := protoToKey(v.KeyValue)
 		return key
+	case *pb.Value_StringValue:
+		return v.StringValue
+	case *pb.Value_BlobValue:
+		return []byte(v.BlobValue)
+	case *pb.Value_GeoPointValue:
+		// TODO(djd): Support GeoPointValue.
+		return nil
+	case *pb.Value_EntityValue:
+		// TODO(djd): Support EntityValue.
+		return nil
+	case *pb.Value_ArrayValue:
+		arr := make([]interface{}, 0, len(v.ArrayValue.Values))
+		for _, v := range v.ArrayValue.Values {
+			arr = append(arr, propToValue(v))
+		}
+		return arr
+	default:
+		return nil
 	}
-	return nil
 }

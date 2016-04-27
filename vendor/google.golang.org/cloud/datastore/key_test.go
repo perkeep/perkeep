@@ -188,6 +188,7 @@ func TestEncoding(t *testing.T) {
 			continue
 		}
 		if !tt.k.Equal(dec) {
+			t.Logf("Proto: %s", keyToProto(tt.k))
 			t.Errorf("Decoded key %v not equal to %v", dec, tt.k)
 		}
 
@@ -235,7 +236,7 @@ func TestInvalidKeyDecode(t *testing.T) {
 	for _, enc := range invalid {
 		key, err := DecodeKey(enc)
 		if err == nil || key != nil {
-			t.Errorf("DecodeKey(%q) = %v, %v; want nil, error", key, err)
+			t.Errorf("DecodeKey(%q) = %v, %v; want nil, error", enc, key, err)
 		}
 	}
 }

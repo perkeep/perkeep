@@ -20,9 +20,9 @@ import (
 
 // Reader reads a Cloud Storage object.
 type Reader struct {
-	body        io.ReadCloser
-	size        int64
-	contentType string
+	body         io.ReadCloser
+	remain, size int64
+	contentType  string
 }
 
 func (r *Reader) Close() error {
@@ -30,7 +30,11 @@ func (r *Reader) Close() error {
 }
 
 func (r *Reader) Read(p []byte) (int, error) {
-	return r.body.Read(p)
+	n, err := r.body.Read(p)
+	if r.remain != -1 {
+		r.remain -= int64(n)
+	}
+	return n, err
 }
 
 // Size returns the size of the object in bytes.
@@ -38,6 +42,11 @@ func (r *Reader) Read(p []byte) (int, error) {
 // calls to Read or Close.
 func (r *Reader) Size() int64 {
 	return r.size
+}
+
+// Remain returns the number of bytes left to read, or -1 if unknown.
+func (r *Reader) Remain() int64 {
+	return r.remain
 }
 
 // ContentType returns the content type of the object.

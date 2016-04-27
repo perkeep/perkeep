@@ -18,13 +18,11 @@ package testutil
 import (
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"google.golang.org/cloud"
 )
 
 const (
@@ -32,18 +30,23 @@ const (
 	envPrivateKey = "GCLOUD_TESTS_GOLANG_KEY"
 )
 
+// ProjID returns the project ID to use in integration tests, or the empty
+// string if none is configured.
 func ProjID() string {
 	projID := os.Getenv(envProjID)
 	if projID == "" {
-		log.Fatal(envProjID + " must be set. See CONTRIBUTING.md for details.")
+		return ""
 	}
 	return projID
 }
 
+// TokenSource returns the OAuth2 token source to use in integration tests,
+// or nil if none is configured. TokenSource will log.Fatal if the token
+// source is specified but missing or invalid.
 func TokenSource(ctx context.Context, scopes ...string) oauth2.TokenSource {
 	key := os.Getenv(envPrivateKey)
 	if key == "" {
-		log.Fatal(envPrivateKey + " must be set. See CONTRIBUTING.md for details.")
+		return nil
 	}
 	jsonKey, err := ioutil.ReadFile(key)
 	if err != nil {
@@ -54,16 +57,4 @@ func TokenSource(ctx context.Context, scopes ...string) oauth2.TokenSource {
 		log.Fatalf("google.JWTConfigFromJSON: %v", err)
 	}
 	return conf.TokenSource(ctx)
-}
-
-// TODO(djd): Delete this function when it's no longer used.
-func Context(scopes ...string) context.Context {
-	ctx := oauth2.NoContext
-	ts := TokenSource(ctx, scopes...)
-	return cloud.NewContext(ProjID(), oauth2.NewClient(ctx, ts))
-}
-
-// TODO(djd): Delete this function when it's no longer used.
-func NoAuthContext() context.Context {
-	return cloud.NewContext(ProjID(), &http.Client{Transport: http.DefaultTransport})
 }
