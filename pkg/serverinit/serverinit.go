@@ -690,16 +690,20 @@ type configHandler struct {
 
 var (
 	knownKeys     = regexp.MustCompile(`(?ms)^\s+"_knownkeys": {.+?},?\n`)
-	sensitiveLine = regexp.MustCompile(`(?m)^\s+\"(auth|aws_secret_access_key|password)\": "[^\"]+".*\n`)
+	sensitiveLine = regexp.MustCompile(`(?m)^\s+\"(auth|aws_secret_access_key|password|client_secret)\": "[^\"]+".*\n`)
 )
 
-func (h configHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h configHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	b, _ := json.MarshalIndent(h.c.Obj, "", "    ")
 	b = knownKeys.ReplaceAll(b, nil)
 	b = sensitiveLine.ReplaceAllFunc(b, func(ln []byte) []byte {
 		i := bytes.IndexByte(ln, ':')
-		return []byte(string(ln[:i+1]) + " REDACTED\n")
+		r := string(ln[:i+1]) + ` "REDACTED"`
+		if bytes.HasSuffix(bytes.TrimSpace(ln), []byte{','}) {
+			r += ","
+		}
+		return []byte(r + "\n")
 	})
 	w.Write(b)
 }

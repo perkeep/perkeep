@@ -25,6 +25,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -472,4 +473,31 @@ func TestGenerateClientConfig(t *testing.T) {
 	}
 
 	compareConfigurations(t, inName, generatedConf, wantConf)
+}
+
+// TestConfigHandlerRedaction validates that configHandler redacts sensitive values.
+func TestConfigHandlerRedaction(t *testing.T) {
+	config := &serverinit.Config{
+		Obj: jsonconfig.Obj{
+			"auth":                  "secret",
+			"aws_secret_access_key": "secret",
+			"password":              "secret",
+			"client_secret":         "secret",
+		},
+	}
+
+	rr := httptest.NewRecorder()
+	serverinit.ConfigHandler(config).ServeHTTP(rr, nil)
+	got := make(map[string]string)
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatalf("Failed to unmarshal configHandler response: %v", err)
+	}
+	want := map[string]string{
+		"auth":                  "REDACTED",
+		"aws_secret_access_key": "REDACTED",
+		"password":              "REDACTED",
+		"client_secret":         "REDACTED",
+	}
+
+	compareConfigurations(t, "configHandlerRedaction", got, want)
 }
