@@ -29,7 +29,7 @@ const topWizard = `
 <body>
 	<p>[<a href="/">Back</a>]</p>
 	<h1>Setup Wizard</h1>
-	<p> See <a href="http://camlistore.org/docs/server-config">Server Configuration</a> for information on configuring the values below.</p>
+	<p> See <a href="https://camlistore.org/doc/server-config">Server Configuration</a> for information on configuring the values below.</p>
 	<form id="WizardForm" action="" method="post" enctype="multipart/form-data">
 `
 

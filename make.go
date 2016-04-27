@@ -709,7 +709,7 @@ func withSQLite() bool {
 		case "linux":
 			log.Printf("On Linux, run 'sudo apt-get install libsqlite3-dev' or equivalent.")
 		case "windows":
-			log.Printf("SQLite is not easy on windows. Please see http://camlistore.org/docs/server-config#windows")
+			log.Printf("SQLite is not easy on windows. Please see https://camlistore.org/doc/server-config#windows")
 		}
 		os.Exit(2)
 	}

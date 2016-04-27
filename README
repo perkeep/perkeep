@@ -5,8 +5,8 @@ It's a way to store, sync, share, model and back up content.
 It stands for "Content-Addressable Multi-Layer Indexed Storage", for
 lack of a better name.  For more, see:
 
-     http://camlistore.org/
-     http://camlistore.org/docs/
+     https://camlistore.org/
+     https://camlistore.org/doc/
 
 Other useful files:
 
@@ -20,4 +20,4 @@ Mailing lists:
 Bugs and contributing:
 
      https://github.com/camlistore/camlistore/issues
-     http://camlistore.org/docs/contributing
+     https://camlistore.org/doc/contributing

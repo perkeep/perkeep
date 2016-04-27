@@ -50,13 +50,13 @@ const helpHTML string = `<html>
 			</ul>
 			</p>
 
-			<p>You will need to use the following <a href='https://camlistore.org/docs/client-config'>client configuration</a> in order to access this server using the command line tools.</p>
+			<p>You will need to use the following <a href='https://camlistore.org/doc/client-config'>client configuration</a> in order to access this server using the command line tools.</p>
 			<pre>{{ .ClientConfigJSON }}</pre>
 
                         {{ .SecringDownloadHint }}
 
 			<h3>Anything Else?</h3>
-			<p>See the Camlistore <a href='https://camlistore.org/docs/'>online documentation</a> and <a href='https://camlistore.org/community/'>community contacts</a>.</p>
+			<p>See the Camlistore <a href='https://camlistore.org/doc/'>online documentation</a> and <a href='https://camlistore.org/community/'>community contacts</a>.</p>
 		</body>
 	</html>`
 
@@ -168,7 +168,7 @@ func (hh *HelpHandler) serveHelpHTML(cc *clientconfig.Config, rw http.ResponseWr
 	if strings.HasPrefix(hh.serverSecRing, "/gcs/") {
 		bucketdir := strings.TrimPrefix(hh.serverSecRing, "/gcs/")
 		bucketdir = strings.TrimSuffix(bucketdir, "/identity-secring.gpg")
-		hint = template.HTML(fmt.Sprintf("<p>Download your GnuPG secret ring from <a href=\"https://console.developers.google.com/storage/browser/%s/\">https://console.developers.google.com/storage/browser/%s/</a> and place it in your <a href='https://camlistore.org/docs/client-config'>Camlistore client config directory</a>. Keep it private. It's not encrypted or password-protected and anybody in possession of it can create Camlistore claims as your identity.</p>\n",
+		hint = template.HTML(fmt.Sprintf("<p>Download your GnuPG secret ring from <a href=\"https://console.developers.google.com/storage/browser/%s/\">https://console.developers.google.com/storage/browser/%s/</a> and place it in your <a href='https://camlistore.org/doc/client-config'>Camlistore client config directory</a>. Keep it private. It's not encrypted or password-protected and anybody in possession of it can create Camlistore claims as your identity.</p>\n",
 			bucketdir, bucketdir))
 	}
 

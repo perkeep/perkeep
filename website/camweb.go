@@ -768,7 +768,7 @@ func main() {
 	mux.HandleFunc("/dl/", releaseRedirect)
 	mux.HandleFunc("/debug/ip", ipHandler)
 	mux.HandleFunc("/debug/uptime", uptimeHandler)
-	mux.Handle("/docs/contributing", redirTo("/code#contributing"))
+	mux.Handle("/doc/contributing", redirTo("/code#contributing"))
 	mux.Handle("/lists", redirTo("/community"))
 
 	mux.HandleFunc("/contributors", contribHandler())
