@@ -10,8 +10,8 @@ lack of a better name.  For more, see:
 
 Other useful files:
 
-     BUILDING  how to compile it ("go run make.go")
-     HACKING   how to do development and contribute
+     BUILDING       how to compile it ("go run make.go")
+     CONTRIBUTING   how to do development and contribute
 
 Mailing lists:
 

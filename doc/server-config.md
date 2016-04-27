@@ -201,5 +201,5 @@ You will then have to populate that directory with all the necessary resources
 
 Alternatively, you can run `devcam appengine` once, which will create and
 populate the default directory (`server/appengine/source_root`). Please see the
-[HACKING](https://camlistore.googlesource.com/camlistore/+/master/HACKING) doc
-to build devcam.
+[CONTRIBUTING](https://camlistore.googlesource.com/camlistore/+/master/CONTRIBUTING.md)
+doc to build devcam.
