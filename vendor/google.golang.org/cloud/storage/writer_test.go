@@ -39,9 +39,13 @@ func TestErrorOnObjectsInsertCall(t *testing.T) {
 	}
 	wc := client.Bucket("bucketname").Object("filename1").NewWriter(ctx)
 	wc.ContentType = "text/plain"
-	if _, err := wc.Write([]byte("hello world")); err == nil {
-		t.Errorf("expected error on write, got nil")
-	}
+
+	// We can't check that the Write fails, since it depends on the write to the
+	// underling fakeTransport failing which is racy.
+	wc.Write([]byte("hello world"))
+
+	// Close must always return an error though since it waits for the transport to
+	// have closed.
 	if err := wc.Close(); err == nil {
 		t.Errorf("expected error on close, got nil")
 	}

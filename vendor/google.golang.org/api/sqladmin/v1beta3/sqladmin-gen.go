@@ -1651,7 +1651,8 @@ func (c *BackupRunsGetCall) doRequest(alt string) (*http.Response, error) {
 // all) in error.(*googleapi.Error).Header. Use googleapi.IsNotModified
 // to check whether the returned error was because
 // http.StatusNotModified was returned.
-func (c *BackupRunsGetCall) Do() (*BackupRun, error) {
+func (c *BackupRunsGetCall) Do(opts ...googleapi.CallOption) (*BackupRun, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -1815,7 +1816,8 @@ func (c *BackupRunsListCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *BackupRunsListCall) Do() (*BackupRunsListResponse, error) {
+func (c *BackupRunsListCall) Do(opts ...googleapi.CallOption) (*BackupRunsListResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -1895,6 +1897,27 @@ func (c *BackupRunsListCall) Do() (*BackupRunsListResponse, error) {
 
 }
 
+// Pages invokes f for each page of results.
+// A non-nil error returned from f will halt the iteration.
+// The provided context supersedes any context provided to the Context method.
+func (c *BackupRunsListCall) Pages(ctx context.Context, f func(*BackupRunsListResponse) error) error {
+	c.ctx_ = ctx
+	defer c.PageToken(c.urlParams_.Get("pageToken")) // reset paging to original point
+	for {
+		x, err := c.Do()
+		if err != nil {
+			return err
+		}
+		if err := f(x); err != nil {
+			return err
+		}
+		if x.NextPageToken == "" {
+			return nil
+		}
+		c.PageToken(x.NextPageToken)
+	}
+}
+
 // method id "sql.flags.list":
 
 type FlagsListCall struct {
@@ -1961,7 +1984,8 @@ func (c *FlagsListCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *FlagsListCall) Do() (*FlagsListResponse, error) {
+func (c *FlagsListCall) Do(opts ...googleapi.CallOption) (*FlagsListResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -2068,7 +2092,8 @@ func (c *InstancesCloneCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *InstancesCloneCall) Do() (*InstancesCloneResponse, error) {
+func (c *InstancesCloneCall) Do(opts ...googleapi.CallOption) (*InstancesCloneResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -2184,7 +2209,8 @@ func (c *InstancesDeleteCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *InstancesDeleteCall) Do() (*InstancesDeleteResponse, error) {
+func (c *InstancesDeleteCall) Do(opts ...googleapi.CallOption) (*InstancesDeleteResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -2313,7 +2339,8 @@ func (c *InstancesExportCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *InstancesExportCall) Do() (*InstancesExportResponse, error) {
+func (c *InstancesExportCall) Do(opts ...googleapi.CallOption) (*InstancesExportResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -2449,7 +2476,8 @@ func (c *InstancesGetCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *InstancesGetCall) Do() (*DatabaseInstance, error) {
+func (c *InstancesGetCall) Do(opts ...googleapi.CallOption) (*DatabaseInstance, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -2578,7 +2606,8 @@ func (c *InstancesImportCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *InstancesImportCall) Do() (*InstancesImportResponse, error) {
+func (c *InstancesImportCall) Do(opts ...googleapi.CallOption) (*InstancesImportResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -2705,7 +2734,8 @@ func (c *InstancesInsertCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *InstancesInsertCall) Do() (*InstancesInsertResponse, error) {
+func (c *InstancesInsertCall) Do(opts ...googleapi.CallOption) (*InstancesInsertResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -2848,7 +2878,8 @@ func (c *InstancesListCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *InstancesListCall) Do() (*InstancesListResponse, error) {
+func (c *InstancesListCall) Do(opts ...googleapi.CallOption) (*InstancesListResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -2912,6 +2943,27 @@ func (c *InstancesListCall) Do() (*InstancesListResponse, error) {
 	//   ]
 	// }
 
+}
+
+// Pages invokes f for each page of results.
+// A non-nil error returned from f will halt the iteration.
+// The provided context supersedes any context provided to the Context method.
+func (c *InstancesListCall) Pages(ctx context.Context, f func(*InstancesListResponse) error) error {
+	c.ctx_ = ctx
+	defer c.PageToken(c.urlParams_.Get("pageToken")) // reset paging to original point
+	for {
+		x, err := c.Do()
+		if err != nil {
+			return err
+		}
+		if err := f(x); err != nil {
+			return err
+		}
+		if x.NextPageToken == "" {
+			return nil
+		}
+		c.PageToken(x.NextPageToken)
+	}
 }
 
 // method id "sql.instances.patch":
@@ -2981,7 +3033,8 @@ func (c *InstancesPatchCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *InstancesPatchCall) Do() (*InstancesUpdateResponse, error) {
+func (c *InstancesPatchCall) Do(opts ...googleapi.CallOption) (*InstancesUpdateResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -3105,7 +3158,8 @@ func (c *InstancesPromoteReplicaCall) doRequest(alt string) (*http.Response, err
 // a response was returned at all) in error.(*googleapi.Error).Header.
 // Use googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *InstancesPromoteReplicaCall) Do() (*InstancesPromoteReplicaResponse, error) {
+func (c *InstancesPromoteReplicaCall) Do(opts ...googleapi.CallOption) (*InstancesPromoteReplicaResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -3226,7 +3280,8 @@ func (c *InstancesResetSslConfigCall) doRequest(alt string) (*http.Response, err
 // a response was returned at all) in error.(*googleapi.Error).Header.
 // Use googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *InstancesResetSslConfigCall) Do() (*InstancesResetSslConfigResponse, error) {
+func (c *InstancesResetSslConfigCall) Do(opts ...googleapi.CallOption) (*InstancesResetSslConfigResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -3346,7 +3401,8 @@ func (c *InstancesRestartCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *InstancesRestartCall) Do() (*InstancesRestartResponse, error) {
+func (c *InstancesRestartCall) Do(opts ...googleapi.CallOption) (*InstancesRestartResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -3468,7 +3524,8 @@ func (c *InstancesRestoreBackupCall) doRequest(alt string) (*http.Response, erro
 // response was returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *InstancesRestoreBackupCall) Do() (*InstancesRestoreBackupResponse, error) {
+func (c *InstancesRestoreBackupCall) Do(opts ...googleapi.CallOption) (*InstancesRestoreBackupResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -3611,7 +3668,8 @@ func (c *InstancesSetRootPasswordCall) doRequest(alt string) (*http.Response, er
 // a response was returned at all) in error.(*googleapi.Error).Header.
 // Use googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *InstancesSetRootPasswordCall) Do() (*InstancesSetRootPasswordResponse, error) {
+func (c *InstancesSetRootPasswordCall) Do(opts ...googleapi.CallOption) (*InstancesSetRootPasswordResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -3742,7 +3800,8 @@ func (c *InstancesUpdateCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *InstancesUpdateCall) Do() (*InstancesUpdateResponse, error) {
+func (c *InstancesUpdateCall) Do(opts ...googleapi.CallOption) (*InstancesUpdateResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -3884,7 +3943,8 @@ func (c *OperationsGetCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *OperationsGetCall) Do() (*InstanceOperation, error) {
+func (c *OperationsGetCall) Do(opts ...googleapi.CallOption) (*InstanceOperation, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -4041,7 +4101,8 @@ func (c *OperationsListCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *OperationsListCall) Do() (*OperationsListResponse, error) {
+func (c *OperationsListCall) Do(opts ...googleapi.CallOption) (*OperationsListResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -4114,6 +4175,27 @@ func (c *OperationsListCall) Do() (*OperationsListResponse, error) {
 
 }
 
+// Pages invokes f for each page of results.
+// A non-nil error returned from f will halt the iteration.
+// The provided context supersedes any context provided to the Context method.
+func (c *OperationsListCall) Pages(ctx context.Context, f func(*OperationsListResponse) error) error {
+	c.ctx_ = ctx
+	defer c.PageToken(c.urlParams_.Get("pageToken")) // reset paging to original point
+	for {
+		x, err := c.Do()
+		if err != nil {
+			return err
+		}
+		if err := f(x); err != nil {
+			return err
+		}
+		if x.NextPageToken == "" {
+			return nil
+		}
+		c.PageToken(x.NextPageToken)
+	}
+}
+
 // method id "sql.sslCerts.delete":
 
 type SslCertsDeleteCall struct {
@@ -4175,7 +4257,8 @@ func (c *SslCertsDeleteCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *SslCertsDeleteCall) Do() (*SslCertsDeleteResponse, error) {
+func (c *SslCertsDeleteCall) Do(opts ...googleapi.CallOption) (*SslCertsDeleteResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -4320,7 +4403,8 @@ func (c *SslCertsGetCall) doRequest(alt string) (*http.Response, error) {
 // in error.(*googleapi.Error).Header. Use googleapi.IsNotModified to
 // check whether the returned error was because http.StatusNotModified
 // was returned.
-func (c *SslCertsGetCall) Do() (*SslCert, error) {
+func (c *SslCertsGetCall) Do(opts ...googleapi.CallOption) (*SslCert, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -4456,7 +4540,8 @@ func (c *SslCertsInsertCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *SslCertsInsertCall) Do() (*SslCertsInsertResponse, error) {
+func (c *SslCertsInsertCall) Do(opts ...googleapi.CallOption) (*SslCertsInsertResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -4594,7 +4679,8 @@ func (c *SslCertsListCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *SslCertsListCall) Do() (*SslCertsListResponse, error) {
+func (c *SslCertsListCall) Do(opts ...googleapi.CallOption) (*SslCertsListResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {
@@ -4726,7 +4812,8 @@ func (c *TiersListCall) doRequest(alt string) (*http.Response, error) {
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *TiersListCall) Do() (*TiersListResponse, error) {
+func (c *TiersListCall) Do(opts ...googleapi.CallOption) (*TiersListResponse, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
 		if res.Body != nil {

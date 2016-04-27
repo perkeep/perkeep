@@ -1,13 +1,13 @@
 {
  "kind": "discovery#restDescription",
- "etag": "\"ye6orv2F-1npMW3u9suM3a7C5Bo/hPQpcOx1jxdLJJoNmiYxoTv2oFc\"",
+ "etag": "\"bRFOOrZKfO9LweMbPqu0kcu6De8/3Io2oI-2iITlzBY_35iTEBYwT0E\"",
  "discoveryVersion": "v1",
  "id": "gmail:v1",
  "name": "gmail",
  "version": "v1",
- "revision": "20150805",
+ "revision": "20160301",
  "title": "Gmail API",
- "description": "The Gmail REST API.",
+ "description": "Access Gmail mailboxes including sending user email.",
  "ownerDomain": "google.com",
  "ownerName": "Google",
  "icons": {
@@ -94,6 +94,19 @@
   }
  },
  "schemas": {
+  "BatchDeleteMessagesRequest": {
+   "id": "BatchDeleteMessagesRequest",
+   "type": "object",
+   "properties": {
+    "ids": {
+     "type": "array",
+     "description": "The IDs of the messages to delete.",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
   "Draft": {
    "id": "Draft",
    "type": "object",
@@ -657,7 +670,7 @@
     },
     "topicName": {
      "type": "string",
-     "description": "A fully qualified Google Cloud Pub/Sub API topic name to publish the events to. This topic name **must** already exist in Cloud Pub/Sub and you **must** have already granted gmail \"publish\" permission on it. For example, \"projects/my-project-identifier/topics/my-topic-name\" (using the new Cloud Pub/Sub \"v1beta2\" topic naming format).\n\nNote that the \"my-project-identifier\" portion must exactly match your Google developer project id (the one executing this watch request)."
+     "description": "A fully qualified Google Cloud Pub/Sub API topic name to publish the events to. This topic name **must** already exist in Cloud Pub/Sub and you **must** have already granted gmail \"publish\" permission on it. For example, \"projects/my-project-identifier/topics/my-topic-name\" (using the Cloud Pub/Sub \"v1\" topic naming format).\n\nNote that the \"my-project-identifier\" portion must exactly match your Google developer project id (the one executing this watch request)."
     }
    }
   },
@@ -899,6 +912,12 @@
        "httpMethod": "GET",
        "description": "Lists the drafts in the user's mailbox.",
        "parameters": {
+        "includeSpamTrash": {
+         "type": "boolean",
+         "description": "Include drafts from SPAM and TRASH in the results.",
+         "default": "false",
+         "location": "query"
+        },
         "maxResults": {
          "type": "integer",
          "description": "Maximum number of drafts to return.",
@@ -1284,6 +1303,30 @@
     },
     "messages": {
      "methods": {
+      "batchDelete": {
+       "id": "gmail.users.messages.batchDelete",
+       "path": "{userId}/messages/batchDelete",
+       "httpMethod": "POST",
+       "description": "Deletes many messages by message ID. Provides no guarantees that messages were not already deleted or even existed at all.",
+       "parameters": {
+        "userId": {
+         "type": "string",
+         "description": "The user's email address. The special value me can be used to indicate the authenticated user.",
+         "default": "me",
+         "required": true,
+         "location": "path"
+        }
+       },
+       "parameterOrder": [
+        "userId"
+       ],
+       "request": {
+        "$ref": "BatchDeleteMessagesRequest"
+       },
+       "scopes": [
+        "https://mail.google.com/"
+       ]
+      },
       "delete": {
        "id": "gmail.users.messages.delete",
        "path": "{userId}/messages/{id}",

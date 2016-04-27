@@ -61,7 +61,9 @@ func WithScopes(scope ...string) ClientOption {
 type withScopes []string
 
 func (w withScopes) Resolve(o *opts.DialOpt) {
-	o.Scopes = []string(w)
+	s := make([]string, len(w))
+	copy(s, w)
+	o.Scopes = s
 }
 
 // WithUserAgent returns a ClientOption that sets the User-Agent.
@@ -86,9 +88,9 @@ func (w withBaseHTTP) Resolve(o *opts.DialOpt) {
 	o.HTTPClient = w.client
 }
 
-// WithBaseGRPC returns a ClientOption that specifies the GRPC client
+// WithBaseGRPC returns a ClientOption that specifies the gRPC client
 // connection to use as the basis of communications. This option many only be
-// used with services that support HRPC as their communication transport.
+// used with services that support gRPC as their communication transport.
 func WithBaseGRPC(client *grpc.ClientConn) ClientOption {
 	return withBaseGRPC{client}
 }
@@ -97,4 +99,16 @@ type withBaseGRPC struct{ client *grpc.ClientConn }
 
 func (w withBaseGRPC) Resolve(o *opts.DialOpt) {
 	o.GRPCClient = w.client
+}
+
+// WithGRPCDialOption returns a ClientOption that appends a new grpc.DialOption
+// to an underlying gRPC dial. It does not work with WithBaseGRPC.
+func WithGRPCDialOption(opt grpc.DialOption) ClientOption {
+	return withGRPCDialOption{opt}
+}
+
+type withGRPCDialOption struct{ opt grpc.DialOption }
+
+func (w withGRPCDialOption) Resolve(o *opts.DialOpt) {
+	o.GRPCDialOpts = append(o.GRPCDialOpts, w.opt)
 }

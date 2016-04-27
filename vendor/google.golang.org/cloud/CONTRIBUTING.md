@@ -13,7 +13,7 @@ provide a command message, and use `git codereview mail` to create a Gerrit CL.
 
 ## Integration Tests
 
-Additional to the unit tests, you may run the integration test suite.
+In addition to the unit tests, you may run the integration test suite.
 
 To run the integrations tests, creating and configuration of a project in the
 Google Developers Console is required. Once you create a project, set the
@@ -22,7 +22,7 @@ following environment variables to be able to run the against the actual APIs.
 - **GCLOUD_TESTS_GOLANG_PROJECT_ID**: Developers Console project's ID (e.g. bamboo-shift-455)
 - **GCLOUD_TESTS_GOLANG_KEY**: The path to the JSON key file.
 
-Create a storage bucket with the same name as the project id set in **GCLOUD_TESTS_GOLANG_PROJECT_ID**.
+Create a storage bucket with the same name as the project ID set in **GCLOUD_TESTS_GOLANG_PROJECT_ID**.
 The storage integration test will create and delete some objects in this bucket.
 
 Install the [gcloud command-line tool][gcloudcli] to your machine and use it
@@ -46,10 +46,11 @@ $ gcloud preview datastore create-indexes datastore/testdata/index.yaml
 
 ```
 
-You can run the integration tests by running:
+Once you've set the environment variables, you can run the integration tests by
+running:
 
 ``` sh
-$ go test -v -tags=integration google.golang.org/cloud/...
+$ go test -v google.golang.org/cloud/...
 ```
 
 ## Contributor License Agreements

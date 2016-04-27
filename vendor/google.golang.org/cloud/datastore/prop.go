@@ -43,14 +43,14 @@ type Property struct {
 	//	- *Key
 	//	- time.Time
 	//	- []byte (up to 1 megabyte in length)
+	// Value can also be:
+	//	- []interface{} where each element is one of the above types
 	// This set is smaller than the set of valid struct field types that the
-	// datastore can load and save. A Property Value cannot be a slice (apart
-	// from []byte); use multiple Properties instead. Also, a Value's type
-	// must be explicitly on the list above; it is not sufficient for the
-	// underlying type to be on that list. For example, a Value of "type
-	// myInt64 int64" is invalid. Smaller-width integers and floats are also
-	// invalid. Again, this is more restrictive than the set of valid struct
-	// field types.
+	// datastore can load and save. A Value's type must be explicitly on
+	// the list above; it is not sufficient for the underlying type to be
+	// on that list. For example, a Value of "type myInt64 int64" is
+	// invalid. Smaller-width integers and floats are also invalid. Again,
+	// this is more restrictive than the set of valid struct field types.
 	//
 	// A Value will have an opaque type when loading entities from an index,
 	// such as via a projection query. Load entities into a struct instead
@@ -62,14 +62,9 @@ type Property struct {
 	// value.
 	Value interface{}
 	// NoIndex is whether the datastore cannot index this property.
-	// If NoIndex is set to false, []byte values are limited to 1500 bytes and
-	// string values are limited to 1500 bytes.
+	// If NoIndex is set to false, []byte and string values are limited to
+	// 1500 bytes.
 	NoIndex bool
-	// Multiple is whether the entity can have multiple properties with
-	// the same name. Even if a particular instance only has one property with
-	// a certain name, Multiple should be true if a struct would best represent
-	// it as a field of type []T instead of type T.
-	Multiple bool
 }
 
 // PropertyLoadSaver can be converted from and to a slice of Properties.

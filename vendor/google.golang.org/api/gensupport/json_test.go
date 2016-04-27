@@ -28,11 +28,12 @@ type schema struct {
 	PStr  *string  `json:"pstr,omitempty"`
 
 	// Other types
-	Int64s googleapi.Int64s  `json:"i64s,omitempty"`
-	S      []int             `json:"s,omitempty"`
-	M      map[string]string `json:"m,omitempty"`
-	Any    interface{}       `json:"any,omitempty"`
-	Child  *child            `json:"child,omitempty"`
+	Int64s        googleapi.Int64s         `json:"i64s,omitempty"`
+	S             []int                    `json:"s,omitempty"`
+	M             map[string]string        `json:"m,omitempty"`
+	Any           interface{}              `json:"any,omitempty"`
+	Child         *child                   `json:"child,omitempty"`
+	MapToAnyArray map[string][]interface{} `json:"maptoanyarray,omitempty"`
 
 	ForceSendFields []string `json:"-"`
 }
@@ -183,6 +184,67 @@ func TestMapField(t *testing.T) {
 				ForceSendFields: []string{"M"},
 			},
 			want: `{"m":{"a":"b"}}`,
+		},
+	} {
+		checkMarshalJSON(t, tc)
+	}
+}
+
+func TestMapToAnyArray(t *testing.T) {
+	for _, tc := range []testCase{
+		{
+			s:    schema{},
+			want: `{}`,
+		},
+		{
+			s:    schema{MapToAnyArray: make(map[string][]interface{})},
+			want: `{}`,
+		},
+		{
+			s: schema{
+				MapToAnyArray: map[string][]interface{}{
+					"a": []interface{}{2, "b"},
+				},
+			},
+			want: `{"maptoanyarray":{"a":[2, "b"]}}`,
+		},
+		{
+			s: schema{
+				MapToAnyArray: map[string][]interface{}{
+					"a": nil,
+				},
+			},
+			want: `{"maptoanyarray":{"a": null}}`,
+		},
+		{
+			s: schema{
+				MapToAnyArray: map[string][]interface{}{
+					"a": []interface{}{nil},
+				},
+			},
+			want: `{"maptoanyarray":{"a":[null]}}`,
+		},
+		{
+			s: schema{
+				ForceSendFields: []string{"MapToAnyArray"},
+			},
+			want: `{"maptoanyarray":{}}`,
+		},
+		{
+			s: schema{
+				MapToAnyArray:   make(map[string][]interface{}),
+				ForceSendFields: []string{"MapToAnyArray"},
+			},
+			want: `{"maptoanyarray":{}}`,
+		},
+		{
+			s: schema{
+				MapToAnyArray: map[string][]interface{}{
+					"a": []interface{}{2, "b"},
+				},
+				ForceSendFields: []string{"MapToAnyArray"},
+			},
+			want: `{"maptoanyarray":{"a":[2, "b"]}}`,
 		},
 	} {
 		checkMarshalJSON(t, tc)
