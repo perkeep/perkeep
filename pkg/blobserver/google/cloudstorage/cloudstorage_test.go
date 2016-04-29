@@ -19,6 +19,7 @@ package cloudstorage
 import (
 	"encoding/json"
 	"flag"
+	"io"
 	"io/ioutil"
 	"log"
 	"path"
@@ -29,12 +30,13 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
 	"camlistore.org/pkg/constants/google"
-	"camlistore.org/pkg/googlestorage"
 	"go4.org/jsonconfig"
-	"golang.org/x/net/context"
 
 	"go4.org/oauthutil"
+	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
+	"google.golang.org/cloud/compute/metadata"
+	"google.golang.org/cloud/storage"
 )
 
 var (
@@ -87,34 +89,42 @@ func testStorage(t *testing.T, bucketDir string) {
 	if *bucket == "" {
 		t.Fatal("bucket not provided in config file or as a flag.")
 	}
-	if *clientID == "" || *clientSecret == "" {
-		t.Fatal("client ID and client secret required. Obtain from https://console.developers.google.com/ > Project > APIs & Auth > Credentials. Should be a 'native' or 'Installed application'")
+	if *clientID == "" {
+		if !metadata.OnGCE() {
+			if *clientSecret == "" {
+				t.Fatal("client ID and client secret required. Obtain from https://console.developers.google.com/ > Project > APIs & Auth > Credentials. Should be a 'native' or 'Installed application'")
+			}
+		} else {
+			*clientID = "auto"
+		}
 	}
 	if *configFile == "" {
 		config := &oauth2.Config{
-			Scopes:       []string{googlestorage.Scope},
+			Scopes:       []string{storage.ScopeReadWrite},
 			Endpoint:     google.Endpoint,
 			ClientID:     *clientID,
 			ClientSecret: *clientSecret,
 			RedirectURL:  oauthutil.TitleBarRedirectURL,
 		}
-		token, err := oauth2.ReuseTokenSource(nil,
-			&oauthutil.TokenSource{
-				Config:    config,
-				CacheFile: *tokenCache,
-				AuthCode: func() string {
-					if *authCode == "" {
-						t.Skipf("Re-run using --auth_code= with the value obtained from %s",
-							config.AuthCodeURL("", oauth2.AccessTypeOffline, oauth2.ApprovalForce))
-						return ""
-					}
-					return *authCode
-				},
-			}).Token()
-		if err != nil {
-			t.Fatalf("could not acquire token: %v", err)
+		if !metadata.OnGCE() {
+			token, err := oauth2.ReuseTokenSource(nil,
+				&oauthutil.TokenSource{
+					Config:    config,
+					CacheFile: *tokenCache,
+					AuthCode: func() string {
+						if *authCode == "" {
+							t.Skipf("Re-run using --auth_code= with the value obtained from %s",
+								config.AuthCodeURL("", oauth2.AccessTypeOffline, oauth2.ApprovalForce))
+							return ""
+						}
+						return *authCode
+					},
+				}).Token()
+			if err != nil {
+				t.Fatalf("could not acquire token: %v", err)
+			}
+			refreshToken = token.RefreshToken
 		}
-		refreshToken = token.RefreshToken
 	}
 
 	bucketWithDir := path.Join(*bucket, bucketDir)
@@ -136,21 +146,24 @@ func testStorage(t *testing.T, bucketDir string) {
 				log.Printf("Warning: this test does many serial operations. Without the go test -short flag, this test will be very slow.")
 			}
 			// Bail if bucket is not empty
-			objs, err := sto.(*Storage).client.EnumerateObjects(*bucket, "", 1)
+			ctx := context.Background()
+			stor := sto.(*Storage)
+			objs, err := stor.client.Bucket(stor.bucket).List(ctx, nil)
 			if err != nil {
 				t.Fatalf("Error checking if bucket is empty: %v", err)
 			}
-			if len(objs) != 0 {
+			if len(objs.Results) != 0 {
 				t.Fatalf("Refusing to run test: bucket %v is not empty", *bucket)
 			}
 			if bucketWithDir != *bucket {
 				// Adding "a", and "c" objects in the bucket to make sure objects out of the
 				// "directory" are not touched and have no influence.
 				for _, key := range []string{"a", "c"} {
-					err := sto.(*Storage).client.PutObject(
-						&googlestorage.Object{Bucket: sto.(*Storage).bucket, Key: key},
-						strings.NewReader(key))
-					if err != nil {
+					w := stor.client.Bucket(stor.bucket).Object(key).NewWriter(ctx)
+					if _, err := io.Copy(w, strings.NewReader(key)); err != nil {
+						t.Fatalf("could not insert object %s in bucket %v: %v", key, sto.(*Storage).bucket, err)
+					}
+					if err := w.Close(); err != nil {
 						t.Fatalf("could not insert object %s in bucket %v: %v", key, sto.(*Storage).bucket, err)
 					}
 				}
@@ -173,11 +186,14 @@ func testStorage(t *testing.T, bucketDir string) {
 					if bucketWithDir != *bucket {
 						// checking that "a" and "c" at the root were left untouched.
 						for _, key := range []string{"a", "c"} {
-							if _, _, err := sto.(*Storage).client.GetObject(&googlestorage.Object{Bucket: sto.(*Storage).bucket,
-								Key: key}); err != nil {
+							rc, err := stor.client.Bucket(stor.bucket).Object(key).NewReader(ctx)
+							if err != nil {
 								t.Fatalf("could not find object %s after tests: %v", key, err)
 							}
-							if err := sto.(*Storage).client.DeleteObject(&googlestorage.Object{Bucket: sto.(*Storage).bucket, Key: key}); err != nil {
+							if _, err := io.Copy(ioutil.Discard, rc); err != nil {
+								t.Fatalf("could not find object %s after tests: %v", key, err)
+							}
+							if err := stor.client.Bucket(stor.bucket).Object(key).Delete(ctx); err != nil {
 								t.Fatalf("could not remove object %s after tests: %v", key, err)
 							}
 
