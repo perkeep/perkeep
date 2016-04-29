@@ -7,6 +7,6 @@ RUN apt-get -y --no-install-recommends install ca-certificates libc6-dev
 
 # Get Go stable release
 WORKDIR /tmp
-RUN curl -O https://storage.googleapis.com/golang/go1.6.1.linux-amd64.tar.gz
-RUN echo '6d894da8b4ad3f7f6c295db0d73ccc3646bce630e1c43e662a0120681d47e988  go1.6.1.linux-amd64.tar.gz' | sha256sum -c
-RUN tar -C /usr/local -xzf go1.6.1.linux-amd64.tar.gz
+RUN curl -O https://storage.googleapis.com/golang/go1.6.2.linux-amd64.tar.gz
+RUN echo 'e40c36ae71756198478624ed1bb4ce17597b3c19d243f3f0899bb5740d56212a  go1.6.2.linux-amd64.tar.gz' | sha256sum -c
+RUN tar -C /usr/local -xzf go1.6.2.linux-amd64.tar.gz
