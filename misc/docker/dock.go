@@ -281,9 +281,10 @@ func uploadReleaseTarball() {
 	log.Printf("Uploaded tarball to %s", versionedTarball)
 	if !isWIP() {
 		log.Printf("Copying tarball to %s/%s ...", bucket, tarball)
-		if _, err := stoClient.CopyObject(ctx,
-			bucket, versionedTarball,
-			bucket, tarball,
+		dest := stoClient.Bucket(bucket).Object(tarball)
+		if _, err := stoClient.Bucket(bucket).Object(versionedTarball).CopyTo(
+			ctx,
+			dest,
 			&storage.ObjectAttrs{
 				ACL:         publicACL(proj),
 				ContentType: contentType,
@@ -352,9 +353,10 @@ func uploadDockerImage() {
 	log.Printf("Uploaded tarball to %s", versionedTarball)
 	if !isWIP() {
 		log.Printf("Copying tarball to %s/%s ...", bucket, tarball)
-		if _, err := stoClient.CopyObject(ctx,
-			bucket, versionedTarball,
-			bucket, tarball,
+		dest := stoClient.Bucket(bucket).Object(tarball)
+		if _, err := stoClient.Bucket(bucket).Object(versionedTarball).CopyTo(
+			ctx,
+			dest,
 			&storage.ObjectAttrs{
 				ACL:          publicACL(proj),
 				CacheControl: "no-cache",

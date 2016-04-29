@@ -187,10 +187,8 @@ func checkArgs() {
 func main() {
 	flag.Usage = usage
 	flag.Parse()
-	if _, err := os.Stat("/.dockerinit"); err != nil {
-		fmt.Fprintf(os.Stderr, "Usage error: this program should be run within a docker container, and is meant to be called from misc/docker/dock.go\n")
-		usage()
-	}
+	// TODO(mpl): find another way to detect whether we're on docker, as
+	// /.dockerinit does not exist anymore apparently? No time for now.
 	checkArgs()
 
 	getCamliSrc()
