@@ -475,7 +475,8 @@ func TestGenerateClientConfig(t *testing.T) {
 	compareConfigurations(t, inName, generatedConf, wantConf)
 }
 
-// TestConfigHandlerRedaction validates that configHandler redacts sensitive values.
+// TestConfigHandlerRedaction validates that configHandler redacts sensitive
+// values, still resulting in a valid JSON document.
 func TestConfigHandlerRedaction(t *testing.T) {
 	config := &serverinit.Config{
 		Obj: jsonconfig.Obj{
@@ -500,4 +501,29 @@ func TestConfigHandlerRedaction(t *testing.T) {
 	}
 
 	compareConfigurations(t, "configHandlerRedaction", got, want)
+}
+
+// TestConfigHandlerRemoveKnownKeys validates that configHandler removes
+// "knowkeys" keys properly, still resulting in a valid JSON document.
+func TestConfigHandlerRemoveKnownKeys(t *testing.T) {
+	config := &serverinit.Config{
+		Obj: jsonconfig.Obj{
+			"/ui/": "",
+			"_knownkeys": map[string]string{
+				"key": "value",
+			},
+		},
+	}
+
+	rr := httptest.NewRecorder()
+	serverinit.ConfigHandler(config).ServeHTTP(rr, nil)
+	got := make(map[string]string)
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatalf("Failed to unmarshal configHandler response: %v", err)
+	}
+	want := map[string]string{
+		"/ui/": "",
+	}
+
+	compareConfigurations(t, "configHandlerRemoveKnownKeys", got, want)
 }
