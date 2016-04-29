@@ -27,3 +27,7 @@ func SetTempDirFunc(f func() string) {
 func SetNoMkdir(v bool) {
 	noMkdir = v
 }
+
+func ConfigHandler(c *Config) configHandler {
+	return configHandler{c}
+}
