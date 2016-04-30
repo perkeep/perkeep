@@ -163,8 +163,15 @@ func fakeCheckinsList(offset, maxCheckin int, towns map[int]*venueLocationItem, 
 	for i := offset; i < max; i++ {
 		shout := fmt.Sprintf("fakeShout %d", i)
 		item := &checkinItem{
-			Id:             blob.RefFromString(shout).DigestPrefix(10),
-			Shout:          shout,
+			Id:    blob.RefFromString(shout).DigestPrefix(10),
+			Shout: shout,
+			With: []*user{
+				{
+					Id:        "123",
+					FirstName: "Kate",
+					LastName:  "Pek",
+				},
+			},
 			CreatedAt:      time.Now().Unix(),
 			TimeZoneOffset: tzCounter * 60,
 			Venue:          fakeVenue(venueCounter, towns),

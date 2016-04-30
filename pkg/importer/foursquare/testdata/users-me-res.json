@@ -387,6 +387,19 @@
                                         "type": "checkin",
                                         "shout": "Van exchange point for The Relay. Not actually going to church.",
                                         "timeZoneOffset": -420,
+                                        "with": [
+                                            {
+                                                "id": "123",
+                                                "firstName": "Kate",
+                                                "lastName": "Pek",
+                                                "gender": "female",
+                                                "relationship": "friend",
+                                                "photo": {
+                                                    "prefix": "https://irs3.4sqi.net/img/user/",
+                                                    "suffix": "/13674-S2IUMHALCCJJUTQO.jpg"
+                                                }
+                                            }
+                                        ],
                                         "venue": {
                                             "id": "4bdc6861c79cc9285e6586e9",
                                             "name": "Crosswalk Community Church",

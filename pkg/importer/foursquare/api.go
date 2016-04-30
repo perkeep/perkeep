@@ -44,6 +44,7 @@ type checkinItem struct {
 	TimeZoneOffset int    // offset in minutes. positive is east.
 	Shout          string // "Message from check-in, if present and visible to the acting user."
 	Venue          venueItem
+	With           []*user // list of friends checked in together
 }
 
 type venueItem struct {

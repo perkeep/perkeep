@@ -86,8 +86,12 @@ type imp struct {
 	importer.OAuth2 // for CallbackRequestAccount and CallbackURLParameters
 }
 
-func (im *imp) NeedsAPIKey() bool         { return true }
-func (im *imp) SupportsIncremental() bool { return true }
+func (im *imp) NeedsAPIKey() bool {
+	return true
+}
+func (im *imp) SupportsIncremental() bool {
+	return true
+}
 
 func (im *imp) IsAccountReady(acctNode *importer.Object) (ok bool, err error) {
 	if acctNode.Attr(acctAttrUserId) != "" && acctNode.Attr(acctAttrAccessToken) != "" {
@@ -203,9 +207,15 @@ func (r *run) urlFileRef(urlstr, filename string) string {
 
 type byCreatedAt []*checkinItem
 
-func (s byCreatedAt) Less(i, j int) bool { return s[i].CreatedAt < s[j].CreatedAt }
-func (s byCreatedAt) Len() int           { return len(s) }
-func (s byCreatedAt) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s byCreatedAt) Less(i, j int) bool {
+	return s[i].CreatedAt < s[j].CreatedAt
+}
+func (s byCreatedAt) Len() int {
+	return len(s)
+}
+func (s byCreatedAt) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
 
 func (r *run) importCheckins() error {
 	limit := checkinsRequestLimit
@@ -236,18 +246,29 @@ func (r *run) importCheckins() error {
 			return err
 		}
 
+		pplNode, err := r.getTopLevelNode("people", "People")
+		if err != nil {
+			return err
+		}
+
 		sort.Sort(byCreatedAt(resp.Response.Checkins.Items))
 		sawOldItem := false
 		for _, checkin := range resp.Response.Checkins.Items {
 			placeNode, err := r.importPlace(placesNode, &checkin.Venue)
 			if err != nil {
-				r.errorf("Foursquare importer: error importing place %s %v", checkin.Venue.Id, err)
+				r.errorf("Foursquare importer: error importing place %s: %v", checkin.Venue.Id, err)
 				continue
 			}
 
-			_, dup, err := r.importCheckin(checkinsNode, checkin, placeNode.PermanodeRef())
+			companionRefs, err := r.importCompanions(pplNode, checkin.With)
 			if err != nil {
-				r.errorf("Foursquare importer: error importing checkin %s %v", checkin.Id, err)
+				r.errorf("Foursquare importer: error importing companions for checkin %s: %v", checkin.Id, err)
+				continue
+			}
+
+			_, dup, err := r.importCheckin(checkinsNode, checkin, placeNode.PermanodeRef(), companionRefs)
+			if err != nil {
+				r.errorf("Foursquare importer: error importing checkin %s: %v", checkin.Id, err)
 				continue
 			}
 
@@ -257,7 +278,7 @@ func (r *run) importCheckins() error {
 
 			err = r.importPhotos(placeNode, dup)
 			if err != nil {
-				r.errorf("Foursquare importer: error importing photos for checkin %s %v", checkin.Id, err)
+				r.errorf("Foursquare importer: error importing photos for checkin %s: %v", checkin.Id, err)
 				continue
 			}
 		}
@@ -334,7 +355,7 @@ func (r *run) importPhotos(placeNode *importer.Object, checkinWasDup bool) error
 	return nil
 }
 
-func (r *run) importCheckin(parent *importer.Object, checkin *checkinItem, placeRef blob.Ref) (checkinNode *importer.Object, dup bool, err error) {
+func (r *run) importCheckin(parent *importer.Object, checkin *checkinItem, placeRef blob.Ref, companionRefs []string) (checkinNode *importer.Object, dup bool, err error) {
 	checkinNode, err = parent.ChildPathObject(checkin.Id)
 	if err != nil {
 		return
@@ -350,7 +371,31 @@ func (r *run) importCheckin(parent *importer.Object, checkin *checkinItem, place
 		nodeattr.Title, title); err != nil {
 		return nil, false, err
 	}
+
+	if err := checkinNode.SetAttrValues("with", companionRefs); err != nil {
+		return nil, false, err
+	}
+
 	return checkinNode, dup, nil
+}
+
+func (r *run) importCompanions(parent *importer.Object, companions []*user) (companionRefs []string, err error) {
+	for _, user := range companions {
+		personNode, err := parent.ChildPathObject(user.Id)
+		if err != nil {
+			return nil, err
+		}
+		if err := personNode.SetAttrs(
+			attrFoursquareId, user.Id,
+			nodeattr.Type, "foursquare.com:person",
+			nodeattr.Title, user.FirstName+" "+user.LastName,
+			nodeattr.GivenName, user.FirstName,
+			nodeattr.FamilyName, user.LastName); err != nil {
+			return nil, err
+		}
+		companionRefs = append(companionRefs, personNode.PermanodeRef().String())
+	}
+	return companionRefs, nil
 }
 
 func (r *run) importPlace(parent *importer.Object, place *venueItem) (*importer.Object, error) {
