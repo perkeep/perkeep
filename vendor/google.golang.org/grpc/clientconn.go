@@ -52,10 +52,10 @@ var (
 	// ErrUnspecTarget indicates that the target address is unspecified.
 	ErrUnspecTarget = errors.New("grpc: target is unspecified")
 	// ErrNoTransportSecurity indicates that there is no transport security
-	// being set for ClientConn. Users should either set one or explicityly
+	// being set for ClientConn. Users should either set one or explicitly
 	// call WithInsecure DialOption to disable security.
 	ErrNoTransportSecurity = errors.New("grpc: no transport security set (use grpc.WithInsecure() explicitly or set credentials)")
-	// ErrCredentialsMisuse indicates that users want to transmit security infomation
+	// ErrCredentialsMisuse indicates that users want to transmit security information
 	// (e.g., oauth2 token) which requires secure connection on an insecure
 	// connection.
 	ErrCredentialsMisuse = errors.New("grpc: the credentials require transport level security (use grpc.WithTransportAuthenticator() to set)")
@@ -73,6 +73,9 @@ var (
 // values passed to Dial.
 type dialOptions struct {
 	codec    Codec
+	cp       Compressor
+	dc       Decompressor
+	bs       backoffStrategy
 	picker   Picker
 	block    bool
 	insecure bool
@@ -89,6 +92,57 @@ func WithCodec(c Codec) DialOption {
 	}
 }
 
+// WithCompressor returns a DialOption which sets a CompressorGenerator for generating message
+// compressor.
+func WithCompressor(cp Compressor) DialOption {
+	return func(o *dialOptions) {
+		o.cp = cp
+	}
+}
+
+// WithDecompressor returns a DialOption which sets a DecompressorGenerator for generating
+// message decompressor.
+func WithDecompressor(dc Decompressor) DialOption {
+	return func(o *dialOptions) {
+		o.dc = dc
+	}
+}
+
+// WithPicker returns a DialOption which sets a picker for connection selection.
+func WithPicker(p Picker) DialOption {
+	return func(o *dialOptions) {
+		o.picker = p
+	}
+}
+
+// WithBackoffMaxDelay configures the dialer to use the provided maximum delay
+// when backing off after failed connection attempts.
+func WithBackoffMaxDelay(md time.Duration) DialOption {
+	return WithBackoffConfig(BackoffConfig{MaxDelay: md})
+}
+
+// WithBackoffConfig configures the dialer to use the provided backoff
+// parameters after connection failures.
+//
+// Use WithBackoffMaxDelay until more parameters on BackoffConfig are opened up
+// for use.
+func WithBackoffConfig(b BackoffConfig) DialOption {
+	// Set defaults to ensure that provided BackoffConfig is valid and
+	// unexported fields get default values.
+	setDefaults(&b)
+	return withBackoff(b)
+}
+
+// withBackoff sets the backoff strategy used for retries after a
+// failed connection attempt.
+//
+// This can be exported if arbitrary backoff strategies are allowed by GRPC.
+func withBackoff(bs backoffStrategy) DialOption {
+	return func(o *dialOptions) {
+		o.bs = bs
+	}
+}
+
 // WithBlock returns a DialOption which makes caller of Dial blocks until the underlying
 // connection is up. Without this, Dial returns immediately and connecting the server
 // happens in background.
@@ -98,6 +152,8 @@ func WithBlock() DialOption {
 	}
 }
 
+// WithInsecure returns a DialOption which disables transport security for this ClientConn.
+// Note that transport security is required unless WithInsecure is set.
 func WithInsecure() DialOption {
 	return func(o *dialOptions) {
 		o.insecure = true
@@ -153,8 +209,15 @@ func Dial(target string, opts ...DialOption) (*ClientConn, error) {
 		// Set the default codec.
 		cc.dopts.codec = protoCodec{}
 	}
+
+	if cc.dopts.bs == nil {
+		cc.dopts.bs = DefaultBackoffConfig
+	}
+
 	if cc.dopts.picker == nil {
-		cc.dopts.picker = &unicastPicker{}
+		cc.dopts.picker = &unicastPicker{
+			target: target,
+		}
 	}
 	if err := cc.dopts.picker.Init(cc); err != nil {
 		return nil, err
@@ -209,15 +272,15 @@ type ClientConn struct {
 
 // State returns the connectivity state of cc.
 // This is EXPERIMENTAL API.
-func (cc *ClientConn) State() ConnectivityState {
+func (cc *ClientConn) State() (ConnectivityState, error) {
 	return cc.dopts.picker.State()
 }
 
-// WaitForStateChange blocks until the state changes to something other than the sourceState
-// or timeout fires on cc. It returns false if timeout fires, and true otherwise.
+// WaitForStateChange blocks until the state changes to something other than the sourceState.
+// It returns the new state or error.
 // This is EXPERIMENTAL API.
-func (cc *ClientConn) WaitForStateChange(timeout time.Duration, sourceState ConnectivityState) bool {
-	return cc.dopts.picker.WaitForStateChange(timeout, sourceState)
+func (cc *ClientConn) WaitForStateChange(ctx context.Context, sourceState ConnectivityState) (ConnectivityState, error) {
+	return cc.dopts.picker.WaitForStateChange(ctx, sourceState)
 }
 
 // Close starts to tear down the ClientConn.
@@ -229,6 +292,7 @@ func (cc *ClientConn) Close() error {
 type Conn struct {
 	target       string
 	dopts        dialOptions
+	resetChan    chan int
 	shutdownChan chan struct{}
 	events       trace.EventLog
 
@@ -249,6 +313,7 @@ func NewConn(cc *ClientConn) (*Conn, error) {
 	c := &Conn{
 		target:       cc.target,
 		dopts:        cc.dopts,
+		resetChan:    make(chan int, 1),
 		shutdownChan: make(chan struct{}),
 	}
 	if EnableTracing {
@@ -257,10 +322,9 @@ func NewConn(cc *ClientConn) (*Conn, error) {
 	if !c.dopts.insecure {
 		var ok bool
 		for _, cd := range c.dopts.copts.AuthOptions {
-			if _, ok := cd.(credentials.TransportAuthenticator); !ok {
-				continue
+			if _, ok = cd.(credentials.TransportAuthenticator); ok {
+				break
 			}
-			ok = true
 		}
 		if !ok {
 			return nil, ErrNoTransportSecurity
@@ -317,26 +381,20 @@ func (cc *Conn) State() ConnectivityState {
 	return cc.state
 }
 
-// WaitForStateChange blocks until the state changes to something other than the sourceState
-// or timeout fires. It returns false if timeout fires and true otherwise.
-// TODO(zhaoq): Rewrite for complex Picker.
-func (cc *Conn) WaitForStateChange(timeout time.Duration, sourceState ConnectivityState) bool {
-	start := time.Now()
+// WaitForStateChange blocks until the state changes to something other than the sourceState.
+func (cc *Conn) WaitForStateChange(ctx context.Context, sourceState ConnectivityState) (ConnectivityState, error) {
 	cc.mu.Lock()
 	defer cc.mu.Unlock()
 	if sourceState != cc.state {
-		return true
-	}
-	expired := timeout <= time.Since(start)
-	if expired {
-		return false
+		return cc.state, nil
 	}
 	done := make(chan struct{})
+	var err error
 	go func() {
 		select {
-		case <-time.After(timeout - time.Since(start)):
+		case <-ctx.Done():
 			cc.mu.Lock()
-			expired = true
+			err = ctx.Err()
 			cc.stateCV.Broadcast()
 			cc.mu.Unlock()
 		case <-done:
@@ -345,11 +403,20 @@ func (cc *Conn) WaitForStateChange(timeout time.Duration, sourceState Connectivi
 	defer close(done)
 	for sourceState == cc.state {
 		cc.stateCV.Wait()
-		if expired {
-			return false
+		if err != nil {
+			return cc.state, err
 		}
 	}
-	return true
+	return cc.state, nil
+}
+
+// NotifyReset tries to signal the underlying transport needs to be reset due to
+// for example a name resolution change in flight.
+func (cc *Conn) NotifyReset() {
+	select {
+	case cc.resetChan <- 0:
+	default:
+	}
 }
 
 func (cc *Conn) resetTransport(closeTransport bool) error {
@@ -359,6 +426,7 @@ func (cc *Conn) resetTransport(closeTransport bool) error {
 		cc.mu.Lock()
 		cc.printf("connecting")
 		if cc.state == Shutdown {
+			// cc.Close() has been invoked.
 			cc.mu.Unlock()
 			return ErrClientConnClosing
 		}
@@ -381,7 +449,7 @@ func (cc *Conn) resetTransport(closeTransport bool) error {
 				return ErrClientConnTimeout
 			}
 		}
-		sleepTime := backoff(retries)
+		sleepTime := cc.dopts.bs.backoff(retries)
 		timeout := sleepTime
 		if timeout < minConnectTimeout {
 			timeout = minConnectTimeout
@@ -390,9 +458,18 @@ func (cc *Conn) resetTransport(closeTransport bool) error {
 			copts.Timeout = timeout
 		}
 		connectTime := time.Now()
-		newTransport, err := transport.NewClientTransport(cc.target, &copts)
+		addr, err := cc.dopts.picker.PickAddr()
+		var newTransport transport.ClientTransport
+		if err == nil {
+			newTransport, err = transport.NewClientTransport(addr, &copts)
+		}
 		if err != nil {
 			cc.mu.Lock()
+			if cc.state == Shutdown {
+				// cc.Close() has been invoked.
+				cc.mu.Unlock()
+				return ErrClientConnClosing
+			}
 			cc.errorf("transient failure: %v", err)
 			cc.state = TransientFailure
 			cc.stateCV.Broadcast()
@@ -416,7 +493,7 @@ func (cc *Conn) resetTransport(closeTransport bool) error {
 			closeTransport = false
 			time.Sleep(sleepTime)
 			retries++
-			grpclog.Printf("grpc: ClientConn.resetTransport failed to create client transport: %v; Reconnecting to %q", err, cc.target)
+			grpclog.Printf("grpc: Conn.resetTransport failed to create client transport: %v; Reconnecting to %q", err, cc.target)
 			continue
 		}
 		cc.mu.Lock()
@@ -439,6 +516,27 @@ func (cc *Conn) resetTransport(closeTransport bool) error {
 	}
 }
 
+func (cc *Conn) reconnect() bool {
+	cc.mu.Lock()
+	if cc.state == Shutdown {
+		// cc.Close() has been invoked.
+		cc.mu.Unlock()
+		return false
+	}
+	cc.state = TransientFailure
+	cc.stateCV.Broadcast()
+	cc.mu.Unlock()
+	if err := cc.resetTransport(true); err != nil {
+		// The ClientConn is closing.
+		cc.mu.Lock()
+		cc.printf("transport exiting: %v", err)
+		cc.mu.Unlock()
+		grpclog.Printf("grpc: Conn.transportMonitor exits due to: %v", err)
+		return false
+	}
+	return true
+}
+
 // Run in a goroutine to track the error in transport and create the
 // new transport if an error happens. It returns when the channel is closing.
 func (cc *Conn) transportMonitor() {
@@ -448,20 +546,19 @@ func (cc *Conn) transportMonitor() {
 		// the ClientConn is idle (i.e., no RPC in flight).
 		case <-cc.shutdownChan:
 			return
-		case <-cc.transport.Error():
-			cc.mu.Lock()
-			cc.state = TransientFailure
-			cc.stateCV.Broadcast()
-			cc.mu.Unlock()
-			if err := cc.resetTransport(true); err != nil {
-				// The ClientConn is closing.
-				cc.mu.Lock()
-				cc.printf("transport exiting: %v", err)
-				cc.mu.Unlock()
-				grpclog.Printf("grpc: ClientConn.transportMonitor exits due to: %v", err)
+		case <-cc.resetChan:
+			if !cc.reconnect() {
 				return
 			}
-			continue
+		case <-cc.transport.Error():
+			if !cc.reconnect() {
+				return
+			}
+			// Tries to drain reset signal if there is any since it is out-dated.
+			select {
+			case <-cc.resetChan:
+			default:
+			}
 		}
 	}
 }
@@ -475,8 +572,9 @@ func (cc *Conn) Wait(ctx context.Context) (transport.ClientTransport, error) {
 			cc.mu.Unlock()
 			return nil, ErrClientConnClosing
 		case cc.state == Ready:
+			ct := cc.transport
 			cc.mu.Unlock()
-			return cc.transport, nil
+			return ct, nil
 		default:
 			ready := cc.ready
 			if ready == nil {
