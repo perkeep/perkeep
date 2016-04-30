@@ -93,6 +93,12 @@ const (
 	// AddressCountry is http://schema.org/addressCountry
 	AddressCountry = "addressCountry"
 
+	// GivenName is http://schema.org/givenName
+	GivenName = "givenName"
+
+	// FamilyName is http://schema.org/familyName
+	FamilyName = "familyName"
+
 	// CamliPathOrderColon is the prefix "camliPathOrder:".
 	// The attribute key should be followed by a uint64. The attribute value
 	// is an existing value of a camliPath element.
