@@ -42,6 +42,10 @@ func TestGetUserId(t *testing.T) {
 		Id:        "13674",
 		FirstName: "Brad",
 		LastName:  "Fitzpatrick",
+		Photo: photoItem{
+			Prefix: "https://irs0.4sqi.net/img/user/",
+			Suffix: "/CKG5FOF2WMCMPD3E.jpg",
+		},
 	}
 	if inf != want {
 		t.Errorf("user info = %+v; want %+v", inf, want)
