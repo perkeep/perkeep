@@ -55,7 +55,7 @@ const (
 	// complete run.  Otherwise, if the importer runs to
 	// completion, this version number is recorded on the account
 	// permanode and subsequent importers can stop early.
-	runCompleteVersion = "1"
+	runCompleteVersion = "2"
 
 	// Permanode attributes on account node:
 	acctAttrUserId      = "foursquareUserId"
