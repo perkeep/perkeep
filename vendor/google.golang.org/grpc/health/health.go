@@ -8,7 +8,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1alpha"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 type HealthServer struct {
@@ -24,10 +24,15 @@ func NewHealthServer() *HealthServer {
 }
 
 func (s *HealthServer) Check(ctx context.Context, in *healthpb.HealthCheckRequest) (*healthpb.HealthCheckResponse, error) {
-	service := in.Host + ":" + in.Service
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if status, ok := s.statusMap[service]; ok {
+	if in.Service == "" {
+		// check the server overall health status.
+		return &healthpb.HealthCheckResponse{
+			Status: healthpb.HealthCheckResponse_SERVING,
+		}, nil
+	}
+	if status, ok := s.statusMap[in.Service]; ok {
 		return &healthpb.HealthCheckResponse{
 			Status: status,
 		}, nil
@@ -37,8 +42,7 @@ func (s *HealthServer) Check(ctx context.Context, in *healthpb.HealthCheckReques
 
 // SetServingStatus is called when need to reset the serving status of a service
 // or insert a new service entry into the statusMap.
-func (s *HealthServer) SetServingStatus(host string, service string, status healthpb.HealthCheckResponse_ServingStatus) {
-	service = host + ":" + service
+func (s *HealthServer) SetServingStatus(service string, status healthpb.HealthCheckResponse_ServingStatus) {
 	s.mu.Lock()
 	s.statusMap[service] = status
 	s.mu.Unlock()

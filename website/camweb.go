@@ -521,7 +521,6 @@ var launchConfig = &cloudlaunch.Config{
 		compute.ComputeScope,
 		logging.Scope,
 		datastore.ScopeDatastore,
-		datastore.ScopeUserEmail, // whose email? https://github.com/GoogleCloudPlatform/gcloud-golang/issues/201
 	},
 }
 

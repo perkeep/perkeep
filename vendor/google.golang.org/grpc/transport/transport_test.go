@@ -35,6 +35,7 @@ package transport
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"math"
 	"net"
@@ -50,12 +51,11 @@ import (
 )
 
 type server struct {
-	lis  net.Listener
-	port string
-	// channel to signal server is ready to serve.
-	readyChan chan bool
-	mu        sync.Mutex
-	conns     map[ServerTransport]bool
+	lis        net.Listener
+	port       string
+	startedErr chan error // error (or nil) with server start value
+	mu         sync.Mutex
+	conns      map[ServerTransport]bool
 }
 
 var (
@@ -75,6 +75,7 @@ const (
 	normal hType = iota
 	suspended
 	misbehaved
+	malformedStatus
 )
 
 func (h *testStreamHandler) handleStream(t *testing.T, s *Stream) {
@@ -127,26 +128,32 @@ func (h *testStreamHandler) handleStreamMisbehave(t *testing.T, s *Stream) {
 	}
 }
 
-// start starts server. Other goroutines should block on s.readyChan for futher operations.
+func (h *testStreamHandler) handleStreamMalformedStatus(t *testing.T, s *Stream) {
+	// raw newline is not accepted by http2 framer and a http2.StreamError is
+	// generated.
+	h.t.WriteStatus(s, codes.Internal, "\n")
+}
+
+// start starts server. Other goroutines should block on s.readyChan for further operations.
 func (s *server) start(t *testing.T, port int, maxStreams uint32, ht hType) {
 	var err error
 	if port == 0 {
-		s.lis, err = net.Listen("tcp", ":0")
+		s.lis, err = net.Listen("tcp", "localhost:0")
 	} else {
-		s.lis, err = net.Listen("tcp", ":"+strconv.Itoa(port))
+		s.lis, err = net.Listen("tcp", "localhost:"+strconv.Itoa(port))
 	}
 	if err != nil {
-		t.Fatalf("failed to listen: %v", err)
+		s.startedErr <- fmt.Errorf("failed to listen: %v", err)
+		return
 	}
 	_, p, err := net.SplitHostPort(s.lis.Addr().String())
 	if err != nil {
-		t.Fatalf("failed to parse listener address: %v", err)
+		s.startedErr <- fmt.Errorf("failed to parse listener address: %v", err)
+		return
 	}
 	s.port = p
 	s.conns = make(map[ServerTransport]bool)
-	if s.readyChan != nil {
-		close(s.readyChan)
-	}
+	s.startedErr <- nil
 	for {
 		conn, err := s.lis.Accept()
 		if err != nil {
@@ -172,6 +179,10 @@ func (s *server) start(t *testing.T, port int, maxStreams uint32, ht hType) {
 			go transport.HandleStreams(func(s *Stream) {
 				go h.handleStreamMisbehave(t, s)
 			})
+		case malformedStatus:
+			go transport.HandleStreams(func(s *Stream) {
+				go h.handleStreamMalformedStatus(t, s)
+			})
 		default:
 			go transport.HandleStreams(func(s *Stream) {
 				go h.handleStream(t, s)
@@ -182,7 +193,10 @@ func (s *server) start(t *testing.T, port int, maxStreams uint32, ht hType) {
 
 func (s *server) wait(t *testing.T, timeout time.Duration) {
 	select {
-	case <-s.readyChan:
+	case err := <-s.startedErr:
+		if err != nil {
+			t.Fatal(err)
+		}
 	case <-time.After(timeout):
 		t.Fatalf("Timed out after %v waiting for server to be ready", timeout)
 	}
@@ -199,7 +213,7 @@ func (s *server) stop() {
 }
 
 func setUp(t *testing.T, port int, maxStreams uint32, ht hType) (*server, ClientTransport) {
-	server := &server{readyChan: make(chan bool)}
+	server := &server{startedErr: make(chan error, 1)}
 	go server.start(t, port, maxStreams, ht)
 	server.wait(t, 2*time.Second)
 	addr := "localhost:" + server.port
@@ -565,13 +579,13 @@ func TestServerWithMisbehavedClient(t *testing.T) {
 		sent++
 	}
 	// Server sent a resetStream for s already.
-	code := http2RSTErrConvTab[http2.ErrCodeFlowControl]
+	code := http2ErrConvTab[http2.ErrCodeFlowControl]
 	if _, err := io.ReadFull(s, make([]byte, 1)); err != io.EOF || s.statusCode != code {
 		t.Fatalf("%v got err %v with statusCode %d, want err <EOF> with statusCode %d", s, err, s.statusCode, code)
 	}
 
-	if ss.fc.pendingData != 0 || ss.fc.pendingUpdate != 0 || sc.fc.pendingData != 0 || sc.fc.pendingUpdate != initialWindowSize {
-		t.Fatalf("Server mistakenly resets inbound flow control params: got %d, %d, %d, %d; want 0, 0, 0, %d", ss.fc.pendingData, ss.fc.pendingUpdate, sc.fc.pendingData, sc.fc.pendingUpdate, initialWindowSize)
+	if ss.fc.pendingData != 0 || ss.fc.pendingUpdate != 0 || sc.fc.pendingData != 0 || sc.fc.pendingUpdate <= initialWindowSize {
+		t.Fatalf("Server mistakenly resets inbound flow control params: got %d, %d, %d, %d; want 0, 0, 0, >%d", ss.fc.pendingData, ss.fc.pendingUpdate, sc.fc.pendingData, sc.fc.pendingUpdate, initialWindowSize)
 	}
 	ct.CloseStream(s, nil)
 	// Test server behavior for violation of connection flow control window size restriction.
@@ -617,15 +631,15 @@ func TestClientWithMisbehavedServer(t *testing.T) {
 			break
 		}
 	}
-	if s.fc.pendingData != initialWindowSize || s.fc.pendingUpdate != 0 || conn.fc.pendingData != initialWindowSize || conn.fc.pendingUpdate != 0 {
-		t.Fatalf("Client mistakenly updates inbound flow control params: got %d, %d, %d, %d; want %d, %d, %d, %d", s.fc.pendingData, s.fc.pendingUpdate, conn.fc.pendingData, conn.fc.pendingUpdate, initialWindowSize, 0, initialWindowSize, 0)
+	if s.fc.pendingData <= initialWindowSize || s.fc.pendingUpdate != 0 || conn.fc.pendingData <= initialWindowSize || conn.fc.pendingUpdate != 0 {
+		t.Fatalf("Client mistakenly updates inbound flow control params: got %d, %d, %d, %d; want >%d, %d, >%d, %d", s.fc.pendingData, s.fc.pendingUpdate, conn.fc.pendingData, conn.fc.pendingUpdate, initialWindowSize, 0, initialWindowSize, 0)
 	}
 	if err != io.EOF || s.statusCode != codes.Internal {
 		t.Fatalf("Got err %v and the status code %d, want <EOF> and the code %d", err, s.statusCode, codes.Internal)
 	}
 	conn.CloseStream(s, err)
-	if s.fc.pendingData != 0 || s.fc.pendingUpdate != 0 || conn.fc.pendingData != 0 || conn.fc.pendingUpdate != initialWindowSize {
-		t.Fatalf("Client mistakenly resets inbound flow control params: got %d, %d, %d, %d; want 0, 0, 0, %d", s.fc.pendingData, s.fc.pendingUpdate, conn.fc.pendingData, conn.fc.pendingUpdate, initialWindowSize)
+	if s.fc.pendingData != 0 || s.fc.pendingUpdate != 0 || conn.fc.pendingData != 0 || conn.fc.pendingUpdate <= initialWindowSize {
+		t.Fatalf("Client mistakenly resets inbound flow control params: got %d, %d, %d, %d; want 0, 0, 0, >%d", s.fc.pendingData, s.fc.pendingUpdate, conn.fc.pendingData, conn.fc.pendingUpdate, initialWindowSize)
 	}
 	// Test the logic for the violation of the connection flow control window size restriction.
 	//
@@ -649,11 +663,60 @@ func TestClientWithMisbehavedServer(t *testing.T) {
 	server.stop()
 }
 
+func TestMalformedStatus(t *testing.T) {
+	server, ct := setUp(t, 0, math.MaxUint32, malformedStatus)
+	callHdr := &CallHdr{
+		Host:   "localhost",
+		Method: "foo",
+	}
+	s, err := ct.NewStream(context.Background(), callHdr)
+	if err != nil {
+		return
+	}
+	opts := Options{
+		Last:  true,
+		Delay: false,
+	}
+	if err := ct.Write(s, expectedRequest, &opts); err != nil {
+		t.Fatalf("Failed to write the request: %v", err)
+	}
+	p := make([]byte, http2MaxFrameLen)
+	expectedErr := StreamErrorf(codes.Internal, "invalid header field value \"\\n\"")
+	if _, err = s.dec.Read(p); err != expectedErr {
+		t.Fatalf("Read the err %v, want %v", err, expectedErr)
+	}
+	ct.Close()
+	server.stop()
+}
+
 func TestStreamContext(t *testing.T) {
 	expectedStream := Stream{}
 	ctx := newContextWithStream(context.Background(), &expectedStream)
 	s, ok := StreamFromContext(ctx)
 	if !ok || !reflect.DeepEqual(expectedStream, *s) {
 		t.Fatalf("GetStreamFromContext(%v) = %v, %t, want: %v, true", ctx, *s, ok, expectedStream)
+	}
+}
+
+func TestIsReservedHeader(t *testing.T) {
+	tests := []struct {
+		h    string
+		want bool
+	}{
+		{"", false}, // but should be rejected earlier
+		{"foo", false},
+		{"content-type", true},
+		{"grpc-message-type", true},
+		{"grpc-encoding", true},
+		{"grpc-message", true},
+		{"grpc-status", true},
+		{"grpc-timeout", true},
+		{"te", true},
+	}
+	for _, tt := range tests {
+		got := isReservedHeader(tt.h)
+		if got != tt.want {
+			t.Errorf("isReservedHeader(%q) = %v; want %v", tt.h, got, tt.want)
+		}
 	}
 }
