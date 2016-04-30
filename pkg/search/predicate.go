@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/geocode"
+	"camlistore.org/pkg/schema/nodeattr"
 	"go4.org/types"
 	"golang.org/x/net/context"
 )
@@ -128,6 +129,9 @@ func init() {
 	// Location predicates
 	registerKeyword(newHasLocation())
 	registerKeyword(newLocation())
+
+	// People predicates
+	registerKeyword(newWith())
 }
 
 // Helper implementation for mixing into keyword implementations
@@ -242,7 +246,7 @@ func (a attribute) Description() string {
 }
 
 func (a attribute) Predicate(ctx context.Context, args []string) (*Constraint, error) {
-	c := attrConst(args[0], args[1])
+	c := permWithAttr(args[0], args[1])
 	if strings.HasPrefix(args[1], "~") {
 		// Substring. Hack. Figure out better way to do this.
 		c.Permanode.Value = ""
@@ -346,7 +350,50 @@ func (t tag) Description() string {
 }
 
 func (t tag) Predicate(ctx context.Context, args []string) (*Constraint, error) {
-	return attrConst("tag", args[0]), nil
+	return permWithAttr("tag", args[0]), nil
+}
+
+type with struct {
+	matchPrefix
+}
+
+func newWith() keyword {
+	return with{newMatchPrefix("with")}
+}
+
+func (w with) Description() string {
+	return "match people containing substring in their first or last name"
+}
+
+func (w with) Predicate(ctx context.Context, args []string) (*Constraint, error) {
+	// TODO(katepek): write a query optimizer or a separate matcher
+	c := &Constraint{
+		// TODO(katepek): Does this work with repeated values for "with"?
+		// Select all permanodes where attribute "with" points to permanodes with the foursquare person type
+		// and with first or last name partially matching the query string
+		Permanode: &PermanodeConstraint{
+			Attr: "with",
+			ValueInSet: andConst(
+				&Constraint{
+					Permanode: &PermanodeConstraint{
+						Attr:  nodeattr.Type,
+						Value: "foursquare.com:person",
+					},
+				},
+				orConst(
+					permWithAttrSubstr(nodeattr.GivenName, &StringConstraint{
+						Contains:        args[0],
+						CaseInsensitive: true,
+					}),
+					permWithAttrSubstr(nodeattr.FamilyName, &StringConstraint{
+						Contains:        args[0],
+						CaseInsensitive: true,
+					}),
+				),
+			),
+		},
+	}
+	return c, nil
 }
 
 type title struct {
@@ -364,7 +411,7 @@ func (t title) Description() string {
 func (t title) Predicate(ctx context.Context, args []string) (*Constraint, error) {
 	c := &Constraint{
 		Permanode: &PermanodeConstraint{
-			Attr:       "title",
+			Attr:       nodeattr.Title,
 			SkipHidden: true,
 			ValueMatches: &StringConstraint{
 				Contains:        args[0],
@@ -392,7 +439,7 @@ func (k isImage) Description() string {
 func (k isImage) Predicate(ctx context.Context, args []string) (*Constraint, error) {
 	c := &Constraint{
 		Permanode: &PermanodeConstraint{
-			Attr: "camliContent",
+			Attr: nodeattr.CamliContent,
 			ValueInSet: &Constraint{
 				File: &FileConstraint{
 					IsImage: true,
@@ -589,7 +636,7 @@ func (h hasLocation) Predicate(ctx context.Context, args []string) (*Constraint,
 
 // Helpers
 
-func attrConst(attr, val string) *Constraint {
+func permWithAttr(attr, val string) *Constraint {
 	c := &Constraint{
 		Permanode: &PermanodeConstraint{
 			Attr:       attr,
@@ -604,10 +651,19 @@ func attrConst(attr, val string) *Constraint {
 	return c
 }
 
+func permWithAttrSubstr(attr string, c *StringConstraint) *Constraint {
+	return &Constraint{
+		Permanode: &PermanodeConstraint{
+			Attr:         attr,
+			ValueMatches: c,
+		},
+	}
+}
+
 func permOfFile(fc *FileConstraint) *Constraint {
 	return &Constraint{
 		Permanode: &PermanodeConstraint{
-			Attr:       "camliContent",
+			Attr:       nodeattr.CamliContent,
 			ValueInSet: &Constraint{File: fc},
 		},
 	}
@@ -692,7 +748,7 @@ func (k isPost) Description() string {
 func (k isPost) Predicate(ctx context.Context, args []string) (*Constraint, error) {
 	return &Constraint{
 		Permanode: &PermanodeConstraint{
-			Attr:  "camliNodeType",
+			Attr:  nodeattr.Type,
 			Value: "twitter.com:tweet",
 		},
 	}, nil
@@ -713,7 +769,7 @@ func (k isCheckin) Description() string {
 func (k isCheckin) Predicate(ctx context.Context, args []string) (*Constraint, error) {
 	return &Constraint{
 		Permanode: &PermanodeConstraint{
-			Attr:  "camliNodeType",
+			Attr:  nodeattr.Type,
 			Value: "foursquare.com:checkin",
 		},
 	}, nil
@@ -723,7 +779,9 @@ type filename struct {
 	matchPrefix
 }
 
-func newFilename() keyword { return filename{newMatchPrefix("filename")} }
+func newFilename() keyword {
+	return filename{newMatchPrefix("filename")}
+}
 
 func (fn filename) Description() string {
 	return "Match filename"
