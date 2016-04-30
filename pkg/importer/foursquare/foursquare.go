@@ -385,10 +385,12 @@ func (r *run) importCompanions(parent *importer.Object, companions []*user) (com
 		if err != nil {
 			return nil, err
 		}
+		icon := user.icon()
 		if err := personNode.SetAttrs(
 			attrFoursquareId, user.Id,
 			nodeattr.Type, "foursquare.com:person",
 			nodeattr.Title, user.FirstName+" "+user.LastName,
+			nodeattr.CamliContentImage, r.urlFileRef(icon, path.Base(icon)),
 			nodeattr.GivenName, user.FirstName,
 			nodeattr.FamilyName, user.LastName); err != nil {
 			return nil, err
