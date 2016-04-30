@@ -48,15 +48,14 @@ on the [mailing list](https://groups.google.com/group/camlistore).
 
 ## Presentations {#presentations}
 
-* [February 2015 FOSDEM Slides](https://go-talks.appspot.com/github.com/mpl/talks/fosdem-2015/fosdem-20150201.slide)
-* [February 2014 FOSDEM Presentation](https://www.youtube.com/watch?v=kBCQq5hfsug)
-  ([WebM version](http://video.fosdem.org/2014/K4601/Sunday/Camlistore.webm))
-* [June 2013 Intro Video](https://www.youtube.com/watch?v=yxSzQIwXM1k)
-* [May 2011 São Paolo Presentation](/talks/2011-05-07-Camlistore-Sao-Paolo/)
-* [February 2011 Presentation](https://docs.google.com/present/view?id=dgks53wm_2j86hwnhs)
+* 2016-04, **LinuxFest Northwest**: [[slides]](https://docs.google.com/presentation/d/1AmT5DAL9CrzQFS22i0xJ5SYtXQfrHqOyYiQB7imshdw/view#slide=id.p4) [[video]](https://www.youtube.com/watch?v=8Dk2iVlc67M)
+* 2015-02, **FOSDEM**: [[slides]](https://go-talks.appspot.com/github.com/mpl/talks/fosdem-2015/fosdem-20150201.slide) [[video]](https://www.youtube.com/watch?v=kBCQq5hfsug) [[WebM]](http://video.fosdem.org/2014/K4601/Sunday/Camlistore.webm)
+* 2013-06, **Google Developers Live**: [[video]](https://www.youtube.com/watch?v=yxSzQIwXM1k)
+* 2011-05, **São Paolo Perl Conference**: [[slides]](/talks/2011-05-07-Camlistore-Sao-Paolo/)
+* 2011-02, **First Introduction**: [[slides]](https://docs.google.com/present/view?id=dgks53wm_2j86hwnhs)
 
 
 ## Video tutorials {#tutorials}
 
-* [Getting started with Camlistore](https://www.youtube.com/watch?v=RUv-8PhnNp8)
-* [Getting started with camput and the Camlistore client tools](https://www.youtube.com/watch?v=DdccwBFc5ZI)
+* 2014-03, [Getting started with Camlistore](https://www.youtube.com/watch?v=RUv-8PhnNp8)
+* 2014-03, [Getting started with camput and the Camlistore client tools](https://www.youtube.com/watch?v=DdccwBFc5ZI)
