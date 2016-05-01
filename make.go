@@ -63,6 +63,7 @@ var (
 	buildOS        = flag.String("os", runtime.GOOS, "Operating system to build for.")
 	buildARM       = flag.String("arm", "7", "ARM version to use if building for ARM. Note that this version applies even if the host arch is ARM too (and possibly of a different version).")
 	stampVersion   = flag.Bool("stampversion", true, "Stamp version into buildinfo.GitInfo")
+	website        = flag.Bool("website", false, "Just build the website.")
 )
 
 var (
@@ -112,6 +113,9 @@ func main() {
 		}
 		latestSrcMod = mirror(sql)
 		if *onlysync {
+			if *website {
+				log.Fatal("-onlysync and -website are mutually exclusive")
+			}
 			mirrorFile("make.go", filepath.Join(buildSrcDir, "make.go"))
 			// Since we have not done the resources embedding, the
 			// z_*.go files have not been marked as wanted and are
@@ -156,9 +160,16 @@ func main() {
 			targs = append(targs, "camlistore.org/cmd/cammount")
 		}
 	default:
+		if *website {
+			log.Fatal("-targets and -website are mutually exclusive")
+		}
 		if t := strings.Split(*targets, ","); len(t) != 0 {
 			targs = t
 		}
+	}
+	if *website {
+		buildAll = false
+		targs = []string{"camlistore.org/website"}
 	}
 
 	withCamlistored := stringListContains(targs, "camlistore.org/server/camlistored")
@@ -206,7 +217,6 @@ func main() {
 	cmd := exec.Command("go", args...)
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
-		"GO15VENDOREXPERIMENT=1",
 	)
 
 	if *verbose {
@@ -285,6 +295,13 @@ func mirror(sql bool) (latestSrcMod time.Time) {
 	}
 	if *onlysync {
 		goDirs = append(goDirs, "server/appengine", "config", "misc", "./website")
+	}
+	if *website {
+		goDirs = []string{
+			"pkg",
+			"vendor",
+			"website",
+		}
 	}
 	// Copy files we do want in our mirrored GOPATH.  This has the side effect of
 	// populating wantDestFile, populated by mirrorFile.
