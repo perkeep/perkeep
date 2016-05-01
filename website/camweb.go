@@ -30,7 +30,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/smtp"
 	"net/url"
 	"os"
@@ -67,17 +66,15 @@ const defaultAddr = ":31798" // default webserver address
 var h1TitlePattern = regexp.MustCompile(`<h1>([^<]+)</h1>`)
 
 var (
-	httpAddr        = flag.String("http", defaultAddr, "HTTP address")
-	httpsAddr       = flag.String("https", "", "HTTPS address")
-	root            = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl)")
-	logDir          = flag.String("logdir", "", "Directory to write log files to (one per hour), or empty to not log.")
-	logStdout       = flag.Bool("logstdout", true, "Whether to log to stdout")
-	tlsCertFile     = flag.String("tlscert", "", "TLS cert file")
-	tlsKeyFile      = flag.String("tlskey", "", "TLS private key file")
-	buildbotBackend = flag.String("buildbot_backend", "", "[optional] Build bot status backend URL")
-	buildbotHost    = flag.String("buildbot_host", "", "[optional] Hostname to map to the buildbot_backend. If an HTTP request with this hostname is received, it proxies to buildbot_backend.")
-	alsoRun         = flag.String("also_run", "", "[optiona] Path to run as a child process. (Used to run camlistore.org's ./scripts/run-blob-server)")
-	devMode         = flag.Bool("dev", false, "in dev mode")
+	httpAddr    = flag.String("http", defaultAddr, "HTTP address")
+	httpsAddr   = flag.String("https", "", "HTTPS address")
+	root        = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl)")
+	logDir      = flag.String("logdir", "", "Directory to write log files to (one per hour), or empty to not log.")
+	logStdout   = flag.Bool("logstdout", true, "Whether to log to stdout")
+	tlsCertFile = flag.String("tlscert", "", "TLS cert file")
+	tlsKeyFile  = flag.String("tlskey", "", "TLS private key file")
+	alsoRun     = flag.String("also_run", "", "[optiona] Path to run as a child process. (Used to run camlistore.org's ./scripts/run-blob-server)")
+	devMode     = flag.Bool("dev", false, "in dev mode")
 
 	gceProjectID = flag.String("gce_project_id", "", "GCE project ID; required if not running on GCE and gce_log_name is specified.")
 	gceLogName   = flag.String("gce_log_name", "", "GCE Cloud Logging log name; if non-empty, logs go to Cloud Logging instead of Apache-style local disk log files")
@@ -92,6 +89,8 @@ var (
 
 	pageHTML, errorHTML, camliErrorHTML *template.Template
 	packageHTML                         *txttemplate.Template
+
+	buildbotBackend, buildbotHost string
 )
 
 var fmap = template.FuncMap{
@@ -548,8 +547,8 @@ func setProdFlags() {
 	*flagChromeBugRepro = true
 	*httpAddr = ":80"
 	*httpsAddr = ":443"
-	*buildbotBackend = "https://travis-ci.org/camlistore/camlistore"
-	*buildbotHost = "build.camlistore.org"
+	buildbotBackend = "https://travis-ci.org/camlistore/camlistore"
+	buildbotHost = "build.camlistore.org"
 	*gceLogName = "camweb-access-log"
 	*root = filepath.Join(prodSrcDir, "website")
 	*gitContainer = true
@@ -774,14 +773,14 @@ func main() {
 	mux.Handle("/doc/", http.StripPrefix("/doc", http.HandlerFunc(docHandler)))
 	mux.HandleFunc("/", mainHandler)
 
-	if *buildbotHost != "" && *buildbotBackend != "" {
-		buildbotUrl, err := url.Parse(*buildbotBackend)
-		if err != nil {
-			log.Fatalf("Failed to parse %v as a URL: %v", *buildbotBackend, err)
+	if buildbotHost != "" && buildbotBackend != "" {
+		if _, err := url.Parse(buildbotBackend); err != nil {
+			log.Fatalf("Failed to parse %v as a URL: %v", buildbotBackend, err)
 		}
-		buildbotHandler := httputil.NewSingleHostReverseProxy(buildbotUrl)
-		bbhpattern := strings.TrimRight(*buildbotHost, "/") + "/"
-		mux.Handle(bbhpattern, buildbotHandler)
+		bbhpattern := strings.TrimRight(buildbotHost, "/") + "/"
+		mux.HandleFunc(bbhpattern, func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, buildbotBackend, http.StatusFound)
+		})
 	}
 
 	// ctx initialized now, because gceLauncher needs it first (when in prod).
