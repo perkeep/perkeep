@@ -250,7 +250,7 @@ func mainHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func docHandler(rw http.ResponseWriter, req *http.Request) {
-	findAndServeFile(rw, req, filepath.Join(filepath.Dir(*root), "doc"))
+	findAndServeFile(rw, req, filepath.Dir(*root))
 }
 
 // modtime is the modification time of the resource to be served, or IsZero().
@@ -307,7 +307,7 @@ func findAndServeFile(rw http.ResponseWriter, req *http.Request, root string) {
 	// the URL with a trailing slash so relative links within that
 	// directory work.
 	if fi.IsDir() && !strings.HasSuffix(req.URL.Path, "/") {
-		http.Redirect(rw, req, "/doc"+req.URL.Path+"/", http.StatusFound)
+		http.Redirect(rw, req, req.URL.Path+"/", http.StatusFound)
 		return
 	}
 
@@ -770,7 +770,7 @@ func main() {
 	mux.Handle("/lists", redirTo("/community"))
 
 	mux.HandleFunc("/contributors", contribHandler())
-	mux.Handle("/doc/", http.StripPrefix("/doc", http.HandlerFunc(docHandler)))
+	mux.HandleFunc("/doc/", docHandler)
 	mux.HandleFunc("/", mainHandler)
 
 	if buildbotHost != "" && buildbotBackend != "" {

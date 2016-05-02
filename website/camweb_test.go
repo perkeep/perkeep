@@ -30,6 +30,7 @@ func TestRedirect(t *testing.T) {
 		{"/gw/502aff1fd522c454e39a3723b596aca43d206d4e", "https://camlistore.googlesource.com/camlistore/+/502aff1fd522c454e39a3723b596aca43d206d4e"},
 		{"/gw/doc", "https://camlistore.googlesource.com/camlistore/+/master/doc"},
 		{"/code/?p=camlistore.git;a=commit;h=b0d2a8f0e5f27bbfc025a96ec3c7896b42d198ed", "https://camlistore.googlesource.com/camlistore/+/b0d2a8f0e5f27bbfc025a96ec3c7896b42d198ed"},
+		{"/docs/schema/", "/doc/schema/"},
 	}
 	for _, tt := range tests {
 		u, err := url.ParseRequestURI(tt.in)
