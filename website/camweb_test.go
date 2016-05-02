@@ -31,6 +31,15 @@ func TestRedirect(t *testing.T) {
 		{"/gw/doc", "https://camlistore.googlesource.com/camlistore/+/master/doc"},
 		{"/code/?p=camlistore.git;a=commit;h=b0d2a8f0e5f27bbfc025a96ec3c7896b42d198ed", "https://camlistore.googlesource.com/camlistore/+/b0d2a8f0e5f27bbfc025a96ec3c7896b42d198ed"},
 		{"/docs/schema/", "/doc/schema/"},
+
+		// strip directory index files
+		{"/doc/README.md", "/doc/"},
+		{"/doc/index.html", "/doc/"},
+
+		// strip common file extensions
+		{"/doc/overview.md", "/doc/overview"},
+		{"/doc/overview.html", "/doc/overview"},
+		{"/doc/overview.txt", ""},
 	}
 	for _, tt := range tests {
 		u, err := url.ParseRequestURI(tt.in)

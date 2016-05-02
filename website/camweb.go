@@ -91,6 +91,12 @@ var (
 	packageHTML                         *txttemplate.Template
 
 	buildbotBackend, buildbotHost string
+
+	// file extensions checked in order to satisfy file requests
+	fileExtensions = []string{".md", ".html"}
+
+	// files used to satisfy directory requests
+	indexFiles = []string{"index.html", "README.md"}
 )
 
 var fmap = template.FuncMap{
@@ -232,6 +238,21 @@ func redirectPath(u *url.URL) string {
 	if strings.HasPrefix(u.Path, "/docs/") {
 		return "/doc/" + strings.TrimPrefix(u.Path, "/docs/")
 	}
+
+	// strip directory index files
+	for _, x := range indexFiles {
+		if strings.HasSuffix(u.Path, "/"+x) {
+			return strings.TrimSuffix(u.Path, x)
+		}
+	}
+
+	// strip common file extensions
+	for _, x := range fileExtensions {
+		if strings.HasSuffix(u.Path, x) {
+			return strings.TrimSuffix(u.Path, x)
+		}
+	}
+
 	return ""
 }
 
@@ -250,6 +271,11 @@ func mainHandler(rw http.ResponseWriter, req *http.Request) {
 }
 
 func docHandler(rw http.ResponseWriter, req *http.Request) {
+	if target := redirectPath(req.URL); target != "" {
+		http.Redirect(rw, req, target, http.StatusFound)
+		return
+	}
+
 	findAndServeFile(rw, req, filepath.Dir(*root))
 }
 
@@ -290,7 +316,7 @@ func findAndServeFile(rw http.ResponseWriter, req *http.Request, root string) {
 		err     error
 	)
 
-	for _, ext := range []string{"", ".md", ".html"} {
+	for _, ext := range append([]string{""}, fileExtensions...) {
 		absPath = filepath.Join(root, relPath+ext)
 		fi, err = os.Lstat(absPath)
 		if err == nil || !os.IsNotExist(err) {
@@ -313,7 +339,7 @@ func findAndServeFile(rw http.ResponseWriter, req *http.Request, root string) {
 
 	// if directory request, try to find an index file
 	if fi.IsDir() {
-		for _, index := range []string{"index.html", "README.md"} {
+		for _, index := range indexFiles {
 			absPath = filepath.Join(root, relPath, index)
 			fi, err = os.Lstat(absPath)
 			if err != nil {
