@@ -5,7 +5,7 @@ Camlistore: Content-Addressable Multi-Layer, Indexed Store
 This file contains old design notes.  They're correct in spirit, but shouldn't
 be considered authorative.
 
-See http://camlistore.org/docs/
+See http://camlistore.org/doc/
 
 
 -=-=-=-=-=-=-=-=-=-=-=-=-=-

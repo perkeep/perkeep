@@ -2,7 +2,7 @@
 
 **TODO:** finish documenting this. In particular, add example with camget -shared.
 
-The basic summary is that you create a [claim](/docs/terms#claim) that a user
+The basic summary is that you create a [claim](/doc/terms.md#claim) that a user
 has access to something, and then your blobserver's public frontend
 authenticates (if applicable) a remote user and gives them access as permitted
 by your claim.
@@ -40,7 +40,7 @@ Note that in order to have all of the following working, your server needs to ha
 
     "shareHandler": true,
 
-in your [server config](/docs/server-config).
+in your [server config](/doc/server-config.md).
 
 Now I want to share Hi.txt with you, so I create a share blob:
 

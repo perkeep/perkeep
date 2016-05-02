@@ -1,6 +1,6 @@
 # Documentation
 
-* [Overview](/docs/overview): The original motivation and background for why
+* [Overview](/doc/overview.md): The original motivation and background for why
   Camlistore exists and what one might use it for.
 
 
@@ -12,10 +12,10 @@ more detail on customizing the high level configuration for use such as
 alternative blob storage or synchronization to cloud storage.
 
 * [Command-line tools](/cmd/)
-* [Server Config](/docs/server-config): Details for configuring server storage
+* [Server Config](/doc/server-config.md): Details for configuring server storage
   and access, including synchronization to other Camlistore servers or backup
   to cloud storage providers
-* [Client config](/docs/client-config): Clients need this configuration file to
+* [Client config](/doc/client-config.md): Clients need this configuration file to
   securely connect to your Camlistore server(s)
 
 
@@ -29,21 +29,21 @@ on the [mailing list](https://groups.google.com/group/camlistore).
 
 ### Concepts
 
-* [Principles](/docs/principles):  our base principles, goals, assumptions
-* [Terminology](/docs/terms):  let's agree on terms to stay sane
-* [Use Cases](/docs/uses): what one might do with all this (or at least our aspirations)
-* [Prior Art](/docs/prior-art): other projects with similar goals or strategies
-* [Contributing](/docs/contributing): how to help
-* [Style guide](/docs/web-ui-styleguide) for the Web UI
+* [Principles](/doc/principles.md):  our base principles, goals, assumptions
+* [Terminology](/doc/terms.md):  let's agree on terms to stay sane
+* [Use Cases](/doc/uses.md): what one might do with all this (or at least our aspirations)
+* [Prior Art](/doc/prior-art.md): other projects with similar goals or strategies
+* [Contributing](/doc/contributing.md): how to help
+* [Style guide](/doc/web-ui-styleguide.md) for the Web UI
 
 
 ### Technical Docs
 
 * [Packages](/pkg/): internal API documentation
-* [Architecture](/docs/arch): the pieces, layers, and how they interact
-* [Schema](/docs/schema): how we model data in Camlistore
-* [JSON Signing](/docs/json-signing)
-* [Sharing](/docs/sharing)
+* [Architecture](/doc/arch.md): the pieces, layers, and how they interact
+* [Schema](/doc/schema/): how we model data in Camlistore
+* [JSON Signing](/doc/json-signing/)
+* [Sharing](/doc/sharing.md)
 
 
 ## Presentations {#presentations}

@@ -29,10 +29,10 @@ if things here are confusing or lacking.</p>
 <dt id='blobserver'>blob server</dt>
 
   <dd>the simplest and lowest layer of the Camlistore servers (see: <a
-     href="/docs/arch">architecture</a>).  A blob server, while
+     href="/doc/arch.md">architecture</a>).  A blob server, while
      potentially shared between users, is <em>logically private to a
      single user</em> and holds that user's blobs (<a
-     href="/docs/schema">whatever they may represent</a>).
+     href="/doc/schema/">whatever they may represent</a>).
 
      <p>The protocol to speak with a blob server is simply:</p>
        <ul>
@@ -57,7 +57,7 @@ if things here are confusing or lacking.</p>
 <!-- ---------------------------------------------------------------------- -->
 <dt id='schemablob'>schema blob</dt>
 
-<dd>a <a href="/docs/schema">Camlistore-recognized data structure</a>, serialized as a JSON
+<dd>a <a href="/doc/schema/">Camlistore-recognized data structure</a>, serialized as a JSON
 object (map).  A schema blob must have top-level keys
 <code>camliVersion</code> and <code>camliType</code> and start with a open brace (<code>{</code>, byte 0x7B).  You may use any valid JSON
 serialization library to generate schema blobs.  Whitespace or formatting doesn't matter, as long as the blob
@@ -78,7 +78,7 @@ starts with <code>{</code> and is <a href="http://json.org/">valid JSON</a> in i
 <!-- ---------------------------------------------------------------------- -->
 <dt id='claim'>signed schema blob (aka "claim")</dt>
 
-<dd>if you <a href="/docs/json-signing">sign</a> a schema blob,
+<dd>if you <a href="/doc/json-signing/">sign</a> a schema blob,
   it's now a "signed schema blob" or "claim".  The terms are used pretty
   interchangeably but generally it's called a <em>claim</em> when the target of
   the schema blob is an object's permanode (see below).
@@ -102,7 +102,7 @@ starts with <code>{</code> and is <a href="http://json.org/">valid JSON</a> in i
   changing.  Camlistore solves this with the concept of a <em>permanode</em>.
   Like a permalink on the web, a permanode is a stable link to a Camli object.
 
-  <p>A permanode is simply a <a href="/docs/json-signing">signed</a>
+  <p>A permanode is simply a <a href="/doc/json-signing/">signed</a>
      schema blob with no data inside that would be interesting to
      mutate.  See <a href="/gw/doc/schema/permanode.md">the
      permanode spec</a>.</p>

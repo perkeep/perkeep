@@ -153,6 +153,6 @@ optional and can be turn on or off per-instance:
   around and view your content, and do searches. Of course, you could
   also just use the command-line tools or API.
 
-Enough words for now.  See [the docs](/docs/) and code for more.
+Enough words for now.  See [the docs](/doc/) and code for more.
 
 *Last updated 2013-06-12*

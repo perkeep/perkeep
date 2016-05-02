@@ -1,12 +1,12 @@
 # Use Cases
 
-First, read [the overview](/docs/overview).
+First, read [the overview](/doc/overview.md).
 
 These are some higher-level roadmap goals. Only the first few are done, but all
 are various stages of implementation (as of 2013-06-12).
 
 * **Filesystem backups**: easy initial use case.  Since you can easily put
-[files & directories and such](/docs/schema) in camlistore with
+[files & directories and such](/doc/schema/) in camlistore with
 [camput](/cmd/camput), you can use Camlistore for your backups.  Incremental
 backups are basically free.
 
@@ -17,7 +17,7 @@ control would be the default.
 
 * **Decentralized sharing system**: share anything of yours with anybody or
 everybody (private is the default).  This is already starting to work.  See
-[sharing](/docs/sharing).
+[sharing](/doc/sharing.md).
 
 * **Blog / photo hosting / Document Management CMS:**  I intend to run my
 personal blog and photo / gallery hosting (with permissions) off of Camlistore.

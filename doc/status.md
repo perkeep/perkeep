@@ -1,7 +1,7 @@
 <h1>Status</h1>
 
-<p>Camlistore has <a href="/docs/arch">many pieces</a> and many <a
-href="/docs/uses">potential use cases</a>.  Here are some of the
+<p>Camlistore has <a href="/doc/arch.md">many pieces</a> and many <a
+href="/doc/uses.md">potential use cases</a>.  Here are some of the
 pieces and use cases, and where they're at.</p>
 
 <p>Last updated: <b>2013-02-02</b> (updated rarely. Ask the mailing list or see the git commit logs)</p>
@@ -58,5 +58,5 @@ time.</td></tr>
 </table>
 
 <h2>High-Level Use Cases</h2>
-<p>... TODO: table for the various <a href="/docs/uses">use cases</a>.</p>
+<p>... TODO: table for the various <a href="/doc/uses.md">use cases</a>.</p>
 
