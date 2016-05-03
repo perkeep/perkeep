@@ -41,11 +41,8 @@
 				"smallBlobs": "/bs-loose/",
 				"largeBlobs": "/bs-packed/",
 				"metaIndex": {
-					"database": "not_blobpacked_index_default_name",
-					"host": "localhost",
-					"password": "root",
-					"type": "mysql",
-					"user": "root"
+					"file": "/path/to/packindex.leveldb",
+					"type": "leveldb"
 				}
 			}
 		},
@@ -89,11 +86,8 @@
 			"handlerArgs": {
 		        "blobSource": "/bs/",
 		        "storage": {
-		          "database": "camlitest",
-		          "host": "localhost",
-		          "password": "root",
-		          "type": "mysql",
-		          "user": "root"
+					"file": "/path/to/index.leveldb",
+					"type": "leveldb"
 		        }
 		      }
 		},
@@ -130,11 +124,8 @@
 			"handlerArgs": {
 				"from": "/bs/",
 				"queue": {
-					"database": "sync_index_queue",
-					"type": "mysql",
-					"host": "localhost",
-					"user": "root",
-					"password": "root"
+					"file": "/path/to/sync-to-index-queue.leveldb",
+					"type": "leveldb"
 				},
 				"to": "/index/"
 			}
@@ -142,14 +133,7 @@
 		"/ui/": {
 			"handler": "ui",
 			"handlerArgs": {
-				"cache": "/cache/",
-				"scaledImage": {
-					"database": "ui_thumbmeta_cache",
-					"host": "localhost",
-					"type": "mysql",
-					"user": "root",
-					"password": "root"
-				}
+				"cache": "/cache/"
 			}
 		}
 	}

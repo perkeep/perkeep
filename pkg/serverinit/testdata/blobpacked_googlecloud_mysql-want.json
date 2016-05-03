@@ -41,7 +41,7 @@
 				"smallBlobs": "/bs-loose/",
 				"largeBlobs": "/bs-packed/",
 				"metaIndex": {
-					"database": "not_blobpacked_index_default_name",
+					"database": "blobpacked_index",
 					"host": "localhost",
 					"password": "root",
 					"type": "mysql",

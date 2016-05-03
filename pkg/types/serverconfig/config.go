@@ -73,7 +73,7 @@ type Config struct {
 	//    "index"               (overrides 'dbname' key above)
 	//    "queue-sync-to-index" (the sync queue to index things)
 	//    "queue-sync-to-s3"    (the sync queue to replicate to s3)
-	//    "blobpacked_index"    (the index for blobpacked, the 'packRelated' option)
+	//    "blobpacked_index"    (the index for blobpacked, the 'packRelated' option. Defaults to "blobpacked_index".)
 	//    "ui_thumbcache"
 	DBNames map[string]string `json:"dbNames"`
 
