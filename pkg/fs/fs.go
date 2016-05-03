@@ -98,7 +98,6 @@ func NewRootedCamliFileSystem(cli *client.Client, fetcher blob.Fetcher, root blo
 // node implements fuse.Node with a read-only Camli "file" or
 // "directory" blob.
 type node struct {
-	noXattr
 	fs      *CamliFileSystem
 	blobref blob.Ref
 
@@ -380,7 +379,7 @@ func (fs *CamliFileSystem) newNodeFromBlobRef(root blob.Ref) (fusefs.Node, error
 	return nil, fmt.Errorf("Blobref must be of a directory or permanode got a %v", blob.Type())
 }
 
-type notImplementDirNode struct{ noXattr }
+type notImplementDirNode struct{}
 
 var _ fusefs.Node = (*notImplementDirNode)(nil)
 
@@ -420,20 +419,4 @@ func (s staticFileNode) Read(ctx context.Context, req *fuse.ReadRequest, res *fu
 	res.Data = make([]byte, size)
 	copy(res.Data, s)
 	return nil
-}
-
-func (n staticFileNode) Getxattr(*fuse.GetxattrRequest, *fuse.GetxattrResponse, context.Context) error {
-	return fuse.ErrNoXattr
-}
-
-func (n staticFileNode) Listxattr(*fuse.ListxattrRequest, *fuse.ListxattrResponse, context.Context) error {
-	return nil
-}
-
-func (n staticFileNode) Setxattr(*fuse.SetxattrRequest, context.Context) error {
-	return fuse.EPERM
-}
-
-func (n staticFileNode) Removexattr(*fuse.RemovexattrRequest, context.Context) error {
-	return fuse.EPERM
 }

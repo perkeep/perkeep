@@ -33,7 +33,6 @@ import (
 // CamliFilesystem with a little hello message and the ability to
 // search and browse static snapshots, etc.
 type root struct {
-	noXattr
 	fs *CamliFileSystem
 
 	mu     sync.Mutex // guards recent

@@ -37,7 +37,6 @@ import (
 const refreshTime = 1 * time.Minute
 
 type rootsDir struct {
-	noXattr
 	fs *CamliFileSystem
 	at time.Time
 

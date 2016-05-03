@@ -28,7 +28,6 @@ import (
 )
 
 type atDir struct {
-	noXattr
 	fs *CamliFileSystem
 }
 

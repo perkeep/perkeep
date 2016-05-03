@@ -29,7 +29,6 @@ import (
 	"camlistore.org/pkg/search"
 
 	"bazil.org/fuse"
-	"golang.org/x/net/context"
 )
 
 // xattrPrefix is the permanode attribute prefix used for record
@@ -136,30 +135,4 @@ func (x *xattr) list(req *fuse.ListxattrRequest, res *fuse.ListxattrResponse) er
 		res.Xattr = append(res.Xattr, '\x00')
 	}
 	return nil
-}
-
-// TODO(edrex): It looks like we can rely on the default basil implementations.
-
-// noXattr provides default xattr methods for fuse nodes.  The fuse
-// package itself defaults to ENOSYS which causes some systems (read:
-// MacOSX) to assume that no extended attribute support is available
-// anywhere in the filesystem.  This different set of defaults just
-// returns no values for read requests and permission denied for write
-// requests.
-type noXattr struct{}
-
-func (n noXattr) Getxattr(*fuse.GetxattrRequest, *fuse.GetxattrResponse, context.Context) error {
-	return fuse.ErrNoXattr
-}
-
-func (n noXattr) Listxattr(*fuse.ListxattrRequest, *fuse.ListxattrResponse, context.Context) error {
-	return nil
-}
-
-func (n noXattr) Setxattr(*fuse.SetxattrRequest, context.Context) error {
-	return fuse.EPERM
-}
-
-func (n noXattr) Removexattr(*fuse.RemovexattrRequest, context.Context) error {
-	return fuse.EPERM
 }
