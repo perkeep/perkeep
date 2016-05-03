@@ -95,10 +95,12 @@ func (sh *Handler) subscribeToNewBlobs() {
 	go func() {
 		ctx := context.Background()
 		for br := range ch {
+			sh.index.RLock()
 			bm, err := sh.index.GetBlobMeta(ctx, br)
 			if err == nil {
 				sh.wsHub.newBlobRecv <- bm.CamliType
 			}
+			sh.index.RUnlock()
 		}
 	}()
 }
