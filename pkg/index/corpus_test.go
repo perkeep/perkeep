@@ -471,6 +471,8 @@ func testCacheSortedPermanodesRace(t *testing.T,
 	go func() {
 		for i := 0; i < 100; i++ {
 			nth := fmt.Sprintf("%d", i)
+			// No need to lock the index here. It is already done within NewPlannedPermanode,
+			// because it calls idxd.Index.ReceiveBlob.
 			pn := idxd.NewPlannedPermanode(nth)
 			idxd.SetAttribute(pn, "tag", nth)
 		}
@@ -480,7 +482,11 @@ func testCacheSortedPermanodesRace(t *testing.T,
 		for i := 0; i < 10; i++ {
 			ch := make(chan camtypes.BlobMeta, 10)
 			errc := make(chan error, 1)
-			go func() { errc <- enumFunc(c, context.TODO(), ch) }()
+			go func() {
+				idx.RLock()
+				defer idx.RUnlock()
+				errc <- enumFunc(c, context.TODO(), ch)
+			}()
 			for range ch {
 			}
 			err := <-errc
