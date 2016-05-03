@@ -17,12 +17,16 @@ limitations under the License.
 package search_test
 
 import (
+	"fmt"
 	"testing"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/index"
+	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/test"
+
+	"golang.org/x/net/context"
 )
 
 func addPermanode(fi *test.FakeIndex, pnStr string, attrs ...string) {
@@ -250,4 +254,61 @@ func TestSearchDescribe(t *testing.T) {
 		}
 		ht.test(t)
 	}
+}
+
+// should be run with -race
+func TestDescribeRace(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+	idx := index.NewMemoryIndex()
+	idxd := indextest.NewIndexDeps(idx)
+	idxd.Fataler = t
+	corpus, err := idxd.Index.KeepInMemory()
+	if err != nil {
+		t.Fatalf("error slurping index to memory: %v", err)
+	}
+	h := search.NewHandler(idx, idxd.SignerBlobRef)
+	h.SetCorpus(corpus)
+	donec := make(chan struct{})
+	headstart := 500
+	blobrefs := make([]blob.Ref, headstart)
+	headstartc := make(chan struct{})
+	go func() {
+		for i := 0; i < headstart*2; i++ {
+			nth := fmt.Sprintf("%d", i)
+			// No need to lock the index here. It is already done within NewPlannedPermanode,
+			// because it calls idxd.Index.ReceiveBlob.
+			pn := idxd.NewPlannedPermanode(nth)
+			idxd.SetAttribute(pn, "tag", nth)
+			if i > headstart {
+				continue
+			}
+			if i == headstart {
+				headstartc <- struct{}{}
+				continue
+			}
+			blobrefs[i] = pn
+		}
+	}()
+	<-headstartc
+	ctx := context.Background()
+	go func() {
+		for i := 0; i < headstart; i++ {
+			br := blobrefs[i]
+			res, err := h.Describe(ctx, &search.DescribeRequest{
+				BlobRef: br,
+				Depth:   1,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, ok := res.Meta[br.String()]
+			if !ok {
+				t.Errorf("permanode %v wasn't in Describe response", br)
+			}
+		}
+		donec <- struct{}{}
+	}()
+	<-donec
 }
