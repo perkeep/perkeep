@@ -1212,11 +1212,14 @@ func Reindex(t *testing.T, initIdx func() *index.Index) {
 		}
 
 		err := id.Index.Reindex()
-		if !startOoo && err == nil {
-			t.Fatal("Reindexing without outOfOrderIndexerLoop should have failed")
+		if !startOoo {
+			if err == nil {
+				t.Fatal("Reindexing without outOfOrderIndexerLoop should have failed")
+			}
+			t.Log("Reindexing without outOfOrderIndexerLoop failed as expected")
 		}
 		if startOoo && err != nil {
-			t.Fatal(err)
+			t.Fatalf("Reindexing with outOfOrderIndexerLoop failed: %v", err)
 		}
 	}
 
