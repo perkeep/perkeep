@@ -43,7 +43,7 @@ func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 	dr.fromHTTP(req)
 	ctx := context.TODO()
 
-	res, err := sh.Describe(ctx, &dr)
+	res, err := sh.DescribeLocked(ctx, &dr)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
 		return
@@ -53,7 +53,18 @@ func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 
 const verboseDescribe = false
 
+// Describe returns a response for the given describe request. It acquires RLock
+// on the Handler's index.
 func (sh *Handler) Describe(ctx context.Context, dr *DescribeRequest) (dres *DescribeResponse, err error) {
+	sh.index.RLock()
+	defer sh.index.RUnlock()
+
+	return sh.DescribeLocked(ctx, dr)
+}
+
+// DescribeLocked returns a response for the given describe request. It is the
+// caller's responsibility to lock the search handler's index.
+func (sh *Handler) DescribeLocked(ctx context.Context, dr *DescribeRequest) (dres *DescribeResponse, err error) {
 	if verboseDescribe {
 		t0 := time.Now()
 		defer func() {

@@ -35,10 +35,10 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/types/camtypes"
-	"go4.org/types"
-	"golang.org/x/net/context"
 
 	"go4.org/strutil"
+	"go4.org/types"
+	"golang.org/x/net/context"
 )
 
 type SortType int
@@ -985,7 +985,7 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 			blobs = append(blobs, srb.Blob)
 		}
 		q.Describe.BlobRefs = blobs
-		res, err := s.h.Describe(ctx, q.Describe)
+		res, err := s.h.DescribeLocked(ctx, q.Describe)
 		if err != nil {
 			return nil, err
 		}
@@ -1295,7 +1295,7 @@ func (c *PermanodeConstraint) blobMatches(ctx context.Context, s *search, br blo
 
 	var dp *DescribedPermanode
 	if corpus == nil {
-		dr, err := s.h.Describe(ctx, &DescribeRequest{BlobRef: br})
+		dr, err := s.h.DescribeLocked(ctx, &DescribeRequest{BlobRef: br})
 		if err != nil {
 			return false, err
 		}
