@@ -412,19 +412,24 @@ func (r *run) importPlace(parent *importer.Object, place *venueItem) (*importer.
 	}
 
 	icon := place.icon()
-	if err := placeNode.SetAttrs(
+	attrs := []string{
 		attrFoursquareId, place.Id,
 		nodeattr.Type, "foursquare.com:venue",
 		nodeattr.CamliContentImage, r.urlFileRef(icon, path.Base(icon)),
 		attrFoursquareCategoryName, catName,
 		nodeattr.Title, place.Name,
-		nodeattr.StreetAddress, place.Location.Address,
-		nodeattr.AddressLocality, place.Location.City,
-		nodeattr.PostalCode, place.Location.PostalCode,
-		nodeattr.AddressRegion, place.Location.State,
-		nodeattr.AddressCountry, place.Location.Country,
-		nodeattr.Latitude, fmt.Sprint(place.Location.Lat),
-		nodeattr.Longitude, fmt.Sprint(place.Location.Lng)); err != nil {
+	}
+	if place.Location != nil {
+		attrs = append(attrs,
+			nodeattr.StreetAddress, place.Location.Address,
+			nodeattr.AddressLocality, place.Location.City,
+			nodeattr.PostalCode, place.Location.PostalCode,
+			nodeattr.AddressRegion, place.Location.State,
+			nodeattr.AddressCountry, place.Location.Country,
+			nodeattr.Latitude, fmt.Sprint(place.Location.Lat),
+			nodeattr.Longitude, fmt.Sprint(place.Location.Lng))
+	}
+	if err := placeNode.SetAttrs(attrs...); err != nil {
 		return nil, err
 	}
 
