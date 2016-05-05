@@ -1,4 +1,4 @@
-How to build a release tarball for binaries:
+** How to build a release tarball for binaries: **
 
 $ go run ./misc/docker/dock.go -build_image=false -build_release=true -rev=$GIT_REVISION -tarball_version=0.9
 
@@ -8,10 +8,15 @@ use -os to build the binaries for another OS: windows or darwin.
 
 use -upload=true to directly upload the tarball to the camlistore-release/0.9/ Google Cloud bucket.
 
-How to build a release zip for source:
+** How to build a release zip for source: **
 
 $ go run ./misc/docker/dock.go -build_image=false -zip_source=true -rev=$GIT_REVISION -tarball_version=0.10 [-sanity=false]
 
 will generate ./misc/docker/release/camlistore0.10-src.zip
 
 use -upload=true to directly upload the zip file to the camlistore-release/0.10/ Google Cloud bucket.
+
+** How to generate a monthly release: **
+
+go run ./misc/monthly.go -rev=$GIT_REVISION
+git commit -m 'monthly release' website/content/docs/release/monthly
