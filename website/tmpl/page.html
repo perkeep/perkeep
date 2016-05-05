@@ -14,7 +14,6 @@
 {{end}}
 
 {{define "header"}}
-<html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 <meta name="go-import" content="camlistore.org git https://camlistore.googlesource.com/camlistore">
@@ -28,7 +27,40 @@
 <link href='//fonts.googleapis.com/css?family=Source+Sans+Pro:400,700' rel='stylesheet' type='text/css'>
 <script type="text/javascript" src="/static/all-async.js" async="true"></script>
 <script type="text/javascript" src="/static/godocs.js"></script>
+{{if .IsMonthly}}
+	{{template "downloadboxstyle" .}}
+{{end}}
 </head>
+{{end}}
+
+{{define "downloadboxstyle"}}
+	<style>
+		a.downloadBox {
+			display: block;
+			color: #222;
+			border: 1px solid #375EAB;
+			border-radius: 5px;
+			background: #E0EBF5;
+			width: 280px;
+		}
+		a.downloadBox:hover {
+			text-decoration: none;
+		}
+		.downloadBox .platform {
+			font-size: large;
+		}
+		.downloadBox .filename {
+			color: #375EAB;
+			font-weight: bold;
+			line-height: 1.5em;
+		}
+		a.downloadBox:hover .filename {
+			text-decoration: underline;
+		}
+		.downloadBox .checksum {
+			font-size: 5pt;
+		}
+	</style>
 {{end}}
 
 {{define "banner"}}

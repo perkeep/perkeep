@@ -170,13 +170,15 @@ func servePage(w http.ResponseWriter, title, subtitle string, content []byte) {
 		content = bytes.Replace(content, []byte("<p>"), []byte(toInsert), 1)
 	}
 	d := struct {
-		Title    string
-		Subtitle string
-		Content  template.HTML
+		Title     string
+		Subtitle  string
+		Content   template.HTML
+		IsMonthly bool
 	}{
 		title,
 		subtitle,
 		template.HTML(content),
+		strings.HasPrefix(title, "Monthly Release"),
 	}
 
 	if err := pageHTML.ExecuteTemplate(w, "page", &d); err != nil {
