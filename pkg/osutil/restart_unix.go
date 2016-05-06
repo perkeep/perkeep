@@ -56,13 +56,25 @@ func SelfPath() (string, error) {
 	return "", errors.New("SelfPath not implemented for " + runtime.GOOS)
 }
 
-// RestartProcess returns an error if things couldn't be
-// restarted.  On success, this function never returns
-// because the process becomes the new process.
-func RestartProcess() error {
+// RestartProcess restarts the process with the given arguments, if any,
+// replacing the original process's arguments. It defaults to os.Args otherwise. It
+// returns an error if things couldn't be restarted. On success, this function
+// never returns because the process becomes the new process.
+func RestartProcess(arg ...string) error {
 	path, err := SelfPath()
 	if err != nil {
 		return fmt.Errorf("RestartProcess failed: %v", err)
 	}
-	return syscall.Exec(path, os.Args, os.Environ())
+
+	var args []string
+	if len(arg) > 0 {
+		args = append(args, os.Args[0])
+		for _, v := range arg {
+			args = append(args, v)
+		}
+	} else {
+		args = os.Args
+	}
+
+	return syscall.Exec(path, args, os.Environ())
 }
