@@ -117,6 +117,13 @@ func (m multi) Open() (io.Reader, error) {
 	return io.MultiReader(rs...), nil
 }
 
+// IsEmpty reports whether f is empty.
+func (f *Files) IsEmpty() bool {
+	f.lk.Lock()
+	defer f.lk.Unlock()
+	return len(f.file) == 0
+}
+
 // Add adds a file to the file set.
 func (f *Files) Add(filename string, size int64, modtime time.Time, o Opener) {
 	f.lk.Lock()
