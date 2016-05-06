@@ -335,7 +335,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	}
 
 	// Upload some files.
-	var jpegFileRef, exifFileRef, mediaFileRef, mediaWholeRef blob.Ref
+	var jpegFileRef, exifFileRef, exifWholeRef, badExifWholeRef, mediaFileRef, mediaWholeRef blob.Ref
 	{
 		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
 		if err != nil {
@@ -351,7 +351,8 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 			return
 		}
 		jpegFileRef, _ = uploadFile("dude.jpg", noTime)
-		exifFileRef, _ = uploadFile("dude-exif.jpg", time.Unix(1361248796, 0))
+		exifFileRef, exifWholeRef = uploadFile("dude-exif.jpg", time.Unix(1361248796, 0))
+		_, badExifWholeRef = uploadFile("bad-exif.jpg", time.Unix(1361248796, 0))
 		mediaFileRef, mediaWholeRef = uploadFile("0s.mp3", noTime)
 	}
 
@@ -381,6 +382,18 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	key = "filetimes|" + exifFileRef.String()
 	if g, e := id.Get(key), "2013-02-18T01%3A11%3A20Z%2C2013-02-19T04%3A39%3A56Z"; g != e {
 		t.Errorf("EXIF dude-exif.jpg key %q = %q; want %q", key, g, e)
+	}
+
+	key = "exifgps|" + exifWholeRef.String()
+	// Test that small values aren't printed as scientific notation.
+	if g, e := id.Get(key), "-0.0000010|-120.0000000"; g != e {
+		t.Errorf("EXIF dude-exif.jpg key %q = %q; want %q", key, g, e)
+	}
+
+	// Check that indexer ignores exif lat/fields that are out of bounds.
+	key = "exifgps|" + badExifWholeRef.String()
+	if g, e := id.Get(key), ""; g != e {
+		t.Errorf("EXIF bad-exif.jpg key %q = %q; want %q", key, g, e)
 	}
 
 	key = "have:" + pn.String()

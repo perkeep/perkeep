@@ -375,8 +375,8 @@ var (
 			{"wholeRef", typeBlobRef}, // of entire file, not fileref
 		},
 		[]part{
-			{"lat", typeStr},
-			{"long", typeStr},
+			{"lat", typeRawStr},
+			{"long", typeRawStr},
 		},
 	}
 )

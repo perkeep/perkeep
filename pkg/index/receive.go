@@ -26,6 +26,7 @@ import (
 	_ "image/png"
 	"io"
 	"log"
+	"math"
 	"os"
 	"sort"
 	"strconv"
@@ -587,7 +588,13 @@ func indexEXIF(wholeRef blob.Ref, r io.Reader, mm *mutationMap) (err error) {
 		return nil
 	}
 	if lat, long, err := ex.LatLong(); err == nil {
-		mm.Set(keyEXIFGPS.Key(wholeRef), keyEXIFGPS.Val(fmt.Sprint(lat), fmt.Sprint(long)))
+		if math.Abs(long) > 180.0 || math.Abs(lat) > 90.0 {
+			log.Printf("Long, lat outside allowed range: %v, %v", long, lat)
+			return nil
+		}
+		// index 7 places fixed precision (~10mm worst case at equator)
+		// http://stackoverflow.com/a/1947615/114581
+		mm.Set(keyEXIFGPS.Key(wholeRef), keyEXIFGPS.Val(fmt.Sprintf("%.7f", lat), fmt.Sprintf("%.7f", long)))
 	} else if !exif.IsTagNotPresentError(err) {
 		log.Printf("Invalid EXIF GPS data: %v", err)
 	}
