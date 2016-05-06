@@ -48,8 +48,10 @@ on the [mailing list](https://groups.google.com/group/camlistore).
 
 ## Presentations {#presentations}
 
-* 2016-04, **LinuxFest Northwest**: [[slides]](https://docs.google.com/presentation/d/1AmT5DAL9CrzQFS22i0xJ5SYtXQfrHqOyYiQB7imshdw/view#slide=id.p4) [[video]](https://www.youtube.com/watch?v=8Dk2iVlc67M)
-* 2015-02, **FOSDEM**: [[slides]](https://go-talks.appspot.com/github.com/mpl/talks/fosdem-2015/fosdem-20150201.slide) [[video]](https://www.youtube.com/watch?v=kBCQq5hfsug) [[WebM]](http://video.fosdem.org/2014/K4601/Sunday/Camlistore.webm)
+* 2016-04, **GDG Seattle**: [[slides]](https://docs.google.com/presentation/d/1AmT5DAL9CrzQFS22i0xJ5SYtXQfrHqOyYiQB7imshdw/view) [[video]](https://www.youtube.com/watch?v=dg6OmoKNbcw)
+* 2016-04, **LinuxFest Northwest**: [[slides]](https://docs.google.com/presentation/d/1AmT5DAL9CrzQFS22i0xJ5SYtXQfrHqOyYiQB7imshdw/view) [[video]](https://www.youtube.com/watch?v=8Dk2iVlc67M)
+* 2015-02, **FOSDEM**: [[slides]](https://go-talks.appspot.com/github.com/mpl/talks/fosdem-2015/fosdem-20150201.slide) [[video]](https://www.youtube.com/watch?v=oM-MfeflUZ8)
+* 2014-02, **FOSDEM**: [[slides]](http://go-talks.appspot.com/github.com/mpl/talks/fosdem-2014/2014-02-02-FOSDEM.slide) [[video]](https://www.youtube.com/watch?v=kBCQq5hfsug) [[WebM]](http://video.fosdem.org/2014/K4601/Sunday/Camlistore.webm)
 * 2013-06, **Google Developers Live**: [[video]](https://www.youtube.com/watch?v=yxSzQIwXM1k)
 * 2011-05, **São Paolo Perl Conference**: [[slides]](/talks/2011-05-07-Camlistore-Sao-Paolo/)
 * 2011-02, **First Introduction**: [[slides]](https://docs.google.com/present/view?id=dgks53wm_2j86hwnhs)
