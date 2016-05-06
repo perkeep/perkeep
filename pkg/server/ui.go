@@ -40,6 +40,7 @@ import (
 	"camlistore.org/pkg/fileembed"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/misc/closure"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/server/app"
 	"camlistore.org/pkg/sorted"
@@ -161,6 +162,14 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 			}
 			log.Printf("Using the default \"%v\" as the sourceRoot for AppEngine", uistatic.GaeSourceRoot)
 			ui.sourceRoot = uistatic.GaeSourceRoot
+		}
+		if ui.sourceRoot == "" && uistatic.Files.IsEmpty() {
+			ui.sourceRoot, err = osutil.GoPackagePath("camlistore.org")
+			if err != nil {
+				log.Printf("Warning: server not compiled with linked-in UI resources (HTML, JS, CSS), and camlistore.org not found in GOPATH.")
+			} else {
+				log.Printf("Using UI resources (HTML, JS, CSS) from disk, under %v", ui.sourceRoot)
+			}
 		}
 	}
 	if ui.sourceRoot != "" {
