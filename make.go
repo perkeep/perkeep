@@ -57,13 +57,17 @@ var (
 	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. '*' builds everything.  Empty builds defaults for this platform. Example: camlistore.org/server/camlistored,camlistore.org/cmd/camput")
 	quiet          = flag.Bool("quiet", false, "Don't print anything unless there's a failure.")
 	onlysync       = flag.Bool("onlysync", false, "Only populate the temporary source/build tree and output its full path. It is meant to prepare the environment for running the full test suite with 'devcam test'.")
-	useGoPath      = flag.Bool("use_gopath", false, "Use GOPATH from the environment and work from there. Do not create a temporary source tree with a new GOPATH in it.")
 	ifModsSince    = flag.Int64("if_mods_since", 0, "If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
 	buildARCH      = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
 	buildOS        = flag.String("os", runtime.GOOS, "Operating system to build for.")
 	buildARM       = flag.String("arm", "7", "ARM version to use if building for ARM. Note that this version applies even if the host arch is ARM too (and possibly of a different version).")
 	stampVersion   = flag.Bool("stampversion", true, "Stamp version into buildinfo.GitInfo")
 	website        = flag.Bool("website", false, "Just build the website.")
+
+	// Use GOPATH from the environment and work from there. Do not create a temporary source tree with a new GOPATH in it.
+	// It is set through CAMLI_MAKE_USEGOPATH for integration tests that call 'go run make.go', and which are already in
+	// a temp GOPATH.
+	useGoPath bool
 )
 
 var (
@@ -91,10 +95,10 @@ func main() {
 
 	sql := withSQLite()
 	if useEnvGoPath, _ := strconv.ParseBool(os.Getenv("CAMLI_MAKE_USEGOPATH")); useEnvGoPath {
-		*useGoPath = true
+		useGoPath = true
 	}
 	latestSrcMod := time.Now()
-	if *useGoPath {
+	if useGoPath {
 		buildGoPath = os.Getenv("GOPATH")
 		var err error
 		camRoot, err = goPackagePath("camlistore.org")
@@ -177,7 +181,7 @@ func main() {
 		doEmbed()
 	}
 
-	if !*useGoPath {
+	if !useGoPath {
 		deleteUnwantedOldMirrorFiles(buildSrcDir, withCamlistored)
 	}
 
