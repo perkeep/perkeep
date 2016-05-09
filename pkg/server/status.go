@@ -243,7 +243,8 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 	f("</ul>")
 
 	f("<h2>Admin</h2>")
-	f("<form method='post' action='restart' onsubmit='return confirm(\"Really restart now?\")'><button>restart server</button></form>")
+	f("<form method='post' action='restart' onsubmit='return confirm(\"Really restart now?\")'><button>restart server</button>")
+	f("<input type='checkbox' name='reindex'> reindex<br></form>")
 
 	f("<h2>Handlers</h2>")
 	f("<p>As JSON: <a href='status.json'>status.json</a>; and the <a href='%s?camli.mode=config'>discovery JSON</a>.</p>", st.rootPrefix)
@@ -285,13 +286,15 @@ func (sh *StatusHandler) serveRestart(rw http.ResponseWriter, req *http.Request)
 		}
 	}
 
+	reindex := (req.FormValue("reindex") == "on")
+
 	log.Println("Restarting camlistored")
 	rw.Header().Set("Connection", "close")
 	http.Redirect(rw, req, sh.prefix, http.StatusFound)
 	if f, ok := rw.(http.Flusher); ok {
 		f.Flush()
 	}
-	osutil.RestartProcess()
+	osutil.RestartProcess(fmt.Sprintf("-reindex=%t", reindex))
 }
 
 var cgoEnabled bool
