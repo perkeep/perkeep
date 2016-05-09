@@ -91,7 +91,6 @@ func (c *testCmd) env() *Env {
 	env.NoGo()
 	env.Set("GOPATH", c.buildGoPath)
 	env.Set("CAMLI_MAKE_USEGOPATH", "true")
-	env.Set("GO15VENDOREXPERIMENT", "1")
 	return env
 }
 
