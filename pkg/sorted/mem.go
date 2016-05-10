@@ -141,7 +141,7 @@ func (mk *memKeys) CommitBatch(bm BatchMutation) error {
 	defer mk.mu.Unlock()
 	for _, m := range b.Mutations() {
 		if m.IsDelete() {
-			if err := mk.db.Delete([]byte(m.Key())); err != nil {
+			if err := mk.db.Delete([]byte(m.Key())); err != nil && err != memdb.ErrNotFound {
 				return err
 			}
 		} else {

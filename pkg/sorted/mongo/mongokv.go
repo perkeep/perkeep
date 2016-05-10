@@ -191,7 +191,7 @@ func (kv *keyValue) CommitBatch(bm sorted.BatchMutation) error {
 	defer kv.mu.Unlock()
 	for _, m := range b.Mutations() {
 		if m.IsDelete() {
-			if err := kv.db.Remove(bson.M{mgoKey: m.Key()}); err != nil {
+			if err := kv.db.Remove(bson.M{mgoKey: m.Key()}); err != nil && err != mgo.ErrNotFound {
 				return err
 			}
 		} else {

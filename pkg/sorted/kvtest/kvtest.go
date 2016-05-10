@@ -76,6 +76,44 @@ func TestSorted(t *testing.T, kv sorted.KeyValue) {
 	testInsertTooLarge(t, kv)
 
 	// TODO: test batch commits
+
+	// Deleting a non-existent item in a batch should not be an error
+	testDeleteNotFoundBatch(t, kv)
+	testDeletePartialNotFoundBatch(t, kv)
+}
+
+// Do not ever insert that key, as it used for testing deletion of non existing entries
+const (
+	notExistKey  = "I do not exist"
+	butIExistKey = "But I do exist"
+)
+
+func testDeleteNotFoundBatch(t *testing.T, kv sorted.KeyValue) {
+	b := kv.BeginBatch()
+	b.Delete(notExistKey)
+	if err := kv.CommitBatch(b); err != nil {
+		t.Fatalf("Batch deletion of non existing key returned an error: %v", err)
+	}
+}
+
+func testDeleteNotFound(t *testing.T, kv sorted.KeyValue) {
+	if err := kv.Delete(notExistKey); err != nil {
+		t.Fatalf("Deletion of non existing key returned an error: %v", err)
+	}
+}
+func testDeletePartialNotFoundBatch(t *testing.T, kv sorted.KeyValue) {
+	if err := kv.Set(butIExistKey, "whatever"); err != nil {
+		t.Fatal(err)
+	}
+	b := kv.BeginBatch()
+	b.Delete(notExistKey)
+	b.Delete(butIExistKey)
+	if err := kv.CommitBatch(b); err != nil {
+		t.Fatalf("Batch deletion with one non existing key returned an error: %v", err)
+	}
+	if val, err := kv.Get(butIExistKey); err != sorted.ErrNotFound || val != "" {
+		t.Fatalf("Key %q should have been batch deleted", butIExistKey)
+	}
 }
 
 func testInsertLarge(t *testing.T, kv sorted.KeyValue) {

@@ -408,7 +408,7 @@ func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 		batch.Delete(br.String())
 		wg.Go(func() error {
 			defer removeGate.Done()
-			if err := s.delete(br); err != nil {
+			if err := s.delete(br); err != nil && err != os.ErrNotExist {
 				return err
 			}
 			return nil
