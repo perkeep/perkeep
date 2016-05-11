@@ -12,13 +12,13 @@ import (
 )
 
 // PunchHole deallocates space inside a file in the byte range starting at
-// offset and continuing for len bytes. Unimplemented on FreeBSD.
+// offset and continuing for len bytes. Similar to FreeBSD, this is
+// unimplemented.
 func PunchHole(f *os.File, off, len int64) error {
 	return nil
 }
 
-// Fadvise predeclares an access pattern for file data.  See also 'man 2
-// posix_fadvise'. Unimplemented on FreeBSD.
+// Unimplemented on NetBSD.
 func Fadvise(f *os.File, off, len int64, advice FadviseAdvice) error {
 	return nil
 }
