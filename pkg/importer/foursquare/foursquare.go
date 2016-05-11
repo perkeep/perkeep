@@ -224,7 +224,7 @@ func (r *run) importCheckins() error {
 
 	for continueRequests {
 		resp := checkinsList{}
-		if err := r.im.doAPI(r.Context(), r.token(), &resp, checkinsAPIPath, "limit", strconv.Itoa(limit), "offset", strconv.Itoa(offset)); err != nil {
+		if err := r.im.doUserAPI(r.Context(), r.token(), &resp, checkinsAPIPath, "limit", strconv.Itoa(limit), "offset", strconv.Itoa(offset)); err != nil {
 			return err
 		}
 
@@ -316,8 +316,13 @@ func (r *run) importPhotos(placeNode *importer.Object, checkinWasDup bool) error
 		return nil
 	}
 
+	clientID, clientSecret, err := r.Credentials()
+	if err != nil {
+		return err
+	}
+
 	resp := photosList{}
-	if err := r.im.doAPI(r.Context(), r.token(), &resp,
+	if err = r.im.doCredAPI(r.Context(), clientID, clientSecret, &resp,
 		"venues/"+placeNode.Attr(attrFoursquareId)+"/photos",
 		"limit", strconv.Itoa(nWant)); err != nil {
 		return err
@@ -450,7 +455,7 @@ func (r *run) getTopLevelNode(path string, title string) (*importer.Object, erro
 
 func (im *imp) getUserInfo(ctx context.Context, accessToken string) (user, error) {
 	var ui userInfo
-	if err := im.doAPI(ctx, accessToken, &ui, "users/self"); err != nil {
+	if err := im.doUserAPI(ctx, accessToken, &ui, "users/self"); err != nil {
 		return user{}, err
 	}
 	if ui.Response.User.Id == "" {
@@ -459,14 +464,31 @@ func (im *imp) getUserInfo(ctx context.Context, accessToken string) (user, error
 	return ui.Response.User, nil
 }
 
-func (im *imp) doAPI(ctx context.Context, accessToken string, result interface{}, apiPath string, keyval ...string) error {
+// doUserAPI makes requests to the Foursquare API with a user token.
+// https://developer.foursquare.com/overview/auth#requests
+func (im *imp) doUserAPI(ctx context.Context, accessToken string, result interface{}, apiPath string, keyval ...string) error {
+	form := url.Values{}
+	form.Set("oauth_token", accessToken)
+	return im.doAPI(ctx, form, result, apiPath, keyval...)
+}
+
+// doCredAPI makes userless requests to the Foursquare API, which have a larger
+// quota than user requests for some endpoints.
+// https://developer.foursquare.com/overview/auth#userless
+// https://developer.foursquare.com/overview/ratelimits
+func (im *imp) doCredAPI(ctx context.Context, clientID, clientSecret string, result interface{}, apiPath string, keyval ...string) error {
+	form := url.Values{}
+	form.Set("client_id", clientID)
+	form.Set("client_secret", clientSecret)
+	return im.doAPI(ctx, form, result, apiPath, keyval...)
+}
+
+func (im *imp) doAPI(ctx context.Context, form url.Values, result interface{}, apiPath string, keyval ...string) error {
 	if len(keyval)%2 == 1 {
 		panic("Incorrect number of keyval arguments")
 	}
 
-	form := url.Values{}
 	form.Set("v", apiVersion) // 4sq requires this to version their API
-	form.Set("oauth_token", accessToken)
 	for i := 0; i < len(keyval); i += 2 {
 		form.Set(keyval[i], keyval[i+1])
 	}
