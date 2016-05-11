@@ -135,10 +135,10 @@ func TestHandleGetViaSharing(t *testing.T) {
 	st.putRaw(linkRef, link)
 	st.testGet(linkRef.String(), shareBlobInvalid)
 
-	t.Logf("Checking we can get the link (file) blob fia the share...")
+	t.Logf("Checking we can get the link (file) blob via the share...")
 	st.testGet(fmt.Sprintf("%s?via=%s", linkRef, shareRef()), noError)
 
-	t.Logf("Checking we can't get the link (file) blob fia the non-transitive share...")
+	t.Logf("Checking we can't get the content via the non-transitive share...")
 	st.testGet(fmt.Sprintf("%s?via=%s,%s", contentRef, shareRef(), linkRef), shareNotTransitive)
 
 	// TODO: new test?
@@ -189,6 +189,143 @@ func TestSharingTransitiveSafety(t *testing.T) {
 	if !st.slept() {
 		t.Error("expected sleep after miss")
 	}
+}
+
+// TODO(mpl): try to refactor TestHandleGet*, but there are enough subtle differences to barely make it worth it
+
+func TestHandleGetFilePartViaSharing(t *testing.T) {
+	st := newShareTester(t)
+	defer st.done()
+
+	content1 := "monkey" // part1
+	contentRef1 := blob.SHA1FromString(content1)
+	content2 := "banana" // part2
+	contentRef2 := blob.SHA1FromString(content2)
+
+	link := fmt.Sprintf(`{"camliVersion": 1,
+"camliType": "file",
+"parts": [
+   {"blobRef": "%v", "size": %d},
+   {"blobRef": "%v", "size": %d}
+]}`, contentRef1, len(content1), contentRef2, len(content2))
+	linkRef := blob.SHA1FromString(link)
+
+	share := schema.NewShareRef(schema.ShareHaveRef, false).
+		SetShareTarget(linkRef).
+		SetSigner(blob.SHA1FromString("irrelevant")).
+		SetRawStringField("camliSig", "alsounused")
+	shareRef := func() blob.Ref { return share.Blob().BlobRef() }
+
+	t.Logf("Checking share blob doesn't yet exist...")
+	st.testGet(shareRef().String(), shareFetchFailed)
+	if !st.slept() {
+		t.Error("expected sleep after miss")
+	}
+	st.put(share.Blob())
+	t.Logf("Checking share blob now exists...")
+	st.testGet(shareRef().String(), noError)
+
+	t.Logf("Checking we can't get the content directly via the share...")
+	st.testGet(fmt.Sprintf("%s?via=%s", contentRef2, shareRef()), shareTargetInvalid)
+
+	t.Logf("Checking we can't get the link (file) blob directly...")
+	st.putRaw(linkRef, link)
+	st.testGet(linkRef.String(), shareBlobInvalid)
+
+	t.Logf("Checking we can get the link (file) blob via the share...")
+	st.testGet(fmt.Sprintf("%s?via=%s", linkRef, shareRef()), noError)
+
+	t.Logf("Checking we can't get the content via the non-transitive share...")
+	st.testGet(fmt.Sprintf("%s?via=%s,%s", contentRef2, shareRef(), linkRef), shareNotTransitive)
+
+	// TODO: new test?
+	share.SetShareIsTransitive(true)
+	st.put(share.Blob())
+	st.testGet(fmt.Sprintf("%s?via=%s,%s", linkRef, shareRef(), linkRef), viaChainInvalidLink)
+
+	st.putRaw(contentRef2, content2)
+	st.testGet(fmt.Sprintf("%s?via=%s,%s", contentRef2, shareRef(), linkRef), noError)
+
+	// new test?
+	share.SetShareExpiration(time.Now().Add(-time.Duration(10) * time.Minute))
+	st.put(share.Blob())
+	st.testGet(fmt.Sprintf("%s?via=%s,%s", contentRef2, shareRef(), linkRef), shareExpired)
+
+	share.SetShareExpiration(time.Now().Add(time.Duration(10) * time.Minute))
+	st.put(share.Blob())
+	st.testGet(fmt.Sprintf("%s?via=%s,%s", contentRef2, shareRef(), linkRef), noError)
+}
+
+func TestHandleGetBytesPartViaSharing(t *testing.T) {
+	st := newShareTester(t)
+	defer st.done()
+
+	content1 := "monkey" // part1
+	contentRef1 := blob.SHA1FromString(content1)
+	content2 := "banana" // part2
+	contentRef2 := blob.SHA1FromString(content2)
+
+	link2 := fmt.Sprintf(`{"camliVersion": 1,
+"camliType": "bytes",
+"parts": [
+   {"blobRef": "%v", "size": %d},
+   {"blobRef": "%v", "size": %d}
+]}`, contentRef1, len(content1), contentRef2, len(content2))
+	linkRef2 := blob.SHA1FromString(link2)
+
+	link1 := fmt.Sprintf(`{"camliVersion": 1,
+"camliType": "file",
+"parts": [
+   {"blobRef": "%v", "size": %d},
+   {"bytesRef": "%v", "size": %d}
+]}`, blob.SHA1FromString("irrelevant content"), len("irrelevant content"), linkRef2, len(link2))
+	linkRef1 := blob.SHA1FromString(link1)
+
+	share := schema.NewShareRef(schema.ShareHaveRef, false).
+		SetShareTarget(linkRef1).
+		SetSigner(blob.SHA1FromString("irrelevant")).
+		SetRawStringField("camliSig", "alsounused")
+	shareRef := func() blob.Ref { return share.Blob().BlobRef() }
+
+	t.Logf("Checking share blob doesn't yet exist...")
+	st.testGet(shareRef().String(), shareFetchFailed)
+	if !st.slept() {
+		t.Error("expected sleep after miss")
+	}
+	st.put(share.Blob())
+	t.Logf("Checking share blob now exists...")
+	st.testGet(shareRef().String(), noError)
+
+	t.Logf("Checking we can't get the content directly via the share...")
+	st.testGet(fmt.Sprintf("%s?via=%s", contentRef2, shareRef()), shareTargetInvalid)
+
+	t.Logf("Checking we can't get the link (file) blob directly...")
+	st.putRaw(linkRef1, link1)
+	st.testGet(linkRef1.String(), shareBlobInvalid)
+
+	t.Logf("Checking we can get the link (file) blob via the share...")
+	st.testGet(fmt.Sprintf("%s?via=%s", linkRef1, shareRef()), noError)
+
+	t.Logf("Checking we can't get the deeper link (bytes) blob via the non-transitive share...")
+	st.putRaw(linkRef2, link2)
+	st.testGet(fmt.Sprintf("%s?via=%s,%s", linkRef2, shareRef(), linkRef1), shareNotTransitive)
+
+	// TODO: new test?
+	share.SetShareIsTransitive(true)
+	st.put(share.Blob())
+	st.testGet(fmt.Sprintf("%s?via=%s,%s,%s", linkRef2, shareRef(), linkRef1, linkRef2), viaChainInvalidLink)
+
+	st.putRaw(contentRef2, content2)
+	st.testGet(fmt.Sprintf("%s?via=%s,%s,%s", contentRef2, shareRef(), linkRef1, linkRef2), noError)
+
+	// new test?
+	share.SetShareExpiration(time.Now().Add(-time.Duration(10) * time.Minute))
+	st.put(share.Blob())
+	st.testGet(fmt.Sprintf("%s?via=%s,%s,%s", contentRef2, shareRef(), linkRef1, linkRef2), shareExpired)
+
+	share.SetShareExpiration(time.Now().Add(time.Duration(10) * time.Minute))
+	st.put(share.Blob())
+	st.testGet(fmt.Sprintf("%s?via=%s,%s,%s", contentRef2, shareRef(), linkRef1, linkRef2), noError)
 }
 
 // TODO(aa): test the "assemble" mode too.

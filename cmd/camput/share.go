@@ -49,7 +49,7 @@ func (c *shareCmd) Describe() string {
 }
 
 func (c *shareCmd) Usage() {
-	fmt.Fprintf(cmdmain.Stderr, `Usage: camput share [opts] [<blobref>]
+	fmt.Fprintf(cmdmain.Stderr, `Usage: camput share [opts] [<blobref>] # blobRef of a file or directory
 `)
 }
 

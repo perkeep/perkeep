@@ -295,13 +295,17 @@ func bytesHaveSchemaLink(br blob.Ref, bb []byte, target blob.Ref) bool {
 	}
 	typ := b.Type()
 	switch typ {
-	case "file", "blob":
+	case "file", "bytes":
 		for _, bp := range b.ByteParts() {
 			if bp.BlobRef.Valid() {
-				return bp.BlobRef == target
+				if bp.BlobRef == target {
+					return true
+				}
 			}
 			if bp.BytesRef.Valid() {
-				return bp.BytesRef == target
+				if bp.BytesRef == target {
+					return true
+				}
 			}
 		}
 	case "directory":
