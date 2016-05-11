@@ -12,6 +12,7 @@ metadata the blob contains.
 Here are some of the data types we've started to formalize a
 [JSON](http://json.org/) schema for:
 
+* [Bytes](bytes.md)
 * [Common Attributes](common.md)
 * [Delete Claim](delete.md)
 * [Directory](directory.md)
