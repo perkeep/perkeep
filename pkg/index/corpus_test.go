@@ -30,80 +30,119 @@ import (
 	"golang.org/x/net/context"
 )
 
-func newTestCorpusWithPermanode() (*index.Corpus, blob.Ref) {
-	c := index.ExpNewCorpus()
-	pn := blob.MustParse("abc-123")
+func newTestCorpusWithPermanode() (c *index.Corpus, pn, sig1, sig2 blob.Ref) {
+	c = index.ExpNewCorpus()
+	pn = blob.MustParse("abc-123")
+	sig1 = blob.MustParse("abc-456")
+	sig2 = blob.MustParse("abc-789")
 	tm := time.Unix(99, 0)
-	claim := func(verb, attr, val string) *camtypes.Claim {
+	claim := func(verb, attr, val string, sig blob.Ref) *camtypes.Claim {
 		tm = tm.Add(time.Second)
 		return &camtypes.Claim{
-			Type:  verb + "-attribute",
-			Attr:  attr,
-			Value: val,
-			Date:  tm,
+			Type:   verb + "-attribute",
+			Attr:   attr,
+			Value:  val,
+			Date:   tm,
+			Signer: sig,
 		}
 	}
 
 	c.SetClaims(pn, []*camtypes.Claim{
-		claim("set", "foo", "foov"), // time 100
+		claim("set", "foo", "foov", sig1), // time 100
 
-		claim("add", "tag", "a"), // time 101
-		claim("add", "tag", "b"), // time 102
-		claim("del", "tag", ""),
-		claim("add", "tag", "c"),
-		claim("add", "tag", "d"),
-		claim("add", "tag", "e"),
-		claim("del", "tag", "d"),
+		claim("add", "tag", "a", sig1), // time 101
+		claim("add", "tag", "b", sig1), // time 102
+		claim("del", "tag", "", sig1),
+		claim("add", "tag", "c", sig1),
+		claim("add", "tag", "d", sig2),
+		claim("add", "tag", "e", sig1),
+		claim("del", "tag", "d", sig2),
+		claim("add", "tag", "f", sig2),
 
-		claim("add", "DelAll", "a"),
-		claim("add", "DelAll", "b"),
-		claim("add", "DelAll", "c"),
-		claim("del", "DelAll", ""),
+		claim("add", "DelAll", "a", sig1),
+		claim("add", "DelAll", "b", sig1),
+		claim("add", "DelAll", "c", sig2),
+		claim("del", "DelAll", "", sig1),
 
-		claim("add", "DelOne", "a"),
-		claim("add", "DelOne", "b"),
-		claim("add", "DelOne", "c"),
-		claim("add", "DelOne", "d"),
-		claim("del", "DelOne", "d"),
-		claim("del", "DelOne", "a"),
+		claim("add", "DelOne", "a", sig1),
+		claim("add", "DelOne", "b", sig1),
+		claim("add", "DelOne", "c", sig1),
+		claim("add", "DelOne", "d", sig2),
+		claim("add", "DelOne", "e", sig2),
+		claim("del", "DelOne", "d", sig2),
+		claim("del", "DelOne", "a", sig1),
 
-		claim("add", "SetAfterAdd", "a"),
-		claim("add", "SetAfterAdd", "b"),
-		claim("set", "SetAfterAdd", "setv"),
+		claim("add", "SetAfterAdd", "a", sig1),
+		claim("add", "SetAfterAdd", "b", sig1),
+		claim("add", "SetAfterAdd", "c", sig2),
+		claim("set", "SetAfterAdd", "setv", sig1),
 
-		// add an element with fixed time to test
+		// The claims below help testing
 		// slow and fast path equivalence
-		// (lookups based on pm.Claims and pm.Attrs, respectively)
+		// (lookups based on pm.Claims and cached attrs).
+		//
+		// Permanode attr queries at time.Time{} and
+		// time.Unix(200, 0) should yield the same results
+		// for the above claims. The difference is that
+		// they use the cache at time.Time{} and
+		// the pm.Claims directly (bypassing the cache)
+		// at time.Unix(200, 0).
 		{
-			Type:  "set-attribute",
-			Attr:  "CacheTest",
-			Value: "foo",
-			Date:  time.Unix(201, 0),
+			Type:   "set-attribute",
+			Attr:   "CacheTest",
+			Value:  "foo",
+			Date:   time.Unix(201, 0),
+			Signer: sig1,
+		},
+		{
+			Type:   "set-attribute",
+			Attr:   "CacheTest",
+			Value:  "foo",
+			Date:   time.Unix(202, 0),
+			Signer: sig2,
 		},
 	})
 
-	return c, pn
+	return c, pn, sig1, sig2
 }
 
 func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
-	c, pn := newTestCorpusWithPermanode()
+	c, pn, sig1, sig2 := newTestCorpusWithPermanode()
 	s := func(s ...string) []string { return s }
+
+	sigMissing := blob.MustParse("xyz-123")
 
 	tests := []struct {
 		attr string
 		want []string
 		t    time.Time
+		sig  blob.Ref
 	}{
 		{attr: "not-exist", want: s()},
 		{attr: "DelAll", want: s()},
-		{attr: "DelOne", want: s("b", "c")},
+		{attr: "DelOne", want: s("b", "c", "e")},
 		{attr: "foo", want: s("foov")},
-		{attr: "tag", want: s("c", "e")},
+		{attr: "tag", want: s("c", "e", "f")},
 		{attr: "tag", want: s("a", "b"), t: time.Unix(102, 0)},
 		{attr: "SetAfterAdd", want: s("setv")},
+		// sig1
+		{attr: "not-exist", want: s(), sig: sig1},
+		{attr: "DelAll", want: s(), sig: sig1},
+		{attr: "DelOne", want: s("b", "c"), sig: sig1},
+		{attr: "foo", want: s("foov"), sig: sig1},
+		{attr: "tag", want: s("c", "e"), sig: sig1},
+		{attr: "tag", want: s("a", "b"), t: time.Unix(102, 0), sig: sig1},
+		{attr: "SetAfterAdd", want: s("setv"), sig: sig1},
+		// sig2
+		{attr: "DelAll", want: s("c"), sig: sig2},
+		{attr: "DelOne", want: s("e"), sig: sig2},
+		{attr: "tag", want: s("d"), t: time.Unix(105, 0), sig: sig2},
+		{attr: "SetAfterAdd", want: s("c"), sig: sig2},
+		// sigMissing (not present in pn)
+		{attr: "tag", want: s(), sig: sigMissing},
 	}
 	for i, tt := range tests {
-		got := c.AppendPermanodeAttrValues(nil, pn, tt.attr, tt.t, blob.Ref{})
+		got := c.AppendPermanodeAttrValues(nil, pn, tt.attr, tt.t, tt.sig)
 		if len(got) == 0 && len(tt.want) == 0 {
 			continue
 		}
@@ -116,7 +155,7 @@ func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
 			// skip equivalence test if specific time was given
 			continue
 		}
-		got = c.AppendPermanodeAttrValues(nil, pn, tt.attr, time.Unix(200, 0), blob.Ref{})
+		got = c.AppendPermanodeAttrValues(nil, pn, tt.attr, time.Unix(200, 0), tt.sig)
 		if len(got) == 0 && len(tt.want) == 0 {
 			continue
 		}
@@ -128,12 +167,13 @@ func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
 }
 
 func TestCorpusPermanodeAttrValue(t *testing.T) {
-	c, pn := newTestCorpusWithPermanode()
+	c, pn, sig1, sig2 := newTestCorpusWithPermanode()
 
 	tests := []struct {
 		attr string
 		want string
 		t    time.Time
+		sig  blob.Ref
 	}{
 		{attr: "not-exist", want: ""},
 		{attr: "DelAll", want: ""},
@@ -142,9 +182,22 @@ func TestCorpusPermanodeAttrValue(t *testing.T) {
 		{attr: "tag", want: "c"},
 		{attr: "tag", want: "a", t: time.Unix(102, 0)},
 		{attr: "SetAfterAdd", want: "setv"},
+		// sig1
+		{attr: "not-exist", want: "", sig: sig1},
+		{attr: "DelAll", want: "", sig: sig1},
+		{attr: "DelOne", want: "b", sig: sig1},
+		{attr: "foo", want: "foov", sig: sig1},
+		{attr: "tag", want: "c", sig: sig1},
+		{attr: "SetAfterAdd", want: "setv", sig: sig1},
+		// sig2
+		{attr: "DelAll", want: "c", sig: sig2},
+		{attr: "DelOne", want: "e", sig: sig2},
+		{attr: "foo", want: "", sig: sig2},
+		{attr: "tag", want: "f", sig: sig2},
+		{attr: "SetAfterAdd", want: "c", sig: sig2},
 	}
 	for i, tt := range tests {
-		got := c.PermanodeAttrValue(pn, tt.attr, tt.t, blob.Ref{})
+		got := c.PermanodeAttrValue(pn, tt.attr, tt.t, tt.sig)
 		if len(got) == 0 && len(tt.want) == 0 {
 			continue
 		}
@@ -157,7 +210,7 @@ func TestCorpusPermanodeAttrValue(t *testing.T) {
 			// skip equivalence test if specific time was given
 			continue
 		}
-		got = c.PermanodeAttrValue(pn, tt.attr, time.Unix(200, 0), blob.Ref{})
+		got = c.PermanodeAttrValue(pn, tt.attr, time.Unix(200, 0), tt.sig)
 		if len(got) == 0 && len(tt.want) == 0 {
 			continue
 		}
@@ -169,7 +222,7 @@ func TestCorpusPermanodeAttrValue(t *testing.T) {
 }
 
 func TestCorpusPermanodeHasAttrValue(t *testing.T) {
-	c, pn := newTestCorpusWithPermanode()
+	c, pn, _, _ := newTestCorpusWithPermanode()
 
 	tests := []struct {
 		attr string

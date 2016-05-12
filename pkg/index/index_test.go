@@ -79,6 +79,7 @@ var (
 		"export_test.go",
 		"index_test.go",
 		"keys_test.go",
+		"util_test.go",
 	}
 	// A map is used in hasAllRequiredTests to note which required
 	// tests have been found in a package, by setting the corresponding

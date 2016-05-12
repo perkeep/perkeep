@@ -118,18 +118,44 @@ func (c *Corpus) IsDeleted(br blob.Ref) bool {
 }
 
 type PermanodeMeta struct {
-	// TODO: OwnerKeyId string
 	Claims []*camtypes.Claim // sorted by camtypes.ClaimsByDate
 
-	// latest attributes
-	Attrs map[string][]string
+	attr attrValues // attributes from all signers
+
+	signer map[blob.Ref]attrValues // attrs per signer
+}
+
+type attrValues map[string][]string
+
+// cacheAttrClaim applies attribute changes from cl.
+func (m attrValues) cacheAttrClaim(cl *camtypes.Claim) {
+	switch cl.Type {
+	case string(schema.SetAttributeClaim):
+		m[cl.Attr] = []string{cl.Value}
+	case string(schema.AddAttributeClaim):
+		m[cl.Attr] = append(m[cl.Attr], cl.Value)
+	case string(schema.DelAttributeClaim):
+		if cl.Value == "" {
+			delete(m, cl.Attr)
+		} else {
+			a, i := m[cl.Attr], 0
+			for _, v := range a {
+				if v != cl.Value {
+					a[i] = v
+					i++
+				}
+			}
+			m[cl.Attr] = a[:i]
+		}
+	}
 }
 
 // restoreInvariants sorts claims by date and
 // recalculates latest attributes.
 func (pm *PermanodeMeta) restoreInvariants() {
 	sort.Sort(camtypes.ClaimPtrsByDate(pm.Claims))
-	pm.Attrs = make(map[string][]string)
+	pm.attr = make(attrValues)
+	pm.signer = make(map[blob.Ref]attrValues)
 	for _, cl := range pm.Claims {
 		pm.appendAttrClaim(cl)
 	}
@@ -139,7 +165,7 @@ func (pm *PermanodeMeta) restoreInvariants() {
 // that the all but the last element in Claims are sorted by date
 // and the last element is the only one not yet included in Attrs.
 func (pm *PermanodeMeta) fixupLastClaim() {
-	if pm.Attrs != nil {
+	if pm.attr != nil {
 		n := len(pm.Claims)
 		if n < 2 || camtypes.ClaimPtrsByDate(pm.Claims).Less(n-2, n-1) {
 			// already sorted, update Attrs from new Claim
@@ -150,41 +176,83 @@ func (pm *PermanodeMeta) fixupLastClaim() {
 	pm.restoreInvariants()
 }
 
+// appendAttrClaim stores permanode attributes
+// from cl in pm.attr and pm.signer[cl.Signer].
+// The caller of appendAttrClaim is responsible for calling
+// it with claims sorted in camtypes.ClaimPtrsByDate order.
 func (pm *PermanodeMeta) appendAttrClaim(cl *camtypes.Claim) {
-	switch cl.Type {
-	case string(schema.SetAttributeClaim):
-		pm.Attrs[cl.Attr] = []string{cl.Value}
-	case string(schema.AddAttributeClaim):
-		pm.Attrs[cl.Attr] = append(pm.Attrs[cl.Attr], cl.Value)
-	case string(schema.DelAttributeClaim):
-		if cl.Value == "" {
-			pm.Attrs[cl.Attr] = nil
-		} else {
-			a, i := pm.Attrs[cl.Attr], 0
-			for _, v := range a {
-				if v != cl.Value {
-					a[i] = v
-					i++
-				}
+	sc, ok := pm.signer[cl.Signer]
+	if !ok {
+		// Optimize for the case where cl.Signer of all claims are the same.
+		// Instead of having two identical attrValues copies in
+		// pm.attr and pm.signer[cl.Signer],
+		// use a single attrValues
+		// until there is at least a second signer.
+		switch len(pm.signer) {
+		case 0:
+			// Set up signer cache to reference
+			// the existing attrValues.
+			pm.attr.cacheAttrClaim(cl)
+			pm.signer[cl.Signer] = pm.attr
+			return
+
+		case 1:
+			// pm.signer has exactly one other signer,
+			// and its attrValues entry references pm.attr.
+			// Make a copy of pm.attr
+			// for this other signer now.
+			m := make(attrValues)
+			for a, v := range pm.attr {
+				xv := make([]string, len(v))
+				copy(xv, v)
+				m[a] = xv
 			}
-			pm.Attrs[cl.Attr] = a[:i]
+
+			for sig := range pm.signer {
+				pm.signer[sig] = m
+				break
+			}
 		}
+		sc = make(attrValues)
+		pm.signer[cl.Signer] = sc
+	}
+
+	pm.attr.cacheAttrClaim(cl)
+
+	// Cache claim in sc only if sc != pm.attr.
+	if len(pm.signer) > 1 {
+		sc.cacheAttrClaim(cl)
 	}
 }
 
-// canUseAttrs reports whether pm.Attrs can be used
-// to query values for the permanode attributes.
-func (pm *PermanodeMeta) canUseAttrs(at time.Time) bool {
-	if pm.Attrs == nil {
-		return false
+// valuesAtSigner returns an attrValues to query
+// permanode attr values at the given time for the signerFilter.
+// It returns ok == true if v represents attrValues
+// valid for the specified parameters.
+// If signerFilter is valid and pm has no attributes for it,
+// (nil, true) is returned.
+func (pm *PermanodeMeta) valuesAtSigner(at time.Time,
+	signerFilter blob.Ref) (v attrValues, ok bool) {
+
+	if pm.attr == nil {
+		return nil, false
+	}
+	var m attrValues
+	if signerFilter.Valid() {
+		m = pm.signer[signerFilter]
+		if m == nil {
+			return nil, true
+		}
+	} else {
+		m = pm.attr
 	}
 	if at.IsZero() {
-		return true
+		return m, true
 	}
 	if n := len(pm.Claims); n == 0 || !pm.Claims[n-1].Date.After(at) {
-		return true
+		return m, true
 	}
-	return false
+	return nil, false
 }
 
 func newCorpus() *Corpus {
@@ -1008,12 +1076,12 @@ func (c *Corpus) PermanodeAttrValue(permaNode blob.Ref,
 	if !ok {
 		return ""
 	}
-	if !signerFilter.Valid() && pm.canUseAttrs(at) {
-		v := pm.Attrs[attr]
-		if len(v) != 0 {
-			return v[0]
+	if values, ok := pm.valuesAtSigner(at, signerFilter); ok {
+		v := values[attr]
+		if len(v) == 0 {
+			return ""
 		}
-		return ""
+		return v[0]
 	}
 	return claimPtrsAttrValue(pm.Claims, attr, at, signerFilter)
 }
@@ -1034,8 +1102,8 @@ func (c *Corpus) AppendPermanodeAttrValues(dst []string,
 	if !ok {
 		return dst
 	}
-	if !signerFilter.Valid() && pm.canUseAttrs(at) {
-		return append(dst, pm.Attrs[attr]...)
+	if values, ok := pm.valuesAtSigner(at, signerFilter); ok {
+		return append(dst, values[attr]...)
 	}
 	if at.IsZero() {
 		at = time.Now()
@@ -1211,8 +1279,8 @@ func (c *Corpus) PermanodeHasAttrValue(pn blob.Ref, at time.Time, attr, val stri
 	if !ok {
 		return false
 	}
-	if pm.canUseAttrs(at) {
-		for _, v := range pm.Attrs[attr] {
+	if values, ok := pm.valuesAtSigner(at, blob.Ref{}); ok {
+		for _, v := range values[attr] {
 			if v == val {
 				return true
 			}
