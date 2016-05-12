@@ -751,11 +751,11 @@ func (dr *DescribeRequest) doDescribe(ctx context.Context, br blob.Ref, depth in
 		if !dr.At.IsAnyZero() {
 			at = dr.At.Time()
 		}
-		if loc, err := dr.sh.getPermanodeLocation(ctx, br, at); err == nil {
+		if loc, err := dr.sh.lh.PermanodeLocation(ctx, br, at, dr.sh.owner); err == nil {
 			des.Location = &loc
 		} else {
 			if err != os.ErrNotExist {
-				log.Printf("getPermanodeLocation(permanode %s): %v", br, err)
+				log.Printf("PermanodeLocation(permanode %s): %v", br, err)
 			}
 		}
 	case "file":
