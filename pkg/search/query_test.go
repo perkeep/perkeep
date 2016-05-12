@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"image"
+	"image/jpeg"
 	"io/ioutil"
 	"path/filepath"
 	"reflect"
@@ -1635,9 +1637,9 @@ func BenchmarkLocationPredicate(b *testing.B) {
 		}
 
 		// Create ~2600 photos all over the world.
-		for long := -180; long < 180; long += 5 {
-			for lat := -90; lat < 90; lat += 5 {
-				br, _ := id.UploadFile("photo.jpg", genimg.at(lat, long), time.Time{})
+		for long := -180.0; long < 180.0; long += 5.0 {
+			for lat := -90.0; lat < 90.0; lat += 5.0 {
+				br, _ := id.UploadFile("photo.jpg", exifFileContentLatLong(lat, long), time.Time{})
 				pn := newPn()
 				id.SetAttribute(pn, "camliContent", br.String())
 			}
@@ -1701,79 +1703,48 @@ func init() {
 	}
 }
 
-var genimg genImg // used to fake EXIF files with lat/long
-
-type genImg struct {
-	mu     sync.Mutex
-	base   []byte
-	images map[intLatLong]string
+var exifFileContent struct {
+	once sync.Once
+	jpeg []byte
 }
 
-type intLatLong struct {
-	lat, long int
+// exifFileContentLatLong returns the contents of a
+// jpeg/exif file with the GPS coordinates lat and long.
+func exifFileContentLatLong(lat, long float64) string {
+	exifFileContent.once.Do(func() {
+		var buf bytes.Buffer
+		jpeg.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 128, 128)), nil)
+		exifFileContent.jpeg = buf.Bytes()
+	})
+
+	x := rawExifLatLong(lat, long)
+	j := exifFileContent.jpeg
+
+	app1sec := []byte{0xff, 0xe1, 0, 0}
+	binary.BigEndian.PutUint16(app1sec[2:], uint16(len(x)+2))
+
+	p := make([]byte, 0, len(j)+len(app1sec)+len(x))
+	p = append(p, j[:2]...)   // ff d8
+	p = append(p, app1sec...) // exif section header
+	p = append(p, x...)       // raw exif
+	p = append(p, j[2:]...)   // jpeg image
+
+	return string(p)
 }
 
-func (g *genImg) at(lat, long int) string {
-	g.mu.Lock()
-	defer g.mu.Unlock()
+// rawExifLatLong creates raw exif for lat/long
+// for storage in a jpeg file.
+func rawExifLatLong(lat, long float64) []byte {
 
-	if g.base == nil {
-		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
-		if err != nil {
-			panic("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
-		}
-		fileName := filepath.Join(camliRootPath, "pkg", "search", "testdata", "dude-gps.jpg")
-		g.base, err = ioutil.ReadFile(fileName)
-		if err != nil {
-			panic("can't find dude-gps.jpg")
-		}
+	x := exifBuf{
+		bo: binary.BigEndian,
+		p:  []byte("MM"),
 	}
 
-	if g.images == nil {
-		g.images = make(map[intLatLong]string)
-	}
-	m, ok := g.images[intLatLong{lat, long}]
-	if !ok {
-		putExifLatLong(g.base, lat, long)
+	x.putUint16(42) // magic
 
-		m = string(g.base)
-		g.images[intLatLong{lat, long}] = m
-	}
-	return m
-}
-
-// putExifLatLong overwrites GPS coordinates in p.
-// p must be the contents of a valid EXIF file already having GPS location,
-// otherwise putExifLatLong panics.
-func putExifLatLong(p []byte, lat, long int) {
-	i := bytes.Index(p, []byte("Exif\x00\x00"))
-	if i == -1 {
-		panic("Missing exif header")
-	}
-	p = p[i+6:]
-
-	if len(p) < 8 {
-		panic("No room for exif header")
-	}
-
-	var bo binary.ByteOrder
-	switch {
-	case p[0] == 'M' && p[1] == 'M':
-		bo = binary.BigEndian
-	case p[0] == 'I' && p[1] == 'I':
-		bo = binary.LittleEndian
-	default:
-		panic("invalid byte order")
-	}
-
-	if bo.Uint16(p[2:]) != 42 {
-		panic("invalid IFD tag")
-	}
-
-	ifd0ofs := int(bo.Uint32(p[4:]))
-	if len(p) < ifd0ofs {
-		panic("IFD0 outside file contents")
-	}
+	ifd0ofs := x.reservePtr() // room for ifd0 offset
+	x.storePtr(ifd0ofs)
 
 	const (
 		gpsSubIfdTag = 0x8825
@@ -1788,71 +1759,97 @@ func putExifLatLong(p []byte, lat, long int) {
 		typeRational = 5
 	)
 
-	written := 0
+	// IFD0
+	x.storePtr(ifd0ofs)
+	x.putUint16(1) // 1 tag
 
-	// process root IFD
-	exifTagFunc(bo, p[ifd0ofs:], func(tag, typ uint16, length uint32, value []byte) {
-		if tag == gpsSubIfdTag && typ == typeLong && length == 1 {
-			ofs := int(bo.Uint32(value))
-			// process GPS sub-IFD
-			exifTagFunc(bo, p[ofs:], func(tag, typ uint16, length uint32, value []byte) {
-				switch {
-				case tag == gpsLatitudeRef && typ == typeAscii && length <= 2:
-					if lat < 0 {
-						value[0] = 'S'
-					} else {
-						value[0] = 'N'
-					}
-					written |= 1 << gpsLatitudeRef
-				case tag == gpsLatitude && typ == typeRational && length == 3:
-					ofs := int(bo.Uint32(value))
-					writeRat(bo, p[ofs:], lat)
-					written |= 1 << gpsLatitude
-				case tag == gpsLongitudeRef && typ == typeAscii && length <= 2:
-					if long < 0 {
-						value[0] = 'W'
-					} else {
-						value[0] = 'E'
-					}
-					written |= 1 << gpsLongitudeRef
-				case tag == gpsLongitude && typ == typeRational && length == 3:
-					ofs := int(bo.Uint32(value))
-					writeRat(bo, p[ofs:], long)
-					written |= 1 << gpsLongitude
-				}
-			})
-		}
-	})
+	x.putTag(gpsSubIfdTag, typeLong, 1)
+	gpsofs := x.reservePtr()
 
-	if written != (1<<gpsLatitudeRef | 1<<gpsLatitude | 1<<gpsLongitudeRef | 1<<gpsLongitude) {
-		panic("location couldn't be written")
+	// IFD1
+	x.putUint32(0) // no IFD1
+
+	// GPS sub-IFD
+	x.storePtr(gpsofs)
+	x.putUint16(4) // 4 tags
+
+	x.putTag(gpsLatitudeRef, typeAscii, 2)
+	if lat >= 0 {
+		x.next(4)[0] = 'N'
+	} else {
+		x.next(4)[0] = 'S'
 	}
+
+	x.putTag(gpsLatitude, typeRational, 3)
+	latptr := x.reservePtr()
+
+	x.putTag(gpsLongitudeRef, typeAscii, 2)
+	if long >= 0 {
+		x.next(4)[0] = 'E'
+	} else {
+		x.next(4)[0] = 'W'
+	}
+
+	x.putTag(gpsLongitude, typeRational, 3)
+	longptr := x.reservePtr()
+
+	// write data referenced in GPS sub-IFD
+	x.storePtr(latptr)
+	x.putDegMinSecRat(lat)
+
+	x.storePtr(longptr)
+	x.putDegMinSecRat(long)
+
+	return append([]byte("Exif\x00\x00"), x.p...)
 }
 
-func writeRat(bo binary.ByteOrder, p []byte, deg int) {
-	if deg < 0 {
-		deg = -deg
-	}
-	// numerator/denominator pairs of degrees, minutes, seconds
-	v := []uint32{uint32(deg), 1, 0, 1, 0, 1}
-	for i, n := range v {
-		bo.PutUint32(p[i*4:], n)
-	}
+type exifBuf struct {
+	bo binary.ByteOrder
+	p  []byte
 }
 
-// exifTagFunc calls handler for all tags in an EXIF IFD
-func exifTagFunc(bo binary.ByteOrder, ifd []byte, handler func(tag, typ uint16, length uint32, value []byte)) {
-	if len(ifd) < 2 {
-		panic("Invalid IFD")
+func (x *exifBuf) next(n int) []byte {
+	l := len(x.p)
+	x.p = append(x.p, make([]byte, n)...)
+	return x.p[l:]
+}
+
+func (x *exifBuf) putTag(tag, typ uint16, len uint32) {
+	x.putUint16(tag)
+	x.putUint16(typ)
+	x.putUint32(len)
+}
+
+func (x *exifBuf) putUint16(n uint16) { x.bo.PutUint16(x.next(2), n) }
+func (x *exifBuf) putUint32(n uint32) { x.bo.PutUint32(x.next(4), n) }
+
+func (x *exifBuf) putDegMinSecRat(v float64) {
+	if v < 0 {
+		v = -v
 	}
-	ntags := int(bo.Uint16(ifd[0:]))
-	ifd = ifd[2:]
-	for i := 0; i < ntags; i++ {
-		if len(ifd) < 12 {
-			panic("Truncated IFD")
-		}
-		part := ifd[:12]
-		ifd = ifd[12:]
-		handler(bo.Uint16(part[0:]), bo.Uint16(part[2:]), bo.Uint32(part[4:]), part[8:])
-	}
+	deg := uint32(v)
+	v = 60 * (v - float64(deg))
+	min := uint32(v)
+	v = 60 * (v - float64(min))
+	μsec := uint32(v * 1e6)
+
+	x.putUint32(deg)
+	x.putUint32(1)
+	x.putUint32(min)
+	x.putUint32(1)
+	x.putUint32(μsec)
+	x.putUint32(1e6)
+}
+
+// reservePtr reserves room for a ptr in x.
+func (x *exifBuf) reservePtr() int {
+	l := len(x.p)
+	x.next(4)
+	return l
+}
+
+// storePtr stores the current write offset at p
+// that have been reserved with reservePtr.
+func (x *exifBuf) storePtr(p int) {
+	x.bo.PutUint32(x.p[p:], uint32(len(x.p)))
 }

@@ -790,8 +790,7 @@ func TestGetPermanodeLocationAllocs(t *testing.T) {
 	idd.SetAttribute(pnCheckin, "camliNodeType", "foursquare.com:checkin")
 	idd.SetAttribute(pnCheckin, "foursquareVenuePermanode", pnVenue.String())
 
-	// TODO(mpl): replace genimg call with func that takes floats instead (added by Attila in future CL soon).
-	br, _ := idd.UploadFile("photo.jpg", genimg.at(int(lat), int(long)), time.Now())
+	br, _ := idd.UploadFile("photo.jpg", exifFileContentLatLong(lat, long), time.Now())
 	pnPhoto := idd.NewPermanode()
 	idd.SetAttribute(pnPhoto, "camliContent", br.String())
 
@@ -801,11 +800,10 @@ func TestGetPermanodeLocationAllocs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// TODO(mpl): remove conversion to int once genimg is gone.
-			if int(loc.Latitude) != int(lat) {
+			if loc.Latitude != lat {
 				t.Fatalf("wrong latitude: got %v, wanted %v", loc.Latitude, lat)
 			}
-			if int(loc.Longitude) != int(long) {
+			if loc.Longitude != long {
 				t.Fatalf("wrong longitude: got %v, wanted %v", loc.Longitude, long)
 			}
 		}
