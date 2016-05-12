@@ -25,6 +25,7 @@ import (
 	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/test"
+	"camlistore.org/pkg/types/camtypes"
 
 	"golang.org/x/net/context"
 )
@@ -37,6 +38,12 @@ func addPermanode(fi *test.FakeIndex, pnStr string, attrs ...string) {
 		attrs = attrs[2:]
 		fi.AddClaim(owner, pn, "add-attribute", k, v)
 	}
+}
+
+func addFileWithLocation(fi *test.FakeIndex, fileStr string, lat, long float64) {
+	fileRef := blob.MustParse(fileStr)
+	fi.AddFileLocation(fileRef, camtypes.Location{Latitude: lat, Longitude: long})
+	fi.AddMeta(fileRef, "file", 123)
 }
 
 func searchDescribeSetup(fi *test.FakeIndex) index.Interface {
@@ -68,6 +75,8 @@ func searchDescribeSetup(fi *test.FakeIndex) index.Interface {
 	addPermanode(fi, "fourvenue-123",
 		"camliNodeType", "foursquare.com:venue",
 		"camliPath:photos", "venuepicset-123",
+		"latitude", "12",
+		"longitude", "34",
 	)
 	addPermanode(fi, "venuepicset-123",
 		"camliPath:1.jpg", "venuepic-1",
@@ -98,6 +107,38 @@ func searchDescribeSetup(fi *test.FakeIndex) index.Interface {
 	addPermanode(fi, "set-0",
 		"camliMember", "venuepic-1",
 		"camliMember", "venuepic-2",
+	)
+
+	addFileWithLocation(fi, "filewithloc-0", 45, 56)
+	addPermanode(fi, "location-0",
+		"camliContent", "filewithloc-0",
+	)
+
+	addPermanode(fi, "locationpriority-1",
+		"latitude", "67",
+		"longitude", "78",
+		"camliNodeType", "foursquare.com:checkin",
+		"foursquareVenuePermanode", "fourvenue-123",
+		"camliContent", "filewithloc-0",
+	)
+
+	addPermanode(fi, "locationpriority-2",
+		"camliNodeType", "foursquare.com:checkin",
+		"foursquareVenuePermanode", "fourvenue-123",
+		"camliContent", "filewithloc-0",
+	)
+
+	addPermanode(fi, "locationoverride-1",
+		"latitude", "67",
+		"longitude", "78",
+		"camliContent", "filewithloc-0",
+	)
+
+	addPermanode(fi, "locationoverride-2",
+		"latitude", "67",
+		"longitude", "78",
+		"camliNodeType", "foursquare.com:checkin",
+		"foursquareVenuePermanode", "fourvenue-123",
 	)
 
 	return fi
@@ -311,4 +352,52 @@ func TestDescribeRace(t *testing.T) {
 		donec <- struct{}{}
 	}()
 	<-donec
+}
+
+func TestDescribeLocation(t *testing.T) {
+	tests := []struct {
+		ref       string
+		lat, long float64
+	}{
+		{"filewithloc-0", 45, 56},
+		{"location-0", 45, 56},
+		{"locationpriority-1", 67, 78},
+		{"locationpriority-2", 12, 34},
+		{"locationoverride-1", 67, 78},
+		{"locationoverride-2", 67, 78},
+	}
+
+	ix := searchDescribeSetup(test.NewFakeIndex())
+	ctx := context.Background()
+	h := search.NewHandler(ix, owner)
+
+	ix.RLock()
+	defer ix.RUnlock()
+
+	for _, tt := range tests {
+		var err error
+		br := blob.MustParse(tt.ref)
+		res, err := h.Describe(ctx, &search.DescribeRequest{
+			BlobRef: br,
+			Depth:   1,
+		})
+		if err != nil {
+			t.Errorf("Describe for %v failed: %v", br, err)
+			continue
+		}
+		db := res.Meta[br.String()]
+		if db == nil {
+			t.Errorf("Describe result for %v is missing", br)
+			continue
+		}
+		loc := db.Location
+		if loc == nil {
+			t.Errorf("no location in result for %v", br)
+			continue
+		}
+		if loc.Latitude != tt.lat || loc.Longitude != tt.long {
+			t.Errorf("location for %v invalid, got %f,%f want %f,%f",
+				tt.ref, loc.Latitude, loc.Longitude, tt.lat, tt.long)
+		}
+	}
 }

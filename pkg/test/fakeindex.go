@@ -41,6 +41,8 @@ type FakeIndex struct {
 	signerAttrValue map[string]blob.Ref           // "<signer>\0<attr>\0<value>" -> blobref
 	path            map[string]*camtypes.Path     // "<signer>\0<base>\0<suffix>" -> path
 
+	fileLocation map[string]*camtypes.Location
+
 	cllk  sync.RWMutex
 	clock time.Time
 }
@@ -56,6 +58,7 @@ func NewFakeIndex() *FakeIndex {
 		claims:          make(map[blob.Ref][]camtypes.Claim),
 		signerAttrValue: make(map[string]blob.Ref),
 		path:            make(map[string]*camtypes.Path),
+		fileLocation:    make(map[string]*camtypes.Location),
 		clock:           ClockOrigin,
 	}
 }
@@ -113,6 +116,10 @@ func (fi *FakeIndex) AddSignerAttrValue(signer blob.Ref, attr, val string, lates
 	fi.signerAttrValue[fmt.Sprintf("%s\x00%s\x00%s", signer, attr, val)] = latest
 }
 
+func (fi *FakeIndex) AddFileLocation(fileRef blob.Ref, loc camtypes.Location) {
+	fi.fileLocation[fileRef.String()] = &loc
+}
+
 //
 // Interface implementation
 //
@@ -159,7 +166,11 @@ func (fi *FakeIndex) ExistingFileSchemas(bytesRef blob.Ref) ([]blob.Ref, error) 
 }
 
 func (fi *FakeIndex) GetFileInfo(ctx context.Context, fileRef blob.Ref) (camtypes.FileInfo, error) {
-	panic("NOIMPL")
+	_, ok := fi.meta[fileRef]
+	if !ok {
+		return camtypes.FileInfo{}, os.ErrNotExist
+	}
+	return camtypes.FileInfo{}, nil
 }
 
 func (fi *FakeIndex) GetImageInfo(ctx context.Context, fileRef blob.Ref) (camtypes.ImageInfo, error) {
@@ -167,7 +178,18 @@ func (fi *FakeIndex) GetImageInfo(ctx context.Context, fileRef blob.Ref) (camtyp
 }
 
 func (fi *FakeIndex) GetMediaTags(ctx context.Context, fileRef blob.Ref) (tags map[string]string, err error) {
-	panic("NOIMPL")
+	_, ok := fi.meta[fileRef]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return nil, nil
+}
+
+func (fi *FakeIndex) GetFileLocation(ctx context.Context, fileRef blob.Ref) (camtypes.Location, error) {
+	if loc, ok := fi.fileLocation[fileRef.String()]; ok {
+		return *loc, nil
+	}
+	return camtypes.Location{}, os.ErrNotExist
 }
 
 func (fi *FakeIndex) GetDirMembers(dir blob.Ref, dest chan<- blob.Ref, limit int) error {

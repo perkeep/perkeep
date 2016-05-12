@@ -253,3 +253,22 @@ type FileSearchResponse struct {
 
 	Files []blob.Ref `json:"files"` // Refs of the result files. Never nil.
 }
+
+// Location describes a file or permanode that has a location.
+type Location struct {
+	// Latitude and Longitude represent the point location of this blob,
+	// such as the place where a photo was taken.
+	//
+	// Negative values represent positions south of the equator or
+	// west of the prime meridian:
+	// Northern latitudes are positive, southern latitudes are negative.
+	// Eastern longitudes are positive, western longitudes are negative.
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+
+	// TODO(tajtiattila): decide how to represent blobs with
+	// no single point location such as a track file once we index them,
+	// perhaps with a N/S/E/W boundary. Note that a single point location
+	// is still useful for these, to represent the starting point of a
+	// track log or the main entrance of an area or building.
+}

@@ -26,6 +26,11 @@ type Interface interface {
 	// Should return os.ErrNotExist if not found.
 	GetMediaTags(ctx context.Context, fileRef blob.Ref) (map[string]string, error)
 
+	// GetFileLocation returns the location info (currently Exif) of the fileRef.
+	// Should return os.ErrNotExist if fileRef is not found,
+	// is not a file, or it has no location info.
+	GetFileLocation(ctx context.Context, fileRef blob.Ref) (camtypes.Location, error)
+
 	// KeyId returns the GPG keyid (e.g. "2931A67C26F5ABDA)
 	// given the blobref of its ASCII-armored blobref.
 	// The error is ErrNotFound if not found.

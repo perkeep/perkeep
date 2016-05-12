@@ -241,6 +241,22 @@ type DescribedBlob struct {
 	// if camliType "directory"
 	DirChildren []blob.Ref `json:"dirChildren,omitempty"`
 
+	// Location specifies the location of the entity referenced
+	// by the blob.
+	//
+	// If camliType is "file", then location comes from the metadata
+	// (currently Exif) metadata of the file content.
+	//
+	// If camliType is "permanode", then location comes
+	// from one of the following sources:
+	//  1. Permanode attributes "latitude" and "longitude"
+	//  2. Referenced permanode attributes (eg. for "foursquare.com:checkin"
+	//     its "foursquareVenuePermanode")
+	//  3. Location in permanode camliContent file metadata
+	// The sources are checked in this order, the location from
+	// the first source yielding a valid result is returned.
+	Location *camtypes.Location `json:"location,omitempty"`
+
 	// Stub is set if this is not loaded, but referenced.
 	Stub bool `json:"-"`
 }
@@ -719,6 +735,17 @@ func (dr *DescribeRequest) describeReally(ctx context.Context, br blob.Ref, dept
 	case "permanode":
 		des.Permanode = new(DescribedPermanode)
 		dr.populatePermanodeFields(ctx, des.Permanode, br, dr.sh.owner, depth)
+		var at time.Time
+		if !dr.At.IsAnyZero() {
+			at = dr.At.Time()
+		}
+		if loc, err := dr.sh.getPermanodeLocation(ctx, br, at); err == nil {
+			des.Location = &loc
+		} else {
+			if err != os.ErrNotExist {
+				log.Printf("getPermanodeLocation(permanode %s): %v", br, err)
+			}
+		}
 	case "file":
 		fi, err := dr.sh.index.GetFileInfo(ctx, br)
 		if err != nil {
@@ -742,6 +769,13 @@ func (dr *DescribeRequest) describeReally(ctx context.Context, br blob.Ref, dept
 		}
 		if mediaTags, err := dr.sh.index.GetMediaTags(ctx, br); err == nil {
 			des.MediaTags = mediaTags
+		}
+		if loc, err := dr.sh.index.GetFileLocation(ctx, br); err == nil {
+			des.Location = &loc
+		} else {
+			if err != os.ErrNotExist {
+				log.Printf("index.GetFileLocation(file %s): %v", br, err)
+			}
 		}
 	case "directory":
 		var g syncutil.Group
