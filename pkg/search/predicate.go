@@ -585,20 +585,15 @@ func (l location) Predicate(ctx context.Context, args []string) (*Constraint, er
 			North: rect.NorthEast.Lat,
 			South: rect.SouthWest.Lat,
 		}
-		fileLoc := permOfFile(&FileConstraint{
-			IsImage:  true,
-			Location: loc,
-		})
 		permLoc := &Constraint{
 			Permanode: &PermanodeConstraint{
 				Location: loc,
 			},
 		}
-		rectConstraint := orConst(fileLoc, permLoc)
 		if i == 0 {
-			c = rectConstraint
+			c = permLoc
 		} else {
-			c = orConst(c, rectConstraint)
+			c = orConst(c, permLoc)
 		}
 	}
 	return c, nil
@@ -618,20 +613,13 @@ func (h hasLocation) Description() string {
 }
 
 func (h hasLocation) Predicate(ctx context.Context, args []string) (*Constraint, error) {
-	fileLoc := permOfFile(&FileConstraint{
-		IsImage: true,
-		Location: &LocationConstraint{
-			Any: true,
-		},
-	})
-	permLoc := &Constraint{
+	return &Constraint{
 		Permanode: &PermanodeConstraint{
 			Location: &LocationConstraint{
 				Any: true,
 			},
 		},
-	}
-	return orConst(fileLoc, permLoc), nil
+	}, nil
 }
 
 // Helpers

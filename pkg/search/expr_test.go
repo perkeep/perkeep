@@ -61,21 +61,11 @@ var attrgorunC = &Constraint{
 	},
 }
 
-var hasLocationC = orConst(&Constraint{
-	Permanode: &PermanodeConstraint{
-		Attr: "camliContent",
-		ValueInSet: &Constraint{
-			File: &FileConstraint{
-				IsImage:  true,
-				Location: &LocationConstraint{Any: true},
-			},
-		},
-	},
-}, &Constraint{
+var hasLocationC = &Constraint{
 	Permanode: &PermanodeConstraint{
 		Location: &LocationConstraint{Any: true},
 	},
-})
+}
 
 var parseExpressionTests = []struct {
 	name        string
@@ -280,21 +270,11 @@ var parseExpressionTests = []struct {
 	{
 		in: "loc:Uitdam", // Small dutch town
 		want: &SearchQuery{
-			Constraint: andConst(skiphiddenC, orConst(&Constraint{
-				Permanode: &PermanodeConstraint{
-					Attr: "camliContent",
-					ValueInSet: &Constraint{
-						File: &FileConstraint{
-							IsImage:  true,
-							Location: uitdamLC,
-						},
-					},
-				},
-			}, &Constraint{
+			Constraint: andConst(skiphiddenC, &Constraint{
 				Permanode: &PermanodeConstraint{
 					Location: uitdamLC,
 				},
-			})),
+			}),
 		},
 		ctx: newGeocodeContext(),
 	},

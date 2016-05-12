@@ -549,6 +549,57 @@ func TestQueryPermanodeValueMatchesFloat(t *testing.T) {
 	})
 }
 
+func TestQueryPermanodeLocation(t *testing.T) {
+	testQuery(t, func(qt *queryTest) {
+		id := qt.id
+
+		p1 := id.NewPlannedPermanode("1")
+		p2 := id.NewPlannedPermanode("2")
+		p3 := id.NewPlannedPermanode("3")
+		id.SetAttribute(p1, "latitude", "51.5")
+		id.SetAttribute(p1, "longitude", "0")
+		id.SetAttribute(p2, "latitude", "51.5")
+		id.SetAttribute(p3, "longitude", "0")
+
+		p4 := id.NewPlannedPermanode("checkin")
+		p5 := id.NewPlannedPermanode("venue")
+		id.SetAttribute(p4, "camliNodeType", "foursquare.com:checkin")
+		id.SetAttribute(p4, "foursquareVenuePermanode", p5.String())
+		id.SetAttribute(p5, "latitude", "1.0")
+		id.SetAttribute(p5, "longitude", "2.0")
+
+		// Upload a basic image
+		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+		if err != nil {
+			panic("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+		}
+		uploadFile := func(file string, modTime time.Time) blob.Ref {
+			fileName := filepath.Join(camliRootPath, "pkg", "search", "testdata", file)
+			contents, err := ioutil.ReadFile(fileName)
+			if err != nil {
+				panic(err)
+			}
+			br, _ := id.UploadFile(file, string(contents), modTime)
+			return br
+		}
+		fileRef := uploadFile("dude-gps.jpg", time.Time{})
+
+		p6 := id.NewPlannedPermanode("photo")
+		id.SetAttribute(p6, "camliContent", fileRef.String())
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Permanode: &PermanodeConstraint{
+					Location: &LocationConstraint{
+						Any: true,
+					},
+				},
+			},
+		}
+		qt.wantRes(sq, p1, p4, p5, p6)
+	})
+}
+
 // find permanodes matching a certain file query
 func TestQueryFileConstraint(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {

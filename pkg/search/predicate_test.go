@@ -568,21 +568,11 @@ var keywordTests = []keywordTestcase{
 	{
 		object: newLocation(),
 		args:   []string{"Uitdam"}, // Small dutch town
-		want: orConst(&Constraint{
-			Permanode: &PermanodeConstraint{
-				Attr: "camliContent",
-				ValueInSet: &Constraint{
-					File: &FileConstraint{
-						IsImage:  true,
-						Location: uitdamLC,
-					},
-				},
-			},
-		}, &Constraint{
+		want: &Constraint{
 			Permanode: &PermanodeConstraint{
 				Location: uitdamLC,
 			},
-		}),
+		},
 		ctx: newGeocodeContext(),
 	},
 

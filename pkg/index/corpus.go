@@ -1243,36 +1243,6 @@ func (c *Corpus) FileLatLong(fileRef blob.Ref) (lat, long float64, ok bool) {
 	return ll.lat, ll.long, true
 }
 
-// zero value of at means current
-func (c *Corpus) PermanodeLatLong(pn blob.Ref, at time.Time) (lat, long float64, ok bool) {
-	nodeType := c.PermanodeAttrValue(pn, "camliNodeType", at, blob.Ref{})
-	if nodeType == "" {
-		return
-	}
-	// TODO: make these pluggable, e.g. registered from an importer or something?
-	// How will that work when they're out-of-process?
-	if nodeType == "foursquare.com:checkin" {
-		venuePn, hasVenue := blob.Parse(c.PermanodeAttrValue(pn, "foursquareVenuePermanode", at, blob.Ref{}))
-		if !hasVenue {
-			return
-		}
-		return c.PermanodeLatLong(venuePn, at)
-	}
-	if nodeType == "foursquare.com:venue" || nodeType == "twitter.com:tweet" {
-		var err error
-		lat, err = strconv.ParseFloat(c.PermanodeAttrValue(pn, "latitude", at, blob.Ref{}), 64)
-		if err != nil {
-			return
-		}
-		long, err = strconv.ParseFloat(c.PermanodeAttrValue(pn, "longitude", at, blob.Ref{}), 64)
-		if err != nil {
-			return
-		}
-		return lat, long, true
-	}
-	return
-}
-
 // ForeachClaim calls fn for each claim of permaNode.
 // If at is zero, all claims are yielded.
 // If at is non-zero, claims after that point are skipped.
