@@ -31,6 +31,12 @@ func TestFileSharing(t *testing.T) {
 	share(t, "share_test.go")
 }
 
+// like TestFileSharing, but with a file large enough to have several parts,
+// including some bytesRef parts.
+func TestFileWithBytesSharing(t *testing.T) {
+	share(t, test.GetWorld(t).ServerBinary())
+}
+
 func TestDirSharing(t *testing.T) {
 	share(t, filepath.FromSlash("../integration"))
 }

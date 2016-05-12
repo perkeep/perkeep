@@ -371,3 +371,8 @@ func (w *World) SecretRingFile() string {
 
 // SearchHandlerPath returns the path to the search handler, with trailing slash.
 func (w *World) SearchHandlerPath() string { return "/my-search/" }
+
+// ServerBinary returns the location of the camlistored binary running for this World.
+func (w *World) ServerBinary() string {
+	return filepath.Join(w.camRoot, "bin", "camlistored")
+}
