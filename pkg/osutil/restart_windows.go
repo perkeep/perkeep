@@ -48,7 +48,7 @@ func SelfPath() (string, error) {
 // RestartProcess returns an error if things couldn't be
 // restarted.  On success, this function never returns
 // because the process becomes the new process.
-func RestartProcess() error {
+func RestartProcess(args ...string) error {
 	log.Print("RestartProcess not implemented on this platform.")
 	return nil
 }

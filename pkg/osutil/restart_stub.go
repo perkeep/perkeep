@@ -21,7 +21,6 @@ package osutil
 import (
 	"errors"
 	"log"
-	"runtime"
 )
 
 // SelfPath returns the path of the executable for the currently running
@@ -33,7 +32,7 @@ func SelfPath() (string, error) {
 // RestartProcess returns an error if things couldn't be
 // restarted.  On success, this function never returns
 // because the process becomes the new process.
-func RestartProcess() error {
+func RestartProcess(arg ...string) error {
 	log.Print("RestartProcess not implemented on this platform.")
 	return nil
 }
