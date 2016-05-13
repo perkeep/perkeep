@@ -16,14 +16,14 @@ umask 0;
 make_path($GENDIR, { mode => 0755 }) unless -d $GENDIR;
 
 $ENV{GOROOT} = "/usr/local/go";
-$ENV{GOBIN} = $GENDIR;
 $ENV{GOPATH} = "/";
 $ENV{GOARCH} = "arm";
+$ENV{GOARM} = "7";
 print "Building ARM camlistore.org/cmd/camput\n";
-system("/usr/local/go/bin/go", "install", "camlistore.org/cmd/camput")
+system("/usr/local/go/bin/go", "build", "-o", "$GENDIR/camput", "camlistore.org/cmd/camput")
     and die "Failed to build camput";
 
-system("cp", "-p", "$GENDIR/linux_arm/camput", "$ASSETS/camput.arm")
+system("cp", "-p", "$GENDIR/camput", "$ASSETS/camput.arm")
     and die "cp failure";
 # TODO: build an x86 version too? if/when those Android devices matter.
 
@@ -32,7 +32,7 @@ system("cp", "-p", "$GENDIR/linux_arm/camput", "$ASSETS/camput.arm")
     # TODO(bradfitz): make these values automatic, and don't make the
     # "Version" menu say "camput version" when it runs. Also maybe
     # keep a history of these somewhere more convenient.
-    print $vfh "app 0.6.1 camput ccacf764 go 70499e5fbe5b";
+    print $vfh "app 0.6.1 camput 0.9 go 1.6.2";
 }
 
 chdir $ASSETS or  die "can't cd to assets dir";
