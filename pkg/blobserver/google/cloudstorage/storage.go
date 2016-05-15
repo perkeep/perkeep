@@ -263,19 +263,22 @@ func (s *Storage) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) 
 	}
 	// TODO(mpl): use context from caller, once one is available (issue 733)
 	r, err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).NewReader(context.TODO())
+	if err == storage.ErrObjectNotExist {
+		return nil, 0, os.ErrNotExist
+	}
+	if err != nil {
+		return nil, 0, err
+	}
 	if r.Size() >= 1<<32 {
+		r.Close()
 		return nil, 0, errors.New("object larger than a uint32")
 	}
 	size = uint32(r.Size())
-	if err != nil {
-		if err == storage.ErrObjectNotExist {
-			return nil, size, os.ErrNotExist
-		}
-		if size > constants.MaxBlobSize {
-			return nil, size, errors.New("object too big")
-		}
+	if size > constants.MaxBlobSize {
+		r.Close()
+		return nil, size, errors.New("object too big")
 	}
-	return r, size, err
+	return r, size, nil
 }
 
 func (s *Storage) SubFetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, err error) {
