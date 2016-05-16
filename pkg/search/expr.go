@@ -25,7 +25,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-const seeDocs = "\nSee: https://camlistore.googlesource.com/camlistore/+/master/doc/search-ui.txt"
+const seeDocs = "\nSee: https://camlistore.org/doc/search-ui"
 
 var (
 	noMatchingOpening      = "No matching opening parenthesis"
