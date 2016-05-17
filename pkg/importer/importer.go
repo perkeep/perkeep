@@ -746,6 +746,10 @@ func (im *importer) ShowClientAuthEditForm() bool {
 	return im.impl.NeedsAPIKey()
 }
 
+func (im *importer) InsecureForm() bool {
+	return !strings.HasPrefix(im.host.ImporterBaseURL(), "https://")
+}
+
 func (im *importer) CanAddNewAccount() bool {
 	if !im.impl.NeedsAPIKey() {
 		return true
