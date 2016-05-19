@@ -33,6 +33,7 @@ import (
 	"os"
 	"regexp"
 	"runtime"
+	"runtime/debug"
 	rpprof "runtime/pprof"
 	"strconv"
 	"strings"
@@ -510,6 +511,7 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reind
 	defer func() {
 		if e := recover(); e != nil {
 			log.Printf("Caught panic installer handlers: %v", e)
+			debug.PrintStack()
 			err = fmt.Errorf("Caught panic: %v", e)
 		}
 	}()
