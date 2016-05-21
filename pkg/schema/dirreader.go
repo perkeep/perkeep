@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"io"
 
+	"go4.org/syncutil"
+
 	"camlistore.org/pkg/blob"
 )
 
@@ -143,11 +145,13 @@ func (dr *DirReader) Readdir(n int) (entries []DirectoryEntry, err error) {
 	var cs []chan res
 
 	// Kick off all directory entry loads.
-	// TODO: bound this?
+	gate := syncutil.NewGate(20) // Limit IO concurrency
 	for _, entRef := range sts[dr.current:up] {
 		c := make(chan res, 1)
 		cs = append(cs, c)
+		gate.Start()
 		go func(entRef blob.Ref) {
+			defer gate.Done()
 			entry, err := NewDirectoryEntryFromBlobRef(dr.fetcher, entRef)
 			c <- res{entry, err}
 		}(entRef)
