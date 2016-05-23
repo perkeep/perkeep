@@ -540,6 +540,9 @@ func (s *storage) getMetaRow(br blob.Ref) (meta, error) {
 	if err == sorted.ErrNotFound {
 		return meta{}, nil
 	}
+	if err != nil {
+		return meta{}, fmt.Errorf("blobpacked.getMetaRow(%v) = %v", br, err)
+	}
 	return parseMetaRow([]byte(v))
 }
 
