@@ -176,7 +176,7 @@ func (r *run) errorf(format string, args ...interface{}) {
 }
 
 // urlFileRef slurps urlstr from the net, writes to a file and returns its
-// fileref or "" on error
+// fileref or "" on error or if urlstr was empty.
 func (r *run) urlFileRef(urlstr, filename string) string {
 	im := r.im
 	im.mu.Lock()
@@ -186,9 +186,12 @@ func (r *run) urlFileRef(urlstr, filename string) string {
 	}
 	im.mu.Unlock()
 
+	if urlstr == "" {
+		return ""
+	}
 	res, err := ctxutil.Client(r.Context()).Get(urlstr)
 	if err != nil {
-		log.Printf("couldn't get image: %v", err)
+		log.Printf("foursquare: couldn't fetch image %q: %v", urlstr, err)
 		return ""
 	}
 	defer res.Body.Close()
@@ -390,14 +393,17 @@ func (r *run) importCompanions(parent *importer.Object, companions []*user) (com
 		if err != nil {
 			return nil, err
 		}
-		icon := user.icon()
-		if err := personNode.SetAttrs(
+		attrs := []string{
 			attrFoursquareId, user.Id,
 			nodeattr.Type, "foursquare.com:person",
-			nodeattr.Title, user.FirstName+" "+user.LastName,
-			nodeattr.CamliContentImage, r.urlFileRef(icon, path.Base(icon)),
+			nodeattr.Title, user.FirstName + " " + user.LastName,
 			nodeattr.GivenName, user.FirstName,
-			nodeattr.FamilyName, user.LastName); err != nil {
+			nodeattr.FamilyName, user.LastName,
+		}
+		if icon := user.icon(); icon != "" {
+			attrs = append(attrs, nodeattr.CamliContentImage, r.urlFileRef(icon, path.Base(icon)))
+		}
+		if err := personNode.SetAttrs(attrs...); err != nil {
 			return nil, err
 		}
 		companionRefs = append(companionRefs, personNode.PermanodeRef().String())
@@ -416,13 +422,15 @@ func (r *run) importPlace(parent *importer.Object, place *venueItem) (*importer.
 		catName = cat.Name
 	}
 
-	icon := place.icon()
 	attrs := []string{
 		attrFoursquareId, place.Id,
 		nodeattr.Type, "foursquare.com:venue",
-		nodeattr.CamliContentImage, r.urlFileRef(icon, path.Base(icon)),
 		attrFoursquareCategoryName, catName,
 		nodeattr.Title, place.Name,
+	}
+	if icon := place.icon(); icon != "" {
+		attrs = append(attrs,
+			nodeattr.CamliContentImage, r.urlFileRef(icon, path.Base(icon)))
 	}
 	if place.Location != nil {
 		attrs = append(attrs,
