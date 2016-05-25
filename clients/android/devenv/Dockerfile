@@ -15,20 +15,11 @@ RUN echo y | android update sdk -u -t android-17
 # But it's possible we may want to switch to using hg, in which case:
 # RUN yum -y install mercurial
 
-# Update the GOVERS to depend on a new version of Go.
-#
-# The 073fc578434b version is Go 1.3.1 (2014-02-21),
-# to satisfy the dependency for Go 1.3 in the Docker build of
-# camput.
-ENV GOVERS 073fc578434b
-
-RUN cd /usr/local && curl -O http://go.googlecode.com/archive/$GOVERS.zip
-RUN cd /usr/local && unzip -q $GOVERS.zip
-RUN cd /usr/local && mv go-$GOVERS go
-RUN chmod 0755 /usr/local/go/src/make.bash
-RUN echo $GOVERS > /usr/local/go/VERSION
-RUN GOROOT=/usr/local/go GOARCH=arm bash -c "cd /usr/local/go/src && ./make.bash"
-
+# Get Go stable release
+WORKDIR /tmp
+RUN curl -O https://storage.googleapis.com/golang/go1.6.2.linux-amd64.tar.gz
+RUN echo 'e40c36ae71756198478624ed1bb4ce17597b3c19d243f3f0899bb5740d56212a  go1.6.2.linux-amd64.tar.gz' | sha256sum -c
+RUN tar -C /usr/local -xzf go1.6.2.linux-amd64.tar.gz
 
 ENV ANDROID_HOME /usr/local/android-sdk-linux
 ENV ANT_HOME /usr/local/apache-ant-1.9.2
