@@ -799,13 +799,17 @@ func (c *Client) doDiscovery() error {
 		return err
 	}
 
-	u, err := root.Parse(disco.SearchRoot)
-	if err != nil {
-		return fmt.Errorf("client: invalid searchRoot %q; failed to resolve", disco.SearchRoot)
+	if disco.SearchRoot == "" {
+		c.searchRoot = ""
+	} else {
+		u, err := root.Parse(disco.SearchRoot)
+		if err != nil {
+			return fmt.Errorf("client: invalid searchRoot %q; failed to resolve", disco.SearchRoot)
+		}
+		c.searchRoot = u.String()
 	}
-	c.searchRoot = u.String()
 
-	u, err = root.Parse(disco.HelpRoot)
+	u, err := root.Parse(disco.HelpRoot)
 	if err != nil {
 		return fmt.Errorf("client: invalid helpRoot %q; failed to resolve", disco.HelpRoot)
 	}
