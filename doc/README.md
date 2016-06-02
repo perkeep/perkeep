@@ -33,7 +33,7 @@ on the [mailing list](https://groups.google.com/group/camlistore).
 * [Terminology](/doc/terms.md):  let's agree on terms to stay sane
 * [Use Cases](/doc/uses.md): what one might do with all this (or at least our aspirations)
 * [Prior Art](/doc/prior-art.md): other projects with similar goals or strategies
-* [Contributing](/doc/contributing.md): how to help
+* [Contributing](https://camlistore.org/doc/contributing): how to help
 * [Style guide](/doc/web-ui-styleguide.md) for the Web UI
 
 
