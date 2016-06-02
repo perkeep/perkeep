@@ -177,6 +177,26 @@ func (b *lowBuilder) addPublishedConfig(tlsO *tlsOpts) error {
 	return nil
 }
 
+func (b *lowBuilder) sortedName() string {
+	switch {
+	case b.high.MySQL != "":
+		return "MySQL"
+	case b.high.PostgreSQL != "":
+		return "PostgreSQL"
+	case b.high.Mongo != "":
+		return "MongoDB"
+	case b.high.MemoryIndex:
+		return "in memory LevelDB"
+	case b.high.SQLite != "":
+		return "SQLite"
+	case b.high.KVFile != "":
+		return "cznic/kv"
+	case b.high.LevelDB != "":
+		return "LevelDB"
+	}
+	panic("internal error: sortedName didn't find a sorted implementation")
+}
+
 // kvFileType returns the file based sorted type defined for index storage, if
 // any. It defaults to "leveldb" otherwise.
 func (b *lowBuilder) kvFileType() string {
@@ -806,7 +826,7 @@ func (b *lowBuilder) build() (*Config, error) {
 	case b.runIndex() && numIndexers != 1:
 		return nil, fmt.Errorf("With runIndex set true, you can only pick exactly one indexer (mongo, mysql, postgres, sqlite, kvIndexFile, leveldb, memoryIndex).")
 	case !b.runIndex() && numIndexers != 0:
-		return nil, fmt.Errorf("With runIndex disabled, you can't specify any of mongo, mysql, postgres, sqlite.")
+		log.Printf("Indexer disabled, but %v will be used for other indexes, queues, caches, etc.", b.sortedName())
 	}
 
 	if conf.Identity == "" {

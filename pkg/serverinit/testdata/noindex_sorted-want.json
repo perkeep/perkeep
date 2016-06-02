@@ -1,0 +1,70 @@
+{
+	"auth": "userpass:camlistore:pass3179",
+	"https": false,
+	"listen": "localhost:3179",
+	"prefixes": {
+		"/": {
+			"handler": "root",
+			"handlerArgs": {
+				"blobRoot": "/bs/",
+				"jsonSignRoot": "/sighelper/",
+				"helpRoot": "/help/",
+				"ownerName": "Alice",
+				"statusRoot": "/status/",
+				"stealth": false
+			}
+		},
+		"/bs/": {
+			"handler": "storage-blobpacked",
+			"handlerArgs": {
+				"smallBlobs": "/bs-loose/",
+				"largeBlobs": "/bs-packed/",
+				"metaIndex": {
+					"file": "/tmp/blobs/packed/packindex.leveldb",
+					"type": "leveldb"
+				}
+			}
+		},
+		"/bs-loose/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/tmp/blobs"
+			}
+		},
+		"/bs-packed/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/tmp/blobs/packed"
+			}
+		},
+		"/cache/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/tmp/blobs/cache"
+			}
+		},
+		"/help/": {
+			"handler": "help"
+		},
+		"/setup/": {
+			"handler": "setup"
+		},
+		"/share/": {
+			"handler": "share",
+			"handlerArgs": {
+				"blobRoot": "/bs/"
+			}
+		},
+		"/sighelper/": {
+			"handler": "jsonsign",
+			"handlerArgs": {
+				"keyId": "26F5ABDA",
+				"publicKeyDest": "/bs/",
+				"secretRing": "/path/to/secring"
+			}
+		},
+		"/status/": {
+			"handler": "status"
+		}
+	}
+}
