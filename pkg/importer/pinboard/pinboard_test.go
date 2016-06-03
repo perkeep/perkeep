@@ -17,7 +17,6 @@ limitations under the License.
 package pinboard
 
 import (
-	"fmt"
 	"testing"
 
 	"camlistore.org/pkg/httputil"
