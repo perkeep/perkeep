@@ -228,10 +228,6 @@ dl.terms dt {
   font-style: italic;
 }
 
-ul.lispaced li {
-      margin-top: 0.8em;
-}
-
 pre.sty {
     padding-left: 1em;
     border-left: 2px solid #e84c00;
