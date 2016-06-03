@@ -100,7 +100,7 @@ func gitShortlog() *exec.Cmd {
 }
 
 func genContribPage() ([]byte, error) {
-	contribHTML := readTemplate("contrib.html")
+	contribHTML := readTemplate("contributors.html")
 
 	// The same committers could've authored commits with different emails/usersnames.
 	// We index the authors by name and by email to try and merge graphs connected by
