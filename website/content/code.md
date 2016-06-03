@@ -74,3 +74,9 @@ place to start.
         squash to a single commit before sending for review again (be
         sure to keep the same [the Change-Id
         line](http://gerrit.googlecode.com/svn/documentation/2.2.1/user-changeid.html))
+
+### Documentation
+
+To work on the documentation, you'll need to locally build and run the webserver
+that serves camlistore.org. See
+[/website/README.md](https://camlistore.googlesource.com/camlistore/+/master/website/README.md).
