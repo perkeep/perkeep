@@ -150,6 +150,9 @@ func (kv *KeyValue) CommitBatch(b sorted.BatchMutation) error {
 		return fmt.Errorf("wrong BatchMutation type %T", b)
 	}
 	if bt.err != nil {
+		if err := bt.tx.Rollback(); err != nil {
+			log.Printf("Transaction rollback error: %v", err)
+		}
 		return bt.err
 	}
 	return bt.tx.Commit()

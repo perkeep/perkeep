@@ -18,6 +18,7 @@ package mysql
 
 import (
 	"testing"
+	"time"
 
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/sorted"
@@ -46,4 +47,45 @@ func TestMySQLKV(t *testing.T) {
 		t.Fatalf("mysql.NewKeyValue = %v", err)
 	}
 	kvtest.TestSorted(t, kv)
+}
+
+func TestRollback(t *testing.T) {
+	dbname := "camlitest_" + osutil.Username()
+	containerID, ip := dockertest.SetupMySQLContainer(t, dbname)
+	defer containerID.KillRemove(t)
+
+	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
+		"type":     "mysql",
+		"host":     ip + ":3306",
+		"database": dbname,
+		"user":     dockertest.MySQLUsername,
+		"password": dockertest.MySQLPassword,
+	})
+	if err != nil {
+		t.Fatalf("mysql.NewKeyValue = %v", err)
+	}
+
+	tooLargeAKey := make([]byte, sorted.MaxKeySize+10)
+	for i := range tooLargeAKey {
+		tooLargeAKey[i] = 'L'
+	}
+
+	nbConnections := 2
+	tick := time.AfterFunc(5*time.Second, func() {
+		// We have to force close the connection, otherwise the connection hogging does not even
+		// let us exit the func with t.Fatal (How? why?)
+		kv.(*keyValue).DB.Close()
+		t.Fatal("Test failed because SQL connections blocked by unrolled transactions")
+	})
+	kv.(*keyValue).DB.SetMaxOpenConns(nbConnections)
+	for i := 0; i < nbConnections+1; i++ {
+		b := kv.BeginBatch()
+		// Making the transaction fail, to force a rollback
+		// -> this whole test fails before we introduce the rollback in CommitBatch.
+		b.Set(string(tooLargeAKey), "whatever")
+		if err := kv.CommitBatch(b); err == nil {
+			t.Fatal("wanted failed commit because too large a key")
+		}
+	}
+	tick.Stop()
 }
