@@ -33,6 +33,7 @@ import (
 	glitchstatic "embed/glitch"
 	leafletstatic "embed/leaflet"
 	lessstatic "embed/less"
+	opensansstatic "embed/opensans"
 	reactstatic "embed/react"
 
 	"camlistore.org/pkg/blob"
@@ -64,6 +65,7 @@ var (
 	reactPattern       = regexp.MustCompile(`^react/(.+)$`)
 	leafletPattern     = regexp.MustCompile(`^leaflet/(.+)$`)
 	fontawesomePattern = regexp.MustCompile(`^fontawesome/(.+)$`)
+	openSansPattern    = regexp.MustCompile(`^opensans/(([^/]+)(/.*)?)$`)
 	glitchPattern      = regexp.MustCompile(`^glitch/(.+)$`)
 
 	disableThumbCache, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_THUMB_CACHE"))
@@ -100,6 +102,7 @@ type UIHandler struct {
 	fileReactHandler       http.Handler
 	fileLeafletHandler     http.Handler
 	fileFontawesomeHandler http.Handler
+	fileOpenSansHandler    http.Handler
 	fileGlitchHandler      http.Handler
 }
 
@@ -210,6 +213,10 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		ui.fileLessHandler, err = makeFileServer(ui.sourceRoot, filepath.Join(vendorEmbed, "less"), "less.js")
 		if err != nil {
 			return nil, fmt.Errorf("Could not make less handler: %s", err)
+		}
+		ui.fileOpenSansHandler, err = makeFileServer(ui.sourceRoot, filepath.Join(vendorEmbed, "opensans"), "OpenSans.css")
+		if err != nil {
+			return nil, fmt.Errorf("Could not make Open Sans handler: %s", err)
 		}
 	}
 
@@ -438,6 +445,8 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ui.serveFromDiskOrStatic(rw, req, glitchPattern, ui.fileGlitchHandler, glitchstatic.Files)
 	case getSuffixMatches(req, fontawesomePattern):
 		ui.serveFromDiskOrStatic(rw, req, fontawesomePattern, ui.fileFontawesomeHandler, fontawesomestatic.Files)
+	case getSuffixMatches(req, openSansPattern):
+		ui.serveFromDiskOrStatic(rw, req, openSansPattern, ui.fileOpenSansHandler, opensansstatic.Files)
 	default:
 		file := ""
 		if m := staticFilePattern.FindStringSubmatch(suffix); m != nil {

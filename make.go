@@ -889,7 +889,18 @@ func genEmbeds() error {
 	if runtime.GOOS == "windows" {
 		cmdName += ".exe"
 	}
-	for _, embeds := range []string{"server/camlistored/ui", "pkg/server", "vendor/embed/react", "vendor/embed/less", "vendor/embed/glitch", "vendor/embed/fontawesome", "vendor/embed/leaflet", "app/publisher", "app/scanningcabinet/ui"} {
+	for _, embeds := range []string{
+		"server/camlistored/ui",
+		"pkg/server",
+		"vendor/embed/fontawesome",
+		"vendor/embed/glitch",
+		"vendor/embed/leaflet",
+		"vendor/embed/less",
+		"vendor/embed/opensans",
+		"vendor/embed/react",
+		"app/publisher",
+		"app/scanningcabinet/ui",
+	} {
 		embeds := buildSrcPath(embeds)
 		var args []string
 		if *all {
