@@ -37,11 +37,11 @@ package drive // import "camlistore.org/pkg/blobserver/google/drive"
 import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/google/drive/service"
-	"camlistore.org/pkg/constants/google"
 	"go4.org/jsonconfig"
 
 	"go4.org/oauthutil"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
 // Scope is the OAuth2 scope used for Google Drive.

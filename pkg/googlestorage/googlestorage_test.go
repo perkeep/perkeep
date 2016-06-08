@@ -27,12 +27,12 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/constants/google"
 	"camlistore.org/pkg/osutil"
 	"go4.org/jsonconfig"
 
 	"go4.org/oauthutil"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
 const testObjectContent = "Google Storage Test\n"

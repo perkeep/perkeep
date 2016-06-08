@@ -25,10 +25,10 @@ import (
 
 	"camlistore.org/pkg/blobserver/google/drive"
 	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/constants/google"
 
 	"go4.org/oauthutil"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/cloud/storage"
 )
 

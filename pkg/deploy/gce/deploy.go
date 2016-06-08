@@ -35,7 +35,6 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/constants/google"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/osutil"
 	"golang.org/x/net/context"
@@ -43,6 +42,7 @@ import (
 	"go4.org/cloud/google/gceutil"
 	"go4.org/syncutil"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	// TODO(mpl): switch to google.golang.org/cloud/compute
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/googleapi"
