@@ -21,7 +21,6 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"html/template"
@@ -45,8 +44,8 @@ import (
 	"camlistore.org/pkg/netutil"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/types/camtypes"
-	"github.com/russross/blackfriday"
 
+	"github.com/russross/blackfriday"
 	"go4.org/cloud/cloudlaunch"
 	"go4.org/writerutil"
 	"golang.org/x/net/context"
@@ -59,6 +58,7 @@ import (
 	"google.golang.org/cloud/datastore"
 	"google.golang.org/cloud/logging"
 	"google.golang.org/cloud/storage"
+	"rsc.io/letsencrypt"
 )
 
 const defaultAddr = ":31798" // default webserver address
@@ -561,7 +561,10 @@ func checkInProduction() bool {
 	return proj == "camlistore-website" && inst == "camweb"
 }
 
-const prodSrcDir = "/var/camweb/src/camlistore.org"
+const (
+	prodSrcDir  = "/var/camweb/src/camlistore.org"
+	prodLECache = "/var/le/letsencrypt.cache"
+)
 
 func setProdFlags() {
 	inProd = checkInProduction()
@@ -905,21 +908,24 @@ func serveHTTPS(ctx context.Context, httpServer *http.Server) error {
 	httpsServer := new(http.Server)
 	*httpsServer = *httpServer
 	httpsServer.Addr = *httpsAddr
+	cacheFile := "letsencrypt.cache"
 	if !inProd {
-		if *tlsCertFile == "" {
-			return errors.New("unspecified --tlscert flag")
+		if *tlsCertFile != "" && *tlsKeyFile != "" {
+			return httpsServer.ListenAndServeTLS(*tlsCertFile, *tlsKeyFile)
 		}
-		if *tlsKeyFile == "" {
-			return errors.New("unspecified --tlskey flag")
+		// Otherwise use Let's Encrypt, i.e. same use case as in prod
+	} else {
+		cacheFile = prodLECache
+		if err := os.MkdirAll(filepath.Dir(cacheFile), 0755); err != nil {
+			return err
 		}
-		return httpsServer.ListenAndServeTLS(*tlsCertFile, *tlsKeyFile)
 	}
-	cert, err := tlsCertFromGCS(ctx)
-	if err != nil {
-		return fmt.Errorf("error loading TLS certs from GCS: %v", err)
+	var m letsencrypt.Manager
+	if err := m.CacheFile(cacheFile); err != nil {
+		return err
 	}
 	httpsServer.TLSConfig = &tls.Config{
-		Certificates: []tls.Certificate{*cert},
+		GetCertificate: m.GetCertificate,
 	}
 	log.Printf("Listening for HTTPS on %v", *httpsAddr)
 	ln, err := net.Listen("tcp", *httpsAddr)
@@ -941,35 +947,6 @@ func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 	tc.SetKeepAlive(true)
 	tc.SetKeepAlivePeriod(3 * time.Minute)
 	return tc, nil
-}
-
-func tlsCertFromGCS(ctx context.Context) (*tls.Certificate, error) {
-	sc, err := storage.NewClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-	slurp := func(key string) ([]byte, error) {
-		const bucket = "camlistore-website-resource"
-		rc, err := sc.Bucket(bucket).Object(key).NewReader(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("Error fetching GCS object %q in bucket %q: %v", key, bucket, err)
-		}
-		defer rc.Close()
-		return ioutil.ReadAll(rc)
-	}
-	certPem, err := slurp("ssl.crt")
-	if err != nil {
-		return nil, err
-	}
-	keyPem, err := slurp("ssl.key")
-	if err != nil {
-		return nil, err
-	}
-	cert, err := tls.X509KeyPair(certPem, keyPem)
-	if err != nil {
-		return nil, err
-	}
-	return &cert, nil
 }
 
 func deployerCredsFromGCS(ctx context.Context) (*gce.Config, error) {
