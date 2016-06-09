@@ -6,10 +6,6 @@ low-level mode (for any sort of crazy configuration).
 
 This page documents the simple configuration mode.
 
-If you visit your Camlistore server's /setup page (by default, at
-http://localhost:3179/setup) you can modify the config file from your
-web browser and restart the server.
-
 # Configuration Keys & Values
 
 **Note,** if you can't find what you're looking for here, check the API docs: [/pkg/types/serverconfig](https://camlistore.org/pkg/types/serverconfig/).

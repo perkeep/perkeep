@@ -27,7 +27,6 @@ import (
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/buildinfo"
-	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/images"
 	"camlistore.org/pkg/jsonsign/signhandler"
@@ -193,9 +192,6 @@ func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	f("<html><body><p>This is camlistored (%s), a "+
 		"<a href='http://camlistore.org'>Camlistore</a> server.</p>", buildinfo.Version())
-	if auth.IsLocalhost(req) && !env.IsDev() {
-		f("<p>If you're coming from localhost, configure your Camlistore server at <a href='/setup'>/setup</a>.</p>")
-	}
 	if rh.ui != nil {
 		f("<p>To manage your content, access the <a href='%s'>%s</a>.</p>", rh.ui.prefix, rh.ui.prefix)
 	}
