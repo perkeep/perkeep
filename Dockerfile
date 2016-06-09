@@ -17,7 +17,6 @@ RUN mkdir -p /gopath/pkg
 RUN chown camli.camli /gopath/pkg
 
 RUN mkdir -p /gopath/src
-ADD depcheck /gopath/src/camlistore.org/depcheck
 ADD internal /gopath/src/camlistore.org/internal
 ADD app /gopath/src/camlistore.org/app
 ADD dev /gopath/src/camlistore.org/dev
@@ -34,7 +33,8 @@ ENV GOPATH /gopath
 ENV CGO_ENABLED 0
 
 WORKDIR /gopath/src/camlistore.org
-RUN go run make.go --use_gopath=true
+RUN go run make.go
+RUN cp -a /gopath/src/camlistore.org/bin/* /gopath/bin/
 
 ENV USER camli
 ENV HOME /home/camli
