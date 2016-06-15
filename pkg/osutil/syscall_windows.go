@@ -16,5 +16,6 @@ limitations under the License.
 
 package osutil
 
-func Mkfifo(path string, mode uint32) error { return ErrNotSupported }
-func Mksocket(path string) error            { return ErrNotSupported }
+func mkfifo(path string, mode uint32) error { return ErrNotSupported }
+func mksocket(path string) error            { return ErrNotSupported }
+func maxFD() (uint64, error)                { return 0, ErrNotSupported }

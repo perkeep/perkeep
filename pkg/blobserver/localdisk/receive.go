@@ -27,6 +27,20 @@ import (
 	"camlistore.org/pkg/blob"
 )
 
+func (ds *DiskStorage) startGate() {
+	if ds.tmpFileGate == nil {
+		return
+	}
+	ds.tmpFileGate.Start()
+}
+
+func (ds *DiskStorage) doneGate() {
+	if ds.tmpFileGate == nil {
+		return
+	}
+	ds.tmpFileGate.Done()
+}
+
 func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (ref blob.SizedRef, err error) {
 	ds.dirLockMu.RLock()
 	defer ds.dirLockMu.RUnlock()
@@ -37,8 +51,12 @@ func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (ref blob
 		return
 	}
 
+	// TODO(mpl): warn when we hit the gate, and at a limited rate, like maximum once a minute.
+	// Deferring to another CL, since it requires modifications to syncutil.Gate first.
+	ds.startGate()
 	tempFile, err := ioutil.TempFile(hashedDirectory, blobFileBaseName(blobRef)+".tmp")
 	if err != nil {
+		ds.doneGate()
 		return
 	}
 
@@ -48,6 +66,7 @@ func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (ref blob
 			log.Println("Removing temp file: ", tempFile.Name())
 			os.Remove(tempFile.Name())
 		}
+		ds.doneGate()
 	}()
 
 	written, err := io.Copy(tempFile, source)

@@ -19,18 +19,18 @@ limitations under the License.
 package osutil
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
 	"syscall"
 )
 
-func Mkfifo(path string, mode uint32) error {
+func mkfifo(path string, mode uint32) error {
 	return syscall.Mkfifo(path, mode)
 }
 
-// Mksocket creates a socket file (a Unix Domain Socket) named path.
-func Mksocket(path string) error {
+func mksocket(path string) error {
 	dir := filepath.Dir(path)
 	base := filepath.Base(path)
 	tmp := filepath.Join(dir, "."+base)
@@ -49,4 +49,12 @@ func Mksocket(path string) error {
 	l.Close()
 
 	return nil
+}
+
+func maxFD() (uint64, error) {
+	var rlim syscall.Rlimit
+	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlim); err != nil {
+		return 0, fmt.Errorf("ulimit error: %v", err)
+	}
+	return rlim.Cur, nil
 }

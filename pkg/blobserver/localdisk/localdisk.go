@@ -42,7 +42,9 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/local"
 	"camlistore.org/pkg/osutil"
+
 	"go4.org/jsonconfig"
+	"go4.org/syncutil"
 )
 
 // DiskStorage implements the blobserver.Storage interface using the
@@ -56,6 +58,12 @@ type DiskStorage struct {
 
 	// gen will be nil if partition != ""
 	gen *local.Generationer
+
+	// tmpFileGate limits the number of temporary files open at the same
+	// time, so we don't run into the max set by ulimit. It is nil on
+	// systems (Windows) where we don't know the maximum number of open
+	// file descriptors.
+	tmpFileGate *syncutil.Gate
 }
 
 func (ds *DiskStorage) String() string {
@@ -69,6 +77,14 @@ func IsDir(root string) (bool, error) {
 	}
 	return false, nil
 }
+
+const (
+	// We refuse to create a DiskStorage when the user's ulimit is lower than
+	// minFDLimit. 100 is ridiculously low, but the default value on OSX is 256, and we
+	// don't want to fail by default, so our min value has to be lower than 256.
+	minFDLimit         = 100
+	recommendedFDLimit = 1024
+)
 
 // New returns a new local disk storage implementation at the provided
 // root directory, which must already exist.
@@ -103,6 +119,20 @@ func New(root string) (*DiskStorage, error) {
 	if _, _, err := ds.StorageGeneration(); err != nil {
 		return nil, fmt.Errorf("Error initialization generation for %q: %v", root, err)
 	}
+	ul, err := osutil.MaxFD()
+	if err != nil {
+		if err == osutil.ErrNotSupported {
+			// Do not set the gate on Windows, since we don't know the ulimit.
+			return ds, nil
+		}
+		return nil, err
+	}
+	if ul < minFDLimit {
+		return nil, fmt.Errorf("The max number of open file descriptors on your system (ulimit -n) is too low. Please fix it with 'ulimit -S -n X' with X being at least %d.", recommendedFDLimit)
+	}
+	// Setting the gate to 80% of the ulimit, to leave a bit of room for other file ops happening in Camlistore.
+	// TODO(mpl): make this used and enforced Camlistore-wide. Issue #837.
+	ds.tmpFileGate = syncutil.NewGate(int(ul * 80 / 100))
 	return ds, nil
 }
 
