@@ -846,6 +846,8 @@ type TemplateData struct {
 	ProjectConsoleURL     string
 	ZoneValues            []string
 	MachineValues         []string
+	// TODO(mpl): Do something better than IsMonthly in camweb.go, and remove that below.
+	IsMonthly bool // To satisfy gross IsMonthly from website/tmpl/page.html
 }
 
 const toHyperlink = `<a href="$1$3">$1$3</a>`
