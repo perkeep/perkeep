@@ -816,6 +816,12 @@ func dataStores() (blobserver.Storage, sorted.KeyValue, error) {
 	return instConf, instState, nil
 }
 
+// TODO(mpl): AddTemplateTheme is a mistake, since the text argument is user
+// input and hence can contain just any field, that is not a known field of
+// TemplateData. Which will make the execution of the template fail. We should
+// probably just somehow hardcode website/tmpl/page.html as the template.
+// See issue #815
+
 // AddTemplateTheme allows to enhance the aesthetics of the default template. To that
 // effect, text can provide the template definitions for "header", "banner", "toplinks", and
 // "footer".
@@ -846,8 +852,6 @@ type TemplateData struct {
 	ProjectConsoleURL     string
 	ZoneValues            []string
 	MachineValues         []string
-	// TODO(mpl): Do something better than IsMonthly in camweb.go, and remove that below.
-	IsMonthly bool // To satisfy gross IsMonthly from website/tmpl/page.html
 }
 
 const toHyperlink = `<a href="$1$3">$1$3</a>`

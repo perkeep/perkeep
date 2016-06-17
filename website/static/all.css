@@ -253,3 +253,30 @@ span.termhashlink a {
 .toggle .expanded { display: none; }
 .toggleVisible .collapsed { display: none; }
 .toggleVisible .expanded { display: block; }
+
+/* For monthly release page */
+a.downloadBox {
+	display: block;
+	color: #222;
+	border: 1px solid #375EAB;
+	border-radius: 5px;
+	background: #E0EBF5;
+	width: 280px;
+}
+a.downloadBox:hover {
+	text-decoration: none;
+}
+.downloadBox .platform {
+	font-size: large;
+}
+.downloadBox .filename {
+	color: #375EAB;
+	font-weight: bold;
+	line-height: 1.5em;
+}
+a.downloadBox:hover .filename {
+	text-decoration: underline;
+}
+.downloadBox .checksum {
+	font-size: 5pt;
+}
