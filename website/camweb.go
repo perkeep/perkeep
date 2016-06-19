@@ -392,8 +392,6 @@ const (
 		blackfriday.EXTENSION_AUTO_HEADER_IDS
 )
 
-var markdownRenderer = blackfriday.HtmlRenderer(markdownHTMLFlags, "", "")
-
 // serveFile serves a file from disk, converting any markdown to HTML.
 func serveFile(rw http.ResponseWriter, req *http.Request, relPath, absPath string) {
 	if !strings.HasSuffix(absPath, ".html") && !strings.HasSuffix(absPath, ".md") {
@@ -407,6 +405,7 @@ func serveFile(rw http.ResponseWriter, req *http.Request, relPath, absPath strin
 		return
 	}
 
+	var markdownRenderer = blackfriday.HtmlRenderer(markdownHTMLFlags, "", "")
 	data = blackfriday.MarkdownOptions(data, markdownRenderer, blackfriday.Options{Extensions: markdownExtensions})
 
 	title := ""
