@@ -160,7 +160,14 @@ func applyTemplate(t *template.Template, name string, data interface{}) []byte {
 	return buf.Bytes()
 }
 
-func servePage(w http.ResponseWriter, title, subtitle string, content []byte) {
+type pageParams struct {
+	title    string // required
+	subtitle string // used by pkg doc
+	content  []byte // required
+}
+
+func servePage(w http.ResponseWriter, params pageParams) {
+	title, subtitle, content := params.title, params.subtitle, params.content
 	// insert an "install command" if it applies
 	if strings.Contains(title, cmdPattern) && subtitle != cmdPattern {
 		toInsert := `
@@ -170,15 +177,13 @@ func servePage(w http.ResponseWriter, title, subtitle string, content []byte) {
 		content = bytes.Replace(content, []byte("<p>"), []byte(toInsert), 1)
 	}
 	d := struct {
-		Title     string
-		Subtitle  string
-		Content   template.HTML
-		IsMonthly bool
+		Title    string
+		Subtitle string
+		Content  template.HTML
 	}{
 		title,
 		subtitle,
 		template.HTML(content),
-		strings.HasPrefix(title, "Monthly Release"),
 	}
 
 	if err := pageHTML.ExecuteTemplate(w, "page", &d); err != nil {
@@ -210,7 +215,10 @@ func readTemplates() {
 func serveError(w http.ResponseWriter, r *http.Request, relpath string, err error) {
 	contents := applyTemplate(errorHTML, "errorHTML", err) // err may contain an absolute path!
 	w.WriteHeader(http.StatusNotFound)
-	servePage(w, "File "+relpath, "", contents)
+	servePage(w, pageParams{
+		title:   "File " + relpath,
+		content: contents,
+	})
 }
 
 const gerritURLPrefix = "https://camlistore.googlesource.com/camlistore/+/"
@@ -393,15 +401,15 @@ const (
 )
 
 // serveFile serves a file from disk, converting any markdown to HTML.
-func serveFile(rw http.ResponseWriter, req *http.Request, relPath, absPath string) {
+func serveFile(w http.ResponseWriter, r *http.Request, relPath, absPath string) {
 	if !strings.HasSuffix(absPath, ".html") && !strings.HasSuffix(absPath, ".md") {
-		http.ServeFile(rw, req, absPath)
+		http.ServeFile(w, r, absPath)
 		return
 	}
 
 	data, err := ioutil.ReadFile(absPath)
 	if err != nil {
-		serveError(rw, req, absPath, err)
+		serveError(w, r, absPath, err)
 		return
 	}
 
@@ -413,7 +421,10 @@ func serveFile(rw http.ResponseWriter, req *http.Request, relPath, absPath strin
 		title = string(m[1])
 	}
 
-	servePage(rw, title, "", data)
+	servePage(w, pageParams{
+		title:   title,
+		content: data,
+	})
 }
 
 func isBot(r *http.Request) bool {
@@ -1080,7 +1091,10 @@ func errHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	contents := applyTemplate(camliErrorHTML, "camliErrorHTML", data)
 	w.WriteHeader(http.StatusFound)
-	servePage(w, errString, "", contents)
+	servePage(w, pageParams{
+		title:   errString,
+		content: contents,
+	})
 }
 
 func camSrcDir() string {

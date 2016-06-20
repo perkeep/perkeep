@@ -186,7 +186,10 @@ func contribHandler() http.HandlerFunc {
 	if m := h1TitlePattern.FindSubmatch(c); len(m) > 1 {
 		title = string(m[1])
 	}
-	return func(rw http.ResponseWriter, req *http.Request) {
-		servePage(rw, title, "", c)
+	return func(w http.ResponseWriter, r *http.Request) {
+		servePage(w, pageParams{
+			title:   title,
+			content: c,
+		})
 	}
 }
