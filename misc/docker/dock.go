@@ -78,10 +78,11 @@ var (
 )
 
 const (
-	goDockerImage    = "camlistore/go"
-	djpegDockerImage = "camlistore/djpeg"
-	serverImage      = "camlistore/server"
-	goCmd            = "/usr/local/go/bin/go"
+	goDockerImage       = "camlistore/go"
+	djpegDockerImage    = "camlistore/djpeg"
+	zoneinfoDockerImage = "camlistore/zoneinfo"
+	serverImage         = "camlistore/server"
+	goCmd               = "/usr/local/go/bin/go"
 	// Path to where the Camlistore builder is mounted on the camlistore/go image.
 	genCamliProgram    = "/usr/local/bin/build-camlistore-server.go"
 	genBinariesProgram = "/usr/local/bin/build-binaries.go"
@@ -212,6 +213,18 @@ func genDjpeg(ctxDir string) {
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error building djpeg in go container: %v", err)
+	}
+}
+
+func genZoneinfo(ctxDir string) {
+	cmd := exec.Command("docker", "run",
+		"--rm",
+		"--volume="+ctxDir+":/OUT",
+		zoneinfoDockerImage, "/bin/bash", "-c", "mkdir -p /OUT && cp -a /usr/share/zoneinfo /OUT/zoneinfo")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		log.Fatalf("Error generating zoneinfo in go container: %v", err)
 	}
 }
 
@@ -576,8 +589,10 @@ func main() {
 	switch {
 	case *doImage:
 		buildDockerImage("djpeg-static", djpegDockerImage)
+		buildDockerImage("zoneinfo", zoneinfoDockerImage)
 		genCamlistore(ctxDir)
 		genDjpeg(ctxDir)
+		genZoneinfo(ctxDir)
 		buildServer(ctxDir)
 	case *doBinaries:
 		genBinaries(ctxDir)
