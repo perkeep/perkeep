@@ -50,6 +50,8 @@ const (
 	OpAll    = OpUpload | OpEnumerate | OpStat | OpRemove | OpGet | OpSign | OpDiscovery
 )
 
+const OmitAuthToken = "OmitAuthToken"
+
 var (
 	// Each mode defines an auth logic which depends on the choosen auth mechanism.
 	// Access is allowed if any of the modes allows it.
@@ -192,8 +194,8 @@ func SetMode(m AuthMode) {
 	modes = []AuthMode{m}
 }
 
-// AddMode adds the given authentication mode to the list of modes that
-// future requests can authenticate against.
+// AddMode adds the given authentication mode to the list of modes that future
+// requests can authenticate against.
 func AddMode(am AuthMode) {
 	modes = append(modes, am)
 }
@@ -423,6 +425,18 @@ var (
 func Token() string {
 	processRandOnce.Do(genProcessRand)
 	return processRand
+}
+
+// DiscoveryToken returns OmitAuthToken if the first registered auth mode is of
+// type None, and Token() otherwise.
+func DiscoveryToken() string {
+	if len(modes) == 0 {
+		return Token()
+	}
+	if _, ok := modes[0].(None); ok {
+		return OmitAuthToken
+	}
+	return Token()
 }
 
 func genProcessRand() {
