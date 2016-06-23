@@ -29,21 +29,23 @@ place to start.
     something similar or if there's a more Camlistore-like approach to
     the issue.
 
--   Submit your changes through the review process discussed below.
+-   Submit your changes to Gerrit through the review process discussed below.
 
--   Note that you'll need to agree to the appropriate Contributor
-    License Agreement:
+-   Note that before sending your first change for review (`devcam review`),
+    you'll need to agree to a [Contributor License Agreement](https://cla.developers.google.com).
 
-    -   [Individual Contributor License
-        Agreement](https://developers.google.com/open-source/cla/individual)
-
-    -   [Corporate Contributor License
-        Agreement](https://developers.google.com/open-source/cla/corporate)
-
-    These make lawyers feel all warm and cozy about open source. Be sure
-    to **email Brad or the list** when you've submitted one so it can be
-    processed and you'll be added to the CONTRIBUTORS file so your
-    patches can be reviewed and submitted.
+-   Once your first change has been accepted and merged, send a new change to
+    Gerrit, adding yourself to the
+    [AUTHORS](https://camlistore.googlesource.com/camlistore/+/master/AUTHORS)+[CONTRIBUTORS](https://camlistore.googlesource.com/camlistore/+/master/CONTRIBUTORS)
+    files (or just
+    [CONTRIBUTORS](https://camlistore.googlesource.com/camlistore/+/master/CONTRIBUTORS)
+    if the company which owns your Copyright is already in the
+    [AUTHORS](https://camlistore.googlesource.com/camlistore/+/master/AUTHORS)
+    file). We follow the
+    [Go convention](https://golang.org/doc/contribute.html#copyright)
+    for the commit messages; see for examples:
+    [85bf99a7](https://camlistore.org/gw/85bf99a7), and
+    [8f9af410](https://camlistore.org/gw/8f9af410).
 
 ### Code Review
 

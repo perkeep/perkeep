@@ -47,7 +47,6 @@ Alternatively, if your Camlistore root is checked out at
 $GOPATH/src/camlistore.org (optional, but natural for Go users), you
 can just:
 
-    $ export GO15VENDOREXPERIMENT=1  # required for all Camlistore builds
     $ go install ./dev/devcam
 
 The subcommands of devcam start the server or run camput/camget/etc:
@@ -101,7 +100,7 @@ in your commit message the version (e.g. git commit hash) of said third party.
 
 We follow the Go convention for commits (messages) about new Contributors.
 See https://golang.org/doc/contribute.html#copyright , and examples such as
-https://camlistore.org/gw/85bf99a7
+https://camlistore.org/gw/85bf99a7, and https://camlistore.org/gw/8f9af410.
 
 You can optionally use our pre-commit hook so that your code gets gofmt'ed
 before being submitted (which should be done anyway).
