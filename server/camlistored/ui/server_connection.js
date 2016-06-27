@@ -26,6 +26,9 @@ goog.require('cam.blob');
 goog.require('cam.ServerType');
 goog.require('cam.WorkerMessageRouter');
 
+// TODO(mpl): directly get it from the auth pkg if we use gopherjs.
+var OMIT_AUTH_TOKEN = "OmitAuthToken";
+
 // @fileoverview Connection to the blob server and API for the RPCs it provides. All blob index UI code should use this connection to contact the server.
 // @param {cam.ServerType.DiscoveryDocument} config Discovery document for the current server.
 // @param {Function=} opt_sendXhr Function for sending XHRs for testing.
@@ -288,6 +291,12 @@ cam.ServerConnection.prototype.sign_ = function(clearObj, success, opt_fail) {
 		this.failOrLog_(opt_fail, "Missing Camli.config.authToken");
 		return;
 	}
+	if (authToken != OMIT_AUTH_TOKEN) {
+		var header = {"Content-Type": "application/x-www-form-urlencoded",
+			"Authorization": "Token "+authToken};
+	} else {
+		var header = {"Content-Type": "application/x-www-form-urlencoded"};
+	}
 
 	clearObj.camliSigner = sigConf.publicKeyBlobRef;
 	var camVersion = clearObj.camliVersion;
@@ -304,10 +313,7 @@ cam.ServerConnection.prototype.sign_ = function(clearObj, success, opt_fail) {
 			{success: success, fail: opt_fail}),
 		"POST",
 		"json=" + encodeURIComponent(clearText),
-		{"Content-Type": "application/x-www-form-urlencoded",
-			"Authorization": "Token "+authToken},
-		0, // opt_timeoutInterval, default is 0 anyway.
-		true // opt_withCredentials
+		header
 	);
 };
 
@@ -329,16 +335,19 @@ cam.ServerConnection.prototype.verify_ = function(signed, success, opt_fail) {
 		this.failOrLog_(opt_fail, "Missing Camli.config.authToken");
 		return;
 	}
+	if (authToken != OMIT_AUTH_TOKEN) {
+		var header = {"Content-Type": "application/x-www-form-urlencoded",
+			"Authorization": "Token "+authToken};
+	} else {
+		var header = {"Content-Type": "application/x-www-form-urlencoded"};
+	}
 	this.sendXhr_(
 		sigConf.verifyHandler,
 		goog.bind(this.handleXhrResponseText_, this,
 			{success: success, fail: opt_fail}),
 		"POST",
 		"sjson=" + encodeURIComponent(signed),
-		{"Content-Type": "application/x-www-form-urlencoded",
-			"Authorization": "Token "+authToken},
-		0, // opt_timeoutInterval, default is 0 anyway.
-		true // opt_withCredentials
+		header
 	);
 };
 
@@ -373,6 +382,9 @@ cam.ServerConnection.prototype.uploadString_ = function(s, success, opt_fail) {
 		this.failOrLog_(opt_fail, "Missing Camli.config.authToken");
 		return;
 	}
+	if (authToken != OMIT_AUTH_TOKEN) {
+		var header = {"Authorization": "Token "+authToken};
+	}
 	var blobref = cam.blob.refFromString(s);
 	var bb = new Blob([s]);
 	var fd = new FormData();
@@ -396,10 +408,9 @@ cam.ServerConnection.prototype.uploadString_ = function(s, success, opt_fail) {
 		),
 		"POST",
 		fd,
-		{"Authorization": "Token "+authToken},
-		0, // opt_timeoutInterval, default is 0 anyway.
-		true // opt_withCredentials
+		header
 	);
+
 };
 
 // @param {string} blobref Uploaded blobRef.
@@ -569,6 +580,9 @@ cam.ServerConnection.prototype.camliUploadFileHelper_ = function(file, contentsB
 		this.failOrLog_(opt_fail, "Missing Camli.config.authToken");
 		return;
 	}
+	if (authToken != OMIT_AUTH_TOKEN) {
+		var header = {"Authorization": "Token "+authToken};
+	}
 	var doUpload = goog.bind(function() {
 		var fd = new FormData();
 		fd.append("modtime", dateToRfc3339String(file.lastModifiedDate));
@@ -580,9 +594,7 @@ cam.ServerConnection.prototype.camliUploadFileHelper_ = function(file, contentsB
 			),
 			"POST",
 			fd,
-			{"Authorization": "Token "+authToken},
-			0, // opt_timeoutInterval, default is 0 anyway.
-			true // opt_withCredentials
+			header
 		);
 	}, this);
 
