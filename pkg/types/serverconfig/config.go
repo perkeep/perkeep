@@ -86,19 +86,44 @@ type Config struct {
 	Picasa string `json:"picasa,omitempty"` // picasa importer.
 }
 
+// App holds the common configuration values for apps and the app handler.
+// See https://camlistore.org/doc/app-environment
+type App struct {
+	// Listen is the address (of the form host|ip:port) on which the app
+	// will listen on. It defines CAMLI_APP_LISTEN.
+	// If empty, the default is the concatenation of the Camlistore server's
+	// Listen host part, and a random port.
+	Listen string `json:"listen,omitempty"`
+
+	// BackendURL is the URL of the application's process, always ending in a
+	// trailing slash. It is the URL that the app handler will proxy to when
+	// getting requests for the concerned app.
+	// If empty, the default is the concatenation of the Camlistore server's BaseURL
+	// scheme, the Camlistore server's BaseURL host part, and the port of Listen.
+	BackendURL string `json:"backendURL,omitempty"`
+
+	// APIHost is URL prefix of the Camlistore server which the app should
+	// use to make API calls. It defines CAMLI_API_HOST.
+	// If empty, the default is the Camlistore server's BaseURL, with a
+	// trailing slash appended.
+	APIHost string `json:"apiHost,omitempty"`
+
+	HTTPSCert string `json:"httpsCert,omitempty"` // path to the HTTPS certificate file.
+	HTTPSKey  string `json:"httpsKey,omitempty"`  // path to the HTTPS key file.
+}
+
 // Publish holds the server configuration values specific to a publisher, i.e. to a publish prefix.
 type Publish struct {
 	// Program is the server app program to run as the publisher.
 	// Defaults to "publisher".
 	Program string `json:"program"`
 
+	*App // Common apps and app handler configuration.
+
 	// CamliRoot value that defines our root permanode for this
 	// publisher. The root permanode is used as the root for all the
 	// paths served by this publisher.
 	CamliRoot string `json:"camliRoot"`
-
-	// Base URL the app will run at.
-	BaseURL string `json:"baseURL,omitempty"`
 
 	// GoTemplate is the name of the Go template file used by this
 	// publisher to represent the data. This file should live in
@@ -109,9 +134,6 @@ type Publish struct {
 	// caching blobserver (for images). No caching if empty.
 	// An example value is Config.BlobPath + "/cache".
 	CacheRoot string `json:"cacheRoot,omitempty"`
-
-	HTTPSCert string `json:"httpsCert,omitempty"` // path to the HTTPS certificate file.
-	HTTPSKey  string `json:"httpsKey,omitempty"`  // path to the HTTPS key file.
 }
 
 // invertedBool is a bool that marshals to and from JSON with the opposite of its in-memory value.

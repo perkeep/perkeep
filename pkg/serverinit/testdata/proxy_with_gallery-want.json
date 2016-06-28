@@ -1,7 +1,8 @@
 {
 	"auth": "userpass:camlistore:pass3179",
 	"https": false,
-	"listen": "localhost:3179",
+	"listen": ":3179",
+	"baseURL": "http://camli.net",
 	"prefixes": {
 		"/": {
 			"handler": "root",
@@ -9,7 +10,6 @@
 				"blobRoot": "/bs-and-maybe-also-index/",
 				"jsonSignRoot": "/sighelper/",
 				"helpRoot": "/help/",
-				"ownerName": "Alice",
 				"searchRoot": "/my-search/",
 				"statusRoot": "/status/",
 				"stealth": false
@@ -64,20 +64,6 @@
 				}
 			}
 		},
-		"/music/": {
-			"handler": "app",
-			"handlerArgs": {
-				"program": "publisher",
-				"prefix": "/music/",
-				"serverListen": "localhost:3179",
-				"backendURL": "http://localhost:3178/",
-				"appConfig": {
-					"camliRoot": "musicRoot",
-					"goTemplate": "music.html",
-					"cacheRoot": "/tmp/blobs/cache"
-				}
-			}
-		},
 		"/my-search/": {
 			"handler": "search",
 			"handlerArgs": {
@@ -91,7 +77,11 @@
 			"handlerArgs": {
 				"program": "publisher",
 				"prefix": "/pics/",
-				"serverListen": "localhost:3179",
+				"serverListen": ":3179",
+				"serverBaseURL": "http://camli.net",
+				"listen": ":55432",
+				"backendURL": "http://192.168.0.2:55432/",
+				"apiHost": "http://192.168.0.2:3179/",
 				"appConfig": {
 					"camliRoot": "picsRoot",
 					"goTemplate": "gallery.html",

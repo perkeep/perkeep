@@ -16,26 +16,23 @@ limitations under the License.
 
 // Package app provides helpers for server applications interacting
 // with Camlistore.
+// See also https://camlistore.org/doc/app-environment for the related
+// variables.
 package app // import "camlistore.org/pkg/app"
 
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/client"
-	"camlistore.org/pkg/netutil"
+	"camlistore.org/pkg/httputil"
 )
 
-// Client returns a client from pkg/client, configured by environment variables
-// for applications, and ready to be used to connect to the Camlistore server.
-func Client() (*client.Client, error) {
-	server := os.Getenv("CAMLI_API_HOST")
-	if server == "" {
-		return nil, errors.New("CAMLI_API_HOST var not set")
-	}
+func basicAuth() (auth.AuthMode, error) {
 	authString := os.Getenv("CAMLI_AUTH")
 	if authString == "" {
 		return nil, errors.New("CAMLI_AUTH var not set")
@@ -44,16 +41,38 @@ func Client() (*client.Client, error) {
 	if len(userpass) != 2 {
 		return nil, fmt.Errorf("invalid auth string syntax. got %q, want \"username:password\"", authString)
 	}
-	cl := client.NewFromParams(server, auth.NewBasicAuth(userpass[0], userpass[1]))
-	return cl, nil
+	return auth.NewBasicAuth(userpass[0], userpass[1]), nil
+}
+
+// Client returns a Camlistore client as defined by environment variables
+// automatically supplied by the Camlistore server host.
+func Client() (*client.Client, error) {
+	server := os.Getenv("CAMLI_API_HOST")
+	if server == "" {
+		return nil, errors.New("CAMLI_API_HOST var not set")
+	}
+	am, err := basicAuth()
+	if err != nil {
+		return nil, err
+	}
+	return client.NewFromParams(server, am), nil
 }
 
 // ListenAddress returns the host:[port] network address, derived from the environment,
 // that the application should listen on.
 func ListenAddress() (string, error) {
-	baseURL := os.Getenv("CAMLI_APP_BACKEND_URL")
-	if baseURL == "" {
-		return "", errors.New("CAMLI_APP_BACKEND_URL is undefined")
+	listenAddr := os.Getenv("CAMLI_APP_LISTEN")
+	if listenAddr == "" {
+		return "", errors.New("CAMLI_APP_LISTEN is undefined")
 	}
-	return netutil.HostPort(baseURL)
+	return listenAddr, nil
+}
+
+// PathPrefix returns the app's prefix on the app handler if the request was proxied
+// through Camlistore, or "/" if the request went directly to the app.
+func PathPrefix(r *http.Request) string {
+	if prefix := httputil.PathBase(r); prefix != "" {
+		return prefix
+	}
+	return "/"
 }

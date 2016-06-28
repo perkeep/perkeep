@@ -338,7 +338,15 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 
 	var hh http.Handler
 	if h.htype == "app" {
-		ap, err := app.NewHandler(h.conf, hl.baseURL+"/", prefix)
+		// h.conf might already contain the server's baseURL, but
+		// camlistored.go derives (if needed) a more useful hl.baseURL,
+		// after h.conf was generated, so we provide it as well to
+		// FromJSONConfig so NewHandler can benefit from it.
+		hc, err := app.FromJSONConfig(h.conf, hl.baseURL)
+		if err != nil {
+			exitFailure("error setting up app config for prefix %q: %v", h.prefix, err)
+		}
+		ap, err := app.NewHandler(hc)
 		if err != nil {
 			exitFailure("error setting up app for prefix %q: %v", h.prefix, err)
 		}

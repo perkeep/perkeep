@@ -18,7 +18,9 @@
 			"handler": "app",
 			"handlerArgs": {
 				"program": "publisher",
-				"baseURL": "http://localhost:3178/",
+				"prefix": "/blog/",
+				"serverListen": "localhost:3179",
+				"backendURL": "http://localhost:3178/",
 				"appConfig": {
 					"camliRoot": "blogRoot",
 					"goTemplate": "blog.html",

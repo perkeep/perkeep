@@ -25,6 +25,12 @@ configure publishing for an image gallery in the server config
       }
     }
 
+The parameters for setting up the app's process ("listen", "backendURL", and
+"apiHost") are derived from the Camlistore server's "listen", and "baseURL", but
+should the need arise (e.g. with a proxy setup) they can be specified as well.
+See [serverconfig.Publish](https://camlistore.org/pkg/types/serverconfig/#Publish)
+type for the details.
+
 If you want to provide your own (Go) template, see
 [camlistore.org/pkg/publish](/pkg/publish) for the data structures and
 functions available to the template.

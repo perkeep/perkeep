@@ -10,15 +10,9 @@ Camlistore applications run with the following environment variables set:
    -   http://192.168.0.1/
    -   http://192.168.0.1:1234/
 
-`CAMLI_APP_BACKEND_URL` (string)
-: URL of the application's process, always ending in a trailing slash. That path
-  represents the top-most path that requests will hit. The path usually matches
-  the path as visible in the outside world when camlistored is proxying an app,
-  but that is not guaranteed. Examples:
-   -  https://foo.org:3178/pub/
-   -  https://foo.org/pub/
-   -  http://192.168.0.1/
-   -  http://192.168.0.1:1234/
+`CAMLI_APP_LISTEN` (string)
+: address (of the form host|ip:port) on which the app will listen.
+  See https://golang.org/pkg/net/#Dial for the supported syntax.
 
 `CAMLI_APP_CONFIG_URL` (string)
 : URL containing JSON configuration for the app. The app should once, upon
@@ -31,3 +25,7 @@ Camlistore applications run with the following environment variables set:
   authenticate over HTTP basic auth with the Camlistore server. Basic auth is
   unencrypted, hence it should only be used with HTTPS or in a secure (local
   loopback) environment.
+
+See the
+[app.HandlerConfig](https://camlistore.org/pkg/server/app/#HandlerConfig)
+type for how the Camlistore's app handler sets the variables up.

@@ -121,11 +121,15 @@ the rootPermanode will be different).
     "publish": {
       "/pics/": {
         "camliRoot": "mypics",
-        "baseURL": "http://localhost:3178/",
+        "backendURL": "http://localhost:3178/",
         "cacheRoot": "/home/joe/var/camlistore/blobs/cache",
         "goTemplate": "gallery.html"
       }
     }
+
+See the
+[serverconfig.Publish](https://camlistore.org/pkg/types/serverconfig/#Publish)
+type for all the configuration parameters.
 
 One can create any permanode with camput or the UI, and set its camliRoot
 attribute to the value set in the config, to use it as the root permanode for
