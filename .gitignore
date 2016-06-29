@@ -23,6 +23,7 @@ bin/devcam
 bin/*_*
 bin/hello
 bin/publisher
+bin/website
 tmp
 server/camlistored/newui/all.js
 server/camlistored/newui/all.js.map
