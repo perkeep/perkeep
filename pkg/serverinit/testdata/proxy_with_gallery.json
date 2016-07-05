@@ -1,5 +1,6 @@
 {
-	"listen": "localhost:3179",
+	"listen": ":3179",
+	"baseURL": "http://camli.net",
 	"https": false,
 	"auth": "userpass:camlistore:pass3179",
 	"blobPath": "/tmp/blobs",
@@ -8,11 +9,13 @@
 	"kvIndexFile": "/path/to/indexkv.db",
 	"s3": "",
 	"publish": {
-		"/blog/": {
-			"camliRoot": "blogRoot",
-			"backendURL": "http://localhost:3178/",
+		"/pics/": {
+			"listen": ":55432",
+			"backendURL": "http://192.168.0.2:55432/",
+			"apiHost": "http://192.168.0.2:3179/",
+			"camliRoot": "picsRoot",
 			"cacheRoot": "/tmp/blobs/cache",
-			"goTemplate": "blog.html"
+			"goTemplate": "gallery.html"
 		}
 	},
 	"replicateTo": [],

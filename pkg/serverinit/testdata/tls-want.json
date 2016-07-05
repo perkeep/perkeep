@@ -108,6 +108,8 @@
 			"handler": "app",
 			"handlerArgs": {
 				"program": "publisher",
+				"prefix": "/pics/",
+				"serverListen": "1.2.3.4:443",
 				"appConfig": {
 					"camliRoot": "picsRoot",
 					"goTemplate": "gallery.html",

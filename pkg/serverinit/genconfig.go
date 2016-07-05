@@ -137,13 +137,16 @@ func (b *lowBuilder) searchOwner() (br blob.Ref, err error) {
 func (b *lowBuilder) addPublishedConfig(tlsO *tlsOpts) error {
 	published := b.high.Publish
 	for k, v := range published {
+		// trick in case all of the fields of v.App were omitted, which would leave v.App nil.
+		if v.App == nil {
+			v.App = &serverconfig.App{}
+		}
 		if v.CamliRoot == "" {
 			return fmt.Errorf("Missing \"camliRoot\" key in configuration for %s.", k)
 		}
 		if v.GoTemplate == "" {
 			return fmt.Errorf("Missing \"goTemplate\" key in configuration for %s.", k)
 		}
-
 		appConfig := map[string]interface{}{
 			"camliRoot":  v.CamliRoot,
 			"cacheRoot":  v.CacheRoot,
@@ -160,18 +163,30 @@ func (b *lowBuilder) addPublishedConfig(tlsO *tlsOpts) error {
 				appConfig["httpsKey"] = tlsO.httpsKey
 			}
 		}
-		a := args{
-			"program":   v.Program,
-			"appConfig": appConfig,
-		}
-		if v.BaseURL != "" {
-			a["baseURL"] = v.BaseURL
-		}
 		program := "publisher"
 		if v.Program != "" {
 			program = v.Program
 		}
-		a["program"] = program
+		a := args{
+			"prefix":    k,
+			"program":   program,
+			"appConfig": appConfig,
+		}
+		if v.Listen != "" {
+			a["listen"] = v.Listen
+		}
+		if v.APIHost != "" {
+			a["apiHost"] = v.APIHost
+		}
+		if v.BackendURL != "" {
+			a["backendURL"] = v.BackendURL
+		}
+		if b.low["listen"] != nil && b.low["listen"].(string) != "" {
+			a["serverListen"] = b.low["listen"].(string)
+		}
+		if b.low["baseURL"] != nil && b.low["baseURL"].(string) != "" {
+			a["serverBaseURL"] = b.low["baseURL"].(string)
+		}
 		b.addPrefix(k, "app", a)
 	}
 	return nil

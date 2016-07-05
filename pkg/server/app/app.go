@@ -16,13 +16,14 @@ limitations under the License.
 
 // Package app helps with configuring and starting server applications
 // from Camlistore.
+// See also https://camlistore.org/doc/app-environment for the related
+// variables.
 package app // import "camlistore.org/pkg/server/app"
 
 import (
 	"errors"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -34,6 +35,8 @@ import (
 
 	"camlistore.org/pkg/auth"
 	camhttputil "camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/netutil"
+
 	"go4.org/jsonconfig"
 )
 
@@ -46,6 +49,11 @@ type Handler struct {
 	auth      auth.AuthMode  // Used for basic HTTP authenticating against the app requests.
 	appConfig jsonconfig.Obj // Additional parameters the app can request, or nil.
 
+	// Prefix is the URL path prefix where the app handler is mounted on
+	// Camlistore, stripped of its trailing slash. The handler trims this
+	// prefix from incoming requests before proxying them to the app. Examples:
+	// "/pics", "/blog".
+	prefix     string
 	proxy      *httputil.ReverseProxy // For redirecting requests to the app.
 	backendURL string                 // URL that we proxy to (i.e. base URL of the app).
 
@@ -65,112 +73,178 @@ func (a *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		http.Error(rw, "no proxy for the app", 500)
 		return
 	}
+	req.URL.Path = strings.TrimPrefix(req.URL.Path, a.prefix)
 	a.proxy.ServeHTTP(rw, req)
 }
 
-// randPortBackendURL picks a random free port to listen on, and combines it
-// with apiHost and appHandlerPrefix to create the appBackendURL that the app
-// will listen on, and that the app handler will proxy to.
-func randPortBackendURL(apiHost, appHandlerPrefix string) (string, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+// randListen returns the concatenation of the host part of listenAddr with a random port.
+func randListen(listenAddr string) (string, error) {
+	return randListenFn(listenAddr, netutil.RandPort)
+}
+
+// randListenFn only exists to allow testing of randListen, by letting the caller
+// replace randPort with a func that actually has a predictable result.
+func randListenFn(listenAddr string, randPortFn func() (int, error)) (string, error) {
+	portIdx := strings.LastIndex(listenAddr, ":") + 1
+	if portIdx <= 0 || portIdx >= len(listenAddr) {
+		return "", errors.New("invalid listen addr, no port found")
+	}
+	port, err := randPortFn()
 	if err != nil {
 		return "", err
 	}
-	listener, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return "", fmt.Errorf("could not listen to find random port: %v", err)
-	}
-	randAddr := listener.Addr().(*net.TCPAddr)
-	if err := listener.Close(); err != nil {
-		return "", fmt.Errorf("could not close random listener: %v", err)
-	}
-
-	// TODO(mpl): see if can use netutil.TCPAddress.
-	scheme := "https://"
-	noScheme := strings.TrimPrefix(apiHost, scheme)
-	if strings.HasPrefix(noScheme, "http://") {
-		scheme = "http://"
-		noScheme = strings.TrimPrefix(noScheme, scheme)
-	}
-	hostPortPrefix := strings.SplitN(noScheme, "/", 2)
-	if len(hostPortPrefix) != 2 {
-		return "", fmt.Errorf("invalid apiHost: %q (no trailing slash?)", apiHost)
-	}
-	var host string
-	if strings.Contains(hostPortPrefix[0], "]") {
-		// we've got some IPv6 probably
-		hostPort := strings.Split(hostPortPrefix[0], "]")
-		host = hostPort[0] + "]"
-	} else {
-		hostPort := strings.Split(hostPortPrefix[0], ":")
-		host = hostPort[0]
-	}
-	return fmt.Sprintf("%s%s:%d%s", scheme, host, randAddr.Port, appHandlerPrefix), nil
+	return fmt.Sprintf("%s%d", listenAddr[:portIdx], port), nil
 }
 
-// NewHandler returns a Handler that proxies requests to an app. Start() on the
-// Handler starts the app.
-// The apiHost must end in a slash and is the camlistored API server for the app
-// process to hit.
-// The appHandlerPrefix is the URL path prefix on apiHost where the app is mounted.
-// It must end in a slash, and be at minimum "/".
-// The conf object has the following members, related to the vars described in
-// doc/app-environment.txt:
-// "program", string, required. File name of the app's program executable. Either
-// an absolute path, or the name of a file located in CAMLI_APP_BINDIR or in PATH.
-// "backendURL", string, optional. Automatic if absent. It sets CAMLI_APP_BACKEND_URL.
-// "appConfig", object, optional. Additional configuration that the app can request from Camlistore.
-func NewHandler(conf jsonconfig.Obj, apiHost, appHandlerPrefix string) (*Handler, error) {
-	// TODO: remove the appHandlerPrefix if/when we change where the app config JSON URL is made available.
-	name := conf.RequiredString("program")
-	backendURL := conf.OptionalString("backendURL", "")
-	appConfig := conf.OptionalObject("appConfig")
-	// TODO(mpl): add an auth token in the extra config of the dev server config,
-	// that the hello app can use to setup a status handler than only responds
-	// to requests with that token.
-	if err := conf.Validate(); err != nil {
-		return nil, err
+var portMap = map[string]string{
+	"http":  "80",
+	"https": "443",
+}
+
+// baseURL concatenates the scheme and host parts of serverBaseURL with
+// the port of listenAddr.
+func baseURL(serverBaseURL, listenAddr string) (string, error) {
+	backendURL, err := url.Parse(serverBaseURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid baseURL %q: %v", serverBaseURL, err)
+	}
+	scheme := backendURL.Scheme
+	host := backendURL.Host
+	if netutil.HasPort(host) {
+		host = host[:strings.LastIndex(host, ":")]
+	}
+	port := portMap[scheme]
+	if netutil.HasPort(listenAddr) {
+		port = listenAddr[strings.LastIndex(listenAddr, ":")+1:]
+	}
+	return fmt.Sprintf("%s://%s:%s/", scheme, host, port), nil
+}
+
+// TODO(mpl): some way to avoid the redundancy with serverconfig.App would be
+// nice. But at least HandlerConfig and its doc is cleaner than having to document a
+// jsonconfig.Obj.
+
+// HandlerConfig holds the configuration for an app Handler. See
+// https://camlistore.org/doc/app-environment for the corresponding environment
+// variables.
+type HandlerConfig struct {
+	// Program is the file name of the server app's program executable. Either
+	// an absolute path, or the name of a file located in CAMLI_APP_BINDIR or in PATH.
+	Program string `json:"program"`
+
+	// Prefix is the URL path prefix on APIHost where the app handler is mounted.
+	// It always ends with a trailing slash. Examples: "/pics/", "/blog/".
+	Prefix string `json:"prefix"`
+
+	// Listen is the address (of the form host|ip:port) on which the app
+	// will listen. It defines CAMLI_APP_LISTEN.
+	// If empty, the default is the concatenation of ServerListen's host
+	// part and a random port.
+	Listen string `json:"listen,omitempty"`
+
+	// ServerListen is the Camlistore server's listen address. Required if Listen is
+	// not defined.
+	ServerListen string `json:"serverListen,omitempty"`
+
+	// BackendURL is the URL of the application's process, always ending in a
+	// trailing slash. It is the URL that the app handler will proxy to when
+	// getting requests for the concerned app.
+	// If empty, the default is the concatenation of the ServerBaseURL
+	// scheme, the ServerBaseURL host part, and the port of Listen.
+	BackendURL string `json:"backendURL,omitempty"`
+
+	// ServerBaseURL is the Camlistore server's BaseURL. Required if BackendURL is not
+	// defined.
+	ServerBaseURL string `json:"serverBaseURL,omitempty"`
+
+	// APIHost is the URL of the Camlistore server which the app should
+	// use to make API calls. It always ends in a trailing slash. It defines CAMLI_API_HOST.
+	// If empty, the default is ServerBaseURL, with a trailing slash appended.
+	APIHost string `json:"apiHost,omitempty"`
+
+	// AppConfig contains some additional configuration specific to each app.
+	// See CAMLI_APP_CONFIG_URL.
+	AppConfig jsonconfig.Obj
+}
+
+// FromJSONConfig creates an HandlerConfig from the contents of config.
+// serverBaseURL is used if it is not found in config.
+func FromJSONConfig(config jsonconfig.Obj, serverBaseURL string) (HandlerConfig, error) {
+	hc := HandlerConfig{
+		Program:       config.RequiredString("program"),
+		Prefix:        config.RequiredString("prefix"),
+		BackendURL:    config.OptionalString("backendURL", ""),
+		Listen:        config.OptionalString("listen", ""),
+		APIHost:       config.OptionalString("apiHost", ""),
+		ServerListen:  config.OptionalString("serverListen", ""),
+		ServerBaseURL: config.OptionalString("serverBaseURL", ""),
+		AppConfig:     config.OptionalObject("appConfig"),
+	}
+	if hc.ServerBaseURL == "" {
+		hc.ServerBaseURL = serverBaseURL
+	}
+	if err := config.Validate(); err != nil {
+		return HandlerConfig{}, err
+	}
+	return hc, nil
+}
+
+func NewHandler(cfg HandlerConfig) (*Handler, error) {
+	name := cfg.Program
+	if cfg.Prefix == "" {
+		return nil, fmt.Errorf("app: could not initialize Handler for %q: empty Prefix", name)
 	}
 
-	if apiHost == "" {
-		return nil, fmt.Errorf("app: could not initialize Handler for %q: Camlistore apiHost is unknown", name)
-	}
-	if appHandlerPrefix == "" {
-		return nil, fmt.Errorf("app: could not initialize Handler for %q: empty appHandlerPrefix", name)
-	}
-
-	if backendURL == "" {
-		var err error
-		// If not specified in the conf, we're dynamically picking the port of the CAMLI_APP_BACKEND_URL
-		// now (instead of letting the app itself do it), because we need to know it in advance in order
-		// to set the app handler's proxy.
-		backendURL, err = randPortBackendURL(apiHost, appHandlerPrefix)
+	listen, backendURL, apiHost := cfg.Listen, cfg.BackendURL, cfg.APIHost
+	var err error
+	if listen == "" {
+		if cfg.ServerListen == "" {
+			return nil, fmt.Errorf(`app: could not initialize Handler for %q: neither "Listen" or "ServerListen" defined`, name)
+		}
+		listen, err = randListen(cfg.ServerListen)
 		if err != nil {
 			return nil, err
 		}
 	}
-
-	username, password := auth.RandToken(20), auth.RandToken(20)
-	camliAuth := username + ":" + password
-	basicAuth := auth.NewBasicAuth(username, password)
-	envVars := map[string]string{
-		"CAMLI_API_HOST":        apiHost,
-		"CAMLI_AUTH":            camliAuth,
-		"CAMLI_APP_BACKEND_URL": backendURL,
+	if backendURL == "" {
+		if cfg.ServerBaseURL == "" {
+			return nil, fmt.Errorf(`app: could not initialize Handler for %q: neither "BackendURL" or "ServerBaseURL" defined`, name)
+		}
+		backendURL, err = baseURL(cfg.ServerBaseURL, listen)
+		if err != nil {
+			return nil, err
+		}
 	}
-	if appConfig != nil {
-		envVars["CAMLI_APP_CONFIG_URL"] = apiHost + strings.TrimPrefix(appHandlerPrefix, "/") + "config.json"
+	if apiHost == "" {
+		if cfg.ServerBaseURL == "" {
+			return nil, fmt.Errorf(`app: could not initialize Handler for %q: neither "APIHost" or "ServerBaseURL" defined`, name)
+		}
+		apiHost = cfg.ServerBaseURL + "/"
 	}
 
 	proxyURL, err := url.Parse(backendURL)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse backendURL %q: %v", backendURL, err)
 	}
+
+	username, password := auth.RandToken(20), auth.RandToken(20)
+	camliAuth := username + ":" + password
+	basicAuth := auth.NewBasicAuth(username, password)
+	envVars := map[string]string{
+		"CAMLI_API_HOST":   apiHost,
+		"CAMLI_AUTH":       camliAuth,
+		"CAMLI_APP_LISTEN": listen,
+	}
+	if cfg.AppConfig != nil {
+		envVars["CAMLI_APP_CONFIG_URL"] = apiHost + strings.TrimPrefix(cfg.Prefix, "/") + "config.json"
+	}
+
 	return &Handler{
 		name:       name,
 		envVars:    envVars,
 		auth:       basicAuth,
-		appConfig:  appConfig,
+		appConfig:  cfg.AppConfig,
+		prefix:     strings.TrimSuffix(cfg.Prefix, "/"),
 		proxy:      httputil.NewSingleHostReverseProxy(proxyURL),
 		backendURL: backendURL,
 	}, nil

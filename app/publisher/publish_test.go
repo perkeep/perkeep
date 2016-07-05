@@ -29,6 +29,8 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/search"
+
+	"golang.org/x/net/context"
 )
 
 type publishURLTest struct {
@@ -120,12 +122,16 @@ type fakeClient struct {
 	sh                  *search.Handler
 }
 
+func (fc *fakeClient) Query(req *search.SearchQuery) (*search.SearchResult, error) {
+	return fc.sh.Query(req)
+}
+
 func (fc *fakeClient) Search(req *search.SearchQuery) (*search.SearchResult, error) {
 	return fc.sh.Query(req)
 }
 
-func (fc *fakeClient) Describe(req *search.DescribeRequest) (*search.DescribeResponse, error) {
-	return fc.sh.Describe(req)
+func (fc *fakeClient) Describe(ctx context.Context, req *search.DescribeRequest) (*search.DescribeResponse, error) {
+	return fc.sh.Describe(ctx, req)
 }
 
 func (fc *fakeClient) GetJSON(url string, data interface{}) error {
@@ -137,6 +143,8 @@ func (fc *fakeClient) Post(url string, bodyType string, body io.Reader) error {
 	// no need to implement
 	return nil
 }
+
+// TODO(mpl): fix test. it was actually already broken on master. will fix before landing.
 
 func TestPublishURLs(t *testing.T) {
 	rootName := "foo"
@@ -165,8 +173,10 @@ func TestPublishURLs(t *testing.T) {
 		req, _ := http.NewRequest("GET", "http://foo.com"+tt.path, nil)
 
 		pfxh := &httputil.PrefixHandler{
-			Prefix: "/pics/",
+			Prefix: "/",
 			Handler: http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+				// Because the app handler strips the prefix before passing it on to the app
+				req.URL.Path = strings.TrimPrefix(req.URL.Path, "/pics/")
 				pr, err := ph.NewRequest(rw, req)
 				if err != nil {
 					t.Fatalf("test #%d, NewRequest: %v", ti, err)

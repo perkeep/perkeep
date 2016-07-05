@@ -22,133 +22,113 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"regexp"
 	"testing"
 )
 
-func TestRandPortBackendURL(t *testing.T) {
+func TestRandListen(t *testing.T) {
 	tests := []struct {
-		apiHost          string
-		appHandlerPrefix string
-		wantBackendURL   string
+		randPort       int
+		listen         string
+		wantListenAddr string
 	}{
 		{
-			apiHost:          "http://foo.com/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   "http://foo.com:[0-9]+/pics/",
+			listen:         ":3179",
+			randPort:       58094,
+			wantListenAddr: ":58094",
 		},
 
 		{
-			apiHost:          "https://foo.com/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   "https://foo.com:[0-9]+/pics/",
-		},
-
-		{
-			apiHost:          "http://foo.com:8080/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   "http://foo.com:[0-9]+/pics/",
-		},
-
-		{
-			apiHost:          "https://foo.com:8080/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   "https://foo.com:[0-9]+/pics/",
-		},
-
-		{
-			apiHost:          "http://foo.com:/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   "http://foo.com:[0-9]+/pics/",
-		},
-
-		{
-			apiHost:          "https://foo.com:/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   "https://foo.com:[0-9]+/pics/",
-		},
-
-		{
-			apiHost:          "http://foo.com/bar/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   "http://foo.com:[0-9]+/pics/",
-		},
-
-		{
-			apiHost:          "https://foo.com/bar/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   "https://foo.com:[0-9]+/pics/",
-		},
-
-		{
-			apiHost:          "http://foo.com:8080/bar/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   "http://foo.com:[0-9]+/pics/",
-		},
-
-		{
-			apiHost:          "https://foo.com:8080/bar/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   "https://foo.com:[0-9]+/pics/",
-		},
-
-		{
-			apiHost:          "http://foo.com:/bar/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   "http://foo.com:[0-9]+/pics/",
-		},
-
-		{
-			apiHost:          "https://foo.com:/bar/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   "https://foo.com:[0-9]+/pics/",
-		},
-
-		{
-			apiHost:          "http://[::1]:80/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   `http://\[::1\]:[0-9]+/pics/`,
-		},
-
-		{
-			apiHost:          "https://[::1]:80/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   `https://\[::1\]:[0-9]+/pics/`,
-		},
-
-		{
-			apiHost:          "http://[::1]/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   `http://\[::1\]:[0-9]+/pics/`,
-		},
-
-		{
-			apiHost:          "https://[::1]/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   `https://\[::1\]:[0-9]+/pics/`,
-		},
-
-		{
-			apiHost:          "http://[::1]:/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   `http://\[::1\]:[0-9]+/pics/`,
-		},
-
-		{
-			apiHost:          "https://[::1]:/",
-			appHandlerPrefix: "/pics/",
-			wantBackendURL:   `https://\[::1\]:[0-9]+/pics/`,
+			listen:         "foo.com:3179",
+			randPort:       58094,
+			wantListenAddr: "foo.com:58094",
 		},
 	}
 	for _, v := range tests {
-		got, err := randPortBackendURL(v.apiHost, v.appHandlerPrefix)
+		listenAddr, err := randListenFn(v.listen, func() (int, error) { return v.randPort, nil })
 		if err != nil {
 			t.Error(err)
 			continue
 		}
-		reg := regexp.MustCompile(v.wantBackendURL)
-		if !reg.MatchString(got) {
-			t.Errorf("got: %v for %v, want: %v", got, v.apiHost, v.wantBackendURL)
+		if listenAddr != v.wantListenAddr {
+			t.Errorf("for listen addr, got: %v, want: %v", listenAddr, v.wantListenAddr)
+		}
+	}
+}
+
+func TestBaseURL(t *testing.T) {
+	tests := []struct {
+		listen         string
+		baseURL        string
+		wantBackendURL string
+	}{
+		{
+			listen:         ":3179",
+			baseURL:        "http://foo.com",
+			wantBackendURL: "http://foo.com:3179/",
+		},
+
+		{
+			listen:         "localhost",
+			baseURL:        "http://foo.com",
+			wantBackendURL: "http://foo.com:80/",
+		},
+
+		{
+			listen:         "localhost",
+			baseURL:        "https://foo.com",
+			wantBackendURL: "https://foo.com:443/",
+		},
+
+		{
+			listen:         "localhost:3179",
+			baseURL:        "http://foo.com",
+			wantBackendURL: "http://foo.com:3179/",
+		},
+
+		{
+			listen:         "localhost:3179",
+			baseURL:        "https://foo.com",
+			wantBackendURL: "https://foo.com:3179/",
+		},
+
+		{
+			listen:         ":3179",
+			baseURL:        "http://foo.com:123",
+			wantBackendURL: "http://foo.com:3179/",
+		},
+
+		{
+			listen:         "localhost",
+			baseURL:        "http://foo.com:123",
+			wantBackendURL: "http://foo.com:80/",
+		},
+
+		{
+			listen:         "localhost",
+			baseURL:        "https://foo.com:123",
+			wantBackendURL: "https://foo.com:443/",
+		},
+
+		{
+			listen:         "localhost:3179",
+			baseURL:        "http://foo.com:123",
+			wantBackendURL: "http://foo.com:3179/",
+		},
+
+		{
+			listen:         "localhost:3179",
+			baseURL:        "https://foo.com:123",
+			wantBackendURL: "https://foo.com:3179/",
+		},
+	}
+	for _, v := range tests {
+		backendURL, err := baseURL(v.baseURL, v.listen)
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		if v.wantBackendURL != backendURL {
+			t.Errorf("For backendURL, got: %v, want %v", v.wantBackendURL, backendURL)
 		}
 	}
 }

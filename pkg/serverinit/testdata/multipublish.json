@@ -15,7 +15,7 @@
 		},
 		"/music/": {
 			"camliRoot": "musicRoot",
-			"baseURL": "http://localhost:3178/",
+			"backendURL": "http://localhost:3178/",
 			"cacheRoot": "/tmp/blobs/cache",
 			"goTemplate": "music.html"
 		}
