@@ -16,8 +16,10 @@ checked out:
 
     $ go run make.go
 
-Eventually we'll distribute binary releases, but for now you should
-build it yourself.
+Alternatively, we also distribute "monthly" releases, which we simply regularly
+build from the master branch of the repository:
+
+[Monthly Release: 2016-07-06](/doc/release/monthly)
 
 ## Getting started
 
