@@ -498,6 +498,7 @@ func (c *serverCmd) RunCommand(args []string) error {
 		if c.publish {
 			targets = append(targets, filepath.Join("app", "publisher"))
 		}
+		targets = append(targets, filepath.Join("app", "scanningcabinet"))
 		for _, name := range targets {
 			err := build(name)
 			if err != nil {

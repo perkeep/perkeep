@@ -90,6 +90,7 @@ type Config struct {
 	ReplicateTo []interface{} `json:"replicateTo,omitempty"` // NOOP for now.
 	// Publish maps a URL prefix path used as a root for published paths (a.k.a. a camliRoot path), to the configuration of the publish handler that serves all the published paths under this root.
 	Publish map[string]*Publish `json:"publish,omitempty"`
+	ScanCab *ScanCab            `json:"scancab,omitempty"` // Scanning cabinet app configuration.
 
 	// TODO(mpl): map of importers instead?
 	Flickr string `json:"flickr,omitempty"` // flicker importer.
@@ -100,7 +101,7 @@ type Config struct {
 // See https://camlistore.org/doc/app-environment
 type App struct {
 	// Listen is the address (of the form host|ip:port) on which the app
-	// will listen on. It defines CAMLI_APP_LISTEN.
+	// will listen. It defines CAMLI_APP_LISTEN.
 	// If empty, the default is the concatenation of the Camlistore server's
 	// Listen host part, and a random port.
 	Listen string `json:"listen,omitempty"`
@@ -153,6 +154,32 @@ type Publish struct {
 	// default is to use the resources embedded in the publisher binary, found
 	// in the publisher app source directory.
 	SourceRoot string `json:"sourceRoot,omitempty"`
+}
+
+// ScanCab holds the server configuration values specific to a scanning cabinet
+// app. Please note that the scanning cabinet app is still experimental and is
+// subject to change.
+type ScanCab struct {
+	// Program is the server app program to run as the scanning cabinet.
+	// Defaults to "scanningcabinet".
+	Program string `json:"program"`
+
+	// Prefix is the URL path prefix where the scanning cabinet app handler is mounted
+	// on Camlistore.
+	// It always ends with a trailing slash. Examples: "/scancab/", "/scanning/".
+	Prefix string `json:"prefix"`
+
+	// TODO(mpl): maybe later move Auth to type App. For now just in ScanCab as
+	// publisher does not support any auth. Should be trivial to add though.
+
+	// Auth is the authentication scheme and values to access the app.
+	// It defaults to the server config auth.
+	// Common uses are HTTP basic auth: "userpass:foo:bar", or no authentication:
+	// "none". See https://camlistore.org/pkg/auth for other schemes.
+	Auth string `json:"auth"`
+
+	// App is for the common apps and app handler configuration.
+	*App
 }
 
 // invertedBool is a bool that marshals to and from JSON with the opposite of its in-memory value.

@@ -31,6 +31,14 @@
 			}
 		},
 
+		"/scancab/": {
+			"handler": "app",
+			"enabled": true,
+			"handlerArgs": {
+				"program": "scanningcabinet"
+			}
+		},
+
 		"/pics/": {
 			"handler": "app",
 			"enabled": ["_env", "${CAMLI_PUBLISH_ENABLED}"],
