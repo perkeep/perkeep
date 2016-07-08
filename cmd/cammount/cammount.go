@@ -45,10 +45,11 @@ import (
 )
 
 var (
-	debug = flag.Bool("debug", false, "print debugging messages.")
-	xterm = flag.Bool("xterm", false, "Run an xterm in the mounted directory. Shut down when xterm ends.")
-	term  = flag.Bool("term", false, "Open a terminal window. Doesn't shut down when exited. Mostly for demos.")
-	open  = flag.Bool("open", false, "Open a GUI window")
+	debug    = flag.Bool("debug", false, "print debugging messages.")
+	xterm    = flag.Bool("xterm", false, "Run an xterm in the mounted directory. Shut down when xterm ends.")
+	term     = flag.Bool("term", false, "Open a terminal window. Doesn't shut down when exited. Mostly for demos.")
+	open     = flag.Bool("open", false, "Open a GUI window")
+	flagHelp = cmdmain.FlagHelp
 )
 
 func usage() {
@@ -68,6 +69,10 @@ func main() {
 	if *cmdmain.FlagLegal {
 		cmdmain.PrintLicenses()
 		return
+	}
+
+	if *cmdmain.FlagHelp {
+		usage()
 	}
 
 	narg := flag.NArg()
