@@ -70,6 +70,10 @@ func main() {
 		return
 	}
 
+	if *cmdmain.FlagHelp {
+		usage()
+	}
+
 	narg := flag.NArg()
 	if narg > 2 {
 		usage()
