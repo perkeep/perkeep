@@ -21,6 +21,7 @@ package publish // import "camlistore.org/pkg/publish"
 import (
 	"html/template"
 
+	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/search"
 )
 
@@ -40,9 +41,17 @@ type PageHeader struct {
 	CSSFiles      []string    // Available CSS files.
 	JSDeps        []string    // Dependencies (for e.g closure) that can/should be included as javascript files.
 	CamliClosure  template.JS // Closure namespace defined in the provided js. e.g camlistore.GalleryPage from pics.js
-	Subject       string      // Subject of this page (i.e the object which is described and published).
-	Meta          string      // All the metadata describing the subject of this page.
+	Subject       blob.Ref    // Subject of this page (i.e the object which is described and published).
 	ViewerIsOwner bool        // Whether the viewer of the page is also the owner of the displayed subject. (localhost check for now.)
+	// SubjectBasePath is the URL path up to the digest prefix of the
+	// subject. e.g. "/pics/foo/-/h341b133369" or "/pics/foo/-" if the subject
+	// is the published root itself.
+	SubjectBasePath string
+	// PathPrefix is the publisher app handler prefix on Camlistore, e.g.
+	// "/pics/", or "/" if the request was not proxied through Camlistore.
+	PathPrefix string
+	Host       string
+	Scheme     string
 }
 
 // PageFile contains the file related data available to the subject template,

@@ -7,17 +7,18 @@
 		<link rel='stylesheet' type='text/css' href='{{$css}}'>
 	{{end}}
 	<script>
+	var subjectBasePath =  {{$header.SubjectBasePath}};
+	var subject = {{$header.Subject}};
+	var host = {{$header.Host}};
+	var scheme = {{$header.Scheme}};
 	var camliViewIsOwner = {{$header.ViewerIsOwner}};
-	var camliPagePermanode = {{$header.Subject}};
-	var camliPageMeta =
-	{{$header.Meta}};
 	</script>
 	{{range $jsFile := $header.JSDeps}}
 	<script src="{{$jsFile}}"></script>
 	{{end}}
 	</head>
 	<body>
-	<h1>{{$header.Title}}</h1>
+	<h1 id='title'>{{$header.Title}}</h1>
 	{{if $file := call .File}}
 		<div id="fileitemcontainer"></div>
 		<script>RenderFile();</script>
@@ -36,21 +37,8 @@
 	{{else}}
 	{{if $membersData := call .Members}}
 		<div><a href='{{$membersData.SubjectPath}}/=z/{{html $membersData.ZipName | urlquery}}'>{{html $membersData.ZipName}}</a></div>
-<!-- TODO(mpl): something's messed up with the hidden edit title position, it should appear under the image. -->
-		<ul id='members'>
-		{{range $member := $membersData.Members}}
-			<li id='{{call $membersData.DomID $member}}'>
-			<a href='{{call $membersData.Path $member}}'>
-			{{$fileInfo := call $membersData.FileInfo $member}}
-			<img src='{{if $fileInfo}}{{$fileInfo.FileThumbnailURL}}{{end}}'>
-			<span>{{call $membersData.Title $member}}</span></a>
-			{{call $membersData.Description $member}}
-			<div id='{{if $fileInfo}}{{$fileInfo.FileDomID}}{{end}}' class='camlifile'>
-			<a href='{{if $fileInfo}}{{$fileInfo.FilePath}}{{end}}'>file</a>
-			</div>
-			</li>
-		{{end}}
-		</ul>
+		<div id="blobitemcontainer"><ul id="members"></ul></div>
+		<script>RenderMembers();</script>
 	{{end}}
 	{{end}}
 {{end}}

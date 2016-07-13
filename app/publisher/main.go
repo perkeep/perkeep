@@ -20,7 +20,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"html"
@@ -422,6 +421,10 @@ func (ph *publishHandler) describe(br blob.Ref) (*search.DescribedBlob, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Could not describe %v: %v", br, err)
 	}
+	// TODO(mpl): check why Describe is not giving us an error when br is invalid.
+	if res == nil || res.Meta == nil || res.Meta[br.String()] == nil {
+		return nil, fmt.Errorf("Could not describe %v", br)
+	}
 	return res.Meta[br.String()], nil
 }
 
@@ -755,15 +758,19 @@ func (pr *publishRequest) fileSchemaRefFromBlob(des *search.DescribedBlob) (file
 // subjectHeader returns the PageHeader corresponding to the described subject.
 func (pr *publishRequest) subjectHeader(described map[string]*search.DescribedBlob) *publish.PageHeader {
 	subdes := described[pr.subject.String()]
+	scheme := "http"
+	if pr.req.TLS != nil {
+		scheme = "https"
+	}
 	header := &publish.PageHeader{
-		Title:    html.EscapeString(getTitle(subdes.BlobRef, described)),
-		CSSFiles: pr.cssFiles(),
-		JSDeps:   pr.jsDeps(),
-		Meta: func() string {
-			jsonRes, _ := json.MarshalIndent(described, "", "  ")
-			return string(jsonRes)
-		}(),
-		Subject: pr.subject.String(),
+		Title:           html.EscapeString(getTitle(subdes.BlobRef, described)),
+		CSSFiles:        pr.cssFiles(),
+		JSDeps:          pr.jsDeps(),
+		Subject:         pr.subject,
+		Host:            pr.req.Host,
+		Scheme:          scheme,
+		SubjectBasePath: pr.subjectBasePath,
+		PathPrefix:      pr.base,
 	}
 	return header
 }

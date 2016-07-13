@@ -19,7 +19,6 @@ package schema
 import (
 	"bufio"
 	"os"
-	"os/user"
 	"strconv"
 	"strings"
 	"sync"
@@ -95,17 +94,6 @@ func cachedId(name string, m map[string]intBool, fn func(string) (int, bool)) (i
 	return id, ok
 }
 
-func lookupUserToId(name string) (uid int, ok bool) {
-	u, err := user.Lookup(name)
-	if err == nil {
-		uid, err := strconv.Atoi(u.Uid)
-		if err == nil {
-			return uid, true
-		}
-	}
-	return
-}
-
 func lookupGroupToId(group string) (gid int, ok bool) {
 	if !parsedGroups {
 		lookupGroupId(0) // force them to be loaded
@@ -122,23 +110,6 @@ func lookupGroupId(id int) string {
 	parsedGroups = true
 	populateMap(gidName, groupGid, "/etc/group")
 	return gidName[id]
-}
-
-// lookupMu is held
-func lookupUserid(id int) string {
-	u, err := user.LookupId(strconv.Itoa(id))
-	if err == nil {
-		return u.Username
-	}
-	if _, ok := err.(user.UnknownUserIdError); ok {
-		return ""
-	}
-	if parsedPasswd {
-		return ""
-	}
-	parsedPasswd = true
-	populateMap(uidName, nil, "/etc/passwd")
-	return uidName[id]
 }
 
 // Lame fallback parsing /etc/password for non-cgo systems where os/user doesn't work,
