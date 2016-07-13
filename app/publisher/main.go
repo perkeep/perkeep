@@ -34,6 +34,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -140,7 +141,7 @@ func newPublishHandler(conf *config) *publishHandler {
 	if maxResizeBytes == 0 {
 		maxResizeBytes = constants.DefaultMaxResizeMem
 	}
-	var CSSFiles []string
+	var CSSFiles, JSDeps []string
 	if conf.SourceRoot != "" {
 		appRoot := filepath.Join(conf.SourceRoot, "app", "publisher")
 		Files = &fileembed.Files{
@@ -160,8 +161,17 @@ func newPublishHandler(conf *config) *publishHandler {
 		for _, v := range names {
 			if strings.HasSuffix(v, ".css") {
 				CSSFiles = append(CSSFiles, v)
+				continue
+			}
+			// TODO(mpl): document or fix (use a map?) the ordering
+			// problem: i.e. jquery.js must be sourced before
+			// publisher.js. For now, just cheat by sorting the
+			// slice.
+			if strings.HasSuffix(v, ".js") {
+				JSDeps = append(JSDeps, v)
 			}
 		}
+		sort.Strings(JSDeps)
 	} else {
 		Files.Listable = true
 		dir, err := Files.Open("/")
@@ -177,8 +187,13 @@ func newPublishHandler(conf *config) *publishHandler {
 			name := v.Name()
 			if strings.HasSuffix(name, ".css") {
 				CSSFiles = append(CSSFiles, name)
+				continue
+			}
+			if strings.HasSuffix(name, ".js") {
+				JSDeps = append(JSDeps, name)
 			}
 		}
+		sort.Strings(JSDeps)
 	}
 	// TODO(mpl): add all htmls found in Files to the template if none specified?
 	if conf.GoTemplate == "" {
@@ -217,6 +232,7 @@ func newPublishHandler(conf *config) *publishHandler {
 		staticFiles:    Files,
 		goTemplate:     goTemplate,
 		CSSFiles:       CSSFiles,
+		JSDeps:         JSDeps,
 		describedCache: make(map[string]*search.DescribedBlob),
 		cache:          cache,
 		thumbMeta:      thumbMeta,
@@ -256,6 +272,7 @@ type publishHandler struct {
 	staticFiles *fileembed.Files   // For static resources.
 	goTemplate  *template.Template // For publishing/rendering.
 	CSSFiles    []string
+	JSDeps      []string
 	resizeSem   *syncutil.Sem // Limit peak RAM used by concurrent image thumbnail calls.
 
 	describedCacheMu sync.RWMutex
@@ -741,6 +758,7 @@ func (pr *publishRequest) subjectHeader(described map[string]*search.DescribedBl
 	header := &publish.PageHeader{
 		Title:    html.EscapeString(getTitle(subdes.BlobRef, described)),
 		CSSFiles: pr.cssFiles(),
+		JSDeps:   pr.jsDeps(),
 		Meta: func() string {
 			jsonRes, _ := json.MarshalIndent(described, "", "  ")
 			return string(jsonRes)
@@ -753,6 +771,14 @@ func (pr *publishRequest) subjectHeader(described map[string]*search.DescribedBl
 func (pr *publishRequest) cssFiles() []string {
 	files := []string{}
 	for _, filename := range pr.ph.CSSFiles {
+		files = append(files, pr.staticPath(filename))
+	}
+	return files
+}
+
+func (pr *publishRequest) jsDeps() []string {
+	files := []string{}
+	for _, filename := range pr.ph.JSDeps {
 		files = append(files, pr.staticPath(filename))
 	}
 	return files

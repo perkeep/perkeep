@@ -12,10 +12,15 @@
 	var camliPageMeta =
 	{{$header.Meta}};
 	</script>
+	{{range $jsFile := $header.JSDeps}}
+	<script src="{{$jsFile}}"></script>
+	{{end}}
 	</head>
 	<body>
 	<h1>{{$header.Title}}</h1>
 	{{if $file := call .File}}
+		<div id="fileitemcontainer"></div>
+		<script>RenderFile();</script>
 		<div>File: {{$file.FileName}}, {{$file.Size}} bytes, type {{$file.MIMEType}}</div>
 		{{if $file.IsImage}}
 			<a href='{{$file.DownloadURL}}'><img src='{{$file.ThumbnailURL}}'></a>
