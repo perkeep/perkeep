@@ -79,10 +79,10 @@ var (
 	// Our temporary source tree root and build dir, i.e: buildGoPath + "src/camlistore.org"
 	buildSrcDir string
 	// files mirrored from camRoot to buildSrcDir
-	rxMirrored = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(?:blobs|camli|css|eot|err|gif|go|s|pb\.go|gpg|html|ico|jpg|js|json|xml|min\.css|min\.js|mp3|otf|png|svg|pdf|psd|tiff|ttf|woff|xcf|tar\.gz|gz|tar\.xz|tbz2|zip))$`)
+	rxMirrored = regexp.MustCompile(`^([a-zA-Z0-9\-\_]+\.(?:blobs|camli|css|eot|err|gif|go|s|pb\.go|gpg|html|ico|jpg|js|json|xml|min\.css|min\.js|mp3|otf|png|svg|pdf|psd|tiff|ttf|woff|xcf|tar\.gz|gz|tar\.xz|tbz2|zip|sh))$`)
 	// base file exceptions for the above matching, so as not to complicate the regexp any further
 	mirrorIgnored = map[string]bool{
-		"gopherjs.js": true, // because this file is (re)generated after the mirroring
+		"publisher.js": true, // because this file is (re)generated after the mirroring
 	}
 )
 
@@ -374,10 +374,44 @@ func moveGopherjs() error {
 	return os.RemoveAll(src)
 }
 
+// genSearchTypes duplicates some of the camlistore.org/pkg/search types into
+// camlistore.org/app/publisher/js/zsearch.go , because it's too costly (in output
+// file size) for now to import the search pkg into gopherjs.
+func genSearchTypes() error {
+	sourceFile := filepath.Join(buildSrcDir, filepath.FromSlash("pkg/search/describe.go"))
+	outputFile := filepath.Join(buildSrcDir, filepath.FromSlash("app/publisher/js/zsearch.go"))
+	fi1, err := os.Stat(sourceFile)
+	if err != nil {
+		return err
+	}
+	fi2, err := os.Stat(outputFile)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err == nil && fi2.ModTime().After(fi1.ModTime()) {
+		wantDestFile[outputFile] = true
+		return nil
+	}
+	args := []string{"generate", "camlistore.org/app/publisher/js"}
+	cmd := exec.Command("go", args...)
+	cmd.Env = append(cleanGoEnv(),
+		"GOPATH="+buildGoPath,
+	)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("go generate for publisher js error: %v, %v", err, string(out))
+	}
+	wantDestFile[outputFile] = true
+	log.Printf("generated %v", outputFile)
+	return nil
+}
+
 // genPublisherJS runs the gopherjs command, using the gopherjsBin binary, on
 // camlistore.org/app/publisher/js, to generate the javascript code at
 // app/publisher/publisher.js
 func genPublisherJS(gopherjsBin string) error {
+	if err := genSearchTypes(); err != nil {
+		return err
+	}
 	// Run gopherjs on a temporary output file, so we don't change the
 	// modtime of the existing gopherjs.js if there was no reason to.
 	output := filepath.Join(buildSrcDir, filepath.FromSlash(publisherJS))
