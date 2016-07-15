@@ -58,6 +58,10 @@ func main() {
 	client.AddFlags()
 	flag.Parse()
 
+	if *cmdmain.FlagHelp {
+		flag.PrintDefaults()
+	}
+
 	if *flagVersion {
 		fmt.Fprintf(os.Stderr, "camget version: %s\n", buildinfo.Version())
 		return
