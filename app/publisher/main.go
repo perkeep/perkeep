@@ -464,6 +464,7 @@ type publishRequest struct {
 	subject              blob.Ref
 	inSubjectChain       map[string]bool // blobref -> true
 	subjectBasePath      string
+	publishedRoot        blob.Ref // on camliRoot, camliPath:somePath = publishedRoot
 }
 
 func (ph *publishHandler) NewRequest(w http.ResponseWriter, r *http.Request) (*publishRequest, error) {
@@ -557,6 +558,7 @@ func (pr *publishRequest) findSubject() error {
 	if err != nil {
 		return err
 	}
+	pr.publishedRoot = subject
 	if strings.HasPrefix(pr.subres, "=z/") {
 		// this happens when we are at the root of the published path,
 		// e.g /base/suffix/-/=z/foo.zip
@@ -771,6 +773,7 @@ func (pr *publishRequest) subjectHeader(described map[string]*search.DescribedBl
 		Scheme:          scheme,
 		SubjectBasePath: pr.subjectBasePath,
 		PathPrefix:      pr.base,
+		PublishedRoot:   pr.publishedRoot,
 	}
 	return header
 }
