@@ -9,6 +9,8 @@
 	<script>
 	var subjectBasePath =  {{$header.SubjectBasePath}};
 	var subject = {{$header.Subject}};
+	var publishedRoot = {{$header.PublishedRoot}};
+	var pathPrefix = {{$header.PathPrefix}};
 	var host = {{$header.Host}};
 	var scheme = {{$header.Scheme}};
 	var camliViewIsOwner = {{$header.ViewerIsOwner}};
@@ -22,18 +24,6 @@
 	{{if $file := call .File}}
 		<div id="fileitemcontainer"></div>
 		<script>RenderFile();</script>
-		<div>File: {{$file.FileName}}, {{$file.Size}} bytes, type {{$file.MIMEType}}</div>
-		{{if $file.IsImage}}
-			<a href='{{$file.DownloadURL}}'><img src='{{$file.ThumbnailURL}}'></a>
-		{{end}}
-		<div id='{{$file.DomID}}' class='camlifile'>[<a href='{{$file.DownloadURL}}'>download</a>]</div>
-		{{if $nav := call $file.Nav}}
-			<div class='camlifile'>
-			{{if $prev := $nav.PrevPath}}[<a href='{{$prev}}'>prev</a>] {{end}}
-			{{if $up := $nav.ParentPath}}[<a href='{{$up}}'>up</a>] {{end}}
-			{{if $next := $nav.NextPath}}[<a href='{{$next}}'>next</a>] {{end}}
-			</div>
-		{{end}}
 	{{else}}
 	{{if $membersData := call .Members}}
 		<div><a href='{{$membersData.SubjectPath}}/=z/{{html $membersData.ZipName | urlquery}}'>{{html $membersData.ZipName}}</a></div>

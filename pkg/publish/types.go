@@ -43,6 +43,7 @@ type PageHeader struct {
 	CamliClosure  template.JS // Closure namespace defined in the provided js. e.g camlistore.GalleryPage from pics.js
 	Subject       blob.Ref    // Subject of this page (i.e the object which is described and published).
 	ViewerIsOwner bool        // Whether the viewer of the page is also the owner of the displayed subject. (localhost check for now.)
+	PublishedRoot blob.Ref    // Root permanode for this publisher. On camliRoot, camliPath:somePath = publishedRoot
 	// SubjectBasePath is the URL path up to the digest prefix of the
 	// subject. e.g. "/pics/foo/-/h341b133369" or "/pics/foo/-" if the subject
 	// is the published root itself.
