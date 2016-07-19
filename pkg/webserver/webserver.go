@@ -176,6 +176,7 @@ func (s *Server) Listen(addr string) error {
 			Rand:       rand.Reader,
 			Time:       time.Now,
 			NextProtos: []string{http2.NextProtoTLS, "http/1.1"},
+			MinVersion: tls.VersionTLS12,
 		}
 		config.Certificates = make([]tls.Certificate, 1)
 
