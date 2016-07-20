@@ -352,6 +352,9 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		}
 		hh = ap
 		auth.AddMode(ap.AuthMode())
+		// TODO(mpl): this check is weak, as the user could very well
+		// use another binary name for the publisher app. We should
+		// introduce/use another identifier.
 		if ap.ProgramName() == "publisher" {
 			if err := hl.initPublisherRootNode(ap); err != nil {
 				exitFailure("Error looking/setting up root node for publisher on %v: %v", h.prefix, err)

@@ -140,6 +140,10 @@ func newFileItemContainer(thumbHeight int) (*fileItemContainer, error) {
 	if err != nil {
 		return nil, err
 	}
+	prefix, err := pathPrefix()
+	if err != nil {
+		return nil, err
+	}
 	var parent blob.Ref
 	basePath = path.Dir(basePath)
 	if strings.HasSuffix(basePath, "/-") {
@@ -147,14 +151,10 @@ func newFileItemContainer(thumbHeight int) (*fileItemContainer, error) {
 	} else {
 		_, parentPrefixPath := path.Split(basePath)
 		parentPrefix := "sha1-" + strings.TrimPrefix(parentPrefixPath, "h")
-		parent, err = getFullRef(scheme, host, parentPrefix)
+		parent, err = getFullRef(scheme, host, prefix, parentPrefix)
 		if err != nil {
 			return nil, err
 		}
-	}
-	prefix, err := pathPrefix()
-	if err != nil {
-		return nil, err
 	}
 
 	return &fileItemContainer{
@@ -231,10 +231,10 @@ func (fic *fileItemContainer) populate() error {
 	return nil
 }
 
-func getFullRef(scheme, host, digestPrefix string) (blob.Ref, error) {
+func getFullRef(scheme, host, pathPrefix, digestPrefix string) (blob.Ref, error) {
 	var br blob.Ref
 	query := fmt.Sprintf(`{"constraint":{"blobRefPrefix": "%s"}}`, digestPrefix)
-	resp, err := http.Post(fmt.Sprintf("%s://%s/my-search/camli/search/query", scheme, host), "application/json", strings.NewReader(query))
+	resp, err := http.Post(fmt.Sprintf("%s://%s%ssearch", scheme, host, pathPrefix), "application/json", strings.NewReader(query))
 	if err != nil {
 		return br, err
 	}
@@ -260,8 +260,7 @@ func (fic fileItemContainer) getPeers(around blob.Ref, limit int) (*SearchResult
 	// TODO(mpl): use types from search pkg instead of raw JSON if we ever import the search pkg.
 	query := fmt.Sprintf(`{"sort":"-created","constraint":{"permanode":{"relation":{"relation": "parent", "any": {"blobRefPrefix": "%s"}}}},"describe":{"depth":1,"rules":[{"attrs":["camliContent","camliContentImage"]}]},"limit":%d, "around": "%s"}`, fic.parent, limit, around)
 
-	// TODO(mpl): do a discovery to get the search handler endpoint.
-	resp, err := http.Post(fmt.Sprintf("%s://%s/my-search/camli/search/query", fic.scheme, fic.host), "application/json", strings.NewReader(query))
+	resp, err := http.Post(fmt.Sprintf("%s://%s%ssearch", fic.scheme, fic.host, fic.pathPrefix), "application/json", strings.NewReader(query))
 	if err != nil {
 		return nil, err
 	}

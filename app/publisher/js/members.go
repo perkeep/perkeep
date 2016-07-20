@@ -81,6 +81,13 @@ func RenderMembers() {
 		// recompute and redraw on each scroll event
 		jQuery(js.Global).Scroll(func(e jquery.Event) {
 			go func() {
+				// isRendering is not atomic with render, so it
+				// could happen that even if isRendering returns
+				// false, it becomes true before render is called.
+				// But that's ok because the first thing render
+				// does is locking renderingMu anyway. IsRendering
+				// is basically just an optimization to return
+				// earlier.
 				if theBic.isRendering() {
 					return
 				}
@@ -98,7 +105,6 @@ type blobItemContainer struct {
 	// However, we instead rely on locking this one variable, which allows us
 	// to terminate early all rendering attempts if there's already one going
 	// on, instead of letting them pile up.
-	// TODO(mpl): this might be too clever (==wrong). Recheck for a next CL.
 	renderingMu sync.RWMutex
 	rendering   bool // are we already rendering right now?
 
@@ -182,11 +188,9 @@ func (bic *blobItemContainer) populate() error {
 // Try and do better later? Maybe do like getPeers + updateItems?
 
 func (bic blobItemContainer) getMembers() (items []*blobItem, cont string, err error) {
-	// TODO(mpl): use types from search pkg instead of raw JSON if we ever import the search pkg.
-	query := fmt.Sprintf(`{"sort":"-created","constraint":{"permanode":{"relation":{"relation": "parent", "any": {"blobRefPrefix": "%s"}}}},"describe":{"depth":1,"rules":[{"attrs":["camliContent","camliContentImage"]},{"ifCamliNodeType":"foursquare.com:checkin","attrs":["foursquareVenuePermanode"]},{"ifCamliNodeType":"foursquare.com:venue","attrs":["camliPath:photos"],"rules":[{"attrs":["camliPath:*"]}]}]},"limit":%d,"continue":"%s"}`, bic.pn, getMembersLimit, bic.continueToken)
+	query := fmt.Sprintf(`{"sort":"-created","constraint":{"permanode":{"relation":{"relation": "parent", "any": {"blobRefPrefix": "%s"}}}},"describe":{"depth":1,"rules":[{"attrs":["camliContent","camliContentImage"]}]},"limit":%d,"continue":"%s"}`, bic.pn, getMembersLimit, bic.continueToken)
 
-	// TODO(mpl): do a discovery to get the search handler endpoint.
-	resp, err := http.Post(fmt.Sprintf("%s://%s/my-search/camli/search/query", bic.scheme, bic.host), "application/json", strings.NewReader(query))
+	resp, err := http.Post(fmt.Sprintf("%s://%s%ssearch", bic.scheme, bic.host, bic.pathPrefix), "application/json", strings.NewReader(query))
 	if err != nil {
 		return nil, "", err
 	}
@@ -253,10 +257,6 @@ func (bic blobItemContainer) isRendering() bool {
 
 func (bic *blobItemContainer) render() error {
 	bic.renderingMu.Lock()
-	if bic.rendering {
-		bic.renderingMu.Unlock()
-		return nil
-	}
 	bic.rendering = true
 	bic.renderingMu.Unlock()
 	defer func() {

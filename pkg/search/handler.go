@@ -773,7 +773,7 @@ func (sh *Handler) serveQuery(rw http.ResponseWriter, req *http.Request) {
 	defer httputil.RecoverJSON(rw, req)
 
 	var sq SearchQuery
-	if err := sq.fromHTTP(req); err != nil {
+	if err := sq.FromHTTP(req); err != nil {
 		httputil.ServeJSONError(rw, err)
 		return
 	}

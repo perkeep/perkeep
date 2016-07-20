@@ -31,50 +31,165 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"camlistore.org/pkg/auth"
+	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/blobserver"
 	camhttputil "camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/netutil"
+	"camlistore.org/pkg/search"
 
 	"go4.org/jsonconfig"
 )
 
 // Handler acts as a reverse proxy for a server application started by
 // Camlistore. It can also serve some extra JSON configuration to the app.
+// In addition, the handler can be used as a limited search handler proxy.
 type Handler struct {
 	name    string            // Name of the app's program.
 	envVars map[string]string // Variables set in the app's process environment. See doc/app-environment.txt.
 
-	auth      auth.AuthMode  // Used for basic HTTP authenticating against the app requests.
-	appConfig jsonconfig.Obj // Additional parameters the app can request, or nil.
+	auth      auth.AuthMode   // Used for basic HTTP authenticating against the app requests.
+	appConfig jsonconfig.Obj  // Additional parameters the app can request, or nil.
+	hasSearch bool            // Determines whether sh should be setup during InitHandler.
+	sh        *search.Handler // or nil, if !hasSearch.
+
+	masterQueryMu sync.RWMutex // guards two following fields
+	// masterQuery is the search query that defines domainBlobs. If nil, no
+	// search query is accepted by the search handler.
+	masterQuery *search.SearchQuery
+	// domainBlobs is the set of blobs allowed for search queries. If a
+	// search query response includes at least one blob that is not in
+	// domainBlobs, the query is rejected.
+	domainBlobs map[blob.Ref]bool
 
 	// Prefix is the URL path prefix where the app handler is mounted on
 	// Camlistore, stripped of its trailing slash. The handler trims this
 	// prefix from incoming requests before proxying them to the app. Examples:
 	// "/pics", "/blog".
-	prefix     string
-	proxy      *httputil.ReverseProxy // For redirecting requests to the app.
-	backendURL string                 // URL that we proxy to (i.e. base URL of the app).
+	prefix             string
+	proxy              *httputil.ReverseProxy // For redirecting requests to the app.
+	backendURL         string                 // URL that we proxy to (i.e. base URL of the app).
+	configURLPath      string                 // URL path for serving appConfig
+	masterqueryURLPath string                 // URL path for setting the master query
 
 	process *os.Process // The app's Pid. To send it signals on restart, etc.
 }
 
-func (a *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if camhttputil.PathSuffix(req) == "config.json" {
-		if a.auth.AllowedAccess(req)&auth.OpGet == auth.OpGet {
-			camhttputil.ReturnJSON(rw, a.appConfig)
+func (a *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == a.masterqueryURLPath {
+		a.handleMasterQuery(w, r)
+		return
+	}
+	if a.configURLPath != "" && r.URL.Path == a.configURLPath {
+		if a.auth.AllowedAccess(r)&auth.OpGet == auth.OpGet {
+			camhttputil.ReturnJSON(w, a.appConfig)
 		} else {
-			auth.SendUnauthorized(rw, req)
+			auth.SendUnauthorized(w, r)
 		}
 		return
 	}
-	if a.proxy == nil {
-		http.Error(rw, "no proxy for the app", 500)
+	trimmedPath := strings.TrimPrefix(r.URL.Path, a.prefix)
+	if strings.HasPrefix(trimmedPath, "/search") {
+		a.handleSearch(w, r)
 		return
 	}
-	req.URL.Path = strings.TrimPrefix(req.URL.Path, a.prefix)
-	a.proxy.ServeHTTP(rw, req)
+
+	if a.proxy == nil {
+		http.Error(w, "no proxy for the app", 500)
+		return
+	}
+	// TODO(mpl): the proxy should not mutate the request, including that path. issue #833
+	r.URL.Path = trimmedPath
+	a.proxy.ServeHTTP(w, r)
+}
+
+// handleMasterQuery allows an app to register the master query that defines the
+// domain limiting all subsequent search queries.
+func (a *Handler) handleMasterQuery(w http.ResponseWriter, r *http.Request) {
+	if !(a.auth.AllowedAccess(r)&auth.OpAll == auth.OpAll) {
+		auth.SendUnauthorized(w, r)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "not a POST", http.StatusMethodNotAllowed)
+		return
+	}
+	if a.sh == nil {
+		http.Error(w, "app proxy has no search handler", 500)
+		return
+	}
+	sq := new(search.SearchQuery)
+	if err := sq.FromHTTP(r); err != nil {
+		http.Error(w, fmt.Sprintf("error reading master query: %v", err), 500)
+		return
+	}
+	sr, err := a.sh.Query(sq)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("error running master query: %v", err), 500)
+		return
+	}
+	a.masterQueryMu.Lock()
+	defer a.masterQueryMu.Unlock()
+	a.masterQuery = sq
+	a.domainBlobs = make(map[blob.Ref]bool, len(sr.Describe.Meta))
+	for _, v := range sr.Describe.Meta {
+		a.domainBlobs[v.BlobRef] = true
+	}
+	w.Write([]byte("OK"))
+}
+
+// handleSearch runs the requested search query against the search handler, and
+// if the results are within the domain allowed by the master query, forwards them
+// back to the client.
+func (a *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		camhttputil.BadRequestError(w, camhttputil.InvalidMethodError{}.Error())
+		return
+	}
+	if a.sh == nil {
+		http.Error(w, "app proxy has no search handler", 500)
+		return
+	}
+	a.masterQueryMu.RLock()
+	if a.masterQuery == nil {
+		http.Error(w, "search is not allowed", http.StatusForbidden)
+		a.masterQueryMu.RUnlock()
+		return
+	}
+	a.masterQueryMu.RUnlock()
+	var sq search.SearchQuery
+	if err := sq.FromHTTP(r); err != nil {
+		camhttputil.ServeJSONError(w, err)
+		return
+	}
+	sr, err := a.sh.Query(&sq)
+	if err != nil {
+		camhttputil.ServeJSONError(w, err)
+		return
+	}
+	// check this search is in the allowed domain
+	if !a.allowProxySearchResponse(sr) {
+		http.Error(w, "search scope is forbidden", http.StatusForbidden)
+		return
+	}
+	camhttputil.ReturnJSON(w, sr)
+}
+
+// allowProxySearchResponse checks whether the blobs in sr are within the domain
+// defined by the masterQuery, and hence if the client is allowed to get that
+// response.
+func (a *Handler) allowProxySearchResponse(sr *search.SearchResult) bool {
+	a.masterQueryMu.RLock()
+	defer a.masterQueryMu.RUnlock()
+	for _, v := range sr.Blobs {
+		if _, ok := a.domainBlobs[v.Blob]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // randListen returns the concatenation of the host part of listenAddr with a random port.
@@ -235,19 +350,44 @@ func NewHandler(cfg HandlerConfig) (*Handler, error) {
 		"CAMLI_AUTH":       camliAuth,
 		"CAMLI_APP_LISTEN": listen,
 	}
+	var configURLPath string
 	if cfg.AppConfig != nil {
-		envVars["CAMLI_APP_CONFIG_URL"] = apiHost + strings.TrimPrefix(cfg.Prefix, "/") + "config.json"
+		configURLPath = cfg.Prefix + "config.json"
+		envVars["CAMLI_APP_CONFIG_URL"] = apiHost + strings.TrimPrefix(configURLPath, "/")
 	}
+	masterqueryURLPath := cfg.Prefix + "masterquery"
+	envVars["CAMLI_APP_MASTERQUERY_URL"] = apiHost + strings.TrimPrefix(masterqueryURLPath, "/")
 
 	return &Handler{
-		name:       name,
-		envVars:    envVars,
-		auth:       basicAuth,
-		appConfig:  cfg.AppConfig,
-		prefix:     strings.TrimSuffix(cfg.Prefix, "/"),
-		proxy:      httputil.NewSingleHostReverseProxy(proxyURL),
-		backendURL: backendURL,
+		name:               name,
+		envVars:            envVars,
+		auth:               basicAuth,
+		appConfig:          cfg.AppConfig,
+		prefix:             strings.TrimSuffix(cfg.Prefix, "/"),
+		proxy:              httputil.NewSingleHostReverseProxy(proxyURL),
+		backendURL:         backendURL,
+		configURLPath:      configURLPath,
+		masterqueryURLPath: masterqueryURLPath,
 	}, nil
+}
+
+// InitHandler sets the app handler's search handler, if the app handler was configured
+// to have one with HasSearch.
+func (a *Handler) InitHandler(hl blobserver.FindHandlerByTyper) error {
+	apName := a.ProgramName()
+	searchPrefix, _, err := hl.FindHandlerByType("search")
+	if err != nil {
+		return fmt.Errorf("No search handler configured, which is necessary for the %v app handler", apName)
+	}
+	var sh *search.Handler
+	_, hi := hl.AllHandlers()
+	h, ok := hi[searchPrefix]
+	if !ok {
+		return fmt.Errorf("failed to find the \"search\" handler for %v", apName)
+	}
+	sh = h.(*search.Handler)
+	a.sh = sh
+	return nil
 }
 
 func (a *Handler) Start() error {
