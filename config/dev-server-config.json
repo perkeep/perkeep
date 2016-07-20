@@ -35,6 +35,9 @@
 			"enabled": ["_env", "${CAMLI_PUBLISH_ENABLED}"],
 			"handlerArgs": {
 				"program": "publisher",
+				"prefix": "/pics/",
+				"serverListen": "localhost:3179",
+				"serverBaseURL": ["_env", "${CAMLI_BASEURL}"],
 				"appConfig": {
 					"camliRoot": "dev-pics-root",
 					"sourceRoot": ["_env", "${CAMLI_DEV_CAMLI_ROOT}", ""],
