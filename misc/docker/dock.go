@@ -316,6 +316,7 @@ func uploadDockerImage() {
 	bucket := "camlistore-release"
 	versionedTarball := "docker/camlistored-" + rev() + ".tar.gz"
 	tarball := "docker/camlistored.tar.gz"
+	versionFile := "docker/VERSION"
 
 	log.Printf("Uploading %s/%s ...", bucket, versionedTarball)
 
@@ -364,20 +365,33 @@ func uploadDockerImage() {
 		log.Fatalf("Error waiting for docker save %v: %v", serverImage, err)
 	}
 	log.Printf("Uploaded tarball to %s", versionedTarball)
-	if !isWIP() {
-		log.Printf("Copying tarball to %s/%s ...", bucket, tarball)
-		dest := stoClient.Bucket(bucket).Object(tarball)
-		if _, err := stoClient.Bucket(bucket).Object(versionedTarball).CopyTo(
-			ctx,
-			dest,
-			&storage.ObjectAttrs{
-				ACL:          publicACL(proj),
-				CacheControl: "no-cache",
-				ContentType:  "application/x-gtar",
-			}); err != nil {
-			log.Fatalf("Error uploading %v: %v", tarball, err)
-		}
-		log.Printf("Uploaded tarball to %s", tarball)
+	if isWIP() {
+		return
+	}
+	log.Printf("Copying tarball to %s/%s ...", bucket, tarball)
+	dest := stoClient.Bucket(bucket).Object(tarball)
+	if _, err := stoClient.Bucket(bucket).Object(versionedTarball).CopyTo(
+		ctx,
+		dest,
+		&storage.ObjectAttrs{
+			ACL:          publicACL(proj),
+			CacheControl: "no-cache",
+			ContentType:  "application/x-gtar",
+		}); err != nil {
+		log.Fatalf("Error uploading %v: %v", tarball, err)
+	}
+	log.Printf("Uploaded tarball to %s", tarball)
+
+	log.Printf("Updating %s/%s file...", bucket, versionFile)
+	w = stoClient.Bucket(bucket).Object(versionFile).NewWriter(ctx)
+	w.ACL = publicACL(proj)
+	w.CacheControl = "no-cache"
+	w.ContentType = "text/plain"
+	if _, err := io.Copy(w, strings.NewReader(rev())); err != nil {
+		log.Fatalf("io.Copy: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		log.Fatalf("closing GCS storage writer: %v", err)
 	}
 }
 
