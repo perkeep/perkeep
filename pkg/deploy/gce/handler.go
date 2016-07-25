@@ -117,6 +117,9 @@ type DeployHandler struct {
 	zones   map[string][]string
 	regions []string
 
+	camliVersionMu sync.RWMutex
+	camliVersion   string // git revision found in https://storage.googleapis.com/camlistore-release/docker/VERSION
+
 	logger *log.Logger // should not be nil.
 }
 
@@ -215,17 +218,22 @@ func NewDeployHandler(host, prefix string) (*DeployHandler, error) {
 	h.mux = mux
 	h.SetLogger(log.New(os.Stderr, "GCE DEPLOYER: ", log.LstdFlags))
 	h.zones = backupZones
-	// TODO(mpl): use time.AfterFunc and avoid having a goroutine running all the time almost
-	// doing nothing.
-	refreshZonesFn := func() {
-		for {
-			if err := h.refreshZones(); err != nil {
-				h.logger.Printf("error while refreshing zones: %v", err)
-			}
-			time.Sleep(24 * time.Hour)
+	var refreshZonesFn func()
+	refreshZonesFn = func() {
+		if err := h.refreshZones(); err != nil {
+			h.logger.Printf("error while refreshing zones: %v", err)
 		}
+		time.AfterFunc(24*time.Hour, refreshZonesFn)
 	}
 	go refreshZonesFn()
+	var refreshCamliVersionFn func()
+	refreshCamliVersionFn = func() {
+		if err := h.refreshCamliVersion(); err != nil {
+			h.logger.Printf("error while refreshing Camlistore version: %v", err)
+		}
+		time.AfterFunc(time.Hour, refreshCamliVersionFn)
+	}
+	go refreshCamliVersionFn()
 	return h, nil
 }
 
@@ -271,6 +279,34 @@ func (h *DeployHandler) authenticatedClient() (project string, hc *http.Client, 
 	project, _ = metadata.ProjectID()
 	hc, err = google.DefaultClient(oauth2.NoContext)
 	return project, hc, err
+}
+
+var gitRevRgx = regexp.MustCompile(`^[a-z0-9]{40}?$`)
+
+func (h *DeployHandler) refreshCamliVersion() error {
+	h.camliVersionMu.Lock()
+	defer h.camliVersionMu.Unlock()
+	resp, err := http.Get("https://storage.googleapis.com/camlistore-release/docker/VERSION")
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	version := strings.TrimSpace(string(data))
+	if !gitRevRgx.MatchString(version) {
+		return fmt.Errorf("wrong revision format in VERSION file: %q", version)
+	}
+	h.camliVersion = version
+	return nil
+}
+
+func (h *DeployHandler) camliRev() string {
+	h.camliVersionMu.RLock()
+	defer h.camliVersionMu.RUnlock()
+	return h.camliVersion
 }
 
 var errNoRefresh error = errors.New("not on GCE, and at least one of CAMLI_GCE_PROJECT or CAMLI_GCE_SERVICE_ACCOUNT not defined.")
@@ -340,6 +376,7 @@ func (h *DeployHandler) serveRoot(w http.ResponseWriter, r *http.Request) {
 		Help:          h.help,
 		ZoneValues:    h.zoneValues(),
 		MachineValues: machineValues,
+		CamliVersion:  h.camliRev(),
 	}); err != nil {
 		h.logger.Print(err)
 	}
@@ -852,6 +889,7 @@ type TemplateData struct {
 	ProjectConsoleURL     string
 	ZoneValues            []string
 	MachineValues         []string
+	CamliVersion          string // git revision found in https://storage.googleapis.com/camlistore-release/docker/VERSION
 }
 
 const toHyperlink = `<a href="$1$3">$1$3</a>`
@@ -1033,6 +1071,9 @@ instance and stop paying Google for the virtual machine, visit the <a
 href="https://console.developers.google.com/">Google Cloud console</a>
 and visit both the "Compute Engine" and "Storage" sections for your project.
 </p>
+	{{if .CamliVersion}}
+		<p> Camlistore version deployed by this tool: <a href="https://camlistore.googlesource.com/camlistore/+/{{.CamliVersion}}">{{.CamliVersion}}</a></p>
+	{{end}}
 
 		<table border=0 cellpadding=3 style='margin-top: 2em'>
 			<tr valign=top><td align=right><nobr>Google Project ID:</nobr></td><td margin=left><input name="project" size=30 value=""><br>
