@@ -140,6 +140,7 @@ func (n *roDir) populate() error {
 				permanode: blob.ParseOrZero(childRef),
 				parent:    n,
 				name:      name,
+				at:        n.at,
 			}
 		} else if contentRef := child.Permanode.Attr.Get("camliContent"); contentRef != "" {
 			// This is a file.

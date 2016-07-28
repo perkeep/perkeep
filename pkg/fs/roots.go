@@ -223,11 +223,12 @@ func (n *rootsDir) condRefresh(ctx context.Context) error {
 	var rootRes, impRes *search.WithAttrResponse
 	var grp syncutil.Group
 	grp.Go(func() (err error) {
-		rootRes, err = n.fs.client.GetPermanodesWithAttr(&search.WithAttrRequest{N: 100, Attr: "camliRoot"})
+		// TODO(mpl): use a search query instead.
+		rootRes, err = n.fs.client.GetPermanodesWithAttr(&search.WithAttrRequest{N: 100, Attr: "camliRoot", At: n.at})
 		return
 	})
 	grp.Go(func() (err error) {
-		impRes, err = n.fs.client.GetPermanodesWithAttr(&search.WithAttrRequest{N: 100, Attr: "camliImportRoot"})
+		impRes, err = n.fs.client.GetPermanodesWithAttr(&search.WithAttrRequest{N: 100, Attr: "camliImportRoot", At: n.at})
 		return
 	})
 	if err := grp.Err(); err != nil {

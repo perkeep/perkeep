@@ -256,11 +256,18 @@ type WithAttrRequest struct {
 	// request.Attr as an attribute are searched.
 	Value string
 	Fuzzy bool // fulltext search (if supported).
+	// At, if non-zero, specifies that the attribute must have been set at
+	// the latest at At.
+	At time.Time
 }
 
 func (r *WithAttrRequest) URLSuffix() string {
-	return fmt.Sprintf("camli/search/permanodeattr?signer=%v&value=%v&fuzzy=%v&attr=%v&max=%v",
+	s := fmt.Sprintf("camli/search/permanodeattr?signer=%v&value=%v&fuzzy=%v&attr=%v&max=%v",
 		r.Signer, url.QueryEscape(r.Value), r.Fuzzy, r.Attr, r.N)
+	if !r.At.IsZero() {
+		s += fmt.Sprintf("&at=%s", types.Time3339(r.At))
+	}
+	return s
 }
 
 // fromHTTP panics with an httputil value on failure
@@ -289,6 +296,9 @@ func (r *WithAttrRequest) fromHTTP(req *http.Request) {
 		r.N = maxR
 	}
 	r.N = r.n()
+	if at := req.FormValue("at"); at != "" {
+		r.At = time.Time(types.ParseTime3339OrZero(at))
+	}
 }
 
 // n returns the sanitized maximum number of search results.
@@ -516,6 +526,7 @@ func (sh *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrRespons
 				Signer:     signer,
 				FuzzyMatch: req.Fuzzy,
 				MaxResults: req.N,
+				At:         req.At,
 			})
 	}()
 

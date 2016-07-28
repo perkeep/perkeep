@@ -857,6 +857,10 @@ func (x *Index) SearchPermanodesWithAttr(ctx context.Context, dest chan<- blob.R
 		it = x.queryPrefix(keySignerAttrValue, keyId, request.Attribute, request.Query)
 	}
 	defer closeIterator(it, &err)
+	before := request.At
+	if before.IsZero() {
+		before = time.Now()
+	}
 	for it.Next() {
 		cl, ok := kvSignerAttrValue(it.Key(), it.Value())
 		if !ok {
@@ -866,6 +870,9 @@ func (x *Index) SearchPermanodesWithAttr(ctx context.Context, dest chan<- blob.R
 			continue
 		}
 		if x.IsDeleted(cl.Permanode) {
+			continue
+		}
+		if cl.Date.After(before) {
 			continue
 		}
 		pnstr := cl.Permanode.String()

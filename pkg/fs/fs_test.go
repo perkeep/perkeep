@@ -177,7 +177,7 @@ func cammountTest(t *testing.T, fn func(env *mountEnv)) {
 		case err := <-waitc:
 			log.Printf("cammount exited: %v", err)
 		}
-		if !test.WaitFor(not(dirToBeFUSE(mountPoint)), 5*time.Second, 1*time.Second) {
+		if !test.WaitFor(not(isMounted(mountPoint)), 5*time.Second, 1*time.Second) {
 			// It didn't unmount. Try again.
 			Unmount(mountPoint)
 		}
@@ -414,6 +414,61 @@ func TestRename(t *testing.T) {
 		}
 		if got, want := statStr(name3), reg; got != want {
 			t.Errorf("name3 = %q; want %q", got, want)
+		}
+	})
+}
+
+func TestMoveAt(t *testing.T) {
+	condSkip(t)
+	var beforeTime, afterTime time.Time
+	oldName := filepath.FromSlash("1/1/1")
+	newDir := filepath.FromSlash("2/1")
+	newName := filepath.Join(newDir, "1")
+	inEmptyMutDir(t, func(env *mountEnv, rootDir string) {
+		name1 := filepath.Join(rootDir, oldName)
+		name2 := filepath.Join(rootDir, newName)
+
+		if err := os.MkdirAll(name1, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(rootDir, newDir), 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		time.Sleep(time.Second)
+		beforeTime = time.Now()
+		time.Sleep(time.Second)
+
+		if err := os.Rename(name1, name2); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(name2); err != nil {
+			t.Fatal(err)
+		}
+
+		time.Sleep(time.Second)
+		afterTime = time.Now()
+	})
+	cammountTest(t, func(env *mountEnv) {
+		atPrefix := filepath.Join(env.mountPoint, "at")
+		testname := strings.Split(testName(), ".")[0]
+
+		beforeName := filepath.Join(beforeTime.Format(time.RFC3339), testname, oldName)
+		notYetExistName := filepath.Join(beforeTime.Format(time.RFC3339), testname, newName)
+		afterName := filepath.Join(afterTime.Format(time.RFC3339), testname, newName)
+		goneName := filepath.Join(afterTime.Format(time.RFC3339), testname, oldName)
+
+		if _, err := os.Stat(filepath.Join(atPrefix, beforeName)); err != nil {
+			t.Errorf("%v before; want found, got not found; err: %v", beforeName, err)
+		}
+		if _, err := os.Stat(filepath.Join(atPrefix, notYetExistName)); !os.IsNotExist(err) {
+			t.Errorf("%v before; want not found, got found; err: %v", notYetExistName, err)
+		}
+		if _, err := os.Stat(filepath.Join(atPrefix, afterName)); err != nil {
+			t.Errorf("%v after; want found, got not found; err: %v", afterName, err)
+		}
+		if _, err := os.Stat(filepath.Join(atPrefix, goneName)); !os.IsNotExist(err) {
+			t.Errorf("%v after; want not found, got found; err: %v", goneName, err)
 		}
 	})
 }
@@ -660,6 +715,38 @@ end tell
 func not(cond func() bool) func() bool {
 	return func() bool {
 		return !cond()
+	}
+}
+
+// isMounted returns whether dir is considered mounted as far as the filesystem
+// is concerned, when one needs to know whether to unmount dir. It does not
+// guarantee the dir is usable as such, as it could have been left unmounted by a
+// previously interrupted process.
+func isMounted(dir string) func() bool {
+	if runtime.GOOS == "darwin" {
+		return dirToBeFUSE(dir)
+	}
+	return func() bool {
+		if runtime.GOOS != "linux" {
+			return false
+		}
+		// TODO(mpl): consider using /proc/mounts
+		// https://github.com/camlistore/camlistore/issues/829
+		out, err := exec.Command("df", dir).CombinedOutput()
+		if err == nil {
+			return strings.Contains(string(out), "/dev/fuse") &&
+				strings.Contains(string(out), dir)
+		}
+		// Keep trying, because on a dir that needs a fusermount -u, df would return
+		// "df: ‘/tmp/fs-test-mount589183372’: transport endpoint is not connected"
+		// Also, don't compare with df output because it has funky quotes and unreliable
+		// formatting.
+		brokenMountErr := fmt.Errorf("open %v: transport endpoint is not connected", dir)
+		f, err := os.Open(dir)
+		if err == nil {
+			defer f.Close()
+		}
+		return err.Error() == brokenMountErr.Error()
 	}
 }
 

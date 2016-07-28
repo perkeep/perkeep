@@ -209,6 +209,10 @@ type PermanodeByAttrRequest struct {
 
 	FuzzyMatch bool // by default, an exact match is required
 	MaxResults int  // optional max results
+
+	// At, if non-zero, specifies that the attribute must have been set at
+	// the latest at At.
+	At time.Time
 }
 
 type EdgesToOpts struct {

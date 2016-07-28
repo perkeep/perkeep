@@ -87,7 +87,7 @@ With Second Granularity
 * 2012-08-28T21:24:35Z - RFC3339
 * 2012-08-28T21:24:35-08:00 - RFC3339 with numeric timezone
 * Tue, 28 Aug 2012 21:24:35 +0000 - RFC1123 + numeric timezone
-* Tue, 28 Aug 2012 21:24:35 UTC RFC1123
+* Tue, 28 Aug 2012 21:24:35 UTC - RFC1123
 * Tue Aug 28 21:24:35 UTC 2012 - Unix date
 * Tue Aug 28 21:24:35 2012 - ansi C timestamp
 * Tue Aug 28 21:24:35 +0000 2012 - ruby datestamp
