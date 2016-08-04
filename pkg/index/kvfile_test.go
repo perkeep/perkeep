@@ -99,6 +99,10 @@ func TestReindex_Kvfile(t *testing.T) {
 	indexTest(t, newKvfileSorted, indextest.Reindex)
 }
 
+func TestShowReindexRace_Kvfile(t *testing.T) {
+	indexTest(t, newKvfileSorted, indextest.ShowReindexRace)
+}
+
 func TestEnumStat_Kvfile(t *testing.T) {
 	indexTest(t, newKvfileSorted, indextest.EnumStat)
 }

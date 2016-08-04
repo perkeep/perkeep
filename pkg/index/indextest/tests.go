@@ -22,6 +22,7 @@ package indextest // import "camlistore.org/pkg/index/indextest"
 import (
 	"bytes"
 	"errors"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -43,6 +44,8 @@ import (
 	"camlistore.org/pkg/types/camtypes"
 	"golang.org/x/net/context"
 )
+
+var flagShowReindexRace = flag.Bool("show_reindex_race", false, "demonstrate the reindex race reported at issue #756")
 
 // An IndexDeps is a helper for populating and querying an Index for tests.
 type IndexDeps struct {
@@ -1238,6 +1241,31 @@ func Reindex(t *testing.T, initIdx func() *index.Index) {
 
 	reindex(t, initIdx, false)
 	reindex(t, initIdx, true)
+}
+
+func ShowReindexRace(t *testing.T, initIdx func() *index.Index) {
+	if !*flagShowReindexRace {
+		t.Skipf("skipping test without --show_reindex_race")
+	}
+	os.Setenv("CAMLI_SHOW_REINDEX_RACE", "true")
+	idx := initIdx()
+	id := NewIndexDeps(idx)
+	id.Fataler = t
+
+	pn1 := id.NewPlannedPermanode("foo1") // sha1-f06e30253644014922f955733a641cbc64d43d73
+	t.Logf("uploaded permanode %q", pn1)
+
+	// delete pn1
+	delpn1 := id.Delete(pn1) // sha1-1d4c60cb3ce967edfb3194afd36124ce3f87ece0
+	t.Logf("del claim %q deletes %q", delpn1, pn1)
+	deleted := idx.IsDeleted(pn1)
+	if !deleted {
+		t.Fatal("pn1 should be deleted")
+	}
+
+	if err := id.Index.Reindex(); err != nil {
+		t.Fatalf("Reindexing was not finished: %v", err)
+	}
 }
 
 type enumArgs struct {

@@ -74,3 +74,11 @@ func TestEdgesTo_MySQL(t *testing.T) {
 func TestDelete_MySQL(t *testing.T) {
 	indexTest(t, newMySQLSorted, indextest.Delete)
 }
+
+func TestReindex_MySQL(t *testing.T) {
+	indexTest(t, newMySQLSorted, indextest.Reindex)
+}
+
+func TestShowReindexRace_MySQL(t *testing.T) {
+	indexTest(t, newMySQLSorted, indextest.ShowReindexRace)
+}

@@ -72,7 +72,9 @@ func TestDelete_LevelDB(t *testing.T) {
 }
 
 func TestReindex_LevelDB(t *testing.T) {
-	tim := time.After(time.Second)
+	t.Skip("Disabled until issue #756 is fixed")
+	t.Log("WARNING: as this test can get into an infinite loop, it will automatically terminate after a few seconds")
+	tim := time.After(2 * time.Second)
 	c := make(chan struct{}, 1)
 	go func() {
 		indexTest(t, newLevelDBSorted, indextest.Reindex)
@@ -84,13 +86,9 @@ func TestReindex_LevelDB(t *testing.T) {
 	case <-tim:
 		// Because of at least (I suspect) issue #756, we not only
 		// sometimes get a failing test here, but we also get into an
-		// infinite loop retrying out-of-order indexing. I don't know why
-		// yet, but I am pretty sure it is independant of the changes
-		// introduced in https://camlistore-review.googlesource.com/6231,
-		// since I can reproduce that loop by running TestReindex_LevelDB
-		// enough times without the rest of the CL. Hence the panic below
-		// as a temporary measure to interrupt that loop.
-		panic("forced interruption of TestReindex_LevelDB infinite loop")
+		// infinite loop retrying out-of-order indexing.Hence the Fatal
+		// below as a temporary measure to interrupt that loop.
+		t.Fatal("forced interruption of TestReindex_LevelDB infinite loop")
 	}
 }
 

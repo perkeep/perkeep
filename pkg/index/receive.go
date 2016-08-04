@@ -53,6 +53,7 @@ import (
 // out of order. It panics if started more than once or if the
 // index has no blobSource.
 func (ix *Index) outOfOrderIndexerLoop() {
+	showReindexRace := os.Getenv("CAMLI_SHOW_REINDEX_RACE") != ""
 	ix.mu.RLock()
 	if ix.oooRunning {
 		panic("outOfOrderIndexerLoop is already running")
@@ -64,6 +65,10 @@ func (ix *Index) outOfOrderIndexerLoop() {
 	ix.mu.RUnlock()
 WaitTickle:
 	for range ix.tickleOoo {
+		if showReindexRace {
+			// not strictly needed, but greatly increases the probability of seeing the race.
+			time.Sleep(1 * time.Second)
+		}
 		for {
 			ix.Lock()
 			if len(ix.readyReindex) == 0 {
