@@ -37,6 +37,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -68,6 +69,37 @@ func IsDir(root string) (bool, error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+// Given a desired max number of file handles to allow, the function
+// tries to set the current ulimit to that. When running in normal mode,
+// the current limit is increased to the extent possible. When running
+// in privileged mode, there is scope for increasing the max limit also,
+// so we use that if relevant.
+func tryIncreasingFileHandleLimit(desired uint64) error {
+	var limit syscall.Rlimit
+	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &limit)
+	if err != nil {
+		return err
+	}
+	if limit.Cur >= desired {
+		return nil
+	}
+	ourMax := limit.Max
+	if ourMax < desired {
+		// Try a high limit in case we're running with privileges
+		limit.Cur = desired
+		limit.Max = desired
+	} else {
+		limit.Cur = desired
+	}
+	err = syscall.Setrlimit(syscall.RLIMIT_NOFILE, &limit)
+	if err != nil && ourMax < desired {
+		limit.Max = ourMax
+		limit.Cur = ourMax
+		err = syscall.Setrlimit(syscall.RLIMIT_NOFILE, &limit)
+	}
+	return err
 }
 
 // New returns a new local disk storage implementation at the provided
@@ -102,6 +134,9 @@ func New(root string) (*DiskStorage, error) {
 	}
 	if _, _, err := ds.StorageGeneration(); err != nil {
 		return nil, fmt.Errorf("Error initialization generation for %q: %v", root, err)
+	}
+	if err := tryIncreasingFileHandleLimit(50000); err != nil {
+		return nil, fmt.Errorf("Error setting increasing ulimit required for temp files")
 	}
 	return ds, nil
 }

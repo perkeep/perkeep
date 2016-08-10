@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"time"
 
 	"camlistore.org/pkg/blob"
 )
@@ -37,9 +38,13 @@ func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (ref blob
 		return
 	}
 
-	tempFile, err := ioutil.TempFile(hashedDirectory, blobFileBaseName(blobRef)+".tmp")
-	if err != nil {
-		return
+	tmpFileName := blobFileBaseName(blobRef) + ".tmp"
+	var tempFile *os.File
+	tempFile = nil
+	for tempFile == nil {
+		if tempFile, err = ioutil.TempFile(hashedDirectory, tmpFileName); err != nil {
+			time.Sleep(1 * time.Second)
+		}
 	}
 
 	success := false // set true later
