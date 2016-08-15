@@ -308,10 +308,23 @@ cam.IndexPage = React.createClass({
 		this.setState({
 			totalBytesToUpload: 0,
 			totalBytesComplete: 0,
+			uploadDialogVisible: false
 		});
 	},
 
-	handleDrop_: function(e) {
+	handleInputFiles_: function(e) {
+		console.log(e.nativeEvent.target.files);
+		if (!e.nativeEvent.target.files) {
+			return;
+		}
+
+		e.preventDefault();
+
+		var files = e.nativeEvent.target.files;
+		this.handleFilesUpload_(e, files);
+	},
+
+	handleDrop_: function(e, files) {
 		if (!e.nativeEvent.dataTransfer.files) {
 			return;
 		}
@@ -319,6 +332,10 @@ cam.IndexPage = React.createClass({
 		e.preventDefault();
 
 		var files = e.nativeEvent.dataTransfer.files;
+		this.handleFilesUpload_(e, files);
+	},
+
+	handleFilesUpload_: function(e, files) {
 		var sc = this.props.serverConnection;
 		var parent = this.getTargetBlobref_();
 
@@ -1044,6 +1061,41 @@ cam.IndexPage = React.createClass({
 			}
 		};
 
+		function getInputFiles() {
+			if (this.isUploading_()) {
+				return null;
+			}
+			return React.DOM.div(
+				{},
+				getInputFilesText.call(this),
+				getInputFilesButton.call(this)
+			)
+		}
+
+		function getInputFilesText() {
+			// TODO: It does not have to be a div (it could be just
+			// a string), but it's easier to make it a div than to
+			// figure out the CSS to display it on its own line,
+			// horizontally centered.
+			return React.DOM.div(
+				{},
+				function() {
+					return 'or select files: ';
+				}.call(this)
+			)
+		}
+
+		function getInputFilesButton() {
+			return React.DOM.input(
+			{
+				type: "file",
+				id: "fileupload",
+				multiple: "true",
+				name: "file",
+				onChange: this.handleInputFiles_
+			})
+		}
+
 		function getIcon() {
 			if (this.isUploading_()) {
 				return cam.SpritedAnimation(cam.object.extend(iconProps, {
@@ -1066,13 +1118,22 @@ cam.IndexPage = React.createClass({
 		}
 
 		function getText() {
-			if (this.isUploading_()) {
-				return goog.string.subs('Uploaded %s (%s%)',
-					goog.format.numBytesToString(this.state.totalBytesComplete, 2),
-					getUploadProgressPercent.call(this));
-			} else {
-				return 'Drop files here to upload...';
-			}
+			// TODO: It does not have to be a div (it could be just
+			// a string), but it's easier to make it a div than to
+			// figure out the CSS to display it on its own line,
+			// horizontally centered.
+			return React.DOM.div(
+				{},
+				function() {
+					if (this.isUploading_()) {
+						return goog.string.subs('Uploaded %s (%s%)',
+							goog.format.numBytesToString(this.state.totalBytesComplete, 2),
+							getUploadProgressPercent.call(this));
+					} else {
+						return 'Drop files here to upload,';
+					}
+				}.call(this)
+			)
 		}
 
 		function getUploadProgressPercent() {
@@ -1103,7 +1164,8 @@ cam.IndexPage = React.createClass({
 					},
 				},
 				getIcon.call(this),
-				getText.call(this)
+				getText.call(this),
+				getInputFiles.call(this)
 			)
 		);
 	},
