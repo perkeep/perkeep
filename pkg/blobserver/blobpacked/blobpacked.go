@@ -262,7 +262,7 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 		return nil, fmt.Errorf("largeBlobs at %q of type %T doesn't support fetching sub-ranges of blobs",
 			largePrefix, large)
 	}
-	meta, err := sorted.NewKeyValue(metaConf)
+	meta, err := sorted.NewKeyValueMaybeWipe(metaConf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup blobpacked metaIndex: %v", err)
 	}

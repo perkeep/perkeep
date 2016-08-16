@@ -116,7 +116,7 @@ func newKVOrNil(conf jsonconfig.Obj) (sorted.KeyValue, error) {
 	if len(conf) == 0 {
 		return nil, nil
 	}
-	return sorted.NewKeyValue(conf)
+	return sorted.NewKeyValueMaybeWipe(conf)
 }
 
 func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, err error) {

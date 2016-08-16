@@ -580,7 +580,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 		return nil, err
 	}
 
-	sto.index, err = sorted.NewKeyValue(metaConf)
+	sto.index, err = sorted.NewKeyValueMaybeWipe(metaConf)
 	if err != nil {
 		return
 	}

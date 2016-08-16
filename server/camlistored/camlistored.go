@@ -60,7 +60,6 @@ import (
 	_ "camlistore.org/pkg/blobserver/s3"
 	_ "camlistore.org/pkg/blobserver/shard"
 	// Indexers: (also present themselves as storage targets)
-	"camlistore.org/pkg/index"
 	// KeyValue implementations:
 	_ "camlistore.org/pkg/sorted/kvfile"
 	_ "camlistore.org/pkg/sorted/leveldb"
@@ -377,10 +376,6 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		log.SetOutput(gce.LogWriter())
 	} else {
 		maybeSetupGoogleCloudLogging()
-	}
-
-	if *flagReindex {
-		index.SetImpendingReindex()
 	}
 
 	log.Printf("Starting camlistored version %s; Go %s (%s/%s)", buildinfo.Version(), runtime.Version(),
