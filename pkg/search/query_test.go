@@ -51,9 +51,10 @@ func (i indexType) String() string {
 }
 
 type queryTest struct {
-	t     testing.TB
-	id    *indextest.IndexDeps
-	itype indexType
+	t               testing.TB
+	id              *indextest.IndexDeps
+	itype           indexType
+	candidateSource string
 
 	handlerOnce sync.Once
 	newHandler  func() *Handler
@@ -116,6 +117,13 @@ func testQueryType(t testing.TB, fn func(*queryTest), itype indexType) {
 func (qt *queryTest) wantRes(req *SearchQuery, wanted ...blob.Ref) {
 	if qt.itype == indexClassic {
 		req.Sort = Unsorted
+	}
+	if qt.candidateSource != "" {
+		ExportSetCandidateSourceHook(func(pickedCandidate string) {
+			if pickedCandidate != qt.candidateSource {
+				qt.t.Fatalf("unexpected candidateSource: got %v, want %v", pickedCandidate, qt.candidateSource)
+			}
+		})
 	}
 	res, err := qt.Handler().Query(req)
 	if err != nil {
@@ -656,6 +664,26 @@ func TestDecodeFileInfo(t *testing.T) {
 			qt.t.Errorf("DescribedBlob.WholeRef: got %v, wanted %v", wholeRef, db.File.WholeRef)
 			return
 		}
+	})
+}
+
+func TestQueryFileCandidateSource(t *testing.T) {
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+		fileRef, _ := id.UploadFile("some-stuff.txt", "hello", time.Unix(123, 0))
+		qt.t.Logf("fileRef = %q", fileRef)
+		p1 := id.NewPlannedPermanode("1")
+		id.SetAttribute(p1, "camliContent", fileRef.String())
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				File: &FileConstraint{
+					WholeRef: blob.SHA1FromString("hello"),
+				},
+			},
+		}
+		qt.candidateSource = "corpus_file_meta"
+		qt.wantRes(sq, fileRef)
 	})
 }
 
