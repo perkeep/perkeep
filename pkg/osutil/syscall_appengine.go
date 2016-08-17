@@ -20,3 +20,4 @@ package osutil
 
 func Mkfifo(path string, mode uint32) error { return ErrNotSupported }
 func Mksocket(path string) error            { return ErrNotSupported }
+func MaxFD() (uint64, error)                { return 0, ErrNotSupported }
