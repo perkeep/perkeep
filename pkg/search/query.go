@@ -338,6 +338,18 @@ func (c *Constraint) onlyMatchesPermanode() bool {
 	return false
 }
 
+func (c *Constraint) matchesFileByWholeRef() bool {
+	if c.Logical != nil && c.Logical.Op == "and" {
+		if c.Logical.A.matchesFileByWholeRef() || c.Logical.B.matchesFileByWholeRef() {
+			return true
+		}
+	}
+	if c.File == nil {
+		return false
+	}
+	return c.File.WholeRef.Valid()
+}
+
 type FileConstraint struct {
 	// (All non-zero fields must match)
 
@@ -1069,6 +1081,14 @@ func (q *SearchQuery) pickCandidateSource(s *search) (src candidateSource) {
 			default:
 				src.sorted = false
 			}
+		}
+		// fastpath for files
+		if c.matchesFileByWholeRef() {
+			src.name = "corpus_file_meta"
+			src.send = func(ctx context.Context, s *search, dst chan<- camtypes.BlobMeta) error {
+				return corpus.EnumerateCamliBlobs(ctx, "file", dst)
+			}
+			return
 		}
 		if c.AnyCamliType || c.CamliType != "" {
 			camType := c.CamliType // empty means all
