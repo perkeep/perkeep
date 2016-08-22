@@ -152,6 +152,9 @@ func (b *lowBuilder) addPublishedConfig(tlsO *tlsOpts) error {
 			"cacheRoot":  v.CacheRoot,
 			"goTemplate": v.GoTemplate,
 		}
+		if v.SourceRoot != "" {
+			appConfig["sourceRoot"] = v.SourceRoot
+		}
 		if v.HTTPSCert != "" && v.HTTPSKey != "" {
 			// user can specify these directly in the publish section
 			appConfig["httpsCert"] = v.HTTPSCert

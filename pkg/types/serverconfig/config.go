@@ -134,6 +134,12 @@ type Publish struct {
 	// caching blobserver (for images). No caching if empty.
 	// An example value is Config.BlobPath + "/cache".
 	CacheRoot string `json:"cacheRoot,omitempty"`
+
+	// SourceRoot optionally defines the directory where to look for some resources
+	// such as HTML templates, as well as javascript, and CSS files. The
+	// default is to use the resources embedded in the publisher binary, found
+	// in the publisher app source directory.
+	SourceRoot string `json:"sourceRoot,omitempty"`
 }
 
 // invertedBool is a bool that marshals to and from JSON with the opposite of its in-memory value.

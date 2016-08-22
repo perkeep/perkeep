@@ -142,13 +142,12 @@ func newPublishHandler(conf *config) *publishHandler {
 	}
 	var CSSFiles, JSDeps []string
 	if conf.SourceRoot != "" {
-		appRoot := filepath.Join(conf.SourceRoot, "app", "publisher")
 		Files = &fileembed.Files{
-			DirFallback: appRoot,
+			DirFallback: conf.SourceRoot,
 		}
 		// TODO(mpl): Can I readdir by listing with "/" on Files, even with DirFallBack?
 		// Apparently not, but retry later.
-		dir, err := os.Open(appRoot)
+		dir, err := os.Open(conf.SourceRoot)
 		if err != nil {
 			logger.Fatal(err)
 		}
