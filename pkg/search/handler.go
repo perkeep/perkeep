@@ -146,11 +146,14 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 	h := NewHandler(indexer, ownerBlobRef)
 	if slurpToMemory {
 		ii := indexer.(*index.Index)
+		ii.Lock()
 		corpus, err := ii.KeepInMemory()
 		if err != nil {
+			ii.Unlock()
 			return nil, fmt.Errorf("error slurping index to memory: %v", err)
 		}
 		h.corpus = corpus
+		ii.Unlock()
 	}
 	return h, nil
 }
