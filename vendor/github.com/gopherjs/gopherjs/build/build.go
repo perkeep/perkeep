@@ -8,14 +8,19 @@ import (
 	"go/scanner"
 	"go/token"
 	"go/types"
+	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/gopherjs/gopherjs/compiler"
+	"github.com/gopherjs/gopherjs/compiler/natives"
 	"github.com/kardianos/osext"
 	"github.com/neelance/sourcemap"
 )
@@ -130,10 +135,18 @@ func ImportDir(dir string, mode build.ImportMode) (*PackageData, error) {
 	return &PackageData{Package: pkg, JSFiles: jsFiles}, nil
 }
 
-// parse parses and returns all .go files of given pkg.
+// parseAndAugment parses and returns all .go files of given pkg.
 // Standard Go library packages are augmented with files in compiler/natives folder.
-// isTest is true when package is being built for running tests.
-func parse(pkg *build.Package, isTest bool, fileSet *token.FileSet) ([]*ast.File, error) {
+// If isTest is true and pkg.ImportPath has no _test suffix, package is built for running internal tests.
+// If isTest is true and pkg.ImportPath has _test suffix, package is built for running external tests.
+//
+// The native packages are augmented by the contents of natives.FS in the following way.
+// The file names do not matter except the usual `_test` suffix. The files for
+// native overrides get added to the package (even if they have the same name
+// as an existing file from the standard library). For all identifiers that exist
+// in the original AND the overrides, the original identifier in the AST gets
+// replaced by `_`. New identifiers that don't exist in original package get added.
+func parseAndAugment(pkg *build.Package, isTest bool, fileSet *token.FileSet) ([]*ast.File, error) {
 	var files []*ast.File
 	replacedDeclNames := make(map[string]bool)
 	funcName := func(d *ast.FuncDecl) string {
@@ -151,7 +164,48 @@ func parse(pkg *build.Package, isTest bool, fileSet *token.FileSet) ([]*ast.File
 	if isXTest {
 		importPath = importPath[:len(importPath)-5]
 	}
-	if nativesPkg, err := Import("github.com/gopherjs/gopherjs/compiler/natives/"+importPath, 0, "", nil); err == nil {
+
+	nativesContext := &build.Context{
+		GOROOT:   "/",
+		GOOS:     build.Default.GOOS,
+		GOARCH:   "js",
+		Compiler: "gc",
+		JoinPath: path.Join,
+		SplitPathList: func(list string) []string {
+			if list == "" {
+				return nil
+			}
+			return strings.Split(list, "/")
+		},
+		IsAbsPath: path.IsAbs,
+		IsDir: func(name string) bool {
+			dir, err := natives.FS.Open(name)
+			if err != nil {
+				return false
+			}
+			defer dir.Close()
+			info, err := dir.Stat()
+			if err != nil {
+				return false
+			}
+			return info.IsDir()
+		},
+		HasSubdir: func(root, name string) (rel string, ok bool) {
+			panic("not implemented")
+		},
+		ReadDir: func(name string) (fi []os.FileInfo, err error) {
+			dir, err := natives.FS.Open(name)
+			if err != nil {
+				return nil, err
+			}
+			defer dir.Close()
+			return dir.Readdir(0)
+		},
+		OpenFile: func(name string) (r io.ReadCloser, err error) {
+			return natives.FS.Open(name)
+		},
+	}
+	if nativesPkg, err := nativesContext.Import(importPath, "", 0); err == nil {
 		names := nativesPkg.GoFiles
 		if isTest {
 			names = append(names, nativesPkg.TestGoFiles...)
@@ -160,10 +214,16 @@ func parse(pkg *build.Package, isTest bool, fileSet *token.FileSet) ([]*ast.File
 			names = nativesPkg.XTestGoFiles
 		}
 		for _, name := range names {
-			file, err := parser.ParseFile(fileSet, filepath.Join(nativesPkg.Dir, name), nil, parser.ParseComments)
+			fullPath := path.Join(nativesPkg.Dir, name)
+			r, err := nativesContext.OpenFile(fullPath)
 			if err != nil {
 				panic(err)
 			}
+			file, err := parser.ParseFile(fileSet, fullPath, r, parser.ParseComments)
+			if err != nil {
+				panic(err)
+			}
+			r.Close()
 			for _, decl := range file.Decls {
 				switch d := decl.(type) {
 				case *ast.FuncDecl:
@@ -299,6 +359,7 @@ type Session struct {
 	options  *Options
 	Archives map[string]*compiler.Archive
 	Types    map[string]*types.Package
+	Watcher  *fsnotify.Watcher
 }
 
 func NewSession(options *Options) *Session {
@@ -315,6 +376,19 @@ func NewSession(options *Options) *Session {
 		Archives: make(map[string]*compiler.Archive),
 	}
 	s.Types = make(map[string]*types.Package)
+	if options.Watch {
+		if out, err := exec.Command("ulimit", "-n").Output(); err == nil {
+			if n, err := strconv.Atoi(strings.TrimSpace(string(out))); err == nil && n < 1024 {
+				fmt.Printf("Warning: The maximum number of open file descriptors is very low (%d). Change it with 'ulimit -n 8192'.\n", n)
+			}
+		}
+
+		var err error
+		s.Watcher, err = fsnotify.NewWatcher()
+		if err != nil {
+			panic(err)
+		}
+	}
 	return s
 }
 
@@ -326,6 +400,9 @@ func (s *Session) InstallSuffix() string {
 }
 
 func (s *Session) BuildDir(packagePath string, importPath string, pkgObj string) error {
+	if s.Watcher != nil {
+		s.Watcher.Add(packagePath)
+	}
 	buildPkg, err := NewBuildContext(s.InstallSuffix(), s.options.BuildTags).ImportDir(packagePath, 0)
 	if err != nil {
 		return err
@@ -385,6 +462,9 @@ func (s *Session) BuildImportPath(path string) (*compiler.Archive, error) {
 
 func (s *Session) buildImportPathWithSrcDir(path string, srcDir string) (*PackageData, *compiler.Archive, error) {
 	pkg, err := importWithSrcDir(path, srcDir, 0, s.InstallSuffix(), s.options.BuildTags)
+	if s.Watcher != nil && pkg != nil { // add watch even on error
+		s.Watcher.Add(pkg.Dir)
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -478,7 +558,7 @@ func (s *Session) BuildPackage(pkg *PackageData) (*compiler.Archive, error) {
 	}
 
 	fileSet := token.NewFileSet()
-	files, err := parse(pkg.Package, pkg.IsTest, fileSet)
+	files, err := parseAndAugment(pkg.Package, pkg.IsTest, fileSet)
 	if err != nil {
 		return nil, err
 	}
@@ -636,4 +716,30 @@ func hasGopathPrefix(file, gopath string) (hasGopathPrefix bool, prefixLen int) 
 		}
 	}
 	return false, 0
+}
+
+func (s *Session) WaitForChange() {
+	s.options.PrintSuccess("watching for changes...\n")
+	for {
+		select {
+		case ev := <-s.Watcher.Events:
+			if ev.Op&(fsnotify.Create|fsnotify.Write|fsnotify.Remove|fsnotify.Rename) == 0 || filepath.Base(ev.Name)[0] == '.' {
+				continue
+			}
+			if !strings.HasSuffix(ev.Name, ".go") && !strings.HasSuffix(ev.Name, ".inc.js") {
+				continue
+			}
+			s.options.PrintSuccess("change detected: %s\n", ev.Name)
+		case err := <-s.Watcher.Errors:
+			s.options.PrintError("watcher error: %s\n", err.Error())
+		}
+		break
+	}
+
+	go func() {
+		for range s.Watcher.Events {
+			// consume, else Close() may deadlock
+		}
+	}()
+	s.Watcher.Close()
 }
