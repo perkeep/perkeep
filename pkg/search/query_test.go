@@ -1468,3 +1468,45 @@ func BenchmarkQueryRecentPermanodes(b *testing.B) {
 		}
 	})
 }
+
+func BenchmarkQueryPermanodes(b *testing.B) {
+	benchmarkQueryPermanodes(b, false)
+}
+
+func BenchmarkQueryDescribePermanodes(b *testing.B) {
+	benchmarkQueryPermanodes(b, true)
+}
+
+func benchmarkQueryPermanodes(b *testing.B, describe bool) {
+	b.ReportAllocs()
+	testQueryTypes(b, corpusTypeOnly, func(qt *queryTest) {
+		id := qt.id
+
+		for i := 0; i < 1000; i++ {
+			pn := id.NewPlannedPermanode(fmt.Sprint(i))
+			id.SetAttribute(pn, "foo", fmt.Sprint(i))
+		}
+
+		req := &SearchQuery{
+			Constraint: &Constraint{
+				Permanode: &PermanodeConstraint{},
+			},
+		}
+		if describe {
+			req.Describe = &DescribeRequest{}
+		}
+
+		h := qt.Handler()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			if describe {
+				*req.Describe = DescribeRequest{}
+			}
+			_, err := h.Query(req)
+			if err != nil {
+				qt.t.Fatal(err)
+			}
+		}
+	})
+}
