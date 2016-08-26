@@ -295,7 +295,12 @@ const (
 // It returns the path to the binary if successful, an error otherwise.
 func buildGopherjs() (string, error) {
 	src := filepath.Join(buildSrcDir, filepath.FromSlash("vendor/github.com/gopherjs/gopherjs"))
-	bin := exeName(filepath.Join(buildGoPath, "bin", "gopherjs"))
+	// Note: do not use exeName for gopherjs, as it will run on the current platform,
+	// not on the one we're cross-compiling for.
+	bin := filepath.Join(buildGoPath, "bin", "gopherjs")
+	if runtime.GOOS == "windows" {
+		bin += ".exe"
+	}
 	var srcModtime, binModtime time.Time
 	if err := filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
 		if err != nil {
@@ -329,6 +334,10 @@ func buildGopherjs() (string, error) {
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
 	)
+	// forcing GOOS and GOARCH to prevent cross-compiling, as gopherjs will run on the
+	// current (host) platform.
+	cmd.Env = setEnv(cmd.Env, "GOOS", runtime.GOOS)
+	cmd.Env = setEnv(cmd.Env, "GOARCH", runtime.GOARCH)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("error while building gopherjs: %v, %v", err, string(out))
 	}
