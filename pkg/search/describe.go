@@ -128,8 +128,9 @@ type DescribeRequest struct {
 	sh            *Handler
 	mu            sync.Mutex // protects following:
 	m             MetaMap
-	done          map[blobrefAndDepth]bool // blobref -> true
-	errs          map[string]error         // blobref -> error
+	started       map[blobrefAndDepth]bool // blobref -> true
+	blobDesLock   map[blob.Ref]*sync.Mutex
+	errs          map[string]error // blobref -> error
 	resFromRule   map[*DescribeRule]map[blob.Ref]bool
 	flatRuleCache []*DescribeRule // flattened once, by flatRules
 
@@ -582,18 +583,28 @@ func (dr *DescribeRequest) Describe(ctx context.Context, br blob.Ref, depth int)
 	}
 	dr.mu.Lock()
 	defer dr.mu.Unlock()
-	if dr.done == nil {
-		dr.done = make(map[blobrefAndDepth]bool)
+	if dr.blobDesLock == nil {
+		dr.blobDesLock = make(map[blob.Ref]*sync.Mutex)
 	}
-	doneKey := blobrefAndDepth{br, depth}
-	if dr.done[doneKey] {
+	desBlobMu, ok := dr.blobDesLock[br]
+	if !ok {
+		desBlobMu = new(sync.Mutex)
+		dr.blobDesLock[br] = desBlobMu
+	}
+	if dr.started == nil {
+		dr.started = make(map[blobrefAndDepth]bool)
+	}
+	key := blobrefAndDepth{br, depth}
+	if dr.started[key] {
 		return
 	}
-	dr.done[doneKey] = true
+	dr.started[key] = true
 	dr.wg.Add(1)
 	go func() {
 		defer dr.wg.Done()
-		dr.describeReally(ctx, br, depth)
+		desBlobMu.Lock()
+		defer desBlobMu.Unlock()
+		dr.doDescribe(ctx, br, depth)
 	}()
 }
 
@@ -696,7 +707,7 @@ func (dr *DescribeRequest) addError(br blob.Ref, err error) {
 	dr.errs[br.String()] = err
 }
 
-func (dr *DescribeRequest) describeReally(ctx context.Context, br blob.Ref, depth int) {
+func (dr *DescribeRequest) doDescribe(ctx context.Context, br blob.Ref, depth int) {
 	meta, err := dr.sh.index.GetBlobMeta(ctx, br)
 	if err == os.ErrNotExist {
 		return
