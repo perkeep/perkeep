@@ -43,7 +43,7 @@ func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {
 	dr.fromHTTP(req)
 	ctx := context.TODO()
 
-	res, err := sh.DescribeLocked(ctx, &dr)
+	res, err := sh.Describe(ctx, &dr)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
 		return
