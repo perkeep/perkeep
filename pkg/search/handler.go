@@ -469,7 +469,7 @@ func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, err
 
 	var recent []*RecentItem
 	for res := range ch {
-		dr.Describe(ctx, res.Permanode, 2)
+		dr.StartDescribe(ctx, res.Permanode, 2)
 		recent = append(recent, &RecentItem{
 			BlobRef: res.Permanode,
 			Owner:   res.Signer,
@@ -537,7 +537,7 @@ func (sh *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrRespons
 
 	var withAttr []*WithAttrItem
 	for res := range ch {
-		dr.Describe(ctx, res, 2)
+		dr.StartDescribe(ctx, res, 2)
 		withAttr = append(withAttr, &WithAttrItem{
 			Permanode: res,
 		})
@@ -679,7 +679,7 @@ func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Reques
 	}
 
 	dr := sh.NewDescribeRequest()
-	dr.Describe(ctx, pn, 2)
+	dr.StartDescribe(ctx, pn, 2)
 	metaMap, err := dr.metaMap()
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
@@ -828,7 +828,7 @@ func (sh *Handler) GetSignerPaths(req *SignerPathsRequest) (*SignerPathsResponse
 
 	dr := sh.NewDescribeRequest()
 	for _, path := range paths {
-		dr.Describe(ctx, path.Base, 2)
+		dr.StartDescribe(ctx, path.Base, 2)
 	}
 	metaMap, err := dr.metaMap()
 	if err != nil {

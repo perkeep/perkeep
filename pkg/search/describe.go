@@ -78,10 +78,10 @@ func (sh *Handler) DescribeLocked(ctx context.Context, dr *DescribeRequest) (dre
 	}
 	sh.initDescribeRequest(dr)
 	if dr.BlobRef.Valid() {
-		dr.Describe(ctx, dr.BlobRef, dr.depth())
+		dr.StartDescribe(ctx, dr.BlobRef, dr.depth())
 	}
 	for _, br := range dr.BlobRefs {
-		dr.Describe(ctx, br, dr.depth())
+		dr.StartDescribe(ctx, br, dr.depth())
 	}
 	if err := dr.expandRules(ctx); err != nil {
 		return nil, err
@@ -567,7 +567,7 @@ func (dr *DescribeRequest) describedBlob(b blob.Ref) *DescribedBlob {
 }
 
 func (dr *DescribeRequest) DescribeSync(ctx context.Context, br blob.Ref) (*DescribedBlob, error) {
-	dr.Describe(ctx, br, 1)
+	dr.StartDescribe(ctx, br, 1)
 	res, err := dr.Result()
 	if err != nil {
 		return nil, err
@@ -575,9 +575,10 @@ func (dr *DescribeRequest) DescribeSync(ctx context.Context, br blob.Ref) (*Desc
 	return res[br.String()], nil
 }
 
-// Describe starts a lookup of br, down to the provided depth.
-// It returns immediately.
-func (dr *DescribeRequest) Describe(ctx context.Context, br blob.Ref, depth int) {
+// StartDescribe starts a lookup of br, down to the provided depth.
+// It returns immediately. One should call Result to wait for the description to
+// be completed.
+func (dr *DescribeRequest) StartDescribe(ctx context.Context, br blob.Ref, depth int) {
 	if depth <= 0 {
 		return
 	}
@@ -686,7 +687,7 @@ func (dr *DescribeRequest) expandRules(ctx context.Context) error {
 		}
 		dr.mu.Unlock()
 		for _, br := range new {
-			dr.Describe(ctx, br, 1)
+			dr.StartDescribe(ctx, br, 1)
 		}
 		dr.wg.Wait()
 		dr.mu.Lock()
@@ -853,7 +854,7 @@ func (dr *DescribeRequest) getDirMembers(ctx context.Context, br blob.Ref, depth
 
 	var members []blob.Ref
 	for child := range ch {
-		dr.Describe(ctx, child, depth)
+		dr.StartDescribe(ctx, child, depth)
 		members = append(members, child)
 	}
 	if err := <-errch; err != nil {
@@ -865,7 +866,7 @@ func (dr *DescribeRequest) getDirMembers(ctx context.Context, br blob.Ref, depth
 func (dr *DescribeRequest) describeRefs(ctx context.Context, str string, depth int) {
 	for _, match := range blobRefPattern.FindAllString(str, -1) {
 		if ref, ok := blob.ParseKnown(match); ok {
-			dr.Describe(ctx, ref, depth-1)
+			dr.StartDescribe(ctx, ref, depth-1)
 		}
 	}
 }
