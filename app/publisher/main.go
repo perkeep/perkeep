@@ -20,6 +20,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"html"
@@ -95,6 +96,63 @@ func appConfig() *config {
 	return conf
 }
 
+// setMasterQuery registers with the app handler a master query that includes
+// topNode and all its descendants as the search response.
+func setMasterQuery(topNode blob.Ref) error {
+	masterqueryURL := os.Getenv("CAMLI_APP_MASTERQUERY_URL")
+	if masterqueryURL == "" {
+		return fmt.Errorf("Publisher application needs a CAMLI_APP_MASTERQUERY_URL env var")
+	}
+	query := &search.SearchQuery{
+		Sort:  search.CreatedDesc,
+		Limit: -1,
+		Constraint: &search.Constraint{
+			Permanode: &search.PermanodeConstraint{
+				Relation: &search.RelationConstraint{
+					Relation: "parent",
+					Any: &search.Constraint{
+						BlobRefPrefix: topNode.String(),
+					},
+				},
+			},
+		},
+		Describe: &search.DescribeRequest{
+			Depth: 1,
+			Rules: []*search.DescribeRule{
+				{Attrs: []string{"camliContent", "camliContentImage", "camliMember", "camliPath:*"}},
+			},
+		},
+	}
+	data, err := json.Marshal(query)
+	if err != nil {
+		return err
+	}
+	am, err := app.Auth()
+	if err != nil {
+		return err
+	}
+	// TODO(mpl): we should use app.Client instead, but a *client.Client
+	// Post method doesn't let us get the body. fix later, I need results now.
+	req, err := http.NewRequest("POST", masterqueryURL, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	am.AddAuthHeader(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if string(body) != "OK" {
+		return fmt.Errorf("error setting master query on app handler: %v", string(body))
+	}
+	return nil
+}
+
 func main() {
 	flag.Parse()
 
@@ -115,6 +173,10 @@ func main() {
 	ph := newPublishHandler(conf)
 	if err := ph.initRootNode(); err != nil {
 		logf("%v", err)
+	} else {
+		if err := setMasterQuery(ph.rootNode); err != nil {
+			logf("%v", err)
+		}
 	}
 	ws := webserver.New()
 	ws.Logger = logger
@@ -265,6 +327,9 @@ type publishHandler struct {
 	rootNodeMu sync.Mutex
 	rootNode   blob.Ref // Root permanode, origin of all camliPaths for this publish handler.
 
+	masterQueryMu   sync.Mutex
+	masterQueryDone bool // master query has been registered with the app handler
+
 	cl client // Used for searching, and remote storage.
 
 	staticFiles *fileembed.Files   // For static resources.
@@ -293,6 +358,16 @@ func (ph *publishHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	ph.rootNodeMu.Unlock()
+	ph.masterQueryMu.Lock()
+	if !ph.masterQueryDone {
+		if err := setMasterQuery(ph.rootNode); err != nil {
+			httputil.ServeError(w, r, fmt.Errorf("master query not set: %v", err))
+			ph.masterQueryMu.Unlock()
+			return
+		}
+		ph.masterQueryDone = true
+	}
+	ph.masterQueryMu.Unlock()
 
 	preq, err := ph.NewRequest(w, r)
 	if err != nil {

@@ -268,6 +268,9 @@ func (ui *UIHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 		if !ok {
 			panic(fmt.Sprintf("UI: handler for %v has type \"app\" but is not app.Handler", prefix))
 		}
+		// TODO(mpl): this check is weak, as the user could very well
+		// use another binary name for the publisher app. We should
+		// introduce/use another identifier.
 		if ah.ProgramName() != "publisher" {
 			continue
 		}

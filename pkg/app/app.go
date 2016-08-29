@@ -32,6 +32,12 @@ import (
 	"camlistore.org/pkg/httputil"
 )
 
+// Auth returns the auth mode for the app to access Camlistore, as defined by
+// environment variables automatically supplied by the Camlistore server host.
+func Auth() (auth.AuthMode, error) {
+	return basicAuth()
+}
+
 func basicAuth() (auth.AuthMode, error) {
 	authString := os.Getenv("CAMLI_AUTH")
 	if authString == "" {
