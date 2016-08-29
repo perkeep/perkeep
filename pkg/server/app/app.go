@@ -66,8 +66,7 @@ type Handler struct {
 	domainBlobs map[blob.Ref]bool
 
 	// Prefix is the URL path prefix where the app handler is mounted on
-	// Camlistore, stripped of its trailing slash. The handler trims this
-	// prefix from incoming requests before proxying them to the app. Examples:
+	// Camlistore, stripped of its trailing slash. Examples:
 	// "/pics", "/blog".
 	prefix             string
 	proxy              *httputil.ReverseProxy // For redirecting requests to the app.
@@ -101,8 +100,6 @@ func (a *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no proxy for the app", 500)
 		return
 	}
-	// TODO(mpl): the proxy should not mutate the request, including that path. issue #833
-	r.URL.Path = trimmedPath
 	a.proxy.ServeHTTP(w, r)
 }
 

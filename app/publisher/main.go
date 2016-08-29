@@ -544,7 +544,8 @@ type publishRequest struct {
 func (ph *publishHandler) NewRequest(w http.ResponseWriter, r *http.Request) (*publishRequest, error) {
 	// splits a path request into its suffix and subresource parts.
 	// e.g. /blog/foo/camli/res/file/xxx -> ("foo", "file/xxx")
-	suffix, res := strings.TrimPrefix(r.URL.Path, "/"), ""
+	base := app.PathPrefix(r)
+	suffix, res := strings.TrimPrefix(r.URL.Path, base), ""
 	if strings.HasPrefix(suffix, "-/") {
 		suffix, res = "", suffix[2:]
 	} else if s := strings.SplitN(suffix, "/-/", 2); len(s) == 2 {
@@ -556,7 +557,7 @@ func (ph *publishHandler) NewRequest(w http.ResponseWriter, r *http.Request) (*p
 		rw:              w,
 		req:             r,
 		suffix:          suffix,
-		base:            app.PathPrefix(r),
+		base:            base,
 		subres:          res,
 		rootpn:          ph.rootNode,
 		inSubjectChain:  make(map[string]bool),
