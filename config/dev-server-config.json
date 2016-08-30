@@ -40,7 +40,7 @@
 				"serverBaseURL": ["_env", "${CAMLI_BASEURL}"],
 				"appConfig": {
 					"camliRoot": "dev-pics-root",
-					"sourceRoot": ["_env", "${CAMLI_DEV_CAMLI_ROOT}", ""],
+					"sourceRoot": ["_env", "${CAMLI_DEV_CAMLI_ROOT}/app/publisher", ""],
 					"cacheRoot": ["_env", "${CAMLI_ROOT_CACHE}"],
 					"goTemplate": "gallery.html"
 				}
