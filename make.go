@@ -814,7 +814,7 @@ func verifyCamlistoreRoot(dir string) {
 }
 
 func verifyGoVersion() {
-	const neededMinor = '6'
+	const neededMinor = '7'
 	_, err := exec.LookPath("go")
 	if err != nil {
 		log.Fatalf("Go doesn't appear to be installed ('go' isn't in your PATH). Install Go 1.%c or newer.", neededMinor)
