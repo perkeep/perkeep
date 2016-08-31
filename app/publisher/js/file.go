@@ -476,7 +476,7 @@ func (fic *fileItemContainer) render() error {
 		if fit.isImage {
 			fit.thumb = fmt.Sprintf("%s/h%s/h%s/=i/%s/?mw=%d&mh=%d", fic.basePath, fit.pn.DigestPrefix(10), fit.contentRef.DigestPrefix(10), url.QueryEscape(fit.fileName), fic.thumbHeight, fic.thumbHeight)
 		} else {
-			fit.thumb = fmt.Sprintf("%s=s/file.png", pathPrefix)
+			fit.thumb = fmt.Sprintf("%s=s/file.png", fic.pathPrefix)
 		}
 		fit.download = fmt.Sprintf("%s/h%s/h%s/=f/%s", fic.basePath, fit.pn.DigestPrefix(10), fit.contentRef.DigestPrefix(10), url.QueryEscape(fit.fileName))
 	}
@@ -501,10 +501,8 @@ func (fic *fileItemContainer) render() error {
 func (fit *fileItem) render() {
 	fileInfo := fmt.Sprintf(`<div id='%s'>File: %s, %d bytes, type %s</div>`, fit.pn, html.EscapeString(fit.fileName), fit.size, fit.mimeType)
 	jQuery(ficDiv).Append(fileInfo)
-	if fit.isImage {
-		anchor := fmt.Sprintf("<a id='%s' href='%s'><img src='%s'></a>", fit.pn, fit.download, fit.thumb)
-		jQuery(ficDiv).Append(anchor)
-	}
+	anchor := fmt.Sprintf("<a id='%s' href='%s'><img src='%s'></a>", fit.pn, fit.download, fit.thumb)
+	jQuery(ficDiv).Append(anchor)
 	downloadDiv := fmt.Sprintf(`<div id='camli-%s' class='camlifile'>[<a href='%s'>download</a>]</div>`, fit.contentRef, fit.download)
 	jQuery(ficDiv).Append(downloadDiv)
 }

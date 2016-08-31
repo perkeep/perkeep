@@ -791,8 +791,30 @@ func (pr *publishRequest) serveFileDownload(des *search.DescribedBlob) {
 		return
 	}
 	mime := ""
-	if fileinfo != nil && fileinfo.IsImage() {
-		mime = fileinfo.MIMEType
+	if fileinfo != nil {
+		switch {
+		case fileinfo.IsImage():
+			if fileinfo.MIMEType != "" {
+				mime = fileinfo.MIMEType
+			}
+		case fileinfo.IsText():
+			if fileinfo.MIMEType != "" {
+				mime = fileinfo.MIMEType
+				break
+			}
+			// TODO(mpl): see in describe pkg why mimetype didn't get set for a text file,
+			// and remove that hack.
+			ext := filepath.Ext(fileinfo.FileName)
+			if ext == "" {
+				break
+			}
+			ext = strings.ToLower(ext[1:])
+			if ext == "txt" {
+				mime = "text/plain"
+			} else {
+				mime = "text/" + ext
+			}
+		}
 	}
 	dh := &server.DownloadHandler{
 		Fetcher:   pr.ph.cl,

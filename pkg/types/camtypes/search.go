@@ -19,11 +19,11 @@ package camtypes
 import (
 	"bytes"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/magic"
 
 	"go4.org/types"
 )
@@ -115,24 +115,16 @@ type FileInfo struct {
 	WholeRef blob.Ref `json:"wholeRef,omitempty"`
 }
 
-func (fi *FileInfo) IsImage() bool {
-	return strings.HasPrefix(fi.MIMEType, "image/")
+func (fi *FileInfo) IsText() bool {
+	if strings.HasPrefix(fi.MIMEType, "text/") {
+		return true
+	}
+
+	return magic.HasExtension(fi.FileName, magic.TextExtensions)
 }
 
-var videoExtensions = map[string]bool{
-	"3gp":  true,
-	"avi":  true,
-	"flv":  true,
-	"m1v":  true,
-	"m2v":  true,
-	"m4v":  true,
-	"mkv":  true,
-	"mov":  true,
-	"mp4":  true,
-	"mpeg": true,
-	"mpg":  true,
-	"ogv":  true,
-	"wmv":  true,
+func (fi *FileInfo) IsImage() bool {
+	return strings.HasPrefix(fi.MIMEType, "image/")
 }
 
 func (fi *FileInfo) IsVideo() bool {
@@ -140,34 +132,7 @@ func (fi *FileInfo) IsVideo() bool {
 		return true
 	}
 
-	var ext string
-	if e := filepath.Ext(fi.FileName); strings.HasPrefix(e, ".") {
-		ext = e[1:]
-	} else {
-		return false
-	}
-
-	// Case-insensitive lookup.
-	// Optimistically assume a short ASCII extension and be
-	// allocation-free in that case.
-	var buf [10]byte
-	lower := buf[:0]
-	const utf8RuneSelf = 0x80 // from utf8 package, but not importing it.
-	for i := 0; i < len(ext); i++ {
-		c := ext[i]
-		if c >= utf8RuneSelf {
-			// Slow path.
-			return videoExtensions[strings.ToLower(ext)]
-		}
-		if 'A' <= c && c <= 'Z' {
-			lower = append(lower, c+('a'-'A'))
-		} else {
-			lower = append(lower, c)
-		}
-	}
-	// The conversion from []byte to string doesn't allocate in
-	// a map lookup.
-	return videoExtensions[string(lower)]
+	return magic.HasExtension(fi.FileName, magic.VideoExtensions)
 }
 
 // ImageInfo describes an image file.
