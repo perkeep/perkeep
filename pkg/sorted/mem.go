@@ -18,6 +18,7 @@ package sorted
 
 import (
 	"errors"
+	"log"
 	"sync"
 
 	"github.com/syndtr/goleveldb/leveldb/comparer"
@@ -111,7 +112,8 @@ func (mk *memKeys) Find(start, end string) Iterator {
 
 func (mk *memKeys) Set(key, value string) error {
 	if err := CheckSizes(key, value); err != nil {
-		return err
+		log.Printf("Skipping storing (%q:%q): %v", key, value, err)
+		return nil
 	}
 	mk.mu.Lock()
 	defer mk.mu.Unlock()
@@ -145,8 +147,11 @@ func (mk *memKeys) CommitBatch(bm BatchMutation) error {
 				return err
 			}
 		} else {
+			// TODO(mpl): we need to force a reindex when we have a proper solution
+			// for storing these too large attributes, if ever.
 			if err := CheckSizes(m.Key(), m.Value()); err != nil {
-				return err
+				log.Printf("Skipping storing (%q:%q): %v", m.Key(), m.Value(), err)
+				continue
 			}
 			if err := mk.db.Put([]byte(m.Key()), []byte(m.Value())); err != nil {
 				return err

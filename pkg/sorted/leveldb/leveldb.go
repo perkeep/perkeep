@@ -22,6 +22,7 @@ package leveldb // import "camlistore.org/pkg/sorted/leveldb"
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 
@@ -109,7 +110,8 @@ func (is *kvis) Get(key string) (string, error) {
 
 func (is *kvis) Set(key, value string) error {
 	if err := sorted.CheckSizes(key, value); err != nil {
-		return err
+		log.Printf("Skipping storing (%q:%q): %v", key, value, err)
+		return nil
 	}
 	return is.db.Put([]byte(key), []byte(value), is.writeOpts)
 }
@@ -172,11 +174,7 @@ func (lvb *lvbatch) Set(key, value string) {
 		return
 	}
 	if err := sorted.CheckSizes(key, value); err != nil {
-		if err == sorted.ErrKeyTooLarge {
-			lvb.err = fmt.Errorf("%v: %v", err, key)
-		} else {
-			lvb.err = fmt.Errorf("%v: %v", err, value)
-		}
+		log.Printf("Skipping storing (%q:%q): %v", key, value, err)
 		return
 	}
 	lvb.batch.Put([]byte(key), []byte(value))

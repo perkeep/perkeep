@@ -167,11 +167,21 @@ func testInsertLarge(t *testing.T, kv sorted.KeyValue) {
 func testInsertTooLarge(t *testing.T, kv sorted.KeyValue) {
 	largeKey := make([]byte, sorted.MaxKeySize+1)
 	largeValue := make([]byte, sorted.MaxValueSize+1)
-	if err := kv.Set(string(largeKey), "whatever"); err == nil || err != sorted.ErrKeyTooLarge {
-		t.Fatalf("Insertion of too large a key should have failed, but err was %v", err)
+	err := kv.Set(string(largeKey), "whatever")
+	if err != nil {
+		t.Fatalf("Insertion of too large a key should have skipped with some logging, but err was %v", err)
 	}
-	if err := kv.Set("whatever", string(largeValue)); err == nil || err != sorted.ErrValueTooLarge {
-		t.Fatalf("Insertion of too large a value should have failed, but err was %v", err)
+	_, err = kv.Get(string(largeKey))
+	if err == nil {
+		t.Fatal("large key should not have been inserted")
+	}
+	err = kv.Set("testInsertTooLarge", string(largeValue))
+	if err != nil {
+		t.Fatalf("Insertion of too large a value should have skipped with some logging, but err was %v", err)
+	}
+	_, err = kv.Get("testInsertTooLarge")
+	if err == nil {
+		t.Fatal("large value should not have been inserted")
 	}
 }
 

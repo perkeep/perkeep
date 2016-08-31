@@ -17,6 +17,8 @@ limitations under the License.
 package mysql
 
 import (
+	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -65,9 +67,8 @@ func TestRollback(t *testing.T) {
 		t.Fatalf("mysql.NewKeyValue = %v", err)
 	}
 
-	tooLargeAKey := make([]byte, sorted.MaxKeySize+10)
-	for i := range tooLargeAKey {
-		tooLargeAKey[i] = 'L'
+	kv.(*keyValue).KeyValue.BatchSetFunc = func(*sql.Tx, string, string) error {
+		return errors.New("Forced failure to trigger a rollback")
 	}
 
 	nbConnections := 2
@@ -82,7 +83,7 @@ func TestRollback(t *testing.T) {
 		b := kv.BeginBatch()
 		// Making the transaction fail, to force a rollback
 		// -> this whole test fails before we introduce the rollback in CommitBatch.
-		b.Set(string(tooLargeAKey), "whatever")
+		b.Set("foo", "bar")
 		if err := kv.CommitBatch(b); err == nil {
 			t.Fatal("wanted failed commit because too large a key")
 		}

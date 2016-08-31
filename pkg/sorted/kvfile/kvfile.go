@@ -93,7 +93,8 @@ func (is *kvis) Get(key string) (string, error) {
 
 func (is *kvis) Set(key, value string) error {
 	if err := sorted.CheckSizes(key, value); err != nil {
-		return err
+		log.Printf("Skipping storing (%q:%q): %v", key, value, err)
+		return nil
 	}
 	return is.db.Set([]byte(key), []byte(value))
 }
@@ -162,7 +163,8 @@ func (is *kvis) CommitBatch(bm sorted.BatchMutation) error {
 			}
 		} else {
 			if err := sorted.CheckSizes(m.Key(), m.Value()); err != nil {
-				return err
+				log.Printf("Skipping storing (%q:%q): %v", m.Key(), m.Value(), err)
+				continue
 			}
 			if err := is.db.Set([]byte(m.Key()), []byte(m.Value())); err != nil {
 				return err
