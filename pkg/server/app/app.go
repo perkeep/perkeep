@@ -30,6 +30,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -63,7 +64,8 @@ type Handler struct {
 	// domainBlobs is the set of blobs allowed for search queries. If a
 	// search query response includes at least one blob that is not in
 	// domainBlobs, the query is rejected.
-	domainBlobs map[blob.Ref]bool
+	domainBlobs        map[blob.Ref]bool
+	domainBlobsRefresh time.Time // last time the domainBlobs were refreshed
 
 	// Prefix is the URL path prefix where the app handler is mounted on
 	// Camlistore, stripped of its trailing slash. Examples:
@@ -118,11 +120,26 @@ func (a *Handler) handleMasterQuery(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "app proxy has no search handler", 500)
 		return
 	}
+	if refresh, _ := strconv.ParseBool(r.FormValue("refresh")); refresh {
+		if err := a.refreshDomainBlobs(); err != nil {
+			if err == errRefreshSuppress {
+				http.Error(w, "too many refresh requests", http.StatusTooManyRequests)
+			} else {
+				http.Error(w, fmt.Sprintf("%v", err), 500)
+			}
+			return
+		}
+		w.Write([]byte("OK"))
+		return
+	}
 	sq := new(search.SearchQuery)
 	if err := sq.FromHTTP(r); err != nil {
 		http.Error(w, fmt.Sprintf("error reading master query: %v", err), 500)
 		return
 	}
+	var masterQuery search.SearchQuery = *(sq)
+	des := *(masterQuery.Describe)
+	masterQuery.Describe = &des
 	sr, err := a.sh.Query(sq)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("error running master query: %v", err), 500)
@@ -130,12 +147,40 @@ func (a *Handler) handleMasterQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	a.masterQueryMu.Lock()
 	defer a.masterQueryMu.Unlock()
-	a.masterQuery = sq
+	a.masterQuery = &masterQuery
 	a.domainBlobs = make(map[blob.Ref]bool, len(sr.Describe.Meta))
 	for _, v := range sr.Describe.Meta {
 		a.domainBlobs[v.BlobRef] = true
 	}
+	a.domainBlobsRefresh = time.Now()
 	w.Write([]byte("OK"))
+}
+
+var errRefreshSuppress = errors.New("refresh request suppressed")
+
+func (a *Handler) refreshDomainBlobs() error {
+	a.masterQueryMu.Lock()
+	defer a.masterQueryMu.Unlock()
+	if time.Now().Before(a.domainBlobsRefresh.Add(time.Minute)) {
+		// suppress refresh request to no more than once per minute
+		return errRefreshSuppress
+	}
+	if a.masterQuery == nil {
+		return errors.New("no master query")
+	}
+	var sq search.SearchQuery = *(a.masterQuery)
+	des := *(sq.Describe)
+	sq.Describe = &des
+	sr, err := a.sh.Query(&sq)
+	if err != nil {
+		return fmt.Errorf("error running master query: %v", err)
+	}
+	a.domainBlobs = make(map[blob.Ref]bool, len(sr.Describe.Meta))
+	for _, v := range sr.Describe.Meta {
+		a.domainBlobs[v.BlobRef] = true
+	}
+	a.domainBlobsRefresh = time.Now()
+	return nil
 }
 
 // handleSearch runs the requested search query against the search handler, and
@@ -169,8 +214,16 @@ func (a *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	// check this search is in the allowed domain
 	if !a.allowProxySearchResponse(sr) {
-		http.Error(w, "search scope is forbidden", http.StatusForbidden)
-		return
+		// there's a chance our domainBlobs cache is expired so let's
+		// refresh it and retry, but no more than once per minute.
+		if err := a.refreshDomainBlobs(); err != nil {
+			http.Error(w, "search scope is forbidden", http.StatusForbidden)
+			return
+		}
+		if !a.allowProxySearchResponse(sr) {
+			http.Error(w, "search scope is forbidden", http.StatusForbidden)
+			return
+		}
 	}
 	camhttputil.ReturnJSON(w, sr)
 }

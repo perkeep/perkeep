@@ -98,11 +98,7 @@ func appConfig() *config {
 
 // setMasterQuery registers with the app handler a master query that includes
 // topNode and all its descendants as the search response.
-func setMasterQuery(topNode blob.Ref) error {
-	masterqueryURL := os.Getenv("CAMLI_APP_MASTERQUERY_URL")
-	if masterqueryURL == "" {
-		return fmt.Errorf("Publisher application needs a CAMLI_APP_MASTERQUERY_URL env var")
-	}
+func (ph *publishHandler) setMasterQuery(topNode blob.Ref) error {
 	query := &search.SearchQuery{
 		Sort:  search.CreatedDesc,
 		Limit: -1,
@@ -127,17 +123,15 @@ func setMasterQuery(topNode blob.Ref) error {
 	if err != nil {
 		return err
 	}
-	am, err := app.Auth()
-	if err != nil {
-		return err
-	}
 	// TODO(mpl): we should use app.Client instead, but a *client.Client
-	// Post method doesn't let us get the body. fix later, I need results now.
-	req, err := http.NewRequest("POST", masterqueryURL, bytes.NewReader(data))
+	// Post method doesn't let us get the body.
+	req, err := http.NewRequest("POST", ph.masterQueryURL, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
-	am.AddAuthHeader(req)
+	if err := addAuth(req); err != nil {
+		return err
+	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
@@ -150,6 +144,44 @@ func setMasterQuery(topNode blob.Ref) error {
 	if string(body) != "OK" {
 		return fmt.Errorf("error setting master query on app handler: %v", string(body))
 	}
+	return nil
+}
+
+func (ph *publishHandler) refreshMasterQuery() error {
+	// TODO(mpl): we should use app.Client instead, but a *client.Client
+	// Post method doesn't let us get the body.
+	req, err := http.NewRequest("POST", ph.masterQueryURL+"?refresh=1", nil)
+	if err != nil {
+		return err
+	}
+	if err := addAuth(req); err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusTooManyRequests {
+		// request suppression. let's not consider it an error.
+		return nil
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if string(body) != "OK" {
+		return fmt.Errorf("error refreshing master query: %v", string(body))
+	}
+	return nil
+}
+
+func addAuth(r *http.Request) error {
+	am, err := app.Auth()
+	if err != nil {
+		return err
+	}
+	am.AddAuthHeader(r)
 	return nil
 }
 
@@ -171,10 +203,15 @@ func main() {
 	}
 	conf := appConfig()
 	ph := newPublishHandler(conf)
+	masterQueryURL := os.Getenv("CAMLI_APP_MASTERQUERY_URL")
+	if masterQueryURL == "" {
+		logger.Fatalf("Publisher application needs a CAMLI_APP_MASTERQUERY_URL env var")
+	}
+	ph.masterQueryURL = masterQueryURL
 	if err := ph.initRootNode(); err != nil {
 		logf("%v", err)
 	} else {
-		if err := setMasterQuery(ph.rootNode); err != nil {
+		if err := ph.setMasterQuery(ph.rootNode); err != nil {
 			logf("%v", err)
 		}
 	}
@@ -327,6 +364,7 @@ type publishHandler struct {
 	rootNodeMu sync.Mutex
 	rootNode   blob.Ref // Root permanode, origin of all camliPaths for this publish handler.
 
+	masterQueryURL  string // not guarded by mutex below, because set on startup.
 	masterQueryMu   sync.Mutex
 	masterQueryDone bool // master query has been registered with the app handler
 
@@ -360,7 +398,7 @@ func (ph *publishHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ph.rootNodeMu.Unlock()
 	ph.masterQueryMu.Lock()
 	if !ph.masterQueryDone {
-		if err := setMasterQuery(ph.rootNode); err != nil {
+		if err := ph.setMasterQuery(ph.rootNode); err != nil {
 			httputil.ServeError(w, r, fmt.Errorf("master query not set: %v", err))
 			ph.masterQueryMu.Unlock()
 			return
@@ -594,6 +632,16 @@ func (pr *publishRequest) serveHTTP() {
 
 	switch pr.subresourceType() {
 	case "":
+		// This should not happen too often as now that we have the
+		// javascript code we're not hitting that code path often anymore
+		// in a typical navigation. And the app handler is doing
+		// request suppression anyway.
+		// If needed, we can always do it in a narrower case later.
+		if err := pr.ph.refreshMasterQuery(); err != nil {
+			logf("Error refreshing master query: %v", err)
+			pr.rw.WriteHeader(500)
+			return
+		}
 		pr.serveSubjectTemplate()
 	case "b":
 		// TODO: download a raw blob
