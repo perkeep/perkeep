@@ -47,6 +47,7 @@ import (
 	"camlistore.org/pkg/constants"
 	"camlistore.org/pkg/fileembed"
 	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/publish"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/server"
@@ -790,36 +791,19 @@ func (pr *publishRequest) serveFileDownload(des *search.DescribedBlob) {
 		logf("Didn't get file schema from described blob %q", des.BlobRef)
 		return
 	}
-	mime := ""
+	mimeType := ""
 	if fileinfo != nil {
-		switch {
-		case fileinfo.IsImage():
-			if fileinfo.MIMEType != "" {
-				mime = fileinfo.MIMEType
-			}
-		case fileinfo.IsText():
-			if fileinfo.MIMEType != "" {
-				mime = fileinfo.MIMEType
-				break
-			}
-			// TODO(mpl): see in describe pkg why mimetype didn't get set for a text file,
-			// and remove that hack.
-			ext := filepath.Ext(fileinfo.FileName)
-			if ext == "" {
-				break
-			}
-			ext = strings.ToLower(ext[1:])
-			if ext == "txt" {
-				mime = "text/plain"
-			} else {
-				mime = "text/" + ext
+		if fileinfo.IsImage() || fileinfo.IsText() {
+			mimeType = fileinfo.MIMEType
+			if mimeType == "" {
+				mimeType = magic.MIMETypeByExtension(filepath.Ext(fileinfo.FileName))
 			}
 		}
 	}
 	dh := &server.DownloadHandler{
 		Fetcher:   pr.ph.cl,
 		Cache:     pr.ph.cache,
-		ForceMIME: mime,
+		ForceMIME: mimeType,
 	}
 	dh.ServeHTTP(pr.rw, pr.req, fileref)
 }

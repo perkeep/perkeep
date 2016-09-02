@@ -21,6 +21,7 @@ package magic // import "camlistore.org/pkg/magic"
 import (
 	"bytes"
 	"io"
+	"mime"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -118,28 +119,14 @@ type errReader struct{ err error }
 
 func (er errReader) Read([]byte) (int, error) { return 0, er.err }
 
-var VideoExtensions = map[string]bool{
-	"3gp":  true,
-	"avi":  true,
-	"flv":  true,
-	"m1v":  true,
-	"m2v":  true,
-	"m4v":  true,
-	"mkv":  true,
-	"mov":  true,
-	"mp4":  true,
-	"mpeg": true,
-	"mpg":  true,
-	"ogv":  true,
-	"wmv":  true,
-	"webm": true,
-}
+// TODO(mpl): unexport VideoExtensions
 
-var TextExtensions = map[string]bool{
-	"txt":  true,
-	"html": true,
-	"xml":  true,
-	"json": true,
+// VideoExtensions are common video filename extensions that are not
+// covered by mime.TypeByExtension.
+var VideoExtensions = map[string]bool{
+	"m1v": true,
+	"m2v": true,
+	"m4v": true,
 }
 
 // HasExtension returns whether the file extension of filename is among
@@ -173,4 +160,11 @@ func HasExtension(filename string, extensions map[string]bool) bool {
 	// The conversion from []byte to string doesn't allocate in
 	// a map lookup.
 	return extensions[string(lower)]
+}
+
+// MIMETypeByExtension calls mime.TypeByExtension, and removes optional parameters,
+// to keep only the type and subtype.
+func MIMETypeByExtension(ext string) string {
+	mimeParts := strings.SplitN(mime.TypeByExtension(ext), ";", 2)
+	return strings.TrimSpace(mimeParts[0])
 }
