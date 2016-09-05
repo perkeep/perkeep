@@ -32,7 +32,7 @@ system("cp", "-p", "$GENDIR/camput", "$ASSETS/camput.arm")
     # TODO(bradfitz): make these values automatic, and don't make the
     # "Version" menu say "camput version" when it runs. Also maybe
     # keep a history of these somewhere more convenient.
-    print $vfh "app 0.6.1 camput 0.9 go 1.6.2";
+    print $vfh "app 0.6.1 camput 0.9 go 1.7";
 }
 
 chdir $ASSETS or  die "can't cd to assets dir";

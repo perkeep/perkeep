@@ -17,9 +17,9 @@ RUN echo y | android update sdk -u -t android-17
 
 # Get Go stable release
 WORKDIR /tmp
-RUN curl -O https://storage.googleapis.com/golang/go1.6.2.linux-amd64.tar.gz
-RUN echo 'e40c36ae71756198478624ed1bb4ce17597b3c19d243f3f0899bb5740d56212a  go1.6.2.linux-amd64.tar.gz' | sha256sum -c
-RUN tar -C /usr/local -xzf go1.6.2.linux-amd64.tar.gz
+RUN curl -O https://storage.googleapis.com/golang/go1.7.linux-amd64.tar.gz
+RUN echo '702ad90f705365227e902b42d91dd1a40e48ca7f67a2f4b2fd052aaa4295cd95  go1.7.linux-amd64.tar.gz' | sha256sum -c
+RUN tar -C /usr/local -xzf go1.7.linux-amd64.tar.gz
 
 ENV ANDROID_HOME /usr/local/android-sdk-linux
 ENV ANT_HOME /usr/local/apache-ant-1.9.2
