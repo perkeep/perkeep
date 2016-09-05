@@ -140,8 +140,6 @@ func fetchCamliSrc() {
 		}
 		check(f.Close())
 	}
-	// TODO(mpl): remove once https://camlistore-review.googlesource.com/8146 is in.
-	check(os.Chmod("app/publisher/js/gensearchtypes.sh", 0500))
 }
 
 func build() {
