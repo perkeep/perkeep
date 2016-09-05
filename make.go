@@ -406,6 +406,8 @@ func genSearchTypes() error {
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
 	)
+	cmd.Env = setEnv(cmd.Env, "GOOS", runtime.GOOS)
+	cmd.Env = setEnv(cmd.Env, "GOARCH", runtime.GOARCH)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("go generate for publisher js error: %v, %v", err, string(out))
 	}
