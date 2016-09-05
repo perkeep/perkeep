@@ -1,4 +1,4 @@
-//go:generate ./gensearchtypes.sh
+//go:generate go run gensearchtypes.go -out zsearch.go
 
 /*
 Copyright 2016 The Camlistore Authors.
