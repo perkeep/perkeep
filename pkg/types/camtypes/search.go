@@ -19,6 +19,8 @@ package camtypes
 import (
 	"bytes"
 	"fmt"
+	"mime"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -120,11 +122,15 @@ func (fi *FileInfo) IsText() bool {
 		return true
 	}
 
-	return magic.HasExtension(fi.FileName, magic.TextExtensions)
+	return strings.HasPrefix(mime.TypeByExtension(filepath.Ext(fi.FileName)), "text/")
 }
 
 func (fi *FileInfo) IsImage() bool {
-	return strings.HasPrefix(fi.MIMEType, "image/")
+	if strings.HasPrefix(fi.MIMEType, "image/") {
+		return true
+	}
+
+	return strings.HasPrefix(mime.TypeByExtension(filepath.Ext(fi.FileName)), "image/")
 }
 
 func (fi *FileInfo) IsVideo() bool {
@@ -132,7 +138,11 @@ func (fi *FileInfo) IsVideo() bool {
 		return true
 	}
 
-	return magic.HasExtension(fi.FileName, magic.VideoExtensions)
+	if magic.HasExtension(fi.FileName, magic.VideoExtensions) {
+		return true
+	}
+
+	return strings.HasPrefix(mime.TypeByExtension(filepath.Ext(fi.FileName)), "video/")
 }
 
 // ImageInfo describes an image file.

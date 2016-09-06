@@ -28,6 +28,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -407,12 +408,15 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 		return err
 	}
 	defer fr.Close()
-	mime, mr := magic.MIMETypeFromReader(fr)
+	mimeType, mr := magic.MIMETypeFromReader(fr)
+	if mimeType == "" {
+		mimeType = magic.MIMETypeByExtension(filepath.Ext(b.FileName()))
+	}
 
 	sha1 := sha1.New()
 	var copyDest io.Writer = sha1
 	var imageBuf *keepFirstN // or nil
-	if strings.HasPrefix(mime, "image/") {
+	if strings.HasPrefix(mimeType, "image/") {
 		imageBuf = &keepFirstN{N: 512 << 10}
 		copyDest = io.MultiWriter(copyDest, imageBuf)
 	}
@@ -472,10 +476,10 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 	}
 
 	mm.Set(keyWholeToFileRef.Key(wholeRef, blobRef), "1")
-	mm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(size, b.FileName(), mime, wholeRef))
+	mm.Set(keyFileInfo.Key(blobRef), keyFileInfo.Val(size, b.FileName(), mimeType, wholeRef))
 	mm.Set(keyFileTimes.Key(blobRef), keyFileTimes.Val(time3339s))
 
-	if strings.HasPrefix(mime, "audio/") {
+	if strings.HasPrefix(mimeType, "audio/") {
 		indexMusic(io.NewSectionReader(fr, 0, fr.Size()), wholeRef, mm)
 	}
 
