@@ -123,7 +123,7 @@ func syncToGithub(dir, gerritHEAD string) error {
 	mounts := map[string]string{
 		hostSSHDir: "/root/.ssh",
 	}
-	cmd := execGit(dir, mounts, "push", "git@github.com:camlistore/camlistore.git", "master:master")
+	cmd := execGit(dir, "push_github", mounts, "push", "git@github.com:camlistore/camlistore.git", "master:master")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("error running git push to github: %v\n%s", err, out)

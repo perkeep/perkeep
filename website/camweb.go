@@ -628,7 +628,7 @@ func randHex(n int) string {
 	return fmt.Sprintf("%x", buf)[:n]
 }
 
-func removeDemoContainer(name string) {
+func removeContainer(name string) {
 	if err := exec.Command("docker", "kill", name).Run(); err == nil {
 		// It was actually running.
 		log.Printf("Killed old %q container.", name)
@@ -643,7 +643,7 @@ func removeDemoContainer(name string) {
 // runDemoBlobServerContainer runs the demo blobserver as name in a docker
 // container. It is not run in daemon mode, so it never returns if successful.
 func runDemoBlobServerContainer(name string) error {
-	removeDemoContainer(name)
+	removeContainer(name)
 	cmd := exec.Command("docker", "run",
 		"--rm",
 		"--name="+name,

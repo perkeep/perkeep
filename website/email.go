@@ -74,7 +74,7 @@ var knownCommit = map[string]bool{} // commit -> true
 var diffMarker = []byte("diff --git a/")
 
 func emailCommit(dir, hash string) (err error) {
-	cmd := execGit(dir, nil, "show", hash)
+	cmd := execGit(dir, "show", nil, "show", hash)
 	body, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("Error runnning git show: %v\n%s", err, body)
@@ -84,7 +84,7 @@ func emailCommit(dir, hash string) (err error) {
 		return nil
 	}
 
-	cmd = execGit(dir, nil, "show", "--pretty=oneline", hash)
+	cmd = execGit(dir, "show_pretty", nil, "show", "--pretty=oneline", hash)
 	out, err := cmd.Output()
 	if err != nil {
 		return
@@ -172,12 +172,16 @@ func commitEmailLoop() error {
 	}
 }
 
-func execGit(workdir string, mounts map[string]string, gitArgs ...string) *exec.Cmd {
+// execGit runs the git command with gitArgs. All the other arguments are only
+// relevant if *gitContainer, in which case we run in a docker container.
+func execGit(workdir string, containerName string, mounts map[string]string, gitArgs ...string) *exec.Cmd {
 	var cmd *exec.Cmd
 	if *gitContainer {
+		removeContainer(containerName)
 		args := []string{
 			"run",
 			"--rm",
+			"--name=" + containerName,
 		}
 		for host, container := range mounts {
 			args = append(args, "-v", host+":"+container+":ro")
@@ -203,7 +207,7 @@ type GitCommit struct {
 }
 
 func pollCommits(dir string) {
-	cmd := execGit(dir, nil, "pull", "origin")
+	cmd := execGit(dir, "pull_origin", nil, "pull", "origin")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Printf("Error running git pull origin master in %s: %v\n%s", dir, err, out)
@@ -254,7 +258,7 @@ func pollCommits(dir string) {
 }
 
 func recentCommits(dir string) (hashes []string, err error) {
-	cmd := execGit(dir, nil, "log", "--since=1 month ago", "--pretty=oneline", "origin/master")
+	cmd := execGit(dir, "log_origin_master", nil, "log", "--since=1 month ago", "--pretty=oneline", "origin/master")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("Error running git log in %s: %v\n%s", dir, err, out)
