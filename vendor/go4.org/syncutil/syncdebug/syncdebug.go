@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package syncdebug contains facilities for debugging synchronization
 // problems.
-package syncdebug
+package syncdebug // import "go4.org/syncutil/syncdebug"
 
 import (
 	"bytes"

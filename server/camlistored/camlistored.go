@@ -82,10 +82,10 @@ import (
 	"go4.org/legal"
 	"go4.org/wkfs"
 
+	"cloud.google.com/go/logging"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2/google"
-	"google.golang.org/cloud"
-	"google.golang.org/cloud/logging"
+	"google.golang.org/api/option"
 )
 
 var (
@@ -342,8 +342,7 @@ func maybeSetupGoogleCloudLogging() {
 	if err != nil {
 		exitf("Error reading --gce_jwt_file value: %v", err)
 	}
-	ctx := cloud.NewContext(flagGCEProjectID, jwtConf.Client(context.Background()))
-	logc, err := logging.NewClient(ctx, flagGCEProjectID, flagGCELogName)
+	logc, err := logging.NewClient(context.Background(), flagGCEProjectID, flagGCELogName, option.WithHTTPClient(jwtConf.Client(context.Background())))
 	if err != nil {
 		exitf("Error creating GCL client: %v", err)
 	}

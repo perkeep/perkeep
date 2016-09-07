@@ -25,7 +25,7 @@ limitations under the License.
 // Example of top-level well-known directories that might be
 // registered include /gcs/bucket/object for Google Cloud Storage or
 // /s3/bucket/object for AWS S3.
-package wkfs
+package wkfs // import "go4.org/wkfs"
 
 import (
 	"io"

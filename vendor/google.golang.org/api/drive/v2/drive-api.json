@@ -1,13 +1,13 @@
 {
  "kind": "discovery#restDescription",
- "etag": "\"bRFOOrZKfO9LweMbPqu0kcu6De8/0hYcJ5XBuBZeTLqo6WNhl_6SW0A\"",
+ "etag": "\"C5oy1hgQsABtYOYIOXWcR3BgYqU/neft8qaFpEH--ZoPk-8DTolbo7o\"",
  "discoveryVersion": "v1",
  "id": "drive:v2",
  "name": "drive",
  "version": "v2",
- "revision": "20160303",
+ "revision": "20160721",
  "title": "Drive API",
- "description": "The API to interact with Drive.",
+ "description": "Manages files in Drive including uploading, downloading, searching, detecting changes, and updating sharing permissions.",
  "ownerDomain": "google.com",
  "ownerName": "Google",
  "icons": {
@@ -299,7 +299,7 @@
     },
     "remainingChangeIds": {
      "type": "string",
-     "description": "The number of remaining change ids.",
+     "description": "The number of remaining change ids, limited to no more than 2500.",
      "format": "int64"
     },
     "rootFolderId": {
@@ -1102,6 +1102,10 @@
       }
      }
     },
+    "isAppAuthorized": {
+     "type": "boolean",
+     "description": "Whether the file was created or opened by the requesting app."
+    },
     "kind": {
      "type": "string",
      "description": "The type of file. This is always drive#file.",
@@ -1178,7 +1182,7 @@
     },
     "originalFilename": {
      "type": "string",
-     "description": "The original filename if the file was uploaded manually, or the original title if the file was inserted through the API. Note that renames of the title will not change the original filename. This field is only populated for files with content stored in Drive; it is not populated for Google Docs or shortcut files."
+     "description": "The original filename of the uploaded content if available, or else the original value of the title field. This is only available for files with binary content in Drive."
     },
     "ownedByMe": {
      "type": "boolean",
@@ -1464,6 +1468,11 @@
     "etag": {
      "type": "string",
      "description": "The ETag of the permission."
+    },
+    "expirationDate": {
+     "type": "string",
+     "description": "The time at which this permission will expire (RFC 3339 date-time).",
+     "format": "date-time"
     },
     "id": {
      "type": "string",
@@ -2640,7 +2649,6 @@
      "scopes": [
       "https://www.googleapis.com/auth/drive",
       "https://www.googleapis.com/auth/drive.appdata",
-      "https://www.googleapis.com/auth/drive.apps.readonly",
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
@@ -3207,7 +3215,6 @@
      "scopes": [
       "https://www.googleapis.com/auth/drive",
       "https://www.googleapis.com/auth/drive.appdata",
-      "https://www.googleapis.com/auth/drive.apps.readonly",
       "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/drive.metadata",
       "https://www.googleapis.com/auth/drive.metadata.readonly",
@@ -3524,6 +3531,12 @@
        "required": true,
        "location": "path"
       },
+      "removeExpiration": {
+       "type": "boolean",
+       "description": "Whether to remove the expiration date.",
+       "default": "false",
+       "location": "query"
+      },
       "transferOwnership": {
        "type": "boolean",
        "description": "Whether changing a role to 'owner' downgrades the current owners to writers. Does nothing if the specified role is not 'owner'.",
@@ -3563,6 +3576,12 @@
        "description": "The ID for the permission.",
        "required": true,
        "location": "path"
+      },
+      "removeExpiration": {
+       "type": "boolean",
+       "description": "Whether to remove the expiration date.",
+       "default": "false",
+       "location": "query"
       },
       "transferOwnership": {
        "type": "boolean",

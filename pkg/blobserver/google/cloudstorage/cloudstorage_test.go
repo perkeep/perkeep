@@ -29,14 +29,14 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
-	"go4.org/jsonconfig"
 
+	"cloud.google.com/go/compute/metadata"
+	"cloud.google.com/go/storage"
+	"go4.org/jsonconfig"
 	"go4.org/oauthutil"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"google.golang.org/cloud/compute/metadata"
-	"google.golang.org/cloud/storage"
 )
 
 var (

@@ -23,10 +23,10 @@ import (
 	"strings"
 	"testing"
 
+	"cloud.google.com/go/compute/metadata"
+	"cloud.google.com/go/storage"
 	"go4.org/wkfs"
 	"golang.org/x/net/context"
-	"google.golang.org/cloud/compute/metadata"
-	"google.golang.org/cloud/storage"
 )
 
 var flagBucket = flag.String("bucket", "", "Google Cloud Storage bucket where to run the tests. It should be empty.")

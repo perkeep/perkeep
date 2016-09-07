@@ -20,7 +20,7 @@ limitations under the License.
 //
 // It was initially only meant for small files, and as such, it can only
 // read files smaller than 1MB for now.
-package gcs
+package gcs // import "go4.org/wkfs/gcs"
 
 import (
 	"bytes"
@@ -32,13 +32,13 @@ import (
 	"strings"
 	"time"
 
+	"cloud.google.com/go/compute/metadata"
+	"cloud.google.com/go/storage"
 	"go4.org/wkfs"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"google.golang.org/cloud"
-	"google.golang.org/cloud/compute/metadata"
-	"google.golang.org/cloud/storage"
+	"google.golang.org/api/option"
 )
 
 // Max size for all files read, because we use a bytes.Reader as our file
@@ -56,13 +56,8 @@ func init() {
 		registerBrokenFS(fmt.Errorf("could not get http client for context: %v", err))
 		return
 	}
-	projID, err := metadata.ProjectID()
-	if projID == "" || err != nil {
-		registerBrokenFS(fmt.Errorf("could not get GCE project ID: %v", err))
-		return
-	}
-	ctx := cloud.NewContext(projID, hc)
-	sc, err := storage.NewClient(ctx)
+	ctx := context.Background()
+	sc, err := storage.NewClient(ctx, option.WithHTTPClient(hc))
 	if err != nil {
 		registerBrokenFS(fmt.Errorf("could not get cloud storage client: %v", err))
 		return

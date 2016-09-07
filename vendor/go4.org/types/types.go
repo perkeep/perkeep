@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package types provides various common types.
-package types
+package types // import "go4.org/types"
 
 import (
 	"bytes"

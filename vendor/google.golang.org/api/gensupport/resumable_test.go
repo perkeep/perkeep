@@ -153,7 +153,7 @@ func TestInterruptedTransferChunks(t *testing.T) {
 		pr := progressRecorder{}
 		rx := &ResumableUpload{
 			Client:    &http.Client{Transport: tr},
-			Media:     NewResumableBuffer(media, tc.chunkSize),
+			Media:     NewMediaBuffer(media, tc.chunkSize),
 			MediaType: "text/plain",
 			Callback:  pr.ProgressUpdate,
 			Backoff:   NoPauseStrategy,
@@ -200,7 +200,7 @@ func TestCancelUploadFast(t *testing.T) {
 	pr := progressRecorder{}
 	rx := &ResumableUpload{
 		Client:    &http.Client{Transport: tr},
-		Media:     NewResumableBuffer(media, chunkSize),
+		Media:     NewMediaBuffer(media, chunkSize),
 		MediaType: "text/plain",
 		Callback:  pr.ProgressUpdate,
 		Backoff:   NoPauseStrategy,
@@ -249,7 +249,7 @@ func TestCancelUpload(t *testing.T) {
 
 	rx := &ResumableUpload{
 		Client:    &http.Client{Transport: tr},
-		Media:     NewResumableBuffer(media, chunkSize),
+		Media:     NewMediaBuffer(media, chunkSize),
 		MediaType: "text/plain",
 		Callback:  pr.ProgressUpdate,
 		Backoff:   NoPauseStrategy,

@@ -40,9 +40,9 @@ import (
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/server/app"
 	"camlistore.org/pkg/types/camtypes"
-	"go4.org/jsonconfig"
 
-	"google.golang.org/cloud/compute/metadata"
+	"cloud.google.com/go/compute/metadata"
+	"go4.org/jsonconfig"
 )
 
 // StatusHandler publishes server status information.

@@ -24,7 +24,8 @@ import (
 	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/types/serverconfig"
-	"google.golang.org/cloud/compute/metadata"
+
+	"cloud.google.com/go/compute/metadata"
 )
 
 // DefaultEnvConfig returns the default configuration when running on a known

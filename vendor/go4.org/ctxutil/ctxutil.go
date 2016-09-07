@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package ctxutil contains golang.org/x/net/context related utilities.
-package ctxutil
+package ctxutil // import "go4.org/ctxutil"
 
 import (
 	"net/http"

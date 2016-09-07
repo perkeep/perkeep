@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package fault handles fault injection for testing.
-package fault
+package fault // import "go4.org/fault"
 
 import (
 	"errors"

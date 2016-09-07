@@ -45,13 +45,12 @@ import (
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/leveldb"
 
+	"cloud.google.com/go/compute/metadata"
 	"code.google.com/p/xsrftoken"
-
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
-	"google.golang.org/cloud/compute/metadata"
 )
 
 const cookieExpiration = 24 * time.Hour

@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package oauthutil contains OAuth 2 related utilities.
-package oauthutil
+package oauthutil // import "go4.org/oauthutil"
 
 import (
 	"encoding/json"

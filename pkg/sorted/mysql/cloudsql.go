@@ -23,11 +23,11 @@ import (
 	"log"
 	"strings"
 
+	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	sqladmin "google.golang.org/api/sqladmin/v1beta3"
-	"google.golang.org/cloud/compute/metadata"
 )
 
 const cloudSQLSuffix = ".cloudsql.google.internal"

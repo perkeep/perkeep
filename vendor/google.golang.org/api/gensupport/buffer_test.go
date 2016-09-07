@@ -15,9 +15,9 @@ import (
 	"google.golang.org/api/googleapi"
 )
 
-// getChunkAsString reads a chunk from rb, but does not call Next.
-func getChunkAsString(t *testing.T, rb *ResumableBuffer) (string, error) {
-	chunk, _, size, err := rb.Chunk()
+// getChunkAsString reads a chunk from mb, but does not call Next.
+func getChunkAsString(t *testing.T, mb *MediaBuffer) (string, error) {
+	chunk, _, size, err := mb.Chunk()
 
 	buf, e := ioutil.ReadAll(chunk)
 	if e != nil {
@@ -82,11 +82,11 @@ func TestChunking(t *testing.T) {
 				r = iotest.OneByteReader(r)
 			}
 
-			rb := NewResumableBuffer(r, tc.chunkSize)
+			mb := NewMediaBuffer(r, tc.chunkSize)
 			var gotErr error
 			got := []string{}
 			for {
-				chunk, err := getChunkAsString(t, rb)
+				chunk, err := getChunkAsString(t, mb)
 				if len(chunk) != 0 {
 					got = append(got, string(chunk))
 				}
@@ -94,7 +94,7 @@ func TestChunking(t *testing.T) {
 					gotErr = err
 					break
 				}
-				rb.Next()
+				mb.Next()
 			}
 
 			if !reflect.DeepEqual(got, tc.wantChunks) {
@@ -114,11 +114,11 @@ func TestChunking(t *testing.T) {
 
 func TestChunkCanBeReused(t *testing.T) {
 	er := &errReader{buf: []byte("abcdefg")}
-	rb := NewResumableBuffer(er, 3)
+	mb := NewMediaBuffer(er, 3)
 
 	// expectChunk reads a chunk and checks that it got what was wanted.
 	expectChunk := func(want string, wantErr error) {
-		got, err := getChunkAsString(t, rb)
+		got, err := getChunkAsString(t, mb)
 		if err != wantErr {
 			t.Errorf("error reading buffer: got: %v; want: %v", err, wantErr)
 		}
@@ -129,22 +129,22 @@ func TestChunkCanBeReused(t *testing.T) {
 	expectChunk("abc", nil)
 	// On second call, should get same chunk again.
 	expectChunk("abc", nil)
-	rb.Next()
+	mb.Next()
 	expectChunk("def", nil)
 	expectChunk("def", nil)
-	rb.Next()
+	mb.Next()
 	expectChunk("g", io.EOF)
 	expectChunk("g", io.EOF)
-	rb.Next()
+	mb.Next()
 	expectChunk("", io.EOF)
 }
 
 func TestPos(t *testing.T) {
 	er := &errReader{buf: []byte("abcdefg")}
-	rb := NewResumableBuffer(er, 3)
+	mb := NewMediaBuffer(er, 3)
 
 	expectChunkAtOffset := func(want int64, wantErr error) {
-		_, off, _, err := rb.Chunk()
+		_, off, _, err := mb.Chunk()
 		if err != wantErr {
 			t.Errorf("error reading buffer: got: %v; want: %v", err, wantErr)
 		}
@@ -160,19 +160,19 @@ func TestPos(t *testing.T) {
 
 	// Calling Next multiple times should only cause off to advance by 3, since off is not advanced until
 	// the chunk is actually read.
-	rb.Next()
-	rb.Next()
+	mb.Next()
+	mb.Next()
 	expectChunkAtOffset(3, nil)
 
-	rb.Next()
+	mb.Next()
 
 	// Load the final 1-byte chunk.
 	expectChunkAtOffset(6, io.EOF)
 
 	// Next will advance 1 byte.  But there are no more chunks, so off will not increase beyond 7.
-	rb.Next()
+	mb.Next()
 	expectChunkAtOffset(7, io.EOF)
-	rb.Next()
+	mb.Next()
 	expectChunkAtOffset(7, io.EOF)
 }
 

@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"sync"
 
-	"google.golang.org/cloud/compute/metadata"
+	"cloud.google.com/go/compute/metadata"
 )
 
 // IsDebug reports whether this is a debug environment.

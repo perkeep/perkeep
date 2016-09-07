@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package legal provides in-process storage for compiled-in licenses.
-package legal
+package legal // import "go4.org/legal"
 
 var licenses []string
 

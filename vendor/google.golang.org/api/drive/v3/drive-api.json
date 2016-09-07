@@ -1,13 +1,13 @@
 {
  "kind": "discovery#restDescription",
- "etag": "\"bRFOOrZKfO9LweMbPqu0kcu6De8/O9_NbpoVnW5GMGl7qWBIajcyrt8\"",
+ "etag": "\"C5oy1hgQsABtYOYIOXWcR3BgYqU/VbKRc7NKC963fgm8EKtLFdMwzaw\"",
  "discoveryVersion": "v1",
  "id": "drive:v3",
  "name": "drive",
  "version": "v3",
- "revision": "20160303",
+ "revision": "20160616",
  "title": "Drive API",
- "description": "The API to interact with Drive.",
+ "description": "Manages files in Drive including uploading, downloading, searching, detecting changes, and updating sharing permissions.",
  "ownerDomain": "google.com",
  "ownerName": "Google",
  "icons": {
@@ -609,6 +609,10 @@
       }
      }
     },
+    "isAppAuthorized": {
+     "type": "boolean",
+     "description": "Whether the file was created or opened by the requesting app."
+    },
     "kind": {
      "type": "string",
      "description": "This is always drive#file.",
@@ -837,6 +841,11 @@
     "emailAddress": {
      "type": "string",
      "description": "The email address of the user or group to which this permission refers."
+    },
+    "expirationTime": {
+     "type": "string",
+     "description": "The time at which this permission will expire (RFC 3339 date-time).",
+     "format": "date-time"
     },
     "id": {
      "type": "string",
@@ -2029,6 +2038,12 @@
        "description": "The ID of the permission.",
        "required": true,
        "location": "path"
+      },
+      "removeExpiration": {
+       "type": "boolean",
+       "description": "Whether to remove the expiration date.",
+       "default": "false",
+       "location": "query"
       },
       "transferOwnership": {
        "type": "boolean",

@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package bytereplacer provides a utility for replacing parts of byte slices.
-package bytereplacer
+package bytereplacer // import "go4.org/bytereplacer"
 
 import "bytes"
 

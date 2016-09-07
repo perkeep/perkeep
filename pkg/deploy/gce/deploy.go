@@ -37,19 +37,18 @@ import (
 
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/osutil"
-	"golang.org/x/net/context"
 
+	"cloud.google.com/go/logging"
+	cloudstorage "cloud.google.com/go/storage"
 	"go4.org/cloud/google/gceutil"
 	"go4.org/syncutil"
+	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	// TODO(mpl): switch to google.golang.org/cloud/compute
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/option"
 	storage "google.golang.org/api/storage/v1"
-	"google.golang.org/cloud"
-	"google.golang.org/cloud/logging"
-	cloudstorage "google.golang.org/cloud/storage"
 )
 
 const (
@@ -497,7 +496,7 @@ func cloudConfig(conf *InstanceConf) string {
 // If either the TLS keypair doesn't exist, the error is os.ErrNotExist.
 func (d *Deployer) getInstalledTLS() (certPEM, keyPEM []byte, err error) {
 	ctx := context.Background()
-	stoClient, err := cloudstorage.NewClient(ctx, cloud.WithBaseHTTP(d.Client))
+	stoClient, err := cloudstorage.NewClient(ctx, option.WithHTTPClient(d.Client))
 	if err != nil {
 		return nil, nil, fmt.Errorf("error creating Cloud Storage client to fetch TLS cert & key from new instance: %v", err)
 	}

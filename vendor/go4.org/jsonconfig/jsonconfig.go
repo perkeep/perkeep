@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package jsonconfig defines a helper type for JSON objects to be
 // used for configuration.
-package jsonconfig
+package jsonconfig // import "go4.org/jsonconfig"
 
 import (
 	"fmt"

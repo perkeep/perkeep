@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package gceutil provides utility functions to help with instances on
 // Google Compute Engine.
-package gceutil
+package gceutil // import "go4.org/cloud/google/gceutil"
 
 import (
 	"encoding/json"

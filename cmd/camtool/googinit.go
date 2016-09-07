@@ -26,10 +26,10 @@ import (
 	"camlistore.org/pkg/blobserver/google/drive"
 	"camlistore.org/pkg/cmdmain"
 
+	"cloud.google.com/go/storage"
 	"go4.org/oauthutil"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"google.golang.org/cloud/storage"
 )
 
 type googinitCmd struct {

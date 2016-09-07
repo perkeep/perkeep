@@ -170,9 +170,21 @@ type Empty struct {
 
 // HttpRequest: A common proto for logging HTTP requests.
 type HttpRequest struct {
+	// CacheFillBytes: The number of HTTP response bytes inserted into
+	// cache. Set only when a cache fill was attempted.
+	CacheFillBytes int64 `json:"cacheFillBytes,omitempty,string"`
+
 	// CacheHit: Whether or not an entity was served from cache (with or
 	// without validation).
 	CacheHit bool `json:"cacheHit,omitempty"`
+
+	// CacheLookup: Whether or not a cache lookup was attempted.
+	CacheLookup bool `json:"cacheLookup,omitempty"`
+
+	// CacheValidatedWithOriginServer: Whether or not the response was
+	// validated with the origin server before being served from cache. This
+	// field is only meaningful if `cache_hit` is True.
+	CacheValidatedWithOriginServer bool `json:"cacheValidatedWithOriginServer,omitempty"`
 
 	// Referer: The referer URL of the request, as defined in [HTTP/1.1
 	// Header Field
@@ -210,12 +222,7 @@ type HttpRequest struct {
 	// (compatible; MSIE 6.0; Windows 98; Q312461; .NET CLR 1.0.3705)".
 	UserAgent string `json:"userAgent,omitempty"`
 
-	// ValidatedWithOriginServer: Whether or not the response was validated
-	// with the origin server before being served from cache. This field is
-	// only meaningful if `cache_hit` is True.
-	ValidatedWithOriginServer bool `json:"validatedWithOriginServer,omitempty"`
-
-	// ForceSendFields is a list of field names (e.g. "CacheHit") to
+	// ForceSendFields is a list of field names (e.g. "CacheFillBytes") to
 	// unconditionally include in API requests. By default, fields with
 	// empty values are omitted from API requests. However, any non-pointer,
 	// non-interface field appearing in ForceSendFields will be sent to the
@@ -271,7 +278,7 @@ type ListLogEntriesRequest struct {
 	Filter string `json:"filter,omitempty"`
 
 	// OrderBy: Optional. How the results should be sorted. Presently, the
-	// only permitted values are "timestamp" (default) and "timestamp
+	// only permitted values are "timestamp asc" (default) and "timestamp
 	// desc". The first option returns entries in order of increasing
 	// values of `LogEntry.timestamp` (oldest first), and the second option
 	// returns entries in order of decreasing timestamps (newest first).
@@ -280,19 +287,23 @@ type ListLogEntriesRequest struct {
 	OrderBy string `json:"orderBy,omitempty"`
 
 	// PageSize: Optional. The maximum number of results to return from this
-	// request. Fewer results might be returned. You must check for the
-	// `nextPageToken` result to determine if additional results are
-	// available, which you can retrieve by passing the `nextPageToken`
-	// value in the `pageToken` parameter to the next request.
+	// request. You must check for presence of `nextPageToken` to determine
+	// if additional results are available, which you can retrieve by
+	// passing the `nextPageToken` value as the `pageToken` parameter in the
+	// next request.
 	PageSize int64 `json:"pageSize,omitempty"`
 
-	// PageToken: Optional. If the `pageToken` request parameter is
-	// supplied, then the next page of results in the set are retrieved. The
-	// `pageToken` parameter must be set with the value of the
-	// `nextPageToken` result parameter from the previous request. The
-	// values of `projectIds`, `filter`, and `orderBy` must be the same as
-	// in the previous request.
+	// PageToken: Optional. If the `pageToken` parameter is supplied, then
+	// the next page of results is retrieved. The `pageToken` parameter must
+	// be set to the value of the `nextPageToken` from the previous
+	// response. The values of `projectIds`, `filter`, and `orderBy` must be
+	// the same as in the previous request.
 	PageToken string `json:"pageToken,omitempty"`
+
+	// PartialSuccess: Optional. If true, read access to all projects is not
+	// required and results will be returned for the subset of projects for
+	// which read access is permitted (empty subset is permitted).
+	PartialSuccess bool `json:"partialSuccess,omitempty"`
 
 	// ProjectIds: Required. One or more project IDs or project numbers from
 	// which to retrieve log entries. Examples of a project ID:
@@ -320,10 +331,14 @@ type ListLogEntriesResponse struct {
 	Entries []*LogEntry `json:"entries,omitempty"`
 
 	// NextPageToken: If there are more results than were returned, then
-	// `nextPageToken` is given a value in the response. To get the next
-	// batch of results, call this method again using the value of
-	// `nextPageToken` as `pageToken`.
+	// `nextPageToken` is included in the response. To get the next set of
+	// results, call this method again using the value of `nextPageToken` as
+	// `pageToken`.
 	NextPageToken string `json:"nextPageToken,omitempty"`
+
+	// ProjectIdErrors: If partial_success is true, contains the project ids
+	// that had errors and the associated errors.
+	ProjectIdErrors map[string]Status `json:"projectIdErrors,omitempty"`
 
 	// ServerResponse contains the HTTP response code and headers from the
 	// server.
@@ -350,9 +365,9 @@ type ListLogMetricsResponse struct {
 	Metrics []*LogMetric `json:"metrics,omitempty"`
 
 	// NextPageToken: If there are more results than were returned, then
-	// `nextPageToken` is given a value in the response. To get the next
-	// batch of results, call this method again using the value of
-	// `nextPageToken` as `pageToken`.
+	// `nextPageToken` is included in the response. To get the next set of
+	// results, call this method again using the value of `nextPageToken` as
+	// `pageToken`.
 	NextPageToken string `json:"nextPageToken,omitempty"`
 
 	// ServerResponse contains the HTTP response code and headers from the
@@ -378,7 +393,7 @@ func (s *ListLogMetricsResponse) MarshalJSON() ([]byte, error) {
 // ListMonitoredResourceDescriptors.
 type ListMonitoredResourceDescriptorsResponse struct {
 	// NextPageToken: If there are more results than were returned, then
-	// `nextPageToken` is returned in the response. To get the next batch of
+	// `nextPageToken` is included in the response. To get the next set of
 	// results, call this method again using the value of `nextPageToken` as
 	// `pageToken`.
 	NextPageToken string `json:"nextPageToken,omitempty"`
@@ -408,9 +423,9 @@ func (s *ListMonitoredResourceDescriptorsResponse) MarshalJSON() ([]byte, error)
 // ListSinksResponse: Result returned from `ListSinks`.
 type ListSinksResponse struct {
 	// NextPageToken: If there are more results than were returned, then
-	// `nextPageToken` is given a value in the response. To get the next
-	// batch of results, call this method again using the value of
-	// `nextPageToken` as `pageToken`.
+	// `nextPageToken` is included in the response. To get the next set of
+	// results, call this method again using the value of `nextPageToken` as
+	// `pageToken`.
 	NextPageToken string `json:"nextPageToken,omitempty"`
 
 	// Sinks: A list of sinks.
@@ -456,9 +471,8 @@ type LogEntry struct {
 	Labels map[string]string `json:"labels,omitempty"`
 
 	// LogName: Required. The resource name of the log to which this log
-	// entry belongs. The format of the name is
-	// `projects/<project-id>/logs/<log-id%gt;`. Examples:
-	// "projects/my-projectid/logs/syslog",
+	// entry belongs. The format of the name is "projects/
+	// /logs/". Examples: "projects/my-projectid/logs/syslog",
 	// "projects/1234567890/logs/library.googleapis.com%2Fbook_log". The
 	// log ID part of resource name must be less than 512 characters long
 	// and can only include the following characters: upper and lower case
@@ -651,11 +665,12 @@ type LogSink struct {
 	Destination string `json:"destination,omitempty"`
 
 	// Filter: An [advanced logs
-	// filter](/logging/docs/view/advanced_filters) that defines the log
-	// entries to be exported. The filter must be consistent with the log
-	// entry format designed by the `outputVersionFormat` parameter,
-	// regardless of the format of the log entry that was originally written
-	// to Cloud Logging. Example: "logName:syslog AND severity>=ERROR".
+	// filter](/logging/docs/view/advanced_filters). Only log entries
+	// matching that filter are exported. The filter must be consistent with
+	// the log entry format specified by the `outputVersionFormat`
+	// parameter, regardless of the format of the log entry that was
+	// originally written to Cloud Logging. Example (V2 format):
+	// "logName=projects/my-projectid/logs/syslog AND severity>=ERROR".
 	Filter string `json:"filter,omitempty"`
 
 	// Name: Required. The client-assigned sink identifier. Example:
@@ -664,9 +679,9 @@ type LogSink struct {
 	// `a-z`, `0-9`, and the special characters `_-.`.
 	Name string `json:"name,omitempty"`
 
-	// OutputVersionFormat: The log entry version used when exporting log
-	// entries from this sink. This version does not have to correspond to
-	// the version of the log entry when it was written to Cloud Logging.
+	// OutputVersionFormat: The log entry version to use for this sink's
+	// exported log entries. This version does not have to correspond to the
+	// version of the log entry when it was written to Cloud Logging.
 	//
 	// Possible values:
 	//   "VERSION_FORMAT_UNSPECIFIED"
@@ -693,19 +708,26 @@ func (s *LogSink) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields)
 }
 
-// MonitoredResource: A specific monitored resource or a group of
-// monitored resources.
+// MonitoredResource: An object representing a resource that can be used
+// for monitoring, logging, billing, or other purposes. Examples include
+// virtual machine instances, databases, and storage devices such as
+// disks. The `type` field identifies a MonitoredResourceDescriptor
+// object that describes the resource's schema. Information in the
+// `labels` field identifies the actual resource and its attributes
+// according to the schema. For example, a particular Compute Engine VM
+// instance could be represented by the following object, because the
+// MonitoredResourceDescriptor for "gce_instance" has labels
+// "instance_id" and "zone": { "type": "gce_instance", "labels": {
+// "instance_id": "my-instance", "zone": "us-central1-a" }}
 type MonitoredResource struct {
-	// Labels: Values for some or all of the labels listed in the associated
-	// monitored resource descriptor. For example, specify a specific Cloud
-	// SQL database by supplying values for both the "database_id" and
-	// "zone" labels. Specify the set of all Cloud SQL databases in a
-	// particular location by supplying a value for only the "zone" label.
+	// Labels: Required. Values for all of the labels listed in the
+	// associated monitored resource descriptor. For example, Cloud SQL
+	// databases use the labels "database_id" and "zone".
 	Labels map[string]string `json:"labels,omitempty"`
 
-	// Type: The type of monitored resource. This field must match the value
-	// of the `type` field in a MonitoredResourceDescriptor object. For
-	// example, "cloudsql_database" represents Cloud SQL databases.
+	// Type: Required. The monitored resource type. This field must match
+	// the `type` field of a MonitoredResourceDescriptor object. For
+	// example, the type of a Cloud SQL database is "cloudsql_database".
 	Type string `json:"type,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "Labels") to
@@ -723,23 +745,40 @@ func (s *MonitoredResource) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields)
 }
 
-// MonitoredResourceDescriptor: A description of a type of monitored
-// resource.
+// MonitoredResourceDescriptor: An object that describes the schema of a
+// MonitoredResource object using a type name and a set of labels. For
+// example, the monitored resource descriptor for Google Compute Engine
+// VM instances has a type of "gce_instance" and specifies the use of
+// the labels "instance_id" and "zone" to identify particular VM
+// instances. Different APIs can support different monitored resource
+// types. APIs generally provide a `list` method that returns the
+// monitored resource descriptors used by the API.
 type MonitoredResourceDescriptor struct {
-	// Description: A detailed description of the monitored resource type,
-	// which is used in documentation.
+	// Description: Optional. A detailed description of the monitored
+	// resource type that might be used in documentation.
 	Description string `json:"description,omitempty"`
 
-	// DisplayName: A concise name for the monitored resource type, which is
-	// displayed in user interfaces. For example, "Cloud SQL Database".
+	// DisplayName: Optional. A concise name for the monitored resource type
+	// that might be displayed in user interfaces. For example, "Google
+	// Cloud SQL Database".
 	DisplayName string `json:"displayName,omitempty"`
 
-	// Labels: A set of labels that can be used to describe instances of
-	// this monitored resource type. For example, Cloud SQL databases can be
-	// labeled with their "database_id" and their "zone".
+	// Labels: Required. A set of labels used to describe instances of this
+	// monitored resource type. For example, an individual Google Cloud SQL
+	// database is identified by values for the labels "database_id" and
+	// "zone".
 	Labels []*LabelDescriptor `json:"labels,omitempty"`
 
-	// Type: The monitored resource type. For example, the type
+	// Name: Optional. The resource name of the monitored resource
+	// descriptor:
+	// "projects/{project_id}/monitoredResourceDescriptors/{type}" where
+	// {type} is the value of the `type` field in this object and
+	// {project_id} is a project ID that provides API-specific context for
+	// accessing the type. APIs that do not use project information can use
+	// the resource name format "monitoredResourceDescriptors/{type}".
+	Name string `json:"name,omitempty"`
+
+	// Type: Required. The monitored resource type. For example, the type
 	// "cloudsql_database" represents databases in Google Cloud SQL.
 	Type string `json:"type,omitempty"`
 
@@ -775,6 +814,11 @@ type RequestLog struct {
 
 	// Finished: Whether this request is finished or active.
 	Finished bool `json:"finished,omitempty"`
+
+	// First: Whether this is the first RequestLog entry for this request.
+	// If an active request has several RequestLog entries written to Cloud
+	// Logging, this field will be set for one of them.
+	First bool `json:"first,omitempty"`
 
 	// Host: Internet host and port number of the resource being requested.
 	Host string `json:"host,omitempty"`
@@ -949,6 +993,73 @@ func (s *SourceReference) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields)
 }
 
+// Status: The `Status` type defines a logical error model that is
+// suitable for different programming environments, including REST APIs
+// and RPC APIs. It is used by [gRPC](https://github.com/grpc). The
+// error model is designed to be: - Simple to use and understand for
+// most users - Flexible enough to meet unexpected needs # Overview The
+// `Status` message contains three pieces of data: error code, error
+// message, and error details. The error code should be an enum value of
+// google.rpc.Code, but it may accept additional error codes if needed.
+// The error message should be a developer-facing English message that
+// helps developers *understand* and *resolve* the error. If a localized
+// user-facing error message is needed, put the localized message in the
+// error details or localize it in the client. The optional error
+// details may contain arbitrary information about the error. There is a
+// predefined set of error detail types in the package `google.rpc`
+// which can be used for common error conditions. # Language mapping The
+// `Status` message is the logical representation of the error model,
+// but it is not necessarily the actual wire format. When the `Status`
+// message is exposed in different client libraries and different wire
+// protocols, it can be mapped differently. For example, it will likely
+// be mapped to some exceptions in Java, but more likely mapped to some
+// error codes in C. # Other uses The error model and the `Status`
+// message can be used in a variety of environments, either with or
+// without APIs, to provide a consistent developer experience across
+// different environments. Example uses of this error model include: -
+// Partial errors. If a service needs to return partial errors to the
+// client, it may embed the `Status` in the normal response to indicate
+// the partial errors. - Workflow errors. A typical workflow has
+// multiple steps. Each step may have a `Status` message for error
+// reporting purpose. - Batch operations. If a client uses batch request
+// and batch response, the `Status` message should be used directly
+// inside batch response, one for each error sub-response. -
+// Asynchronous operations. If an API call embeds asynchronous operation
+// results in its response, the status of those operations should be
+// represented directly using the `Status` message. - Logging. If some
+// API errors are stored in logs, the message `Status` could be used
+// directly after any stripping needed for security/privacy reasons.
+type Status struct {
+	// Code: The status code, which should be an enum value of
+	// google.rpc.Code.
+	Code int64 `json:"code,omitempty"`
+
+	// Details: A list of messages that carry the error details. There will
+	// be a common set of message types for APIs to use.
+	Details []StatusDetails `json:"details,omitempty"`
+
+	// Message: A developer-facing error message, which should be in
+	// English. Any user-facing error message should be localized and sent
+	// in the google.rpc.Status.details field, or localized by the client.
+	Message string `json:"message,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "Code") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+}
+
+func (s *Status) MarshalJSON() ([]byte, error) {
+	type noMethod Status
+	raw := noMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields)
+}
+
+type StatusDetails interface{}
+
 // WriteLogEntriesRequest: The parameters to WriteLogEntries.
 type WriteLogEntriesRequest struct {
 	// Entries: Required. The log entries to write. The log entries must
@@ -965,6 +1076,14 @@ type WriteLogEntriesRequest struct {
 	// in `entries` that do not specify their own `logName`. Example:
 	// "projects/my-project/logs/syslog". See LogEntry.
 	LogName string `json:"logName,omitempty"`
+
+	// PartialSuccess: Optional. Whether valid entries should be written
+	// even if some other entries fail due to INVALID_ARGUMENT or
+	// PERMISSION_DENIED errors. If any entry is not written, the response
+	// status will be the error associated with one of the failed entries
+	// and include error details in the form of
+	// WriteLogEntriesPartialErrors.
+	PartialSuccess bool `json:"partialSuccess,omitempty"`
 
 	// Resource: Optional. A default monitored resource for those log
 	// entries in `entries` that do not specify their own `resource`.
@@ -1027,23 +1146,20 @@ func (c *EntriesListCall) Context(ctx context.Context) *EntriesListCall {
 }
 
 func (c *EntriesListCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("User-Agent", c.s.userAgent())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.listlogentriesrequest)
 	if err != nil {
 		return nil, err
 	}
-	ctype := "application/json"
+	reqHeaders.Set("Content-Type", "application/json")
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/entries:list")
 	urls += "?" + c.urlParams_.Encode()
 	req, _ := http.NewRequest("POST", urls, body)
-	googleapi.SetOpaque(req.URL)
-	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", c.s.userAgent())
-	if c.ctx_ != nil {
-		return ctxhttp.Do(c.ctx_, c.s.client, req)
-	}
-	return c.s.client.Do(req)
+	req.Header = reqHeaders
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
 // Do executes the "logging.entries.list" call.
@@ -1078,7 +1194,8 @@ func (c *EntriesListCall) Do(opts ...googleapi.CallOption) (*ListLogEntriesRespo
 			HTTPStatusCode: res.StatusCode,
 		},
 	}
-	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
 		return nil, err
 	}
 	return ret, nil
@@ -1137,23 +1254,20 @@ func (c *EntriesWriteCall) Context(ctx context.Context) *EntriesWriteCall {
 }
 
 func (c *EntriesWriteCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("User-Agent", c.s.userAgent())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.writelogentriesrequest)
 	if err != nil {
 		return nil, err
 	}
-	ctype := "application/json"
+	reqHeaders.Set("Content-Type", "application/json")
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/entries:write")
 	urls += "?" + c.urlParams_.Encode()
 	req, _ := http.NewRequest("POST", urls, body)
-	googleapi.SetOpaque(req.URL)
-	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", c.s.userAgent())
-	if c.ctx_ != nil {
-		return ctxhttp.Do(c.ctx_, c.s.client, req)
-	}
-	return c.s.client.Do(req)
+	req.Header = reqHeaders
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
 // Do executes the "logging.entries.write" call.
@@ -1188,7 +1302,8 @@ func (c *EntriesWriteCall) Do(opts ...googleapi.CallOption) (*WriteLogEntriesRes
 			HTTPStatusCode: res.StatusCode,
 		},
 	}
-	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
 		return nil, err
 	}
 	return ret, nil
@@ -1229,21 +1344,19 @@ func (r *MonitoredResourceDescriptorsService) List() *MonitoredResourceDescripto
 }
 
 // PageSize sets the optional parameter "pageSize": The maximum number
-// of results to return from this request. Fewer results might be
-// returned. You must check for the `nextPageToken` result to determine
-// if additional results are available, which you can retrieve by
-// passing the `nextPageToken` value in the `pageToken` parameter to the
-// next request.
+// of results to return from this request. You must check for presence
+// of `nextPageToken` to determine if additional results are available,
+// which you can retrieve by passing the `nextPageToken` value as the
+// `pageToken` parameter in the next request.
 func (c *MonitoredResourceDescriptorsListCall) PageSize(pageSize int64) *MonitoredResourceDescriptorsListCall {
 	c.urlParams_.Set("pageSize", fmt.Sprint(pageSize))
 	return c
 }
 
 // PageToken sets the optional parameter "pageToken": If the `pageToken`
-// request parameter is supplied, then the next page of results in the
-// set are retrieved. The `pageToken` parameter must be set with the
-// value of the `nextPageToken` result parameter from the previous
-// request.
+// parameter is supplied, then the next page of results is retrieved.
+// The `pageToken` parameter must be set to the value of the
+// `nextPageToken` from the previous response.
 func (c *MonitoredResourceDescriptorsListCall) PageToken(pageToken string) *MonitoredResourceDescriptorsListCall {
 	c.urlParams_.Set("pageToken", pageToken)
 	return c
@@ -1276,20 +1389,18 @@ func (c *MonitoredResourceDescriptorsListCall) Context(ctx context.Context) *Mon
 }
 
 func (c *MonitoredResourceDescriptorsListCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	if c.ifNoneMatch_ != "" {
+		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
+	}
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/monitoredResourceDescriptors")
 	urls += "?" + c.urlParams_.Encode()
 	req, _ := http.NewRequest("GET", urls, body)
-	googleapi.SetOpaque(req.URL)
-	req.Header.Set("User-Agent", c.s.userAgent())
-	if c.ifNoneMatch_ != "" {
-		req.Header.Set("If-None-Match", c.ifNoneMatch_)
-	}
-	if c.ctx_ != nil {
-		return ctxhttp.Do(c.ctx_, c.s.client, req)
-	}
-	return c.s.client.Do(req)
+	req.Header = reqHeaders
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
 // Do executes the "logging.monitoredResourceDescriptors.list" call.
@@ -1326,7 +1437,8 @@ func (c *MonitoredResourceDescriptorsListCall) Do(opts ...googleapi.CallOption) 
 			HTTPStatusCode: res.StatusCode,
 		},
 	}
-	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
 		return nil, err
 	}
 	return ret, nil
@@ -1336,13 +1448,13 @@ func (c *MonitoredResourceDescriptorsListCall) Do(opts ...googleapi.CallOption) 
 	//   "id": "logging.monitoredResourceDescriptors.list",
 	//   "parameters": {
 	//     "pageSize": {
-	//       "description": "Optional. The maximum number of results to return from this request. Fewer results might be returned. You must check for the `nextPageToken` result to determine if additional results are available, which you can retrieve by passing the `nextPageToken` value in the `pageToken` parameter to the next request.",
+	//       "description": "Optional. The maximum number of results to return from this request. You must check for presence of `nextPageToken` to determine if additional results are available, which you can retrieve by passing the `nextPageToken` value as the `pageToken` parameter in the next request.",
 	//       "format": "int32",
 	//       "location": "query",
 	//       "type": "integer"
 	//     },
 	//     "pageToken": {
-	//       "description": "Optional. If the `pageToken` request parameter is supplied, then the next page of results in the set are retrieved. The `pageToken` parameter must be set with the value of the `nextPageToken` result parameter from the previous request.",
+	//       "description": "Optional. If the `pageToken` parameter is supplied, then the next page of results is retrieved. The `pageToken` parameter must be set to the value of the `nextPageToken` from the previous response.",
 	//       "location": "query",
 	//       "type": "string"
 	//     }
@@ -1416,19 +1528,18 @@ func (c *ProjectsLogsDeleteCall) Context(ctx context.Context) *ProjectsLogsDelet
 }
 
 func (c *ProjectsLogsDeleteCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("User-Agent", c.s.userAgent())
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+logName}")
 	urls += "?" + c.urlParams_.Encode()
 	req, _ := http.NewRequest("DELETE", urls, body)
+	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"logName": c.logName,
 	})
-	req.Header.Set("User-Agent", c.s.userAgent())
-	if c.ctx_ != nil {
-		return ctxhttp.Do(c.ctx_, c.s.client, req)
-	}
-	return c.s.client.Do(req)
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
 // Do executes the "logging.projects.logs.delete" call.
@@ -1463,7 +1574,8 @@ func (c *ProjectsLogsDeleteCall) Do(opts ...googleapi.CallOption) (*Empty, error
 			HTTPStatusCode: res.StatusCode,
 		},
 	}
-	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
 		return nil, err
 	}
 	return ret, nil
@@ -1530,25 +1642,23 @@ func (c *ProjectsMetricsCreateCall) Context(ctx context.Context) *ProjectsMetric
 }
 
 func (c *ProjectsMetricsCreateCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("User-Agent", c.s.userAgent())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logmetric)
 	if err != nil {
 		return nil, err
 	}
-	ctype := "application/json"
+	reqHeaders.Set("Content-Type", "application/json")
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+projectName}/metrics")
 	urls += "?" + c.urlParams_.Encode()
 	req, _ := http.NewRequest("POST", urls, body)
+	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"projectName": c.projectName,
 	})
-	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", c.s.userAgent())
-	if c.ctx_ != nil {
-		return ctxhttp.Do(c.ctx_, c.s.client, req)
-	}
-	return c.s.client.Do(req)
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
 // Do executes the "logging.projects.metrics.create" call.
@@ -1583,7 +1693,8 @@ func (c *ProjectsMetricsCreateCall) Do(opts ...googleapi.CallOption) (*LogMetric
 			HTTPStatusCode: res.StatusCode,
 		},
 	}
-	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
 		return nil, err
 	}
 	return ret, nil
@@ -1652,19 +1763,18 @@ func (c *ProjectsMetricsDeleteCall) Context(ctx context.Context) *ProjectsMetric
 }
 
 func (c *ProjectsMetricsDeleteCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("User-Agent", c.s.userAgent())
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+metricName}")
 	urls += "?" + c.urlParams_.Encode()
 	req, _ := http.NewRequest("DELETE", urls, body)
+	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"metricName": c.metricName,
 	})
-	req.Header.Set("User-Agent", c.s.userAgent())
-	if c.ctx_ != nil {
-		return ctxhttp.Do(c.ctx_, c.s.client, req)
-	}
-	return c.s.client.Do(req)
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
 // Do executes the "logging.projects.metrics.delete" call.
@@ -1699,7 +1809,8 @@ func (c *ProjectsMetricsDeleteCall) Do(opts ...googleapi.CallOption) (*Empty, er
 			HTTPStatusCode: res.StatusCode,
 		},
 	}
-	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
 		return nil, err
 	}
 	return ret, nil
@@ -1776,22 +1887,21 @@ func (c *ProjectsMetricsGetCall) Context(ctx context.Context) *ProjectsMetricsGe
 }
 
 func (c *ProjectsMetricsGetCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	if c.ifNoneMatch_ != "" {
+		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
+	}
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+metricName}")
 	urls += "?" + c.urlParams_.Encode()
 	req, _ := http.NewRequest("GET", urls, body)
+	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"metricName": c.metricName,
 	})
-	req.Header.Set("User-Agent", c.s.userAgent())
-	if c.ifNoneMatch_ != "" {
-		req.Header.Set("If-None-Match", c.ifNoneMatch_)
-	}
-	if c.ctx_ != nil {
-		return ctxhttp.Do(c.ctx_, c.s.client, req)
-	}
-	return c.s.client.Do(req)
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
 // Do executes the "logging.projects.metrics.get" call.
@@ -1826,7 +1936,8 @@ func (c *ProjectsMetricsGetCall) Do(opts ...googleapi.CallOption) (*LogMetric, e
 			HTTPStatusCode: res.StatusCode,
 		},
 	}
-	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
 		return nil, err
 	}
 	return ret, nil
@@ -1878,22 +1989,20 @@ func (r *ProjectsMetricsService) List(projectName string) *ProjectsMetricsListCa
 }
 
 // PageSize sets the optional parameter "pageSize": The maximum number
-// of results to return from this request. Fewer results might be
-// returned. You must check for the `nextPageToken` result to determine
-// if additional results are available, which you can retrieve by
-// passing the `nextPageToken` value in the `pageToken` parameter to the
-// next request.
+// of results to return from this request. You must check for presence
+// of `nextPageToken` to determine if additional results are available,
+// which you can retrieve by passing the `nextPageToken` value as the
+// `pageToken` parameter in the next request.
 func (c *ProjectsMetricsListCall) PageSize(pageSize int64) *ProjectsMetricsListCall {
 	c.urlParams_.Set("pageSize", fmt.Sprint(pageSize))
 	return c
 }
 
 // PageToken sets the optional parameter "pageToken": If the `pageToken`
-// request parameter is supplied, then the next page of results in the
-// set are retrieved. The `pageToken` parameter must be set with the
-// value of the `nextPageToken` result parameter from the previous
-// request. The value of `projectName` must be the same as in the
-// previous request.
+// parameter is supplied, then the next page of results is retrieved.
+// The `pageToken` parameter must be set to the value of the
+// `nextPageToken` from the previous response. The value of
+// `projectName` must be the same as in the previous request.
 func (c *ProjectsMetricsListCall) PageToken(pageToken string) *ProjectsMetricsListCall {
 	c.urlParams_.Set("pageToken", pageToken)
 	return c
@@ -1926,22 +2035,21 @@ func (c *ProjectsMetricsListCall) Context(ctx context.Context) *ProjectsMetricsL
 }
 
 func (c *ProjectsMetricsListCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	if c.ifNoneMatch_ != "" {
+		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
+	}
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+projectName}/metrics")
 	urls += "?" + c.urlParams_.Encode()
 	req, _ := http.NewRequest("GET", urls, body)
+	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"projectName": c.projectName,
 	})
-	req.Header.Set("User-Agent", c.s.userAgent())
-	if c.ifNoneMatch_ != "" {
-		req.Header.Set("If-None-Match", c.ifNoneMatch_)
-	}
-	if c.ctx_ != nil {
-		return ctxhttp.Do(c.ctx_, c.s.client, req)
-	}
-	return c.s.client.Do(req)
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
 // Do executes the "logging.projects.metrics.list" call.
@@ -1976,7 +2084,8 @@ func (c *ProjectsMetricsListCall) Do(opts ...googleapi.CallOption) (*ListLogMetr
 			HTTPStatusCode: res.StatusCode,
 		},
 	}
-	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
 		return nil, err
 	}
 	return ret, nil
@@ -1989,13 +2098,13 @@ func (c *ProjectsMetricsListCall) Do(opts ...googleapi.CallOption) (*ListLogMetr
 	//   ],
 	//   "parameters": {
 	//     "pageSize": {
-	//       "description": "Optional. The maximum number of results to return from this request. Fewer results might be returned. You must check for the `nextPageToken` result to determine if additional results are available, which you can retrieve by passing the `nextPageToken` value in the `pageToken` parameter to the next request.",
+	//       "description": "Optional. The maximum number of results to return from this request. You must check for presence of `nextPageToken` to determine if additional results are available, which you can retrieve by passing the `nextPageToken` value as the `pageToken` parameter in the next request.",
 	//       "format": "int32",
 	//       "location": "query",
 	//       "type": "integer"
 	//     },
 	//     "pageToken": {
-	//       "description": "Optional. If the `pageToken` request parameter is supplied, then the next page of results in the set are retrieved. The `pageToken` parameter must be set with the value of the `nextPageToken` result parameter from the previous request. The value of `projectName` must be the same as in the previous request.",
+	//       "description": "Optional. If the `pageToken` parameter is supplied, then the next page of results is retrieved. The `pageToken` parameter must be set to the value of the `nextPageToken` from the previous response. The value of `projectName` must be the same as in the previous request.",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
@@ -2077,25 +2186,23 @@ func (c *ProjectsMetricsUpdateCall) Context(ctx context.Context) *ProjectsMetric
 }
 
 func (c *ProjectsMetricsUpdateCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("User-Agent", c.s.userAgent())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logmetric)
 	if err != nil {
 		return nil, err
 	}
-	ctype := "application/json"
+	reqHeaders.Set("Content-Type", "application/json")
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+metricName}")
 	urls += "?" + c.urlParams_.Encode()
 	req, _ := http.NewRequest("PUT", urls, body)
+	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"metricName": c.metricNameid,
 	})
-	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", c.s.userAgent())
-	if c.ctx_ != nil {
-		return ctxhttp.Do(c.ctx_, c.s.client, req)
-	}
-	return c.s.client.Do(req)
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
 // Do executes the "logging.projects.metrics.update" call.
@@ -2130,7 +2237,8 @@ func (c *ProjectsMetricsUpdateCall) Do(opts ...googleapi.CallOption) (*LogMetric
 			HTTPStatusCode: res.StatusCode,
 		},
 	}
-	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
 		return nil, err
 	}
 	return ret, nil
@@ -2201,25 +2309,23 @@ func (c *ProjectsSinksCreateCall) Context(ctx context.Context) *ProjectsSinksCre
 }
 
 func (c *ProjectsSinksCreateCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("User-Agent", c.s.userAgent())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logsink)
 	if err != nil {
 		return nil, err
 	}
-	ctype := "application/json"
+	reqHeaders.Set("Content-Type", "application/json")
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+projectName}/sinks")
 	urls += "?" + c.urlParams_.Encode()
 	req, _ := http.NewRequest("POST", urls, body)
+	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"projectName": c.projectName,
 	})
-	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", c.s.userAgent())
-	if c.ctx_ != nil {
-		return ctxhttp.Do(c.ctx_, c.s.client, req)
-	}
-	return c.s.client.Do(req)
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
 // Do executes the "logging.projects.sinks.create" call.
@@ -2254,7 +2360,8 @@ func (c *ProjectsSinksCreateCall) Do(opts ...googleapi.CallOption) (*LogSink, er
 			HTTPStatusCode: res.StatusCode,
 		},
 	}
-	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
 		return nil, err
 	}
 	return ret, nil
@@ -2322,19 +2429,18 @@ func (c *ProjectsSinksDeleteCall) Context(ctx context.Context) *ProjectsSinksDel
 }
 
 func (c *ProjectsSinksDeleteCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("User-Agent", c.s.userAgent())
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+sinkName}")
 	urls += "?" + c.urlParams_.Encode()
 	req, _ := http.NewRequest("DELETE", urls, body)
+	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"sinkName": c.sinkName,
 	})
-	req.Header.Set("User-Agent", c.s.userAgent())
-	if c.ctx_ != nil {
-		return ctxhttp.Do(c.ctx_, c.s.client, req)
-	}
-	return c.s.client.Do(req)
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
 // Do executes the "logging.projects.sinks.delete" call.
@@ -2369,7 +2475,8 @@ func (c *ProjectsSinksDeleteCall) Do(opts ...googleapi.CallOption) (*Empty, erro
 			HTTPStatusCode: res.StatusCode,
 		},
 	}
-	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
 		return nil, err
 	}
 	return ret, nil
@@ -2445,22 +2552,21 @@ func (c *ProjectsSinksGetCall) Context(ctx context.Context) *ProjectsSinksGetCal
 }
 
 func (c *ProjectsSinksGetCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	if c.ifNoneMatch_ != "" {
+		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
+	}
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+sinkName}")
 	urls += "?" + c.urlParams_.Encode()
 	req, _ := http.NewRequest("GET", urls, body)
+	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"sinkName": c.sinkName,
 	})
-	req.Header.Set("User-Agent", c.s.userAgent())
-	if c.ifNoneMatch_ != "" {
-		req.Header.Set("If-None-Match", c.ifNoneMatch_)
-	}
-	if c.ctx_ != nil {
-		return ctxhttp.Do(c.ctx_, c.s.client, req)
-	}
-	return c.s.client.Do(req)
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
 // Do executes the "logging.projects.sinks.get" call.
@@ -2495,7 +2601,8 @@ func (c *ProjectsSinksGetCall) Do(opts ...googleapi.CallOption) (*LogSink, error
 			HTTPStatusCode: res.StatusCode,
 		},
 	}
-	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
 		return nil, err
 	}
 	return ret, nil
@@ -2547,22 +2654,20 @@ func (r *ProjectsSinksService) List(projectName string) *ProjectsSinksListCall {
 }
 
 // PageSize sets the optional parameter "pageSize": The maximum number
-// of results to return from this request. Fewer results might be
-// returned. You must check for the `nextPageToken` result to determine
-// if additional results are available, which you can retrieve by
-// passing the `nextPageToken` value in the `pageToken` parameter to the
-// next request.
+// of results to return from this request. You must check for presence
+// of `nextPageToken` to determine if additional results are available,
+// which you can retrieve by passing the `nextPageToken` value as the
+// `pageToken` parameter in the next request.
 func (c *ProjectsSinksListCall) PageSize(pageSize int64) *ProjectsSinksListCall {
 	c.urlParams_.Set("pageSize", fmt.Sprint(pageSize))
 	return c
 }
 
 // PageToken sets the optional parameter "pageToken": If the `pageToken`
-// request parameter is supplied, then the next page of results in the
-// set are retrieved. The `pageToken` parameter must be set with the
-// value of the `nextPageToken` result parameter from the previous
-// request. The value of `projectName` must be the same as in the
-// previous request.
+// parameter is supplied, then the next page of results is retrieved.
+// The `pageToken` parameter must be set to the value of the
+// `nextPageToken` from the previous response. The value of
+// `projectName` must be the same as in the previous request.
 func (c *ProjectsSinksListCall) PageToken(pageToken string) *ProjectsSinksListCall {
 	c.urlParams_.Set("pageToken", pageToken)
 	return c
@@ -2595,22 +2700,21 @@ func (c *ProjectsSinksListCall) Context(ctx context.Context) *ProjectsSinksListC
 }
 
 func (c *ProjectsSinksListCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	if c.ifNoneMatch_ != "" {
+		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
+	}
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+projectName}/sinks")
 	urls += "?" + c.urlParams_.Encode()
 	req, _ := http.NewRequest("GET", urls, body)
+	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"projectName": c.projectName,
 	})
-	req.Header.Set("User-Agent", c.s.userAgent())
-	if c.ifNoneMatch_ != "" {
-		req.Header.Set("If-None-Match", c.ifNoneMatch_)
-	}
-	if c.ctx_ != nil {
-		return ctxhttp.Do(c.ctx_, c.s.client, req)
-	}
-	return c.s.client.Do(req)
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
 // Do executes the "logging.projects.sinks.list" call.
@@ -2645,7 +2749,8 @@ func (c *ProjectsSinksListCall) Do(opts ...googleapi.CallOption) (*ListSinksResp
 			HTTPStatusCode: res.StatusCode,
 		},
 	}
-	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
 		return nil, err
 	}
 	return ret, nil
@@ -2658,18 +2763,18 @@ func (c *ProjectsSinksListCall) Do(opts ...googleapi.CallOption) (*ListSinksResp
 	//   ],
 	//   "parameters": {
 	//     "pageSize": {
-	//       "description": "Optional. The maximum number of results to return from this request. Fewer results might be returned. You must check for the `nextPageToken` result to determine if additional results are available, which you can retrieve by passing the `nextPageToken` value in the `pageToken` parameter to the next request.",
+	//       "description": "Optional. The maximum number of results to return from this request. You must check for presence of `nextPageToken` to determine if additional results are available, which you can retrieve by passing the `nextPageToken` value as the `pageToken` parameter in the next request.",
 	//       "format": "int32",
 	//       "location": "query",
 	//       "type": "integer"
 	//     },
 	//     "pageToken": {
-	//       "description": "Optional. If the `pageToken` request parameter is supplied, then the next page of results in the set are retrieved. The `pageToken` parameter must be set with the value of the `nextPageToken` result parameter from the previous request. The value of `projectName` must be the same as in the previous request.",
+	//       "description": "Optional. If the `pageToken` parameter is supplied, then the next page of results is retrieved. The `pageToken` parameter must be set to the value of the `nextPageToken` from the previous response. The value of `projectName` must be the same as in the previous request.",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
 	//     "projectName": {
-	//       "description": "Required. The resource name of the project containing the sinks. Example: `\"projects/my-logging-project\"`, `\"projects/01234567890\"`.",
+	//       "description": "Required. The resource name of the project containing the sinks. Example: `\"projects/my-logging-project\"`.",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]*$",
 	//       "required": true,
@@ -2746,25 +2851,23 @@ func (c *ProjectsSinksUpdateCall) Context(ctx context.Context) *ProjectsSinksUpd
 }
 
 func (c *ProjectsSinksUpdateCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("User-Agent", c.s.userAgent())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logsink)
 	if err != nil {
 		return nil, err
 	}
-	ctype := "application/json"
+	reqHeaders.Set("Content-Type", "application/json")
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+sinkName}")
 	urls += "?" + c.urlParams_.Encode()
 	req, _ := http.NewRequest("PUT", urls, body)
+	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"sinkName": c.sinkName,
 	})
-	req.Header.Set("Content-Type", ctype)
-	req.Header.Set("User-Agent", c.s.userAgent())
-	if c.ctx_ != nil {
-		return ctxhttp.Do(c.ctx_, c.s.client, req)
-	}
-	return c.s.client.Do(req)
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
 // Do executes the "logging.projects.sinks.update" call.
@@ -2799,7 +2902,8 @@ func (c *ProjectsSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogSink, er
 			HTTPStatusCode: res.StatusCode,
 		},
 	}
-	if err := json.NewDecoder(res.Body).Decode(&ret); err != nil {
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
 		return nil, err
 	}
 	return ret, nil

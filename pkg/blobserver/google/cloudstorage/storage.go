@@ -38,6 +38,8 @@ import (
 	"camlistore.org/pkg/blobserver/memory"
 	"camlistore.org/pkg/constants"
 
+	"cloud.google.com/go/compute/metadata"
+	"cloud.google.com/go/storage"
 	"go4.org/cloud/google/gcsutil"
 	"go4.org/ctxutil"
 	"go4.org/jsonconfig"
@@ -46,9 +48,7 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"google.golang.org/cloud"
-	"google.golang.org/cloud/compute/metadata"
-	"google.golang.org/cloud/storage"
+	"google.golang.org/api/option"
 )
 
 type Storage struct {
@@ -147,7 +147,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 			ClientSecret: clientSecret,
 			RedirectURL:  oauthutil.TitleBarRedirectURL,
 		}, refreshToken)
-		cl, err = storage.NewClient(ctx, cloud.WithTokenSource(ts))
+		cl, err = storage.NewClient(ctx, option.WithTokenSource(ts))
 		if err != nil {
 			return nil, err
 		}
