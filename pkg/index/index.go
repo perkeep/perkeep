@@ -1258,9 +1258,47 @@ func (x *Index) GetMediaTags(ctx context.Context, fileRef blob.Ref) (tags map[st
 	it := x.queryPrefix(keyMediaTag, fi.WholeRef.String())
 	defer closeIterator(it, &err)
 	for it.Next() {
+		if tags == nil {
+			tags = make(map[string]string)
+		}
 		tags[it.Key()] = it.Value()
 	}
 	return tags, nil
+}
+
+func (x *Index) GetFileLocation(ctx context.Context, fileRef blob.Ref) (camtypes.Location, error) {
+	if x.corpus != nil {
+		lat, long, ok := x.corpus.FileLatLong(fileRef)
+		if !ok {
+			return camtypes.Location{}, os.ErrNotExist
+		}
+		return camtypes.Location{Latitude: lat, Longitude: long}, nil
+	}
+	fi, err := x.GetFileInfo(ctx, fileRef)
+	if err != nil {
+		return camtypes.Location{}, err
+	}
+	it := x.queryPrefixString(keyEXIFGPS.Key(fi.WholeRef.String()))
+	defer closeIterator(it, &err)
+	if !it.Next() {
+		return camtypes.Location{}, os.ErrNotExist
+	}
+
+	var lat, long float64
+	key, v := it.Key(), it.Value()
+	pipe := strings.Index(v, "|")
+	if pipe < 0 {
+		return camtypes.Location{}, fmt.Errorf("index: bogus key %q = %q", key, v)
+	}
+	lat, err = strconv.ParseFloat(v[:pipe], 64)
+	if err != nil {
+		return camtypes.Location{}, fmt.Errorf("index: bogus value at position 0 in key %q = %q", key, v)
+	}
+	long, err = strconv.ParseFloat(v[pipe+1:], 64)
+	if err != nil {
+		return camtypes.Location{}, fmt.Errorf("index: bogus value at position 1 in key %q = %q", key, v)
+	}
+	return camtypes.Location{Latitude: lat, Longitude: long}, nil
 }
 
 func (x *Index) EdgesTo(ref blob.Ref, opts *camtypes.EdgesToOpts) (edges []*camtypes.Edge, err error) {
