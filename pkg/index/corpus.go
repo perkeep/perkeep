@@ -1015,41 +1015,7 @@ func (c *Corpus) PermanodeAttrValue(permaNode blob.Ref,
 		}
 		return ""
 	}
-	if at.IsZero() {
-		at = time.Now()
-	}
-	var v []string
-	for _, cl := range pm.Claims {
-		if cl.Attr != attr || cl.Date.After(at) {
-			continue
-		}
-		if signerFilter.Valid() && signerFilter != cl.Signer {
-			continue
-		}
-		switch cl.Type {
-		case string(schema.DelAttributeClaim):
-			if cl.Value == "" {
-				v = v[:0]
-			} else {
-				i := 0
-				for _, w := range v {
-					if w != cl.Value {
-						v[i] = w
-						i++
-					}
-				}
-				v = v[:i]
-			}
-		case string(schema.SetAttributeClaim):
-			v = append(v[:0], cl.Value)
-		case string(schema.AddAttributeClaim):
-			v = append(v, cl.Value)
-		}
-	}
-	if len(v) != 0 {
-		return v[0]
-	}
-	return ""
+	return claimPtrsAttrValue(pm.Claims, attr, at, signerFilter)
 }
 
 // AppendPermanodeAttrValues appends to dst all the values for the attribute
