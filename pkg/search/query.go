@@ -953,6 +953,9 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 			if corpus == nil {
 				return nil, errors.New("TODO: Sorting without a corpus unsupported")
 			}
+			if !q.Constraint.onlyMatchesPermanode() {
+				return nil, errors.New("can only sort by ctime when all results are permanodes")
+			}
 			var err error
 			sort.Sort(sortSearchResultBlobs{res.Blobs, func(a, b *SearchResultBlob) bool {
 				if err != nil {
