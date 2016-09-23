@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/cloud/logging"
+	"cloud.google.com/go/logging"
 )
 
 type logRecord struct {
