@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net/http"
 	"os"
@@ -44,22 +45,21 @@ func (c *Client) FetchSchemaBlob(b blob.Ref) (*schema.Blob, error) {
 }
 
 func (c *Client) Fetch(b blob.Ref) (io.ReadCloser, uint32, error) {
-	return c.FetchVia(b, c.viaPathTo(b))
+	return c.fetchVia(b, c.viaPathTo(b))
 }
 
 func (c *Client) viaPathTo(b blob.Ref) (path []blob.Ref) {
-	if c.via == nil {
-		return nil
-	}
-	it := b.String()
+	c.viaMu.RLock()
+	defer c.viaMu.RUnlock()
 	// Append path backwards first,
+	key := b
 	for {
-		v := c.via[it]
-		if v == "" {
+		v, ok := c.via[key]
+		if !ok {
 			break
 		}
-		path = append(path, blob.MustParse(v))
-		it = v
+		key = v
+		path = append(path, key)
 	}
 	// Then reverse it
 	for i := 0; i < len(path)/2; i++ {
@@ -70,7 +70,7 @@ func (c *Client) viaPathTo(b blob.Ref) (path []blob.Ref) {
 
 var blobsRx = regexp.MustCompile(blob.Pattern)
 
-func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (body io.ReadCloser, size uint32, err error) {
+func (c *Client) fetchVia(b blob.Ref, v []blob.Ref) (body io.ReadCloser, size uint32, err error) {
 	if c.sto != nil {
 		if len(v) > 0 {
 			return nil, 0, errors.New("FetchVia not supported in non-HTTP mode")
@@ -113,8 +113,7 @@ func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (body io.ReadCloser, size ui
 		return nil, 0, fmt.Errorf("Got status code %d from blobserver for %s", resp.StatusCode, b)
 	}
 
-	var buf bytes.Buffer
-	var reader io.Reader = io.MultiReader(&buf, resp.Body)
+	var reader io.Reader = resp.Body
 	var closer io.Closer = resp.Body
 	if resp.ContentLength > 0 {
 		if resp.ContentLength > math.MaxUint32 {
@@ -122,6 +121,7 @@ func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (body io.ReadCloser, size ui
 		}
 		size = uint32(resp.ContentLength)
 	} else {
+		var buf bytes.Buffer
 		size = 0
 		// Might be compressed. Slurp it to memory.
 		n, err := io.CopyN(&buf, resp.Body, constants.MaxBlobSize+1)
@@ -138,31 +138,54 @@ func (c *Client) FetchVia(b blob.Ref, v []blob.Ref) (body io.ReadCloser, size ui
 		}
 	}
 
+	var buf bytes.Buffer
+	if err := c.UpdateShareChain(b, io.TeeReader(reader, &buf)); err != nil {
+		if err != ErrNotSharing {
+			return nil, 0, err
+		}
+	}
+	mr := io.MultiReader(&buf, reader)
 	var rc io.ReadCloser = struct {
 		io.Reader
 		io.Closer
-	}{reader, closer}
+	}{mr, closer}
 
+	return rc, size, nil
+}
+
+// ErrNotSharing is returned when a client that was not created with
+// NewFromShareRoot tries to access shared blobs.
+var ErrNotSharing = errors.New("Client can not deal with shared blobs. Create it with NewFromShareRoot.")
+
+// UpdateShareChain reads the schema of b from r, and instructs the client that
+// all blob refs found in this schema should use b as a preceding chain link, in
+// all subsequent shared blobs fetches. If the client was not created with
+// NewFromShareRoot, ErrNotSharing is returned.
+func (c *Client) UpdateShareChain(b blob.Ref, r io.Reader) error {
+	c.viaMu.Lock()
+	defer c.viaMu.Unlock()
 	if c.via == nil {
 		// Not in sharing mode, so return immediately.
-		return rc, size, nil
+		return ErrNotSharing
 	}
-
 	// Slurp 1 MB to find references to other blobrefs for the via path.
-	if buf.Len() == 0 {
-		const maxSlurp = 1 << 20
-		_, err = io.Copy(&buf, io.LimitReader(resp.Body, maxSlurp))
-		if err != nil {
-			return nil, 0, err
-		}
+	var buf bytes.Buffer
+	const maxSlurp = 1 << 20
+	if _, err := io.Copy(&buf, io.LimitReader(r, maxSlurp)); err != nil {
+		return err
 	}
 	// If it looks like a JSON schema blob (starts with '{')
 	if schema.LikelySchemaBlob(buf.Bytes()) {
 		for _, blobstr := range blobsRx.FindAllString(buf.String(), -1) {
-			c.via[blobstr] = b.String()
+			br, ok := blob.Parse(blobstr)
+			if !ok {
+				log.Printf("Invalid blob ref %q noticed in schema of %v", blobstr, b)
+				continue
+			}
+			c.via[br] = b
 		}
 	}
-	return rc, size, nil
+	return nil
 }
 
 func (c *Client) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, error) {

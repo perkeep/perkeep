@@ -42,13 +42,35 @@ func NewCachingFetcher(cache blobserver.Cache, fetcher blob.Fetcher) *CachingFet
 type CachingFetcher struct {
 	c  blobserver.Cache
 	sf blob.Fetcher
+	// cacheHitHook, if set, is called right after a cache hit. It is meant to add
+	// potential side-effects from calling the Fetcher that would have happened
+	// if we had had a cache miss. It is the responsibility of cacheHitHook to return
+	// a ReadCloser equivalent to the state that rc was given in.
+	cacheHitHook func(br blob.Ref, rc io.ReadCloser) (io.ReadCloser, error)
 
 	g singleflight.Group
 }
 
-func (cf *CachingFetcher) Fetch(br blob.Ref) (file io.ReadCloser, size uint32, err error) {
-	file, size, err = cf.c.Fetch(br)
+// SetCacheHitHook sets a function that will modify the return values from Fetch
+// in the case of a cache hit.
+// Its purpose is to add potential side-effects from calling the Fetcher that would
+// have happened if we had had a cache miss. It is the responsibility of fn to
+// return a ReadCloser equivalent to the state that rc was given in.
+func (cf *CachingFetcher) SetCacheHitHook(fn func(br blob.Ref, rc io.ReadCloser) (io.ReadCloser, error)) {
+	cf.cacheHitHook = fn
+}
+
+func (cf *CachingFetcher) Fetch(br blob.Ref) (content io.ReadCloser, size uint32, err error) {
+	content, size, err = cf.c.Fetch(br)
 	if err == nil {
+		if cf.cacheHitHook != nil {
+			rc, err := cf.cacheHitHook(br, content)
+			if err != nil {
+				content.Close()
+				return nil, 0, err
+			}
+			content = rc
+		}
 		return
 	}
 	if err = cf.faultIn(br); err != nil {

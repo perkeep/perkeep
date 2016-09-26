@@ -126,7 +126,8 @@ type Client struct {
 	// via maps the access path from a share root to a desired target.
 	// It is non-nil when in "sharing" mode, where the Client is fetching
 	// a share.
-	via map[string]string // target => via (target is referenced from via)
+	viaMu sync.RWMutex
+	via   map[blob.Ref]blob.Ref // target => via (target is referenced from via)
 
 	log             *log.Logger // not nil
 	httpGate        *syncutil.Gate
@@ -319,7 +320,7 @@ func NewFromShareRoot(shareBlobURL string, opts ...ClientOption) (c *Client, tar
 	c.prefixv = m[1]
 	c.isSharePrefix = true
 	c.authMode = auth.None{}
-	c.via = make(map[string]string)
+	c.via = make(map[blob.Ref]blob.Ref)
 	root = m[2]
 
 	req := c.newRequest("GET", shareBlobURL, nil)
@@ -329,7 +330,11 @@ func NewFromShareRoot(shareBlobURL string, opts ...ClientOption) (c *Client, tar
 	}
 	defer res.Body.Close()
 	var buf bytes.Buffer
-	b, err := schema.BlobFromReader(blob.ParseOrZero(root), io.TeeReader(res.Body, &buf))
+	rootbr, ok := blob.Parse(root)
+	if !ok {
+		return nil, blob.Ref{}, fmt.Errorf("invalid root blob ref for sharing: %q", root)
+	}
+	b, err := schema.BlobFromReader(rootbr, io.TeeReader(res.Body, &buf))
 	if err != nil {
 		return nil, blob.Ref{}, fmt.Errorf("error parsing JSON from %s: %v , with response: %q", shareBlobURL, err, buf.Bytes())
 	}
@@ -340,7 +345,7 @@ func NewFromShareRoot(shareBlobURL string, opts ...ClientOption) (c *Client, tar
 	if !target.Valid() {
 		return nil, blob.Ref{}, fmt.Errorf("no target.")
 	}
-	c.via[target.String()] = root
+	c.via[target] = rootbr
 	return c, target, nil
 }
 
