@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -14,6 +16,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
+	"camlistore.org/pkg/osutil"
 	. "camlistore.org/pkg/search"
 	"camlistore.org/pkg/test"
 	"go4.org/types"
@@ -1503,6 +1506,72 @@ func benchmarkQueryPermanodes(b *testing.B, describe bool) {
 			if describe {
 				*req.Describe = DescribeRequest{}
 			}
+			_, err := h.Query(req)
+			if err != nil {
+				qt.t.Fatal(err)
+			}
+		}
+	})
+}
+
+func BenchmarkQueryPermanodeLocation(b *testing.B) {
+	b.ReportAllocs()
+	testQueryTypes(b, corpusTypeOnly, func(qt *queryTest) {
+		id := qt.id
+
+		// Upload a basic image
+		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+		if err != nil {
+			panic("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+		}
+		uploadFile := func(file string, modTime time.Time) blob.Ref {
+			fileName := filepath.Join(camliRootPath, "pkg", "search", "testdata", file)
+			contents, err := ioutil.ReadFile(fileName)
+			if err != nil {
+				panic(err)
+			}
+			br, _ := id.UploadFile(file, string(contents), modTime)
+			return br
+		}
+		fileRef := uploadFile("dude-gps.jpg", time.Time{})
+
+		var n int
+		newPn := func() blob.Ref {
+			n++
+			return id.NewPlannedPermanode(fmt.Sprint(n))
+		}
+
+		pn := id.NewPlannedPermanode("photo")
+		id.SetAttribute(pn, "camliContent", fileRef.String())
+
+		for i := 0; i < 5; i++ {
+			pn := newPn()
+			id.SetAttribute(pn, "camliNodeType", "foursquare.com:venue")
+			id.SetAttribute(pn, "latitude", fmt.Sprint(50-i))
+			id.SetAttribute(pn, "longitude", fmt.Sprint(i))
+			for j := 0; j < 5; j++ {
+				qn := newPn()
+				id.SetAttribute(qn, "camliNodeType", "foursquare.com:checkin")
+				id.SetAttribute(qn, "foursquareVenuePermanode", pn.String())
+			}
+		}
+		for i := 0; i < 10; i++ {
+			pn := newPn()
+			id.SetAttribute(pn, "foo", fmt.Sprint(i))
+		}
+
+		req := &SearchQuery{
+			Constraint: &Constraint{
+				Permanode: &PermanodeConstraint{
+					Location: &LocationConstraint{Any: true},
+				},
+			},
+		}
+
+		h := qt.Handler()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
 			_, err := h.Query(req)
 			if err != nil {
 				qt.t.Fatal(err)
