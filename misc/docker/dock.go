@@ -36,11 +36,11 @@ import (
 
 	"camlistore.org/pkg/osutil"
 
+	"cloud.google.com/go/storage"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"google.golang.org/cloud"
-	"google.golang.org/cloud/storage"
+	"google.golang.org/api/option"
 )
 
 var (
@@ -266,7 +266,7 @@ func uploadReleaseTarball() {
 		log.Fatal(err)
 	}
 	ctx := context.Background()
-	stoClient, err := storage.NewClient(ctx, cloud.WithTokenSource(ts), cloud.WithBaseHTTP(oauth2.NewClient(ctx, ts)))
+	stoClient, err := storage.NewClient(ctx, option.WithTokenSource(ts), option.WithHTTPClient(oauth2.NewClient(ctx, ts)))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -325,7 +325,7 @@ func uploadDockerImage() {
 		log.Fatal(err)
 	}
 	ctx := context.Background()
-	stoClient, err := storage.NewClient(ctx, cloud.WithTokenSource(ts), cloud.WithBaseHTTP(oauth2.NewClient(ctx, ts)))
+	stoClient, err := storage.NewClient(ctx, option.WithTokenSource(ts), option.WithHTTPClient(oauth2.NewClient(ctx, ts)))
 	if err != nil {
 		log.Fatal(err)
 	}

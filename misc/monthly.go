@@ -40,17 +40,17 @@ import (
 
 	"camlistore.org/pkg/osutil"
 
+	"cloud.google.com/go/storage"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"google.golang.org/cloud"
-	"google.golang.org/cloud/storage"
+	"google.golang.org/api/option"
 )
 
 var (
 	flagRev     = flag.String("rev", "", "Camlistore revision to build (tag or commit hash). For development purposes, you can instead specify the path to a local Camlistore source tree from which to build, with the form \"WIP:/path/to/dir\".")
 	flagUpload  = flag.Bool("upload", true, "Upload all the generated tarballs and zip archives.")
-	flagSkipGen = flag.Bool("skipgen", false, "Do not recreate the release tarballs, and directly use the ones found in camlistore.org/misc/docker/release.")
+	flagSkipGen = flag.Bool("skipgen", false, "Do not recreate the release tarballs, and directly use the ones found in camlistore.org/misc/docker/release. Use -upload=true and -skipgen=true to only generate the monthly release page.")
 	// TODO(mpl): make sanity run the tests too, once they're more reliable.
 	flagSanity = flag.Bool("sanity", true, "Verify 'go run make.go' succeeds when building the source tarball. Abort everything if not.")
 )
@@ -147,7 +147,7 @@ func upload(srcPath string) {
 		log.Fatal(err)
 	}
 	ctx := context.Background()
-	stoClient, err := storage.NewClient(ctx, cloud.WithTokenSource(ts), cloud.WithBaseHTTP(oauth2.NewClient(ctx, ts)))
+	stoClient, err := storage.NewClient(ctx, option.WithTokenSource(ts), option.WithHTTPClient(oauth2.NewClient(ctx, ts)))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -233,7 +233,7 @@ func listDownloads() (*ReleaseData, error) {
 		return nil, err
 	}
 	ctx := context.Background()
-	stoClient, err := storage.NewClient(ctx, cloud.WithTokenSource(ts), cloud.WithBaseHTTP(oauth2.NewClient(ctx, ts)))
+	stoClient, err := storage.NewClient(ctx, option.WithTokenSource(ts), option.WithHTTPClient(oauth2.NewClient(ctx, ts)))
 	if err != nil {
 		return nil, err
 	}
