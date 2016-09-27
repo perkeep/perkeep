@@ -8,8 +8,8 @@ Or, the canonical git repo is:
 
 [Download and install Go](http://golang.org/doc/install) if you don't
 have that installed already. As of revision
-[33a8eec](https://github.com/camlistore/camlistore/commit/33a8eec553cc79fc31fbb076790100297f32d70b),
-Camlistore requires [Go 1.6 or newer](https://golang.org/dl/).
+[5bc0864](https://github.com/camlistore/camlistore/commit/5bc0864f811c09a25aaa78176928a87ad39312cc),
+Camlistore requires [Go 1.7 or newer](https://golang.org/dl/).
 
 Build Camlistore by running this command in the folder you downloaded or
 checked out:
@@ -19,7 +19,7 @@ checked out:
 Alternatively, we also distribute "monthly" releases, which we simply regularly
 build from the master branch of the repository:
 
-[Monthly Release: 2016-07-06](/doc/release/monthly)
+[Monthly Release: 2016-09-05](/doc/release/monthly)
 
 ## Getting started
 
