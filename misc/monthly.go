@@ -22,6 +22,7 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"flag"
@@ -33,7 +34,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -48,11 +52,11 @@ import (
 )
 
 var (
-	flagRev     = flag.String("rev", "", "Camlistore revision to build (tag or commit hash). For development purposes, you can instead specify the path to a local Camlistore source tree from which to build, with the form \"WIP:/path/to/dir\".")
-	flagDate    = flag.String("date", "", "The release date to use in the file names to be uploaded, in the YYYYMMDD format. Defaults to today's date.")
-	flagUpload  = flag.Bool("upload", true, "Upload all the generated tarballs and zip archives.")
-	flagSkipGen = flag.Bool("skipgen", false, "Do not recreate the release tarballs, and directly use the ones found in camlistore.org/misc/docker/release. Use -upload=true and -skipgen=true to only generate the monthly release page.")
-	// flagStatsFrom = flag.String("stats_from", "", "Also generate commit statistics on the release page, starting from the given commit, and ending at the one given as -rev.")
+	flagRev       = flag.String("rev", "", "Camlistore revision to build (tag or commit hash). For development purposes, you can instead specify the path to a local Camlistore source tree from which to build, with the form \"WIP:/path/to/dir\".")
+	flagDate      = flag.String("date", "", "The release date to use in the file names to be uploaded, in the YYYYMMDD format. Defaults to today's date.")
+	flagUpload    = flag.Bool("upload", true, "Upload all the generated tarballs and zip archives.")
+	flagSkipGen   = flag.Bool("skipgen", false, "Do not recreate the release tarballs, and directly use the ones found in camlistore.org/misc/docker/release. Use -upload=true and -skipgen=true to only generate the monthly release page.")
+	flagStatsFrom = flag.String("stats_from", "", "Also generate commit statistics on the release page, starting from the given commit, and ending at the one given as -rev.")
 	// TODO(mpl): make sanity run the tests too, once they're more reliable.
 	flagSanity = flag.Bool("sanity", true, "Verify 'go run make.go' succeeds when building the source tarball. Abort everything if not.")
 )
@@ -210,6 +214,7 @@ type ReleaseData struct {
 	Download     []DownloadData
 	CamliVersion string
 	GoVersion    string
+	Stats        *stats
 }
 
 // Note: the space trimming in the range loop is important. Since all of our
@@ -235,9 +240,22 @@ Camlistore version <a href='https://github.com/camlistore/camlistore/commit/{{.C
 </a>
 {{- end -}}
 </center>
+
+{{if .Stats}}
+<h2>Release Stats</h2>
+
+<p>
+{{.Stats.TotalCommitters}} total committers over {{.Stats.Commits}} commits since <a href='https://github.com/camlistore/camlistore/commit/{{.Stats.FromRev}}'>{{.Stats.FromRev}}</a> including {{.Stats.NamesList}}.
+</p>
+
+<p>Thank you!</p>
+{{end}}
 `
 
-const goVersion = "1.7" // Keep in sync with version in misc/docker/go
+// TODO(mpl): keep goVersion automatically in sync with version in
+// misc/docker/go. Or guess it from somewhere else.
+
+const goVersion = "1.7"
 
 // listDownloads lists all the files found in the monthly repo, and from them,
 // builds the data that we'll feed to the template to generate the monthly
@@ -337,8 +355,6 @@ func listDownloads() (*ReleaseData, error) {
 		})
 	}
 
-	// TODO(mpl): guess Go version dynamically.
-
 	return &ReleaseData{
 		Date:         releaseDate.Format(titleDateFormat),
 		Download:     downloadData,
@@ -395,6 +411,105 @@ func checkFlags() {
 	}
 }
 
+type stats struct {
+	FromRev         string
+	TotalCommitters int
+	Commits         int
+	NamesList       string
+}
+
+// returns commiters names mapped by e-mail, uniqued first by e-mail, then by name.
+// When uniquing, higher count of commits wins.
+func committers() (map[string]string, error) {
+	cmd := exec.Command("git", "shortlog", "-n", "-e", "-s", *flagStatsFrom+".."+rev())
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("%v; %v", err, string(out))
+	}
+	rxp := regexp.MustCompile(`^\s+(\d+)\s+(.*)<(.*)>.*$`)
+	sc := bufio.NewScanner(bytes.NewReader(out))
+	// maps email to name
+	committers := make(map[string]string)
+	// remember the count, to keep the committer that has the most count, when same name.
+	commitCountByEmail := make(map[string]int)
+	for sc.Scan() {
+		m := rxp.FindStringSubmatch(sc.Text())
+		if len(m) != 4 {
+			return nil, fmt.Errorf("commit line regexp didn't match properly")
+		}
+		count, err := strconv.Atoi(m[1])
+		if err != nil {
+			return nil, fmt.Errorf("couldn't convert %q as a number of commits: %v", m[1], err)
+		}
+		name := strings.TrimSpace(m[2])
+		email := m[3]
+		// uniq by e-mail. first one encountered wins as it has more commits.
+		if _, ok := committers[email]; !ok {
+			committers[email] = name
+		}
+		commitCountByEmail[email] += count
+	}
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+	// uniq by name
+	committerByName := make(map[string]string)
+	for email, name := range committers {
+		firstEmail, ok := committerByName[name]
+		if !ok {
+			committerByName[name] = email
+			continue
+		}
+		c1, _ := commitCountByEmail[firstEmail]
+		c2, _ := commitCountByEmail[email]
+		if c1 < c2 {
+			delete(committers, firstEmail)
+		} else {
+			delete(committers, email)
+		}
+	}
+	return committers, nil
+}
+
+func countCommits() (int, error) {
+	cmd := exec.Command("git", "log", "--format=oneline", *flagStatsFrom+".."+rev())
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return 0, fmt.Errorf("%v; %v", err, string(out))
+	}
+	sc := bufio.NewScanner(bytes.NewReader(out))
+	var sum int
+	for sc.Scan() {
+		sum++
+	}
+	if err := sc.Err(); err != nil {
+		return 0, err
+	}
+	return sum, nil
+}
+
+func genCommitStats() (*stats, error) {
+	committers, err := committers()
+	if err != nil {
+		return nil, fmt.Errorf("Could not count number of committers: %v", err)
+	}
+	commits, err := countCommits()
+	if err != nil {
+		return nil, fmt.Errorf("Could not count number of commits: %v", err)
+	}
+	var names []string
+	for _, v := range committers {
+		names = append(names, v)
+	}
+	sort.Strings(names)
+	return &stats{
+		TotalCommitters: len(committers),
+		Commits:         commits,
+		FromRev:         *flagStatsFrom,
+		NamesList:       strings.Join(names, ", "),
+	}, nil
+}
+
 func main() {
 	flag.Usage = usage
 	flag.Parse()
@@ -413,6 +528,14 @@ func main() {
 	releaseData, err := listDownloads()
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	if *flagStatsFrom != "" && !isWIP() {
+		commitStats, err := genCommitStats()
+		if err != nil {
+			log.Fatal(err)
+		}
+		releaseData.Stats = commitStats
 	}
 
 	if err := genMonthlyPage(releaseData); err != nil {
