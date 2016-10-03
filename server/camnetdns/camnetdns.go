@@ -25,12 +25,13 @@ import (
 	"net"
 
 	"camlistore.org/pkg/sorted"
+
+	"cloud.google.com/go/compute/metadata"
+	"cloud.google.com/go/datastore"
+	"cloud.google.com/go/logging"
 	"github.com/miekg/dns"
 	"go4.org/cloud/cloudlaunch"
 	compute "google.golang.org/api/compute/v1"
-	"google.golang.org/cloud/compute/metadata"
-	"google.golang.org/cloud/datastore"
-	"google.golang.org/cloud/logging"
 )
 
 var launchConfig = &cloudlaunch.Config{
@@ -41,7 +42,6 @@ var launchConfig = &cloudlaunch.Config{
 		compute.ComputeScope,
 		logging.Scope,
 		datastore.ScopeDatastore,
-		datastore.ScopeUserEmail, // whose email? https://github.com/GoogleCloudPlatform/gcloud-golang/issues/201
 	},
 }
 
