@@ -34,6 +34,14 @@ import (
 	compute "google.golang.org/api/compute/v1"
 )
 
+var flagServerIP = flag.String("server_ip", "104.154.231.160", "The IP address of the authoritative name server for camlistore.net, i.e. the address where this program will run.")
+
+// TODO(mpl): pass the server ip to the launchConfig, so we create the instance
+// with this specific IP. Which means, we'll have to book it as a static address in
+// Google Cloud I suppose?
+// Or, we hope we're lucky and we never have to destroy the camnet-dns VM (and lose
+// its current IP)?
+
 var launchConfig = &cloudlaunch.Config{
 	Name:         "camnetdns",
 	BinaryBucket: "camlistore-dnsserver-resource",
@@ -72,6 +80,27 @@ func NewDNSServer(src sorted.KeyValue) *DNSServer {
 func (ds *DNSServer) HandleLookup(name string) (string, error) {
 	return ds.dataSource.Get(name)
 }
+
+var (
+	authoritySection = &dns.NS{
+		Ns: "camnetdns.camlistore.org.",
+		Hdr: dns.RR_Header{
+			Name:   "camlistore.net.",
+			Rrtype: dns.TypeNS,
+			Class:  dns.ClassINET,
+			Ttl:    DefaultResponseTTL,
+		},
+	}
+	additionalSection = &dns.A{
+		A: net.ParseIP(*flagServerIP),
+		Hdr: dns.RR_Header{
+			Name:   "camnetdns.camlistore.org.",
+			Rrtype: dns.TypeA,
+			Class:  dns.ClassINET,
+			Ttl:    DefaultResponseTTL,
+		},
+	}
+)
 
 func (ds *DNSServer) ServeDNS(rw dns.ResponseWriter, mes *dns.Msg) {
 	resp := new(dns.Msg)
@@ -114,16 +143,22 @@ func (ds *DNSServer) ServeDNS(rw dns.ResponseWriter, mes *dns.Msg) {
 				panic("unreachable")
 			}
 
-			resp.Answer = append(resp.Answer, rr)
+			resp.Answer = []dns.RR{rr}
 
 		default:
 			log.Printf("unhandled qtype: %d\n", q.Qtype)
+			resp.SetRcode(mes, dns.RcodeNotImplemented)
+			rw.WriteMsg(resp)
+			return
 		}
+		break
 	}
-
+	resp.SetReply(mes)
 	resp.Authoritative = true
-	resp.Id = mes.Id
-	resp.Response = true
+
+	// Not necessary, but I think they can help.
+	resp.Ns = []dns.RR{authoritySection}
+	resp.Extra = []dns.RR{additionalSection}
 
 	if err := rw.WriteMsg(resp); err != nil {
 		log.Printf("error responding to DNS query: %s", err)
@@ -139,10 +174,10 @@ func main() {
 	if err := memkv.Set("6401800c.camlistore.net.", "159.203.246.79"); err != nil {
 		panic(err)
 	}
-	if err := memkv.Set("camlistore.net.", "104.154.231.160"); err != nil {
+	if err := memkv.Set("camlistore.net.", *flagServerIP); err != nil {
 		panic(err)
 	}
-	if err := memkv.Set("www.camlistore.net.", "104.154.231.160"); err != nil {
+	if err := memkv.Set("www.camlistore.net.", *flagServerIP); err != nil {
 		panic(err)
 	}
 
