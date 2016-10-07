@@ -25,6 +25,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"log/syslog"
 	"net"
 	"net/http"
 	"os"
@@ -107,6 +108,7 @@ var (
 	flagOpenBrowser = flag.Bool("openbrowser", true, "Launches the UI on startup")
 	flagReindex     = flag.Bool("reindex", false, "Reindex all blobs on startup")
 	flagRecovery    = flag.Bool("recovery", false, "Recovery mode: rebuild the blobpacked meta index. The tasks performed by the recovery mode might change in the future.")
+	flagSyslog      = flag.Bool("syslog", false, "Log everything only to syslog")
 	flagPollParent  bool
 )
 
@@ -649,7 +651,13 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 	if *flagRecovery {
 		blobpacked.SetRecovery()
 	}
-	if env.OnGCE() {
+	if *flagSyslog {
+		slog, err := syslog.New(syslog.LOG_INFO|syslog.LOG_DAEMON, "camlistored")
+		if err != nil {
+			exitf("Error connecting to syslog: %v", err)
+		}
+		log.SetOutput(slog)
+	} else if env.OnGCE() {
 		log.SetOutput(gce.LogWriter())
 	} else {
 		maybeSetupGoogleCloudLogging()
