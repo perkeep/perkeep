@@ -16,20 +16,23 @@ limitations under the License.
 
 /*
 Package remote registers the "remote" blobserver storage type, storing
-and fetching blobs from a remote Camlistore server, speaking the HTTP
-protocol.
+and fetching blobs from a remote Camlistore server over HTTPS.
 
 Example low-level config:
 
      "/peer/": {
          "handler": "storage-remote",
          "handlerArgs": {
-             "url": "http://10.0.0.17/base",
+             "url": "https://some-other-server/base",
              "auth": "userpass:user:pass",
              "skipStartupCheck": false
           }
      },
 
+The "handlerArgs" may also contain an optional "trustedCert" option to
+trust a self-signed TLS certificate. The value is the 20 byte hex prefix
+of the SHA-256 of the cert, as printed by the camlistored server
+on start-up.
 */
 package remote // import "camlistore.org/pkg/blobserver/remote"
 
@@ -61,11 +64,14 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserv
 	url := config.RequiredString("url")
 	auth := config.RequiredString("auth")
 	skipStartupCheck := config.OptionalBool("skipStartupCheck", false)
+	trustedCert := config.OptionalString("trustedCert", "")
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
-	client := client.New(url)
+	client := client.New(url,
+		client.OptionTrustedCert(trustedCert),
+	)
 	if err = client.SetupAuthFromString(auth); err != nil {
 		return nil, err
 	}
