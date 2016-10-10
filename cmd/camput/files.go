@@ -88,7 +88,7 @@ func init() {
 		flags.StringVar(&cmd.title, "title", "", "Optional title attribute to set on permanode when using -permanode.")
 		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on permanode when using -permanode or -filenodes. Single value or comma separated.")
 
-		flags.BoolVar(&cmd.diskUsage, "du", false, "Dry run mode: only show disk usage information, without upload or statting dest. Used for testing skipDirs configs, mostly.")
+		flags.BoolVar(&cmd.diskUsage, "du", false, "Dry run mode: only show disk usage information, without upload or statting dest. Used for testing ignoredFiles configs, mostly.")
 
 		if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
 			flags.BoolVar(&cmd.statcache, "statcache", true, "(debug flag) Use the stat cache, assuming unchanged files already uploaded in the past are still there. Fast, but potentially dangerous.")
@@ -876,9 +876,9 @@ upload.  Call Wait to get the final result.
 Uploading a directory tree involves several concurrent processes, each
 which may involve multiple goroutines:
 
-1) one process stats all files and walks all directories as fast as possible
-   to calculate how much total work there will be.  this goroutine also
-   filters out directories to be skipped. (caches, temp files, skipDirs, etc)
+ 1) one process stats all files and walks all directories as fast as possible
+    to calculate how much total work there will be.  this goroutine also
+    filters out directories to be skipped. (caches, temp files, ignoredFiles, etc)
 
  2) one process works though the files that were discovered and checks
     the statcache to see what actually needs to be uploaded.
