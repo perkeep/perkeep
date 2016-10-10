@@ -22,7 +22,7 @@ This page documents the simple configuration mode.
     localhost auth
   * `userpass:alice:secret:vivify=othersecret`: Alice has password "secret",
     but her Android phone can use password "othersecret" to do a minimal set of
-    operations (upload new things, but not access anything)r
+    operations (upload new things, but not access anything).
 
 * `baseURL`: Optional. If non-empty, this is the root of your URL prefix for
   your Camlistore server. Useful for when running behind a reverse proxy.
