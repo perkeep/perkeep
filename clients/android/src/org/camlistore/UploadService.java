@@ -289,6 +289,7 @@ public class UploadService extends Service {
             dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/Camera");
             dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/100MEDIA");
             dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/100ANDRO");
+            dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/CardboardCamera");
             dirs.add(Environment.getExternalStorageDirectory() + "/Eye-Fi");
         }
         if (mPrefs.autoDirMyTracks()) {
@@ -349,6 +350,7 @@ public class UploadService extends Service {
             maybeAddObserver("DCIM/Camera");
             maybeAddObserver("DCIM/100MEDIA");
             maybeAddObserver("DCIM/100ANDRO");
+            maybeAddObserver("DCIM/CardboardCamera");
             maybeAddObserver("Eye-Fi");
             maybeAddObserver("gpx");
         }
