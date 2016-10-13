@@ -19,7 +19,9 @@ limitations under the License.
 package fs
 
 import (
+	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -718,6 +720,32 @@ func not(cond func() bool) func() bool {
 	}
 }
 
+// isInProcMounts returns whether dir is found as a mount point of /dev/fuse in
+// /proc/mounts. It does not guarantee the dir is usable as such, as it could have
+// been left unmounted by a previously interrupted process ("transport endpoint is
+// not connected" error).
+func isInProcMounts(dir string) (error, bool) {
+	if runtime.GOOS != "linux" {
+		return errors.New("only available on linux"), false
+	}
+	data, err := ioutil.ReadFile("/proc/mounts")
+	if err != nil {
+		return err, false
+	}
+	sc := bufio.NewScanner(bytes.NewReader(data))
+	dir = strings.TrimSuffix(dir, "/")
+	for sc.Scan() {
+		l := sc.Text()
+		if !strings.HasPrefix(l, "/dev/fuse") {
+			continue
+		}
+		if strings.Fields(l)[1] == dir {
+			return nil, true
+		}
+	}
+	return sc.Err(), false
+}
+
 // isMounted returns whether dir is considered mounted as far as the filesystem
 // is concerned, when one needs to know whether to unmount dir. It does not
 // guarantee the dir is usable as such, as it could have been left unmounted by a
@@ -727,26 +755,11 @@ func isMounted(dir string) func() bool {
 		return dirToBeFUSE(dir)
 	}
 	return func() bool {
-		if runtime.GOOS != "linux" {
-			return false
+		err, ok := isInProcMounts(dir)
+		if err != nil {
+			log.Print(err)
 		}
-		// TODO(mpl): consider using /proc/mounts
-		// https://github.com/camlistore/camlistore/issues/829
-		out, err := exec.Command("df", dir).CombinedOutput()
-		if err == nil {
-			return strings.Contains(string(out), "/dev/fuse") &&
-				strings.Contains(string(out), dir)
-		}
-		// Keep trying, because on a dir that needs a fusermount -u, df would return
-		// "df: ‘/tmp/fs-test-mount589183372’: transport endpoint is not connected"
-		// Also, don't compare with df output because it has funky quotes and unreliable
-		// formatting.
-		brokenMountErr := fmt.Errorf("open %v: transport endpoint is not connected", dir)
-		f, err := os.Open(dir)
-		if err == nil {
-			defer f.Close()
-		}
-		return err.Error() == brokenMountErr.Error()
+		return ok
 	}
 }
 
