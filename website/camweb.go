@@ -52,12 +52,12 @@ import (
 	"github.com/russross/blackfriday"
 	"go4.org/cloud/cloudlaunch"
 	"go4.org/writerutil"
+	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/option"
 	storageapi "google.golang.org/api/storage/v1"
-	"rsc.io/letsencrypt"
 )
 
 const defaultAddr = ":31798" // default webserver address
@@ -80,6 +80,7 @@ var (
 	gceJWTFile   = flag.String("gce_jwt_file", "", "If non-empty, a filename to the GCE Service Account's JWT (JSON) config file.")
 	gitContainer = flag.Bool("git_container", false, "Use git from the `camlistore/git` Docker container; if false, the system `git` is used.")
 
+	adminEmail         = flag.String("email", "", "Address that Let's Encrypt will notify about problems with issued certificates")
 	flagChromeBugRepro = flag.Bool("chrome_bug", false, "Run the chrome bug repro demo for issue #660. True in production.")
 )
 
@@ -571,8 +572,8 @@ func checkInProduction() bool {
 }
 
 const (
-	prodSrcDir  = "/var/camweb/src/camlistore.org"
-	prodLECache = "/var/le/letsencrypt.cache"
+	prodSrcDir     = "/var/camweb/src/camlistore.org"
+	prodLECacheDir = "/var/le/letsencrypt.cache"
 )
 
 func setProdFlags() {
@@ -593,6 +594,7 @@ func setProdFlags() {
 	*root = filepath.Join(prodSrcDir, "website")
 	*gitContainer = true
 
+	*adminEmail = "mathieu.lonjaret@gmail.com" // for let's encrypt
 	*emailsTo = "camlistore-commits@googlegroups.com"
 	*smtpServer = "50.19.239.94:2500" // double firewall: rinetd allow + AWS
 
@@ -914,22 +916,32 @@ func serveHTTPS(httpServer *http.Server) error {
 	httpsServer := new(http.Server)
 	*httpsServer = *httpServer
 	httpsServer.Addr = *httpsAddr
-	cacheFile := "letsencrypt.cache"
+	cacheDir := autocert.DirCache("letsencrypt.cache")
 	if !inProd {
 		if *tlsCertFile != "" && *tlsKeyFile != "" {
 			return httpsServer.ListenAndServeTLS(*tlsCertFile, *tlsKeyFile)
 		}
 		// Otherwise use Let's Encrypt, i.e. same use case as in prod
 	} else {
-		cacheFile = prodLECache
-		if err := os.MkdirAll(filepath.Dir(cacheFile), 0755); err != nil {
-			return err
-		}
+		cacheDir = autocert.DirCache(prodLECacheDir)
 	}
-	var m letsencrypt.Manager
-	if err := m.CacheFile(cacheFile); err != nil {
+	host, _, err := net.SplitHostPort(*httpsAddr)
+	if err != nil {
 		return err
 	}
+	// TODO(mpl): maybe use a custom acme.Client so we get more verbiage to
+	// debug problems? As it is I didn't see any (error or otherwise) message
+	// in the logs when I tested it out. But it obviously worked as the cache
+	// dir was populated.
+	m := autocert.Manager{
+		Prompt:     autocert.AcceptTOS,
+		HostPolicy: autocert.HostWhitelist(host),
+		Cache:      cacheDir,
+	}
+	if *adminEmail != "" {
+		m.Email = *adminEmail
+	}
+
 	httpsServer.TLSConfig = &tls.Config{
 		GetCertificate: m.GetCertificate,
 	}
