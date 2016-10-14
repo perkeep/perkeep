@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"html/template"
@@ -917,25 +918,27 @@ func serveHTTPS(httpServer *http.Server) error {
 	*httpsServer = *httpServer
 	httpsServer.Addr = *httpsAddr
 	cacheDir := autocert.DirCache("letsencrypt.cache")
+	var domain string
 	if !inProd {
 		if *tlsCertFile != "" && *tlsKeyFile != "" {
 			return httpsServer.ListenAndServeTLS(*tlsCertFile, *tlsKeyFile)
 		}
 		// Otherwise use Let's Encrypt, i.e. same use case as in prod
+		if strings.HasPrefix(*httpsAddr, ":") {
+			return errors.New("for Let's Encrypt, -https needs to start with a host name")
+		}
+		host, _, err := net.SplitHostPort(*httpsAddr)
+		if err != nil {
+			return err
+		}
+		domain = host
 	} else {
+		domain = "camlistore.org"
 		cacheDir = autocert.DirCache(prodLECacheDir)
 	}
-	host, _, err := net.SplitHostPort(*httpsAddr)
-	if err != nil {
-		return err
-	}
-	// TODO(mpl): maybe use a custom acme.Client so we get more verbiage to
-	// debug problems? As it is I didn't see any (error or otherwise) message
-	// in the logs when I tested it out. But it obviously worked as the cache
-	// dir was populated.
 	m := autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
-		HostPolicy: autocert.HostWhitelist(host),
+		HostPolicy: autocert.HostWhitelist(domain),
 		Cache:      cacheDir,
 	}
 	if *adminEmail != "" {
