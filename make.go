@@ -64,6 +64,7 @@ var (
 	buildARM       = flag.String("arm", "7", "ARM version to use if building for ARM. Note that this version applies even if the host arch is ARM too (and possibly of a different version).")
 	stampVersion   = flag.Bool("stampversion", true, "Stamp version into buildinfo.GitInfo")
 	website        = flag.Bool("website", false, "Just build the website.")
+	camnetdns      = flag.Bool("camnetdns", false, "Just build camlistore.org/server/camnetdns.")
 
 	// Use GOPATH from the environment and work from there. Do not create a temporary source tree with a new GOPATH in it.
 	// It is set through CAMLI_MAKE_USEGOPATH for integration tests that call 'go run make.go', and which are already in
@@ -96,6 +97,10 @@ func main() {
 		}
 	}
 
+	if *website && *camnetdns {
+		log.Fatal("-camnetdns and -website are mutually exclusive")
+	}
+
 	verifyGoVersion()
 
 	sql := withSQLite()
@@ -124,6 +129,9 @@ func main() {
 		if *onlysync {
 			if *website {
 				log.Fatal("-onlysync and -website are mutually exclusive")
+			}
+			if *camnetdns {
+				log.Fatal("-onlysync and -camnetdns are mutually exclusive")
 			}
 			mirrorFile("make.go", filepath.Join(buildSrcDir, "make.go"))
 			// Since we have not done the resources embedding, the
@@ -172,13 +180,20 @@ func main() {
 		if *website {
 			log.Fatal("-targets and -website are mutually exclusive")
 		}
+		if *website {
+			log.Fatal("-targets and -camnetdns are mutually exclusive")
+		}
 		if t := strings.Split(*targets, ","); len(t) != 0 {
 			targs = t
 		}
 	}
-	if *website {
+	if *website || *camnetdns {
 		buildAll = false
-		targs = []string{"camlistore.org/website"}
+		if *website {
+			targs = []string{"camlistore.org/website"}
+		} else if *camnetdns {
+			targs = []string{"camlistore.org/server/camnetdns"}
+		}
 	}
 
 	withCamlistored := stringListContains(targs, "camlistore.org/server/camlistored")
@@ -568,6 +583,12 @@ func mirror(sql bool) (latestSrcMod time.Time) {
 			"pkg",
 			"vendor",
 			"website",
+		}
+	} else if *camnetdns {
+		goDirs = []string{
+			"pkg",
+			"vendor",
+			"server/camnetdns",
 		}
 	}
 	// Copy files we do want in our mirrored GOPATH.  This has the side effect of
