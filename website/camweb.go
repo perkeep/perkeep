@@ -687,6 +687,9 @@ func runDemoBlobserverLoop() {
 }
 
 func sendStartingEmail() {
+	if *smtpServer == "" {
+		return
+	}
 	contentRev, err := exec.Command("docker", "run",
 		"--rm",
 		"-v", "/var/camweb:/var/camweb",
@@ -698,6 +701,7 @@ func sendStartingEmail() {
 	cl, err := smtp.Dial(*smtpServer)
 	if err != nil {
 		log.Printf("Failed to connect to SMTP server: %v", err)
+		return
 	}
 	defer cl.Quit()
 	if err = cl.Mail("noreply@camlistore.org"); err != nil {
