@@ -368,6 +368,10 @@ func (h *DeployHandler) serveRoot(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.SetCookie(w, newCookie())
 	}
+	camliRev := h.camliRev()
+	if r.FormValue("WIP") == "1" {
+		camliRev = "WORKINPROGRESS"
+	}
 	h.tplMu.RLock()
 	defer h.tplMu.RUnlock()
 	if err := h.tpl.ExecuteTemplate(w, "withform", &TemplateData{
@@ -375,7 +379,7 @@ func (h *DeployHandler) serveRoot(w http.ResponseWriter, r *http.Request) {
 		Help:          h.help,
 		ZoneValues:    h.zoneValues(),
 		MachineValues: machineValues,
-		CamliVersion:  h.camliRev(),
+		CamliVersion:  camliRev,
 	}); err != nil {
 		h.logger.Print(err)
 	}
