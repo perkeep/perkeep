@@ -71,6 +71,7 @@ public class UploadService extends Service {
                                                // thread exits
     private Notification.Builder mNotificationBuilder; // null until upload is
                                                        // started/resumed
+    private int mLastNotificationProgress = 0; // last computed value of the uploaded bytes, to avoid excessive notification updates
     private final Map<QueuedFile, Long> mFileBytesRemain = new HashMap<QueuedFile, Long>();
     private final LinkedList<QueuedFile> mQueueList = new LinkedList<QueuedFile>();
     private final Map<String, Long> mStatValue = new TreeMap<String, Long>();
@@ -410,11 +411,16 @@ public class UploadService extends Service {
         Notification notification = null;
         synchronized (this) {
             if (mNotificationBuilder != null) {
-                int kBUploaded = (int)(mBytesUploaded / 1024L);
-                int kBTotal = (int)(mBytesTotal / 1024L);
+                int progress = (int)(100 * (double)mBytesUploaded/(double)mBytesTotal);
 
-                mNotificationBuilder.setProgress(kBTotal, kBUploaded, false);
-                notification = mNotificationBuilder.build();
+                // Only build new notification when progress value actually changes. Some
+                // devices slow down and finally freeze completely when updating too often.
+                if (mLastNotificationProgress != progress) {
+                    mLastNotificationProgress = progress;
+
+                    mNotificationBuilder.setProgress(100, progress, false);
+                    notification = mNotificationBuilder.build();
+                }
             }
             try {
                 mCallback.setByteStatus(mBytesUploaded, mBytesInFlight, mBytesTotal);
@@ -702,6 +708,7 @@ public class UploadService extends Service {
                     .setContentText("Camlistore uploader running")
                     .setSmallIcon(android.R.drawable.stat_sys_upload);
                 mNotificationManager.notify(NOTIFY_ID_UPLOADING, mNotificationBuilder.build());
+                mLastNotificationProgress = -1;
 
                 mUploading = true;
                 mUploadThread = new UploadThread(UploadService.this, hp, mPrefs.trustedCert(), mPrefs.username(), mPrefs.password());

@@ -205,14 +205,15 @@ public class CamliActivity extends Activity {
             public void setUploadStatsText(final String text) throws RemoteException {
                 // We were getting these status updates so quickly that the calls to TextView.setText
                 // were consuming all CPU on the main thread and it was stalling the main thread
-                // for seconds. Ridiculous. So instead, only update this every 5 milliseconds,
-                // otherwise wait for the looper to be idle to update it.
+                // for seconds, sometimes even triggering device freezes. Ridiculous. So instead,
+                // only update this every 30 milliseconds, otherwise wait for the looper to be idle
+                // to update it.
                 mHandler.post(new Runnable() {
                     @Override
                     public void run() {
                         mStatusTextWant = text;
                         long now = System.currentTimeMillis();
-                        if (mLastStatusUpdate < now - 5) {
+                        if (mLastStatusUpdate < now - 30) {
                             mStatusTextCurrent = mStatusTextWant;
                             textStats.setText(mStatusTextWant);
                             mLastStatusUpdate = System.currentTimeMillis();
