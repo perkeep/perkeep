@@ -87,7 +87,7 @@ const (
 	domain      = "camlistore.net."
 	authorityNS = "camnetdns.camlistore.org."
 	// Increment after every change with format YYYYMMDDnn.
-	soaSerial = 2016102003
+	soaSerial = 2016102101
 )
 
 var (
@@ -151,18 +151,31 @@ func (ds *DNSServer) ServeDNS(rw dns.ResponseWriter, mes *dns.Msg) {
 		}
 		return
 	}
+	resp.SetReply(mes)
+	// TODO(mpl): Should we make sure that at least q.Name ends in
+	// "camlistore.net" before claiming we're authoritative on that response?
+	resp.Authoritative = true
+
 	for _, q := range mes.Question {
 		log.Printf("DNS request from %s: %s", rw.RemoteAddr(), &q)
+
+		answer, err := ds.HandleLookup(q.Name)
+		if err == sorted.ErrNotFound {
+			resp.SetRcode(mes, dns.RcodeNameError)
+			if err := rw.WriteMsg(resp); err != nil {
+				log.Printf("error responding to DNS query: %s", err)
+			}
+			return
+		}
+		if err != nil {
+			log.Printf("error looking up %q: %v", q.Name, err)
+			continue
+		}
+
 		if q.Qclass != dns.ClassINET {
 			log.Printf("error: got invalid DNS question class %d\n", q.Qclass)
 			continue
 		}
-
-		// TODO(mpl): according to
-		// https://community.letsencrypt.org/t/is-lets-encrypt-dns-not-liking-my-domain-name-server/21303/18
-		// we should probably always start here by doing a lookup and reply
-		// with RcodeNameError if there's no record, regardless of the
-		// query type.
 
 		switch q.Qtype {
 		// As long as we send a reply (even an empty one), we apparently
@@ -180,11 +193,6 @@ func (ds *DNSServer) ServeDNS(rw dns.ResponseWriter, mes *dns.Msg) {
 			resp.Extra = []dns.RR{additionalSection}
 
 		case dns.TypeCAA:
-			_, err := ds.HandleLookup(q.Name)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
 			header := commonHeader(q)
 			rr := &dns.CAA{
 				Hdr:   header,
@@ -195,11 +203,7 @@ func (ds *DNSServer) ServeDNS(rw dns.ResponseWriter, mes *dns.Msg) {
 			resp.Answer = []dns.RR{rr}
 
 		case dns.TypeA, dns.TypeAAAA:
-			val, err := ds.HandleLookup(q.Name)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
+			val := answer
 			ip := net.ParseIP(val)
 			// TODO(mpl): maybe we should have a distinct memstore for each type?
 			isIP6 := strings.Contains(ip.String(), ":")
@@ -239,8 +243,6 @@ func (ds *DNSServer) ServeDNS(rw dns.ResponseWriter, mes *dns.Msg) {
 		}
 		break
 	}
-	resp.SetReply(mes)
-	resp.Authoritative = true
 
 	if err := rw.WriteMsg(resp); err != nil {
 		log.Printf("error responding to DNS query: %s", err)
