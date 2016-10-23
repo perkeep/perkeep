@@ -87,9 +87,9 @@ type SyncHandler struct {
 	totalCopyBytes int64
 	totalErrors    int64
 	vshards        []string // validation shards. if 0, validation not running
-	vshardDone     int      // shards validated
+	vshardDone     int      // shards already processed (incl. errors)
 	vshardErrs     []string
-	vmissing       int64 // missing blobs found during validat
+	vmissing       int64 // missing blobs found during validate
 	vdestCount     int   // number of blobs seen on dest during validate
 	vdestBytes     int64 // number of blob bytes seen on dest during validate
 	vsrcCount      int   // number of blobs seen on src during validate
@@ -389,14 +389,14 @@ func (sh *SyncHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	f("</ul>")
 
 	f("<h2>Validation</h2>")
-	if len(sh.vshards) == 0 {
-		f("Validation disabled")
+	f("<p>Background scan of source and destination to ensure that the destination has everything the source does, or is at least enqueued to sync.</p>")
+	if len(sh.vshards) == 0 || sh.vshardDone == len(sh.vshards) {
 		token := xsrftoken.Generate(auth.Token(), "user", "runFullValidate")
 		f("<form method='POST'><input type='hidden' name='mode' value='validate'><input type='hidden' name='token' value='%s'><input type='submit' value='Start validation'></form>", token)
-	} else {
-		f("<p>Background scan of source and destination to ensure that the destination has everything the source does, or is at least enqueued to sync.</p>")
+	}
+	if len(sh.vshards) != 0 {
 		f("<ul>")
-		f("<li>Shards complete: %d/%d (%.1f%%)</li>",
+		f("<li>Shards processed: %d/%d (%.1f%%)</li>",
 			sh.vshardDone,
 			len(sh.vshards),
 			100*float64(sh.vshardDone)/float64(len(sh.vshards)))
@@ -687,6 +687,12 @@ func (sh *SyncHandler) enqueue(sb blob.SizedRef) error {
 
 func (sh *SyncHandler) startFullValidation() {
 	sh.mu.Lock()
+	if sh.vshardDone == len(sh.vshards) {
+		sh.vshards, sh.vshardErrs = nil, nil
+		sh.vshardDone, sh.vmissing = 0, 0
+		sh.vdestCount, sh.vdestBytes = 0, 0
+		sh.vsrcCount, sh.vsrcBytes = 0, 0
+	}
 	if len(sh.vshards) != 0 {
 		sh.mu.Unlock()
 		return
@@ -740,9 +746,8 @@ func (sh *SyncHandler) validateShardPrefix(pfx string) (err error) {
 			errs := fmt.Sprintf("Failed to validate prefix %s: %v", pfx, err)
 			sh.logf("%s", errs)
 			sh.vshardErrs = append(sh.vshardErrs, errs)
-		} else {
-			sh.vshardDone++
 		}
+		sh.vshardDone++
 		sh.mu.Unlock()
 	}()
 	ctx, cancel := context.WithCancel(context.TODO())
