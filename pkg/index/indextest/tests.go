@@ -1196,6 +1196,9 @@ func (s searchResults) String() string {
 }
 
 func Reindex(t *testing.T, initIdx func() *index.Index) {
+	if os.Getenv("TRAVIS") == "true" {
+		t.Skipf("Skipping Reindex test on Travis CI")
+	}
 	defaultReindexMaxProcs := index.ReindexMaxProcs()
 	// if not startOoo, the outOfOrderIndexerLoop will not be started,
 	// which should demonstrate that:
