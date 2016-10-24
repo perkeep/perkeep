@@ -703,7 +703,7 @@ type configHandler struct {
 
 var (
 	knownKeys     = regexp.MustCompile(`(?ms)^\s+"_knownkeys": {.+?},?\n`)
-	sensitiveLine = regexp.MustCompile(`(?m)^\s+\"(auth|aws_secret_access_key|password|client_secret)\": "[^\"]+".*\n`)
+	sensitiveLine = regexp.MustCompile(`(?m)^\s+\"(auth|aws_secret_access_key|password|client_secret|application_key|passphrase)\": "[^\"]+".*\n`)
 	trailingComma = regexp.MustCompile(`,(\n\s*\})`)
 )
 
