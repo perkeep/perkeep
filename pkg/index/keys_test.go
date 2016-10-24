@@ -14,14 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package index
+package index_test
 
 import (
 	"testing"
+
+	"camlistore.org/pkg/index"
 )
 
 func TestKeyPrefix(t *testing.T) {
-	if g, e := keyRecentPermanode.Prefix("ABC"), "recpn|ABC|"; g != e {
+	if g, e := index.Exp_KeyRecentPermanode.Prefix("ABC"), "recpn|ABC|"; g != e {
 		t.Errorf("recpn = %q; want %q", g, e)
 	}
 }
@@ -37,7 +39,7 @@ func TestTypeOfKey(t *testing.T) {
 		{"fooo", ""},
 	}
 	for _, tt := range tests {
-		if got := typeOfKey(tt.in); got != tt.want {
+		if got := index.Exp_TypeOfKey(tt.in); got != tt.want {
 			t.Errorf("typeOfKey(%q) = %q; want %q", tt.in, got, tt.want)
 		}
 	}

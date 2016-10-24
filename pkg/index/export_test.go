@@ -123,3 +123,9 @@ func (x *Index) Exp_FixMissingWholeRef(fetcher blob.Fetcher) (err error) {
 }
 
 var Exp_ErrMissingWholeRef = errMissingWholeRef
+
+var Exp_KeyRecentPermanode = keyRecentPermanode
+
+func Exp_TypeOfKey(key string) string {
+	return typeOfKey(key)
+}

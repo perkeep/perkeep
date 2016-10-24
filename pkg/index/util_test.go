@@ -14,13 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package index
+package index_test
 
 import (
 	"testing"
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/types/camtypes"
 )
 
@@ -78,7 +79,7 @@ func TestClaimsAttrValue(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		got := ClaimsAttrValue(claims, tt.attr, tt.t, blob.Ref{})
+		got := index.ClaimsAttrValue(claims, tt.attr, tt.t, blob.Ref{})
 		if got != tt.want {
 			t.Errorf("%d. attr %q = %v; want %v",
 				i, tt.attr, got, tt.want)
