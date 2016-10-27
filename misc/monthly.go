@@ -215,6 +215,7 @@ type ReleaseData struct {
 	CamliVersion string
 	GoVersion    string
 	Stats        *stats
+	ReleaseNotes map[string][]string
 }
 
 // Note: the space trimming in the range loop is important. Since all of our
@@ -249,6 +250,25 @@ Camlistore version <a href='https://github.com/camlistore/camlistore/commit/{{.C
 </p>
 
 <p>Thank you!</p>
+{{end}}
+
+{{if .ReleaseNotes}}
+<h2>Release Notes</h2>
+
+<p>
+<ul>
+{{- range $pkg, $changes := .ReleaseNotes}}
+<li>
+{{$pkg}}:
+<ul>
+{{- range $change := $changes}}
+<li>{{$change}}</li>
+{{- end}}
+</ul>
+</li>
+{{- end}}
+</ul>
+</p>
 {{end}}
 `
 
@@ -510,6 +530,48 @@ func genCommitStats() (*stats, error) {
 	}, nil
 }
 
+func genReleaseNotes() (map[string][]string, error) {
+	cmd := exec.Command("git", "log", "--format=oneline", "--no-merges", *flagStatsFrom+".."+rev())
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("%v; %v", err, string(out))
+	}
+
+	var noContext []string
+	commitByContext := make(map[string][]string)
+	startsWithContext := regexp.MustCompile(`^(.+?):\s+(.*)$`)
+	sc := bufio.NewScanner(bytes.NewReader(out))
+	for sc.Scan() {
+		hashStripped := strings.SplitN(sc.Text(), " ", 2)[1]
+		if strings.Contains(hashStripped, "CLA") {
+			continue
+		}
+		m := startsWithContext.FindStringSubmatch(hashStripped)
+		if len(m) != 3 {
+			noContext = append(noContext, hashStripped)
+			continue
+		}
+		change := m[2]
+		commitContext := strings.ToLower(m[1])
+		// remove "pkg/" prefix to group together e.g. "pkg/search:" and "search:"
+		commitContext = strings.TrimPrefix(commitContext, "pkg/")
+		var changes []string
+		oldChanges, ok := commitByContext[commitContext]
+		if !ok {
+			changes = []string{change}
+		} else {
+			changes = append(oldChanges, change)
+		}
+		commitByContext[commitContext] = changes
+	}
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+	commitByContext["zz_nocontext"] = noContext
+	// TODO(mpl): remove keys with only one entry maybe?
+	return commitByContext, nil
+}
+
 func main() {
 	flag.Usage = usage
 	flag.Parse()
@@ -536,6 +598,12 @@ func main() {
 			log.Fatal(err)
 		}
 		releaseData.Stats = commitStats
+
+		notes, err := genReleaseNotes()
+		if err != nil {
+			log.Fatal(err)
+		}
+		releaseData.ReleaseNotes = notes
 	}
 
 	if err := genMonthlyPage(releaseData); err != nil {
