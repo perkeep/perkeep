@@ -256,6 +256,7 @@ span.termhashlink a {
 
 /* For monthly release page */
 a.downloadBox {
+	margin-top: 1em;
 	display: block;
 	color: #222;
 	border: 1px solid #375EAB;

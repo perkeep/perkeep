@@ -231,7 +231,7 @@ Camlistore version <a href='https://github.com/camlistore/camlistore/commit/{{.C
 <h2>Downloads</h2>
 
 <center>
-{{- range $d := .Download -}}
+{{- range $d := .Download}}
 <a class="downloadBox" href="/dl/monthly/{{$d.Filename}}">
 <div class="platform">{{$d.Platform}}</div>
 <div>
@@ -239,7 +239,7 @@ Camlistore version <a href='https://github.com/camlistore/camlistore/commit/{{.C
 </div>
 <div class="checksum">SHA256: {{$d.Checksum}}</div>
 </a>
-{{- end -}}
+{{- end}}
 </center>
 
 {{if .Stats}}
