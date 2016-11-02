@@ -225,12 +225,15 @@ func (pm *PermanodeMeta) appendAttrClaim(cl *camtypes.Claim) {
 	}
 }
 
-// valuesAtSigner returns an attrValues to query
-// permanode attr values at the given time for the signerFilter.
-// It returns ok == true if v represents attrValues
-// valid for the specified parameters.
-// If signerFilter is valid and pm has no attributes for it,
-// (nil, true) is returned.
+// valuesAtSigner returns an attrValues to query permanode attr values at the
+// given time for the signerFilter.
+// It returns ok == true if v represents attrValues valid for the specified
+// parameters.
+// It returns (nil, false) if neither pm.attr nor pm.signer should be used for
+// the given time, because e.g. some claims are more recent than this time. In
+// which case, the caller should resort to querying another source, such as pm.Claims.
+// If signerFilter is valid and pm has no attributes for it, (nil, true) is
+// returned.
 func (pm *PermanodeMeta) valuesAtSigner(at time.Time,
 	signerFilter blob.Ref) (v attrValues, ok bool) {
 
