@@ -17,6 +17,7 @@ limitations under the License.
 package s3
 
 import (
+	"fmt"
 	"log"
 	"path"
 
@@ -71,8 +72,7 @@ func (sto *s3Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.Sized
 		}
 		br, ok := blob.Parse(file)
 		if !ok {
-			// TODO(mpl): I've noticed that on GCS we error out for this case. Do the same here ?
-			continue
+			return fmt.Errorf("non-Camlistore object named %q found in %v s3 bucket", file, sto.bucket)
 		}
 		select {
 		case dest <- blob.SizedRef{Ref: br, Size: uint32(obj.Size)}:
