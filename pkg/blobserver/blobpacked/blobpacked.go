@@ -148,7 +148,7 @@ var (
 
 // SetRecovery notes that the user ran the camlistored binary with the --recovery flag.
 // It means that any blobpacked storage subsequently initialized will
-// automatically start with rebuilding its meta index of zip files if the need is detected.
+// automatically start with rebuilding its meta index of zip files.
 func SetRecovery() {
 	recoveryMu.Lock()
 	defer recoveryMu.Unlock()
@@ -273,24 +273,25 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 	}
 	sto.init()
 
+	recoveryMu.Lock()
+	defer recoveryMu.Unlock()
+	if recovery {
+		log.Print("Starting recovery of blobpacked index")
+		if err := meta.Close(); err != nil {
+			return nil, err
+		}
+		if err := sto.reindex(context.TODO(), func() (sorted.KeyValue, error) {
+			return sorted.NewKeyValue(metaConf)
+		}); err != nil {
+			return nil, err
+		}
+		return sto, nil
+	}
 	// Check for a weird state: zip files exist, but no metadata about them
 	// is recorded. This is probably a corrupt state, and the user likely
 	// wants to recover.
 	if !sto.anyMeta() && sto.anyZipPacks() {
-		recoveryMu.Lock()
-		defer recoveryMu.Unlock()
-		if !recovery {
-			log.Printf("Warning: blobpacked storage detects non-zero packed zips, but no metadata. Please re-start in recovery mode with -recovery.")
-		} else {
-			if err := meta.Close(); err != nil {
-				return nil, err
-			}
-			if err := sto.reindex(context.TODO(), func() (sorted.KeyValue, error) {
-				return sorted.NewKeyValue(metaConf)
-			}); err != nil {
-				return nil, err
-			}
-		}
+		log.Fatal("Error: blobpacked storage detects non-zero packed zips, but no metadata. Please re-start in recovery mode with -recovery.")
 	}
 
 	return sto, nil

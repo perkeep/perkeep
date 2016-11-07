@@ -99,7 +99,7 @@ var (
 	flagListen      = flag.String("listen", "", "host:port to listen on, or :0 to auto-select. If blank, the value in the config will be used instead.")
 	flagOpenBrowser = flag.Bool("openbrowser", true, "Launches the UI on startup")
 	flagReindex     = flag.Bool("reindex", false, "Reindex all blobs on startup")
-	flagRecovery    = flag.Bool("recovery", false, "Recovery mode: rebuild the blobpacked meta index if needed. The tasks performed by the recovery mode might change in the future.")
+	flagRecovery    = flag.Bool("recovery", false, "Recovery mode: rebuild the blobpacked meta index. The tasks performed by the recovery mode might change in the future.")
 	flagPollParent  bool
 )
 
