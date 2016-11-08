@@ -57,8 +57,10 @@ func indexTest(t *testing.T,
 	sortedGenfn func(t *testing.T) (sorted.KeyValue, func()),
 	tfn func(*testing.T, func() *index.Index)) {
 	defer test.TLog(t)()
-	var mu sync.Mutex // guards cleanups
-	var cleanups []func()
+	var (
+		mu       sync.Mutex // guards cleanups
+		cleanups []func()
+	)
 	defer func() {
 		mu.Lock() // never unlocked
 		for _, fn := range cleanups {
