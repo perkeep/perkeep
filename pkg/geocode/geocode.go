@@ -40,6 +40,19 @@ type Rect struct {
 	SouthWest LatLong `json:"southwest"`
 }
 
+// AltLookupFn provides alternative geocode lookup in tests.
+//
+// If AltLookupFn is not nil, Lookup calls AltLookupFn first,
+// and returns the results unless it is (nil, nil).
+//
+// Lookup performs its standard lookup using its cache
+// and the Google geocoding serice if AltLookupFn is nil,
+// or it returns (nil, nil) for the address being looked up.
+//
+// It's up to the caller to change AltLookupFn only
+// when Lookup is not being called.
+var AltLookupFn func(ctx context.Context, address string) ([]Rect, error)
+
 var (
 	mu    sync.RWMutex
 	cache = map[string][]Rect{}
@@ -50,6 +63,13 @@ var (
 // Lookup returns rectangles for the given address. Currently the only
 // implementation is the Google geocoding service.
 func Lookup(ctx context.Context, address string) ([]Rect, error) {
+	if AltLookupFn != nil {
+		r, err := AltLookupFn(ctx, address)
+		if r != nil || err != nil {
+			return r, err
+		}
+	}
+
 	mu.RLock()
 	rects, ok := cache[address]
 	mu.RUnlock()

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
+	"camlistore.org/pkg/geocode"
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/osutil"
@@ -1636,9 +1637,6 @@ func BenchmarkLocationPredicate(b *testing.B) {
 		h := qt.Handler()
 		b.ResetTimer()
 
-		// TODO(attila): add a geocode Cache so we don't hit the
-		// (random?) google geocode API errors.
-
 		// TODO(mpl): investigate whether it's normal that we don't find
 		// any permanodes in e.g. Canada (no tweets is expected, but no 4sq
 		// seems indeed a bit odd).
@@ -1661,4 +1659,39 @@ func BenchmarkLocationPredicate(b *testing.B) {
 		}
 
 	})
+}
+
+var altLocCache = make(map[string][]geocode.Rect)
+
+func init() {
+	cacheGeo := func(address string, n, e, s, w float64) {
+		altLocCache[address] = []geocode.Rect{{
+			NorthEast: geocode.LatLong{Lat: n, Long: e},
+			SouthWest: geocode.LatLong{Lat: s, Long: w},
+		}}
+	}
+
+	cacheGeo("canada", 83.0956562, -52.6206965, 41.6765559, -141.00187)
+	cacheGeo("scotland", 60.8607515, -0.7246751, 54.6332381, -8.6498706)
+	cacheGeo("france", 51.0891285, 9.560067700000001, 41.3423275, -5.142307499999999)
+	cacheGeo("sweden", 69.0599709, 24.1665922, 55.3367024, 10.9631865)
+	cacheGeo("germany", 55.0581235, 15.0418962, 47.2701114, 5.8663425)
+	cacheGeo("poland", 54.835784, 24.1458933, 49.0020251, 14.1228641)
+	cacheGeo("russia", 81.858122, -169.0456324, 41.1853529, 19.6404268)
+	cacheGeo("algeria", 37.0898204, 11.999999, 18.968147, -8.667611299999999)
+	cacheGeo("congo", 3.707791, 18.6436109, -5.0289719, 11.1530037)
+	cacheGeo("china", 53.5587015, 134.7728098, 18.1576156, 73.4994136)
+	cacheGeo("india", 35.5087008, 97.395561, 6.7535159, 68.1623859)
+	cacheGeo("australia", -9.2198214, 159.2557541, -54.7772185, 112.9215625)
+	cacheGeo("mexico", 32.7187629, -86.7105711, 14.5345486, -118.3649292)
+	cacheGeo("brazil", 5.2717863, -29.3448224, -33.7506241, -73.98281709999999)
+	cacheGeo("argentina", -21.7810459, -53.6374811, -55.05727899999999, -73.56036019999999)
+
+	geocode.AltLookupFn = func(ctx context.Context, addr string) ([]geocode.Rect, error) {
+		r, ok := altLocCache[addr]
+		if ok {
+			return r, nil
+		}
+		return nil, nil
+	}
 }
