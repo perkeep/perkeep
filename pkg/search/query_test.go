@@ -1,6 +1,8 @@
 package search_test
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -1632,7 +1634,14 @@ func BenchmarkLocationPredicate(b *testing.B) {
 			newPn()
 		}
 
-		// TODO(attila): add permanodes with EXIFed camliContent.
+		// Create ~2600 photos all over the world.
+		for long := -180; long < 180; long += 5 {
+			for lat := -90; lat < 90; lat += 5 {
+				br, _ := id.UploadFile("photo.jpg", genimg.at(lat, long), time.Time{})
+				pn := newPn()
+				id.SetAttribute(pn, "camliContent", br.String())
+			}
+		}
 
 		h := qt.Handler()
 		b.ResetTimer()
@@ -1693,5 +1702,161 @@ func init() {
 			return r, nil
 		}
 		return nil, nil
+	}
+}
+
+var genimg genImg // used to fake EXIF files with lat/long
+
+type genImg struct {
+	mu     sync.Mutex
+	base   []byte
+	images map[intLatLong]string
+}
+
+type intLatLong struct {
+	lat, long int
+}
+
+func (g *genImg) at(lat, long int) string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.base == nil {
+		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+		if err != nil {
+			panic("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+		}
+		fileName := filepath.Join(camliRootPath, "pkg", "search", "testdata", "dude-gps.jpg")
+		g.base, err = ioutil.ReadFile(fileName)
+		if err != nil {
+			panic("can't find dude-gps.jpg")
+		}
+	}
+
+	if g.images == nil {
+		g.images = make(map[intLatLong]string)
+	}
+	m, ok := g.images[intLatLong{lat, long}]
+	if !ok {
+		putExifLatLong(g.base, lat, long)
+
+		m = string(g.base)
+		g.images[intLatLong{lat, long}] = m
+	}
+	return m
+}
+
+// putExifLatLong overwrites GPS coordinates in p.
+// p must be the contents of a valid EXIF file already having GPS location,
+// otherwise putExifLatLong panics.
+func putExifLatLong(p []byte, lat, long int) {
+	i := bytes.Index(p, []byte("Exif\x00\x00"))
+	if i == -1 {
+		panic("Missing exif header")
+	}
+	p = p[i+6:]
+
+	if len(p) < 8 {
+		panic("No room for exif header")
+	}
+
+	var bo binary.ByteOrder
+	switch {
+	case p[0] == 'M' && p[1] == 'M':
+		bo = binary.BigEndian
+	case p[0] == 'I' && p[1] == 'I':
+		bo = binary.LittleEndian
+	default:
+		panic("invalid byte order")
+	}
+
+	if bo.Uint16(p[2:]) != 42 {
+		panic("invalid IFD tag")
+	}
+
+	ifd0ofs := int(bo.Uint32(p[4:]))
+	if len(p) < ifd0ofs {
+		panic("IFD0 outside file contents")
+	}
+
+	const (
+		gpsSubIfdTag = 0x8825
+
+		gpsLatitudeRef  = 1
+		gpsLatitude     = 2
+		gpsLongitudeRef = 3
+		gpsLongitude    = 4
+
+		typeAscii    = 2
+		typeLong     = 4
+		typeRational = 5
+	)
+
+	written := 0
+
+	// process root IFD
+	exifTagFunc(bo, p[ifd0ofs:], func(tag, typ uint16, length uint32, value []byte) {
+		if tag == gpsSubIfdTag && typ == typeLong && length == 1 {
+			ofs := int(bo.Uint32(value))
+			// process GPS sub-IFD
+			exifTagFunc(bo, p[ofs:], func(tag, typ uint16, length uint32, value []byte) {
+				switch {
+				case tag == gpsLatitudeRef && typ == typeAscii && length <= 2:
+					if lat < 0 {
+						value[0] = 'S'
+					} else {
+						value[0] = 'N'
+					}
+					written |= 1 << gpsLatitudeRef
+				case tag == gpsLatitude && typ == typeRational && length == 3:
+					ofs := int(bo.Uint32(value))
+					writeRat(bo, p[ofs:], lat)
+					written |= 1 << gpsLatitude
+				case tag == gpsLongitudeRef && typ == typeAscii && length <= 2:
+					if long < 0 {
+						value[0] = 'W'
+					} else {
+						value[0] = 'E'
+					}
+					written |= 1 << gpsLongitudeRef
+				case tag == gpsLongitude && typ == typeRational && length == 3:
+					ofs := int(bo.Uint32(value))
+					writeRat(bo, p[ofs:], long)
+					written |= 1 << gpsLongitude
+				}
+			})
+		}
+	})
+
+	if written != (1<<gpsLatitudeRef | 1<<gpsLatitude | 1<<gpsLongitudeRef | 1<<gpsLongitude) {
+		panic("location couldn't be written")
+	}
+}
+
+func writeRat(bo binary.ByteOrder, p []byte, deg int) {
+	if deg < 0 {
+		deg = -deg
+	}
+	// numerator/denominator pairs of degrees, minutes, seconds
+	v := []uint32{uint32(deg), 1, 0, 1, 0, 1}
+	for i, n := range v {
+		bo.PutUint32(p[i*4:], n)
+	}
+}
+
+// exifTagFunc calls handler for all tags in an EXIF IFD
+func exifTagFunc(bo binary.ByteOrder, ifd []byte, handler func(tag, typ uint16, length uint32, value []byte)) {
+	if len(ifd) < 2 {
+		panic("Invalid IFD")
+	}
+	ntags := int(bo.Uint16(ifd[0:]))
+	ifd = ifd[2:]
+	for i := 0; i < ntags; i++ {
+		if len(ifd) < 12 {
+			panic("Truncated IFD")
+		}
+		part := ifd[:12]
+		ifd = ifd[12:]
+		handler(bo.Uint16(part[0:]), bo.Uint16(part[2:]), bo.Uint32(part[4:]), part[8:])
 	}
 }
