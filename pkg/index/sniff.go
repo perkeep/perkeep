@@ -28,7 +28,7 @@ import (
 type BlobSniffer struct {
 	br blob.Ref
 
-	header    []byte
+	contents  []byte
 	written   int64
 	meta      *schema.Blob // or nil
 	mimeType  string
@@ -51,29 +51,35 @@ func (sn *BlobSniffer) Write(d []byte) (int, error) {
 		panic("write on sniffer with invalid blobref")
 	}
 	sn.written += int64(len(d))
-	if len(sn.header) < schema.MaxSchemaBlobSize {
-		n := schema.MaxSchemaBlobSize - len(sn.header)
+	if len(sn.contents) < schema.MaxSchemaBlobSize {
+		n := schema.MaxSchemaBlobSize - len(sn.contents)
 		if len(d) < n {
 			n = len(d)
 		}
-		sn.header = append(sn.header, d[:n]...)
+		sn.contents = append(sn.contents, d[:n]...)
 	}
 	return len(d), nil
 }
 
+// Size returns the number of bytes written to the BlobSniffer.
+// It might be more than schema.MaxSchemaBlobSize.
+// See IsTruncated.
 func (sn *BlobSniffer) Size() int64 {
 	return sn.written
 }
 
+// IsTruncated reports whether the BlobSniffer had more than
+// schema.MaxSchemaBlobSize bytes written to it.
 func (sn *BlobSniffer) IsTruncated() bool {
 	return sn.written > schema.MaxSchemaBlobSize
 }
 
+// Body returns the bytes written to the BlobSniffer.
 func (sn *BlobSniffer) Body() ([]byte, error) {
 	if sn.IsTruncated() {
 		return nil, errors.New("index.Body: was truncated")
 	}
-	return sn.header, nil
+	return sn.contents, nil
 }
 
 // MIMEType returns the sniffed blob's content-type or the empty string if unknown.
@@ -88,12 +94,12 @@ func (sn *BlobSniffer) Parse() {
 		sn.camliType = sn.meta.Type()
 		sn.mimeType = "application/json; camliType=" + sn.camliType
 	} else {
-		sn.mimeType = magic.MIMEType(sn.header)
+		sn.mimeType = magic.MIMEType(sn.contents)
 	}
 }
 
 func (sn *BlobSniffer) bufferIsCamliJSON() bool {
-	buf := sn.header
+	buf := sn.contents
 	if !schema.LikelySchemaBlob(buf) {
 		return false
 	}
