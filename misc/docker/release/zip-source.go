@@ -23,6 +23,7 @@ package main
 import (
 	"archive/tar"
 	"archive/zip"
+	"bufio"
 	"compress/gzip"
 	"flag"
 	"fmt"
@@ -321,11 +322,36 @@ func checkArgs() {
 	}
 }
 
+func inDocker() bool {
+	r, err := os.Open("/proc/self/cgroup")
+	if err != nil {
+		log.Fatalf(`can't open "/proc/self/cgroup": %v`, err)
+	}
+	defer r.Close()
+	sc := bufio.NewScanner(r)
+	for sc.Scan() {
+		l := sc.Text()
+		fields := strings.SplitN(l, ":", 3)
+		if len(fields) != 3 {
+			log.Fatal(`unexpected line in "/proc/self/cgroup"`)
+		}
+		if !strings.HasPrefix(fields[2], "/docker/") {
+			return false
+		}
+	}
+	if err := sc.Err(); err != nil {
+		log.Fatal(err)
+	}
+	return true
+}
+
 func main() {
 	flag.Usage = usage
 	flag.Parse()
-	// TODO(mpl): find another way to detect whether we're on docker, as
-	// /.dockerinit does not exist anymore apparently? No time for now.
+	if !inDocker() {
+		fmt.Fprintf(os.Stderr, "Usage error: this program should be run within a docker container, and is meant to be called from misc/docker/dock.go\n")
+		usage()
+	}
 	checkArgs()
 
 	getCamliSrc()
