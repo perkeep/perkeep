@@ -1602,8 +1602,8 @@ func BenchmarkLocationPredicate(b *testing.B) {
 
 		// create (~700) venues all over the world, and mark 25% of them as places we've been to
 		venueIdx := 0
-		for long := -180; long < 180; long += 10 {
-			for lat := -90; lat < 90; lat += 10 {
+		for long := -180.; long < 180.; long += 10. {
+			for lat := -90.; lat < 90.; lat += 10. {
 				pn := newPn()
 				id.SetAttribute(pn, "camliNodeType", "foursquare.com:venue")
 				id.SetAttribute(pn, "latitude", fmt.Sprintf("%f", lat))
@@ -1645,10 +1645,6 @@ func BenchmarkLocationPredicate(b *testing.B) {
 
 		h := qt.Handler()
 		b.ResetTimer()
-
-		// TODO(mpl): investigate whether it's normal that we don't find
-		// any permanodes in e.g. Canada (no tweets is expected, but no 4sq
-		// seems indeed a bit odd).
 
 		locations := []string{
 			"canada", "scotland", "france", "sweden", "germany", "poland", "russia", "algeria", "congo", "china", "india", "australia", "mexico", "brazil", "argentina",
