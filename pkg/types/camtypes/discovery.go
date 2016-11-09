@@ -30,6 +30,7 @@ type Discovery struct {
 	ImporterRoot string `json:"importerRoot"`
 	SearchRoot   string `json:"searchRoot"`
 	StatusRoot   string `json:"statusRoot"`
+	ShareRoot    string `json:"shareRoot"`
 
 	OwnerName string `json:"ownerName"` // Name of the owner.
 	UserName  string `json:"userName"`  // Name of the user.

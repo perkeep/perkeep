@@ -55,6 +55,7 @@ type RootHandler struct {
 	importerRoot string
 	statusRoot   string
 	Prefix       string // root handler's prefix
+	shareRoot    string // share handler's prefix, if any.
 
 	// JSONSignRoot is the optional path or full URL to the JSON
 	// Signing helper.
@@ -110,6 +111,7 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 	root.Stealth = conf.OptionalBool("stealth", false)
 	root.statusRoot = conf.OptionalString("statusRoot", "")
 	root.helpRoot = conf.OptionalString("helpRoot", "")
+	root.shareRoot = conf.OptionalString("shareRoot", "")
 	if err = conf.Validate(); err != nil {
 		return
 	}
@@ -164,14 +166,14 @@ func (rh *RootHandler) registerSyncHandler(h *SyncHandler) {
 	sort.Sort(byFromTo(rh.sync))
 }
 
-func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if wantsDiscovery(req) {
-		if auth.Allowed(req, auth.OpDiscovery) {
-			rh.serveDiscovery(rw, req)
+func (rh *RootHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if wantsDiscovery(r) {
+		if auth.Allowed(r, auth.OpDiscovery) {
+			rh.serveDiscovery(w, r)
 			return
 		}
 		if !rh.Stealth {
-			http.Error(rw, "Unauthorized", http.StatusUnauthorized)
+			auth.SendUnauthorized(w, r)
 		}
 		return
 	}
@@ -179,16 +181,16 @@ func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if rh.Stealth {
 		return
 	}
-	if req.RequestURI == "/" && rh.ui != nil {
-		http.Redirect(rw, req, "/ui/", http.StatusMovedPermanently)
+	if r.RequestURI == "/" && rh.ui != nil {
+		http.Redirect(w, r, "/ui/", http.StatusMovedPermanently)
 		return
 	}
-	if req.URL.Path == "/favicon.ico" {
-		ServeStaticFile(rw, req, Files, "favicon.ico")
+	if r.URL.Path == "/favicon.ico" {
+		ServeStaticFile(w, r, Files, "favicon.ico")
 		return
 	}
 	f := func(p string, a ...interface{}) {
-		fmt.Fprintf(rw, p, a...)
+		fmt.Fprintf(w, p, a...)
 	}
 	f("<html><body><p>This is camlistored (%s), a "+
 		"<a href='http://camlistore.org'>Camlistore</a> server.</p>", buildinfo.Version())
@@ -201,7 +203,7 @@ func (rh *RootHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if rh.helpRoot != "" {
 		f("<p>To view more information on accessing the server, see <a href='%s'>%s</a>.</p>", rh.helpRoot, rh.helpRoot)
 	}
-	fmt.Fprintf(rw, "</body></html>")
+	fmt.Fprintf(w, "</body></html>")
 }
 
 type byFromTo []*SyncHandler
@@ -222,6 +224,7 @@ func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request)
 		HelpRoot:     rh.helpRoot,
 		ImporterRoot: rh.importerRoot,
 		SearchRoot:   rh.SearchRoot,
+		ShareRoot:    rh.shareRoot,
 		StatusRoot:   rh.statusRoot,
 		OwnerName:    rh.OwnerName,
 		UserName:     rh.Username,

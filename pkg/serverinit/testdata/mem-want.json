@@ -12,6 +12,7 @@
 				"ownerName": "Brad",
 				"searchRoot": "/my-search/",
 				"statusRoot": "/status/",
+				"shareRoot": "/share/",
 				"stealth": false
 			}
 		},
