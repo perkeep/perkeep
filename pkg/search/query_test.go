@@ -1602,8 +1602,8 @@ func BenchmarkLocationPredicate(b *testing.B) {
 
 		// create (~700) venues all over the world, and mark 25% of them as places we've been to
 		venueIdx := 0
-		for long := -180.; long < 180.; long += 10. {
-			for lat := -90.; lat < 90.; lat += 10. {
+		for long := -180.0; long < 180.0; long += 10.0 {
+			for lat := -90.0; lat < 90.0; lat += 10.0 {
 				pn := newPn()
 				id.SetAttribute(pn, "camliNodeType", "foursquare.com:venue")
 				id.SetAttribute(pn, "latitude", fmt.Sprintf("%f", lat))
