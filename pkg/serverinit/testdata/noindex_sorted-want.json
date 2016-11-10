@@ -11,6 +11,7 @@
 				"helpRoot": "/help/",
 				"ownerName": "Alice",
 				"statusRoot": "/status/",
+				"shareRoot": "/share/",
 				"stealth": false
 			}
 		},

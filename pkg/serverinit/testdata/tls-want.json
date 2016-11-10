@@ -13,6 +13,7 @@
 				"helpRoot": "/help/",
 				"searchRoot": "/my-search/",
 				"statusRoot": "/status/",
+				"shareRoot": "/share/",
 				"stealth": false
 			}
 		},

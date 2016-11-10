@@ -679,6 +679,12 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 	if b.runIndex() {
 		rootArgs["searchRoot"] = "/my-search/"
 	}
+	if path := b.high.ShareHandlerPath; path != "" {
+		rootArgs["shareRoot"] = path
+		b.addPrefix(path, "share", args{
+			"blobRoot": "/bs/",
+		})
+	}
 	b.addPrefix("/", "root", rootArgs)
 	b.addPrefix("/setup/", "setup", nil)
 	b.addPrefix("/status/", "status", nil)
@@ -697,12 +703,6 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 	}
 	if b.runIndex() {
 		b.addPrefix("/importer/", "importer", importerArgs)
-	}
-
-	if path := b.high.ShareHandlerPath; path != "" {
-		b.addPrefix(path, "share", args{
-			"blobRoot": "/bs/",
-		})
 	}
 
 	b.addPrefix("/sighelper/", "jsonsign", args{

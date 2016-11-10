@@ -55,6 +55,7 @@ type RootHandler struct {
 	importerRoot string
 	statusRoot   string
 	Prefix       string // root handler's prefix
+	shareRoot    string // share handler's prefix, if any.
 
 	// JSONSignRoot is the optional path or full URL to the JSON
 	// Signing helper.
@@ -110,6 +111,7 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 	root.Stealth = conf.OptionalBool("stealth", false)
 	root.statusRoot = conf.OptionalString("statusRoot", "")
 	root.helpRoot = conf.OptionalString("helpRoot", "")
+	root.shareRoot = conf.OptionalString("shareRoot", "")
 	if err = conf.Validate(); err != nil {
 		return
 	}
@@ -222,6 +224,7 @@ func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request)
 		HelpRoot:     rh.helpRoot,
 		ImporterRoot: rh.importerRoot,
 		SearchRoot:   rh.SearchRoot,
+		ShareRoot:    rh.shareRoot,
 		StatusRoot:   rh.statusRoot,
 		OwnerName:    rh.OwnerName,
 		UserName:     rh.Username,

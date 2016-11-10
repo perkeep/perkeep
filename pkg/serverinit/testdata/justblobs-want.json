@@ -10,6 +10,7 @@
 				"jsonSignRoot": "/sighelper/",
 				"helpRoot": "/help/",
 				"statusRoot": "/status/",
+				"shareRoot": "/share/",
 				"stealth": false
 			}
 		},
