@@ -87,7 +87,17 @@ func (c *shareCmd) RunCommand(args []string) error {
 		unsigned.SetShareExpiration(time.Now().Add(c.duration))
 	}
 
-	pr, err := getUploader().UploadAndSignBlob(unsigned)
-	handleResult("share", pr, err)
+	up := getUploader()
+	shareRoot, err := up.ShareRoot()
+	if err != nil {
+		return err
+	}
+
+	pr, err := up.UploadAndSignBlob(unsigned)
+	if err := handleResult("share", pr, err); err != nil {
+		// Because handling the failure is left to cmdmain
+		return nil
+	}
+	fmt.Fprintf(cmdmain.Stdout, "%s%s\n", shareRoot, pr.BlobRef)
 	return nil
 }
