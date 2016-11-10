@@ -501,7 +501,18 @@ type LocationConstraint struct {
 }
 
 func (c *LocationConstraint) matchesLatLong(lat, long float64) bool {
-	return c.Any || (c.West <= long && long <= c.East && c.South <= lat && lat <= c.North)
+	if c.Any {
+		return true
+	}
+	if !(c.South <= lat && lat <= c.North) {
+		return false
+	}
+	if c.West < c.East {
+		return c.West <= long && long <= c.East
+	} else {
+		// boundary spanning latitude ±180°
+		return c.West <= long || long <= c.East
+	}
 }
 
 // A StringConstraint specifies constraints on a string.
