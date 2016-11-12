@@ -38,6 +38,8 @@ import (
 	"camlistore.org/pkg/osutil"
 	. "camlistore.org/pkg/search"
 	"camlistore.org/pkg/test"
+
+	"golang.org/x/net/context"
 )
 
 // An indexOwnerer is something that knows who owns the index.
@@ -756,5 +758,60 @@ func TestHandler(t *testing.T) {
 	defer SetTestHookBug121(func() {})
 	for _, ht := range handlerTests {
 		ht.test(t)
+	}
+}
+
+// TestGetPermanodeLocationAllocs helps us making sure we keep
+// Handler.getPermanodeLocation (or equivalent), allocation-free.
+func TestGetPermanodeLocationAllocs(t *testing.T) {
+	defer index.SetVerboseCorpusLogging(true)
+	index.SetVerboseCorpusLogging(false)
+
+	idx := index.NewMemoryIndex() // string key-value pairs in memory, as if they were on disk
+	idd := indextest.NewIndexDeps(idx)
+	h := NewHandler(idx, idd.SignerBlobRef)
+	corpus, err := idx.KeepInMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.SetCorpus(corpus)
+
+	pn1 := idd.NewPermanode()
+	lat := 45.18
+	long := 5.72
+	idd.SetAttribute(pn1, "latitude", fmt.Sprintf("%f", lat))
+	idd.SetAttribute(pn1, "longitude", fmt.Sprintf("%f", long))
+
+	pnVenue := idd.NewPermanode()
+	idd.SetAttribute(pnVenue, "camliNodeType", "foursquare.com:venue")
+	idd.SetAttribute(pnVenue, "latitude", fmt.Sprintf("%f", lat))
+	idd.SetAttribute(pnVenue, "longitude", fmt.Sprintf("%f", long))
+	pnCheckin := idd.NewPermanode()
+	idd.SetAttribute(pnCheckin, "camliNodeType", "foursquare.com:checkin")
+	idd.SetAttribute(pnCheckin, "foursquareVenuePermanode", pnVenue.String())
+
+	// TODO(mpl): replace genimg call with func that takes floats instead (added by Attila in future CL soon).
+	br, _ := idd.UploadFile("photo.jpg", genimg.at(int(lat), int(long)), time.Now())
+	pnPhoto := idd.NewPermanode()
+	idd.SetAttribute(pnPhoto, "camliContent", br.String())
+
+	n := testing.AllocsPerRun(20, func() {
+		for _, pn := range []blob.Ref{pn1, pnCheckin, pnPhoto} {
+			loc, err := h.ExportGetPermanodeLocation(context.TODO(), pn, time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			// TODO(mpl): remove conversion to int once genimg is gone.
+			if int(loc.Latitude) != int(lat) {
+				t.Fatalf("wrong latitude: got %v, wanted %v", loc.Latitude, lat)
+			}
+			if int(loc.Longitude) != int(long) {
+				t.Fatalf("wrong longitude: got %v, wanted %v", loc.Longitude, long)
+			}
+		}
+	})
+	t.Logf("%v allocations", n)
+	if n != 0 {
+		t.Fatal("search Handler.getPermanodeLocation should not allocate")
 	}
 }
