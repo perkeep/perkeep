@@ -21,11 +21,15 @@ package dockertest // import "camlistore.org/pkg/test/dockertest"
 
 import (
 	"bytes"
+	"compress/gzip"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -51,10 +55,73 @@ func runLongTest(t *testing.T, image string) {
 			t.Skipf("Error running docker to check for %s: %v", image, err)
 		}
 		log.Printf("Pulling docker image %s ...", image)
+		if strings.HasPrefix(image, "camlistore/") {
+			if err := loadCamliHubImage(image); err != nil {
+				t.Skipf("Error pulling %s: %v", image, err)
+			}
+			return
+		}
 		if err := Pull(image); err != nil {
 			t.Skipf("Error pulling %s: %v", image, err)
 		}
 	}
+}
+
+// loadCamliHubImage fetches a docker image saved as a .tar.gz in the
+// camlistore-docker bucket, and loads it in docker.
+func loadCamliHubImage(image string) error {
+	if !strings.HasPrefix(image, "camlistore/") {
+		return fmt.Errorf("not an image hosted on camlistore-docker")
+	}
+	imgURL := camliHub + strings.TrimPrefix(image, "camlistore/") + ".tar.gz"
+	resp, err := http.Get(imgURL)
+	if err != nil {
+		return fmt.Errorf("error fetching image %s: %v", image, err)
+	}
+	defer resp.Body.Close()
+
+	dockerLoad := exec.Command("docker", "load")
+	dockerLoad.Stderr = os.Stderr
+	tar, err := dockerLoad.StdinPipe()
+	if err != nil {
+		return err
+	}
+	errc1 := make(chan error)
+	errc2 := make(chan error)
+	go func() {
+		defer tar.Close()
+		zr, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			errc1 <- fmt.Errorf("gzip reader error for image %s: %v", image, err)
+			return
+		}
+		defer zr.Close()
+		if _, err = io.Copy(tar, zr); err != nil {
+			errc1 <- fmt.Errorf("error gunzipping image %s: %v", image, err)
+			return
+		}
+		errc1 <- nil
+	}()
+	go func() {
+		if err := dockerLoad.Run(); err != nil {
+			errc2 <- fmt.Errorf("error running docker load %v: %v", image, err)
+			return
+		}
+		errc2 <- nil
+	}()
+	select {
+	case err := <-errc1:
+		if err != nil {
+			return err
+		}
+		return <-errc2
+	case err := <-errc2:
+		if err != nil {
+			return err
+		}
+		return <-errc1
+	}
+	return nil
 }
 
 // haveDocker returns whether the "docker" command was found.
@@ -139,12 +206,18 @@ func (c ContainerID) IP() (string, error) {
 }
 
 func (c ContainerID) Kill() error {
+	if string(c) == "" {
+		return nil
+	}
 	return KillContainer(string(c))
 }
 
 // Remove runs "docker rm" on the container
 func (c ContainerID) Remove() error {
 	if Debug {
+		return nil
+	}
+	if string(c) == "" {
 		return nil
 	}
 	return exec.Command("docker", "rm", "-v", string(c)).Run()
@@ -204,7 +277,15 @@ const (
 	postgresImage    = "nornagon/postgres"
 	PostgresUsername = "docker" // set up by the dockerfile of postgresImage
 	PostgresPassword = "docker" // set up by the dockerfile of postgresImage
+	camliHub         = "https://storage.googleapis.com/camlistore-docker/"
+	fakeS3Image      = "camlistore/fakes3"
 )
+
+func SetupFakeS3Container(t *testing.T) (c ContainerID, ip string) {
+	return setupContainer(t, fakeS3Image, 4567, 10*time.Second, func() (string, error) {
+		return run("-d", fakeS3Image)
+	})
+}
 
 // SetupMongoContainer sets up a real MongoDB instance for testing purposes,
 // using a Docker container. It returns the container ID and its IP address,

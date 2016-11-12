@@ -51,6 +51,7 @@ type Client struct {
 	// apparently S3 throttles us if there are too many. No limit if nil.
 	// Default in S3 blobserver is 5.
 	PutGate *syncutil.Gate
+	NoSSL   bool // disable SSL. For testing against fake-s3.
 }
 
 type Bucket struct {
@@ -65,12 +66,19 @@ func (c *Client) transport() http.RoundTripper {
 	return http.DefaultTransport
 }
 
+func (c *Client) scheme() string {
+	if c.NoSSL {
+		return "http://"
+	}
+	return "https://"
+}
+
 // bucketURL returns the URL prefix of the bucket, with trailing slash
 func (c *Client) bucketURL(bucket string) string {
 	if IsValidBucket(bucket) && !strings.Contains(bucket, ".") {
-		return fmt.Sprintf("https://%s.%s/", bucket, c.hostname())
+		return fmt.Sprintf("%s%s.%s/", c.scheme(), bucket, c.hostname())
 	}
-	return fmt.Sprintf("https://%s/%s/", c.hostname(), bucket)
+	return fmt.Sprintf("%s%s/%s/", c.scheme(), c.hostname(), bucket)
 }
 
 func (c *Client) keyURL(bucket, key string) string {
@@ -87,7 +95,7 @@ func newReq(url_ string) *http.Request {
 }
 
 func (c *Client) Buckets() ([]*Bucket, error) {
-	req := newReq("https://" + c.hostname() + "/")
+	req := newReq(c.scheme() + c.hostname() + "/")
 	c.Auth.SignRequest(req)
 	res, err := c.transport().RoundTrip(req)
 	if err != nil {
