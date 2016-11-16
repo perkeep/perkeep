@@ -809,7 +809,10 @@ func TestGetPermanodeLocationAllocs(t *testing.T) {
 		}
 	})
 	t.Logf("%v allocations", n)
-	if n != 0 {
+	// We allow these two allocations, at least for now, as they stem from
+	// blob.Parse, and would have been equivalently called at other points in
+	// the overall code path for a search query.
+	if n != 2 {
 		t.Fatal("search Handler.getPermanodeLocation should not allocate")
 	}
 }
