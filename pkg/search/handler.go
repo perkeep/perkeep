@@ -64,6 +64,8 @@ type Handler struct {
 	// interface.
 	corpus *index.Corpus
 
+	lh *index.LocationHelper
+
 	// WebSocket hub
 	wsHub *wsHub
 }
@@ -78,11 +80,12 @@ type GetRecentPermanoder interface {
 
 var _ GetRecentPermanoder = (*Handler)(nil)
 
-func NewHandler(index index.Interface, owner blob.Ref) *Handler {
+func NewHandler(ix index.Interface, owner blob.Ref) *Handler {
 	sh := &Handler{
-		index: index,
+		index: ix,
 		owner: owner,
 	}
+	sh.lh = index.NewLocationHelper(sh.index)
 	sh.wsHub = newWebsocketHub(sh)
 	go sh.wsHub.run()
 	sh.subscribeToNewBlobs()
@@ -107,6 +110,7 @@ func (sh *Handler) subscribeToNewBlobs() {
 
 func (h *Handler) SetCorpus(c *index.Corpus) {
 	h.corpus = c
+	h.lh.SetCorpus(c)
 }
 
 // SendStatusUpdate sends a JSON status map to any connected WebSocket clients.
@@ -152,7 +156,7 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 			ii.Unlock()
 			return nil, fmt.Errorf("error slurping index to memory: %v", err)
 		}
-		h.corpus = corpus
+		h.SetCorpus(corpus)
 		ii.Unlock()
 	}
 	return h, nil

@@ -41,5 +41,5 @@ var SortName = sortName
 
 func (s *Handler) ExportGetPermanodeLocation(ctx context.Context, permaNode blob.Ref,
 	at time.Time) (camtypes.Location, error) {
-	return s.getPermanodeLocation(ctx, permaNode, at)
+	return s.lh.PermanodeLocation(ctx, permaNode, at, s.owner)
 }

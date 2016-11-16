@@ -358,13 +358,15 @@ func TestDescribeLocation(t *testing.T) {
 	tests := []struct {
 		ref       string
 		lat, long float64
+		hasNoLoc  bool
 	}{
-		{"filewithloc-0", 45, 56},
-		{"location-0", 45, 56},
-		{"locationpriority-1", 67, 78},
-		{"locationpriority-2", 12, 34},
-		{"locationoverride-1", 67, 78},
-		{"locationoverride-2", 67, 78},
+		{ref: "filewithloc-0", lat: 45, long: 56},
+		{ref: "location-0", lat: 45, long: 56},
+		{ref: "locationpriority-1", lat: 67, long: 78},
+		{ref: "locationpriority-2", lat: 12, long: 34},
+		{ref: "locationoverride-1", lat: 67, long: 78},
+		{ref: "locationoverride-2", lat: 67, long: 78},
+		{ref: "homedir-0", hasNoLoc: true},
 	}
 
 	ix := searchDescribeSetup(test.NewFakeIndex())
@@ -391,13 +393,19 @@ func TestDescribeLocation(t *testing.T) {
 			continue
 		}
 		loc := db.Location
-		if loc == nil {
-			t.Errorf("no location in result for %v", br)
-			continue
-		}
-		if loc.Latitude != tt.lat || loc.Longitude != tt.long {
-			t.Errorf("location for %v invalid, got %f,%f want %f,%f",
-				tt.ref, loc.Latitude, loc.Longitude, tt.lat, tt.long)
+		if tt.hasNoLoc {
+			if loc != nil {
+				t.Errorf("got location for %v, should have no location", br)
+			}
+		} else {
+			if loc == nil {
+				t.Errorf("no location in result for %v", br)
+				continue
+			}
+			if loc.Latitude != tt.lat || loc.Longitude != tt.long {
+				t.Errorf("location for %v invalid, got %f,%f want %f,%f",
+					tt.ref, loc.Latitude, loc.Longitude, tt.lat, tt.long)
+			}
 		}
 	}
 }

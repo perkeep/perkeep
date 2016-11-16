@@ -81,7 +81,13 @@ func claimsIntfAttrValue(claims claimsIntf, attr string, at time.Time, signerFil
 	if at.IsZero() {
 		at = time.Now()
 	}
-	var v []string
+
+	// use a small static buffer as it speeds up
+	// search.BenchmarkQueryPermanodeLocation by 6-7%
+	// with go 1.7.1
+	var buf [8]string
+	v := buf[:][:0]
+
 	for i := 0; i < claims.Len(); i++ {
 		cl := claims.Claim(i)
 		if cl.Attr != attr || cl.Date.After(at) {

@@ -234,6 +234,7 @@ func (pm *PermanodeMeta) appendAttrClaim(cl *camtypes.Claim) {
 // which case, the caller should resort to querying another source, such as pm.Claims.
 // If signerFilter is valid and pm has no attributes for it, (nil, true) is
 // returned.
+// The returned map must not be changed by the caller.
 func (pm *PermanodeMeta) valuesAtSigner(at time.Time,
 	signerFilter blob.Ref) (v attrValues, ok bool) {
 
@@ -1087,6 +1088,40 @@ func (c *Corpus) PermanodeAttrValue(permaNode blob.Ref,
 		return v[0]
 	}
 	return claimPtrsAttrValue(pm.Claims, attr, at, signerFilter)
+}
+
+// permanodeAttrsOrClaims returns the best available source
+// to query attr values of permaNode at the given time
+// for the signerFilter, which is either:
+// a. m that represents attr values for the parameters, or
+// b. all claims of the permanode.
+// Only one of m or claims will be non-nil.
+//
+// (m, nil) is returned if m represents attrValues
+// valid for the specified parameters.
+//
+// (nil, claims) is returned if
+// no cached attribute map is valid for the given time,
+// because e.g. some claims are more recent than this time. In which
+// case the caller should resort to query claims directly.
+//
+// (nil, nil) is returned if the permaNode does not exist,
+// or permaNode exists and signerFilter is valid,
+// but permaNode has no attributes for it.
+//
+// The returned values must not be changed by the caller.
+func (c *Corpus) permanodeAttrsOrClaims(permaNode blob.Ref,
+	at time.Time, signerFilter blob.Ref) (m map[string][]string, claims []*camtypes.Claim) {
+
+	pm, ok := c.permanodes[permaNode]
+	if !ok {
+		return nil, nil
+	}
+	m, ok = pm.valuesAtSigner(at, signerFilter)
+	if ok {
+		return m, nil
+	}
+	return nil, pm.Claims
 }
 
 // AppendPermanodeAttrValues appends to dst all the values for the attribute
