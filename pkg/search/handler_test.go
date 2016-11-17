@@ -794,9 +794,26 @@ func TestGetPermanodeLocationAllocs(t *testing.T) {
 	pnPhoto := idd.NewPermanode()
 	idd.SetAttribute(pnPhoto, "camliContent", br.String())
 
-	n := testing.AllocsPerRun(20, func() {
-		for _, pn := range []blob.Ref{pn1, pnCheckin, pnPhoto} {
-			loc, err := h.ExportGetPermanodeLocation(context.TODO(), pn, time.Now())
+	const (
+		blobParseAlloc = 1 // blob.Parse uses one alloc
+
+		// allocs permitted in different tests
+		latLongAttr         = 0 // latitude/longitude attr lookup musn't alloc
+		altLocRef           = blobParseAlloc
+		camliContentFileLoc = blobParseAlloc
+	)
+
+	for _, tt := range []struct {
+		title    string
+		pn       blob.Ref
+		maxAlloc int
+	}{
+		{"explicit location from attrs", pn1, latLongAttr},
+		{"referenced permanode location", pnCheckin, latLongAttr + altLocRef},
+		{"location from exif photo", pnPhoto, latLongAttr + camliContentFileLoc},
+	} {
+		n := testing.AllocsPerRun(20, func() {
+			loc, err := h.ExportGetPermanodeLocation(context.TODO(), tt.pn, time.Now())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -806,13 +823,10 @@ func TestGetPermanodeLocationAllocs(t *testing.T) {
 			if loc.Longitude != long {
 				t.Fatalf("wrong longitude: got %v, wanted %v", loc.Longitude, long)
 			}
+		})
+		t.Logf("%s: %v allocations (max %v)", tt.title, n, tt.maxAlloc)
+		if int(n) != tt.maxAlloc {
+			t.Errorf("LocationHandler.PermanodeLocation should not allocate more than %d", tt.maxAlloc)
 		}
-	})
-	t.Logf("%v allocations", n)
-	// We allow these two allocations, at least for now, as they stem from
-	// blob.Parse, and would have been equivalently called at other points in
-	// the overall code path for a search query.
-	if n != 2 {
-		t.Fatal("search Handler.getPermanodeLocation should not allocate")
 	}
 }
