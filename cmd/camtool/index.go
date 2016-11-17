@@ -27,7 +27,6 @@ import (
 )
 
 type indexCmd struct {
-	verbose     bool
 	wipe        bool
 	insecureTLS bool
 }
@@ -35,7 +34,6 @@ type indexCmd struct {
 func init() {
 	cmdmain.RegisterCommand("index", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(indexCmd)
-		flags.BoolVar(&cmd.verbose, "verbose", false, "Be verbose.")
 		flags.BoolVar(&cmd.wipe, "wipe", false, "Erase and recreate all discovered indexes. NOOP for now.")
 		if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
 			flags.BoolVar(&cmd.insecureTLS, "insecure", false, "If set, when using TLS, the server's certificates verification is disabled, and they are not checked against the trustedCerts in the client configuration either.")
@@ -71,10 +69,9 @@ func (c *indexCmd) RunCommand(args []string) error {
 
 func (c *indexCmd) sync(from, to string) error {
 	return (&syncCmd{
-		src:     from,
-		dest:    to,
-		verbose: c.verbose,
-		wipe:    c.wipe,
+		src:  from,
+		dest: to,
+		wipe: c.wipe,
 	}).RunCommand(nil)
 }
 

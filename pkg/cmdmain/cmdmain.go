@@ -43,18 +43,15 @@ var (
 	// ExtraFlagRegistration allows to add more flags from
 	// other packages (with AddFlags) when Main starts.
 	ExtraFlagRegistration = func() {}
+	// PostFlag runs code that needs to happen after flags were parsed, but
+	// before the subcommand is run.
+	PostFlag = func() {}
 	// PreExit runs after the subcommand, but before Main terminates
 	// with either success or the error from the subcommand.
 	PreExit = func() {}
 	// ExitWithFailure determines whether the command exits
 	// with a non-zero exit status.
 	ExitWithFailure bool
-	// CheckCwd checks the current working directory, and possibly
-	// changes it, or aborts the run if needed.
-	CheckCwd = func() {}
-	// CheckModtime provides a way to check if the currently running binary
-	// is out of date. If it returns an error, the run is aborted.
-	CheckModtime = func() error { return nil }
 )
 
 var ErrUsage = UsageError("invalid command")
@@ -81,6 +78,8 @@ var (
 	// Only use fs.Stat, fs.Open, where vs is an interface type.
 	// TODO: switch from using the global flag FlagSet and use our own. right now
 	// running "go test -v" dumps the flag usage data to the global stderr.
+
+	logger = log.New(Stderr, "", log.LstdFlags)
 )
 
 func realExit(code int) {
@@ -123,11 +122,6 @@ func hasFlags(flags *flag.FlagSet) bool {
 		any = true
 	})
 	return any
-}
-
-// Errorf prints to Stderr
-func Errorf(format string, args ...interface{}) {
-	fmt.Fprintf(Stderr, format, args...)
 }
 
 func usage(msg string) {
@@ -216,11 +210,7 @@ func Main() {
 		usage("")
 	}
 	flag.Parse()
-	CheckCwd()
-	if err := CheckModtime(); err != nil {
-		log.Print(err)
-		Exit(1)
-	}
+	PostFlag()
 
 	args := flag.Args()
 	if *FlagVersion {
@@ -278,4 +268,24 @@ func Main() {
 		}
 		Exit(2)
 	}
+}
+
+// Errorf prints to Stderr, regardless of FlagVerbose.
+func Errorf(format string, args ...interface{}) {
+	fmt.Fprintf(Stderr, format, args...)
+}
+
+// Printf prints to Stderr if FlagVerbose, and is silent otherwise.
+func Printf(format string, args ...interface{}) {
+	if *FlagVerbose {
+		fmt.Fprintf(Stderr, format, args...)
+	}
+}
+
+// Logf logs to Stderr if FlagVerbose, and is silent otherwise.
+func Logf(format string, v ...interface{}) {
+	if !*FlagVerbose {
+		return
+	}
+	logger.Printf(format, v...)
 }

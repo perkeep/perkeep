@@ -131,7 +131,7 @@ func NewUploadHandleFromString(data string) *UploadHandle {
 // of a map[string]interface{}.
 func (c *Client) responseJSONMap(requestName string, resp *http.Response) (map[string]interface{}, error) {
 	if resp.StatusCode != 200 {
-		log.Printf("After %s request, failed to JSON from response; status code is %d", requestName, resp.StatusCode)
+		c.printf("After %s request, failed to JSON from response; status code is %d", requestName, resp.StatusCode)
 		io.Copy(os.Stderr, resp.Body)
 		return nil, fmt.Errorf("After %s request, HTTP response code is %d; no JSON to parse.", requestName, resp.StatusCode)
 	}
@@ -335,7 +335,7 @@ func (h *UploadHandle) readerAndSize() (io.Reader, int64, error) {
 func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	errorf := func(msg string, arg ...interface{}) (*PutResult, error) {
 		err := fmt.Errorf(msg, arg...)
-		c.log.Print(err.Error())
+		c.printf("%v", err)
 		return nil, err
 	}
 
@@ -441,9 +441,6 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 		copyResult <- err
 	}()
 
-	// TODO(bradfitz): verbosity levels. make this VLOG(2) or something. it's noisy:
-	// c.log.Printf("Uploading %s", br)
-
 	uploadURL := fmt.Sprintf("%s/camli/upload", pfx)
 	req := c.newRequest("POST", uploadURL)
 	req.Header.Set("Content-Type", multipartWriter.FormDataContentType())
@@ -491,7 +488,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	}
 
 	if ures.ErrorText != "" {
-		c.log.Printf("Blob server reports error: %s", ures.ErrorText)
+		c.printf("Blob server reports error: %s", ures.ErrorText)
 	}
 
 	expectedSize := uint32(bodySize)

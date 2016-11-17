@@ -45,7 +45,6 @@ type syncCmd struct {
 	destKeyID string // GPG public key ID of the destination server, if supported.
 
 	loop           bool
-	verbose        bool
 	all            bool
 	removeSrc      bool
 	wipe           bool
@@ -53,8 +52,6 @@ type syncCmd struct {
 	oneIsDisk      bool // Whether one of src or dest is a local disk.
 	concurrency    int  // max blobs to be copying at once
 	dumpConfigFlag bool
-
-	logger *log.Logger
 }
 
 func init() {
@@ -65,7 +62,6 @@ func init() {
 		flags.StringVar(&cmd.third, "thirdleg", "", "Copy blobs present in source but missing from destination to this 'third leg' blob store, instead of the destination. (same format as src)")
 
 		flags.BoolVar(&cmd.loop, "loop", false, "Create an associate a new permanode for the uploaded file or directory.")
-		flags.BoolVar(&cmd.verbose, "verbose", false, "Be verbose.")
 		flags.BoolVar(&cmd.wipe, "wipe", false, "If dest is an index, drop it and repopulate it from scratch. NOOP for now.")
 		flags.BoolVar(&cmd.all, "all", false, "Discover all sync destinations configured on the source server and run them.")
 		flags.BoolVar(&cmd.dumpConfigFlag, "dump-config", false, "Discover all sync destinations configured on the source server and list them, but do nothing else.")
@@ -98,9 +94,6 @@ func (c *syncCmd) Examples() []string {
 func (c *syncCmd) RunCommand(args []string) error {
 	if c.loop && !c.removeSrc {
 		return cmdmain.UsageError("Can't use --loop without --removesrc")
-	}
-	if c.verbose {
-		c.logger = log.New(cmdmain.Stderr, "", 0) // else nil
 	}
 	if c.dumpConfigFlag {
 		err := c.dumpConfig()
@@ -143,9 +136,7 @@ func (c *syncCmd) RunCommand(args []string) error {
 	for {
 		passNum++
 		stats, err := c.doPass(ss, ds, ts)
-		if c.verbose {
-			log.Printf("sync stats - pass: %d, blobs: %d, bytes %d\n", passNum, stats.BlobsCopied, stats.BytesCopied)
-		}
+		cmdmain.Logf("sync stats - pass: %d, blobs: %d, bytes %d\n", passNum, stats.BlobsCopied, stats.BytesCopied)
 		if err != nil {
 			return fmt.Errorf("sync failed: %v", err)
 		}
@@ -175,7 +166,6 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 			return nil, nil
 		case storageSource:
 			discl := c.discoClient()
-			discl.SetLogger(c.logger)
 			src, err := discl.BlobRoot()
 			if err != nil {
 				return nil, fmt.Errorf("Failed to discover source server's blob path: %v", err)
@@ -205,7 +195,8 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 	if err := cl.SetupAuth(); err != nil {
 		return nil, fmt.Errorf("could not setup auth for connecting to %v: %v", val, err)
 	}
-	cl.SetLogger(c.logger)
+	cl.Verbose = *cmdmain.FlagVerbose
+	cl.Logger = log.New(cmdmain.Stderr, "", log.LstdFlags)
 	serverKeyID, err := cl.ServerKeyID()
 	if err != nil && err != client.ErrNoSigning {
 		fmt.Fprintf(cmdmain.Stderr, "Failed to discover keyId for server %v: %v", val, err)
@@ -241,7 +232,8 @@ func (c *syncCmd) dumpConfig() error {
 		return cmdmain.UsageError("--dump-config can't be used with --dest")
 	}
 	dc := c.discoClient()
-	dc.SetLogger(c.logger)
+	dc.Verbose = *cmdmain.FlagVerbose
+	dc.Logger = log.New(cmdmain.Stderr, "", log.LstdFlags)
 	syncHandlers, err := dc.SyncHandlers()
 	if err != nil {
 		return fmt.Errorf("sync handlers discovery failed: %v", err)
@@ -264,35 +256,30 @@ func (c *syncCmd) syncAll() error {
 	}
 
 	dc := c.discoClient()
-	dc.SetLogger(c.logger)
 	syncHandlers, err := dc.SyncHandlers()
 	if err != nil {
 		return fmt.Errorf("sync handlers discovery failed: %v", err)
 	}
-	if c.verbose {
-		log.Printf("To be synced:\n")
-		for _, sh := range syncHandlers {
-			log.Printf("%v -> %v", sh.From, sh.To)
-		}
+	cmdmain.Logf("To be synced:\n")
+	for _, sh := range syncHandlers {
+		cmdmain.Logf("%v -> %v", sh.From, sh.To)
 	}
 	for _, sh := range syncHandlers {
 		from := client.New(sh.From, client.OptionInsecure(c.insecureTLS))
-		from.SetLogger(c.logger)
+		from.Verbose = *cmdmain.FlagVerbose
+		from.Logger = log.New(cmdmain.Stderr, "", log.LstdFlags)
 		if err := from.SetupAuth(); err != nil {
 			return fmt.Errorf("could not setup auth for connecting to %v: %v", sh.From, err)
 		}
 		to := client.New(sh.To, client.OptionInsecure(c.insecureTLS))
-		to.SetLogger(c.logger)
+		to.Verbose = *cmdmain.FlagVerbose
+		to.Logger = log.New(cmdmain.Stderr, "", log.LstdFlags)
 		if err := to.SetupAuth(); err != nil {
 			return fmt.Errorf("could not setup auth for connecting to %v: %v", sh.To, err)
 		}
-		if c.verbose {
-			log.Printf("Now syncing: %v -> %v", sh.From, sh.To)
-		}
+		cmdmain.Logf("Now syncing: %v -> %v", sh.From, sh.To)
 		stats, err := c.doPass(from, to, nil)
-		if c.verbose {
-			log.Printf("sync stats, blobs: %d, bytes %d\n", stats.BlobsCopied, stats.BytesCopied)
-		}
+		cmdmain.Logf("sync stats, blobs: %d, bytes %d\n", stats.BlobsCopied, stats.BytesCopied)
 		if err != nil {
 			return err
 		}
@@ -306,7 +293,8 @@ func (c *syncCmd) syncAll() error {
 // the blobRoot and syncHandlers.
 func (c *syncCmd) discoClient() *client.Client {
 	cl := newClient(c.src, client.OptionInsecure(c.insecureTLS))
-	cl.SetLogger(c.logger)
+	cl.Verbose = *cmdmain.FlagVerbose
+	cl.Logger = log.New(cmdmain.Stderr, "", log.LstdFlags)
 	return cl
 }
 
@@ -385,7 +373,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 	destNotHaveBlobs := make(chan blob.SizedRef)
 
 	readSrcBlobs := srcBlobs
-	if c.verbose {
+	if *cmdmain.FlagVerbose {
 		readSrcBlobs = loggingBlobRefChannel(srcBlobs)
 	}
 
