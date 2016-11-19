@@ -77,7 +77,13 @@ type claimPtrSlice []*camtypes.Claim
 func (s claimPtrSlice) Len() int                    { return len(s) }
 func (s claimPtrSlice) Claim(i int) *camtypes.Claim { return s[i] }
 
+// claimsIntfAttrValue finds the value of an attribute in a list of claims
+// or empty string if not found. claims must be non-nil.
 func claimsIntfAttrValue(claims claimsIntf, attr string, at time.Time, signerFilter blob.Ref) string {
+	if claims == nil {
+		panic("nil claims argument in claimsIntfAttrValue")
+	}
+
 	if at.IsZero() {
 		at = time.Now()
 	}

@@ -149,5 +149,10 @@ func (pa permAttr) get(attr string) string {
 		}
 		return ""
 	}
-	return claimsIntfAttrValue(pa.claims, attr, pa.at, pa.signerFilter)
+
+	if pa.claims != nil {
+		return claimsIntfAttrValue(pa.claims, attr, pa.at, pa.signerFilter)
+	}
+
+	return ""
 }
