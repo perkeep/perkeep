@@ -409,3 +409,33 @@ func TestDescribeLocation(t *testing.T) {
 		}
 	}
 }
+
+// To make sure we don't regress into issue 881: i.e. a permanode with no attr
+// should not lead us to call index.claimsIntfAttrValue with a nil claims argument.
+func TestDescribePermNoAttr(t *testing.T) {
+	ix := index.NewMemoryIndex()
+	ctx := context.Background()
+	h := search.NewHandler(ix, owner)
+	corpus, err := ix.KeepInMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.SetCorpus(corpus)
+	id := indextest.NewIndexDeps(ix)
+	br := id.NewPlannedPermanode("noattr-0")
+
+	ix.RLock()
+	defer ix.RUnlock()
+
+	res, err := h.Describe(ctx, &search.DescribeRequest{
+		BlobRef: br,
+		Depth:   1,
+	})
+	if err != nil {
+		t.Fatalf("Describe for %v failed: %v", br, err)
+	}
+	db := res.Meta[br.String()]
+	if db == nil {
+		t.Fatalf("Describe result for %v is missing", br)
+	}
+}
