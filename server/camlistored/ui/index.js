@@ -124,6 +124,8 @@ cam.IndexPage = React.createClass({
 		}.bind(this);
 		this.eh_.listen(this.props.eventTarget, 'keypress', this.handleKeyPress_);
 		this.eh_.listen(this.props.eventTarget, 'keyup', this.handleKeyUp_);
+		this.eh_.listen(this.props.eventTarget, 'touchstart', this.handleTouchstart_);
+		this.eh_.listen(this.props.eventTarget, 'touchend', this.handleTouchend_);
 	},
 
 	componentWillUnmount: function() {
@@ -142,6 +144,10 @@ cam.IndexPage = React.createClass({
 			dropActive: false,
 			selection: {},
 			serverStatus: null,
+			// we keep track of where a touch started, so we can
+			// tell when the touch ends if we consider it a swipe. We
+			// reset it to -1 whenever a touch ends.
+			touchStartPosition: -1,
 
 			// TODO: This should be calculated by whether selection is empty, and not need separate state.
 			sidebarVisible: false,
@@ -764,6 +770,51 @@ cam.IndexPage = React.createClass({
 		this.props.openWindow(url);
 	},
 
+	handleTouchstart_: function(e) {
+		if (!this.targetSearchSession_) {
+			return;
+		}
+		var touches = e.getBrowserEvent().changedTouches;
+		for (var i = 0; i < touches.length; i++) {
+			// TODO(mpl): maybe disregard (as a swipe) a touch that
+			// starts e.g. on the top bar? But then the proper solution
+			// is probably to register the touch listener on the image
+			// container, instead of on the index page?
+			this.setState({touchStartPosition: touches[i].pageX});
+			// assume we only care about one finger/event for now
+			break
+		}
+	},
+
+	handleTouchend_: function(e) {
+		if (!this.targetSearchSession_) {
+			return;
+		}
+		if (this.state.touchStartPosition < 0) {
+			return;
+		}
+		var touches = e.getBrowserEvent().changedTouches;
+		var halfScreen = this.props.availWidth / 2;
+		for (var i = 0; i < touches.length; i++) {
+			var swipeLength = touches[i].pageX - this.state.touchStartPosition;
+			if (Math.abs(swipeLength) < halfScreen) {
+				// do nothing if half-hearted swipe
+				this.setState({touchStartPosition: -1});
+				return;
+			}
+
+			// swipe left == nav right
+			var isRight = (swipeLength < 0);
+			this.navigateLeftRight_(isRight);
+			this.setState({
+				backwardPiggy: (swipeLength > 0),
+				touchStartPosition: -1,
+			});
+			// assume we only care about one finger/event for now
+			break;
+		}
+	},
+
 	handleKeyPress_: function(e) {
 		if (e.target.tagName == 'INPUT' || e.target.tagName == 'TEXTAREA') {
 			return;
@@ -808,6 +859,13 @@ cam.IndexPage = React.createClass({
 			return;
 		}
 
+		this.navigateLeftRight_(isRight);
+		this.setState({
+			backwardPiggy: isLeft,
+		});
+	},
+
+	navigateLeftRight_: function(isRight) {
 		var blobs = this.targetSearchSession_.getCurrentResults().blobs;
 		var target = this.getTargetBlobref_();
 		var idx = goog.array.findIndex(blobs, function(item) {
@@ -834,9 +892,6 @@ cam.IndexPage = React.createClass({
 			}
 		}, this);
 		this.navigator_.navigate(url);
-		this.setState({
-			backwardPiggy: isLeft,
-		});
 	},
 
 	handleDetailURL_: function(blobref) {
