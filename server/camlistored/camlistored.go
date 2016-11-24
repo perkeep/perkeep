@@ -91,6 +91,7 @@ import (
 
 var (
 	flagVersion    = flag.Bool("version", false, "show version")
+	flagHelp       = flag.Bool("help", false, "show usage")
 	flagLegal      = flag.Bool("legal", false, "show licenses")
 	flagConfigFile = flag.String("configfile", "",
 		"Config file to use, relative to the Camlistore configuration directory root. "+
@@ -363,6 +364,10 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		fmt.Fprintf(os.Stderr, "camlistored version: %s\nGo version: %s (%s/%s)\n",
 			buildinfo.Version(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
 		return
+	}
+	if *flagHelp {
+		flag.Usage()
+		os.Exit(0)
 	}
 	if *flagLegal {
 		for _, l := range legal.Licenses() {
