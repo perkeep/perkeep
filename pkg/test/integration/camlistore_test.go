@@ -18,6 +18,7 @@ package integration
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -135,6 +136,27 @@ func TestInternalHandler(t *testing.T) {
 			t.Errorf("For %s: Status = %d; want %d", suffix, res.StatusCode, want)
 		}
 		res.Body.Close()
+	}
+}
+
+func TestNoTestingLinking(t *testing.T) {
+	w, err := test.NewWorld()
+	if err != nil {
+		t.Fatal(err)
+	}
+	help, err := w.Help()
+	if err != nil {
+		t.Fatalf("Error running camlistored -help: %v, %v", string(help), err)
+	}
+	sc := bufio.NewScanner(bytes.NewReader(help))
+	for sc.Scan() {
+		l := strings.TrimSpace(sc.Text())
+		if strings.HasPrefix(l, "-test.") {
+			t.Fatal("test flag detected in help output of camlistored, because testing pkg got linked into binary")
+		}
+	}
+	if err := sc.Err(); err != nil {
+		t.Fatal(err)
 	}
 }
 

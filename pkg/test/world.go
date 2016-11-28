@@ -103,8 +103,8 @@ func (w *World) CamliSourceRoot() string {
 	return w.camRoot
 }
 
-// Start builds the Camlistore binaries and starts a server.
-func (w *World) Start() error {
+// Build builds the Camlistore binaries.
+func (w *World) Build() error {
 	var err error
 	w.tempDir, err = ioutil.TempDir("", "camlistore-test-")
 	if err != nil {
@@ -151,6 +151,27 @@ func (w *World) Start() error {
 			log.Printf("%s\n", out)
 		}
 		log.Print("Ran make.go.")
+	}
+	return nil
+}
+
+// Help outputs the help of camlistored from the World.
+func (w *World) Help() ([]byte, error) {
+	if err := w.Build(); err != nil {
+		return nil, err
+	}
+	// Run camlistored -help.
+	cmd := exec.Command(
+		filepath.Join(w.camRoot, "bin", "camlistored"),
+		"-help",
+	)
+	return cmd.CombinedOutput()
+}
+
+// Start builds the Camlistore binaries and starts a server.
+func (w *World) Start() error {
+	if err := w.Build(); err != nil {
+		return err
 	}
 	// Start camlistored.
 	{
