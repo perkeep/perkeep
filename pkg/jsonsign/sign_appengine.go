@@ -21,7 +21,7 @@ package jsonsign
 import (
 	"errors"
 
-	"code.google.com/p/go.crypto/openpgp"
+	"golang.org/x/crypto/openpgp"
 )
 
 func (fe *FileEntityFetcher) decryptEntity(e *openpgp.Entity) error {

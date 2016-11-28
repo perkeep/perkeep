@@ -26,7 +26,7 @@ import (
 	. "camlistore.org/pkg/jsonsign"
 	"camlistore.org/pkg/test"
 	. "camlistore.org/pkg/test/asserts"
-	"code.google.com/p/go.crypto/openpgp"
+	"golang.org/x/crypto/openpgp"
 )
 
 var pubKey1 = `-----BEGIN PGP PUBLIC KEY BLOCK-----

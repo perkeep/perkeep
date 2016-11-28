@@ -27,11 +27,11 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/osutil"
-	"code.google.com/p/go.crypto/openpgp"
-	"code.google.com/p/go.crypto/openpgp/armor"
-	"code.google.com/p/go.crypto/openpgp/packet"
 
 	"go4.org/wkfs"
+	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp/armor"
+	"golang.org/x/crypto/openpgp/packet"
 )
 
 const publicKeyMaxSize = 256 * 1024

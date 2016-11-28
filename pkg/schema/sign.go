@@ -27,7 +27,8 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/jsonsign"
-	"code.google.com/p/go.crypto/openpgp"
+
+	"golang.org/x/crypto/openpgp"
 )
 
 // A Signer signs the JSON schema blobs that require signing, such as claims

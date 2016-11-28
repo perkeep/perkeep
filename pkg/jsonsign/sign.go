@@ -28,10 +28,10 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/osutil"
-	"code.google.com/p/go.crypto/openpgp"
-	"code.google.com/p/go.crypto/openpgp/packet"
 
 	"go4.org/wkfs"
+	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp/packet"
 )
 
 type EntityFetcher interface {
