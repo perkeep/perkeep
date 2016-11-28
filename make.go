@@ -85,6 +85,10 @@ var (
 	mirrorIgnored = map[string]bool{
 		"publisher.js": true, // because this file is (re)generated after the mirroring
 	}
+	// gopherjsGoroot should be specified through the env var
+	// CAMLI_GOPHERJS_GOROOT when the user's using go tip, because gopherjs only
+	// builds with Go 1.7.
+	gopherjsGoroot string
 )
 
 func main() {
@@ -344,7 +348,12 @@ func buildGopherjs() (string, error) {
 		return bin, nil
 	}
 	log.Printf("Now rebuilding gopherjs at %v", bin)
-	cmd := exec.Command("go", "install")
+	goBin := "go"
+	if gopherjsGoroot != "" {
+		// CAMLI_GOPHERJS_GOROOT was specified
+		goBin = filepath.Join(gopherjsGoroot, "bin", "go")
+	}
+	cmd := exec.Command(goBin, "install")
 	cmd.Dir = src
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
@@ -448,6 +457,9 @@ func genPublisherJS(gopherjsBin string) error {
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
 	)
+	if gopherjsGoroot != "" {
+		cmd.Env = setEnv(cmd.Env, "GOROOT", gopherjsGoroot)
+	}
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("gopherjs for publisher error: %v, %v", err, string(out))
 	}
@@ -836,11 +848,12 @@ func verifyCamlistoreRoot(dir string) {
 	}
 }
 
+const goVersionMinor = '7'
+
 func verifyGoVersion() {
-	const neededMinor = '7'
 	_, err := exec.LookPath("go")
 	if err != nil {
-		log.Fatalf("Go doesn't appear to be installed ('go' isn't in your PATH). Install Go 1.%c or newer.", neededMinor)
+		log.Fatalf("Go doesn't appear to be installed ('go' isn't in your PATH). Install Go 1.%c or newer.", goVersionMinor)
 	}
 	out, err := exec.Command("go", "version").Output()
 	if err != nil {
@@ -852,17 +865,34 @@ func verifyGoVersion() {
 	}
 	version := fields[2]
 	if version == "devel" {
+		verifyGopherjsGoroot()
 		return
 	}
 	// this check is still needed for the "go1" case.
 	if len(version) < len("go1.") {
-		log.Fatalf("Your version of Go (%s) is too old. Camlistore requires Go 1.%c or later.", version, neededMinor)
+		log.Fatalf("Your version of Go (%s) is too old. Camlistore requires Go 1.%c or later.", version, goVersionMinor)
 	}
 	minorChar := strings.TrimPrefix(version, "go1.")[0]
-	if minorChar >= neededMinor && minorChar <= '9' {
+	if minorChar >= goVersionMinor && minorChar <= '9' {
 		return
 	}
-	log.Fatalf("Your version of Go (%s) is too old. Camlistore requires Go 1.%c or later.", version, neededMinor)
+	log.Fatalf("Your version of Go (%s) is too old. Camlistore requires Go 1.%c or later.", version, goVersionMinor)
+}
+
+func verifyGopherjsGoroot() {
+	gopherjsGoroot = os.Getenv("CAMLI_GOPHERJS_GOROOT")
+	goBin := filepath.Join(gopherjsGoroot, "bin", "go")
+	if gopherjsGoroot == "" {
+		gopherjsGoroot = filepath.Join(homeDir(), fmt.Sprintf("go1.%c", goVersionMinor))
+		goBin = filepath.Join(gopherjsGoroot, "bin", "go")
+		log.Printf("You're using go tip, and CAMLI_GOPHERJS_GOROOT was not provided, so defaulting to %v for building gopherjs instead.", goBin)
+	}
+	if _, err := os.Stat(goBin); err != nil {
+		if !os.IsNotExist(err) {
+			log.Fatal(err)
+		}
+		log.Fatalf("%v not found. You need to specify a go1.%c root in CAMLI_GOPHERJS_GOROOT for building gopherjs", goBin, goVersionMinor)
+	}
 }
 
 type walkOpts struct {
@@ -1230,4 +1260,12 @@ func goPackagePath(pkg string) (path string, err error) {
 		return dir, nil
 	}
 	return path, os.ErrNotExist
+}
+
+// copied from pkg/osutil/paths.go
+func homeDir() string {
+	if runtime.GOOS == "windows" {
+		return os.Getenv("HOMEDRIVE") + os.Getenv("HOMEPATH")
+	}
+	return os.Getenv("HOME")
 }
