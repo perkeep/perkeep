@@ -481,17 +481,20 @@ cam.IndexPage = React.createClass({
 	updateTargetSearchSession_: function(targetBlobref, newURL) {
 		this.targetSearchSession_ = null;
 		if (targetBlobref) {
+			var opt_sort = "blobref";
 			var query = this.queryAsBlob_(targetBlobref);
 			var parentPermanode = newURL.getParameterValue('p');
 			if (parentPermanode) {
 				query = this.queryFromParentPermanode_(parentPermanode);
+				opt_sort = "-created";
 			} else {
 				var queryString = newURL.getParameterValue('q');
 				if (queryString) {
+					opt_sort = null;
 					query = this.queryFromSearchParam_(queryString);
 				}
 			}
-			this.targetSearchSession_ = this.getSearchSession_(targetBlobref, query);
+			this.targetSearchSession_ = this.getSearchSession_(targetBlobref, query, opt_sort);
 		}
 	},
 
@@ -545,7 +548,7 @@ cam.IndexPage = React.createClass({
 	// If opt_targetBlobref is present, the returned query must have current results that contain opt_targetBlobref. Otherwise, the returned query must contain the first result.
 	//
 	// If only opt_targetBlobref is set, then any query that happens to currently contain that blobref is acceptable to the caller.
-	getSearchSession_: function(opt_targetBlobref, opt_query) {
+	getSearchSession_: function(opt_targetBlobref, opt_query, opt_sort) {
 		// This whole business of reusing search session relies on the assumption that we use the same describe rules for both detail queries and search queries.
 		var queryString = JSON.stringify(opt_query);
 
@@ -554,12 +557,19 @@ cam.IndexPage = React.createClass({
 				if (!ss.getMeta(opt_targetBlobref)) {
 					return false;
 				}
-				if (!opt_query) {
+				if (!opt_query && !opt_sort) {
 					return true;
 				}
 			}
 
 			if (JSON.stringify(ss.getQuery()) != queryString) {
+				return false;
+			}
+
+			if (!opt_sort) {
+				opt_sort = "-created"
+			}
+			if (ss.getSort() != opt_sort) {
 				return false;
 			}
 
@@ -580,7 +590,7 @@ cam.IndexPage = React.createClass({
 		}
 
 		console.log('Creating new search session for query %s', queryString);
-		var ss = new cam.SearchSession(this.props.serverConnection, this.baseURL_.clone(), opt_query, opt_targetBlobref);
+		var ss = new cam.SearchSession(this.props.serverConnection, this.baseURL_.clone(), opt_query, opt_targetBlobref, opt_sort);
 		this.eh_.listen(ss, cam.SearchSession.SEARCH_SESSION_CHANGED, function() {
 			this.forceUpdate();
 		});
