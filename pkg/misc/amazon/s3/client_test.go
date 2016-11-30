@@ -17,37 +17,55 @@ limitations under the License.
 package s3
 
 import (
+	"bytes"
+	"crypto/md5"
+	"io"
 	"net/http"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
 
+	"camlistore.org/pkg/test/dockertest"
+
 	"go4.org/syncutil"
 )
 
-var tc *Client
+var (
+	tc          *Client
+	containerID dockertest.ContainerID // for running fake-s3
+)
 
-func getTestClient(t *testing.T) bool {
+func getTestClient(t *testing.T) {
 	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
 	secret := os.Getenv("AWS_ACCESS_KEY_SECRET")
-	if accessKey == "" || secret == "" {
-		t.Logf("Skipping test; no AWS_ACCESS_KEY_ID or AWS_ACCESS_KEY_SECRET set in environment")
-		return false
+	if accessKey != "" && secret != "" {
+		tc = &Client{
+			Auth:      &Auth{AccessKey: accessKey, SecretAccessKey: secret},
+			Transport: http.DefaultTransport,
+			PutGate:   syncutil.NewGate(5),
+		}
+		return
 	}
+	t.Logf("no AWS_ACCESS_KEY_ID or AWS_ACCESS_KEY_SECRET set in environment; trying against local fakes3 instead.")
+	var ip string
+	containerID, ip = dockertest.SetupFakeS3Container(t)
+	hostname := ip + ":4567"
 	tc = &Client{
-		Auth:      &Auth{AccessKey: accessKey, SecretAccessKey: secret},
+		Auth:      &Auth{AccessKey: "foo", SecretAccessKey: "bar", Hostname: hostname},
 		Transport: http.DefaultTransport,
 		PutGate:   syncutil.NewGate(5),
+		NoSSL:     true,
 	}
-	return true
 }
 
 func TestBuckets(t *testing.T) {
-	if !getTestClient(t) {
-		return
+	getTestClient(t)
+	defer containerID.KillRemove(t)
+	_, err := tc.Buckets()
+	if err != nil {
+		t.Fatal(err)
 	}
-	tc.Buckets()
 }
 
 func TestParseBuckets(t *testing.T) {
@@ -98,4 +116,21 @@ func TestValidBucketNames(t *testing.T) {
 			t.Errorf("func(%q) = %v; want %v", bt.in, got, bt.want)
 		}
 	}
+}
+
+func TestPutObject(t *testing.T) {
+	getTestClient(t)
+	defer containerID.KillRemove(t)
+	var buf bytes.Buffer
+	md5h := md5.New()
+
+	size, err := io.Copy(io.MultiWriter(&buf, md5h), strings.NewReader("hello world"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// TODO(mpl): figure how to make fake-s3 work with buckets.
+	if err = tc.PutObject("hello.txt", "", md5h, size, &buf); err != nil {
+		t.Fatal(err)
+	}
+	// TODO(mpl): figure out why Stat of newly uploaded object does not match size from above.
 }
