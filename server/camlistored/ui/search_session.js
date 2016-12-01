@@ -30,7 +30,7 @@ goog.require('cam.ServerConnection');
 // - Initial XHR query can also specify tag. This tag times out if not used rapidly. Send this same tag in socket query.
 // - Socket assumes that client already has first batch of results (slightly racey though)
 // - Prefer to use socket on client-side, test whether it works and fall back to XHR if not.
-cam.SearchSession = function(connection, currentUri, query, opt_aroundBlobref) {
+cam.SearchSession = function(connection, currentUri, query, opt_aroundBlobref, opt_sort) {
 	goog.base(this);
 
 	this.connection_ = connection;
@@ -39,6 +39,7 @@ cam.SearchSession = function(connection, currentUri, query, opt_aroundBlobref) {
 	this.hasSocketError_ = false;
 	this.query_ = query;
 	this.around_ = opt_aroundBlobref;
+	this.sort_ = opt_sort || "-created";
 	this.tag_ = 'q' + (this.constructor.instanceCount_++);
 	this.continuation_ = this.getContinuation_(this.constructor.SEARCH_SESSION_CHANGE_TYPE.NEW);
 	this.socket_ = null;
@@ -75,6 +76,10 @@ cam.SearchSession.prototype.getQuery = function() {
 
 cam.SearchSession.prototype.getAround = function() {
 	return this.around_;
+};
+
+cam.SearchSession.prototype.getSort = function() {
+	return this.sort_;
 };
 
 // Returns all the data we currently have loaded.
@@ -115,7 +120,9 @@ cam.SearchSession.prototype.refreshIfNecessary = function() {
 		return;
 	}
 
-	this.continuation_ = this.getContinuation_(this.constructor.SEARCH_SESSION_CHANGE_TYPE.UPDATE, null, Math.max(this.data_.blobs.length, this.constructor.PAGE_SIZE_));
+	this.continuation_ = this.getContinuation_(this.constructor.SEARCH_SESSION_CHANGE_TYPE.UPDATE, {
+		limit: Math.max(this.data_.blobs.length, this.constructor.PAGE_SIZE_),
+	});
 	this.resetData_();
 	this.loadMoreResults();
 };
@@ -181,8 +188,18 @@ cam.SearchSession.prototype.initSocketUri_ = function(currentUri) {
 	}
 };
 
-cam.SearchSession.prototype.getContinuation_ = function(changeType, opt_continuationToken, opt_limit) {
-	return this.connection_.search.bind(this.connection_, this.query_, cam.ServerConnection.DESCRIBE_REQUEST, opt_limit || this.constructor.PAGE_SIZE_, opt_continuationToken,
+cam.SearchSession.prototype.getContinuation_ = function(changeType, opts) {
+	if (!opts) {
+		opts = {};
+	}
+	if (!opts.limit) {
+		opts.limit = this.constructor.PAGE_SIZE_;
+	}
+	if (!opts.sort) {
+		opts.sort = this.sort_;
+	}
+	opts.describe = cam.ServerConnection.DESCRIBE_REQUEST;
+	return this.connection_.search.bind(this.connection_, this.query_, opts,
 		this.searchDone_.bind(this, changeType));
 };
 
@@ -210,7 +227,9 @@ cam.SearchSession.prototype.searchDone_ = function(changeType, result) {
 	}
 
 	if (result.continue) {
-		this.continuation_ = this.getContinuation_(this.constructor.SEARCH_SESSION_CHANGE_TYPE.APPEND, result.continue);
+		this.continuation_ = this.getContinuation_(this.constructor.SEARCH_SESSION_CHANGE_TYPE.APPEND, {
+			continuationToken: result.continue,
+		});
 	} else {
 		this.continuation_ = null;
 		this.isComplete_ = true;
@@ -250,7 +269,13 @@ cam.SearchSession.prototype.startSocketQuery_ = function() {
 	if (this.data_ && this.data_.blobs) {
 		numResults = this.data_.blobs.length;
 	}
-	var query = this.connection_.buildQuery(this.query_, cam.ServerConnection.DESCRIBE_REQUEST, Math.max(numResults, this.constructor.PAGE_SIZE_), null, this.around_);
+	var queryOpts = {
+		describe: cam.ServerConnection.DESCRIBE_REQUEST,
+		limit: Math.max(numResults, this.constructor.PAGE_SIZE_),
+		around: this.around_,
+		sort: this.sort_,
+	};
+	var query = this.connection_.buildQuery(this.query_, queryOpts);
 
 	this.socket_ = new WebSocket(this.socketUri_.toString());
 	this.socket_.onopen = function() {

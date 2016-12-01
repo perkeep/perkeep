@@ -77,7 +77,7 @@ cam.ServerConnection.prototype.getPermanodeWithContent = function(contentRef, su
 		}
 		success(result.blobs[0].blob);
 	}
-	this.search(query, null, null, null, callback);
+	this.search(query, null, callback);
 };
 
 // If child is a camliMember of parent success is called with 'true', otherrwise 'false'
@@ -108,7 +108,7 @@ cam.ServerConnection.prototype.isCamliMember = function(child, parent, success) 
 		}
 		success(true);
 	}
-	this.search(query, null, null, null, callback);
+	this.search(query, null, callback);
 };
 
 cam.ServerConnection.prototype.getWorker_ = function() {
@@ -208,9 +208,10 @@ cam.ServerConnection.prototype.permanodeOfSignerAttrValue = function(signer, att
 	);
 };
 
+
 // @param {string|object} query If string, will be sent as 'expression', otherwise will be sent as 'constraint'.
-// @param {?object} opt_describe The describe property to send for the query
-cam.ServerConnection.prototype.buildQuery = function(callerQuery, opt_describe, opt_limit, opt_continuationToken, opt_around) {
+// @param {?object} opts query parameters: describe, sort, limit, around, continuationToken.
+cam.ServerConnection.prototype.buildQuery = function(callerQuery, opts) {
 	var query = {
 		// TODO(mpl): it'd be better to not ask for a sort when none is needed (less work for server),
 		// e.g. for a plain BlobRefPrefix query.
@@ -223,28 +224,34 @@ cam.ServerConnection.prototype.buildQuery = function(callerQuery, opt_describe, 
 		query.constraint = callerQuery;
 	}
 
-	if (opt_describe) {
-		query.describe = opt_describe;
+	if (!opts) {
+		return query;
 	}
-	if (opt_limit) {
-		query.limit = opt_limit;
+	if (opts.sort) {
+		query.sort = opts.sort;
 	}
-	if (opt_around) {
-		query.around = opt_around;
-	} else if (opt_continuationToken) {
-		query.continue = opt_continuationToken;
+	if (opts.describe) {
+		query.describe = opts.describe;
+	}
+	if (opts.limit) {
+		query.limit = opts.limit;
+	}
+	if (opts.around) {
+		query.around = opts.around;
+	} else if (opts.continuationToken) {
+		query.continue = opts.continuationToken;
 	}
 
 	return query;
 }
 
 // @param {string|object} query If string, will be sent as 'expression', otherwise will be sent as 'constraint'.
-// @param {?object} opt_describe The describe property to send for the query
-cam.ServerConnection.prototype.search = function(query, opt_describe, opt_limit, opt_continuationToken, callback) {
+// @param {?object} opts The query parameters: describe, sort, limit, around, continuationToken.
+cam.ServerConnection.prototype.search = function(query, opts, callback) {
 	var path = goog.uri.utils.appendPath(this.config_.searchRoot, 'camli/search/query');
 	this.sendXhr_(path,
 		goog.bind(this.handleXhrResponseJson_, this, {success: callback}),
-		"POST", JSON.stringify(this.buildQuery(query, opt_describe, opt_limit, opt_continuationToken)));
+		"POST", JSON.stringify(this.buildQuery(query, opts)));
 };
 
 // Where is the target accessed via? (paths it's at)

@@ -53,7 +53,7 @@ cam.BlobDetail = React.createClass({
 					attr: 'camliMember',
 					value: this.props.meta.blobRef,
 				},
-			}, null, null, null))
+			}, null))
 		]).then(this.handleRefs_);
 	},
 
