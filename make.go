@@ -874,6 +874,9 @@ func verifyGoVersion() {
 	}
 	minorChar := strings.TrimPrefix(version, "go1.")[0]
 	if minorChar >= goVersionMinor && minorChar <= '9' {
+		if minorChar != goVersionMinor {
+			verifyGopherjsGoroot()
+		}
 		return
 	}
 	log.Fatalf("Your version of Go (%s) is too old. Camlistore requires Go 1.%c or later.", version, goVersionMinor)
