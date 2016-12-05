@@ -810,9 +810,6 @@ func (b *lowBuilder) build() (*Config, error) {
 		if conf.HTTPSCert != "" {
 			low["httpsCert"] = conf.HTTPSCert
 			low["httpsKey"] = conf.HTTPSKey
-		} else {
-			low["httpsCert"] = osutil.DefaultTLSCert()
-			low["httpsKey"] = osutil.DefaultTLSKey()
 		}
 	}
 

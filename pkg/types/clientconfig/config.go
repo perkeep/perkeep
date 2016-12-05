@@ -97,12 +97,7 @@ func GenerateClientConfig(serverConfig jsonconfig.Obj) (*Config, error) {
 		}
 	}
 
-	param = "httpsCert"
-	httpsCert := serverConfig.OptionalString(param, "")
-	if https && httpsCert == "" {
-		return missingConfig(param)
-	}
-
+	httpsCert := serverConfig.OptionalString("httpsCert", "")
 	// TODO(mpl): See if we can detect that the cert is not self-signed,and in
 	// that case not add it to the trustedCerts
 	var trustedList []string
@@ -117,7 +112,6 @@ func GenerateClientConfig(serverConfig jsonconfig.Obj) (*Config, error) {
 		}
 		trustedList = []string{sig}
 	}
-
 	param = "prefixes"
 	prefixes := serverConfig.OptionalObject(param)
 	if len(prefixes) == 0 {

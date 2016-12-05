@@ -84,6 +84,7 @@ import (
 	"go4.org/wkfs"
 
 	"cloud.google.com/go/logging"
+	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
@@ -185,23 +186,10 @@ func loadConfig(arg string) (conf *serverinit.Config, isNewConfig bool, err erro
 	return
 }
 
-// 1) We do not want to force the user to buy a cert.
-// 2) We still want our client (camput) to be able to
-// verify the cert's authenticity.
-// 3) We want to avoid MITM attacks and warnings in
-// the browser.
-// Using a simple self-signed won't do because of 3),
-// as Chrome offers no way to set a self-signed as
-// trusted when importing it. (same on android).
-// We could have created a self-signed CA (that we
-// would import in the browsers) and create another
-// cert (signed by that CA) which would be the one
-// used in camlistore.
-// We're doing even simpler: create a self-signed
-// CA and directly use it as a self-signed cert
-// (and install it as a CA in the browsers).
-// 2) is satisfied by doing our own checks,
-// See pkg/client
+// If cert/key files are specified, and found, use them.
+// If cert/key files are specified, not found, and the default values, generate
+// them (self-signed CA used as a cert), and use them.
+// If cert/key files are not specified, use Let's Encrypt.
 func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) {
 	cert, key := config.OptionalString("httpsCert", ""), config.OptionalString("httpsKey", "")
 	if !config.OptionalBool("https", true) {
@@ -229,8 +217,21 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) 
 			}
 		}
 	}
-	// Always generate new certificates if the config's httpsCert and httpsKey are empty.
 	if cert == "" && key == "" {
+		// Use Let's Encrypt if no files are specified, and we have a usable hostname.
+		if netutil.IsFQDN(hostname) {
+			m := autocert.Manager{
+				Prompt:     autocert.AcceptTOS,
+				HostPolicy: autocert.HostWhitelist(hostname),
+				Cache:      autocert.DirCache(osutil.DefaultLetsEncryptCache()),
+			}
+			log.Print("TLS enabled, with Let's Encrypt")
+			ws.SetTLS(webserver.TLSSetup{
+				CertManager: m.GetCertificate,
+			})
+			return
+		}
+		// Otherwise generate new certificates
 		sig, err := httputil.GenSelfTLSFiles(hostname, defCert, defKey)
 		if err != nil {
 			exitf("Could not generate self signed creds: %q", err)
@@ -248,7 +249,10 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) 
 		exitf("certificate error: %v", err)
 	}
 	log.Printf("TLS enabled, with SHA-256 certificate fingerprint: %v", sig)
-	ws.SetTLS(cert, key)
+	ws.SetTLS(webserver.TLSSetup{
+		CertFile: cert,
+		KeyFile:  key,
+	})
 }
 
 var osExit = os.Exit // testing hook

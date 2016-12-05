@@ -163,3 +163,21 @@ func RandPort() (int, error) {
 func HasPort(s string) bool {
 	return strings.LastIndex(s, ":") > strings.LastIndex(s, "]")
 }
+
+// IsFQDN reports whether domain looks like a fully qualified domain name.
+func IsFQDN(domain string) bool {
+	// TODO(mpl): there's probably a regexp for all this...
+	if domain == "localhost" {
+		return false
+	}
+	if !strings.Contains(domain, ".") {
+		return false
+	}
+	if strings.Contains(domain, "/") {
+		return false
+	}
+	if net.ParseIP(domain) != nil {
+		return false
+	}
+	return true
+}

@@ -219,8 +219,13 @@ func main() {
 	ws := webserver.New()
 	ws.Logger = logger
 	ws.Handle("/", ph)
+	// TODO(mpl): let's encrypt, etc.
+	// https://camlistore-review.googlesource.com/8647
 	if conf.HTTPSCert != "" && conf.HTTPSKey != "" {
-		ws.SetTLS(conf.HTTPSCert, conf.HTTPSKey)
+		ws.SetTLS(webserver.TLSSetup{
+			CertFile: conf.HTTPSCert,
+			KeyFile:  conf.HTTPSKey,
+		})
 	}
 	if err := ws.Listen(listenAddr); err != nil {
 		logger.Fatalf("Listen: %v", err)
