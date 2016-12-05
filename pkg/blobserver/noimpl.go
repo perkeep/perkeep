@@ -45,6 +45,7 @@ func (NoImplStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) erro
 }
 
 func (NoImplStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+	close(dest)
 	return errors.New("EnumerateBlobs not implemented")
 }
 

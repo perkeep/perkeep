@@ -19,6 +19,7 @@ limitations under the License.
 package stats // import "camlistore.org/pkg/blobserver/stats"
 
 import (
+	"context"
 	"io"
 	"io/ioutil"
 	"sort"
@@ -71,13 +72,17 @@ func (sr *Receiver) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef
 	if err != nil {
 		return
 	}
+	return sr.ReceiveRef(br, n)
+}
+
+func (sr *Receiver) ReceiveRef(br blob.Ref, size int64) (sb blob.SizedRef, err error) {
 	sr.Lock()
 	defer sr.Unlock()
 	if sr.Have == nil {
 		sr.Have = make(map[blob.Ref]int64)
 	}
-	sr.Have[br] = n
-	return blob.SizedRef{br, uint32(n)}, nil
+	sr.Have[br] = size
+	return blob.SizedRef{br, uint32(size)}, nil
 }
 
 func (sr *Receiver) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
@@ -88,5 +93,44 @@ func (sr *Receiver) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error
 			dest <- blob.SizedRef{br, uint32(size)}
 		}
 	}
+	return nil
+}
+
+func (sr *Receiver) RemoveBlobs(blobs []blob.Ref) error {
+	sr.Lock()
+	defer sr.Unlock()
+	for _, br := range blobs {
+		delete(sr.Have, br)
+	}
+
+	return nil
+}
+
+func (sr *Receiver) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+	sr.Lock()
+	defer sr.Unlock()
+	defer close(dest)
+
+	refs := blob.SizedByRef{}
+	for ref, size := range sr.Have {
+		if after != "" && ref.String() <= after {
+			continue
+		}
+		refs = append(refs, blob.SizedRef{Ref: ref, Size: uint32(size)})
+	}
+	sort.Sort(refs)
+
+	if len(refs) == 0 {
+		return nil
+	}
+
+	if len(refs) <= limit {
+		limit = len(refs)
+	}
+
+	for _, sb := range refs[:limit] {
+		dest <- sb
+	}
+
 	return nil
 }

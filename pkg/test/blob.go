@@ -18,11 +18,14 @@ package test
 
 import (
 	"crypto/sha1"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"strings"
 	"testing"
+	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
@@ -32,6 +35,21 @@ import (
 // Blob is a utility class for unit tests.
 type Blob struct {
 	Contents string // the contents of the blob
+}
+
+var randSrc = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+// RandomBlob returns a random blob with the provided number of bytes.
+func RandomBlob(t *testing.T, size int64) *Blob {
+	contents := make([]byte, size)
+	_, err := io.ReadFull(randSrc, contents)
+	if err != nil {
+		t.Fatal("error reading from random source:", err)
+	}
+
+	return &Blob{
+		Contents: base64.StdEncoding.EncodeToString(contents)[:size],
+	}
 }
 
 func (tb *Blob) Blob() *blob.Blob {

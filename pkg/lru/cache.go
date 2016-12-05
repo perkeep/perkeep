@@ -24,7 +24,7 @@ import (
 
 // Cache is an LRU cache, safe for concurrent access.
 type Cache struct {
-	maxEntries int
+	maxEntries int // zero means no limit
 
 	mu    sync.Mutex
 	ll    *list.List
@@ -38,6 +38,7 @@ type entry struct {
 }
 
 // New returns a new cache with the provided maximum items.
+// A maxEntries of 0 means no limit.
 func New(maxEntries int) *Cache {
 	return &Cache{
 		maxEntries: maxEntries,
@@ -63,7 +64,7 @@ func (c *Cache) Add(key string, value interface{}) {
 	ele := c.ll.PushFront(&entry{key, value})
 	c.cache[key] = ele
 
-	if c.ll.Len() > c.maxEntries {
+	if c.maxEntries > 0 && c.ll.Len() > c.maxEntries {
 		c.removeOldest()
 	}
 }

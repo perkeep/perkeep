@@ -129,6 +129,7 @@ func TestOpt(t *testing.T, opt Opts) {
 	errc := make(chan error, 1)
 	go func() {
 		errc <- sto.StatBlobs(dest, blobRefs)
+		close(dest)
 	}()
 	testStat(t, dest, blobSizedRefs)
 	if err := <-errc; err != nil {

@@ -76,7 +76,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 func NewCache(size int64) *Storage {
 	return &Storage{
 		maxSize: size,
-		lru:     lru.New(1<<31 - 1), // ~infinite items; we evict by size, not count
+		lru:     lru.New(0), // infinite items; we evict by size, not count
 	}
 }
 
