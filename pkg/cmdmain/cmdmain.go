@@ -212,6 +212,9 @@ func Main() {
 	if setCommandLineOutput != nil {
 		setCommandLineOutput(Stderr)
 	}
+	flag.Usage = func() {
+		usage("")
+	}
 	flag.Parse()
 	CheckCwd()
 	if err := CheckModtime(); err != nil {
