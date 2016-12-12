@@ -209,6 +209,18 @@ var (
   {"blobRef": "%s", "size": 3}
 ]}`, chunk1ref, chunk2ref, chunk3ref)}
 	fileBlobRef = fileBlob.BlobRef()
+
+	staticSetBlob = &test.Blob{fmt.Sprintf(`{"camliVersion": 1,
+"camliType": "static-set",
+"members": [
+  "%s"
+]}`, fileBlobRef)}
+
+	dirBlob = &test.Blob{fmt.Sprintf(`{"camliVersion": 1,
+"camliType": "directory",
+"fileName": "someDir",
+"entries": "%s"
+}`, staticSetBlob.BlobRef())}
 )
 
 func TestInitNeededMaps(t *testing.T) {
@@ -329,7 +341,14 @@ func foreachSorted(t *testing.T, s sorted.KeyValue, fn func(string, string)) {
 	}
 }
 
-func TestOutOfOrderIndexing(t *testing.T) {
+type testSequence struct {
+	add        []*test.Blob // chunks to add
+	dependency blob.Ref     // for checking against a "missing" line
+	dependee   blob.Ref     // for checking against a "missing" line
+	wait       bool         // whether to wait for async reindexing
+}
+
+func testOutOfOrderIndexing(t *testing.T, sequence []testSequence) {
 	tf := new(test.Fetcher)
 	s := sorted.NewMemoryKeyValue()
 
@@ -339,9 +358,6 @@ func TestOutOfOrderIndexing(t *testing.T) {
 	}
 	ix.InitBlobSource(tf)
 
-	t.Logf("file ref = %v", fileBlobRef)
-	t.Logf("missing data chunks = %v, %v, %v", chunk1ref, chunk2ref, chunk3ref)
-
 	add := func(b *test.Blob) {
 		tf.AddBlob(b)
 		if _, err := ix.ReceiveBlob(b.BlobRef(), b.Reader()); err != nil {
@@ -349,35 +365,66 @@ func TestOutOfOrderIndexing(t *testing.T) {
 		}
 	}
 
-	add(fileBlob)
-
-	{
-		key := fmt.Sprintf("missing|%s|%s", fileBlobRef, chunk1ref)
-		if got, err := s.Get(key); got == "" || err != nil {
-			t.Errorf("key %q missing (err: %v); want 1", key, err)
+	for _, seq := range sequence {
+		for _, b := range seq.add {
+			add(b)
+		}
+		if seq.wait {
+			ix.Exp_AwaitAsyncIndexing(t)
+		}
+		if seq.dependee.Valid() && seq.dependency.Valid() {
+			{
+				key := fmt.Sprintf("missing|%s|%s", seq.dependee, seq.dependency)
+				if got, err := s.Get(key); got == "" || err != nil {
+					t.Errorf("key %q missing (err: %v); want 1", key, err)
+				}
+			}
 		}
 	}
-
-	add(chunk1)
-	add(chunk2)
-
-	ix.Exp_AwaitAsyncIndexing(t)
-
-	{
-		key := fmt.Sprintf("missing|%s|%s", fileBlobRef, chunk3ref)
-		if got, err := s.Get(key); got == "" || err != nil {
-			t.Errorf("key %q missing (err: %v); want 1", key, err)
-		}
-	}
-
-	add(chunk3)
-
-	ix.Exp_AwaitAsyncIndexing(t)
 
 	foreachSorted(t, s, func(k, v string) {
 		if strings.HasPrefix(k, "missing|") {
 			t.Errorf("Shouldn't have missing key: %q", k)
 		}
+	})
+
+}
+
+func TestOutOfOrderIndexingFile(t *testing.T) {
+	t.Logf("file ref = %v", fileBlobRef)
+	t.Logf("missing data chunks = %v, %v, %v", chunk1ref, chunk2ref, chunk3ref)
+	testOutOfOrderIndexing(t, []testSequence{
+		{
+			add:        []*test.Blob{fileBlob},
+			wait:       false,
+			dependee:   fileBlobRef,
+			dependency: chunk1ref,
+		},
+		{
+			add:        []*test.Blob{chunk1, chunk2},
+			wait:       true,
+			dependee:   fileBlobRef,
+			dependency: chunk3ref,
+		},
+		{
+			add:  []*test.Blob{chunk3},
+			wait: true,
+		},
+	})
+}
+
+func TestOutOfOrderIndexingDirectory(t *testing.T) {
+	testOutOfOrderIndexing(t, []testSequence{
+		{
+			add:        []*test.Blob{chunk1, chunk2, chunk3, fileBlob, dirBlob},
+			wait:       true,
+			dependee:   dirBlob.BlobRef(),
+			dependency: staticSetBlob.BlobRef(),
+		},
+		{
+			add:  []*test.Blob{staticSetBlob},
+			wait: true,
+		},
 	})
 }
 

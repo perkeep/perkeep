@@ -364,9 +364,42 @@ func (f *missTrackFetcher) Fetch(br blob.Ref) (blob io.ReadCloser, size uint32, 
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		f.missing = append(f.missing, br)
-		err = errMissingDep
 	}
 	return
+}
+
+// trackErrorsFetcher is a blob.Fetcher that records to errs all Fetch errors.
+type trackErrorsFetcher struct {
+	mu   sync.RWMutex
+	errs []error
+
+	f blob.Fetcher
+}
+
+func (tf *trackErrorsFetcher) Fetch(br blob.Ref) (blob io.ReadCloser, size uint32, err error) {
+	blob, size, err = tf.f.Fetch(br)
+	if err != nil {
+		tf.mu.Lock()
+		defer tf.mu.Unlock()
+		tf.errs = append(tf.errs, err)
+	}
+	return
+}
+
+// hasErrNotExist reports whether tf recorded any error and if all of them are
+// os.ErrNotExist errors.
+func (tf *trackErrorsFetcher) hasErrNotExist() bool {
+	tf.mu.RLock()
+	defer tf.mu.RUnlock()
+	if len(tf.errs) == 0 {
+		return false
+	}
+	for _, v := range tf.errs {
+		if v != os.ErrNotExist {
+			return false
+		}
+	}
+	return true
 }
 
 // filePrefixReader is both a *bytes.Reader and a *schema.FileReader for use in readPrefixOrFile
@@ -400,7 +433,8 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 	times = append(times, b.ModTime())
 
 	blobRef := b.BlobRef()
-	fr, err := b.NewFileReader(fetcher)
+	tf := &trackErrorsFetcher{f: fetcher.(*missTrackFetcher)}
+	fr, err := b.NewFileReader(tf)
 	if err != nil {
 		return err
 	}
@@ -419,6 +453,9 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 	}
 	size, err := io.Copy(copyDest, mr)
 	if err != nil {
+		if tf.hasErrNotExist() {
+			return errMissingDep
+		}
 		return err
 	}
 	wholeRef := blob.RefFromHash(sha1)
@@ -683,7 +720,8 @@ func (ix *Index) populateDir(fetcher blob.Fetcher, b *schema.Blob, mm *mutationM
 	// TODO(bradfitz): move the NewDirReader and FileName method off *schema.Blob and onto
 	// StaticFile/StaticDirectory or something.
 
-	dr, err := b.NewDirReader(fetcher)
+	tf := &trackErrorsFetcher{f: fetcher.(*missTrackFetcher)}
+	dr, err := b.NewDirReader(tf)
 	if err != nil {
 		// TODO(bradfitz): propagate up a transient failure
 		// error type, so we can retry indexing files in the
@@ -693,6 +731,9 @@ func (ix *Index) populateDir(fetcher blob.Fetcher, b *schema.Blob, mm *mutationM
 	}
 	sts, err := dr.StaticSet()
 	if err != nil {
+		if tf.hasErrNotExist() {
+			return errMissingDep
+		}
 		log.Printf("index: error indexing directory: can't get StaticSet: %v\n", err)
 		return nil
 	}
@@ -754,11 +795,15 @@ func (ix *Index) populateClaim(ctx context.Context, fetcher *missTrackFetcher, b
 		return nil
 	}
 
-	vr := jsonsign.NewVerificationRequest(b.JSON(), blob.NewSerialFetcher(ix.KeyFetcher, fetcher))
+	tf := &trackErrorsFetcher{f: fetcher}
+	vr := jsonsign.NewVerificationRequest(b.JSON(), blob.NewSerialFetcher(ix.KeyFetcher, tf))
 	if !vr.Verify() {
 		// TODO(bradfitz): ask if the vr.Err.(jsonsign.Error).IsPermanent() and retry
 		// later if it's not permanent? or maybe do this up a level?
 		if vr.Err != nil {
+			if tf.hasErrNotExist() {
+				return errMissingDep
+			}
 			return vr.Err
 		}
 		return errors.New("index: populateClaim verification failure")
