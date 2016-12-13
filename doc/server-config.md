@@ -28,12 +28,19 @@ This page documents the simple configuration mode.
   your Camlistore server. Useful for when running behind a reverse proxy.
   Should not end in a slash. e.g. `https://yourserver.example.com`
 
-* `https`: if "true", HTTPS is used
+* `https`: if "true", HTTPS is used.
 
   * `httpsCert`: path to the HTTPS certificate file. This is the public file.
     It should include the concatenation of any required intermediate certs as
     well.
   * `httpsKey`: path to the HTTPS private key file.
+  * If an explicit certificate and key are not provided, a certificate from
+    [Let's Encrypt](https://letsencrypt.org) is requested automatically if the
+    following conditions apply:
+     * A fully qualified domain name is specified in either `baseURL` or `listen`.
+     * Camlistore listens on port `443` in order to answer the TLS-SNI challenge
+       from Let's Encrypt.
+  * As a fallback, if no FQDN is found, a self-signed certificate is generated.
 
 * `identity`: your GPG fingerprint. A keypair is created for new users on
   start, but this may be changed if you know what you're doing.
