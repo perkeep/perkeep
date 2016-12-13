@@ -108,8 +108,11 @@ type App struct {
 	// trailing slash appended.
 	APIHost string `json:"apiHost,omitempty"`
 
-	HTTPSCert string `json:"httpsCert,omitempty"` // path to the HTTPS certificate file.
-	HTTPSKey  string `json:"httpsKey,omitempty"`  // path to the HTTPS key file.
+	// HTTPSCert is the path to the HTTPS certificate file. If not set, and
+	// Camlistore is using HTTPS, the app should try to use Camlistore's Let's
+	// Encrypt cache (assuming it runs on the same host).
+	HTTPSCert string `json:"httpsCert,omitempty"`
+	HTTPSKey  string `json:"httpsKey,omitempty"` // path to the HTTPS key file.
 }
 
 // Publish holds the server configuration values specific to a publisher, i.e. to a publish prefix.

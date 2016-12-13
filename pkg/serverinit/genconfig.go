@@ -45,6 +45,7 @@ var (
 )
 
 type tlsOpts struct {
+	autoCert  bool // use Camlistore's Let's Encrypt cache. but httpsCert takes precedence, if set.
 	httpsCert string
 	httpsKey  string
 }
@@ -162,8 +163,15 @@ func (b *lowBuilder) addPublishedConfig(tlsO *tlsOpts) error {
 		} else {
 			// default to Camlistore parameters, if any
 			if tlsO != nil {
-				appConfig["httpsCert"] = tlsO.httpsCert
-				appConfig["httpsKey"] = tlsO.httpsKey
+				if tlsO.autoCert {
+					appConfig["certManager"] = tlsO.autoCert
+				}
+				if tlsO.httpsCert != "" {
+					appConfig["httpsCert"] = tlsO.httpsCert
+				}
+				if tlsO.httpsKey != "" {
+					appConfig["httpsKey"] = tlsO.httpsKey
+				}
 			}
 		}
 		program := "publisher"
@@ -901,6 +909,10 @@ func (b *lowBuilder) build() (*Config, error) {
 			tlsO = &tlsOpts{
 				httpsCert: httpsCert,
 				httpsKey:  httpsKey,
+			}
+		} else if conf.HTTPS {
+			tlsO = &tlsOpts{
+				autoCert: true,
 			}
 		}
 		if err := b.addPublishedConfig(tlsO); err != nil {

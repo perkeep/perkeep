@@ -20,6 +20,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -38,6 +39,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"camlistore.org/pkg/app"
 	"camlistore.org/pkg/blob"
@@ -48,6 +50,8 @@ import (
 	"camlistore.org/pkg/fileembed"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/magic"
+	"camlistore.org/pkg/netutil"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/publish"
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/server"
@@ -57,6 +61,7 @@ import (
 	"camlistore.org/pkg/webserver"
 
 	"go4.org/syncutil"
+	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/context"
 )
 
@@ -74,6 +79,7 @@ var (
 type config struct {
 	HTTPSCert      string `json:"httpsCert,omitempty"`      // Path to the HTTPS certificate file.
 	HTTPSKey       string `json:"httpsKey,omitempty"`       // Path to the HTTPS key file.
+	CertManager    bool   `json:"certManager,omitempty"`    // Use Camlistore's Let's Encrypt cache to get a certificate.
 	RootName       string `json:"camliRoot"`                // Publish root name (i.e. value of the camliRoot attribute on the root permanode).
 	MaxResizeBytes int64  `json:"maxResizeBytes,omitempty"` // See constants.DefaultMaxResizeMem
 	SourceRoot     string `json:"sourceRoot,omitempty"`     // Path to the app's resources dir, such as html and css files.
@@ -81,20 +87,33 @@ type config struct {
 	CacheRoot      string `json:"cacheRoot,omitempty"`      // Root path for the caching blobserver. No caching if empty.
 }
 
-func appConfig() *config {
+// appConfig keeps on trying to fetch the extra config from the app handler. If
+// it doesn't succed after an hour has passed, the program exits.
+func appConfig() (*config, error) {
 	configURL := os.Getenv("CAMLI_APP_CONFIG_URL")
 	if configURL == "" {
-		logger.Fatalf("Publisher application needs a CAMLI_APP_CONFIG_URL env var")
+		return nil, fmt.Errorf("Publisher application needs a CAMLI_APP_CONFIG_URL env var")
 	}
 	cl, err := app.Client()
 	if err != nil {
-		logger.Fatalf("could not get a client to fetch extra config: %v", err)
+		return nil, fmt.Errorf("could not get a client to fetch extra config: %v", err)
 	}
 	conf := &config{}
-	if err := cl.GetJSON(configURL, conf); err != nil {
-		logger.Fatalf("could not get app config at %v: %v", configURL, err)
+	pause := time.Second
+	giveupTime := time.Now().Add(time.Hour)
+	for {
+		err := cl.GetJSON(configURL, conf)
+		if err == nil {
+			break
+		}
+		if time.Now().After(giveupTime) {
+			logger.Fatalf("Giving up on starting: could not get app config at %v: %v", configURL, err)
+		}
+		logger.Printf("could not get app config at %v: %v. Will retry in a while.", configURL, err)
+		time.Sleep(pause)
+		pause *= 2
 	}
-	return conf
+	return conf, nil
 }
 
 // setMasterQuery registers with the app handler a master query that includes
@@ -186,6 +205,65 @@ func addAuth(r *http.Request) error {
 	return nil
 }
 
+func setupTLS(ws *webserver.Server, conf *config) error {
+	if conf.HTTPSCert != "" && conf.HTTPSKey != "" {
+		ws.SetTLS(webserver.TLSSetup{
+			CertFile: conf.HTTPSCert,
+			KeyFile:  conf.HTTPSKey,
+		})
+		return nil
+	}
+	if !conf.CertManager {
+		return nil
+	}
+
+	// As all requests to the publisher are proxied through Camlistore's app
+	// handler, it makes sense to assume that both Camlistore and the publisher
+	// are behind the same domain name. Therefore, it follows that
+	// camlistored's autocert is the one actually getting a cert (and answering
+	// the challenge) for the both of them. Plus, if they run on the same host
+	// (default setup), they can't both listen on 443 to answer the TLS-SNI
+	// challenge.
+	// TODO(mpl): however, camlistored and publisher could be running on
+	// different hosts, in which case we need to find a way for camlistored to
+	// share its autocert cache with publisher. But I think that can wait a
+	// later CL.
+	hostname := os.Getenv("CAMLI_API_HOST")
+	hostname = strings.TrimPrefix(hostname, "https://")
+	hostname = strings.SplitN(hostname, "/", 2)[0]
+	hostname = strings.SplitN(hostname, ":", 2)[0]
+	if !netutil.IsFQDN(hostname) {
+		return fmt.Errorf("cannot ask Let's Encrypt for a cert because %v is not a fully qualified domain name", hostname)
+	}
+	logger.Print("TLS enabled, with Let's Encrypt")
+
+	// TODO(mpl): we only want publisher to use the same cache as
+	// camlistored, and we don't actually need an autocert.Manager.
+	// So we could just instantiate an autocert.DirCache, and generate
+	// from there a *tls.Certificate, but it looks like it would mean
+	// extracting quite a bit of code from the autocert pkg to do it properly.
+	// Instead, I've opted for using an autocert.Manager (even though it's
+	// never going to reply to any challenge), but with NOOP for Put and
+	// Delete, just to be on the safe side. It's simple enough, but there's
+	// still a catch: there's no ServerName in the clientHello we get, so we
+	// reinject one so we can simply use the autocert.Manager.GetCertificate
+	// method as the way to get the certificate from the cache. Is that OK?
+	m := autocert.Manager{
+		Prompt:     autocert.AcceptTOS,
+		HostPolicy: autocert.HostWhitelist(hostname),
+		Cache:      roCertCacheDir(osutil.DefaultLetsEncryptCache()),
+	}
+	ws.SetTLS(webserver.TLSSetup{
+		CertManager: func(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			if clientHello.ServerName == "" {
+				clientHello.ServerName = hostname
+			}
+			return m.GetCertificate(clientHello)
+		},
+	})
+	return nil
+}
+
 func main() {
 	flag.Parse()
 
@@ -202,7 +280,10 @@ func main() {
 	if err != nil {
 		logger.Fatalf("Listen address: %v", err)
 	}
-	conf := appConfig()
+	conf, err := appConfig()
+	if err != nil {
+		logger.Fatalf("no app config: %v", err)
+	}
 	ph := newPublishHandler(conf)
 	masterQueryURL := os.Getenv("CAMLI_APP_MASTERQUERY_URL")
 	if masterQueryURL == "" {
@@ -218,15 +299,10 @@ func main() {
 	}
 	ws := webserver.New()
 	ws.Logger = logger
-	ws.Handle("/", ph)
-	// TODO(mpl): let's encrypt, etc.
-	// https://camlistore-review.googlesource.com/8647
-	if conf.HTTPSCert != "" && conf.HTTPSKey != "" {
-		ws.SetTLS(webserver.TLSSetup{
-			CertFile: conf.HTTPSCert,
-			KeyFile:  conf.HTTPSKey,
-		})
+	if err := setupTLS(ws, conf); err != nil {
+		logger.Fatal("could not setup TLS: %v", err)
 	}
+	ws.Handle("/", ph)
 	if err := ws.Listen(listenAddr); err != nil {
 		logger.Fatalf("Listen: %v", err)
 	}
@@ -1176,4 +1252,19 @@ func (pr *publishRequest) serveZip() {
 		filename: filename,
 	}
 	zh.ServeHTTP(pr.rw, pr.req)
+}
+
+// roCertCacheDir is a read-only implementation of autocert.Cache.
+type roCertCacheDir string
+
+func (d roCertCacheDir) Get(ctx context.Context, key string) ([]byte, error) {
+	return autocert.DirCache(d).Get(ctx, key)
+}
+
+func (d roCertCacheDir) Put(ctx context.Context, key string, data []byte) error {
+	return nil
+}
+
+func (d roCertCacheDir) Delete(ctx context.Context, key string) error {
+	return nil
 }

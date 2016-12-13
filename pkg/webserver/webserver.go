@@ -53,9 +53,12 @@ type Server struct {
 	// H2Server is the HTTP/2 server config.
 	H2Server http2.Server
 
-	enableTLS               bool
+	// enableTLS sets the Server up for listening to HTTPS connections.
+	enableTLS bool
+	// tlsCertFile (tlsKeyFile) is the path to the HTTPS certificate (key) file.
 	tlsCertFile, tlsKeyFile string
-	certManager             func(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) // tlsCertFile takes precedence
+	// certManager is set as GetCertificate in the tls.Config of the listener. But tlsCertFile takes precedence.
+	certManager func(*tls.ClientHelloInfo) (*tls.Certificate, error)
 
 	mu   sync.Mutex
 	reqs int64
