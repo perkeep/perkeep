@@ -99,6 +99,7 @@ const (
 	spamDelay               = 5 * time.Second // any repeated attempt under this delay is considered as spam
 	forgetSeen              = time.Minute     // anyone being quiet for that long is taken off the "potential spammer" list
 	queriesRate             = 10              // max concurrent (non-whitelisted) clients
+	minKeySize              = 2048            // in bits. to force potential attackers to generate GPG keys at least this expensive.
 )
 
 // Server sends a challenge when a client that wants to claim ownership of an IP
@@ -228,7 +229,16 @@ func (cs *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO(mpl): verify not a cheap key.
+	keySize, err := pk.BitLength()
+	if err != nil {
+		http.Error(w, "could not check key size", 500)
+		log.Printf("could not check key size: %v", err)
+		return
+	}
+	if keySize < minKeySize {
+		http.Error(w, fmt.Sprintf("minimum key size is %d bits", minKeySize), http.StatusBadRequest)
+		return
+	}
 
 	if err := cs.validateTokenSignature(pk, token, tokenSig); err != nil {
 		http.Error(w, "invalid token signature", http.StatusBadRequest)
