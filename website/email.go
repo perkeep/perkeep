@@ -97,8 +97,12 @@ func emailCommit(dir, hash string) (err error) {
 		subj = subj[:80]
 	}
 
+	if *smtpServer == "" {
+		return nil
+	}
 	cl, err := smtp.Dial(*smtpServer)
 	if err != nil {
+		log.Printf("Error connecting to SMTP server for sending commit e-mail: %v", err)
 		return
 	}
 	defer cl.Quit()
