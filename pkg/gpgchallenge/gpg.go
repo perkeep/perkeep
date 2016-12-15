@@ -100,6 +100,7 @@ const (
 	forgetSeen              = time.Minute     // anyone being quiet for that long is taken off the "potential spammer" list
 	queriesRate             = 10              // max concurrent (non-whitelisted) clients
 	minKeySize              = 2048            // in bits. to force potential attackers to generate GPG keys at least this expensive.
+	requestTimeout          = 3 * time.Second // so a client does not make use create many long-lived connections
 )
 
 // Server sends a challenge when a client that wants to claim ownership of an IP
@@ -246,6 +247,19 @@ func (cs *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Verify claimedIP looks ok
+	ip := net.ParseIP(claimedIP)
+	if ip == nil {
+		http.Error(w, "nope", http.StatusBadRequest)
+		log.Printf("%q does not look like a valid IP address", claimedIP)
+		return
+	}
+	if !ip.IsGlobalUnicast() {
+		http.Error(w, "nope", http.StatusBadRequest)
+		log.Printf("%q does not look like a nice IP", claimedIP)
+		return
+	}
+
 	keyID := pk.KeyIdShortString()
 	if isSpammer := cs.rateLimit(keyID, claimedIP); isSpammer {
 		http.Error(w, "don't be a spammer", http.StatusTooManyRequests)
@@ -262,9 +276,16 @@ func (cs *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+		DisableKeepAlives: true,
 	}
-	cl := &http.Client{Transport: tr}
+	cl := &http.Client{
+		Transport: tr,
+		Timeout:   requestTimeout,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 	resp, err := cl.Post(fmt.Sprintf("https://%s:%d/%s", claimedIP, ClientChallengedPort, clientEndPointChallenge),
 		"text/plain", strings.NewReader(nonce))
 	if err != nil {
