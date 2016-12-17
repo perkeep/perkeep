@@ -19,37 +19,38 @@ limitations under the License.
 // at the claimed IP.
 // The protocol is as follows:
 //
-// 1) The Client GETs a random token from the server, at the /token endpoint, and signs
+// - The Client GETs a random token from the server, at the /token endpoint, and signs
 // that token with its GPG private key (armor detached signature).
 //
-// 2) The Client starts listening for HTTPS connections (with a self-signed
-// certificate) on the IP it wants to prove ownership of.
-//
-// 3) When it is ready, the client POSTs an application/x-www-form-urlencoded over
+// - When it is ready[*], the client POSTs an application/x-www-form-urlencoded over
 // HTTPS to the server, at the /claim endpoint. It sends the following URL-encoded
 // values as the request body: its armor encoded public key as "pubkey", the IP
 // address it's claiming as "challengeIP", the token it got from the server as "token",
 // and the signature for the token as "signature".
 //
-// 4) The Server receives the claim. It verifies that the token (nonce) is indeed one that
+// - The Server receives the claim. It verifies that the token (nonce) is indeed one that
 // it had generated. It parses the client's public key. It verifies with that
 // public key that the sent signature matches the token. The serve ACKs to the client.
 //
-// 5) The Server generates a random token, and POSTs it to the challenged IP
+// - The Server generates a random token, and POSTs it to the challenged IP
 // (over HTTPS, with certificate verification disabled) at the /challenge endpoint.
 //
-// 6) The Client receives the random token, signs it (armored detached
+// - The Client receives the random token, signs it (armored detached
 // signature), and sends the signature as a reply.
 //
-// 7) The Server receives the signed token and verifies it with the Client's
+// - The Server receives the signed token and verifies it with the Client's
 // public key.
 //
-// 8) At this point, the challenge is successful, so the Server performs the
+// - At this point, the challenge is successful, so the Server performs the
 // action registered through the OnSuccess function.
 //
-// 9) The Server sends a last message to the Client at the /ack endpoint,
+// - The Server sends a last message to the Client at the /ack endpoint,
 // depending on the result of the OnSuccess action. "ACK" if it was successful, the
 // error message otherwise.
+//
+// [*]As the Server connects to the Client to challenge it, the Client must obviously
+// have a way, which does not need to be described by the protocol, to listen to and
+// accept these connections.
 package gpgchallenge // import "camlistore.org/pkg/gpgchallenge"
 
 import (
@@ -73,13 +74,10 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/httputil"
-
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/packet"
 	"golang.org/x/net/context"
-	"golang.org/x/net/http2"
 	"golang.org/x/time/rate"
 
 	"go4.org/wkfs"
@@ -89,18 +87,25 @@ import (
 // the server.
 var ClientChallengedPort = 443
 
+// SNISuffix is the Server Name Indication prefix used when dialing the
+// client's handler. The SNI is challengeIP+SNISuffix.
+const SNISuffix = "-gpgchallenge"
+
 const (
 	clientEndPointChallenge = "challenge"
 	clientEndPointAck       = "ack"
-	clientEndPointReady     = "ready"
+	clientEndPointReady     = "ready" // not part of the protocol, just to check if client has a listener
 	serverEndPointToken     = "token"
 	serverEndPointChallenge = "claim"
-	nonceValidity           = 10 * time.Second
-	spamDelay               = 5 * time.Second // any repeated attempt under this delay is considered as spam
-	forgetSeen              = time.Minute     // anyone being quiet for that long is taken off the "potential spammer" list
-	queriesRate             = 10              // max concurrent (non-whitelisted) clients
-	minKeySize              = 2048            // in bits. to force potential attackers to generate GPG keys at least this expensive.
-	requestTimeout          = 3 * time.Second // so a client does not make use create many long-lived connections
+	// clientHandlerPrefix is the URL path prefix for all the client endpoints.
+	clientHandlerPrefix = "/.well-known/camlistore/gpgchallenge/"
+
+	nonceValidity  = 10 * time.Second
+	spamDelay      = 5 * time.Second // any repeated attempt under this delay is considered as spam
+	forgetSeen     = time.Minute     // anyone being quiet for that long is taken off the "potential spammer" list
+	queriesRate    = 10              // max concurrent (non-whitelisted) clients
+	minKeySize     = 2048            // in bits. to force potential attackers to generate GPG keys at least this expensive.
+	requestTimeout = 3 * time.Second // so a client does not make use create many long-lived connections
 )
 
 // Server sends a challenge when a client that wants to claim ownership of an IP
@@ -276,8 +281,11 @@ func (cs *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tr := &http.Transport{
-		TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
 		DisableKeepAlives: true,
+		TLSClientConfig: &tls.Config{
+			ServerName:         claimedIP + SNISuffix,
+			InsecureSkipVerify: true,
+		},
 	}
 	cl := &http.Client{
 		Transport: tr,
@@ -286,7 +294,7 @@ func (cs *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 			return http.ErrUseLastResponse
 		},
 	}
-	resp, err := cl.Post(fmt.Sprintf("https://%s:%d/%s", claimedIP, ClientChallengedPort, clientEndPointChallenge),
+	resp, err := cl.Post(fmt.Sprintf("https://%s:%d%s%s", claimedIP, ClientChallengedPort, clientHandlerPrefix, clientEndPointChallenge),
 		"text/plain", strings.NewReader(nonce))
 	if err != nil {
 		log.Printf("Error while sending the challenge to the client: %v", err)
@@ -319,7 +327,7 @@ func (cs *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 		ackMessage = fmt.Sprintf("challenge successful, but could not perform operation: %v", err)
 	}
 
-	resp, err = cl.Post(fmt.Sprintf("https://%s:%d/%s", claimedIP, ClientChallengedPort, clientEndPointAck),
+	resp, err = cl.Post(fmt.Sprintf("https://%s:%d%s%s", claimedIP, ClientChallengedPort, clientHandlerPrefix, clientEndPointAck),
 		"text/plain", strings.NewReader(ackMessage))
 	if err != nil {
 		log.Printf("Error sending closing message: %v", err)
@@ -484,17 +492,20 @@ func (cs Server) receiveSignedNonce(r io.Reader) (*packet.Signature, error) {
 
 // Client is used to prove ownership of an IP address, by answering a GPG
 // challenge that the server sends at the address.
+// A client must first register its Handler with an HTTPS server, before it can
+// perform the challenge.
 type Client struct {
 	keyRing, keyId string
 	signer         *openpgp.Entity
 	challengeIP    string
 
-	tlsCert  []byte
-	tlsKey   []byte
-	listener net.Listener
-	errc     chan error // for errors from our challenge listener
+	handler http.Handler
+	// any error from one of the HTTP handle func is sent through errc, so
+	// it can be communicated to the Challenge method, which can then error out
+	// accordingly.
+	errc chan error
 
-	sync.Mutex
+	mu            sync.Mutex
 	challengeDone bool
 }
 
@@ -506,35 +517,46 @@ func NewClient(keyRing, keyId, challengeIP string) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not get signer %v from keyRing %v: %v", keyId, keyRing, err)
 	}
-	selfCert, selfKey, err := httputil.GenSelfTLS(challengeIP + "-challenge")
-	if err != nil {
-		return nil, fmt.Errorf("could no generate self-signed certificate: %v", err)
-	}
-	return &Client{
+	cl := &Client{
 		keyRing:     keyRing,
 		keyId:       keyId,
 		signer:      signer,
 		challengeIP: challengeIP,
-		tlsCert:     selfCert,
-		tlsKey:      selfKey,
-	}, nil
+		errc:        make(chan error, 1),
+	}
+	handler := &clientHandler{
+		cl: cl,
+	}
+	cl.handler = handler
+	return cl, nil
 }
 
-func (cl *Client) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	cl.Lock()
-	defer cl.Unlock()
-	if r.URL.Path == "/"+clientEndPointChallenge {
-		cl.handleChallenge(w, r)
+// Handler returns the client's handler, that should be registered with an HTTPS
+// server for the returned prefix, for the client to be able to receive the
+// challenge.
+func (cl *Client) Handler() (prefix string, h http.Handler) {
+	return clientHandlerPrefix, cl.handler
+}
+
+// clientHandler is the "server" part of the Client, so it can receive and
+// answer the Server's challenge.
+type clientHandler struct {
+	cl *Client
+}
+
+func (h *clientHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.cl.mu.Lock()
+	defer h.cl.mu.Unlock()
+	if r.URL.Path == clientHandlerPrefix+clientEndPointReady {
+		h.handleReady(w, r)
 		return
 	}
-	if r.URL.Path == "/"+clientEndPointAck {
-		cl.handleACK(w, r)
+	if r.URL.Path == clientHandlerPrefix+clientEndPointChallenge {
+		h.handleChallenge(w, r)
 		return
 	}
-	if r.URL.Path == "/"+clientEndPointReady {
-		if _, err := io.Copy(w, strings.NewReader("ready")); err != nil {
-			log.Printf("could not reply to ready request: %v", err)
-		}
+	if r.URL.Path == clientHandlerPrefix+clientEndPointAck {
+		h.handleACK(w, r)
 		return
 	}
 	http.Error(w, "wrong path", 404)
@@ -543,88 +565,86 @@ func (cl *Client) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // Challenge requests a challenge from the server running at serverAddr, which
 // should be a host name or of the hostname:port form, and then fulfills that challenge.
 func (cl *Client) Challenge(serverAddr string) error {
+	if err := cl.listenSelfCheck(serverAddr); err != nil {
+		return err
+	}
+	return cl.challenge(serverAddr)
+}
+
+// listenSelfCheck tests whether the client is ready to receive a challenge,
+// i.e. that the caller has registered the client's handler with a server.
+func (cl *Client) listenSelfCheck(serverAddr string) error {
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+			ServerName:         cl.challengeIP + SNISuffix,
+		},
+	}
+	httpClient := &http.Client{
+		Transport: tr,
+	}
+	errc := make(chan error, 1)
+	respc := make(chan *http.Response, 1)
+	var err error
+	var resp *http.Response
+	go func() {
+		resp, err := httpClient.PostForm(fmt.Sprintf("https://localhost:%d%s%s", ClientChallengedPort, clientHandlerPrefix, clientEndPointReady),
+			url.Values{"server": []string{serverAddr}})
+		errc <- err
+		respc <- resp
+	}()
+	timeout := time.NewTimer(time.Second)
+	defer timeout.Stop()
+	select {
+	case err = <-errc:
+		resp = <-respc
+	case <-timeout.C:
+		return errors.New("The client needs an HTTPS listener for its handler to answer the server's challenge. You need to call Handler and register the http.Handler with an HTTPS server, before calling Challenge.")
+	}
+	if err != nil {
+		return fmt.Errorf("error starting challenge: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("error starting challenge: %v", resp.Status)
+	}
+	return nil
+}
+
+func (cl *Client) challenge(serverAddr string) error {
 	token, err := cl.getToken(serverAddr)
 	if err != nil {
 		return fmt.Errorf("could not get token from server: %v", err)
 	}
-	laddr := fmt.Sprintf(":%d", ClientChallengedPort)
-	config := &tls.Config{
-		NextProtos: []string{http2.NextProtoTLS, "http/1.1"},
-		MinVersion: tls.VersionTLS12,
-	}
-	config.Certificates = make([]tls.Certificate, 1)
-	config.Certificates[0], err = tls.X509KeyPair(cl.tlsCert, cl.tlsKey)
-	if err != nil {
-		return fmt.Errorf("could not load TLS certificate: %v", err)
-	}
-	l, err := tls.Listen("tcp", laddr, config)
-	if err != nil {
-		return fmt.Errorf("could not listen on %v for challenge: %v", laddr, err)
-	}
 
-	cl.errc = make(chan error, 1)
-	cl.listener = l
-	s := &http.Server{
-		Addr:    laddr,
-		Handler: cl,
-	}
-	defer func() {
-		// We close the listener so s.Serve can terminate and so we
-		// don't leak our goroutine.
-		cl.listener.Close()
-	}()
-	go func() {
-		if err := s.Serve(l); err != nil {
-			// TODO(mpl): how to detect more cleanly that it's not an error we expected?
-			// Actually, we can probably use the graceful shutdown
-			// of servers introduced for Go 1.8, instead of closing the listener.
-			if !strings.Contains(err.Error(), "use of closed network connection") {
-				log.Printf("Error serving: %v", err)
-			}
-		}
-	}()
 	errc := make(chan error, 1)
 	go func() {
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
-		httpClient := &http.Client{Transport: tr}
-		for {
-			resp, err := httpClient.Get(fmt.Sprintf("https://localhost:%d/%s", ClientChallengedPort, clientEndPointReady))
-			if err != nil {
-				log.Printf("while waiting for client challenge listener to be ready: %v", err)
-				continue
-			}
-			data, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				log.Printf("error reading client challenge listener ready status: %v", err)
-				resp.Body.Close()
-				continue
-			}
-			if string(data) != "ready" {
-				resp.Body.Close()
-				errc <- fmt.Errorf("unexpected ready status from client challenge listener: %q", string(data))
-				return
-			}
-			resp.Body.Close()
-			break
-		}
 		if err := cl.sendClaim(serverAddr, token); err != nil {
 			errc <- fmt.Errorf("error sending challenge claim to server: %v", err)
 		}
 	}()
-	timeout := time.After(10 * time.Second)
+	timeout := time.NewTimer(10 * time.Second)
+	defer timeout.Stop()
 	select {
 	case err := <-errc:
 		return err
 	case err := <-cl.errc:
 		return err // nil here on success.
-	case <-timeout:
+	case <-timeout.C:
 		return errors.New("challenge timeout")
 	}
 }
 
-func (cl *Client) handleChallenge(w http.ResponseWriter, r *http.Request) {
+func (h *clientHandler) handleReady(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "not a POST", http.StatusMethodNotAllowed)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *clientHandler) handleChallenge(w http.ResponseWriter, r *http.Request) {
+	cl := h.cl
 	var stickyErr error
 	defer func() {
 		if stickyErr != nil {
@@ -665,7 +685,8 @@ func (cl *Client) handleChallenge(w http.ResponseWriter, r *http.Request) {
 	cl.challengeDone = true
 }
 
-func (cl Client) handleACK(w http.ResponseWriter, r *http.Request) {
+func (h *clientHandler) handleACK(w http.ResponseWriter, r *http.Request) {
+	cl := h.cl
 	var stickyErr error
 	defer func() {
 		cl.errc <- stickyErr
@@ -691,6 +712,8 @@ func (cl Client) handleACK(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, stickyErr.Error(), http.StatusBadRequest)
 		return
 	}
+	// reset it for reuse of the client.
+	cl.challengeDone = false
 	if _, err := io.Copy(w, strings.NewReader("OK")); err != nil {
 		log.Printf("non-critical error: could not reply to ACK: %v", err)
 		return
