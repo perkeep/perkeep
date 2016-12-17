@@ -19,6 +19,8 @@ limitations under the License.
 package main
 
 import (
+	"crypto/rand"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -30,6 +32,7 @@ import (
 
 	"camlistore.org/pkg/gpgchallenge"
 	"camlistore.org/pkg/lru"
+	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/sorted"
 
 	"cloud.google.com/go/compute/metadata"
@@ -37,7 +40,9 @@ import (
 	"cloud.google.com/go/logging"
 	"github.com/miekg/dns"
 	"go4.org/cloud/cloudlaunch"
+	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/context"
+	"golang.org/x/net/http2"
 	compute "google.golang.org/api/compute/v1"
 )
 
@@ -388,13 +393,13 @@ func main() {
 		kv = memkv{skv: sorted.NewMemoryKeyValue()}
 	}
 	if err := kv.Set("6401800c.camlistore.net.", "159.203.246.79"); err != nil {
-		log.Fatalf("Error adding %v:%v record", "6401800c.camlistore.net.", "159.203.246.79")
+		log.Fatalf("Error adding %v:%v record: %v", "6401800c.camlistore.net.", "159.203.246.79", err)
 	}
 	if err := kv.Set(domain, *flagServerIP); err != nil {
-		log.Fatalf("Error adding %v:%v record", domain, *flagServerIP)
+		log.Fatalf("Error adding %v:%v record: %v", domain, *flagServerIP, err)
 	}
 	if err := kv.Set("www.camlistore.net.", *flagServerIP); err != nil {
-		log.Fatalf("Error adding %v:%v record", "www.camlistore.net.", *flagServerIP)
+		log.Fatalf("Error adding %v:%v record: %v", "www.camlistore.net.", *flagServerIP, err)
 	}
 
 	ds := newDNSServer(kv)
@@ -415,11 +420,33 @@ func main() {
 	go func() {
 		udperr <- dns.ListenAndServe(*addr, "udp", ds)
 	}()
-	go func() {
-		// TODO(mpl): get a cert for camnetdns.camlistore.org from Let's
-		// Encrypt. Then we can switch to ListenAndServeTLS here. Next CL.
-		httperr <- http.ListenAndServe(httpsListenAddr, cs)
-	}()
+	if metadata.OnGCE() {
+		// TODO(mpl): if we want to get a cert for anything
+		// *.camlistore.net, it's a bit of a chicken and egg problem, since
+		// we need camnetdns itself to be already running and answering DNS
+		// queries. It's probably doable, but easier for now to just ask
+		// one for camnetdns.camlistore.org, since that name is not
+		// resolved by camnetdns.
+		hostname := strings.TrimSuffix(authorityNS, ".")
+		m := autocert.Manager{
+			Prompt:     autocert.AcceptTOS,
+			HostPolicy: autocert.HostWhitelist(hostname),
+			Cache:      autocert.DirCache(osutil.DefaultLetsEncryptCache()),
+		}
+		ln, err := tls.Listen("tcp", httpsListenAddr, &tls.Config{
+			Rand:           rand.Reader,
+			Time:           time.Now,
+			NextProtos:     []string{http2.NextProtoTLS, "http/1.1"},
+			MinVersion:     tls.VersionTLS12,
+			GetCertificate: m.GetCertificate,
+		})
+		if err != nil {
+			log.Fatalf("Error listening on %v: %v", httpsListenAddr, err)
+		}
+		go func() {
+			httperr <- http.Serve(ln, cs)
+		}()
+	}
 	select {
 	case err := <-tcperr:
 		log.Fatalf("DNS over TCP error: %v", err)
