@@ -18,10 +18,17 @@ limitations under the License.
 package main
 
 import (
+	"crypto/tls"
 	"flag"
+	"fmt"
 	"log"
+	"net/http"
+	"time"
+
+	"golang.org/x/net/http2"
 
 	"camlistore.org/pkg/gpgchallenge"
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/osutil"
 )
 
@@ -52,6 +59,33 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	config := &tls.Config{
+		NextProtos: []string{http2.NextProtoTLS, "http/1.1"},
+		MinVersion: tls.VersionTLS12,
+	}
+	selfCert, selfKey, err := httputil.GenSelfTLS(*flagClaimedIP + "-challenge")
+	if err != nil {
+		log.Fatalf("could no generate self-signed certificate: %v", err)
+	}
+	config.Certificates = make([]tls.Certificate, 1)
+	config.Certificates[0], err = tls.X509KeyPair(selfCert, selfKey)
+	if err != nil {
+		log.Fatalf("could not load TLS certificate: %v", err)
+	}
+	laddr := fmt.Sprintf(":%d", *flagPort)
+	l, err := tls.Listen("tcp", laddr, config)
+	if err != nil {
+		log.Fatalf("could not listen on %v for challenge: %v", laddr, err)
+	}
+
+	pattern, handler := cl.Handler()
+	http.Handle(pattern, handler)
+	errc := make(chan error, 1)
+	go func() {
+		errc <- http.Serve(l, handler)
+	}()
+	time.Sleep(time.Second)
 	if err := cl.Challenge(*flagServer); err != nil {
 		log.Fatal(err)
 	}
