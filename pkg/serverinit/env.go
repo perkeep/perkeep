@@ -58,17 +58,9 @@ func DefaultEnvConfig() (*Config, error) {
 		return nil, err
 	}
 
-	ipOrHost, _ := metadata.ExternalIP()
-	host, _ := metadata.InstanceAttributeValue("camlistore-hostname")
-	if host != "" && host != "localhost" {
-		ipOrHost = host
-	}
-
 	highConf := &serverconfig.Config{
 		Auth:               auth,
-		BaseURL:            fmt.Sprintf("https://%s", ipOrHost),
 		HTTPS:              true,
-		Listen:             "0.0.0.0:443",
 		Identity:           keyId,
 		IdentitySecretRing: secRing,
 		GoogleCloudStorage: ":" + strings.TrimPrefix(blobBucket, "gs://"),
@@ -78,6 +70,15 @@ func DefaultEnvConfig() (*Config, error) {
 		// SourceRoot is where we look for the UI js/css/html files, and the Closure resources.
 		// Must be in sync with misc/docker/server/Dockerfile.
 		SourceRoot: "/camlistore",
+	}
+
+	externalIP, _ := metadata.ExternalIP()
+	hostName, _ := metadata.InstanceAttributeValue("camlistore-hostname")
+	if hostName != "" && hostName != "localhost" {
+		highConf.BaseURL = fmt.Sprintf("https://%s", hostName)
+		highConf.Listen = "0.0.0.0:443"
+	} else {
+		highConf.CamliNetIP = externalIP
 	}
 
 	// Detect a linked Docker MySQL container. It must have alias "mysqldb".
