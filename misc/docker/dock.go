@@ -295,13 +295,12 @@ func uploadReleaseTarball() {
 	if !isWIP() {
 		log.Printf("Copying tarball to %s/%s ...", bucket, tarball)
 		dest := stoClient.Bucket(bucket).Object(tarball)
-		if _, err := stoClient.Bucket(bucket).Object(versionedTarball).CopyTo(
-			ctx,
-			dest,
-			&storage.ObjectAttrs{
-				ACL:         publicACL(proj),
-				ContentType: contentType,
-			}); err != nil {
+		cpier := dest.CopierFrom(stoClient.Bucket(bucket).Object(versionedTarball))
+		cpier.ObjectAttrs = storage.ObjectAttrs{
+			ACL:         publicACL(proj),
+			ContentType: contentType,
+		}
+		if _, err := cpier.Run(ctx); err != nil {
 			log.Fatalf("Error uploading %v: %v", tarball, err)
 		}
 		log.Printf("Uploaded tarball to %s", tarball)
@@ -370,14 +369,13 @@ func uploadDockerImage() {
 	}
 	log.Printf("Copying tarball to %s/%s ...", bucket, tarball)
 	dest := stoClient.Bucket(bucket).Object(tarball)
-	if _, err := stoClient.Bucket(bucket).Object(versionedTarball).CopyTo(
-		ctx,
-		dest,
-		&storage.ObjectAttrs{
-			ACL:          publicACL(proj),
-			CacheControl: "no-cache",
-			ContentType:  "application/x-gtar",
-		}); err != nil {
+	cpier := dest.CopierFrom(stoClient.Bucket(bucket).Object(versionedTarball))
+	cpier.ObjectAttrs = storage.ObjectAttrs{
+		ACL:          publicACL(proj),
+		CacheControl: "no-cache",
+		ContentType:  "application/x-gtar",
+	}
+	if _, err := cpier.Run(ctx); err != nil {
 		log.Fatalf("Error uploading %v: %v", tarball, err)
 	}
 	log.Printf("Uploaded tarball to %s", tarball)

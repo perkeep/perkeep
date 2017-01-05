@@ -27,6 +27,7 @@ import (
 	"cloud.google.com/go/storage"
 	"go4.org/wkfs"
 	"golang.org/x/net/context"
+	"google.golang.org/api/iterator"
 )
 
 var flagBucket = flag.String("bucket", "", "Google Cloud Storage bucket where to run the tests. It should be empty.")
@@ -40,12 +41,12 @@ func TestWriteRead(t *testing.T) {
 	}
 	ctx := context.Background()
 	cl, err := storage.NewClient(ctx)
-	list, err := cl.Bucket(*flagBucket).List(ctx, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(list.Results) > 0 {
-		t.Fatalf("Bucket %v is not empty, aborting test.", *flagBucket)
+	it := cl.Bucket(*flagBucket).Objects(ctx, nil)
+	if _, err := it.Next(); err != iterator.Done {
+		if err == nil {
+			t.Fatalf("Bucket %v is not empty, aborting test.", *flagBucket)
+		}
+		t.Fatalf("unexpected bucket iteration error: %v", err)
 	}
 	filename := "camli-gcs_test.txt"
 	defer func() {

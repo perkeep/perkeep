@@ -22,6 +22,7 @@ import (
 
 	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
+	itest "google.golang.org/api/iterator/testing"
 )
 
 // Service represents the implementation of a Google API's List method.
@@ -181,79 +182,19 @@ func TestNext(t *testing.T) {
 		{end: 5, max: 2, zeroes: true},
 	} {
 		client := &Client{&svc}
-		it := client.Items(ctx)
-		var got []int
-		for {
-			item, err := it.Next()
-			if err == iterator.Done {
-				break
-			}
-			if err != nil {
-				t.Fatalf("%v: got %v, want nil", svc, err)
-			}
-			got = append(got, item)
-		}
-		want := seq(0, svc.end)
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("%v: got %v, want %v", svc, got, want)
-		}
-		// Confirm that Next continues to return (0, Done).
-		for i := 0; i < 3; i++ {
-			item, err := it.Next()
-			if item != 0 || err != iterator.Done {
-				t.Errorf("%s, after end: got (%d, %v), want (0, Done)", svc, item, err)
-			}
+
+		msg, ok := itest.TestIterator(
+			seq(0, svc.end),
+			func() interface{} { return client.Items(ctx) },
+			func(it interface{}) (interface{}, error) { return it.(*ItemIterator).Next() })
+		if !ok {
+			t.Errorf("%+v: %s", svc, msg)
 		}
 	}
 }
 
 // TODO(jba): test setting PageInfo.MaxSize
 // TODO(jba): test setting PageInfo.Token
-
-func TestPager(t *testing.T) {
-	const pageSize = 4
-	for _, svc := range []service{
-		{end: 0},
-		{end: 3},
-		{end: 3, zeroes: true},
-		{end: 11},
-		{end: 11, max: 2},
-		{end: 11, zeroes: true},
-		{end: 11, max: 2, zeroes: true},
-	} {
-		var want [][]int
-		switch svc.end {
-		case 0:
-			want = nil
-		case 3:
-			want = [][]int{{0, 1, 2}}
-		case 11:
-			want = [][]int{{0, 1, 2, 3}, {4, 5, 6, 7}, {8, 9, 10}}
-		default:
-			t.Fatalf("unexpected svc.end %d", svc.end)
-		}
-		client := &Client{&svc}
-		it := client.Items(ctx)
-		p := iterator.NewPager(it, pageSize, "")
-		var got [][]int
-		for {
-			var items []int
-			tok, err := p.NextPage(&items)
-			if err != nil {
-				t.Fatalf("%v: %v", svc, err)
-			}
-			if tok != "" || len(items) != 0 { // edge case: 0-length sequence
-				got = append(got, items)
-			}
-			if tok == "" {
-				break
-			}
-		}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("%v: got %v, want %v", svc, got, want)
-		}
-	}
-}
 
 // Verify that, for an iterator that uses PageInfo.next to implement its Next
 // method, using Next and NextPage together result in an error.

@@ -37,6 +37,7 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/iterator"
 )
 
 var (
@@ -148,12 +149,12 @@ func testStorage(t *testing.T, bucketDir string) {
 			// Bail if bucket is not empty
 			ctx := context.Background()
 			stor := sto.(*Storage)
-			objs, err := stor.client.Bucket(stor.bucket).List(ctx, nil)
-			if err != nil {
+			it := stor.client.Bucket(stor.bucket).Objects(ctx, nil)
+			if _, err := it.Next(); err != iterator.Done {
+				if err == nil {
+					t.Fatalf("Refusing to run test: bucket %v is not empty", *bucket)
+				}
 				t.Fatalf("Error checking if bucket is empty: %v", err)
-			}
-			if len(objs.Results) != 0 {
-				t.Fatalf("Refusing to run test: bucket %v is not empty", *bucket)
 			}
 			if bucketWithDir != *bucket {
 				// Adding "a", and "c" objects in the bucket to make sure objects out of the

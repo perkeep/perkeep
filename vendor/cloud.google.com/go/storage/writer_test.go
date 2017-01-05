@@ -15,8 +15,11 @@
 package storage
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"net/http"
+	"reflect"
 	"testing"
 
 	"golang.org/x/net/context"
@@ -24,9 +27,12 @@ import (
 	"google.golang.org/api/option"
 )
 
-type fakeTransport struct{}
+type fakeTransport struct {
+	gotReq *http.Request
+}
 
 func (t *fakeTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	t.gotReq = req
 	return nil, fmt.Errorf("error handling request")
 }
 
@@ -35,7 +41,7 @@ func TestErrorOnObjectsInsertCall(t *testing.T) {
 	hc := &http.Client{Transport: &fakeTransport{}}
 	client, err := NewClient(ctx, option.WithHTTPClient(hc))
 	if err != nil {
-		t.Errorf("error when creating client: %v", err)
+		t.Fatalf("error when creating client: %v", err)
 	}
 	wc := client.Bucket("bucketname").Object("filename1").NewWriter(ctx)
 	wc.ContentType = "text/plain"
@@ -48,5 +54,39 @@ func TestErrorOnObjectsInsertCall(t *testing.T) {
 	// have closed.
 	if err := wc.Close(); err == nil {
 		t.Errorf("expected error on close, got nil")
+	}
+}
+
+func TestEncryption(t *testing.T) {
+	ctx := context.Background()
+	ft := &fakeTransport{}
+	hc := &http.Client{Transport: ft}
+	client, err := NewClient(ctx, option.WithHTTPClient(hc))
+	if err != nil {
+		t.Fatalf("error when creating client: %v", err)
+	}
+	obj := client.Bucket("bucketname").Object("filename1")
+	key := []byte("secret-key-that-is-32-bytes-long")
+	wc := obj.Key(key).NewWriter(ctx)
+	// TODO(jba): use something other than fakeTransport, which always returns error.
+	wc.Write([]byte("hello world"))
+	wc.Close()
+	if got, want := ft.gotReq.Header.Get("x-goog-encryption-algorithm"), "AES256"; got != want {
+		t.Errorf("algorithm: got %q, want %q", got, want)
+	}
+	gotKey, err := base64.StdEncoding.DecodeString(ft.gotReq.Header.Get("x-goog-encryption-key"))
+	if err != nil {
+		t.Fatalf("decoding key: %v", err)
+	}
+	if !reflect.DeepEqual(gotKey, key) {
+		t.Errorf("key: got %v, want %v", gotKey, key)
+	}
+	wantHash := sha256.Sum256(key)
+	gotHash, err := base64.StdEncoding.DecodeString(ft.gotReq.Header.Get("x-goog-encryption-key-sha256"))
+	if err != nil {
+		t.Fatalf("decoding hash: %v", err)
+	}
+	if !reflect.DeepEqual(gotHash, wantHash[:]) { // wantHash is an array
+		t.Errorf("hash: got\n%v, want\n%v", gotHash, wantHash)
 	}
 }

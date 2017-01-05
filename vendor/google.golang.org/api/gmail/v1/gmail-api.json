@@ -1,11 +1,11 @@
 {
  "kind": "discovery#restDescription",
- "etag": "\"C5oy1hgQsABtYOYIOXWcR3BgYqU/c9szhoCXYrKaLKrzYGmZhJZBHUc\"",
+ "etag": "\"tbys6C40o18GZwyMen5GMkdK-3s/wAsgFKksxbOpV_PEgBKXtQ8pzKw\"",
  "discoveryVersion": "v1",
  "id": "gmail:v1",
  "name": "gmail",
  "version": "v1",
- "revision": "20160711",
+ "revision": "20161107",
  "title": "Gmail API",
  "description": "Access Gmail mailboxes including sending user email.",
  "ownerDomain": "google.com",
@@ -80,6 +80,9 @@
     },
     "https://www.googleapis.com/auth/gmail.labels": {
      "description": "Manage mailbox labels"
+    },
+    "https://www.googleapis.com/auth/gmail.metadata": {
+     "description": "View your email message metadata such as labels and headers, but not the email body"
     },
     "https://www.googleapis.com/auth/gmail.modify": {
      "description": "View and modify but not delete your email"
@@ -767,12 +770,12 @@
     },
     "data": {
      "type": "string",
-     "description": "The body data of a MIME message part. May be empty for MIME container types that have no message body or when the body data is sent as a separate attachment. An attachment ID is present if the body data is contained in a separate attachment.",
+     "description": "The body data of a MIME message part as a base64url encoded string. May be empty for MIME container types that have no message body or when the body data is sent as a separate attachment. An attachment ID is present if the body data is contained in a separate attachment.",
      "format": "byte"
     },
     "size": {
      "type": "integer",
-     "description": "Total number of bytes in the body of the message part.",
+     "description": "Number of bytes for the message part data (encoding notwithstanding).",
      "format": "int32"
     }
    }
@@ -901,7 +904,7 @@
   "SendAs": {
    "id": "SendAs",
    "type": "object",
-   "description": "Settings associated with a send-as alias, which can be either the primary login address associated with the account or a custom \"from\" address. Send-as aliases correspond to the \"Send Mail As\" feature in the web interface. See  for more details.",
+   "description": "Settings associated with a send-as alias, which can be either the primary login address associated with the account or a custom \"from\" address. Send-as aliases correspond to the \"Send Mail As\" feature in the web interface.",
    "properties": {
     "displayName": {
      "type": "string",
@@ -933,7 +936,7 @@
     },
     "treatAsAlias": {
      "type": "boolean",
-     "description": "Whether Gmail should treat this address as an alias for the user's primary email address. See  for more details. This setting only applies to custom \"from\" aliases."
+     "description": "Whether Gmail should  treat this address as an alias for the user's primary email address. This setting only applies to custom \"from\" aliases."
     },
     "verificationStatus": {
      "type": "string",
@@ -1021,7 +1024,7 @@
   "VacationSettings": {
    "id": "VacationSettings",
    "type": "object",
-   "description": "Vacation auto-reply settings for an account. These settings correspond to the \"Vacation responder\" feature in the web interface. See  for more details.",
+   "description": "Vacation auto-reply settings for an account. These settings correspond to the \"Vacation responder\" feature in the web interface.",
    "properties": {
     "enableAutoReply": {
      "type": "boolean",
@@ -1133,6 +1136,7 @@
      "scopes": [
       "https://mail.google.com/",
       "https://www.googleapis.com/auth/gmail.compose",
+      "https://www.googleapis.com/auth/gmail.metadata",
       "https://www.googleapis.com/auth/gmail.modify",
       "https://www.googleapis.com/auth/gmail.readonly"
      ]
@@ -1156,6 +1160,7 @@
      ],
      "scopes": [
       "https://mail.google.com/",
+      "https://www.googleapis.com/auth/gmail.metadata",
       "https://www.googleapis.com/auth/gmail.modify",
       "https://www.googleapis.com/auth/gmail.readonly"
      ]
@@ -1185,6 +1190,7 @@
      },
      "scopes": [
       "https://mail.google.com/",
+      "https://www.googleapis.com/auth/gmail.metadata",
       "https://www.googleapis.com/auth/gmail.modify",
       "https://www.googleapis.com/auth/gmail.readonly"
      ]
@@ -1519,6 +1525,7 @@
        },
        "scopes": [
         "https://mail.google.com/",
+        "https://www.googleapis.com/auth/gmail.metadata",
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/gmail.readonly"
        ]
@@ -1616,6 +1623,7 @@
        "scopes": [
         "https://mail.google.com/",
         "https://www.googleapis.com/auth/gmail.labels",
+        "https://www.googleapis.com/auth/gmail.metadata",
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/gmail.readonly"
        ]
@@ -1643,6 +1651,7 @@
        "scopes": [
         "https://mail.google.com/",
         "https://www.googleapis.com/auth/gmail.labels",
+        "https://www.googleapis.com/auth/gmail.metadata",
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/gmail.readonly"
        ]
@@ -1828,6 +1837,7 @@
        },
        "scopes": [
         "https://mail.google.com/",
+        "https://www.googleapis.com/auth/gmail.metadata",
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/gmail.readonly"
        ]
@@ -2008,7 +2018,7 @@
         },
         "q": {
          "type": "string",
-         "description": "Only return messages matching the specified query. Supports the same query format as the Gmail search box. For example, \"from:someuser@example.com rfc822msgid: is:unread\".",
+         "description": "Only return messages matching the specified query. Supports the same query format as the Gmail search box. For example, \"from:someuser@example.com rfc822msgid: is:unread\". Parameter cannot be used when accessing the api using the gmail.metadata scope.",
          "location": "query"
         },
         "userId": {
@@ -2027,6 +2037,7 @@
        },
        "scopes": [
         "https://mail.google.com/",
+        "https://www.googleapis.com/auth/gmail.metadata",
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/gmail.readonly"
        ]
@@ -2986,6 +2997,7 @@
        },
        "scopes": [
         "https://mail.google.com/",
+        "https://www.googleapis.com/auth/gmail.metadata",
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/gmail.readonly"
        ]
@@ -3022,7 +3034,7 @@
         },
         "q": {
          "type": "string",
-         "description": "Only return threads matching the specified query. Supports the same query format as the Gmail search box. For example, \"from:someuser@example.com rfc822msgid: is:unread\".",
+         "description": "Only return threads matching the specified query. Supports the same query format as the Gmail search box. For example, \"from:someuser@example.com rfc822msgid: is:unread\". Parameter cannot be used when accessing the api using the gmail.metadata scope.",
          "location": "query"
         },
         "userId": {
@@ -3041,6 +3053,7 @@
        },
        "scopes": [
         "https://mail.google.com/",
+        "https://www.googleapis.com/auth/gmail.metadata",
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/gmail.readonly"
        ]

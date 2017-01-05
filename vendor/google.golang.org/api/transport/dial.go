@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/oauth"
 
+	gtransport "google.golang.org/api/googleapi/transport"
 	"google.golang.org/api/internal"
 	"google.golang.org/api/option"
 )
@@ -48,6 +49,15 @@ func NewHTTPClient(ctx context.Context, opts ...option.ClientOption) (*http.Clie
 	// TODO(djd): Set UserAgent on all outgoing requests.
 	if o.HTTPClient != nil {
 		return o.HTTPClient, o.Endpoint, nil
+	}
+	if o.APIKey != "" {
+		hc := &http.Client{
+			Transport: &gtransport.APIKey{
+				Key:       o.APIKey,
+				Transport: http.DefaultTransport,
+			},
+		}
+		return hc, o.Endpoint, nil
 	}
 	if o.ServiceAccountJSONFilename != "" {
 		ts, err := serviceAcctTokenSource(ctx, o.ServiceAccountJSONFilename, o.Scopes...)

@@ -62,8 +62,9 @@ type PageInfo struct {
 	// Function that fetches a page from the underlying service. It should pass
 	// the pageSize and pageToken arguments to the service, fill the buffer
 	// with the results from the call, and return the next-page token returned
-	// by the service. If the underlying RPC takes an int32 page size, pageSize
-	// should be silently truncated.
+	// by the service. The function must not remove any existing items from the
+	// buffer. If the underlying RPC takes an int32 page size, pageSize should
+	// be silently truncated.
 	fetch func(pageSize int, pageToken string) (nextPageToken string, err error)
 
 	// Function that clears the iterator's buffer, returning any currently buffered items.
@@ -190,6 +191,9 @@ func NewPager(iter Pageable, pageSize int, pageToken string) *Pager {
 // The second return value is non-nil if an error occurred. It will never be
 // the special iterator sentinel value Done. To recognize the end of the
 // iteration, compare nextPageToken to the empty string.
+//
+// It is possible for NextPage to return a single zero-length page along with
+// an empty page token when there are no more items in the iteration.
 func (p *Pager) NextPage(slicep interface{}) (nextPageToken string, err error) {
 	p.pageInfo.nextPageCalled = true
 	if p.pageInfo.err != nil {
