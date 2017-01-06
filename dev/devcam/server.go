@@ -73,6 +73,7 @@ type serverCmd struct {
 	flickrAPIKey     string
 	foursquareAPIKey string
 	picasaAPIKey     string
+	plaidAPIKey      string
 	twitterAPIKey    string
 	extraArgs        string // passed to camlistored
 	// end of flag vars
@@ -117,6 +118,7 @@ func init() {
 		flags.StringVar(&cmd.flickrAPIKey, "flickrapikey", "", "The key and secret to use with the Flickr importer. Formatted as '<key>:<secret>'.")
 		flags.StringVar(&cmd.foursquareAPIKey, "foursquareapikey", "", "The key and secret to use with the Foursquare importer. Formatted as '<clientID>:<clientSecret>'.")
 		flags.StringVar(&cmd.picasaAPIKey, "picasakey", "", "The username and password to use with the Picasa importer. Formatted as '<username>:<password>'.")
+		flags.StringVar(&cmd.plaidAPIKey, "plaidkey", "", "The client_id and secret to use with the Plaid importer. Formatted as '<client_id>:<secret>'.")
 		flags.StringVar(&cmd.twitterAPIKey, "twitterapikey", "", "The key and secret to use with the Twitter importer. Formatted as '<APIkey>:<APIsecret>'.")
 		flags.StringVar(&cmd.root, "root", "", "A directory to store data in. Defaults to a location in the OS temp directory.")
 		flags.StringVar(&cmd.extraArgs, "extraargs", "",
@@ -314,6 +316,10 @@ func (c *serverCmd) setEnvVars() error {
 	if c.picasaAPIKey != "" {
 		setenv("CAMLI_PICASA_ENABLED", "true")
 		setenv("CAMLI_PICASA_API_KEY", c.picasaAPIKey)
+	}
+	if c.plaidAPIKey != "" {
+		setenv("CAMLI_PLAID_ENABLED", "true")
+		setenv("CAMLI_PLAID_API_KEY", c.plaidAPIKey)
 	}
 	if c.twitterAPIKey != "" {
 		setenv("CAMLI_TWITTER_ENABLED", "true")

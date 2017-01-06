@@ -349,6 +349,9 @@
 				"picasa": {
 					"clientSecret": ["_env", "${CAMLI_PICASA_API_KEY}", ""]
 				},
+				"plaid": {
+					"clientSecret": ["_env", "${CAMLI_PLAID_API_KEY}", ""]
+				},
 				"twitter": {
 					"clientSecret": ["_env", "${CAMLI_TWITTER_API_KEY}", ""]
 				}
