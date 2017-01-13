@@ -39,11 +39,9 @@ type gceCmd struct {
 	zone     string
 	machine  string
 	instName string
-	hostname string
-	certFile string
-	keyFile  string
-	sshPub   string
 	verbose  bool
+	hostname string
+	wip      bool
 }
 
 func init() {
@@ -53,19 +51,19 @@ func init() {
 		flags.StringVar(&cmd.zone, "zone", gce.DefaultRegion, "GCE zone or region. If a region is given, a random zone in that region is selected. See https://cloud.google.com/compute/docs/zones")
 		flags.StringVar(&cmd.machine, "machine", gce.DefaultMachineType, "GCE machine type (e.g. n1-standard-1, f1-micro, g1-small); see https://cloud.google.com/compute/docs/machine-types")
 		flags.StringVar(&cmd.instName, "instance_name", gce.DefaultInstanceName, "Name of VM instance.")
-		flags.StringVar(&cmd.hostname, "hostname", "", "Hostname for the instance and self-signed certificates. Must be given if generating self-signed certs.")
-		flags.StringVar(&cmd.certFile, "cert", "", "Certificate file for TLS. A self-signed one will be generated if this flag is omitted.")
-		flags.StringVar(&cmd.keyFile, "key", "", "Key file for the TLS certificate. Must be given with --cert")
-		flags.StringVar(&cmd.sshPub, "ssh_public_key", "", "SSH public key file to authorize. Can modify later in Google's web UI anyway.")
+		flags.StringVar(&cmd.hostname, "hostname", "", "Optional hostname for the instance. If set, the custom metadata variable \"camlistore-hostname\" on the instance takes that value. Otherwise, camlistored sets that variable to the hostname we get from the camliNet DNS.")
+		flags.BoolVar(&cmd.wip, "wip", false, "Developer option. Deploy the WORKINPROGRESS camlistored tarball.")
 		flags.BoolVar(&cmd.verbose, "verbose", false, "Be verbose.")
 		return cmd
 	})
 }
 
 const (
-	clientIdDat     = "client-id.dat"
-	clientSecretDat = "client-secret.dat"
-	helpEnableAuth  = `Enable authentication: in your project console, navigate to "APIs and auth", "Credentials", click on "Create new Client ID", and pick "Installed application", with type "Other". Copy the CLIENT ID to ` + clientIdDat + `, and the CLIENT SECRET to ` + clientSecretDat
+	clientIdDat       = "client-id.dat"
+	clientSecretDat   = "client-secret.dat"
+	helpEnableAuth    = `Enable authentication: in your project console, navigate to "APIs and auth", "Credentials", click on "Create new Client ID", and pick "Installed application", with type "Other". Copy the CLIENT ID to ` + clientIdDat + `, and the CLIENT SECRET to ` + clientSecretDat
+	helpCreateProject = "Go to " + gce.ConsoleURL + " to create a new Google Cloud project"
+	helpEnableAPIs    = `Enable the project APIs: in your project console, navigate to "APIs and auth", "APIs". In the list, enable "Google Cloud Storage", "Google Cloud Storage", "Google Cloud Storage JSON API", and "Google Compute Engine".`
 )
 
 func (c *gceCmd) Describe() string {
@@ -82,7 +80,7 @@ func (c *gceCmd) Usage() {
 }
 
 func printHelp() {
-	for _, v := range []string{gce.HelpCreateProject, helpEnableAuth, gce.HelpEnableAPIs} {
+	for _, v := range []string{helpCreateProject, helpEnableAuth, helpEnableAPIs} {
 		fmt.Fprintf(os.Stderr, "%v\n", v)
 	}
 }
@@ -93,12 +91,6 @@ func (c *gceCmd) RunCommand(args []string) error {
 	}
 	if c.project == "" {
 		return cmdmain.UsageError("Missing --project flag.")
-	}
-	if (c.certFile == "") != (c.keyFile == "") {
-		return cmdmain.UsageError("--cert and --key must both be given together.")
-	}
-	if c.certFile == "" && c.hostname == "" {
-		return cmdmain.UsageError("Either --hostname, or --cert & --key must provided.")
 	}
 
 	// We embed the client ID and client secret, per
@@ -149,12 +141,8 @@ func (c *gceCmd) RunCommand(args []string) error {
 		Project:  c.project,
 		Machine:  c.machine,
 		Zone:     zone,
-		CertFile: c.certFile,
-		KeyFile:  c.keyFile,
 		Hostname: c.hostname,
-	}
-	if c.sshPub != "" {
-		instConf.SSHPub = strings.TrimSpace(readFile(c.sshPub))
+		WIP:      c.wip,
 	}
 
 	log.Printf("Creating instance %s (in project %s) in zone %s ...", c.instName, c.project, zone)

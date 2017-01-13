@@ -41,7 +41,6 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/localdisk"
 	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/sorted/leveldb"
 
@@ -56,11 +55,8 @@ import (
 const cookieExpiration = 24 * time.Hour
 
 var (
-	helpGenCert      = `A self-signed HTTPS certificate will be generated for the chosen domain name (or for "localhost" if left blank) and set as the default. You will be able to set another HTTPS certificate for Camlistore afterwards.`
-	helpDomainName   = "http://en.wikipedia.org/wiki/Fully_qualified_domain_name"
 	helpMachineTypes = "https://cloud.google.com/compute/docs/machine-types"
 	helpZones        = "https://cloud.google.com/compute/docs/zones#available"
-	helpSSH          = "https://cloud.google.com/compute/docs/console#sshkeys"
 
 	machineValues = []string{
 		"g1-small",
@@ -73,12 +69,6 @@ var (
 		"asia-east1":   []string{"-a", "-b", "-c"},
 	}
 )
-
-// helpChangeCert returns the template string used for helping with TLS
-// certificate files, while sidestepping failInTests panics from osutil.
-func helpChangeCert() string {
-	return `in your project console, navigate to "Storage", "Cloud Storage", "Storage browser", "%s-camlistore", "config". Delete "` + filepath.Base(osutil.DefaultTLSKey()) + `", "` + filepath.Base(osutil.DefaultTLSCert()) + `", and replace them by uploading your own files (with the same names).`
-}
 
 // DeployHandler serves a wizard that helps with the deployment of Camlistore on Google
 // Compute Engine. It must be initialized with NewDeployHandler.
@@ -188,16 +178,8 @@ func NewDeployHandler(host, prefix string) (*DeployHandler, error) {
 		scheme:         scheme,
 		prefix:         prefix,
 		help: map[string]template.HTML{
-			"createProject":   template.HTML(googURLPattern.ReplaceAllString(HelpCreateProject, toHyperlink)),
-			"enableAPIs":      template.HTML(HelpEnableAPIs),
-			"genCert":         template.HTML(helpGenCert),
-			"domainName":      template.HTML(helpDomainName),
-			"machineTypes":    template.HTML(helpMachineTypes),
-			"zones":           template.HTML(helpZones),
-			"ssh":             template.HTML(helpSSH),
-			"changeCert":      template.HTML(helpChangeCert()),
-			"changeSSH":       template.HTML(HelpManageSSHKeys),
-			"changeHTTPCreds": template.HTML(HelpManageHTTPCreds),
+			"machineTypes": template.HTML(helpMachineTypes),
+			"zones":        template.HTML(helpZones),
 		},
 		clientID:     clientID,
 		clientSecret: clientSecret,
@@ -491,14 +473,53 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 		} else {
 			state.InstAddr = addr(inst)
 			state.Success = true
-			state.CertFingerprintSHA1 = depl.certFingerprints["SHA-1"]
-			state.CertFingerprintSHA256 = depl.certFingerprints["SHA-256"]
+			if instConf.Hostname != "" {
+				state.InstHostname = instConf.Hostname
+			}
 		}
 		if err := h.recordState(br, state); err != nil {
 			h.logger.Printf("Could not record creation state for %v: %v", br, err)
 			h.recordStateErrMu.Lock()
 			defer h.recordStateErrMu.Unlock()
 			h.recordStateErr[br.String()] = err
+			return
+		}
+		if instConf.Hostname != "" {
+			return
+		}
+		// We also try to get the "camlistore-hostname" from the
+		// instance, so we can tell the user what their hostname is. It can
+		// take a while as camlistored itself sets it after it has
+		// registered with the camlistore.net DNS.
+		giveupTime := time.Now().Add(time.Hour)
+		pause := time.Second
+		for {
+			hostname, err := depl.getInstanceAttribute("camlistore-hostname")
+			if err != nil && err != errAttrNotFound {
+				h.logger.Printf("could not get camlistore-hostname of instance: %v", err)
+				state.Success = false
+				state.Err = fmt.Sprintf("could not get camlistore-hostname of instance: %v", err)
+				break
+			}
+			if err == nil {
+				state.InstHostname = hostname
+				break
+			}
+			if time.Now().After(giveupTime) {
+				h.logger.Printf("Giving up on getting camlistore-hostname of instance")
+				state.Success = false
+				state.Err = fmt.Sprintf("could not get camlistore-hostname of instance")
+				break
+			}
+			time.Sleep(pause)
+			pause *= 2
+		}
+		if err := h.recordState(br, state); err != nil {
+			h.logger.Printf("Could not record hostname for %v: %v", br, err)
+			h.recordStateErrMu.Lock()
+			defer h.recordStateErrMu.Unlock()
+			h.recordStateErr[br.String()] = err
+			return
 		}
 	}()
 	h.serveProgress(w, br)
@@ -515,31 +536,12 @@ func (h *DeployHandler) serveOldInstance(w http.ResponseWriter, br blob.Ref, dep
 		// instance not found.
 		return false
 	}
-	var sigs map[string]string
-	cert, _, err := depl.getInstalledTLS()
-	if err == nil {
-		sigs, err = httputil.CertFingerprints(cert)
-		if err != nil {
-			err = fmt.Errorf("could not get fingerprints of certificate: %v", err)
-		}
-	}
-	if err != nil {
-		h.logger.Printf("Instance (%v, %v, %v) already exists, but error getting its certificate: %v",
-			depl.Conf.Project, depl.Conf.Name, depl.Conf.Zone, err)
-		h.serveErrorPage(w,
-			fmt.Errorf("Instance already running at %v. You need to manually delete the old one before creating a new one.", addr(inst)),
-			helpDeleteInstance,
-		)
-		return true
-	}
 	h.logger.Printf("Reusing existing instance for (%v, %v, %v)", depl.Conf.Project, depl.Conf.Name, depl.Conf.Zone)
 
 	if err := h.recordState(br, &creationState{
-		InstConf:              br,
-		InstAddr:              addr(inst),
-		CertFingerprintSHA1:   sigs["SHA-1"],
-		CertFingerprintSHA256: sigs["SHA-256"],
-		Exists:                true,
+		InstConf: br,
+		InstAddr: addr(inst),
+		Exists:   true,
 	}); err != nil {
 		h.logger.Printf("Could not record creation state for %v: %v", br, err)
 		h.serveErrorPage(w, fmt.Errorf("An error occurred while recording the state of your instance. %v", fileIssue(br.String())))
@@ -605,15 +607,14 @@ func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		h.serveSuccess(w, &TemplateData{
-			Prefix:                h.prefix,
-			Help:                  h.help,
-			InstanceIP:            state.InstAddr,
-			ProjectConsoleURL:     fmt.Sprintf("%s/project/%s/compute", ConsoleURL, conf.Project),
-			Conf:                  conf,
-			CertFingerprintSHA1:   state.CertFingerprintSHA1,
-			CertFingerprintSHA256: state.CertFingerprintSHA256,
-			ZoneValues:            h.zoneValues(),
-			MachineValues:         machineValues,
+			Prefix:            h.prefix,
+			Help:              h.help,
+			InstanceIP:        state.InstAddr,
+			InstanceHostname:  state.InstHostname,
+			ProjectConsoleURL: fmt.Sprintf("%s/project/%s/compute", ConsoleURL, conf.Project),
+			Conf:              conf,
+			ZoneValues:        h.zoneValues(),
+			MachineValues:     machineValues,
 		})
 		return
 	}
@@ -704,8 +705,7 @@ func (h *DeployHandler) confFromForm(r *http.Request) (*InstanceConf, error) {
 		Project:  project,
 		Machine:  formValueOrDefault(r, "machine", DefaultMachineType),
 		Zone:     zone,
-		Hostname: formValueOrDefault(r, "hostname", "localhost"),
-		SSHPub:   formValueOrDefault(r, "sshPub", ""),
+		Hostname: formValueOrDefault(r, "hostname", ""),
 		Ctime:    time.Now(),
 		WIP:      r.FormValue("WIP") == "1",
 	}, nil
@@ -820,13 +820,12 @@ func addr(inst *compute.Instance) string {
 // creationState keeps information all along the creation process of the instance. The
 // fields are only exported because we json encode them.
 type creationState struct {
-	Err                   string   `json:",omitempty"` // if non blank, creation failed.
-	InstConf              blob.Ref // key to the user provided instance configuration.
-	InstAddr              string   // ip address of the instance.
-	CertFingerprintSHA1   string   // SHA-1 prefix fingerprint of the self-signed HTTPS certificate.
-	CertFingerprintSHA256 string   // SHA-256 prefix fingerprint of the self-signed HTTPS certificate.
-	Success               bool     // whether new instance creation was successful.
-	Exists                bool     // true if an instance with same zone, same project name, and same instance name already exists.
+	Err          string   `json:",omitempty"` // if non blank, creation failed.
+	InstConf     blob.Ref // key to the user provided instance configuration.
+	InstAddr     string   // ip address of the instance.
+	InstHostname string   // hostame (in the camlistore.net domain) of the instance
+	Success      bool     // whether new instance creation was successful.
+	Exists       bool     // true if an instance with same zone, same project name, and same instance name already exists.
 }
 
 // dataStores returns the blobserver that stores the instances configurations, and the kv
@@ -878,21 +877,20 @@ func (h *DeployHandler) AddTemplateTheme(text string) error {
 
 // TemplateData is the data passed for templates of tplHTML.
 type TemplateData struct {
-	Title                 string
-	Help                  map[string]template.HTML // help bits within the form.
-	Hints                 []string                 // helping hints printed in case of an error.
-	Err                   error
-	Prefix                string        // handler prefix.
-	InstanceKey           string        // instance creation identifier, for the JS code to regularly poll for progress.
-	PiggyGIF              string        // URI to the piggy gif for progress animation.
-	Conf                  *InstanceConf // Configuration requested by the user
-	InstanceIP            string        // instance IP address that we display after successful creation.
-	CertFingerprintSHA1   string        // SHA-1 fingerprint of the self-signed HTTPS certificate.
-	CertFingerprintSHA256 string        // SHA-256 fingerprint of the self-signed HTTPS certificate.
-	ProjectConsoleURL     string
-	ZoneValues            []string
-	MachineValues         []string
-	CamliVersion          string // git revision found in https://storage.googleapis.com/camlistore-release/docker/VERSION
+	Title             string
+	Help              map[string]template.HTML // help bits within the form.
+	Hints             []string                 // helping hints printed in case of an error.
+	Err               error
+	Prefix            string        // handler prefix.
+	InstanceKey       string        // instance creation identifier, for the JS code to regularly poll for progress.
+	PiggyGIF          string        // URI to the piggy gif for progress animation.
+	Conf              *InstanceConf // Configuration requested by the user
+	InstanceIP        string        `json:",omitempty"` // instance IP address that we display after successful creation.
+	InstanceHostname  string        `json:",omitempty"`
+	ProjectConsoleURL string
+	ZoneValues        []string
+	MachineValues     []string
+	CamliVersion      string // git revision found in https://storage.googleapis.com/camlistore-release/docker/VERSION
 }
 
 const toHyperlink = `<a href="$1$3">$1$3</a>`
@@ -1000,21 +998,17 @@ func tplHTML() string {
 	<h1><a href="{{.Prefix}}">Camlistore on Google Cloud</a></h1>
 
 	{{if .InstanceIP}}
-		<p>Success. Your Camlistore instance should be up at <a href="https://{{.InstanceIP}}">https://{{.InstanceIP}}</a>. It can take a couple of minutes to be ready.</p>
+		{{if .InstanceHostname}}
+			<p>Success. Your Camlistore instance is running at <a href="https://{{.InstanceHostname}}">{{.InstanceHostname}}</a>.</p>
+		{{else}}
+			<!-- TODO(mpl): refresh automatically with some js when InstanceHostname is ready? -->
+			<p>Success. Your Camlistore instance is deployed at {{.InstanceIP}}. Refresh this page in a couple of minutes to know your hostname. Or go to <a href="{{.ProjectConsoleURL}}/instancesDetail/zones/{{.Conf.Zone}}/instances/camlistore-server">camlistore-server instance</a>, and look for <b>camlistore-hostname</b> (which might take a while to appear too) in the custom metadata section.</p>
+		{{end}}
 		<p>Please save the information on this page.</p>
 
 		<h4>First connection</h4>
 		<p>
-		The password to access the web interface of your Camlistore instance was automatically generated. Go to the <a href="{{.ProjectConsoleURL}}/instancesDetail/zones/{{.Conf.Zone}}/instances/camlistore-server">camlistore-server instance</a> page to view it, and possibly change it. It is <b>camlistore-password</b> in the custom metadata section. Similarly, the username is camlistore-username. Then <a href="https://{{.InstanceIP}}/status">restart</a> Camlistore if you changed anything.
-		</p>
-
-		<p>
-		A self-signed HTTPS certificate was automatically generated with "{{.Conf.Hostname}}" as the common name.<br>
-		You will need to add an exception for it in your browser when you get a security warning the first time you connect. When you add a trusted certificate, verify that its certificate fingerprint matches one of:
-		<table>
-			<tr><td align=right>SHA-1</td><td><code style="color:blue">{{.CertFingerprintSHA1}}</code></td></tr>
-			<tr><td align=right>SHA-256</td><td><code style="color:blue">{{.CertFingerprintSHA256}}</code></td></tr>
-		</table>
+		The password to access the web interface of your Camlistore instance was automatically generated. Go to the <a href="{{.ProjectConsoleURL}}/instancesDetail/zones/{{.Conf.Zone}}/instances/camlistore-server">camlistore-server instance</a> page to view it, and possibly change it. It is <b>camlistore-password</b> in the custom metadata section. Similarly, the username is camlistore-username. Then restart Camlistore from the /status page if you changed anything.
 		</p>
 
 		<h4>Further configuration</h4>
@@ -1023,7 +1017,7 @@ func tplHTML() string {
 		</p>
 
 		<p>
-		If you want to use your own HTTPS certificate and key, go to <a href="https://console.developers.google.com/project/{{.Conf.Project}}/storage/browser/{{.Conf.Project}}-camlistore/config/">the storage browser</a>. Delete "<b>` + certFilename() + `</b>", "<b>` + keyFilename() + `</b>", and replace them by uploading your own files (with the same names). Then <a href="https://{{.InstanceIP}}/status">restart</a> Camlistore.
+		If you want to use your own HTTPS certificate and key, go to <a href="https://console.developers.google.com/project/{{.Conf.Project}}/storage/browser/{{.Conf.Project}}-camlistore/config/">the storage browser</a>. Delete "<b>` + certFilename() + `</b>", "<b>` + keyFilename() + `</b>", and replace them by uploading your own files (with the same names). Then restart Camlistore.
 		</p>
 
 		<p> Camlistore should not require system

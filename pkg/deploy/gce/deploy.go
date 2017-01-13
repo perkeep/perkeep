@@ -18,16 +18,12 @@ limitations under the License.
 package gce // import "camlistore.org/pkg/deploy/gce"
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -35,11 +31,9 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/osutil"
 
 	"cloud.google.com/go/logging"
-	cloudstorage "cloud.google.com/go/storage"
 	"go4.org/cloud/google/gceutil"
 	"go4.org/syncutil"
 	"golang.org/x/net/context"
@@ -47,7 +41,6 @@ import (
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/googleapi"
-	"google.golang.org/api/option"
 	storage "google.golang.org/api/storage/v1"
 )
 
@@ -64,12 +57,8 @@ const (
 
 	configDir = "config"
 
-	ConsoleURL          = "https://console.developers.google.com"
-	HelpCreateProject   = "Go to " + ConsoleURL + " to create a new Google Cloud project"
-	HelpEnableAPIs      = `Enable the project APIs: in your project console, navigate to "APIs and auth", "APIs". In the list, enable "Google Cloud Storage", "Google Cloud Storage JSON API", and "Google Compute Engine".`
-	helpDeleteInstance  = `To delete an existing Compute Engine instance: in your project console, navigate to "Compute", "Compute Engine", and "VM instances". Select your instance and click "Delete".`
-	HelpManageSSHKeys   = `To manage/add SSH keys: in your project console, navigate to "Compute", "Compute Engine", and "VM instances". Click on your instance name. Scroll down to the SSH Keys section.`
-	HelpManageHTTPCreds = `To change your login and password: in your project console, navigate to "Compute", "Compute Engine", and "VM instances". Click on your instance name. Set camlistore-username and/or camlistore-password in the custom metadata section.`
+	ConsoleURL         = "https://console.developers.google.com"
+	helpDeleteInstance = `To delete an existing Compute Engine instance: in your project console, navigate to "Compute", "Compute Engine", and "VM instances". Select your instance and click "Delete".`
 )
 
 var (
@@ -109,9 +98,6 @@ type InstanceConf struct {
 	Project  string // Google project ID where the instance is created.
 	Machine  string // Machine type.
 	Zone     string // GCE zone; see https://cloud.google.com/compute/docs/zones
-	SSHPub   string // SSH public key.
-	CertFile string // HTTPS certificate file.
-	KeyFile  string // HTTPS key file.
 	Hostname string // Fully qualified domain name.
 
 	configDir string // bucketBase() + "/config"
@@ -263,6 +249,28 @@ func (d *Deployer) checkProjectID() error {
 	return nil
 }
 
+var errAttrNotFound = errors.New("attribute not found")
+
+// getInstanceAttribute returns the value for attr in the custom metadata of the
+// instance. It returns errAttrNotFound is such a metadata attributed does not
+// exist.
+func (d *Deployer) getInstanceAttribute(attr string) (string, error) {
+	s, err := compute.New(d.Client)
+	if err != nil {
+		return "", fmt.Errorf("error getting compute service: %v", err)
+	}
+	inst, err := compute.NewInstancesService(s).Get(d.Conf.Project, d.Conf.Zone, d.Conf.Name).Do()
+	if err != nil {
+		return "", fmt.Errorf("error getting instance: %v", err)
+	}
+	for _, v := range inst.Metadata.Items {
+		if v.Key == attr {
+			return *(v.Value), nil
+		}
+	}
+	return "", errAttrNotFound
+}
+
 // Create sets up and starts a Google Compute Engine instance as defined in d.Conf. It
 // creates the necessary Google Storage buckets beforehand.
 func (d *Deployer) Create(ctx context.Context) (*compute.Instance, error) {
@@ -295,10 +303,6 @@ func (d *Deployer) Create(ctx context.Context) (*compute.Instance, error) {
 
 	if err := d.setBuckets(storageService, ctx); err != nil {
 		return nil, fmt.Errorf("could not create buckets: %v", err)
-	}
-
-	if err := d.setupHTTPS(storageService); err != nil {
-		return nil, fmt.Errorf("could not setup HTTPS: %v", err)
 	}
 
 	if err := d.createInstance(computeService, ctx); err != nil {
@@ -409,7 +413,7 @@ func (d *Deployer) createInstance(computeService *compute.Service, ctx context.C
 			},
 		},
 	}
-	if d.Conf.Hostname != "" && d.Conf.Hostname != "localhost" {
+	if d.Conf.Hostname != "" {
 		instance.Metadata.Items = append(instance.Metadata.Items, &compute.MetadataItems{
 			Key:   "camlistore-hostname",
 			Value: googleapi.String(d.Conf.Hostname),
@@ -484,44 +488,7 @@ func cloudConfig(conf *InstanceConf) string {
 		camlistoredTarball += "camlistored.tar.gz"
 	}
 	config = strings.Replace(config, "CAMLISTORED_TARBALL", camlistoredTarball, 1)
-	if conf.SSHPub != "" {
-		config += fmt.Sprintf("\nssh_authorized_keys:\n    - %s\n", conf.SSHPub)
-	}
 	return config
-}
-
-// getInstalledTLS returns the TLS certificate and key stored on Google Cloud Storage for the
-// instance defined in d.Conf.
-//
-// If either the TLS keypair doesn't exist, the error is os.ErrNotExist.
-func (d *Deployer) getInstalledTLS() (certPEM, keyPEM []byte, err error) {
-	ctx := context.Background()
-	stoClient, err := cloudstorage.NewClient(ctx, option.WithHTTPClient(d.Client))
-	if err != nil {
-		return nil, nil, fmt.Errorf("error creating Cloud Storage client to fetch TLS cert & key from new instance: %v", err)
-	}
-	getFile := func(name string) ([]byte, error) {
-		sr, err := stoClient.Bucket(d.Conf.bucketBase()).Object(path.Join(configDir, name)).NewReader(ctx)
-		if err == cloudstorage.ErrObjectNotExist {
-			return nil, os.ErrNotExist
-		}
-		if err != nil {
-			return nil, err
-		}
-		defer sr.Close()
-		return ioutil.ReadAll(sr)
-	}
-	var grp syncutil.Group
-	grp.Go(func() (err error) {
-		certPEM, err = getFile(certFilename())
-		return
-	})
-	grp.Go(func() (err error) {
-		keyPEM, err = getFile(keyFilename())
-		return
-	})
-	err = grp.Err()
-	return
 }
 
 // setBuckets defines the buckets needed by the instance and creates them.
@@ -643,80 +610,6 @@ func (d *Deployer) setFirewall(ctx context.Context, computeService *compute.Serv
 		})
 	}
 	return wg.Err()
-}
-
-// TODO(bradfitz,mpl): Once we do ACME (LetsEncrypt.org) on their instance, we
-// don't need to generate their TLS certs for them in setupHTTPS.
-
-// setupHTTPS uploads to the configuration bucket the certificate and key used by the
-// instance for HTTPS. It generates them if d.Conf.CertFile or d.Conf.KeyFile is not defined.
-// It should be called after setBuckets.
-func (d *Deployer) setupHTTPS(storageService *storage.Service) error {
-	installedCert, _, err := d.getInstalledTLS()
-	if err != nil && err != os.ErrNotExist {
-		return err
-	}
-	if err == nil {
-		sigs, err := httputil.CertFingerprints(installedCert)
-		if err != nil {
-			return fmt.Errorf("could not get fingerprints of certificate: %v", err)
-		}
-		d.certFingerprints = sigs
-		if Verbose {
-			d.Printf("Reusing existing certificate with fingerprint %v", sigs["SHA-256"])
-		}
-		return nil
-	}
-	var cert, key io.ReadCloser
-	if d.Conf.CertFile != "" && d.Conf.KeyFile != "" {
-		// Note: it is not a bug that we do not set d.certFingerprint in that case, because only
-		// the wizard template cares about d.certFingerprint, and we never get here with the wizard
-		// - but only with camdeploy.
-		cert, err = os.Open(d.Conf.CertFile)
-		if err != nil {
-			return err
-		}
-		defer cert.Close()
-		key, err = os.Open(d.Conf.KeyFile)
-		if err != nil {
-			return err
-		}
-		defer key.Close()
-	} else {
-
-		if Verbose {
-			d.Printf("Generating self-signed certificate for %v ...", d.Conf.Hostname)
-		}
-		certBytes, keyBytes, err := httputil.GenSelfTLS(d.Conf.Hostname)
-		if err != nil {
-			return fmt.Errorf("error generating certificates: %v", err)
-		}
-		sigs, err := httputil.CertFingerprints(certBytes)
-		if err != nil {
-			return fmt.Errorf("could not get fingerprints of certificate: %v", err)
-		}
-		d.certFingerprints = sigs
-		if Verbose {
-			d.Printf("Wrote certificate with SHA-256 fingerprint %s", sigs["SHA-256"])
-		}
-		cert = ioutil.NopCloser(bytes.NewReader(certBytes))
-		key = ioutil.NopCloser(bytes.NewReader(keyBytes))
-	}
-
-	if Verbose {
-		d.Print("Uploading certificate and key...")
-	}
-	_, err = storageService.Objects.Insert(d.Conf.bucketBase(),
-		&storage.Object{Name: path.Join(configDir, certFilename())}).Media(cert).Do()
-	if err != nil {
-		return fmt.Errorf("cert upload failed: %v", err)
-	}
-	_, err = storageService.Objects.Insert(d.Conf.bucketBase(),
-		&storage.Object{Name: path.Join(configDir, keyFilename())}).Media(key).Do()
-	if err != nil {
-		return fmt.Errorf("key upload failed: %v", err)
-	}
-	return nil
 }
 
 // returns the MySQL InnoDB buffer pool size (in bytes) as a function

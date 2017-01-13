@@ -86,10 +86,13 @@ import (
 	"go4.org/legal"
 	"go4.org/wkfs"
 
+	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/logging"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2/google"
+	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 )
 
@@ -113,6 +116,8 @@ const (
 	camliNetDNS    = "camnetdns.camlistore.org"
 	camliNetDomain = "camlistore.net"
 )
+
+var camliNetHostName string // <keyId>.camlistore.net
 
 // For logging on Google Cloud Logging when not running on Google Compute Engine
 // (for debugging).
@@ -333,7 +338,7 @@ func listenForCamliNet(ws *webserver.Server, config *serverinit.Config) (baseURL
 	if err != nil {
 		return "", fmt.Errorf("could not get keyId for camliNet hostname: %v", err)
 	}
-	camliNetHostName := strings.ToLower(keyId + "." + camliNetDomain)
+	camliNetHostName = strings.ToLower(keyId + "." + camliNetDomain)
 	m := autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
 		HostPolicy: autocert.HostWhitelist(camliNetHostName),
@@ -441,6 +446,104 @@ func muxChallengeHandler(ws *webserver.Server, config *serverinit.Config) (*gpgc
 	return cl, nil
 }
 
+// setInstanceHostname sets the "camlistore-hostname" metadata on the GCE
+// instance where camlistored is running. The value set is the same as the one we
+// register with the camlistore.net DNS, i.e. "<gpgKeyId>.camlistore.net", where
+// <gpgKeyId> is Camlistore's keyId.
+func setInstanceHostname() error {
+	if !env.OnGCE() {
+		return nil
+	}
+
+	hostname, err := metadata.InstanceAttributeValue("camlistore-hostname")
+	if err != nil {
+		if _, ok := err.(metadata.NotDefinedError); !ok {
+			return fmt.Errorf("error getting existing camlistore-hostname: %v", err)
+		}
+	}
+	if err == nil && hostname != "" {
+		// we do not overwrite the existing value
+		return nil
+	}
+
+	ctx := context.Background()
+
+	hc, err := google.DefaultClient(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting a default http client: %v", err)
+	}
+	s, err := compute.New(hc)
+	if err != nil {
+		return fmt.Errorf("error getting a compute service: %v", err)
+	}
+	cs := compute.NewInstancesService(s)
+	projectID, err := metadata.ProjectID()
+	if err != nil {
+		return fmt.Errorf("error getting projectID: %v", err)
+	}
+	zone, err := metadata.Zone()
+	if err != nil {
+		return fmt.Errorf("error getting zone: %v", err)
+	}
+	instance, err := metadata.InstanceName()
+	if err != nil {
+		return fmt.Errorf("error getting instance name: %v", err)
+	}
+
+	inst, err := cs.Get(projectID, zone, instance).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("error getting instance: %v", err)
+	}
+	items := inst.Metadata.Items
+	items = append(items, &compute.MetadataItems{
+		Key:   "camlistore-hostname",
+		Value: googleapi.String(camliNetHostName),
+	})
+	mdata := &compute.Metadata{
+		Items:       items,
+		Fingerprint: inst.Metadata.Fingerprint,
+	}
+
+	call := cs.SetMetadata(projectID, zone, instance, mdata).Context(ctx)
+	op, err := call.Do()
+	if err != nil {
+		if !googleapi.IsNotModified(err) {
+			return fmt.Errorf("error setting instance hostname: %v", err)
+		}
+		return nil
+	}
+	opName := op.Name
+	for {
+		// TODO(mpl): add a timeout maybe?
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		time.Sleep(500 * time.Millisecond)
+		op, err := s.ZoneOperations.Get(projectID, zone, opName).Do()
+		if err != nil {
+			return fmt.Errorf("failed to get op %s: %v", opName, err)
+		}
+		switch op.Status {
+		case "PENDING", "RUNNING":
+			continue
+		case "DONE":
+			if op.Error != nil {
+				for _, operr := range op.Error.Errors {
+					log.Printf("operation error: %+v", operr)
+				}
+				return fmt.Errorf("operation error")
+			}
+			log.Printf(`Successfully set "camlistore-hostname" to "%v" on instance`, camliNetHostName)
+			return nil
+		default:
+			return fmt.Errorf("unknown operation status %q: %+v", op.Status, op)
+		}
+	}
+	return nil
+}
+
 // requestHostName performs the GPG challenge to register/obtain a name in the
 // camlistore.net domain. The acquired name should be "<gpgKeyId>.camlistore.net",
 // where <gpgKeyId> is Camlistore's keyId.
@@ -449,6 +552,10 @@ func muxChallengeHandler(ws *webserver.Server, config *serverinit.Config) (*gpgc
 func requestHostName(cl *gpgchallenge.Client) error {
 	if err := cl.Challenge(camliNetDNS); err != nil {
 		return err
+	}
+
+	if err := setInstanceHostname(); err != nil {
+		return fmt.Errorf("error setting instance camlistore-hostname: %v", err)
 	}
 
 	var repeatChallengeFn func()
