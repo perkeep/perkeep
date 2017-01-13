@@ -28,9 +28,19 @@ import (
 // serverinit.genLowLevelConfig, and used to configure the various
 // Camlistore components.
 type Config struct {
-	Auth               string `json:"auth"`               // auth scheme and values (ex: userpass:foo:bar).
-	BaseURL            string `json:"baseURL,omitempty"`  // Base URL the server advertizes. For when behind a proxy.
-	Listen             string `json:"listen"`             // address (of the form host|ip:port) on which the server will listen on.
+	Auth    string `json:"auth"`              // auth scheme and values (ex: userpass:foo:bar).
+	BaseURL string `json:"baseURL,omitempty"` // Base URL the server advertizes. For when behind a proxy.
+	Listen  string `json:"listen"`            // address (of the form host|ip:port) on which the server will listen on.
+	// CamliNetIP is the optional internet-facing IP address for this
+	// Camlistore instance. If set, a name in the camlistore.net domain for
+	// that IP address will be requested on startup. The obtained domain name
+	// will then be used as the host name in the base URL.
+	// For now, the protocol to get the name requires receiving a challenge
+	// on port 443. Also, this option implies HTTPS, and that the HTTPS
+	// certificate is obtained from Let's Encrypt. For these reasons, this
+	// option is mutually exclusive with BaseURL, Listen, HTTPSCert, and
+	// HTTPSKey.
+	CamliNetIP         string `json:"camliNetIP"`
 	Identity           string `json:"identity"`           // GPG identity.
 	IdentitySecretRing string `json:"identitySecretRing"` // path to the secret ring file.
 	// alternative source tree, to override the embedded ui and/or closure resources.

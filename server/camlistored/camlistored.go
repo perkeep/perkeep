@@ -18,6 +18,8 @@ limitations under the License.
 package main // import "camlistore.org/server/camlistored"
 
 import (
+	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -36,6 +38,7 @@ import (
 
 	"camlistore.org/pkg/buildinfo"
 	"camlistore.org/pkg/env"
+	"camlistore.org/pkg/gpgchallenge"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/netutil"
 	"camlistore.org/pkg/osutil"
@@ -103,6 +106,12 @@ var (
 	flagReindex     = flag.Bool("reindex", false, "Reindex all blobs on startup")
 	flagRecovery    = flag.Bool("recovery", false, "Recovery mode: rebuild the blobpacked meta index. The tasks performed by the recovery mode might change in the future.")
 	flagPollParent  bool
+)
+
+// For getting a name in camlistore.net
+const (
+	camliNetDNS    = "camnetdns.camlistore.org"
+	camliNetDomain = "camlistore.net"
 )
 
 // For logging on Google Cloud Logging when not running on Google Compute Engine
@@ -225,7 +234,7 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) 
 				HostPolicy: autocert.HostWhitelist(hostname),
 				Cache:      autocert.DirCache(osutil.DefaultLetsEncryptCache()),
 			}
-			log.Print("TLS enabled, with Let's Encrypt")
+			log.Printf("TLS enabled, with Let's Encrypt for %v", hostname)
 			ws.SetTLS(webserver.TLSSetup{
 				CertManager: m.GetCertificate,
 			})
@@ -295,6 +304,162 @@ func handleSignals(shutdownc <-chan io.Closer) {
 			log.Fatal("Received another signal, should not happen.")
 		}
 	}
+}
+
+// listenForCamliNet prepares the TLS listener for both the GPG challenge, and
+// for Let's Encrypt. It then starts listening and returns the baseURL derived from
+// the hostname we should obtain from the GPG challenge.
+func listenForCamliNet(ws *webserver.Server, config *serverinit.Config) (baseURL string, err error) {
+	camliNetIP := config.OptionalString("camliNetIP", "")
+	if camliNetIP == "" {
+		return "", errors.New("no camliNetIP")
+	}
+	if ip := net.ParseIP(camliNetIP); ip == nil {
+		return "", fmt.Errorf("camliNetIP value %q is not a valid IP address", camliNetIP)
+	} else if ip.To4() == nil {
+		// TODO: support IPv6 when GCE supports IPv6: https://code.google.com/p/google-compute-engine/issues/detail?id=8
+		return "", errors.New("CamliNetIP should be an IPv4, as IPv6 is not yet supported on GCE")
+	}
+	challengeHostname := camliNetIP + gpgchallenge.SNISuffix
+	selfCert, selfKey, err := httputil.GenSelfTLS(challengeHostname)
+	if err != nil {
+		return "", fmt.Errorf("could not generate self-signed certificate: %v", err)
+	}
+	gpgchallengeCert, err := tls.X509KeyPair(selfCert, selfKey)
+	if err != nil {
+		return "", fmt.Errorf("could not load TLS certificate: %v", err)
+	}
+	_, keyId, err := keyRingAndId(config)
+	if err != nil {
+		return "", fmt.Errorf("could not get keyId for camliNet hostname: %v", err)
+	}
+	camliNetHostName := strings.ToLower(keyId + "." + camliNetDomain)
+	m := autocert.Manager{
+		Prompt:     autocert.AcceptTOS,
+		HostPolicy: autocert.HostWhitelist(camliNetHostName),
+		Cache:      autocert.DirCache(osutil.DefaultLetsEncryptCache()),
+	}
+	getCertificate := func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+		if hello.ServerName == challengeHostname {
+			return &gpgchallengeCert, nil
+		}
+		return m.GetCertificate(hello)
+	}
+	log.Printf("TLS enabled, with Let's Encrypt for %v", camliNetHostName)
+	ws.SetTLS(webserver.TLSSetup{
+		CertManager: getCertificate,
+	})
+	// Since we're not going through setupTLS, we need to consume manually the 3 below
+	config.OptionalString("httpsCert", "")
+	config.OptionalString("httpsKey", "")
+	config.OptionalBool("https", true)
+
+	err = ws.Listen(fmt.Sprintf(":%d", gpgchallenge.ClientChallengedPort))
+	if err != nil {
+		return "", fmt.Errorf("Listen: %v", err)
+	}
+	return fmt.Sprintf("https://%s", camliNetHostName), nil
+}
+
+// listen discovers the listen address, base URL, and hostname that the ws is
+// going to use, sets up the TLS configuration, and starts listening.
+// If camliNetIP, it also prepares for the GPG challenge, to register/acquire a
+// name in the camlistore.net domain.
+func listen(ws *webserver.Server, config *serverinit.Config) (baseURL string, err error) {
+	camliNetIP := config.OptionalString("camliNetIP", "")
+	if camliNetIP != "" {
+		return listenForCamliNet(ws, config)
+	}
+
+	listen, baseURL := listenAndBaseURL(config)
+	hostname, err := certHostname(listen, baseURL)
+	if err != nil {
+		return "", fmt.Errorf("Bad baseURL or listen address: %v", err)
+	}
+	setupTLS(ws, config, hostname)
+
+	err = ws.Listen(listen)
+	if err != nil {
+		return "", fmt.Errorf("Listen: %v", err)
+	}
+	if baseURL == "" {
+		baseURL = ws.ListenURL()
+	}
+	return baseURL, nil
+}
+
+func keyRingAndId(config *serverinit.Config) (keyRing, keyId string, err error) {
+	prefixes := config.RequiredObject("prefixes")
+	if len(prefixes) == 0 {
+		return "", "", fmt.Errorf("no prefixes object in config")
+	}
+	sighelper := prefixes.OptionalObject("/sighelper/")
+	if len(sighelper) == 0 {
+		return "", "", fmt.Errorf("no sighelper object in prefixes")
+	}
+	handlerArgs := sighelper.OptionalObject("handlerArgs")
+	if len(handlerArgs) == 0 {
+		return "", "", fmt.Errorf("no handlerArgs object in sighelper")
+	}
+	keyId = handlerArgs.OptionalString("keyId", "")
+	if keyId == "" {
+		return "", "", fmt.Errorf("no keyId in sighelper")
+	}
+	keyRing = handlerArgs.OptionalString("secretRing", "")
+	if keyRing == "" {
+		return "", "", fmt.Errorf("no secretRing in sighelper")
+	}
+	return keyRing, keyId, nil
+}
+
+// muxChallengeHandler initializes the gpgchallenge Client, and registers its
+// handler with Camlistore's muxer. The returned Client can then be used right
+// after Camlistore starts serving HTTPS connections.
+func muxChallengeHandler(ws *webserver.Server, config *serverinit.Config) (*gpgchallenge.Client, error) {
+	camliNetIP := config.OptionalString("camliNetIP", "")
+	if camliNetIP == "" {
+		return nil, nil
+	}
+	if ip := net.ParseIP(camliNetIP); ip == nil {
+		return nil, fmt.Errorf("camliNetIP value %q is not a valid IP address", camliNetIP)
+	}
+
+	keyRing, keyId, err := keyRingAndId(config)
+	if err != nil {
+		return nil, err
+	}
+
+	cl, err := gpgchallenge.NewClient(keyRing, keyId, camliNetIP)
+	if err != nil {
+		return nil, fmt.Errorf("could not init gpgchallenge client: %v", err)
+	}
+	prefix, handler := cl.Handler()
+	if err != nil {
+		return nil, fmt.Errorf("could not get gpgchallenge client handler: %v", err)
+	}
+	ws.Handle(prefix, handler)
+	return cl, nil
+}
+
+// requestHostName performs the GPG challenge to register/obtain a name in the
+// camlistore.net domain. The acquired name should be "<gpgKeyId>.camlistore.net",
+// where <gpgKeyId> is Camlistore's keyId.
+// It also starts a goroutine that will rerun the challenge every hour, to keep
+// the camlistore.net DNS server up to date.
+func requestHostName(cl *gpgchallenge.Client) error {
+	if err := cl.Challenge(camliNetDNS); err != nil {
+		return err
+	}
+
+	var repeatChallengeFn func()
+	repeatChallengeFn = func() {
+		if err := cl.Challenge(camliNetDNS); err != nil {
+			log.Printf("error with hourly DNS challenge: %v", err)
+		}
+		time.AfterFunc(time.Hour, repeatChallengeFn)
+	}
+	time.AfterFunc(time.Hour, repeatChallengeFn)
+	return nil
 }
 
 // listenAndBaseURL finds the configured, default, or inferred listen address
@@ -411,21 +576,9 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 	}
 
 	ws := webserver.New()
-	listen, baseURL := listenAndBaseURL(config)
-
-	hostname, err := certHostname(listen, baseURL)
+	baseURL, err := listen(ws, config)
 	if err != nil {
-		exitf("Bad baseURL or listen address: %v", err)
-	}
-	setupTLS(ws, config, hostname)
-
-	err = ws.Listen(listen)
-	if err != nil {
-		exitf("Listen: %v", err)
-	}
-
-	if baseURL == "" {
-		baseURL = ws.ListenURL()
+		exitf("Error starting webserver: %v", err)
 	}
 
 	shutdownCloser, err := config.InstallHandlers(ws, baseURL, *flagReindex, nil)
@@ -433,6 +586,21 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		exitf("Error parsing config: %v", err)
 	}
 	shutdownc <- shutdownCloser
+
+	challengeClient, err := muxChallengeHandler(ws, config)
+	if err != nil {
+		exitf("Error registering challenge client with Camlistore muxer: %v", err)
+	}
+
+	go ws.Serve()
+
+	if challengeClient != nil {
+		// TODO(mpl): we should technically wait for the above ws.Serve
+		// to be ready, otherwise we're racy. Should we care?
+		if err := requestHostName(challengeClient); err != nil {
+			exitf("Could not register on camlistore.net: %v", err)
+		}
+	}
 
 	urlToOpen := baseURL
 	if !isNewConfig {
@@ -445,7 +613,6 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		go osutil.OpenURL(urlToOpen)
 	}
 
-	go ws.Serve()
 	if flagPollParent {
 		osutil.DieOnParentDeath()
 	}

@@ -79,13 +79,45 @@ func GenerateClientConfig(serverConfig jsonconfig.Obj) (*Config, error) {
 		return missingConfig(param)
 	}
 
-	listen := serverConfig.OptionalString("listen", "")
-	baseURL := serverConfig.OptionalString("baseURL", "")
-	if listen == "" {
-		listen = baseURL
+	// checking these early, so we can get to keyId
+	param = "prefixes"
+	prefixes := serverConfig.OptionalObject(param)
+	if len(prefixes) == 0 {
+		return missingConfig(param)
 	}
-	if listen == "" {
-		return nil, errors.New("required value for 'listen' or 'baseURL' not found")
+	param = "/sighelper/"
+	sighelper := prefixes.OptionalObject(param)
+	if len(sighelper) == 0 {
+		return missingConfig(param)
+	}
+	param = "handlerArgs"
+	handlerArgs := sighelper.OptionalObject(param)
+	if len(handlerArgs) == 0 {
+		return missingConfig(param)
+	}
+	param = "keyId"
+	keyId := handlerArgs.OptionalString(param, "")
+	if keyId == "" {
+		return missingConfig(param)
+	}
+
+	var listen, baseURL string
+	camliNetIP := serverConfig.OptionalString("camliNetIP", "")
+	if camliNetIP != "" {
+		listen = ":443"
+		// TODO(mpl): move the camliNetDomain const from camlistored.go
+		// to somewhere importable, so we can use it here. but later.
+		camliNetDomain := "camlistore.net"
+		baseURL = fmt.Sprintf("https://%s.%s/", keyId, camliNetDomain)
+	} else {
+		listen = serverConfig.OptionalString("listen", "")
+		baseURL = serverConfig.OptionalString("baseURL", "")
+		if listen == "" {
+			listen = baseURL
+		}
+		if listen == "" {
+			return nil, errors.New("required value for 'listen' or 'baseURL' not found")
+		}
 	}
 
 	https := serverConfig.OptionalBool("https", false)
@@ -111,29 +143,6 @@ func GenerateClientConfig(serverConfig jsonconfig.Obj) (*Config, error) {
 			return nil, fmt.Errorf("could not get fingerprints of certificate: %v", err)
 		}
 		trustedList = []string{sig}
-	}
-	param = "prefixes"
-	prefixes := serverConfig.OptionalObject(param)
-	if len(prefixes) == 0 {
-		return missingConfig(param)
-	}
-
-	param = "/sighelper/"
-	sighelper := prefixes.OptionalObject(param)
-	if len(sighelper) == 0 {
-		return missingConfig(param)
-	}
-
-	param = "handlerArgs"
-	handlerArgs := sighelper.OptionalObject(param)
-	if len(handlerArgs) == 0 {
-		return missingConfig(param)
-	}
-
-	param = "keyId"
-	keyId := handlerArgs.OptionalString(param, "")
-	if keyId == "" {
-		return missingConfig(param)
 	}
 
 	param = "secretRing"

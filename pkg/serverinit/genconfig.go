@@ -811,6 +811,15 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 
 func (b *lowBuilder) build() (*Config, error) {
 	conf, low := b.high, b.low
+	if conf.CamliNetIP != "" {
+		if !conf.HTTPS {
+			return nil, errors.New("CamliNetIP requires HTTPS")
+		}
+		if conf.HTTPSCert != "" || conf.HTTPSKey != "" || conf.Listen != "" || conf.BaseURL != "" {
+			return nil, errors.New("CamliNetIP is mutually exclusive with HTTPSCert, HTTPSKey, Listen, and BaseURL.")
+		}
+		low["camliNetIP"] = conf.CamliNetIP
+	}
 	if conf.HTTPS {
 		if (conf.HTTPSCert != "") != (conf.HTTPSKey != "") {
 			return nil, errors.New("Must set both httpsCert and httpsKey (or neither to generate a self-signed cert)")

@@ -555,6 +555,9 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reind
 	}
 
 	for prefix, vei := range prefixes {
+		if prefix == "_knownkeys" {
+			continue
+		}
 		if !strings.HasPrefix(prefix, "/") {
 			exitFailure("prefix %q doesn't start with /", prefix)
 		}
