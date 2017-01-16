@@ -724,7 +724,7 @@ func (sh *SyncHandler) runFullValidation() {
 		pfx := pfx
 		gate.Start()
 		go func() {
-			wg.Done()
+			defer wg.Done()
 			defer gate.Done()
 			sh.validateShardPrefix(pfx)
 		}()
