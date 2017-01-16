@@ -676,7 +676,7 @@ func (ph *publishHandler) NewRequest(w http.ResponseWriter, r *http.Request) (*p
 		ph:              ph,
 		rw:              w,
 		req:             r,
-		suffix:          suffix,
+		suffix:          strings.TrimSuffix(suffix, "/"),
 		base:            base,
 		subres:          res,
 		rootpn:          ph.rootNode,
@@ -687,7 +687,13 @@ func (ph *publishHandler) NewRequest(w http.ResponseWriter, r *http.Request) (*p
 
 func (pr *publishRequest) serveHTTP() {
 	if !pr.rootpn.Valid() {
-		pr.rw.WriteHeader(404)
+		http.NotFound(pr.rw, pr.req)
+		return
+	}
+
+	if pr.suffix == "" {
+		// Do not show everything at the root.
+		http.NotFound(pr.rw, pr.req)
 		return
 	}
 
@@ -699,7 +705,7 @@ func (pr *publishRequest) serveHTTP() {
 
 	if err := pr.findSubject(); err != nil {
 		if err == os.ErrNotExist {
-			pr.rw.WriteHeader(404)
+			http.NotFound(pr.rw, pr.req)
 			return
 		}
 		logf("Error looking up %s/%q: %v", pr.rootpn, pr.suffix, err)
