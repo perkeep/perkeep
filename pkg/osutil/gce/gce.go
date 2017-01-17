@@ -47,6 +47,9 @@ func init() {
 		}
 		return path.Clean("/gcs/" + strings.TrimPrefix(v, "gs://"))
 	})
+	osutil.RegisterLetsEncryptCacheFunc(func() string {
+		return "/tmp/camli-letsencrypt.cache"
+	})
 	jsonconfig.RegisterFunc("_gce_instance_meta", func(c *jsonconfig.ConfigParser, v []interface{}) (interface{}, error) {
 		if len(v) != 1 {
 			return nil, errors.New("only 1 argument supported after _gce_instance_meta")

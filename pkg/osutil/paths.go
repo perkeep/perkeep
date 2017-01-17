@@ -25,7 +25,6 @@ import (
 	"sync"
 
 	"camlistore.org/pkg/buildinfo"
-	"camlistore.org/pkg/env"
 	"go4.org/jsonconfig"
 )
 
@@ -216,11 +215,22 @@ func DefaultTLSKey() string {
 	return filepath.Join(CamliConfigDir(), "tls.key")
 }
 
+// RegisterLetsEncryptCacheFunc registers a func f to return the path to the
+// default Let's Encrypt cache.
+// It may skip by returning the empty string.
+func RegisterLetsEncryptCacheFunc(f func() string) {
+	letsEncryptCacheFuncs = append(letsEncryptCacheFuncs, f)
+}
+
+var letsEncryptCacheFuncs []func() string
+
 // DefaultLetsEncryptCache returns the path to the default Let's Encrypt cache
 // directory (or file, depending on the ACME implementation).
 func DefaultLetsEncryptCache() string {
-	if env.OnGCE() {
-		return "/tmp/camli-letsencrypt.cache"
+	for _, f := range letsEncryptCacheFuncs {
+		if v := f(); v != "" {
+			return v
+		}
 	}
 	return filepath.Join(CamliConfigDir(), "letsencrypt.cache")
 }
