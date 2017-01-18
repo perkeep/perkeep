@@ -74,7 +74,11 @@ func DefaultEnvConfig() (*Config, error) {
 
 	externalIP, _ := metadata.ExternalIP()
 	hostName, _ := metadata.InstanceAttributeValue("camlistore-hostname")
-	if hostName != "" && hostName != "localhost" {
+	// If they specified a hostname (probably with camdeploy), then:
+	// if it looks like an FQDN, camlistored is going to rely on Let's
+	// Encrypt, else camlistored is going to generate some self-signed for that
+	// hostname.
+	if hostName != "" {
 		highConf.BaseURL = fmt.Sprintf("https://%s", hostName)
 		highConf.Listen = "0.0.0.0:443"
 	} else {
