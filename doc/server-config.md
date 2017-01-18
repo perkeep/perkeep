@@ -142,7 +142,8 @@ One can create any permanode with camput or the UI, and set its camliRoot
 attribute to the value set in the config, to use it as the root permanode for
 publishing.
 
-Please see the [publishing README](/doc/publishing/README) if you want to
+Please see the [publishing README](/doc/publishing/README) for further details
+on how to set up permanodes for publishing, or if you want to
 make/contribute more publishing views.
 
 
