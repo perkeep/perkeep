@@ -78,8 +78,20 @@ type KeyValue interface {
 type Wiper interface {
 	KeyValue
 
-	// Wipe removes all key/value pairs.
+	// Wipe removes all key/value pairs, and resets the storage to a blank state.
+	// For a given storage, when NewKeyValue returns a NeedWipeError, Wipe
+	// should be implemented so that it fixes the returned KeyValue.
 	Wipe() error
+}
+
+// NeedWipeError is returned by NewKeyValue when the returned KeyValue is not
+// usable until Wipe has been called on it.
+type NeedWipeError struct {
+	Msg string
+}
+
+func (e NeedWipeError) Error() string {
+	return e.Msg
 }
 
 // Iterator iterates over an index KeyValue's key/value pairs in key order.
@@ -186,6 +198,9 @@ func RegisterKeyValue(typ string, fn func(jsonconfig.Obj) (KeyValue, error)) {
 	ctors[typ] = fn
 }
 
+// NewKeyValue returns a KeyValue as defined by cfg.
+// It returns an error of type NeedWipeError when the returned KeyValue should
+// be fixed with Wipe.
 func NewKeyValue(cfg jsonconfig.Obj) (KeyValue, error) {
 	var s KeyValue
 	var err error
@@ -197,10 +212,39 @@ func NewKeyValue(cfg jsonconfig.Obj) (KeyValue, error) {
 	if ok {
 		s, err = ctor(cfg)
 		if err != nil {
-			return nil, fmt.Errorf("error from %q KeyValue: %v", typ, err)
+			we, ok := err.(NeedWipeError)
+			if !ok {
+				return nil, fmt.Errorf("error from %q KeyValue: %v", typ, err)
+			}
+			if err := cfg.Validate(); err != nil {
+				return nil, err
+			}
+			we.Msg = fmt.Sprintf("error from %q KeyValue: %v", typ, err)
+			return s, we
 		}
 	}
 	return s, cfg.Validate()
+}
+
+// NewKeyValueMaybeWipe calls NewKeyValue and wipes the KeyValue if, and only
+// if, NewKeyValue has returned a NeedWipeError.
+func NewKeyValueMaybeWipe(cfg jsonconfig.Obj) (KeyValue, error) {
+	kv, err := NewKeyValue(cfg)
+	if err == nil {
+		return kv, nil
+	}
+	if _, ok := err.(NeedWipeError); !ok {
+		return nil, err
+	}
+	wiper, ok := kv.(Wiper)
+	if !ok {
+		return nil, fmt.Errorf("storage type %T needs wiping because %v. But it doesn't support sorted.Wiper", err, kv)
+	}
+	we := err
+	if err := wiper.Wipe(); err != nil {
+		return nil, fmt.Errorf("sorted key/value type %T needed wiping because %v. But could not wipe: %v", kv, we, err)
+	}
+	return kv, nil
 }
 
 // Foreach runs fn for each key/value pair in kv. If fn returns an error,

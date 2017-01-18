@@ -135,9 +135,9 @@ func New(dir string) (blobserver.Storage, error) {
 // newIndex returns a new sorted.KeyValue, using either the given config, or the default.
 func newIndex(root string, indexConf jsonconfig.Obj) (sorted.KeyValue, error) {
 	if len(indexConf) > 0 {
-		return sorted.NewKeyValue(indexConf)
+		return sorted.NewKeyValueMaybeWipe(indexConf)
 	}
-	return sorted.NewKeyValue(jsonconfig.Obj{
+	return sorted.NewKeyValueMaybeWipe(jsonconfig.Obj{
 		"type": defaultIndexType,
 		"file": filepath.Join(root, defaultIndexFile),
 	})

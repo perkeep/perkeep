@@ -142,7 +142,7 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler,
 	if len(queueConf) == 0 {
 		return nil, errors.New(`Missing required "queue" object`)
 	}
-	q, err := sorted.NewKeyValue(queueConf)
+	q, err := sorted.NewKeyValueMaybeWipe(queueConf)
 	if err != nil {
 		return nil, err
 	}

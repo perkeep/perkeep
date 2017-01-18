@@ -40,7 +40,9 @@ func init() {
 	sorted.RegisterKeyValue("mysql", newKeyValueFromJSONConfig)
 }
 
-func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
+// newKVDB returns an unusable KeyValue, with a database, but no tables yet. It
+// should be followed by Wipe or finalize.
+func newKVDB(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	var (
 		user     = cfg.RequiredString("user")
 		database = cfg.RequiredString("database")
@@ -79,33 +81,49 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	if err := CreateDB(db, database); err != nil {
 		return nil, err
 	}
-	if err := createTables(db, database); err != nil {
-		return nil, err
-	}
-
-	kv := &keyValue{
-		dsn: dsn,
-		db:  db,
+	return &keyValue{
+		database: database,
+		dsn:      dsn,
+		db:       db,
 		KeyValue: &sqlkv.KeyValue{
 			DB:          db,
 			TablePrefix: database + ".",
 			Gate:        syncutil.NewGate(20), // arbitrary limit. TODO: configurable, automatically-learned?
 		},
+	}, nil
+}
+
+// Wipe resets the KeyValue by dropping and recreating the database tables.
+func (kv *keyValue) Wipe() error {
+	if _, err := kv.db.Exec("DROP TABLE IF EXISTS " + kv.database + ".rows"); err != nil {
+		return err
 	}
+	if _, err := kv.db.Exec("DROP TABLE IF EXISTS " + kv.database + ".meta"); err != nil {
+		return err
+	}
+	return kv.finalize()
+}
+
+// finalize should be called on a keyValue initialized with newKVDB.
+func (kv *keyValue) finalize() error {
+	if err := createTables(kv.db, kv.database); err != nil {
+		return err
+	}
+
 	if err := kv.ping(); err != nil {
-		return nil, fmt.Errorf("MySQL db unreachable: %v", err)
+		return fmt.Errorf("MySQL db unreachable: %v", err)
 	}
 
 	version, err := kv.SchemaVersion()
 	if err != nil {
-		return nil, fmt.Errorf("error getting current database schema version: %v", err)
+		return fmt.Errorf("error getting current database schema version: %v", err)
 	}
 	if version == 0 {
 		// Newly created table case
-		if _, err := db.Exec(fmt.Sprintf(`REPLACE INTO %s.meta VALUES ('version', ?)`, database), requiredSchemaVersion); err != nil {
-			return nil, fmt.Errorf("error setting schema version: %v", err)
+		if _, err := kv.db.Exec(fmt.Sprintf(`REPLACE INTO %s.meta VALUES ('version', ?)`, kv.database), requiredSchemaVersion); err != nil {
+			return fmt.Errorf("error setting schema version: %v", err)
 		}
-		return kv, nil
+		return nil
 	}
 	if version != requiredSchemaVersion {
 		if version == 20 && requiredSchemaVersion == 21 {
@@ -114,13 +132,25 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		if env.IsDev() {
 			// Good signal that we're using the devcam server, so help out
 			// the user with a more useful tip:
-			return nil, fmt.Errorf("database schema version is %d; expect %d (run \"devcam server --wipe\" to wipe both your blobs and re-populate the database schema)", version, requiredSchemaVersion)
+			return sorted.NeedWipeError{
+				Msg: fmt.Sprintf("database schema version is %d; expect %d (run \"devcam server --wipe\" to wipe both your blobs and re-populate the database schema)", version, requiredSchemaVersion),
+			}
 		}
-		return nil, fmt.Errorf("database schema version is %d; expect %d (need to re-init/upgrade database?)",
-			version, requiredSchemaVersion)
+		return sorted.NeedWipeError{
+			Msg: fmt.Sprintf("database schema version is %d; expect %d (need to re-init/upgrade database?)",
+				version, requiredSchemaVersion),
+		}
 	}
 
-	return kv, nil
+	return nil
+}
+
+func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
+	kv, err := newKVDB(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return kv, kv.(*keyValue).finalize()
 }
 
 var dbnameRx = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
@@ -183,8 +213,9 @@ func openOrCachedDB(dsn string) (*sql.DB, error) {
 type keyValue struct {
 	*sqlkv.KeyValue
 
-	dsn string
-	db  *sql.DB
+	database string
+	dsn      string
+	db       *sql.DB
 }
 
 // Close overrides KeyValue.Close because we need to remove the DB from the pool

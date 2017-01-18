@@ -191,6 +191,9 @@ func (kv *KeyValue) Delete(key string) error {
 	return err
 }
 
+// TODO(mpl): implement Wipe for each of the SQLs, as it's done for MySQL, and
+// remove this one below.
+
 func (kv *KeyValue) Wipe() error {
 	if kv.Gate != nil {
 		kv.Gate.Start()

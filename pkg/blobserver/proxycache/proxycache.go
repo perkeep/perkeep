@@ -82,7 +82,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 	if err != nil {
 		return nil, err
 	}
-	kv, err := sorted.NewKeyValue(kvConf)
+	kv, err := sorted.NewKeyValueMaybeWipe(kvConf)
 	if err != nil {
 		return nil, err
 	}

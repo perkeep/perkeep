@@ -81,6 +81,8 @@ type Index struct {
 	blobSource blobserver.FetcherEnumerator
 
 	tickleOoo chan bool // tickle out-of-order reindex loop, whenever readyReindex is added to
+
+	hasWiped bool // whether Wipe has been called on s. So we don't redo it in Reindex() for nothing.
 }
 
 func (x *Index) Lock()    { x.mu.Lock() }
@@ -94,14 +96,6 @@ var (
 )
 
 var aboutToReindex = false
-
-// SetImpendingReindex notes that the user ran the camlistored binary with the --reindex flag.
-// Because the index is about to be wiped, schema version checks should be suppressed.
-func SetImpendingReindex() {
-	// TODO: remove this function, once we refactor how indexes are created.
-	// They'll probably not all have their own storage constructor registered.
-	aboutToReindex = true
-}
 
 // InitBlobSource sets the index's blob source and starts the background
 // out-of-order indexing loop. It panics if the blobSource is already set.
@@ -287,13 +281,32 @@ func (x *Index) fixMissingWholeRef(fetcher blob.Fetcher) (err error) {
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
 	blobPrefix := config.RequiredString("blobSource")
 	kvConfig := config.RequiredObject("storage")
+	reindex := config.OptionalBool("reindex", false)
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
+
 	kv, err := sorted.NewKeyValue(kvConfig)
 	if err != nil {
-		return nil, err
+		if _, ok := err.(sorted.NeedWipeError); !ok {
+			return nil, err
+		}
+		if !reindex {
+			return nil, err
+		}
 	}
+	if reindex {
+		aboutToReindex = true
+		wiper, ok := kv.(sorted.Wiper)
+		if !ok {
+			return nil, fmt.Errorf("index's storage type %T doesn't support sorted.Wiper", kv)
+		}
+		if err := wiper.Wipe(); err != nil {
+			return nil, fmt.Errorf("error wiping index's sorted key/value type %T: %v", kv, err)
+		}
+		log.Printf("Index wiped.")
+	}
+
 	sto, err := ld.GetStorage(blobPrefix)
 	if err != nil {
 		return nil, err
@@ -311,6 +324,9 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 			return nil, fmt.Errorf("could not fix missing wholeRef entries: %v", err)
 		}
 		ix, err = New(kv)
+	}
+	if reindex {
+		ix.hasWiped = true
 	}
 	if err != nil {
 		return nil, err
@@ -360,15 +376,18 @@ func (x *Index) Reindex() error {
 	defer reindexMaxProcs.RUnlock()
 	ctx := context.TODO()
 
-	wiper, ok := x.s.(sorted.Wiper)
-	if !ok {
-		return fmt.Errorf("index's storage type %T doesn't support sorted.Wiper", x.s)
+	if !x.hasWiped {
+		wiper, ok := x.s.(sorted.Wiper)
+		if !ok {
+			return fmt.Errorf("index's storage type %T doesn't support sorted.Wiper", x.s)
+		}
+		log.Printf("Wiping index storage type %T ...", x.s)
+		if err := wiper.Wipe(); err != nil {
+			return fmt.Errorf("error wiping index's sorted key/value type %T: %v", x.s, err)
+		}
+		log.Printf("Index wiped.")
 	}
-	log.Printf("Wiping index storage type %T ...", x.s)
-	if err := wiper.Wipe(); err != nil {
-		return fmt.Errorf("error wiping index's sorted key/value type %T: %v", x.s, err)
-	}
-	log.Printf("Index wiped. Rebuilding...")
+	log.Printf("Rebuilding index...")
 
 	reindexStart, _ := blob.Parse(os.Getenv("CAMLI_REINDEX_START"))
 
