@@ -25,6 +25,24 @@ configure publishing for an image gallery in the server config
       }
     }
 
+For this to work you need a single permanode with an attribute "camliRoot"
+set to "mypics" which will serve as the root node for publishing.
+
+Suppose you want to publish two permanodes as "foo" and "bar". The root node
+needs the following atributes:
+
+    camliRoot = mypics // must match server-config.json
+    camilPath:foo = sha1-foo
+    camliPath:bar = sha1-bar
+
+where sha1-foo (and sha1-bar) is either a permanode with some camliContent,
+or a permanode with some camliMembers.
+
+This will serve content at the publisher root http(s)://«camlihost:port»/pics/
+but note that publisher hides the contents of the root path.
+Keeping with the example above, it would serve
+http(s)://«camlihost:port»/pics/foo and http(s)://«camlihost:port»/pics/bar .
+
 The parameters for setting up the app's process ("listen", "backendURL", and
 "apiHost") are derived from the Camlistore server's "listen", and "baseURL", but
 should the need arise (e.g. with a proxy setup) they can be specified as well.
