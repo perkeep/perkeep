@@ -99,6 +99,10 @@ type fileItemContainer struct {
 	host       string
 	scheme     string
 	pathPrefix string // app handler's prefix if it applies, e.g. "/pics/", or "/" otherwise.
+	// isTopNode indicates whether we're a direct child of the publish root.
+	// Because most of the URL paths change if that's the case. I think we
+	// could test for !parent.Valid() instead but it does not seem very clean.
+	isTopNode bool
 
 	current          *fileItem
 	next             *fileItem
@@ -145,15 +149,21 @@ func newFileItemContainer(thumbHeight int) (*fileItemContainer, error) {
 		return nil, err
 	}
 	var parent blob.Ref
-	basePath = path.Dir(basePath)
-	if strings.HasSuffix(basePath, "/-") {
-		parent = root
+	isTopNode := false
+	if !strings.Contains(basePath, "/-") {
+		isTopNode = true
+		basePath += "/-"
 	} else {
-		_, parentPrefixPath := path.Split(basePath)
-		parentPrefix := "sha1-" + strings.TrimPrefix(parentPrefixPath, "h")
-		parent, err = getFullRef(scheme, host, prefix, parentPrefix)
-		if err != nil {
-			return nil, err
+		basePath = path.Dir(basePath)
+		if strings.HasSuffix(basePath, "/-") {
+			parent = root
+		} else {
+			_, parentPrefixPath := path.Split(basePath)
+			parentPrefix := "sha1-" + strings.TrimPrefix(parentPrefixPath, "h")
+			parent, err = getFullRef(scheme, host, prefix, parentPrefix)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -164,6 +174,7 @@ func newFileItemContainer(thumbHeight int) (*fileItemContainer, error) {
 		scheme:      scheme,
 		pathPrefix:  prefix,
 		thumbHeight: thumbHeight,
+		isTopNode:   isTopNode,
 	}, nil
 }
 
@@ -177,7 +188,12 @@ func (fic *fileItemContainer) populate() error {
 		return err
 	}
 
-	sr, err := fic.getPeers(pn, 3)
+	var sr *SearchResult
+	if fic.isTopNode {
+		sr, err = fic.describe(pn)
+	} else {
+		sr, err = fic.getPeers(pn, 3)
+	}
 	if err != nil {
 		return err
 	}
@@ -256,6 +272,29 @@ func getFullRef(scheme, host, pathPrefix, digestPrefix string) (blob.Ref, error)
 	return sr.Blobs[0].Blob, nil
 }
 
+func (fic fileItemContainer) describe(pn blob.Ref) (*SearchResult, error) {
+	query := fmt.Sprintf(`{"constraint":{"blobRefPrefix": "%s"},"describe":{"depth":1,"rules":[{"attrs":["camliContent","camliContentImage"]}]}}`, pn)
+
+	resp, err := http.Post(fmt.Sprintf("%s://%s%ssearch", fic.scheme, fic.host, fic.pathPrefix), "application/json", strings.NewReader(query))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("search error: %v", resp.Status)
+	}
+	defer resp.Body.Close()
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var sr SearchResult
+	if err := json.Unmarshal(data, &sr); err != nil {
+		return nil, err
+	}
+	return &sr, nil
+}
+
 func (fic fileItemContainer) getPeers(around blob.Ref, limit int) (*SearchResult, error) {
 	// TODO(mpl): use types from search pkg instead of raw JSON if we ever import the search pkg.
 	query := fmt.Sprintf(`{"sort":"-created","constraint":{"permanode":{"relation":{"relation": "parent", "any": {"blobRefPrefix": "%s"}}}},"describe":{"depth":1,"rules":[{"attrs":["camliContent","camliContentImage"]}]},"limit":%d, "around": "%s"}`, fic.parent, limit, around)
@@ -322,7 +361,9 @@ func (fic *fileItemContainer) refreshLocation() {
 	if fic.current == nil {
 		return
 	}
-
+	if fic.isTopNode {
+		return
+	}
 	hash := fic.current.pn.DigestPrefix(10)
 	js.Global.Get("history").Call("pushState", hash, "", fic.basePath+"/h"+hash)
 }
@@ -472,14 +513,8 @@ func (fic *fileItemContainer) render() error {
 	}()
 
 	// Do the main rendering work while waiting for getPeers
-	if fit.thumb == "" {
-		if fit.isImage {
-			fit.thumb = fmt.Sprintf("%s/h%s/h%s/=i/%s/?mw=%d&mh=%d", fic.basePath, fit.pn.DigestPrefix(10), fit.contentRef.DigestPrefix(10), url.QueryEscape(fit.fileName), fic.thumbHeight, fic.thumbHeight)
-		} else {
-			fit.thumb = fmt.Sprintf("%s=s/file.png", fic.pathPrefix)
-		}
-		fit.download = fmt.Sprintf("%s/h%s/h%s/=f/%s", fic.basePath, fit.pn.DigestPrefix(10), fit.contentRef.DigestPrefix(10), url.QueryEscape(fit.fileName))
-	}
+	fit.setThumb(fic)
+	fit.setDownload(fic)
 	jQuery(ficDiv).Empty()
 	fic.refreshTitle()
 	fic.refreshLocation()
@@ -496,6 +531,26 @@ func (fic *fileItemContainer) render() error {
 
 	fic.refreshNav()
 	return nil
+}
+
+func (fit *fileItem) setThumb(fic *fileItemContainer) {
+	if !fit.isImage {
+		fit.thumb = fmt.Sprintf("%s=s/file.png", fic.pathPrefix)
+		return
+	}
+	if fic.isTopNode {
+		fit.thumb = fmt.Sprintf("%s/h%s/=i/%s/?mw=%d&mh=%d", fic.basePath, fit.contentRef.DigestPrefix(10), url.QueryEscape(fit.fileName), fic.thumbHeight, fic.thumbHeight)
+		return
+	}
+	fit.thumb = fmt.Sprintf("%s/h%s/h%s/=i/%s/?mw=%d&mh=%d", fic.basePath, fit.pn.DigestPrefix(10), fit.contentRef.DigestPrefix(10), url.QueryEscape(fit.fileName), fic.thumbHeight, fic.thumbHeight)
+}
+
+func (fit *fileItem) setDownload(fic *fileItemContainer) {
+	if fic.isTopNode {
+		fit.download = fmt.Sprintf("%s/h%s/=f/%s", fic.basePath, fit.contentRef.DigestPrefix(10), url.QueryEscape(fit.fileName))
+		return
+	}
+	fit.download = fmt.Sprintf("%s/h%s/h%s/=f/%s", fic.basePath, fit.pn.DigestPrefix(10), fit.contentRef.DigestPrefix(10), url.QueryEscape(fit.fileName))
 }
 
 func (fit *fileItem) render() {
