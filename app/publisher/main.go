@@ -693,7 +693,7 @@ func (pr *publishRequest) serveHTTP() {
 
 	if pr.suffix == "" {
 		// Do not show everything at the root.
-		http.NotFound(pr.rw, pr.req)
+		http.Error(pr.rw, "403 forbidden", http.StatusForbidden)
 		return
 	}
 
