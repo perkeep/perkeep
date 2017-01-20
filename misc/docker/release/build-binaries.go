@@ -148,6 +148,7 @@ func build() {
 	oldPath := os.Getenv("PATH")
 	os.Setenv("GOPATH", "/gopath")
 	os.Setenv("PATH", "/usr/local/go/bin:"+oldPath)
+	check(os.Setenv("CAMLI_GOPHERJS_GOROOT", "/usr/local/go1.7"))
 	cmd := exec.Command("go", "run", "make.go", "--os", *buildOS)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

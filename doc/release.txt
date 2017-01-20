@@ -18,5 +18,5 @@ use -upload=true to directly upload the zip file to the camlistore-release/0.10/
 
 ** How to generate a monthly release: **
 
-go run ./misc/monthly.go -rev=$GIT_REVISION
+go run ./misc/monthly.go -rev=$GIT_REVISION -stats_from=cf0c847fbf7e3e48ef463e86674520a4da9aedbb
 git commit -m 'monthly release' doc/release/monthly.html

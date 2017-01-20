@@ -259,6 +259,7 @@ func checkBuild() {
 	}
 	check(os.Chdir(tarballSrc))
 	check(os.Setenv("PATH", os.Getenv("PATH")+":/usr/local/go/bin/"))
+	check(os.Setenv("CAMLI_GOPHERJS_GOROOT", "/usr/local/go1.7"))
 	cmd := exec.Command("go", "run", "make.go")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
