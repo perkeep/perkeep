@@ -43,6 +43,8 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
 )
 
@@ -70,9 +72,19 @@ const (
 	staleRecord = 30 * 24 * time.Hour
 	// max number of records in the lru cache
 	cacheSize = 1e6
+	// stagingCamwebHost is the FQDN of the staging version of the
+	// Camlistore website. We handle it differently from the rest as:
+	// 1) we discover its IP using the GCE API, 2) we only trust the stored
+	// version of it for 5 minutes.
+	stagingCamwebHost = "staging.camlistore.net."
+	lowTTL            = 300 // in seconds
 )
 
-var errRecordNotFound = errors.New("record not found")
+var (
+	errRecordNotFound = errors.New("record not found")
+	// lastCamwebUpdate is the last time we updated the stored value for stagingCamwebHost
+	lastCamwebUpdate time.Time
+)
 
 func defaultListenAddr() string {
 	if metadata.OnGCE() {
@@ -203,14 +215,32 @@ func newDNSServer(src keyValue) *DNSServer {
 
 func (ds *DNSServer) HandleLookup(name string) (string, error) {
 	// Lowercase it all, to satisfy https://tools.ietf.org/html/draft-vixie-dnsext-dns0x20-00
-	return ds.dataSource.Get(strings.ToLower(name))
+	loName := strings.ToLower(name)
+	if loName != stagingCamwebHost {
+		return ds.dataSource.Get(loName)
+	}
+	if time.Now().Before(lastCamwebUpdate.Add(lowTTL * time.Second)) {
+		return ds.dataSource.Get(loName)
+	}
+	stagingIP, err := stagingCamwebIP()
+	if err != nil {
+		log.Printf("Could not get new IP of %v: %v. Serving old value instead.", stagingCamwebHost, err)
+		return ds.dataSource.Get(loName)
+	}
+	if err := ds.dataSource.Set(stagingCamwebHost, stagingIP); err != nil {
+		log.Printf("Could not update (%v, %v) entry: %v", stagingCamwebHost, stagingIP, err)
+	} else {
+		lastCamwebUpdate = time.Now()
+		log.Printf("%v -> %v updated successfully", stagingCamwebHost, stagingIP)
+	}
+	return stagingIP, nil
 }
 
 const (
 	domain      = "camlistore.net."
 	authorityNS = "camnetdns.camlistore.org."
 	// Increment after every change with format YYYYMMDDnn.
-	soaSerial = 2016121401
+	soaSerial = 2017012301
 )
 
 var (
@@ -331,6 +361,9 @@ func (ds *DNSServer) ServeDNS(rw dns.ResponseWriter, mes *dns.Msg) {
 			// TODO(mpl): maybe we should have a distinct memstore for each type?
 			isIP6 := strings.Contains(ip.String(), ":")
 			header := commonHeader(q)
+			if strings.ToLower(q.Name) == stagingCamwebHost {
+				header.Ttl = lowTTL
+			}
 			var rr dns.RR
 			if q.Qtype == dns.TypeA {
 				if isIP6 {
@@ -372,6 +405,35 @@ func (ds *DNSServer) ServeDNS(rw dns.ResponseWriter, mes *dns.Msg) {
 	}
 }
 
+func stagingCamwebIP() (string, error) {
+	const (
+		projectID = "camlistore-website"
+		instName  = "camweb-staging"
+		zone      = "us-central1-f"
+	)
+	hc, err := google.DefaultClient(oauth2.NoContext)
+	if err != nil {
+		return "", fmt.Errorf("error getting an http client: %v", err)
+	}
+	s, err := compute.New(hc)
+	if err != nil {
+		return "", fmt.Errorf("error getting compute service: %v", err)
+	}
+	inst, err := compute.NewInstancesService(s).Get(projectID, zone, instName).Do()
+	if err != nil {
+		return "", fmt.Errorf("error getting instance: %v", err)
+	}
+	for _, netInt := range inst.NetworkInterfaces {
+		for _, ac := range netInt.AccessConfigs {
+			if ac.Type != "ONE_TO_ONE_NAT" {
+				continue
+			}
+			return ac.NatIP, nil
+		}
+	}
+	return "", errors.New("not found")
+}
+
 func main() {
 	launchConfig.MaybeDeploy()
 	flag.Parse()
@@ -400,6 +462,12 @@ func main() {
 	}
 	if err := kv.Set("www.camlistore.net.", *flagServerIP); err != nil {
 		log.Fatalf("Error adding %v:%v record: %v", "www.camlistore.net.", *flagServerIP, err)
+	}
+	lastCamwebUpdate = time.Now()
+	if stagingIP, err := stagingCamwebIP(); err == nil {
+		if err := kv.Set(stagingCamwebHost+".", stagingIP); err != nil {
+			log.Fatalf("Error adding %v:%v record: %v", stagingCamwebHost+".", stagingIP, err)
+		}
 	}
 
 	ds := newDNSServer(kv)
