@@ -1,0 +1,909 @@
+
+<h1>Monthly Release: 2017-03-01</h1>
+
+<p>
+Camlistore version <a href='https://github.com/camlistore/camlistore/commit/dc4d1650b3'>dc4d1650b3</a> built with Go 1.8.
+</p>
+
+<p>
+In addition to all the changes - see the release notes below - we are pleased
+to introduce "The Camlistore Network": as of now, any Camlistore instance
+created through the <a href="https://camlistore.org/launch">Camlistore
+Launcher</a> gets a hostname in the <b>camlistore.net</b> domain, as
+well as an HTTPS certificate for that name. The hostname is the short
+form of the GPG key fingerprint of the Camlistore instance. So
+if your GPG key fingerprint is e.g. DF4A6661, your instance runs at
+https://df4a6661.camlistore.net.
+</p>
+
+<p>
+Another notable addition, albeit experimental as well, is the Scanning Cabinet
+app, a port of <a href='https://github.com/bradfitz/scanningcabinet'>bradfitz/scanningcabinet</a>.
+</p>
+
+<h2>Downloads</h2>
+
+<center>
+<a class="downloadBox" href="/dl/monthly/camlistore-20170301-darwin.tar.gz">
+<div class="platform">Darwin</div>
+<div>
+	<span class="filename">camlistore-20170301-darwin.tar.gz</span>
+</div>
+<div class="checksum">SHA256: 5e5be0fbf9202b48fab0084ae601dbbec7464d1c9aa9174c807b496b00bf2dc7</div>
+</a>
+<a class="downloadBox" href="/dl/monthly/camlistore-20170301-linux.tar.gz">
+<div class="platform">Linux</div>
+<div>
+	<span class="filename">camlistore-20170301-linux.tar.gz</span>
+</div>
+<div class="checksum">SHA256: 1a92b34f5091254ab6f7806fc085d40029c337eed6b64deed75f815894e18272</div>
+</a>
+<a class="downloadBox" href="/dl/monthly/camlistore-20170301-src.zip">
+<div class="platform">Source</div>
+<div>
+	<span class="filename">camlistore-20170301-src.zip</span>
+</div>
+<div class="checksum">SHA256: 92cc506728bbcba014ef455dcd3c720cb1fb244581dbb21046c8dcb8fc619fbc</div>
+</a>
+<a class="downloadBox" href="/dl/monthly/camlistore-20170301-windows.zip">
+<div class="platform">Windows</div>
+<div>
+	<span class="filename">camlistore-20170301-windows.zip</span>
+</div>
+<div class="checksum">SHA256: 007e08b04ba05ccfcbac6863aff61b99d50fbcd387ea2c3bbb68f1457d3811f9</div>
+</a>
+</center>
+
+
+<h2>Release Stats</h2>
+
+<p>
+20 total committers over 602 commits since <a
+href='https://github.com/camlistore/camlistore/commit/cf0c847fbf7e3e48ef463e86674520a4da9aedbb'>cf0c847fbf7e3e48ef463e86674520a4da9aedbb</a>
+including Aaron Boodman, Aleksandr Mogylchenko, Alok Parlikar, Attila Tajti,
+Brad Fitzpatrick, Daniel Heath, Eric Drechsel, Filippo Valsorda, Jeremy
+Schlatter, Jeromy, Joseph Anthony Pasquale Holsten, Kate Pek, Ricardo Kirkner,
+Stephen Searles, Steve Armstrong, Tamás Gulácsi, Tilman Dilo, Will Norris,
+kortschak, mpl.
+</p>
+
+<p>Thank you!</p>
+
+
+
+<h2>Release Notes</h2>
+
+<p>
+<ul>
+<li>
+android:
+<ul>
+	<li>avoid excessive UI updates</li>
+	<li>add Cardboard Camera directory</li>
+	<li>build client with Go 1.7</li>
+	<li>fix/update docker build</li>
+</ul>
+</li>
+
+<li>
+app/publisher:
+<ul>
+	<li>do not show all published nodes at root</li>
+	<li>use autocert too when Camlistore does it</li>
+	<li>rewrite gensearchtypes.sh as gensearchtypes.go</li>
+	<li>serve text types with their right MIMEs</li>
+	<li>file rendering and navigation with jquery</li>
+	<li>infinite scrolling of set members</li>
+</ul>
+</li>
+
+<li>
+app/scanningcabinet:
+<ul>
+	<li>new app: scanningcabinet</li>
+</ul>
+</li>
+
+<li>
+blobserver:
+<ul>
+	<li>fix deadlock in MergedEnumerate</li>
+</ul>
+</li>
+
+<li>
+blobserver/b2:
+<ul>
+	<li>add new Storage based on Backblaze B2</li>
+</ul>
+</li>
+
+<li>
+blobserver/blobpacked:
+<ul>
+	<li>change the meaning of <code>-recovery</code></li>
+	<li>fix missing error check</li>
+	<li>fix TestReindex at Go master</li>
+	<li>make TestPackLarge work with Go tip</li>
+	<li>reindex meta from packed blobs</li>
+	<li>fix manifest doc example</li>
+</ul>
+</li>
+
+<li>
+blobserver/cloudstorage:
+<ul>
+	<li>use cloud/storage Client</li>
+</ul>
+</li>
+
+<li>
+blobserver/diskpacked:
+<ul>
+	<li>allow removing non-existing blob</li>
+	<li>Change the reindex test data, fix hash</li>
+</ul>
+</li>
+
+<li>
+blobserver/encrypt:
+<ul>
+	<li>delete redundant err check</li>
+</ul>
+</li>
+
+<li>
+blobserver/google/cloudstorage:
+<ul>
+	<li>do not panic on failed Fetch</li>
+</ul>
+</li>
+
+<li>
+blobserver/localdisk:
+<ul>
+	<li>gate tmp file creations</li>
+</ul>
+</li>
+
+<li>
+blobserver/s3:
+<ul>
+	<li>limit concurrent PutObject calls</li>
+	<li>new test for writing files</li>
+	<li>Error when an s3 bucket contains non-blob files</li>
+</ul>
+</li>
+
+<li>
+blobserver/shard:
+<ul>
+	<li>added tests</li>
+</ul>
+</li>
+
+<li>
+camlistored:
+<ul>
+	<li>request a name in camlistore.net</li>
+	<li>use <a href="https://letsencrypt.org/">Let&#39;s Encrypt</a></li>
+	<li>allow GCL for non-GCE</li>
+	<li>upload gpg key blob on startup</li>
+	<li>add <code>-syslog</code> flag</li>
+	<li>do not use syslog on windows</li>
+</ul>
+</li>
+
+<li>
+camlistored/ui:
+<ul>
+	<li>specify sort order in search queries</li>
+	<li>rename confusing Pudgy menu to Camli</li>
+	<li>Fix search doc URL in log message</li>
+	<li>fix reload menu item for broken websocket connection</li>
+	<li>renamed &#34;Search roots&#34; to &#34;Favorites&#34;</li>
+	<li>fix symlink in filetree view</li>
+	<li>use authentication token instead of Basic Auth</li>
+	<li>implement swipe for left/right nav on mobile</li>
+	<li>upload with input file button</li>
+	<li>port Directory view to React</li>
+	<li>disable tokenAuth when auth is None</li>
+	<li>Add button to remove selection from current set.</li>
+	<li>Fix js error on all search queries</li>
+	<li>remove deprecated getDOMNode calls</li>
+</ul>
+</li>
+
+<li>
+camget:
+<ul>
+	<li>update client share chain when getting blobs from cache</li>
+	<li>print help with <code>-h</code> or <code>--help</code></li>
+</ul>
+</li>
+
+<li>
+camput:
+<ul>
+	<li>replace kv with leveldb for stat/havecache</li>
+	<li>use wantCapCtime</li>
+	<li>print share URL</li>
+	<li>update for absence of skipDirs</li>
+</ul>
+</li>
+
+<li>
+camtool:
+<ul>
+	<li>print help with <code>-h</code> or <code>--help</code></li>
+	<li>add sync flags to dump config and control sync concurrency</li>
+	<li>add basic describe <code>--at</code> flag</li>
+	<li>output server-config.json string</li>
+</ul>
+</li>
+
+<li>
+camtool search:
+<ul>
+	<li>added <code>-continue</code> flag to complement <code>-limit</code></li>
+</ul>
+</li>
+
+<li>
+camtool sync:
+<ul>
+	<li>local path support on Windows</li>
+</ul>
+</li>
+
+<li>
+client:
+<ul>
+	<li>fail properly when no SearchRoot</li>
+	<li>fix transport tests for fba8b457de814baf90412fafc4fbbca7415189e6</li>
+	<li>set camliType, use correct blobref</li>
+</ul>
+</li>
+
+<li>
+config/dev-server-config.json:
+<ul>
+	<li>fix SourceRoot for publisher</li>
+	<li>used leveldb for the dev server instead of kv</li>
+	<li>fix publisher</li>
+</ul>
+</li>
+
+<li>
+constants/google:
+<ul>
+	<li>remove, use oauth2/google instead</li>
+</ul>
+</li>
+
+<li>
+deploy/gce:
+<ul>
+	<li>no self-signed certs, name in camlistore.net</li>
+	<li>show camli version to be deployed</li>
+	<li>temp fix to bring /launch back up</li>
+	<li>remove old TODO</li>
+	<li>fix error overescaping</li>
+	<li>do not ask for password</li>
+</ul>
+</li>
+
+<li>
+devcam hook:
+<ul>
+	<li>add commit-msg hook</li>
+</ul>
+</li>
+
+<li>
+doc:
+<ul>
+	<li>explain how publisher paths work with permanodes</li>
+	<li>TLS certificate configuration</li>
+	<li>fix typo</li>
+	<li>fix publishing link</li>
+	<li>presentations</li>
+	<li>Document substring matching for attribute search</li>
+	<li>add camliNetIP in server-config</li>
+</ul>
+</li>
+
+<li>
+doc/release.txt:
+<ul>
+	<li>fix monthly doc</li>
+	<li>fix typo</li>
+</ul>
+</li>
+
+<li>
+doc/schema:
+<ul>
+	<li>add missing link to bytes.md</li>
+</ul>
+</li>
+
+<li>
+doc/search-ui.txt:
+<ul>
+	<li>Strip trailing whitespace</li>
+</ul>
+</li>
+
+<li>
+doc/server-config:
+<ul>
+	<li>fix genconfig typo</li>
+	<li>add low-level section</li>
+</ul>
+</li>
+
+<li>
+doc/storage.md:
+<ul>
+	<li>Document how to configure s3 storage</li>
+</ul>
+</li>
+
+<li>
+dockerfile:
+<ul>
+	<li>update</li>
+	<li>add CAMLI_GOPHERJS_GOROOT</li>
+	<li>fix for Go 1.8</li>
+</ul>
+</li>
+
+<li>
+dockertest:
+<ul>
+	<li>check for error messages when pulling</li>
+	<li>use official mysql image</li>
+</ul>
+</li>
+
+<li>
+fastjpeg:
+<ul>
+	<li>remove work-around for os/exec bug</li>
+</ul>
+</li>
+
+<li>
+foursquare:
+<ul>
+	<li>Do venue photos requests userless</li>
+	<li>safely access venueItem.Location</li>
+</ul>
+</li>
+
+<li>
+fs:
+<ul>
+	<li>check mountedness with /proc/mounts</li>
+	<li>take At into account for (root)dirs</li>
+	<li>remove noXattr type</li>
+	<li>osxfuse version check shouldn&#39;t depend on map ordering</li>
+</ul>
+</li>
+
+<li>
+gitignore:
+<ul>
+	<li>bin/website</li>
+	<li>remove *.go</li>
+</ul>
+</li>
+
+<li>
+gpgchallenge:
+<ul>
+	<li>expose the clients handler</li>
+	<li>more paranoia against clients</li>
+	<li>require public key of at least 2048 bits</li>
+	<li>to prove IP ownership with a gpg challenge</li>
+</ul>
+</li>
+
+<li>
+HACKING:
+<ul>
+	<li>new contrib commit message</li>
+</ul>
+</li>
+
+<li>
+httputil:
+<ul>
+	<li>fix checkSystemRoots for Go1.6</li>
+</ul>
+</li>
+
+<li>
+importer:
+<ul>
+	<li>Unescape tweet content during import</li>
+	<li>warn about insecure form</li>
+	<li>make RunContext.Context be a read-only accessor</li>
+	<li>add long-polling support. make Twitter updates real-time.</li>
+	<li>make the client secret be input type=password</li>
+	<li>cache accounts list</li>
+</ul>
+</li>
+
+<li>
+importer/foursquare:
+<ul>
+	<li>fix attempts to download empty string URLs</li>
+	<li>import also the photo of the companion</li>
+	<li>increment importer version</li>
+	<li>also import who checked in together</li>
+	<li>use golang.org/x/oauth2</li>
+</ul>
+</li>
+
+<li>
+importer/picasa:
+<ul>
+	<li>simplify, consolidate to single file</li>
+	<li>rm anyErr because never set</li>
+	<li>use golang.org/x/oauth2</li>
+</ul>
+</li>
+
+<li>
+importer/pinboard:
+<ul>
+	<li>fix test</li>
+	<li>kill World after test</li>
+</ul>
+</li>
+
+<li>
+index:
+<ul>
+	<li>read blob before acquiring index mutex</li>
+	<li>clean up BlobSniffer a bit</li>
+	<li>util_test.go not an index impl</li>
+	<li>skip reindexing tests on Travis CI</li>
+	<li>improve Corpus attr lookup with signer filter</li>
+	<li>use mime.TypeByExtension to record MIMEType</li>
+	<li>add ClaimsAttrValue</li>
+	<li>test showing issue #756</li>
+	<li>store exifgps keys without exponent</li>
+	<li>add missing locking for some tests</li>
+	<li>make corpus RLock take a context</li>
+	<li>corpus: more valuesAtSigner doc</li>
+	<li>corpus: add Attrs cache to PermanodeMeta</li>
+	<li>fix deadlock with search.</li>
+	<li>simplify out of order indexing</li>
+</ul>
+</li>
+
+<li>
+integration/camput:
+<ul>
+	<li>check we upload same file only once</li>
+</ul>
+</li>
+
+<li>
+make.go:
+<ul>
+	<li>allow dots in mirrored filenames</li>
+	<li>when running with go tip, use Go 1.7 to build gopherjs</li>
+	<li>optionally build camnetdns</li>
+	<li>use host GOOS and GOARCH when go generating zsearch.go</li>
+	<li>do not cross-compile gopherjs</li>
+	<li>generate search types for app/publisher</li>
+	<li>build and run gopherjs for publisher</li>
+	<li>mirror assembly code too</li>
+	<li>remove <code>--use_gopath</code></li>
+	<li>just build website with <code>-website</code></li>
+	<li>build for ARM in its own versioned gopath dir</li>
+	<li>make GOARM default to 7, fix TODO</li>
+	<li>add TODO about cross-compiling on ARMvx to ARMvy</li>
+	<li>typo</li>
+	<li>Add parameters to allow for ARM cross compiling</li>
+	<li>require Go 1.6</li>
+	<li>Switch to Go1.7</li>
+	<li>fix version check for go1.8beta and go1.8rc</li>
+	<li>always populate gopherjsGoroot</li>
+	<li>increase, and enforce, git rev to 10 chars</li>
+	<li>switch to Go 1.8</li>
+	<li>make it work for gopherjs again</li>
+</ul>
+</li>
+
+<li>
+misc/amazon/s3:
+<ul>
+	<li>test against fake-s3 in docker</li>
+	<li>fix test for Client</li>
+</ul>
+</li>
+
+<li>
+misc/docker:
+<ul>
+	<li>monthly.go: add blank lines to release notes source</li>
+	<li>fix missing space typo</li>
+	<li>bucket.List + CAMLI_GOPHERJS_GOROOT fixes</li>
+	<li>monthly.go: more grouping of release notes</li>
+	<li>dock.go: print binaries tarball path</li>
+	<li>dock.go: fix flag doc typo for version</li>
+	<li>restore check that we run in docker</li>
+	<li>gensearchtypes.sh does not exist anymore</li>
+	<li>chmod u&#43;x on gensearchtypes.sh</li>
+	<li>Go1.7</li>
+	<li>update VERSION file when pushing new image</li>
+	<li>add zoneinfo to GCE docker image</li>
+	<li>update zip-source.go</li>
+	<li>replace CopyObject calls</li>
+	<li>build ignore for standalone programs</li>
+	<li>rm third_party in zip-source</li>
+	<li>fix third_party move for docker image</li>
+	<li>go 1.6.1</li>
+	<li>stamp version as well to binaries</li>
+	<li>go: bump to Go1.6</li>
+	<li>go1.8rc2</li>
+	<li>go 1.6.2</li>
+	<li>monthly.go: improve download boxes style</li>
+	<li>monthly.go: generate raw release notes</li>
+	<li>monthly.go: generate commit statistics</li>
+	<li>monthly.go: use release date in files names</li>
+	<li>monthly.go: automatically generate a monthly release</li>
+	<li>release: zip-source.go</li>
+	<li>release: fix google cloud use</li>
+</ul>
+</li>
+
+<li>
+misc/pinentry:
+<ul>
+	<li>runPass: set stdin, check error</li>
+</ul>
+</li>
+
+<li>
+netutil:
+<ul>
+	<li>test loopbackIP</li>
+</ul>
+</li>
+
+<li>
+osutil:
+<ul>
+	<li>remove dependency on pkg/env</li>
+	<li>fix Windows build</li>
+	<li>add arguments to RestartProcess</li>
+	<li>catch error from non-implemented Getrlimit</li>
+</ul>
+</li>
+
+<li>
+publisher:
+<ul>
+	<li>support case when published top node is not a set</li>
+	<li>change http status and message when serving root</li>
+	<li>restore SourceRoot configurability</li>
+</ul>
+</li>
+
+<li>
+schema:
+<ul>
+	<li>limit I/O concurrency in Readdir</li>
+</ul>
+</li>
+
+<li>
+schema/nodeaddr:
+<ul>
+	<li>add GivenName, FamilyName</li>
+</ul>
+</li>
+
+<li>
+search:
+<ul>
+	<li>add test to illustrate issue 881</li>
+	<li>fix panic when claim and permanode have no attributes.</li>
+	<li>add precise alloc counts in TestGetPermanodeLocationAllocs</li>
+	<li>unify location Query with Describe</li>
+	<li>allow blob.Parse allocations in TestGetPermanodeLocationAllocs</li>
+	<li>improve location describe performance</li>
+	<li>generate exif file from scratch for location tests</li>
+	<li>make sure getPermanodeLocation does not allocate</li>
+	<li>make floats more visible with post dot zero</li>
+	<li>fix matching location spanning latitude 180</li>
+	<li>fix float VS int bug in BenchmarkLocationPredicate</li>
+	<li>add EXIF files to BenchmarkLocationPredicate</li>
+	<li>add cached geocode results used in benchmarks</li>
+	<li>benchmark location queries</li>
+	<li>add BenchmarkQueryPermanodeLocation</li>
+	<li>clarify sorting limitation</li>
+	<li>add location info to DescribedBlob</li>
+	<li>rename Describe to StartDescribe</li>
+	<li>fix describe race</li>
+	<li>use the right method for locking the index</li>
+	<li>lock index for corpus creation</li>
+	<li>add query and describe benchmarks</li>
+	<li>optimize file search by wholeRef</li>
+	<li>search by &#34;with&#34; keyword</li>
+	<li>RLock Describe requests</li>
+	<li>RLock index around GetBlobMeta</li>
+	<li>remove broken websocket status optimization.</li>
+	<li>add JSON name for filename on DirConstraint</li>
+	<li>add parentof search expression</li>
+</ul>
+</li>
+
+<li>
+server:
+<ul>
+	<li>add missing defer in sync handler</li>
+	<li>add share handler prefix to discovery</li>
+	<li>on auth needed, let us authenticate</li>
+	<li>instruction for updating on GCE</li>
+	<li>update home page and doc about /setup</li>
+	<li>fix sharing, add tests</li>
+	<li>fall back to serving UI resources from GOPATH as last resort</li>
+	<li>HTML escape each sync validation error, put on their own lines</li>
+	<li>synchandler: add exported constructor and IdleWait method</li>
+	<li>sync: allow running validation multiple times</li>
+	<li>sync: fix recent errors logging</li>
+</ul>
+</li>
+
+<li>
+server/app:
+<ul>
+	<li>refresh cached domain blobs on 403</li>
+	<li>do not mutate r.URL.Path</li>
+	<li>proxy search requests for publisher</li>
+	<li>improve app handling</li>
+</ul>
+</li>
+
+<li>
+camnetdns:
+<ul>
+	<li>get certificate from <a href="https://letsencrypt.org/">Let&#39;s Encrypt</a></li>
+	<li>persist records in datastore</li>
+	<li>reply with NXDOMAIN when needed</li>
+	<li>implement more of the DNS protocol</li>
+	<li>make it work</li>
+	<li>set authority flag on dns response</li>
+	<li>log all incoming requests</li>
+	<li>default to port 53 on gce</li>
+	<li>add cloudlaunch config</li>
+	<li>start of camlistore.net DNS server</li>
+</ul>
+</li>
+
+<li>
+serverinit:
+<ul>
+	<li>add b2 and encrypt secrets to redaction list</li>
+	<li>allow sorted for other indexes</li>
+	<li>print stack when recovering in InstallHandlers</li>
+	<li>fix blobpacked_index genconfig for GCS</li>
+	<li>remove trailing commas causing invalid JSON</li>
+	<li>improve handling of redacted data in config handler</li>
+	<li>add /debug/goroutines handler</li>
+	<li>improve genconfig error message</li>
+	<li>fix test after 7b78c50007780643798adf3fee4c84f3a10154c9</li>
+</ul>
+</li>
+
+<li>
+sorted:
+<ul>
+	<li>log and skip on too large a key/value</li>
+</ul>
+</li>
+
+<li>
+sorted/levedb:
+<ul>
+	<li>check error on closing iter</li>
+</ul>
+</li>
+
+<li>
+sorted/mysql:
+<ul>
+	<li>drop tables on reindex</li>
+	<li>fix detection of outdated database schema</li>
+	<li>cap number of queries to 20 at a time</li>
+	<li>remove DB from pool when closing</li>
+</ul>
+</li>
+
+<li>
+sorted/sqlkv:
+<ul>
+	<li>rollback failed transaction</li>
+	<li>don&#39;t release gate until iterator is closed</li>
+</ul>
+</li>
+
+<li>
+sorted/sqlkv, sorted/sqlite:
+<ul>
+	<li>replace Serial bool with a *syncutil.Gate</li>
+</ul>
+</li>
+
+<li>
+test/integration:
+<ul>
+	<li>make sure testing not linked in camlistored</li>
+	<li>share large file test</li>
+	<li>fix TestCamputUploadOnce for devcam test</li>
+</ul>
+</li>
+
+<li>
+third_party:
+<ul>
+	<li>remove code.google.com/p/goauth2</li>
+</ul>
+</li>
+
+<li>
+third_party/goleveldb:
+<ul>
+	<li>rm tests that need other deps</li>
+</ul>
+</li>
+
+<li>
+third_party/picago:
+<ul>
+	<li>remove unneeded oauth helpers</li>
+</ul>
+</li>
+
+<li>
+third_party/rsc/qr:
+<ul>
+	<li>rm unused web pkg</li>
+</ul>
+</li>
+
+<li>
+travis ci:
+<ul>
+	<li>build with Go 1.6</li>
+	<li>remove go tip</li>
+	<li>update to go 1.7</li>
+	<li>revert to Go 1.7</li>
+</ul>
+</li>
+
+<li>
+types:
+<ul>
+	<li>remove pkg</li>
+</ul>
+</li>
+
+<li>
+vendor:
+<ul>
+	<li>Move remaining stuff from third_party/*</li>
+	<li>update go4.org/wkfs/gcs</li>
+	<li>rm golang.org/x/crypto/openpgp/clearsign</li>
+	<li>add golang.org/x/crypto/openpgp/clearsign</li>
+	<li>add golang.org/x/time/rate</li>
+	<li>rm code.google.com/p/go.crypto/openpgp</li>
+	<li>add golang.org/x/crypto/acme</li>
+	<li>add google.golang.org/api/internal</li>
+	<li>rename google.golang.org/cloud to cloud.google.com/go</li>
+	<li>update bazil.org/fuse</li>
+	<li>update go4.org/lock</li>
+	<li>update github.com/cznic/fileutil</li>
+	<li>fix more website (protobuf) deps</li>
+	<li>update cloud,grpc,protobuf libraries</li>
+	<li>update google.golang.org/cloud</li>
+	<li>update github.com/russross/blackfriday</li>
+	<li>add golang.org/x/sys/unix</li>
+	<li>update golang.org/x/oauth2</li>
+	<li>update http2</li>
+	<li>update go4.org</li>
+	<li>update go4.org</li>
+	<li>update go4.org/lock</li>
+	<li>go4.org/lock</li>
+	<li>update cloud/storage</li>
+	<li>update http2</li>
+	<li>remove future/mime/multipart</li>
+	<li>remove mousetrap dep in github.com/spf13/cobra</li>
+	<li>goexif: unvendor old import path</li>
+	<li>embed: upgrade less.js to 2.6.1, so CSS loads via http/2</li>
+	<li>Update bazil.org/fuse</li>
+	<li>Drop leveldb-go</li>
+	<li>update cloud.google.com/go/logging to V2 API</li>
+	<li>replace google.golang.org/grpc with github.com/bradfitz/grpc-go</li>
+	<li>update react to 15.4.2</li>
+	<li>update gopherjs to 1.8-1</li>
+</ul>
+</li>
+
+<li>
+webserver:
+<ul>
+	<li>force tls MinVersion to TLS1.2</li>
+</ul>
+</li>
+
+<li>
+website:
+<ul>
+	<li>fix nil based panic</li>
+	<li>run on staging instance</li>
+	<li>log when SMTP down</li>
+	<li>launcher: show when in WIP mode</li>
+	<li>make sure autocert is given a host name</li>
+	<li>use golang.org/x/crypto/acme for <a href="https://letsencrypt.org/">Let&#39;s Encrypt</a></li>
+	<li>update google cloud dependencies</li>
+	<li>specify Go 1.7 requirement</li>
+	<li>clean up previous docker git container</li>
+	<li>monthly release: 10aa2b3fbd</li>
+	<li>feature monthly releases</li>
+	<li>mv downloadBox to all.css</li>
+	<li>use <a href="https://letsencrypt.org/">Let&#39;s Encrypt</a></li>
+	<li>Update Min Go Version to 1.6</li>
+	<li>fix remaining old links to /docs/</li>
+	<li>strip directory index and file extensions</li>
+	<li>simplify docHandler</li>
+	<li>redirect builder to travis</li>
+	<li>add html ext to docs/releases/*</li>
+	<li>update doc URLs</li>
+	<li>fix wikipedia links on prior-art page</li>
+	<li>restore search-ui.txt with link to new page</li>
+	<li>update misc docs to markdown</li>
+	<li>terminology: fix protocol links</li>
+	<li>keep doc/schema flat</li>
+	<li>convert schema docs to markdown</li>
+	<li>serve non-HTML files as raw bytes</li>
+	<li>use custom markdown options</li>
+	<li>serve godocs for /app/ packages</li>
+	<li>serve /doc/ URLs from top-level doc dir</li>
+	<li>refactor mainHandler to allow diff roots</li>
+	<li>do a full cloning of camlistore.org on startup</li>
+	<li>redirect to https</li>
+	<li>fix ssh for git push to github</li>
+	<li>sync commits to github</li>
+	<li>document importers in server-config</li>
+	<li>always remove old demoblob3179 container</li>
+	<li>print error for demo blobserver</li>
+	<li>fix missing return from prev commit</li>
+	<li>make /apiget in demo authenticated too</li>
+	<li>chrome bug repro demo</li>
+	<li>update homepage&#39;s latest release</li>
+	<li>do not send mail when no smtp</li>
+	<li>redirect /doc/dir to /doc/dir/ with trailing slash</li>
+	<li>client-config: hint about paths, multiple aliases and sync</li>
+	<li>Instantiate markdownRenderer per-request</li>
+	<li>Document workflow for editing documentation.</li>
+	<li>Convert code, community, and download pages to md.</li>
+	<li>Remove /doc/contributing.md</li>
+	<li>Comment explaining that contributors.html is a fallback.</li>
+	<li>Add links for the latest presentation</li>
+	<li>rename HACKING to CONTRIBUTING.md</li>
+	<li>convert protocol docs to markdown</li>
+	<li>restore the staging instance changes</li>
+	<li>fix google styleguide URL</li>
+</ul>
+</li>
+
+</ul>
+</p>
