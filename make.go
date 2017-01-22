@@ -174,6 +174,7 @@ func main() {
 		"camlistore.org/app/hello",
 		"camlistore.org/app/publisher",
 		"camlistore.org/app/scanningcabinet",
+		"camlistore.org/app/scanningcabinet/scancab",
 	}
 	switch *targets {
 	case "*":
