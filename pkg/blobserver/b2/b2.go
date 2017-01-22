@@ -198,7 +198,7 @@ func (s *Storage) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) 
 		return nil, 0, errors.New("b2: remote ContentSHA1 mismatch")
 	}
 
-	if fi.ContentLength >= 1<<32 {
+	if int64(fi.ContentLength) >= int64(1<<32) {
 		r.Close()
 		return nil, 0, errors.New("object larger than a uint32")
 	}
