@@ -551,9 +551,20 @@ func genReleaseNotes() (map[string][]string, error) {
 		return nil, fmt.Errorf("%v; %v", err, string(out))
 	}
 
+	// We define the "context" of a commit message as the very first
+	// part of the message, before the first colon.
+	startsWithContext := regexp.MustCompile(`^(.+?):\s+(.*)$`)
+	// Any of the keys in webUIContext, when encountered as context of
+	// a commit message, means the commit is about the web UI. So we group
+	// them all together under the "camlistored/ui" context.
+	webUIContext := map[string]bool{
+		"server/camlistored/ui": true,
+		"ui":     true,
+		"web ui": true,
+		"webui":  true,
+	}
 	var noContext []string
 	commitByContext := make(map[string][]string)
-	startsWithContext := regexp.MustCompile(`^(.+?):\s+(.*)$`)
 	sc := bufio.NewScanner(bytes.NewReader(out))
 	for sc.Scan() {
 		hashStripped := strings.SplitN(sc.Text(), " ", 2)[1]
@@ -569,6 +580,15 @@ func genReleaseNotes() (map[string][]string, error) {
 		commitContext := strings.ToLower(m[1])
 		// remove "pkg/" prefix to group together e.g. "pkg/search:" and "search:"
 		commitContext = strings.TrimPrefix(commitContext, "pkg/")
+		// same thing for command-line tools
+		commitContext = strings.TrimPrefix(commitContext, "cmd/")
+		// group together all web UI stuff
+		if _, ok := webUIContext[commitContext]; ok {
+			commitContext = "camlistored/ui"
+		}
+		if commitContext == "server/camlistored" {
+			commitContext = "camlistored"
+		}
 		var changes []string
 		oldChanges, ok := commitByContext[commitContext]
 		if !ok {
