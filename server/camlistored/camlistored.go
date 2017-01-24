@@ -437,11 +437,7 @@ func muxChallengeHandler(ws *webserver.Server, config *serverinit.Config) (*gpgc
 	if err != nil {
 		return nil, fmt.Errorf("could not init gpgchallenge client: %v", err)
 	}
-	prefix, handler := cl.Handler()
-	if err != nil {
-		return nil, fmt.Errorf("could not get gpgchallenge client handler: %v", err)
-	}
-	ws.Handle(prefix, handler)
+	ws.Handle(cl.Handler())
 	return cl, nil
 }
 

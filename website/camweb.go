@@ -75,6 +75,7 @@ var (
 	tlsKeyFile  = flag.String("tlskey", "", "TLS private key file")
 	alsoRun     = flag.String("also_run", "", "[optiona] Path to run as a child process. (Used to run camlistore.org's ./scripts/run-blob-server)")
 	devMode     = flag.Bool("dev", false, "in dev mode")
+	flagStaging = flag.Bool("staging", false, "Deploy to a test GCE instance. Requires -cloudlaunch=true")
 
 	gceProjectID = flag.String("gce_project_id", "", "GCE project ID; required if not running on GCE and gce_log_name is specified.")
 	gceLogName   = flag.String("gce_log_name", "", "GCE Cloud Logging log name; if non-empty, logs go to Cloud Logging instead of Apache-style local disk log files")
@@ -85,8 +86,18 @@ var (
 	flagChromeBugRepro = flag.Bool("chrome_bug", false, "Run the chrome bug repro demo for issue #660. True in production.")
 )
 
+const (
+	stagingInstName = "camweb-staging" // name of the GCE instance when testing
+	stagingHostname = "staging.camlistore.net"
+)
+
 var (
 	inProd bool
+	// inStaging is whether this instance is the staging server. This should only be true
+	// if inProd is also true - they are not mutually exclusive; staging is still prod -
+	// because we want to test the same code paths as in production. The code then runs
+	// on another GCE instance, and on the stagingHostname host.
+	inStaging bool
 
 	pageHTML, errorHTML, camliErrorHTML *template.Template
 	packageHTML                         *txttemplate.Template
@@ -451,6 +462,10 @@ func (h *redirectRootHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 
 	host := strings.ToLower(r.Host)
 	if host == "www.camlistore.org" || (inProd && r.TLS == nil) {
+		if inStaging {
+			http.Redirect(rw, r, "https://"+stagingHostname+r.URL.RequestURI(), http.StatusFound)
+			return
+		}
 		http.Redirect(rw, r, "https://camlistore.org"+r.URL.RequestURI(), http.StatusFound)
 		return
 	}
@@ -515,7 +530,11 @@ func gceDeployHandler(prefix string) (*gce.DeployHandler, error) {
 	var err error
 	scheme := "https"
 	if inProd {
-		hostPort = "camlistore.org:443"
+		if inStaging {
+			hostPort = stagingHostname + ":443"
+		} else {
+			hostPort = "camlistore.org:443"
+		}
 	} else {
 		addr := *httpsAddr
 		if *devMode && *httpsAddr == "" {
@@ -569,7 +588,9 @@ func checkInProduction() bool {
 	proj, _ := metadata.ProjectID()
 	inst, _ := metadata.InstanceName()
 	log.Printf("Running on GCE: %v / %v", proj, inst)
-	return proj == "camlistore-website" && inst == "camweb"
+	prod := proj == "camlistore-website" && inst == "camweb" || inst == stagingInstName
+	inStaging = prod && inst == stagingInstName
+	return prod
 }
 
 const (
@@ -608,14 +629,23 @@ func setProdFlags() {
 	getDockerImage("camlistore/demoblobserver", "docker-demoblobserver.tar.gz")
 
 	log.Printf("cloning camlistore git tree...")
-	out, err := exec.Command("docker", "run",
+	cloneArgs := []string{
+		"run",
 		"--rm",
 		"-v", "/var/camweb:/var/camweb",
 		"camlistore/git",
 		"git",
 		"clone",
-		"https://camlistore.googlesource.com/camlistore",
-		prodSrcDir).CombinedOutput()
+	}
+	if inStaging {
+		// We work off the staging branch, so we stay in control of the
+		// website contents, regardless of which commits are landing on the
+		// master branch in the meantime.
+		cloneArgs = append(cloneArgs, "-b", "staging", "https://github.com/camlistore/camlistore.git", prodSrcDir)
+	} else {
+		cloneArgs = append(cloneArgs, "https://camlistore.googlesource.com/camlistore", prodSrcDir)
+	}
+	out, err := exec.Command("docker", cloneArgs...).CombinedOutput()
 	if err != nil {
 		log.Fatalf("git clone: %v, %s", err, out)
 	}
@@ -771,9 +801,35 @@ func projectID() string {
 	return projID
 }
 
+func initStaging() error {
+	if *flagStaging {
+		launchConfig.Name = stagingInstName
+		return nil
+	}
+	// If we are the instance that has just been deployed, we can't rely on
+	// *flagStaging, since there's no way to pass flags through launchConfig.
+	// And we need to know if we're a staging instance, so we can set
+	// launchConfig.Name properly before we get into restartLoop from
+	// MaybeDeploy. So we use our own instance name as a hint.
+	if !metadata.OnGCE() {
+		return nil
+	}
+	instName, err := metadata.InstanceName()
+	if err != nil {
+		return fmt.Errorf("Instance could not get its Instance Name: %v", err)
+	}
+	if instName == stagingInstName {
+		launchConfig.Name = stagingInstName
+	}
+	return nil
+}
+
 func main() {
-	launchConfig.MaybeDeploy()
 	flag.Parse()
+	if err := initStaging(); err != nil {
+		log.Fatalf("Error setting up staging: %v", err)
+	}
+	launchConfig.MaybeDeploy()
 	setProdFlags()
 
 	if *root == "" {
@@ -937,7 +993,11 @@ func serveHTTPS(httpServer *http.Server) error {
 		}
 		domain = host
 	} else {
-		domain = "camlistore.org"
+		if inStaging {
+			domain = stagingHostname
+		} else {
+			domain = "camlistore.org"
+		}
 		cacheDir = autocert.DirCache(prodLECacheDir)
 	}
 	m := autocert.Manager{
@@ -948,7 +1008,6 @@ func serveHTTPS(httpServer *http.Server) error {
 	if *adminEmail != "" {
 		m.Email = *adminEmail
 	}
-
 	httpsServer.TLSConfig = &tls.Config{
 		GetCertificate: m.GetCertificate,
 	}
