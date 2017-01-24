@@ -42,6 +42,18 @@ This page documents the simple configuration mode.
        from Let's Encrypt.
   * As a fallback, if no FQDN is found, a self-signed certificate is generated.
 
+* `camliNetIP`: the optional internet-facing IP address for this
+  Camlistore instance. If set, a name in the camlistore.net domain for
+  that IP address will be requested on startup. The obtained domain name
+  will then be used as the host name in the base URL.
+  For now, the protocol to get the name requires receiving a challenge
+  on port 443. Also, this option implies `https`, and that the HTTPS
+  certificate is obtained from [Let's Encrypt](https://letsencrypt.org).
+  For these reasons, this option is mutually exclusive with `baseURL`, `listen`,
+  `httpsCert`, and `httpsKey`.
+  On cloud instances (Google Compute Engine only for now), this option is
+  automatically used.
+
 * `identity`: your GPG fingerprint. A keypair is created for new users on
   start, but this may be changed if you know what you're doing.
 
