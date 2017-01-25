@@ -35,11 +35,11 @@ cam.Dialog = React.createClass({
 				{
 					className: 'cam-dialog',
 					style: {
-						'width': this.props.width,
-						'height': this.props.height,
-						'left': (this.props.availWidth - this.props.width) / 2,
-						'top': (this.props.availHeight - this.props.height) / 2,
-						'border-width': this.props.borderWidth,
+						width: this.props.width,
+						height: this.props.height,
+						left: (this.props.availWidth - this.props.width) / 2,
+						top: (this.props.availHeight - this.props.height) / 2,
+						borderWidth: this.props.borderWidth
 					},
 				},
 				this.getClose_(),

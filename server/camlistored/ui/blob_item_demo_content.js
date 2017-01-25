@@ -89,7 +89,7 @@ cam.BlobItemDemoContent.Handler.prototype.getAspectRatio = function () {
 };
 
 cam.BlobItemDemoContent.Handler.prototype.createContent = function (size) {
-	return cam.BlobItemDemoContent({
+	return React.createElement(cam.BlobItemDemoContent, {
 		blobref: this.meta_.blobRef,
 		color: cam.permanodeUtils.getSingleAttr(this.meta_.permanode, 'color') || '#777',
 		title: cam.permanodeUtils.getSingleAttr(this.meta_.permanode, 'title') || '',

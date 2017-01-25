@@ -71,7 +71,7 @@ cam.BlobItemImageContent = React.createClass({
 	},
 
 	getThumbClipClassName_: function() {
-		return React.addons.classSet({
+		return classNames({
 			'cam-blobitem-thumbclip': true,
 			'cam-blobitem-loading': !this.state.loaded,
 		});
@@ -81,7 +81,9 @@ cam.BlobItemImageContent = React.createClass({
 		if (this.state.loaded) {
 			return null;
 		}
-		return cam.PyramidThrobber({pos:cam.math.center(cam.PyramidThrobber.SIZE, thumbClipSize)});
+		return React.createElement(cam.PyramidThrobber,{
+			pos: cam.math.center(cam.PyramidThrobber.SIZE, thumbClipSize)
+		});
 	},
 
 	getThumb_: function(thumbClipSize) {
@@ -143,7 +145,7 @@ cam.BlobItemImageContent.Handler.prototype.getAspectRatio = function() {
 };
 
 cam.BlobItemImageContent.Handler.prototype.createContent = function(size) {
-	return cam.BlobItemImageContent({
+	return React.createElement(cam.BlobItemImageContent, {
 		aspect: this.getAspectRatio(),
 		href: this.href_,
 		size: size,

@@ -50,7 +50,7 @@ cam.BlobItemReact = React.createClass({
 	},
 
 	getRootClassName_: function() {
-		return React.addons.classSet({
+		return classNames({
 			'cam-blobitem': true,
 			'goog-control-hover': this.state.hovered,
 			'goog-control-checked': this.props.checked,

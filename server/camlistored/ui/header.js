@@ -51,13 +51,14 @@ cam.Header = React.createClass({
 		helpURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		homeURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		importersURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
-		mainControls: React.PropTypes.arrayOf(React.PropTypes.renderable),
+		mainControls: React.PropTypes.arrayOf(React.PropTypes.node),
 		onNewPermanode: React.PropTypes.func,
 		onSearch: React.PropTypes.func,
 		favoritesURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		statusURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		timer: React.PropTypes.shape({setTimeout:React.PropTypes.func.isRequired, clearTimeout:React.PropTypes.func.isRequired}).isRequired,
 		width: React.PropTypes.number.isRequired,
+		config: React.PropTypes.object.isRequired,
 	},
 
 	focusSearch: function() {
@@ -90,11 +91,13 @@ cam.Header = React.createClass({
 				{
 					className: 'cam-header-main',
 				},
-				React.DOM.tr(null,
-					this.getPiggy_(),
-					this.getTitle_(),
-					this.getSearchbox_(),
-					this.getMainControls_()
+				React.DOM.tbody(null,
+					React.DOM.tr(null,
+						this.getPiggy_(),
+						this.getTitle_(),
+						this.getSearchbox_(),
+						this.getMainControls_()
+					)
 				)
 			),
 			this.getMenuDropdown_()
@@ -117,14 +120,14 @@ cam.Header = React.createClass({
 
 		var image = function() {
 			if (this.props.errors.length) {
-				return cam.SpritedAnimation(cam.object.extend(props, {
+				return React.createElement(cam.SpritedAnimation, cam.object.extend(props, {
 					key: 'error',
 					loopDelay: 10 * 1000,
 					numFrames: 65,
 					src: 'glitch/npc_piggy__x1_too_much_nibble_png_1354829441.png',
 				}));
 			} else {
-				return cam.SpritedImage(cam.object.extend(props, {
+				return React.createElement(cam.SpritedImage, cam.object.extend(props, {
 					key: 'ok',
 					index: 5,
 					src: 'glitch/npc_piggy__x1_chew_png_1354829433.png',
@@ -186,7 +189,7 @@ cam.Header = React.createClass({
 	getMainControls_: function() {
 		return React.DOM.td(
 			{
-				className: React.addons.classSet({
+				className: classNames({
 					'cam-header-item': true,
 					'cam-header-main-controls': true,
 					'cam-header-main-controls-empty': !this.props.mainControls.length,

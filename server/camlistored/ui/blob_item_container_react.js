@@ -121,7 +121,7 @@ cam.BlobItemContainerReact = React.createClass({
 			var isLastWheelItem = item.blobref == this.lastWheelItem_;
 			return visible || isLastWheelItem;
 		}, this).map(function(item) {
-			return cam.BlobItemReact({
+			return React.createElement(cam.BlobItemReact, {
 					key: item.blobref,
 					blobref: item.blobref,
 					checked: Boolean(this.props.selection[item.blobref]),
@@ -288,18 +288,16 @@ cam.BlobItemContainerReact = React.createClass({
 				},
 			},
 			React.DOM.div(null, 'No results found'),
-			cam.SpritedImage(
-				{
-					index: 6,
-					sheetWidth: 10,
-					spriteWidth: piggyWidth,
-					spriteHeight: piggyHeight,
-					src: 'glitch/npc_piggy__x1_rooked1_png_1354829442.png',
-					style: {
-						'margin-left': (w - piggyWidth) / 2
-					}
+			React.createElement(cam.SpritedImage, {
+				index: 6,
+				sheetWidth: 10,
+				spriteWidth: piggyWidth,
+				spriteHeight: piggyHeight,
+				src: 'glitch/npc_piggy__x1_rooked1_png_1354829442.png',
+				style: {
+					marginLeft: (w - piggyWidth) / 2
 				}
-			)
+			})
 		);
 	},
 
@@ -384,10 +382,6 @@ cam.BlobItemContainerReact = React.createClass({
 	},
 
 	fillVisibleAreaWithResults_: function() {
-		if (!this.isMounted()) {
-			return;
-		}
-
 		var layoutEnd = this.transformY_(this.layoutHeight_);
 		if ((layoutEnd - this.getScrollBottom_()) > this.INFINITE_SCROLL_THRESHOLD_PX_) {
 			return;

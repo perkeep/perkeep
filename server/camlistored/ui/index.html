@@ -27,7 +27,9 @@ limitations under the License.
 		<script src="closure/goog/base.js"></script>
 		<script src="./deps.js"></script>
 		<script src="?camli.mode=config&var=CAMLISTORE_CONFIG"></script>
-		<script src="react/react-with-addons.js"></script>
+		<script src="react/react-with-addons.min.js"></script>
+		<script src="react/react-dom.min.js"></script>
+		<script src="react/classnames.js"></script>
 
 		<script>
 			goog.DEBUG = false;
@@ -60,6 +62,7 @@ limitations under the License.
 		<script src="less/less.js"></script>
 	</head>
 	<body class="cam-index-page">
+    <div class="cam-index-page--container"></div>
 		<script>
 			var lastWidth = -1;
 			var lastHeight = -1;
@@ -73,7 +76,12 @@ limitations under the License.
 				lastWidth = currentWidth;
 				lastHeight = currentHeight;
 
-				var index = cam.IndexPage({
+				var container = document.body.getElementsByClassName('cam-index-page--container').item(0);
+				if (!container) {
+					console.log("cam-index-page: couldn't find mount point for root")
+					return;
+				}
+				var index = React.createElement(cam.IndexPage, {
 					availWidth: currentWidth,
 					availHeight: currentHeight,
 					config: CAMLISTORE_CONFIG,
@@ -90,7 +98,7 @@ limitations under the License.
 					serverConnection: new cam.ServerConnection(CAMLISTORE_CONFIG),
 					timer: window,
 				});
-				React.renderComponent(index, document.body);
+				ReactDOM.render(index, container);
 			};
 			window.addEventListener('resize', render);
 			window.setInterval(render, 3000);

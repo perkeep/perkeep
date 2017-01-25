@@ -87,9 +87,9 @@ cam.IndexPage = React.createClass({
 		history: React.PropTypes.shape({pushState:React.PropTypes.func.isRequired, replaceState:React.PropTypes.func.isRequired, go:React.PropTypes.func.isRequired, state:React.PropTypes.object}).isRequired,
 		openWindow: React.PropTypes.func.isRequired,
 		location: React.PropTypes.shape({href:React.PropTypes.string.isRequired, reload:React.PropTypes.func.isRequired}).isRequired,
-		scrolling: cam.BlobItemContainerReact.originalSpec.propTypes.scrolling,
+		scrolling: cam.BlobItemContainerReact.propTypes.scrolling,
 		serverConnection: React.PropTypes.instanceOf(cam.ServerConnection).isRequired,
-		timer: cam.Header.originalSpec.propTypes.timer,
+		timer: cam.Header.propTypes.timer,
 	},
 
 	// Invoked once right before initial rendering. This is essentially IndexPage's
@@ -630,7 +630,7 @@ cam.IndexPage = React.createClass({
 			query = this.state.currentURL.getParameterValue('q') || '';
 		}
 
-		return cam.Header(
+		return React.createElement(cam.Header,
 			{
 				currentSearch: query,
 				errors: this.getErrors_(),
@@ -642,7 +642,7 @@ cam.IndexPage = React.createClass({
 					return React.DOM.a(
 						{
 							key: val.title,
-							className: React.addons.classSet({
+							className: classNames({
 								'cam-header-main-control-active': idx == selectedAspectIndex,
 							}),
 							href: this.state.currentURL.clone().setFragment(val.fragment).toString(),
@@ -658,6 +658,7 @@ cam.IndexPage = React.createClass({
 				ref: 'header',
 				timer: this.props.timer,
 				width: this.props.availWidth,
+				config: this.props.config,
 			}
 		)
 	},
@@ -1059,7 +1060,7 @@ cam.IndexPage = React.createClass({
 		if (selectedAspect) {
 			if (selectedAspect.fragment == 'search' || selectedAspect.fragment == 'contents') {
 				var count = goog.object.getCount(this.state.selection);
-				return cam.Sidebar( {
+				return React.createElement(cam.Sidebar, {
 					isExpanded: this.state.sidebarVisible,
 					header: React.DOM.span(
 						{
@@ -1091,13 +1092,11 @@ cam.IndexPage = React.createClass({
 	},
 
 	getTagsControl_: function() {
-		return cam.TagsControl(
-			{
-				selectedItems: this.state.selection,
-				searchSession: this.childSearchSession_,
-				serverConnection: this.props.serverConnection
-			}
-		);
+		return React.createElement(cam.TagsControl, {
+			selectedItems: this.state.selection,
+			searchSession: this.childSearchSession_,
+			serverConnection: this.props.serverConnection
+		});
 	},
 
 	isUploading_: function() {
@@ -1120,7 +1119,7 @@ cam.IndexPage = React.createClass({
 			spriteWidth: piggyWidth,
 			spriteHeight: piggyHeight,
 			style: {
-				'margin-right': 3,
+				marginRight: 3,
 				position: 'relative',
 				display: 'inline-block',
 			}
@@ -1163,19 +1162,19 @@ cam.IndexPage = React.createClass({
 
 		function getIcon() {
 			if (this.isUploading_()) {
-				return cam.SpritedAnimation(cam.object.extend(iconProps, {
+				return React.createElement(cam.SpritedAnimation, cam.object.extend(iconProps, {
 					numFrames: 48,
 					src: 'glitch/npc_piggy__x1_chew_png_1354829433.png',
 				}));
 			} else if (this.state.dropActive) {
-				return cam.SpritedAnimation(cam.object.extend(iconProps, {
+				return React.createElement(cam.SpritedAnimation, cam.object.extend(iconProps, {
 					loopDelay: 4000,
 					numFrames: 48,
 					src: 'glitch/npc_piggy__x1_look_screen_png_1354829434.png',
 					startFrame: 6,
 				}));
 			} else {
-				return cam.SpritedImage(cam.object.extend(iconProps, {
+				return React.createElement(cam.SpritedImage, cam.object.extend(iconProps, {
 					index: 0,
 					src: 'glitch/npc_piggy__x1_look_screen_png_1354829434.png',
 				}));
@@ -1209,8 +1208,7 @@ cam.IndexPage = React.createClass({
 			return Math.round(100 * (this.state.totalBytesComplete / this.state.totalBytesToUpload));
 		}
 
-		return cam.Dialog(
-			{
+		return React.createElement(cam.Dialog, {
 				availWidth: this.props.availWidth,
 				availHeight: this.props.availHeight,
 				width: w,
@@ -1222,7 +1220,7 @@ cam.IndexPage = React.createClass({
 				{
 					className: 'cam-index-upload-dialog',
 					style: {
-						'text-align': 'center',
+						textAlign: 'center',
 						position: 'relative',
 						left: -piggyWidth / 2,
 						top: (h - piggyHeight - borderWidth * 2) / 2,
@@ -1250,7 +1248,7 @@ cam.IndexPage = React.createClass({
 		var sidebarOpenWidth = sidebarClosedWidth - this.SIDEBAR_OPEN_WIDTH_;
 		var scale = sidebarOpenWidth / sidebarClosedWidth;
 
-		return cam.BlobItemContainerReact({
+		return React.createElement(cam.BlobItemContainerReact, {
 			key: 'blobitemcontainer',
 			ref: 'blobItemContainer',
 			availHeight: this.props.availHeight,

@@ -48,7 +48,7 @@ cam.BlobItemGenericContent = React.createClass({
 	},
 
 	getThumbClipClassName_: function() {
-		return React.addons.classSet({
+		return classNames({
 			'cam-blobitem-thumbclip': true,
 			'cam-blobitem-loading': false,
 		});
@@ -104,7 +104,7 @@ cam.BlobItemGenericContent.Handler.prototype.getAspectRatio = function() {
 
 cam.BlobItemGenericContent.Handler.prototype.createContent = function(size) {
 	// TODO(aa): In the case of a permanode that is a container (cam.permanodeUtils.isContainer()) and has a camliContentImage, it would be nice to show that image somehow along with the folder icon.
-	return cam.BlobItemGenericContent({
+	return React.createElement(cam.BlobItemGenericContent, {
 		href: this.href_,
 		size: size,
 		thumbSrc: this.thumbType_ + '.png',

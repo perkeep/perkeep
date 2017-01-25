@@ -86,7 +86,7 @@ cam.BlobDetail = React.createClass({
 				null,
 				refs.map(function(blobref) {
 					return React.DOM.li(
-						{},
+						{key: blobref},
 						React.DOM.a(
 							{
 								href: this.props.getDetailURL(blobref),
@@ -194,7 +194,7 @@ cam.BlobDetail.getAspect = function(getDetailURL, serverConnection, blobref, tar
 		fragment: 'blob',
 		title: 'Blob',
 		createContent: function(size) {
-			return cam.BlobDetail({
+			return React.createElement(cam.BlobDetail, {
 				getDetailURL: getDetailURL,
 				meta: m,
 				serverConnection: serverConnection,

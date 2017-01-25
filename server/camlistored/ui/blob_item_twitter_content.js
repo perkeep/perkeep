@@ -59,17 +59,19 @@ cam.BlobItemTwitterContent = React.createClass({
 				},
 			},
 			React.DOM.table({height: this.props.image ? '100%' : ''},
-				React.DOM.tr(null,
-					React.DOM.td({className: 'cam-blobitem-twitter-tweet-meta'},
-						React.DOM.span({className: 'cam-blobitem-twitter-tweet-date'}, cam.dateUtils.formatDateShort(this.props.date)),
-						React.DOM.br(),
-						React.DOM.span({className: ' cam-blobitem-twitter-tweet-content'}, this.props.content)
-					)
-				),
-				this.getImageRow_(),
-				React.DOM.tr(null,
-					React.DOM.td({className: 'cam-blobitem-twitter-tweet-icon'},
-						React.DOM.img({src: 'twitter-logo.png'})
+				React.DOM.tbody(null,
+					React.DOM.tr(null,
+						React.DOM.td({className: 'cam-blobitem-twitter-tweet-meta'},
+							React.DOM.span({className: 'cam-blobitem-twitter-tweet-date'}, cam.dateUtils.formatDateShort(this.props.date)),
+							React.DOM.br(),
+							React.DOM.span({className: ' cam-blobitem-twitter-tweet-content'}, this.props.content)
+						)
+					),
+					this.getImageRow_(),
+					React.DOM.tr(null,
+						React.DOM.td({className: 'cam-blobitem-twitter-tweet-icon'},
+							React.DOM.img({src: 'twitter-logo.png'})
+						)
 					)
 				)
 			)
@@ -118,7 +120,7 @@ cam.BlobItemTwitterContent.Handler.prototype.getAspectRatio = function() {
 };
 
 cam.BlobItemTwitterContent.Handler.prototype.createContent = function(size) {
-	return cam.BlobItemTwitterContent({
+	return React.createElement(cam.BlobItemTwitterContent, {
 		content: this.content_,
 		date: this.date_,
 		href: this.href_,

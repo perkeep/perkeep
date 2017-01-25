@@ -41,7 +41,7 @@ cam.BlobItemVideoContent = React.createClass({
 
 	render: function() {
 		return React.DOM.div({
-				className: React.addons.classSet({
+				className: classNames({
 					'cam-blobitem-video': true,
 					'cam-blobitem-video-loaded': this.state.loaded,
 				}),
@@ -88,7 +88,7 @@ cam.BlobItemVideoContent = React.createClass({
 			return null;
 		}
 		return React.DOM.i({
-			className: React.addons.classSet({
+			className: classNames({
 					'fa': true,
 					'fa-play': !this.state.playing,
 					'fa-pause': this.state.playing,
@@ -188,7 +188,7 @@ cam.BlobItemVideoContent.Handler.prototype.getAspectRatio = function() {
 };
 
 cam.BlobItemVideoContent.Handler.prototype.createContent = function(size) {
-	return cam.BlobItemVideoContent({
+	return React.createElement(cam.BlobItemVideoContent, {
 		blobref: this.rm_.blobRef,
 		filename: this.rm_.file.fileName,
 		href: this.href_,

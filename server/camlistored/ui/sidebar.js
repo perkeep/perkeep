@@ -27,16 +27,16 @@ cam.Sidebar = React.createClass({
 
 	propTypes: {
 		isExpanded: React.PropTypes.bool.isRequired,
-		header: React.PropTypes.renderable,
+		header: React.PropTypes.node,
 		mainControls: React.PropTypes.arrayOf(
 			React.PropTypes.shape(
 				{
 					displayTitle: React.PropTypes.string.isRequired,
-					control: React.PropTypes.renderable.isRequired,
+					control: React.PropTypes.node.isRequired,
 				}
 			)
 		),
-		selectionControls: React.PropTypes.arrayOf(React.PropTypes.renderable).isRequired,
+		selectionControls: React.PropTypes.arrayOf(React.PropTypes.node).isRequired,
 		selectedItems: React.PropTypes.object.isRequired,
 	},
 
@@ -49,7 +49,7 @@ cam.Sidebar = React.createClass({
 	render: function() {
 		return React.DOM.div(
 			{
-				className: React.addons.classSet({
+				className: classNames({
 					'cam-sidebar': true,
 					'cam-sidebar-hidden': !this.props.isExpanded,
 				})
@@ -63,8 +63,7 @@ cam.Sidebar = React.createClass({
 	getMainControls_: function() {
 		return this.props.mainControls.map(
 			function(c) {
-				return cam.CollapsibleControl(
-				{
+				return React.createElement(cam.CollapsibleControl, {
 					key: c.displayTitle,
 					control: c.control,
 					isOpen: this.isControlOpen_(c.displayTitle),
@@ -96,7 +95,7 @@ cam.CollapsibleControl = React.createClass({
 	displayName: 'CollapsibleControl',
 
 	propTypes: {
-		control: React.PropTypes.renderable.isRequired,
+		control: React.PropTypes.node.isRequired,
 		isOpen: React.PropTypes.bool.isRequired,
 		onToggleOpen: React.PropTypes.func,
 		title: React.PropTypes.string.isRequired
@@ -126,7 +125,7 @@ cam.CollapsibleControl = React.createClass({
 				},
 				React.DOM.i(
 					{
-						className: React.addons.classSet({
+						className: classNames({
 							'fa': true,
 							'fa-angle-down': this.props.isOpen,
 							'fa-angle-right': !this.props.isOpen

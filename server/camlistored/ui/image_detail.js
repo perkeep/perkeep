@@ -71,12 +71,12 @@ cam.ImageDetail = React.createClass({
 	},
 
 	getImg_: function() {
-		var transition = React.addons.TransitionGroup({transitionName: 'detail-img'}, []);
+		var transition = React.createElement(React.addons.TransitionGroup, {transitionName: 'detail-img'}, []);
 		if (this.imgSize_) {
 			var ctor = this.props.resolvedMeta.image ? React.DOM.img : React.DOM.video;
 			transition.props.children.push(
 				ctor({
-					className: React.addons.classSet({
+					className: classNames({
 						'detail-view-img': true,
 						'detail-view-img-loaded': this.isImage_() ? this.state.imgHasLoaded : true,
 					}),
@@ -93,13 +93,13 @@ cam.ImageDetail = React.createClass({
 	},
 
 	getPiggy_: function() {
-		var transition = React.addons.TransitionGroup({transitionName: 'detail-piggy'}, []);
+		var transition = React.createElement(React.addons.TransitionGroup, {transitionName: 'detail-piggy'}, []);
 		if (this.isImage_() && !this.state.imgHasLoaded) {
 			transition.props.children.push(
-				cam.SpritedAnimation({
+				React.createElement(cam.SpritedAnimation, {
 					key: 'piggy-sprite',
 					src: 'glitch/npc_piggy__x1_walk_png_1354829432.png',
-					className: React.addons.classSet({
+					className: classNames({
 						'detail-view-piggy': true,
 						'detail-view-piggy-backward': this.props.backwardPiggy
 					}),
@@ -167,7 +167,7 @@ cam.ImageDetail.getAspect = function(blobref, searchSession) {
 			fragment: 'image',
 			title: 'Image',
 			createContent: function(size, backwardPiggy) {
-				return cam.ImageDetail({
+				return React.createElement(cam.ImageDetail, {
 					backwardPiggy: backwardPiggy,
 					key: 'image',
 					height: size.height,

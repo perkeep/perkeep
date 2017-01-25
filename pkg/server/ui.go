@@ -194,7 +194,7 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 	}
 
 	if ui.sourceRoot != "" {
-		ui.fileReactHandler, err = makeFileServer(ui.sourceRoot, filepath.Join(vendorEmbed, "react"), "react.js")
+		ui.fileReactHandler, err = makeFileServer(ui.sourceRoot, filepath.Join(vendorEmbed, "react"), "react-dom.min.js")
 		if err != nil {
 			return nil, fmt.Errorf("Could not make react handler: %s", err)
 		}

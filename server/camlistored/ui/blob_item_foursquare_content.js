@@ -49,10 +49,12 @@ cam.BlobItemFoursquareContent = React.createClass({
 			React.DOM.div({className:'cam-blobitem-fs-checkin-content'},
 				React.DOM.img({src: 'foursquare-logo.png'}),
 				React.DOM.table(null,
-					React.DOM.tr(null,
-						React.DOM.td(null,
-							React.DOM.div({className:'cam-blobitem-fs-checkin-intro'}, 'Check-in at'),
-							React.DOM.div({className:'cam-blobitem-fs-checkin-venue'}, this.props.venueName)
+					React.DOM.tbody(null,
+						React.DOM.tr(null,
+							React.DOM.td(null,
+								React.DOM.div({className:'cam-blobitem-fs-checkin-intro'}, 'Check-in at'),
+								React.DOM.div({className:'cam-blobitem-fs-checkin-venue'}, this.props.venueName)
+							)
 						)
 					)
 				),
@@ -128,7 +130,7 @@ cam.BlobItemFoursquareContent.Handler.prototype.getAspectRatio = function() {
 };
 
 cam.BlobItemFoursquareContent.Handler.prototype.createContent = function(size) {
-	return cam.BlobItemFoursquareContent({
+	return React.createElement(cam.BlobItemFoursquareContent, {
 		href: this.href_,
 		size: size,
 		venueId: this.venueId_,

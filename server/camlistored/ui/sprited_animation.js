@@ -65,6 +65,6 @@ cam.SpritedAnimation = React.createClass({
 	},
 
 	render: function() {
-		return cam.SpritedImage(cam.object.extend(this.props, {index: this.state.index}));
+		return React.createElement(cam.SpritedImage, cam.object.extend(this.props, {index: this.state.index}));
 	}
 });

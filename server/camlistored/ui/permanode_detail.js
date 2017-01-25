@@ -83,7 +83,7 @@ cam.PermanodeDetail = React.createClass({
 				children.push(
 					React.DOM.i({
 						key: goog.string.subs('%s-sort-icon', name),
-						className: React.addons.classSet({
+						className: classNames({
 							'fa': true,
 							'fa-caret-up': this.state.sortAsc,
 							'fa-caret-down': !this.state.sortAsc,
@@ -112,7 +112,7 @@ cam.PermanodeDetail = React.createClass({
 					header(headerText('Value', 'value'), this.handleSort_.bind(null, 'value')),
 					header('')
 				),
-				cam.PermanodeDetail.AttributeRow({
+				React.createElement(cam.PermanodeDetail.AttributeRow, {
 					className: 'cam-permanode-detail-new-row',
 					key: 'new',
 					onBlur: this.handleBlur_,
@@ -120,7 +120,7 @@ cam.PermanodeDetail = React.createClass({
 					row: this.state.newRow,
 				}),
 				this.state.rows.map(function(r, i) {
-					return cam.PermanodeDetail.AttributeRow({
+					return React.createElement(cam.PermanodeDetail.AttributeRow, {
 						key: i,
 						onBlur: this.handleBlur_,
 						onChange: this.handleChange_,
@@ -297,7 +297,7 @@ cam.PermanodeDetail.getAspect = function(serverConnection, timer, blobref, targe
 		fragment: 'permanode',
 		title: 'Permanode',
 		createContent: function(size) {
-			return cam.PermanodeDetail({
+			return React.createElement(cam.PermanodeDetail, {
 				meta: pm,
 				serverConnection: serverConnection,
 				timer: timer,

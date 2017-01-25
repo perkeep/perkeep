@@ -95,7 +95,7 @@ cam.DirectoryDetail = React.createClass({
 	getChild_: function(meta) {
 		var depth = this.props.depth+1;
 		if (meta.type == 'directory') {
-			return cam.DirectoryDetail({
+			return React.createElement(cam.DirectoryDetail, {
 				isRoot: false,
 				depth: depth,
 				meta: meta,
@@ -206,7 +206,7 @@ cam.DirectoryDetail.getAspect = function(baseURL, serverConnection, blobref, tar
 		fragment: 'directory',
 		title: 'Directory',
 		createContent: function(size) {
-			return cam.DirectoryDetail({
+			return React.createElement(cam.DirectoryDetail, {
 				isRoot: true,
 				depth: 1,
 				meta: rm,
