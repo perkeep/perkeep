@@ -114,6 +114,7 @@ func (sh *StatusHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 type status struct {
 	Version      string                   `json:"version"`
+	GoInfo       string                   `json:"goInfo"`
 	Errors       []camtypes.StatusError   `json:"errors,omitempty"`
 	Sync         map[string]syncStatus    `json:"sync"`
 	Storage      map[string]storageStatus `json:"storage"`
@@ -155,6 +156,7 @@ type storageStatus struct {
 func (sh *StatusHandler) currentStatus() *status {
 	res := &status{
 		Version: buildinfo.Version(),
+		GoInfo:  fmt.Sprintf("%s %s/%s cgo=%v", runtime.Version(), runtime.GOOS, runtime.GOARCH, cgoEnabled),
 		Storage: make(map[string]storageStatus),
 		Sync:    make(map[string]syncStatus),
 	}

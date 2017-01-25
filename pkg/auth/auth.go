@@ -90,6 +90,7 @@ var authConstructor = map[string]AuthConfigParser{
 	"none":      newNoneAuth,
 	"localhost": newLocalhostAuth,
 	"userpass":  newUserPassAuth,
+	"token":     NewTokenAuth,
 	"devauth":   newDevAuth,
 	"basic":     newBasicAuth,
 }
@@ -159,6 +160,12 @@ func NewBasicAuth(username, password string) AuthMode {
 	}
 }
 
+// NewTokenAuth returns an Authmode similar to HTTP Basic Auth, which is only
+// relying on token instead of a username and password.
+func NewTokenAuth(token string) (AuthMode, error) {
+	return &tokenAuth{token: token}, nil
+}
+
 // ErrNoAuth is returned when there is no configured authentication.
 var ErrNoAuth = errors.New("auth: no configured authentication")
 
@@ -198,6 +205,24 @@ func SetMode(m AuthMode) {
 // requests can authenticate against.
 func AddMode(am AuthMode) {
 	modes = append(modes, am)
+}
+
+type tokenAuth struct {
+	token string
+}
+
+func (t *tokenAuth) AllowedAccess(r *http.Request) Operation {
+	if authTokenHeaderMatches(r) {
+		return OpAll
+	}
+	if websocketTokenMatches(r) {
+		return OpAll
+	}
+	return 0
+}
+
+func (t *tokenAuth) AddAuthHeader(r *http.Request) {
+	r.Header.Set("Authorization", "Token "+t.token)
 }
 
 // UserPass is used when the auth string provided in the config

@@ -229,8 +229,23 @@ cam.Header = React.createClass({
 			this.getMenuItem_('Server status', this.props.statusURL),
 			this.getMenuItem_('Favorites', this.props.favoritesURL),
 			this.getMenuItem_('Help', this.props.helpURL),
+			// We could use getMenuItem_, and only implement
+			// the onClick part with Go, but we're instead also
+			// reimplementing getMenuItem_ to demo that we can
+			// create react elements in Go.
+			this.getAboutDialog_(),
 			errorItems
 		);
+	},
+
+	getAboutDialog_: function() {
+		return goreact.AboutMenuItem('About',
+			// TODO(mpl): link to https://camlistore.org in
+			// dialog text. But dialogs can only have text. So
+			// we'll need to make our own modal later.
+			'This is the web interface to a Camlistore server',
+			'cam-header-menu-item',
+			this.props.config);
 	},
 
 	getMenuItem_: function(text, opt_link, opt_onClick, opt_class) {

@@ -84,6 +84,7 @@ var (
 	// base file exceptions for the above matching, so as not to complicate the regexp any further
 	mirrorIgnored = map[string]bool{
 		"publisher.js": true, // because this file is (re)generated after the mirroring
+		"goui.js":      true, // because this file is (re)generated after the mirroring
 	}
 	// gopherjsGoroot should be specified through the env var
 	// CAMLI_GOPHERJS_GOROOT when the user's using go tip, because gopherjs only
@@ -311,6 +312,7 @@ func baseDirName(sql bool) string {
 
 const (
 	publisherJS = "app/publisher/publisher.js"
+	gopherjsUI  = "server/camlistored/ui/goui.js"
 )
 
 // buildGopherjs builds the gopherjs binary from our vendored gopherjs source.
@@ -517,6 +519,76 @@ func genPublisherJS(gopherjsBin string) error {
 	return nil
 }
 
+// TODO(mpl): refactor genWebUIJS with genPublisherJS
+
+// genWebUIJS runs the gopherjs command, using the gopherjsBin binary, on
+// camlistore.org/server/camlistored/ui/goui, to generate the javascript
+// code at camlistore.org/server/camlistored/ui/goui.js
+func genWebUIJS(gopherjsBin string) error {
+	// Run gopherjs on a temporary output file, so we don't change the
+	// modtime of the existing goui.js if there was no reason to.
+	output := filepath.Join(buildSrcDir, filepath.FromSlash(gopherjsUI))
+	tmpOutput := output + ".new"
+	// TODO(mpl): maybe not with -m when building for devcam.
+	args := []string{"build", "--tags", "nocgo", "-m", "-o", tmpOutput, "camlistore.org/server/camlistored/ui/goui"}
+	cmd := exec.Command(gopherjsBin, args...)
+	cmd.Env = append(cleanGoEnv(),
+		"GOPATH="+buildGoPath,
+	)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("gopherjs for web UI error: %v, %v", err, string(out))
+	}
+
+	// check if new output is different from previous run result
+	_, err := os.Stat(output)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	needsUpdate := true
+	if err == nil {
+		if hashsum(tmpOutput) == hashsum(output) {
+			needsUpdate = false
+		}
+	}
+	if needsUpdate {
+		// general case: replace previous run result with new output
+		if err := os.Rename(tmpOutput, output); err != nil {
+			return err
+		}
+		log.Printf("gopherjs for web UI generated %v", output)
+	}
+	// And since we're generating after the mirroring, we need to manually
+	// add the output to the wanted files
+	wantDestFile[output] = true
+	wantDestFile[output+".map"] = true
+
+	// Finally, even when embedding resources, we copy the output back to
+	// camRoot. It's a bit unsatisfactory that we have to modify things out of
+	// buildGoPath but it's better than the alternative (the user ending up
+	// without a copy of publisher.js in their camRoot).
+	jsInCamRoot := filepath.Join(camRoot, filepath.FromSlash(gopherjsUI))
+	if !needsUpdate {
+		_, err := os.Stat(jsInCamRoot)
+		if err == nil {
+			return nil
+		}
+		if !os.IsNotExist(err) {
+			log.Fatal(err)
+		}
+	}
+	data, err := ioutil.ReadFile(output)
+	if err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(
+		jsInCamRoot,
+		data, 0600); err != nil {
+		return err
+	}
+	log.Printf("Copied gopherjs generated code for web UI to  %v", jsInCamRoot)
+	return nil
+}
+
 // noGopherJS creates a fake (unusable) gopherjs.js file for when we want to skip all of
 // the gopherjs business.
 func noGopherJS(output string) {
@@ -542,6 +614,7 @@ func hashsum(filename string) string {
 }
 
 // makeGopherjs builds and runs the gopherjs command on camlistore.org/app/publisher/js
+// and camlistore.org/server/camlistored/ui/goui
 // When CAMLI_MAKE_USEGOPATH is set (for integration tests through devcam), we
 // generate a fake file instead.
 func makeGopherjs() error {
@@ -562,7 +635,9 @@ func makeGopherjs() error {
 	if err := genPublisherJS(gopherjs); err != nil {
 		return err
 	}
-
+	if err := genWebUIJS(gopherjs); err != nil {
+		return err
+	}
 	return nil
 }
 
