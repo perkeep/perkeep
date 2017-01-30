@@ -148,12 +148,12 @@ func (lr *logRecord) WriteHeader(status int) {
 }
 
 type gceLogger struct {
-	c *logging.Client
+	c *logging.Logger
 }
 
 func (lg gceLogger) LogEvent(lr *logRecord) {
 	lg.c.Log(logging.Entry{
-		Time: lr.time,
+		Timestamp: lr.time,
 		Payload: map[string]interface{}{
 			"ip":            lr.ip,
 			"path":          lr.rawpath,

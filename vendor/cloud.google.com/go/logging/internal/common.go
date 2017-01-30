@@ -12,15 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// AUTO-GENERATED CODE. DO NOT EDIT.
+package internal
 
-package logging
-
-import "errors"
-
-const (
-	gapicNameVersion = "gapic/0.1.0"
+import (
+	"fmt"
+	"strings"
 )
 
-// Done is returned by iterators on successful completion.
-var Done = errors.New("iterator done")
+const (
+	ProdAddr = "logging.googleapis.com:443"
+	Version  = "0.2.0"
+)
+
+func LogPath(parent, logID string) string {
+	logID = strings.Replace(logID, "/", "%2F", -1)
+	return fmt.Sprintf("%s/logs/%s", parent, logID)
+}

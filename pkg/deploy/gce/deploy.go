@@ -80,7 +80,7 @@ func keyFilename() string {
 func NewOAuthConfig(clientID, clientSecret string) *oauth2.Config {
 	return &oauth2.Config{
 		Scopes: []string{
-			logging.Scope,
+			logging.WriteScope,
 			compute.DevstorageFullControlScope,
 			compute.ComputeScope,
 			"https://www.googleapis.com/auth/sqlservice",
@@ -404,7 +404,7 @@ func (d *Deployer) createInstance(computeService *compute.Service, ctx context.C
 			{
 				Email: "default",
 				Scopes: []string{
-					logging.Scope,
+					logging.WriteScope,
 					compute.DevstorageFullControlScope,
 					compute.ComputeScope,
 					"https://www.googleapis.com/auth/sqlservice",

@@ -32,6 +32,7 @@ import (
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/logging"
 	"go4.org/jsonconfig"
+	"go4.org/types"
 	_ "go4.org/wkfs/gcs"
 	"golang.org/x/net/context"
 )
@@ -46,9 +47,6 @@ func init() {
 			return v
 		}
 		return path.Clean("/gcs/" + strings.TrimPrefix(v, "gs://"))
-	})
-	osutil.RegisterLetsEncryptCacheFunc(func() string {
-		return "/tmp/camli-letsencrypt.cache"
 	})
 	jsonconfig.RegisterFunc("_gce_instance_meta", func(c *jsonconfig.ConfigParser, v []interface{}) (interface{}, error) {
 		if len(v) != 1 {
@@ -66,10 +64,42 @@ func init() {
 	})
 }
 
-// LogWriter returns an environment-specific io.Writer suitable for passing
+type writer struct {
+	severity logging.Severity
+	logger   *logging.Logger
+}
+
+func (w writer) Write(p []byte) (n int, err error) {
+	w.logger.Log(logging.Entry{
+		Severity: w.severity,
+		Payload:  string(p),
+	})
+	return len(p), nil
+}
+
+type multiWriteCloser struct {
+	w      io.Writer
+	closer io.Closer
+}
+
+func (mwc multiWriteCloser) Write(p []byte) (n int, err error) {
+	return mwc.w.Write(p)
+}
+
+func (mwc multiWriteCloser) Close() error {
+	return mwc.closer.Close()
+}
+
+// LogWriter returns an environment-specific io.WriteCloser suitable for passing
 // to log.SetOutput. It will also include writing to os.Stderr as well.
-func LogWriter() (w io.Writer) {
-	w = os.Stderr
+// Since it might be writing to a Google Cloud Logger, it is the responsibility
+// of the caller to Close it when needed, to flush the last log entries.
+func LogWriter() (w io.WriteCloser, err error) {
+	w = multiWriteCloser{
+		w: os.Stderr,
+		// Because we don't actually want to close os.Stderr (which we could).
+		closer: types.NopCloser,
+	}
 	if !env.OnGCE() {
 		return
 	}
@@ -87,15 +117,24 @@ func LogWriter() (w io.Writer) {
 		}
 		return false
 	}
-	if !haveScope(logging.Scope) {
-		log.Printf("when this Google Compute Engine VM instance was created, it wasn't granted enough access to use Google Cloud Logging (Scope URL: %v).", logging.Scope)
-		return
+	if !haveScope(logging.WriteScope) {
+		return nil, fmt.Errorf("when this Google Compute Engine VM instance was created, it wasn't granted enough access to use Google Cloud Logging (Scope URL: %v).", logging.WriteScope)
 	}
 
-	logc, err := logging.NewClient(context.Background(), projID, "camlistored-stderr")
+	ctx := context.Background()
+	logc, err := logging.NewClient(ctx, projID)
 	if err != nil {
-		log.Printf("Error creating Google logging client: %v", err)
-		return
+		return nil, fmt.Errorf("error creating Google logging client: %v", err)
 	}
-	return io.MultiWriter(w, logc.Writer(logging.Debug))
+	if err := logc.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("Google logging client not ready (ping failed): %v", err)
+	}
+	logw := writer{
+		severity: logging.Debug,
+		logger:   logc.Logger("camlistored-stderr"),
+	}
+	return multiWriteCloser{
+		w:      io.MultiWriter(w, logw),
+		closer: logc,
+	}, nil
 }

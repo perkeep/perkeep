@@ -602,26 +602,70 @@ func certHostname(listen, baseURL string) (string, error) {
 	return hostname, nil
 }
 
-func maybeSetupGoogleCloudLogging() {
+// TODO(mpl): maybe export gce.writer, and reuse it here. Later.
+
+// gclWriter is an io.Writer, where each Write writes a log entry to Google
+// Cloud Logging.
+type gclWriter struct {
+	severity logging.Severity
+	logger   *logging.Logger
+}
+
+func (w gclWriter) Write(p []byte) (n int, err error) {
+	w.logger.Log(logging.Entry{
+		Severity: w.severity,
+		Payload:  string(p),
+	})
+	return len(p), nil
+}
+
+// if a non-nil logging Client is returned, it should be closed before the
+// program terminates to flush any buffered log entries.
+func maybeSetupGoogleCloudLogging() *logging.Client {
 	if flagGCEProjectID == "" && flagGCELogName == "" && flagGCEJWTFile == "" {
-		return
+		return nil
 	}
 	if flagGCEProjectID == "" || flagGCELogName == "" || flagGCEJWTFile == "" {
 		exitf("All of --gce_project_id, --gce_log_name, and --gce_jwt_file must be specified for logging on Google Cloud Logging.")
 	}
-	jsonSlurp, err := ioutil.ReadFile(flagGCEJWTFile)
-	if err != nil {
-		exitf("Error reading --gce_jwt_file value: %v", err)
-	}
-	jwtConf, err := google.JWTConfigFromJSON(jsonSlurp, logging.Scope)
-	if err != nil {
-		exitf("Error reading --gce_jwt_file value: %v", err)
-	}
-	logc, err := logging.NewClient(context.Background(), flagGCEProjectID, flagGCELogName, option.WithHTTPClient(jwtConf.Client(context.Background())))
+	ctx := context.Background()
+	logc, err := logging.NewClient(ctx,
+		flagGCEProjectID, option.WithServiceAccountFile(flagGCEJWTFile))
 	if err != nil {
 		exitf("Error creating GCL client: %v", err)
 	}
-	log.SetOutput(io.MultiWriter(os.Stderr, logc.Writer(logging.Debug)))
+	if err := logc.Ping(ctx); err != nil {
+		exitf("Google logging client not ready (ping failed): %v", err)
+	}
+	logw := gclWriter{
+		severity: logging.Debug,
+		logger:   logc.Logger(flagGCELogName),
+	}
+	log.SetOutput(io.MultiWriter(os.Stderr, logw))
+	return logc
+}
+
+// setupLogging configures the output of the standard logger. If a non-nil
+// Closer is returned, it should be closed before the program terminates to flush
+// any buffered log entries.
+func setupLogging() io.Closer {
+	if *flagSyslog {
+		slog, err := syslog.New(syslog.LOG_INFO|syslog.LOG_DAEMON, "camlistored")
+		if err != nil {
+			exitf("Error connecting to syslog: %v", err)
+		}
+		log.SetOutput(slog)
+		return nil
+	}
+	if env.OnGCE() {
+		lw, err := gce.LogWriter()
+		if err != nil {
+			log.Fatalf("Error setting up logging: %v", err)
+		}
+		log.SetOutput(lw)
+		return lw
+	}
+	return maybeSetupGoogleCloudLogging()
 }
 
 // main wraps Main so tests (which generate their own func main) can still run Main.
@@ -651,30 +695,31 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 	if *flagRecovery {
 		blobpacked.SetRecovery()
 	}
-	if *flagSyslog {
-		slog, err := syslog.New(syslog.LOG_INFO|syslog.LOG_DAEMON, "camlistored")
-		if err != nil {
-			exitf("Error connecting to syslog: %v", err)
+
+	// In case we're running in a Docker container with no
+	// filesytem from which to load the root CAs, this
+	// conditionally installs a static set if necessary. We do
+	// this before we load the config file, which might come from
+	// an https URL. And also before setting up the logging,
+	// as it uses an http Client.
+	httputil.InstallCerts()
+
+	logCloser := setupLogging()
+	defer func() {
+		if logCloser == nil {
+			return
 		}
-		log.SetOutput(slog)
-	} else if env.OnGCE() {
-		log.SetOutput(gce.LogWriter())
-	} else {
-		maybeSetupGoogleCloudLogging()
-	}
+		if err := logCloser.Close(); err != nil {
+			log.SetOutput(os.Stderr)
+			log.Printf("Error closing logging client: %v", err)
+		}
+	}()
 
 	log.Printf("Starting camlistored version %s; Go %s (%s/%s)", buildinfo.Version(), runtime.Version(),
 		runtime.GOOS, runtime.GOARCH)
 
 	shutdownc := make(chan io.Closer, 1) // receives io.Closer to cleanly shut down
 	go handleSignals(shutdownc)
-
-	// In case we're running in a Docker container with no
-	// filesytem from which to load the root CAs, this
-	// conditionally installs a static set if necessary. We do
-	// this before we load the config file, which might come from
-	// an https URL.
-	httputil.InstallCerts()
 
 	config, isNewConfig, err := loadConfig(*flagConfigFile)
 	if err != nil {

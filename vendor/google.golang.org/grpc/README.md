@@ -1,32 +1,27 @@
-#gRPC-Go
+#gRPC-Go experimental branch
 
-[![Build Status](https://travis-ci.org/grpc/grpc-go.svg)](https://travis-ci.org/grpc/grpc-go) [![GoDoc](https://godoc.org/google.golang.org/grpc?status.svg)](https://godoc.org/google.golang.org/grpc)
+This is an in-development experimental branch of https://github.com/grpc/grpc-go
 
-The Go implementation of [gRPC](http://www.grpc.io/): A high performance, open source, general RPC framework that puts mobile and HTTP/2 first. For more information see the [gRPC Quick Start](http://www.grpc.io/docs/) guide.
+This branch seeks to understand how much code be deleted and replaced with
+Go's native HTTP/2 implementation. (Preliminary prototypes suggest most of it.)
 
 Installation
 ------------
 
-To install this package, you need to install Go and setup your Go workspace on your computer. The simplest way to install the library is to run:
-
-```
-$ go get google.golang.org/grpc
-```
+For development convenience (but not user convenience), the Go package path for this
+repositor is unchanged. You can not fetch it with `go get`. You just `git clone` it to
+`$GOPATH/src/google.golang.org/grpc` manually.
 
 Prerequisites
 -------------
 
-This requires Go 1.5 or later .
-
-Constraints
------------
-The grpc package should only depend on standard Go packages and a small number of exceptions. If your contribution introduces new dependencies which are NOT in the [list](http://godoc.org/google.golang.org/grpc?imports), you need a discussion with gRPC-Go authors and consultants.
-
-Documentation
--------------
-See [API documentation](https://godoc.org/google.golang.org/grpc) for package and API descriptions and find examples in the [examples directory](examples/).
+This requires Go 1.7 or later.
 
 Status
 ------
-GA
+An experiment.
 
+Bugs, discussion
+----------------
+
+Let's just use this issue tracker for now: https://github.com/bradfitz/grpc-go/issues

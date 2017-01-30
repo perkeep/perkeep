@@ -37,6 +37,7 @@ import (
 
 	"go4.org/legal"
 	"go4.org/wkfs"
+	"golang.org/x/net/http2"
 )
 
 var (
@@ -157,12 +158,20 @@ func InstallCerts() {
 	if !SystemCARootsAvailable() {
 		if tr, ok := http.DefaultTransport.(*http.Transport); ok {
 			tlsConf := tr.TLSClientConfig
+			isTrModified := false
 			if tlsConf == nil {
 				tlsConf = &tls.Config{}
 				tr.TLSClientConfig = tlsConf
+				isTrModified = true
 			}
 			if tlsConf.RootCAs == nil {
 				tlsConf.RootCAs = RootCAPool()
+				isTrModified = true
+			}
+			if isTrModified {
+				if err := http2.ConfigureTransport(tr); err != nil {
+					log.Fatalf("Error configuring default transport to HTTP/2: %v", err)
+				}
 			}
 		}
 	}

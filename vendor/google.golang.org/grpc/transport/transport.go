@@ -46,10 +46,11 @@ import (
 	"sync"
 
 	"golang.org/x/net/context"
-	"golang.org/x/net/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/stats"
+	"google.golang.org/grpc/tap"
 )
 
 // recvMsg represents the received msg from the transport. All transport
@@ -168,8 +169,14 @@ type Stream struct {
 	id uint32
 	// nil for client side Stream.
 	st ServerTransport
+	// clientStatsCtx keeps the user context for stats handling.
+	// It's only valid on client side. Server side stats context is same as s.ctx.
+	// All client side stats collection should use the clientStatsCtx (instead of the stream context)
+	// so that all the generated stats for a particular RPC can be associated in the processing phase.
+	clientStatsCtx context.Context
 	// ctx is the associated context of the stream.
-	ctx    context.Context
+	ctx context.Context
+	// cancel is always nil for client side Stream.
 	cancel context.CancelFunc
 	// done is closed when the final status arrives.
 	done chan struct{}
@@ -266,11 +273,6 @@ func (s *Stream) Context() context.Context {
 	return s.ctx
 }
 
-// TraceContext recreates the context of s with a trace.Trace.
-func (s *Stream) TraceContext(tr trace.Trace) {
-	s.ctx = trace.NewContext(s.ctx, tr)
-}
-
 // Method returns the method for the stream.
 func (s *Stream) Method() string {
 	return s.method
@@ -286,19 +288,34 @@ func (s *Stream) StatusDesc() string {
 	return s.statusDesc
 }
 
-// ErrIllegalTrailerSet indicates that the trailer has already been set or it
-// is too late to do so.
-var ErrIllegalTrailerSet = errors.New("transport: trailer has been set")
+// ErrIllegalHeaderWrite indicates that setting header is illegal because of
+// the stream's state.
+var ErrIllegalHeaderWrite = errors.New("transport: the stream is done or WriteHeader was already called")
 
-// SetTrailer sets the trailer metadata which will be sent with the RPC status
-// by the server. This can only be called at most once. Server side only.
-func (s *Stream) SetTrailer(md metadata.MD) error {
+// SetHeader sets the header metadata. This can be called multiple times.
+// Server side only.
+func (s *Stream) SetHeader(md metadata.MD) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.trailer != nil {
-		return ErrIllegalTrailerSet
+	if s.headerOk || s.state == streamDone {
+		return ErrIllegalHeaderWrite
 	}
-	s.trailer = md.Copy()
+	if md.Len() == 0 {
+		return nil
+	}
+	s.header = metadata.Join(s.header, md)
+	return nil
+}
+
+// SetTrailer sets the trailer metadata which will be sent with the RPC status
+// by the server. This can be called multiple times. Server side only.
+func (s *Stream) SetTrailer(md metadata.MD) error {
+	if md.Len() == 0 {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.trailer = metadata.Join(s.trailer, md)
 	return nil
 }
 
@@ -344,28 +361,34 @@ const (
 	draining
 )
 
-// NewServerTransport creates a ServerTransport with conn or non-nil error
-// if it fails.
-func NewServerTransport(protocol string, conn net.Conn, maxStreams uint32, authInfo credentials.AuthInfo) (ServerTransport, error) {
-	return newHTTP2Server(conn, maxStreams, authInfo)
+// ServerConfig consists of all the configurations to establish a server transport.
+type ServerConfig struct {
+	MaxStreams   uint32
+	AuthInfo     credentials.AuthInfo
+	InTapHandle  tap.ServerInHandle
+	StatsHandler stats.Handler
 }
 
-// ConnectOptions covers all relevant options for dialing a server.
+// ConnectOptions covers all relevant options for communicating with the server.
 type ConnectOptions struct {
 	// UserAgent is the application user agent.
 	UserAgent string
 	// Dialer specifies how to dial a network address.
 	Dialer func(context.Context, string) (net.Conn, error)
+	// FailOnNonTempDialError specifies if gRPC fails on non-temporary dial errors.
+	FailOnNonTempDialError bool
 	// PerRPCCredentials stores the PerRPCCredentials required to issue RPCs.
 	PerRPCCredentials []credentials.PerRPCCredentials
 	// TransportCredentials stores the Authenticator required to setup a client connection.
 	TransportCredentials credentials.TransportCredentials
+	// StatsHandler stores the handler for stats.
+	StatsHandler stats.Handler
 }
 
-// NewClientTransport establishes the transport with the required ConnectOptions
-// and returns it to the caller.
-func NewClientTransport(ctx context.Context, target string, opts ConnectOptions) (ClientTransport, error) {
-	return newHTTP2Client(ctx, target, opts)
+// TargetInfo contains the information of the target such as network address and metadata.
+type TargetInfo struct {
+	Addr     string
+	Metadata interface{}
 }
 
 // Options provides additional hints and information for message
@@ -404,44 +427,6 @@ type CallHdr struct {
 	Flush bool
 }
 
-// ClientTransport is the common interface for all gRPC client-side transport
-// implementations.
-type ClientTransport interface {
-	// Close tears down this transport. Once it returns, the transport
-	// should not be accessed any more. The caller must make sure this
-	// is called only once.
-	Close() error
-
-	// GracefulClose starts to tear down the transport. It stops accepting
-	// new RPCs and wait the completion of the pending RPCs.
-	GracefulClose() error
-
-	// Write sends the data for the given stream. A nil stream indicates
-	// the write is to be performed on the transport as a whole.
-	Write(s *Stream, data []byte, opts *Options) error
-
-	// NewStream creates a Stream for an RPC.
-	NewStream(ctx context.Context, callHdr *CallHdr) (*Stream, error)
-
-	// CloseStream clears the footprint of a stream when the stream is
-	// not needed any more. The err indicates the error incurred when
-	// CloseStream is called. Must be called when a stream is finished
-	// unless the associated transport is closing.
-	CloseStream(stream *Stream, err error)
-
-	// Error returns a channel that is closed when some I/O error
-	// happens. Typically the caller should have a goroutine to monitor
-	// this in order to take action (e.g., close the current transport
-	// and create a new one) in error case. It should not return nil
-	// once the transport is initiated.
-	Error() <-chan struct{}
-
-	// GoAway returns a channel that is closed when ClientTranspor
-	// receives the draining signal from the server (e.g., GOAWAY frame in
-	// HTTP/2).
-	GoAway() <-chan struct{}
-}
-
 // ServerTransport is the common interface for all gRPC server-side transport
 // implementations.
 //
@@ -449,7 +434,7 @@ type ClientTransport interface {
 // Write methods for a given Stream will be called serially.
 type ServerTransport interface {
 	// HandleStreams receives incoming streams using the given handler.
-	HandleStreams(func(*Stream))
+	HandleStreams(func(*Stream), func(context.Context, string) context.Context)
 
 	// WriteHeader sends the header metadata for the given stream.
 	// WriteHeader may not be called on all streams.
