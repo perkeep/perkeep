@@ -81,6 +81,7 @@ func rev() string {
 }
 
 func version() string {
+	// TODO(mpl): cut the rev to 10 chars, like make.go would do?
 	if *flagVersion != "" {
 		return fmt.Sprintf("%v (git rev %v)", *flagVersion, rev())
 	}

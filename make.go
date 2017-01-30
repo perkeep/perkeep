@@ -814,13 +814,14 @@ func getVersion() string {
 	return gitVersion()
 }
 
-var gitVersionRx = regexp.MustCompile(`\b\d\d\d\d-\d\d-\d\d-[0-9a-f]{7,7}\b`)
+var gitVersionRx = regexp.MustCompile(`\b\d\d\d\d-\d\d-\d\d-[0-9a-f]{10,10}\b`)
 
 // gitVersion returns the git version of the git repo at camRoot as a
 // string of the form "yyyy-mm-dd-xxxxxxx", with an optional trailing
 // '+' if there are any local uncomitted modifications to the tree.
 func gitVersion() string {
-	cmd := exec.Command("git", "rev-list", "--max-count=1", "--pretty=format:'%ad-%h'", "--date=short", "HEAD")
+	cmd := exec.Command("git", "rev-list", "--max-count=1", "--pretty=format:'%ad-%h'",
+		"--date=short", "--abbrev=10", "HEAD")
 	cmd.Dir = camRoot
 	out, err := cmd.Output()
 	if err != nil {
