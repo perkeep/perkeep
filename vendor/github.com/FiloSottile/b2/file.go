@@ -106,7 +106,7 @@ func (b *Bucket) GetFileInfoByName(name string) (*FileInfo, error) {
 // It works like sql.Rows: use Next to advance and then FileInfo.
 // Check Err once Next returns false.
 //
-//     l := b.ListFiles("", 50)
+//     l := b.ListFiles("")
 //     for l.Next() {
 //         fi := l.FileInfo()
 //         ...

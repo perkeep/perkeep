@@ -27,10 +27,16 @@ func getBucket(t *testing.T, c *b2.Client) *b2.BucketInfo {
 	return b
 }
 
+func deleteBucket(t *testing.T, b *b2.BucketInfo) {
+	if err := b.Delete(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestFileLifecycle(t *testing.T) {
 	c := getClient(t)
 	b := getBucket(t, c)
-	defer b.Delete()
+	defer deleteBucket(t, b)
 
 	file := make([]byte, 123456)
 	rand.Read(file)
@@ -121,15 +127,17 @@ func TestFileLifecycle(t *testing.T) {
 func TestFileListing(t *testing.T) {
 	c := getClient(t)
 	b := getBucket(t, c)
-	defer b.Delete()
+	defer deleteBucket(t, b)
 
 	file := make([]byte, 1234)
 	rand.Read(file)
 
 	for i := 0; i < 2; i++ {
-		if _, err := b.Upload(bytes.NewReader(file), "test-3", ""); err != nil {
+		fi, err := b.Upload(bytes.NewReader(file), "test-3", "")
+		if err != nil {
 			t.Fatal(err)
 		}
+		defer c.DeleteFile(fi.ID, fi.Name)
 	}
 
 	var fileIDs []string
@@ -138,6 +146,7 @@ func TestFileListing(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer c.DeleteFile(fi.ID, fi.Name)
 		fileIDs = append(fileIDs, fi.ID)
 	}
 
