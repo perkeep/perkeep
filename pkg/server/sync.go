@@ -938,7 +938,7 @@ func (cs *copyStatus) setError(err error) {
 
 	// Kinda lame. TODO: use a ring buffer or container/list instead.
 	if len(sh.recentErrors) == maxRecentErrors {
-		copy(sh.recentErrors[1:], sh.recentErrors)
+		copy(sh.recentErrors, sh.recentErrors[1:])
 		sh.recentErrors = sh.recentErrors[:maxRecentErrors-1]
 	}
 	sh.recentErrors = append(sh.recentErrors, br)
