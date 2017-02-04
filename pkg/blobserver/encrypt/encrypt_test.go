@@ -87,7 +87,8 @@ func (ts *testStorage) fetchOrErrorString(br blob.Ref) string {
 
 func newTestStorage() *testStorage {
 	sto := &storage{
-		index: sorted.NewMemoryKeyValue(),
+		index:     sorted.NewMemoryKeyValue(),
+		smallMeta: &metaBlobHeap{},
 	}
 	scryptN = 1 << 10
 	sto.setPassphrase(testPass)

@@ -67,18 +67,8 @@ type storage struct {
 	// into bigger blobs with multiple blob descriptions.
 	meta blobserver.Storage
 
-	// TODO(bradfitz): finish metdata compaction
-	/*
-		// mu guards the following
-		mu sync.Mutex
-		// toDelete are the meta blobrefs that are no longer
-		// necessary, as they're subsets of others.
-		toDelete []blob.Ref
-		// plainIn maps from a plaintext blobref to its currently-largest-describing metablob.
-		plainIn map[string]*metaBlobInfo
-		// smallMeta tracks a heap of meta blobs, sorted by their encrypted size
-		smallMeta metaBlobHeap
-	*/
+	// smallMeta tracks a heap of meta blobs smaller than the target size.
+	smallMeta *metaBlobHeap
 
 	// Hooks for testing
 	testRand func([]byte) (int, error)
@@ -203,11 +193,12 @@ func (s *storage) ReceiveBlob(plainBR blob.Ref, source io.Reader) (sb blob.Sized
 		return sb, fmt.Errorf("encrypt: error writing encrypted blob %v (plaintext %v): %v", encBR, plainBR, err)
 	}
 
-	metaBlob := s.makeSingleMetaBlob(plainBR, encBR, uint32(plainSize))
-	_, err = blobserver.ReceiveNoHash(s.meta, blob.SHA1FromBytes(metaBlob), bytes.NewReader(metaBlob))
+	metaBytes := s.makeSingleMetaBlob(plainBR, encBR, uint32(plainSize))
+	metaSB, err := blobserver.ReceiveNoHash(s.meta, blob.SHA1FromBytes(metaBytes), bytes.NewReader(metaBytes))
 	if err != nil {
 		return sb, fmt.Errorf("encrypt: error writing encrypted meta for plaintext %v (encrypted blob %v): %v", plainBR, encBR, err)
 	}
+	s.recordMeta(&metaBlob{br: metaSB.Ref, plains: []blob.Ref{plainBR}})
 
 	err = s.index.Set(plainBR.String(), packIndexEntry(uint32(plainSize), encBR))
 	if err != nil {
@@ -335,8 +326,9 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 
 	start := time.Now()
 	log.Printf("Reading encryption metadata...")
+	sto.smallMeta = &metaBlobHeap{}
 	if err := sto.readAllMetaBlobs(); err != nil {
-		return nil, fmt.Errorf("Error scanning metadata on start-up: %v", err)
+		return nil, fmt.Errorf("error scanning metadata on start-up: %v", err)
 	}
 	log.Printf("Read all encryption metadata in %.3f seconds", time.Since(start).Seconds())
 

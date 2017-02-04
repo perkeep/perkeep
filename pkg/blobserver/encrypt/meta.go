@@ -24,7 +24,9 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,48 +42,106 @@ import (
 //    sha1-plain/<plain size>/sha1-encrypted
 
 const (
-	// FullMetaBlobSize is the size at which we stop compacting a meta blob.
-	FullMetaBlobSize = 512 << 10
+	// FullMetaBlobSize is the number of lines at which we stop compacting a meta blob.
+	FullMetaBlobSize = 10 * 1000 // ~ 512kB
+	// SmallMetaCountLimit is the number of small meta that triggers compaction.
+	SmallMetaCountLimit = 100 // 100 rounds to make a full = ~ 26MB bw waste
 )
 
-type metaEntry struct {
-	plain     blob.SizedRef
-	encrypted blob.Ref
-}
-
 type metaBlob struct {
-	br      blob.Ref // of meta blob
-	entries []metaEntry
+	br     blob.Ref // of meta blob
+	plains []blob.Ref
 }
 
 // metaBlobHeap is a heap of metaBlobs.
 // heap.Pop returns the metaBlob with the LEAST entries.
-type metaBlobHeap []*metaBlob
+type metaBlobHeap struct {
+	sync.Mutex
+	s []*metaBlob
+}
 
 var _ heap.Interface = (*metaBlobHeap)(nil)
 
-func (s *metaBlobHeap) Push(x interface{}) {
-	*s = append(*s, x.(*metaBlob))
+func (h *metaBlobHeap) Push(x interface{}) {
+	h.s = append(h.s, x.(*metaBlob))
 }
 
-func (s *metaBlobHeap) Pop() interface{} {
-	l := s.Len()
-	v := (*s)[l]
-	*s = (*s)[:l-1]
+func (h *metaBlobHeap) Pop() interface{} {
+	l := len(h.s)
+	v := h.s[l-1]
+	h.s = h.s[:l-1]
 	return v
 }
 
-func (s *metaBlobHeap) Less(i, j int) bool {
-	sl := *s
-	v := len(sl[i].entries) < len(sl[j].entries)
-	if len(sl[i].entries) == len(sl[j].entries) {
-		v = sl[i].br.String() < sl[j].br.String()
+func (h *metaBlobHeap) Less(i, j int) bool {
+	return len(h.s[i].plains) < len(h.s[j].plains)
+}
+
+func (h *metaBlobHeap) Len() int      { return len(h.s) }
+func (h *metaBlobHeap) Swap(i, j int) { h.s[i], h.s[j] = h.s[j], h.s[i] }
+
+func (s *storage) recordMeta(b *metaBlob) {
+	if len(b.plains) > FullMetaBlobSize {
+		return
 	}
-	return v
+
+	s.smallMeta.Lock()
+	defer s.smallMeta.Unlock()
+	heap.Push(s.smallMeta, b)
+
+	// If the heap is full, pop and group the entries under the lock,
+	// then schedule upload, deletion and reinserion in parallel.
+	if s.smallMeta.Len() > SmallMetaCountLimit {
+		var plains, toDelete []blob.Ref
+		for s.smallMeta.Len() > 0 {
+			meta := heap.Pop(s.smallMeta).(*metaBlob)
+			plains = append(plains, meta.plains...)
+			toDelete = append(toDelete, meta.br)
+			if len(plains) > FullMetaBlobSize {
+				go s.makePackedMetaBlob(plains, toDelete)
+				plains, toDelete = nil, nil
+			}
+		}
+		if len(toDelete) == 1 {
+			heap.Push(s.smallMeta, &metaBlob{br: toDelete[0], plains: plains})
+		} else if len(toDelete) > 1 {
+			go s.makePackedMetaBlob(plains, toDelete)
+		}
+	}
 }
 
-func (s *metaBlobHeap) Len() int      { return len(*s) }
-func (s *metaBlobHeap) Swap(i, j int) { (*s)[i], (*s)[j] = (*s)[j], (*s)[i] }
+func (s *storage) makePackedMetaBlob(plains, toDelete []blob.Ref) {
+	// We lose track of the small blobs in case of error, but they will be packed at next start.
+	sort.Sort(blob.ByRef(plains))
+	var metaBytes bytes.Buffer
+	metaBytes.WriteString("#camlistore/encmeta=2\n")
+	metaBytes.Grow(len(plains[0].String()) * len(plains) * 2)
+	for _, plain := range plains {
+		p := plain.String()
+		metaBytes.WriteString(p)
+		metaBytes.WriteString("/")
+		v, err := s.index.Get(p)
+		if err != nil {
+			log.Printf("encrypt: failed to find the index entry for %s while packing: %v", p, err)
+			return
+		}
+		metaBytes.WriteString(v)
+		metaBytes.WriteString("\n")
+	}
+	encBytes := s.encryptBlob(nil, metaBytes.Bytes())
+	metaSB, err := blobserver.ReceiveNoHash(s.meta, blob.SHA1FromBytes(encBytes), bytes.NewReader(encBytes))
+	if err != nil {
+		log.Printf("encrypt: failed to upload a packed meta: %v", err)
+		return
+	}
+	if len(plains) < FullMetaBlobSize {
+		s.recordMeta(&metaBlob{br: metaSB.Ref, plains: plains})
+	}
+	if err := s.meta.RemoveBlobs(toDelete); err != nil {
+		log.Printf("encrypt: failed to delete small meta blobs: %v", err)
+	}
+	log.Printf("encrypt: packed %d small meta blobs into one (%d refs)", len(toDelete), len(plains))
+}
 
 // makeSingleMetaBlob makes and encrypts a metaBlob with one entry.
 func (s *storage) makeSingleMetaBlob(plainBR, encBR blob.Ref, plainSize uint32) []byte {
@@ -145,12 +205,13 @@ func (s *storage) processEncryptedMetaBlob(br blob.Ref, dat []byte) error {
 		}
 		return fmt.Errorf("unsupported first line %q", header)
 	}
+	var plains []blob.Ref
 	for {
 		line, err := p.ReadString('\n')
 		if err != nil && len(line) != 0 {
 			return io.ErrUnexpectedEOF
 		} else if err != nil {
-			return nil
+			break
 		}
 		parts := strings.Split(strings.TrimRight(line, "\n"), "/")
 		if len(parts) != 3 {
@@ -161,16 +222,20 @@ func (s *storage) processEncryptedMetaBlob(br blob.Ref, dat []byte) error {
 		}
 		// We do very limited checking here, as we signed the blob and we check
 		// the value anyway on s.index.Get.
-		if _, ok := blob.ParseKnown(parts[0]); !ok {
+		plainBR, ok := blob.ParseKnown(parts[0])
+		if !ok {
 			if len(line) > 80 {
 				line = line[:80]
 			}
 			return fmt.Errorf("malformed line %q", line)
 		}
+		plains = append(plains, plainBR)
 		if err := s.index.Set(parts[0], parts[1]+"/"+parts[2]); err != nil {
 			return err
 		}
 	}
+	s.recordMeta(&metaBlob{br: br, plains: plains})
+	return nil
 }
 
 func (s *storage) readAllMetaBlobs() error {
@@ -181,7 +246,7 @@ func (s *storage) readAllMetaBlobs() error {
 	}
 	metac := make(chan encMB, 16)
 
-	const maxInFlight = 50
+	const maxInFlight = 5 // arbitrary
 	var gate = make(chan bool, maxInFlight)
 
 	var stopEnumerate = make(chan bool) // closed on error
@@ -201,12 +266,17 @@ func (s *storage) readAllMetaBlobs() error {
 				defer wg.Done()
 				defer func() { <-gate }()
 				rc, _, err := s.meta.Fetch(sb.Ref)
-				var all []byte
-				if err == nil {
-					all, err = ioutil.ReadAll(rc)
-					rc.Close()
+				if err != nil {
+					metac <- encMB{sb.Ref, nil, fmt.Errorf("fetch failed: %v", err)}
+					return
 				}
-				metac <- encMB{sb.Ref, all, err}
+				defer rc.Close()
+				all, err := ioutil.ReadAll(rc)
+				if err != nil {
+					metac <- encMB{sb.Ref, nil, fmt.Errorf("read failed: %v", err)}
+					return
+				}
+				metac <- encMB{sb.Ref, all, nil}
 			}()
 			return nil
 		})
@@ -228,7 +298,7 @@ func (s *storage) readAllMetaBlobs() error {
 			// TODO: advertise in this error message a new option or environment variable
 			// to skip a certain or all meta blobs, to allow partial recovery, if some
 			// are corrupt. For now, require all to be correct.
-			return fmt.Errorf("Error with meta blob %v: %v", mi.br, err)
+			return fmt.Errorf("error with meta blob %v: %v", mi.br, err)
 		}
 	}
 
