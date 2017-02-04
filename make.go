@@ -105,6 +105,8 @@ func main() {
 		log.Fatal("-camnetdns and -website are mutually exclusive")
 	}
 
+	gopherjsGoroot = os.Getenv("CAMLI_GOPHERJS_GOROOT")
+
 	verifyGoVersion()
 
 	sql := withSQLite()
@@ -884,7 +886,6 @@ func verifyGoVersion() {
 }
 
 func verifyGopherjsGoroot() {
-	gopherjsGoroot = os.Getenv("CAMLI_GOPHERJS_GOROOT")
 	goBin := filepath.Join(gopherjsGoroot, "bin", "go")
 	if gopherjsGoroot == "" {
 		gopherjsGoroot = filepath.Join(homeDir(), fmt.Sprintf("go1.%c", goVersionMinor))
