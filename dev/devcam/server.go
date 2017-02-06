@@ -72,6 +72,7 @@ type serverCmd struct {
 	openBrowser      bool
 	flickrAPIKey     string
 	foursquareAPIKey string
+	gphotosAPIKey    string
 	picasaAPIKey     string
 	plaidAPIKey      string
 	twitterAPIKey    string
@@ -117,6 +118,7 @@ func init() {
 		flags.BoolVar(&cmd.openBrowser, "openbrowser", false, "Open the start page on startup.")
 		flags.StringVar(&cmd.flickrAPIKey, "flickrapikey", "", "The key and secret to use with the Flickr importer. Formatted as '<key>:<secret>'.")
 		flags.StringVar(&cmd.foursquareAPIKey, "foursquareapikey", "", "The key and secret to use with the Foursquare importer. Formatted as '<clientID>:<clientSecret>'.")
+		flags.StringVar(&cmd.gphotosAPIKey, "gphotoskey", "", "The username and password to use with the Google Photos importer. Formatted as '<clientID>:<clientSecret>'.")
 		flags.StringVar(&cmd.picasaAPIKey, "picasakey", "", "The username and password to use with the Picasa importer. Formatted as '<username>:<password>'.")
 		flags.StringVar(&cmd.plaidAPIKey, "plaidkey", "", "The client_id and secret to use with the Plaid importer. Formatted as '<client_id>:<secret>'.")
 		flags.StringVar(&cmd.twitterAPIKey, "twitterapikey", "", "The key and secret to use with the Twitter importer. Formatted as '<APIkey>:<APIsecret>'.")

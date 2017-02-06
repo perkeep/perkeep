@@ -361,6 +361,9 @@
 				"foursquare": {
 					"clientSecret": ["_env", "${CAMLI_FOURSQUARE_API_KEY}", ""]
 				},
+				"gphotos": {
+					"clientSecret": ["_env", "${CAMLI_GPHOTOS_API_KEY}", ""]
+				},
 				"picasa": {
 					"clientSecret": ["_env", "${CAMLI_PICASA_API_KEY}", ""]
 				},

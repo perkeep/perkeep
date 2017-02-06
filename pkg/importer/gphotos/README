@@ -1,0 +1,43 @@
+
+Google Photos Importer
+===============
+
+This is a working Camlistore importer for Google Photos. So far it can import
+all photos but not their metadata.
+
+To use:
+
+1) Retrieve an api credential from a project of you from
+   https://console.developers.google.com/
+   Select/create a project, then under APIs & auth / Credentials, create a new
+   web application client id.
+
+2a) Start the devcam server with gphotoskey flag:
+    $ devcam server -verbose -gphotoskey='Client ID:Client secret'
+
+2b) Place the Client ID and the Client secret in your (low-level) server-config.json:
+
+    "/importer-gphotos/": {
+        "handler": "importer-gphotos",
+        "handlerArgs": {
+            "apiKey": "Client ID:Client secret"
+        }
+    },
+
+    and start your camlistore server.
+
+3) Navigate to http://<server>/importer-gphotos/start and authorize the app
+   to manage your Photos.
+
+4) Watch import progress on the command line (start devcam with -verbose flag).
+
+
+TODO
+----
+
+  * The used OAuth2 scope is for managing (read & modify) photos, but this
+    needs only read rights. Is a stricter scope available?
+  * The album's author name is not used yet, and the album's short name is needed.
+  * Google Photos Web dumps a lot of metadata on us. Which would be usable?
+
+See https://camlistore.org/issue/391

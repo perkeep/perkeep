@@ -77,6 +77,7 @@ const (
 	// as a city name, or a full postal address.
 	LocationText = "locationText"
 
+	Altitude  = "altitude"
 	Latitude  = "latitude"
 	Longitude = "longitude"
 
@@ -115,4 +116,7 @@ const (
 	// DefaultVisibility is "camliDefVis", which affects the default
 	// visibility of the concerned permanode in the web UI.
 	DefaultVisibility = "camliDefVis"
+
+	// Version is http://schema.org/version
+	Version = "version"
 )
