@@ -25,7 +25,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"log/syslog"
 	"net"
 	"net/http"
 	"os"
@@ -84,6 +83,7 @@ import (
 	_ "camlistore.org/pkg/camlegal"
 
 	"go4.org/legal"
+	"go4.org/types"
 	"go4.org/wkfs"
 
 	"cloud.google.com/go/compute/metadata"
@@ -108,7 +108,7 @@ var (
 	flagOpenBrowser = flag.Bool("openbrowser", true, "Launches the UI on startup")
 	flagReindex     = flag.Bool("reindex", false, "Reindex all blobs on startup")
 	flagRecovery    = flag.Bool("recovery", false, "Recovery mode: rebuild the blobpacked meta index. The tasks performed by the recovery mode might change in the future.")
-	flagSyslog      = flag.Bool("syslog", false, "Log everything only to syslog")
+	flagSyslog      = flag.Bool("syslog", false, "Log everything only to syslog. It is an error to use this flag on windows.")
 	flagPollParent  bool
 )
 
@@ -621,9 +621,9 @@ func (w gclWriter) Write(p []byte) (n int, err error) {
 
 // if a non-nil logging Client is returned, it should be closed before the
 // program terminates to flush any buffered log entries.
-func maybeSetupGoogleCloudLogging() *logging.Client {
+func maybeSetupGoogleCloudLogging() io.Closer {
 	if flagGCEProjectID == "" && flagGCELogName == "" && flagGCEJWTFile == "" {
-		return nil
+		return types.NopCloser
 	}
 	if flagGCEProjectID == "" || flagGCELogName == "" || flagGCEJWTFile == "" {
 		exitf("All of --gce_project_id, --gce_log_name, and --gce_jwt_file must be specified for logging on Google Cloud Logging.")
@@ -645,17 +645,19 @@ func maybeSetupGoogleCloudLogging() *logging.Client {
 	return logc
 }
 
-// setupLogging configures the output of the standard logger. If a non-nil
-// Closer is returned, it should be closed before the program terminates to flush
-// any buffered log entries.
+// setupLoggingSyslog is non-nil on Unix. If it returns a non-nil io.Closer log
+// flush function, setupLogging returns that flush function.
+var setupLoggingSyslog func() io.Closer
+
+// setupLogging sets up logging and returns an io.Closer that flushes logs.
 func setupLogging() io.Closer {
-	if *flagSyslog {
-		slog, err := syslog.New(syslog.LOG_INFO|syslog.LOG_DAEMON, "camlistored")
-		if err != nil {
-			exitf("Error connecting to syslog: %v", err)
+	if *flagSyslog && runtime.GOOS == "windows" {
+		exitf("-syslog not available on windows")
+	}
+	if fn := setupLoggingSyslog; fn != nil {
+		if flusher := fn(); flusher != nil {
+			return flusher
 		}
-		log.SetOutput(slog)
-		return nil
 	}
 	if env.OnGCE() {
 		lw, err := gce.LogWriter()
@@ -706,12 +708,9 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 
 	logCloser := setupLogging()
 	defer func() {
-		if logCloser == nil {
-			return
-		}
 		if err := logCloser.Close(); err != nil {
 			log.SetOutput(os.Stderr)
-			log.Printf("Error closing logging client: %v", err)
+			log.Printf("Error closing logger: %v", err)
 		}
 	}()
 
