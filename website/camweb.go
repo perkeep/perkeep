@@ -351,8 +351,8 @@ func findAndServeFile(rw http.ResponseWriter, req *http.Request, root string) {
 	// if directory request, try to find an index file
 	if fi.IsDir() {
 		for _, index := range indexFiles {
-			absPath = filepath.Join(root, relPath, index)
-			fi, err = os.Lstat(absPath)
+			childAbsPath := filepath.Join(root, relPath, index)
+			childFi, err := os.Lstat(childAbsPath)
 			if err != nil {
 				if os.IsNotExist(err) {
 					// didn't find this file, try the next
@@ -362,6 +362,8 @@ func findAndServeFile(rw http.ResponseWriter, req *http.Request, root string) {
 				serveError(rw, req, relPath, err)
 				return
 			}
+			fi = childFi
+			absPath = childAbsPath
 			break
 		}
 	}
