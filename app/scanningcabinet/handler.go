@@ -189,7 +189,7 @@ type rootData struct {
 	UpcomingDocs []DocumentVM
 	TopMessage   template.HTML
 	ErrorMessage string
-	AllTags      []string
+	AllTags      map[string]int
 }
 
 func (h *handler) disco() error {
@@ -230,7 +230,6 @@ func (h *handler) handleRoot(w http.ResponseWriter, r *http.Request) {
 	var (
 		movm         []MediaObjectVM
 		searchedDocs []DocumentVM
-		allTags      []string
 	)
 	tags := newSeparatedString(r.FormValue("tags"))
 	docs, err := h.fetchDocuments(limit, searchOpts{tags: tags})
@@ -242,7 +241,7 @@ func (h *handler) handleRoot(w http.ResponseWriter, r *http.Request) {
 	if len(tags) != 0 {
 		searchedDocs = MakeDocumentViewModels(docs)
 		// We've just done a search, in which case we don't show the scans,
-		// so no need to look for them. Nor do we look for/show the tags cloud.
+		// so no need to look for them.
 	} else {
 		// fetch media objects
 		mediaObjects, err := h.fetchScans(limit)
@@ -251,19 +250,11 @@ func (h *handler) handleRoot(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		movm = MakeMediaObjectViewModels(mediaObjects)
-		// TODO(mpl): we effectively have to fetch all the documents to get all
-		// the tags - which seems wasteful in itself already - so we should
-		// probably then use these docs to derive ourselves locally: any tagged
-		// search result, upcoming, untagged. That is, instead of doing a fetch for
-		// each of these, which unnecessarily burdens the server (and does slow
-		// requests). Or we don't do a tags cloud.
-		// Leaving it as is for now because 1) we don't do that many requests,
-		// 2) it's interesting to test various requests on our search handler.
-		allTags, err = h.fetchTags()
-		if err != nil {
-			httputil.ServeError(w, r, err)
-			return
-		}
+	}
+	allTags, err := h.fetchTags()
+	if err != nil {
+		httputil.ServeError(w, r, err)
+		return
 	}
 
 	// fetch upcoming documents
@@ -559,18 +550,26 @@ func (h *handler) handleDoc(w http.ResponseWriter, r *http.Request) {
 	}
 	show_single_list := size > 600
 
+	allTags, err := h.fetchTags()
+	if err != nil {
+		httputil.ServeError(w, r, err)
+		return
+	}
+
 	d := struct {
 		BaseURL        string
 		Pages          []MediaObjectVM
 		Doc            DocumentVM
 		ShowSingleList bool
 		Size           int
+		AllTags        map[string]int
 	}{
 		BaseURL:        baseURL(r),
 		Pages:          MakeMediaObjectViewModels(pages),
 		Doc:            document.MakeViewModel(),
 		ShowSingleList: show_single_list,
 		Size:           size,
+		AllTags:        allTags,
 	}
 	if err := docTemplate.Execute(w, d); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("could not serve doc template: %v", err))

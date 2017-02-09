@@ -26,9 +26,13 @@ var rootHTML = `
 	<title>Scanning Cabinet</title>
 	<base href="{{.BaseURL}}">
 	<link rel="stylesheet" type="text/css" href="{{.BaseURL}}ui/scanner.css" />
+	<script src="{{.BaseURL}}ui/scanner.js"></script>
 {{ if .AllTags }}
-	<link rel="stylesheet" type="text/css" href="https://visapi-gadgets.googlecode.com/svn/trunk/wordcloud/wc.css"/>
-	<script type="text/javascript" src="https://www.google.com/jsapi"></script>
+	<link rel="stylesheet" href="{{.BaseURL}}ui/jQCloud.css">
+	<script type="text/javascript" src="{{.BaseURL}}ui/jquery.min.js"></script>
+	<script src="{{.BaseURL}}ui/jQCloud.js"></script>
+	<link rel="stylesheet" href="{{.BaseURL}}ui/jquery-ui.css">
+	<script src="{{.BaseURL}}ui/jquery-ui.min.js"></script>
 {{ end }}
 
 </head>
@@ -78,37 +82,28 @@ var rootHTML = `
     </ul>
 {{ end }}
 
-{{ if .AllTags }}
 <h2>All Documents Tags</h2>
-<div id="wcdiv"></div>
+<div id="wcdiv" style="height: 600px; width: 600px;"></div>
+<script type="text/javascript">
+$(document).ready(function(){
+  // A frequency map of all existing tags
+  var allTags = {{ .AllTags }};
 
-	  <script type="text/javascript" src="https://visapi-gadgets.googlecode.com/svn/trunk/wordcloud/wc.js"></script>
-	  <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.0/jquery.min.js"></script>
-	<script type="text/javascript">
-		google.load("visualization", "1");
-		google.setOnLoadCallback(draw);
-		function draw() {
-			var data = new google.visualization.DataTable();
-			data.addColumn('string', 'Text1');
-			data.addRows({{ len .AllTags }});
-			{{ range $index, $tags := .AllTags }}
-			data.setCell({{ $index }}, 0, {{ $tags }});
-			{{ end }}
-			var outputDiv = document.getElementById('wcdiv');
-			var wc = new WordCloud(outputDiv);
-			wc.draw(data, null);
-			attachEvents();
-		}
-		function attachEvents() {
-			$("div.word-cloud span")
-				.css('cursor', 'pointer')
-				.click(function () {
-					$("input#taginput").val($(this).text());
-					$("form#tagform").submit();
-				});
-		}
-	</script>
-{{ end }}
+  enableAutoComplete(allTags, "input#taginput");
+
+  $('#wcdiv').jQCloud($.map(allTags, function(freq, tag){
+    return {
+      text: tag,
+      weight: freq,
+      html: { class: "jqcloud-word" },
+      handlers: { click: (function(tag){
+          return function() { window.location.href = "?tags=" + tag; }
+        })(tag)
+      }
+    };
+  }));
+})
+</script>
 
 <!---- Upcoming due documents --->
 {{ if .UpcomingDocs }}
@@ -153,6 +148,11 @@ var docHTML = `
 	<title>Scanning Cabinet</title>
 	<base href="{{.BaseURL}}">
 	<link rel="stylesheet" type="text/css" href="{{.BaseURL}}ui/scanner.css" />
+	<script src="{{.BaseURL}}ui/scanner.js"></script>
+
+	<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+	<link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
+	<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
 </head>
 <body>
   <div>[<a href='{{.BaseURL}}'>Scanning Cabinet</a>]</div>
@@ -169,7 +169,7 @@ var docHTML = `
 <input type='hidden' name='docref' value='{{.Doc.BlobRef}}' />
 <table>
   <tr><td align='right'>Title</td><td><input name='title' value="{{.Doc.Title| html}}" size=80 /></td></tr>
-  <tr><td align='right'>Tags</td><td><input name='tags' value="{{.Doc.TagCommaSeparated | html}}" size=80/></td></tr>
+  <tr><td align='right'>Tags</td><td><input id="tags" name='tags' value="{{.Doc.TagCommaSeparated | html}}" size=80/></td></tr>
   <tr><td align='right'>Doc Date</td><td><input name='date' value="{{.Doc.DateYyyyMmDd}}" maxlength=10 /> (yyyy-mm-dd)</td></tr>
   <tr><td align='right'>Due Date</td><td><input name='due_date' value="{{.Doc.DueYyyyMmDd}}" maxlength=10 /> (yyyy-mm-dd)</td></tr>
   <tr><td align='right'>Location</td>
@@ -202,4 +202,14 @@ var docHTML = `
 		<img src="{{.UrlResize}}{{$ize}}" class="doc-page-row" />
 	{{ end }}
 {{ end }}
+
+<script type="text/javascript">
+
+// A frequency map of all existing tags
+var allTags = {{ .AllTags }};
+
+$(document).ready(function(){
+  enableAutoComplete(allTags, "input#tags");
+});
+</script>
 `

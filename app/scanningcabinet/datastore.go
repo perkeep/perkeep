@@ -707,18 +707,21 @@ func (h *handler) fetchDocuments(limit int, opts searchOpts) ([]*document, error
 	return documents, nil
 }
 
-func (h *handler) fetchTags() ([]string, error) {
+func (h *handler) fetchTags() (map[string]int, error) {
+	// TODO(mpl): Cache this result before returning it, since we only need to wipe
+	// it out when a document adds or removes a tag.
 	docs, err := h.fetchDocuments(-1, searchOpts{tagged: true})
 	if err != nil {
 		return nil, fmt.Errorf("could not fetch all tagged documents: %v", err)
 	}
-	var tags []string
+	// Dedupe tags
+	count := make(map[string]int)
 	for _, doc := range docs {
 		for _, tag := range doc.tags {
-			tags = append(tags, tag)
+			count[tag]++
 		}
 	}
-	return tags, nil
+	return count, nil
 }
 
 // returns os.ErrNotExist when document was not found
