@@ -74,7 +74,7 @@ for this.
 
 ### Other formatting minutiae
 Everything else generally follows the [Google JavaScript
-Styleguide](http://google-styleguide.googlecode.com/svn/trunk/javascriptguide.xml).
+Styleguide](https://google.github.io/styleguide/jsguide.html).
 Or you can just look at the surrounding code.
 
 
