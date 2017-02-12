@@ -74,7 +74,11 @@ var rootHTML = `
     {{ range .SearchedDocs }}
       <li><b>
         <a href="{{.DisplayUrl}}">{{.SomeTitle}}</a>
-      </b> [{{.DateYyyyMmDd}}]{{ if .Description }} ({{.Description}}){{ end }}
+      </b> [{{.DateYyyyMmDd}}]
+      {{ $minusTags := .Tags.Minus $.Tags }}
+      {{ if $minusTags }}
+        ({{ range $i, $tag := $minusTags }}{{if $i}}, {{end}}<a href="?tags={{$tag}}">{{$tag}}</a>{{ end }})
+      {{ end }}
       </li>
     {{ end }}
     </ul>
@@ -110,7 +114,7 @@ $(document).ready(function(){
     {{ range .UpcomingDocs }}
       <li><b>{{.DueYyyyMmDd}}</b> &#8212;
         <a href="{{.DisplayUrl}}">{{.SomeTitle}}</a>
-      </b> {{ if .Description }} ({{.Description}}){{ end }}
+      </b>
       </li>
     {{ end }}
     </ul>
@@ -125,7 +129,7 @@ $(document).ready(function(){
     {{ range .UntaggedDocs }}
       <li><b>
         <a href="{{.DisplayUrl}}">{{.SomeTitle}}</a>
-      </b> {{ if .Description }} ({{.Description}}){{ end }}
+      </b>
       </li>
     {{ end }}
     </ul>
@@ -167,7 +171,7 @@ var docHTML = `
 <input type='hidden' name='docref' value='{{.Doc.BlobRef}}' />
 <table>
   <tr><td align='right'>Title</td><td><input name='title' value="{{.Doc.Title| html}}" size=80 /></td></tr>
-  <tr><td align='right'>Tags</td><td><input id="tags" name='tags' value="{{.Doc.TagCommaSeparated | html}}" size=80/></td></tr>
+  <tr><td align='right'>Tags</td><td><input id="tags" name='tags' value="{{.Doc.Tags | html}}" size=80/></td></tr>
   <tr><td align='right'>Doc Date</td><td><input name='date' value="{{.Doc.DateYyyyMmDd}}" maxlength=10 /> (yyyy-mm-dd)</td></tr>
   <tr><td align='right'>Due Date</td><td><input name='due_date' value="{{.Doc.DueYyyyMmDd}}" maxlength=10 /> (yyyy-mm-dd)</td></tr>
   <tr><td align='right'>Location</td>

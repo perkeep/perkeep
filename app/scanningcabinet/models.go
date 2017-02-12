@@ -182,28 +182,27 @@ func formatYyyyMmDd(indate time.Time) string {
 
 // DocumentVM stores the Document data required by the view templates
 type DocumentVM struct {
-	BlobRef           blob.Ref
-	Title             string
-	SomeTitle         string
-	Description       string
-	DateYyyyMmDd      string
-	DueYyyyMmDd       string
-	DisplayUrl        string
-	TagCommaSeparated string
-	PhysicalLocation  string
+	BlobRef          blob.Ref
+	Title            string
+	SomeTitle        string
+	DateYyyyMmDd     string
+	DueYyyyMmDd      string
+	DisplayUrl       string
+	Tags             separatedString
+	PhysicalLocation string
 }
 
 // MakeViewModel returns a new DocumentVM with the data from this struct
 func (doc *document) MakeViewModel() DocumentVM {
 	return DocumentVM{
-		BlobRef:           doc.permanode,
-		DisplayUrl:        doc.displayURL(),
-		Title:             doc.title,
-		SomeTitle:         doc.someTitle(),
-		DateYyyyMmDd:      doc.dateYyyyMmDd(),
-		DueYyyyMmDd:       doc.dueYyyyMmDd(),
-		TagCommaSeparated: doc.tags.String(),
-		PhysicalLocation:  doc.physicalLocation,
+		BlobRef:          doc.permanode,
+		DisplayUrl:       doc.displayURL(),
+		Title:            doc.title,
+		SomeTitle:        doc.someTitle(),
+		DateYyyyMmDd:     doc.dateYyyyMmDd(),
+		DueYyyyMmDd:      doc.dueYyyyMmDd(),
+		Tags:             doc.tags,
+		PhysicalLocation: doc.physicalLocation,
 	}
 }
 

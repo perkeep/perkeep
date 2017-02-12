@@ -58,6 +58,29 @@ func (css separatedString) isEmpty() bool {
 	return false
 }
 
+// Minus returns a newly created SeparatedString containing all the elements from css that did
+// not appear in css2
+func (css separatedString) Minus(css2 separatedString) separatedString {
+	if !sort.StringsAreSorted(css) {
+		sort.Strings(css)
+	}
+	if !sort.StringsAreSorted(css2) {
+		sort.Strings(css2)
+	}
+	k := 0
+	kMax := len(css2)
+	keep := css[:0]
+	for _, s := range css {
+		for k < kMax && css2[k] < s {
+			k++
+		}
+		if k == kMax || css2[k] != s {
+			keep = append(keep, s)
+		}
+	}
+	return keep
+}
+
 // equal compares css with css2. Both css and css2 are sorted in place before being compared.
 func (css separatedString) equal(css2 separatedString) bool {
 	if len(css) != len(css2) {

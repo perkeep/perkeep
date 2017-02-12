@@ -182,7 +182,7 @@ func (h *handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 type rootData struct {
 	BaseURL      string
-	Tags         string
+	Tags         separatedString
 	Media        []MediaObjectVM
 	SearchedDocs []DocumentVM
 	UntaggedDocs []DocumentVM
@@ -273,7 +273,7 @@ func (h *handler) handleRoot(w http.ResponseWriter, r *http.Request) {
 
 	d := rootData{
 		BaseURL:      baseURL(r),
-		Tags:         strings.Join(tags, ", "),
+		Tags:         tags,
 		Media:        movm,
 		SearchedDocs: searchedDocs,
 		UntaggedDocs: MakeDocumentViewModels(untagged),
