@@ -89,23 +89,21 @@ cam.TagsControl = React.createClass({
 					className: 'cam-tagscontrol-header'
 				}
 			),
-			cam.AddTagsInput(
-				{
-					blobrefs: blobrefs,
-					serverConnection: this.props.serverConnection,
-					doesBlobHaveTag: this.doesBlobHaveTag,
-					executePromises: this.executePromises
-				}
-			),
-			cam.EditTagsControl(
-				{
-					blobs: blobs,
-					blobrefs: blobrefs,
-					serverConnection: this.props.serverConnection,
-					doesBlobHaveTag: this.doesBlobHaveTag,
-					executePromises: this.executePromises
-				}
-			)
+
+			React.createElement(cam.AddTagsInput, {
+				blobrefs: blobrefs,
+				serverConnection: this.props.serverConnection,
+				doesBlobHaveTag: this.doesBlobHaveTag,
+				executePromises: this.executePromises
+			}),
+
+			React.createElement(cam.EditTagsControl, {
+				blobs: blobs,
+				blobrefs: blobrefs,
+				serverConnection: this.props.serverConnection,
+				doesBlobHaveTag: this.doesBlobHaveTag,
+				executePromises: this.executePromises
+			})
 		);
 	}
 });
@@ -134,7 +132,7 @@ cam.AddTagsInput = React.createClass({
 	},
 
 	getInputNode: function() {
-		return this.refs['inputField'].getDOMNode();
+		return this.refs['inputField'];
 	},
 
 	handleOnSubmit_: function(e) {

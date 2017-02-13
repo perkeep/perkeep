@@ -107,7 +107,7 @@ cam.BlobItemVideoContent = React.createClass({
 		});
 
 		if (this.state.loaded) {
-			var video = this.getDOMNode().querySelector('video');
+			var video = ReactDOM.findDOMNode(this).querySelector('video');
 			if (this.state.playing) {
 				video.pause();
 			} else {
