@@ -318,6 +318,6 @@ cam.Header = React.createClass({
 	},
 
 	getSearchNode_: function() {
-		return this.refs['searchbox'].getDOMNode();
+		return this.refs.searchbox;
 	},
 });
