@@ -110,6 +110,7 @@ same as the order they are listed above.
 Others aren't yet supported by the simple config mode. Patches to
 [pkg/serverinit](https://camlistore.org/pkg/serverinit/genconfig.go) welcome.
 
+Examples for [configuring storage backends](/doc/storage-examples.md)
 
 ## Indexing options {#indexing}
 
