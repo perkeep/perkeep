@@ -50,70 +50,6 @@ import (
 	"golang.org/x/net/context"
 )
 
-// outOfOrderIndexerLoop asynchronously reindexes blobs received
-// out of order. It panics if started more than once or if the
-// index has no blobSource.
-func (ix *Index) outOfOrderIndexerLoop() {
-	showReindexRace := os.Getenv("CAMLI_SHOW_REINDEX_RACE") != ""
-	ix.mu.RLock()
-	if ix.oooRunning {
-		panic("outOfOrderIndexerLoop is already running")
-	}
-	if ix.blobSource == nil {
-		panic("index has no blobSource")
-	}
-	ix.oooRunning = true
-	ix.mu.RUnlock()
-WaitTickle:
-	for range ix.tickleOoo {
-		if showReindexRace {
-			// not strictly needed, but greatly increases the probability of seeing the race.
-			time.Sleep(1 * time.Second)
-		}
-		for {
-			ix.Lock()
-			if len(ix.readyReindex) == 0 {
-				ix.Unlock()
-				continue WaitTickle
-			}
-			var br blob.Ref
-			for br = range ix.readyReindex {
-				break
-			}
-			delete(ix.readyReindex, br)
-			ix.Unlock()
-
-			err := ix.indexBlob(br)
-			if err != nil {
-				log.Printf("out-of-order indexBlob(%v) = %v", br, err)
-				ix.Lock()
-				if len(ix.needs[br]) == 0 {
-					ix.readyReindex[br] = true
-				}
-				ix.Unlock()
-			}
-		}
-	}
-}
-
-func (ix *Index) indexBlob(br blob.Ref) error {
-	ix.RLock()
-	bs := ix.blobSource
-	ix.RUnlock()
-	if bs == nil {
-		panic(fmt.Sprintf("index: can't re-index %v: no blobSource", br))
-	}
-	rc, _, err := bs.Fetch(br)
-	if err != nil {
-		return fmt.Errorf("index: failed to fetch %v for reindexing: %v", br, err)
-	}
-	defer rc.Close()
-	if _, err := blobserver.Receive(ix, br, rc); err != nil {
-		return err
-	}
-	return nil
-}
-
 type mutationMap struct {
 	kv map[string]string // the keys and values we populate
 
@@ -155,16 +91,74 @@ func blobsFilteringOut(v []blob.Ref, x blob.Ref) []blob.Ref {
 	return nl
 }
 
+func (ix *Index) indexBlob(br blob.Ref) error {
+	rc, _, err := ix.blobSource.Fetch(br)
+	if err != nil {
+		return fmt.Errorf("index: failed to fetch %v for reindexing: %v", br, err)
+	}
+	defer rc.Close()
+	if _, err := blobserver.Receive(ix, br, rc); err != nil {
+		return err
+	}
+	return nil
+}
+
+// DisableOutOfOrderIndexing should only be used for tests. It disables the
+// asynchronous, out of order, indexing to demonstrate that e.g. reindexing fails
+// without it.
+func (ix *Index) DisableOutOfOrderIndexing() {
+	ix.Lock()
+	defer ix.Unlock()
+	ix.oooDisabled = true
+}
+
+// indexReadyBlobs indexes blobs that have been recently marked as ready to be
+// reindexed, after the blobs they depend on eventually were indexed.
+func (ix *Index) indexReadyBlobs() {
+	defer ix.reindexWg.Done()
+	ix.RLock()
+	// For tests
+	if ix.oooDisabled {
+		ix.RUnlock()
+		return
+	}
+	ix.RUnlock()
+	failed := make(map[blob.Ref]bool)
+	for {
+		ix.Lock()
+		if len(ix.readyReindex) == 0 {
+			ix.Unlock()
+			return
+		}
+		var br blob.Ref
+		for br = range ix.readyReindex {
+			break
+		}
+		delete(ix.readyReindex, br)
+		ix.Unlock()
+		if err := ix.indexBlob(br); err != nil {
+			log.Printf("out-of-order indexBlob(%v) = %v", br, err)
+			failed[br] = true
+		}
+	}
+	ix.Lock()
+	defer ix.Unlock()
+	for br, _ := range failed {
+		ix.readyReindex[br] = true
+	}
+}
+
+// noteBlobIndexed checks if the recent indexing of br now allows the blobs that
+// were depending on br, to be indexed in turn. If yes, they're reindexed
+// asynchronously by indexReadyBlobs.
 func (ix *Index) noteBlobIndexed(br blob.Ref) {
 	for _, needer := range ix.neededBy[br] {
 		newNeeds := blobsFilteringOut(ix.needs[needer], br)
 		if len(newNeeds) == 0 {
 			ix.readyReindex[needer] = true
 			delete(ix.needs, needer)
-			select {
-			case ix.tickleOoo <- true:
-			default:
-			}
+			ix.reindexWg.Add(1)
+			go ix.indexReadyBlobs()
 		} else {
 			ix.needs[needer] = newNeeds
 		}
