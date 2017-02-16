@@ -980,6 +980,9 @@ func (c *Corpus) PermanodeTime(pn blob.Ref) (t time.Time, ok bool) {
 	// -- File modtime
 	// -- camliContent claim set time
 
+	if t, ok = c.pnTimeAttr(pn, nodeattr.PaymentDueDate); ok {
+		return
+	}
 	if t, ok = c.pnTimeAttr(pn, nodeattr.StartDate); ok {
 		return
 	}

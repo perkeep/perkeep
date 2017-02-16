@@ -65,18 +65,20 @@ type Client struct {
 	prefixv       string        // URL prefix before "/camli/"
 	isSharePrefix bool          // URL is a request for a share blob
 
-	discoOnce      syncutil.Once
-	searchRoot     string      // Handler prefix, or "" if none
-	downloadHelper string      // or "" if none
-	storageGen     string      // storage generation, or "" if not reported
-	syncHandlers   []*SyncInfo // "from" and "to" url prefix for each syncHandler
-	serverKeyID    string      // Server's GPG public key ID.
-	helpRoot       string      // Handler prefix, or "" if none
-	shareRoot      string      // Share handler prefix, or "" if none
+	discoOnce              syncutil.Once
+	searchRoot             string      // Handler prefix, or "" if none
+	downloadHelper         string      // or "" if none
+	storageGen             string      // storage generation, or "" if not reported
+	syncHandlers           []*SyncInfo // "from" and "to" url prefix for each syncHandler
+	serverKeyID            string      // Server's GPG public key ID.
+	helpRoot               string      // Handler prefix, or "" if none
+	shareRoot              string      // Share handler prefix, or "" if none
+	serverPublicKeyBlobRef blob.Ref    // Server's public key blobRef
 
-	signerOnce sync.Once
-	signer     *schema.Signer
-	signerErr  error
+	signerOnce  sync.Once
+	signer      *schema.Signer
+	signerErr   error
+	signHandler string // Handler prefix, or "" if none
 
 	authMode auth.AuthMode
 	// authErr is set when no auth config is found but we want to defer warning
@@ -440,6 +442,19 @@ func (c *Client) ServerKeyID() (string, error) {
 	return c.serverKeyID, nil
 }
 
+// ServerPublicKeyBlobRef returns the server's public key blobRef
+// If the server isn't running a sign handler, the error will be ErrNoSigning.
+func (c *Client) ServerPublicKeyBlobRef() (blob.Ref, error) {
+	if err := c.condDiscovery(); err != nil {
+		return blob.Ref{}, err
+	}
+
+	if !c.serverPublicKeyBlobRef.Valid() {
+		return blob.Ref{}, ErrNoSigning
+	}
+	return c.serverPublicKeyBlobRef, nil
+}
+
 // SearchRoot returns the server's search handler.
 // If the server isn't running an index and search handler, the error
 // will be ErrNoSearchRoot.
@@ -477,6 +492,19 @@ func (c *Client) ShareRoot() (string, error) {
 		return "", ErrNoShareRoot
 	}
 	return c.shareRoot, nil
+}
+
+// SignHandler returns the server's sign handler.
+// If the server isn't running a sign handler, the error will be
+// ErrNoSigning.
+func (c *Client) SignHandler() (string, error) {
+	if err := c.condDiscovery(); err != nil {
+		return "", err
+	}
+	if c.signHandler == "" {
+		return "", ErrNoSigning
+	}
+	return c.signHandler, nil
 }
 
 // StorageGeneration returns the server's unique ID for its storage
@@ -879,6 +907,8 @@ func (c *Client) doDiscovery() error {
 
 	if disco.Signing != nil {
 		c.serverKeyID = disco.Signing.PublicKeyID
+		c.serverPublicKeyBlobRef = disco.Signing.PublicKeyBlobRef
+		c.signHandler = disco.Signing.SignHandler
 	}
 	return nil
 }
@@ -902,16 +932,41 @@ func (c *Client) GetJSON(url string, data interface{}) error {
 // but with implementation details like gated requests. The
 // URL's host must match the client's configured server.
 func (c *Client) Post(url string, bodyType string, body io.Reader) error {
+	resp, err := c.post(url, bodyType, body)
+	if err != nil {
+		return err
+	}
+	return resp.Body.Close()
+}
+
+// Sign sends a request to the sign handler on server to sign the contents of r,
+// and return them signed. It uses the same implementation details, such as gated
+// requests, as Post.
+func (c *Client) Sign(server string, r io.Reader) (signed []byte, err error) {
+	signHandler, err := c.SignHandler()
+	if err != nil {
+		return nil, err
+	}
+	signServer := strings.TrimSuffix(server, "/") + signHandler
+	resp, err := c.post(signServer, "application/x-www-form-urlencoded", r)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	return ioutil.ReadAll(resp.Body)
+}
+
+func (c *Client) post(url string, bodyType string, body io.Reader) (*http.Response, error) {
 	if !strings.HasPrefix(url, c.discoRoot()) {
-		return fmt.Errorf("wrong URL (%q) for this server", url)
+		return nil, fmt.Errorf("wrong URL (%q) for this server", url)
 	}
 	req := c.newRequest("POST", url, body)
 	req.Header.Set("Content-Type", bodyType)
 	res, err := c.expect2XX(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return res.Body.Close()
+	return res, nil
 }
 
 // newRequests creates a request with the authentication header, and with the

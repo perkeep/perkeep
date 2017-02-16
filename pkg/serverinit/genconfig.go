@@ -135,6 +135,24 @@ func (b *lowBuilder) searchOwner() (br blob.Ref, err error) {
 	return blob.SHA1FromString(armoredPublicKey), nil
 }
 
+func addAppConfig(config map[string]interface{}, appConfig *serverconfig.App, low jsonconfig.Obj) {
+	if appConfig.Listen != "" {
+		config["listen"] = appConfig.Listen
+	}
+	if appConfig.APIHost != "" {
+		config["apiHost"] = appConfig.APIHost
+	}
+	if appConfig.BackendURL != "" {
+		config["backendURL"] = appConfig.BackendURL
+	}
+	if low["listen"] != nil && low["listen"].(string) != "" {
+		config["serverListen"] = low["listen"].(string)
+	}
+	if low["baseURL"] != nil && low["baseURL"].(string) != "" {
+		config["serverBaseURL"] = low["baseURL"].(string)
+	}
+}
+
 func (b *lowBuilder) addPublishedConfig(tlsO *tlsOpts) error {
 	published := b.high.Publish
 	for k, v := range published {
@@ -183,23 +201,53 @@ func (b *lowBuilder) addPublishedConfig(tlsO *tlsOpts) error {
 			"program":   program,
 			"appConfig": appConfig,
 		}
-		if v.Listen != "" {
-			a["listen"] = v.Listen
-		}
-		if v.APIHost != "" {
-			a["apiHost"] = v.APIHost
-		}
-		if v.BackendURL != "" {
-			a["backendURL"] = v.BackendURL
-		}
-		if b.low["listen"] != nil && b.low["listen"].(string) != "" {
-			a["serverListen"] = b.low["listen"].(string)
-		}
-		if b.low["baseURL"] != nil && b.low["baseURL"].(string) != "" {
-			a["serverBaseURL"] = b.low["baseURL"].(string)
-		}
+		addAppConfig(a, v.App, b.low)
 		b.addPrefix(k, "app", a)
 	}
+	return nil
+}
+
+func (b *lowBuilder) addScanCabConfig(tlsO *tlsOpts) error {
+	if b.high.ScanCab == nil {
+		return nil
+	}
+	scancab := b.high.ScanCab
+	if scancab.App == nil {
+		scancab.App = &serverconfig.App{}
+	}
+	if scancab.Prefix == "" {
+		return errors.New("Missing \"prefix\" key in configuration for scanning cabinet.")
+	}
+
+	program := "scanningcabinet"
+	if scancab.Program != "" {
+		program = scancab.Program
+	}
+
+	auth := scancab.Auth
+	if auth == "" {
+		auth = b.high.Auth
+	}
+	appConfig := map[string]interface{}{
+		"auth": auth,
+	}
+	if scancab.HTTPSCert != "" && scancab.HTTPSKey != "" {
+		appConfig["httpsCert"] = scancab.HTTPSCert
+		appConfig["httpsKey"] = scancab.HTTPSKey
+	} else {
+		// default to Camlistore parameters, if any
+		if tlsO != nil {
+			appConfig["httpsCert"] = tlsO.httpsCert
+			appConfig["httpsKey"] = tlsO.httpsKey
+		}
+	}
+	a := args{
+		"prefix":    scancab.Prefix,
+		"program":   program,
+		"appConfig": appConfig,
+	}
+	addAppConfig(a, scancab.App, b.low)
+	b.addPrefix(scancab.Prefix, "app", a)
 	return nil
 }
 
@@ -926,6 +974,24 @@ func (b *lowBuilder) build() (*Config, error) {
 		}
 		if err := b.addPublishedConfig(tlsO); err != nil {
 			return nil, fmt.Errorf("Could not generate config for published: %v", err)
+		}
+	}
+
+	if conf.ScanCab != nil {
+		if !b.runIndex() {
+			return nil, fmt.Errorf("scanning cabinet requires an index")
+		}
+		var tlsO *tlsOpts
+		httpsCert, ok1 := low["httpsCert"].(string)
+		httpsKey, ok2 := low["httpsKey"].(string)
+		if ok1 && ok2 {
+			tlsO = &tlsOpts{
+				httpsCert: httpsCert,
+				httpsKey:  httpsKey,
+			}
+		}
+		if err := b.addScanCabConfig(tlsO); err != nil {
+			return nil, fmt.Errorf("Could not generate config for scanning cabinet: %v", err)
 		}
 	}
 

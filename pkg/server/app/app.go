@@ -266,8 +266,8 @@ var portMap = map[string]string{
 	"https": "443",
 }
 
-// baseURL concatenates the scheme and host parts of serverBaseURL with
-// the port of listenAddr.
+// baseURL returns the concatenation of the scheme and host parts of
+// serverBaseURL with the port of listenAddr.
 func baseURL(serverBaseURL, listenAddr string) (string, error) {
 	backendURL, err := url.Parse(serverBaseURL)
 	if err != nil {

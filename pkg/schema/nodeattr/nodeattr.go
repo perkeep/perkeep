@@ -53,6 +53,12 @@ const (
 	// 3339 format.
 	DatePublished = "datePublished"
 
+	// TODO(mpl): ask Brad what he wants. The original DueDate from the .py code (which is not in schema.org), or that.
+
+	// PaymentDueDate is http://schema.org/paymentDueDate in RFC
+	// 3339 format.
+	PaymentDueDate = "paymentDueDate"
+
 	// Title is http://schema.org/title
 	Title = "title"
 
