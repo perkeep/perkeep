@@ -852,7 +852,7 @@ func verifyCamlistoreRoot(dir string) {
 	}
 }
 
-const goVersionMinor = '7'
+const goVersionMinor = '8'
 
 func verifyGoVersion() {
 	_, err := exec.LookPath("go")

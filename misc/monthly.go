@@ -276,7 +276,7 @@ Camlistore version <a href='https://github.com/camlistore/camlistore/commit/{{.C
 // TODO(mpl): keep goVersion automatically in sync with version in
 // misc/docker/go. Or guess it from somewhere else.
 
-const goVersion = "1.8rc2"
+const goVersion = "1.8"
 
 // listDownloads lists all the files found in the monthly repo, and from them,
 // builds the data that we'll feed to the template to generate the monthly
