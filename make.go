@@ -852,7 +852,10 @@ func verifyCamlistoreRoot(dir string) {
 	}
 }
 
-const goVersionMinor = '8'
+const (
+	goVersionMinor  = '8'
+	gopherJSGoMinor = '7'
+)
 
 func verifyGoVersion() {
 	_, err := exec.LookPath("go")
@@ -878,7 +881,7 @@ func verifyGoVersion() {
 	}
 	minorChar := strings.TrimPrefix(version, "go1.")[0]
 	if minorChar >= goVersionMinor && minorChar <= '9' {
-		if minorChar != goVersionMinor {
+		if minorChar != gopherJSGoMinor {
 			verifyGopherjsGoroot()
 		}
 		return
@@ -889,9 +892,9 @@ func verifyGoVersion() {
 func verifyGopherjsGoroot() {
 	goBin := filepath.Join(gopherjsGoroot, "bin", "go")
 	if gopherjsGoroot == "" {
-		gopherjsGoroot = filepath.Join(homeDir(), fmt.Sprintf("go1.%c", goVersionMinor))
+		gopherjsGoroot = filepath.Join(homeDir(), fmt.Sprintf("go1.%c", gopherJSGoMinor))
 		goBin = filepath.Join(gopherjsGoroot, "bin", "go")
-		log.Printf("You're using go tip, and CAMLI_GOPHERJS_GOROOT was not provided, so defaulting to %v for building gopherjs instead.", goBin)
+		log.Printf("You're using go != 1.%c, and CAMLI_GOPHERJS_GOROOT was not provided, so defaulting to %v for building gopherjs instead.", gopherJSGoMinor, goBin)
 	}
 	if _, err := os.Stat(goBin); err != nil {
 		if !os.IsNotExist(err) {
