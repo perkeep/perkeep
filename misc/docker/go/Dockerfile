@@ -10,13 +10,3 @@ WORKDIR /tmp
 RUN curl -O https://storage.googleapis.com/golang/go1.8.linux-amd64.tar.gz
 RUN echo '53ab94104ee3923e228a2cb2116e5e462ad3ebaeea06ff04463479d7f12d27ca  go1.8.linux-amd64.tar.gz' | sha256sum -c
 RUN tar -C /usr/local -xzf go1.8.linux-amd64.tar.gz
-
-# Adding Go 1.7 as well for gopherjs. Not all our docker images need to do a full
-# 'go run make.go', but I feel maintaining two different go docker images would
-# not be worth the trouble. We can just remove that as soon as gopherjs supports
-# Go 1.8.
-WORKDIR /tmp
-RUN curl -O https://storage.googleapis.com/golang/go1.7.4.linux-amd64.tar.gz
-RUN echo '47fda42e46b4c3ec93fa5d4d4cc6a748aa3f9411a2a2b7e08e3a6d80d753ec8b  go1.7.4.linux-amd64.tar.gz' | sha256sum -c
-RUN tar -xzf go1.7.4.linux-amd64.tar.gz
-RUN mv go /usr/local/go1.7

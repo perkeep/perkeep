@@ -87,7 +87,7 @@ var (
 	}
 	// gopherjsGoroot should be specified through the env var
 	// CAMLI_GOPHERJS_GOROOT when the user's using go tip, because gopherjs only
-	// builds with Go 1.7.
+	// builds with Go 1.8.
 	gopherjsGoroot string
 )
 
@@ -854,7 +854,7 @@ func verifyCamlistoreRoot(dir string) {
 
 const (
 	goVersionMinor  = '8'
-	gopherJSGoMinor = '7'
+	gopherJSGoMinor = '8'
 )
 
 func verifyGoVersion() {
@@ -900,7 +900,7 @@ func verifyGopherjsGoroot() {
 		if !os.IsNotExist(err) {
 			log.Fatal(err)
 		}
-		log.Fatalf("%v not found. You need to specify a go1.%c root in CAMLI_GOPHERJS_GOROOT for building gopherjs", goBin, goVersionMinor)
+		log.Fatalf("%v not found. You need to specify a go1.%c root in CAMLI_GOPHERJS_GOROOT for building gopherjs", goBin, gopherJSGoMinor)
 	}
 }
 

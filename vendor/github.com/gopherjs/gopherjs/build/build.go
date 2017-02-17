@@ -11,15 +11,16 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	fsnotify "camlistore.org/pkg/misc/fakefsnotify"
 	"github.com/gopherjs/gopherjs/compiler"
 	"github.com/gopherjs/gopherjs/compiler/natives"
-	"github.com/kardianos/osext"
 	"github.com/neelance/sourcemap"
 )
 
@@ -77,7 +78,14 @@ func importWithSrcDir(path string, srcDir string, mode build.ImportMode, install
 		return nil, err
 	}
 
+	// TODO: Resolve issue #415 and remove this temporary workaround.
+	if strings.HasSuffix(pkg.ImportPath, "/vendor/github.com/gopherjs/gopherjs/js") {
+		return nil, fmt.Errorf("vendoring github.com/gopherjs/gopherjs/js package is not supported, see https://github.com/gopherjs/gopherjs/issues/415")
+	}
+
 	switch path {
+	case "os":
+		pkg.GoFiles = stripExecutable(pkg.GoFiles) // Need to strip executable implementation files, because some of them contain package scope variables that perform (indirectly) syscalls on init.
 	case "runtime":
 		pkg.GoFiles = []string{"error.go"}
 	case "runtime/internal/sys":
@@ -88,8 +96,6 @@ func importWithSrcDir(path string, srcDir string, mode build.ImportMode, install
 		pkg.GoFiles = []string{"rand.go", "util.go"}
 	case "crypto/x509":
 		pkg.CgoFiles = nil
-	case "hash/crc32":
-		pkg.GoFiles = []string{"crc32.go", "crc32_generic.go"}
 	}
 
 	if len(pkg.CgoFiles) > 0 {
@@ -117,10 +123,23 @@ func importWithSrcDir(path string, srcDir string, mode build.ImportMode, install
 	return &PackageData{Package: pkg, JSFiles: jsFiles}, nil
 }
 
+// stripExecutable strips all executable implementation .go files.
+// They have "executable_" prefix.
+func stripExecutable(goFiles []string) []string {
+	var s []string
+	for _, f := range goFiles {
+		if strings.HasPrefix(f, "executable_") {
+			continue
+		}
+		s = append(s, f)
+	}
+	return s
+}
+
 // ImportDir is like Import but processes the Go package found in the named
 // directory.
-func ImportDir(dir string, mode build.ImportMode) (*PackageData, error) {
-	pkg, err := build.ImportDir(dir, mode)
+func ImportDir(dir string, mode build.ImportMode, installSuffix string, buildTags []string) (*PackageData, error) {
+	pkg, err := NewBuildContext(installSuffix, buildTags).ImportDir(dir, mode)
 	if err != nil {
 		return nil, err
 	}
@@ -320,15 +339,16 @@ func parseAndAugment(pkg *build.Package, isTest bool, fileSet *token.FileSet) ([
 }
 
 type Options struct {
-	GOROOT        string
-	GOPATH        string
-	Verbose       bool
-	Quiet         bool
-	Watch         bool
-	CreateMapFile bool
-	Minify        bool
-	Color         bool
-	BuildTags     []string
+	GOROOT         string
+	GOPATH         string
+	Verbose        bool
+	Quiet          bool
+	Watch          bool
+	CreateMapFile  bool
+	MapToLocalDisk bool
+	Minify         bool
+	Color          bool
+	BuildTags      []string
 }
 
 func (o *Options) PrintError(format string, a ...interface{}) {
@@ -357,6 +377,7 @@ type Session struct {
 	options  *Options
 	Archives map[string]*compiler.Archive
 	Types    map[string]*types.Package
+	Watcher  *fsnotify.Watcher
 }
 
 func NewSession(options *Options) *Session {
@@ -373,6 +394,19 @@ func NewSession(options *Options) *Session {
 		Archives: make(map[string]*compiler.Archive),
 	}
 	s.Types = make(map[string]*types.Package)
+	if options.Watch {
+		if out, err := exec.Command("ulimit", "-n").Output(); err == nil {
+			if n, err := strconv.Atoi(strings.TrimSpace(string(out))); err == nil && n < 1024 {
+				fmt.Printf("Warning: The maximum number of open file descriptors is very low (%d). Change it with 'ulimit -n 8192'.\n", n)
+			}
+		}
+
+		var err error
+		s.Watcher, err = fsnotify.NewWatcher()
+		if err != nil {
+			panic(err)
+		}
+	}
 	return s
 }
 
@@ -384,6 +418,9 @@ func (s *Session) InstallSuffix() string {
 }
 
 func (s *Session) BuildDir(packagePath string, importPath string, pkgObj string) error {
+	if s.Watcher != nil {
+		s.Watcher.Add(packagePath)
+	}
 	buildPkg, err := NewBuildContext(s.InstallSuffix(), s.options.BuildTags).ImportDir(packagePath, 0)
 	if err != nil {
 		return err
@@ -443,6 +480,9 @@ func (s *Session) BuildImportPath(path string) (*compiler.Archive, error) {
 
 func (s *Session) buildImportPathWithSrcDir(path string, srcDir string) (*PackageData, *compiler.Archive, error) {
 	pkg, err := importWithSrcDir(path, srcDir, 0, s.InstallSuffix(), s.options.BuildTags)
+	if s.Watcher != nil && pkg != nil { // add watch even on error
+		s.Watcher.Add(pkg.Dir)
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -462,7 +502,7 @@ func (s *Session) BuildPackage(pkg *PackageData) (*compiler.Archive, error) {
 
 	if pkg.PkgObj != "" {
 		var fileInfo os.FileInfo
-		gopherjsBinary, err := osext.Executable()
+		gopherjsBinary, err := os.Executable()
 		if err == nil {
 			fileInfo, err = os.Stat(gopherjsBinary)
 			if err == nil {
@@ -634,7 +674,7 @@ func (s *Session) WriteCommandPackage(archive *compiler.Archive, pkgObj string) 
 			fmt.Fprintf(codeFile, "//# sourceMappingURL=%s.map\n", filepath.Base(pkgObj))
 		}()
 
-		sourceMapFilter.MappingCallback = NewMappingCallback(m, s.options.GOROOT, s.options.GOPATH)
+		sourceMapFilter.MappingCallback = NewMappingCallback(m, s.options.GOROOT, s.options.GOPATH, s.options.MapToLocalDisk)
 	}
 
 	deps, err := compiler.ImportDependencies(archive, func(path string) (*compiler.Archive, error) {
@@ -650,14 +690,18 @@ func (s *Session) WriteCommandPackage(archive *compiler.Archive, pkgObj string) 
 	return compiler.WriteProgramCode(deps, sourceMapFilter)
 }
 
-func NewMappingCallback(m *sourcemap.Map, goroot, gopath string) func(generatedLine, generatedColumn int, originalPos token.Position) {
+func NewMappingCallback(m *sourcemap.Map, goroot, gopath string, localMap bool) func(generatedLine, generatedColumn int, originalPos token.Position) {
 	return func(generatedLine, generatedColumn int, originalPos token.Position) {
 		if !originalPos.IsValid() {
 			m.AddMapping(&sourcemap.Mapping{GeneratedLine: generatedLine, GeneratedColumn: generatedColumn})
 			return
 		}
+
 		file := originalPos.Filename
+
 		switch hasGopathPrefix, prefixLen := hasGopathPrefix(file, gopath); {
+		case localMap:
+			// no-op:  keep file as-is
 		case hasGopathPrefix:
 			file = filepath.ToSlash(file[prefixLen+4:])
 		case strings.HasPrefix(file, goroot):
@@ -665,6 +709,7 @@ func NewMappingCallback(m *sourcemap.Map, goroot, gopath string) func(generatedL
 		default:
 			file = filepath.Base(file)
 		}
+
 		m.AddMapping(&sourcemap.Mapping{GeneratedLine: generatedLine, GeneratedColumn: generatedColumn, OriginalFile: file, OriginalLine: originalPos.Line, OriginalColumn: originalPos.Column})
 	}
 }
@@ -694,4 +739,30 @@ func hasGopathPrefix(file, gopath string) (hasGopathPrefix bool, prefixLen int) 
 		}
 	}
 	return false, 0
+}
+
+func (s *Session) WaitForChange() {
+	s.options.PrintSuccess("watching for changes...\n")
+	for {
+		select {
+		case ev := <-s.Watcher.Events:
+			if ev.Op&(fsnotify.Create|fsnotify.Write|fsnotify.Remove|fsnotify.Rename) == 0 || filepath.Base(ev.Name)[0] == '.' {
+				continue
+			}
+			if !strings.HasSuffix(ev.Name, ".go") && !strings.HasSuffix(ev.Name, ".inc.js") {
+				continue
+			}
+			s.options.PrintSuccess("change detected: %s\n", ev.Name)
+		case err := <-s.Watcher.Errors:
+			s.options.PrintError("watcher error: %s\n", err.Error())
+		}
+		break
+	}
+
+	go func() {
+		for range s.Watcher.Events {
+			// consume, else Close() may deadlock
+		}
+	}()
+	s.Watcher.Close()
 }

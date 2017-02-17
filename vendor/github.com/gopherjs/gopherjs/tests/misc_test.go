@@ -585,3 +585,30 @@ func TestDeferNamedTupleReturnImplicitCast(t *testing.T) {
 		t.Fail()
 	}
 }
+
+func TestSliceOfString(t *testing.T) {
+	defer func() {
+		if err := recover(); err == nil || !strings.Contains(err.(error).Error(), "slice bounds out of range") {
+			t.Fail()
+		}
+	}()
+
+	str := "foo"
+	print(str[0:10])
+}
+
+type R struct{ v int }
+
+func (r R) Val() int {
+	return r.v
+}
+
+func TestReceiverCapture(t *testing.T) {
+	r := R{1}
+	f1 := r.Val
+	r = R{2}
+	f2 := r.Val
+	if f1() != 1 || f2() != 2 {
+		t.Fail()
+	}
+}

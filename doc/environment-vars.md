@@ -122,8 +122,8 @@ valid.
 
 `CAMLI_GOPHERJS_GOROOT` (string)
 : As gopherjs does not build with go tip, when make.go is run with go devel,
-  CAMLI_GOPHERJS_GOROOT should be set to a Go 1.7 root so that gopherjs can be
-  built with Go 1.7. Otherwise it defaults to $HOME/go1.7.
+  CAMLI_GOPHERJS_GOROOT should be set to a Go 1.8 root so that gopherjs can be
+  built with Go 1.8. Otherwise it defaults to $HOME/go1.8.
 
 `CAMLI_HTTP_DEBUG` (bool)
 : Enable per-request logging in [pkg/webserver](/pkg/webserver).
