@@ -219,10 +219,17 @@ func TestInitNeededMaps(t *testing.T) {
 	s.Set(index.Exp_missingKey(fileBlobRef, chunk1ref), "1")
 	s.Set(index.Exp_missingKey(fileBlobRef, chunk2ref), "1")
 	s.Set(index.Exp_missingKey(fileBlobRef, chunk3ref), "1")
+	// Add fileBlob to the blobSource, so the out-of-order indexing can
+	// succeed when the chunk3ref is finally added to the index. We technically
+	// don't need to do that for this unit test, but that's one less log
+	// message to deal with (the ooo indexing failing) if we do.
+	bs := new(test.Fetcher)
+	bs.AddBlob(fileBlob)
 	ix, err := index.New(s)
 	if err != nil {
 		t.Fatal(err)
 	}
+	ix.InitBlobSource(bs)
 	{
 		needs, neededBy, _ := ix.NeededMapsForTest()
 		needsWant := map[blob.Ref][]blob.Ref{
@@ -300,6 +307,9 @@ func TestInitNeededMaps(t *testing.T) {
 			t.Error("fileBlobRef not ready")
 		}
 	}
+	// We also technically don't need to wait for the ooo indexing goroutine
+	// to finish for this unit test, but it's cleaner.
+	ix.Exp_AwaitAsyncIndexing(t)
 	dumpSorted(t, s)
 }
 
@@ -351,7 +361,7 @@ func TestOutOfOrderIndexing(t *testing.T) {
 	add(chunk1)
 	add(chunk2)
 
-	ix.Exp_AwaitReindexing(t)
+	ix.Exp_AwaitAsyncIndexing(t)
 
 	{
 		key := fmt.Sprintf("missing|%s|%s", fileBlobRef, chunk3ref)
@@ -362,7 +372,7 @@ func TestOutOfOrderIndexing(t *testing.T) {
 
 	add(chunk3)
 
-	ix.Exp_AwaitReindexing(t)
+	ix.Exp_AwaitAsyncIndexing(t)
 
 	foreachSorted(t, s, func(k, v string) {
 		if strings.HasPrefix(k, "missing|") {
@@ -414,7 +424,7 @@ func TestIndexingClaimMissingPubkey(t *testing.T) {
 		t.Errorf("Error uploading public key to indexer: %v", err)
 	}
 
-	idx.Exp_AwaitReindexing(t)
+	idx.Exp_AwaitAsyncIndexing(t)
 
 	// Verify that populateClaim noted the missing public key blob:
 	{

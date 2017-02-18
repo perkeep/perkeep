@@ -68,21 +68,27 @@ func Exp_missingKey(have, missing blob.Ref) string {
 func Exp_schemaVersion() int { return requiredSchemaVersion }
 
 func (x *Index) Exp_noteBlobIndexed(br blob.Ref) {
+	x.Lock()
+	defer x.Unlock()
 	x.noteBlobIndexed(br)
 }
 
 func (x *Index) Exp_AwaitReindexing(t *testing.T) {
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		x.mu.Lock()
+		x.RLock()
 		n := len(x.readyReindex)
-		x.mu.Unlock()
+		x.RUnlock()
 		if n == 0 {
 			return
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatal("timeout waiting for readyReindex to drain")
+}
+
+func (x *Index) Exp_AwaitAsyncIndexing(t *testing.T) {
+	x.reindexWg.Wait()
 }
 
 type ExpPnAndTime pnAndTime
