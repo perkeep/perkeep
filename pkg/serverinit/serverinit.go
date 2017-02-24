@@ -346,7 +346,7 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		// camlistored.go derives (if needed) a more useful hl.baseURL,
 		// after h.conf was generated, so we provide it as well to
 		// FromJSONConfig so NewHandler can benefit from it.
-		hc, err := app.FromJSONConfig(h.conf, hl.baseURL)
+		hc, err := app.FromJSONConfig(h.conf, prefix, hl.baseURL)
 		if err != nil {
 			exitFailure("error setting up app config for prefix %q: %v", h.prefix, err)
 		}

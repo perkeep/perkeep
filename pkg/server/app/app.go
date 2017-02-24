@@ -291,7 +291,8 @@ func baseURL(serverBaseURL, listenAddr string) (string, error) {
 
 // HandlerConfig holds the configuration for an app Handler. See
 // https://camlistore.org/doc/app-environment for the corresponding environment
-// variables.
+// variables. If developing an app, see FromJSONConfig and NewHandler for details
+// on where defaults are applied.
 type HandlerConfig struct {
 	// Program is the file name of the server app's program executable. Either
 	// an absolute path, or the name of a file located in CAMLI_APP_BINDIR or in PATH.
@@ -299,7 +300,8 @@ type HandlerConfig struct {
 
 	// Prefix is the URL path prefix on APIHost where the app handler is mounted.
 	// It always ends with a trailing slash. Examples: "/pics/", "/blog/".
-	Prefix string `json:"prefix"`
+	// Defaults to the Camlistore URL path prefix for this app handler.
+	Prefix string `json:"prefix,omitempty"`
 
 	// Listen is the address (of the form host|ip:port) on which the app
 	// will listen. It defines CAMLI_APP_LISTEN.
@@ -307,8 +309,8 @@ type HandlerConfig struct {
 	// part and a random port.
 	Listen string `json:"listen,omitempty"`
 
-	// ServerListen is the Camlistore server's listen address. Required if Listen is
-	// not defined.
+	// ServerListen is the Camlistore server's listen address. Defaults to
+	// the ServerBaseURL host part.
 	ServerListen string `json:"serverListen,omitempty"`
 
 	// BackendURL is the URL of the application's process, always ending in a
@@ -318,8 +320,8 @@ type HandlerConfig struct {
 	// scheme, the ServerBaseURL host part, and the port of Listen.
 	BackendURL string `json:"backendURL,omitempty"`
 
-	// ServerBaseURL is the Camlistore server's BaseURL. Required if BackendURL is not
-	// defined.
+	// ServerBaseURL is the Camlistore server's BaseURL. Defaults to the
+	// BaseURL value in the Camlistore server configuration.
 	ServerBaseURL string `json:"serverBaseURL,omitempty"`
 
 	// APIHost is the URL of the Camlistore server which the app should
@@ -333,20 +335,17 @@ type HandlerConfig struct {
 }
 
 // FromJSONConfig creates an HandlerConfig from the contents of config.
-// serverBaseURL is used if it is not found in config.
-func FromJSONConfig(config jsonconfig.Obj, serverBaseURL string) (HandlerConfig, error) {
+// prefix and serverBaseURL are used if not found in config.
+func FromJSONConfig(config jsonconfig.Obj, prefix, serverBaseURL string) (HandlerConfig, error) {
 	hc := HandlerConfig{
 		Program:       config.RequiredString("program"),
-		Prefix:        config.RequiredString("prefix"),
+		Prefix:        config.OptionalString("prefix", prefix),
 		BackendURL:    config.OptionalString("backendURL", ""),
 		Listen:        config.OptionalString("listen", ""),
 		APIHost:       config.OptionalString("apiHost", ""),
 		ServerListen:  config.OptionalString("serverListen", ""),
-		ServerBaseURL: config.OptionalString("serverBaseURL", ""),
+		ServerBaseURL: config.OptionalString("serverBaseURL", serverBaseURL),
 		AppConfig:     config.OptionalObject("appConfig"),
-	}
-	if hc.ServerBaseURL == "" {
-		hc.ServerBaseURL = serverBaseURL
 	}
 	if err := config.Validate(); err != nil {
 		return HandlerConfig{}, err
@@ -354,8 +353,16 @@ func FromJSONConfig(config jsonconfig.Obj, serverBaseURL string) (HandlerConfig,
 	return hc, nil
 }
 
+// NewHandler creates a new handler from the given HandlerConfig. Two exceptions
+// apply to the HandlerConfig documentation: NewHandler does not create default
+// values for Prefix and ServerBaseURL. Prefix should be provided, and
+// ServerBaseURL might be needed, depending on the other fields.
 func NewHandler(cfg HandlerConfig) (*Handler, error) {
+	if cfg.Program == "" {
+		return nil, fmt.Errorf("app: could not initialize Handler: empty Program")
+	}
 	name := cfg.Program
+
 	if cfg.Prefix == "" {
 		return nil, fmt.Errorf("app: could not initialize Handler for %q: empty Prefix", name)
 	}
@@ -363,10 +370,18 @@ func NewHandler(cfg HandlerConfig) (*Handler, error) {
 	listen, backendURL, apiHost := cfg.Listen, cfg.BackendURL, cfg.APIHost
 	var err error
 	if listen == "" {
-		if cfg.ServerListen == "" {
-			return nil, fmt.Errorf(`app: could not initialize Handler for %q: neither "Listen" or "ServerListen" defined`, name)
+		serverListen := cfg.ServerListen
+		if serverListen == "" {
+			if cfg.ServerBaseURL == "" {
+				return nil, fmt.Errorf(`app: could not initialize Handler for %q: "Listen", "ServerListen" and "ServerBaseURL" all undefined`, name)
+			}
+			parsedUrl, err := url.Parse(cfg.ServerBaseURL)
+			if err != nil {
+				return nil, fmt.Errorf("app: could not initialize Handler for %q: unparsable ServerBaseURL %q", name, cfg.ServerBaseURL, err)
+			}
+			serverListen = parsedUrl.Host
 		}
-		listen, err = randListen(cfg.ServerListen)
+		listen, err = randListen(serverListen)
 		if err != nil {
 			return nil, err
 		}
