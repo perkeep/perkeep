@@ -147,7 +147,7 @@ func uploadOne(filename string) {
 		log.Fatal(err)
 	}
 	fmt.Printf("Uploading %v ...\n", filename)
-	if !strings.HasSuffix(filename, ".pdf") {
+	if !strings.HasSuffix(strings.ToLower(filename), ".pdf") {
 		if err := uploadFile(filename); err != nil {
 			log.Fatalf("Could not upload file %v: %v", filename, err)
 		}
@@ -176,10 +176,10 @@ func uploadOne(filename string) {
 	}()
 	for i := 0; i < cnt; i++ {
 		fmt.Printf("	page %04d of %04d\n", i+1, cnt)
-		converted := path.Join(tmpDir, fmt.Sprintf("page-$04d.%v", i+1, ext))
-		args = append(args, fmt.Sprintf("%v[%d]", filename, i), converted)
+		converted := path.Join(tmpDir, fmt.Sprintf("page-%04d.%v", i+1, ext))
+		pageArgs := append(args, fmt.Sprintf("%v[%d]", filename, i), converted)
 		// TODO(mpl): how about using pdftk instead of convert, to get contents without rasterizing them ?
-		cmd := exec.Command("convert", args...)
+		cmd := exec.Command("convert", pageArgs...)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			log.Fatalf("could not convert page %d of %v: %v, %v", i, filename, err, string(out))
