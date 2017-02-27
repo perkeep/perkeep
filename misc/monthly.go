@@ -259,6 +259,7 @@ Camlistore version <a href='https://github.com/camlistore/camlistore/commit/{{.C
 <p>
 <ul>
 {{- range $pkg, $changes := .ReleaseNotes}}
+
 <li>
 {{$pkg}}:
 <ul>
@@ -267,6 +268,7 @@ Camlistore version <a href='https://github.com/camlistore/camlistore/commit/{{.C
 {{- end}}
 </ul>
 </li>
+
 {{- end}}
 </ul>
 </p>
@@ -623,7 +625,17 @@ func main() {
 
 	releaseData, err := listDownloads()
 	if err != nil {
-		log.Fatal(err)
+		if *flagSkipGen {
+			// Most likely we're failing because we can't reach the
+			// bucket (working offline), annd we're working on this
+			// program and testing things out, so make this error
+			// non-critical so we can still generate the release notes
+			// and stats.
+			log.Print(err)
+			releaseData = &ReleaseData{}
+		} else {
+			log.Fatal(err)
+		}
 	}
 
 	if *flagStatsFrom != "" && !isWIP() {
