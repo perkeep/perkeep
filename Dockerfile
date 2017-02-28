@@ -31,7 +31,7 @@ ENV GOROOT /usr/local/go
 ENV PATH $GOROOT/bin:/gopath/bin:$PATH
 ENV GOPATH /gopath
 ENV CGO_ENABLED 0
-ENV CAMLI_GOPHERJS_GOROOT /usr/local/go1.7
+ENV CAMLI_GOPHERJS_GOROOT /usr/local/go
 
 WORKDIR /gopath/src/camlistore.org
 RUN go run make.go
