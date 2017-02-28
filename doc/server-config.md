@@ -1,12 +1,10 @@
 # Configuring the server
 
 The server's config file at $HOME/.config/camlistore/server-config.json is
-JSON. It can either be in simple mode (for basic configurations), or in
-low-level mode (for any sort of crazy configuration).
+JSON. It can either be in [simple mode](#simplemode) (for basic configurations), or in
+[low-level mode](#lowlevel) (for any sort of crazy configuration).
 
-This page documents the simple configuration mode.
-
-# Configuration Keys & Values
+# Configuration Keys & Values {#simplemode}
 
 **Note,** if you can't find what you're looking for here, check the API docs: [/pkg/types/serverconfig](https://camlistore.org/pkg/types/serverconfig/).
 
@@ -224,3 +222,59 @@ Alternatively, you can run `devcam appengine` once, which will create and
 populate the default directory (`server/appengine/source_root`). Please see the
 [CONTRIBUTING](https://camlistore.googlesource.com/camlistore/+/master/CONTRIBUTING.md)
 doc to build devcam.
+
+# Low-level configuration {#lowlevel}
+
+You can specify a low-level configuration file to camlistored with the same
+`-configfile` option that is used to specify the simple mode configuration file.
+Camlistore tests for the presence of the `"handlerConfig": true` key/value
+pair to determine whether the configuration should be considered low-level.
+
+As the low-level configuration needs to be much more detailed and precise, it is
+not advised to write one from scratch. Therefore, the easiest way to get started
+is to first run Camlistore with a simple configuration (or none, as one will be
+automatically generated), and to download the equivalent low-level configuration
+that can be found at /debug/config on your Camlistore instance.
+
+In the following are examples of features that can only be achieved through
+low-level configuration, for now.
+
+## Replication to another Camlistore instance {#replication}
+
+If `"/bs"` is the storage for your primary instance, such as for example:
+
+        "/bs/": {
+            "handler": "storage-blobpacked",
+            "handlerArgs": {
+                "largeBlobs": "/bs-packed/",
+                "metaIndex": {
+                    "file": "/home/you/var/camlistore/blobs/packed/packindex.leveldb",
+                    "type": "leveldb"
+                },
+                "smallBlobs": "/bs-loose/"
+            }
+        },
+
+then instead of `"/bs"`, you can use everywhere else instead in the config the
+prefix `"/bsrepl/"`, which can be defined as:
+
+        "/bsrepl/": {
+            "handler": "storage-replica",
+            "handlerArgs": {
+                "backends": [
+                    "/bs/",
+                    "/r1/"
+                ]
+            }
+        },
+
+where `"/r1/"` is the blobserver for your other Camlistore instance, such as:
+
+		"/r1/": {
+			"handler": "storage-remote",
+			"handlerArgs": {
+				"url": "https://example.com:3179",
+				"auth": "userpass:foo:bar",
+				"skipStartupCheck": false
+			}
+		},
