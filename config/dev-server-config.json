@@ -24,6 +24,8 @@
 			"handler": "app",
 			"enabled": ["_env", "${CAMLI_HELLO_ENABLED}"],
 			"handlerArgs": {
+				"prefix": "/hello/",
+				"serverListen": "localhost:3179",
 				"program": "hello",
 				"appConfig": {
 					"word": "world"
@@ -35,6 +37,8 @@
 			"handler": "app",
 			"enabled": true,
 			"handlerArgs": {
+				"prefix": "/scancab/",
+				"serverListen": "localhost:3179",
 				"program": "scanningcabinet"
 			}
 		},
