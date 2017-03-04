@@ -41,6 +41,8 @@ var hookFiles = []string{
 	"commit-msg",
 }
 
+var ignoreBelow = []byte("\n# ------------------------ >8 ------------------------\n")
+
 func (c *hookCmd) installHook() error {
 	root, err := repoRoot()
 	if err != nil {
@@ -131,8 +133,12 @@ func (c *hookCmd) RunCommand(args []string) error {
 	return nil
 }
 
-// stripComments strips lines that begin with "#".
+// stripComments strips lines that begin with "#" and removes the diff section
+// contained in verbose commits.
 func stripComments(in []byte) []byte {
+	if i := bytes.Index(in, ignoreBelow); i >= 0 {
+		in = in[:i+1]
+	}
 	return regexp.MustCompile(`(?m)^#.*\n`).ReplaceAll(in, nil)
 }
 
