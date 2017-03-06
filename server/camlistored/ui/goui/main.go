@@ -20,12 +20,14 @@ package main
 
 import (
 	"camlistore.org/server/camlistored/ui/goui/aboutdialog"
+	"camlistore.org/server/camlistored/ui/goui/downloadbutton"
 
 	"github.com/gopherjs/gopherjs/js"
 )
 
 func main() {
 	js.Global.Set("goreact", map[string]interface{}{
-		"AboutMenuItem": aboutdialog.New,
+		"AboutMenuItem":    aboutdialog.New,
+		"DownloadItemsBtn": downloadbutton.New,
 	})
 }

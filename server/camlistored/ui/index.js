@@ -1056,6 +1056,27 @@ cam.IndexPage = React.createClass({
 		);
 	},
 
+	getDownloadSelectionItem_: function() {
+		return goreact.DownloadItemsBtn('donwloadBtnSidebar',
+			this.props.config,
+			// TODO(mpl): I'm doing the selection business in javascript for now,
+			// since we already have the search session results handy.
+			// It shouldn't be any problem to move it to Go later.
+			function() {
+				var selection = goog.object.getKeys(this.state.selection);
+				var files = [];
+				selection.forEach(function(br) {
+					var meta = this.childSearchSession_.getResolvedMeta(br);
+					if (!meta || !meta.file || !meta.file.fileName) {
+						// TODO(mpl): only do direct files for now. maybe recurse later.
+						return;
+					}
+					files.push(meta.blobRef);
+				}.bind(this))
+				return files;
+			}.bind(this));
+	},
+
 	getSidebar_: function(selectedAspect) {
 		if (selectedAspect) {
 			if (selectedAspect.fragment == 'search' || selectedAspect.fragment == 'contents') {
@@ -1082,6 +1103,7 @@ cam.IndexPage = React.createClass({
 						this.getRemoveSelectionFromSetItem_(),
 						this.getDeleteSelectionItem_(),
 						this.getViewOriginalSelectionItem_(),
+						this.getDownloadSelectionItem_(),
 					].filter(goog.functions.identity),
 					selectedItems: this.state.selection
 				});

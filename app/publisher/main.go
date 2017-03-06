@@ -940,7 +940,7 @@ func (pr *publishRequest) serveFileDownload(des *search.DescribedBlob) {
 		Cache:     pr.ph.cache,
 		ForceMIME: mimeType,
 	}
-	dh.ServeHTTP(pr.rw, pr.req, fileref)
+	dh.ServeFile(pr.rw, pr.req, fileref)
 }
 
 // Given a described blob, optionally follows a camliContent and

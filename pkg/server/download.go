@@ -17,16 +17,19 @@ limitations under the License.
 package server
 
 import (
+	"archive/zip"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
@@ -34,9 +37,20 @@ import (
 	"golang.org/x/net/context"
 )
 
-const oneYear = 365 * 86400 * time.Second
+const (
+	oneYear            = 365 * 86400 * time.Second
+	downloadTimeLayout = "20060102150405"
+)
 
-var debugPack = strings.Contains(os.Getenv("CAMLI_DEBUG_X"), "packserve")
+var (
+	debugPack = strings.Contains(os.Getenv("CAMLI_DEBUG_X"), "packserve")
+
+	// Download URL suffix:
+	//  $1: blobref (checked in download handler)
+	//  $2: TODO. optional "/filename" to be sent as recommended download name,
+	//    if sane looking
+	downloadPattern = regexp.MustCompile(`^download/([^/]+)(/.*)?$`)
+)
 
 type DownloadHandler struct {
 	Fetcher blob.Fetcher
@@ -55,19 +69,20 @@ func (dh *DownloadHandler) blobSource() blob.Fetcher {
 }
 
 type fileInfo struct {
-	mime   string
-	name   string
-	size   int64
-	rs     io.ReadSeeker
-	close  func() error // release the rs
-	whyNot string       // for testing, why fileInfoPacked failed.
+	mime    string
+	name    string
+	size    int64
+	modtime time.Time
+	rs      io.ReadSeeker
+	close   func() error // release the rs
+	whyNot  string       // for testing, why fileInfoPacked failed.
 }
 
-func (dh *DownloadHandler) fileInfo(req *http.Request, file blob.Ref) (fi fileInfo, packed bool, err error) {
+func (dh *DownloadHandler) fileInfo(r *http.Request, file blob.Ref) (fi fileInfo, packed bool, err error) {
 	ctx := context.TODO()
 
 	// Fast path for blobpacked.
-	fi, ok := fileInfoPacked(ctx, dh.Search, dh.Fetcher, req, file)
+	fi, ok := fileInfoPacked(ctx, dh.Search, dh.Fetcher, r, file)
 	if debugPack {
 		log.Printf("download.go: fileInfoPacked: ok=%v, %+v", ok, fi)
 	}
@@ -86,16 +101,17 @@ func (dh *DownloadHandler) fileInfo(req *http.Request, file blob.Ref) (fi fileIn
 		mime = "application/octet-stream"
 	}
 	return fileInfo{
-		mime:  mime,
-		name:  fr.FileName(),
-		size:  fr.Size(),
-		rs:    fr,
-		close: fr.Close,
+		mime:    mime,
+		name:    fr.FileName(),
+		size:    fr.Size(),
+		modtime: fr.ModTime(),
+		rs:      fr,
+		close:   fr.Close,
 	}, false, nil
 }
 
 // Fast path for blobpacked.
-func fileInfoPacked(ctx context.Context, sh *search.Handler, src blob.Fetcher, req *http.Request, file blob.Ref) (packFileInfo fileInfo, ok bool) {
+func fileInfoPacked(ctx context.Context, sh *search.Handler, src blob.Fetcher, r *http.Request, file blob.Ref) (packFileInfo fileInfo, ok bool) {
 	if sh == nil {
 		return fileInfo{whyNot: "no search"}, false
 	}
@@ -103,7 +119,7 @@ func fileInfoPacked(ctx context.Context, sh *search.Handler, src blob.Fetcher, r
 	if !ok {
 		return fileInfo{whyNot: "fetcher type"}, false
 	}
-	if req != nil && req.Header.Get("Range") != "" {
+	if r != nil && r.Header.Get("Range") != "" {
 		// TODO: not handled yet. Maybe not even important,
 		// considering rarity.
 		return fileInfo{whyNot: "range header"}, false
@@ -135,34 +151,70 @@ func fileInfoPacked(ctx context.Context, sh *search.Handler, src blob.Fetcher, r
 		log.Printf("ui: fileInfoPacked: skipping fast path due to error from WholeRefFetcher (%T): %v", src, err)
 		return fileInfo{whyNot: "WholeRefFetcher error"}, false
 	}
+	modtime := fi.ModTime
+	if modtime.IsAnyZero() {
+		modtime = fi.Time
+	}
 	return fileInfo{
-		mime:  fi.MIMEType,
-		name:  fi.FileName,
-		size:  fi.Size,
-		rs:    readerutil.NewFakeSeeker(rc, fi.Size-offset),
-		close: rc.Close,
+		mime:    fi.MIMEType,
+		name:    fi.FileName,
+		size:    fi.Size,
+		modtime: modtime.Time(),
+		rs:      readerutil.NewFakeSeeker(rc, fi.Size-offset),
+		close:   rc.Close,
 	}, true
 }
 
-func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, file blob.Ref) {
-	if req.Method != "GET" && req.Method != "HEAD" {
-		http.Error(rw, "Invalid download method", http.StatusBadRequest)
-		return
-	}
-	if req.Header.Get("If-Modified-Since") != "" {
-		// Immutable, so any copy's a good copy.
-		rw.WriteHeader(http.StatusNotModified)
+// ServeHTTP answers the following queries:
+//
+// POST:
+//   ?files=sha1-foo,sha1-bar,sha1-baz
+// Creates a zip archive of the provided files and serves it in the response.
+//
+// GET:
+//   /<file-schema-blobref>
+// Serves the file described by the requested file schema blobref.
+func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		dh.serveZip(w, r)
 		return
 	}
 
-	fi, packed, err := dh.fileInfo(req, file)
+	suffix := httputil.PathSuffix(r)
+	m := downloadPattern.FindStringSubmatch(suffix)
+	if m == nil {
+		httputil.ErrorRouting(w, r)
+		return
+	}
+	file, ok := blob.Parse(m[1])
+	if !ok {
+		http.Error(w, "Invalid blobref", http.StatusBadRequest)
+		return
+	}
+	// TODO(mpl): make use of m[2] (the optional filename).
+	dh.ServeFile(w, r, file)
+}
+
+func (dh *DownloadHandler) ServeFile(w http.ResponseWriter, r *http.Request, file blob.Ref) {
+	if r.Method != "GET" && r.Method != "HEAD" {
+		http.Error(w, "Invalid download method", http.StatusBadRequest)
+		return
+	}
+
+	if r.Header.Get("If-Modified-Since") != "" {
+		// Immutable, so any copy's a good copy.
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+
+	fi, packed, err := dh.fileInfo(r, file)
 	if err != nil {
-		http.Error(rw, "Can't serve file: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Can't serve file: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer fi.close()
 
-	h := rw.Header()
+	h := w.Header()
 	h.Set("Content-Length", fmt.Sprint(fi.size))
 	h.Set("Expires", time.Now().Add(oneYear).Format(http.TimeFormat))
 	h.Set("Content-Type", fi.mime)
@@ -179,11 +231,11 @@ func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 		if fileName == "" {
 			fileName = "file-" + file.String() + ".dat"
 		}
-		rw.Header().Set("Content-Disposition", "attachment; filename="+fileName)
+		w.Header().Set("Content-Disposition", "attachment; filename="+fileName)
 	}
 
-	if req.Method == "HEAD" && req.FormValue("verifycontents") != "" {
-		vbr, ok := blob.Parse(req.FormValue("verifycontents"))
+	if r.Method == "HEAD" && r.FormValue("verifycontents") != "" {
+		vbr, ok := blob.Parse(r.FormValue("verifycontents"))
 		if !ok {
 			return
 		}
@@ -193,10 +245,119 @@ func (dh *DownloadHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, 
 		}
 		io.Copy(hash, fi.rs) // ignore errors, caught later
 		if vbr.HashMatches(hash) {
-			rw.Header().Set("X-Camli-Contents", vbr.String())
+			w.Header().Set("X-Camli-Contents", vbr.String())
 		}
 		return
 	}
 
-	http.ServeContent(rw, req, "", time.Now(), fi.rs)
+	http.ServeContent(w, r, "", time.Now(), fi.rs)
+}
+
+// statFiles stats the given refs and returns an error if any one of them is not
+// found.
+// It is the responsibility of the caller to check that dh.blobSource() is a
+// blobserver.BlobStatter.
+func (dh *DownloadHandler) statFiles(refs []blob.Ref) error {
+	statter, _ := dh.blobSource().(blobserver.BlobStatter)
+	statted := make(map[blob.Ref]bool)
+	ch := make(chan (blob.SizedRef))
+	errc := make(chan (error))
+	go func() {
+		err := statter.StatBlobs(ch, refs)
+		close(ch)
+		errc <- err
+
+	}()
+	for sbr := range ch {
+		statted[sbr.Ref] = true
+	}
+	if err := <-errc; err != nil {
+		log.Printf("Error statting blob files for download archive: %v", err)
+		return fmt.Errorf("error looking for files")
+	}
+	for _, v := range refs {
+		if _, ok := statted[v]; !ok {
+			return fmt.Errorf("%q was not found", v)
+		}
+	}
+	return nil
+}
+
+// serveZip creates a zip archive from the files provided as
+// ?files=sha1-foo,sha1-bar,... and serves it as the response.
+func (dh *DownloadHandler) serveZip(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Invalid download method", http.StatusBadRequest)
+		return
+	}
+
+	filesValue := r.FormValue("files")
+	if filesValue == "" {
+		http.Error(w, "No files blobRefs specified", http.StatusBadRequest)
+		return
+	}
+	files := strings.Split(filesValue, ",")
+
+	var refs []blob.Ref
+	for _, file := range files {
+		br, ok := blob.Parse(file)
+		if !ok {
+			http.Error(w, fmt.Sprintf("%q is not a valid blobRef", file), http.StatusBadRequest)
+			return
+		}
+		refs = append(refs, br)
+	}
+
+	// We check as many things as we can before writing the zip, because
+	// once we start sending a response we can't http.Error anymore.
+	// TODO(mpl): instead of just statting, read the files (from the
+	// blobSource, which should be Cache then Fetcher), and write them to the
+	// Cache.
+	_, ok := dh.blobSource().(blobserver.BlobStatter)
+	if ok {
+		if err := dh.statFiles(refs); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// TODO(mpl): do not zip if only one file is requested?
+	h := w.Header()
+	h.Set("Content-Type", "application/zip")
+	zipName := "camli-download-" + time.Now().Format(downloadTimeLayout) + ".zip"
+	h.Set("Content-Disposition", "attachment; filename="+zipName)
+	zw := zip.NewWriter(w)
+
+	zipFile := func(br blob.Ref) error {
+		fi, _, err := dh.fileInfo(r, br)
+		if err != nil {
+			return err
+		}
+		defer fi.close()
+		zh := &zip.FileHeader{
+			Name:   fi.name,
+			Method: zip.Store,
+		}
+		zh.SetModTime(fi.modtime.UTC())
+		zfh, err := zw.CreateHeader(zh)
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(zfh, fi.rs)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	for _, br := range refs {
+		if err := zipFile(br); err != nil {
+			log.Printf("error zipping %v: %v", br, err)
+			// http.Error is of no use since we've already started sending a response
+			panic(http.ErrAbortHandler)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		log.Printf("error closing zip stream: %v", err)
+		panic(http.ErrAbortHandler)
+	}
 }
