@@ -70,6 +70,11 @@ func GenDepsWithPath(pathPrefix string, root http.FileSystem) ([]byte, error) {
 			// Emacs noise.
 			continue
 		}
+		// TODO(mpl): hack to skip minified gopher.js because Scanner will choke on it while parsing.
+		// Do better before submitting.
+		if strings.HasSuffix(name, "gopherjs.js") || strings.HasSuffix(name, "goui.js") {
+			continue
+		}
 		f, err := root.Open(name)
 		if err != nil {
 			return nil, fmt.Errorf("Could not open %v: %v", name, err)

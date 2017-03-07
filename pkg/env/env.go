@@ -20,9 +20,6 @@ package env // import "camlistore.org/pkg/env"
 import (
 	"os"
 	"strconv"
-	"sync"
-
-	"cloud.google.com/go/compute/metadata"
 )
 
 // IsDebug reports whether this is a debug environment.
@@ -38,28 +35,6 @@ func DebugUploads() bool {
 // IsDev reports whether this is a development server environment (devcam server).
 func IsDev() bool {
 	return isDev
-}
-
-// OsGCE reports whether this process is running in a Google Compute
-// Engine (GCE) environment.  This only returns true if the
-// "camlistore-config-dir" instance metadata value is defined.
-// Instances running in custom configs on GCE will be unaffected.
-func OnGCE() bool {
-	gceOnce.Do(detectGCE)
-	return isGCE
-}
-
-var (
-	gceOnce sync.Once
-	isGCE   bool
-)
-
-func detectGCE() {
-	if !metadata.OnGCE() {
-		return
-	}
-	v, _ := metadata.InstanceAttributeValue("camlistore-config-dir")
-	isGCE = v != ""
 }
 
 var (
