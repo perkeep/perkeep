@@ -50,6 +50,14 @@ import (
 	"golang.org/x/net/context"
 )
 
+func init() {
+	t, err := time.Parse(time.RFC3339, msdosEpoch)
+	if err != nil {
+		panic(fmt.Sprintf("Cannot parse MSDOS epoch: %v", err))
+	}
+	msdosEpochTime = t
+}
+
 type mutationMap struct {
 	kv map[string]string // the keys and values we populate
 
@@ -424,7 +432,12 @@ func readPrefixOrFile(prefix []byte, fetcher blob.Fetcher, b *schema.Blob, fn fu
 	return err
 }
 
-var exifDebug, _ = strconv.ParseBool(os.Getenv("CAMLI_DEBUG_IMAGES"))
+const msdosEpoch = "1980-01-01T00:00:00Z"
+
+var (
+	exifDebug, _   = strconv.ParseBool(os.Getenv("CAMLI_DEBUG_IMAGES"))
+	msdosEpochTime time.Time
+)
 
 // b: the parsed file schema blob
 // mm: keys to populate
@@ -506,7 +519,14 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 		time3339s = types.Time3339(sortTimes[0]).String()
 	case len(sortTimes) >= 2:
 		oldest, newest := sortTimes[0], sortTimes[len(sortTimes)-1]
-		time3339s = types.Time3339(oldest).String() + "," + types.Time3339(newest).String()
+		// Common enough exception: unset creation time from an MSDOS
+		// system (which is the default in zip files). So if we have
+		// another time to use, just ignore the MSDOS epoch one.
+		if oldest.After(msdosEpochTime) {
+			time3339s = types.Time3339(oldest).String() + "," + types.Time3339(newest).String()
+		} else {
+			time3339s = types.Time3339(newest).String()
+		}
 	}
 
 	mm.Set(keyWholeToFileRef.Key(wholeRef, blobRef), "1")

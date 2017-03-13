@@ -1179,7 +1179,7 @@ func (x *Index) GetFileInfo(ctx context.Context, fileRef blob.Ref) (camtypes.Fil
 		return x.corpus.GetFileInfo(ctx, fileRef)
 	}
 	ikey := "fileinfo|" + fileRef.String()
-	tkey := "filetimes|" + fileRef.String()
+	tkey := keyFileTimes.name + "|" + fileRef.String()
 	// TODO: switch this to use syncutil.Group
 	wg := new(sync.WaitGroup)
 	wg.Add(2)
