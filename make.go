@@ -457,8 +457,12 @@ func genPublisherJS(gopherjsBin string) error {
 	// modtime of the existing gopherjs.js if there was no reason to.
 	output := filepath.Join(buildSrcDir, filepath.FromSlash(publisherJS))
 	tmpOutput := output + ".new"
-	// TODO(mpl): maybe not with -m when building for devcam.
-	args := []string{"build", "--tags", "nocgo", "-m", "-o", tmpOutput, "camlistore.org/app/publisher/js"}
+	args := []string{"build", "--tags", "nocgo"}
+	if *embedResources {
+		// when embedding for "production", use -m to minify the javascript output
+		args = append(args, "-m")
+	}
+	args = append(args, "-o", tmpOutput, "camlistore.org/app/publisher/js")
 	cmd := exec.Command(gopherjsBin, args...)
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
@@ -530,8 +534,12 @@ func genWebUIJS(gopherjsBin string) error {
 	// modtime of the existing goui.js if there was no reason to.
 	output := filepath.Join(buildSrcDir, filepath.FromSlash(gopherjsUI))
 	tmpOutput := output + ".new"
-	// TODO(mpl): maybe not with -m when building for devcam.
-	args := []string{"build", "--tags", "nocgo", "-m", "-o", tmpOutput, "camlistore.org/server/camlistored/ui/goui"}
+	args := []string{"build", "--tags", "nocgo"}
+	if *embedResources {
+		// when embedding for "production", use -m to minify the javascript output
+		args = append(args, "-m")
+	}
+	args = append(args, "-o", tmpOutput, "camlistore.org/server/camlistored/ui/goui")
 	cmd := exec.Command(gopherjsBin, args...)
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,

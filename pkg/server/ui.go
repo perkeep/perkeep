@@ -53,15 +53,8 @@ import (
 )
 
 var (
-	staticFilePattern = regexp.MustCompile(`^([a-zA-Z0-9\-\_\.]+\.(html|js|css|png|jpg|gif|svg))$`)
-	identOrDotPattern = regexp.MustCompile(`^[a-zA-Z\_]+(\.[a-zA-Z\_]+)*$`)
-
-	// Download URL suffix:
-	//   $1: blobref (checked in download handler)
-	//   $2: optional "/filename" to be sent as recommended download name,
-	//       if sane looking
-	downloadPattern = regexp.MustCompile(`^download/([^/]+)(/.*)?$`)
-
+	staticFilePattern  = regexp.MustCompile(`^([a-zA-Z0-9\-\_\.]+\.(html|js|css|png|jpg|gif|svg))$`)
+	identOrDotPattern  = regexp.MustCompile(`^[a-zA-Z\_]+(\.[a-zA-Z\_]+)*$`)
 	thumbnailPattern   = regexp.MustCompile(`^thumbnail/([^/]+)(/.*)?$`)
 	treePattern        = regexp.MustCompile(`^tree/([^/]+)(/.*)?$`)
 	closurePattern     = regexp.MustCompile(`^closure/(([^/]+)(/.*)?)$`)
@@ -504,22 +497,9 @@ func (ui *UIHandler) discovery() *camtypes.UIDiscovery {
 	return uiDisco
 }
 
-func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {
+func (ui *UIHandler) serveDownload(w http.ResponseWriter, r *http.Request) {
 	if ui.root.Storage == nil {
-		http.Error(rw, "No BlobRoot configured", 500)
-		return
-	}
-
-	suffix := httputil.PathSuffix(req)
-	m := downloadPattern.FindStringSubmatch(suffix)
-	if m == nil {
-		httputil.ErrorRouting(rw, req)
-		return
-	}
-
-	fbr, ok := blob.Parse(m[1])
-	if !ok {
-		http.Error(rw, "Invalid blobref", 400)
+		http.Error(w, "No BlobRoot configured", 500)
 		return
 	}
 
@@ -528,7 +508,7 @@ func (ui *UIHandler) serveDownload(rw http.ResponseWriter, req *http.Request) {
 		Search:  ui.search,
 		Cache:   ui.Cache,
 	}
-	dh.ServeHTTP(rw, req, fbr)
+	dh.ServeHTTP(w, r)
 }
 
 func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {

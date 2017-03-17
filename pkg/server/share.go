@@ -240,7 +240,7 @@ func handleGetViaSharing(rw http.ResponseWriter, req *http.Request,
 			Fetcher: fetcher,
 			// TODO(aa): It would be nice to specify a local cache here, as the UI handler does.
 		}
-		dh.ServeHTTP(rw, req, blobRef)
+		dh.ServeFile(rw, req, blobRef)
 	} else {
 		gethandler.ServeBlobRef(rw, req, blobRef, fetcher)
 	}
