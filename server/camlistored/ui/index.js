@@ -155,6 +155,14 @@ cam.IndexPage = React.createClass({
 			uploadDialogVisible: false,
 			totalBytesToUpload: 0,
 			totalBytesComplete: 0,
+
+			// messageDialogContents is for displaying a message to
+			// the user. It is the child of getMessageDialog_(). To
+			// display a message, set messageDialogContents to whatever
+			// you want (div, string, etc), and set
+			// messageDialogVisible to true.
+			messageDialogContents: null,
+			messageDialogVisible: false,
 		};
 	},
 
@@ -184,7 +192,8 @@ cam.IndexPage = React.createClass({
 				aspects[selectedAspect] && aspects[selectedAspect].createContent(contentSize, this.state.backwardPiggy)
 			),
 			this.getSidebar_(aspects[selectedAspect]),
-			this.getUploadDialog_()
+			this.getUploadDialog_(),
+			this.getMessageDialog_()
 		);
 	},
 
@@ -1077,6 +1086,47 @@ cam.IndexPage = React.createClass({
 			}.bind(this));
 	},
 
+	getShareSelectionItem_: function() {
+		return goreact.ShareItemsBtn('shareBtnSidebar',
+			this.props.config,
+			// TODO(mpl): I'm doing the selection business in javascript for now,
+			// since we already have the search session results handy.
+			// It shouldn't be any problem to move it to Go later.
+			function() {
+				var selection = goog.object.getKeys(this.state.selection);
+				var files = [];
+				selection.forEach(function(br) {
+					var meta = this.childSearchSession_.getResolvedMeta(br);
+					if (!meta) {
+						return;
+					}
+					if (meta.dir) {
+						files.push({'blobRef': meta.blobRef, 'isDir': 'true'});
+						return;
+					}
+					if (meta.file) {
+						files.push({'blobRef': meta.blobRef, 'isDir': 'false'});
+						return;
+					}
+				}.bind(this))
+				return files;
+			}.bind(this),
+			function(sharedURL, anchorText) {
+				// TODO(mpl): Port the dialog to Go.
+				this.setState({
+					messageDialogVisible: true,
+					messageDialogContents: React.DOM.div({
+						style: {
+							textAlign: 'center',
+							position: 'relative',
+						},},
+						React.DOM.div({}, 'Share URL:'),
+						React.DOM.div({}, React.DOM.a({href: sharedURL}, anchorText))
+					),
+				});
+			}.bind(this));
+	},
+
 	getSidebar_: function(selectedAspect) {
 		if (selectedAspect) {
 			if (selectedAspect.fragment == 'search' || selectedAspect.fragment == 'contents') {
@@ -1104,6 +1154,7 @@ cam.IndexPage = React.createClass({
 						this.getDeleteSelectionItem_(),
 						this.getViewOriginalSelectionItem_(),
 						this.getDownloadSelectionItem_(),
+						this.getShareSelectionItem_(),
 					].filter(goog.functions.identity),
 					selectedItems: this.state.selection
 				});
@@ -1119,6 +1170,35 @@ cam.IndexPage = React.createClass({
 			searchSession: this.childSearchSession_,
 			serverConnection: this.props.serverConnection
 		});
+	},
+
+	getMessageDialog_: function() {
+		if (!this.state.messageDialogVisible) {
+			return null;
+		}
+
+		var borderWidth = 18;
+		// TODO(mpl): make it dynamically proportional to the size of
+		// the contents. For now, I know I want to display a ~40 chars wide
+		// message, hence the rough 50em*16px/em.
+		var w = 50*16;
+		var h = 10*16;
+
+		return React.createElement(cam.Dialog, {
+				availWidth: this.props.availWidth,
+				availHeight: this.props.availHeight,
+				width: w,
+				height: h,
+				borderWidth: borderWidth,
+				onClose: function() {
+					this.setState({
+						messageDialogVisible: false,
+						messageDialogContents: null,
+					});
+				}.bind(this),
+			},
+			this.state.messageDialogContents
+		);
 	},
 
 	isUploading_: function() {
