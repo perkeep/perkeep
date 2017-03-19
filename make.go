@@ -821,7 +821,7 @@ func genEmbeds() error {
 	if runtime.GOOS == "windows" {
 		cmdName += ".exe"
 	}
-	for _, embeds := range []string{"server/camlistored/ui", "pkg/server", "vendor/embed/react", "vendor/embed/less", "vendor/embed/glitch", "vendor/embed/fontawesome", "app/publisher"} {
+	for _, embeds := range []string{"server/camlistored/ui", "pkg/server", "vendor/embed/react", "vendor/embed/less", "vendor/embed/glitch", "vendor/embed/fontawesome", "app/publisher", "app/scanningcabinet/ui"} {
 		embeds := buildSrcPath(embeds)
 		args := []string{"--output-files-stderr", embeds}
 		cmd := exec.Command(cmdName, args...)

@@ -39,7 +39,10 @@
 			"handlerArgs": {
 				"prefix": "/scancab/",
 				"serverListen": "localhost:3179",
-				"program": "scanningcabinet"
+				"program": "scanningcabinet",
+				"appConfig": {
+					"sourceRoot": ["_env", "${CAMLI_DEV_CAMLI_ROOT}/app/scanningcabinet/ui", ""]
+				}
 			}
 		},
 

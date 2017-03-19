@@ -30,11 +30,13 @@ import (
 	"strings"
 	"time"
 
+	uistatic "camlistore.org/app/scanningcabinet/ui"
 	"camlistore.org/pkg/app"
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/constants"
+	"camlistore.org/pkg/fileembed"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/search"
@@ -61,9 +63,10 @@ var (
 // config is used to unmarshal the application configuration JSON
 // that we get from Camlistore when we request it at $CAMLI_APP_CONFIG_URL.
 type extraConfig struct {
-	Auth      string `json:"auth,omitempty"`      // userpass:username:password
-	HTTPSCert string `json:"httpsCert,omitempty"` // path to the HTTPS certificate file.
-	HTTPSKey  string `json:"httpsKey,omitempty"`  // path to the HTTPS key file.
+	Auth       string `json:"auth,omitempty"`       // userpass:username:password
+	HTTPSCert  string `json:"httpsCert,omitempty"`  // path to the HTTPS certificate file.
+	HTTPSKey   string `json:"httpsKey,omitempty"`   // path to the HTTPS key file.
+	SourceRoot string `json:"sourceRoot,omitempty"` // Path to the app's resources dir, such as html and css files.
 }
 
 func appConfig() (*extraConfig, error) {
@@ -107,12 +110,22 @@ func newHandler() (*handler, error) {
 		cl: cl,
 	}
 
+	config, err := appConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	// Serve files from source root when running devcam
+	if config.SourceRoot != "" {
+		log.Printf("Using UI resources (HTML, JS, CSS) from disk, under %v", config.SourceRoot)
+		uistatic.Files = &fileembed.Files{
+			DirFallback: config.SourceRoot,
+		}
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", h.handleRoot)
-	mux.HandleFunc("/scanner.css", func(w http.ResponseWriter, r *http.Request) {
-		// TODO(mpl): set proper MIME type
-		w.Write([]byte(scannerCSS))
-	})
+	mux.HandleFunc("/ui/", handleUiFile)
 	mux.HandleFunc("/uploadurl", h.handleUploadURL)
 	mux.HandleFunc("/upload", h.handleUpload)
 	mux.HandleFunc("/resource/", h.handleResource)
@@ -126,10 +139,6 @@ func newHandler() (*handler, error) {
 		return nil, err
 	}
 
-	config, err := appConfig()
-	if err != nil {
-		return nil, err
-	}
 	if config != nil {
 		h.httpsCert = config.HTTPSCert
 		h.httpsKey = config.HTTPSKey
@@ -629,4 +638,29 @@ func (h *handler) handleChangedoc(w http.ResponseWriter, r *http.Request) {
 
 func handleRobots(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "User-agent: *\nDisallow: /\n")
+}
+
+func handleUiFile(w http.ResponseWriter, r *http.Request) {
+	file := strings.TrimPrefix(r.URL.Path, "/ui")
+
+	root := uistatic.Files
+
+	f, err := root.Open("/" + file)
+	if err != nil {
+		http.NotFound(w, r)
+		// TODO(stevearm): Replace all log.Printf with logf for proper prefixing
+		log.Printf("Failed to open file %v from embedded resources: %v", file, err)
+		return
+	}
+	defer f.Close()
+	var modTime time.Time
+	if fi, err := f.Stat(); err == nil {
+		modTime = fi.ModTime()
+	}
+	if strings.HasSuffix(file, ".css") {
+		w.Header().Set("Content-Type", "text/css")
+	} else if strings.HasSuffix(file, ".js") {
+		w.Header().Set("Content-Type", "application/javascript")
+	}
+	http.ServeContent(w, r, file, modTime, f)
 }
