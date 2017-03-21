@@ -1,25 +1,25 @@
 # Download Camlistore
 
-The latest release is [0.9 ("Astrakhan")](/doc/release/0.9).
+The latest release is [2017-03-01](/doc/release/monthly/2017-03-01).
 
 Or, the canonical git repo is:
 
     $ git clone https://camlistore.googlesource.com/camlistore
 
+## Build
+
+If you have downloaded one of the binary archives (for Darwin, Linux, or
+Windows), skip this section.
+
 [Download and install Go](http://golang.org/doc/install) if you don't
 have that installed already. As of revision
-[5bc0864](https://github.com/camlistore/camlistore/commit/5bc0864f811c09a25aaa78176928a87ad39312cc),
-Camlistore requires [Go 1.7 or newer](https://golang.org/dl/).
+[c35cd68b5c](https://github.com/camlistore/camlistore/commit/c35cd68b5c9e914ef78811e88338ffd02f378a1c),
+Camlistore requires [Go 1.8 or newer](https://golang.org/dl/).
 
 Build Camlistore by running this command in the folder you downloaded or
 checked out:
 
     $ go run make.go
-
-Alternatively, we also distribute "monthly" releases, which we simply regularly
-build from the master branch of the repository:
-
-[Monthly Release: 2016-09-05](/doc/release/monthly)
 
 ## Getting started
 
