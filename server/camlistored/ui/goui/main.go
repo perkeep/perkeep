@@ -21,6 +21,7 @@ package main
 import (
 	"camlistore.org/server/camlistored/ui/goui/aboutdialog"
 	"camlistore.org/server/camlistored/ui/goui/downloadbutton"
+	"camlistore.org/server/camlistored/ui/goui/sharebutton"
 
 	"github.com/gopherjs/gopherjs/js"
 )
@@ -29,5 +30,6 @@ func main() {
 	js.Global.Set("goreact", map[string]interface{}{
 		"AboutMenuItem":    aboutdialog.New,
 		"DownloadItemsBtn": downloadbutton.New,
+		"ShareItemsBtn":    sharebutton.New,
 	})
 }
