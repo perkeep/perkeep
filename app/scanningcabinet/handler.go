@@ -21,7 +21,6 @@ import (
 	"html/template"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"path"
@@ -72,7 +71,7 @@ type extraConfig struct {
 func appConfig() (*extraConfig, error) {
 	configURL := os.Getenv("CAMLI_APP_CONFIG_URL")
 	if configURL == "" {
-		log.Printf("CAMLI_APP_CONFIG_URL not defined, the app will run without any auth")
+		logf("CAMLI_APP_CONFIG_URL not defined, the app will run without any auth")
 		return nil, nil
 	}
 	cl, err := app.Client()
@@ -117,7 +116,7 @@ func newHandler() (*handler, error) {
 
 	// Serve files from source root when running devcam
 	if config.SourceRoot != "" {
-		log.Printf("Using UI resources (HTML, JS, CSS) from disk, under %v", config.SourceRoot)
+		logf("Using UI resources (HTML, JS, CSS) from disk, under %v", config.SourceRoot)
 		uistatic.Files = &fileembed.Files{
 			DirFallback: config.SourceRoot,
 		}
@@ -293,7 +292,7 @@ func (h *handler) handleRoot(w http.ResponseWriter, r *http.Request) {
 		AllTags:      allTags,
 	}
 	if err := rootTemplate.Execute(w, d); err != nil {
-		log.Printf("root template error: %v", err)
+		logf("root template error: %v", err)
 		httputil.ServeError(w, r, err)
 		return
 	}
@@ -342,7 +341,7 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 		if name == "" {
 			// Let the user provide a creation time (for migrating Brad's data)
 			if part.FormName() != "creation" {
-				log.Printf("form field %q provided in upload, but ignored", part.FormName())
+				logf("form field %q provided in upload, but ignored", part.FormName())
 				continue
 			}
 			creationParam, err := ioutil.ReadAll(part)
@@ -648,8 +647,7 @@ func handleUiFile(w http.ResponseWriter, r *http.Request) {
 	f, err := root.Open("/" + file)
 	if err != nil {
 		http.NotFound(w, r)
-		// TODO(stevearm): Replace all log.Printf with logf for proper prefixing
-		log.Printf("Failed to open file %v from embedded resources: %v", file, err)
+		logf("Failed to open file %v from embedded resources: %v", file, err)
 		return
 	}
 	defer f.Close()
