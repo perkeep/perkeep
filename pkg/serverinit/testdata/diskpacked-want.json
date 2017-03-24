@@ -7,12 +7,12 @@
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
-				"jsonSignRoot": "/sighelper/",
 				"helpRoot": "/help/",
+				"jsonSignRoot": "/sighelper/",
 				"ownerName": "Alice",
 				"searchRoot": "/my-search/",
-				"statusRoot": "/status/",
 				"shareRoot": "/share/",
+				"statusRoot": "/status/",
 				"stealth": false
 			}
 		},
@@ -39,18 +39,18 @@
 		"/bs/": {
 			"handler": "storage-diskpacked",
 			"handlerArgs": {
-				"path": "/tmp/blobs",
 				"metaIndex": {
 					"file": "/tmp/blobs/diskpacked-index.kv",
 					"type": "kv"
-				}
+				},
+				"path": "/tmp/blobs"
 			}
 		},
 		"/cache/": {
 			"handler": "storage-diskpacked",
 			"handlerArgs": {
 				"metaIndex": {
-				"file": "/tmp/blobs/cache/index.kv",
+					"file": "/tmp/blobs/cache/index.kv",
 					"type": "kv"
 				},
 				"path": "/tmp/blobs/cache"

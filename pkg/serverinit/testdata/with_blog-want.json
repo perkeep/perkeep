@@ -7,26 +7,26 @@
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
-				"jsonSignRoot": "/sighelper/",
 				"helpRoot": "/help/",
+				"jsonSignRoot": "/sighelper/",
 				"searchRoot": "/my-search/",
-				"statusRoot": "/status/",
 				"shareRoot": "/share/",
+				"statusRoot": "/status/",
 				"stealth": false
 			}
 		},
 		"/blog/": {
 			"handler": "app",
 			"handlerArgs": {
-				"program": "publisher",
-				"prefix": "/blog/",
-				"serverListen": "localhost:3179",
-				"backendURL": "http://localhost:3178/",
 				"appConfig": {
+					"cacheRoot": "/tmp/blobs/cache",
 					"camliRoot": "blogRoot",
-					"goTemplate": "blog.html",
-					"cacheRoot": "/tmp/blobs/cache"
-				}
+					"goTemplate": "blog.html"
+				},
+				"backendURL": "http://localhost:3178/",
+				"prefix": "/blog/",
+				"program": "publisher",
+				"serverListen": "localhost:3179"
 			}
 		},
 		"/bs-and-index/": {

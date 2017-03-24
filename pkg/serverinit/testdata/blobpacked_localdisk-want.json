@@ -7,12 +7,12 @@
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
-				"jsonSignRoot": "/sighelper/",
 				"helpRoot": "/help/",
+				"jsonSignRoot": "/sighelper/",
 				"ownerName": "Alice",
 				"searchRoot": "/my-search/",
-				"statusRoot": "/status/",
 				"shareRoot": "/share/",
+				"statusRoot": "/status/",
 				"stealth": false
 			}
 		},
@@ -36,17 +36,6 @@
 				}
 			}
 		},
-		"/bs/": {
-			"handler": "storage-blobpacked",
-			"handlerArgs": {
-				"smallBlobs": "/bs-loose/",
-				"largeBlobs": "/bs-packed/",
-				"metaIndex": {
-					"file": "/tmp/blobs/packed/packindex.kv",
-					"type": "kv"
-				}
-			}
-		},
 		"/bs-loose/": {
 			"handler": "storage-filesystem",
 			"handlerArgs": {
@@ -57,6 +46,17 @@
 			"handler": "storage-filesystem",
 			"handlerArgs": {
 				"path": "/tmp/blobs/packed"
+			}
+		},
+		"/bs/": {
+			"handler": "storage-blobpacked",
+			"handlerArgs": {
+				"largeBlobs": "/bs-packed/",
+				"metaIndex": {
+					"file": "/tmp/blobs/packed/packindex.kv",
+					"type": "kv"
+				},
+				"smallBlobs": "/bs-loose/"
 			}
 		},
 		"/cache/": {

@@ -8,11 +8,11 @@
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
-				"jsonSignRoot": "/sighelper/",
 				"helpRoot": "/help/",
+				"jsonSignRoot": "/sighelper/",
 				"searchRoot": "/my-search/",
-				"statusRoot": "/status/",
 				"shareRoot": "/share/",
+				"statusRoot": "/status/",
 				"stealth": false
 			}
 		},

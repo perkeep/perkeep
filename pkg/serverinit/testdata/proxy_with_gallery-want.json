@@ -1,18 +1,18 @@
 {
 	"auth": "userpass:camlistore:pass3179",
+	"baseURL": "http://camli.net",
 	"https": false,
 	"listen": ":3179",
-	"baseURL": "http://camli.net",
 	"prefixes": {
 		"/": {
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
-				"jsonSignRoot": "/sighelper/",
 				"helpRoot": "/help/",
+				"jsonSignRoot": "/sighelper/",
 				"searchRoot": "/my-search/",
-				"statusRoot": "/status/",
 				"shareRoot": "/share/",
+				"statusRoot": "/status/",
 				"stealth": false
 			}
 		},
@@ -76,18 +76,18 @@
 		"/pics/": {
 			"handler": "app",
 			"handlerArgs": {
-				"program": "publisher",
-				"prefix": "/pics/",
-				"serverListen": ":3179",
-				"serverBaseURL": "http://camli.net",
-				"listen": ":55432",
-				"backendURL": "http://192.168.0.2:55432/",
 				"apiHost": "http://192.168.0.2:3179/",
 				"appConfig": {
+					"cacheRoot": "/tmp/blobs/cache",
 					"camliRoot": "picsRoot",
-					"goTemplate": "gallery.html",
-					"cacheRoot": "/tmp/blobs/cache"
-				}
+					"goTemplate": "gallery.html"
+				},
+				"backendURL": "http://192.168.0.2:55432/",
+				"listen": ":55432",
+				"prefix": "/pics/",
+				"program": "publisher",
+				"serverBaseURL": "http://camli.net",
+				"serverListen": ":3179"
 			}
 		},
 		"/setup/": {

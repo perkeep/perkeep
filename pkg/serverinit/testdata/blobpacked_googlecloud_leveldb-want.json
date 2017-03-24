@@ -7,12 +7,12 @@
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
-				"jsonSignRoot": "/sighelper/",
 				"helpRoot": "/help/",
+				"jsonSignRoot": "/sighelper/",
 				"ownerName": "Alice",
 				"searchRoot": "/my-search/",
-				"statusRoot": "/status/",
 				"shareRoot": "/share/",
+				"statusRoot": "/status/",
 				"stealth": false
 			}
 		},
@@ -33,17 +33,6 @@
 					"else": "/bs/",
 					"if": "isSchema",
 					"then": "/bs-and-index/"
-				}
-			}
-		},
-		"/bs/": {
-			"handler": "storage-blobpacked",
-			"handlerArgs": {
-				"smallBlobs": "/bs-loose/",
-				"largeBlobs": "/bs-packed/",
-				"metaIndex": {
-					"file": "/path/to/packindex.leveldb",
-					"type": "leveldb"
 				}
 			}
 		},
@@ -69,6 +58,17 @@
 				"bucket": "bucketName/blobs/packed"
 			}
 		},
+		"/bs/": {
+			"handler": "storage-blobpacked",
+			"handlerArgs": {
+				"largeBlobs": "/bs-packed/",
+				"metaIndex": {
+					"file": "/path/to/packindex.leveldb",
+					"type": "leveldb"
+				},
+				"smallBlobs": "/bs-loose/"
+			}
+		},
 		"/cache/": {
 			"handler": "storage-filesystem",
 			"handlerArgs": {
@@ -85,12 +85,12 @@
 		"/index/": {
 			"handler": "storage-index",
 			"handlerArgs": {
-		        "blobSource": "/bs/",
-		        "storage": {
+				"blobSource": "/bs/",
+				"storage": {
 					"file": "/path/to/index.leveldb",
 					"type": "leveldb"
-		        }
-		      }
+				}
+			}
 		},
 		"/my-search/": {
 			"handler": "search",

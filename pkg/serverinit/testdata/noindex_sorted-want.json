@@ -7,23 +7,12 @@
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs/",
-				"jsonSignRoot": "/sighelper/",
 				"helpRoot": "/help/",
+				"jsonSignRoot": "/sighelper/",
 				"ownerName": "Alice",
-				"statusRoot": "/status/",
 				"shareRoot": "/share/",
+				"statusRoot": "/status/",
 				"stealth": false
-			}
-		},
-		"/bs/": {
-			"handler": "storage-blobpacked",
-			"handlerArgs": {
-				"smallBlobs": "/bs-loose/",
-				"largeBlobs": "/bs-packed/",
-				"metaIndex": {
-					"file": "/tmp/blobs/packed/packindex.leveldb",
-					"type": "leveldb"
-				}
 			}
 		},
 		"/bs-loose/": {
@@ -36,6 +25,17 @@
 			"handler": "storage-filesystem",
 			"handlerArgs": {
 				"path": "/tmp/blobs/packed"
+			}
+		},
+		"/bs/": {
+			"handler": "storage-blobpacked",
+			"handlerArgs": {
+				"largeBlobs": "/bs-packed/",
+				"metaIndex": {
+					"file": "/tmp/blobs/packed/packindex.leveldb",
+					"type": "leveldb"
+				},
+				"smallBlobs": "/bs-loose/"
 			}
 		},
 		"/cache/": {

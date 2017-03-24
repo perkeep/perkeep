@@ -7,12 +7,12 @@
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
-				"jsonSignRoot": "/sighelper/",
 				"helpRoot": "/help/",
+				"jsonSignRoot": "/sighelper/",
 				"ownerName": "Alice",
 				"searchRoot": "/my-search/",
-				"statusRoot": "/status/",
 				"shareRoot": "/share/",
+				"statusRoot": "/status/",
 				"stealth": false
 			}
 		},
@@ -68,15 +68,15 @@
 		"/music/": {
 			"handler": "app",
 			"handlerArgs": {
-				"program": "publisher",
-				"prefix": "/music/",
-				"serverListen": "localhost:3179",
-				"backendURL": "http://localhost:3178/",
 				"appConfig": {
+					"cacheRoot": "/tmp/blobs/cache",
 					"camliRoot": "musicRoot",
-					"goTemplate": "music.html",
-					"cacheRoot": "/tmp/blobs/cache"
-				}
+					"goTemplate": "music.html"
+				},
+				"backendURL": "http://localhost:3178/",
+				"prefix": "/music/",
+				"program": "publisher",
+				"serverListen": "localhost:3179"
 			}
 		},
 		"/my-search/": {
@@ -90,14 +90,14 @@
 		"/pics/": {
 			"handler": "app",
 			"handlerArgs": {
-				"program": "publisher",
-				"prefix": "/pics/",
-				"serverListen": "localhost:3179",
 				"appConfig": {
+					"cacheRoot": "/tmp/blobs/cache",
 					"camliRoot": "picsRoot",
-					"goTemplate": "gallery.html",
-					"cacheRoot": "/tmp/blobs/cache"
-				}
+					"goTemplate": "gallery.html"
+				},
+				"prefix": "/pics/",
+				"program": "publisher",
+				"serverListen": "localhost:3179"
 			}
 		},
 		"/setup/": {

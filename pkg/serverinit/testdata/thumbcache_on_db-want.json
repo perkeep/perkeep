@@ -7,11 +7,11 @@
 			"handler": "root",
 			"handlerArgs": {
 				"blobRoot": "/bs-and-maybe-also-index/",
-				"jsonSignRoot": "/sighelper/",
 				"helpRoot": "/help/",
+				"jsonSignRoot": "/sighelper/",
 				"searchRoot": "/my-search/",
-				"statusRoot": "/status/",
 				"shareRoot": "/share/",
+				"statusRoot": "/status/",
 				"stealth": false
 			}
 		},
@@ -104,14 +104,14 @@
 			"handler": "sync",
 			"handlerArgs": {
 				"from": "/bs/",
-				"to": "/index/",
 				"queue": {
 					"database": "camindex_syncindex_q",
 					"host": "camlistore.cloudsql.google.internal",
 					"password": "root",
 					"type": "mysql",
 					"user": "root"
-				}
+				},
+				"to": "/index/"
 			}
 		},
 		"/ui/": {
