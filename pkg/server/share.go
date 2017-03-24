@@ -33,6 +33,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/gethandler"
 	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/schema"
 	"go4.org/jsonconfig"
 )
@@ -55,6 +56,7 @@ const (
 	shareBlobInvalid
 	shareBlobTooLarge
 	shareExpired
+	shareDeleted
 	shareFetchFailed
 	shareReadFailed
 	shareTargetInvalid
@@ -73,6 +75,7 @@ var errorCodeStr = [...]string{
 	shareBlobInvalid:      "shareBlobInvalid",
 	shareBlobTooLarge:     "shareBlobTooLarge",
 	shareExpired:          "shareExpired",
+	shareDeleted:          "shareDeleted",
 	shareFetchFailed:      "shareFetchFailed",
 	shareReadFailed:       "shareReadFailed",
 	shareTargetInvalid:    "shareTargetInvalid",
@@ -110,6 +113,7 @@ const fetchFailureDelay = 200 * time.Millisecond
 // ShareHandler handles the requests for "share" (and shared) blobs.
 type shareHandler struct {
 	fetcher blob.Fetcher
+	idx     *index.Index // for knowledge about share claim deletions
 	log     bool
 }
 
@@ -122,6 +126,7 @@ func newShareFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler
 	if blobRoot == "" {
 		return nil, errors.New("No blobRoot defined for share handler")
 	}
+	indexPrefix := conf.RequiredString("index")
 	if err := conf.Validate(); err != nil {
 		return nil, err
 	}
@@ -134,8 +139,22 @@ func newShareFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler
 	if !ok {
 		return nil, errors.New("share handler's storage not a Fetcher.")
 	}
+
+	// Should we use the search handler instead (and add a method to access
+	// its index.IsDeleted method)? I think it's ok to use the index Handler
+	// directly, as long as we lock properly.
+	indexHandler, err := ld.GetHandler(indexPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("share handler config references unknown handler %q", indexPrefix)
+	}
+	indexer, ok := indexHandler.(*index.Index)
+	if !ok {
+		return nil, fmt.Errorf("share handler config references invalid indexer %q (actually a %T)", indexPrefix, indexHandler)
+	}
+
 	sh := &shareHandler{
 		fetcher: fetcher,
+		idx:     indexer,
 		log:     true,
 	}
 	return sh, nil
@@ -144,8 +163,8 @@ func newShareFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler
 var timeSleep = time.Sleep // for tests
 
 // Unauthenticated user.  Be paranoid.
-func handleGetViaSharing(rw http.ResponseWriter, req *http.Request,
-	blobRef blob.Ref, fetcher blob.Fetcher) error {
+func (h *shareHandler) handleGetViaSharing(rw http.ResponseWriter, req *http.Request,
+	blobRef blob.Ref) error {
 	if !httputil.IsGet(req) {
 		return &shareError{code: invalidMethod, response: badRequest, message: "Invalid method"}
 	}
@@ -180,7 +199,15 @@ func handleGetViaSharing(rw http.ResponseWriter, req *http.Request,
 	for i, br := range fetchChain {
 		switch i {
 		case 0:
-			file, size, err := fetcher.Fetch(br)
+			if h.idx != nil {
+				h.idx.RLock()
+				isDeleted := h.idx.IsDeleted(br)
+				h.idx.RUnlock()
+				if isDeleted {
+					return unauthorized(shareDeleted, "Share was deleted")
+				}
+			}
+			file, size, err := h.fetcher.Fetch(br)
 			if err != nil {
 				return unauthorized(shareFetchFailed, "Fetch chain 0 of %s failed: %v", br, err)
 			}
@@ -213,7 +240,7 @@ func handleGetViaSharing(rw http.ResponseWriter, req *http.Request,
 			// not the first thing in the chain)
 			continue
 		default:
-			rc, _, err := fetcher.Fetch(br)
+			rc, _, err := h.fetcher.Fetch(br)
 			if err != nil {
 				return unauthorized(viaChainFetchFailed, "Fetch chain %d of %s failed: %v", i, br, err)
 			}
@@ -237,12 +264,12 @@ func handleGetViaSharing(rw http.ResponseWriter, req *http.Request,
 			return unauthorized(assembleNonTransitive, "Cannot assemble non-transitive share")
 		}
 		dh := &DownloadHandler{
-			Fetcher: fetcher,
+			Fetcher: h.fetcher,
 			// TODO(aa): It would be nice to specify a local cache here, as the UI handler does.
 		}
 		dh.ServeFile(rw, req, blobRef)
 	} else {
-		gethandler.ServeBlobRef(rw, req, blobRef, fetcher)
+		gethandler.ServeBlobRef(rw, req, blobRef, h.fetcher)
 	}
 	viaPathOkay = true
 	return nil
@@ -261,7 +288,7 @@ func (h *shareHandler) serveHTTP(rw http.ResponseWriter, req *http.Request) erro
 		err = &shareError{code: invalidURL, response: badRequest,
 			message: fmt.Sprintf("Malformed share pathSuffix: %s", pathSuffix)}
 	} else {
-		err = handleGetViaSharing(rw, req, blobRef, h.fetcher)
+		err = h.handleGetViaSharing(rw, req, blobRef)
 	}
 	if se, ok := err.(*shareError); ok {
 		switch se.response {

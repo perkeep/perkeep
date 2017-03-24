@@ -87,7 +87,8 @@
 		"/share/": {
 			"handler": "share",
 			"handlerArgs": {
-				"blobRoot": "/bs/"
+				"blobRoot": "/bs/",
+				"index": "/index/"
 			}
 		},
 		"/sighelper/": {

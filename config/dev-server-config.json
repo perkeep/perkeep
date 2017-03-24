@@ -370,7 +370,8 @@
 		"/share/": {
 			"handler": "share",
 			"handlerArgs": {
-				"blobRoot": "/bs/"
+				"blobRoot": "/bs/",
+				"index": ["_env", "${CAMLI_INDEXER_PATH}"]
 			}
 		}
 	}

@@ -739,6 +739,7 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 		rootArgs["shareRoot"] = path
 		b.addPrefix(path, "share", args{
 			"blobRoot": "/bs/",
+			"index":    "/index/",
 		})
 	}
 	b.addPrefix("/", "root", rootArgs)
