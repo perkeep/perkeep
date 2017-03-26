@@ -1,0 +1,17 @@
+Plaid Importer
+==============
+
+Plaid (plaid.com) is a service that allows users to connect to financial
+institutions (namely credit card providers) and retreive financial
+transactions in a uniform format.
+
+To use:
+
+1) Sign up for a Plaid developer account: https://dashboard.plaid.com/signup
+2) Start the devcam server with plaidapikey flag:
+   $ devcam server -plaidapikey=<client_id>:<secret>
+3) Navigate to http://<server>/importer/plaid and click "Add new account"
+4) Enter username and password for your financial institution's account, and
+   select the institution type (eg, Amex). (Unfortunately, OAuth is not
+   available)
+5) Watch your transactions roll on in
