@@ -25,7 +25,7 @@ var rootHTML = `
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<title>Scanning Cabinet</title>
 	<base href="{{.BaseURL}}">
-	<link rel="stylesheet" type="text/css" href="{{.BaseURL}}scanner.css" />
+	<link rel="stylesheet" type="text/css" href="{{.BaseURL}}ui/scanner.css" />
 {{ if .AllTags }}
 	<link rel="stylesheet" type="text/css" href="https://visapi-gadgets.googlecode.com/svn/trunk/wordcloud/wc.css"/>
 	<script type="text/javascript" src="https://www.google.com/jsapi"></script>
@@ -152,7 +152,7 @@ var docHTML = `
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<title>Scanning Cabinet</title>
 	<base href="{{.BaseURL}}">
-	<link rel="stylesheet" type="text/css" href="{{.BaseURL}}scanner.css" />
+	<link rel="stylesheet" type="text/css" href="{{.BaseURL}}ui/scanner.css" />
 </head>
 <body>
   <div>[<a href='{{.BaseURL}}'>Scanning Cabinet</a>]</div>
@@ -202,19 +202,4 @@ var docHTML = `
 		<img src="{{.UrlResize}}{{$ize}}" class="doc-page-row" />
 	{{ end }}
 {{ end }}
-`
-
-var scannerCSS = `
-.word-cloud {
-	width: 60em;
-}
-
-.doc-page-single {
-  border: 1px solid grey;
-  display: block;
-}
-
-.doc-page-row {
-  border: 1px solid grey;
-}
 `
