@@ -429,7 +429,7 @@ func (bb *Builder) SetSigner(signer blob.Ref) *Builder {
 	return bb
 }
 
-// SignAt sets the blob builder's camliSigner field with SetSigner
+// Sign sets the blob builder's camliSigner field with SetSigner
 // and returns the signed JSON using the provided signer.
 func (bb *Builder) Sign(signer *Signer) (string, error) {
 	return bb.SignAt(signer, time.Time{})
@@ -445,6 +445,10 @@ func (bb *Builder) SignAt(signer *Signer, sigTime time.Time) (string, error) {
 	default:
 		return "", fmt.Errorf("can't sign camliType %q", bb.Type())
 	}
+	if sigTime.IsZero() {
+		sigTime = time.Now()
+	}
+	bb.SetClaimDate(sigTime)
 	return signer.SignJSON(bb.SetSigner(signer.pubref).Blob().JSON(), sigTime)
 }
 
