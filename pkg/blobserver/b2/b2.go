@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path"
 	"strings"
@@ -74,7 +75,11 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		dirPrefix += "/"
 	}
 
-	cl, err := b2.NewClient(accountID, appKey, nil)
+	t := &http.Transport{}
+	*t = *http.DefaultTransport.(*http.Transport)
+	t.MaxIdleConnsPerHost = 50 // we do delete bursts
+	httpClient := &http.Client{Transport: t}
+	cl, err := b2.NewClient(accountID, appKey, httpClient)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +158,7 @@ func (s *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, err
 func (s *Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 	// TODO: use cache
 	var grp syncutil.Group
-	gate := syncutil.NewGate(20) // arbitrary cap
+	gate := syncutil.NewGate(5) // arbitrary cap
 	for i := range blobs {
 		br := blobs[i]
 		gate.Start()
@@ -187,7 +192,7 @@ func (s *Storage) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) 
 		}
 	}
 	r, fi, err := s.cl.DownloadFileByName(s.b.Name, s.dirPrefix+br.String())
-	if err, ok := err.(*b2.Error); ok && err.Status == 404 {
+	if err, ok := b2.UnwrapError(err); ok && err.Status == 404 {
 		return nil, 0, os.ErrNotExist
 	}
 	if err != nil {
@@ -214,7 +219,7 @@ func (s *Storage) RemoveBlobs(blobs []blob.Ref) error {
 	if s.cache != nil {
 		s.cache.RemoveBlobs(blobs)
 	}
-	gate := syncutil.NewGate(50) // arbitrary
+	gate := syncutil.NewGate(5) // arbitrary
 	var grp syncutil.Group
 	for i := range blobs {
 		gate.Start()
@@ -222,11 +227,11 @@ func (s *Storage) RemoveBlobs(blobs []blob.Ref) error {
 		grp.Go(func() error {
 			defer gate.Done()
 			fi, err := s.b.GetFileInfoByName(s.dirPrefix + br.String())
+			if err == b2.FileNotFoundError {
+				return nil
+			}
 			if err != nil {
 				return err
-			}
-			if fi == nil {
-				return nil
 			}
 			if br.HashName() == "sha1" && fi.ContentSHA1 != br.Digest() {
 				return errors.New("b2: remote ContentSHA1 mismatch")

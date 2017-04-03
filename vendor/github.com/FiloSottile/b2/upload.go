@@ -33,6 +33,7 @@ func (b *Bucket) Upload(r io.Reader, name, mimeType string) (*FileInfo, error) {
 	case io.ReadSeeker:
 		body = r
 	default:
+		debugf("upload %s: buffering", name)
 		b, err := ioutil.ReadAll(r)
 		if err != nil {
 			return nil, err
@@ -56,6 +57,15 @@ func (b *Bucket) Upload(r io.Reader, name, mimeType string) (*FileInfo, error) {
 		fi, err = b.UploadWithSHA1(body, name, mimeType, sha1Sum, length)
 		if err == nil {
 			break
+		}
+		if err, ok := UnwrapError(err); ok && err.Status == http.StatusUnauthorized {
+			// We are forced to pass nil to login, risking a double login (which is
+			// wasteful, but not harmful) because the API does not give us access to
+			// the failed response (without hacks).
+			if err := b.c.login(nil); err != nil {
+				return nil, err
+			}
+			i--
 		}
 	}
 	return fi, err
@@ -97,8 +107,9 @@ func (b *Bucket) putUploadURL(u *uploadURL) {
 // known SHA1 and length of the file. It never does any buffering, nor does it
 // retry on failure.
 //
-// Note that retrying on most upload failures is mandatory by the B2 API
-// documentation, and not just error condition handling.
+// Note that retrying on most upload failures, not just error handling, is
+// mandatory by the B2 API documentation. If the error Status is Unauthorized,
+// a call to (*Client).LoginInfo(true) should be performed first.
 //
 // sha1Sum should be the hex encoding of the SHA1 sum of what will be read from r.
 //
@@ -122,11 +133,10 @@ func (b *Bucket) UploadWithSHA1(r io.Reader, name, mimeType, sha1Sum string, len
 
 	res, err := b.c.hc.Do(req)
 	if err != nil {
+		debugf("upload %s: %s", name, err)
 		return nil, err
 	}
-	if res.StatusCode != 200 {
-		return nil, parseB2Error(res)
-	}
+	debugf("upload %s (%d %s)", name, length, sha1Sum)
 	defer drainAndClose(res.Body)
 
 	fi := fileInfoObj{}
