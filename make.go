@@ -65,6 +65,7 @@ var (
 	stampVersion   = flag.Bool("stampversion", true, "Stamp version into buildinfo.GitInfo")
 	website        = flag.Bool("website", false, "Just build the website.")
 	camnetdns      = flag.Bool("camnetdns", false, "Just build camlistore.org/server/camnetdns.")
+	static         = flag.Bool("static", false, "Build a static binary, so it can run in an empty container.")
 
 	// Use GOPATH from the environment and work from there. Do not create a temporary source tree with a new GOPATH in it.
 	// It is set through CAMLI_MAKE_USEGOPATH for integration tests that call 'go run make.go', and which are already in
@@ -207,6 +208,7 @@ func main() {
 
 	withCamlistored := stringListContains(targs, "camlistore.org/server/camlistored")
 
+	// TODO(mpl): no need to build publisher.js if we're not building the publisher app.
 	if withCamlistored {
 		// gopherjs has to run before doEmbed since we need all the javascript
 		// to be generated before embedding happens.
@@ -224,6 +226,9 @@ func main() {
 	}
 
 	tags := []string{"purego"} // for cznic/zappy
+	if *static {
+		tags = append(tags, "netgo")
+	}
 	if sql {
 		tags = append(tags, "with_sqlite")
 	}
@@ -238,8 +243,14 @@ func main() {
 		log.Printf("version to stamp is %q", version)
 	}
 	var ldFlags string
+	if *static {
+		ldFlags = "-w -d -linkmode internal"
+	}
 	if *stampVersion {
-		ldFlags = "-X \"camlistore.org/pkg/buildinfo.GitInfo=" + version + "\""
+		if ldFlags != "" {
+			ldFlags += " "
+		}
+		ldFlags += "-X \"camlistore.org/pkg/buildinfo.GitInfo=" + version + "\""
 	}
 	baseArgs = append(baseArgs, "--ldflags="+ldFlags, "--tags="+strings.Join(tags, " "))
 
@@ -260,6 +271,9 @@ func main() {
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
 	)
+	if *static {
+		cmd.Env = append(cmd.Env, "CGO_ENABLED=0")
+	}
 
 	if *verbose {
 		log.Printf("Running go %q with Env %q", args, cmd.Env)

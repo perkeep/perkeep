@@ -28,12 +28,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path"
-	"path/filepath"
 	"strings"
 )
 
@@ -81,9 +81,13 @@ func rev() string {
 func getCamliSrc() {
 	if localCamliSource() != "" {
 		mirrorCamliSrc(localCamliSource())
-		return
+	} else {
+		fetchCamliSrc()
 	}
-	fetchCamliSrc()
+	// we insert the version in the VERSION file, so make.go does no need git
+	// in the container to detect the Camlistore version.
+	check(os.Chdir("/gopath/src/camlistore.org"))
+	check(ioutil.WriteFile("VERSION", []byte(rev()), 0777))
 }
 
 func mirrorCamliSrc(srcDir string) {
@@ -131,47 +135,25 @@ func fetchCamliSrc() {
 }
 
 func buildCamlistored() {
-	check(os.MkdirAll(path.Join(*outDir, "/bin"), 0777))
-	check(os.MkdirAll(path.Join(*outDir, "/server/camlistored"), 0777))
 	oldPath := os.Getenv("PATH")
 	os.Setenv("GOPATH", "/gopath")
 	os.Setenv("PATH", "/usr/local/go/bin:"+oldPath)
-	os.Setenv("CGO_ENABLED", "0")
-	os.Setenv("GO15VENDOREXPERIMENT", "1")
-	cmd := exec.Command("go", "build",
-		"-o", path.Join(*outDir, "/bin/camlistored"),
-		`--ldflags`, "-w -d -linkmode internal -X camlistore.org/pkg/buildinfo.GitInfo="+rev(),
-		"--tags=netgo", "camlistore.org/server/camlistored")
+	check(os.Chdir("/gopath/src/camlistore.org"))
+	cmd := exec.Command("go", "run", "make.go",
+		"-static", "true",
+		"-targets", "camlistore.org/server/camlistored")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error building camlistored in go container: %v", err)
 	}
-}
 
-func setUIResources() {
-	cmd := exec.Command("mv", "/gopath/src/camlistore.org/server/camlistored/ui", path.Join(*outDir, "/server/camlistored/ui"))
+	// And move it to the output dir
+	check(os.MkdirAll(path.Join(*outDir, "/bin"), 0777))
+	cmd = exec.Command("mv", "/gopath/src/camlistore.org/bin/camlistored", path.Join(*outDir, "/bin"))
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error moving UI dir %v in output dir %v: %v",
-			"/gopath/src/camlistore.org/server/camlistored/ui", path.Join(*outDir, "/server/camlistored/ui"), err)
-	}
-	filepath.Walk("/gopath/src/camlistore.org/vendor/embed", func(path string, fi os.FileInfo, err error) error {
-		if err != nil {
-			log.Fatalf("Error stating while cleaning %s: %v", path, err)
-		}
-		if fi.IsDir() {
-			return nil
-		}
-		if strings.HasSuffix(path, ".go") {
-			check(os.Remove(path))
-		}
-		return nil
-	})
-	check(os.MkdirAll(path.Join(*outDir, "/vendor"), 0777))
-	cmd = exec.Command("mv", "/gopath/src/camlistore.org/vendor/embed", path.Join(*outDir, "/vendor/embed"))
-	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error moving vendor/embed dir %v in output dir %v: %v",
-			"/gopath/src/camlistore.org/vendor/embed", path.Join(*outDir, "/vendor/embed"), err)
+		log.Fatalf("Error moving camlistored binary %v in output dir %v: %v",
+			"/gopath/src/camlistore.org/bin/camlistored", path.Join(*outDir, "/bin"), err)
 	}
 }
 
@@ -219,7 +201,6 @@ func main() {
 
 	getCamliSrc()
 	buildCamlistored()
-	setUIResources()
 }
 
 func check(err error) {

@@ -230,7 +230,7 @@ func genZoneinfo(ctxDir string) {
 
 func buildServer(ctxDir string) {
 	copyFinalDockerfile(ctxDir)
-	cmd := exec.Command("docker", "build", "-t", serverImage, ".")
+	cmd := exec.Command("docker", "build", "--no-cache", "-t", serverImage, ".")
 	cmd.Dir = ctxDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
