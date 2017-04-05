@@ -66,6 +66,7 @@ func DefaultEnvConfig() (*Config, error) {
 		GoogleCloudStorage: ":" + strings.TrimPrefix(blobBucket, "gs://"),
 		DBNames:            map[string]string{},
 		PackRelated:        true,
+		ShareHandler:       true,
 	}
 
 	externalIP, _ := metadata.ExternalIP()

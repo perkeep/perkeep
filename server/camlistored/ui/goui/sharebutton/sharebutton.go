@@ -66,6 +66,11 @@ func New(key string, config map[string]string, getSelection func() []SharedItem,
 		fmt.Println("Nil config for ShareItemsBtn")
 		return nil
 	}
+	shareRoot, ok := config["shareRoot"]
+	if !ok || shareRoot == "" {
+		// Server has no share handler
+		return nil
+	}
 	if showSharedURL == nil {
 		fmt.Println("Nil showSharedURL for ShareItemsBtn")
 		return nil
