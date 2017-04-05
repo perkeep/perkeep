@@ -1,0 +1,174 @@
+
+<h1>Monthly Release: 2017-04-05</h1>
+
+<p>
+Camlistore version <a href='https://github.com/camlistore/camlistore/commit/9e34d14ef5'>9e34d14ef5</a> built with Go 1.8.
+</p>
+
+<p>
+This release comes with the introduction of <a
+href="https://gopherjs.org">GopherJS</a> to help build the web user interface.
+This enabled the addition of two new features in the web UI: <b>Download</b> and
+<b>Share</b>. Both actions are available in the side bar whenever an item
+representing a file is selected. The "Download" button packs all the selected items in a zip
+archive and dowloads the archive. The "Share" button creates a share claim for the selected
+item, and displays the link that can be used to share the item with the intended
+audience. Both actions only support files for now (no directories), and Sharing
+is limited to one item, but these limitations should be addressed soon.
+</p>
+
+<p>
+Other notable changes for this release are improvements to the
+<a href='/doc/release/monthly/2017-03-01.html#scanningcabinet'>scanning cabinet</a>,
+especially to its web user interface, and the introduction of a new
+importer for <a href="https://plaid.com">Plaid</a>, for financial transactions.
+</p>
+
+<h2>Downloads</h2>
+
+<center>
+<a class="downloadBox" href="/dl/monthly/camlistore-20170405-darwin.tar.gz">
+<div class="platform">Darwin</div>
+<div>
+	<span class="filename">camlistore-20170405-darwin.tar.gz</span>
+</div>
+<div class="checksum">SHA256: 76c3cb61a2e1c1acc9f41b84b268090513ba0091b40dc27f12789d56a052ca12</div>
+</a>
+<a class="downloadBox" href="/dl/monthly/camlistore-20170405-linux.tar.gz">
+<div class="platform">Linux</div>
+<div>
+	<span class="filename">camlistore-20170405-linux.tar.gz</span>
+</div>
+<div class="checksum">SHA256: e470de0eb4133efc418a12b689c0a7eac29c0cce62a93ece60e58ed5254c5022</div>
+</a>
+<a class="downloadBox" href="/dl/monthly/camlistore-20170405-src.zip">
+<div class="platform">Source</div>
+<div>
+	<span class="filename">camlistore-20170405-src.zip</span>
+</div>
+<div class="checksum">SHA256: 14d743ba34a23efb9eb36a11468ed72998d4afc9a449baf112cd2aab011184b8</div>
+</a>
+<a class="downloadBox" href="/dl/monthly/camlistore-20170405-windows.zip">
+<div class="platform">Windows</div>
+<div>
+	<span class="filename">camlistore-20170405-windows.zip</span>
+</div>
+<div class="checksum">SHA256: e9b2e41d5e96c3b65a621d7ff41cec562c0a7c5bca5cbc92deda98b57968a8f9</div>
+</a>
+</center>
+
+
+<h2>Release Stats</h2>
+
+<p>
+5 total committers over 32 commits since <a
+href='https://github.com/camlistore/camlistore/commit/dc4d1650b3332a0257e6a856d3da57b1d28c0b58'>dc4d1650b3332a0257e6a856d3da57b1d28c0b58</a>
+including Euan Kemp, Filippo Valsorda, Michael Morrissey, Steve Armstrong, mpl.
+</p>
+
+<p>Thank you!</p>
+
+
+
+<h2>Release Notes</h2>
+
+<p>
+<ul>
+
+<li>
+app/scanningcabinet:
+<ul>
+<li>fix tag cloud and add typeahead</li>
+<li>logf for prefixing</li>
+<li>move static UI files to folder</li>
+<li>Fix scancab pdf extraction</li>
+<li>Compile scancab during make.go</li>
+</ul>
+</li>
+
+<li>
+blobserver/b2:
+<ul>
+<li>update b2 library to refresh tokens and tune blobserver</li>
+</ul>
+</li>
+
+<li>
+camlistored/ui:
+<ul>
+<li>add &#34;Share&#34; feature</li>
+<li>add &#34;About&#34; menu entry and dialog</li>
+</ul>
+</li>
+
+<li>
+devcam/hook:
+<ul>
+<li>handle &#39;verbose&#39; commits</li>
+</ul>
+</li>
+
+<li>
+devcam/server:
+<ul>
+<li>update default config with prefix</li>
+</ul>
+</li>
+
+<li>
+gitignore:
+<ul>
+<li>scanningcabinet</li>
+</ul>
+</li>
+
+<li>
+importer:
+<ul>
+<li>plaid: initial cut at importing financial transactions using Plaid.com.</li>
+</ul>
+</li>
+
+<li>
+index:
+<ul>
+<li>use missing dep mechanism for static sets too</li>
+</ul>
+</li>
+
+<li>
+misc/docker/server:
+<ul>
+<li>build with make.go</li>
+</ul>
+</li>
+
+<li>
+server:
+<ul>
+<li>make share handler support share deletions</li>
+<li>download handler now supports serving zip files of multiple selected items</li>
+</ul>
+</li>
+
+<li>
+server/app:
+<ul>
+<li>app param defaults</li>
+</ul>
+</li>
+
+<li>
+serverinit:
+<ul>
+<li>enable sharing on GCE by default</li>
+<li>properly update golden files</li>
+</ul>
+</li>
+
+<li>
+sync:
+<ul>
+<li>add option to hourly fetch and check random blobs from dest</li>
+</ul>
+</li>
