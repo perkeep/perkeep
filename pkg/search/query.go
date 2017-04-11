@@ -1018,6 +1018,7 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 
 	wantAround, foundAround := false, false
 	if q.Around.Valid() {
+		// TODO(mpl): fail somewhere if MapSorted and wantAround at the same time.
 		wantAround = true
 	}
 	blobMatches := q.Constraint.matcher()

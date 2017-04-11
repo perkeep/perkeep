@@ -34,6 +34,7 @@ goog.require('goog.Uri');
 
 goog.require('cam.BlobDetail');
 goog.require('cam.BlobItemContainerReact');
+goog.require('cam.DirContainer');
 goog.require('cam.BlobItemDemoContent');
 goog.require('cam.BlobItemFoursquareContent');
 goog.require('cam.BlobItemGenericContent');
@@ -43,7 +44,6 @@ goog.require('cam.BlobItemVideoContent');
 goog.require('cam.blobref');
 goog.require('cam.DetailView');
 goog.require('cam.Dialog');
-goog.require('cam.DirectoryDetail');
 goog.require('cam.MapAspect');
 goog.require('cam.Header');
 goog.require('cam.Navigator');
@@ -235,8 +235,7 @@ cam.IndexPage = React.createClass({
 
 		var specificAspects = [
 			cam.ImageDetail.getAspect,
-			// TODO(mpl): redo DirectoryDetail to look like a Blobs Container
-			cam.DirectoryDetail.getAspect.bind(null, this.baseURL_, this.props.serverConnection),
+			this.getDirAspect_.bind(null),
 		].map(getAspect).filter(goog.functions.identity);
 
 		var generalAspects = [
@@ -282,7 +281,58 @@ cam.IndexPage = React.createClass({
 		return {
 			title: blobref ? 'Contents' : 'Search',
 			fragment: blobref ? 'contents': 'search',
-			createContent: this.getBlobItemContainer_.bind(null, this),
+			createContent: this.getBlobItemContainer_.bind(this),
+		};
+	},
+
+	getDirAspect_: function(targetBlobRef, parentSearchSession) {
+		if (!targetBlobRef) {
+			return null;
+		}
+		var m = parentSearchSession.getMeta(targetBlobRef);
+		if (!m) {
+			return null;
+		}
+
+		if (!m.permanode) {
+			if (m.camliType != 'directory') {
+				// we are neither a permanode, nor a directory
+				return null;
+			}
+			var dirbr = targetBlobRef;
+		} else {
+			var rm = parentSearchSession.getResolvedMeta(targetBlobRef);
+			if (!rm || rm.camliType != 'directory') {
+				// a permanode, but does not contain a directory
+				return null;
+			}
+			var dirbr = rm.blobRef;
+		}
+
+		return {
+			title: 'Directory',
+			fragment: 'directory',
+			createContent: function() {
+				var scale = (this.props.availWidth - this.SIDEBAR_OPEN_WIDTH_) / this.props.availWidth;
+				return React.createElement(cam.DirContainer, {
+				key: 'dircontainer',
+				ref: 'dirContainer',
+				config: this.props.config,
+				blobRef: dirbr,
+				availHeight: this.props.availHeight,
+				availWidth: this.props.availWidth,
+				detailURL: this.getDetailURL_,
+				handlers: this.BLOB_ITEM_HANDLERS_,
+				history: this.props.history,
+				onSelectionChange: this.handleSelectionChange_,
+				scale: scale,
+				scaleEnabled: this.state.sidebarVisible,
+				scrolling: this.props.scrolling,
+				selection: this.state.selection,
+				style: this.getBlobItemContainerStyle_(),
+				thumbnailSize: this.THUMBNAIL_SIZE_,
+				});
+			}.bind(this),
 		};
 	},
 

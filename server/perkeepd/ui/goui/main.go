@@ -20,6 +20,7 @@ package main
 
 import (
 	"perkeep.org/server/perkeepd/ui/goui/aboutdialog"
+	"perkeep.org/server/perkeepd/ui/goui/dirchildren"
 	"perkeep.org/server/perkeepd/ui/goui/downloadbutton"
 	"perkeep.org/server/perkeepd/ui/goui/geo"
 	"perkeep.org/server/perkeepd/ui/goui/mapquery"
@@ -35,6 +36,7 @@ func main() {
 		"DownloadItemsBtn":       downloadbutton.New,
 		"ShareItemsBtn":          sharebutton.New,
 		"SelectAllBtn":           selectallbutton.New,
+		"NewDirChildren":         dirchildren.New,
 		"Geocode":                geo.Lookup,
 		"IsLocPredicate":         geo.IsLocPredicate,
 		"HandleLocAreaPredicate": geo.HandleLocAreaPredicate,
