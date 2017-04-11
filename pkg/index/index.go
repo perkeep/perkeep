@@ -1565,10 +1565,25 @@ func kvEdgeBackward(k, v string) (edge *camtypes.Edge, ok bool) {
 }
 
 // GetDirMembers sends on dest the children of the static directory dir.
-func (x *Index) GetDirMembers(dir blob.Ref, dest chan<- blob.Ref, limit int) (err error) {
+func (x *Index) GetDirMembers(ctx context.Context, dir blob.Ref, dest chan<- blob.Ref, limit int) (err error) {
 	defer close(dest)
 
 	sent := 0
+	if x.corpus != nil {
+		children, err := x.corpus.GetDirChildren(ctx, dir)
+		if err != nil {
+			return err
+		}
+		for child := range children {
+			dest <- child
+			sent++
+			if sent == limit {
+				break
+			}
+		}
+		return nil
+	}
+
 	it := x.queryPrefix(keyStaticDirChild, dir.String())
 	defer closeIterator(it, &err)
 	for it.Next() {

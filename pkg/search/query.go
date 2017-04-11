@@ -426,6 +426,10 @@ type FileConstraint struct {
 	// every known hash algorithm.
 	WholeRef blob.Ref `json:"wholeRef,omitempty"`
 
+	// ParentDir, if non-nil, constrains the file match based on properties
+	// of its parent directory.
+	ParentDir *DirConstraint `json:"parentDir,omitempty"`
+
 	// For images:
 	IsImage  bool                `json:"isImage,omitempty"`
 	EXIF     *EXIFConstraint     `json:"exif,omitempty"` // TODO: implement
@@ -447,22 +451,35 @@ type MediaTagConstraint struct {
 	Int    *IntConstraint    `json:"int,omitempty"`
 }
 
+// DirConstraint matches static directories.
 type DirConstraint struct {
 	// (All non-zero fields must match)
 
-	// TODO: implement. mostly need more things in the index.
+	FileName      *StringConstraint `json:"fileName,omitempty"`
+	BlobRefPrefix string            `json:"blobRefPrefix,omitempty"`
 
-	FileName *StringConstraint `json:"fileName,omitempty"`
+	// ParentDir, if non-nil, constrains the directory match based on properties
+	// of its parent directory.
+	ParentDir *DirConstraint `json:"parentDir,omitempty"`
 
-	TopFileSize, // not recursive
-	TopFileCount, // not recursive
-	FileSize,
-	FileCount *IntConstraint
+	// TODO: implement.
+	// FileCount *IntConstraint
+	// FileSize *IntConstraint
 
-	// TODO: these would need thought on how to index efficiently:
-	// (Also: top-only variants?)
-	// ContainsFile *FileConstraint
-	// ContainsDir  *DirConstraint
+	// TopFileCount, if non-nil, constrains the directory match with the directory's
+	// number of children (non-recursively).
+	TopFileCount *IntConstraint `json:"topFileCount,omitempty"`
+
+	// RecursiveContains, if non-nil, is like Contains, but applied to all
+	// the descendants of the directory. It is mutually exclusive with Contains.
+	RecursiveContains *Constraint `json:"recursiveContains,omitempty"`
+
+	// Contains, if non-nil, constrains the directory match to just those
+	// directories containing a file matched by Contains. Contains should have a
+	// BlobPrefix, or a *FileConstraint, or a *DirConstraint, or a *LogicalConstraint
+	// combination of the aforementioned. It is only applied to the children of the
+	// directory, in a non-recursive manner. It is mutually exclusive with RecursiveContains.
+	Contains *Constraint `json:"contains,omitempty"`
 }
 
 // An IntConstraint specifies constraints on an integer.
@@ -917,6 +934,34 @@ func (s *search) fileInfo(ctx context.Context, br blob.Ref) (camtypes.FileInfo, 
 		return c.GetFileInfo(ctx, br)
 	}
 	return s.h.index.GetFileInfo(ctx, br)
+}
+
+func (s *search) dirChildren(ctx context.Context, br blob.Ref) (map[blob.Ref]struct{}, error) {
+	if c := s.h.corpus; c != nil {
+		return c.GetDirChildren(ctx, br)
+	}
+
+	ch := make(chan blob.Ref)
+	errch := make(chan error)
+	go func() {
+		errch <- s.h.index.GetDirMembers(ctx, br, ch, s.q.Limit)
+	}()
+	children := make(map[blob.Ref]struct{})
+	for child := range ch {
+		children[child] = struct{}{}
+	}
+	if err := <-errch; err != nil {
+		return nil, err
+	}
+	return children, nil
+}
+
+func (s *search) parentDirs(ctx context.Context, br blob.Ref) (map[blob.Ref]struct{}, error) {
+	c := s.h.corpus
+	if c == nil {
+		return nil, errors.New("parent directory search not supported without a corpus")
+	}
+	return c.GetParentDirs(ctx, br)
 }
 
 // optimizePlan returns an optimized version of c which will hopefully
@@ -1869,6 +1914,36 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 			return false, nil
 		}
 	}
+	if pc := c.ParentDir; pc != nil {
+		parents, err := s.parentDirs(ctx, br)
+		if err == os.ErrNotExist {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		matches := false
+		for parent, _ := range parents {
+			meta, err := s.blobMeta(ctx, parent)
+			if err != nil {
+				if os.IsNotExist(err) {
+					continue
+				}
+				return false, err
+			}
+			ok, err := pc.blobMatches(ctx, s, parent, meta)
+			if err != nil {
+				return false, err
+			}
+			if ok {
+				matches = true
+				break
+			}
+		}
+		if !matches {
+			return false, nil
+		}
+	}
 	corpus := s.h.corpus
 	if c.WholeRef.Valid() {
 		if corpus == nil {
@@ -1976,16 +2051,176 @@ func (c *TimeConstraint) timeMatches(t time.Time) bool {
 }
 
 func (c *DirConstraint) checkValid() error {
+	if c == nil {
+		return nil
+	}
+	if c.Contains != nil && c.RecursiveContains != nil {
+		return errors.New("Contains and RecursiveContains in a DirConstraint are mutually exclusive")
+	}
 	return nil
+}
+
+func (c *Constraint) isFileOrDirConstraint() bool {
+	if l := c.Logical; l != nil {
+		return l.A.isFileOrDirConstraint() && l.B.isFileOrDirConstraint()
+	}
+	return c.File != nil || c.Dir != nil
+}
+
+func (c *Constraint) fileOrDirOrLogicalMatches(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+	if cf := c.File; cf != nil {
+		return cf.blobMatches(ctx, s, br, bm)
+	}
+	if cd := c.Dir; cd != nil {
+		return cd.blobMatches(ctx, s, br, bm)
+	}
+	if l := c.Logical; l != nil {
+		return l.matcher()(ctx, s, br, bm)
+	}
+	return false, nil
 }
 
 func (c *DirConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
 	if bm.CamliType != "directory" {
 		return false, nil
 	}
+	// TODO(mpl): I've added c.BlobRefPrefix, so that c.ParentDir can be directly
+	// matched against a blobRef (instead of e.g. a filename), but I could instead make
+	// ParentDir be a *Constraint, and logically enforce that it has to "be equivalent"
+	// to a ParentDir matching or a BlobRefPrefix matching. I think this here below is
+	// simpler, but not sure it's best in the long run.
+	if pfx := c.BlobRefPrefix; pfx != "" {
+		if !br.HasPrefix(pfx) {
+			return false, nil
+		}
+	}
+	fi, err := s.fileInfo(ctx, br)
+	if err == os.ErrNotExist {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if sc := c.FileName; sc != nil && !sc.stringMatches(fi.FileName) {
+		return false, nil
+	}
+	if pc := c.ParentDir; pc != nil {
+		parents, err := s.parentDirs(ctx, br)
+		if err == os.ErrNotExist {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		isMatch, err := pc.hasMatchingParent(ctx, s, parents)
+		if err != nil {
+			return false, err
+		}
+		if !isMatch {
+			return false, nil
+		}
+	}
 
-	// TODO: implement
-	panic("TODO: implement DirConstraint.blobMatches")
+	// All constraints not pertaining to children must happen above
+	// this point.
+	children, err := s.dirChildren(ctx, br)
+	if err != nil && err != os.ErrNotExist {
+		return false, err
+	}
+	if fc := c.TopFileCount; fc != nil && !fc.intMatches(int64(len(children))) {
+		return false, nil
+	}
+	cc := c.Contains
+	recursive := false
+	if cc == nil {
+		if crc := c.RecursiveContains; crc != nil {
+			recursive = true
+			// RecursiveContains implies Contains
+			cc = crc
+		}
+	}
+	// First test on the direct children
+	containsMatch := false
+	if cc != nil {
+		// Allow directly specifying the fileRef
+		if cc.BlobRefPrefix != "" {
+			containsMatch, err = c.hasMatchingChild(ctx, s, children, func(ctx context.Context, s *search, child blob.Ref, bm camtypes.BlobMeta) (bool, error) {
+				return child.HasPrefix(cc.BlobRefPrefix), nil
+			})
+		} else {
+			if !cc.isFileOrDirConstraint() {
+				return false, errors.New("[Recursive]Contains constraint should have a *FileConstraint, or a *DirConstraint, or a *LogicalConstraint combination of the aforementioned.")
+			}
+			containsMatch, err = c.hasMatchingChild(ctx, s, children, cc.fileOrDirOrLogicalMatches)
+		}
+		if err != nil {
+			return false, err
+		}
+		if !containsMatch && !recursive {
+			return false, nil
+		}
+	}
+	// Then if needed recurse on the next generation descendants.
+	if !containsMatch && recursive {
+		match, err := c.hasMatchingChild(ctx, s, children, c.blobMatches)
+		if err != nil {
+			return false, err
+		}
+		if !match {
+			return false, nil
+		}
+	}
+
+	// TODO: implement FileCount and FileSize.
+
+	return true, nil
+}
+
+// hasMatchingParent checks all parents against c and returns true as soon as one of
+// them matches, or returns false if none of them is a match.
+func (c *DirConstraint) hasMatchingParent(ctx context.Context, s *search, parents map[blob.Ref]struct{}) (bool, error) {
+	for parent := range parents {
+		meta, err := s.blobMeta(ctx, parent)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return false, err
+		}
+		ok, err := c.blobMatches(ctx, s, parent, meta)
+		if err != nil {
+			return false, err
+		}
+		if ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// hasMatchingChild runs matcher against each child and returns true as soon as
+// there is a match, of false if none of them is a match.
+func (c *DirConstraint) hasMatchingChild(ctx context.Context, s *search, children map[blob.Ref]struct{},
+	matcher func(context.Context, *search, blob.Ref, camtypes.BlobMeta) (bool, error)) (bool, error) {
+	// TODO(mpl): See if we're guaranteed to be CPU-bound (i.e. all resources are in
+	// corpus), and if not, add some concurrency to spread costly index lookups.
+	for child, _ := range children {
+		meta, err := s.blobMeta(ctx, child)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return false, err
+		}
+		ok, err := matcher(ctx, s, child, meta)
+		if err != nil {
+			return false, err
+		}
+		if ok {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 type sortSearchResultBlobs struct {

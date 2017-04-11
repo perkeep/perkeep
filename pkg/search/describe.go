@@ -119,7 +119,7 @@ type DescribeRequest struct {
 
 	// Rules specifies a set of rules to instruct how to keep
 	// expanding the described set. All rules are tested and
-	// matching rules grow the the response set until all rules no
+	// matching rules grow the response set until all rules no
 	// longer match or internal limits are hit.
 	Rules []*DescribeRule `json:"rules,omitempty"`
 
@@ -883,7 +883,7 @@ func (dr *DescribeRequest) getDirMembers(ctx context.Context, br blob.Ref, depth
 	ch := make(chan blob.Ref)
 	errch := make(chan error)
 	go func() {
-		errch <- dr.sh.index.GetDirMembers(br, ch, limit)
+		errch <- dr.sh.index.GetDirMembers(ctx, br, ch, limit)
 	}()
 
 	var members []blob.Ref

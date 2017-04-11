@@ -724,6 +724,264 @@ func TestQueryFileConstraint(t *testing.T) {
 	})
 }
 
+// find a directory with a name
+func TestQueryDirConstraint(t *testing.T) {
+	testQuery(t, func(qt *queryTest) {
+		id := qt.id
+		dirRef := id.UploadDir("somedir", []blob.Ref{}, time.Unix(789, 0))
+		qt.t.Logf("dirRef = %q", dirRef)
+		p1 := id.NewPlannedPermanode("1")
+		id.SetAttribute(p1, "camliContent", dirRef.String())
+
+		fileRef3, _ := id.UploadFile("other-file", "hellooooo", time.Unix(101112, 0))
+		qt.t.Logf("fileRef3 = %q", fileRef3)
+		p2 := id.NewPlannedPermanode("2")
+		id.SetAttribute(p2, "camliContent", fileRef3.String())
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Dir: &DirConstraint{
+					FileName: &StringConstraint{
+						Contains: "somedir",
+					},
+				},
+			},
+		}
+		qt.wantRes(sq, dirRef)
+	})
+}
+
+// find permanode with a dir that contains a certain file
+func TestQueryDirWithFileConstraint(t *testing.T) {
+	testQuery(t, func(qt *queryTest) {
+		id := qt.id
+		fileRef1, _ := id.UploadFile("some-stuff.txt", "hello", time.Unix(123, 0))
+		qt.t.Logf("fileRef1 = %q", fileRef1)
+		fileRef2, _ := id.UploadFile("more-stuff.txt", "world", time.Unix(456, 0))
+		qt.t.Logf("fileRef2 = %q", fileRef2)
+		dirRef := id.UploadDir("somedir", []blob.Ref{fileRef1, fileRef2}, time.Unix(789, 0))
+		qt.t.Logf("dirRef = %q", dirRef)
+		p1 := id.NewPlannedPermanode("1")
+		id.SetAttribute(p1, "camliContent", dirRef.String())
+
+		fileRef3, _ := id.UploadFile("other-file", "hellooooo", time.Unix(101112, 0))
+		qt.t.Logf("fileRef3 = %q", fileRef3)
+		p2 := id.NewPlannedPermanode("2")
+		id.SetAttribute(p2, "camliContent", fileRef3.String())
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Permanode: &PermanodeConstraint{
+					Attr: "camliContent",
+					ValueInSet: &Constraint{
+						Dir: &DirConstraint{
+							Contains: &Constraint{File: &FileConstraint{
+								FileName: &StringConstraint{
+									Contains: "some-stuff.txt",
+								},
+							}},
+						},
+					},
+				},
+			},
+		}
+		qt.wantRes(sq, p1)
+	})
+}
+
+// find permanode with a dir that contains a certain file or dir
+func TestQueryDirWithFileOrDirConstraint(t *testing.T) {
+	testQuery(t, func(qt *queryTest) {
+		id := qt.id
+		fileRef1, _ := id.UploadFile("some-stuff.txt", "hello", time.Unix(123, 0))
+		qt.t.Logf("fileRef1 = %q", fileRef1)
+		childDirRef := id.UploadDir("childdir", []blob.Ref{}, time.Unix(457, 0))
+		qt.t.Logf("childDirRef = %q", childDirRef)
+		dirRef := id.UploadDir("somedir", []blob.Ref{fileRef1, childDirRef}, time.Unix(789, 0))
+		qt.t.Logf("dirRef = %q", dirRef)
+		p1 := id.NewPlannedPermanode("1")
+		id.SetAttribute(p1, "camliContent", dirRef.String())
+
+		fileRef3, _ := id.UploadFile("other-file", "hellooooo", time.Unix(101112, 0))
+		qt.t.Logf("fileRef3 = %q", fileRef3)
+		p2 := id.NewPlannedPermanode("2")
+		id.SetAttribute(p2, "camliContent", fileRef3.String())
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Permanode: &PermanodeConstraint{
+					Attr: "camliContent",
+					ValueInSet: &Constraint{
+						Dir: &DirConstraint{
+							Contains: &Constraint{Logical: &LogicalConstraint{
+								A: &Constraint{File: &FileConstraint{
+									FileName: &StringConstraint{
+										Equals: "foobar",
+									},
+								}},
+								B: &Constraint{Dir: &DirConstraint{
+									FileName: &StringConstraint{
+										Equals: "childdir",
+									},
+								}},
+								Op: "or",
+							}},
+						},
+					},
+				},
+			},
+		}
+		qt.wantRes(sq, p1)
+	})
+}
+
+// find children of a directory, by name.
+// in practice, one can also get the children with the proper describe rules,
+// but doing so has some limitations that a direct search query has not.
+func TestQueryDirChildrenByNameConstraint(t *testing.T) {
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+		fileRef1, _ := id.UploadFile("some-stuff.txt", "hello", time.Unix(123, 0))
+		qt.t.Logf("fileRef1 = %q", fileRef1)
+		fileRef2, _ := id.UploadFile("more-stuff.txt", "world", time.Unix(456, 0))
+		qt.t.Logf("fileRef2 = %q", fileRef2)
+		childDirRef := id.UploadDir("childdir", []blob.Ref{}, time.Unix(457, 0))
+		qt.t.Logf("childDirRef = %q", childDirRef)
+		dirRef := id.UploadDir("somedir", []blob.Ref{fileRef1, fileRef2, childDirRef}, time.Unix(789, 0))
+		qt.t.Logf("dirRef = %q", dirRef)
+		p1 := id.NewPlannedPermanode("1")
+		id.SetAttribute(p1, "camliContent", dirRef.String())
+
+		fileRef3, _ := id.UploadFile("other-file", "hellooooo", time.Unix(101112, 0))
+		qt.t.Logf("fileRef3 = %q", fileRef3)
+		p2 := id.NewPlannedPermanode("2")
+		id.SetAttribute(p2, "camliContent", fileRef3.String())
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Logical: &LogicalConstraint{
+					A: &Constraint{File: &FileConstraint{
+						ParentDir: &DirConstraint{
+							FileName: &StringConstraint{
+								Equals: "somedir",
+							},
+						},
+					}},
+					B: &Constraint{Dir: &DirConstraint{
+						ParentDir: &DirConstraint{
+							FileName: &StringConstraint{
+								Equals: "somedir",
+							},
+						},
+					}},
+					Op: "or",
+				},
+			},
+		}
+		qt.wantRes(sq, fileRef1, fileRef2, childDirRef)
+	})
+}
+
+// find children of a directory, by blobref.
+func TestQueryDirChildrenByRefConstraint(t *testing.T) {
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+		fileRef1, _ := id.UploadFile("some-stuff.txt", "hello", time.Unix(123, 0))
+		qt.t.Logf("fileRef1 = %q", fileRef1)
+		fileRef2, _ := id.UploadFile("more-stuff.txt", "world", time.Unix(456, 0))
+		qt.t.Logf("fileRef2 = %q", fileRef2)
+		childDirRef := id.UploadDir("childdir", []blob.Ref{}, time.Unix(457, 0))
+		qt.t.Logf("childDirRef = %q", childDirRef)
+		dirRef := id.UploadDir("somedir", []blob.Ref{fileRef1, fileRef2, childDirRef}, time.Unix(789, 0))
+		qt.t.Logf("dirRef = %q", dirRef)
+		p1 := id.NewPlannedPermanode("1")
+		id.SetAttribute(p1, "camliContent", dirRef.String())
+
+		fileRef3, _ := id.UploadFile("other-file", "hellooooo", time.Unix(101112, 0))
+		qt.t.Logf("fileRef3 = %q", fileRef3)
+		p2 := id.NewPlannedPermanode("2")
+		id.SetAttribute(p2, "camliContent", fileRef3.String())
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Logical: &LogicalConstraint{
+					A: &Constraint{File: &FileConstraint{
+						ParentDir: &DirConstraint{
+							BlobRefPrefix: dirRef.String(),
+						},
+					}},
+					B: &Constraint{Dir: &DirConstraint{
+						ParentDir: &DirConstraint{
+							BlobRefPrefix: dirRef.String(),
+						},
+					}},
+					Op: "or",
+				},
+			},
+		}
+		qt.wantRes(sq, fileRef1, fileRef2, childDirRef)
+	})
+}
+
+// find out if a file is amongst a dir's progeny (grand-children)
+func TestQueryDirProgeny(t *testing.T) {
+	testQuery(t, func(qt *queryTest) {
+		id := qt.id
+		grandchild1, _ := id.UploadFile("grandchild1.txt", "hello", time.Unix(123, 0))
+		qt.t.Logf("grandchild1 = %q", grandchild1)
+		grandchild2, _ := id.UploadFile("grandchild2.txt", "world", time.Unix(456, 0))
+		qt.t.Logf("grandchild2 = %q", grandchild2)
+		parentdir := id.UploadDir("parentdir", []blob.Ref{grandchild1, grandchild2}, time.Unix(789, 0))
+		qt.t.Logf("parentdir = %q", parentdir)
+		grandparentdir := id.UploadDir("grandparentdir", []blob.Ref{parentdir}, time.Unix(101112, 0))
+		qt.t.Logf("grandparentdir = %q", grandparentdir)
+		p1 := id.NewPlannedPermanode("1")
+		id.SetAttribute(p1, "camliContent", grandparentdir.String())
+
+		p3 := id.NewPlannedPermanode("3")
+		id.SetAttribute(p3, "camliContent", parentdir.String())
+
+		// adding an unrelated directory, to make sure we do _not_ find it as well
+		fileRef3, _ := id.UploadFile("other-file", "hellooooo", time.Unix(131415, 0))
+		qt.t.Logf("fileRef3 = %q", fileRef3)
+		otherdir := id.UploadDir("otherdir", []blob.Ref{fileRef3}, time.Unix(161718, 0))
+		qt.t.Logf("otherdir = %q", otherdir)
+		p2 := id.NewPlannedPermanode("2")
+		id.SetAttribute(p2, "camliContent", otherdir.String())
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Permanode: &PermanodeConstraint{
+					Attr: "camliContent",
+					ValueInSet: &Constraint{
+						Dir: &DirConstraint{
+							RecursiveContains: &Constraint{File: &FileConstraint{
+								FileName: &StringConstraint{
+									Contains: "grandchild1.txt",
+								},
+							}},
+						},
+					},
+				},
+			},
+		}
+		qt.wantRes(sq, p1, p3)
+
+		// make sure that "Contains" only finds the direct parent, and not the grand-parent as well.
+		// also this time, skip the permanode layer.
+		sq = &SearchQuery{
+			Constraint: &Constraint{
+				Dir: &DirConstraint{
+					Contains: &Constraint{
+						BlobRefPrefix: grandchild1.String(),
+					},
+				},
+			},
+		}
+		qt.wantRes(sq, parentdir)
+	})
+}
+
 func TestQueryFileConstraint_WholeRef(t *testing.T) {
 	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
 		id := qt.id
