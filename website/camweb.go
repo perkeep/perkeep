@@ -56,6 +56,7 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2/google"
+	cloudresourcemanager "google.golang.org/api/cloudresourcemanager/v1"
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/option"
 	storageapi "google.golang.org/api/storage/v1"
@@ -580,6 +581,7 @@ var launchConfig = &cloudlaunch.Config{
 		compute.ComputeScope,
 		logging.WriteScope,
 		datastore.ScopeDatastore,
+		cloudresourcemanager.CloudPlatformScope,
 	},
 }
 
