@@ -30,8 +30,9 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/constants"
-	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/schema"
+
+	"go4.org/readerutil"
 	"go4.org/types"
 )
 
@@ -192,7 +193,7 @@ func (c *Client) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, erro
 	if c.sto != nil {
 		return blobserver.Receive(c.sto, br, source)
 	}
-	size, ok := readerutil.ReaderSize(source)
+	size, ok := readerutil.Size(source)
 	if !ok {
 		size = 0
 	}

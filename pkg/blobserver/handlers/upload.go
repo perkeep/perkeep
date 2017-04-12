@@ -33,8 +33,9 @@ import (
 	"camlistore.org/pkg/blobserver/protocol"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/jsonsign/signhandler"
-	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/schema"
+
+	"go4.org/readerutil"
 )
 
 // CreateBatchUploadHandler returns the handler that receives multi-part form uploads

@@ -1,5 +1,5 @@
 /*
-Copyright 2012 The Camlistore Authors.
+Copyright 2012 The Go4 Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ type testSrc struct {
 }
 
 func (tsrc *testSrc) run(t *testing.T) {
-	n, ok := ReaderSize(tsrc.src)
+	n, ok := Size(tsrc.src)
 	if !ok {
 		t.Fatalf("failed to read size for %q", tsrc.name)
 	}

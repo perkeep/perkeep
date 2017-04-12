@@ -1,5 +1,5 @@
 /*
-Copyright 2012 The Camlistore Authors.
+Copyright 2012 The Go4 Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,17 +15,25 @@ limitations under the License.
 */
 
 // Package readerutil provides and operates on io.Readers.
-package readerutil // import "camlistore.org/pkg/readerutil"
+package readerutil // import "go4.org/readerutil"
 
 import (
 	"bytes"
 	"io"
 	"os"
+	"strings"
 )
 
-// ReaderSize tries to determine the length of r.
-func ReaderSize(r io.Reader) (size int64, ok bool) {
+// Size tries to determine the length of r. If r is an io.Seeker, Size may seek
+// to guess the length.
+func Size(r io.Reader) (size int64, ok bool) {
 	switch rt := r.(type) {
+	case *bytes.Buffer:
+		return int64(rt.Len()), true
+	case *bytes.Reader:
+		return int64(rt.Len()), true
+	case *strings.Reader:
+		return int64(rt.Len()), true
 	case io.Seeker:
 		pos, err := rt.Seek(0, os.SEEK_CUR)
 		if err != nil {
@@ -45,8 +53,6 @@ func ReaderSize(r io.Reader) (size int64, ok bool) {
 			panic(msg)
 		}
 		return size, true
-	case *bytes.Buffer:
-		return int64(rt.Len()), true
 	}
-	return
+	return 0, false
 }

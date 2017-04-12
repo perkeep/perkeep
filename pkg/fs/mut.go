@@ -31,12 +31,12 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/readerutil"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
+	"go4.org/readerutil"
 	"go4.org/syncutil"
 	"golang.org/x/net/context"
 )
