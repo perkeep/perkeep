@@ -14,6 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// The scanning cabinet program is a server application to store scanned
+// documents in Camlistore, and to manage them. It is a port of the
+// application originally created by Brad Fitzpatrick:
+// https://github.com/bradfitz/scanningcabinet.
+//
+// The data schema is roughly as follows:
+//
+// A scan is a permanode, with the node type: "scanningcabinet:scan". A scan's
+// camliContent attribute is set to the actual image file. A scan also holds the
+// "dateCreated" attribute, as well as the "document" attribute, which references
+// the document this scan is a part of (if any).
+//
+// A document is a permanode, with the node type: "scanningcabinet:doc".
+// A document page, is modeled by the "camliPath:sha1-xxx" = "pageNumber" relation,
+// where sha1-xxx is the blobRef of a scan. A document can also hold the following
+// attributes: "dateCreated", "tag", "locationText", "title", "startDate", and
+// "paymentDueDate".
 package main
 
 import (
