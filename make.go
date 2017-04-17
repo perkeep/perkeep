@@ -190,7 +190,7 @@ func main() {
 		if *website {
 			log.Fatal("-targets and -website are mutually exclusive")
 		}
-		if *website {
+		if *camnetdns {
 			log.Fatal("-targets and -camnetdns are mutually exclusive")
 		}
 		if t := strings.Split(*targets, ","); len(t) != 0 {
