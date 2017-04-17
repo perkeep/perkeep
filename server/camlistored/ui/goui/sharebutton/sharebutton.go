@@ -15,16 +15,19 @@ limitations under the License.
 */
 
 // Package sharebutton provides a Button element that is used in the sidebar of
-// the web UI, to share the selected item with a share claim. On success, the
-// URL that can be used to share the item is displayed in a dialog. If the item is
-// a file, the URL can be used directly to fetch the file. If the item is a
-// directory, the URL should be used with camget -shared.
+// the web UI, to share the selected items with a share claim. On success, the
+// URL that can be used to share the items is displayed in a dialog. If the one
+// item is a file, the URL can be used directly to fetch the file. If the one item
+// is a directory, the URL should be used with camget -shared. If several (file or
+// directory) items are selected, a new directory blob containing these items is
+// created, and is the item getting shared instead.
 package sharebutton
 
 import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blob"
@@ -54,12 +57,6 @@ func New(key string, config map[string]string, getSelection func() []SharedItem,
 	showSharedURL func(string, string)) react.Element {
 	if getSelection == nil {
 		fmt.Println("Nil getSelection for ShareItemsBtn")
-		return nil
-	}
-	// Quick prerun of getSelection, so we "cancel" the sharing button
-	// immediately if there's more than one element selected (for now).
-	selection := getSelection()
-	if len(selection) > 1 {
 		return nil
 	}
 	if config == nil {
@@ -185,39 +182,76 @@ func (d *ShareItemsBtnDef) shareSelection() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("Error setting up auth for share request: %v", err)
 	}
-	var fileRef blob.Ref
+	var fileRef []blob.Ref
 	isDir := false
-	// TODO(mpl): If several files are selected, make a static-set out of
-	// them, and share them as a dir?
 	for _, item := range selection {
 		br, ok := item["blobRef"]
 		if !ok {
 			return "", fmt.Errorf("cannot share item, it's missing a blobRef")
 		}
-		fileRef, ok = blob.Parse(br)
+		fbr, ok := blob.Parse(br)
 		if !ok {
 			return "", fmt.Errorf("cannot share %q, not a valid blobRef", br)
 		}
+		fileRef = append(fileRef, fbr)
 		isDir, err = strconv.ParseBool(item["isDir"])
 		if err != nil {
 			return "", fmt.Errorf("invalid boolean value %q for isDir: %v", item["isDir"], err)
 		}
-		break
 	}
-	return shareFile(am, fileRef, isDir)
+	if len(fileRef) == 1 {
+		return shareFile(am, fileRef[0], isDir)
+	}
+	newDirbr, err := mkdir(am, fileRef)
+	if err != nil {
+		return "", fmt.Errorf("failed creating new directory for selected items: %v", err)
+	}
+	// TODO(mpl): should we bother deleting the dir and static set if
+	// there's any failure from this point on? I think that as long as there's
+	// no share claim referencing them, they're supposed to be GCed eventually,
+	// aren't they? in which case, no need to worry about it.
+	return shareFile(am, newDirbr, true)
 }
 
-// shareFile returns the URL that can be used to share the target item. If the
-// item is a file, the URL can be used directly to fetch the file. If the item is a
-// directory, the URL should be used with camget -shared.
-func shareFile(am auth.AuthMode, target blob.Ref, isDir bool) (string, error) {
+func newClient(am auth.AuthMode) *client.Client {
 	cl := client.NewFromParams("", am, client.OptionSameOrigin(true))
 	// Here we force the use of the http.DefaultClient. Otherwise, we'll hit
 	// one of the net.Dial* calls due to custom transport we set up by default
 	// in pkg/client. Which we don't want because system calls are prohibited by
 	// gopherjs.
 	cl.SetHTTPClient(nil)
+	return cl
+}
 
+// mkdir creates a new directory blob, with children composing its static-set,
+// and uploads it. It returns the blobRef of the new directory.
+func mkdir(am auth.AuthMode, children []blob.Ref) (blob.Ref, error) {
+	cl := newClient(am)
+	var newdir blob.Ref
+	var ss schema.StaticSet
+	for _, br := range children {
+		ss.Add(br)
+	}
+	ssb := ss.Blob()
+	if _, err := cl.UploadBlob(ssb); err != nil {
+		return newdir, err
+	}
+	const fileNameLayout = "20060102150405"
+	fileName := "shared-" + time.Now().Format(fileNameLayout)
+	dir := schema.NewDirMap(fileName).PopulateDirectoryMap(ssb.BlobRef())
+	dirBlob := dir.Blob()
+	if _, err := cl.UploadBlob(dirBlob); err != nil {
+		return newdir, err
+	}
+
+	return dirBlob.BlobRef(), nil
+}
+
+// shareFile returns the URL that can be used to share the target item. If the
+// item is a file, the URL can be used directly to fetch the file. If the item is a
+// directory, the URL should be used with camget -shared.
+func shareFile(am auth.AuthMode, target blob.Ref, isDir bool) (string, error) {
+	cl := newClient(am)
 	claim, err := newShareClaim(cl, target)
 	if err != nil {
 		return "", err
