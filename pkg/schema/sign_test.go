@@ -17,8 +17,10 @@ limitations under the License.
 package schema
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/jsonsign"
@@ -47,5 +49,42 @@ func TestSigner(t *testing.T) {
 	}
 	if !strings.Contains(pn, `,"camliSig":"`) {
 		t.Errorf("Permanode doesn't look signed: %v", pn)
+	}
+}
+
+// TestClaimDate makes sure that when we sign a schema, we set the claimDate to
+// the time of the signature.
+// It demonstrates that issue #917 is fixed.
+func TestClaimDate(t *testing.T) {
+	ent, err := jsonsign.NewEntity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	armorPub, err := jsonsign.ArmoredPublicKey(ent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pubRef := blob.SHA1FromString(armorPub)
+	sig, err := NewSigner(pubRef, strings.NewReader(armorPub), ent)
+	if err != nil {
+		t.Fatalf("NewSigner: %v", err)
+	}
+
+	sigTime, err := time.Parse(time.RFC3339, "2006-01-02T15:04:05Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	share := NewShareRef(ShareHaveRef, true).SetShareTarget(pubRef)
+	signed, err := share.SignAt(sig, sigTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ss := &superset{}
+	if err := json.NewDecoder(strings.NewReader(signed)).Decode(ss); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(ss.ClaimDate.String(), "2006-01-02") {
+		t.Fatalf("wrong claimDate in superset: got %q, wanted %q", ss.ClaimDate, sigTime)
 	}
 }
