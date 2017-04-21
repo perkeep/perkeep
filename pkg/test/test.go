@@ -22,7 +22,12 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
+
+// ClockOrigin is an arbitrary contemporary date that can be used as a starting
+// time in tests. It is 2011-11-28 01:32:36.000123456 +0000 UTC.
+var ClockOrigin = time.Unix(1322443956, 123456)
 
 // BrokenTest marks the test as broken and calls t.Skip, unless the environment
 // variable RUN_BROKEN_TESTS is set to 1 (or some other boolean true value).

@@ -17,16 +17,18 @@ import (
 // A LocationHelper is not safe for concurrent use.
 // Callers should use Lock or RLock on the underlying index instead.
 type LocationHelper struct {
-	// TODO(attila): replace the index Interface and corpus *Corpus
-	// with an *index.Index once FakeIndex is gone.
-	index  Interface
+	index  *Index
 	corpus *Corpus // may be nil
 }
 
 // NewLocationHelper returns a new location handler
 // that uses ix to query blob attributes.
-func NewLocationHelper(ix Interface) *LocationHelper {
-	return &LocationHelper{index: ix}
+func NewLocationHelper(ix *Index) *LocationHelper {
+	lh := &LocationHelper{index: ix}
+	if ix.corpus != nil {
+		lh.corpus = ix.corpus
+	}
+	return lh
 }
 
 // SetCorpus sets the corpus to be used

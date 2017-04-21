@@ -21,11 +21,8 @@ import (
 	"reflect"
 	"testing"
 
-	"camlistore.org/pkg/index"
 	. "camlistore.org/pkg/test"
 )
-
-var _ index.Interface = (*FakeIndex)(nil)
 
 type tbLogger struct {
 	testing.TB
