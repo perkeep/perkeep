@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/big"
 	"net/http"
 	"path"
 	"path/filepath"
@@ -39,8 +40,10 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	cloudresourcemanager "google.golang.org/api/cloudresourcemanager/v1"
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/googleapi"
+	servicemanagement "google.golang.org/api/servicemanagement/v1"
 	storage "google.golang.org/api/storage/v1"
 )
 
@@ -83,6 +86,8 @@ func NewOAuthConfig(clientID, clientSecret string) *oauth2.Config {
 			logging.WriteScope,
 			compute.DevstorageFullControlScope,
 			compute.ComputeScope,
+			cloudresourcemanager.CloudPlatformScope,
+			servicemanagement.CloudPlatformScope,
 			"https://www.googleapis.com/auth/sqlservice",
 			"https://www.googleapis.com/auth/sqlservice.admin",
 		},
@@ -94,11 +99,12 @@ func NewOAuthConfig(clientID, clientSecret string) *oauth2.Config {
 
 // InstanceConf is the configuration for the Google Compute Engine instance that will be deployed.
 type InstanceConf struct {
-	Name     string // Name given to the virtual machine instance.
-	Project  string // Google project ID where the instance is created.
-	Machine  string // Machine type.
-	Zone     string // GCE zone; see https://cloud.google.com/compute/docs/zones
-	Hostname string // Fully qualified domain name.
+	Name          string // Name given to the virtual machine instance.
+	Project       string // Google project ID where the instance is created.
+	CreateProject bool   // CreateProject defines whether to first create project.
+	Machine       string // Machine type.
+	Zone          string // GCE zone; see https://cloud.google.com/compute/docs/zones
+	Hostname      string // Fully qualified domain name.
 
 	configDir string // bucketBase() + "/config"
 	blobDir   string // bucketBase() + "/blobs"
@@ -224,6 +230,197 @@ func (e projectIDError) Error() string {
 	return fmt.Sprintf("project ID error for %v", e.id)
 }
 
+// CreateProject creates a new Google Cloud Project. It returns the project ID,
+// which is a random number in (0,1e10), prefixed with "camlistore-launcher-".
+func (d *Deployer) CreateProject(ctx context.Context) (string, error) {
+	s, err := cloudresourcemanager.New(d.Client)
+	if err != nil {
+		return "", err
+	}
+	// Allow for a few retries, when we generated an already taken project ID
+	creationTimeout := time.Now().Add(time.Minute)
+	var projectID, projectName string
+	for {
+		if d.Conf.Project != "" {
+			projectID = d.Conf.Project
+			projectName = projectID
+		} else {
+			projectID = genRandomProjectID()
+			projectName = strings.Replace(projectID, "camlistore-launcher", "Camlistore ", 1)
+		}
+		project := cloudresourcemanager.Project{
+			Name:      projectName,
+			ProjectId: projectID,
+		}
+		if time.Now().After(creationTimeout) {
+			return "", errors.New("timeout while trying to create project")
+		}
+		d.Printf("Trying to create project %v", projectID)
+		op, err := cloudresourcemanager.NewProjectsService(s).Create(&project).Do()
+		if err != nil {
+			gerr, ok := err.(*googleapi.Error)
+			if !ok {
+				return "", fmt.Errorf("could not create project: %v", err)
+			}
+			if gerr.Code != 409 {
+				return "", fmt.Errorf("could not create project: %v", gerr.Message)
+			}
+			// it's ok using time.Sleep, and no backoff, as the
+			// timeout is pretty short, and we only retry on a 409.
+			time.Sleep(time.Second)
+			// retry if project ID already exists.
+			d.Printf("Project %v already exists, will retry with a new project ID", project.ProjectId)
+			continue
+		}
+
+		// as per
+		// https://cloud.google.com/resource-manager/reference/rest/v1/projects/create
+		// recommendation
+		timeout := time.Now().Add(30 * time.Second)
+		backoff := time.Second
+		startPolling := 5 * time.Second
+		time.Sleep(startPolling)
+		for {
+			if time.Now().After(timeout) {
+				return "", fmt.Errorf("timeout while trying to check project creation")
+			}
+			if !op.Done {
+				// it's ok to just sleep, as our timeout is pretty short.
+				time.Sleep(backoff)
+				backoff *= 2
+				op, err = cloudresourcemanager.NewOperationsService(s).Get(op.Name).Do()
+				if err != nil {
+					return "", fmt.Errorf("could not check project creation status: %v", err)
+				}
+				continue
+			}
+			if op.Error != nil {
+				// TODO(mpl): ghetto logging for now. detect at least the quota errors.
+				var details string
+				for _, v := range op.Error.Details {
+					details += string(v)
+				}
+				return "", fmt.Errorf("could not create project: %v, %v", op.Error.Message, details)
+			}
+			break
+		}
+		break
+	}
+	d.Printf("Success creating project %v", projectID)
+	return projectID, nil
+}
+
+func genRandomProjectID() string {
+	// we're allowed up to 30 characters, and we already consume 20 with
+	// "camlistore-launcher-", so we've got 10 chars left of randomness. Should
+	// be plenty enough I think.
+	var n *big.Int
+	var err error
+	zero := big.NewInt(0)
+	for {
+		n, err = rand.Int(rand.Reader, big.NewInt(1e10)) // max is 1e10 - 1
+		if err != nil {
+			panic(fmt.Sprintf("rand.Int error: %v", err))
+		}
+		if n.Cmp(zero) > 0 {
+			break
+		}
+	}
+	return fmt.Sprintf("camlistore-launcher-%d", n)
+}
+
+func (d *Deployer) enableAPIs() error {
+	// TODO(mpl): For now we're lucky enough that servicemanagement seems to
+	// work even when the Service Management API hasn't been enabled for the
+	// project. If/when it does not anymore, then we should use serviceuser
+	// instead. http://stackoverflow.com/a/43503392/1775619
+	s, err := servicemanagement.New(d.Client)
+	if err != nil {
+		return err
+	}
+
+	list, err := servicemanagement.NewServicesService(s).List().ConsumerId("project:" + d.Conf.Project).Do()
+	if err != nil {
+		return err
+	}
+
+	requiredServices := map[string]string{
+		"storage-component.googleapis.com": "Google Cloud Storage",
+		"storage-api.googleapis.com":       "Google Cloud Storage JSON",
+		"logging.googleapis.com":           "Stackdriver Logging",
+		"compute-component.googleapis.com": "Google Compute Engine",
+	}
+	enabledServices := make(map[string]bool)
+	for _, v := range list.Services {
+		enabledServices[v.ServiceName] = true
+	}
+	errc := make(chan error, len(requiredServices))
+	var wg sync.WaitGroup
+	for k, v := range requiredServices {
+		if _, ok := enabledServices[k]; ok {
+			continue
+		}
+		d.Printf("%v API not enabled; enabling it with Service Management", v)
+		op, err := servicemanagement.NewServicesService(s).
+			Enable(k, &servicemanagement.EnableServiceRequest{ConsumerId: "project:" + d.Conf.Project}).Do()
+		if err != nil {
+			gerr, ok := err.(*googleapi.Error)
+			if !ok {
+				return err
+			}
+			if gerr.Code != 400 {
+				return err
+			}
+			for _, v := range gerr.Errors {
+				if v.Reason == "failedPrecondition" && strings.Contains(v.Message, "billing-enabled") {
+					return fmt.Errorf("you need to enabling billing for project %v: https://console.cloud.google.com/billing/?project=%v", d.Conf.Project, d.Conf.Project)
+				}
+			}
+			return err
+		}
+
+		wg.Add(1)
+		go func(service, opName string) {
+			defer wg.Done()
+			timeout := time.Now().Add(2 * time.Minute)
+			backoff := time.Second
+			startPolling := 5 * time.Second
+			time.Sleep(startPolling)
+			for {
+				if time.Now().After(timeout) {
+					errc <- fmt.Errorf("timeout while trying to enable service: %v", service)
+					return
+				}
+				op, err := servicemanagement.NewOperationsService(s).Get(opName).Do()
+				if err != nil {
+					errc <- fmt.Errorf("could not check service enabling status: %v", err)
+					return
+				}
+				if !op.Done {
+					// it's ok to just sleep, as our timeout is pretty short.
+					time.Sleep(backoff)
+					backoff *= 2
+					continue
+				}
+				if op.Error != nil {
+					errc <- fmt.Errorf("could not enable service %v: %v", service, op.Error.Message)
+					return
+				}
+				d.Printf("%v service successfully enabled", service)
+				return
+			}
+		}(k, op.Name)
+	}
+	wg.Wait()
+	close(errc)
+	for err := range errc {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (d *Deployer) checkProjectID() error {
 	// TODO(mpl): cache the computeService in Deployer, instead of recreating a new one everytime?
 	s, err := compute.New(d.Client)
@@ -243,7 +440,7 @@ func (d *Deployer) checkProjectID() error {
 	if project.Name != d.Conf.Project {
 		return projectIDError{
 			id:    d.Conf.Project,
-			cause: fmt.Errorf("project ID do not match: got %q, wanted %q", project.Name, d.Conf.Project),
+			cause: fmt.Errorf("project IDs do not match: got %q, wanted %q", project.Name, d.Conf.Project),
 		}
 	}
 	return nil
@@ -274,6 +471,12 @@ func (d *Deployer) getInstanceAttribute(attr string) (string, error) {
 // Create sets up and starts a Google Compute Engine instance as defined in d.Conf. It
 // creates the necessary Google Storage buckets beforehand.
 func (d *Deployer) Create(ctx context.Context) (*compute.Instance, error) {
+	if err := d.enableAPIs(); err != nil {
+		return nil, projectIDError{
+			id:    d.Conf.Project,
+			cause: err,
+		}
+	}
 	if err := d.checkProjectID(); err != nil {
 		return nil, err
 	}

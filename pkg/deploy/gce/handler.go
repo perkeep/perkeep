@@ -32,6 +32,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -341,6 +342,9 @@ func (h *DeployHandler) zoneValues() []string {
 	return h.regions
 }
 
+// if there's project as a query parameter, it means we've just created a
+// project for them and we're redirecting them to the form, but with the projectID
+// field pre-filled for them this time.
 func (h *DeployHandler) serveRoot(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		h.serveSetup(w, r)
@@ -354,9 +358,11 @@ func (h *DeployHandler) serveRoot(w http.ResponseWriter, r *http.Request) {
 	if r.FormValue("WIP") == "1" {
 		camliRev = "WORKINPROGRESS"
 	}
+
 	h.tplMu.RLock()
 	defer h.tplMu.RUnlock()
 	if err := h.tpl.ExecuteTemplate(w, "withform", &TemplateData{
+		ProjectID:     r.FormValue("project"),
 		Prefix:        h.prefix,
 		Help:          h.help,
 		ZoneValues:    h.zoneValues(),
@@ -444,6 +450,23 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 		Logger: h.logger,
 	}
 
+	// They've requested that we create a project for them.
+	if instConf.CreateProject {
+		// So we try to do so.
+		projectID, err := depl.CreateProject(context.TODO())
+		if err != nil {
+			// TODO(mpl): we log the errors, but none of them are
+			// visible to the user (they just get a 500). I should
+			// probably at least detect and report them the project
+			// creation quota errors.
+			h.serveError(w, r, err)
+			return
+		}
+		// And serve the form again if we succeeded.
+		http.Redirect(w, r, fmt.Sprintf("%s/?project=%s", h.prefix, projectID), http.StatusFound)
+		return
+	}
+
 	if found := h.serveOldInstance(w, br, depl); found {
 		return
 	}
@@ -482,6 +505,9 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 			h.recordStateErrMu.Lock()
 			defer h.recordStateErrMu.Unlock()
 			h.recordStateErr[br.String()] = err
+			return
+		}
+		if state.Err != "" {
 			return
 		}
 		if instConf.Hostname != "" {
@@ -686,9 +712,18 @@ func formValueOrDefault(r *http.Request, formField, defValue string) string {
 }
 
 func (h *DeployHandler) confFromForm(r *http.Request) (*InstanceConf, error) {
-	project := r.FormValue("project")
-	if project == "" {
-		return nil, errors.New("missing project parameter")
+	newProject, err := strconv.ParseBool(r.FormValue("newproject"))
+	if err != nil {
+		return nil, fmt.Errorf("could not convert \"newproject\" value to bool: %v", err)
+	}
+	var projectID string
+	if newProject {
+		projectID = r.FormValue("newprojectid")
+	} else {
+		projectID = r.FormValue("projectid")
+		if projectID == "" {
+			return nil, errors.New("missing project ID parameter")
+		}
 	}
 	var zone string
 	zoneReg := formValueOrDefault(r, "zone", DefaultRegion)
@@ -701,13 +736,14 @@ func (h *DeployHandler) confFromForm(r *http.Request) (*InstanceConf, error) {
 		return nil, errors.New("invalid zone or region")
 	}
 	return &InstanceConf{
-		Name:     formValueOrDefault(r, "name", DefaultInstanceName),
-		Project:  project,
-		Machine:  formValueOrDefault(r, "machine", DefaultMachineType),
-		Zone:     zone,
-		Hostname: formValueOrDefault(r, "hostname", ""),
-		Ctime:    time.Now(),
-		WIP:      r.FormValue("WIP") == "1",
+		CreateProject: newProject,
+		Name:          formValueOrDefault(r, "name", DefaultInstanceName),
+		Project:       projectID,
+		Machine:       formValueOrDefault(r, "machine", DefaultMachineType),
+		Zone:          zone,
+		Hostname:      formValueOrDefault(r, "hostname", ""),
+		Ctime:         time.Now(),
+		WIP:           r.FormValue("WIP") == "1",
 	}, nil
 }
 
@@ -888,6 +924,7 @@ type TemplateData struct {
 	InstanceIP        string        `json:",omitempty"` // instance IP address that we display after successful creation.
 	InstanceHostname  string        `json:",omitempty"`
 	ProjectConsoleURL string
+	ProjectID         string // set by us when we've just created a project on the behalf of the user
 	ZoneValues        []string
 	MachineValues     []string
 	CamliVersion      string // git revision found in https://storage.googleapis.com/camlistore-release/docker/VERSION
@@ -1043,6 +1080,50 @@ or corrupted.</p>
 <html>
 {{template "header" .}}
 <body>
+	<!-- TODO(mpl): bundle jquery -->
+	<script type="text/javascript" src="https://code.jquery.com/jquery-3.2.1.min.js" ></script>
+	<!-- Change the text of the submit button, the billing URL, and the "disabled" of the input fiels, depending on whether we create a new project or use a selected one. -->
+	<script type="text/javascript">
+		$(document).ready(function(){
+			var setBillingURL = function() {
+				var projectID = $('#project_id').val();
+				if (projectID != "") {
+					$('#billing_url').attr("href", "https://console.cloud.google.com/billing/?project="+projectID);
+				} else {
+					$('#billing_url').attr("href", "https://console.cloud.google.com/billing/");
+				}
+			};
+			setBillingURL();
+			var toggleFormAction = function(newProject) {
+				if (newProject == "true") {
+					$('#zone').prop("disabled", true);
+					$('#machine').prop("disabled", true);
+					$('#submit_btn').val("Create project");
+					return
+				}
+				$('#zone').prop("disabled", false);
+				$('#machine').prop("disabled", false);
+				$('#submit_btn').val("Create instance");
+			};
+			$("#new_project_id").focus(function(){
+				$('#newproject_yes').prop("checked", true);
+				toggleFormAction("true");
+			});
+			$("#project_id").focus(function(){
+				$('#newproject_no').prop("checked", true);
+				toggleFormAction("false");
+			});
+			$("#project_id").bind('input', function(e){
+				setBillingURL();
+			});
+			$("#newproject_yes").change(function(e){
+				toggleFormAction("true");
+			});
+			$("#newproject_no").change(function(e){
+				toggleFormAction("false");
+			});
+		})
+	</script>
 	{{if .InstanceKey}}
 		<div style="z-index:0; -webkit-filter: blur(5px);">
 	{{end}}
@@ -1073,36 +1154,49 @@ and visit both the "Compute Engine" and "Storage" sections for your project.
 	{{end}}
 
 		<table border=0 cellpadding=3 style='margin-top: 2em'>
-			<tr valign=top><td align=right><nobr>Google Project ID:</nobr></td><td margin=left><input name="project" size=30 value=""><br>
-		<ul style="padding-left:0;margin-left:0;font-size:75%">
-			<li>Select a <a href="https://console.developers.google.com/project">Google Project</a> in which to create the VM. If it doesn't already exist, <a href="https://console.developers.google.com/project">create it</a> first before using this Camlistore creation tool.</li>
-			<li>Requirements:</li>
-			<ul>
-				<li>Enable billing. (Billing & settings)</li>
-				<li>APIs and auth &gt APIs &gt Google Cloud Storage</li>
-				<li>APIs and auth &gt APIs &gt Google Cloud Storage JSON API</li>
-				<li>APIs and auth &gt APIs &gt Google Compute Engine</li>
-				<li>APIs and auth &gt APIs &gt Google Cloud Logging API</li>
-			</ul>
-		</ul>
+			<tr valign=top><td align=right><nobr>Google Project ID:</nobr></td><td margin=left style='width:1%;white-space:nowrap;'>
+				{{if .ProjectID}}
+					<input id='newproject_yes' type="radio" name="newproject" value="true"> <label for="newproject_yes">Create a new project: </label></td><td align=left><input id='new_project_id' name="newprojectid" size=30 placeholder="Leave blank for auto-generated"></td></tr><tr valign=top><td></td><td>
+					<input id='newproject_no' type="radio" name="newproject" value="false" checked='checked'> <a href="https://console.cloud.google.com/iam-admin/projects">Existing project</a> ID: </td><td align=left><input id='project_id' name="projectid" size=30 value="{{.ProjectID}}"></td></tr><tr valign=top><td></td><td colspan="2">
+				{{else}}
+					<input id='newproject_yes' type="radio" name="newproject" value="true" checked='checked'> <label for="newproject_yes">Create a new project: </label></td><td align=left><input id='new_project_id' name="newprojectid" size=30 placeholder="Leave blank for auto-generated"></td></tr><tr valign=top><td></td><td>
+					<input id='newproject_no' type="radio" name="newproject" value="false"> <a href="https://console.cloud.google.com/iam-admin/projects">Existing project</a> ID: </td><td align=left><input id='project_id' name="projectid" size=30 value="{{.ProjectID}}"></td></tr><tr valign=top><td></td><td colspan="2">
+				{{end}}
+				<span style="padding-left:0;margin-left:0">You need to <a id='billing_url' href="https://console.cloud.google.com/billing">enable billing</a> with Google for the selected project.</span>
 		</td></tr>
 			<tr valign=top><td align=right><nobr><a href="{{.Help.zones}}">Zone</a> or Region</nobr>:</td><td>
-				<input name="zone" list="regions" value="` + DefaultRegion + `">
+				{{if .ProjectID}}
+					<input id='zone' name="zone" list="regions" value="` + DefaultRegion + `">
+				{{else}}
+					<input id='zone' name="zone" list="regions" value="` + DefaultRegion + `" disabled='disabled'>
+				{{end}}
 				<datalist id="regions">
 				{{range $k, $v := .ZoneValues}}
 					<option value={{$v}}>{{$v}}</option>
 				{{end}}
-				</datalist><br/><span style="font-size:75%">If a region is specified, a random zone (-a, -b, -c, etc) in that region will be selected.</span>
+				</datalist></td></tr>
+		<tr valign=top><td></td><td colspan="2"><span style="font-size:75%">If a region is specified, a random zone (-a, -b, -c, etc) in that region will be selected.</span>
 			</td></tr>
 			<tr valign=top><td align=right><a href="{{.Help.machineTypes}}">Machine type</a>:</td><td>
-				<input name="machine" list="machines" value="g1-small">
+				{{if .ProjectID}}
+					<input id='machine' name="machine" list="machines" value="g1-small">
+				{{else}}
+					<input id='machine' name="machine" list="machines" value="g1-small" disabled='disabled'>
+				{{end}}
 				<datalist id="machines">
 				{{range $k, $v := .MachineValues}}
 					<option value={{$v}}>{{$v}}</option>
 				{{end}}
-				</datalist><br/><span style="font-size:75%">As of 2015-12-27, a g1-small is $13.88 (USD) per month, before storage usage charges. See <a href="https://cloud.google.com/compute/pricing#machinetype">current pricing</a>.</span>
+				</datalist></td></tr>
+		<tr valign=top><td></td><td colspan="2"><span style="font-size:75%">As of 2015-12-27, a g1-small is $13.88 (USD) per month, before storage usage charges. See <a href="https://cloud.google.com/compute/pricing#machinetype">current pricing</a>.</span>
 			</td></tr>
-			<tr><td></td><td><input type='submit' value="Create instance" style='background: #ffdb00; padding: 0.5em; font-weight: bold'><br><span style="font-size:75%">(it will ask for permissions)</span></td></tr>
+			<tr><td></td><td>
+			{{if .ProjectID}}
+				<input id='submit_btn' type='submit' value="Create instance" style='background: #eee; padding: 0.8em; font-weight: bold'><br><span style="font-size:75%">(it will ask for permissions)</span>
+			{{else}}
+				<input id='submit_btn' type='submit' value="Create project" style='background: #eee; padding: 0.8em; font-weight: bold'><br><span style="font-size:75%">(it will ask for permissions)</span>
+			{{end}}
+			</td></tr>
 		</table>
 	</form>
 	</div>
