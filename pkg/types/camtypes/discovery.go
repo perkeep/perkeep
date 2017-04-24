@@ -104,6 +104,8 @@ type UIDiscovery struct {
 	PublishRoots map[string]*PublishRootDiscovery `json:"publishRoots"`
 	// MapClustering defines whether to cluster position markers on the map aspect.
 	MapClustering bool `json:"mapClustering"`
+	// ImportShare is the path to the share importer handler.
+	ImportShare string `json:"importShare"`
 }
 
 // PublishRootDiscovery contains discovery information for the publish roots.

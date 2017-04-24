@@ -56,6 +56,7 @@ cam.Header = React.createClass({
 		importersURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		mainControls: React.PropTypes.arrayOf(React.PropTypes.node),
 		onNewPermanode: React.PropTypes.func,
+		onImportShare: React.PropTypes.func,
 		onSearch: React.PropTypes.func,
 		favoritesURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		statusURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
@@ -221,6 +222,7 @@ cam.Header = React.createClass({
 			// TODO(aa): Create a new permanode UI that delays creating the permanode until the user confirms, then change this to a link to that UI.
 			// TODO(aa): Also I keep going back and forth about whether we should call this 'permanode' or 'set' in the UI. Hrm.
 			this.getMenuItem_('New set', null, this.props.onNewPermanode),
+			this.getMenuItem_('Import share', null, this.props.onImportShare),
 
 			this.getMenuItem_('Importers', this.props.importersURL),
 			this.getMenuItem_('Server status', this.props.statusURL),
