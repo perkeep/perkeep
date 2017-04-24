@@ -107,7 +107,7 @@ func (zh *zipHandler) blobList(dirPath string, dirBlob blob.Ref) ([]*blobFile, e
 	var list []*blobFile
 	if isDir {
 		dirRoot := dirBlobPath[1]
-		children, err := zh.blobsFromDir("/", dirRoot)
+		children, err := zh.blobsFromDir("", dirRoot)
 		if err != nil {
 			return nil, fmt.Errorf("Could not get list of blobs from %v: %v", dirRoot, err)
 		}
@@ -234,7 +234,7 @@ func (zh *zipHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		http.Error(rw, "Invalid method", http.StatusMethodNotAllowed)
 		return
 	}
-	bf, err := zh.blobList("/", zh.root)
+	bf, err := zh.blobList("", zh.root)
 	if err != nil {
 		log.Printf("Could not serve zip for %v: %v", zh.root, err)
 		http.Error(rw, "Server error", http.StatusInternalServerError)
