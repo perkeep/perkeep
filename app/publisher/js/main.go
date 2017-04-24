@@ -22,6 +22,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"camlistore.org/pkg/blob"
 
@@ -48,11 +49,15 @@ func host() (string, error) {
 }
 
 func scheme() (string, error) {
-	s := js.Global.Get("scheme")
-	if undefOrEmptyString(s) {
-		return "", fmt.Errorf("No Scheme in header")
+	// We can't rely on the publisher's server-side to set the scheme as a var,
+	// because it could be behind a proxy, serving for a scheme different
+	// from the one we're seeing from the outside.
+	// Ask the browser instead what scheme/protocol the current page was accessed with.
+	proto := js.Global.Get("location").Get("protocol")
+	if undefOrEmptyString(proto) {
+		return "", fmt.Errorf("window.location.protocol missing or invalid")
 	}
-	return s.String(), nil
+	return strings.TrimRight(proto.String(), ":"), nil
 }
 
 func subjectBasePath() (string, error) {

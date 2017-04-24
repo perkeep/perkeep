@@ -52,7 +52,6 @@ type PageHeader struct {
 	// "/pics/", or "/" if the request was not proxied through Camlistore.
 	PathPrefix string
 	Host       string
-	Scheme     string
 }
 
 // PageFile contains the file related data available to the subject template,

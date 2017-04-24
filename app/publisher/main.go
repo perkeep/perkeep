@@ -976,17 +976,12 @@ func (pr *publishRequest) fileSchemaRefFromBlob(des *search.DescribedBlob) (file
 // subjectHeader returns the PageHeader corresponding to the described subject.
 func (pr *publishRequest) subjectHeader(described map[string]*search.DescribedBlob) *publish.PageHeader {
 	subdes := described[pr.subject.String()]
-	scheme := "http"
-	if pr.req.TLS != nil {
-		scheme = "https"
-	}
 	header := &publish.PageHeader{
 		Title:           html.EscapeString(getTitle(subdes.BlobRef, described)),
 		CSSFiles:        pr.cssFiles(),
 		JSDeps:          pr.jsDeps(),
 		Subject:         pr.subject,
 		Host:            pr.req.Host,
-		Scheme:          scheme,
 		SubjectBasePath: pr.subjectBasePath,
 		PathPrefix:      pr.base,
 		PublishedRoot:   pr.publishedRoot,
