@@ -28,6 +28,8 @@ configure publishing for an image gallery in the server config
 For this to work you need a single permanode with an attribute "camliRoot"
 set to "mypics" which will serve as the root node for publishing.
 
+(See further settings for running behind a reverse proxy down below.)
+
 Suppose you want to publish two permanodes as "foo" and "bar". The root node
 needs the following atributes:
 
@@ -52,4 +54,28 @@ type for the details.
 If you want to provide your own (Go) template, see
 [camlistore.org/pkg/publish](/pkg/publish) for the data structures and
 functions available to the template.
+
+## Running Camlistore (and publisher) behind a reverse proxy
+
+When Camlistore is serving in HTTP mode behind a HTTPS reverse proxy,
+further settings are necessary to set up communication between publisher and
+the parent camlistored process.
+
+The settings are:
+
+* "listen" is the address publisher should listen on
+* "apiHost" URL prefix for publisher to connect to camlistored
+* "backendURL" URL for camlistored to reach publisher
+
+Assuming camlistored is serving HTTP on port 3179, and we want the to run publisher
+on port 3155, the following settings can be used:
+
+    "publish": {
+      "/pics/": {
+		"apiHost": "http://localhost:3179/",
+		"backendURL": "http://localhost:3155/",
+		"listen": ":3155",
+		... other settings from above ...
+      }
+    }
 
