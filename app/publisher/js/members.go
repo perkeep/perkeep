@@ -35,9 +35,10 @@ import (
 const (
 	bicMembersList = "ul#members" // jquery matching convenience
 	// TODO(mpl): derive precisely how much blobItemHeight should be from thumbHeight + various margins in css
-	thumbnailHeight = 200
-	blobItemHeight  = 250 // thumbHeight + some slack
-	getMembersLimit = 50  // how many more items to fetch in search queries
+	thumbnailHeight    = 200
+	maxThumbWidthRatio = 3   // maximum thumb width is height*maxThumbWidthRatio
+	blobItemHeight     = 250 // thumbHeight + some slack
+	getMembersLimit    = 50  // how many more items to fetch in search queries
 )
 
 var theBic *blobItemContainer
@@ -391,7 +392,7 @@ func (bi *blobItem) thumbnail(pathPrefix, basePath string, thumbHeight int) stri
 	switch {
 	case bi.isImage:
 		// TODO(mpl): should we/can we prefetch the image?
-		bi.thumb = fmt.Sprintf("%s/h%s/h%s/=i/%s/?mw=%d&mh=%d", basePath, bi.pn.DigestPrefix(10), bi.contentRef.DigestPrefix(10), url.QueryEscape(bi.fileName), thumbHeight, thumbHeight)
+		bi.thumb = fmt.Sprintf("%s/h%s/h%s/=i/%s/?mw=%d&mh=%d", basePath, bi.pn.DigestPrefix(10), bi.contentRef.DigestPrefix(10), url.QueryEscape(bi.fileName), maxThumbWidthRatio*thumbHeight, thumbHeight)
 	case bi.isDir:
 		bi.thumb = fmt.Sprintf("%s=s/folder.png", pathPrefix)
 	case bi.fileName != "": // isFile, but not image
