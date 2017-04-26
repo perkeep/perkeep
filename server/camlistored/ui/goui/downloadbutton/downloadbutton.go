@@ -144,6 +144,12 @@ func (d *DownloadItemsBtnDef) downloadSelection() error {
 	form.Action = downloadPrefix
 	form.Method = "POST"
 	form.AppendChild(input)
+	// As per
+	// https://html.spec.whatwg.org/multipage/forms.html#form-submission-algorithm
+	// step 2., a form must be connected to the DOM for submission.
+	body := dom.GetWindow().Document().QuerySelector("body")
+	body.AppendChild(form)
+	defer body.RemoveChild(form)
 	form.Submit()
 	return nil
 }
