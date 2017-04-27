@@ -165,7 +165,7 @@ func (d *ShareItemsBtnDef) handleShareSelection(*react.SyntheticMouseEvent) {
 		}
 		prefix, err := d.urlPrefix()
 		if err != nil {
-			println(fmt.Sprintf("Cannot display full share URL: %v", err))
+			dom.GetWindow().Alert(fmt.Sprintf("Cannot display full share URL: %v", err))
 			return
 		}
 		sharedURL = prefix + sharedURL
@@ -297,9 +297,9 @@ func (d *ShareItemsBtnDef) urlPrefix() (string, error) {
 	if strings.HasSuffix(currentURL, uiRoot) {
 		return strings.TrimSuffix(currentURL, uiRoot), nil
 	}
-	parts := strings.SplitN(currentURL, uiRoot, 1)
-	if len(parts) < 2 {
+	idx := strings.Index(currentURL, uiRoot)
+	if idx == -1 {
 		return "", fmt.Errorf("could not guess our URL prefix")
 	}
-	return parts[0], nil
+	return currentURL[:idx], nil
 }
