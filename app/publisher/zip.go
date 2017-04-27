@@ -265,11 +265,12 @@ func (zh *zipHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			http.Error(rw, "Server error", http.StatusInternalServerError)
 			return
 		}
-		f, err := zw.CreateHeader(
-			&zip.FileHeader{
-				Name:   file.path,
-				Method: zip.Store,
-			})
+		zh := zip.FileHeader{
+			Name:   file.path,
+			Method: zip.Store,
+		}
+		zh.SetModTime(fr.ModTime())
+		f, err := zw.CreateHeader(&zh)
 		if err != nil {
 			log.Printf("Could not create %q in zip: %v", file.path, err)
 			http.Error(rw, "Server error", http.StatusInternalServerError)
