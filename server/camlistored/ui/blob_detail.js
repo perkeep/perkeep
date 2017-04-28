@@ -40,21 +40,30 @@ cam.BlobDetail = React.createClass({
 		};
 	},
 
+	componentWillReceiveProps: function(nextProps) {
+		// this.props == nextProps is for the very first load.
+		if (this.props == nextProps || this.props.meta.blobRef != nextProps.meta.blobRef) {
+			var sc = this.props.serverConnection;
+
+			// TODO(mpl): see if we can get any of the information below
+			// from the search session, in particular from the resolved meta.
+			sc.getBlobContents(nextProps.meta.blobRef, this.handleBlobContents_);
+			sc.permanodeClaims(nextProps.meta.blobRef, this.handleClaims_);
+
+			goog.labs.Promise.all([
+				new goog.labs.Promise(sc.pathsOfSignerTarget.bind(sc, nextProps.meta.blobRef)),
+				new goog.labs.Promise(sc.search.bind(sc, {
+					permanode: {
+						attr: 'camliMember',
+						value: nextProps.meta.blobRef,
+					},
+				}, null))
+			]).then(this.handleRefs_);
+		}
+	},
+
 	componentWillMount: function() {
-		var sc = this.props.serverConnection;
-
-		sc.getBlobContents(this.props.meta.blobRef, this.handleBlobContents_);
-		sc.permanodeClaims(this.props.meta.blobRef, this.handleClaims_);
-
-		goog.labs.Promise.all([
-			new goog.labs.Promise(sc.pathsOfSignerTarget.bind(sc, this.props.meta.blobRef)),
-			new goog.labs.Promise(sc.search.bind(sc, {
-				permanode: {
-					attr: 'camliMember',
-					value: this.props.meta.blobRef,
-				},
-			}, null))
-		]).then(this.handleRefs_);
+		this.componentWillReceiveProps(this.props, true);
 	},
 
 	render: function() {

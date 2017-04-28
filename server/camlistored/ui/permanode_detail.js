@@ -36,11 +36,22 @@ cam.PermanodeDetail = React.createClass({
 	getInitialState: function() {
 		return {
 			newRow: {},
-			rows: this.getInitialRows_(),
+			rows: null,
 			sortBy: 'name',
 			sortAsc: true,
 			status: '',
 		};
+	},
+
+	componentWillReceiveProps: function(nextProps) {
+		// this.props == nextProps is for the very first load.
+		if (this.props == nextProps || this.props.meta.blobRef != nextProps.meta.blobRef) {
+			this.setState({rows: this.getInitialRows_(nextProps.meta)});
+		}
+	},
+
+	componentWillMount: function() {
+		this.componentWillReceiveProps(this.props, true);
 	},
 
 	render: function() {
@@ -62,10 +73,10 @@ cam.PermanodeDetail = React.createClass({
 		}
 	},
 
-	getInitialRows_: function() {
+	getInitialRows_: function(meta) {
 		var rows = [];
-		for (var name in this.props.meta.permanode.attr) {
-			var values = this.props.meta.permanode.attr[name];
+		for (var name in meta.permanode.attr) {
+			var values = meta.permanode.attr[name];
 			for (var i = 0; i < values.length; i++) {
 				rows.push({
 					'name': name,
@@ -199,7 +210,7 @@ cam.PermanodeDetail = React.createClass({
 		var key = function(r) {
 			return r.name + ':' + r.value;
 		};
-		var before = goog.array.toObject(this.getInitialRows_(), key);
+		var before = goog.array.toObject(this.getInitialRows_(this.props.meta), key);
 		var after = goog.array.toObject(this.state.rows, key);
 
 		var adds = goog.object.filter(after, function(v, k) { return !(k in before); });
