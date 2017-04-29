@@ -539,10 +539,10 @@ func (fit *fileItem) setThumb(fic *fileItemContainer) {
 		return
 	}
 	if fic.isTopNode {
-		fit.thumb = fmt.Sprintf("%s/h%s/=i/%s/?mw=%d&mh=%d", fic.basePath, fit.contentRef.DigestPrefix(10), url.QueryEscape(fit.fileName), fic.thumbHeight, fic.thumbHeight)
+		fit.thumb = fmt.Sprintf("%s/h%s/=i/%s/?mw=%d&mh=%d", fic.basePath, fit.contentRef.DigestPrefix(10), url.QueryEscape(fit.fileName), maxThumbWidthRatio*fic.thumbHeight, fic.thumbHeight)
 		return
 	}
-	fit.thumb = fmt.Sprintf("%s/h%s/h%s/=i/%s/?mw=%d&mh=%d", fic.basePath, fit.pn.DigestPrefix(10), fit.contentRef.DigestPrefix(10), url.QueryEscape(fit.fileName), fic.thumbHeight, fic.thumbHeight)
+	fit.thumb = fmt.Sprintf("%s/h%s/h%s/=i/%s/?mw=%d&mh=%d", fic.basePath, fit.pn.DigestPrefix(10), fit.contentRef.DigestPrefix(10), url.QueryEscape(fit.fileName), maxThumbWidthRatio*fic.thumbHeight, fic.thumbHeight)
 }
 
 func (fit *fileItem) setDownload(fic *fileItemContainer) {
