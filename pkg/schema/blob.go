@@ -150,12 +150,32 @@ func (b *Blob) DirectoryEntries() (br blob.Ref, ok bool) {
 	return b.ss.Entries, true
 }
 
+// StaticSetMembers returns the refs in the "members" field if b is a valid
+// "static-set" schema. Note that if it is a large static-set, the members are
+// actually spread as subsets in "mergeSets". See StaticSetMergeSets.
 func (b *Blob) StaticSetMembers() []blob.Ref {
 	if b.Type() != "static-set" {
 		return nil
 	}
+
 	s := make([]blob.Ref, 0, len(b.ss.Members))
 	for _, ref := range b.ss.Members {
+		if ref.Valid() {
+			s = append(s, ref)
+		}
+	}
+	return s
+}
+
+// StaticSetMergeSets returns the refs of the static-sets in "mergeSets". These
+// are the subsets of all the static-set members in the case of a large directory.
+func (b *Blob) StaticSetMergeSets() []blob.Ref {
+	if b.Type() != "static-set" {
+		return nil
+	}
+
+	s := make([]blob.Ref, 0, len(b.ss.MergeSets))
+	for _, ref := range b.ss.MergeSets {
 		if ref.Valid() {
 			s = append(s, ref)
 		}

@@ -18,6 +18,7 @@ package schema
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -30,6 +31,7 @@ import (
 	"perkeep.org/internal/osutil"
 	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/test"
 	. "perkeep.org/pkg/test/asserts"
 )
 
@@ -705,6 +707,97 @@ func TestTimezoneEXIFCorrection(t *testing.T) {
 		}
 		if got := tm.UTC().String(); got != tt.wantUTC {
 			t.Errorf("%s: utc time = %q; want %q", tt.file, got, tt.wantUTC)
+		}
+	}
+}
+
+func TestLargeDirs(t *testing.T) {
+	oldMaxStaticSetMembers := maxStaticSetMembers
+	maxStaticSetMembers = 10
+	defer func() {
+		maxStaticSetMembers = oldMaxStaticSetMembers
+	}()
+
+	// small directory, no splitting needed.
+	testLargeDir(t, []blob.Ref{
+		(&test.Blob{"AAAAAaaaaa"}).BlobRef(),
+		(&test.Blob{"BBBBBbbbbb"}).BlobRef(),
+		(&test.Blob{"CCCCCccccc"}).BlobRef(),
+	})
+
+	// large (over maxStaticSetMembers) directory. splitting, but no recursion needed.
+	var members []blob.Ref
+	for i := 0; i < maxStaticSetMembers+3; i++ {
+		members = append(members, (&test.Blob{fmt.Sprintf("%2d", i)}).BlobRef())
+	}
+	testLargeDir(t, members)
+
+	// very large (over maxStaticSetMembers^2) directory. splitting with recursion.
+	members = nil
+	for i := 0; i < maxStaticSetMembers*maxStaticSetMembers+3; i++ {
+		members = append(members, (&test.Blob{fmt.Sprintf("%3d", i)}).BlobRef())
+	}
+	testLargeDir(t, members)
+}
+
+func testLargeDir(t *testing.T, members []blob.Ref) {
+	ssb := NewStaticSet()
+	subsets := ssb.SetStaticSetMembers(members)
+
+	refToBlob := make(map[string]*Blob, len(subsets))
+	for _, v := range subsets {
+		refToBlob[v.BlobRef().String()] = v
+	}
+
+	var findMember func(blob.Ref, []blob.Ref) bool
+	findMember = func(member blob.Ref, entries []blob.Ref) bool {
+		for _, v := range entries {
+			if member == v {
+				return true
+			}
+			subsetBlob, ok := refToBlob[v.String()]
+			if !ok {
+				continue
+			}
+			children := subsetBlob.StaticSetMembers()
+			if len(children) == 0 {
+				children = subsetBlob.StaticSetMergeSets()
+			}
+			if findMember(member, children) {
+				return true
+			}
+		}
+		return false
+	}
+
+	var membersOrSubsets []string
+	if ssb.m["members"] != nil && len(ssb.m["members"].([]string)) > 0 {
+		membersOrSubsets = ssb.m["members"].([]string)
+	} else {
+		membersOrSubsets = ssb.m["mergeSets"].([]string)
+	}
+	for _, mb := range members {
+		var found bool
+		for _, v := range membersOrSubsets {
+			if mb.String() == v {
+				found = true
+				break
+			}
+			subsetBlob, ok := refToBlob[v]
+			if !ok {
+				continue
+			}
+			children := subsetBlob.StaticSetMembers()
+			if len(children) == 0 {
+				children = subsetBlob.StaticSetMergeSets()
+			}
+			if findMember(mb, children) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("member %q not found while following the subset schemas", mb)
 		}
 	}
 }

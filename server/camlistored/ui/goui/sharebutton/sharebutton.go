@@ -228,9 +228,13 @@ func mkdir(am auth.AuthMode, children []blob.Ref) (blob.Ref, error) {
 		return blob.Ref{}, err
 	}
 	var newdir blob.Ref
-	var ss schema.StaticSet
-	for _, br := range children {
-		ss.Add(br)
+	ss := schema.NewStaticSet()
+	subsets := ss.SetStaticSetMembers(children)
+	for _, v := range subsets {
+		// TODO(mpl): make them concurrent
+		if _, err := cl.UploadBlob(context.TODO(), v); err != nil {
+			return newdir, err
+		}
 	}
 	ssb := ss.Blob()
 	if _, err := cl.UploadBlob(context.TODO(), ssb); err != nil {

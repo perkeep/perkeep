@@ -280,8 +280,9 @@ type superset struct {
 	// See doc/schema/bytes.txt and doc/schema/files/file.txt.
 	Parts []*BytesPart `json:"parts"`
 
-	Entries blob.Ref   `json:"entries"` // for directories, a blobref to a static-set
-	Members []blob.Ref `json:"members"` // for static sets (for directory static-sets: blobrefs to child dirs/files)
+	Entries   blob.Ref   `json:"entries"`   // for directories, a blobref to a static-set
+	Members   []blob.Ref `json:"members"`   // for static sets (for directory static-sets: blobrefs to child dirs/files)
+	MergeSets []blob.Ref `json:"mergeSets"` // each is a "sub static-set", that has either Members or MergeSets. For large dirs.
 
 	// Search allows a "share" blob to share an entire search. Contrast with "target".
 	Search SearchQuery `json:"search"`
@@ -568,15 +569,84 @@ func (d *defaultStatHasher) Hash(fileName string) (blob.Ref, error) {
 	return blob.RefFromHash(h), nil
 }
 
-type StaticSet struct {
-	l    sync.Mutex
-	refs []blob.Ref
+// maximum number of static-set members in a static-set schema. As noted in
+// https://github.com/camlistore/camlistore/issues/924 , 33k members result in a
+// 1.7MB blob, so 10k members seems reasonable to stay under the MaxSchemaBlobSize (1MB)
+// limit. This is not a const, so we can lower it during tests and test the logic
+// without having to create thousands of blobs.
+var maxStaticSetMembers = 10000
+
+// NewStaticSet returns the "static-set" schema for a directory. Its members
+// should be populated with SetStaticSetMembers.
+func NewStaticSet() *Builder {
+	return base(1, "static-set")
 }
 
-func (ss *StaticSet) Add(ref blob.Ref) {
-	ss.l.Lock()
-	defer ss.l.Unlock()
-	ss.refs = append(ss.refs, ref)
+// SetStaticSetMembers sets the given members as the static-set members of this
+// builder. If the members are so numerous that they would not fit on a schema
+// blob, they are spread (recursively, if needed) onto sub static-sets. In which
+// case, these subsets are set as "mergeSets" of this builder. All the created
+// subsets are returned, so the caller can upload them along with the top
+// static-set created from this builder.
+// SetStaticSetMembers panics if bb isn't a "static-set" claim type.
+func (bb *Builder) SetStaticSetMembers(members []blob.Ref) []*Blob {
+	if bb.Type() != "static-set" {
+		panic("called SetStaticSetMembers on non static-set")
+	}
+
+	if len(members) <= maxStaticSetMembers {
+		ms := make([]string, len(members))
+		for i := range members {
+			ms[i] = members[i].String()
+		}
+		bb.m["members"] = ms
+		return nil
+	}
+
+	// too many members to fit in one static-set, so we spread them in
+	// several sub static-sets.
+	subsetsNumber := len(members) / maxStaticSetMembers
+	var perSubset int
+	if subsetsNumber < maxStaticSetMembers {
+		// this means we can fill each subset up to maxStaticSetMembers,
+		// and stash the rest in one last subset.
+		perSubset = maxStaticSetMembers
+	} else {
+		// otherwise we need to divide the members evenly in
+		// (maxStaticSetMembers - 1) subsets, and each of these subsets
+		// will also (recursively) have subsets of its own. There might
+		// also be a rest in one last subset, as above.
+		subsetsNumber = maxStaticSetMembers - 1
+		perSubset = len(members) / subsetsNumber
+	}
+	// only the subsets at this level
+	subsets := make([]*Blob, 0, subsetsNumber)
+	// subsets at this level, plus all the children subsets.
+	allSubsets := make([]*Blob, 0, subsetsNumber)
+	for i := 0; i < subsetsNumber; i++ {
+		ss := NewStaticSet()
+		subss := ss.SetStaticSetMembers(members[i*perSubset : (i+1)*perSubset])
+		subsets = append(subsets, ss.Blob())
+		allSubsets = append(allSubsets, ss.Blob())
+		for _, v := range subss {
+			allSubsets = append(allSubsets, v)
+		}
+	}
+
+	// Deal with the rest (of the euclidian division)
+	if perSubset*subsetsNumber < len(members) {
+		ss := NewStaticSet()
+		ss.SetStaticSetMembers(members[perSubset*subsetsNumber:])
+		allSubsets = append(allSubsets, ss.Blob())
+		subsets = append(subsets, ss.Blob())
+	}
+
+	mss := make([]string, len(subsets))
+	for i := range subsets {
+		mss[i] = subsets[i].BlobRef().String()
+	}
+	bb.m["mergeSets"] = mss
+	return allSubsets
 }
 
 func base(version int, ctype string) *Builder {
@@ -613,23 +683,6 @@ func NewPlannedPermanode(key string) *Builder {
 // of the hash, prefixed with "sha1-", as the key.
 func NewHashPlannedPermanode(h hash.Hash) *Builder {
 	return NewPlannedPermanode(blob.RefFromHash(h).String())
-}
-
-// Blob returns a Camli map of camliType "static-set"
-// TODO: delete this method
-func (ss *StaticSet) Blob() *Blob {
-	bb := base(1, "static-set")
-	ss.l.Lock()
-	defer ss.l.Unlock()
-
-	members := make([]string, 0, len(ss.refs))
-	if ss.refs != nil {
-		for _, ref := range ss.refs {
-			members = append(members, ref.String())
-		}
-	}
-	bb.m["members"] = members
-	return bb.Blob()
 }
 
 // JSON returns the map m encoded as JSON in its

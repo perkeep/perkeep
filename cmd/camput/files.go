@@ -352,16 +352,24 @@ func (up *Uploader) open(path string) (*os.File, error) {
 	return os.Open(path)
 }
 
-func (n *node) directoryStaticSet() (*schema.StaticSet, error) {
-	ss := new(schema.StaticSet)
+// directoryStaticSet returns the set of static-set schemas that represent the
+// children of n. If the number of children is small (<10000), they're all members
+// of the first (and only) static-set returned. Otherwise they are split and spread
+// on several subsets (i.e. "mergeSets") which are all returned.
+func (n *node) directoryStaticSet() ([]*schema.Blob, error) {
+	var members []blob.Ref
+	ss := schema.NewStaticSet()
 	for _, c := range n.children {
 		pr, err := c.PutResult()
 		if err != nil {
 			return nil, fmt.Errorf("Error populating directory static set for child %q: %v", c.fullPath, err)
 		}
-		ss.Add(pr.BlobRef)
+		members = append(members, pr.BlobRef)
 	}
-	return ss, nil
+	subsets := ss.SetStaticSetMembers(members)
+	allSets := []*schema.Blob{ss.Blob()}
+	allSets = append(allSets, subsets...)
+	return allSets, nil
 }
 
 func (up *Uploader) uploadNode(ctx context.Context, n *node) (*client.PutResult, error) {
@@ -393,7 +401,16 @@ func (up *Uploader) uploadNode(ctx context.Context, n *node) (*client.PutResult,
 		if err != nil {
 			return nil, err
 		}
-		sspr, err := up.UploadBlob(ctxbg, ss)
+		if len(ss) > 1 {
+			// large directory, so the top static-set is divided in subsets that we have to upload too
+			for _, v := range ss[1:] {
+				if _, err := up.UploadBlob(ctxbg, v); err != nil {
+					return nil, err
+				}
+			}
+		}
+		// upload the top static-set
+		sspr, err := up.UploadBlob(ctxbg, ss[0])
 		if err != nil {
 			return nil, err
 		}

@@ -5,8 +5,15 @@ Example:
     {"camliVersion": 1,
      "camliType": "static-set",
 
-     // Required.
-     // May be ordered to unordered, depending on context/needs.  If unordered,
+     // Either one of members or mergeSets is required, and they are mutually exclusive.
+     // If a directory has enough children that the resulting static-set blob
+     // would be larger than the maximum schema blob size, then the children are
+     // actually spread (recursively, if needed) onto several static-sets. When that is
+     // the case, these subsets are stored in mergeSets instead of members. Members
+     // stores the actual file or directory schemas (the actual members of the top
+     // static-set entity).
+     //
+     // Members can be ordered or unordered, depending on context/needs. If unordered,
      // it's recommended but not required to sort the blobrefs.
      "members": [
         "digalg-blobref-item1",  // maybe a file?
@@ -17,7 +24,13 @@ Example:
         "digalg-blobref-item6",  // ... and what's valid depends on context
         "digalg-blobref-item7",  // ... a permanode in a directory would
         "digalg-blobref-item8"   // ... be invalid, for instance.
-      ]
+     ],
+     "mergeSets": [
+        "digalg-blobref-subset1",  // another static-set, with either members or subsets
+        "digalg-blobref-subset2",  // ''
+        "digalg-blobref-subset3",  // ''
+        "digalg-blobref-subset4",  // ''
+     ]
     }
 
 Note: dynamic sets are structured differently, using a permanode and

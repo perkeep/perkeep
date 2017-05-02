@@ -93,7 +93,16 @@ func (dr *DirReader) StaticSet(ctx context.Context) ([]blob.Ref, error) {
 	if !staticSetBlobref.Valid() {
 		return nil, errors.New("schema/dirreader: Invalid blobref")
 	}
-	rsc, _, err := dr.fetcher.Fetch(ctx, staticSetBlobref)
+	members, err := staticSet(ctx, staticSetBlobref, dr.fetcher)
+	if err != nil {
+		return nil, err
+	}
+	dr.staticSet = members
+	return dr.staticSet, nil
+}
+
+func staticSet(ctx context.Context, staticSetBlobref blob.Ref, fetcher blob.Fetcher) ([]blob.Ref, error) {
+	rsc, _, err := fetcher.Fetch(ctx, staticSetBlobref)
 	if err != nil {
 		return nil, fmt.Errorf("schema/dirreader: fetching schema blob %s: %v", staticSetBlobref, err)
 	}
@@ -105,13 +114,32 @@ func (dr *DirReader) StaticSet(ctx context.Context) ([]blob.Ref, error) {
 	if ss.Type != "static-set" {
 		return nil, fmt.Errorf("schema/dirreader: expected \"static-set\" schema blob for %s, got %q", staticSetBlobref, ss.Type)
 	}
-	for _, member := range ss.Members {
-		if !member.Valid() {
-			return nil, fmt.Errorf("schema/dirreader: invalid (static-set member) blobref referred by \"static-set\" schema blob %v", staticSetBlobref)
+	var members []blob.Ref
+	if len(ss.Members) > 0 {
+		// We have fileRefs or dirRefs in ss.Members, so we are either in the static-set
+		// of a small directory, or one of the "leaf" subsets of a large directory spread.
+		for _, member := range ss.Members {
+			if !member.Valid() {
+				return nil, fmt.Errorf("schema/dirreader: invalid (static-set member) blobref referred by \"static-set\" schema blob %v", staticSetBlobref)
+			}
+			members = append(members, member)
 		}
-		dr.staticSet = append(dr.staticSet, member)
+		return members, nil
 	}
-	return dr.staticSet, nil
+	// We are either at the top static-set of a large directory, or in a "non-leaf"
+	// subset of a large directory.
+	for _, toMerge := range ss.MergeSets {
+		if !toMerge.Valid() {
+			return nil, fmt.Errorf("schema/dirreader: invalid (static-set subset) blobref referred by \"static-set\" schema blob %v", staticSetBlobref)
+		}
+		// TODO(mpl): do it concurrently
+		subset, err := staticSet(ctx, toMerge, fetcher)
+		if err != nil {
+			return nil, fmt.Errorf("schema/dirreader: could not get members of %q, subset of %v: %v", toMerge, staticSetBlobref, err)
+		}
+		members = append(members, subset...)
+	}
+	return members, nil
 }
 
 // Readdir implements the Directory interface.

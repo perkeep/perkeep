@@ -221,10 +221,8 @@ func (id *IndexDeps) UploadFile(fileName string, contents string, modTime time.T
 // If modTime is zero, it's not used.
 func (id *IndexDeps) UploadDir(dirName string, children []blob.Ref, modTime time.Time) blob.Ref {
 	// static-set entries blob
-	ss := new(schema.StaticSet)
-	for _, child := range children {
-		ss.Add(child)
-	}
+	ss := schema.NewStaticSet()
+	ss.SetStaticSetMembers(children)
 	ssjson := ss.Blob().JSON()
 	ssb := &test.Blob{Contents: ssjson}
 	id.BlobSource.AddBlob(ssb)

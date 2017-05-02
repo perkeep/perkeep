@@ -447,3 +447,71 @@ func (s summary) String() string {
 	}
 	return fmt.Sprintf("%d bytes, starting with %q", len(s), []byte(s[:plen]))
 }
+
+func TestReadDirs(t *testing.T) {
+	oldMaxStaticSetMembers := maxStaticSetMembers
+	maxStaticSetMembers = 10
+	defer func() {
+		maxStaticSetMembers = oldMaxStaticSetMembers
+	}()
+
+	// small directory, no splitting needed.
+	testReadDir(t, []*test.Blob{
+		&test.Blob{"AAAAAaaaaa"},
+		&test.Blob{"BBBBBbbbbb"},
+		&test.Blob{"CCCCCccccc"},
+	})
+
+	// large (over maxStaticSetMembers) directory. splitting, but no recursion needed.
+	var members []*test.Blob
+	for i := 0; i < maxStaticSetMembers+3; i++ {
+		members = append(members, &test.Blob{fmt.Sprintf("sha1-%2d", i)})
+	}
+	testReadDir(t, members)
+
+	// very large (over maxStaticSetMembers^2) directory. splitting with recursion.
+	members = nil
+	for i := 0; i < maxStaticSetMembers*maxStaticSetMembers+3; i++ {
+		members = append(members, &test.Blob{fmt.Sprintf("sha1-%3d", i)})
+	}
+	testReadDir(t, members)
+}
+
+func testReadDir(t *testing.T, members []*test.Blob) {
+	fetcher := &test.Fetcher{}
+	for _, v := range members {
+		fetcher.AddBlob(v)
+	}
+	var membersRefs []blob.Ref
+	for _, v := range members {
+		membersRefs = append(membersRefs, v.BlobRef())
+	}
+	ssb := NewStaticSet()
+	subsets := ssb.SetStaticSetMembers(membersRefs)
+	for _, v := range subsets {
+		fetcher.AddBlob(&test.Blob{v.str})
+	}
+	fetcher.AddBlob(&test.Blob{ssb.Blob().str})
+	dir := NewDirMap("whatever").PopulateDirectoryMap(ssb.Blob().BlobRef())
+	dirBlob := dir.Blob()
+	fetcher.AddBlob(&test.Blob{dirBlob.str})
+
+	dr, err := NewDirReader(context.Background(), fetcher, dirBlob.BlobRef())
+	if err != nil {
+		t.Fatal(err)
+	}
+	children, err := dr.StaticSet(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	asMap := make(map[blob.Ref]bool)
+	for _, v := range children {
+		asMap[v] = true
+	}
+
+	for _, v := range membersRefs {
+		if _, ok := asMap[v]; !ok {
+			t.Errorf("%q not found among directory's children", v.String())
+		}
+	}
+}
