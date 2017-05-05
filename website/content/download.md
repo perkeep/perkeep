@@ -1,6 +1,6 @@
 # Download Camlistore
 
-The latest release is [2017-04-05](docs/release/monthly/2017-04-05).
+The latest release is [2017-05-05](docs/release/monthly/2017-05-05).
 
 Or, the canonical git repo is:
 

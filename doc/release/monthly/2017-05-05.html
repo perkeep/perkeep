@@ -1,0 +1,144 @@
+
+<h1>Monthly Release: 2017-05-05</h1>
+
+<p>
+Camlistore version <a href='https://github.com/camlistore/camlistore/commit/8f1a7df176'>8f1a7df176</a> built with Go 1.8.
+</p>
+
+<p>
+The <a href="/docs/release/monthly/2017-04-05">previous release</a> introduced
+the <b>Sharing</b> feature in the web UI, but it was limited to sharing one item
+at a time. This release now allows sharing of multiple items. Upon sharing, if
+several items (file or directory permanodes) are selected, a directory schema is
+created, and all the selected items become members of that directory. The
+directory is then the item being shared (transitively).
+</p>
+
+<p>
+The Camlistore <a href="/launch">launcher</a> for Google Cloud was also
+improved: it can now create a Google Project, and configure it (enable the
+required Google Cloud APIs), on behalf of the user. After the project is
+created, the user still has to enable billing for the project before they can
+proceed with the launch.
+</p>
+
+<h2>Downloads</h2>
+
+<center>
+<a class="downloadBox" href="/dl/monthly/camlistore-20170505-darwin.tar.gz">
+<div class="platform">Darwin</div>
+<div>
+	<span class="filename">camlistore-20170505-darwin.tar.gz</span>
+</div>
+<div class="checksum">SHA256: 8993204c59137343e7a02f463d263a9f6cbd90411728b7be18c748a9384dc6c5</div>
+</a>
+<a class="downloadBox" href="/dl/monthly/camlistore-20170505-linux.tar.gz">
+<div class="platform">Linux</div>
+<div>
+	<span class="filename">camlistore-20170505-linux.tar.gz</span>
+</div>
+<div class="checksum">SHA256: b12296fdd17f2cfa43078956d68e90b54426933116e43f947078ec975632fafc</div>
+</a>
+<a class="downloadBox" href="/dl/monthly/camlistore-20170505-src.zip">
+<div class="platform">Source</div>
+<div>
+	<span class="filename">camlistore-20170505-src.zip</span>
+</div>
+<div class="checksum">SHA256: af0a75eebd52e93154500b50454f964db233d153b5e19f4143e39ea0121a0b77</div>
+</a>
+<a class="downloadBox" href="/dl/monthly/camlistore-20170505-windows.zip">
+<div class="platform">Windows</div>
+<div>
+	<span class="filename">camlistore-20170505-windows.zip</span>
+</div>
+<div class="checksum">SHA256: fc41497493c1ba1031ccc5a6e6b6ebcb3a89658ef9218ef482c3646cdeaddbf1</div>
+</a>
+</center>
+
+
+<h2>Release Stats</h2>
+
+<p>
+3 total committers over 26 commits since <a href='https://github.com/camlistore/camlistore/commit/9e34d14ef5f240f35bd88d71495da0f6cbf99600'>9e34d14ef5f240f35bd88d71495da0f6cbf99600</a> including Attila Tajti, mpl, nico.
+</p>
+
+<p>Thank you!</p>
+
+
+
+<h2>Release Notes</h2>
+
+<p>
+<ul>
+
+<li>
+app/publisher:
+<ul>
+<li>variable width images in UI</li>
+<li>add zip download file times</li>
+<li>use relative paths in filenames within zip</li>
+<li>use scheme from window.location</li>
+</ul>
+</li>
+
+<li>
+app/scanningcabinet:
+<ul>
+<li>add go doc</li>
+</ul>
+</li>
+
+<li>
+camlistored/ui:
+<ul>
+<li>refresh blob and permanode aspects state on navigation</li>
+<li>fix share URL dialog for all pages</li>
+<li>connect temp form to DOM before submitting</li>
+<li>enable multi-items sharing</li>
+</ul>
+</li>
+
+<li>
+deploy/gce:
+<ul>
+<li>also create Google Cloud Project for user</li>
+</ul>
+</li>
+
+<li>
+doc:
+<ul>
+<li>add reverse proxy settings for publisher</li>
+</ul>
+</li>
+
+<li>
+make:
+<ul>
+<li>fixed copy/paste by replacing *website with *camnetdns</li>
+</ul>
+</li>
+
+<li>
+schema:
+<ul>
+<li>make sure claim date becomes signature time</li>
+</ul>
+</li>
+
+<li>
+vendor:
+<ul>
+<li>update go4.org/readerutil</li>
+</ul>
+</li>
+
+<li>
+website:
+<ul>
+<li>add link to launcher on release page</li>
+</ul>
+</li>
+
+</ul>
+</p>
