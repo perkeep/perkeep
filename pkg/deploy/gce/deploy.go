@@ -246,7 +246,7 @@ func (d *Deployer) CreateProject(ctx context.Context) (string, error) {
 			projectName = projectID
 		} else {
 			projectID = genRandomProjectID()
-			projectName = strings.Replace(projectID, "camlistore-launcher", "Camlistore ", 1)
+			projectName = strings.Replace(projectID, "camlistore-launcher-", "Camlistore ", 1)
 		}
 		project := cloudresourcemanager.Project{
 			Name:      projectName,

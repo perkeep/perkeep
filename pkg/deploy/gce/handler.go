@@ -455,6 +455,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 		// So we try to do so.
 		projectID, err := depl.CreateProject(context.TODO())
 		if err != nil {
+			h.logger.Printf("error creating project: %v", err)
 			// TODO(mpl): we log the errors, but none of them are
 			// visible to the user (they just get a 500). I should
 			// probably at least detect and report them the project
