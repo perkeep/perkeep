@@ -62,6 +62,10 @@ const (
 	// acctAttrOAuthToken stores access + " " + refresh + " " + expiry
 	// See encodeToken and decodeToken.
 	acctAttrOAuthToken = "oauthToken"
+
+	// AttrMediaURL is an attribute set on each picasa photo permanode. It
+	// is the public URL for fetching the contents of the photo file.
+	AttrMediaURL = "picasaMediaURL"
 )
 
 var (
@@ -237,8 +241,10 @@ func (imp) AccountSetupHTML(host *importer.Host) string {
 	}
 
 	callback := host.ImporterBaseURL() + "picasa/callback"
+	gphotosURL := host.ImporterBaseURL() + "gphotos"
 	return fmt.Sprintf(`
 <h1>Configuring Picasa</h1>
+<p>Please note that because of a bug in the Picasa API, you cannot retrieve more than 10000 photos. If you have more than 10000 photos, you should use the <a href='%s'>Google Photos importer</a> instead.</p>
 <p>Visit <a href='https://console.developers.google.com/'>https://console.developers.google.com/</a>
 and click <b>"Create Project"</b>.</p>
 <p>Then under "APIs & Auth" in the left sidebar, click on "Credentials", then click the button <b>"Create new Client ID"</b>.</p>
@@ -249,7 +255,7 @@ and click <b>"Create Project"</b>.</p>
   <li>Authorized Redirect URI: <b>%s</b></li>
 </ul>
 <p>Click "Create Client ID".  Copy the "Client ID" and "Client Secret" into the boxes above.</p>
-`, origin, callback)
+`, gphotosURL, origin, callback)
 }
 
 // A run is our state for a given run of the importer.
@@ -432,7 +438,6 @@ func (r *run) updatePhotoInAlbum(ctx context.Context, albumNode *importer.Object
 		return err
 	}
 
-	const attrMediaURL = "picasaMediaURL"
 	if fileRefStr == "" {
 		fileRefStr = photoNode.Attr(nodeattr.CamliContent)
 		// Only re-download the source photo if its URL has changed.
@@ -440,7 +445,7 @@ func (r *run) updatePhotoInAlbum(ctx context.Context, albumNode *importer.Object
 		// photos.google.com UI causes its URL to change. And it makes
 		// sense, looking at the ugliness of the URLs with all their
 		// encoded/signed state.
-		if !mediaURLsEqual(photoNode.Attr(attrMediaURL), photo.URL) {
+		if !mediaURLsEqual(photoNode.Attr(AttrMediaURL), photo.URL) {
 			rc, err := getMediaBytes()
 			if err != nil {
 				return err
@@ -497,7 +502,7 @@ func (r *run) updatePhotoInAlbum(ctx context.Context, albumNode *importer.Object
 	// Do this last, after we're sure the "camliContent" attribute
 	// has been saved successfully, because this is the one that
 	// causes us to do it again in the future or not.
-	if err := photoNode.SetAttrs(attrMediaURL, photo.URL); err != nil {
+	if err := photoNode.SetAttrs(AttrMediaURL, photo.URL); err != nil {
 		return err
 	}
 	return nil

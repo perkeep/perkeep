@@ -19,7 +19,6 @@ package gphotos
 import (
 	"context"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -124,13 +123,16 @@ func (dl *downloader) getPhotos(ctx context.Context, ch chan<- maybePhotos) {
 	var n int64
 	defer func() {
 		close(ch)
-		log.Printf("Received a total of %d files.", n)
+		logf("received a total of %d files.", n)
 	}()
 
 	listCall := dl.Service.Files.List().
 		Fields("nextPageToken, files(" + fields + ")").
-		// https://developers.google.com/drive/v3/reference/files/list says that
-		// "Please note that there is a current limitation for users with approximately one million files in which the requested sort order is ignored."
+		// If users ran the Picasa importer and they hit the 10000 images limit
+		// bug, they're missing their most recent photos, so we start by importing
+		// the most recent ones, since they should already have the oldest ones.
+		// However, https://developers.google.com/drive/v3/reference/files/list
+		// states OrderBy does not work for > 1e6 files.
 		OrderBy("createdTime desc,folder").
 		Spaces("photos").
 		PageSize(batchSize)
@@ -155,7 +157,7 @@ func (dl *downloader) getPhotos(ctx context.Context, ch chan<- maybePhotos) {
 			return
 		}
 
-		log.Printf("Receiving %d files.", len(r.Files))
+		logf("receiving %d files.", len(r.Files))
 		photos := make([]photo, 0, len(r.Files))
 		for _, f := range r.Files {
 			if f != nil {
@@ -178,7 +180,7 @@ func (dl *downloader) getChanges(ctx context.Context, ch chan<- maybePhotos, sin
 	var n int64
 	defer func() {
 		close(ch)
-		log.Printf("Received a total of %d changes.", n)
+		logf("received a total of %d changes.", n)
 	}()
 
 	token := sinceToken
@@ -192,7 +194,7 @@ func (dl *downloader) getChanges(ctx context.Context, ch chan<- maybePhotos, sin
 
 		var r *drive.ChangeList
 		if err := dl.rateLimit(ctx, func() error {
-			log.Printf("Importing changes at page %v", token)
+			logf("importing changes at revision %v", token)
 			var err error
 			r, err = dl.Service.Changes.List(token).
 				Context(ctx).
@@ -226,7 +228,7 @@ func (dl *downloader) getChanges(ctx context.Context, ch chan<- maybePhotos, sin
 // maybePhotos contains the photos found in the response to a drive list call,
 // and the last error to occur, if any, when getting these photos.
 type maybePhotos struct {
-	photos []photo // there may be photos even if err != nil
+	photos []photo
 	err    error
 }
 
@@ -243,6 +245,7 @@ type photo struct {
 }
 
 func (dl *downloader) openPhoto(ctx context.Context, photo photo) (io.ReadCloser, error) {
+	logf("importing media from %v", photo.WebContentLink)
 	var resp *http.Response
 	err := dl.rateLimit(ctx, func() error {
 		var err error
