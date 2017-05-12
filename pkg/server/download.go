@@ -20,6 +20,7 @@ import (
 	"archive/zip"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -29,6 +30,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/magic"
 	"camlistore.org/pkg/schema"
@@ -54,7 +56,6 @@ var (
 
 type DownloadHandler struct {
 	Fetcher blob.Fetcher
-	Cache   blobserver.Storage
 
 	// Search is optional. If present, it's used to map a fileref
 	// to a wholeref, if the Fetcher is of a type that knows how
@@ -62,10 +63,6 @@ type DownloadHandler struct {
 	Search *search.Handler
 
 	ForceMIME string // optional
-}
-
-func (dh *DownloadHandler) blobSource() blob.Fetcher {
-	return dh.Fetcher // TODO: use dh.Cache
 }
 
 type fileInfo struct {
@@ -89,7 +86,7 @@ func (dh *DownloadHandler) fileInfo(r *http.Request, file blob.Ref) (fi fileInfo
 	if ok {
 		return fi, true, nil
 	}
-	fr, err := schema.NewFileReader(dh.blobSource(), file)
+	fr, err := schema.NewFileReader(dh.Fetcher, file)
 	if err != nil {
 		return
 	}
@@ -255,10 +252,10 @@ func (dh *DownloadHandler) ServeFile(w http.ResponseWriter, r *http.Request, fil
 
 // statFiles stats the given refs and returns an error if any one of them is not
 // found.
-// It is the responsibility of the caller to check that dh.blobSource() is a
+// It is the responsibility of the caller to check that dh.Fetcher is a
 // blobserver.BlobStatter.
 func (dh *DownloadHandler) statFiles(refs []blob.Ref) error {
-	statter, _ := dh.blobSource().(blobserver.BlobStatter)
+	statter, _ := dh.Fetcher.(blobserver.BlobStatter)
 	statted := make(map[blob.Ref]bool)
 	ch := make(chan (blob.SizedRef))
 	errc := make(chan (error))
@@ -279,6 +276,26 @@ func (dh *DownloadHandler) statFiles(refs []blob.Ref) error {
 		if _, ok := statted[v]; !ok {
 			return fmt.Errorf("%q was not found", v)
 		}
+	}
+	return nil
+}
+
+// checkFiles reads, and discards, the file contents for each of the given file refs.
+// It is used to check that all files requested for download are readable before
+// starting to reply and/or creating a zip archive of them.
+func (dh *DownloadHandler) checkFiles(fileRefs []blob.Ref) error {
+	// TODO(mpl): add some concurrency
+	for _, br := range fileRefs {
+		fr, err := schema.NewFileReader(dh.Fetcher, br)
+		if err != nil {
+			return fmt.Errorf("could not fetch %v: %v", br, err)
+		}
+		_, err = io.Copy(ioutil.Discard, fr)
+		fr.Close()
+		if err != nil {
+			return fmt.Errorf("could not read %v: %v", br, err)
+		}
+		fr.Close()
 	}
 	return nil
 }
@@ -310,18 +327,22 @@ func (dh *DownloadHandler) serveZip(w http.ResponseWriter, r *http.Request) {
 
 	// We check as many things as we can before writing the zip, because
 	// once we start sending a response we can't http.Error anymore.
-	// TODO(mpl): instead of just statting, read the files (from the
-	// blobSource, which should be Cache then Fetcher), and write them to the
-	// Cache.
-	_, ok := dh.blobSource().(blobserver.BlobStatter)
+	_, ok := (dh.Fetcher).(*cacher.CachingFetcher)
 	if ok {
-		if err := dh.statFiles(refs); err != nil {
+		if err := dh.checkFiles(refs); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+	} else {
+		_, ok := dh.Fetcher.(blobserver.BlobStatter)
+		if ok {
+			if err := dh.statFiles(refs); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
 	}
 
-	// TODO(mpl): do not zip if only one file is requested?
 	h := w.Header()
 	h.Set("Content-Type", "application/zip")
 	zipName := "camli-download-" + time.Now().Format(downloadTimeLayout) + ".zip"

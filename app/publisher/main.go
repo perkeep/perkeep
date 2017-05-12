@@ -46,6 +46,7 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/localdisk"
 	"camlistore.org/pkg/buildinfo"
+	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/constants"
 	"camlistore.org/pkg/fileembed"
 	"camlistore.org/pkg/httputil"
@@ -936,8 +937,7 @@ func (pr *publishRequest) serveFileDownload(des *search.DescribedBlob) {
 		}
 	}
 	dh := &server.DownloadHandler{
-		Fetcher:   pr.ph.cl,
-		Cache:     pr.ph.cache,
+		Fetcher:   cacher.NewCachingFetcher(pr.ph.cache, pr.ph.cl),
 		ForceMIME: mimeType,
 	}
 	dh.ServeFile(pr.rw, pr.req, fileref)

@@ -36,6 +36,7 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
+	"camlistore.org/pkg/cacher"
 	"camlistore.org/pkg/constants"
 	"camlistore.org/pkg/fileembed"
 	"camlistore.org/pkg/httputil"
@@ -504,9 +505,11 @@ func (ui *UIHandler) serveDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dh := &DownloadHandler{
-		Fetcher: ui.root.Storage,
+		// TODO(mpl): for more efficiency, the cache itself should be a
+		// blobpacked, or really anything better optimized for file reading
+		// than a blobserver.localdisk (which is what ui.Cache most likely is).
+		Fetcher: cacher.NewCachingFetcher(ui.Cache, ui.root.Storage),
 		Search:  ui.search,
-		Cache:   ui.Cache,
 	}
 	dh.ServeHTTP(w, r)
 }
