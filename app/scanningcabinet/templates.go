@@ -27,13 +27,11 @@ var rootHTML = `
 	<base href="{{.BaseURL}}">
 	<link rel="stylesheet" type="text/css" href="{{.BaseURL}}ui/scanner.css" />
 	<script src="{{.BaseURL}}ui/scanner.js"></script>
-{{ if .AllTags }}
 	<link rel="stylesheet" href="{{.BaseURL}}ui/jQCloud.css">
 	<script type="text/javascript" src="{{.BaseURL}}ui/jquery.min.js"></script>
 	<script src="{{.BaseURL}}ui/jQCloud.js"></script>
 	<link rel="stylesheet" href="{{.BaseURL}}ui/jquery-ui.css">
 	<script src="{{.BaseURL}}ui/jquery-ui.min.js"></script>
-{{ end }}
 
 </head>
 <body>
@@ -150,9 +148,9 @@ var docHTML = `
 	<link rel="stylesheet" type="text/css" href="{{.BaseURL}}ui/scanner.css" />
 	<script src="{{.BaseURL}}ui/scanner.js"></script>
 
-	<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
-	<link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
-	<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+	<script type="text/javascript" src="{{.BaseURL}}ui/jquery.min.js"></script>
+	<link rel="stylesheet" href="{{.BaseURL}}ui/jquery-ui.css">
+	<script src="{{.BaseURL}}ui/jquery-ui.min.js"></script>
 </head>
 <body>
   <div>[<a href='{{.BaseURL}}'>Scanning Cabinet</a>]</div>
