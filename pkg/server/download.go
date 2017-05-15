@@ -359,7 +359,7 @@ func (dh *DownloadHandler) serveZip(w http.ResponseWriter, r *http.Request) {
 			Name:   fi.name,
 			Method: zip.Store,
 		}
-		zh.SetModTime(fi.modtime.UTC())
+		zh.SetModTime(fi.modtime)
 		zfh, err := zw.CreateHeader(zh)
 		if err != nil {
 			return err
