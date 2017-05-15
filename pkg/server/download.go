@@ -295,7 +295,6 @@ func (dh *DownloadHandler) checkFiles(fileRefs []blob.Ref) error {
 		if err != nil {
 			return fmt.Errorf("could not read %v: %v", br, err)
 		}
-		fr.Close()
 	}
 	return nil
 }
