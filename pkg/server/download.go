@@ -67,7 +67,7 @@ type DownloadHandler struct {
 
 type fileInfo struct {
 	mime    string
-	name    string
+	name    string // base name of the file
 	size    int64
 	modtime time.Time
 	rs      io.ReadSeeker
