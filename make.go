@@ -481,6 +481,9 @@ func genPublisherJS(gopherjsBin string) error {
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
 	)
+	// Pretend we're on linux regardless of the actual host, because recommended
+	// hack to work around https://github.com/gopherjs/gopherjs/issues/511
+	cmd.Env = setEnv(cmd.Env, "GOOS", "linux")
 	if gopherjsGoroot != "" {
 		cmd.Env = setEnv(cmd.Env, "GOROOT", gopherjsGoroot)
 	}
@@ -558,6 +561,9 @@ func genWebUIJS(gopherjsBin string) error {
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
 	)
+	// Pretend we're on linux regardless of the actual host, because recommended
+	// hack to work around https://github.com/gopherjs/gopherjs/issues/511
+	cmd.Env = setEnv(cmd.Env, "GOOS", "linux")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("gopherjs for web UI error: %v, %v", err, string(out))
 	}
