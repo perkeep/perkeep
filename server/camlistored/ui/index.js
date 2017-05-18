@@ -1148,41 +1148,59 @@ cam.IndexPage = React.createClass({
 		// since we already have the search session results handy.
 		// It shouldn't be any problem to move it to Go later.
 		callbacks.getSelection = function() {
-				var selection = goog.object.getKeys(this.state.selection);
-				var files = [];
-				selection.forEach(function(br) {
-					var meta = this.childSearchSession_.getResolvedMeta(br);
-					if (!meta) {
-						return;
-					}
-					if (meta.dir) {
-						files.push({'blobRef': meta.blobRef, 'isDir': 'true'});
-						return;
-					}
-					if (meta.file) {
-						files.push({'blobRef': meta.blobRef, 'isDir': 'false'});
-						return;
-					}
-				}.bind(this))
-				return files;
-			}.bind(this);
+			var selection = goog.object.getKeys(this.state.selection);
+			var files = [];
+			selection.forEach(function(br) {
+				var meta = this.childSearchSession_.getResolvedMeta(br);
+				if (!meta) {
+					return;
+				}
+				if (meta.dir) {
+					files.push({'blobRef': meta.blobRef, 'isDir': 'true'});
+					return;
+				}
+				if (meta.file) {
+					files.push({'blobRef': meta.blobRef, 'isDir': 'false'});
+					return;
+				}
+			}.bind(this))
+			return files;
+		}.bind(this);
 
 		callbacks.showSharedURL = function(sharedURL, anchorText) {
-				// TODO(mpl): Port the dialog to Go.
-				this.setState({
-					messageDialogVisible: true,
-					messageDialogContents: React.DOM.div({
-						style: {
-							textAlign: 'center',
-							position: 'relative',
-						},},
-						React.DOM.div({}, 'Share URL:'),
-						React.DOM.div({}, React.DOM.a({href: sharedURL}, anchorText))
-					),
-				});
-			}.bind(this);
+			// TODO(mpl): Port the dialog to Go.
+			this.setState({
+				messageDialogVisible: true,
+				messageDialogContents: React.DOM.div({
+					style: {
+						textAlign: 'center',
+						position: 'relative',
+					},},
+					React.DOM.div({}, 'Share URL:'),
+					React.DOM.div({}, React.DOM.a({href: sharedURL}, anchorText))
+				),
+			});
+		}.bind(this);
 
 		return goreact.ShareItemsBtn('shareBtnSidebar', this.props.config, callbacks);
+	},
+
+	getSelectAllItem_: function() {
+		var callbacks = {};
+		callbacks.getQuery = function() {
+			var target = this.getTargetBlobref_();
+			var query = '';
+			if (target) {
+				query = 'ref:' + target;
+			} else {
+				query = this.state.currentURL.getParameterValue('q') || '';
+			}
+			return query;
+		}.bind(this);
+		callbacks.setSelection = function(selection) {
+				this.setSelection_(selection);
+		}.bind(this);
+		return goreact.SelectAllBtn('selectallBtnSidebar', this.props.config, callbacks);
 	},
 
 	getSidebar_: function(selectedAspect) {
@@ -1204,6 +1222,7 @@ cam.IndexPage = React.createClass({
 						}
 					].filter(goog.functions.identity),
 					selectionControls: [
+						this.getSelectAllItem_(),
 						this.getClearSelectionItem_(),
 						this.getCreateSetWithSelectionItem_(),
 						this.getSelectAsCurrentSetItem_(),
