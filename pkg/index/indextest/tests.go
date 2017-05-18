@@ -338,7 +338,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	}
 
 	// Upload some files.
-	var jpegFileRef, exifFileRef, exifWholeRef, badExifWholeRef, mediaFileRef, mediaWholeRef blob.Ref
+	var jpegFileRef, exifFileRef, exifWholeRef, badExifWholeRef, nanExifWholeRef, mediaFileRef, mediaWholeRef blob.Ref
 	{
 		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
 		if err != nil {
@@ -356,6 +356,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		jpegFileRef, _ = uploadFile("dude.jpg", noTime)
 		exifFileRef, exifWholeRef = uploadFile("dude-exif.jpg", time.Unix(1361248796, 0))
 		_, badExifWholeRef = uploadFile("bad-exif.jpg", time.Unix(1361248796, 0))
+		_, nanExifWholeRef = uploadFile("nan-exif.jpg", time.Unix(1361248796, 0))
 		mediaFileRef, mediaWholeRef = uploadFile("0s.mp3", noTime)
 	}
 
@@ -397,6 +398,12 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	key = "exifgps|" + badExifWholeRef.String()
 	if g, e := id.Get(key), ""; g != e {
 		t.Errorf("EXIF bad-exif.jpg key %q = %q; want %q", key, g, e)
+	}
+
+	// Check that indexer ignores NaN exif lat/long.
+	key = "exifgps|" + nanExifWholeRef.String()
+	if g, e := id.Get(key), ""; g != e {
+		t.Errorf("EXIF nan-exif.jpg key %q = %q; want %q", key, g, e)
 	}
 
 	key = "have:" + pn.String()

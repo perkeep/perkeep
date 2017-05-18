@@ -635,6 +635,10 @@ func indexEXIF(wholeRef blob.Ref, r io.Reader, mm *mutationMap) (err error) {
 			log.Printf("Long, lat outside allowed range: %v, %v", long, lat)
 			return nil
 		}
+		if math.IsNaN(long) || math.IsNaN(lat) {
+			log.Print("Latitude or Longitude is NaN")
+			return nil
+		}
 		// index 7 places fixed precision (~10mm worst case at equator)
 		// http://stackoverflow.com/a/1947615/114581
 		mm.Set(keyEXIFGPS.Key(wholeRef), keyEXIFGPS.Val(fmt.Sprintf("%.7f", lat), fmt.Sprintf("%.7f", long)))
