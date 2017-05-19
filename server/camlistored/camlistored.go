@@ -274,8 +274,7 @@ var osExit = os.Exit // testing hook
 
 func handleSignals(shutdownc <-chan io.Closer) {
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGHUP)
-	signal.Notify(c, syscall.SIGINT)
+	signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
 	for {
 		sig := <-c
 		sysSig, ok := sig.(syscall.Signal)
@@ -284,13 +283,13 @@ func handleSignals(shutdownc <-chan io.Closer) {
 		}
 		switch sysSig {
 		case syscall.SIGHUP:
-			log.Print("SIGHUP: restarting camli")
+			log.Printf(`Got "%v" signal: restarting camli`, sig)
 			err := osutil.RestartProcess()
 			if err != nil {
 				log.Fatal("Failed to restart: " + err.Error())
 			}
-		case syscall.SIGINT:
-			log.Print("Got SIGINT: shutting down")
+		case syscall.SIGINT, syscall.SIGTERM:
+			log.Printf(`Got "%v" signal: shutting down`, sig)
 			donec := make(chan bool)
 			go func() {
 				cl := <-shutdownc
