@@ -111,7 +111,7 @@ func (q *Query) send() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		q.cl = newClient(am)
+		q.cl = client.NewFromParams("", am, client.OptionSameOrigin(true))
 	}
 	q.Expr = ShiftZoomPredicate(q.Expr)
 	expr := mapToLocrect(q.Expr)
@@ -147,16 +147,6 @@ func (q *Query) send() ([]byte, error) {
 	}
 	q.zoom = q.nextZoom
 	return resp, nil
-}
-
-func newClient(am auth.AuthMode) *client.Client {
-	cl := client.NewFromParams("", am, client.OptionSameOrigin(true))
-	// Here we force the use of the http.DefaultClient. Otherwise, we'll hit
-	// one of the net.Dial* calls due to custom transport we set up by default
-	// in pkg/client. Which we don't want because system calls are prohibited by
-	// gopherjs.
-	cl.SetHTTPClient(nil)
-	return cl
 }
 
 // checkZoomExpr verifies that expr does not violate the rules about the map

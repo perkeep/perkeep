@@ -219,20 +219,10 @@ func (d ShareItemsBtnDef) shareSelection() (string, error) {
 	return shareFile(am, newDirbr, true)
 }
 
-func newClient(am auth.AuthMode) *client.Client {
-	cl := client.NewFromParams("", am, client.OptionSameOrigin(true))
-	// Here we force the use of the http.DefaultClient. Otherwise, we'll hit
-	// one of the net.Dial* calls due to custom transport we set up by default
-	// in pkg/client. Which we don't want because system calls are prohibited by
-	// gopherjs.
-	cl.SetHTTPClient(nil)
-	return cl
-}
-
 // mkdir creates a new directory blob, with children composing its static-set,
 // and uploads it. It returns the blobRef of the new directory.
 func mkdir(am auth.AuthMode, children []blob.Ref) (blob.Ref, error) {
-	cl := newClient(am)
+	cl := client.NewFromParams("", am, client.OptionSameOrigin(true))
 	var newdir blob.Ref
 	var ss schema.StaticSet
 	for _, br := range children {
@@ -257,7 +247,7 @@ func mkdir(am auth.AuthMode, children []blob.Ref) (blob.Ref, error) {
 // item is a file, the URL can be used directly to fetch the file. If the item is a
 // directory, the URL should be used with camget -shared.
 func shareFile(am auth.AuthMode, target blob.Ref, isDir bool) (string, error) {
-	cl := newClient(am)
+	cl := client.NewFromParams("", am, client.OptionSameOrigin(true))
 	claim, err := newShareClaim(cl, target)
 	if err != nil {
 		return "", err

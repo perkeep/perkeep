@@ -186,7 +186,7 @@ func (d SelectAllBtnDef) findAll() (map[string]bool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Error setting up auth: %v", err)
 	}
-	cl := newClient(am)
+	cl := client.NewFromParams("", am, client.OptionSameOrigin(true))
 	res, err := cl.Query(query)
 	if err != nil {
 		return nil, err
@@ -196,14 +196,4 @@ func (d SelectAllBtnDef) findAll() (map[string]bool, error) {
 		blobs[v.Blob.String()] = true
 	}
 	return blobs, nil
-}
-
-func newClient(am auth.AuthMode) *client.Client {
-	cl := client.NewFromParams("", am, client.OptionSameOrigin(true))
-	// Here we force the use of the http.DefaultClient. Otherwise, we'll hit
-	// one of the net.Dial* calls due to custom transport we set up by default
-	// in pkg/client. Which we don't want because system calls are prohibited by
-	// gopherjs.
-	cl.SetHTTPClient(nil)
-	return cl
 }

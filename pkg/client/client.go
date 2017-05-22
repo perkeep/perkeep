@@ -1,5 +1,5 @@
 /*
-Copyright 2011 Google Inc.
+Copyright 2011 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -157,6 +157,10 @@ type Client struct {
 const maxParallelHTTP_h1 = 5
 const maxParallelHTTP_h2 = 50
 
+// inGopherJS reports whether the client package is compiled by GopherJS, for use
+// in the browser.
+var inGopherJS bool
+
 // New returns a new Camlistore Client.
 // The provided server is either "host:port" (assumed http, not https) or a URL prefix, with or without a path, or a server alias from the client configuration file. A server alias should not be confused with a hostname, therefore it cannot contain any colon or period.
 // Errors are not returned until subsequent operations.
@@ -238,6 +242,13 @@ func (c *Client) useHTTP2(tc *TransportConfig) bool {
 // It is the caller's responsibility to then use that transport to set
 // the client's httpClient with SetHTTPClient.
 func (c *Client) transportForConfig(tc *TransportConfig) http.RoundTripper {
+	if inGopherJS {
+		// Calls to net.Dial* functions - which would happen if the client's transport
+		// is not nil - are prohibited with GopherJS. So we force nil here, so that the
+		// call to transportForConfig in newClient is of no consequence when on the
+		// browser.
+		return nil
+	}
 	if c == nil {
 		return nil
 	}
@@ -1328,8 +1339,7 @@ func NewFromParams(server string, mode auth.AuthMode, opts ...ClientOption) *Cli
 	// there are code paths in newClient (c.transportForConfig) that can lead
 	// to parsing the config file.
 	opts = append(opts[:len(opts):len(opts)], optionParamsOnly(true))
-	cl := newClient(server, mode, opts...)
-	return cl
+	return newClient(server, mode, opts...)
 }
 
 // TODO(bradfitz): move auth mode into a ClientOption? And
