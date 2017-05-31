@@ -1,0 +1,29 @@
+/*
+ * Copyright 2017 The Camlistore Authors.
+ * Use of this source code is governed by a BSD-style
+ * license that can be found in the LICENSE file.
+ */
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 17
+    buildToolsVersion "19.1.0"
+
+    defaultConfig {
+        applicationId "org.camlistore"
+        minSdkVersion 10
+        targetSdkVersion 17
+        versionCode 1
+        versionName "1"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}
+
+dependencies {
+    compile fileTree(include: ['*.jar'], dir: 'libs')
+    compile 'com.android.support:appcompat-v7:18.+'
+}

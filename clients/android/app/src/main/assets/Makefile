@@ -1,3 +1,4 @@
+# TODO(mpl): update this file.
 # To use this Makefile, first:
 #
 #   $ cd $GOROOT/src

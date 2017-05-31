@@ -311,12 +311,12 @@ public class UploadThread extends Thread {
                     Log.d(TAG, "Exception reading camput's stdout: " + e.toString());
                     return;
                 }
-                if (DEBUG_CAMPUT_ACTIVITY) {
-                    Log.d(TAG, "camput: " + line);
-                }
                 if (line == null) {
                     // EOF
                     return;
+                }
+                if (DEBUG_CAMPUT_ACTIVITY) {
+                    Log.d(TAG, "camput: " + line);
                 }
                 if (line.startsWith("CHUNK_UPLOADED ")) {
                     CamputChunkUploadedMessage msg = new CamputChunkUploadedMessage(line);

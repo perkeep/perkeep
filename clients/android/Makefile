@@ -1,17 +1,26 @@
 all:
 	./check-environment.pl
-	ant debug
-
-# Dummy target to make build.pl happy
-install:
-	./check-environment.pl
-	ant debug
+	./gradlew assembleRelease
 
 env:
 	docker build -t camlistore/android devenv
 
+dockerdev:
+	docker run --rm -v $(GOPATH)/src/camlistore.org:/home/gopher/src/camlistore.org -v $(HOME)/.gradle:/home/gopher/.gradle -v $(HOME)/.android:/home/gopher/.android -w /home/gopher/src/camlistore.org/clients/android --name camlidroid -i -t camlistore/android /bin/bash
+
 dockerdebug:
-	docker run -v $(GOPATH)/src/camlistore.org:/src/camlistore.org camlistore/android /src/camlistore.org/clients/android/build-in-docker.pl debug
+	docker run --rm -v $(GOPATH)/src/camlistore.org:/home/gopher/src/camlistore.org -v $(HOME)/.gradle:/home/gopher/.gradle -v $(HOME)/.android:/home/gopher/.android -w /home/gopher/src/camlistore.org/clients/android --name camlidroid -i -t camlistore/android go run build-in-docker.go
 
 dockerrelease:
-	docker run -i -t -v $(GOPATH)/src/camlistore.org:/src/camlistore.org -v $(HOME)/keys/android-camlistore:/keys camlistore/android /src/camlistore.org/clients/android/build-in-docker.pl release
+	docker run --rm -v $(GOPATH)/src/camlistore.org:/home/gopher/src/camlistore.org -v $(HOME)/.gradle:/home/gopher/.gradle -v $(HOME)/.android:/home/gopher/.android -w /home/gopher/src/camlistore.org/clients/android --name camlidroid -i -t camlistore/android go run build-in-docker.go -release=true
+
+installdebug:
+	adb install -r app/build/outputs/apk/app-debug.apk
+
+install:
+	# TODO(bradfitz): step to sign app/build/outputs/apk/app-release-unsigned.apk
+	# adb install -r app/build/outputs/apk/app-release.apk
+
+test:
+	# TODO(mpl): can't run the instrumentation tests within docker, since
+	# can't connect to the phone from in there.
