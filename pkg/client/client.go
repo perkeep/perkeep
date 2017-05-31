@@ -333,6 +333,12 @@ func (o optionSameOrigin) modifyClient(c *Client) {
 	c.sameOrigin = bool(o)
 }
 
+type optionParamsOnly bool
+
+func (o optionParamsOnly) modifyClient(c *Client) {
+	c.paramsOnly = bool(o)
+}
+
 // noop is for use with syncutil.Onces.
 func noop() error { return nil }
 
@@ -1149,6 +1155,10 @@ func (c *Client) DialTLSFunc() func(network, addr string) (net.Conn, error) {
 			} else {
 				tlsConfig = &tls.Config{InsecureSkipVerify: true}
 			}
+			// Since we're doing the TLS handshake ourselves, we need to set the ServerName,
+			// in case the server uses SNI (as is the case if it's relying on Let's Encrypt,
+			// for example).
+			tlsConfig.ServerName = c.serverNameOfAddr(addr)
 			conn = tls.Client(ac, tlsConfig)
 			if err := conn.Handshake(); err != nil {
 				return nil, err
@@ -1174,6 +1184,21 @@ func (c *Client) DialTLSFunc() func(network, addr string) (net.Conn, error) {
 		}
 		return nil, fmt.Errorf("TLS server at %v presented untrusted certificate (signature %q)", addr, sig)
 	}
+}
+
+// serverNameOfAddr returns the host part of addr, or the empty string if addr
+// is not a valid address (see net.Dial). Additionally, if host is an IP literal,
+// serverNameOfAddr returns the empty string.
+func (c *Client) serverNameOfAddr(addr string) string {
+	serverName, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		c.printf("could not get server name from address %q: %v", addr, err)
+		return ""
+	}
+	if ip := net.ParseIP(serverName); ip != nil {
+		return ""
+	}
+	return serverName
 }
 
 func (c *Client) Signer() (*schema.Signer, error) {
@@ -1299,8 +1324,11 @@ func (c *Client) Close() error {
 // and auth but does not use any on-disk config files or environment variables
 // for its configuration. It may still use the disk for caches.
 func NewFromParams(server string, mode auth.AuthMode, opts ...ClientOption) *Client {
+	// paramsOnly = true needs to be passed as soon as an argument, because
+	// there are code paths in newClient (c.transportForConfig) that can lead
+	// to parsing the config file.
+	opts = append(opts[:len(opts):len(opts)], optionParamsOnly(true))
 	cl := newClient(server, mode, opts...)
-	cl.paramsOnly = true
 	return cl
 }
 

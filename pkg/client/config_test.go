@@ -61,3 +61,29 @@ func TestAliasFromConfig(t *testing.T) {
 		}
 	}
 }
+
+func TestServerOfName(t *testing.T) {
+	addrs := []struct {
+		input string
+		want  string
+	}{
+		{
+			input: "foo.com:80",
+			want:  "foo.com",
+		},
+		{
+			input: "192.168.0.9:80",
+			want:  "",
+		},
+		{
+			input: "foo.com",
+			want:  "",
+		},
+	}
+	c := NewFromParams("whatever", nil)
+	for _, v := range addrs {
+		if got := c.serverNameOfAddr(v.input); got != v.want {
+			t.Errorf("wanted %v, got %q", v.want, got)
+		}
+	}
+}
