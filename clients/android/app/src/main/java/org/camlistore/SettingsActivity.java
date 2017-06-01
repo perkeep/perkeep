@@ -90,12 +90,10 @@ public class SettingsActivity extends PreferenceActivity {
         m.put(Preferences.MAX_CACHE_MB, "maxCacheSize");
         prefToParam = Collections.unmodifiableMap(m);
 
-        getPreferenceManager().setSharedPreferencesName(Preferences.NAME);
+        getPreferenceManager().setSharedPreferencesName(Preferences.filename(this.getBaseContext()));
         addPreferencesFromResource(R.xml.preferences);
 
         hostPref = (EditTextPreference) findPreference(Preferences.HOST);
-        // TODO(mpl): popup window that proposes to automatically add the cert to
-        // the prefs when we fail to dial an untrusted server (and only in that case).
         trustedCertPref = (EditTextPreference) findPreference(Preferences.TRUSTED_CERT);
         usernamePref = (EditTextPreference) findPreference(Preferences.USERNAME);
         passwordPref = (EditTextPreference) findPreference(Preferences.PASSWORD);
@@ -104,7 +102,7 @@ public class SettingsActivity extends PreferenceActivity {
         maxCacheSizePref = (EditTextPreference) findPreference(Preferences.MAX_CACHE_MB);
         devIPPref = (EditTextPreference) findPreference(Preferences.DEV_IP);
 
-        mSharedPrefs = getSharedPreferences(Preferences.NAME, 0);
+        mSharedPrefs = getSharedPreferences(Preferences.filename(this.getBaseContext()), 0);
         mPrefs = new Preferences(mSharedPrefs);
 
         // Display defaults.

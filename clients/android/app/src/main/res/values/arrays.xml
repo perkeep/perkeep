@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string-array name="profiles_entries">
+		<item>default</item>
+	</string-array>
+	<string-array name="profiles_entry_values">
+		<item>default</item>
+	</string-array>
+
+</resources>

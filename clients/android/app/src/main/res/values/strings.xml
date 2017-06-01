@@ -5,6 +5,8 @@
     <string name="settings_confirmation_dialog_title">Use these settings?</string>
     <string name="settings_host_title">Camlistore server</string>
     <string name="settings_host_summary">e.g. https://foo.example.com or &quot;example.com:3179&quot;</string>
+    <string name="profiles_title">Current profile</string>
+    <string name="profiles_summary">default</string>
     <string name="settings_qr_title">QR</string>
     <string name="settings_qr_summary">Scan QR code from /ui/mobile.html</string>
     <string name="settings_trusted_cert_title">Self-signed cert fingerprint</string>
@@ -31,6 +33,7 @@
     <string name="files_uploaded">Files Uploaded</string>
     <string name="bytes_uploaded">Bytes Uploaded</string>
     <string name="settings">Settings</string>
+    <string name="profile">Profile</string>
     <string name="upload_all">Upload All</string>
     <string name="browse">Browse</string>
     <string name="results">Results</string>

@@ -49,6 +49,9 @@
 
 	<activity android:name=".SettingsActivity">
 	</activity>
+
+	<activity android:name=".ProfilesActivity">
+	</activity>
 		
 	<receiver android:name=".OnBootReceiver">
 	  <intent-filter>

@@ -46,6 +46,7 @@ public class CamliActivity extends Activity {
     private static final int MENU_STOP_DIE = 3;
     private static final int MENU_UPLOAD_ALL = 4;
     private static final int MENU_VERSION = 5;
+    private static final int MENU_PROFILES = 6;
 
     private IUploadService mServiceStub = null;
     private IStatusCallback mCallback = null;
@@ -251,6 +252,10 @@ public class CamliActivity extends Activity {
         MenuItem stopDie = menu.add(Menu.NONE, MENU_STOP_DIE, 0, R.string.stop_die);
         stopDie.setIcon(android.R.drawable.ic_menu_close_clear_cancel);
 
+        MenuItem profiles = menu.add(Menu.NONE, MENU_PROFILES, 0, R.string.profile);
+        // TODO(mpl): do we care about this icon? I don't even know where it actually appears.
+        profiles.setIcon(android.R.drawable.ic_menu_preferences);
+
         MenuItem settings = menu.add(Menu.NONE, MENU_SETTINGS, 0, R.string.settings);
         settings.setIcon(android.R.drawable.ic_menu_preferences);
 
@@ -274,6 +279,9 @@ public class CamliActivity extends Activity {
             System.exit(1);
         case MENU_SETTINGS:
             SettingsActivity.show(this);
+            break;
+        case MENU_PROFILES:
+            ProfilesActivity.show(this);
             break;
         case MENU_VERSION:
             Toast.makeText(this, "camput version: " + ((UploadApplication) getApplication()).getCamputVersion(), Toast.LENGTH_LONG).show();
@@ -307,7 +315,7 @@ public class CamliActivity extends Activity {
     protected void onResume() {
         super.onResume();
 
-        SharedPreferences sp = getSharedPreferences(Preferences.NAME, 0);
+        SharedPreferences sp = getSharedPreferences(Preferences.filename(this.getBaseContext()), 0);
         try {
             HostPort hp = new HostPort(sp.getString(Preferences.HOST, ""));
             if (!hp.isValid()) {

@@ -107,7 +107,7 @@ public class UploadService extends Service {
         mPowerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         mWifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        mPrefs = new Preferences(getSharedPreferences(Preferences.NAME, 0));
+        mPrefs = new Preferences(getSharedPreferences(Preferences.filename(this.getBaseContext()), 0));
 
         updateBackgroundWatchers();
     }
