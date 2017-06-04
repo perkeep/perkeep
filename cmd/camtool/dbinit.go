@@ -107,7 +107,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=%s", c.user, "postgres", c.host, c.password, c.sslMode)
 		rootdb, err = sql.Open("postgres", conninfo)
 	case "mysql":
-		rootdb, err = sql.Open("mysql", c.user+":"+c.password+"@/mysql")
+		rootdb, err = sql.Open("mysql", c.user+":"+c.password+"@tcp("+c.host+")/mysql")
 	}
 	if err != nil {
 		exitf("Error connecting to the root %s database: %v", c.dbType, err)
