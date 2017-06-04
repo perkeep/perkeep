@@ -28,11 +28,16 @@ func TestSum(t *testing.T) {
 		buf[i] = uint8(rnd.Intn(256))
 	}
 
-	sum := func(offset, len int) uint32 {
+	roll := func(offset, len int) *RollSum {
 		rs := New()
 		for count := offset; count < len; count++ {
 			rs.Roll(buf[count])
 		}
+		return rs
+	}
+
+	sum := func(offset, len int) uint32 {
+		rs := roll(offset, len)
 		return rs.Digest()
 	}
 
@@ -51,6 +56,21 @@ func TestSum(t *testing.T) {
 	}
 	if sum3a != sum3b {
 		t.Errorf("sum3a=%d sum3b=%d", sum3a, sum3b)
+	}
+
+	end := 500
+	rs := roll(0, windowSize)
+	for i := 0; i < end; i++ {
+		sumRoll := rs.Digest()
+		newRoll := roll(i, i+windowSize).Digest()
+
+		if sumRoll != newRoll {
+			t.Errorf("Error: i=%d, buf[i]=%d, sumRoll=%d, newRoll=%d\n", i, buf[i], sumRoll, newRoll)
+		} else {
+			// fmt.Printf("OK:    i=%d, buf[i]=%d, sumRoll=%d, newRoll=%d\n", i, buf[i], sumRoll, newRoll)
+		}
+
+		rs.Roll(buf[i + windowSize])
 	}
 }
 
