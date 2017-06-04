@@ -43,6 +43,7 @@ var (
 	// caught at build time.
 	flagVersion       = cmdmain.FlagVersion
 	flagVerbose       = cmdmain.FlagVerbose
+	flagHelp          = cmdmain.FlagHelp
 	flagHTTP          = flag.Bool("verbose_http", false, "show HTTP request summaries")
 	flagCheck         = flag.Bool("check", false, "just check for the existence of listed blobs; returning 0 if all are present")
 	flagOutput        = flag.String("o", "-", "Output file/directory to create.  Use -f to overwrite.")
@@ -178,6 +179,9 @@ func main() {
 		log.Printf("HTTP requests: %d\n", httpStats.Requests())
 		h1, h2 := httpStats.ProtoVersions()
 		log.Printf("    responses: %d (h1), %d (h2)\n", h1, h2)
+	}
+	if *cmdmain.FlagHelp {
+		flag.PrintDefaults()
 	}
 }
 
