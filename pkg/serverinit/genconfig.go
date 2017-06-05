@@ -25,7 +25,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 
@@ -103,10 +102,6 @@ func (b *lowBuilder) dbName(of string) string {
 		}
 		username := osutil.Username()
 		if username == "" {
-			envVar := "USER"
-			if runtime.GOOS == "windows" {
-				envVar += "NAME"
-			}
 			return "camlistore_index"
 		}
 		return "camli" + username
