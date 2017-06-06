@@ -670,6 +670,33 @@ func setupLogging() io.Closer {
 	return maybeSetupGoogleCloudLogging()
 }
 
+func checkRecovery() {
+	if *flagRecovery {
+		blobpacked.SetRecovery()
+		return
+	}
+	if !env.OnGCE() {
+		return
+	}
+	recovery, err := metadata.InstanceAttributeValue("camlistore-recovery")
+	if err != nil {
+		if _, ok := err.(metadata.NotDefinedError); !ok {
+			log.Printf("error getting camlistore-recovery: %v", err)
+		}
+		return
+	}
+	if recovery == "" {
+		return
+	}
+	doRecovery, err := strconv.ParseBool(recovery)
+	if err != nil {
+		log.Printf("invalid bool value for \"camlistore-recovery\": %v", err)
+	}
+	if doRecovery {
+		blobpacked.SetRecovery()
+	}
+}
+
 // main wraps Main so tests (which generate their own func main) can still run Main.
 func main() {
 	Main(nil, nil)
@@ -694,9 +721,7 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		}
 		return
 	}
-	if *flagRecovery {
-		blobpacked.SetRecovery()
-	}
+	checkRecovery()
 
 	// In case we're running in a Docker container with no
 	// filesytem from which to load the root CAs, this

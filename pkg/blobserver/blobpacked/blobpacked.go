@@ -99,6 +99,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/constants"
+	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/pools"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
@@ -291,6 +292,9 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 	// is recorded. This is probably a corrupt state, and the user likely
 	// wants to recover.
 	if !sto.anyMeta() && sto.anyZipPacks() {
+		if env.OnGCE() {
+			log.Fatal("Error: blobpacked storage detects non-zero packed zips, but no metadata. Please switch to recovery mode: add the \"camlistore-recovery = true\" key/value to the Custom metadata of your instance. And restart the instance.")
+		}
 		log.Fatal("Error: blobpacked storage detects non-zero packed zips, but no metadata. Please re-start in recovery mode with -recovery.")
 	}
 
