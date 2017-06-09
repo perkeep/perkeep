@@ -135,6 +135,12 @@ func (d DownloadItemsBtnDef) downloadSelection() error {
 		fileRefs = append(fileRefs, ref.String())
 	}
 
+	if len(fileRefs) < 2 {
+		// Do not ask for a zip if we only want one file
+		dom.GetWindow().Open(fmt.Sprintf("%s/%s", downloadPrefix, fileRefs[0]), "", "")
+		return nil
+	}
+
 	el := dom.GetWindow().Document().CreateElement("input")
 	input := el.(*dom.HTMLInputElement)
 	input.Type = "text"
