@@ -1,0 +1,5 @@
+github.com/gopherjs/gopherjs
+golang.org/x/tools/cmd/goimports
+myitcv.io/immutable/cmd/immutableGen
+myitcv.io/immutable/cmd/immutableVet
+myitcv.io/sorter/cmd/sortGen

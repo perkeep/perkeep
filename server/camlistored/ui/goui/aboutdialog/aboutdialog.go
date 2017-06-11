@@ -26,9 +26,11 @@ import (
 
 	"camlistore.org/pkg/auth"
 
-	. "github.com/myitcv/gopherjs/react"
 	"honnef.co/go/js/dom"
+	"myitcv.io/react"
 )
+
+//go:generate reactGen
 
 // New returns the menu item element. It should be used as the entry point, to
 // create the needed react element.
@@ -42,7 +44,7 @@ import (
 //
 // class is the CSS class for this item.
 func New(entryText, dialog, class string,
-	config map[string]string) Element {
+	config map[string]string) react.Element {
 	if config == nil {
 		fmt.Println("Nil config for DownloadItemsBtn")
 		return nil
@@ -64,11 +66,11 @@ func New(entryText, dialog, class string,
 		authToken:  authToken,
 		statusRoot: statusRoot,
 	}
-	return AboutMenuItem(props).Render()
+	return buildAboutMenuItemElem(props)
 }
 
 type AboutMenuItemDef struct {
-	ComponentDef
+	react.ComponentDef
 }
 
 type AboutMenuItemProps struct {
@@ -79,26 +81,13 @@ type AboutMenuItemProps struct {
 	statusRoot string
 }
 
-func (a *AboutMenuItemDef) Props() AboutMenuItemProps {
-	uprops := a.ComponentDef.Props()
-	return uprops.(AboutMenuItemProps)
-}
-
-func AboutMenuItem(p AboutMenuItemProps) *AboutMenuItemDef {
-	res := &AboutMenuItemDef{}
-
-	BlessElement(res, p)
-
-	return res
-}
-
-func (a *AboutMenuItemDef) Render() Element {
-	return Div(
-		DivProps(func(dp *DivPropsDef) {
-			dp.ClassName = a.Props().class
-			dp.OnClick = a.showDialog
-		}),
-		S(a.Props().menuEntry),
+func (a AboutMenuItemDef) Render() react.Element {
+	return react.Div(
+		&react.DivProps{
+			ClassName: a.Props().class,
+			OnClick:   a,
+		},
+		react.S(a.Props().menuEntry),
 	)
 }
 
@@ -107,7 +96,7 @@ type status struct {
 	GoInfo  string
 }
 
-func (a *AboutMenuItemDef) showDialog(*SyntheticMouseEvent) {
+func (a AboutMenuItemDef) OnClick(e *react.SyntheticMouseEvent) {
 	go func() {
 		dialogText := a.Props().dialog
 		if err := func() error {

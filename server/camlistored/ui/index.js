@@ -1102,33 +1102,35 @@ cam.IndexPage = React.createClass({
 	},
 
 	getDownloadSelectionItem_: function() {
-		return goreact.DownloadItemsBtn('donwloadBtnSidebar',
-			this.props.config,
-			// TODO(mpl): I'm doing the selection business in javascript for now,
-			// since we already have the search session results handy.
-			// It shouldn't be any problem to move it to Go later.
-			function() {
-				var selection = goog.object.getKeys(this.state.selection);
-				var files = [];
-				selection.forEach(function(br) {
-					var meta = this.childSearchSession_.getResolvedMeta(br);
-					if (!meta || !meta.file || !meta.file.fileName) {
-						// TODO(mpl): only do direct files for now. maybe recurse later.
-						return;
-					}
-					files.push(meta.blobRef);
-				}.bind(this))
-				return files;
-			}.bind(this));
+		callbacks = {};
+
+		// TODO(mpl): I'm doing the selection business in javascript for now,
+		// since we already have the search session results handy.
+		// It shouldn't be any problem to move it to Go later.
+		callbacks.getSelection = function() {
+			var selection = goog.object.getKeys(this.state.selection);
+			var files = [];
+			selection.forEach(function(br) {
+				var meta = this.childSearchSession_.getResolvedMeta(br);
+				if (!meta || !meta.file || !meta.file.fileName) {
+					// TODO(mpl): only do direct files for now. maybe recurse later.
+					return;
+				}
+				files.push(meta.blobRef);
+			}.bind(this))
+			return files;
+		}.bind(this);
+
+		return goreact.DownloadItemsBtn('donwloadBtnSidebar', this.props.config, callbacks);
 	},
 
 	getShareSelectionItem_: function() {
-		return goreact.ShareItemsBtn('shareBtnSidebar',
-			this.props.config,
-			// TODO(mpl): I'm doing the selection business in javascript for now,
-			// since we already have the search session results handy.
-			// It shouldn't be any problem to move it to Go later.
-			function() {
+		var callbacks = {};
+
+		// TODO(mpl): I'm doing the selection business in javascript for now,
+		// since we already have the search session results handy.
+		// It shouldn't be any problem to move it to Go later.
+		callbacks.getSelection = function() {
 				var selection = goog.object.getKeys(this.state.selection);
 				var files = [];
 				selection.forEach(function(br) {
@@ -1146,8 +1148,9 @@ cam.IndexPage = React.createClass({
 					}
 				}.bind(this))
 				return files;
-			}.bind(this),
-			function(sharedURL, anchorText) {
+			}.bind(this);
+
+		callbacks.showSharedURL = function(sharedURL, anchorText) {
 				// TODO(mpl): Port the dialog to Go.
 				this.setState({
 					messageDialogVisible: true,
@@ -1160,7 +1163,9 @@ cam.IndexPage = React.createClass({
 						React.DOM.div({}, React.DOM.a({href: sharedURL}, anchorText))
 					),
 				});
-			}.bind(this));
+			}.bind(this);
+
+		return goreact.ShareItemsBtn('shareBtnSidebar', this.props.config, callbacks);
 	},
 
 	getSidebar_: function(selectedAspect) {
