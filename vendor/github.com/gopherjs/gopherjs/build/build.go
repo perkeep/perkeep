@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -61,13 +62,20 @@ func NewBuildContext(installSuffix string, buildTags []string) *build.Context {
 // If an error occurs, Import returns a non-nil error and a nil
 // *PackageData.
 func Import(path string, mode build.ImportMode, installSuffix string, buildTags []string) (*PackageData, error) {
-	return importWithSrcDir(path, "", mode, installSuffix, buildTags)
+	wd, err := os.Getwd()
+	if err != nil {
+		// Getwd may fail if we're in GOARCH=js mode. That's okay, handle
+		// it by falling back to empty working directory. It just means
+		// Import will not be able to resolve relative import paths.
+		wd = ""
+	}
+	return importWithSrcDir(path, wd, mode, installSuffix, buildTags)
 }
 
 func importWithSrcDir(path string, srcDir string, mode build.ImportMode, installSuffix string, buildTags []string) (*PackageData, error) {
 	buildContext := NewBuildContext(installSuffix, buildTags)
-	if path == "runtime" || path == "syscall" {
-		buildContext.GOARCH = build.Default.GOARCH
+	if path == "syscall" { // syscall needs to use a typical GOARCH like amd64 to pick up definitions for _Socklen, BpfInsn, IFNAMSIZ, Timeval, BpfStat, SYS_FCNTL, Flock_t, etc.
+		buildContext.GOARCH = runtime.GOARCH
 		buildContext.InstallSuffix = "js"
 		if installSuffix != "" {
 			buildContext.InstallSuffix += "_" + installSuffix
@@ -515,6 +523,8 @@ func (s *Session) BuildPackage(pkg *PackageData) (*compiler.Archive, error) {
 		}
 
 		for _, importedPkgPath := range pkg.Imports {
+			// Ignore all imports that aren't mentioned in import specs of pkg.
+			// For example, this ignores imports such as runtime/internal/sys and runtime/internal/atomic.
 			ignored := true
 			for _, pos := range pkg.ImportPos[importedPkgPath] {
 				importFile := filepath.Base(pos.Filename)
@@ -528,16 +538,17 @@ func (s *Session) BuildPackage(pkg *PackageData) (*compiler.Archive, error) {
 					break
 				}
 			}
+
 			if importedPkgPath == "unsafe" || ignored {
 				continue
 			}
-			pkg, _, err := s.buildImportPathWithSrcDir(importedPkgPath, pkg.Dir)
+			importedPkg, _, err := s.buildImportPathWithSrcDir(importedPkgPath, pkg.Dir)
 			if err != nil {
 				return nil, err
 			}
-			impModeTime := pkg.SrcModTime
-			if impModeTime.After(pkg.SrcModTime) {
-				pkg.SrcModTime = impModeTime
+			impModTime := importedPkg.SrcModTime
+			if impModTime.After(pkg.SrcModTime) {
+				pkg.SrcModTime = impModTime
 			}
 		}
 
