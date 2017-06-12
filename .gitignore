@@ -28,9 +28,11 @@ bin/website
 bin/scanningcabinet
 bin/scancab
 tmp
+app/publisher/publisher.js
 server/camlistored/newui/all.js
 server/camlistored/newui/all.js.map
 server/camlistored/newui/zembed_all.js.go
+server/camlistored/ui/goui.js
 server/appengine/source_root/
 config/tls.*
 misc/docker/djpeg-static/djpeg
