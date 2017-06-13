@@ -1,0 +1,126 @@
+/*
+Copyright 2017 The Camlistore Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package geo provides utilities helping with geographic coordinates in the map
+// aspect of the Camlistore web UI.
+package geo
+
+import (
+	"context"
+	"log"
+	"math"
+	"strings"
+
+	"camlistore.org/pkg/geocode"
+)
+
+const (
+	LocPredicatePrefix = "loc"
+)
+
+// IsLocPredicate returns whether the given predicate is a simple (as in, not
+// composed) location predicate, such as the one supported by the Camlistore search
+// handler (e.g. "loc:seattle").
+func IsLocPredicate(predicate string) bool {
+	if !strings.HasPrefix(predicate, LocPredicatePrefix+":") {
+		return false
+	}
+	loc := strings.TrimPrefix(predicate, LocPredicatePrefix+":")
+	if !strings.HasPrefix(loc, `"`) {
+		if len(strings.Fields(loc)) > 1 {
+			// Not a simple location query, but a logical one. Deal with it in another CL.
+			// TODO(mpl): accept more complex queries.
+			return false
+		}
+		return true
+	}
+	// we have a quoted location
+	if !strings.HasSuffix(loc, `"`) {
+		// the quoted location ends before the end of the query, or the quote never closes. either way, refuse that.
+		return false
+	}
+	if strings.Count(loc, `"`) != 2 {
+		// refuse anything that is not just one quoted location
+		return false
+	}
+	return true
+}
+
+// equivalent of ss.query_.permanode.location on the javascript side, where ss
+// is a search session.
+// it's convenient to use this type as a parameter of handleCoordinatesFound,
+// because handleCoordinatesFound is also called directly in the javascript code.
+type rectangle struct {
+	North float64
+	South float64
+	West  float64
+	East  float64
+}
+
+// Lookup searches for the coordinates of the given location, and passes the
+// found zone (a rectangle), if any, to handleCoordinatesFound.
+func Lookup(location string, handleCoordinatesFound func(*rectangle)) {
+	go func() {
+		rect, err := geocode.Lookup(context.Background(), location)
+		if err != nil {
+			log.Printf("geocode lookup error: %v", err)
+			return
+		}
+		if len(rect) == 0 {
+			log.Printf("no coordinates found for %v", location)
+			return
+		}
+		handleCoordinatesFound(&rectangle{
+			North: rect[0].NorthEast.Lat,
+			South: rect[0].SouthWest.Lat,
+			East:  rect[0].NorthEast.Long,
+			West:  rect[0].SouthWest.Long,
+		})
+	}()
+}
+
+// Location is a geographical coordinate, specified by its latitude and its longitude.
+type Location struct {
+	Lat  float64 // -90 (south) to 90 (north)
+	Long float64 // -180 (west) to 180 (east)
+}
+
+// TODO(mpl): write tests for LocationCenter, if we end up keeping it. not
+// needed anymore for now, but might soon very well be. Otherwise remove.
+
+// LocationCenter returns the center of the rectangle defined by the given
+// coordinates.
+func LocationCenter(north, south, west, east float64) Location {
+	var lat, long float64
+	if west < east {
+		long = west + (east-west)/2.
+	} else {
+		// rectangle spanning longitude ±180°
+		awest := math.Abs(west)
+		aeast := math.Abs(east)
+		if awest > aeast {
+			long = east - (awest-aeast)/2.
+		} else {
+			long = west + (aeast-awest)/2.
+		}
+	}
+	// TODO(mpl): are there tricky cases at ±90?
+	lat = south + (north-south)/2.
+	return Location{
+		Lat:  lat,
+		Long: long,
+	}
+}

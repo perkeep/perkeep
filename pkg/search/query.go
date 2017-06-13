@@ -510,7 +510,7 @@ func (c *LocationConstraint) matchesLatLong(lat, long float64) bool {
 	if c.West < c.East {
 		return c.West <= long && long <= c.East
 	} else {
-		// boundary spanning latitude ±180°
+		// boundary spanning longitude ±180°
 		return c.West <= long || long <= c.East
 	}
 }
