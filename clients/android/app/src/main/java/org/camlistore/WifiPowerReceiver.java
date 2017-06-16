@@ -75,7 +75,7 @@ public class WifiPowerReceiver extends BroadcastReceiver {
         NetworkInfo ni = ((ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE)).getActiveNetworkInfo();
         if (ni != null && ni.isConnected()
                 && (ni.getType() == ConnectivityManager.TYPE_WIFI || ni.getType() == ConnectivityManager.TYPE_ETHERNET)) {
-            WifiManager wifiMgr = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+            WifiManager wifiMgr = (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
             if (wifiMgr != null) {
                 WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
                 String ssid = wifiInfo.getSSID();

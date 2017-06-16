@@ -271,7 +271,7 @@ public class SettingsActivity extends PreferenceActivity {
         // "10.0.0.12", or whatever
         // the current wifi connections's /24 is.
         if (!TextUtils.isEmpty(value) && !value.contains(".")) {
-            WifiManager wifiManager = (WifiManager) getSystemService(WIFI_SERVICE);
+            WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
             WifiInfo wifiInfo = wifiManager.getConnectionInfo();
             if (wifiInfo != null) {
                 int ip = wifiInfo.getIpAddress();
