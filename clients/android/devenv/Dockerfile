@@ -31,7 +31,7 @@ RUN echo '444e22ce8ca0f67353bda4b85175ed3731cae3ffa695ca18119cbacef1c1bea0  sdk-
 RUN unzip sdk-tools-linux-3859397.zip
 RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager --update
 RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'platforms;android-17'
-RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'build-tools;19.1.0'
+RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'build-tools;26.0.0'
 RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'extras;android;m2repository'
 RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'ndk-bundle'
 
