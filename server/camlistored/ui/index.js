@@ -44,6 +44,7 @@ goog.require('cam.blobref');
 goog.require('cam.DetailView');
 goog.require('cam.Dialog');
 goog.require('cam.DirectoryDetail');
+goog.require('cam.MapAspect');
 goog.require('cam.Header');
 goog.require('cam.Navigator');
 goog.require('cam.PermanodeDetail');
@@ -223,12 +224,13 @@ cam.IndexPage = React.createClass({
 
 		var specificAspects = [
 			cam.ImageDetail.getAspect,
-			// TODO(mpl): think about whether DirectoryDetail should stay a specificAspect
+			// TODO(mpl): redo DirectoryDetail to look like a Blobs Container
 			cam.DirectoryDetail.getAspect.bind(null, this.baseURL_, this.props.serverConnection),
 		].map(getAspect).filter(goog.functions.identity);
 
 		var generalAspects = [
 			this.getSearchAspect_.bind(null, specificAspects),
+			cam.MapAspect.getAspect.bind(null, this.props.config, this.props.availWidth, this.props.availHeight, this.childSearchSession_),
 			cam.PermanodeDetail.getAspect.bind(null, this.props.serverConnection, this.props.timer),
 			cam.BlobDetail.getAspect.bind(null, this.getDetailURL_, this.props.serverConnection),
 		].map(getAspect).filter(goog.functions.identity);
