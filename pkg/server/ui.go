@@ -31,6 +31,7 @@ import (
 
 	fontawesomestatic "embed/fontawesome"
 	glitchstatic "embed/glitch"
+	leafletstatic "embed/leaflet"
 	lessstatic "embed/less"
 	reactstatic "embed/react"
 
@@ -61,6 +62,7 @@ var (
 	closurePattern     = regexp.MustCompile(`^closure/(([^/]+)(/.*)?)$`)
 	lessPattern        = regexp.MustCompile(`^less/(.+)$`)
 	reactPattern       = regexp.MustCompile(`^react/(.+)$`)
+	leafletPattern     = regexp.MustCompile(`^leaflet/(.+)$`)
 	fontawesomePattern = regexp.MustCompile(`^fontawesome/(.+)$`)
 	glitchPattern      = regexp.MustCompile(`^glitch/(.+)$`)
 
@@ -96,6 +98,7 @@ type UIHandler struct {
 	closureHandler         http.Handler
 	fileLessHandler        http.Handler
 	fileReactHandler       http.Handler
+	fileLeafletHandler     http.Handler
 	fileFontawesomeHandler http.Handler
 	fileGlitchHandler      http.Handler
 }
@@ -191,6 +194,10 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		ui.fileReactHandler, err = makeFileServer(ui.sourceRoot, filepath.Join(vendorEmbed, "react"), "react-dom.min.js")
 		if err != nil {
 			return nil, fmt.Errorf("Could not make react handler: %s", err)
+		}
+		ui.fileLeafletHandler, err = makeFileServer(ui.sourceRoot, filepath.Join(vendorEmbed, "leaflet"), "leaflet.js")
+		if err != nil {
+			return nil, fmt.Errorf("Could not make leaflet handler: %s", err)
 		}
 		ui.fileGlitchHandler, err = makeFileServer(ui.sourceRoot, filepath.Join(vendorEmbed, "glitch"), "npc_piggy__x1_walk_png_1354829432.png")
 		if err != nil {
@@ -425,6 +432,8 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ui.serveFromDiskOrStatic(rw, req, lessPattern, ui.fileLessHandler, lessstatic.Files)
 	case getSuffixMatches(req, reactPattern):
 		ui.serveFromDiskOrStatic(rw, req, reactPattern, ui.fileReactHandler, reactstatic.Files)
+	case getSuffixMatches(req, leafletPattern):
+		ui.serveFromDiskOrStatic(rw, req, leafletPattern, ui.fileLeafletHandler, leafletstatic.Files)
 	case getSuffixMatches(req, glitchPattern):
 		ui.serveFromDiskOrStatic(rw, req, glitchPattern, ui.fileGlitchHandler, glitchstatic.Files)
 	case getSuffixMatches(req, fontawesomePattern):

@@ -74,6 +74,19 @@ cam.SearchSession.prototype.getQuery = function() {
 	return this.query_;
 };
 
+cam.SearchSession.prototype.isEmptyQuery = function() {
+	var q = this.query_;
+	if (!q) {
+		return true;
+	}
+	if (typeof q === 'string') {
+		if (q.trim() == "") {
+			return true;
+		}
+	}
+	return false;
+};
+
 cam.SearchSession.prototype.getAround = function() {
 	return this.around_;
 };
