@@ -105,7 +105,7 @@ public class UploadService extends Service {
         Log.d(TAG, "onCreate");
 
         mPowerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        mWifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+        mWifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         mPrefs = new Preferences(getSharedPreferences(Preferences.NAME, 0));
 
