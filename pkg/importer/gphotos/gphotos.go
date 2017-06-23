@@ -14,10 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package gphotos implements an importer for gphotos.com accounts.
+// Package gphotos implements a Google Photos importer, using the Google Drive
+// API to access the Google Photos folder.
 package gphotos // import "camlistore.org/pkg/importer/gphotos"
-
-// TODO: removing camliPath from gallery permanode when pic deleted from gallery
 
 import (
 	"errors"
@@ -34,6 +33,7 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/httputil"
 	"camlistore.org/pkg/importer"
+	"camlistore.org/pkg/importer/picasa"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/schema/nodeattr"
 	"camlistore.org/pkg/search"
@@ -52,10 +52,10 @@ const (
 	// complete run.  Otherwise, if the importer runs to
 	// completion, this version number is recorded on the account
 	// permanode and subsequent importers can stop early.
-	runCompleteVersion = "4"
+	runCompleteVersion = "0"
 
-	// attrgphotosId is used for both gphotos photo IDs and gallery IDs.
-	attrgphotosId = "gphotosId"
+	// attrDriveId is the Google Drive object ID of the photo.
+	attrDriveId = "driveId"
 
 	// acctAttrOAuthToken stores access + " " + refresh + " " + expiry
 	// See encodeToken and decodeToken.
@@ -63,6 +63,11 @@ const (
 
 	// acctSinceToken store the GPhotos-returned nextToken
 	acctSinceToken = "sinceToken"
+)
+
+var (
+	logger = log.New(os.Stderr, "gphotos: ", log.LstdFlags)
+	logf   = logger.Printf
 )
 
 var (
@@ -156,17 +161,16 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 
 	token, err := oauthConfig.Exchange(ctx, code)
 	if err != nil {
-		log.Printf("importer/gphotos: token exchange error: %v", err)
+		logf("token exchange error: %v", err)
 		httputil.ServeError(w, r, fmt.Errorf("token exchange error: %v", err))
 		return
 	}
 
-	log.Printf("importer/gphotos: got exhanged token.")
 	gphotosCtx := context.WithValue(ctx, ctxutil.HTTPClient, oauthConfig.Client(ctx, token))
 
 	userInfo, err := im.getUserInfo(gphotosCtx)
 	if err != nil {
-		log.Printf("Couldn't get username: %v", err)
+		logf("couldn't get username: %v", err)
 		httputil.ServeError(w, r, fmt.Errorf("can't get username: %v", err))
 		return
 	}
@@ -233,7 +237,8 @@ func (im imp) auth(ctx *importer.SetupContext) (*oauth2.Config, error) {
 }
 
 func (imp) AccountSetupHTML(host *importer.Host) string {
-	// gphotos doesn't allow a path in the origin. Remove it.
+	// Google Cloud credentials require a URI of the kind scheme://domain for
+	// javascript origins, so we strip the path.
 	origin := host.ImporterBaseURL()
 	if u, err := url.Parse(origin); err == nil {
 		u.Path = ""
@@ -242,10 +247,12 @@ func (imp) AccountSetupHTML(host *importer.Host) string {
 
 	callback := host.ImporterBaseURL() + "gphotos/callback"
 	return fmt.Sprintf(`
-<h1>Configuring gphotos</h1>
-<p>Visit <a href='https://console.developers.google.com/'>https://console.developers.google.com/</a>
-and click <b>"Create Project"</b>.</p>
-<p>Then under "APIs & Auth" in the left sidebar, click on "Credentials", then click the button <b>"Create credentials"</b>, and pick <b>"OAuth client ID"</b>.</p>
+<h1>Configuring Google Photos</h1>
+<p>Please note that because of limitations of the Google Photos folder, this importer can only retrieve photos as they were originally uploaded, and not as they currently are in Google Photos, if modified.</p>
+<p>First, you need to enable the Google Photos folder in the <a href='https://drive.google.com/'>Google Drive</a> settings.</p>
+<p>Then visit <a href='https://console.developers.google.com/'>https://console.developers.google.com/</a>
+and create a new project.</p>
+<p>Then under "API Manager" in the left sidebar, click on "Credentials", then click the button <b>"Create credentials"</b>, and pick <b>"OAuth client ID"</b>.</p>
 <p>Use the following settings:</p>
 <ul>
   <li>Web application</li>
@@ -265,7 +272,7 @@ type run struct {
 	*downloader
 }
 
-var forceFullImport, _ = strconv.ParseBool(os.Getenv("CAMLI_gphotos_FULL_IMPORT"))
+var forceFullImport, _ = strconv.ParseBool(os.Getenv("CAMLI_GPHOTOS_FULL_IMPORT"))
 
 func (imp) Run(rctx *importer.RunContext) error {
 	clientID, secret, err := rctx.Credentials()
@@ -290,7 +297,7 @@ func (imp) Run(rctx *importer.RunContext) error {
 	if root.Attr(nodeattr.Title) == "" {
 		if err := root.SetAttr(
 			nodeattr.Title,
-			fmt.Sprintf("%s - Google Photos", acctNode.Attr(importer.AcctAttrName)),
+			fmt.Sprintf("%s's Google Photos Data", acctNode.Attr(importer.AcctAttrName)),
 		); err != nil {
 			return err
 		}
@@ -324,7 +331,7 @@ func (r *run) importPhotos(ctx context.Context, sinceToken string) error {
 		return ctx.Err()
 	default:
 	}
-	photos, nextToken, err := r.downloader.photos(ctx, sinceToken)
+	photosCh, nextToken, err := r.downloader.photos(ctx, sinceToken)
 	if err != nil {
 		return fmt.Errorf("gphotos importer: %v", err)
 	}
@@ -332,16 +339,16 @@ func (r *run) importPhotos(ctx context.Context, sinceToken string) error {
 	if err != nil {
 		return fmt.Errorf("gphotos importer: get top level node: %v", err)
 	}
-	for batch := range photos {
+	for batch := range photosCh {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
-		if err := r.importPhotosBatch(ctx, photosNode, batch.photos); err != nil {
+		if batch.err != nil {
 			return err
 		}
-		if batch.err != nil {
+		if err := r.importPhotosBatch(ctx, photosNode, batch.photos); err != nil {
 			return err
 		}
 	}
@@ -370,106 +377,151 @@ func (r *run) importPhotosBatch(ctx context.Context, parent *importer.Object, ph
 	return grp.Err()
 }
 
-const attrMediaURL = "gphotosMediaURL"
+func (ph photo) filename() string {
+	filename := ph.Name
+	if filename == "" {
+		filename = ph.OriginalFilename
+	}
+	if filename == "" {
+		filename = ph.ID
+	}
+	return strings.Replace(filename, "/", "-", -1)
+}
 
-func (r *run) updatePhoto(ctx context.Context, parent *importer.Object, photo photo) (ret error) {
-	if photo.ID == "" {
+func orAltAttr(attr, alt string) string {
+	if attr != "" {
+		return attr
+	}
+	return alt
+}
+
+func (ph photo) title(altTitle string) string {
+	title := strings.TrimSpace(ph.Description)
+	if title == "" {
+		title = orAltAttr(title, altTitle)
+	}
+	filename := ph.filename()
+	if title == "" && schema.IsInterestingTitle(filename) {
+		title = filename
+	}
+	if strings.Contains(title, "\n") {
+		title = title[:strings.Index(title, "\n")]
+	}
+	return title
+}
+
+// updatePhoto creates a new permanode with the attributes of photo, or updates
+// an existing one if appropriate. It also downloads the photo contents when
+// needed. In particular, it reuses a permanode created by the picasa importer if
+// that permanode seems to be about the same photo contents, to avoid what would
+// look like duplicates. For now, it can handle the following cases:
+// 1) No permanode for the photo object exists, and no permanode for the
+// contents of the photo exists. So it creates a new one.
+// 2) No permanode for the photo object exists, but a picasa permanode for the
+// same contents exists. So we reuse the picasa node.
+// 3) No permanode for the photo object exists, but a permanode for the same
+// contents, and with no conflicting attributes, exists. So we reuse that
+// permanode.
+// 4) A permanode for the photo object already exists, so we reuse it.
+func (r *run) updatePhoto(ctx context.Context, parent *importer.Object, ph photo) (ret error) {
+	if ph.ID == "" {
 		return errors.New("photo has no ID")
 	}
 
-	getMediaBytes := func() (io.ReadCloser, error) { return r.downloader.openPhoto(ctx, photo) }
-
 	// fileRefStr, in addition to being used as the camliConent value, is used
-	// as a sentinel below.  If it is not empty after the call to
-	// parent.ChildPathObjectOrFunc, it means we've just written the photo
-	// contents, and hence there is no need to write them again, or even to
-	// check if they have changed since the last import.
+	// as a sentinel: if it is still blank after the call to
+	// ChildPathObjectOrFunc, it means that a permanode for the photo object
+	// already exists.
 	var fileRefStr string
+	// picasAttrs holds the attributes of the picasa node for the photo, if any is found.
+	var picasAttrs url.Values
 
-	fn := photo.Name
-	if fn == "" {
-		if fn = photo.OriginalFilename; fn == "" {
-			fn = photo.ID
-		}
-	}
-	purgedFn := strings.Replace(fn, "/", "-", -1)
-	photoNode, err := parent.ChildPathObjectOrFunc(photo.ID, func() (*importer.Object, error) {
+	filename := ph.filename()
+
+	photoNode, err := parent.ChildPathObjectOrFunc(ph.ID, func() (*importer.Object, error) {
 		h := blob.NewHash()
-		rc, err := getMediaBytes()
+		rc, err := r.downloader.openPhoto(ctx, ph)
 		if err != nil {
 			return nil, err
 		}
-		fileRef, err := schema.WriteFileFromReader(r.Host.Target(), purgedFn, io.TeeReader(rc, h))
+		fileRef, err := schema.WriteFileFromReader(r.Host.Target(), filename, io.TeeReader(rc, h))
 		rc.Close()
 		if err != nil {
 			return nil, err
 		}
 		fileRefStr = fileRef.String()
 		wholeRef := blob.RefFromHash(h)
-		if pn, err := findExistingPermanode(r.Host.Searcher(), wholeRef); err == nil {
-			return r.Host.ObjectFromRef(pn)
+		pn, attrs, err := findExistingPermanode(r.Host.Searcher(), wholeRef)
+		if err != nil {
+			if err != os.ErrNotExist {
+				return nil, fmt.Errorf("could not look for permanode with %v as camliContent : %v", fileRefStr, err)
+			}
+			return r.Host.NewObject()
 		}
-		return r.Host.NewObject()
+		if attrs != nil {
+			picasAttrs = attrs
+		}
+		return r.Host.ObjectFromRef(pn)
 	})
 	if err != nil {
 		if fileRefStr != "" {
-			return fmt.Errorf("error getting permanode for photo %q, with content %v: $v", photo.ID, fileRefStr, err)
+			return fmt.Errorf("error getting permanode for photo %q, with content %v: $v", ph.ID, fileRefStr, err)
 		}
-		return fmt.Errorf("error getting permanode for photo %q: %v", photo.ID, err)
+		return fmt.Errorf("error getting permanode for photo %q: %v", ph.ID, err)
 	}
 
-	// fileRefStr == "" means the photo contents were downloaded in a previous
-	// import run, or even by another tool. So we re-download them below, if
-	// necessary.
 	if fileRefStr == "" {
-		fileRefStr = photoNode.Attr(nodeattr.CamliContent)
-		// Only re-download the source photo if its URL has changed.
-		// Empirically this seems to work: cropping a photo in the
-		// photos.google.com UI causes its URL to change. And it makes
-		// sense, looking at the ugliness of the URLs with all their
-		// encoded/signed state.
-		if !mediaURLsEqual(photoNode.Attr(attrMediaURL), photo.WebContentLink) {
-			rc, err := getMediaBytes()
+		// photoNode was created in a previous run, but it is not
+		// guaranteed its attributes were set. e.g. the importer might have
+		// been interrupted. So we check for an existing camliContent.
+		if camliContent := photoNode.Attr(nodeattr.CamliContent); camliContent == "" {
+			// looks like an incomplete node, so we need to re-download.
+			rc, err := r.downloader.openPhoto(ctx, ph)
 			if err != nil {
 				return err
 			}
-			fileRef, err := schema.WriteFileFromReader(r.Host.Target(), purgedFn, rc)
+			fileRef, err := schema.WriteFileFromReader(r.Host.Target(), filename, rc)
 			rc.Close()
 			if err != nil {
 				return err
 			}
 			fileRefStr = fileRef.String()
 		}
-	}
-
-	title := strings.TrimSpace(photo.Description)
-	if strings.Contains(title, "\n") {
-		title = title[:strings.Index(title, "\n")]
-	}
-	if title == "" && schema.IsInterestingTitle(fn) {
-		title = fn
-	}
-
-	// TODO(tgulacsi): add more attrs (comments ?)
-	// for names, see http://schema.org/ImageObject and http://schema.org/CreativeWork
-	attrs := []string{
-		nodeattr.CamliContent, fileRefStr,
-		attrgphotosId, photo.ID,
-		nodeattr.Version, strconv.FormatInt(photo.Version, 10),
-		nodeattr.Title, title,
-		nodeattr.Description, photo.Description,
-		nodeattr.DateCreated, schema.RFC3339FromTime(photo.CreatedTime),
-		nodeattr.DateModified, schema.RFC3339FromTime(photo.ModifiedTime),
-		nodeattr.URL, photo.WebContentLink,
-	}
-	if photo.Location != nil {
-		if photo.Location.Altitude != 0 {
-			attrs = append(attrs, nodeattr.Altitude, floatToString(photo.Location.Altitude))
+	} else {
+		if picasAttrs.Get(nodeattr.CamliContent) != "" {
+			// We've just created a new file schema, but we're also recycling a
+			// picasa node, and we prefer keeping the existing file schema from the
+			// picasa node, because the file from Drive never gets updates
+			// (https://productforums.google.com/forum/#!msg/drive/HbNOd1o40CQ/VfIJCncyAAAJ).
+			// Thanks to blob deduplication, these two file schemas are most likely
+			// the same anyway. If not, the newly created one will/should get GCed
+			// eventually.
+			fileRefStr = picasAttrs.Get(nodeattr.CamliContent)
 		}
-		if photo.Location.Latitude != 0 || photo.Location.Longitude != 0 {
+	}
+
+	attrs := []string{
+		attrDriveId, ph.ID,
+		nodeattr.Version, strconv.FormatInt(ph.Version, 10),
+		nodeattr.Title, ph.title(picasAttrs.Get(nodeattr.Title)),
+		nodeattr.Description, orAltAttr(ph.Description, picasAttrs.Get(nodeattr.Description)),
+		nodeattr.DateCreated, schema.RFC3339FromTime(ph.CreatedTime),
+		nodeattr.DateModified, orAltAttr(schema.RFC3339FromTime(ph.ModifiedTime), picasAttrs.Get(nodeattr.DateModified)),
+		// Even if the node already had some nodeattr.URL picasa attribute, it's
+		// ok to overwrite it, because from what I've tested it's useless nowadays
+		// (gives a 404 in a browser). Plus, we don't overwrite the actually useful
+		// "picasaMediaURL" attribute.
+		nodeattr.URL, ph.WebContentLink,
+	}
+
+	if ph.Location != nil {
+		if ph.Location.Altitude != 0 {
+			attrs = append(attrs, nodeattr.Altitude, floatToString(ph.Location.Altitude))
+		}
+		if ph.Location.Latitude != 0 || ph.Location.Longitude != 0 {
 			attrs = append(attrs,
-				nodeattr.Latitude, floatToString(photo.Location.Latitude),
-				nodeattr.Longitude, floatToString(photo.Location.Longitude),
+				nodeattr.Latitude, floatToString(ph.Location.Latitude),
+				nodeattr.Longitude, floatToString(ph.Location.Longitude),
 			)
 		}
 	}
@@ -477,12 +529,14 @@ func (r *run) updatePhoto(ctx context.Context, parent *importer.Object, photo ph
 		return err
 	}
 
-	// Do this last, after we're sure the "camliContent" attribute
-	// has been saved successfully, because this is the one that
-	// causes us to do it again in the future or not.
-	if err := photoNode.SetAttrs(attrMediaURL, photo.WebContentLink); err != nil {
-		return err
+	if fileRefStr != "" {
+		// camliContent is set last, as its presence defines whether we consider a
+		// photo successfully updated.
+		if err := photoNode.SetAttr(nodeattr.CamliContent, fileRefStr); err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
@@ -511,7 +565,7 @@ func (r *run) getTopLevelNode(path string) (*importer.Object, error) {
 	root := r.RootNode()
 	name := r.displayName()
 	rootTitle := fmt.Sprintf("%s's Google Photos Data", name)
-	log.Printf("root title = %q; want %q", root.Attr(nodeattr.Title), rootTitle)
+	logf("root title = %q; want %q", root.Attr(nodeattr.Title), rootTitle)
 	if err := root.SetAttr(nodeattr.Title, rootTitle); err != nil {
 		return nil, err
 	}
@@ -530,7 +584,7 @@ func (r *run) getTopLevelNode(path string) (*importer.Object, error) {
 
 var sensitiveAttrs = []string{
 	nodeattr.Type,
-	attrgphotosId,
+	attrDriveId,
 	nodeattr.Title,
 	nodeattr.DateModified,
 	nodeattr.DatePublished,
@@ -543,7 +597,11 @@ var sensitiveAttrs = []string{
 // camliContent pointing to a file with the provided wholeRef and
 // doesn't have any conflicting attributes that would prevent the
 // gphotos importer from re-using that permanode for its own use.
-func findExistingPermanode(qs search.QueryDescriber, wholeRef blob.Ref) (pn blob.Ref, err error) {
+// If it finds a picasa permanode, it is returned immediately,
+// as well as the existing attributes on the node, so the caller
+// can merge them with whatever new attributes it wants to add to
+// the node.
+func findExistingPermanode(qs search.QueryDescriber, wholeRef blob.Ref) (pn blob.Ref, picasaAttrs url.Values, err error) {
 	res, err := qs.Query(&search.SearchQuery{
 		Constraint: &search.Constraint{
 			Permanode: &search.PermanodeConstraint{
@@ -563,7 +621,7 @@ func findExistingPermanode(qs search.QueryDescriber, wholeRef blob.Ref) (pn blob
 		return
 	}
 	if res.Describe == nil {
-		return pn, os.ErrNotExist
+		return pn, nil, os.ErrNotExist
 	}
 Res:
 	for _, resBlob := range res.Blobs {
@@ -573,24 +631,22 @@ Res:
 			continue
 		}
 		attrs := desBlob.Permanode.Attr
+		if attrs.Get(picasa.AttrMediaURL) != "" {
+			// If we found a picasa permanode, we're going to reuse it, in order to avoid
+			// creating what would look like duplicates. We let the caller deal with merging
+			// properly on the node the existing (Picasa) attributes, with the new (Google
+			// Photos) attributes.
+			return br, attrs, nil
+		}
+		// otherwise, only keep it if attributes are not conflicting.
 		for _, attr := range sensitiveAttrs {
 			if attrs.Get(attr) != "" {
 				continue Res
 			}
 		}
-		return br, nil
+		return br, nil, nil
 	}
-	return pn, os.ErrNotExist
-}
-
-func mediaURLsEqual(a, b string) bool {
-	const sub = ".googleusercontent.com/"
-	ai := strings.Index(a, sub)
-	bi := strings.Index(b, sub)
-	if ai >= 0 && bi >= 0 {
-		return a[ai:] == b[bi:]
-	}
-	return a == b
+	return pn, nil, os.ErrNotExist
 }
 
 func floatToString(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
