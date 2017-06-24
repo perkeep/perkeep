@@ -61,16 +61,20 @@ public class UploadApplication extends Application {
             }
             is.close();
             fos.flush();
+            // Make sure that all data is written before rename by calling fsync (ext4 file system)
+            fos.getFD().sync();
             fos.close();
 
             String writingFilePath = dstFile + ".writing";
             Log.d(TAG, "wrote out " + writingFilePath);
-            Runtime.getRuntime().exec("chmod 0700 " + writingFilePath);
-            Log.d(TAG, "did chmod 0700 on " + writingFilePath);
-            Runtime.getRuntime().exec("mv " + writingFilePath + " " + dstFile);
-            f = new File(dstFile);
+            f = new File(writingFilePath);
             f.setLastModified(myTime);
-            Log.d(TAG, "set modtime of " + dstFile);
+            Log.d(TAG, "set modtime of " + writingFilePath);
+            f.setExecutable(true);
+            Log.d(TAG, "made " + writingFilePath + " executable");
+
+            f.renameTo(new File(dstFile));
+            Log.d(TAG, "moved " + writingFilePath + " to " + dstFile);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
