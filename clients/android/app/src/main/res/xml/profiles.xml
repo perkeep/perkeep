@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    android:key="profilescreen" >
+
+    <ListPreference
+        android:key="camli.profile"
+        android:persistent="true"
+        android:summary="@string/profiles_summary"
+        android:title="@string/profiles_title"
+		android:entries="@array/profiles_entries"
+		android:entryValues="@array/profiles_entry_values"
+		android:defaultValue="default"/>
+
+    <EditTextPreference
+        android:key="camli.newprofile"
+        android:persistent="false"
+        android:summary="Create a new profile"
+        android:title="New Profile" />
+
+</PreferenceScreen>

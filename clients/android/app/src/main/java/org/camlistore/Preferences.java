@@ -16,10 +16,21 @@ limitations under the License.
 
 package org.camlistore;
 
+import android.content.Context;
 import android.content.SharedPreferences;
 
 public final class Preferences {
+    private static final String TAG = "Preferences";
     public static final String NAME = "CamliUploader";
+
+	// key/value store file where we keep the profile names
+    public static final String PROFILES_FILE = "CamliUploader_profiles";
+	// key to the set of profile names
+    public static final String PROFILES = "camli.profiles";
+	// key to the currently selected profile
+    public static final String PROFILE = "camli.profile";
+	// for the preference element that lets us create a new profile name
+    public static final String NEWPROFILE = "camli.newprofile";
 
     public static final String HOST = "camli.host";
     // TODO(mpl): list instead of single string later? seems overkill for now.
@@ -40,6 +51,18 @@ public final class Preferences {
 
     public Preferences(SharedPreferences prefs) {
         mSP = prefs;
+    }
+
+    // filename returns the settings file name for the currently selected profile.
+    public static String filename(Context ctx) {
+        SharedPreferences profiles = ctx.getSharedPreferences(PROFILES_FILE, 0);
+        String currentProfile = profiles.getString(Preferences.PROFILE, "default");
+        if (currentProfile.equals("default")) {
+            // Special case: we keep CamliUploader as the conf file name by default, to stay
+            // backwards compatible.
+            return NAME;
+        }
+        return NAME+"."+currentProfile;
     }
 
     public boolean autoRequiresPower() {

@@ -1,4 +1,6 @@
 all:
+	# to run if you already have a functional android development
+	# environment, and you don't need the one in docker.
 	./check-environment.pl
 	./gradlew assembleRelease
 
@@ -13,6 +15,11 @@ dockerdebug:
 
 dockerrelease:
 	docker run --rm -v $(GOPATH)/src/camlistore.org:/home/gopher/src/camlistore.org -v $(HOME)/.gradle:/home/gopher/.gradle -v $(HOME)/.android:/home/gopher/.android -w /home/gopher/src/camlistore.org/clients/android --name camlidroid -i -t camlistore/android go run build-in-docker.go -release=true
+
+# just for documentation, as make is not actually installed in the docker image.
+debug:
+	# when within the env dev (i.e. after make dockerdev)
+	./gradlew assembleDebug
 
 installdebug:
 	adb install -r app/build/outputs/apk/app-debug.apk
