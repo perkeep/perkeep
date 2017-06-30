@@ -910,6 +910,9 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 				Blob: meta.Ref,
 			})
 			if q.Limit <= 0 || !cands.sorted {
+				if wantAround && !foundAround && q.Around == meta.Ref {
+					foundAround = true
+				}
 				continue
 			}
 			if !wantAround || foundAround {
@@ -995,7 +998,25 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 			return nil, errors.New("TODO: unsupported sort+query combination.")
 		}
 		if q.Limit > 0 && len(res.Blobs) > q.Limit {
-			res.Blobs = res.Blobs[:q.Limit]
+			if foundAround {
+				panic("foundAround should never have been set to true with a non sorted source")
+			}
+			if wantAround {
+				aroundPos := sort.Search(len(res.Blobs), func(i int) bool {
+					return res.Blobs[i].Blob == q.Around
+				})
+				lowerBound := aroundPos - q.Limit/2
+				if lowerBound < 0 {
+					lowerBound = 0
+				}
+				upperBound := aroundPos + q.Limit/2
+				if upperBound > len(res.Blobs) {
+					upperBound = len(res.Blobs)
+				}
+				res.Blobs = res.Blobs[lowerBound:upperBound]
+			} else {
+				res.Blobs = res.Blobs[:q.Limit]
+			}
 		}
 	}
 	if corpus != nil {
