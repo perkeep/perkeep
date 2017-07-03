@@ -230,7 +230,7 @@ cam.IndexPage = React.createClass({
 
 		var generalAspects = [
 			this.getSearchAspect_.bind(null, specificAspects),
-			cam.MapAspect.getAspect.bind(null, this.props.config, this.props.availWidth, this.props.availHeight, this.childSearchSession_),
+			cam.MapAspect.getAspect.bind(null, this.props.config, this.props.availWidth, this.props.availHeight - this.HEADER_HEIGHT_, this.childSearchSession_),
 			cam.PermanodeDetail.getAspect.bind(null, this.props.serverConnection, this.props.timer),
 			cam.BlobDetail.getAspect.bind(null, this.getDetailURL_, this.props.serverConnection),
 		].map(getAspect).filter(goog.functions.identity);
