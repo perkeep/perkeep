@@ -38,6 +38,7 @@ func (lh *LocationHelper) SetCorpus(corpus *Corpus) {
 // altLocationRef maps camliNodeType to a slice of attributes
 // whose values may refer to permanodes with location information.
 var altLocationRef = map[string][]string{
+	// TODO(mpl): twitter.
 	"foursquare.com:checkin": {"foursquareVenuePermanode"},
 }
 

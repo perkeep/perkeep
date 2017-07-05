@@ -36,5 +36,6 @@ func main() {
 		"IsLocPredicate":     geo.IsLocPredicate,
 		"LocPredicatePrefix": geo.LocPredicatePrefix,
 		"LocationCenter":     geo.LocationCenter,
+		"WrapAntimeridian":   geo.WrapAntimeridian,
 	})
 }

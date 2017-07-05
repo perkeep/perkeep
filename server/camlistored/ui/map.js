@@ -17,6 +17,7 @@ limitations under the License.
 goog.provide('cam.MapAspect');
 
 goog.require('cam.SearchSession');
+goog.require('cam.Thumber');
 
 cam.MapAspect = React.createClass({
 	propTypes: {
@@ -51,10 +52,10 @@ cam.MapAspect = React.createClass({
 		}
 		// TODO(mpl): it is so disgusting that ss.query_ can be both a string or an
 		// object. But that's something to fix in search session, with deep repercussions.
-		var q = ss.query_;
-		if (!q || q == "") {
+		if (ss.isEmptyQuery()) {
 			return;
 		}
+		var q = ss.query_;
 		if (!q.permanode || !q.permanode.location) {
 			// Not a raw coordinates query.
 			if (!goreact.IsLocPredicate(q)) {
@@ -78,11 +79,14 @@ cam.MapAspect = React.createClass({
 		if (!rect) {
 			return;
 		}
-
+		var eastWest = goreact.WrapAntimeridian(rect.East, rect.West);
+		rect.West = eastWest.W;
+		rect.East = eastWest.E;
 		if (this.sameLocations(rect, this.location)) {
 			return;
 		}
 		this.location = rect;
+		L.rectangle([[this.location.North, this.location.East],[this.location.South,this.location.West]], {color: "#ff7800", weight: 1}).addTo(this.map);
 		// TODO(mpl): I used to need LocationCenter in earlier versions of this code,
 		// but not right now. Keeping it for now, as it's still likely we'll need it.
 		// Otherwise, remove.
@@ -95,10 +99,14 @@ cam.MapAspect = React.createClass({
 	},
 
 	// refreshMapView pans to the relevant coordinates found for the current search
-	// session, if any.
+	// session, if any. Otherwise, pan to englobe all the markers that were drawn.
 	refreshMapView: function() {
 		if (this.locationFound) {
+			// pan to the location we found in the search query itself.
 			this.map.fitBounds([[this.location.North, this.location.East], [this.location.South, this.location.West]]);
+		} else if (this.locationFromMarkers) {
+			// otherwise, fit the view to encompass all the markers that were drawn
+			this.map.fitBounds(this.locationFromMarkers);
 		}
 		// Even after setting the bounds, or the view center+zoom, something is still
 		// very wrong, and the map's bounds seem to stay a point (instead of a rectangle).
@@ -118,13 +126,16 @@ cam.MapAspect = React.createClass({
 	// found in the current search session. It triggers loading more results from the
 	// search session until all of them have been pinned on the map.
 	loadMarkers: function() {
-		// TODO(mpl): do not load markers if no search (=="main ui page"), so as not to overload?
 		var ss = this.props.searchSession;
 		if (!ss) {
 			return;
 		}
+		if (ss.isEmptyQuery()) {
+			console.log("refusing to load markers for an empty search query");
+			return;
+		}
+		var q = ss.query_;
 		var blobs = ss.getCurrentResults().blobs;
-		var lastMarker = null;
 		blobs.forEach(function(b) {
 			var br = b.blob;
 			var marker = this.markers[br];
@@ -134,32 +145,65 @@ cam.MapAspect = React.createClass({
 			}
 			var m = ss.getResolvedMeta(br);
 			if (!m || !m.location) {
-				return;
+				var pm = ss.getMeta(br);
+				if (!pm || !pm.location) {
+					return;
+				}
+				// permanode itself has a location (not its contents)
+				var location = pm.location;
+			} else {
+				// contents, camliPath, etc has a location
+				var location = m.location;
 			}
-			// TODO(mpl): different marker icons for imgs, tweets, etc.
-			// TODO(mpl): we probably want a dir to put all leaflet resources in. later.
-			var icon = L.icon({
-				// The doc says to set L.Icon.Default.prototype.options.iconUrl, but it does not
-				// seem to work. it seems like it sets only the url path of the resource.
-				iconUrl: this.props.config.uiRoot + 'marker-icon.png'
-			});
-			var marker = L.marker([m.location.latitude, m.location.longitude], {icon: icon});
+			// all awesome markers use markers-soft.png (body of the marker), and markers-shadow.png.
+			var iconOpts = {
+				prefix: 'fa',
+				iconColor: 'white',
+				markerColor: 'blue'
+			};
+			// TODO(mpl): twitter, when we handle location for tweets, which I thought we already did.
+			if (m.permanode && cam.permanodeUtils.getCamliNodeType(m.permanode) == 'foursquare.com:checkin') {
+				iconOpts.icon = 'foursquare';
+			} else if (m.image) {
+				// image file
+				iconOpts.icon = 'camera';
+			} else if (m.camliType == 'file') {
+				// generic file
+				iconOpts.icon = 'file';
+			} else {
+				// default node
+				// TODO(mpl): I used 'circle' because it looks the most like the default leaflet
+				// marker-icon.png, but it'd be cool to have something that reminds of the
+				// Camlistore "brand". Maybe the head of the eagle on the banner?
+				iconOpts.icon = 'circle';
+			}
+			var markerIcon = L.AwesomeMarkers.icon(iconOpts);
+			var marker = L.marker([location.latitude, location.longitude], {icon: markerIcon});
 			// Note that we've created that marker already.
 			this.markers[br] = marker;
 			marker.addTo(this.map);
 			if (m.image) {
-				// TODO(mpl): Fixed thumbnail size for now, but think of a criterion for thumb size. zoom?
-				var img = this.props.config.uiRoot + "thumbnail/" + m.blobRef + "/" + m.file.fileName + "?mh=64";
+				// TODO(mpl): Do we ever want another thumb size? on mobile maybe?
+				var img = cam.Thumber.fromImageMeta(m).getSrc(64);
 				marker.bindPopup('<a href="'+this.props.config.uiRoot+br+'"><img src="'+img+'" alt="'+br+'" height="64"></a>');
 			} else {
-				marker.bindPopup('<a href="'+this.props.config.uiRoot+br+'">'+br+'</a>');
+				var title = ss.getTitle(br);
+				if (title != '') {
+					marker.bindPopup('<a href="'+this.props.config.uiRoot+br+'">'+title+'</a>');
+				} else {
+					marker.bindPopup('<a href="'+this.props.config.uiRoot+br+'">'+br+'</a>');
+				}
 			}
-			lastMarker = marker;
+			if (!this.locationFromMarkers) {
+				// initialize it as a square of 0.1 degree around the first marker placed
+				var northeast = L.latLng(location.latitude + 0.05, location.longitude - 0.05);
+				var southwest = L.latLng(location.latitude - 0.05, location.longitude + 0.05);
+				this.locationFromMarkers = L.latLngBounds(northeast, southwest);
+			} else {
+				// then grow locationFromMarkers to englobe the new marker (if needed)
+				this.locationFromMarkers.extend(L.latLng(location.latitude, location.longitude));
+			}
 		}.bind(this));
-		if (lastMarker) {
-			// TODO(mpl): do we actually want to popup sometimes?
-			// lastMarker.openPopup();
-		}
 		if (ss.isComplete()) {
 			this.refreshMapView();
 			return;
@@ -169,17 +213,12 @@ cam.MapAspect = React.createClass({
 
 	componentDidMount: function() {
 		var map = this.map = L.map(ReactDOM.findDOMNode(this), {
-			// TODO(mpl): we probably want to use our own access token. and research how the
-			// tiles source (here mapbox) matters.
 			layers: [
-				L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
-					attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' +
-					'<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
-					'Imagery © <a href="http://mapbox.com">Mapbox</a>',
-					id: 'mapbox.streets'
+				L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+					attribution: '©  <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 				})
 			],
-			attributionControl: false,
+			attributionControl: true,
 		});
 		map.setView([0., 0.], 3);
 
@@ -190,9 +229,6 @@ cam.MapAspect = React.createClass({
 		});
 
 		this.setCoordinatesFromSearchQuery();
-		// TODO(mpl): alternatively, when the search query is not one we can trivially
-		// derive into coordinates , set the coordinates/view from whatever
-		// location can be found in the search query results.
 	},
 
 	componentWillUnmount: function() {

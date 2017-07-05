@@ -124,3 +124,44 @@ func LocationCenter(north, south, west, east float64) Location {
 		Long: long,
 	}
 }
+
+// EastWest is returned by WrapAntimeridian. It exists only because there's no
+// multi-valued returns with javascript functions, so we need WrapAntimeridian to
+// return some sort of struct, that gets converted to a javascript object by
+// gopherjs.
+type EastWest struct {
+	E float64
+	W float64
+}
+
+// WrapAntimeridian determines if the shortest geodesic between east and west
+// goes over the antimeridian. If yes, it converts one of the two to the closest
+// equivalent value out of the [-180, 180] range. The choice of which of the two to
+// convert is such as to maximize the part of the geodesic that stays in the
+// [-180, 180] range.
+// The reason for that function is that leaflet.js cannot handle drawing areas that
+// cross the antimeridian if both corner are in the [-180, 180] range.
+// https://github.com/Leaflet/Leaflet/issues/82
+func WrapAntimeridian(east, west float64) EastWest {
+	if west < east {
+		return EastWest{
+			E: east,
+			W: west,
+		}
+	}
+	lc := LocationCenter(50, -50, west, east)
+	if lc.Long > 0 {
+		// wrap around the +180 antimeridian.
+		newEast := 180 + (180 - math.Abs(east))
+		return EastWest{
+			E: newEast,
+			W: west,
+		}
+	}
+	// else wrap around the -180 antimeridian
+	newWest := -180 - (180 - west)
+	return EastWest{
+		E: east,
+		W: newWest,
+	}
+}
