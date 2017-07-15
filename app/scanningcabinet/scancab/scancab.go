@@ -225,7 +225,7 @@ func (a imageNameByTime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a imageNameByTime) Less(i, j int) bool { return a[i].nanoTime < a[j].nanoTime }
 
 func uploadLoop() {
-	toUploadPattern := regexp.MustCompile(`/^image-.+-unx(\d+)\.(png|jpg)$/`)
+	toUploadPattern := regexp.MustCompile(`^image-.+-unx(\d+)\.(png|jpg)$`)
 	if err := os.Chdir(queueDir); err != nil {
 		log.Fatalf("Could not chdir to queue directory %v: %v", queueDir, err)
 	}
