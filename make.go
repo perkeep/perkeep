@@ -370,7 +370,6 @@ func buildGopherjs() (string, error) {
 	log.Printf("Now rebuilding gopherjs at %v", bin)
 	goBin := "go"
 	if gopherjsGoroot != "" {
-		// CAMLI_GOPHERJS_GOROOT was specified
 		goBin = filepath.Join(gopherjsGoroot, "bin", "go")
 	}
 	cmd := exec.Command(goBin, "install")
@@ -382,6 +381,9 @@ func buildGopherjs() (string, error) {
 	// current (host) platform.
 	cmd.Env = setEnv(cmd.Env, "GOOS", runtime.GOOS)
 	cmd.Env = setEnv(cmd.Env, "GOARCH", runtime.GOARCH)
+	if gopherjsGoroot != "" {
+		cmd.Env = setEnv(cmd.Env, "GOROOT", gopherjsGoroot)
+	}
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("error while building gopherjs: %v, %v", err, string(out))
 	}
@@ -564,6 +566,9 @@ func genWebUIJS(gopherjsBin string) error {
 	// Pretend we're on linux regardless of the actual host, because recommended
 	// hack to work around https://github.com/gopherjs/gopherjs/issues/511
 	cmd.Env = setEnv(cmd.Env, "GOOS", "linux")
+	if gopherjsGoroot != "" {
+		cmd.Env = setEnv(cmd.Env, "GOROOT", gopherjsGoroot)
+	}
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("gopherjs for web UI error: %v, %v", err, string(out))
 	}
