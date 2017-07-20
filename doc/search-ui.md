@@ -49,9 +49,16 @@ escaping.  For example:
   image's EXIF tags).
 
 **loc**
-: uses the EXIF GPS fields to match images having a location near the specified
-  location.  Locations are resolved using maps.googleapis.com. For example:
-  loc:"new york, new york"
+: uses the available metadata, such as EXIF GPS fields, or check-in locations,
+  to match nodes having a location near the specified location.  Locations are
+  resolved using maps.googleapis.com. For example: loc:"new york, new york"
+
+**locrect**
+: uses the various location metadata fields (such as EXIF GPS) to match nodes
+  having a location within the specified location area. The area is defined by
+  its North-West corner, followed and comma-separated by its South-East corner.
+  Each corner is defined by its latitude, followed and comma-separated by its
+  longitude. For example: locrect:48.63,-123.37,46.59,-121.28
 
 **is:image**
 : object is an image

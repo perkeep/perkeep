@@ -566,8 +566,19 @@ var keywordTests = []keywordTestcase{
 
 	// Location predicates
 	{
-		object: newLocation(),
+		object: newNamedLocation(),
 		args:   []string{"Uitdam"}, // Small dutch town
+		want: &Constraint{
+			Permanode: &PermanodeConstraint{
+				Location: uitdamLC,
+			},
+		},
+		ctx: newGeocodeContext(),
+	},
+
+	{
+		object: newLocation(),
+		args:   []string{"52.4486802,5.0353014,52.4152441,5.094973299999999"}, // Small dutch town
 		want: &Constraint{
 			Permanode: &PermanodeConstraint{
 				Location: uitdamLC,
