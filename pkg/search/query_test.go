@@ -7,8 +7,13 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"image/color"
 	"image/jpeg"
+	"image/png"
 	"io/ioutil"
+	"log"
+	"math/rand"
+	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -24,6 +29,7 @@ import (
 	"camlistore.org/pkg/osutil"
 	. "camlistore.org/pkg/search"
 	"camlistore.org/pkg/test"
+	"camlistore.org/pkg/types/camtypes"
 	"go4.org/types"
 	"golang.org/x/net/context"
 )
@@ -67,6 +73,10 @@ type queryTest struct {
 	handlerOnce sync.Once
 	newHandler  func() *Handler
 	handler     *Handler // initialized with newHandler
+
+	// set by wantRes if the query was successful, so we can examine some extra
+	// query's results after wantRes is called. nil otherwise.
+	res *SearchResult
 }
 
 func (qt *queryTest) Handler() *Handler {
@@ -137,6 +147,7 @@ func (qt *queryTest) wantRes(req *SearchQuery, wanted ...blob.Ref) {
 	if err != nil {
 		qt.t.Fatal(err)
 	}
+	qt.res = res
 
 	need := make(map[blob.Ref]bool)
 	for _, br := range wanted {
@@ -597,6 +608,69 @@ func TestQueryPermanodeLocation(t *testing.T) {
 			},
 		}
 		qt.wantRes(sq, p1, p4, p5, p6)
+	})
+}
+
+func TestQueryFileLocation(t *testing.T) {
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+
+		// Upload a basic image
+		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+		if err != nil {
+			panic("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+		}
+		uploadFile := func(file string, modTime time.Time) blob.Ref {
+			fileName := filepath.Join(camliRootPath, "pkg", "search", "testdata", file)
+			contents, err := ioutil.ReadFile(fileName)
+			if err != nil {
+				panic(err)
+			}
+			br, _ := id.UploadFile(file, string(contents), modTime)
+			return br
+		}
+		fileRef := uploadFile("dude-gps.jpg", time.Time{})
+
+		p6 := id.NewPlannedPermanode("photo")
+		id.SetAttribute(p6, "camliContent", fileRef.String())
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				File: &FileConstraint{
+					Location: &LocationConstraint{
+						Any: true,
+					},
+				},
+			},
+		}
+
+		qt.wantRes(sq, fileRef)
+		if qt.res == nil {
+			t.Fatal("No results struct")
+		}
+		if qt.res.LocationArea == nil {
+			t.Fatal("No location area in results")
+		}
+		want := camtypes.LocationBounds{
+			North: 42.45,
+			South: 42.45,
+			West:  18.76,
+			East:  18.76,
+		}
+		if *qt.res.LocationArea != want {
+			t.Fatalf("Wrong location area expansion: wanted %#v, got %#v", want, *qt.res.LocationArea)
+		}
+
+		ExportSetExpandLocationHook(true)
+		qt.wantRes(sq)
+		if qt.res == nil {
+			t.Fatal("No results struct")
+		}
+		if qt.res.LocationArea != nil {
+			t.Fatalf("Location area should not have been expanded")
+		}
+		ExportSetExpandLocationHook(false)
+
 	})
 }
 
@@ -1903,4 +1977,190 @@ func (x *exifBuf) reservePtr() int {
 // that have been reserved with reservePtr.
 func (x *exifBuf) storePtr(p int) {
 	x.bo.PutUint32(x.p[p:], uint32(len(x.p)))
+}
+
+// function to generate data for TestBestByLocation
+func generateLocationPoints(north, south, west, east float64, limit int) string {
+	points := make([]camtypes.Location, limit)
+	height := north - south
+	width := east - west
+	if west >= east {
+		// area is spanning over the antimeridian
+		width += 360
+	}
+	for i := 0; i < limit; i++ {
+		lat := rand.Float64()*height + south
+		long := camtypes.Longitude(rand.Float64()*width + west).WrapTo180()
+		points[i] = camtypes.Location{
+			Latitude:  lat,
+			Longitude: long,
+		}
+	}
+	data, err := json.Marshal(points)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return string(data)
+}
+
+type locationPoints struct {
+	Name    string
+	Comment string
+	Points  []camtypes.Location
+}
+
+func TestBestByLocation(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	data := make(map[string]locationPoints)
+	f, err := os.Open(filepath.Join("testdata", "locationPoints.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	dec := json.NewDecoder(f)
+	if err := dec.Decode(&data); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, v := range data {
+		testBestByLocation(t, v, false)
+	}
+}
+
+// call with generate=true to regenerate the png files int testdata/ from testdata/locationPoints.json
+func testBestByLocation(t *testing.T, data locationPoints, generate bool) {
+	var res SearchResult
+	var blobs []*SearchResultBlob
+	meta := make(map[string]*DescribedBlob)
+	var area *camtypes.LocationBounds
+	for _, v := range data.Points {
+		br := blob.RefFromString(fmt.Sprintf("%v,%v", v.Latitude, v.Longitude))
+		blobs = append(blobs, &SearchResultBlob{
+			Blob: br,
+		})
+		meta[br.String()] = &DescribedBlob{
+			Location: &camtypes.Location{
+				Latitude:  v.Latitude,
+				Longitude: v.Longitude,
+			},
+		}
+		area = area.Expand(v)
+	}
+	res.Blobs = blobs
+	res.Describe = &DescribeResponse{
+		Meta: meta,
+	}
+	res.LocationArea = area
+
+	var widthRatio, heightRatio float64
+	initImage := func() *image.RGBA {
+		maxRelLat := area.North - area.South
+		maxRelLong := area.East - area.West
+		if area.West >= area.East {
+			// area is spanning over the antimeridian
+			maxRelLong += 360
+		}
+		// draw it all on a 1000 px wide image
+		height := int(1000 * maxRelLat / maxRelLong)
+		img := image.NewRGBA(image.Rect(0, 0, 1000, height))
+		for i := 0; i < 1000; i++ {
+			for j := 0; j < 1000; j++ {
+				img.Set(i, j, image.White)
+			}
+		}
+		widthRatio = 1000. / maxRelLong
+		heightRatio = float64(height) / maxRelLat
+		return img
+	}
+
+	img := initImage()
+	for _, v := range data.Points {
+		// draw a little cross of 3x3, because 1px dot is not visible enough.
+		relLong := v.Longitude - area.West
+		if v.Longitude < area.West {
+			relLong += 360
+		}
+		crossX := int(relLong * widthRatio)
+		crossY := int((area.North - v.Latitude) * heightRatio)
+		for i := -1; i < 2; i++ {
+			img.Set(crossX+i, crossY, color.RGBA{127, 0, 0, 127})
+		}
+		for j := -1; j < 2; j++ {
+			img.Set(crossX, crossY+j, color.RGBA{127, 0, 0, 127})
+		}
+	}
+
+	cmpImage := func(img *image.RGBA, wantImgFile string) {
+		f, err := os.Open(wantImgFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		wantImg, err := png.Decode(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for j := 0; j < wantImg.Bounds().Max.Y; j++ {
+			for i := 0; i < wantImg.Bounds().Max.X; i++ {
+				r1, g1, b1, a1 := wantImg.At(i, j).RGBA()
+				r2, g2, b2, a2 := img.At(i, j).RGBA()
+				if r1 != r2 || g1 != g2 || b1 != b2 || a1 != a2 {
+					t.Fatalf("%v different from %v", wantImg.At(i, j), img.At(i, j))
+				}
+			}
+		}
+	}
+
+	genPng := func(img *image.RGBA, name string) {
+		f, err := os.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		if err := png.Encode(f, img); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if generate {
+		genPng(img, filepath.Join("testdata", fmt.Sprintf("%v-beforeMapSort.png", data.Name)))
+	} else {
+		cmpImage(img, filepath.Join("testdata", fmt.Sprintf("%v-beforeMapSort.png", data.Name)))
+	}
+
+	ExportBestByLocation(&res, 100)
+
+	// check that all longitudes are in the [-180,180] range
+	for _, v := range res.Blobs {
+		longitude := meta[v.Blob.String()].Location.Longitude
+		if longitude < -180. || longitude > 180. {
+			t.Errorf("out of range location: %v", longitude)
+		}
+	}
+
+	img = initImage()
+	for _, v := range res.Blobs {
+		loc := meta[v.Blob.String()].Location
+		longitude := loc.Longitude
+		latitude := loc.Latitude
+		// draw a little cross of 3x3, because 1px dot is not visible enough.
+		relLong := longitude - area.West
+		if longitude < area.West {
+			relLong += 360
+		}
+		crossX := int(relLong * widthRatio)
+		crossY := int((area.North - latitude) * heightRatio)
+		for i := -1; i < 2; i++ {
+			img.Set(crossX+i, crossY, color.RGBA{127, 0, 0, 127})
+		}
+		for j := -1; j < 2; j++ {
+			img.Set(crossX, crossY+j, color.RGBA{127, 0, 0, 127})
+		}
+	}
+	if generate {
+		genPng(img, filepath.Join("testdata", fmt.Sprintf("%v-afterMapSort.png", data.Name)))
+	} else {
+		cmpImage(img, filepath.Join("testdata", fmt.Sprintf("%v-afterMapSort.png", data.Name)))
+	}
 }

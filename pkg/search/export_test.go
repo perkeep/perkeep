@@ -31,6 +31,8 @@ func SetTestHookBug121(hook func()) {
 
 func ExportSetCandidateSourceHook(fn func(string)) { candSourceHook = fn }
 
+func ExportSetExpandLocationHook(val bool) { expandLocationHook = val }
+
 func ExportBufferedConst() int { return buffered }
 
 func (s *SearchQuery) ExportPlannedQuery() *SearchQuery {
@@ -42,4 +44,8 @@ var SortName = sortName
 func (s *Handler) ExportGetPermanodeLocation(ctx context.Context, permaNode blob.Ref,
 	at time.Time) (camtypes.Location, error) {
 	return s.lh.PermanodeLocation(ctx, permaNode, at, s.owner)
+}
+
+func ExportBestByLocation(res *SearchResult, limit int) {
+	bestByLocation(res, limit)
 }

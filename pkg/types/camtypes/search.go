@@ -19,6 +19,7 @@ package camtypes
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"mime"
 	"path/filepath"
 	"strings"
@@ -250,4 +251,112 @@ type Location struct {
 	// perhaps with a N/S/E/W boundary. Note that a single point location
 	// is still useful for these, to represent the starting point of a
 	// track log or the main entrance of an area or building.
+}
+
+type Longitude float64
+
+// WrapTo180 returns l converted to the [-180,180] interval.
+func (l Longitude) WrapTo180() float64 {
+	lf := float64(l)
+	if lf >= -180 && lf <= 180 {
+		return lf
+	}
+	return math.Mod(lf+180., 360.) - 180.
+}
+
+// LocationBounds is a location area delimited by its fields. See Location for
+// the fields meanings and values.
+type LocationBounds struct {
+	North float64 `json:"north"`
+	South float64 `json:"south"`
+	West  float64 `json:"west"`
+	East  float64 `json:"east"`
+}
+
+func (l *LocationBounds) isEmpty() bool {
+	return l == nil ||
+		l.North == 0 &&
+			l.South == 0 &&
+			l.West == 0 &&
+			l.East == 0
+}
+
+func (l *LocationBounds) isWithinLongitude(loc Location) bool {
+	if l.East < l.West {
+		// l is spanning over antimeridian
+		return loc.Longitude >= l.West || loc.Longitude <= l.East
+	}
+	return loc.Longitude >= l.West && loc.Longitude <= l.East
+}
+
+// Expand returns a new LocationBounds nb. If either of loc coordinates is
+// outside of b, nb is the dimensions of b expanded as little as possible in
+// order to include loc. Otherwise, nb is just a copy of b.
+func (b *LocationBounds) Expand(loc Location) *LocationBounds {
+	if b.isEmpty() {
+		return &LocationBounds{
+			North: loc.Latitude,
+			South: loc.Latitude,
+			West:  loc.Longitude,
+			East:  loc.Longitude,
+		}
+	}
+	nb := &LocationBounds{
+		North: b.North,
+		South: b.South,
+		West:  b.West,
+		East:  b.East,
+	}
+	if loc.Latitude > nb.North {
+		nb.North = loc.Latitude
+	} else if loc.Latitude < nb.South {
+		nb.South = loc.Latitude
+	}
+	if nb.isWithinLongitude(loc) {
+		return nb
+	}
+	center := nb.center()
+	dToCenter := center.Longitude - loc.Longitude
+	if math.Abs(dToCenter) <= 180 {
+		if dToCenter > 0 {
+			// expand Westwards
+			nb.West = loc.Longitude
+		} else {
+			// expand Eastwards
+			nb.East = loc.Longitude
+		}
+		return nb
+	}
+	if dToCenter > 0 {
+		// expand Eastwards
+		nb.East = loc.Longitude
+	} else {
+		// expand Westwards
+		nb.West = loc.Longitude
+	}
+	return nb
+}
+
+func (b *LocationBounds) center() Location {
+	var lat, long float64
+	lat = b.South + (b.North-b.South)/2.
+	if b.West < b.East {
+		long = b.West + (b.East-b.West)/2.
+		return Location{
+			Latitude:  lat,
+			Longitude: long,
+		}
+	}
+	// b is spanning over antimeridian
+	awest := math.Abs(b.West)
+	aeast := math.Abs(b.East)
+	if awest > aeast {
+		long = b.East - (awest-aeast)/2.
+	} else {
+		long = b.West + (aeast-awest)/2.
+	}
+	return Location{
+		Latitude:  lat,
+		Longitude: long,
+	}
 }

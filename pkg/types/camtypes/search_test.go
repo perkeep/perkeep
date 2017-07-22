@@ -16,7 +16,10 @@ limitations under the License.
 
 package camtypes
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 var fileInfoVideoTable = []struct {
 	fi    *FileInfo
@@ -37,6 +40,137 @@ func TestIsVideo(t *testing.T) {
 		if example.fi.IsVideo() != example.video {
 			t.Errorf("IsVideo failed video=%t filename=%s mimetype=%s",
 				example.video, example.fi.FileName, example.fi.MIMEType)
+		}
+	}
+}
+
+func TestExpandLocationArea(t *testing.T) {
+	tt := []struct {
+		comment string
+		before  *LocationBounds
+		input   Location
+		want    *LocationBounds
+	}{
+		// Until further notice, these tests are a series, i.e. want becomes before in
+		// each subsequent test.
+		{
+			comment: "uninitialized, add point",
+			before:  nil,
+			input: Location{
+				Latitude:  35.,
+				Longitude: -90.,
+			},
+			want: &LocationBounds{
+				North: 35.,
+				West:  -90.,
+				South: 35.,
+				East:  -90.,
+			},
+		},
+		{
+			comment: "one point, expand north and west",
+			before: &LocationBounds{
+				North: 35.,
+				West:  -90.,
+				South: 35.,
+				East:  -90.,
+			},
+			input: Location{
+				Latitude:  40.,
+				Longitude: -100.,
+			},
+			want: &LocationBounds{
+				North: 40.,
+				West:  -100.,
+				South: 35.,
+				East:  -90.,
+			},
+		},
+		{
+			comment: "area not yet crossing antimeridian, expand west over it",
+			before: &LocationBounds{
+				North: 40.,
+				West:  -100.,
+				South: 35.,
+				East:  -90.,
+			},
+			input: Location{
+				Latitude:  37.,
+				Longitude: 170.,
+			},
+			want: &LocationBounds{
+				North: 40.,
+				West:  170.,
+				South: 35.,
+				East:  -90.,
+			},
+		},
+		{
+			comment: "area spanning over antimeridian, expand east",
+			before: &LocationBounds{
+				North: 40.,
+				West:  170.,
+				South: 35.,
+				East:  -90.,
+			},
+			input: Location{
+				Latitude:  -20.,
+				Longitude: 20.,
+			},
+			want: &LocationBounds{
+				North: 40.,
+				West:  170.,
+				South: -20.,
+				East:  20.,
+			},
+		},
+
+		// New series here.
+		{
+			comment: "area not yet crossing antimeridian, expand east over it",
+			before: &LocationBounds{
+				North: 40.,
+				West:  120.,
+				South: 35.,
+				East:  160.,
+			},
+			input: Location{
+				Latitude:  -20,
+				Longitude: -160,
+			},
+			want: &LocationBounds{
+				North: 40.,
+				West:  120.,
+				South: -20.,
+				East:  -160.,
+			},
+		},
+		{
+			comment: "area spanning over antimeridian, expand west",
+			before: &LocationBounds{
+				North: 40.,
+				West:  120.,
+				South: -20.,
+				East:  -160.,
+			},
+			input: Location{
+				Latitude:  0.,
+				Longitude: 100.,
+			},
+			want: &LocationBounds{
+				North: 40.,
+				West:  100.,
+				South: -20.,
+				East:  -160.,
+			},
+		},
+	}
+
+	for _, v := range tt {
+		lb := v.before.Expand(v.input)
+		// TODO(mpl): come back and understand why deepEqual is needed. probably some float shenanigans.
+		if !reflect.DeepEqual(v.want, lb) {
+			t.Fatalf("for %q expansion: wanted %#v, got %#v", v.comment, v.want, lb)
 		}
 	}
 }
