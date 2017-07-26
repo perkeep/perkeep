@@ -19,9 +19,7 @@ limitations under the License.
 package main
 
 import (
-	"bufio"
 	"bytes"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -191,28 +189,6 @@ func uploadOne(filename string) {
 			log.Printf("could not remove %v: %v", converted, err)
 		}
 	}
-}
-
-// TODO(mpl): I could use https://godoc.org/rsc.io/pdf#Reader.NumPage instead of pdfinfo,
-// if we prefer the pkg dep over the program dep.
-func pageCount(filename string) (cnt int, err error) {
-	cmd := exec.Command("pdfinfo", filename)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return cnt, fmt.Errorf("Could not get page count with pdfinfo: %v, %v", err, string(out))
-	}
-	sc := bufio.NewScanner(bytes.NewReader(out))
-	for sc.Scan() {
-		l := sc.Text()
-		if !strings.HasPrefix(l, "Pages: ") {
-			continue
-		}
-		return strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(l, "Pages:")))
-	}
-	if err := sc.Err(); err != nil {
-		return 0, err
-	}
-	return 0, errors.New("page count not found in pdfinfo output")
 }
 
 type imageNameByTime []struct {
