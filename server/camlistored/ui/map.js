@@ -20,6 +20,8 @@ goog.require('cam.SearchSession');
 goog.require('cam.Thumber');
 
 cam.MapAspect = React.createClass({
+	QUERY_LIMIT_: 1000,
+
 	propTypes: {
 		availWidth: React.PropTypes.number.isRequired,
 		availHeight: React.PropTypes.number.isRequired,
@@ -37,14 +39,14 @@ cam.MapAspect = React.createClass({
 			West: 0.0,
 		};
 		this.markers = {};
+		this.mapQuery = null;
 		this.eh_ = new goog.events.EventHandler(this);
 	},
 
 	// setCoordinatesFromSearchQuery looks into the search session query for obvious
-	// geographic coordinates. Either a location predicate ("loc:seattle"), or a raw
-	// query with just coordinates ('raw:{"permanode": {"location": {"west":
-	// -123.373922, "north": 48.636011, "east": -121.286750, "south": 46.590087}}}')
-	// are considered for now.
+	// geographic coordinates. Either a location predicate ("loc:seattle"), or a
+	// location area predicate ("locrect:48.63,-123.37,46.59,-121.28") are considered
+	// for now.
 	setCoordinatesFromSearchQuery: function() {
 		var ss = this.props.searchSession;
 		if (!ss) {
@@ -56,21 +58,17 @@ cam.MapAspect = React.createClass({
 			return;
 		}
 		var q = ss.query_;
-		if (!q.permanode || !q.permanode.location) {
-			// Not a raw coordinates query.
-			if (!goreact.IsLocPredicate(q)) {
-				// Not a location type ("loc:foo") query
-				return;
-			}
+		if (goreact.HandleLocAreaPredicate(q, this.handleCoordinatesFound)) {
+			// a "locrect" area query
+			return;
+		}
+		if (goreact.IsLocPredicate(q)) {
+			// a "loc" query
 			goreact.Geocode(q.substring(goreact.LocPredicatePrefix.length), this.handleCoordinatesFound);
 			return;
 		}
-		this.handleCoordinatesFound({
-			North: q.permanode.location.north,
-			South: q.permanode.location.south,
-			West: q.permanode.location.west,
-			East: q.permanode.location.east,
-		});
+		// Not a location type query
+		this.refreshMapView();
 	},
 
 	// handleCoordinatesFound sets this.location (a rectangle), this.latitude, and
@@ -87,9 +85,6 @@ cam.MapAspect = React.createClass({
 		}
 		this.location = rect;
 		L.rectangle([[this.location.North, this.location.East],[this.location.South,this.location.West]], {color: "#ff7800", weight: 1}).addTo(this.map);
-		// TODO(mpl): I used to need LocationCenter in earlier versions of this code,
-		// but not right now. Keeping it for now, as it's still likely we'll need it.
-		// Otherwise, remove.
 		var center = goreact.LocationCenter(this.location.North, this.location.South, this.location.West, this.location.East);
 		this.latitude = center.Lat;
 		this.longitude = center.Long;
@@ -104,15 +99,12 @@ cam.MapAspect = React.createClass({
 		if (this.locationFound) {
 			// pan to the location we found in the search query itself.
 			this.map.fitBounds([[this.location.North, this.location.East], [this.location.South, this.location.West]]);
-		} else if (this.locationFromMarkers) {
+			return;
+		}
+		if (this.locationFromMarkers) {
 			// otherwise, fit the view to encompass all the markers that were drawn
 			this.map.fitBounds(this.locationFromMarkers);
 		}
-		// Even after setting the bounds, or the view center+zoom, something is still
-		// very wrong, and the map's bounds seem to stay a point (instead of a rectangle).
-		// And I can't figure out why. However, any kind of resizing of the window fixes
-		// things, hence the following necessary hack.
-		window.dispatchEvent(new Event('resize'));
 	},
 
 	sameLocations: function(loc1, loc2) {
@@ -123,8 +115,7 @@ cam.MapAspect = React.createClass({
 	},
 
 	// loadMarkers sets markers on the map for all the permanodes, with a location,
-	// found in the current search session. It triggers loading more results from the
-	// search session until all of them have been pinned on the map.
+	// found in the current search session.
 	loadMarkers: function() {
 		var ss = this.props.searchSession;
 		if (!ss) {
@@ -135,7 +126,59 @@ cam.MapAspect = React.createClass({
 			return;
 		}
 		var q = ss.query_;
-		var blobs = ss.getCurrentResults().blobs;
+		if (this.mapQuery == null) {
+			this.mapQuery = goreact.NewMapQuery(this.props.config.authToken, q, this.handleSearchResults);
+			this.mapQuery.SetLimit(this.QUERY_LIMIT_);
+		}
+		this.mapQuery.Send();
+	},
+
+	// TODO(mpl): if we add caching of the results to the gopherjs searchsession,
+	// then getMeta, getResolvedMeta, and getTitle can become methods on the Session
+	// type, and we can remove the searchResults argument.
+
+	getMeta: function(br, searchResults) {
+		if (!searchResults || !searchResults.description || !searchResults.description.meta) {
+			return null;
+		}
+		return searchResults.description.meta[br];
+	},
+
+	getResolvedMeta: function(br, searchResults) {
+		var meta = this.getMeta(br, searchResults);
+		if (!meta) {
+			return null;
+		}
+		if (meta.camliType == 'permanode') {
+			var camliContent = cam.permanodeUtils.getSingleAttr(meta.permanode, 'camliContent');
+			if (camliContent) {
+				return searchResults.description.meta[camliContent];
+			}
+		}
+		return meta;
+	},
+
+	getTitle: function(br, searchResults) {
+		var meta = this.getMeta(br, searchResults);
+		if (!meta) {
+			return '';
+		}
+		if (meta.camliType == 'permanode') {
+			var title = cam.permanodeUtils.getSingleAttr(meta.permanode, 'title');
+			if (title) {
+				return title;
+			}
+		}
+		var rm = this.getResolvedMeta(br, searchResults);
+		return (rm && rm.camliType == 'file' && rm.file.fileName) || (rm && rm.camliType == 'directory' && rm.dir.fileName) || '';
+	},
+
+	handleSearchResults: function(searchResultsJSON) {
+		var searchResults = JSON.parse(searchResultsJSON);
+		var blobs = searchResults.blobs;
+		var icon = L.icon({
+			iconUrl: this.props.config.uiRoot + 'leaflet/marker-icon.png'
+		});
 		blobs.forEach(function(b) {
 			var br = b.blob;
 			var marker = this.markers[br];
@@ -143,9 +186,9 @@ cam.MapAspect = React.createClass({
 				// marker has already been loaded on the map
 				return;
 			}
-			var m = ss.getResolvedMeta(br);
+			var m = this.getResolvedMeta(br, searchResults);
 			if (!m || !m.location) {
-				var pm = ss.getMeta(br);
+				var pm = this.getMeta(br, searchResults);
 				if (!pm || !pm.location) {
 					return;
 				}
@@ -155,6 +198,17 @@ cam.MapAspect = React.createClass({
 				// contents, camliPath, etc has a location
 				var location = m.location;
 			}
+
+			var marker = L.marker([location.latitude, location.longitude], {icon: icon});
+
+			// TODO(mpl): The piece of code below is temporarily commented out because the
+			// awesome markers seem to be breaking the UI in a way that I don't understand yet.
+			// Symptoms are: tiles not loading properly, aspect names (top right) disappearing
+			// when hovering over them, same for the main drop down menu. First thought was
+			// some z-index related bug, but no luck finding such a culprit. Plus it seems
+			// related to the number of markers loaded, as the bugs don't appear if there's
+			// just a handful of markers.
+/*
 			// all awesome markers use markers-soft.png (body of the marker), and markers-shadow.png.
 			var iconOpts = {
 				prefix: 'fa',
@@ -179,15 +233,17 @@ cam.MapAspect = React.createClass({
 			}
 			var markerIcon = L.AwesomeMarkers.icon(iconOpts);
 			var marker = L.marker([location.latitude, location.longitude], {icon: markerIcon});
+*/
+
 			// Note that we've created that marker already.
-			this.markers[br] = marker;
+			this.markers[br] = true;
 			marker.addTo(this.map);
 			if (m.image) {
 				// TODO(mpl): Do we ever want another thumb size? on mobile maybe?
 				var img = cam.Thumber.fromImageMeta(m).getSrc(64);
 				marker.bindPopup('<a href="'+this.props.config.uiRoot+br+'"><img src="'+img+'" alt="'+br+'" height="64"></a>');
 			} else {
-				var title = ss.getTitle(br);
+				var title = this.getTitle(br, searchResults);
 				if (title != '') {
 					marker.bindPopup('<a href="'+this.props.config.uiRoot+br+'">'+title+'</a>');
 				} else {
@@ -204,11 +260,10 @@ cam.MapAspect = React.createClass({
 				this.locationFromMarkers.extend(L.latLng(location.latitude, location.longitude));
 			}
 		}.bind(this));
-		if (ss.isComplete()) {
-			this.refreshMapView();
-			return;
-		}
-		ss.loadMoreResults();
+		this.refreshMapView();
+		// TODO(mpl): reintroduce the Around/Continue logic later if needed. For now not
+		// needed/useless as MapSorted queries do not support continuation of any kind.
+		window.dispatchEvent(new Event('resize'))
 	},
 
 	componentDidMount: function() {
@@ -222,17 +277,22 @@ cam.MapAspect = React.createClass({
 		});
 		map.setView([0., 0.], 3);
 
+		this.eh_.listen(window, 'resize', function(event) {
+			// Even after setting the bounds, or the view center+zoom, something is still
+			// very wrong, and the map's bounds seem to stay a point (instead of a rectangle).
+			// And I can't figure out why. However, any kind of resizing of the window fixes
+			// things, so we send a resize event when we're done with loading the markers,
+			// and we do one final refreshView here after the resize has happened.
+			setTimeout(function(){this.refreshMapView();}.bind(this), 1000);
+		});
 		this.loadMarkers();
 		map.on('click', this.onMapClick);
-		this.eh_.listen(this.props.searchSession, cam.SearchSession.SEARCH_SESSION_CHANGED, function() {
-			this.loadMarkers();
-		});
-
 		this.setCoordinatesFromSearchQuery();
 	},
 
 	componentWillUnmount: function() {
 		this.map.off('click', this.onMapClick);
+		this.eh_.dispose();
 		this.map = null;
 	},
 

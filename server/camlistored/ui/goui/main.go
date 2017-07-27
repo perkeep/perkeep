@@ -22,6 +22,7 @@ import (
 	"camlistore.org/server/camlistored/ui/goui/aboutdialog"
 	"camlistore.org/server/camlistored/ui/goui/downloadbutton"
 	"camlistore.org/server/camlistored/ui/goui/geo"
+	"camlistore.org/server/camlistored/ui/goui/mapquery"
 	"camlistore.org/server/camlistored/ui/goui/sharebutton"
 
 	"github.com/gopherjs/gopherjs/js"
@@ -29,13 +30,15 @@ import (
 
 func main() {
 	js.Global.Set("goreact", map[string]interface{}{
-		"AboutMenuItem":      aboutdialog.New,
-		"DownloadItemsBtn":   downloadbutton.New,
-		"ShareItemsBtn":      sharebutton.New,
-		"Geocode":            geo.Lookup,
-		"IsLocPredicate":     geo.IsLocPredicate,
-		"LocPredicatePrefix": geo.LocPredicatePrefix,
-		"LocationCenter":     geo.LocationCenter,
-		"WrapAntimeridian":   geo.WrapAntimeridian,
+		"AboutMenuItem":          aboutdialog.New,
+		"DownloadItemsBtn":       downloadbutton.New,
+		"ShareItemsBtn":          sharebutton.New,
+		"Geocode":                geo.Lookup,
+		"IsLocPredicate":         geo.IsLocPredicate,
+		"HandleLocAreaPredicate": geo.HandleLocAreaPredicate,
+		"LocPredicatePrefix":     geo.LocPredicatePrefix,
+		"LocationCenter":         geo.LocationCenter,
+		"WrapAntimeridian":       geo.WrapAntimeridian,
+		"NewMapQuery":            mapquery.New,
 	})
 }

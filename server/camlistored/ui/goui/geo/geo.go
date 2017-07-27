@@ -22,14 +22,47 @@ import (
 	"context"
 	"log"
 	"math"
+	"strconv"
 	"strings"
 
 	"camlistore.org/pkg/geocode"
 )
 
 const (
-	LocPredicatePrefix = "loc"
+	LocPredicatePrefix     = "loc"
+	LocAreaPredicatePrefix = "locrect"
 )
+
+// HandleLocAreaPredicate checks whether predicate is a location area predicate
+// (locrect). If so, it runs asynchronously handleCoordinatesFound on the given
+// coordinates, and returns true. Otherwise, it returns false.
+func HandleLocAreaPredicate(predicate string, handleCoordinatesFound func(*rectangle)) bool {
+	if !strings.HasPrefix(predicate, LocAreaPredicatePrefix+":") {
+		return false
+	}
+	loc := strings.TrimPrefix(predicate, LocAreaPredicatePrefix+":")
+	coords := strings.Split(loc, ",")
+	if len(coords) != 4 {
+		return false
+	}
+	var coord [4]float64
+	for k, v := range coords {
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return false
+		}
+		coord[k] = f
+	}
+	go func() {
+		handleCoordinatesFound(&rectangle{
+			North: coord[0],
+			South: coord[2],
+			East:  coord[3],
+			West:  coord[1],
+		})
+	}()
+	return true
+}
 
 // IsLocPredicate returns whether the given predicate is a simple (as in, not
 // composed) location predicate, such as the one supported by the Camlistore search
