@@ -57,7 +57,11 @@ cam.MapAspect = React.createClass({
 		if (ss.isEmptyQuery()) {
 			return;
 		}
-		var q = ss.query_;
+		var q = ss.getQueryExprOrRef()
+		// TODO(mpl): support "ref:sha1-foobar" predicate. Needs server-side first.
+		if (q == '') {
+			return;
+		}
 		if (goreact.HandleLocAreaPredicate(q, this.handleCoordinatesFound)) {
 			// a "locrect" area query
 			return;
@@ -96,15 +100,20 @@ cam.MapAspect = React.createClass({
 	// refreshMapView pans to the relevant coordinates found for the current search
 	// session, if any. Otherwise, pan to englobe all the markers that were drawn.
 	refreshMapView: function() {
-		if (this.locationFound) {
-			// pan to the location we found in the search query itself.
-			this.map.fitBounds([[this.location.North, this.location.East], [this.location.South, this.location.West]]);
+		if (!this.locationFound && !this.locationFromMarkers) {
 			return;
 		}
-		if (this.locationFromMarkers) {
+		if (this.locationFound) {
+			// pan to the location we found in the search query itself.
+			var location = L.latLngBounds(L.latLng(this.location.North, this.location.East),
+				L.latLng(this.location.South, this.location.West));
+		} else {
 			// otherwise, fit the view to encompass all the markers that were drawn
-			this.map.fitBounds(this.locationFromMarkers);
+			var location = this.locationFromMarkers;
 		}
+		this.map.fitBounds(location);
+		this.mapQuery.SetZoom(location.getNorth(), location.getWest(), location.getSouth(), location.getEast());
+		this.props.onZoomLevelChange(this.mapQuery.GetExpr());
 	},
 
 	sameLocations: function(loc1, loc2) {
@@ -125,7 +134,11 @@ cam.MapAspect = React.createClass({
 			console.log("refusing to load markers for an empty search query");
 			return;
 		}
-		var q = ss.query_;
+		var q = ss.getQueryExprOrRef()
+		// TODO(mpl): support "ref:sha1-foobar" predicate. Needs server-side first.
+		if (q == '') {
+			return;
+		}
 		if (this.mapQuery == null) {
 			this.mapQuery = goreact.NewMapQuery(this.props.config.authToken, q, this.handleSearchResults);
 			this.mapQuery.SetLimit(this.QUERY_LIMIT_);
@@ -252,8 +265,8 @@ cam.MapAspect = React.createClass({
 			}
 			if (!this.locationFromMarkers) {
 				// initialize it as a square of 0.1 degree around the first marker placed
-				var northeast = L.latLng(location.latitude + 0.05, location.longitude - 0.05);
-				var southwest = L.latLng(location.latitude - 0.05, location.longitude + 0.05);
+				var northeast = L.latLng(location.latitude + 0.05, location.longitude + 0.05);
+				var southwest = L.latLng(location.latitude - 0.05, location.longitude - 0.05);
 				this.locationFromMarkers = L.latLngBounds(northeast, southwest);
 			} else {
 				// then grow locationFromMarkers to englobe the new marker (if needed)
@@ -319,8 +332,8 @@ cam.MapAspect = React.createClass({
 	}
 });
 
-cam.MapAspect.getAspect = function(config, availWidth, availHeight, childSearchSession,
-		targetBlobRef, parentSearchSession) {
+cam.MapAspect.getAspect = function(config, availWidth, availHeight, onZoomLevelChange,
+	childSearchSession, targetBlobRef, parentSearchSession) {
 	var searchSession = childSearchSession;
 	if (targetBlobRef) {
 		// we have a "ref:sha1-foobar" kind of query
@@ -345,10 +358,8 @@ cam.MapAspect.getAspect = function(config, availWidth, availHeight, childSearchS
 				availWidth: availWidth,
 				availHeight: availHeight,
 				searchSession: searchSession,
+				onZoomLevelChange: onZoomLevelChange,
 			});
 		},
 	};
 };
-
-
-

@@ -141,6 +141,9 @@ cam.IndexPage = React.createClass({
 		return {
 			backwardPiggy: false,
 			currentURL: null,
+			// currentSearch exists in Index just to wire together the searchbox of Header, and the Map
+			// aspect, so the Map aspect can add the zoom level to the predicate in the search box.
+			currentSearch: '',
 			currentSet: '',
 			dropActive: false,
 			selection: {},
@@ -230,7 +233,9 @@ cam.IndexPage = React.createClass({
 
 		var generalAspects = [
 			this.getSearchAspect_.bind(null, specificAspects),
-			cam.MapAspect.getAspect.bind(null, this.props.config, this.props.availWidth, this.props.availHeight - this.HEADER_HEIGHT_, this.childSearchSession_),
+			cam.MapAspect.getAspect.bind(null, this.props.config,
+				this.props.availWidth, this.props.availHeight - this.HEADER_HEIGHT_,
+				this.handleZoomLevelChange_, this.childSearchSession_),
 			cam.PermanodeDetail.getAspect.bind(null, this.props.serverConnection, this.props.timer),
 			cam.BlobDetail.getAspect.bind(null, this.getDetailURL_, this.props.serverConnection),
 		].map(getAspect).filter(goog.functions.identity);
@@ -271,6 +276,13 @@ cam.IndexPage = React.createClass({
 			fragment: blobref ? 'contents': 'search',
 			createContent: this.getBlobItemContainer_.bind(null, this),
 		};
+	},
+
+	// handleZoomLevelChange_ is called by the map aspect when the zoom level
+	// changes, so the locrect predicate used as a zoom can be changed in currentSearch,
+	// and then propagated to the predicate in the searchbox of the header.
+	handleZoomLevelChange_: function(currentSearch) {
+		this.setState({currentSearch: currentSearch});
 	},
 
 	handleDragStart_: function(e) {
@@ -626,6 +638,15 @@ cam.IndexPage = React.createClass({
 	},
 
 	getHeader_: function(aspects, selectedAspectIndex) {
+		// TODO(mpl): I don't like this particular case approach, in addition to the
+		// currentSearch business. But no other idea for now, on how to keep the search box
+		// properly in sync with the map zoom levels, AND the rest of the application.
+		// Maybe events?
+		var isMapAspect = false;
+		if (aspects.length > 0 && aspects[selectedAspectIndex].title == "Map") {
+			isMapAspect = true;
+		}
+
 		// We don't show the chooser if there's only one thing to choose from.
 		if (aspects.length == 1) {
 			aspects = [];
@@ -638,6 +659,9 @@ cam.IndexPage = React.createClass({
 			query = 'ref:' + target;
 		} else {
 			query = this.state.currentURL.getParameterValue('q') || '';
+		}
+		if (isMapAspect && this.state.currentSearch != '') {
+			query = this.state.currentSearch;
 		}
 
 		return React.createElement(cam.Header,

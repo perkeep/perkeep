@@ -21,10 +21,13 @@ package mapquery
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/search"
+	"camlistore.org/pkg/types/camtypes"
+	"camlistore.org/server/camlistored/ui/goui/geo"
 
 	"github.com/gopherjs/gopherjs/js"
 	"honnef.co/go/js/dom"
@@ -51,6 +54,11 @@ func New(authToken string, expr string, callback func(searchResults string)) *js
 		Callback:  callback,
 		Limit:     50,
 	})
+}
+
+// GetExpr returns the search expression of the query.
+func (q *Query) GetExpr() string {
+	return q.Expr
 }
 
 func (q *Query) SetLimit(limit int) {
@@ -102,6 +110,9 @@ func (q *Query) send() error {
 	if err != nil {
 		return err
 	}
+	if sr == nil || len(sr.Blobs) == 0 {
+		return nil
+	}
 	srjson, err := json.Marshal(sr)
 	if err != nil {
 		return err
@@ -118,4 +129,64 @@ func newClient(am auth.AuthMode) *client.Client {
 	// gopherjs.
 	cl.SetHTTPClient(nil)
 	return cl
+}
+
+// SetZoom modifies the query's search expression: it uses the given coordinates
+// in a locrect predicate to constrain the search expression to the defined area,
+// effectively acting like a map zoom. It modifies the expression according to the
+// following rules:
+//
+// If the current expression does not end with a locrect, or is
+// not surrounded with parentheses, it gets surrounded with parentheses (as a
+// visual cue, to make it more explicit that the locrect is an added zoom), and the
+// locrect is appended. i.e: "expr" -> "(expr) locrect:n,w,s,e"
+//
+// Otherwise (if the expression already ends with a locrect, and the left hand side
+// is already surrounded by parentheses), the current ending locrect is interpreted
+// as being the current zoom level. So it gets replaced with the given coordinates.
+// i.e.: "(expr) locrect:n1,w1,s1,e1" -> "(expr) locrect:n2,w2,s2,e2".
+func (q *Query) SetZoom(north, west, south, east float64) {
+	sq := strings.TrimSpace(q.Expr)
+	lastSpace := strings.LastIndex(sq, " ")
+	const precision = 1e-6
+	// since we print the locrect at a given arbitrary precision (e-6), we need to
+	// round everything "up", to make sure we don't exclude points on the boundaries.
+	newNorth := north + precision
+	newSouth := south - precision
+	newWest := camtypes.Longitude(west - precision).WrapTo180()
+	newEast := camtypes.Longitude(east + precision).WrapTo180()
+
+	zoomAdded := fmt.Sprintf("(%v) locrect:%.6f,%.6f,%.6f,%.6f", sq, newNorth, newWest, newSouth, newEast)
+
+	if lastSpace == -1 {
+		// easiest case: one simple (as in, not logically composed) expression. so we
+		// only have to append the locrect.
+		q.Expr = zoomAdded
+		return
+	}
+
+	// otherwise we have a logically composed expression
+	lhs := sq[:lastSpace]
+
+	// check if LHS is paren surrounded
+	if !(strings.HasPrefix(lhs, "(") && strings.HasSuffix(lhs, ")")) {
+		// no parens around lhs, which means the rhs is not a locrect that was
+		// previously added by appendLocation (i.e. whatever it is, it was entered by the
+		// user). So we don't touch it, and we append.
+		q.Expr = zoomAdded
+		return
+	}
+
+	// check if RHS is a locrect, i.e. a zoom level that we did previously append in
+	// appendLocation.
+	rhs := sq[lastSpace+1:]
+	if _, err := geo.RectangleFromPredicate(rhs); err != nil {
+		// not a valid locrect, so we add our own, for the same reason as above.
+		q.Expr = zoomAdded
+		return
+	}
+
+	// RHS is a valid zoom level that we previously added, so we replace it with the
+	// new one.
+	q.Expr = fmt.Sprintf("%v locrect:%.6f,%.6f,%.6f,%.6f", lhs, newNorth, newWest, newSouth, newEast)
 }

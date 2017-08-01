@@ -20,12 +20,14 @@ package geo
 
 import (
 	"context"
+	"errors"
 	"log"
 	"math"
 	"strconv"
 	"strings"
 
 	"camlistore.org/pkg/geocode"
+	"camlistore.org/pkg/types/camtypes"
 )
 
 const (
@@ -36,32 +38,42 @@ const (
 // HandleLocAreaPredicate checks whether predicate is a location area predicate
 // (locrect). If so, it runs asynchronously handleCoordinatesFound on the given
 // coordinates, and returns true. Otherwise, it returns false.
-func HandleLocAreaPredicate(predicate string, handleCoordinatesFound func(*rectangle)) bool {
-	if !strings.HasPrefix(predicate, LocAreaPredicatePrefix+":") {
+func HandleLocAreaPredicate(predicate string, handleCoordinatesFound func(*camtypes.LocationBounds)) bool {
+	r, err := RectangleFromPredicate(predicate)
+	if err != nil {
 		return false
+	}
+	go handleCoordinatesFound(r)
+	return true
+}
+
+var errNotARectangle = errors.New("not a valid locrect predicate")
+
+// RectangleFromPredicate, if predicate is a valid "locrect:" search predicate,
+// returns the corresponding rectangular area.
+func RectangleFromPredicate(predicate string) (*camtypes.LocationBounds, error) {
+	if !strings.HasPrefix(predicate, LocAreaPredicatePrefix+":") {
+		return nil, errNotARectangle
 	}
 	loc := strings.TrimPrefix(predicate, LocAreaPredicatePrefix+":")
 	coords := strings.Split(loc, ",")
 	if len(coords) != 4 {
-		return false
+		return nil, errNotARectangle
 	}
 	var coord [4]float64
 	for k, v := range coords {
 		f, err := strconv.ParseFloat(v, 64)
 		if err != nil {
-			return false
+			return nil, errNotARectangle
 		}
 		coord[k] = f
 	}
-	go func() {
-		handleCoordinatesFound(&rectangle{
-			North: coord[0],
-			South: coord[2],
-			East:  coord[3],
-			West:  coord[1],
-		})
-	}()
-	return true
+	return &camtypes.LocationBounds{
+		North: coord[0],
+		South: coord[2],
+		East:  coord[3],
+		West:  coord[1],
+	}, nil
 }
 
 // IsLocPredicate returns whether the given predicate is a simple (as in, not
@@ -92,20 +104,9 @@ func IsLocPredicate(predicate string) bool {
 	return true
 }
 
-// equivalent of ss.query_.permanode.location on the javascript side, where ss
-// is a search session.
-// it's convenient to use this type as a parameter of handleCoordinatesFound,
-// because handleCoordinatesFound is also called directly in the javascript code.
-type rectangle struct {
-	North float64
-	South float64
-	West  float64
-	East  float64
-}
-
 // Lookup searches for the coordinates of the given location, and passes the
 // found zone (a rectangle), if any, to handleCoordinatesFound.
-func Lookup(location string, handleCoordinatesFound func(*rectangle)) {
+func Lookup(location string, handleCoordinatesFound func(*camtypes.LocationBounds)) {
 	go func() {
 		rect, err := geocode.Lookup(context.Background(), location)
 		if err != nil {
@@ -116,7 +117,7 @@ func Lookup(location string, handleCoordinatesFound func(*rectangle)) {
 			log.Printf("no coordinates found for %v", location)
 			return
 		}
-		handleCoordinatesFound(&rectangle{
+		handleCoordinatesFound(&camtypes.LocationBounds{
 			North: rect[0].NorthEast.Lat,
 			South: rect[0].SouthWest.Lat,
 			East:  rect[0].NorthEast.Long,

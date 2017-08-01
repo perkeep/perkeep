@@ -74,6 +74,25 @@ cam.SearchSession.prototype.getQuery = function() {
 	return this.query_;
 };
 
+// getQueryExprOrRef returns the query if is a string (i.e. a search
+// expression). Otherwise it returns the empty string.
+cam.SearchSession.prototype.getQueryExprOrRef = function() {
+	var q = this.query_;
+	if (!q) {
+		return '';
+	}
+	if (typeof q === 'string') {
+		return q.trim();
+	}
+	// if it is an object (ugh!) return the blobRefPrefix if it exists
+	if (!q.blobRefPrefix) {
+		return '';
+	}
+	// TODO(mpl): when server side supports "ref:" predicate, then:
+	// return 'ref:'+q.blobRefPrefix;
+	return '';
+};
+
 cam.SearchSession.prototype.isEmptyQuery = function() {
 	var q = this.query_;
 	if (!q) {
