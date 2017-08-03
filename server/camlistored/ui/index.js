@@ -484,13 +484,23 @@ cam.IndexPage = React.createClass({
 			return false;
 		}
 
+		// reset the currentSearch on navigation, since the map aspect modifies it on
+		// panning/zooming.
 		var targetBlobref = this.getTargetBlobref_(newURL);
+		var currentSearch = '';
+		if (targetBlobref) {
+			currentSearch = 'ref:' + targetBlobref;
+		} else if (newURL) {
+			currentSearch = newURL.getParameterValue('q') || '';
+		}
+
 		this.updateTargetSearchSession_(targetBlobref, newURL);
 		this.updateChildSearchSession_(targetBlobref, newURL);
 		this.pruneSearchSessionCache_();
 		this.setState({
 			backwardPiggy: false,
 			currentURL: newURL,
+			currentSearch: currentSearch,
 		});
 		return true;
 	},
@@ -638,41 +648,21 @@ cam.IndexPage = React.createClass({
 	},
 
 	getHeader_: function(aspects, selectedAspectIndex) {
-		// TODO(mpl): I don't like this particular case approach, in addition to the
-		// currentSearch business. But no other idea for now, on how to keep the search box
-		// properly in sync with the map zoom levels, AND the rest of the application.
-		// Maybe events?
-		var isMapAspect = false;
-		if (aspects.length > 0 && aspects[selectedAspectIndex].title == "Map") {
-			isMapAspect = true;
-		}
-
-		// We don't show the chooser if there's only one thing to choose from.
-		if (aspects.length == 1) {
-			aspects = [];
-		}
-
-		// TODO(aa): It would be cool to normalize the query and single target case, by supporting searches like is:<blobref>, that way we can always show something in the searchbox, even when we're not in a listview.
-		var target = this.getTargetBlobref_();
-		var query = '';
-		if (target) {
-			query = 'ref:' + target;
-		} else {
-			query = this.state.currentURL.getParameterValue('q') || '';
-		}
-		if (isMapAspect && this.state.currentSearch != '') {
-			query = this.state.currentSearch;
-		}
-
+		var chooser = this.getChooser_(aspects);
 		return React.createElement(cam.Header,
 			{
-				currentSearch: query,
+				getCurrentSearch: function() {
+					return this.state.currentSearch;
+				}.bind(this),
+				setCurrentSearch: function(e) {
+					this.setState({currentSearch: e.target.value});
+				}.bind(this),
 				errors: this.getErrors_(),
 				height: 38,
 				helpURL: this.baseURL_.resolve(new goog.Uri(this.props.config.helpRoot)),
 				homeURL: this.baseURL_,
 				importersURL: this.baseURL_.resolve(new goog.Uri(this.props.config.importerRoot)),
-				mainControls: aspects.map(function(val, idx) {
+				mainControls: chooser.map(function(val, idx) {
 					return React.DOM.a(
 						{
 							key: val.title,
@@ -695,6 +685,14 @@ cam.IndexPage = React.createClass({
 				config: this.props.config,
 			}
 		)
+	},
+
+	getChooser_: function(aspects) {
+		// We don't show the chooser if there's only one thing to choose from.
+		if (aspects.length == 1) {
+			return [];
+		}
+		return aspects;
 	},
 
 	handleNewPermanode_: function() {

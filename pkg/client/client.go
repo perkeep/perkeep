@@ -654,18 +654,22 @@ func (c *Client) GetClaims(req *search.ClaimsRequest) (*search.ClaimsResponse, e
 	return res, nil
 }
 
-func (c *Client) Query(req *search.SearchQuery) (*search.SearchResult, error) {
+func (c *Client) query(req *search.SearchQuery) (*http.Response, error) {
 	sr, err := c.SearchRoot()
 	if err != nil {
 		return nil, err
 	}
 	url := sr + req.URLSuffix()
-	body, err := json.MarshalIndent(req, "", "\t")
+	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
 	hreq := c.newRequest("POST", url, bytes.NewReader(body))
-	hres, err := c.expect2XX(hreq)
+	return c.expect2XX(hreq)
+}
+
+func (c *Client) Query(req *search.SearchQuery) (*search.SearchResult, error) {
+	hres, err := c.query(req)
 	if err != nil {
 		return nil, err
 	}
@@ -674,6 +678,17 @@ func (c *Client) Query(req *search.SearchQuery) (*search.SearchResult, error) {
 		return nil, err
 	}
 	return res, nil
+}
+
+// QueryRaw sends req and returns the body of the response, which should be the
+// unparsed JSON of a search.SearchResult.
+func (c *Client) QueryRaw(req *search.SearchQuery) ([]byte, error) {
+	hres, err := c.query(req)
+	if err != nil {
+		return nil, err
+	}
+	defer hres.Body.Close()
+	return ioutil.ReadAll(hres.Body)
 }
 
 // SearchExistingFileSchema does a search query looking for an

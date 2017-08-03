@@ -39,7 +39,8 @@ cam.Header = React.createClass({
 	},
 
 	propTypes: {
-		currentSearch: React.PropTypes.string,
+		getCurrentSearch: React.PropTypes.func,
+		setCurrentSearch: React.PropTypes.func,
 		errors: React.PropTypes.arrayOf(
 			React.PropTypes.shape({
 				error: React.PropTypes.string.isRequired,
@@ -68,15 +69,8 @@ cam.Header = React.createClass({
 
 	getInitialState: function() {
 		return {
-			currentSearch: this.props.currentSearch,
 			menuVisible: false,
 		};
-	},
-
-	componentWillReceiveProps: function(nextProps) {
-		if (nextProps.currentSearch != this.props.currentSearch) {
-			this.setState({currentSearch: nextProps.currentSearch});
-		}
 	},
 
 	render: function() {
@@ -176,10 +170,10 @@ cam.Header = React.createClass({
 				},
 				React.DOM.input(
 					{
-						onChange: this.handleSearchChange_,
+						onChange: this.props.setCurrentSearch,
 						placeholder: 'Search...',
 						ref: 'searchbox',
-						value: this.state.currentSearch,
+						value: this.props.getCurrentSearch(),
 					}
 				)
 			)
@@ -321,10 +315,6 @@ cam.Header = React.createClass({
 
 	handleTimer_: function(show) {
 		this.setState({menuVisible:show});
-	},
-
-	handleSearchChange_: function(e) {
-		this.setState({currentSearch: e.target.value});
 	},
 
 	handleSearchSubmit_: function(e) {
