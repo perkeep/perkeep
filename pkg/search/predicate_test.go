@@ -308,6 +308,14 @@ var keywordTests = []keywordTestcase{
 	},
 
 	{
+		object: newRef(),
+		args:   []string{"sha1-foobar"},
+		want: &Constraint{
+			BlobRefPrefix: "sha1-foobar",
+		},
+	},
+
+	{
 		object: newWith(),
 		args:   []string{"fitz"},
 		want: &Constraint{

@@ -88,9 +88,7 @@ cam.SearchSession.prototype.getQueryExprOrRef = function() {
 	if (!q.blobRefPrefix) {
 		return '';
 	}
-	// TODO(mpl): when server side supports "ref:" predicate, then:
-	// return 'ref:'+q.blobRefPrefix;
-	return '';
+	return 'ref:'+q.blobRefPrefix;
 };
 
 cam.SearchSession.prototype.isEmptyQuery = function() {
