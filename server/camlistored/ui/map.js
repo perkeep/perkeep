@@ -21,9 +21,11 @@ goog.require('cam.Thumber');
 
 cam.MapAspect = React.createClass({
 	// QUERY_LIMIT_ is the maximum number of location markers to draw. It is not
-	// arbitrary, as higher numbers (such as 1000) seem to be causing glitches:
-	// https://github.com/camlistore/camlistore/issues/937
-	QUERY_LIMIT_: 100,
+	// arbitrary, as higher numbers (such as 1000) seem to be causing glitches.
+	// (https://github.com/camlistore/camlistore/issues/937)
+	// However, the cluster plugin restricts the number of items displayed at the
+	// same time to a way lower number, allowing us to work-around these glitches.
+	QUERY_LIMIT_: 1000,
 	// ZOOM_COOLDOWN_ is how much time to wait, after we've stopped zooming/panning,
 	// before actually searching for new results.
 	ZOOM_COOLDOWN_: 500,
@@ -49,6 +51,7 @@ cam.MapAspect = React.createClass({
 		this.isMoving = false;
 		this.firstLoad = true;
 		this.markers = {};
+		this.cluster = null;
 		this.mapQuery = null;
 		this.eh_ = new goog.events.EventHandler(this);
 	},
@@ -242,10 +245,15 @@ cam.MapAspect = React.createClass({
 		if (blobs == null) {
 			blobs = [];
 		}
-		var icon = L.icon({
-			iconUrl: this.props.config.uiRoot + 'leaflet/marker-icon.png'
-		});
+		if (this.cluster == null) {
+			this.cluster = L.markerClusterGroup({
+				// because we handle ourselves below what the visible markers are.
+				removeOutsideVisibleBounds: false,
+			});
+			this.cluster.addTo(this.map);
+		}
 		var toKeep = {};
+		var toAdd = [];
 		blobs.forEach(function(b) {
 			var br = b.blob;
 			var alreadyMarked = this.markers[br]
@@ -267,16 +275,6 @@ cam.MapAspect = React.createClass({
 				var location = m.location;
 			}
 
-			var marker = L.marker([location.latitude, location.longitude], {icon: icon});
-
-			// TODO(mpl): The piece of code below is temporarily commented out because the
-			// awesome markers seem to be breaking the UI in a way that I don't understand yet.
-			// Symptoms are: tiles not loading properly, aspect names (top right) disappearing
-			// when hovering over them, same for the main drop down menu. First thought was
-			// some z-index related bug, but no luck finding such a culprit. Plus it seems
-			// related to the number of markers loaded, as the bugs don't appear if there's
-			// just a handful of markers.
-/*
 			// all awesome markers use markers-soft.png (body of the marker), and markers-shadow.png.
 			var iconOpts = {
 				prefix: 'fa',
@@ -301,7 +299,6 @@ cam.MapAspect = React.createClass({
 			}
 			var markerIcon = L.AwesomeMarkers.icon(iconOpts);
 			var marker = L.marker([location.latitude, location.longitude], {icon: markerIcon});
-*/
 
 			if (m.image) {
 				// TODO(mpl): Do we ever want another thumb size? on mobile maybe?
@@ -317,7 +314,7 @@ cam.MapAspect = React.createClass({
 			}
 			toKeep[br] = true;
 			this.markers[br] = marker;
-			marker.addTo(this.map);
+			toAdd.push(marker);
 
 			if (!this.locationFromMarkers) {
 				// initialize it as a square of 0.1 degree around the first marker placed
@@ -329,16 +326,18 @@ cam.MapAspect = React.createClass({
 				this.locationFromMarkers.extend(L.latLng(location.latitude, location.longitude));
 			}
 		}.bind(this));
-		var allMarkers = this.markers;
+		var toRemove = [];
 		goog.object.forEach(this.markers, function(mark, br) {
 			if (mark == null) {
 				return;
 			}
 			if (!toKeep[br]) {
-				mark.remove();
 				this.markers[br] = null;
+				toRemove.push(mark);
 			}
 		}.bind(this));
+		this.cluster.removeLayers(toRemove);
+		this.cluster.addLayers(toAdd);
 
 		// TODO(mpl): reintroduce the Around/Continue logic later if needed. For now not
 		// needed/useless as MapSorted queries do not support continuation of any kind.
