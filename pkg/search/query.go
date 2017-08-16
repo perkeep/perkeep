@@ -1055,7 +1055,14 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 		}
 	}
 
+	// describeReq is used as a backup of q.Describe, because DescribeLocked renders
+	// q.Describe useless for a second describe call, which we need to do after
+	// bestByLocation.
+	var describeReq DescribeRequest
 	if q.Describe != nil {
+		if q.Sort == MapSort {
+			describeReq = *(q.Describe)
+		}
 		q.Describe.BlobRef = blob.Ref{} // zero this out, if caller set it
 		blobs := make([]blob.Ref, 0, len(res.Blobs))
 		for _, srb := range res.Blobs {
@@ -1071,6 +1078,21 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 
 	if q.Sort == MapSort {
 		bestByLocation(s.res, q.Limit)
+		// The first describe was about all the blobs that were matching the constraint,
+		// without any limit, so it could be uselessly pretty large. So we describe
+		// again, this time only on the blobs that were selected by bestByLocation.
+		q.Describe = &describeReq
+		q.Describe.BlobRef = blob.Ref{} // zero this out, if caller set it
+		blobs := make([]blob.Ref, 0, len(s.res.Blobs))
+		for _, srb := range res.Blobs {
+			blobs = append(blobs, srb.Blob)
+		}
+		q.Describe.BlobRefs = blobs
+		res, err := s.h.DescribeLocked(ctx, q.Describe)
+		if err != nil {
+			return nil, err
+		}
+		s.res.Describe = res
 	}
 	return s.res, nil
 }

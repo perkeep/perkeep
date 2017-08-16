@@ -174,3 +174,41 @@ func TestExpandLocationArea(t *testing.T) {
 		}
 	}
 }
+
+func TestWrap180(t *testing.T) {
+	tt := []struct {
+		input float64
+		want  float64
+	}{
+		{
+			input: -50,
+			want:  -50,
+		},
+		{
+			input: 50,
+			want:  50,
+		},
+		{
+			input: -190.2,
+			want:  169.8,
+		},
+		{
+			input: 190.3,
+			want:  -169.7,
+		},
+		{
+			input: -362,
+			want:  -2,
+		},
+		{
+			input: 362,
+			want:  2,
+		},
+	}
+	for k, v := range tt {
+		got := Longitude(v.input).WrapTo180()
+		if got != v.want {
+			t.Errorf("test %d: wanted %f, got %f", k, v.want, got)
+		}
+	}
+}

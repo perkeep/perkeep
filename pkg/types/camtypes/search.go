@@ -261,7 +261,13 @@ func (l Longitude) WrapTo180() float64 {
 	if lf >= -180 && lf <= 180 {
 		return lf
 	}
-	return math.Mod(lf+180., 360.) - 180.
+	if lf == 0 {
+		return lf
+	}
+	if lf > 0 {
+		return math.Mod(lf+180., 360.) - 180.
+	}
+	return math.Mod(lf-180., 360.) + 180.
 }
 
 // LocationBounds is a location area delimited by its fields. See Location for

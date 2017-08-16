@@ -19,7 +19,6 @@ limitations under the License.
 package mapquery
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -41,6 +40,10 @@ type Query struct {
 	Expr string
 	// Limit is the maximum number of search results that should be returned.
 	Limit int
+	// zoom is the location area that was requested for the last successful query.
+	zoom *camtypes.LocationBounds
+	// nextZoom is the location area that is requested for the next query.
+	nextZoom *camtypes.LocationBounds
 	// Callback is the function to run on the JSON-ified search results, if the search
 	// was successful.
 	Callback func(searchResults string)
@@ -106,18 +109,12 @@ func (q *Query) send() error {
 		Limit: q.Limit,
 		Sort:  search.MapSort,
 	}
-	sr, err := cl.Query(req)
+	resp, err := cl.QueryRaw(req)
 	if err != nil {
 		return err
 	}
-	if sr == nil || len(sr.Blobs) == 0 {
-		return nil
-	}
-	srjson, err := json.Marshal(sr)
-	if err != nil {
-		return err
-	}
-	q.Callback(string(srjson))
+	q.zoom = q.nextZoom
+	q.Callback(string(resp))
 	return nil
 }
 
@@ -146,6 +143,11 @@ func newClient(am auth.AuthMode) *client.Client {
 // as being the current zoom level. So it gets replaced with the given coordinates.
 // i.e.: "(expr) locrect:n1,w1,s1,e1" -> "(expr) locrect:n2,w2,s2,e2".
 func (q *Query) SetZoom(north, west, south, east float64) {
+	if west <= east && east-west > 360 {
+		// we're just zoomed out very far
+		west = -179.99
+		east = 179.99
+	}
 	sq := strings.TrimSpace(q.Expr)
 	lastSpace := strings.LastIndex(sq, " ")
 	const precision = 1e-6
@@ -156,6 +158,12 @@ func (q *Query) SetZoom(north, west, south, east float64) {
 	newWest := camtypes.Longitude(west - precision).WrapTo180()
 	newEast := camtypes.Longitude(east + precision).WrapTo180()
 
+	q.nextZoom = &camtypes.LocationBounds{
+		North: newNorth,
+		South: newSouth,
+		West:  newWest,
+		East:  newEast,
+	}
 	zoomAdded := fmt.Sprintf("(%v) locrect:%.6f,%.6f,%.6f,%.6f", sq, newNorth, newWest, newSouth, newEast)
 
 	if lastSpace == -1 {
@@ -189,4 +197,10 @@ func (q *Query) SetZoom(north, west, south, east float64) {
 	// RHS is a valid zoom level that we previously added, so we replace it with the
 	// new one.
 	q.Expr = fmt.Sprintf("%v locrect:%.6f,%.6f,%.6f,%.6f", lhs, newNorth, newWest, newSouth, newEast)
+}
+
+// GetZoom returns the location area that was requested for the last successful
+// query.
+func (q *Query) GetZoom() *camtypes.LocationBounds {
+	return q.zoom
 }
