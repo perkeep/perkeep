@@ -1220,6 +1220,74 @@ func TestQueryParent(t *testing.T) {
 	})
 }
 
+// tests the algorithm for the Around parameter, when the source of blobs is
+// unsorted, i.e. when the blobs get sorted right after the constraint has been
+// matched, and right before Around is applied.
+func testAroundUnsortedSource(limit, pos int, t *testing.T) {
+	testQueryTypes(t, []indexType{indexClassic}, func(qt *queryTest) {
+		id := qt.id
+
+		var sorted []string
+		unsorted := make(map[string]blob.Ref)
+
+		addToSorted := func(i int) {
+			p := id.NewPlannedPermanode(fmt.Sprintf("%d", i))
+			unsorted[p.String()] = p
+			sorted = append(sorted, p.String())
+		}
+		for i := 0; i < 10; i++ {
+			addToSorted(i)
+		}
+		sort.Strings(sorted)
+
+		// Predict the results
+		var want []blob.Ref
+		var around blob.Ref
+		lowLimit := pos - limit/2
+		if lowLimit < 0 {
+			lowLimit = 0
+		}
+		highLimit := lowLimit + limit
+		if highLimit > len(sorted) {
+			highLimit = len(sorted)
+		}
+		// Make the permanodes actually exist.
+		for k, v := range sorted {
+			pn := unsorted[v]
+			id.AddAttribute(pn, "x", "x")
+			if k == pos {
+				around = pn
+			}
+			if k >= lowLimit && k < highLimit {
+				want = append(want, pn)
+			}
+		}
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Permanode: &PermanodeConstraint{},
+			},
+			Limit:  limit,
+			Around: around,
+			Sort:   BlobRefAsc,
+		}
+		qt.wantRes(sq, want...)
+	})
+
+}
+
+func TestQueryAroundCenter(t *testing.T) {
+	testAroundUnsortedSource(4, 4, t)
+}
+
+func TestQueryAroundNear(t *testing.T) {
+	testAroundUnsortedSource(5, 9, t)
+}
+
+func TestQueryAroundFar(t *testing.T) {
+	testAroundUnsortedSource(3, 4, t)
+}
+
 // 13 permanodes are created. 1 of them the parent, 11 are children
 // (== results), 1 is unrelated to the parent.
 // limit is the limit on the number of results.

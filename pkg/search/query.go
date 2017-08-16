@@ -246,6 +246,9 @@ func (q *SearchQuery) checkValid(ctx context.Context) (sq *SearchQuery, err erro
 	if q.Continue != "" && q.Around.Valid() {
 		return nil, errors.New("Continue and Around parameters are mutually exclusive")
 	}
+	if q.Sort == MapSort && (q.Continue != "" || q.Around.Valid()) {
+		return nil, errors.New("Continue or Around parameters are not available with MapSort")
+	}
 	if q.Constraint == nil {
 		if expr := q.Expression; expr != "" {
 			sq, err := parseExpression(ctx, expr)
@@ -971,7 +974,7 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 	if err := <-errc; err != nil && err != context.Canceled {
 		return nil, err
 	}
-	if q.Limit > 0 && cands.sorted && wantAround && !foundAround {
+	if wantAround && !foundAround {
 		// results are ignored if Around was not found
 		res.Blobs = nil
 	}
@@ -1022,18 +1025,20 @@ func (h *Handler) Query(rawq *SearchQuery) (*SearchResult, error) {
 		}
 		if q.Sort != MapSort {
 			if q.Limit > 0 && len(res.Blobs) > q.Limit {
-				if foundAround {
-					panic("foundAround should never have been set to true with a non sorted source")
-				}
 				if wantAround {
 					aroundPos := sort.Search(len(res.Blobs), func(i int) bool {
-						return res.Blobs[i].Blob == q.Around
+						return res.Blobs[i].Blob.String() >= q.Around.String()
 					})
+					// If we got this far, we know q.Around is in the results, so this below should
+					// never happen
+					if aroundPos == len(res.Blobs) || res.Blobs[aroundPos].Blob != q.Around {
+						panic("q.Around blobRef should be in the results")
+					}
 					lowerBound := aroundPos - q.Limit/2
 					if lowerBound < 0 {
 						lowerBound = 0
 					}
-					upperBound := aroundPos + q.Limit/2
+					upperBound := lowerBound + q.Limit
 					if upperBound > len(res.Blobs) {
 						upperBound = len(res.Blobs)
 					}
