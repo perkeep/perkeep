@@ -365,7 +365,7 @@ cam.MapAspect = React.createClass({
 			clearTimeout(this.zoomTimeout);
 		}
 		this.isMoving = true;
-		this.zoomTimeout = setTimeout(this.onZoomEnd(), this.ZOOM_COOLDOWN_);
+		this.zoomTimeout = setTimeout(this.onZoomEnd, this.ZOOM_COOLDOWN_);
 	},
 
 	onZoomEnd: function() {
