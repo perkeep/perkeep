@@ -18,6 +18,7 @@ package stress
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"flag"
 	"fmt"
@@ -442,15 +443,13 @@ func enumerateMeta(b *testing.B, dbfile string,
 	idx.InitBlobSource(bs)
 	defer idx.Close()
 
-	ch := make(chan camtypes.BlobMeta, 100)
-	go func() {
-		if err := idx.EnumerateBlobMeta(nil, ch); err != nil {
-			b.Fatal(err)
-		}
-	}()
 	n := 0
-	for range ch {
+	fn := func(m camtypes.BlobMeta) bool {
 		n++
+		return true
+	}
+	if err := idx.EnumerateBlobMeta(context.Background(), fn); err != nil {
+		b.Fatal(err)
 	}
 	b.Logf("Enumerated %d meta blobs", n)
 	return n

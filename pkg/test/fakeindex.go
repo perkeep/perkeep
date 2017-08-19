@@ -226,6 +226,6 @@ func (fi *FakeIndex) EdgesTo(ref blob.Ref, opts *camtypes.EdgesToOpts) ([]*camty
 	panic("NOIMPL")
 }
 
-func (fi *FakeIndex) EnumerateBlobMeta(ctx context.Context, ch chan<- camtypes.BlobMeta) error {
+func (fi *FakeIndex) EnumerateBlobMeta(ctx context.Context, fn func(camtypes.BlobMeta) bool) error {
 	panic("NOIMPL")
 }
