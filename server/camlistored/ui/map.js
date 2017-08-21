@@ -38,8 +38,6 @@ cam.MapAspect = React.createClass({
 	},
 
 	componentWillMount: function() {
-		this.latitude = 0.0;
-		this.longitude = 0.0;
 		this.location = {
 			North: 0.0,
 			South: 0.0,
@@ -139,9 +137,6 @@ cam.MapAspect = React.createClass({
 		}
 		this.location = rect;
 		L.rectangle([[this.location.North, this.location.East],[this.location.South,this.location.West]], {color: "#ff7800", weight: 1}).addTo(this.map);
-		var center = goreact.LocationCenter(this.location.North, this.location.South, this.location.West, this.location.East);
-		this.latitude = center.Lat;
-		this.longitude = center.Long;
 		this.locationFound = true;
 		window.dispatchEvent(new Event('resize'));
 		return;
@@ -258,8 +253,8 @@ cam.MapAspect = React.createClass({
 			var br = b.blob;
 			var alreadyMarked = this.markers[br]
 			if (alreadyMarked && alreadyMarked != null) {
-				toKeep[br] = true;
 				// marker was already added in the previous zoom level, so do not readd it.
+				toKeep[br] = true;
 				return;
 			}
 			var m = this.getResolvedMeta(br, searchResults);
