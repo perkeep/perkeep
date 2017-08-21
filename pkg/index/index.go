@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"sort"
 	"strconv"
@@ -1300,6 +1301,10 @@ func (x *Index) GetFileLocation(ctx context.Context, fileRef blob.Ref) (camtypes
 		if !ok {
 			return camtypes.Location{}, os.ErrNotExist
 		}
+		// TODO(mpl): Brad says to move this check lower, in corpus func and/or when building corpus from index rows.
+		if math.IsNaN(long) || math.IsNaN(lat) {
+			return camtypes.Location{}, fmt.Errorf("Latitude or Longitude in corpus for %v is NaN. Reindex to fix it.", fileRef)
+		}
 		return camtypes.Location{Latitude: lat, Longitude: long}, nil
 	}
 	fi, err := x.GetFileInfo(ctx, fileRef)
@@ -1325,6 +1330,9 @@ func (x *Index) GetFileLocation(ctx context.Context, fileRef blob.Ref) (camtypes
 	long, err = strconv.ParseFloat(v[pipe+1:], 64)
 	if err != nil {
 		return camtypes.Location{}, fmt.Errorf("index: bogus value at position 1 in key %q = %q", key, v)
+	}
+	if math.IsNaN(long) || math.IsNaN(lat) {
+		return camtypes.Location{}, fmt.Errorf("Latitude or Longitude in index for %v is NaN. Reindex to fix it.", fileRef)
 	}
 	return camtypes.Location{Latitude: lat, Longitude: long}, nil
 }
