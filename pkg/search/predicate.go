@@ -110,6 +110,7 @@ func init() {
 	registerKeyword(newFormat())
 	registerKeyword(newTag())
 	registerKeyword(newTitle())
+	registerKeyword(newRef())
 
 	// Image predicates
 	registerKeyword(newIsImage())
@@ -421,6 +422,24 @@ func (t title) Predicate(ctx context.Context, args []string) (*Constraint, error
 		},
 	}
 	return c, nil
+}
+
+type ref struct {
+	matchPrefix
+}
+
+func newRef() keyword {
+	return ref{newMatchPrefix("ref")}
+}
+
+func (r ref) Description() string {
+	return "match nodes whose blobRef starts with the given substring"
+}
+
+func (r ref) Predicate(ctx context.Context, args []string) (*Constraint, error) {
+	return &Constraint{
+		BlobRefPrefix: args[0],
+	}, nil
 }
 
 // Image predicates

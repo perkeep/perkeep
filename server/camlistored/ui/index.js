@@ -514,7 +514,7 @@ cam.IndexPage = React.createClass({
 		this.targetSearchSession_ = null;
 		if (targetBlobref) {
 			var opt_sort = "blobref";
-			var query = this.queryAsBlob_(targetBlobref);
+			var query = this.queryFromSearchParam_("ref:"+targetBlobref);
 			var parentPermanode = newURL.getParameterValue('p');
 			if (parentPermanode) {
 				query = this.queryFromParentPermanode_(parentPermanode);
@@ -566,12 +566,6 @@ cam.IndexPage = React.createClass({
 				},
 			},
 		};
-	},
-
-	queryAsBlob_: function(blobRef) {
-		return {
-			blobRefPrefix: blobRef,
-		}
 	},
 
 	// Finds an existing cached SearchSession that meets criteria, or creates a new one.
@@ -956,6 +950,8 @@ cam.IndexPage = React.createClass({
 	getDetailURL_: function(blobref, opt_fragment) {
 		var query = this.state.currentURL.getParameterValue('q');
 		var targetBlobref = this.getTargetBlobref_();
+		// TODO(mpl): now that "ref:refprefix" searches are fully supported, maybe we
+		// could replace the mix of path+query URLs, with just query based URLs?
 		return url = this.baseURL_.clone().setPath(this.baseURL_.getPath() + blobref).setFragment(opt_fragment || '');
 	},
 

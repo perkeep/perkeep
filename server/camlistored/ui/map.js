@@ -183,7 +183,6 @@ cam.MapAspect = React.createClass({
 			return;
 		}
 		var q = ss.getQueryExprOrRef();
-		// TODO(mpl): support "ref:sha1-foobar" predicate. Needs server-side first.
 		if (q == '') {
 			q = 'has:location';
 		}
