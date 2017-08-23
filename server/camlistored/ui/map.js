@@ -110,8 +110,7 @@ cam.MapAspect = React.createClass({
 	componentDidMount: function() {
 		var map = this.map = L.map(ReactDOM.findDOMNode(this), {
 			layers: [
-//				L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-				L.tileLayer('http://localhost:3178/{z}/{x}/{y}.png', {
+				L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 					attribution: '©  <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 				})
 			],
