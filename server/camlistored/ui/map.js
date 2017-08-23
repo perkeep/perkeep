@@ -19,6 +19,59 @@ goog.provide('cam.MapAspect');
 goog.require('cam.SearchSession');
 goog.require('cam.Thumber');
 
+// freeze/unfreeze cluster plugin, strongly inspired from
+// https://github.com/ghybs/Leaflet.MarkerCluster.Freezable
+L.MarkerClusterGroup.include({
+	unfreeze: function () {
+		this._processQueue();
+		if (!this._map) {
+			return this;
+		}
+		this._unfreeze();
+		return this;
+	},
+
+	freeze: function () {
+		this._processQueue();
+		if (!this._map) {
+			return this;
+		}
+		this._initiateFreeze();
+		return this;
+	},
+
+	_initiateFreeze: function () {
+		var map = this._map;
+
+		// Start freezing
+		this._frozen = true;
+
+		if (map) {
+			// Change behaviour on zoomEnd and moveEnd.
+			map.off('zoomend', this._zoomEnd, this);
+			map.off('moveend', this._moveEnd, this);
+		}
+	},
+
+	_unfreeze: function () {
+		var map = this._map;
+
+		this._frozen = false;
+
+		if (map) {
+			// Restore original behaviour on zoomEnd.
+			map.on('zoomend', this._zoomEnd, this);
+			map.on('moveend', this._moveEnd, this);
+
+			if (this._unspiderfy && this._spiderfied) {
+				this._unspiderfy();
+			}
+			this._zoomEnd();
+		}
+	}
+});
+
+
 cam.MapAspect = React.createClass({
 	// QUERY_LIMIT_ is the maximum number of location markers to draw. It is not
 	// arbitrary, as higher numbers (such as 1000) seem to be causing glitches.
@@ -57,7 +110,8 @@ cam.MapAspect = React.createClass({
 	componentDidMount: function() {
 		var map = this.map = L.map(ReactDOM.findDOMNode(this), {
 			layers: [
-				L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+//				L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+				L.tileLayer('http://localhost:3178/{z}/{x}/{y}.png', {
 					attribution: '©  <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 				})
 			],
@@ -243,9 +297,11 @@ cam.MapAspect = React.createClass({
 			this.cluster = L.markerClusterGroup({
 				// because we handle ourselves below what the visible markers are.
 				removeOutsideVisibleBounds: false,
+				animate: false,
 			});
 			this.cluster.addTo(this.map);
 		}
+		this.cluster.unfreeze();
 		var toKeep = {};
 		var toAdd = [];
 		blobs.forEach(function(b) {
@@ -332,6 +388,7 @@ cam.MapAspect = React.createClass({
 		}.bind(this));
 		this.cluster.removeLayers(toRemove);
 		this.cluster.addLayers(toAdd);
+		this.cluster.freeze();
 
 		// TODO(mpl): reintroduce the Around/Continue logic later if needed. For now not
 		// needed/useless as MapSorted queries do not support continuation of any kind.
