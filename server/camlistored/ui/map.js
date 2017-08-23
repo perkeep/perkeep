@@ -117,7 +117,7 @@ cam.MapAspect = React.createClass({
 			attributionControl: true,
 			noWrap: true,
 		});
-		map.setView([0., 0.], 10);
+		map.setView([0., 0.], 1);
 
 		this.eh_.listen(window, 'resize', function(event) {
 			// Even after setting the bounds, or the view center+zoom, something is still
