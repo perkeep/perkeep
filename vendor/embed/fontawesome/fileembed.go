@@ -21,7 +21,7 @@ tool.
 
 See http://fortawesome.github.io/Font-Awesome/
 
-#fileembed pattern .*\.(css|eot|svg|ttf|woff|otf)$
+#fileembed pattern .*\.(css|eot|svg|ttf|woff|woff2|otf)$
 */
 package fontawesome
 
