@@ -176,7 +176,14 @@ cam.IndexPage = React.createClass({
 	render: function() {
 		var aspects = this.getAspects_();
 		var selectedAspect = goog.array.findIndex(aspects, function(v) {
-			return v.fragment == this.state.currentURL.getFragment();
+			if (v.fragment == this.state.currentURL.getFragment()) {
+				return true;
+			}
+			// we favor the map aspect if a "map:" query parameter is found.
+			if (v.fragment == 'map' && goreact.HasZoomParameter(this.state.currentURL.getDecodedQuery())) {
+				return true;
+			}
+			return false;
 		}, this);
 
 		if (selectedAspect == -1) {
@@ -235,7 +242,7 @@ cam.IndexPage = React.createClass({
 			this.getSearchAspect_.bind(null, specificAspects),
 			cam.MapAspect.getAspect.bind(null, this.props.config,
 				this.props.availWidth, this.props.availHeight - this.HEADER_HEIGHT_,
-				this.handleZoomLevelChange_, this.childSearchSession_),
+				this.updateSearchBarOnMap_, this.setPendingQuery_, this.childSearchSession_),
 			cam.PermanodeDetail.getAspect.bind(null, this.props.serverConnection, this.props.timer),
 			cam.BlobDetail.getAspect.bind(null, this.getDetailURL_, this.props.serverConnection),
 		].map(getAspect).filter(goog.functions.identity);
@@ -278,11 +285,20 @@ cam.IndexPage = React.createClass({
 		};
 	},
 
-	// handleZoomLevelChange_ is called by the map aspect when the zoom level
-	// changes, so the locrect predicate used as a zoom can be changed in currentSearch,
-	// and then propagated to the predicate in the searchbox of the header.
-	handleZoomLevelChange_: function(currentSearch) {
-		this.setState({currentSearch: currentSearch});
+	// updateSearchBarOnMap_ is called within the map aspect to keep both the search
+	// bar and the URL bar in sync with what the current search is. In particular,
+	// whenever the zoom level changes, the "map:" predicate which represents the
+	// current zoom-level is updated too.
+	updateSearchBarOnMap_: function(currentSearch) {
+		this.setState({
+			currentSearch: currentSearch,
+		});
+		var newURI = this.state.currentURL.clone().setQuery("q="+currentSearch).toString();
+		this.props.history.replaceState(cam.object.extend(this.props.history.state), '', newURI);
+	},
+
+	setPendingQuery_: function(pending) {
+		this.setState({pendingQuery: pending});
 	},
 
 	handleDragStart_: function(e) {
@@ -652,6 +668,7 @@ cam.IndexPage = React.createClass({
 					this.setState({currentSearch: e.target.value});
 				}.bind(this),
 				errors: this.getErrors_(),
+				pendingQuery: this.state.pendingQuery,
 				height: 38,
 				helpURL: this.baseURL_.resolve(new goog.Uri(this.props.config.helpRoot)),
 				homeURL: this.baseURL_,

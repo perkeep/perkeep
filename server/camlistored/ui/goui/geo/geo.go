@@ -20,7 +20,7 @@ package geo
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"log"
 	"math"
 	"strconv"
@@ -33,13 +33,14 @@ import (
 const (
 	LocPredicatePrefix     = "loc"
 	LocAreaPredicatePrefix = "locrect"
+	LocMapPredicatePrefix  = "map"
 )
 
 // HandleLocAreaPredicate checks whether predicate is a location area predicate
 // (locrect). If so, it runs asynchronously handleCoordinatesFound on the given
 // coordinates, and returns true. Otherwise, it returns false.
 func HandleLocAreaPredicate(predicate string, handleCoordinatesFound func(*camtypes.LocationBounds)) bool {
-	r, err := RectangleFromPredicate(predicate)
+	r, err := rectangleFromPredicate(predicate, LocAreaPredicatePrefix)
 	if err != nil {
 		return false
 	}
@@ -47,15 +48,39 @@ func HandleLocAreaPredicate(predicate string, handleCoordinatesFound func(*camty
 	return true
 }
 
-var errNotARectangle = errors.New("not a valid locrect predicate")
+// HandleLocAreaPredicate checks whether predicate contains a map location predicate
+// (map:). If so, it runs asynchronously handleCoordinatesFound on the given
+// coordinates, and returns true. Otherwise, it returns false.
+func HandleZoomPredicate(predicate string, handleCoordinatesFound func(*camtypes.LocationBounds)) bool {
+	tp := strings.TrimSpace(predicate)
+	if tp == "" {
+		return false
+	}
+	fields := strings.Fields(tp)
+	r, err := rectangleFromPredicate(fields[len(fields)-1], LocMapPredicatePrefix)
+	if err != nil {
+		return false
+	}
+	go handleCoordinatesFound(r)
+	return true
+}
 
-// RectangleFromPredicate, if predicate is a valid "locrect:" search predicate,
-// returns the corresponding rectangular area.
-func RectangleFromPredicate(predicate string) (*camtypes.LocationBounds, error) {
-	if !strings.HasPrefix(predicate, LocAreaPredicatePrefix+":") {
+// IsLocMapPredicate returns whether predicate is a map location predicate.
+func IsLocMapPredicate(predicate string) bool {
+	if _, err := rectangleFromPredicate(predicate, LocMapPredicatePrefix); err != nil {
+		return false
+	}
+	return true
+}
+
+// rectangleFromPredicate, if predicate is a valid location predicate of the given kind
+// and returns the corresponding rectangular area.
+func rectangleFromPredicate(predicate, kind string) (*camtypes.LocationBounds, error) {
+	errNotARectangle := fmt.Errorf("not a valid %v predicate", kind)
+	if !strings.HasPrefix(predicate, kind+":") {
 		return nil, errNotARectangle
 	}
-	loc := strings.TrimPrefix(predicate, LocAreaPredicatePrefix+":")
+	loc := strings.TrimPrefix(predicate, kind+":")
 	coords := strings.Split(loc, ",")
 	if len(coords) != 4 {
 		return nil, errNotARectangle

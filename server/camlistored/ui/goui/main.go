@@ -36,9 +36,13 @@ func main() {
 		"Geocode":                geo.Lookup,
 		"IsLocPredicate":         geo.IsLocPredicate,
 		"HandleLocAreaPredicate": geo.HandleLocAreaPredicate,
+		"HandleZoomPredicate":    geo.HandleZoomPredicate,
 		"LocPredicatePrefix":     geo.LocPredicatePrefix,
 		"LocationCenter":         geo.LocationCenter,
 		"WrapAntimeridian":       geo.WrapAntimeridian,
 		"NewMapQuery":            mapquery.New,
+		"DeleteMapZoom":          mapquery.DeleteZoomPredicate,
+		"ShiftMapZoom":           mapquery.ShiftZoomPredicate,
+		"HasZoomParameter":       mapquery.HasZoomParameter,
 	})
 }

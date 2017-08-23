@@ -21,6 +21,8 @@ will match with pictures of not landscape ratio. For example:
 will return all images having "modtime" outside the specified period, joined
 with all images taken in Amsterdam.
 
+The logical grouping of the **map** predicate is an exception, see its definition.
+
 When you need to match a value containing a space, you need to use double quotes
 around the value only. For example: tag:"Three word tagname" and not "tag:Three
 word tagname".  If your value contains double quotes you can use backslash
@@ -59,6 +61,11 @@ escaping.  For example:
   its North-West corner, followed and comma-separated by its South-East corner.
   Each corner is defined by its latitude, followed and comma-separated by its
   longitude. For example: locrect:48.63,-123.37,46.59,-121.28
+
+**map**
+: is defined like locrect, and it has a similar meaning. However, it is not defined server-side, and it is specifically meant to represent the area of the world that is visible in the screen when using the map aspect, and in particular when zooming or panning. As such, it follows stricter rules than the other predicates, which are:
+  1. only one map predicate is allowed in the whole expression.
+  2. since the map predicate is interpreted as if it were a logical 'and' with the rest of whole expression (regardless of its position within the expression), logical 'or's around it are forbidden.
 
 **is:image**
 : object is an image

@@ -19,7 +19,7 @@ goog.provide('cam.Navigator');
 goog.require('cam.object');
 goog.require('goog.Uri');
 
-// Navigator intercepts various types of browser navgiations and gives its client an opportunity to decide whether the navigation should be handled with JavaScript or not.
+// Navigator intercepts various types of browser navigations and gives its client an opportunity to decide whether the navigation should be handled with JavaScript or not.
 // Currently, 'click' events on hyperlinks and 'popstate' events are intercepted. Clients can also call navigate() to manually initiate navigation.
 //
 // @param Window win The window to listen for click and popstate events within to potentially interpret as navigations.

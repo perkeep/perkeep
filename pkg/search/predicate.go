@@ -149,7 +149,7 @@ func (me matchEqual) Match(a atom) (bool, error) {
 }
 
 // Helper implementation for mixing into keyword implementations
-// that match only the beginning of the keyword, and get their paramertes from
+// that match only the beginning of the keyword, and get their parameters from
 // the rest, i.e. 'width:' for searches like 'width:100-200'.
 type matchPrefix struct {
 	prefix string

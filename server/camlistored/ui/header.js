@@ -48,6 +48,7 @@ cam.Header = React.createClass({
 				url: React.PropTypes.string,
 			}).isRequired
 		).isRequired,
+		pendingQuery: React.PropTypes.bool,
 		height: React.PropTypes.number.isRequired,
 		helpURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		homeURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
@@ -119,6 +120,12 @@ cam.Header = React.createClass({
 					loopDelay: 10 * 1000,
 					numFrames: 65,
 					src: 'glitch/npc_piggy__x1_too_much_nibble_png_1354829441.png',
+				}));
+			} else if (this.props.pendingQuery) {
+				return React.createElement(cam.SpritedAnimation, cam.object.extend(props, {
+					key: 'pending',
+					numFrames: 24,
+					src: 'glitch/npc_piggy__x1_walk_png_1354829432.png',
 				}));
 			} else {
 				return React.createElement(cam.SpritedImage, cam.object.extend(props, {

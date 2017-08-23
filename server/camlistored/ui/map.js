@@ -88,6 +88,7 @@ cam.MapAspect = React.createClass({
 		availHeight: React.PropTypes.number.isRequired,
 		searchSession: React.PropTypes.instanceOf(cam.SearchSession).isRequired,
 		config: React.PropTypes.object.isRequired,
+		// TODO(mpl): add missing ones
 	},
 
 	componentWillMount: function() {
@@ -102,12 +103,34 @@ cam.MapAspect = React.createClass({
 		this.isMoving = false;
 		this.firstLoad = true;
 		this.markers = {};
+		if (this.cluster) {
+			this.cluster.clearLayers();
+		}
 		this.cluster = null;
 		this.mapQuery = null;
-		this.eh_ = new goog.events.EventHandler(this);
+		this.locationFound = false;
+		this.locationFromMarkers = null;
+		this.initialSearchSession = this.props.searchSession;
+	},
+
+	componentWillReceiveProps: function(nextProps) {
+		if (this.props == nextProps) {
+			// first load. componentWillMount takes care of the init.
+			return;
+		}
+		if (this.props.searchSession == nextProps.searchSession) {
+			// search session has not changed, nothing to do.
+			return;
+		}
+		// Everything below is how we reload from (almost) scratch when a new search is
+		// entered in the search box.
+		this.componentWillMount();
+		this.initialSearchSession = nextProps.searchSession;
+		this.loadMarkers();
 	},
 
 	componentDidMount: function() {
+		this.eh_ = new goog.events.EventHandler(this);
 		var map = this.map = L.map(ReactDOM.findDOMNode(this), {
 			layers: [
 				L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -162,14 +185,25 @@ cam.MapAspect = React.createClass({
 	// location area predicate ("locrect:48.63,-123.37,46.59,-121.28") are considered
 	// for now.
 	setCoordinatesFromSearchQuery: function() {
-		var q = this.props.searchSession.getQueryExprOrRef();
-		if (goreact.HandleLocAreaPredicate(q, this.handleCoordinatesFound)) {
+		var q = this.initialSearchSession.getQueryExprOrRef();
+		if (goreact.IsLocPredicate(q)) {
+			// a "loc" query
+			goreact.Geocode(q.substring(goreact.LocPredicatePrefix.length), function(rect) {
+				return this.handleCoordinatesFound(rect, true);
+			}.bind(this));
+			return;
+		}
+		if (goreact.HandleLocAreaPredicate(q, function(rect) {
+				return this.handleCoordinatesFound(rect, true);
+			}.bind(this))) {
 			// a "locrect" area query
 			return;
 		}
-		if (goreact.IsLocPredicate(q)) {
-			// a "loc" query
-			goreact.Geocode(q.substring(goreact.LocPredicatePrefix.length), this.handleCoordinatesFound);
+		q = goreact.ShiftMapZoom(q);
+		if (goreact.HandleZoomPredicate(q, function(rect) {
+				return this.handleCoordinatesFound(rect, false);
+			}.bind(this))) {
+			// we have a zoom (map:) in the query
 			return;
 		}
 		// Not a location type query
@@ -178,7 +212,7 @@ cam.MapAspect = React.createClass({
 
 	// handleCoordinatesFound sets this.location (a rectangle), this.latitude, and
 	// this.longitude (center of this.location), from the given rectangle.
-	handleCoordinatesFound: function(rect) {
+	handleCoordinatesFound: function(rect, draw) {
 		if (!rect) {
 			return;
 		}
@@ -189,7 +223,9 @@ cam.MapAspect = React.createClass({
 			return;
 		}
 		this.location = rect;
-		L.rectangle([[this.location.North, this.location.East],[this.location.South,this.location.West]], {color: "#ff7800", weight: 1}).addTo(this.map);
+		if (draw) {
+			L.rectangle([[this.location.North, this.location.East],[this.location.South,this.location.West]], {color: "#ff7800", weight: 1}).addTo(this.map);
+		}
 		this.locationFound = true;
 		window.dispatchEvent(new Event('resize'));
 		return;
@@ -209,6 +245,9 @@ cam.MapAspect = React.createClass({
 			}
 		}
 		if (zoom) {
+			// TODO(mpl): I think we want to remove that case, now that locationFound also
+			// takes into account when a "map:" predicate is found in the initial search
+			// session query.
 			var location = L.latLngBounds(L.latLng(zoom.North, zoom.East), L.latLng(zoom.South, zoom.West));
 		} else if (this.locationFound) {
 			// pan to the location we found in the search query itself.
@@ -231,7 +270,7 @@ cam.MapAspect = React.createClass({
 	// loadMarkers sets markers on the map for all the permanodes, with a location,
 	// found in the current search session.
 	loadMarkers: function() {
-		var ss = this.props.searchSession;
+		var ss = this.initialSearchSession;
 		if (!ss) {
 			return;
 		}
@@ -240,9 +279,16 @@ cam.MapAspect = React.createClass({
 			q = 'has:location';
 		}
 		if (this.mapQuery == null) {
-			this.mapQuery = goreact.NewMapQuery(this.props.config.authToken, q, this.handleSearchResults);
+			this.mapQuery = goreact.NewMapQuery(this.props.config.authToken, q, this.handleSearchResults,
+				function(){
+					this.props.setPendingQuery(false);
+				}.bind(this));
+			if (this.mapQuery == null) {
+				return;
+			}
 			this.mapQuery.SetLimit(this.QUERY_LIMIT_);
 		}
+		this.props.setPendingQuery(true);
 		this.mapQuery.Send();
 	},
 
@@ -395,6 +441,10 @@ cam.MapAspect = React.createClass({
 		if (this.firstLoad) {
 			this.setCoordinatesFromSearchQuery();
 		}
+		// even if we're not here because of a zoom change (i.e. either first load, or
+		// new search was entered), we still call updateSearchBar here to update the zoom
+		// predicate right shift to the search bar.
+		this.props.updateSearchBar(this.mapQuery.GetExpr());
 	},
 
 	onMapClick: function() {
@@ -430,11 +480,10 @@ cam.MapAspect = React.createClass({
 		var newBounds = this.map.getBounds();
 		this.mapQuery.SetZoom(newBounds.getNorth(), newBounds.getWest(), newBounds.getSouth(), newBounds.getEast());
 		this.loadMarkers();
-		this.props.onZoomLevelChange(this.mapQuery.GetExpr());
 	}
 });
 
-cam.MapAspect.getAspect = function(config, availWidth, availHeight, onZoomLevelChange,
+cam.MapAspect.getAspect = function(config, availWidth, availHeight, updateSearchBar, setPendingQuery,
 	childSearchSession, targetBlobRef, parentSearchSession) {
 	var searchSession = childSearchSession;
 	if (targetBlobRef) {
@@ -460,7 +509,8 @@ cam.MapAspect.getAspect = function(config, availWidth, availHeight, onZoomLevelC
 				availWidth: availWidth,
 				availHeight: availHeight,
 				searchSession: searchSession,
-				onZoomLevelChange: onZoomLevelChange,
+				updateSearchBar: updateSearchBar,
+				setPendingQuery: setPendingQuery,
 			});
 		},
 	};
