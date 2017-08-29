@@ -2102,25 +2102,28 @@ func testBestByLocation(t *testing.T, data locationPoints, generate bool) {
 	var res SearchResult
 	var blobs []*SearchResultBlob
 	meta := make(map[string]*DescribedBlob)
-	var area *camtypes.LocationBounds
+	var area camtypes.LocationBounds
+	locm := make(map[blob.Ref]camtypes.Location)
 	for _, v := range data.Points {
 		br := blob.RefFromString(fmt.Sprintf("%v,%v", v.Latitude, v.Longitude))
 		blobs = append(blobs, &SearchResultBlob{
 			Blob: br,
 		})
-		meta[br.String()] = &DescribedBlob{
-			Location: &camtypes.Location{
-				Latitude:  v.Latitude,
-				Longitude: v.Longitude,
-			},
+		loc := camtypes.Location{
+			Latitude:  v.Latitude,
+			Longitude: v.Longitude,
 		}
-		area = area.Expand(v)
+		meta[br.String()] = &DescribedBlob{
+			Location: &loc,
+		}
+		locm[br] = loc
+		area = area.Expand(loc)
 	}
 	res.Blobs = blobs
 	res.Describe = &DescribeResponse{
 		Meta: meta,
 	}
-	res.LocationArea = area
+	res.LocationArea = &area
 
 	var widthRatio, heightRatio float64
 	initImage := func() *image.RGBA {
@@ -2197,7 +2200,7 @@ func testBestByLocation(t *testing.T, data locationPoints, generate bool) {
 		cmpImage(img, filepath.Join("testdata", fmt.Sprintf("%v-beforeMapSort.png", data.Name)))
 	}
 
-	ExportBestByLocation(&res, 100)
+	ExportBestByLocation(&res, locm, 100)
 
 	// check that all longitudes are in the [-180,180] range
 	for _, v := range res.Blobs {

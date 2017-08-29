@@ -46,6 +46,6 @@ func (s *Handler) ExportGetPermanodeLocation(ctx context.Context, permaNode blob
 	return s.lh.PermanodeLocation(ctx, permaNode, at, s.owner)
 }
 
-func ExportBestByLocation(res *SearchResult, limit int) {
-	bestByLocation(res, limit)
+func ExportBestByLocation(res *SearchResult, loc map[blob.Ref]camtypes.Location, limit int) {
+	bestByLocation(res, loc, limit)
 }
