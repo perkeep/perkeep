@@ -27,7 +27,6 @@ import (
 	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/types/camtypes"
 	"go4.org/types"
-	"golang.org/x/net/context"
 )
 
 func newTestCorpusWithPermanode() (c *index.Corpus, pn, sig1, sig2 blob.Ref) {
@@ -304,42 +303,24 @@ func TestKVClaim(t *testing.T) {
 
 func TestDeletePermanode_Modtime(t *testing.T) {
 	testDeletePermanodes(t,
-		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
-			var err error
-			c.EnumeratePermanodesLastModified(func(m camtypes.BlobMeta) bool {
-				select {
-				case <-ctx.Done():
-					err = ctx.Err()
-					return false
-				case ch <- m:
-					return true
-				}
-			})
-			return err
+		func(c *index.Corpus, fn func(m camtypes.BlobMeta) bool) error {
+			c.EnumeratePermanodesLastModified(fn)
+			return nil
 		},
 	)
 }
 
 func TestDeletePermanode_CreateTime(t *testing.T) {
 	testDeletePermanodes(t,
-		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
-			var err error
-			c.EnumeratePermanodesCreated(func(m camtypes.BlobMeta) bool {
-				select {
-				case <-ctx.Done():
-					err = ctx.Err()
-					return false
-				case ch <- m:
-					return true
-				}
-			}, true)
-			return err
+		func(c *index.Corpus, fn func(m camtypes.BlobMeta) bool) error {
+			c.EnumeratePermanodesCreated(fn, true)
+			return nil
 		},
 	)
 }
 
 func testDeletePermanodes(t *testing.T,
-	enumFunc func(*index.Corpus, context.Context, chan<- camtypes.BlobMeta) error) {
+	enumFunc func(*index.Corpus, func(m camtypes.BlobMeta) bool) error) {
 	idx := index.NewMemoryIndex()
 	idxd := indextest.NewIndexDeps(idx)
 
@@ -358,18 +339,11 @@ func testDeletePermanodes(t *testing.T,
 	// check that we initially only find permanodes foo and baz,
 	// because bar is already marked as deleted.
 	want := []blob.Ref{foopn, bazpn}
-	ch := make(chan camtypes.BlobMeta, 10)
 	var got []camtypes.BlobMeta
-	errc := make(chan error, 1)
-	ctx := context.Background()
-	go func() { errc <- enumFunc(c, ctx, ch) }()
-	for blobMeta := range ch {
-		got = append(got, blobMeta)
-	}
-	err = <-errc
-	if err != nil {
-		t.Fatalf("Could not enumerate permanodes: %v", err)
-	}
+	enumFunc(c, func(m camtypes.BlobMeta) bool {
+		got = append(got, m)
+		return true
+	})
 	if len(got) != len(want) {
 		t.Fatalf("Saw %d permanodes in corpus; want %d", len(got), len(want))
 	}
@@ -390,15 +364,10 @@ func testDeletePermanodes(t *testing.T,
 	delbaz := idxd.Delete(bazpn)
 	want = []blob.Ref{foopn}
 	got = got[:0]
-	ch = make(chan camtypes.BlobMeta, 10)
-	go func() { errc <- enumFunc(c, context.Background(), ch) }()
-	for blobMeta := range ch {
-		got = append(got, blobMeta)
-	}
-	err = <-errc
-	if err != nil {
-		t.Fatalf("Could not enumerate permanodes: %v", err)
-	}
+	enumFunc(c, func(m camtypes.BlobMeta) bool {
+		got = append(got, m)
+		return true
+	})
 	if len(got) != len(want) {
 		t.Fatalf("Saw %d permanodes in corpus; want %d", len(got), len(want))
 	}
@@ -410,15 +379,10 @@ func testDeletePermanodes(t *testing.T,
 	idxd.Delete(delbaz)
 	want = []blob.Ref{foopn, bazpn}
 	got = got[:0]
-	ch = make(chan camtypes.BlobMeta, 10)
-	go func() { errc <- enumFunc(c, context.Background(), ch) }()
-	for blobMeta := range ch {
-		got = append(got, blobMeta)
-	}
-	err = <-errc
-	if err != nil {
-		t.Fatalf("Could not enumerate permanodes: %v", err)
-	}
+	enumFunc(c, func(m camtypes.BlobMeta) bool {
+		got = append(got, m)
+		return true
+	})
 	if len(got) != len(want) {
 		t.Fatalf("Saw %d permanodes in corpus; want %d", len(got), len(want))
 	}
@@ -438,18 +402,9 @@ func testDeletePermanodes(t *testing.T,
 
 func TestEnumerateOrder_Modtime(t *testing.T) {
 	testEnumerateOrder(t,
-		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
-			var err error
-			c.EnumeratePermanodesLastModified(func(m camtypes.BlobMeta) bool {
-				select {
-				case <-ctx.Done():
-					err = ctx.Err()
-					return false
-				case ch <- m:
-					return true
-				}
-			})
-			return err
+		func(c *index.Corpus, fn func(m camtypes.BlobMeta) bool) error {
+			c.EnumeratePermanodesLastModified(fn)
+			return nil
 		},
 		modtimeOrder,
 	)
@@ -457,18 +412,9 @@ func TestEnumerateOrder_Modtime(t *testing.T) {
 
 func TestEnumerateOrder_CreateTime(t *testing.T) {
 	testEnumerateOrder(t,
-		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
-			var err error
-			c.EnumeratePermanodesCreated(func(m camtypes.BlobMeta) bool {
-				select {
-				case <-ctx.Done():
-					err = ctx.Err()
-					return false
-				case ch <- m:
-					return true
-				}
-			}, true)
-			return err
+		func(c *index.Corpus, fn func(m camtypes.BlobMeta) bool) error {
+			c.EnumeratePermanodesCreated(fn, true)
+			return nil
 		},
 		createOrder,
 	)
@@ -480,7 +426,7 @@ const (
 )
 
 func testEnumerateOrder(t *testing.T,
-	enumFunc func(*index.Corpus, context.Context, chan<- camtypes.BlobMeta) error,
+	enumFunc func(*index.Corpus, func(m camtypes.BlobMeta) bool) error,
 	order int) {
 	idx := index.NewMemoryIndex()
 	idxd := indextest.NewIndexDeps(idx)
@@ -511,18 +457,11 @@ func testEnumerateOrder(t *testing.T,
 		// creation time.
 		want = []blob.Ref{foopn, barpn}
 	}
-	ch := make(chan camtypes.BlobMeta, 10)
 	var got []camtypes.BlobMeta
-	errc := make(chan error, 1)
-	ctx := context.Background()
-	go func() { errc <- enumFunc(c, ctx, ch) }()
-	for blobMeta := range ch {
-		got = append(got, blobMeta)
-	}
-	err = <-errc
-	if err != nil {
-		t.Fatalf("Could not enumerate permanodes: %v", err)
-	}
+	enumFunc(c, func(m camtypes.BlobMeta) bool {
+		got = append(got, m)
+		return true
+	})
 	if len(got) != len(want) {
 		t.Fatalf("Saw %d permanodes in corpus; want %d", len(got), len(want))
 	}
@@ -536,18 +475,9 @@ func testEnumerateOrder(t *testing.T,
 // should be run with -race
 func TestCacheSortedPermanodes_ModtimeRace(t *testing.T) {
 	testCacheSortedPermanodesRace(t,
-		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
-			var err error
-			c.EnumeratePermanodesLastModified(func(m camtypes.BlobMeta) bool {
-				select {
-				case <-ctx.Done():
-					err = ctx.Err()
-					return false
-				case ch <- m:
-					return true
-				}
-			})
-			return err
+		func(c *index.Corpus, fn func(m camtypes.BlobMeta) bool) error {
+			c.EnumeratePermanodesLastModified(fn)
+			return nil
 		},
 	)
 }
@@ -555,24 +485,16 @@ func TestCacheSortedPermanodes_ModtimeRace(t *testing.T) {
 // should be run with -race
 func TestCacheSortedPermanodes_CreateTimeRace(t *testing.T) {
 	testCacheSortedPermanodesRace(t,
-		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
-			var err error
-			c.EnumeratePermanodesCreated(func(m camtypes.BlobMeta) bool {
-				select {
-				case <-ctx.Done():
-					err = ctx.Err()
-					return false
-				case ch <- m:
-					return true
-				}
-			}, true)
-			return err
+		func(c *index.Corpus, fn func(m camtypes.BlobMeta) bool) error {
+			c.EnumeratePermanodesCreated(fn, true)
+			return nil
 		},
 	)
 }
 
+// TODO(mpl): see later if we can delete. or if we have to fix it further.
 func testCacheSortedPermanodesRace(t *testing.T,
-	enumFunc func(*index.Corpus, context.Context, chan<- camtypes.BlobMeta) error) {
+	enumFunc func(*index.Corpus, func(m camtypes.BlobMeta) bool) error) {
 	idx := index.NewMemoryIndex()
 	idxd := indextest.NewIndexDeps(idx)
 	idxd.Fataler = t
@@ -593,19 +515,11 @@ func testCacheSortedPermanodesRace(t *testing.T,
 	}()
 	go func() {
 		for i := 0; i < 10; i++ {
-			ch := make(chan camtypes.BlobMeta, 10)
-			errc := make(chan error, 1)
-			go func() {
-				idx.RLock()
-				defer idx.RUnlock()
-				errc <- enumFunc(c, context.TODO(), ch)
-			}()
-			for range ch {
-			}
-			err := <-errc
-			if err != nil {
-				t.Fatalf("Could not enumerate permanodes: %v", err)
-			}
+			idx.RLock()
+			enumFunc(c, func(m camtypes.BlobMeta) bool {
+				return true
+			})
+			idx.RUnlock()
 		}
 		donec <- struct{}{}
 	}()
