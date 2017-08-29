@@ -1478,20 +1478,48 @@ func enumerateBlobMeta(s sorted.KeyValue, cb func(camtypes.BlobMeta) error) (err
 	return nil
 }
 
-// EnumerateBlobMeta sends all metadata about all known blobs to ch and then closes ch.
-func (x *Index) EnumerateBlobMeta(ctx context.Context, ch chan<- camtypes.BlobMeta) (err error) {
+var errStopIteration = errors.New("stop iteration") // local error, doesn't escape this package
+
+// EnumerateBlobMeta calls fn for all known meta blobs.
+// If fn returns false, iteration stops and an nil error is returned.
+// If ctx becomes done, iteration stops and ctx.Err() is returned.
+func (x *Index) EnumerateBlobMeta(ctx context.Context, fn func(camtypes.BlobMeta) bool) error {
 	if x.corpus != nil {
-		return x.corpus.EnumerateBlobMeta(ctx, ch)
+		var err error
+		var n int
+		done := ctx.Done()
+		x.corpus.EnumerateBlobMeta(func(m camtypes.BlobMeta) bool {
+			// Every so often, check context.
+			n++
+			if n%256 == 0 {
+				select {
+				case <-done:
+					err = ctx.Err()
+					return false
+				default:
+
+				}
+			}
+			return fn(m)
+		})
+		return err
 	}
-	defer close(ch)
-	return enumerateBlobMeta(x.s, func(bm camtypes.BlobMeta) error {
+	done := ctx.Done()
+	err := enumerateBlobMeta(x.s, func(bm camtypes.BlobMeta) error {
 		select {
-		case ch <- bm:
-		case <-ctx.Done():
+		case <-done:
 			return ctx.Err()
+		default:
+			if !fn(bm) {
+				return errStopIteration
+			}
+			return nil
 		}
-		return nil
 	})
+	if err == errStopIteration {
+		err = nil
+	}
+	return err
 }
 
 // Storage returns the index's underlying Storage implementation.

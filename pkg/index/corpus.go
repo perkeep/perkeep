@@ -780,46 +780,39 @@ func (c *Corpus) br(br blob.Ref) blob.Ref {
 
 // *********** Reading from the corpus
 
-// EnumerateCamliBlobs sends just camlistore meta blobs to ch.
+// EnumerateCamliBlobs calls fn for all known meta blobs.
 //
-// If camType is empty, all camlistore blobs are sent, otherwise it specifies
-// the camliType to send.
-// ch is closed at the end. The err will either be nil or context.Canceled.
-func (c *Corpus) EnumerateCamliBlobs(ctx context.Context, camType string, ch chan<- camtypes.BlobMeta) error {
-	defer close(ch)
+// If camType is not empty, it specifies a filter for which meta blob
+// types to call fn for. If empty, all are emitted.
+//
+// If fn returns false, iteration ends.
+func (c *Corpus) EnumerateCamliBlobs(camType string, fn func(camtypes.BlobMeta) bool) {
 	if camType != "" {
 		for _, bm := range c.camBlobs[camType] {
-			select {
-			case ch <- *bm:
-			case <-ctx.Done():
-				return ctx.Err()
+			if !fn(*bm) {
+				return
 			}
 		}
-		return nil
+		return
 	}
 	for _, m := range c.camBlobs {
 		for _, bm := range m {
-			select {
-			case ch <- *bm:
-			case <-ctx.Done():
-				return ctx.Err()
+			if !fn(*bm) {
+				return
 			}
 		}
 	}
-	return nil
 }
 
-// EnumerateBlobMeta sends all known blobs to ch, or until the context is canceled.
-func (c *Corpus) EnumerateBlobMeta(ctx context.Context, ch chan<- camtypes.BlobMeta) error {
-	defer close(ch)
+// EnumerateBlobMeta calls fn for all known meta blobs in an undefined
+// order.
+// If fn returns false, iteration ends.
+func (c *Corpus) EnumerateBlobMeta(fn func(camtypes.BlobMeta) bool) {
 	for _, bm := range c.blobs {
-		select {
-		case ch <- *bm:
-		case <-ctx.Done():
-			return ctx.Err()
+		if !fn(*bm) {
+			return
 		}
 	}
-	return nil
 }
 
 // pnAndTime is a value type wrapping a permanode blobref and its modtime.
@@ -909,36 +902,30 @@ func (lsp *lazySortedPermanodes) sorted(reverse bool) []pnAndTime {
 	return pns
 }
 
-func (c *Corpus) sendPermanodes(ctx context.Context, ch chan<- camtypes.BlobMeta, pns []pnAndTime) error {
+func (c *Corpus) enumeratePermanodes(fn func(camtypes.BlobMeta) bool, pns []pnAndTime) {
 	for _, cand := range pns {
 		bm := c.blobs[cand.pn]
 		if bm == nil {
 			continue
 		}
-		select {
-		case ch <- *bm:
-			continue
-		case <-ctx.Done():
-			return ctx.Err()
+		if !fn(*bm) {
+			return
 		}
 	}
-	return nil
 }
 
-// EnumeratePermanodesLastModified sends all permanodes, sorted by most recently modified first, to ch,
-// or until ctx is done.
-func (c *Corpus) EnumeratePermanodesLastModified(ctx context.Context, ch chan<- camtypes.BlobMeta) error {
-	defer close(ch)
-	return c.sendPermanodes(ctx, ch, c.permanodesByModtime.sorted(true))
+// EnumeratePermanodesLastModified calls fn for all permanodes, sorted by most recently modified first.
+// Iteration ends prematurely if fn returns false.
+func (c *Corpus) EnumeratePermanodesLastModified(fn func(camtypes.BlobMeta) bool) {
+	c.enumeratePermanodes(fn, c.permanodesByModtime.sorted(true))
 }
 
-// EnumeratePermanodesCreated sends all permanodes to ch, or until ctx is done.
+// EnumeratePermanodesCreated calls fn for all permanodes.
 // They are sorted using the contents creation date if any, the permanode modtime
 // otherwise, and in the order specified by newestFirst.
-func (c *Corpus) EnumeratePermanodesCreated(ctx context.Context, ch chan<- camtypes.BlobMeta, newestFirst bool) error {
-	defer close(ch)
-
-	return c.sendPermanodes(ctx, ch, c.permanodesByTime.sorted(newestFirst))
+// Iteration ends prematurely if fn returns false.
+func (c *Corpus) EnumeratePermanodesCreated(fn func(camtypes.BlobMeta) bool, newestFirst bool) {
+	c.enumeratePermanodes(fn, c.permanodesByTime.sorted(newestFirst))
 }
 
 func (c *Corpus) GetBlobMeta(ctx context.Context, br blob.Ref) (camtypes.BlobMeta, error) {

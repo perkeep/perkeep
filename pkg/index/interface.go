@@ -143,11 +143,12 @@ type Interface interface {
 	// opts may be nil to accept the defaults.
 	EdgesTo(ref blob.Ref, opts *camtypes.EdgesToOpts) ([]*camtypes.Edge, error)
 
-	// EnumerateBlobMeta sends ch information about all blobs
-	// known to the indexer (which may be a subset of all total
-	// blobs, since the indexer is typically configured to not see
-	// non-metadata blobs) and then closes ch.  When it returns an
-	// error, it also closes ch. The blobs may be sent in any order.
-	// If the context finishes, the return error is ctx.Err().
-	EnumerateBlobMeta(context.Context, chan<- camtypes.BlobMeta) error
+	// EnumerateBlobMeta calls fn for each blob known to the
+	// indexer (which may be a subset of all total blobs, since
+	// the indexer is typically configured to not see non-metadata
+	// blobs). The blobs may be sent in any order.  If the context
+	// finishes, the return error is ctx.Err().
+	// If the provided function returns false, iteration ends with a nil
+	// return value.
+	EnumerateBlobMeta(context.Context, func(camtypes.BlobMeta) bool) error
 }

@@ -265,9 +265,9 @@ func (l Longitude) WrapTo180() float64 {
 		return lf
 	}
 	if lf > 0 {
-		return math.Mod(lf+180., 360.) - 180.
+		return math.Mod(lf+180, 360) - 180
 	}
-	return math.Mod(lf-180., 360.) + 180.
+	return math.Mod(lf-180, 360) + 180
 }
 
 // LocationBounds is a location area delimited by its fields. See Location for
@@ -298,16 +298,16 @@ func (l *LocationBounds) isWithinLongitude(loc Location) bool {
 // Expand returns a new LocationBounds nb. If either of loc coordinates is
 // outside of b, nb is the dimensions of b expanded as little as possible in
 // order to include loc. Otherwise, nb is just a copy of b.
-func (b *LocationBounds) Expand(loc Location) *LocationBounds {
+func (b LocationBounds) Expand(loc Location) LocationBounds {
 	if b.isEmpty() {
-		return &LocationBounds{
+		return LocationBounds{
 			North: loc.Latitude,
 			South: loc.Latitude,
 			West:  loc.Longitude,
 			East:  loc.Longitude,
 		}
 	}
-	nb := &LocationBounds{
+	nb := LocationBounds{
 		North: b.North,
 		South: b.South,
 		West:  b.West,

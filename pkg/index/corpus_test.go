@@ -305,7 +305,17 @@ func TestKVClaim(t *testing.T) {
 func TestDeletePermanode_Modtime(t *testing.T) {
 	testDeletePermanodes(t,
 		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
-			return c.EnumeratePermanodesLastModified(ctx, ch)
+			var err error
+			c.EnumeratePermanodesLastModified(func(m camtypes.BlobMeta) bool {
+				select {
+				case <-ctx.Done():
+					err = ctx.Err()
+					return false
+				case ch <- m:
+					return true
+				}
+			})
+			return err
 		},
 	)
 }
@@ -313,7 +323,17 @@ func TestDeletePermanode_Modtime(t *testing.T) {
 func TestDeletePermanode_CreateTime(t *testing.T) {
 	testDeletePermanodes(t,
 		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
-			return c.EnumeratePermanodesCreated(ctx, ch, true)
+			var err error
+			c.EnumeratePermanodesCreated(func(m camtypes.BlobMeta) bool {
+				select {
+				case <-ctx.Done():
+					err = ctx.Err()
+					return false
+				case ch <- m:
+					return true
+				}
+			}, true)
+			return err
 		},
 	)
 }
@@ -419,7 +439,17 @@ func testDeletePermanodes(t *testing.T,
 func TestEnumerateOrder_Modtime(t *testing.T) {
 	testEnumerateOrder(t,
 		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
-			return c.EnumeratePermanodesLastModified(ctx, ch)
+			var err error
+			c.EnumeratePermanodesLastModified(func(m camtypes.BlobMeta) bool {
+				select {
+				case <-ctx.Done():
+					err = ctx.Err()
+					return false
+				case ch <- m:
+					return true
+				}
+			})
+			return err
 		},
 		modtimeOrder,
 	)
@@ -428,7 +458,17 @@ func TestEnumerateOrder_Modtime(t *testing.T) {
 func TestEnumerateOrder_CreateTime(t *testing.T) {
 	testEnumerateOrder(t,
 		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
-			return c.EnumeratePermanodesCreated(ctx, ch, true)
+			var err error
+			c.EnumeratePermanodesCreated(func(m camtypes.BlobMeta) bool {
+				select {
+				case <-ctx.Done():
+					err = ctx.Err()
+					return false
+				case ch <- m:
+					return true
+				}
+			}, true)
+			return err
 		},
 		createOrder,
 	)
@@ -497,7 +537,17 @@ func testEnumerateOrder(t *testing.T,
 func TestCacheSortedPermanodes_ModtimeRace(t *testing.T) {
 	testCacheSortedPermanodesRace(t,
 		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
-			return c.EnumeratePermanodesLastModified(ctx, ch)
+			var err error
+			c.EnumeratePermanodesLastModified(func(m camtypes.BlobMeta) bool {
+				select {
+				case <-ctx.Done():
+					err = ctx.Err()
+					return false
+				case ch <- m:
+					return true
+				}
+			})
+			return err
 		},
 	)
 }
@@ -506,7 +556,17 @@ func TestCacheSortedPermanodes_ModtimeRace(t *testing.T) {
 func TestCacheSortedPermanodes_CreateTimeRace(t *testing.T) {
 	testCacheSortedPermanodesRace(t,
 		func(c *index.Corpus, ctx context.Context, ch chan<- camtypes.BlobMeta) error {
-			return c.EnumeratePermanodesCreated(ctx, ch, true)
+			var err error
+			c.EnumeratePermanodesCreated(func(m camtypes.BlobMeta) bool {
+				select {
+				case <-ctx.Done():
+					err = ctx.Err()
+					return false
+				case ch <- m:
+					return true
+				}
+			}, true)
+			return err
 		},
 	)
 }
@@ -570,18 +630,8 @@ func TestLazySortedPermanodes(t *testing.T) {
 	pn := idxd.NewPlannedPermanode("one")
 	idxd.SetAttribute(pn, "tag", "one")
 
-	ctx := context.Background()
 	enum := func(reverse bool) {
-		ch := make(chan camtypes.BlobMeta, 10)
-		errc := make(chan error, 1)
-		go func() { errc <- c.EnumeratePermanodesCreated(ctx, ch, reverse) }()
-		for range ch {
-		}
-		err := <-errc
-
-		if err != nil {
-			t.Fatalf("Could not enumerate permanodes: %v", err)
-		}
+		c.EnumeratePermanodesCreated(func(m camtypes.BlobMeta) bool { return true }, reverse)
 	}
 	enum(false)
 	lsp = c.Exp_LSPByTime(false)
