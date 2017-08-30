@@ -47,20 +47,19 @@ func TestIsVideo(t *testing.T) {
 func TestExpandLocationArea(t *testing.T) {
 	tt := []struct {
 		comment string
-		before  *LocationBounds
+		before  LocationBounds
 		input   Location
-		want    *LocationBounds
+		want    LocationBounds
 	}{
 		// Until further notice, these tests are a series, i.e. want becomes before in
 		// each subsequent test.
 		{
 			comment: "uninitialized, add point",
-			before:  nil,
 			input: Location{
 				Latitude:  35.,
 				Longitude: -90.,
 			},
-			want: &LocationBounds{
+			want: LocationBounds{
 				North: 35.,
 				West:  -90.,
 				South: 35.,
@@ -69,7 +68,7 @@ func TestExpandLocationArea(t *testing.T) {
 		},
 		{
 			comment: "one point, expand north and west",
-			before: &LocationBounds{
+			before: LocationBounds{
 				North: 35.,
 				West:  -90.,
 				South: 35.,
@@ -79,7 +78,7 @@ func TestExpandLocationArea(t *testing.T) {
 				Latitude:  40.,
 				Longitude: -100.,
 			},
-			want: &LocationBounds{
+			want: LocationBounds{
 				North: 40.,
 				West:  -100.,
 				South: 35.,
@@ -88,7 +87,7 @@ func TestExpandLocationArea(t *testing.T) {
 		},
 		{
 			comment: "area not yet crossing antimeridian, expand west over it",
-			before: &LocationBounds{
+			before: LocationBounds{
 				North: 40.,
 				West:  -100.,
 				South: 35.,
@@ -98,7 +97,7 @@ func TestExpandLocationArea(t *testing.T) {
 				Latitude:  37.,
 				Longitude: 170.,
 			},
-			want: &LocationBounds{
+			want: LocationBounds{
 				North: 40.,
 				West:  170.,
 				South: 35.,
@@ -107,7 +106,7 @@ func TestExpandLocationArea(t *testing.T) {
 		},
 		{
 			comment: "area spanning over antimeridian, expand east",
-			before: &LocationBounds{
+			before: LocationBounds{
 				North: 40.,
 				West:  170.,
 				South: 35.,
@@ -117,7 +116,7 @@ func TestExpandLocationArea(t *testing.T) {
 				Latitude:  -20.,
 				Longitude: 20.,
 			},
-			want: &LocationBounds{
+			want: LocationBounds{
 				North: 40.,
 				West:  170.,
 				South: -20.,
@@ -128,7 +127,7 @@ func TestExpandLocationArea(t *testing.T) {
 		// New series here.
 		{
 			comment: "area not yet crossing antimeridian, expand east over it",
-			before: &LocationBounds{
+			before: LocationBounds{
 				North: 40.,
 				West:  120.,
 				South: 35.,
@@ -138,7 +137,7 @@ func TestExpandLocationArea(t *testing.T) {
 				Latitude:  -20,
 				Longitude: -160,
 			},
-			want: &LocationBounds{
+			want: LocationBounds{
 				North: 40.,
 				West:  120.,
 				South: -20.,
@@ -147,7 +146,7 @@ func TestExpandLocationArea(t *testing.T) {
 		},
 		{
 			comment: "area spanning over antimeridian, expand west",
-			before: &LocationBounds{
+			before: LocationBounds{
 				North: 40.,
 				West:  120.,
 				South: -20.,
@@ -157,7 +156,7 @@ func TestExpandLocationArea(t *testing.T) {
 				Latitude:  0.,
 				Longitude: 100.,
 			},
-			want: &LocationBounds{
+			want: LocationBounds{
 				North: 40.,
 				West:  100.,
 				South: -20.,

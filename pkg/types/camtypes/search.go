@@ -279,8 +279,8 @@ type LocationBounds struct {
 	East  float64 `json:"east"`
 }
 
-func (l *LocationBounds) isEmpty() bool {
-	return l == nil ||
+func (l LocationBounds) isEmpty() bool {
+	return l == (LocationBounds{}) ||
 		l.North == 0 &&
 			l.South == 0 &&
 			l.West == 0 &&
