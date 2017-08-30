@@ -1,0 +1,6 @@
+/_vendor/* linguist-vendored
+/_vendor/* linguist-generated=true
+examples/sites/common/* linguist-vendored
+examples/sites/common/* linguist-generated=true
+*.inc.js linguist-vendored
+*.inc.js linguist-generated=true

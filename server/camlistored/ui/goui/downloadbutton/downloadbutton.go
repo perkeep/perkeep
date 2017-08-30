@@ -22,11 +22,15 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gopherjs/gopherjs/js"
+
 	"camlistore.org/pkg/blob"
 
-	"github.com/myitcv/gopherjs/react"
 	"honnef.co/go/js/dom"
+	"myitcv.io/react"
 )
+
+//go:generate reactGen
 
 // New returns the button element. It should be used as the entry point, to
 // create the needed React element.
@@ -36,8 +40,8 @@ import (
 //
 // config is the web UI config that was fetched from the server.
 //
-// getSelection returns the list of files (blobRefs) selected for downloading.
-func New(key string, config map[string]string, getSelection func() []string) react.Element {
+// cbs is a wrapper around the callback functions required by this component.
+func New(key string, config map[string]string, cbs *Callbacks) react.Element {
 	if config == nil {
 		fmt.Println("Nil config for DownloadItemsBtn")
 		return nil
@@ -47,8 +51,12 @@ func New(key string, config map[string]string, getSelection func() []string) rea
 		fmt.Println("No downloadHelper in config for DownloadItemsBtn")
 		return nil
 	}
-	if getSelection == nil {
-		fmt.Println("Nil getSelection for DownloadItemsBtn")
+	if cbs == nil {
+		fmt.Println("Nil callbacks for DownloadItemsBtn")
+		return nil
+	}
+	if cbs.GetSelection == nil {
+		fmt.Println("Nil getSelection callback for DownloadItemsBtn")
 		return nil
 	}
 	if key == "" {
@@ -59,11 +67,20 @@ func New(key string, config map[string]string, getSelection func() []string) rea
 	}
 	props := DownloadItemsBtnProps{
 		Key:            key,
-		GetSelection:   getSelection,
-		Config:         config,
+		Callbacks:      cbs,
 		downloadHelper: downloadHelper,
 	}
-	return DownloadItemsBtn(props).Render()
+	return buildDownloadItemsBtnElem(props)
+}
+
+// Callbacks defines the callbacks that must be provided when creating a
+// DownloadItemsBtn instance.
+type Callbacks struct {
+	o *js.Object
+
+	// GetSelection returns the list of files (blobRefs) selected
+	// for downloading.
+	GetSelection func() []string `js:"getSelection"`
 }
 
 // DownloadItemsBtnDef is the definition for the button, that Renders as a React
@@ -76,38 +93,23 @@ type DownloadItemsBtnProps struct {
 	// Key is the id for when the button is in a list, see
 	// https://facebook.github.io/react/docs/lists-and-keys.html
 	Key string
-	// GetSelection returns the list of files (blobRefs) selected
-	// for downloading.
-	GetSelection func() []string
-	// Config is the web UI config that was fetched from the server.
-	Config         map[string]string
+
+	*Callbacks
+
 	downloadHelper string
 }
 
-func (p *DownloadItemsBtnDef) Props() DownloadItemsBtnProps {
-	uprops := p.ComponentDef.Props()
-	return uprops.(DownloadItemsBtnProps)
-}
-
-func DownloadItemsBtn(p DownloadItemsBtnProps) *DownloadItemsBtnDef {
-	res := &DownloadItemsBtnDef{}
-
-	react.BlessElement(res, p)
-
-	return res
-}
-
-func (d *DownloadItemsBtnDef) Render() react.Element {
+func (d DownloadItemsBtnDef) Render() react.Element {
 	return react.Button(
-		react.ButtonProps(func(bp *react.ButtonPropsDef) {
-			bp.OnClick = d.handleDownloadSelection
-			bp.Key = d.Props().Key
-		}),
+		&react.ButtonProps{
+			Key:     d.Props().Key,
+			OnClick: d,
+		},
 		react.S("Download"),
 	)
 }
 
-func (d *DownloadItemsBtnDef) handleDownloadSelection(*react.SyntheticMouseEvent) {
+func (d DownloadItemsBtnDef) OnClick(*react.SyntheticMouseEvent) {
 	// Note: there's a "memleak", as in: until the selection is cleared and
 	// another one is started, this button stays allocated. It is of no
 	// consequence in this case as we don't allocate a lot for this element (in
@@ -121,8 +123,8 @@ func (d *DownloadItemsBtnDef) handleDownloadSelection(*react.SyntheticMouseEvent
 	}()
 }
 
-func (d *DownloadItemsBtnDef) downloadSelection() error {
-	selection := d.Props().GetSelection()
+func (d DownloadItemsBtnDef) downloadSelection() error {
+	selection := d.Props().Callbacks.GetSelection()
 	downloadPrefix := d.Props().downloadHelper
 	fileRefs := []string{}
 	for _, file := range selection {

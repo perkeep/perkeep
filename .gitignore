@@ -29,6 +29,7 @@ bin/scanningcabinet
 bin/scancab
 tmp
 app/publisher/publisher.js
+server/camlistored/ui/goui.js
 server/camlistored/newui/all.js
 server/camlistored/newui/all.js.map
 server/camlistored/newui/zembed_all.js.go
@@ -38,3 +39,9 @@ config/tls.*
 misc/docker/djpeg-static/djpeg
 misc/docker/camlistored/camlistored*
 misc/docker/camlistored/djpeg
+/vendor/myitcv.io/react/_vendor
+/vendor/myitcv.io/react/examples
+/vendor/myitcv.io/react/_scripts
+/vendor/myitcv.io/react/internal/dev/dev.inc.js
+/vendor/myitcv.io/react/internal/preact/preact.inc.js
+/vendor/myitcv.io/react/internal/prod/prod.inc.js

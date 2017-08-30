@@ -29,14 +29,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gopherjs/gopherjs/js"
+
 	"camlistore.org/pkg/auth"
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/schema"
 
-	"github.com/myitcv/gopherjs/react"
 	"honnef.co/go/js/dom"
+	"myitcv.io/react"
 )
+
+//go:generate reactGen
 
 // TODO(mpl): eventually, see what can be refactored with downloadbutton. But
 // after I'm completely done with both of them (in other CLs).
@@ -49,16 +53,8 @@ import (
 //
 // config is the web UI config that was fetched from the server.
 //
-// getSelection returns the list of items selected for sharing.
-//
-// showSharedURL displays in a dialog an anchor with anchorURL for its
-// href and anchorText for its text.
-func New(key string, config map[string]string, getSelection func() []SharedItem,
-	showSharedURL func(string, string)) react.Element {
-	if getSelection == nil {
-		fmt.Println("Nil getSelection for ShareItemsBtn")
-		return nil
-	}
+// cbs is a wrapper around the callback functions required by this component.
+func New(key string, config map[string]string, cbs *Callbacks) react.Element {
 	if config == nil {
 		fmt.Println("Nil config for ShareItemsBtn")
 		return nil
@@ -66,10 +62,6 @@ func New(key string, config map[string]string, getSelection func() []SharedItem,
 	shareRoot, ok := config["shareRoot"]
 	if !ok || shareRoot == "" {
 		// Server has no share handler
-		return nil
-	}
-	if showSharedURL == nil {
-		fmt.Println("Nil showSharedURL for ShareItemsBtn")
 		return nil
 	}
 	authToken, ok := config["authToken"]
@@ -88,14 +80,39 @@ func New(key string, config map[string]string, getSelection func() []SharedItem,
 		// the sake of consistency.
 		key = "shareItemsButton"
 	}
-	props := ShareItemsBtnProps{
-		key:           key,
-		getSelection:  getSelection,
-		showSharedURL: showSharedURL,
-		authToken:     authToken,
-		uiRoot:        uiRoot,
+	if cbs == nil {
+		fmt.Println("Nil callbacks for ShareItemsBtn")
+		return nil
 	}
-	return ShareItemsBtn(props).Render()
+	if cbs.ShowSharedURL == nil {
+		fmt.Println("Nil showSharedURL callback for ShareItemsBtn")
+		return nil
+	}
+	if cbs.GetSelection == nil {
+		fmt.Println("Nil getSelection callback for ShareItemsBtn")
+		return nil
+	}
+
+	props := ShareItemsBtnProps{
+		key:       key,
+		callbacks: cbs,
+		authToken: authToken,
+		uiRoot:    uiRoot,
+	}
+	return ShareItemsBtn(props)
+}
+
+// Callbacks defines the callbacks that must be provided when creating a
+// ShareItemsBtn instance.
+type Callbacks struct {
+	o *js.Object
+
+	// GetSelection returns the list of items selected for sharing.
+	GetSelection func() []SharedItem `js:"getSelection"`
+
+	// ShowSharedURL displays in a dialog an anchor with anchorURL for its
+	// href and anchorText for its text.
+	ShowSharedURL func(anchorURL string, anchorText string) `js:"showSharedURL"`
 }
 
 // ShareItemsBtnDef is the definition for the button, that Renders as a React
@@ -118,36 +135,25 @@ type ShareItemsBtnProps struct {
 	// Key is the id for when the button is in a list, see
 	// https://facebook.github.io/react/docs/lists-and-keys.html
 	key string
-	// getSelection returns the list of items selected for sharing.
-	getSelection func() []SharedItem
-	// showSharedURL displays in a dialog an anchor with anchorURL for its
-	// href and anchorText for its text.
-	showSharedURL func(anchorURL string, anchorText string)
-	authToken     string
+
+	callbacks *Callbacks
+
+	authToken string
 	// uiRoot is used, with respect to the current window location, to figure
 	// out the server's URL prefix.
 	uiRoot string
 }
 
-func (p *ShareItemsBtnDef) Props() ShareItemsBtnProps {
-	uprops := p.ComponentDef.Props()
-	return uprops.(ShareItemsBtnProps)
+func ShareItemsBtn(p ShareItemsBtnProps) *ShareItemsBtnElem {
+	return buildShareItemsBtnElem(p)
 }
 
-func ShareItemsBtn(p ShareItemsBtnProps) *ShareItemsBtnDef {
-	res := &ShareItemsBtnDef{}
-
-	react.BlessElement(res, p)
-
-	return res
-}
-
-func (d *ShareItemsBtnDef) Render() react.Element {
+func (d ShareItemsBtnDef) Render() react.Element {
 	return react.Button(
-		react.ButtonProps(func(bp *react.ButtonPropsDef) {
-			bp.OnClick = d.handleShareSelection
-			bp.Key = d.Props().key
-		}),
+		&react.ButtonProps{
+			Key:     d.Props().key,
+			OnClick: d,
+		},
 		react.S("Share"),
 	)
 }
@@ -156,7 +162,7 @@ func (d *ShareItemsBtnDef) Render() react.Element {
 // be used to share the item. If the item is a file, the URL can be used directly
 // to fetch the file. If the item is a directory, the URL should be used with
 // camget -shared.
-func (d *ShareItemsBtnDef) handleShareSelection(*react.SyntheticMouseEvent) {
+func (d ShareItemsBtnDef) OnClick(e *react.SyntheticMouseEvent) {
 	go func() {
 		sharedURL, err := d.shareSelection()
 		if err != nil {
@@ -171,12 +177,12 @@ func (d *ShareItemsBtnDef) handleShareSelection(*react.SyntheticMouseEvent) {
 		sharedURL = prefix + sharedURL
 		anchorText := sharedURL[:20] + "..." + sharedURL[len(sharedURL)-20:len(sharedURL)]
 		// TODO(mpl): move some of the Dialog code to Go.
-		d.Props().showSharedURL(sharedURL, anchorText)
+		d.Props().callbacks.ShowSharedURL(sharedURL, anchorText)
 	}()
 }
 
-func (d *ShareItemsBtnDef) shareSelection() (string, error) {
-	selection := d.Props().getSelection()
+func (d ShareItemsBtnDef) shareSelection() (string, error) {
+	selection := d.Props().callbacks.GetSelection()
 	authToken := d.Props().authToken
 	am, err := auth.NewTokenAuth(authToken)
 	if err != nil {
@@ -291,7 +297,7 @@ func newShareClaim(cl *client.Client, target blob.Ref) (blob.Ref, error) {
 	return sbr.BlobRef, nil
 }
 
-func (d *ShareItemsBtnDef) urlPrefix() (string, error) {
+func (d ShareItemsBtnDef) urlPrefix() (string, error) {
 	currentURL := dom.GetWindow().Location().Href
 	uiRoot := d.Props().uiRoot
 	if strings.HasSuffix(currentURL, uiRoot) {

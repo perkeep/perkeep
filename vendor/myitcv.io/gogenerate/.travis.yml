@@ -1,0 +1,12 @@
+language: go
+
+go:
+  - 1.x
+
+go_import_path: myitcv.io/gogenerate
+
+install: true
+
+script:
+  - ./_scripts/run_tests.sh
+  - ./_scripts/check_git_is_clean.sh
