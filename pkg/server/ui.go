@@ -497,12 +497,14 @@ func (ui *UIHandler) discovery() *camtypes.UIDiscovery {
 		pubRoots[v.Name] = rd
 	}
 
+	mapClustering, _ := strconv.ParseBool(os.Getenv("CAMLI_DEV_MAP_CLUSTERING"))
 	uiDisco := &camtypes.UIDiscovery{
 		UIRoot:          ui.prefix,
 		UploadHelper:    ui.prefix + "?camli.mode=uploadhelper",
 		DownloadHelper:  path.Join(ui.prefix, "download") + "/",
 		DirectoryHelper: path.Join(ui.prefix, "tree") + "/",
 		PublishRoots:    pubRoots,
+		MapClustering:   mapClustering,
 	}
 	return uiDisco
 }

@@ -88,7 +88,8 @@ cam.MapAspect = React.createClass({
 		availHeight: React.PropTypes.number.isRequired,
 		searchSession: React.PropTypes.instanceOf(cam.SearchSession).isRequired,
 		config: React.PropTypes.object.isRequired,
-		// TODO(mpl): add missing ones
+		updateSearchBar: React.PropTypes.func.isRequired,
+		setPendingQuery: React.PropTypes.func.isRequired,
 	},
 
 	componentWillMount: function() {
@@ -98,6 +99,11 @@ cam.MapAspect = React.createClass({
 			East: 0.0,
 			West: 0.0,
 		};
+		this.clusteringOn = this.props.config.mapClustering;
+		if (this.clusteringOn == false) {
+			// Even 100 is actually too much, and https://github.com/camlistore/camlistore/issues/937 ensues
+			this.QUERY_LIMIT_ = 100;
+		}
 		// isMoving, in conjunction with ZOOM_COOLDOWN_, allows to actually ask for
 		// new results only once we've stopped zooming/panning.
 		this.isMoving = false;
@@ -105,8 +111,11 @@ cam.MapAspect = React.createClass({
 		this.markers = {};
 		if (this.cluster) {
 			this.cluster.clearLayers();
+		} else if (this.markersGroup) {
+			this.markersGroup.clearLayers();
 		}
 		this.cluster = null;
+		this.markersGroup = null;
 		this.mapQuery = null;
 		this.locationFound = false;
 		this.locationFromMarkers = null;
@@ -338,17 +347,27 @@ cam.MapAspect = React.createClass({
 		if (blobs == null) {
 			blobs = [];
 		}
-		if (this.cluster == null) {
-			this.cluster = L.markerClusterGroup({
-				// because we handle ourselves below what the visible markers are.
-				removeOutsideVisibleBounds: false,
-				animate: false,
-			});
+		// TODO(mpl): instead of all the ifs everywhere, we could just keep on using the
+		// cluster as a layer group, but completely disable clustering and spiderifying.
+		if (this.clusteringOn) {
+			if (this.cluster == null) {
+				this.cluster = L.markerClusterGroup({
+					// because we handle ourselves below what the visible markers are.
+					removeOutsideVisibleBounds: false,
+					animate: false,
+				});
+			}
 			this.cluster.addTo(this.map);
+			var toAdd = [];
+			this.cluster.unfreeze();
+		} else {
+			if (this.markersGroup == null) {
+				this.markersGroup = L.layerGroup();
+				this.markersGroup.addTo(this.map);
+			}
+			var toAdd = L.layerGroup();
 		}
-		this.cluster.unfreeze();
 		var toKeep = {};
-		var toAdd = [];
 		blobs.forEach(function(b) {
 			var br = b.blob;
 			var alreadyMarked = this.markers[br]
@@ -409,7 +428,11 @@ cam.MapAspect = React.createClass({
 			}
 			toKeep[br] = true;
 			this.markers[br] = marker;
-			toAdd.push(marker);
+			if (this.clusteringOn) {
+				toAdd.push(marker);
+			} else {
+				toAdd.addLayer(marker);
+			}
 
 			if (!this.locationFromMarkers) {
 				// initialize it as a square of 0.1 degree around the first marker placed
@@ -421,19 +444,32 @@ cam.MapAspect = React.createClass({
 				this.locationFromMarkers.extend(L.latLng(location.latitude, location.longitude));
 			}
 		}.bind(this));
-		var toRemove = [];
+		if (this.clusteringOn) {
+			var toRemove = [];
+		} else {
+			var toRemove = L.layerGroup();
+		}
 		goog.object.forEach(this.markers, function(mark, br) {
 			if (mark == null) {
 				return;
 			}
 			if (!toKeep[br]) {
 				this.markers[br] = null;
-				toRemove.push(mark);
+				if (this.clusteringOn) {
+					toRemove.push(mark);
+				} else {
+					toRemove.addLayer(mark);
+				}
 			}
 		}.bind(this));
-		this.cluster.removeLayers(toRemove);
-		this.cluster.addLayers(toAdd);
-		this.cluster.freeze();
+		if (this.clusteringOn) {
+			this.cluster.removeLayers(toRemove);
+			this.cluster.addLayers(toAdd);
+			this.cluster.freeze();
+		} else {
+			this.markersGroup.removeLayer(toRemove);
+			this.markersGroup.addLayer(toAdd);
+		}
 
 		// TODO(mpl): reintroduce the Around/Continue logic later if needed. For now not
 		// needed/useless as MapSorted queries do not support continuation of any kind.
