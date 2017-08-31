@@ -31,6 +31,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"reflect"
 	"regexp"
 	"runtime"
 	"runtime/debug"
@@ -492,6 +493,16 @@ func load(filename string, opener func(filename string) (jsonconfig.File, error)
 		return nil, fmt.Errorf("Could not unmarshal into a serverconfig.Config: %v", err)
 	}
 
+	// At this point, conf.Obj.UnknownKeys() contains all the names found in
+	// the given high-level configuration. We check them against
+	// highLevelConfFields(), which gives us all the possible valid
+	// configuration names, to catch typos or invalid names.
+	allFields := highLevelConfFields()
+	for _, v := range conf.Obj.UnknownKeys() {
+		if _, ok := allFields[v]; !ok {
+			return nil, fmt.Errorf("unknown high-level configuration parameter: %q", v)
+		}
+	}
 	conf, err = genLowLevelConfig(&hiLevelConf)
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -776,4 +787,28 @@ func logsHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "no such logs", 404)
 	}
+}
+
+// highLevelConfFields returns all the possible fields of a serverconfig.Config,
+// in their JSON form. This allows checking that the parameters in the high-level
+// server configuration file are at least valid names, which is useful to catch
+// typos.
+func highLevelConfFields() map[string]bool {
+	knownFields := make(map[string]bool)
+	var c serverconfig.Config
+	s := reflect.ValueOf(&c).Elem()
+	for i := 0; i < s.NumField(); i++ {
+		f := s.Type().Field(i)
+		jsonTag, ok := f.Tag.Lookup("json")
+		if !ok {
+			panic(fmt.Sprintf("%q field in serverconfig.Config does not have a json tag", f.Name))
+		}
+		jsonFields := strings.Split(strings.TrimSuffix(strings.TrimPrefix(jsonTag, `"`), `"`), ",")
+		jsonName := jsonFields[0]
+		if jsonName == "" {
+			panic(fmt.Sprintf("no json field name for %q field in serverconfig.Config", f.Name))
+		}
+		knownFields[jsonName] = true
+	}
+	return knownFields
 }
