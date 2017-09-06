@@ -1102,7 +1102,7 @@ cam.IndexPage = React.createClass({
 	},
 
 	getDownloadSelectionItem_: function() {
-		callbacks = {};
+		var callbacks = {};
 
 		// TODO(mpl): I'm doing the selection business in javascript for now,
 		// since we already have the search session results handy.
@@ -1112,8 +1112,19 @@ cam.IndexPage = React.createClass({
 			var files = [];
 			selection.forEach(function(br) {
 				var meta = this.childSearchSession_.getResolvedMeta(br);
-				if (!meta || !meta.file || !meta.file.fileName) {
-					// TODO(mpl): only do direct files for now. maybe recurse later.
+				if (!meta) {
+					return;
+				}
+				if (!meta.file && !meta.dir) {
+					// br does not have a file or a directory description, so it's probably neither.
+					return;
+				}
+				if (meta.file && !meta.file.fileName) {
+					// looks like a file, but no file name
+					return;
+				}
+				if (meta.dir && !meta.dir.fileName) {
+					// looks like a dir, but no file name
 					return;
 				}
 				files.push(meta.blobRef);
