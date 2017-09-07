@@ -348,7 +348,7 @@ func (d *Deployer) enableAPIs() error {
 		"storage-component.googleapis.com": "Google Cloud Storage",
 		"storage-api.googleapis.com":       "Google Cloud Storage JSON",
 		"logging.googleapis.com":           "Stackdriver Logging",
-		"compute-component.googleapis.com": "Google Compute Engine",
+		"compute.googleapis.com":           "Google Compute Engine",
 	}
 	enabledServices := make(map[string]bool)
 	for _, v := range list.Services {
