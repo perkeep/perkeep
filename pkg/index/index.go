@@ -651,7 +651,7 @@ func (x *Index) isDeletedNoCache(br blob.Ref) bool {
 
 // GetRecentPermanodes sends results to dest filtered by owner, limit, and
 // before.  A zero value for before will default to the current time.  The
-// results will have duplicates supressed, with most recent permanode
+// results will have duplicates suppressed, with most recent permanode
 // returned.
 // Note, permanodes more recent than before will still be fetched from the
 // index then skipped. This means runtime scales linearly with the number of

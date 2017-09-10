@@ -20,7 +20,7 @@ limitations under the License.
 // ordered by modification time, or at least depend on modification
 // times. In that context, (un)deletions (of permanodes, or attributes)
 // are not considered modifications and therefore the time at which they
-// occured does not affect the result.
+// occurred does not affect the result.
 package search // import "camlistore.org/pkg/search"
 
 import (

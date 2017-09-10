@@ -53,7 +53,7 @@ const (
 const OmitAuthToken = "OmitAuthToken"
 
 var (
-	// Each mode defines an auth logic which depends on the choosen auth mechanism.
+	// Each mode defines an auth logic which depends on the chosen auth mechanism.
 	// Access is allowed if any of the modes allows it.
 	// No need to guard for now as all the writes are done sequentially during setup.
 	modes []AuthMode

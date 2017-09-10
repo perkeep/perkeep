@@ -292,7 +292,7 @@ func (sl StaticSymlink) SymlinkTargetString() string {
 }
 
 // AsStaticSymlink returns the StaticFile as a StaticSymlink if the
-// StaticFile represents a symlink. Othwerwise, it retuns the zero
+// StaticFile represents a symlink. Othwerwise, it returns the zero
 // value of StaticSymlink and false.
 func (sf StaticFile) AsStaticSymlink() (s StaticSymlink, ok bool) {
 	if sf.b.ss.Type == "symlink" {

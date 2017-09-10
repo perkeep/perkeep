@@ -1836,7 +1836,7 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 			return false, nil
 		}
 	}
-	// TOOD: EXIF timeconstraint
+	// TODO: EXIF timeconstraint
 	return true, nil
 }
 

@@ -24,7 +24,7 @@ import (
 )
 
 // A HaveCache tracks whether a remove blobserver has a blob or not.
-// As NoteBlobExists overwrites any existing value, it is the responsibilty of
+// As NoteBlobExists overwrites any existing value, it is the responsibility of
 // the caller to stat before writing.
 type HaveCache interface {
 	StatBlobCache(br blob.Ref) (size uint32, ok bool)
@@ -47,7 +47,7 @@ type UploadCache interface {
 	// was uploaded. If withPermanode, it means a planned permanode was created
 	// for this file when it was uploaded (with -filenodes), and the cache entry
 	// will reflect that.
-	// As AddCachedPutResult overwrites any existing value, it is the responsibilty of
+	// As AddCachedPutResult overwrites any existing value, it is the responsibility of
 	// the caller to stat before writing.
 	AddCachedPutResult(pwd, filename string, fi os.FileInfo, pr *client.PutResult, withPermanode bool)
 	Close() error

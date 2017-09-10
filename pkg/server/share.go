@@ -251,10 +251,10 @@ func (h *shareHandler) handleGetViaSharing(rw http.ResponseWriter, req *http.Req
 				return unauthorized(viaChainReadFailed,
 					"Fetch chain %d of %s failed in slurp: %v", i, br, err)
 			}
-			saught := fetchChain[i+1]
-			if !bytesHaveSchemaLink(br, slurpBytes, saught) {
+			sought := fetchChain[i+1]
+			if !bytesHaveSchemaLink(br, slurpBytes, sought) {
 				return unauthorized(viaChainInvalidLink,
-					"Fetch chain %d of %s failed; no reference to %s", i, br, saught)
+					"Fetch chain %d of %s failed; no reference to %s", i, br, sought)
 			}
 		}
 	}

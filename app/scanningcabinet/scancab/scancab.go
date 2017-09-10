@@ -70,7 +70,7 @@ func usage() {
 	fmt.Fprint(os.Stderr, "\nUsage:\n")
 	fmt.Fprintf(os.Stderr, "(Load scanner full of documents)\n")
 	fmt.Fprintf(os.Stderr, pgName+" --loop # monitor ~/scancab-queue and uploads files in it\n")
-	fmt.Fprintf(os.Stderr, pgName+" --adf # start scannig and dumping image files to ~/scancab-queue\n")
+	fmt.Fprintf(os.Stderr, pgName+" --adf # start scanning and dumping image files to ~/scancab-queue\n")
 	fmt.Fprintf(os.Stderr, "\n")
 	flag.PrintDefaults()
 }

@@ -533,7 +533,7 @@ func (de DescribeError) Error() string {
 // Result waits for all outstanding lookups to complete and
 // returns the map of blobref (strings) to their described
 // results. The returned error is non-nil if any errors
-// occured, and will be of type DescribeError.
+// occurred, and will be of type DescribeError.
 func (dr *DescribeRequest) Result() (desmap map[string]*DescribedBlob, err error) {
 	dr.wg.Wait()
 	// TODO: set "done" / locked flag, so no more DescribeBlob can

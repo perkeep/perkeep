@@ -532,7 +532,7 @@ type FileUploadOptions struct {
 // filename for these contents. If the contents or the file blob are found on
 // the server, they're not uploaded.
 //
-// Note: this method is still a work in progress, and might change to accomodate
+// Note: this method is still a work in progress, and might change to accommodate
 // the needs of camput file.
 func (cl *Client) UploadFile(filename string, contents io.Reader, opts *FileUploadOptions) (blob.Ref, error) {
 	fileMap := schema.NewFileMap(filename)

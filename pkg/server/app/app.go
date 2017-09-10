@@ -528,7 +528,7 @@ func (a *Handler) BackendURL() string {
 	return a.backendURL
 }
 
-var errProcessTookTooLong = errors.New("proccess took too long to quit")
+var errProcessTookTooLong = errors.New("process took too long to quit")
 
 // Quit sends the app's process a SIGINT, and waits up to 5 seconds for it
 // to exit, returning an error if it doesn't.

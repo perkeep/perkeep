@@ -43,7 +43,7 @@ var theFic *fileItemContainer
 // StartRenderFile displays a view of the template subject when the subject is a
 // file. It relies on the presence of a div with id "fileitemcontainer", to create
 // DOM elements as children of the mentioned div. As the actual rendering is run in
-// a goroutine, it is not garanteed to be finished when StartRenderFile returns.
+// a goroutine, it is not guaranteed to be finished when StartRenderFile returns.
 func StartRenderFile() {
 	// renderFile calls funcs that wait on http requests or channels,
 	// which is not allowed in a javascript callback, so they have to be called

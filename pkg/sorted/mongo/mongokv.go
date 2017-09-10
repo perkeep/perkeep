@@ -32,7 +32,7 @@ import (
 	"labix.org/v2/mgo/bson"
 )
 
-// We explicitely separate the key and the value in a document,
+// We explicitly separate the key and the value in a document,
 // instead of simply storing as key:value, to avoid problems
 // such as "." being an illegal char in a key name. Also because
 // there is no way to do partial matching for key names (one can

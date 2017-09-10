@@ -83,7 +83,7 @@ const (
 	// StatusTooManyRequests is the http status code returned by
 	// pinboard servers if we have made too many requests for a
 	// particular user.  If we receive this status code, we should
-	// double the amount of time we wait before trying agian.
+	// double the amount of time we wait before trying again.
 	StatusTooManyRequests = 429
 )
 

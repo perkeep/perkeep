@@ -63,7 +63,7 @@ func (conf *Config) Alias(server string) string {
 	return serverAlias
 }
 
-// GenerateClientConfig retuns a client configuration which can be used to
+// GenerateClientConfig returns a client configuration which can be used to
 // access a server defined by the provided low-level server configuration.
 func GenerateClientConfig(serverConfig jsonconfig.Obj) (*Config, error) {
 	missingConfig := func(param string) (*Config, error) {

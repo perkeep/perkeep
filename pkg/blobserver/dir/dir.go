@@ -26,7 +26,7 @@ import (
 )
 
 // New returns a new blobserver Storage implementation, storing blobs in the provided dir.
-// If dir has an index.kv file, a diskpacked implementation is returnd.
+// If dir has an index.kv file, a diskpacked implementation is returned.
 func New(dir string) (blobserver.Storage, error) {
 	if v, err := diskpacked.IsDir(dir); err != nil {
 		return nil, err

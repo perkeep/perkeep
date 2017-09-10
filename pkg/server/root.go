@@ -89,7 +89,7 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 		}
 		ct := ld.GetHandlerType(v)
 		if ct == "" {
-			err = fmt.Errorf("root handler's %q references non-existant %q", key, v)
+			err = fmt.Errorf("root handler's %q references non-existent %q", key, v)
 		} else if ct != htype {
 			err = fmt.Errorf("root handler's %q references %q of type %q; expected type %q", key, v, ct, htype)
 		}

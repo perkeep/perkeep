@@ -235,7 +235,7 @@ func uidFromProcReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader
 		// include/net/inet_socket.h says the "loc_addr" and
 		// "rmt_addr" fields are __be32, but get_openreq4's
 		// printf of them is raw, without byte order
-		// converstion.
+		// conversion.
 		localHex = fmt.Sprintf("%08X:%04X", toLinuxIPv4Order([]byte(lip.To4())), lport)
 		remoteHex = fmt.Sprintf("%08X:%04X", toLinuxIPv4Order([]byte(rip.To4())), rport)
 	} else {

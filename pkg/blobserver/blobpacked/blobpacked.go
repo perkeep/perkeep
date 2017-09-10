@@ -306,7 +306,7 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 // corresponding wholeMetaPrefixInfo. The wholeMetaPrefix entries pertaining to a
 // file can only be written once all the wholeMetaPrefixInfo have been collected
 // and sorted, because a wholeMetaPrefix entry records the total data offset of the
-// corresponding zip relative to begining the file.
+// corresponding zip relative to beginning the file.
 type wholeMetaPrefixInfo struct {
 	wholePartIndex   int // index of that zip, 0-based
 	zipRef           blob.Ref

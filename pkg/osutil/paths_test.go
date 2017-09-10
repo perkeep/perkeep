@@ -38,7 +38,7 @@ func findCamliInclude(configFile string) (path string, err error) {
 	return NewJSONConfigParser().ConfigFilePath(configFile)
 }
 
-// Calls OpenCamliInclude to open path, and checks that it containts "test"
+// Calls OpenCamliInclude to open path, and checks that it contains "test"
 func checkOpen(t *testing.T, path string) {
 	found, e := findCamliInclude(path)
 	if e != nil {

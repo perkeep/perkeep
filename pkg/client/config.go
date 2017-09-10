@@ -96,7 +96,7 @@ func (c *Client) parseConfig() {
 		}
 		log.Fatal(errMsg)
 	}
-	// TODO: instead of using jsonconfig, we could read the file, and unmarshall into the structs that we now have in pkg/types/clientconfig. But we'll have to add the old fields (before the name changes, and before the multi-servers change) to the structs as well for our gracefull conversion/error messages to work.
+	// TODO: instead of using jsonconfig, we could read the file, and unmarshall into the structs that we now have in pkg/types/clientconfig. But we'll have to add the old fields (before the name changes, and before the multi-servers change) to the structs as well for our graceful conversion/error messages to work.
 	conf, err := osutil.NewJSONConfigParser().ReadFile(configPath)
 	if err != nil {
 		log.Fatal(err.Error())

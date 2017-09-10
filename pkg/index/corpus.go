@@ -86,7 +86,7 @@ type Corpus struct {
 	// The slice is not sorted.
 	claimBack map[blob.Ref][]*camtypes.Claim
 
-	// TOOD: use deletedCache instead?
+	// TODO: use deletedCache instead?
 	deletedBy map[blob.Ref]blob.Ref // key is deleted by value
 	// deletes tracks deletions of claims and permanodes. The key is
 	// the blobref of a claim or permanode. The values, sorted newest first,

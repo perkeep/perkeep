@@ -335,7 +335,7 @@ func NewFromShareRoot(shareBlobURL string, opts ...ClientOption) (c *Client, tar
 	var root string
 	m := shareURLRx.FindStringSubmatch(shareBlobURL)
 	if m == nil {
-		return nil, blob.Ref{}, fmt.Errorf("Unkown share URL base")
+		return nil, blob.Ref{}, fmt.Errorf("Unknown share URL base")
 	}
 	c = New(m[1], opts...)
 	c.discoOnce.Do(noop)

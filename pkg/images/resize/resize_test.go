@@ -290,7 +290,7 @@ func TestCompareResizeToHalveInplace(t *testing.T) {
 	// TestCompareOriginalToHalveInPlace both still (barely) pass, I think it's ok to disable
 	// TestCompareResizeToHalveInplace until we know more.
 	// 5) If it turns out in the end that there was nothing to worry about, then maybe we could
-	// have this test pass, not by lowering the maxPixelDiffPercentage, but by introducting a
+	// have this test pass, not by lowering the maxPixelDiffPercentage, but by introducing a
 	// tolerance such as http://www.imagemagick.org/script/command-line-options.php#fuzz when
 	// comparing the pixels.
 	if testing.Short() {

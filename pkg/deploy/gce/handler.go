@@ -1083,7 +1083,7 @@ or corrupted.</p>
 <body>
 	<!-- TODO(mpl): bundle jquery -->
 	<script type="text/javascript" src="https://code.jquery.com/jquery-3.2.1.min.js" ></script>
-	<!-- Change the text of the submit button, the billing URL, and the "disabled" of the input fiels, depending on whether we create a new project or use a selected one. -->
+	<!-- Change the text of the submit button, the billing URL, and the "disabled" of the input fields, depending on whether we create a new project or use a selected one. -->
 	<script type="text/javascript">
 		$(document).ready(function(){
 			var setBillingURL = function() {

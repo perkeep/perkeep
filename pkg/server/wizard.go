@@ -166,7 +166,7 @@ func sendWizard(rw http.ResponseWriter, req *http.Request, hasChanged bool) {
 	<input type="submit" form="WizardForm" value="Save"> (Will restart server.)</form>`
 
 	if hasChanged {
-		body += `<p> Configuration succesfully rewritten </p>`
+		body += `<p> Configuration successfully rewritten </p>`
 	}
 
 	tmpl, err := template.New("wizard").Funcs(funcMap).Parse(topWizard + body + bottomWizard)

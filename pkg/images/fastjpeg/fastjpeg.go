@@ -103,7 +103,7 @@ func djpegStatus() string {
 	if Available() {
 		return "djpeg available"
 	}
-	return "djpeg optimizaton unavailable"
+	return "djpeg optimization unavailable"
 }
 
 func readPNM(buf *bytes.Buffer) (image.Image, error) {

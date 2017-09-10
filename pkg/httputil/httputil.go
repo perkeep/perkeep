@@ -68,7 +68,7 @@ func ServeError(rw http.ResponseWriter, req *http.Request, err error) {
 		fmt.Fprintf(rw, "Server error: %s\n", err)
 		return
 	}
-	fmt.Fprintf(rw, "An internal error occured, sorry.")
+	fmt.Fprintf(rw, "An internal error occurred, sorry.")
 }
 
 func ReturnJSON(rw http.ResponseWriter, data interface{}) {
@@ -148,7 +148,7 @@ func BaseURL(urlStr string, req *http.Request) (string, error) {
 	return baseURL, nil
 }
 
-// RequestTargetPort returns the port targetted by the client
+// RequestTargetPort returns the port targeted by the client
 // in req. If not present, it returns 80, or 443 if TLS is used.
 func RequestTargetPort(req *http.Request) int {
 	_, portStr, err := net.SplitHostPort(req.Host)
