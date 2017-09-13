@@ -109,7 +109,7 @@ var (
 	flagListen      = flag.String("listen", "", "host:port to listen on, or :0 to auto-select. If blank, the value in the config will be used instead.")
 	flagOpenBrowser = flag.Bool("openbrowser", true, "Launches the UI on startup")
 	flagReindex     = flag.Bool("reindex", false, "Reindex all blobs on startup")
-	flagRecovery    = flag.Bool("recovery", false, "Recovery mode: rebuild the blobpacked meta index. The tasks performed by the recovery mode might change in the future.")
+	flagRecovery    = flag.Int("recovery", 0, "Recovery mode: it corresponds for now to the recovery modes of the blobpacked package. Which means: 0 does nothing, 1 rebuilds the blobpacked index without erasing it, and 2 wipes the blobpacked index before rebuilding it.")
 	flagSyslog      = flag.Bool("syslog", false, "Log everything only to syslog. It is an error to use this flag on windows.")
 	flagPollParent  bool
 )
@@ -676,8 +676,8 @@ func setupLogging() io.Closer {
 }
 
 func checkRecovery() {
-	if *flagRecovery {
-		blobpacked.SetRecovery()
+	if blobpacked.RecoveryMode(*flagRecovery) > blobpacked.NoRecovery {
+		blobpacked.SetRecovery(blobpacked.RecoveryMode(*flagRecovery))
 		return
 	}
 	if !env.OnGCE() {
@@ -693,12 +693,12 @@ func checkRecovery() {
 	if recovery == "" {
 		return
 	}
-	doRecovery, err := strconv.ParseBool(recovery)
+	mode, err := strconv.Atoi(recovery)
 	if err != nil {
-		log.Printf("invalid bool value for \"camlistore-recovery\": %v", err)
+		log.Printf("invalid int value for \"camlistore-recovery\": %v", err)
 	}
-	if doRecovery {
-		blobpacked.SetRecovery()
+	if blobpacked.RecoveryMode(mode) > blobpacked.NoRecovery {
+		blobpacked.SetRecovery(blobpacked.RecoveryMode(mode))
 	}
 }
 
