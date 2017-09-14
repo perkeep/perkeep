@@ -332,6 +332,12 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	}
 	ix.InitBlobSource(sto)
 
+	if !reindex {
+		if err := ix.integrityCheck(3 * time.Second); err != nil {
+			return nil, err
+		}
+	}
+
 	return ix, err
 }
 
@@ -471,6 +477,50 @@ func (x *Index) Reindex() error {
 	}
 	if err := x.initDeletesCache(); err != nil {
 		return err
+	}
+	return nil
+}
+
+// integrityCheck enumerates blobs through x.blobSource during timemout, and
+// verifies for each of them that it has a meta row in the index. It logs a message
+// if any of them is not found. It only returns an error if something went wrong
+// during the enumeration.
+func (x *Index) integrityCheck(timeout time.Duration) error {
+	log.Print("Starting index integrity check.")
+	defer log.Print("Index integrity check done.")
+	if x.blobSource == nil {
+		return errors.New("index: can't check sanity of index: no blobSource")
+	}
+
+	// we don't actually need seen atm, but I anticipate we'll return it at some
+	// point, so we can display the blobs that were tested/seen/missed on the web UI.
+	seen := make([]blob.Ref, 0)
+	notFound := make([]blob.Ref, 0)
+	enumCtx := context.TODO()
+	stopTime := time.NewTimer(timeout)
+	defer stopTime.Stop()
+	var errEOT = errors.New("time's out")
+	if err := blobserver.EnumerateAll(enumCtx, x.blobSource, func(sb blob.SizedRef) error {
+		select {
+		case <-stopTime.C:
+			return errEOT
+		default:
+		}
+		if _, err := x.GetBlobMeta(enumCtx, sb.Ref); err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+			notFound = append(notFound, sb.Ref)
+			return nil
+		}
+		seen = append(seen, sb.Ref)
+		return nil
+	}); err != nil && err != errEOT {
+		return err
+	}
+	if len(notFound) > 0 {
+		// TODO(mpl): at least on GCE, display that message and maybe more on a web UI page as well.
+		log.Printf("WARNING: sanity checking of the index found %d non-indexed blobs out of %d tested blobs. Reindexing is advised.", len(notFound), len(notFound)+len(seen))
 	}
 	return nil
 }
