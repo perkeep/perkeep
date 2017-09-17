@@ -49,7 +49,7 @@ type Discovery struct {
 	AuthToken string `json:"authToken"`
 
 	// SyncHandlers lists discovery information about the available sync handlers.
-	SyncHandlers []SyncHandlerDiscovery `json:"syncHanlders,omitempty"`
+	SyncHandlers []SyncHandlerDiscovery `json:"syncHandlers,omitempty"`
 	// Signing contains discovery information for signing.
 	Signing *SignDiscovery `json:"signing,omitempty"`
 	// UIDiscovery contains discovery information for the UI.
