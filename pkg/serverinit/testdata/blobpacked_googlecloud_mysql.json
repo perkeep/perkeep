@@ -3,11 +3,7 @@
 	"auth": "userpass:camlistore:pass3179",
 	"googlecloudstorage": "clientId:clientSecret:refreshToken:bucketName/blobs",
 	"packRelated": true,
-	"dbNames": {
-		"index": "camlitest",
-		"queue-sync-to-index": "sync_index_queue",
-		"ui_thumbcache": "ui_thumbmeta_cache"
-	},
+	"dbname": "camlitest",
 	"mysql": "root@localhost:root",
 	"identity": "26F5ABDA",
 	"identitySecretRing": "/path/to/secring",

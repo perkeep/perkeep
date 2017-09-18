@@ -6,6 +6,5 @@
 	"identitySecretRing": "/path/to/secring",
 	"mysql": "root@camlistore.cloudsql.google.internal:root",
 	"googlecloudstorage": ":bucketName",
-	"shareHandler": true,
-	"dbname": "camindex"
+	"shareHandler": true
 }

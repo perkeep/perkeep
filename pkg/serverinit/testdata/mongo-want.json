@@ -102,8 +102,11 @@
 			"handlerArgs": {
 				"from": "/bs/",
 				"queue": {
-					"file": "/tmp/blobs/sync-to-index-queue.leveldb",
-					"type": "leveldb"
+					"database": "pk_26f5abda_syncto_index",
+					"host": "localhost",
+					"password": "",
+					"type": "mongo",
+					"user": ""
 				},
 				"to": "/index/"
 			}

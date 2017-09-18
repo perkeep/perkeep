@@ -36,11 +36,14 @@
 			}
 		},
 		"/bs/": {
-			"handler": "storage-s3",
+			"handler": "storage-googlecloudstorage",
 			"handlerArgs": {
-				"aws_access_key": "key",
-				"aws_secret_access_key": "secret",
-				"bucket": "bucket"
+				"auth": {
+					"client_id": "auto",
+					"client_secret": "",
+					"refresh_token": ""
+				},
+				"bucket": "bucketName"
 			}
 		},
 		"/cache/": {
@@ -61,11 +64,11 @@
 			"handlerArgs": {
 				"blobSource": "/bs/",
 				"storage": {
-					"database": "camlitest",
-					"host": "localhost",
-					"password": "password",
+					"database": "pk_keepy_index",
+					"host": "camlistore.cloudsql.google.internal",
+					"password": "root",
 					"type": "mysql",
-					"user": "user"
+					"user": "root"
 				}
 			}
 		},
@@ -103,11 +106,11 @@
 			"handlerArgs": {
 				"from": "/bs/",
 				"queue": {
-					"database": "pk_26f5abda_syncto_index",
-					"host": "localhost",
-					"password": "password",
+					"database": "pk_keepy_syncto_index",
+					"host": "camlistore.cloudsql.google.internal",
+					"password": "root",
 					"type": "mysql",
-					"user": "user"
+					"user": "root"
 				},
 				"to": "/index/"
 			}
@@ -117,11 +120,11 @@
 			"handlerArgs": {
 				"cache": "/cache/",
 				"scaledImage": {
-					"database": "pk_26f5abda_uithumbmeta",
-					"host": "localhost",
-					"password": "password",
+					"database": "pk_keepy_uithumbmeta",
+					"host": "camlistore.cloudsql.google.internal",
+					"password": "root",
 					"type": "mysql",
-					"user": "user"
+					"user": "root"
 				}
 			}
 		}

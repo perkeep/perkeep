@@ -74,7 +74,6 @@ func DefaultEnvConfig() (*Config, error) {
 		Identity:           keyId,
 		IdentitySecretRing: secRing,
 		GoogleCloudStorage: ":" + strings.TrimPrefix(blobBucket, "gs://"),
-		DBNames:            map[string]string{},
 		PackRelated:        true,
 		ShareHandler:       true,
 	}
@@ -100,9 +99,6 @@ func DefaultEnvConfig() (*Config, error) {
 	if v := os.Getenv("MYSQLDB_PORT"); strings.HasPrefix(v, "tcp://") {
 		hostPort := strings.TrimPrefix(v, "tcp://")
 		highConf.MySQL = "root@" + hostPort + ":" // no password
-		highConf.DBNames["queue-sync-to-index"] = "sync_index_queue"
-		highConf.DBNames["ui_thumbcache"] = "ui_thumbmeta_cache"
-		highConf.DBNames["blobpacked_index"] = "blobpacked_index"
 	} else {
 		// TODO: also detect Cloud SQL.
 		highConf.KVFile = "/index.kv"

@@ -123,19 +123,26 @@ Unless `runIndex` is set to `false`, exactly one of these must be set:
 * `postgres`: user@host:password
 * `memoryIndex`: if true, a memory-only indexer is used.
 
-Additionally, mongo, mysql, and postgres require the `dbname` value set.
-Initialize your database with [camtool dbinit](/cmd/camtool/).
+## Database-related options {#database}
+
+* `dbname`: optional name of the index database if MySQL, PostgreSQL, or MongoDB,
+  is used. If empty, dbUnique is used as part of the database name.
+* `dbUnique`: optionally provides a unique value to differentiate databases on a
+  DBMS shared by multiple Perkeep instances. It should not contain spaces or
+  punctuation. If empty, identity is used instead. If the latter is absent, the
+  current username (provided by the operating system) is used instead. For the
+  index database, dbname takes priority.
 
 When using [MariaDB](https://downloads.mariadb.org/)
 or [MySQL](https://dev.mysql.com/downloads/), the user will need to be able to
 create a schema in addition to the default schema. You will need `grant create,
 insert, update, delete, alter, show databases on *.*` permissions for your
-database user. See [dbinit.go](/cmd/camtool/dbinit.go)
-and [dbschema.go](/pkg/sorted/mysql/dbschema.go) for more details.
+database user.
 
-There's also an in-memory index type, but only in the low-level config, as used
-by `devcam server`.
-
+You can use the [camtool dbinit](/cmd/camtool/) command to initialize your
+database, and see [dbinit.go](/cmd/camtool/dbinit.go) and
+[dbschema.go](/pkg/sorted/mysql/dbschema.go) if you're curious about the
+details.
 
 ## Publishing options {#publishing}
 

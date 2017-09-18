@@ -106,7 +106,7 @@
 			"handlerArgs": {
 				"from": "/bs/",
 				"queue": {
-					"database": "camindex_syncindex_q",
+					"database": "pk_26f5abda_syncto_index",
 					"host": "camlistore.cloudsql.google.internal",
 					"password": "root",
 					"type": "mysql",
@@ -120,7 +120,7 @@
 			"handlerArgs": {
 				"cache": "/cache/",
 				"scaledImage": {
-					"database": "thumbcache_db",
+					"database": "pk_26f5abda_uithumbmeta",
 					"host": "camlistore.cloudsql.google.internal",
 					"password": "root",
 					"type": "mysql",

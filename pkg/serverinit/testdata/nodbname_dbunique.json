@@ -7,5 +7,5 @@
 	"mysql": "root@camlistore.cloudsql.google.internal:root",
 	"googlecloudstorage": ":bucketName",
 	"shareHandler": true,
-	"dbname": "camindex"
+	"dbunique": "keepy"
 }

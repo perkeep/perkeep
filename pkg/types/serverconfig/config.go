@@ -31,6 +31,7 @@ type Config struct {
 	Auth    string `json:"auth"`              // auth scheme and values (ex: userpass:foo:bar).
 	BaseURL string `json:"baseURL,omitempty"` // Base URL the server advertizes. For when behind a proxy.
 	Listen  string `json:"listen"`            // address (of the form host|ip:port) on which the server will listen on.
+
 	// CamliNetIP is the optional internet-facing IP address for this
 	// Camlistore instance. If set, a name in the camlistore.net domain for
 	// that IP address will be requested on startup. The obtained domain name
@@ -43,13 +44,16 @@ type Config struct {
 	CamliNetIP         string `json:"camliNetIP"`
 	Identity           string `json:"identity"`           // GPG identity.
 	IdentitySecretRing string `json:"identitySecretRing"` // path to the secret ring file.
+
 	// alternative source tree, to override the embedded ui and/or closure resources.
 	// If non empty, the ui files will be expected at
 	// sourceRoot + "/server/camlistored/ui" and the closure library at
 	// sourceRoot + "/vendor/embed/closure/lib"
 	// Also used by the publish handler.
 	SourceRoot string `json:"sourceRoot,omitempty"`
-	OwnerName  string `json:"ownerName,omitempty"`
+
+	// OwnerName is the full name of this Perkeep instance. Currently unused.
+	OwnerName string `json:"ownerName,omitempty"`
 
 	// Blob storage.
 	MemoryStorage      bool   `json:"memoryStorage,omitempty"`      // do not store anything (blobs or queues) on localdisk, use memory instead.
@@ -72,21 +76,23 @@ type Config struct {
 	RunIndex          invertedBool `json:"runIndex,omitempty"`          // if logically false: no search, no UI, etc.
 	CopyIndexToMemory invertedBool `json:"copyIndexToMemory,omitempty"` // copy disk-based index to memory on start-up.
 	MemoryIndex       bool         `json:"memoryIndex,omitempty"`       // use memory-only indexer.
-	DBName            string       `json:"dbname,omitempty"`            // name of the database for mysql, postgres, mongo.
-	LevelDB           string       `json:"levelDB,omitempty"`           // path to the levelDB directory, for indexing with github.com/syndtr/goleveldb.
-	KVFile            string       `json:"kvIndexFile,omitempty"`       // path to the kv file, for indexing with github.com/cznic/kv.
-	MySQL             string       `json:"mysql,omitempty"`             // MySQL credentials (username@host:password), for indexing with MySQL.
-	Mongo             string       `json:"mongo,omitempty"`             // MongoDB credentials ([username:password@]host), for indexing with MongoDB.
-	PostgreSQL        string       `json:"postgres,omitempty"`          // PostgreSQL credentials (username@host:password), for indexing with PostgreSQL.
-	SQLite            string       `json:"sqlite,omitempty"`            // path to the SQLite file, for indexing with SQLite.
 
-	// DBNames lists which database names to use for various types of key/value stores. The keys may be:
-	//    "index"               (overrides 'dbname' key above)
-	//    "queue-sync-to-index" (the sync queue to index things)
-	//    "queue-sync-to-s3"    (the sync queue to replicate to s3)
-	//    "blobpacked_index"    (the index for blobpacked, the 'packRelated' option. Defaults to "blobpacked_index".)
-	//    "ui_thumbcache"
-	DBNames map[string]string `json:"dbNames"`
+	// DBName is the optional name of the index database for MySQL, PostgreSQL, MongoDB.
+	// If empty, DBUnique is used as part of the database name.
+	DBName string `json:"dbname,omitempty"`
+
+	// DBUnique optionally provides a unique value to differentiate databases on a
+	// DBMS shared by multiple Perkeep instances. It should not contain spaces or
+	// punctuation. If empty, Identity is used instead. If the latter is absent, the
+	// current username (provided by the operating system) is used instead. For the
+	// index database, DBName takes priority.
+	DBUnique   string `json:"dbUnique,omitempty"`
+	LevelDB    string `json:"levelDB,omitempty"`     // path to the levelDB directory, for indexing with github.com/syndtr/goleveldb.
+	KVFile     string `json:"kvIndexFile,omitempty"` // path to the kv file, for indexing with github.com/cznic/kv.
+	MySQL      string `json:"mysql,omitempty"`       // MySQL credentials (username@host:password), for indexing with MySQL.
+	Mongo      string `json:"mongo,omitempty"`       // MongoDB credentials ([username:password@]host), for indexing with MongoDB.
+	PostgreSQL string `json:"postgres,omitempty"`    // PostgreSQL credentials (username@host:password), for indexing with PostgreSQL.
+	SQLite     string `json:"sqlite,omitempty"`      // path to the SQLite file, for indexing with SQLite.
 
 	ReplicateTo []interface{} `json:"replicateTo,omitempty"` // NOOP for now.
 	// Publish maps a URL prefix path used as a root for published paths (a.k.a. a camliRoot path), to the configuration of the publish handler that serves all the published paths under this root.

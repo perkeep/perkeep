@@ -63,7 +63,7 @@
 			"handlerArgs": {
 				"largeBlobs": "/bs-packed/",
 				"metaIndex": {
-					"database": "not_blobpacked_index_default_name",
+					"database": "pk_26f5abda_blobpacked",
 					"host": "localhost",
 					"password": "root",
 					"type": "mysql",
@@ -132,7 +132,7 @@
 			"handlerArgs": {
 				"from": "/bs/",
 				"queue": {
-					"database": "sync_index_queue",
+					"database": "pk_26f5abda_syncto_index",
 					"host": "localhost",
 					"password": "root",
 					"type": "mysql",
@@ -146,7 +146,7 @@
 			"handlerArgs": {
 				"cache": "/cache/",
 				"scaledImage": {
-					"database": "ui_thumbmeta_cache",
+					"database": "pk_26f5abda_uithumbmeta",
 					"host": "localhost",
 					"password": "root",
 					"type": "mysql",

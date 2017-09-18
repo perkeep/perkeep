@@ -89,25 +89,61 @@ func (b *lowBuilder) hasPrefix(p string) bool {
 func (b *lowBuilder) runIndex() bool          { return b.high.RunIndex.Get() }
 func (b *lowBuilder) copyIndexToMemory() bool { return b.high.CopyIndexToMemory.Get() }
 
-// dbName returns which database to use for the provided user ("of").
-// The user should be a key as described in pkg/types/serverconfig/config.go's
-// description of DBNames: "index", "queue-sync-to-index", etc.
-func (b *lowBuilder) dbName(of string) string {
-	if v, ok := b.high.DBNames[of]; ok && v != "" {
-		return v
+type dbname string
+
+// possible arguments to dbName
+const (
+	dbIndex           dbname = "index"
+	dbBlobpackedIndex dbname = "blobpacked-index"
+	dbDiskpackedIndex dbname = "diskpacked-index"
+	dbUIThumbcache    dbname = "ui-thumbcache"
+	dbSyncQueue       dbname = "queue-sync-to-" // only a prefix. the last part is the sync destination, e.g. "index".
+)
+
+// dbUnique returns the uniqueness string that is used in databases names to
+// differentiate them from databases used by other Perkeep instances on the same
+// DBMS.
+func (b *lowBuilder) dbUnique() string {
+	if b.high.DBUnique != "" {
+		return b.high.DBUnique
 	}
-	if of == "index" {
+	if b.high.Identity != "" {
+		return strings.ToLower(b.high.Identity)
+	}
+	return osutil.Username() // may be empty, if $USER unset
+}
+
+// dbName returns which database to use for the provided user ("of"), which can
+// only be one of the const defined above. Returned values all follow the same name
+// scheme for consistency:
+// -prefixed with "pk_", so as to distinguish them from databases for other programs
+// -followed by a username-based uniqueness string
+// -last part says which component/part of perkeep it is about
+func (b *lowBuilder) dbName(of dbname) string {
+	unique := b.dbUnique()
+	if unique == "" {
+		log.Printf("Could not define uniqueness for database of %q. Do not use the same index DBMS with other Perkeep instances.", of)
+	}
+	prefix := "pk_"
+	if unique != "" {
+		prefix += unique + "_"
+	}
+	switch of {
+	case dbIndex:
 		if b.high.DBName != "" {
 			return b.high.DBName
 		}
-		username := osutil.Username()
-		if username == "" {
-			return "camlistore_index"
-		}
-		return "camli" + username
+		return prefix + "index"
+	case dbBlobpackedIndex:
+		return prefix + "blobpacked"
+	case dbDiskpackedIndex:
+		return prefix + "diskpacked"
+	case dbUIThumbcache:
+		return prefix + "uithumbmeta"
 	}
-	if of == "blobpacked_index" {
-		return of
+	asString := string(of)
+	if strings.HasPrefix(asString, string(dbSyncQueue)) {
+		return prefix + "syncto_" + strings.TrimPrefix(asString, string(dbSyncQueue))
 	}
 	return ""
 }
@@ -296,7 +332,7 @@ func (b *lowBuilder) addUIConfig() {
 		}
 	}
 	if thumbCache == nil {
-		sorted, err := b.sortedStorage("ui_thumbcache")
+		sorted, err := b.sortedStorage(dbUIThumbcache)
 		if err == nil {
 			thumbCache = sorted
 		}
@@ -307,7 +343,7 @@ func (b *lowBuilder) addUIConfig() {
 	b.addPrefix("/ui/", "ui", args)
 }
 
-func (b *lowBuilder) mongoIndexStorage(confStr, sortedType string) (map[string]interface{}, error) {
+func (b *lowBuilder) mongoIndexStorage(confStr string, sortedType dbname) (map[string]interface{}, error) {
 	dbName := b.dbName(sortedType)
 	if dbName == "" {
 		return nil, fmt.Errorf("no database name configured for sorted store %q", sortedType)
@@ -356,7 +392,7 @@ func parseUserHostPass(v string) (user, host, password string, ok bool) {
 	return
 }
 
-func (b *lowBuilder) dbIndexStorage(rdbms string, confStr string, sortedType string) (map[string]interface{}, error) {
+func (b *lowBuilder) dbIndexStorage(rdbms, confStr string, sortedType dbname) (map[string]interface{}, error) {
 	dbName := b.dbName(sortedType)
 	if dbName == "" {
 		return nil, fmt.Errorf("no database name configured for sorted store %q", sortedType)
@@ -370,27 +406,40 @@ func (b *lowBuilder) dbIndexStorage(rdbms string, confStr string, sortedType str
 		"host":     host,
 		"user":     user,
 		"password": password,
-		"database": b.dbName(sortedType),
+		"database": dbName,
 	}, nil
 }
 
-func (b *lowBuilder) sortedStorage(sortedType string) (map[string]interface{}, error) {
+func (b *lowBuilder) sortedStorage(sortedType dbname) (map[string]interface{}, error) {
 	return b.sortedStorageAt(sortedType, "")
+}
+
+// sortedDBMS returns the configuration for a name database on one of the
+// DBMS, if any was found in the configuration. It returns nil otherwise.
+func (b *lowBuilder) sortedDBMS(named dbname) (map[string]interface{}, error) {
+	if b.high.MySQL != "" {
+		return b.dbIndexStorage("mysql", b.high.MySQL, named)
+	}
+	if b.high.PostgreSQL != "" {
+		return b.dbIndexStorage("postgres", b.high.PostgreSQL, named)
+	}
+	if b.high.Mongo != "" {
+		return b.mongoIndexStorage(b.high.Mongo, named)
+	}
+	return nil, nil
 }
 
 // filePrefix gives a file path of where to put the database. It can be omitted by
 // some sorted implementations, but is required by others.
 // The filePrefix should be to a file, not a directory, and should not end in a ".ext" extension.
 // An extension like ".kv" or ".sqlite" will be added.
-func (b *lowBuilder) sortedStorageAt(sortedType, filePrefix string) (map[string]interface{}, error) {
-	if b.high.MySQL != "" {
-		return b.dbIndexStorage("mysql", b.high.MySQL, sortedType)
+func (b *lowBuilder) sortedStorageAt(sortedType dbname, filePrefix string) (map[string]interface{}, error) {
+	dbms, err := b.sortedDBMS(sortedType)
+	if err != nil {
+		return nil, err
 	}
-	if b.high.PostgreSQL != "" {
-		return b.dbIndexStorage("postgres", b.high.PostgreSQL, sortedType)
-	}
-	if b.high.Mongo != "" {
-		return b.mongoIndexStorage(b.high.Mongo, sortedType)
+	if dbms != nil {
+		return dbms, nil
 	}
 	if b.high.MemoryIndex {
 		return map[string]interface{}{
@@ -429,6 +478,7 @@ func (b *lowBuilder) sortedStorageAt(sortedType, filePrefix string) (map[string]
 }
 
 func (b *lowBuilder) thatQueueUnlessMemory(thatQueue map[string]interface{}) (queue map[string]interface{}) {
+	// TODO(mpl): what about if b.high.MemoryIndex ?
 	if b.high.MemoryStorage {
 		return map[string]interface{}{
 			"type": "memory",
@@ -501,12 +551,10 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 	b.addPrefix("/bs-loose/", "storage-s3", packedS3Args(path.Join(bucket, "loose")))
 	b.addPrefix("/bs-packed/", "storage-s3", packedS3Args(path.Join(bucket, "packed")))
 
-	// If index is DBMS, then blobPackedIndex is in DBMS too, with
-	// whatever dbname is defined for "blobpacked_index", or defaulting
-	// to "blobpacked_index". Otherwise blobPackedIndex is same
-	// file-based DB as the index, in same dir, but named
-	// packindex.dbtype.
-	blobPackedIndex, err := b.sortedStorageAt("blobpacked_index", filepath.Join(b.indexFileDir(), "packindex"))
+	// If index is DBMS, then blobPackedIndex is in DBMS too.
+	// Otherwise blobPackedIndex is same file-based DB as the index,
+	// in same dir, but named packindex.dbtype.
+	blobPackedIndex, err := b.sortedStorageAt(dbBlobpackedIndex, filepath.Join(b.indexFileDir(), "packindex"))
 	if err != nil {
 		return err
 	}
@@ -576,12 +624,10 @@ func (b *lowBuilder) addB2Config(b2 string) error {
 	b.addPrefix("/bs-loose/", "storage-b2", packedB2Args(path.Join(bucket, "loose")))
 	b.addPrefix("/bs-packed/", "storage-b2", packedB2Args(path.Join(bucket, "packed")))
 
-	// If index is DBMS, then blobPackedIndex is in DBMS too, with
-	// whatever dbname is defined for "blobpacked_index", or defaulting
-	// to "blobpacked_index". Otherwise blobPackedIndex is same
-	// file-based DB as the index, in same dir, but named
-	// packindex.dbtype.
-	blobPackedIndex, err := b.sortedStorageAt("blobpacked_index", filepath.Join(b.indexFileDir(), "packindex"))
+	// If index is DBMS, then blobPackedIndex is in DBMS too.
+	// Otherwise blobPackedIndex is same file-based DB as the index,
+	// in same dir, but named packindex.dbtype.
+	blobPackedIndex, err := b.sortedStorageAt(dbBlobpackedIndex, filepath.Join(b.indexFileDir(), "packindex"))
 	if err != nil {
 		return err
 	}
@@ -702,12 +748,10 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 				"refresh_token": refreshToken,
 			},
 		})
-		// If index is DBMS, then blobPackedIndex is in DBMS too, with
-		// whatever dbname is defined for "blobpacked_index", or defaulting
-		// to "blobpacked_index". Otherwise blobPackedIndex is same
-		// file-based DB as the index, in same dir, but named
-		// packindex.dbtype.
-		blobPackedIndex, err := b.sortedStorageAt("blobpacked_index", filepath.Join(b.indexFileDir(), "packindex"))
+		// If index is DBMS, then blobPackedIndex is in DBMS too.
+		// Otherwise blobPackedIndex is same file-based DB as the index,
+		// in same dir, but named packindex.dbtype.
+		blobPackedIndex, err := b.sortedStorageAt(dbBlobpackedIndex, filepath.Join(b.indexFileDir(), "packindex"))
 		if err != nil {
 			return err
 		}
@@ -750,14 +794,23 @@ func (b *lowBuilder) syncToIndexArgs() (map[string]interface{}, error) {
 		"to":   "/index/",
 	}
 
+	// TODO(mpl): see if we want to have the same logic with all the other queues. probably.
 	const sortedType = "queue-sync-to-index"
 	if dbName := b.dbName(sortedType); dbName != "" {
-		qj, err := b.sortedStorage(sortedType)
+		qj, err := b.sortedDBMS(sortedType)
 		if err != nil {
 			return nil, err
 		}
-		a["queue"] = qj
-		return a, nil
+		if qj == nil && b.high.MemoryIndex {
+			qj = map[string]interface{}{
+				"type": "memory",
+			}
+		}
+		if qj != nil {
+			// i.e. the index is configured on a DBMS, so we put the queue there too
+			a["queue"] = qj
+			return a, nil
+		}
 	}
 
 	// TODO: currently when using s3, the index must be
@@ -850,7 +903,7 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 			b.addPrefix("/bs-packed/", "storage-filesystem", args{
 				"path": filepath.Join(b.high.BlobPath, "packed"),
 			})
-			blobPackedIndex, err := b.sortedStorageAt("blobpacked_index", filepath.Join(b.high.BlobPath, "packed", "packindex"))
+			blobPackedIndex, err := b.sortedStorageAt(dbBlobpackedIndex, filepath.Join(b.high.BlobPath, "packed", "packindex"))
 			if err != nil {
 				return err
 			}
@@ -860,7 +913,7 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 				"metaIndex":  blobPackedIndex,
 			})
 		} else if b.high.PackBlobs {
-			diskpackedIndex, err := b.sortedStorageAt("diskpacked_index", filepath.Join(b.high.BlobPath, "diskpacked-index"))
+			diskpackedIndex, err := b.sortedStorageAt(dbDiskpackedIndex, filepath.Join(b.high.BlobPath, "diskpacked-index"))
 			if err != nil {
 				return err
 			}

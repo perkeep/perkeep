@@ -98,8 +98,7 @@
 			"handlerArgs": {
 				"from": "/bs/",
 				"queue": {
-					"file": "/tmp/blobs/sync-to-index-queue.leveldb",
-					"type": "leveldb"
+					"type": "memory"
 				},
 				"to": "/index/"
 			}

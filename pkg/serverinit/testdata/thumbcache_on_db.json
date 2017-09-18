@@ -7,9 +7,5 @@
 	"mysql": "root@camlistore.cloudsql.google.internal:root",
 	"googlecloudstorage": ":bucketName",
 	"shareHandler": true,
-	"dbNames": {
-		"index": "camindex",
-		"ui_thumbcache": "thumbcache_db",
-		"queue-sync-to-index": "camindex_syncindex_q"
-	}
+	"dbname": "camindex"
 }
