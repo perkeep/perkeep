@@ -1015,8 +1015,8 @@ func verifyCamlistoreRoot(dir string) {
 }
 
 const (
-	goVersionMinor  = '8'
-	gopherJSGoMinor = '8'
+	goVersionMinor  = '9'
+	gopherJSGoMinor = '9'
 )
 
 func verifyGoVersion() {
