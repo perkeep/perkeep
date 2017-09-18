@@ -470,7 +470,6 @@ func (x *Index) Reindex() error {
 		return fmt.Errorf("%d blobs are still needed as dependencies", needed)
 	}
 
-	log.Printf("Index rebuild complete.")
 	nerrmu.Lock() // no need to unlock
 	if nerr != 0 {
 		return fmt.Errorf("%d blobs failed to re-index", nerr)
@@ -478,6 +477,7 @@ func (x *Index) Reindex() error {
 	if err := x.initDeletesCache(); err != nil {
 		return err
 	}
+	log.Printf("Index rebuild complete.")
 	return nil
 }
 
