@@ -269,7 +269,7 @@ type run struct {
 	incremental  bool // whether we've completed a run in the past
 	photoGate    *syncutil.Gate
 	setNextToken func(string) error
-	*downloader
+	dl           *downloader
 }
 
 var forceFullImport, _ = strconv.ParseBool(os.Getenv("CAMLI_GPHOTOS_FULL_IMPORT"))
@@ -312,7 +312,7 @@ func (imp) Run(rctx *importer.RunContext) error {
 		incremental:  !forceFullImport && acctNode.Attr(importer.AcctAttrCompletedVersion) == runCompleteVersion,
 		photoGate:    syncutil.NewGate(3),
 		setNextToken: func(nextToken string) error { return acctNode.SetAttr(acctSinceToken, nextToken) },
-		downloader:   dl,
+		dl:           dl,
 	}
 	if err := r.importPhotos(ctx, sinceToken); err != nil {
 		return err
@@ -326,12 +326,7 @@ func (imp) Run(rctx *importer.RunContext) error {
 }
 
 func (r *run) importPhotos(ctx context.Context, sinceToken string) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-	}
-	photosCh, nextToken, err := r.downloader.photos(ctx, sinceToken)
+	photosCh, nextToken, err := r.dl.photos(ctx, sinceToken)
 	if err != nil {
 		return fmt.Errorf("gphotos importer: %v", err)
 	}
@@ -440,7 +435,7 @@ func (r *run) updatePhoto(ctx context.Context, parent *importer.Object, ph photo
 
 	photoNode, err := parent.ChildPathObjectOrFunc(ph.ID, func() (*importer.Object, error) {
 		h := blob.NewHash()
-		rc, err := r.downloader.openPhoto(ctx, ph)
+		rc, err := r.dl.openPhoto(ctx, ph)
 		if err != nil {
 			return nil, err
 		}
@@ -476,7 +471,7 @@ func (r *run) updatePhoto(ctx context.Context, parent *importer.Object, ph photo
 		// been interrupted. So we check for an existing camliContent.
 		if camliContent := photoNode.Attr(nodeattr.CamliContent); camliContent == "" {
 			// looks like an incomplete node, so we need to re-download.
-			rc, err := r.downloader.openPhoto(ctx, ph)
+			rc, err := r.dl.openPhoto(ctx, ph)
 			if err != nil {
 				return err
 			}
