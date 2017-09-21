@@ -32,73 +32,83 @@ escaping.  For example:
 
 ## Usable operators
 
-**after**
+**<a name="after"></a>after**
 : date format is RFC3339, but can be shortened as required.
 
-**before**
-: i.e. 2011-01-01 is Jan 1 of year 2011 and "2011" means the same.
+**<a name="before"></a>before**
+: i.e. `2011-01-01` is Jan 1 of year 2011, and `2011` means the same.
 
-**attr**
+**<a name="attr"></a>attr**
 : match on attribute. Use attr:foo:bar to match nodes having their foo attribute
   set to bar, or attr:foo:~bar to match nodes whose foo attribute contains bar
   (case insensitive substring match).
 
-**format**
+**<a name="format"></a>format**
 : file's format (or MIME-type) such as jpg, pdf, tiff.
 
-**has:location**
+**<a name="location"></a>has:location**
 : image has a location (GPSLatitude and GPSLongitude can be retrieved from the
   image's EXIF tags).
 
-**loc**
+**<a name="loc"></a>loc**
 : uses the available metadata, such as EXIF GPS fields, or check-in locations,
   to match nodes having a location near the specified location.  Locations are
-  resolved using maps.googleapis.com. For example: loc:"new york, new york"
+  resolved using maps.googleapis.com. For example: `loc:"new york, new york"`
 
-**locrect**
+**<a name="locrect"></a>locrect**
 : uses the various location metadata fields (such as EXIF GPS) to match nodes
   having a location within the specified location area. The area is defined by
   its North-West corner, followed and comma-separated by its South-East corner.
   Each corner is defined by its latitude, followed and comma-separated by its
-  longitude. For example: locrect:48.63,-123.37,46.59,-121.28
+  longitude. For example: `locrect:48.63,-123.37,46.59,-121.28`
 
-**map**
-: is defined like locrect, and it has a similar meaning. However, it is not defined server-side, and it is specifically meant to represent the area of the world that is visible in the screen when using the map aspect, and in particular when zooming or panning. As such, it follows stricter rules than the other predicates, which are:
+**<a name="map"></a>map**
+: is defined like locrect, and it has a similar meaning. However, it is not
+  defined server-side, and it is specifically meant to represent the area of the
+  world that is visible in the screen when using the map aspect, and in particular
+  when zooming or panning. As such, it follows stricter rules than the other
+  predicates, which are:
   1. only one map predicate is allowed in the whole expression.
-  2. since the map predicate is interpreted as if it were a logical 'and' with the rest of whole expression (regardless of its position within the expression), logical 'or's around it are forbidden.
+  2. since the map predicate is interpreted as if it were a logical 'and' with the
+     rest of whole expression (regardless of its position within the expression),
+     logical 'or's around it are forbidden.
 
-**is:image**
+**<a name="image"></a>is:image**
 : object is an image
 
-**is:landscape**
+**<a name="lanscape"></a>is:landscape**
 : the image has a landscape aspect
 
-**is:pano**
-: the image's aspect ratio is over 2 - panorama picture.
+**<a name="pano"></a>is:pano**
+: the image is panoramic: its width to height ratio is greater than or equal to 2.0.
 
-**is:portrait**
+**<a name="portrait"></a>is:portrait**
 : the image has a portrait aspect.
 
-**height**
-: use height:min-max to match images having a height of at least min and at most
-  max. Use height:min- to specify only an underbound and height:-max to specify
-  only an upperbound.  Exact matches should use height:480
+**<a name="height"></a>height**
+: use `height:min-max` to match images having a height of at least min and at most
+  max. Use `height:min-` to specify only an underbound and `height:-max` to specify
+  only an upperbound.  Exact matches should use `height:480`
 
-**tag**
+**<a name="tag"></a>tag**
 : match on a tag
 
-**width**
+**<a name="width"></a>width**
 : use width:min-max to match images having a width of at least min and at most
   max. Use width:min- to specify only an underbound and width:-max to specify
-  only an upperbound.  Exact matches should use width:640
+  only an upperbound.  Exact matches should use `width:640`
 
-**filename**
+**<a name="filename"></a>filename**
 : search for permanodes of files with this filename (case sensitive)
 
-**childrenof**
+**<a name="childrenof"></a>childrenof**
 : Find child permanodes of a parent permanode (or prefix of a parent permanode):
-  childrenof:sha1-527cf12
+  `childrenof:sha1-527cf12`
 
-**parentof**
+**<a name="parentof"></a>parentof**
 : Find parent permanodes of a child permanode (or prefix of a child permanode):
-  parentof:sha1-527cf12
+  `parentof:sha1-527cf12`
+
+**<a name="ref"></a>ref**
+: matches nodes whose blobRef starts with the given substring:
+  `ref:sha1-527cf12`
