@@ -100,7 +100,11 @@ limitations under the License.
 					scrolling: {
 						target: window,
 						// Note that calling get() can cause layout, so should be used only once per scroll event.
-						get: function() { return goog.dom.getDocumentScrollElement().scrollTop; },
+						get: function() {
+							// TODO(mpl): see if a recent version of getDocumentScrollElement does things
+							// correctly, and if yes, restore the getDocumentScrollElement().scrollTop call.
+							return Math.max(document.body.scrollTop,document.documentElement.scrollTop);
+						},
 						set: function(val) { goog.dom.getDocumentScrollElement().scrollTop = val; },
 					},
 					serverConnection: new cam.ServerConnection(CAMLISTORE_CONFIG),
