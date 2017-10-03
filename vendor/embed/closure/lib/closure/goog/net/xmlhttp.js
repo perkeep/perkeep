@@ -22,6 +22,7 @@ goog.provide('goog.net.DefaultXmlHttpFactory');
 goog.provide('goog.net.XmlHttp');
 goog.provide('goog.net.XmlHttp.OptionType');
 goog.provide('goog.net.XmlHttp.ReadyState');
+goog.provide('goog.net.XmlHttpDefines');
 
 goog.require('goog.asserts');
 goog.require('goog.net.WrapperXmlHttpFactory');
@@ -39,9 +40,24 @@ goog.net.XmlHttp = function() {
 
 /**
  * @define {boolean} Whether to assume XMLHttpRequest exists. Setting this to
- *     true strips the ActiveX probing code.
+ *     true bypasses the ActiveX probing code.
+ * NOTE(ruilopes): Due to the way JSCompiler works, this define *will not* strip
+ * out the ActiveX probing code from binaries.  To achieve this, use
+ * {@code goog.net.XmlHttpDefines.ASSUME_NATIVE_XHR} instead.
+ * TODO(ruilopes): Collapse both defines.
  */
 goog.define('goog.net.XmlHttp.ASSUME_NATIVE_XHR', false);
+
+
+/** @const */
+goog.net.XmlHttpDefines = {};
+
+
+/**
+ * @define {boolean} Whether to assume XMLHttpRequest exists. Setting this to
+ *     true eliminates the ActiveX probing code.
+ */
+goog.define('goog.net.XmlHttpDefines.ASSUME_NATIVE_XHR', false);
 
 
 /**
@@ -76,8 +92,7 @@ goog.net.XmlHttp.OptionType = {
 
 /**
  * Status constants for XMLHTTP, matches:
- * http://msdn.microsoft.com/library/default.asp?url=/library/
- *   en-us/xmlsdk/html/0e6a34e4-f90c-489d-acff-cb44242fafc6.asp
+ * https://msdn.microsoft.com/en-us/library/ms534361(v=vs.85).aspx
  * @enum {number}
  */
 goog.net.XmlHttp.ReadyState = {
@@ -123,9 +138,9 @@ goog.net.XmlHttp.factory_;
  * @deprecated Use setGlobalFactory instead.
  */
 goog.net.XmlHttp.setFactory = function(factory, optionsFactory) {
-  goog.net.XmlHttp.setGlobalFactory(new goog.net.WrapperXmlHttpFactory(
-      goog.asserts.assert(factory),
-      goog.asserts.assert(optionsFactory)));
+  goog.net.XmlHttp.setGlobalFactory(
+      new goog.net.WrapperXmlHttpFactory(
+          goog.asserts.assert(factory), goog.asserts.assert(optionsFactory)));
 };
 
 
@@ -188,7 +203,8 @@ goog.net.DefaultXmlHttpFactory.prototype.ieProgId_;
  * @private
  */
 goog.net.DefaultXmlHttpFactory.prototype.getProgId_ = function() {
-  if (goog.net.XmlHttp.ASSUME_NATIVE_XHR) {
+  if (goog.net.XmlHttp.ASSUME_NATIVE_XHR ||
+      goog.net.XmlHttpDefines.ASSUME_NATIVE_XHR) {
     return '';
   }
 
@@ -200,11 +216,13 @@ goog.net.DefaultXmlHttpFactory.prototype.getProgId_ = function() {
   if (!this.ieProgId_ && typeof XMLHttpRequest == 'undefined' &&
       typeof ActiveXObject != 'undefined') {
     // Candidate Active X types.
-    var ACTIVE_X_IDENTS = ['MSXML2.XMLHTTP.6.0', 'MSXML2.XMLHTTP.3.0',
-                           'MSXML2.XMLHTTP', 'Microsoft.XMLHTTP'];
+    var ACTIVE_X_IDENTS = [
+      'MSXML2.XMLHTTP.6.0', 'MSXML2.XMLHTTP.3.0', 'MSXML2.XMLHTTP',
+      'Microsoft.XMLHTTP'
+    ];
     for (var i = 0; i < ACTIVE_X_IDENTS.length; i++) {
       var candidate = ACTIVE_X_IDENTS[i];
-      /** @preserveTry */
+
       try {
         new ActiveXObject(candidate);
         // NOTE(user): cannot assign progid and return candidate in one line
@@ -217,13 +235,14 @@ goog.net.DefaultXmlHttpFactory.prototype.getProgId_ = function() {
     }
 
     // couldn't find any matches
-    throw Error('Could not create ActiveXObject. ActiveX might be disabled,' +
-                ' or MSXML might not be installed');
+    throw new Error(
+        'Could not create ActiveXObject. ActiveX might be disabled,' +
+        ' or MSXML might not be installed');
   }
 
   return /** @type {string} */ (this.ieProgId_);
 };
 
 
-//Set the global factory to an instance of the default factory.
+// Set the global factory to an instance of the default factory.
 goog.net.XmlHttp.setGlobalFactory(new goog.net.DefaultXmlHttpFactory());

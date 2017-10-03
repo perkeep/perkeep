@@ -75,7 +75,7 @@ goog.structs.SimplePool = function(initialCount, maxCount) {
   /**
    * Queue used to store objects that are currently in the pool and available
    * to be used.
-   * @private {Array.<T>}
+   * @private {Array<T>}
    */
   this.freeQueue_ = [];
 
@@ -141,7 +141,8 @@ goog.structs.SimplePool.prototype.releaseObject = function(obj) {
  */
 goog.structs.SimplePool.prototype.createInitial_ = function(initialCount) {
   if (initialCount > this.maxCount_) {
-    throw Error('[goog.structs.SimplePool] Initial cannot be greater than max');
+    throw new Error(
+        '[goog.structs.SimplePool] Initial cannot be greater than max');
   }
   for (var i = 0; i < initialCount; i++) {
     this.freeQueue_.push(this.createObject());

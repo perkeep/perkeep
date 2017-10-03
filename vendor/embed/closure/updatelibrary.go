@@ -37,8 +37,8 @@ import (
 )
 
 const (
-	gitRepo = "https://code.google.com/p/closure-library/"
-	gitHash = "ab89cf45c216"
+	gitRepo = "https://github.com/google/closure-library"
+	gitHash = "37a4c36ce6286bb78bceb20579fecdfe7a759e02"
 )
 
 var (
@@ -109,7 +109,7 @@ func fileList() ([]string, error) {
 	jsfiles := []string{
 		"AUTHORS",
 		"LICENSE",
-		"README",
+		"README.md",
 		filepath.Join("closure", "goog", "base.js"),
 		filepath.Join("closure", "goog", "bootstrap", "nodejs.js"),
 		filepath.Join("closure", "goog", "bootstrap", "webworkers.js"),
@@ -142,11 +142,15 @@ func (c *command) String() string {
 // On error, the process dies.
 func (c *command) run() []byte {
 	cmd := exec.Command(c.program, c.args...)
-	b, err := cmd.Output()
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	out := stdout.Bytes()
 	if err != nil {
-		log.Fatalf("Could not run %v: %v", c, err)
+		log.Fatalf("Could not run %v: %v: %v: %v", c, err, string(out), stderr.String())
 	}
-	return b
+	return out
 }
 
 func resetAndCheckout() {

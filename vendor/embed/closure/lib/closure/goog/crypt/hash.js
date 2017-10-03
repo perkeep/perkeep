@@ -27,8 +27,15 @@ goog.provide('goog.crypt.Hash');
  * Create a cryptographic hash instance.
  *
  * @constructor
+ * @struct
  */
-goog.crypt.Hash = function() {};
+goog.crypt.Hash = function() {
+  /**
+   * The block size for the hasher.
+   * @type {number}
+   */
+  this.blockSize = -1;
+};
 
 
 /**
@@ -38,7 +45,7 @@ goog.crypt.Hash.prototype.reset = goog.abstractMethod;
 
 
 /**
- * Adds a byte array (array with values in [0-255] range) or a string (might
+ * Adds a byte array (array with values in [0-255] range) or a string (must
  * only contain 8-bit, i.e., Latin1 characters) to the internal accumulator.
  *
  * Many hash functions operate on blocks of data and implement optimizations
@@ -49,14 +56,14 @@ goog.crypt.Hash.prototype.reset = goog.abstractMethod;
  * size (often 64 bytes). Please see the implementation and performance tests
  * of your favourite hash.
  *
- * @param {Array.<number>|Uint8Array|string} bytes Data used for the update.
+ * @param {Array<number>|Uint8Array|string} bytes Data used for the update.
  * @param {number=} opt_length Number of bytes to use.
  */
 goog.crypt.Hash.prototype.update = goog.abstractMethod;
 
 
 /**
- * @return {!Array.<number>} The finalized hash computed
+ * @return {!Array<number>} The finalized hash computed
  *     from the internal accumulator.
  */
 goog.crypt.Hash.prototype.digest = goog.abstractMethod;

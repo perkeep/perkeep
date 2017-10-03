@@ -17,7 +17,7 @@ limitations under the License.
 goog.provide('cam.PermanodeDetail');
 
 goog.require('goog.array');
-goog.require('goog.labs.Promise');
+goog.require('goog.Promise');
 goog.require('goog.object');
 
 goog.require('cam.ServerConnection');
@@ -231,11 +231,11 @@ cam.PermanodeDetail = React.createClass({
 			status: 'Saving...',
 		});
 		var promises = changes.adds.map(function(add) {
-			return new goog.labs.Promise(this.props.serverConnection.newAddAttributeClaim.bind(this.props.serverConnection, this.props.meta.blobRef, add.name, add.value));
+			return new goog.Promise(this.props.serverConnection.newAddAttributeClaim.bind(this.props.serverConnection, this.props.meta.blobRef, add.name, add.value));
 		}, this).concat(changes.deletes.map(function(del) {
-			return new goog.labs.Promise(this.props.serverConnection.newDelAttributeClaim.bind(this.props.serverConnection, this.props.meta.blobRef, del.name, del.value));
+			return new goog.Promise(this.props.serverConnection.newDelAttributeClaim.bind(this.props.serverConnection, this.props.meta.blobRef, del.name, del.value));
 		}, this));
-		goog.labs.Promise.all(promises).then(function() {
+		goog.Promise.all(promises).then(function() {
 			this.props.timer.setTimeout(function() {
 				this.setState({
 					status: '',

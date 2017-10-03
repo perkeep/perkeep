@@ -18,7 +18,7 @@ limitations under the License.
 // closure library.
 //
 // See https://code.google.com/p/closure-library/
-package closure // import "camlistore.org/pkg/misc/closure"
+package closure
 
 import (
 	"bufio"
@@ -70,9 +70,8 @@ func GenDepsWithPath(pathPrefix string, root http.FileSystem) ([]byte, error) {
 			// Emacs noise.
 			continue
 		}
-		// TODO(mpl): hack to skip minified gopher.js because Scanner will choke on it while parsing.
-		// Do better before submitting.
-		if strings.HasSuffix(name, "gopherjs.js") || strings.HasSuffix(name, "goui.js") {
+		if strings.HasPrefix(name, "goui.js") {
+			// because it is too large for bufio.Scanner
 			continue
 		}
 		f, err := root.Open(name)
@@ -155,7 +154,7 @@ func (s jsList) String() string {
 // the provider: m[1] == "asserts/asserts.js"
 // the provided namespaces: m[2] == "'goog.asserts', 'goog.asserts.AssertionError'"
 // the required namespaces: m[5] == "'goog.debug.Error', 'goog.string'"
-var depsRx = regexp.MustCompile(`^goog.addDependency\(['"]([^/]+[a-zA-Z0-9\-\_/\.]*\.js)['"], \[((['"][\w\.]+['"])+(, ['"][\w\.]+['"])*)\], \[((['"][\w\.]+['"])+(, ['"][\w\.]+['"])*)?\]\);`)
+var depsRx = regexp.MustCompile(`^goog.addDependency\(['"]([^/]+[a-zA-Z0-9\-\_/\.]*\.js)['"], \[((['"][\w\.]+['"])+(, ['"][\w\.]+['"])*)\], \[((['"][\w\.]+['"])+(, ['"][\w\.]+['"])*)?\](, {((['"][\w]+['"]: ['"][\w]+['"])+(, ['"][\w]+['"]: ['"][\w]+['"])*)?})?\);`)
 
 // ParseDeps reads closure namespace dependency lines and
 // returns a map giving the js file provider for each namespace,

@@ -18,7 +18,7 @@ goog.provide('cam.DirectoryDetail');
 
 goog.require('cam.ServerConnection');
 
-goog.require('goog.labs.Promise');
+goog.require('goog.Promise');
 
 
 cam.DirectoryDetail = React.createClass({
@@ -176,10 +176,10 @@ cam.DirectoryDetail = React.createClass({
 		var sc = this.props.serverConnection;
 		var setContent = function(results) {
 			var permanodeRef = results[0];
-			return goog.labs.Promise.all([new goog.labs.Promise(sc.newAddAttributeClaim.bind(sc, permanodeRef, 'camliContent', contentRef))])
+			return goog.Promise.all([new goog.Promise(sc.newAddAttributeClaim.bind(sc, permanodeRef, 'camliContent', contentRef))])
 		};
-		goog.labs.Promise.all([
-			new goog.labs.Promise(sc.createPermanode.bind(sc))
+		goog.Promise.all([
+			new goog.Promise(sc.createPermanode.bind(sc))
 		])
 		.then(setContent)
 		.thenCatch(function(err) {

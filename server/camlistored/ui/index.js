@@ -27,7 +27,7 @@ goog.require('goog.dom.classlist');
 goog.require('goog.events.EventHandler');
 goog.require('goog.format');
 goog.require('goog.functions');
-goog.require('goog.labs.Promise');
+goog.require('goog.Promise');
 goog.require('goog.object');
 goog.require('goog.string');
 goog.require('goog.Uri');
@@ -385,7 +385,7 @@ cam.IndexPage = React.createClass({
 
 		this.onUploadStart_(files);
 
-		goog.labs.Promise.all(
+		goog.Promise.all(
 			Array.prototype.map.call(files, function(file) {
 				return uploadFile(file)
 					.then(fetchPermanodeIfExists)
@@ -413,18 +413,18 @@ cam.IndexPage = React.createClass({
 				permanodeCreated: false
 			};
 
-			var uploadFile = new goog.labs.Promise(sc.uploadFile.bind(sc, file));
+			var uploadFile = new goog.Promise(sc.uploadFile.bind(sc, file));
 
-			return goog.labs.Promise.all([new goog.labs.Promise.resolve(status), uploadFile]);
+			return goog.Promise.all([new goog.Promise.resolve(status), uploadFile]);
 		}
 
 		function fetchPermanodeIfExists(results) {
 			var status = results[0];
 			status.fileRef = results[1];
 
-			var getPermanode = new goog.labs.Promise(sc.getPermanodeWithContent.bind(sc, status.fileRef));
+			var getPermanode = new goog.Promise(sc.getPermanodeWithContent.bind(sc, status.fileRef));
 
-			return goog.labs.Promise.all([new goog.labs.Promise.resolve(status), getPermanode]);
+			return goog.Promise.all([new goog.Promise.resolve(status), getPermanode]);
 		}
 
 		function createPermanodeIfNotExists(results) {
@@ -434,18 +434,18 @@ cam.IndexPage = React.createClass({
 			if (!permanodeRef) {
 				status.permanodeCreated = true;
 
-				var createPermanode = new goog.labs.Promise(sc.createPermanode.bind(sc));
-				return goog.labs.Promise.all([new goog.labs.Promise.resolve(status), createPermanode]);
+				var createPermanode = new goog.Promise(sc.createPermanode.bind(sc));
+				return goog.Promise.all([new goog.Promise.resolve(status), createPermanode]);
 			}
 
-			return goog.labs.Promise.all([new goog.labs.Promise.resolve(status), new goog.labs.Promise.resolve(permanodeRef)]);
+			return goog.Promise.all([new goog.Promise.resolve(status), new goog.Promise.resolve(permanodeRef)]);
 		}
 
 		function updatePermanodeRef(results) {
 			var status = results[0];
 			status.permanodeRef = results[1];
 
-			return goog.labs.Promise.all([new goog.labs.Promise.resolve(status)]);
+			return goog.Promise.all([new goog.Promise.resolve(status)]);
 		}
 
 		// TODO(mpl): this implementation means that when we're dropping on a set, we send
@@ -465,12 +465,12 @@ cam.IndexPage = React.createClass({
 
 			// Permanode did not exist before, so it couldn't be a member of any set.
 			if (!status.parentRef || status.permanodeCreated) {
-				return goog.labs.Promise.all([new goog.labs.Promise.resolve(status), new goog.labs.Promise.resolve(false)]);
+				return goog.Promise.all([new goog.Promise.resolve(status), new goog.Promise.resolve(false)]);
 			}
 
 			console.log('checking membership');
-			var hasMembership = new goog.labs.Promise(sc.isCamliMember.bind(sc, status.permanodeRef, status.parentRef));
-			return goog.labs.Promise.all([new goog.labs.Promise.resolve(status), hasMembership]);
+			var hasMembership = new goog.Promise(sc.isCamliMember.bind(sc, status.permanodeRef, status.parentRef));
+			return goog.Promise.all([new goog.Promise.resolve(status), hasMembership]);
 		}
 
 		function createPermanodeAssociations(results) {
@@ -481,17 +481,17 @@ cam.IndexPage = React.createClass({
 
 			// associate uploaded file to new permanode
 			if (status.permanodeCreated) {
-				var setCamliContent = new goog.labs.Promise(sc.newSetAttributeClaim.bind(sc, status.permanodeRef, 'camliContent', status.fileRef));
+				var setCamliContent = new goog.Promise(sc.newSetAttributeClaim.bind(sc, status.permanodeRef, 'camliContent', status.fileRef));
 				promises.push(setCamliContent);
 			}
 
 			// add CamliMember relationship if viewing a set
 			if (status.parentRef && !status.isCamliMemberOfParent) {
-				var setCamliMember = new goog.labs.Promise(sc.newAddAttributeClaim.bind(sc, status.parentRef, 'camliMember', status.permanodeRef));
+				var setCamliMember = new goog.Promise(sc.newAddAttributeClaim.bind(sc, status.parentRef, 'camliMember', status.permanodeRef));
 				promises.push(setCamliMember);
 			}
 
-			return goog.labs.Promise.all(promises);
+			return goog.Promise.all(promises);
 		}
 	},
 
@@ -809,7 +809,7 @@ cam.IndexPage = React.createClass({
 			for (var i = 0; i < values.length; i++) {
 				if (this.state.selection[values[i]]) {
 					if (k == 'camliMember' || goog.string.startsWith(k, 'camliPath:')) {
-						changes.push(new goog.labs.Promise(sc.newDelAttributeClaim.bind(sc, target, k, values[i])));
+						changes.push(new goog.Promise(sc.newDelAttributeClaim.bind(sc, target, k, values[i])));
 					} else {
 						console.error('Unexpected attribute: ', k);
 					}
@@ -817,7 +817,7 @@ cam.IndexPage = React.createClass({
 			}
 		}
 
-		goog.labs.Promise.all(changes).then(this.refreshIfNecessary_);
+		goog.Promise.all(changes).then(this.refreshIfNecessary_);
 	},
 
 	handleOpenWindow_: function(url) {
