@@ -114,8 +114,8 @@ var (
 
 // For getting a name in camlistore.net
 const (
-	camliNetDNS    = "camnetdns.camlistore.org"
-	camliNetDomain = "camlistore.net"
+	camliNetDNS    = serverinit.CamliNetDNS
+	camliNetDomain = serverinit.CamliNetDomain
 )
 
 var camliNetHostName string // <keyId>.camlistore.net
@@ -458,7 +458,8 @@ func setInstanceHostname() error {
 		}
 	}
 	if err == nil && hostname != "" {
-		// we do not overwrite the existing value
+		// we do not overwrite an existing value. it's not possible anyway, as the
+		// SetMetadata call won't allow it.
 		return nil
 	}
 

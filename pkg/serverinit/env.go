@@ -28,6 +28,16 @@ import (
 	"cloud.google.com/go/compute/metadata"
 )
 
+// For getting a name in camlistore.net
+const (
+	// CamliNetDNS is the hostname of the camlistore.net DNS server.
+	CamliNetDNS = "camnetdns.camlistore.org"
+	// CamliNetDomain is the camlistore.net domain name. It is relevant to
+	// Camlistore, because a deployment through the Camlistore on Google Cloud launcher
+	// automatically offers a subdomain name in this domain to any instance.
+	CamliNetDomain = "camlistore.net"
+)
+
 // DefaultEnvConfig returns the default configuration when running on a known
 // environment. Currently this just includes Google Compute Engine.
 // If the environment isn't known (nil, nil) is returned.
@@ -75,7 +85,11 @@ func DefaultEnvConfig() (*Config, error) {
 	// if it looks like an FQDN, camlistored is going to rely on Let's
 	// Encrypt, else camlistored is going to generate some self-signed for that
 	// hostname.
-	if hostName != "" {
+	// Also, if the hostname is in camlistore.net, we want Camlistore to initialize
+	// exactly as if the instance had no hostname, so that it registers its hostname/IP
+	// with the camlistore.net DNS server (possibly needlessly, if the instance IP has
+	// not changed) again.
+	if hostName != "" && !strings.HasSuffix(hostName, CamliNetDomain) {
 		highConf.BaseURL = fmt.Sprintf("https://%s", hostName)
 		highConf.Listen = "0.0.0.0:443"
 	} else {
