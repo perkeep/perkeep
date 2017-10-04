@@ -25,7 +25,7 @@
 		<script>RenderFile();</script>
 	{{else}}
 	{{if $membersData := call .Members}}
-		<div><a href='{{$membersData.SubjectPath}}/=z/{{$membersData.ZipName | urlquery}}'>{{$membersData.ZipName}}</a></div>
+		<div><a href='{{$membersData.SubjectPath}}/=z/{{$membersData.ZipName}}'>{{$membersData.ZipName}}</a></div>
 		<div id="blobitemcontainer"><ul id="members"></ul></div>
 		<script>RenderMembers();</script>
 	{{end}}
