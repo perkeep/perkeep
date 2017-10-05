@@ -20,9 +20,7 @@
 
 
 goog.provide('goog.Disposable');
-/** @suppress {extraProvide} */
 goog.provide('goog.dispose');
-/** @suppress {extraProvide} */
 goog.provide('goog.disposeAll');
 
 goog.require('goog.disposable.IDisposable');
@@ -38,12 +36,22 @@ goog.require('goog.disposable.IDisposable');
  * @implements {goog.disposable.IDisposable}
  */
 goog.Disposable = function() {
+  /**
+   * If monitoring the goog.Disposable instances is enabled, stores the creation
+   * stack trace of the Disposable instance.
+   * @type {string|undefined}
+   */
+  this.creationStack;
+
   if (goog.Disposable.MONITORING_MODE != goog.Disposable.MonitoringMode.OFF) {
     if (goog.Disposable.INCLUDE_STACK_ON_CREATION) {
       this.creationStack = new Error().stack;
     }
     goog.Disposable.instances_[goog.getUid(this)] = this;
   }
+  // Support sealing
+  this.disposed_ = this.disposed_;
+  this.onDisposeCallbacks_ = this.onDisposeCallbacks_;
 };
 
 
@@ -91,14 +99,14 @@ goog.define('goog.Disposable.INCLUDE_STACK_ON_CREATION', true);
 /**
  * Maps the unique ID of every undisposed {@code goog.Disposable} object to
  * the object itself.
- * @type {!Object.<number, !goog.Disposable>}
+ * @type {!Object<number, !goog.Disposable>}
  * @private
  */
 goog.Disposable.instances_ = {};
 
 
 /**
- * @return {!Array.<!goog.Disposable>} All {@code goog.Disposable} objects that
+ * @return {!Array<!goog.Disposable>} All {@code goog.Disposable} objects that
  *     haven't been disposed of.
  */
 goog.Disposable.getUndisposedObjects = function() {
@@ -130,18 +138,10 @@ goog.Disposable.prototype.disposed_ = false;
 
 /**
  * Callbacks to invoke when this object is disposed.
- * @type {Array.<!Function>}
+ * @type {Array<!Function>}
  * @private
  */
 goog.Disposable.prototype.onDisposeCallbacks_;
-
-
-/**
- * If monitoring the goog.Disposable instances is enabled, stores the creation
- * stack trace of the Disposable instance.
- * @type {string}
- */
-goog.Disposable.prototype.creationStack;
 
 
 /**
@@ -178,9 +178,10 @@ goog.Disposable.prototype.dispose = function() {
     if (goog.Disposable.MONITORING_MODE != goog.Disposable.MonitoringMode.OFF) {
       var uid = goog.getUid(this);
       if (goog.Disposable.MONITORING_MODE ==
-          goog.Disposable.MonitoringMode.PERMANENT &&
+              goog.Disposable.MonitoringMode.PERMANENT &&
           !goog.Disposable.instances_.hasOwnProperty(uid)) {
-        throw Error(this + ' did not call the goog.Disposable base ' +
+        throw new Error(
+            this + ' did not call the goog.Disposable base ' +
             'constructor or was disposed of after a clearUndisposedObjects ' +
             'call');
       }
@@ -203,16 +204,23 @@ goog.Disposable.prototype.registerDisposable = function(disposable) {
 
 /**
  * Invokes a callback function when this object is disposed. Callbacks are
- * invoked in the order in which they were added.
+ * invoked in the order in which they were added. If a callback is added to
+ * an already disposed Disposable, it will be called immediately.
  * @param {function(this:T):?} callback The callback function.
  * @param {T=} opt_scope An optional scope to call the callback in.
  * @template T
  */
 goog.Disposable.prototype.addOnDisposeCallback = function(callback, opt_scope) {
+  if (this.disposed_) {
+    goog.isDef(opt_scope) ? callback.call(opt_scope) : callback();
+    return;
+  }
   if (!this.onDisposeCallbacks_) {
     this.onDisposeCallbacks_ = [];
   }
-  this.onDisposeCallbacks_.push(goog.bind(callback, opt_scope));
+
+  this.onDisposeCallbacks_.push(
+      goog.isDef(opt_scope) ? goog.bind(callback, opt_scope) : callback);
 };
 
 
@@ -226,7 +234,7 @@ goog.Disposable.prototype.addOnDisposeCallback = function(callback, opt_scope) {
  * For example:
  * <pre>
  *   mypackage.MyClass = function() {
- *     goog.base(this);
+ *     mypackage.MyClass.base(this, 'constructor');
  *     // Constructor logic specific to MyClass.
  *     ...
  *   };
@@ -237,7 +245,7 @@ goog.Disposable.prototype.addOnDisposeCallback = function(callback, opt_scope) {
  *     ...
  *     // Call superclass's disposeInternal at the end of the subclass's, like
  *     // in C++, to avoid hard-to-catch issues.
- *     goog.base(this, 'disposeInternal');
+ *     mypackage.MyClass.base(this, 'disposeInternal');
  *   };
  * </pre>
  * @protected

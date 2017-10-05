@@ -41,21 +41,24 @@ goog.require('goog.crypt.Hash');
  * @constructor
  * @extends {goog.crypt.Hash}
  * @final
+ * @struct
  */
 goog.crypt.Sha1 = function() {
-  goog.base(this);
+  goog.crypt.Sha1.base(this, 'constructor');
+
+  this.blockSize = 512 / 8;
 
   /**
    * Holds the previous values of accumulated variables a-e in the compress_
    * function.
-   * @type {Array.<number>}
+   * @type {!Array<number>}
    * @private
    */
   this.chain_ = [];
 
   /**
    * A buffer holding the partially computed hash result.
-   * @type {Array.<number>}
+   * @type {!Array<number>}
    * @private
    */
   this.buf_ = [];
@@ -63,22 +66,32 @@ goog.crypt.Sha1 = function() {
   /**
    * An array of 80 bytes, each a part of the message to be hashed.  Referred to
    * as the message schedule in the docs.
-   * @type {Array.<number>}
+   * @type {!Array<number>}
    * @private
    */
   this.W_ = [];
 
   /**
    * Contains data needed to pad messages less than 64 bytes.
-   * @type {Array.<number>}
+   * @type {!Array<number>}
    * @private
    */
   this.pad_ = [];
 
   this.pad_[0] = 128;
-  for (var i = 1; i < 64; ++i) {
+  for (var i = 1; i < this.blockSize; ++i) {
     this.pad_[i] = 0;
   }
+
+  /**
+   * @private {number}
+   */
+  this.inbuf_ = 0;
+
+  /**
+   * @private {number}
+   */
+  this.total_ = 0;
 
   this.reset();
 };
@@ -100,7 +113,7 @@ goog.crypt.Sha1.prototype.reset = function() {
 
 /**
  * Internal compress helper function.
- * @param {Array.<number>|Uint8Array|string} buf Block to compress.
+ * @param {!Array<number>|!Uint8Array|string} buf Block to compress.
  * @param {number=} opt_offset Offset of the block in the buffer.
  * @private
  */
@@ -123,17 +136,15 @@ goog.crypt.Sha1.prototype.compress_ = function(buf, opt_offset) {
       // (https://bugs.webkit.org/show_bug.cgi?id=109036) has been fixed and
       // most clients have been updated.
       W[i] = (buf.charCodeAt(opt_offset) << 24) |
-             (buf.charCodeAt(opt_offset + 1) << 16) |
-             (buf.charCodeAt(opt_offset + 2) << 8) |
-             (buf.charCodeAt(opt_offset + 3));
+          (buf.charCodeAt(opt_offset + 1) << 16) |
+          (buf.charCodeAt(opt_offset + 2) << 8) |
+          (buf.charCodeAt(opt_offset + 3));
       opt_offset += 4;
     }
   } else {
     for (var i = 0; i < 16; i++) {
-      W[i] = (buf[opt_offset] << 24) |
-             (buf[opt_offset + 1] << 16) |
-             (buf[opt_offset + 2] << 8) |
-             (buf[opt_offset + 3]);
+      W[i] = (buf[opt_offset] << 24) | (buf[opt_offset + 1] << 16) |
+          (buf[opt_offset + 2] << 8) | (buf[opt_offset + 3]);
       opt_offset += 4;
     }
   }
@@ -189,11 +200,16 @@ goog.crypt.Sha1.prototype.compress_ = function(buf, opt_offset) {
 
 /** @override */
 goog.crypt.Sha1.prototype.update = function(bytes, opt_length) {
+  // TODO(johnlenz): tighten the function signature and remove this check
+  if (bytes == null) {
+    return;
+  }
+
   if (!goog.isDef(opt_length)) {
     opt_length = bytes.length;
   }
 
-  var lengthMinusBlock = opt_length - 64;
+  var lengthMinusBlock = opt_length - this.blockSize;
   var n = 0;
   // Using local instead of member variables gives ~5% speedup on Firefox 16.
   var buf = this.buf_;
@@ -208,7 +224,7 @@ goog.crypt.Sha1.prototype.update = function(bytes, opt_length) {
     if (inbuf == 0) {
       while (n <= lengthMinusBlock) {
         this.compress_(bytes, n);
-        n += 64;
+        n += this.blockSize;
       }
     }
 
@@ -217,7 +233,7 @@ goog.crypt.Sha1.prototype.update = function(bytes, opt_length) {
         buf[inbuf] = bytes.charCodeAt(n);
         ++inbuf;
         ++n;
-        if (inbuf == 64) {
+        if (inbuf == this.blockSize) {
           this.compress_(buf);
           inbuf = 0;
           // Jump to the outer loop so we use the full-block optimization.
@@ -229,7 +245,7 @@ goog.crypt.Sha1.prototype.update = function(bytes, opt_length) {
         buf[inbuf] = bytes[n];
         ++inbuf;
         ++n;
-        if (inbuf == 64) {
+        if (inbuf == this.blockSize) {
           this.compress_(buf);
           inbuf = 0;
           // Jump to the outer loop so we use the full-block optimization.
@@ -253,13 +269,13 @@ goog.crypt.Sha1.prototype.digest = function() {
   if (this.inbuf_ < 56) {
     this.update(this.pad_, 56 - this.inbuf_);
   } else {
-    this.update(this.pad_, 64 - (this.inbuf_ - 56));
+    this.update(this.pad_, this.blockSize - (this.inbuf_ - 56));
   }
 
   // Add # bits.
-  for (var i = 63; i >= 56; i--) {
+  for (var i = this.blockSize - 1; i >= 56; i--) {
     this.buf_[i] = totalBits & 255;
-    totalBits /= 256; // Don't use bit-shifting here!
+    totalBits /= 256;  // Don't use bit-shifting here!
   }
 
   this.compress_(this.buf_);

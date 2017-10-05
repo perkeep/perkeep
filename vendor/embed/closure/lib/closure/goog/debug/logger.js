@@ -65,45 +65,40 @@ goog.debug.Loggable;
 goog.debug.Logger = function(name) {
   /**
    * Name of the Logger. Generally a dot-separated namespace
-   * @type {string}
-   * @private
+   * @private {string}
    */
   this.name_ = name;
+
+  /**
+   * Parent Logger.
+   * @private {goog.debug.Logger}
+   */
+  this.parent_ = null;
+
+  /**
+   * Level that this logger only filters above. Null indicates it should
+   * inherit from the parent.
+   * @private {goog.debug.Logger.Level}
+   */
+  this.level_ = null;
+
+  /**
+   * Map of children loggers. The keys are the leaf names of the children and
+   * the values are the child loggers.
+   * @private {Object}
+   */
+  this.children_ = null;
+
+  /**
+   * Handlers that are listening to this logger.
+   * @private {Array<Function>}
+   */
+  this.handlers_ = null;
 };
 
 
-/**
- * Parent Logger.
- * @type {goog.debug.Logger}
- * @private
- */
-goog.debug.Logger.prototype.parent_ = null;
-
-
-/**
- * Level that this logger only filters above. Null indicates it should
- * inherit from the parent.
- * @type {goog.debug.Logger.Level}
- * @private
- */
-goog.debug.Logger.prototype.level_ = null;
-
-
-/**
- * Map of children loggers. The keys are the leaf names of the children and
- * the values are the child loggers.
- * @type {Object}
- * @private
- */
-goog.debug.Logger.prototype.children_ = null;
-
-
-/**
- * Handlers that are listening to this logger.
- * @type {Array.<Function>}
- * @private
- */
-goog.debug.Logger.prototype.handlers_ = null;
+/** @const */
+goog.debug.Logger.ROOT_LOGGER_NAME = '';
 
 
 /**
@@ -116,7 +111,7 @@ goog.define('goog.debug.Logger.ENABLE_HIERARCHY', true);
 
 if (!goog.debug.Logger.ENABLE_HIERARCHY) {
   /**
-   * @type {!Array.<Function>}
+   * @type {!Array<Function>}
    * @private
    */
   goog.debug.Logger.rootHandlers_ = [];
@@ -188,8 +183,7 @@ goog.debug.Logger.Level.prototype.toString = function() {
  * This level is initialized to <CODE>Infinity</CODE>.
  * @type {!goog.debug.Logger.Level}
  */
-goog.debug.Logger.Level.OFF =
-    new goog.debug.Logger.Level('OFF', Infinity);
+goog.debug.Logger.Level.OFF = new goog.debug.Logger.Level('OFF', Infinity);
 
 
 /**
@@ -266,20 +260,16 @@ goog.debug.Logger.Level.ALL = new goog.debug.Logger.Level('ALL', 0);
 
 /**
  * The predefined levels.
- * @type {!Array.<!goog.debug.Logger.Level>}
+ * @type {!Array<!goog.debug.Logger.Level>}
  * @final
  */
 goog.debug.Logger.Level.PREDEFINED_LEVELS = [
-  goog.debug.Logger.Level.OFF,
-  goog.debug.Logger.Level.SHOUT,
-  goog.debug.Logger.Level.SEVERE,
-  goog.debug.Logger.Level.WARNING,
-  goog.debug.Logger.Level.INFO,
-  goog.debug.Logger.Level.CONFIG,
-  goog.debug.Logger.Level.FINE,
-  goog.debug.Logger.Level.FINER,
-  goog.debug.Logger.Level.FINEST,
-  goog.debug.Logger.Level.ALL];
+  goog.debug.Logger.Level.OFF, goog.debug.Logger.Level.SHOUT,
+  goog.debug.Logger.Level.SEVERE, goog.debug.Logger.Level.WARNING,
+  goog.debug.Logger.Level.INFO, goog.debug.Logger.Level.CONFIG,
+  goog.debug.Logger.Level.FINE, goog.debug.Logger.Level.FINER,
+  goog.debug.Logger.Level.FINEST, goog.debug.Logger.Level.ALL
+];
 
 
 /**
@@ -329,7 +319,8 @@ goog.debug.Logger.Level.getPredefinedLevelByValue = function(value) {
     goog.debug.Logger.Level.createPredefinedLevelsCache_();
   }
 
-  if (value in goog.debug.Logger.Level.predefinedLevelsCache_) {
+  if (value in /** @type {!Object} */ (
+          goog.debug.Logger.Level.predefinedLevelsCache_)) {
     return goog.debug.Logger.Level.predefinedLevelsCache_[value];
   }
 
@@ -355,6 +346,7 @@ goog.debug.Logger.Level.getPredefinedLevelByValue = function(value) {
  * name and should normally be based on the package name or class name of the
  * subsystem, such as goog.net.BrowserChannel.
  * @return {!goog.debug.Logger} The named logger.
+ * @deprecated use {@link goog.log} instead.
  */
 goog.debug.Logger.getLogger = function(name) {
   return goog.debug.LogManager.getLogger(name);
@@ -363,26 +355,22 @@ goog.debug.Logger.getLogger = function(name) {
 
 /**
  * Logs a message to profiling tools, if available.
- * {@see http://code.google.com/webtoolkit/speedtracer/logging-api.html}
+ * {@see https://developers.google.com/web-toolkit/speedtracer/logging-api}
  * {@see http://msdn.microsoft.com/en-us/library/dd433074(VS.85).aspx}
  * @param {string} msg The message to log.
  */
 goog.debug.Logger.logToProfilers = function(msg) {
   // Using goog.global, as loggers might be used in window-less contexts.
-  if (goog.global['console']) {
-    if (goog.global['console']['timeStamp']) {
-      // Logs a message to Firebug, Web Inspector, SpeedTracer, etc.
-      goog.global['console']['timeStamp'](msg);
-    } else if (goog.global['console']['markTimeline']) {
-      // TODO(user): markTimeline is deprecated. Drop this else clause entirely
-      // after Chrome M14 hits stable.
-      goog.global['console']['markTimeline'](msg);
-    }
+  var console = goog.global['console'];
+  if (console && console['timeStamp']) {
+    // Logs a message to Firebug, Web Inspector, SpeedTracer, etc.
+    console['timeStamp'](msg);
   }
 
-  if (goog.global['msWriteProfilerMark']) {
+  var msWriteProfilerMark = goog.global['msWriteProfilerMark'];
+  if (msWriteProfilerMark) {
     // Logs a message to the Microsoft profiler
-    goog.global['msWriteProfilerMark'](msg);
+    msWriteProfilerMark(msg);
   }
 };
 
@@ -409,9 +397,9 @@ goog.debug.Logger.prototype.addHandler = function(handler) {
       }
       this.handlers_.push(handler);
     } else {
-      goog.asserts.assert(!this.name_,
-          'Cannot call addHandler on a non-root logger when ' +
-          'goog.debug.Logger.ENABLE_HIERARCHY is false.');
+      goog.asserts.assert(
+          !this.name_, 'Cannot call addHandler on a non-root logger when ' +
+              'goog.debug.Logger.ENABLE_HIERARCHY is false.');
       goog.debug.Logger.rootHandlers_.push(handler);
     }
   }
@@ -426,7 +414,8 @@ goog.debug.Logger.prototype.addHandler = function(handler) {
  */
 goog.debug.Logger.prototype.removeHandler = function(handler) {
   if (goog.debug.LOGGING_ENABLED) {
-    var handlers = goog.debug.Logger.ENABLE_HIERARCHY ? this.handlers_ :
+    var handlers = goog.debug.Logger.ENABLE_HIERARCHY ?
+        this.handlers_ :
         goog.debug.Logger.rootHandlers_;
     return !!handlers && goog.array.remove(handlers, handler);
   } else {
@@ -471,9 +460,9 @@ goog.debug.Logger.prototype.setLevel = function(level) {
     if (goog.debug.Logger.ENABLE_HIERARCHY) {
       this.level_ = level;
     } else {
-      goog.asserts.assert(!this.name_,
-          'Cannot call setLevel() on a non-root logger when ' +
-          'goog.debug.Logger.ENABLE_HIERARCHY is false.');
+      goog.asserts.assert(
+          !this.name_, 'Cannot call setLevel() on a non-root logger when ' +
+              'goog.debug.Logger.ENABLE_HIERARCHY is false.');
       goog.debug.Logger.rootLevel_ = level;
     }
   }
@@ -490,8 +479,7 @@ goog.debug.Logger.prototype.setLevel = function(level) {
  * @return {goog.debug.Logger.Level} The level.
  */
 goog.debug.Logger.prototype.getLevel = function() {
-  return goog.debug.LOGGING_ENABLED ?
-      this.level_ : goog.debug.Logger.Level.OFF;
+  return goog.debug.LOGGING_ENABLED ? this.level_ : goog.debug.Logger.Level.OFF;
 };
 
 
@@ -560,6 +548,7 @@ goog.debug.Logger.prototype.log = function(level, msg, opt_exception) {
  * @param {Error|Object=} opt_exception An exception associated with the
  *     message.
  * @return {!goog.debug.LogRecord} A log record.
+ * @suppress {es5Strict}
  */
 goog.debug.Logger.prototype.getLogRecord = function(level, msg, opt_exception) {
   if (goog.debug.LogBuffer.isBufferingEnabled()) {
@@ -570,8 +559,6 @@ goog.debug.Logger.prototype.getLogRecord = function(level, msg, opt_exception) {
   }
   if (opt_exception) {
     logRecord.setException(opt_exception);
-    logRecord.setExceptionText(
-        goog.debug.exposeException(opt_exception, arguments.callee.caller));
   }
   return logRecord;
 };
@@ -716,7 +703,7 @@ goog.debug.Logger.prototype.doLogRecord_ = function(logRecord) {
       target = target.getParent();
     }
   } else {
-    for (var i = 0, handler; handler = goog.debug.Logger.rootHandlers_[i++]; ) {
+    for (var i = 0, handler; handler = goog.debug.Logger.rootHandlers_[i++];) {
       handler(logRecord);
     }
   }
@@ -762,6 +749,7 @@ goog.debug.Logger.prototype.addChild_ = function(name, logger) {
  * There is a single global LogManager object that is used to maintain a set of
  * shared state about Loggers and log services. This is loosely based on the
  * java class java.util.logging.LogManager.
+ * @const
  */
 goog.debug.LogManager = {};
 
@@ -769,7 +757,7 @@ goog.debug.LogManager = {};
 /**
  * Map of logger names to logger objects.
  *
- * @type {!Object}
+ * @type {!Object<string, !goog.debug.Logger>}
  * @private
  */
 goog.debug.LogManager.loggers_ = {};
@@ -788,8 +776,10 @@ goog.debug.LogManager.rootLogger_ = null;
  */
 goog.debug.LogManager.initialize = function() {
   if (!goog.debug.LogManager.rootLogger_) {
-    goog.debug.LogManager.rootLogger_ = new goog.debug.Logger('');
-    goog.debug.LogManager.loggers_[''] = goog.debug.LogManager.rootLogger_;
+    goog.debug.LogManager.rootLogger_ =
+        new goog.debug.Logger(goog.debug.Logger.ROOT_LOGGER_NAME);
+    goog.debug.LogManager.loggers_[goog.debug.Logger.ROOT_LOGGER_NAME] =
+        goog.debug.LogManager.rootLogger_;
     goog.debug.LogManager.rootLogger_.setLevel(goog.debug.Logger.Level.CONFIG);
   }
 };
@@ -797,7 +787,8 @@ goog.debug.LogManager.initialize = function() {
 
 /**
  * Returns all the loggers.
- * @return {!Object} Map of logger names to logger objects.
+ * @return {!Object<string, !goog.debug.Logger>} Map of logger names to logger
+ *     objects.
  */
 goog.debug.LogManager.getLoggers = function() {
   return goog.debug.LogManager.loggers_;
@@ -841,8 +832,9 @@ goog.debug.LogManager.getLogger = function(name) {
 goog.debug.LogManager.createFunctionForCatchErrors = function(opt_logger) {
   return function(info) {
     var logger = opt_logger || goog.debug.LogManager.getRoot();
-    logger.severe('Error: ' + info.message + ' (' + info.fileName +
-                  ' @ Line: ' + info.line + ')');
+    logger.severe(
+        'Error: ' + info.message + ' (' + info.fileName + ' @ Line: ' +
+        info.line + ')');
   };
 };
 

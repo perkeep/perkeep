@@ -20,7 +20,7 @@ goog.require('cam.reactUtil');
 
 goog.require('cam.ServerConnection');
 
-goog.require('goog.labs.Promise');
+goog.require('goog.Promise');
 
 goog.require('goog.object');
 
@@ -74,7 +74,7 @@ cam.DebugConsole = React.createClass({
 						blobrefs.forEach(function(permanode) {
 							tags.forEach(function(tag) {
 								console.log('add-tag-promise for: ' + permanode + ", tag: " + tag);
-								promises.push(new goog.labs.Promise(sc.newAddAttributeClaim.bind(sc, permanode, 'tag', tag)));
+								promises.push(new goog.Promise(sc.newAddAttributeClaim.bind(sc, permanode, 'tag', tag)));
 							});
 						});
 						break;
@@ -88,7 +88,7 @@ cam.DebugConsole = React.createClass({
 						blobrefs.forEach(function(permanode) {
 							tags.forEach(function(tag) {
 								console.log('del-tag-promise for: ' + permanode + ", tag: " + tag);
-								promises.push(new goog.labs.Promise(sc.newDelAttributeClaim.bind(sc, permanode, 'tag', tag)));
+								promises.push(new goog.Promise(sc.newDelAttributeClaim.bind(sc, permanode, 'tag', tag)));
 							});
 						});
 						break;
@@ -103,11 +103,11 @@ cam.DebugConsole = React.createClass({
 						var numTags = tags.length;
 						blobrefs.forEach(function(permanode) {
 							console.log('set-tag-promise for: ' + permanode + ", tag: " + tags[0]);
-							promises.push(new goog.labs.Promise(sc.newSetAttributeClaim.bind(sc, permanode, 'tag', tags[0])));
+							promises.push(new goog.Promise(sc.newSetAttributeClaim.bind(sc, permanode, 'tag', tags[0])));
 
 							for (var i = 1; i < numTags; i++) {
 								console.log('add-tag-promise for: ' + permanode + ", tag: " + tags[i]);
-								promises.push(new goog.labs.Promise(sc.newAddAttributeClaim.bind(sc, permanode, 'tag', tags[i])));
+								promises.push(new goog.Promise(sc.newAddAttributeClaim.bind(sc, permanode, 'tag', tags[i])));
 							}
 						});
 						break;
@@ -115,7 +115,7 @@ cam.DebugConsole = React.createClass({
 					case "clear": {
 						blobrefs.forEach(function(permanode) {
 							console.log('clear-tag-promise for: ' + permanode);
-							promises.push(new goog.labs.Promise(sc.newDelAttributeClaim.bind(sc, permanode, 'tag', '')));
+							promises.push(new goog.Promise(sc.newDelAttributeClaim.bind(sc, permanode, 'tag', '')));
 						});
 						break;
 					}
@@ -125,7 +125,7 @@ cam.DebugConsole = React.createClass({
 					}
 				}
 
-				goog.labs.Promise.all(promises).thenCatch(function(e) {
+				goog.Promise.all(promises).thenCatch(function(e) {
 					console.error('promise rejected: %s', e);
 					callback('The system encountered an error executing tag ' + mode + ': ' + e);
 				}).then(function(results) {

@@ -19,7 +19,7 @@ goog.provide('cam.BlobDetail');
 goog.require('cam.blobref');
 goog.require('cam.ServerConnection');
 
-goog.require('goog.labs.Promise');
+goog.require('goog.Promise');
 
 cam.BlobDetail = React.createClass({
 	displayName: 'BlobDetail',
@@ -50,9 +50,9 @@ cam.BlobDetail = React.createClass({
 			sc.getBlobContents(nextProps.meta.blobRef, this.handleBlobContents_);
 			sc.permanodeClaims(nextProps.meta.blobRef, this.handleClaims_);
 
-			goog.labs.Promise.all([
-				new goog.labs.Promise(sc.pathsOfSignerTarget.bind(sc, nextProps.meta.blobRef)),
-				new goog.labs.Promise(sc.search.bind(sc, {
+			goog.Promise.all([
+				new goog.Promise(sc.pathsOfSignerTarget.bind(sc, nextProps.meta.blobRef)),
+				new goog.Promise(sc.search.bind(sc, {
 					permanode: {
 						attr: 'camliMember',
 						value: nextProps.meta.blobRef,

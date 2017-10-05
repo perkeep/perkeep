@@ -20,9 +20,11 @@
 goog.provide('goog.debug.ErrorHandler');
 goog.provide('goog.debug.ErrorHandler.ProtectedFunctionError');
 
+goog.require('goog.Disposable');
 goog.require('goog.asserts');
 goog.require('goog.debug');
 goog.require('goog.debug.EntryPointMonitor');
+goog.require('goog.debug.Error');
 goog.require('goog.debug.Trace');
 
 
@@ -45,7 +47,7 @@ goog.require('goog.debug.Trace');
  * @implements {goog.debug.EntryPointMonitor}
  */
 goog.debug.ErrorHandler = function(handler) {
-  goog.base(this);
+  goog.debug.ErrorHandler.base(this, 'constructor');
 
   /**
    * Handler for exceptions, which can do logging, reporting, etc.
@@ -86,8 +88,8 @@ goog.debug.ErrorHandler.prototype.addTracersToProtectedFunctions_ = false;
  * Enable tracers when instrumenting entry points.
  * @param {boolean} newVal See above.
  */
-goog.debug.ErrorHandler.prototype.setAddTracersToProtectedFunctions =
-    function(newVal) {
+goog.debug.ErrorHandler.prototype.setAddTracersToProtectedFunctions = function(
+    newVal) {
   this.addTracersToProtectedFunctions_ = newVal;
 };
 
@@ -174,23 +176,28 @@ goog.debug.ErrorHandler.prototype.getProtectedFunction = function(fn) {
     }
 
     if (tracers) {
-      var tracer = goog.debug.Trace.startTracer('protectedEntryPoint: ' +
-          that.getStackTraceHolder_(stackTrace));
+      var tracer = goog.debug.Trace.startTracer(
+          'protectedEntryPoint: ' + that.getStackTraceHolder_(stackTrace));
     }
     try {
       return fn.apply(this, arguments);
     } catch (e) {
+      // Don't re-report errors that have already been handled by this code.
+      var MESSAGE_PREFIX =
+          goog.debug.ErrorHandler.ProtectedFunctionError.MESSAGE_PREFIX;
+      if ((e && typeof e === 'object' && e.message &&
+           e.message.indexOf(MESSAGE_PREFIX) == 0) ||
+          (typeof e === 'string' && e.indexOf(MESSAGE_PREFIX) == 0)) {
+        return;
+      }
       that.errorHandlerFn_(e);
       if (!that.wrapErrors_) {
         // Add the prefix to the existing message.
         if (that.prefixErrorMessages_) {
-          if (typeof e === 'object') {
-            e.message =
-                goog.debug.ErrorHandler.ProtectedFunctionError.MESSAGE_PREFIX +
-                e.message;
+          if (typeof e === 'object' && e && 'message' in e) {
+            e.message = MESSAGE_PREFIX + e.message;
           } else {
-            e = goog.debug.ErrorHandler.ProtectedFunctionError.MESSAGE_PREFIX +
-                e;
+            e = MESSAGE_PREFIX + e;
           }
         }
         if (goog.DEBUG) {
@@ -222,12 +229,11 @@ goog.debug.ErrorHandler.prototype.getProtectedFunction = function(fn) {
 };
 
 
-// TODO(user): Allow these functions to take in the window to protect.
+// TODO(mknichel): Allow these functions to take in the window to protect.
 /**
  * Installs exception protection for window.setTimeout to handle exceptions.
  */
-goog.debug.ErrorHandler.prototype.protectWindowSetTimeout =
-    function() {
+goog.debug.ErrorHandler.prototype.protectWindowSetTimeout = function() {
   this.protectWindowFunctionsHelper_('setTimeout');
 };
 
@@ -235,8 +241,7 @@ goog.debug.ErrorHandler.prototype.protectWindowSetTimeout =
 /**
  * Install exception protection for window.setInterval to handle exceptions.
  */
-goog.debug.ErrorHandler.prototype.protectWindowSetInterval =
-    function() {
+goog.debug.ErrorHandler.prototype.protectWindowSetInterval = function() {
   this.protectWindowFunctionsHelper_('setInterval');
 };
 
@@ -249,28 +254,26 @@ goog.debug.ErrorHandler.prototype.protectWindowRequestAnimationFrame =
     function() {
   var win = goog.getObjectByName('window');
   var fnNames = [
-    'requestAnimationFrame',
-    'mozRequestAnimationFrame',
-    'webkitAnimationFrame',
+    'requestAnimationFrame', 'mozRequestAnimationFrame', 'webkitAnimationFrame',
     'msRequestAnimationFrame'
   ];
   for (var i = 0; i < fnNames.length; i++) {
     var fnName = fnNames[i];
     if (fnNames[i] in win) {
-      win[fnName] = this.protectEntryPoint(win[fnName]);
+      this.protectWindowFunctionsHelper_(fnName);
     }
   }
 };
 
 
 /**
- * Helper function for protecting setTimeout/setInterval.
- * @param {string} fnName The name of the function we're protecting. Must
- *     be setTimeout or setInterval.
+ * Helper function for protecting a function that causes a function to be
+ * asynchronously called, for example setTimeout or requestAnimationFrame.
+ * @param {string} fnName The name of the function to protect.
  * @private
  */
-goog.debug.ErrorHandler.prototype.protectWindowFunctionsHelper_ =
-    function(fnName) {
+goog.debug.ErrorHandler.prototype.protectWindowFunctionsHelper_ = function(
+    fnName) {
   var win = goog.getObjectByName('window');
   var originalFn = win[fnName];
   var that = this;
@@ -280,15 +283,20 @@ goog.debug.ErrorHandler.prototype.protectWindowFunctionsHelper_ =
     if (goog.isString(fn)) {
       fn = goog.partial(goog.globalEval, fn);
     }
-    fn = that.protectEntryPoint(fn);
+    arguments[0] = fn = that.protectEntryPoint(fn);
 
     // IE doesn't support .call for setInterval/setTimeout, but it
     // also doesn't care what "this" is, so we can just call the
     // original function directly
-    if (originalFn.call) {
-      return originalFn.call(this, fn, time);
+    if (originalFn.apply) {
+      return originalFn.apply(this, arguments);
     } else {
-      return originalFn(fn, time);
+      var callback = fn;
+      if (arguments.length > 2) {
+        var args = Array.prototype.slice.call(arguments, 2);
+        callback = function() { fn.apply(this, args); };
+      }
+      return originalFn(callback, time);
     }
   };
   win[fnName][this.getFunctionIndex_(false)] = originalFn;
@@ -311,8 +319,8 @@ goog.debug.ErrorHandler.prototype.setWrapErrors = function(wrapErrors) {
  * @param {boolean} prefixErrorMessages Whether to add a prefix to error
  *     messages.
  */
-goog.debug.ErrorHandler.prototype.setPrefixErrorMessages =
-    function(prefixErrorMessages) {
+goog.debug.ErrorHandler.prototype.setPrefixErrorMessages = function(
+    prefixErrorMessages) {
   this.prefixErrorMessages_ = prefixErrorMessages;
 };
 
@@ -324,7 +332,7 @@ goog.debug.ErrorHandler.prototype.disposeInternal = function() {
   win.setTimeout = this.unwrap(win.setTimeout);
   win.setInterval = this.unwrap(win.setInterval);
 
-  goog.base(this, 'disposeInternal');
+  goog.debug.ErrorHandler.base(this, 'disposeInternal');
 };
 
 
@@ -340,7 +348,8 @@ goog.debug.ErrorHandler.prototype.disposeInternal = function() {
 goog.debug.ErrorHandler.ProtectedFunctionError = function(cause) {
   var message = goog.debug.ErrorHandler.ProtectedFunctionError.MESSAGE_PREFIX +
       (cause && cause.message ? String(cause.message) : String(cause));
-  goog.base(this, message);
+  goog.debug.ErrorHandler.ProtectedFunctionError.base(
+      this, 'constructor', message);
 
   /**
    * The error thrown by the entry point.

@@ -27,6 +27,7 @@ goog.require('goog.math');
  * Class for representing coordinates and positions.
  * @param {number=} opt_x Left, defaults to 0.
  * @param {number=} opt_y Top, defaults to 0.
+ * @struct
  * @constructor
  */
 goog.math.Coordinate = function(opt_x, opt_y) {
@@ -63,6 +64,17 @@ if (goog.DEBUG) {
     return '(' + this.x + ', ' + this.y + ')';
   };
 }
+
+
+/**
+ * Returns whether the specified value is equal to this coordinate.
+ * @param {*} other Some other value.
+ * @return {boolean} Whether the specified value is equal to this coordinate.
+ */
+goog.math.Coordinate.prototype.equals = function(other) {
+  return other instanceof goog.math.Coordinate &&
+      goog.math.Coordinate.equals(this, other);
+};
 
 
 /**
@@ -208,7 +220,7 @@ goog.math.Coordinate.prototype.translate = function(tx, opt_ty) {
     this.x += tx.x;
     this.y += tx.y;
   } else {
-    this.x += tx;
+    this.x += Number(tx);
     if (goog.isNumber(opt_ty)) {
       this.y += opt_ty;
     }
@@ -230,4 +242,38 @@ goog.math.Coordinate.prototype.scale = function(sx, opt_sy) {
   this.x *= sx;
   this.y *= sy;
   return this;
+};
+
+
+/**
+ * Rotates this coordinate clockwise about the origin (or, optionally, the given
+ * center) by the given angle, in radians.
+ * @param {number} radians The angle by which to rotate this coordinate
+ *     clockwise about the given center, in radians.
+ * @param {!goog.math.Coordinate=} opt_center The center of rotation. Defaults
+ *     to (0, 0) if not given.
+ */
+goog.math.Coordinate.prototype.rotateRadians = function(radians, opt_center) {
+  var center = opt_center || new goog.math.Coordinate(0, 0);
+
+  var x = this.x;
+  var y = this.y;
+  var cos = Math.cos(radians);
+  var sin = Math.sin(radians);
+
+  this.x = (x - center.x) * cos - (y - center.y) * sin + center.x;
+  this.y = (x - center.x) * sin + (y - center.y) * cos + center.y;
+};
+
+
+/**
+ * Rotates this coordinate clockwise about the origin (or, optionally, the given
+ * center) by the given angle, in degrees.
+ * @param {number} degrees The angle by which to rotate this coordinate
+ *     clockwise about the given center, in degrees.
+ * @param {!goog.math.Coordinate=} opt_center The center of rotation. Defaults
+ *     to (0, 0) if not given.
+ */
+goog.math.Coordinate.prototype.rotateDegrees = function(degrees, opt_center) {
+  this.rotateRadians(goog.math.toRadians(degrees), opt_center);
 };

@@ -16,12 +16,13 @@
  * @fileoverview Event Types.
  *
  * @author arv@google.com (Erik Arvidsson)
- * @author mirkov@google.com (Mirko Visontai)
  */
 
 
 goog.provide('goog.events.EventType');
+goog.provide('goog.events.PointerFallbackEventType');
 
+goog.require('goog.events.BrowserFeature');
 goog.require('goog.userAgent');
 
 
@@ -33,9 +34,10 @@ goog.require('goog.userAgent');
  * @private
  */
 goog.events.getVendorPrefixedName_ = function(eventName) {
-  return goog.userAgent.WEBKIT ? 'webkit' + eventName :
+  return goog.userAgent.WEBKIT ?
+      'webkit' + eventName :
       (goog.userAgent.OPERA ? 'o' + eventName.toLowerCase() :
-          eventName.toLowerCase());
+                              eventName.toLowerCase());
 };
 
 
@@ -46,6 +48,7 @@ goog.events.getVendorPrefixedName_ = function(eventName) {
 goog.events.EventType = {
   // Mouse events
   CLICK: 'click',
+  RIGHTCLICK: 'rightclick',
   DBLCLICK: 'dblclick',
   MOUSEDOWN: 'mousedown',
   MOUSEUP: 'mouseup',
@@ -54,9 +57,15 @@ goog.events.EventType = {
   MOUSEMOVE: 'mousemove',
   MOUSEENTER: 'mouseenter',
   MOUSELEAVE: 'mouseleave',
-  // Select start is non-standard.
-  // See http://msdn.microsoft.com/en-us/library/ie/ms536969(v=vs.85).aspx.
-  SELECTSTART: 'selectstart', // IE, Safari, Chrome
+
+  // Selection events.
+  // https://www.w3.org/TR/selection-api/
+  SELECTIONCHANGE: 'selectionchange',
+  SELECTSTART: 'selectstart',  // IE, Safari, Chrome
+
+  // Wheel events
+  // http://www.w3.org/TR/DOM-Level-3-Events/#events-wheelevents
+  WHEEL: 'wheel',
 
   // Key events
   KEYPRESS: 'keypress',
@@ -66,7 +75,7 @@ goog.events.EventType = {
   // Focus
   BLUR: 'blur',
   FOCUS: 'focus',
-  DEACTIVATE: 'deactivate', // IE only
+  DEACTIVATE: 'deactivate',  // IE only
   // NOTE: The following two events are not stable in cross-browser usage.
   //     WebKit and Opera implement DOMFocusIn/Out.
   //     IE implements focusin/out.
@@ -80,10 +89,11 @@ goog.events.EventType = {
 
   // Forms
   CHANGE: 'change',
+  RESET: 'reset',
   SELECT: 'select',
   SUBMIT: 'submit',
   INPUT: 'input',
-  PROPERTYCHANGE: 'propertychange', // IE only
+  PROPERTYCHANGE: 'propertychange',  // IE only
 
   // Drag and drop
   DRAGSTART: 'dragstart',
@@ -94,7 +104,9 @@ goog.events.EventType = {
   DROP: 'drop',
   DRAGEND: 'dragend',
 
-  // WebKit touch events.
+  // Touch events
+  // Note that other touch events exist, but we should follow the W3C list here.
+  // http://www.w3.org/TR/touch-events/#list-of-touchevent-types
   TOUCHSTART: 'touchstart',
   TOUCHMOVE: 'touchmove',
   TOUCHEND: 'touchend',
@@ -104,6 +116,8 @@ goog.events.EventType = {
   BEFOREUNLOAD: 'beforeunload',
   CONSOLEMESSAGE: 'consolemessage',
   CONTEXTMENU: 'contextmenu',
+  DEVICEMOTION: 'devicemotion',
+  DEVICEORIENTATION: 'deviceorientation',
   DOMCONTENTLOADED: 'DOMContentLoaded',
   ERROR: 'error',
   HELP: 'help',
@@ -115,8 +129,39 @@ goog.events.EventType = {
   SCROLL: 'scroll',
   UNLOAD: 'unload',
 
+  // Media events
+  CANPLAY: 'canplay',
+  CANPLAYTHROUGH: 'canplaythrough',
+  DURATIONCHANGE: 'durationchange',
+  EMPTIED: 'emptied',
+  ENDED: 'ended',
+  LOADEDDATA: 'loadeddata',
+  LOADEDMETADATA: 'loadedmetadata',
+  PAUSE: 'pause',
+  PLAY: 'play',
+  PLAYING: 'playing',
+  RATECHANGE: 'ratechange',
+  SEEKED: 'seeked',
+  SEEKING: 'seeking',
+  STALLED: 'stalled',
+  SUSPEND: 'suspend',
+  TIMEUPDATE: 'timeupdate',
+  VOLUMECHANGE: 'volumechange',
+  WAITING: 'waiting',
+
+  // Media Source Extensions events
+  // https://www.w3.org/TR/media-source/#mediasource-events
+  SOURCEOPEN: 'sourceopen',
+  SOURCEENDED: 'sourceended',
+  SOURCECLOSED: 'sourceclosed',
+  // https://www.w3.org/TR/media-source/#sourcebuffer-events
+  ABORT: 'abort',
+  UPDATE: 'update',
+  UPDATESTART: 'updatestart',
+  UPDATEEND: 'updateend',
+
   // HTML 5 History events
-  // See http://www.w3.org/TR/html5/history.html#event-definitions
+  // See http://www.w3.org/TR/html5/browsers.html#event-definitions-0
   HASHCHANGE: 'hashchange',
   PAGEHIDE: 'pagehide',
   PAGESHOW: 'pageshow',
@@ -141,6 +186,21 @@ goog.events.EventType = {
   // HTML 5 worker events
   MESSAGE: 'message',
   CONNECT: 'connect',
+
+  // Service Worker Events - ServiceWorkerGlobalScope context
+  // See https://w3c.github.io/ServiceWorker/#execution-context-events
+  // Note: message event defined in worker events section
+  INSTALL: 'install',
+  ACTIVATE: 'activate',
+  FETCH: 'fetch',
+  FOREIGNFETCH: 'foreignfetch',
+  MESSAGEERROR: 'messageerror',
+
+  // Service Worker Events - Document context
+  // See https://w3c.github.io/ServiceWorker/#document-context-events
+  STATECHANGE: 'statechange',
+  UPDATEFOUND: 'updatefound',
+  CONTROLLERCHANGE: 'controllerchange',
 
   // CSS animation events.
   /** @suppress {missingRequire} */
@@ -190,10 +250,18 @@ goog.events.EventType = {
   MSPOINTERUP: 'MSPointerUp',
 
   // Native IMEs/input tools events.
-  TEXTINPUT: 'textinput',
+  TEXT: 'text',
+  // The textInput event is supported in IE9+, but only in lower case. All other
+  // browsers use the camel-case event name.
+  TEXTINPUT: goog.userAgent.IE ? 'textinput' : 'textInput',
   COMPOSITIONSTART: 'compositionstart',
   COMPOSITIONUPDATE: 'compositionupdate',
   COMPOSITIONEND: 'compositionend',
+
+  // The beforeinput event is initially only supported in Safari. See
+  // https://bugs.chromium.org/p/chromium/issues/detail?id=342670 for Chrome
+  // implementation tracking.
+  BEFOREINPUT: 'beforeinput',
 
   // Webview tag events
   // See http://developer.chrome.com/dev/apps/webview_tag.html
@@ -209,5 +277,83 @@ goog.events.EventType = {
 
   // HTML5 Page Visibility API.  See details at
   // {@code goog.labs.dom.PageVisibilityMonitor}.
-  VISIBILITYCHANGE: 'visibilitychange'
+  VISIBILITYCHANGE: 'visibilitychange',
+
+  // LocalStorage event.
+  STORAGE: 'storage',
+
+  // DOM Level 2 mutation events (deprecated).
+  DOMSUBTREEMODIFIED: 'DOMSubtreeModified',
+  DOMNODEINSERTED: 'DOMNodeInserted',
+  DOMNODEREMOVED: 'DOMNodeRemoved',
+  DOMNODEREMOVEDFROMDOCUMENT: 'DOMNodeRemovedFromDocument',
+  DOMNODEINSERTEDINTODOCUMENT: 'DOMNodeInsertedIntoDocument',
+  DOMATTRMODIFIED: 'DOMAttrModified',
+  DOMCHARACTERDATAMODIFIED: 'DOMCharacterDataModified',
+
+  // Print events.
+  BEFOREPRINT: 'beforeprint',
+  AFTERPRINT: 'afterprint'
+};
+
+
+/**
+ * Returns one of the given pointer fallback event names in order of preference:
+ *   1. pointerEventName
+ *   2. msPointerEventName
+ *   3. mouseEventName
+ * @param {string} pointerEventName
+ * @param {string} msPointerEventName
+ * @param {string} mouseEventName
+ * @return {string} The supported pointer or mouse event name.
+ * @private
+ */
+goog.events.getPointerFallbackEventName_ = function(
+    pointerEventName, msPointerEventName, mouseEventName) {
+  if (goog.events.BrowserFeature.POINTER_EVENTS) {
+    return pointerEventName;
+  }
+  if (goog.events.BrowserFeature.MSPOINTER_EVENTS) {
+    return msPointerEventName;
+  }
+  return mouseEventName;
+};
+
+
+/**
+ * Constants for pointer event names that fall back to corresponding mouse event
+ * names on unsupported platforms. These are intended to be drop-in replacements
+ * for corresponding values in {@code goog.events.EventType}.
+ * @enum {string}
+ */
+goog.events.PointerFallbackEventType = {
+  POINTERDOWN: goog.events.getPointerFallbackEventName_(
+      goog.events.EventType.POINTERDOWN, goog.events.EventType.MSPOINTERDOWN,
+      goog.events.EventType.MOUSEDOWN),
+  POINTERUP: goog.events.getPointerFallbackEventName_(
+      goog.events.EventType.POINTERUP, goog.events.EventType.MSPOINTERUP,
+      goog.events.EventType.MOUSEUP),
+  POINTERCANCEL: goog.events.getPointerFallbackEventName_(
+      goog.events.EventType.POINTERCANCEL,
+      goog.events.EventType.MSPOINTERCANCEL,
+      // When falling back to mouse events, there is no MOUSECANCEL equivalent
+      // of POINTERCANCEL. In this case POINTERUP already falls back to MOUSEUP
+      // which represents both UP and CANCEL. POINTERCANCEL does not fall back
+      // to MOUSEUP to prevent listening twice on the same event.
+      'mousecancel'),  // non-existent event; will never fire
+  POINTERMOVE: goog.events.getPointerFallbackEventName_(
+      goog.events.EventType.POINTERMOVE, goog.events.EventType.MSPOINTERMOVE,
+      goog.events.EventType.MOUSEMOVE),
+  POINTEROVER: goog.events.getPointerFallbackEventName_(
+      goog.events.EventType.POINTEROVER, goog.events.EventType.MSPOINTEROVER,
+      goog.events.EventType.MOUSEOVER),
+  POINTEROUT: goog.events.getPointerFallbackEventName_(
+      goog.events.EventType.POINTEROUT, goog.events.EventType.MSPOINTEROUT,
+      goog.events.EventType.MOUSEOUT),
+  POINTERENTER: goog.events.getPointerFallbackEventName_(
+      goog.events.EventType.POINTERENTER, goog.events.EventType.MSPOINTERENTER,
+      goog.events.EventType.MOUSEENTER),
+  POINTERLEAVE: goog.events.getPointerFallbackEventName_(
+      goog.events.EventType.POINTERLEAVE, goog.events.EventType.MSPOINTERLEAVE,
+      goog.events.EventType.MOUSELEAVE)
 };

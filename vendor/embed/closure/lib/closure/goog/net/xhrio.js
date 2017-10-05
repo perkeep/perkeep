@@ -20,20 +20,25 @@
  * own XmlHttpRequest object and handles clearing of the event callback to
  * ensure no leaks.
  *
- * XhrIo is event based, it dispatches events when a request finishes, fails or
- * succeeds or when the ready-state changes. The ready-state or timeout event
- * fires first, followed by a generic completed event. Then the abort, error,
- * or success event is fired as appropriate. Lastly, the ready event will fire
- * to indicate that the object may be used to make another request.
+ * XhrIo is event based, it dispatches events on success, failure, finishing,
+ * ready-state change, or progress (download and upload).
+ *
+ * The ready-state or timeout event fires first, followed by
+ * a generic completed event. Then the abort, error, or success event
+ * is fired as appropriate. Progress events are fired as they are
+ * received. Lastly, the ready event will fire to indicate that the
+ * object may be used to make another request.
  *
  * The error event may also be called before completed and
  * ready-state-change if the XmlHttpRequest.open() or .send() methods throw.
  *
  * This class does not support multiple requests, queuing, or prioritization.
  *
- * Tested = IE6, FF1.5, Safari, Opera 8.5
- *
- * TODO(user): Error cases aren't playing nicely in Safari.
+ * When progress events are supported by the browser, and progress is
+ * enabled via .setProgressEventsEnabled(true), the
+ * goog.net.EventType.PROGRESS event will be the re-dispatched browser
+ * progress event. Additionally, a DOWNLOAD_PROGRESS or UPLOAD_PROGRESS event
+ * will be fired for download and upload progress respectively.
  *
  */
 
@@ -43,20 +48,22 @@ goog.provide('goog.net.XhrIo.ResponseType');
 
 goog.require('goog.Timer');
 goog.require('goog.array');
+goog.require('goog.asserts');
 goog.require('goog.debug.entryPointRegistry');
 goog.require('goog.events.EventTarget');
-goog.require('goog.json');
+goog.require('goog.json.hybrid');
 goog.require('goog.log');
 goog.require('goog.net.ErrorCode');
 goog.require('goog.net.EventType');
 goog.require('goog.net.HttpStatus');
 goog.require('goog.net.XmlHttp');
-goog.require('goog.object');
 goog.require('goog.string');
 goog.require('goog.structs');
 goog.require('goog.structs.Map');
 goog.require('goog.uri.utils');
 goog.require('goog.userAgent');
+
+goog.forwardDeclare('goog.Uri');
 
 
 
@@ -68,7 +75,7 @@ goog.require('goog.userAgent');
  * @extends {goog.events.EventTarget}
  */
 goog.net.XhrIo = function(opt_xmlHttpFactory) {
-  goog.base(this);
+  goog.net.XhrIo.base(this, 'constructor');
 
   /**
    * Map of default headers to add to every request, use:
@@ -93,7 +100,7 @@ goog.net.XhrIo = function(opt_xmlHttpFactory) {
 
   /**
    * The XMLHttpRequest object that is being used for the transfer.
-   * @private {goog.net.XhrLike.OrNative|null}
+   * @private {?goog.net.XhrLike.OrNative}
    */
   this.xhr_ = null;
 
@@ -190,6 +197,27 @@ goog.net.XhrIo = function(opt_xmlHttpFactory) {
   this.withCredentials_ = false;
 
   /**
+   * Whether progress events are enabled for this request. This is
+   * disabled by default because setting a progress event handler
+   * causes pre-flight OPTIONS requests to be sent for CORS requests,
+   * even in cases where a pre-flight request would not otherwise be
+   * sent.
+   *
+   * @see http://xhr.spec.whatwg.org/#security-considerations
+   *
+   * Note that this can cause problems for Firefox 22 and below, as an
+   * older "LSProgressEvent" will be dispatched by the browser. That
+   * progress event is no longer supported, and can lead to failures,
+   * including throwing exceptions.
+   *
+   * @see http://bugzilla.mozilla.org/show_bug.cgi?id=845631
+   * @see b/23469793
+   *
+   * @private {boolean}
+   */
+  this.progressEventsEnabled_ = false;
+
+  /**
    * True if we can use XMLHttpRequest's timeout directly.
    * @private {boolean}
    */
@@ -215,11 +243,10 @@ goog.net.XhrIo.ResponseType = {
 
 /**
  * A reference to the XhrIo logger
- * @private {goog.debug.Logger}
+ * @private {?goog.log.Logger}
  * @const
  */
-goog.net.XhrIo.prototype.logger_ =
-    goog.log.getLogger('goog.net.XhrIo');
+goog.net.XhrIo.prototype.logger_ = goog.log.getLogger('goog.net.XhrIo');
 
 
 /**
@@ -227,6 +254,13 @@ goog.net.XhrIo.prototype.logger_ =
  * @type {string}
  */
 goog.net.XhrIo.CONTENT_TYPE_HEADER = 'Content-Type';
+
+
+/**
+ * The Content-Transfer-Encoding HTTP header name
+ * @type {string}
+ */
+goog.net.XhrIo.CONTENT_TRANSFER_ENCODING = 'Content-Transfer-Encoding';
 
 
 /**
@@ -239,6 +273,7 @@ goog.net.XhrIo.HTTP_SCHEME_PATTERN = /^https?$/i;
 /**
  * The methods that typically come along with form data.  We set different
  * headers depending on whether the HTTP action is one of these.
+ * @type {!Array<string>}
  */
 goog.net.XhrIo.METHODS_WITH_FORM_DATA = ['POST', 'PUT'];
 
@@ -277,7 +312,7 @@ goog.net.XhrIo.XHR2_ON_TIMEOUT_ = 'ontimeout';
  * All non-disposed instances of goog.net.XhrIo created
  * by {@link goog.net.XhrIo.send} are in this Array.
  * @see goog.net.XhrIo.cleanup
- * @private {!Array.<!goog.net.XhrIo>}
+ * @private {!Array<!goog.net.XhrIo>}
  */
 goog.net.XhrIo.sendInstances_ = [];
 
@@ -287,21 +322,22 @@ goog.net.XhrIo.sendInstances_ = [];
  * request.
  * @see goog.net.XhrIo.cleanup
  * @param {string|goog.Uri} url Uri to make request to.
- * @param {Function=} opt_callback Callback function for when request is
- *     complete.
+ * @param {?function(this:goog.net.XhrIo, ?)=} opt_callback Callback function
+ *     for when request is complete.
  * @param {string=} opt_method Send method, default: GET.
- * @param {ArrayBuffer|Blob|Document|FormData|string=} opt_content
- *     Body data.
+ * @param {ArrayBuffer|ArrayBufferView|Blob|Document|FormData|string=}
+ *     opt_content Body data.
  * @param {Object|goog.structs.Map=} opt_headers Map of headers to add to the
  *     request.
  * @param {number=} opt_timeoutInterval Number of milliseconds after which an
  *     incomplete request will be aborted; 0 means no timeout is set.
  * @param {boolean=} opt_withCredentials Whether to send credentials with the
  *     request. Default to false. See {@link goog.net.XhrIo#setWithCredentials}.
+ * @return {!goog.net.XhrIo} The sent XhrIo.
  */
-goog.net.XhrIo.send = function(url, opt_callback, opt_method, opt_content,
-                               opt_headers, opt_timeoutInterval,
-                               opt_withCredentials) {
+goog.net.XhrIo.send = function(
+    url, opt_callback, opt_method, opt_content, opt_headers,
+    opt_timeoutInterval, opt_withCredentials) {
   var x = new goog.net.XhrIo();
   goog.net.XhrIo.sendInstances_.push(x);
   if (opt_callback) {
@@ -315,6 +351,7 @@ goog.net.XhrIo.send = function(url, opt_callback, opt_method, opt_content,
     x.setWithCredentials(opt_withCredentials);
   }
   x.send(url, opt_method, opt_content, opt_headers);
+  return x;
 };
 
 
@@ -438,18 +475,42 @@ goog.net.XhrIo.prototype.getWithCredentials = function() {
 
 
 /**
+ * Sets whether progress events are enabled for this request. Note
+ * that progress events require pre-flight OPTIONS request handling
+ * for CORS requests, and may cause trouble with older browsers. See
+ * progressEventsEnabled_ for details.
+ * @param {boolean} enabled Whether progress events should be enabled.
+ */
+goog.net.XhrIo.prototype.setProgressEventsEnabled = function(enabled) {
+  this.progressEventsEnabled_ = enabled;
+};
+
+
+/**
+ * Gets whether progress events are enabled.
+ * @return {boolean} Whether progress events are enabled for this request.
+ */
+goog.net.XhrIo.prototype.getProgressEventsEnabled = function() {
+  return this.progressEventsEnabled_;
+};
+
+
+/**
  * Instance send that actually uses XMLHttpRequest to make a server call.
  * @param {string|goog.Uri} url Uri to make request to.
  * @param {string=} opt_method Send method, default: GET.
- * @param {ArrayBuffer|Blob|Document|FormData|string=} opt_content
- *     Body data.
+ * @param {ArrayBuffer|ArrayBufferView|Blob|Document|FormData|string=}
+ *     opt_content Body data.
  * @param {Object|goog.structs.Map=} opt_headers Map of headers to add to the
  *     request.
+ * @suppress {deprecated} Use deprecated goog.structs.forEach to allow different
+ * types of parameters for opt_headers.
  */
-goog.net.XhrIo.prototype.send = function(url, opt_method, opt_content,
-                                         opt_headers) {
+goog.net.XhrIo.prototype.send = function(
+    url, opt_method, opt_content, opt_headers) {
   if (this.xhr_) {
-    throw Error('[goog.net.XhrIo] Object is active with another request=' +
+    throw new Error(
+        '[goog.net.XhrIo] Object is active with another request=' +
         this.lastUri_ + '; newUri=' + url);
   }
 
@@ -464,16 +525,24 @@ goog.net.XhrIo.prototype.send = function(url, opt_method, opt_content,
 
   // Use the factory to create the XHR object and options
   this.xhr_ = this.createXhr();
-  this.xhrOptions_ = this.xmlHttpFactory_ ?
-      this.xmlHttpFactory_.getOptions() : goog.net.XmlHttp.getOptions();
+  this.xhrOptions_ = this.xmlHttpFactory_ ? this.xmlHttpFactory_.getOptions() :
+                                            goog.net.XmlHttp.getOptions();
 
   // Set up the onreadystatechange callback
   this.xhr_.onreadystatechange = goog.bind(this.onReadyStateChange_, this);
 
+  // Set up upload/download progress events, if progress events are supported.
+  if (this.getProgressEventsEnabled() && 'onprogress' in this.xhr_) {
+    this.xhr_.onprogress =
+        goog.bind(function(e) { this.onProgressHandler_(e, true); }, this);
+    if (this.xhr_.upload) {
+      this.xhr_.upload.onprogress = goog.bind(this.onProgressHandler_, this);
+    }
+  }
+
   /**
    * Try to open the XMLHttpRequest (always async), if an error occurs here it
    * is generally permission denied
-   * @preserveTry
    */
   try {
     goog.log.fine(this.logger_, this.formatMsg_('Opening Xhr'));
@@ -481,8 +550,8 @@ goog.net.XhrIo.prototype.send = function(url, opt_method, opt_content,
     this.xhr_.open(method, String(url), true);  // Always async!
     this.inOpen_ = false;
   } catch (err) {
-    goog.log.fine(this.logger_,
-        this.formatMsg_('Error opening Xhr: ' + err.message));
+    goog.log.fine(
+        this.logger_, this.formatMsg_('Error opening Xhr: ' + err.message));
     this.error_(goog.net.ErrorCode.EXCEPTION, err);
     return;
   }
@@ -496,60 +565,62 @@ goog.net.XhrIo.prototype.send = function(url, opt_method, opt_content,
 
   // Add headers specific to this request
   if (opt_headers) {
-    goog.structs.forEach(opt_headers, function(value, key) {
-      headers.set(key, value);
-    });
+    goog.structs.forEach(
+        opt_headers, function(value, key) { headers.set(key, value); });
   }
 
   // Find whether a content type header is set, ignoring case.
   // HTTP header names are case-insensitive.  See:
   // http://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2
-  var contentTypeKey = goog.array.find(headers.getKeys(),
-      goog.net.XhrIo.isContentTypeHeader_);
+  var contentTypeKey =
+      goog.array.find(headers.getKeys(), goog.net.XhrIo.isContentTypeHeader_);
 
-  var contentIsFormData = (goog.global['FormData'] &&
-      (content instanceof goog.global['FormData']));
+  var contentIsFormData =
+      (goog.global['FormData'] && (content instanceof goog.global['FormData']));
   if (goog.array.contains(goog.net.XhrIo.METHODS_WITH_FORM_DATA, method) &&
       !contentTypeKey && !contentIsFormData) {
     // For requests typically with form data, default to the url-encoded form
     // content type unless this is a FormData request.  For FormData,
     // the browser will automatically add a multipart/form-data content type
     // with an appropriate multipart boundary.
-    headers.set(goog.net.XhrIo.CONTENT_TYPE_HEADER,
-                goog.net.XhrIo.FORM_CONTENT_TYPE);
+    headers.set(
+        goog.net.XhrIo.CONTENT_TYPE_HEADER, goog.net.XhrIo.FORM_CONTENT_TYPE);
   }
 
   // Add the headers to the Xhr object
-  goog.structs.forEach(headers, function(value, key) {
+  headers.forEach(function(value, key) {
     this.xhr_.setRequestHeader(key, value);
   }, this);
 
   if (this.responseType_) {
     this.xhr_.responseType = this.responseType_;
   }
-
-  if (goog.object.containsKey(this.xhr_, 'withCredentials')) {
+  // Set xhr_.withCredentials only when the value is different, or else in
+  // synchronous XMLHtppRequest.open Firefox will throw an exception.
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=736340
+  if ('withCredentials' in this.xhr_ &&
+      this.xhr_.withCredentials !== this.withCredentials_) {
     this.xhr_.withCredentials = this.withCredentials_;
   }
 
   /**
    * Try to send the request, or other wise report an error (404 not found).
-   * @preserveTry
    */
   try {
-    this.cleanUpTimeoutTimer_(); // Paranoid, should never be running.
+    this.cleanUpTimeoutTimer_();  // Paranoid, should never be running.
     if (this.timeoutInterval_ > 0) {
       this.useXhr2Timeout_ = goog.net.XhrIo.shouldUseXhr2Timeout_(this.xhr_);
-      goog.log.fine(this.logger_, this.formatMsg_('Will abort after ' +
-          this.timeoutInterval_ + 'ms if incomplete, xhr2 ' +
-          this.useXhr2Timeout_));
+      goog.log.fine(
+          this.logger_, this.formatMsg_(
+                            'Will abort after ' + this.timeoutInterval_ +
+                            'ms if incomplete, xhr2 ' + this.useXhr2Timeout_));
       if (this.useXhr2Timeout_) {
         this.xhr_[goog.net.XhrIo.XHR2_TIMEOUT_] = this.timeoutInterval_;
         this.xhr_[goog.net.XhrIo.XHR2_ON_TIMEOUT_] =
             goog.bind(this.timeout_, this);
       } else {
-        this.timeoutId_ = goog.Timer.callOnce(this.timeout_,
-            this.timeoutInterval_, this);
+        this.timeoutId_ =
+            goog.Timer.callOnce(this.timeout_, this.timeoutInterval_, this);
       }
     }
     goog.log.fine(this.logger_, this.formatMsg_('Sending request'));
@@ -580,8 +651,7 @@ goog.net.XhrIo.prototype.send = function(url, opt_method, opt_content,
  * @private
  */
 goog.net.XhrIo.shouldUseXhr2Timeout_ = function(xhr) {
-  return goog.userAgent.IE &&
-      goog.userAgent.isVersionOrHigher(9) &&
+  return goog.userAgent.IE && goog.userAgent.isVersionOrHigher(9) &&
       goog.isNumber(xhr[goog.net.XhrIo.XHR2_TIMEOUT_]) &&
       goog.isDef(xhr[goog.net.XhrIo.XHR2_ON_TIMEOUT_]);
 };
@@ -601,13 +671,12 @@ goog.net.XhrIo.isContentTypeHeader_ = function(header) {
 
 /**
  * Creates a new XHR object.
- * @return {goog.net.XhrLike.OrNative|null} The newly created XHR
- *     object.
+ * @return {!goog.net.XhrLike.OrNative} The newly created XHR object.
  * @protected
  */
 goog.net.XhrIo.prototype.createXhr = function() {
-  return this.xmlHttpFactory_ ?
-      this.xmlHttpFactory_.createInstance() : goog.net.XmlHttp();
+  return this.xmlHttpFactory_ ? this.xmlHttpFactory_.createInstance() :
+                                goog.net.XmlHttp();
 };
 
 
@@ -622,8 +691,8 @@ goog.net.XhrIo.prototype.timeout_ = function() {
     // If goog is undefined then the callback has occurred as the application
     // is unloading and will error.  Thus we let it silently fail.
   } else if (this.xhr_) {
-    this.lastError_ = 'Timed out after ' + this.timeoutInterval_ +
-                      'ms, aborting';
+    this.lastError_ =
+        'Timed out after ' + this.timeoutInterval_ + 'ms, aborting';
     this.lastErrorCode_ = goog.net.ErrorCode.TIMEOUT;
     goog.log.fine(this.logger_, this.formatMsg_(this.lastError_));
     this.dispatchEvent(goog.net.EventType.TIMEOUT);
@@ -707,7 +776,7 @@ goog.net.XhrIo.prototype.disposeInternal = function() {
     this.cleanUpXhr_(true);
   }
 
-  goog.base(this, 'disposeInternal');
+  goog.net.XhrIo.base(this, 'disposeInternal');
 };
 
 
@@ -769,11 +838,11 @@ goog.net.XhrIo.prototype.onReadyStateChangeHelper_ = function() {
     // NOTE(user): In IE if send() errors on a *local* request the readystate
     // is still changed to COMPLETE.  We need to ignore it and allow the
     // try/catch around send() to pick up the error.
-    goog.log.fine(this.logger_, this.formatMsg_(
-        'Local request error detected and ignored'));
+    goog.log.fine(
+        this.logger_,
+        this.formatMsg_('Local request error detected and ignored'));
 
   } else {
-
     // In IE when the response has been cached we sometimes get the callback
     // from inside the send call and this usually breaks code that assumes that
     // XhrIo is asynchronous.  If that is the case we delay the callback
@@ -813,6 +882,48 @@ goog.net.XhrIo.prototype.onReadyStateChangeHelper_ = function() {
 
 
 /**
+ * Internal handler for the XHR object's onprogress event. Fires both a generic
+ * PROGRESS event and either a DOWNLOAD_PROGRESS or UPLOAD_PROGRESS event to
+ * allow specific binding for each XHR progress event.
+ * @param {!ProgressEvent} e XHR progress event.
+ * @param {boolean=} opt_isDownload Whether the current progress event is from a
+ *     download. Used to determine whether DOWNLOAD_PROGRESS or UPLOAD_PROGRESS
+ *     event should be dispatched.
+ * @private
+ */
+goog.net.XhrIo.prototype.onProgressHandler_ = function(e, opt_isDownload) {
+  goog.asserts.assert(
+      e.type === goog.net.EventType.PROGRESS,
+      'goog.net.EventType.PROGRESS is of the same type as raw XHR progress.');
+  this.dispatchEvent(
+      goog.net.XhrIo.buildProgressEvent_(e, goog.net.EventType.PROGRESS));
+  this.dispatchEvent(
+      goog.net.XhrIo.buildProgressEvent_(
+          e, opt_isDownload ? goog.net.EventType.DOWNLOAD_PROGRESS :
+                              goog.net.EventType.UPLOAD_PROGRESS));
+};
+
+
+/**
+ * Creates a representation of the native ProgressEvent. IE doesn't support
+ * constructing ProgressEvent via "new", and the alternatives (e.g.,
+ * ProgressEvent.initProgressEvent) are non-standard or deprecated.
+ * @param {!ProgressEvent} e XHR progress event.
+ * @param {!goog.net.EventType} eventType The type of the event.
+ * @return {!ProgressEvent} The progress event.
+ * @private
+ */
+goog.net.XhrIo.buildProgressEvent_ = function(e, eventType) {
+  return /** @type {!ProgressEvent} */ ({
+    type: eventType,
+    lengthComputable: e.lengthComputable,
+    loaded: e.loaded,
+    total: e.total
+  });
+};
+
+
+/**
  * Remove the listener to protect against leaks, and nullify the XMLHttpRequest
  * object.
  * @param {boolean=} opt_fromDispose If this is from the dispose (don't want to
@@ -829,7 +940,8 @@ goog.net.XhrIo.prototype.cleanUpXhr_ = function(opt_fromDispose) {
     var xhr = this.xhr_;
     var clearedOnReadyStateChange =
         this.xhrOptions_[goog.net.XmlHttp.OptionType.USE_NULL_FUNCTION] ?
-            goog.nullFunction : null;
+        goog.nullFunction :
+        null;
     this.xhr_ = null;
     this.xhrOptions_ = null;
 
@@ -847,7 +959,8 @@ goog.net.XhrIo.prototype.cleanUpXhr_ = function(opt_fromDispose) {
       // This seems to occur with a Gears HTTP request. Delayed the setting of
       // this onreadystatechange until after READY is sent out and catching the
       // error to see if we can track down the problem.
-      goog.log.error(this.logger_,
+      goog.log.error(
+          this.logger_,
           'Problem encountered resetting onreadystatechange: ' + e.message);
     }
   }
@@ -862,7 +975,7 @@ goog.net.XhrIo.prototype.cleanUpTimeoutTimer_ = function() {
   if (this.xhr_ && this.useXhr2Timeout_) {
     this.xhr_[goog.net.XhrIo.XHR2_ON_TIMEOUT_] = null;
   }
-  if (goog.isNumber(this.timeoutId_)) {
+  if (this.timeoutId_) {
     goog.Timer.clear(this.timeoutId_);
     this.timeoutId_ = null;
   }
@@ -915,7 +1028,8 @@ goog.net.XhrIo.prototype.isLastUriEffectiveSchemeHttp_ = function() {
 goog.net.XhrIo.prototype.getReadyState = function() {
   return this.xhr_ ?
       /** @type {goog.net.XmlHttp.ReadyState} */ (this.xhr_.readyState) :
-      goog.net.XmlHttp.ReadyState.UNINITIALIZED;
+                                                 goog.net.XmlHttp.ReadyState
+                                                     .UNINITIALIZED;
 };
 
 
@@ -927,15 +1041,14 @@ goog.net.XhrIo.prototype.getReadyState = function() {
 goog.net.XhrIo.prototype.getStatus = function() {
   /**
    * IE doesn't like you checking status until the readystate is greater than 2
-   * (i.e. it is recieving or complete).  The try/catch is used for when the
+   * (i.e. it is receiving or complete).  The try/catch is used for when the
    * page is unloading and an ERROR_NOT_AVAILABLE may occur when accessing xhr_.
-   * @preserveTry
    */
   try {
     return this.getReadyState() > goog.net.XmlHttp.ReadyState.LOADED ?
-        this.xhr_.status : -1;
+        this.xhr_.status :
+        -1;
   } catch (e) {
-    goog.log.warning(this.logger_, 'Can not get status: ' + e.message);
     return -1;
   }
 };
@@ -949,13 +1062,13 @@ goog.net.XhrIo.prototype.getStatus = function() {
 goog.net.XhrIo.prototype.getStatusText = function() {
   /**
    * IE doesn't like you checking status until the readystate is greater than 2
-   * (i.e. it is recieving or complete).  The try/catch is used for when the
+   * (i.e. it is receiving or complete).  The try/catch is used for when the
    * page is unloading and an ERROR_NOT_AVAILABLE may occur when accessing xhr_.
-   * @preserveTry
    */
   try {
     return this.getReadyState() > goog.net.XmlHttp.ReadyState.LOADED ?
-        this.xhr_.statusText : '';
+        this.xhr_.statusText :
+        '';
   } catch (e) {
     goog.log.fine(this.logger_, 'Can not get status: ' + e.message);
     return '';
@@ -978,7 +1091,6 @@ goog.net.XhrIo.prototype.getLastUri = function() {
  * @return {string} Result from the server, or '' if no result available.
  */
 goog.net.XhrIo.prototype.getResponseText = function() {
-  /** @preserveTry */
   try {
     return this.xhr_ ? this.xhr_.responseText : '';
   } catch (e) {
@@ -1010,7 +1122,7 @@ goog.net.XhrIo.prototype.getResponseText = function() {
  * @return {Object} Binary result from the server or null if not available.
  */
 goog.net.XhrIo.prototype.getResponseBody = function() {
-  /** @preserveTry */
+
   try {
     if (this.xhr_ && 'responseBody' in this.xhr_) {
       return this.xhr_['responseBody'];
@@ -1031,7 +1143,7 @@ goog.net.XhrIo.prototype.getResponseBody = function() {
  * if no result available.
  */
 goog.net.XhrIo.prototype.getResponseXml = function() {
-  /** @preserveTry */
+
   try {
     return this.xhr_ ? this.xhr_.responseXML : null;
   } catch (e) {
@@ -1047,6 +1159,7 @@ goog.net.XhrIo.prototype.getResponseXml = function() {
  * @param {string=} opt_xssiPrefix Optional XSSI prefix string to use for
  *     stripping of the response before parsing. This needs to be set only if
  *     your backend server prepends the same prefix string to the JSON response.
+ * @throws Error if the response text is invalid JSON.
  * @return {Object|undefined} JavaScript object.
  */
 goog.net.XhrIo.prototype.getResponseJson = function(opt_xssiPrefix) {
@@ -1059,7 +1172,7 @@ goog.net.XhrIo.prototype.getResponseJson = function(opt_xssiPrefix) {
     responseText = responseText.substring(opt_xssiPrefix.length);
   }
 
-  return goog.json.parse(responseText);
+  return goog.json.hybrid.parse(responseText);
 };
 
 
@@ -1088,7 +1201,7 @@ goog.net.XhrIo.prototype.getResponseJson = function(opt_xssiPrefix) {
  * @return {*} The response.
  */
 goog.net.XhrIo.prototype.getResponse = function() {
-  /** @preserveTry */
+
   try {
     if (!this.xhr_) {
       return null;
@@ -1100,20 +1213,20 @@ goog.net.XhrIo.prototype.getResponse = function() {
       case goog.net.XhrIo.ResponseType.DEFAULT:
       case goog.net.XhrIo.ResponseType.TEXT:
         return this.xhr_.responseText;
-        // DOCUMENT and BLOB don't need to be handled here because they are
-        // introduced in the same spec that adds the .response field, and would
-        // have been caught above.
-        // ARRAY_BUFFER needs an implementation for Firefox 4, where it was
-        // implemented using a draft spec rather than the final spec.
+      // DOCUMENT and BLOB don't need to be handled here because they are
+      // introduced in the same spec that adds the .response field, and would
+      // have been caught above.
+      // ARRAY_BUFFER needs an implementation for Firefox 4, where it was
+      // implemented using a draft spec rather than the final spec.
       case goog.net.XhrIo.ResponseType.ARRAY_BUFFER:
         if ('mozResponseArrayBuffer' in this.xhr_) {
           return this.xhr_.mozResponseArrayBuffer;
         }
     }
     // Fell through to a response type that is not supported on this browser.
-    goog.log.error(this.logger_,
-        'Response type ' + this.responseType_ + ' is not ' +
-        'supported on this browser');
+    goog.log.error(
+        this.logger_, 'Response type ' + this.responseType_ + ' is not ' +
+            'supported on this browser');
     return null;
   } catch (e) {
     goog.log.fine(this.logger_, 'Can not get response: ' + e.message);
@@ -1130,8 +1243,12 @@ goog.net.XhrIo.prototype.getResponse = function() {
  * @return {string|undefined} The value of the response-header named key.
  */
 goog.net.XhrIo.prototype.getResponseHeader = function(key) {
-  return this.xhr_ && this.isComplete() ?
-      this.xhr_.getResponseHeader(key) : undefined;
+  if (!this.xhr_ || !this.isComplete()) {
+    return undefined;
+  }
+
+  var value = this.xhr_.getResponseHeader(key);
+  return goog.isNull(value) ? undefined : value;
 };
 
 
@@ -1142,8 +1259,8 @@ goog.net.XhrIo.prototype.getResponseHeader = function(key) {
  * @return {string} The value of the response headers or empty string.
  */
 goog.net.XhrIo.prototype.getAllResponseHeaders = function() {
-  return this.xhr_ && this.isComplete() ?
-      this.xhr_.getAllResponseHeaders() : '';
+  return this.xhr_ && this.isComplete() ? this.xhr_.getAllResponseHeaders() :
+                                          '';
 };
 
 
@@ -1156,14 +1273,14 @@ goog.net.XhrIo.prototype.getAllResponseHeaders = function() {
  * include any case normalization logic, it will just return a key-value
  * representation of the headers.
  * See: http://www.w3.org/TR/XMLHttpRequest/#the-getresponseheader()-method
- * @return {!Object.<string, string>} An object with the header keys as keys
+ * @return {!Object<string, string>} An object with the header keys as keys
  *     and header values as values.
  */
 goog.net.XhrIo.prototype.getResponseHeaders = function() {
   var headersObject = {};
   var headersArray = this.getAllResponseHeaders().split('\r\n');
   for (var i = 0; i < headersArray.length; i++) {
-    if (goog.string.isEmpty(headersArray[i])) {
+    if (goog.string.isEmptyOrWhitespace(headersArray[i])) {
       continue;
     }
     var keyValue = goog.string.splitLimit(headersArray[i], ': ', 2);
@@ -1174,6 +1291,30 @@ goog.net.XhrIo.prototype.getResponseHeaders = function() {
     }
   }
   return headersObject;
+};
+
+
+/**
+ * Get the value of the response-header with the given name from the Xhr object.
+ * As opposed to {@link #getResponseHeader}, this method does not require that
+ * the request has completed.
+ * @param {string} key The name of the response-header to retrieve.
+ * @return {?string} The value of the response-header, or null if it is
+ *     unavailable.
+ */
+goog.net.XhrIo.prototype.getStreamingResponseHeader = function(key) {
+  return this.xhr_ ? this.xhr_.getResponseHeader(key) : null;
+};
+
+
+/**
+ * Gets the text of all the headers in the response. As opposed to
+ * {@link #getAllResponseHeaders}, this method does not require that the request
+ * has completed.
+ * @return {string} The value of the response headers or empty string.
+ */
+goog.net.XhrIo.prototype.getAllStreamingResponseHeaders = function() {
+  return this.xhr_ ? this.xhr_.getAllResponseHeaders() : '';
 };
 
 
@@ -1192,7 +1333,7 @@ goog.net.XhrIo.prototype.getLastErrorCode = function() {
  */
 goog.net.XhrIo.prototype.getLastError = function() {
   return goog.isString(this.lastError_) ? this.lastError_ :
-      String(this.lastError_);
+                                          String(this.lastError_);
 };
 
 
