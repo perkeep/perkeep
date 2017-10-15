@@ -328,7 +328,8 @@ func checkLastModified(w http.ResponseWriter, r *http.Request, modtime time.Time
 // foo, foo.md, or foo.html.  Requests that map to directories may be served by
 // an index.html or README.md file in that directory.
 func findAndServeFile(rw http.ResponseWriter, req *http.Request, root string) {
-	relPath := req.URL.Path[1:] // serveFile URL paths start with '/'
+	relPath := req.URL.Path[1:]               // serveFile URL paths start with '/'
+	relPath = strings.TrimRight(relPath, "/") // remove trailing slash, if present
 	if strings.Contains(relPath, "..") {
 		return
 	}
@@ -357,6 +358,12 @@ func findAndServeFile(rw http.ResponseWriter, req *http.Request, root string) {
 	// directory work.
 	if fi.IsDir() && !strings.HasSuffix(req.URL.Path, "/") {
 		http.Redirect(rw, req, req.URL.Path+"/", http.StatusFound)
+		return
+	}
+	// If it's a file but includes a trailing slash, redirect to
+	// the (canonical) URL without a trailing slash.
+	if !fi.IsDir() && strings.HasSuffix(req.URL.Path, "/") {
+		http.Redirect(rw, req, strings.TrimRight(req.URL.Path, "/"), http.StatusFound)
 		return
 	}
 
