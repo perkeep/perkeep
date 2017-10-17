@@ -56,7 +56,7 @@ const helpHTML string = `<html>
                         {{ .SecringDownloadHint }}
 
 			<h3>Anything Else?</h3>
-			<p>See the Camlistore <a href='https://camlistore.org/doc/'>online documentation</a> and <a href='https://camlistore.org/community/'>community contacts</a>.</p>
+			<p>See the Camlistore <a href='https://camlistore.org/doc/'>online documentation</a> and <a href='https://camlistore.org/community'>community contacts</a>.</p>
 		</body>
 	</html>`
 
