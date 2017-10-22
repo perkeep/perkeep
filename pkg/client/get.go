@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"net/http"
 	"os"
@@ -180,7 +179,7 @@ func (c *Client) UpdateShareChain(b blob.Ref, r io.Reader) error {
 		for _, blobstr := range blobsRx.FindAllString(buf.String(), -1) {
 			br, ok := blob.Parse(blobstr)
 			if !ok {
-				log.Printf("Invalid blob ref %q noticed in schema of %v", blobstr, b)
+				c.printf("Invalid blob ref %q noticed in schema of %v", blobstr, b)
 				continue
 			}
 			c.via[br] = b

@@ -37,6 +37,12 @@ import (
 	"go4.org/types"
 )
 
+func init() {
+	// So we can simply use log.Printf and log.Fatalf.
+	// For logging that depends on verbosity (cmdmain.FlagVerbose), use cmdmain.Logf/Printf.
+	log.SetOutput(cmdmain.Stderr)
+}
+
 var (
 	// Keeping flagVersion and flagVerbose declared like this, so we don't forget and
 	// erroneously redeclare them again in conflict with the cmdmain ones, which is not

@@ -57,6 +57,12 @@ func usage() {
 	os.Exit(2)
 }
 
+func init() {
+	// So we can simply use log.Printf and log.Fatalf.
+	// For logging that depends on verbosity (cmdmain.FlagVerbose), use cmdmain.Logf/Printf.
+	log.SetOutput(cmdmain.Stderr)
+}
+
 func main() {
 	var conn *fuse.Conn
 

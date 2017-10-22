@@ -270,12 +270,11 @@ func build(path string) error {
 }
 
 func main() {
-	cmdmain.CheckCwd = checkCamliSrcRoot
-	cmdmain.CheckModtime = func() error {
+	cmdmain.PostFlag = func() {
+		checkCamliSrcRoot()
 		if err := checkModtime(); err != nil {
 			log.Printf("Skipping freshness check: %v", err)
 		}
-		return nil
 	}
 
 	// TODO(mpl): usage error is not really correct for devcam.

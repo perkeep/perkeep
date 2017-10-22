@@ -19,7 +19,6 @@ package client
 import (
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"net/url"
 	"time"
@@ -46,7 +45,7 @@ func (c *Client) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, 
 		return c.sto.EnumerateBlobs(ctx, dest, after, limit)
 	}
 	if limit == 0 {
-		log.Printf("Warning: Client.EnumerateBlobs called with a limit of zero")
+		c.printf("Warning: Client.EnumerateBlobs called with a limit of zero")
 		close(dest)
 		return nil
 	}
@@ -72,7 +71,7 @@ func (c *Client) EnumerateBlobsOpts(ctx context.Context, ch chan<- blob.SizedRef
 
 	error := func(msg string, e error) error {
 		err := fmt.Errorf("client enumerate error: %s: %v", msg, e)
-		c.log.Print(err.Error())
+		c.printf("%v", err.Error)
 		return err
 	}
 

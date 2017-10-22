@@ -106,7 +106,6 @@ func init() {
 			uploadWorkers = 2
 			statCacheWorkers = 2
 		}
-		flagCacheLog = flags.Bool("logcache", false, "log caching details")
 
 		return cmd
 	})
@@ -149,12 +148,7 @@ func (c *fileCmd) RunCommand(args []string) error {
 	if c.filePermanodes && c.contentsOnly {
 		return cmdmain.UsageError("--contents_only and --filenodes are exclusive. Use --permanode instead.")
 	}
-	// TODO(mpl): do it for other modes too. Or even better, do it once for all modes.
-	if *cmdmain.FlagVerbose {
-		log.SetOutput(cmdmain.Stderr)
-	} else {
-		log.SetOutput(ioutil.Discard)
-	}
+
 	up := getUploader()
 	if c.memstats {
 		sr := new(statspkg.Receiver)
@@ -250,12 +244,12 @@ func (c *fileCmd) RunCommand(args []string) error {
 		// Skip ignored files or base directories.  Failing to skip the
 		// latter results in a panic.
 		if up.Client.IsIgnoredFile(filename) {
-			log.Printf("Client configured to ignore %s; skipping.", filename)
+			cmdmain.Logf("Client configured to ignore %s; skipping.", filename)
 			continue
 		}
 		if fi.IsDir() {
 			if up.fileOpts.wantVivify() {
-				vlog.Printf("Directories not supported in vivify mode; skipping %v\n", filename)
+				log.Printf("Directories not supported in vivify mode; skipping %v\n", filename)
 				continue
 			}
 			t := up.NewTreeUpload(filename)
@@ -267,7 +261,7 @@ func (c *fileCmd) RunCommand(args []string) error {
 				if err := os.Remove(filename); err != nil {
 					log.Printf("Error deleting %v: %v", filename, err)
 				} else {
-					log.Printf("Deleted %v", filename)
+					cmdmain.Logf("Deleted %v", filename)
 				}
 			}
 		}
@@ -421,10 +415,10 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 	mappr, err := up.UploadBlob(bb)
 	if err == nil {
 		if !mappr.Skipped {
-			vlog.Printf("Uploaded %q, %s for %s", bb.Type(), mappr.BlobRef, n.fullPath)
+			cmdmain.Logf("Uploaded %q, %s for %s", bb.Type(), mappr.BlobRef, n.fullPath)
 		}
 	} else {
-		vlog.Printf("Error uploading map for %s (%s, %s): %v", n.fullPath, bb.Type(), bb.Blob().BlobRef(), err)
+		cmdmain.Logf("Error uploading map for %s (%s, %s): %v", n.fullPath, bb.Type(), bb.Blob().BlobRef(), err)
 	}
 	return mappr, err
 
@@ -518,9 +512,7 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *sc
 	if !dupFileRef.Valid() {
 		return nil, false
 	}
-	if *cmdmain.FlagVerbose {
-		log.Printf("Found dup of contents %s in file schema %s", sum, dupFileRef)
-	}
+	cmdmain.Logf("Found dup of contents %s in file schema %s", sum, dupFileRef)
 	dupMap, err := up.Client.FetchSchemaBlob(dupFileRef)
 	if err != nil {
 		log.Printf("Warning: error fetching %v: %v", dupFileRef, err)
@@ -574,7 +566,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 			}
 			modtime, err := schema.FileTime(ra)
 			if err != nil {
-				log.Printf("warning: getting time from EXIF failed for %v: %v", n.fullPath, err)
+				cmdmain.Logf("warning: getting time from EXIF failed for %v: %v", n.fullPath, err)
 			} else {
 				filebb.SetModTime(modtime)
 			}
@@ -1002,7 +994,7 @@ func (t *TreeUpload) run() {
 			statStatus = fmt.Sprintf("last stat: %s", lastStat)
 		}
 		blobStats := t.up.Stats()
-		log.Printf("FILES: Total: %+v Skipped: %+v Uploaded: %+v %s BLOBS: %s Digested: %d last upload: %s",
+		cmdmain.Logf("FILES: Total: %+v Skipped: %+v Uploaded: %+v %s BLOBS: %s Digested: %d last upload: %s",
 			t.total, t.skipped, t.uploaded,
 			statStatus,
 			blobStats.String(),
@@ -1034,7 +1026,7 @@ func (t *TreeUpload) run() {
 		// TODO(bradfitz): remove this chanworker stuff?
 		dirUpload := chanworker.NewWorker(-1, func(el interface{}, ok bool) {
 			if !ok {
-				log.Printf("done uploading directories - done with all uploads.")
+				cmdmain.Logf("done uploading directories - done with all uploads.")
 				uploadsdonec <- true
 				return
 			}
@@ -1049,9 +1041,9 @@ func (t *TreeUpload) run() {
 
 		upload = chanworker.NewWorker(uploadWorkers, func(el interface{}, ok bool) {
 			if !ok {
-				log.Printf("done with all uploads.")
+				cmdmain.Logf("done with all uploads.")
 				close(dirUpload)
-				log.Printf("closed dirUpload")
+				cmdmain.Logf("closed dirUpload")
 				return
 			}
 			n := el.(*node)
@@ -1078,7 +1070,7 @@ func (t *TreeUpload) run() {
 		}
 		if !ok {
 			if t.up.statCache != nil {
-				log.Printf("done checking stat cache")
+				cmdmain.Logf("done checking stat cache")
 			}
 			close(upload)
 			return
@@ -1120,7 +1112,7 @@ Loop:
 			t.skipped.incr(n)
 		case n, ok := <-stattedc:
 			if !ok {
-				log.Printf("done statting:")
+				cmdmain.Logf("done statting:")
 				dumpStats()
 				close(checkStatCache)
 				stattedc = nil
@@ -1134,16 +1126,16 @@ Loop:
 		}
 	}
 
-	log.Printf("tree upload finished. final stats:")
+	cmdmain.Logf("tree upload finished. final stats:")
 	dumpStats()
 
 	if root == nil {
 		panic("unexpected nil root node")
 	}
 	var err error
-	log.Printf("Waiting on root node %q", root.fullPath)
+	cmdmain.Logf("Waiting on root node %q", root.fullPath)
 	t.finalPutRes, err = root.PutResult()
-	log.Printf("Waited on root node %q: %v", root.fullPath, t.finalPutRes)
+	cmdmain.Logf("Waited on root node %q: %v", root.fullPath, t.finalPutRes)
 	if err != nil {
 		t.err = err
 	}

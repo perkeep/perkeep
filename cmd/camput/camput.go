@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -42,11 +43,15 @@ var (
 	flagHTTP       = flag.Bool("verbose_http", false, "show HTTP request summaries")
 	flagHaveCache  = true
 	flagBlobDir    = flag.String("blobdir", "", "If non-empty, the local directory to put blobs, instead of sending them over the network. If the string \"discard\", no blobs are written or sent over the network anywhere.")
+	flagCacheLog   = flag.Bool("logcache", false, "log caching details")
 )
 
 var (
 	uploaderOnce sync.Once
 	uploader     *Uploader // initialized by getUploader
+
+	// For logging about caching ops.
+	cachelog *log.Logger
 )
 
 var debugFlagOnce sync.Once
@@ -57,21 +62,31 @@ func registerDebugFlags() {
 }
 
 func init() {
+	// So we can simply use log.Printf and log.Fatalf.
+	// For logging that depends on verbosity (cmdmain.FlagVerbose), use cmdmain.Logf/Printf.
+	log.SetOutput(cmdmain.Stderr)
 	if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
 		debugFlagOnce.Do(registerDebugFlags)
 	}
 	cmdmain.ExtraFlagRegistration = client.AddFlags
+	cmdmain.PostFlag = func() {
+		if *flagCacheLog {
+			cachelog = log.New(cmdmain.Stderr, "", log.LstdFlags)
+		} else {
+			// It's only ok to do that because we don't expect any cachelog.Fatal* calls.
+			cachelog = log.New(ioutil.Discard, "", log.LstdFlags)
+		}
+	}
+
 	cmdmain.PreExit = func() {
 		if up := uploader; up != nil {
 			up.Close()
 			stats := up.Stats()
-			if *cmdmain.FlagVerbose {
-				log.Printf("Client stats: %s", stats.String())
-				if up.stats != nil {
-					log.Printf("  #HTTP reqs: %d", up.stats.Requests())
-					h1, h2 := up.stats.ProtoVersions()
-					log.Printf("   responses: %d (h1), %d (h2)\n", h1, h2)
-				}
+			cmdmain.Logf("Client stats: %s", stats.String())
+			if up.stats != nil {
+				cmdmain.Logf("  #HTTP reqs: %d", up.stats.Requests())
+				h1, h2 := up.stats.ProtoVersions()
+				cmdmain.Logf("   responses: %d (h1), %d (h2)\n", h1, h2)
 			}
 		}
 
@@ -163,11 +178,8 @@ func newUploader() *Uploader {
 		}))
 		httpStats = cc.HTTPStats()
 	}
-	if *cmdmain.FlagVerbose {
-		cc.SetLogger(log.New(cmdmain.Stderr, "", log.LstdFlags))
-	} else {
-		cc.SetLogger(nil)
-	}
+	cc.Verbose = *cmdmain.FlagVerbose
+	cc.Logger = log.New(cmdmain.Stderr, "", log.LstdFlags)
 
 	pwd, err := os.Getwd()
 	if err != nil {
