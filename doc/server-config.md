@@ -94,6 +94,7 @@ At least one of these must be set:
 * `blobPath`: local disk path to store blobs. (valid for diskpacked too).
 * `s3`: "`key:secret:bucket[/optional/dir]`" or "`key:secret:bucket[/optional/dir]:hostname`" (with colons,
   but no quotes).
+* `b2`: "`account_id:application_key:bucket[/optional/dir]`".
 * `googlecloudstorage`: "`clientId:clientSecret:refreshToken:bucketName[/optional/dir]`"
 
 Additionally, there are two mutually exclusive options which only apply if `blobPath` is set:

@@ -519,6 +519,81 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 	return nil
 }
 
+func (b *lowBuilder) addB2Config(b2 string) error {
+	f := strings.SplitN(b2, ":", 3)
+	if len(f) < 3 {
+		return errors.New(`genconfig: expected "b2" field to be of form "account_id:application_key:bucket[/optional/dir]"`)
+	}
+	account, key, bucket := f[0], f[1], f[2]
+	isReplica := b.hasPrefix("/bs/")
+	b2Prefix := ""
+	b2Auth := map[string]interface{}{
+		"account_id":      account,
+		"application_key": key,
+	}
+	b2Args := args{
+		"auth":   b2Auth,
+		"bucket": bucket,
+	}
+	if isReplica {
+		b2Prefix = "/sto-b2/"
+		b.addPrefix(b2Prefix, "storage-b2", b2Args)
+		if b.high.BlobPath == "" && !b.high.MemoryStorage {
+			panic("unexpected empty blobpath with sync-to-b2")
+		}
+		b.addPrefix("/sync-to-b2/", "sync", args{
+			"from": "/bs/",
+			"to":   b2Prefix,
+			"queue": b.thatQueueUnlessMemory(
+				map[string]interface{}{
+					"type": b.kvFileType(),
+					"file": filepath.Join(b.high.BlobPath, "sync-to-b2-queue."+b.kvFileType()),
+				}),
+		})
+		return nil
+	}
+
+	b.addPrefix("/cache/", "storage-filesystem", args{
+		"path": filepath.Join(tempDir(), "camli-cache"),
+	})
+
+	b2Prefix = "/bs/"
+	if !b.high.PackRelated {
+		b.addPrefix(b2Prefix, "storage-b2", b2Args)
+		return nil
+	}
+	packedB2Args := func(bucket string) args {
+		a := args{
+			"bucket": bucket,
+			"auth": map[string]interface{}{
+				"account_id":      account,
+				"application_key": key,
+			},
+		}
+		return a
+	}
+
+	b.addPrefix("/bs-loose/", "storage-b2", packedB2Args(path.Join(bucket, "loose")))
+	b.addPrefix("/bs-packed/", "storage-b2", packedB2Args(path.Join(bucket, "packed")))
+
+	// If index is DBMS, then blobPackedIndex is in DBMS too, with
+	// whatever dbname is defined for "blobpacked_index", or defaulting
+	// to "blobpacked_index". Otherwise blobPackedIndex is same
+	// file-based DB as the index, in same dir, but named
+	// packindex.dbtype.
+	blobPackedIndex, err := b.sortedStorageAt("blobpacked_index", filepath.Join(b.indexFileDir(), "packindex"))
+	if err != nil {
+		return err
+	}
+	b.addPrefix(b2Prefix, "storage-blobpacked", args{
+		"smallBlobs": "/bs-loose/",
+		"largeBlobs": "/bs-packed/",
+		"metaIndex":  blobPackedIndex,
+	})
+
+	return nil
+}
+
 func (b *lowBuilder) addGoogleDriveConfig(v string) error {
 	f := strings.SplitN(v, ":", 4)
 	if len(f) != 4 {
@@ -911,11 +986,14 @@ func (b *lowBuilder) build() (*Config, error) {
 
 	noLocalDisk := conf.BlobPath == ""
 	if noLocalDisk {
-		if !conf.MemoryStorage && conf.S3 == "" && conf.GoogleCloudStorage == "" {
-			return nil, errors.New("Unless memoryStorage is set, you must specify at least one storage option for your blobserver (blobPath (for localdisk), s3, googlecloudstorage).")
+		if !conf.MemoryStorage && conf.S3 == "" && conf.B2 == "" && conf.GoogleCloudStorage == "" {
+			return nil, errors.New("Unless memoryStorage is set, you must specify at least one storage option for your blobserver (blobPath (for localdisk), s3, b2, googlecloudstorage).")
 		}
 		if !conf.MemoryStorage && conf.S3 != "" && conf.GoogleCloudStorage != "" {
 			return nil, errors.New("Using S3 as a primary storage and Google Cloud Storage as a mirror is not supported for now.")
+		}
+		if !conf.MemoryStorage && conf.B2 != "" && conf.GoogleCloudStorage != "" {
+			return nil, errors.New("Using B2 as a primary storage and Google Cloud Storage as a mirror is not supported for now.")
 		}
 	}
 	if conf.ShareHandler && conf.ShareHandlerPath == "" {
@@ -1005,6 +1083,11 @@ func (b *lowBuilder) build() (*Config, error) {
 
 	if conf.S3 != "" {
 		if err := b.addS3Config(conf.S3); err != nil {
+			return nil, err
+		}
+	}
+	if conf.B2 != "" {
+		if err := b.addB2Config(conf.B2); err != nil {
 			return nil, err
 		}
 	}
