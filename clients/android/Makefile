@@ -5,6 +5,8 @@ all:
 	./gradlew assembleRelease
 
 env:
+	mkdir -p $(HOME)/.gradle
+	mkdir -p $(HOME)/.android
 	docker build -t camlistore/android devenv
 
 dockerdev:
