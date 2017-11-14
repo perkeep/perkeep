@@ -152,7 +152,8 @@ func inDocker() bool {
 		if len(fields) != 3 {
 			log.Fatal(`unexpected line in "/proc/self/cgroup"`)
 		}
-		if !strings.HasPrefix(fields[2], "/docker/") {
+		if !(strings.HasPrefix(fields[2], "/docker/") ||
+			strings.HasPrefix(fields[2], "/system.slice/docker.service")) {
 			return false
 		}
 	}
