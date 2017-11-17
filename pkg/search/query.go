@@ -1102,7 +1102,9 @@ func (h *Handler) Query(rawq *SearchQuery) (ret_ *SearchResult, _ error) {
 		q.Describe.BlobRefs = blobs
 		t0 := time.Now()
 		res, err := s.h.DescribeLocked(ctx, q.Describe)
-		log.Printf("Describe of %d blobs = %v", len(blobs), time.Since(t0))
+		if debugQuerySpeed {
+			log.Printf("Describe of %d blobs = %v", len(blobs), time.Since(t0))
+		}
 		if err != nil {
 			return nil, err
 		}
