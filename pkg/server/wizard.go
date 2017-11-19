@@ -34,7 +34,7 @@ import (
 	"camlistore.org/pkg/osutil"
 	"go4.org/jsonconfig"
 
-	"code.google.com/p/xsrftoken"
+	"golang.org/x/net/xsrftoken"
 )
 
 var ignoredFields = map[string]bool{
