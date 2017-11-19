@@ -47,7 +47,7 @@ ENV PATH $PATH:$GOROOT/bin:$GOPHER/bin
 # Get gomobile
 RUN go get -u golang.org/x/mobile/cmd/gomobile
 WORKDIR $GOPATH/src/golang.org/x/mobile/cmd/gomobile
-RUN git reset --hard 44a54e9b78442c0a8233ee2d552c61da88e053c3
+RUN git reset --hard c0beac360cc13173963df8872fe4b0f2542cb85b
 RUN go install
 
 # init gomobile
