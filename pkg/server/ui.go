@@ -49,9 +49,9 @@ import (
 	"camlistore.org/pkg/types/camtypes"
 	uistatic "camlistore.org/server/camlistored/ui"
 	closurestatic "camlistore.org/server/camlistored/ui/closure"
-	"code.google.com/p/rsc/qr"
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"
+	"rsc.io/qr"
 )
 
 var (
