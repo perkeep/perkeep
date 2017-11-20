@@ -29,8 +29,7 @@ import (
 	"camlistore.org/pkg/importer/feed/atom"
 	"camlistore.org/pkg/importer/feed/rdf"
 	"camlistore.org/pkg/importer/feed/rss"
-	"code.google.com/p/go-charset/charset"
-	_ "code.google.com/p/go-charset/data"
+	"golang.org/x/net/html/charset"
 )
 
 type feed struct {
@@ -75,7 +74,7 @@ func parseAtom(body []byte) (*feed, error) {
 	var f feed
 	var a atom.Feed
 	d := xml.NewDecoder(bytes.NewReader(body))
-	d.CharsetReader = charset.NewReader
+	d.CharsetReader = charset.NewReaderLabel
 	if err := d.Decode(&a); err != nil {
 		return nil, err
 	}
@@ -136,7 +135,7 @@ func parseRSS(body []byte) (*feed, error) {
 	var f feed
 	var r rss.RSS
 	d := xml.NewDecoder(bytes.NewReader(body))
-	d.CharsetReader = charset.NewReader
+	d.CharsetReader = charset.NewReaderLabel
 	d.DefaultSpace = "DefaultSpace"
 	if err := d.Decode(&r); err != nil {
 		return nil, err
@@ -188,7 +187,7 @@ func parseRDF(body []byte) (*feed, error) {
 	var f feed
 	var rd rdf.RDF
 	d := xml.NewDecoder(bytes.NewReader(body))
-	d.CharsetReader = charset.NewReader
+	d.CharsetReader = charset.NewReaderLabel
 	if err := d.Decode(&rd); err != nil {
 		return nil, err
 	}

@@ -32,11 +32,10 @@ import (
 	"camlistore.org/pkg/importer"
 	"camlistore.org/pkg/schema"
 
-	"code.google.com/p/go.net/html"
-	"code.google.com/p/go.net/html/atom"
-
 	"go4.org/ctxutil"
 	"golang.org/x/net/context"
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 )
 
 const (
