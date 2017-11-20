@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cznic/bufs"
-	"github.com/cznic/exp/lldb"
 	"github.com/cznic/fileutil"
+	"github.com/cznic/internal/buffer"
+	"github.com/cznic/lldb"
 )
 
 const (
@@ -44,18 +44,26 @@ type DB struct {
 	acidTimer     *time.Timer     // Grace period timer
 	alloc         *lldb.Allocator // The machinery. Wraps filer
 	bkl           sync.Mutex      // Big Kernel Lock
-	buffers       bufs.Cache
-	closeMu       sync.Mutex    // Close() coordination
-	closed        bool          // it was
-	f             *os.File      // Underlying file. Potentially nil (if filer is lldb.MemFiler)
-	filer         lldb.Filer    // Wraps f
-	gracePeriod   time.Duration // WAL grace period
-	isMem         bool          // No signal capture
-	lastCommitErr error         // from failed EndUpdate
-	lock          io.Closer     // The DB file lock
+	closeMu       sync.Mutex      // Close() coordination
+	closed        bool            // it was
+	filer         lldb.Filer      // Wraps f
+	gracePeriod   time.Duration   // WAL grace period
+	isMem         bool            // No signal capture
+	lastCommitErr error           // from failed EndUpdate
+	lock          io.Closer       // The DB file lock
 	opts          *Options
 	root          *lldb.BTree // The KV layer
 	wal           *os.File    // WAL if any
+}
+
+// CreateFromFiler is like Create but accepts an arbitrary backing storage
+// provided by filer.
+//
+// For the meaning of opts please see documentation of Options.
+func CreateFromFiler(filer lldb.Filer, opts *Options) (db *DB, err error) {
+	opts = opts.clone()
+	opts._ACID = _ACIDFull
+	return create(filer, opts, false)
 }
 
 // Create creates the named DB file mode 0666 (before umask). The file must not
@@ -72,10 +80,10 @@ func Create(name string, opts *Options) (db *DB, err error) {
 		return
 	}
 
-	return create(f, lldb.NewSimpleFileFiler(f), opts, false)
+	return CreateFromFiler(lldb.NewSimpleFileFiler(f), opts)
 }
 
-func create(f *os.File, filer lldb.Filer, opts *Options, isMem bool) (db *DB, err error) {
+func create(filer lldb.Filer, opts *Options, isMem bool) (db *DB, err error) {
 	defer func() {
 		if db != nil {
 			db.opts = opts
@@ -98,8 +106,9 @@ func create(f *os.File, filer lldb.Filer, opts *Options, isMem bool) (db *DB, er
 		return nil, &os.PathError{Op: "kv.create.WriteAt", Path: filer.Name(), Err: err}
 	}
 
-	db = &DB{f: f, lock: opts.lock}
+	db = &DB{lock: opts.lock}
 
+	filer = lldb.NewInnerFiler(filer, 16)
 	if filer, err = opts.acidFiler(db, filer); err != nil {
 		return nil, err
 	}
@@ -117,7 +126,7 @@ func create(f *os.File, filer lldb.Filer, opts *Options, isMem bool) (db *DB, er
 		}
 	}()
 
-	if db.alloc, err = lldb.NewAllocator(lldb.NewInnerFiler(filer, 16), &lldb.Options{}); err != nil {
+	if db.alloc, err = lldb.NewAllocator(filer, &lldb.Options{}); err != nil {
 		return nil, &os.PathError{Op: "kv.create", Path: filer.Name(), Err: err}
 	}
 
@@ -145,7 +154,7 @@ func CreateMem(opts *Options) (db *DB, err error) {
 	opts = opts.clone()
 	opts._ACID = _ACIDTransactions
 	f := lldb.NewMemFiler()
-	return create(nil, f, opts, true)
+	return create(f, opts, true)
 }
 
 // CreateTemp creates a new temporary DB in the directory dir with a basename
@@ -165,7 +174,7 @@ func CreateTemp(dir, prefix, suffix string, opts *Options) (db *DB, err error) {
 		return
 	}
 
-	return create(f, lldb.NewSimpleFileFiler(f), opts, false)
+	return create(lldb.NewSimpleFileFiler(f), opts, false)
 }
 
 // Open opens the named DB file for reading/writing. If successful, methods on
@@ -177,6 +186,17 @@ func CreateTemp(dir, prefix, suffix string, opts *Options) (db *DB, err error) {
 //
 // For the meaning of opts please see documentation of Options.
 func Open(name string, opts *Options) (db *DB, err error) {
+	f, err := os.OpenFile(name, os.O_RDWR, 0666)
+	if err != nil {
+		return nil, err
+	}
+
+	return OpenFromFiler(lldb.NewSimpleFileFiler(f), opts)
+}
+
+// OpenFromFiler is like Open but it accepts an arbitrary backing storage
+// provided by filer.
+func OpenFromFiler(filer lldb.Filer, opts *Options) (db *DB, err error) {
 	opts = opts.clone()
 	opts._ACID = _ACIDFull
 	defer func() {
@@ -198,16 +218,11 @@ func Open(name string, opts *Options) (db *DB, err error) {
 		}
 	}()
 
+	name := filer.Name()
 	if err = opts.check(name, false, true); err != nil {
 		return
 	}
 
-	f, err := os.OpenFile(name, os.O_RDWR, 0666)
-	if err != nil {
-		return
-	}
-
-	filer := lldb.Filer(lldb.NewSimpleFileFiler(f))
 	sz, err := filer.Size()
 	if err != nil {
 		return
@@ -227,7 +242,7 @@ func Open(name string, opts *Options) (db *DB, err error) {
 		return nil, &os.PathError{Op: "kv.Open:validate header", Path: name, Err: err}
 	}
 
-	db = &DB{f: f, lock: opts.lock}
+	db = &DB{lock: opts.lock}
 	if filer, err = opts.acidFiler(db, filer); err != nil {
 		return nil, err
 	}
@@ -319,7 +334,7 @@ func (db *DB) Close() (err error) {
 }
 
 func (db *DB) close() (err error) {
-	// We are safe to close due to locked db.closeMu, but not safe aginst
+	// We are safe to close due to locked db.closeMu, but not safe against
 	// any other goroutine concurrently calling other exported db methods,
 	// causing a race[0] in the db.enter() mechanism. So we must lock
 	// db.bkl.
@@ -328,7 +343,7 @@ func (db *DB) close() (err error) {
 	db.bkl.Lock()
 	defer db.bkl.Unlock()
 
-	if db.f == nil { // lldb.MemFiler
+	if db.isMem { // lldb.MemFiler
 		return
 	}
 
@@ -368,10 +383,15 @@ func (db *DB) enter() (err error) {
 	default:
 		panic("internal error")
 	case stDisabled:
-		// nop
+		db.acidNest++
+		if db.acidNest == 1 {
+			if err = db.filer.BeginUpdate(); err != nil {
+				return err
+			}
+		}
 	case stIdle:
 		if err = db.filer.BeginUpdate(); err != nil {
-			return
+			return err
 		}
 
 		db.acidNest = 1
@@ -390,8 +410,7 @@ func (db *DB) enter() (err error) {
 		return db.leave(&err)
 	}
 
-	err = db.filer.BeginUpdate()
-	return
+	return nil
 }
 
 func (db *DB) leave(err *error) error {
@@ -399,7 +418,12 @@ func (db *DB) leave(err *error) error {
 	default:
 		panic("internal error")
 	case stDisabled:
-		// nop
+		db.acidNest--
+		if db.acidNest == 0 {
+			if e := db.filer.EndUpdate(); e != nil && *err == nil {
+				*err = e
+			}
+		}
 	case stCollecting:
 		db.acidNest--
 		if db.acidNest == 0 {
@@ -413,7 +437,7 @@ func (db *DB) leave(err *error) error {
 	case stCollectingTriggered:
 		db.acidNest--
 		if db.acidNest == 0 {
-			if e := db.filer.EndUpdate(); e != nil && err == nil {
+			if e := db.filer.EndUpdate(); e != nil && *err == nil {
 				*err = e
 			}
 			db.acidState = stIdle
@@ -423,15 +447,8 @@ func (db *DB) leave(err *error) error {
 		return fmt.Errorf("Last transaction commit failed: %v", db.lastCommitErr)
 	}
 
-	switch {
-	case *err != nil:
+	if *err != nil {
 		db.filer.Rollback() // return the original, input error
-	default:
-		*err = db.filer.EndUpdate()
-		if *err != nil {
-			db.acidState = stEndUpdateFailed
-			db.lastCommitErr = *err
-		}
 	}
 	db.bkl.Unlock()
 	return *err
@@ -487,6 +504,7 @@ func (db *DB) BeginTransaction() (err error) {
 		db.leave(&err)
 	}()
 
+	db.acidNest++
 	return db.filer.BeginUpdate()
 }
 
@@ -508,6 +526,7 @@ func (db *DB) Commit() (err error) {
 		db.leave(&err)
 	}()
 
+	db.acidNest--
 	return db.filer.EndUpdate()
 }
 
@@ -530,6 +549,7 @@ func (db *DB) Rollback() (err error) {
 		db.leave(&err)
 	}()
 
+	db.acidNest--
 	return db.filer.Rollback()
 }
 
@@ -797,10 +817,10 @@ func (db *DB) Inc(key []byte, delta int64) (val int64, err error) {
 
 	defer db.leave(&err)
 
-	buf := db.buffers.Get(8)
-	defer db.buffers.Put(buf)
+	pbuf := buffer.Get(8)
+	defer buffer.Put(pbuf)
 	_, _, err = db.root.Put(
-		buf,
+		*pbuf,
 		key,
 		func(key []byte, old []byte) (new []byte, write bool, err error) {
 			write = true

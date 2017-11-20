@@ -5,14 +5,48 @@
 package mathutil
 
 import (
+	"bytes"
+	"fmt"
 	"math"
 	"math/big"
 	"math/rand"
+	"os"
+	"path"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 )
+
+func caller(s string, va ...interface{}) {
+	_, fn, fl, _ := runtime.Caller(2)
+	fmt.Fprintf(os.Stderr, "caller: %s:%d: ", path.Base(fn), fl)
+	fmt.Fprintf(os.Stderr, s, va...)
+	fmt.Fprintln(os.Stderr)
+	_, fn, fl, _ = runtime.Caller(1)
+	fmt.Fprintf(os.Stderr, "\tcallee: %s:%d: ", path.Base(fn), fl)
+	fmt.Fprintln(os.Stderr)
+}
+
+func dbg(s string, va ...interface{}) {
+	if s == "" {
+		s = strings.Repeat("%v ", len(va))
+	}
+	_, fn, fl, _ := runtime.Caller(1)
+	fmt.Fprintf(os.Stderr, "dbg %s:%d: ", path.Base(fn), fl)
+	fmt.Fprintf(os.Stderr, s, va...)
+	fmt.Fprintln(os.Stderr)
+}
+
+func TODO(...interface{}) string {
+	_, fn, fl, _ := runtime.Caller(1)
+	return fmt.Sprintf("TODO: %s:%d:\n", path.Base(fn), fl)
+}
+
+func use(...interface{}) {}
+
+// ============================================================================
 
 func r32() *FC32 {
 	r, err := NewFC32(math.MinInt32, math.MaxInt32, true)
@@ -2896,6 +2930,105 @@ func TestMin(t *testing.T) {
 	}
 }
 
+func TestMaxVal(t *testing.T) {
+	tests := []struct{ a, b, c, e int }{
+		{MinInt, MinInt, MinIntM1, MaxInt},
+		{MinIntM1, MinIntM1, MinInt, MaxInt},
+		{MinIntM1, MinIntM1, MinIntM1, MaxInt},
+
+		{MinInt, MinInt, MinInt, MinInt},
+		{MinInt + 1, MinInt + 1, MinInt, MinInt + 1},
+		{MinInt, MinInt, MinInt + 1, MinInt + 1},
+
+		{-1, -1, -1, -1},
+		{-1, -1, 0, 0},
+		{-1, -1, 1, 1},
+
+		{0, 0, -1, 0},
+		{0, 0, 0, 0},
+		{0, 0, 1, 1},
+
+		{1, 1, -1, 1},
+		{1, 1, 0, 1},
+		{1, 1, 1, 1},
+
+		{MaxInt, MaxInt, MaxInt, MaxInt},
+		{MaxInt - 1, MaxInt - 1, MaxInt, MaxInt},
+		{MaxInt, MaxInt, MaxInt - 1, MaxInt},
+
+		{MaxIntP1, MaxIntP1, MaxInt, MaxInt},
+		{MaxInt, MaxInt, MaxIntP1, MaxInt},
+		{MaxIntP1, MaxIntP1, MaxIntP1, MinInt},
+	}
+
+	for i, test := range tests {
+		if g, e := MaxVal(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MaxVal(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestMinVal(t *testing.T) {
+	tests := []struct{ a, b, c, e int }{
+		{MinIntM1, MinIntM1, MinInt, MinInt},
+		{MinInt, MinInt, MinIntM1, MinInt},
+		{MinIntM1, MinIntM1, MinIntM1, MaxInt},
+
+		{MinInt, MinInt, MinInt, MinInt},
+		{MinInt + 1, MinInt + 1, MinInt, MinInt},
+		{MinInt, MinInt, MinInt + 1, MinInt},
+
+		{-1, -1, -1, -1},
+		{-1, -1, 0, -1},
+		{-1, -1, 1, -1},
+
+		{0, 0, -1, -1},
+		{0, 0, 0, 0},
+		{0, 0, 1, 0},
+
+		{1, 1, -1, -1},
+		{1, 1, 0, 0},
+		{1, 1, 1, 1},
+
+		{MaxInt, MaxInt, MaxInt, MaxInt},
+		{MaxInt - 1, MaxInt - 1, MaxInt, MaxInt - 1},
+		{MaxInt, MaxInt, MaxInt - 1, MaxInt - 1},
+
+		{MaxIntP1, MaxIntP1, MaxInt, MinInt},
+		{MaxInt, MaxInt, MaxIntP1, MinInt},
+		{MaxIntP1, MaxIntP1, MaxIntP1, MinInt},
+	}
+
+	for i, test := range tests {
+		if g, e := MinVal(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MinVal(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestClamp(t *testing.T) {
+	tests := []struct{ v, lo, hi, e int }{
+		{0, 0, 0, 0},
+		{5, 10, 20, 10},
+		{10, 10, 20, 10},
+		{15, 10, 20, 15},
+		{20, 10, 20, 20},
+		{25, 10, 20, 20},
+	}
+
+	for _, test := range tests {
+		if g, e := Clamp(test.v, test.lo, test.hi), test.e; g != e {
+			t.Fatal(test.v, test.lo, test.hi, g, e)
+		}
+	}
+}
+
 func TestUMax(t *testing.T) {
 	tests := []struct{ a, b, e uint }{
 		{0, 0, 0},
@@ -2952,6 +3085,85 @@ func TestUMin(t *testing.T) {
 	}
 }
 
+func TestUMaxVal(t *testing.T) {
+	tests := []struct{ a, b, c, e uint }{
+		{0, 0, 0, 0},
+		{0, 0, 1, 1},
+		{1, 1, 0, 1},
+
+		{10, 10, 10, 10},
+		{10, 10, 11, 11},
+		{11, 11, 10, 11},
+		{11, 11, 11, 11},
+
+		{MaxUint, MaxUint, MaxUint, MaxUint},
+		{MaxUint, MaxUint, MaxUint - 1, MaxUint},
+		{MaxUint - 1, MaxUint - 1, MaxUint, MaxUint},
+		{MaxUint - 1, MaxUint - 1, MaxUint - 1, MaxUint - 1},
+
+		{MaxUint, MaxUint, MaxUintP1, MaxUint},
+		{MaxUintP1, MaxUintP1, MaxUint, MaxUint},
+		{MaxUintP1, MaxUintP1, MaxUintP1, 0},
+	}
+
+	for i, test := range tests {
+		if g, e := UMaxVal(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := UMaxVal(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestUMinVal(t *testing.T) {
+	tests := []struct{ a, b, c, e uint }{
+		{0, 0, 0, 0},
+		{0, 0, 1, 0},
+		{1, 1, 0, 0},
+
+		{10, 10, 10, 10},
+		{10, 10, 11, 10},
+		{11, 11, 10, 10},
+		{11, 11, 11, 11},
+
+		{MaxUint, MaxUint, MaxUint, MaxUint},
+		{MaxUint, MaxUint, MaxUint - 1, MaxUint - 1},
+		{MaxUint - 1, MaxUint - 1, MaxUint, MaxUint - 1},
+		{MaxUint - 1, MaxUint - 1, MaxUint - 1, MaxUint - 1},
+
+		{MaxUint, MaxUint, MaxUintP1, 0},
+		{MaxUintP1, MaxUintP1, MaxUint, 0},
+		{MaxUintP1, MaxUintP1, MaxUintP1, 0},
+	}
+
+	for i, test := range tests {
+		if g, e := UMinVal(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := UMinVal(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestUClamp(t *testing.T) {
+	tests := []struct{ v, lo, hi, e uint }{
+		{0, 0, 0, 0},
+		{5, 10, 20, 10},
+		{10, 10, 20, 10},
+		{15, 10, 20, 15},
+		{20, 10, 20, 20},
+		{25, 10, 20, 20},
+	}
+
+	for _, test := range tests {
+		if g, e := UClamp(test.v, test.lo, test.hi), test.e; g != e {
+			t.Fatal(test.v, test.lo, test.hi, g, e)
+		}
+	}
+}
+
 func TestMaxByte(t *testing.T) {
 	tests := []struct{ a, b, e byte }{
 		{0, 0, 0},
@@ -2996,6 +3208,77 @@ func TestMinByte(t *testing.T) {
 	for _, test := range tests {
 		if g, e := MinByte(test.a, test.b), test.e; g != e {
 			t.Fatal(test.a, test.b, g, e)
+		}
+	}
+}
+
+func TestMaxByteVal(t *testing.T) {
+	tests := []struct{ a, b, c, e byte }{
+		{0, 0, 0, 0},
+		{0, 0, 1, 1},
+		{1, 1, 0, 1},
+
+		{10, 10, 10, 10},
+		{10, 10, 11, 11},
+		{11, 11, 10, 11},
+		{11, 11, 11, 11},
+
+		{math.MaxUint8, math.MaxUint8, math.MaxUint8, math.MaxUint8},
+		{math.MaxUint8, math.MaxUint8, math.MaxUint8 - 1, math.MaxUint8},
+		{math.MaxUint8 - 1, math.MaxUint8 - 1, math.MaxUint8, math.MaxUint8},
+		{math.MaxUint8 - 1, math.MaxUint8 - 1, math.MaxUint8 - 1, math.MaxUint8 - 1},
+	}
+
+	for i, test := range tests {
+		if g, e := MaxByteVal(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MaxByteVal(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestMinByteVal(t *testing.T) {
+	tests := []struct{ a, b, c, e byte }{
+		{0, 0, 0, 0},
+		{0, 0, 1, 0},
+		{1, 1, 0, 0},
+
+		{10, 10, 10, 10},
+		{10, 10, 11, 10},
+		{11, 11, 10, 10},
+		{11, 11, 11, 11},
+
+		{math.MaxUint8, math.MaxUint8, math.MaxUint8, math.MaxUint8},
+		{math.MaxUint8, math.MaxUint8, math.MaxUint8 - 1, math.MaxUint8 - 1},
+		{math.MaxUint8 - 1, math.MaxUint8 - 1, math.MaxUint8, math.MaxUint8 - 1},
+		{math.MaxUint8 - 1, math.MaxUint8 - 1, math.MaxUint8 - 1, math.MaxUint8 - 1},
+	}
+
+	for i, test := range tests {
+		if g, e := MinByteVal(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MinByteVal(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestClampByte(t *testing.T) {
+	tests := []struct{ v, lo, hi, e byte }{
+		{0, 0, 0, 0},
+		{5, 10, 20, 10},
+		{10, 10, 20, 10},
+		{15, 10, 20, 15},
+		{20, 10, 20, 20},
+		{25, 10, 20, 20},
+	}
+
+	for _, test := range tests {
+		if g, e := ClampByte(test.v, test.lo, test.hi), test.e; g != e {
+			t.Fatal(test.v, test.lo, test.hi, g, e)
 		}
 	}
 }
@@ -3048,6 +3331,77 @@ func TestMinUint16(t *testing.T) {
 	}
 }
 
+func TestMaxUint16Val(t *testing.T) {
+	tests := []struct{ a, b, c, e uint16 }{
+		{0, 0, 0, 0},
+		{0, 0, 1, 1},
+		{1, 1, 0, 1},
+
+		{10, 10, 10, 10},
+		{10, 10, 11, 11},
+		{11, 11, 10, 11},
+		{11, 11, 11, 11},
+
+		{math.MaxUint16, math.MaxUint16, math.MaxUint16, math.MaxUint16},
+		{math.MaxUint16, math.MaxUint16, math.MaxUint16 - 1, math.MaxUint16},
+		{math.MaxUint16 - 1, math.MaxUint16 - 1, math.MaxUint16, math.MaxUint16},
+		{math.MaxUint16 - 1, math.MaxUint16 - 1, math.MaxUint16 - 1, math.MaxUint16 - 1},
+	}
+
+	for i, test := range tests {
+		if g, e := MaxUint16Val(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MaxUint16Val(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestMinUint16Val(t *testing.T) {
+	tests := []struct{ a, b, c, e uint16 }{
+		{0, 0, 0, 0},
+		{0, 0, 1, 0},
+		{1, 1, 0, 0},
+
+		{10, 10, 10, 10},
+		{10, 10, 11, 10},
+		{11, 11, 10, 10},
+		{11, 11, 11, 11},
+
+		{math.MaxUint16, math.MaxUint16, math.MaxUint16, math.MaxUint16},
+		{math.MaxUint16, math.MaxUint16, math.MaxUint16 - 1, math.MaxUint16 - 1},
+		{math.MaxUint16 - 1, math.MaxUint16 - 1, math.MaxUint16, math.MaxUint16 - 1},
+		{math.MaxUint16 - 1, math.MaxUint16 - 1, math.MaxUint16 - 1, math.MaxUint16 - 1},
+	}
+
+	for i, test := range tests {
+		if g, e := MinUint16Val(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MinUint16Val(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestClampUint16(t *testing.T) {
+	tests := []struct{ v, lo, hi, e uint16 }{
+		{0, 0, 0, 0},
+		{5, 10, 20, 10},
+		{10, 10, 20, 10},
+		{15, 10, 20, 15},
+		{20, 10, 20, 20},
+		{25, 10, 20, 20},
+	}
+
+	for _, test := range tests {
+		if g, e := ClampUint16(test.v, test.lo, test.hi), test.e; g != e {
+			t.Fatal(test.v, test.lo, test.hi, g, e)
+		}
+	}
+}
+
 func TestMaxUint32(t *testing.T) {
 	tests := []struct{ a, b, e uint32 }{
 		{0, 0, 0},
@@ -3096,6 +3450,77 @@ func TestMinUint32(t *testing.T) {
 	}
 }
 
+func TestMaxUint32Val(t *testing.T) {
+	tests := []struct{ a, b, c, e uint32 }{
+		{0, 0, 0, 0},
+		{0, 0, 1, 1},
+		{1, 1, 0, 1},
+
+		{10, 10, 10, 10},
+		{10, 10, 11, 11},
+		{11, 11, 10, 11},
+		{11, 11, 11, 11},
+
+		{math.MaxUint32, math.MaxUint32, math.MaxUint32, math.MaxUint32},
+		{math.MaxUint32, math.MaxUint32, math.MaxUint32 - 1, math.MaxUint32},
+		{math.MaxUint32 - 1, math.MaxUint32 - 1, math.MaxUint32, math.MaxUint32},
+		{math.MaxUint32 - 1, math.MaxUint32 - 1, math.MaxUint32 - 1, math.MaxUint32 - 1},
+	}
+
+	for i, test := range tests {
+		if g, e := MaxUint32Val(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MaxUint32Val(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestMinUint32Val(t *testing.T) {
+	tests := []struct{ a, b, c, e uint32 }{
+		{0, 0, 0, 0},
+		{0, 0, 1, 0},
+		{1, 1, 0, 0},
+
+		{10, 10, 10, 10},
+		{10, 10, 11, 10},
+		{11, 11, 10, 10},
+		{11, 11, 11, 11},
+
+		{math.MaxUint32, math.MaxUint32, math.MaxUint32, math.MaxUint32},
+		{math.MaxUint32, math.MaxUint32, math.MaxUint32 - 1, math.MaxUint32 - 1},
+		{math.MaxUint32 - 1, math.MaxUint32 - 1, math.MaxUint32, math.MaxUint32 - 1},
+		{math.MaxUint32 - 1, math.MaxUint32 - 1, math.MaxUint32 - 1, math.MaxUint32 - 1},
+	}
+
+	for i, test := range tests {
+		if g, e := MinUint32Val(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MinUint32Val(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestClampUint32(t *testing.T) {
+	tests := []struct{ v, lo, hi, e uint32 }{
+		{0, 0, 0, 0},
+		{5, 10, 20, 10},
+		{10, 10, 20, 10},
+		{15, 10, 20, 15},
+		{20, 10, 20, 20},
+		{25, 10, 20, 20},
+	}
+
+	for _, test := range tests {
+		if g, e := ClampUint32(test.v, test.lo, test.hi), test.e; g != e {
+			t.Fatal(test.v, test.lo, test.hi, g, e)
+		}
+	}
+}
+
 func TestMaxUint64(t *testing.T) {
 	tests := []struct{ a, b, e uint64 }{
 		{0, 0, 0},
@@ -3140,6 +3565,77 @@ func TestMinUint64(t *testing.T) {
 	for _, test := range tests {
 		if g, e := MinUint64(test.a, test.b), test.e; g != e {
 			t.Fatal(test.a, test.b, g, e)
+		}
+	}
+}
+
+func TestMaxUint64Val(t *testing.T) {
+	tests := []struct{ a, b, c, e uint64 }{
+		{0, 0, 0, 0},
+		{0, 0, 1, 1},
+		{1, 1, 0, 1},
+
+		{10, 10, 10, 10},
+		{10, 10, 11, 11},
+		{11, 11, 10, 11},
+		{11, 11, 11, 11},
+
+		{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64},
+		{math.MaxUint64, math.MaxUint64, math.MaxUint64 - 1, math.MaxUint64},
+		{math.MaxUint64 - 1, math.MaxUint64 - 1, math.MaxUint64, math.MaxUint64},
+		{math.MaxUint64 - 1, math.MaxUint64 - 1, math.MaxUint64 - 1, math.MaxUint64 - 1},
+	}
+
+	for i, test := range tests {
+		if g, e := MaxUint64Val(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MaxUint64Val(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestMinUint64Val(t *testing.T) {
+	tests := []struct{ a, b, c, e uint64 }{
+		{0, 0, 0, 0},
+		{0, 0, 1, 0},
+		{1, 1, 0, 0},
+
+		{10, 10, 10, 10},
+		{10, 10, 11, 10},
+		{11, 11, 10, 10},
+		{11, 11, 11, 11},
+
+		{math.MaxUint64, math.MaxUint64, math.MaxUint64, math.MaxUint64},
+		{math.MaxUint64, math.MaxUint64, math.MaxUint64 - 1, math.MaxUint64 - 1},
+		{math.MaxUint64 - 1, math.MaxUint64 - 1, math.MaxUint64, math.MaxUint64 - 1},
+		{math.MaxUint64 - 1, math.MaxUint64 - 1, math.MaxUint64 - 1, math.MaxUint64 - 1},
+	}
+
+	for i, test := range tests {
+		if g, e := MinUint64Val(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MinUint64Val(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestClampUint64(t *testing.T) {
+	tests := []struct{ v, lo, hi, e uint64 }{
+		{0, 0, 0, 0},
+		{5, 10, 20, 10},
+		{10, 10, 20, 10},
+		{15, 10, 20, 15},
+		{20, 10, 20, 20},
+		{25, 10, 20, 20},
+	}
+
+	for _, test := range tests {
+		if g, e := ClampUint64(test.v, test.lo, test.hi), test.e; g != e {
+			t.Fatal(test.v, test.lo, test.hi, g, e)
 		}
 	}
 }
@@ -3204,6 +3700,89 @@ func TestMinInt8(t *testing.T) {
 	}
 }
 
+func TestMaxInt8Val(t *testing.T) {
+	tests := []struct{ a, b, c, e int8 }{
+		{math.MinInt8, math.MinInt8, math.MinInt8, math.MinInt8},
+		{math.MinInt8, math.MinInt8 + 1, math.MinInt8, math.MinInt8 + 1},
+		{math.MinInt8, math.MinInt8, math.MinInt8 + 1, math.MinInt8 + 1},
+
+		{-1, -1, -1, -1},
+		{-1, -1, 0, 0},
+		{-1, -1, 1, 1},
+
+		{0, 0, -1, 0},
+		{0, 0, 0, 0},
+		{0, 0, 1, 1},
+
+		{1, 1, -1, 1},
+		{1, 1, 0, 1},
+		{1, 1, 1, 1},
+
+		{math.MaxInt8, math.MaxInt8, math.MaxInt8, math.MaxInt8},
+		{math.MaxInt8 - 1, math.MaxInt8 - 1, math.MaxInt8, math.MaxInt8},
+		{math.MaxInt8, math.MaxInt8, math.MaxInt8 - 1, math.MaxInt8},
+	}
+
+	for i, test := range tests {
+		if g, e := MaxInt8Val(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MaxInt8Val(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestMinInt8Val(t *testing.T) {
+	tests := []struct{ a, b, c, e int8 }{
+		{math.MinInt8, math.MinInt8, math.MinInt8, math.MinInt8},
+		{math.MinInt8, math.MinInt8 + 1, math.MinInt8, math.MinInt8},
+		{math.MinInt8, math.MinInt8, math.MinInt8 + 1, math.MinInt8},
+
+		{-1, -1, -1, -1},
+		{-1, -1, 0, -1},
+		{-1, -1, 1, -1},
+
+		{0, 0, -1, -1},
+		{0, 0, 0, 0},
+		{0, 0, 1, 0},
+
+		{1, 1, -1, -1},
+		{1, 1, 0, 0},
+		{1, 1, 1, 1},
+
+		{math.MaxInt8, math.MaxInt8, math.MaxInt8, math.MaxInt8},
+		{math.MaxInt8 - 1, math.MaxInt8 - 1, math.MaxInt8, math.MaxInt8 - 1},
+		{math.MaxInt8, math.MaxInt8, math.MaxInt8 - 1, math.MaxInt8 - 1},
+	}
+
+	for i, test := range tests {
+		if g, e := MinInt8Val(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MinInt8Val(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestClampInt8(t *testing.T) {
+	tests := []struct{ v, lo, hi, e int8 }{
+		{0, 0, 0, 0},
+		{5, 10, 20, 10},
+		{10, 10, 20, 10},
+		{15, 10, 20, 15},
+		{20, 10, 20, 20},
+		{25, 10, 20, 20},
+	}
+
+	for _, test := range tests {
+		if g, e := ClampInt8(test.v, test.lo, test.hi), test.e; g != e {
+			t.Fatal(test.v, test.lo, test.hi, g, e)
+		}
+	}
+}
+
 func TestMaxInt16(t *testing.T) {
 	tests := []struct{ a, b, e int16 }{
 		{math.MinInt16, math.MinInt16, math.MinInt16},
@@ -3260,6 +3839,89 @@ func TestMinInt16(t *testing.T) {
 	for _, test := range tests {
 		if g, e := MinInt16(test.a, test.b), test.e; g != e {
 			t.Fatal(test.a, test.b, g, e)
+		}
+	}
+}
+
+func TestMaxInt16Val(t *testing.T) {
+	tests := []struct{ a, b, c, e int16 }{
+		{math.MinInt16, math.MinInt16, math.MinInt16, math.MinInt16},
+		{math.MinInt16, math.MinInt16 + 1, math.MinInt16, math.MinInt16 + 1},
+		{math.MinInt16, math.MinInt16, math.MinInt16 + 1, math.MinInt16 + 1},
+
+		{-1, -1, -1, -1},
+		{-1, -1, 0, 0},
+		{-1, -1, 1, 1},
+
+		{0, 0, -1, 0},
+		{0, 0, 0, 0},
+		{0, 0, 1, 1},
+
+		{1, 1, -1, 1},
+		{1, 1, 0, 1},
+		{1, 1, 1, 1},
+
+		{math.MaxInt16, math.MaxInt16, math.MaxInt16, math.MaxInt16},
+		{math.MaxInt16 - 1, math.MaxInt16 - 1, math.MaxInt16, math.MaxInt16},
+		{math.MaxInt16, math.MaxInt16, math.MaxInt16 - 1, math.MaxInt16},
+	}
+
+	for i, test := range tests {
+		if g, e := MaxInt16Val(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MaxInt16Val(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestMinInt16Val(t *testing.T) {
+	tests := []struct{ a, b, c, e int16 }{
+		{math.MinInt16, math.MinInt16, math.MinInt16, math.MinInt16},
+		{math.MinInt16, math.MinInt16 + 1, math.MinInt16, math.MinInt16},
+		{math.MinInt16, math.MinInt16, math.MinInt16 + 1, math.MinInt16},
+
+		{-1, -1, -1, -1},
+		{-1, -1, 0, -1},
+		{-1, -1, 1, -1},
+
+		{0, 0, -1, -1},
+		{0, 0, 0, 0},
+		{0, 0, 1, 0},
+
+		{1, 1, -1, -1},
+		{1, 1, 0, 0},
+		{1, 1, 1, 1},
+
+		{math.MaxInt16, math.MaxInt16, math.MaxInt16, math.MaxInt16},
+		{math.MaxInt16 - 1, math.MaxInt16 - 1, math.MaxInt16, math.MaxInt16 - 1},
+		{math.MaxInt16, math.MaxInt16, math.MaxInt16 - 1, math.MaxInt16 - 1},
+	}
+
+	for i, test := range tests {
+		if g, e := MinInt16Val(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MinInt16Val(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestClampInt16(t *testing.T) {
+	tests := []struct{ v, lo, hi, e int16 }{
+		{0, 0, 0, 0},
+		{5, 10, 20, 10},
+		{10, 10, 20, 10},
+		{15, 10, 20, 15},
+		{20, 10, 20, 20},
+		{25, 10, 20, 20},
+	}
+
+	for _, test := range tests {
+		if g, e := ClampInt16(test.v, test.lo, test.hi), test.e; g != e {
+			t.Fatal(test.v, test.lo, test.hi, g, e)
 		}
 	}
 }
@@ -3324,6 +3986,89 @@ func TestMinInt32(t *testing.T) {
 	}
 }
 
+func TestMaxInt32Val(t *testing.T) {
+	tests := []struct{ a, b, c, e int32 }{
+		{math.MinInt32, math.MinInt32, math.MinInt32, math.MinInt32},
+		{math.MinInt32, math.MinInt32 + 1, math.MinInt32, math.MinInt32 + 1},
+		{math.MinInt32, math.MinInt32, math.MinInt32 + 1, math.MinInt32 + 1},
+
+		{-1, -1, -1, -1},
+		{-1, -1, 0, 0},
+		{-1, -1, 1, 1},
+
+		{0, 0, -1, 0},
+		{0, 0, 0, 0},
+		{0, 0, 1, 1},
+
+		{1, 1, -1, 1},
+		{1, 1, 0, 1},
+		{1, 1, 1, 1},
+
+		{math.MaxInt32, math.MaxInt32, math.MaxInt32, math.MaxInt32},
+		{math.MaxInt32 - 1, math.MaxInt32 - 1, math.MaxInt32, math.MaxInt32},
+		{math.MaxInt32, math.MaxInt32, math.MaxInt32 - 1, math.MaxInt32},
+	}
+
+	for i, test := range tests {
+		if g, e := MaxInt32Val(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MaxInt32Val(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestMinInt32Val(t *testing.T) {
+	tests := []struct{ a, b, c, e int32 }{
+		{math.MinInt32, math.MinInt32, math.MinInt32, math.MinInt32},
+		{math.MinInt32, math.MinInt32 + 1, math.MinInt32, math.MinInt32},
+		{math.MinInt32, math.MinInt32, math.MinInt32 + 1, math.MinInt32},
+
+		{-1, -1, -1, -1},
+		{-1, -1, 0, -1},
+		{-1, -1, 1, -1},
+
+		{0, 0, -1, -1},
+		{0, 0, 0, 0},
+		{0, 0, 1, 0},
+
+		{1, 1, -1, -1},
+		{1, 1, 0, 0},
+		{1, 1, 1, 1},
+
+		{math.MaxInt32, math.MaxInt32, math.MaxInt32, math.MaxInt32},
+		{math.MaxInt32 - 1, math.MaxInt32 - 1, math.MaxInt32, math.MaxInt32 - 1},
+		{math.MaxInt32, math.MaxInt32, math.MaxInt32 - 1, math.MaxInt32 - 1},
+	}
+
+	for i, test := range tests {
+		if g, e := MinInt32Val(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MinInt32Val(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestClampInt32(t *testing.T) {
+	tests := []struct{ v, lo, hi, e int32 }{
+		{0, 0, 0, 0},
+		{5, 10, 20, 10},
+		{10, 10, 20, 10},
+		{15, 10, 20, 15},
+		{20, 10, 20, 20},
+		{25, 10, 20, 20},
+	}
+
+	for _, test := range tests {
+		if g, e := ClampInt32(test.v, test.lo, test.hi), test.e; g != e {
+			t.Fatal(test.v, test.lo, test.hi, g, e)
+		}
+	}
+}
+
 func TestMaxInt64(t *testing.T) {
 	tests := []struct{ a, b, e int64 }{
 		{math.MinInt64, math.MinInt64, math.MinInt64},
@@ -3380,6 +4125,89 @@ func TestMinInt64(t *testing.T) {
 	for _, test := range tests {
 		if g, e := MinInt64(test.a, test.b), test.e; g != e {
 			t.Fatal(test.a, test.b, g, e)
+		}
+	}
+}
+
+func TestMaxInt64Val(t *testing.T) {
+	tests := []struct{ a, b, c, e int64 }{
+		{math.MinInt64, math.MinInt64, math.MinInt64, math.MinInt64},
+		{math.MinInt64, math.MinInt64 + 1, math.MinInt64, math.MinInt64 + 1},
+		{math.MinInt64, math.MinInt64, math.MinInt64 + 1, math.MinInt64 + 1},
+
+		{-1, -1, -1, -1},
+		{-1, -1, 0, 0},
+		{-1, -1, 1, 1},
+
+		{0, 0, -1, 0},
+		{0, 0, 0, 0},
+		{0, 0, 1, 1},
+
+		{1, 1, -1, 1},
+		{1, 1, 0, 1},
+		{1, 1, 1, 1},
+
+		{math.MaxInt64, math.MaxInt64, math.MaxInt64, math.MaxInt64},
+		{math.MaxInt64 - 1, math.MaxInt64 - 1, math.MaxInt64, math.MaxInt64},
+		{math.MaxInt64, math.MaxInt64, math.MaxInt64 - 1, math.MaxInt64},
+	}
+
+	for i, test := range tests {
+		if g, e := MaxInt64Val(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MaxInt64Val(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestMinInt64Val(t *testing.T) {
+	tests := []struct{ a, b, c, e int64 }{
+		{math.MinInt64, math.MinInt64, math.MinInt64, math.MinInt64},
+		{math.MinInt64, math.MinInt64 + 1, math.MinInt64, math.MinInt64},
+		{math.MinInt64, math.MinInt64, math.MinInt64 + 1, math.MinInt64},
+
+		{-1, -1, -1, -1},
+		{-1, -1, 0, -1},
+		{-1, -1, 1, -1},
+
+		{0, 0, -1, -1},
+		{0, 0, 0, 0},
+		{0, 0, 1, 0},
+
+		{1, 1, -1, -1},
+		{1, 1, 0, 0},
+		{1, 1, 1, 1},
+
+		{math.MaxInt64, math.MaxInt64, math.MaxInt64, math.MaxInt64},
+		{math.MaxInt64 - 1, math.MaxInt64 - 1, math.MaxInt64, math.MaxInt64 - 1},
+		{math.MaxInt64, math.MaxInt64, math.MaxInt64 - 1, math.MaxInt64 - 1},
+	}
+
+	for i, test := range tests {
+		if g, e := MinInt64Val(test.a, test.b, test.c), test.e; g != e {
+			t.Fatal(i, test.a, test.b, test.c, g, e)
+		}
+		if g, e := MinInt64Val(test.a), test.a; g != e {
+			t.Fatal(i, test.a, g, e)
+		}
+	}
+}
+
+func TestClampInt64(t *testing.T) {
+	tests := []struct{ v, lo, hi, e int64 }{
+		{0, 0, 0, 0},
+		{5, 10, 20, 10},
+		{10, 10, 20, 10},
+		{15, 10, 20, 15},
+		{20, 10, 20, 20},
+		{25, 10, 20, 20},
+	}
+
+	for _, test := range tests {
+		if g, e := ClampInt64(test.v, test.lo, test.hi), test.e; g != e {
+			t.Fatal(test.v, test.lo, test.hi, g, e)
 		}
 	}
 }
@@ -3482,4 +4310,251 @@ func TestToBase(t *testing.T) {
 			t.Fatal(i, g, e)
 		}
 	}
+}
+
+func TestBug(t *testing.T) {
+	if BitLenUint(MaxUint) != 64 {
+		t.Logf("Bug reproducible only on 64 bit architecture")
+		return
+	}
+
+	_, err := NewFC32(MinInt, MaxInt, true)
+	if err == nil {
+		t.Fatal("Expected non nil err")
+	}
+}
+
+func poly(a ...int) string {
+	var b bytes.Buffer
+	for i, v := range a {
+		p := len(a) - i - 1
+		if v == 0 && p != 0 {
+			continue
+		}
+
+		if v == 0 && p == 0 && b.Len() != 0 {
+			continue
+		}
+
+		if av := abs(v); av == 1 && p != 0 {
+			if b.Len() != 0 {
+				if v == 1 {
+					b.WriteByte('+')
+				} else {
+					b.WriteByte('-')
+				}
+			} else if v == -1 {
+				b.WriteByte('-')
+			}
+		} else {
+			switch {
+			case b.Len() == 0:
+				fmt.Fprintf(&b, "%d", v)
+			default:
+				fmt.Fprintf(&b, "%+d", v)
+			}
+		}
+
+		if p == 0 {
+			continue
+		}
+
+		if p == 1 {
+			fmt.Fprintf(&b, "x")
+			continue
+		}
+
+		fmt.Fprintf(&b, "x^%d", p)
+	}
+	return b.String()
+}
+
+func polyK(k int) string {
+	switch {
+	case k == -1:
+		return "-"
+	case k == 1:
+		return ""
+	default:
+		return fmt.Sprint(k)
+	}
+}
+
+func TestQuadPolyDiscriminant(t *testing.T) {
+	for i, test := range []struct {
+		a, b, c, ds, d int
+	}{
+		{-1, -5, 6, 49, 7},
+		{-1, 5, 6, 49, 7},
+		{1, -5, -6, 49, 7},
+		{1, 5, -6, 49, 7},
+		{1, 5, 6, 1, 1},
+		{2, 3, 5, -31, -1},
+		{2, 7, 3, 25, 5},
+		{3, 8, 5, 4, 2},
+		{3, 9, 5, 21, -1},
+		{4, 5, 1, 9, 3},
+		{5, 3, 2, -31, -1},
+	} {
+		ds, d, err := QuadPolyDiscriminant(test.a, test.b, test.c)
+		if err != nil {
+			t.Fatal(i, err)
+		}
+
+		if g, e := ds, test.ds; g != e {
+			t.Fatal(i, g, e)
+		}
+
+		if g, e := d, test.d; g != e {
+			t.Fatal(i, g, e)
+		}
+	}
+}
+
+func testQuadPolyFactors(t *testing.T, p1, q1, p2, q2, k, cases int) {
+	a := k * p1 * p2
+	b := k * (p1*q2 + q1*p2)
+	c := k * (q1 * q2)
+	con, f, err := QuadPolyFactors(a, b, c)
+	if err != nil {
+		t.Fatalf(
+			"%d: %s(%s)(%s) = %s -> %v",
+			cases, polyK(k), poly(p1, q1), poly(p2, q2), poly(a, b, c),
+			err,
+		)
+	}
+
+	switch {
+	case a == 0:
+		if g, e := len(f), 1; g != e {
+			t.Fatalf(
+				"%d: %s(%s)(%s) = %s -> got %v factors, expected %v",
+				cases, polyK(k), poly(p1, q1), poly(p2, q2), poly(a, b, c),
+				g, e,
+			)
+		}
+
+		a2 := 0
+		b2 := con * f[0].P
+		c2 := con * f[0].Q
+		if a != a2 || b != b2 || c != c2 {
+			t.Fatalf(
+				"%d: %s(%s)(%s) = %s -> %s(%s) = %s",
+				cases, polyK(k), poly(p1, q1), poly(p2, q2), poly(a, b, c),
+				polyK(con), poly(f[0].P, f[0].Q), poly(a2, b2, c2),
+			)
+		}
+
+		t.Logf(
+			"%d: %s(%s)(%s) = %s -> %s(%s) = %s",
+			cases, polyK(k), poly(p1, q1), poly(p2, q2), poly(a, b, c),
+			polyK(con), poly(f[0].P, f[0].Q), poly(a2, b2, c2),
+		)
+	default:
+		if g, e := len(f), 2; g != e {
+			t.Fatalf(
+				"%d: %s(%s)(%s) = %s -> got %v factors, expected %v",
+				cases, polyK(k), poly(p1, q1), poly(p2, q2), poly(a, b, c),
+				g, e,
+			)
+		}
+
+		a2 := con * f[0].P * f[1].P
+		b2 := con * (f[0].P*f[1].Q + f[0].Q*f[1].P)
+		c2 := con * f[0].Q * f[1].Q
+		if a != a2 || b != b2 || c != c2 {
+			dbg("", con, f)
+			t.Fatalf(
+				"%d: %s(%s)(%s) = %s -> %s(%s)(%s) = %s",
+				cases, polyK(k), poly(p1, q1), poly(p2, q2), poly(a, b, c),
+				polyK(con), poly(f[0].P, f[0].Q), poly(f[1].P, f[1].Q), poly(a2, b2, c2),
+			)
+		}
+
+		t.Logf(
+			"%d: %s(%s)(%s) = %s -> %s(%s)(%s) = %s",
+			cases, polyK(k), poly(p1, q1), poly(p2, q2), poly(a, b, c),
+			polyK(con), poly(f[0].P, f[0].Q), poly(f[1].P, f[1].Q), poly(a2, b2, c2),
+		)
+	}
+}
+
+func TestQuadPolyFactors(t *testing.T) {
+	cases := 0
+
+	const N = 1e4
+	mask := 1<<14 - 1
+	if IntBits < 64 {
+		mask = 1<<7 - 1
+	}
+	rng := rand.New(rand.NewSource(42))
+	for i := 0; i < N; i++ {
+		p1 := int(rng.Int63()) & mask
+		q1 := int(rng.Int63()) & mask
+		p2 := int(rng.Int63()) & mask
+		q2 := int(rng.Int63()) & mask
+		k := int(rng.Int63()) & mask
+		testQuadPolyFactors(t, p1, q1, p2, q2, k, cases)
+		cases++
+	}
+
+	cons := []int{-1, 1}
+	const lim = 7
+	for p1 := -lim; p1 <= lim; p1++ {
+		for q1 := -lim; q1 <= lim; q1++ {
+			for p2 := -lim; p2 <= lim; p2++ {
+				for q2 := -lim; q2 <= lim; q2++ {
+					for _, k := range cons {
+						testQuadPolyFactors(t, p1, q1, p2, q2, k, cases)
+						cases++
+					}
+				}
+			}
+		}
+	}
+}
+
+// https://github.com/cznic/sqlite/issues/12#issuecomment-310155204
+func TestFCPRNG(t *testing.T) {
+	const N = 131072
+	rng, err := NewFC32(1, N, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var mods, exp [3]int
+	m := make(map[int]byte, N)
+	for i := 1; i <= N; i++ {
+		n := rng.Next()
+		if _, ok := m[n]; ok {
+			t.Fatal(i, n)
+		}
+
+		m[n] = 1
+		mods[n%len(mods)]++
+	}
+	if g, e := len(m), N; g != e {
+		t.Fatal(g, e)
+	}
+
+	for i := 1; i <= N; i++ {
+		n := rng.Next()
+		if m[n] != 1 {
+			t.Fatal(i, n)
+		}
+
+		m[n] = 0
+	}
+
+	for i := 1; i <= N; i++ {
+		exp[i%len(mods)]++
+	}
+
+	for i, g := range mods {
+		if e := exp[i]; g != e {
+			t.Fatal(g, e)
+		}
+	}
+
+	t.Log(mods)
 }

@@ -7,7 +7,7 @@ package kv
 import (
 	"os"
 
-	"github.com/cznic/exp/lldb"
+	"github.com/cznic/lldb"
 )
 
 func open00(name string, in *DB) (db *DB, err error) {

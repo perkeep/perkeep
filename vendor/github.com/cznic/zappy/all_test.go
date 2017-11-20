@@ -23,7 +23,7 @@ import (
 	"strings"
 	"testing"
 
-	"code.google.com/p/snappy-go/snappy"
+	"github.com/golang/snappy"
 )
 
 var dbg = func(s string, va ...interface{}) {
@@ -34,6 +34,10 @@ var dbg = func(s string, va ...interface{}) {
 }
 
 func use(...interface{}) {}
+
+func init() {
+	use(dbg)
+}
 
 var (
 	download = flag.Bool("download", false, "If true, download any missing files before running benchmarks")
@@ -314,11 +318,7 @@ func TestCmp(t *testing.T) {
 		data := readFile2(t, filename)
 		orig := len(data)
 		to += orig
-		senc, err := snappy.Encode(nil, data)
-		if err != nil {
-			t.Fatal(err)
-		}
-
+		senc := snappy.Encode(nil, data)
 		ns := len(senc)
 		zenc, err := Encode(nil, data)
 		if err != nil {
@@ -341,11 +341,7 @@ func TestBitIndex(t *testing.T) {
 			data[rng.Int()%n] = 1
 		}
 
-		senc, err := snappy.Encode(nil, data)
-		if err != nil {
-			t.Fatal(err)
-		}
-
+		senc := snappy.Encode(nil, data)
 		ns := len(senc)
 		zenc, err := Encode(nil, data)
 		if err != nil {
@@ -365,7 +361,8 @@ func TestPureGo(t *testing.T) {
 	case "true":
 		purego = true
 	default:
-		t.Log("Not performed: %q", s)
+		t.Logf("Not performed: %q", s)
+		return
 	}
 
 	if g, e := puregoDecode(), purego; g != e {
@@ -374,5 +371,26 @@ func TestPureGo(t *testing.T) {
 
 	if g, e := puregoEncode(), purego; g != e {
 		t.Fatal("Encode", g, e)
+	}
+}
+
+func TestBug5(t *testing.T) { // https://github.com/cznic/zappy/issues/5
+	src, err := ioutil.ReadFile("testdata/zappy_error_src_dump_purego.bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	enc, err := Encode(nil, src)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dec, err := Decode(nil, enc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(src, dec) {
+		t.Fatal(false)
 	}
 }

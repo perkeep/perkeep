@@ -279,25 +279,18 @@ func FactorInt(n uint32) (f FactorTerms) {
 	}
 
 	f, w := make([]FactorTerm, 9), 0
-	prime16 := uint16(0)
-	for {
-		var ok bool
-		if prime16, ok = NextPrimeUint16(prime16); !ok {
-			break
-		}
-
-		prime := uint32(prime16)
-		if prime*prime > n {
+	for p := 2; p < len(primes16); p += int(primes16[p]) {
+		if uint(p*p) > uint(n) {
 			break
 		}
 
 		power := uint32(0)
-		for n%prime == 0 {
-			n /= prime
+		for n%uint32(p) == 0 {
+			n /= uint32(p)
 			power++
 		}
 		if power != 0 {
-			f[w] = FactorTerm{prime, power}
+			f[w] = FactorTerm{uint32(p), power}
 			w++
 		}
 		if n == 1 {

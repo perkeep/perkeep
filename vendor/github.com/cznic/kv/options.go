@@ -10,10 +10,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"time"
 
-	"github.com/cznic/exp/lldb"
+	"github.com/cznic/lldb"
 )
 
 const (
@@ -37,7 +36,7 @@ const (
 	// WAL.  Updates to the DB will be first made permanent in a WAL and
 	// only after that reflected in the DB. A DB will automatically recover
 	// from crashes and/or any other non clean DB shutdown. Only last
-	// uncommited transaction (transaction in progress ATM of a crash) can
+	// uncommitted transaction (transaction in progress ATM of a crash) can
 	// get lost.
 	//
 	// NOTE: Options.GracePeriod may extend the span of a single
@@ -81,14 +80,10 @@ type Options struct {
 	// Moving both the files (the DB and the WAL) into another directory
 	// with no renaming is safe.
 	//
-	// On opening an existing DB the WAL file must exist if it should be
-	// used. If it is of zero size then a clean shutdown of the DB is
-	// assumed, otherwise an automatic DB recovery is performed.
-	//
 	// On creating a new DB the WAL file must not exist or it must be
 	// empty. It's not safe to write to a non empty WAL file as it may
 	// contain unprocessed DB recovery data.
-	_WAL string
+	WAL string
 
 	// Time to collect transactions before committing them into the WAL.
 	// Applicable iff ACID == ACIDFull. All updates are held in memory
@@ -171,36 +166,42 @@ func (o *Options) check(dbname string, new, lock bool) (err error) {
 	case _ACIDTransactions:
 	case _ACIDFull:
 		o._GracePeriod = time.Second
-		o._WAL = o.walName(dbname, o._WAL)
+		if o.WAL == "" {
+			o.WAL = o.walName(dbname, o.WAL)
+		}
 
 		switch new {
 		case true:
-			if o.wal, err = os.OpenFile(o._WAL, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0666); err != nil {
+			if o.wal, err = os.OpenFile(o.WAL, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0666); err != nil {
 				if os.IsExist(err) {
-					fi, e := os.Stat(o._WAL)
+					fi, e := os.Stat(o.WAL)
 					if e != nil {
 						return e
 					}
 
 					if sz := fi.Size(); sz != 0 {
-						return fmt.Errorf("cannot create DB %q: non empty WAL file %q (size %d) exists", dbname, o._WAL, sz)
+						return fmt.Errorf("cannot create DB %q: non empty WAL file %q (size %d) exists", dbname, o.WAL, sz)
 					}
 
-					o.wal, err = os.OpenFile(o._WAL, os.O_RDWR, 0666)
+					o.wal, err = os.OpenFile(o.WAL, os.O_RDWR, 0666)
 				}
 				return
 			}
 		case false:
-			if o.wal, err = os.OpenFile(o._WAL, os.O_RDWR, 0666); err != nil {
+			if o.wal, err = os.OpenFile(o.WAL, os.O_RDWR, 0666); err != nil {
 				if os.IsNotExist(err) {
-					err = fmt.Errorf("cannot open DB %q: WAL file %q doesn't exist", dbname, o._WAL)
+					if o.wal, err = os.OpenFile(o.WAL, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0666); err != nil {
+						return fmt.Errorf("cannot open DB %q: failed to create  WAL file %q: %v", dbname, o.WAL, err)
+					}
+
+					err = nil
 				}
-				return
+				return err
 			}
 		}
 	}
 
-	return
+	return err
 }
 
 func (o *Options) walName(dbname, wal string) (r string) {
@@ -219,21 +220,20 @@ func (o *Options) acidFiler(db *DB, f lldb.Filer) (r lldb.Filer, err error) {
 	default:
 		panic("internal error")
 	case _ACIDTransactions:
-		var rf *lldb.RollbackFiler
-		if rf, err = lldb.NewRollbackFiler(
+		if r, err = lldb.NewRollbackFiler(
 			f,
 			func(sz int64) error {
 				return f.Truncate(sz)
 			},
 			f,
 		); err != nil {
-			return
+			return nil, err
 		}
 
-		r = rf
+		return r, nil
 	case _ACIDFull:
 		if r, err = lldb.NewACIDFiler(f, o.wal); err != nil {
-			return
+			return nil, err
 		}
 
 		db.acidState = stIdle
@@ -241,13 +241,6 @@ func (o *Options) acidFiler(db *DB, f lldb.Filer) (r lldb.Filer, err error) {
 		if o._GracePeriod == 0 {
 			panic("internal error")
 		}
-
-		// Ensure GOMAXPROCS > 1, required for ACID FSM
-		if n := runtime.GOMAXPROCS(0); n > 1 {
-			return
-		}
-
-		runtime.GOMAXPROCS(2)
+		return r, nil
 	}
-	return
 }

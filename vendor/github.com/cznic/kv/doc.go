@@ -6,6 +6,10 @@
 
 Package kv implements a simple and easy to use persistent key/value (KV) store.
 
+Changelog
+
+2016-07-11: KV now uses the stable version of lldb. (github.com/cznic/lldb).
+
 The stored KV pairs are sorted in the key collation order defined by an user
 supplied 'compare' function (passed as a field in Options).
 
@@ -76,7 +80,7 @@ Referenced from above:
   [1]: http://en.wikipedia.org/wiki/ACID
   [2]: http://en.wikipedia.org/wiki/2PC
   [3]: http://en.wikipedia.org/wiki/Write_ahead_logging
-  [4]: http://godoc.org/github.com/cznic/exp/lldb#Allocator
+  [4]: http://godoc.org/github.com/cznic/lldb#Allocator
 
 */
 package kv

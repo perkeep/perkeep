@@ -1,4 +1,4 @@
-// Copyright (c) 2011 jnml. All rights reserved.
+// Copyright (c) 2014 The mersenne Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -8,7 +8,7 @@ of their properties.
 
 Exponent
 
-In this documentatoin the term 'exponent' refers to 'n' of a Mersenne number Mn
+In this documentation the term 'exponent' refers to 'n' of a Mersenne number Mn
 equal to 2^n-1. This package supports only uint32 sized exponents. New()
 currently supports exponents only up to math.MaxInt32 (31 bits, up to 256 MB
 required to represent such Mn in memory as a big.Int).
@@ -21,9 +21,11 @@ Referenced from above:
 package mersenne
 
 import (
-	"github.com/cznic/mathutil"
 	"math"
 	"math/big"
+
+	"github.com/cznic/mathutil"
+	"github.com/remyoudompheng/bigfft"
 )
 
 var (
@@ -87,6 +89,7 @@ var Knowns = []uint32{
 	42643801, // #46
 	43112609, // #47
 	57885161, // #48
+	74207281, // #49
 }
 
 // Known maps the exponent of known Mersenne primes its ordinal number/rank.
@@ -129,6 +132,12 @@ func HasFactorBigInt(d *big.Int, n uint32) bool {
 		mathutil.ModPowBigInt(_2, big.NewInt(int64(n)), d).Cmp(_1) == 0
 }
 
+// HasFactorBigInt2 returns true if d | Mn, d > 0
+func HasFactorBigInt2(d, n *big.Int) bool {
+	return d.Cmp(_1) == 0 || d.Sign() > 0 && d.Bit(0) == 1 &&
+		mathutil.ModPowBigInt(_2, n, d).Cmp(_1) == 0
+}
+
 /*
 FromFactorBigInt returns n such that d | Mn if n <= max and d is odd. In other
 cases zero is returned.
@@ -137,7 +146,7 @@ It is conjectured that every odd d ∊ N divides infinitely many Mersenne number
 The returned n should be the exponent of smallest such Mn.
 
 NOTE: The computation of n from a given d performs roughly in O(n). It is
-thus highly recomended to use the 'max' argument to limit the "searched"
+thus highly recommended to use the 'max' argument to limit the "searched"
 exponent upper bound as appropriate. Otherwise the computation can take a long
 time as a large factor can be a divisor of a Mn with exponent above the uint32
 limits.
@@ -262,9 +271,9 @@ func ModPow(b, e, m uint32) (r *big.Int) {
 	bb := big.NewInt(int64(b))
 	r = big.NewInt(1)
 	for ; e != 0; e-- {
-		r.Mul(r, bb)
+		r = bigfft.Mul(r, bb)
 		Mod(r, r, m)
-		bb.Mul(bb, bb)
+		bb = bigfft.Mul(bb, bb)
 		Mod(bb, bb, m)
 	}
 	return

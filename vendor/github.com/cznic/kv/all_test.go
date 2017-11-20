@@ -5,9 +5,9 @@
 package kv
 
 import (
+	"crypto/sha512"
 	"encoding/binary"
 	"flag"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"math"
@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -27,19 +28,8 @@ import (
 const sz0 = 144 // size of an empty KV DB
 
 var (
-	oDB   = flag.String("db", "", "DB to use in BenchmarkEnumerateDB")
-	oKeep = flag.Bool("keep", false, "do not delete test DB (some tests)")
+	oDB = flag.String("db", "", "DB to use in BenchmarkEnumerateDB")
 )
-
-func dbg(s string, va ...interface{}) {
-	if s == "" {
-		s = strings.Repeat("%v ", len(va))
-	}
-	_, fn, fl, _ := runtime.Caller(1)
-	fmt.Printf("%s:%d: ", path.Base(fn), fl)
-	fmt.Printf(s, va...)
-	fmt.Println()
-}
 
 func opts() *Options {
 	return &Options{
@@ -220,7 +210,7 @@ func TestSize(t *testing.T) {
 		return
 	}
 
-	if sz != sz0 {
+	if sz != sz0-16 {
 		t.Error(sz, sz0)
 	}
 }
@@ -237,7 +227,7 @@ func TestVerify(t *testing.T) {
 
 	defer db.Close()
 
-	t.Log(db.Name(), o._WAL)
+	t.Log(db.Name(), o.WAL)
 	if err := db.Verify(nil, nil); err != nil {
 		t.Error(err)
 	}
@@ -649,7 +639,7 @@ func BenchmarkFirst16(b *testing.B) {
 
 	defer func() {
 		db.Close()
-		os.Remove(o._WAL)
+		os.Remove(o.WAL)
 	}()
 
 	rng := fc()
@@ -683,7 +673,7 @@ func TestGet(t *testing.T) {
 
 	defer func() {
 		db.Close()
-		os.Remove(o._WAL)
+		os.Remove(o.WAL)
 	}()
 
 	rng := fc()
@@ -729,6 +719,69 @@ func TestGet(t *testing.T) {
 	}
 	close(c)
 	wg.Wait()
+}
+
+func TestGetEmpty(t *testing.T) {
+	o := opts()
+	dir, _ := temp()
+	defer os.RemoveAll(dir)
+
+	db, err := CreateTemp(dir, "temp", ".db", o)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() {
+		db.Close()
+		os.Remove(o.WAL)
+	}()
+
+	missing := []byte("missing")
+	empty := []byte("empty")
+	err = db.Set(empty, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Check the empty record exists
+	_, exists, err := db.Seek(empty)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Fatalf("empty record does not exist")
+	}
+
+	// And not missing one
+	_, exists, err = db.Seek(missing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists {
+		t.Fatalf("missing record exists")
+	}
+
+	checkGet := func(key, buf, wanted []byte) {
+		data, err := db.Get(buf, key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if wanted == nil {
+			if data != nil {
+				t.Fatalf("%s returned %v instead of nil", string(key), data)
+			}
+		} else {
+			if data == nil {
+				t.Fatalf("%s returned nil instead of non-nil", key)
+			}
+			if len(wanted) != len(data) {
+				t.Fatalf("%s returned %x instead of %x", string(key), data, wanted)
+			}
+		}
+	}
+	checkGet(missing, nil, nil)
+	checkGet(missing, []byte{}, nil)
+	checkGet(empty, nil, []byte{})
+	checkGet(empty, []byte{}, []byte{})
 }
 
 func BenchmarkGet16(b *testing.B) {
@@ -1082,7 +1135,7 @@ func BenchmarkLast16(b *testing.B) {
 	defer func(n string) {
 		db.Close()
 		os.Remove(n)
-		os.Remove(o._WAL)
+		os.Remove(o.WAL)
 	}(dbname)
 
 	rng := fc()
@@ -1907,4 +1960,138 @@ func BenchmarkEnumerateDB(b *testing.B) {
 		}
 	}
 	b.StopTimer()
+}
+
+// https://github.com/cznic/kv/issues/24
+func TestIssue24Mem(t *testing.T) {
+	db, err := CreateMem(&Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := db.BeginTransaction(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := db.Set([]byte("x"), []byte("y")); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := db.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+
+	enum, err := db.SeekFirst()
+	if err == io.EOF {
+		return
+	}
+
+	k, v, err := enum.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Fatalf("%s: %s", k, v)
+}
+
+// https://github.com/cznic/kv/issues/24
+func TestIssue24File(t *testing.T) {
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer os.RemoveAll(dir)
+
+	db, err := Create(filepath.Join(dir, "test.kv"), &Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer db.Close()
+
+	if err := db.BeginTransaction(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := db.Set([]byte("x"), []byte("y")); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := db.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+
+	enum, err := db.SeekFirst()
+	if err == io.EOF {
+		return
+	}
+
+	k, v, err := enum.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Fatalf("%s: %s", k, v)
+}
+
+// https://github.com/cznic/kv/issues/32
+func TestIssue32File(t *testing.T) {
+	path, err := ioutil.TempDir("", "kv.test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(path)
+	val := []byte{1, 2, 3}
+	wgMain := sync.WaitGroup{}
+
+	for i := 0; i < 15; i++ {
+		wgMain.Add(1)
+		go func(i int) {
+			defer wgMain.Done()
+			db, err := Create(filepath.Join(path, strconv.Itoa(i)), &Options{VerifyDbBeforeOpen: true})
+			if err != nil {
+				t.Fatalf("Create db failed: %v", err)
+			}
+			defer db.Close()
+
+			wg := sync.WaitGroup{}
+			startC := make(chan struct{})
+
+			for i := 0; i < 100; i++ {
+				wg.Add(1)
+				go func(i int) {
+					defer wg.Done()
+					<-startC
+					h := sha512.New()
+					h.Write([]byte(strconv.Itoa(i)))
+					_, _, err := db.Put(nil, h.Sum(nil), func(k, v []byte) ([]byte, bool, error) { return val, true, nil })
+					if err != nil {
+						t.Fatalf("Put failed: %v", err)
+					}
+					h.Reset()
+				}(i)
+			}
+			close(startC)
+			wg.Wait()
+		}(i)
+	}
+	wgMain.Wait()
+	for dbNum := 0; dbNum < 15; dbNum++ {
+		db, err := Open(filepath.Join(path, strconv.Itoa(dbNum)), &Options{VerifyDbBeforeOpen: true})
+		if err != nil {
+			t.Fatalf("Error open %s: %s\n", filepath.Join(path, strconv.Itoa(dbNum)), err)
+		}
+		for i := 0; i < 100; i++ {
+			h := sha512.New()
+			h.Write([]byte(strconv.Itoa(i)))
+			_, err = db.Get(nil, h.Sum(nil))
+			if err != nil {
+				db.Close()
+				t.Fatalf("Get failed: %v", err)
+			}
+			h.Reset()
+		}
+		db.Close()
+	}
 }

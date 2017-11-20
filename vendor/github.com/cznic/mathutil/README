@@ -4,7 +4,7 @@ http://git.nic.cz/redmine/projects/gornd/repository
 Packages in this repository:
 
 Install: $ go get github.com/cznic/mathutil
-Godocs:  http://gopkgdoc.appspot.com/pkg/github.com/cznic/mathutil
+Godocs:  http://godoc.org/github.com/cznic/mathutil
 
 Install: $ go get github.com/cznic/mathutil/mersenne
-Godocs:  http://gopkgdoc.appspot.com/pkg/github.com/cznic/mathutil/mersenne
+Godocs:  http://godoc.org/github.com/cznic/mathutil/mersenne

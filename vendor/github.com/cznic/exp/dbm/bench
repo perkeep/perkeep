@@ -1,9 +1,0 @@
-set -x
-go test -v -run Bench -tbench -cpu 4 $OPTS
-go test -v -run Bench -tbench -cpu 4 -xact $OPTS
-go test -v -run Bench -tbench -cpu 4 -wal -grace 0ms $OPTS
-go test -v -run Bench -tbench -cpu 4 -wal -grace 1ms $OPTS
-go test -v -run Bench -tbench -cpu 4 -wal -grace 10ms $OPTS
-go test -v -run Bench -tbench -cpu 4 -wal -grace 100ms $OPTS
-go test -v -run Bench -tbench -cpu 4 -wal -grace 1s $OPTS
-go test -v -run Bench -tbench -cpu 4 -wal -grace 10s $OPTS

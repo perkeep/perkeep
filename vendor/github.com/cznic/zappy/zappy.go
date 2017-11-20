@@ -10,7 +10,7 @@
 Package zappy implements the zappy block-based compression format.  It aims for
 a combination of good speed and reasonable compression.
 
-Zappy is a format incompatible, API compatible fork of snappy-go[1]. The C++
+Zappy is a format incompatible, API compatible fork of snappy[1]. The C++
 snappy implementation is at [2].
 
 Reasons for the fork
@@ -73,8 +73,8 @@ Zappy has better RLE handling (1/1000+1 non zero bytes in each index):
      Sparse bit index   32768 B: snappy    1627, zappy     232, 0.143
      Sparse bit index   65536 B: snappy    3243, zappy     451, 0.139
 
-When compiled with CGO_ENABLED=1, zappy is now faster than snappy-go.
-Old=snappy-go, new=zappy:
+When compiled with CGO_ENABLED=1, zappy is now faster than Go snappy.
+Old=Go snappy, new=zappy:
 
  benchmark                   old MB/s     new MB/s  speedup
  BenchmarkWordsDecode1e3       148.98       189.04    1.27x
@@ -123,7 +123,6 @@ Old=snappy-go, new=zappy:
  Benchmark_ZFlat17             135.37       197.13    1.46x
 
 The package builds with CGO_ENABLED=0 as well, but the performance is worse.
-
 
  $ CGO_ENABLED=0 go test -test.run=NONE -test.bench=. > old.benchcmp
  $ CGO_ENABLED=1 go test -test.run=NONE -test.bench=. > new.benchcmp
@@ -232,7 +231,7 @@ Information sources
 
 ... referenced from the above documentation.
 
- [1]: http://code.google.com/p/snappy-go/
+ [1]: http://github.com/golang/snappy
  [2]: http://code.google.com/p/snappy/
  [3]: http://code.google.com/p/snappy/source/browse/trunk/format_description.txt
  [4]: http://golang.org/pkg/encoding/binary/

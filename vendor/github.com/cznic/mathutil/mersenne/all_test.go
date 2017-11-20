@@ -1,17 +1,18 @@
-// Copyright (c) 2011 jnml. All rights reserved.
+// Copyright (c) 2014 The mersenne Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
 package mersenne
 
 import (
-	"github.com/cznic/mathutil"
 	"math"
 	"math/big"
 	"math/rand"
 	"runtime"
 	"sync"
 	"testing"
+
+	"github.com/cznic/mathutil"
 )
 
 func r32() *mathutil.FC32 {
@@ -299,6 +300,10 @@ func TestHasFactorBigInt(t *testing.T) {
 		if g, e := HasFactorBigInt(&d, v.e), v.r; g != e {
 			t.Errorf("d %s e %d: got %t, exp %t", &d, v.e, g, e)
 		}
+
+		if g, e := HasFactorBigInt2(&d, big.NewInt(int64(v.e))), v.r; g != e {
+			t.Errorf("d %s e %d: got %t, exp %t", &d, v.e, g, e)
+		}
 	}
 }
 
@@ -405,7 +410,7 @@ func BenchmarkHasFactorBigInt_104b(b *testing.B) {
 		r = HasFactorBigInt(f104b, 100279)
 	}
 	if !r {
-		b.Fatal()
+		b.Fatal(r)
 	}
 }
 
@@ -422,7 +427,7 @@ func BenchmarkHasFactorBigIntMod104b(b *testing.B) {
 		x.Mod(m, f104b)
 	}
 	if x.Cmp(_0) != 0 {
-		b.Fatal()
+		b.Fatal(x)
 	}
 }
 
@@ -438,7 +443,7 @@ func BenchmarkHasFactorBigInt_137b(b *testing.B) {
 		r = HasFactorBigInt(f137b, 7293457)
 	}
 	if !r {
-		b.Fatal()
+		b.Fatal(r)
 	}
 }
 
@@ -455,7 +460,7 @@ func BenchmarkHasFactorBigIntMod137b(b *testing.B) {
 		x.Mod(m, f137b)
 	}
 	if x.Cmp(_0) != 0 {
-		b.Fatal()
+		b.Fatal(x)
 	}
 }
 
@@ -602,7 +607,7 @@ func TestMod(t *testing.T) {
 		n.SetInt64(v.n)
 		p := Mod(&mod, &n, v.exp)
 		if p != &mod {
-			t.Fatal()
+			t.Fatal(p)
 		}
 
 		if g, e := mod.Int64(), v.mod; g != e {
@@ -622,7 +627,7 @@ func TestMod(t *testing.T) {
 	}
 
 	r32, _ := mathutil.NewFC32(1, 1e6, true)
-	r64, _ := mathutil.NewFCBig(_0, mathutil.Uint64ToBigInt(math.MaxInt64), true)
+	r64, _ := mathutil.NewFCBig(_0, big.NewInt(math.MaxInt64), true)
 	for i := 0; i < N; i++ {
 		f(r64.Next().Int64(), uint32(r32.Next()))
 	}

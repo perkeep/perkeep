@@ -7,6 +7,7 @@ package sortutil
 import (
 	"fmt"
 	"math"
+	"math/big"
 	"path"
 	"runtime"
 	"sort"
@@ -37,6 +38,52 @@ func caller(s string, va ...interface{}) {
 }
 
 func use(...interface{}) {}
+
+func TestBigIntSlice(t *testing.T) {
+	const N = 1e4
+	s := make(BigIntSlice, N)
+	for i := range s {
+		s[i] = big.NewInt(int64(i ^ 0x55))
+	}
+	s.Sort()
+	if !sort.IsSorted(s) {
+		t.Fatal(false)
+	}
+}
+
+func TestSearchBigInts(t *testing.T) {
+	const N = 1e1
+	s := make(BigIntSlice, N)
+	for i := range s {
+		s[i] = big.NewInt(int64(2 * i))
+	}
+	if g, e := SearchBigInts(s, big.NewInt(12)), 6; g != e {
+		t.Fatal(g, e)
+	}
+}
+
+func TestBigRatSlice(t *testing.T) {
+	const N = 1e4
+	s := make(BigRatSlice, N)
+	for i := range s {
+		s[i] = big.NewRat(int64(i^0x55), 1)
+	}
+	s.Sort()
+	if !sort.IsSorted(s) {
+		t.Fatal(false)
+	}
+}
+
+func TestSearchBigRats(t *testing.T) {
+	const N = 1e1
+	s := make(BigRatSlice, N)
+	for i := range s {
+		s[i] = big.NewRat(int64(2*i), 1)
+	}
+	if g, e := SearchBigRats(s, big.NewRat(12, 1)), 6; g != e {
+		t.Fatal(g, e)
+	}
+}
 
 func TestByteSlice(t *testing.T) {
 	const N = 1e4

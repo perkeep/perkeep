@@ -5,11 +5,12 @@
 package kv
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 
-	"github.com/cznic/exp/lldb"
+	"github.com/cznic/lldb"
 )
 
 func verifyAllocator(a *lldb.Allocator) error {
@@ -18,15 +19,17 @@ func verifyAllocator(a *lldb.Allocator) error {
 		return err
 	}
 
+	sf := lldb.NewSimpleFileFiler(bits)
+
 	defer func() {
 		nm := bits.Name()
-		bits.Close()
+		sf.Close()
 		os.Remove(nm)
 	}()
 
 	var lerr error
 	if err = a.Verify(
-		lldb.NewSimpleFileFiler(bits),
+		sf,
 		func(err error) bool {
 			lerr = err
 			return false
@@ -65,14 +68,19 @@ func verifyAllocator(a *lldb.Allocator) error {
 }
 
 func verifyDbFile(fn string) error {
-	f, err := os.Open(fn) // O_RDONLY
+	f, err := os.OpenFile(fn, os.O_RDWR, 0666)
 	if err != nil {
 		return err
 	}
 
-	defer f.Close()
+	sf := lldb.NewSimpleFileFiler(f)
+	if f == nil {
+		return fmt.Errorf("cannot create %s", fn)
+	}
 
-	a, err := lldb.NewAllocator(lldb.NewInnerFiler(lldb.NewSimpleFileFiler(f), 16), &lldb.Options{})
+	defer sf.Close()
+
+	a, err := lldb.NewAllocator(lldb.NewInnerFiler(sf, 16), &lldb.Options{})
 	if err != nil {
 		return err
 	}

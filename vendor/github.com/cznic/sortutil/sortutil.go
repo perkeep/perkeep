@@ -3,9 +3,53 @@
 // license that can be found in the LICENSE file.
 
 // Package sortutil provides utilities supplementing the standard 'sort' package.
+//
+// Changelog
+//
+// 2015-06-17: Added utils for math/big.{Int,Rat}.
 package sortutil
 
+import (
+	"math/big"
+)
+
 import "sort"
+
+// BigIntSlice attaches the methods of sort.Interface to []*big.Int, sorting in increasing order.
+type BigIntSlice []*big.Int
+
+func (s BigIntSlice) Len() int           { return len(s) }
+func (s BigIntSlice) Less(i, j int) bool { return s[i].Cmp(s[j]) < 0 }
+func (s BigIntSlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
+// Sort is a convenience method.
+func (s BigIntSlice) Sort() {
+	sort.Sort(s)
+}
+
+// SearchBigInts searches for x in a sorted slice of *big.Int and returns the index
+// as specified by sort.Search. The slice must be sorted in ascending order.
+func SearchBigInts(a []*big.Int, x *big.Int) int {
+	return sort.Search(len(a), func(i int) bool { return a[i].Cmp(x) >= 0 })
+}
+
+// BigRatSlice attaches the methods of sort.Interface to []*big.Rat, sorting in increasing order.
+type BigRatSlice []*big.Rat
+
+func (s BigRatSlice) Len() int           { return len(s) }
+func (s BigRatSlice) Less(i, j int) bool { return s[i].Cmp(s[j]) < 0 }
+func (s BigRatSlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
+// Sort is a convenience method.
+func (s BigRatSlice) Sort() {
+	sort.Sort(s)
+}
+
+// SearchBigRats searches for x in a sorted slice of *big.Int and returns the index
+// as specified by sort.Search. The slice must be sorted in ascending order.
+func SearchBigRats(a []*big.Rat, x *big.Rat) int {
+	return sort.Search(len(a), func(i int) bool { return a[i].Cmp(x) >= 0 })
+}
 
 // ByteSlice attaches the methods of sort.Interface to []byte, sorting in increasing order.
 type ByteSlice []byte

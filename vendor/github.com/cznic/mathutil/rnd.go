@@ -39,11 +39,11 @@ func NewFC32(lo, hi int, hq bool) (r *FC32, err error) {
 		return nil, fmt.Errorf("invalid range %d > %d", lo, hi)
 	}
 
-	delta := int64(hi) - int64(lo)
-	if delta > math.MaxUint32 {
+	if uint64(hi)-uint64(lo) > math.MaxUint32 {
 		return nil, fmt.Errorf("range out of int32 limits %d, %d", lo, hi)
 	}
 
+	delta := int64(hi) - int64(lo)
 	// Find the primorial covering whole delta
 	n, set, p := int64(1), []int64{}, uint32(2)
 	if hq {
