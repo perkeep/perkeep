@@ -210,6 +210,7 @@ func Main() {
 		usage("")
 	}
 	flag.Parse()
+	flag.CommandLine.SetOutput(Stderr)
 	PostFlag()
 
 	args := flag.Args()
