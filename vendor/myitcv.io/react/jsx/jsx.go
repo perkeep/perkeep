@@ -1,14 +1,24 @@
+/*
+
+Package jsx allows you to render blocks of HTML as myitcv.io/react elements.
+It is a temporary runtime solution for what will become a compile-time
+transpilation, much like JSX's relationship with Javascript.
+
+For more information see https://github.com/myitcv/react/wiki
+
+*/
 package jsx
 
 import (
 	"fmt"
 	"strings"
 
+	"myitcv.io/react"
+
 	"github.com/russross/blackfriday"
 
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
-	r "myitcv.io/react"
 )
 
 // each of the parse* functions does zero validation
@@ -17,8 +27,8 @@ import (
 
 // TODO code generate these parse functions
 
-func parseP(n *html.Node) *r.PElem {
-	var kids []r.Element
+func parseP(n *html.Node) *react.PElem {
+	var kids []react.Element
 
 	// TODO attributes
 
@@ -26,23 +36,23 @@ func parseP(n *html.Node) *r.PElem {
 		kids = append(kids, parse(c))
 	}
 
-	return r.P(nil, kids...)
+	return react.P(nil, kids...)
 }
 
-func parseHr(n *html.Node) *r.HrElem {
+func parseHr(n *html.Node) *react.HrElem {
 	// TODO attributes
 
-	return r.Hr(nil)
+	return react.Hr(nil)
 }
 
-func parseBr(n *html.Node) *r.BrElem {
+func parseBr(n *html.Node) *react.BrElem {
 	// TODO attributes
 
-	return r.Br(nil)
+	return react.Br(nil)
 }
 
-func parseH1(n *html.Node) *r.H1Elem {
-	var kids []r.Element
+func parseH1(n *html.Node) *react.H1Elem {
+	var kids []react.Element
 
 	// TODO attributes
 
@@ -50,16 +60,16 @@ func parseH1(n *html.Node) *r.H1Elem {
 		kids = append(kids, parse(c))
 	}
 
-	return r.H1(nil, kids...)
+	return react.H1(nil, kids...)
 }
 
-func parseSpan(n *html.Node) *r.SpanElem {
-	var kids []r.Element
+func parseSpan(n *html.Node) *react.SpanElem {
+	var kids []react.Element
 
-	var vp *r.SpanProps
+	var vp *react.SpanProps
 
 	if len(n.Attr) > 0 {
-		vp = new(r.SpanProps)
+		vp = new(react.SpanProps)
 
 		for _, a := range n.Attr {
 			switch a.Key {
@@ -77,16 +87,16 @@ func parseSpan(n *html.Node) *r.SpanElem {
 		kids = append(kids, parse(c))
 	}
 
-	return r.Span(vp, kids...)
+	return react.Span(vp, kids...)
 }
 
-func parseI(n *html.Node) *r.IElem {
-	var kids []r.Element
+func parseI(n *html.Node) *react.IElem {
+	var kids []react.Element
 
-	var vp *r.IProps
+	var vp *react.IProps
 
 	if len(n.Attr) > 0 {
-		vp = new(r.IProps)
+		vp = new(react.IProps)
 
 		for _, a := range n.Attr {
 			switch a.Key {
@@ -104,16 +114,16 @@ func parseI(n *html.Node) *r.IElem {
 		kids = append(kids, parse(c))
 	}
 
-	return r.I(vp, kids...)
+	return react.I(vp, kids...)
 }
 
-func parseFooter(n *html.Node) *r.FooterElem {
-	var kids []r.Element
+func parseFooter(n *html.Node) *react.FooterElem {
+	var kids []react.Element
 
-	var vp *r.FooterProps
+	var vp *react.FooterProps
 
 	if len(n.Attr) > 0 {
-		vp = new(r.FooterProps)
+		vp = new(react.FooterProps)
 
 		for _, a := range n.Attr {
 			switch a.Key {
@@ -131,16 +141,16 @@ func parseFooter(n *html.Node) *r.FooterElem {
 		kids = append(kids, parse(c))
 	}
 
-	return r.Footer(vp, kids...)
+	return react.Footer(vp, kids...)
 }
 
-func parseDiv(n *html.Node) *r.DivElem {
-	var kids []r.Element
+func parseDiv(n *html.Node) *react.DivElem {
+	var kids []react.Element
 
-	var vp *r.DivProps
+	var vp *react.DivProps
 
 	if len(n.Attr) > 0 {
-		vp = new(r.DivProps)
+		vp = new(react.DivProps)
 
 		for _, a := range n.Attr {
 			switch a.Key {
@@ -160,16 +170,16 @@ func parseDiv(n *html.Node) *r.DivElem {
 		kids = append(kids, parse(c))
 	}
 
-	return r.Div(vp, kids...)
+	return react.Div(vp, kids...)
 }
 
-func parseButton(n *html.Node) *r.ButtonElem {
-	var kids []r.Element
+func parseButton(n *html.Node) *react.ButtonElem {
+	var kids []react.Element
 
-	var vp *r.ButtonProps
+	var vp *react.ButtonProps
 
 	if len(n.Attr) > 0 {
-		vp = new(r.ButtonProps)
+		vp = new(react.ButtonProps)
 
 		for _, a := range n.Attr {
 			switch a.Key {
@@ -187,11 +197,11 @@ func parseButton(n *html.Node) *r.ButtonElem {
 		kids = append(kids, parse(c))
 	}
 
-	return r.Button(vp, kids...)
+	return react.Button(vp, kids...)
 }
 
-func parseCode(n *html.Node) *r.CodeElem {
-	var kids []r.Element
+func parseCode(n *html.Node) *react.CodeElem {
+	var kids []react.Element
 
 	// TODO attributes
 
@@ -199,11 +209,11 @@ func parseCode(n *html.Node) *r.CodeElem {
 		kids = append(kids, parse(c))
 	}
 
-	return r.Code(nil, kids...)
+	return react.Code(nil, kids...)
 }
 
-func parseH3(n *html.Node) *r.H3Elem {
-	var kids []r.Element
+func parseH3(n *html.Node) *react.H3Elem {
+	var kids []react.Element
 
 	// TODO attributes
 
@@ -211,16 +221,16 @@ func parseH3(n *html.Node) *r.H3Elem {
 		kids = append(kids, parse(c))
 	}
 
-	return r.H3(nil, kids...)
+	return react.H3(nil, kids...)
 }
 
-func parseImg(n *html.Node) *r.ImgElem {
-	var kids []r.Element
+func parseImg(n *html.Node) *react.ImgElem {
+	var kids []react.Element
 
-	var vp *r.ImgProps
+	var vp *react.ImgProps
 
 	if len(n.Attr) > 0 {
-		vp = new(r.ImgProps)
+		vp = new(react.ImgProps)
 
 		for _, a := range n.Attr {
 			switch a.Key {
@@ -238,16 +248,16 @@ func parseImg(n *html.Node) *r.ImgElem {
 		kids = append(kids, parse(c))
 	}
 
-	return r.Img(vp, kids...)
+	return react.Img(vp, kids...)
 }
 
-func parseA(n *html.Node) *r.AElem {
-	var kids []r.Element
+func parseA(n *html.Node) *react.AElem {
+	var kids []react.Element
 
-	var vp *r.AProps
+	var vp *react.AProps
 
 	if len(n.Attr) > 0 {
-		vp = new(r.AProps)
+		vp = new(react.AProps)
 
 		for _, a := range n.Attr {
 			switch a.Key {
@@ -265,12 +275,12 @@ func parseA(n *html.Node) *r.AElem {
 		kids = append(kids, parse(c))
 	}
 
-	return r.A(vp, kids...)
+	return react.A(vp, kids...)
 }
 
 // TODO replace with proper parser
-func parseCSS(s string) *r.CSS {
-	res := new(r.CSS)
+func parseCSS(s string) *react.CSS {
+	res := new(react.CSS)
 
 	parts := strings.Split(s, ";")
 
@@ -303,10 +313,10 @@ func parseCSS(s string) *r.CSS {
 	return res
 }
 
-func parse(n *html.Node) r.Element {
+func parse(n *html.Node) react.Element {
 	switch n.Type {
 	case html.TextNode:
-		return r.S(n.Data)
+		return react.S(n.Data)
 	case html.ElementNode:
 		// we will fall out from here...
 	default:
@@ -345,16 +355,16 @@ func parse(n *html.Node) r.Element {
 	}
 }
 
-var htmlCache = make(map[string][]r.Element)
+var htmlCache = make(map[string][]react.Element)
 
-// HTML is a runtime JSX-like parser. It parses the supplied HTML string into
+// HTML is a runtime JSX-like parsereact. It parses the supplied HTML string into
 // myitcv.io/react element values. It exists as a stop-gap runtime solution to
-// full JSX-like support within the GopherJS compiler. It should only be used
+// full JSX-like support within the GopherJS compilereact. It should only be used
 // where the argument is a compile-time constant string (TODO enforce this
 // within reactVet). HTML will panic in case s cannot be parsed as a valid HTML
 // fragment
 //
-func HTML(s string) []r.Element {
+func HTML(s string) []react.Element {
 	s = strings.TrimSpace(s)
 
 	if v, ok := htmlCache[s]; ok {
@@ -373,7 +383,7 @@ func HTML(s string) []r.Element {
 		panic(fmt.Errorf("failed to parse HTML %q: %v", s, err))
 	}
 
-	res := make([]r.Element, len(elems))
+	res := make([]react.Element, len(elems))
 
 	for i, v := range elems {
 		res[i] = parse(v)
@@ -388,7 +398,7 @@ func HTML(s string) []r.Element {
 // element is expected. HTMLElem will panic if more than one HTML element
 // results
 //
-func HTMLElem(s string) r.Element {
+func HTMLElem(s string) react.Element {
 	res := HTML(s)
 
 	if v := len(res); v != 1 {
@@ -401,12 +411,12 @@ func HTMLElem(s string) r.Element {
 // Markdown is a runtime JSX-like parser for markdown. It parses the supplied
 // markdown string into an HTML string and then hands off to the HTML function.
 // Like the HTML function, it exists as a stop-gap runtime solution to full
-// JSX-like support within the GopherJS compiler. It should only be used where
+// JSX-like support within the GopherJS compilereact. It should only be used where
 // the argument is a compile-time constant string (TODO enforce this within
 // reactVet). Markdown will panic in case the markdown string s results in an
 // invalid HTML string
 //
-func Markdown(s string) []r.Element {
+func Markdown(s string) []react.Element {
 
 	h := blackfriday.MarkdownCommon([]byte(s))
 

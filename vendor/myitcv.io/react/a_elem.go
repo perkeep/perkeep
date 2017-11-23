@@ -8,10 +8,13 @@ type AElem struct {
 	Element
 }
 
+func (a *AElem) coreReactElement() {}
+
 // _AProps defines the properties for the <a> element
 type _AProps struct {
 	*BasicHTMLElement
 
+	Title  string `js:"title"`
 	Target string `js:"target"`
 	Href   string `js:"href"`
 }

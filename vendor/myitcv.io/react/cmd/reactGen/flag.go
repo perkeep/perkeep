@@ -49,8 +49,9 @@ func usage() {
 	flag.PrintDefaults()
 
 	l()
-	l("The flag -init only understands a single value for now: minimal. This is a minimal")
-	l("Gopher React application.")
+	l("The flag -init is very basic and only understands two value for now: minimal or ")
+	l("bootstrap. Both give you a minimal Gopher React application, the latter applies ")
+	l("a basic Bootstrap (http://getbootstrap.com/) template.")
 	l()
 	l("When -init is not specified, it is assumed that reactGen is being called indirectly")
 	l("via go generate. The options for -gglog and -licenseFile would therefore be set in")

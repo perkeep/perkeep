@@ -16,6 +16,7 @@ type AProps struct {
 	Role   string
 	Style  *CSS
 	Target string
+	Title  string
 }
 
 func (a *AProps) assign(v *_AProps) {
@@ -49,5 +50,7 @@ func (a *AProps) assign(v *_AProps) {
 	v.Style = a.Style.hack()
 
 	v.Target = a.Target
+
+	v.Title = a.Title
 
 }

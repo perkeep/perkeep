@@ -238,7 +238,7 @@ func build{{.Name}}(cd react.ComponentDef) react.Component {
 
 func build{{.Name}}Elem({{if .HasProps}}props {{.Name}}Props,{{end}} children ...react.Element) *{{.Name}}Elem {
 	return &{{.Name}}Elem{
-		Element: react.CreateElement(build{{.Name}}, {{if .HasProps}}props{{else}}nil{{end}}),
+		Element: react.CreateElement(build{{.Name}}, {{if .HasProps}}props{{else}}nil{{end}}, children...),
 	}
 }
 

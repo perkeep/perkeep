@@ -14,6 +14,7 @@ package react // import "myitcv.io/react"
 //go:generate reactGen
 
 import (
+	"fmt"
 	"reflect"
 
 	"honnef.co/go/js/dom"
@@ -25,6 +26,7 @@ import (
 	// build tags control whether this actually includes
 	// js files or not
 	_ "myitcv.io/react/internal/bundle"
+	"myitcv.io/react/internal/core"
 )
 
 const (
@@ -47,6 +49,7 @@ const (
 	reactCreateClass   = "createClass"
 	reactDOMRender     = "render"
 
+	nestedChildren         = "_children"
 	nestedProps            = "_props"
 	nestedState            = "_state"
 	nestedComponentWrapper = "__ComponentWrapper"
@@ -64,27 +67,11 @@ type ComponentDef struct {
 var compMap = make(map[reflect.Type]*js.Object)
 
 // S is the React representation of a string
-type S string
+type S = core.S
 
-func (s S) reactElement() {}
+type elementHolder = core.ElementHolder
 
-type elementHolder struct {
-	elem *js.Object
-}
-
-func (r elementHolder) element() *js.Object {
-	return r.elem
-}
-
-func (r elementHolder) reactElement() {}
-
-type Element interface {
-	reactElement()
-}
-
-type generatesElement interface {
-	element() *js.Object
-}
+type Element = core.Element
 
 type Component interface {
 	ShouldComponentUpdateIntf(nextProps Props, prevState, nextState State) bool
@@ -127,7 +114,17 @@ type State interface {
 }
 
 func (c ComponentDef) Props() Props {
-	return c.instance().Get(reactCompProps).Get(nestedProps).Interface().(Props)
+	return unwrapValue(c.instance().Get(reactCompProps).Get(nestedProps)).(Props)
+}
+
+func (c ComponentDef) Children() []Element {
+	v := c.instance().Get(reactCompProps).Get(nestedChildren)
+
+	if v == js.Undefined {
+		return nil
+	}
+
+	return unwrapValue(v).([]Element)
 }
 
 func (c ComponentDef) instance() *js.Object {
@@ -142,7 +139,7 @@ func (c ComponentDef) SetState(i State) {
 	}
 
 	res := object.New()
-	res.Set(nestedState, js.MakeWrapper(i))
+	res.Set(nestedState, wrapValue(i))
 	c.instance().Set(reactCompLastState, res)
 	c.instance().Call(reactCompSetState, res)
 }
@@ -160,7 +157,7 @@ func (c ComponentDef) State() State {
 		c.instance().Set(reactCompLastState, s)
 	}
 
-	return c.instance().Get(reactCompLastState).Get(nestedState).Interface().(State)
+	return unwrapValue(c.instance().Get(reactCompLastState).Get(nestedState)).(State)
 }
 
 type ComponentBuilder func(elem ComponentDef) Component
@@ -177,17 +174,21 @@ func CreateElement(buildCmp ComponentBuilder, newprops Props, children ...Elemen
 
 	propsWrap := object.New()
 	if newprops != nil {
-		propsWrap.Set(nestedProps, js.MakeWrapper(newprops))
+		propsWrap.Set(nestedProps, wrapValue(newprops))
+	}
+
+	if children != nil {
+		propsWrap.Set(nestedChildren, wrapValue(children))
 	}
 
 	args := []interface{}{comp, propsWrap}
 
 	for _, v := range children {
-		args = append(args, elementToReactObj(v))
+		args = append(args, v)
 	}
 
-	return elementHolder{
-		elem: react.Call(reactCreateElement, args...),
+	return &elementHolder{
+		Elem: react.Call(reactCreateElement, args...),
 	}
 }
 
@@ -195,17 +196,17 @@ func createElement(cmp string, props interface{}, children ...Element) Element {
 	args := []interface{}{cmp, props}
 
 	for _, v := range children {
-		args = append(args, elementToReactObj(v))
+		args = append(args, v)
 	}
 
-	return elementHolder{
-		elem: react.Call("createElement", args...),
+	return &elementHolder{
+		Elem: react.Call("createElement", args...),
 	}
 }
 
 func buildReactComponent(typ reflect.Type, builder ComponentBuilder) *js.Object {
 	compDef := object.New()
-	compDef.Set(reactCompDisplayName, typ.String())
+	compDef.Set(reactCompDisplayName, fmt.Sprintf("%v(%v)", typ.Name(), typ.PkgPath()))
 	compDef.Set(reactComponentBuilder, builder)
 
 	compDef.Set(reactCompGetInitialState, js.MakeFunc(func(this *js.Object, arguments []*js.Object) interface{} {
@@ -218,7 +219,7 @@ func buildReactComponent(typ reflect.Type, builder ComponentBuilder) *js.Object 
 				return nil
 			}
 			res := object.New()
-			res.Set(nestedState, js.MakeWrapper(x))
+			res.Set(nestedState, wrapValue(x))
 			return res
 		}
 
@@ -235,13 +236,13 @@ func buildReactComponent(typ reflect.Type, builder ComponentBuilder) *js.Object 
 
 		if arguments[0] != nil {
 			if ok, err := jsbuiltin.In(nestedProps, arguments[0]); err == nil && ok {
-				nextProps = arguments[0].Get(nestedProps).Interface().(Props)
+				nextProps = unwrapValue(arguments[0].Get(nestedProps)).(Props)
 			}
 		}
 
 		if arguments[1] != nil {
 			if ok, err := jsbuiltin.In(nestedState, arguments[1]); err == nil && ok {
-				nextState = arguments[1].Get(nestedState).Interface().(State)
+				nextState = unwrapValue(arguments[1].Get(nestedState)).(State)
 			}
 		}
 
@@ -249,8 +250,8 @@ func buildReactComponent(typ reflect.Type, builder ComponentBuilder) *js.Object 
 		// as opposed to the last state value
 		if this != nil {
 			if s := this.Get(reactCompState); s != nil {
-				if v := s.Get(nestedState); v.Interface() != nil {
-					prevState = v.Interface().(State)
+				if v := unwrapValue(s.Get(nestedState)); v != nil {
+					prevState = v.(State)
 				}
 			}
 		}
@@ -274,7 +275,7 @@ func buildReactComponent(typ reflect.Type, builder ComponentBuilder) *js.Object 
 		cmp := builder(ComponentDef{elem: elem})
 
 		if cmp, ok := cmp.(componentWithWillReceiveProps); ok {
-			ourProps := arguments[0].Get(nestedProps).Interface()
+			ourProps := unwrapValue(arguments[0].Get(nestedProps))
 			cmp.ComponentWillReceivePropsIntf(ourProps)
 		}
 
@@ -312,20 +313,14 @@ func buildReactComponent(typ reflect.Type, builder ComponentBuilder) *js.Object 
 
 		renderRes := cmp.Render()
 
-		return elementToReactObj(renderRes)
+		return renderRes
 	}))
 
 	return react.Call(reactCreateClass, compDef)
 }
 
-func elementToReactObj(el Element) interface{} {
-	if el, ok := el.(generatesElement); ok {
-		return el.element()
-	}
+func Render(el Element, container dom.Element) Element {
+	v := reactDOM.Call(reactDOMRender, el, container)
 
-	return el
-}
-
-func Render(el Element, container dom.Element) {
-	reactDOM.Call(reactDOMRender, elementToReactObj(el), container)
+	return &elementHolder{Elem: v}
 }

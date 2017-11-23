@@ -13,13 +13,17 @@ type CSS struct {
 	FontSize  string
 	FontStyle string
 	Height    string
+	Left      string
 	MarginTop string
 	MaxHeight string
 	MinHeight string
 	Overflow  string
 	OverflowY string
+	Position  string
 	Resize    string
+	Top       string
 	Width     string
+	ZIndex    string
 }
 
 // TODO: until we have a resolution on
@@ -35,13 +39,17 @@ func (c *CSS) hack() *CSS {
 	o.Set("fontSize", c.FontSize)
 	o.Set("fontStyle", c.FontStyle)
 	o.Set("height", c.Height)
+	o.Set("left", c.Left)
 	o.Set("marginTop", c.MarginTop)
 	o.Set("maxHeight", c.MaxHeight)
 	o.Set("minHeight", c.MinHeight)
 	o.Set("overflow", c.Overflow)
 	o.Set("overflowY", c.OverflowY)
+	o.Set("position", c.Position)
 	o.Set("resize", c.Resize)
+	o.Set("top", c.Top)
 	o.Set("width", c.Width)
+	o.Set("zIndex", c.ZIndex)
 
 	return &CSS{o: o}
 }

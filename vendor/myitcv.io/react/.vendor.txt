@@ -2,22 +2,25 @@
     ./_vendor/src/golang.org/x/sys                           9a7256cb28ed514b4e1e5f68959914c4c28a92e0  https://go.googlesource.com/sys
     ./_vendor/src/golang.org/x/crypto                        3cb07270c9455e8ad27956a70891c962d121a228  https://go.googlesource.com/crypto
     ./_vendor/src/golang.org/x/tools                         620ecdb8d7943e20dc030b61bfe898d1b000bdea  https://go.googlesource.com/tools
-    ./_vendor/src/github.com/gopherjs/gopherjs               9659c814f1d54d63f9c623449a7111d3864c1361  git@github.com:gopherjs/gopherjs
+    ./_vendor/src/github.com/jteeuwen/go-bindata             a0ff2567cfb70903282db057e799fd826784d41d  git@github.com:jteeuwen/go-bindata
+    ./_vendor/src/github.com/gopherjs/gopherjs               f7c56533adfac99e12ccdccfec04a466d2a778da  git@github.com:gopherjs/gopherjs
     ./_vendor/src/github.com/gopherjs/jsbuiltin              67703bfb044e3192fbcab025c3aeaeedafad1f2f  git@github.com:gopherjs/jsbuiltin
     ./_vendor/src/github.com/kisielk/gotool                  0de1eaf82fa3f583ce21fde859f1e7e0c5e9b220  git@github.com:kisielk/gotool
     ./_vendor/src/github.com/fsnotify/fsnotify               7d7316ed6e1ed2de075aab8dfc76de5d158d66e1  git@github.com:fsnotify/fsnotify
     ./_vendor/src/github.com/spf13/cobra                     16c014f1a19d865b765b420e74508f80eb831ada  git@github.com:spf13/cobra
     ./_vendor/src/github.com/spf13/pflag                     9ff6c6923cfffbcd502984b8e0c80539a94968b7  git@github.com:spf13/pflag
     ./_vendor/src/github.com/kardianos/osext                 9d302b58e975387d0b4d9be876622c86cefe64be  git@github.com:kardianos/osext
+    ./_vendor/src/github.com/sclevine/agouti                 8cf0313221cb2c26a4059f8e273c0856b4cb091d  git@github.com:sclevine/agouti
     ./_vendor/src/github.com/neelance/astrewrite             99348263ae862cc230986ce88deaddbf7edcc034  git@github.com:neelance/astrewrite
     ./_vendor/src/github.com/neelance/sourcemap              8c68805598ab8d5637b1a72b5f7d381ea0f39c31  git@github.com:neelance/sourcemap
     ./_vendor/src/github.com/shurcooL/sanitized_anchor_name  79c90efaf01eddc01945af5bc1797859189b830b  git@github.com:shurcooL/sanitized_anchor_name
     ./_vendor/src/github.com/russross/blackfriday            b253417e1cb644d645a0a3bb1fa5034c8030127c  git@github.com:russross/blackfriday
     ./_vendor/src/myitcv.io/highlightjs                      e0ea663591fbdbce10ca2658c680ba7be2391ff8  git@github.com:myitcv/highlightjs
     ./_vendor/src/myitcv.io/gogenerate                       bd69a94c96953d20e106734856b69d71c8fa122b  git@github.com:myitcv/gogenerate
+    ./_vendor/src/myitcv.io/gjbt                             35069fb7155fa4346f80de45b1632cd47c630dad  git@github.com:myitcv/gjbt.git
     ./_vendor/src/myitcv.io/remarkable                       6e8b85d04c0c2559fec23559cf88780db6d93083  git@github.com:myitcv/remarkable
     ./_vendor/src/myitcv.io/sorter                           ed1d278951e48d5c8e355c266faec8666d40b2b3  git@github.com:myitcv/sorter
-    ./_vendor/src/myitcv.io/immutable                        74c4e0dc47c184000811bee5bb1bb293c5b2b674  git@github.com:myitcv/immutable
+    ./_vendor/src/myitcv.io/immutable                        5cbb9cbfb67fb13c107f10bc8364065cf29e2fdf  git@github.com:myitcv/immutable
     ./_vendor/src/honnef.co/go/js/xhr                        00e3346113aed89b501ead4e863c7c3d04fa0c5b  git@github.com:dominikh/go-js-xhr
     ./_vendor/src/honnef.co/go/js/util                       96b8dd9d16214b6cd9d8c8e84b3a375da4688108  git@github.com:dominikh/go-js-util
     ./_vendor/src/honnef.co/go/js/dom                        0a64a2db1425c1881d4ec762370250c65f44b85b  git@github.com:dominikh/go-js-dom

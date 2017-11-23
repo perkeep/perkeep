@@ -30,6 +30,10 @@ var attrs = map[string]typ{
 	"Overflow":  typ{"overflow", "string"},
 	"Resize":    typ{"resize", "string"},
 	"Width":     typ{"width", "string"},
+	"Position":  typ{"position", "string"},
+	"Top":       typ{"top", "string"},
+	"Left":      typ{"left", "string"},
+	"ZIndex":    typ{"zIndex", "string"},
 }
 
 const (

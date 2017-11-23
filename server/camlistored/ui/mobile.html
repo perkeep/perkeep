@@ -27,7 +27,8 @@ limitations under the License.
 		<script src="closure/goog/base.js"></script>
 		<script src="./deps.js"></script>
 		<script src="?camli.mode=config&var=CAMLISTORE_CONFIG"></script>
-		<script src="react/react-with-addons.js"></script>
+		<script src="react/react-with-addons.min.js"></script>
+		<script src="react/react-dom.min.js"></script>
 
 		<script>
 			goog.require('goog.Uri');
@@ -41,11 +42,12 @@ limitations under the License.
 		<script>
 			var render = function() {
 				var newURL = new goog.Uri(window.location.href);
-				var mobile = cam.MobileSetupView({
+			        var MobileSetupView = React.createFactory(cam.MobileSetupView);
+				var mobile = MobileSetupView({
 					baseURL: newURL.resolve(new goog.Uri(CAMLISTORE_CONFIG.uiRoot)),
 					defaultUsername: CAMLISTORE_CONFIG.username || '',
 				});
-				React.renderComponent(mobile, document.body);
+				ReactDOM.render(mobile, document.body);
 			};
 			render();
 		</script>

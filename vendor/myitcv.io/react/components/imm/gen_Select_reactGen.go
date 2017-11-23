@@ -25,7 +25,7 @@ func buildSelect(cd react.ComponentDef) react.Component {
 
 func buildSelectElem(props SelectProps, children ...react.Element) *SelectElem {
 	return &SelectElem{
-		Element: react.CreateElement(buildSelect, props),
+		Element: react.CreateElement(buildSelect, props, children...),
 	}
 }
 

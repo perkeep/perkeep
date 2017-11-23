@@ -1,9 +1,17 @@
 language: go
 
+addons:
+  chrome: beta
+
 go:
   - 1.x
 
 go_import_path: myitcv.io/react
+
+before_script:
+  - curl -s https://chromedriver.storage.googleapis.com/2.33/chromedriver_linux64.zip > /tmp/chromedriver_linux64.zip
+  - unzip -d /tmp/chromedriver_linux64 /tmp/chromedriver_linux64.zip
+  - export PATH=$PATH:/tmp/chromedriver_linux64
 
 install: true
 
