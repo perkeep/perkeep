@@ -48,6 +48,7 @@ cam.PermanodeDetail = React.createClass({
 		if (this.props == nextProps || this.props.meta.blobRef != nextProps.meta.blobRef) {
 			this.setState({rows: this.getInitialRows_(nextProps.meta)});
 		}
+		this.setState({newRow: {}});
 	},
 
 	componentWillMount: function() {
