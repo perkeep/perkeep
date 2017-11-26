@@ -17,8 +17,9 @@ limitations under the License.
 package blobserver
 
 import (
+	"context"
+
 	"camlistore.org/pkg/blob"
-	"golang.org/x/net/context"
 )
 
 const buffered = 8

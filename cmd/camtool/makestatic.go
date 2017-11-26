@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -26,7 +27,6 @@ import (
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
-	"golang.org/x/net/context"
 )
 
 type makeStaticCmd struct {

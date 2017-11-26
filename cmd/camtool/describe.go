@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -27,7 +28,6 @@ import (
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/search"
 	"go4.org/types"
-	"golang.org/x/net/context"
 )
 
 type desCmd struct {

@@ -24,6 +24,7 @@ package namespace // import "camlistore.org/pkg/blobserver/namespace"
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -34,7 +35,6 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/sorted"
 	"go4.org/jsonconfig"
-	"golang.org/x/net/context"
 
 	"go4.org/strutil"
 )

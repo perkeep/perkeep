@@ -18,6 +18,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -28,7 +29,6 @@ import (
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/search"
-	"golang.org/x/net/context"
 )
 
 type listCmd struct {

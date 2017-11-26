@@ -17,12 +17,12 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"io"
 	"io/ioutil"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"golang.org/x/net/context"
 )
 
 type discardStorage struct {

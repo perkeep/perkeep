@@ -17,6 +17,7 @@ limitations under the License.
 package b2
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -31,7 +32,6 @@ import (
 	"camlistore.org/pkg/blobserver/storagetest"
 
 	"go4.org/jsonconfig"
-	"golang.org/x/net/context"
 )
 
 var (

@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -29,8 +30,6 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/index/indextest"
 	"camlistore.org/pkg/search"
-
-	"golang.org/x/net/context"
 )
 
 type publishURLTest struct {

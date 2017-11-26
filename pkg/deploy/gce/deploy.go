@@ -18,6 +18,7 @@ limitations under the License.
 package gce // import "camlistore.org/pkg/deploy/gce"
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -37,7 +38,6 @@ import (
 	"cloud.google.com/go/logging"
 	"go4.org/cloud/google/gceutil"
 	"go4.org/syncutil"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	cloudresourcemanager "google.golang.org/api/cloudresourcemanager/v1"

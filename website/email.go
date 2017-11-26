@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -30,7 +31,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/datastore"
-	"golang.org/x/net/context"
 
 	"camlistore.org/pkg/osutil"
 )

@@ -17,12 +17,11 @@ limitations under the License.
 package search
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strconv"
 	"strings"
-
-	"golang.org/x/net/context"
 )
 
 const seeDocs = "\nSee: https://camlistore.org/doc/search-ui"

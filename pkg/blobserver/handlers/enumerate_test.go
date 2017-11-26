@@ -17,13 +17,13 @@ limitations under the License.
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"camlistore.org/pkg/blob"
 	. "camlistore.org/pkg/test/asserts"
-	"golang.org/x/net/context"
 )
 
 type emptyEnumerator struct {

@@ -17,6 +17,7 @@ limitations under the License.
 package localdisk
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -26,7 +27,6 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/test"
 	. "camlistore.org/pkg/test/asserts"
-	"golang.org/x/net/context"
 )
 
 func TestEnumerate(t *testing.T) {

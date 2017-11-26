@@ -18,6 +18,7 @@ package index
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -40,8 +41,6 @@ import (
 	"go4.org/jsonconfig"
 	"go4.org/strutil"
 	"go4.org/types"
-
-	"golang.org/x/net/context"
 )
 
 func init() {

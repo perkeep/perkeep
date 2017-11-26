@@ -18,6 +18,7 @@ package diskpacked
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
@@ -31,7 +32,6 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
 	"camlistore.org/pkg/test"
-	"golang.org/x/net/context"
 )
 
 type blobDetails struct {

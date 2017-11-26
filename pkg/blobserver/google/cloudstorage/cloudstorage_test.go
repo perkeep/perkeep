@@ -17,6 +17,7 @@ limitations under the License.
 package cloudstorage
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"io"
@@ -34,7 +35,6 @@ import (
 	"cloud.google.com/go/storage"
 	"go4.org/jsonconfig"
 	"go4.org/oauthutil"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"

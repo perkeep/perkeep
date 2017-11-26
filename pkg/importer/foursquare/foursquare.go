@@ -18,6 +18,7 @@ limitations under the License.
 package foursquare // import "camlistore.org/pkg/importer/foursquare"
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -37,7 +38,6 @@ import (
 	"camlistore.org/pkg/schema/nodeattr"
 
 	"go4.org/ctxutil"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 )
 

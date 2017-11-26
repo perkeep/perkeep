@@ -18,6 +18,7 @@ package search
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,7 +37,6 @@ import (
 	"camlistore.org/pkg/types/camtypes"
 	"go4.org/jsonconfig"
 	"go4.org/types"
-	"golang.org/x/net/context"
 )
 
 const buffered = 32     // arbitrary channel buffer size

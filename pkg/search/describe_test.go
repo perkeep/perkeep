@@ -17,6 +17,7 @@ limitations under the License.
 package search_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -26,8 +27,6 @@ import (
 	"camlistore.org/pkg/search"
 	"camlistore.org/pkg/test"
 	"camlistore.org/pkg/types/camtypes"
-
-	"golang.org/x/net/context"
 )
 
 func addPermanode(fi *test.FakeIndex, pnStr string, attrs ...string) {

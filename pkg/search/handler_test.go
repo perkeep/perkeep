@@ -18,6 +18,7 @@ package search_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -38,8 +39,6 @@ import (
 	"camlistore.org/pkg/osutil"
 	. "camlistore.org/pkg/search"
 	"camlistore.org/pkg/test"
-
-	"golang.org/x/net/context"
 )
 
 // An indexOwnerer is something that knows who owns the index.

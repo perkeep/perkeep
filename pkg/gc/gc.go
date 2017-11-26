@@ -18,10 +18,9 @@ limitations under the License.
 package gc // import "camlistore.org/pkg/gc"
 
 import (
+	"context"
 	"errors"
 	"fmt"
-
-	"golang.org/x/net/context"
 
 	"go4.org/syncutil"
 )

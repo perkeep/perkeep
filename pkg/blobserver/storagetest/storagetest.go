@@ -18,6 +18,7 @@ limitations under the License.
 package storagetest // import "camlistore.org/pkg/blobserver/storagetest"
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -32,7 +33,6 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/test"
-	"golang.org/x/net/context"
 
 	"go4.org/syncutil"
 )

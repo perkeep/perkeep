@@ -17,12 +17,11 @@ limitations under the License.
 package search
 
 import (
+	"context"
 	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
-
-	"golang.org/x/net/context"
 )
 
 var skiphiddenC = &Constraint{

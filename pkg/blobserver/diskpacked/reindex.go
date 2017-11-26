@@ -19,6 +19,7 @@ package diskpacked
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -30,7 +31,6 @@ import (
 	"camlistore.org/pkg/env"
 	"camlistore.org/pkg/sorted"
 	"go4.org/jsonconfig"
-	"golang.org/x/net/context"
 
 	// possible index formats
 	_ "camlistore.org/pkg/sorted/kvfile"

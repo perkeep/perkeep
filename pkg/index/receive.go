@@ -18,6 +18,7 @@ package index
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"errors"
 	"fmt"
@@ -47,7 +48,6 @@ import (
 	"github.com/rwcarlsen/goexif/tiff"
 	"go4.org/readerutil"
 	"go4.org/types"
-	"golang.org/x/net/context"
 )
 
 type mutationMap struct {

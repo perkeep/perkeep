@@ -37,9 +37,10 @@ import (
 	"camlistore.org/pkg/index"
 	"camlistore.org/pkg/types/camtypes"
 
+	"context"
+
 	"go4.org/strutil"
 	"go4.org/types"
-	"golang.org/x/net/context"
 )
 
 type SortType int

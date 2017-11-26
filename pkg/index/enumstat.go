@@ -17,13 +17,13 @@ limitations under the License.
 package index
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/sorted"
-	"golang.org/x/net/context"
 )
 
 func (ix *Index) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {

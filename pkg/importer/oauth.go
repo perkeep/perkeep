@@ -17,6 +17,7 @@ limitations under the License.
 package importer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -29,7 +30,6 @@ import (
 	"github.com/garyburd/go-oauth/oauth"
 
 	"go4.org/ctxutil"
-	"golang.org/x/net/context"
 )
 
 const (

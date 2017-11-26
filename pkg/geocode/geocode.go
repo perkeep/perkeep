@@ -18,6 +18,7 @@ limitations under the License.
 package geocode // import "camlistore.org/pkg/geocode"
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log"
@@ -26,7 +27,6 @@ import (
 
 	"go4.org/ctxutil"
 	"go4.org/syncutil/singleflight"
-	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 )
 

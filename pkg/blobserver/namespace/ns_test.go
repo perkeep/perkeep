@@ -17,6 +17,7 @@ limitations under the License.
 package namespace
 
 import (
+	"context"
 	"reflect"
 	"sort"
 	"testing"
@@ -25,7 +26,6 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/blobserver/storagetest"
 	"camlistore.org/pkg/test"
-	"golang.org/x/net/context"
 )
 
 func newNamespace(t *testing.T, ld *test.Loader) *nsto {

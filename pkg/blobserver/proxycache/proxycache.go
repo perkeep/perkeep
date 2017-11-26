@@ -35,6 +35,7 @@ package proxycache // import "camlistore.org/pkg/blobserver/proxycache"
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -47,7 +48,6 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/sorted"
 	"go4.org/jsonconfig"
-	"golang.org/x/net/context"
 )
 
 type sto struct {

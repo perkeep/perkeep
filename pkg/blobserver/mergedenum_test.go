@@ -17,13 +17,13 @@ limitations under the License.
 package blobserver
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"sort"
 	"testing"
 
 	"camlistore.org/pkg/blob"
-	"golang.org/x/net/context"
 )
 
 var mergedTests = []struct {

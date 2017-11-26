@@ -17,10 +17,10 @@ limitations under the License.
 package blobserver
 
 import (
+	"context"
 	"sync"
 
 	"camlistore.org/pkg/blob"
-	"golang.org/x/net/context"
 )
 
 // EnumerateAll runs fn for each blob in src.

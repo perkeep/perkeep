@@ -17,6 +17,7 @@ limitations under the License.
 package twitter
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -29,7 +30,6 @@ import (
 	"camlistore.org/pkg/schema/nodeattr"
 	"github.com/garyburd/go-oauth/oauth"
 	"go4.org/ctxutil"
-	"golang.org/x/net/context"
 )
 
 func TestGetUserID(t *testing.T) {

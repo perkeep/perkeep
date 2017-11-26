@@ -21,6 +21,7 @@ package cloudstorage
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"errors"
 	"fmt"
@@ -45,7 +46,6 @@ import (
 	"go4.org/jsonconfig"
 	"go4.org/oauthutil"
 	"go4.org/syncutil"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"

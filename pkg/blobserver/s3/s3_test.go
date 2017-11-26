@@ -18,6 +18,7 @@ package s3
 
 import (
 	"bytes"
+	"context"
 	"crypto/md5"
 	"flag"
 	"io"
@@ -35,7 +36,6 @@ import (
 	"camlistore.org/pkg/schema"
 
 	"go4.org/jsonconfig"
-	"golang.org/x/net/context"
 )
 
 var (

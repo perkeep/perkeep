@@ -18,6 +18,7 @@ limitations under the License.
 package main // import "camlistore.org/server/camlistored"
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"flag"
@@ -89,7 +90,6 @@ import (
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/logging"
 	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/googleapi"

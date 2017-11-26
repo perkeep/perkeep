@@ -24,7 +24,7 @@ limitations under the License.
 package search // import "camlistore.org/pkg/search"
 
 import (
-	"golang.org/x/net/context"
+	"context"
 )
 
 type QueryDescriber interface {

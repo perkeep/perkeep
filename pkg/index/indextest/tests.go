@@ -21,6 +21,7 @@ package indextest // import "camlistore.org/pkg/index/indextest"
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -42,7 +43,6 @@ import (
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/test"
 	"camlistore.org/pkg/types/camtypes"
-	"golang.org/x/net/context"
 )
 
 var flagShowReindexRace = flag.Bool("show_reindex_race", false, "demonstrate the reindex race reported at issue #756")

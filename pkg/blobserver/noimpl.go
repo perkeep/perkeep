@@ -17,12 +17,12 @@ limitations under the License.
 package blobserver
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
 
 	"camlistore.org/pkg/blob"
-	"golang.org/x/net/context"
 )
 
 // NoImplStorage is an implementation of Storage that returns a not

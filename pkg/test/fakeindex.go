@@ -17,6 +17,7 @@ limitations under the License.
 package test
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -26,7 +27,6 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/types/camtypes"
-	"golang.org/x/net/context"
 )
 
 var ClockOrigin = time.Unix(1322443956, 123456)

@@ -18,6 +18,7 @@ package index
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -35,7 +36,6 @@ import (
 	"camlistore.org/pkg/schema/nodeattr"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/types/camtypes"
-	"golang.org/x/net/context"
 
 	"go4.org/strutil"
 	"go4.org/syncutil"

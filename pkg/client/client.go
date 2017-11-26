@@ -19,6 +19,7 @@ package client // import "camlistore.org/pkg/client"
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -47,7 +48,6 @@ import (
 	"camlistore.org/pkg/types/camtypes"
 
 	"go4.org/syncutil"
-	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
 )
 

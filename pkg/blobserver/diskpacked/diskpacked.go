@@ -35,6 +35,7 @@ package diskpacked // import "camlistore.org/pkg/blobserver/diskpacked"
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"expvar"
 	"fmt"
@@ -58,7 +59,6 @@ import (
 	"go4.org/strutil"
 	"go4.org/syncutil"
 	"go4.org/types"
-	"golang.org/x/net/context"
 )
 
 // TODO(wathiede): replace with glog.V(2) when we decide our logging story.

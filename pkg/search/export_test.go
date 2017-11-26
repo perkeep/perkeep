@@ -17,12 +17,11 @@ limitations under the License.
 package search
 
 import (
+	"context"
 	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/types/camtypes"
-
-	"golang.org/x/net/context"
 )
 
 func SetTestHookBug121(hook func()) {

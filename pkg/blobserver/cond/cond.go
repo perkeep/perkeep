@@ -39,6 +39,7 @@ package cond // import "camlistore.org/pkg/blobserver/cond"
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -48,7 +49,6 @@ import (
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/schema"
 	"go4.org/jsonconfig"
-	"golang.org/x/net/context"
 )
 
 // A storageFunc selects a destination for a given blob. It may consume from src but must always return

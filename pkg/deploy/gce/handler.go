@@ -18,6 +18,7 @@ package gce
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -46,7 +47,6 @@ import (
 	"camlistore.org/pkg/sorted/leveldb"
 
 	"cloud.google.com/go/compute/metadata"
-	"golang.org/x/net/context"
 	"golang.org/x/net/xsrftoken"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"

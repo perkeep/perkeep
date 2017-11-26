@@ -17,10 +17,10 @@ limitations under the License.
 package mongo
 
 import (
+	"context"
 	"log"
 
 	"camlistore.org/pkg/blob"
-	"golang.org/x/net/context"
 	"labix.org/v2/mgo/bson"
 )
 

@@ -19,6 +19,7 @@ package blobpacked
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,7 +41,6 @@ import (
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/test"
-	"golang.org/x/net/context"
 
 	"go4.org/syncutil"
 )

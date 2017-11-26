@@ -18,6 +18,7 @@ package b2
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -34,7 +35,6 @@ import (
 	"github.com/FiloSottile/b2"
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"
-	"golang.org/x/net/context"
 )
 
 type Storage struct {

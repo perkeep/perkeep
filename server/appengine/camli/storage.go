@@ -20,6 +20,7 @@ package appengine
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -33,7 +34,6 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"go4.org/jsonconfig"
-	"golang.org/x/net/context"
 )
 
 const (

@@ -17,13 +17,13 @@ limitations under the License.
 package s3
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"path"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"golang.org/x/net/context"
 )
 
 var _ blobserver.MaxEnumerateConfig = (*s3Storage)(nil)

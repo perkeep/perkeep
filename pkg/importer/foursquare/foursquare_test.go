@@ -17,13 +17,13 @@ limitations under the License.
 package foursquare
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
 	"camlistore.org/pkg/httputil"
 
 	"go4.org/ctxutil"
-	"golang.org/x/net/context"
 )
 
 func TestGetUserId(t *testing.T) {

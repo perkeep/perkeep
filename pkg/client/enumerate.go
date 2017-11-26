@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -24,7 +25,6 @@ import (
 	"time"
 
 	"camlistore.org/pkg/blob"
-	"golang.org/x/net/context"
 )
 
 // EnumerateOpts are the options to Client.EnumerateBlobsOpts.

@@ -18,6 +18,7 @@ limitations under the License.
 package importer // import "camlistore.org/pkg/importer"
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"html/template"
@@ -43,7 +44,6 @@ import (
 	"go4.org/ctxutil"
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"
-	"golang.org/x/net/context"
 )
 
 const (

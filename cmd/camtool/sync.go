@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -34,7 +35,6 @@ import (
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
 	"go4.org/syncutil"
-	"golang.org/x/net/context"
 )
 
 type syncCmd struct {

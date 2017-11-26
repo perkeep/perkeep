@@ -20,6 +20,7 @@ package picasa // import "camlistore.org/pkg/importer/picasa"
 // TODO: removing camliPath from gallery permanode when pic deleted from gallery
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -40,7 +41,6 @@ import (
 	"github.com/tgulacsi/picago"
 	"go4.org/ctxutil"
 	"go4.org/syncutil"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )

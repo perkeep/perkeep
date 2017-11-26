@@ -20,6 +20,7 @@ package memory // import "camlistore.org/pkg/blobserver/memory"
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -35,7 +36,6 @@ import (
 	"go4.org/jsonconfig"
 	"go4.org/readerutil"
 	"go4.org/types"
-	"golang.org/x/net/context"
 )
 
 // Storage is an in-memory implementation of the blobserver Storage

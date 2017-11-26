@@ -1,12 +1,12 @@
 package index
 
 import (
+	"context"
 	"sync"
 	"time"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/types/camtypes"
-	"golang.org/x/net/context"
 )
 
 type Interface interface {

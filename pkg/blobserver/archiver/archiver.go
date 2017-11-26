@@ -23,12 +23,12 @@ package archiver // import "camlistore.org/pkg/blobserver/archiver"
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"io"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"golang.org/x/net/context"
 )
 
 // DefaultMinZipSize is the default value of Archiver.MinZipSize.

@@ -17,9 +17,10 @@ limitations under the License.
 package drive
 
 import (
+	"context"
+
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"golang.org/x/net/context"
 )
 
 var _ blobserver.MaxEnumerateConfig = (*driveStorage)(nil)

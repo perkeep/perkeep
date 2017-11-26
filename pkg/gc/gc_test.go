@@ -17,11 +17,10 @@ limitations under the License.
 package gc
 
 import (
+	"context"
 	"reflect"
 	"sort"
 	"testing"
-
-	"golang.org/x/net/context"
 )
 
 func sl(v ...string) []string {

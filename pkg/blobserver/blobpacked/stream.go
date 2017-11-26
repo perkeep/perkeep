@@ -17,6 +17,7 @@ limitations under the License.
 package blobpacked
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -26,7 +27,6 @@ import (
 	"camlistore.org/pkg/blobserver"
 
 	"go4.org/readerutil"
-	"golang.org/x/net/context"
 )
 
 // StreamBlobs impl.

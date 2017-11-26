@@ -18,6 +18,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"expvar"
 	"fmt"
@@ -45,7 +46,6 @@ import (
 	"go4.org/syncutil"
 	"go4.org/syncutil/singleflight"
 	"go4.org/types"
-	"golang.org/x/net/context"
 )
 
 const imageDebug = false

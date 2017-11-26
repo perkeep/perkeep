@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"context"
+
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/geocode"
 	"camlistore.org/pkg/index"
@@ -31,7 +33,6 @@ import (
 	"camlistore.org/pkg/test"
 	"camlistore.org/pkg/types/camtypes"
 	"go4.org/types"
-	"golang.org/x/net/context"
 )
 
 // indexType is one of the three ways we test the query handler code.

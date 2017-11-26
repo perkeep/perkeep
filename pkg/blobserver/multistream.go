@@ -17,12 +17,11 @@ limitations under the License.
 package blobserver
 
 import (
+	"context"
 	"errors"
 	"regexp"
 	"strconv"
 	"strings"
-
-	"golang.org/x/net/context"
 )
 
 // NewMultiBlobStreamer concatenates multiple BlobStreamers into one.

@@ -24,6 +24,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"flag"
 	"fmt"
@@ -45,7 +46,6 @@ import (
 	"camlistore.org/pkg/osutil"
 
 	"cloud.google.com/go/storage"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"

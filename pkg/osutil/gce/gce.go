@@ -18,6 +18,7 @@ limitations under the License.
 package gce // import "camlistore.org/pkg/osutil/gce"
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -34,7 +35,6 @@ import (
 	"go4.org/jsonconfig"
 	"go4.org/types"
 	_ "go4.org/wkfs/gcs"
-	"golang.org/x/net/context"
 )
 
 func init() {

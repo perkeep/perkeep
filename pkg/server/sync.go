@@ -18,6 +18,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -41,7 +42,6 @@ import (
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/types/camtypes"
 	"go4.org/jsonconfig"
-	"golang.org/x/net/context"
 	"golang.org/x/net/xsrftoken"
 
 	"go4.org/syncutil"

@@ -18,6 +18,7 @@ package main // import "camlistore.org/website"
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/json"
@@ -54,7 +55,6 @@ import (
 	"go4.org/cloud/cloudlaunch"
 	"go4.org/writerutil"
 	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2/google"
 	cloudresourcemanager "google.golang.org/api/cloudresourcemanager/v1"
 	compute "google.golang.org/api/compute/v1"

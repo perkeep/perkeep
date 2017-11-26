@@ -55,6 +55,7 @@ package gpgchallenge // import "camlistore.org/pkg/gpgchallenge"
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/hmac"
 	"crypto/rand"
@@ -77,7 +78,6 @@ import (
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/packet"
-	"golang.org/x/net/context"
 	"golang.org/x/time/rate"
 
 	"go4.org/wkfs"

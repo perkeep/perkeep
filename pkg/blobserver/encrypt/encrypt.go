@@ -33,6 +33,7 @@ import (
 	"bufio"
 	"bytes"
 	"container/heap"
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -55,7 +56,6 @@ import (
 	"camlistore.org/pkg/sorted"
 	"go4.org/jsonconfig"
 	"go4.org/types"
-	"golang.org/x/net/context"
 )
 
 // Compaction constants

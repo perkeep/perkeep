@@ -17,6 +17,7 @@ limitations under the License.
 package localdisk
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -25,7 +26,6 @@ import (
 	"strings"
 
 	"camlistore.org/pkg/blob"
-	"golang.org/x/net/context"
 )
 
 type readBlobRequest struct {

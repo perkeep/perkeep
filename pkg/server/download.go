@@ -18,6 +18,7 @@ package server
 
 import (
 	"archive/zip"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -38,7 +39,6 @@ import (
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/search"
 	"go4.org/readerutil"
-	"golang.org/x/net/context"
 )
 
 const (

@@ -19,6 +19,7 @@ package feed // import "camlistore.org/pkg/importer/feed"
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"html/template"
 	"io"
@@ -33,7 +34,6 @@ import (
 	"camlistore.org/pkg/schema"
 
 	"go4.org/ctxutil"
-	"golang.org/x/net/context"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 )

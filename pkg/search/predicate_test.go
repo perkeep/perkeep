@@ -17,6 +17,7 @@ limitations under the License.
 package search
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"reflect"
@@ -28,7 +29,6 @@ import (
 	"go4.org/types"
 
 	"go4.org/ctxutil"
-	"golang.org/x/net/context"
 )
 
 func TestSearchHelp(t *testing.T) {

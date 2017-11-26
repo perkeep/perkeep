@@ -18,6 +18,7 @@ package search
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -34,7 +35,6 @@ import (
 	"camlistore.org/pkg/types/camtypes"
 	"go4.org/syncutil"
 	"go4.org/types"
-	"golang.org/x/net/context"
 )
 
 func (sh *Handler) serveDescribe(rw http.ResponseWriter, req *http.Request) {

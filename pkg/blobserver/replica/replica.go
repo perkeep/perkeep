@@ -36,6 +36,7 @@ package replica // import "camlistore.org/pkg/blobserver/replica"
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -46,7 +47,6 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"go4.org/jsonconfig"
-	"golang.org/x/net/context"
 )
 
 var (

@@ -17,6 +17,7 @@ limitations under the License.
 package blobserver
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -25,7 +26,6 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/constants"
-	"golang.org/x/net/context"
 )
 
 // MaxBlobSize is the size of a single blob in Camlistore.

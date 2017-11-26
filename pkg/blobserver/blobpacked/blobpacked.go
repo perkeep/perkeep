@@ -83,6 +83,7 @@ package blobpacked // import "camlistore.org/pkg/blobserver/blobpacked"
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"encoding/json"
 	"errors"
@@ -104,7 +105,6 @@ import (
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
 	"go4.org/jsonconfig"
-	"golang.org/x/net/context"
 
 	"go4.org/strutil"
 	"go4.org/syncutil"

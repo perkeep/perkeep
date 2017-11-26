@@ -17,6 +17,7 @@ limitations under the License.
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -26,7 +27,6 @@ import (
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
-	"golang.org/x/net/context"
 )
 
 const defaultMaxEnumerate = 10000

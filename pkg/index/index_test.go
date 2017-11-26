@@ -17,6 +17,7 @@ limitations under the License.
 package index_test
 
 import (
+	"context"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -34,7 +35,6 @@ import (
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/test"
 	"camlistore.org/pkg/types/camtypes"
-	"golang.org/x/net/context"
 )
 
 func TestReverseTimeString(t *testing.T) {

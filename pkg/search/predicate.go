@@ -20,6 +20,7 @@ package search
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -30,7 +31,6 @@ import (
 	"camlistore.org/pkg/geocode"
 	"camlistore.org/pkg/schema/nodeattr"
 	"go4.org/types"
-	"golang.org/x/net/context"
 )
 
 const base = "0000-01-01T00:00:00Z"

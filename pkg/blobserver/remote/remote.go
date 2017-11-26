@@ -34,13 +34,13 @@ Example low-level config:
 package remote // import "camlistore.org/pkg/blobserver/remote"
 
 import (
+	"context"
 	"io"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/blobserver"
 	"camlistore.org/pkg/client"
 	"go4.org/jsonconfig"
-	"golang.org/x/net/context"
 )
 
 // remoteStorage is a blobserver.Storage proxy for a remote camlistore

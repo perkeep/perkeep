@@ -19,6 +19,7 @@ limitations under the License.
 package gphotos // import "camlistore.org/pkg/importer/gphotos"
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -40,7 +41,6 @@ import (
 
 	"go4.org/ctxutil"
 	"go4.org/syncutil"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )

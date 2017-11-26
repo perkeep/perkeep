@@ -18,6 +18,7 @@ package blobpacked
 
 import (
 	"bytes"
+	"context"
 	"reflect"
 	"strconv"
 	"testing"
@@ -28,7 +29,6 @@ import (
 	"camlistore.org/pkg/schema"
 	"camlistore.org/pkg/sorted"
 	"camlistore.org/pkg/test"
-	"golang.org/x/net/context"
 )
 
 func TestStreamBlobs(t *testing.T) {
