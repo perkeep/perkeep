@@ -1,9 +1,0 @@
-We typically just use the "devcam appengine" command to hack on this code. (To build devcam: go install ../../dev/devcam).
-
-But to run by hand:
-
-$ dev_appserver.py --high_replication .
-
-Other useful flags:
-  -a 0.0.0.0     (listen on all addresses)
-  -c             (wipe the datastore)

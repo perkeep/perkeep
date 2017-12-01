@@ -196,34 +196,6 @@ Setting up MongoDB is even simpler, but the MongoDB indexer is not as well
 tested as the MySQL one.
 
 
-## App Engine {#appengine}
-
-Most configuration doesn't apply on App Engine as it's pre-configured
-to use the App Engine Blobstore and Datastore, as well as App Engine's
-user auth mechanisms. But as of 2013-06-12 we don't yet recommend running
-on App Engine; there are still some sharp corners.
-
-The UI requires some static resources that are not included by default in the
-App Engine application directory (`server/appengine/`). You can define that
-directory in the server configuration file (`server/appengine/config.json`),
-with the `sourceRoot` parameter, like so:
-
-      "/ui/": {
-        "handler": "ui",
-        "handlerArgs": {
-          "sourceRoot": "dir_name",
-          "jsonSignRoot": "/sighelper/"
-        }
-      },
-
-You will then have to populate that directory with all the necessary resources
-(UI static files and closure library files).
-
-Alternatively, you can run `devcam appengine` once, which will create and
-populate the default directory (`server/appengine/source_root`). Please see the
-[CONTRIBUTING](https://camlistore.googlesource.com/camlistore/+/master/CONTRIBUTING.md)
-doc to build devcam.
-
 # Low-level configuration {#lowlevel}
 
 You can specify a low-level configuration file to camlistored with the same

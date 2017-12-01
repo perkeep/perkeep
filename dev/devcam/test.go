@@ -149,7 +149,6 @@ func (c *testCmd) runTests(args []string) error {
 		targs = append(targs, []string{
 			"./pkg/...",
 			"./server/camlistored",
-			"./server/appengine",
 			"./cmd/...",
 			"./misc/docker/...",
 			"./website",

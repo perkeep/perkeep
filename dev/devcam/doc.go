@@ -25,7 +25,6 @@ Usage:
 
 Modes:
 
-  appengine: run the App Engine camlistored in dev mode.
   get: run camget in dev mode.
   put: run camput in dev mode.
   server: run the stand-alone camlistored in dev mode.

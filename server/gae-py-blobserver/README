@@ -1,5 +1,0 @@
-This was an early App Engine blobserver-only implementation in Python.  It had no
-index, no search, no UI, no crypto, etc.
-
-The blob server is this directory is no longer actively developed, superceded
-by the main Go implementation, which can now run on App Engine.

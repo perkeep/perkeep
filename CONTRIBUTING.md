@@ -52,7 +52,6 @@ can just:
 The subcommands of devcam start the server or run camput/camget/etc:
 
     $ devcam server      # main server
-    $ devcam appengine   # App Engine version of the server
     $ devcam put         # camput
     $ devcam get         # camget
     $ devcam tool        # camtool

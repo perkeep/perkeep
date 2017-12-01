@@ -17,7 +17,7 @@ forcefull:
 	go install -a --tags=with_sqlite ./pkg/... ./server/camlistored ./cmd/... ./dev/...
 
 oldpresubmit: fmt
-	SKIP_DEP_TESTS=1 go test `pkg-config --libs sqlite3 1>/dev/null 2>/dev/null && echo "--tags=with_sqlite"` -short ./pkg/... ./server/camlistored/... ./server/appengine ./cmd/... ./dev/... && echo PASS
+	SKIP_DEP_TESTS=1 go test `pkg-config --libs sqlite3 1>/dev/null 2>/dev/null && echo "--tags=with_sqlite"` -short ./pkg/... ./server/camlistored/... ./cmd/... ./dev/... && echo PASS
 
 presubmit: fmt
 	go run dev/devcam/*.go test -short

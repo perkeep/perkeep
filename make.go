@@ -731,7 +731,7 @@ func mirror(sql bool) (latestSrcMod time.Time) {
 		"vendor",
 	}
 	if *onlysync {
-		goDirs = append(goDirs, "server/appengine", "config", "misc", "./website")
+		goDirs = append(goDirs, "config", "misc", "./website")
 	}
 	if *website {
 		goDirs = []string{
