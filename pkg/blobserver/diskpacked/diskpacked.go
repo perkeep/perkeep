@@ -577,7 +577,7 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 				return err
 			}
 			// EOF case; continue to the next pack, if any.
-			fileNum += 1
+			fileNum++
 			offset = 0
 			fd.Close() // Close the previous pack
 			fd, err = os.Open(s.filename(fileNum))

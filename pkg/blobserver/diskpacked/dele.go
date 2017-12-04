@@ -54,7 +54,7 @@ func (s *storage) delete(br blob.Ref) error {
 		return fmt.Errorf("delete: cannot find header surroundings, found %q", b)
 	}
 	b = b[1 : k-1] // "sha1-xxxxxxxxxxxxxxxxxx nnnn" - everything between []
-	off += 1
+	off++
 
 	// Replace b with "xxxx-000000000"
 	dash := bytes.IndexByte(b, '-')

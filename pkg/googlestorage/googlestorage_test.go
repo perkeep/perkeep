@@ -235,7 +235,7 @@ func TestEnumerateBucket(t *testing.T) {
 	if err != nil {
 		t.Errorf("Enumeration failed: %v\n", err)
 	} else {
-		for i := 0; i < 4; i += 1 {
+		for i := 0; i < 4; i++ {
 			if objs[i].Key != fmt.Sprintf("test-enum-%v", i+1) {
 				t.Errorf(
 					"Enum from start point returned wrong key:\nExpected: test-enum-%v\nFound: %v",

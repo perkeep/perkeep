@@ -819,7 +819,7 @@ func (sh *SyncHandler) validateShardPrefix(pfx string) (err error) {
 			}
 		} else {
 			sh.mu.Lock()
-			sh.vmissing += 1
+			sh.vmissing++
 			sh.mu.Unlock()
 		}
 	}
