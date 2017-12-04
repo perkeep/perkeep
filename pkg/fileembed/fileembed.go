@@ -235,11 +235,11 @@ func (f *fileHandle) Readdir(int) ([]os.FileInfo, error) {
 
 func (f *fileHandle) Seek(offset int64, whence int) (int64, error) {
 	switch whence {
-	case os.SEEK_SET:
+	case io.SeekStart:
 		f.off = offset
-	case os.SEEK_CUR:
+	case io.SeekCurrent:
 		f.off += offset
-	case os.SEEK_END:
+	case io.SeekEnd:
 		f.off = f.sf.Size() + offset
 	default:
 		return 0, os.ErrInvalid

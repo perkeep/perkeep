@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"image"
 	"image/jpeg"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -189,7 +190,7 @@ func TestRescale(t *testing.T) {
 		t.Errorf("(scale) %v pixels not equal", name)
 	}
 
-	_, err = f.Seek(0, os.SEEK_SET)
+	_, err = f.Seek(0, io.SeekStart)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +239,7 @@ func TestRescaleEXIF(t *testing.T) {
 			t.Errorf("(scale) %v pixels not equal", name)
 		}
 
-		_, err = f.Seek(0, os.SEEK_SET)
+		_, err = f.Seek(0, io.SeekStart)
 		if err != nil {
 			t.Fatal(err)
 		}
