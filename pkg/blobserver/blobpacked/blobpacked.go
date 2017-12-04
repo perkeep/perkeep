@@ -75,7 +75,6 @@ multiple zip files, each no larger than 16MB. In that case, each part of the
 file will have a different 'wholePartIndex' number, starting at index
 0. Each will have the same 'wholeSize'.
 */
-
 package blobpacked // import "camlistore.org/pkg/blobserver/blobpacked"
 
 // TODO: BlobStreamer using the zip manifests, for recovery.
