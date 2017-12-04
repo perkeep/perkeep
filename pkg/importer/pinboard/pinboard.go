@@ -243,7 +243,7 @@ type apiPost struct {
 }
 
 func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying bool, err error) {
-	sleepDuration := r.nextAfter.Sub(time.Now())
+	sleepDuration := time.Until(r.nextAfter)
 	// block until we either get canceled or until it is time to run
 	select {
 	case <-r.Context().Done():
@@ -307,7 +307,7 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 		})
 	}
 
-	log.Printf("pinboard: Imported batch of %d posts in %s.", postCount, time.Now().Sub(start))
+	log.Printf("pinboard: Imported batch of %d posts in %s.", postCount, time.Since(start))
 
 	r.nextCursor = postBatch[postCount-1].Time
 	r.lastPause = pauseInterval

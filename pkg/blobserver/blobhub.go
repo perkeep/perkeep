@@ -99,10 +99,14 @@ func WaitForBlob(storage interface{}, deadline time.Time, blobs []blob.Ref) {
 	if !canLongPoll {
 		tc = time.After(2 * time.Second)
 	}
+
+	t := time.NewTimer(time.Until(deadline))
+	defer t.Stop()
+
 	select {
 	case <-ch:
 	case <-tc:
-	case <-time.After(deadline.Sub(time.Now())):
+	case <-t.C:
 	}
 }
 
