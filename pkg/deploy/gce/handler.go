@@ -580,9 +580,7 @@ func (h *DeployHandler) serveOldInstance(w http.ResponseWriter, br blob.Ref, dep
 
 func (h *DeployHandler) serveFormError(w http.ResponseWriter, err error, hints ...string) {
 	var topHints []string
-	for _, v := range hints {
-		topHints = append(topHints, v)
-	}
+	topHints = append(topHints, hints...)
 	h.logger.Print(err)
 	h.tplMu.RLock()
 	defer h.tplMu.RUnlock()
@@ -672,9 +670,7 @@ func (h *DeployHandler) serveProgress(w http.ResponseWriter, instanceKey blob.Re
 
 func (h *DeployHandler) serveErrorPage(w http.ResponseWriter, err error, hints ...string) {
 	var topHints []string
-	for _, v := range hints {
-		topHints = append(topHints, v)
-	}
+	topHints = append(topHints, hints...)
 	h.logger.Print(err)
 	h.tplMu.RLock()
 	defer h.tplMu.RUnlock()
