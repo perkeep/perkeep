@@ -21,7 +21,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"os"
@@ -157,19 +156,4 @@ func (c *gceCmd) RunCommand(args []string) error {
 
 	log.Printf("Instance created; starting up at %s", inst.NetworkInterfaces[0].AccessConfigs[0].NatIP)
 	return nil
-}
-
-func readFile(v string) string {
-	slurp, err := ioutil.ReadFile(v)
-	if err != nil {
-		if os.IsNotExist(err) {
-			msg := fmt.Sprintf("%v does not exist.", v)
-			if v == clientIdDat || v == clientSecretDat {
-				msg = fmt.Sprintf("%v\n%s", msg, helpEnableAuth)
-			}
-			log.Fatal(msg)
-		}
-		log.Fatalf("Error reading %s: %v", v, err)
-	}
-	return strings.TrimSpace(string(slurp))
 }
