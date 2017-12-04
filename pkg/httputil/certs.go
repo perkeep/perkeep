@@ -89,7 +89,7 @@ func GenSelfTLS(hostname string) (certPEM, keyPEM []byte, err error) {
 	if err := pem.Encode(&buf, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
 		return certPEM, keyPEM, fmt.Errorf("error writing self-signed HTTPS cert: %v", err)
 	}
-	certPEM = []byte(string(buf.Bytes()))
+	certPEM = []byte(buf.String())
 
 	buf.Reset()
 	if err := pem.Encode(&buf, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}); err != nil {

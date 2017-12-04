@@ -40,7 +40,7 @@ func HasID3v1Tag(r readerutil.SizeReaderAt) (bool, error) {
 		return false, nil
 	}
 
-	buf := make([]byte, len(id3v1Magic), len(id3v1Magic))
+	buf := make([]byte, len(id3v1Magic))
 	if _, err := r.ReadAt(buf, r.Size()-ID3v1TagLength); err != nil {
 		return false, fmt.Errorf("Failed to read ID3v1 data: %v", err)
 	}
@@ -172,7 +172,7 @@ func GetMPEGAudioDuration(r readerutil.SizeReaderAt) (time.Duration, error) {
 		xingHeaderStart += 2
 	}
 
-	b := make([]byte, 12, 12)
+	b := make([]byte, 12)
 	if _, err := r.ReadAt(b, xingHeaderStart); err != nil {
 		return 0, fmt.Errorf("Unable to read Xing header at %d: %v", xingHeaderStart, err)
 	}
