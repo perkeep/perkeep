@@ -229,6 +229,15 @@ func pollCommits(dir string) {
 	latestHash.Lock()
 	latestHash.s = hashes[0]
 	latestHash.Unlock()
+	githubSyncC := make(chan bool, 1)
+	go func() {
+		if githubSSHKey != "" {
+			if err := syncToGithub(dir, hashes[0]); err != nil {
+				log.Printf("Failed to push commit %v to github: %v", hashes[0], err)
+			}
+		}
+		githubSyncC <- true
+	}()
 	for _, commit := range hashes {
 		if knownCommit[commit] {
 			continue
@@ -254,11 +263,7 @@ func pollCommits(dir string) {
 			}
 		}
 	}
-	if githubSSHKey != "" {
-		if err := syncToGithub(dir, hashes[0]); err != nil {
-			log.Printf("Failed to push commit %v to github: %v", hashes[0], err)
-		}
-	}
+	<-githubSyncC
 }
 
 func recentCommits(dir string) (hashes []string, err error) {
