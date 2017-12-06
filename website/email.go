@@ -19,11 +19,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
-	"net/smtp"
 	"os"
 	"os/exec"
 	"strings"
@@ -31,15 +31,39 @@ import (
 	"time"
 
 	"cloud.google.com/go/datastore"
+	"github.com/mailgun/mailgun-go"
 
 	"camlistore.org/pkg/osutil"
 )
 
 var (
-	emailNow   = flag.String("email_now", "", "[debug] if non-empty, this commit hash is emailed immediately, without starting the webserver.")
-	smtpServer = flag.String("smtp_server", "127.0.0.1:25", "[optional] SMTP server for sending emails on new commits.")
-	emailsTo   = flag.String("email_dest", "", "[optional] The email address for new commit emails.")
+	emailNow       = flag.String("email_now", "", "[debug] if non-empty, this commit hash is emailed immediately, without starting the webserver.")
+	mailgunCfgFile = flag.String("mailgun_config", "", "[optional] Mailgun JSON configuration for sending emails on new commits.")
+	emailsTo       = flag.String("email_dest", "", "[optional] The email address for new commit emails.")
 )
+
+type mailgunCfg struct {
+	Domain       string `json:"domain"`
+	APIKey       string `json:"apiKey"`
+	PublicAPIKey string `json:"publicAPIKey"`
+}
+
+// mailgun is for sending the camweb startup e-mail, and the commits e-mails. No
+// e-mails are sent if it is nil. It is set in sendStartingEmail, and it is nil
+// if mailgunCfgFile is not set.
+var mailGun mailgun.Mailgun
+
+func mailgunCfgFromGCS() (*mailgunCfg, error) {
+	var cfg mailgunCfg
+	data, err := fromGCS(*mailgunCfgFile)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("could not JSON decode website's mailgun config: %v", err)
+	}
+	return &cfg, nil
+}
 
 func startEmailCommitLoop(errc chan<- error) {
 	if *emailsTo == "" {
@@ -74,10 +98,14 @@ var knownCommit = map[string]bool{} // commit -> true
 var diffMarker = []byte("diff --git a/")
 
 func emailCommit(dir, hash string) (err error) {
+	if mailGun == nil {
+		return nil
+	}
+
 	cmd := execGit(dir, "show", nil, "show", hash)
 	body, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("Error runnning git show: %v\n%s", err, body)
+		return fmt.Errorf("error runnning git show: %v\n%s", err, body)
 	}
 	if !bytes.Contains(body, diffMarker) {
 		// Boring merge commit. Don't email.
@@ -87,7 +115,7 @@ func emailCommit(dir, hash string) (err error) {
 	cmd = execGit(dir, "show_pretty", nil, "show", "--pretty=oneline", hash)
 	out, err := cmd.Output()
 	if err != nil {
-		return
+		return fmt.Errorf("error runnning git show_pretty: %v\n%s", err, string(out))
 	}
 	subj := out[41:] // remove hash and space
 	if i := bytes.IndexByte(subj, '\n'); i != -1 {
@@ -97,37 +125,23 @@ func emailCommit(dir, hash string) (err error) {
 		subj = subj[:80]
 	}
 
-	if *smtpServer == "" {
-		return nil
-	}
-	cl, err := smtp.Dial(*smtpServer)
-	if err != nil {
-		log.Printf("Error connecting to SMTP server for sending commit e-mail: %v", err)
-		return
-	}
-	defer cl.Quit()
-	if err = cl.Mail("noreply@camlistore.org"); err != nil {
-		return
-	}
-	if err = cl.Rcpt(*emailsTo); err != nil {
-		return
-	}
-	wc, err := cl.Data()
-	if err != nil {
-		return
-	}
-	_, err = fmt.Fprintf(wc, `From: noreply@camlistore.org (Camlistore Commit)
-To: %s
-Subject: %s
-Reply-To: camlistore@googlegroups.com
+	contents := fmt.Sprintf(`
 
 https://camlistore.googlesource.com/camlistore/+/%s
 
-%s`, *emailsTo, subj, hash, body)
-	if err != nil {
-		return
+%s`, hash, body)
+
+	m := mailGun.NewMessage(
+		"noreply@camlistore.org (Camlistore Commit)",
+		string(subj),
+		contents,
+		*emailsTo,
+	)
+	m.SetReplyTo("camlistore-commits@googlegroups.com")
+	if _, _, err := mailGun.Send(m); err != nil {
+		return fmt.Errorf("failed to send e-mail: %v", err)
 	}
-	return wc.Close()
+	return nil
 }
 
 var latestHash struct {
@@ -243,15 +257,17 @@ func pollCommits(dir string) {
 				continue
 			}
 		}
-		if err := emailCommit(dir, commit); err == nil {
-			log.Printf("Emailed commit %s", commit)
-			knownCommit[commit] = true
-			if dsClient != nil {
-				ctx := context.Background()
-				key := datastore.NewKey(ctx, "git_commit", commit, 0, nil)
-				_, err := dsClient.Put(ctx, key, &GitCommit{Emailed: true})
-				log.Printf("datastore put of git_commit(%v): %v", commit, err)
-			}
+		if err := emailCommit(dir, commit); err != nil {
+			log.Printf("Error with commit e-mail: %v", err)
+			continue
+		}
+		log.Printf("Emailed commit %s", commit)
+		knownCommit[commit] = true
+		if dsClient != nil {
+			ctx := context.Background()
+			key := datastore.NewKey(ctx, "git_commit", commit, 0, nil)
+			_, err := dsClient.Put(ctx, key, &GitCommit{Emailed: true})
+			log.Printf("datastore put of git_commit(%v): %v", commit, err)
 		}
 	}
 	if githubSSHKey != "" {

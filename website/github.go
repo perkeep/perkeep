@@ -31,7 +31,7 @@ import (
 
 // This is a test comment for github syncing.
 
-const githubSSHKeyGCS = "/gcs/camlistore-website-resource/id_github_camlistorebot_push"
+const githubSSHKeyGCS = "/gcs/" + prodBucket + "/id_github_camlistorebot_push"
 
 var (
 	githubSSHKey string // Also used to detect whether we do the syncs to github
