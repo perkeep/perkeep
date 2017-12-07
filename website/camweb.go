@@ -31,7 +31,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/smtp"
 	"net/url"
 	"os"
 	"os/exec"
@@ -51,6 +50,7 @@ import (
 	"cloud.google.com/go/datastore"
 	"cloud.google.com/go/logging"
 	"cloud.google.com/go/storage"
+	"github.com/mailgun/mailgun-go"
 	"github.com/russross/blackfriday"
 	"go4.org/cloud/cloudlaunch"
 	"go4.org/writerutil"
@@ -62,7 +62,10 @@ import (
 	storageapi "google.golang.org/api/storage/v1"
 )
 
-const defaultAddr = ":31798" // default webserver address
+const (
+	defaultAddr = ":31798"                      // default webserver address
+	prodBucket  = "camlistore-website-resource" // where we store misc resources for the production website
+)
 
 var h1TitlePattern = regexp.MustCompile(`<h1>([^<]+)</h1>`)
 
@@ -574,7 +577,7 @@ func gceDeployHandler(prefix string) (*gce.DeployHandler, error) {
 
 var launchConfig = &cloudlaunch.Config{
 	Name:         "camweb",
-	BinaryBucket: "camlistore-website-resource",
+	BinaryBucket: prodBucket,
 	GCEProjectID: "camlistore-website",
 	Scopes: []string{
 		storageapi.DevstorageFullControlScope,
@@ -625,12 +628,12 @@ func setProdFlags() {
 
 	*adminEmail = "mathieu.lonjaret@gmail.com" // for let's encrypt
 	*emailsTo = "camlistore-commits@googlegroups.com"
-	*smtpServer = "50.19.239.94:2500" // double firewall: rinetd allow + AWS
+	*mailgunCfgFile = "mailgun-config.json"
 	if inStaging {
 		// in staging, keep emailsTo so we get in the loop that does the
-		// git pull and refreshes the content, but no smtpServer so
+		// git pull and refreshes the content, but no mailgunCfgFile so
 		// we don't actually try to send any e-mail.
-		*smtpServer = ""
+		*mailgunCfgFile = ""
 	}
 
 	os.RemoveAll(prodSrcDir)
@@ -730,7 +733,7 @@ func runDemoBlobserverLoop() {
 }
 
 func sendStartingEmail() {
-	if *smtpServer == "" {
+	if *mailgunCfgFile == "" {
 		return
 	}
 	contentRev, err := exec.Command("docker", "run",
@@ -741,35 +744,23 @@ func sendStartingEmail() {
 		"/bin/bash", "-c",
 		"git show --pretty=format:'%ad-%h' --abbrev-commit --date=short | head -1").Output()
 
-	cl, err := smtp.Dial(*smtpServer)
+	cfg, err := mailgunCfgFromGCS()
 	if err != nil {
-		log.Printf("Failed to connect to SMTP server: %v", err)
+		log.Printf("Failed to get mailgun config: %v", err)
 		return
 	}
-	defer cl.Quit()
-	if err = cl.Mail("noreply@camlistore.org"); err != nil {
-		return
+	mailGun = mailgun.NewMailgun(cfg.Domain, cfg.APIKey, cfg.PublicAPIKey)
+	contents := `Camlistore website starting with binary XXXXTODO and content at git rev ` + string(contentRev)
+	m := mailGun.NewMessage(
+		"noreply@camlistore.org (Camlistore Website)",
+		"Camlistore camweb restarting",
+		contents,
+		"brad@danga.com",
+		"mathieu.lonjaret@gmail.com",
+	)
+	if _, _, err := mailGun.Send(m); err != nil {
+		log.Printf("Failed to send camweb startup e-mail: %v", err)
 	}
-	if err = cl.Rcpt("brad@danga.com"); err != nil {
-		return
-	}
-	if err = cl.Rcpt("mathieu.lonjaret@gmail.com"); err != nil {
-		return
-	}
-	wc, err := cl.Data()
-	if err != nil {
-		return
-	}
-	_, err = fmt.Fprintf(wc, `From: noreply@camlistore.org (Camlistore Website)
-To: brad@danga.com, mathieu.lonjaret@gmail.com
-Subject: Camlistore camweb restarting
-
-Camlistore website starting with binary XXXXTODO and content at git rev %s
-`, contentRev)
-	if err != nil {
-		return
-	}
-	wc.Close()
 }
 
 func getDockerImage(tag, file string) {
@@ -777,7 +768,7 @@ func getDockerImage(tag, file string) {
 	if err == nil && len(have) > 0 {
 		return // we have it.
 	}
-	url := "https://storage.googleapis.com/camlistore-website-resource/" + file
+	url := "https://storage.googleapis.com/" + prodBucket + "/" + file
 	err = exec.Command("/bin/bash", "-c", "curl --silent "+url+" | docker load").Run()
 	if err != nil {
 		log.Fatal(err)
@@ -1046,28 +1037,31 @@ func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 	return tc, nil
 }
 
-func deployerCredsFromGCS() (*gce.Config, error) {
+func fromGCS(filename string) ([]byte, error) {
 	ctx := context.Background()
 	sc, err := storage.NewClient(ctx)
 	if err != nil {
 		return nil, err
 	}
 	slurp := func(key string) ([]byte, error) {
-		const bucket = "camlistore-website-resource"
-		rc, err := sc.Bucket(bucket).Object(key).NewReader(ctx)
+		rc, err := sc.Bucket(prodBucket).Object(key).NewReader(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("Error fetching GCS object %q in bucket %q: %v", key, bucket, err)
+			return nil, fmt.Errorf("Error fetching GCS object %q in bucket %q: %v", key, prodBucket, err)
 		}
 		defer rc.Close()
 		return ioutil.ReadAll(rc)
 	}
+	return slurp(filename)
+}
+
+func deployerCredsFromGCS() (*gce.Config, error) {
 	var cfg gce.Config
-	data, err := slurp("launcher-config.json")
+	data, err := fromGCS("launcher-config.json")
 	if err != nil {
 		return nil, err
 	}
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("Could not JSON decode camli GCE launcher config: %v", err)
+		return nil, fmt.Errorf("could not JSON decode camli GCE launcher config: %v", err)
 	}
 	return &cfg, nil
 }
