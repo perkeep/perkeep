@@ -163,7 +163,7 @@ func main() {
 		fmt.Fprintf(&b, "import \""+*fileEmbedPkgPath+"\"\n\n")
 		b.WriteString(imports)
 		fmt.Fprintf(&b, "func init() {\n\tFiles.Add(%q, %d, time.Unix(0, %d), %s(%s));\n}\n",
-			fileName, fileSize, fi.ModTime().UnixNano(), byteStreamType, qb)
+			filepath.ToSlash(fileName), fileSize, fi.ModTime().UnixNano(), byteStreamType, qb)
 
 		// gofmt it
 		fset := token.NewFileSet()
