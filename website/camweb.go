@@ -65,6 +65,7 @@ import (
 const (
 	defaultAddr = ":31798"                      // default webserver address
 	prodBucket  = "camlistore-website-resource" // where we store misc resources for the production website
+	prodDomain  = "perkeep.org"
 )
 
 var h1TitlePattern = regexp.MustCompile(`<h1>([^<]+)</h1>`)
@@ -467,12 +468,13 @@ func (h *redirectRootHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 	}
 
 	host := strings.ToLower(r.Host)
-	if host == "www.camlistore.org" || (inProd && r.TLS == nil) {
+	if host == "www.camlistore.org" || host == "camlistore.org" ||
+		host == "www."+prodDomain || (inProd && r.TLS == nil) {
 		if inStaging {
 			http.Redirect(rw, r, "https://"+stagingHostname+r.URL.RequestURI(), http.StatusFound)
 			return
 		}
-		http.Redirect(rw, r, "https://camlistore.org"+r.URL.RequestURI(), http.StatusFound)
+		http.Redirect(rw, r, "https://"+prodDomain+r.URL.RequestURI(), http.StatusFound)
 		return
 	}
 	h.Handler.ServeHTTP(rw, r)
@@ -539,7 +541,7 @@ func gceDeployHandler(prefix string) (*gce.DeployHandler, error) {
 		if inStaging {
 			hostPort = stagingHostname + ":443"
 		} else {
-			hostPort = "camlistore.org:443"
+			hostPort = prodDomain + ":443"
 		}
 	} else {
 		addr := *httpsAddr
@@ -617,6 +619,7 @@ func setProdFlags() {
 	*flagChromeBugRepro = true
 	*httpAddr = ":80"
 	*httpsAddr = ":443"
+	// TODO(mpl): investigate why this proxying does not seem to be working (we end up on https://camlistore.org).
 	buildbotBackend = "https://travis-ci.org/camlistore/camlistore"
 	buildbotHost = "build.camlistore.org"
 	*gceLogName = "camweb-access-log"
@@ -982,7 +985,7 @@ func serveHTTPS(httpServer *http.Server) error {
 	*httpsServer = *httpServer
 	httpsServer.Addr = *httpsAddr
 	cacheDir := autocert.DirCache("letsencrypt.cache")
-	var domain string
+	var hostPolicy autocert.HostPolicy
 	if !inProd {
 		if *tlsCertFile != "" && *tlsKeyFile != "" {
 			return httpsServer.ListenAndServeTLS(*tlsCertFile, *tlsKeyFile)
@@ -995,18 +998,19 @@ func serveHTTPS(httpServer *http.Server) error {
 		if err != nil {
 			return err
 		}
-		domain = host
+		hostPolicy = autocert.HostWhitelist(host)
 	} else {
 		if inStaging {
-			domain = stagingHostname
+			hostPolicy = autocert.HostWhitelist(stagingHostname)
 		} else {
-			domain = "camlistore.org"
+			hostPolicy = autocert.HostWhitelist(prodDomain, "www."+prodDomain,
+				"www.camlistore.org", "camlistore.org")
 		}
 		cacheDir = autocert.DirCache(prodLECacheDir)
 	}
 	m := autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
-		HostPolicy: autocert.HostWhitelist(domain),
+		HostPolicy: hostPolicy,
 		Cache:      cacheDir,
 	}
 	if *adminEmail != "" {
@@ -1094,7 +1098,7 @@ func gerritRedirect(w http.ResponseWriter, r *http.Request) {
 
 func releaseRedirect(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/dl" || r.URL.Path == "/dl/" {
-		http.Redirect(w, r, "https://camlistore.org/download/", http.StatusFound)
+		http.Redirect(w, r, "https://"+prodDomain+"/download/", http.StatusFound)
 		return
 	}
 	dest := "https://storage.googleapis.com/camlistore-release/" + strings.TrimPrefix(r.URL.Path, "/dl/")
@@ -1153,7 +1157,7 @@ const (
 	toHyperlink = `<a href="$1$2">$1$2</a>`
 )
 
-var camliURLPattern = regexp.MustCompile(`(https?://camlistore.org)([a-zA-Z0-9\-\_/]+)?`)
+var camliURLPattern = regexp.MustCompile(`(https?://` + prodDomain + `)([a-zA-Z0-9\-\_/]+)?`)
 
 func errHandler(w http.ResponseWriter, r *http.Request) {
 	errString := strings.TrimPrefix(r.URL.Path, errPattern)
