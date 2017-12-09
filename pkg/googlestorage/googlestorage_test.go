@@ -21,6 +21,7 @@ package googlestorage
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -71,7 +72,7 @@ func doConfig(t *testing.T) (gsa *Client, bucket string) {
 		t.Fatalf("Invalid config: %v", err)
 	}
 
-	gsa = NewClient(oauth2.NewClient(oauth2.NoContext, oauthutil.NewRefreshTokenSource(&oauth2.Config{
+	gsa = NewClient(oauth2.NewClient(context.Background(), oauthutil.NewRefreshTokenSource(&oauth2.Config{
 		Scopes:       []string{Scope},
 		Endpoint:     google.Endpoint,
 		ClientID:     auth.RequiredString("client_id"),

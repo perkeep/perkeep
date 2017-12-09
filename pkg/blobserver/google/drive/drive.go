@@ -39,6 +39,8 @@ import (
 	"camlistore.org/pkg/blobserver/google/drive/service"
 	"go4.org/jsonconfig"
 
+	"context"
+
 	"go4.org/oauthutil"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -53,7 +55,7 @@ type driveStorage struct {
 
 func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
 	auth := config.RequiredObject("auth")
-	oAuthClient := oauth2.NewClient(oauth2.NoContext, oauthutil.NewRefreshTokenSource(&oauth2.Config{
+	oAuthClient := oauth2.NewClient(context.Background(), oauthutil.NewRefreshTokenSource(&oauth2.Config{
 		Scopes:       []string{Scope},
 		Endpoint:     google.Endpoint,
 		ClientID:     auth.RequiredString("client_id"),
