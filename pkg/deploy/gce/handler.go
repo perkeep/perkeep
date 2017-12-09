@@ -238,6 +238,8 @@ func (h *DeployHandler) SetScheme(scheme string) { h.scheme = scheme }
 // If we're not running on GCE (e.g. dev mode on localhost) and have
 // no other way to get the info, the error value is is errNoRefresh.
 func (h *DeployHandler) authenticatedClient() (project string, hc *http.Client, err error) {
+	var ctx = context.Background()
+
 	project = os.Getenv("CAMLI_GCE_PROJECT")
 	accountFile := os.Getenv("CAMLI_GCE_SERVICE_ACCOUNT")
 	if project != "" && accountFile != "" {
@@ -251,7 +253,7 @@ func (h *DeployHandler) authenticatedClient() (project string, hc *http.Client, 
 		if err != nil {
 			return
 		}
-		hc = jwtConf.Client(context.Background())
+		hc = jwtConf.Client(ctx)
 		return
 	}
 	if !metadata.OnGCE() {
@@ -259,7 +261,7 @@ func (h *DeployHandler) authenticatedClient() (project string, hc *http.Client, 
 		return
 	}
 	project, _ = metadata.ProjectID()
-	hc, err = google.DefaultClient(oauth2.NoContext)
+	hc, err = google.DefaultClient(ctx)
 	return project, hc, err
 }
 
@@ -405,6 +407,8 @@ func (h *DeployHandler) serveSetup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	ck, err := r.Cookie("user")
 	if err != nil {
 		http.Error(w,
@@ -431,7 +435,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	oAuthConf := h.oAuthConfig()
-	tok, err := oAuthConf.Exchange(oauth2.NoContext, code)
+	tok, err := oAuthConf.Exchange(ctx, code)
 	if err != nil {
 		h.serveError(w, r, fmt.Errorf("could not obtain a token: %v", err))
 		return
@@ -445,7 +449,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	depl := &Deployer{
-		Client: oAuthConf.Client(oauth2.NoContext, tok),
+		Client: oAuthConf.Client(ctx, tok),
 		Conf:   instConf,
 		Logger: h.logger,
 	}
@@ -453,7 +457,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 	// They've requested that we create a project for them.
 	if instConf.CreateProject {
 		// So we try to do so.
-		projectID, err := depl.CreateProject(context.TODO())
+		projectID, err := depl.CreateProject(ctx)
 		if err != nil {
 			h.logger.Printf("error creating project: %v", err)
 			// TODO(mpl): we log the errors, but none of them are
@@ -480,7 +484,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
-		inst, err := depl.Create(context.TODO())
+		inst, err := depl.Create(context.Background())
 		state := &creationState{
 			InstConf: br,
 		}
