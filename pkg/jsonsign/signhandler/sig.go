@@ -39,7 +39,7 @@ import (
 	"golang.org/x/crypto/openpgp"
 )
 
-const kMaxJSONLength = 1024 * 1024
+const maxJSONLength = 1024 * 1024
 
 type Handler struct {
 	// Optional path to non-standard secret gpg keyring file
@@ -241,7 +241,7 @@ func (h *Handler) handleSign(rw http.ResponseWriter, req *http.Request) {
 		badReq("missing \"json\" parameter")
 		return
 	}
-	if len(jsonStr) > kMaxJSONLength {
+	if len(jsonStr) > maxJSONLength {
 		badReq("parameter \"json\" too large")
 		return
 	}

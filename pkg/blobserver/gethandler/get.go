@@ -32,7 +32,7 @@ import (
 	"go4.org/readerutil"
 )
 
-var kGetPattern = regexp.MustCompile(`/camli/` + blob.Pattern + `$`)
+var getPattern = regexp.MustCompile(`/camli/` + blob.Pattern + `$`)
 
 // Handler is the HTTP handler for serving GET requests of blobs.
 type Handler struct {
@@ -110,7 +110,7 @@ func ServeBlobRef(rw http.ResponseWriter, req *http.Request, blobRef blob.Ref, f
 var dummyModTime = time.Unix(1276213335, 0)
 
 func blobFromURLPath(path string) blob.Ref {
-	matches := kGetPattern.FindStringSubmatch(path)
+	matches := getPattern.FindStringSubmatch(path)
 	if len(matches) != 3 {
 		return blob.Ref{}
 	}

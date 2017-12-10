@@ -17,13 +17,14 @@ limitations under the License.
 package main
 
 import (
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/jsonsign"
 	"fmt"
 	"net/http"
+
+	"camlistore.org/pkg/httputil"
+	"camlistore.org/pkg/jsonsign"
 )
 
-const kMaxJsonLength = 1024 * 1024
+const maxJSONLength = 1024 * 1024
 
 func handleSign(conn http.ResponseWriter, req *http.Request) {
 	if !(req.Method == "POST" && req.URL.Path == "/camli/sig/sign") {
@@ -38,7 +39,7 @@ func handleSign(conn http.ResponseWriter, req *http.Request) {
 		httputil.BadRequestError(conn, "Missing json parameter")
 		return
 	}
-	if len(jsonStr) > kMaxJsonLength {
+	if len(jsonStr) > maxJSONLength {
 		httputil.BadRequestError(conn, "json parameter too large")
 		return
 	}

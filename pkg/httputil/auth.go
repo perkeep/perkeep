@@ -29,7 +29,7 @@ import (
 	"camlistore.org/pkg/netutil"
 )
 
-var kBasicAuthPattern = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
+var basicAuthPattern = regexp.MustCompile(`^Basic ([a-zA-Z0-9\+/=]+)`)
 
 // IsLocalhost reports whether the requesting connection is from this machine
 // and has the same owner as this process.
@@ -86,7 +86,7 @@ func BasicAuth(req *http.Request) (username, password string, err error) {
 		err = fmt.Errorf("Missing \"Authorization\" in header")
 		return
 	}
-	matches := kBasicAuthPattern.FindStringSubmatch(auth)
+	matches := basicAuthPattern.FindStringSubmatch(auth)
 	if len(matches) != 2 {
 		err = fmt.Errorf("Bogus Authorization header")
 		return

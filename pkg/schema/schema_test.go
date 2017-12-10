@@ -32,7 +32,7 @@ import (
 	. "camlistore.org/pkg/test/asserts"
 )
 
-const kExpectedHeader = `{"camliVersion"`
+const expectedHeader = `{"camliVersion"`
 
 func TestJSON(t *testing.T) {
 	fileName := "schema_test.go"
@@ -45,7 +45,7 @@ func TestJSON(t *testing.T) {
 	t.Logf("Got json: [%s]\n", json)
 	// TODO: test it parses back
 
-	if !strings.HasPrefix(json, kExpectedHeader) {
+	if !strings.HasPrefix(json, expectedHeader) {
 		t.Errorf("JSON does't start with expected header.")
 	}
 
