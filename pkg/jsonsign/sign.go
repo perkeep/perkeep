@@ -95,9 +95,8 @@ func (fe *FileEntityFetcher) FetchEntity(keyId string) (*openpgp.Entity, error) 
 		if e.PrivateKey.Encrypted {
 			if err := fe.decryptEntity(e); err == nil {
 				return e, nil
-			} else {
-				return nil, err
 			}
+			return nil, err
 		}
 		return e, nil
 	}

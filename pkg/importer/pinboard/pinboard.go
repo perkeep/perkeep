@@ -93,9 +93,8 @@ func extractUsername(authToken string) string {
 	split := strings.SplitN(authToken, ":", 2)
 	if len(split) == 2 {
 		return split[0]
-	} else {
-		return ""
 	}
+	return ""
 }
 
 type imp struct {

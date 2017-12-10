@@ -526,10 +526,9 @@ func (c *LocationConstraint) matchesLatLong(lat, long float64) bool {
 	}
 	if c.West < c.East {
 		return c.West <= long && long <= c.East
-	} else {
-		// boundary spanning longitude ±180°
-		return c.West <= long || long <= c.East
 	}
+	// boundary spanning longitude ±180°
+	return c.West <= long || long <= c.East
 }
 
 // A StringConstraint specifies constraints on a string.
@@ -865,17 +864,15 @@ type search struct {
 func (s *search) blobMeta(ctx context.Context, br blob.Ref) (camtypes.BlobMeta, error) {
 	if c := s.h.corpus; c != nil {
 		return c.GetBlobMeta(ctx, br)
-	} else {
-		return s.h.index.GetBlobMeta(ctx, br)
 	}
+	return s.h.index.GetBlobMeta(ctx, br)
 }
 
 func (s *search) fileInfo(ctx context.Context, br blob.Ref) (camtypes.FileInfo, error) {
 	if c := s.h.corpus; c != nil {
 		return c.GetFileInfo(ctx, br)
-	} else {
-		return s.h.index.GetFileInfo(ctx, br)
 	}
+	return s.h.index.GetFileInfo(ctx, br)
 }
 
 // optimizePlan returns an optimized version of c which will hopefully

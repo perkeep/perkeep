@@ -131,9 +131,8 @@ func (kv *keyValue) Get(key string) (string, error) {
 	if err != nil {
 		if err == mgo.ErrNotFound {
 			return "", sorted.ErrNotFound
-		} else {
-			return "", err
 		}
+		return "", err
 	}
 	return res[mgoValue].(string), err
 }

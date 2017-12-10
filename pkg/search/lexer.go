@@ -235,9 +235,8 @@ func readAND(l *lexer) stateFn {
 		l.backup()
 		l.emit(tokenAnd)
 		return readExp
-	} else {
-		return readPredicate
 	}
+	return readPredicate
 }
 
 func readOR(l *lexer) stateFn {
@@ -245,9 +244,8 @@ func readOR(l *lexer) stateFn {
 		l.backup()
 		l.emit(tokenOr)
 		return readExp
-	} else {
-		return readPredicate
 	}
+	return readPredicate
 }
 
 func runQuoted(l *lexer) bool {

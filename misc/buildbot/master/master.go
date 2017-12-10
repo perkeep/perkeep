@@ -674,11 +674,10 @@ func pollCamliChange() error {
 	if rev != camliHeadHash {
 		if !plausibleHashRx.MatchString(rev) {
 			return fmt.Errorf("camlistore rev %q does not look like a git hash", rev)
-		} else {
-			camliHeadHash = rev
-			doBuildCamli = true
-			dbg.Println("Changes in camli tree detected; a builder will be started.")
 		}
+		camliHeadHash = rev
+		doBuildCamli = true
+		dbg.Println("Changes in camli tree detected; a builder will be started.")
 	}
 	if !plausibleHashRx.MatchString(camliHeadHash) {
 		return fmt.Errorf("camliHeadHash %q does not look like a git hash", camliHeadHash)

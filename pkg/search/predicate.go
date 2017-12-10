@@ -167,12 +167,10 @@ func (mp matchPrefix) Match(a atom) (bool, error) {
 	if mp.prefix == a.predicate {
 		if len(a.args) != mp.count {
 			return true, fmt.Errorf("Wrong number of arguments for %q, given %d, expected %d", mp.prefix, len(a.args), mp.count)
-		} else {
-			return true, nil
 		}
-	} else {
-		return false, nil
+		return true, nil
 	}
+	return false, nil
 }
 
 // Core predicates

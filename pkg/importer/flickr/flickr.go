@@ -258,9 +258,8 @@ func (r *run) importPhotoset(parent *importer.Object, photoset *photosetInfo, pa
 
 	if resp.Photoset.Page < resp.Photoset.Pages {
 		return page + 1, nil
-	} else {
-		return 0, nil
 	}
+	return 0, nil
 }
 
 type photosSearch struct {
@@ -356,9 +355,8 @@ func (r *run) importPhotosPage(page int) (int, error) {
 
 	if resp.Photos.Pages > resp.Photos.Page {
 		return page + 1, nil
-	} else {
-		return 0, nil
 	}
+	return 0, nil
 }
 
 // TODO(aa):

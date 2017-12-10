@@ -177,9 +177,8 @@ func (r *run) testRemove(blobRefs []blob.Ref) {
 		if strings.Contains(err.Error(), "not implemented") {
 			t.Logf("RemoveBlobs: %v", err)
 			return
-		} else {
-			t.Fatalf("RemoveBlobs: %v", err)
 		}
+		t.Fatalf("RemoveBlobs: %v", err)
 	}
 	r.testEnumerate(nil) // verify they're all gone
 	if len(blobRefs) > 0 {
