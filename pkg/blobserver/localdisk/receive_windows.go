@@ -48,7 +48,7 @@ func mapRenameError(err error, oldfile, newfile string) error {
 		return err
 	}
 	if statNew.Size() != statOld.Size() {
-		return fmt.Errorf("Will not overwrite destination file %v with source file %v, as they are different.", newfile, oldfile)
+		return fmt.Errorf("will not overwrite destination file %v with source file %v, as they are different", newfile, oldfile)
 	}
 	return nil
 }

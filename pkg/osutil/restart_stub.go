@@ -26,7 +26,7 @@ import (
 // SelfPath returns the path of the executable for the currently running
 // process.
 func SelfPath() (string, error) {
-	return "", errors.New("SelfPath not implemented on App Engine.")
+	return "", errors.New("selfPath not implemented on App Engine")
 }
 
 // RestartProcess returns an error if things couldn't be

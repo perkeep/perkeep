@@ -78,7 +78,7 @@ func AddrPairUserid(local, remote net.Addr) (uid int, err error) {
 	lAddr, lOk := local.(*net.TCPAddr)
 	rAddr, rOk := remote.(*net.TCPAddr)
 	if !(lOk && rOk) {
-		return -1, fmt.Errorf("netutil: Could not convert Addr to TCPAddr.")
+		return -1, fmt.Errorf("netutil: Could not convert Addr to TCPAddr")
 	}
 
 	localv4 := (lAddr.IP.To4() != nil)

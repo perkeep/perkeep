@@ -293,7 +293,7 @@ func (h *DeployHandler) camliRev() string {
 	return h.camliVersion
 }
 
-var errNoRefresh error = errors.New("not on GCE, and at least one of CAMLI_GCE_PROJECT or CAMLI_GCE_SERVICE_ACCOUNT not defined.")
+var errNoRefresh error = errors.New("not on GCE, and at least one of CAMLI_GCE_PROJECT or CAMLI_GCE_SERVICE_ACCOUNT not defined")
 
 func (h *DeployHandler) refreshZones() error {
 	h.zonesMu.Lock()
@@ -382,7 +382,7 @@ func (h *DeployHandler) serveSetup(w http.ResponseWriter, r *http.Request) {
 	}
 	ck, err := r.Cookie("user")
 	if err != nil {
-		h.serveFormError(w, errors.New("Cookie expired, or CSRF attempt. Please reload and retry."))
+		h.serveFormError(w, errors.New("cookie expired, or CSRF attempt. Please reload and retry"))
 		h.logger.Printf("Cookie expired, or CSRF attempt on form.")
 		return
 	}
@@ -625,14 +625,14 @@ func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Reques
 	}
 	if state.Err != "" {
 		// No need to log that error here since we're already doing it in serveCallback
-		h.serveErrorPage(w, fmt.Errorf("An error occurred while creating your instance: %v.", state.Err))
+		h.serveErrorPage(w, fmt.Errorf("an error occurred while creating your instance: %v", state.Err))
 		return
 	}
 	if state.Success || state.Exists {
 		conf, err := h.instanceConf(state.InstConf)
 		if err != nil {
 			h.logger.Printf("Could not get parameters for success message: %v", err)
-			h.serveErrorPage(w, fmt.Errorf("Your instance was created and should soon be up at https://%s but there might have been a problem in the creation process. %v", state.Err, fileIssue(br)))
+			h.serveErrorPage(w, fmt.Errorf("your instance was created and should soon be up at https://%s but there might have been a problem in the creation process. %v", state.Err, fileIssue(br)))
 			return
 		}
 		h.serveSuccess(w, &TemplateData{

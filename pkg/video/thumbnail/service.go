@@ -93,7 +93,7 @@ func NewService(th Thumbnailer, timeout time.Duration, maxProcs int) *Service {
 	}
 }
 
-var errTimeout = errors.New("timeout.")
+var errTimeout = errors.New("timeout")
 
 // Generate reads the video given by videoRef from src and writes its thumbnail image to w.
 func (s *Service) Generate(videoRef blob.Ref, w io.Writer, src blob.Fetcher) error {

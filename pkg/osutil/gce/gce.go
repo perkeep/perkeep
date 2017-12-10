@@ -118,7 +118,7 @@ func LogWriter() (w io.WriteCloser, err error) {
 		return false
 	}
 	if !haveScope(logging.WriteScope) {
-		return nil, fmt.Errorf("when this Google Compute Engine VM instance was created, it wasn't granted enough access to use Google Cloud Logging (Scope URL: %v).", logging.WriteScope)
+		return nil, fmt.Errorf("when this Google Compute Engine VM instance was created, it wasn't granted enough access to use Google Cloud Logging (Scope URL: %v)", logging.WriteScope)
 	}
 
 	ctx := context.Background()

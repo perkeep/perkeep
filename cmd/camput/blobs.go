@@ -56,7 +56,7 @@ func (c *blobCmd) Examples() []string {
 
 func (c *blobCmd) RunCommand(args []string) error {
 	if len(args) == 0 {
-		return errors.New("No files given.")
+		return errors.New("no files given")
 	}
 
 	up := getUploader()

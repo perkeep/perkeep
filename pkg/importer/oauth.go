@@ -67,7 +67,7 @@ func (OAuth2) CallbackRequestAccount(r *http.Request) (blob.Ref, error) {
 		return blob.Ref{}, errors.New("missing 'state' parameter")
 	}
 	if !strings.HasPrefix(state, "acct:") {
-		return blob.Ref{}, errors.New("wrong 'state' parameter value, missing 'acct:' prefix.")
+		return blob.Ref{}, errors.New("wrong 'state' parameter value, missing 'acct:' prefix")
 	}
 	acctRef, ok := blob.Parse(strings.TrimPrefix(state, "acct:"))
 	if !ok {
@@ -161,17 +161,17 @@ type OAuthContext struct {
 // Get fetches through octx the resource defined by url and the values in form.
 func (octx OAuthContext) Get(url string, form url.Values) (*http.Response, error) {
 	if octx.Creds == nil {
-		return nil, errors.New("No OAuth credentials. Not logged in?")
+		return nil, errors.New("no OAuth credentials. Not logged in?")
 	}
 	if octx.Client == nil {
-		return nil, errors.New("No OAuth client.")
+		return nil, errors.New("no OAuth client")
 	}
 	res, err := octx.Client.Get(ctxutil.Client(octx.Ctx), octx.Creds, url, form)
 	if err != nil {
-		return nil, fmt.Errorf("Error fetching %s: %v", url, err)
+		return nil, fmt.Errorf("error fetching %s: %v", url, err)
 	}
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Get request on %s failed with: %s", url, res.Status)
+		return nil, fmt.Errorf("get request on %s failed with: %s", url, res.Status)
 	}
 	return res, nil
 }
@@ -180,7 +180,7 @@ func (octx OAuthContext) Get(url string, form url.Values) (*http.Response, error
 // the associated form. The JSON response is decoded into result.
 func (ctx OAuthContext) PopulateJSONFromURL(result interface{}, apiURL string, keyval ...string) error {
 	if len(keyval)%2 == 1 {
-		return errors.New("Incorrect number of keyval arguments. must be even.")
+		return errors.New("incorrect number of keyval arguments. must be even")
 	}
 
 	form := url.Values{}

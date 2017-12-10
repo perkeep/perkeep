@@ -156,10 +156,10 @@ func (b *lowBuilder) addPublishedConfig(tlsO *tlsOpts) error {
 			v.App = &serverconfig.App{}
 		}
 		if v.CamliRoot == "" {
-			return fmt.Errorf("Missing \"camliRoot\" key in configuration for %s.", k)
+			return fmt.Errorf("missing \"camliRoot\" key in configuration for %s", k)
 		}
 		if v.GoTemplate == "" {
-			return fmt.Errorf("Missing \"goTemplate\" key in configuration for %s.", k)
+			return fmt.Errorf("missing \"goTemplate\" key in configuration for %s", k)
 		}
 		appConfig := map[string]interface{}{
 			"camliRoot":  v.CamliRoot,
@@ -211,7 +211,7 @@ func (b *lowBuilder) addScanCabConfig(tlsO *tlsOpts) error {
 		scancab.App = &serverconfig.App{}
 	}
 	if scancab.Prefix == "" {
-		return errors.New("Missing \"prefix\" key in configuration for scanning cabinet.")
+		return errors.New("missing \"prefix\" key in configuration for scanning cabinet")
 	}
 
 	program := "scanningcabinet"
@@ -935,7 +935,7 @@ func (b *lowBuilder) build() (*Config, error) {
 			return nil, errors.New("CamliNetIP requires HTTPS")
 		}
 		if conf.HTTPSCert != "" || conf.HTTPSKey != "" || conf.Listen != "" || conf.BaseURL != "" {
-			return nil, errors.New("CamliNetIP is mutually exclusive with HTTPSCert, HTTPSKey, Listen, and BaseURL.")
+			return nil, errors.New("CamliNetIP is mutually exclusive with HTTPSCert, HTTPSKey, Listen, and BaseURL")
 		}
 		low["camliNetIP"] = conf.CamliNetIP
 	}
@@ -955,7 +955,7 @@ func (b *lowBuilder) build() (*Config, error) {
 			return nil, fmt.Errorf("Error parsing baseURL %q as a URL: %v", conf.BaseURL, err)
 		}
 		if u.Path != "" && u.Path != "/" {
-			return nil, fmt.Errorf("baseURL can't have a path, only a scheme, host, and optional port.")
+			return nil, fmt.Errorf("baseURL can't have a path, only a scheme, host, and optional port")
 		}
 		u.Path = ""
 		low["baseURL"] = u.String()

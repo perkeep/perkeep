@@ -234,7 +234,7 @@ func NewDirectoryEntryFromBlobRef(fetcher blob.Fetcher, blobRef blob.Ref) (Direc
 	ss := new(superset)
 	err := ss.setFromBlobRef(fetcher, blobRef)
 	if err != nil {
-		return nil, fmt.Errorf("schema/filereader: can't fill superset: %v\n", err)
+		return nil, fmt.Errorf("schema/filereader: can't fill superset: %v", err)
 	}
 	return newDirectoryEntry(fetcher, ss)
 }
@@ -950,7 +950,7 @@ func FileTime(f io.ReaderAt) (time.Time, error) {
 			}
 			return fi.ModTime(), nil
 		}
-		return ct, errors.New("All methods failed to find a creation time or modtime.")
+		return ct, errors.New("all methods failed to find a creation time or modtime")
 	}
 
 	size, ok := findSize(f)

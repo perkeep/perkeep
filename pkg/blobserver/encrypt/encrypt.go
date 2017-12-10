@@ -555,7 +555,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 	agreement := config.OptionalString("I_AGREE", "")
 	const wantAgreement = "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change."
 	if agreement != wantAgreement {
-		return nil, errors.New("Use of the 'encrypt' target without the proper I_AGREE value.")
+		return nil, errors.New("use of the 'encrypt' target without the proper I_AGREE value")
 	}
 
 	key := config.OptionalString("key", "")

@@ -196,7 +196,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 
 	userID := acctNode.Attr(importer.AcctAttrUserID)
 	if userID == "" {
-		return errors.New("UserID hasn't been set by account setup.")
+		return errors.New("userID hasn't been set by account setup")
 	}
 
 	skipAPITweets, _ := strconv.ParseBool(os.Getenv("CAMLI_TWITTER_SKIP_API_IMPORT"))
@@ -298,7 +298,7 @@ func (im *imp) LongPoll(rctx *importer.RunContext) error {
 	if err := bs.Err(); err != nil {
 		return err
 	}
-	return errors.New("got EOF without a tweet.")
+	return errors.New("got EOF without a tweet")
 }
 
 func (r *run) errorf(format string, args ...interface{}) {

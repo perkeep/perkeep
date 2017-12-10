@@ -108,17 +108,17 @@ func (a AboutMenuItemDef) OnClick(e *react.SyntheticMouseEvent) {
 			statusPrefix := a.Props().statusRoot
 			req, err := http.NewRequest("GET", fmt.Sprintf("%s/status.json", statusPrefix), nil)
 			if err != nil {
-				return fmt.Errorf("Error preparing to fetch status: %v\n", err)
+				return fmt.Errorf("error preparing to fetch status: %v", err)
 			}
 			am.AddAuthHeader(req)
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
-				return fmt.Errorf("Error fetching status: %v\n", err)
+				return fmt.Errorf("error fetching status: %v", err)
 			}
 			defer resp.Body.Close()
 			data, err := ioutil.ReadAll(resp.Body)
 			if err != nil {
-				return fmt.Errorf("Error reading status response: %v\n", err)
+				return fmt.Errorf("error reading status response: %v", err)
 			}
 			var st status
 			if err := json.Unmarshal(data, &st); err != nil {

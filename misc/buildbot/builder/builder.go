@@ -652,7 +652,7 @@ func prepGoTipTree() error {
 		}
 	}
 	if !plausibleHashRx.MatchString(hash) {
-		return fmt.Errorf("Go rev %q does not look like an hg hash.", hash)
+		return fmt.Errorf("go rev %q does not look like an hg hash", hash)
 	}
 	goTipHash = hash
 	dbg.Println("current head in go tree: " + goTipHash)
@@ -694,7 +694,7 @@ func prepCamliTree(isTip bool) error {
 	for _, t := range tasks {
 		_, err := t.run()
 		if err != nil {
-			return fmt.Errorf("Could not prepare the Camli tree with %v: %v\n", t.String(), err)
+			return fmt.Errorf("could not prepare the Camli tree with %v: %v", t.String(), err)
 		}
 	}
 	if isTip {
@@ -709,12 +709,12 @@ func prepCamliTree(isTip bool) error {
 	for _, t := range tasks {
 		out, err := t.run()
 		if err != nil {
-			return fmt.Errorf("Could not prepare the Camli tree with %v: %v\n", t.String(), err)
+			return fmt.Errorf("could not prepare the Camli tree with %v: %v", t.String(), err)
 		}
 		hash = strings.TrimRight(out, "\n")
 	}
 	if !plausibleHashRx.MatchString(hash) {
-		return fmt.Errorf("Camlistore rev %q does not look like a git hash.", hash)
+		return fmt.Errorf("camlistore rev %q does not look like a git hash", hash)
 	}
 	camliHeadHash = hash
 	return nil
@@ -881,21 +881,21 @@ func hitURL(uri string) (err error) {
 	tsk.Start = time.Now()
 	u, err := url.Parse(uri)
 	if err != nil {
-		return fmt.Errorf("%v: could not get host:port to dial from %v: %v\n", tsk.String(), uri, err)
+		return fmt.Errorf("%v: could not get host:port to dial from %v: %v", tsk.String(), uri, err)
 	}
 	hostPort := u.Host
 	err = netutil.AwaitReachable(hostPort, camlistoredTimeOut)
 	if err != nil {
-		return fmt.Errorf("%v: camlistored unreachable at %v after %v: %v\n", tsk.String(), hostPort, camlistoredTimeOut, err)
+		return fmt.Errorf("%v: camlistored unreachable at %v after %v: %v", tsk.String(), hostPort, camlistoredTimeOut, err)
 	}
 	var resp *http.Response
 	resp, err = http.Get(uri)
 	if err != nil {
-		return fmt.Errorf("%v: %v\n", tsk.String(), err)
+		return fmt.Errorf("%v: %v", tsk.String(), err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("%v, got StatusCode: %d\n", tsk.String(), resp.StatusCode)
+		return fmt.Errorf("%v, got StatusCode: %d", tsk.String(), resp.StatusCode)
 	}
 	return nil
 }
@@ -926,7 +926,7 @@ func camputOne(vivify bool) error {
 	}
 	m := firstSHA1.FindStringSubmatch(out)
 	if m == nil {
-		return fmt.Errorf("%v: unexpected camput output\n", tsk.String())
+		return fmt.Errorf("%v: unexpected camput output", tsk.String())
 	}
 	blobref := m[1]
 
@@ -939,7 +939,7 @@ func camputOne(vivify bool) error {
 	blobrefPattern := regexp.MustCompile(`"blobRef": "(sha1-[a-zA-Z0-9]+)",\n.*`)
 	m = blobrefPattern.FindStringSubmatch(out)
 	if m == nil {
-		return fmt.Errorf("%v: unexpected camget output\n", tsk.String())
+		return fmt.Errorf("%v: unexpected camget output", tsk.String())
 	}
 	blobref = m[1]
 

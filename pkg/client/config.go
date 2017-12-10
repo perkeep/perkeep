@@ -159,7 +159,7 @@ func isURLOrHostPort(s string) bool {
 func convertToMultiServers(conf jsonconfig.Obj) (jsonconfig.Obj, error) {
 	server := conf.OptionalString("server", "")
 	if server == "" {
-		return nil, errors.New("Could not convert config to multi-servers style: no \"server\" key found.")
+		return nil, errors.New("could not convert config to multi-servers style: no \"server\" key found")
 	}
 	newConf := jsonconfig.Obj{
 		"servers": map[string]interface{}{
@@ -299,7 +299,7 @@ func (c *Client) SetupAuth() error {
 				return nil
 			}
 		}
-		return errors.New("client: paramsOnly set; auth should not be configured from config or env vars.")
+		return errors.New("client: paramsOnly set; auth should not be configured from config or env vars")
 	}
 	// env var takes precedence, but only if we're in dev mode or on android.
 	// Too risky otherwise.
@@ -316,7 +316,7 @@ func (c *Client) SetupAuth() error {
 		}
 	}
 	if c.server == "" {
-		return fmt.Errorf("No server defined for this client: can not set up auth.")
+		return fmt.Errorf("no server defined for this client: can not set up auth")
 	}
 	authConf := serverAuth(c.server)
 	if authConf == "" {

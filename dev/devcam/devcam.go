@@ -187,7 +187,7 @@ func repoRoot() (string, error) {
 			return dir, nil
 		}
 		if len(dir) == rootlen && dir[rootlen-1] == filepath.Separator {
-			return "", fmt.Errorf(".git not found. Rerun from within the Camlistore source tree.")
+			return "", fmt.Errorf(".git not found. Rerun from within the Camlistore source tree")
 		}
 		dir = filepath.Dir(dir)
 	}

@@ -610,7 +610,7 @@ func pollGoChange() error {
 	}
 	// Should never happen, but be paranoid.
 	if !plausibleHashRx.MatchString(goTipHash) {
-		return fmt.Errorf("goTipHash %q does not look like an hg hash.", goTipHash)
+		return fmt.Errorf("goTipHash %q does not look like an hg hash", goTipHash)
 	}
 	return nil
 }
@@ -629,7 +629,7 @@ func altCamliPolling() (string, error) {
 	}
 	hash := strings.TrimSpace(string(body))
 	if !plausibleHashRx.MatchString(hash) {
-		return "", fmt.Errorf("%v's response does not look like a git hash.", *altCamliRevURL)
+		return "", fmt.Errorf("%v's response does not look like a git hash", *altCamliRevURL)
 	}
 	return hash, nil
 }
@@ -664,7 +664,7 @@ func pollCamliChange() error {
 					log.Printf("Could not pull from Camli repo with %v: %v", t.String(), err)
 					continue
 				}
-				return fmt.Errorf("Could not prepare the Camli tree with %v: %v\n", t.String(), err)
+				return fmt.Errorf("could not prepare the Camli tree with %v: %v", t.String(), err)
 			}
 			rev = strings.TrimRight(out, "\n")
 		}
@@ -673,7 +673,7 @@ func pollCamliChange() error {
 	dbg.Println("current head in camli tree: " + rev)
 	if rev != camliHeadHash {
 		if !plausibleHashRx.MatchString(rev) {
-			return fmt.Errorf("Camlistore rev %q does not look like a git hash.", rev)
+			return fmt.Errorf("camlistore rev %q does not look like a git hash", rev)
 		} else {
 			camliHeadHash = rev
 			doBuildCamli = true
@@ -681,7 +681,7 @@ func pollCamliChange() error {
 		}
 	}
 	if !plausibleHashRx.MatchString(camliHeadHash) {
-		return fmt.Errorf("camliHeadHash %q does not look like a git hash.", camliHeadHash)
+		return fmt.Errorf("camliHeadHash %q does not look like a git hash", camliHeadHash)
 	}
 	return nil
 }
@@ -699,7 +699,7 @@ func buildBuilder() error {
 			}
 			out, err := gitRevCmd.run()
 			if err != nil {
-				return fmt.Errorf("Could not get camli tree revision with %v: %v\n", gitRevCmd.String(), err)
+				return fmt.Errorf("could not get camli tree revision with %v: %v", gitRevCmd.String(), err)
 			}
 			rev := strings.TrimRight(out, "\n")
 			if rev != camliHeadHash {

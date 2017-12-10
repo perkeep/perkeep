@@ -155,7 +155,7 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 					" \"server/camlistored/ui/index.html\". devcam appengine can do that for you.",
 					uistatic.GaeSourceRoot)
 				log.Print(hint)
-				return nil, errors.New("No sourceRoot found; UI not available.")
+				return nil, errors.New("no sourceRoot found; UI not available")
 			}
 			log.Printf("Using the default \"%v\" as the sourceRoot for AppEngine", uistatic.GaeSourceRoot)
 			ui.sourceRoot = uistatic.GaeSourceRoot

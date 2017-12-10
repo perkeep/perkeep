@@ -382,7 +382,7 @@ func listDownloads() (*ReleaseData, error) {
 		}
 		sum, ok := nameToSum[attrs.Name]
 		if !ok {
-			return nil, fmt.Errorf("%v has no checksum file!", attrs.Name)
+			return nil, fmt.Errorf("%v has no checksum file", attrs.Name)
 		}
 		downloadData = append(downloadData, DownloadData{
 			Filename: filepath.Base(attrs.Name),

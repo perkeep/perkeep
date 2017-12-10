@@ -437,11 +437,11 @@ func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
 	rh := handler.(*server.RootHandler)
 	searchHandler, ok := rh.SearchHandler()
 	if !ok {
-		return errors.New("importer requires a 'root' handler with 'searchRoot' defined.")
+		return errors.New("importer requires a 'root' handler with 'searchRoot' defined")
 	}
 	h.search = searchHandler
 	if rh.Storage == nil {
-		return errors.New("importer requires a 'root' handler with 'blobRoot' defined.")
+		return errors.New("importer requires a 'root' handler with 'blobRoot' defined")
 	}
 	h.target = rh.Storage
 	h.blobSource = rh.Storage
@@ -1002,7 +1002,7 @@ func (ia *importerAcct) delete() error {
 func (ia *importerAcct) toggleAuto() error {
 	old := ia.acct.Attr(attrImportAuto)
 	if old == "" && !ia.im.impl.SupportsIncremental() {
-		return fmt.Errorf("Importer %q doesn't support automatic mode.", ia.im.name)
+		return fmt.Errorf("Importer %q doesn't support automatic mode", ia.im.name)
 	}
 	var new string
 	if old == "" {

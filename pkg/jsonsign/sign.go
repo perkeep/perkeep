@@ -181,7 +181,7 @@ func (sr *SignRequest) Sign() (signedJSON string, err error) {
 	if entityFetcher == nil {
 		file := sr.secretRingPath()
 		if file == "" {
-			return "", errors.New("jsonsign: no EntityFetcher, and no secret ring file defined.")
+			return "", errors.New("jsonsign: no EntityFetcher, and no secret ring file defined")
 		}
 		secring, err := wkfs.Open(sr.secretRingPath())
 		if err != nil {

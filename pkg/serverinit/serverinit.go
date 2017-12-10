@@ -56,7 +56,7 @@ import (
 
 const camliPrefix = "/camli/"
 
-var ErrCamliPath = errors.New("Invalid Camlistore request path")
+var ErrCamliPath = errors.New("invalid Camlistore request path")
 
 type handlerConfig struct {
 	prefix   string         // "/foo/"
@@ -423,7 +423,7 @@ type Config struct {
 func detectConfigChange(conf jsonconfig.Obj) error {
 	oldHTTPSKey, oldHTTPSCert := conf.OptionalString("HTTPSKeyFile", ""), conf.OptionalString("HTTPSCertFile", "")
 	if oldHTTPSKey != "" || oldHTTPSCert != "" {
-		return fmt.Errorf("Config keys %q and %q have respectively been renamed to %q and %q, please fix your server config.",
+		return fmt.Errorf("config keys %q and %q have respectively been renamed to %q and %q, please fix your server config",
 			"HTTPSKeyFile", "HTTPSCertFile", "httpsKey", "httpsCert")
 	}
 	return nil

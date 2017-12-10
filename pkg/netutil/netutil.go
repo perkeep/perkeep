@@ -107,7 +107,7 @@ func Localhost() (net.IP, error) {
 	if ip := loopbackIP(); ip != nil {
 		return ip, nil
 	}
-	return nil, errors.New("No loopback ip found.")
+	return nil, errors.New("no loopback ip found")
 }
 
 // localhostLookup looks for a loopback IP by resolving localhost.

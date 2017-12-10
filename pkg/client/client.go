@@ -375,7 +375,7 @@ func NewFromShareRoot(shareBlobURL string, opts ...ClientOption) (c *Client, tar
 	}
 	target = b.ShareTarget()
 	if !target.Valid() {
-		return nil, blob.Ref{}, fmt.Errorf("no target.")
+		return nil, blob.Ref{}, fmt.Errorf("no target")
 	}
 	c.via[target] = rootbr
 	return c, target, nil

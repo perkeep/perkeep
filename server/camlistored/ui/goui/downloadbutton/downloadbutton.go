@@ -130,7 +130,7 @@ func (d DownloadItemsBtnDef) downloadSelection() error {
 	for _, file := range selection {
 		ref, ok := blob.Parse(file)
 		if !ok {
-			return fmt.Errorf("Cannot download %q, not a valid blobRef\n", file)
+			return fmt.Errorf("cannot download %q, not a valid blobRef", file)
 		}
 		fileRefs = append(fileRefs, ref.String())
 	}
