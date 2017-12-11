@@ -891,7 +891,11 @@ func genEmbeds() error {
 	}
 	for _, embeds := range []string{"server/camlistored/ui", "pkg/server", "vendor/embed/react", "vendor/embed/less", "vendor/embed/glitch", "vendor/embed/fontawesome", "vendor/embed/leaflet", "app/publisher", "app/scanningcabinet/ui"} {
 		embeds := buildSrcPath(embeds)
-		args := []string{"--output-files-stderr", embeds}
+		var args []string
+		if *all {
+			args = append(args, "-all")
+		}
+		args = append(args, "-output-files-stderr", embeds)
 		cmd := exec.Command(cmdName, args...)
 		cmd.Env = append(cleanGoEnv(),
 			"GOPATH="+buildGoPath,
