@@ -223,7 +223,7 @@ func newFromConfig(ld blobserver.Loader, cfg jsonconfig.Obj) (http.Handler, erro
 	}
 	ClientId := make(map[string]string)
 	ClientSecret := make(map[string]string)
-	for k, _ := range importers {
+	for k := range importers {
 		var clientId, clientSecret string
 		if impConf := cfg.OptionalObject(k); impConf != nil {
 			clientId = impConf.OptionalString("clientID", "")

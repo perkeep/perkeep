@@ -502,7 +502,7 @@ func (dh *DownloadHandler) serveZip(w http.ResponseWriter, r *http.Request) {
 	h.Set("Content-Disposition", "attachment; filename="+zipName)
 	zw := zip.NewWriter(w)
 	dh.r = r
-	for br, _ := range allRefs {
+	for br := range allRefs {
 		if err := dh.zipFile("", br, zw); err != nil {
 			log.Printf("error zipping %v: %v", br, err)
 			// http.Error is of no use since we've already started sending a response

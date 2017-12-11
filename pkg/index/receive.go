@@ -143,7 +143,7 @@ func (ix *Index) indexReadyBlobs() {
 	}
 	ix.Lock()
 	defer ix.Unlock()
-	for br, _ := range failed {
+	for br := range failed {
 		ix.readyReindex[br] = true
 	}
 }

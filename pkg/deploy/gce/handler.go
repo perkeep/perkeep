@@ -300,7 +300,7 @@ func (h *DeployHandler) refreshZones() error {
 	defer h.zonesMu.Unlock()
 	defer func() {
 		h.regions = make([]string, 0, len(h.zones))
-		for r, _ := range h.zones {
+		for r := range h.zones {
 			h.regions = append(h.regions, r)
 		}
 	}()

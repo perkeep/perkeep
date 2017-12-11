@@ -89,7 +89,7 @@ func (c *Client) RemoveBlob(b blob.Ref) error {
 
 func stringKeys(m map[string]bool) (s []string) {
 	s = make([]string, 0, len(m))
-	for key, _ := range m {
+	for key := range m {
 		s = append(s, key)
 	}
 	return

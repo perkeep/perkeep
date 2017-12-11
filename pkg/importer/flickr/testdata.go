@@ -104,7 +104,7 @@ Content-Type: application/json; charset=UTF-8
 			apiURL, photosetAPIPath, page, photosetId, fakeUserId)
 		response := fmt.Sprintf("%s%s", okHeader, fakePhotoset(photosetId, page, pages, photoIds[pageStart:pageEnd]))
 		responses[photosURL] = httputil.StaticResponder(response)
-		for k, _ := range photoIds {
+		for k := range photoIds {
 			if k < pageEnd {
 				continue
 			}

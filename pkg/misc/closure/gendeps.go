@@ -221,7 +221,7 @@ func DeepParseDeps(r io.Reader) (map[string][]string, error) {
 		}
 		return jsfiles
 	}
-	for namespace, _ := range providedBy {
+	for namespace := range providedBy {
 		filesDeps[namespace] = deeperDeps(namespace)
 	}
 	return filesDeps, nil

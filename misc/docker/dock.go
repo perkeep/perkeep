@@ -434,7 +434,7 @@ func packBinaries(ctxDir string) {
 		binaries["cammount"] = false
 	}
 	toPack := func(bin string) bool {
-		for k, _ := range binaries {
+		for k := range binaries {
 			if bin == k {
 				binaries[k] = true
 				return true
