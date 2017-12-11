@@ -504,11 +504,11 @@ func (d *Deployer) Create(ctx context.Context) (*compute.Instance, error) {
 		return nil, fmt.Errorf("could not scan project for existing instances: %v", err)
 	}
 
-	if err := d.setBuckets(storageService, ctx); err != nil {
+	if err := d.setBuckets(ctx, storageService); err != nil {
 		return nil, fmt.Errorf("could not create buckets: %v", err)
 	}
 
-	if err := d.createInstance(computeService, ctx); err != nil {
+	if err := d.createInstance(ctx, computeService); err != nil {
 		return nil, fmt.Errorf("could not create compute instance: %v", err)
 	}
 
@@ -542,7 +542,7 @@ func LooksLikeRegion(s string) bool {
 
 // createInstance starts the creation of the Compute Engine instance and waits for the
 // result of the creation operation. It should be called after setBuckets and setupHTTPS.
-func (d *Deployer) createInstance(computeService *compute.Service, ctx context.Context) error {
+func (d *Deployer) createInstance(ctx context.Context, computeService *compute.Service) error {
 	coreosImgURL, err := gceutil.CoreOSImageURL(d.Client)
 	if err != nil {
 		return fmt.Errorf("error looking up latest CoreOS stable image: %v", err)
@@ -695,7 +695,7 @@ func cloudConfig(conf *InstanceConf) string {
 }
 
 // setBuckets defines the buckets needed by the instance and creates them.
-func (d *Deployer) setBuckets(storageService *storage.Service, ctx context.Context) error {
+func (d *Deployer) setBuckets(ctx context.Context, storageService *storage.Service) error {
 	projBucket := d.Conf.Project + "-camlistore"
 
 	needBucket := map[string]bool{

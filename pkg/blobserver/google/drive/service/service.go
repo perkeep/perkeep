@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// DriveService translates blobserver.Storage methods
+// Package service translates blobserver.Storage methods
 // into Google Drive API methods.
 package service // import "camlistore.org/pkg/blobserver/google/drive/service"
 

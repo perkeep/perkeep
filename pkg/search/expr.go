@@ -84,7 +84,7 @@ type parser struct {
 	ctx    context.Context
 }
 
-func newParser(exp string, ctx context.Context) parser {
+func newParser(ctx context.Context, exp string) parser {
 	_, tokens := lex(exp)
 	return parser{tokens: tokens, ctx: ctx}
 }
@@ -340,7 +340,7 @@ func parseExpression(ctx context.Context, exp string) (*SearchQuery, error) {
 	if exp == "" {
 		return sq, nil
 	}
-	p := newParser(exp, ctx)
+	p := newParser(ctx, exp)
 
 	c, err := p.parseExp()
 	if err != nil {
