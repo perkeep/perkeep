@@ -1065,7 +1065,7 @@ func (sh *SyncHandler) RemoveBlobs(blobs []blob.Ref) error {
 	panic("Unimplemeted RemoveBlobs")
 }
 
-var stopEnumeratingError = errors.New("sentinel error: reached the hourly compare quota")
+var errStopEnumerating = errors.New("sentinel error: reached the hourly compare quota")
 
 // Every hour, hourlyCompare picks blob names from a random point in the source,
 // downloads up to hourlyBytes from the destination, and verifies them.
@@ -1088,7 +1088,7 @@ func (sh *SyncHandler) hourlyCompare(hourlyBytes uint64) {
 			sh.mu.Unlock()
 
 			if roundBytes+uint64(sr.Size) > hourlyBytes {
-				return stopEnumeratingError
+				return errStopEnumerating
 			}
 			blob, size, err := sh.to.(blob.Fetcher).Fetch(sr.Ref)
 			if err != nil {
@@ -1115,7 +1115,7 @@ func (sh *SyncHandler) hourlyCompare(hourlyBytes uint64) {
 			return nil
 		})
 		sh.mu.Lock()
-		if err != nil && err != stopEnumeratingError {
+		if err != nil && err != errStopEnumerating {
 			sh.compareErrors = append(sh.compareErrors, fmt.Sprintf("%s %v", time.Now(), err))
 			sh.logf("!! hourly compare error !!: %v", err)
 		}

@@ -204,7 +204,7 @@ func TestDelete(t *testing.T) {
 	}
 }
 
-var dummyErr = errors.New("dummy fail")
+var errDummy = errors.New("dummy fail")
 
 func TestDoubleReceiveFailingIndex(t *testing.T) {
 	sto, cleanup := newTempDiskpacked(t)
@@ -227,7 +227,7 @@ func TestDoubleReceiveFailingIndex(t *testing.T) {
 
 	_, err := blobserver.Receive(sto, br, b.Reader())
 	if err != nil {
-		if err != dummyErr {
+		if err != errDummy {
 			t.Fatal(err)
 		}
 		t.Logf("dummy fail")
@@ -253,7 +253,7 @@ type failingIndex struct {
 func (idx *failingIndex) Set(key string, value string) error {
 	idx.setCount++
 	if idx.setCount == 1 { // fail the first time
-		return dummyErr
+		return errDummy
 	}
 	return idx.KeyValue.Set(key, value)
 }
