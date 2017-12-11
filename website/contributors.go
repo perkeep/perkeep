@@ -83,7 +83,7 @@ func gitShortlog() *exec.Cmd {
 			"--workdir="+prodSrcDir,
 		)
 	} else {
-		hostRoot, err := osutil.GoPackagePath("camlistore.org")
+		hostRoot, err := osutil.GoPackagePath(prodDomain)
 		if err != nil {
 			log.Fatal(err)
 		}

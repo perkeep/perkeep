@@ -42,6 +42,10 @@ import (
 )
 
 const (
+	// TODO(mpl): when we move to perkeep.org in all of the website's contents, we
+	// change this domainName as well. However, we probably want to make godoc work for
+	// both perkeep.org and camlistore.org. Or maybe we don't care? plus there's
+	// godoc.org anyway.
 	domainName       = "camlistore.org"
 	pkgPattern       = "/pkg/"
 	cmdPattern       = "/cmd/"

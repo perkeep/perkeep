@@ -78,7 +78,7 @@ var (
 	logStdout   = flag.Bool("logstdout", true, "Whether to log to stdout")
 	tlsCertFile = flag.String("tlscert", "", "TLS cert file")
 	tlsKeyFile  = flag.String("tlskey", "", "TLS private key file")
-	alsoRun     = flag.String("also_run", "", "[optiona] Path to run as a child process. (Used to run camlistore.org's ./scripts/run-blob-server)")
+	alsoRun     = flag.String("also_run", "", "[optiona] Path to run as a child process. (Used to run perkeep.org's ./scripts/run-blob-server)")
 	devMode     = flag.Bool("dev", false, "in dev mode")
 	flagStaging = flag.Bool("staging", false, "Deploy to a test GCE instance. Requires -cloudlaunch=true")
 
@@ -189,7 +189,7 @@ func servePage(w http.ResponseWriter, params pageParams) {
 	if strings.Contains(title, cmdPattern) && subtitle != cmdPattern {
 		toInsert := `
 		<h3>Installation</h3>
-		<pre>go get camlistore.org/cmd/` + subtitle + `</pre>
+		<pre>go get ` + prodDomain + `/cmd/` + subtitle + `</pre>
 		<h3>Overview</h3><p>`
 		content = bytes.Replace(content, []byte("<p>"), []byte(toInsert), 1)
 	}
@@ -518,7 +518,7 @@ func gceDeployHandlerConfig() (*gce.Config, error) {
 	configFile := filepath.Join(osutil.CamliConfigDir(), "launcher-config.json")
 	data, err := ioutil.ReadFile(configFile)
 	if err != nil {
-		return nil, fmt.Errorf("error reading launcher-config.json (expected of type https://godoc.org/camlistore.org/pkg/deploy/gce#Config): %v", err)
+		return nil, fmt.Errorf("error reading launcher-config.json (expected of type https://godoc.org/"+prodDomain+"/pkg/deploy/gce#Config): %v", err)
 	}
 	var config gce.Config
 	if err := json.Unmarshal(data, &config); err != nil {
@@ -603,7 +603,7 @@ func checkInProduction() bool {
 }
 
 const (
-	prodSrcDir     = "/var/camweb/src/camlistore.org"
+	prodSrcDir     = "/var/camweb/src/" + prodDomain
 	prodLECacheDir = "/var/le/letsencrypt.cache"
 )
 
@@ -1187,9 +1187,9 @@ func camSrcDir() string {
 	if inProd {
 		return prodSrcDir
 	}
-	dir, err := osutil.GoPackagePath("camlistore.org")
+	dir, err := osutil.GoPackagePath(prodDomain)
 	if err != nil {
-		log.Fatalf("Failed to find the root of the Camlistore source code via osutil.GoPackagePath: %v", err)
+		log.Fatalf("Failed to find the root of the %s source code via osutil.GoPackagePath: %v", prodDomain, err)
 	}
 	return dir
 }

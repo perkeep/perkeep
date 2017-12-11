@@ -70,7 +70,7 @@ func startEmailCommitLoop(errc chan<- error) {
 		return
 	}
 	if *emailNow != "" {
-		dir, err := osutil.GoPackagePath("camlistore.org")
+		dir, err := osutil.GoPackagePath(prodDomain)
 		if err != nil {
 			log.Fatal(err)
 		}
