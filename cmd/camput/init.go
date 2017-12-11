@@ -180,7 +180,7 @@ func (c *initCmd) clientConfigFromServer() (*clientconfig.Config, error) {
 func (c *initCmd) writeConfig(cc *clientconfig.Config) error {
 	configFilePath := osutil.UserClientConfigPath()
 	if _, err := os.Stat(configFilePath); err == nil {
-		return fmt.Errorf("Config file %q already exists; quitting without touching it.", configFilePath)
+		return fmt.Errorf("config file %q already exists; quitting without touching it", configFilePath)
 	}
 	if err := os.MkdirAll(filepath.Dir(configFilePath), 0700); err != nil {
 		return err

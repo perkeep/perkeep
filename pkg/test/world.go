@@ -62,7 +62,7 @@ func camliSourceRoot() (string, error) {
 	}
 	root, err := osutil.GoPackagePath("camlistore.org")
 	if err == os.ErrNotExist {
-		return "", errors.New("Directory \"camlistore.org\" not found under GOPATH/src; can't run Camlistore integration tests.")
+		return "", errors.New("directory \"camlistore.org\" not found under GOPATH/src; can't run Camlistore integration tests")
 	}
 	return root, nil
 }

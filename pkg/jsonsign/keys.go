@@ -82,7 +82,7 @@ func openArmoredPublicKeyFile(reader io.ReadCloser) (*packet.PublicKey, error) {
 		return nil, errors.New("Couldn't find PGP block in public key file")
 	}
 	if block.Type != "PGP PUBLIC KEY BLOCK" {
-		return nil, errors.New("Invalid public key blob.")
+		return nil, errors.New("invalid public key blob")
 	}
 	p, err := packet.Read(block.Body)
 	if err != nil {

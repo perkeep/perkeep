@@ -196,7 +196,7 @@ func (c *fileCmd) RunCommand(args []string) error {
 			return err
 		}
 		if !fi.IsDir() {
-			return fmt.Errorf("%q is not a directory.", dir)
+			return fmt.Errorf("%q is not a directory", dir)
 		}
 		t := up.NewTreeUpload(dir)
 		t.DiskUsageMode = true

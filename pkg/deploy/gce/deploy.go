@@ -669,7 +669,7 @@ OpLoop:
 				for _, operr := range op.Error.Errors {
 					d.Printf("Error: %+v", operr)
 				}
-				return fmt.Errorf("failed to start.")
+				return fmt.Errorf("failed to start")
 			}
 			if Verbose {
 				d.Printf("Success. %+v", op)

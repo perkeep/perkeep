@@ -155,7 +155,7 @@ func (c *Client) fetchVia(b blob.Ref, v []blob.Ref) (body io.ReadCloser, size ui
 
 // ErrNotSharing is returned when a client that was not created with
 // NewFromShareRoot tries to access shared blobs.
-var ErrNotSharing = errors.New("Client can not deal with shared blobs. Create it with NewFromShareRoot.")
+var ErrNotSharing = errors.New("client can not deal with shared blobs. Create it with NewFromShareRoot")
 
 // UpdateShareChain reads the schema of b from r, and instructs the client that
 // all blob refs found in this schema should use b as a preceding chain link, in

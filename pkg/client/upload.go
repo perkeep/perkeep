@@ -133,7 +133,7 @@ func (c *Client) responseJSONMap(requestName string, resp *http.Response) (map[s
 	if resp.StatusCode != 200 {
 		c.printf("After %s request, failed to JSON from response; status code is %d", requestName, resp.StatusCode)
 		io.Copy(os.Stderr, resp.Body)
-		return nil, fmt.Errorf("After %s request, HTTP response code is %d; no JSON to parse.", requestName, resp.StatusCode)
+		return nil, fmt.Errorf("after %s request, HTTP response code is %d; no JSON to parse", requestName, resp.StatusCode)
 	}
 	jmap := make(map[string]interface{})
 	if err := httputil.DecodeJSON(resp, &jmap); err != nil {
@@ -512,7 +512,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 		return pr, nil
 	}
 
-	return nil, errors.New("Server didn't receive blob.")
+	return nil, errors.New("server didn't receive blob")
 }
 
 // FileUploadOptions is optionally provided to UploadFile.

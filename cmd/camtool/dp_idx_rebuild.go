@@ -106,7 +106,7 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 		confs = append(confs, aconf)
 	}
 	if len(paths) == 0 {
-		return fmt.Errorf("Server config file %s doesn't specify a disk-packed storage handler.",
+		return fmt.Errorf("server config file %s doesn't specify a disk-packed storage handler",
 			osutil.UserServerConfigPath())
 	}
 	if len(paths) > 1 {

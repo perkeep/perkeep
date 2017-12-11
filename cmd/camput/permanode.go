@@ -72,7 +72,7 @@ func (c *permanodeCmd) RunCommand(args []string) error {
 		up        = getUploader()
 	)
 	if (c.key != "") != (c.sigTime != "") {
-		return errors.New("Both --key and --sigtime must be used to produce deterministic permanodes.")
+		return errors.New("both --key and --sigtime must be used to produce deterministic permanodes")
 	}
 	if c.key == "" {
 		// Normal case, with a random permanode.

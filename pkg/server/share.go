@@ -137,7 +137,7 @@ func newShareFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler
 	}
 	fetcher, ok := bs.(blob.Fetcher)
 	if !ok {
-		return nil, errors.New("share handler's storage not a Fetcher.")
+		return nil, errors.New("share handler's storage not a Fetcher")
 	}
 
 	// Should we use the search handler instead (and add a method to access

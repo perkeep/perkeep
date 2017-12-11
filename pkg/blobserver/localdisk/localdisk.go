@@ -106,7 +106,7 @@ func New(root string) (*DiskStorage, error) {
 		return nil, fmt.Errorf("Failed to stat directory %q: %v", root, err)
 	}
 	if !fi.IsDir() {
-		return nil, fmt.Errorf("Storage root %q exists but is not a directory.", root)
+		return nil, fmt.Errorf("storage root %q exists but is not a directory", root)
 	}
 	ds := &DiskStorage{
 		root:      root,
@@ -128,7 +128,7 @@ func New(root string) (*DiskStorage, error) {
 		return nil, err
 	}
 	if ul < minFDLimit {
-		return nil, fmt.Errorf("The max number of open file descriptors on your system (ulimit -n) is too low. Please fix it with 'ulimit -S -n X' with X being at least %d.", recommendedFDLimit)
+		return nil, fmt.Errorf("the max number of open file descriptors on your system (ulimit -n) is too low. Please fix it with 'ulimit -S -n X' with X being at least %d", recommendedFDLimit)
 	}
 	// Setting the gate to 80% of the ulimit, to leave a bit of room for other file ops happening in Camlistore.
 	// TODO(mpl): make this used and enforced Camlistore-wide. Issue #837.

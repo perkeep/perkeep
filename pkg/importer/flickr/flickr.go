@@ -124,7 +124,7 @@ func (imp) Run(ctx *importer.RunContext) error {
 	}
 	userID := ctx.AccountNode().Attr(importer.AcctAttrUserID)
 	if userID == "" {
-		return errors.New("UserID hasn't been set by account setup.")
+		return errors.New("userID hasn't been set by account setup")
 	}
 	r := &run{
 		userID:     userID,

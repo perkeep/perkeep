@@ -148,7 +148,7 @@ func stripComments(in []byte) []byte {
 // Code mostly copied from golang.org/x/review/git-codereview/hook.go
 func (c *hookCmd) hookCommitMsg(args []string) error {
 	if len(args) != 1 {
-		return errors.New("usage: devcam hook commit-msg message.txt\n")
+		return errors.New("usage: devcam hook commit-msg message.txt")
 	}
 
 	file := args[0]
@@ -240,7 +240,7 @@ func (c *hookCmd) hookTrailingSpace() error {
 	if out != "" {
 		printf("\n%s", out)
 		printf("Trailing whitespace detected, you need to clean it up manually.\n")
-		return errors.New("trailing whitespace.")
+		return errors.New("trailing whitespace")
 	}
 	return nil
 }

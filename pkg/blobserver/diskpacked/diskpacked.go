@@ -154,7 +154,7 @@ func newStorage(root string, maxFileSize int64, indexConf jsonconfig.Obj) (s *st
 		return nil, fmt.Errorf("Failed to stat directory %q: %v", root, err)
 	}
 	if !fi.IsDir() {
-		return nil, fmt.Errorf("storage root %q exists but is not a directory.", root)
+		return nil, fmt.Errorf("storage root %q exists but is not a directory", root)
 	}
 	index, err := newIndex(root, indexConf)
 	if err != nil {

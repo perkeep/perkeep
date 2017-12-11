@@ -926,7 +926,7 @@ func (pk *packer) scanChunks() error {
 		if p.Offset != 0 {
 			// TODO: maybe care about this later, if we ever start making
 			// these sorts of files.
-			return errors.New("file uses complicated schema. not packing.")
+			return errors.New("file uses complicated schema. not packing")
 		}
 		pk.schemaParent[p.BlobRef] = append([]blob.Ref(nil), schemaPath...) // clone it
 		pk.dataSize[p.BlobRef] = uint32(p.Size)

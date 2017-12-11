@@ -119,7 +119,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		_, err := client.ListBucket(sto.bucket, "", 1)
 		if serr, ok := err.(*s3.Error); ok {
 			if serr.AmazonCode == "NoSuchBucket" {
-				return nil, fmt.Errorf("Bucket %q doesn't exist.", sto.bucket)
+				return nil, fmt.Errorf("bucket %q doesn't exist", sto.bucket)
 			}
 
 			// This code appears when the hostname has dots in it:

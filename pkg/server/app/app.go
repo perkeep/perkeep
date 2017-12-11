@@ -471,7 +471,7 @@ func (a *Handler) Start() error {
 	if binPath == "" || err != nil {
 		binPath, err = exec.LookPath(name)
 		if err != nil {
-			return fmt.Errorf("%q executable not found in PATH.", name)
+			return fmt.Errorf("%q executable not found in PATH", name)
 		}
 	}
 

@@ -165,7 +165,7 @@ func (im *imp) Run(ctx *importer.RunContext) (err error) {
 	client := plaid.NewClient(clientID, secret, plaid.Tartan)
 	resp, _, err := client.ConnectGet(ctx.AccountNode().Attr(acctAttrToken), &opt)
 	if err != nil {
-		fmt.Errorf("ConnectGet: %s\n", err)
+		fmt.Errorf("connectGet: %s", err)
 		return
 	}
 

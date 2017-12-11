@@ -335,7 +335,7 @@ func CheckEnumerate(sto blobserver.Storage, wantUnsorted []blob.SizedRef, opts .
 	}
 
 	if !reflect.DeepEqual(got, want) {
-		return fmt.Errorf("Enumerate mismatch. Got %d; want %d.\n Got: %v\nWant: %v\n",
+		return fmt.Errorf("enumerate mismatch. Got %d; want %d.\n Got: %v\nWant: %v\n",
 			len(got), len(want), got, want)
 	}
 	return nil
@@ -411,7 +411,7 @@ type WantSizedRefs []blob.SizedRef
 func (s WantSizedRefs) verify(got []blob.SizedRef) error {
 	want := []blob.SizedRef(s)
 	if !reflect.DeepEqual(got, want) {
-		return fmt.Errorf("Mismatch:\n got %d blobs: %q\nwant %d blobs: %q\n", len(got), got, len(want), want)
+		return fmt.Errorf("mismatch:\n got %d blobs: %q\nwant %d blobs: %q\n", len(got), got, len(want), want)
 	}
 	return nil
 }

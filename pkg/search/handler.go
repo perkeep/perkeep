@@ -582,7 +582,7 @@ func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Req
 // GetClaims returns the claims on req.Permanode signed by sh.owner.
 func (sh *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
 	if !req.Permanode.Valid() {
-		return nil, errors.New("Error getting claims: nil permanode.")
+		return nil, errors.New("error getting claims: nil permanode")
 	}
 	sh.index.RLock()
 	defer sh.index.RUnlock()
@@ -809,10 +809,10 @@ func (sh *Handler) serveQuery(rw http.ResponseWriter, req *http.Request) {
 func (sh *Handler) GetSignerPaths(req *SignerPathsRequest) (*SignerPathsResponse, error) {
 	ctx := context.TODO()
 	if !req.Signer.Valid() {
-		return nil, errors.New("Error getting signer paths: nil signer.")
+		return nil, errors.New("error getting signer paths: nil signer")
 	}
 	if !req.Target.Valid() {
-		return nil, errors.New("Error getting signer paths: nil target.")
+		return nil, errors.New("error getting signer paths: nil target")
 	}
 	sh.index.RLock()
 	defer sh.index.RUnlock()

@@ -100,7 +100,7 @@ func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (ref blob
 		return
 	}
 	if stat.Size() != written {
-		err = errors.New("Written size didn't match.")
+		err = errors.New("written size didn't match")
 		return
 	}
 
