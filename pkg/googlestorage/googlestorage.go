@@ -125,7 +125,7 @@ func (so SizedObject) String() string {
 }
 
 // Makes a simple body-less google storage request
-func (gsa *Client) simpleRequest(method, url_ string) (resp *http.Response, err error) {
+func (c *Client) simpleRequest(method, url_ string) (resp *http.Response, err error) {
 	// Construct the request
 	req, err := http.NewRequest(method, url_, nil)
 	if err != nil {
@@ -133,7 +133,7 @@ func (gsa *Client) simpleRequest(method, url_ string) (resp *http.Response, err 
 	}
 	req.Header.Set("x-goog-api-version", "2")
 
-	return gsa.client.Do(req)
+	return c.client.Do(req)
 }
 
 // GetObject fetches a Google Cloud Storage object.
@@ -201,11 +201,11 @@ func (c *Client) GetPartialObject(obj Object, offset, length int64) (rc io.ReadC
 
 // StatObject checks for the size & existence of a Google Cloud Storage object.
 // Non-existence of a file is not an error.
-func (gsa *Client) StatObject(obj *Object) (size int64, exists bool, err error) {
+func (c *Client) StatObject(obj *Object) (size int64, exists bool, err error) {
 	if err = obj.valid(); err != nil {
 		return
 	}
-	res, err := gsa.simpleRequest("HEAD", gsAccessURL+"/"+obj.Bucket+"/"+obj.Key)
+	res, err := c.simpleRequest("HEAD", gsAccessURL+"/"+obj.Bucket+"/"+obj.Key)
 	if err != nil {
 		return
 	}
@@ -228,7 +228,7 @@ func (gsa *Client) StatObject(obj *Object) (size int64, exists bool, err error) 
 // shouldRetry will be true if the put failed due to authorization, but
 // credentials have been refreshed and another attempt is likely to succeed.
 // In this case, content will have been consumed.
-func (gsa *Client) PutObject(obj *Object, content io.Reader) error {
+func (c *Client) PutObject(obj *Object, content io.Reader) error {
 	if err := obj.valid(); err != nil {
 		return err
 	}
@@ -252,7 +252,7 @@ func (gsa *Client) PutObject(obj *Object, content io.Reader) error {
 	req.Header.Set("Content-Type", contentType)
 
 	var resp *http.Response
-	if resp, err = gsa.client.Do(req); err != nil {
+	if resp, err = c.client.Do(req); err != nil {
 		return err
 	}
 
@@ -263,11 +263,11 @@ func (gsa *Client) PutObject(obj *Object, content io.Reader) error {
 }
 
 // DeleteObject removes an object.
-func (gsa *Client) DeleteObject(obj *Object) error {
+func (c *Client) DeleteObject(obj *Object) error {
 	if err := obj.valid(); err != nil {
 		return err
 	}
-	resp, err := gsa.simpleRequest("DELETE", gsAccessURL+"/"+obj.Bucket+"/"+obj.Key)
+	resp, err := c.simpleRequest("DELETE", gsAccessURL+"/"+obj.Bucket+"/"+obj.Key)
 	if err != nil {
 		return err
 	}
@@ -281,7 +281,7 @@ func (gsa *Client) DeleteObject(obj *Object) error {
 // EnumerateObjects lists the objects in a bucket.
 // If after is non-empty, listing will begin with lexically greater object names.
 // If limit is non-zero, the length of the list will be limited to that number.
-func (gsa *Client) EnumerateObjects(bucket, after string, limit int) ([]SizedObject, error) {
+func (c *Client) EnumerateObjects(bucket, after string, limit int) ([]SizedObject, error) {
 	// Build url, with query params
 	var params []string
 	if after != "" {
@@ -295,7 +295,7 @@ func (gsa *Client) EnumerateObjects(bucket, after string, limit int) ([]SizedObj
 		query = "?" + strings.Join(params, "&")
 	}
 
-	resp, err := gsa.simpleRequest("GET", gsAccessURL+"/"+bucket+"/"+query)
+	resp, err := c.simpleRequest("GET", gsAccessURL+"/"+bucket+"/"+query)
 	if err != nil {
 		return nil, err
 	}

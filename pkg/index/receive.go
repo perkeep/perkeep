@@ -879,19 +879,19 @@ func (ix *Index) populateClaim(ctx context.Context, fetcher *missTrackFetcher, b
 
 // updateDeletesCache updates the index deletes cache with the cl delete claim.
 // deleteClaim is trusted to be a valid delete Claim.
-func (x *Index) updateDeletesCache(deleteClaim schema.Claim) error {
+func (ix *Index) updateDeletesCache(deleteClaim schema.Claim) error {
 	target := deleteClaim.Target()
 	deleter := deleteClaim.Blob()
 	when, err := deleter.ClaimDate()
 	if err != nil {
 		return fmt.Errorf("Could not get date of delete claim %v: %v", deleteClaim, err)
 	}
-	targetDeletions := append(x.deletes.m[target],
+	targetDeletions := append(ix.deletes.m[target],
 		deletion{
 			deleter: deleter.BlobRef(),
 			when:    when,
 		})
 	sort.Sort(sort.Reverse(byDeletionDate(targetDeletions)))
-	x.deletes.m[target] = targetDeletions
+	ix.deletes.m[target] = targetDeletions
 	return nil
 }

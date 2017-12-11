@@ -270,66 +270,66 @@ func (m MetaMap) Get(br blob.Ref) *DescribedBlob {
 }
 
 // URLSuffixPost returns the URL suffix for POST requests.
-func (r *DescribeRequest) URLSuffixPost() string {
+func (dr *DescribeRequest) URLSuffixPost() string {
 	return "camli/search/describe"
 }
 
 // URLSuffix returns the URL suffix for GET requests.
 // This is deprecated.
-func (r *DescribeRequest) URLSuffix() string {
+func (dr *DescribeRequest) URLSuffix() string {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "camli/search/describe?depth=%d&maxdirchildren=%d",
-		r.depth(), r.maxDirChildren())
-	for _, br := range r.BlobRefs {
+		dr.depth(), dr.maxDirChildren())
+	for _, br := range dr.BlobRefs {
 		buf.WriteString("&blobref=")
 		buf.WriteString(br.String())
 	}
-	if len(r.BlobRefs) == 0 && r.BlobRef.Valid() {
+	if len(dr.BlobRefs) == 0 && dr.BlobRef.Valid() {
 		buf.WriteString("&blobref=")
-		buf.WriteString(r.BlobRef.String())
+		buf.WriteString(dr.BlobRef.String())
 	}
-	if !r.At.IsAnyZero() {
+	if !dr.At.IsAnyZero() {
 		buf.WriteString("&at=")
-		buf.WriteString(r.At.String())
+		buf.WriteString(dr.At.String())
 	}
 	return buf.String()
 }
 
 // fromHTTP panics with an httputil value on failure
-func (r *DescribeRequest) fromHTTP(req *http.Request) {
+func (dr *DescribeRequest) fromHTTP(req *http.Request) {
 	switch {
 	case httputil.IsGet(req):
-		r.fromHTTPGet(req)
+		dr.fromHTTPGet(req)
 	case req.Method == "POST":
-		r.fromHTTPPost(req)
+		dr.fromHTTPPost(req)
 	default:
 		panic("Unsupported method")
 	}
 }
 
-func (r *DescribeRequest) fromHTTPPost(req *http.Request) {
-	err := json.NewDecoder(req.Body).Decode(r)
+func (dr *DescribeRequest) fromHTTPPost(req *http.Request) {
+	err := json.NewDecoder(req.Body).Decode(dr)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func (r *DescribeRequest) fromHTTPGet(req *http.Request) {
+func (dr *DescribeRequest) fromHTTPGet(req *http.Request) {
 	req.ParseForm()
 	if vv := req.Form["blobref"]; len(vv) > 1 {
 		for _, brs := range vv {
 			if br, ok := blob.Parse(brs); ok {
-				r.BlobRefs = append(r.BlobRefs, br)
+				dr.BlobRefs = append(dr.BlobRefs, br)
 			} else {
 				panic(httputil.InvalidParameterError("blobref"))
 			}
 		}
 	} else {
-		r.BlobRef = httputil.MustGetBlobRef(req, "blobref")
+		dr.BlobRef = httputil.MustGetBlobRef(req, "blobref")
 	}
-	r.Depth = httputil.OptionalInt(req, "depth")
-	r.MaxDirChildren = httputil.OptionalInt(req, "maxdirchildren")
-	r.At = types.ParseTime3339OrZero(req.FormValue("at"))
+	dr.Depth = httputil.OptionalInt(req, "depth")
+	dr.MaxDirChildren = httputil.OptionalInt(req, "maxdirchildren")
+	dr.At = types.ParseTime3339OrZero(req.FormValue("at"))
 }
 
 // PermanodeFile returns in path the blobref of the described permanode
@@ -905,8 +905,8 @@ func (dr *DescribeRequest) describeRefs(ctx context.Context, str string, depth i
 	}
 }
 
-func (d *DescribedBlob) setMIMEType(mime string) {
+func (b *DescribedBlob) setMIMEType(mime string) {
 	if strings.HasPrefix(mime, camliTypePrefix) {
-		d.CamliType = strings.TrimPrefix(mime, camliTypePrefix)
+		b.CamliType = strings.TrimPrefix(mime, camliTypePrefix)
 	}
 }

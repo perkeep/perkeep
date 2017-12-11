@@ -92,18 +92,18 @@ func NewHandler(ix index.Interface, owner blob.Ref) *Handler {
 	return sh
 }
 
-func (sh *Handler) subscribeToNewBlobs() {
+func (h *Handler) subscribeToNewBlobs() {
 	ch := make(chan blob.Ref, buffered)
-	blobserver.GetHub(sh.index).RegisterListener(ch)
+	blobserver.GetHub(h.index).RegisterListener(ch)
 	go func() {
 		ctx := context.Background()
 		for br := range ch {
-			sh.index.RLock()
-			bm, err := sh.index.GetBlobMeta(ctx, br)
+			h.index.RLock()
+			bm, err := h.index.GetBlobMeta(ctx, br)
 			if err == nil {
-				sh.wsHub.newBlobRecv <- bm.CamliType
+				h.wsHub.newBlobRecv <- bm.CamliType
 			}
-			sh.index.RUnlock()
+			h.index.RUnlock()
 		}
 	}()
 }
@@ -190,7 +190,7 @@ var postHandler = map[string]func(*Handler, http.ResponseWriter, *http.Request){
 	"query":    (*Handler).serveQuery,
 }
 
-func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	suffix := httputil.PathSuffix(req)
 
 	handlers := getHandler
@@ -204,7 +204,7 @@ func (sh *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	fn := handlers[strings.TrimPrefix(suffix, "camli/search/")]
 	if fn != nil {
-		fn(sh, rw, req)
+		fn(h, rw, req)
 		return
 	}
 
@@ -453,11 +453,11 @@ type EdgeItem struct {
 var testHookBug121 = func() {}
 
 // GetRecentPermanodes returns recently-modified permanodes.
-func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, error) {
+func (h *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, error) {
 	ctx := context.TODO()
 
-	sh.index.RLock()
-	defer sh.index.RUnlock()
+	h.index.RLock()
+	defer h.index.RUnlock()
 
 	ch := make(chan camtypes.RecentPermanode)
 	errch := make(chan error, 1)
@@ -466,10 +466,10 @@ func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, err
 		before = req.Before
 	}
 	go func() {
-		errch <- sh.index.GetRecentPermanodes(ctx, ch, sh.owner, req.n(), before)
+		errch <- h.index.GetRecentPermanodes(ctx, ch, h.owner, req.n(), before)
 	}()
 
-	dr := sh.NewDescribeRequest()
+	dr := h.NewDescribeRequest()
 
 	var recent []*RecentItem
 	for res := range ch {
@@ -498,11 +498,11 @@ func (sh *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, err
 	return res, nil
 }
 
-func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Request) {
 	defer httputil.RecoverJSON(rw, req)
 	var rr RecentRequest
 	rr.fromHTTP(req)
-	res, err := sh.GetRecentPermanodes(&rr)
+	res, err := h.GetRecentPermanodes(&rr)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
 		return
@@ -513,20 +513,20 @@ func (sh *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reque
 // GetPermanodesWithAttr returns permanodes with attribute req.Attr
 // having the req.Value as a value.
 // See WithAttrRequest for more details about the query.
-func (sh *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrResponse, error) {
+func (h *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrResponse, error) {
 	ctx := context.TODO()
 
-	sh.index.RLock()
-	defer sh.index.RUnlock()
+	h.index.RLock()
+	defer h.index.RUnlock()
 
 	ch := make(chan blob.Ref, buffered)
 	errch := make(chan error, 1)
 	go func() {
 		signer := req.Signer
 		if !signer.Valid() {
-			signer = sh.owner
+			signer = h.owner
 		}
-		errch <- sh.index.SearchPermanodesWithAttr(ctx, ch,
+		errch <- h.index.SearchPermanodesWithAttr(ctx, ch,
 			&camtypes.PermanodeByAttrRequest{
 				Attribute:  req.Attr,
 				Query:      req.Value,
@@ -537,7 +537,7 @@ func (sh *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrRespons
 			})
 	}()
 
-	dr := sh.NewDescribeRequest()
+	dr := h.NewDescribeRequest()
 
 	var withAttr []*WithAttrItem
 	for res := range ch {
@@ -567,11 +567,11 @@ func (sh *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrRespons
 // the request.
 // The valid values for the "attr" key in the request (i.e the only attributes
 // for a permanode which are actually indexed as such) are "tag" and "title".
-func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Request) {
 	defer httputil.RecoverJSON(rw, req)
 	var wr WithAttrRequest
 	wr.fromHTTP(req)
-	res, err := sh.GetPermanodesWithAttr(&wr)
+	res, err := h.GetPermanodesWithAttr(&wr)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
 		return
@@ -579,17 +579,17 @@ func (sh *Handler) servePermanodesWithAttr(rw http.ResponseWriter, req *http.Req
 	httputil.ReturnJSON(rw, res)
 }
 
-// GetClaims returns the claims on req.Permanode signed by sh.owner.
-func (sh *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
+// GetClaims returns the claims on req.Permanode signed by h.owner.
+func (h *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
 	if !req.Permanode.Valid() {
 		return nil, errors.New("error getting claims: nil permanode")
 	}
-	sh.index.RLock()
-	defer sh.index.RUnlock()
+	h.index.RLock()
+	defer h.index.RUnlock()
 
 	ctx := context.TODO()
 	var claims []camtypes.Claim
-	claims, err := sh.index.AppendClaims(ctx, claims, req.Permanode, sh.owner, req.AttrFilter)
+	claims, err := h.index.AppendClaims(ctx, claims, req.Permanode, h.owner, req.AttrFilter)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting claims of %s: %v", req.Permanode.String(), err)
 	}
@@ -614,15 +614,15 @@ func (sh *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
 	return res, nil
 }
 
-func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 	defer httputil.RecoverJSON(rw, req)
 
-	sh.index.RLock()
-	defer sh.index.RUnlock()
+	h.index.RLock()
+	defer h.index.RUnlock()
 
 	var cr ClaimsRequest
 	cr.fromHTTP(req)
-	res, err := sh.GetClaims(&cr)
+	res, err := h.GetClaims(&cr)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
 		return
@@ -630,12 +630,12 @@ func (sh *Handler) serveClaims(rw http.ResponseWriter, req *http.Request) {
 	httputil.ReturnJSON(rw, res)
 }
 
-func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 	var ret camtypes.FileSearchResponse
 	defer httputil.ReturnJSON(rw, &ret)
 
-	sh.index.RLock()
-	defer sh.index.RUnlock()
+	h.index.RLock()
+	defer h.index.RUnlock()
 
 	br, ok := blob.Parse(req.FormValue("wholedigest"))
 	if !ok {
@@ -644,7 +644,7 @@ func (sh *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	files, err := sh.index.ExistingFileSchemas(br)
+	files, err := h.index.ExistingFileSchemas(br)
 	if err != nil {
 		ret.Error = err.Error()
 		ret.ErrorType = "server"
@@ -666,23 +666,23 @@ type SignerAttrValueResponse struct {
 	Meta      MetaMap  `json:"meta"`
 }
 
-func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Request) {
 	defer httputil.RecoverJSON(rw, req)
 	ctx := context.TODO()
 	signer := httputil.MustGetBlobRef(req, "signer")
 	attr := httputil.MustGet(req, "attr")
 	value := httputil.MustGet(req, "value")
 
-	sh.index.RLock()
-	defer sh.index.RUnlock()
+	h.index.RLock()
+	defer h.index.RUnlock()
 
-	pn, err := sh.index.PermanodeOfSignerAttrValue(ctx, signer, attr, value)
+	pn, err := h.index.PermanodeOfSignerAttrValue(ctx, signer, attr, value)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
 		return
 	}
 
-	dr := sh.NewDescribeRequest()
+	dr := h.NewDescribeRequest()
 	dr.StartDescribe(ctx, pn, 2)
 	metaMap, err := dr.metaMap()
 	if err != nil {
@@ -698,16 +698,16 @@ func (sh *Handler) serveSignerAttrValue(rw http.ResponseWriter, req *http.Reques
 
 // EdgesTo returns edges that reference req.RefTo.
 // It filters out since-deleted permanode edges.
-func (sh *Handler) EdgesTo(req *EdgesRequest) (*EdgesResponse, error) {
+func (h *Handler) EdgesTo(req *EdgesRequest) (*EdgesResponse, error) {
 	ctx := context.TODO()
-	sh.index.RLock()
-	defer sh.index.RUnlock()
+	h.index.RLock()
+	defer h.index.RUnlock()
 
 	toRef := req.ToRef
 	toRefStr := toRef.String()
 	var edgeItems []*EdgeItem
 
-	edges, err := sh.index.EdgesTo(toRef, nil)
+	edges, err := h.index.EdgesTo(toRef, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -718,7 +718,7 @@ func (sh *Handler) EdgesTo(req *EdgesRequest) (*EdgesResponse, error) {
 	}
 	resc := make(chan edgeOrError)
 	verify := func(edge *camtypes.Edge) {
-		db, err := sh.NewDescribeRequest().DescribeSync(ctx, edge.From)
+		db, err := h.NewDescribeRequest().DescribeSync(ctx, edge.From)
 		if err != nil {
 			resc <- edgeOrError{err: err}
 			return
@@ -775,11 +775,11 @@ func (sh *Handler) EdgesTo(req *EdgesRequest) (*EdgesResponse, error) {
 
 // Unlike the index interface's EdgesTo method, the "edgesto" Handler
 // here additionally filters out since-deleted permanode edges.
-func (sh *Handler) serveEdgesTo(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) serveEdgesTo(rw http.ResponseWriter, req *http.Request) {
 	defer httputil.RecoverJSON(rw, req)
 	var er EdgesRequest
 	er.fromHTTP(req)
-	res, err := sh.EdgesTo(&er)
+	res, err := h.EdgesTo(&er)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
 		return
@@ -787,7 +787,7 @@ func (sh *Handler) serveEdgesTo(rw http.ResponseWriter, req *http.Request) {
 	httputil.ReturnJSON(rw, res)
 }
 
-func (sh *Handler) serveQuery(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) serveQuery(rw http.ResponseWriter, req *http.Request) {
 	defer httputil.RecoverJSON(rw, req)
 
 	var sq SearchQuery
@@ -796,7 +796,7 @@ func (sh *Handler) serveQuery(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	sr, err := sh.Query(&sq)
+	sr, err := h.Query(&sq)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
 		return
@@ -806,7 +806,7 @@ func (sh *Handler) serveQuery(rw http.ResponseWriter, req *http.Request) {
 }
 
 // GetSignerPaths returns paths with a target of req.Target.
-func (sh *Handler) GetSignerPaths(req *SignerPathsRequest) (*SignerPathsResponse, error) {
+func (h *Handler) GetSignerPaths(req *SignerPathsRequest) (*SignerPathsResponse, error) {
 	ctx := context.TODO()
 	if !req.Signer.Valid() {
 		return nil, errors.New("error getting signer paths: nil signer")
@@ -814,10 +814,10 @@ func (sh *Handler) GetSignerPaths(req *SignerPathsRequest) (*SignerPathsResponse
 	if !req.Target.Valid() {
 		return nil, errors.New("error getting signer paths: nil target")
 	}
-	sh.index.RLock()
-	defer sh.index.RUnlock()
+	h.index.RLock()
+	defer h.index.RUnlock()
 
-	paths, err := sh.index.PathsOfSignerTarget(ctx, req.Signer, req.Target)
+	paths, err := h.index.PathsOfSignerTarget(ctx, req.Signer, req.Target)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting paths of %s: %v", req.Target.String(), err)
 	}
@@ -830,7 +830,7 @@ func (sh *Handler) GetSignerPaths(req *SignerPathsRequest) (*SignerPathsResponse
 		})
 	}
 
-	dr := sh.NewDescribeRequest()
+	dr := h.NewDescribeRequest()
 	for _, path := range paths {
 		dr.StartDescribe(ctx, path.Base, 2)
 	}
@@ -846,12 +846,12 @@ func (sh *Handler) GetSignerPaths(req *SignerPathsRequest) (*SignerPathsResponse
 	return res, nil
 }
 
-func (sh *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
+func (h *Handler) serveSignerPaths(rw http.ResponseWriter, req *http.Request) {
 	defer httputil.RecoverJSON(rw, req)
 	var sr SignerPathsRequest
 	sr.fromHTTP(req)
 
-	res, err := sh.GetSignerPaths(&sr)
+	res, err := h.GetSignerPaths(&sr)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
 		return

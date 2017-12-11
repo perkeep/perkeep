@@ -86,8 +86,8 @@ var _ fs.NodeSymlinker = (*mutDir)(nil)
 var _ fs.NodeRemover = (*mutDir)(nil)
 var _ fs.NodeRenamer = (*mutDir)(nil)
 
-func (m *mutDir) String() string {
-	return fmt.Sprintf("&mutDir{%p name=%q perm:%v}", m, m.fullPath(), m.permanode)
+func (n *mutDir) String() string {
+	return fmt.Sprintf("&mutDir{%p name=%q perm:%v}", n, n.fullPath(), n.permanode)
 }
 
 // for debugging
@@ -231,13 +231,13 @@ func (n *mutDir) populate() error {
 
 // maybeAddChild adds a child directory to this mutable directory
 // unless it already has one with this name and permanode.
-func (m *mutDir) maybeAddChild(name string, permanode *search.DescribedPermanode,
+func (n *mutDir) maybeAddChild(name string, permanode *search.DescribedPermanode,
 	child mutFileOrDir) {
-	if current, ok := m.children[name]; !ok ||
+	if current, ok := n.children[name]; !ok ||
 		current.permanodeString() != child.permanodeString() {
 
 		child.xattr().load(permanode)
-		m.children[name] = child
+		n.children[name] = child
 	}
 }
 
@@ -562,8 +562,8 @@ var (
 	_ fs.NodeSetattrer   = (*mutFile)(nil)
 )
 
-func (m *mutFile) String() string {
-	return fmt.Sprintf("&mutFile{%p name=%q perm:%v}", m, m.fullPath(), m.permanode)
+func (n *mutFile) String() string {
+	return fmt.Sprintf("&mutFile{%p name=%q perm:%v}", n, n.fullPath(), n.permanode)
 }
 
 // for debugging

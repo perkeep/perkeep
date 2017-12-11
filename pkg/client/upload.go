@@ -531,7 +531,7 @@ type FileUploadOptions struct {
 //
 // Note: this method is still a work in progress, and might change to accommodate
 // the needs of camput file.
-func (cl *Client) UploadFile(filename string, contents io.Reader, opts *FileUploadOptions) (blob.Ref, error) {
+func (c *Client) UploadFile(filename string, contents io.Reader, opts *FileUploadOptions) (blob.Ref, error) {
 	fileMap := schema.NewFileMap(filename)
 	if opts != nil && opts.FileInfo != nil {
 		fileMap = schema.NewCommonFileMap(filename, opts.FileInfo)
@@ -548,7 +548,7 @@ func (cl *Client) UploadFile(filename string, contents io.Reader, opts *FileUplo
 	} else {
 		var buf bytes.Buffer
 		var err error
-		wholeRef, err = cl.wholeRef(io.TeeReader(contents, &buf))
+		wholeRef, err = c.wholeRef(io.TeeReader(contents, &buf))
 		if err != nil {
 			return blob.Ref{}, err
 		}
@@ -559,7 +559,7 @@ func (cl *Client) UploadFile(filename string, contents io.Reader, opts *FileUplo
 	// where all the parts are there, but the file schema/blob does not exist? Can that
 	// even happen ? I'm naively assuming it can't for now, since that's what camput file
 	// does too.
-	fileRef, err := cl.fileMapFromDuplicate(fileMap, wholeRef)
+	fileRef, err := c.fileMapFromDuplicate(fileMap, wholeRef)
 	if err != nil {
 		return blob.Ref{}, err
 	}
@@ -567,10 +567,10 @@ func (cl *Client) UploadFile(filename string, contents io.Reader, opts *FileUplo
 		return fileRef, nil
 	}
 
-	return schema.WriteFileMap(cl, fileMap, contents)
+	return schema.WriteFileMap(c, fileMap, contents)
 }
 
-func (cl *Client) wholeRef(contents io.Reader) (blob.Ref, error) {
+func (c *Client) wholeRef(contents io.Reader) (blob.Ref, error) {
 	// TODO(mpl): use a trackDigestReader once pulled from camput.
 	// and allow for different hash type. maybe also move to another pkg.
 	h := sha1.New()
@@ -592,8 +592,8 @@ func (cl *Client) wholeRef(contents io.Reader) (blob.Ref, error) {
 // already be partially populated) has its "parts" field populated,
 // and then fileMap is uploaded (if necessary).
 // If no file blob is found, a zero blob.Ref (and no error) is returned.
-func (cl *Client) fileMapFromDuplicate(fileMap *schema.Builder, wholeRef blob.Ref) (blob.Ref, error) {
-	dupFileRef, err := cl.SearchExistingFileSchema(wholeRef)
+func (c *Client) fileMapFromDuplicate(fileMap *schema.Builder, wholeRef blob.Ref) (blob.Ref, error) {
+	dupFileRef, err := c.SearchExistingFileSchema(wholeRef)
 	if err != nil {
 		return blob.Ref{}, err
 	}
@@ -601,7 +601,7 @@ func (cl *Client) fileMapFromDuplicate(fileMap *schema.Builder, wholeRef blob.Re
 		// because SearchExistingFileSchema returns blob.Ref{}, nil when file is not found.
 		return blob.Ref{}, nil
 	}
-	dupMap, err := cl.FetchSchemaBlob(dupFileRef)
+	dupMap, err := c.FetchSchemaBlob(dupFileRef)
 	if err != nil {
 		return blob.Ref{}, fmt.Errorf("could not find existing file blob for wholeRef %q: %v", wholeRef, err)
 	}
@@ -615,7 +615,7 @@ func (cl *Client) fileMapFromDuplicate(fileMap *schema.Builder, wholeRef blob.Re
 		// Unchanged (same filename, modtime, JSON serialization, etc)
 		return dupFileRef, nil
 	}
-	sbr, err := cl.ReceiveBlob(bref, strings.NewReader(json))
+	sbr, err := c.ReceiveBlob(bref, strings.NewReader(json))
 	if err != nil {
 		return blob.Ref{}, err
 	}

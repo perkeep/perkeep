@@ -77,12 +77,12 @@ var (
 	_ blobserver.MaxEnumerateConfig = (*Storage)(nil)
 )
 
-func (gs *Storage) MaxEnumerate() int { return 1000 }
+func (s *Storage) MaxEnumerate() int { return 1000 }
 
-func (gs *Storage) StorageGeneration() (time.Time, string, error) {
-	return gs.genTime, gs.genRandom, nil
+func (s *Storage) StorageGeneration() (time.Time, string, error) {
+	return s.genTime, s.genRandom, nil
 }
-func (gs *Storage) ResetStorageGeneration() error { return errors.New("not supported") }
+func (s *Storage) ResetStorageGeneration() error { return errors.New("not supported") }
 
 func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
 	var (

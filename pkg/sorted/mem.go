@@ -50,9 +50,9 @@ type memIter struct {
 	k, v *string           // if nil, not stringified yet
 }
 
-func (t *memIter) Next() bool {
-	t.k, t.v = nil, nil
-	return t.lit.Next()
+func (s *memIter) Next() bool {
+	s.k, s.v = nil, nil
+	return s.lit.Next()
 }
 
 func (s *memIter) Close() error {

@@ -178,7 +178,7 @@ func (octx OAuthContext) Get(url string, form url.Values) (*http.Response, error
 
 // PopulateJSONFromURL makes a GET call at apiURL, using keyval as parameters of
 // the associated form. The JSON response is decoded into result.
-func (ctx OAuthContext) PopulateJSONFromURL(result interface{}, apiURL string, keyval ...string) error {
+func (octx OAuthContext) PopulateJSONFromURL(result interface{}, apiURL string, keyval ...string) error {
 	if len(keyval)%2 == 1 {
 		return errors.New("incorrect number of keyval arguments. must be even")
 	}
@@ -188,7 +188,7 @@ func (ctx OAuthContext) PopulateJSONFromURL(result interface{}, apiURL string, k
 		form.Set(keyval[i], keyval[i+1])
 	}
 
-	hres, err := ctx.Get(apiURL, form)
+	hres, err := octx.Get(apiURL, form)
 	if err != nil {
 		return err
 	}
