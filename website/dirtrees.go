@@ -318,9 +318,9 @@ func (root *Directory) listing(skipRoot bool) *DirList {
 		p.Depth = d.Depth - minDepth
 		p.Height = maxHeight - p.Depth
 		// the suffix is absolute, with the camlistore dir as the root
-		idx := strings.LastIndex(d.Path, domainName)
-		if idx == -1 {
-			log.Fatalf("No \"%s\" in path to file %s", domainName, d.Path)
+		domainName, idx, err := domainInPath(d.Path)
+		if err != nil {
+			log.Fatal(err)
 		}
 		suffix := pathpkg.Clean(d.Path[idx+len(domainName):])
 
