@@ -187,7 +187,7 @@ func contribHandler() http.HandlerFunc {
 		title = string(m[1])
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		servePage(w, pageParams{
+		servePage(w, r, pageParams{
 			title:   title,
 			content: c,
 		})

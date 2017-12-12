@@ -415,7 +415,7 @@ func serveTextFile(w http.ResponseWriter, r *http.Request, abspath, relpath, tit
 	buf.WriteString("<pre>")
 	FormatText(&buf, src, 1, pathpkg.Ext(abspath) == ".go", r.FormValue("h"), rangeSelection(r.FormValue("s")))
 	buf.WriteString("</pre>")
-	servePage(w, pageParams{
+	servePage(w, r, pageParams{
 		title:   title,
 		content: buf.Bytes(),
 	})
@@ -466,7 +466,7 @@ func (godocHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	subtitle := pathpkg.Base(diskPath)
 	title := subtitle + " (" + pathpkg.Join(domainName, suffix) + ")"
-	servePage(w, pageParams{
+	servePage(w, r, pageParams{
 		title:    title,
 		subtitle: subtitle,
 		content:  applyTextTemplate(packageHTML, "packageHTML", pi),

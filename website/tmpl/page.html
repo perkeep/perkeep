@@ -16,7 +16,7 @@
 {{define "header"}}
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-<meta name="go-import" content="camlistore.org git https://camlistore.googlesource.com/camlistore">
+<meta name="go-import" content="{{.Domain}} git https://camlistore.googlesource.com/camlistore">
 {{with $x := .Title}}
   <title>{{$x}} - Camlistore</title>
 {{else}}

@@ -177,13 +177,22 @@ func applyTemplate(t *template.Template, name string, data interface{}) []byte {
 	return buf.Bytes()
 }
 
+// goGetDomain returns one of the two domains that we serve for the "go-import"
+// meta header
+func goGetDomain(host string) string {
+	if host == "camlistore.org" {
+		return host
+	}
+	return "perkeep.org"
+}
+
 type pageParams struct {
 	title    string // required
 	subtitle string // used by pkg doc
 	content  []byte // required
 }
 
-func servePage(w http.ResponseWriter, params pageParams) {
+func servePage(w http.ResponseWriter, r *http.Request, params pageParams) {
 	title, subtitle, content := params.title, params.subtitle, params.content
 	// insert an "install command" if it applies
 	if strings.Contains(title, cmdPattern) && subtitle != cmdPattern {
@@ -197,12 +206,15 @@ func servePage(w http.ResponseWriter, params pageParams) {
 		Title    string
 		Subtitle string
 		Content  template.HTML
+		Domain   string // for the "go-import" meta header
 	}{
 		title,
 		subtitle,
 		template.HTML(content),
+		// the redirects happening before should ensure that r.Host is only ever one of
+		// camlistore.org or perkeep.org
+		goGetDomain(r.Host),
 	}
-
 	if err := pageHTML.ExecuteTemplate(w, "page", &d); err != nil {
 		log.Printf("godocHTML.Execute: %s", err)
 	}
@@ -232,7 +244,7 @@ func readTemplates() {
 func serveError(w http.ResponseWriter, r *http.Request, relpath string, err error) {
 	contents := applyTemplate(errorHTML, "errorHTML", err) // err may contain an absolute path!
 	w.WriteHeader(http.StatusNotFound)
-	servePage(w, pageParams{
+	servePage(w, r, pageParams{
 		title:   "File " + relpath,
 		content: contents,
 	})
@@ -440,7 +452,7 @@ func serveFile(w http.ResponseWriter, r *http.Request, relPath, absPath string) 
 		title = string(m[1])
 	}
 
-	servePage(w, pageParams{
+	servePage(w, r, pageParams{
 		title:   title,
 		content: data,
 	})
@@ -467,6 +479,12 @@ func (h *redirectRootHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if goget := r.FormValue("go-get"); goget == "1" {
+		// do not redirect on a go get request, because we want to be able to serve the
+		// "go-import" meta for camlistore.org, and not just for perkeep.org
+		h.Handler.ServeHTTP(rw, r)
+		return
+	}
 	host := strings.ToLower(r.Host)
 	if host == "www.camlistore.org" || host == "camlistore.org" ||
 		host == "www."+prodDomain || (inProd && r.TLS == nil) {
@@ -1177,7 +1195,7 @@ func errHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	contents := applyTemplate(camliErrorHTML, "camliErrorHTML", data)
 	w.WriteHeader(http.StatusFound)
-	servePage(w, pageParams{
+	servePage(w, r, pageParams{
 		title:   errString,
 		content: contents,
 	})
