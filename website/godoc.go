@@ -42,18 +42,20 @@ import (
 )
 
 const (
-	// TODO(mpl): when we move to perkeep.org in all of the website's contents, we
-	// change this domainName as well. However, we probably want to make godoc work for
-	// both perkeep.org and camlistore.org. Or maybe we don't care? plus there's
-	// godoc.org anyway.
-	domainName       = "camlistore.org"
 	pkgPattern       = "/pkg/"
 	cmdPattern       = "/cmd/"
 	appPattern       = "/app/"
 	fileembedPattern = "fileembed.go"
 )
 
-var docRx = regexp.MustCompile(`^/((?:pkg|cmd|app)/([\w/]+?)(\.go)??)/?$`)
+var (
+	docRx = regexp.MustCompile(`^/((?:pkg|cmd|app)/([\w/]+?)(\.go)??)/?$`)
+	// TODO(mpl): in retrospect, I don't think both domains are needed since we're
+	// supposed to redirect everything to perkeep.org before we get to that point. So
+	// just replacing camlistore.org with perkeep.org as the single domain in that file
+	// should work. But better safe than sorry for now.
+	domainNames = []string{"perkeep.org", "camlistore.org"}
+)
 
 var tabwidth = 4
 
@@ -180,6 +182,25 @@ func comment_htmlFunc(comment string) string {
 	return buf.String()
 }
 
+// domainInPath verifies that filePath contains one of the allowed domains we're
+// serving for. On success, it returns which domain was found, and at which
+// position index in filePath.
+func domainInPath(filePath string) (string, int, error) {
+	var idx int
+	var domainName string
+	for _, v := range domainNames {
+		domainName = v
+		idx = strings.LastIndex(filePath, domainName)
+		if idx != -1 {
+			break
+		}
+	}
+	if idx == -1 {
+		return "", idx, fmt.Errorf("No domain name \"%s\" in path to file %s", domainName, filePath)
+	}
+	return domainName, idx, nil
+}
+
 func posLink_urlFunc(node ast.Node, fset *token.FileSet) string {
 	var relpath string
 	var line int
@@ -187,9 +208,9 @@ func posLink_urlFunc(node ast.Node, fset *token.FileSet) string {
 
 	if p := node.Pos(); p.IsValid() {
 		pos := fset.Position(p)
-		idx := strings.LastIndex(pos.Filename, domainName)
-		if idx == -1 {
-			log.Fatalf("No \"%s\" in path to file %s", domainName, pos.Filename)
+		domainName, idx, err := domainInPath(pos.Filename)
+		if err != nil {
+			log.Fatal(err)
 		}
 		relpath = pathpkg.Clean(pos.Filename[idx+len(domainName):])
 		line = pos.Line
@@ -221,9 +242,9 @@ func posLink_urlFunc(node ast.Node, fset *token.FileSet) string {
 }
 
 func srcLinkFunc(s string) string {
-	idx := strings.LastIndex(s, domainName)
-	if idx == -1 {
-		log.Fatalf("No \"%s\" in path to file %s", domainName, s)
+	domainName, idx, err := domainInPath(s)
+	if err != nil {
+		log.Fatal(err)
 	}
 	return pathpkg.Clean(s[idx+len(domainName):])
 }
@@ -235,7 +256,8 @@ func (pi *PageInfo) populateDirs(diskPath string, depth int) {
 	pi.DirTime = time.Now()
 }
 
-func getPageInfo(pkgName, diskPath string) (pi PageInfo, err error) {
+func getPageInfo(domainName, suffix, diskPath string) (pi PageInfo, err error) {
+	pkgName := pathpkg.Join(domainName, suffix)
 	if pkgName == pathpkg.Join(domainName, pkgPattern) ||
 		pkgName == pathpkg.Join(domainName, cmdPattern) ||
 		pkgName == pathpkg.Join(domainName, appPattern) {
@@ -403,6 +425,21 @@ type godocHandler struct{}
 
 func (godocHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m := docRx.FindStringSubmatch(r.URL.Path)
+	hostName := r.Host
+	var domainName string
+	found := false
+	for _, v := range domainNames {
+		domainName = v
+		if hostName == domainName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		log.Printf("%v hostname not an allowed domain name", hostName)
+		http.NotFound(w, r)
+		return
+	}
 	suffix := ""
 	if m == nil {
 		if r.URL.Path != pkgPattern && r.URL.Path != cmdPattern && r.URL.Path != appPattern {
@@ -421,15 +458,14 @@ func (godocHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pkgName := pathpkg.Join(domainName, suffix)
-	pi, err := getPageInfo(pkgName, diskPath)
+	pi, err := getPageInfo(domainName, suffix, diskPath)
 	if err != nil {
 		log.Print(err)
 		return
 	}
 
 	subtitle := pathpkg.Base(diskPath)
-	title := subtitle + " (" + pkgName + ")"
+	title := subtitle + " (" + pathpkg.Join(domainName, suffix) + ")"
 	servePage(w, pageParams{
 		title:    title,
 		subtitle: subtitle,
