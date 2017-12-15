@@ -1,7 +1,7 @@
 # Share Claim
 
 A share claim makes blob(s) available to others. (that is, parties who are not
-the owner of the Camlistore instance).
+the owner of the Perkeep instance).
 
 Example:
 

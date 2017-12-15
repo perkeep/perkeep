@@ -1,6 +1,6 @@
-# Camlistore Overview
+# Perkeep Overview
 
-Camlistore is your **personal storage system for life**.
+Perkeep is your **personal storage system for life**.
 
 ## Summary
 
@@ -39,7 +39,7 @@ The project began because I wanted to...
   higher-level objects. e.g. a "recent" directory of recent photos from my
   Android phone (this all works already in 0.1)
 
-* **Not write another CMS system, ever**. Camlistore should be able to store
+* **Not write another CMS system, ever**. Perkeep should be able to store
   and model any type of content, so it can just be a backend for other apps.
 
 * ... have **backups of all my social network content** I created daily on
@@ -76,22 +76,22 @@ have all our content, it's then nice to search it, view it, and
 directly serve it or share it out to others (public or with select
 ACLs), regardless of the original host's policies.
 
-Camlistore is a system to do all that.
+Perkeep is a system to do all that.
 
-While Camlistore can store files like a traditional filesystem
+While Perkeep can store files like a traditional filesystem
 (think: "directories", "files", "filenames"), it's specialized in
 storing higher-level objects, which can represent anything.
 
-In addition to an implementation, Camlistore is also a schema for
+In addition to an implementation, Perkeep is also a schema for
 how to represent many types of content. Much JSON is used.
 
-Because every type of content in Camlistore is represented using
+Because every type of content in Perkeep is represented using
 content-addressable blobs (even metadata), it's impossible to
-"overwrite" things. It also means it's easy for Camlistore to sync in
-any direction between your devices and Camlistore storage servers, without
+"overwrite" things. It also means it's easy for Perkeep to sync in
+any direction between your devices and Perkeep storage servers, without
 versioning or conflict resolution issues.
 
-Camlistore can represent both immutable information (like snapshots
+Perkeep can represent both immutable information (like snapshots
 of filesystem trees), but can also represent mutable
 information. Mutable information is represented by storing immutable,
 timestamped, GPG-signed blobs representing a mutation request. The
@@ -104,24 +104,24 @@ Despite using parts of the OpenPGP spec, users don't need to use
 the GnuPG tools or go to key signing events or anything dorky like
 that.
 
-You are in control of your Camlistore server(s), whether you run
+You are in control of your Perkeep server(s), whether you run
 your own copy or use a hosted version. In the latter case, you're at
 least logically in control, analagous to how you're in charge of your
 email (and it's your private repository of all your email), even if a
 big company runs your email for you. Of course, you can also store all
-your email in Camlistore too, but Gmail's interface and search is much
+your email in Perkeep too, but Gmail's interface and search is much
 better.
 
-Responsible (or paranoid) users would set up their Camlistore
+Responsible (or paranoid) users would set up their Perkeep
 servers to cross-replicate and mirror between different big companies'
 cloud platforms if they're not able to run their own servers between
 different geographical areas. (e.g. cross-replicating between
 different big disks stored within a family)
 
-A Camlistore server comprises several parts, all of which are
+A Perkeep server comprises several parts, all of which are
 optional and can be turn on or off per-instance:
 
-* **Storage**: the most basic part of a Camlistore server is
+* **Storage**: the most basic part of a Perkeep server is
   storage. This is anything which can Get or Put a blob (named by its
   content-addressable digest), and enumerate those blobs, sorted by
   their digest. The only metadata a storage server needs to track
@@ -136,14 +136,14 @@ optional and can be turn on or off per-instance:
   interface, so can be synchronously or asynchronously replicated to
   from other storage types. Putting a blob indexes it, enumerating
   returns what has been indexed, and getting isn't supported. An
-  abstraction within Camlistore similar to the storage abstractions
+  abstraction within Perkeep similar to the storage abstractions
   means that any underlying system which can store keys & values and
   can scan in sorted order from a point can be used to store
-  Camlistore's indexes. Implementations are likewise trivial and exist
+  Perkeep's indexes. Implementations are likewise trivial and exist
   for memory (for development), SQLite, LevelDB, MySQL, Postgres,
   MongoDB, App Engine, etc. Dynamo and others would be trivial.
 
-* **Search**: pointing Camlistore's search handlers at an index
+* **Search**: pointing Perkeep's search handlers at an index
   means you can search for your things.  It's worth pointing out that
   you can lose your index at any time. If your database holding your index
   goes corrupt, just delete it all and re-replicate from your storage

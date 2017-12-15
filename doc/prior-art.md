@@ -16,7 +16,7 @@
     [Fossil](https://en.wikipedia.org/wiki/Fossil_\(file_system\)), apparently
     pioneered the idea of recursive content-addressable file systems.
 
-* [Monotone](http://www.monotone.ca/)'s "Certificates" are similar to Camli
+* [Monotone](http://www.monotone.ca/)'s "Certificates" are similar to Perkeep
   claims.
 
 Probably more, though.  Contributions to this list are welcome!

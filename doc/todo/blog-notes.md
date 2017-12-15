@@ -1,4 +1,4 @@
-Thoughts on storing a blog in Camlistore and serving it from the
+Thoughts on storing a blog in Perkeep and serving it from the
 publish handler.
 
 * a blog is a permanode

@@ -1,9 +1,9 @@
 # Application Environment
 
-Camlistore applications run with the following environment variables set:
+Perkeep applications run with the following environment variables set:
 
 `CAMLI_API_HOST` (string)
-: URL prefix of the Camlistore server which the app should use to make API calls.
+: URL prefix of the Perkeep server which the app should use to make API calls.
   It always ends in a trailing slash. Examples:
    -   https://foo.org:3178/pub/
    -   https://foo.org/pub/
@@ -30,10 +30,10 @@ Camlistore applications run with the following environment variables set:
 
 `CAMLI_AUTH` (string)
 : Username and password (username:password) that the app should use to
-  authenticate over HTTP basic auth with the Camlistore server. Basic auth is
+  authenticate over HTTP basic auth with the Perkeep server. Basic auth is
   unencrypted, hence it should only be used with HTTPS or in a secure (local
   loopback) environment.
 
 See the
 [app.HandlerConfig](https://camlistore.org/pkg/server/app/#HandlerConfig)
-type for how the Camlistore's app handler sets the variables up.
+type for how the Perkeep app handler sets the variables up.

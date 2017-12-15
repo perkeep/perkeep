@@ -66,7 +66,7 @@ server configurations. For example:
 
 * `trustedCerts`: Optional. This is the list of TLS server certificate
   fingerprints that the client will trust when using HTTPS. It is required when
-  the server is using a self-signed certificate (as Camlistore generates by
+  the server is using a self-signed certificate (as Perkeep generates by
   default) instead of a Root Certificate Authority-signed cert (sometimes known
   as a "commercial SSL cert"). The format of each item is the first 20 hex
   digits of the SHA-256 digest of the cert. Example: `"trustedCerts":

@@ -6,7 +6,7 @@ JSON. It can either be in [simple mode](#simplemode) (for basic configurations),
 
 # Configuration Keys & Values {#simplemode}
 
-**Note,** if you can't find what you're looking for here, check the API docs: [/pkg/types/serverconfig](https://camlistore.org/pkg/types/serverconfig/).
+**Note,** if you can't find what you're looking for here, check the API docs: [/pkg/types/serverconfig](https://perkeep.org/pkg/types/serverconfig/).
 
 * `auth`: the authentication mechanism to use. Example values include:
 
@@ -23,7 +23,7 @@ JSON. It can either be in [simple mode](#simplemode) (for basic configurations),
     operations (upload new things, but not access anything).
 
 * `baseURL`: Optional. If non-empty, this is the root of your URL prefix for
-  your Camlistore server. Useful for when running behind a reverse proxy.
+  your Perkeep server. Useful for when running behind a reverse proxy.
   Should not end in a slash. e.g. `https://yourserver.example.com`
 
 * `https`: if "true", HTTPS is used.
@@ -36,12 +36,12 @@ JSON. It can either be in [simple mode](#simplemode) (for basic configurations),
     [Let's Encrypt](https://letsencrypt.org) is requested automatically if the
     following conditions apply:
      * A fully qualified domain name is specified in either `baseURL` or `listen`.
-     * Camlistore listens on port `443` in order to answer the TLS-SNI challenge
+     * Perkeep listens on port `443` in order to answer the TLS-SNI challenge
        from Let's Encrypt.
   * As a fallback, if no FQDN is found, a self-signed certificate is generated.
 
 * `camliNetIP`: the optional internet-facing IP address for this
-  Camlistore instance. If set, a name in the camlistore.net domain for
+  Perkeep instance. If set, a name in the camlistore.net domain for
   that IP address will be requested on startup. The obtained domain name
   will then be used as the host name in the base URL.
   For now, the protocol to get the name requires receiving a challenge
@@ -80,7 +80,7 @@ JSON. It can either be in [simple mode](#simplemode) (for basic configurations),
   may be unsupported in the future. Keeping this set to "true" is recommended.
 
 * `sourceRoot`: Optional. If non-empty, it specifies the path to an alternative
-  Camlistore source tree, in order to override the embedded UI and/or Closure
+  Perkeep source tree, in order to override the embedded UI and/or Closure
   resources. The UI files will be expected in `<sourceRoot>/server/camlistored/ui`
   and the Closure library in `<sourceRoot>/third_party/closure/lib`.
 
@@ -107,7 +107,7 @@ storage and the other ones are set up as mirrors. The precedence order is the
 same as the order they are listed above.
 
 Others aren't yet supported by the simple config mode. Patches to
-[pkg/serverinit](https://camlistore.org/pkg/serverinit/genconfig.go) welcome.
+[pkg/serverinit](https://perkeep.org/pkg/serverinit/genconfig.go) welcome.
 
 Examples for [configuring storage backends](/doc/storage-examples.md)
 
@@ -132,7 +132,7 @@ by `devcam server`.
 
 ## Publishing options {#publishing}
 
-Camlistore uses Go html templates to publish pages, and publishing can be
+Perkeep uses Go html templates to publish pages, and publishing can be
 configured through the `publish` key. There is already support for an image
 gallery view, which can be enabled similarly to the example below (obviously,
 the rootPermanode will be different).
@@ -147,7 +147,7 @@ the rootPermanode will be different).
     }
 
 See the
-[serverconfig.Publish](https://camlistore.org/pkg/types/serverconfig/#Publish)
+[serverconfig.Publish](https://perkeep.org/pkg/types/serverconfig/#Publish)
 type for all the configuration parameters.
 
 One can create any permanode with camput or the UI, and set its camliRoot
@@ -161,7 +161,7 @@ make/contribute more publishing views.
 
 ## Importers
 
-Camlistore has several built-in importers, including:
+Perkeep has several built-in importers, including:
 
  * Feeds (RSS, Atom, and RDF)
  * Flickr
@@ -200,19 +200,19 @@ tested as the MySQL one.
 
 You can specify a low-level configuration file to camlistored with the same
 `-configfile` option that is used to specify the simple mode configuration file.
-Camlistore tests for the presence of the `"handlerConfig": true` key/value
+Perkeep tests for the presence of the `"handlerConfig": true` key/value
 pair to determine whether the configuration should be considered low-level.
 
 As the low-level configuration needs to be much more detailed and precise, it is
 not advised to write one from scratch. Therefore, the easiest way to get started
-is to first run Camlistore with a simple configuration (or none, as one will be
+is to first run Perkeep with a simple configuration (or none, as one will be
 automatically generated), and to download the equivalent low-level configuration
-that can be found at /debug/config on your Camlistore instance.
+that can be found at /debug/config on your Perkeep instance.
 
 In the following are examples of features that can only be achieved through
 low-level configuration, for now.
 
-## Replication to another Camlistore instance {#replication}
+## Replication to another Perkeep instance {#replication}
 
 If `"/bs"` is the storage for your primary instance, such as for example:
 
@@ -241,7 +241,7 @@ prefix `"/bsrepl/"`, which can be defined as:
             }
         },
 
-where `"/r1/"` is the blobserver for your other Camlistore instance, such as:
+where `"/r1/"` is the blobserver for your other Perkeep instance, such as:
 
 		"/r1/": {
 			"handler": "storage-remote",

@@ -1,6 +1,6 @@
 # Publishing
 
-Camlistore delegates publishing to the publisher server application, which
+Perkeep delegates publishing to the publisher server application, which
 uses Go html templates (http://golang.org/pkg/text/template/) to publish
 pages.
 
@@ -46,18 +46,18 @@ Keeping with the example above, it would serve
 http(s)://«camlihost:port»/pics/foo and http(s)://«camlihost:port»/pics/bar .
 
 The parameters for setting up the app's process ("listen", "backendURL", and
-"apiHost") are derived from the Camlistore server's "listen", and "baseURL", but
+"apiHost") are derived from the Perkeep server's "listen", and "baseURL", but
 should the need arise (e.g. with a proxy setup) they can be specified as well.
-See [serverconfig.Publish](https://camlistore.org/pkg/types/serverconfig/#Publish)
+See [serverconfig.Publish](https://perkeep.org/pkg/types/serverconfig/#Publish)
 type for the details.
 
 If you want to provide your own (Go) template, see
-[camlistore.org/pkg/publish](/pkg/publish) for the data structures and
+[perkeep.org/pkg/publish](/pkg/publish) for the data structures and
 functions available to the template.
 
-## Running Camlistore (and publisher) behind a reverse proxy
+## Running Perkeep (and publisher) behind a reverse proxy
 
-When Camlistore is serving in HTTP mode behind a HTTPS reverse proxy,
+When Perkeep is serving in HTTP mode behind a HTTPS reverse proxy,
 further settings are necessary to set up communication between publisher and
 the parent camlistored process.
 

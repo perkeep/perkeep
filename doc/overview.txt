@@ -1,11 +1,11 @@
 ============================================================================
-Camlistore: Content-Addressable Multi-Layer, Indexed Store
+Perkeep (was Camlistore: Content-Addressable Multi-Layer, Indexed Store)
 ============================================================================
 
 This file contains old design notes.  They're correct in spirit, but shouldn't
 be considered authorative.
 
-See http://camlistore.org/doc/
+See http://perkeep.org/doc/
 
 
 -=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -19,8 +19,8 @@ Design goals:
 * No sync state or races on arguments of latest versions
 * Future-proof
 * Very obvious/intuitive schema (easy to recover in the future, even
-  if all docs/notes about Camlistore are lost, or the recoverer in
-  five decades after I die doesn't even know that Camlistore was being
+  if all docs/notes about Perkeep are lost, or the recoverer in
+  five decades after I die doesn't even know that Perkeep was being
   used....) should be easy for future digital archaeologists to grok.
 
 -=-=-=-=-=-=-=-=-=-=-=-=-=-

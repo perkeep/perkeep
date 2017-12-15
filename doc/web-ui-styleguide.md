@@ -7,8 +7,8 @@ adhere to all of these goals yet. New code should, though.*
 
 ## Architecture
 
-The Camlistore web application is an "[AJAX][]"-style web app that interacts
-with Camlistore servers just as any other client would.  It speaks the same
+The Perkeep web application is an "[AJAX][]"-style web app that interacts
+with Perkeep servers just as any other client would.  It speaks the same
 HTTP APIs as the Android and iOS clients, for example. We avoid creating APIs
 that are specific to one client, instead preferring to generalize functionality
 such that all current clients and even unknown future clients can make use of
