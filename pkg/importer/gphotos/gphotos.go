@@ -252,7 +252,8 @@ func (imp) AccountSetupHTML(host *importer.Host) string {
 <p>First, you need to enable the Google Photos folder in the <a href='https://drive.google.com/'>Google Drive</a> settings.</p>
 <p>Then visit <a href='https://console.developers.google.com/'>https://console.developers.google.com/</a>
 and create a new project.</p>
-<p>Then under "API Manager" in the left sidebar, click on "Credentials", then click the button <b>"Create credentials"</b>, and pick <b>"OAuth client ID"</b>.</p>
+<p>Next, go to the <a href='https://console.cloud.google.com/apis/library'>API Library</a> of your project, and enable the <em>Google Drive API</em>. You may have to wait a few minutes after this step, before the API is enabled on Google's side.</p>
+<p>Finally, go to the <a href='https://console.cloud.google.com/apis/credentials'>API Credentials</a> of your project. Click the button <b>"Create credentials"</b>, and pick <b>"OAuth client ID"</b>.</p>
 <p>Use the following settings:</p>
 <ul>
   <li>Web application</li>
