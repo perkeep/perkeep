@@ -16,17 +16,21 @@ import (
 )
 
 var urlsMap = map[string]author{
-	"brad@danga.com":             {URL: "http://bradfitz.com/", Role: "founder, lead"},
-	"bslatkin@gmail.com":         {URL: "http://www.onebigfluke.com/", Role: "co-founder"},
-	"mathieu.lonjaret@gmail.com": {URL: "https://granivo.re/", Role: "has touched almost everything"},
-	"zboogs@gmail.com":           {URL: "http://www.aaronboodman.com/", Role: "web interface lead"},
-	"adg@golang.org":             {URL: "http://nf.id.au/"},
-	"dustin@spy.net":             {URL: "http://dustin.sallings.org/"},
-	"dan@erat.org":               {URL: "http://www.erat.org/"},
-	"martine@danga.com":          {URL: "http://neugierig.org/"},
-	"agl@golang.org":             {URL: "http://www.imperialviolet.org/"},
-	"lsimon@commoner.com":        {Role: "original publishing UI"},
-	"s@0x65.net":                 {URL: "https://0x65.net/"},
+	"brad@danga.com":     {URL: "http://bradfitz.com/", Role: "founder, lead"},
+	"bslatkin@gmail.com": {URL: "http://www.onebigfluke.com/", Role: "co-founder"},
+	"mathieu.lonjaret@gmail.com": {
+		URL:   "https://granivo.re/mpl.html",
+		Role:  "has touched almost everything",
+		Names: []string{"Mathieu Lonjaret"},
+	},
+	"zboogs@gmail.com":    {URL: "http://www.aaronboodman.com/", Role: "web interface lead"},
+	"adg@golang.org":      {URL: "http://nf.id.au/"},
+	"dustin@spy.net":      {URL: "http://dustin.sallings.org/"},
+	"dan@erat.org":        {URL: "http://www.erat.org/"},
+	"martine@danga.com":   {URL: "http://neugierig.org/"},
+	"agl@golang.org":      {URL: "http://www.imperialviolet.org/"},
+	"lsimon@commoner.com": {Role: "original publishing UI"},
+	"s@0x65.net":          {URL: "https://0x65.net/"},
 }
 
 type author struct {
@@ -157,6 +161,9 @@ func genContribPage() ([]byte, error) {
 		a := byEmail[email]
 		if a != nil {
 			a.add(&m)
+		}
+		if len(m.Names) > 0 {
+			a.Names = []string{m.Names[0]}
 		}
 	}
 
