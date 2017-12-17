@@ -267,7 +267,6 @@ and create a new project.</p>
 // A run is our state for a given run of the importer.
 type run struct {
 	*importer.RunContext
-	incremental  bool // whether we've completed a run in the past
 	photoGate    *syncutil.Gate
 	setNextToken func(string) error
 	dl           *downloader
@@ -310,7 +309,6 @@ func (imp) Run(rctx *importer.RunContext) error {
 	}
 	r := &run{
 		RunContext:   rctx,
-		incremental:  !forceFullImport && acctNode.Attr(importer.AcctAttrCompletedVersion) == runCompleteVersion,
 		photoGate:    syncutil.NewGate(3),
 		setNextToken: func(nextToken string) error { return acctNode.SetAttr(acctSinceToken, nextToken) },
 		dl:           dl,
@@ -419,9 +417,14 @@ func (ph photo) title(altTitle string) string {
 // contents, and with no conflicting attributes, exists. So we reuse that
 // permanode.
 // 4) A permanode for the photo object already exists, so we reuse it.
-func (r *run) updatePhoto(ctx context.Context, parent *importer.Object, ph photo) (ret error) {
+func (r *run) updatePhoto(ctx context.Context, parent *importer.Object, ph photo) error {
 	if ph.ID == "" {
 		return errors.New("photo has no ID")
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
 	}
 
 	// fileRefStr, in addition to being used as the camliConent value, is used
