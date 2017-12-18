@@ -65,13 +65,13 @@ type digestType interface {
 	bytes() []byte
 	digestName() string
 	newHash() hash.Hash
+	equalString(string) bool
 }
 
 func (r Ref) String() string {
 	if r.digest == nil {
 		return "<invalid-blob.Ref>"
 	}
-	// TODO: maybe memoize this.
 	dname := r.digest.digestName()
 	bs := r.digest.bytes()
 	buf := getBuf(len(dname) + 1 + len(bs)*2)[:0]
@@ -84,7 +84,6 @@ func (r Ref) StringMinusOne() string {
 	if r.digest == nil {
 		return "<invalid-blob.Ref>"
 	}
-	// TODO: maybe memoize this.
 	dname := r.digest.digestName()
 	bs := r.digest.bytes()
 	buf := getBuf(len(dname) + 1 + len(bs)*2)[:0]
@@ -93,6 +92,10 @@ func (r Ref) StringMinusOne() string {
 	buf[len(buf)-1]-- // no need to deal with carrying underflow (no 0 bytes ever)
 	return string(buf)
 }
+
+// EqualString reports whether r.String() is equal to s.
+// It does not allocate.
+func (r Ref) EqualString(s string) bool { return r.digest.equalString(s) }
 
 func (r Ref) appendString(buf []byte) []byte {
 	dname := r.digest.digestName()
@@ -403,9 +406,24 @@ func SHA1FromBytes(b []byte) Ref {
 
 type sha1Digest [20]byte
 
-func (s sha1Digest) digestName() string { return "sha1" }
-func (s sha1Digest) bytes() []byte      { return s[:] }
-func (s sha1Digest) newHash() hash.Hash { return sha1.New() }
+func (d sha1Digest) digestName() string { return "sha1" }
+func (d sha1Digest) bytes() []byte      { return d[:] }
+func (d sha1Digest) newHash() hash.Hash { return sha1.New() }
+func (d sha1Digest) equalString(s string) bool {
+	if len(s) != 45 {
+		return false
+	}
+	if !strings.HasPrefix(s, "sha1-") {
+		return false
+	}
+	s = s[len("sha1-"):]
+	for i, b := range d[:] {
+		if s[i*2] != hexDigit[b>>4] || s[i*2+1] != hexDigit[b&0xf] {
+			return false
+		}
+	}
+	return true
+}
 
 const maxOtherDigestLen = 128
 
@@ -419,6 +437,28 @@ type otherDigest struct {
 func (d otherDigest) digestName() string { return d.name }
 func (d otherDigest) bytes() []byte      { return d.sum[:d.sumLen] }
 func (d otherDigest) newHash() hash.Hash { return nil }
+func (d otherDigest) equalString(s string) bool {
+	wantLen := len(d.name) + len("-") + 2*d.sumLen
+	if d.odd {
+		wantLen--
+	}
+	if len(s) != wantLen || !strings.HasPrefix(s, d.name) || s[len(d.name)] != '-' {
+		return false
+	}
+	s = s[len(d.name)+1:]
+	for i, b := range d.sum[:d.sumLen] {
+		if s[i*2] != hexDigit[b>>4] {
+			return false
+		}
+		if i == d.sumLen-1 && d.odd {
+			break
+		}
+		if s[i*2+1] != hexDigit[b&0xf] {
+			return false
+		}
+	}
+	return true
+}
 
 var sha1Meta = &digestMeta{
 	ctor:  sha1FromBinary,

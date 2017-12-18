@@ -283,3 +283,54 @@ func TestJSONMarshalSized(t *testing.T) {
 		t.Fatalf("got %q, want %q", g, e)
 	}
 }
+
+var equalStringTests = []struct {
+	ref  Ref
+	str  string
+	want bool
+}{
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659", true},
+	// last digit wrong:
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "sha1-ce284c167558a9ef22df04390c87a6d0c9ed9658", false},
+	// second to last digit wrong:
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "sha1-ce284c167558a9ef22df04390c87a6d0c9ed9669", false},
+	// hyphen wrong:
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "sha1xce284c167558a9ef22df04390c87a6d0c9ed9659", false},
+	// truncated:
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "sha1-", false},
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "sha1", false},
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "", false},
+	// right length, wrong hash:
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "sha2-ce284c167558a9ef22df04390c87a6d0c9ed9659", false},
+
+	// Other hashes:
+	{MustParse("foo-cafe"), "foo-cafe", true},
+	{MustParse("foo-caf"), "foo-caf", true},
+
+	{MustParse("foo-cafe"), "foo-beef", false},
+	{MustParse("foo-cafe"), "bar-cafe", false},
+	{MustParse("foo-cafe"), "fooxbeef", false},
+	{MustParse("foo-caf"), "foo-cae", false},
+	{MustParse("foo-caf"), "foo-ca", false},
+}
+
+func TestEqualString(t *testing.T) {
+	for _, tt := range equalStringTests {
+		got := tt.ref.EqualString(tt.str)
+		if got != tt.want {
+			t.Errorf("ref %q EqualString(%q) = %v; want %v", tt.ref, tt.str, got, tt.want)
+		}
+	}
+}
+
+func BenchmarkEqualString(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		for _, tt := range equalStringTests {
+			got := tt.ref.EqualString(tt.str)
+			if got != tt.want {
+				b.Fatalf("ref %q EqualString(%q) = %v; want %v", tt.ref, tt.str, got, tt.want)
+			}
+		}
+	}
+}
