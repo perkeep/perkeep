@@ -18,6 +18,7 @@ package gphotos
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -85,8 +86,8 @@ func newDownloader(client *http.Client) (*downloader, error) {
 	}, nil
 }
 
-// photos returns a channel which will receive all the photos metadata
-// in batches.
+// foreachPhoto runs fn on each photo. If f returns an error, iteration
+// stops with that error.
 //
 // If sinceToken is provided, only photos modified or created after sinceToken are sent.
 // Typically, sinceToken is empty on the first importer run,
@@ -94,110 +95,96 @@ func newDownloader(client *http.Client) (*downloader, error) {
 // to be passed as the sinceToken in the next photos() call.
 //
 // Returns a new token to watch future changes.
-func (dl *downloader) photos(ctx context.Context, sinceToken string) (photosCh <-chan maybePhotos, nextToken string, err error) {
+func (dl *downloader) foreachPhoto(ctx context.Context, sinceToken string, fn func(context.Context, photo) error) (nextToken string, err error) {
 
+	if sinceToken != "" {
+		return dl.foreachPhotoFromChanges(ctx, sinceToken, fn)
+	}
+
+	// Get a start page token *before* we enumerate the world, so
+	// if there are changes during the import, we won't miss
+	// anything.
 	var sr *drive.StartPageToken
 	if err := dl.rateLimit(ctx, func() error {
 		var err error
 		sr, err = dl.Service.Changes.GetStartPageToken().Do()
 		return err
 	}); err != nil {
-		return nil, "", err
+		return "", err
 	}
 	nextToken = sr.StartPageToken
-
-	ch := make(chan maybePhotos, 1)
-	photosCh = ch
-	if sinceToken != "" {
-		go dl.getChanges(ctx, ch, sinceToken)
-	} else {
-		go dl.getPhotos(ctx, ch)
+	if nextToken == "" {
+		return "", errors.New("unexpected gdrive Changes.GetStartPageToken response with empty StartPageToken")
 	}
 
-	return photosCh, nextToken, nil
+	if err := dl.foreachPhotoFromScratch(ctx, fn); err != nil {
+		return "", err
+	}
+	return nextToken, nil
 }
 
 const fields = "id,name,mimeType,description,starred,properties,version,webContentLink,createdTime,modifiedTime,originalFilename,imageMediaMetadata(location,time)"
 
-// getPhotos sends all photos found on drive to ch.
-// It returns when all found photos were sent, or when an error occurs, or when it gets cancelled.
-// It does not close ch.
-func (dl *downloader) getPhotos(ctx context.Context, ch chan<- maybePhotos) {
-	var n int64
-	defer func() {
-		close(ch)
-		logf("received a total of %d files.", n)
-	}()
-
-	listCall := dl.Service.Files.List().
-		Fields("nextPageToken, files(" + fields + ")").
-		// If users ran the Picasa importer and they hit the 10000 images limit
-		// bug, they're missing their most recent photos, so we start by importing
-		// the most recent ones, since they should already have the oldest ones.
-		// However, https://developers.google.com/drive/v3/reference/files/list
-		// states OrderBy does not work for > 1e6 files.
-		OrderBy("createdTime desc,folder").
-		Spaces("photos").
-		PageSize(batchSize)
-
+func (dl *downloader) foreachPhotoFromScratch(ctx context.Context, fn func(context.Context, photo) error) error {
 	var token string
 	for {
 		select {
 		case <-ctx.Done():
-			ch <- maybePhotos{err: ctx.Err()}
-			return
+			return ctx.Err()
 		default:
 		}
 
-		listTokenCall := listCall.PageToken(token)
 		var r *drive.FileList
 		if err := dl.rateLimit(ctx, func() error {
 			var err error
-			r, err = listTokenCall.Context(ctx).Do()
+			listCall := dl.Service.Files.List().
+				Context(ctx).
+				Fields("nextPageToken, files(" + fields + ")").
+				// If users ran the Picasa importer and they hit the 10000 images limit
+				// bug, they're missing their most recent photos, so we start by importing
+				// the most recent ones, since they should already have the oldest ones.
+				// However, https://developers.google.com/drive/v3/reference/files/list
+				// states OrderBy does not work for > 1e6 files.
+				OrderBy("createdTime desc,folder").
+				Spaces("photos").
+				PageSize(batchSize).
+				PageToken(token)
+			r, err = listCall.Do()
 			return err
 		}); err != nil {
-			ch <- maybePhotos{err: err}
-			return
+			return err
 		}
 
-		logf("receiving %d files.", len(r.Files))
-		photos := make([]photo, 0, len(r.Files))
+		logf("got gdrive API response of batch of %d files", len(r.Files))
 		for _, f := range r.Files {
-			if f != nil {
-				photos = append(photos, dl.fileAsPhoto(f))
+			if f == nil {
+				// Can this happen? Was in the code before.
+				logf("unexpected nil entry in gdrive file list response")
+				continue
+			}
+			if err := fn(ctx, dl.fileAsPhoto(f)); err != nil {
+				return err
 			}
 		}
-		n += int64(len(photos))
-		ch <- maybePhotos{photos: photos}
-
-		if token = r.NextPageToken; token == "" {
-			return
+		token = r.NextPageToken
+		if token == "" {
+			return nil
 		}
 	}
 }
 
-// getChanges sends to ch all photos modified or created after sinceToken.
-// It returns after all found photos were sent, or when an error occurs, or when it gets cancelled.
-// It does not close ch.
-func (dl *downloader) getChanges(ctx context.Context, ch chan<- maybePhotos, sinceToken string) {
-	var n int64
-	defer func() {
-		close(ch)
-		logf("received a total of %d changes.", n)
-	}()
-
+func (dl *downloader) foreachPhotoFromChanges(ctx context.Context, sinceToken string, fn func(context.Context, photo) error) (nextToken string, err error) {
 	token := sinceToken
 	for {
 		select {
 		case <-ctx.Done():
-			ch <- maybePhotos{err: ctx.Err()}
-			return
+			return "", err
 		default:
 		}
 
 		var r *drive.ChangeList
 		if err := dl.rateLimit(ctx, func() error {
-			logf("importing changes at revision %v", token)
+			logf("importing changes from token point %q", token)
 			var err error
 			r, err = dl.Service.Changes.List(token).
 				Context(ctx).
@@ -208,31 +195,27 @@ func (dl *downloader) getChanges(ctx context.Context, ch chan<- maybePhotos, sin
 				IncludeRemoved(false).Do()
 			return err
 		}); err != nil {
-			ch <- maybePhotos{err: err}
-			return
+			return "", err
 		}
-		photos := make([]photo, 0, len(r.Changes))
 		for _, c := range r.Changes {
-			if c.File != nil {
-				photos = append(photos, dl.fileAsPhoto(c.File))
+			if c.File == nil {
+				// Can this happen? Was in the code before.
+				logf("unexpected nil entry in gdrive changes response")
+				continue
+			}
+			if err := fn(ctx, dl.fileAsPhoto(c.File)); err != nil {
+				return "", err
 			}
 		}
-		n += int64(len(photos))
-		if len(photos) > 0 {
-			ch <- maybePhotos{photos: photos}
-		}
-		if token = r.NextPageToken; token == "" {
-			return
+		token = r.NextPageToken
+		if token == "" {
+			nextToken = r.NewStartPageToken
+			if nextToken == "" {
+				return "", errors.New("unexpected gdrive changes response with both NextPageToken and NewStartPageToken empty")
+			}
+			return nextToken, nil
 		}
 	}
-	return
-}
-
-// maybePhotos contains the photos found in the response to a drive list call,
-// and the last error to occur, if any, when getting these photos.
-type maybePhotos struct {
-	photos []photo
-	err    error
 }
 
 type photo struct {

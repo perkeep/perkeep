@@ -43,6 +43,7 @@ import (
 	"go4.org/syncutil"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -325,50 +326,40 @@ func (imp) Run(rctx *importer.RunContext) error {
 }
 
 func (r *run) importPhotos(ctx context.Context, sinceToken string) error {
-	photosCh, nextToken, err := r.dl.photos(ctx, sinceToken)
-	if err != nil {
-		return fmt.Errorf("gphotos importer: %v", err)
-	}
 	photosNode, err := r.getTopLevelNode("photos")
 	if err != nil {
 		return fmt.Errorf("gphotos importer: get top level node: %v", err)
 	}
-	for batch := range photosCh {
+
+	grp, grpCtx := errgroup.WithContext(ctx)
+
+	nextToken, err := r.dl.foreachPhoto(grpCtx, sinceToken, func(ctx context.Context, ph photo) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
-		if batch.err != nil {
-			return err
+
+		r.photoGate.Start()
+		grp.Go(func() error {
+			defer r.photoGate.Done()
+			return r.updatePhoto(ctx, photosNode, ph)
+		})
+		return nil
+
+	})
+	if gerr := grp.Wait(); gerr != nil {
+		if err == nil || err == context.Canceled || err == context.DeadlineExceeded {
+			err = gerr
 		}
-		if err := r.importPhotosBatch(ctx, photosNode, batch.photos); err != nil {
-			return err
-		}
+	}
+	if err != nil {
+		return fmt.Errorf("gphotos importer: %v", err)
 	}
 	if r.setNextToken != nil {
 		r.setNextToken(nextToken)
 	}
 	return nil
-}
-
-func (r *run) importPhotosBatch(ctx context.Context, parent *importer.Object, photos []photo) error {
-	var grp syncutil.Group
-	for _, photo := range photos {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		photo := photo
-		r.photoGate.Start()
-		grp.Go(func() error {
-			defer r.photoGate.Done()
-			return r.updatePhoto(ctx, parent, photo)
-		})
-	}
-	return grp.Err()
 }
 
 func (ph photo) filename() string {
