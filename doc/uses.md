@@ -6,8 +6,8 @@ These are some higher-level roadmap goals. Only the first few are done, but all
 are various stages of implementation (as of 2013-06-12).
 
 * **Filesystem backups**: easy initial use case.  Since you can easily put
-[files & directories and such](/doc/schema/) in camlistore with
-[camput](/cmd/camput), you can use Camlistore for your backups.  Incremental
+[files & directories and such](/doc/schema/) in Perkeep with
+[camput](/cmd/camput), you can use Perkeep for your backups.  Incremental
 backups are basically free.
 
 * **Efficient remote filesystem**: should be easy to do an aggressively caching
@@ -20,19 +20,19 @@ everybody (private is the default).  This is already starting to work.  See
 [sharing](/doc/sharing.md).
 
 * **Blog / photo hosting / Document Management CMS:**  I intend to run my
-personal blog and photo / gallery hosting (with permissions) off of Camlistore.
+personal blog and photo / gallery hosting (with permissions) off of Perkeep.
 I also intend to replace my "scanningcabinet" document management software and
-use Camlistore instead.
+use Perkeep instead.
 
 * **Decentralized social networking**: a lofty but persistent goal. For
 example, to implement comments or tagging: One person could use claims to
 attach metadata to another person's image blob. The signing lets you verify
-identity.  The sharing/syncing semantics of camlistore let you easily save a
+identity.  The sharing/syncing semantics of Perkeep let you easily save a
 copy of all your friends' pictures.
 
 * **Import/export adapters for hosted web services:**  Don't worry about web
 services shutting down or going downhill.  Mirror all your data online in your
-private store.  Create it either in Camlistore (using open tools) and export to
+private store.  Create it either in Perkeep (using open tools) and export to
 hosted services, or create content in hosted services and continually mirror it
-back into your private Camlistore.  Relax knowing that your data is yours,
+back into your private Perkeep.  Relax knowing that your data is yours,
 forever.

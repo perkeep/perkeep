@@ -1,28 +1,28 @@
 # Documentation
 
 * [Overview](/doc/overview.md): The original motivation and background for why
-  Camlistore exists and what one might use it for.
+  Perkeep exists and what one might use it for.
 
 
 ## For Users
 
-**If you're just looking to set up a Camlistore server and use it yourself,
+**If you're just looking to set up a Perkeep server and use it yourself,
 check out our [getting started guide](/download).** The documents below go into
 more detail on customizing the high level configuration for use such as
 alternative blob storage or synchronization to cloud storage.
 
 * [Command-line tools](/cmd/)
 * [Server Config](/doc/server-config.md): Details for configuring server storage
-  and access, including synchronization to other Camlistore servers or backup
+  and access, including synchronization to other Perkeep servers or backup
   to cloud storage providers
 * [Client config](/doc/client-config.md): Clients need this configuration file to
-  securely connect to your Camlistore server(s)
+  securely connect to your Perkeep server(s)
 
 
 ## For Developers
 
-If you want to help the development of Camlistore or just want to know more
-about the how and why behind Camlistore, these docs are the going to help you
+If you want to help the development of Perkeep or just want to know more
+about the how and why behind Perkeep, these docs are going to help you
 get started. **Something we didn't cover here that you're interested in?** Ask
 on the [mailing list](https://groups.google.com/group/camlistore).
 
@@ -41,7 +41,7 @@ on the [mailing list](https://groups.google.com/group/camlistore).
 
 * [Packages](/pkg/): internal API documentation
 * [Architecture](/doc/arch.md): the pieces, layers, and how they interact
-* [Schema](/doc/schema/): how we model data in Camlistore
+* [Schema](/doc/schema/): how we model data in Perkeep
 * [JSON Signing](/doc/json-signing/)
 * [Sharing](/doc/sharing.md)
 

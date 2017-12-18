@@ -1,6 +1,6 @@
 <h1>Status</h1>
 
-<p>Camlistore has <a href="/doc/arch.md">many pieces</a> and many <a
+<p>Perkeep has <a href="/doc/arch.md">many pieces</a> and many <a
 href="/doc/uses.md">potential use cases</a>.  Here are some of the
 pieces and use cases, and where they're at.</p>
 
@@ -46,14 +46,12 @@ pieces and use cases, and where they're at.</p>
 
 <tr><td><a href="/gw/clients/android">Android Uploader</a></td><td>90%</td><td>UI is kinda ugly in spots but it works and
 optionally backs up your SD card (photos, etc) to your blob server. Uses camput.
-Can also work in "Share with Camli" mode, one resource at a
+Can also work in "Share with Perkeep" mode, one resource at a
 time.</td></tr>
 
 <tr><td><a href="/gw/clients/chrome/clip-it-good">Clip It Good</a></td><td>80%</td>
 
-<td>Camli port of <a href="https://chrome.google.com/extensions/detail/aimbcenmfmipmcllpgajennfdfmmhmjj">Clip It Good</a>. Chrome extension allows right-click on images and save them to your blobserver.  (currently still forked)</td></tr>
-
-<tr><td><a href="/gw/clients/python">camliclient.py</a></td><td>50%</td><td>example command-line tool for uploading/downloading files using the <a href="/gw/lib/python">Python library</a>.</td></tr>
+<td>Perkeep port of <a href="https://chrome.google.com/extensions/detail/aimbcenmfmipmcllpgajennfdfmmhmjj">Clip It Good</a>. Chrome extension allows right-click on images and save them to your blobserver.  (currently still forked)</td></tr>
 
 </table>
 

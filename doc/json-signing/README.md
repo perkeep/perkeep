@@ -1,6 +1,6 @@
 # JSON Signing
 
-JSON claim objects need to be signed.  If I want to distribute a Camli
+JSON claim objects need to be signed.  If I want to distribute a Perkeep
 blob object publicly, declaring that I "favorite" or "star" a named
 entity, it should be verifiable.
 
@@ -52,22 +52,22 @@ can't have embedded newline literals.
 
 Further, the laptop.org proposal requires the use of a new JSON
 serialization library and parser for each language which wants to
-produce camli documents.  This isn't a huge deal, but considering that
+produce Perkeep documents.  This isn't a huge deal, but considering that
 JSON libraries already exist and people are oddly passionate about
 their favorites and inertia's not to be ignored, I state the next
 goal:
 
 ### GOAL #3) Don't require a new JSON library for parsing/serialization
 
-With the above goals in mind, Camli uses the following scheme to sign
+With the above goals in mind, Perkeep uses the following scheme to sign
 and verify JSON documents:
 
 ## SIGNING
 
 -  Start with a JSON object (not an array) to be encoded and signed.
    We'll call this data structure 'O'. While this signing technique
-   could be used for applications other than Camlistore, this document
-   is specifically about Camlistore, which requires that the JSON
+   could be used for applications other than Perkeep, this document
+   is specifically about Perkeep, which requires that the JSON
    object 'O' contain the following two key/value pairs:
 
         "camliVersion": "1"
@@ -155,7 +155,7 @@ this recommendation for compatibility with other verification code)
    and parse it as JSON. verify that it's a valid JSON object with
    exactly one key: "camliSig"
 
--  using 'camliSigner', a camli blobref, find the blob (cached, via
+-  using 'camliSigner', a Perkeep blobref, find the blob (cached, via
    camli/web lookup, etc) that represents a GPG public key.
 
 -  use GnuPG or equivalent libraries to verify that the ASCII-armored

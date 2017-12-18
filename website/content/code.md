@@ -7,10 +7,10 @@
     tree](https://camlistore.googlesource.com/camlistore/+/master)
 -   [Code Review](https://camlistore-review.googlesource.com/)
 
-## Making apps that work with Camlistore
+## Making apps that work with Perkeep
 
-Camlistore is built so that other apps can securely access and store
-data without running alongside it. Camlistore is the perfect backing
+Perkeep is built so that other apps can securely access and store
+data without running alongside it. Perkeep is the perfect backing
 store for other web apps and CMSes.
 
 Detailed documention on the HTTP blob retrieval protocol can be found at
@@ -26,7 +26,7 @@ place to start.
     [potential projects](/doc/todo) for inspiration. **Discuss it
     first**, especially if it's large and/or not well designed yet.
     You'll save yourself a headache if someone is already working on
-    something similar or if there's a more Camlistore-like approach to
+    something similar or if there's a more Perkeep-like approach to
     the issue.
 
 -   Submit your changes to Gerrit through the review process discussed below.
@@ -44,12 +44,12 @@ place to start.
     file). We follow the
     [Go convention](https://golang.org/doc/contribute.html#copyright)
     for the commit messages; see for examples:
-    [85bf99a7](https://camlistore.org/gw/85bf99a7), and
-    [8f9af410](https://camlistore.org/gw/8f9af410).
+    [85bf99a7](https://perkeep.org/gw/85bf99a7), and
+    [8f9af410](https://perkeep.org/gw/8f9af410).
 
 ### Code Review
 
--   Camlistore requires changes to be reviewed before they are
+-   Perkeep requires changes to be reviewed before they are
     committed.
 
 -   Update your `~/.netrc` file with a Gerrit username and password.
@@ -80,5 +80,5 @@ place to start.
 ### Documentation
 
 To work on the documentation, you'll need to locally build and run the webserver
-that serves camlistore.org. See
+that serves perkeep.org. See
 [/website/README.md](https://camlistore.googlesource.com/camlistore/+/master/website/README.md).

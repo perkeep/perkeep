@@ -1,15 +1,15 @@
-# Camli Blob Magic
+# Perkeep Blob Magic
 
 [Note: not totally happy with this yet...]
 
-Ideal Camli JSON blobs should begin with the following 15 bytes:
+Ideal Perkeep JSON blobs should begin with the following 15 bytes:
 
     {"camliVersion"
 
 However, it's acknowledged that some JSON serialization libraries will format
 things differently, so additional whitespace should be tolerated.
 
-An ideal camli serializer will strive for the above header, though, by doing
+An ideal Perkeep serializer will strive for the above header, though, by doing
 something like:
 
 - removing the "camliVersion" from the object, noting its value (and requiring

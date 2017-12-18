@@ -1,6 +1,6 @@
 # Permanodes
 
-Permanodes are how Camlistore models mutable data on top of an immutable,
+Permanodes are how Perkeep models mutable data on top of an immutable,
 content-addressable datastore. The data is modeled using nodes with two
 camliTypes: `permanode` and `claim`.
 
@@ -76,7 +76,7 @@ of the following:
 ## Attributes
 
 A permanode can have any attribute you like, but here are the ones that
-currently mean something to Camlistore:
+currently mean something to Perkeep:
 
 * `tag`: A set of zero or more keywords (or phrases) indexed completely, for
   searching by tag. No HTML.

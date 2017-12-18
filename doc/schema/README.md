@@ -1,8 +1,8 @@
 # Schema
 
-At the lowest layer, Camlistore doesn't care what you put in it (everything is
+At the lowest layer, Perkeep doesn't care what you put in it (everything is
 just dumb bytes) and you're free to adopt your own data model.  However, the
-upper layers of Camlistore standardize on a common schema to represent various
+upper layers of Perkeep standardize on a common schema to represent various
 classes of data.
 
 Schema blobs are JSON objects with at least two attributes always set:
@@ -24,7 +24,7 @@ Here are some of the data types we've started to formalize a
 * ["Keep" claims](keep.md): Normally, any object that isn't referenced
     by a permanode could theoretically be garbage collected. Keep claims prevent
     that from happening. Indicated by the `keep` camliType.
-* [Permanodes](permanode.md): the immutable root "anchor" of mutable Camlistore
+* [Permanodes](permanode.md): the immutable root "anchor" of mutable Perkeep
     objects (see [terminology](../terms.md)). Users create signed
     [claim](permanode.md#claim) schema blobs which reference a permanode and
     define some mutation for the permanode.

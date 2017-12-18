@@ -16,7 +16,7 @@ The HTTP request path is `$blobRoot/camli/stat`.  See
 In either case, the request form values: (either in the URL for GET or
 application/x-www-form-urlencoded body for POST)
 
-    camliversion    required   Version of camlistore and/or stat protocol;
+    camliversion    required   Version of Perkeep and/or stat protocol;
                                reserved for future use.  Must be "1" for now.
 
     blob<n>         optional/  Must start at 1 and go up, no gaps allowed, not

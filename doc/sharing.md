@@ -12,13 +12,13 @@ for some background:
 
 ---
 
-This is an example walk-though of (working) sharing on Camlistore.   Brett and
+This is an example walk-though of (working) sharing on Perkeep.   Brett and
 I got this working last night (the basic "have a link" use case with no
 addition auth)
 
 Let's say I have a private blobserver:
 
-http://camlistore.org:3179/
+http://perkeep.org:3179/
 
 And I have a file, "Hi.txt".
 
@@ -27,8 +27,8 @@ metadata (inode, filename, etc) is blob `sha1-0e5e60f367cc8156ae48198c496b2b2ebd
 
 You don't have access to those, even though you know their names.  Verify the 401 errors:
 
-* http://camlistore.org:3179/camli/sha1-3dc1d1cfe92fce5f09d194ba73a0b023102c9b25
-* http://camlistore.org:3179/camli/sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d
+* http://perkeep.org:3179/camli/sha1-3dc1d1cfe92fce5f09d194ba73a0b023102c9b25
+* http://perkeep.org:3179/camli/sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d
 
 (hm, those are returning Unauthorized errors, but no Content Body... will fix later)
 
@@ -55,7 +55,7 @@ the share handler checks that it's a share blob that doesn't require auth
 
 Here's you getting the blob:
 
-    $ curl http://camlistore.org:3179/share/sha1-102758fb54521cb6540d256098e7c0f1625b33e3
+    $ curl http://perkeep.org:3179/share/sha1-102758fb54521cb6540d256098e7c0f1625b33e3
     {"camliVersion": 1,
       "authType": "haveref",
       "camliSigner": "sha1-3bee195d0dada92a9d88e67f731124238e65a916",
@@ -76,7 +76,7 @@ bytes of the file (in this case, just one part is the whole file bytes...)  I
 already told you this earlier in the email, but assume you're just discovering
 this now.
 
-    $ curl http://camlistore.org:3179/share/sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d?via=sha1-102758fb54521cb6540d256098e7c0f1625b33e3
+    $ curl http://perkeep.org:3179/share/sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d?via=sha1-102758fb54521cb6540d256098e7c0f1625b33e3
     {"camliVersion": 1,
       "camliType": "file",
       "contentParts": [
@@ -97,8 +97,8 @@ this now.
 
 Now let's get the final bytes of the file:
 
-    $ curl http://camlistore.org:3179/share/sha1-3dc1d1cfe92fce5f09d194ba73a0b023102c9b25?via=sha1-102758fb54521cb6540d256098e7c0f1625b33e3,sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d
-    Hello, Camli!
+    $ curl http://perkeep.org:3179/share/sha1-3dc1d1cfe92fce5f09d194ba73a0b023102c9b25?via=sha1-102758fb54521cb6540d256098e7c0f1625b33e3,sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d
+    Hello, Perkeep!
 
 That's it.
 

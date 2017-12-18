@@ -1,4 +1,4 @@
-# Download Camlistore
+# Download Perkeep
 
 The latest release is [2017-05-05](docs/release/monthly/2017-05-05).
 
@@ -14,16 +14,16 @@ Windows), skip this section.
 [Download and install Go](http://golang.org/doc/install) if you don't
 have that installed already. As of revision
 [c35cd68b5c](https://github.com/camlistore/camlistore/commit/c35cd68b5c9e914ef78811e88338ffd02f378a1c),
-Camlistore requires [Go 1.8 or newer](https://golang.org/dl/).
+Perkeep requires [Go 1.8 or newer](https://golang.org/dl/).
 
-Build Camlistore by running this command in the folder you downloaded or
+Build Perkeep by running this command in the folder you downloaded or
 checked out:
 
     $ go run make.go
 
 ## Getting started
 
-Once you've successfully built the Camlistore components, you can run
+Once you've successfully built the Perkeep components, you can run
 the server with:
 
     $ ./bin/camlistored
@@ -34,7 +34,7 @@ key information in `$HOME/.config/camlistore/` (or where
 you see fit.
 
 You're done setting up! Running camlistored should open a new browser
-window pointed at your camlistore where you can start uploading and
+window pointed at your keep where you can start uploading and
 interacting with data.
 
 Developers typically use the `./bin/devcam` wrapper to isolate their
