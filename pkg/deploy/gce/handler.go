@@ -896,7 +896,10 @@ func dataStores() (blobserver.Storage, sorted.KeyValue, error) {
 // input and hence can contain just any field, that is not a known field of
 // TemplateData. Which will make the execution of the template fail. We should
 // probably just somehow hardcode website/tmpl/page.html as the template.
-// See issue #815
+// Or better, probably hardcode our own version of website/tmpl/page.html,
+// because we don't want to be bound to whatever new template fields the
+// website may need that we don't (such as .Domain).
+// See issue #815, and issue #985.
 
 // AddTemplateTheme allows to enhance the aesthetics of the default template. To that
 // effect, text can provide the template definitions for "header", "banner", "toplinks", and
@@ -915,6 +918,7 @@ func (h *DeployHandler) AddTemplateTheme(text string) error {
 // TemplateData is the data passed for templates of tplHTML.
 type TemplateData struct {
 	Title             string
+	Domain            string                   // unused, but needs to be defined to satisfy the page.html template. See TODO above.
 	Help              map[string]template.HTML // help bits within the form.
 	Hints             []string                 // helping hints printed in case of an error.
 	Err               error
