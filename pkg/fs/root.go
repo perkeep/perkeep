@@ -99,7 +99,7 @@ func (n *root) Lookup(ctx context.Context, name string) (fs.Node, error) {
 	case ".quitquitquit":
 		log.Fatalf("Shutting down due to root .quitquitquit lookup.")
 	case "WELCOME.txt":
-		return staticFileNode("Welcome to CamlistoreFS.\n\nFor now you can only cd into a sha1-xxxx directory, if you know the blobref of a directory or a file.\n"), nil
+		return staticFileNode("Welcome to PerkeepFS.\n\nMore information is available in the cammount documentation.\n\nSee https://perkeep.org/cmd/cammount/\n"), nil
 	case "recent":
 		return n.getRecentDir(), nil
 	case "tag", "date":
