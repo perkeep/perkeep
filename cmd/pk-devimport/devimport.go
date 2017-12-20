@@ -30,7 +30,6 @@ import (
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/importer"
-	"camlistore.org/pkg/osutil"
 	"camlistore.org/pkg/search"
 
 	_ "camlistore.org/pkg/importer/allimporters"
@@ -70,8 +69,6 @@ func usage() {
 
 func newImporterHost(server string, importerType string) (*importer.Host, error) {
 	cl := newClient(server)
-	// To avoid the ExplicitSecretRingFile panic when setting up the signer.
-	osutil.AddSecretRingFlag()
 	signer, err := cl.Signer()
 	if err != nil {
 		return nil, err

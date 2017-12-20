@@ -353,8 +353,10 @@ func (c *Client) SetupAuthFromString(a string) error {
 // CAMLI_SECRET_RING environment variable, the client config file's
 // "identitySecretRing" value, or the operating system default location.
 func (c *Client) SecretRingFile() string {
-	if secretRing, ok := osutil.ExplicitSecretRingFile(); ok {
-		return secretRing
+	if osutil.HasSecretRingFlag() {
+		if secretRing, ok := osutil.ExplicitSecretRingFile(); ok {
+			return secretRing
+		}
 	}
 	if android.OnAndroid() {
 		panic("on android, so CAMLI_SECRET_RING should have been defined, or --secret-keyring used.")

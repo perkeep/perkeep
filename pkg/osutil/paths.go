@@ -152,10 +152,16 @@ var (
 	secretRingFlagAdded bool
 )
 
+// AddSecretRingFlag registers the "secret-keyring" flag, accessible via
+// ExplicitSecretRingFile.
 func AddSecretRingFlag() {
 	flag.StringVar(&flagSecretRing, "secret-keyring", "", "GnuPG secret keyring file to use.")
 	secretRingFlagAdded = true
 }
+
+// HasSecretRingFlag reports whether the "secret-keywring" command-line flag was
+// registered. If so, it is safe to use ExplicitSecretRingFile.
+func HasSecretRingFlag() bool { return secretRingFlagAdded }
 
 // ExplicitSecretRingFile returns the path to the user's GPG secret ring
 // file and true if it was ever set through the --secret-keyring flag or
