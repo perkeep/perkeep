@@ -425,6 +425,27 @@ func (h *Host) AccountsStatus() (interface{}, []camtypes.StatusError) {
 	return s, errs
 }
 
+// RunImporterAccount runs the importerType importer on the account described in
+// accountNode.
+func (h *Host) RunImporterAccount(importerType string, accountNode blob.Ref) error {
+	h.didInit.Wait()
+	imp, ok := h.imp[importerType]
+	if !ok {
+		return fmt.Errorf("no %q importer for this account", importerType)
+	}
+	accounts, err := imp.Accounts()
+	if err != nil {
+		return err
+	}
+	for _, ia := range accounts {
+		if ia.acct.pn != accountNode {
+			continue
+		}
+		return ia.run()
+	}
+	return fmt.Errorf("no %v account matching account in node %v", importerType, accountNode)
+}
+
 func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
 	if prefix, _, err := hl.FindHandlerByType("ui"); err == nil {
 		h.uiPrefix = prefix
@@ -1148,6 +1169,33 @@ func (ia *importerAcct) start() {
 		ia.lastRunErr = err
 		go ia.maybeStart()
 	}()
+}
+
+// TODO(mpl): review this code more carefully. mostly copied from start().
+func (ia *importerAcct) run() error {
+	ia.mu.Lock()
+	defer ia.mu.Unlock()
+	if ia.current != nil {
+		return errors.New("whatever")
+	}
+	rc := &RunContext{
+		Host: ia.im.host,
+		ia:   ia,
+	}
+	rc.ctx, rc.cancel = context.WithCancel(context.WithValue(context.Background(), ctxutil.HTTPClient, ia.im.host.HTTPClient()))
+	ia.current = rc
+	ia.stopped = false
+	ia.lastRunStart = time.Now()
+	log.Printf("Starting %v: %s", ia, ia.AccountLinkSummary())
+	err := ia.im.impl.Run(rc)
+	if err != nil {
+		return err
+	}
+	log.Printf("%v finished.", ia)
+	ia.current = nil
+	ia.stopped = false
+	ia.lastRunDone = time.Now()
+	return ia.lastRunErr
 }
 
 func (ia *importerAcct) stop() {
