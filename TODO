@@ -214,10 +214,6 @@ Offline list:
 -- get webdav server working again, for mounting on Windows.  This worked before Go 1
    but bitrot when we moved pkg/fs to use the rsc/fuse.
 
--- work on runsit more, so I can start using this more often.  runsit should
-   be able to reload itself, and also watch for binaries changing and restart
-   when binaries change.  (or symlinks to binaries)
-
 -- BUG: osutil paths.go on OS X: should use Library everywhere instead of mix of
    Library and ~/.camlistore?
 
