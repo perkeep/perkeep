@@ -1,4 +1,20 @@
-package listen
+/*
+Copyright 2017 Google Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package listen // import "camlistore.org/pkg/webserver/listen"
 
 import (
 	"errors"
@@ -19,9 +35,8 @@ func NewFlag(flagName, defaultValue string, serverType string) *Addr {
 	return addr
 }
 
-// Listen is a replacement for net.Listen that also respects runsit
-// listeners: port, :port, ip:port, FD:<fd_num>, ADDR:<name> or <name>
-// named ports.
+// Listen is a replacement for net.Listen and supports
+//   port, :port, ip:port, FD:<fd_num>, ADDR:<name>
 // Listeners are always TCP.
 func Listen(addr string) (net.Listener, error) {
 	a := &Addr{s: addr}
@@ -37,15 +52,15 @@ func Usage(name string) string {
 	if !strings.HasSuffix(name, " address") {
 		name += " address"
 	}
-	return name + "; may be port, :port, ip:port, FD:<fd_num>, or ADDR:<name> to use named runsit ports"
+	return name + "; may be port, :port, ip:port, FD:<fd_num>, or ADDR:<name> to use named ports"
 }
 
 // Addr is a flag variable.  Use like:
 //
-// var webPort listen.Addr
-// flag.Var(&webPort, "web_addr", listen.Usage("Web server address"))
-// flag.Parse()
-// webListener, err := webPort.Listen()
+//   var webPort listen.Addr
+//   flag.Var(&webPort, "web_addr", listen.Usage("Web server address"))
+//   flag.Parse()
+//   webListener, err := webPort.Listen()
 type Addr struct {
 	s   string
 	ln  net.Listener
@@ -59,15 +74,6 @@ func (a *Addr) String() string {
 // Set implements the flag.Value interface.
 func (a *Addr) Set(v string) error {
 	a.s = v
-
-	// Try the requested port by runsit port name first.
-	fd, ok, err := namedPort(v)
-	if err != nil {
-		return err
-	}
-	if ok {
-		return a.listenOnFD(fd)
-	}
 
 	if strings.HasPrefix(v, "FD:") {
 		fdStr := v[len("FD:"):]
@@ -83,7 +89,7 @@ func (a *Addr) Set(v string) error {
 		ipPort = ":" + v
 	}
 
-	_, _, err = net.SplitHostPort(ipPort)
+	_, _, err := net.SplitHostPort(ipPort)
 	if err != nil {
 		return fmt.Errorf("invalid PORT or IP:PORT %q: %v", v, err)
 	}
@@ -97,21 +103,9 @@ func isPort(s string) bool {
 }
 
 func (a *Addr) listenOnFD(fd uintptr) (err error) {
-	f := os.NewFile(fd, fmt.Sprintf("fd #%d from runsit parent", fd))
+	f := os.NewFile(fd, fmt.Sprintf("fd #%d from process parent", fd))
 	a.ln, err = net.FileListener(f)
 	return
-}
-
-func namedPort(name string) (fd uintptr, ok bool, err error) {
-	s := os.Getenv("RUNSIT_PORTFD_" + name)
-	if s == "" {
-		return
-	}
-	u64, err := strconv.ParseUint(s, 10, 32)
-	if err != nil {
-		return
-	}
-	return uintptr(u64), true, nil
 }
 
 var _ flag.Value = (*Addr)(nil)
