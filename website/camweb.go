@@ -880,6 +880,12 @@ func main() {
 	mux.Handle(appPattern, godocHandler{})
 	mux.HandleFunc(errPattern, errHandler)
 
+	// Google Webmaster Tools ownership proof:
+	const webmasterToolsFile = "googlec74a9a91c9cfcd8c.html"
+	mux.HandleFunc("/"+webmasterToolsFile, func(w http.ResponseWriter, r *http.Request) {
+		http.ServeContent(w, r, webmasterToolsFile, time.Time{}, strings.NewReader("google-site-verification: googlec74a9a91c9cfcd8c.html"))
+	})
+
 	mux.HandleFunc("/r/", gerritRedirect)
 	mux.HandleFunc("/dl/", releaseRedirect)
 	mux.HandleFunc("/debug/ip", ipHandler)
