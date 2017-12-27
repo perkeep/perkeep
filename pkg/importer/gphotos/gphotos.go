@@ -555,7 +555,6 @@ func (r *run) getTopLevelNode(path string) (*importer.Object, error) {
 	root := r.RootNode()
 	name := r.displayName()
 	rootTitle := fmt.Sprintf("%s's Google Photos Data", name)
-	logf("root title = %q; want %q", root.Attr(nodeattr.Title), rootTitle)
 	if err := root.SetAttr(nodeattr.Title, rootTitle); err != nil {
 		return nil, err
 	}
