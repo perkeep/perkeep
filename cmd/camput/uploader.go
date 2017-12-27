@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"net/http"
 	"strings"
 
 	"camlistore.org/pkg/blobserver"
@@ -46,8 +45,6 @@ type Uploader struct {
 	pwd       string
 	statCache UploadCache
 	haveCache HaveCache
-
-	fs http.FileSystem // virtual filesystem to read from; nil means OS filesystem.
 }
 
 // possible options when uploading a file

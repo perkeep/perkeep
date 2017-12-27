@@ -26,7 +26,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -346,22 +345,11 @@ func (up *Uploader) lstat(path string) (os.FileInfo, error) {
 }
 
 func (up *Uploader) stat(path string) (os.FileInfo, error) {
-	if up.fs == nil {
-		return os.Stat(path)
-	}
-	f, err := up.fs.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	return f.Stat()
+	return os.Stat(path)
 }
 
-func (up *Uploader) open(path string) (http.File, error) {
-	if up.fs == nil {
-		return os.Open(path)
-	}
-	return up.fs.Open(path)
+func (up *Uploader) open(path string) (*os.File, error) {
+	return os.Open(path)
 }
 
 func (n *node) directoryStaticSet() (*schema.StaticSet, error) {
@@ -560,11 +548,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 	defer file.Close()
 	if !up.fileOpts.contentsOnly {
 		if up.fileOpts.exifTime {
-			ra, ok := file.(io.ReaderAt)
-			if !ok {
-				return nil, errors.New("Error asserting local file to io.ReaderAt")
-			}
-			modtime, err := schema.FileTime(ra)
+			modtime, err := schema.FileTime(file)
 			if err != nil {
 				cmdmain.Logf("warning: getting time from EXIF failed for %v: %v", n.fullPath, err)
 			} else {

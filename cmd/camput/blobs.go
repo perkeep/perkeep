@@ -18,7 +18,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha1"
 	"errors"
 	"flag"
 	"fmt"
@@ -80,78 +79,55 @@ func (c *blobCmd) RunCommand(args []string) error {
 	return nil
 }
 
-func stdinBlobHandle() (uh *client.UploadHandle, err error) {
+func stdinBlobHandle() (*client.UploadHandle, error) {
 	var buf bytes.Buffer
 	size, err := io.CopyN(&buf, cmdmain.Stdin, constants.MaxBlobSize+1)
-	if err == io.EOF {
-		err = nil
-	}
-	if err != nil {
-		return
-	}
 	if size > constants.MaxBlobSize {
-		err = fmt.Errorf("blob size cannot be bigger than %d", constants.MaxBlobSize)
+		return nil, fmt.Errorf("blob size cannot be bigger than %d", constants.MaxBlobSize)
 	}
-	file := buf.Bytes()
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
 	h := blob.NewHash()
-	size, err = io.Copy(h, bytes.NewReader(file))
-	if err != nil {
-		return
+	if _, err := h.Write(buf.Bytes()); err != nil {
+		return nil, err
 	}
 	return &client.UploadHandle{
 		BlobRef:  blob.RefFromHash(h),
-		Size:     uint32(size),
-		Contents: io.LimitReader(bytes.NewReader(file), size),
+		Size:     uint32(buf.Len()),
+		Contents: &buf,
 	}, nil
 }
 
-func fileBlobHandle(up *Uploader, path string) (uh *client.UploadHandle, err error) {
+func fileBlobHandle(up *Uploader, path string) (*client.UploadHandle, error) {
 	fi, err := up.stat(path)
 	if err != nil {
-		return
+		return nil, err
 	}
 	if fi.Mode()&os.ModeType != 0 {
 		return nil, fmt.Errorf("%q is not a regular file", path)
 	}
-	file, err := up.open(path)
-	if err != nil {
-		return
+	size := fi.Size()
+	if size > constants.MaxBlobSize {
+		return nil, fmt.Errorf("blob size cannot be bigger than %d", constants.MaxBlobSize)
 	}
-	ref, size, err := blobDetails(file)
+	file, err := up.open(path)
 	if err != nil {
 		return nil, err
 	}
-	return &client.UploadHandle{
-		BlobRef:  ref,
-		Size:     size,
-		Contents: io.LimitReader(file, int64(size)),
-	}, nil
-}
+	defer file.Close()
 
-func blobDetails(contents io.ReadSeeker) (bref blob.Ref, size uint32, err error) {
-	s1 := sha1.New()
-	if _, err = contents.Seek(0, 0); err != nil {
-		return
+	buf := make([]byte, size)
+	if _, err := io.ReadFull(file, buf); err != nil {
+		return nil, err
 	}
-	defer func() {
-		if _, seekErr := contents.Seek(0, 0); seekErr != nil {
-			if err == nil {
-				err = seekErr
-			} else {
-				err = fmt.Errorf("%s, cannot seek back: %v", err, seekErr)
-			}
-		}
-	}()
-	sz, err := io.CopyN(s1, contents, constants.MaxBlobSize+1)
-	if err == nil || err == io.EOF {
-		bref, err = blob.RefFromHash(s1), nil
-	} else {
-		err = fmt.Errorf("error reading contents: %v", err)
-		return
+	h := blob.NewHash()
+	if _, err := h.Write(buf); err != nil {
+		return nil, err
 	}
-	if sz > constants.MaxBlobSize {
-		err = fmt.Errorf("blob size cannot be bigger than %d", constants.MaxBlobSize)
-	}
-	size = uint32(sz)
-	return
+	return &client.UploadHandle{
+		BlobRef:  blob.RefFromHash(h),
+		Size:     uint32(size),
+		Contents: bytes.NewReader(buf),
+	}, nil
 }
