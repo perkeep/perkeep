@@ -48,19 +48,20 @@ func TestWriteRead(t *testing.T) {
 		}
 		t.Fatalf("unexpected bucket iteration error: %v", err)
 	}
-	filename := "camli-gcs_test.txt"
-	defer func() {
-		if err := cl.Bucket(*flagBucket).Object(filename).Delete(ctx); err != nil {
-			t.Fatalf("error while cleaning up: %v", err)
-		}
-	}()
 
 	// Write to camli-gcs_test.txt
+	filename := "camli-gcs_test.txt"
 	gcsPath := "/gcs/" + *flagBucket + "/" + filename
 	f, err := wkfs.Create(gcsPath)
 	if err != nil {
 		t.Fatalf("error creating %v: %v", gcsPath, err)
 	}
+	defer func() {
+		if err := wkfs.Remove(gcsPath); err != nil {
+			t.Fatalf("error while cleaning up %v: %v", gcsPath, err)
+		}
+	}()
+
 	data := "Hello World"
 	if _, err := io.Copy(f, strings.NewReader(data)); err != nil {
 		t.Fatalf("error writing to %v: %v", gcsPath, err)

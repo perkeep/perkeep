@@ -55,6 +55,7 @@ func MkdirAll(path string, perm os.FileMode) error { return fs(path).MkdirAll(pa
 func OpenFile(name string, flag int, perm os.FileMode) (FileWriter, error) {
 	return fs(name).OpenFile(name, flag, perm)
 }
+func Remove(name string) error { return fs(name).Remove(name) }
 func Create(name string) (FileWriter, error) {
 	// like os.Create but WRONLY instead of RDWR because we don't
 	// expose a Reader here.
@@ -79,6 +80,7 @@ func (osFS) MkdirAll(path string, perm os.FileMode) error { return os.MkdirAll(p
 func (osFS) OpenFile(name string, flag int, perm os.FileMode) (FileWriter, error) {
 	return os.OpenFile(name, flag, perm)
 }
+func (osFS) Remove(name string) error { return os.Remove(name) }
 
 type FileSystem interface {
 	Open(name string) (File, error)
@@ -86,6 +88,7 @@ type FileSystem interface {
 	Stat(name string) (os.FileInfo, error)
 	Lstat(name string) (os.FileInfo, error)
 	MkdirAll(path string, perm os.FileMode) error
+	Remove(name string) error
 }
 
 // well-known filesystems

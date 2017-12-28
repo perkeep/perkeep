@@ -165,6 +165,14 @@ func (fs *gcsFS) OpenFile(name string, flag int, perm os.FileMode) (wkfs.FileWri
 	return fs.sc.Bucket(bucket).Object(fileName).NewWriter(fs.ctx), nil
 }
 
+func (fs *gcsFS) Remove(name string) error {
+	bucket, fileName, err := fs.parseName(name)
+	if err != nil {
+		return err
+	}
+	return fs.sc.Bucket(bucket).Object(fileName).Delete(fs.ctx)
+}
+
 type statInfo struct {
 	name    string
 	size    int64
