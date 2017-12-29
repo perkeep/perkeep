@@ -23,18 +23,29 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"camlistore.org/pkg/blob"
 	"camlistore.org/pkg/client"
 	"camlistore.org/pkg/cmdmain"
 	"camlistore.org/pkg/constants"
+	"camlistore.org/pkg/schema"
 )
 
-type blobCmd struct{}
+type blobCmd struct {
+	title string
+	tag   string
+
+	makePermanode bool // make new, unique permanode of the blob
+}
 
 func init() {
 	cmdmain.RegisterCommand("blob", func(flags *flag.FlagSet) cmdmain.CommandRunner {
-		return new(blobCmd)
+		cmd := new(blobCmd)
+		flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create and associate a new permanode for the blob.")
+		flags.StringVar(&cmd.title, "title", "", "Optional title attribute to set on permanode when using -permanode.")
+		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on permanode when using -permanode. Single value or comma separated.")
+		return cmd
 	})
 }
 
@@ -49,6 +60,7 @@ func (c *blobCmd) Usage() {
 func (c *blobCmd) Examples() []string {
 	return []string{
 		"<files>     (raw, without any metadata)",
+		"--permanode --title='Homedir backup' --tag=backup,homedir $HOME",
 		"-           (read from stdin)",
 	}
 }
@@ -57,13 +69,29 @@ func (c *blobCmd) RunCommand(args []string) error {
 	if len(args) == 0 {
 		return errors.New("no files given")
 	}
+	if c.title != "" && !c.makePermanode {
+		return cmdmain.UsageError("Can't set title without using --permanode")
+	}
+	if c.tag != "" && !c.makePermanode {
+		return cmdmain.UsageError("Can't set tag without using --permanode")
+	}
 
 	up := getUploader()
+	if c.makePermanode {
+		testSigBlobRef := up.Client.SignerPublicKeyBlobref()
+		if !testSigBlobRef.Valid() {
+			return cmdmain.UsageError("A GPG key is needed to create permanodes; configure one or use vivify mode.")
+		}
+	}
+
+	var (
+		handle    *client.UploadHandle
+		permaNode *client.PutResult
+		put       *client.PutResult
+		err       error
+	)
+
 	for _, arg := range args {
-		var (
-			handle *client.UploadHandle
-			err    error
-		)
 		if arg == "-" {
 			handle, err = stdinBlobHandle()
 		} else {
@@ -72,10 +100,38 @@ func (c *blobCmd) RunCommand(args []string) error {
 		if err != nil {
 			return err
 		}
-		put, err := up.Upload(handle)
+		put, err = up.Upload(handle)
 		handleResult("blob", put, err)
 		continue
 	}
+
+	if c.makePermanode {
+		permaNode, err = up.UploadNewPermanode()
+		if err != nil {
+			return fmt.Errorf("Uploading permanode: %v", err)
+		}
+	}
+
+	if permaNode != nil && put != nil {
+		put, err := up.UploadAndSignBlob(schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", put.BlobRef.String()))
+		if handleResult("claim-permanode-content", put, err) != nil {
+			return err
+		}
+		if c.title != "" {
+			put, err := up.UploadAndSignBlob(schema.NewSetAttributeClaim(permaNode.BlobRef, "title", c.title))
+			handleResult("claim-permanode-title", put, err)
+		}
+		if c.tag != "" {
+			tags := strings.Split(c.tag, ",")
+			for _, tag := range tags {
+				m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
+				put, err := up.UploadAndSignBlob(m)
+				handleResult("claim-permanode-tag", put, err)
+			}
+		}
+		handleResult("permanode", permaNode, nil)
+	}
+
 	return nil
 }
 

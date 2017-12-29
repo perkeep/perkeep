@@ -36,14 +36,15 @@ Modes:
 Examples:
 
   camput file [opts] <file(s)/director(ies)
-  camput file --permanode --name='Homedir backup' --tag=backup,homedir $HOME
+  camput file --permanode --title='Homedir backup' --tag=backup,homedir $HOME
   camput file --filenodes /mnt/camera/DCIM
 
   camput blob <files>     (raw, without any metadata)
+  camput blob --permanode --title='My Blob' --tag=backup,my_blob
   camput blob -           (read from stdin)
 
   camput permanode                                (create a new permanode)
-  camput permanode -name="Some Name" -tag=foo,bar (with attributes added)
+  camput permanode --title="Some Name" --tag=foo,bar (with attributes added)
 
   camput init
   camput init --gpgkey=XXXXX

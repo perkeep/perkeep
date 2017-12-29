@@ -76,7 +76,7 @@ var (
 func init() {
 	cmdmain.RegisterCommand("file", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(fileCmd)
-		flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create an associate a new permanode for the uploaded file or directory.")
+		flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create and associate a new permanode for the uploaded file or directory.")
 		flags.BoolVar(&cmd.filePermanodes, "filenodes", false, "Create (if necessary) content-based permanodes for each uploaded file.")
 		flags.BoolVar(&cmd.deleteAfterUpload, "delete_after_upload", false, "If using -filenodes, deletes files once they're uploaded, or if they've already been uploaded.")
 		flags.BoolVar(&cmd.vivify, "vivify", false,
