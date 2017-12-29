@@ -126,6 +126,13 @@ Unless `runIndex` is set to `false`, exactly one of these must be set:
 Additionally, mongo, mysql, and postgres require the `dbname` value set.
 Initialize your database with [camtool dbinit](/cmd/camtool/).
 
+When using [MariaDB](https://downloads.mariadb.org/)
+or [MySQL](https://dev.mysql.com/downloads/), the user will need to be able to
+create a schema in addition to the default schema. You will need `grant create,
+insert, update, delete, alter, show databases on *.*` permissions for your
+database user. See [dbinit.go](/cmd/camtool/dbinit.go)
+and [dbschema.go](/pkg/sorted/mysql/dbschema.go) for more details.
+
 There's also an in-memory index type, but only in the low-level config, as used
 by `devcam server`.
 
