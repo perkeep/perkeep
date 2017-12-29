@@ -64,6 +64,9 @@ type DiskStorage struct {
 	// systems (Windows) where we don't know the maximum number of open
 	// file descriptors.
 	tmpFileGate *syncutil.Gate
+
+	// statGate limits how many pending Stat calls we have in flight.
+	statGate *syncutil.Gate
 }
 
 func (ds *DiskStorage) String() string {
@@ -112,6 +115,7 @@ func New(root string) (*DiskStorage, error) {
 		root:      root,
 		dirLockMu: new(sync.RWMutex),
 		gen:       local.NewGenerationer(root),
+		statGate:  syncutil.NewGate(10), // arbitrary, but bounded; be more clever later?
 	}
 	if err := ds.migrate3to2(); err != nil {
 		return nil, fmt.Errorf("Error updating localdisk format: %v", err)
