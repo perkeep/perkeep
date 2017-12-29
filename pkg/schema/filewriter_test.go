@@ -53,13 +53,13 @@ func TestWriteFileMap(t *testing.T) {
 	//       just the size)
 	//   -- well-balanced tree
 	//   -- nothing too big, nothing too small.
-	if g, w := br.String(), "sha1-95a5d2686b239e36dff3aeb5a45ed18153121835"; g != w {
+	if g, w := br.String(), "sha1-d0f22d5a3787abcf38109408891825b37b99d6f8"; g != w {
 		t.Errorf("root blobref = %v; want %v", g, w)
 	}
-	if g, w := sr.NumBlobs(), 88; g != w {
+	if g, w := sr.NumBlobs(), 84; g != w {
 		t.Errorf("num blobs = %v; want %v", g, w)
 	}
-	if g, w := sr.SumBlobSize(), int64(5252655); g != w {
+	if g, w := sr.SumBlobSize(), int64(5252007); g != w {
 		t.Errorf("sum blob size = %v; want %v", g, w)
 	}
 	if g, w := sizes[len(sizes)-1], 262144; g != w {
