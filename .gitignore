@@ -57,6 +57,12 @@ misc/docker/camlistored/djpeg
 /vendor/github.com/tgulacsi/picago/testdata
 /vendor/golang.org/x/image/testdata
 /vendor/golang.org/x/image/font/testdata
+# oauth2 tests have private keys which cause trouble for devcam review
+/vendor/golang.org/x/oauth2/google/example_test.go
+/vendor/golang.org/x/oauth2/google/google_test.go
+/vendor/golang.org/x/oauth2/google/testdata/
+/vendor/golang.org/x/oauth2/jwt/example_test.go
+/vendor/golang.org/x/oauth2/jwt/jwt_test.go
 /vendor/google.golang.org/grpc/benchmark
 /vendor/google.golang.org/grpc/examples
 /vendor/google.golang.org/grpc/reflection

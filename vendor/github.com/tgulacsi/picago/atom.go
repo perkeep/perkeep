@@ -35,6 +35,8 @@ type Entry struct {
 	Name      string       `xml:"http://schemas.google.com/photos/2007 name"`
 	Title     string       `xml:"title"`
 	Summary   string       `xml:"summary"`
+	Rights    string       `xml:"rights"`
+	AlbumType string       `xml:"albumType"`
 	Links     []Link       `xml:"link"`
 	Author    Author       `xml:"author"`
 	Location  string       `xml:"http://schemas.google.com/photos/2007 location"`

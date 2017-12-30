@@ -1,10 +1,11 @@
-// Copyright 2014 Tamás Gulácsi. All rights reserved.
+// Copyright 2017 Tamás Gulácsi. All rights reserved.
 // Use of this source code is governed by an Apache 2.0
 // license that can be found in the LICENSE file.
 
 package picago
 
 import (
+	"encoding/xml"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -45,6 +46,14 @@ type Album struct {
 	// Title is the title of the album.
 	// e.g. "Biking with Blake"
 	Title string
+
+	// AlbumType
+	// e.g. "Blogger", "ProfilePhotos", "InstantUpload", or empty sring
+	AlbumType string
+
+	// Rights
+	// e.g. "public", "protected", or "private"
+	Rights string
 
 	// Description is the Picasaweb "Description" field, and does
 	// not appear available or shown in G+ Photos. It may be
@@ -110,6 +119,8 @@ type Photo struct {
 	Position int
 
 	Exif *Exif
+
+	Width, Height int
 }
 
 // GetAlbums returns the list of albums of the given userID.
@@ -156,6 +167,8 @@ func (e *Entry) album() Album {
 		ID:          e.ID,
 		Name:        e.Name,
 		Title:       e.Title,
+		Rights:      e.Rights,
+		AlbumType:   e.AlbumType,
 		Location:    e.Location,
 		AuthorName:  e.Author.Name,
 		AuthorURI:   e.Author.URI,
@@ -227,19 +240,21 @@ func getPhotos(photos []Photo, client *http.Client, url string, startIndex int) 
 
 func (e *Entry) photo() (p Photo, err error) {
 	var lat, long float64
-	i := strings.Index(e.Point, " ")
-	if i >= 1 {
-		lat, err = strconv.ParseFloat(e.Point[:i], 64)
-		if err != nil {
-			return p, fmt.Errorf("cannot parse %q as latitude: %v", e.Point[:i], err)
+	if e.Point != "0.0 0.0" { // ignore special case
+		i := strings.Index(e.Point, " ")
+		if i >= 1 {
+			lat, err = strconv.ParseFloat(e.Point[:i], 64)
+			if err != nil {
+				return p, fmt.Errorf("cannot parse %q as latitude: %v", e.Point[:i], err)
+			}
+			long, err = strconv.ParseFloat(e.Point[i+1:], 64)
+			if err != nil {
+				return p, fmt.Errorf("cannot parse %q as longitude: %v", e.Point[i+1:], err)
+			}
 		}
-		long, err = strconv.ParseFloat(e.Point[i+1:], 64)
-		if err != nil {
-			return p, fmt.Errorf("cannot parse %q as longitude: %v", e.Point[i+1:], err)
+		if e.Point != "" && lat == 0 && long == 0 {
+			return p, fmt.Errorf("point=%q but couldn't parse it as lat/long", e.Point)
 		}
-	}
-	if e.Point != "" && lat == 0 && long == 0 {
-		return p, fmt.Errorf("point=%q but couldn't parse it as lat/long", e.Point)
 	}
 	p = Photo{
 		ID:          e.ID,
@@ -252,6 +267,9 @@ func (e *Entry) photo() (p Photo, err error) {
 		Latitude:    lat,
 		Longitude:   long,
 	}
+	// Sanitise Filename in case of slashes in filename (sometimes present in google photos)
+	p.Filename = strings.Split(p.Filename, "/")[len(strings.Split(p.Filename, "/"))-1]
+
 	for _, link := range e.Links {
 		if link.Rel == "alternate" && link.Type == "text/html" {
 			p.PageURL = link.URL
@@ -268,13 +286,17 @@ func (e *Entry) photo() (p Photo, err error) {
 			p.Description = e.Media.Description
 		}
 		if mc, ok := e.Media.bestContent(); ok {
-			p.URL, p.Type = mc.URL, mc.Type
+			p.URL, p.Type, p.Width, p.Height = mc.URL, mc.Type, mc.Width, mc.Height
 		}
 		if p.Filename == "" {
 			p.Filename = e.Media.Title
 		}
 	}
 	return p, nil
+}
+
+func (e *Entry) DecodeReader(r io.Reader) error {
+	return xml.NewDecoder(r).Decode(e)
 }
 
 func (m *Media) bestContent() (ret MediaContent, ok bool) {
