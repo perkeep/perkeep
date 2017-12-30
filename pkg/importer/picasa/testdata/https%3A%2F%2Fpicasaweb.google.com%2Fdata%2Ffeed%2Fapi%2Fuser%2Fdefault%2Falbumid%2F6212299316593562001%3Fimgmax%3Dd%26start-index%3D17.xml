@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:openSearch="http://a9.com/-/spec/opensearchrss/1.0/" xmlns:gphoto="http://schemas.google.com/photos/2007">
+  <id>https://picasaweb.google.com/data/feed/api/user/default/albumid/6212299316593562001</id>
+  <updated>2015-11-01T21:54:20.362Z</updated>
+  <category scheme="http://schemas.google.com/g/2005#kind" term="http://schemas.google.com/photos/2007#album"/>
+  <title type="text">2015-11</title>
+  <subtitle type="text"/>
+  <rights type="text">protected</rights>
+  <icon>https://lh3.googleusercontent.com/REDACTED</icon>
+  <link rel="http://schemas.google.com/g/2005#feed" type="application/atom+xml" href="https://picasaweb.google.com/data/feed/api/user/99999999999999999/albumid/6212299316593562001"/>
+  <link rel="http://schemas.google.com/g/2005#post" type="application/atom+xml" href="https://picasaweb.google.com/data/feed/api/user/99999999999999999/albumid/6212299316593562001"/>
+  <link rel="http://schemas.google.com/g/2005#resumable-create-media" type="application/atom+xml" href="https://picasaweb.google.com/data/upload/resumable/media/create-session/feed/api/user/99999999999999999/albumid/6212299316593562001"/>
+  <link rel="alternate" type="text/html" href="https://picasaweb.google.com/99999999999999999/201511?locked=true"/>
+  <link rel="http://schemas.google.com/photos/2007#slideshow" type="application/x-shockwave-flash" href="https://photos.gstatic.com/media/slideshow.swf?host=picasaweb.google.com&amp;RGB=0x000000&amp;feed=https://picasaweb.google.com/data/feed/api/user/99999999999999999/albumid/6212299316593562001?alt%3Drss"/>
+  <link rel="http://schemas.google.com/photos/2007#report" type="text/html" href="https://picasaweb.google.com/lh/reportAbuse?uname=99999999999999999&amp;aid=6212299316593562001"/>
+  <link rel="http://schemas.google.com/acl/2007#accessControlList" type="application/atom+xml" href="https://picasaweb.google.com/data/feed/api/user/99999999999999999/albumid/6212299316593562001/acl"/>
+  <link rel="self" type="application/atom+xml" href="https://picasaweb.google.com/data/feed/api/user/99999999999999999/albumid/6212299316593562001?start-index=17&amp;max-results=1000&amp;imgmax=d"/>
+  <link rel="previous" type="application/atom+xml" href="https://picasaweb.google.com/data/feed/api/user/99999999999999999/albumid/6212299316593562001?start-index=1&amp;max-results=1000&amp;imgmax=d"/>
+  <author>
+    <name>Tamás Gulácsi</name>
+    <uri>https://picasaweb.google.com/99999999999999999</uri>
+  </author>
+  <generator version="1.00" uri="http://picasaweb.google.com/">Picasaweb</generator>
+  <openSearch:totalResults>16</openSearch:totalResults>
+  <openSearch:startIndex>17</openSearch:startIndex>
+  <openSearch:itemsPerPage>1000</openSearch:itemsPerPage>
+  <gphoto:id>6212299316593562001</gphoto:id>
+  <gphoto:name>201511</gphoto:name>
+  <gphoto:location/>
+  <gphoto:access>protected</gphoto:access>
+  <gphoto:timestamp>1446413648000</gphoto:timestamp>
+  <gphoto:numphotos>16</gphoto:numphotos>
+  <gphoto:numphotosremaining>1984</gphoto:numphotosremaining>
+  <gphoto:bytesUsed>35739269</gphoto:bytesUsed>
+  <gphoto:user>99999999999999999</gphoto:user>
+  <gphoto:nickname>Tamás Gulácsi</gphoto:nickname>
+  <gphoto:allowPrints>true</gphoto:allowPrints>
+  <gphoto:allowDownloads>true</gphoto:allowDownloads>
+</feed>

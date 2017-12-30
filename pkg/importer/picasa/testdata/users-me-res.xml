@@ -5,7 +5,7 @@
   <category scheme="http://schemas.google.com/g/2005#kind" term="http://schemas.google.com/photos/2007#user"/>
   <title type="text">11047045264</title>
   <subtitle type="text"/>
-  <icon>https://lh4.googleusercontent.com/-qqMg344/AAAAAAAAAAI/AAAAAAABcbg/TXl3f2K9dzI/s64-c/11047045264.jpg</icon>
+  <icon>https://lh4.googleusercontent.com/REDACTED/11047045264.jpg</icon>
   <link rel="http://schemas.google.com/g/2005#feed" type="application/atom+xml" href="https://picasaweb.google.com/data/feed/api/user/11047045264/contacts"/>
   <link rel="http://schemas.google.com/g/2005#post" type="application/atom+xml" href="https://picasaweb.google.com/data/feed/api/user/11047045264/contacts"/>
   <link rel="alternate" type="text/html" href="https://picasaweb.google.com/lh/favorites?uname=11047045264"/>
@@ -20,7 +20,7 @@
   <openSearch:itemsPerPage>500</openSearch:itemsPerPage>
   <gphoto:user>110415264</gphoto:user>
   <gphoto:nickname>Tamás </gphoto:nickname>
-  <gphoto:thumbnail>https://lh4.googleusercontent.com/-qqove344/AAAAAAAAAAI/AAAAAAABcbg/TXl3f2K9dzI/s64-c/11047045264.jpg</gphoto:thumbnail>
+  <gphoto:thumbnail>https://lh4.googleusercontent.com/REDACTED/11047045264.jpg</gphoto:thumbnail>
   <gphoto:quotalimit>38654705664</gphoto:quotalimit>
   <gphoto:quotacurrent>17032238989</gphoto:quotacurrent>
   <gphoto:maxPhotosPerAlbum>2000</gphoto:maxPhotosPerAlbum>
@@ -41,7 +41,7 @@
     </author>
     <gphoto:user>106948621299403</gphoto:user>
     <gphoto:nickname>Petra </gphoto:nickname>
-    <gphoto:thumbnail>https://lh5.googleusercontent.com/-CiCHgcc/AAAAAAAAAAI/AAAAAAAAAAA/moXXlYbkPsk/s64-c/106948621299403.jpg</gphoto:thumbnail>
+    <gphoto:thumbnail>https://lh5.googleusercontent.com/REDACTED/106948621299403.jpg</gphoto:thumbnail>
     <gphoto:showLink>true</gphoto:showLink>
     <gphoto:subscribed>true</gphoto:subscribed>
   </entry>
@@ -62,7 +62,7 @@
     </author>
     <gphoto:user>1163008697</gphoto:user>
     <gphoto:nickname>Viktória </gphoto:nickname>
-    <gphoto:thumbnail>https://lh3.googleusercontent.com/-HmzwFI/AAAAAAAAAAI/AAAAAAAAAAA/g7DJ3IovKMY/s64-c/1163008697.jpg</gphoto:thumbnail>
+    <gphoto:thumbnail>https://lh3.googleusercontent.com/REDACTED/1163008697.jpg</gphoto:thumbnail>
     <gphoto:showLink>true</gphoto:showLink>
     <gphoto:subscribed>true</gphoto:subscribed>
   </entry>

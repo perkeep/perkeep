@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:openSearch="http://a9.com/-/spec/opensearchrss/1.0/" xmlns:gphoto="http://schemas.google.com/photos/2007" xmlns:exif="http://schemas.google.com/photos/exif/2007" xmlns:media="http://search.yahoo.com/mrss/">
+  <id>https://picasaweb.google.com/data/feed/api/user/default/albumid/1000000455272364</id>
+  <updated>2016-01-09T22:01:34.792Z</updated>
+  <category scheme="http://schemas.google.com/g/2005#kind" term="http://schemas.google.com/photos/2007#album"/>
+  <title type="text">Automatikus biztonsági mentés</title>
+  <subtitle type="text"/>
+  <rights type="text">protected</rights>
+  <icon>https://lh3.googleusercontent.com/REDACTED_2R15TUlo/VpGCJUrRxaE/AAAAAAABrmU/1N_fHYjOHLk/s160-c/20160109.jpg</icon>
+  <link rel="http://schemas.google.com/g/2005#feed" type="application/atom+xml" href="https://picasaweb.google.com/data/feed/api/user/99999999999999999/albumid/1000000455272364"/>
+  <link rel="alternate" type="text/html" href="https://picasaweb.google.com/99999999999999999/20160109?authkey=AUTHKEY"/>
+  <link rel="alternate" type="text/html" href="https://picasaweb.google.com/99999999999999999?alabel=small_instant_upload"/>
+  <link rel="self" type="application/atom+xml" href="https://picasaweb.google.com/data/feed/api/user/99999999999999999/albumid/1000000455272364?start-index=1001&amp;max-results=1000&amp;imgmax=d"/>
+  <link rel="previous" type="application/atom+xml" href="https://picasaweb.google.com/data/feed/api/user/99999999999999999/albumid/1000000455272364?start-index=1&amp;max-results=1000&amp;imgmax=d"/>
+  <author>
+    <name>Tamás Gulácsi</name>
+    <uri>https://picasaweb.google.com/99999999999999999</uri>
+  </author>
+  <generator version="1.00" uri="http://picasaweb.google.com/">Picasaweb</generator>
+  <openSearch:totalResults>1000</openSearch:totalResults>
+  <openSearch:startIndex>1001</openSearch:startIndex>
+  <openSearch:itemsPerPage>1000</openSearch:itemsPerPage>
+  <gphoto:id>1000000455272364</gphoto:id>
+  <gphoto:name>InstantUpload</gphoto:name>
+  <gphoto:access>private</gphoto:access>
+  <gphoto:timestamp>1452335333000</gphoto:timestamp>
+  <gphoto:numphotos>2729</gphoto:numphotos>
+  <gphoto:user>99999999999999999</gphoto:user>
+  <gphoto:nickname>Tamás Gulácsi</gphoto:nickname>
+  <gphoto:albumType>InstantUpload</gphoto:albumType>
+  <gphoto:allowPrints>true</gphoto:allowPrints>
+  <gphoto:allowDownloads>true</gphoto:allowDownloads>
+</feed>
