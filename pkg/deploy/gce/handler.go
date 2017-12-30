@@ -918,7 +918,6 @@ func (h *DeployHandler) AddTemplateTheme(text string) error {
 // TemplateData is the data passed for templates of tplHTML.
 type TemplateData struct {
 	Title             string
-	Domain            string                   // unused, but needs to be defined to satisfy the page.html template. See TODO above.
 	Help              map[string]template.HTML // help bits within the form.
 	Hints             []string                 // helping hints printed in case of an error.
 	Err               error
@@ -933,6 +932,11 @@ type TemplateData struct {
 	ZoneValues        []string
 	MachineValues     []string
 	CamliVersion      string // git revision found in https://storage.googleapis.com/camlistore-release/docker/VERSION
+
+	// Unused stuff, but needed by page.html. See TODO above,
+	// before AddTemplateTheme.
+	GoImportDomain   string
+	GoImportUpstream string
 }
 
 const toHyperlink = `<a href="$1$3">$1$3</a>`
