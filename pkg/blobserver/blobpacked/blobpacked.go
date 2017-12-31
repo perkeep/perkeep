@@ -334,7 +334,22 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 
 	wholeMetaByWholeRef := make(map[blob.Ref][]wholeMetaPrefixInfo)
 
+	// first a fast full enumerate, so we can report progress afterwards
+	packedTotal := 0
+	blobserver.EnumerateAllFrom(ctx, s.large, "", func(sb blob.SizedRef) error {
+		packedTotal++
+		return nil
+	})
+
+	packedCurrent := 0
+	t := time.NewTicker(10 * time.Second)
+	defer t.Stop()
 	if err := blobserver.EnumerateAllFrom(ctx, s.large, "", func(sb blob.SizedRef) error {
+		select {
+		case <-t.C:
+			log.Printf("BLOBPACKED: %d / %d packed blobs reindexed", packedCurrent, packedTotal)
+		default:
+		}
 		zipRef := sb.Ref
 		zr, err := zip.NewReader(blob.ReaderAt(s.large, zipRef), int64(sb.Size))
 		if err != nil {
@@ -409,6 +424,7 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 			wholeSize:        mf.WholeSize,
 		})
 		wholeMetaByWholeRef[mf.WholeRef] = wholeMetas
+		packedCurrent++
 		return nil
 
 	}); err != nil {
@@ -437,6 +453,7 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 	if err := meta.CommitBatch(bm); err != nil {
 		return err
 	}
+	log.Printf("BLOBPACKED: %d / %d packed blobs successfully reindexed", packedCurrent, packedTotal)
 
 	// TODO(mpl): take into account removed blobs. I can't be done for now
 	// (2015-01-29) because RemoveBlobs currently only updates the meta index.
