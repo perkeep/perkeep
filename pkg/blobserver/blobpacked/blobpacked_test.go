@@ -183,7 +183,7 @@ func TestPackNoDelete(t *testing.T) {
 		},
 		func(pt *packTest) { pt.sto.skipDelete = true },
 		wantNumLargeBlobs(1),
-		wantNumSmallBlobs(15), // empirically
+		wantNumSmallBlobs(14), // empirically
 	)
 }
 
@@ -432,7 +432,7 @@ func TestPackTwoIdenticalfiles(t *testing.T) {
 		func(pt *packTest) { pt.sto.packGate = syncutil.NewGate(1) }, // one pack at a time
 		wantNumLargeBlobs(1),
 		wantNumSmallBlobs(1), // just the "b.txt" file schema blob
-		okayWithoutMeta("sha1-cb4399f6b3b31ace417e1ec9326f9818bb3f8387"),
+		okayWithoutMeta("sha1-7912d1f93942e84cb7ebd6bd6c83b7c152dc102b"),
 	)
 }
 
