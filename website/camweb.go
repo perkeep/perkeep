@@ -458,12 +458,6 @@ func serveFile(w http.ResponseWriter, r *http.Request, relPath, absPath string) 
 	})
 }
 
-func isBot(r *http.Request) bool {
-	agent := r.Header.Get("User-Agent")
-	return strings.Contains(agent, "Baidu") || strings.Contains(agent, "bingbot") ||
-		strings.Contains(agent, "Ezooms") || strings.Contains(agent, "Googlebot")
-}
-
 // redirectRootHandler redirects users to strip off "www." prefixes
 // and redirects http to https.
 type redirectRootHandler struct {
@@ -471,14 +465,6 @@ type redirectRootHandler struct {
 }
 
 func (h *redirectRootHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	// Some bots (especially Baidu) don't seem to respect robots.txt and swamp gitweb.cgi,
-	// so explicitly protect it from bots.
-	if ru := r.URL.RequestURI(); strings.Contains(ru, "/code/") && strings.Contains(ru, "?") && isBot(r) {
-		http.Error(rw, "bye", http.StatusUnauthorized)
-		log.Printf("bot denied")
-		return
-	}
-
 	if goget := r.FormValue("go-get"); goget == "1" {
 		// do not redirect on a go get request, because we want to be able to serve the
 		// "go-import" meta for camlistore.org, and not just for perkeep.org
@@ -1134,25 +1120,6 @@ func redirTo(dest string) http.Handler {
 		http.Redirect(w, r, dest, http.StatusFound)
 	})
 }
-
-// Not sure what's making these broken URLs like:
-//
-//   http://localhost:8080/code/?p=camlistore.git%3Bf=doc/json-signing/json-signing.txt%3Bhb=master
-//
-// ... but something is.  Maybe Buzz?  For now just re-write them
-// . Doesn't seem to be a bug in the CGI implementation, though, which
-// is what I'd originally suspected.
-/*
-func (fu *fixUpGitwebUrls) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	oldUrl := req.URL.String()
-	newUrl := strings.Replace(oldUrl, "%3B", ";", -1)
-	if newUrl == oldUrl {
-		fu.handler.ServeHTTP(rw, req)
-		return
-	}
-	http.Redirect(rw, req, newUrl, http.StatusFound)
-}
-*/
 
 func ipHandler(w http.ResponseWriter, r *http.Request) {
 	out, _ := exec.Command("ip", "-f", "inet", "addr", "show", "dev", "eth0").Output()
