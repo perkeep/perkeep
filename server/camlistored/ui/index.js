@@ -530,7 +530,7 @@ cam.IndexPage = React.createClass({
 		this.targetSearchSession_ = null;
 		if (targetBlobref) {
 			var opt_sort = "blobref";
-			var query = this.queryFromSearchParam_("ref:"+targetBlobref);
+			var query = this.queryAsBlob_(targetBlobref);
 			var parentPermanode = newURL.getParameterValue('p');
 			if (parentPermanode) {
 				query = this.queryFromParentPermanode_(parentPermanode);
@@ -543,6 +543,12 @@ cam.IndexPage = React.createClass({
 				}
 			}
 			this.targetSearchSession_ = this.getSearchSession_(targetBlobref, query, opt_sort);
+		}
+	},
+
+	queryAsBlob_: function(blobRef) {
+		return {
+			blobRefPrefix: blobRef,
 		}
 	},
 
