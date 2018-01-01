@@ -267,7 +267,7 @@ func redirectPath(u *url.URL) string {
 
 	if strings.HasPrefix(u.Path, "/gw/") {
 		path := strings.TrimPrefix(u.Path, "/gw/")
-		if strings.HasPrefix(path, "doc") || strings.HasPrefix(path, "clients") {
+		if strings.HasPrefix(path, "clients") || strings.HasPrefix(path, "server") {
 			return gerritURLPrefix + "master/" + path
 		}
 		// Assume it's a commit
