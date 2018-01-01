@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -72,4 +72,4 @@ Global options:
   -verbose_http=false: show HTTP request summaries
   -version=false: show version
 */
-package main // import "camlistore.org/cmd/camput"
+package main // import "perkeep.org/cmd/camput"

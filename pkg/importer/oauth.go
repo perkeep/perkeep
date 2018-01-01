@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,9 +25,9 @@ import (
 	"net/url"
 	"strings"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/httputil"
 	"github.com/garyburd/go-oauth/oauth"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/httputil"
 
 	"go4.org/ctxutil"
 )

@@ -24,7 +24,7 @@ import (
 	"net/url"
 	"time"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 // EnumerateOpts are the options to Client.EnumerateBlobsOpts.

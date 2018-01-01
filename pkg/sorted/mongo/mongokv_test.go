@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,10 +19,10 @@ package mongo
 import (
 	"testing"
 
-	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/sorted/kvtest"
-	"camlistore.org/pkg/test/dockertest"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/sorted/kvtest"
+	"perkeep.org/pkg/test/dockertest"
 )
 
 // TestMongoKV tests against a real MongoDB instance, using a Docker container.

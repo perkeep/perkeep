@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Camlistore Authors
+Copyright 2017 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package gphotos implements a Google Photos importer, using the Google Drive
 // API to access the Google Photos folder.
-package gphotos // import "camlistore.org/pkg/importer/gphotos"
+package gphotos // import "perkeep.org/pkg/importer/gphotos"
 
 import (
 	"context"
@@ -31,13 +31,13 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/importer"
-	"camlistore.org/pkg/importer/picasa"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/schema/nodeattr"
-	"camlistore.org/pkg/search"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/importer"
+	"perkeep.org/pkg/importer/picasa"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/schema/nodeattr"
+	"perkeep.org/pkg/search"
 
 	"go4.org/ctxutil"
 	"go4.org/syncutil"
@@ -455,7 +455,7 @@ func (r *run) updatePhoto(ctx context.Context, parent *importer.Object, ph photo
 	})
 	if err != nil {
 		if fileRefStr != "" {
-			return fmt.Errorf("error getting permanode for photo %q, with content %v: $v", ph.ID, fileRefStr, err)
+			return fmt.Errorf("error getting permanode for photo %q, with content %v: %v", ph.ID, fileRefStr, err)
 		}
 		return fmt.Errorf("error getting permanode for photo %q: %v", ph.ID, err)
 	}

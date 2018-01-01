@@ -1,5 +1,5 @@
 /*
-Copyright 2012 The Camlistore Authors.
+Copyright 2012 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,11 +28,11 @@ import (
 	"strconv"
 	"strings"
 
-	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/osutil"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/auth"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/osutil"
 
 	"golang.org/x/net/xsrftoken"
 )

@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Camlistore Authors
+Copyright 2015 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,14 +15,14 @@ limitations under the License.
 */
 
 // Package conv contains utilities for parsing values delimited by spaces.
-package conv // import "camlistore.org/pkg/conv"
+package conv // import "perkeep.org/pkg/conv"
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 
 	"go4.org/strutil"
 )

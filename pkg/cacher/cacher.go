@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package cacher provides various blobref fetching caching mechanisms.
-package cacher // import "camlistore.org/pkg/cacher"
+package cacher // import "perkeep.org/pkg/cacher"
 
 import (
 	"io"
@@ -24,10 +24,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/localdisk"
-	"camlistore.org/pkg/osutil"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/localdisk"
+	"perkeep.org/pkg/osutil"
 
 	"go4.org/syncutil/singleflight"
 )

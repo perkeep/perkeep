@@ -32,12 +32,12 @@ Example low-level config:
       },
     },
 */
-package drive // import "camlistore.org/pkg/blobserver/google/drive"
+package drive // import "perkeep.org/pkg/blobserver/google/drive"
 
 import (
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/google/drive/service"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/google/drive/service"
 
 	"context"
 

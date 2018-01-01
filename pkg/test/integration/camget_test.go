@@ -27,8 +27,8 @@ import (
 	"strings"
 	"testing"
 
-	"camlistore.org/pkg/test"
-	"camlistore.org/pkg/test/asserts"
+	"perkeep.org/pkg/test"
+	"perkeep.org/pkg/test/asserts"
 )
 
 // Test that `camget -o' can restore a symlink correctly.

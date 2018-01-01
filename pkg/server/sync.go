@@ -34,15 +34,15 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/constants"
-	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/types/camtypes"
 	"go4.org/jsonconfig"
 	"golang.org/x/net/xsrftoken"
+	"perkeep.org/pkg/auth"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/constants"
+	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/types/camtypes"
 
 	"go4.org/syncutil"
 )

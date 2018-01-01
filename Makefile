@@ -1,4 +1,4 @@
-# The normal way to build Camlistore is just "go run make.go", which
+# The normal way to build Perkeep is just "go run make.go", which
 # works everywhere, even on systems without Make.  The rest of this
 # Makefile is mostly historical and should hopefully disappear over
 # time.
@@ -7,7 +7,7 @@ all:
 
 # On OS X with "brew install sqlite3", you need PKG_CONFIG_PATH=/usr/local/Cellar/sqlite/3.7.17/lib/pkgconfig/
 full:
-	go install --ldflags="-X camlistore.org/pkg/buildinfo.GitInfo "`./misc/gitversion` `pkg-config --libs sqlite3 1>/dev/null 2>/dev/null && echo "--tags=with_sqlite"` ./pkg/... ./server/... ./cmd/... ./dev/...
+	go install --ldflags="-X perkeep.org/pkg/buildinfo.GitInfo "`./misc/gitversion` `pkg-config --libs sqlite3 1>/dev/null 2>/dev/null && echo "--tags=with_sqlite"` ./pkg/... ./server/... ./cmd/... ./dev/...
 
 
 # Workaround Go bug where the $GOPATH/pkg cache doesn't know about tag changes.
@@ -33,4 +33,4 @@ clean:
 	rm -f $(NEWUIDIR)/all.js $(NEWUIDIR)/all.js.map
 
 fmt:
-	go fmt camlistore.org/cmd... camlistore.org/dev... camlistore.org/misc... camlistore.org/pkg... camlistore.org/server...
+	go fmt perkeep.org/cmd... perkeep.org/dev... perkeep.org/misc... perkeep.org/pkg... perkeep.org/server...

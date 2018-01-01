@@ -21,6 +21,6 @@ Package glich embeds the little piggy animation resources.
 */
 package glitch
 
-import "camlistore.org/pkg/fileembed"
+import "perkeep.org/pkg/fileembed"
 
 var Files = &fileembed.Files{}

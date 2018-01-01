@@ -18,7 +18,7 @@ limitations under the License.
 
 // Package fs implements a FUSE filesystem for Camlistore and is
 // used by the cammount binary.
-package fs // import "camlistore.org/pkg/fs"
+package fs // import "perkeep.org/pkg/fs"
 
 import (
 	"fmt"
@@ -28,10 +28,10 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/client"
-	"camlistore.org/pkg/lru"
-	"camlistore.org/pkg/schema"
+	"perkeep.org/internal/lru"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/client"
+	"perkeep.org/pkg/schema"
 
 	"bazil.org/fuse"
 	fusefs "bazil.org/fuse/fs"

@@ -22,10 +22,10 @@ import (
 	"log"
 	"net/http"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/schema"
 	"go4.org/types"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/schema"
 )
 
 // uploadHelperResponse is the response from serveUploadHelper.

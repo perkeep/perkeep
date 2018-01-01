@@ -2,7 +2,7 @@
 //  LACamliFile.h
 //
 //  Created by Nick O'Neill on 1/13/13.
-//  Copyright (c) 2013 The Camlistore Authors. All rights reserved.
+//  Copyright (c) 2013 The Perkeep Authors. All rights reserved.
 //
 
 #import <Foundation/Foundation.h>

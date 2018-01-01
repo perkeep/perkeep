@@ -19,7 +19,7 @@ limitations under the License.
 package main
 
 import (
-	"camlistore.org/pkg/client/android"
+	"perkeep.org/pkg/client/android"
 )
 
 type allStats struct {

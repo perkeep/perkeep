@@ -26,10 +26,10 @@ import (
 	"os"
 	"regexp"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/constants"
-	"camlistore.org/pkg/schema"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/constants"
+	"perkeep.org/pkg/schema"
 
 	"go4.org/readerutil"
 	"go4.org/types"

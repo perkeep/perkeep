@@ -29,16 +29,16 @@ Example low-level config:
      },
 
 */
-package shard // import "camlistore.org/pkg/blobserver/shard"
+package shard // import "perkeep.org/pkg/blobserver/shard"
 
 import (
 	"context"
 	"errors"
 	"io"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 )
 
 type shardStorage struct {

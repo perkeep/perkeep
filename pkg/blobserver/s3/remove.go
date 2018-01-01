@@ -17,7 +17,7 @@ limitations under the License.
 package s3
 
 import (
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 
 	"go4.org/syncutil"
 )

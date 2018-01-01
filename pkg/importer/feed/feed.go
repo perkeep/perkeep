@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package feed implements an importer for RSS, Atom, and RDF feeds.
-package feed // import "camlistore.org/pkg/importer/feed"
+package feed // import "perkeep.org/pkg/importer/feed"
 
 import (
 	"bytes"
@@ -28,10 +28,10 @@ import (
 	"net/http"
 	"net/url"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/importer"
-	"camlistore.org/pkg/schema"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/importer"
+	"perkeep.org/pkg/schema"
 
 	"go4.org/ctxutil"
 	"golang.org/x/net/html"

@@ -18,7 +18,7 @@ limitations under the License.
 //
 // A schema blob is a JSON-encoded blob that describes other blobs.
 // See documentation in Camlistore's doc/schema/ directory.
-package schema // import "camlistore.org/pkg/schema"
+package schema // import "perkeep.org/pkg/schema"
 
 import (
 	"bytes"
@@ -40,8 +40,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"camlistore.org/pkg/blob"
 	"github.com/bradfitz/latlong"
+	"perkeep.org/pkg/blob"
 
 	"github.com/rwcarlsen/goexif/exif"
 	"github.com/rwcarlsen/goexif/tiff"

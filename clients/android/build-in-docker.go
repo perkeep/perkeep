@@ -1,7 +1,7 @@
 // +build ignore
 
 /*
-Copyright 2017 The Camlistore Authors.
+Copyright 2017 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This program builds the Camlistore Android application. It is meant to be run
+// This program builds the Perkeep Android application. It is meant to be run
 // within the relevant docker container.
 package main
 
@@ -40,8 +40,8 @@ var flagRelease = flag.Bool("release", false, "Whether to assemble the release b
 const appVersion = "0.7"
 
 var (
-	camliDir   = filepath.Join(os.Getenv("GOPATH"), "src/camlistore.org")
-	projectDir = filepath.Join(os.Getenv("GOPATH"), "src/camlistore.org/clients/android")
+	camliDir   = filepath.Join(os.Getenv("GOPATH"), "src/perkeep.org")
+	projectDir = filepath.Join(os.Getenv("GOPATH"), "src/perkeep.org/clients/android")
 	camputBin  = filepath.Join(projectDir, "app/build/generated/assets/camput.arm")
 	assetsDir  = filepath.Join(projectDir, "app/src/main/assets")
 )
@@ -78,7 +78,7 @@ func writeVersion() {
 func buildCamput() {
 	os.Setenv("GOARCH", "arm")
 	os.Setenv("GOARM", "7")
-	cmd := exec.Command("go", "build", "-o", camputBin, "camlistore.org/cmd/camput")
+	cmd := exec.Command("go", "build", "-o", camputBin, "perkeep.org/cmd/camput")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -102,7 +102,7 @@ func goVersion() string {
 	return string(out)
 }
 
-// getVersion returns the version of Camlistore. Either from a VERSION file at the root,
+// getVersion returns the version of Perkeep. Either from a VERSION file at the root,
 // or from git.
 func getVersion() string {
 	slurp, err := ioutil.ReadFile(filepath.Join(camliDir, "VERSION"))

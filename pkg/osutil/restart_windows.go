@@ -1,7 +1,7 @@
 // +build windows
 
 /*
-Copyright 2014 The Camlistore Authors.
+Copyright 2014 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

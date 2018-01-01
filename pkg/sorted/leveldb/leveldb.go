@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors.
+Copyright 2014 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ limitations under the License.
 // Package leveldb provides an implementation of sorted.KeyValue
 // on top of a single mutable database file on disk using
 // github.com/syndtr/goleveldb.
-package leveldb // import "camlistore.org/pkg/sorted/leveldb"
+package leveldb // import "perkeep.org/pkg/sorted/leveldb"
 
 import (
 	"errors"
@@ -26,9 +26,9 @@ import (
 	"os"
 	"sync"
 
-	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/sorted"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/env"
+	"perkeep.org/pkg/sorted"
 
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/filter"

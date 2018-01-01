@@ -27,9 +27,9 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/osutil"
-	. "camlistore.org/pkg/test/asserts"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/osutil"
+	. "perkeep.org/pkg/test/asserts"
 )
 
 const expectedHeader = `{"camliVersion"`
@@ -489,7 +489,7 @@ func TestShareExpiration(t *testing.T) {
 	}
 }
 
-// camlistore.org/issue/305
+// perkeep.org/issue/305
 func TestIssue305(t *testing.T) {
 	var in = `{"camliVersion": 1,
   "camliType": "file",

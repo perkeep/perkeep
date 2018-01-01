@@ -35,7 +35,7 @@ Example usage:
 	}
   }
 */
-package cond // import "camlistore.org/pkg/blobserver/cond"
+package cond // import "perkeep.org/pkg/blobserver/cond"
 
 import (
 	"bytes"
@@ -45,10 +45,10 @@ import (
 	"io"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/schema"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/schema"
 )
 
 // A storageFunc selects a destination for a given blob. It may consume from src but must always return

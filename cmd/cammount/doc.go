@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -105,4 +105,4 @@ Full Command Line Usage
   -xterm
         Run an xterm in the mounted directory. Shut down when xterm ends.
 */
-package main // import "camlistore.org/cmd/cammount"
+package main // import "perkeep.org/cmd/cammount"

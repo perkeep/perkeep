@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors.
+Copyright 2014 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"camlistore.org/pkg/images/fastjpeg"
-	"camlistore.org/pkg/images/resize"
+	"perkeep.org/pkg/images/fastjpeg"
+	"perkeep.org/pkg/images/resize"
 )
 
 // The decode routines being benchmarked in this file will use these bytes for

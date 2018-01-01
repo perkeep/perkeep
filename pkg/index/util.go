@@ -20,9 +20,9 @@ import (
 	"net/url"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/types/camtypes"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/types/camtypes"
 )
 
 var urle = url.QueryEscape

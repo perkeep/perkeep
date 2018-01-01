@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package twitter implements a twitter.com importer.
-package twitter // import "camlistore.org/pkg/importer/twitter"
+package twitter // import "perkeep.org/pkg/importer/twitter"
 
 import (
 	"archive/zip"
@@ -37,11 +37,11 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/importer"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/schema/nodeattr"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/importer"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/schema/nodeattr"
 
 	"github.com/garyburd/go-oauth/oauth"
 

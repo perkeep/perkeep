@@ -34,17 +34,17 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/osutil"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/osutil"
 )
 
 // World defines an integration test world.
 //
-// It's used to run the actual Camlistore binaries (camlistored,
+// It's used to run the actual Perkeep binaries (camlistored,
 // camput, camget, camtool, etc) together in large tests, including
 // building them, finding them, and wiring them up in an isolated way.
 type World struct {
-	camRoot  string // typically $GOPATH[0]/src/camlistore.org
+	camRoot  string // typically $GOPATH[0]/src/perkeep.org
 	config   string // server config file relative to pkg/test/testdata
 	tempDir  string
 	listener net.Listener // randomly chosen 127.0.0.1 port for the server
@@ -58,24 +58,24 @@ type World struct {
 // CamliSourceRoot returns the root of the source tree, or an error.
 func camliSourceRoot() (string, error) {
 	if os.Getenv("GOPATH") == "" {
-		return "", errors.New("GOPATH environment variable isn't set; required to run Camlistore integration tests")
+		return "", errors.New("GOPATH environment variable isn't set; required to run Perkeep integration tests")
 	}
-	root, err := osutil.GoPackagePath("camlistore.org")
+	root, err := osutil.GoPackagePath("perkeep.org")
 	if err == os.ErrNotExist {
-		return "", errors.New("directory \"camlistore.org\" not found under GOPATH/src; can't run Camlistore integration tests")
+		return "", errors.New("directory \"perkeep.org\" not found under GOPATH/src; can't run Perkeep integration tests")
 	}
 	return root, nil
 }
 
 // NewWorld returns a new test world.
-// It requires that GOPATH is set to find the "camlistore.org" root.
+// It requires that GOPATH is set to find the "perkeep.org" root.
 func NewWorld() (*World, error) {
 	return WorldFromConfig("server-config.json")
 }
 
 // WorldFromConfig returns a new test world based on the given configuration file.
 // This cfg is the server config relative to pkg/test/testdata.
-// It requires that GOPATH is set to find the "camlistore.org" root.
+// It requires that GOPATH is set to find the "perkeep.org" root.
 func WorldFromConfig(cfg string) (*World, error) {
 	root, err := camliSourceRoot()
 	if err != nil {
@@ -103,10 +103,10 @@ func (w *World) CamliSourceRoot() string {
 	return w.camRoot
 }
 
-// Build builds the Camlistore binaries.
+// Build builds the Perkeep binaries.
 func (w *World) Build() error {
 	var err error
-	w.tempDir, err = ioutil.TempDir("", "camlistore-test-")
+	w.tempDir, err = ioutil.TempDir("", "perkeep-test-")
 	if err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func (w *World) Build() error {
 			cmd.Args = append(cmd.Args, "-v=true")
 		}
 		cmd.Dir = w.camRoot
-		log.Print("Running make.go to build camlistore binaries for testing...")
+		log.Print("Running make.go to build perkeep binaries for testing...")
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("Error building world: %v, %s", err, string(out))
@@ -168,7 +168,7 @@ func (w *World) Help() ([]byte, error) {
 	return cmd.CombinedOutput()
 }
 
-// Start builds the Camlistore binaries and starts a server.
+// Start builds the Perkeep binaries and starts a server.
 func (w *World) Start() error {
 	if err := w.Build(); err != nil {
 		return err

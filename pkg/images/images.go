@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package images // import "camlistore.org/pkg/images"
+package images // import "perkeep.org/pkg/images"
 
 import (
 	"bytes"
@@ -31,8 +31,8 @@ import (
 	_ "image/gif"
 	_ "image/png"
 
-	"camlistore.org/pkg/images/fastjpeg"
-	"camlistore.org/pkg/images/resize"
+	"perkeep.org/pkg/images/fastjpeg"
+	"perkeep.org/pkg/images/resize"
 
 	"github.com/nf/cr2"
 	"github.com/rwcarlsen/goexif/exif"

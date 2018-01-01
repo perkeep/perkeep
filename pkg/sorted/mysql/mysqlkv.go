@@ -1,5 +1,5 @@
 /*
-Copyright 2011 The Camlistore Authors.
+Copyright 2011 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package mysql provides an implementation of sorted.KeyValue
 // on top of MySQL.
-package mysql // import "camlistore.org/pkg/sorted/mysql"
+package mysql // import "perkeep.org/pkg/sorted/mysql"
 
 import (
 	"database/sql"
@@ -28,12 +28,12 @@ import (
 	"strings"
 	"sync"
 
-	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/sorted/sqlkv"
 	_ "github.com/go-sql-driver/mysql"
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"
+	"perkeep.org/pkg/env"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/sorted/sqlkv"
 )
 
 func init() {

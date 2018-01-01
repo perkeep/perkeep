@@ -23,8 +23,8 @@ import (
 	"net/url"
 	"strings"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/httputil"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/httputil"
 )
 
 type removeResponse struct {

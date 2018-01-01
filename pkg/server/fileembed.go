@@ -23,7 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"camlistore.org/pkg/fileembed"
+	"perkeep.org/pkg/fileembed"
 )
 
 var Files = &fileembed.Files{}

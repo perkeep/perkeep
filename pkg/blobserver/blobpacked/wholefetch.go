@@ -27,8 +27,8 @@ import (
 	"os"
 	"sort"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/conv"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/conv"
 )
 
 // zipPart is some of the state from the "w:sha1-xxx:n" meta rows.

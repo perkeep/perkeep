@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors.
+Copyright 2014 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@ import (
 	"os"
 	"strings"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/search"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/search"
 )
 
 type makeStaticCmd struct {

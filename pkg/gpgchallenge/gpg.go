@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Camlistore Authors
+Copyright 2016 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ limitations under the License.
 // [*]As the Server connects to the Client to challenge it, the Client must obviously
 // have a way, which does not need to be described by the protocol, to listen to and
 // accept these connections.
-package gpgchallenge // import "camlistore.org/pkg/gpgchallenge"
+package gpgchallenge // import "perkeep.org/pkg/gpgchallenge"
 
 import (
 	"bytes"
@@ -146,7 +146,7 @@ type Server struct {
 func (cs *Server) serverInit() error {
 	nonce, err := genNonce()
 	if err != nil {
-		return fmt.Errorf("error generating key for hmac: %v")
+		return fmt.Errorf("error generating key for hmac: %v", err)
 	}
 	cs.keyHMAC = []byte(nonce)
 	cs.nonceUsed = make(map[string]bool)

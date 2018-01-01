@@ -42,7 +42,7 @@ cam.ServerConnection = function(config, opt_sendXhr) {
 cam.ServerConnection.DESCRIBE_REQUEST = {
 	// TODO(aa): This is not perfect. The describe request will return some data we don't care about:
 	// - Properties we don't use
-	// See: https://camlistore.org/issue/319
+	// See: https://perkeep.org/issue/319
 
 	depth: 1,
 	rules: [
@@ -395,7 +395,7 @@ cam.ServerConnection.prototype.uploadString_ = function(s, success, opt_fail) {
 	var blobref = cam.blob.refFromString(s);
 	var bb = new Blob([s]);
 	var fd = new FormData();
-	// Regarding https://camlistore.org/issue/660 , it seems like doing
+	// Regarding https://perkeep.org/issue/660 , it seems like doing
 	// fd.append(blobref, s);
 	// instead does not suffer for the "first upload" problem. However,
 	// we get a mismatched blobRef if we do that, which I suppose is a

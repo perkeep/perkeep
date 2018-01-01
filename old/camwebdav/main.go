@@ -20,11 +20,11 @@ import (
 	"os"
 	"strings"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver/localdisk"
-	"camlistore.org/pkg/cacher"
-	"camlistore.org/pkg/client"
-	"camlistore.org/pkg/fs"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver/localdisk"
+	"perkeep.org/pkg/cacher"
+	"perkeep.org/pkg/client"
+	"perkeep.org/pkg/fs"
 	//	"github.com/hanwen/go-fuse/fuse"
 )
 

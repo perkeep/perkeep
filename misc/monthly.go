@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Camlistore Authors
+Copyright 2016 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/osutil"
+	"perkeep.org/pkg/osutil"
 
 	"cloud.google.com/go/storage"
 	"golang.org/x/oauth2"

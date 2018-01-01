@@ -31,14 +31,14 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/cacher"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/magic"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/search"
 	"go4.org/readerutil"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/cacher"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/magic"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/search"
 )
 
 const (

@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,13 +23,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/importer"
-	imptest "camlistore.org/pkg/importer/test"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/schema/nodeattr"
 	"github.com/garyburd/go-oauth/oauth"
 	"go4.org/ctxutil"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/importer"
+	imptest "perkeep.org/pkg/importer/test"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/schema/nodeattr"
 )
 
 func TestGetUserID(t *testing.T) {

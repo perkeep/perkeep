@@ -26,8 +26,8 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/search"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/search"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"

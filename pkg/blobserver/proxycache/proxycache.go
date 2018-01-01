@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ Example config:
           }
       },
 */
-package proxycache // import "camlistore.org/pkg/blobserver/proxycache"
+package proxycache // import "perkeep.org/pkg/blobserver/proxycache"
 
 import (
 	"bytes"
@@ -49,12 +49,12 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/stats"
-	"camlistore.org/pkg/lru"
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"
+	"perkeep.org/internal/lru"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/stats"
 )
 
 type sto struct {

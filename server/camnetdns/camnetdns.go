@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Camlistore Authors
+Copyright 2016 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,10 +30,10 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/gpgchallenge"
-	"camlistore.org/pkg/lru"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/sorted"
+	"perkeep.org/internal/lru"
+	"perkeep.org/pkg/gpgchallenge"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/sorted"
 
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/datastore"

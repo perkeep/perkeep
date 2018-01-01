@@ -1,4 +1,4 @@
-# Copyright 2015 The Camlistore Authors.
+# Copyright 2015 The Perkeep Authors.
 #
 # NOTE: this will not build directly with "docker build". This file is just a
 # template used by misc/docker/dock.go

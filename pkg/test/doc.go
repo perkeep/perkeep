@@ -15,4 +15,4 @@ limitations under the License.
 */
 
 // Package test provides common Camlistore test objects.
-package test // import "camlistore.org/pkg/test"
+package test // import "perkeep.org/pkg/test"

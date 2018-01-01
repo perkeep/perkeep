@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,10 +18,11 @@ package integration
 
 import (
 	"bufio"
-	"camlistore.org/pkg/test"
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"perkeep.org/pkg/test"
 )
 
 func runCmd(t *testing.T, w *test.World, cmd string, args ...string) string {
@@ -46,8 +47,8 @@ func TestSetNamed(t *testing.T) {
 	// Needed to upload the owner public key
 	runCmd(t, w, "camput", "permanode")
 
-	runCmd(t, w, "camtool", "searchnames", "bar", "is:image and tag:bar")
-	gno := runCmd(t, w, "camtool", "searchnames", "bar")
+	runCmd(t, w, "camtool", "named-search-set", "bar", "is:image and tag:bar")
+	gno := runCmd(t, w, "camtool", "named-search-get", "bar")
 	gnr := parseJSON(gno)
 	if gnr["named"] != "bar" || gnr["substitute"] != "is:image and tag:bar" {
 		t.Errorf("Unexpected value %v , expected (bar, is:image and tag:bar)", gnr)
@@ -67,7 +68,7 @@ func TestGetNamed(t *testing.T) {
 	pn := runCmd(t, w, "camput", "permanode")
 	runCmd(t, w, "camput", "attr", strings.TrimSpace(pn), "camliNamedSearch", "foo")
 	runCmd(t, w, "camput", "attr", strings.TrimSpace(pn), "camliContent", strings.TrimSpace(ref))
-	gno := runCmd(t, w, "camtool", "searchnames", "foo")
+	gno := runCmd(t, w, "camtool", "named-search-get", "foo")
 	gnr := parseJSON(gno)
 	if gnr["named"] != "foo" || gnr["substitute"] != "is:pano" {
 		t.Errorf("Unexpected value %v , expected (foo, is:pano)", gnr)
@@ -77,7 +78,7 @@ func TestGetNamed(t *testing.T) {
 func TestNamedSearch(t *testing.T) {
 	w := test.GetWorld(t)
 
-	runCmd(t, w, "camtool", "searchnames", "favorite", "tag:cats")
+	runCmd(t, w, "camtool", "named-search-set", "favorite", "tag:cats")
 	pn := runCmd(t, w, "camput", "permanode", "-title", "Felix", "-tag", "cats")
 	_, lines, err := bufio.ScanLines([]byte(pn), false)
 	if err != nil {
@@ -94,8 +95,8 @@ func TestNamedSearch(t *testing.T) {
 func TestNestedNamedSearch(t *testing.T) {
 	w := test.GetWorld(t)
 
-	runCmd(t, w, "camtool", "searchnames", "favorite", "tag:cats")
-	runCmd(t, w, "camtool", "searchnames", "mybest", "named:favorite")
+	runCmd(t, w, "camtool", "named-search-set", "favorite", "tag:cats")
+	runCmd(t, w, "camtool", "named-search-set", "mybest", "named:favorite")
 	pn := runCmd(t, w, "camput", "permanode", "-title", "Felix", "-tag", "cats")
 	_, lines, err := bufio.ScanLines([]byte(pn), false)
 	if err != nil {

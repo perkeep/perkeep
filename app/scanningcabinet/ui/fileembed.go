@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Camlistore Authors
+Copyright 2017 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,10 +21,10 @@ file type to the pattern below.
 
 #fileembed pattern .+\.(js|css)$
 */
-package ui // import "camlistore.org/app/scanningcabinet/ui"
+package ui // import "perkeep.org/app/scanningcabinet/ui"
 
 import (
-	"camlistore.org/pkg/fileembed"
+	"perkeep.org/pkg/fileembed"
 )
 
 var Files = &fileembed.Files{}

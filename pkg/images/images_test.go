@@ -1,5 +1,5 @@
 /*
-Copyright 2012 The Camlistore Authors.
+Copyright 2012 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -345,7 +345,7 @@ var issue513tests = []image.Rectangle{
 
 // Test that decode does not hand off a nil image when using
 // fastjpeg, and fastjpeg.Factor() == 1.
-// See https://camlistore.org/issue/513
+// See https://perkeep.org/issue/513
 func TestIssue513(t *testing.T) {
 	opts := &DecodeOpts{MaxWidth: 2000, MaxHeight: 256}
 	for _, rect := range issue513tests {

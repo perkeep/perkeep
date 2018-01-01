@@ -20,9 +20,9 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/types/camtypes"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/types/camtypes"
 )
 
 func ExpReverseTimeString(s string) string {

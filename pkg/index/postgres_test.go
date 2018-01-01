@@ -1,5 +1,5 @@
 /*
-Copyright 2012 The Camlistore Authors.
+Copyright 2012 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,13 +19,13 @@ package index_test
 import (
 	"testing"
 
-	"camlistore.org/pkg/index/indextest"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/sorted/kvtest"
-	_ "camlistore.org/pkg/sorted/postgres"
-	"camlistore.org/pkg/test/dockertest"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/index/indextest"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/sorted/kvtest"
+	_ "perkeep.org/pkg/sorted/postgres"
+	"perkeep.org/pkg/test/dockertest"
 )
 
 func newPostgresSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {

@@ -27,7 +27,7 @@ import (
 	"strings"
 	"testing"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 func TestBlobFromURLPath(t *testing.T) {

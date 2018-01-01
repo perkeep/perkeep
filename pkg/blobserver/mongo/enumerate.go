@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import (
 	"context"
 	"log"
 
-	"camlistore.org/pkg/blob"
 	"labix.org/v2/mgo/bson"
+	"perkeep.org/pkg/blob"
 )
 
 func (m *mongoStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {

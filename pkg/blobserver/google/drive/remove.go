@@ -17,7 +17,7 @@ limitations under the License.
 package drive
 
 import (
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 func (sto *driveStorage) RemoveBlobs(blobs []blob.Ref) error {

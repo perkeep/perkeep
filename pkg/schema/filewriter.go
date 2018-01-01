@@ -25,9 +25,9 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/rollsum"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/rollsum"
 
 	"go4.org/syncutil"
 )
@@ -168,7 +168,7 @@ func uploadBytes(bs blobserver.StatReceiver, bb *Builder, size int64, s []span) 
 		return future
 	}
 
-	// Hack until camlistore.org/issue/102 is fixed. If we happen to upload
+	// Hack until perkeep.org/issue/102 is fixed. If we happen to upload
 	// the "file" schema before any of its parts arrive, then the indexer
 	// can get confused.  So wait on the parts before, and then upload
 	// the "file" blob afterwards.

@@ -21,7 +21,7 @@ package server
 import (
 	"os/user"
 
-	"camlistore.org/pkg/osutil"
+	"perkeep.org/pkg/osutil"
 )
 
 func getUserName() (string, error) {

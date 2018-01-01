@@ -22,7 +22,7 @@ import (
 	"os"
 	"strings"
 
-	"camlistore.org/pkg/cmdmain"
+	"perkeep.org/pkg/cmdmain"
 )
 
 var debugSubModes = map[string]*debugSubMode{

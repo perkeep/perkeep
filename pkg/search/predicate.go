@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,9 +28,9 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/geocode"
-	"camlistore.org/pkg/schema/nodeattr"
 	"go4.org/types"
+	"perkeep.org/pkg/geocode"
+	"perkeep.org/pkg/schema/nodeattr"
 )
 
 const base = "0000-01-01T00:00:00Z"

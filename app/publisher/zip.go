@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,11 +27,11 @@ import (
 	"path"
 	"sort"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/types/camtypes"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/types/camtypes"
 )
 
 type zipHandler struct {

@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package gce configures hooks for running Camlistore for Google Compute Engine.
-package gce // import "camlistore.org/pkg/osutil/gce"
+package gce // import "perkeep.org/pkg/osutil/gce"
 
 import (
 	"context"
@@ -27,8 +27,8 @@ import (
 	"path"
 	"strings"
 
-	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/osutil"
+	"perkeep.org/pkg/env"
+	"perkeep.org/pkg/osutil"
 
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/logging"

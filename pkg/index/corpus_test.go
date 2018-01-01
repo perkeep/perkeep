@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors
+Copyright 2013 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,11 +22,11 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/index/indextest"
-	"camlistore.org/pkg/types/camtypes"
 	"go4.org/types"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/index/indextest"
+	"perkeep.org/pkg/types/camtypes"
 )
 
 func newTestCorpusWithPermanode() (c *index.Corpus, pn, sig1, sig2 blob.Ref) {

@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/types/camtypes"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/types/camtypes"
 )
 
 type Interface interface {

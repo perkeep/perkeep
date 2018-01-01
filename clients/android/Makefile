@@ -10,13 +10,13 @@ env:
 	docker build -t camlistore/android devenv
 
 dockerdev:
-	docker run --rm -v $(GOPATH)/src/camlistore.org:/home/gopher/src/camlistore.org -v $(HOME)/.gradle:/home/gopher/.gradle -v $(HOME)/.android:/home/gopher/.android -w /home/gopher/src/camlistore.org/clients/android --name camlidroid -i -t camlistore/android /bin/bash
+	docker run --rm -v $(GOPATH)/src/perkeep.org:/home/gopher/src/perkeep.org -v $(HOME)/.gradle:/home/gopher/.gradle -v $(HOME)/.android:/home/gopher/.android -w /home/gopher/src/perkeep.org/clients/android --name camlidroid -i -t camlistore/android /bin/bash
 
 dockerdebug:
-	docker run --rm -v $(GOPATH)/src/camlistore.org:/home/gopher/src/camlistore.org -v $(HOME)/.gradle:/home/gopher/.gradle -v $(HOME)/.android:/home/gopher/.android -w /home/gopher/src/camlistore.org/clients/android --name camlidroid -i -t camlistore/android go run build-in-docker.go
+	docker run --rm -v $(GOPATH)/src/perkeep.org:/home/gopher/src/perkeep.org -v $(HOME)/.gradle:/home/gopher/.gradle -v $(HOME)/.android:/home/gopher/.android -w /home/gopher/src/perkeep.org/clients/android --name camlidroid -i -t camlistore/android go run build-in-docker.go
 
 dockerrelease:
-	docker run --rm -v $(GOPATH)/src/camlistore.org:/home/gopher/src/camlistore.org -v $(HOME)/.gradle:/home/gopher/.gradle -v $(HOME)/.android:/home/gopher/.android -w /home/gopher/src/camlistore.org/clients/android --name camlidroid -i -t camlistore/android go run build-in-docker.go -release=true
+	docker run --rm -v $(GOPATH)/src/perkeep.org:/home/gopher/src/perkeep.org -v $(HOME)/.gradle:/home/gopher/.gradle -v $(HOME)/.android:/home/gopher/.android -w /home/gopher/src/perkeep.org/clients/android --name camlidroid -i -t camlistore/android go run build-in-docker.go -release=true
 
 # just for documentation, as make is not actually installed in the docker image.
 debug:

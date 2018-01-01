@@ -22,10 +22,10 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/index/indextest"
-	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/test"
+	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/index/indextest"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/test"
 )
 
 var (

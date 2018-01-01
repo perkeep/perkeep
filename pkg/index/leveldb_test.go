@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Camlistore Authors.
+Copyright 2016 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/index/indextest"
-	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/sorted/kvtest"
-	"camlistore.org/pkg/sorted/leveldb"
+	"perkeep.org/pkg/index/indextest"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/sorted/kvtest"
+	"perkeep.org/pkg/sorted/leveldb"
 )
 
 func newLevelDBSorted(t *testing.T) (kv sorted.KeyValue, cleanup func()) {

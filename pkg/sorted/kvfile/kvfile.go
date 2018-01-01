@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ limitations under the License.
 // Package kvfile provides an implementation of sorted.KeyValue
 // on top of a single mutable database file on disk using
 // github.com/cznic/kv.
-package kvfile // import "camlistore.org/pkg/sorted/kvfile"
+package kvfile // import "perkeep.org/pkg/sorted/kvfile"
 
 import (
 	"bytes"
@@ -28,9 +28,9 @@ import (
 	"os"
 	"sync"
 
-	"camlistore.org/pkg/kvutil"
-	"camlistore.org/pkg/sorted"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/kvutil"
+	"perkeep.org/pkg/sorted"
 
 	"github.com/cznic/kv"
 )

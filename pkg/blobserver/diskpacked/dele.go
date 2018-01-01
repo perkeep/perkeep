@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors
+Copyright 2013 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import (
 	"os"
 	"strconv"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 var errNoPunch = errors.New("punchHole not supported")

@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package httputil contains a bunch of HTTP utility code, some generic,
 // and some Camlistore-specific.
-package httputil // import "camlistore.org/pkg/httputil"
+package httputil // import "perkeep.org/pkg/httputil"
 
 import (
 	"bytes"
@@ -31,8 +31,8 @@ import (
 	"strconv"
 	"strings"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/env"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/env"
 )
 
 // IsGet reports whether r.Method is a GET or HEAD request.

@@ -31,17 +31,17 @@ Example low-level config:
      },
 
 */
-package s3 // import "camlistore.org/pkg/blobserver/s3"
+package s3 // import "perkeep.org/pkg/blobserver/s3"
 
 import (
 	"fmt"
 	"log"
 	"strings"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/memory"
-	"camlistore.org/pkg/misc/amazon/s3"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/memory"
+	"perkeep.org/pkg/misc/amazon/s3"
 
 	"go4.org/fault"
 	"go4.org/jsonconfig"

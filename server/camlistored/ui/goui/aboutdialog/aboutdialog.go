@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Camlistore Authors.
+Copyright 2017 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"camlistore.org/pkg/auth"
+	"perkeep.org/pkg/auth"
 
 	"honnef.co/go/js/dom"
 	"myitcv.io/react"

@@ -9,7 +9,7 @@ close($fh);
 
 my $changes = 0;
 
-$changes = 1 if $c =~ s!^(\s+)\"camli/(.+)\"!$1\"camlistore.org/pkg/$2\"!mg;
+$changes = 1 if $c =~ s!^(\s+)\"camli/(.+)\"!$1\"perkeep.org/pkg/$2\"!mg;
 $changes = 1 if $c =~ s!^(\s+)\"camlistore/(.+)\"!$1\"camlistore.org/$2\"!mg;
 $changes = 1 if $c =~ s!^(\s+_ )\"camlistore/(.+)\"!$1\"camlistore.org/$2\"!mg;
 $changes = 1 if $c =~ s!/pkg/pkg/!/pkg/!g;

@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors
+Copyright 2013 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ limitations under the License.
 // Package android contains code specific to running the Camlistore client
 // code as a child process on Android. This removes ugly API from the
 // client package itself.
-package android // import "camlistore.org/pkg/client/android"
+package android // import "perkeep.org/pkg/client/android"
 
 import (
 	"bufio"
@@ -39,10 +39,10 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/schema"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/schema"
 )
 
 // TODO(mpl): distinguish CAMPUT, CAMGET, etc

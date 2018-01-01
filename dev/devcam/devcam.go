@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,8 +32,8 @@ import (
 	"syscall"
 	"time"
 
-	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/osutil"
+	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/osutil"
 )
 
 var (
@@ -240,7 +240,7 @@ func build(path string) error {
 		return nil
 	}
 	_, cmdName := filepath.Split(path)
-	target := pathpkg.Join("camlistore.org", filepath.ToSlash(path))
+	target := pathpkg.Join("perkeep.org", filepath.ToSlash(path))
 	binPath := filepath.Join("bin", cmdName)
 	var modtime int64
 	fi, err := os.Stat(binPath)

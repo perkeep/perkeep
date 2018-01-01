@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -187,7 +187,7 @@ func TestQuit(t *testing.T) {
 
 	pid, err := ignoreInterrupt()
 	if err != nil {
-		t.Skip("couldn't run test helper command: %v", err)
+		t.Skipf("couldn't run test helper command: %v", err)
 	}
 	h = Handler{
 		process: pid,

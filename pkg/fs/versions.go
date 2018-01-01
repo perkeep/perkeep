@@ -1,7 +1,7 @@
 // +build linux darwin
 
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,10 +27,10 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/search"
 	"go4.org/syncutil"
 	"golang.org/x/net/context"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/search"
 )
 
 const versionsRefreshTime = 1 * time.Minute

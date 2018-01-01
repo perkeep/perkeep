@@ -24,7 +24,7 @@ import (
 
 	"go4.org/syncutil"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 // A DirReader reads the entries of a "directory" schema blob's

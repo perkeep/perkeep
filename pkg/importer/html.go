@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 func (h *Host) execTemplate(w http.ResponseWriter, r *http.Request, data interface{}) {

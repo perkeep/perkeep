@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,9 +26,9 @@ import (
 	"strconv"
 	"time"
 
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/importer"
-	"camlistore.org/pkg/osutil"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/importer"
+	"perkeep.org/pkg/osutil"
 )
 
 var _ importer.TestDataMaker = (*imp)(nil)

@@ -26,8 +26,8 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/env"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/env"
 
 	"go4.org/readerutil"
 	"go4.org/syncutil"

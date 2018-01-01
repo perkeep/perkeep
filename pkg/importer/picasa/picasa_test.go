@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,17 +33,17 @@ import (
 	"go4.org/syncutil"
 	"golang.org/x/net/context"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/importer"
-	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/jsonsign"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/server"
-	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/test"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/importer"
+	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/jsonsign"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/server"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/test"
 
 	"github.com/tgulacsi/picago"
 )

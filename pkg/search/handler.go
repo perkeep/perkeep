@@ -31,13 +31,13 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/types/camtypes"
 	"go4.org/jsonconfig"
 	"go4.org/types"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/types/camtypes"
 )
 
 const buffered = 32     // arbitrary channel buffer size
@@ -494,7 +494,7 @@ func (h *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, erro
 			Owner:   res.Signer,
 			ModTime: types.Time3339(res.LastModTime),
 		})
-		testHookBug121() // http://camlistore.org/issue/121
+		testHookBug121() // http://perkeep.org/issue/121
 	}
 
 	if err := <-errch; err != nil {

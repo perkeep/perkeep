@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors
+Copyright 2013 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,9 +33,9 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/types/camtypes"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/types/camtypes"
 
 	"context"
 
@@ -894,7 +894,7 @@ func (h *Handler) Query(rawq *SearchQuery) (ret_ *SearchResult, _ error) {
 			if ret_ != nil {
 				log.Printf("Start %v + %v = %v results", t0.Format(time.RFC3339), d, len(ret_.Blobs))
 			} else {
-				log.Printf("Start %v + %v = error")
+				log.Printf("Start %v + %v = error", t0.Format(time.RFC3339), d)
 			}
 		}()
 	}

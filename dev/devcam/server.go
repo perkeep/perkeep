@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,12 +33,12 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/client"
-	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/importer"
-	_ "camlistore.org/pkg/importer/allimporters"
-	"camlistore.org/pkg/netutil"
-	"camlistore.org/pkg/osutil"
+	"perkeep.org/pkg/client"
+	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/importer"
+	_ "perkeep.org/pkg/importer/allimporters"
+	"perkeep.org/pkg/netutil"
+	"perkeep.org/pkg/osutil"
 )
 
 type serverCmd struct {

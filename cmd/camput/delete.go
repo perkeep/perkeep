@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,9 +20,9 @@ import (
 	"flag"
 	"fmt"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/schema"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/schema"
 )
 
 type deleteCmd struct{}

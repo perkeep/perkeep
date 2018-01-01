@@ -20,7 +20,7 @@ import (
 	"strings"
 	"testing"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 type lmdbTest struct {

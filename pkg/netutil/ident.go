@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package netutil identifies the system userid responsible for
 // localhost TCP connections.
-package netutil // import "camlistore.org/pkg/netutil"
+package netutil // import "perkeep.org/pkg/netutil"
 
 import (
 	"bufio"

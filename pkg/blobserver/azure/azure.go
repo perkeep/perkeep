@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,12 +37,12 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/memory"
-	"camlistore.org/pkg/constants"
-	"camlistore.org/pkg/misc/azure/storage"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/memory"
+	"perkeep.org/pkg/constants"
+	"perkeep.org/pkg/misc/azure/storage"
 )
 
 var (

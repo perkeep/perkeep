@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package gethandler implements the HTTP handler for fetching blobs.
-package gethandler // import "camlistore.org/pkg/blobserver/gethandler"
+package gethandler // import "perkeep.org/pkg/blobserver/gethandler"
 
 import (
 	"fmt"
@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/httputil"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/httputil"
 
 	"go4.org/readerutil"
 )

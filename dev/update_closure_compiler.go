@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ limitations under the License.
 // update_closure_compiler downloads a new version
 // of the closure compiler if the one in tmp/closure-compiler
 // doesn't exist or is older than the requested version.
-package main // import "camlistore.org/dev"
+package main // import "perkeep.org/dev"
 
 import (
 	"archive/zip"
@@ -29,7 +29,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"camlistore.org/pkg/osutil"
+	"perkeep.org/pkg/osutil"
 )
 
 const (
@@ -47,9 +47,9 @@ func main() {
 		log.Fatal("Didn't find 'java' in $PATH. The Java Runtime Environment is needed to run the closure compiler.\n")
 	}
 
-	camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+	camliRootPath, err := osutil.GoPackagePath("perkeep.org")
 	if err != nil {
-		log.Fatal("Package camlistore.org not found in $GOPATH (or $GOPATH not defined).")
+		log.Fatal("Package perkeep.org not found in $GOPATH (or $GOPATH not defined).")
 	}
 	destDir := filepath.Join(camliRootPath, "tmp", "closure-compiler")
 	// check if compiler already exists

@@ -22,10 +22,10 @@ import (
 	"fmt"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/search"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/search"
 )
 
 type shareCmd struct {
@@ -37,7 +37,7 @@ type shareCmd struct {
 func init() {
 	cmdmain.RegisterCommand("share", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(shareCmd)
-		flags.StringVar(&cmd.search, "search", "", "share a search result, rather than a single blob. Should be the JSON representation of a search.SearchQuery (see https://camlistore.org/pkg/search/#SearchQuery for details). Exclusive with, and overrides the <blobref> parameter.")
+		flags.StringVar(&cmd.search, "search", "", "share a search result, rather than a single blob. Should be the JSON representation of a search.SearchQuery (see https://perkeep.org/pkg/search/#SearchQuery for details). Exclusive with, and overrides the <blobref> parameter.")
 		flags.BoolVar(&cmd.transitive, "transitive", false, "share everything reachable from the given blobref")
 		flags.DurationVar(&cmd.duration, "duration", 0, "how long the share claim is valid for. The default of 0 means forever. For valid formats, see http://golang.org/pkg/time/#ParseDuration")
 		return cmd

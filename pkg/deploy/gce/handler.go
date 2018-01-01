@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Camlistore Authors
+Copyright 2015 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -38,13 +38,13 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/localdisk"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/sorted/leveldb"
+	"perkeep.org/pkg/auth"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/localdisk"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/sorted/leveldb"
 
 	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/net/xsrftoken"
@@ -308,7 +308,7 @@ func (h *DeployHandler) refreshZones() error {
 	if err != nil {
 		if err == errNoRefresh {
 			h.zones = backupZones
-			h.logger.Printf("Cannot refresh zones because %v. Using hard-coded ones instead.")
+			h.logger.Printf("Cannot refresh zones. Using hard-coded ones instead.")
 			return nil
 		}
 		return err
@@ -601,7 +601,7 @@ func (h *DeployHandler) serveFormError(w http.ResponseWriter, err error, hints .
 }
 
 func fileIssue(br string) string {
-	return fmt.Sprintf("Please file an issue with your instance key (%v) at https://camlistore.org/issue", br)
+	return fmt.Sprintf("Please file an issue with your instance key (%v) at https://perkeep.org/issue", br)
 }
 
 // serveInstanceState serves the state of the requested Google Cloud Engine VM creation

@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ limitations under the License.
 // has access and visibility to a subset of the blobs which have been
 // uploaded through this namespace. The list of accessible blobs are
 // stored in the provided "inventory" sorted key/value target.
-package namespace // import "camlistore.org/pkg/blobserver/namespace"
+package namespace // import "perkeep.org/pkg/blobserver/namespace"
 
 import (
 	"bytes"
@@ -31,10 +31,10 @@ import (
 	"os"
 	"strconv"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/sorted"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/sorted"
 
 	"go4.org/strutil"
 )

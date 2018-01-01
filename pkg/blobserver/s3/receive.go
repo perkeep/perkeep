@@ -21,8 +21,8 @@ import (
 	"crypto/md5"
 	"io"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 )
 
 func (sto *s3Storage) ReceiveBlob(b blob.Ref, source io.Reader) (sr blob.SizedRef, err error) {

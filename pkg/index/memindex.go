@@ -17,9 +17,9 @@ limitations under the License.
 package index
 
 import (
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/sorted"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/sorted"
 )
 
 func init() {

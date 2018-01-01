@@ -36,18 +36,18 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/images"
-	"camlistore.org/pkg/jsonsign"
-	"camlistore.org/pkg/magic"
-	"camlistore.org/pkg/media"
-	"camlistore.org/pkg/schema"
 	"github.com/hjfreyer/taglib-go/taglib"
 	"github.com/rwcarlsen/goexif/exif"
 	"github.com/rwcarlsen/goexif/tiff"
 	"go4.org/readerutil"
 	"go4.org/types"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/images"
+	"perkeep.org/pkg/jsonsign"
+	"perkeep.org/pkg/magic"
+	"perkeep.org/pkg/media"
+	"perkeep.org/pkg/schema"
 )
 
 type mutationMap struct {

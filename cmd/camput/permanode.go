@@ -23,9 +23,9 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/client"
-	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/schema"
+	"perkeep.org/pkg/client"
+	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/schema"
 )
 
 type permanodeCmd struct {

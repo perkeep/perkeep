@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,8 +26,8 @@ import (
 	"os"
 	"strings"
 
-	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/deploy/gce"
+	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/deploy/gce"
 
 	"go4.org/oauthutil"
 	"golang.org/x/oauth2"
@@ -74,7 +74,7 @@ func (c *gceCmd) Usage() {
 		"camdeploy gce --project=<project> --hostname=<hostname> [options]",
 		"camdeploy gce --project=<project> --cert=<cert file> --key=<key file> [options]")
 	flag.PrintDefaults()
-	fmt.Fprintln(os.Stderr, "\nTo get started:\n")
+	fmt.Fprintln(os.Stderr, "\nTo get started:")
 	printHelp()
 }
 

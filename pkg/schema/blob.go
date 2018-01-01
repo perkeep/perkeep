@@ -24,7 +24,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 // A MissingFieldError represents a missing JSON field in a schema blob.

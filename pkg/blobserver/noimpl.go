@@ -22,7 +22,7 @@ import (
 	"io"
 	"os"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 // NoImplStorage is an implementation of Storage that returns a not

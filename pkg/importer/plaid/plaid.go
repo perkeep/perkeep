@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Camlistore Authors
+Copyright 2017 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package plaid implements an importer for financial transactions from plaid.com
-package plaid // import "camlistore.org/pkg/importer/plaid"
+package plaid // import "perkeep.org/pkg/importer/plaid"
 
 import (
 	"bytes"
@@ -27,11 +27,11 @@ import (
 	"net/url"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/importer"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/schema/nodeattr"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/importer"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/schema/nodeattr"
 
 	"github.com/plaid/plaid-go/plaid"
 )

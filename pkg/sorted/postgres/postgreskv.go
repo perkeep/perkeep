@@ -1,5 +1,5 @@
 /*
-Copyright 2012 The Camlistore Authors.
+Copyright 2012 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,17 +16,17 @@ limitations under the License.
 
 // Package postgres provides an implementation of sorted.KeyValue
 // on top of PostgreSQL.
-package postgres // import "camlistore.org/pkg/sorted/postgres"
+package postgres // import "perkeep.org/pkg/sorted/postgres"
 
 import (
 	"database/sql"
 	"fmt"
 	"regexp"
 
-	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/sorted/sqlkv"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/env"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/sorted/sqlkv"
 
 	_ "github.com/lib/pq"
 )

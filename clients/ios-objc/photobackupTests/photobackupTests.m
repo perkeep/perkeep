@@ -3,7 +3,7 @@
 //  photobackupTests
 //
 //  Created by Nick O'Neill on 10/20/13.
-//  Copyright (c) 2013 The Camlistore Authors. All rights reserved.
+//  Copyright (c) 2013 The Perkeep Authors. All rights reserved.
 //
 
 #import <XCTest/XCTest.h>

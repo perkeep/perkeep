@@ -30,7 +30,7 @@ Example low-level config:
      },
 
 */
-package diskpacked // import "camlistore.org/pkg/blobserver/diskpacked"
+package diskpacked // import "perkeep.org/pkg/blobserver/diskpacked"
 
 import (
 	"bufio"
@@ -48,10 +48,10 @@ import (
 	"strings"
 	"sync"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/local"
-	"camlistore.org/pkg/sorted"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/local"
+	"perkeep.org/pkg/sorted"
 
 	"go4.org/jsonconfig"
 	"go4.org/lock"

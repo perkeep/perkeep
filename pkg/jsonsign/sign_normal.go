@@ -24,9 +24,9 @@ import (
 	"log"
 	"os"
 
-	"camlistore.org/pkg/misc/gpgagent"
-	"camlistore.org/pkg/misc/pinentry"
 	"golang.org/x/crypto/openpgp"
+	"perkeep.org/pkg/misc/gpgagent"
+	"perkeep.org/pkg/misc/pinentry"
 )
 
 func (fe *FileEntityFetcher) decryptEntity(e *openpgp.Entity) error {

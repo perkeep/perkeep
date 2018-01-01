@@ -26,14 +26,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/client"
-	"camlistore.org/pkg/client/android"
-	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/jsonsign"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/types/clientconfig"
+	"perkeep.org/pkg/auth"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/client"
+	"perkeep.org/pkg/client/android"
+	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/jsonsign"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/types/clientconfig"
 )
 
 type initCmd struct {

@@ -27,9 +27,9 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
 	"go4.org/readerutil"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 )
 
 // Blob is a utility class for unit tests.

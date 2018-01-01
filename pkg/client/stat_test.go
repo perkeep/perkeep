@@ -25,7 +25,7 @@ import (
 )
 
 // Note: a few of the fields are here are before the protocol change
-// (camlistore.org/issue/123) but preserved to make sure we don't
+// (perkeep.org/issue/123) but preserved to make sure we don't
 // choke on them.
 var response = `{
    "stat": [

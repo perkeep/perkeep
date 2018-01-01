@@ -1,5 +1,5 @@
 /*
-Copyright 2012 The Camlistore Authors.
+Copyright 2012 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package sqlite provides an implementation of sorted.KeyValue
 // using an SQLite database file.
-package sqlite // import "camlistore.org/pkg/sorted/sqlite"
+package sqlite // import "perkeep.org/pkg/sorted/sqlite"
 
 import (
 	"database/sql"
@@ -24,11 +24,11 @@ import (
 	"fmt"
 	"os"
 
-	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/sorted/sqlkv"
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"
+	"perkeep.org/pkg/env"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/sorted/sqlkv"
 )
 
 func init() {

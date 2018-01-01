@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ import (
 	"strconv"
 	"strings"
 
-	"camlistore.org/pkg/cmdmain"
+	"perkeep.org/pkg/cmdmain"
 )
 
 type getCmd struct {
@@ -47,7 +47,7 @@ func init() {
 		}
 		flags.BoolVar(&cmd.altkey, "altkey", false, "Use different gpg key and password from the server's.")
 		flags.StringVar(&cmd.path, "path", "/bs", "Optional URL prefix path.")
-		flags.StringVar(&cmd.port, "port", "3179", "Port camlistore is listening on.")
+		flags.StringVar(&cmd.port, "port", "3179", "Port perkeep is listening on.")
 		flags.BoolVar(&cmd.tls, "tls", false, "Use TLS.")
 		return cmd
 	})

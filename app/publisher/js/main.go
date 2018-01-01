@@ -1,7 +1,7 @@
 //go:generate go run gensearchtypes.go -out zsearch.go
 
 /*
-Copyright 2016 The Camlistore Authors.
+Copyright 2016 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"strings"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/gopherjs/jquery"

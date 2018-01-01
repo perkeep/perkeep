@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package test provides common functionality for importer tests.
-package test // import "camlistore.org/pkg/importer/test"
+package test // import "perkeep.org/pkg/importer/test"
 
 import (
 	"fmt"
@@ -24,11 +24,11 @@ import (
 	"strings"
 	"testing"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/client"
-	"camlistore.org/pkg/importer"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/test"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/client"
+	"perkeep.org/pkg/importer"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/test"
 )
 
 // FindChildRefs returns the children of an importer.Object

@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // Package rss defines XML data structures for an RSS feed.
-package rss // import "camlistore.org/pkg/importer/feed/rss"
+package rss // import "perkeep.org/pkg/importer/feed/rss"
 
 type RSS struct {
 	XMLName       string  `xml:"rss"`

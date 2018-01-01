@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package memory registers the "memory" blobserver storage type, storing blobs
 // in an in-memory map.
-package memory // import "camlistore.org/pkg/blobserver/memory"
+package memory // import "perkeep.org/pkg/blobserver/memory"
 
 import (
 	"bytes"
@@ -29,9 +29,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/lru"
+	"perkeep.org/internal/lru"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 
 	"go4.org/jsonconfig"
 	"go4.org/readerutil"

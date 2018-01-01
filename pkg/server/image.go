@@ -33,19 +33,19 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/constants"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/images"
-	"camlistore.org/pkg/magic"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/search"
 	_ "github.com/nf/cr2"
 	"go4.org/readerutil"
 	"go4.org/syncutil"
 	"go4.org/syncutil/singleflight"
 	"go4.org/types"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/constants"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/images"
+	"perkeep.org/pkg/magic"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/search"
 )
 
 const imageDebug = false

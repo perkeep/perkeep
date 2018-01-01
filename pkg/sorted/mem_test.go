@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors
+Copyright 2013 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@ package sorted_test
 import (
 	"testing"
 
-	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/sorted/kvtest"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/sorted/kvtest"
 )
 
 func TestMemoryKV(t *testing.T) {

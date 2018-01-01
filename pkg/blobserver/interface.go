@@ -24,8 +24,8 @@ import (
 	"os"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/constants"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/constants"
 )
 
 // MaxBlobSize is the size of a single blob in Camlistore.

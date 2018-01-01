@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors
+Copyright 2013 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,13 +28,13 @@ import (
 	"strings"
 	"testing"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/storagetest"
-	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/test"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/storagetest"
+	"perkeep.org/pkg/env"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/test"
 )
 
 func newTempDiskpacked(t *testing.T) (sto blobserver.Storage, cleanup func()) {

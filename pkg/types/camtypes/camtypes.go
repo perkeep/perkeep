@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors
+Copyright 2013 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,4 +17,4 @@ limitations under the License.
 // Package camtypes is like the types package, but higher-level and contains
 // Camlistore-specific types.  It exists mostly to break circular dependencies
 // between index, search, and schema.
-package camtypes // import "camlistore.org/pkg/types/camtypes"
+package camtypes // import "perkeep.org/pkg/types/camtypes"

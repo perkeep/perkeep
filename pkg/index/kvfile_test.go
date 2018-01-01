@@ -23,12 +23,12 @@ import (
 	"sync"
 	"testing"
 
-	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/index/indextest"
-	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/sorted/kvfile"
-	"camlistore.org/pkg/sorted/kvtest"
-	"camlistore.org/pkg/test"
+	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/index/indextest"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/sorted/kvfile"
+	"perkeep.org/pkg/sorted/kvtest"
+	"perkeep.org/pkg/test"
 )
 
 func newKvfileSorted(t *testing.T) (kv sorted.KeyValue, cleanup func()) {

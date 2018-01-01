@@ -1,4 +1,4 @@
-# Copyright 2016 The Camlistore Authors.
+# Copyright 2016 The Perkeep Authors.
 FROM debian:jessie
 
 ENV DEBIAN_FRONTEND noninteractive

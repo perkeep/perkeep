@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors.
+Copyright 2014 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package jstest uses the Go testing package to test JavaScript code using Node and Mocha.
-package jstest // import "camlistore.org/pkg/misc/closure/jstest"
+package jstest // import "perkeep.org/pkg/misc/closure/jstest"
 
 import (
 	"fmt"
@@ -27,7 +27,7 @@ import (
 	"strings"
 	"testing"
 
-	"camlistore.org/pkg/misc/closure"
+	"perkeep.org/pkg/misc/closure"
 )
 
 // checkSystemRequirements checks whether system dependencies such as node and npm are present.

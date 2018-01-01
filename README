@@ -1,12 +1,12 @@
-Camlistore is your personal storage system for life.
+Perkeep is your personal storage system.
 
-It's a way to store, sync, share, model and back up content.
+It's a way to store, sync, share, import, model, and back up content.
+Keep your stuff for life.
 
-It stands for "Content-Addressable Multi-Layer Indexed Storage", for
-lack of a better name.  For more, see:
+For more, see:
 
-     https://camlistore.org/
-     https://camlistore.org/doc/
+     https://perkeep.org/
+     https://perkeep.org/doc/
 
 Other useful files:
 
@@ -15,9 +15,9 @@ Other useful files:
 
 Mailing lists:
 
-     http://camlistore.org/lists
+     http://perkeep.org/lists
 
 Bugs and contributing:
 
      https://github.com/camlistore/camlistore/issues
-     https://camlistore.org/doc/contributing
+     https://perkeep.org/doc/contributing

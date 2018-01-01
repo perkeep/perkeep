@@ -1,5 +1,5 @@
-# Copyright 2014 The Camlistore Authors.
-# Generic purpose Camlistore image, that builds the server (camlistored)
+# Copyright 2014 The Perkeep Authors.
+# Generic purpose Perkeep image, that builds the server (camlistored)
 # and the command-line clients (camput, camget, camtool, and cammount).
 
 # See misc/docker/go to generate camlistore/go
@@ -17,15 +17,15 @@ RUN mkdir -p /gopath/pkg
 RUN chown camli.camli /gopath/pkg
 
 RUN mkdir -p /gopath/src
-ADD internal /gopath/src/camlistore.org/internal
-ADD app /gopath/src/camlistore.org/app
-ADD dev /gopath/src/camlistore.org/dev
-ADD cmd /gopath/src/camlistore.org/cmd
-ADD vendor /gopath/src/camlistore.org/vendor
-ADD server /gopath/src/camlistore.org/server
-ADD pkg /gopath/src/camlistore.org/pkg
-ADD make.go /gopath/src/camlistore.org/make.go
-RUN echo 'dev' > /gopath/src/camlistore.org/VERSION
+ADD internal /gopath/src/perkeep.org/internal
+ADD app /gopath/src/perkeep.org/app
+ADD dev /gopath/src/perkeep.org/dev
+ADD cmd /gopath/src/perkeep.org/cmd
+ADD vendor /gopath/src/perkeep.org/vendor
+ADD server /gopath/src/perkeep.org/server
+ADD pkg /gopath/src/perkeep.org/pkg
+ADD make.go /gopath/src/perkeep.org/make.go
+RUN echo 'dev' > /gopath/src/perkeep.org/VERSION
 
 ENV GOROOT /usr/local/go
 ENV PATH $GOROOT/bin:/gopath/bin:$PATH
@@ -33,9 +33,9 @@ ENV GOPATH /gopath
 ENV CGO_ENABLED 0
 ENV CAMLI_GOPHERJS_GOROOT /usr/local/go
 
-WORKDIR /gopath/src/camlistore.org
+WORKDIR /gopath/src/perkeep.org
 RUN go run make.go
-RUN cp -a /gopath/src/camlistore.org/bin/* /gopath/bin/
+RUN cp -a /gopath/src/perkeep.org/bin/* /gopath/bin/
 
 ENV USER camli
 ENV HOME /home/camli

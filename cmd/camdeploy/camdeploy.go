@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,10 +16,10 @@ limitations under the License.
 
 // The camdeploy program deploys Camlistore on cloud computing platforms such as Google
 // Compute Engine or Amazon EC2.
-package main // import "camlistore.org/cmd/camdeploy"
+package main // import "perkeep.org/cmd/camdeploy"
 
 import (
-	"camlistore.org/pkg/cmdmain"
+	"perkeep.org/pkg/cmdmain"
 )
 
 func main() {

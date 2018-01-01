@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"camlistore.org/pkg/osutil"
+	"perkeep.org/pkg/osutil"
 )
 
 var urlsMap = map[string]author{

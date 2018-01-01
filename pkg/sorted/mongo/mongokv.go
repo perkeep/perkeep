@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package mongo provides an implementation of sorted.KeyValue
 // using MongoDB.
-package mongo // import "camlistore.org/pkg/sorted/mongo"
+package mongo // import "perkeep.org/pkg/sorted/mongo"
 
 import (
 	"bytes"
@@ -25,8 +25,8 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/sorted"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/sorted"
 
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"

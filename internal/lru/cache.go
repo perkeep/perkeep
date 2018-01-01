@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package lru implements an LRU cache.
-package lru // import "camlistore.org/pkg/lru"
+package lru // import "perkeep.org/internal/lru"
 
 import (
 	"container/list"

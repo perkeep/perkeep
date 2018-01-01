@@ -23,10 +23,10 @@ import (
 	"strconv"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/protocol"
-	"camlistore.org/pkg/httputil"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/protocol"
+	"perkeep.org/pkg/httputil"
 )
 
 func CreateStatHandler(storage blobserver.BlobStatter) http.Handler {

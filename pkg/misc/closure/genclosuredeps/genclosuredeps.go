@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ limitations under the License.
 // outputs to os.Stdout for each .js file, which namespaces
 // it provides, and the namespaces it requires, hence helping
 // the closure library to resolve dependencies between those files.
-package main // import "camlistore.org/pkg/misc/closure/genclosuredeps"
+package main // import "perkeep.org/pkg/misc/closure/genclosuredeps"
 
 import (
 	"bytes"
@@ -29,7 +29,7 @@ import (
 	"net/http"
 	"os"
 
-	"camlistore.org/pkg/misc/closure"
+	"perkeep.org/pkg/misc/closure"
 )
 
 func usage() {

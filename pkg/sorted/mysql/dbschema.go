@@ -1,5 +1,5 @@
 /*
-Copyright 2011 The Camlistore Authors.
+Copyright 2011 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ package mysql
 import (
 	"strconv"
 
-	"camlistore.org/pkg/sorted"
+	"perkeep.org/pkg/sorted"
 )
 
 const requiredSchemaVersion = 22

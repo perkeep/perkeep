@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors.
+Copyright 2014 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ limitations under the License.
 // with Camlistore.
 // See also https://camlistore.org/doc/app-environment for the related
 // variables.
-package app // import "camlistore.org/pkg/app"
+package app // import "perkeep.org/pkg/app"
 
 import (
 	"errors"
@@ -27,9 +27,9 @@ import (
 	"os"
 	"strings"
 
-	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/client"
-	"camlistore.org/pkg/httputil"
+	"perkeep.org/pkg/auth"
+	"perkeep.org/pkg/client"
+	"perkeep.org/pkg/httputil"
 )
 
 // Auth returns the auth mode for the app to access Camlistore, as defined by

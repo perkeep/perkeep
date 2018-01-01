@@ -25,6 +25,6 @@ See http://facebook.github.io/react/
 */
 package react
 
-import "camlistore.org/pkg/fileembed"
+import "perkeep.org/pkg/fileembed"
 
 var Files = &fileembed.Files{}

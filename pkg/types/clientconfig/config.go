@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors.
+Copyright 2014 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,15 +16,15 @@ limitations under the License.
 
 // Package clientconfig provides types related to the client configuration
 // file.
-package clientconfig // import "camlistore.org/pkg/types/clientconfig"
+package clientconfig // import "perkeep.org/pkg/types/clientconfig"
 
 import (
 	"errors"
 	"fmt"
 	"strings"
 
-	"camlistore.org/pkg/httputil"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/httputil"
 
 	"go4.org/wkfs"
 )

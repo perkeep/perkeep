@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,15 +31,15 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/buildinfo"
-	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/server/app"
-	"camlistore.org/pkg/types/camtypes"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/buildinfo"
+	"perkeep.org/pkg/env"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/server/app"
+	"perkeep.org/pkg/types/camtypes"
 
 	"cloud.google.com/go/compute/metadata"
 	"go4.org/jsonconfig"

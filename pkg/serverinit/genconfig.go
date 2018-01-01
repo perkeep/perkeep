@@ -28,12 +28,12 @@ import (
 	"strconv"
 	"strings"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/jsonsign"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/types/serverconfig"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/jsonsign"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/types/serverconfig"
 
 	"go4.org/wkfs"
 )
@@ -476,7 +476,7 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 	}
 
 	// TODO(mpl): s3CacheBucket
-	// See https://camlistore.org/issue/85
+	// See https://perkeep.org/issue/85
 	b.addPrefix("/cache/", "storage-filesystem", args{
 		"path": filepath.Join(tempDir(), "camli-cache"),
 	})
@@ -766,7 +766,7 @@ func (b *lowBuilder) syncToIndexArgs() (map[string]interface{}, error) {
 	if !b.high.MemoryStorage && b.high.BlobPath == "" && b.indexFileDir() == "" {
 		// We don't actually have a working sync handler, but we keep a stub registered
 		// so it can be referred to from other places.
-		// See http://camlistore.org/issue/201
+		// See http://perkeep.org/issue/201
 		a["idle"] = true
 		return a, nil
 	}
@@ -1018,7 +1018,7 @@ func (b *lowBuilder) build() (*Config, error) {
 		// Whether camlistored is run from EC2 or not, we use
 		// a temp dir as the cache when primary storage is S3.
 		// TODO(mpl): s3CacheBucket
-		// See https://camlistore.org/issue/85
+		// See https://perkeep.org/issue/85
 		cacheDir = filepath.Join(tempDir(), "camli-cache")
 	} else {
 		cacheDir = filepath.Join(conf.BlobPath, "cache")

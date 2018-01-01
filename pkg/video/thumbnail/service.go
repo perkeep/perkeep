@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ The default implementation uses ffmpeg.
 
 See ServiceFromConfig for accepted configuration.
 */
-package thumbnail // import "camlistore.org/pkg/video/thumbnail"
+package thumbnail // import "perkeep.org/pkg/video/thumbnail"
 
 import (
 	"errors"
@@ -37,9 +37,9 @@ import (
 	"net/url"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/netutil"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/netutil"
 
 	"go4.org/syncutil"
 )

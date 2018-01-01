@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors.
+Copyright 2014 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ limitations under the License.
 // from Camlistore.
 // See also https://camlistore.org/doc/app-environment for the related
 // variables.
-package app // import "camlistore.org/pkg/server/app"
+package app // import "perkeep.org/pkg/server/app"
 
 import (
 	"errors"
@@ -35,12 +35,12 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	camhttputil "camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/netutil"
-	"camlistore.org/pkg/search"
+	"perkeep.org/pkg/auth"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	camhttputil "perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/netutil"
+	"perkeep.org/pkg/search"
 
 	"go4.org/jsonconfig"
 )
@@ -377,7 +377,7 @@ func NewHandler(cfg HandlerConfig) (*Handler, error) {
 			}
 			parsedUrl, err := url.Parse(cfg.ServerBaseURL)
 			if err != nil {
-				return nil, fmt.Errorf("app: could not initialize Handler for %q: unparsable ServerBaseURL %q", name, cfg.ServerBaseURL, err)
+				return nil, fmt.Errorf("app: could not initialize Handler for %q: unparseable ServerBaseURL %q: %v", name, cfg.ServerBaseURL, err)
 			}
 			serverListen = parsedUrl.Host
 		}

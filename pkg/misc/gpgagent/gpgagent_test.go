@@ -37,7 +37,7 @@ func TestPrompt(t *testing.T) {
 		Desc:     "Type 'foo' for testing",
 		Error:    "seriously, or I'll be an error.",
 		Prompt:   "foo",
-		CacheKey: fmt.Sprintf("gpgagent_test-cachekey-%d", time.Now()),
+		CacheKey: fmt.Sprintf("gpgagent_test-cachekey-%d", time.Now().UnixNano()),
 	}
 	s1, err := conn.GetPassphrase(req)
 	if err != nil {
@@ -73,7 +73,7 @@ func TestPrompt(t *testing.T) {
 		Desc:     "Press Cancel for testing",
 		Error:    "seriously, or I'll be an error.",
 		Prompt:   "cancel!",
-		CacheKey: fmt.Sprintf("gpgagent_test-cachekey-%d", time.Now()),
+		CacheKey: fmt.Sprintf("gpgagent_test-cachekey-%d", time.Now().UnixNano()),
 	})
 	if err != ErrCancel {
 		t.Errorf("expected cancel, got %q, %v", s4, err)

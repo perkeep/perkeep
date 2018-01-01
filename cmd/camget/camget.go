@@ -26,15 +26,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/buildinfo"
-	"camlistore.org/pkg/cacher"
-	"camlistore.org/pkg/client"
-	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/schema"
 	"go4.org/types"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/buildinfo"
+	"perkeep.org/pkg/cacher"
+	"perkeep.org/pkg/client"
+	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/schema"
 )
 
 func init() {

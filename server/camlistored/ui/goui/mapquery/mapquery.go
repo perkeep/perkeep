@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Camlistore Authors.
+Copyright 2017 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,11 +22,11 @@ import (
 	"fmt"
 	"strings"
 
-	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/client"
-	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/types/camtypes"
-	"camlistore.org/server/camlistored/ui/goui/geo"
+	"perkeep.org/pkg/auth"
+	"perkeep.org/pkg/client"
+	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/types/camtypes"
+	"perkeep.org/server/camlistored/ui/goui/geo"
 
 	"github.com/gopherjs/gopherjs/js"
 	"honnef.co/go/js/dom"

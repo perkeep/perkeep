@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // The camlistored binary is the Camlistore server.
-package main // import "camlistore.org/server/camlistored"
+package main // import "perkeep.org/server/camlistored"
 
 import (
 	"context"
@@ -37,52 +37,52 @@ import (
 	"syscall"
 	"time"
 
-	"camlistore.org/pkg/buildinfo"
-	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/gpgchallenge"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/netutil"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/serverinit"
-	"camlistore.org/pkg/webserver"
+	"perkeep.org/pkg/buildinfo"
+	"perkeep.org/pkg/env"
+	"perkeep.org/pkg/gpgchallenge"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/netutil"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/serverinit"
+	"perkeep.org/pkg/webserver"
 
 	// VM environments:
-	"camlistore.org/pkg/osutil/gce" // for init side-effects + LogWriter
+	"perkeep.org/pkg/osutil/gce" // for init side-effects + LogWriter
 
 	// Storage options:
-	_ "camlistore.org/pkg/blobserver/azure"
-	_ "camlistore.org/pkg/blobserver/b2"
-	"camlistore.org/pkg/blobserver/blobpacked"
-	_ "camlistore.org/pkg/blobserver/cond"
-	_ "camlistore.org/pkg/blobserver/diskpacked"
-	_ "camlistore.org/pkg/blobserver/encrypt"
-	_ "camlistore.org/pkg/blobserver/google/cloudstorage"
-	_ "camlistore.org/pkg/blobserver/google/drive"
-	_ "camlistore.org/pkg/blobserver/localdisk"
-	_ "camlistore.org/pkg/blobserver/mongo"
-	_ "camlistore.org/pkg/blobserver/proxycache"
-	_ "camlistore.org/pkg/blobserver/remote"
-	_ "camlistore.org/pkg/blobserver/replica"
-	_ "camlistore.org/pkg/blobserver/s3"
-	_ "camlistore.org/pkg/blobserver/shard"
+	_ "perkeep.org/pkg/blobserver/azure"
+	_ "perkeep.org/pkg/blobserver/b2"
+	"perkeep.org/pkg/blobserver/blobpacked"
+	_ "perkeep.org/pkg/blobserver/cond"
+	_ "perkeep.org/pkg/blobserver/diskpacked"
+	_ "perkeep.org/pkg/blobserver/encrypt"
+	_ "perkeep.org/pkg/blobserver/google/cloudstorage"
+	_ "perkeep.org/pkg/blobserver/google/drive"
+	_ "perkeep.org/pkg/blobserver/localdisk"
+	_ "perkeep.org/pkg/blobserver/mongo"
+	_ "perkeep.org/pkg/blobserver/proxycache"
+	_ "perkeep.org/pkg/blobserver/remote"
+	_ "perkeep.org/pkg/blobserver/replica"
+	_ "perkeep.org/pkg/blobserver/s3"
+	_ "perkeep.org/pkg/blobserver/shard"
 	// Indexers: (also present themselves as storage targets)
 	// KeyValue implementations:
-	_ "camlistore.org/pkg/sorted/kvfile"
-	_ "camlistore.org/pkg/sorted/leveldb"
-	_ "camlistore.org/pkg/sorted/mongo"
-	_ "camlistore.org/pkg/sorted/mysql"
-	_ "camlistore.org/pkg/sorted/postgres"
-	"camlistore.org/pkg/sorted/sqlite" // for sqlite.CompiledIn()
+	_ "perkeep.org/pkg/sorted/kvfile"
+	_ "perkeep.org/pkg/sorted/leveldb"
+	_ "perkeep.org/pkg/sorted/mongo"
+	_ "perkeep.org/pkg/sorted/mysql"
+	_ "perkeep.org/pkg/sorted/postgres"
+	"perkeep.org/pkg/sorted/sqlite" // for sqlite.CompiledIn()
 
 	// Handlers:
-	_ "camlistore.org/pkg/search"
-	_ "camlistore.org/pkg/server" // UI, publish, etc
+	_ "perkeep.org/pkg/search"
+	_ "perkeep.org/pkg/server" // UI, publish, etc
 
 	// Importers:
-	_ "camlistore.org/pkg/importer/allimporters"
+	_ "perkeep.org/pkg/importer/allimporters"
 
 	// Licence:
-	_ "camlistore.org/pkg/camlegal"
+	_ "perkeep.org/pkg/camlegal"
 
 	"go4.org/legal"
 	"go4.org/types"

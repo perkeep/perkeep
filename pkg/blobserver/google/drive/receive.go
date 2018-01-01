@@ -19,7 +19,7 @@ package drive
 import (
 	"io"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 func (sto *driveStorage) ReceiveBlob(b blob.Ref, source io.Reader) (blob.SizedRef, error) {
