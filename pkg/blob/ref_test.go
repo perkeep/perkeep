@@ -334,3 +334,63 @@ func BenchmarkEqualString(b *testing.B) {
 		}
 	}
 }
+
+var hasPrefixTests = []struct {
+	ref  Ref
+	str  string
+	want bool
+}{
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659", true},
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "sha1-ce284c167558a9ef22df04390c87a6d0c9ed", true},
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "sha1-ce284c167558a9ef22df04390c87a6d0c9e", true},
+	// last digit wrong:
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "sha1-ce284c167558a9ef22df04390c87a6d0c9ee", false},
+	// second to last digit wrong:
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "sha1-ce284c167558a9ef22df04390c87a6d0c9f", false},
+	// hyphen wrong:
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "sha1xce284c167558a9ef22df04390c87a6d0c9ed", false},
+	// truncated:
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "sha1-c", true},
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "sha1-", false},
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "sha1", false},
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "", false},
+	// wrong hash:
+	{MustParse("sha1-ce284c167558a9ef22df04390c87a6d0c9ed9659"), "sha2-ce284c167558a9ef22df04390c87a6d0c9ed96", false},
+
+	// Other hashes:
+	{MustParse("foo-cafe"), "foo-cafe", true},
+	{MustParse("foo-cafe"), "foo-caf", true},
+	{MustParse("foo-cafe"), "foo-ca", true},
+	{MustParse("foo-cafe"), "foo-c", true},
+
+	{MustParse("foo-cafe"), "foo-", false},
+	{MustParse("foo-cafe"), "", false},
+	{MustParse("foo-cafe"), "foo-beef", false},
+	{MustParse("foo-cafe"), "foo-bee", false},
+	{MustParse("foo-cafe"), "bar-cafe", false},
+	{MustParse("foo-cafe"), "fooxbe", false},
+	{MustParse("foo-cafe"), "foo-c", true},
+	{MustParse("foo-caf"), "foo-cae", false},
+	{MustParse("foo-caf"), "foo-cb", false},
+}
+
+func TestHasPrefix(t *testing.T) {
+	for _, tt := range hasPrefixTests {
+		got := tt.ref.HasPrefix(tt.str)
+		if got != tt.want {
+			t.Errorf("ref %q HasPrefix(%q) = %v; want %v", tt.ref, tt.str, got, tt.want)
+		}
+	}
+}
+
+func BenchmarkHasPrefix(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		for _, tt := range hasPrefixTests {
+			got := tt.ref.HasPrefix(tt.str)
+			if got != tt.want {
+				b.Fatalf("ref %q HasPrefix(%q) = %v; want %v", tt.ref, tt.str, got, tt.want)
+			}
+		}
+	}
+}
