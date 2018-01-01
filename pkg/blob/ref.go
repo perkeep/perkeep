@@ -66,6 +66,7 @@ type digestType interface {
 	digestName() string
 	newHash() hash.Hash
 	equalString(string) bool
+	hasPrefix(string) bool
 }
 
 func (r Ref) String() string {
@@ -96,6 +97,12 @@ func (r Ref) StringMinusOne() string {
 // EqualString reports whether r.String() is equal to s.
 // It does not allocate.
 func (r Ref) EqualString(s string) bool { return r.digest.equalString(s) }
+
+// HasPrefix reports whether s is a prefix of r.String(). It returns false if s
+// does not contain at least the digest name prefix (e.g. "sha1-") and one byte of
+// digest.
+// It does not allocate.
+func (r Ref) HasPrefix(s string) bool { return r.digest.hasPrefix(s) }
 
 func (r Ref) appendString(buf []byte) []byte {
 	dname := r.digest.digestName()
@@ -425,6 +432,40 @@ func (d sha1Digest) equalString(s string) bool {
 	return true
 }
 
+func (d sha1Digest) hasPrefix(s string) bool {
+	if len(s) > 45 {
+		return false
+	}
+	if len(s) == 45 {
+		return d.equalString(s)
+	}
+	if !strings.HasPrefix(s, "sha1-") {
+		return false
+	}
+	s = s[len("sha1-"):]
+	if len(s) == 0 {
+		// we want at least one digest char to match on
+		return false
+	}
+	for i, b := range d[:] {
+		even := i * 2
+		if even == len(s) {
+			break
+		}
+		if s[even] != hexDigit[b>>4] {
+			return false
+		}
+		odd := i*2 + 1
+		if odd == len(s) {
+			break
+		}
+		if s[odd] != hexDigit[b&0xf] {
+			return false
+		}
+	}
+	return true
+}
+
 const maxOtherDigestLen = 128
 
 type otherDigest struct {
@@ -454,6 +495,44 @@ func (d otherDigest) equalString(s string) bool {
 			break
 		}
 		if s[i*2+1] != hexDigit[b&0xf] {
+			return false
+		}
+	}
+	return true
+}
+
+func (d otherDigest) hasPrefix(s string) bool {
+	maxLen := len(d.name) + len("-") + 2*d.sumLen
+	if d.odd {
+		maxLen--
+	}
+	if len(s) > maxLen || !strings.HasPrefix(s, d.name) || s[len(d.name)] != '-' {
+		return false
+	}
+	if len(s) == maxLen {
+		return d.equalString(s)
+	}
+	s = s[len(d.name)+1:]
+	if len(s) == 0 {
+		// we want at least one digest char to match on
+		return false
+	}
+	for i, b := range d.sum[:d.sumLen] {
+		even := i * 2
+		if even == len(s) {
+			break
+		}
+		if s[even] != hexDigit[b>>4] {
+			return false
+		}
+		odd := i*2 + 1
+		if odd == len(s) {
+			break
+		}
+		if i == d.sumLen-1 && d.odd {
+			break
+		}
+		if s[odd] != hexDigit[b&0xf] {
 			return false
 		}
 	}
