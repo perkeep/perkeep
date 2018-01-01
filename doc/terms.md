@@ -38,15 +38,15 @@ if things here are confusing or lacking.</p>
        <ul>
 
          <li><a
-         href="/gw/doc/protocol/blob-get.md"><b>get</b></a>
+         href="/doc/protocol/blob-get.md"><b>get</b></a>
          a blob by its blobref.</li>
 
          <li><a
-         href="/gw/doc/protocol/blob-upload.md"><b>put</b></a>
+         href="/doc/protocol/blob-upload.md"><b>put</b></a>
          a blob by its blobref.</li>
 
          <li><a
-         href="/gw/doc/protocol/blob-enumerate.md"><b>enumerate</b></a>
+         href="/doc/protocol/blob-enumerate.md"><b>enumerate</b></a>
          all your blobs, sorted by their blobrefs.  Enumeration is
          only really used by your search server and by a <em>full sync</em>
          between your blob server mirrors.</li>
@@ -104,7 +104,7 @@ starts with <code>{</code> and is <a href="http://json.org/">valid JSON</a> in i
 
   <p>A permanode is simply a <a href="/doc/json-signing/">signed</a>
      schema blob with no data inside that would be interesting to
-     mutate.  See <a href="/gw/doc/schema/permanode.md">the
+     mutate.  See <a href="/doc/schema/permanode.md">the
      permanode spec</a>.</p>
 
   <p>A permanent reference to a mutable object then is simply the blobref of
