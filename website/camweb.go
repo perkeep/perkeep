@@ -252,14 +252,15 @@ func serveError(w http.ResponseWriter, r *http.Request, relpath string, err erro
 
 const gerritURLPrefix = "https://camlistore.googlesource.com/camlistore/+/"
 
-var commitHash = regexp.MustCompile(`^p=camlistore.git;a=commit;h=([0-9a-f]+)$`)
+var commitHash = regexp.MustCompile(`^(?i)[0-9a-f]+$`)
+var gitwebCommit = regexp.MustCompile(`^p=camlistore.git;a=commit;h=([0-9a-f]+)$`)
 
 // empty return value means don't redirect.
 func redirectPath(u *url.URL) string {
-	// Example:
+	// Redirect old gitweb URLs to gerrit. Example:
 	// /code/?p=camlistore.git;a=commit;h=b0d2a8f0e5f27bbfc025a96ec3c7896b42d198ed
 	if strings.HasPrefix(u.Path, "/code/") {
-		m := commitHash.FindStringSubmatch(u.RawQuery)
+		m := gitwebCommit.FindStringSubmatch(u.RawQuery)
 		if len(m) == 2 {
 			return gerritURLPrefix + m[1]
 		}
@@ -267,11 +268,11 @@ func redirectPath(u *url.URL) string {
 
 	if strings.HasPrefix(u.Path, "/gw/") {
 		path := strings.TrimPrefix(u.Path, "/gw/")
-		if strings.HasPrefix(path, "clients") || strings.HasPrefix(path, "server") {
-			return gerritURLPrefix + "master/" + path
+		if commitHash.MatchString(path) {
+			// Assume it's a commit
+			return gerritURLPrefix + path
 		}
-		// Assume it's a commit
-		return gerritURLPrefix + path
+		return gerritURLPrefix + "master/" + path
 	}
 
 	if strings.HasPrefix(u.Path, "/docs/") {
