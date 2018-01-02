@@ -60,6 +60,7 @@ var (
 	helpZones        = "https://cloud.google.com/compute/docs/zones#available"
 
 	machineValues = []string{
+		"f1-micro",
 		"g1-small",
 		"n1-highcpu-2",
 	}
@@ -736,11 +737,24 @@ func (h *DeployHandler) confFromForm(r *http.Request) (*InstanceConf, error) {
 	} else {
 		return nil, errors.New("invalid zone or region")
 	}
+	isFreeTier, err := strconv.ParseBool(formValueOrDefault(r, "freetier", "false"))
+	if err != nil {
+		return nil, fmt.Errorf("could not convert \"freetier\" value to bool: %v", err)
+	}
+	machine := formValueOrDefault(r, "machine", DefaultMachineType)
+	if isFreeTier {
+		if !strings.HasPrefix(zone, "us-") {
+			return nil, fmt.Errorf("The %v zone was selected, but the Google Cloud Free Tier is only available for US zones", zone)
+		}
+		if machine != "f1-micro" {
+			return nil, fmt.Errorf("The %v machine type was selected, but the Google Cloud Free Tier is only available for f1-micro", machine)
+		}
+	}
 	return &InstanceConf{
 		CreateProject: newProject,
 		Name:          formValueOrDefault(r, "name", DefaultInstanceName),
 		Project:       projectID,
-		Machine:       formValueOrDefault(r, "machine", DefaultMachineType),
+		Machine:       machine,
 		Zone:          zone,
 		Hostname:      formValueOrDefault(r, "hostname", ""),
 		Ctime:         time.Now(),
@@ -1099,16 +1113,59 @@ or corrupted.</p>
 				}
 			};
 			setBillingURL();
+			var allRegions = [];
+			var usRegions = [];
+			$('#regions').children().each(function(idx, value) {
+				var region = $(this).val();
+				if (region.startsWith("us-")) {
+					usRegions.push(region);
+				};
+				allRegions.push(region);
+			});
+			var setRegions = function(usOnly) {
+				var regions = $('#regions');
+				regions.empty();
+				var currentRegions = allRegions;
+				if (usOnly == "true") {
+					currentRegions = usRegions;
+				}
+				currentRegions.forEach(function(region) {
+					var opt = document.createElement("option");
+					opt.value = region;
+					opt.text = region;
+					regions.append(opt);
+				});
+				if (usOnly == "true") {
+					if (!$('#zone').val().startsWith("us-")) {
+						$('#zone').val("us-central1");
+					}
+				}
+			};
 			var toggleFormAction = function(newProject) {
 				if (newProject == "true") {
 					$('#zone').prop("disabled", true);
 					$('#machine').prop("disabled", true);
+					$('#free_tier').prop("disabled", true);
 					$('#submit_btn').val("Create project");
 					return
 				}
 				$('#zone').prop("disabled", false);
-				$('#machine').prop("disabled", false);
+				if ($('#free_tier').prop("checked")) {
+					$('#machine').prop("disabled", true);
+				} else {
+					$('#machine').prop("disabled", false);
+				}
+				$('#free_tier').prop("disabled", false);
 				$('#submit_btn').val("Create instance");
+			};
+			var toggleFreeTier = function() {
+				if ($('#free_tier').prop("checked")) {
+					$('#machine').val("f1-micro");
+					setRegions("true");
+					return
+				}
+				$('#zone').prop("disabled", false);
+				setRegions("false");
 			};
 			$("#new_project_id").focus(function(){
 				$('#newproject_yes').prop("checked", true);
@@ -1126,6 +1183,9 @@ or corrupted.</p>
 			});
 			$("#newproject_no").change(function(e){
 				toggleFormAction("false");
+			});
+			$("#free_tier").change(function(e){
+				toggleFreeTier();
 			});
 		})
 	</script>
@@ -1194,6 +1254,13 @@ and visit both the "Compute Engine" and "Storage" sections for your project.
 				{{end}}
 				</datalist></td></tr>
 		<tr valign=top><td></td><td colspan="2"><span style="font-size:75%">As of 2015-12-27, a g1-small is $13.88 (USD) per month, before storage usage charges. See <a href="https://cloud.google.com/compute/pricing#machinetype">current pricing</a>.</span>
+			</td></tr>
+			{{if .ProjectID}}
+				<tr valign=top><td></td><td align=left colspan="2"><input id='free_tier' type="checkbox" name="freetier" value="true"> Use <a href="https://cloud.google.com/free/">Google Cloud Free Tier</a></td></tr>
+			{{else}}
+				<tr valign=top><td></td><td align=left colspan="2"><input id='free_tier' type="checkbox" name="freetier" value="true" disabled='disabled'> Use <a href="https://cloud.google.com/free/">Google Cloud Free Tier</a></td></tr>
+			{{end}}
+		<tr valign=top><td></td><td colspan="2"><span style="font-size:75%">The Free Tier implies using an f1-micro instance, which might not be powerful enough in the long run. Also, the free storage is limited to 5GB, and must be in a US region.</span>
 			</td></tr>
 			<tr><td></td><td>
 			{{if .ProjectID}}
