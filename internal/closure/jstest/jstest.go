@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package jstest uses the Go testing package to test JavaScript code using Node and Mocha.
-package jstest // import "perkeep.org/pkg/misc/closure/jstest"
+package jstest // import "perkeep.org/internal/closure/jstest"
 
 import (
 	"fmt"
@@ -27,7 +27,7 @@ import (
 	"strings"
 	"testing"
 
-	"perkeep.org/pkg/misc/closure"
+	"perkeep.org/internal/closure"
 )
 
 // checkSystemRequirements checks whether system dependencies such as node and npm are present.

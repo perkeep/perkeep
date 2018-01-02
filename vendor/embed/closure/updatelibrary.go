@@ -32,7 +32,7 @@ import (
 	"sort"
 	"strings"
 
-	"perkeep.org/pkg/misc/closure"
+	"perkeep.org/internal/closure"
 	"perkeep.org/pkg/osutil"
 )
 

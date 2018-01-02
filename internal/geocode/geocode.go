@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package geocode handles mapping user-entered locations into lat/long polygons.
-package geocode // import "perkeep.org/pkg/geocode"
+package geocode // import "perkeep.org/internal/geocode"
 
 import (
 	"context"

@@ -17,7 +17,7 @@ limitations under the License.
 */
 
 // Package gpgagent interacts with the local GPG Agent.
-package gpgagent // import "perkeep.org/pkg/misc/gpgagent"
+package gpgagent // import "perkeep.org/internal/gpgagent"
 
 import (
 	"bufio"

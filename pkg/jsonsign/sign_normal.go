@@ -25,8 +25,8 @@ import (
 	"os"
 
 	"golang.org/x/crypto/openpgp"
-	"perkeep.org/pkg/misc/gpgagent"
-	"perkeep.org/pkg/misc/pinentry"
+	"perkeep.org/internal/gpgagent"
+	"perkeep.org/internal/pinentry"
 )
 
 func (fe *FileEntityFetcher) decryptEntity(e *openpgp.Entity) error {

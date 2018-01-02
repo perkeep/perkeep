@@ -22,7 +22,7 @@ import (
 	"github.com/gopherjs/gopherjs/compiler"
 	"github.com/gopherjs/gopherjs/compiler/natives"
 	"github.com/neelance/sourcemap"
-	fsnotify "perkeep.org/pkg/misc/fakefsnotify"
+	fsnotify "perkeep.org/internal/fakefsnotify"
 )
 
 type ImportCError struct {

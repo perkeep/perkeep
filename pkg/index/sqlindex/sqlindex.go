@@ -24,7 +24,7 @@ import (
 	"log"
 	"sync"
 
-	"perkeep.org/pkg/leak"
+	"perkeep.org/internal/leak"
 	"perkeep.org/pkg/sorted"
 )
 

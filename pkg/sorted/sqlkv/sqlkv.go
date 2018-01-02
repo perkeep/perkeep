@@ -26,7 +26,7 @@ import (
 	"sync"
 
 	"go4.org/syncutil"
-	"perkeep.org/pkg/leak"
+	"perkeep.org/internal/leak"
 	"perkeep.org/pkg/sorted"
 )
 

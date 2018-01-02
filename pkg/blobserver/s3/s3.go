@@ -38,10 +38,10 @@ import (
 	"log"
 	"strings"
 
+	"perkeep.org/internal/amazon/s3"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/memory"
-	"perkeep.org/pkg/misc/amazon/s3"
 
 	"go4.org/fault"
 	"go4.org/jsonconfig"

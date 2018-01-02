@@ -38,11 +38,11 @@ import (
 	"fmt"
 
 	"go4.org/jsonconfig"
+	"perkeep.org/internal/azure/storage"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/memory"
 	"perkeep.org/pkg/constants"
-	"perkeep.org/pkg/misc/azure/storage"
 )
 
 var (

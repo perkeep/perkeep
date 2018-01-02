@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package pools // import "perkeep.org/pkg/pools"
+package pools // import "perkeep.org/internal/pools"
 
 import (
 	"bytes"

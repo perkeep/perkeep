@@ -40,8 +40,8 @@ import (
 	"time"
 
 	"go4.org/types"
+	"perkeep.org/internal/geocode"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/geocode"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/index/indextest"
 	"perkeep.org/pkg/osutil"

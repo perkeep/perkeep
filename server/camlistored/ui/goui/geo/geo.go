@@ -26,7 +26,7 @@ import (
 	"strconv"
 	"strings"
 
-	"perkeep.org/pkg/geocode"
+	"perkeep.org/internal/geocode"
 	"perkeep.org/pkg/types/camtypes"
 )
 

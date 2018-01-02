@@ -97,11 +97,11 @@ import (
 	"time"
 
 	"go4.org/jsonconfig"
+	"perkeep.org/internal/pools"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/constants"
 	"perkeep.org/pkg/env"
-	"perkeep.org/pkg/pools"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/sorted"
 

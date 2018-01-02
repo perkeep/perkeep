@@ -19,7 +19,7 @@ package ui
 import (
 	"testing"
 
-	"perkeep.org/pkg/misc/closure/jstest"
+	"perkeep.org/internal/closure/jstest"
 )
 
 func TestJS(t *testing.T) {

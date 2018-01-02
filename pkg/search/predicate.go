@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"go4.org/types"
-	"perkeep.org/pkg/geocode"
+	"perkeep.org/internal/geocode"
 	"perkeep.org/pkg/schema/nodeattr"
 )
 
