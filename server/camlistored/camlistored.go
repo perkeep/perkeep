@@ -65,6 +65,7 @@ import (
 	_ "perkeep.org/pkg/blobserver/replica"
 	_ "perkeep.org/pkg/blobserver/s3"
 	_ "perkeep.org/pkg/blobserver/shard"
+	_ "perkeep.org/pkg/blobserver/union"
 	// Indexers: (also present themselves as storage targets)
 	// KeyValue implementations:
 	_ "perkeep.org/pkg/sorted/kvfile"

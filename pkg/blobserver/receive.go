@@ -17,6 +17,7 @@ limitations under the License.
 package blobserver
 
 import (
+	"errors"
 	"fmt"
 	"hash"
 	"io"
@@ -24,6 +25,9 @@ import (
 
 	"perkeep.org/pkg/blob"
 )
+
+// ErrReadonly is the error value returned by read-only blobservers.
+var ErrReadonly = errors.New("this blobserver is read only")
 
 // ReceiveString uploads the blob given by the string s to dst
 // and returns its blobref and size.
