@@ -1,6 +1,6 @@
 sudo: required
 dist: trusty
-go_import_path: camlistore.org
+go_import_path: perkeep.org
 language: go
 go:
   - 1.9
