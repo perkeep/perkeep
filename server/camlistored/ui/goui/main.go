@@ -23,6 +23,7 @@ import (
 	"perkeep.org/server/camlistored/ui/goui/downloadbutton"
 	"perkeep.org/server/camlistored/ui/goui/geo"
 	"perkeep.org/server/camlistored/ui/goui/mapquery"
+	"perkeep.org/server/camlistored/ui/goui/selectallbutton"
 	"perkeep.org/server/camlistored/ui/goui/sharebutton"
 
 	"github.com/gopherjs/gopherjs/js"
@@ -33,6 +34,7 @@ func main() {
 		"AboutMenuItem":          aboutdialog.New,
 		"DownloadItemsBtn":       downloadbutton.New,
 		"ShareItemsBtn":          sharebutton.New,
+		"SelectAllBtn":           selectallbutton.New,
 		"Geocode":                geo.Lookup,
 		"IsLocPredicate":         geo.IsLocPredicate,
 		"HandleLocAreaPredicate": geo.HandleLocAreaPredicate,
