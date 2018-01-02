@@ -1,5 +1,4 @@
-// Camlistore-specific addition:
-// +build with_sqlite,!windows
+// +build !windows
 
 package sqlite
 
