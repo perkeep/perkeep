@@ -6,7 +6,7 @@ Offline list:
 
 -- fix the presubmit's gofmt to be happy about emacs:
 
-        go fmt camlistore.org/cmd... camlistore.org/dev... camlistore.org/misc... camlistore.org/pkg... camlistore.org/server...
+        go fmt perkeep.org/cmd... perkeep.org/dev... perkeep.org/misc... perkeep.org/pkg... perkeep.org/server...
         stat pkg/blobserver/.#multistream_test.go: no such file or directory
         exit status 2
         make: *** [fmt] Error 1

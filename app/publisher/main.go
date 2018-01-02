@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,25 +41,25 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/app"
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/localdisk"
-	"camlistore.org/pkg/buildinfo"
-	"camlistore.org/pkg/cacher"
-	"camlistore.org/pkg/constants"
-	"camlistore.org/pkg/fileembed"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/magic"
-	"camlistore.org/pkg/netutil"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/publish"
-	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/server"
-	"camlistore.org/pkg/sorted"
-	_ "camlistore.org/pkg/sorted/kvfile"
-	"camlistore.org/pkg/types/camtypes"
-	"camlistore.org/pkg/webserver"
+	"perkeep.org/pkg/app"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/localdisk"
+	"perkeep.org/pkg/buildinfo"
+	"perkeep.org/pkg/cacher"
+	"perkeep.org/pkg/constants"
+	"perkeep.org/pkg/fileembed"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/magic"
+	"perkeep.org/pkg/netutil"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/publish"
+	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/server"
+	"perkeep.org/pkg/sorted"
+	_ "perkeep.org/pkg/sorted/kvfile"
+	"perkeep.org/pkg/types/camtypes"
+	"perkeep.org/pkg/webserver"
 
 	"go4.org/syncutil"
 	"golang.org/x/crypto/acme/autocert"
@@ -535,7 +535,7 @@ func (ph *publishHandler) lookupPathTarget(root blob.Ref, suffix string) (blob.R
 	if suffix == "" {
 		return root, nil
 	}
-	// TODO: verify it's optimized: http://camlistore.org/issue/405
+	// TODO: verify it's optimized: http://perkeep.org/issue/405
 	result, err := ph.cl.Query(&search.SearchQuery{
 		Limit: 1,
 		Constraint: &search.Constraint{

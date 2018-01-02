@@ -23,10 +23,10 @@ import (
 	"strings"
 	"testing"
 
-	. "camlistore.org/pkg/jsonsign"
-	"camlistore.org/pkg/test"
-	. "camlistore.org/pkg/test/asserts"
 	"golang.org/x/crypto/openpgp"
+	. "perkeep.org/pkg/jsonsign"
+	"perkeep.org/pkg/test"
+	. "perkeep.org/pkg/test/asserts"
 )
 
 var pubKey1 = `-----BEGIN PGP PUBLIC KEY BLOCK-----

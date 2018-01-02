@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors.
+Copyright 2014 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ limitations under the License.
 
 // The hello application serves as an example on how to make stand-alone
 // server applications, interacting with a Camlistore server.
-package main // import "camlistore.org/app/hello"
+package main // import "perkeep.org/app/hello"
 
 import (
 	"flag"
@@ -26,9 +26,9 @@ import (
 	"os"
 	"runtime"
 
-	"camlistore.org/pkg/app"
-	"camlistore.org/pkg/buildinfo"
-	"camlistore.org/pkg/webserver"
+	"perkeep.org/pkg/app"
+	"perkeep.org/pkg/buildinfo"
+	"perkeep.org/pkg/webserver"
 )
 
 var (

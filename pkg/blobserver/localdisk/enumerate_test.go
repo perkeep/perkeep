@@ -24,9 +24,9 @@ import (
 	"sort"
 	"testing"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/test"
-	. "camlistore.org/pkg/test/asserts"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/test"
+	. "perkeep.org/pkg/test/asserts"
 )
 
 func TestEnumerate(t *testing.T) {

@@ -20,8 +20,8 @@ import (
 	"flag"
 	"fmt"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/cmdmain"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/cmdmain"
 )
 
 type removeCmd struct{}

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Camlistore Authors.
+Copyright 2017 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,11 +19,11 @@ limitations under the License.
 package main
 
 import (
-	"camlistore.org/server/camlistored/ui/goui/aboutdialog"
-	"camlistore.org/server/camlistored/ui/goui/downloadbutton"
-	"camlistore.org/server/camlistored/ui/goui/geo"
-	"camlistore.org/server/camlistored/ui/goui/mapquery"
-	"camlistore.org/server/camlistored/ui/goui/sharebutton"
+	"perkeep.org/server/camlistored/ui/goui/aboutdialog"
+	"perkeep.org/server/camlistored/ui/goui/downloadbutton"
+	"perkeep.org/server/camlistored/ui/goui/geo"
+	"perkeep.org/server/camlistored/ui/goui/mapquery"
+	"perkeep.org/server/camlistored/ui/goui/sharebutton"
 
 	"github.com/gopherjs/gopherjs/js"
 )

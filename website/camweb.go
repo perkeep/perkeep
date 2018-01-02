@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main // import "camlistore.org/website"
+package main // import "perkeep.org/website"
 
 import (
 	"bytes"
@@ -41,10 +41,10 @@ import (
 	txttemplate "text/template"
 	"time"
 
-	"camlistore.org/pkg/deploy/gce"
-	"camlistore.org/pkg/netutil"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/types/camtypes"
+	"perkeep.org/pkg/deploy/gce"
+	"perkeep.org/pkg/netutil"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/types/camtypes"
 
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/datastore"
@@ -853,7 +853,7 @@ func main() {
 	}
 	readTemplates()
 	if err := initGithubSyncing(); err != nil {
-		log.Fatalf("error setting up syncing to github: %v")
+		log.Fatalf("error setting up syncing to github: %v", err)
 	}
 	go runDemoBlobserverLoop()
 

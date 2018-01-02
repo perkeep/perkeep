@@ -20,9 +20,9 @@ import (
 	"errors"
 	"fmt"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/lru"
-	"camlistore.org/pkg/sorted"
+	"perkeep.org/internal/lru"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/sorted"
 )
 
 const memLRUSize = 1024 // arbitrary

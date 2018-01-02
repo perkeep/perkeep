@@ -1,1 +1,1 @@
-package integration // import "camlistore.org/pkg/test/integration"
+package integration // import "perkeep.org/pkg/test/integration"

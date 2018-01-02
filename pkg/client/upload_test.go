@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Camlistore Authors.
+Copyright 2016 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,17 +26,17 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/serverinit"
-	"camlistore.org/pkg/types/serverconfig"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/serverinit"
+	"perkeep.org/pkg/types/serverconfig"
 
 	// For registering all the handler constructors needed in newTestServer
-	_ "camlistore.org/pkg/blobserver/cond"
-	_ "camlistore.org/pkg/blobserver/replica"
-	_ "camlistore.org/pkg/importer/allimporters"
-	_ "camlistore.org/pkg/search"
-	_ "camlistore.org/pkg/server"
+	_ "perkeep.org/pkg/blobserver/cond"
+	_ "perkeep.org/pkg/blobserver/replica"
+	_ "perkeep.org/pkg/importer/allimporters"
+	_ "perkeep.org/pkg/search"
+	_ "perkeep.org/pkg/server"
 )
 
 type fakeFile struct {
@@ -106,9 +106,9 @@ func testUploadFile(t *testing.T, c *Client, f *fakeFile, withFileOpts bool) *sc
 
 // newTestServer creates a new test server with in memory storage for use in upload tests
 func newTestServer(t *testing.T) *httptest.Server {
-	camroot, err := osutil.GoPackagePath("camlistore.org")
+	camroot, err := osutil.GoPackagePath("perkeep.org")
 	if err != nil {
-		t.Fatalf("failed to find camlistore.org GOPATH root: %v", err)
+		t.Fatalf("failed to find perkeep.org GOPATH root: %v", err)
 	}
 
 	conf := serverconfig.Config{

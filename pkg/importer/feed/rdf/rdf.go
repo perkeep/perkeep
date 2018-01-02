@@ -15,7 +15,7 @@
  */
 
 // Package rdf defines XML data structures for an RDF feed.
-package rdf // import "camlistore.org/pkg/importer/feed/rdf"
+package rdf // import "perkeep.org/pkg/importer/feed/rdf"
 
 import (
 	"encoding/xml"

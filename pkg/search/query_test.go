@@ -1,7 +1,24 @@
+/*
+Copyright 2013 The Perkeep Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package search_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"flag"
@@ -22,17 +39,15 @@ import (
 	"testing"
 	"time"
 
-	"context"
-
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/geocode"
-	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/index/indextest"
-	"camlistore.org/pkg/osutil"
-	. "camlistore.org/pkg/search"
-	"camlistore.org/pkg/test"
-	"camlistore.org/pkg/types/camtypes"
 	"go4.org/types"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/geocode"
+	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/index/indextest"
+	"perkeep.org/pkg/osutil"
+	. "perkeep.org/pkg/search"
+	"perkeep.org/pkg/test"
+	"perkeep.org/pkg/types/camtypes"
 )
 
 // indexType is one of the three ways we test the query handler code.
@@ -581,9 +596,9 @@ func TestQueryPermanodeLocation(t *testing.T) {
 		id.SetAttribute(p5, "longitude", "2.0")
 
 		// Upload a basic image
-		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+		camliRootPath, err := osutil.GoPackagePath("perkeep.org")
 		if err != nil {
-			panic("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+			panic("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
 		}
 		uploadFile := func(file string, modTime time.Time) blob.Ref {
 			fileName := filepath.Join(camliRootPath, "pkg", "search", "testdata", file)
@@ -617,9 +632,9 @@ func TestQueryFileLocation(t *testing.T) {
 		id := qt.id
 
 		// Upload a basic image
-		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+		camliRootPath, err := osutil.GoPackagePath("perkeep.org")
 		if err != nil {
-			panic("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+			panic("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
 		}
 		uploadFile := func(file string, modTime time.Time) blob.Ref {
 			fileName := filepath.Join(camliRootPath, "pkg", "search", "testdata", file)
@@ -1719,9 +1734,9 @@ func BenchmarkQueryPermanodeLocation(b *testing.B) {
 		id := qt.id
 
 		// Upload a basic image
-		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+		camliRootPath, err := osutil.GoPackagePath("perkeep.org")
 		if err != nil {
-			panic("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+			panic("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
 		}
 		uploadFile := func(file string, modTime time.Time) blob.Ref {
 			fileName := filepath.Join(camliRootPath, "pkg", "search", "testdata", file)

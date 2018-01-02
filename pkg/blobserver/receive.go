@@ -21,7 +21,7 @@ import (
 	"io"
 	"strings"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 // ReceiveString uploads the blob given by the string s to dst

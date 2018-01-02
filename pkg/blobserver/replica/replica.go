@@ -32,7 +32,7 @@ Example config:
           }
       },
 */
-package replica // import "camlistore.org/pkg/blobserver/replica"
+package replica // import "perkeep.org/pkg/blobserver/replica"
 
 import (
 	"bytes"
@@ -44,9 +44,9 @@ import (
 	"os"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 )
 
 var (

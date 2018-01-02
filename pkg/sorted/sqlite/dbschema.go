@@ -1,5 +1,5 @@
 /*
-Copyright 2012 The Camlistore Authors.
+Copyright 2012 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import (
 	"strconv"
 	"strings"
 
-	"camlistore.org/pkg/sorted"
+	"perkeep.org/pkg/sorted"
 )
 
 const requiredSchemaVersion = 1
@@ -103,7 +103,7 @@ func initDB(path string) error {
 			return err
 		}
 	} else {
-		log.Print("WARNING: An SQLite DB without Write Ahead Logging will most likely fail. See http://camlistore.org/issues/114")
+		log.Print("WARNING: An SQLite DB without Write Ahead Logging will most likely fail. See http://perkeep.org/issue/114")
 	}
 	_, err = db.Exec(fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, SchemaVersion()))
 	return err

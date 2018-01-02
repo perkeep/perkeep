@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -36,4 +36,4 @@ Like curl, lets you set output file/directory with -o:
 Camget isn't very fleshed out. In general, using 'cammount' to just
 mount a tree is an easier way to get files back.
 */
-package main // import "camlistore.org/cmd/camget"
+package main // import "perkeep.org/cmd/camget"

@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,12 +34,12 @@ collection (optional, defaults to blobs)
 user (optional)
 password (optional)
 */
-package mongo // import "camlistore.org/pkg/blobserver/mongo"
+package mongo // import "perkeep.org/pkg/blobserver/mongo"
 
 import (
-	"camlistore.org/pkg/blobserver"
 	"go4.org/jsonconfig"
 	"labix.org/v2/mgo"
+	"perkeep.org/pkg/blobserver"
 )
 
 type mongoStorage struct {

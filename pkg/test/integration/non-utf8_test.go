@@ -25,7 +25,7 @@ import (
 	"strings"
 	"testing"
 
-	"camlistore.org/pkg/test"
+	"perkeep.org/pkg/test"
 )
 
 var nonUTF8 = "416c697ae965202d204d6f69204c6f6c6974612e6d7033" // hex-encoding

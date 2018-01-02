@@ -19,7 +19,7 @@ package localdisk
 import (
 	"time"
 
-	"camlistore.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver"
 )
 
 // Compile-time check that *DiskStorage implements blobserver.Generationer

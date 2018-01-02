@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Camlistore Authors
+Copyright 2015 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ limitations under the License.
 
 // Command dock builds Camlistore's various Docker images.
 // It can also generate a tarball of the Camlistore server and tools.
-package main // import "camlistore.org/misc/docker"
+package main // import "perkeep.org/misc/docker"
 
 import (
 	"archive/tar"
@@ -35,7 +35,7 @@ import (
 	"runtime"
 	"strings"
 
-	"camlistore.org/pkg/osutil"
+	"perkeep.org/pkg/osutil"
 
 	"cloud.google.com/go/storage"
 	"golang.org/x/oauth2"

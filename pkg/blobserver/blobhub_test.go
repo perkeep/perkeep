@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	. "camlistore.org/pkg/test/asserts"
+	"perkeep.org/pkg/blob"
+	. "perkeep.org/pkg/test/asserts"
 )
 
 func TestHubRegistration(t *testing.T) {

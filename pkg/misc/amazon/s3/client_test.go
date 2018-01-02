@@ -26,7 +26,7 @@ import (
 	"strings"
 	"testing"
 
-	"camlistore.org/pkg/test/dockertest"
+	"perkeep.org/pkg/test/dockertest"
 
 	"go4.org/syncutil"
 )

@@ -21,7 +21,7 @@ import (
 
 	"path/filepath"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 func blobFileBaseName(b blob.Ref) string {

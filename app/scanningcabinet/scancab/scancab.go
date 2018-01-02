@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Camlistore Authors.
+Copyright 2017 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,8 +37,8 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/buildinfo"
+	"perkeep.org/pkg/auth"
+	"perkeep.org/pkg/buildinfo"
 )
 
 var (

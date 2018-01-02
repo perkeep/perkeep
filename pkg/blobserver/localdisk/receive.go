@@ -24,7 +24,7 @@ import (
 	"log"
 	"os"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 func (ds *DiskStorage) startGate() {

@@ -1,5 +1,5 @@
 /*
-Copyright 2011 The Camlistore Authors
+Copyright 2011 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,15 +32,15 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/index/indextest"
-	"camlistore.org/pkg/jsonsign"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/schema"
-	. "camlistore.org/pkg/search"
-	"camlistore.org/pkg/test"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/index/indextest"
+	"perkeep.org/pkg/jsonsign"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/schema"
+	. "perkeep.org/pkg/search"
+	"perkeep.org/pkg/test"
 )
 
 // An indexOwnerer is something that knows who owns the index.
@@ -132,9 +132,9 @@ var (
 // testSigner returns the signer, as well as its armored public key, from
 // pkg/jsonsign/testdata/test-secring.gpg
 func testSigner() (*schema.Signer, string) {
-	camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+	camliRootPath, err := osutil.GoPackagePath("perkeep.org")
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("error looking up perkeep.org's location in $GOPATH: %v", err))
 	}
 	ent, err := jsonsign.EntityFromSecring("26F5ABDA", filepath.Join(camliRootPath, "pkg", "jsonsign", "testdata", "test-secring.gpg"))
 	if err != nil {
@@ -635,9 +635,9 @@ func initTests() []handlerTest {
 				id := indextest.NewIndexDeps(idx)
 
 				// Upload a basic image
-				camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+				camliRootPath, err := osutil.GoPackagePath("perkeep.org")
 				if err != nil {
-					panic("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+					panic("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
 				}
 				uploadFile := func(file string, modTime time.Time) blob.Ref {
 					fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", file)
@@ -707,9 +707,9 @@ func initTests() []handlerTest {
 				id := indextest.NewIndexDeps(idx)
 
 				// Upload a basic image
-				camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+				camliRootPath, err := osutil.GoPackagePath("perkeep.org")
 				if err != nil {
-					panic("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+					panic("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
 				}
 				uploadFile := func(file string, modTime time.Time) blob.Ref {
 					fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", file)

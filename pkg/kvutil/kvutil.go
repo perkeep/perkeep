@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package kvutil contains helpers related to
 // github.com/cznic/kv.
-package kvutil // import "camlistore.org/pkg/kvutil"
+package kvutil // import "perkeep.org/pkg/kvutil"
 
 import (
 	"fmt"

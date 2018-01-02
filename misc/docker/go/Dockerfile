@@ -1,4 +1,4 @@
-# Copyright 2015 The Camlistore Authors.
+# Copyright 2015 The Perkeep Authors.
 FROM debian:stable
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && apt-get -y upgrade

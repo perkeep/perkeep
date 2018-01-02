@@ -21,7 +21,7 @@ limitations under the License.
 // possible to configure a signing-only server with
 // serverconfig/genconfig.go.  I think we basically already can. Then
 // we can delete this.
-package main // import "camlistore.org/server/sigserver"
+package main // import "perkeep.org/server/sigserver"
 
 import (
 	"flag"
@@ -29,10 +29,10 @@ import (
 	"log"
 	"net/http"
 
-	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/webserver"
+	"perkeep.org/pkg/auth"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/webserver"
 )
 
 var accessPassword string

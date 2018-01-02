@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,10 +26,10 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/importer/feed/atom"
-	"camlistore.org/pkg/importer/feed/rdf"
-	"camlistore.org/pkg/importer/feed/rss"
 	"golang.org/x/net/html/charset"
+	"perkeep.org/pkg/importer/feed/atom"
+	"perkeep.org/pkg/importer/feed/rdf"
+	"perkeep.org/pkg/importer/feed/rss"
 )
 
 type feed struct {

@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,13 +22,13 @@ import (
 	"log"
 	"strings"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/jsonsign/signhandler"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/server/app"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/env"
+	"perkeep.org/pkg/jsonsign/signhandler"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/server/app"
 )
 
 func (hl *handlerLoader) initPublisherRootNode(ah *app.Handler) error {

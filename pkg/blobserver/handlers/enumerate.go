@@ -25,8 +25,8 @@ import (
 	"strconv"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 )
 
 const defaultMaxEnumerate = 10000

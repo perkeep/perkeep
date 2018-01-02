@@ -19,8 +19,8 @@ package main
 import (
 	"os"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/client"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/client"
 )
 
 // A HaveCache tracks whether a remove blobserver has a blob or not.

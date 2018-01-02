@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ limitations under the License.
 // a test suite, but it can also poll a builder before completion
 // to get a progress report.
 // It also serves the web requests.
-package main // import "camlistore.org/misc/buildbot/master"
+package main // import "perkeep.org/misc/buildbot/master"
 
 import (
 	"bytes"
@@ -48,8 +48,8 @@ import (
 	"syscall"
 	"time"
 
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/osutil"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/osutil"
 )
 
 const (

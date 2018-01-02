@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Camlistore Authors.
+Copyright 2015 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,10 +25,10 @@ import (
 	"strconv"
 	"strings"
 
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/types/clientconfig"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/types/clientconfig"
 )
 
 const helpHTML string = `<html>

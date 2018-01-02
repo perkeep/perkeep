@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 func TestPaths(t *testing.T) {

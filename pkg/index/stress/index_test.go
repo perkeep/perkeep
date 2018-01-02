@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Camlistore Authors.
+Copyright 2016 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,19 +33,19 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/localdisk"
-	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/jsonsign"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/server"
-	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/sorted/kvfile"
-	"camlistore.org/pkg/sorted/leveldb"
-	"camlistore.org/pkg/sorted/sqlite"
-	"camlistore.org/pkg/types/camtypes"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/localdisk"
+	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/jsonsign"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/server"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/sorted/kvfile"
+	"perkeep.org/pkg/sorted/leveldb"
+	"perkeep.org/pkg/sorted/sqlite"
+	"perkeep.org/pkg/types/camtypes"
 )
 
 var (
@@ -373,9 +373,9 @@ type keyStuff struct {
 }
 
 func doKeyStuff(b *testing.B) keyStuff {
-	camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+	camliRootPath, err := osutil.GoPackagePath("perkeep.org")
 	if err != nil {
-		b.Fatal("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+		b.Fatal("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
 	}
 	secretRingFile := filepath.Join(camliRootPath, "pkg", "jsonsign", "testdata", "test-secring.gpg")
 	pubKey := `-----BEGIN PGP PUBLIC KEY BLOCK-----

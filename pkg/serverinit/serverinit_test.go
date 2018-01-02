@@ -34,25 +34,25 @@ import (
 	"strings"
 	"testing"
 
-	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/importer"
-	"camlistore.org/pkg/jsonsign/signhandler"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/server"
-	"camlistore.org/pkg/serverinit"
-	"camlistore.org/pkg/test"
-	"camlistore.org/pkg/types/clientconfig"
-	"camlistore.org/pkg/types/serverconfig"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/auth"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/importer"
+	"perkeep.org/pkg/jsonsign/signhandler"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/server"
+	"perkeep.org/pkg/serverinit"
+	"perkeep.org/pkg/test"
+	"perkeep.org/pkg/types/clientconfig"
+	"perkeep.org/pkg/types/serverconfig"
 
 	// For registering all the handler constructors needed in TestInstallHandlers
-	_ "camlistore.org/pkg/blobserver/cond"
-	_ "camlistore.org/pkg/blobserver/replica"
-	_ "camlistore.org/pkg/importer/allimporters"
-	_ "camlistore.org/pkg/search"
-	_ "camlistore.org/pkg/server"
+	_ "perkeep.org/pkg/blobserver/cond"
+	_ "perkeep.org/pkg/blobserver/replica"
+	_ "perkeep.org/pkg/importer/allimporters"
+	_ "perkeep.org/pkg/search"
+	_ "perkeep.org/pkg/server"
 )
 
 var (
@@ -246,9 +246,9 @@ func canonicalizeGolden(t *testing.T, v []byte) []byte {
 }
 
 func TestExpansionsInHighlevelConfig(t *testing.T) {
-	camroot, err := osutil.GoPackagePath("camlistore.org")
+	camroot, err := osutil.GoPackagePath("perkeep.org")
 	if err != nil {
-		t.Fatalf("failed to find camlistore.org GOPATH root: %v", err)
+		t.Fatalf("failed to find perkeep.org GOPATH root: %v", err)
 	}
 	const keyID = "26F5ABDA"
 	os.Setenv("TMP_EXPANSION_TEST", keyID)
@@ -277,9 +277,9 @@ func TestExpansionsInHighlevelConfig(t *testing.T) {
 }
 
 func TestInstallHandlers(t *testing.T) {
-	camroot, err := osutil.GoPackagePath("camlistore.org")
+	camroot, err := osutil.GoPackagePath("perkeep.org")
 	if err != nil {
-		t.Fatalf("failed to find camlistore.org GOPATH root: %v", err)
+		t.Fatalf("failed to find perkeep.org GOPATH root: %v", err)
 	}
 	conf := serverinit.DefaultBaseConfig
 	conf.Identity = "26F5ABDA"

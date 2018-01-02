@@ -31,12 +31,12 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/types/camtypes"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/env"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/types/camtypes"
 
 	"go4.org/jsonconfig"
 	"go4.org/strutil"

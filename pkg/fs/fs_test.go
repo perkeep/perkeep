@@ -40,7 +40,7 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/syscallx"
-	"camlistore.org/pkg/test"
+	"perkeep.org/pkg/test"
 )
 
 var (
@@ -106,7 +106,7 @@ func testName() string {
 		if !ok {
 			panic("Failed to find test name")
 		}
-		name := strings.TrimPrefix(runtime.FuncForPC(pc).Name(), "camlistore.org/pkg/fs.")
+		name := strings.TrimPrefix(runtime.FuncForPC(pc).Name(), "perkeep.org/pkg/fs.")
 		if strings.HasPrefix(name, "Test") {
 			return name
 		}
@@ -209,7 +209,7 @@ func TestRoot(t *testing.T) {
 			t.Fatal(err)
 		}
 		sort.Strings(names)
-		want := []string{"WELCOME.txt", "at", "date", "recent", "roots", "sha1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "tag"}
+		want := []string{"WELCOME.txt", "at", "date", "recent", "roots", "sha1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "tag", "versions"}
 		if !reflect.DeepEqual(names, want) {
 			t.Errorf("root directory = %q; want %q", names, want)
 		}

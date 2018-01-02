@@ -25,8 +25,8 @@ import (
 	"os"
 	"testing"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/test"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/test"
 )
 
 var testFetcher = &test.Fetcher{}

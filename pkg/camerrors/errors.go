@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package camerrors define specific errors that are used to
 // decide on how to deal with some failure cases.
-package camerrors // import "camlistore.org/pkg/camerrors"
+package camerrors // import "perkeep.org/pkg/camerrors"
 
 import (
 	"errors"

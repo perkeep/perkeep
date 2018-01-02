@@ -20,9 +20,9 @@ import (
 	"log"
 	"net/http"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/schema"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/schema"
 )
 
 type FileTreeHandler struct {

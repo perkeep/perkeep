@@ -19,7 +19,7 @@ package diskpacked
 import (
 	"testing"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 type blobStat struct {

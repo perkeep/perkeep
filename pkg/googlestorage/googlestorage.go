@@ -17,7 +17,7 @@ limitations under the License.
 // Package googlestorage is simple Google Cloud Storage client.
 //
 // It does not include any Camlistore-specific logic.
-package googlestorage // import "camlistore.org/pkg/googlestorage"
+package googlestorage // import "perkeep.org/pkg/googlestorage"
 
 import (
 	"bytes"
@@ -34,7 +34,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 
 	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/oauth2"

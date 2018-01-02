@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package cmdmain contains the shared implementation for camget,
 // camput, camtool, and other Camlistore command-line tools.
-package cmdmain // import "camlistore.org/pkg/cmdmain"
+package cmdmain // import "perkeep.org/pkg/cmdmain"
 
 import (
 	"flag"
@@ -27,7 +27,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"camlistore.org/pkg/buildinfo"
+	"perkeep.org/pkg/buildinfo"
 
 	"go4.org/legal"
 )

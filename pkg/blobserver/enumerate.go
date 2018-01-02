@@ -20,7 +20,7 @@ import (
 	"context"
 	"sync"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 // EnumerateAll runs fn for each blob in src.

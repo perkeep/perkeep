@@ -19,7 +19,7 @@ package drive
 import (
 	"io"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 func (sto *driveStorage) Fetch(blob blob.Ref) (file io.ReadCloser, size uint32, reterr error) {

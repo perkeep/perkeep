@@ -26,7 +26,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"camlistore.org/pkg/osutil"
+	"perkeep.org/pkg/osutil"
 
 	"go4.org/wkfs"
 	"golang.org/x/crypto/openpgp"

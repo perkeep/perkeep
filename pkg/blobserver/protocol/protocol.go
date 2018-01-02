@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,12 +15,12 @@ limitations under the License.
 */
 
 // Package protocol contains types for Camlistore protocol types.
-package protocol // import "camlistore.org/pkg/blobserver/protocol"
+package protocol // import "perkeep.org/pkg/blobserver/protocol"
 
 import (
 	"encoding/json"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 // StatResponse is the JSON document returned from the blob batch stat

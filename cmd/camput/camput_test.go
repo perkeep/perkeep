@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/cmdmain"
+	"perkeep.org/pkg/cmdmain"
 )
 
 // env is the environment that a camput test runs within.

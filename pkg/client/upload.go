@@ -31,13 +31,13 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/protocol"
-	"camlistore.org/pkg/constants"
-	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/schema"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/protocol"
+	"perkeep.org/pkg/constants"
+	"perkeep.org/pkg/env"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/schema"
 )
 
 // multipartOverhead is how many extra bytes mime/multipart's

@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Camlistore Authors
+Copyright 2015 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -43,7 +43,6 @@ import (
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	storageapi "google.golang.org/api/storage/v1"
-
 )
 
 func readFile(v string) string {

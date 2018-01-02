@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package signhandler implements the HTTP interface to signing and verifying
 // Camlistore JSON blobs.
-package signhandler // import "camlistore.org/pkg/jsonsign/signhandler"
+package signhandler // import "perkeep.org/pkg/jsonsign/signhandler"
 
 import (
 	"fmt"
@@ -25,15 +25,15 @@ import (
 	"strings"
 	"sync"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/gethandler"
-	"camlistore.org/pkg/blobserver/memory"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/jsonsign"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/types/camtypes"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/gethandler"
+	"perkeep.org/pkg/blobserver/memory"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/jsonsign"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/types/camtypes"
 
 	"go4.org/jsonconfig"
 	"golang.org/x/crypto/openpgp"

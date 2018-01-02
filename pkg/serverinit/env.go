@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,9 +21,9 @@ import (
 	"os"
 	"strings"
 
-	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/types/serverconfig"
+	"perkeep.org/pkg/env"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/types/serverconfig"
 
 	"cloud.google.com/go/compute/metadata"
 )

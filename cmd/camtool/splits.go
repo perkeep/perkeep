@@ -24,7 +24,7 @@ import (
 	"os"
 	"strings"
 
-	"camlistore.org/pkg/rollsum"
+	"perkeep.org/pkg/rollsum"
 )
 
 type span struct {

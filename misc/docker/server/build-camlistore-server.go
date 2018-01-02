@@ -1,7 +1,7 @@
 // +build ignore
 
 /*
-Copyright 2015 The Camlistore Authors
+Copyright 2015 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ limitations under the License.
 // Command build-camlistore-server builds camlistored and bundles all the
 // necessary resources for a Camlistore server in docker. It should be run in a
 // docker container.
-package main // import "camlistore.org/misc/docker/server"
+package main // import "perkeep.org/misc/docker/server"
 
 import (
 	"archive/tar"
@@ -141,7 +141,7 @@ func buildCamlistored() {
 	check(os.Chdir("/gopath/src/camlistore.org"))
 	cmd := exec.Command("go", "run", "make.go",
 		"-static", "true",
-		"-targets", "camlistore.org/server/camlistored")
+		"-targets", "perkeep.org/server/camlistored")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

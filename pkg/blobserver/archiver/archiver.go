@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ limitations under the License.
 // and stores them somewhere. While generic, it was designed to
 // incrementally create Amazon Glacier archives from many little
 // blobs, rather than creating millions of Glacier archives.
-package archiver // import "camlistore.org/pkg/blobserver/archiver"
+package archiver // import "perkeep.org/pkg/blobserver/archiver"
 
 import (
 	"archive/zip"
@@ -27,8 +27,8 @@ import (
 	"errors"
 	"io"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 )
 
 // DefaultMinZipSize is the default value of Archiver.MinZipSize.

@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/schema/nodeattr"
-	"camlistore.org/pkg/types/camtypes"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/schema/nodeattr"
+	"perkeep.org/pkg/types/camtypes"
 )
 
 // LocationHelper queries permanode locations.

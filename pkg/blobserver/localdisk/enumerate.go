@@ -26,7 +26,7 @@ import (
 	"strings"
 	"sync"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 type readBlobRequest struct {

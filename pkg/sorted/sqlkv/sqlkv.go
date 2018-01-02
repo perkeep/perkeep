@@ -1,5 +1,5 @@
 /*
-Copyright 2012 The Camlistore Authors.
+Copyright 2012 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package sqlkv implements the sorted.KeyValue interface using an *sql.DB.
-package sqlkv // import "camlistore.org/pkg/sorted/sqlkv"
+package sqlkv // import "perkeep.org/pkg/sorted/sqlkv"
 
 import (
 	"database/sql"
@@ -25,9 +25,9 @@ import (
 	"strings"
 	"sync"
 
-	"camlistore.org/pkg/leak"
-	"camlistore.org/pkg/sorted"
 	"go4.org/syncutil"
+	"perkeep.org/pkg/leak"
+	"perkeep.org/pkg/sorted"
 )
 
 // KeyValue implements the sorted.KeyValue interface using an *sql.DB.
@@ -46,7 +46,7 @@ type KeyValue struct {
 	//
 	// This originally existed just for SQLite, whose driver likes
 	// to return "the database is locked"
-	// (camlistore.org/issue/114), so this keeps some pressure
+	// (perkeep.org/issue/114), so this keeps some pressure
 	// off. But we still trust SQLite to deal with concurrency in
 	// most cases.
 	//

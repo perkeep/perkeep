@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ limitations under the License.
 // This reduces the amount of data that must be decompressed into memory when
 // the full resolution image isn't required, i.e. in the case of generating
 // thumbnails.
-package fastjpeg // import "camlistore.org/pkg/images/fastjpeg"
+package fastjpeg // import "perkeep.org/pkg/images/fastjpeg"
 
 import (
 	"bytes"
@@ -37,7 +37,7 @@ import (
 	"strconv"
 	"sync"
 
-	"camlistore.org/pkg/buildinfo"
+	"perkeep.org/pkg/buildinfo"
 
 	"go4.org/readerutil"
 )

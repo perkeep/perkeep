@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package blob defines types to refer to and retrieve low-level Camlistore blobs.
-package blob // import "camlistore.org/pkg/blob"
+package blob // import "perkeep.org/pkg/blob"
 
 import (
 	"bytes"

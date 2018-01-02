@@ -20,9 +20,9 @@ import (
 	"bytes"
 	"errors"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/magic"
-	"camlistore.org/pkg/schema"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/magic"
+	"perkeep.org/pkg/schema"
 )
 
 type BlobSniffer struct {

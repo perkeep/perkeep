@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 // requiredSchemaVersion is incremented every time

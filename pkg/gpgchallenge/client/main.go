@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Camlistore Authors
+Copyright 2016 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,9 +27,9 @@ import (
 
 	"golang.org/x/net/http2"
 
-	"camlistore.org/pkg/gpgchallenge"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/osutil"
+	"perkeep.org/pkg/gpgchallenge"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/osutil"
 )
 
 var (

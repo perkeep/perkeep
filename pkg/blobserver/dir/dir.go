@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,12 +17,12 @@ limitations under the License.
 // Package dir implements the blobserver Storage interface for a directory,
 // detecting whether the directory is file-per-blob (localdisk) or diskpacked.
 // If neither, it initializes diskpacked.
-package dir // import "camlistore.org/pkg/blobserver/dir"
+package dir // import "perkeep.org/pkg/blobserver/dir"
 
 import (
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/diskpacked"
-	"camlistore.org/pkg/blobserver/localdisk"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/diskpacked"
+	"perkeep.org/pkg/blobserver/localdisk"
 )
 
 // New returns a new blobserver Storage implementation, storing blobs in the provided dir.

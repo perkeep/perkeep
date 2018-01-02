@@ -16,4 +16,4 @@ limitations under the License.
 
 // Package handlers implements the HTTP interface to the Camlistore
 // blob server.
-package handlers // import "camlistore.org/pkg/blobserver/handlers"
+package handlers // import "perkeep.org/pkg/blobserver/handlers"

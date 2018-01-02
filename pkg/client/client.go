@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package client implements a Camlistore client.
-package client // import "camlistore.org/pkg/client"
+package client // import "perkeep.org/pkg/client"
 
 import (
 	"bytes"
@@ -36,16 +36,16 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/client/android"
-	"camlistore.org/pkg/hashutil"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/types/camtypes"
+	"perkeep.org/pkg/auth"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/client/android"
+	"perkeep.org/pkg/hashutil"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/types/camtypes"
 
 	"go4.org/syncutil"
 	"golang.org/x/net/http2"

@@ -1,7 +1,7 @@
 // +build ignore
 
 /*
-Copyright 2015 The Camlistore Authors
+Copyright 2015 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ limitations under the License.
 
 // Command build-binaries builds camlistored and the Camlistore tools.
 // It should be run in a docker container.
-package main // import "camlistore.org/misc/docker/release"
+package main // import "perkeep.org/misc/docker/release"
 
 import (
 	"archive/tar"

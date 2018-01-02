@@ -29,11 +29,11 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/search"
 	"go4.org/types"
 	"golang.org/x/net/context"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/search"
 )
 
 // roDir is a read-only directory.

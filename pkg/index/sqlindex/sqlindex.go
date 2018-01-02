@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package sqlindex implements the sorted.KeyValue interface using an *sql.DB.
-package sqlindex // import "camlistore.org/pkg/index/sqlindex"
+package sqlindex // import "perkeep.org/pkg/index/sqlindex"
 
 import (
 	"database/sql"
@@ -24,8 +24,8 @@ import (
 	"log"
 	"sync"
 
-	"camlistore.org/pkg/leak"
-	"camlistore.org/pkg/sorted"
+	"perkeep.org/pkg/leak"
+	"perkeep.org/pkg/sorted"
 )
 
 // Storage implements the sorted.KeyValue interface using an *sql.DB.
@@ -43,7 +43,7 @@ type Storage struct {
 	// Serial determines whether a Go-level mutex protects DB from
 	// concurrent access.  This isn't perfect and exists just for
 	// SQLite, whose driver likes to return "the database is
-	// locked" (camlistore.org/issue/114), so this keeps some
+	// locked" (perkeep.org/issue/114), so this keeps some
 	// pressure off. But we still trust SQLite to deal with
 	// concurrency in most cases.
 	Serial bool

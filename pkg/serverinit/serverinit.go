@@ -17,7 +17,7 @@ limitations under the License.
 // Package serverinit is responsible for mapping from a Camlistore
 // configuration file and instantiating HTTP Handlers for all the
 // necessary endpoints.
-package serverinit // import "camlistore.org/pkg/serverinit"
+package serverinit // import "perkeep.org/pkg/serverinit"
 
 import (
 	"bytes"
@@ -39,16 +39,16 @@ import (
 	"strconv"
 	"strings"
 
-	"camlistore.org/pkg/auth"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/handlers"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/jsonsign/signhandler"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/server"
-	"camlistore.org/pkg/server/app"
-	"camlistore.org/pkg/types/serverconfig"
+	"perkeep.org/pkg/auth"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/handlers"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/jsonsign/signhandler"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/server"
+	"perkeep.org/pkg/server/app"
+	"perkeep.org/pkg/types/serverconfig"
 
 	"cloud.google.com/go/compute/metadata"
 	"go4.org/jsonconfig"

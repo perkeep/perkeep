@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Camlistore Authors
+Copyright 2017 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,9 +40,9 @@ import (
 	"os"
 	"runtime"
 
-	"camlistore.org/pkg/app"
-	"camlistore.org/pkg/buildinfo"
-	"camlistore.org/pkg/webserver"
+	"perkeep.org/pkg/app"
+	"perkeep.org/pkg/buildinfo"
+	"perkeep.org/pkg/webserver"
 )
 
 var (

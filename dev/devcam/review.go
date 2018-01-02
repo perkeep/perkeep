@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors.
+Copyright 2014 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"camlistore.org/pkg/cmdmain"
+	"perkeep.org/pkg/cmdmain"
 )
 
 var (
@@ -78,7 +78,7 @@ func goToCamliRoot() {
 			log.Fatalf("Could not get current directory: %v", err)
 		}
 		if currentDir == prevDir {
-			log.Fatal("Camlistore tree root not found. Run from within the Camlistore tree please.")
+			log.Fatal("Perkeep tree root not found. Run from within the Perkeep tree please.")
 		}
 		prevDir = currentDir
 	}

@@ -27,9 +27,9 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/googlestorage"
 	"go4.org/syncutil/singleflight"
 	"golang.org/x/net/http2"
+	"perkeep.org/pkg/googlestorage"
 )
 
 var (

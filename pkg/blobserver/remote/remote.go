@@ -34,16 +34,16 @@ trust a self-signed TLS certificate. The value is the 20 byte hex prefix
 of the SHA-256 of the cert, as printed by the camlistored server
 on start-up.
 */
-package remote // import "camlistore.org/pkg/blobserver/remote"
+package remote // import "perkeep.org/pkg/blobserver/remote"
 
 import (
 	"context"
 	"io"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/client"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/client"
 )
 
 // remoteStorage is a blobserver.Storage proxy for a remote camlistore

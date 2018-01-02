@@ -15,4 +15,4 @@ limitations under the License.
 */
 
 // Package blobserver defines how raw blobs are stored and accessed.
-package blobserver // import "camlistore.org/pkg/blobserver"
+package blobserver // import "perkeep.org/pkg/blobserver"

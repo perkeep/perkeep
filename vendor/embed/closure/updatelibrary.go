@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors.
+Copyright 2013 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ limitations under the License.
 
 // The updatelibrary command allows to selectively download
 // from the closure library git repository (at a chosen revision)
-// the resources needed by the Camlistore ui.
+// the resources needed by the Perkeep ui.
 package main
 
 import (
@@ -32,8 +32,8 @@ import (
 	"sort"
 	"strings"
 
-	"camlistore.org/pkg/misc/closure"
-	"camlistore.org/pkg/osutil"
+	"perkeep.org/pkg/misc/closure"
+	"perkeep.org/pkg/osutil"
 )
 
 const (
@@ -63,9 +63,9 @@ func init() {
 // dependencies generated for the UI js files, and compiles the list of
 // js files from the closure lib required for the UI.
 func fileList() ([]string, error) {
-	camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+	camliRootPath, err := osutil.GoPackagePath("perkeep.org")
 	if err != nil {
-		log.Fatal("Package camlistore.org not found in $GOPATH (or $GOPATH not defined).")
+		log.Fatal("Package perkeep.org not found in $GOPATH (or $GOPATH not defined).")
 	}
 	uiDir := filepath.Join(camliRootPath, "server", "camlistored", "ui")
 	closureDepsFile := filepath.Join(closureGitDir, "closure", "goog", "deps.js")
@@ -264,14 +264,14 @@ func cpToDestDir() {
 	}
 }
 
-// setup checks if the camlistore root can be found,
+// setup checks if the perkeep root can be found,
 // then sets up closureGitDir and destDir, and returns whether
 // we should clone or update in closureGitDir (depending on
 // if a .git dir was found).
 func setup() string {
-	camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+	camliRootPath, err := osutil.GoPackagePath("perkeep.org")
 	if err != nil {
-		log.Fatal("Package camlistore.org not found in $GOPATH (or $GOPATH not defined).")
+		log.Fatal("Package perkeep.org not found in $GOPATH (or $GOPATH not defined).")
 	}
 	destDir = filepath.Join(camliRootPath, "vendor", "embed", "closure", "lib")
 	closureGitDir = filepath.Join(camliRootPath, "tmp", "closure-lib")

@@ -1,4 +1,4 @@
-# Copyright 2016 The Camlistore Authors.
+# Copyright 2016 The Perkeep Authors.
 
 FROM debian:stable
 ENV DEBIAN_FRONTEND noninteractive

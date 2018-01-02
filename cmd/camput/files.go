@@ -35,14 +35,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"camlistore.org/internal/chanworker"
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	statspkg "camlistore.org/pkg/blobserver/stats"
-	"camlistore.org/pkg/client"
-	"camlistore.org/pkg/client/android"
-	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/schema"
+	"perkeep.org/internal/chanworker"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	statspkg "perkeep.org/pkg/blobserver/stats"
+	"perkeep.org/pkg/client"
+	"perkeep.org/pkg/client/android"
+	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/schema"
 )
 
 type fileCmd struct {

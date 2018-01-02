@@ -17,7 +17,7 @@ limitations under the License.
 // Package indextest contains the unit tests for the indexer so they
 // can be re-used for each specific implementation of the index
 // Storage interface.
-package indextest // import "camlistore.org/pkg/index/indextest"
+package indextest // import "perkeep.org/pkg/index/indextest"
 
 import (
 	"bytes"
@@ -35,14 +35,14 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/jsonsign"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/sorted"
-	"camlistore.org/pkg/test"
-	"camlistore.org/pkg/types/camtypes"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/jsonsign"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/sorted"
+	"perkeep.org/pkg/test"
+	"perkeep.org/pkg/types/camtypes"
 )
 
 var flagShowReindexRace = flag.Bool("show_reindex_race", false, "demonstrate the reindex race reported at issue #756")
@@ -253,9 +253,9 @@ func (id *IndexDeps) UploadDir(dirName string, children []blob.Ref, modTime time
 // NewIndexDeps returns an IndexDeps helper for populating and working
 // with the provided index for tests.
 func NewIndexDeps(index *index.Index) *IndexDeps {
-	camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+	camliRootPath, err := osutil.GoPackagePath("perkeep.org")
 	if err != nil {
-		log.Fatal("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+		log.Fatal("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
 	}
 	secretRingFile := filepath.Join(camliRootPath, "pkg", "jsonsign", "testdata", "test-secring.gpg")
 	pubKey := &test.Blob{Contents: `-----BEGIN PGP PUBLIC KEY BLOCK-----
@@ -322,9 +322,9 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 
 	// TODO(bradfitz): add EXIF tests here, once that stuff is ready.
 	if false {
-		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+		camliRootPath, err := osutil.GoPackagePath("perkeep.org")
 		if err != nil {
-			t.Fatal("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+			t.Fatal("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
 		}
 		for i := 1; i <= 8; i++ {
 			fileBase := fmt.Sprintf("f%d-exif.jpg", i)
@@ -340,9 +340,9 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	// Upload some files.
 	var jpegFileRef, exifFileRef, exifWholeRef, badExifWholeRef, nanExifWholeRef, mediaFileRef, mediaWholeRef blob.Ref
 	{
-		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+		camliRootPath, err := osutil.GoPackagePath("perkeep.org")
 		if err != nil {
-			t.Fatal("Package camlistore.org no found in $GOPATH or $GOPATH not defined")
+			t.Fatal("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
 		}
 		uploadFile := func(file string, modTime time.Time) (fileRef, wholeRef blob.Ref) {
 			fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", file)

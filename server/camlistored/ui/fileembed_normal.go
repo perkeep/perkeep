@@ -19,7 +19,7 @@ limitations under the License.
 package ui
 
 import (
-	"camlistore.org/pkg/fileembed"
+	"perkeep.org/pkg/fileembed"
 )
 
 func init() {

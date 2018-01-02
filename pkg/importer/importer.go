@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package importer imports content from third-party websites.
-package importer // import "camlistore.org/pkg/importer"
+package importer // import "perkeep.org/pkg/importer"
 
 import (
 	"context"
@@ -32,14 +32,14 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/jsonsign/signhandler"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/server"
-	"camlistore.org/pkg/types/camtypes"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/jsonsign/signhandler"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/server"
+	"perkeep.org/pkg/types/camtypes"
 
 	"go4.org/ctxutil"
 	"go4.org/jsonconfig"
@@ -117,7 +117,7 @@ type LongPoller interface {
 // generate test data locally. The returned Roundtripper will be used as the
 // transport of the HTTPClient, in the RunContext that will be passed to Run
 // during tests and devcam server --makethings.
-// (See http://camlistore.org/issue/417).
+// (See http://perkeep.org/issue/417).
 type TestDataMaker interface {
 	MakeTestData() http.RoundTripper
 	// SetTestAccount allows an importer to set some needed attributes on the importer

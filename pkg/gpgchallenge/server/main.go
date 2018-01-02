@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Camlistore Authors
+Copyright 2016 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import (
 	"log"
 	"net/http"
 
-	"camlistore.org/pkg/gpgchallenge"
+	"perkeep.org/pkg/gpgchallenge"
 )
 
 var (

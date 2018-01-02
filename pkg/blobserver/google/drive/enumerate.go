@@ -19,8 +19,8 @@ package drive
 import (
 	"context"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 )
 
 var _ blobserver.MaxEnumerateConfig = (*driveStorage)(nil)

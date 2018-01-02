@@ -25,11 +25,11 @@ import (
 	"os"
 	"strings"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/client"
-	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/constants"
-	"camlistore.org/pkg/schema"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/client"
+	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/constants"
+	"perkeep.org/pkg/schema"
 )
 
 type blobCmd struct {

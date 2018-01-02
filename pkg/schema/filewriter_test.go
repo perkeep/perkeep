@@ -26,9 +26,9 @@ import (
 	"sync"
 	"testing"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver/stats"
-	"camlistore.org/pkg/test"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver/stats"
+	"perkeep.org/pkg/test"
 )
 
 func TestWriteFileMap(t *testing.T) {

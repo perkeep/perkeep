@@ -27,11 +27,11 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/search"
 	"go4.org/syncutil"
 	"golang.org/x/net/context"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/search"
 )
 
 const refreshTime = 1 * time.Minute

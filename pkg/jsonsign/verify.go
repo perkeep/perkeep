@@ -26,8 +26,8 @@ import (
 	"os"
 	"strings"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/camerrors"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/camerrors"
 
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/packet"

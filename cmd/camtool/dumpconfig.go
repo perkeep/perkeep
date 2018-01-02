@@ -22,10 +22,10 @@ import (
 	"flag"
 	"os"
 
-	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/osutil"
-	_ "camlistore.org/pkg/osutil/gce"
-	"camlistore.org/pkg/serverinit"
+	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/osutil"
+	_ "perkeep.org/pkg/osutil/gce"
+	"perkeep.org/pkg/serverinit"
 )
 
 type dumpconfigCmd struct{}

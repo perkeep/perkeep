@@ -23,11 +23,11 @@ import (
 	"log"
 	"os"
 
-	"camlistore.org/pkg/blobserver/diskpacked"
-	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/serverinit"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/blobserver/diskpacked"
+	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/serverinit"
 )
 
 type reindexdpCmd struct {

@@ -16,14 +16,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This program builds Camlistore.
+// This program builds Perkeep.
 //
 // $ go run make.go
 //
 // See the BUILDING file.
 //
 // The output binaries go into the ./bin/ directory (under the
-// Camlistore root, where make.go is)
+// Perkeep root, where make.go is)
 package main
 
 import (
@@ -55,7 +55,7 @@ var (
 	all            = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
 	race           = flag.Bool("race", false, "Build race-detector version of binaries (they will run slowly)")
 	verbose        = flag.Bool("v", strings.Contains(os.Getenv("CAMLI_DEBUG_X"), "makego"), "Verbose mode")
-	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. '*' builds everything.  Empty builds defaults for this platform. Example: camlistore.org/server/camlistored,camlistore.org/cmd/camput")
+	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. '*' builds everything.  Empty builds defaults for this platform. Example: perkeep.org/server/camlistored,perkeep.org/cmd/camput")
 	quiet          = flag.Bool("quiet", false, "Don't print anything unless there's a failure.")
 	onlysync       = flag.Bool("onlysync", false, "Only populate the temporary source/build tree and output its full path. It is meant to prepare the environment for running the full test suite with 'devcam test'.")
 	ifModsSince    = flag.Int64("if_mods_since", 0, "If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
@@ -64,7 +64,7 @@ var (
 	buildARM       = flag.String("arm", "7", "ARM version to use if building for ARM. Note that this version applies even if the host arch is ARM too (and possibly of a different version).")
 	stampVersion   = flag.Bool("stampversion", true, "Stamp version into buildinfo.GitInfo")
 	website        = flag.Bool("website", false, "Just build the website.")
-	camnetdns      = flag.Bool("camnetdns", false, "Just build camlistore.org/server/camnetdns.")
+	camnetdns      = flag.Bool("camnetdns", false, "Just build perkeep.org/server/camnetdns.")
 	static         = flag.Bool("static", false, "Build a static binary, so it can run in an empty container.")
 
 	// Use GOPATH from the environment and work from there. Do not create a temporary source tree with a new GOPATH in it.
@@ -74,11 +74,11 @@ var (
 )
 
 var (
-	// camRoot is the original Camlistore project root, from where the source files are mirrored.
+	// camRoot is the original Perkeep project root, from where the source files are mirrored.
 	camRoot string
 	// buildGoPath becomes our child "go" processes' GOPATH environment variable
 	buildGoPath string
-	// Our temporary source tree root and build dir, i.e: buildGoPath + "src/camlistore.org"
+	// Our temporary source tree root and build dir, i.e: buildGoPath + "src/perkeep.org"
 	buildSrcDir string
 	// files mirrored from camRoot to buildSrcDir
 	rxMirrored = regexp.MustCompile(`^([a-zA-Z0-9\-\_\.]+\.(?:blobs|camli|css|eot|err|gif|go|s|pb\.go|gpg|html|ico|jpg|js|json|xml|min\.css|min\.js|mp3|otf|png|svg|pdf|psd|tiff|ttf|woff|woff2|xcf|tar\.gz|gz|tar\.xz|tbz2|zip|sh))$`)
@@ -119,7 +119,7 @@ func main() {
 	if useGoPath {
 		buildGoPath = os.Getenv("GOPATH")
 		var err error
-		camRoot, err = goPackagePath("camlistore.org")
+		camRoot, err = goPackagePath("perkeep.org")
 		if err != nil {
 			log.Fatalf("Cannot run make.go with --use_gopath: %v (is GOPATH not set?)", err)
 		}
@@ -158,7 +158,7 @@ func main() {
 	version := getVersion()
 
 	if *verbose {
-		log.Printf("Camlistore version = %s", version)
+		log.Printf("Perkeep version = %s", version)
 		log.Printf("SQLite included: %v", sql)
 		log.Printf("Temporary source: %s", buildSrcDir)
 		log.Printf("Output binaries: %s", binDir)
@@ -166,16 +166,16 @@ func main() {
 
 	buildAll := false
 	targs := []string{
-		"camlistore.org/dev/devcam",
-		"camlistore.org/cmd/camget",
-		"camlistore.org/cmd/camput",
-		"camlistore.org/cmd/camtool",
-		"camlistore.org/cmd/camdeploy",
-		"camlistore.org/server/camlistored",
-		"camlistore.org/app/hello",
-		"camlistore.org/app/publisher",
-		"camlistore.org/app/scanningcabinet",
-		"camlistore.org/app/scanningcabinet/scancab",
+		"perkeep.org/dev/devcam",
+		"perkeep.org/cmd/camget",
+		"perkeep.org/cmd/camput",
+		"perkeep.org/cmd/camtool",
+		"perkeep.org/cmd/camdeploy",
+		"perkeep.org/server/camlistored",
+		"perkeep.org/app/hello",
+		"perkeep.org/app/publisher",
+		"perkeep.org/app/scanningcabinet",
+		"perkeep.org/app/scanningcabinet/scancab",
 	}
 	switch *targets {
 	case "*":
@@ -184,7 +184,7 @@ func main() {
 		// Add cammount to default build targets on OSes that support FUSE.
 		switch *buildOS {
 		case "linux", "darwin":
-			targs = append(targs, "camlistore.org/cmd/cammount")
+			targs = append(targs, "perkeep.org/cmd/cammount")
 		}
 	default:
 		if *website {
@@ -200,13 +200,13 @@ func main() {
 	if *website || *camnetdns {
 		buildAll = false
 		if *website {
-			targs = []string{"camlistore.org/website"}
+			targs = []string{"perkeep.org/website"}
 		} else if *camnetdns {
-			targs = []string{"camlistore.org/server/camnetdns"}
+			targs = []string{"perkeep.org/server/camnetdns"}
 		}
 	}
 
-	withCamlistored := stringListContains(targs, "camlistore.org/server/camlistored")
+	withCamlistored := stringListContains(targs, "perkeep.org/server/camlistored")
 
 	// TODO(mpl): no need to build publisher.js if we're not building the publisher app.
 	if withCamlistored {
@@ -258,20 +258,20 @@ func main() {
 		if ldFlags != "" {
 			ldFlags += " "
 		}
-		ldFlags += "-X \"camlistore.org/pkg/buildinfo.GitInfo=" + version + "\""
+		ldFlags += "-X \"perkeep.org/pkg/buildinfo.GitInfo=" + version + "\""
 	}
 	baseArgs = append(baseArgs, "--ldflags="+ldFlags, "--tags="+strings.Join(tags, " "))
 
 	// First install command: build just the final binaries, installed to a GOBIN
-	// under <camlistore_root>/bin:
+	// under <perkeep_root>/bin:
 	args := append(baseArgs, targs...)
 
 	if buildAll {
 		args = append(args,
-			"camlistore.org/app/...",
-			"camlistore.org/pkg/...",
-			"camlistore.org/server/...",
-			"camlistore.org/internal/...",
+			"perkeep.org/app/...",
+			"perkeep.org/pkg/...",
+			"perkeep.org/server/...",
+			"perkeep.org/internal/...",
 		)
 	}
 
@@ -306,7 +306,7 @@ func main() {
 	// This is necessary (instead of just using GOBIN environment variable) so
 	// each tmp/build-gopath-* has its own binary modtimes for its own build tags.
 	// Otherwise switching sqlite true<->false doesn't necessarily cause a rebuild.
-	// See camlistore.org/issue/229
+	// See perkeep.org/issue/229
 	for _, targ := range targs {
 		src := exeName(filepath.Join(actualBinDir(filepath.Join(buildGoPath, "bin")), pathpkg.Base(targ)))
 		dst := exeName(filepath.Join(actualBinDir(binDir), pathpkg.Base(targ)))
@@ -437,8 +437,8 @@ func moveGopherjs() error {
 	return os.RemoveAll(src)
 }
 
-// genSearchTypes duplicates some of the camlistore.org/pkg/search types into
-// camlistore.org/app/publisher/js/zsearch.go , because it's too costly (in output
+// genSearchTypes duplicates some of the perkeep.org/pkg/search types into
+// perkeep.org/app/publisher/js/zsearch.go , because it's too costly (in output
 // file size) for now to import the search pkg into gopherjs.
 func genSearchTypes() error {
 	sourceFile := filepath.Join(buildSrcDir, filepath.FromSlash("pkg/search/describe.go"))
@@ -455,7 +455,7 @@ func genSearchTypes() error {
 		wantDestFile[outputFile] = true
 		return nil
 	}
-	args := []string{"generate", "camlistore.org/app/publisher/js"}
+	args := []string{"generate", "perkeep.org/app/publisher/js"}
 	cmd := exec.Command("go", args...)
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
@@ -471,7 +471,7 @@ func genSearchTypes() error {
 }
 
 // genPublisherJS runs the gopherjs command, using the gopherjsBin binary, on
-// camlistore.org/app/publisher/js, to generate the javascript code at
+// perkeep.org/app/publisher/js, to generate the javascript code at
 // app/publisher/publisher.js
 func genPublisherJS(gopherjsBin string) error {
 	if err := genSearchTypes(); err != nil {
@@ -486,7 +486,7 @@ func genPublisherJS(gopherjsBin string) error {
 		// when embedding for "production", use -m to minify the javascript output
 		args = append(args, "-m")
 	}
-	args = append(args, "-o", tmpOutput, "camlistore.org/app/publisher/js")
+	args = append(args, "-o", tmpOutput, "perkeep.org/app/publisher/js")
 	cmd := exec.Command(gopherjsBin, args...)
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
@@ -554,8 +554,8 @@ func genPublisherJS(gopherjsBin string) error {
 // TODO(mpl): refactor genWebUIJS with genPublisherJS
 
 // genWebUIJS runs the gopherjs command, using the gopherjsBin binary, on
-// camlistore.org/server/camlistored/ui/goui, to generate the javascript
-// code at camlistore.org/server/camlistored/ui/goui.js
+// perkeep.org/server/camlistored/ui/goui, to generate the javascript
+// code at perkeep.org/server/camlistored/ui/goui.js
 func genWebUIJS(gopherjsBin string) error {
 	// Run gopherjs on a temporary output file, so we don't change the
 	// modtime of the existing goui.js if there was no reason to.
@@ -566,7 +566,7 @@ func genWebUIJS(gopherjsBin string) error {
 		// when embedding for "production", use -m to minify the javascript output
 		args = append(args, "-m")
 	}
-	args = append(args, "-o", tmpOutput, "camlistore.org/server/camlistored/ui/goui")
+	args = append(args, "-o", tmpOutput, "perkeep.org/server/camlistored/ui/goui")
 	cmd := exec.Command(gopherjsBin, args...)
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
@@ -635,7 +635,7 @@ func genWebUIJS(gopherjsBin string) error {
 // invokes reactGen on the Go React components. This generates the boilerplate
 // code, in gen_*_reactGen.go files, required to complete those components.
 func genWebUIReact() error {
-	args := []string{"generate", "camlistore.org/server/camlistored/ui/goui/..."}
+	args := []string{"generate", "perkeep.org/server/camlistored/ui/goui/..."}
 
 	path := strings.Join([]string{
 		filepath.Join(buildGoPath, "bin"),
@@ -678,8 +678,8 @@ func hashsum(filename string) string {
 	return string(h.Sum(nil))
 }
 
-// makeGopherjs builds and runs the gopherjs command on camlistore.org/app/publisher/js
-// and camlistore.org/server/camlistored/ui/goui
+// makeGopherjs builds and runs the gopherjs command on perkeep.org/app/publisher/js
+// and perkeep.org/server/camlistored/ui/goui
 // When CAMLI_MAKE_USEGOPATH is set (for integration tests through devcam), we
 // generate a fake file instead.
 func makeGopherjs() error {
@@ -709,12 +709,12 @@ func makeGopherjs() error {
 // create the tmp GOPATH, and mirror to it from camRoot.
 // return the latest modtime among all of the walked files.
 func mirror(sql bool) (latestSrcMod time.Time) {
-	verifyCamlistoreRoot(camRoot)
+	verifyPerkeepRoot(camRoot)
 
 	buildBaseDir := baseDirName(sql)
 
 	buildGoPath = filepath.Join(camRoot, "tmp", buildBaseDir)
-	buildSrcDir = filepath.Join(buildGoPath, "src", "camlistore.org")
+	buildSrcDir = filepath.Join(buildGoPath, "src", "perkeep.org")
 
 	if err := os.MkdirAll(buildSrcDir, 0755); err != nil {
 		log.Fatal(err)
@@ -942,11 +942,11 @@ func parseGenEmbedOutputLines(r io.Reader) {
 }
 
 func buildGenfileembed() error {
-	return buildBin("camlistore.org/pkg/fileembed/genfileembed")
+	return buildBin("perkeep.org/pkg/fileembed/genfileembed")
 }
 
 func buildReactGen() error {
-	return buildBin("camlistore.org/vendor/myitcv.io/react/cmd/reactGen")
+	return buildBin("perkeep.org/vendor/myitcv.io/react/cmd/reactGen")
 }
 
 func buildBin(pkg string) error {
@@ -984,7 +984,7 @@ func buildBin(pkg string) error {
 	return nil
 }
 
-// getVersion returns the version of Camlistore. Either from a VERSION file at the root,
+// getVersion returns the version of Perkeep. Either from a VERSION file at the root,
 // or from git.
 func getVersion() string {
 	slurp, err := ioutil.ReadFile(filepath.Join(camRoot, "VERSION"))
@@ -1021,11 +1021,11 @@ func gitVersion() string {
 	return v
 }
 
-// verifyCamlistoreRoot crashes if dir isn't the Camlistore root directory.
-func verifyCamlistoreRoot(dir string) {
+// verifyPerkeepRoot crashes if dir isn't the Perkeep root directory.
+func verifyPerkeepRoot(dir string) {
 	testFile := filepath.Join(dir, "pkg", "blob", "ref.go")
 	if _, err := os.Stat(testFile); err != nil {
-		log.Fatalf("make.go must be run from the Camlistore src root directory (where make.go is). Current working directory is %s", dir)
+		log.Fatalf("make.go must be run from the Perkeep src root directory (where make.go is). Current working directory is %s", dir)
 	}
 }
 
@@ -1054,7 +1054,7 @@ func verifyGoVersion() {
 	}
 	// this check is still needed for the "go1" case.
 	if len(version) < len("go1.") {
-		log.Fatalf("Your version of Go (%s) is too old. Camlistore requires Go 1.%c or later.", version, goVersionMinor)
+		log.Fatalf("Your version of Go (%s) is too old. Perkeep requires Go 1.%c or later.", version, goVersionMinor)
 	}
 	minorChar := strings.TrimPrefix(version, "go1.")[0]
 	if minorChar >= goVersionMinor && minorChar <= '9' {
@@ -1063,7 +1063,7 @@ func verifyGoVersion() {
 		}
 		return
 	}
-	log.Fatalf("Your version of Go (%s) is too old. Camlistore requires Go 1.%c or later.", version, goVersionMinor)
+	log.Fatalf("Your version of Go (%s) is too old. Perkeep requires Go 1.%c or later.", version, goVersionMinor)
 }
 
 func verifyGopherjsGoroot() {
@@ -1233,7 +1233,7 @@ func withSQLite() bool {
 		case "linux":
 			log.Printf("On Linux, run 'sudo apt-get install libsqlite3-dev' or equivalent.")
 		case "windows":
-			log.Printf("SQLite is not easy on windows. Please see https://camlistore.org/doc/server-config#windows")
+			log.Printf("SQLite is not easy on windows. Please see https://perkeep.org/doc/server-config#windows")
 		}
 		os.Exit(2)
 	}

@@ -1,5 +1,5 @@
 /*
-Copyright 2013 The Camlistore Authors
+Copyright 2013 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -394,7 +394,7 @@ func testCompareResizeMethods(t *testing.T, method1, method2 string) {
 					cmd := exec.Command("compare", "-verbose", "-metric", "psnr",
 						filepath.Join(*flagOutput, halved), filepath.Join(*flagOutput, resized), filepath.Join(*flagOutput, "imagemagick-"+fn))
 					if output, err := cmd.CombinedOutput(); err != nil {
-						t.Fatal("%v: %v", string(output), err)
+						t.Fatalf("%v: %v", string(output), err)
 					} else {
 						t.Logf("%v", string(output))
 					}

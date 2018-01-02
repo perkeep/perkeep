@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/jsonsign"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/jsonsign"
 )
 
 const maxJSONLength = 1024 * 1024

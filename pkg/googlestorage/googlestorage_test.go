@@ -28,8 +28,8 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/osutil"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/osutil"
 
 	"go4.org/oauthutil"
 	"golang.org/x/oauth2"

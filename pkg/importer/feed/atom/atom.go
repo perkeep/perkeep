@@ -5,7 +5,7 @@
 // Adapted from encoding/xml/read_test.go.
 
 // Package atom defines XML data structures for an Atom feed.
-package atom // import "camlistore.org/pkg/importer/feed/atom"
+package atom // import "perkeep.org/pkg/importer/feed/atom"
 
 import (
 	"encoding/xml"

@@ -28,10 +28,10 @@ import (
 	"strings"
 	"sync"
 
-	"camlistore.org/pkg/blobserver/dir"
-	"camlistore.org/pkg/client"
-	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/httputil"
+	"perkeep.org/pkg/blobserver/dir"
+	"perkeep.org/pkg/client"
+	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/httputil"
 
 	"go4.org/syncutil"
 )

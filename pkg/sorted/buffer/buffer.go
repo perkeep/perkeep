@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,14 +18,14 @@ limitations under the License.
 // buffers one KeyValue implementation in front of an another. It's
 // used for cases such as reindexing where you need a KeyValue but it
 // doesn't need to be flushed and consistent until the end.
-package buffer // import "camlistore.org/pkg/sorted/buffer"
+package buffer // import "perkeep.org/pkg/sorted/buffer"
 
 import (
 	"fmt"
 	"log"
 	"sync"
 
-	"camlistore.org/pkg/sorted"
+	"perkeep.org/pkg/sorted"
 )
 
 // New returnes a sorted.KeyValue implementation that adds a Flush

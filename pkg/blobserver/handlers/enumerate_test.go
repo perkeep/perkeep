@@ -22,8 +22,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"camlistore.org/pkg/blob"
-	. "camlistore.org/pkg/test/asserts"
+	"perkeep.org/pkg/blob"
+	. "perkeep.org/pkg/test/asserts"
 )
 
 type emptyEnumerator struct {

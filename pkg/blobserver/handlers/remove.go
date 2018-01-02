@@ -21,9 +21,9 @@ import (
 	"log"
 	"net/http"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/httputil"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/httputil"
 )
 
 const maxRemovesPerRequest = 1000

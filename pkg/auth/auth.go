@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package auth implements Camlistore authentication.
-package auth // import "camlistore.org/pkg/auth"
+package auth // import "perkeep.org/pkg/auth"
 
 import (
 	"crypto/rand"
@@ -27,7 +27,7 @@ import (
 	"strings"
 	"sync"
 
-	"camlistore.org/pkg/httputil"
+	"perkeep.org/pkg/httputil"
 )
 
 // Operation represents a bitmask of operations. See the OpX constants.

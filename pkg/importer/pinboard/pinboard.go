@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ the future provide an api that lets us query what has changed.  We
 might want to switch to that when available to make the import process
 more light-weight.
 */
-package pinboard // import "camlistore.org/pkg/importer/pinboard"
+package pinboard // import "perkeep.org/pkg/importer/pinboard"
 
 import (
 	"encoding/json"
@@ -52,10 +52,10 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/importer"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/schema/nodeattr"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/importer"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/schema/nodeattr"
 
 	"go4.org/ctxutil"
 	"go4.org/syncutil"

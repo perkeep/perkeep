@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package picasa implements an importer for picasa.com accounts.
-package picasa // import "camlistore.org/pkg/importer/picasa"
+package picasa // import "perkeep.org/pkg/importer/picasa"
 
 // TODO: removing camliPath from gallery permanode when pic deleted from gallery
 
@@ -32,17 +32,17 @@ import (
 	"strings"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/importer"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/schema/nodeattr"
-	"camlistore.org/pkg/search"
 	"github.com/tgulacsi/picago"
 	"go4.org/ctxutil"
 	"go4.org/syncutil"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/importer"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/schema/nodeattr"
+	"perkeep.org/pkg/search"
 )
 
 const (

@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors.
+Copyright 2014 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,16 +15,16 @@ limitations under the License.
 */
 
 // Package allimporters registers all the importer implementations.
-package allimporters // import "camlistore.org/pkg/importer/allimporters"
+package allimporters // import "perkeep.org/pkg/importer/allimporters"
 
 import (
-	_ "camlistore.org/pkg/importer/dummy"
-	_ "camlistore.org/pkg/importer/feed"
-	_ "camlistore.org/pkg/importer/flickr"
-	_ "camlistore.org/pkg/importer/foursquare"
-	_ "camlistore.org/pkg/importer/gphotos"
-	_ "camlistore.org/pkg/importer/picasa"
-	_ "camlistore.org/pkg/importer/pinboard"
-	_ "camlistore.org/pkg/importer/plaid"
-	_ "camlistore.org/pkg/importer/twitter"
+	_ "perkeep.org/pkg/importer/dummy"
+	_ "perkeep.org/pkg/importer/feed"
+	_ "perkeep.org/pkg/importer/flickr"
+	_ "perkeep.org/pkg/importer/foursquare"
+	_ "perkeep.org/pkg/importer/gphotos"
+	_ "perkeep.org/pkg/importer/picasa"
+	_ "perkeep.org/pkg/importer/pinboard"
+	_ "perkeep.org/pkg/importer/plaid"
+	_ "perkeep.org/pkg/importer/twitter"
 )

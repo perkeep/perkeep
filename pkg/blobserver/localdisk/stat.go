@@ -19,7 +19,7 @@ package localdisk
 import (
 	"os"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 
 	"go4.org/syncutil"
 )

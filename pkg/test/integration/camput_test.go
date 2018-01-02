@@ -26,8 +26,8 @@ import (
 	"strings"
 	"testing"
 
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/test"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/test"
 )
 
 // mkTmpFIFO makes a fifo in a temporary directory and returns the

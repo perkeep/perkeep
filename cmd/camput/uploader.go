@@ -19,9 +19,9 @@ package main
 import (
 	"strings"
 
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/client"
-	"camlistore.org/pkg/httputil"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/client"
+	"perkeep.org/pkg/httputil"
 
 	"go4.org/syncutil"
 )

@@ -19,8 +19,8 @@ package handlers
 import (
 	"net/http"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver/gethandler"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver/gethandler"
 )
 
 // CreateGetHandler returns an http Handler for serving blobs from fetcher.

@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package osutil provides operating system-specific path information,
 // and other utility functions.
-package osutil // import "camlistore.org/pkg/osutil"
+package osutil // import "perkeep.org/pkg/osutil"
 
 import (
 	"errors"

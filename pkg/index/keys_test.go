@@ -19,7 +19,7 @@ package index_test
 import (
 	"testing"
 
-	"camlistore.org/pkg/index"
+	"perkeep.org/pkg/index"
 )
 
 func TestKeyPrefix(t *testing.T) {

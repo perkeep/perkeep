@@ -30,9 +30,9 @@ package main
 */
 
 import (
-	"camlistore.org/pkg/httputil"
-	"camlistore.org/pkg/jsonsign"
 	"net/http"
+	"perkeep.org/pkg/httputil"
+	"perkeep.org/pkg/jsonsign"
 )
 
 func handleVerify(conn http.ResponseWriter, req *http.Request) {

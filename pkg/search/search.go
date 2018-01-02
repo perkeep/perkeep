@@ -1,5 +1,5 @@
 /*
-Copyright 2011 The Camlistore Authors.
+Copyright 2011 The Perkeep Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ limitations under the License.
 // times. In that context, (un)deletions (of permanodes, or attributes)
 // are not considered modifications and therefore the time at which they
 // occurred does not affect the result.
-package search // import "camlistore.org/pkg/search"
+package search // import "perkeep.org/pkg/search"
 
 import (
 	"context"

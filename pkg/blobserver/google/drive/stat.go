@@ -17,7 +17,7 @@ limitations under the License.
 package drive
 
 import (
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 func (sto *driveStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {

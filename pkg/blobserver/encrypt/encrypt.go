@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Camlistore Authors
+Copyright 2016 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ limitations under the License.
 //
 // Encryption is currently always NaCl SecretBox.  See code for metadata
 // formats and configuration details, which are currently subject to change.
-package encrypt // import "camlistore.org/pkg/blobserver/encrypt"
+package encrypt // import "perkeep.org/pkg/blobserver/encrypt"
 
 import (
 	"bytes"
@@ -39,12 +39,12 @@ import (
 	"os"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/sorted"
 	"go4.org/jsonconfig"
 	"golang.org/x/crypto/nacl/secretbox"
 	"golang.org/x/crypto/scrypt"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/sorted"
 )
 
 type storage struct {

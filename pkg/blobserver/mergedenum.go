@@ -19,7 +19,7 @@ package blobserver
 import (
 	"context"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 const buffered = 8

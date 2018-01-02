@@ -1,4 +1,4 @@
-# Copyright 2017 The Camlistore Authors.
+# Copyright 2017 The Perkeep Authors.
 
 FROM openjdk:8-jdk
 

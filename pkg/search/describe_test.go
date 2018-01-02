@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Camlistore Authors
+Copyright 2014 The Perkeep Authors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,13 +24,13 @@ import (
 	"testing"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/index"
-	"camlistore.org/pkg/index/indextest"
-	"camlistore.org/pkg/osutil"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/search"
-	"camlistore.org/pkg/test"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/index/indextest"
+	"perkeep.org/pkg/osutil"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/search"
+	"perkeep.org/pkg/test"
 )
 
 var describedBlobs = map[string]blob.Ref{
@@ -146,9 +146,9 @@ func searchDescribeSetup(t *testing.T) indexAndOwner {
 	))
 
 	uploadFile := func(file string) blob.Ref {
-		camliRootPath, err := osutil.GoPackagePath("camlistore.org")
+		camliRootPath, err := osutil.GoPackagePath("perkeep.org")
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("looking up perkeep.org location in $GOPATH: %v", err)
 		}
 		fileName := filepath.Join(camliRootPath, "pkg", "search", "testdata", file)
 		contents, err := ioutil.ReadFile(fileName)

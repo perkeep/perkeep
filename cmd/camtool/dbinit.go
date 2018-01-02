@@ -26,11 +26,11 @@ import (
 	"os"
 	"strings"
 
-	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/sorted/mongo"
-	"camlistore.org/pkg/sorted/mysql"
-	"camlistore.org/pkg/sorted/postgres"
-	"camlistore.org/pkg/sorted/sqlite"
+	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/sorted/mongo"
+	"perkeep.org/pkg/sorted/mysql"
+	"perkeep.org/pkg/sorted/postgres"
+	"perkeep.org/pkg/sorted/sqlite"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
@@ -62,7 +62,7 @@ func init() {
 
 		flags.BoolVar(&cmd.wipe, "wipe", false, "Wipe the database and re-create it?")
 		flags.BoolVar(&cmd.keep, "ignoreexists", false, "Do nothing if database already exists.")
-		// Defaults to true, because it fixes http://camlistore.org/issues/114
+		// Defaults to true, because it fixes http://perkeep.org/issue/114
 		flags.BoolVar(&cmd.wal, "wal", true, "Enable Write-Ahead Logging with SQLite, for better concurrency. Requires SQLite >= 3.7.0.")
 
 		return cmd
@@ -95,7 +95,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 			}
 			c.wal = c.wal && sqlite.IsWALCapable()
 			if !c.wal {
-				fmt.Print("WARNING: An SQLite indexer without Write Ahead Logging will most likely fail. See http://camlistore.org/issues/114\n")
+				fmt.Print("WARNING: An SQLite indexer without Write Ahead Logging will most likely fail. See http://perkeep.org/issue/114\n")
 			}
 		} else {
 			return cmdmain.UsageError(fmt.Sprintf("--dbtype flag: got %v, want %v", c.dbType, `"mysql" or "postgres" or "sqlite", or "mongo"`))

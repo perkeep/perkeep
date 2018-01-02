@@ -25,8 +25,8 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
-	"camlistore.org/pkg/blob"
 	"golang.org/x/net/context"
+	"perkeep.org/pkg/blob"
 )
 
 // root implements fuse.Node and is the typical root of a

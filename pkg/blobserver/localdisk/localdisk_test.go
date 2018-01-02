@@ -26,11 +26,11 @@ import (
 	"sync"
 	"testing"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/storagetest"
-	"camlistore.org/pkg/test"
-	. "camlistore.org/pkg/test/asserts"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/storagetest"
+	"perkeep.org/pkg/test"
+	. "perkeep.org/pkg/test/asserts"
 )
 
 func cleanUp(ds *DiskStorage) {

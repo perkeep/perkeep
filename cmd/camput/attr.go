@@ -20,9 +20,9 @@ import (
 	"flag"
 	"fmt"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/schema"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/schema"
 )
 
 type attrCmd struct {

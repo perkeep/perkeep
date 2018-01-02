@@ -22,8 +22,8 @@ import (
 	"strconv"
 	"strings"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/sorted"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/sorted"
 )
 
 func (ix *Index) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {

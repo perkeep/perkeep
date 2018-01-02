@@ -16,4 +16,4 @@ limitations under the License.
 
 // Package jsonsign implements Camlistore's cryptographic signing and
 // verification of JSON blobs.
-package jsonsign // import "camlistore.org/pkg/jsonsign"
+package jsonsign // import "perkeep.org/pkg/jsonsign"

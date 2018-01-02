@@ -21,8 +21,8 @@ import (
 	"flag"
 	"strings"
 
-	"camlistore.org/pkg/cmdmain"
-	"camlistore.org/pkg/schema"
+	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/schema"
 )
 
 type rawCmd struct {

@@ -20,7 +20,7 @@ import (
 	"io"
 	"io/ioutil"
 
-	"camlistore.org/pkg/blob"
+	"perkeep.org/pkg/blob"
 )
 
 // Ensure we implement the optional interface correctly.

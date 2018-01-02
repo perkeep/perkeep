@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package service translates blobserver.Storage methods
 // into Google Drive API methods.
-package service // import "camlistore.org/pkg/blobserver/google/drive/service"
+package service // import "perkeep.org/pkg/blobserver/google/drive/service"
 
 import (
 	"errors"

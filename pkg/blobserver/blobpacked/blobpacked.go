@@ -75,7 +75,7 @@ multiple zip files, each no larger than 16MB. In that case, each part of the
 file will have a different 'wholePartIndex' number, starting at index
 0. Each will have the same 'wholeSize'.
 */
-package blobpacked // import "camlistore.org/pkg/blobserver/blobpacked"
+package blobpacked // import "perkeep.org/pkg/blobserver/blobpacked"
 
 // TODO: BlobStreamer using the zip manifests, for recovery.
 
@@ -96,14 +96,14 @@ import (
 	"sync"
 	"time"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/constants"
-	"camlistore.org/pkg/env"
-	"camlistore.org/pkg/pools"
-	"camlistore.org/pkg/schema"
-	"camlistore.org/pkg/sorted"
 	"go4.org/jsonconfig"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/constants"
+	"perkeep.org/pkg/env"
+	"perkeep.org/pkg/pools"
+	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/sorted"
 
 	"go4.org/strutil"
 	"go4.org/syncutil"

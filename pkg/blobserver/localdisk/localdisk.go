@@ -28,7 +28,7 @@ Example low-level config:
      },
 
 */
-package localdisk // import "camlistore.org/pkg/blobserver/localdisk"
+package localdisk // import "perkeep.org/pkg/blobserver/localdisk"
 
 import (
 	"fmt"
@@ -38,10 +38,10 @@ import (
 	"path/filepath"
 	"sync"
 
-	"camlistore.org/pkg/blob"
-	"camlistore.org/pkg/blobserver"
-	"camlistore.org/pkg/blobserver/local"
-	"camlistore.org/pkg/osutil"
+	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/local"
+	"perkeep.org/pkg/osutil"
 
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"
