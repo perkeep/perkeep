@@ -192,6 +192,17 @@ type pageParams struct {
 	content  []byte // required
 }
 
+// pageTmplData is the template data passed to page.html.
+type pageTmplData struct {
+	Title    string
+	Subtitle string
+	Content  template.HTML
+
+	// For the "go-import" meta header:
+	GoImportDomain   string
+	GoImportUpstream string
+}
+
 func servePage(w http.ResponseWriter, r *http.Request, params pageParams) {
 	title, subtitle, content := params.title, params.subtitle, params.content
 	// insert an "install command" if it applies
@@ -202,20 +213,18 @@ func servePage(w http.ResponseWriter, r *http.Request, params pageParams) {
 		<h3>Overview</h3><p>`
 		content = bytes.Replace(content, []byte("<p>"), []byte(toInsert), 1)
 	}
-	d := struct {
-		Title    string
-		Subtitle string
-		Content  template.HTML
-		Domain   string // for the "go-import" meta header
-	}{
-		title,
-		subtitle,
-		template.HTML(content),
-		// the redirects happening before should ensure that r.Host is only ever one of
-		// camlistore.org or perkeep.org
-		goGetDomain(r.Host),
+	domain := goGetDomain(r.Host) // camlistore.org or perkeep.org (anti-www redirects already happened)
+	upstream := "https://camlistore.googlesource.com/camlistore"
+	if domain == "camlistore.org" {
+		upstream = "https://github.com/camlistore/old-cam-snapshot"
 	}
-	if err := pageHTML.ExecuteTemplate(w, "page", &d); err != nil {
+	if err := pageHTML.ExecuteTemplate(w, "page", &pageTmplData{
+		Title:            title,
+		Subtitle:         subtitle,
+		Content:          template.HTML(content),
+		GoImportDomain:   domain,
+		GoImportUpstream: upstream,
+	}); err != nil {
 		log.Printf("godocHTML.Execute: %s", err)
 	}
 }
