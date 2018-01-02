@@ -109,6 +109,7 @@ func main() {
 
 	gopherjsGoroot = os.Getenv("CAMLI_GOPHERJS_GOROOT")
 
+	failIfCamlistoreOrgDir()
 	verifyGoVersion()
 
 	sql := withSQLite()
@@ -132,6 +133,9 @@ func main() {
 		camRoot, err = os.Getwd()
 		if err != nil {
 			log.Fatalf("Failed to get current directory: %v", err)
+		}
+		if strings.HasSuffix(camRoot, "camlistore.org") {
+			log.Fatalf("Camlistore was renamed to Perkeep. Your current directory (%s) looks like a camlistore.org directory. We're expecting you to be in a perkeep.org directory now. See https://github.com/camlistore/camlistore/issues/981#issuecomment-354690313 for details. You need to rename your camlistore.org parent directory to perkeep.org")
 		}
 		latestSrcMod = mirror(sql)
 		if *onlysync {
@@ -1454,4 +1458,22 @@ func homeDir() string {
 		return os.Getenv("HOMEDRIVE") + os.Getenv("HOMEPATH")
 	}
 	return os.Getenv("HOME")
+}
+
+func failIfCamlistoreOrgDir() {
+	dir, err := os.Getwd()
+	if err != nil {
+		return
+	}
+	if strings.HasSuffix(dir, "camlistore.org") {
+		log.Fatalf(`Camlistore was renamed to Perkeep. Your current directory (%s) looks like a camlistore.org directory.
+
+We're expecting you to be in a perkeep.org directory now.
+
+See https://github.com/camlistore/camlistore/issues/981#issuecomment-354690313 for details.
+
+You need to rename your "camlistore.org" parent directory to "perkeep.org"
+
+`, dir)
+	}
 }
