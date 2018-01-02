@@ -100,6 +100,77 @@ func TestWriteData(t *testing.T) {
 	}
 }
 
+func TestWriteDataPadded(t *testing.T) {
+	tests := [...]struct {
+		streamID   uint32
+		endStream  bool
+		data       []byte
+		pad        []byte
+		wantHeader FrameHeader
+	}{
+		// Unpadded:
+		0: {
+			streamID:  1,
+			endStream: true,
+			data:      []byte("foo"),
+			pad:       nil,
+			wantHeader: FrameHeader{
+				Type:     FrameData,
+				Flags:    FlagDataEndStream,
+				Length:   3,
+				StreamID: 1,
+			},
+		},
+
+		// Padded bit set, but no padding:
+		1: {
+			streamID:  1,
+			endStream: true,
+			data:      []byte("foo"),
+			pad:       []byte{},
+			wantHeader: FrameHeader{
+				Type:     FrameData,
+				Flags:    FlagDataEndStream | FlagDataPadded,
+				Length:   4,
+				StreamID: 1,
+			},
+		},
+
+		// Padded bit set, with padding:
+		2: {
+			streamID:  1,
+			endStream: false,
+			data:      []byte("foo"),
+			pad:       []byte{0, 0, 0},
+			wantHeader: FrameHeader{
+				Type:     FrameData,
+				Flags:    FlagDataPadded,
+				Length:   7,
+				StreamID: 1,
+			},
+		},
+	}
+	for i, tt := range tests {
+		fr, _ := testFramer()
+		fr.WriteDataPadded(tt.streamID, tt.endStream, tt.data, tt.pad)
+		f, err := fr.ReadFrame()
+		if err != nil {
+			t.Errorf("%d. ReadFrame: %v", i, err)
+			continue
+		}
+		got := f.Header()
+		tt.wantHeader.valid = true
+		if got != tt.wantHeader {
+			t.Errorf("%d. read %+v; want %+v", i, got, tt.wantHeader)
+			continue
+		}
+		df := f.(*DataFrame)
+		if !bytes.Equal(df.Data(), tt.data) {
+			t.Errorf("%d. got %q; want %q", i, df.Data(), tt.data)
+		}
+	}
+}
+
 func TestWriteHeaders(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -202,6 +273,37 @@ func TestWriteHeaders(t *testing.T) {
 				headerFragBuf: []byte("abc"),
 			},
 		},
+		{
+			"with priority stream dep zero", // golang.org/issue/15444
+			HeadersFrameParam{
+				StreamID:      42,
+				BlockFragment: []byte("abc"),
+				EndStream:     true,
+				EndHeaders:    true,
+				PadLength:     2,
+				Priority: PriorityParam{
+					StreamDep: 0,
+					Exclusive: true,
+					Weight:    127,
+				},
+			},
+			"\x00\x00\v\x01-\x00\x00\x00*\x02\x80\x00\x00\x00\u007fabc\x00\x00",
+			&HeadersFrame{
+				FrameHeader: FrameHeader{
+					valid:    true,
+					StreamID: 42,
+					Type:     FrameHeaders,
+					Flags:    FlagHeadersEndStream | FlagHeadersEndHeaders | FlagHeadersPadded | FlagHeadersPriority,
+					Length:   uint32(1 + 5 + len("abc") + 2), // pad length + priority + contents + padding
+				},
+				Priority: PriorityParam{
+					StreamDep: 0,
+					Exclusive: true,
+					Weight:    127,
+				},
+				headerFragBuf: []byte("abc"),
+			},
+		},
 	}
 	for _, tt := range tests {
 		fr, buf := testFramer()
@@ -220,6 +322,24 @@ func TestWriteHeaders(t *testing.T) {
 		if !reflect.DeepEqual(f, tt.wantFrame) {
 			t.Errorf("test %q: mismatch.\n got: %#v\nwant: %#v\n", tt.name, f, tt.wantFrame)
 		}
+	}
+}
+
+func TestWriteInvalidStreamDep(t *testing.T) {
+	fr, _ := testFramer()
+	err := fr.WriteHeaders(HeadersFrameParam{
+		StreamID: 42,
+		Priority: PriorityParam{
+			StreamDep: 1 << 31,
+		},
+	})
+	if err != errDepStreamID {
+		t.Errorf("header error = %v; want %q", err, errDepStreamID)
+	}
+
+	err = fr.WritePriority(2, PriorityParam{StreamDep: 1 << 31})
+	if err != errDepStreamID {
+		t.Errorf("priority error = %v; want %q", err, errDepStreamID)
 	}
 }
 
@@ -872,7 +992,7 @@ func TestMetaFrameHeader(t *testing.T) {
 					":path", "/", // bogus
 				))
 			},
-			want:          StreamError{1, ErrCodeProtocol},
+			want:          streamError(1, ErrCodeProtocol),
 			wantErrReason: "pseudo header field after regular",
 		},
 		7: {
@@ -883,7 +1003,7 @@ func TestMetaFrameHeader(t *testing.T) {
 					"foo", "bar",
 				))
 			},
-			want:          StreamError{1, ErrCodeProtocol},
+			want:          streamError(1, ErrCodeProtocol),
 			wantErrReason: "invalid pseudo-header \":unknown\"",
 		},
 		8: {
@@ -894,7 +1014,7 @@ func TestMetaFrameHeader(t *testing.T) {
 					":status", "100",
 				))
 			},
-			want:          StreamError{1, ErrCodeProtocol},
+			want:          streamError(1, ErrCodeProtocol),
 			wantErrReason: "mix of request and response pseudo headers",
 		},
 		9: {
@@ -905,7 +1025,7 @@ func TestMetaFrameHeader(t *testing.T) {
 					":method", "POST",
 				))
 			},
-			want:          StreamError{1, ErrCodeProtocol},
+			want:          streamError(1, ErrCodeProtocol),
 			wantErrReason: "duplicate pseudo-header \":method\"",
 		},
 		10: {
@@ -916,13 +1036,13 @@ func TestMetaFrameHeader(t *testing.T) {
 		11: {
 			name:          "invalid_field_name",
 			w:             func(f *Framer) { write(f, encodeHeaderRaw(t, "CapitalBad", "x")) },
-			want:          StreamError{1, ErrCodeProtocol},
+			want:          streamError(1, ErrCodeProtocol),
 			wantErrReason: "invalid header field name \"CapitalBad\"",
 		},
 		12: {
 			name:          "invalid_field_value",
 			w:             func(f *Framer) { write(f, encodeHeaderRaw(t, "key", "bad_null\x00")) },
-			want:          StreamError{1, ErrCodeProtocol},
+			want:          streamError(1, ErrCodeProtocol),
 			wantErrReason: "invalid header field value \"bad_null\\x00\"",
 		},
 	}
@@ -943,6 +1063,13 @@ func TestMetaFrameHeader(t *testing.T) {
 		got, err = f.ReadFrame()
 		if err != nil {
 			got = err
+
+			// Ignore the StreamError.Cause field, if it matches the wantErrReason.
+			// The test table above predates the Cause field.
+			if se, ok := err.(StreamError); ok && se.Cause != nil && se.Cause.Error() == tt.wantErrReason {
+				se.Cause = nil
+				got = se
+			}
 		}
 		if !reflect.DeepEqual(got, tt.want) {
 			if mhg, ok := got.(*MetaHeadersFrame); ok {
@@ -967,6 +1094,95 @@ func TestMetaFrameHeader(t *testing.T) {
 			t.Errorf("%s: got error reason %q; want %q", name, f.errDetail, tt.wantErrReason)
 		}
 	}
+}
+
+func TestSetReuseFrames(t *testing.T) {
+	fr, buf := testFramer()
+	fr.SetReuseFrames()
+
+	// Check that DataFrames are reused. Note that
+	// SetReuseFrames only currently implements reuse of DataFrames.
+	firstDf := readAndVerifyDataFrame("ABC", 3, fr, buf, t)
+
+	for i := 0; i < 10; i++ {
+		df := readAndVerifyDataFrame("XYZ", 3, fr, buf, t)
+		if df != firstDf {
+			t.Errorf("Expected Framer to return references to the same DataFrame. Have %v and %v", &df, &firstDf)
+		}
+	}
+
+	for i := 0; i < 10; i++ {
+		df := readAndVerifyDataFrame("", 0, fr, buf, t)
+		if df != firstDf {
+			t.Errorf("Expected Framer to return references to the same DataFrame. Have %v and %v", &df, &firstDf)
+		}
+	}
+
+	for i := 0; i < 10; i++ {
+		df := readAndVerifyDataFrame("HHH", 3, fr, buf, t)
+		if df != firstDf {
+			t.Errorf("Expected Framer to return references to the same DataFrame. Have %v and %v", &df, &firstDf)
+		}
+	}
+}
+
+func TestSetReuseFramesMoreThanOnce(t *testing.T) {
+	fr, buf := testFramer()
+	fr.SetReuseFrames()
+
+	firstDf := readAndVerifyDataFrame("ABC", 3, fr, buf, t)
+	fr.SetReuseFrames()
+
+	for i := 0; i < 10; i++ {
+		df := readAndVerifyDataFrame("XYZ", 3, fr, buf, t)
+		// SetReuseFrames should be idempotent
+		fr.SetReuseFrames()
+		if df != firstDf {
+			t.Errorf("Expected Framer to return references to the same DataFrame. Have %v and %v", &df, &firstDf)
+		}
+	}
+}
+
+func TestNoSetReuseFrames(t *testing.T) {
+	fr, buf := testFramer()
+	const numNewDataFrames = 10
+	dfSoFar := make([]interface{}, numNewDataFrames)
+
+	// Check that DataFrames are not reused if SetReuseFrames wasn't called.
+	// SetReuseFrames only currently implements reuse of DataFrames.
+	for i := 0; i < numNewDataFrames; i++ {
+		df := readAndVerifyDataFrame("XYZ", 3, fr, buf, t)
+		for _, item := range dfSoFar {
+			if df == item {
+				t.Errorf("Expected Framer to return new DataFrames since SetNoReuseFrames not set.")
+			}
+		}
+		dfSoFar[i] = df
+	}
+}
+
+func readAndVerifyDataFrame(data string, length byte, fr *Framer, buf *bytes.Buffer, t *testing.T) *DataFrame {
+	var streamID uint32 = 1<<24 + 2<<16 + 3<<8 + 4
+	fr.WriteData(streamID, true, []byte(data))
+	wantEnc := "\x00\x00" + string(length) + "\x00\x01\x01\x02\x03\x04" + data
+	if buf.String() != wantEnc {
+		t.Errorf("encoded as %q; want %q", buf.Bytes(), wantEnc)
+	}
+	f, err := fr.ReadFrame()
+	if err != nil {
+		t.Fatal(err)
+	}
+	df, ok := f.(*DataFrame)
+	if !ok {
+		t.Fatalf("got %T; want *DataFrame", f)
+	}
+	if !bytes.Equal(df.Data(), []byte(data)) {
+		t.Errorf("got %q; want %q", df.Data(), []byte(data))
+	}
+	if f.Header().Flags&1 == 0 {
+		t.Errorf("didn't see END_STREAM flag")
+	}
+	return df
 }
 
 func encodeHeaderRaw(t *testing.T, pairs ...string) []byte {
