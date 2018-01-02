@@ -13,8 +13,8 @@ Windows), skip this section.
 
 [Download and install Go](http://golang.org/doc/install) if you don't
 have that installed already. As of revision
-[c35cd68b5c](https://github.com/camlistore/camlistore/commit/c35cd68b5c9e914ef78811e88338ffd02f378a1c),
-Perkeep requires [Go 1.8 or newer](https://golang.org/dl/).
+[2e46fca5cc](https://github.com/camlistore/camlistore/commit/2e46fca5cc1179dbd90bec49fec3870e6eca6c45),
+Perkeep requires [Go 1.9 or newer](https://golang.org/dl/).
 
 Build Perkeep by running this command in the folder you downloaded or
 checked out:
