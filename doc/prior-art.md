@@ -25,5 +25,7 @@ Probably more, though.  Contributions to this list are welcome!
 
 ... and indeed, the community has pointed out several projects with some of the same goals:
 
+* [Libchop](http://nongnu.org/libchop/)
 * [Tahoe-LAFS](http://tahoe-lafs.org/)
 * [Unhosted](http://unhosted.org/)
+* [Upspin](https://upspin.io/)
