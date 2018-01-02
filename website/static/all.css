@@ -98,7 +98,7 @@ h1.rootHeading em {
 h2,
 h2>a {
 	color: #fff;
-	background: url(camli-bar-background.png);
+	background: #699023;
 	padding: 4px 8px;
 }
 h2 {
@@ -156,10 +156,10 @@ div#page.wide table.dir td.name {
   height: 43px;
   width: 788;
   text-align: center;
-  background: url(camli-bar-background.png);
+  background: #699023;
   margin-left: auto;
   margin-right: auto;
-  margin-top: 1em;
+  margin-top: 0em;
   margin-bottom: 1em;
 }
 
