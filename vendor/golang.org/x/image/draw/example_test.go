@@ -100,7 +100,7 @@ func ExampleDraw() {
 	})
 
 	// Change false to true to write the resultant image to disk.
-	if true {
+	if false {
 		fDst, err := os.Create("out.png")
 		if err != nil {
 			log.Fatal(err)
