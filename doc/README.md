@@ -17,6 +17,7 @@ alternative blob storage or synchronization to cloud storage.
   to cloud storage providers
 * [Client config](/doc/client-config.md): Clients need this configuration file to
   securely connect to your Perkeep server(s)
+* [Search Commands](/doc/search-ui): Covers the available search operators
 
 
 ## For Developers
