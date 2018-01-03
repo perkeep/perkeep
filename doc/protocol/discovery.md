@@ -18,7 +18,7 @@ Or:
     Host: 127.0.0.1
     Accept: text/x-camli-configuration
 
-The response is a JSON document:
+The response is a JSON document with a [Discovery value](https://perkeep.org/pkg/types/camtypes/#Discovery), such as:
 
     {
       "blobHashFuncs": [
@@ -60,5 +60,3 @@ The response is a JSON document:
       "uploadHelper": "/ui/?camli.mode=uploadhelper",
       "wsAuthToken": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     }
-
-TODO: document these more

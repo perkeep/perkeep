@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package signhandler implements the HTTP interface to signing and verifying
-// Camlistore JSON blobs.
+// Perkeep JSON blobs.
 package signhandler // import "perkeep.org/pkg/jsonsign/signhandler"
 
 import (
@@ -41,6 +41,9 @@ import (
 
 const maxJSONLength = 1024 * 1024
 
+// Handler implements JSON signing, verification, and discovery.
+//
+// See https://perkeep.org/doc/protocol/jsonsign
 type Handler struct {
 	// Optional path to non-standard secret gpg keyring file
 	secretRing string
