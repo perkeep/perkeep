@@ -49,6 +49,7 @@ misc/docker/camlistored/djpeg
 /vendor/github.com/golang/protobuf/proto/testdata
 /vendor/github.com/gopherjs/gopherjs/tests/testdata
 /vendor/github.com/gorilla/websocket/examples
+/vendor/github.com/mattn/go-sqlite3/sqlite3_windows.c
 /vendor/github.com/rwcarlsen/goexif/exif/samples
 /vendor/github.com/rwcarlsen/goexif/exif/sample1.jpg
 /vendor/github.com/rwcarlsen/goexif/tiff/sample1.tif

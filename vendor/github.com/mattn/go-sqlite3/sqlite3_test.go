@@ -407,3 +407,4 @@ func TestBoolean(t *testing.T) {
 		t.Error("Expected error from \"nonsense\" bool")
 	}
 }
+
