@@ -27,13 +27,13 @@ import (
 	"path/filepath"
 
 	"go4.org/types"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/buildinfo"
 	"perkeep.org/pkg/cacher"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/cmdmain"
 	"perkeep.org/pkg/index"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/schema"
 )
 

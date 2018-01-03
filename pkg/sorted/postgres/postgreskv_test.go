@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"go4.org/jsonconfig"
-	"perkeep.org/pkg/osutil"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/sorted/kvtest"
 	"perkeep.org/pkg/test/dockertest"

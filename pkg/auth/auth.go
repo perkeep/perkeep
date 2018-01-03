@@ -27,7 +27,7 @@ import (
 	"strings"
 	"sync"
 
-	"perkeep.org/pkg/httputil"
+	"perkeep.org/internal/httputil"
 )
 
 // Operation represents a bitmask of operations. See the OpX constants.

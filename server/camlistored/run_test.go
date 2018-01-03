@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"perkeep.org/pkg/osutil"
+	"perkeep.org/internal/osutil"
 )
 
 func TestStarts(t *testing.T) {

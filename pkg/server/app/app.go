@@ -35,11 +35,11 @@ import (
 	"sync"
 	"time"
 
+	camhttputil "perkeep.org/internal/httputil"
+	"perkeep.org/internal/netutil"
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
-	camhttputil "perkeep.org/pkg/httputil"
-	"perkeep.org/pkg/netutil"
 	"perkeep.org/pkg/search"
 
 	"go4.org/jsonconfig"

@@ -41,10 +41,10 @@ import (
 
 	"go4.org/types"
 	"perkeep.org/internal/geocode"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/index/indextest"
-	"perkeep.org/pkg/osutil"
 	. "perkeep.org/pkg/search"
 	"perkeep.org/pkg/test"
 	"perkeep.org/pkg/types/camtypes"

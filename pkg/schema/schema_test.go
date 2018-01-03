@@ -27,8 +27,8 @@ import (
 	"testing"
 	"time"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/osutil"
 	. "perkeep.org/pkg/test/asserts"
 )
 

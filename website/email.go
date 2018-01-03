@@ -33,7 +33,7 @@ import (
 	"cloud.google.com/go/datastore"
 	"github.com/mailgun/mailgun-go"
 
-	"perkeep.org/pkg/osutil"
+	"perkeep.org/internal/osutil"
 )
 
 var (

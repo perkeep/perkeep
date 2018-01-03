@@ -31,8 +31,8 @@ import (
 	"time"
 
 	"perkeep.org/internal/lru"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/gpgchallenge"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/sorted"
 
 	"cloud.google.com/go/compute/metadata"

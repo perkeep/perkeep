@@ -22,8 +22,8 @@ import (
 	"net/http"
 	"testing"
 
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/client/android"
-	"perkeep.org/pkg/httputil"
 
 	"golang.org/x/net/http2"
 )

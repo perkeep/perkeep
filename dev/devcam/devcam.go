@@ -32,8 +32,8 @@ import (
 	"syscall"
 	"time"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/cmdmain"
-	"perkeep.org/pkg/osutil"
 )
 
 var (

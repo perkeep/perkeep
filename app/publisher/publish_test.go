@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"perkeep.org/internal/httputil"
 	camliClient "perkeep.org/pkg/client"
-	"perkeep.org/pkg/httputil"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/index/indextest"
 	"perkeep.org/pkg/search"

@@ -35,7 +35,7 @@ import (
 	"testing"
 	"time"
 
-	"perkeep.org/pkg/netutil"
+	"perkeep.org/internal/netutil"
 )
 
 // Debug, if set, prevents any container from being removed.

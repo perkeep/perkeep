@@ -21,9 +21,9 @@ import (
 	"log"
 	"net/http"
 
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
-	"perkeep.org/pkg/httputil"
 )
 
 const maxRemovesPerRequest = 1000

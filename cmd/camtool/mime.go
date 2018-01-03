@@ -21,7 +21,7 @@ import (
 	"log"
 	"os"
 
-	"perkeep.org/pkg/magic"
+	"perkeep.org/internal/magic"
 )
 
 func showMIME(file string) {

@@ -26,7 +26,7 @@ import (
 	"strings"
 	"testing"
 
-	"perkeep.org/pkg/osutil"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/test"
 )
 

@@ -29,9 +29,9 @@ import (
 	"strings"
 
 	"go4.org/jsonconfig"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/jsonsign"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/types/serverconfig"
 

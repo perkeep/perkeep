@@ -27,9 +27,9 @@ import (
 	"os"
 	"strings"
 
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/client"
-	"perkeep.org/pkg/httputil"
 )
 
 // Auth returns the auth mode for the app to access Camlistore, as defined by

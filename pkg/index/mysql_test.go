@@ -20,8 +20,8 @@ import (
 	"testing"
 
 	"go4.org/jsonconfig"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/index/indextest"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/sorted/kvtest"
 	_ "perkeep.org/pkg/sorted/mysql"

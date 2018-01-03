@@ -25,10 +25,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"perkeep.org/internal/httputil"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/httputil"
 	"perkeep.org/pkg/importer"
-	"perkeep.org/pkg/osutil"
 )
 
 var _ importer.TestDataMaker = (*imp)(nil)

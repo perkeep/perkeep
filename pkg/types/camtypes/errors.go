@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"log"
 
-	"perkeep.org/pkg/osutil"
+	"perkeep.org/internal/osutil"
 )
 
 // TODO(mpl): move pkg/camerrors stuff in here

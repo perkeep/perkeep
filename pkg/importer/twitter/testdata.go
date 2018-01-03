@@ -26,9 +26,9 @@ import (
 	"strconv"
 	"time"
 
-	"perkeep.org/pkg/httputil"
+	"perkeep.org/internal/httputil"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/importer"
-	"perkeep.org/pkg/osutil"
 )
 
 var _ importer.TestDataMaker = (*imp)(nil)

@@ -29,11 +29,11 @@ import (
 	"time"
 
 	"go4.org/jsonconfig"
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/gethandler"
-	"perkeep.org/pkg/httputil"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/schema"
 )

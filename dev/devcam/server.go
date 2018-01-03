@@ -33,12 +33,12 @@ import (
 	"strings"
 	"time"
 
+	"perkeep.org/internal/netutil"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/cmdmain"
 	"perkeep.org/pkg/importer"
 	_ "perkeep.org/pkg/importer/allimporters"
-	"perkeep.org/pkg/netutil"
-	"perkeep.org/pkg/osutil"
 )
 
 type serverCmd struct {

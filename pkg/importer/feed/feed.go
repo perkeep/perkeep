@@ -28,8 +28,8 @@ import (
 	"net/http"
 	"net/url"
 
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/httputil"
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/schema"
 

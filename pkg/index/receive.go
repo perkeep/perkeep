@@ -41,12 +41,12 @@ import (
 	"github.com/rwcarlsen/goexif/tiff"
 	"go4.org/readerutil"
 	"go4.org/types"
+	"perkeep.org/internal/images"
+	"perkeep.org/internal/magic"
+	"perkeep.org/internal/media"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
-	"perkeep.org/pkg/images"
 	"perkeep.org/pkg/jsonsign"
-	"perkeep.org/pkg/magic"
-	"perkeep.org/pkg/media"
 	"perkeep.org/pkg/schema"
 )
 

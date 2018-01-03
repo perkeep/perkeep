@@ -25,8 +25,8 @@ import (
 	"strings"
 	"time"
 
+	"perkeep.org/internal/magic"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/magic"
 
 	"go4.org/types"
 )

@@ -21,8 +21,8 @@ import (
 	"os"
 	"strings"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/env"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/types/serverconfig"
 
 	"cloud.google.com/go/compute/metadata"

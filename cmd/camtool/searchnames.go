@@ -23,10 +23,10 @@ import (
 	"io/ioutil"
 	"os"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/cmdmain"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
 )

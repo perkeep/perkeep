@@ -31,12 +31,12 @@ import (
 	"strings"
 	"time"
 
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/protocol"
 	"perkeep.org/pkg/constants"
 	"perkeep.org/pkg/env"
-	"perkeep.org/pkg/httputil"
 	"perkeep.org/pkg/schema"
 )
 

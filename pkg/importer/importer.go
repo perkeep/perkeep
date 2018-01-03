@@ -32,9 +32,9 @@ import (
 	"sync"
 	"time"
 
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
-	"perkeep.org/pkg/httputil"
 	"perkeep.org/pkg/jsonsign/signhandler"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"

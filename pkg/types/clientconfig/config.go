@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"go4.org/jsonconfig"
-	"perkeep.org/pkg/httputil"
+	"perkeep.org/internal/httputil"
 
 	"go4.org/wkfs"
 )

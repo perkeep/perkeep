@@ -21,7 +21,7 @@ package server
 import (
 	"os/user"
 
-	"perkeep.org/pkg/osutil"
+	"perkeep.org/internal/osutil"
 )
 
 func getUserName() (string, error) {

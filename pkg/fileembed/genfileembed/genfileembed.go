@@ -37,7 +37,7 @@ import (
 	"strings"
 	"time"
 
-	"perkeep.org/pkg/rollsum"
+	"perkeep.org/internal/rollsum"
 )
 
 var (

@@ -32,12 +32,12 @@ import (
 	"syscall"
 	"time"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/cacher"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/cmdmain"
 	"perkeep.org/pkg/fs"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/search"
 
 	"bazil.org/fuse"

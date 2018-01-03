@@ -33,7 +33,7 @@ import (
 	"sync"
 	"time"
 
-	"perkeep.org/pkg/osutil"
+	"perkeep.org/internal/osutil"
 
 	"cloud.google.com/go/logging"
 	"go4.org/cloud/google/gceutil"

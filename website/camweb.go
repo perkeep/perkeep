@@ -41,9 +41,9 @@ import (
 	txttemplate "text/template"
 	"time"
 
+	"perkeep.org/internal/netutil"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/deploy/gce"
-	"perkeep.org/pkg/netutil"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/types/camtypes"
 
 	"cloud.google.com/go/compute/metadata"

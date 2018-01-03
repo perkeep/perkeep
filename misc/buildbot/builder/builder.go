@@ -45,8 +45,8 @@ import (
 	"syscall"
 	"time"
 
-	"perkeep.org/pkg/netutil"
-	"perkeep.org/pkg/osutil"
+	"perkeep.org/internal/netutil"
+	"perkeep.org/internal/osutil"
 )
 
 const (

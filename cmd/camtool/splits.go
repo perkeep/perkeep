@@ -24,7 +24,7 @@ import (
 	"os"
 	"strings"
 
-	"perkeep.org/pkg/rollsum"
+	"perkeep.org/internal/rollsum"
 )
 
 type span struct {

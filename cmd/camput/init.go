@@ -26,13 +26,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/client/android"
 	"perkeep.org/pkg/cmdmain"
 	"perkeep.org/pkg/jsonsign"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/types/clientconfig"
 )
 

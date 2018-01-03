@@ -24,10 +24,10 @@ import (
 	"testing"
 	"time"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/index/indextest"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/test"

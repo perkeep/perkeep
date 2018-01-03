@@ -37,17 +37,17 @@ import (
 	"syscall"
 	"time"
 
+	"perkeep.org/internal/httputil"
+	"perkeep.org/internal/netutil"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/buildinfo"
 	"perkeep.org/pkg/env"
 	"perkeep.org/pkg/gpgchallenge"
-	"perkeep.org/pkg/httputil"
-	"perkeep.org/pkg/netutil"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/serverinit"
 	"perkeep.org/pkg/webserver"
 
 	// VM environments:
-	"perkeep.org/pkg/osutil/gce" // for init side-effects + LogWriter
+	"perkeep.org/internal/osutil/gce" // for init side-effects + LogWriter
 
 	// Storage options:
 	_ "perkeep.org/pkg/blobserver/azure"

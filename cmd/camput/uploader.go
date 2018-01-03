@@ -19,9 +19,9 @@ package main
 import (
 	"strings"
 
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/client"
-	"perkeep.org/pkg/httputil"
 
 	"go4.org/syncutil"
 )

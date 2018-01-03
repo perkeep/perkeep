@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"perkeep.org/pkg/httputil"
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/jsonsign"
 )
 

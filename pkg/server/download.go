@@ -32,11 +32,11 @@ import (
 	"time"
 
 	"go4.org/readerutil"
+	"perkeep.org/internal/httputil"
+	"perkeep.org/internal/magic"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/cacher"
-	"perkeep.org/pkg/httputil"
-	"perkeep.org/pkg/magic"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
 )

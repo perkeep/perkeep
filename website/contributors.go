@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"perkeep.org/pkg/osutil"
+	"perkeep.org/internal/osutil"
 )
 
 var urlsMap = map[string]author{

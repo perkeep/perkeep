@@ -30,8 +30,8 @@ import (
 	"sync"
 	"time"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"
 	"perkeep.org/pkg/sorted"

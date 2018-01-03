@@ -35,11 +35,11 @@ import (
 	"testing"
 
 	"go4.org/jsonconfig"
+	"perkeep.org/internal/httputil"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/auth"
-	"perkeep.org/pkg/httputil"
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/jsonsign/signhandler"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/server"
 	"perkeep.org/pkg/serverinit"

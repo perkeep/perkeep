@@ -30,14 +30,14 @@ import (
 	"time"
 
 	uistatic "perkeep.org/app/scanningcabinet/ui"
+	"perkeep.org/internal/httputil"
+	"perkeep.org/internal/magic"
 	"perkeep.org/pkg/app"
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/constants"
 	"perkeep.org/pkg/fileembed"
-	"perkeep.org/pkg/httputil"
-	"perkeep.org/pkg/magic"
 	"perkeep.org/pkg/search"
 	camliserver "perkeep.org/pkg/server"
 

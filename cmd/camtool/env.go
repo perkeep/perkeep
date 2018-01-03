@@ -22,8 +22,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/cmdmain"
-	"perkeep.org/pkg/osutil"
 )
 
 var envMap = map[string]func() string{

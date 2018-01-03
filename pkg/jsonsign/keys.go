@@ -26,7 +26,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"perkeep.org/pkg/osutil"
+	"perkeep.org/internal/osutil"
 
 	"go4.org/wkfs"
 	"golang.org/x/crypto/openpgp"

@@ -24,9 +24,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/jsonsign"
-	"perkeep.org/pkg/osutil"
 )
 
 const (

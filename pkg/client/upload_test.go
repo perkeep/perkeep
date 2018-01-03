@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"perkeep.org/pkg/osutil"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/serverinit"
 	"perkeep.org/pkg/types/serverconfig"

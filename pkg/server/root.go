@@ -24,13 +24,13 @@ import (
 	"sort"
 	"sync"
 
+	"perkeep.org/internal/httputil"
+	"perkeep.org/internal/images"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/buildinfo"
-	"perkeep.org/pkg/httputil"
-	"perkeep.org/pkg/images"
 	"perkeep.org/pkg/jsonsign/signhandler"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/types/camtypes"
 

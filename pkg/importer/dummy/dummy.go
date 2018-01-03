@@ -26,9 +26,9 @@ import (
 	"strconv"
 	"strings"
 
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/env"
-	"perkeep.org/pkg/httputil"
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/schema"
 )

@@ -29,7 +29,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"perkeep.org/pkg/osutil"
+	"perkeep.org/internal/osutil"
 )
 
 const (

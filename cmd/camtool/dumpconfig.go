@@ -22,9 +22,9 @@ import (
 	"flag"
 	"os"
 
+	"perkeep.org/internal/osutil"
+	_ "perkeep.org/internal/osutil/gce"
 	"perkeep.org/pkg/cmdmain"
-	"perkeep.org/pkg/osutil"
-	_ "perkeep.org/pkg/osutil/gce"
 	"perkeep.org/pkg/serverinit"
 )
 

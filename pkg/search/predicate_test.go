@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"go4.org/types"
-	"perkeep.org/pkg/httputil"
+	"perkeep.org/internal/httputil"
 
 	"go4.org/ctxutil"
 )

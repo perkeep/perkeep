@@ -39,9 +39,9 @@ import (
 	"sync"
 	"time"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/schema"
 )
 

@@ -52,7 +52,7 @@ import (
 	"strings"
 	"time"
 
-	"perkeep.org/pkg/httputil"
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"

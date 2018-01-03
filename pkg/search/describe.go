@@ -32,8 +32,8 @@ import (
 
 	"go4.org/syncutil"
 	"go4.org/types"
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/httputil"
 	"perkeep.org/pkg/types/camtypes"
 )
 

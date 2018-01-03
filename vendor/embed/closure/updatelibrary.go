@@ -33,7 +33,7 @@ import (
 	"strings"
 
 	"perkeep.org/internal/closure"
-	"perkeep.org/pkg/osutil"
+	"perkeep.org/internal/osutil"
 )
 
 const (

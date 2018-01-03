@@ -26,8 +26,8 @@ import (
 	"strings"
 
 	"go4.org/jsonconfig"
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blobserver"
-	"perkeep.org/pkg/httputil"
 	"perkeep.org/pkg/types/clientconfig"
 )
 

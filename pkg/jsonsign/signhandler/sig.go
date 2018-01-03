@@ -25,13 +25,13 @@ import (
 	"strings"
 	"sync"
 
+	"perkeep.org/internal/httputil"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/gethandler"
 	"perkeep.org/pkg/blobserver/memory"
-	"perkeep.org/pkg/httputil"
 	"perkeep.org/pkg/jsonsign"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/types/camtypes"
 

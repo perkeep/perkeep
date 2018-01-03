@@ -24,10 +24,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/localdisk"
-	"perkeep.org/pkg/osutil"
 
 	"go4.org/syncutil/singleflight"
 )

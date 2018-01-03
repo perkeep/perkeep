@@ -24,10 +24,10 @@ import (
 	"strings"
 	"testing"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/importer"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/test"
 )
 

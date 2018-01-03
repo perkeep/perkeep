@@ -33,9 +33,9 @@ import (
 
 	"go4.org/jsonconfig"
 	"go4.org/types"
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
-	"perkeep.org/pkg/httputil"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/types/camtypes"
 )

@@ -28,10 +28,10 @@ import (
 	"path"
 	"strings"
 
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/protocol"
-	"perkeep.org/pkg/httputil"
 	"perkeep.org/pkg/jsonsign/signhandler"
 	"perkeep.org/pkg/schema"
 

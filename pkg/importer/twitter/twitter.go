@@ -37,8 +37,8 @@ import (
 	"sync"
 	"time"
 
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/httputil"
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/schema/nodeattr"

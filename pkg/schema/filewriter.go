@@ -25,9 +25,9 @@ import (
 	"strings"
 	"time"
 
+	"perkeep.org/internal/rollsum"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
-	"perkeep.org/pkg/rollsum"
 
 	"go4.org/syncutil"
 )

@@ -23,10 +23,10 @@ import (
 	"strconv"
 	"time"
 
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/protocol"
-	"perkeep.org/pkg/httputil"
 )
 
 func CreateStatHandler(storage blobserver.BlobStatter) http.Handler {

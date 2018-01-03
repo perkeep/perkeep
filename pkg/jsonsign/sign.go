@@ -26,8 +26,8 @@ import (
 	"time"
 	"unicode"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/osutil"
 
 	"go4.org/wkfs"
 	"golang.org/x/crypto/openpgp"

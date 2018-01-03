@@ -28,10 +28,10 @@ import (
 	"strings"
 	"sync"
 
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blobserver/dir"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/cmdmain"
-	"perkeep.org/pkg/httputil"
 
 	"go4.org/syncutil"
 )

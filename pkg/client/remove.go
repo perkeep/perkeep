@@ -23,8 +23,8 @@ import (
 	"net/url"
 	"strings"
 
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/httputil"
 )
 
 type removeResponse struct {

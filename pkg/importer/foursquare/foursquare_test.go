@@ -21,7 +21,7 @@ import (
 	"net/http"
 	"testing"
 
-	"perkeep.org/pkg/httputil"
+	"perkeep.org/internal/httputil"
 
 	"go4.org/ctxutil"
 )

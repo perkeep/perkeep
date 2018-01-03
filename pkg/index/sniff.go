@@ -20,8 +20,8 @@ import (
 	"bytes"
 	"errors"
 
+	"perkeep.org/internal/magic"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/magic"
 	"perkeep.org/pkg/schema"
 )
 

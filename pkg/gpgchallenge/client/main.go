@@ -27,9 +27,9 @@ import (
 
 	"golang.org/x/net/http2"
 
+	"perkeep.org/internal/httputil"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/gpgchallenge"
-	"perkeep.org/pkg/httputil"
-	"perkeep.org/pkg/osutil"
 )
 
 var (

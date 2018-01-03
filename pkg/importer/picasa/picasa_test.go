@@ -33,9 +33,9 @@ import (
 	"go4.org/syncutil"
 	"golang.org/x/net/context"
 
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
-	"perkeep.org/pkg/httputil"
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/jsonsign"

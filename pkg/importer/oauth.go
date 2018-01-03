@@ -26,8 +26,8 @@ import (
 	"strings"
 
 	"github.com/garyburd/go-oauth/oauth"
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/httputil"
 
 	"go4.org/ctxutil"
 )

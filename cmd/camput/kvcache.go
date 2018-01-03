@@ -31,9 +31,9 @@ import (
 	"strings"
 	"time"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/client"
-	"perkeep.org/pkg/osutil"
 
 	"github.com/syndtr/goleveldb/leveldb"
 )

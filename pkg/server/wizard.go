@@ -29,10 +29,10 @@ import (
 	"strings"
 
 	"go4.org/jsonconfig"
+	"perkeep.org/internal/httputil"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blobserver"
-	"perkeep.org/pkg/httputil"
-	"perkeep.org/pkg/osutil"
 
 	"golang.org/x/net/xsrftoken"
 )

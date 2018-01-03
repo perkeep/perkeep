@@ -35,7 +35,7 @@ import (
 	"runtime"
 	"strings"
 
-	"perkeep.org/pkg/osutil"
+	"perkeep.org/internal/osutil"
 
 	"cloud.google.com/go/storage"
 	"golang.org/x/oauth2"

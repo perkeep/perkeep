@@ -29,9 +29,9 @@ import (
 	"log"
 	"net/http"
 
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/httputil"
 	"perkeep.org/pkg/webserver"
 )
 

@@ -24,9 +24,9 @@ import (
 	"os"
 
 	"go4.org/jsonconfig"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blobserver/diskpacked"
 	"perkeep.org/pkg/cmdmain"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/serverinit"
 )
 

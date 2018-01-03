@@ -28,13 +28,13 @@ import (
 	"sync"
 
 	"go4.org/jsonconfig"
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/buildinfo"
 	"perkeep.org/pkg/client/android"
 	"perkeep.org/pkg/env"
 	"perkeep.org/pkg/jsonsign"
-	"perkeep.org/pkg/osutil"
 	"perkeep.org/pkg/types/camtypes"
 	"perkeep.org/pkg/types/clientconfig"
 
