@@ -66,13 +66,13 @@ const (
 )
 
 func (c *gceCmd) Describe() string {
-	return "Deploy Camlistore on Google Compute Engine."
+	return "Deploy Perkeep on Google Compute Engine."
 }
 
 func (c *gceCmd) Usage() {
 	fmt.Fprintf(os.Stderr, "Usage:\n\n    %s\n    %s\n\n",
-		"camdeploy gce --project=<project> --hostname=<hostname> [options]",
-		"camdeploy gce --project=<project> --cert=<cert file> --key=<key file> [options]")
+		"pk-deploy gce --project=<project> --hostname=<hostname> [options]",
+		"pk-deploy gce --project=<project> --cert=<cert file> --key=<key file> [options]")
 	flag.PrintDefaults()
 	fmt.Fprintln(os.Stderr, "\nTo get started:")
 	printHelp()

@@ -171,7 +171,7 @@ func main() {
 		"perkeep.org/cmd/camget",
 		"perkeep.org/cmd/camput",
 		"perkeep.org/cmd/camtool",
-		"perkeep.org/cmd/camdeploy",
+		"perkeep.org/cmd/pk-deploy",
 		"perkeep.org/server/camlistored",
 		"perkeep.org/app/hello",
 		"perkeep.org/app/publisher",

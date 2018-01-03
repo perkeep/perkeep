@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// The camdeploy program deploys Camlistore on cloud computing platforms such as Google
-// Compute Engine or Amazon EC2.
-package main // import "perkeep.org/cmd/camdeploy"
+// The pk-deploy program deploys Perkeep on cloud computing platforms
+// such as Google Compute Engine or Amazon EC2.
+package main // import "perkeep.org/cmd/pk-deploy"
 
 import (
 	"perkeep.org/pkg/cmdmain"

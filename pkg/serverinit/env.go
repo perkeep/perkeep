@@ -81,7 +81,7 @@ func DefaultEnvConfig() (*Config, error) {
 
 	externalIP, _ := metadata.ExternalIP()
 	hostName, _ := metadata.InstanceAttributeValue("camlistore-hostname")
-	// If they specified a hostname (probably with camdeploy), then:
+	// If they specified a hostname (probably with pk-deploy), then:
 	// if it looks like an FQDN, camlistored is going to rely on Let's
 	// Encrypt, else camlistored is going to generate some self-signed for that
 	// hostname.
