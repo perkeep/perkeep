@@ -53,8 +53,8 @@ place to start.
 -   Perkeep requires changes to be reviewed before they are
     committed.
 
--   Update your `~/.netrc` file with a Gerrit username and password.
-    Click the **"Generate a new password"** link from the top of
+-   Update your `~/.gitcookies` file with a Gerrit username and password.
+    Click the **"Generate Password"** link from the top of
     [https://camlistore.googlesource.com/](https://camlistore.googlesource.com/).
 
 -   Usual Work Flow
