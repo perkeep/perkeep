@@ -28,8 +28,8 @@ import (
 	"go4.org/jsonconfig"
 	"perkeep.org/pkg/sorted"
 
-	"labix.org/v2/mgo"
-	"labix.org/v2/mgo/bson"
+	"gopkg.in/mgo.v2"
+	"gopkg.in/mgo.v2/bson"
 )
 
 // We explicitly separate the key and the value in a document,

@@ -34,7 +34,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
-	"labix.org/v2/mgo"
+	"gopkg.in/mgo.v2"
 )
 
 type dbinitCmd struct {

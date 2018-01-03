@@ -23,7 +23,7 @@ import (
 
 	"go4.org/syncutil"
 
-	"labix.org/v2/mgo/bson"
+	"gopkg.in/mgo.v2/bson"
 )
 
 var statGate = syncutil.NewGate(50) // arbitrary
