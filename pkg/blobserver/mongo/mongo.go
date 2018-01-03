@@ -38,7 +38,8 @@ package mongo // import "perkeep.org/pkg/blobserver/mongo"
 
 import (
 	"go4.org/jsonconfig"
-	"labix.org/v2/mgo"
+	"go4.org/legal"
+	"gopkg.in/mgo.v2"
 	"perkeep.org/pkg/blobserver"
 )
 
@@ -59,6 +60,12 @@ type blobDoc struct {
 
 func init() {
 	blobserver.RegisterStorageConstructor("mongo", blobserver.StorageConstructor(newFromConfig))
+	legal.RegisterLicense(`
+For Mongo Driver
+mgo - MongoDB driver for Go
+Copyright (c) 2010-2013 - Gustavo Niemeyer <gustavo@niemeyer.net>
+All rights reserved.
+`)
 }
 
 func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {

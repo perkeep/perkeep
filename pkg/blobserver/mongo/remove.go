@@ -21,8 +21,8 @@ import (
 
 	"go4.org/syncutil"
 
-	"labix.org/v2/mgo"
-	"labix.org/v2/mgo/bson"
+	"gopkg.in/mgo.v2"
+	"gopkg.in/mgo.v2/bson"
 )
 
 var removeGate = syncutil.NewGate(100) // arbitrary

@@ -20,7 +20,7 @@ import (
 	"context"
 	"log"
 
-	"labix.org/v2/mgo/bson"
+	"gopkg.in/mgo.v2/bson"
 	"perkeep.org/pkg/blob"
 )
 

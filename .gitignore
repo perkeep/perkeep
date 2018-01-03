@@ -83,7 +83,6 @@ misc/docker/camlistored/djpeg
 /vendor/google.golang.org/grpc/test
 /vendor/google.golang.org/grpc/testdata
 /vendor/google.golang.org/grpc/transport/testdata
-/vendor/labix.org/v2/mgo/testdb
 /vendor/myitcv.io/gogenerate/_testFiles
 /vendor/myitcv.io/react/examples
 /vendor/myitcv.io/react/internal/dev/dev.inc.js
