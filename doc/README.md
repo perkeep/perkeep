@@ -43,7 +43,7 @@ on the [mailing list](https://groups.google.com/group/camlistore).
 * [Packages](/pkg/): internal API documentation
 * [Architecture](/doc/arch.md): the pieces, layers, and how they interact
 * [Schema](/doc/schema/): how we model data in Perkeep
-* [Protocol](/doc/protocol/): blob server protocol API
+* [Protocol](/doc/protocol/): HTTP APIs (discovery, blob storage, JSON signing, ...)
 * [JSON Signing](/doc/json-signing/)
 * [Sharing](/doc/sharing.md)
 
