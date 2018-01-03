@@ -4,7 +4,7 @@ Perkeep survives with the generous contributions of time and code by
 our [contributors](/contributors). If you'd like to contribute, find out
 how to [get the code and how to start submitting changes](/code).
 
--   [**@PerKeepOrg**](https://twitter.com/PerkeepOrg): Perkeep on
+-   [**@PerkeepOrg**](https://twitter.com/PerkeepOrg): Perkeep on
     Twitter
 -   [**camlistore**](https://groups.google.com/group/camlistore):
     Mailing list for official discussion, design, help

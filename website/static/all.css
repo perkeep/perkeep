@@ -281,3 +281,5 @@ a.downloadBox:hover .filename {
 .downloadBox .checksum {
 	font-size: 5pt;
 }
+
+a { font-weight: bold; }
