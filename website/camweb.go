@@ -68,7 +68,7 @@ const (
 	prodDomain  = "perkeep.org"
 )
 
-var h1TitlePattern = regexp.MustCompile(`<h1>([^<]+)</h1>`)
+var h1TitlePattern = regexp.MustCompile(`<h1[^>]*>([^<]+)</h1>`)
 
 var (
 	httpAddr    = flag.String("http", defaultAddr, "HTTP address")

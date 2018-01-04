@@ -17,7 +17,11 @@ limitations under the License.
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"os"
+	"strings"
 	"testing"
 )
 
@@ -80,6 +84,51 @@ func TestIsIssueRequest(t *testing.T) {
 		dest, ok := issueRedirect(tt.urlPath)
 		if ok != tt.redirects || dest != tt.dest {
 			t.Errorf("issueRedirect(%q) = %q, %v; want %q, %v", tt.urlPath, dest, ok, tt.dest, tt.redirects)
+		}
+	}
+}
+
+func TestDocHandler(t *testing.T) {
+	// Set up environment
+	var err error
+	*root, err = os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to getwd: %v", err)
+	}
+	readTemplates()
+
+	tests := []struct {
+		path       string
+		status     int
+		wantSubstr string
+	}{
+		// Test that the title tag is constructed from the h1 element
+		{"/doc/uses", http.StatusOK,
+			"<title>Use Cases - Perkeep</title>"},
+		// Test that an html extension redirects to the base path
+		{"/doc/uses.html", 302, "Found"},
+	}
+
+	for _, tt := range tests {
+		// Construct a request that maps to the given path
+		req, err := http.NewRequest("GET", tt.path, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rr := httptest.NewRecorder()
+		handler := http.HandlerFunc(docHandler)
+		handler.ServeHTTP(rr, req)
+
+		// Check the status code is what we expect.
+		if status := rr.Code; status != tt.status {
+			t.Errorf("for path %s, code=%v want %v", tt.path, status, tt.status)
+		}
+
+		// Check that the output contains the specified substring
+		if !strings.Contains(rr.Body.String(), tt.wantSubstr) {
+			t.Errorf("for path %s, got %q should contain %q",
+				tt.path, rr.Body.String(), tt.wantSubstr)
 		}
 	}
 }
