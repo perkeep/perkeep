@@ -25,6 +25,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 
 	"perkeep.org/pkg/buildinfo"
@@ -135,22 +136,35 @@ Usage: ` + cmdName + ` [globalopts] <mode> [commandopts] [commandargs]
 Modes:
 
 `)
+	var modes []string
 	for mode, cmd := range modeCommand {
 		if des, ok := cmd.(describer); ok {
-			Errorf("  %s: %s\n", mode, des.Describe())
+			modes = append(modes, fmt.Sprintf("  %s: %s\n", mode, des.Describe()))
 		}
 	}
+	sort.Strings(modes)
+	for i := range modes {
+		Errorf("%s", modes[i])
+	}
+
 	Errorf("\nExamples:\n")
+	modes = nil
 	for mode, cmd := range modeCommand {
 		if ex, ok := cmd.(exampler); ok {
+			line := ""
 			exs := ex.Examples()
 			if len(exs) > 0 {
-				Errorf("\n")
+				line = "\n"
 			}
 			for _, example := range exs {
-				Errorf("  %s %s %s\n", cmdName, mode, example)
+				line += fmt.Sprintf("  %s %s %s\n", cmdName, mode, example)
 			}
+			modes = append(modes, line)
 		}
+	}
+	sort.Strings(modes)
+	for i := range modes {
+		Errorf("%s", modes[i])
 	}
 
 	Errorf(`
