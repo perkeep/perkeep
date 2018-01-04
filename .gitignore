@@ -50,10 +50,15 @@ misc/docker/camlistored/djpeg
 /vendor/github.com/gopherjs/gopherjs/tests/testdata
 /vendor/github.com/gorilla/websocket/examples
 /vendor/github.com/mattn/go-sqlite3/sqlite3_windows.c
+/vendor/github.com/rwcarlsen/goexif/exif/corrupt
+/vendor/github.com/rwcarlsen/goexif/exif/example_test.go
+/vendor/github.com/rwcarlsen/goexif/exif/exif_test.go
 /vendor/github.com/rwcarlsen/goexif/exif/samples
 /vendor/github.com/rwcarlsen/goexif/exif/sample1.jpg
 /vendor/github.com/rwcarlsen/goexif/tiff/sample1.tif
-/vendor/github.com/rwcarlsen/goexif/exif/corrupt
+/vendor/github.com/rwcarlsen/goexif/exif/regen_regress.go
+/vendor/github.com/rwcarlsen/goexif/exif/regress_expected_test.go
+/vendor/github.com/rwcarlsen/goexif/tiff/tiff_test.go
 /vendor/github.com/russross/blackfriday/testdata
 /vendor/github.com/syndtr/goleveldb/leveldb/testutil
 /vendor/github.com/syndtr/goleveldb/manualtest
