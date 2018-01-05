@@ -78,13 +78,13 @@ var (
 )
 
 const (
-	goDockerImage       = "camlistore/go"
-	djpegDockerImage    = "camlistore/djpeg"
-	zoneinfoDockerImage = "camlistore/zoneinfo"
-	serverImage         = "camlistore/server"
+	goDockerImage       = "perkeep/go"
+	djpegDockerImage    = "perkeep/djpeg"
+	zoneinfoDockerImage = "perkeep/zoneinfo"
+	serverImage         = "perkeep/server"
 	goCmd               = "/usr/local/go/bin/go"
-	// Path to where the Camlistore builder is mounted on the camlistore/go image.
-	genCamliProgram    = "/usr/local/bin/build-camlistore-server.go"
+	// Path to where the Camlistore builder is mounted on the perkeep/go image.
+	genCamliProgram    = "/usr/local/bin/build-perkeep-server.go"
 	genBinariesProgram = "/usr/local/bin/build-binaries.go"
 	zipSourceProgram   = "/usr/local/bin/zip-source.go"
 )
@@ -111,13 +111,13 @@ func rev() string {
 }
 
 func genCamlistore(ctxDir string) {
-	check(os.Mkdir(filepath.Join(ctxDir, "/camlistore.org"), 0755))
+	check(os.Mkdir(filepath.Join(ctxDir, "/perkeep.org"), 0755))
 
 	args := []string{
 		"run",
 		"--rm",
-		"--volume=" + ctxDir + "/camlistore.org:/OUT",
-		"--volume=" + path.Join(dockDir, "server/build-camlistore-server.go") + ":" + genCamliProgram + ":ro",
+		"--volume=" + ctxDir + "/perkeep.org:/OUT",
+		"--volume=" + path.Join(dockDir, "server/build-perkeep-server.go") + ":" + genCamliProgram + ":ro",
 	}
 	if isWIP() {
 		args = append(args, "--volume="+localCamliSource()+":/IN:ro",
@@ -134,12 +134,12 @@ func genCamlistore(ctxDir string) {
 }
 
 func genBinaries(ctxDir string) {
-	check(os.Mkdir(filepath.Join(ctxDir, "/camlistore.org"), 0755))
+	check(os.Mkdir(filepath.Join(ctxDir, "/perkeep.org"), 0755))
 	image := goDockerImage
 	args := []string{
 		"run",
 		"--rm",
-		"--volume=" + ctxDir + "/camlistore.org:/OUT",
+		"--volume=" + ctxDir + "/perkeep.org:/OUT",
 		"--volume=" + path.Join(dockDir, "release/build-binaries.go") + ":" + genBinariesProgram + ":ro",
 	}
 	if isWIP() {
@@ -157,7 +157,7 @@ func genBinaries(ctxDir string) {
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error building binaries in go container: %v", err)
 	}
-	fmt.Printf("Camlistore binaries successfully generated in %v\n", filepath.Join(ctxDir, "camlistore.org", "bin"))
+	fmt.Printf("Camlistore binaries successfully generated in %v\n", filepath.Join(ctxDir, "perkeep.org", "bin"))
 }
 
 func zipSource(ctxDir string) {
@@ -451,7 +451,7 @@ func packBinaries(ctxDir string) {
 		fmt.Printf("Camlistore binaries successfully packed in %v\n", releaseTarball)
 	}()
 
-	binDir := path.Join(ctxDir, "camlistore.org", "bin")
+	binDir := path.Join(ctxDir, "perkeep.org", "bin")
 	check(os.Chdir(binDir))
 	dir, err := os.Open(binDir)
 	check(err)
@@ -525,7 +525,7 @@ func packBinaries(ctxDir string) {
 
 func usage() {
 	fmt.Fprintf(os.Stderr, "Usage:\n")
-	fmt.Fprintf(os.Stderr, "%s [-rev camlistore_revision | -rev WIP:/path/to/camli/source]\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "%s [-rev perkeep_revision | -rev WIP:/path/to/perkeep/source]\n", os.Args[0])
 	flag.PrintDefaults()
 	os.Exit(1)
 }
@@ -584,9 +584,9 @@ func main() {
 	flag.Parse()
 	checkFlags()
 
-	camDir, err := osutil.GoPackagePath("camlistore.org")
+	camDir, err := osutil.GoPackagePath("perkeep.org")
 	if err != nil {
-		log.Fatalf("Error looking up camlistore.org dir: %v", err)
+		log.Fatalf("Error looking up perkeep.org dir: %v", err)
 	}
 	dockDir = filepath.Join(camDir, "misc", "docker")
 

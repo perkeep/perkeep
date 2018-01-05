@@ -44,7 +44,7 @@ var (
 
 func usage() {
 	fmt.Fprintf(os.Stderr, "Usage:\n")
-	fmt.Fprintf(os.Stderr, "%s --rev=camlistore_revision\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "%s --rev=perkeep_revision\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "%s --rev=WIP:/path/to/camli/source/dir\n", os.Args[0])
 	flag.PrintDefaults()
 	example(os.Args[0])
@@ -53,8 +53,8 @@ func usage() {
 
 func example(program string) {
 	fmt.Fprintf(os.Stderr, "Examples:\n")
-	fmt.Fprintf(os.Stderr, "\tdocker run --rm --volume=/tmp/camli-build/camlistore.org:/OUT camlistore/go %s --rev=4e8413c5012c\n", program)
-	fmt.Fprintf(os.Stderr, "\tdocker run --rm --volume=/tmp/camli-build/camlistore.org:/OUT --volume=~/camlistore.org:/IN camlistore/go %s --rev=WIP:/IN\n", program)
+	fmt.Fprintf(os.Stderr, "\tdocker run --rm --volume=/tmp/camli-build/perkeep.org:/OUT perkeep/go %s --rev=4e8413c5012c\n", program)
+	fmt.Fprintf(os.Stderr, "\tdocker run --rm --volume=/tmp/camli-build/perkeep.org:/OUT --volume=~/perkeep.org:/IN perkeep/go %s --rev=WIP:/IN\n", program)
 }
 
 func isWIP() bool {
@@ -86,23 +86,23 @@ func getCamliSrc() {
 	}
 	// we insert the version in the VERSION file, so make.go does no need git
 	// in the container to detect the Camlistore version.
-	check(os.Chdir("/gopath/src/camlistore.org"))
+	check(os.Chdir("/gopath/src/perkeep.org"))
 	check(ioutil.WriteFile("VERSION", []byte(rev()), 0777))
 }
 
 func mirrorCamliSrc(srcDir string) {
 	check(os.MkdirAll("/gopath/src", 0777))
-	cmd := exec.Command("cp", "-a", srcDir, "/gopath/src/camlistore.org")
+	cmd := exec.Command("cp", "-a", srcDir, "/gopath/src/perkeep.org")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error mirroring camlistore source from %v: %v", srcDir, err)
+		log.Fatalf("Error mirroring perkeep source from %v: %v", srcDir, err)
 	}
 }
 
 func fetchCamliSrc() {
-	check(os.MkdirAll("/gopath/src/camlistore.org", 0777))
-	check(os.Chdir("/gopath/src/camlistore.org"))
+	check(os.MkdirAll("/gopath/src/perkeep.org", 0777))
+	check(os.Chdir("/gopath/src/perkeep.org"))
 
 	res, err := http.Get("https://camlistore.googlesource.com/camlistore/+archive/" + *flagRev + ".tar.gz")
 	check(err)
@@ -138,7 +138,7 @@ func buildCamlistored() {
 	oldPath := os.Getenv("PATH")
 	os.Setenv("GOPATH", "/gopath")
 	os.Setenv("PATH", "/usr/local/go/bin:"+oldPath)
-	check(os.Chdir("/gopath/src/camlistore.org"))
+	check(os.Chdir("/gopath/src/perkeep.org"))
 	cmd := exec.Command("go", "run", "make.go",
 		"-static", "true",
 		"-targets", "perkeep.org/server/camlistored")
@@ -150,10 +150,10 @@ func buildCamlistored() {
 
 	// And move it to the output dir
 	check(os.MkdirAll(path.Join(*outDir, "/bin"), 0777))
-	cmd = exec.Command("mv", "/gopath/src/camlistore.org/bin/camlistored", path.Join(*outDir, "/bin"))
+	cmd = exec.Command("mv", "/gopath/src/perkeep.org/bin/camlistored", path.Join(*outDir, "/bin"))
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error moving camlistored binary %v in output dir %v: %v",
-			"/gopath/src/camlistore.org/bin/camlistored", path.Join(*outDir, "/bin"), err)
+			"/gopath/src/perkeep.org/bin/camlistored", path.Join(*outDir, "/bin"), err)
 	}
 }
 
