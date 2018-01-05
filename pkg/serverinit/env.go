@@ -36,6 +36,11 @@ const (
 	// Camlistore, because a deployment through the Camlistore on Google Cloud launcher
 	// automatically offers a subdomain name in this domain to any instance.
 	CamliNetDomain = "camlistore.net"
+
+	// useDBNamesConfig is a sentinel value for DBUnique to indicate that we want the
+	// low-level configuration generator to keep on using the old DBNames
+	// style configuration for database names.
+	useDBNamesConfig = "useDBNamesConfig"
 )
 
 // DefaultEnvConfig returns the default configuration when running on a known
@@ -96,12 +101,22 @@ func DefaultEnvConfig() (*Config, error) {
 	}
 
 	// Detect a linked Docker MySQL container. It must have alias "mysqldb".
-	if v := os.Getenv("MYSQLDB_PORT"); strings.HasPrefix(v, "tcp://") {
-		hostPort := strings.TrimPrefix(v, "tcp://")
-		highConf.MySQL = "root@" + hostPort + ":" // no password
-	} else {
+	mysqlPort := os.Getenv("MYSQLDB_PORT")
+	if !strings.HasPrefix(mysqlPort, "tcp://") {
+		// No MySQL
 		// TODO: also detect Cloud SQL.
 		highConf.KVFile = "/index.kv"
+		return genLowLevelConfig(highConf)
+	}
+	hostPort := strings.TrimPrefix(mysqlPort, "tcp://")
+	highConf.MySQL = "root@" + hostPort + ":" // no password
+	configVersion, err := metadata.InstanceAttributeValue("perkeep-config-version")
+	if configVersion == "" || err != nil {
+		// the launcher is deploying a pre-"perkeep-config-version" Perkeep, which means
+		// we want the old configuration, with DBNames
+		highConf.DBUnique = useDBNamesConfig
+	} else if configVersion != "1" {
+		return nil, fmt.Errorf("unexpected value for VM instance metadata key 'perkeep-config-version': %q", configVersion)
 	}
 
 	return genLowLevelConfig(highConf)

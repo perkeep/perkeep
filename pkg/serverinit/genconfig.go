@@ -124,6 +124,11 @@ func (b *lowBuilder) dbName(of dbname) string {
 	if unique == "" {
 		log.Printf("Could not define uniqueness for database of %q. Do not use the same index DBMS with other Perkeep instances.", of)
 	}
+	if unique == useDBNamesConfig {
+		// this is the hint that we should revert to the old style DBNames, so this
+		// instance can reuse its existing databases
+		return b.oldDBNames(of)
+	}
 	prefix := "pk_"
 	if unique != "" {
 		prefix += unique + "_"
@@ -144,6 +149,27 @@ func (b *lowBuilder) dbName(of dbname) string {
 	asString := string(of)
 	if strings.HasPrefix(asString, string(dbSyncQueue)) {
 		return prefix + "syncto_" + strings.TrimPrefix(asString, string(dbSyncQueue))
+	}
+	return ""
+}
+
+// As of rev 7eda9fd5027fda88166d6c03b6490cffbf2de5fb, we changed how the
+// databases names were defined. But we wanted the existing GCE instances to keep
+// on working with the old names, so that nothing would break for existing users,
+// without any intervention needed. Through the help of the perkeep-config-version
+// variable, set by the GCE launcher, we can know whether an instance is such an
+// "old" one, and in that case we keep on using the old database names. oldDBNames
+// returns these names.
+func (b *lowBuilder) oldDBNames(of dbname) string {
+	switch of {
+	case dbIndex:
+		return "camlistore_index"
+	case dbBlobpackedIndex:
+		return "blobpacked_index"
+	case "queue-sync-to-index":
+		return "sync_index_queue"
+	case dbUIThumbcache:
+		return "ui_thumbmeta_cache"
 	}
 	return ""
 }
