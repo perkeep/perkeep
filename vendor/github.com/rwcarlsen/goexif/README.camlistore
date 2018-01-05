@@ -1,9 +1,0 @@
-Syncing updates from upstream goexif
-====================================
-
-We do not ship the "samples" directory, nor the "corrupt" one, which contain data for the
-tests. For this reason, we do not include the _test.go files either, as well as
-regen_regress.go (which is used to generate some of the data for the tests).
-
-It is your duty, when updating our goexif third party from upstream, to check that all the
-tests in the upstream repo pass.

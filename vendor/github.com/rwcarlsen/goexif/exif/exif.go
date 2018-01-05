@@ -462,7 +462,6 @@ func tagDegrees(tag *tiff.Tag) (float64, error) {
 		if err != nil {
 			return 0.0, err
 		}
-		// TODO(mpl): make it return an error when parsing a NaN. But upstream.
 		return parseTagDegreesString(s)
 	default:
 		// don't know how to parse value, give up
@@ -575,7 +574,7 @@ func newAppSec(marker byte, r io.Reader) (*appSec, error) {
 		}
 
 		dataLenBytes := make([]byte, 2)
-		for k, _ := range dataLenBytes {
+		for k,_ := range dataLenBytes {
 			c, err := br.ReadByte()
 			if err != nil {
 				return nil, err
