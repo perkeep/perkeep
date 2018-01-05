@@ -736,12 +736,14 @@ func mirror(sql bool) (latestSrcMod time.Time) {
 	}
 	if *website {
 		goDirs = []string{
+			"internal",
 			"pkg",
 			"vendor",
 			"website",
 		}
 	} else if *camnetdns {
 		goDirs = []string{
+			"internal",
 			"pkg",
 			"vendor",
 			"server/camnetdns",
