@@ -5,11 +5,11 @@
 #
 
 FROM scratch
-MAINTAINER Camlistore Contributors <camlistore@googlegroups.com>
+MAINTAINER Perkeep Contributors <camlistore@googlegroups.com>
 ADD djpeg /usr/bin/djpeg
 # Because one of the default zoneinfo dirs on linux. See zoneDirs in time/zoneinfo_unix.go
 ADD zoneinfo /usr/share/zoneinfo
-ADD camlistore.org /camlistore
+ADD perkeep.org /perkeep
 
 EXPOSE 80 443
-ENTRYPOINT ["/camlistore/bin/camlistored"]
+ENTRYPOINT ["/perkeep/bin/camlistored"]
