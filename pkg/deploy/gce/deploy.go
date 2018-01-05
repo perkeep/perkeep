@@ -587,6 +587,15 @@ func (d *Deployer) createInstance(ctx context.Context, computeService *compute.S
 					Value: googleapi.String("gs://" + d.Conf.configDir),
 				},
 				{
+					Key: "perkeep-config-version",
+					// perkeep-config-version being defined requires this launcher to deploy Perkeep
+					//  at rev >= 7eda9fd5027fda88166d6c03b6490cffbf2de5fb , so that any newly deployed Perkeep
+					// knows it can use the new configuration without DBNames.
+					// TODO(mpl): but how do we enforce it, or at least make it more obvious/documented?
+					// With a flag defaulting to "1" maybe?
+					Value: googleapi.String("1"),
+				},
+				{
 					Key:   "user-data",
 					Value: googleapi.String(config),
 				},
