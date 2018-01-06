@@ -75,7 +75,7 @@ L.MarkerClusterGroup.include({
 cam.MapAspect = React.createClass({
 	// QUERY_LIMIT_ is the maximum number of location markers to draw. It is not
 	// arbitrary, as higher numbers (such as 1000) seem to be causing glitches.
-	// (https://github.com/camlistore/camlistore/issues/937)
+	// (https://github.com/perkeep/perkeep/issues/937)
 	// However, the cluster plugin restricts the number of items displayed at the
 	// same time to a way lower number, allowing us to work-around these glitches.
 	QUERY_LIMIT_: 1000,
@@ -101,7 +101,7 @@ cam.MapAspect = React.createClass({
 		};
 		this.clusteringOn = this.props.config.mapClustering;
 		if (this.clusteringOn == false) {
-			// Even 100 is actually too much, and https://github.com/camlistore/camlistore/issues/937 ensues
+			// Even 100 is actually too much, and https://github.com/perkeep/perkeep/issues/937 ensues
 			this.QUERY_LIMIT_ = 100;
 		}
 		// isMoving, in conjunction with ZOOM_COOLDOWN_, allows to actually ask for

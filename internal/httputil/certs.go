@@ -241,7 +241,7 @@ yE+vPxsiUkvQHdO2fojCkY8jg70jxM+gu59tPDNbw3Uh/2Ij310FgTHsnGQMyA==
 	// 1.6, one would get the
 	// "x509: missing ASN.1 contents; use ParseCertificate" error before
 	// hitting the SystemRootsError.
-	// Related: https://github.com/camlistore/camlistore/issues/705
+	// Related: https://github.com/perkeep/perkeep/issues/705
 	block, _ := pem.Decode([]byte(dummyCertPEM))
 	if block == nil {
 		panic("failed to decode dummy certificate PEM")

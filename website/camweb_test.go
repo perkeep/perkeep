@@ -56,8 +56,8 @@ func TestRedirect(t *testing.T) {
 }
 
 func TestIsIssueRequest(t *testing.T) {
-	wantNum := "https://github.com/camlistore/camlistore/issues/34"
-	wantList := "https://github.com/camlistore/camlistore/issues"
+	wantNum := "https://github.com/perkeep/perkeep/issues/34"
+	wantList := "https://github.com/perkeep/perkeep/issues"
 	tests := []struct {
 		urlPath   string
 		redirects bool

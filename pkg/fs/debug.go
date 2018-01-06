@@ -57,7 +57,7 @@ func newStat(name string) *stat {
 	return s
 }
 
-// TODO: https://github.com/camlistore/camlistore/issues/679
+// TODO: https://github.com/perkeep/perkeep/issues/679
 
 type atomicInt64 struct {
 	v int64

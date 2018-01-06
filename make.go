@@ -1466,7 +1466,7 @@ func failIfCamlistoreOrgDir() {
 
 We're expecting you to be in a perkeep.org directory now.
 
-See https://github.com/camlistore/camlistore/issues/981#issuecomment-354690313 for details.
+See https://github.com/perkeep/perkeep/issues/981#issuecomment-354690313 for details.
 
 You need to rename your "camlistore.org" parent directory to "perkeep.org"
 

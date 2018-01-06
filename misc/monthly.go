@@ -226,7 +226,7 @@ var monthlyTemplate = `
 <h1>Monthly Release: {{.Date}}</h1>
 
 <p>
-Camlistore version <a href='https://github.com/camlistore/camlistore/commit/{{.CamliVersion}}'>{{.CamliVersion}}</a> built with Go {{.GoVersion}}.
+Camlistore version <a href='https://github.com/perkeep/perkeep/commit/{{.CamliVersion}}'>{{.CamliVersion}}</a> built with Go {{.GoVersion}}.
 </p>
 
 <h2>Downloads</h2>
@@ -247,7 +247,7 @@ Camlistore version <a href='https://github.com/camlistore/camlistore/commit/{{.C
 <h2>Release Stats</h2>
 
 <p>
-{{.Stats.TotalCommitters}} total committers over {{.Stats.Commits}} commits since <a href='https://github.com/camlistore/camlistore/commit/{{.Stats.FromRev}}'>{{.Stats.FromRev}}</a> including {{.Stats.NamesList}}.
+{{.Stats.TotalCommitters}} total committers over {{.Stats.Commits}} commits since <a href='https://github.com/perkeep/perkeep/commit/{{.Stats.FromRev}}'>{{.Stats.FromRev}}</a> including {{.Stats.NamesList}}.
 </p>
 
 <p>Thank you!</p>

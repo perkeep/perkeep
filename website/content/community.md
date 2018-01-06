@@ -12,9 +12,9 @@ how to [get the code and how to start submitting changes](/code).
     Mailing list for commit emails, code reviews
 -   [**Gerrit**](https://camlistore-review.googlesource.com/): Code
     review
--   [**Github**](https://github.com/camlistore/camlistore): our Github
+-   [**Github**](https://github.com/perkeep/perkeep): our Github
     home (issues + source mirror)
--   [**Issues**](https://github.com/camlistore/camlistore/issues):
+-   [**Issues**](https://github.com/perkeep/perkeep/issues):
     Issue/bug tracker
 -   [**\#camlistore**](irc://chat.freenode.net/camlistore): Camlistore
     on Freenode IRC

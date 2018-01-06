@@ -274,7 +274,7 @@ func getFilename(imType string, method string) string {
 
 func TestCompareResizeToHalveInplace(t *testing.T) {
 	t.Skip("Skipping TestCompareResizeToHalveInplace until we know better why resizing YCbCr leads to so many differences.")
-	// Here is what I found out so far, while investigating https://github.com/camlistore/camlistore/issues/635:
+	// Here is what I found out so far, while investigating https://github.com/perkeep/perkeep/issues/635:
 	// 1) Using imagemagick to compute the PSNR yields (significantly) different results (from
 	// the manually computed one in compareImages) for YCbCr images. It is even worse with
 	// imagemagick most of the time. It would be interesting to know why.

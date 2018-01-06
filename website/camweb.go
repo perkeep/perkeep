@@ -681,7 +681,7 @@ func setProdFlags() {
 		// We work off the staging branch, so we stay in control of the
 		// website contents, regardless of which commits are landing on the
 		// master branch in the meantime.
-		cloneArgs = append(cloneArgs, "-b", "staging", "https://github.com/camlistore/camlistore.git", prodSrcDir)
+		cloneArgs = append(cloneArgs, "-b", "staging", "https://github.com/perkeep/perkeep.git", prodSrcDir)
 	} else {
 		cloneArgs = append(cloneArgs, "https://camlistore.googlesource.com/camlistore", prodSrcDir)
 	}
@@ -1109,7 +1109,7 @@ func issueRedirect(urlPath string) (string, bool) {
 	if issueNumber != "" {
 		suffix = "/" + issueNumber
 	}
-	return "https://github.com/camlistore/camlistore/issues" + suffix, true
+	return "https://github.com/perkeep/perkeep/issues" + suffix, true
 }
 
 func gerritRedirect(w http.ResponseWriter, r *http.Request) {

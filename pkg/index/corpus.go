@@ -76,7 +76,7 @@ type Corpus struct {
 	gps          map[blob.Ref]latLong            // wholeRef -> GPS coordinates
 
 	// Lack of edge tracking implementation is issue #707
-	// (https://github.com/camlistore/camlistore/issues/707)
+	// (https://github.com/perkeep/perkeep/issues/707)
 
 	// claimBack allows hopping backwards from a Claim's Value
 	// when the Value is a blobref.  It allows, for example,
