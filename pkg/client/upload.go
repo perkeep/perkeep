@@ -18,6 +18,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"errors"
 	"fmt"
@@ -149,9 +150,9 @@ type statReq struct {
 	errc chan<- error         // written to on both failure and success (after any dest)
 }
 
-func (c *Client) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+func (c *Client) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	if c.sto != nil {
-		return c.sto.StatBlobs(dest, blobs)
+		return c.sto.StatBlobs(ctx, blobs, fn)
 	}
 	var needStat []blob.Ref
 	for _, br := range blobs {
@@ -159,116 +160,31 @@ func (c *Client) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 			panic("invalid blob")
 		}
 		if size, ok := c.haveCache.StatBlobCache(br); ok {
-			dest <- blob.SizedRef{br, size}
-		} else {
-			if needStat == nil {
-				needStat = make([]blob.Ref, 0, len(blobs))
+			if err := fn(blob.SizedRef{br, size}); err != nil {
+				return err
 			}
+		} else {
 			needStat = append(needStat, br)
 		}
 	}
 	if len(needStat) == 0 {
 		return nil
 	}
-
-	// Here begins all the batching logic. In a SPDY world, this
-	// will all be somewhat useless, so consider detecting SPDY on
-	// the underlying connection and just always calling doStat
-	// instead.  The one thing this code below is also cut up
-	// >1000 stats into smaller batches.  But with SPDY we could
-	// even just do lots of little 1-at-a-time stats.
-
-	var errcs []chan error // one per blob to stat
-
-	c.pendStatMu.Lock()
-	{
-		if c.pendStat == nil {
-			c.pendStat = make(map[blob.Ref][]statReq)
-		}
-		for _, blob := range needStat {
-			errc := make(chan error, 1)
-			errcs = append(errcs, errc)
-			c.pendStat[blob] = append(c.pendStat[blob], statReq{blob, dest, errc})
-		}
-	}
-	c.pendStatMu.Unlock()
-
-	// Kick off at least one worker. It may do nothing and lose
-	// the race, but somebody will handle our requests in
-	// pendStat.
-	go c.doSomeStats()
-
-	for _, errc := range errcs {
-		if err := <-errc; err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-const maxStatPerReq = 1000 // TODO: detect this from client discovery? add it on server side too.
-
-func (c *Client) doSomeStats() {
-	c.httpGate.Start()
-	defer c.httpGate.Done()
-
-	var batch map[blob.Ref][]statReq
-
-	c.pendStatMu.Lock()
-	{
-		if len(c.pendStat) == 0 {
-			// Lost race. Another batch got these.
-			c.pendStatMu.Unlock()
-			return
-		}
-		batch = make(map[blob.Ref][]statReq)
-		for br, reqs := range c.pendStat {
-			batch[br] = reqs
-			delete(c.pendStat, br)
-			if len(batch) == maxStatPerReq {
-				go c.doSomeStats() // kick off next batch
-				break
-			}
-		}
-	}
-	c.pendStatMu.Unlock()
-
-	if env.DebugUploads() {
-		println("doing stat batch of", len(batch))
-	}
-
-	blobs := make([]blob.Ref, 0, len(batch))
-	for br := range batch {
-		blobs = append(blobs, br)
-	}
-
-	ourDest := make(chan blob.SizedRef)
-	errc := make(chan error, 1)
-	go func() {
-		// false for not gated, since we already grabbed the
-		// token at the beginning of this function.
-		errc <- c.doStat(ourDest, blobs, 0, false)
-		close(ourDest)
-	}()
-
-	for sb := range ourDest {
-		for _, req := range batch[sb.Ref] {
-			req.dest <- sb
-		}
-	}
-
-	// Copy the doStat's error to all waiters for all blobrefs in this batch.
-	err := <-errc
-	for _, reqs := range batch {
-		for _, req := range reqs {
-			req.errc <- err
-		}
-	}
+	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, c.httpGate, func(br blob.Ref) (workerSB blob.SizedRef, err error) {
+		err = c.doStat(ctx, []blob.Ref{br}, 0, false, func(sb blob.SizedRef) error {
+			workerSB = sb
+			c.haveCache.NoteBlobExists(sb.Ref, sb.Size)
+			return fn(sb)
+		})
+		return
+	})
 }
 
 // doStat does an HTTP request for the stat. the number of blobs is used verbatim. No extra splitting
 // or batching is done at this layer.
-func (c *Client) doStat(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.Duration, gated bool) error {
+// The semantics are the same as blobserver.BlobStatter.
+// gate controls whether it uses httpGate to pause on requests.
+func (c *Client) doStat(ctx context.Context, blobs []blob.Ref, wait time.Duration, gated bool, fn func(blob.SizedRef) error) error {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "camliversion=1")
 	if wait > 0 {
@@ -310,9 +226,10 @@ func (c *Client) doStat(dest chan<- blob.SizedRef, blobs []blob.Ref, wait time.D
 	if err != nil {
 		return err
 	}
-
 	for _, sb := range stat.HaveMap {
-		dest <- sb
+		if err := fn(sb); err != nil {
+			return err
+		}
 	}
 	return nil
 }

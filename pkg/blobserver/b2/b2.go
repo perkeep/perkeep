@@ -155,34 +155,26 @@ func (s *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, err
 	return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
 }
 
-func (s *Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+func (s *Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	// TODO: use cache
-	var grp syncutil.Group
 	gate := syncutil.NewGate(5) // arbitrary cap
-	for i := range blobs {
-		br := blobs[i]
-		gate.Start()
-		grp.Go(func() error {
-			defer gate.Done()
-			fi, err := s.b.GetFileInfoByName(s.dirPrefix + br.String())
-			if err == b2.FileNotFoundError {
-				return nil
-			}
-			if err != nil {
-				return err
-			}
-			if br.HashName() == "sha1" && fi.ContentSHA1 != br.Digest() {
-				return errors.New("b2: remote ContentSHA1 mismatch")
-			}
-			size := fi.ContentLength
-			if size > constants.MaxBlobSize {
-				return fmt.Errorf("blob %s stat size too large (%d)", br, size)
-			}
-			dest <- blob.SizedRef{Ref: br, Size: uint32(size)}
-			return nil
-		})
-	}
-	return grp.Err()
+	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, gate, func(br blob.Ref) (sb blob.SizedRef, err error) {
+		fi, err := s.b.GetFileInfoByName(s.dirPrefix + br.String())
+		if err == b2.FileNotFoundError {
+			return sb, nil
+		}
+		if err != nil {
+			return sb, err
+		}
+		if br.HashName() == "sha1" && fi.ContentSHA1 != br.Digest() {
+			return sb, errors.New("b2: remote ContentSHA1 mismatch")
+		}
+		size := fi.ContentLength
+		if size > constants.MaxBlobSize {
+			return sb, fmt.Errorf("blob %s stat size too large (%d)", br, size)
+		}
+		return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
+	})
 }
 
 func (s *Storage) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) {

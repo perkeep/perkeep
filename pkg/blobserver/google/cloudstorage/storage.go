@@ -226,33 +226,24 @@ func (s *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, err
 	return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
 }
 
-func (s *Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+var statGate = syncutil.NewGate(20) // arbitrary cap
+
+func (s *Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	// TODO: use cache
-	// TODO(mpl): use context from caller, once one is available (issue 733)
-	ctx := context.TODO()
-	var grp syncutil.Group
-	gate := syncutil.NewGate(20) // arbitrary cap
-	for i := range blobs {
-		br := blobs[i]
-		gate.Start()
-		grp.Go(func() error {
-			defer gate.Done()
-			attrs, err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).Attrs(ctx)
-			if err == storage.ErrObjectNotExist {
-				return nil
-			}
-			if err != nil {
-				return err
-			}
-			size := attrs.Size
-			if size > constants.MaxBlobSize {
-				return fmt.Errorf("blob %s stat size too large (%d)", br, size)
-			}
-			dest <- blob.SizedRef{Ref: br, Size: uint32(size)}
-			return nil
-		})
-	}
-	return grp.Err()
+	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (sb blob.SizedRef, err error) {
+		attrs, err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).Attrs(ctx)
+		if err == storage.ErrObjectNotExist {
+			return sb, nil
+		}
+		if err != nil {
+			return sb, err
+		}
+		size := attrs.Size
+		if size > constants.MaxBlobSize {
+			return sb, fmt.Errorf("blob %s stat size too large (%d)", br, size)
+		}
+		return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
+	})
 }
 
 func (s *Storage) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) {

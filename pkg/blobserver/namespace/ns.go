@@ -152,7 +152,7 @@ func (ns *nsto) RemoveBlobs(blobs []blob.Ref) error {
 	return nil
 }
 
-func (ns *nsto) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+func (ns *nsto) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	for _, br := range blobs {
 		invSizeStr, err := ns.inventory.Get(br.String())
 		if err == sorted.ErrNotFound {
@@ -165,7 +165,9 @@ func (ns *nsto) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 		if err != nil {
 			log.Printf("Bogus namespace key %q / value %q", br.String(), invSizeStr)
 		}
-		dest <- blob.SizedRef{br, uint32(invSize)}
+		if err := fn(blob.SizedRef{br, uint32(invSize)}); err != nil {
+			return err
+		}
 	}
 	return nil
 }

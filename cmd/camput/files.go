@@ -18,6 +18,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha1"
 	"errors"
 	"flag"
@@ -450,7 +451,7 @@ type noStatReceiver struct {
 	blobserver.BlobReceiver
 }
 
-func (noStatReceiver) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+func (noStatReceiver) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	return nil
 }
 

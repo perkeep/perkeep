@@ -25,7 +25,6 @@ import (
 
 	"go4.org/jsonconfig"
 
-	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/localdisk"
 	"perkeep.org/pkg/blobserver/memory"
@@ -64,9 +63,9 @@ func NewDiskStorage(t *testing.T) *localdisk.DiskStorage {
 
 const cacheSize = 1 << 20
 
-func NewProxiedDisk(t *testing.T) (*sto, *localdisk.DiskStorage) {
+func NewProxiedDisk(t *testing.T) (*Storage, *localdisk.DiskStorage) {
 	ds := NewDiskStorage(t)
-	return NewCache(cacheSize, memory.NewCache(cacheSize), ds).(*sto), ds
+	return New(cacheSize, memory.NewCache(cacheSize), ds), ds
 }
 
 func TestEviction(t *testing.T) {
@@ -99,95 +98,6 @@ func TestEviction(t *testing.T) {
 	}
 }
 
-func TestReceiveStat(t *testing.T) {
-	px, ds := NewProxiedDisk(t)
-	defer cleanUp(ds)
-
-	tb := &test.Blob{"Foo"}
-	tb.MustUpload(t, ds)
-
-	// get the stat via the cold proxycache
-	ch := make(chan blob.SizedRef, 0)
-	errch := make(chan error, 1)
-	go func() {
-		errch <- px.StatBlobs(ch, tb.BlobRefSlice())
-		close(ch)
-	}()
-	got := 0
-	for sb := range ch {
-		got++
-		tb.AssertMatches(t, sb)
-	}
-	if err := <-errch; err != nil {
-		t.Fatalf("result from stat (cold cache): %v", err)
-	}
-	if got != 1 {
-		t.Fatalf("number stat results (cold cache), expected %d, got %d", 1, got)
-	}
-
-	// get the stat via the warmed cache
-	px.origin = blobserver.NoImplStorage{} // force using the warmed cache
-	ch = make(chan blob.SizedRef, 0)
-	errch = make(chan error, 1)
-	go func() {
-		errch <- px.statsCache.StatBlobs(ch, tb.BlobRefSlice())
-		close(ch)
-	}()
-	got = 0
-	for sb := range ch {
-		got++
-		tb.AssertMatches(t, sb)
-	}
-
-	if err := <-errch; err != nil {
-		t.Fatalf("result from stat (warm cache): %v", err)
-	}
-	if got != 1 {
-		t.Fatalf("number stat results (warm cache), expected %d, got %d", 1, got)
-	}
-
-}
-
-func TestMultiStat(t *testing.T) {
-	px, ds := NewProxiedDisk(t)
-	defer cleanUp(ds)
-
-	blobfoo := &test.Blob{"foo"}
-	blobbar := &test.Blob{"bar!"}
-	blobfoo.MustUpload(t, ds)
-	blobbar.MustUpload(t, ds)
-
-	need := make(map[blob.Ref]bool)
-	need[blobfoo.BlobRef()] = true
-	need[blobbar.BlobRef()] = true
-
-	blobs := []blob.Ref{blobfoo.BlobRef(), blobbar.BlobRef()}
-
-	ch := make(chan blob.SizedRef, 0)
-	errch := make(chan error, 1)
-	go func() {
-		errch <- px.StatBlobs(ch, blobs)
-		close(ch)
-	}()
-	got := 0
-	for sb := range ch {
-		got++
-		if !need[sb.Ref] {
-			t.Errorf("didn't need %s", sb.Ref)
-		}
-		delete(need, sb.Ref)
-	}
-	if want := 2; got != want {
-		t.Errorf("number stats = %d; want %d", got, want)
-	}
-	if err := <-errch; err != nil {
-		t.Errorf("StatBlobs: %v", err)
-	}
-	if len(need) != 0 {
-		t.Errorf("Not all stat results returned; still need %d", len(need))
-	}
-}
-
 func TestMissingGetReturnsNoEnt(t *testing.T) {
 	px, ds := NewProxiedDisk(t)
 	defer cleanUp(ds)
@@ -213,37 +123,6 @@ func TestProxyCache(t *testing.T) {
 	})
 }
 
-func TestVerify(t *testing.T) {
-	px, ds := NewProxiedDisk(t)
-	defer cleanUp(ds)
-
-	blobfoo := &test.Blob{"foo"}
-	blobbar := &test.Blob{"bar!"}
-	blobbaz := &test.Blob{"baz~!"} // not going to upload this one
-
-	blobfoo.MustUpload(t, px)
-	blobbar.MustUpload(t, px)
-
-	err := px.verifyCache(blobfoo.BlobRefSlice())
-	if err != nil {
-		t.Errorf("unexpected error verifying blobfoo: %v", err)
-	}
-
-	err = px.verifyCache(blobbaz.BlobRefSlice())
-	if err, ok := err.(CacheMissingRefError); !ok {
-		t.Errorf("expected error CacheMissingRefError verifying blobbaz")
-	} else if err.Ref != blobbaz.BlobRef() {
-		t.Errorf("error ref did not match blobbaz ref")
-	}
-
-	px.origin = memory.NewCache(0)
-	err = px.verifyCache(nil)
-	if err == nil {
-		t.Error("expected some errors from verifyCache after we messed it up")
-	}
-	t.Log(err)
-}
-
 func TestConfig(t *testing.T) {
 	const maxBytes = 1 << 5
 	px, ds := NewProxiedDisk(t)
@@ -262,8 +141,9 @@ func TestConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if cache.(*sto).maxCacheBytes != maxBytes {
+	sto := cache.(*Storage)
+	if sto.maxCacheBytes != maxBytes {
 		t.Fatalf("incorrectly read maxCacheBytes. saw: %d expected: %d",
-			cache.(*sto).maxCacheBytes, maxBytes)
+			sto.maxCacheBytes, maxBytes)
 	}
 }

@@ -17,17 +17,26 @@ limitations under the License.
 package drive
 
 import (
+	"context"
+	"os"
+
+	"go4.org/syncutil"
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 )
 
-func (sto *driveStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
-	for _, br := range blobs {
+var statGate = syncutil.NewGate(20) // arbitrary
+
+func (sto *driveStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
+	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (sb blob.SizedRef, err error) {
 		size, err := sto.service.Stat(br.String())
-		if err == nil {
-			dest <- blob.SizedRef{Ref: br, Size: uint32(size)}
-		} else {
-			return err
+		switch err {
+		case os.ErrNotExist:
+			return sb, nil
+		case nil:
+			return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
+		default:
+			return sb, err
 		}
-	}
-	return nil
+	})
 }

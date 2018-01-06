@@ -732,44 +732,35 @@ func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 	return grp.Err()
 }
 
-func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
-	if len(blobs) == 0 {
-		return nil
-	}
+var statGate = syncutil.NewGate(50) // arbitrary
 
+func (s *storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	var (
-		grp        syncutil.Group
 		trySmallMu sync.Mutex
 		trySmall   []blob.Ref
 	)
-	statGate := syncutil.NewGate(50) // arbitrary
-	for _, br := range blobs {
-		br := br
-		statGate.Start()
-		grp.Go(func() error {
-			defer statGate.Done()
-			m, err := s.getMetaRow(br)
-			if err != nil {
-				return err
-			}
-			if m.exists {
-				dest <- blob.SizedRef{Ref: br, Size: m.size}
-			} else {
-				trySmallMu.Lock()
-				trySmall = append(trySmall, br)
-				// Assume append cannot fail or panic
-				trySmallMu.Unlock()
-			}
-			return nil
-		})
-	}
-	if err := grp.Err(); err != nil {
+
+	err := blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (sb blob.SizedRef, err error) {
+		m, err := s.getMetaRow(br)
+		if err != nil {
+			return sb, err
+		}
+		if m.exists {
+			return blob.SizedRef{Ref: br, Size: m.size}, nil
+		}
+		// Try it in round two against the small blobs:
+		trySmallMu.Lock()
+		trySmall = append(trySmall, br)
+		trySmallMu.Unlock()
+		return sb, nil
+	})
+	if err != nil {
 		return err
 	}
 	if len(trySmall) == 0 {
 		return nil
 	}
-	return s.small.StatBlobs(dest, trySmall)
+	return s.small.StatBlobs(ctx, trySmall, fn)
 }
 
 func (s *storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {

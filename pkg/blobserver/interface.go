@@ -21,7 +21,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"os"
 	"time"
 
 	"perkeep.org/pkg/blob"
@@ -38,7 +37,7 @@ var (
 	ErrNotImplemented = errors.New("not implemented")
 )
 
-// BlobReceiver is the interface for receiving
+// BlobReceiver is the interface for receiving blobs.
 type BlobReceiver interface {
 	// ReceiveBlob accepts a newly uploaded blob and writes it to
 	// permanent storage.
@@ -56,27 +55,18 @@ type BlobReceiver interface {
 	ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, error)
 }
 
+// BlobStatter is the interface for checking the size and existence of blobs.
 type BlobStatter interface {
-	// Stat checks for the existence of blobs, writing their sizes
-	// (if found back to the dest channel), and returning an error
-	// or nil.  Stat() should NOT close the channel.
-	// TODO(bradfitz): redefine this to close the channel? Or document
-	// better what the synchronization rules are.
-	StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error
-}
-
-func StatBlob(bs BlobStatter, br blob.Ref) (sb blob.SizedRef, err error) {
-	c := make(chan blob.SizedRef, 1)
-	err = bs.StatBlobs(c, []blob.Ref{br})
-	if err != nil {
-		return
-	}
-	select {
-	case sb = <-c:
-	default:
-		err = os.ErrNotExist
-	}
-	return
+	// Stat checks for the existence of blobs, calling fn in
+	// serial for each found blob, in any order, but with no
+	// duplicates. The blobs slice should not have duplicates.
+	//
+	// If fn returns an error, StatBlobs returns with that value
+	// and makes no further calls to fn.
+	//
+	// StatBlobs does not return an error on missing blobs, only
+	// on failure to stat blobs.
+	StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error
 }
 
 type StatReceiver interface {

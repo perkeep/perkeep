@@ -21,6 +21,7 @@ package android // import "perkeep.org/pkg/client/android"
 
 import (
 	"bufio"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -324,20 +325,12 @@ func (asr StatusReceiver) ReceiveBlob(blob blob.Ref, source io.Reader) (blob.Siz
 	return sb, err
 }
 
-func (asr StatusReceiver) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
-	midc := make(chan blob.SizedRef)
-	errc := make(chan error, 1)
-	go func() {
-		err := asr.Sr.StatBlobs(midc, blobs)
-		errc <- err
-		close(midc)
-	}()
-	for sb := range midc {
+func (asr StatusReceiver) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
+	return asr.Sr.StatBlobs(ctx, blobs, func(sb blob.SizedRef) error {
 		asr.noteChunkOnServer(sb)
 		statBlobExisted.Incr(1)
-		dest <- sb
-	}
-	return <-errc
+		return fn(sb)
+	})
 }
 
 type writeUntilSliceFull struct {

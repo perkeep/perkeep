@@ -34,7 +34,7 @@ func (discardStorage) ReceiveBlob(br blob.Ref, r io.Reader) (sb blob.SizedRef, e
 	return blob.SizedRef{br, uint32(n)}, err
 }
 
-func (discardStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+func (discardStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	return nil
 }
 

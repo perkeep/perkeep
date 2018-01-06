@@ -40,6 +40,7 @@ import (
 	"time"
 
 	"go4.org/jsonconfig"
+	"go4.org/syncutil"
 	"golang.org/x/crypto/nacl/secretbox"
 	"golang.org/x/crypto/scrypt"
 	"perkeep.org/pkg/blob"
@@ -153,18 +154,20 @@ func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 	return blobserver.ErrNotImplemented // TODO
 }
 
-func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
-	for _, br := range blobs {
+var statGate = syncutil.NewGate(20) // arbitrary
+
+func (s *storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
+	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (sb blob.SizedRef, err error) {
 		plainSize, _, err := s.fetchMeta(br)
-		if err == os.ErrNotExist {
-			continue
+		switch err {
+		case nil:
+			return blob.SizedRef{Ref: br, Size: plainSize}, nil
+		case os.ErrNotExist:
+			return sb, nil
+		default:
+			return sb, err
 		}
-		if err != nil {
-			return err
-		}
-		dest <- blob.SizedRef{Ref: br, Size: plainSize}
-	}
-	return nil
+	})
 }
 
 func (s *storage) ReceiveBlob(plainBR blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {

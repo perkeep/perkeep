@@ -166,20 +166,25 @@ func TestEncrypt(t *testing.T) {
 		t.Errorf("Fetching missing blobref %v; want %q", got, missingError)
 	}
 
-	c := make(chan blob.SizedRef)
-	go func() {
-		if err := ts.sto.StatBlobs(c, []blob.Ref{tb3.BlobRef(), tb.BlobRef(), tb2.BlobRef()}); err != nil {
-			t.Fatal(err)
-		}
-	}()
-	if sr := <-c; sr != tb.SizedRef() {
-		t.Errorf("%s != %s", sr, tb.SizedRef())
+	ctx := context.Background()
+	got, err := blobserver.StatBlobs(ctx, ts.sto, []blob.Ref{tb3.BlobRef(), tb.BlobRef(), tb2.BlobRef()})
+	if err != nil {
+		t.Fatalf("StatBlobs: %v", err)
 	}
-	if sr := <-c; sr != tb2.SizedRef() {
-		t.Errorf("%s != %s", sr, tb2.SizedRef())
+	if sr := got[tb.BlobRef()]; sr != tb.SizedRef() {
+		t.Errorf("tb stat = %v; want %v", sr, tb.SizedRef())
+	}
+	if sr := got[tb2.BlobRef()]; sr != tb2.SizedRef() {
+		t.Errorf("tb2 stat = %v; want %v", sr, tb2.SizedRef())
+	}
+	if sr, ok := got[tb3.BlobRef()]; ok {
+		t.Errorf("unexpected stat response for tb3: %v", sr)
+	}
+	if len(got) != 2 {
+		t.Errorf("unexpected blobs in stat response")
 	}
 
-	c = make(chan blob.SizedRef)
+	c := make(chan blob.SizedRef)
 	go func() {
 		if err := ts.sto.EnumerateBlobs(context.TODO(), c, "", 0); err != nil {
 			t.Fatal(err)

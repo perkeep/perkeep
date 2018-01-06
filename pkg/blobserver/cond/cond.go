@@ -182,9 +182,9 @@ func (sto *condStorage) Fetch(b blob.Ref) (file io.ReadCloser, size uint32, err 
 	return
 }
 
-func (sto *condStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+func (sto *condStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	if sto.read != nil {
-		return sto.read.StatBlobs(dest, blobs)
+		return sto.read.StatBlobs(ctx, blobs, fn)
 	}
 	return errors.New("cond: Read not configured")
 }

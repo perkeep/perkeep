@@ -1050,7 +1050,7 @@ func (sh *SyncHandler) Fetch(blob.Ref) (file io.ReadCloser, size uint32, err err
 	panic("Unimplemeted blobserver.Fetch called")
 }
 
-func (sh *SyncHandler) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+func (sh *SyncHandler) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	sh.logf("Unexpected StatBlobs call")
 	return nil
 }

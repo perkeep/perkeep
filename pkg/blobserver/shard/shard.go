@@ -35,6 +35,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 
 	"go4.org/jsonconfig"
 	"perkeep.org/pkg/blob"
@@ -83,7 +84,7 @@ func (sto *shardStorage) ReceiveBlob(b blob.Ref, source io.Reader) (sb blob.Size
 	return sto.shard(b).ReceiveBlob(b, source)
 }
 
-func (sto *shardStorage) batchedShards(blobs []blob.Ref, fn func(blobserver.Storage, []blob.Ref) error) error {
+func (sto *shardStorage) batchedShards(ctx context.Context, blobs []blob.Ref, fn func(blobserver.Storage, []blob.Ref) error) error {
 	m := make(map[uint32][]blob.Ref)
 	for _, b := range blobs {
 		sn := sto.shardNum(b)
@@ -107,14 +108,39 @@ func (sto *shardStorage) batchedShards(blobs []blob.Ref, fn func(blobserver.Stor
 }
 
 func (sto *shardStorage) RemoveBlobs(blobs []blob.Ref) error {
-	return sto.batchedShards(blobs, func(s blobserver.Storage, blobs []blob.Ref) error {
+	return sto.batchedShards(context.TODO(), blobs, func(s blobserver.Storage, blobs []blob.Ref) error {
 		return s.RemoveBlobs(blobs)
 	})
 }
 
-func (sto *shardStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
-	return sto.batchedShards(blobs, func(s blobserver.Storage, blobs []blob.Ref) error {
-		return s.StatBlobs(dest, blobs)
+func (sto *shardStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
+	var (
+		fnMu   sync.Mutex // serializes calls to fn, guards failed
+		failed bool
+	)
+	// TODO: do a context.WithCancel and abort all shards' context
+	// once one fails, but don't do that until we can guarantee
+	// that the first failure we report is the real one, not
+	// another goroutine getting its context canceled before our
+	// real first failure returns from its goroutine. That is, we
+	// should use golang.org/x/sync/errgroup, but we need to
+	// integrate it with batchedShards and audit callers. Or not
+	// use batchedShards here, or only use batchedShards to
+	// collect work to do and then use errgroup directly ourselves
+	// here.
+	return sto.batchedShards(ctx, blobs, func(s blobserver.Storage, blobs []blob.Ref) error {
+		return s.StatBlobs(ctx, blobs, func(sb blob.SizedRef) error {
+			fnMu.Lock()
+			defer fnMu.Unlock()
+			if failed {
+				return nil
+			}
+			if err := fn(sb); err != nil {
+				failed = true
+				return err
+			}
+			return nil
+		})
 	})
 }
 

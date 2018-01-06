@@ -17,9 +17,11 @@ limitations under the License.
 package localdisk
 
 import (
+	"context"
 	"os"
 
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 
 	"go4.org/syncutil"
 )
@@ -28,35 +30,16 @@ const maxParallelStats = 20
 
 var statGate = syncutil.NewGate(maxParallelStats)
 
-func (ds *DiskStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
-	if len(blobs) == 0 {
-		return nil
-	}
-
-	statSend := func(ref blob.Ref) error {
+func (ds *DiskStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
+	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(ref blob.Ref) (sb blob.SizedRef, err error) {
 		fi, err := os.Stat(ds.blobPath(ref))
 		switch {
 		case err == nil && fi.Mode().IsRegular():
-			dest <- blob.SizedRef{Ref: ref, Size: u32(fi.Size())}
-			return nil
+			return blob.SizedRef{Ref: ref, Size: u32(fi.Size())}, nil
 		case err != nil && !os.IsNotExist(err):
-			return err
+			return sb, err
 		}
-		return nil
-	}
+		return sb, nil
 
-	if len(blobs) == 1 {
-		return statSend(blobs[0])
-	}
-
-	var wg syncutil.Group
-	for _, ref := range blobs {
-		ref := ref
-		statGate.Start()
-		wg.Go(func() error {
-			defer statGate.Done()
-			return statSend(ref)
-		})
-	}
-	return wg.Err()
+	})
 }

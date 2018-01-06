@@ -63,7 +63,7 @@ func (ix *Index) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, 
 	return nil
 }
 
-func (ix *Index) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+func (ix *Index) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	for _, br := range blobs {
 		key := "have:" + br.String()
 		v, err := ix.s.Get(key)
@@ -77,7 +77,9 @@ func (ix *Index) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
 		if err != nil {
 			return fmt.Errorf("invalid size for key %q = %q", key, v)
 		}
-		dest <- blob.SizedRef{Ref: br, Size: uint32(size)}
+		if err := fn(blob.SizedRef{Ref: br, Size: uint32(size)}); err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -85,12 +85,20 @@ func (sr *Receiver) ReceiveRef(br blob.Ref, size int64) (sb blob.SizedRef, err e
 	return blob.SizedRef{br, uint32(size)}, nil
 }
 
-func (sr *Receiver) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+func (sr *Receiver) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
+	var sized []blob.SizedRef
 	sr.Lock()
-	defer sr.Unlock()
 	for _, br := range blobs {
 		if size, ok := sr.Have[br]; ok {
-			dest <- blob.SizedRef{br, uint32(size)}
+			sized = append(sized, blob.SizedRef{br, uint32(size)})
+		}
+	}
+	sr.Unlock()
+
+	// Call fn with no locks held:
+	for _, sb := range sized {
+		if err := fn(sb); err != nil {
+			return err
 		}
 	}
 	return nil

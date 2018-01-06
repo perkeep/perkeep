@@ -80,6 +80,13 @@ func TestOpt(t *testing.T, opt Opts) {
 	t.Logf("Testing Enumerate for empty")
 	r.testEnumerate(nil)
 
+	t.Logf("Test stat of blob not existing")
+	{
+		b := &test.Blob{"not exist"}
+		blobRefs := []blob.Ref{b.BlobRef()}
+		testStat(t, sto, blobRefs, nil)
+	}
+
 	var blobs []*test.Blob
 	var blobRefs []blob.Ref
 	var blobSizedRefs []blob.SizedRef
@@ -90,6 +97,7 @@ func TestOpt(t *testing.T, opt Opts) {
 			contents = append(contents, "foo-"+strconv.Itoa(i))
 		}
 	}
+
 	t.Logf("Testing receive")
 	for i, x := range contents {
 		b1 := &test.Blob{x}
@@ -125,16 +133,7 @@ func TestOpt(t *testing.T, opt Opts) {
 	}
 
 	t.Logf("Testing Stat")
-	dest := make(chan blob.SizedRef)
-	errc := make(chan error, 1)
-	go func() {
-		errc <- sto.StatBlobs(dest, blobRefs)
-		close(dest)
-	}()
-	testStat(t, dest, blobSizedRefs)
-	if err := <-errc; err != nil {
-		t.Fatalf("error stating blobs %s: %v", blobRefs, err)
-	}
+	testStat(t, sto, blobRefs, blobSizedRefs)
 
 	// Enumerate tests.
 	sort.Sort(blob.SizedByRef(blobSizedRefs))
@@ -366,29 +365,41 @@ func (r *run) withRetries(fn func() error) error {
 	}
 }
 
-func testStat(t *testing.T, enum <-chan blob.SizedRef, want []blob.SizedRef) {
+func testStat(t *testing.T, sto blobserver.BlobStatter, blobs []blob.Ref, want []blob.SizedRef) {
 	// blobs may arrive in ANY order
-	m := make(map[string]int, len(want))
+	pos := make(map[blob.Ref]int) // wanted ref => its position in want
+	need := make(map[blob.Ref]bool)
 	for i, sb := range want {
-		m[sb.Ref.String()] = i
+		pos[sb.Ref] = i
+		need[sb.Ref] = true
 	}
 
-	i := 0
-	for sb := range enum {
+	err := sto.StatBlobs(context.Background(), blobs, func(sb blob.SizedRef) error {
 		if !sb.Valid() {
-			break
+			t.Errorf("StatBlobs func called with invalid/zero blob.SizedRef")
+			return nil
 		}
-		wanted := want[m[sb.Ref.String()]]
-		if wanted.Size != sb.Size {
-			t.Fatalf("received blob size is %d, wanted %d for &%d", sb.Size, wanted.Size, i)
+		wantPos, ok := pos[sb.Ref]
+		if !ok {
+			t.Errorf("StatBlobs func called with unrequested ref %v (size %d)", sb.Ref, sb.Size)
+			return nil
 		}
-		if wanted.Ref != sb.Ref {
-			t.Fatalf("received blob ref mismatch &%d: wanted %s, got %s", i, sb.Ref, wanted.Ref)
+		if !need[sb.Ref] {
+			t.Errorf("StatBlobs func called with ref %v multiple times", sb.Ref)
+			return nil
 		}
-		i++
-		if i >= len(want) {
-			break
+		delete(need, sb.Ref)
+		w := want[wantPos]
+		if sb != w {
+			t.Errorf("StatBlobs returned %v; want %v", sb, w)
 		}
+		return nil
+	})
+	for br := range need {
+		t.Errorf("StatBlobs never returned results for %v", br)
+	}
+	if err != nil {
+		t.Errorf("StatBlobs: %v", err)
 	}
 }
 

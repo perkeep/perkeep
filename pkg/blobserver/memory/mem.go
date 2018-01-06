@@ -172,13 +172,15 @@ func (s *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, err
 	return blob.SizedRef{br, uint32(len(all))}, nil
 }
 
-func (s *Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+func (s *Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	for _, br := range blobs {
 		s.mu.RLock()
 		b, ok := s.m[br]
 		s.mu.RUnlock()
 		if ok {
-			dest <- blob.SizedRef{br, uint32(len(b))}
+			if err := fn(blob.SizedRef{br, uint32(len(b))}); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

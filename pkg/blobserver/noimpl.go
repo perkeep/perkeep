@@ -40,7 +40,7 @@ func (NoImplStorage) ReceiveBlob(blob.Ref, io.Reader) (sb blob.SizedRef, err err
 	return
 }
 
-func (NoImplStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
+func (NoImplStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	return errors.New("Stat not implemented")
 }
 

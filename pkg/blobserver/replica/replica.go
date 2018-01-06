@@ -42,7 +42,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"go4.org/jsonconfig"
 	"perkeep.org/pkg/blob"
@@ -143,49 +146,42 @@ func (sto *replicaStorage) Fetch(b blob.Ref) (file io.ReadCloser, size uint32, e
 }
 
 // StatBlobs stats all read replicas.
-func (sto *replicaStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
-	need := make(map[blob.Ref]bool)
+func (sto *replicaStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
+	var (
+		mu     sync.Mutex // serializes calls to fn, guards need
+		need   = make(map[blob.Ref]bool)
+		failed bool
+	)
 	for _, br := range blobs {
 		need[br] = true
 	}
 
-	ch := make(chan blob.SizedRef, buffered)
-	donec := make(chan bool)
-
-	go func() {
-		for sb := range ch {
-			if need[sb.Ref] {
-				dest <- sb
-				delete(need, sb.Ref)
-			}
-		}
-		donec <- true
-	}()
-
-	errc := make(chan error, buffered)
-	statReplica := func(s blobserver.Storage) {
-		errc <- s.StatBlobs(ch, blobs)
-	}
+	group, ctx := errgroup.WithContext(ctx)
 
 	for _, replica := range sto.readReplicas {
-		go statReplica(replica)
+		replica := replica
+		group.Go(func() error {
+			return replica.StatBlobs(ctx, blobs, func(sb blob.SizedRef) error {
+				mu.Lock()
+				defer mu.Unlock()
+				if failed {
+					return nil
+				}
+				if !need[sb.Ref] {
+					// dup, lost race from other replica
+					return nil
+				}
+				delete(need, sb.Ref)
+				if err := fn(sb); err != nil {
+					failed = true
+					return err
+				}
+				return nil
+			})
+		})
 	}
 
-	var retErr error
-	for range sto.readReplicas {
-		if err := <-errc; err != nil {
-			retErr = err
-		}
-	}
-	close(ch)
-	<-donec
-
-	// Safe to access need map now; as helper goroutine is
-	// done with it.
-	if len(need) == 0 {
-		return nil
-	}
-	return retErr
+	return group.Wait()
 }
 
 type sizedBlobAndError struct {

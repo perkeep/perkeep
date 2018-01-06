@@ -17,32 +17,25 @@ limitations under the License.
 package mongo
 
 import (
+	"context"
 	"fmt"
 
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 
 	"go4.org/syncutil"
-
 	"gopkg.in/mgo.v2/bson"
 )
 
 var statGate = syncutil.NewGate(50) // arbitrary
 
-func (m *mongoStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
-	var wg syncutil.Group
-
-	for _, b := range blobs {
-		b := b
-		statGate.Start()
-		wg.Go(func() error {
-			defer statGate.Done()
-			var doc blobDoc
-			if err := m.c.Find(bson.M{"key": b.String()}).Select(bson.M{"size": 1}).One(&doc); err != nil {
-				return fmt.Errorf("error statting %v: %v", b, err)
-			}
-			dest <- blob.SizedRef{Ref: b, Size: doc.Size}
-			return nil
-		})
-	}
-	return wg.Err()
+func (m *mongoStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
+	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(b blob.Ref) (sb blob.SizedRef, err error) {
+		var doc blobDoc
+		if err := m.c.Find(bson.M{"key": b.String()}).Select(bson.M{"size": 1}).One(&doc); err != nil {
+			// TODO: deal with mgo.ErrNotFound or *mgo.QueryError.Code not found?
+			return sb, fmt.Errorf("mongo: error statting %v: %v", b, err)
+		}
+		return blob.SizedRef{Ref: b, Size: doc.Size}, nil
+	})
 }

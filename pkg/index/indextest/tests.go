@@ -1327,26 +1327,42 @@ func checkEnumerate(idx *index.Index, want []blob.SizedRef, args *enumArgs) erro
 }
 
 func checkStat(idx *index.Index, want []blob.SizedRef) error {
-	dest := make(chan blob.SizedRef)
-	defer close(dest)
-	errCh := make(chan error)
+	pos := make(map[blob.Ref]int) // wanted ref => its position in want
+	need := make(map[blob.Ref]bool)
+	for i, sb := range want {
+		pos[sb.Ref] = i
+		need[sb.Ref] = true
+	}
+
 	input := make([]blob.Ref, len(want))
 	for _, sbr := range want {
 		input = append(input, sbr.Ref)
 	}
-	go func() {
-		errCh <- idx.StatBlobs(dest, input)
-	}()
-	for k, sbr := range want {
-		got, ok := <-dest
+	err := idx.StatBlobs(context.Background(), input, func(sb blob.SizedRef) error {
+		if !sb.Valid() {
+			return errors.New("StatBlobs func called with invalid/zero blob.SizedRef")
+		}
+		wantPos, ok := pos[sb.Ref]
 		if !ok {
-			return fmt.Errorf("could not get stat number %d", k)
+			return fmt.Errorf("StatBlobs func called with unrequested ref %v (size %d)", sb.Ref, sb.Size)
 		}
-		if got != sbr {
-			return fmt.Errorf("stat %d: got %v, wanted %v", k, got, sbr)
+		if !need[sb.Ref] {
+			return fmt.Errorf("StatBlobs func called with ref %v multiple times", sb.Ref)
 		}
+		delete(need, sb.Ref)
+		w := want[wantPos]
+		if sb != w {
+			return fmt.Errorf("StatBlobs returned %v; want %v", sb, w)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
-	return <-errCh
+	for br := range need {
+		return fmt.Errorf("didn't get stat result for %v", br)
+	}
+	return nil
 }
 
 func EnumStat(t *testing.T, initIdx func() *index.Index) {

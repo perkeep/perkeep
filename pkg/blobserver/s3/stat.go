@@ -17,38 +17,31 @@ limitations under the License.
 package s3
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 
 	"go4.org/syncutil"
 )
 
 var statGate = syncutil.NewGate(20) // arbitrary
 
-func (sto *s3Storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (err error) {
+func (sto *s3Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) (err error) {
 	if faultStat.FailErr(&err) {
 		return
 	}
 	// TODO: use sto.cache
-	var wg syncutil.Group
-	for _, br := range blobs {
-		br := br
-		statGate.Start()
-		wg.Go(func() error {
-			defer statGate.Done()
-
-			size, err := sto.s3Client.Stat(sto.dirPrefix+br.String(), sto.bucket)
-			if err == nil {
-				dest <- blob.SizedRef{Ref: br, Size: uint32(size)}
-				return nil
-			}
-			if err == os.ErrNotExist {
-				return nil
-			}
-			return fmt.Errorf("error statting %v: %v", br, err)
-		})
-	}
-	return wg.Err()
+	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (sb blob.SizedRef, err error) {
+		size, err := sto.s3Client.Stat(sto.dirPrefix+br.String(), sto.bucket)
+		if err == nil {
+			return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
+		}
+		if err == os.ErrNotExist {
+			return sb, nil
+		}
+		return sb, fmt.Errorf("error statting %v: %v", br, err)
+	})
 }

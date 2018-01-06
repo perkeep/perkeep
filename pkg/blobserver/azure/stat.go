@@ -17,34 +17,26 @@ limitations under the License.
 package azure
 
 import (
-	"fmt"
+	"context"
 	"os"
 
 	"go4.org/syncutil"
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 )
 
 var statGate = syncutil.NewGate(20) // arbitrary
 
-func (sto *azureStorage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (err error) {
+func (sto *azureStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) (err error) {
 	// TODO: use sto.cache
-	var wg syncutil.Group
-	for _, br := range blobs {
-		br := br
-		statGate.Start()
-		wg.Go(func() error {
-			defer statGate.Done()
-
-			size, err := sto.azureClient.Stat(br.String(), sto.container)
-			if err == nil {
-				dest <- blob.SizedRef{Ref: br, Size: uint32(size)}
-				return nil
-			}
-			if err == os.ErrNotExist {
-				return nil
-			}
-			return fmt.Errorf("error statting %v: %v", br, err)
-		})
-	}
-	return wg.Err()
+	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (sb blob.SizedRef, err error) {
+		size, err := sto.azureClient.Stat(br.String(), sto.container)
+		if err == nil {
+			return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
+		}
+		if err == os.ErrNotExist {
+			return sb, nil
+		}
+		return sb, err
+	})
 }

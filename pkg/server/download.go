@@ -356,20 +356,17 @@ func (dh *DownloadHandler) ServeFile(w http.ResponseWriter, r *http.Request, fil
 // It is the responsibility of the caller to check that dh.Fetcher is a
 // blobserver.BlobStatter.
 func (dh *DownloadHandler) statFiles(refs []blob.Ref) error {
-	statter, _ := dh.Fetcher.(blobserver.BlobStatter)
-	statted := make(map[blob.Ref]bool)
-	ch := make(chan (blob.SizedRef))
-	errc := make(chan (error))
-	go func() {
-		err := statter.StatBlobs(ch, refs)
-		close(ch)
-		errc <- err
-
-	}()
-	for sbr := range ch {
-		statted[sbr.Ref] = true
+	statter, ok := dh.Fetcher.(blobserver.BlobStatter)
+	if !ok {
+		return fmt.Errorf("DownloadHandler.Fetcher %T is not a BlobStatter", dh.Fetcher)
 	}
-	if err := <-errc; err != nil {
+	statted := make(map[blob.Ref]bool)
+
+	err := statter.StatBlobs(context.TODO(), refs, func(sb blob.SizedRef) error {
+		statted[sb.Ref] = true
+		return nil
+	})
+	if err != nil {
 		log.Printf("Error statting blob files for download archive: %v", err)
 		return fmt.Errorf("error looking for files")
 	}

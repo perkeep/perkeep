@@ -19,17 +19,15 @@ Package proxycache registers the "proxycache" blobserver storage type,
 which uses a provided blobserver as a cache for a second origin
 blobserver.
 
-The proxycache blobserver type also takes a sorted.KeyValue reference
-which it uses as the LRU for which old items to evict from the cache.
+If the provided maxCacheBytes is unspecified, the default is 512MB.
 
 Example config:
 
       "/cache/": {
           "handler": "storage-proxycache",
           "handlerArgs": {
-		  "origin": "",
-		  "cache": "",
-		  "meta": {},
+		  "origin": "/cloud-blobs/",
+		  "cache": "/local-ssd/",
 		  "maxCacheBytes": 536870912
           }
       },
@@ -39,7 +37,6 @@ package proxycache // import "perkeep.org/pkg/blobserver/proxycache"
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -47,42 +44,42 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"
 	"perkeep.org/internal/lru"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
-	"perkeep.org/pkg/blobserver/stats"
 )
 
-type sto struct {
-	origin     blobserver.Storage
-	cache      blobserver.Storage
-	statsCache *stats.Receiver
+// Storage implements the "proxycache" blob storage.
+type Storage struct {
+	origin blobserver.Storage
+	cache  blobserver.Storage
 
-	lru           *lru.Cache
+	debug         bool
 	maxCacheBytes int64
-	strictStats   bool // if true, only check with origin for Stats
 
-	mu                sync.Mutex // guards cacheBytes, isCleaning, and lastCleanFinished mutations
-	isCleaning        bool
-	lastCleanFinished time.Time
-	cacheBytes        int64
-	debug             bool
+	mu         sync.Mutex // guards following
+	lru        *lru.Cache
+	cacheBytes int64
 }
 
-func NewCache(maxBytes int64, cache, origin blobserver.Storage) blobserver.Storage {
-	sto := &sto{
+var (
+	_ blobserver.Storage = (*Storage)(nil)
+	// TODO:
+	// _ blobserver.Generationer = (*Storage)(nil)
+)
+
+// New returns a proxycache blob storage that reads from cache,
+// then origin, populating cache as needed, up to a total of maxBytes.
+func New(maxBytes int64, cache, origin blobserver.Storage) *Storage {
+	sto := &Storage{
 		origin:        origin,
 		cache:         cache,
-		lru:           lru.New(0),
-		statsCache:    &stats.Receiver{},
+		lru:           lru.NewUnlocked(0),
 		maxCacheBytes: maxBytes,
-		debug:         false,
 	}
-	sto.verifyCache(nil) // sets cacheBytes
 	return sto
 }
 
@@ -90,7 +87,7 @@ func init() {
 	blobserver.RegisterStorageConstructor("proxycache", blobserver.StorageConstructor(newFromConfig))
 }
 
-func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobserver.Storage, err error) {
+func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
 	var (
 		origin        = config.RequiredString("origin")
 		cache         = config.RequiredString("cache")
@@ -107,136 +104,56 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 	if err != nil {
 		return nil, err
 	}
-
-	s := &sto{
-		origin:        originSto,
-		cache:         cacheSto,
-		maxCacheBytes: maxCacheBytes,
-		lru:           lru.New(0),
-		statsCache:    &stats.Receiver{},
-		debug:         false,
-	}
-
-	s.verifyCache(nil)
-	return s, nil
+	return New(maxCacheBytes, cacheSto, originSto), nil
 }
 
-func (sto *sto) cleanCache() {
-	go func() {
-		sto.mu.Lock()
-		isCleaning := sto.isCleaning
-		sto.mu.Unlock()
-
-		if isCleaning {
-			// if we're already cleaning, don't start again
-			return
-		}
-
-		defer func() {
-			sto.mu.Lock()
-			sto.isCleaning = false
-			sto.lastCleanFinished = time.Now()
-			sto.mu.Unlock()
-		}()
-
-		sto.mu.Lock()
-		sto.isCleaning = true
-		sto.mu.Unlock()
-
-		for sto.needsRemoval() {
-			sto.removeOldest()
-		}
-	}()
-}
-
-func (sto *sto) needsRemoval() bool {
-	sto.mu.Lock()
-	defer sto.mu.Unlock()
-
-	if sto.debug {
-		log.Printf("cache size is %d/%d (%f%%)", sto.cacheBytes, sto.maxCacheBytes, 100*float64(sto.cacheBytes)/float64(sto.maxCacheBytes))
-	}
-
-	return sto.cacheBytes > sto.maxCacheBytes
-}
-
-func (sto *sto) removeOldest() {
-	sto.mu.Lock()
-	defer sto.mu.Unlock()
-
+// must hold sto.mu.
+// Reports whether an item was removed.
+func (sto *Storage) removeOldest() bool {
 	k, v := sto.lru.RemoveOldest()
-	entry := v.(*cacheEntry)
-	err := sto.cache.RemoveBlobs([]blob.Ref{entry.sb.Ref})
-	if err != nil {
-		log.Printf("proxycache: could not remove oldest blob %v: %v", k, err)
-		sto.lru.Add(k, entry)
-		return
+	if v == nil {
+		return false
 	}
-
-	err = sto.statsCache.RemoveBlobs([]blob.Ref{entry.sb.Ref})
+	sb := v.(blob.SizedRef)
+	// TODO: run these without sto.mu held in background
+	// goroutine? at least pass a context?
+	err := sto.cache.RemoveBlobs([]blob.Ref{sb.Ref})
 	if err != nil {
-		log.Println("proxycache: error removing blob:", err)
-		return
+		log.Printf("proxycache: could not remove oldest blob %v (%d bytes): %v", sb.Ref, sb.Size, err)
+		sto.lru.Add(k, v)
+		return false
 	}
-
 	if sto.debug {
-		log.Println("proxycache: removed blob:", k)
+		log.Printf("proxycache: removed blob %v (%d bytes)", sb.Ref, sb.Size)
 	}
-	sto.cacheBytes -= int64(entry.sb.Size)
+	sto.cacheBytes -= int64(sb.Size)
+	return true
 }
 
-func (sto *sto) touchStat(sb blob.SizedRef) {
+func (sto *Storage) touch(sb blob.SizedRef) {
 	key := sb.Ref.String()
-	_, old := sto.lru.Get(key)
-	sto.lru.Add(key, &cacheEntry{sb, time.Now(), true})
 
+	sto.mu.Lock()
+	defer sto.mu.Unlock()
+
+	_, old := sto.lru.Get(key)
 	if !old {
-		sto.mu.Lock()
-		defer sto.mu.Unlock()
-		_, err := sto.statsCache.ReceiveRef(sb.Ref, int64(sb.Size))
-		if err != nil {
-			log.Printf("error touching stat %v: %v", sb, err)
+		sto.lru.Add(key, sb)
+		sto.cacheBytes += int64(sb.Size)
+
+		// Clean while needed.
+		for sto.cacheBytes > sto.maxCacheBytes {
+			if !sto.removeOldest() {
+				break
+			}
 		}
 	}
-
-	if sto.debug {
-		log.Println("proxycache: touched stat:", sb)
-	}
-
-	sto.cleanCache()
 }
 
-func (sto *sto) touchBlob(sb blob.SizedRef) {
-	key := sb.Ref.String()
-
-	_, old := sto.lru.Get(key)
-	sto.lru.Add(key, &cacheEntry{sb, time.Now(), false})
-
-	if !old {
-		sto.mu.Lock()
-		defer sto.mu.Unlock()
-		sto.cacheBytes += int64(sb.Size)
-	}
-
-	if sto.debug {
-		log.Println("proxycache: touched blob:", key)
-	}
-
-	go sto.touchStat(sb)
-
-	sto.cleanCache()
-}
-
-type cacheEntry struct {
-	sb       blob.SizedRef
-	modtime  time.Time
-	statOnly bool
-}
-
-func (sto *sto) Fetch(b blob.Ref) (rc io.ReadCloser, size uint32, err error) {
+func (sto *Storage) Fetch(b blob.Ref) (rc io.ReadCloser, size uint32, err error) {
 	rc, size, err = sto.cache.Fetch(b)
 	if err == nil {
-		sto.touchBlob(blob.SizedRef{Ref: b, Size: size})
+		sto.touch(blob.SizedRef{Ref: b, Size: size})
 		return
 	}
 	if err != os.ErrNotExist {
@@ -250,138 +167,12 @@ func (sto *sto) Fetch(b blob.Ref) (rc io.ReadCloser, size uint32, err error) {
 	if err != nil {
 		return
 	}
-	go func() {
-		if _, err := blobserver.Receive(sto.cache, b, bytes.NewReader(all)); err != nil {
-			log.Printf("populating proxycache cache for %v: %v", b, err)
-			return
-		}
-		sto.touchBlob(blob.SizedRef{Ref: b, Size: size})
-	}()
-	return ioutil.NopCloser(bytes.NewReader(all)), size, nil
-}
-
-type CacheMissingRefError struct {
-	Ref  blob.Ref
-	Size uint32
-}
-
-func (e CacheMissingRefError) Error() string {
-	return fmt.Sprintf("proxycache: cache is missing ref %v", e.Ref)
-}
-
-type CacheHasExtraError struct {
-	Ref  blob.Ref
-	Size uint32
-}
-
-func (e CacheHasExtraError) Error() string {
-	return fmt.Sprintf("proxycache: cache has ref (%v) that does not exist in the origin", e.Ref)
-}
-
-type CacheHasWrongSizeError struct {
-	Ref                   blob.Ref
-	OriginSize, CacheSize uint32
-}
-
-func (e CacheHasWrongSizeError) Error() string {
-	return fmt.Sprintf("proxycache: for ref %v cache has size %d, but origin has %d", e.Ref, e.CacheSize, e.OriginSize)
-}
-
-func (sto *sto) verifyCache(refs []blob.Ref) error {
-	current := make(map[blob.Ref]uint32, 50)
-	currentRefs := make([]blob.Ref, 0, 50)
-
-	needRefsFromCache := map[blob.Ref]struct{}{}
-	for _, ref := range refs {
-		needRefsFromCache[ref] = struct{}{}
-	}
-
-	if len(refs) == 0 {
-		var cacheBytes int64
-		err := blobserver.EnumerateAll(context.Background(), sto.cache, func(sb blob.SizedRef) error {
-			cacheBytes += int64(sb.Size)
-			current[sb.Ref] = sb.Size
-			currentRefs = append(currentRefs, sb.Ref)
-			return nil
-		})
-		if err != nil {
-			return fmt.Errorf("proxycache: error enumerating stats for verification: %v", err)
-		}
-		sto.mu.Lock()
-		sto.cacheBytes = cacheBytes
-		sto.mu.Unlock()
+	if _, err := blobserver.Receive(sto.cache, b, bytes.NewReader(all)); err != nil {
+		log.Printf("populating proxycache cache for %v: %v", b, err)
 	} else {
-		cacheDest := make(chan blob.SizedRef, len(refs))
-		errCh := make(chan error, 1)
-
-		go func() {
-			errCh <- sto.cache.StatBlobs(cacheDest, refs)
-			close(cacheDest)
-		}()
-
-		for sb := range cacheDest {
-			current[sb.Ref] = sb.Size
-			currentRefs = append(currentRefs, sb.Ref)
-			delete(needRefsFromCache, sb.Ref)
-		}
-
-		err := <-errCh
-		if err != nil {
-			log.Println("proxycache: error getting stats from cache:", err)
-		}
+		sto.touch(blob.SizedRef{Ref: b, Size: size})
 	}
-
-	dest := make(chan blob.SizedRef, 50)
-	errCh := make(chan error, 1)
-
-	go func() {
-		errCh <- sto.origin.StatBlobs(dest, currentRefs)
-		close(dest)
-	}()
-
-	errs := errList{}
-
-	for neededRef := range needRefsFromCache {
-		errs = append(errs, CacheMissingRefError{
-			Ref: neededRef,
-		})
-	}
-
-	for sb := range dest {
-		cacheSize, cacheHas := current[sb.Ref]
-		if !cacheHas {
-			errs = append(errs, CacheMissingRefError{
-				Ref:  sb.Ref,
-				Size: sb.Size,
-			})
-			continue
-		}
-
-		if cacheSize != sb.Size {
-			errs = append(errs, CacheHasWrongSizeError{
-				Ref:        sb.Ref,
-				OriginSize: sb.Size,
-				CacheSize:  cacheSize,
-			})
-			continue
-		}
-
-		delete(current, sb.Ref)
-	}
-
-	err := <-errCh
-	if err != nil {
-		errs = append(errs, err)
-	}
-
-	for ref, size := range current {
-		errs = append(errs, CacheHasExtraError{
-			Ref:  ref,
-			Size: size,
-		})
-	}
-
-	return errs.OrNil()
+	return ioutil.NopCloser(bytes.NewReader(all)), size, nil
 }
 
 type errList []error
@@ -412,111 +203,55 @@ func (e errList) Error() string {
 	}
 }
 
-func (sto *sto) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) error {
-	gr := &syncutil.Group{}
-
-	cacheHits := make(chan blob.SizedRef, 0)
-	cacheMisses := make(chan blob.SizedRef, 0)
-
-	var timer *time.Timer
-
-	if sto.strictStats {
-		gr.Go(func() error {
-			defer close(cacheMisses)
-			return sto.origin.StatBlobs(cacheMisses, blobs)
-		})
-	} else {
-
-		gr.Go(func() error {
-			defer close(cacheHits)
-			return sto.statsCache.StatBlobs(cacheHits, blobs)
-		})
-
-		timer = time.AfterFunc(50*time.Millisecond, func() {
-			gr.Go(func() error {
-				defer close(cacheMisses)
-				return sto.origin.StatBlobs(cacheMisses, blobs)
-			})
-
-		})
+func (sto *Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
+	need := map[blob.Ref]bool{}
+	for _, br := range blobs {
+		need[br] = true
 	}
-
-	gr.Go(func() error {
-		seenBlobs := map[blob.Ref]struct{}{}
-
-		defer func() {
-			timer.Stop()
-		}()
-
-		for {
-			var sb blob.SizedRef
-			var moreHits, moreMisses bool
-
-			select {
-			case sb, moreHits = <-cacheHits:
-				if moreHits {
-					if sto.debug {
-						log.Println("cache hit:", sb)
-					}
-				} else {
-					cacheHits = nil
-					continue
-				}
-			case sb, moreMisses = <-cacheMisses:
-				if moreMisses {
-					if sto.debug {
-						log.Println("cache miss:", sb)
-					}
-				} else {
-					cacheMisses = nil
-					continue
-				}
-			}
-
-			if sb.Valid() {
-				sto.touchStat(sb)
-
-				_, old := seenBlobs[sb.Ref]
-				if !old {
-					seenBlobs[sb.Ref] = struct{}{}
-					dest <- sb
-				}
-			}
-
-			if len(seenBlobs) == len(blobs) {
-				return nil
-			}
-
-			if !moreHits && !moreMisses {
-				break
-			}
-		}
-
-		return errors.New("unexpected end of blob stats: couldn't find all the stats")
+	err := sto.cache.StatBlobs(ctx, blobs, func(sb blob.SizedRef) error {
+		sto.touch(sb)
+		delete(need, sb.Ref)
+		return fn(sb)
 	})
-
-	gr.Wait()
-	return gr.Err()
+	if err != nil {
+		return err
+	}
+	if len(need) == 0 {
+		// Cache had them all.
+		return nil
+	}
+	// And now any missing ones:
+	blobs = make([]blob.Ref, 0, len(need))
+	for br := range need {
+		blobs = append(blobs, br)
+	}
+	return sto.origin.StatBlobs(ctx, blobs, func(sb blob.SizedRef) error {
+		sto.touch(sb)
+		return fn(sb)
+	})
 }
 
-func (sto *sto) ReceiveBlob(br blob.Ref, src io.Reader) (sb blob.SizedRef, err error) {
+func (sto *Storage) ReceiveBlob(br blob.Ref, src io.Reader) (blob.SizedRef, error) {
 	// Slurp the whole blob before replicating. Bounded by 16 MB anyway.
 	var buf bytes.Buffer
-	if _, err = io.Copy(&buf, src); err != nil {
-		return
+	if _, err := io.Copy(&buf, src); err != nil {
+		return blob.SizedRef{}, err
 	}
 
-	if _, err = sto.cache.ReceiveBlob(br, bytes.NewReader(buf.Bytes())); err != nil {
-		return
+	sb, err := sto.origin.ReceiveBlob(br, bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		return sb, err
 	}
-	sb, err = sto.origin.ReceiveBlob(br, bytes.NewReader(buf.Bytes()))
-	if err == nil {
-		sto.touchBlob(sb)
+
+	if _, err := sto.cache.ReceiveBlob(br, bytes.NewReader(buf.Bytes())); err != nil {
+		log.Printf("proxycache: ignoring error populating blob %v in cache: %v", br, err)
+	} else {
+		sto.touch(sb)
 	}
 	return sb, err
 }
 
-func (sto *sto) RemoveBlobs(blobs []blob.Ref) error {
+func (sto *Storage) RemoveBlobs(blobs []blob.Ref) error {
 	var gr syncutil.Group
 	gr.Go(func() error {
 		return sto.cache.RemoveBlobs(blobs)
@@ -528,9 +263,6 @@ func (sto *sto) RemoveBlobs(blobs []blob.Ref) error {
 	return gr.Err()
 }
 
-func (sto *sto) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (sto *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	return sto.origin.EnumerateBlobs(ctx, dest, after, limit)
 }
-
-// TODO:
-//var _ blobserver.Generationer = (*sto)(nil)

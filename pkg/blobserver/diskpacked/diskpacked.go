@@ -428,27 +428,17 @@ func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 
 var statGate = syncutil.NewGate(20) // arbitrary
 
-func (s *storage) StatBlobs(dest chan<- blob.SizedRef, blobs []blob.Ref) (err error) {
-	var wg syncutil.Group
-
-	for _, br := range blobs {
-		br := br
-		statGate.Start()
-		wg.Go(func() error {
-			defer statGate.Done()
-
-			m, err := s.meta(br)
-			if err == nil {
-				dest <- m.SizedRef(br)
-				return nil
-			}
-			if err == os.ErrNotExist {
-				return nil
-			}
-			return err
-		})
-	}
-	return wg.Err()
+func (s *storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
+	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (sb blob.SizedRef, err error) {
+		m, err := s.meta(br)
+		if err == nil {
+			return m.SizedRef(br), nil
+		}
+		if err == os.ErrNotExist {
+			return sb, nil
+		}
+		return sb, err
+	})
 }
 
 func (s *storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {

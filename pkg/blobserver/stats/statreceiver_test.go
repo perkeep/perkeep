@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/test"
 )
 
@@ -47,44 +48,28 @@ func TestStats(t *testing.T) {
 		t.Fatal("stats reported the incorrect sum sizes:", st.SumBlobSize())
 	}
 
-	dest := make(chan blob.SizedRef, 5) // buffer past what we expect so we see if there is something extra
-	err := st.StatBlobs(dest, []blob.Ref{
+	gotStat, err := blobserver.StatBlobs(context.Background(), st, []blob.Ref{
 		foo.BlobRef(),
 		bar.BlobRef(),
 		foobar.BlobRef(),
 	})
-
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("StatBlobs: %v", err)
+	}
+	if _, ok := gotStat[foo.BlobRef()]; !ok {
+		t.Errorf("missing ref foo")
+	}
+	if _, ok := gotStat[bar.BlobRef()]; !ok {
+		t.Errorf("missing ref bar")
+	}
+	if _, ok := gotStat[foobar.BlobRef()]; !ok {
+		t.Errorf("missing ref foobar")
+	}
+	if len(gotStat) != 3 {
+		t.Errorf("got %d stat results; want 3", len(gotStat))
 	}
 
-	var foundFoo, foundBar, foundFoobar bool
-
-	func() {
-		for {
-			select {
-			case sb := <-dest:
-				switch {
-				case sb.Ref == foo.BlobRef():
-					foundFoo = true
-				case sb.Ref == bar.BlobRef():
-					foundBar = true
-				case sb.Ref == foobar.BlobRef():
-					foundFoobar = true
-				default:
-					t.Fatal("found unexpected ref:", sb)
-				}
-			default:
-				return
-			}
-		}
-	}()
-
-	if !foundFoo || !foundBar || !foundFoobar {
-		t.Fatalf("missing a ref: foo: %t bar: %t foobar: %t", foundFoo, foundBar, foundFoobar)
-	}
-
-	dest = make(chan blob.SizedRef, 2)
+	dest := make(chan blob.SizedRef, 2)
 	err = st.EnumerateBlobs(context.Background(), dest, "sha1-7", 2)
 	if err != nil {
 		t.Fatal(err)

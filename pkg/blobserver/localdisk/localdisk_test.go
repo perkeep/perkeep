@@ -17,6 +17,7 @@ limitations under the License.
 package localdisk
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -30,7 +31,6 @@ import (
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/storagetest"
 	"perkeep.org/pkg/test"
-	. "perkeep.org/pkg/test/asserts"
 )
 
 func cleanUp(ds *DiskStorage) {
@@ -72,20 +72,19 @@ func TestReceiveStat(t *testing.T) {
 	tb := &test.Blob{"Foo"}
 	tb.MustUpload(t, ds)
 
-	ch := make(chan blob.SizedRef, 0)
-	errch := make(chan error, 1)
-	go func() {
-		errch <- ds.StatBlobs(ch, tb.BlobRefSlice())
-		close(ch)
-	}()
-	got := 0
-	for sb := range ch {
-		got++
-		tb.AssertMatches(t, sb)
-		break
+	ctx := context.Background()
+	got, err := blobserver.StatBlobs(ctx, ds, tb.BlobRefSlice())
+	if err != nil {
+		t.Fatalf("StatBlobs: %v", err)
 	}
-	AssertInt(t, 1, got, "number stat results")
-	AssertNil(t, <-errch, "result from stat")
+	if len(got) != 1 {
+		t.Errorf("got %d stat blobs; expected 1", len(got))
+	}
+	sb, ok := got[tb.BlobRef()]
+	if !ok {
+		t.Fatalf("stat response lacked information for %v", tb.BlobRef())
+	}
+	tb.AssertMatches(t, sb)
 }
 
 func TestMultiStat(t *testing.T) {
@@ -110,14 +109,13 @@ func TestMultiStat(t *testing.T) {
 		blobs = append(blobs, blob.SHA1FromString(strconv.Itoa(i)))
 	}
 
-	ch := make(chan blob.SizedRef, 0)
-	errch := make(chan error, 1)
-	go func() {
-		errch <- ds.StatBlobs(ch, blobs)
-		close(ch)
-	}()
+	ctx := context.Background()
+	gotStat, err := blobserver.StatBlobs(ctx, ds, blobs)
+	if err != nil {
+		t.Fatalf("StatBlobs: %v", err)
+	}
 	got := 0
-	for sb := range ch {
+	for _, sb := range gotStat {
 		got++
 		if !need[sb.Ref] {
 			t.Errorf("didn't need %s", sb.Ref)
@@ -126,9 +124,6 @@ func TestMultiStat(t *testing.T) {
 	}
 	if want := 2; got != want {
 		t.Errorf("number stats = %d; want %d", got, want)
-	}
-	if err := <-errch; err != nil {
-		t.Errorf("StatBlobs: %v", err)
 	}
 	if len(need) != 0 {
 		t.Errorf("Not all stat results returned; still need %d", len(need))
