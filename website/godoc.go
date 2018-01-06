@@ -42,9 +42,7 @@ import (
 )
 
 const (
-	pkgPattern       = "/pkg/"
 	cmdPattern       = "/cmd/"
-	appPattern       = "/app/"
 	fileembedPattern = "fileembed.go"
 )
 
@@ -244,13 +242,6 @@ func (pi *PageInfo) populateDirs(diskPath string, depth int) {
 }
 
 func getPageInfo(pkgName, diskPath string) (pi PageInfo, err error) {
-	if pkgName == pathpkg.Join(domainName, pkgPattern) ||
-		pkgName == pathpkg.Join(domainName, cmdPattern) ||
-		pkgName == pathpkg.Join(domainName, appPattern) {
-		pi.Dirname = diskPath
-		pi.populateDirs(diskPath, -1)
-		return
-	}
 	bpkg, err := build.ImportDir(diskPath, 0)
 	if err != nil {
 		if _, ok := err.(*build.NoGoError); ok {
@@ -289,7 +280,7 @@ func getPageInfo(pkgName, diskPath string) (pi PageInfo, err error) {
 
 	pi.Dirname = diskPath
 	pi.PDoc = doc.New(aPkg, pkgName, 0)
-	pi.IsPkg = strings.Contains(pkgName, domainName+pkgPattern)
+	pi.IsPkg = pi.PDoc.Name != "main"
 
 	// get directory information
 	pi.populateDirs(diskPath, -1)
@@ -407,33 +398,30 @@ func serveTextFile(w http.ResponseWriter, r *http.Request, abspath, relpath, tit
 	})
 }
 
-type godocHandler struct{}
-
-func (godocHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	m := docRx.FindStringSubmatch(r.URL.Path)
-	suffix := ""
-	if m == nil {
-		if r.URL.Path != pkgPattern && r.URL.Path != cmdPattern && r.URL.Path != appPattern {
-			http.NotFound(w, r)
-			return
-		}
-		suffix = r.URL.Path
-	} else {
-		suffix = m[1]
-	}
+func serveGodoc(w http.ResponseWriter, r *http.Request) error {
+	suffix := r.URL.Path
 	diskPath := filepath.Join(*root, "..", suffix)
 
-	switch pathpkg.Ext(suffix) {
-	case ".go":
+	fi, err := os.Stat(diskPath)
+	if err != nil {
+		return err
+	}
+
+	switch {
+	case isGoFile(fi):
 		serveTextFile(w, r, diskPath, suffix, "Source file")
-		return
+		return nil
+	case isPkgDir(fi):
+		break
+	default:
+		return os.ErrInvalid
 	}
 
 	pkgName := pathpkg.Join(domainName, suffix)
 	pi, err := getPageInfo(pkgName, diskPath)
 	if err != nil {
 		log.Print(err)
-		return
+		return err
 	}
 
 	subtitle := pathpkg.Base(diskPath)
@@ -443,4 +431,5 @@ func (godocHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		subtitle: subtitle,
 		content:  applyTextTemplate(packageHTML, "packageHTML", pi),
 	})
+	return nil
 }

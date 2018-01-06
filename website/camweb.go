@@ -316,6 +316,13 @@ func mainHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// try to serve godoc if requested path exists
+	if req.URL.Path != "/" {
+		if err := serveGodoc(rw, req); err == nil {
+			return
+		}
+	}
+
 	findAndServeFile(rw, req, filepath.Join(*root, "content"))
 }
 
@@ -871,9 +878,6 @@ func main() {
 	mux.Handle("/robots.txt", http.FileServer(http.Dir(filepath.Join(*root, "static"))))
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(filepath.Join(*root, "static")))))
 	mux.Handle("/talks/", http.StripPrefix("/talks/", http.FileServer(http.Dir(filepath.Join(*root, "talks")))))
-	mux.Handle(pkgPattern, godocHandler{})
-	mux.Handle(cmdPattern, godocHandler{})
-	mux.Handle(appPattern, godocHandler{})
 	mux.HandleFunc(errPattern, errHandler)
 
 	// Google Webmaster Tools ownership proof:
