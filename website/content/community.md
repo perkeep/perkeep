@@ -16,5 +16,5 @@ how to [get the code and how to start submitting changes](/code).
     home (issues + source mirror)
 -   [**Issues**](https://github.com/perkeep/perkeep/issues):
     Issue/bug tracker
--   [**\#camlistore**](irc://chat.freenode.net/camlistore): Camlistore
+-   [**\#perkeep**](irc://chat.freenode.net/#perkeep): Perkeep
     on Freenode IRC
