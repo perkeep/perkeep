@@ -139,10 +139,6 @@ Offline list:
    where the lifetime of the background daemon will be the same as the
    user's login session.
 
--- website: remove the "Installation" heading for /cmd/*, since
-   they're misleading and people should use "go run make.go" in the
-   general case.
-
 -- website: add godoc for /server/camlistored (also without a "go get"
    line)
 
