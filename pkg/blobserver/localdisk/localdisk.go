@@ -31,9 +31,12 @@ Example low-level config:
 package localdisk // import "perkeep.org/pkg/blobserver/localdisk"
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -138,6 +141,10 @@ func New(root string) (*DiskStorage, error) {
 	// Setting the gate to 80% of the ulimit, to leave a bit of room for other file ops happening in Camlistore.
 	// TODO(mpl): make this used and enforced Camlistore-wide. Issue #837.
 	ds.tmpFileGate = syncutil.NewGate(int(ul * 80 / 100))
+	err = ds.checkFS()
+	if err != nil {
+		return nil, err
+	}
 	return ds, nil
 }
 
@@ -228,6 +235,52 @@ func (ds *DiskStorage) RemoveBlobs(blobs []blob.Ref) error {
 		default:
 			return err
 		}
+	}
+	return nil
+}
+
+// checkFS verifies the DiskStorage root storage path
+// operations include: stat, read/write file, mkdir, delete (files and directories)
+func (ds *DiskStorage) checkFS() (ret error) {
+	tempdir, err := ioutil.TempDir(ds.root, "")
+	if err != nil {
+		return fmt.Errorf("localdisk check: unable to create tempdir in %s, err=%v", ds.root, err)
+	}
+	defer func() {
+		err := os.RemoveAll(tempdir)
+		if err != nil {
+			cleanErr := fmt.Errorf("localdisk check: unable to clean temp dir: %v", err)
+			if ret == nil {
+				ret = cleanErr
+			} else {
+				log.Printf("WARNING: %v", cleanErr)
+			}
+		}
+	}()
+
+	tempfile := filepath.Join(tempdir, "FILE.tmp")
+	filename := filepath.Join(tempdir, "FILE")
+	data := []byte("perkeep rocks")
+	err = ioutil.WriteFile(tempfile, data, 0644)
+	if err != nil {
+		return fmt.Errorf("localdisk check: unable to write into %s, err=%v", ds.root, err)
+	}
+
+	out, err := ioutil.ReadFile(tempfile)
+	if err != nil {
+		return fmt.Errorf("localdisk check: unable to read from %s, err=%v", tempfile, err)
+	}
+	if bytes.Compare(out, data) != 0 {
+		return fmt.Errorf("localdisk check: tempfile contents didn't match, got=%q", out)
+	}
+	if _, err := os.Lstat(filename); !os.IsNotExist(err) {
+		return fmt.Errorf("localdisk check: didn't expect file to exist, Lstat had other error, err=%v", err)
+	}
+	if err := os.Rename(tempfile, filename); err != nil {
+		return fmt.Errorf("localdisk check: rename failed, err=%v", err)
+	}
+	if _, err := os.Lstat(filename); err != nil {
+		return fmt.Errorf("localdisk check: after rename passed Lstat had error, err=%v", err)
 	}
 	return nil
 }
