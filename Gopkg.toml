@@ -1,0 +1,294 @@
+# Gopkg for Perkeep
+#
+# Refer to https://github.com/golang/dep/blob/master/docs/Gopkg.toml.md
+# for detailed Gopkg.toml documentation.
+
+# The required section includes packages that are indirectly used and
+# tools used during build like gopherjs.  Note that you have to
+# reference a package with go code included here, which may not be the
+# root level of the repo.
+
+required = [
+  "github.com/fsnotify/fsnotify",
+  "github.com/spf13/cobra", # for gopherjs
+  "github.com/spf13/pflag", # for gopherjs
+  "github.com/cznic/internal/buffer",
+  "github.com/shurcooL/sanitized_anchor_name",
+  "github.com/cznic/internal/file",
+  "github.com/fsnotify/fsnotify",
+  "github.com/golang/snappy",
+  "github.com/googleapis/gax-go",
+  "github.com/gopherjs/gopherjs",
+  "github.com/gopherjs/gopherjs/nosync",
+  "github.com/kardianos/osext", # for gopherjs
+  "github.com/kisielk/gotool",
+  "google.golang.org/grpc", # fork by bradfitz
+  "golang.org/x/text",
+  "github.com/neelance/sourcemap",
+  "github.com/syndtr/gosnappy/snappy",
+  "golang.org/x/sys/unix",
+  "golang.org/x/tools/go/types/typeutil", # for gopherjs
+  "golang.org/x/tools/go/gcimporter15", # for gopherjs
+  "google.golang.org/genproto/googleapis/datastore/v1",
+  "myitcv.io/react/cmd/reactGen",
+  "myitcv.io/gogenerate"
+]
+
+# Constraints / Overrides follow
+# Semantic versions (like v1.0.0) are preferred
+# Please keep alphabetized
+
+[[constraint]]
+  name = "bazil.org/fuse"
+  revision = "371fbbdaa8987b715bdd21d6adc4c9b20155f748"
+
+[[constraint]]
+  name = "cloud.google.com/go"
+  revision = "b70ccc799b9d019708c3eb9395acef6e3f6b7bc8"
+
+
+# github.com
+
+[[constraint]]
+  name = "github.com/FiloSottile/b2"
+  revision = "b197f7a2c317098d18afe80f0d6789782d52a090"
+
+[[constraint]]
+  name = "github.com/bradfitz/latlong"
+  revision = "b745505085619d2818bc4b32b5a9fcc539e551fd"
+
+[[constraint]]
+  name = "github.com/cznic/fileutil"
+  revision = "2d566d841097e1297dfb576f809cf9eeecbdbc37"
+
+[[constraint]]
+  name = "github.com/cznic/internal"
+  revision = "4747030f7cf2f4c0a01512b00cd68734b167ac3b"
+
+[[constraint]]
+  name = "github.com/cznic/kv"
+  revision = "892ccf731fb7aa5e9aa300eb24456d1519afcfc7"
+
+[[constraint]]
+  name = "github.com/cznic/lldb"
+  revision = "bea8611dd5c407f3c5eab9f9c68e887a27dc6f0e"
+
+[[constraint]]
+  name = "github.com/cznic/mathutil"
+  revision = "09cde8d5df5fd3e1944897ce6d00d83dd5ed3a91"
+
+[[constraint]]
+  name = "github.com/cznic/sortutil"
+  revision = "4c7342852e65c2088c981288f2c5610d10b9f7f4"
+
+[[constraint]]
+  name = "github.com/cznic/zappy"
+  revision = "2533cb5b45cc6c07421468ce262899ddc9d53fb7"
+
+[[constraint]]
+  name = "github.com/edsrzf/mmap-go"
+  revision = "0bce6a6887123b67a60366d2c9fe2dfb74289d2e"
+
+[[constraint]]
+  name = "github.com/fsnotify/fsnotify"
+  revision = "629574ca2a5df945712d3079857300b5e4da0236"
+
+[[constraint]]
+  name = "github.com/garyburd/go-oauth"
+  revision = "7d749055310d0d9fed966cd500664dbca484967e"
+
+[[constraint]]
+  name = "github.com/go-sql-driver/mysql"
+  revision = "9a7aa3606b82e2081a13a008ada88dfdb96c20fd"
+
+[[constraint]]
+  name = "github.com/golang/protobuf"
+  revision = "8ee79997227bf9b34611aee7946ae64735e6fd93"
+
+[[constraint]]
+  name = "github.com/golang/snappy"
+  revision = "553a641470496b2327abcac10b36396bd98e45c9"
+
+[[constraint]]
+  name = "github.com/googleapis/gax-go"
+  revision = "da06d194a00e19ce00d9011a13931c3f6f6887c7"
+
+[[constraint]]
+  name = "github.com/gopherjs/gopherjs"
+  revision = "b40cd48c38f9a18eb3db20d163bad78de12cf0b7"
+
+[[constraint]]
+  name = "github.com/gopherjs/jquery"
+  revision = "fbbfc4bbe29a29cb05788b66be44e0ac7f43cac7"
+
+[[constraint]]
+  name = "github.com/gopherjs/jsbuiltin"
+  revision = "67703bfb044e3192fbcab025c3aeaeedafad1f2f"
+
+[[constraint]]
+  name = "github.com/kardianos/osext"
+  revision = "29ae4ffbc9a6fe9fb2bc5029050ce6996ea1d3bc"
+
+[[constraint]]
+  name = "github.com/gorilla/websocket"
+  revision = "2119675aadf"
+
+[[constraint]]
+  name = "github.com/hjfreyer/taglib-go"
+  revision = "0ef8bba9c41b66c12f60ce9833786838d2c2d3d8"
+
+[[constraint]]
+  name = "github.com/kisielk/gotool"
+  revision = "0de1eaf82fa3f583ce21fde859f1e7e0c5e9b220"
+
+[[constraint]]
+  name = "github.com/lib/pq"
+  revision = "9afcd9aa793101bd0536da34e74ae0123345bab1"
+
+[[constraint]]
+  name = "github.com/mailgun/mailgun-go"
+  revision = "17e8bd11e87cb660ba5da8d635bbeae44b9443ac"
+
+[[constraint]]
+  name = "github.com/mattn/go-sqlite3"
+  revision = "919cf4144a09abfd877330bbe735f3a243a84537"
+
+[[constraint]]
+  name = "github.com/miekg/dns"
+  revision = "3f1f7c8ec9ead89493df11f2c3d8bec353a2c2c0"
+
+[[constraint]]
+  name = "github.com/neelance/sourcemap"
+  revision = "8c68805598ab8d5637b1a72b5f7d381ea0f39c31"
+
+[[constraint]]
+  name = "github.com/nf/cr2"
+  revision = "05d46fef4f2f903240751e25871cd318d001deba"
+
+[[constraint]]
+  name = "github.com/pkg/errors"
+  revision = "f15c970de5b76fac0b59abb32d62c17cc7bed265"
+
+[[constraint]]
+  name = "github.com/plaid/plaid-go"
+  revision = "02b6af68061bf89a293eaf15dc6c955ce02dd22b"
+
+[[constraint]]
+  name = "github.com/russross/blackfriday"
+  revision = "151efb040f183f3b968215a236c71a2614b62879"
+
+[[constraint]]
+  name = "github.com/rwcarlsen/goexif"
+  revision = "709fab3d192d7c62f86043caff1e7e3fb0f42bd8"
+
+[[constraint]]
+  name = "github.com/shurcooL/sanitized_anchor_name"
+  revision = "11a20b799bf22a02808c862eb6ca09f7fb38f84a"
+
+[[constraint]]
+  name = "github.com/spf13/cobra"
+  revision = "c678ff029ee250b65714e518f4f5c5cb934955de"
+
+[[constraint]]
+  name = "github.com/spf13/pflag"
+  revision = "7f60f83a2c81bc3c3c0d5297f61ddfa68da9d3b7"
+
+[[constraint]]
+  name = "github.com/syndtr/goleveldb"
+  revision = "4875955338b0a434238a31165cb87255ab6e9e4a"
+
+[[constraint]]
+  name = "github.com/syndtr/gosnappy"
+  revision = "156a073208e131d7d2e212cb749feae7c339e846"
+
+[[constraint]]
+  name = "github.com/tgulacsi/picago"
+  revision = "9e1ac2306c701ca7477a169b2b49902b7b4c58bf"
+
+[[constraint]]
+  name = "go4.org"
+  revision = "c3a8ba339e20006b054736f8eb9fc5e1d5fa6eab"
+
+
+# golang/x
+
+[[constraint]]
+  name = "golang.org/x/crypto"
+  revision = "ede567c8e044a5913dad1d1af3696d9da953104c"
+
+[[constraint]]
+  name = "golang.org/x/image"
+  #branch = "master"
+  #revision = "b3d8467d91f6ab3c9240e1c1e98309baf9ba6343"
+  revision = "12117c17ca67ffa1ce22e9409f3b0b0a93ac08c7"
+
+[[constraint]]
+  name = "golang.org/x/net"
+  revision = "d866cfc389cec985d6fda2859936a575a55a3ab6"
+
+# picago uses branch="master", override for now to match our explicit version
+[[override]]
+  revision = "197281d4e0ecd78c33865daf9c6e51626feefcb2"
+  name = "golang.org/x/oauth2"
+
+[[constraint]]
+  name = "golang.org/x/sync"
+  revision = "fd80eb99c"
+
+[[constraint]]
+  name = "golang.org/x/sys"
+  revision = "8fdfb00a6a1add0f7a145480e3729a5427a74375"
+
+[[constraint]]
+  name = "golang.org/x/text"
+  revision = "88f656faf3f37f690df1a32515b479415e1a6769"
+
+[[constraint]]
+  name = "golang.org/x/tools"
+  revision ="e531a2a1c15f94033f6fa87666caeb19a688175f"
+
+[[constraint]]
+  revision = "a4bde12657593d5e90d0533a3e4fd95e635124cb"
+  name = "golang.org/x/time"
+
+
+# google.golang.org
+
+[[constraint]]
+  revision = "48e49d1645e228d1c50c3d54fb476b2224477303"
+  name = "google.golang.org/api"
+
+[[constraint]]
+  name = "google.golang.org/genproto"
+  revision = "08f135d1a31b6ba454287638a3ce23a55adace6f"
+
+# Brad's fork of grpc
+[[constraint]]
+  name = "google.golang.org/grpc"
+  source = "https://github.com/bradfitz/grpc-go.git"
+  revision = "188a132adcfba339f1f2d5da52498451341f9ee8"
+
+
+[[constraint]]
+  name = "gopkg.in/mgo.v2"
+  branch = "v2"
+
+[[constraint]]
+  name = "honnef.co/go/js/dom"
+  revision = "24aa052bc5c63cfb9383bf59493ee48621ca788c"
+
+[[constraint]]
+  name = "myitcv.io/gogenerate"
+  revision ="bd69a94c96953d20e106734856b69d71c8fa122b"
+
+[[constraint]]
+  name = "myitcv.io/react"
+  revision = "bca7c66b77ed8a5b86fb77cff70914c4a7cc3ce5"
+
+[[constraint]]
+  name = "rsc.io/pdf"
+  revision = "1d34785eb915fd1ea1c437ad41621c9066642030"
+
+[[constraint]]
+  name = "rsc.io/qr"
+  revision = "48b2ede4844e13f1a2b7ce4d2529c9af7e359fc5"

@@ -1,4 +1,4 @@
-// +build none
+// +build windows
 
 package cobra
 
