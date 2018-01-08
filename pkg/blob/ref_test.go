@@ -34,6 +34,7 @@ var parseTests = []struct {
 	skipBytes bool // skip ParseBytes test
 }{
 	{in: "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"},
+	{in: "sha224-d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f"},
 	{in: "foo-0b"},
 	{in: "foo-0b0c"},
 
@@ -312,6 +313,10 @@ var equalStringTests = []struct {
 	{MustParse("foo-cafe"), "fooxbeef", false},
 	{MustParse("foo-caf"), "foo-cae", false},
 	{MustParse("foo-caf"), "foo-ca", false},
+
+	{MustParse("sha224-d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f"), "sha224-d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f", true},
+	{MustParse("sha224-d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f"), "sha224-d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42g", false}, // last byte wrong
+	{MustParse("sha224-d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f"), "sha224-d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42e", false}, // last byte wrong
 }
 
 func TestEqualString(t *testing.T) {
@@ -372,6 +377,12 @@ var hasPrefixTests = []struct {
 	{MustParse("foo-cafe"), "foo-c", true},
 	{MustParse("foo-caf"), "foo-cae", false},
 	{MustParse("foo-caf"), "foo-cb", false},
+
+	{MustParse("sha224-d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f"), "sha224-d14a", true},
+	{MustParse("sha224-d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f"), "sha224-d14b", false},
+	{MustParse("sha224-d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f"), "sha224-d14", true},
+	{MustParse("sha224-d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f"), "sha224-d15", false},
+	{MustParse("sha224-d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f"), "sha224-", false}, // TODO: make this true?
 }
 
 func TestHasPrefix(t *testing.T) {
@@ -392,5 +403,20 @@ func BenchmarkHasPrefix(b *testing.B) {
 				b.Fatalf("ref %q HasPrefix(%q) = %v; want %v", tt.ref, tt.str, got, tt.want)
 			}
 		}
+	}
+}
+
+func TestConstructors(t *testing.T) {
+	if got, want := SHA1FromString("foo"), "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"; got.String() != want {
+		t.Errorf("SHA1FromString = %v; want %v", got.String(), want)
+	}
+	if got, want := SHA1FromBytes([]byte("foo")), "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"; got.String() != want {
+		t.Errorf("SHA1FromBytes = %v; want %v", got, want)
+	}
+	if got, want := SHA224FromString("foo"), "sha224-0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db"; got.String() != want {
+		t.Errorf("SHA224FromString = %v; want %v", got, want)
+	}
+	if got, want := SHA224FromBytes([]byte("foo")), "sha224-0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db"; got.String() != want {
+		t.Errorf("SHA224FromBytes = %v; want %v", got, want)
 	}
 }

@@ -227,7 +227,7 @@ func TestCamputBlob(t *testing.T) {
 		if exit != 0 {
 			t.Fatalf("Exit status %d: stdout=[%s], stderr=[%s]", exit, stdout, stderr)
 		}
-		if got, want := string(stdout), "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33\n"; got != want {
+		if got, want := string(stdout), "sha224-0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db\n"; got != want {
 			t.Errorf("Stdout = %q; want %q", got, want)
 		}
 	})

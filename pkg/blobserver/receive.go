@@ -17,6 +17,7 @@ limitations under the License.
 package blobserver
 
 import (
+	"fmt"
 	"hash"
 	"io"
 	"strings"
@@ -45,7 +46,11 @@ func ReceiveNoHash(dst BlobReceiver, br blob.Ref, src io.Reader) (blob.SizedRef,
 func receive(dst BlobReceiver, br blob.Ref, src io.Reader, checkHash bool) (sb blob.SizedRef, err error) {
 	src = io.LimitReader(src, MaxBlobSize)
 	if checkHash {
-		src = &checkHashReader{br.Hash(), br, src, false}
+		h := br.Hash()
+		if h == nil {
+			return sb, fmt.Errorf("invalid blob type %v; no registered hash function", br)
+		}
+		src = &checkHashReader{h, br, src, false}
 	}
 	sb, err = dst.ReceiveBlob(br, src)
 	if err != nil {

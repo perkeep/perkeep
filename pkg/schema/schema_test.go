@@ -505,7 +505,7 @@ func TestIssue305(t *testing.T) {
 	if err := json.NewDecoder(strings.NewReader(in)).Decode(&ss); err != nil {
 		t.Fatal(err)
 	}
-	inref := blob.SHA1FromString(in)
+	inref := blob.RefFromString(in)
 	blob, err := BlobFromReader(inref, strings.NewReader(in))
 	if err != nil {
 		t.Fatal(err)
