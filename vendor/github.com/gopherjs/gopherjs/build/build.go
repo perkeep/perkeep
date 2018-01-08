@@ -19,10 +19,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/gopherjs/gopherjs/compiler"
 	"github.com/gopherjs/gopherjs/compiler/natives"
 	"github.com/neelance/sourcemap"
-	fsnotify "perkeep.org/internal/fakefsnotify"
 )
 
 type ImportCError struct {

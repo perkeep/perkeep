@@ -1,1 +1,0 @@
-var dummystr = "lorem ipsum";
