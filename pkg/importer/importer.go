@@ -1399,7 +1399,7 @@ func (o *Object) ChildPathObject(path string) (*Object, error) {
 	return o.ChildPathObjectOrFunc(path, o.h.NewObject)
 }
 
-// ChildPathObject returns the child object from the permanode o,
+// ChildPathObjectOrFunc returns the child object from the permanode o,
 // given by the "camliPath:xxxx" attribute, where xxx is the provided
 // path. If the path doesn't exist, the provided func should return an
 // appropriate object. If the func fails, the return error is

@@ -179,7 +179,7 @@ func MIMETypeFromReader(r io.Reader) (mime string, reader io.Reader) {
 	return mime, io.MultiReader(&buf, r)
 }
 
-// MIMETypeFromReader takes a ReaderAt, sniffs the beginning of it,
+// MIMETypeFromReaderAt takes a ReaderAt, sniffs the beginning of it,
 // and returns the MIME type if sniffed, else the empty string.
 func MIMETypeFromReaderAt(ra io.ReaderAt) (mime string) {
 	var buf [1024]byte

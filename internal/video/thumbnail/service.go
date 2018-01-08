@@ -109,14 +109,14 @@ func (s *Service) Generate(videoRef blob.Ref, w io.Writer, src blob.Fetcher) err
 	}
 	defer ln.Close()
 
-	videoUri := &url.URL{
+	videoURI := &url.URL{
 		Scheme: "http",
 		Host:   ln.Addr().String(),
 		Path:   videoRef.String(),
 	}
 
 	cmdErrc := make(chan error, 1)
-	cmd := buildCmd(s.thumbnailer, videoUri, w)
+	cmd := buildCmd(s.thumbnailer, videoURI, w)
 	cmdErrOut, err := cmd.StderrPipe()
 	if err != nil {
 		return err

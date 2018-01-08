@@ -68,7 +68,7 @@ func DefaultEnvConfig() (*Config, error) {
 	if v := osutil.SecretRingFile(); !strings.HasPrefix(v, "/gcs/") {
 		return nil, fmt.Errorf("Internal error: secret ring path on GCE should be at /gcs/, not %q", v)
 	}
-	keyId, secRing, err := getOrMakeKeyring()
+	keyID, secRing, err := getOrMakeKeyring()
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func DefaultEnvConfig() (*Config, error) {
 	highConf := &serverconfig.Config{
 		Auth:               auth,
 		HTTPS:              true,
-		Identity:           keyId,
+		Identity:           keyID,
 		IdentitySecretRing: secRing,
 		GoogleCloudStorage: ":" + strings.TrimPrefix(blobBucket, "gs://"),
 		PackRelated:        true,

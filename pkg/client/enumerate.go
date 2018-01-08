@@ -71,7 +71,7 @@ func (c *Client) EnumerateBlobsOpts(ctx context.Context, ch chan<- blob.SizedRef
 
 	error := func(msg string, e error) error {
 		err := fmt.Errorf("client enumerate error: %s: %v", msg, e)
-		c.printf("%v", err.Error)
+		c.printf("%v", err)
 		return err
 	}
 

@@ -30,7 +30,7 @@ import (
 	"bazil.org/fuse/fs"
 )
 
-// If TrackStats is true, statistics are kept on operations.
+// TrackStats controls whether statistics are kept on operations.
 var TrackStats bool
 
 func init() {

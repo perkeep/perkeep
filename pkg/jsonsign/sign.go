@@ -36,7 +36,7 @@ import (
 )
 
 type EntityFetcher interface {
-	FetchEntity(keyId string) (*openpgp.Entity, error)
+	FetchEntity(keyID string) (*openpgp.Entity, error)
 }
 
 type FileEntityFetcher struct {
@@ -54,10 +54,10 @@ type CachingEntityFetcher struct {
 	m  map[string]*openpgp.Entity
 }
 
-func (ce *CachingEntityFetcher) FetchEntity(keyId string) (*openpgp.Entity, error) {
+func (ce *CachingEntityFetcher) FetchEntity(keyID string) (*openpgp.Entity, error) {
 	ce.lk.Lock()
 	if ce.m != nil {
-		e := ce.m[keyId]
+		e := ce.m[keyID]
 		if e != nil {
 			ce.lk.Unlock()
 			return e, nil
@@ -65,20 +65,20 @@ func (ce *CachingEntityFetcher) FetchEntity(keyId string) (*openpgp.Entity, erro
 	}
 	ce.lk.Unlock()
 
-	e, err := ce.Fetcher.FetchEntity(keyId)
+	e, err := ce.Fetcher.FetchEntity(keyID)
 	if err == nil {
 		ce.lk.Lock()
 		defer ce.lk.Unlock()
 		if ce.m == nil {
 			ce.m = make(map[string]*openpgp.Entity)
 		}
-		ce.m[keyId] = e
+		ce.m[keyID] = e
 	}
 
 	return e, err
 }
 
-func (fe *FileEntityFetcher) FetchEntity(keyId string) (*openpgp.Entity, error) {
+func (fe *FileEntityFetcher) FetchEntity(keyID string) (*openpgp.Entity, error) {
 	f, err := wkfs.Open(fe.File)
 	if err != nil {
 		return nil, fmt.Errorf("jsonsign: FetchEntity: %v", err)
@@ -90,7 +90,7 @@ func (fe *FileEntityFetcher) FetchEntity(keyId string) (*openpgp.Entity, error) 
 	}
 	for _, e := range el {
 		pubk := &e.PrivateKey.PublicKey
-		if pubk.KeyIdString() != keyId {
+		if pubk.KeyIdString() != keyID {
 			continue
 		}
 		if e.PrivateKey.Encrypted {
@@ -101,7 +101,7 @@ func (fe *FileEntityFetcher) FetchEntity(keyId string) (*openpgp.Entity, error) 
 		}
 		return e, nil
 	}
-	return nil, fmt.Errorf("jsonsign: entity for keyid %q not found in %q", keyId, fe.File)
+	return nil, fmt.Errorf("jsonsign: entity for keyid %q not found in %q", keyID, fe.File)
 }
 
 type SignRequest struct {

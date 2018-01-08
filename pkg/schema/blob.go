@@ -190,7 +190,7 @@ type Claim struct {
 // Blob returns the claim's Blob.
 func (c Claim) Blob() *Blob { return c.b }
 
-// ClaimDate returns the blob's "claimDate" field.
+// ClaimDateString returns the blob's "claimDate" field.
 func (c Claim) ClaimDateString() string { return c.b.ss.ClaimDate.String() }
 
 // ClaimType returns the blob's "claimType" field.
@@ -314,7 +314,7 @@ func (sf StaticFile) AsStaticFIFO() (fifo StaticFIFO, ok bool) {
 	return
 }
 
-// AsSataticSocket returns the StaticFile as a StaticSocket if the
+// AsStaticSocket returns the StaticFile as a StaticSocket if the
 // StaticFile represents a socket. Otherwise, it returns the zero
 // value of StaticSocket and false.
 func (sf StaticFile) AsStaticSocket() (ss StaticSocket, ok bool) {

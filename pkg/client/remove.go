@@ -32,8 +32,9 @@ type removeResponse struct {
 	Removed []string `json:"removed"`
 }
 
-// Remove the list of blobs. An error is returned if the server failed to
-// remove a blob. Removing a non-existent blob isn't an error.
+// RemoveBlobs removes the list of blobs. An error is returned if the
+// server failed to remove a blob. Removing a non-existent blob isn't
+// an error.
 func (c *Client) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	if c.sto != nil {
 		return c.sto.RemoveBlobs(ctx, blobs)
@@ -83,7 +84,7 @@ func (c *Client) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	return nil
 }
 
-// Remove the single blob. An error is returned if the server failed to remove
+// RemoveBlob removes the provided blob. An error is returned if the server failed to remove
 // the blob. Removing a non-existent blob isn't an error.
 func (c *Client) RemoveBlob(ctx context.Context, b blob.Ref) error {
 	return c.RemoveBlobs(ctx, []blob.Ref{b})

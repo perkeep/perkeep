@@ -127,7 +127,7 @@ func TestHTTPAuth(t *testing.T) {
 	}
 }
 
-func testUidFromUsername(username string) (int, error) {
+func testUIDFromUsername(username string) (int, error) {
 	switch username {
 	case "really-long-user":
 		return 1000, nil
@@ -138,7 +138,7 @@ func testUidFromUsername(username string) (int, error) {
 }
 
 func TestParseFreeBSDSockstat(t *testing.T) {
-	uidFromUsername = testUidFromUsername
+	uidFromUsername = testUIDFromUsername
 	pairs := []struct {
 		uid          int
 		lip, rip     net.IP

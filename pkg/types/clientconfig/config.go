@@ -96,8 +96,8 @@ func GenerateClientConfig(serverConfig jsonconfig.Obj) (*Config, error) {
 		return missingConfig(param)
 	}
 	param = "keyId"
-	keyId := handlerArgs.OptionalString(param, "")
-	if keyId == "" {
+	keyID := handlerArgs.OptionalString(param, "")
+	if keyID == "" {
 		return missingConfig(param)
 	}
 
@@ -108,7 +108,7 @@ func GenerateClientConfig(serverConfig jsonconfig.Obj) (*Config, error) {
 		// TODO(mpl): move the camliNetDomain const from camlistored.go
 		// to somewhere importable, so we can use it here. but later.
 		camliNetDomain := "camlistore.net"
-		baseURL = fmt.Sprintf("https://%s.%s/", keyId, camliNetDomain)
+		baseURL = fmt.Sprintf("https://%s.%s/", keyID, camliNetDomain)
 	} else {
 		listen = serverConfig.OptionalString("listen", "")
 		baseURL = serverConfig.OptionalString("baseURL", "")
@@ -160,7 +160,7 @@ func GenerateClientConfig(serverConfig jsonconfig.Obj) (*Config, error) {
 				TrustedCerts: trustedList,
 			},
 		},
-		Identity:           keyId,
+		Identity:           keyID,
 		IdentitySecretRing: secretRing,
 		IgnoredFiles:       []string{".DS_Store", "*~"},
 	}, nil

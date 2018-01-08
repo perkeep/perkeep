@@ -209,7 +209,7 @@ type OAuthURIs struct {
 // NewOAuthClient returns an oauth Client configured with uris and the
 // credentials obtained from ctx.
 func (ctx *SetupContext) NewOAuthClient(uris OAuthURIs) (*oauth.Client, error) {
-	clientId, secret, err := ctx.Credentials()
+	clientID, secret, err := ctx.Credentials()
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +218,7 @@ func (ctx *SetupContext) NewOAuthClient(uris OAuthURIs) (*oauth.Client, error) {
 		ResourceOwnerAuthorizationURI: uris.ResourceOwnerAuthorizationURI,
 		TokenRequestURI:               uris.TokenRequestURI,
 		Credentials: oauth.Credentials{
-			Token:  clientId,
+			Token:  clientID,
 			Secret: secret,
 		},
 	}, nil

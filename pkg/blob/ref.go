@@ -272,8 +272,8 @@ func ParseBytes(s []byte) (ref Ref, ok bool) {
 	return Ref{dt}, true
 }
 
-// Parse parse s as a blobref. If s is invalid, a zero Ref is returned
-// which can be tested with the Valid method.
+// ParseOrZero parses as a blobref. If s is invalid, a zero Ref is
+// returned which can be tested with the Valid method.
 func ParseOrZero(s string) Ref {
 	ref, ok := Parse(s)
 	if !ok {

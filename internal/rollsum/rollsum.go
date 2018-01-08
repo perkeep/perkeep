@@ -59,7 +59,7 @@ func (rs *RollSum) OnSplit() bool {
 	return (rs.s2 & (blobSize - 1)) == ((^0) & (blobSize - 1))
 }
 
-// OnSplit returns whether at least n consecutive trailing bits
+// OnSplitWithBits returns whether at least n consecutive trailing bits
 // of the current checksum are set the same way.
 func (rs *RollSum) OnSplitWithBits(n uint32) bool {
 	mask := (uint32(1) << n) - 1

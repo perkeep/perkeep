@@ -447,8 +447,8 @@ func (b *DescribedBlob) ContentRef() (br blob.Ref, ok bool) {
 	return
 }
 
-// Given a blobref string returns a Description or nil.
-// dr may be nil itself.
+// DescribedBlobStr when given a blobref string returns a Description
+// or nil.  dr may be nil itself.
 func (dr *DescribeRequest) DescribedBlobStr(blobstr string) *DescribedBlob {
 	if dr == nil {
 		return nil

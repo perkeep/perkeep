@@ -158,7 +158,7 @@ func RandPort() (int, error) {
 	return randAddr.Port, nil
 }
 
-// HasPort, given a string of the form "host", "host:port", or
+// HasPort when given a string of the form "host", "host:port", or
 // "[ipv6::address]:port", returns true if the string includes a port.
 func HasPort(s string) bool {
 	return strings.LastIndex(s, ":") > strings.LastIndex(s, "]")

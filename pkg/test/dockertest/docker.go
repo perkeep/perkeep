@@ -38,7 +38,7 @@ import (
 	"perkeep.org/internal/netutil"
 )
 
-// Debug, if set, prevents any container from being removed.
+// Debug when set, prevents any container from being removed.
 var Debug bool
 
 /// runLongTest checks all the conditions for running a docker container

@@ -155,7 +155,7 @@ func SetRecovery() {
 	recovery = true
 }
 
-// See SetRecovery.
+// UnsetRecovery resets the recovery state to false if set by SetRecovery.
 func UnsetRecovery() {
 	recoveryMu.Lock()
 	defer recoveryMu.Unlock()

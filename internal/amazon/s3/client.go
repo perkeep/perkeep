@@ -122,7 +122,7 @@ func parseListAllMyBuckets(r io.Reader) ([]*Bucket, error) {
 	return res.Buckets.Bucket, nil
 }
 
-// Returns 0, os.ErrNotExist if not on S3, otherwise reterr is real.
+// Stat returns 0, os.ErrNotExist if not on S3, otherwise reterr is real.
 func (c *Client) Stat(ctx context.Context, key, bucket string) (size int64, reterr error) {
 	req := newReq(ctx, c.keyURL(bucket, key))
 	req.Method = "HEAD"
@@ -370,7 +370,8 @@ func (c *Client) Delete(ctx context.Context, bucket, key string) error {
 	return fmt.Errorf("Amazon HTTP error on DELETE: %d", res.StatusCode)
 }
 
-// IsValid reports whether bucket is a valid bucket name, per Amazon's naming restrictions.
+// IsValidBucket reports whether bucket is a valid bucket name, per
+// Amazon's naming restrictions.
 //
 // See http://docs.aws.amazon.com/AmazonS3/latest/dev/BucketRestrictions.html
 func IsValidBucket(bucket string) bool {

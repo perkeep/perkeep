@@ -301,7 +301,7 @@ func main() {
 	ws := webserver.New()
 	ws.Logger = logger
 	if err := setupTLS(ws, conf); err != nil {
-		logger.Fatal("could not setup TLS: %v", err)
+		logger.Fatalf("could not setup TLS: %v", err)
 	}
 	ws.Handle("/", ph)
 	if err := ws.Listen(listenAddr); err != nil {

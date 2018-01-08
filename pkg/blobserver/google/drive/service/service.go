@@ -40,31 +40,31 @@ const (
 type DriveService struct {
 	client     *http.Client
 	apiservice *client.Service
-	parentId   string
+	parentID   string
 }
 
-// New initiates a new DriveService. parentId is the ID of the directory
+// New initiates a new DriveService. parentID is the ID of the directory
 // that will be used as the current directory in methods on the returned
 // DriveService (such as Get). If empty, it defaults to the root of the
 // drive.
-func New(oauthClient *http.Client, parentId string) (*DriveService, error) {
+func New(oauthClient *http.Client, parentID string) (*DriveService, error) {
 	apiservice, err := client.New(oauthClient)
 	if err != nil {
 		return nil, err
 	}
-	if parentId == "" {
+	if parentID == "" {
 		// because "root" is known as a special alias for the root directory in drive.
-		parentId = "root"
+		parentID = "root"
 	}
-	service := &DriveService{client: oauthClient, apiservice: apiservice, parentId: parentId}
+	service := &DriveService{client: oauthClient, apiservice: apiservice, parentID: parentID}
 	return service, err
 }
 
 // Get retrieves a file with its title equal to the provided title and a child of
-// the parentId as given to New. If not found, os.ErrNotExist is returned.
+// the parentID as given to New. If not found, os.ErrNotExist is returned.
 func (s *DriveService) Get(ctx context.Context, title string) (*client.File, error) {
 	// TODO: use field selectors
-	query := fmt.Sprintf("'%s' in parents and title = '%s'", s.parentId, title)
+	query := fmt.Sprintf("'%s' in parents and title = '%s'", s.parentID, title)
 	req := s.apiservice.Files.List().Context(ctx).Q(query)
 	files, err := req.Do()
 	if err != nil {
@@ -76,10 +76,11 @@ func (s *DriveService) Get(ctx context.Context, title string) (*client.File, err
 	return files.Items[0], nil
 }
 
-// Lists the folder identified by parentId.
+// List returns a list of files. When limit is greater than zero a paginated list is returned
+// using the next response as a pageToken in subsequent calls.
 func (s *DriveService) List(pageToken string, limit int) (files []*client.File, next string, err error) {
 	req := s.apiservice.Files.List()
-	req.Q(fmt.Sprintf("'%s' in parents and mimeType != '%s'", s.parentId, MimeTypeDriveFolder))
+	req.Q(fmt.Sprintf("'%s' in parents and mimeType != '%s'", s.parentID, MimeTypeDriveFolder))
 
 	if pageToken != "" {
 		req.PageToken(pageToken)
@@ -106,7 +107,7 @@ func (s *DriveService) Upsert(ctx context.Context, title string, data io.Reader)
 	if file == nil {
 		file = &client.File{Title: title}
 		file.Parents = []*client.ParentReference{
-			{Id: s.parentId},
+			{Id: s.parentID},
 		}
 		file.MimeType = MimeTypeCamliBlob
 		return s.apiservice.Files.Insert(file).Media(data).Context(ctx).Do()

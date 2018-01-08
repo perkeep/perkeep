@@ -181,9 +181,10 @@ type StorageHandler interface {
 	http.Handler
 }
 
-// Optional interface for storage implementations which can be asked
-// to shut down cleanly. Regardless, all implementations should
-// be able to survive crashes without data loss.
+// ShutdownStorage is an optional interface for storage
+// implementations which can be asked to shut down
+// cleanly. Regardless, all implementations should be able to survive
+// crashes without data loss.
 type ShutdownStorage interface {
 	Storage
 	io.Closer
@@ -212,7 +213,7 @@ type GenerationNotSupportedError string
 func (s GenerationNotSupportedError) Error() string { return string(s) }
 
 /*
-The optional Generationer interface is an optimization and paranoia
+Generationer is an optional interface and an optimization and paranoia
 facility for clients which can be implemented by Storage
 implementations.
 

@@ -131,7 +131,7 @@ func (id *IndexDeps) NewPermanode() blob.Ref {
 	return id.uploadAndSign(unsigned)
 }
 
-// NewPermanode creates (& signs) a new planned permanode and adds it
+// NewPlannedPermanode creates (& signs) a new planned permanode and adds it
 // to the index, returning its blobref.
 func (id *IndexDeps) NewPlannedPermanode(key string) blob.Ref {
 	unsigned := schema.NewPlannedPermanode(key)

@@ -34,7 +34,7 @@ const ID3v1TagLength = 128
 // id3v1Magic is the byte sequence appearing at the beginning of an ID3v1 tag.
 var id3v1Magic = []byte("TAG")
 
-// HasID3V1Tag returns true if an ID3v1 tag is present at the end of r.
+// HasID3v1Tag returns true if an ID3v1 tag is present at the end of r.
 func HasID3v1Tag(r readerutil.SizeReaderAt) (bool, error) {
 	if r.Size() < ID3v1TagLength {
 		return false, nil
@@ -58,8 +58,8 @@ const (
 	mpegVersion2_5
 )
 
-// mpegVersionsById maps from a 2-bit version ID from an MPEG header to the corresponding MPEG audio version.
-var mpegVersionsById = map[uint32]mpegVersion{
+// mpegVersionsByID maps from a 2-bit version ID from an MPEG header to the corresponding MPEG audio version.
+var mpegVersionsByID = map[uint32]mpegVersion{
 	0x0: mpegVersion2_5,
 	0x2: mpegVersion2,
 	0x3: mpegVersion1,
@@ -143,7 +143,7 @@ func GetMPEGAudioDuration(r readerutil.SizeReaderAt) (time.Duration, error) {
 	}
 	var version mpegVersion
 	var ok bool
-	if version, ok = mpegVersionsById[getBits(11, 2)]; !ok {
+	if version, ok = mpegVersionsByID[getBits(11, 2)]; !ok {
 		return 0, errors.New("Invalid MPEG version index")
 	}
 	var layer mpegLayer

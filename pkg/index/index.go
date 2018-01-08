@@ -921,8 +921,9 @@ func (x *Index) PermanodeOfSignerAttrValue(ctx context.Context, signer blob.Ref,
 	return blob.Ref{}, os.ErrNotExist
 }
 
-// This is just like PermanodeOfSignerAttrValue except we return multiple and dup-suppress.
-// If request.Query is "", it is not used in the prefix search.
+// SearchPermanodesWithAttr is just like PermanodeOfSignerAttrValue
+// except we return multiple and dup-suppress.  If request.Query is
+// "", it is not used in the prefix search.
 func (x *Index) SearchPermanodesWithAttr(ctx context.Context, dest chan<- blob.Ref, request *camtypes.PermanodeByAttrRequest) (err error) {
 	defer close(dest)
 	if request.FuzzyMatch {

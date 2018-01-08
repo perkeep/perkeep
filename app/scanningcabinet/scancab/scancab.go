@@ -264,7 +264,7 @@ func batchScanHelper(img string) {
 		log.Fatalf("Could not get self pid through /proc/self: %v", err)
 	}
 	pid := pidfi.Name()
-	fmt.Printf("[%d] Got format: %v for %v", pid, scanFormat, filebase)
+	fmt.Printf("[%s] Got format: %v for %v", pid, scanFormat, filebase)
 
 	ext := "jpg"
 	if os.Getenv("SCAN_LINEART") != "" {

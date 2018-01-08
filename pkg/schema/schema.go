@@ -305,7 +305,7 @@ func parseSuperset(r io.Reader) (*superset, error) {
 	return &ss, nil
 }
 
-// BlobReader returns a new Blob from the provided Reader r,
+// BlobFromReader returns a new Blob from the provided Reader r,
 // which should be the body of the provided blobref.
 // Note: the hash checksum is not verified.
 func BlobFromReader(ref blob.Ref, r io.Reader) (*Blob, error) {
@@ -615,7 +615,7 @@ func NewHashPlannedPermanode(h hash.Hash) *Builder {
 	return NewPlannedPermanode(blob.RefFromHash(h).String())
 }
 
-// Map returns a Camli map of camliType "static-set"
+// Blob returns a Camli map of camliType "static-set"
 // TODO: delete this method
 func (ss *StaticSet) Blob() *Blob {
 	bb := base(1, "static-set")

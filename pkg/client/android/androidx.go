@@ -300,7 +300,7 @@ func NoteFileUploaded(fullPath string, uploaded bool) {
 	Printf("FILE_UPLOADED %s\n", fullPath)
 }
 
-// androidStatusReceiver is a blobserver.StatReceiver wrapper that
+// StatusReceiver is a blobserver.StatReceiver wrapper that
 // reports the full filename path and size of uploaded blobs.
 // The android app wrapping camput watches stdout for this, for progress bars.
 type StatusReceiver struct {

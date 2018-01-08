@@ -61,9 +61,9 @@ func IsLocalhost(req *http.Request) bool {
 		return false
 	}
 	if uid > 0 {
-		connUid, err := netutil.AddrPairUserid(from, to)
+		connUID, err := netutil.AddrPairUserid(from, to)
 		if err == nil {
-			if uid == connUid || connUid == 0 {
+			if uid == connUID || connUID == 0 {
 				// If it's the same user who's running the server, allow it.
 				// Also allow root, so users can "sudo camput" files.
 				// Allowing root isn't a security problem because if root wants
@@ -72,7 +72,7 @@ func IsLocalhost(req *http.Request) bool {
 				// on shared computers.
 				return true
 			}
-			log.Printf("auth: local connection uid %d doesn't match server uid %d", connUid, uid)
+			log.Printf("auth: local connection uid %d doesn't match server uid %d", connUID, uid)
 		}
 	}
 	return false

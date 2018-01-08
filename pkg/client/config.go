@@ -94,8 +94,8 @@ func (c *Client) parseConfig() {
 			return
 		}
 		errMsg := fmt.Sprintf("Client configuration file %v does not exist. See 'camput init' to generate it.", configPath)
-		if keyId := serverKeyId(); keyId != "" {
-			hint := fmt.Sprintf("\nThe key id %v was found in the server config %v, so you might want:\n'camput init -gpgkey %v'", keyId, osutil.UserServerConfigPath(), keyId)
+		if keyID := serverKeyId(); keyID != "" {
+			hint := fmt.Sprintf("\nThe key id %v was found in the server config %v, so you might want:\n'camput init -gpgkey %v'", keyID, osutil.UserServerConfigPath(), keyID)
 			errMsg += hint
 		}
 		log.Fatal(errMsg)
@@ -240,11 +240,11 @@ func serverKeyId() string {
 	if err != nil {
 		return ""
 	}
-	keyId, ok := obj["identity"].(string)
+	keyID, ok := obj["identity"].(string)
 	if !ok {
 		return ""
 	}
-	return keyId
+	return keyID
 }
 
 // cleanServer returns the canonical URL of the provided server, which must be a URL, IP, host (with dot), or host/ip:port.
@@ -409,21 +409,21 @@ func (c *Client) initSignerPublicKeyBlobref() {
 		log.Print("client: noExtConfig set; cannot get public key from config or env vars.")
 		return
 	}
-	keyId := os.Getenv("CAMLI_KEYID")
-	if keyId == "" {
+	keyID := os.Getenv("CAMLI_KEYID")
+	if keyID == "" {
 		configOnce.Do(parseConfig)
-		keyId = config.Identity
-		if keyId == "" {
+		keyID = config.Identity
+		if keyID == "" {
 			log.Fatalf("No 'identity' key in JSON configuration file %q; have you run \"camput init\"?", osutil.UserClientConfigPath())
 		}
 	}
 	keyRing := c.SecretRingFile()
 	if !fileExists(keyRing) {
-		log.Fatalf("Could not find keyId %q, because secret ring file %q does not exist.", keyId, keyRing)
+		log.Fatalf("Could not find keyID %q, because secret ring file %q does not exist.", keyID, keyRing)
 	}
-	entity, err := jsonsign.EntityFromSecring(keyId, keyRing)
+	entity, err := jsonsign.EntityFromSecring(keyID, keyRing)
 	if err != nil {
-		log.Fatalf("Couldn't find keyId %q in secret ring %v: %v", keyId, keyRing, err)
+		log.Fatalf("Couldn't find keyID %q in secret ring %v: %v", keyID, keyRing, err)
 	}
 	armored, err := jsonsign.ArmoredPublicKey(entity)
 	if err != nil {
