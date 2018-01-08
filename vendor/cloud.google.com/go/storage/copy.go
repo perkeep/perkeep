@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"unicode/utf8"
 
 	"golang.org/x/net/context"
 	raw "google.golang.org/api/storage/v1"
@@ -65,11 +66,18 @@ type Copier struct {
 
 // Run performs the copy.
 func (c *Copier) Run(ctx context.Context) (*ObjectAttrs, error) {
-	if err := c.src.validate(); err != nil {
-		return nil, err
+	// TODO(jba): add ObjectHandle.validate to do these checks.
+	if c.src.bucket == "" || c.dst.bucket == "" {
+		return nil, errors.New("storage: the source and destination bucket names must both be non-empty")
 	}
-	if err := c.dst.validate(); err != nil {
-		return nil, err
+	if c.src.object == "" || c.dst.object == "" {
+		return nil, errors.New("storage: the source and destination object names must both be non-empty")
+	}
+	if !utf8.ValidString(c.src.object) {
+		return nil, fmt.Errorf("storage: object name %q is not valid UTF-8", c.src.object)
+	}
+	if !utf8.ValidString(c.dst.object) {
+		return nil, fmt.Errorf("storage: dst name %q is not valid UTF-8", c.dst.object)
 	}
 	var rawObject *raw.Object
 	// If any attribute was set, then we make sure the name matches the destination
@@ -104,21 +112,13 @@ func (c *Copier) callRewrite(ctx context.Context, src *ObjectHandle, rawObj *raw
 	if c.RewriteToken != "" {
 		call.RewriteToken(c.RewriteToken)
 	}
-	if err := applyConds("Copy destination", c.dst.gen, c.dst.conds, call); err != nil {
+	if err := applyConds("Copy destination", c.dst.conds, call); err != nil {
 		return nil, err
 	}
-	if err := applySourceConds(c.src.gen, c.src.conds, call); err != nil {
+	if err := applyConds("Copy source", toSourceConds(c.src.conds), call); err != nil {
 		return nil, err
 	}
-	if err := setEncryptionHeaders(call.Header(), c.dst.encryptionKey, false); err != nil {
-		return nil, err
-	}
-	if err := setEncryptionHeaders(call.Header(), c.src.encryptionKey, true); err != nil {
-		return nil, err
-	}
-	var res *raw.RewriteResponse
-	var err error
-	err = runWithRetry(ctx, func() error { res, err = call.Do(); return err })
+	res, err := call.Do()
 	if err != nil {
 		return nil, err
 	}
@@ -129,10 +129,6 @@ func (c *Copier) callRewrite(ctx context.Context, src *ObjectHandle, rawObj *raw
 // ComposerFrom creates a Composer that can compose srcs into dst.
 // You can immediately call Run on the returned Composer, or you can
 // configure it first.
-//
-// The encryption key for the destination object will be used to decrypt all
-// source objects and encrypt the destination object. It is an error
-// to specify an encryption key for any of the source objects.
 func (dst *ObjectHandle) ComposerFrom(srcs ...*ObjectHandle) *Composer {
 	return &Composer{dst: dst, srcs: srcs}
 }
@@ -150,46 +146,41 @@ type Composer struct {
 
 // Run performs the compose operation.
 func (c *Composer) Run(ctx context.Context) (*ObjectAttrs, error) {
-	if err := c.dst.validate(); err != nil {
-		return nil, err
+	if c.dst.bucket == "" || c.dst.object == "" {
+		return nil, errors.New("storage: the destination bucket and object names must be non-empty")
 	}
 	if len(c.srcs) == 0 {
 		return nil, errors.New("storage: at least one source object must be specified")
 	}
 
 	req := &raw.ComposeRequest{}
-	// Compose requires a non-empty Destination, so we always set it,
-	// even if the caller-provided ObjectAttrs is the zero value.
-	req.Destination = c.ObjectAttrs.toRawObject(c.dst.bucket)
+	if !reflect.DeepEqual(c.ObjectAttrs, ObjectAttrs{}) {
+		req.Destination = c.ObjectAttrs.toRawObject(c.dst.bucket)
+		req.Destination.Name = c.dst.object
+	}
+
 	for _, src := range c.srcs {
-		if err := src.validate(); err != nil {
-			return nil, err
-		}
 		if src.bucket != c.dst.bucket {
 			return nil, fmt.Errorf("storage: all source objects must be in bucket %q, found %q", c.dst.bucket, src.bucket)
 		}
-		if src.encryptionKey != nil {
-			return nil, fmt.Errorf("storage: compose source %s.%s must not have encryption key", src.bucket, src.object)
+		if src.object == "" {
+			return nil, errors.New("storage: all source object names must be non-empty")
 		}
 		srcObj := &raw.ComposeRequestSourceObjects{
 			Name: src.object,
 		}
-		if err := applyConds("ComposeFrom source", src.gen, src.conds, composeSourceObj{srcObj}); err != nil {
+		if err := applyConds("ComposeFrom source", src.conds, composeSourceObj{srcObj}); err != nil {
 			return nil, err
 		}
 		req.SourceObjects = append(req.SourceObjects, srcObj)
 	}
 
 	call := c.dst.c.raw.Objects.Compose(c.dst.bucket, c.dst.object, req).Context(ctx)
-	if err := applyConds("ComposeFrom destination", c.dst.gen, c.dst.conds, call); err != nil {
+	if err := applyConds("ComposeFrom destination", c.dst.conds, call); err != nil {
 		return nil, err
 	}
-	if err := setEncryptionHeaders(call.Header(), c.dst.encryptionKey, false); err != nil {
-		return nil, err
-	}
-	var obj *raw.Object
-	var err error
-	err = runWithRetry(ctx, func() error { obj, err = call.Do(); return err })
+
+	obj, err := call.Do()
 	if err != nil {
 		return nil, err
 	}

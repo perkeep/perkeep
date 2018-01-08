@@ -15,11 +15,8 @@
 package cloud_test
 
 import (
-	"io/ioutil"
-
 	"cloud.google.com/go/datastore"
 	"golang.org/x/net/context"
-	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 )
 
@@ -41,7 +38,7 @@ func Example_applicationDefaultCredentials() {
 	_ = client
 }
 
-func Example_serviceAccount() {
+func Example_serviceAccountFile() {
 	// Warning: The better way to use service accounts is to set GOOGLE_APPLICATION_CREDENTIALS
 	// and use the Application Default Credentials.
 	ctx := context.Background()
@@ -52,16 +49,9 @@ func Example_serviceAccount() {
 	//
 	// Note: The example uses the datastore client, but the same steps apply to
 	// the other client libraries underneath this package.
-	key, err := ioutil.ReadFile("/path/to/service-account-key.json")
-	if err != nil {
-		// TODO: handle error.
-	}
-	cfg, err := google.JWTConfigFromJSON(key, datastore.ScopeDatastore)
-	if err != nil {
-		// TODO: handle error.
-	}
-	client, err := datastore.NewClient(
-		ctx, "project-id", option.WithTokenSource(cfg.TokenSource(ctx)))
+	client, err := datastore.NewClient(ctx,
+		"project-id",
+		option.WithServiceAccountFile("/path/to/service-account-key.json"))
 	if err != nil {
 		// TODO: handle error.
 	}

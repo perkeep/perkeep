@@ -1,10 +1,10 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2016 Google Inc. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,7 +24,6 @@ import (
 
 	gax "github.com/googleapis/gax-go"
 	"golang.org/x/net/context"
-	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/api/transport"
 	loggingpb "google.golang.org/genproto/googleapis/logging/v2"
@@ -38,7 +37,7 @@ var (
 	configSinkPathTemplate   = gax.MustCompilePathTemplate("projects/{project}/sinks/{sink}")
 )
 
-// ConfigCallOptions contains the retry settings for each method of ConfigClient.
+// ConfigCallOptions contains the retry settings for each method of this client.
 type ConfigCallOptions struct {
 	ListSinks  []gax.CallOption
 	GetSink    []gax.CallOption
@@ -75,6 +74,7 @@ func defaultConfigCallOptions() *ConfigCallOptions {
 			}),
 		},
 	}
+
 	return &ConfigCallOptions{
 		ListSinks:  retry[[2]string{"default", "idempotent"}],
 		GetSink:    retry[[2]string{"default", "idempotent"}],
@@ -84,25 +84,25 @@ func defaultConfigCallOptions() *ConfigCallOptions {
 	}
 }
 
-// ConfigClient is a client for interacting with Stackdriver Logging API.
+// ConfigClient is a client for interacting with ConfigServiceV2.
 type ConfigClient struct {
 	// The connection to the service.
 	conn *grpc.ClientConn
 
 	// The gRPC API client.
-	configClient loggingpb.ConfigServiceV2Client
+	client loggingpb.ConfigServiceV2Client
 
 	// The call options for this service.
 	CallOptions *ConfigCallOptions
 
 	// The metadata to be sent with each request.
-	metadata metadata.MD
+	metadata map[string][]string
 }
 
-// NewConfigClient creates a new config service v2 client.
+// NewConfigClient creates a new config service client.
 //
-// Service for configuring sinks used to export log entries outside of
-// Stackdriver Logging.
+// Service for configuring sinks used to export log entries outside Stackdriver
+// Logging.
 func NewConfigClient(ctx context.Context, opts ...option.ClientOption) (*ConfigClient, error) {
 	conn, err := transport.DialGRPC(ctx, append(defaultConfigClientOptions(), opts...)...)
 	if err != nil {
@@ -110,9 +110,8 @@ func NewConfigClient(ctx context.Context, opts ...option.ClientOption) (*ConfigC
 	}
 	c := &ConfigClient{
 		conn:        conn,
+		client:      loggingpb.NewConfigServiceV2Client(conn),
 		CallOptions: defaultConfigCallOptions(),
-
-		configClient: loggingpb.NewConfigServiceV2Client(conn),
 	}
 	c.SetGoogleClientInfo("gax", gax.Version)
 	return c, nil
@@ -133,11 +132,12 @@ func (c *ConfigClient) Close() error {
 // the `x-goog-api-client` header passed on each request. Intended for
 // use by Google-written clients.
 func (c *ConfigClient) SetGoogleClientInfo(name, version string) {
-	v := fmt.Sprintf("%s/%s %s gax/%s go/%s", name, version, gapicNameVersion, gax.Version, runtime.Version())
-	c.metadata = metadata.Pairs("x-goog-api-client", v)
+	c.metadata = map[string][]string{
+		"x-goog-api-client": {fmt.Sprintf("%s/%s %s gax/%s go/%s", name, version, gapicNameVersion, gax.Version, runtime.Version())},
+	}
 }
 
-// ConfigParentPath returns the path for the parent resource.
+// ParentPath returns the path for the parent resource.
 func ConfigParentPath(project string) string {
 	path, err := configParentPathTemplate.Render(map[string]string{
 		"project": project,
@@ -148,8 +148,8 @@ func ConfigParentPath(project string) string {
 	return path
 }
 
-// ConfigSinkPath returns the path for the sink resource.
-func ConfigSinkPath(project, sink string) string {
+// SinkPath returns the path for the sink resource.
+func ConfigSinkPath(project string, sink string) string {
 	path, err := configSinkPathTemplate.Render(map[string]string{
 		"project": project,
 		"sink":    sink,
@@ -162,47 +162,37 @@ func ConfigSinkPath(project, sink string) string {
 
 // ListSinks lists sinks.
 func (c *ConfigClient) ListSinks(ctx context.Context, req *loggingpb.ListSinksRequest) *LogSinkIterator {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = metadata.NewContext(ctx, c.metadata)
 	it := &LogSinkIterator{}
-	it.InternalFetch = func(pageSize int, pageToken string) ([]*loggingpb.LogSink, string, error) {
+	it.apiCall = func() error {
 		var resp *loggingpb.ListSinksResponse
-		req.PageToken = pageToken
-		if pageSize > math.MaxInt32 {
-			req.PageSize = math.MaxInt32
-		} else {
-			req.PageSize = int32(pageSize)
-		}
 		err := gax.Invoke(ctx, func(ctx context.Context) error {
 			var err error
-			resp, err = c.configClient.ListSinks(ctx, req)
+			req.PageToken = it.nextPageToken
+			req.PageSize = it.pageSize
+			resp, err = c.client.ListSinks(ctx, req)
 			return err
 		}, c.CallOptions.ListSinks...)
 		if err != nil {
-			return nil, "", err
+			return err
 		}
-		return resp.Sinks, resp.NextPageToken, nil
-	}
-	fetch := func(pageSize int, pageToken string) (string, error) {
-		items, nextPageToken, err := it.InternalFetch(pageSize, pageToken)
-		if err != nil {
-			return "", err
+		if resp.NextPageToken == "" {
+			it.atLastPage = true
 		}
-		it.items = append(it.items, items...)
-		return nextPageToken, nil
+		it.nextPageToken = resp.NextPageToken
+		it.items = resp.Sinks
+		return nil
 	}
-	it.pageInfo, it.nextFunc = iterator.NewPageInfo(fetch, it.bufLen, it.takeBuf)
 	return it
 }
 
 // GetSink gets a sink.
 func (c *ConfigClient) GetSink(ctx context.Context, req *loggingpb.GetSinkRequest) (*loggingpb.LogSink, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = metadata.NewContext(ctx, c.metadata)
 	var resp *loggingpb.LogSink
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
-		resp, err = c.configClient.GetSink(ctx, req)
+		resp, err = c.client.GetSink(ctx, req)
 		return err
 	}, c.CallOptions.GetSink...)
 	if err != nil {
@@ -213,12 +203,11 @@ func (c *ConfigClient) GetSink(ctx context.Context, req *loggingpb.GetSinkReques
 
 // CreateSink creates a sink.
 func (c *ConfigClient) CreateSink(ctx context.Context, req *loggingpb.CreateSinkRequest) (*loggingpb.LogSink, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = metadata.NewContext(ctx, c.metadata)
 	var resp *loggingpb.LogSink
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
-		resp, err = c.configClient.CreateSink(ctx, req)
+		resp, err = c.client.CreateSink(ctx, req)
 		return err
 	}, c.CallOptions.CreateSink...)
 	if err != nil {
@@ -227,14 +216,13 @@ func (c *ConfigClient) CreateSink(ctx context.Context, req *loggingpb.CreateSink
 	return resp, nil
 }
 
-// UpdateSink updates or creates a sink.
+// UpdateSink creates or updates a sink.
 func (c *ConfigClient) UpdateSink(ctx context.Context, req *loggingpb.UpdateSinkRequest) (*loggingpb.LogSink, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = metadata.NewContext(ctx, c.metadata)
 	var resp *loggingpb.LogSink
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
-		resp, err = c.configClient.UpdateSink(ctx, req)
+		resp, err = c.client.UpdateSink(ctx, req)
 		return err
 	}, c.CallOptions.UpdateSink...)
 	if err != nil {
@@ -245,11 +233,10 @@ func (c *ConfigClient) UpdateSink(ctx context.Context, req *loggingpb.UpdateSink
 
 // DeleteSink deletes a sink.
 func (c *ConfigClient) DeleteSink(ctx context.Context, req *loggingpb.DeleteSinkRequest) error {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+	ctx = metadata.NewContext(ctx, c.metadata)
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
 		var err error
-		_, err = c.configClient.DeleteSink(ctx, req)
+		_, err = c.client.DeleteSink(ctx, req)
 		return err
 	}, c.CallOptions.DeleteSink...)
 	return err
@@ -257,41 +244,84 @@ func (c *ConfigClient) DeleteSink(ctx context.Context, req *loggingpb.DeleteSink
 
 // LogSinkIterator manages a stream of *loggingpb.LogSink.
 type LogSinkIterator struct {
-	items    []*loggingpb.LogSink
-	pageInfo *iterator.PageInfo
-	nextFunc func() error
-
-	// InternalFetch is for use by the Google Cloud Libraries only.
-	// It is not part of the stable interface of this package.
-	//
-	// InternalFetch returns results from a single call to the underlying RPC.
-	// The number of results is no greater than pageSize.
-	// If there are no more results, nextPageToken is empty and err is nil.
-	InternalFetch func(pageSize int, pageToken string) (results []*loggingpb.LogSink, nextPageToken string, err error)
+	// The current page data.
+	items         []*loggingpb.LogSink
+	atLastPage    bool
+	currentIndex  int
+	pageSize      int32
+	nextPageToken string
+	apiCall       func() error
 }
 
-// PageInfo supports pagination. See the google.golang.org/api/iterator package for details.
-func (it *LogSinkIterator) PageInfo() *iterator.PageInfo {
-	return it.pageInfo
-}
-
-// Next returns the next result. Its second return value is iterator.Done if there are no more
-// results. Once Next returns Done, all subsequent calls will return Done.
-func (it *LogSinkIterator) Next() (*loggingpb.LogSink, error) {
-	if err := it.nextFunc(); err != nil {
+// NextPage returns the next page of results.
+// It will return at most the number of results specified by the last call to SetPageSize.
+// If SetPageSize was never called or was called with a value less than 1,
+// the page size is determined by the underlying service.
+//
+// NextPage may return a second return value of Done along with the last page of results. After
+// NextPage returns Done, all subsequent calls to NextPage will return (nil, Done).
+//
+// Next and NextPage should not be used with the same iterator.
+func (it *LogSinkIterator) NextPage() ([]*loggingpb.LogSink, error) {
+	if it.atLastPage {
+		// We already returned Done with the last page of items. Continue to
+		// return Done, but with no items.
+		return nil, Done
+	}
+	if err := it.apiCall(); err != nil {
 		return nil, err
 	}
-	item := it.items[0]
-	it.items = it.items[1:]
-	return item, nil
+	if it.atLastPage {
+		return it.items, Done
+	}
+	return it.items, nil
 }
 
-func (it *LogSinkIterator) bufLen() int {
-	return len(it.items)
+// Next returns the next result. Its second return value is Done if there are no more results.
+// Once next returns Done, all subsequent calls will return Done.
+//
+// Internally, Next retrieves results in bulk. You can call SetPageSize as a performance hint to
+// affect how many results are retrieved in a single RPC.
+//
+// SetPageToken should not be called when using Next.
+//
+// Next and NextPage should not be used with the same iterator.
+func (it *LogSinkIterator) Next() (*loggingpb.LogSink, error) {
+	for it.currentIndex >= len(it.items) {
+		if it.atLastPage {
+			return nil, Done
+		}
+		if err := it.apiCall(); err != nil {
+			return nil, err
+		}
+		it.currentIndex = 0
+	}
+	result := it.items[it.currentIndex]
+	it.currentIndex++
+	return result, nil
 }
 
-func (it *LogSinkIterator) takeBuf() interface{} {
-	b := it.items
-	it.items = nil
-	return b
+// PageSize returns the page size for all subsequent calls to NextPage.
+func (it *LogSinkIterator) PageSize() int {
+	return int(it.pageSize)
+}
+
+// SetPageSize sets the page size for all subsequent calls to NextPage.
+func (it *LogSinkIterator) SetPageSize(pageSize int) {
+	if pageSize > math.MaxInt32 {
+		pageSize = math.MaxInt32
+	}
+	it.pageSize = int32(pageSize)
+}
+
+// SetPageToken sets the page token for the next call to NextPage, to resume the iteration from
+// a previous point.
+func (it *LogSinkIterator) SetPageToken(token string) {
+	it.nextPageToken = token
+}
+
+// NextPageToken returns a page token that can be used with SetPageToken to resume
+// iteration from the next page. It returns the empty string if there are no more pages.
+func (it *LogSinkIterator) NextPageToken() string {
+	return it.nextPageToken
 }

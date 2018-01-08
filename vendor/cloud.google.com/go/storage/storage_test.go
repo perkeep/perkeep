@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"golang.org/x/net/context"
-	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	raw "google.golang.org/api/storage/v1"
 )
@@ -205,19 +204,19 @@ func TestCopyToMissingFields(t *testing.T) {
 	}{
 		{
 			"mybucket", "", "mybucket", "destname",
-			"name is empty",
+			"the source and destination object names must both be non-empty",
 		},
 		{
 			"mybucket", "srcname", "mybucket", "",
-			"name is empty",
+			"the source and destination object names must both be non-empty",
 		},
 		{
 			"", "srcfile", "mybucket", "destname",
-			"name is empty",
+			"the source and destination bucket names must both be non-empty",
 		},
 		{
 			"mybucket", "srcfile", "", "destname",
-			"name is empty",
+			"the source and destination bucket names must both be non-empty",
 		},
 	}
 	ctx := context.Background()
@@ -228,7 +227,7 @@ func TestCopyToMissingFields(t *testing.T) {
 	for i, test := range tests {
 		src := client.Bucket(test.srcBucket).Object(test.srcName)
 		dst := client.Bucket(test.destBucket).Object(test.destName)
-		_, err := dst.CopierFrom(src).Run(ctx)
+		_, err := src.CopyTo(ctx, dst, nil)
 		if !strings.Contains(err.Error(), test.errMsg) {
 			t.Errorf("CopyTo test #%v:\ngot err  %q\nwant err %q", i, err, test.errMsg)
 		}
@@ -323,7 +322,11 @@ func TestCondition(t *testing.T) {
 	hc, close := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		io.Copy(ioutil.Discard, r.Body)
 		gotReq <- r
-		w.WriteHeader(200)
+		if r.Method == "POST" {
+			w.WriteHeader(200)
+		} else {
+			w.WriteHeader(500)
+		}
 	})
 	defer close()
 	ctx := context.Background()
@@ -339,41 +342,40 @@ func TestCondition(t *testing.T) {
 		want string
 	}{
 		{
-			func() { obj.Generation(1234).NewReader(ctx) },
+			func() { obj.WithConditions(Generation(1234)).NewReader(ctx) },
 			"GET /buck/obj?generation=1234",
 		},
 		{
-			func() { obj.If(Conditions{GenerationMatch: 1234}).NewReader(ctx) },
+			func() { obj.WithConditions(IfGenerationMatch(1234)).NewReader(ctx) },
 			"GET /buck/obj?ifGenerationMatch=1234",
 		},
 		{
-			func() { obj.If(Conditions{GenerationNotMatch: 1234}).NewReader(ctx) },
+			func() { obj.WithConditions(IfGenerationNotMatch(1234)).NewReader(ctx) },
 			"GET /buck/obj?ifGenerationNotMatch=1234",
 		},
 		{
-			func() { obj.If(Conditions{MetagenerationMatch: 1234}).NewReader(ctx) },
+			func() { obj.WithConditions(IfMetaGenerationMatch(1234)).NewReader(ctx) },
 			"GET /buck/obj?ifMetagenerationMatch=1234",
 		},
 		{
-			func() { obj.If(Conditions{MetagenerationNotMatch: 1234}).NewReader(ctx) },
+			func() { obj.WithConditions(IfMetaGenerationNotMatch(1234)).NewReader(ctx) },
 			"GET /buck/obj?ifMetagenerationNotMatch=1234",
 		},
 		{
-			func() { obj.If(Conditions{MetagenerationNotMatch: 1234}).Attrs(ctx) },
+			func() { obj.WithConditions(IfMetaGenerationNotMatch(1234)).Attrs(ctx) },
 			"GET /storage/v1/b/buck/o/obj?alt=json&ifMetagenerationNotMatch=1234&projection=full",
 		},
-
 		{
-			func() { obj.If(Conditions{MetagenerationMatch: 1234}).Update(ctx, ObjectAttrsToUpdate{}) },
+			func() { obj.WithConditions(IfMetaGenerationMatch(1234)).Update(ctx, ObjectAttrs{}) },
 			"PATCH /storage/v1/b/buck/o/obj?alt=json&ifMetagenerationMatch=1234&projection=full",
 		},
 		{
-			func() { obj.Generation(1234).Delete(ctx) },
+			func() { obj.WithConditions(Generation(1234)).Delete(ctx) },
 			"DELETE /storage/v1/b/buck/o/obj?alt=json&generation=1234",
 		},
 		{
 			func() {
-				w := obj.If(Conditions{GenerationMatch: 1234}).NewWriter(ctx)
+				w := obj.WithConditions(IfGenerationMatch(1234)).NewWriter(ctx)
 				w.ContentType = "text/plain"
 				w.Close()
 			},
@@ -381,15 +383,7 @@ func TestCondition(t *testing.T) {
 		},
 		{
 			func() {
-				w := obj.If(Conditions{DoesNotExist: true}).NewWriter(ctx)
-				w.ContentType = "text/plain"
-				w.Close()
-			},
-			"POST /upload/storage/v1/b/buck/o?alt=json&ifGenerationMatch=0&projection=full&uploadType=multipart",
-		},
-		{
-			func() {
-				dst.If(Conditions{MetagenerationMatch: 5678}).CopierFrom(obj.If(Conditions{GenerationMatch: 1234})).Run(ctx)
+				obj.WithConditions(IfGenerationMatch(1234)).CopyTo(ctx, dst.WithConditions(IfMetaGenerationMatch(5678)), nil)
 			},
 			"POST /storage/v1/b/buck/o/obj/rewriteTo/b/dstbuck/o/dst?alt=json&ifMetagenerationMatch=5678&ifSourceGenerationMatch=1234&projection=full",
 		},
@@ -412,23 +406,9 @@ func TestCondition(t *testing.T) {
 	}
 
 	// Test an error, too:
-	err = obj.Generation(1234).NewWriter(ctx).Close()
-	if err == nil || !strings.Contains(err.Error(), "NewWriter: generation not supported") {
-		t.Errorf("want error about unsupported generation; got %v", err)
-	}
-}
-
-func TestConditionErrors(t *testing.T) {
-	for _, conds := range []Conditions{
-		{GenerationMatch: 0},
-		{DoesNotExist: false}, // same as above, actually
-		{GenerationMatch: 1, GenerationNotMatch: 2},
-		{GenerationNotMatch: 2, DoesNotExist: true},
-		{MetagenerationMatch: 1, MetagenerationNotMatch: 2},
-	} {
-		if err := conds.validate(""); err == nil {
-			t.Errorf("%+v: got nil, want error", conds)
-		}
+	err = obj.WithConditions(Generation(1234)).NewWriter(ctx).Close()
+	if err == nil || !strings.Contains(err.Error(), "NewWriter: condition Generation not supported") {
+		t.Errorf("want error about unsupported condition; got %v", err)
 	}
 }
 
@@ -467,7 +447,6 @@ func TestObjectCompose(t *testing.T) {
 			},
 			wantURL: "/storage/v1/b/foo/o/bar/compose?alt=json",
 			wantReq: raw.ComposeRequest{
-				Destination: &raw.Object{Bucket: "foo"},
 				SourceObjects: []*raw.ComposeRequestSourceObjects{
 					{Name: "baz"},
 					{Name: "quux"},
@@ -489,7 +468,7 @@ func TestObjectCompose(t *testing.T) {
 			wantReq: raw.ComposeRequest{
 				Destination: &raw.Object{
 					Bucket:      "foo",
-					Name:        "not-bar",
+					Name:        "bar",
 					ContentType: "application/json",
 				},
 				SourceObjects: []*raw.ComposeRequestSourceObjects{
@@ -500,17 +479,13 @@ func TestObjectCompose(t *testing.T) {
 		},
 		{
 			desc: "with conditions",
-			dst: c.Bucket("foo").Object("bar").If(Conditions{
-				GenerationMatch:     12,
-				MetagenerationMatch: 34,
-			}),
+			dst:  c.Bucket("foo").Object("bar").WithConditions(IfGenerationMatch(12), IfMetaGenerationMatch(34)),
 			srcs: []*ObjectHandle{
-				c.Bucket("foo").Object("baz").Generation(56),
-				c.Bucket("foo").Object("quux").If(Conditions{GenerationMatch: 78}),
+				c.Bucket("foo").Object("baz").WithConditions(Generation(56)),
+				c.Bucket("foo").Object("quux").WithConditions(IfGenerationMatch(78)),
 			},
 			wantURL: "/storage/v1/b/foo/o/bar/compose?alt=json&ifGenerationMatch=12&ifMetagenerationMatch=34",
 			wantReq: raw.ComposeRequest{
-				Destination: &raw.Object{Bucket: "foo"},
 				SourceObjects: []*raw.ComposeRequestSourceObjects{
 					{
 						Name:       "baz",
@@ -564,7 +539,7 @@ func TestObjectCompose(t *testing.T) {
 		},
 		{
 			desc: "destination, bad condition",
-			dst:  c.Bucket("foo").Object("bar").Generation(12),
+			dst:  c.Bucket("foo").Object("bar").WithConditions(Generation(12)),
 			srcs: []*ObjectHandle{
 				c.Bucket("foo").Object("baz"),
 			},
@@ -574,18 +549,14 @@ func TestObjectCompose(t *testing.T) {
 			desc: "source, bad condition",
 			dst:  c.Bucket("foo").Object("bar"),
 			srcs: []*ObjectHandle{
-				c.Bucket("foo").Object("baz").If(Conditions{MetagenerationMatch: 12}),
+				c.Bucket("foo").Object("baz").WithConditions(IfMetaGenerationMatch(12)),
 			},
 			wantErr: true,
 		},
 	}
 
 	for _, tt := range testCases {
-		composer := tt.dst.ComposerFrom(tt.srcs...)
-		if tt.attrs != nil {
-			composer.ObjectAttrs = *tt.attrs
-		}
-		_, err := composer.Run(ctx)
+		_, err := tt.dst.ComposeFrom(ctx, tt.srcs, tt.attrs)
 		if gotErr := err != nil; gotErr != tt.wantErr {
 			t.Errorf("%s: got error %v; want err %t", tt.desc, err, tt.wantErr)
 			continue
@@ -630,7 +601,7 @@ func TestEmptyObjectIterator(t *testing.T) {
 	}()
 	select {
 	case err := <-c:
-		if err != iterator.Done {
+		if err != Done {
 			t.Errorf("got %v, want Done", err)
 		}
 	case <-time.After(50 * time.Millisecond):
@@ -659,7 +630,7 @@ func TestEmptyBucketIterator(t *testing.T) {
 	}()
 	select {
 	case err := <-c:
-		if err != iterator.Done {
+		if err != Done {
 			t.Errorf("got %v, want Done", err)
 		}
 	case <-time.After(50 * time.Millisecond):

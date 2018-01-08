@@ -23,10 +23,9 @@ import (
 	"testing"
 	"time"
 
+	"cloud.google.com/go/internal/bundler"
 	"github.com/golang/protobuf/proto"
-	durpb "github.com/golang/protobuf/ptypes/duration"
 	structpb "github.com/golang/protobuf/ptypes/struct"
-	"google.golang.org/api/support/bundler"
 	mrpb "google.golang.org/genproto/googleapis/api/monitoredres"
 	logtypepb "google.golang.org/genproto/googleapis/logging/type"
 )
@@ -138,15 +137,6 @@ func TestToProtoStruct(t *testing.T) {
 			t.Errorf("%v: got nil, want error", v)
 		}
 	}
-
-	// Test fast path.
-	got, err = toProtoStruct(want)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != want {
-		t.Error("got and want should be identical, but are not")
-	}
 }
 
 func TestFromHTTPRequest(t *testing.T) {
@@ -167,7 +157,6 @@ func TestFromHTTPRequest(t *testing.T) {
 		RequestSize:                    100,
 		Status:                         200,
 		ResponseSize:                   25,
-		Latency:                        100 * time.Second,
 		RemoteIP:                       "127.0.0.1",
 		CacheHit:                       true,
 		CacheValidatedWithOriginServer: true,
@@ -179,7 +168,6 @@ func TestFromHTTPRequest(t *testing.T) {
 		RequestSize:                    100,
 		Status:                         200,
 		ResponseSize:                   25,
-		Latency:                        &durpb.Duration{Seconds: 100},
 		UserAgent:                      "user-agent",
 		RemoteIp:                       "127.0.0.1",
 		Referer:                        "referer",

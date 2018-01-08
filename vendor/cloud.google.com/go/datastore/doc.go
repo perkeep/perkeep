@@ -294,7 +294,7 @@ Example code:
 	func incCount(ctx context.Context, client *datastore.Client) {
 		var count int
 		key := datastore.NewKey(ctx, "Counter", "singleton", 0, nil)
-		err := dsClient.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		_, err := dsClient.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
 			var x Counter
 			if err := tx.Get(key, &x); err != nil && err != datastore.ErrNoSuchEntity {
 				return err
@@ -304,7 +304,8 @@ Example code:
 				return err
 			}
 			count = x.Count
-		}, nil)
+			return nil
+		})
 		if err != nil {
 			// Handle error.
 		}
@@ -312,6 +313,17 @@ Example code:
 		// (RunInTransaction has returned nil).
 		fmt.Printf("Count=%d\n", count)
 	}
+
+
+Google Cloud Datastore Emulator
+
+This package supports the Cloud Datastore emulator, which is useful for testing and
+development. Environment variables are used to indicate that datastore traffic should be
+directed to the emulator instead of the production Datastore service.
+
+To install and set up the emulator and its environment variables, see the documentation
+at https://cloud.google.com/datastore/docs/tools/datastore-emulator.
+
 */
 package datastore // import "cloud.google.com/go/datastore"
 

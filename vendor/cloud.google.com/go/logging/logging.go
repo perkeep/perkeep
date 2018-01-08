@@ -36,6 +36,7 @@ import (
 	"sync"
 	"time"
 
+	"cloud.google.com/go/internal/bundler"
 	vkit "cloud.google.com/go/logging/apiv2"
 	"cloud.google.com/go/logging/internal"
 	"github.com/golang/protobuf/proto"
@@ -44,7 +45,6 @@ import (
 	tspb "github.com/golang/protobuf/ptypes/timestamp"
 	"golang.org/x/net/context"
 	"google.golang.org/api/option"
-	"google.golang.org/api/support/bundler"
 	mrpb "google.golang.org/genproto/googleapis/api/monitoredres"
 	logtypepb "google.golang.org/genproto/googleapis/logging/type"
 	logpb "google.golang.org/genproto/googleapis/logging/v2"
@@ -70,7 +70,7 @@ const (
 	DefaultDelayThreshold = time.Second
 
 	// DefaultEntryCountThreshold is the default value for the EntryCountThreshold LoggerOption.
-	DefaultEntryCountThreshold = 1000
+	DefaultEntryCountThreshold = 10
 
 	// DefaultEntryByteThreshold is the default value for the EntryByteThreshold LoggerOption.
 	DefaultEntryByteThreshold = 1 << 20 // 1MiB
@@ -472,10 +472,6 @@ type HTTPRequest struct {
 	// including the response headers and the response body.
 	ResponseSize int64
 
-	// Latency is the request processing latency on the server, from the time the request was
-	// received until the response was sent.
-	Latency time.Duration
-
 	// RemoteIP is the IP address (IPv4 or IPv6) of the client that issued the
 	// HTTP request. Examples: "192.168.1.1", "FE80::0202:B3FF:FE1E:8329".
 	RemoteIP string
@@ -505,7 +501,6 @@ func fromHTTPRequest(r *HTTPRequest) *logtypepb.HttpRequest {
 		RequestSize:                    r.RequestSize,
 		Status:                         int32(r.Status),
 		ResponseSize:                   r.ResponseSize,
-		Latency:                        ptypes.DurationProto(r.Latency),
 		UserAgent:                      r.Request.UserAgent(),
 		RemoteIp:                       r.RemoteIP, // TODO(jba): attempt to parse http.Request.RemoteAddr?
 		Referer:                        r.Request.Referer(),
@@ -517,10 +512,6 @@ func fromHTTPRequest(r *HTTPRequest) *logtypepb.HttpRequest {
 // toProtoStruct converts v, which must marshal into a JSON object,
 // into a Google Struct proto.
 func toProtoStruct(v interface{}) (*structpb.Struct, error) {
-	// Fast path: if v is already a *structpb.Struct, nothing to do.
-	if s, ok := v.(*structpb.Struct); ok {
-		return s, nil
-	}
 	// v is a Go struct that supports JSON marshalling. We want a Struct
 	// protobuf. Some day we may have a more direct way to get there, but right
 	// now the only way is to marshal the Go struct to JSON, unmarshal into a

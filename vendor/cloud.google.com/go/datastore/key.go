@@ -53,6 +53,8 @@ func (k *Key) Parent() *Key {
 	return k.parent
 }
 
+// SetParent sets the parent of a complete key.
+// If the key is incomplete, it panics.
 func (k *Key) SetParent(v *Key) {
 	if v.Incomplete() {
 		panic("can't set an incomplete key as parent")
@@ -64,7 +66,7 @@ func (k *Key) Namespace() string {
 	return k.namespace
 }
 
-// Complete returns whether the key does not refer to a stored entity.
+// Incomplete reports whether the key does not refer to a stored entity.
 func (k *Key) Incomplete() bool {
 	return k.name == "" && k.id == 0
 }
@@ -93,6 +95,8 @@ func (k *Key) valid() bool {
 	return true
 }
 
+// Equal reports whether two keys are equal. Two keys are equal if they are
+// both nil, or if their kinds, IDs, names, namespaces and parents are equal.
 func (k *Key) Equal(o *Key) bool {
 	for {
 		if k == nil || o == nil {
@@ -171,6 +175,8 @@ func gobKeyToKey(gk *gobKey) *Key {
 	}
 }
 
+// GobEncode marshals the key into a sequence of bytes
+// using an encoding/gob.Encoder.
 func (k *Key) GobEncode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	if err := gob.NewEncoder(buf).Encode(keyToGobKey(k)); err != nil {
@@ -179,6 +185,7 @@ func (k *Key) GobEncode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// GobDecode unmarshals a sequence of bytes using an encoding/gob.Decoder.
 func (k *Key) GobDecode(buf []byte) error {
 	gk := new(gobKey)
 	if err := gob.NewDecoder(bytes.NewBuffer(buf)).Decode(gk); err != nil {
@@ -188,10 +195,12 @@ func (k *Key) GobDecode(buf []byte) error {
 	return nil
 }
 
+// MarshalJSON marshals the key into JSON.
 func (k *Key) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + k.Encode() + `"`), nil
 }
 
+// UnmarshalJSON unmarshals a key JSON object into a Key.
 func (k *Key) UnmarshalJSON(buf []byte) error {
 	if len(buf) < 2 || buf[0] != '"' || buf[len(buf)-1] != '"' {
 		return errors.New("datastore: bad JSON key")
@@ -239,16 +248,16 @@ func DecodeKey(encoded string) (*Key, error) {
 }
 
 // NewIncompleteKey creates a new incomplete key.
-// kind cannot be empty.
+// The supplied kind cannot be empty.
 func NewIncompleteKey(ctx context.Context, kind string, parent *Key) *Key {
 	return NewKey(ctx, kind, "", 0, parent)
 }
 
 // NewKey creates a new key.
-// kind cannot be empty.
+// The supplied kind cannot be empty.
 // At least one of name and id must be zero. If both are zero, the key returned
 // is incomplete.
-// parent must either be a complete key or nil.
+// The supplied parent must either be a complete key or nil.
 func NewKey(ctx context.Context, kind, name string, id int64, parent *Key) *Key {
 	return &Key{
 		kind:      kind,
@@ -260,7 +269,7 @@ func NewKey(ctx context.Context, kind, name string, id int64, parent *Key) *Key 
 }
 
 // AllocateIDs accepts a slice of incomplete keys and returns a
-// slice of complete keys that are guaranteed to be valid in the datastore
+// slice of complete keys that are guaranteed to be valid in the datastore.
 func (c *Client) AllocateIDs(ctx context.Context, keys []*Key) ([]*Key, error) {
 	if keys == nil {
 		return nil, nil

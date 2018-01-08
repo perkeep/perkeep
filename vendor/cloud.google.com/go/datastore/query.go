@@ -25,6 +25,7 @@ import (
 
 	wrapperspb "github.com/golang/protobuf/ptypes/wrappers"
 	"golang.org/x/net/context"
+	"google.golang.org/api/iterator"
 	pb "google.golang.org/genproto/googleapis/datastore/v1"
 )
 
@@ -584,7 +585,7 @@ type Iterator struct {
 }
 
 // Done is returned when a query iteration has completed.
-var Done = errors.New("datastore: query has no more results")
+var Done = iterator.Done
 
 // Next returns the key of the next result. When there are no more results,
 // Done is returned as the error.
