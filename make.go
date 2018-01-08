@@ -182,10 +182,10 @@ func main() {
 	case "*":
 		buildAll = true
 	case "":
-		// Add cammount to default build targets on OSes that support FUSE.
+		// Add pk-mount to default build targets on OSes that support FUSE.
 		switch *buildOS {
 		case "linux", "darwin":
-			targs = append(targs, "perkeep.org/cmd/cammount")
+			targs = append(targs, "perkeep.org/cmd/pk-mount")
 		}
 	default:
 		if *website {

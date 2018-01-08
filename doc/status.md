@@ -42,7 +42,7 @@ pieces and use cases, and where they're at.</p>
 
 <tr><td><a href="/cmd/camget">camget</a></td><td>10%</td><td>tool to retrieve content from a blobserver.</td></tr>
 
-<tr><td><a href="/cmd/cammount">cammount</a></td><td>read-only</td><td>Read-only FUSE mounting support, for mounting backups. Works on Linux and OS X. We have a plan for read-write.</td></tr>
+<tr><td><a href="/cmd/pk-mount">pk-mount</a></td><td>read-only</td><td>FUSE mounting. Works on Linux and OS X.</td></tr>
 
 <tr><td><a href="/gw/clients/android">Android Uploader</a></td><td>90%</td><td>UI is kinda ugly in spots but it works and
 optionally backs up your SD card (photos, etc) to your blob server. Uses camput.

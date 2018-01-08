@@ -33,7 +33,7 @@ Like curl, lets you set output file/directory with -o:
 
   camget -o <filename> <file-blobref>
 
-Camget isn't very fleshed out. In general, using 'cammount' to just
+Camget isn't very fleshed out. In general, using 'pk-mount' to just
 mount a tree is an easier way to get files back.
 */
 package main // import "perkeep.org/cmd/camget"

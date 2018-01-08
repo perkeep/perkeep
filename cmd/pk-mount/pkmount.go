@@ -52,7 +52,7 @@ var (
 )
 
 func usage() {
-	fmt.Fprint(os.Stderr, "usage: cammount [opts] [<mountpoint> [<root-blobref>|<share URL>|<root-name>]]\n")
+	fmt.Fprint(os.Stderr, "usage: pk-mount [opts] [<mountpoint> [<root-blobref>|<share URL>|<root-name>]]\n")
 	flag.PrintDefaults()
 	os.Exit(2)
 }
@@ -90,7 +90,7 @@ func main() {
 	if narg > 0 {
 		mountPoint = flag.Arg(0)
 	} else {
-		mountPoint, err = ioutil.TempDir("", "cammount")
+		mountPoint, err = ioutil.TempDir("", "pk-mount")
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -242,7 +242,7 @@ func main() {
 	err = fs.Unmount(mountPoint)
 	log.Printf("Unmount = %v", err)
 
-	log.Printf("cammount FUSE process ending.")
+	log.Printf("pk-mount FUSE process ending.")
 }
 
 func awaitQuitKey(done chan<- bool) {

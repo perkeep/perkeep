@@ -17,7 +17,7 @@ limitations under the License.
 */
 
 // Package fs implements a FUSE filesystem for Camlistore and is
-// used by the cammount binary.
+// used by the pk-mount binary.
 package fs // import "perkeep.org/pkg/fs"
 
 import (

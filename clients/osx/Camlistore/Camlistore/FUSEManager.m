@@ -59,7 +59,7 @@ limitations under the License.
     [launchPath appendString:[[NSBundle mainBundle] resourcePath]];
     [task setCurrentDirectoryPath:launchPath];
 
-    [launchPath appendString:@"/cammount"];
+    [launchPath appendString:@"/pk-mount"];
 
     NSString *mountDir = [self mountPath];
     [[NSFileManager defaultManager] createDirectoryAtPath:mountDir

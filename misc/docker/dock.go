@@ -431,7 +431,7 @@ func packBinaries(ctxDir string) {
 	}
 	switch *buildOS {
 	case "linux", "darwin":
-		binaries["cammount"] = false
+		binaries["pk-mount"] = false
 	}
 	toPack := func(bin string) bool {
 		for k := range binaries {

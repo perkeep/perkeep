@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 /*
-The cammount tool mounts a root directory blob onto the given
+The pk-mount tool mounts a root directory blob onto the given
 mountpoint. The blobref can be given directly or through a share blob
 URL. If no root blobref is given, an automatic root is created
 instead.
@@ -25,7 +25,7 @@ Mounting
 Execute the following commands in a shell to mount a Perkeep directory in your home directory.
 
   mkdir ~/Perkeep
-  cammount ~/Perkeep
+  pk-mount ~/Perkeep
   cd ~/Perkeep
   ls -C1
 
@@ -78,7 +78,7 @@ You can directly access a specific directory by using the full sha1 identifier.
 
 Full Command Line Usage
 
-  cammount [opts] [<mountpoint> [<root-blobref>|<share URL>|<root-name>]]
+  pk-mount [opts] [<mountpoint> [<root-blobref>|<share URL>|<root-name>]]
   -debug
         print debugging messages.
   -help
@@ -105,4 +105,4 @@ Full Command Line Usage
   -xterm
         Run an xterm in the mounted directory. Shut down when xterm ends.
 */
-package main // import "perkeep.org/cmd/cammount"
+package main // import "perkeep.org/cmd/pk-mount"

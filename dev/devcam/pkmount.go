@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This file adds the "mount" subcommand to devcam, to run cammount against the dev server.
+// This file adds the "mount" subcommand to devcam, to run pk-mount against the dev server.
 
 package main
 
@@ -43,7 +43,7 @@ type mountCmd struct {
 	env *Env
 }
 
-const mountpoint = "/tmp/cammount-dir"
+const mountpoint = "/tmp/pk-mount-dir"
 
 func init() {
 	cmdmain.RegisterCommand("mount", func(flags *flag.FlagSet) cmdmain.CommandRunner {
@@ -71,7 +71,7 @@ func (c *mountCmd) Examples() []string {
 }
 
 func (c *mountCmd) Describe() string {
-	return "run cammount in dev mode."
+	return "run pk-mount in dev mode."
 }
 
 func tryUnmount(dir string) error {
@@ -87,8 +87,8 @@ func (c *mountCmd) RunCommand(args []string) error {
 		return cmdmain.UsageError(fmt.Sprint(err))
 	}
 	if !*noBuild {
-		if err := build(filepath.Join("cmd", "cammount")); err != nil {
-			return fmt.Errorf("Could not build cammount: %v", err)
+		if err := build(filepath.Join("cmd", "pk-mount")); err != nil {
+			return fmt.Errorf("Could not build pk-mount: %v", err)
 		}
 	}
 	c.env.SetCamdevVars(c.altkey)
@@ -108,14 +108,14 @@ func (c *mountCmd) RunCommand(args []string) error {
 		blobserver = strings.Replace(blobserver, "http://", "https://", 1)
 	}
 
-	cmdBin := filepath.Join("bin", "cammount")
+	cmdBin := filepath.Join("bin", "pk-mount")
 	cmdArgs := []string{
 		"-debug=" + strconv.FormatBool(c.debug),
 		"-server=" + blobserver,
 	}
 	cmdArgs = append(cmdArgs, args...)
 	cmdArgs = append(cmdArgs, mountpoint)
-	fmt.Printf("Cammount running with mountpoint %v. Press 'q' <enter> or ctrl-c to shut down.\n", mountpoint)
+	fmt.Printf("pk-Mount running with mountpoint %v. Press 'q' <enter> or ctrl-c to shut down.\n", mountpoint)
 	return runExec(cmdBin, cmdArgs, c.env)
 }
 

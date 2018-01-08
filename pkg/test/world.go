@@ -295,11 +295,11 @@ func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cm
 	}
 	var cmd *exec.Cmd
 	switch binary {
-	case "camget", "camput", "camtool", "cammount":
+	case "camget", "camput", "camtool", "pk-mount":
 		// TODO(mpl): lift the camput restriction when we have a unified logging mechanism
 		if binary == "camput" && !hasVerbose() {
 			// camput and camtool are the only ones to have a -verbose flag through cmdmain
-			// but camtool is never used. (and cammount does not even have a -verbose).
+			// but camtool is never used. (and pk-mount does not even have a -verbose).
 			args = append([]string{"-verbose"}, args...)
 		}
 		cmd = exec.Command(filepath.Join(w.camRoot, "bin", binary), args...)

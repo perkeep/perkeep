@@ -58,7 +58,7 @@ func condSkip(t *testing.T) {
 		// TODO: simplify if/when bazil drops 2.x support.
 		_, err := os.Stat(fuse.OSXFUSELocationV3.Mount)
 		if err == nil {
-			osxFuseMarker = "cammount@osxfuse"
+			osxFuseMarker = "pkmount@osxfuse"
 			return
 		}
 		if !os.IsNotExist(err) {
@@ -67,7 +67,7 @@ func condSkip(t *testing.T) {
 		_, err = os.Stat(fuse.OSXFUSELocationV2.Mount)
 		if err == nil {
 			osxFuseMarker = "mount_osxfusefs@"
-			// TODO(mpl): add a similar check/warning to pkg/fs or cammount.
+			// TODO(mpl): add a similar check/warning to pkg/fs or pk-mount.
 			t.Log("OSXFUSE version 2.x detected. Please consider upgrading to v 3.x.")
 			return
 		}
@@ -114,7 +114,7 @@ func testName() string {
 }
 
 func inEmptyMutDir(t *testing.T, fn func(env *mountEnv, dir string)) {
-	cammountTest(t, func(env *mountEnv) {
+	pkmountTest(t, func(env *mountEnv) {
 		dir := filepath.Join(env.mountPoint, "roots", testName())
 		if err := os.Mkdir(dir, 0755); err != nil {
 			t.Fatalf("Failed to make roots/r dir: %v", err)
@@ -127,7 +127,7 @@ func inEmptyMutDir(t *testing.T, fn func(env *mountEnv, dir string)) {
 	})
 }
 
-func cammountTest(t *testing.T, fn func(env *mountEnv)) {
+func pkmountTest(t *testing.T, fn func(env *mountEnv)) {
 	dupLog := io.MultiWriter(os.Stderr, testLog{t})
 	log.SetOutput(dupLog)
 	defer log.SetOutput(os.Stderr)
@@ -152,7 +152,7 @@ func cammountTest(t *testing.T, fn func(env *mountEnv)) {
 		stderrDest = io.MultiWriter(stderrDest, os.Stderr)
 	}
 
-	mount := w.Cmd("cammount", "--debug="+verbose, mountPoint)
+	mount := w.Cmd("pk-mount", "--debug="+verbose, mountPoint)
 	mount.Stderr = stderrDest
 	mount.Env = append(mount.Env, "CAMLI_TRACK_FS_STATS=1")
 
@@ -173,11 +173,11 @@ func cammountTest(t *testing.T, fn func(env *mountEnv)) {
 		stdin.Write([]byte("q\n"))
 		select {
 		case <-time.After(5 * time.Second):
-			log.Printf("timeout waiting for cammount to finish")
+			log.Printf("timeout waiting for pk-mount to finish")
 			mount.Process.Kill()
 			Unmount(mountPoint)
 		case err := <-waitc:
-			log.Printf("cammount exited: %v", err)
+			log.Printf("pk-mount exited: %v", err)
 		}
 		if !test.WaitFor(not(isMounted(mountPoint)), 5*time.Second, 1*time.Second) {
 			// It didn't unmount. Try again.
@@ -198,7 +198,7 @@ func cammountTest(t *testing.T, fn func(env *mountEnv)) {
 
 func TestRoot(t *testing.T) {
 	condSkip(t)
-	cammountTest(t, func(env *mountEnv) {
+	pkmountTest(t, func(env *mountEnv) {
 		f, err := os.Open(env.mountPoint)
 		if err != nil {
 			t.Fatal(err)
@@ -451,7 +451,7 @@ func TestMoveAt(t *testing.T) {
 		time.Sleep(time.Second)
 		afterTime = time.Now()
 	})
-	cammountTest(t, func(env *mountEnv) {
+	pkmountTest(t, func(env *mountEnv) {
 		atPrefix := filepath.Join(env.mountPoint, "at")
 		testname := strings.Split(testName(), ".")[0]
 
@@ -602,7 +602,7 @@ func TestSymlink(t *testing.T) {
 		t.Logf("Checking in first process...")
 		check()
 	})
-	cammountTest(t, func(env *mountEnv) {
+	pkmountTest(t, func(env *mountEnv) {
 		t.Logf("Checking in second process...")
 		link = env.mountPoint + suffix
 		check()

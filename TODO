@@ -135,7 +135,7 @@ Offline list:
    of where to put new blobs. union could a library (used by sharder)
    with a pluggable policy on that.
 
--- support for running cammount under camlistored. especially for OS X,
+-- support for running pk-mount under camlistored. especially for OS X,
    where the lifetime of the background daemon will be the same as the
    user's login session.
 

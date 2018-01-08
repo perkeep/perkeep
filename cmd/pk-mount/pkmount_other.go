@@ -23,5 +23,5 @@ import (
 )
 
 func main() {
-	log.Fatalln("cammount not implemented on", runtime.GOOS)
+	log.Fatalln("pk-mount not implemented on", runtime.GOOS)
 }
