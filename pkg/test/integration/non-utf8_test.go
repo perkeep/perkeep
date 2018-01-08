@@ -22,7 +22,9 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 
 	"perkeep.org/pkg/test"
@@ -56,6 +58,11 @@ func TestNonUTF8FileName(t *testing.T) {
 	}
 
 	fd, err := os.Create(filepath.Join(srcDir, string(base)))
+	if isBadFilenameError(err) {
+		// TODO: decide how we want to handle this in the future.
+		// Normalize to UTF-8 with heuristics in camget?
+		t.Skip("skipping non-UTF-8 test on system requiring UTF-8")
+	}
 	if err != nil {
 		t.Fatalf("os.Create(): %v", err)
 	}
@@ -90,6 +97,11 @@ func TestNonUTF8SymlinkTarget(t *testing.T) {
 	}
 
 	fd, err := os.Create(filepath.Join(srcDir, string(base)))
+	if isBadFilenameError(err) {
+		// TODO: decide how we want to handle this in the future.
+		// Normalize to UTF-8 with heuristics in camget?
+		t.Skip("skipping non-UTF-8 test on system requiring UTF-8")
+	}
 	if err != nil {
 		t.Fatalf("os.Create(): %v", err)
 	}
@@ -118,4 +130,14 @@ func TestNonUTF8SymlinkTarget(t *testing.T) {
 		t.Fatalf("Retrieved symlink contains points to unexpected target")
 	}
 
+}
+
+func isBadFilenameError(err error) bool {
+	if runtime.GOOS != "darwin" {
+		return false
+	}
+	if pe, ok := err.(*os.PathError); ok && pe.Op == "open" && pe.Err == syscall.Errno(0x5c) {
+		return true
+	}
+	return false
 }
