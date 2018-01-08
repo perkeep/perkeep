@@ -103,10 +103,10 @@ func TestDocHandler(t *testing.T) {
 		wantSubstr string
 	}{
 		// Test that the title tag is constructed from the h1 element
-		{"/doc/uses", http.StatusOK,
-			"<title>Use Cases - Perkeep</title>"},
+		{"/website/testdata/sample", http.StatusOK,
+			"<title>Lorem Ipsum - Perkeep</title>"},
 		// Test that an html extension redirects to the base path
-		{"/doc/uses.html", 302, "Found"},
+		{"/website/testdata/sample.html", 302, "Found"},
 	}
 
 	for _, tt := range tests {
