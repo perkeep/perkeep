@@ -337,6 +337,10 @@ func gofmtRequired(file string) bool {
 	if !strings.HasSuffix(file, ".go") {
 		return false
 	}
+	// vendor files should be imported as-is
+	if strings.HasPrefix(file, "vendor/") {
+		return false
+	}
 	if !strings.HasPrefix(file, "test/") {
 		return true
 	}
