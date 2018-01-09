@@ -1,3 +1,7 @@
+# Contributing
+
+## Getting Started
+
 Perkeep contributors regularly use Linux and OS X, and both are
 100% supported.
 
@@ -36,6 +40,8 @@ During development, rather than use the main binaries ("camput",
 wrapper (devcam) that automatically configure the environment to use
 the test server & test environment.
 
+## Building devcam
+
 To build devcam:
 
     $ go run make.go
@@ -48,6 +54,8 @@ $GOPATH/src/perkeep.org (optional, but natural for Go users), you
 can just:
 
     $ go install ./dev/devcam
+
+## Running devcam
 
 The subcommands of devcam start the server or run camput/camget/etc:
 
@@ -69,6 +77,9 @@ Once the dev server is running,
 
 - Use the UI: http://localhost:3179/ui/
 
+
+## Testing Patches
+
 Before submitting a patch, you should check that all the tests pass with:
 
     $ devcam test
@@ -76,6 +87,8 @@ Before submitting a patch, you should check that all the tests pass with:
 You can use your usual git workflow to commit your changes, but for each
 change to be reviewed you should merge your commits into one before submitting
 to gerrit for review.
+
+## Commit Messages
 
 You should also try to write a meaningful commit message, which at least states
 in the first sentence what part or package of perkeep this commit is affecting.
@@ -87,19 +100,36 @@ https://help.github.com/articles/closing-issues-via-commit-messages/).
 For example:
 
 > pkg/search: add "file" predicate to search by file name
-
+>
 > File names were already indexed but there was no way to query the index for a file
 > by its name. The "file" predicate can now be used in search expressions (e.g. in the
 > search box of the web user interface) to achieve that.
-
+>
 > Fixes #10987
 
-If your commit is adding or updating a vendored third party, you must indicate
-in your commit message the version (e.g. git commit hash) of said third party.
+## Vendored Code
+
+Changes to vendored third party code must be done using the dep tool.
+Information on adding, removing and updating vendor deps can be found
+in the [dep documentation](https://github.com/golang/dep/blob/master/README.md).
+
+Once you have your changes and versions specified please run the
+following commands to update the vendor directory with your changes:
+
+    $ dep ensure
+    $ dep prune
+
+To help track version changes please add the semantic version and the
+revision in your commit message the version which you can find in the
+Gopkg.lock file.
+
+## Contributors
 
 We follow the Go convention for commits (messages) about new Contributors.
 See https://golang.org/doc/contribute.html#copyright , and examples such as
 https://perkeep.org/gw/85bf99a7, and https://perkeep.org/gw/8f9af410.
+
+## git Hooks
 
 You can optionally use our pre-commit hook so that your code gets gofmt'ed
 before being submitted (which should be done anyway).
