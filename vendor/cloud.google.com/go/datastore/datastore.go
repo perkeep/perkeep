@@ -231,7 +231,8 @@ func keyToProto(k *Key) *pb.Key {
 }
 
 // protoToKey decodes a protocol buffer representation of a key into an
-// equivalent *Key object.
+// equivalent *Key object. If the key is invalid, protoToKey will return the
+// invalid key along with ErrInvalidKey.
 func protoToKey(p *pb.Key) (*Key, error) {
 	var key *Key
 	var namespace string
@@ -248,7 +249,7 @@ func protoToKey(p *pb.Key) (*Key, error) {
 		}
 	}
 	if !key.valid() { // Also detects key == nil.
-		return nil, ErrInvalidKey
+		return key, ErrInvalidKey
 	}
 	return key, nil
 }
@@ -525,6 +526,8 @@ func putMutations(keys []*Key, src interface{}) ([]*pb.Mutation, error) {
 		return nil, err
 	}
 	mutations := make([]*pb.Mutation, 0, len(keys))
+	multiErr := make(MultiError, len(keys))
+	hasErr := false
 	for i, k := range keys {
 		elem := v.Index(i)
 		// Two cases where we need to take the address:
@@ -535,7 +538,8 @@ func putMutations(keys []*Key, src interface{}) ([]*pb.Mutation, error) {
 		}
 		p, err := saveEntity(k, elem.Interface())
 		if err != nil {
-			return nil, fmt.Errorf("datastore: Error while saving %v: %v", k.String(), err)
+			multiErr[i] = err
+			hasErr = true
 		}
 		var mut *pb.Mutation
 		if k.Incomplete() {
@@ -544,6 +548,9 @@ func putMutations(keys []*Key, src interface{}) ([]*pb.Mutation, error) {
 			mut = &pb.Mutation{Operation: &pb.Mutation_Upsert{p}}
 		}
 		mutations = append(mutations, mut)
+	}
+	if hasErr {
+		return nil, multiErr
 	}
 	return mutations, nil
 }

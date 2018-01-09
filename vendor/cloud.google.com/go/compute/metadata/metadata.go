@@ -200,7 +200,7 @@ func testOnGCE() bool {
 	resc := make(chan bool, 2)
 
 	// Try two strategies in parallel.
-	// See https://github.com/GoogleCloudPlatform/gcloud-golang/issues/194
+	// See https://github.com/GoogleCloudPlatform/google-cloud-go/issues/194
 	go func() {
 		res, err := ctxhttp.Get(ctx, metaClient, "http://"+metadataIP)
 		if err != nil {

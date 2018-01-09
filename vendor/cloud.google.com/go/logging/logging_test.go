@@ -26,9 +26,6 @@ import (
 	"testing"
 	"time"
 
-	gax "github.com/googleapis/gax-go"
-
-	cinternal "cloud.google.com/go/internal"
 	"cloud.google.com/go/internal/testutil"
 	"cloud.google.com/go/logging"
 	"cloud.google.com/go/logging/internal"
@@ -51,7 +48,6 @@ var (
 	testLogID     string
 	testFilter    string
 	errorc        chan error
-	ctx           context.Context
 
 	// Adjust the fields of a FullEntry received from the production service
 	// before comparing it with the expected result. We can't correctly
@@ -71,7 +67,7 @@ var integrationTest bool
 
 func TestMain(m *testing.M) {
 	flag.Parse() // needed for testing.Short()
-	ctx = context.Background()
+	ctx := context.Background()
 	testProjectID = testutil.ProjID()
 	errorc = make(chan error, 100)
 	if testProjectID == "" || testing.Short() {
@@ -135,7 +131,9 @@ func TestMain(m *testing.M) {
 	}
 	client, aclient = newClients(ctx, testProjectID)
 	client.OnError = func(e error) { errorc <- e }
-
+	initLogs(ctx)
+	testFilter = fmt.Sprintf(`logName = "projects/%s/logs/%s"`, testProjectID,
+		strings.Replace(testLogID, "/", "%2F", -1))
 	exit := m.Run()
 	client.Close()
 	os.Exit(exit)
@@ -143,17 +141,15 @@ func TestMain(m *testing.M) {
 
 func initLogs(ctx context.Context) {
 	testLogID = ltesting.UniqueID(testLogIDPrefix)
-	testFilter = fmt.Sprintf(`logName = "projects/%s/logs/%s"`, testProjectID,
-		strings.Replace(testLogID, "/", "%2F", -1))
 	// TODO(jba): Clean up from previous aborted tests by deleting old logs; requires ListLogs RPC.
 }
 
 // Testing of Logger.Log is done in logadmin_test.go, TestEntries.
 
 func TestLogSync(t *testing.T) {
-	initLogs(ctx) // Generate new testLogID
 	ctx := context.Background()
 	lg := client.Logger(testLogID)
+	defer deleteLog(ctx, testLogID)
 	err := lg.LogSync(ctx, logging.Entry{Payload: "hello"})
 	if err != nil {
 		t.Fatal(err)
@@ -174,27 +170,23 @@ func TestLogSync(t *testing.T) {
 		entryForTesting("mr"),
 	}
 	var got []*logging.Entry
-	ok := waitFor(func() bool {
+	waitFor(func() bool {
 		got, err = allTestLogEntries(ctx)
 		if err != nil {
-			t.Log("fetching log entries: ", err)
 			return false
 		}
-		return len(got) == len(want)
+		return len(got) >= len(want)
 	})
-	if !ok {
-		t.Fatalf("timed out; got: %d, want: %d\n", len(got), len(want))
-	}
 	if msg, ok := compareEntries(got, want); !ok {
 		t.Error(msg)
 	}
 }
 
 func TestLogAndEntries(t *testing.T) {
-	initLogs(ctx) // Generate new testLogID
 	ctx := context.Background()
 	payloads := []string{"p1", "p2", "p3", "p4", "p5"}
 	lg := client.Logger(testLogID)
+	defer deleteLog(ctx, testLogID)
 	for _, p := range payloads {
 		// Use the insert ID to guarantee iteration order.
 		lg.Log(logging.Entry{Payload: p, InsertID: p})
@@ -205,65 +197,29 @@ func TestLogAndEntries(t *testing.T) {
 		want = append(want, entryForTesting(p))
 	}
 	var got []*logging.Entry
-	ok := waitFor(func() bool {
+	waitFor(func() bool {
 		var err error
 		got, err = allTestLogEntries(ctx)
 		if err != nil {
-			t.Log("fetching log entries: ", err)
 			return false
 		}
-		return len(got) == len(want)
+		return len(got) >= len(want)
 	})
-	if !ok {
-		t.Fatalf("timed out; got: %d, want: %d\n", len(got), len(want))
-	}
 	if msg, ok := compareEntries(got, want); !ok {
 		t.Error(msg)
 	}
 }
 
-// compareEntries compares most fields list of Entries against expected. compareEntries does not compare:
-//   - HTTPRequest
-//   - Operation
-//   - Resource
 func compareEntries(got, want []*logging.Entry) (string, bool) {
 	if len(got) != len(want) {
 		return fmt.Sprintf("got %d entries, want %d", len(got), len(want)), false
 	}
 	for i := range got {
-		if !compareEntry(got[i], want[i]) {
+		if !reflect.DeepEqual(got[i], want[i]) {
 			return fmt.Sprintf("#%d:\ngot  %+v\nwant %+v", i, got[i], want[i]), false
 		}
 	}
 	return "", true
-}
-
-func compareEntry(got, want *logging.Entry) bool {
-	if got.Timestamp.Unix() != want.Timestamp.Unix() {
-		return false
-	}
-
-	if got.Severity != want.Severity {
-		return false
-	}
-
-	if !reflect.DeepEqual(got.Payload, want.Payload) {
-		return false
-	}
-
-	if !reflect.DeepEqual(got.Labels, want.Labels) {
-		return false
-	}
-
-	if got.InsertID != want.InsertID {
-		return false
-	}
-
-	if got.LogName != want.LogName {
-		return false
-	}
-
-	return true
 }
 
 func entryForTesting(payload interface{}) *logging.Entry {
@@ -271,7 +227,7 @@ func entryForTesting(payload interface{}) *logging.Entry {
 		Timestamp: testNow().UTC(),
 		Payload:   payload,
 		LogName:   "projects/" + testProjectID + "/logs/" + testLogID,
-		Resource:  &mrpb.MonitoredResource{Type: "global", Labels: map[string]string{"project_id": testProjectID}},
+		Resource:  &mrpb.MonitoredResource{Type: "global"},
 	}
 }
 
@@ -316,9 +272,9 @@ func cleanNext(it *logadmin.EntryIterator) (*logging.Entry, error) {
 }
 
 func TestStandardLogger(t *testing.T) {
-	initLogs(ctx) // Generate new testLogID
 	ctx := context.Background()
 	lg := client.Logger(testLogID)
+	defer deleteLog(ctx, testLogID)
 	slg := lg.StandardLogger(logging.Info)
 
 	if slg != lg.StandardLogger(logging.Info) {
@@ -331,18 +287,14 @@ func TestStandardLogger(t *testing.T) {
 	slg.Print("info")
 	lg.Flush()
 	var got []*logging.Entry
-	ok := waitFor(func() bool {
+	waitFor(func() bool {
 		var err error
 		got, err = allTestLogEntries(ctx)
 		if err != nil {
-			t.Log("fetching log entries: ", err)
 			return false
 		}
-		return len(got) == 1
+		return len(got) >= 1
 	})
-	if !ok {
-		t.Fatalf("timed out; got: %d, want: %d\n", len(got), 1)
-	}
 	if len(got) != 1 {
 		t.Fatalf("expected non-nil request with one entry; got:\n%+v", got)
 	}
@@ -383,7 +335,6 @@ func TestParseSeverity(t *testing.T) {
 }
 
 func TestErrors(t *testing.T) {
-	initLogs(ctx) // Generate new testLogID
 	// Drain errors already seen.
 loop:
 	for {
@@ -447,63 +398,29 @@ func TestPing(t *testing.T) {
 	}
 }
 
-func TestDeleteLog(t *testing.T) {
-	initLogs(ctx) // Generate new testLogID
-	// Write some log entries.
-	ctx := context.Background()
-	payloads := []string{"p1", "p2"}
-	lg := client.Logger(testLogID)
-	for _, p := range payloads {
-		// Use the insert ID to guarantee iteration order.
-		lg.Log(logging.Entry{Payload: p, InsertID: p})
-	}
-	lg.Flush()
-
-	var got []*logging.Entry
-	ok := waitFor(func() bool {
-		var err error
-		got, err = allTestLogEntries(ctx)
-		if err != nil {
-			t.Log("fetching log entries: ", err)
-			return false
-		}
-		return len(got) == 2
-	})
-	if !ok {
-		t.Fatalf("timed out; got: %d, want: %d\n", len(got), 2)
-	}
-
-	// Sleep.
-	// Write timestamp uses client-provided timestamp, delete uses server
-	// timestamp. We sleep to reduce the possibility that the logs are never
-	// "deleted" because of clock skew.
-	// This is the recommended approach by Stackdriver team.
-	time.Sleep(3 * time.Second)
-
-	// Delete the log
-	err := aclient.DeleteLog(ctx, testLogID)
-	if err != nil {
-		log.Fatalf("error deleting log: %v", err)
-	}
-
+// deleteLog is used to clean up a log after a test that writes to it.
+func deleteLog(ctx context.Context, logID string) {
+	aclient.DeleteLog(ctx, logID)
 	// DeleteLog can take some time to happen, so we wait for the log to
 	// disappear. There is no direct way to determine if a log exists, so we
 	// just wait until there are no log entries associated with the ID.
-	filter := fmt.Sprintf(`logName = "%s"`, internal.LogPath("projects/"+testProjectID, testLogID))
-	ok = waitFor(func() bool { return countLogEntries(ctx, filter) == 0 })
-	if !ok {
-		t.Fatalf("timed out waiting for log entries to be deleted")
-	}
+	filter := fmt.Sprintf(`logName = "%s"`, internal.LogPath("projects/"+testProjectID, logID))
+	waitFor(func() bool { return countLogEntries(ctx, filter) == 0 })
 }
 
-// waitFor calls f repeatedly with exponential backoff, blocking until it returns true.
-// It returns false after a while (if it times out).
-func waitFor(f func() bool) bool {
-	// TODO(shadams): Find a better way to deflake these tests.
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-	err := cinternal.Retry(ctx,
-		gax.Backoff{Initial: time.Second, Multiplier: 2},
-		func() (bool, error) { return f(), nil })
-	return err == nil
+// waitFor calls f periodically, blocking until it returns true.
+// It calls log.Fatal after one minute.
+func waitFor(f func() bool) {
+	timeout := time.NewTimer(2 * time.Minute)
+	for {
+		select {
+		case <-time.After(1 * time.Second):
+			if f() {
+				timeout.Stop()
+				return
+			}
+		case <-timeout.C:
+			log.Fatal("timed out")
+		}
+	}
 }
