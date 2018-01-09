@@ -2,7 +2,7 @@
 
 * [Overview](/doc/overview.md): The original motivation and background for why
   Perkeep exists and what one might use it for.
-
+* [Compare](/doc/compare.md): how Perkeep compares to similar services and software
 
 ## For Users
 
