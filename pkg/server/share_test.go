@@ -53,7 +53,7 @@ func newSigner(t *testing.T) (*schema.Signer, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pubRef := blob.SHA1FromString(armorPub)
+	pubRef := blob.RefFromString(armorPub)
 	sig, err := schema.NewSigner(pubRef, strings.NewReader(armorPub), ent)
 	if err != nil {
 		t.Fatalf("NewSigner: %v", err)
@@ -86,7 +86,7 @@ func newShareTesterIdx(t *testing.T, withIndex bool) *shareTester {
 		restoreLog: test.TLog(t),
 	}
 	if withIndex {
-		st.putRaw(blob.SHA1FromString(armorPub), armorPub)
+		st.putRaw(blob.RefFromString(armorPub), armorPub)
 	}
 	timeSleep = func(d time.Duration) {
 		st.sleeps++
@@ -150,18 +150,18 @@ func TestHandleGetViaSharing(t *testing.T) {
 	defer st.done()
 
 	content := "monkey" // the secret
-	contentRef := blob.SHA1FromString(content)
+	contentRef := blob.RefFromString(content)
 
 	link := fmt.Sprintf(`{"camliVersion": 1,
 "camliType": "file",
 "parts": [
    {"blobRef": "%v", "size": %d}
 ]}`, contentRef, len(content))
-	linkRef := blob.SHA1FromString(link)
+	linkRef := blob.RefFromString(link)
 
 	share := schema.NewShareRef(schema.ShareHaveRef, false).
 		SetShareTarget(linkRef).
-		SetSigner(blob.SHA1FromString("irrelevant")).
+		SetSigner(blob.RefFromString("irrelevant")).
 		SetRawStringField("camliSig", "alsounused")
 	shareRef := func() blob.Ref { return share.Blob().BlobRef() }
 
@@ -211,16 +211,16 @@ func TestSharingTransitiveSafety(t *testing.T) {
 	defer st.done()
 
 	content := "the secret"
-	contentRef := blob.SHA1FromString(content)
+	contentRef := blob.RefFromString(content)
 
 	// User-injected blob, somehow.
 	evilClaim := fmt.Sprintf("Some payload containing the ref: %v", contentRef)
-	evilClaimRef := blob.SHA1FromString(evilClaim)
+	evilClaimRef := blob.RefFromString(evilClaim)
 
 	share := schema.NewShareRef(schema.ShareHaveRef, false).
 		SetShareTarget(evilClaimRef).
 		SetShareIsTransitive(true).
-		SetSigner(blob.SHA1FromString("irrelevant")).
+		SetSigner(blob.RefFromString("irrelevant")).
 		SetRawStringField("camliSig", "alsounused")
 	shareRef := func() blob.Ref { return share.Blob().BlobRef() }
 
@@ -244,9 +244,9 @@ func TestHandleGetFilePartViaSharing(t *testing.T) {
 	defer st.done()
 
 	content1 := "monkey" // part1
-	contentRef1 := blob.SHA1FromString(content1)
+	contentRef1 := blob.RefFromString(content1)
 	content2 := "banana" // part2
-	contentRef2 := blob.SHA1FromString(content2)
+	contentRef2 := blob.RefFromString(content2)
 
 	link := fmt.Sprintf(`{"camliVersion": 1,
 "camliType": "file",
@@ -254,11 +254,11 @@ func TestHandleGetFilePartViaSharing(t *testing.T) {
    {"blobRef": "%v", "size": %d},
    {"blobRef": "%v", "size": %d}
 ]}`, contentRef1, len(content1), contentRef2, len(content2))
-	linkRef := blob.SHA1FromString(link)
+	linkRef := blob.RefFromString(link)
 
 	share := schema.NewShareRef(schema.ShareHaveRef, false).
 		SetShareTarget(linkRef).
-		SetSigner(blob.SHA1FromString("irrelevant")).
+		SetSigner(blob.RefFromString("irrelevant")).
 		SetRawStringField("camliSig", "alsounused")
 	shareRef := func() blob.Ref { return share.Blob().BlobRef() }
 
@@ -307,9 +307,9 @@ func TestHandleGetBytesPartViaSharing(t *testing.T) {
 	defer st.done()
 
 	content1 := "monkey" // part1
-	contentRef1 := blob.SHA1FromString(content1)
+	contentRef1 := blob.RefFromString(content1)
 	content2 := "banana" // part2
-	contentRef2 := blob.SHA1FromString(content2)
+	contentRef2 := blob.RefFromString(content2)
 
 	link2 := fmt.Sprintf(`{"camliVersion": 1,
 "camliType": "bytes",
@@ -317,19 +317,19 @@ func TestHandleGetBytesPartViaSharing(t *testing.T) {
    {"blobRef": "%v", "size": %d},
    {"blobRef": "%v", "size": %d}
 ]}`, contentRef1, len(content1), contentRef2, len(content2))
-	linkRef2 := blob.SHA1FromString(link2)
+	linkRef2 := blob.RefFromString(link2)
 
 	link1 := fmt.Sprintf(`{"camliVersion": 1,
 "camliType": "file",
 "parts": [
    {"blobRef": "%v", "size": %d},
    {"bytesRef": "%v", "size": %d}
-]}`, blob.SHA1FromString("irrelevant content"), len("irrelevant content"), linkRef2, len(link2))
-	linkRef1 := blob.SHA1FromString(link1)
+]}`, blob.RefFromString("irrelevant content"), len("irrelevant content"), linkRef2, len(link2))
+	linkRef1 := blob.RefFromString(link1)
 
 	share := schema.NewShareRef(schema.ShareHaveRef, false).
 		SetShareTarget(linkRef1).
-		SetSigner(blob.SHA1FromString("irrelevant")).
+		SetSigner(blob.RefFromString("irrelevant")).
 		SetRawStringField("camliSig", "alsounused")
 	shareRef := func() blob.Ref { return share.Blob().BlobRef() }
 
@@ -383,14 +383,14 @@ func TestHandleShareDeletion(t *testing.T) {
 	defer st.done()
 
 	content := "monkey" // the secret
-	contentRef := blob.SHA1FromString(content)
+	contentRef := blob.RefFromString(content)
 
 	link := fmt.Sprintf(`{"camliVersion": 1,
 "camliType": "file",
 "parts": [
    {"blobRef": "%v", "size": %d}
 ]}`, contentRef, len(content))
-	linkRef := blob.SHA1FromString(link)
+	linkRef := blob.RefFromString(link)
 	st.putRaw(contentRef, content)
 	st.putRaw(linkRef, link)
 
@@ -401,7 +401,7 @@ func TestHandleShareDeletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	shareRef := blob.SHA1FromString(signed)
+	shareRef := blob.RefFromString(signed)
 	st.putRaw(shareRef, signed)
 
 	// Test we can get content.
@@ -413,7 +413,7 @@ func TestHandleShareDeletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	deleteRef := blob.SHA1FromString(signedDel)
+	deleteRef := blob.RefFromString(signedDel)
 	st.putRaw(deleteRef, signedDel)
 
 	// Test we can't get the content anymore

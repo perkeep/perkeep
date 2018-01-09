@@ -19,7 +19,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"crypto/sha1"
 	"errors"
 	"flag"
 	"fmt"
@@ -598,7 +597,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		if err != nil {
 			return nil, err
 		}
-		br = blob.SHA1FromString(json)
+		br = blob.RefFromString(json)
 		h := &client.UploadHandle{
 			BlobRef:  br,
 			Size:     uint32(len(json)),
@@ -1165,7 +1164,7 @@ type trackDigestReader struct {
 
 func (t *trackDigestReader) Read(p []byte) (n int, err error) {
 	if t.h == nil {
-		t.h = sha1.New()
+		t.h = blob.NewHash()
 	}
 	n, err = t.r.Read(p)
 	t.h.Write(p[:n])
@@ -1173,5 +1172,5 @@ func (t *trackDigestReader) Read(p []byte) (n int, err error) {
 }
 
 func (t *trackDigestReader) Sum() string {
-	return fmt.Sprintf("sha1-%x", t.h.Sum(nil))
+	return blob.RefFromHash(t.h).String()
 }

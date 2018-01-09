@@ -106,7 +106,7 @@ func TestMultiStat(t *testing.T) {
 	// maxParallelStats other dummy blobs, to exercise the stat
 	// rate-limiting (which had a deadlock once after a cleanup)
 	for i := 0; i < maxParallelStats; i++ {
-		blobs = append(blobs, blob.SHA1FromString(strconv.Itoa(i)))
+		blobs = append(blobs, blob.RefFromString(strconv.Itoa(i)))
 	}
 
 	ctx := context.Background()

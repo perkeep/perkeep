@@ -28,6 +28,7 @@ import (
 	"strings"
 	"testing"
 
+	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/index"
@@ -36,6 +37,45 @@ import (
 	"perkeep.org/pkg/test"
 	"perkeep.org/pkg/types/camtypes"
 )
+
+var (
+	chunk1, chunk2, chunk3, fileBlob, staticSetBlob, dirBlob *test.Blob
+	chunk1ref, chunk2ref, chunk3ref, fileBlobRef             blob.Ref
+)
+
+func init() {
+	testhooks.SetUseSHA1(true)
+
+	chunk1 = &test.Blob{Contents: "foo"}
+	chunk2 = &test.Blob{Contents: "bar"}
+	chunk3 = &test.Blob{Contents: "baz"}
+
+	chunk1ref = chunk1.BlobRef()
+	chunk2ref = chunk2.BlobRef()
+	chunk3ref = chunk3.BlobRef()
+
+	fileBlob = &test.Blob{fmt.Sprintf(`{"camliVersion": 1,
+"camliType": "file",
+"fileName": "stuff.txt",
+"parts": [
+  {"blobRef": "%s", "size": 3},
+  {"blobRef": "%s", "size": 3},
+  {"blobRef": "%s", "size": 3}
+]}`, chunk1ref, chunk2ref, chunk3ref)}
+	fileBlobRef = fileBlob.BlobRef()
+
+	staticSetBlob = &test.Blob{fmt.Sprintf(`{"camliVersion": 1,
+"camliType": "static-set",
+"members": [
+  "%s"
+]}`, fileBlobRef)}
+
+	dirBlob = &test.Blob{fmt.Sprintf(`{"camliVersion": 1,
+"camliType": "directory",
+"fileName": "someDir",
+"entries": "%s"
+}`, staticSetBlob.BlobRef())}
+}
 
 func TestReverseTimeString(t *testing.T) {
 	in := "2011-11-27T01:23:45Z"
@@ -190,38 +230,6 @@ func TestMergeFileInfoRow4(t *testing.T) {
 func TestMergeFileInfoRow(t *testing.T) {
 	testMergeFileInfoRow(t, "sha1-142b504945338158e0149d4ed25a41a522a28e88")
 }
-
-var (
-	chunk1 = &test.Blob{Contents: "foo"}
-	chunk2 = &test.Blob{Contents: "bar"}
-	chunk3 = &test.Blob{Contents: "baz"}
-
-	chunk1ref = chunk1.BlobRef()
-	chunk2ref = chunk2.BlobRef()
-	chunk3ref = chunk3.BlobRef()
-
-	fileBlob = &test.Blob{fmt.Sprintf(`{"camliVersion": 1,
-"camliType": "file",
-"fileName": "stuff.txt",
-"parts": [
-  {"blobRef": "%s", "size": 3},
-  {"blobRef": "%s", "size": 3},
-  {"blobRef": "%s", "size": 3}
-]}`, chunk1ref, chunk2ref, chunk3ref)}
-	fileBlobRef = fileBlob.BlobRef()
-
-	staticSetBlob = &test.Blob{fmt.Sprintf(`{"camliVersion": 1,
-"camliType": "static-set",
-"members": [
-  "%s"
-]}`, fileBlobRef)}
-
-	dirBlob = &test.Blob{fmt.Sprintf(`{"camliVersion": 1,
-"camliType": "directory",
-"fileName": "someDir",
-"entries": "%s"
-}`, staticSetBlob.BlobRef())}
-)
 
 func TestInitNeededMaps(t *testing.T) {
 	s := sorted.NewMemoryKeyValue()

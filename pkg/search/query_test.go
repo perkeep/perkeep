@@ -744,7 +744,7 @@ func TestQueryFileConstraint_WholeRef(t *testing.T) {
 					Attr: "camliContent",
 					ValueInSet: &Constraint{
 						File: &FileConstraint{
-							WholeRef: blob.SHA1FromString("hello"),
+							WholeRef: blob.RefFromString("hello"),
 						},
 					},
 				},
@@ -827,7 +827,7 @@ func TestQueryFileCandidateSource(t *testing.T) {
 		sq := &SearchQuery{
 			Constraint: &Constraint{
 				File: &FileConstraint{
-					WholeRef: blob.SHA1FromString("hello"),
+					WholeRef: blob.RefFromString("hello"),
 				},
 			},
 		}

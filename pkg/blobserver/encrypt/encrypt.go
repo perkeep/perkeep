@@ -189,7 +189,7 @@ func (s *storage) ReceiveBlob(plainBR blob.Ref, source io.Reader) (sb blob.Sized
 	}
 
 	enc := s.encryptBlob(nil, buf.Bytes())
-	encBR := blob.SHA1FromBytes(enc)
+	encBR := blob.RefFromBytes(enc)
 
 	_, err = blobserver.ReceiveNoHash(s.blobs, encBR, bytes.NewReader(enc))
 	if err != nil {
@@ -197,7 +197,7 @@ func (s *storage) ReceiveBlob(plainBR blob.Ref, source io.Reader) (sb blob.Sized
 	}
 
 	metaBytes := s.makeSingleMetaBlob(plainBR, encBR, uint32(plainSize))
-	metaSB, err := blobserver.ReceiveNoHash(s.meta, blob.SHA1FromBytes(metaBytes), bytes.NewReader(metaBytes))
+	metaSB, err := blobserver.ReceiveNoHash(s.meta, blob.RefFromBytes(metaBytes), bytes.NewReader(metaBytes))
 	if err != nil {
 		return sb, fmt.Errorf("encrypt: error writing encrypted meta for plaintext %v (encrypted blob %v): %v", plainBR, encBR, err)
 	}

@@ -189,7 +189,7 @@ func (b *lowBuilder) searchOwner() (br blob.Ref, err error) {
 	if err != nil {
 		return br, err
 	}
-	return blob.SHA1FromString(armoredPublicKey), nil
+	return blob.RefFromString(armoredPublicKey), nil
 }
 
 func addAppConfig(config map[string]interface{}, appConfig *serverconfig.App, low jsonconfig.Obj) {

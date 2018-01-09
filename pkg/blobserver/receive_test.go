@@ -29,7 +29,7 @@ import (
 func TestReceive(t *testing.T) {
 	sto := new(test.Fetcher)
 	data := []byte("some blob")
-	br := blob.SHA1FromBytes(data)
+	br := blob.RefFromBytes(data)
 
 	hub := blobserver.GetHub(sto)
 	ch := make(chan blob.Ref, 1)
@@ -58,7 +58,7 @@ func TestReceive(t *testing.T) {
 func TestReceiveCorrupt(t *testing.T) {
 	sto := new(test.Fetcher)
 	data := []byte("some blob")
-	br := blob.SHA1FromBytes(data)
+	br := blob.RefFromBytes(data)
 	data[0] = 'X' // corrupt it
 	_, err := blobserver.Receive(sto, br, bytes.NewReader(data))
 	if err != blobserver.ErrCorruptBlob {

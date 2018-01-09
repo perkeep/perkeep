@@ -321,9 +321,10 @@ func TestDeletePermanode_CreateTime(t *testing.T) {
 
 func testDeletePermanodes(t *testing.T,
 	enumFunc func(*index.Corpus, func(m camtypes.BlobMeta) bool) error) {
+
 	idx := index.NewMemoryIndex()
 	idxd := indextest.NewIndexDeps(idx)
-
+	idxd.Fataler = t
 	foopn := idxd.NewPlannedPermanode("foo")
 	idxd.SetAttribute(foopn, "tag", "foo")
 	barpn := idxd.NewPlannedPermanode("bar")
@@ -430,6 +431,7 @@ func testEnumerateOrder(t *testing.T,
 	order int) {
 	idx := index.NewMemoryIndex()
 	idxd := indextest.NewIndexDeps(idx)
+	idxd.Fataler = t
 
 	// permanode with no contents
 	foopn := idxd.NewPlannedPermanode("foo")
@@ -498,6 +500,7 @@ func testCacheSortedPermanodesRace(t *testing.T,
 	idx := index.NewMemoryIndex()
 	idxd := indextest.NewIndexDeps(idx)
 	idxd.Fataler = t
+
 	c, err := idxd.Index.KeepInMemory()
 	if err != nil {
 		t.Fatalf("error slurping index to memory: %v", err)

@@ -19,7 +19,6 @@ package client
 import (
 	"bytes"
 	"context"
-	"crypto/sha1"
 	"errors"
 	"fmt"
 	"io"
@@ -123,7 +122,7 @@ func parseStatResponse(res *http.Response) (*statResponse, error) {
 
 // NewUploadHandleFromString returns an upload handle
 func NewUploadHandleFromString(data string) *UploadHandle {
-	bref := blob.SHA1FromString(data)
+	bref := blob.RefFromString(data)
 	r := strings.NewReader(data)
 	return &UploadHandle{BlobRef: bref, Size: uint32(len(data)), Contents: r}
 }
@@ -490,12 +489,14 @@ func (c *Client) UploadFile(filename string, contents io.Reader, opts *FileUploa
 func (c *Client) wholeRef(contents io.Reader) (blob.Ref, error) {
 	// TODO(mpl): use a trackDigestReader once pulled from camput.
 	// and allow for different hash type. maybe also move to another pkg.
-	h := sha1.New()
+	h := blob.NewHash()
+	// TODO: return both the sha224 and sha1 whole refs when asking the
+	// server whether it has a file.
 	_, err := io.Copy(h, contents)
 	if err != nil {
 		return blob.Ref{}, err
 	}
-	s := fmt.Sprintf("sha1-%x", h.Sum(nil))
+	s := blob.RefFromHash(h).String()
 	ref, ok := blob.Parse(s)
 	if !ok {
 		return blob.Ref{}, fmt.Errorf("Invalid blobref: %q", s)
@@ -527,7 +528,7 @@ func (c *Client) fileMapFromDuplicate(fileMap *schema.Builder, wholeRef blob.Ref
 	if err != nil {
 		return blob.Ref{}, fmt.Errorf("could not write file map for wholeRef %q: %v", wholeRef, err)
 	}
-	bref := blob.SHA1FromString(json)
+	bref := blob.RefFromString(json)
 	if bref == dupFileRef {
 		// Unchanged (same filename, modtime, JSON serialization, etc)
 		return dupFileRef, nil

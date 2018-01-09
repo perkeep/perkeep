@@ -1076,7 +1076,7 @@ func (sh *SyncHandler) hourlyCompare(hourlyBytes uint64) {
 		if _, err := rand.Read(content); err != nil {
 			panic(err)
 		}
-		after := blob.SHA1FromBytes(content).String()
+		after := blob.RefFromBytes(content).String()
 		var roundBytes uint64
 		var roundBlobs int
 		err := blobserver.EnumerateAllFrom(context.TODO(), sh.from, after, func(sr blob.SizedRef) error {

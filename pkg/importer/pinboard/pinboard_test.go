@@ -20,10 +20,15 @@ import (
 	"testing"
 
 	"perkeep.org/internal/httputil"
+	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/importer"
 	imptest "perkeep.org/pkg/importer/test"
 	"perkeep.org/pkg/schema/nodeattr"
 )
+
+func init() {
+	testhooks.SetUseSHA1(true)
+}
 
 func verifyUsername(t *testing.T, apiToken string, expected string) {
 	extracted := extractUsername(apiToken)

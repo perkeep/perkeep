@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"perkeep.org/internal/osutil"
+	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/index/indextest"
@@ -32,6 +33,10 @@ import (
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/test"
 )
+
+func init() {
+	testhooks.SetUseSHA1(true)
+}
 
 var describedBlobs = map[string]blob.Ref{
 	"abc-123":            blob.MustParse("sha1-44fab17408e86f1a133748daa5b86728f57e4d59"),

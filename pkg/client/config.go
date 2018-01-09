@@ -414,7 +414,7 @@ func (c *Client) initSignerPublicKeyBlobref() {
 		log.Fatalf("Error serializing public key: %v", err)
 	}
 
-	c.signerPublicKeyRef = blob.SHA1FromString(armored)
+	c.signerPublicKeyRef = blob.RefFromString(armored)
 	c.publicKeyArmored = armored
 }
 

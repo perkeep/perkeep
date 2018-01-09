@@ -48,6 +48,10 @@ func TestStats(t *testing.T) {
 		t.Fatal("stats reported the incorrect sum sizes:", st.SumBlobSize())
 	}
 
+	t.Logf("foo = %v", foo.BlobRef())
+	t.Logf("bar = %v", bar.BlobRef())
+	t.Logf("foobar = %v", foobar.BlobRef())
+
 	gotStat, err := blobserver.StatBlobs(context.Background(), st, []blob.Ref{
 		foo.BlobRef(),
 		bar.BlobRef(),
@@ -70,7 +74,7 @@ func TestStats(t *testing.T) {
 	}
 
 	dest := make(chan blob.SizedRef, 2)
-	err = st.EnumerateBlobs(context.Background(), dest, "sha1-7", 2)
+	err = st.EnumerateBlobs(context.Background(), dest, "sha224-1", 2)
 	if err != nil {
 		t.Fatal(err)
 	}

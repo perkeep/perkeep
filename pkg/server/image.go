@@ -96,7 +96,7 @@ func squareImage(i image.Image) image.Image {
 func writeToCache(cache blobserver.Storage, thumbBytes []byte, name string) (br blob.Ref, err error) {
 	tr := bytes.NewReader(thumbBytes)
 	if len(thumbBytes) < constants.MaxBlobSize {
-		br = blob.SHA1FromBytes(thumbBytes)
+		br = blob.RefFromBytes(thumbBytes)
 		_, err = blobserver.Receive(cache, br, tr)
 	} else {
 		// TODO: don't use rolling checksums when writing this. Tell
@@ -334,7 +334,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	}
 
 	key := cacheKey(file.String(), mw, mh)
-	etag := blob.SHA1FromString(key).String()[5:]
+	etag := blob.RefFromString(key).String()[5:]
 	inm := req.Header.Get("If-None-Match")
 	if inm != "" {
 		if strings.Trim(inm, `"`) == etag {

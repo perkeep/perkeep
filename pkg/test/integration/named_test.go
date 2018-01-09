@@ -28,7 +28,7 @@ import (
 func runCmd(t *testing.T, w *test.World, cmd string, args ...string) string {
 	out, err := test.RunCmd(w.Cmd(cmd, args...))
 	if err != nil {
-		t.Fatalf("Error running cmd:%v,\n%v\n", cmd, err)
+		t.Fatalf("Error running cmd %q %q: %v\n", cmd, args, err)
 	}
 	return out
 }

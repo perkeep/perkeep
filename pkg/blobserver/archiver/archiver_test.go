@@ -28,6 +28,7 @@ import (
 	"strings"
 	"testing"
 
+	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/test"
@@ -94,6 +95,8 @@ func TestArchiverStress(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping in short mode")
 	}
+	defer testhooks.SetUseSHA1(true)()
+
 	src := new(test.Fetcher)
 	fileRef, err := schema.WriteFileFromReader(src, "random", io.LimitReader(randReader{}, 10<<20))
 	if err != nil {
@@ -146,7 +149,12 @@ func TestArchiverStress(t *testing.T) {
 		if err := foreachZipEntry(zipd, func(br blob.Ref, contents []byte) {
 			tb := &test.Blob{Contents: string(contents)}
 			if tb.BlobRef() != br {
-				t.Fatal("corrupt zip callback")
+				c := contents
+				if len(c) > 500 {
+					c = c[:500]
+					c = append(c, "..."...)
+				}
+				t.Fatalf("corrupt zip callback; test blob %v (%q) != zip blob %v", tb.BlobRef(), c, br)
 			}
 			src.AddBlob(tb)
 		}); err != nil {

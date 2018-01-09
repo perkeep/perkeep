@@ -27,6 +27,8 @@ import (
 	"io"
 	"reflect"
 	"strings"
+
+	"perkeep.org/internal/testhooks"
 )
 
 // Pattern is the regular expression which matches a blobref.
@@ -428,37 +430,17 @@ func RefFromHash(h hash.Hash) Ref {
 }
 
 // RefFromString returns a blobref from the given string, for the currently
-// recommended hash function
+// recommended hash function.
 func RefFromString(s string) Ref {
 	h := NewHash()
 	io.WriteString(h, s)
 	return RefFromHash(h)
 }
 
-// SHA1FromString returns a SHA-1 blobref of the provided string.
-func SHA1FromString(s string) Ref {
-	h := sha1.New()
-	io.WriteString(h, s)
-	return RefFromHash(h)
-}
-
-// SHA1FromBytes returns a SHA-1 blobref of the provided bytes.
-func SHA1FromBytes(b []byte) Ref {
-	h := sha1.New()
-	h.Write(b)
-	return RefFromHash(h)
-}
-
-// SHA224FromString returns a SHA-224 blobref of the provided string.
-func SHA224FromString(s string) Ref {
-	h := sha256.New224()
-	io.WriteString(h, s)
-	return RefFromHash(h)
-}
-
-// SHA224FromBytes returns a SHA-224 blobref of the provided bytes.
-func SHA224FromBytes(b []byte) Ref {
-	h := sha256.New224()
+// RefFromBytes returns a blobref from the given string, for the currently
+// recommended hash function.
+func RefFromBytes(b []byte) Ref {
+	h := NewHash()
 	h.Write(b)
 	return RefFromHash(h)
 }
@@ -752,6 +734,9 @@ func putBuf(b []byte) {
 // NewHash returns a new hash.Hash of the currently recommended hash type.
 // Currently this is SHA-224, but is subject to change over time.
 func NewHash() hash.Hash {
+	if testhooks.UseSHA1() {
+		return sha1.New()
+	}
 	return sha256.New224()
 }
 

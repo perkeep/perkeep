@@ -405,18 +405,3 @@ func BenchmarkHasPrefix(b *testing.B) {
 		}
 	}
 }
-
-func TestConstructors(t *testing.T) {
-	if got, want := SHA1FromString("foo"), "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"; got.String() != want {
-		t.Errorf("SHA1FromString = %v; want %v", got.String(), want)
-	}
-	if got, want := SHA1FromBytes([]byte("foo")), "sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33"; got.String() != want {
-		t.Errorf("SHA1FromBytes = %v; want %v", got, want)
-	}
-	if got, want := SHA224FromString("foo"), "sha224-0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db"; got.String() != want {
-		t.Errorf("SHA224FromString = %v; want %v", got, want)
-	}
-	if got, want := SHA224FromBytes([]byte("foo")), "sha224-0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db"; got.String() != want {
-		t.Errorf("SHA224FromBytes = %v; want %v", got, want)
-	}
-}

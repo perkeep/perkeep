@@ -1122,7 +1122,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 		return errors.New("file is unpackable; first blob is too big to fit")
 	}
 
-	zipRef := blob.SHA1FromBytes(zbuf.Bytes())
+	zipRef := blob.RefFromBytes(zbuf.Bytes())
 	zipSB, err := blobserver.ReceiveNoHash(pk.s.large, zipRef, bytes.NewReader(zbuf.Bytes()))
 	if err != nil {
 		return err

@@ -129,7 +129,7 @@ func (s *storage) makePackedMetaBlob(plains, toDelete []blob.Ref) {
 		metaBytes.WriteString("\n")
 	}
 	encBytes := s.encryptBlob(nil, metaBytes.Bytes())
-	metaSB, err := blobserver.ReceiveNoHash(s.meta, blob.SHA1FromBytes(encBytes), bytes.NewReader(encBytes))
+	metaSB, err := blobserver.ReceiveNoHash(s.meta, blob.RefFromBytes(encBytes), bytes.NewReader(encBytes))
 	if err != nil {
 		log.Printf("encrypt: failed to upload a packed meta: %v", err)
 		return

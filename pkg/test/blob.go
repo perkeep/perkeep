@@ -17,7 +17,6 @@ limitations under the License.
 package test
 
 import (
-	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -66,8 +65,8 @@ func (tb *Blob) Blob() *blob.Blob {
 }
 
 func (tb *Blob) BlobRef() blob.Ref {
-	h := sha1.New()
-	h.Write([]byte(tb.Contents))
+	h := blob.NewHash()
+	io.WriteString(h, tb.Contents)
 	return blob.RefFromHash(h)
 }
 

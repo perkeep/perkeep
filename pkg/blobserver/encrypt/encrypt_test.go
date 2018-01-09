@@ -190,11 +190,11 @@ func TestEncrypt(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
-	if sr := <-c; sr != tb.SizedRef() {
-		t.Errorf("%s != %s", sr, tb.SizedRef())
-	}
 	if sr := <-c; sr != tb2.SizedRef() {
 		t.Errorf("%s != %s", sr, tb2.SizedRef())
+	}
+	if sr := <-c; sr != tb.SizedRef() {
+		t.Errorf("%s != %s", sr, tb.SizedRef())
 	}
 	if _, ok := <-c; ok {
 		t.Error("did not close the channel")

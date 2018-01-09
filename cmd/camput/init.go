@@ -236,7 +236,7 @@ func (c *initCmd) RunCommand(args []string) error {
 		return err
 	}
 
-	bref := blob.SHA1FromString(string(pubArmor))
+	bref := blob.RefFromString(string(pubArmor))
 
 	log.Printf("Your Camlistore identity (your GPG public key's blobref) is: %s", bref.String())
 

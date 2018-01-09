@@ -23,7 +23,6 @@ package schema // import "perkeep.org/pkg/schema"
 import (
 	"bytes"
 	"crypto/rand"
-	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -32,7 +31,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -67,8 +65,6 @@ func init() {
 // MaxSchemaBlobSize represents the upper bound for how large
 // a schema blob may be.
 const MaxSchemaBlobSize = 1 << 20
-
-var sha1Type = reflect.TypeOf(sha1.New())
 
 var (
 	ErrNoCamliVersion = errors.New("schema: no camliVersion key in map")
@@ -558,17 +554,17 @@ func (d *defaultStatHasher) Lstat(fileName string) (os.FileInfo, error) {
 }
 
 func (d *defaultStatHasher) Hash(fileName string) (blob.Ref, error) {
-	s1 := sha1.New()
+	h := blob.NewHash()
 	file, err := os.Open(fileName)
 	if err != nil {
 		return blob.Ref{}, err
 	}
 	defer file.Close()
-	_, err = io.Copy(s1, file)
+	_, err = io.Copy(h, file)
 	if err != nil {
 		return blob.Ref{}, err
 	}
-	return blob.RefFromHash(s1), nil
+	return blob.RefFromHash(h), nil
 }
 
 type StaticSet struct {
@@ -615,10 +611,7 @@ func NewPlannedPermanode(key string) *Builder {
 // NewHashPlannedPermanode returns a planned permanode with the sum
 // of the hash, prefixed with "sha1-", as the key.
 func NewHashPlannedPermanode(h hash.Hash) *Builder {
-	if reflect.TypeOf(h) != sha1Type {
-		panic("Hash not supported. Only sha1 for now.")
-	}
-	return NewPlannedPermanode(fmt.Sprintf("sha1-%x", h.Sum(nil)))
+	return NewPlannedPermanode(blob.RefFromHash(h).String())
 }
 
 // Map returns a Camli map of camliType "static-set"

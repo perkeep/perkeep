@@ -38,7 +38,7 @@ func TestSigner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pubRef := blob.SHA1FromString(armorPub)
+	pubRef := blob.RefFromString(armorPub)
 	sig, err := NewSigner(pubRef, strings.NewReader(armorPub), ent)
 	if err != nil {
 		t.Fatalf("NewSigner: %v", err)
@@ -64,7 +64,7 @@ func TestClaimDate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pubRef := blob.SHA1FromString(armorPub)
+	pubRef := blob.RefFromString(armorPub)
 	sig, err := NewSigner(pubRef, strings.NewReader(armorPub), ent)
 	if err != nil {
 		t.Fatalf("NewSigner: %v", err)

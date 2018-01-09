@@ -34,6 +34,7 @@ import (
 	"testing"
 	"time"
 
+	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/storagetest"
@@ -44,6 +45,10 @@ import (
 
 	"go4.org/syncutil"
 )
+
+func init() {
+	testhooks.SetUseSHA1(true)
+}
 
 const debug = false
 

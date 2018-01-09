@@ -183,7 +183,7 @@ func uploadBytes(bs blobserver.StatReceiver, bb *Builder, size int64, s []span) 
 	}
 
 	json := bb.Blob().JSON()
-	br := blob.SHA1FromString(json)
+	br := blob.RefFromString(json)
 	future.br = br
 	go func() {
 		_, err := uploadString(bs, br, json)
@@ -306,7 +306,7 @@ func writeFileChunks(bs blobserver.StatReceiver, file *Builder, r io.Reader) (n 
 	uploadLastSpan := func() bool {
 		chunk := buf.String()
 		buf.Reset()
-		br := blob.SHA1FromString(chunk)
+		br := blob.RefFromString(chunk)
 		spans[len(spans)-1].br = br
 		select {
 		case outerr = <-firsterrc:

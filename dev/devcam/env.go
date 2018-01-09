@@ -146,7 +146,7 @@ func setCamdevVarsFor(e *Env, altkey bool) {
 	if err != nil {
 		panic(err)
 	}
-	pubKeyRef := blob.SHA1FromString(armoredPublicKey)
+	pubKeyRef := blob.RefFromString(armoredPublicKey)
 
 	setenv("CAMLI_SECRET_RING", secring)
 	setenv("CAMLI_KEYID", identity)

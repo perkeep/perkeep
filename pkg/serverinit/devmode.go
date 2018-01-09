@@ -85,7 +85,7 @@ func (hl *handlerLoader) initPublisherRootNode(ah *app.Handler) error {
 		if err != nil {
 			return blob.Ref{}, fmt.Errorf("could not sign blob: %v", err)
 		}
-		br := blob.SHA1FromString(signed)
+		br := blob.RefFromString(signed)
 		if _, err := blobserver.Receive(bs, br, strings.NewReader(signed)); err != nil {
 			return blob.Ref{}, fmt.Errorf("could not upload %v: %v", br.String(), err)
 		}

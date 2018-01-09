@@ -40,8 +40,13 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/syscallx"
+	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/test"
 )
+
+func init() {
+	testhooks.SetUseSHA1(true)
+}
 
 var (
 	errmu         sync.Mutex

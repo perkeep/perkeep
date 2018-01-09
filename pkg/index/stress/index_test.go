@@ -19,9 +19,7 @@ package stress
 import (
 	"bytes"
 	"context"
-	"crypto/sha1"
 	"flag"
-	"fmt"
 	"hash"
 	"io"
 	"io/ioutil"
@@ -331,7 +329,7 @@ func populate(b *testing.B, dbfile string,
 		if err != nil {
 			b.Fatal("problem signing: " + err.Error())
 		}
-		pn := blob.SHA1FromString(signed)
+		pn := blob.RefFromString(signed)
 		// N.B: use blobserver.Receive so that the blob hub gets notified, and the blob gets enqueued into the index
 		if _, err := blobserver.Receive(bs, pn, strings.NewReader(signed)); err != nil {
 			b.Fatal(err)
@@ -355,7 +353,7 @@ func populate(b *testing.B, dbfile string,
 		if err != nil {
 			b.Fatal("problem signing: " + err.Error())
 		}
-		cl := blob.SHA1FromString(signed)
+		cl := blob.RefFromString(signed)
 		if _, err := blobserver.Receive(bs, cl, strings.NewReader(signed)); err != nil {
 			b.Fatal(err)
 		}
@@ -391,7 +389,7 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 	return keyStuff{
 		secretRingFile: secretRingFile,
 		pubKey:         pubKey,
-		pubKeyRef:      blob.SHA1FromString(pubKey),
+		pubKeyRef:      blob.RefFromString(pubKey),
 		entityFetcher: &jsonsign.CachingEntityFetcher{
 			Fetcher: &jsonsign.FileEntityFetcher{File: secretRingFile},
 		},
@@ -573,7 +571,7 @@ type trackDigestReader struct {
 
 func (t *trackDigestReader) Read(p []byte) (n int, err error) {
 	if t.h == nil {
-		t.h = sha1.New()
+		t.h = blob.NewHash()
 	}
 	n, err = t.r.Read(p)
 	t.h.Write(p[:n])
@@ -581,7 +579,7 @@ func (t *trackDigestReader) Read(p []byte) (n int, err error) {
 }
 
 func (t *trackDigestReader) Sum() string {
-	return fmt.Sprintf("sha1-%x", t.h.Sum(nil))
+	return blob.RefFromHash(t.h).String()
 }
 
 func TestChildIndexer(t *testing.T) {

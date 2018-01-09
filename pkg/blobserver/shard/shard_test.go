@@ -56,20 +56,15 @@ func TestShardBasic(t *testing.T) {
 }
 
 func TestShard(t *testing.T) {
-	thingA := &test.Blob{"something"}
-	thingB := &test.Blob{"something else"}
+	thingA := &test.Blob{"thing A"} // sha224-2b18a3b52a7211954fb97145cf50a29a6e189a6443f7f1e0fa4529f9, shard 1
+	thingB := &test.Blob{"thing B"} // sha224-f19faf56e53a22bc6f84595b5533e943c98d263b232131881f6ace8f, shard 0
 
 	ts := newTestStorage(t)
 
-	ts.sto.ReceiveBlob(thingB.BlobRef(), thingB.Reader())
 	ts.sto.ReceiveBlob(thingA.BlobRef(), thingA.Reader())
+	ts.sto.ReceiveBlob(thingB.BlobRef(), thingB.Reader())
 
-	// sha1-1af17e73721dbe0c40011b82ed4bb1a7dbe3ce29
-	// sum32: 452034163
 	ts.checkShard(thingA, 1)
-
-	// sha1-637828c03aae38af639cc721200f2584864e8797
-	// sum32: 1668819136
 	ts.checkShard(thingB, 0)
 }
 

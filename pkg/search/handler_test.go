@@ -144,7 +144,7 @@ func testSigner() (*schema.Signer, string) {
 	if err != nil {
 		panic(err)
 	}
-	pubRef := blob.SHA1FromString(armorPub)
+	pubRef := blob.RefFromString(armorPub)
 	sig, err := schema.NewSigner(pubRef, strings.NewReader(armorPub), ent)
 	if err != nil {
 		panic(err)

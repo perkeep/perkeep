@@ -102,7 +102,7 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 	h.pubKey, err = jsonsign.ArmoredPublicKey(h.entity)
 
 	ms := &memory.Storage{}
-	h.pubKeyBlobRef = blob.SHA1FromString(h.pubKey)
+	h.pubKeyBlobRef = blob.RefFromString(h.pubKey)
 	if _, err := ms.ReceiveBlob(h.pubKeyBlobRef, strings.NewReader(h.pubKey)); err != nil {
 		return nil, fmt.Errorf("could not store pub key blob: %v", err)
 	}

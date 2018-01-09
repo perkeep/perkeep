@@ -18,7 +18,6 @@ package handlers
 
 import (
 	"bytes"
-	"crypto/sha1"
 	"errors"
 	"fmt"
 	"io"
@@ -100,7 +99,7 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blob.SizedRef)
 	}
 	defer fr.Close()
 
-	h := sha1.New()
+	h := blob.NewHash()
 	n, err := io.Copy(h, fr)
 	if err != nil {
 		return fmt.Errorf("Could not read all file of blobref %v: %v", fileblob.Ref.String(), err)
@@ -146,7 +145,7 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blob.SizedRef)
 	if err != nil {
 		return fmt.Errorf("signing permanode %v: %v", permanodeSigned, err)
 	}
-	permanodeRef := blob.SHA1FromString(permanodeSigned)
+	permanodeRef := blob.RefFromString(permanodeSigned)
 	_, err = blobserver.ReceiveNoHash(blobReceiver, permanodeRef, strings.NewReader(permanodeSigned))
 	if err != nil {
 		return fmt.Errorf("while uploading signed permanode %v, %v: %v", permanodeRef, permanodeSigned, err)
@@ -159,7 +158,7 @@ func vivify(blobReceiver blobserver.BlobReceiveConfiger, fileblob blob.SizedRef)
 	if err != nil {
 		return fmt.Errorf("signing camliContent claim: %v", err)
 	}
-	contentClaimRef := blob.SHA1FromString(contentClaimSigned)
+	contentClaimRef := blob.RefFromString(contentClaimSigned)
 	_, err = blobserver.ReceiveNoHash(blobReceiver, contentClaimRef, strings.NewReader(contentClaimSigned))
 	if err != nil {
 		return fmt.Errorf("while uploading signed camliContent claim %v, %v: %v", contentClaimRef, contentClaimSigned, err)

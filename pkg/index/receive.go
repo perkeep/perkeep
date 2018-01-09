@@ -19,7 +19,6 @@ package index
 import (
 	"bytes"
 	"context"
-	"crypto/sha1"
 	"errors"
 	"fmt"
 	_ "image/gif"
@@ -457,8 +456,8 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 		mimeType = magic.MIMETypeByExtension(filepath.Ext(b.FileName()))
 	}
 
-	sha1 := sha1.New()
-	var copyDest io.Writer = sha1
+	h := blob.NewHash()
+	var copyDest io.Writer = h
 	var imageBuf *keepFirstN // or nil
 	if strings.HasPrefix(mimeType, "image/") {
 		imageBuf = &keepFirstN{N: 512 << 10}
@@ -471,7 +470,7 @@ func (ix *Index) populateFile(fetcher blob.Fetcher, b *schema.Blob, mm *mutation
 		}
 		return err
 	}
-	wholeRef := blob.RefFromHash(sha1)
+	wholeRef := blob.RefFromHash(h)
 
 	if imageBuf != nil {
 		var conf images.Config
@@ -687,9 +686,9 @@ func indexMusic(r readerutil.SizeReaderAt, wholeRef blob.Ref, mm *mutationMap) {
 	// Generate a hash of the audio portion of the file (i.e. excluding ID3v1 and v2 tags).
 	audioStart := int64(tag.TagSize())
 	audioSize := r.Size() - audioStart - footerLength
-	hash := sha1.New()
+	hash := blob.NewHash()
 	if _, err := io.Copy(hash, io.NewSectionReader(r, audioStart, audioSize)); err != nil {
-		log.Print("index: error generating SHA1 from audio data: ", err)
+		log.Print("index: error generating hash of audio data: ", err)
 		return
 	}
 	mediaRef := blob.RefFromHash(hash)
