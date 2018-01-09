@@ -500,7 +500,7 @@ func load(filename string, opener func(filename string) (jsonconfig.File, error)
 	allFields := highLevelConfFields()
 	for _, v := range conf.Obj.UnknownKeys() {
 		if _, ok := allFields[v]; !ok {
-			return nil, fmt.Errorf("unknown high-level configuration parameter: %q", v)
+			return nil, fmt.Errorf("unknown high-level configuration parameter: %q in file %q", v, filename)
 		}
 	}
 	conf, err = genLowLevelConfig(&hiLevelConf)
