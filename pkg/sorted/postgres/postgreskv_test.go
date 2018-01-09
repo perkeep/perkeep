@@ -45,3 +45,21 @@ func TestPostgreSQLKV(t *testing.T) {
 	}
 	kvtest.TestSorted(t, kv)
 }
+
+func TestPostgresDBNaming(t *testing.T) {
+	cases := []struct {
+		name  string
+		valid bool
+	}{
+		{"perkeep", true},
+		{"perkeep_2", true},
+		{"perkeep-2", true},
+		{"'; drop tables;", false}, // validDatabaseName doesn't actually check for sql injection
+	}
+	for i := range cases {
+		res := validDatabaseName(cases[i].name)
+		if res != cases[i].valid {
+			t.Errorf("%q got %v expected %v", cases[i].name, res, cases[i].valid)
+		}
+	}
+}
