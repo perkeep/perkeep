@@ -24,6 +24,7 @@ import (
 	"perkeep.org/pkg/blobserver"
 
 	"go4.org/syncutil"
+	mgo "gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -32,10 +33,14 @@ var statGate = syncutil.NewGate(50) // arbitrary
 func (m *mongoStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(b blob.Ref) (sb blob.SizedRef, err error) {
 		var doc blobDoc
-		if err := m.c.Find(bson.M{"key": b.String()}).Select(bson.M{"size": 1}).One(&doc); err != nil {
-			// TODO: deal with mgo.ErrNotFound or *mgo.QueryError.Code not found?
+		err = m.c.Find(bson.M{"key": b.String()}).Select(bson.M{"size": 1}).One(&doc)
+		switch err {
+		case nil:
+			return blob.SizedRef{Ref: b, Size: doc.Size}, nil
+		case mgo.ErrNotFound:
+			return sb, nil
+		default:
 			return sb, fmt.Errorf("mongo: error statting %v: %v", b, err)
 		}
-		return blob.SizedRef{Ref: b, Size: doc.Size}, nil
 	})
 }
