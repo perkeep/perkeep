@@ -29,12 +29,12 @@ import (
 	"strings"
 	"time"
 
-	fontawesomestatic "embed/fontawesome"
-	glitchstatic "embed/glitch"
-	leafletstatic "embed/leaflet"
-	lessstatic "embed/less"
-	opensansstatic "embed/opensans"
-	reactstatic "embed/react"
+	fontawesomestatic "perkeep.org/clients/web/embed/fontawesome"
+	glitchstatic "perkeep.org/clients/web/embed/glitch"
+	leafletstatic "perkeep.org/clients/web/embed/leaflet"
+	lessstatic "perkeep.org/clients/web/embed/less"
+	opensansstatic "perkeep.org/clients/web/embed/opensans"
+	reactstatic "perkeep.org/clients/web/embed/react"
 
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"

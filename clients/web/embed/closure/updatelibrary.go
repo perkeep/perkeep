@@ -52,7 +52,7 @@ var (
 var (
 	verbose       bool
 	closureGitDir string // where we do the cloning/updating: camliRoot + tmp/closure-lib/
-	destDir       string // install dir: camliRoot + vendor/embed/closure/lib/
+	destDir       string // install dir: camliRoot + clients/web/embed/closure/lib/
 )
 
 func init() {

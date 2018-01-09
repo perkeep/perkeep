@@ -730,6 +730,7 @@ func mirror(sql bool) (latestSrcMod time.Time) {
 		"pkg",
 		"server/camlistored",
 		"vendor",
+		"clients/web/embed",
 	}
 	if *onlysync {
 		goDirs = append(goDirs, "config", "misc", "./website")
@@ -895,12 +896,12 @@ func genEmbeds() error {
 	for _, embeds := range []string{
 		"server/camlistored/ui",
 		"pkg/server",
-		"vendor/embed/fontawesome",
-		"vendor/embed/glitch",
-		"vendor/embed/leaflet",
-		"vendor/embed/less",
-		"vendor/embed/opensans",
-		"vendor/embed/react",
+		"clients/web/embed/fontawesome",
+		"clients/web/embed/glitch",
+		"clients/web/embed/leaflet",
+		"clients/web/embed/less",
+		"clients/web/embed/opensans",
+		"clients/web/embed/react",
 		"app/publisher",
 		"app/scanningcabinet/ui",
 	} {
@@ -1275,7 +1276,7 @@ func doEmbed() {
 		log.Printf("Embedding resources...")
 	}
 	closureEmbed := buildSrcPath("server/camlistored/ui/closure/z_data.go")
-	closureSrcDir := filepath.Join(camRoot, filepath.FromSlash("vendor/embed/closure/lib"))
+	closureSrcDir := filepath.Join(camRoot, filepath.FromSlash("clients/web/embed/closure/lib"))
 	err := embedClosure(closureSrcDir, closureEmbed)
 	if err != nil {
 		log.Fatal(err)
