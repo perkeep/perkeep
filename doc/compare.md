@@ -136,3 +136,13 @@ See the section on [Software, not a service](#software-not-a-service) above.
 
 There is a [tracking bug](https://github.com/perkeep/perkeep/issues/1029) for
 a Dropbox importer.
+
+## Others
+
+Other projects:
+
+* [Libchop](http://nongnu.org/libchop/)
+* [Tahoe-LAFS](http://tahoe-lafs.org/): predates Perkeep, file-centric
+* [Unhosted](http://unhosted.org/)
+
+See the [prior art](prior-art.md) page for some others.
