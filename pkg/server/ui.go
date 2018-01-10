@@ -70,7 +70,7 @@ var (
 
 	disableThumbCache, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_THUMB_CACHE"))
 
-	vendorEmbed = filepath.Join("vendor", "embed")
+	vendorEmbed = filepath.Join("clients", "web", "embed")
 )
 
 // UIHandler handles serving the UI and discovery JSON.
