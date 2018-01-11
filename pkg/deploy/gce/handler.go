@@ -72,7 +72,7 @@ var (
 	}
 )
 
-// DeployHandler serves a wizard that helps with the deployment of Camlistore on Google
+// DeployHandler serves a wizard that helps with the deployment of Perkeep on Google
 // Compute Engine. It must be initialized with NewDeployHandler.
 type DeployHandler struct {
 	scheme   string                   // URL scheme for the URLs served by this handler. Defaults to "https".
@@ -212,7 +212,7 @@ func NewDeployHandler(host, prefix string) (*DeployHandler, error) {
 	var refreshCamliVersionFn func()
 	refreshCamliVersionFn = func() {
 		if err := h.refreshCamliVersion(); err != nil {
-			h.logger.Printf("error while refreshing Camlistore version: %v", err)
+			h.logger.Printf("error while refreshing Perkeep version: %v", err)
 		}
 		time.AfterFunc(time.Hour, refreshCamliVersionFn)
 	}
@@ -962,7 +962,7 @@ var googURLPattern = regexp.MustCompile(`(https://([a-zA-Z0-9\-\.]+)?\.google.co
 var noTheme = `
 {{define "header"}}
 	<head>
-		<title>Camlistore on Google Cloud</title>
+		<title>Perkeep on Google Cloud</title>
 	</head>
 {{end}}
 {{define "banner"}}
@@ -1046,7 +1046,7 @@ func tplHTML() string {
 				window.document.open();
 				window.document.write(xmlhttp.responseText);
 				window.document.close();
-				history.pushState(null, 'Camlistore on Google Cloud', progressURL);
+				history.pushState(null, 'Perkeep on Google Cloud', progressURL);
 			}
 		}
 	</script>
@@ -1055,20 +1055,20 @@ func tplHTML() string {
 
 	{{define "messages"}}
 		<div class='content'>
-	<h1><a href="{{.Prefix}}">Camlistore on Google Cloud</a></h1>
+	<h1><a href="{{.Prefix}}">Perkeep on Google Cloud</a></h1>
 
 	{{if .InstanceIP}}
 		{{if .InstanceHostname}}
-			<p>Success. Your Camlistore instance is running at <a href="https://{{.InstanceHostname}}">{{.InstanceHostname}}</a>.</p>
+			<p>Success. Your Perkeep instance is running at <a href="https://{{.InstanceHostname}}">{{.InstanceHostname}}</a>.</p>
 		{{else}}
 			<!-- TODO(mpl): refresh automatically with some js when InstanceHostname is ready? -->
-			<p>Success. Your Camlistore instance is deployed at {{.InstanceIP}}. Refresh this page in a couple of minutes to know your hostname. Or go to <a href="{{.ProjectConsoleURL}}/instancesDetail/zones/{{.Conf.Zone}}/instances/camlistore-server">camlistore-server instance</a>, and look for <b>camlistore-hostname</b> (which might take a while to appear too) in the custom metadata section.</p>
+			<p>Success. Your Perkeep instance is deployed at {{.InstanceIP}}. Refresh this page in a couple of minutes to know your hostname. Or go to <a href="{{.ProjectConsoleURL}}/instancesDetail/zones/{{.Conf.Zone}}/instances/camlistore-server">camlistore-server instance</a>, and look for <b>camlistore-hostname</b> (which might take a while to appear too) in the custom metadata section.</p>
 		{{end}}
 		<p>Please save the information on this page.</p>
 
 		<h4>First connection</h4>
 		<p>
-		The password to access the web interface of your Camlistore instance was automatically generated. Go to the <a href="{{.ProjectConsoleURL}}/instancesDetail/zones/{{.Conf.Zone}}/instances/camlistore-server">camlistore-server instance</a> page to view it, and possibly change it. It is <b>camlistore-password</b> in the custom metadata section. Similarly, the username is camlistore-username. Then restart Camlistore from the /status page if you changed anything.
+		The password to access the web interface of your Perkeep instance was automatically generated. Go to the <a href="{{.ProjectConsoleURL}}/instancesDetail/zones/{{.Conf.Zone}}/instances/camlistore-server">camlistore-server instance</a> page to view it, and possibly change it. It is <b>camlistore-password</b> in the custom metadata section. Similarly, the username is camlistore-username. Then restart Perkeep from the /status page if you changed anything.
 		</p>
 
 		<h4>Further configuration</h4>
@@ -1077,10 +1077,10 @@ func tplHTML() string {
 		</p>
 
 		<p>
-		If you want to use your own HTTPS certificate and key, go to <a href="https://console.developers.google.com/project/{{.Conf.Project}}/storage/browser/{{.Conf.Project}}-camlistore/config/">the storage browser</a>. Delete "<b>` + certFilename() + `</b>", "<b>` + keyFilename() + `</b>", and replace them by uploading your own files (with the same names). Then restart Camlistore.
+		If you want to use your own HTTPS certificate and key, go to <a href="https://console.developers.google.com/project/{{.Conf.Project}}/storage/browser/{{.Conf.Project}}-camlistore/config/">the storage browser</a>. Delete "<b>` + certFilename() + `</b>", "<b>` + keyFilename() + `</b>", and replace them by uploading your own files (with the same names). Then restart Perkeep.
 		</p>
 
-		<p> Camlistore should not require system
+		<p> Perkeep should not require system
 administration but to manage/add SSH keys, go to the <a
 href="{{.ProjectConsoleURL}}/instancesDetail/zones/{{.Conf.Zone}}/instances/camlistore-server">camlistore-server
 instance</a> page. Scroll down to the SSH Keys section. Note that the
@@ -1203,23 +1203,25 @@ or corrupted.</p>
 	<form method="post" enctype="multipart/form-data">
 		<input type='hidden' name="mode" value="setupproject">
 
-		<h3>Deploy Camlistore</h3>
+		<h3>Deploy Perkeep</h3>
+
+		<p style="color:red"><b>Perkeep relies on <a href='https://letsencrypt.org/'>Let's Encrypt</a> to automatically provide your instance with an HTTPS certificate. Unfortunately, due to a <a href='https://community.letsencrypt.org/t/2018-01-09-issue-with-tls-sni-01-and-shared-hosting-infrastructure/49996'>security issue</a>, this is currently not possible anymore. If you are not prepared to use your own certificate, or a self-signed one, or no HTTPS, we advise you to wait for this issue to be resolved before using the launcher.</b></p>
 
 		<p> This tool creates your own private
-Camlistore instance running on <a
+Perkeep instance running on <a
 href="https://cloud.google.com/">Google Cloud Platform</a>. Be sure to
 understand <a
 href="https://cloud.google.com/compute/pricing#machinetype">Compute Engine pricing</a>
 and
 <a href="https://cloud.google.com/storage/pricing">Cloud Storage pricing</a>
-before proceeding. Note that Camlistore metadata adds overhead on top of the size
+before proceeding. Note that Perkeep metadata adds overhead on top of the size
 of any raw data added to your instance. To delete your
 instance and stop paying Google for the virtual machine, visit the <a
 href="https://console.developers.google.com/">Google Cloud console</a>
 and visit both the "Compute Engine" and "Storage" sections for your project.
 </p>
 	{{if .CamliVersion}}
-		<p> Camlistore version deployed by this tool: <a href="https://camlistore.googlesource.com/camlistore/+/{{.CamliVersion}}">{{.CamliVersion}}</a></p>
+		<p> Perkeep version deployed by this tool: <a href="https://camlistore.googlesource.com/camlistore/+/{{.CamliVersion}}">{{.CamliVersion}}</a></p>
 	{{end}}
 
 		<table border=0 cellpadding=3 style='margin-top: 2em'>
