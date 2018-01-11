@@ -291,8 +291,15 @@ func (c *wsConn) writePump() {
 	}
 }
 
+// upgrader is used in serveWebSocket to construct websocket connections.
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	// uses a default origin check policy
+}
+
 func (sh *Handler) serveWebSocket(rw http.ResponseWriter, req *http.Request) {
-	ws, err := websocket.Upgrade(rw, req, nil, 1024, 1024)
+	ws, err := upgrader.Upgrade(rw, req, nil)
 	if _, ok := err.(websocket.HandshakeError); ok {
 		http.Error(rw, "Not a websocket handshake", 400)
 		return

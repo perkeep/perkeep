@@ -1,4 +1,4 @@
-// Copyright 2013 Gary Burd. All rights reserved.
+// Copyright 2013 The Gorilla WebSocket Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -6,9 +6,10 @@ package websocket
 
 import (
 	"encoding/json"
+	"io"
 )
 
-// DEPRECATED: use c.WriteJSON instead.
+// WriteJSON is deprecated, use c.WriteJSON instead.
 func WriteJSON(c *Conn, v interface{}) error {
 	return c.WriteJSON(v)
 }
@@ -30,7 +31,7 @@ func (c *Conn) WriteJSON(v interface{}) error {
 	return err2
 }
 
-// DEPRECATED: use c.WriteJSON instead.
+// ReadJSON is deprecated, use c.ReadJSON instead.
 func ReadJSON(c *Conn, v interface{}) error {
 	return c.ReadJSON(v)
 }
@@ -38,12 +39,17 @@ func ReadJSON(c *Conn, v interface{}) error {
 // ReadJSON reads the next JSON-encoded message from the connection and stores
 // it in the value pointed to by v.
 //
-// See the documentation for the encoding/json Marshal function for details
+// See the documentation for the encoding/json Unmarshal function for details
 // about the conversion of JSON to a Go value.
 func (c *Conn) ReadJSON(v interface{}) error {
 	_, r, err := c.NextReader()
 	if err != nil {
 		return err
 	}
-	return json.NewDecoder(r).Decode(v)
+	err = json.NewDecoder(r).Decode(v)
+	if err == io.EOF {
+		// One value is expected in the message.
+		err = io.ErrUnexpectedEOF
+	}
+	return err
 }
