@@ -99,7 +99,7 @@ required = [
 
 [[constraint]]
   name = "github.com/go-sql-driver/mysql"
-  revision = "9a7aa3606b82e2081a13a008ada88dfdb96c20fd"
+  version = "1.3.0"
 
 [[constraint]]
   name = "github.com/golang/protobuf"

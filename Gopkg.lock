@@ -3,12 +3,26 @@
 
 [[projects]]
   name = "bazil.org/fuse"
-  packages = [".","fs","fuseutil","syscallx"]
+  packages = [
+    ".",
+    "fs",
+    "fuseutil",
+    "syscallx"
+  ]
   revision = "371fbbdaa8987b715bdd21d6adc4c9b20155f748"
 
 [[projects]]
   name = "cloud.google.com/go"
-  packages = ["compute/metadata","datastore","internal","internal/bundler","logging","logging/apiv2","logging/internal","storage"]
+  packages = [
+    "compute/metadata",
+    "datastore",
+    "internal",
+    "internal/bundler",
+    "logging",
+    "logging/apiv2",
+    "logging/internal",
+    "storage"
+  ]
   revision = "b70ccc799b9d019708c3eb9395acef6e3f6b7bc8"
 
 [[projects]]
@@ -29,7 +43,11 @@
 
 [[projects]]
   name = "github.com/cznic/internal"
-  packages = ["buffer","file","slice"]
+  packages = [
+    "buffer",
+    "file",
+    "slice"
+  ]
   revision = "4747030f7cf2f4c0a01512b00cd68734b167ac3b"
 
 [[projects]]
@@ -80,12 +98,22 @@
 [[projects]]
   name = "github.com/go-sql-driver/mysql"
   packages = ["."]
-  revision = "9a7aa3606b82e2081a13a008ada88dfdb96c20fd"
+  revision = "a0583e0143b1624142adab07e0e97fe106d99561"
+  version = "v1.3"
 
 [[projects]]
   branch = "master"
   name = "github.com/golang/protobuf"
-  packages = ["proto","ptypes","ptypes/any","ptypes/duration","ptypes/empty","ptypes/struct","ptypes/timestamp","ptypes/wrappers"]
+  packages = [
+    "proto",
+    "ptypes",
+    "ptypes/any",
+    "ptypes/duration",
+    "ptypes/empty",
+    "ptypes/struct",
+    "ptypes/timestamp",
+    "ptypes/wrappers"
+  ]
   revision = "1e59b77b52bf8e4b449a57e6f79f21226d571845"
 
 [[projects]]
@@ -100,7 +128,21 @@
 
 [[projects]]
   name = "github.com/gopherjs/gopherjs"
-  packages = [".","build","compiler","compiler/analysis","compiler/astutil","compiler/filter","compiler/natives","compiler/prelude","compiler/typesutil","internal/sysutil","js","nosync","tests/otherpkg"]
+  packages = [
+    ".",
+    "build",
+    "compiler",
+    "compiler/analysis",
+    "compiler/astutil",
+    "compiler/filter",
+    "compiler/natives",
+    "compiler/prelude",
+    "compiler/typesutil",
+    "internal/sysutil",
+    "js",
+    "nosync",
+    "tests/otherpkg"
+  ]
   revision = "b40cd48c38f9a18eb3db20d163bad78de12cf0b7"
 
 [[projects]]
@@ -122,7 +164,10 @@
 
 [[projects]]
   name = "github.com/hjfreyer/taglib-go"
-  packages = ["taglib","taglib/id3"]
+  packages = [
+    "taglib",
+    "taglib/id3"
+  ]
   revision = "0ef8bba9c41b66c12f60ce9833786838d2c2d3d8"
 
 [[projects]]
@@ -143,7 +188,10 @@
 
 [[projects]]
   name = "github.com/lib/pq"
-  packages = [".","oid"]
+  packages = [
+    ".",
+    "oid"
+  ]
   revision = "9afcd9aa793101bd0536da34e74ae0123345bab1"
 
 [[projects]]
@@ -195,7 +243,10 @@
 
 [[projects]]
   name = "github.com/rwcarlsen/goexif"
-  packages = ["exif","tiff"]
+  packages = [
+    "exif",
+    "tiff"
+  ]
   revision = "709fab3d192d7c62f86043caff1e7e3fb0f42bd8"
 
 [[projects]]
@@ -227,7 +278,20 @@
 
 [[projects]]
   name = "github.com/syndtr/goleveldb"
-  packages = ["leveldb","leveldb/cache","leveldb/comparer","leveldb/errors","leveldb/filter","leveldb/iterator","leveldb/journal","leveldb/memdb","leveldb/opt","leveldb/storage","leveldb/table","leveldb/util"]
+  packages = [
+    "leveldb",
+    "leveldb/cache",
+    "leveldb/comparer",
+    "leveldb/errors",
+    "leveldb/filter",
+    "leveldb/iterator",
+    "leveldb/journal",
+    "leveldb/memdb",
+    "leveldb/opt",
+    "leveldb/storage",
+    "leveldb/table",
+    "leveldb/util"
+  ]
   revision = "4875955338b0a434238a31165cb87255ab6e9e4a"
 
 [[projects]]
@@ -242,27 +306,87 @@
 
 [[projects]]
   name = "go4.org"
-  packages = ["cloud/cloudlaunch","cloud/google/gceutil","cloud/google/gcsutil","ctxutil","errorutil","fault","jsonconfig","legal","lock","net/throttle","oauthutil","readerutil","strutil","syncutil","syncutil/singleflight","types","wkfs","wkfs/gcs","writerutil"]
+  packages = [
+    "cloud/cloudlaunch",
+    "cloud/google/gceutil",
+    "cloud/google/gcsutil",
+    "ctxutil",
+    "errorutil",
+    "fault",
+    "jsonconfig",
+    "legal",
+    "lock",
+    "net/throttle",
+    "oauthutil",
+    "readerutil",
+    "strutil",
+    "syncutil",
+    "syncutil/singleflight",
+    "types",
+    "wkfs",
+    "wkfs/gcs",
+    "writerutil"
+  ]
   revision = "c3a8ba339e20006b054736f8eb9fc5e1d5fa6eab"
 
 [[projects]]
   name = "golang.org/x/crypto"
-  packages = ["acme","acme/autocert","cast5","nacl/secretbox","openpgp","openpgp/armor","openpgp/elgamal","openpgp/errors","openpgp/packet","openpgp/s2k","pbkdf2","poly1305","salsa20/salsa","scrypt","ssh/terminal"]
+  packages = [
+    "acme",
+    "acme/autocert",
+    "cast5",
+    "nacl/secretbox",
+    "openpgp",
+    "openpgp/armor",
+    "openpgp/elgamal",
+    "openpgp/errors",
+    "openpgp/packet",
+    "openpgp/s2k",
+    "pbkdf2",
+    "poly1305",
+    "salsa20/salsa",
+    "scrypt",
+    "ssh/terminal"
+  ]
   revision = "ede567c8e044a5913dad1d1af3696d9da953104c"
 
 [[projects]]
   name = "golang.org/x/image"
-  packages = ["draw","math/f64","tiff","tiff/lzw"]
+  packages = [
+    "draw",
+    "math/f64",
+    "tiff",
+    "tiff/lzw"
+  ]
   revision = "12117c17ca67ffa1ce22e9409f3b0b0a93ac08c7"
 
 [[projects]]
   name = "golang.org/x/net"
-  packages = ["context","context/ctxhttp","html","html/atom","html/charset","http2","http2/hpack","idna","internal/timeseries","lex/httplex","trace","xsrftoken"]
+  packages = [
+    "context",
+    "context/ctxhttp",
+    "html",
+    "html/atom",
+    "html/charset",
+    "http2",
+    "http2/hpack",
+    "idna",
+    "internal/timeseries",
+    "lex/httplex",
+    "trace",
+    "xsrftoken"
+  ]
   revision = "d866cfc389cec985d6fda2859936a575a55a3ab6"
 
 [[projects]]
   name = "golang.org/x/oauth2"
-  packages = [".","google","internal","jws","jwt"]
+  packages = [
+    ".",
+    "google",
+    "internal",
+    "jws",
+    "jwt"
+  ]
   revision = "197281d4e0ecd78c33865daf9c6e51626feefcb2"
 
 [[projects]]
@@ -277,7 +401,35 @@
 
 [[projects]]
   name = "golang.org/x/text"
-  packages = [".","collate","collate/build","encoding","encoding/charmap","encoding/htmlindex","encoding/internal","encoding/internal/identifier","encoding/japanese","encoding/korean","encoding/simplifiedchinese","encoding/traditionalchinese","encoding/unicode","internal/colltab","internal/gen","internal/tag","internal/triegen","internal/ucd","internal/utf8internal","language","runes","secure/bidirule","transform","unicode/bidi","unicode/cldr","unicode/norm","unicode/rangetable"]
+  packages = [
+    ".",
+    "collate",
+    "collate/build",
+    "encoding",
+    "encoding/charmap",
+    "encoding/htmlindex",
+    "encoding/internal",
+    "encoding/internal/identifier",
+    "encoding/japanese",
+    "encoding/korean",
+    "encoding/simplifiedchinese",
+    "encoding/traditionalchinese",
+    "encoding/unicode",
+    "internal/colltab",
+    "internal/gen",
+    "internal/tag",
+    "internal/triegen",
+    "internal/ucd",
+    "internal/utf8internal",
+    "language",
+    "runes",
+    "secure/bidirule",
+    "transform",
+    "unicode/bidi",
+    "unicode/cldr",
+    "unicode/norm",
+    "unicode/rangetable"
+  ]
   revision = "88f656faf3f37f690df1a32515b479415e1a6769"
 
 [[projects]]
@@ -287,35 +439,99 @@
 
 [[projects]]
   name = "golang.org/x/tools"
-  packages = ["go/buildutil","go/gcimporter15","go/types/typeutil","refactor/importgraph"]
+  packages = [
+    "go/buildutil",
+    "go/gcimporter15",
+    "go/types/typeutil",
+    "refactor/importgraph"
+  ]
   revision = "e531a2a1c15f94033f6fa87666caeb19a688175f"
 
 [[projects]]
   name = "google.golang.org/api"
-  packages = ["cloudresourcemanager/v1","compute/v1","drive/v2","drive/v3","gensupport","googleapi","googleapi/internal/uritemplates","googleapi/transport","internal","iterator","option","servicemanagement/v1","sqladmin/v1beta3","storage/v1","transport"]
+  packages = [
+    "cloudresourcemanager/v1",
+    "compute/v1",
+    "drive/v2",
+    "drive/v3",
+    "gensupport",
+    "googleapi",
+    "googleapi/internal/uritemplates",
+    "googleapi/transport",
+    "internal",
+    "iterator",
+    "option",
+    "servicemanagement/v1",
+    "sqladmin/v1beta3",
+    "storage/v1",
+    "transport"
+  ]
   revision = "48e49d1645e228d1c50c3d54fb476b2224477303"
 
 [[projects]]
   name = "google.golang.org/appengine"
-  packages = [".","internal","internal/app_identity","internal/base","internal/datastore","internal/log","internal/modules","internal/remote_api","internal/socket","internal/urlfetch","socket","urlfetch"]
+  packages = [
+    ".",
+    "internal",
+    "internal/app_identity",
+    "internal/base",
+    "internal/datastore",
+    "internal/log",
+    "internal/modules",
+    "internal/remote_api",
+    "internal/socket",
+    "internal/urlfetch",
+    "socket",
+    "urlfetch"
+  ]
   revision = "150dc57a1b433e64154302bdc40b6bb8aefa313a"
   version = "v1.0.0"
 
 [[projects]]
   name = "google.golang.org/genproto"
-  packages = ["googleapis/api/label","googleapis/api/metric","googleapis/api/monitoredres","googleapis/api/serviceconfig","googleapis/datastore/v1","googleapis/logging/type","googleapis/logging/v2","googleapis/rpc/status","googleapis/type/latlng","protobuf"]
+  packages = [
+    "googleapis/api/label",
+    "googleapis/api/metric",
+    "googleapis/api/monitoredres",
+    "googleapis/api/serviceconfig",
+    "googleapis/datastore/v1",
+    "googleapis/logging/type",
+    "googleapis/logging/v2",
+    "googleapis/rpc/status",
+    "googleapis/type/latlng",
+    "protobuf"
+  ]
   revision = "08f135d1a31b6ba454287638a3ce23a55adace6f"
 
 [[projects]]
   name = "google.golang.org/grpc"
-  packages = [".","codes","credentials","credentials/oauth","grpclog","internal","metadata","naming","peer","stats","tap","transport"]
+  packages = [
+    ".",
+    "codes",
+    "credentials",
+    "credentials/oauth",
+    "grpclog",
+    "internal",
+    "metadata",
+    "naming",
+    "peer",
+    "stats",
+    "tap",
+    "transport"
+  ]
   revision = "188a132adcfba339f1f2d5da52498451341f9ee8"
   source = "https://github.com/bradfitz/grpc-go.git"
 
 [[projects]]
   branch = "v2"
   name = "gopkg.in/mgo.v2"
-  packages = [".","bson","internal/json","internal/sasl","internal/scram"]
+  packages = [
+    ".",
+    "bson",
+    "internal/json",
+    "internal/sasl",
+    "internal/scram"
+  ]
   revision = "3f83fa5005286a7fe593b055f0d7771a7dce4655"
 
 [[projects]]
@@ -330,7 +546,15 @@
 
 [[projects]]
   name = "myitcv.io/react"
-  packages = [".","cmd/reactGen","internal/bundle","internal/core","internal/dev","internal/preact","internal/prod"]
+  packages = [
+    ".",
+    "cmd/reactGen",
+    "internal/bundle",
+    "internal/core",
+    "internal/dev",
+    "internal/preact",
+    "internal/prod"
+  ]
   revision = "bca7c66b77ed8a5b86fb77cff70914c4a7cc3ce5"
 
 [[projects]]
@@ -340,12 +564,16 @@
 
 [[projects]]
   name = "rsc.io/qr"
-  packages = [".","coding","gf256"]
+  packages = [
+    ".",
+    "coding",
+    "gf256"
+  ]
   revision = "48b2ede4844e13f1a2b7ce4d2529c9af7e359fc5"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "36cd029d45eecfdd9b745610c39865be9efc9aa37f6331570b798e9c8ed649d9"
+  inputs-digest = "3729a5b83b3340a160772b5d172ec06efdafd29b2045641a6396e0104689082e"
   solver-name = "gps-cdcl"
   solver-version = 1
