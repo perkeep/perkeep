@@ -45,20 +45,29 @@ func set(c *Cache, ns, key uint64, value Value, charge int, relf func()) *Handle
 	return c.Get(ns, key, func() (int, Value) {
 		if relf != nil {
 			return charge, releaserFunc{relf, value}
-		} else {
-			return charge, value
 		}
+		return charge, value
 	})
+}
+
+type cacheMapTestParams struct {
+	nobjects, nhandles, concurrent, repeat int
 }
 
 func TestCacheMap(t *testing.T) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	nsx := []struct {
-		nobjects, nhandles, concurrent, repeat int
-	}{
-		{10000, 400, 50, 3},
-		{100000, 1000, 100, 10},
+	var params []cacheMapTestParams
+	if testing.Short() {
+		params = []cacheMapTestParams{
+			{1000, 100, 20, 3},
+			{10000, 300, 50, 10},
+		}
+	} else {
+		params = []cacheMapTestParams{
+			{10000, 400, 50, 3},
+			{100000, 1000, 100, 10},
+		}
 	}
 
 	var (
@@ -66,7 +75,7 @@ func TestCacheMap(t *testing.T) {
 		handles [][]unsafe.Pointer
 	)
 
-	for _, x := range nsx {
+	for _, x := range params {
 		objects = append(objects, make([]int32o, x.nobjects))
 		handles = append(handles, make([]unsafe.Pointer, x.nhandles))
 	}
@@ -76,7 +85,7 @@ func TestCacheMap(t *testing.T) {
 	wg := new(sync.WaitGroup)
 	var done int32
 
-	for ns, x := range nsx {
+	for ns, x := range params {
 		for i := 0; i < x.concurrent; i++ {
 			wg.Add(1)
 			go func(ns, i, repeat int, objects []int32o, handles []unsafe.Pointer) {

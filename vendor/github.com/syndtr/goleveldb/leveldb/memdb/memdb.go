@@ -17,6 +17,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
+// Common errors.
 var (
 	ErrNotFound     = errors.ErrNotFound
 	ErrIterReleased = errors.New("leveldb/memdb: iterator released")
@@ -206,6 +207,7 @@ func (p *DB) randHeight() (h int) {
 	return
 }
 
+// Must hold RW-lock if prev == true, as it use shared prevNode slice.
 func (p *DB) findGE(key []byte, prev bool) (int, bool) {
 	node := 0
 	h := p.maxHeight - 1
@@ -302,7 +304,7 @@ func (p *DB) Put(key []byte, value []byte) error {
 	node := len(p.nodeData)
 	p.nodeData = append(p.nodeData, kvOffset, len(key), len(value), h)
 	for i, n := range p.prevNode[:h] {
-		m := n + 4 + i
+		m := n + nNext + i
 		p.nodeData = append(p.nodeData, p.nodeData[m])
 		p.nodeData[m] = node
 	}
@@ -327,7 +329,7 @@ func (p *DB) Delete(key []byte) error {
 
 	h := p.nodeData[node+nHeight]
 	for i, n := range p.prevNode[:h] {
-		m := n + 4 + i
+		m := n + nNext + i
 		p.nodeData[m] = p.nodeData[p.nodeData[m]+nNext+i]
 	}
 
@@ -384,7 +386,7 @@ func (p *DB) Find(key []byte) (rkey, value []byte, err error) {
 }
 
 // NewIterator returns an iterator of the DB.
-// The returned iterator is not goroutine-safe, but it is safe to use
+// The returned iterator is not safe for concurrent use, but it is safe to use
 // multiple iterators concurrently, with each in a dedicated goroutine.
 // It is also safe to use an iterator concurrently with modifying its
 // underlying DB. However, the resultant key/value pairs are not guaranteed
@@ -410,7 +412,7 @@ func (p *DB) Capacity() int {
 }
 
 // Size returns sum of keys and values length. Note that deleted
-// key/value will not be accouted for, but it will still consume
+// key/value will not be accounted for, but it will still consume
 // the buffer, since the buffer is append only.
 func (p *DB) Size() int {
 	p.mu.RLock()
@@ -434,27 +436,32 @@ func (p *DB) Len() int {
 
 // Reset resets the DB to initial empty state. Allows reuse the buffer.
 func (p *DB) Reset() {
+	p.mu.Lock()
 	p.rnd = rand.New(rand.NewSource(0xdeadbeef))
 	p.maxHeight = 1
 	p.n = 0
 	p.kvSize = 0
 	p.kvData = p.kvData[:0]
-	p.nodeData = p.nodeData[:4+tMaxHeight]
+	p.nodeData = p.nodeData[:nNext+tMaxHeight]
 	p.nodeData[nKV] = 0
 	p.nodeData[nKey] = 0
 	p.nodeData[nVal] = 0
 	p.nodeData[nHeight] = tMaxHeight
 	for n := 0; n < tMaxHeight; n++ {
-		p.nodeData[4+n] = 0
+		p.nodeData[nNext+n] = 0
 		p.prevNode[n] = 0
 	}
+	p.mu.Unlock()
 }
 
-// New creates a new initalized in-memory key/value DB. The capacity
+// New creates a new initialized in-memory key/value DB. The capacity
 // is the initial key/value buffer capacity. The capacity is advisory,
 // not enforced.
 //
-// The returned DB instance is goroutine-safe.
+// This DB is append-only, deleting an entry would remove entry node but not
+// reclaim KV buffer.
+//
+// The returned DB instance is safe for concurrent use.
 func New(cmp comparer.BasicComparer, capacity int) *DB {
 	p := &DB{
 		cmp:       cmp,

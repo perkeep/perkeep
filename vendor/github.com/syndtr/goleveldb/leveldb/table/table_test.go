@@ -14,6 +14,7 @@ import (
 
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/opt"
+	"github.com/syndtr/goleveldb/leveldb/storage"
 	"github.com/syndtr/goleveldb/leveldb/testutil"
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
@@ -59,7 +60,7 @@ var _ = testutil.Defer(func() {
 			It("Should be able to approximate offset of a key correctly", func() {
 				Expect(err).ShouldNot(HaveOccurred())
 
-				tr, err := NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()), nil, nil, nil, o)
+				tr, err := NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()), storage.FileDesc{}, nil, nil, o)
 				Expect(err).ShouldNot(HaveOccurred())
 				CheckOffset := func(key string, expect, threshold int) {
 					offset, err := tr.OffsetOf([]byte(key))
@@ -96,7 +97,7 @@ var _ = testutil.Defer(func() {
 				tw.Close()
 
 				// Opening the table.
-				tr, _ := NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()), nil, nil, nil, o)
+				tr, _ := NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()), storage.FileDesc{}, nil, nil, o)
 				return tableWrapper{tr}
 			}
 			Test := func(kv *testutil.KeyValue, body func(r *Reader)) func() {
@@ -110,7 +111,7 @@ var _ = testutil.Defer(func() {
 			}
 
 			testutil.AllKeyValueTesting(nil, Build, nil, nil)
-			Describe("with one key per block", Test(testutil.KeyValue_Generate(nil, 9, 1, 10, 512, 512), func(r *Reader) {
+			Describe("with one key per block", Test(testutil.KeyValue_Generate(nil, 9, 1, 1, 10, 512, 512), func(r *Reader) {
 				It("should have correct blocks number", func() {
 					indexBlock, err := r.readBlock(r.indexBH, true)
 					Expect(err).To(BeNil())

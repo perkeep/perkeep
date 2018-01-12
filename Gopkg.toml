@@ -25,7 +25,6 @@ required = [
   "google.golang.org/grpc", # fork by bradfitz
   "golang.org/x/text",
   "github.com/neelance/sourcemap",
-  "github.com/syndtr/gosnappy/snappy",
   "golang.org/x/sys/unix",
   "golang.org/x/tools/go/types/typeutil", # for gopherjs
   "golang.org/x/tools/go/gcimporter15", # for gopherjs
@@ -195,11 +194,7 @@ required = [
 
 [[constraint]]
   name = "github.com/syndtr/goleveldb"
-  revision = "4875955338b0a434238a31165cb87255ab6e9e4a"
-
-[[constraint]]
-  name = "github.com/syndtr/gosnappy"
-  revision = "156a073208e131d7d2e212cb749feae7c339e846"
+  revision = "34011bf325bce385408353a30b101fe5e923eb6e"
 
 [[constraint]]
   name = "github.com/tgulacsi/picago"

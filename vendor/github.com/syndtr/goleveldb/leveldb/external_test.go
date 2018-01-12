@@ -32,12 +32,12 @@ var _ = testutil.Defer(func() {
 				db := newTestingDB(o, nil, nil)
 				t := testutil.DBTesting{
 					DB:      db,
-					Deleted: testutil.KeyValue_Generate(nil, 500, 1, 50, 5, 5).Clone(),
+					Deleted: testutil.KeyValue_Generate(nil, 500, 1, 1, 50, 5, 5).Clone(),
 				}
 				testutil.DoDBTesting(&t)
 				db.TestClose()
 				done <- true
-			}, 20.0)
+			}, 80.0)
 		})
 
 		Describe("read test", func() {
@@ -53,6 +53,65 @@ var _ = testutil.Defer(func() {
 			}, func(db testutil.DB) {
 				db.(*testingDB).TestClose()
 			})
+		})
+
+		Describe("transaction test", func() {
+			It("should do transaction correctly", func(done Done) {
+				db := newTestingDB(o, nil, nil)
+
+				By("creating first transaction")
+				var err error
+				tr := &testingTransaction{}
+				tr.Transaction, err = db.OpenTransaction()
+				Expect(err).NotTo(HaveOccurred())
+				t0 := &testutil.DBTesting{
+					DB:      tr,
+					Deleted: testutil.KeyValue_Generate(nil, 200, 1, 1, 50, 5, 5).Clone(),
+				}
+				testutil.DoDBTesting(t0)
+				testutil.TestGet(tr, t0.Present)
+				testutil.TestHas(tr, t0.Present)
+
+				By("committing first transaction")
+				err = tr.Commit()
+				Expect(err).NotTo(HaveOccurred())
+				testutil.TestIter(db, nil, t0.Present)
+				testutil.TestGet(db, t0.Present)
+				testutil.TestHas(db, t0.Present)
+
+				By("manipulating DB without transaction")
+				t0.DB = db
+				testutil.DoDBTesting(t0)
+
+				By("creating second transaction")
+				tr.Transaction, err = db.OpenTransaction()
+				Expect(err).NotTo(HaveOccurred())
+				t1 := &testutil.DBTesting{
+					DB:      tr,
+					Deleted: t0.Deleted.Clone(),
+					Present: t0.Present.Clone(),
+				}
+				testutil.DoDBTesting(t1)
+				testutil.TestIter(db, nil, t0.Present)
+
+				By("discarding second transaction")
+				tr.Discard()
+				testutil.TestIter(db, nil, t0.Present)
+
+				By("creating third transaction")
+				tr.Transaction, err = db.OpenTransaction()
+				Expect(err).NotTo(HaveOccurred())
+				t0.DB = tr
+				testutil.DoDBTesting(t0)
+
+				By("committing third transaction")
+				err = tr.Commit()
+				Expect(err).NotTo(HaveOccurred())
+				testutil.TestIter(db, nil, t0.Present)
+
+				db.TestClose()
+				done <- true
+			}, 240.0)
 		})
 	})
 })
