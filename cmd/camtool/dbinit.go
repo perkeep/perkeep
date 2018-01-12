@@ -109,8 +109,15 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=%s", c.user, "postgres", c.host, c.password, c.sslMode)
 		rootdb, err = sql.Open("postgres", conninfo)
 	case "mysql":
-		rootdb, err = sql.Open("mysql", c.mysqlDSN("myql"))
+		// need to use an empty dbname to query tables
+		rootdb, err = sql.Open("mysql", c.mysqlDSN(""))
 	}
+	if err != nil {
+		exitf("Error connecting to the root %s database: %v", c.dbType, err)
+	}
+
+	// Validate the DSN to avoid confusion here
+	err = rootdb.Ping()
 	if err != nil {
 		exitf("Error connecting to the root %s database: %v", c.dbType, err)
 	}
@@ -172,7 +179,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		doQuery(db, fmt.Sprintf(`SELECT replaceintometa('version', '%d')`, postgres.SchemaVersion()))
 	case "mysql":
 		if err := mysql.CreateDB(db, dbname); err != nil {
-			exitf("%v", err)
+			exitf("error in CreateDB(%s): %v", dbname, err)
 		}
 		for _, tableSQL := range mysql.SQLCreateTables() {
 			do(db, tableSQL)
@@ -231,11 +238,11 @@ func (c *dbinitCmd) dbExists(db *sql.DB) bool {
 		return n != 0
 	}
 	rows, err := db.Query(query)
-	check(err)
+	check(err, query)
 	defer rows.Close()
 	for rows.Next() {
 		var db string
-		check(rows.Scan(&db))
+		check(rows.Scan(&db), query)
 		if db == c.dbName {
 			return true
 		}
@@ -243,11 +250,11 @@ func (c *dbinitCmd) dbExists(db *sql.DB) bool {
 	return false
 }
 
-func check(err error) {
+func check(err error, query string) {
 	if err == nil {
 		return
 	}
-	exitf("SQL error: %v", err)
+	exitf("SQL error for query %q: %v", query, err)
 }
 
 func exitf(format string, args ...interface{}) {
