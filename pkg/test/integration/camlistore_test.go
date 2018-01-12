@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -63,19 +62,23 @@ func TestWebsocketQuery(t *testing.T) {
 
 	check := func(err error) {
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("%v", err)
 		}
 	}
 
 	const bufSize = 1 << 20
 
-	c, err := net.Dial("tcp", w.Addr())
-	if err != nil {
-		t.Fatalf("Dial: %v", err)
+	dialer := websocket.Dialer{
+		ReadBufferSize:  bufSize,
+		WriteBufferSize: bufSize,
 	}
-	defer c.Close()
 
-	wc, _, err := websocket.NewClient(c, &url.URL{Host: w.Addr(), Path: w.SearchHandlerPath() + "ws"}, nil, bufSize, bufSize)
+	searchURL := (&url.URL{Scheme: "ws", Host: w.Addr(), Path: w.SearchHandlerPath() + "ws"}).String()
+	wsHeaders := http.Header{
+		"Origin": {"http://" + w.Addr()},
+	}
+
+	wc, _, err := dialer.Dial(searchURL, wsHeaders)
 	check(err)
 
 	msg, err := wc.NextWriter(websocket.TextMessage)
