@@ -867,6 +867,15 @@ func main() {
 			log.Fatalf("Failed to getwd: %v", err)
 		}
 	}
+	// ensure root is always a cleaned absolute path
+	var err error
+	*root, err = filepath.Abs(*root)
+	if err != nil {
+		log.Fatalf("Failed to get absolute path of root: %v", err)
+	}
+	// calculate domain name we are serving packages for based on the directory we are serving from
+	domainName = filepath.Base(filepath.Dir(*root))
+
 	readTemplates()
 	if err := initGithubSyncing(); err != nil {
 		log.Fatalf("error setting up syncing to github: %v", err)

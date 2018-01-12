@@ -35,7 +35,6 @@ import (
 	"os"
 	pathpkg "path"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"text/template"
 	"time"
@@ -44,24 +43,12 @@ import (
 const (
 	cmdPattern       = "/cmd/"
 	fileembedPattern = "fileembed.go"
+	tabwidth         = 4
 )
 
 var (
 	domainName string
-	docRx      = regexp.MustCompile(`^/((?:pkg|cmd|app)/([\w/]+?)(\.go)??)/?$`)
 )
-
-var tabwidth = 4
-
-func init() {
-	// calculate the domain name we are serving packages for based on the
-	// directory we are serving from.
-	r := *root
-	if r == "" {
-		r, _ = os.Getwd()
-	}
-	domainName = pathpkg.Base(pathpkg.Dir(pathpkg.Clean(r)))
-}
 
 type PageInfo struct {
 	Dirname string // directory containing the package
