@@ -48,6 +48,12 @@ type Discovery struct {
 	// It is randomly generated the first time discovery is served.
 	AuthToken string `json:"authToken"`
 
+	// HasLegacySHA1Index reports whether this server
+	// contains legacy SHA-1 sums of files in its wholeref
+	// index. When true, clients can additional compute the SHA-1 of
+	// local files to upload to avoid uploading duplicates.
+	HasLegacySHA1Index bool `json:"hasLegacySHA1Index"`
+
 	// SyncHandlers lists discovery information about the available sync handlers.
 	SyncHandlers []SyncHandlerDiscovery `json:"syncHandlers,omitempty"`
 	// Signing contains discovery information for signing.

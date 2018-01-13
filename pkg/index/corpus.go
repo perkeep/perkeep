@@ -52,6 +52,10 @@ type Corpus struct {
 	// end of scan.
 	building bool
 
+	// hasLegacySHA1 reports whether some SHA-1 blobs are indexed. It is set while
+	//building the corpus from the initial index scan.
+	hasLegacySHA1 bool
+
 	// gen is incremented on every blob received.
 	// It's used as a query cache invalidator.
 	gen int64
@@ -804,6 +808,12 @@ func (c *Corpus) mergeWholeToFileRow(k, v []byte) error {
 		return fmt.Errorf("bogus row %q = %q", k, v)
 	}
 	c.fileWholeRef[fileRef] = wholeRef
+	if c.building && !c.hasLegacySHA1 {
+		sha1Prefix := []byte("sha1-")
+		if bytes.HasPrefix(pair, sha1Prefix) {
+			c.hasLegacySHA1 = true
+		}
+	}
 	return nil
 }
 

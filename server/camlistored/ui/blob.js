@@ -43,10 +43,14 @@ cam.blob.refFromString = function(str) {
 	return cam.blob.refFromHash(hash);
 };
 
-// Returns the Perkeep blobref for a DOM blob (different from Perkeep blob) using the currently recommended hash function. This function currently only works within workers.
+// Returns the Perkeep blobref for a DOM blob (different from Perkeep
+// blob) using the currently recommended hash function. This function currently
+// only works within workers. If doLegacySHA1, it also computes and returns the
+// SHA-1 blobref.
 // @param {Blob} blob
+// @param {bool} doLegacySHA1
 // @returns {!string}
-cam.blob.refFromDOMBlob = function(blob) {
+cam.blob.refFromDOMBlob = function(blob, doLegacySHA1) {
 	if (!goog.global.FileReaderSync) {
 		// TODO(aa): If necessary, we can also implement this using FileReader for use on the main thread. But beware that should not be done for very large objects without checking the effect on framerate carefully.
 		throw new Error('FileReaderSync not available. Perhaps we are on the main thread?');
@@ -54,14 +58,26 @@ cam.blob.refFromDOMBlob = function(blob) {
 
 	var fr = new FileReaderSync();
 	var hash = cam.blob.createHash();
+	if (doLegacySHA1) {
+		var legacyFr = new FileReaderSync();
+		var legacyHash = new goog.crypt.Sha1();
+	}
 	var chunkSize = 1024 * 1024;
 	for (var start = 0; start < blob.size; start += chunkSize) {
 		var end = Math.min(start + chunkSize, blob.size);
 		var slice = blob.slice(start, end);
 		hash.update(new Uint8Array(fr.readAsArrayBuffer(slice)));
+		if (doLegacySHA1) {
+			legacyHash.update(new Uint8Array(legacyFr.readAsArrayBuffer(slice)));
+		}
 	}
 
-	return cam.blob.refFromHash(hash);
+	var refs = [];
+	refs.push(cam.blob.refFromHash(hash));
+	if (doLegacySHA1) {
+		refs.push(cam.blob.refFromHash(legacyHash));
+	}
+	return refs;
 };
 
 // Creates an instance of the currently recommened hash function.

@@ -18,12 +18,21 @@ limitations under the License.
 // to let tests do gross things that we don't want to expose normally.
 package testhooks
 
-import "os"
+import (
+	"os"
+	"strconv"
+)
 
 // UseSHA1 controls whether new blobs use SHA-1 by default.
 // This was added because we had a massive pile of tests with SHA-1-based golden data
 // and rebasing it all to SHA-224 was too painful.
 var useSHA1 bool
+
+func init() {
+	if ok, _ := strconv.ParseBool(os.Getenv("CAMLI_SHA1_ENABLED")); ok {
+		useSHA1 = true
+	}
+}
 
 func SetUseSHA1(v bool) (restore func()) {
 	old := useSHA1

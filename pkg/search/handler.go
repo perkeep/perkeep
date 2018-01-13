@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -190,6 +191,21 @@ func (h *Handler) Owner() blob.Ref {
 
 func (h *Handler) Index() index.Interface {
 	return h.index
+}
+
+// HasLegacySHA1 reports whether the server has legacy SHA-1 blobs indexed.
+func (h *Handler) HasLegacySHA1() bool {
+	idx, ok := h.index.(*index.Index)
+	if !ok {
+		log.Printf("Cannot guess for legacy SHA1 because we don't have an *index.Index")
+		return false
+	}
+	ok, err := idx.HasLegacySHA1()
+	if err != nil {
+		log.Printf("Cannot guess for legacy SHA1: %v", err)
+		return false
+	}
+	return ok
 }
 
 var getHandler = map[string]func(*Handler, http.ResponseWriter, *http.Request){
@@ -654,27 +670,38 @@ func (h *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 	h.index.RLock()
 	defer h.index.RUnlock()
 
-	br, ok := blob.Parse(req.FormValue("wholedigest"))
-	if !ok {
-		ret.Error = "Missing or invalid 'wholedigest' param"
+	if err := req.ParseForm(); err != nil {
+		ret.Error = err.Error()
 		ret.ErrorType = "input"
 		return
 	}
+	values, ok := req.Form["wholedigest"]
+	if !ok {
+		ret.Error = "Missing 'wholedigest' param"
+		ret.ErrorType = "input"
+		return
+	}
+	var digests []blob.Ref
+	for _, v := range values {
+		br, ok := blob.Parse(v)
+		if !ok {
+			ret.Error = "Invalid 'wholedigest' param"
+			ret.ErrorType = "input"
+			return
+		}
+		digests = append(digests, br)
+	}
 
-	files, err := h.index.ExistingFileSchemas(br)
+	files, err := h.index.ExistingFileSchemas(digests...)
 	if err != nil {
 		ret.Error = err.Error()
 		ret.ErrorType = "server"
-		return
 	}
-
 	// the ui code expects an object
 	if files == nil {
-		files = []blob.Ref{}
+		files = make(index.WholeRefToFile)
 	}
-
 	ret.Files = files
-	return
 }
 
 // SignerAttrValueResponse is the JSON response to $search/camli/search/signerattrvalue

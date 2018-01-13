@@ -557,11 +557,14 @@ cam.ServerConnection.prototype.newDelAttributeClaim = function(permanode, attrib
 // @param {?Function} opt_fail Optional fail callback.
 // @param {?Function} opt_onContentsRef Optional callback to set contents during upload.
 cam.ServerConnection.prototype.uploadFile = function(file, success, opt_fail, opt_onContentsRef) {
-	this.getWorker_().sendMessage('ref', file, function(ref) {
+	var msg = {};
+	msg.blob = file;
+	msg.doLegacySHA1 = this.config_.hasLegacySHA1Index;
+	this.getWorker_().sendMessage('ref', msg, function(wholeRefs) {
 		if (opt_onContentsRef) {
-			opt_onContentsRef(ref);
+			opt_onContentsRef(wholeRefs);
 		}
-		this.camliUploadFileHelper_(file, ref, success, opt_fail);
+		this.camliUploadFileHelper_(file, wholeRefs, success, opt_fail);
 	}.bind(this));
 };
 
@@ -573,11 +576,12 @@ cam.ServerConnection.prototype.uploadFile = function(file, success, opt_fail, op
 // on the server. It starts by assuming the file might already exist on the server
 // and, if so, uses an existing (but re-verified) file schema ref instead.
 // @param {File} file File to be uploaded.
-// @param {string} contentsBlobRef Blob ref of file as sha1'd locally.
+// @param {List} wholeRefs Blob ref of file contents as computed locally.
+// Second, optional, element of the list is legacy SHA-1 blob Ref.
 // @param {function(string)} success function(fileBlobRef) of the
 // server-validated or just-uploaded file schema blob.
 // @param {?Function} opt_fail Optional fail callback.
-cam.ServerConnection.prototype.camliUploadFileHelper_ = function(file, contentsBlobRef, success, opt_fail) {
+cam.ServerConnection.prototype.camliUploadFileHelper_ = function(file, wholeRefs, success, opt_fail) {
 	if (!this.config_.uploadHelper) {
 		this.failOrLog_(opt_fail, "no uploadHelper available");
 		return;
@@ -597,7 +601,7 @@ cam.ServerConnection.prototype.camliUploadFileHelper_ = function(file, contentsB
 		this.sendXhr_(
 			this.config_.uploadHelper,
 			goog.bind(this.handleUpload_, this,
-				file, contentsBlobRef, {success: success, fail: opt_fail}
+				file, wholeRefs[0], {success: success, fail: opt_fail}
 			),
 			"POST",
 			fd,
@@ -606,9 +610,9 @@ cam.ServerConnection.prototype.camliUploadFileHelper_ = function(file, contentsB
 	}, this);
 
 	this.findExistingFileSchemas_(
-		contentsBlobRef,
+		wholeRefs,
 		goog.bind(this.dupCheck_, this,
-			doUpload, contentsBlobRef, success
+			doUpload, success
 		),
 		opt_fail
 	)
@@ -634,12 +638,15 @@ cam.ServerConnection.prototype.handleUpload_ = function(file, contentsBlobRef, c
 	)
 };
 
-// @param {string} wholeDigestRef file digest.
+// @param {List} wholeDigestRefs file contents digests (current hash in use, then optionally legacy SHA-1 hash).
 // @param {Function} success callback with data.
 // @param {?Function} opt_fail optional failure calback
-cam.ServerConnection.prototype.findExistingFileSchemas_ = function(wholeDigestRef, success, opt_fail) {
+cam.ServerConnection.prototype.findExistingFileSchemas_ = function(wholeDigestRefs, success, opt_fail) {
 	var path = goog.uri.utils.appendPath(this.config_.searchRoot, 'camli/search/files');
-	path = goog.uri.utils.appendParam(path, 'wholedigest', wholeDigestRef);
+	for (var i=0; i<wholeDigestRefs.length; i++) {
+		path = goog.uri.utils.appendParam(path, 'wholedigest', wholeDigestRefs[i]);
+		console.log(path);
+	}
 
 	this.sendXhr_(
 		path,
@@ -650,53 +657,66 @@ cam.ServerConnection.prototype.findExistingFileSchemas_ = function(wholeDigestRe
 };
 
 // @param {Function} doUpload fun that takes care of uploading.
-// @param {string} contentsBlobRef Blob ref of file as sha1'd locally.
 // @param {Function} success Success callback.
-// @param {Object} res result from the wholedigest search.
-cam.ServerConnection.prototype.dupCheck_ = function(doUpload, contentsBlobRef, success, res) {
-	var remain = res.files;
-	var checkNext = goog.bind(function(files) {
-		if (files.length == 0) {
-			doUpload();
+// @param {Object} res result from the wholedigest search, that maps a wholeRef to its file blobRefs.
+cam.ServerConnection.prototype.dupCheck_ = function(doUpload, success, res) {
+	var checkNext = goog.bind(function(filesByWholeRef, wholeRefs, files) {
+		if (!files || files.length == 0) {
+			var nextWholeRefs = wholeRefs.slice(1);
+			if (nextWholeRefs.length == 0) {
+				doUpload();
+				return;
+			}
+			var nextWholeRef = nextWholeRefs[0];
+			var nextFiles = filesByWholeRef[nextWholeRef];
+			checkNext(filesByWholeRef, nextWholeRefs, nextFiles);
 			return;
 		}
-		// TODO: verify filename and other file metadata in the
-		// file json schema match too, not just the contents
-		var checkFile = files[0];
-		console.log("integrity checking the reported dup " + checkFile);
 
-		// TODO(mpl): see about passing directly a ref of files maybe instead of a copy?
-		// just being careful for now.
+		var currentWholeRef = wholeRefs[0];
+		var currentFile = files[0];
+
 		this.sendXhr_(
-			this.config_.downloadHelper + checkFile + "/?verifycontents=" + contentsBlobRef,
+			this.config_.downloadHelper + currentFile + "/?verifycontents=" + currentWholeRef,
 			goog.bind(this.handleVerifycontents_, this,
-				contentsBlobRef, files.slice(), checkNext, success),
+				currentWholeRef, filesByWholeRef, wholeRefs, files, checkNext, success),
 			"HEAD"
 		);
 	}, this);
-	checkNext(remain);
+
+	var filesByWholeRef = res.files;
+	if (filesByWholeRef.length == 0) {
+		doUpload();
+		return;
+	}
+	var wholeRefs = Object.keys(filesByWholeRef);
+	var files = filesByWholeRef[wholeRefs[0]];
+	checkNext(filesByWholeRef, wholeRefs, files);
 }
 
-// @param {string} contentsBlobRef Blob ref of file as sha1'd locally.
+// @param {string} contentsBlobRef Blob ref of file as sha224'd locally.
+// @param {Object} filesByWholeRef maps a wholeRef to its file blobRefs.
+// @param {Array.<string>} wholeRefs wholeRefs to check.
 // @param {Array.<string>} files files to check.
 // @param {Function} checkNext fun, recursive call.
 // @param {Function} success Success callback.
 // @param {goog.events.Event} e Event that triggered this
-cam.ServerConnection.prototype.handleVerifycontents_ = function(contentsBlobRef, files, checkNext, success, e) {
+cam.ServerConnection.prototype.handleVerifycontents_ = function(
+	contentsBlobRef, filesByWholeRef, wholeRefs, files, checkNext, success, e) {
 	var xhr = e.target;
 	var error = !(xhr.isComplete() && xhr.getStatus() == 200);
 	var checkFile = files.shift();
 
 	if (error) {
 		console.log("integrity check failed on " + checkFile);
-		checkNext(files);
+		checkNext(filesByWholeRef, wholeRefs, files);
 		return;
 	}
 	if (xhr.getResponseHeader("X-Camli-Contents") == contentsBlobRef) {
 		console.log("integrity check passed on " + checkFile + "; using it.");
 		success(checkFile);
 	} else {
-		checkNext(files);
+		checkNext(filesByWholeRef, wholeRefs, files);
 	}
 };
 

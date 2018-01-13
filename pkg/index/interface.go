@@ -95,7 +95,7 @@ type Interface interface {
 	// can be avoided if at least one of the returned schemaRefs
 	// can be validated (with a validating HEAD request) to still
 	// all exist on the blob server.
-	ExistingFileSchemas(wholeFileRef blob.Ref) (schemaRefs []blob.Ref, err error)
+	ExistingFileSchemas(wholeFileRef ...blob.Ref) (schemaRefs WholeRefToFile, err error)
 
 	// GetDirMembers sends on dest the children of the static
 	// directory dirRef. It returns os.ErrNotExist if dirRef

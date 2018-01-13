@@ -50,6 +50,7 @@ type serverCmd struct {
 	wipe     bool
 	things   bool
 	debug    bool
+	sha1     bool
 
 	mongo    bool
 	mysql    bool
@@ -67,6 +68,7 @@ type serverCmd struct {
 	fullClosure bool
 	mini        bool
 	publish     bool // whether to build and start the publisher app(s)
+	scancab     bool // whether to build and start the scancab app(s)
 	hello       bool // whether to build and start the hello demo app
 
 	openBrowser      bool
@@ -96,7 +98,9 @@ func init() {
 		flags.BoolVar(&cmd.wipe, "wipe", false, "Wipe the blobs on disk and the indexer.")
 		flags.BoolVar(&cmd.things, "makethings", false, "Create various test data on startup (twitter imports for now). Requires wipe. Conflicts with mini.")
 		flags.BoolVar(&cmd.debug, "debug", false, "Enable http debugging.")
+		flags.BoolVar(&cmd.sha1, "sha1", false, "Use sha1 instead of sha224.")
 		flags.BoolVar(&cmd.publish, "publish", true, "Enable publisher app(s)")
+		flags.BoolVar(&cmd.scancab, "scancab", true, "Enable scancab app(s)")
 		flags.BoolVar(&cmd.hello, "hello", false, "Enable hello (demo) app")
 		flags.BoolVar(&cmd.mini, "mini", false, "Enable minimal mode, where all optional features are disabled. (Currently just publishing)")
 
@@ -152,6 +156,7 @@ func (c *serverCmd) checkFlags(args []string) error {
 			return cmdmain.UsageError("--mini and --makethings are mutually exclusive.")
 		}
 		c.publish = false
+		c.scancab = false
 		c.hello = false
 	}
 	if c.things && !c.wipe {
@@ -227,7 +232,9 @@ func (c *serverCmd) setEnvVars() error {
 	setenv("CAMLI_LEVELDB_ENABLED", "false")
 
 	setenv("CAMLI_PUBLISH_ENABLED", strconv.FormatBool(c.publish))
+	setenv("CAMLI_SCANCAB_ENABLED", strconv.FormatBool(c.scancab))
 	setenv("CAMLI_HELLO_ENABLED", strconv.FormatBool(c.hello))
+	setenv("CAMLI_SHA1_ENABLED", strconv.FormatBool(c.sha1))
 	switch {
 	case c.memory:
 		setenv("CAMLI_MEMINDEX_ENABLED", "true")

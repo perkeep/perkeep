@@ -35,7 +35,7 @@
 
 		"/scancab/": {
 			"handler": "app",
-			"enabled": true,
+			"enabled": ["_env", "${CAMLI_SCANCAB_ENABLED}"],
 			"handlerArgs": {
 				"prefix": "/scancab/",
 				"serverListen": "localhost:3179",

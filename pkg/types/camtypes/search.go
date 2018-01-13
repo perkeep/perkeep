@@ -231,7 +231,8 @@ type SearchErrorResponse struct {
 type FileSearchResponse struct {
 	SearchErrorResponse
 
-	Files []blob.Ref `json:"files"` // Refs of the result files. Never nil.
+	// Files maps a requested wholeRef to the files found for it. Never nil.
+	Files map[string][]blob.Ref `json:"files"`
 }
 
 // Location describes a file or permanode that has a location.

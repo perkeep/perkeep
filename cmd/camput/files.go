@@ -22,7 +22,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"hash"
 	"io"
 	"io/ioutil"
 	"log"
@@ -36,6 +35,7 @@ import (
 	"time"
 
 	"perkeep.org/internal/chanworker"
+	"perkeep.org/internal/hashutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	statspkg "perkeep.org/pkg/blobserver/stats"
@@ -367,7 +367,7 @@ func (n *node) directoryStaticSet() (*schema.StaticSet, error) {
 func (up *Uploader) uploadNode(ctx context.Context, n *node) (*client.PutResult, error) {
 	fi := n.fi
 	mode := fi.Mode()
-	if mode&os.ModeType == 0 {
+	if mode.IsRegular() {
 		return up.uploadNodeRegularFile(ctx, n)
 	}
 	bb := schema.NewCommonFileMap(n.fullPath, fi)
@@ -456,35 +456,42 @@ func (noStatReceiver) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(b
 
 var atomicDigestOps int64 // number of files digested
 
-// wholeFileDigest returns the sha1 digest of the regular file's absolute
-// path given in fullPath.
-func (up *Uploader) wholeFileDigest(fullPath string) (blob.Ref, error) {
-	// TODO(bradfitz): cache this.
+// wholeFileDigest returns the blob ref(s) of the regular file's contents
+// as if it were one entire blob (ignoring blob size limits).
+// By default, only one ref is returned, unless the server has advertised
+// that it has indexes calculated for other hash functions.
+func (up *Uploader) wholeFileDigest(fullPath string) ([]blob.Ref, error) {
+	// TODO(bradfitz): cache this?
 	file, err := up.open(fullPath)
 	if err != nil {
-		return blob.Ref{}, err
+		return nil, err
 	}
 	defer file.Close()
-	td := &trackDigestReader{r: file}
+	td := hashutil.NewTrackDigestReader(file)
+	td.DoLegacySHA1 = up.doLegacySHA1
 	_, err = io.Copy(ioutil.Discard, td)
 	atomic.AddInt64(&atomicDigestOps, 1)
 	if err != nil {
-		return blob.Ref{}, err
+		return nil, err
 	}
-	return blob.MustParse(td.Sum()), nil
+	refs := []blob.Ref{blob.RefFromHash(td.Hash())}
+	if up.doLegacySHA1 {
+		refs = append(refs, blob.RefFromHash(td.LegacySHA1Hash()))
+	}
+	return refs, nil
 }
 
 var noDupSearch, _ = strconv.ParseBool(os.Getenv("CAMLI_NO_FILE_DUP_SEARCH"))
 
 // fileMapFromDuplicate queries the server's search interface for an
-// existing file with an entire contents of sum (a blobref string).
+// existing file with an entire contents matching any of wholeRef.
 // If the server has it, it's validated, and then fileMap (which must
 // already be partially populated) has its "parts" field populated,
 // and then fileMap is uploaded (if necessary) and a PutResult with
 // its blobref is returned. If there's any problem, or a dup doesn't
 // exist, ok is false.
 // If required, Vivify is also done here.
-func (up *Uploader) fileMapFromDuplicate(ctx context.Context, bs blobserver.StatReceiver, fileMap *schema.Builder, sum string) (pr *client.PutResult, ok bool) {
+func (up *Uploader) fileMapFromDuplicate(ctx context.Context, bs blobserver.StatReceiver, fileMap *schema.Builder, wholeRef []blob.Ref) (pr *client.PutResult, ok bool) {
 	if noDupSearch {
 		return
 	}
@@ -492,15 +499,15 @@ func (up *Uploader) fileMapFromDuplicate(ctx context.Context, bs blobserver.Stat
 	if err != nil {
 		return
 	}
-	dupFileRef, err := up.Client.SearchExistingFileSchema(ctx, blob.MustParse(sum))
+	dupFileRef, err := up.Client.SearchExistingFileSchema(ctx, wholeRef...)
 	if err != nil {
-		log.Printf("Warning: error searching for already-uploaded copy of %s: %v", sum, err)
+		log.Printf("Warning: error searching for already-uploaded copy of %v: %v", wholeRef, err)
 		return nil, false
 	}
 	if !dupFileRef.Valid() {
 		return nil, false
 	}
-	cmdmain.Logf("Found dup of contents %s in file schema %s", sum, dupFileRef)
+	cmdmain.Logf("Found dup of contents %s in file schema %s", wholeRef, dupFileRef)
 	dupMap, err := up.Client.FetchSchemaBlob(ctx, dupFileRef)
 	if err != nil {
 		log.Printf("Warning: error fetching %v: %v", dupFileRef, err)
@@ -519,11 +526,13 @@ func (up *Uploader) fileMapFromDuplicate(ctx context.Context, bs blobserver.Stat
 	}
 	if !uh.Vivify && uh.BlobRef == dupFileRef {
 		// Unchanged (same filename, modtime, JSON serialization, etc)
+		// Different signer (e.g. existing file has a sha1 signer, and we're now using a
+		// sha224 signer) means we upload a new file schema.
 		return &client.PutResult{BlobRef: dupFileRef, Size: uint32(len(json)), Skipped: true}, true
 	}
 	pr, err = up.Upload(ctx, uh)
 	if err != nil {
-		log.Printf("Warning: error uploading file map after finding server dup of %v: %v", sum, err)
+		log.Printf("Warning: error uploading file map after finding server dup of %v: %v", wholeRef, err)
 		return nil, false
 	}
 	return pr, true
@@ -564,17 +573,23 @@ func (up *Uploader) uploadNodeRegularFile(ctx context.Context, n *node) (*client
 		size                           = n.fi.Size()
 		fileContents io.Reader         = io.LimitReader(file, size)
 		br           blob.Ref          // of file schemaref
-		sum          string            // sha1 hashsum of the file to upload
+		wholeRef     []blob.Ref        // wholeRef[1], if any, is the legacy sha1 version of the contents.
 		pr           *client.PutResult // of the final "file" schema blob
 	)
 
 	const dupCheckThreshold = 256 << 10
 	if size > dupCheckThreshold {
-		sumRef, err := up.wholeFileDigest(n.fullPath)
+		var err error
+		hasLegacySHA1, err := up.Client.HasLegacySHA1()
+		if err != nil {
+			log.Printf("Cannot discover if server has legacy sha1: %v", err)
+		} else {
+			up.doLegacySHA1 = hasLegacySHA1
+		}
+		wholeRef, err = up.wholeFileDigest(n.fullPath)
 		if err == nil {
-			sum = sumRef.String()
 			ok := false
-			pr, ok = up.fileMapFromDuplicate(ctx, up.statReceiver(n), filebb, sum)
+			pr, ok = up.fileMapFromDuplicate(ctx, up.statReceiver(n), filebb, wholeRef)
 			if ok {
 				br = pr.BlobRef
 				android.NoteFileUploaded(n.fullPath, !pr.Skipped)
@@ -616,8 +631,8 @@ func (up *Uploader) uploadNodeRegularFile(ctx context.Context, n *node) (*client
 		// br still zero means fileMapFromDuplicate did not find the file on the server,
 		// and the file has not just been uploaded subsequently to a vivify request.
 		// So we do the full file + file schema upload here.
-		if sum == "" && up.fileOpts.wantFilePermanode() {
-			fileContents = &trackDigestReader{r: fileContents}
+		if wholeRef == nil && up.fileOpts.wantFilePermanode() {
+			fileContents = hashutil.NewTrackDigestReader(fileContents)
 		}
 		br, err = schema.WriteFileMap(ctx, up.noStatReceiver(up.statReceiver(n)), filebb, fileContents)
 		if err != nil {
@@ -630,8 +645,8 @@ func (up *Uploader) uploadNodeRegularFile(ctx context.Context, n *node) (*client
 	// caught by the have cache, so they won't be reuploaded for nothing
 	// at least.
 	if up.fileOpts.wantFilePermanode() {
-		if td, ok := fileContents.(*trackDigestReader); ok {
-			sum = td.Sum()
+		if td, ok := fileContents.(*hashutil.TrackDigestReader); ok {
+			wholeRef = []blob.Ref{blob.RefFromHash(td.Hash())}
 		}
 		// claimTime is both the time of the "claimDate" in the
 		// JSON claim, as well as the date in the OpenPGP
@@ -644,7 +659,7 @@ func (up *Uploader) uploadNodeRegularFile(ctx context.Context, n *node) (*client
 		if !ok {
 			return nil, fmt.Errorf("couldn't get modtime for file %v", n.fullPath)
 		}
-		err = up.uploadFilePermanode(ctx, sum, br, claimTime)
+		err = up.uploadFilePermanode(ctx, wholeRef[0].String(), br, claimTime)
 		if err != nil {
 			return nil, fmt.Errorf("Error uploading permanode for node %v: %v", n, err)
 		}
@@ -664,6 +679,9 @@ func (up *Uploader) uploadNodeRegularFile(ctx context.Context, n *node) (*client
 // fixed key) associated with the file blobref fileRef.
 // It also sets the optional tags for this permanode.
 func (up *Uploader) uploadFilePermanode(ctx context.Context, sum string, fileRef blob.Ref, claimTime time.Time) error {
+	if sum == "" {
+		panic("invalid empty string for sum")
+	}
 	// Use a fixed time value for signing; not using modtime
 	// so two identical files don't have different modtimes?
 	// TODO(bradfitz): consider this more?
@@ -734,7 +752,7 @@ func (up *Uploader) UploadFile(ctx context.Context, filename string) (*client.Pu
 	}
 
 	if fi.IsDir() {
-		panic("must use UploadTree now for directories")
+		return nil, fmt.Errorf("UploadFile called on directory %q", filename)
 	}
 	n := &node{
 		fullPath: fullPath,
@@ -1155,22 +1173,3 @@ func (s byTypeAndName) Less(i, j int) bool {
 	return s[i].Name() < s[j].Name()
 }
 func (s byTypeAndName) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-
-// trackDigestReader is an io.Reader wrapper which records the digest of what it reads.
-type trackDigestReader struct {
-	r io.Reader
-	h hash.Hash
-}
-
-func (t *trackDigestReader) Read(p []byte) (n int, err error) {
-	if t.h == nil {
-		t.h = blob.NewHash()
-	}
-	n, err = t.r.Read(p)
-	t.h.Write(p[:n])
-	return
-}
-
-func (t *trackDigestReader) Sum() string {
-	return blob.RefFromHash(t.h).String()
-}

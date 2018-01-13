@@ -72,6 +72,7 @@ type Client struct {
 	searchRoot             string      // Handler prefix, or "" if none
 	downloadHelper         string      // or "" if none
 	storageGen             string      // storage generation, or "" if not reported
+	hasLegacySHA1          bool        // Whether server has SHA-1 blobs indexed.
 	syncHandlers           []*SyncInfo // "from" and "to" url prefix for each syncHandler
 	serverKeyID            string      // Server's GPG public key ID.
 	helpRoot               string      // Handler prefix, or "" if none
@@ -656,6 +657,14 @@ func (c *Client) StorageGeneration() (string, error) {
 	return c.storageGen, nil
 }
 
+// HasLegacySHA1 reports whether the server has SHA-1 blobs indexed.
+func (c *Client) HasLegacySHA1() (bool, error) {
+	if err := c.condDiscovery(); err != nil {
+		return false, err
+	}
+	return c.hasLegacySHA1, nil
+}
+
 // SyncInfo holds the data that were acquired with a discovery
 // and that are relevant to a syncHandler.
 type SyncInfo struct {
@@ -802,17 +811,31 @@ func (c *Client) QueryRaw(ctx context.Context, req *search.SearchQuery) ([]byte,
 
 // SearchExistingFileSchema does a search query looking for an
 // existing file with entire contents of wholeRef, then does a HEAD
-// request to verify the file still exists on the server.  If so,
+// request to verify the file still exists on the server. If so,
 // it returns that file schema's blobref.
 //
-// May return (zero, nil) on ENOENT. A non-nil error is only returned
+// If multiple wholeRef values are provided, any may match. This is
+// used for searching for the file by multiple wholeRef hashes
+// (e.g. SHA-224 and SHA-1).
+//
+// It returns (zero, nil) if not found. A non-nil error is only returned
 // if there were problems searching.
-func (c *Client) SearchExistingFileSchema(ctx context.Context, wholeRef blob.Ref) (blob.Ref, error) {
+func (c *Client) SearchExistingFileSchema(ctx context.Context, wholeRef ...blob.Ref) (blob.Ref, error) {
 	sr, err := c.SearchRoot()
 	if err != nil {
 		return blob.Ref{}, err
 	}
-	url := sr + "camli/search/files?wholedigest=" + wholeRef.String()
+	if len(wholeRef) == 0 {
+		return blob.Ref{}, nil
+	}
+	url := sr + "camli/search/files"
+	for i, ref := range wholeRef {
+		if i == 0 {
+			url += "?wholedigest=" + ref.String()
+		} else {
+			url += "&wholedigest=" + ref.String()
+		}
+	}
 	req := c.newRequest(ctx, "GET", url)
 	res, err := c.doReqGated(req)
 	if err != nil {
@@ -823,18 +846,18 @@ func (c *Client) SearchExistingFileSchema(ctx context.Context, wholeRef blob.Ref
 		res.Body.Close()
 		return blob.Ref{}, fmt.Errorf("client: got status code %d from URL %s; body %s", res.StatusCode, url, body)
 	}
-	var ress struct {
-		Files []blob.Ref `json:"files"`
-	}
+	var ress camtypes.FileSearchResponse
 	if err := httputil.DecodeJSON(res, &ress); err != nil {
 		return blob.Ref{}, fmt.Errorf("client: error parsing JSON from URL %s: %v", url, err)
 	}
 	if len(ress.Files) == 0 {
 		return blob.Ref{}, nil
 	}
-	for _, f := range ress.Files {
-		if c.FileHasContents(ctx, f, wholeRef) {
-			return f, nil
+	for wholeRef, files := range ress.Files {
+		for _, f := range files {
+			if c.FileHasContents(ctx, f, blob.MustParse(wholeRef)) {
+				return f, nil
+			}
 		}
 	}
 	return blob.Ref{}, nil
@@ -1026,6 +1049,7 @@ func (c *Client) doDiscovery() error {
 	c.shareRoot = u.String()
 
 	c.storageGen = disco.StorageGeneration
+	c.hasLegacySHA1 = disco.HasLegacySHA1Index
 
 	u, err = root.Parse(disco.BlobRoot)
 	if err != nil {

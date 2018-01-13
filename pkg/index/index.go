@@ -882,6 +882,19 @@ func (x *Index) GetBlobMeta(ctx context.Context, br blob.Ref) (camtypes.BlobMeta
 	}, nil
 }
 
+// HasLegacySHA1 reports whether the index has legacy SHA-1 blobs.
+func (x *Index) HasLegacySHA1() (ok bool, err error) {
+	if x.corpus != nil {
+		return x.corpus.hasLegacySHA1, err
+	}
+	it := x.queryPrefix(keyWholeToFileRef, "sha1-")
+	defer closeIterator(it, &err)
+	for it.Next() {
+		return true, err
+	}
+	return false, err
+}
+
 func (x *Index) KeyId(ctx context.Context, signer blob.Ref) (string, error) {
 	if x.corpus != nil {
 		return x.corpus.KeyId(ctx, signer)
@@ -1203,7 +1216,7 @@ func (x *Index) PathLookup(ctx context.Context, signer, base blob.Ref, suffix st
 	return best, nil
 }
 
-func (x *Index) ExistingFileSchemas(wholeRef blob.Ref) (schemaRefs []blob.Ref, err error) {
+func (x *Index) existingFileSchemas(wholeRef blob.Ref) (schemaRefs []blob.Ref, err error) {
 	it := x.queryPrefix(keyWholeToFileRef, wholeRef)
 	defer closeIterator(it, &err)
 	for it.Next() {
@@ -1215,6 +1228,22 @@ func (x *Index) ExistingFileSchemas(wholeRef blob.Ref) (schemaRefs []blob.Ref, e
 		if ok {
 			schemaRefs = append(schemaRefs, ref)
 		}
+	}
+	return schemaRefs, nil
+}
+
+// WholeRefToFile maps a file contents blobRef (a "wholeRef"), to the file schemas with those contents.
+type WholeRefToFile map[string][]blob.Ref
+
+// ExistingFileSchemas returns the file schemas for the provided file contents refs.
+func (x *Index) ExistingFileSchemas(wholeRef ...blob.Ref) (WholeRefToFile, error) {
+	schemaRefs := make(WholeRefToFile)
+	for _, v := range wholeRef {
+		newRefs, err := x.existingFileSchemas(v)
+		if err != nil {
+			return nil, err
+		}
+		schemaRefs[v.String()] = newRefs
 	}
 	return schemaRefs, nil
 }

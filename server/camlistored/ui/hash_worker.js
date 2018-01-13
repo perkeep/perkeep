@@ -26,5 +26,7 @@ goog.require('cam.WorkerMessageRouter');
 
 var router = new cam.WorkerMessageRouter(goog.global);
 router.registerHandler('ref', function(msg, sendReply) {
-	sendReply(cam.blob.refFromDOMBlob(msg));
+	var blob = msg.blob;
+	var doLegacySHA1 = msg.doLegacySHA1;
+	sendReply(cam.blob.refFromDOMBlob(blob, doLegacySHA1));
 });

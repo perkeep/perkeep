@@ -31,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"perkeep.org/internal/hashutil"
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
@@ -458,9 +459,9 @@ func (c *Client) UploadFile(ctx context.Context, filename string, contents io.Re
 	}
 	fileMap.SetType("file")
 
-	var wholeRef blob.Ref
+	var wholeRef []blob.Ref
 	if opts != nil && opts.WholeRef.Valid() {
-		wholeRef = opts.WholeRef
+		wholeRef = append(wholeRef, opts.WholeRef)
 	} else {
 		var buf bytes.Buffer
 		var err error
@@ -471,10 +472,6 @@ func (c *Client) UploadFile(ctx context.Context, filename string, contents io.Re
 		contents = io.MultiReader(&buf, contents)
 	}
 
-	// TODO(mpl): should we consider the case (not covered by fileMapFromDuplicate)
-	// where all the parts are there, but the file schema/blob does not exist? Can that
-	// even happen ? I'm naively assuming it can't for now, since that's what camput file
-	// does too.
 	fileRef, err := c.fileMapFromDuplicate(ctx, fileMap, wholeRef)
 	if err != nil {
 		return blob.Ref{}, err
@@ -486,32 +483,37 @@ func (c *Client) UploadFile(ctx context.Context, filename string, contents io.Re
 	return schema.WriteFileMap(ctx, c, fileMap, contents)
 }
 
-func (c *Client) wholeRef(contents io.Reader) (blob.Ref, error) {
-	// TODO(mpl): use a trackDigestReader once pulled from camput.
-	// and allow for different hash type. maybe also move to another pkg.
-	h := blob.NewHash()
-	// TODO: return both the sha224 and sha1 whole refs when asking the
-	// server whether it has a file.
-	_, err := io.Copy(h, contents)
+// TODO(mpl): replace up.wholeFileDigest in camput with c.wholeRef maybe.
+
+// wholeRef returns the blob ref(s) of the regular file's contents
+// as if it were one entire blob (ignoring blob size limits).
+// By default, only one ref is returned, unless the server has advertised
+// that it has indexes calculated for other hash functions.
+func (c *Client) wholeRef(contents io.Reader) ([]blob.Ref, error) {
+	hasLegacySHA1, err := c.HasLegacySHA1()
 	if err != nil {
-		return blob.Ref{}, err
+		return nil, fmt.Errorf("cannot discover if server has legacy sha1: %v", err)
 	}
-	s := blob.RefFromHash(h).String()
-	ref, ok := blob.Parse(s)
-	if !ok {
-		return blob.Ref{}, fmt.Errorf("Invalid blobref: %q", s)
+	td := hashutil.NewTrackDigestReader(contents)
+	td.DoLegacySHA1 = hasLegacySHA1
+	if _, err := io.Copy(ioutil.Discard, td); err != nil {
+		return nil, err
 	}
-	return ref, nil
+	refs := []blob.Ref{blob.RefFromHash(td.Hash())}
+	if td.DoLegacySHA1 {
+		refs = append(refs, blob.RefFromHash(td.LegacySHA1Hash()))
+	}
+	return refs, nil
 }
 
 // fileMapFromDuplicate queries the server's search interface for an
-// existing file blob for the file contents of wholeRef.
+// existing file blob for the file contents any of wholeRef.
 // If the server has it, it's validated, and then fileMap (which must
 // already be partially populated) has its "parts" field populated,
 // and then fileMap is uploaded (if necessary).
 // If no file blob is found, a zero blob.Ref (and no error) is returned.
-func (c *Client) fileMapFromDuplicate(ctx context.Context, fileMap *schema.Builder, wholeRef blob.Ref) (blob.Ref, error) {
-	dupFileRef, err := c.SearchExistingFileSchema(ctx, wholeRef)
+func (c *Client) fileMapFromDuplicate(ctx context.Context, fileMap *schema.Builder, wholeRef []blob.Ref) (blob.Ref, error) {
+	dupFileRef, err := c.SearchExistingFileSchema(ctx, wholeRef...)
 	if err != nil {
 		return blob.Ref{}, err
 	}
@@ -531,6 +533,8 @@ func (c *Client) fileMapFromDuplicate(ctx context.Context, fileMap *schema.Build
 	bref := blob.RefFromString(json)
 	if bref == dupFileRef {
 		// Unchanged (same filename, modtime, JSON serialization, etc)
+		// Different signer (e.g. existing file has a sha1 signer, and
+		// we're now using a sha224 signer) means we upload a new file schema.
 		return dupFileRef, nil
 	}
 	sbr, err := c.ReceiveBlob(ctx, bref, strings.NewReader(json))

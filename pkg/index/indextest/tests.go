@@ -899,7 +899,7 @@ func Files(t *testing.T, initIdx func() *index.Index) {
 		if err != nil {
 			t.Fatalf("ExistingFileSchemas = %v", err)
 		}
-		want := []blob.Ref{fileRef}
+		want := index.WholeRefToFile{wholeRef.String(): []blob.Ref{fileRef}}
 		if !reflect.DeepEqual(refs, want) {
 			t.Errorf("ExistingFileSchemas got = %#v, want %#v", refs, want)
 		}

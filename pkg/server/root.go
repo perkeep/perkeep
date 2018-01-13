@@ -66,6 +66,7 @@ type RootHandler struct {
 	searchInitOnce sync.Once // runs searchInit, which populates searchHandler
 	searchInit     func()
 	searchHandler  *search.Handler // of SearchRoot, or nil
+	hasLegacySHA1  bool            // whether the index has SHA1 blobs. requires searchHandler.
 
 	ui   *UIHandler           // or nil, if none configured
 	sigh *signhandler.Handler // or nil, if none configured
@@ -146,6 +147,10 @@ func newRootFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handle
 				log.Fatalf("Error fetching SearchRoot at %q: %v", prefix, err)
 			}
 			root.searchHandler = h.(*search.Handler)
+			// the result from root.searchHandler.HasLegacySHA1() is determined on index
+			// startup, and never changes during the server's lifetime, so we might as well
+			// cache it here too.
+			root.hasLegacySHA1 = root.searchHandler.HasLegacySHA1()
 			root.searchInit = nil
 		}
 	}
@@ -255,6 +260,7 @@ func (rh *RootHandler) serveDiscovery(rw http.ResponseWriter, req *http.Request)
 		}
 		d.SyncHandlers = syncHandlers
 	}
+	d.HasLegacySHA1Index = rh.hasLegacySHA1
 	discoveryHelper(rw, req, d)
 }
 

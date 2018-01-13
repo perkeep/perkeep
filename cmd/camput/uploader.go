@@ -32,6 +32,11 @@ import (
 type Uploader struct {
 	*client.Client
 
+	// doLegacySHA1 controls whether we additionally compute the
+	// SHA-1 of local files when asking the server for "file"
+	// schema duplicates by wholeref.
+	doLegacySHA1 bool
+
 	// fdGate guards gates the creation of file descriptors.
 	fdGate *syncutil.Gate
 

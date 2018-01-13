@@ -125,6 +125,9 @@ valid.
   CAMLI_GOPHERJS_GOROOT should be set to a Go 1.9 root so that gopherjs can be
   built with Go 1.9. Otherwise it defaults to $HOME/go1.9.
 
+`CAMLI_HELLO_ENABLED (bool)
+: Whether to start the hello world app as well. Variable used only by devcam server.
+
 `CAMLI_HTTP_DEBUG` (bool)
 : Enable per-request logging in [pkg/webserver](/pkg/webserver).
 
@@ -181,12 +184,20 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
   to during server start-up.  Used to profile index corpus scanning,
   mostly.
 
-`CAMLI_QUIET` (bool)
-: Used by devcam to enable -verbose flag for camput/camget.
+`CAMLI_PUBLISH_ENABLED (bool)
+: Whether to start the publisher app as well. Variable used only by devcam server.
+
+`CAMLI_SCANCAB_ENABLED (bool)
+: Whether to start the scanning cabinet app as well. Variable used only by devcam server.
 
 `CAMLI_SECRET_RING` (string)
 : Path to the GPG secret keyring, which is otherwise set by identitySecretRing
   in the server config, and secretRing in the client config.
+
+`CAMLI_SHA1_ENABLED (bool)
+: Whether to enable the use of legacy sha1 blobs. Only used for development, for
+  creating new blobs with the legacy SHA-1 hash, instead of with the current one.
+  It does not affect the ability of Perkeep to read SHA-1 blobs.
 
 `CAMLI_DISABLE_CLIENT_CONFIG_FILE` (bool)
 : If set, the [pkg/client](/pkg/client) code will never use the on-disk config
