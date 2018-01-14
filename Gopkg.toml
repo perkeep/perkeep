@@ -175,7 +175,7 @@ required = [
 
 [[constraint]]
   name = "github.com/russross/blackfriday"
-  revision = "151efb040f183f3b968215a236c71a2614b62879"
+  version = "v2.0.0"
 
 [[constraint]]
   name = "github.com/rwcarlsen/goexif"
@@ -268,6 +268,8 @@ required = [
   source = "https://github.com/bradfitz/grpc-go.git"
   revision = "188a132adcfba339f1f2d5da52498451341f9ee8"
 
+
+# gopkg.in
 
 [[constraint]]
   name = "gopkg.in/mgo.v2"

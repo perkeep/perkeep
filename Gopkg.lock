@@ -239,7 +239,8 @@
 [[projects]]
   name = "github.com/russross/blackfriday"
   packages = ["."]
-  revision = "151efb040f183f3b968215a236c71a2614b62879"
+  revision = "cadec560ec52d93835bf2f15bd794700d3a2473b"
+  version = "v2.0.0"
 
 [[projects]]
   name = "github.com/rwcarlsen/goexif"
@@ -574,6 +575,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "3729a5b83b3340a160772b5d172ec06efdafd29b2045641a6396e0104689082e"
+  inputs-digest = "0922eed8dece3458922d996935e4ca92abcc96da00d8ec0295ee44815079a0fc"
   solver-name = "gps-cdcl"
   solver-version = 1
