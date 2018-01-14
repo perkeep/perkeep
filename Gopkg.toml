@@ -71,7 +71,7 @@ required = [
 
 [[constraint]]
   name = "github.com/cznic/lldb"
-  revision = "bea8611dd5c407f3c5eab9f9c68e887a27dc6f0e"
+  revision = "v1.1.0"
 
 [[constraint]]
   name = "github.com/cznic/mathutil"
