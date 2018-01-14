@@ -20,6 +20,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"flag"
@@ -63,7 +64,6 @@ import (
 
 	"go4.org/syncutil"
 	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/net/context"
 )
 
 var (

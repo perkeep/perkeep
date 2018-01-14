@@ -17,6 +17,7 @@ limitations under the License.
 package picasa
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -31,7 +32,6 @@ import (
 
 	"go4.org/ctxutil"
 	"go4.org/syncutil"
-	"golang.org/x/net/context"
 
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"

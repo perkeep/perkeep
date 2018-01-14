@@ -19,13 +19,13 @@ limitations under the License.
 package fs
 
 import (
+	"context"
 	"log"
 	"os"
 	"sync"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
-	"golang.org/x/net/context"
 	"perkeep.org/pkg/blob"
 )
 

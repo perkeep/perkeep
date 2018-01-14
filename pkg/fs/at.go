@@ -19,12 +19,12 @@ limitations under the License.
 package fs
 
 import (
+	"context"
 	"log"
 	"os"
 
 	"bazil.org/fuse"
 	fusefs "bazil.org/fuse/fs"
-	"golang.org/x/net/context"
 )
 
 type atDir struct {

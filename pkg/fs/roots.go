@@ -19,6 +19,7 @@ limitations under the License.
 package fs
 
 import (
+	"context"
 	"log"
 	"os"
 	"strings"
@@ -28,7 +29,6 @@ import (
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
 	"go4.org/syncutil"
-	"golang.org/x/net/context"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"

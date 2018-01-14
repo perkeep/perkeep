@@ -19,6 +19,7 @@ limitations under the License.
 package fs
 
 import (
+	"context"
 	"log"
 	"os"
 	"path/filepath"
@@ -31,7 +32,6 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
-	"golang.org/x/net/context"
 )
 
 // recentDir implements fuse.Node and is a directory of recent

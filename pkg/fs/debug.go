@@ -20,6 +20,7 @@ package fs
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -27,7 +28,6 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
-	"golang.org/x/net/context"
 )
 
 // If TrackStats is true, statistics are kept on operations.

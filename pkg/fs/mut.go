@@ -19,6 +19,7 @@ limitations under the License.
 package fs
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -38,7 +39,6 @@ import (
 	"bazil.org/fuse/fs"
 	"go4.org/readerutil"
 	"go4.org/syncutil"
-	"golang.org/x/net/context"
 )
 
 // How often to refresh directory nodes by reading from the blobstore.

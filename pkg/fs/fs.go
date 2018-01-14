@@ -21,6 +21,7 @@ limitations under the License.
 package fs // import "perkeep.org/pkg/fs"
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -35,7 +36,6 @@ import (
 
 	"bazil.org/fuse"
 	fusefs "bazil.org/fuse/fs"
-	"golang.org/x/net/context"
 )
 
 var serverStart = time.Now()
