@@ -242,6 +242,11 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) 
 				HostPolicy: autocert.HostWhitelist(hostname),
 				Cache:      autocert.DirCache(osutil.DefaultLetsEncryptCache()),
 			}
+			// TODO(mpl): let the http-01 port be configurable, for when behind a proxy
+			go func() {
+				log.Fatalf("Could not start server for http-01 challenge: %v",
+					http.ListenAndServe(":http", m.HTTPHandler(nil)))
+			}()
 			log.Printf("TLS enabled, with Let's Encrypt for %v", hostname)
 			ws.SetTLS(webserver.TLSSetup{
 				CertManager: m.GetCertificate,
@@ -346,6 +351,10 @@ func listenForCamliNet(ws *webserver.Server, config *serverinit.Config) (baseURL
 		HostPolicy: autocert.HostWhitelist(camliNetHostName),
 		Cache:      autocert.DirCache(osutil.DefaultLetsEncryptCache()),
 	}
+	go func() {
+		log.Fatalf("Could not start server for http-01 challenge: %v",
+			http.ListenAndServe(":http", m.HTTPHandler(nil)))
+	}()
 	getCertificate := func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 		if hello.ServerName == challengeHostname {
 			return &gpgchallengeCert, nil
@@ -584,12 +593,6 @@ func listenAndBaseURL(config *serverinit.Config) (listen, baseURL string) {
 	return
 }
 
-func redirectFromHTTP(base string) {
-	http.ListenAndServe(":80", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, base, http.StatusFound)
-	}))
-}
-
 // certHostname figures out the name to use for the TLS certificates, using baseURL
 // and falling back to the listen address if baseURL is empty or invalid.
 func certHostname(listen, baseURL string) (string, error) {
@@ -813,10 +816,6 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		}
 	}
 	log.Printf("Available on %s", urlToOpen)
-
-	if env.OnGCE() && strings.HasPrefix(baseURL, "https://") {
-		go redirectFromHTTP(baseURL)
-	}
 
 	// Block forever, except during tests.
 	up <- struct{}{}

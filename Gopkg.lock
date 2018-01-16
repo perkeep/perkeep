@@ -101,7 +101,7 @@
 
 [[projects]]
   name = "github.com/gopherjs/gopherjs"
-  packages = [".","build","compiler","compiler/analysis","compiler/astutil","compiler/filter","compiler/natives","compiler/prelude","compiler/typesutil","internal/sysutil","js","nosync","tests/otherpkg"]
+  packages = [".","build","compiler","compiler/analysis","compiler/astutil","compiler/filter","compiler/natives","compiler/prelude","compiler/typesutil","internal/sysutil","js","nosync"]
   revision = "b40cd48c38f9a18eb3db20d163bad78de12cf0b7"
 
 [[projects]]
@@ -245,7 +245,7 @@
 [[projects]]
   name = "golang.org/x/crypto"
   packages = ["acme","acme/autocert","cast5","nacl/secretbox","openpgp","openpgp/armor","openpgp/elgamal","openpgp/errors","openpgp/packet","openpgp/s2k","pbkdf2","poly1305","salsa20/salsa","scrypt","ssh/terminal"]
-  revision = "ede567c8e044a5913dad1d1af3696d9da953104c"
+  revision = "13931e22f9e72ea58bb73048bc752b48c6d4d4ac"
 
 [[projects]]
   name = "golang.org/x/image"
@@ -269,8 +269,8 @@
 
 [[projects]]
   name = "golang.org/x/sys"
-  packages = ["unix"]
-  revision = "8fdfb00a6a1add0f7a145480e3729a5427a74375"
+  packages = ["unix","windows"]
+  revision = "fff93fa7cd278d84afc205751523809c464168ab"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -343,6 +343,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "58aeea7aea438a25e7b53a5ba4847f3f28c99cedf3bdfad4e7b2dca110da839d"
+  inputs-digest = "a2ecdc0803aa21574f5ee8c98508ba753307c78105b6969514bfb87c3c443c68"
   solver-name = "gps-cdcl"
   solver-version = 1

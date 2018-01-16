@@ -209,7 +209,7 @@ required = [
 
 [[constraint]]
   name = "golang.org/x/crypto"
-  revision = "ede567c8e044a5913dad1d1af3696d9da953104c"
+  revision = "13931e22f9e72ea58bb73048bc752b48c6d4d4ac"
 
 [[constraint]]
   name = "golang.org/x/image"
@@ -232,7 +232,7 @@ required = [
 
 [[constraint]]
   name = "golang.org/x/sys"
-  revision = "8fdfb00a6a1add0f7a145480e3729a5427a74375"
+  revision = "fff93fa7cd278d84afc205751523809c464168ab"
 
 [[constraint]]
   name = "golang.org/x/text"

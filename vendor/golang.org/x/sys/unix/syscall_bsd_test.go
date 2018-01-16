@@ -7,31 +7,69 @@
 package unix_test
 
 import (
+	"os/exec"
 	"runtime"
 	"testing"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
 
 const MNT_WAIT = 1
+const MNT_NOWAIT = 2
 
 func TestGetfsstat(t *testing.T) {
-	n, err := unix.Getfsstat(nil, MNT_WAIT)
+	const flags = MNT_NOWAIT // see golang.org/issue/16937
+	n, err := unix.Getfsstat(nil, flags)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	data := make([]unix.Statfs_t, n)
-	n, err = unix.Getfsstat(data, MNT_WAIT)
+	n2, err := unix.Getfsstat(data, flags)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	empty := unix.Statfs_t{}
-	for _, stat := range data {
-		if stat == empty {
-			t.Fatal("an empty Statfs_t struct was returned")
+	if n != n2 {
+		t.Errorf("Getfsstat(nil) = %d, but subsequent Getfsstat(slice) = %d", n, n2)
+	}
+	for i, stat := range data {
+		if stat == (unix.Statfs_t{}) {
+			t.Errorf("index %v is an empty Statfs_t struct", i)
 		}
+	}
+	if t.Failed() {
+		for i, stat := range data[:n2] {
+			t.Logf("data[%v] = %+v", i, stat)
+		}
+		mount, err := exec.Command("mount").CombinedOutput()
+		if err != nil {
+			t.Logf("mount: %v\n%s", err, mount)
+		} else {
+			t.Logf("mount: %s", mount)
+		}
+	}
+}
+
+func TestSelect(t *testing.T) {
+	err := unix.Select(0, nil, nil, nil, &unix.Timeval{Sec: 0, Usec: 0})
+	if err != nil {
+		t.Fatalf("Select: %v", err)
+	}
+
+	dur := 250 * time.Millisecond
+	tv := unix.NsecToTimeval(int64(dur))
+	start := time.Now()
+	err = unix.Select(0, nil, nil, nil, &tv)
+	took := time.Since(start)
+	if err != nil {
+		t.Fatalf("Select: %v", err)
+	}
+
+	// On some BSDs the actual timeout might also be slightly less than the requested.
+	// Add an acceptable margin to avoid flaky tests.
+	if took < dur*2/3 {
+		t.Errorf("Select: timeout should have been at least %v, got %v", dur, took)
 	}
 }
 
@@ -44,4 +82,12 @@ func TestSysctlRaw(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestSysctlUint32(t *testing.T) {
+	maxproc, err := unix.SysctlUint32("kern.maxproc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("kern.maxproc: %v", maxproc)
 }

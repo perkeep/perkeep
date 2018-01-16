@@ -1205,8 +1205,6 @@ or corrupted.</p>
 
 		<h3>Deploy Perkeep</h3>
 
-		<p style="color:red"><b>Perkeep relies on <a href='https://letsencrypt.org/'>Let's Encrypt</a> to automatically provide your instance with an HTTPS certificate. Unfortunately, due to a <a href='https://community.letsencrypt.org/t/2018-01-09-issue-with-tls-sni-01-and-shared-hosting-infrastructure/49996'>security issue</a>, this is currently not possible anymore. If you are not prepared to use your own certificate, or a self-signed one, or no HTTPS, we advise you to wait for this issue to be resolved before using the launcher.</b></p>
-
 		<p> This tool creates your own private
 Perkeep instance running on <a
 href="https://cloud.google.com/">Google Cloud Platform</a>. Be sure to
