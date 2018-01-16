@@ -36,6 +36,7 @@ import (
 	"perkeep.org/pkg/client"
 
 	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
 var errCacheMiss = errors.New("not in cache")
@@ -59,10 +60,37 @@ func NewKvHaveCache(gen string) *KvHaveCache {
 	if err != nil {
 		log.Fatalf("Could not create/open new have cache at %v, %v", fullPath, err)
 	}
+
+	if err := maybeRunCompaction("HaveCache", db); err != nil {
+		log.Fatal(err)
+	}
+
 	return &KvHaveCache{
 		filename: fullPath,
 		db:       db,
 	}
+}
+
+// maybeRunCompaction forces compaction of db, if the number of
+// tables in level 0 is >= 4. dbname should be provided for error messages.
+func maybeRunCompaction(dbname string, db *leveldb.DB) error {
+	val, err := db.GetProperty("leveldb.num-files-at-level0")
+	if err != nil {
+		return fmt.Errorf("could not get number of level-0 files of %v's LevelDB: %v", dbname, err)
+	}
+	nbFiles, err := strconv.Atoi(val)
+	if err != nil {
+		return fmt.Errorf("could not convert number of level-0 files to int: %v", err)
+	}
+	// Only force compaction if we're at the default trigger (4), see
+	// github.com/syndtr/goleveldb/leveldb/opt.DefaultCompactionL0Trigger
+	if nbFiles < 4 {
+		return nil
+	}
+	if err := db.CompactRange(util.Range{nil, nil}); err != nil {
+		return fmt.Errorf("could not run compaction on %v's LevelDB: %v", dbname, err)
+	}
+	return nil
 }
 
 // Close should be called to commit all the writes
@@ -129,6 +157,11 @@ func NewKvStatCache(gen string) *KvStatCache {
 	if err != nil {
 		log.Fatalf("Could not create/open new stat cache at %v, %v", fullPath, err)
 	}
+
+	if err := maybeRunCompaction("StatCache", db); err != nil {
+		log.Fatal(err)
+	}
+
 	return &KvStatCache{
 		filename: fullPath,
 		db:       db,

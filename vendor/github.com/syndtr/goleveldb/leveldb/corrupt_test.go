@@ -9,12 +9,13 @@ package leveldb
 import (
 	"bytes"
 	"fmt"
-	"github.com/syndtr/goleveldb/leveldb/filter"
-	"github.com/syndtr/goleveldb/leveldb/opt"
-	"github.com/syndtr/goleveldb/leveldb/storage"
 	"io"
 	"math/rand"
 	"testing"
+
+	"github.com/syndtr/goleveldb/leveldb/filter"
+	"github.com/syndtr/goleveldb/leveldb/opt"
+	"github.com/syndtr/goleveldb/leveldb/storage"
 )
 
 const ctValSize = 1000
@@ -99,19 +100,17 @@ func (h *dbCorruptHarness) corrupt(ft storage.FileType, fi, offset, n int) {
 	p := &h.dbHarness
 	t := p.t
 
-	ff, _ := p.stor.GetFiles(ft)
-	sff := files(ff)
-	sff.sort()
+	fds, _ := p.stor.List(ft)
+	sortFds(fds)
 	if fi < 0 {
-		fi = len(sff) - 1
+		fi = len(fds) - 1
 	}
-	if fi >= len(sff) {
+	if fi >= len(fds) {
 		t.Fatalf("no such file with type %q with index %d", ft, fi)
 	}
 
-	file := sff[fi]
-
-	r, err := file.Open()
+	fd := fds[fi]
+	r, err := h.stor.Open(fd)
 	if err != nil {
 		t.Fatal("cannot open file: ", err)
 	}
@@ -149,11 +148,11 @@ func (h *dbCorruptHarness) corrupt(ft storage.FileType, fi, offset, n int) {
 		buf[offset+i] ^= 0x80
 	}
 
-	err = file.Remove()
+	err = h.stor.Remove(fd)
 	if err != nil {
 		t.Fatal("cannot remove old file: ", err)
 	}
-	w, err := file.Create()
+	w, err := h.stor.Create(fd)
 	if err != nil {
 		t.Fatal("cannot create new file: ", err)
 	}
@@ -165,25 +164,37 @@ func (h *dbCorruptHarness) corrupt(ft storage.FileType, fi, offset, n int) {
 }
 
 func (h *dbCorruptHarness) removeAll(ft storage.FileType) {
-	ff, err := h.stor.GetFiles(ft)
+	fds, err := h.stor.List(ft)
 	if err != nil {
 		h.t.Fatal("get files: ", err)
 	}
-	for _, f := range ff {
-		if err := f.Remove(); err != nil {
+	for _, fd := range fds {
+		if err := h.stor.Remove(fd); err != nil {
+			h.t.Error("remove file: ", err)
+		}
+	}
+}
+
+func (h *dbCorruptHarness) forceRemoveAll(ft storage.FileType) {
+	fds, err := h.stor.List(ft)
+	if err != nil {
+		h.t.Fatal("get files: ", err)
+	}
+	for _, fd := range fds {
+		if err := h.stor.ForceRemove(fd); err != nil {
 			h.t.Error("remove file: ", err)
 		}
 	}
 }
 
 func (h *dbCorruptHarness) removeOne(ft storage.FileType) {
-	ff, err := h.stor.GetFiles(ft)
+	fds, err := h.stor.List(ft)
 	if err != nil {
 		h.t.Fatal("get files: ", err)
 	}
-	f := ff[rand.Intn(len(ff))]
-	h.t.Logf("removing file @%d", f.Num())
-	if err := f.Remove(); err != nil {
+	fd := fds[rand.Intn(len(fds))]
+	h.t.Logf("removing file @%d", fd.Num)
+	if err := h.stor.Remove(fd); err != nil {
 		h.t.Error("remove file: ", err)
 	}
 }
@@ -221,6 +232,7 @@ func (h *dbCorruptHarness) check(min, max int) {
 
 func TestCorruptDB_Journal(t *testing.T) {
 	h := newDbCorruptHarness(t)
+	defer h.close()
 
 	h.build(100)
 	h.check(100, 100)
@@ -230,12 +242,11 @@ func TestCorruptDB_Journal(t *testing.T) {
 
 	h.openDB()
 	h.check(36, 36)
-
-	h.close()
 }
 
 func TestCorruptDB_Table(t *testing.T) {
 	h := newDbCorruptHarness(t)
+	defer h.close()
 
 	h.build(100)
 	h.compactMem()
@@ -246,12 +257,11 @@ func TestCorruptDB_Table(t *testing.T) {
 
 	h.openDB()
 	h.check(99, 99)
-
-	h.close()
 }
 
 func TestCorruptDB_TableIndex(t *testing.T) {
 	h := newDbCorruptHarness(t)
+	defer h.close()
 
 	h.build(10000)
 	h.compactMem()
@@ -260,8 +270,6 @@ func TestCorruptDB_TableIndex(t *testing.T) {
 
 	h.openDB()
 	h.check(5000, 9999)
-
-	h.close()
 }
 
 func TestCorruptDB_MissingManifest(t *testing.T) {
@@ -271,6 +279,7 @@ func TestCorruptDB_MissingManifest(t *testing.T) {
 		Strict:             opt.StrictJournalChecksum,
 		WriteBuffer:        1000 * 60,
 	})
+	defer h.close()
 
 	h.build(1000)
 	h.compactMem()
@@ -286,10 +295,8 @@ func TestCorruptDB_MissingManifest(t *testing.T) {
 	h.compactMem()
 	h.closeDB()
 
-	h.stor.SetIgnoreOpenErr(storage.TypeManifest)
-	h.removeAll(storage.TypeManifest)
+	h.forceRemoveAll(storage.TypeManifest)
 	h.openAssert(false)
-	h.stor.SetIgnoreOpenErr(0)
 
 	h.recover()
 	h.check(1000, 1000)
@@ -300,12 +307,11 @@ func TestCorruptDB_MissingManifest(t *testing.T) {
 
 	h.recover()
 	h.check(1000, 1000)
-
-	h.close()
 }
 
 func TestCorruptDB_SequenceNumberRecovery(t *testing.T) {
 	h := newDbCorruptHarness(t)
+	defer h.close()
 
 	h.put("foo", "v1")
 	h.put("foo", "v2")
@@ -321,12 +327,11 @@ func TestCorruptDB_SequenceNumberRecovery(t *testing.T) {
 
 	h.reopenDB()
 	h.getVal("foo", "v6")
-
-	h.close()
 }
 
 func TestCorruptDB_SequenceNumberRecoveryTable(t *testing.T) {
 	h := newDbCorruptHarness(t)
+	defer h.close()
 
 	h.put("foo", "v1")
 	h.put("foo", "v2")
@@ -344,12 +349,11 @@ func TestCorruptDB_SequenceNumberRecoveryTable(t *testing.T) {
 
 	h.reopenDB()
 	h.getVal("foo", "v6")
-
-	h.close()
 }
 
 func TestCorruptDB_CorruptedManifest(t *testing.T) {
 	h := newDbCorruptHarness(t)
+	defer h.close()
 
 	h.put("foo", "hello")
 	h.compactMem()
@@ -360,12 +364,11 @@ func TestCorruptDB_CorruptedManifest(t *testing.T) {
 
 	h.recover()
 	h.getVal("foo", "hello")
-
-	h.close()
 }
 
 func TestCorruptDB_CompactionInputError(t *testing.T) {
 	h := newDbCorruptHarness(t)
+	defer h.close()
 
 	h.build(10)
 	h.compactMem()
@@ -377,12 +380,11 @@ func TestCorruptDB_CompactionInputError(t *testing.T) {
 
 	h.build(10000)
 	h.check(10000, 10000)
-
-	h.close()
 }
 
 func TestCorruptDB_UnrelatedKeys(t *testing.T) {
 	h := newDbCorruptHarness(t)
+	defer h.close()
 
 	h.build(10)
 	h.compactMem()
@@ -394,12 +396,11 @@ func TestCorruptDB_UnrelatedKeys(t *testing.T) {
 	h.getVal(string(tkey(1000)), string(tval(1000, ctValSize)))
 	h.compactMem()
 	h.getVal(string(tkey(1000)), string(tval(1000, ctValSize)))
-
-	h.close()
 }
 
 func TestCorruptDB_Level0NewerFileHasOlderSeqnum(t *testing.T) {
 	h := newDbCorruptHarness(t)
+	defer h.close()
 
 	h.put("a", "v1")
 	h.put("b", "v1")
@@ -421,12 +422,11 @@ func TestCorruptDB_Level0NewerFileHasOlderSeqnum(t *testing.T) {
 	h.getVal("b", "v3")
 	h.getVal("c", "v0")
 	h.getVal("d", "v0")
-
-	h.close()
 }
 
 func TestCorruptDB_RecoverInvalidSeq_Issue53(t *testing.T) {
 	h := newDbCorruptHarness(t)
+	defer h.close()
 
 	h.put("a", "v1")
 	h.put("b", "v1")
@@ -448,12 +448,11 @@ func TestCorruptDB_RecoverInvalidSeq_Issue53(t *testing.T) {
 	h.getVal("b", "v3")
 	h.getVal("c", "v0")
 	h.getVal("d", "v0")
-
-	h.close()
 }
 
 func TestCorruptDB_MissingTableFiles(t *testing.T) {
 	h := newDbCorruptHarness(t)
+	defer h.close()
 
 	h.put("a", "v1")
 	h.put("b", "v1")
@@ -467,8 +466,6 @@ func TestCorruptDB_MissingTableFiles(t *testing.T) {
 
 	h.removeOne(storage.TypeTable)
 	h.openAssert(false)
-
-	h.close()
 }
 
 func TestCorruptDB_RecoverTable(t *testing.T) {
@@ -477,6 +474,7 @@ func TestCorruptDB_RecoverTable(t *testing.T) {
 		CompactionTableSize: 90 * opt.KiB,
 		Filter:              filter.NewBloomFilter(10),
 	})
+	defer h.close()
 
 	h.build(1000)
 	h.compactMem()
@@ -495,6 +493,4 @@ func TestCorruptDB_RecoverTable(t *testing.T) {
 		t.Errorf("invalid seq, want=%d got=%d", seq, h.db.seq)
 	}
 	h.check(985, 985)
-
-	h.close()
 }

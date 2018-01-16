@@ -61,3 +61,31 @@ func newTestingDB(o *opt.Options, ro *opt.ReadOptions, wo *opt.WriteOptions) *te
 		stor: stor,
 	}
 }
+
+type testingTransaction struct {
+	*Transaction
+	ro *opt.ReadOptions
+	wo *opt.WriteOptions
+}
+
+func (t *testingTransaction) TestPut(key []byte, value []byte) error {
+	return t.Put(key, value, t.wo)
+}
+
+func (t *testingTransaction) TestDelete(key []byte) error {
+	return t.Delete(key, t.wo)
+}
+
+func (t *testingTransaction) TestGet(key []byte) (value []byte, err error) {
+	return t.Get(key, t.ro)
+}
+
+func (t *testingTransaction) TestHas(key []byte) (ret bool, err error) {
+	return t.Has(key, t.ro)
+}
+
+func (t *testingTransaction) TestNewIterator(slice *util.Range) iterator.Iterator {
+	return t.NewIterator(slice, t.ro)
+}
+
+func (t *testingTransaction) TestClose() {}

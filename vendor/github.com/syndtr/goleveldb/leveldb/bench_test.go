@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync/atomic"
 	"testing"
 
 	"github.com/syndtr/goleveldb/leveldb/iterator"
@@ -90,7 +91,7 @@ func openDBBench(b *testing.B, noCompress bool) *dbBench {
 		ro: &opt.ReadOptions{},
 		wo: &opt.WriteOptions{},
 	}
-	p.stor, err = storage.OpenFile(benchDB)
+	p.stor, err = storage.OpenFile(benchDB, false)
 	if err != nil {
 		b.Fatal("cannot open stor: ", err)
 	}
@@ -103,7 +104,6 @@ func openDBBench(b *testing.B, noCompress bool) *dbBench {
 		b.Fatal("cannot open db: ", err)
 	}
 
-	runtime.GOMAXPROCS(runtime.NumCPU())
 	return p
 }
 
@@ -259,7 +259,6 @@ func (p *dbBench) close() {
 	p.keys = nil
 	p.values = nil
 	runtime.GC()
-	runtime.GOMAXPROCS(1)
 }
 
 func BenchmarkDBWrite(b *testing.B) {
@@ -461,4 +460,48 @@ func BenchmarkDBGetRandom(b *testing.B) {
 	p.randomize()
 	p.gets()
 	p.close()
+}
+
+func BenchmarkDBReadConcurrent(b *testing.B) {
+	p := openDBBench(b, false)
+	p.populate(b.N)
+	p.fill()
+	p.gc()
+	defer p.close()
+
+	b.ResetTimer()
+	b.SetBytes(116)
+
+	b.RunParallel(func(pb *testing.PB) {
+		iter := p.newIter()
+		defer iter.Release()
+		for pb.Next() && iter.Next() {
+		}
+	})
+}
+
+func BenchmarkDBReadConcurrent2(b *testing.B) {
+	p := openDBBench(b, false)
+	p.populate(b.N)
+	p.fill()
+	p.gc()
+	defer p.close()
+
+	b.ResetTimer()
+	b.SetBytes(116)
+
+	var dir uint32
+	b.RunParallel(func(pb *testing.PB) {
+		iter := p.newIter()
+		defer iter.Release()
+		if atomic.AddUint32(&dir, 1)%2 == 0 {
+			for pb.Next() && iter.Next() {
+			}
+		} else {
+			if pb.Next() && iter.Last() {
+				for pb.Next() && iter.Prev() {
+				}
+			}
+		}
+	})
 }
