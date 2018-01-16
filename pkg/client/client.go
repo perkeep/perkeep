@@ -357,7 +357,7 @@ var shareURLRx = regexp.MustCompile(`^(.+)/(` + blob.Pattern + ")$")
 
 // NewFromShareRoot uses shareBlobURL to set up and return a client that
 // will be used to fetch shared blobs.
-func NewFromShareRoot(shareBlobURL string, opts ...ClientOption) (c *Client, target blob.Ref, err error) {
+func NewFromShareRoot(ctx context.Context, shareBlobURL string, opts ...ClientOption) (c *Client, target blob.Ref, err error) {
 	var root string
 	m := shareURLRx.FindStringSubmatch(shareBlobURL)
 	if m == nil {
@@ -372,7 +372,7 @@ func NewFromShareRoot(shareBlobURL string, opts ...ClientOption) (c *Client, tar
 	c.via = make(map[blob.Ref]blob.Ref)
 	root = m[2]
 
-	req := c.newRequest("GET", shareBlobURL, nil)
+	req := c.newRequest(ctx, "GET", shareBlobURL, nil)
 	res, err := c.expect2XX(req)
 	if err != nil {
 		return nil, blob.Ref{}, fmt.Errorf("error fetching %s: %v", shareBlobURL, err)
@@ -595,13 +595,13 @@ func (c *Client) SyncHandlers() ([]*SyncInfo, error) {
 var _ search.GetRecentPermanoder = (*Client)(nil)
 
 // GetRecentPermanodes implements search.GetRecentPermanoder against a remote server over HTTP.
-func (c *Client) GetRecentPermanodes(req *search.RecentRequest) (*search.RecentResponse, error) {
+func (c *Client) GetRecentPermanodes(ctx context.Context, req *search.RecentRequest) (*search.RecentResponse, error) {
 	sr, err := c.SearchRoot()
 	if err != nil {
 		return nil, err
 	}
 	url := sr + req.URLSuffix()
-	hreq := c.newRequest("GET", url)
+	hreq := c.newRequest(ctx, "GET", url)
 	hres, err := c.expect2XX(hreq)
 	if err != nil {
 		return nil, err
@@ -616,13 +616,13 @@ func (c *Client) GetRecentPermanodes(req *search.RecentRequest) (*search.RecentR
 	return res, nil
 }
 
-func (c *Client) GetPermanodesWithAttr(req *search.WithAttrRequest) (*search.WithAttrResponse, error) {
+func (c *Client) GetPermanodesWithAttr(ctx context.Context, req *search.WithAttrRequest) (*search.WithAttrResponse, error) {
 	sr, err := c.SearchRoot()
 	if err != nil {
 		return nil, err
 	}
 	url := sr + req.URLSuffix()
-	hreq := c.newRequest("GET", url)
+	hreq := c.newRequest(ctx, "GET", url)
 	hres, err := c.expect2XX(hreq)
 	if err != nil {
 		return nil, err
@@ -638,7 +638,6 @@ func (c *Client) GetPermanodesWithAttr(req *search.WithAttrRequest) (*search.Wit
 }
 
 func (c *Client) Describe(ctx context.Context, req *search.DescribeRequest) (*search.DescribeResponse, error) {
-	// TODO: use ctx (wait for Go 1.7?)
 	sr, err := c.SearchRoot()
 	if err != nil {
 		return nil, err
@@ -648,7 +647,7 @@ func (c *Client) Describe(ctx context.Context, req *search.DescribeRequest) (*se
 	if err != nil {
 		return nil, err
 	}
-	hreq := c.newRequest("POST", url, bytes.NewReader(body))
+	hreq := c.newRequest(ctx, "POST", url, bytes.NewReader(body))
 	hres, err := c.expect2XX(hreq)
 	if err != nil {
 		return nil, err
@@ -660,13 +659,13 @@ func (c *Client) Describe(ctx context.Context, req *search.DescribeRequest) (*se
 	return res, nil
 }
 
-func (c *Client) GetClaims(req *search.ClaimsRequest) (*search.ClaimsResponse, error) {
+func (c *Client) GetClaims(ctx context.Context, req *search.ClaimsRequest) (*search.ClaimsResponse, error) {
 	sr, err := c.SearchRoot()
 	if err != nil {
 		return nil, err
 	}
 	url := sr + req.URLSuffix()
-	hreq := c.newRequest("GET", url)
+	hreq := c.newRequest(ctx, "GET", url)
 	hres, err := c.expect2XX(hreq)
 	if err != nil {
 		return nil, err
@@ -678,7 +677,7 @@ func (c *Client) GetClaims(req *search.ClaimsRequest) (*search.ClaimsResponse, e
 	return res, nil
 }
 
-func (c *Client) query(req *search.SearchQuery) (*http.Response, error) {
+func (c *Client) query(ctx context.Context, req *search.SearchQuery) (*http.Response, error) {
 	sr, err := c.SearchRoot()
 	if err != nil {
 		return nil, err
@@ -688,12 +687,12 @@ func (c *Client) query(req *search.SearchQuery) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	hreq := c.newRequest("POST", url, bytes.NewReader(body))
+	hreq := c.newRequest(ctx, "POST", url, bytes.NewReader(body))
 	return c.expect2XX(hreq)
 }
 
-func (c *Client) Query(req *search.SearchQuery) (*search.SearchResult, error) {
-	hres, err := c.query(req)
+func (c *Client) Query(ctx context.Context, req *search.SearchQuery) (*search.SearchResult, error) {
+	hres, err := c.query(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -706,8 +705,8 @@ func (c *Client) Query(req *search.SearchQuery) (*search.SearchResult, error) {
 
 // QueryRaw sends req and returns the body of the response, which should be the
 // unparsed JSON of a search.SearchResult.
-func (c *Client) QueryRaw(req *search.SearchQuery) ([]byte, error) {
-	hres, err := c.query(req)
+func (c *Client) QueryRaw(ctx context.Context, req *search.SearchQuery) ([]byte, error) {
+	hres, err := c.query(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -722,13 +721,13 @@ func (c *Client) QueryRaw(req *search.SearchQuery) ([]byte, error) {
 //
 // May return (zero, nil) on ENOENT. A non-nil error is only returned
 // if there were problems searching.
-func (c *Client) SearchExistingFileSchema(wholeRef blob.Ref) (blob.Ref, error) {
+func (c *Client) SearchExistingFileSchema(ctx context.Context, wholeRef blob.Ref) (blob.Ref, error) {
 	sr, err := c.SearchRoot()
 	if err != nil {
 		return blob.Ref{}, err
 	}
 	url := sr + "camli/search/files?wholedigest=" + wholeRef.String()
-	req := c.newRequest("GET", url)
+	req := c.newRequest(ctx, "GET", url)
 	res, err := c.doReqGated(req)
 	if err != nil {
 		return blob.Ref{}, err
@@ -748,7 +747,7 @@ func (c *Client) SearchExistingFileSchema(wholeRef blob.Ref) (blob.Ref, error) {
 		return blob.Ref{}, nil
 	}
 	for _, f := range ress.Files {
-		if c.FileHasContents(f, wholeRef) {
+		if c.FileHasContents(ctx, f, wholeRef) {
 			return f, nil
 		}
 	}
@@ -758,14 +757,14 @@ func (c *Client) SearchExistingFileSchema(wholeRef blob.Ref) (blob.Ref, error) {
 // FileHasContents returns true iff f refers to a "file" or "bytes" schema blob,
 // the server is configured with a "download helper", and the server responds
 // that all chunks of 'f' are available and match the digest of wholeRef.
-func (c *Client) FileHasContents(f, wholeRef blob.Ref) bool {
+func (c *Client) FileHasContents(ctx context.Context, f, wholeRef blob.Ref) bool {
 	if err := c.condDiscovery(); err != nil {
 		return false
 	}
 	if c.downloadHelper == "" {
 		return false
 	}
-	req := c.newRequest("HEAD", c.downloadHelper+f.String()+"/?verifycontents="+wholeRef.String())
+	req := c.newRequest(ctx, "HEAD", c.downloadHelper+f.String()+"/?verifycontents="+wholeRef.String())
 	res, err := c.expect2XX(req)
 	if err != nil {
 		log.Printf("download helper HEAD error: %v", err)
@@ -844,8 +843,8 @@ func (c *Client) condDiscovery() error {
 // DiscoveryDoc returns the server's JSON discovery document.
 // This method exists purely for the "camtool discovery" command.
 // Clients shouldn't have to parse this themselves.
-func (c *Client) DiscoveryDoc() (io.Reader, error) {
-	res, err := c.discoveryResp()
+func (c *Client) DiscoveryDoc(ctx context.Context) (io.Reader, error) {
+	res, err := c.discoveryResp(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -864,9 +863,9 @@ func (c *Client) DiscoveryDoc() (io.Reader, error) {
 	return bytes.NewReader(all), err
 }
 
-// HTTPVersion reports the HTTP version in use.
-func (c *Client) HTTPVersion() (string, error) {
-	req := c.newRequest("HEAD", c.discoRoot(), nil)
+// HTTPVersion reports the HTTP version in use, such as "HTTP/1.1" or "HTTP/2.0".
+func (c *Client) HTTPVersion(ctx context.Context) (string, error) {
+	req := c.newRequest(ctx, "HEAD", c.discoRoot(), nil)
 	res, err := c.doReqGated(req)
 	if err != nil {
 		return "", err
@@ -874,10 +873,10 @@ func (c *Client) HTTPVersion() (string, error) {
 	return res.Proto, err
 }
 
-func (c *Client) discoveryResp() (*http.Response, error) {
+func (c *Client) discoveryResp(ctx context.Context) (*http.Response, error) {
 	// If the path is just "" or "/", do discovery against
 	// the URL to see which path we should actually use.
-	req := c.newRequest("GET", c.discoRoot(), nil)
+	req := c.newRequest(ctx, "GET", c.discoRoot(), nil)
 	req.Header.Set("Accept", "text/x-camli-configuration")
 	res, err := c.doReqGated(req)
 	if err != nil {
@@ -902,12 +901,13 @@ func (c *Client) discoveryResp() (*http.Response, error) {
 }
 
 func (c *Client) doDiscovery() error {
+	ctx := context.TODO()
 	root, err := url.Parse(c.discoRoot())
 	if err != nil {
 		return err
 	}
 
-	res, err := c.discoveryResp()
+	res, err := c.discoveryResp(ctx)
 	if err != nil {
 		return err
 	}
@@ -984,11 +984,11 @@ func (c *Client) doDiscovery() error {
 // GetJSON sends a GET request to url, and unmarshals the returned
 // JSON response into data. The URL's host must match the client's
 // configured server.
-func (c *Client) GetJSON(url string, data interface{}) error {
+func (c *Client) GetJSON(ctx context.Context, url string, data interface{}) error {
 	if !strings.HasPrefix(url, c.discoRoot()) {
 		return fmt.Errorf("wrong URL (%q) for this server", url)
 	}
-	hreq := c.newRequest("GET", url)
+	hreq := c.newRequest(ctx, "GET", url)
 	resp, err := c.expect2XX(hreq)
 	if err != nil {
 		return err
@@ -999,8 +999,8 @@ func (c *Client) GetJSON(url string, data interface{}) error {
 // Post is like http://golang.org/pkg/net/http/#Client.Post
 // but with implementation details like gated requests. The
 // URL's host must match the client's configured server.
-func (c *Client) Post(url string, bodyType string, body io.Reader) error {
-	resp, err := c.post(url, bodyType, body)
+func (c *Client) Post(ctx context.Context, url string, bodyType string, body io.Reader) error {
+	resp, err := c.post(ctx, url, bodyType, body)
 	if err != nil {
 		return err
 	}
@@ -1010,13 +1010,13 @@ func (c *Client) Post(url string, bodyType string, body io.Reader) error {
 // Sign sends a request to the sign handler on server to sign the contents of r,
 // and return them signed. It uses the same implementation details, such as gated
 // requests, as Post.
-func (c *Client) Sign(server string, r io.Reader) (signed []byte, err error) {
+func (c *Client) Sign(ctx context.Context, server string, r io.Reader) (signed []byte, err error) {
 	signHandler, err := c.SignHandler()
 	if err != nil {
 		return nil, err
 	}
 	signServer := strings.TrimSuffix(server, "/") + signHandler
-	resp, err := c.post(signServer, "application/x-www-form-urlencoded", r)
+	resp, err := c.post(ctx, signServer, "application/x-www-form-urlencoded", r)
 	if err != nil {
 		return nil, err
 	}
@@ -1024,11 +1024,11 @@ func (c *Client) Sign(server string, r io.Reader) (signed []byte, err error) {
 	return ioutil.ReadAll(resp.Body)
 }
 
-func (c *Client) post(url string, bodyType string, body io.Reader) (*http.Response, error) {
+func (c *Client) post(ctx context.Context, url string, bodyType string, body io.Reader) (*http.Response, error) {
 	if !c.sameOrigin && !strings.HasPrefix(url, c.discoRoot()) {
 		return nil, fmt.Errorf("wrong URL (%q) for this server", url)
 	}
-	req := c.newRequest("POST", url, body)
+	req := c.newRequest(ctx, "POST", url, body)
 	req.Header.Set("Content-Type", bodyType)
 	res, err := c.expect2XX(req)
 	if err != nil {
@@ -1039,7 +1039,7 @@ func (c *Client) post(url string, bodyType string, body io.Reader) (*http.Respon
 
 // newRequests creates a request with the authentication header, and with the
 // appropriate scheme and port in the case of self-signed TLS.
-func (c *Client) newRequest(method, url string, body ...io.Reader) *http.Request {
+func (c *Client) newRequest(ctx context.Context, method, url string, body ...io.Reader) *http.Request {
 	var bodyR io.Reader
 	if len(body) > 0 {
 		bodyR = body[0]
@@ -1056,7 +1056,7 @@ func (c *Client) newRequest(method, url string, body ...io.Reader) *http.Request
 		req.ContentLength = int64(br.Len())
 	}
 	c.authMode.AddAuthHeader(req)
-	return req
+	return req.WithContext(ctx)
 }
 
 // expect2XX will doReqGated and promote HTTP response codes outside of
@@ -1231,26 +1231,26 @@ func (c *Client) buildSigner() (*schema.Signer, error) {
 
 // sigTime optionally specifies the signature time.
 // If zero, the current time is used.
-func (c *Client) signBlob(bb schema.Buildable, sigTime time.Time) (string, error) {
+func (c *Client) signBlob(ctx context.Context, bb schema.Buildable, sigTime time.Time) (string, error) {
 	signer, err := c.Signer()
 	if err != nil {
 		return "", err
 	}
-	return bb.Builder().SignAt(signer, sigTime)
+	return bb.Builder().SignAt(ctx, signer, sigTime)
 }
 
 // uploadPublicKey uploads the public key (if one is defined), so
 // subsequent (likely synchronous) indexing of uploaded signed blobs
 // will have access to the public key to verify it. In the normal
 // case, the stat cache prevents this from doing anything anyway.
-func (c *Client) uploadPublicKey() error {
+func (c *Client) uploadPublicKey(ctx context.Context) error {
 	sigRef := c.SignerPublicKeyBlobref()
 	if !sigRef.Valid() {
 		return nil
 	}
 	var err error
 	if _, keyUploaded := c.haveCache.StatBlobCache(sigRef); !keyUploaded {
-		_, err = c.uploadString(c.publicKeyArmored, false)
+		_, err = c.uploadString(ctx, c.publicKeyArmored, false)
 	}
 	return err
 }
@@ -1268,46 +1268,46 @@ func (c *Client) checkMatchingKeys() {
 	}
 }
 
-func (c *Client) UploadAndSignBlob(b schema.AnyBlob) (*PutResult, error) {
-	signed, err := c.signBlob(b.Blob(), time.Time{})
+func (c *Client) UploadAndSignBlob(ctx context.Context, b schema.AnyBlob) (*PutResult, error) {
+	signed, err := c.signBlob(ctx, b.Blob(), time.Time{})
 	if err != nil {
 		return nil, err
 	}
 	c.checkMatchingKeys()
-	if err := c.uploadPublicKey(); err != nil {
+	if err := c.uploadPublicKey(ctx); err != nil {
 		return nil, err
 	}
-	return c.uploadString(signed, false)
+	return c.uploadString(ctx, signed, false)
 }
 
-func (c *Client) UploadBlob(b schema.AnyBlob) (*PutResult, error) {
+func (c *Client) UploadBlob(ctx context.Context, b schema.AnyBlob) (*PutResult, error) {
 	// TODO(bradfitz): ask the blob for its own blobref, rather
 	// than changing the hash function with uploadString?
-	return c.uploadString(b.Blob().JSON(), true)
+	return c.uploadString(ctx, b.Blob().JSON(), true)
 }
 
-func (c *Client) uploadString(s string, stat bool) (*PutResult, error) {
+func (c *Client) uploadString(ctx context.Context, s string, stat bool) (*PutResult, error) {
 	uh := NewUploadHandleFromString(s)
 	uh.SkipStat = !stat
-	return c.Upload(uh)
+	return c.Upload(ctx, uh)
 }
 
-func (c *Client) UploadNewPermanode() (*PutResult, error) {
+func (c *Client) UploadNewPermanode(ctx context.Context) (*PutResult, error) {
 	unsigned := schema.NewUnsignedPermanode()
-	return c.UploadAndSignBlob(unsigned)
+	return c.UploadAndSignBlob(ctx, unsigned)
 }
 
-func (c *Client) UploadPlannedPermanode(key string, sigTime time.Time) (*PutResult, error) {
+func (c *Client) UploadPlannedPermanode(ctx context.Context, key string, sigTime time.Time) (*PutResult, error) {
 	unsigned := schema.NewPlannedPermanode(key)
-	signed, err := c.signBlob(unsigned, sigTime)
+	signed, err := c.signBlob(ctx, unsigned, sigTime)
 	if err != nil {
 		return nil, err
 	}
 	c.checkMatchingKeys()
-	if err := c.uploadPublicKey(); err != nil {
+	if err := c.uploadPublicKey(ctx); err != nil {
 		return nil, err
 	}
-	return c.uploadString(signed, true)
+	return c.uploadString(ctx, signed, true)
 }
 
 // IsIgnoredFile returns whether the file at fullpath should be ignored by camput.

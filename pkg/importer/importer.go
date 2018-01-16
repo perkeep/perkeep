@@ -621,7 +621,7 @@ func (h *Host) serveImporterAccount(w http.ResponseWriter, r *http.Request, imp 
 }
 
 func (h *Host) startPeriodicImporters() {
-	res, err := h.search.Query(&search.SearchQuery{
+	res, err := h.search.Query(context.TODO(), &search.SearchQuery{
 		Expression: "attr:camliNodeType:importerAccount",
 		Describe: &search.DescribeRequest{
 			Depth: 1,
@@ -914,7 +914,7 @@ func (im *importer) Accounts() ([]*importerAcct, error) {
 	im.acctmu.Unlock()
 
 	if needQuery {
-		res, err := im.host.search.Query(&search.SearchQuery{
+		res, err := im.host.search.Query(context.TODO(), &search.SearchQuery{
 			Expression: fmt.Sprintf("attr:%s:%s attr:%s:%s",
 				attrNodeType, nodeTypeImporterAccount,
 				attrImporterType, im.name,
@@ -963,7 +963,7 @@ func (im *importer) Node() (*Object, error) {
 		attrNodeType, nodeTypeImporter,
 		attrImporterType, im.name,
 	)
-	res, err := im.host.search.Query(&search.SearchQuery{
+	res, err := im.host.search.Query(context.TODO(), &search.SearchQuery{
 		Limit:      10, // only expect 1
 		Expression: expr,
 	})
@@ -1229,12 +1229,12 @@ type ProgressMessage struct {
 	BytesDone, BytesTotal int64
 }
 
-func (h *Host) upload(bb *schema.Builder) (br blob.Ref, err error) {
-	signed, err := bb.Sign(h.signer)
+func (h *Host) upload(ctx context.Context, bb *schema.Builder) (br blob.Ref, err error) {
+	signed, err := bb.Sign(ctx, h.signer)
 	if err != nil {
 		return
 	}
-	sb, err := blobserver.ReceiveString(h.target, signed)
+	sb, err := blobserver.ReceiveString(ctx, h.target, signed)
 	if err != nil {
 		return
 	}
@@ -1243,7 +1243,8 @@ func (h *Host) upload(bb *schema.Builder) (br blob.Ref, err error) {
 
 // NewObject creates a new permanode and returns its Object wrapper.
 func (h *Host) NewObject() (*Object, error) {
-	pn, err := h.upload(schema.NewUnsignedPermanode())
+	ctx := context.TODO() // TODO: move the NewObject method to some "ImportRun" type with a context field?
+	pn, err := h.upload(ctx, schema.NewUnsignedPermanode())
 	if err != nil {
 		return nil, err
 	}
@@ -1302,10 +1303,11 @@ func (o *Object) ForeachAttr(fn func(key, value string)) {
 
 // SetAttr sets the attribute key to value.
 func (o *Object) SetAttr(key, value string) error {
+	ctx := context.TODO() // TODO: make it possible to get a context via Object; either new context field, or via some "ImportRun" field?
 	if o.Attr(key) == value {
 		return nil
 	}
-	_, err := o.h.upload(schema.NewSetAttributeClaim(o.pn, key, value))
+	_, err := o.h.upload(ctx, schema.NewSetAttributeClaim(o.pn, key, value))
 	if err != nil {
 		return err
 	}
@@ -1348,6 +1350,8 @@ func (o *Object) SetAttrs2(keyval ...string) (changes bool, err error) {
 
 // SetAttrValues sets multi-valued attribute.
 func (o *Object) SetAttrValues(key string, attrs []string) error {
+	ctx := context.TODO() // TODO: make it possible to get a context via Object; either new context field, or via some "ImportRun" field?
+
 	exists := asSet(o.Attrs(key))
 	actual := asSet(attrs)
 	o.mu.Lock()
@@ -1358,14 +1362,14 @@ func (o *Object) SetAttrValues(key string, attrs []string) error {
 			delete(exists, v)
 			continue
 		}
-		_, err := o.h.upload(schema.NewAddAttributeClaim(o.pn, key, v))
+		_, err := o.h.upload(ctx, schema.NewAddAttributeClaim(o.pn, key, v))
 		if err != nil {
 			return err
 		}
 	}
 	// delete unneeded values
 	for v := range exists {
-		_, err := o.h.upload(schema.NewDelAttributeClaim(o.pn, key, v))
+		_, err := o.h.upload(ctx, schema.NewDelAttributeClaim(o.pn, key, v))
 		if err != nil {
 			return err
 		}

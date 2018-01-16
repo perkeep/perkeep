@@ -53,7 +53,7 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 }
 
 // ReceiveBlob would receive the blobs, but now just returns ErrReadonly.
-func (sto *unionStorage) ReceiveBlob(br blob.Ref, src io.Reader) (sb blob.SizedRef, err error) {
+func (sto *unionStorage) ReceiveBlob(ctx context.Context, br blob.Ref, src io.Reader) (sb blob.SizedRef, err error) {
 	return blob.SizedRef{}, blobserver.ErrReadonly
 }
 
@@ -64,7 +64,7 @@ func (sto *unionStorage) RemoveBlobs(blobs []blob.Ref) error {
 
 // Fetch the blob by trying all configured read Storage concurrently,
 // returning the first successful response, or the first error if there's no match.
-func (sto *unionStorage) Fetch(b blob.Ref) (file io.ReadCloser, size uint32, err error) {
+func (sto *unionStorage) Fetch(ctx context.Context, b blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	type result struct {
 		file io.ReadCloser
 		size uint32
@@ -78,7 +78,7 @@ func (sto *unionStorage) Fetch(b blob.Ref) (file io.ReadCloser, size uint32, err
 		go func() {
 			defer wg.Done()
 			var res result
-			res.file, res.size, res.err = bs.Fetch(b)
+			res.file, res.size, res.err = bs.Fetch(ctx, b)
 			results <- res
 		}()
 	}

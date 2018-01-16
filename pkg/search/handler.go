@@ -54,6 +54,10 @@ func init() {
 	blobserver.RegisterHandlerConstructor("search", newHandlerFromConfig)
 }
 
+var (
+	_ QueryDescriber = (*Handler)(nil)
+)
+
 // Handler handles search queries.
 type Handler struct {
 	index index.Interface
@@ -78,7 +82,7 @@ type GetRecentPermanoder interface {
 	// GetRecentPermanodes returns recently-modified permanodes.
 	// This is a higher-level query returning more metadata than the index.GetRecentPermanodes,
 	// which only scans the blobrefs but doesn't return anything about the permanodes.
-	GetRecentPermanodes(*RecentRequest) (*RecentResponse, error)
+	GetRecentPermanodes(context.Context, *RecentRequest) (*RecentResponse, error)
 }
 
 var _ GetRecentPermanoder = (*Handler)(nil)
@@ -468,9 +472,7 @@ type EdgeItem struct {
 var testHookBug121 = func() {}
 
 // GetRecentPermanodes returns recently-modified permanodes.
-func (h *Handler) GetRecentPermanodes(req *RecentRequest) (*RecentResponse, error) {
-	ctx := context.TODO()
-
+func (h *Handler) GetRecentPermanodes(ctx context.Context, req *RecentRequest) (*RecentResponse, error) {
 	h.index.RLock()
 	defer h.index.RUnlock()
 
@@ -517,7 +519,7 @@ func (h *Handler) serveRecentPermanodes(rw http.ResponseWriter, req *http.Reques
 	defer httputil.RecoverJSON(rw, req)
 	var rr RecentRequest
 	rr.fromHTTP(req)
-	res, err := h.GetRecentPermanodes(&rr)
+	res, err := h.GetRecentPermanodes(req.Context(), &rr)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
 		return
@@ -811,7 +813,7 @@ func (h *Handler) serveQuery(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	sr, err := h.Query(&sq)
+	sr, err := h.Query(req.Context(), &sq)
 	if err != nil {
 		httputil.ServeJSONError(rw, err)
 		return
@@ -896,11 +898,11 @@ func evalSearchInput(in string) (*Constraint, error) {
 }
 
 // getNamed displays the search expression or constraint json for the requested alias.
-func (sh *Handler) getNamed(name string) (string, error) {
+func (sh *Handler) getNamed(ctx context.Context, name string) (string, error) {
 	if sh.fetcher == nil {
 		return "", fmt.Errorf("GetNamed functionality not available")
 	}
-	sr, err := sh.Query(NamedSearch(name))
+	sr, err := sh.Query(ctx, NamedSearch(name))
 	if err != nil {
 		return "", err
 	}
@@ -915,7 +917,7 @@ func (sh *Handler) getNamed(name string) (string, error) {
 		return "", fmt.Errorf("Invalid blob ref: %s", substRefS)
 	}
 
-	reader, _, err := sh.fetcher.Fetch(br)
+	reader, _, err := sh.fetcher.Fetch(ctx, br)
 	if err != nil {
 		return "", err
 	}

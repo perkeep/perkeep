@@ -52,6 +52,8 @@ func init() {
 
 const debug = false
 
+var ctxbg = context.Background()
+
 func TestStorage(t *testing.T) {
 	storagetest.Test(t, func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
 		s := &storage{
@@ -167,7 +169,7 @@ func TestPackNormal(t *testing.T) {
 
 	pt := testPack(t,
 		func(sto blobserver.Storage) error {
-			_, err := schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
+			_, err := schema.WriteFileFromReader(ctxbg, sto, fileName, bytes.NewReader(fileContents))
 			return err
 		},
 		wantNumLargeBlobs(1),
@@ -183,7 +185,7 @@ func TestPackNoDelete(t *testing.T) {
 	fileContents := randBytes(fileSize)
 	testPack(t,
 		func(sto blobserver.Storage) error {
-			_, err := schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
+			_, err := schema.WriteFileFromReader(ctxbg, sto, fileName, bytes.NewReader(fileContents))
 			return err
 		},
 		func(pt *packTest) { pt.sto.skipDelete = true },
@@ -206,7 +208,7 @@ func TestPackLarge(t *testing.T) {
 
 	pt := testPack(t,
 		func(sto blobserver.Storage) error {
-			_, err := schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
+			_, err := schema.WriteFileFromReader(ctxbg, sto, fileName, bytes.NewReader(fileContents))
 			return err
 		},
 		wantNumLargeBlobs(2),
@@ -304,7 +306,7 @@ func TestReindex(t *testing.T) {
 	pt := testPack(t,
 		func(sto blobserver.Storage) error {
 			for _, f := range files {
-				if _, err := schema.WriteFileFromReader(sto, f.name, bytes.NewReader(f.contents)); err != nil {
+				if _, err := schema.WriteFileFromReader(ctxbg, sto, f.name, bytes.NewReader(f.contents)); err != nil {
 					return err
 				}
 			}
@@ -337,7 +339,7 @@ func TestReindex(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		rc, err := pt.large.SubFetch(m.largeRef, int64(m.largeOff), int64(m.size))
+		rc, err := pt.large.SubFetch(ctxbg, m.largeRef, int64(m.largeOff), int64(m.size))
 		if err != nil {
 			return err
 		}
@@ -426,10 +428,10 @@ func TestPackTwoIdenticalfiles(t *testing.T) {
 	fileContents := randBytes(fileSize)
 	testPack(t,
 		func(sto blobserver.Storage) (err error) {
-			if _, err = schema.WriteFileFromReader(sto, "a.txt", bytes.NewReader(fileContents)); err != nil {
+			if _, err = schema.WriteFileFromReader(ctxbg, sto, "a.txt", bytes.NewReader(fileContents)); err != nil {
 				return
 			}
-			if _, err = schema.WriteFileFromReader(sto, "b.txt", bytes.NewReader(fileContents)); err != nil {
+			if _, err = schema.WriteFileFromReader(ctxbg, sto, "b.txt", bytes.NewReader(fileContents)); err != nil {
 				return
 			}
 			return
@@ -511,7 +513,7 @@ func testPack(t *testing.T,
 
 	bytesOfZip := map[blob.Ref][]byte{}
 	for _, zipRef := range zipRefs {
-		rc, _, err := large.Fetch(zipRef)
+		rc, _, err := large.Fetch(ctxbg, zipRef)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -624,7 +626,7 @@ func TestSmallFallback(t *testing.T) {
 	wantSB := b1.SizedRef()
 
 	// Fetch
-	rc, _, err := s.Fetch(b1.BlobRef())
+	rc, _, err := s.Fetch(ctxbg, b1.BlobRef())
 	if err != nil {
 		t.Errorf("failed to Get blob: %v", err)
 	} else {
@@ -632,7 +634,7 @@ func TestSmallFallback(t *testing.T) {
 	}
 
 	// Stat.
-	sb, err := blobserver.StatBlob(s, b1.BlobRef())
+	sb, err := blobserver.StatBlob(ctxbg, s, b1.BlobRef())
 	if err != nil {
 		t.Errorf("failed to Stat blob: %v", err)
 	} else if sb != wantSB {
@@ -680,7 +682,7 @@ func TestForeachZipBlob(t *testing.T) {
 
 	pt := testPack(t,
 		func(sto blobserver.Storage) error {
-			_, err := schema.WriteFileFromReader(sto, fileName, bytes.NewReader(fileContents))
+			_, err := schema.WriteFileFromReader(ctxbg, sto, fileName, bytes.NewReader(fileContents))
 			return err
 		},
 		wantNumLargeBlobs(1),
@@ -703,7 +705,7 @@ func TestForeachZipBlob(t *testing.T) {
 	}
 	foreachSaw := 0
 	blobSizeSum := 0
-	if err := pt.sto.foreachZipBlob(zipBlob.Ref, func(bap BlobAndPos) error {
+	if err := pt.sto.foreachZipBlob(ctxbg, zipBlob.Ref, func(bap BlobAndPos) error {
 		foreachSaw++
 		blobSizeSum += int(bap.Size)
 		want, ok := all[bap.Ref]
@@ -777,7 +779,7 @@ func TestRemoveBlobs(t *testing.T) {
 
 	const fileSize = 1 << 20
 	fileContents := randBytes(fileSize)
-	if _, err := schema.WriteFileFromReader(sto, "foo.dat", bytes.NewReader(fileContents)); err != nil {
+	if _, err := schema.WriteFileFromReader(ctxbg, sto, "foo.dat", bytes.NewReader(fileContents)); err != nil {
 		t.Fatal(err)
 	}
 	if small.NumBlobs() != 0 || large.NumBlobs() == 0 {
@@ -798,7 +800,7 @@ func TestRemoveBlobs(t *testing.T) {
 	}
 
 	// The zip file is in use, so verify we can't delete it.
-	if err := sto.deleteZipPack(zipBlob.Ref); err == nil {
+	if err := sto.deleteZipPack(ctxbg, zipBlob.Ref); err == nil {
 		t.Fatalf("zip pack blob deleted but it should not have been allowed")
 	}
 
@@ -831,7 +833,7 @@ func TestRemoveBlobs(t *testing.T) {
 	}
 
 	// TODO: test the background pack-deleter loop? figure out its design first.
-	if err := sto.deleteZipPack(zipBlob.Ref); err != nil {
+	if err := sto.deleteZipPack(ctxbg, zipBlob.Ref); err != nil {
 		t.Errorf("error deleting zip %v: %v", zipBlob.Ref, err)
 	}
 	if n := dRows(); n != 0 {
@@ -919,7 +921,7 @@ func TestPackerBoundarySplits(t *testing.T) {
 		h := blob.NewHash()
 		h.Write(bytesC)
 		refC := blob.RefFromHash(h)
-		_, err := s.ReceiveBlob(refC, bytes.NewReader(bytesC))
+		_, err := s.ReceiveBlob(ctxbg, refC, bytes.NewReader(bytesC))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -970,7 +972,7 @@ func TestPackerBoundarySplits(t *testing.T) {
 }
 
 func slurpBlob(t *testing.T, sto blob.Fetcher, br blob.Ref) []byte {
-	rc, _, err := sto.Fetch(br)
+	rc, _, err := sto.Fetch(ctxbg, br)
 	if err != nil {
 		t.Fatal(err)
 	}

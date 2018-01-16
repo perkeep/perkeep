@@ -76,21 +76,21 @@ func (c *permanodeCmd) RunCommand(args []string) error {
 	}
 	if c.key == "" {
 		// Normal case, with a random permanode.
-		permaNode, err = up.UploadNewPermanode()
+		permaNode, err = up.UploadNewPermanode(ctxbg)
 	} else {
 		const format = "2006-01-02 15:04:05"
 		sigTime, err := time.Parse(format, c.sigTime)
 		if err != nil {
 			return fmt.Errorf("Error parsing time %q; expecting time of form %q", c.sigTime, format)
 		}
-		permaNode, err = up.UploadPlannedPermanode(c.key, sigTime)
+		permaNode, err = up.UploadPlannedPermanode(ctxbg, c.key, sigTime)
 	}
 	if handleResult("permanode", permaNode, err) != nil {
 		return err
 	}
 
 	if c.title != "" {
-		put, err := up.UploadAndSignBlob(schema.NewSetAttributeClaim(permaNode.BlobRef, "title", c.title))
+		put, err := up.UploadAndSignBlob(ctxbg, schema.NewSetAttributeClaim(permaNode.BlobRef, "title", c.title))
 		handleResult("claim-permanode-title", put, err)
 	}
 	if c.tag != "" {
@@ -98,7 +98,7 @@ func (c *permanodeCmd) RunCommand(args []string) error {
 		m := schema.NewSetAttributeClaim(permaNode.BlobRef, "tag", tags[0])
 		for _, tag := range tags {
 			m = schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
-			put, err := up.UploadAndSignBlob(m)
+			put, err := up.UploadAndSignBlob(ctxbg, m)
 			handleResult("claim-permanode-tag", put, err)
 		}
 	}

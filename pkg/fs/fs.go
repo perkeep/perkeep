@@ -164,7 +164,7 @@ func (n *node) schema() (*schema.Blob, error) {
 	if n.meta != nil {
 		return n.meta, nil
 	}
-	blob, err := n.fs.fetchSchemaMeta(n.blobref)
+	blob, err := n.fs.fetchSchemaMeta(context.TODO(), n.blobref)
 	if err == nil {
 		n.meta = blob
 		n.populateAttr()
@@ -253,12 +253,12 @@ func (n *node) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 		log.Printf("camli.ReadDirAll error on %v: %v", n.blobref, err)
 		return nil, fuse.EIO
 	}
-	dr, err := schema.NewDirReader(n.fs.fetcher, ss.BlobRef())
+	dr, err := schema.NewDirReader(ctx, n.fs.fetcher, ss.BlobRef())
 	if err != nil {
 		log.Printf("camli.ReadDirAll error on %v: %v", n.blobref, err)
 		return nil, fuse.EIO
 	}
-	schemaEnts, err := dr.Readdir(-1)
+	schemaEnts, err := dr.Readdir(ctx, -1)
 	if err != nil {
 		log.Printf("camli.ReadDirAll error on %v: %v", n.blobref, err)
 		return nil, fuse.EIO
@@ -334,13 +334,13 @@ func (fs *CamliFileSystem) Statfs(ctx context.Context, req *fuse.StatfsRequest, 
 // Errors returned are:
 //    os.ErrNotExist -- blob not found
 //    os.ErrInvalid -- not JSON or a camli schema blob
-func (fs *CamliFileSystem) fetchSchemaMeta(br blob.Ref) (*schema.Blob, error) {
+func (fs *CamliFileSystem) fetchSchemaMeta(ctx context.Context, br blob.Ref) (*schema.Blob, error) {
 	blobStr := br.String()
 	if blob, ok := fs.blobToSchema.Get(blobStr); ok {
 		return blob.(*schema.Blob), nil
 	}
 
-	rc, _, err := fs.fetcher.Fetch(br)
+	rc, _, err := fs.fetcher.Fetch(ctx, br)
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +360,7 @@ func (fs *CamliFileSystem) fetchSchemaMeta(br blob.Ref) (*schema.Blob, error) {
 
 // consolated logic for determining a node to mount based on an arbitrary blobref
 func (fs *CamliFileSystem) newNodeFromBlobRef(root blob.Ref) (fusefs.Node, error) {
-	blob, err := fs.fetchSchemaMeta(root)
+	blob, err := fs.fetchSchemaMeta(context.TODO(), root)
 	if err != nil {
 		return nil, err
 	}

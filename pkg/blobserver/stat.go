@@ -28,9 +28,7 @@ import (
 
 // StatBlob calls bs.StatBlobs to stat a single blob.
 // If the blob is not found, the error is os.ErrNotExist.
-func StatBlob(bs BlobStatter, br blob.Ref) (blob.SizedRef, error) {
-	ctx := context.TODO() // add to StatBlob
-
+func StatBlob(ctx context.Context, bs BlobStatter, br blob.Ref) (blob.SizedRef, error) {
 	var ret blob.SizedRef
 	err := bs.StatBlobs(ctx, []blob.Ref{br}, func(sb blob.SizedRef) error {
 		ret = sb

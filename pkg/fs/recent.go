@@ -81,7 +81,7 @@ func (n *recentDir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 	n.modTime = make(map[string]time.Time)
 
 	req := &search.RecentRequest{N: 100}
-	res, err := n.fs.client.GetRecentPermanodes(req)
+	res, err := n.fs.client.GetRecentPermanodes(ctx, req)
 	if err != nil {
 		log.Printf("fs.recent: GetRecentPermanodes error in ReadDirAll: %v", err)
 		return nil, fuse.EIO

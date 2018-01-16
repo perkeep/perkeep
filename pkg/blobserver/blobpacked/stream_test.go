@@ -140,7 +140,7 @@ func populatePacked(t *testing.T, s *storage) (wants []storagetest.StreamerTestO
 	const fileSize = 5 << 20
 	const fileName = "foo.dat"
 	fileContents := randBytes(fileSize)
-	_, err := schema.WriteFileFromReader(s, fileName, bytes.NewReader(fileContents))
+	_, err := schema.WriteFileFromReader(ctxbg, s, fileName, bytes.NewReader(fileContents))
 	if err != nil {
 		t.Fatalf("WriteFileFromReader: %v", err)
 	}
@@ -150,11 +150,11 @@ func populatePacked(t *testing.T, s *storage) (wants []storagetest.StreamerTestO
 func populatePacked2(t *testing.T, s *storage) (wants []storagetest.StreamerTestOpt) {
 	const fileSize = 1 << 20
 	data := randBytes(fileSize)
-	_, err := schema.WriteFileFromReader(s, "first-half.dat", bytes.NewReader(data[:fileSize/2]))
+	_, err := schema.WriteFileFromReader(ctxbg, s, "first-half.dat", bytes.NewReader(data[:fileSize/2]))
 	if err != nil {
 		t.Fatalf("WriteFileFromReader: %v", err)
 	}
-	_, err = schema.WriteFileFromReader(s, "second-half.dat", bytes.NewReader(data[fileSize/2:]))
+	_, err = schema.WriteFileFromReader(ctxbg, s, "second-half.dat", bytes.NewReader(data[fileSize/2:]))
 	if err != nil {
 		t.Fatalf("WriteFileFromReader: %v", err)
 	}

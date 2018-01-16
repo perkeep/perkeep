@@ -20,6 +20,7 @@ package storage
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/xml"
 	"errors"
@@ -80,19 +81,19 @@ func (c *Client) keyURL(container, key string) string {
 	return c.containerURL(container) + key
 }
 
-func newReq(url_ string) *http.Request {
+func newReq(ctx context.Context, url_ string) *http.Request {
 	req, err := http.NewRequest("GET", url_, nil)
 	if err != nil {
 		panic(fmt.Sprintf("azure client; invalid URL: %v", err))
 	}
 	req.Header.Set("User-Agent", "go-camlistore-azure")
 	req.Header.Set("x-ms-version", "2014-02-14")
-	return req
+	return req.WithContext(ctx)
 }
 
 // Containers list the containers active under the current account.
-func (c *Client) Containers() ([]*Container, error) {
-	req := newReq("https://" + c.hostname() + "/")
+func (c *Client) Containers(ctx context.Context) ([]*Container, error) {
+	req := newReq(ctx, "https://"+c.hostname()+"/")
 	c.Auth.SignRequest(req)
 	res, err := c.transport().RoundTrip(req)
 	if err != nil {
@@ -120,8 +121,8 @@ func parseListAllMyContainers(r io.Reader) ([]*Container, error) {
 
 // Stat Stats a blob in Azure.
 // It returns 0, os.ErrNotExist if not found on Azure, otherwise reterr is real.
-func (c *Client) Stat(key, container string) (size int64, reterr error) {
-	req := newReq(c.keyURL(container, key))
+func (c *Client) Stat(ctx context.Context, key, container string) (size int64, reterr error) {
+	req := newReq(ctx, c.keyURL(container, key))
 	req.Method = "HEAD"
 	c.Auth.SignRequest(req)
 	res, err := c.transport().RoundTrip(req)
@@ -141,8 +142,8 @@ func (c *Client) Stat(key, container string) (size int64, reterr error) {
 }
 
 // PutObject puts a blob to the specified container on Azure
-func (c *Client) PutObject(key, container string, md5 hash.Hash, size int64, body io.Reader) error {
-	req := newReq(c.keyURL(container, key))
+func (c *Client) PutObject(ctx context.Context, key, container string, md5 hash.Hash, size int64, body io.Reader) error {
+	req := newReq(ctx, c.keyURL(container, key))
 	req.Method = "PUT"
 	req.ContentLength = size
 	if md5 != nil {
@@ -200,7 +201,7 @@ type listBlobsResults struct {
 // ListBlobs returns 0 to maxKeys (inclusive) items from the provided
 // container. If the length of the returned items is equal to maxKeys,
 // there is no indication whether or not the returned list is truncated.
-func (c *Client) ListBlobs(container string, maxResults int) (blobs []*Blob, err error) {
+func (c *Client) ListBlobs(ctx context.Context, container string, maxResults int) (blobs []*Blob, err error) {
 	if maxResults < 0 {
 		return nil, errors.New("invalid negative maxKeys")
 	}
@@ -215,7 +216,7 @@ func (c *Client) ListBlobs(container string, maxResults int) (blobs []*Blob, err
 		listURL := fmt.Sprintf("%s?restype=container&comp=list&marker=%s&maxresults=%d",
 			c.containerURL(container), url.QueryEscape(marker), fetchN)
 
-		req := newReq(listURL)
+		req := newReq(ctx, listURL)
 		c.Auth.SignRequest(req)
 
 		res, err := c.transport().RoundTrip(req)
@@ -270,8 +271,8 @@ func getAzureError(operation string, res *http.Response) *Error {
 }
 
 // Get retrieves a blob from Azure or returns os.ErrNotExist if not found
-func (c *Client) Get(container, key string) (body io.ReadCloser, size int64, err error) {
-	req := newReq(c.keyURL(container, key))
+func (c *Client) Get(ctx context.Context, container, key string) (body io.ReadCloser, size int64, err error) {
+	req := newReq(ctx, c.keyURL(container, key))
 	c.Auth.SignRequest(req)
 	res, err := c.transport().RoundTrip(req)
 	if err != nil {
@@ -292,12 +293,12 @@ func (c *Client) Get(container, key string) (body io.ReadCloser, size int64, err
 // GetPartial fetches part of the blob in container.
 // If length is negative, the rest of the object is returned.
 // The caller must close rc.
-func (c *Client) GetPartial(container, key string, offset, length int64) (rc io.ReadCloser, err error) {
+func (c *Client) GetPartial(ctx context.Context, container, key string, offset, length int64) (rc io.ReadCloser, err error) {
 	if offset < 0 {
 		return nil, errors.New("invalid negative length")
 	}
 
-	req := newReq(c.keyURL(container, key))
+	req := newReq(ctx, c.keyURL(container, key))
 	if length >= 0 {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", offset, offset+length-1))
 	} else {
@@ -323,8 +324,8 @@ func (c *Client) GetPartial(container, key string, offset, length int64) (rc io.
 
 // Delete deletes a blob from the specified container.
 // It may take a few moments before the blob is actually deleted by Azure.
-func (c *Client) Delete(container, key string) error {
-	req := newReq(c.keyURL(container, key))
+func (c *Client) Delete(ctx context.Context, container, key string) error {
+	req := newReq(ctx, c.keyURL(container, key))
 	req.Method = "DELETE"
 	c.Auth.SignRequest(req)
 	res, err := c.transport().RoundTrip(req)

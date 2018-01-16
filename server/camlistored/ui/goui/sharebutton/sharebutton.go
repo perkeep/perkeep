@@ -24,6 +24,7 @@ limitations under the License.
 package sharebutton
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -229,14 +230,14 @@ func mkdir(am auth.AuthMode, children []blob.Ref) (blob.Ref, error) {
 		ss.Add(br)
 	}
 	ssb := ss.Blob()
-	if _, err := cl.UploadBlob(ssb); err != nil {
+	if _, err := cl.UploadBlob(context.TODO(), ssb); err != nil {
 		return newdir, err
 	}
 	const fileNameLayout = "20060102150405"
 	fileName := "shared-" + time.Now().Format(fileNameLayout)
 	dir := schema.NewDirMap(fileName).PopulateDirectoryMap(ssb.BlobRef())
 	dirBlob := dir.Blob()
-	if _, err := cl.UploadBlob(dirBlob); err != nil {
+	if _, err := cl.UploadBlob(context.TODO(), dirBlob); err != nil {
 		return newdir, err
 	}
 
@@ -276,11 +277,11 @@ func newShareClaim(cl *client.Client, target blob.Ref) (blob.Ref, error) {
 	if err != nil {
 		return claim, fmt.Errorf("could not create unsigned share claim: %v", err)
 	}
-	signedClaim, err := cl.Sign("", strings.NewReader("json="+unsignedClaim))
+	signedClaim, err := cl.Sign(context.TODO(), "", strings.NewReader("json="+unsignedClaim))
 	if err != nil {
 		return claim, fmt.Errorf("could not get signed share claim: %v", err)
 	}
-	sbr, err := cl.Upload(client.NewUploadHandleFromString(string(signedClaim)))
+	sbr, err := cl.Upload(context.TODO(), client.NewUploadHandleFromString(string(signedClaim)))
 	if err != nil {
 		return claim, fmt.Errorf("could not upload share claim: %v", err)
 	}

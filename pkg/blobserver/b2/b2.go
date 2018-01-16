@@ -127,7 +127,8 @@ func (s *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef,
 	return l.Err()
 }
 
-func (s *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, error) {
+func (s *Storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader) (blob.SizedRef, error) {
+	// TODO: pass ctx to b2 library, once github.com/FiloSottile/b2 supports it.
 	var buf bytes.Buffer
 	size, err := io.Copy(&buf, source)
 	if err != nil {
@@ -150,7 +151,7 @@ func (s *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, err
 	if s.cache != nil {
 		// NoHash because it's already verified if we read it without
 		// errors from the source, and uploaded it without mismatch.
-		blobserver.ReceiveNoHash(s.cache, br, &buf)
+		blobserver.ReceiveNoHash(ctx, s.cache, br, &buf)
 	}
 	return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
 }
@@ -177,12 +178,13 @@ func (s *Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.
 	})
 }
 
-func (s *Storage) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
+func (s *Storage) Fetch(ctx context.Context, br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
 	if s.cache != nil {
-		if rc, size, err = s.cache.Fetch(br); err == nil {
+		if rc, size, err = s.cache.Fetch(ctx, br); err == nil {
 			return
 		}
 	}
+	// TODO: pass ctx to b2 library, once github.com/FiloSottile/b2 supports it.
 	r, fi, err := s.cl.DownloadFileByName(s.b.Name, s.dirPrefix+br.String())
 	if err, ok := b2.UnwrapError(err); ok && err.Status == 404 {
 		return nil, 0, os.ErrNotExist

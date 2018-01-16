@@ -42,6 +42,8 @@ import (
 	"perkeep.org/pkg/test"
 )
 
+var ctxbg = context.Background()
+
 func TestSetPassphrase(t *testing.T) {
 	scryptN = 1 << 10
 	s := storage{}
@@ -73,7 +75,7 @@ type testStorage struct {
 // fetchOrErrorString fetches br from sto and returns its body as a string.
 // If an error occurs the stringified error is returned, prefixed by "Error: ".
 func (ts *testStorage) fetchOrErrorString(br blob.Ref) string {
-	rc, _, err := ts.sto.Fetch(br)
+	rc, _, err := ts.sto.Fetch(ctxbg, br)
 	var slurp []byte
 	if err == nil {
 		defer rc.Close()

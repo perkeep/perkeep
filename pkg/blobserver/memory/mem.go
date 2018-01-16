@@ -34,7 +34,6 @@ import (
 	"perkeep.org/pkg/blobserver"
 
 	"go4.org/jsonconfig"
-	"go4.org/readerutil"
 	"go4.org/types"
 )
 
@@ -80,7 +79,7 @@ func NewCache(size int64) *Storage {
 	}
 }
 
-func (s *Storage) Fetch(ref blob.Ref) (file io.ReadCloser, size uint32, err error) {
+func (s *Storage) Fetch(ctx context.Context, ref blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.lru != nil {
@@ -108,7 +107,7 @@ func (s *Storage) Fetch(ref blob.Ref) (file io.ReadCloser, size uint32, err erro
 	}, size, nil
 }
 
-func (s *Storage) SubFetch(ref blob.Ref, offset, length int64) (io.ReadCloser, error) {
+func (s *Storage) SubFetch(ctx context.Context, ref blob.Ref, offset, length int64) (io.ReadCloser, error) {
 	if offset < 0 || length < 0 {
 		return nil, blob.ErrNegativeSubFetch
 	}
@@ -133,7 +132,7 @@ func (s *Storage) SubFetch(ref blob.Ref, offset, length int64) (io.ReadCloser, e
 	}, nil
 }
 
-func (s *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, error) {
+func (s *Storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader) (blob.SizedRef, error) {
 	sb := blob.SizedRef{}
 	h := br.Hash()
 	if h == nil {
@@ -237,12 +236,13 @@ func (s *Storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 		if br.String() < contToken {
 			continue
 		}
+		contents := s.m[br]
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case dest <- blobserver.BlobAndToken{
-			Blob: blob.NewBlob(br, uint32(len(s.m[br])), func() readerutil.ReadSeekCloser {
-				return blob.NewLazyReadSeekCloser(s, br)
+			Blob: blob.NewBlob(br, uint32(len(contents)), func(ctx context.Context) ([]byte, error) {
+				return contents, nil
 			}),
 			Token: br.String(),
 		}:

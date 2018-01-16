@@ -18,6 +18,7 @@ package diskpacked
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"expvar"
 	"fmt"
@@ -36,6 +37,8 @@ import (
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/test"
 )
+
+var ctxbg = context.Background()
 
 func newTempDiskpacked(t *testing.T) (sto blobserver.Storage, cleanup func()) {
 	return newTempDiskpackedWithIndex(t, jsonconfig.Obj{})
@@ -93,7 +96,7 @@ func TestDoubleReceive(t *testing.T) {
 	b := &test.Blob{Contents: strings.Repeat("a", blobSize)}
 	br := b.BlobRef()
 
-	_, err := blobserver.Receive(sto, br, b.Reader())
+	_, err := blobserver.Receive(ctxbg, sto, br, b.Reader())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +105,7 @@ func TestDoubleReceive(t *testing.T) {
 	}
 	sto.(*storage).nextPack()
 
-	_, err = blobserver.Receive(sto, br, b.Reader())
+	_, err = blobserver.Receive(ctxbg, sto, br, b.Reader())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +115,7 @@ func TestDoubleReceive(t *testing.T) {
 	}
 
 	os.Remove(sto.(*storage).filename(0))
-	_, err = blobserver.Receive(sto, br, b.Reader())
+	_, err = blobserver.Receive(ctxbg, sto, br, b.Reader())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +139,7 @@ func TestDelete(t *testing.T) {
 
 	stepAdd := func(tb *test.Blob) step { // add the blob
 		return func() error {
-			sb, err := sto.ReceiveBlob(tb.BlobRef(), tb.Reader())
+			sb, err := sto.ReceiveBlob(ctxbg, tb.BlobRef(), tb.Reader())
 			if err != nil {
 				return fmt.Errorf("ReceiveBlob of %s: %v", sb, err)
 			}
@@ -225,7 +228,7 @@ func TestDoubleReceiveFailingIndex(t *testing.T) {
 	b := &test.Blob{Contents: strings.Repeat("a", blobSize)}
 	br := b.BlobRef()
 
-	_, err := blobserver.Receive(sto, br, b.Reader())
+	_, err := blobserver.Receive(ctxbg, sto, br, b.Reader())
 	if err != nil {
 		if err != errDummy {
 			t.Fatal(err)
@@ -236,7 +239,7 @@ func TestDoubleReceiveFailingIndex(t *testing.T) {
 		t.Fatalf("size = %d; want zero (at most %d)", size(0), blobSize-1)
 	}
 
-	_, err = blobserver.Receive(sto, br, b.Reader())
+	_, err = blobserver.Receive(ctxbg, sto, br, b.Reader())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -322,7 +325,7 @@ func TestClose(t *testing.T) {
 	br := b.BlobRef()
 
 	fd2 := fds()
-	_, err := blobserver.Receive(sto, br, b.Reader())
+	_, err := blobserver.Receive(ctxbg, sto, br, b.Reader())
 	if err != nil {
 		t.Fatal(err)
 	}

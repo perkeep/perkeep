@@ -30,7 +30,7 @@ func (sto *azureStorage) MaxEnumerate() int { return 5000 }
 
 func (sto *azureStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
 	defer close(dest)
-	objs, err := sto.azureClient.ListBlobs(sto.container, 5000)
+	objs, err := sto.azureClient.ListBlobs(ctx, sto.container, 5000)
 	if err != nil {
 		log.Printf("azure ListBlobs: %v", err)
 		return err

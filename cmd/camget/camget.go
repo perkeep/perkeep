@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -89,6 +90,7 @@ func main() {
 		Verbose: *flagHTTP,
 	})
 
+	ctx := context.Background()
 	if *flagShared != "" {
 		if client.ExplicitServer() != "" {
 			log.Fatal("Can't use --shared with an explicit blobserver; blobserver is implicit from the --shared URL.")
@@ -96,7 +98,7 @@ func main() {
 		if flag.NArg() != 0 {
 			log.Fatal("No arguments permitted when using --shared")
 		}
-		cl1, target, err := client.NewFromShareRoot(*flagShared,
+		cl1, target, err := client.NewFromShareRoot(ctx, *flagShared,
 			client.OptionInsecure(*flagInsecureTLS),
 			client.OptionTrustedCert(*flagTrustedCert),
 			optTransportConfig,
@@ -159,12 +161,12 @@ func main() {
 			var rc io.ReadCloser
 			var err error
 			if *flagContents {
-				rc, err = schema.NewFileReader(diskCacheFetcher, br)
+				rc, err = schema.NewFileReader(ctx, diskCacheFetcher, br)
 				if err == nil {
 					rc.(*schema.FileReader).LoadAllChunks()
 				}
 			} else {
-				rc, err = fetch(diskCacheFetcher, br)
+				rc, err = fetch(ctx, diskCacheFetcher, br)
 			}
 			if err != nil {
 				log.Fatal(err)
@@ -174,7 +176,7 @@ func main() {
 				log.Fatalf("Failed reading %q: %v", br, err)
 			}
 		} else {
-			if err := smartFetch(diskCacheFetcher, *flagOutput, br); err != nil {
+			if err := smartFetch(ctx, diskCacheFetcher, *flagOutput, br); err != nil {
 				log.Fatal(err)
 			}
 		}
@@ -187,11 +189,11 @@ func main() {
 	}
 }
 
-func fetch(src blob.Fetcher, br blob.Ref) (r io.ReadCloser, err error) {
+func fetch(ctx context.Context, src blob.Fetcher, br blob.Ref) (r io.ReadCloser, err error) {
 	if *flagVerbose {
 		log.Printf("Fetching %s", br.String())
 	}
-	r, _, err = src.Fetch(br)
+	r, _, err = src.Fetch(ctx, br)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to fetch %s: %s", br, err)
 	}
@@ -202,8 +204,8 @@ func fetch(src blob.Fetcher, br blob.Ref) (r io.ReadCloser, err error) {
 const sniffSize = 900 * 1024
 
 // smartFetch the things that blobs point to, not just blobs.
-func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
-	rc, err := fetch(src, br)
+func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref) error {
+	rc, err := fetch(ctx, src, br)
 	if err != nil {
 		return err
 	}
@@ -253,7 +255,7 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 		if !ok {
 			return fmt.Errorf("bad entries blobref in dir %v", b.BlobRef())
 		}
-		return smartFetch(src, dir, entries)
+		return smartFetch(ctx, src, dir, entries)
 	case "static-set":
 		if *flagVerbose {
 			log.Printf("Fetching directory entries %v into %s", br, targ)
@@ -271,7 +273,7 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 		for i := 0; i < numWorkers; i++ {
 			go func() {
 				for wi := range workc {
-					wi.errc <- smartFetch(src, targ, wi.br)
+					wi.errc <- smartFetch(ctx, src, targ, wi.br)
 				}
 			}()
 		}
@@ -288,7 +290,7 @@ func smartFetch(src blob.Fetcher, targ string, br blob.Ref) error {
 		}
 		return nil
 	case "file":
-		fr, err := schema.NewFileReader(src, br)
+		fr, err := schema.NewFileReader(ctx, src, br)
 		if err != nil {
 			return fmt.Errorf("NewFileReader: %v", err)
 		}

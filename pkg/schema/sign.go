@@ -17,6 +17,7 @@ limitations under the License.
 package schema
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -106,16 +107,16 @@ func NewSigner(pubKeyRef blob.Ref, armoredPubKey io.Reader, privateKeySource int
 
 // SignJSON signs the provided json at the optional time t.
 // If t is the zero Time, the current time is used.
-func (s *Signer) SignJSON(json string, t time.Time) (string, error) {
+func (s *Signer) SignJSON(ctx context.Context, json string, t time.Time) (string, error) {
 	sr := s.baseSigReq
 	sr.UnsignedJSON = json
 	sr.SignatureTime = t
-	return sr.Sign()
+	return sr.Sign(ctx)
 }
 
 type memoryBlobFetcher map[blob.Ref]func() (size uint32, rc io.ReadCloser)
 
-func (m memoryBlobFetcher) Fetch(br blob.Ref) (file io.ReadCloser, size uint32, err error) {
+func (m memoryBlobFetcher) Fetch(ctx context.Context, br blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	fn, ok := m[br]
 	if !ok {
 		return nil, 0, os.ErrNotExist

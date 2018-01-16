@@ -49,24 +49,25 @@ type FileTreeResponse struct {
 }
 
 func (fth *FileTreeHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
 	if req.Method != "GET" && req.Method != "HEAD" {
 		http.Error(rw, "Invalid method", 400)
 		return
 	}
 
-	de, err := schema.NewDirectoryEntryFromBlobRef(fth.Fetcher, fth.file)
+	de, err := schema.NewDirectoryEntryFromBlobRef(ctx, fth.Fetcher, fth.file)
 	if err != nil {
 		http.Error(rw, "Error reading directory", 500)
 		log.Printf("Error reading directory from blobref %s: %v\n", fth.file, err)
 		return
 	}
-	dir, err := de.Directory()
+	dir, err := de.Directory(ctx)
 	if err != nil {
 		http.Error(rw, "Error reading directory", 500)
 		log.Printf("Error reading directory from blobref %s: %v\n", fth.file, err)
 		return
 	}
-	entries, err := dir.Readdir(-1)
+	entries, err := dir.Readdir(ctx, -1)
 	if err != nil {
 		http.Error(rw, "Error reading directory", 500)
 		log.Printf("reading dir from blobref %s: %v\n", fth.file, err)

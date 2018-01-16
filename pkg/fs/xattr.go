@@ -19,6 +19,7 @@ limitations under the License.
 package fs
 
 import (
+	"context"
 	"encoding/base64"
 	"log"
 	"strings"
@@ -73,12 +74,12 @@ func (x *xattr) load(p *search.DescribedPermanode) {
 	}
 }
 
-func (x *xattr) set(req *fuse.SetxattrRequest) error {
+func (x *xattr) set(ctx context.Context, req *fuse.SetxattrRequest) error {
 	log.Printf("%s.setxattr(%q) -> %q", x.typeName, req.Name, req.Xattr)
 
 	claim := schema.NewSetAttributeClaim(x.permanode, xattrPrefix+req.Name,
 		base64.StdEncoding.EncodeToString(req.Xattr))
-	_, err := x.fs.client.UploadAndSignBlob(claim)
+	_, err := x.fs.client.UploadAndSignBlob(ctx, claim)
 	if err != nil {
 		log.Printf("Error setting xattr: %v", err)
 		return fuse.EIO
@@ -93,11 +94,11 @@ func (x *xattr) set(req *fuse.SetxattrRequest) error {
 	return nil
 }
 
-func (x *xattr) remove(req *fuse.RemovexattrRequest) error {
+func (x *xattr) remove(ctx context.Context, req *fuse.RemovexattrRequest) error {
 	log.Printf("%s.Removexattr(%q)", x.typeName, req.Name)
 
 	claim := schema.NewDelAttributeClaim(x.permanode, xattrPrefix+req.Name, "")
-	_, err := x.fs.client.UploadAndSignBlob(claim)
+	_, err := x.fs.client.UploadAndSignBlob(ctx, claim)
 
 	if err != nil {
 		log.Printf("Error removing xattr: %v", err)

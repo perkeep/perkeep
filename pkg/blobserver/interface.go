@@ -52,7 +52,7 @@ type BlobReceiver interface {
 	// blobserver.Receive or blobserver.ReceiveString, which also
 	// take care of notifying the BlobReceiver's "BlobHub"
 	// notification bus for observers.
-	ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, error)
+	ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader) (blob.SizedRef, error)
 }
 
 // BlobStatter is the interface for checking the size and existence of blobs.

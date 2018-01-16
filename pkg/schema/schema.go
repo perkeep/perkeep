@@ -22,6 +22,7 @@ package schema // import "perkeep.org/pkg/schema"
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -102,7 +103,7 @@ type Directory interface {
 	// slice and a nil os.Error. If it encounters an error before the
 	// end of the directory, Readdir returns the DirectoryEntry read
 	// until that point and a non-nil error.
-	Readdir(n int) ([]DirectoryEntry, error)
+	Readdir(ctx context.Context, n int) ([]DirectoryEntry, error)
 }
 
 type Symlink interface {
@@ -130,11 +131,11 @@ type DirectoryEntry interface {
 	FileName() string
 	BlobRef() blob.Ref
 
-	File() (File, error)           // if camliType is "file"
-	Directory() (Directory, error) // if camliType is "directory"
-	Symlink() (Symlink, error)     // if camliType is "symlink"
-	FIFO() (FIFO, error)           // if camliType is "fifo"
-	Socket() (Socket, error)       // If camliType is "socket"
+	File(ctx context.Context) (File, error)           // if camliType is "file"
+	Directory(ctx context.Context) (Directory, error) // if camliType is "directory"
+	Symlink() (Symlink, error)                        // if camliType is "symlink"
+	FIFO() (FIFO, error)                              // if camliType is "fifo"
+	Socket() (Socket, error)                          // If camliType is "socket"
 }
 
 // dirEntry is the default implementation of DirectoryEntry
@@ -161,12 +162,12 @@ func (de *dirEntry) BlobRef() blob.Ref {
 	return de.ss.BlobRef
 }
 
-func (de *dirEntry) File() (File, error) {
+func (de *dirEntry) File(ctx context.Context) (File, error) {
 	if de.fr == nil {
 		if de.ss.Type != "file" {
 			return nil, fmt.Errorf("DirectoryEntry is camliType %q, not %q", de.ss.Type, "file")
 		}
-		fr, err := NewFileReader(de.fetcher, de.ss.BlobRef)
+		fr, err := NewFileReader(ctx, de.fetcher, de.ss.BlobRef)
 		if err != nil {
 			return nil, err
 		}
@@ -175,12 +176,12 @@ func (de *dirEntry) File() (File, error) {
 	return de.fr, nil
 }
 
-func (de *dirEntry) Directory() (Directory, error) {
+func (de *dirEntry) Directory(ctx context.Context) (Directory, error) {
 	if de.dr == nil {
 		if de.ss.Type != "directory" {
 			return nil, fmt.Errorf("DirectoryEntry is camliType %q, not %q", de.ss.Type, "directory")
 		}
-		dr, err := NewDirReader(de.fetcher, de.ss.BlobRef)
+		dr, err := NewDirReader(ctx, de.fetcher, de.ss.BlobRef)
 		if err != nil {
 			return nil, err
 		}
@@ -226,9 +227,9 @@ func newDirectoryEntry(fetcher blob.Fetcher, ss *superset) (DirectoryEntry, erro
 //  DirectoryEntry if the BlobRef contains a type "file", "directory",
 //  "symlink", "fifo" or "socket".
 // TODO: ""char", "block", probably.  later.
-func NewDirectoryEntryFromBlobRef(fetcher blob.Fetcher, blobRef blob.Ref) (DirectoryEntry, error) {
+func NewDirectoryEntryFromBlobRef(ctx context.Context, fetcher blob.Fetcher, blobRef blob.Ref) (DirectoryEntry, error) {
 	ss := new(superset)
-	err := ss.setFromBlobRef(fetcher, blobRef)
+	err := ss.setFromBlobRef(ctx, fetcher, blobRef)
 	if err != nil {
 		return nil, fmt.Errorf("schema/filereader: can't fill superset: %v", err)
 	}

@@ -90,7 +90,7 @@ func (c *Client) EnumerateBlobsOpts(ctx context.Context, ch chan<- blob.SizedRef
 		}
 		url_ := fmt.Sprintf("%s/camli/enumerate-blobs?after=%s&limit=%d&maxwaitsec=%d",
 			pfx, url.QueryEscape(after), enumerateBatchSize, waitSec)
-		req := c.newRequest("GET", url_)
+		req := c.newRequest(ctx, "GET", url_)
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			return error("http request", err)

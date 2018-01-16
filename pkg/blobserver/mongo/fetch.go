@@ -18,6 +18,7 @@ package mongo
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -26,7 +27,7 @@ import (
 	"perkeep.org/pkg/blob"
 )
 
-func (m *mongoStorage) Fetch(ref blob.Ref) (io.ReadCloser, uint32, error) {
+func (m *mongoStorage) Fetch(ctx context.Context, ref blob.Ref) (io.ReadCloser, uint32, error) {
 	var b blobDoc
 	err := m.c.Find(bson.M{"key": ref.String()}).One(&b)
 	if err != nil {

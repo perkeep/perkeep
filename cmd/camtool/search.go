@@ -111,7 +111,7 @@ func (c *searchCmd) RunCommand(args []string) error {
 	}
 
 	cl := newClient(c.server)
-	res, err := cl.Query(req)
+	res, err := cl.Query(ctxbg, req)
 	if err != nil {
 		return err
 	}

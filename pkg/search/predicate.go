@@ -711,7 +711,7 @@ func (n namedSearch) Predicate(ctx context.Context, args []string) (*Constraint,
 }
 
 func (n namedSearch) namedConstraint(name string) (*Constraint, error) {
-	subst, err := n.sh.getNamed(name)
+	subst, err := n.sh.getNamed(context.TODO(), name)
 	if err != nil {
 		return nil, err
 	}

@@ -17,6 +17,8 @@ limitations under the License.
 package s3
 
 import (
+	"context"
+
 	"perkeep.org/pkg/blob"
 
 	"go4.org/syncutil"
@@ -25,6 +27,7 @@ import (
 var removeGate = syncutil.NewGate(20) // arbitrary
 
 func (sto *s3Storage) RemoveBlobs(blobs []blob.Ref) error {
+	ctx := context.TODO()
 	if sto.cache != nil {
 		sto.cache.RemoveBlobs(blobs)
 	}
@@ -35,7 +38,7 @@ func (sto *s3Storage) RemoveBlobs(blobs []blob.Ref) error {
 		removeGate.Start()
 		wg.Go(func() error {
 			defer removeGate.Done()
-			return sto.s3Client.Delete(sto.bucket, sto.dirPrefix+blob.String())
+			return sto.s3Client.Delete(ctx, sto.bucket, sto.dirPrefix+blob.String())
 		})
 	}
 	return wg.Err()

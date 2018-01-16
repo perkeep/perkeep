@@ -17,14 +17,12 @@ limitations under the License.
 package blob
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"math"
 	"os"
-	"sync"
-
-	"go4.org/readerutil"
 )
 
 var (
@@ -35,7 +33,7 @@ var (
 // Fetcher is the minimal interface for retrieving a blob from storage.
 // The full storage interface is blobserver.Storage.
 type Fetcher interface {
-	// Fetch returns a blob.  If the blob is not found then
+	// Fetch returns a blob. If the blob is not found then
 	// os.ErrNotExist should be returned for the error (not a wrapped
 	// error with a ErrNotExist inside)
 	//
@@ -44,7 +42,11 @@ type Fetcher interface {
 	// callers should verify them.
 	//
 	// The caller must close blob.
-	Fetch(Ref) (blob io.ReadCloser, size uint32, err error)
+	//
+	// The provided context is used until blob is closed and its
+	// cancelation should but may not necessarily cause reads from
+	// blob to fail with an error.
+	Fetch(context.Context, Ref) (blob io.ReadCloser, size uint32, err error)
 }
 
 // A SubFetcher is a Fetcher that can retrieve part of a blob.
@@ -56,7 +58,7 @@ type SubFetcher interface {
 	// offset or length is negative, or os.ErrNotExist if the blob
 	// doesn't exist, or ErrOutOfRangeOffsetSubFetch if offset goes over
 	// the size of the blob.
-	SubFetch(ref Ref, offset, length int64) (io.ReadCloser, error)
+	SubFetch(ctx context.Context, ref Ref, offset, length int64) (io.ReadCloser, error)
 }
 
 func NewSerialFetcher(fetchers ...Fetcher) Fetcher {
@@ -71,9 +73,9 @@ type serialFetcher struct {
 	fetchers []Fetcher
 }
 
-func (sf *serialFetcher) Fetch(r Ref) (file io.ReadCloser, size uint32, err error) {
+func (sf *serialFetcher) Fetch(ctx context.Context, r Ref) (file io.ReadCloser, size uint32, err error) {
 	for _, fetcher := range sf.fetchers {
-		file, size, err = fetcher.Fetch(r)
+		file, size, err = fetcher.Fetch(ctx, r)
 		if err == nil {
 			return
 		}
@@ -85,7 +87,7 @@ type DirFetcher struct {
 	directory, extension string
 }
 
-func (df *DirFetcher) Fetch(r Ref) (file io.ReadCloser, size uint32, err error) {
+func (df *DirFetcher) Fetch(ctx context.Context, r Ref) (file io.ReadCloser, size uint32, err error) {
 	fileName := fmt.Sprintf("%s/%s.%s", df.directory, r.String(), df.extension)
 	var stat os.FileInfo
 	stat, err = os.Stat(fileName)
@@ -104,69 +106,20 @@ func (df *DirFetcher) Fetch(r Ref) (file io.ReadCloser, size uint32, err error) 
 	return
 }
 
-// NewLazyReadSeekCloser returns a ReadSeekCloser that does no work
-// until one of its Read, Seek, or Close methods is called, but then
-// fetches the ref from src. Any fetch error is returned in the Read,
-// Seek, or Close call.
-func NewLazyReadSeekCloser(src Fetcher, br Ref) readerutil.ReadSeekCloser {
-	return &lazyReadSeekCloser{src: src, br: br}
-}
-
-type lazyReadSeekCloser struct {
-	once sync.Once // guards init
-	src  Fetcher
-	br   Ref
-
-	// after init, exactly one is set:
-	err error
-	rsc readerutil.ReadSeekCloser
-}
-
-func (r *lazyReadSeekCloser) init() {
-	b, err := FromFetcher(r.src, r.br)
-	if err != nil {
-		r.err = err
-		return
-	}
-	r.rsc = b.Open()
-}
-
-func (r *lazyReadSeekCloser) Read(p []byte) (n int, err error) {
-	r.once.Do(r.init)
-	if r.err != nil {
-		return 0, r.err
-	}
-	return r.rsc.Read(p)
-}
-
-func (r *lazyReadSeekCloser) Seek(offset int64, whence int) (int64, error) {
-	r.once.Do(r.init)
-	if r.err != nil {
-		return 0, r.err
-	}
-	return r.rsc.Seek(offset, whence)
-}
-
-func (r *lazyReadSeekCloser) Close() error {
-	r.once.Do(r.init)
-	if r.err != nil {
-		return r.err
-	}
-	return r.rsc.Close()
-}
-
 // ReaderAt returns an io.ReaderAt of br, fetching against sf.
-func ReaderAt(sf SubFetcher, br Ref) io.ReaderAt {
-	return readerAt{sf, br}
+// The context is stored in and used by the returned ReaderAt.
+func ReaderAt(ctx context.Context, sf SubFetcher, br Ref) io.ReaderAt {
+	return readerAt{ctx, sf, br}
 }
 
 type readerAt struct {
-	sf SubFetcher
-	br Ref
+	ctx context.Context
+	sf  SubFetcher
+	br  Ref
 }
 
 func (ra readerAt) ReadAt(p []byte, off int64) (n int, err error) {
-	rc, err := ra.sf.SubFetch(ra.br, off, int64(len(p)))
+	rc, err := ra.sf.SubFetch(ra.ctx, ra.br, off, int64(len(p)))
 	if err != nil {
 		return 0, err
 	}

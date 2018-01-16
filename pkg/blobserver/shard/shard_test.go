@@ -17,12 +17,15 @@ limitations under the License.
 package shard
 
 import (
+	"context"
 	"testing"
 
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/storagetest"
 	"perkeep.org/pkg/test"
 )
+
+var ctxbg = context.Background()
 
 type testStorage struct {
 	sto    *shardStorage
@@ -61,8 +64,8 @@ func TestShard(t *testing.T) {
 
 	ts := newTestStorage(t)
 
-	ts.sto.ReceiveBlob(thingA.BlobRef(), thingA.Reader())
-	ts.sto.ReceiveBlob(thingB.BlobRef(), thingB.Reader())
+	ts.sto.ReceiveBlob(ctxbg, thingA.BlobRef(), thingA.Reader())
+	ts.sto.ReceiveBlob(ctxbg, thingB.BlobRef(), thingB.Reader())
 
 	ts.checkShard(thingA, 1)
 	ts.checkShard(thingB, 0)
@@ -71,7 +74,7 @@ func TestShard(t *testing.T) {
 // checkShard iterates through shards and find the blob. error if it is not found in expectShard, found somewhere else, or not found at all
 func (sto testStorage) checkShard(b *test.Blob, expectShard int) {
 	for shardN, shard := range sto.shards {
-		_, _, err := shard.Fetch(b.BlobRef())
+		_, _, err := shard.Fetch(ctxbg, b.BlobRef())
 		if err != nil && shardN == expectShard {
 			sto.t.Errorf("expected ref %v in shard %d, but didn't find it there", b.BlobRef(), expectShard)
 			continue

@@ -19,6 +19,7 @@ limitations under the License.
 package mapquery
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -141,7 +142,7 @@ func (q *Query) send() ([]byte, error) {
 		Limit: q.Limit,
 		Sort:  search.MapSort,
 	}
-	resp, err := q.cl.QueryRaw(req)
+	resp, err := q.cl.QueryRaw(context.TODO(), req)
 	if err != nil {
 		return nil, err
 	}

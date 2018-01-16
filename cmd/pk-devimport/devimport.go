@@ -20,6 +20,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -106,7 +107,7 @@ func newImporterHost(server string, importerType string) (*importer.Host, error)
 // importer node of the given importerType.
 func getCredentials(sh search.QueryDescriber, importerType string) (string, string, error) {
 	var clientID, clientSecret string
-	res, err := sh.Query(&search.SearchQuery{
+	res, err := sh.Query(context.TODO(), &search.SearchQuery{
 		Expression: "attr:camliNodeType:importer and attr:importerType:" + importerType,
 		Describe: &search.DescribeRequest{
 			Depth: 1,

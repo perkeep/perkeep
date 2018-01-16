@@ -135,7 +135,7 @@ func TestMissingGetReturnsNoEnt(t *testing.T) {
 	defer cleanUp(ds)
 	foo := &test.Blob{"foo"}
 
-	blob, _, err := ds.Fetch(foo.BlobRef())
+	blob, _, err := ds.Fetch(context.Background(), foo.BlobRef())
 	if err != os.ErrNotExist {
 		t.Errorf("expected ErrNotExist; got %v", err)
 	}

@@ -884,7 +884,7 @@ func optimizePlan(c *Constraint) *Constraint {
 
 var debugQuerySpeed, _ = strconv.ParseBool(os.Getenv("CAMLI_DEBUG_QUERY_SPEED"))
 
-func (h *Handler) Query(rawq *SearchQuery) (ret_ *SearchResult, _ error) {
+func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchResult, _ error) {
 	if debugQuerySpeed {
 		t0 := time.Now()
 		jq, _ := json.Marshal(rawq)
@@ -898,7 +898,6 @@ func (h *Handler) Query(rawq *SearchQuery) (ret_ *SearchResult, _ error) {
 			}
 		}()
 	}
-	ctx := context.TODO() // TODO: set from rawq
 	exprResult, err := rawq.checkValid(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Invalid SearchQuery: %v", err)

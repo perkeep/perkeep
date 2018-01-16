@@ -201,7 +201,7 @@ func (c *Client) doStat(ctx context.Context, blobs []blob.Ref, wait time.Duratio
 	if err != nil {
 		return err
 	}
-	req := c.newRequest("POST", fmt.Sprintf("%s/camli/stat", pfx), &buf)
+	req := c.newRequest(ctx, "POST", fmt.Sprintf("%s/camli/stat", pfx), &buf)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	var resp *http.Response
@@ -248,7 +248,7 @@ func (h *UploadHandle) readerAndSize() (io.Reader, int64, error) {
 }
 
 // Upload uploads a blob, as described by the provided UploadHandle parameters.
-func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
+func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error) {
 	errorf := func(msg string, arg ...interface{}) (*PutResult, error) {
 		err := fmt.Errorf(msg, arg...)
 		c.printf("%v", err)
@@ -272,7 +272,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 
 	if c.sto != nil {
 		// TODO: stat first so we can show skipped?
-		_, err := blobserver.Receive(c.sto, h.BlobRef, bodyReader)
+		_, err := blobserver.Receive(ctx, c.sto, h.BlobRef, bodyReader)
 		if err != nil {
 			return nil, err
 		}
@@ -297,7 +297,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 
 	if !h.SkipStat {
 		url_ := fmt.Sprintf("%s/camli/stat", pfx)
-		req := c.newRequest("POST", url_, strings.NewReader("camliversion=1&blob1="+blobrefStr))
+		req := c.newRequest(ctx, "POST", url_, strings.NewReader("camliversion=1&blob1="+blobrefStr))
 		req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 		resp, err := c.doReqGated(req)
@@ -358,7 +358,7 @@ func (c *Client) Upload(h *UploadHandle) (*PutResult, error) {
 	}()
 
 	uploadURL := fmt.Sprintf("%s/camli/upload", pfx)
-	req := c.newRequest("POST", uploadURL)
+	req := c.newRequest(ctx, "POST", uploadURL)
 	req.Header.Set("Content-Type", multipartWriter.FormDataContentType())
 	if h.Vivify {
 		req.Header.Add("X-Camlistore-Vivify", "1")
@@ -447,7 +447,7 @@ type FileUploadOptions struct {
 //
 // Note: this method is still a work in progress, and might change to accommodate
 // the needs of camput file.
-func (c *Client) UploadFile(filename string, contents io.Reader, opts *FileUploadOptions) (blob.Ref, error) {
+func (c *Client) UploadFile(ctx context.Context, filename string, contents io.Reader, opts *FileUploadOptions) (blob.Ref, error) {
 	fileMap := schema.NewFileMap(filename)
 	if opts != nil && opts.FileInfo != nil {
 		fileMap = schema.NewCommonFileMap(filename, opts.FileInfo)
@@ -475,7 +475,7 @@ func (c *Client) UploadFile(filename string, contents io.Reader, opts *FileUploa
 	// where all the parts are there, but the file schema/blob does not exist? Can that
 	// even happen ? I'm naively assuming it can't for now, since that's what camput file
 	// does too.
-	fileRef, err := c.fileMapFromDuplicate(fileMap, wholeRef)
+	fileRef, err := c.fileMapFromDuplicate(ctx, fileMap, wholeRef)
 	if err != nil {
 		return blob.Ref{}, err
 	}
@@ -483,7 +483,7 @@ func (c *Client) UploadFile(filename string, contents io.Reader, opts *FileUploa
 		return fileRef, nil
 	}
 
-	return schema.WriteFileMap(c, fileMap, contents)
+	return schema.WriteFileMap(ctx, c, fileMap, contents)
 }
 
 func (c *Client) wholeRef(contents io.Reader) (blob.Ref, error) {
@@ -510,8 +510,8 @@ func (c *Client) wholeRef(contents io.Reader) (blob.Ref, error) {
 // already be partially populated) has its "parts" field populated,
 // and then fileMap is uploaded (if necessary).
 // If no file blob is found, a zero blob.Ref (and no error) is returned.
-func (c *Client) fileMapFromDuplicate(fileMap *schema.Builder, wholeRef blob.Ref) (blob.Ref, error) {
-	dupFileRef, err := c.SearchExistingFileSchema(wholeRef)
+func (c *Client) fileMapFromDuplicate(ctx context.Context, fileMap *schema.Builder, wholeRef blob.Ref) (blob.Ref, error) {
+	dupFileRef, err := c.SearchExistingFileSchema(ctx, wholeRef)
 	if err != nil {
 		return blob.Ref{}, err
 	}
@@ -519,7 +519,7 @@ func (c *Client) fileMapFromDuplicate(fileMap *schema.Builder, wholeRef blob.Ref
 		// because SearchExistingFileSchema returns blob.Ref{}, nil when file is not found.
 		return blob.Ref{}, nil
 	}
-	dupMap, err := c.FetchSchemaBlob(dupFileRef)
+	dupMap, err := c.FetchSchemaBlob(ctx, dupFileRef)
 	if err != nil {
 		return blob.Ref{}, fmt.Errorf("could not find existing file blob for wholeRef %q: %v", wholeRef, err)
 	}
@@ -533,7 +533,7 @@ func (c *Client) fileMapFromDuplicate(fileMap *schema.Builder, wholeRef blob.Ref
 		// Unchanged (same filename, modtime, JSON serialization, etc)
 		return dupFileRef, nil
 	}
-	sbr, err := c.ReceiveBlob(bref, strings.NewReader(json))
+	sbr, err := c.ReceiveBlob(ctx, bref, strings.NewReader(json))
 	if err != nil {
 		return blob.Ref{}, err
 	}

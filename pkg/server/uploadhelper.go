@@ -41,6 +41,7 @@ type uploadHelperGotItem struct {
 }
 
 func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
 	if ui.root.Storage == nil {
 		httputil.ServeJSONError(rw, httputil.ServerError("No BlobRoot configured"))
 		return
@@ -76,7 +77,7 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 		if fileName == "" {
 			continue
 		}
-		br, err := schema.WriteFileFromReaderWithModTime(ui.root.Storage, fileName, modTime.Time(), part)
+		br, err := schema.WriteFileFromReaderWithModTime(ctx, ui.root.Storage, fileName, modTime.Time(), part)
 		if err != nil {
 			httputil.ServeJSONError(rw, httputil.ServerError("writing to blobserver: "+err.Error()))
 			return

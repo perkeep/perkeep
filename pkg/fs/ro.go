@@ -343,7 +343,7 @@ func (n *roFile) Open(ctx context.Context, req *fuse.OpenRequest, res *fuse.Open
 	}
 
 	log.Printf("roFile.Open: %v: content: %v dir=%v flags=%v", n.permanode, n.content, req.Dir, req.Flags)
-	r, err := schema.NewFileReader(n.fs.fetcher, n.content)
+	r, err := schema.NewFileReader(ctx, n.fs.fetcher, n.content)
 	if err != nil {
 		roFileOpenError.Incr()
 		log.Printf("roFile.Open: %v", err)

@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -73,7 +74,7 @@ func (n *node) displayName() string {
 
 func (n *node) load() {
 	defer n.g.wg.Done()
-	rc, err := fetch(n.g.src, n.br)
+	rc, err := fetch(context.Background(), n.g.src, n.br)
 	check(err)
 	defer rc.Close()
 	sniff := index.NewBlobSniffer(n.br)

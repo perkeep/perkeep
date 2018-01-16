@@ -46,6 +46,8 @@ import (
 	"perkeep.org/pkg/types/camtypes"
 )
 
+var ctxbg = context.Background()
+
 var (
 	flagTempDir  = flag.String("tempDir", os.TempDir(), "dir where we'll write all the benchmarks dirs. In case the default is on too small a partition since we may use lots of data.")
 	flagBenchDir = flag.String("benchDir", "", "the directory with a prepopulated blob server, needed by any benchmark that does not start with populating a blob server & index. Run a populating bench with -nowipe to obtain such a directory.")
@@ -291,7 +293,7 @@ func populate(b *testing.B, dbfile string,
 	if err != nil {
 		b.Fatal(err)
 	}
-	if _, err := blobserver.Receive(bs, ks.pubKeyRef, strings.NewReader(ks.pubKey)); err != nil {
+	if _, err := blobserver.Receive(ctxbg, bs, ks.pubKeyRef, strings.NewReader(ks.pubKey)); err != nil {
 		b.Fatal(err)
 	}
 	idx, err := index.New(kv)
@@ -310,7 +312,7 @@ func populate(b *testing.B, dbfile string,
 		td := &trackDigestReader{r: f}
 		fm := schema.NewFileMap(v.Name())
 		fm.SetModTime(v.ModTime())
-		fileRef, err := schema.WriteFileMap(bs, fm, td)
+		fileRef, err := schema.WriteFileMap(ctxbg, bs, fm, td)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -325,13 +327,13 @@ func populate(b *testing.B, dbfile string,
 			EntityFetcher: ks.entityFetcher,
 			SignatureTime: time.Unix(0, 0),
 		}
-		signed, err := sr.Sign()
+		signed, err := sr.Sign(ctxbg)
 		if err != nil {
 			b.Fatal("problem signing: " + err.Error())
 		}
 		pn := blob.RefFromString(signed)
 		// N.B: use blobserver.Receive so that the blob hub gets notified, and the blob gets enqueued into the index
-		if _, err := blobserver.Receive(bs, pn, strings.NewReader(signed)); err != nil {
+		if _, err := blobserver.Receive(ctxbg, bs, pn, strings.NewReader(signed)); err != nil {
 			b.Fatal(err)
 		}
 
@@ -349,12 +351,12 @@ func populate(b *testing.B, dbfile string,
 			EntityFetcher: ks.entityFetcher,
 			SignatureTime: claimTime,
 		}
-		signed, err = sr.Sign()
+		signed, err = sr.Sign(ctxbg)
 		if err != nil {
 			b.Fatal("problem signing: " + err.Error())
 		}
 		cl := blob.RefFromString(signed)
-		if _, err := blobserver.Receive(bs, cl, strings.NewReader(signed)); err != nil {
+		if _, err := blobserver.Receive(ctxbg, bs, cl, strings.NewReader(signed)); err != nil {
 			b.Fatal(err)
 		}
 	}

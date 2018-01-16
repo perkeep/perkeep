@@ -171,7 +171,7 @@ func (c *initCmd) clientConfigFromServer() (*clientconfig.Config, error) {
 	}
 
 	var cc clientconfig.Config
-	if err := cl.GetJSON(helpRoot+"?clientConfig=true", &cc); err != nil {
+	if err := cl.GetJSON(ctxbg, helpRoot+"?clientConfig=true", &cc); err != nil {
 		return nil, err
 	}
 	return &cc, nil

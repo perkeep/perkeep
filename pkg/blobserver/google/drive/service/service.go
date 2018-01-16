@@ -19,6 +19,7 @@ limitations under the License.
 package service // import "perkeep.org/pkg/blobserver/google/drive/service"
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -61,11 +62,10 @@ func New(oauthClient *http.Client, parentId string) (*DriveService, error) {
 
 // Get retrieves a file with its title equal to the provided title and a child of
 // the parentId as given to New. If not found, os.ErrNotExist is returned.
-func (s *DriveService) Get(title string) (*client.File, error) {
-	req := s.apiservice.Files.List()
+func (s *DriveService) Get(ctx context.Context, title string) (*client.File, error) {
 	// TODO: use field selectors
 	query := fmt.Sprintf("'%s' in parents and title = '%s'", s.parentId, title)
-	req.Q(query)
+	req := s.apiservice.Files.List().Context(ctx).Q(query)
 	files, err := req.Do()
 	if err != nil {
 		return nil, err
@@ -97,8 +97,8 @@ func (s *DriveService) List(pageToken string, limit int) (files []*client.File, 
 }
 
 // Upsert inserts a file, or updates if such a file exists.
-func (s *DriveService) Upsert(title string, data io.Reader) (file *client.File, err error) {
-	if file, err = s.Get(title); err != nil {
+func (s *DriveService) Upsert(ctx context.Context, title string, data io.Reader) (file *client.File, err error) {
+	if file, err = s.Get(ctx, title); err != nil {
 		if !os.IsNotExist(err) {
 			return
 		}
@@ -109,18 +109,18 @@ func (s *DriveService) Upsert(title string, data io.Reader) (file *client.File, 
 			&client.ParentReference{Id: s.parentId},
 		}
 		file.MimeType = MimeTypeCamliBlob
-		return s.apiservice.Files.Insert(file).Media(data).Do()
+		return s.apiservice.Files.Insert(file).Media(data).Context(ctx).Do()
 	}
 
 	// TODO: handle large blobs
-	return s.apiservice.Files.Update(file.Id, file).Media(data).Do()
+	return s.apiservice.Files.Update(file.Id, file).Media(data).Context(ctx).Do()
 }
 
 var errNoDownload = errors.New("file can not be downloaded directly (conversion needed?)")
 
 // Fetch retrieves the metadata and contents of a file.
-func (s *DriveService) Fetch(title string) (body io.ReadCloser, size uint32, err error) {
-	file, err := s.Get(title)
+func (s *DriveService) Fetch(ctx context.Context, title string) (body io.ReadCloser, size uint32, err error) {
+	file, err := s.Get(ctx, title)
 	if err != nil {
 		return
 	}
@@ -139,6 +139,7 @@ func (s *DriveService) Fetch(title string) (body io.ReadCloser, size uint32, err
 	}
 
 	req, _ := http.NewRequest("GET", file.DownloadUrl, nil)
+	req.WithContext(ctx)
 	var resp *http.Response
 	if resp, err = s.client.Transport.RoundTrip(req); err != nil {
 		return
@@ -151,8 +152,8 @@ func (s *DriveService) Fetch(title string) (body io.ReadCloser, size uint32, err
 
 // Stat retrieves file metadata and returns
 // file size. Returns error if file is not found.
-func (s *DriveService) Stat(title string) (int64, error) {
-	file, err := s.Get(title)
+func (s *DriveService) Stat(ctx context.Context, title string) (int64, error) {
+	file, err := s.Get(ctx, title)
 	if err != nil || file == nil {
 		return 0, err
 	}
@@ -160,14 +161,14 @@ func (s *DriveService) Stat(title string) (int64, error) {
 }
 
 // Trash trashes the file with the given title.
-func (s *DriveService) Trash(title string) (err error) {
-	file, err := s.Get(title)
+func (s *DriveService) Trash(ctx context.Context, title string) error {
+	file, err := s.Get(ctx, title)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
 		return err
 	}
-	_, err = s.apiservice.Files.Trash(file.Id).Do()
-	return
+	_, err = s.apiservice.Files.Trash(file.Id).Context(ctx).Do()
+	return err
 }

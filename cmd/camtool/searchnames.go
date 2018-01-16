@@ -79,7 +79,7 @@ func (c *searchNamesSetCmd) RunCommand(args []string) error {
 
 	cc := newClient("")
 	uh := client.NewUploadHandleFromString(substitute)
-	substpr, err := cc.Upload(uh)
+	substpr, err := cc.Upload(ctxbg, uh)
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func (c *searchNamesSetCmd) RunCommand(args []string) error {
 	if err == nil {
 		pn = gr.PermaRef
 	} else {
-		pnpr, err := cc.UploadAndSignBlob(schema.NewUnsignedPermanode())
+		pnpr, err := cc.UploadAndSignBlob(ctxbg, schema.NewUnsignedPermanode())
 		if err != nil {
 			return err
 		}
@@ -100,7 +100,7 @@ func (c *searchNamesSetCmd) RunCommand(args []string) error {
 	}
 	claims = append(claims, schema.NewSetAttributeClaim(pn, "camliContent", substpr.BlobRef.String()))
 	for _, claimBuilder := range claims {
-		_, err := cc.UploadAndSignBlob(claimBuilder)
+		_, err := cc.UploadAndSignBlob(ctxbg, claimBuilder)
 		if err != nil {
 			return err
 		}
@@ -130,7 +130,7 @@ func getNamedSearch(named string) (getNamedResponse, error) {
 	cc := newClient("")
 	var gnr getNamedResponse
 	gnr.Named = named
-	sr, err := cc.Query(search.NamedSearch(named))
+	sr, err := cc.Query(ctxbg, search.NamedSearch(named))
 	if err != nil {
 		return gnr, err
 	}
@@ -143,7 +143,7 @@ func getNamedSearch(named string) (getNamedResponse, error) {
 	if !ok {
 		return gnr, fmt.Errorf("Invalid blob ref: %s", substRefS)
 	}
-	reader, _, err := cc.Fetch(br)
+	reader, _, err := cc.Fetch(ctxbg, br)
 	if err != nil {
 		return gnr, err
 	}

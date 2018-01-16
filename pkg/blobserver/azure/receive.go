@@ -18,6 +18,7 @@ package azure
 
 import (
 	"bytes"
+	"context"
 	"crypto/md5"
 	"io"
 
@@ -25,7 +26,7 @@ import (
 	"perkeep.org/pkg/blobserver"
 )
 
-func (sto *azureStorage) ReceiveBlob(b blob.Ref, source io.Reader) (sr blob.SizedRef, err error) {
+func (sto *azureStorage) ReceiveBlob(ctx context.Context, b blob.Ref, source io.Reader) (sr blob.SizedRef, err error) {
 	var buf bytes.Buffer
 	md5h := md5.New()
 
@@ -34,14 +35,14 @@ func (sto *azureStorage) ReceiveBlob(b blob.Ref, source io.Reader) (sr blob.Size
 		return sr, err
 	}
 
-	err = sto.azureClient.PutObject(b.String(), sto.container, md5h, size, &buf)
+	err = sto.azureClient.PutObject(ctx, b.String(), sto.container, md5h, size, &buf)
 	if err != nil {
 		return sr, err
 	}
 	if sto.cache != nil {
 		// NoHash because it's already verified if we read it
 		// without errors on the io.Copy above.
-		blobserver.ReceiveNoHash(sto.cache, b, bytes.NewReader(buf.Bytes()))
+		blobserver.ReceiveNoHash(ctx, sto.cache, b, bytes.NewReader(buf.Bytes()))
 	}
 	return blob.SizedRef{Ref: b, Size: uint32(size)}, nil
 }

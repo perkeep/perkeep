@@ -17,6 +17,7 @@ limitations under the License.
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -41,6 +42,8 @@ type shareTester struct {
 	rec        *httptest.ResponseRecorder
 	restoreLog func()
 }
+
+var ctxbg = context.Background()
 
 // newSigner returns the armored public key of the newly created signer as well,
 // so we can upload it to the index.
@@ -106,11 +109,11 @@ func (st *shareTester) slept() bool {
 }
 
 func (st *shareTester) putRaw(ref blob.Ref, data string) {
-	if _, err := blobserver.Receive(st.sto, ref, strings.NewReader(data)); err != nil {
+	if _, err := blobserver.Receive(ctxbg, st.sto, ref, strings.NewReader(data)); err != nil {
 		st.t.Fatalf("error storing %q: %v", ref, err)
 	}
 	if st.handler.idx != nil {
-		if _, err := st.handler.idx.ReceiveBlob(ref, strings.NewReader(data)); err != nil {
+		if _, err := st.handler.idx.ReceiveBlob(ctxbg, ref, strings.NewReader(data)); err != nil {
 			st.t.Fatalf("error indexing %q, with schema \n%q\n: %v", ref, data, err)
 		}
 	}
@@ -397,7 +400,7 @@ func TestHandleShareDeletion(t *testing.T) {
 	share := schema.NewShareRef(schema.ShareHaveRef, false).
 		SetShareTarget(linkRef).
 		SetShareIsTransitive(true)
-	signed, err := share.SignAt(st.signer, time.Now())
+	signed, err := share.SignAt(ctxbg, st.signer, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -409,7 +412,7 @@ func TestHandleShareDeletion(t *testing.T) {
 
 	// Delete share
 	deletion := schema.NewDeleteClaim(shareRef)
-	signedDel, err := deletion.SignAt(st.signer, time.Now())
+	signedDel, err := deletion.SignAt(ctxbg, st.signer, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}

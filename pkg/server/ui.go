@@ -17,6 +17,7 @@ limitations under the License.
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -258,7 +259,7 @@ func (ui *UIHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 		ui.search = sh
 	}
 	camliRootQuery := func(camliRoot string) (*search.SearchResult, error) {
-		return sh.Query(&search.SearchQuery{
+		return sh.Query(context.TODO(), &search.SearchQuery{
 			Limit: 1,
 			Constraint: &search.Constraint{
 				Permanode: &search.PermanodeConstraint{

@@ -312,12 +312,12 @@ func (asr StatusReceiver) noteChunkOnServer(sb blob.SizedRef) {
 	Printf("CHUNK_UPLOADED %d %s %s\n", sb.Size, sb.Ref, asr.Path)
 }
 
-func (asr StatusReceiver) ReceiveBlob(blob blob.Ref, source io.Reader) (blob.SizedRef, error) {
+func (asr StatusReceiver) ReceiveBlob(ctx context.Context, blob blob.Ref, source io.Reader) (blob.SizedRef, error) {
 	// Sniff the first 1KB of it and don't print the stats if it looks like it was just a schema
 	// blob.  We won't update the progress bar for that yet.
 	var buf [1024]byte
 	contents := buf[:0]
-	sb, err := asr.Sr.ReceiveBlob(blob, io.TeeReader(source, writeUntilSliceFull{&contents}))
+	sb, err := asr.Sr.ReceiveBlob(ctx, blob, io.TeeReader(source, writeUntilSliceFull{&contents}))
 	if err == nil && !schema.LikelySchemaBlob(contents) {
 		statBlobUploaded.Incr(1)
 		asr.noteChunkOnServer(sb)

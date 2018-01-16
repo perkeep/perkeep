@@ -17,6 +17,7 @@ limitations under the License.
 package schema
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -67,13 +68,13 @@ var _ interface {
 // schema blob.
 //
 // The caller should call Close on the FileReader when done reading.
-func NewFileReader(fetcher blob.Fetcher, fileBlobRef blob.Ref) (*FileReader, error) {
+func NewFileReader(ctx context.Context, fetcher blob.Fetcher, fileBlobRef blob.Ref) (*FileReader, error) {
 	// TODO(bradfitz): rename this into bytes reader? but for now it's still
 	//                 named FileReader, but can also read a "bytes" schema.
 	if !fileBlobRef.Valid() {
 		return nil, errors.New("schema/filereader: NewFileReader blobref invalid")
 	}
-	rc, _, err := fetcher.Fetch(fileBlobRef)
+	rc, _, err := fetcher.Fetch(ctx, fileBlobRef)
 	if err != nil {
 		return nil, fmt.Errorf("schema/filereader: fetching file schema blob: %v", err)
 	}
@@ -127,19 +128,19 @@ func (fr *FileReader) LoadAllChunks() {
 	// TODO: ask the underlying blobserver to do this if it would
 	// prefer.  Some blobservers (like blobpacked) might not want
 	// to do this at all.
-	go fr.loadAllChunksSync()
+	go fr.loadAllChunksSync(context.Background())
 }
 
-func (fr *FileReader) loadAllChunksSync() {
+func (fr *FileReader) loadAllChunksSync(ctx context.Context) {
 	gate := syncutil.NewGate(20) // num readahead chunk loads at a time
-	fr.ForeachChunk(func(_ []blob.Ref, p BytesPart) error {
+	fr.ForeachChunk(ctx, func(_ []blob.Ref, p BytesPart) error {
 		if !p.BlobRef.Valid() {
 			return nil
 		}
 		gate.Start()
 		go func(br blob.Ref) {
 			defer gate.Done()
-			rc, _, err := fr.fetcher.Fetch(br)
+			rc, _, err := fr.fetcher.Fetch(ctx, br)
 			if err == nil {
 				defer rc.Close()
 				var b [1]byte
@@ -180,7 +181,7 @@ func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 	}
 	want := len(p)
 	for len(p) > 0 && err == nil {
-		rc, err := fr.readerForOffset(offset)
+		rc, err := fr.readerForOffset(context.TODO(), offset)
 		if err != nil {
 			return n, err
 		}
@@ -215,18 +216,18 @@ func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 // If fn returns an error, iteration stops and that error is returned
 // from ForeachChunk. Other errors may be returned from ForeachChunk
 // if schema blob fetches fail.
-func (fr *FileReader) ForeachChunk(fn func(schemaPath []blob.Ref, p BytesPart) error) error {
-	return fr.foreachChunk(fn, nil)
+func (fr *FileReader) ForeachChunk(ctx context.Context, fn func(schemaPath []blob.Ref, p BytesPart) error) error {
+	return fr.foreachChunk(ctx, fn, nil)
 }
 
-func (fr *FileReader) foreachChunk(fn func([]blob.Ref, BytesPart) error, path []blob.Ref) error {
+func (fr *FileReader) foreachChunk(ctx context.Context, fn func([]blob.Ref, BytesPart) error, path []blob.Ref) error {
 	path = append(path, fr.ss.BlobRef)
 	for _, bp := range fr.ss.Parts {
 		if bp.BytesRef.Valid() && bp.BlobRef.Valid() {
 			return fmt.Errorf("part in %v illegally contained both a blobRef and bytesRef", fr.ss.BlobRef)
 		}
 		if bp.BytesRef.Valid() {
-			ss, err := fr.getSuperset(bp.BytesRef)
+			ss, err := fr.getSuperset(ctx, bp.BytesRef)
 			if err != nil {
 				return err
 			}
@@ -235,7 +236,7 @@ func (fr *FileReader) foreachChunk(fn func([]blob.Ref, BytesPart) error, path []
 				return err
 			}
 			subfr.parent = fr
-			if err := subfr.foreachChunk(fn, path); err != nil {
+			if err := subfr.foreachChunk(ctx, fn, path); err != nil {
 				return err
 			}
 		} else {
@@ -254,9 +255,9 @@ func (fr *FileReader) rootReader() *FileReader {
 	return fr
 }
 
-func (fr *FileReader) getBlob(br blob.Ref) (*blob.Blob, error) {
+func (fr *FileReader) getBlob(ctx context.Context, br blob.Ref) (*blob.Blob, error) {
 	if root := fr.rootReader(); root != fr {
-		return root.getBlob(br)
+		return root.getBlob(ctx, br)
 	}
 	fr.blobmu.Lock()
 	last := fr.lastBlob
@@ -264,7 +265,7 @@ func (fr *FileReader) getBlob(br blob.Ref) (*blob.Blob, error) {
 	if last != nil && last.Ref() == br {
 		return last, nil
 	}
-	blob, err := blob.FromFetcher(fr.fetcher, br)
+	blob, err := blob.FromFetcher(ctx, fr.fetcher, br)
 	if err != nil {
 		return nil, err
 	}
@@ -275,9 +276,9 @@ func (fr *FileReader) getBlob(br blob.Ref) (*blob.Blob, error) {
 	return blob, nil
 }
 
-func (fr *FileReader) getSuperset(br blob.Ref) (*superset, error) {
+func (fr *FileReader) getSuperset(ctx context.Context, br blob.Ref) (*superset, error) {
 	if root := fr.rootReader(); root != fr {
-		return root.getSuperset(br)
+		return root.getSuperset(ctx, br)
 	}
 	brStr := br.String()
 	ssi, err := fr.sfg.Do(brStr, func() (interface{}, error) {
@@ -287,7 +288,7 @@ func (fr *FileReader) getSuperset(br blob.Ref) (*superset, error) {
 		if ok {
 			return ss, nil
 		}
-		rc, _, err := fr.fetcher.Fetch(br)
+		rc, _, err := fr.fetcher.Fetch(ctx, br)
 		if err != nil {
 			return nil, fmt.Errorf("schema/filereader: fetching file schema blob: %v", err)
 		}
@@ -313,7 +314,8 @@ var debug = env.IsDebug()
 // readerForOffset returns a ReadCloser that reads some number of bytes and then EOF
 // from the provided offset.  Seeing EOF doesn't mean the end of the whole file; just the
 // chunk at that offset.  The caller must close the ReadCloser when done reading.
-func (fr *FileReader) readerForOffset(off int64) (io.ReadCloser, error) {
+// The provided context is not used after the method returns.
+func (fr *FileReader) readerForOffset(ctx context.Context, off int64) (io.ReadCloser, error) {
 	if debug {
 		log.Printf("(%p) readerForOffset %d + %d = %d", fr, fr.rootOff, off, fr.rootOff+off)
 	}
@@ -345,14 +347,24 @@ func (fr *FileReader) readerForOffset(off int64) (io.ReadCloser, error) {
 			io.LimitReader(zeroReader{},
 				int64(p0.Size-uint64(offRemain)))), nil
 	case p0.BlobRef.Valid():
-		blob, err := fr.getBlob(p0.BlobRef)
+		blob, err := fr.getBlob(ctx, p0.BlobRef)
 		if err != nil {
 			return nil, err
 		}
-		rsc = blob.Open()
+		byteReader, err := blob.ReadAll(ctx)
+		if err != nil {
+			return nil, err
+		}
+		rsc = struct {
+			io.ReadSeeker
+			io.Closer
+		}{
+			byteReader,
+			ioutil.NopCloser(nil),
+		}
 	case p0.BytesRef.Valid():
 		var ss *superset
-		ss, err = fr.getSuperset(p0.BytesRef)
+		ss, err = fr.getSuperset(ctx, p0.BytesRef)
 		if err != nil {
 			return nil, err
 		}

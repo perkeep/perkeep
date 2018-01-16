@@ -158,7 +158,7 @@ var statGate = syncutil.NewGate(20) // arbitrary
 
 func (s *storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (sb blob.SizedRef, err error) {
-		plainSize, _, err := s.fetchMeta(br)
+		plainSize, _, err := s.fetchMeta(ctx, br)
 		switch err {
 		case nil:
 			return blob.SizedRef{Ref: br, Size: plainSize}, nil
@@ -170,10 +170,10 @@ func (s *storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.
 	})
 }
 
-func (s *storage) ReceiveBlob(plainBR blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
+func (s *storage) ReceiveBlob(ctx context.Context, plainBR blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
 	// Aggressively check for duplicates since there's nothing else to
 	// ensure we don't store blobs twice with different nonces.
-	if plainSize, _, err := s.fetchMeta(plainBR); err == nil {
+	if plainSize, _, err := s.fetchMeta(ctx, plainBR); err == nil {
 		log.Println("encrypt: duplicated blob received", plainBR)
 		return blob.SizedRef{Ref: plainBR, Size: uint32(plainSize)}, nil
 	}
@@ -191,13 +191,13 @@ func (s *storage) ReceiveBlob(plainBR blob.Ref, source io.Reader) (sb blob.Sized
 	enc := s.encryptBlob(nil, buf.Bytes())
 	encBR := blob.RefFromBytes(enc)
 
-	_, err = blobserver.ReceiveNoHash(s.blobs, encBR, bytes.NewReader(enc))
+	_, err = blobserver.ReceiveNoHash(ctx, s.blobs, encBR, bytes.NewReader(enc))
 	if err != nil {
 		return sb, fmt.Errorf("encrypt: error writing encrypted blob %v (plaintext %v): %v", encBR, plainBR, err)
 	}
 
 	metaBytes := s.makeSingleMetaBlob(plainBR, encBR, uint32(plainSize))
-	metaSB, err := blobserver.ReceiveNoHash(s.meta, blob.RefFromBytes(metaBytes), bytes.NewReader(metaBytes))
+	metaSB, err := blobserver.ReceiveNoHash(ctx, s.meta, blob.RefFromBytes(metaBytes), bytes.NewReader(metaBytes))
 	if err != nil {
 		return sb, fmt.Errorf("encrypt: error writing encrypted meta for plaintext %v (encrypted blob %v): %v", plainBR, encBR, err)
 	}
@@ -211,12 +211,12 @@ func (s *storage) ReceiveBlob(plainBR blob.Ref, source io.Reader) (sb blob.Sized
 	return blob.SizedRef{Ref: plainBR, Size: uint32(plainSize)}, nil
 }
 
-func (s *storage) Fetch(plainBR blob.Ref) (io.ReadCloser, uint32, error) {
-	plainSize, encBR, err := s.fetchMeta(plainBR)
+func (s *storage) Fetch(ctx context.Context, plainBR blob.Ref) (io.ReadCloser, uint32, error) {
+	plainSize, encBR, err := s.fetchMeta(ctx, plainBR)
 	if err != nil {
 		return nil, 0, err
 	}
-	encData, _, err := s.blobs.Fetch(encBR)
+	encData, _, err := s.blobs.Fetch(ctx, encBR)
 	if err != nil {
 		return nil, 0, fmt.Errorf("encrypt: error fetching plaintext %s's encrypted %v blob: %v", plainBR, encBR, err)
 	}

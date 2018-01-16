@@ -18,6 +18,7 @@ package main
 
 import (
 	"archive/zip"
+	"context"
 	"crypto/sha1"
 	"fmt"
 	"io"
@@ -60,7 +61,7 @@ func (s sortedFiles) Len() int           { return len(s) }
 func (s sortedFiles) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 func (zh *zipHandler) describeMembers(br blob.Ref) (*search.DescribeResponse, error) {
-	res, err := zh.cl.Query(&search.SearchQuery{
+	res, err := zh.cl.Query(context.TODO(), &search.SearchQuery{
 		Constraint: &search.Constraint{
 			BlobRefPrefix: br.String(),
 			CamliType:     "permanode",
@@ -157,11 +158,11 @@ func (zh *zipHandler) blobList(dirPath string, dirBlob blob.Ref) ([]*blobFile, e
 // It only traverses permanode directories.
 func (zh *zipHandler) blobsFromDir(dirPath string, dirBlob blob.Ref) ([]*blobFile, error) {
 	var list []*blobFile
-	dr, err := schema.NewDirReader(zh.fetcher, dirBlob)
+	dr, err := schema.NewDirReader(context.TODO(), zh.fetcher, dirBlob)
 	if err != nil {
 		return nil, fmt.Errorf("Could not read dir blob %v: %v", dirBlob, err)
 	}
-	ent, err := dr.Readdir(-1)
+	ent, err := dr.Readdir(context.TODO(), -1)
 	if err != nil {
 		return nil, fmt.Errorf("Could not read dir entries: %v", err)
 	}
@@ -259,7 +260,7 @@ func (zh *zipHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	h.Set("Etag", fmt.Sprintf(`"%x"`, etag.Sum(nil)))
 
 	for _, file := range blobFiles {
-		fr, err := schema.NewFileReader(zh.fetcher, file.blobRef)
+		fr, err := schema.NewFileReader(context.TODO(), zh.fetcher, file.blobRef)
 		if err != nil {
 			log.Printf("Can not add %v in zip, not a file: %v", file.blobRef, err)
 			http.Error(rw, "Server error", http.StatusInternalServerError)

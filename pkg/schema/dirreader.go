@@ -17,6 +17,7 @@ limitations under the License.
 package schema
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -39,9 +40,9 @@ type DirReader struct {
 
 // NewDirReader creates a new directory reader and prepares to
 // fetch the static-set entries
-func NewDirReader(fetcher blob.Fetcher, dirBlobRef blob.Ref) (*DirReader, error) {
+func NewDirReader(ctx context.Context, fetcher blob.Fetcher, dirBlobRef blob.Ref) (*DirReader, error) {
 	ss := new(superset)
-	err := ss.setFromBlobRef(fetcher, dirBlobRef)
+	err := ss.setFromBlobRef(ctx, fetcher, dirBlobRef)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +57,7 @@ func NewDirReader(fetcher blob.Fetcher, dirBlobRef blob.Ref) (*DirReader, error)
 	return dr, nil
 }
 
-func (b *Blob) NewDirReader(fetcher blob.Fetcher) (*DirReader, error) {
+func (b *Blob) NewDirReader(ctx context.Context, fetcher blob.Fetcher) (*DirReader, error) {
 	return b.ss.NewDirReader(fetcher)
 }
 
@@ -67,12 +68,12 @@ func (ss *superset) NewDirReader(fetcher blob.Fetcher) (*DirReader, error) {
 	return &DirReader{fetcher: fetcher, ss: ss}, nil
 }
 
-func (ss *superset) setFromBlobRef(fetcher blob.Fetcher, blobRef blob.Ref) error {
+func (ss *superset) setFromBlobRef(ctx context.Context, fetcher blob.Fetcher, blobRef blob.Ref) error {
 	if !blobRef.Valid() {
 		return errors.New("schema/dirreader: blobref invalid")
 	}
 	ss.BlobRef = blobRef
-	rc, _, err := fetcher.Fetch(blobRef)
+	rc, _, err := fetcher.Fetch(ctx, blobRef)
 	if err != nil {
 		return fmt.Errorf("schema/dirreader: fetching schema blob %s: %v", blobRef, err)
 	}
@@ -84,7 +85,7 @@ func (ss *superset) setFromBlobRef(fetcher blob.Fetcher, blobRef blob.Ref) error
 }
 
 // StaticSet returns the whole of the static set members of that directory
-func (dr *DirReader) StaticSet() ([]blob.Ref, error) {
+func (dr *DirReader) StaticSet(ctx context.Context) ([]blob.Ref, error) {
 	if dr.staticSet != nil {
 		return dr.staticSet, nil
 	}
@@ -92,7 +93,7 @@ func (dr *DirReader) StaticSet() ([]blob.Ref, error) {
 	if !staticSetBlobref.Valid() {
 		return nil, errors.New("schema/dirreader: Invalid blobref")
 	}
-	rsc, _, err := dr.fetcher.Fetch(staticSetBlobref)
+	rsc, _, err := dr.fetcher.Fetch(ctx, staticSetBlobref)
 	if err != nil {
 		return nil, fmt.Errorf("schema/dirreader: fetching schema blob %s: %v", staticSetBlobref, err)
 	}
@@ -114,8 +115,8 @@ func (dr *DirReader) StaticSet() ([]blob.Ref, error) {
 }
 
 // Readdir implements the Directory interface.
-func (dr *DirReader) Readdir(n int) (entries []DirectoryEntry, err error) {
-	sts, err := dr.StaticSet()
+func (dr *DirReader) Readdir(ctx context.Context, n int) (entries []DirectoryEntry, err error) {
+	sts, err := dr.StaticSet(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("schema/dirreader: can't get StaticSet: %v", err)
 	}
@@ -152,7 +153,7 @@ func (dr *DirReader) Readdir(n int) (entries []DirectoryEntry, err error) {
 		gate.Start()
 		go func(entRef blob.Ref) {
 			defer gate.Done()
-			entry, err := NewDirectoryEntryFromBlobRef(dr.fetcher, entRef)
+			entry, err := NewDirectoryEntryFromBlobRef(ctx, dr.fetcher, entRef)
 			c <- res{entry, err}
 		}(entRef)
 	}

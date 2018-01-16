@@ -20,6 +20,7 @@ package s3 // import "perkeep.org/internal/amazon/s3"
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/xml"
@@ -85,17 +86,17 @@ func (c *Client) keyURL(bucket, key string) string {
 	return c.bucketURL(bucket) + key
 }
 
-func newReq(url_ string) *http.Request {
+func newReq(ctx context.Context, url_ string) *http.Request {
 	req, err := http.NewRequest("GET", url_, nil)
 	if err != nil {
 		panic(fmt.Sprintf("s3 client; invalid URL: %v", err))
 	}
 	req.Header.Set("User-Agent", "go-camlistore-s3")
-	return req
+	return req.WithContext(ctx)
 }
 
-func (c *Client) Buckets() ([]*Bucket, error) {
-	req := newReq(c.scheme() + c.hostname() + "/")
+func (c *Client) Buckets(ctx context.Context) ([]*Bucket, error) {
+	req := newReq(ctx, c.scheme()+c.hostname()+"/")
 	c.Auth.SignRequest(req)
 	res, err := c.transport().RoundTrip(req)
 	if err != nil {
@@ -122,8 +123,8 @@ func parseListAllMyBuckets(r io.Reader) ([]*Bucket, error) {
 }
 
 // Returns 0, os.ErrNotExist if not on S3, otherwise reterr is real.
-func (c *Client) Stat(key, bucket string) (size int64, reterr error) {
-	req := newReq(c.keyURL(bucket, key))
+func (c *Client) Stat(ctx context.Context, key, bucket string) (size int64, reterr error) {
+	req := newReq(ctx, c.keyURL(bucket, key))
 	req.Method = "HEAD"
 	c.Auth.SignRequest(req)
 	res, err := c.transport().RoundTrip(req)
@@ -142,12 +143,12 @@ func (c *Client) Stat(key, bucket string) (size int64, reterr error) {
 	return 0, fmt.Errorf("s3: Unexpected status code %d statting object %v", res.StatusCode, key)
 }
 
-func (c *Client) PutObject(key, bucket string, md5 hash.Hash, size int64, body io.Reader) error {
+func (c *Client) PutObject(ctx context.Context, key, bucket string, md5 hash.Hash, size int64, body io.Reader) error {
 	if c.PutGate != nil {
 		c.PutGate.Start()
 		defer c.PutGate.Done()
 	}
-	req := newReq(c.keyURL(bucket, key))
+	req := newReq(ctx, c.keyURL(bucket, key))
 	req.Method = "PUT"
 	req.ContentLength = size
 	if md5 != nil {
@@ -188,12 +189,12 @@ type listBucketResults struct {
 }
 
 // BucketLocation returns the S3 hostname to be used with the given bucket.
-func (c *Client) BucketLocation(bucket string) (location string, err error) {
+func (c *Client) BucketLocation(ctx context.Context, bucket string) (location string, err error) {
 	if !strings.HasSuffix(c.hostname(), "amazonaws.com") {
 		return "", errors.New("BucketLocation not implemented for non-Amazon S3 hostnames")
 	}
 	url_ := fmt.Sprintf("https://s3.amazonaws.com/%s/?location", url.QueryEscape(bucket))
-	req := newReq(url_)
+	req := newReq(ctx, url_)
 	c.Auth.SignRequest(req)
 	res, err := c.transport().RoundTrip(req)
 	if err != nil {
@@ -214,7 +215,7 @@ func (c *Client) BucketLocation(bucket string) (location string, err error) {
 // 'marker' value). If the length of the returned items is equal to
 // maxKeys, there is no indication whether or not the returned list is
 // truncated.
-func (c *Client) ListBucket(bucket string, startAt string, maxKeys int) (items []*Item, err error) {
+func (c *Client) ListBucket(ctx context.Context, bucket string, startAt string, maxKeys int) (items []*Item, err error) {
 	if maxKeys < 0 {
 		return nil, errors.New("invalid negative maxKeys")
 	}
@@ -235,7 +236,7 @@ func (c *Client) ListBucket(bucket string, startAt string, maxKeys int) (items [
 		const maxTries = 5
 		for try := 1; try <= maxTries; try++ {
 			time.Sleep(time.Duration(try-1) * 100 * time.Millisecond)
-			req := newReq(url_)
+			req := newReq(ctx, url_)
 			c.Auth.SignRequest(req)
 			res, err := c.transport().RoundTrip(req)
 			if err != nil {
@@ -297,8 +298,8 @@ func (c *Client) ListBucket(bucket string, startAt string, maxKeys int) (items [
 	return items, nil
 }
 
-func (c *Client) Get(bucket, key string) (body io.ReadCloser, size int64, err error) {
-	req := newReq(c.keyURL(bucket, key))
+func (c *Client) Get(ctx context.Context, bucket, key string) (body io.ReadCloser, size int64, err error) {
+	req := newReq(ctx, c.keyURL(bucket, key))
 	c.Auth.SignRequest(req)
 	res, err := c.transport().RoundTrip(req)
 	if err != nil {
@@ -319,12 +320,12 @@ func (c *Client) Get(bucket, key string) (body io.ReadCloser, size int64, err er
 // GetPartial fetches part of the s3 key object in bucket.
 // If length is negative, the rest of the object is returned.
 // The caller must close rc.
-func (c *Client) GetPartial(bucket, key string, offset, length int64) (rc io.ReadCloser, err error) {
+func (c *Client) GetPartial(ctx context.Context, bucket, key string, offset, length int64) (rc io.ReadCloser, err error) {
 	if offset < 0 {
 		return nil, errors.New("invalid negative offset")
 	}
 
-	req := newReq(c.keyURL(bucket, key))
+	req := newReq(ctx, c.keyURL(bucket, key))
 	if length >= 0 {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", offset, offset+length-1))
 	} else {
@@ -351,8 +352,8 @@ func (c *Client) GetPartial(bucket, key string, offset, length int64) (rc io.Rea
 	}
 }
 
-func (c *Client) Delete(bucket, key string) error {
-	req := newReq(c.keyURL(bucket, key))
+func (c *Client) Delete(ctx context.Context, bucket, key string) error {
+	req := newReq(ctx, c.keyURL(bucket, key))
 	req.Method = "DELETE"
 	c.Auth.SignRequest(req)
 	res, err := c.transport().RoundTrip(req)

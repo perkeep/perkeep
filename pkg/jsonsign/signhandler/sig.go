@@ -19,6 +19,7 @@ limitations under the License.
 package signhandler // import "perkeep.org/pkg/jsonsign/signhandler"
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -101,9 +102,11 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 
 	h.pubKey, err = jsonsign.ArmoredPublicKey(h.entity)
 
+	ctx := context.Background() // TODO: 15 second or global-configurable start-up limit?
+
 	ms := &memory.Storage{}
 	h.pubKeyBlobRef = blob.RefFromString(h.pubKey)
-	if _, err := ms.ReceiveBlob(h.pubKeyBlobRef, strings.NewReader(h.pubKey)); err != nil {
+	if _, err := ms.ReceiveBlob(ctx, h.pubKeyBlobRef, strings.NewReader(h.pubKey)); err != nil {
 		return nil, fmt.Errorf("could not store pub key blob: %v", err)
 	}
 	h.pubKeyFetcher = ms
@@ -130,7 +133,7 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 
 // UploadPublicKey writes the public key to the destination blobserver
 // defined for the handler, if needed.
-func (h *Handler) UploadPublicKey() error {
+func (h *Handler) UploadPublicKey(ctx context.Context) error {
 	h.pubKeyUploadMu.RLock()
 	if h.pubKeyUploaded {
 		h.pubKeyUploadMu.RUnlock()
@@ -145,12 +148,12 @@ func (h *Handler) UploadPublicKey() error {
 	if h.pubKeyUploaded {
 		return nil
 	}
-	_, err := blobserver.StatBlob(sto, h.pubKeyBlobRef)
+	_, err := blobserver.StatBlob(ctx, sto, h.pubKeyBlobRef)
 	if err == nil {
 		h.pubKeyUploaded = true
 		return nil
 	}
-	_, err = blobserver.Receive(sto, h.pubKeyBlobRef, strings.NewReader(h.pubKey))
+	_, err = blobserver.Receive(ctx, sto, h.pubKeyBlobRef, strings.NewReader(h.pubKey))
 	h.pubKeyUploaded = (err == nil)
 	return err
 }
@@ -217,13 +220,14 @@ func (h *Handler) handleVerify(rw http.ResponseWriter, req *http.Request) {
 
 	var res camtypes.VerifyResponse
 	vreq := jsonsign.NewVerificationRequest(sjson, fetcher)
-	if vreq.Verify() {
+	_, err := vreq.Verify(req.Context())
+	if err != nil {
+		res.SignatureValid = false
+		res.ErrorMessage = err.Error()
+	} else {
 		res.SignatureValid = true
 		res.SignerKeyId = vreq.SignerKeyId
 		res.VerifiedData = vreq.PayloadMap
-	} else {
-		res.SignatureValid = false
-		res.ErrorMessage = vreq.Err.Error()
 	}
 
 	rw.WriteHeader(http.StatusOK) // no HTTP response code fun, error info in JSON
@@ -255,19 +259,20 @@ func (h *Handler) handleSign(rw http.ResponseWriter, req *http.Request) {
 		ServerMode:        true,
 		SecretKeyringPath: h.secretRing,
 	}
-	signedJSON, err := sreq.Sign()
+	ctx := req.Context() // TODO: restrict time to 30 seconds?
+	signedJSON, err := sreq.Sign(ctx)
 	if err != nil {
 		// TODO: some aren't really a "bad request"
 		badReq(fmt.Sprintf("%v", err))
 		return
 	}
-	if err := h.UploadPublicKey(); err != nil {
+	if err := h.UploadPublicKey(ctx); err != nil {
 		log.Printf("signing handler failed to upload public key: %v", err)
 	}
 	rw.Write([]byte(signedJSON))
 }
 
-func (h *Handler) Sign(bb *schema.Builder) (string, error) {
+func (h *Handler) Sign(ctx context.Context, bb *schema.Builder) (string, error) {
 	bb.SetSigner(h.pubKeyBlobRef)
 	unsigned, err := bb.JSON()
 	if err != nil {
@@ -287,8 +292,8 @@ func (h *Handler) Sign(bb *schema.Builder) (string, error) {
 	} else {
 		sreq.SignatureTime = claimTime
 	}
-	if err := h.UploadPublicKey(); err != nil {
+	if err := h.UploadPublicKey(ctx); err != nil {
 		log.Printf("signing handler failed to upload public key: %v", err)
 	}
-	return sreq.Sign()
+	return sreq.Sign(ctx)
 }

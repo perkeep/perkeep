@@ -26,7 +26,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -202,16 +201,15 @@ func (s *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef,
 	return nil
 }
 
-func (s *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, error) {
+func (s *Storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader) (blob.SizedRef, error) {
 	var buf bytes.Buffer
 	size, err := io.Copy(&buf, source)
 	if err != nil {
 		return blob.SizedRef{}, err
 	}
 
-	// TODO(mpl): use context from caller, once one is available (issue 733)
-	w := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).NewWriter(context.TODO())
-	if _, err := io.Copy(w, ioutil.NopCloser(bytes.NewReader(buf.Bytes()))); err != nil {
+	w := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).NewWriter(ctx)
+	if _, err := io.Copy(w, bytes.NewReader(buf.Bytes())); err != nil {
 		return blob.SizedRef{}, err
 	}
 	if err := w.Close(); err != nil {
@@ -221,7 +219,7 @@ func (s *Storage) ReceiveBlob(br blob.Ref, source io.Reader) (blob.SizedRef, err
 	if s.cache != nil {
 		// NoHash because it's already verified if we read it
 		// without errors on the io.Copy above.
-		blobserver.ReceiveNoHash(s.cache, br, bytes.NewReader(buf.Bytes()))
+		blobserver.ReceiveNoHash(ctx, s.cache, br, bytes.NewReader(buf.Bytes()))
 	}
 	return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
 }
@@ -246,14 +244,13 @@ func (s *Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.
 	})
 }
 
-func (s *Storage) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
+func (s *Storage) Fetch(ctx context.Context, br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
 	if s.cache != nil {
-		if rc, size, err = s.cache.Fetch(br); err == nil {
+		if rc, size, err = s.cache.Fetch(ctx, br); err == nil {
 			return
 		}
 	}
-	// TODO(mpl): use context from caller, once one is available (issue 733)
-	r, err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).NewReader(context.TODO())
+	r, err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).NewReader(ctx)
 	if err == storage.ErrObjectNotExist {
 		return nil, 0, os.ErrNotExist
 	}
@@ -272,12 +269,11 @@ func (s *Storage) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) 
 	return r, size, nil
 }
 
-func (s *Storage) SubFetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, err error) {
+func (s *Storage) SubFetch(ctx context.Context, br blob.Ref, offset, length int64) (rc io.ReadCloser, err error) {
 	if offset < 0 || length < 0 {
 		return nil, blob.ErrNegativeSubFetch
 	}
-	// TODO(mpl): use context from caller, once one is available (issue 733)
-	ctx := context.WithValue(context.TODO(), ctxutil.HTTPClient, s.baseHTTPClient)
+	ctx = context.WithValue(ctx, ctxutil.HTTPClient, s.baseHTTPClient)
 	rc, err = gcsutil.GetPartialObject(ctx, gcsutil.Object{Bucket: s.bucket, Key: s.dirPrefix + br.String()}, offset, length)
 	if err == gcsutil.ErrInvalidRange {
 		return nil, blob.ErrOutOfRangeOffsetSubFetch
@@ -289,11 +285,11 @@ func (s *Storage) SubFetch(br blob.Ref, offset, length int64) (rc io.ReadCloser,
 }
 
 func (s *Storage) RemoveBlobs(blobs []blob.Ref) error {
+	// TODO(mpl): use context from caller, once one is available (issue 733)
+	ctx := context.TODO()
 	if s.cache != nil {
 		s.cache.RemoveBlobs(blobs)
 	}
-	// TODO(mpl): use context from caller, once one is available (issue 733)
-	ctx := context.TODO()
 	gate := syncutil.NewGate(50) // arbitrary
 	var grp syncutil.Group
 	for i := range blobs {

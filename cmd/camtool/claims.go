@@ -62,7 +62,7 @@ func (c *claimsCmd) RunCommand(args []string) error {
 		return cmdmain.UsageError("invalid blobref")
 	}
 	cl := newClient(c.server)
-	res, err := cl.GetClaims(&search.ClaimsRequest{
+	res, err := cl.GetClaims(ctxbg, &search.ClaimsRequest{
 		Permanode:  br,
 		AttrFilter: c.attr,
 	})

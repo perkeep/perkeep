@@ -180,7 +180,7 @@ func (c *fileCmd) RunCommand(args []string) error {
 		if len(args) != 1 {
 			return fmt.Errorf("The --permanode flag can only be used with exactly one file or directory argument")
 		}
-		permaNode, err = up.UploadNewPermanode()
+		permaNode, err = up.UploadNewPermanode(ctxbg)
 		if err != nil {
 			return fmt.Errorf("Uploading permanode: %v", err)
 		}
@@ -255,7 +255,7 @@ func (c *fileCmd) RunCommand(args []string) error {
 			t.Start()
 			lastPut, err = t.Wait()
 		} else {
-			lastPut, err = up.UploadFile(filename)
+			lastPut, err = up.UploadFile(ctxbg, filename)
 			if err == nil && c.deleteAfterUpload {
 				if err := os.Remove(filename); err != nil {
 					log.Printf("Error deleting %v: %v", filename, err)
@@ -270,19 +270,19 @@ func (c *fileCmd) RunCommand(args []string) error {
 	}
 
 	if permaNode != nil && lastPut != nil {
-		put, err := up.UploadAndSignBlob(schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", lastPut.BlobRef.String()))
+		put, err := up.UploadAndSignBlob(ctxbg, schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", lastPut.BlobRef.String()))
 		if handleResult("claim-permanode-content", put, err) != nil {
 			return err
 		}
 		if c.title != "" {
-			put, err := up.UploadAndSignBlob(schema.NewSetAttributeClaim(permaNode.BlobRef, "title", c.title))
+			put, err := up.UploadAndSignBlob(ctxbg, schema.NewSetAttributeClaim(permaNode.BlobRef, "title", c.title))
 			handleResult("claim-permanode-title", put, err)
 		}
 		if c.tag != "" {
 			tags := strings.Split(c.tag, ",")
 			for _, tag := range tags {
 				m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
-				put, err := up.UploadAndSignBlob(m)
+				put, err := up.UploadAndSignBlob(ctxbg, m)
 				handleResult("claim-permanode-tag", put, err)
 			}
 		}
@@ -364,11 +364,11 @@ func (n *node) directoryStaticSet() (*schema.StaticSet, error) {
 	return ss, nil
 }
 
-func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
+func (up *Uploader) uploadNode(ctx context.Context, n *node) (*client.PutResult, error) {
 	fi := n.fi
 	mode := fi.Mode()
 	if mode&os.ModeType == 0 {
-		return up.uploadNodeRegularFile(n)
+		return up.uploadNodeRegularFile(ctx, n)
 	}
 	bb := schema.NewCommonFileMap(n.fullPath, fi)
 	switch {
@@ -393,14 +393,14 @@ func (up *Uploader) uploadNode(n *node) (*client.PutResult, error) {
 		if err != nil {
 			return nil, err
 		}
-		sspr, err := up.UploadBlob(ss)
+		sspr, err := up.UploadBlob(ctxbg, ss)
 		if err != nil {
 			return nil, err
 		}
 		bb.PopulateDirectoryMap(sspr.BlobRef)
 	}
 
-	mappr, err := up.UploadBlob(bb)
+	mappr, err := up.UploadBlob(ctxbg, bb)
 	if err == nil {
 		if !mappr.Skipped {
 			cmdmain.Logf("Uploaded %q, %s for %s", bb.Type(), mappr.BlobRef, n.fullPath)
@@ -484,7 +484,7 @@ var noDupSearch, _ = strconv.ParseBool(os.Getenv("CAMLI_NO_FILE_DUP_SEARCH"))
 // its blobref is returned. If there's any problem, or a dup doesn't
 // exist, ok is false.
 // If required, Vivify is also done here.
-func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *schema.Builder, sum string) (pr *client.PutResult, ok bool) {
+func (up *Uploader) fileMapFromDuplicate(ctx context.Context, bs blobserver.StatReceiver, fileMap *schema.Builder, sum string) (pr *client.PutResult, ok bool) {
 	if noDupSearch {
 		return
 	}
@@ -492,7 +492,7 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *sc
 	if err != nil {
 		return
 	}
-	dupFileRef, err := up.Client.SearchExistingFileSchema(blob.MustParse(sum))
+	dupFileRef, err := up.Client.SearchExistingFileSchema(ctx, blob.MustParse(sum))
 	if err != nil {
 		log.Printf("Warning: error searching for already-uploaded copy of %s: %v", sum, err)
 		return nil, false
@@ -501,7 +501,7 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *sc
 		return nil, false
 	}
 	cmdmain.Logf("Found dup of contents %s in file schema %s", sum, dupFileRef)
-	dupMap, err := up.Client.FetchSchemaBlob(dupFileRef)
+	dupMap, err := up.Client.FetchSchemaBlob(ctx, dupFileRef)
 	if err != nil {
 		log.Printf("Warning: error fetching %v: %v", dupFileRef, err)
 		return nil, false
@@ -521,7 +521,7 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *sc
 		// Unchanged (same filename, modtime, JSON serialization, etc)
 		return &client.PutResult{BlobRef: dupFileRef, Size: uint32(len(json)), Skipped: true}, true
 	}
-	pr, err = up.Upload(uh)
+	pr, err = up.Upload(ctx, uh)
 	if err != nil {
 		log.Printf("Warning: error uploading file map after finding server dup of %v: %v", sum, err)
 		return nil, false
@@ -529,7 +529,7 @@ func (up *Uploader) fileMapFromDuplicate(bs blobserver.StatReceiver, fileMap *sc
 	return pr, true
 }
 
-func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
+func (up *Uploader) uploadNodeRegularFile(ctx context.Context, n *node) (*client.PutResult, error) {
 	var filebb *schema.Builder
 	if up.fileOpts.contentsOnly {
 		filebb = schema.NewFileMap("")
@@ -574,7 +574,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		if err == nil {
 			sum = sumRef.String()
 			ok := false
-			pr, ok = up.fileMapFromDuplicate(up.statReceiver(n), filebb, sum)
+			pr, ok = up.fileMapFromDuplicate(ctx, up.statReceiver(n), filebb, sum)
 			if ok {
 				br = pr.BlobRef
 				android.NoteFileUploaded(n.fullPath, !pr.Skipped)
@@ -589,7 +589,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 
 	if up.fileOpts.wantVivify() {
 		// If vivify wasn't already done in fileMapFromDuplicate.
-		err := schema.WriteFileChunks(up.noStatReceiver(up.statReceiver(n)), filebb, fileContents)
+		err := schema.WriteFileChunks(ctx, up.noStatReceiver(up.statReceiver(n)), filebb, fileContents)
 		if err != nil {
 			return nil, err
 		}
@@ -604,7 +604,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 			Contents: strings.NewReader(json),
 			Vivify:   true,
 		}
-		pr, err = up.Upload(h)
+		pr, err = up.Upload(ctx, h)
 		if err != nil {
 			return nil, err
 		}
@@ -619,7 +619,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		if sum == "" && up.fileOpts.wantFilePermanode() {
 			fileContents = &trackDigestReader{r: fileContents}
 		}
-		br, err = schema.WriteFileMap(up.noStatReceiver(up.statReceiver(n)), filebb, fileContents)
+		br, err = schema.WriteFileMap(ctx, up.noStatReceiver(up.statReceiver(n)), filebb, fileContents)
 		if err != nil {
 			return nil, err
 		}
@@ -644,7 +644,7 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 		if !ok {
 			return nil, fmt.Errorf("couldn't get modtime for file %v", n.fullPath)
 		}
-		err = up.uploadFilePermanode(sum, br, claimTime)
+		err = up.uploadFilePermanode(ctx, sum, br, claimTime)
 		if err != nil {
 			return nil, fmt.Errorf("Error uploading permanode for node %v: %v", n, err)
 		}
@@ -663,12 +663,12 @@ func (up *Uploader) uploadNodeRegularFile(n *node) (*client.PutResult, error) {
 // uploadFilePermanode creates and uploads the planned permanode (with sum as a
 // fixed key) associated with the file blobref fileRef.
 // It also sets the optional tags for this permanode.
-func (up *Uploader) uploadFilePermanode(sum string, fileRef blob.Ref, claimTime time.Time) error {
+func (up *Uploader) uploadFilePermanode(ctx context.Context, sum string, fileRef blob.Ref, claimTime time.Time) error {
 	// Use a fixed time value for signing; not using modtime
 	// so two identical files don't have different modtimes?
 	// TODO(bradfitz): consider this more?
 	permaNodeSigTime := time.Unix(0, 0)
-	permaNode, err := up.UploadPlannedPermanode(sum, permaNodeSigTime)
+	permaNode, err := up.UploadPlannedPermanode(ctx, sum, permaNodeSigTime)
 	if err != nil {
 		return fmt.Errorf("Error uploading planned permanode: %v", err)
 	}
@@ -680,11 +680,11 @@ func (up *Uploader) uploadFilePermanode(sum string, fileRef blob.Ref, claimTime 
 	if err != nil {
 		return err
 	}
-	signed, err := contentAttr.SignAt(signer, claimTime)
+	signed, err := contentAttr.SignAt(ctx, signer, claimTime)
 	if err != nil {
 		return fmt.Errorf("Failed to sign content claim: %v", err)
 	}
-	put, err := up.uploadString(signed)
+	put, err := up.uploadString(ctx, signed)
 	if err != nil {
 		return fmt.Errorf("Error uploading permanode's attribute: %v", err)
 	}
@@ -696,12 +696,12 @@ func (up *Uploader) uploadFilePermanode(sum string, fileRef blob.Ref, claimTime 
 			go func(tag string) {
 				m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
 				m.SetClaimDate(claimTime)
-				signed, err := m.SignAt(signer, claimTime)
+				signed, err := m.SignAt(ctx, signer, claimTime)
 				if err != nil {
 					errch <- fmt.Errorf("Failed to sign tag claim: %v", err)
 					return
 				}
-				put, err := up.uploadString(signed)
+				put, err := up.uploadString(ctx, signed)
 				if err != nil {
 					errch <- fmt.Errorf("Error uploading permanode's tag attribute %v: %v", tag, err)
 					return
@@ -723,7 +723,7 @@ func (up *Uploader) uploadFilePermanode(sum string, fileRef blob.Ref, claimTime 
 	return nil
 }
 
-func (up *Uploader) UploadFile(filename string) (*client.PutResult, error) {
+func (up *Uploader) UploadFile(ctx context.Context, filename string) (*client.PutResult, error) {
 	fullPath, err := filepath.Abs(filename)
 	if err != nil {
 		return nil, err
@@ -752,7 +752,7 @@ func (up *Uploader) UploadFile(filename string) (*client.PutResult, error) {
 		}
 	}
 
-	pr, err := up.uploadNode(n)
+	pr, err := up.uploadNode(ctx, n)
 	if err == nil && up.statCache != nil {
 		up.statCache.AddCachedPutResult(
 			up.pwd, n.fullPath, n.fi, pr, withPermanode)
@@ -1015,7 +1015,7 @@ func (t *TreeUpload) run() {
 				return
 			}
 			n := el.(*node)
-			put, err := t.up.uploadNode(n)
+			put, err := t.up.uploadNode(ctxbg, n)
 			if err != nil {
 				log.Fatalf("Error uploading %s: %v", n.fullPath, err)
 			}
@@ -1035,7 +1035,7 @@ func (t *TreeUpload) run() {
 				dirUpload <- n
 				return
 			}
-			put, err := t.up.uploadNode(n)
+			put, err := t.up.uploadNode(ctxbg, n)
 			if err != nil {
 				log.Fatalf("Error uploading %s: %v", n.fullPath, err)
 			}

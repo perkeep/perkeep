@@ -103,7 +103,7 @@ func appConfig() (*config, error) {
 	pause := time.Second
 	giveupTime := time.Now().Add(time.Hour)
 	for {
-		err := cl.GetJSON(configURL, conf)
+		err := cl.GetJSON(context.TODO(), configURL, conf)
 		if err == nil {
 			break
 		}
@@ -436,8 +436,8 @@ func goTemplate(files *fileembed.Files, templateFile string) (*template.Template
 // a *client.Client, so we can use a fake client in tests.
 type client interface {
 	search.QueryDescriber
-	GetJSON(url string, data interface{}) error
-	Post(url string, bodyType string, body io.Reader) error
+	GetJSON(ctx context.Context, url string, data interface{}) error
+	Post(ctx context.Context, url string, bodyType string, body io.Reader) error
 	blob.Fetcher
 }
 
@@ -520,7 +520,7 @@ func (ph *publishHandler) initRootNode() error {
 func (ph *publishHandler) camliRootQuery() (*search.SearchResult, error) {
 	// TODO(mpl): I've voluntarily omitted the owner because it's not clear to
 	// me that we actually care about that. Same for signer in lookupPathTarget.
-	return ph.cl.Query(&search.SearchQuery{
+	return ph.cl.Query(context.TODO(), &search.SearchQuery{
 		Limit: 1,
 		Constraint: &search.Constraint{
 			Permanode: &search.PermanodeConstraint{
@@ -536,7 +536,7 @@ func (ph *publishHandler) lookupPathTarget(root blob.Ref, suffix string) (blob.R
 		return root, nil
 	}
 	// TODO: verify it's optimized: http://perkeep.org/issue/405
-	result, err := ph.cl.Query(&search.SearchQuery{
+	result, err := ph.cl.Query(context.TODO(), &search.SearchQuery{
 		Limit: 1,
 		Constraint: &search.Constraint{
 			Permanode: &search.PermanodeConstraint{
@@ -624,7 +624,7 @@ func (ph *publishHandler) describe(br blob.Ref) (*search.DescribedBlob, error) {
 }
 
 func (ph *publishHandler) deepDescribe(br blob.Ref) (*search.DescribeResponse, error) {
-	res, err := ph.cl.Query(&search.SearchQuery{
+	res, err := ph.cl.Query(context.TODO(), &search.SearchQuery{
 		Constraint: &search.Constraint{
 			BlobRefPrefix: br.String(),
 			CamliType:     "permanode",
@@ -1166,7 +1166,7 @@ func (pr *publishRequest) subjectMembers(resMap map[string]*search.DescribedBlob
 }
 
 func (ph *publishHandler) describeMembers(br blob.Ref) (*search.SearchResult, error) {
-	res, err := ph.cl.Query(&search.SearchQuery{
+	res, err := ph.cl.Query(context.TODO(), &search.SearchQuery{
 		Constraint: &search.Constraint{
 			Permanode: &search.PermanodeConstraint{
 				Relation: &search.RelationConstraint{

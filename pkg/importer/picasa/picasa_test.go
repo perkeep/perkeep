@@ -48,6 +48,8 @@ import (
 	"github.com/tgulacsi/picago"
 )
 
+var ctxbg = context.Background()
+
 func TestGetUserId(t *testing.T) {
 	userID := "11047045264"
 	responder := httputil.FileResponder("testdata/users-me-res.xml")
@@ -205,7 +207,7 @@ func newSigner(bs blobserver.BlobReceiver) (signer *schema.Signer, owner blob.Re
 		return nil, owner, err
 	}
 	pubRef := blob.RefFromString(armorPub)
-	if _, err := bs.ReceiveBlob(pubRef, strings.NewReader(armorPub)); err != nil {
+	if _, err := bs.ReceiveBlob(ctxbg, pubRef, strings.NewReader(armorPub)); err != nil {
 		return nil, owner, fmt.Errorf("could not store pub key blob: %v", err)
 	}
 	sig, err := schema.NewSigner(pubRef, strings.NewReader(armorPub), ent)

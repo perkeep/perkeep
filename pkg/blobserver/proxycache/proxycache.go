@@ -150,8 +150,8 @@ func (sto *Storage) touch(sb blob.SizedRef) {
 	}
 }
 
-func (sto *Storage) Fetch(b blob.Ref) (rc io.ReadCloser, size uint32, err error) {
-	rc, size, err = sto.cache.Fetch(b)
+func (sto *Storage) Fetch(ctx context.Context, b blob.Ref) (rc io.ReadCloser, size uint32, err error) {
+	rc, size, err = sto.cache.Fetch(ctx, b)
 	if err == nil {
 		sto.touch(blob.SizedRef{Ref: b, Size: size})
 		return
@@ -159,7 +159,7 @@ func (sto *Storage) Fetch(b blob.Ref) (rc io.ReadCloser, size uint32, err error)
 	if err != os.ErrNotExist {
 		log.Printf("warning: proxycache cache fetch error for %v: %v", b, err)
 	}
-	rc, size, err = sto.origin.Fetch(b)
+	rc, size, err = sto.origin.Fetch(ctx, b)
 	if err != nil {
 		return
 	}
@@ -167,7 +167,7 @@ func (sto *Storage) Fetch(b blob.Ref) (rc io.ReadCloser, size uint32, err error)
 	if err != nil {
 		return
 	}
-	if _, err := blobserver.Receive(sto.cache, b, bytes.NewReader(all)); err != nil {
+	if _, err := blobserver.Receive(ctx, sto.cache, b, bytes.NewReader(all)); err != nil {
 		log.Printf("populating proxycache cache for %v: %v", b, err)
 	} else {
 		sto.touch(blob.SizedRef{Ref: b, Size: size})
@@ -231,19 +231,19 @@ func (sto *Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blo
 	})
 }
 
-func (sto *Storage) ReceiveBlob(br blob.Ref, src io.Reader) (blob.SizedRef, error) {
+func (sto *Storage) ReceiveBlob(ctx context.Context, br blob.Ref, src io.Reader) (blob.SizedRef, error) {
 	// Slurp the whole blob before replicating. Bounded by 16 MB anyway.
 	var buf bytes.Buffer
 	if _, err := io.Copy(&buf, src); err != nil {
 		return blob.SizedRef{}, err
 	}
 
-	sb, err := sto.origin.ReceiveBlob(br, bytes.NewReader(buf.Bytes()))
+	sb, err := sto.origin.ReceiveBlob(ctx, br, bytes.NewReader(buf.Bytes()))
 	if err != nil {
 		return sb, err
 	}
 
-	if _, err := sto.cache.ReceiveBlob(br, bytes.NewReader(buf.Bytes())); err != nil {
+	if _, err := sto.cache.ReceiveBlob(ctx, br, bytes.NewReader(buf.Bytes())); err != nil {
 		log.Printf("proxycache: ignoring error populating blob %v in cache: %v", br, err)
 	} else {
 		sto.touch(sb)

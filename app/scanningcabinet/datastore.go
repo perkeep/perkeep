@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -73,7 +74,7 @@ func (h *handler) searchScans(limit int) (*search.SearchResult, error) {
 		},
 	}
 
-	res, err := h.sh.Query(q)
+	res, err := h.sh.Query(context.TODO(), q)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +105,7 @@ func (h *handler) searchScan(pn blob.Ref) (*search.SearchResult, error) {
 			},
 		},
 	}
-	res, err := h.sh.Query(q)
+	res, err := h.sh.Query(context.TODO(), q)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +138,7 @@ func (h *handler) searchScanByContent(contentRef blob.Ref) (*search.SearchResult
 			},
 		},
 	}
-	res, err := h.sh.Query(q)
+	res, err := h.sh.Query(context.TODO(), q)
 	if err != nil {
 		return nil, err
 	}
@@ -237,48 +238,48 @@ func (h *handler) fetchScanFunc(br blob.Ref, searchFunc func(blob.Ref) (*search.
 
 // TODO(mpl): move that to client pkg, with a good API ?
 
-func (h *handler) signAndSend(json string) error {
+func (h *handler) signAndSend(ctx context.Context, json string) error {
 	// TODO(mpl): sign things ourselves if we can.
-	scl, err := h.cl.Sign(h.server, strings.NewReader("json="+json))
+	scl, err := h.cl.Sign(ctx, h.server, strings.NewReader("json="+json))
 	if err != nil {
 		return fmt.Errorf("could not get signed claim %v: %v", json, err)
 	}
-	if _, err := h.cl.Upload(client.NewUploadHandleFromString(string(scl))); err != nil {
+	if _, err := h.cl.Upload(ctx, client.NewUploadHandleFromString(string(scl))); err != nil {
 		return fmt.Errorf("could not upload signed claim %v: %v", json, err)
 	}
 	return nil
 }
 
-func (h *handler) setAttribute(pn blob.Ref, attr, val string) error {
+func (h *handler) setAttribute(ctx context.Context, pn blob.Ref, attr, val string) error {
 	ucl, err := schema.NewSetAttributeClaim(pn, attr, val).SetSigner(h.signer).JSON()
 	if err != nil {
 		return fmt.Errorf("could not create claim to set %v:%v on %v: %v", attr, val, pn, err)
 	}
-	return h.signAndSend(ucl)
+	return h.signAndSend(ctx, ucl)
 }
 
-func (h *handler) delAttribute(pn blob.Ref, attr, val string) error {
+func (h *handler) delAttribute(ctx context.Context, pn blob.Ref, attr, val string) error {
 	ucl, err := schema.NewDelAttributeClaim(pn, attr, val).SetSigner(h.signer).JSON()
 	if err != nil {
 		return fmt.Errorf("could not create claim to delete %v:%v on %v: %v", attr, val, pn, err)
 	}
-	return h.signAndSend(ucl)
+	return h.signAndSend(ctx, ucl)
 }
 
-func (h *handler) addAttribute(pn blob.Ref, attr, val string) error {
+func (h *handler) addAttribute(ctx context.Context, pn blob.Ref, attr, val string) error {
 	ucl, err := schema.NewAddAttributeClaim(pn, attr, val).SetSigner(h.signer).JSON()
 	if err != nil {
 		return fmt.Errorf("could not create claim to add %v:%v on %v: %v", attr, val, pn, err)
 	}
-	return h.signAndSend(ucl)
+	return h.signAndSend(ctx, ucl)
 }
 
-func (h *handler) deleteNode(node blob.Ref) error {
+func (h *handler) deleteNode(ctx context.Context, node blob.Ref) error {
 	ucl, err := schema.NewDeleteClaim(node).SetSigner(h.signer).JSON()
 	if err != nil {
 		return fmt.Errorf("could not create delete claim for %v: %v", node, err)
 	}
-	return h.signAndSend(ucl)
+	return h.signAndSend(ctx, ucl)
 }
 
 // TODO(mpl): move that to client pkg, with a good API ?
@@ -290,35 +291,35 @@ func (h *handler) newPermanode() (blob.Ref, error) {
 	if err != nil {
 		return pn, fmt.Errorf("could not create unsigned permanode: %v", err)
 	}
-	spn, err := h.cl.Sign(h.server, strings.NewReader("json="+upn))
+	spn, err := h.cl.Sign(context.TODO(), h.server, strings.NewReader("json="+upn))
 	if err != nil {
 		return pn, fmt.Errorf("could not get signed permanode: %v", err)
 	}
-	sbr, err := h.cl.Upload(client.NewUploadHandleFromString(string(spn)))
+	sbr, err := h.cl.Upload(context.TODO(), client.NewUploadHandleFromString(string(spn)))
 	if err != nil {
 		return pn, fmt.Errorf("could not upload permanode: %v", err)
 	}
 	return sbr.BlobRef, nil
 }
 
-func (h *handler) createScan(mo mediaObject) (blob.Ref, error) {
+func (h *handler) createScan(ctx context.Context, mo mediaObject) (blob.Ref, error) {
 	pn, err := h.newPermanode()
 	if err != nil {
 		return pn, fmt.Errorf("could not create scan: %v", err)
 	}
 
 	// make it a scan
-	if err := h.setAttribute(pn, nodeattr.Type, scanNodeType); err != nil {
+	if err := h.setAttribute(ctx, pn, nodeattr.Type, scanNodeType); err != nil {
 		return pn, fmt.Errorf("could not set %v as a scan: %v", pn, err)
 	}
 
 	// give it content
-	if err := h.setAttribute(pn, nodeattr.CamliContent, mo.contentRef.String()); err != nil {
+	if err := h.setAttribute(ctx, pn, nodeattr.CamliContent, mo.contentRef.String()); err != nil {
 		return pn, fmt.Errorf("could not set content for scan %v: %v", pn, err)
 	}
 
 	// set creationTime
-	if err := h.setAttribute(pn, nodeattr.DateCreated, mo.creation.UTC().Format(time.RFC3339)); err != nil {
+	if err := h.setAttribute(ctx, pn, nodeattr.DateCreated, mo.creation.UTC().Format(time.RFC3339)); err != nil {
 		return pn, fmt.Errorf("could not set creationTime for scan %v: %v", pn, err)
 	}
 
@@ -327,7 +328,7 @@ func (h *handler) createScan(mo mediaObject) (blob.Ref, error) {
 
 // old is an optimization, in case the caller already had fetched the old scan.
 // If nil, the current scan will be fetched for comparison with new.
-func (h *handler) updateScan(pn blob.Ref, new, old *mediaObject) error {
+func (h *handler) updateScan(ctx context.Context, pn blob.Ref, new, old *mediaObject) error {
 	if old == nil {
 		mo, err := h.fetchScan(pn)
 		if err != nil {
@@ -336,22 +337,22 @@ func (h *handler) updateScan(pn blob.Ref, new, old *mediaObject) error {
 		old = &mo
 	}
 	if new.contentRef.Valid() && old.contentRef != new.contentRef {
-		if err := h.setAttribute(pn, "camliContent", new.contentRef.String()); err != nil {
+		if err := h.setAttribute(ctx, pn, "camliContent", new.contentRef.String()); err != nil {
 			return fmt.Errorf("could not set contentRef for scan %v: %v", pn, err)
 		}
 	}
 	if new.documentRef.Valid() && old.documentRef != new.documentRef {
-		if err := h.setAttribute(pn, "document", new.documentRef.String()); err != nil {
+		if err := h.setAttribute(ctx, pn, "document", new.documentRef.String()); err != nil {
 			return fmt.Errorf("could not set documentRef for scan %v: %v", pn, err)
 		}
 	}
 	if !old.creation.Equal(new.creation) {
 		if new.creation.IsZero() {
-			if err := h.delAttribute(pn, nodeattr.DateCreated, ""); err != nil {
+			if err := h.delAttribute(ctx, pn, nodeattr.DateCreated, ""); err != nil {
 				return fmt.Errorf("could not delete creation date for scan %v: %v", pn, err)
 			}
 		} else {
-			if err := h.setAttribute(pn, nodeattr.DateCreated, new.creation.UTC().Format(time.RFC3339)); err != nil {
+			if err := h.setAttribute(ctx, pn, nodeattr.DateCreated, new.creation.UTC().Format(time.RFC3339)); err != nil {
 				return fmt.Errorf("could not set creation date for scan %v: %v", pn, err)
 			}
 		}
@@ -359,30 +360,30 @@ func (h *handler) updateScan(pn blob.Ref, new, old *mediaObject) error {
 	return nil
 }
 
-func (h *handler) updateDocument(pn blob.Ref, new *document) error {
+func (h *handler) updateDocument(ctx context.Context, pn blob.Ref, new *document) error {
 	old, err := h.fetchDocument(pn)
 	if err != nil {
 		return fmt.Errorf("document %v not found: %v", pn, err)
 	}
 	if old.physicalLocation != new.physicalLocation {
-		if err := h.setAttribute(pn, nodeattr.LocationText, new.physicalLocation); err != nil {
+		if err := h.setAttribute(ctx, pn, nodeattr.LocationText, new.physicalLocation); err != nil {
 			return fmt.Errorf("could not set physicalLocation for document %v: %v", pn, err)
 		}
 	}
 
 	if old.title != new.title {
-		if err := h.setAttribute(pn, nodeattr.Title, new.title); err != nil {
+		if err := h.setAttribute(ctx, pn, nodeattr.Title, new.title); err != nil {
 			return fmt.Errorf("could not set title for document %v: %v", pn, err)
 		}
 	}
 
 	if !old.docDate.Equal(new.docDate) {
 		if new.docDate.IsZero() {
-			if err := h.delAttribute(pn, nodeattr.StartDate, ""); err != nil {
+			if err := h.delAttribute(ctx, pn, nodeattr.StartDate, ""); err != nil {
 				return fmt.Errorf("could not delete document date for document %v: %v", pn, err)
 			}
 		} else {
-			if err := h.setAttribute(pn, nodeattr.StartDate, new.docDate.UTC().Format(time.RFC3339)); err != nil {
+			if err := h.setAttribute(ctx, pn, nodeattr.StartDate, new.docDate.UTC().Format(time.RFC3339)); err != nil {
 				return fmt.Errorf("could not set document date for document %v: %v", pn, err)
 			}
 		}
@@ -390,25 +391,25 @@ func (h *handler) updateDocument(pn blob.Ref, new *document) error {
 
 	if !old.dueDate.Equal(new.dueDate) {
 		if new.dueDate.IsZero() {
-			if err := h.delAttribute(pn, nodeattr.PaymentDueDate, ""); err != nil {
+			if err := h.delAttribute(ctx, pn, nodeattr.PaymentDueDate, ""); err != nil {
 				return fmt.Errorf("could not delete due date for document %v: %v", pn, err)
 			}
 		} else {
-			if err := h.setAttribute(pn, nodeattr.PaymentDueDate, new.dueDate.UTC().Format(time.RFC3339)); err != nil {
+			if err := h.setAttribute(ctx, pn, nodeattr.PaymentDueDate, new.dueDate.UTC().Format(time.RFC3339)); err != nil {
 				return fmt.Errorf("could not set due date for document %v: %v", pn, err)
 			}
 		}
 	}
 
 	if !old.tags.equal(new.tags) {
-		if err := h.updateTags(pn, old.tags, new.tags); err != nil {
+		if err := h.updateTags(ctx, pn, old.tags, new.tags); err != nil {
 			return fmt.Errorf("could not update tags for document %v: %v", pn, err)
 		}
 	}
 	return nil
 }
 
-func (h *handler) updateTags(pn blob.Ref, old, new separatedString) error {
+func (h *handler) updateTags(ctx context.Context, pn blob.Ref, old, new separatedString) error {
 	// first, delete the ones that are supposed to be gone
 	for _, o := range old {
 		found := false
@@ -421,7 +422,7 @@ func (h *handler) updateTags(pn blob.Ref, old, new separatedString) error {
 		if found {
 			continue
 		}
-		if err := h.delAttribute(pn, "tag", o); err != nil {
+		if err := h.delAttribute(ctx, pn, "tag", o); err != nil {
 			return fmt.Errorf("could not delete tag %v: %v", o, err)
 		}
 	}
@@ -437,26 +438,26 @@ func (h *handler) updateTags(pn blob.Ref, old, new separatedString) error {
 		if found {
 			continue
 		}
-		if err := h.addAttribute(pn, "tag", n); err != nil {
+		if err := h.addAttribute(ctx, pn, "tag", n); err != nil {
 			return fmt.Errorf("could not add tag %v: %v", n, err)
 		}
 	}
 	return nil
 }
 
-func (h *handler) createDocument(doc document) (blob.Ref, error) {
+func (h *handler) createDocument(ctx context.Context, doc document) (blob.Ref, error) {
 	pn, err := h.newPermanode()
 	if err != nil {
 		return pn, fmt.Errorf("could not create document: %v", err)
 	}
 
 	// make it a document
-	if err := h.setAttribute(pn, nodeattr.Type, documentNodeType); err != nil {
+	if err := h.setAttribute(ctx, pn, nodeattr.Type, documentNodeType); err != nil {
 		return pn, fmt.Errorf("could not set %v as a document: %v", pn, err)
 	}
 
 	// set creationTime
-	if err := h.setAttribute(pn, nodeattr.DateCreated, doc.creation.UTC().Format(time.RFC3339)); err != nil {
+	if err := h.setAttribute(ctx, pn, nodeattr.DateCreated, doc.creation.UTC().Format(time.RFC3339)); err != nil {
 		return pn, fmt.Errorf("could not set creationTime for document %v: %v", pn, err)
 	}
 
@@ -464,7 +465,7 @@ func (h *handler) createDocument(doc document) (blob.Ref, error) {
 	// TODO(mpl,bradfitz): camliPath vs camliMember vs camliPathOrder vs something else ?
 	// https://groups.google.com/d/msg/camlistore/xApHFjJKn3M/9Q5BfNbbptkJ
 	for pageNumber, pageRef := range doc.pages {
-		if err := h.setAttribute(pn, fmt.Sprintf("camliPath:%d", pageNumber), pageRef.String()); err != nil {
+		if err := h.setAttribute(ctx, pn, fmt.Sprintf("camliPath:%d", pageNumber), pageRef.String()); err != nil {
 			return pn, fmt.Errorf("could not set document %v page %d to scan %q: %v", doc.permanode, pageNumber, pageRef, err)
 		}
 	}
@@ -476,14 +477,14 @@ func (h *handler) createDocument(doc document) (blob.Ref, error) {
 // the given mediaObject structs and stores it in the datastore, updates each of
 // these mediaObject in the datastore with references back to the new Document struct
 // and returns the key to the new document entity
-func (h *handler) persistDocAndPages(newDoc document) (blob.Ref, error) {
+func (h *handler) persistDocAndPages(ctx context.Context, newDoc document) (blob.Ref, error) {
 	br := blob.Ref{}
-	pn, err := h.createDocument(newDoc)
+	pn, err := h.createDocument(ctx, newDoc)
 	if err != nil {
 		return br, err
 	}
 	for _, page := range newDoc.pages {
-		if err := h.setAttribute(page, "document", pn.String()); err != nil {
+		if err := h.setAttribute(ctx, page, "document", pn.String()); err != nil {
 			return br, fmt.Errorf("could not update scan %v with %v:%v", page, "document", pn)
 
 		}
@@ -491,7 +492,7 @@ func (h *handler) persistDocAndPages(newDoc document) (blob.Ref, error) {
 	return pn, nil
 }
 
-func (h *handler) searchDocument(pn blob.Ref) (*search.SearchResult, error) {
+func (h *handler) searchDocument(ctx context.Context, pn blob.Ref) (*search.SearchResult, error) {
 	q := &search.SearchQuery{
 		Constraint: &search.Constraint{
 			Logical: &search.LogicalConstraint{
@@ -508,7 +509,7 @@ func (h *handler) searchDocument(pn blob.Ref) (*search.SearchResult, error) {
 		},
 		Describe: &search.DescribeRequest{},
 	}
-	res, err := h.sh.Query(q)
+	res, err := h.sh.Query(ctx, q)
 	if err != nil {
 		return nil, err
 	}
@@ -537,7 +538,7 @@ func (h *handler) searchDocumentByPages(pages []blob.Ref) (*search.SearchResult,
 		Constraint: B,
 		Describe:   &search.DescribeRequest{},
 	}
-	res, err := h.sh.Query(q)
+	res, err := h.sh.Query(context.TODO(), q)
 	if err != nil {
 		return nil, err
 	}
@@ -665,7 +666,7 @@ func (h *handler) searchDocuments(limit int, opts searchOpts) (*search.SearchRes
 		Sort:       sort,
 	}
 
-	res, err := h.sh.Query(q)
+	res, err := h.sh.Query(context.TODO(), q)
 	if err != nil {
 		return nil, err
 	}
@@ -732,7 +733,7 @@ func (h *handler) fetchDocumentByPages(pages []blob.Ref) (*document, error) {
 // returns os.ErrNotExist when document was not found
 func (h *handler) fetchDocument(pn blob.Ref) (*document, error) {
 	return h.fetchDocumentFunc([]blob.Ref{pn}, func(blobs []blob.Ref) (*search.SearchResult, error) {
-		return h.searchDocument(blobs[0])
+		return h.searchDocument(context.TODO(), blobs[0])
 	})
 }
 
@@ -836,16 +837,16 @@ func (h *handler) describeDocument(b *search.DescribedBlob) (*document, error) {
 
 // breakAndDeleteDoc deletes the given document struct and marks all of its
 // associated mediaObject as not being part of a document
-func (h *handler) breakAndDeleteDoc(docRef blob.Ref) error {
+func (h *handler) breakAndDeleteDoc(ctx context.Context, docRef blob.Ref) error {
 	doc, err := h.fetchDocument(docRef)
 	if err != nil {
 		return fmt.Errorf("document %v not found: %v", docRef, err)
 	}
-	if err := h.deleteNode(docRef); err != nil {
+	if err := h.deleteNode(ctx, docRef); err != nil {
 		return fmt.Errorf("could not delete document %v: %v", docRef, err)
 	}
 	for _, page := range doc.pages {
-		if err := h.delAttribute(page, "document", ""); err != nil {
+		if err := h.delAttribute(ctx, page, "document", ""); err != nil {
 			return fmt.Errorf("could not unset document of scan %v: %v", page, err)
 		}
 	}
@@ -854,16 +855,16 @@ func (h *handler) breakAndDeleteDoc(docRef blob.Ref) error {
 
 // deleteDocAndImages deletes the given document struct and marks all of its
 // associated mediaObjects as not being part of a document
-func (h *handler) deleteDocAndImages(docRef blob.Ref) error {
+func (h *handler) deleteDocAndImages(ctx context.Context, docRef blob.Ref) error {
 	doc, err := h.fetchDocument(docRef)
 	if err != nil {
 		return fmt.Errorf("document %v not found: %v", docRef, err)
 	}
-	if err := h.deleteNode(docRef); err != nil {
+	if err := h.deleteNode(ctx, docRef); err != nil {
 		return fmt.Errorf("could not delete document %v: %v", docRef, err)
 	}
 	for _, page := range doc.pages {
-		if err := h.deleteNode(page); err != nil {
+		if err := h.deleteNode(ctx, page); err != nil {
 			return fmt.Errorf("could not delete scan %v: %v", page, err)
 		}
 	}

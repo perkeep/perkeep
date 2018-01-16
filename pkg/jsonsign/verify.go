@@ -18,6 +18,7 @@ package jsonsign
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"encoding/json"
 	"errors"
@@ -137,24 +138,22 @@ func (vr *VerifyRequest) ParsePayloadMap() bool {
 	return true
 }
 
-func (vr *VerifyRequest) FindAndParsePublicKeyBlob() bool {
-	reader, _, err := vr.fetcher.Fetch(vr.CamliSigner)
-	if err == os.ErrNotExist {
-		vr.Err = camerrors.ErrMissingKeyBlob
-		return false
-	}
+func (vr *VerifyRequest) FindAndParsePublicKeyBlob(ctx context.Context) error {
+	reader, _, err := vr.fetcher.Fetch(ctx, vr.CamliSigner)
 	if err != nil {
+		if err == os.ErrNotExist {
+			return camerrors.ErrMissingKeyBlob
+		}
 		log.Printf("error fetching public key blob %v: %v", vr.CamliSigner, err)
-		vr.Err = err
-		return false
+		return err
 	}
 	defer reader.Close()
 	pk, err := openArmoredPublicKeyFile(reader)
 	if err != nil {
-		return vr.fail(fmt.Sprintf("error opening public key file: %v", err))
+		return fmt.Errorf("error opening public key file: %v", err)
 	}
 	vr.PublicKeyPacket = pk
-	return true
+	return nil
 }
 
 func (vr *VerifyRequest) VerifySignature() bool {
@@ -215,26 +214,41 @@ func NewVerificationRequest(sjson string, fetcher blob.Fetcher) (vr *VerifyReque
 	return
 }
 
-// TODO: turn this into (bool, os.Error) return, probably, or *Details, os.Error.
-func (vr *VerifyRequest) Verify() bool {
+type VerifiedSignature struct {
+	// TODO:
+}
+
+func (vr *VerifyRequest) Verify(ctx context.Context) (info VerifiedSignature, err error) {
 	if vr.Err != nil {
-		return false
+		return VerifiedSignature{}, vr.Err
+	}
+	defer func() {
+		if err != nil {
+			// Don't allow callers to accidentally check this if it's not
+			// valid.
+			vr.PayloadMap = nil
+			if vr.Err == nil {
+				// The other functions should have filled this in
+				// already, but just in case:
+				vr.Err = err
+			}
+		}
+	}()
+
+	if !vr.ParseSigMap() {
+		return VerifiedSignature{}, errors.New("parsing signature map failed")
+	}
+	if !vr.ParsePayloadMap() {
+		return VerifiedSignature{}, errors.New("parsing payload map failed")
+	}
+	if err := vr.FindAndParsePublicKeyBlob(ctx); err != nil {
+		return VerifiedSignature{}, err
+	}
+	if !vr.VerifySignature() {
+		return VerifiedSignature{}, errors.New("signature verification failed")
 	}
 
-	if vr.ParseSigMap() &&
-		vr.ParsePayloadMap() &&
-		vr.FindAndParsePublicKeyBlob() &&
-		vr.VerifySignature() {
-		return true
-	}
-
-	// Don't allow dumbs callers to accidentally check this
-	// if it's not valid.
-	vr.PayloadMap = nil
-	if vr.Err == nil {
-		// The other functions should have filled this in
-		// already, but just in case:
-		vr.Err = errors.New("jsonsign: verification failed")
-	}
-	return false
+	return VerifiedSignature{
+		// ...
+	}, nil
 }

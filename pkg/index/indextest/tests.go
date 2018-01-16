@@ -45,6 +45,8 @@ import (
 	"perkeep.org/pkg/types/camtypes"
 )
 
+var ctxbg = context.Background()
+
 var flagShowReindexRace = flag.Bool("show_reindex_race", false, "demonstrate the reindex race reported at issue #756")
 
 // An IndexDeps is a helper for populating and querying an Index for tests.
@@ -106,16 +108,16 @@ func (id *IndexDeps) uploadAndSign(m *schema.Builder) blob.Ref {
 		EntityFetcher: id.EntityFetcher,
 		SignatureTime: id.now,
 	}
-	signed, err := sr.Sign()
+	signed, err := sr.Sign(ctxbg)
 	if err != nil {
 		id.Fatalf("problem signing: " + err.Error())
 	}
 	tb := &test.Blob{Contents: signed}
-	_, err = id.BlobSource.ReceiveBlob(tb.BlobRef(), tb.Reader())
+	_, err = id.BlobSource.ReceiveBlob(ctxbg, tb.BlobRef(), tb.Reader())
 	if err != nil {
 		id.Fatalf("public uploading signed blob to blob source, pre-indexing: %v, %v", tb.BlobRef(), err)
 	}
-	_, err = id.Index.ReceiveBlob(tb.BlobRef(), tb.Reader())
+	_, err = id.Index.ReceiveBlob(ctxbg, tb.BlobRef(), tb.Reader())
 	if err != nil {
 		id.Fatalf("problem indexing blob: %v\nblob was:\n%s", err, signed)
 	}
@@ -182,7 +184,7 @@ func (id *IndexDeps) UploadString(v string) blob.Ref {
 	cb := &test.Blob{Contents: v}
 	id.BlobSource.AddBlob(cb)
 	br := cb.BlobRef()
-	_, err := id.Index.ReceiveBlob(br, cb.Reader())
+	_, err := id.Index.ReceiveBlob(ctxbg, br, cb.Reader())
 	if err != nil {
 		id.Fatalf("UploadString: %v", err)
 	}
@@ -209,7 +211,7 @@ func (id *IndexDeps) UploadFile(fileName string, contents string, modTime time.T
 	fb := &test.Blob{Contents: fjson}
 	id.BlobSource.AddBlob(fb)
 	fileRef = fb.BlobRef()
-	_, err = id.Index.ReceiveBlob(fileRef, fb.Reader())
+	_, err = id.Index.ReceiveBlob(ctxbg, fileRef, fb.Reader())
 	if err != nil {
 		panic(err)
 	}
@@ -226,7 +228,7 @@ func (id *IndexDeps) UploadDir(dirName string, children []blob.Ref, modTime time
 	ssjson := ss.Blob().JSON()
 	ssb := &test.Blob{Contents: ssjson}
 	id.BlobSource.AddBlob(ssb)
-	_, err := id.Index.ReceiveBlob(ssb.BlobRef(), ssb.Reader())
+	_, err := id.Index.ReceiveBlob(ctxbg, ssb.BlobRef(), ssb.Reader())
 	if err != nil {
 		id.Fatalf("UploadDir.ReceiveBlob: %v", err)
 	}
@@ -243,7 +245,7 @@ func (id *IndexDeps) UploadDir(dirName string, children []blob.Ref, modTime time
 	}
 	dirb := &test.Blob{Contents: dirjson}
 	id.BlobSource.AddBlob(dirb)
-	_, err = id.Index.ReceiveBlob(dirb.BlobRef(), dirb.Reader())
+	_, err = id.Index.ReceiveBlob(ctxbg, dirb.BlobRef(), dirb.Reader())
 	if err != nil {
 		id.Fatalf("UploadDir.ReceiveBlob: %v", err)
 	}

@@ -159,12 +159,12 @@ func isSchemaPicker(thenSto, elseSto blobserver.Storage) storageFunc {
 	}
 }
 
-func (sto *condStorage) ReceiveBlob(br blob.Ref, src io.Reader) (sb blob.SizedRef, err error) {
+func (sto *condStorage) ReceiveBlob(ctx context.Context, br blob.Ref, src io.Reader) (sb blob.SizedRef, err error) {
 	destSto, src, err := sto.storageForReceive(br, src)
 	if err != nil {
 		return
 	}
-	return blobserver.Receive(destSto, br, src)
+	return blobserver.Receive(ctx, destSto, br, src)
 }
 
 func (sto *condStorage) RemoveBlobs(blobs []blob.Ref) error {
@@ -174,9 +174,9 @@ func (sto *condStorage) RemoveBlobs(blobs []blob.Ref) error {
 	return errors.New("cond: Remove not configured")
 }
 
-func (sto *condStorage) Fetch(b blob.Ref) (file io.ReadCloser, size uint32, err error) {
+func (sto *condStorage) Fetch(ctx context.Context, b blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	if sto.read != nil {
-		return sto.read.Fetch(b)
+		return sto.read.Fetch(ctx, b)
 	}
 	err = errors.New("cond: Read not configured")
 	return

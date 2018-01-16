@@ -31,6 +31,7 @@ Example low-level config:
 package localdisk // import "perkeep.org/pkg/blobserver/localdisk"
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -158,15 +159,15 @@ func (ds *DiskStorage) tryRemoveDir(dir string) {
 	os.Remove(dir) // ignore error
 }
 
-func (ds *DiskStorage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
-	return ds.fetch(br, 0, -1)
+func (ds *DiskStorage) Fetch(ctx context.Context, br blob.Ref) (io.ReadCloser, uint32, error) {
+	return ds.fetch(ctx, br, 0, -1)
 }
 
-func (ds *DiskStorage) SubFetch(br blob.Ref, offset, length int64) (io.ReadCloser, error) {
+func (ds *DiskStorage) SubFetch(ctx context.Context, br blob.Ref, offset, length int64) (io.ReadCloser, error) {
 	if offset < 0 || length < 0 {
 		return nil, blob.ErrNegativeSubFetch
 	}
-	rc, _, err := ds.fetch(br, offset, length)
+	rc, _, err := ds.fetch(ctx, br, offset, length)
 	return rc, err
 }
 
@@ -179,7 +180,8 @@ func u32(n int64) uint32 {
 }
 
 // length -1 means entire file
-func (ds *DiskStorage) fetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, size uint32, err error) {
+func (ds *DiskStorage) fetch(ctx context.Context, br blob.Ref, offset, length int64) (rc io.ReadCloser, size uint32, err error) {
+	// TODO: use ctx, if the os package ever supports that.
 	fileName := ds.blobPath(br)
 	stat, err := os.Stat(fileName)
 	if os.IsNotExist(err) {

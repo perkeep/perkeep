@@ -341,20 +341,20 @@ func (s *storage) Close() error {
 	return closeErr
 }
 
-func (s *storage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
-	return s.fetch(br, 0, -1)
+func (s *storage) Fetch(ctx context.Context, br blob.Ref) (io.ReadCloser, uint32, error) {
+	return s.fetch(ctx, br, 0, -1)
 }
 
-func (s *storage) SubFetch(br blob.Ref, offset, length int64) (io.ReadCloser, error) {
+func (s *storage) SubFetch(ctx context.Context, br blob.Ref, offset, length int64) (io.ReadCloser, error) {
 	if offset < 0 || length < 0 {
 		return nil, blob.ErrNegativeSubFetch
 	}
-	rc, _, err := s.fetch(br, offset, length)
+	rc, _, err := s.fetch(ctx, br, offset, length)
 	return rc, err
 }
 
 // length of -1 means all
-func (s *storage) fetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, size uint32, err error) {
+func (s *storage) fetch(ctx context.Context, br blob.Ref, offset, length int64) (rc io.ReadCloser, size uint32, err error) {
 	meta, err := s.meta(br)
 	if err != nil {
 		return nil, 0, err
@@ -610,7 +610,7 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 
 		// TODO: remove this allocation per blob. We can make one instead
 		// outside of the loop, guarded by a mutex, and re-use it, only to
-		// lock the mutex and clone it if somebody actually calls Open
+		// lock the mutex and clone it if somebody actually calls ReadFull
 		// on the *blob.Blob. Otherwise callers just scanning all the blobs
 		// to see if they have everything incur lots of garbage if they
 		// don't open any blobs.
@@ -619,10 +619,9 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 			return err
 		}
 		offset += int64(size)
-		newReader := func() readerutil.ReadSeekCloser {
-			return newReadSeekNopCloser(bytes.NewReader(data))
-		}
-		blob := blob.NewBlob(ref, size, newReader)
+		blob := blob.NewBlob(ref, size, func(context.Context) ([]byte, error) {
+			return data, nil
+		})
 		select {
 		case dest <- blobserver.BlobAndToken{
 			Blob:  blob,
@@ -635,7 +634,8 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 	}
 }
 
-func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sbr blob.SizedRef, err error) {
+func (s *storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader) (sbr blob.SizedRef, err error) {
+	// TODO: use ctx somehow?
 	var b bytes.Buffer
 	n, err := b.ReadFrom(source)
 	if err != nil {

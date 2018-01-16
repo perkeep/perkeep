@@ -616,11 +616,11 @@ func (sh *SyncHandler) syncLoop() {
 
 func (sh *SyncHandler) copyWorker(res chan<- copyResult, work <-chan blob.SizedRef) {
 	for sb := range work {
-		res <- copyResult{sb, sh.copyBlob(sb)}
+		res <- copyResult{sb, sh.copyBlob(context.TODO(), sb)}
 	}
 }
 
-func (sh *SyncHandler) copyBlob(sb blob.SizedRef) (err error) {
+func (sh *SyncHandler) copyBlob(ctx context.Context, sb blob.SizedRef) (err error) {
 	cs := sh.newCopyStatus(sb)
 	defer func() { cs.setError(err) }()
 	br := sb.Ref
@@ -634,7 +634,7 @@ func (sh *SyncHandler) copyBlob(sb blob.SizedRef) (err error) {
 	}
 
 	cs.setStatus(statusFetching)
-	rc, fromSize, err := sh.from.Fetch(br)
+	rc, fromSize, err := sh.from.Fetch(ctx, br)
 	if err != nil {
 		return fmt.Errorf("source fetch: %v", err)
 	}
@@ -660,7 +660,7 @@ func (sh *SyncHandler) copyBlob(sb blob.SizedRef) (err error) {
 	}
 
 	cs.setStatus(statusWriting)
-	newsb, err := sh.to.ReceiveBlob(br, io.TeeReader(bytes.NewReader(buf), incrWriter{cs, &cs.nwrite}))
+	newsb, err := sh.to.ReceiveBlob(ctx, br, io.TeeReader(bytes.NewReader(buf), incrWriter{cs, &cs.nwrite}))
 	if err != nil {
 		return fmt.Errorf("dest write: %v", err)
 	}
@@ -670,7 +670,8 @@ func (sh *SyncHandler) copyBlob(sb blob.SizedRef) (err error) {
 	return nil
 }
 
-func (sh *SyncHandler) ReceiveBlob(br blob.Ref, r io.Reader) (sb blob.SizedRef, err error) {
+func (sh *SyncHandler) ReceiveBlob(ctx context.Context, br blob.Ref, r io.Reader) (sb blob.SizedRef, err error) {
+	// TODO: use ctx?
 	n, err := io.Copy(ioutil.Discard, r)
 	if err != nil {
 		return
@@ -1046,7 +1047,7 @@ func storageDesc(v interface{}) string {
 //
 // For now, don't implement them. Wait until we need them.
 
-func (sh *SyncHandler) Fetch(blob.Ref) (file io.ReadCloser, size uint32, err error) {
+func (sh *SyncHandler) Fetch(context.Context, blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	panic("Unimplemeted blobserver.Fetch called")
 }
 
@@ -1070,6 +1071,7 @@ var errStopEnumerating = errors.New("sentinel error: reached the hourly compare 
 // Every hour, hourlyCompare picks blob names from a random point in the source,
 // downloads up to hourlyBytes from the destination, and verifies them.
 func (sh *SyncHandler) hourlyCompare(hourlyBytes uint64) {
+	ctx := context.TODO()
 	ticker := time.NewTicker(time.Hour).C
 	for {
 		content := make([]byte, 16)
@@ -1079,7 +1081,7 @@ func (sh *SyncHandler) hourlyCompare(hourlyBytes uint64) {
 		after := blob.RefFromBytes(content).String()
 		var roundBytes uint64
 		var roundBlobs int
-		err := blobserver.EnumerateAllFrom(context.TODO(), sh.from, after, func(sr blob.SizedRef) error {
+		err := blobserver.EnumerateAllFrom(ctx, sh.from, after, func(sr blob.SizedRef) error {
 			sh.mu.Lock()
 			if _, ok := sh.needCopy[sr.Ref]; ok {
 				sh.mu.Unlock()
@@ -1090,7 +1092,7 @@ func (sh *SyncHandler) hourlyCompare(hourlyBytes uint64) {
 			if roundBytes+uint64(sr.Size) > hourlyBytes {
 				return errStopEnumerating
 			}
-			blob, size, err := sh.to.(blob.Fetcher).Fetch(sr.Ref)
+			blob, size, err := sh.to.(blob.Fetcher).Fetch(ctx, sr.Ref)
 			if err != nil {
 				return fmt.Errorf("error fetching %s: %v", sr.Ref, err)
 			}

@@ -434,14 +434,14 @@ func (r *run) updatePhoto(ctx context.Context, parent *importer.Object, ph photo
 		if err != nil {
 			return nil, err
 		}
-		fileRef, err := schema.WriteFileFromReader(r.Host.Target(), filename, io.TeeReader(rc, h))
+		fileRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), filename, io.TeeReader(rc, h))
 		rc.Close()
 		if err != nil {
 			return nil, err
 		}
 		fileRefStr = fileRef.String()
 		wholeRef := blob.RefFromHash(h)
-		pn, attrs, err := findExistingPermanode(r.Host.Searcher(), wholeRef)
+		pn, attrs, err := findExistingPermanode(r.Context(), r.Host.Searcher(), wholeRef)
 		if err != nil {
 			if err != os.ErrNotExist {
 				return nil, fmt.Errorf("could not look for permanode with %v as camliContent : %v", fileRefStr, err)
@@ -470,7 +470,7 @@ func (r *run) updatePhoto(ctx context.Context, parent *importer.Object, ph photo
 			if err != nil {
 				return err
 			}
-			fileRef, err := schema.WriteFileFromReader(r.Host.Target(), filename, rc)
+			fileRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), filename, rc)
 			rc.Close()
 			if err != nil {
 				return err
@@ -591,8 +591,8 @@ var sensitiveAttrs = []string{
 // as well as the existing attributes on the node, so the caller
 // can merge them with whatever new attributes it wants to add to
 // the node.
-func findExistingPermanode(qs search.QueryDescriber, wholeRef blob.Ref) (pn blob.Ref, picasaAttrs url.Values, err error) {
-	res, err := qs.Query(&search.SearchQuery{
+func findExistingPermanode(ctx context.Context, qs search.QueryDescriber, wholeRef blob.Ref) (pn blob.Ref, picasaAttrs url.Values, err error) {
+	res, err := qs.Query(ctx, &search.SearchQuery{
 		Constraint: &search.Constraint{
 			Permanode: &search.PermanodeConstraint{
 				Attr: "camliContent",

@@ -351,7 +351,7 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 		default:
 		}
 		zipRef := sb.Ref
-		zr, err := zip.NewReader(blob.ReaderAt(s.large, zipRef), int64(sb.Size))
+		zr, err := zip.NewReader(blob.ReaderAt(ctx, s.large, zipRef), int64(sb.Size))
 		if err != nil {
 			return zipOpenError{zipRef, err}
 		}
@@ -615,7 +615,7 @@ func parseMetaRowSizeOnly(v []byte) (size uint32, err error) {
 	return uint32(size64), nil
 }
 
-func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
+func (s *storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
 	buf := pools.BytesBuffer()
 	defer pools.PutBuffer(buf)
 
@@ -635,7 +635,7 @@ func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, 
 	if meta.exists {
 		sb = blob.SizedRef{Size: size, Ref: br}
 	} else {
-		sb, err = s.small.ReceiveBlob(br, buf)
+		sb, err = s.small.ReceiveBlob(ctx, br, buf)
 		if err != nil {
 			return sb, err
 		}
@@ -650,19 +650,19 @@ func (s *storage) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, 
 	// We ignore the return value from packFile since we can't
 	// really recover. At least be happy that we have all the
 	// data on 'small' already. packFile will log at least.
-	s.packFile(br)
+	s.packFile(ctx, br)
 	return sb, nil
 }
 
-func (s *storage) Fetch(br blob.Ref) (io.ReadCloser, uint32, error) {
+func (s *storage) Fetch(ctx context.Context, br blob.Ref) (io.ReadCloser, uint32, error) {
 	m, err := s.getMetaRow(br)
 	if err != nil {
 		return nil, 0, err
 	}
 	if !m.exists || !m.isPacked() {
-		return s.small.Fetch(br)
+		return s.small.Fetch(ctx, br)
 	}
-	rc, err := s.large.SubFetch(m.largeRef, int64(m.largeOff), int64(m.size))
+	rc, err := s.large.SubFetch(ctx, m.largeRef, int64(m.largeOff), int64(m.size))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -809,7 +809,7 @@ func (s enumerator) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRe
 	return nil
 }
 
-func (s *storage) packFile(fileRef blob.Ref) (err error) {
+func (s *storage) packFile(ctx context.Context, fileRef blob.Ref) (err error) {
 	s.Logf("Packing file %s ...", fileRef)
 	defer func() {
 		if err == nil {
@@ -819,11 +819,11 @@ func (s *storage) packFile(fileRef blob.Ref) (err error) {
 		}
 	}()
 
-	fr, err := schema.NewFileReader(s, fileRef)
+	fr, err := schema.NewFileReader(ctx, s, fileRef)
 	if err != nil {
 		return err
 	}
-	return newPacker(s, fileRef, fr).pack()
+	return newPacker(s, fileRef, fr).pack(ctx)
 }
 
 func newPacker(s *storage, fileRef blob.Ref, fr *schema.FileReader) *packer {
@@ -868,8 +868,8 @@ var (
 	testHookStopBeforeOverflowing func()
 )
 
-func (pk *packer) pack() error {
-	if err := pk.scanChunks(); err != nil {
+func (pk *packer) pack(ctx context.Context) error {
+	if err := pk.scanChunks(ctx); err != nil {
 		return err
 	}
 
@@ -903,7 +903,7 @@ func (pk *packer) pack() error {
 	var trunc blob.Ref
 MakingZips:
 	for len(pk.chunksRemain) > 0 {
-		if err := pk.writeAZip(trunc); err != nil {
+		if err := pk.writeAZip(ctx, trunc); err != nil {
 			if needTrunc, ok := err.(needsTruncatedAfterError); ok {
 				trunc = needTrunc.Ref
 				if fn := testHookSawTruncate; fn != nil {
@@ -925,9 +925,9 @@ MakingZips:
 	return nil
 }
 
-func (pk *packer) scanChunks() error {
+func (pk *packer) scanChunks(ctx context.Context) error {
 	schemaSeen := map[blob.Ref]bool{}
-	return pk.fr.ForeachChunk(func(schemaPath []blob.Ref, p schema.BytesPart) error {
+	return pk.fr.ForeachChunk(ctx, func(schemaPath []blob.Ref, p schema.BytesPart) error {
 		if !p.BlobRef.Valid() {
 			return errors.New("sparse files are not packed")
 		}
@@ -944,7 +944,7 @@ func (pk *packer) scanChunks() error {
 			}
 			schemaSeen[schemaRef] = true
 			pk.schemaRefs = append(pk.schemaRefs, schemaRef)
-			if b, err := blob.FromFetcher(pk.s, schemaRef); err != nil {
+			if b, err := blob.FromFetcher(ctx, pk.s, schemaRef); err != nil {
 				return err
 			} else {
 				pk.schemaBlob[schemaRef] = b
@@ -976,7 +976,7 @@ func check(err error) {
 // If the returned error is of type 'needsTruncatedAfterError', then
 // the zip should be attempted to be written again, but truncating the
 // data after the listed blob.
-func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
+func (pk *packer) writeAZip(ctx context.Context, trunc blob.Ref) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			if v, ok := e.(error); ok && err == nil {
@@ -1050,7 +1050,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 		}
 
 		// Copy the data to the zip.
-		rc, size, err := pk.s.Fetch(dr)
+		rc, size, err := pk.s.Fetch(ctx, dr)
 		check(err)
 		if size != thisSize {
 			rc.Close()
@@ -1090,9 +1090,12 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 		check(zw.Flush())
 		b := pk.schemaBlob[br]
 		zipBlobs = append(zipBlobs, BlobAndPos{blob.SizedRef{Ref: br, Size: b.Size()}, cw.n})
-		rc := b.Open()
-		n, err := io.Copy(fw, rc)
-		rc.Close()
+		r, err := b.ReadAll(ctx)
+		if err != nil {
+			return err
+		}
+		n, err := io.Copy(fw, r)
+
 		check(err)
 		if n != int64(b.Size()) {
 			return fmt.Errorf("failed to write all of schema blob %v: %d bytes, not wanted %d", br, n, b.Size())
@@ -1123,7 +1126,7 @@ func (pk *packer) writeAZip(trunc blob.Ref) (err error) {
 	}
 
 	zipRef := blob.RefFromBytes(zbuf.Bytes())
-	zipSB, err := blobserver.ReceiveNoHash(pk.s.large, zipRef, bytes.NewReader(zbuf.Bytes()))
+	zipSB, err := blobserver.ReceiveNoHash(ctx, pk.s.large, zipRef, bytes.NewReader(zbuf.Bytes()))
 	if err != nil {
 		return err
 	}
@@ -1178,12 +1181,12 @@ func (ze zipOpenError) Error() string {
 // foreachZipBlob calls fn for each blob in the zip pack blob
 // identified by zipRef.  If fn returns a non-nil error,
 // foreachZipBlob stops enumerating with that error.
-func (s *storage) foreachZipBlob(zipRef blob.Ref, fn func(BlobAndPos) error) error {
-	sb, err := blobserver.StatBlob(s.large, zipRef)
+func (s *storage) foreachZipBlob(ctx context.Context, zipRef blob.Ref, fn func(BlobAndPos) error) error {
+	sb, err := blobserver.StatBlob(ctx, s.large, zipRef)
 	if err != nil {
 		return err
 	}
-	zr, err := zip.NewReader(blob.ReaderAt(s.large, zipRef), int64(sb.Size))
+	zr, err := zip.NewReader(blob.ReaderAt(ctx, s.large, zipRef), int64(sb.Size))
 	if err != nil {
 		return zipOpenError{zipRef, err}
 	}
@@ -1230,6 +1233,7 @@ func (s *storage) foreachZipBlob(zipRef blob.Ref, fn func(BlobAndPos) error) err
 		return err
 	}
 	defer maniRC.Close()
+
 	var mf Manifest
 	if err := json.NewDecoder(maniRC).Decode(&mf); err != nil {
 		return err
@@ -1249,8 +1253,8 @@ func (s *storage) foreachZipBlob(zipRef blob.Ref, fn func(BlobAndPos) error) err
 
 // deleteZipPack deletes the zip pack file br, but only if that zip
 // file's parts are deleted already from the meta index.
-func (s *storage) deleteZipPack(br blob.Ref) error {
-	inUse, err := s.zipPartsInUse(br)
+func (s *storage) deleteZipPack(ctx context.Context, br blob.Ref) error {
+	inUse, err := s.zipPartsInUse(ctx, br)
 	if err != nil {
 		return err
 	}
@@ -1263,14 +1267,14 @@ func (s *storage) deleteZipPack(br blob.Ref) error {
 	return s.meta.Delete("d:" + br.String())
 }
 
-func (s *storage) zipPartsInUse(br blob.Ref) ([]blob.Ref, error) {
+func (s *storage) zipPartsInUse(ctx context.Context, br blob.Ref) ([]blob.Ref, error) {
 	var (
 		mu    sync.Mutex
 		inUse []blob.Ref
 	)
 	var grp syncutil.Group
 	gate := syncutil.NewGate(20) // arbitrary constant
-	err := s.foreachZipBlob(br, func(bap BlobAndPos) error {
+	err := s.foreachZipBlob(ctx, br, func(bap BlobAndPos) error {
 		gate.Start()
 		grp.Go(func() error {
 			defer gate.Done()

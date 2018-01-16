@@ -423,13 +423,13 @@ func (r *run) updatePhotoInAlbum(ctx context.Context, albumNode *importer.Object
 		if err != nil {
 			return nil, err
 		}
-		fileRef, err := schema.WriteFileFromReader(r.Host.Target(), photo.Filename, io.TeeReader(rc, h))
+		fileRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), photo.Filename, io.TeeReader(rc, h))
 		if err != nil {
 			return nil, err
 		}
 		fileRefStr = fileRef.String()
 		wholeRef := blob.RefFromHash(h)
-		if pn, err := findExistingPermanode(r.Host.Searcher(), wholeRef); err == nil {
+		if pn, err := findExistingPermanode(r.Context(), r.Host.Searcher(), wholeRef); err == nil {
 			return r.Host.ObjectFromRef(pn)
 		}
 		return r.Host.NewObject()
@@ -450,7 +450,7 @@ func (r *run) updatePhotoInAlbum(ctx context.Context, albumNode *importer.Object
 			if err != nil {
 				return err
 			}
-			fileRef, err := schema.WriteFileFromReader(r.Host.Target(), photo.Filename, rc)
+			fileRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), photo.Filename, rc)
 			rc.Close()
 			if err != nil {
 				return err
@@ -540,8 +540,8 @@ var sensitiveAttrs = []string{
 // camliContent pointing to a file with the provided wholeRef and
 // doesn't have any conflicting attributes that would prevent the
 // picasa importer from re-using that permanode for its own use.
-func findExistingPermanode(qs search.QueryDescriber, wholeRef blob.Ref) (pn blob.Ref, err error) {
-	res, err := qs.Query(&search.SearchQuery{
+func findExistingPermanode(ctx context.Context, qs search.QueryDescriber, wholeRef blob.Ref) (pn blob.Ref, err error) {
+	res, err := qs.Query(ctx, &search.SearchQuery{
 		Constraint: &search.Constraint{
 			Permanode: &search.PermanodeConstraint{
 				Attr: "camliContent",

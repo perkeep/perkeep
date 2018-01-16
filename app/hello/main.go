@@ -19,6 +19,7 @@ limitations under the License.
 package main // import "perkeep.org/app/hello"
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -51,7 +52,7 @@ func appConfig() *config {
 		log.Fatalf("could not get a client to fetch extra config: %v", err)
 	}
 	conf := &config{}
-	if err := cl.GetJSON(configURL, conf); err != nil {
+	if err := cl.GetJSON(context.TODO(), configURL, conf); err != nil {
 		log.Fatalf("could not get app config at %v: %v", configURL, err)
 	}
 	return conf

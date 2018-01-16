@@ -134,10 +134,10 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (storage blobser
 	return sto, nil
 }
 
-func (sto *replicaStorage) Fetch(b blob.Ref) (file io.ReadCloser, size uint32, err error) {
+func (sto *replicaStorage) Fetch(ctx context.Context, b blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	// TODO: race these? first to respond?
 	for _, replica := range sto.readReplicas {
-		file, size, err = replica.Fetch(b)
+		file, size, err = replica.Fetch(ctx, b)
 		if err == nil {
 			return
 		}
@@ -190,7 +190,7 @@ type sizedBlobAndError struct {
 	err error
 }
 
-func (sto *replicaStorage) ReceiveBlob(br blob.Ref, src io.Reader) (_ blob.SizedRef, err error) {
+func (sto *replicaStorage) ReceiveBlob(ctx context.Context, br blob.Ref, src io.Reader) (_ blob.SizedRef, err error) {
 	// Slurp the whole blob before replicating. Bounded by 16 MB anyway.
 	var buf bytes.Buffer
 	size, err := io.Copy(&buf, src)
@@ -203,7 +203,7 @@ func (sto *replicaStorage) ReceiveBlob(br blob.Ref, src io.Reader) (_ blob.Sized
 	uploadToReplica := func(idx int, dst blobserver.BlobReceiver) {
 		// Using ReceiveNoHash because it's already been
 		// verified implicitly by the io.Copy above:
-		sb, err := blobserver.ReceiveNoHash(dst, br, bytes.NewReader(buf.Bytes()))
+		sb, err := blobserver.ReceiveNoHash(ctx, dst, br, bytes.NewReader(buf.Bytes()))
 		resc <- sizedBlobAndError{idx, sb, err}
 	}
 	for idx, replica := range sto.replicas {

@@ -103,13 +103,13 @@ func (sto *remoteStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn fu
 	return sto.client.StatBlobs(ctx, blobs, fn)
 }
 
-func (sto *remoteStorage) ReceiveBlob(blob blob.Ref, source io.Reader) (outsb blob.SizedRef, outerr error) {
+func (sto *remoteStorage) ReceiveBlob(ctx context.Context, blob blob.Ref, source io.Reader) (outsb blob.SizedRef, outerr error) {
 	h := &client.UploadHandle{
 		BlobRef:  blob,
 		Size:     0, // size isn't known; 0 is fine, but TODO: ask source if it knows its size
 		Contents: source,
 	}
-	pr, err := sto.client.Upload(h)
+	pr, err := sto.client.Upload(ctx, h)
 	if err != nil {
 		outerr = err
 		return
@@ -117,8 +117,8 @@ func (sto *remoteStorage) ReceiveBlob(blob blob.Ref, source io.Reader) (outsb bl
 	return pr.SizedBlobRef(), nil
 }
 
-func (sto *remoteStorage) Fetch(b blob.Ref) (file io.ReadCloser, size uint32, err error) {
-	return sto.client.Fetch(b)
+func (sto *remoteStorage) Fetch(ctx context.Context, b blob.Ref) (file io.ReadCloser, size uint32, err error) {
+	return sto.client.Fetch(ctx, b)
 }
 
 func (sto *remoteStorage) MaxEnumerate() int { return 1000 }

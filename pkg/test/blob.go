@@ -17,16 +17,15 @@ limitations under the License.
 package test
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"strings"
 	"testing"
 	"time"
 
-	"go4.org/readerutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 )
@@ -53,14 +52,8 @@ func RandomBlob(t *testing.T, size int64) *Blob {
 
 func (tb *Blob) Blob() *blob.Blob {
 	s := tb.Contents
-	return blob.NewBlob(tb.BlobRef(), tb.Size(), func() readerutil.ReadSeekCloser {
-		return struct {
-			io.ReadSeeker
-			io.Closer
-		}{
-			io.NewSectionReader(strings.NewReader(s), 0, int64(len(s))),
-			ioutil.NopCloser(nil),
-		}
+	return blob.NewBlob(tb.BlobRef(), tb.Size(), func(ctx context.Context) ([]byte, error) {
+		return []byte(s), nil
 	})
 }
 
@@ -102,7 +95,7 @@ func (tb *Blob) AssertMatches(t *testing.T, sb blob.SizedRef) {
 }
 
 func (tb *Blob) MustUpload(t *testing.T, ds blobserver.BlobReceiver) {
-	sb, err := ds.ReceiveBlob(tb.BlobRef(), tb.Reader())
+	sb, err := ds.ReceiveBlob(context.Background(), tb.BlobRef(), tb.Reader())
 	if err != nil {
 		t.Fatalf("failed to upload blob %v (%q): %v", tb.BlobRef(), tb.Contents, err)
 	}

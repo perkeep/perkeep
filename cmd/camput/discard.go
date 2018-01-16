@@ -29,7 +29,7 @@ type discardStorage struct {
 	blobserver.NoImplStorage
 }
 
-func (discardStorage) ReceiveBlob(br blob.Ref, r io.Reader) (sb blob.SizedRef, err error) {
+func (discardStorage) ReceiveBlob(ctx context.Context, br blob.Ref, r io.Reader) (sb blob.SizedRef, err error) {
 	n, err := io.Copy(ioutil.Discard, r)
 	return blob.SizedRef{br, uint32(n)}, err
 }

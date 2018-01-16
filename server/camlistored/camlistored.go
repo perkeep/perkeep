@@ -797,7 +797,8 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		osutil.DieOnParentDeath()
 	}
 
-	if err := config.UploadPublicKey(); err != nil {
+	ctx := context.Background()
+	if err := config.UploadPublicKey(ctx); err != nil {
 		exitf("Error uploading public key on startup: %v", err)
 	}
 

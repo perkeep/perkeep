@@ -427,7 +427,7 @@ func (r *run) importPhoto(parent *importer.Object, photo *photosSearchItem) erro
 	}
 	defer res.Body.Close()
 
-	fileRef, err := schema.WriteFileFromReader(r.Host.Target(), filename, res.Body)
+	fileRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), filename, res.Body)
 	if err != nil {
 		return err
 	}

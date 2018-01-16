@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -38,6 +39,8 @@ import (
 	_ "perkeep.org/pkg/search"
 	_ "perkeep.org/pkg/server"
 )
+
+var ctxbg = context.Background()
 
 type fakeFile struct {
 	name    string
@@ -90,11 +93,11 @@ func testUploadFile(t *testing.T, c *Client, f *fakeFile, withFileOpts bool) *sc
 	if withFileOpts {
 		opts = &FileUploadOptions{FileInfo: f}
 	}
-	bref, err := c.UploadFile(f.Name(), strings.NewReader(f.content), opts)
+	bref, err := c.UploadFile(ctxbg, f.Name(), strings.NewReader(f.content), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
-	sb, err := c.FetchSchemaBlob(bref)
+	sb, err := c.FetchSchemaBlob(ctxbg, bref)
 	if err != nil {
 		t.Fatal(err)
 	}
