@@ -17,4 +17,4 @@ limitations under the License.
 goog.provide('cam.blobref');
 
 // TODO(aa): Need to eventually implement something like ref.go, which understands all the different types of hashes.
-cam.blobref.PATTERN = 'sha1-[0-9a-f]{40}';
+cam.blobref.PATTERN = '(sha1-[0-9a-f]{40}|sha224-[0-9a-f]{56})';

@@ -18,11 +18,15 @@ goog.provide('cam.blob');
 
 goog.require('goog.crypt');
 goog.require('goog.crypt.Sha1');
+goog.require('goog.crypt.Sha224');
 
-// Returns the Camlistore blobref for hash object. The only supported hash function is currently sha1, but more might be added later.
+// Returns the Camlistore blobref for hash object. The hash function is currently sha224 or sha1, but more might be added later.
 // @param {!goog.crypt.Hash} hash
 // @returns {!string}
 cam.blob.refFromHash = function(hash) {
+	if (hash instanceof goog.crypt.Sha224) {
+		return 'sha224-' + goog.crypt.byteArrayToHex(hash.digest());
+	}
 	if (hash instanceof goog.crypt.Sha1) {
 		return 'sha1-' + goog.crypt.byteArrayToHex(hash.digest());
 	}
@@ -63,5 +67,5 @@ cam.blob.refFromDOMBlob = function(blob) {
 // Creates an instance of the currently recommened hash function.
 // @return {!goog.crypt.Hash'}
 cam.blob.createHash = function() {
-	return new goog.crypt.Sha1();
+	return new goog.crypt.Sha224();
 };
