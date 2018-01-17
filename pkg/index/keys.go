@@ -170,6 +170,16 @@ var (
 		},
 	}
 
+	keySignerKeyID = &keyType{
+		"signerkeyid",
+		[]part{
+			{"hashsum", typeBlobRef},
+		},
+		[]part{
+			{"keyID", typeStr},
+		},
+	}
+
 	// keyPermanodeClaim indexes when a permanode is modified (or deleted) by a claim.
 	// It ties the affected permanode to the date of the modification, the responsible
 	// claim, and the nature of the modification.

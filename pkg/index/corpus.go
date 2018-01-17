@@ -122,7 +122,13 @@ type PermanodeMeta struct {
 
 	attr attrValues // attributes from all signers
 
-	signer map[blob.Ref]attrValues // attrs per signer
+	// signer maps a signer's GPG ID (e.g. 2931A67C26F5ABDA) to the attrs for this
+	// signer.
+	signer map[string]attrValues
+
+	// TODO(mpl): consider adding the *corpus keyId (or even the *corpus itself?) as
+	// a field, so we don't have to pass it as argument to e.g. restoreInvariants? It
+	// would look nicer, but would it be more/less efficient?
 }
 
 type attrValues map[string][]string
@@ -150,38 +156,53 @@ func (m attrValues) cacheAttrClaim(cl *camtypes.Claim) {
 	}
 }
 
+// signerID maps a signer blobRef to the signer's GPG ID (e.g.
+// 2931A67C26F5ABDA). It is needed because the signer on a claim is represented by
+// its blobRef, but the same signer could have created claims with different hashes
+// (e.g. with sha1 and with sha224), so these claims would look as if created by
+// different signers (because different blobRefs). signerID thus allows the
+// algorithms to rely on the unique GPG ID of a signer instead of the different
+// blobRef representations of it. Its value is usually the corpus keyId.
+type signerID map[blob.Ref]string
+
 // restoreInvariants sorts claims by date and
 // recalculates latest attributes.
-func (pm *PermanodeMeta) restoreInvariants() {
+func (pm *PermanodeMeta) restoreInvariants(signers signerID) error {
 	sort.Sort(camtypes.ClaimPtrsByDate(pm.Claims))
 	pm.attr = make(attrValues)
-	pm.signer = make(map[blob.Ref]attrValues)
+	pm.signer = make(map[string]attrValues)
 	for _, cl := range pm.Claims {
-		pm.appendAttrClaim(cl)
+		if err := pm.appendAttrClaim(cl, signers); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // fixupLastClaim fixes invariants on the assumption
 // that the all but the last element in Claims are sorted by date
 // and the last element is the only one not yet included in Attrs.
-func (pm *PermanodeMeta) fixupLastClaim() {
+func (pm *PermanodeMeta) fixupLastClaim(signers signerID) error {
 	if pm.attr != nil {
 		n := len(pm.Claims)
 		if n < 2 || camtypes.ClaimPtrsByDate(pm.Claims).Less(n-2, n-1) {
 			// already sorted, update Attrs from new Claim
-			pm.appendAttrClaim(pm.Claims[n-1])
-			return
+			return pm.appendAttrClaim(pm.Claims[n-1], signers)
 		}
 	}
-	pm.restoreInvariants()
+	return pm.restoreInvariants(signers)
 }
 
 // appendAttrClaim stores permanode attributes
-// from cl in pm.attr and pm.signer[cl.Signer].
+// from cl in pm.attr and pm.signer[signerID[cl.Signer]].
 // The caller of appendAttrClaim is responsible for calling
 // it with claims sorted in camtypes.ClaimPtrsByDate order.
-func (pm *PermanodeMeta) appendAttrClaim(cl *camtypes.Claim) {
-	sc, ok := pm.signer[cl.Signer]
+func (pm *PermanodeMeta) appendAttrClaim(cl *camtypes.Claim, signers signerID) error {
+	signer, ok := signers[cl.Signer]
+	if !ok {
+		return fmt.Errorf("claim %v has unknown signer %q", cl.BlobRef, cl.Signer)
+	}
+	sc, ok := pm.signer[signer]
 	if !ok {
 		// Optimize for the case where cl.Signer of all claims are the same.
 		// Instead of having two identical attrValues copies in
@@ -193,8 +214,8 @@ func (pm *PermanodeMeta) appendAttrClaim(cl *camtypes.Claim) {
 			// Set up signer cache to reference
 			// the existing attrValues.
 			pm.attr.cacheAttrClaim(cl)
-			pm.signer[cl.Signer] = pm.attr
-			return
+			pm.signer[signer] = pm.attr
+			return nil
 
 		case 1:
 			// pm.signer has exactly one other signer,
@@ -214,7 +235,7 @@ func (pm *PermanodeMeta) appendAttrClaim(cl *camtypes.Claim) {
 			}
 		}
 		sc = make(attrValues)
-		pm.signer[cl.Signer] = sc
+		pm.signer[signer] = sc
 	}
 
 	pm.attr.cacheAttrClaim(cl)
@@ -223,26 +244,43 @@ func (pm *PermanodeMeta) appendAttrClaim(cl *camtypes.Claim) {
 	if len(pm.signer) > 1 {
 		sc.cacheAttrClaim(cl)
 	}
+	return nil
+}
+
+// signerID returns the GPG ID (e.g. 2931A67C26F5ABDA) corresponding to the
+// signer. It returns the empty value if signer is not a valid blob Ref, and the
+// unusable value "unknown GPG key" when it applies, as a convenience to help
+// with the different cases covered by valuesAtSigner.
+func (c *Corpus) signerID(signer blob.Ref) string {
+	if !signer.Valid() {
+		return ""
+	}
+	id, ok := c.keyId[signer]
+	if !ok {
+		return "unknown GPG key"
+	}
+	return id
 }
 
 // valuesAtSigner returns an attrValues to query permanode attr values at the
-// given time for the signerFilter.
+// given time for the signerFilter, which is the GPG ID of a signer (e.g. 2931A67C26F5ABDA).
+// It returns (nil, true) if signerFilter is not empty but pm has no
+// attributes for it (including if signerFilter is unknown).
 // It returns ok == true if v represents attrValues valid for the specified
 // parameters.
 // It returns (nil, false) if neither pm.attr nor pm.signer should be used for
 // the given time, because e.g. some claims are more recent than this time. In
 // which case, the caller should resort to querying another source, such as pm.Claims.
-// If signerFilter is valid and pm has no attributes for it, (nil, true) is
-// returned.
 // The returned map must not be changed by the caller.
 func (pm *PermanodeMeta) valuesAtSigner(at time.Time,
-	signerFilter blob.Ref) (v attrValues, ok bool) {
+	signerFilter string) (v attrValues, ok bool) {
 
 	if pm.attr == nil {
 		return nil, false
 	}
+
 	var m attrValues
-	if signerFilter.Valid() {
+	if signerFilter != "" {
 		m = pm.signer[signerFilter]
 		if m == nil {
 			return nil, true
@@ -404,7 +442,9 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	// Post-load optimizations and restoration of invariants.
 	for _, pm := range c.permanodes {
 		// Restore invariants violated during building:
-		pm.restoreInvariants()
+		if err := pm.restoreInvariants(c.keyId); err != nil {
+			return err
+		}
 
 		// And intern some stuff.
 		for _, cl := range pm.Claims {
@@ -497,11 +537,31 @@ func (c *Corpus) scanPrefix(mu *sync.Mutex, s sorted.KeyValue, prefix string) (e
 	return nil
 }
 
+func (c *Corpus) addKeyID(mm *mutationMap) error {
+	if mm.signerID == "" || !mm.signerBlobRef.Valid() {
+		return nil
+	}
+	id, ok := c.keyId[mm.signerBlobRef]
+	if !ok {
+		// only add it if we don't already have it, to save on allocs.
+		return c.mergeSignerKeyIdRow([]byte("signerkeyid:"+mm.signerBlobRef.String()), []byte(mm.signerID))
+	}
+	if id != mm.signerID {
+		return fmt.Errorf("GPG ID mismatch for signer %q: refusing to overwrite %v with %v", mm.signerBlobRef, id, mm.signerID)
+	}
+	return nil
+}
+
 func (c *Corpus) addBlob(ctx context.Context, br blob.Ref, mm *mutationMap) error {
 	if _, dup := c.blobs[br]; dup {
 		return nil
 	}
 	c.gen++
+	// make sure keySignerKeyID is done first before the actual mutations, even
+	// though it's also going to be done in the loop below.
+	if err := c.addKeyID(mm); err != nil {
+		return err
+	}
 	for k, v := range mm.kv {
 		kt := typeOfKey(k)
 		if !slurpedKeyType[kt] {
@@ -599,7 +659,9 @@ func (c *Corpus) mergeClaimRow(k, v []byte) error {
 	if !c.building {
 		// Unless we're still starting up (at which we sort at
 		// the end instead), keep claims sorted and attrs in sync.
-		pm.fixupLastClaim()
+		if err := pm.fixupLastClaim(c.keyId); err != nil {
+			return err
+		}
 	}
 
 	if vbr, ok := blob.Parse(cl.Value); ok {
@@ -1070,13 +1132,15 @@ func (c *Corpus) PermanodeAttrValue(permaNode blob.Ref,
 	if !ok {
 		return ""
 	}
-	if values, ok := pm.valuesAtSigner(at, signerFilter); ok {
+	if values, ok := pm.valuesAtSigner(at, c.signerID(signerFilter)); ok {
 		v := values[attr]
 		if len(v) == 0 {
 			return ""
 		}
 		return v[0]
 	}
+	// TODO(mpl): fix claimPtrsAttrValue to use the gpg ID instead of the blobRef as
+	// the signerFilter. Maybe other parts of corpus needs fixing too.
 	return claimPtrsAttrValue(pm.Claims, attr, at, signerFilter)
 }
 
@@ -1107,7 +1171,7 @@ func (c *Corpus) permanodeAttrsOrClaims(permaNode blob.Ref,
 	if !ok {
 		return nil, nil
 	}
-	m, ok = pm.valuesAtSigner(at, signerFilter)
+	m, ok = pm.valuesAtSigner(at, c.signerID(signerFilter))
 	if ok {
 		return m, nil
 	}
@@ -1130,7 +1194,8 @@ func (c *Corpus) AppendPermanodeAttrValues(dst []string,
 	if !ok {
 		return dst
 	}
-	if values, ok := pm.valuesAtSigner(at, signerFilter); ok {
+	signer := c.signerID(signerFilter)
+	if values, ok := pm.valuesAtSigner(at, signer); ok {
 		return append(dst, values[attr]...)
 	}
 	if at.IsZero() {
@@ -1140,7 +1205,7 @@ func (c *Corpus) AppendPermanodeAttrValues(dst []string,
 		if cl.Attr != attr || cl.Date.After(at) {
 			continue
 		}
-		if signerFilter.Valid() && signerFilter != cl.Signer {
+		if signer != "" && signer != c.signerID(cl.Signer) {
 			continue
 		}
 		switch cl.Type {
@@ -1277,7 +1342,7 @@ func (c *Corpus) PermanodeHasAttrValue(pn blob.Ref, at time.Time, attr, val stri
 	if !ok {
 		return false
 	}
-	if values, ok := pm.valuesAtSigner(at, blob.Ref{}); ok {
+	if values, ok := pm.valuesAtSigner(at, ""); ok {
 		for _, v := range values[attr] {
 			if v == val {
 				return true
