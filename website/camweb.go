@@ -71,7 +71,7 @@ const (
 var h1TitlePattern = regexp.MustCompile(`<h1[^>]*>([^<]+)</h1>`)
 
 var (
-	httpAddr    = flag.String("http", defaultAddr, "HTTP address")
+	httpAddr    = flag.String("http", defaultAddr, "HTTP address. If using Let's Encrypt, this server needs to be able to answer the http-01 challenge on port 80.")
 	httpsAddr   = flag.String("https", "", "HTTPS address")
 	root        = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl)")
 	logDir      = flag.String("logdir", "", "Directory to write log files to (one per hour), or empty to not log.")
@@ -87,8 +87,7 @@ var (
 	gceJWTFile   = flag.String("gce_jwt_file", "", "If non-empty, a filename to the GCE Service Account's JWT (JSON) config file.")
 	gitContainer = flag.Bool("git_container", false, "Use git from the `camlistore/git` Docker container; if false, the system `git` is used.")
 
-	adminEmail         = flag.String("email", "", "Address that Let's Encrypt will notify about problems with issued certificates")
-	flagChromeBugRepro = flag.Bool("chrome_bug", false, "Run the chrome bug repro demo for issue #660. True in production.")
+	adminEmail = flag.String("email", "", "Address that Let's Encrypt will notify about problems with issued certificates")
 )
 
 const (
@@ -614,7 +613,6 @@ func setProdFlags() {
 		log.Fatal("can't use dev mode in production")
 	}
 	log.Printf("Running in production; configuring prod flags & containers")
-	*flagChromeBugRepro = true
 	*httpAddr = ":80"
 	*httpsAddr = ":443"
 	// TODO(mpl): investigate why this proxying does not seem to be working (we end up on https://camlistore.org).
@@ -960,36 +958,30 @@ func main() {
 		WriteTimeout: 30 * time.Minute,
 	}
 
-	httpErr := make(chan error)
-	go func() {
-		log.Printf("Listening for HTTP on %v", *httpAddr)
-		httpErr <- httpServer.ListenAndServe()
-	}()
-
 	httpsErr := make(chan error)
-	if *httpsAddr != "" {
-		go func() {
-			httpsErr <- serveHTTPS(httpServer)
-		}()
-	}
-
-	if *flagChromeBugRepro {
-		go func() {
-			log.Printf("Repro handler failed: %v", repro(":8001", "foo:bar"))
-		}()
-	}
+	go func() {
+		httpsErr <- serve(httpServer, func(err error) {
+			log.Fatalf("Error serving HTTP: %v", err)
+		})
+	}()
 
 	select {
 	case err := <-emailErr:
 		log.Fatalf("Error sending emails: %v", err)
-	case err := <-httpErr:
-		log.Fatalf("Error serving HTTP: %v", err)
 	case err := <-httpsErr:
 		log.Fatalf("Error serving HTTPS: %v", err)
 	}
 }
 
-func serveHTTPS(httpServer *http.Server) error {
+// serve starts listening and serving for HTTP, and for HTTPS if it applies.
+// onHTTPError, if non-nil, is called if there's a problem serving the HTTP
+// (typically port 80) server. Any error from the HTTPS server is returned.
+func serve(httpServer *http.Server, onHTTPError func(error)) error {
+	if *httpsAddr == "" {
+		log.Printf("Listening for HTTP on %v", *httpAddr)
+		onHTTPError(httpServer.ListenAndServe())
+		return nil
+	}
 	log.Printf("Starting TLS server on %s", *httpsAddr)
 	httpsServer := new(http.Server)
 	*httpsServer = *httpServer
@@ -998,6 +990,10 @@ func serveHTTPS(httpServer *http.Server) error {
 	var hostPolicy autocert.HostPolicy
 	if !inProd {
 		if *tlsCertFile != "" && *tlsKeyFile != "" {
+			go func() {
+				log.Printf("Listening for HTTP on %v", *httpAddr)
+				onHTTPError(httpServer.ListenAndServe())
+			}()
 			return httpsServer.ListenAndServeTLS(*tlsCertFile, *tlsKeyFile)
 		}
 		// Otherwise use Let's Encrypt, i.e. same use case as in prod
@@ -1023,6 +1019,10 @@ func serveHTTPS(httpServer *http.Server) error {
 		HostPolicy: hostPolicy,
 		Cache:      cacheDir,
 	}
+	go func() {
+		log.Printf("Listening for HTTP on %v", *httpAddr)
+		onHTTPError(http.ListenAndServe(*httpAddr, m.HTTPHandler(httpServer.Handler)))
+	}()
 	if *adminEmail != "" {
 		m.Email = *adminEmail
 	}
