@@ -33,6 +33,56 @@ required = [
   "myitcv.io/gogenerate"
 ]
 
+
+# Try to eliminate as much cruft as possible to keep the vendor
+# directory small.  Each entry is a directory that you want to eliminate.
+# To omit individual files add to the top-level .gitignore
+
+ignored = [
+  "cloud.google.com/go/datastore/testdata",
+  "github.com/cznic/kv/_testdata",
+  "github.com/cznic/lldb/testdata",
+  "github.com/cznic/zappy/testdata",
+  "github.com/garyburd/go-oauth/examples",
+  "github.com/golang/protobuf/proto/testdata",
+  "github.com/gopherjs/gopherjs/tests",
+  "github.com/gopherjs/gopherjs/tests/*",
+  "github.com/gorilla/websocket/examples",
+  "github.com/rwcarlsen/goexif/exif/corrupt",
+  "github.com/rwcarlsen/goexif/exif/samples",
+  "github.com/russross/blackfriday/testdata",
+  "github.com/shurcooL/go/importgraphutil",
+  "github.com/syndtr/goleveldb/leveldb/testutil",
+  "github.com/syndtr/goleveldb/manualtest",
+  "github.com/tgulacsi/picago/testdata",
+  "github.com/tgulacsi/picago/testdata",
+  "go4.org/jsonconfig/testdata",
+  "golang.org/x/image/testdata",
+  "golang.org/x/image/font/testdata",
+  "golang.org/x/net/html/charset/testdata",
+  "golang.org/x/net/html/testdata",
+  "golang.org/x/net/http2/testdata",
+  "golang.org/x/oauth2/google/testdata",
+  "golang.org/x/text/encoding/testdata",
+  "golang.org/x/text/language/testdata",
+  "golang.org/x/tools/go/gcimporter15/testdata",
+  "golang.org/x/tools/refactor/importgraph",
+  "google.golang.org/grpc/benchmark",
+  "google.golang.org/grpc/examples",
+  "google.golang.org/grpc/interop/client/testdata",
+  "google.golang.org/grpc/interop/server/testdata",
+  "google.golang.org/grpc/reflection",
+  "google.golang.org/grpc/stress",
+  "google.golang.org/grpc/test",
+  "google.golang.org/grpc/testdata",
+  "google.golang.org/grpc/transport/testdata",
+  "myitcv.io/gogenerate/_testFiles",
+  "myitcv.io/react/examples",
+  "myitcv.io/react/_scripts",
+  "myitcv.io/react/_talks",
+  "myitcv.io/react/_vendor"
+]
+
 # Constraints / Overrides follow
 # Semantic versions (like v1.0.0) are preferred
 # Please keep alphabetized
