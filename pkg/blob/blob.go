@@ -38,9 +38,9 @@ type Blob struct {
 }
 
 // NewBlob constructs a Blob from its Ref, size and a function that
-// returns an io.ReadCloser from which the blob can be read. Any error
-// in the function newReader when constructing the io.ReadCloser should
-// be returned upon the first call to Read or Close.
+// returns the contents of the blob. Any error in the function newReader when
+// constructing the io.ReadCloser should be returned upon the first call to Read or
+// Close.
 func NewBlob(ref Ref, size uint32, readAll func(ctx context.Context) ([]byte, error)) *Blob {
 	return &Blob{
 		ref:     ref,
