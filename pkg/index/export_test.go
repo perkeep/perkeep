@@ -53,8 +53,15 @@ func (c *Corpus) SetClaims(pn blob.Ref, claims []*camtypes.Claim) {
 	pm := &PermanodeMeta{
 		Claims: claims,
 	}
-	pm.restoreInvariants()
+	pm.restoreInvariants(c.keyId)
 	c.permanodes[pn] = pm
+}
+
+func (c *Corpus) Exp_AddKeyID(signerRef blob.Ref, signerID string) error {
+	return c.addKeyID(&mutationMap{
+		signerID:      signerID,
+		signerBlobRef: signerRef,
+	})
 }
 
 func (x *Index) NeededMapsForTest() (needs, neededBy map[blob.Ref][]blob.Ref, ready map[blob.Ref]bool) {

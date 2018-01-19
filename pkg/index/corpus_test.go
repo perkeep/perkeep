@@ -29,11 +29,17 @@ import (
 	"perkeep.org/pkg/types/camtypes"
 )
 
-func newTestCorpusWithPermanode() (c *index.Corpus, pn, sig1, sig2 blob.Ref) {
+func newTestCorpusWithPermanode(t *testing.T) (c *index.Corpus, pn, sig1, sig2 blob.Ref) {
 	c = index.ExpNewCorpus()
 	pn = blob.MustParse("abc-123")
 	sig1 = blob.MustParse("abc-456")
 	sig2 = blob.MustParse("abc-789")
+	if err := c.Exp_AddKeyID(sig1, "abc-456"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Exp_AddKeyID(sig2, "abc-789"); err != nil {
+		t.Fatal(err)
+	}
 	tm := time.Unix(99, 0)
 	claim := func(verb, attr, val string, sig blob.Ref) *camtypes.Claim {
 		tm = tm.Add(time.Second)
@@ -106,7 +112,7 @@ func newTestCorpusWithPermanode() (c *index.Corpus, pn, sig1, sig2 blob.Ref) {
 }
 
 func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
-	c, pn, sig1, sig2 := newTestCorpusWithPermanode()
+	c, pn, sig1, sig2 := newTestCorpusWithPermanode(t)
 	s := func(s ...string) []string { return s }
 
 	sigMissing := blob.MustParse("xyz-123")
@@ -166,7 +172,7 @@ func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
 }
 
 func TestCorpusPermanodeAttrValue(t *testing.T) {
-	c, pn, sig1, sig2 := newTestCorpusWithPermanode()
+	c, pn, sig1, sig2 := newTestCorpusWithPermanode(t)
 
 	tests := []struct {
 		attr string
@@ -221,7 +227,7 @@ func TestCorpusPermanodeAttrValue(t *testing.T) {
 }
 
 func TestCorpusPermanodeHasAttrValue(t *testing.T) {
-	c, pn, _, _ := newTestCorpusWithPermanode()
+	c, pn, _, _ := newTestCorpusWithPermanode(t)
 
 	tests := []struct {
 		attr string
