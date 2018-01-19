@@ -67,8 +67,11 @@ type Corpus struct {
 	// The value is the same one in blobs.
 	camBlobs map[string]map[blob.Ref]*camtypes.BlobMeta
 
-	// TODO: add GoLLRB to third_party; keep sorted BlobMeta
-	keyId        map[blob.Ref]string
+	// TODO: add GoLLRB to vendor; keep sorted BlobMeta
+	keyId signerFromBlobrefMap
+
+	// signerRefs maps a signer GPG ID to all its signer blobs (because different hashes).
+	signerRefs   map[string]signerRefSet
 	files        map[blob.Ref]camtypes.FileInfo
 	permanodes   map[blob.Ref]*PermanodeMeta
 	imageInfo    map[blob.Ref]camtypes.ImageInfo // keyed by fileref (not wholeref)
@@ -103,6 +106,31 @@ type Corpus struct {
 	ss []string
 }
 
+// signerRefSet is the set of all blob Refs (of different hashes) that represent
+// the same signer GPG identity. They are stored as strings for allocation reasons:
+// we favor allocating when updating signerRefSets in the corpus over when reading
+// them.
+type signerRefSet []string
+
+// blobMatches reports whether br is in the set.
+func (srs signerRefSet) blobMatches(br blob.Ref) bool {
+	for _, v := range srs {
+		if br.EqualString(v) {
+			return true
+		}
+	}
+	return false
+}
+
+// signerFromBlobrefMap maps a signer blobRef to the signer's GPG ID (e.g.
+// 2931A67C26F5ABDA). It is needed because the signer on a claim is represented by
+// its blobRef, but the same signer could have created claims with different hashes
+// (e.g. with sha1 and with sha224), so these claims would look as if created by
+// different signers (because different blobRefs). signerID thus allows the
+// algorithms to rely on the unique GPG ID of a signer instead of the different
+// blobRef representations of it. Its value is usually the corpus keyId.
+type signerFromBlobrefMap map[blob.Ref]string
+
 type latLong struct {
 	lat, long float64
 }
@@ -125,10 +153,6 @@ type PermanodeMeta struct {
 	// signer maps a signer's GPG ID (e.g. 2931A67C26F5ABDA) to the attrs for this
 	// signer.
 	signer map[string]attrValues
-
-	// TODO(mpl): consider adding the *corpus keyId (or even the *corpus itself?) as
-	// a field, so we don't have to pass it as argument to e.g. restoreInvariants? It
-	// would look nicer, but would it be more/less efficient?
 }
 
 type attrValues map[string][]string
@@ -156,18 +180,9 @@ func (m attrValues) cacheAttrClaim(cl *camtypes.Claim) {
 	}
 }
 
-// signerID maps a signer blobRef to the signer's GPG ID (e.g.
-// 2931A67C26F5ABDA). It is needed because the signer on a claim is represented by
-// its blobRef, but the same signer could have created claims with different hashes
-// (e.g. with sha1 and with sha224), so these claims would look as if created by
-// different signers (because different blobRefs). signerID thus allows the
-// algorithms to rely on the unique GPG ID of a signer instead of the different
-// blobRef representations of it. Its value is usually the corpus keyId.
-type signerID map[blob.Ref]string
-
 // restoreInvariants sorts claims by date and
 // recalculates latest attributes.
-func (pm *PermanodeMeta) restoreInvariants(signers signerID) error {
+func (pm *PermanodeMeta) restoreInvariants(signers signerFromBlobrefMap) error {
 	sort.Sort(camtypes.ClaimPtrsByDate(pm.Claims))
 	pm.attr = make(attrValues)
 	pm.signer = make(map[string]attrValues)
@@ -182,7 +197,7 @@ func (pm *PermanodeMeta) restoreInvariants(signers signerID) error {
 // fixupLastClaim fixes invariants on the assumption
 // that the all but the last element in Claims are sorted by date
 // and the last element is the only one not yet included in Attrs.
-func (pm *PermanodeMeta) fixupLastClaim(signers signerID) error {
+func (pm *PermanodeMeta) fixupLastClaim(signers signerFromBlobrefMap) error {
 	if pm.attr != nil {
 		n := len(pm.Claims)
 		if n < 2 || camtypes.ClaimPtrsByDate(pm.Claims).Less(n-2, n-1) {
@@ -197,7 +212,7 @@ func (pm *PermanodeMeta) fixupLastClaim(signers signerID) error {
 // from cl in pm.attr and pm.signer[signerID[cl.Signer]].
 // The caller of appendAttrClaim is responsible for calling
 // it with claims sorted in camtypes.ClaimPtrsByDate order.
-func (pm *PermanodeMeta) appendAttrClaim(cl *camtypes.Claim, signers signerID) error {
+func (pm *PermanodeMeta) appendAttrClaim(cl *camtypes.Claim, signers signerFromBlobrefMap) error {
 	signer, ok := signers[cl.Signer]
 	if !ok {
 		return fmt.Errorf("claim %v has unknown signer %q", cl.BlobRef, cl.Signer)
@@ -306,6 +321,7 @@ func newCorpus() *Corpus {
 		imageInfo:    make(map[blob.Ref]camtypes.ImageInfo),
 		deletedBy:    make(map[blob.Ref]blob.Ref),
 		keyId:        make(map[blob.Ref]string),
+		signerRefs:   make(map[string]signerRefSet),
 		brOfStr:      make(map[string]blob.Ref),
 		fileWholeRef: make(map[blob.Ref]blob.Ref),
 		gps:          make(map[blob.Ref]latLong),
@@ -359,19 +375,19 @@ func (crashStorage) Find(start, end string) sorted.Iterator {
 // *********** Updating the corpus
 
 var corpusMergeFunc = map[string]func(c *Corpus, k, v []byte) error{
-	"have":            nil, // redundant with "meta"
-	"recpn":           nil, // unneeded.
-	"meta":            (*Corpus).mergeMetaRow,
-	"signerkeyid":     (*Corpus).mergeSignerKeyIdRow,
-	"claim":           (*Corpus).mergeClaimRow,
-	"fileinfo":        (*Corpus).mergeFileInfoRow,
-	keyFileTimes.name: (*Corpus).mergeFileTimesRow,
-	"imagesize":       (*Corpus).mergeImageSizeRow,
-	"wholetofile":     (*Corpus).mergeWholeToFileRow,
-	"exifgps":         (*Corpus).mergeEXIFGPSRow,
-	"exiftag":         nil, // not using any for now
-	"signerattrvalue": nil, // ignoring for now
-	"mediatag":        (*Corpus).mergeMediaTag,
+	"have":              nil, // redundant with "meta"
+	"recpn":             nil, // unneeded.
+	"meta":              (*Corpus).mergeMetaRow,
+	keySignerKeyID.name: (*Corpus).mergeSignerKeyIdRow,
+	"claim":             (*Corpus).mergeClaimRow,
+	"fileinfo":          (*Corpus).mergeFileInfoRow,
+	keyFileTimes.name:   (*Corpus).mergeFileTimesRow,
+	"imagesize":         (*Corpus).mergeImageSizeRow,
+	"wholetofile":       (*Corpus).mergeWholeToFileRow,
+	"exifgps":           (*Corpus).mergeEXIFGPSRow,
+	"exiftag":           nil, // not using any for now
+	"signerattrvalue":   nil, // ignoring for now
+	"mediatag":          (*Corpus).mergeMediaTag,
 }
 
 func memstats() *runtime.MemStats {
@@ -385,7 +401,10 @@ var logCorpusStats = true // set to false in tests
 
 var slurpPrefixes = []string{
 	"meta:", // must be first
-	"signerkeyid:",
+	keySignerKeyID.name + ":",
+
+	// the first two above are loaded serially first for dependency reasons, whereas
+	// the others below are loaded concurrently afterwards.
 	"claim|",
 	"fileinfo|",
 	keyFileTimes.name + "|",
@@ -422,12 +441,18 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	if err := c.scanPrefix(scanmu, s, "meta:"); err != nil {
 		return err
 	}
+
+	// we do the keyIDs first, because they're necessary to properly merge claims
+	if err := c.scanPrefix(scanmu, s, keySignerKeyID.name+":"); err != nil {
+		return err
+	}
+
 	c.files = make(map[blob.Ref]camtypes.FileInfo, len(c.camBlobs["file"]))
 	c.permanodes = make(map[blob.Ref]*PermanodeMeta, len(c.camBlobs["permanode"]))
 	cpu0 := osutil.CPUUsage()
 
 	var grp syncutil.Group
-	for i, prefix := range slurpPrefixes[1:] {
+	for i, prefix := range slurpPrefixes[2:] {
 		if logCorpusStats {
 			log.Printf("Slurping corpus to memory from index... (%d/%d: prefix %q)", i+2, len(slurpPrefixes),
 				prefix[:len(prefix)-1])
@@ -526,8 +551,22 @@ func (c *Corpus) scanPrefix(mu *sync.Mutex, s sorted.KeyValue, prefix string) (e
 			mu.Lock()
 			defer mu.Unlock()
 		}
-		if err := fn(c, it.KeyBytes(), it.ValueBytes()); err != nil {
-			return err
+		if typeKey == keySignerKeyID.name {
+			signerBlobRef, ok := blob.Parse(strings.TrimPrefix(it.Key(), keySignerKeyID.name+":"))
+			if !ok {
+				log.Printf("Bogus signer blob in %v row: %q", keySignerKeyID.name, it.Key())
+				continue
+			}
+			if err := c.addKeyID(&mutationMap{
+				signerBlobRef: signerBlobRef,
+				signerID:      it.Value(),
+			}); err != nil {
+				return err
+			}
+		} else {
+			if err := fn(c, it.KeyBytes(), it.ValueBytes()); err != nil {
+				return err
+			}
 		}
 	}
 	if logCorpusStats {
@@ -542,14 +581,15 @@ func (c *Corpus) addKeyID(mm *mutationMap) error {
 		return nil
 	}
 	id, ok := c.keyId[mm.signerBlobRef]
-	if !ok {
-		// only add it if we don't already have it, to save on allocs.
-		return c.mergeSignerKeyIdRow([]byte("signerkeyid:"+mm.signerBlobRef.String()), []byte(mm.signerID))
+	// only add it if we don't already have it, to save on allocs.
+	if ok {
+		if id != mm.signerID {
+			return fmt.Errorf("GPG ID mismatch for signer %q: refusing to overwrite %v with %v", mm.signerBlobRef, id, mm.signerID)
+		}
+		return nil
 	}
-	if id != mm.signerID {
-		return fmt.Errorf("GPG ID mismatch for signer %q: refusing to overwrite %v with %v", mm.signerBlobRef, id, mm.signerID)
-	}
-	return nil
+	c.signerRefs[mm.signerID] = append(c.signerRefs[mm.signerID], mm.signerBlobRef.String())
+	return c.mergeSignerKeyIdRow([]byte("signerkeyid:"+mm.signerBlobRef.String()), []byte(mm.signerID))
 }
 
 func (c *Corpus) addBlob(ctx context.Context, br blob.Ref, mm *mutationMap) error {
@@ -564,6 +604,10 @@ func (c *Corpus) addBlob(ctx context.Context, br blob.Ref, mm *mutationMap) erro
 	}
 	for k, v := range mm.kv {
 		kt := typeOfKey(k)
+		if kt == keySignerKeyID.name {
+			// because we already took care of it in addKeyID
+			continue
+		}
 		if !slurpedKeyType[kt] {
 			continue
 		}
@@ -1132,21 +1176,35 @@ func (c *Corpus) PermanodeAttrValue(permaNode blob.Ref,
 	if !ok {
 		return ""
 	}
-	if values, ok := pm.valuesAtSigner(at, c.signerID(signerFilter)); ok {
+
+	var signer string
+	var signerRefs signerRefSet
+	if signerFilter.Valid() {
+		var ok bool
+		signer, ok = c.keyId[signerFilter]
+		if !ok {
+			return ""
+		}
+		signerRefs, ok = c.signerRefs[signer]
+		if !ok {
+			return ""
+		}
+	}
+
+	if values, ok := pm.valuesAtSigner(at, signer); ok {
 		v := values[attr]
 		if len(v) == 0 {
 			return ""
 		}
 		return v[0]
 	}
-	// TODO(mpl): fix claimPtrsAttrValue to use the gpg ID instead of the blobRef as
-	// the signerFilter. Maybe other parts of corpus needs fixing too.
-	return claimPtrsAttrValue(pm.Claims, attr, at, signerFilter)
+
+	return claimPtrsAttrValue(pm.Claims, attr, at, signerRefs)
 }
 
 // permanodeAttrsOrClaims returns the best available source
 // to query attr values of permaNode at the given time
-// for the signerFilter, which is either:
+// for the signerID, which is either:
 // a. m that represents attr values for the parameters, or
 // b. all claims of the permanode.
 // Only one of m or claims will be non-nil.
@@ -1160,18 +1218,19 @@ func (c *Corpus) PermanodeAttrValue(permaNode blob.Ref,
 // case the caller should resort to query claims directly.
 //
 // (nil, nil) is returned if the permaNode does not exist,
-// or permaNode exists and signerFilter is valid,
+// or permaNode exists and signerID is valid,
 // but permaNode has no attributes for it.
 //
 // The returned values must not be changed by the caller.
 func (c *Corpus) permanodeAttrsOrClaims(permaNode blob.Ref,
-	at time.Time, signerFilter blob.Ref) (m map[string][]string, claims []*camtypes.Claim) {
+	at time.Time, signerID string) (m map[string][]string, claims []*camtypes.Claim) {
 
 	pm, ok := c.permanodes[permaNode]
 	if !ok {
 		return nil, nil
 	}
-	m, ok = pm.valuesAtSigner(at, c.signerID(signerFilter))
+
+	m, ok = pm.valuesAtSigner(at, signerID)
 	if ok {
 		return m, nil
 	}
