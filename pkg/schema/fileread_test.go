@@ -18,6 +18,7 @@ package schema
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -28,6 +29,8 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/test"
 )
+
+var ctxbg = context.Background()
 
 var testFetcher = &test.Fetcher{}
 
@@ -171,7 +174,7 @@ func TestReaderSeekStress(t *testing.T) {
 
 	sto := new(test.Fetcher) // in-memory blob storage
 	fileMap := NewFileMap("testfile")
-	fileref, err := WriteFileMap(sto, fileMap, bytes.NewReader(bigFile))
+	fileref, err := WriteFileMap(ctxbg, sto, fileMap, bytes.NewReader(bigFile))
 	if err != nil {
 		t.Fatalf("WriteFileMap: %v", err)
 	}
@@ -191,7 +194,7 @@ func TestReaderSeekStress(t *testing.T) {
 		skipBy += 10 << 10
 	}
 	for off := int64(0); off < fileSize; off += skipBy {
-		fr, err := NewFileReader(sto, fileref)
+		fr, err := NewFileReader(ctxbg, sto, fileref)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -244,12 +247,12 @@ func TestReaderEfficiency(t *testing.T) {
 
 	sto := new(test.Fetcher) // in-memory blob storage
 	fileMap := NewFileMap("testfile")
-	fileref, err := WriteFileMap(sto, fileMap, bytes.NewReader(bigFile))
+	fileref, err := WriteFileMap(ctxbg, sto, fileMap, bytes.NewReader(bigFile))
 	if err != nil {
 		t.Fatalf("WriteFileMap: %v", err)
 	}
 
-	fr, err := NewFileReader(sto, fileref)
+	fr, err := NewFileReader(ctxbg, sto, fileref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,19 +307,19 @@ func TestReaderForeachChunk(t *testing.T) {
 	}
 	sto := new(test.Fetcher) // in-memory blob storage
 	fileMap := NewFileMap("testfile")
-	fileref, err := WriteFileMap(sto, fileMap, bytes.NewReader(bigFile))
+	fileref, err := WriteFileMap(ctxbg, sto, fileMap, bytes.NewReader(bigFile))
 	if err != nil {
 		t.Fatalf("WriteFileMap: %v", err)
 	}
 
-	fr, err := NewFileReader(sto, fileref)
+	fr, err := NewFileReader(ctxbg, sto, fileref)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	var back bytes.Buffer
 	var totSize uint64
-	err = fr.ForeachChunk(func(sref []blob.Ref, p BytesPart) error {
+	err = fr.ForeachChunk(ctxbg, func(sref []blob.Ref, p BytesPart) error {
 		if len(sref) < 1 {
 			t.Fatal("expected at least one schemaPath blob")
 		}
@@ -331,7 +334,7 @@ func TestReaderForeachChunk(t *testing.T) {
 		if !p.BlobRef.Valid() {
 			t.Fatal("saw part with invalid blobref")
 		}
-		rc, size, err := sto.Fetch(p.BlobRef)
+		rc, size, err := sto.Fetch(ctxbg, p.BlobRef)
 		if err != nil {
 			return fmt.Errorf("Error fetching blobref of chunk %+v: %v", p, err)
 		}
@@ -383,7 +386,7 @@ func TestForeachChunkAllSchemaBlobs(t *testing.T) {
 	var fr *FileReader
 	mustRead := func(name string, br blob.Ref, want string) {
 		var err error
-		fr, err = NewFileReader(sto, br)
+		fr, err = NewFileReader(ctxbg, sto, br)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
@@ -408,7 +411,7 @@ func TestForeachChunkAllSchemaBlobs(t *testing.T) {
 
 	sawSchema := map[blob.Ref]bool{}
 	sawData := map[blob.Ref]bool{}
-	if err := fr.ForeachChunk(func(path []blob.Ref, p BytesPart) error {
+	if err := fr.ForeachChunk(ctxbg, func(path []blob.Ref, p BytesPart) error {
 		for _, sref := range path {
 			sawSchema[sref] = true
 		}

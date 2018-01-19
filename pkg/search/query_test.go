@@ -50,6 +50,8 @@ import (
 	"perkeep.org/pkg/types/camtypes"
 )
 
+var ctxbg = context.Background()
+
 // indexType is one of the three ways we test the query handler code.
 type indexType int
 
@@ -159,7 +161,7 @@ func (qt *queryTest) wantRes(req *SearchQuery, wanted ...blob.Ref) {
 			}
 		})
 	}
-	res, err := qt.Handler().Query(req)
+	res, err := qt.Handler().Query(ctxbg, req)
 	if err != nil {
 		qt.t.Fatal(err)
 	}
@@ -252,7 +254,7 @@ func TestQueryBlobRefPrefix(t *testing.T) {
 				BlobRefPrefix: "sha1-0",
 			},
 		}
-		sres, err := qt.Handler().Query(sq)
+		sres, err := qt.Handler().Query(ctxbg, sq)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -873,7 +875,7 @@ func testQueryRecentPermanodes(t *testing.T, sortType SortType, source string) {
 			Describe: &DescribeRequest{},
 		}
 		handler := qt.Handler()
-		res, err := handler.Query(req)
+		res, err := handler.Query(ctxbg, req)
 		if err != nil {
 			qt.t.Fatal(err)
 		}
@@ -905,7 +907,7 @@ func testQueryRecentPermanodes(t *testing.T, sortType SortType, source string) {
 				Sort:     sortType,
 				Continue: res.Continue,
 			}
-			res, err := handler.Query(req)
+			res, err := handler.Query(ctxbg, req)
 			if err != nil {
 				qt.t.Fatal(err)
 			}
@@ -966,7 +968,7 @@ func testQueryRecentPermanodes_Continue(t *testing.T, sortType SortType) {
 				Sort:     sortType,
 				Continue: contToken,
 			}
-			res, err := handler.Query(req)
+			res, err := handler.Query(ctxbg, req)
 			if err != nil {
 				qt.t.Fatalf("Error on query %d: %v", i+1, err)
 			}
@@ -1038,7 +1040,7 @@ func testQueryRecentPermanodes_ContinueEndMidPage(t *testing.T, sortType SortTyp
 				Sort:     sortType,
 				Continue: contToken,
 			}
-			res, err := handler.Query(req)
+			res, err := handler.Query(ctxbg, req)
 			if err != nil {
 				qt.t.Fatalf("Error on query %d: %v", i+1, err)
 			}
@@ -1499,7 +1501,7 @@ func testLimitDoesntDeadlock(t *testing.T, sortType SortType) {
 		h := qt.Handler()
 		gotRes := make(chan bool, 1)
 		go func() {
-			_, err := h.Query(req)
+			_, err := h.Query(ctxbg, req)
 			if err != nil {
 				qt.t.Error(err)
 			}
@@ -1678,7 +1680,7 @@ func BenchmarkQueryRecentPermanodes(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			*req.Describe = DescribeRequest{}
-			_, err := h.Query(req)
+			_, err := h.Query(ctxbg, req)
 			if err != nil {
 				qt.t.Fatal(err)
 			}
@@ -1720,7 +1722,7 @@ func benchmarkQueryPermanodes(b *testing.B, describe bool) {
 			if describe {
 				*req.Describe = DescribeRequest{}
 			}
-			_, err := h.Query(req)
+			_, err := h.Query(ctxbg, req)
 			if err != nil {
 				qt.t.Fatal(err)
 			}
@@ -1786,7 +1788,7 @@ func BenchmarkQueryPermanodeLocation(b *testing.B) {
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
-			_, err := h.Query(req)
+			_, err := h.Query(ctxbg, req)
 			if err != nil {
 				qt.t.Fatal(err)
 			}
@@ -1866,7 +1868,7 @@ func BenchmarkLocationPredicate(b *testing.B) {
 					Expression: "loc:" + loc,
 					Limit:      -1,
 				}
-				resp, err := h.Query(req)
+				resp, err := h.Query(ctxbg, req)
 				if err != nil {
 					qt.t.Fatal(err)
 				}

@@ -20,13 +20,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"strconv"
 	"strings"
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
-
-	"go4.org/readerutil"
 )
 
 // StreamBlobs impl.
@@ -52,8 +51,8 @@ func (st smallBlobStreamer) StreamBlobs(ctx context.Context, dest chan<- blobser
 	return blobserver.EnumerateAllFrom(ctx, small, contToken, func(sb blob.SizedRef) error {
 		select {
 		case dest <- blobserver.BlobAndToken{
-			Blob: blob.NewBlob(sb.Ref, sb.Size, func() readerutil.ReadSeekCloser {
-				return blob.NewLazyReadSeekCloser(small, sb.Ref)
+			Blob: blob.NewBlob(sb.Ref, sb.Size, func(ctx context.Context) ([]byte, error) {
+				return slurpSizedRef(ctx, small, sb)
 			}),
 			Token: sb.Ref.StringMinusOne(), // streamer is >=, enumerate is >
 		}:
@@ -104,7 +103,7 @@ func (st largeBlobStreamer) StreamBlobs(ctx context.Context, dest chan<- blobser
 			}
 		}
 		fileN := 0
-		return s.foreachZipBlob(sb.Ref, func(bap BlobAndPos) error {
+		return s.foreachZipBlob(ctx, sb.Ref, func(bap BlobAndPos) error {
 			if skipFiles > 0 {
 				skipFiles--
 				fileN++
@@ -112,8 +111,8 @@ func (st largeBlobStreamer) StreamBlobs(ctx context.Context, dest chan<- blobser
 			}
 			select {
 			case dest <- blobserver.BlobAndToken{
-				Blob: blob.NewBlob(bap.Ref, bap.Size, func() readerutil.ReadSeekCloser {
-					return blob.NewLazyReadSeekCloser(s, bap.Ref)
+				Blob: blob.NewBlob(bap.Ref, bap.Size, func(ctx context.Context) ([]byte, error) {
+					return slurpSizedRef(ctx, s, bap.SizedRef)
 				}),
 				Token: fmt.Sprintf("%s:%d", sb.Ref, fileN),
 			}:
@@ -124,4 +123,23 @@ func (st largeBlobStreamer) StreamBlobs(ctx context.Context, dest chan<- blobser
 			}
 		})
 	})
+}
+
+func slurpSizedRef(ctx context.Context, f blob.Fetcher, sb blob.SizedRef) ([]byte, error) {
+	rc, size, err := f.Fetch(ctx, sb.Ref)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	if size != sb.Size {
+		return nil, fmt.Errorf("blobpacked fetch of %v reported %d bytes; expected %d", sb.Ref, size, sb.Size)
+	}
+	slurp, err := ioutil.ReadAll(rc)
+	if err != nil {
+		return nil, err
+	}
+	if uint32(len(slurp)) != sb.Size {
+		return nil, fmt.Errorf("blobpacked read %d bytes of %v; expected %d", len(slurp), sb.Ref, sb.Size)
+	}
+	return slurp, nil
 }

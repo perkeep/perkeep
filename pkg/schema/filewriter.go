@@ -19,6 +19,7 @@ package schema
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -65,7 +66,7 @@ const (
 // composed of chunks of r, also uploading the chunks.  The returned
 // BlobRef is of the JSON file schema blob.
 // Both filename and modTime are optional.
-func WriteFileFromReaderWithModTime(bs blobserver.StatReceiver, filename string, modTime time.Time, r io.Reader) (blob.Ref, error) {
+func WriteFileFromReaderWithModTime(ctx context.Context, bs blobserver.StatReceiver, filename string, modTime time.Time, r io.Reader) (blob.Ref, error) {
 	if strings.Contains(filename, "/") {
 		return blob.Ref{}, fmt.Errorf("schema.WriteFileFromReader: filename %q shouldn't contain a slash", filename)
 	}
@@ -74,26 +75,26 @@ func WriteFileFromReaderWithModTime(bs blobserver.StatReceiver, filename string,
 	if !modTime.IsZero() {
 		m.SetModTime(modTime)
 	}
-	return WriteFileMap(bs, m, r)
+	return WriteFileMap(ctx, bs, m, r)
 }
 
 // WriteFileFromReader creates and uploads a "file" JSON schema
 // composed of chunks of r, also uploading the chunks.  The returned
 // BlobRef is of the JSON file schema blob.
 // The filename is optional.
-func WriteFileFromReader(bs blobserver.StatReceiver, filename string, r io.Reader) (blob.Ref, error) {
-	return WriteFileFromReaderWithModTime(bs, filename, time.Time{}, r)
+func WriteFileFromReader(ctx context.Context, bs blobserver.StatReceiver, filename string, r io.Reader) (blob.Ref, error) {
+	return WriteFileFromReaderWithModTime(ctx, bs, filename, time.Time{}, r)
 }
 
 // WriteFileMap uploads chunks of r to bs while populating file and
 // finally uploading file's Blob. The returned blobref is of file's
 // JSON blob.
-func WriteFileMap(bs blobserver.StatReceiver, file *Builder, r io.Reader) (blob.Ref, error) {
-	return writeFileMapRolling(bs, file, r)
+func WriteFileMap(ctx context.Context, bs blobserver.StatReceiver, file *Builder, r io.Reader) (blob.Ref, error) {
+	return writeFileMapRolling(ctx, bs, file, r)
 }
 
-func serverHasBlob(bs blobserver.BlobStatter, br blob.Ref) (have bool, err error) {
-	_, err = blobserver.StatBlob(bs, br)
+func serverHasBlob(ctx context.Context, bs blobserver.BlobStatter, br blob.Ref) (have bool, err error) {
+	_, err = blobserver.StatBlob(ctx, bs, br)
 	if err == nil {
 		have = true
 	} else if err == os.ErrNotExist {
@@ -136,18 +137,18 @@ func (r *noteEOFReader) Read(p []byte) (n int, err error) {
 	return
 }
 
-func uploadString(bs blobserver.StatReceiver, br blob.Ref, s string) (blob.Ref, error) {
+func uploadString(ctx context.Context, bs blobserver.StatReceiver, br blob.Ref, s string) (blob.Ref, error) {
 	if !br.Valid() {
 		panic("invalid blobref")
 	}
-	hasIt, err := serverHasBlob(bs, br)
+	hasIt, err := serverHasBlob(ctx, bs, br)
 	if err != nil {
 		return blob.Ref{}, err
 	}
 	if hasIt {
 		return br, nil
 	}
-	_, err = blobserver.ReceiveNoHash(bs, br, strings.NewReader(s))
+	_, err = blobserver.ReceiveNoHash(ctx, bs, br, strings.NewReader(s))
 	if err != nil {
 		return blob.Ref{}, err
 	}
@@ -158,10 +159,10 @@ func uploadString(bs blobserver.StatReceiver, br blob.Ref, s string) (blob.Ref, 
 // "file", which is a superset of "bytes"), sets it to the provided
 // size, and populates with provided spans.  The bytes or file schema
 // blob is uploaded and its blobref is returned.
-func uploadBytes(bs blobserver.StatReceiver, bb *Builder, size int64, s []span) *uploadBytesFuture {
+func uploadBytes(ctx context.Context, bs blobserver.StatReceiver, bb *Builder, size int64, s []span) *uploadBytesFuture {
 	future := newUploadBytesFuture()
 	parts := []BytesPart{}
-	addBytesParts(bs, &parts, s, future)
+	addBytesParts(ctx, bs, &parts, s, future)
 
 	if err := bb.PopulateParts(size, parts); err != nil {
 		future.errc <- err
@@ -186,7 +187,7 @@ func uploadBytes(bs blobserver.StatReceiver, bb *Builder, size int64, s []span) 
 	br := blob.RefFromString(json)
 	future.br = br
 	go func() {
-		_, err := uploadString(bs, br, json)
+		_, err := uploadString(ctx, bs, br, json)
 		future.errc <- err
 	}()
 	return future
@@ -222,7 +223,7 @@ func (f *uploadBytesFuture) Get() (blob.Ref, error) {
 }
 
 // addBytesParts uploads the provided spans to bs, appending elements to *dst.
-func addBytesParts(bs blobserver.StatReceiver, dst *[]BytesPart, spans []span, parent *uploadBytesFuture) {
+func addBytesParts(ctx context.Context, bs blobserver.StatReceiver, dst *[]BytesPart, spans []span, parent *uploadBytesFuture) {
 	for _, sp := range spans {
 		if len(sp.children) == 1 && sp.children[0].isSingleBlob() {
 			// Remove an occasional useless indirection of
@@ -241,7 +242,7 @@ func addBytesParts(bs blobserver.StatReceiver, dst *[]BytesPart, spans []span, p
 			for _, cs := range sp.children {
 				childrenSize += cs.size()
 			}
-			future := uploadBytes(bs, newBytes(), childrenSize, sp.children)
+			future := uploadBytes(ctx, bs, newBytes(), childrenSize, sp.children)
 			parent.children = append(parent.children, future)
 			*dst = append(*dst, BytesPart{
 				BytesRef: future.BlobRef(),
@@ -261,25 +262,25 @@ func addBytesParts(bs blobserver.StatReceiver, dst *[]BytesPart, spans []span, p
 // writeFileMap uploads chunks of r to bs while populating fileMap and
 // finally uploading fileMap. The returned blobref is of fileMap's
 // JSON blob. It uses rolling checksum for the chunks sizes.
-func writeFileMapRolling(bs blobserver.StatReceiver, file *Builder, r io.Reader) (blob.Ref, error) {
-	n, spans, err := writeFileChunks(bs, file, r)
+func writeFileMapRolling(ctx context.Context, bs blobserver.StatReceiver, file *Builder, r io.Reader) (blob.Ref, error) {
+	n, spans, err := writeFileChunks(ctx, bs, file, r)
 	if err != nil {
 		return blob.Ref{}, err
 	}
 	// The top-level content parts
-	return uploadBytes(bs, file, n, spans).Get()
+	return uploadBytes(ctx, bs, file, n, spans).Get()
 }
 
 // WriteFileChunks uploads chunks of r to bs while populating file.
 // It does not upload file.
-func WriteFileChunks(bs blobserver.StatReceiver, file *Builder, r io.Reader) error {
-	size, spans, err := writeFileChunks(bs, file, r)
+func WriteFileChunks(ctx context.Context, bs blobserver.StatReceiver, file *Builder, r io.Reader) error {
+	size, spans, err := writeFileChunks(ctx, bs, file, r)
 	if err != nil {
 		return err
 	}
 	parts := []BytesPart{}
 	future := newUploadBytesFuture()
-	addBytesParts(bs, &parts, spans, future)
+	addBytesParts(ctx, bs, &parts, spans, future)
 	future.errc <- nil // Get will still block on addBytesParts' children
 	if _, err := future.Get(); err != nil {
 		return err
@@ -287,7 +288,7 @@ func WriteFileChunks(bs blobserver.StatReceiver, file *Builder, r io.Reader) err
 	return file.PopulateParts(size, parts)
 }
 
-func writeFileChunks(bs blobserver.StatReceiver, file *Builder, r io.Reader) (n int64, spans []span, outerr error) {
+func writeFileChunks(ctx context.Context, bs blobserver.StatReceiver, file *Builder, r io.Reader) (n int64, spans []span, outerr error) {
 	src := &noteEOFReader{r: r}
 	bufr := bufio.NewReaderSize(src, bufioReaderSize)
 	spans = []span{} // the tree of spans, cut on interesting rollsum boundaries
@@ -317,7 +318,7 @@ func writeFileChunks(bs blobserver.StatReceiver, file *Builder, r io.Reader) (n 
 		gatec.Start()
 		go func() {
 			defer gatec.Done()
-			if _, err := uploadString(bs, br, chunk); err != nil {
+			if _, err := uploadString(ctx, bs, br, chunk); err != nil {
 				select {
 				case firsterrc <- err:
 				default:

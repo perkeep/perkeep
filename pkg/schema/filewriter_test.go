@@ -36,7 +36,7 @@ func TestWriteFileMap(t *testing.T) {
 	r := &randReader{seed: 123, length: 5 << 20}
 	sr := new(stats.Receiver)
 	var buf bytes.Buffer
-	br, err := WriteFileMap(sr, m, io.TeeReader(r, &buf))
+	br, err := WriteFileMap(ctxbg, sr, m, io.TeeReader(r, &buf))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,13 +73,13 @@ func TestWriteThenRead(t *testing.T) {
 	r := &randReader{seed: 123, length: size}
 	sto := new(test.Fetcher)
 	var buf bytes.Buffer
-	br, err := WriteFileMap(sto, m, io.TeeReader(r, &buf))
+	br, err := WriteFileMap(ctxbg, sto, m, io.TeeReader(r, &buf))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	var got bytes.Buffer
-	fr, err := NewFileReader(sto, br)
+	fr, err := NewFileReader(ctxbg, sto, br)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestWriteThenRead(t *testing.T) {
 	getOffsets := func() error {
 		offs = offs[:0]
 		var off int
-		return fr.ForeachChunk(func(_ []blob.Ref, p BytesPart) error {
+		return fr.ForeachChunk(ctxbg, func(_ []blob.Ref, p BytesPart) error {
 			offs = append(offs, off)
 			off += int(p.Size)
 			return err
@@ -134,7 +134,7 @@ func TestWriteThenRead(t *testing.T) {
 		return errFetch
 	}
 
-	fr, err = NewFileReader(sto, br)
+	fr, err = NewFileReader(ctxbg, sto, br)
 	if err != nil {
 		t.Fatal(err)
 	}

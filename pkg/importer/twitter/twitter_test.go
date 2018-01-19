@@ -33,6 +33,8 @@ import (
 	"perkeep.org/pkg/schema/nodeattr"
 )
 
+var ctxbg = context.Background()
+
 func init() {
 	testhooks.SetUseSHA1(true)
 }
@@ -146,7 +148,7 @@ func TestIntegrationRun(t *testing.T) {
 		}
 		defer zipFile.Close()
 
-		zipRef, err := schema.WriteFileFromReader(rc.Host.Target(), "camlistore_test.zip", zipFile)
+		zipRef, err := schema.WriteFileFromReader(ctxbg, rc.Host.Target(), "camlistore_test.zip", zipFile)
 		if err != nil {
 			t.Fatal(err)
 		}

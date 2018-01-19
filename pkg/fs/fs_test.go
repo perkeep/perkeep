@@ -54,6 +54,9 @@ var (
 )
 
 func condSkip(t *testing.T) {
+	if skip, _ := strconv.ParseBool(os.Getenv("SKIP_FUSE_TESTS")); skip {
+		t.Skip("skipping FUSE tests when SKIP_FUSE_TESTS set true")
+	}
 	errmu.Lock()
 	defer errmu.Unlock()
 	if !(runtime.GOOS == "darwin" || runtime.GOOS == "linux") {

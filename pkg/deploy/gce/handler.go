@@ -388,13 +388,14 @@ func (h *DeployHandler) serveSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
 	instConf, err := h.confFromForm(r)
 	if err != nil {
 		h.serveFormError(w, err)
 		return
 	}
 
-	br, err := h.storeInstanceConf(instConf)
+	br, err := h.storeInstanceConf(ctx, instConf)
 	if err != nil {
 		h.serveError(w, r, fmt.Errorf("could not store instance configuration: %v", err))
 		return
@@ -443,7 +444,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	h.logger.Printf("successful authorization with token: %v", tok)
 
-	instConf, err := h.instanceConf(br)
+	instConf, err := h.instanceConf(ctx, br)
 	if err != nil {
 		h.serveError(w, r, err)
 		return
@@ -609,6 +610,7 @@ func fileIssue(br string) string {
 // process. If the operation was successful, it serves a success page. If it failed, it
 // serves an error page. If it isn't finished yet, it replies with "running".
 func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	if r.Method != "GET" {
 		h.serveError(w, r, fmt.Errorf("Wrong method: %v", r.Method))
 		return
@@ -630,7 +632,7 @@ func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if state.Success || state.Exists {
-		conf, err := h.instanceConf(state.InstConf)
+		conf, err := h.instanceConf(ctx, state.InstConf)
 		if err != nil {
 			h.logger.Printf("Could not get parameters for success message: %v", err)
 			h.serveErrorPage(w, fmt.Errorf("your instance was created and should soon be up at https://%s but there might have been a problem in the creation process. %v", state.Err, fileIssue(br)))
@@ -810,7 +812,7 @@ func fromState(r *http.Request) (br blob.Ref, xsrfToken string, err error) {
 	return br, string(token), nil
 }
 
-func (h *DeployHandler) storeInstanceConf(conf *InstanceConf) (blob.Ref, error) {
+func (h *DeployHandler) storeInstanceConf(ctx context.Context, conf *InstanceConf) (blob.Ref, error) {
 	contents, err := json.Marshal(conf)
 	if err != nil {
 		return blob.Ref{}, fmt.Errorf("could not json encode instance config: %v", err)
@@ -821,14 +823,14 @@ func (h *DeployHandler) storeInstanceConf(conf *InstanceConf) (blob.Ref, error) 
 		return blob.Ref{}, fmt.Errorf("could not hash blob contents: %v", err)
 	}
 	br := blob.RefFromHash(hash)
-	if _, err := blobserver.Receive(h.instConf, br, bytes.NewReader(contents)); err != nil {
+	if _, err := blobserver.Receive(ctx, h.instConf, br, bytes.NewReader(contents)); err != nil {
 		return blob.Ref{}, fmt.Errorf("could not store instance config blob: %v", err)
 	}
 	return br, nil
 }
 
-func (h *DeployHandler) instanceConf(br blob.Ref) (*InstanceConf, error) {
-	rc, _, err := h.instConf.Fetch(br)
+func (h *DeployHandler) instanceConf(ctx context.Context, br blob.Ref) (*InstanceConf, error) {
+	rc, _, err := h.instConf.Fetch(ctx, br)
 	if err != nil {
 		return nil, fmt.Errorf("could not fetch conf at %v: %v", br, err)
 	}

@@ -18,6 +18,7 @@ package s3
 
 import (
 	"bytes"
+	"context"
 	"crypto/md5"
 	"io"
 
@@ -25,7 +26,7 @@ import (
 	"perkeep.org/pkg/blobserver"
 )
 
-func (sto *s3Storage) ReceiveBlob(b blob.Ref, source io.Reader) (sr blob.SizedRef, err error) {
+func (sto *s3Storage) ReceiveBlob(ctx context.Context, b blob.Ref, source io.Reader) (sr blob.SizedRef, err error) {
 	var buf bytes.Buffer
 	md5h := md5.New()
 
@@ -38,14 +39,14 @@ func (sto *s3Storage) ReceiveBlob(b blob.Ref, source io.Reader) (sr blob.SizedRe
 		return
 	}
 
-	err = sto.s3Client.PutObject(sto.dirPrefix+b.String(), sto.bucket, md5h, size, &buf)
+	err = sto.s3Client.PutObject(ctx, sto.dirPrefix+b.String(), sto.bucket, md5h, size, &buf)
 	if err != nil {
 		return sr, err
 	}
 	if sto.cache != nil {
 		// NoHash because it's already verified if we read it
 		// without errors on the io.Copy above.
-		blobserver.ReceiveNoHash(sto.cache, b, bytes.NewReader(buf.Bytes()))
+		blobserver.ReceiveNoHash(ctx, sto.cache, b, bytes.NewReader(buf.Bytes()))
 	}
 	return blob.SizedRef{Ref: b, Size: uint32(size)}, nil
 }

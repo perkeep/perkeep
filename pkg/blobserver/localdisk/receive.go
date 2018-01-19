@@ -17,6 +17,7 @@ limitations under the License.
 package localdisk
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -41,7 +42,7 @@ func (ds *DiskStorage) doneGate() {
 	ds.tmpFileGate.Done()
 }
 
-func (ds *DiskStorage) ReceiveBlob(blobRef blob.Ref, source io.Reader) (ref blob.SizedRef, err error) {
+func (ds *DiskStorage) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Reader) (ref blob.SizedRef, err error) {
 	ds.dirLockMu.RLock()
 	defer ds.dirLockMu.RUnlock()
 

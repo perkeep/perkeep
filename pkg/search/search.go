@@ -28,6 +28,6 @@ import (
 )
 
 type QueryDescriber interface {
-	Query(*SearchQuery) (*SearchResult, error)
+	Query(context.Context, *SearchQuery) (*SearchResult, error)
 	Describe(context.Context, *DescribeRequest) (*DescribeResponse, error)
 }

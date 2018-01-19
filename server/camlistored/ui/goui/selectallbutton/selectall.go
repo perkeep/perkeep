@@ -23,6 +23,7 @@ limitations under the License.
 package selectallbutton
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -187,7 +188,7 @@ func (d SelectAllBtnDef) findAll() (map[string]bool, error) {
 		return nil, fmt.Errorf("Error setting up auth: %v", err)
 	}
 	cl := client.NewFromParams("", am, client.OptionSameOrigin(true))
-	res, err := cl.Query(query)
+	res, err := cl.Query(context.TODO(), query)
 	if err != nil {
 		return nil, err
 	}

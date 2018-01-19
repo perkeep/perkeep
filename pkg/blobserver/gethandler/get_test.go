@@ -18,6 +18,7 @@ package gethandler
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"io/ioutil"
@@ -121,7 +122,7 @@ type fetcher struct {
 	size int64
 }
 
-func (f fetcher) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
+func (f fetcher) Fetch(ctx context.Context, br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
 	if f.r == nil {
 		if f.size < 0 {
 			return nil, 0, errors.New("some other error type")

@@ -57,7 +57,7 @@ func (sto *s3Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.Sized
 	if _, ok := blob.Parse(after); ok {
 		startAt = nextStr(after)
 	}
-	objs, err := sto.s3Client.ListBucket(sto.bucket, sto.dirPrefix+startAt, limit)
+	objs, err := sto.s3Client.ListBucket(ctx, sto.bucket, sto.dirPrefix+startAt, limit)
 	if err != nil {
 		log.Printf("s3 ListBucket: %v", err)
 		return err

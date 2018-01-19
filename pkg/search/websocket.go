@@ -18,6 +18,7 @@ package search
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -172,7 +173,7 @@ func (h *wsHub) doSearch(wq *watchedQuery) {
 		*q.Describe = *wq.q.Describe
 	}
 
-	res, err := h.sh.Query(q)
+	res, err := h.sh.Query(context.TODO(), q)
 	if err != nil {
 		log.Printf("Query error: %v", err)
 		return

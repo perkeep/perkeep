@@ -17,6 +17,7 @@ limitations under the License.
 package proxycache
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -31,6 +32,8 @@ import (
 	"perkeep.org/pkg/blobserver/storagetest"
 	"perkeep.org/pkg/test"
 )
+
+var ctxbg = context.Background()
 
 func cleanUp(ds *localdisk.DiskStorage) {
 	err := os.RemoveAll(rootDir)
@@ -81,18 +84,18 @@ func TestEviction(t *testing.T) {
 	test.RandomBlob(t, blobsize).MustUpload(t, px)
 	test.RandomBlob(t, blobsize).MustUpload(t, px)
 
-	_, _, err := px.cache.Fetch(tb.BlobRef())
+	_, _, err := px.cache.Fetch(ctxbg, tb.BlobRef())
 	if err != nil {
 		t.Fatal("ref should still be in the proxy:", err)
 	}
 
 	test.RandomBlob(t, blobsize).MustUpload(t, px)
-	_, _, err = px.cache.Fetch(tb.BlobRef())
+	_, _, err = px.cache.Fetch(ctxbg, tb.BlobRef())
 	if err == nil {
 		t.Fatal("ref should have been evicted from the proxy")
 	}
 
-	_, _, err = px.Fetch(tb.BlobRef())
+	_, _, err = px.Fetch(ctxbg, tb.BlobRef())
 	if err != nil {
 		t.Fatal("ref should be available via the proxy fetching from origin:", err)
 	}
@@ -103,7 +106,7 @@ func TestMissingGetReturnsNoEnt(t *testing.T) {
 	defer cleanUp(ds)
 	foo := &test.Blob{"foo"}
 
-	blob, _, err := px.Fetch(foo.BlobRef())
+	blob, _, err := px.Fetch(ctxbg, foo.BlobRef())
 	if err != os.ErrNotExist {
 		t.Errorf("expected ErrNotExist; got %v", err)
 	}

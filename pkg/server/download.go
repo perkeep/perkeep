@@ -95,8 +95,8 @@ var errNotDir = errors.New("not a directory")
 // dirInfo checks whether maybeDir is a directory schema, and if so returns the
 // corresponding fileInfo. If dir is another kind of (valid) file schema, errNotDir
 // is returned.
-func (dh *DownloadHandler) dirInfo(dir blob.Ref) (fi fileInfo, err error) {
-	rc, _, err := dh.Fetcher.Fetch(dir)
+func (dh *DownloadHandler) dirInfo(ctx context.Context, dir blob.Ref) (fi fileInfo, err error) {
+	rc, _, err := dh.Fetcher.Fetch(ctx, dir)
 	if err != nil {
 		return fi, fmt.Errorf("could not fetch %v: %v", dir, err)
 	}
@@ -109,11 +109,11 @@ func (dh *DownloadHandler) dirInfo(dir blob.Ref) (fi fileInfo, err error) {
 	if tp != "directory" {
 		return fi, errNotDir
 	}
-	dr, err := schema.NewDirReader(dh.Fetcher, dir)
+	dr, err := schema.NewDirReader(ctx, dh.Fetcher, dir)
 	if err != nil {
 		return fi, fmt.Errorf("could not open %v as directory: %v", dir, err)
 	}
-	children, err := dr.StaticSet()
+	children, err := dr.StaticSet(ctx)
 	if err != nil {
 		return fi, fmt.Errorf("could not get dir entries of %v: %v", dir, err)
 	}
@@ -125,12 +125,10 @@ func (dh *DownloadHandler) dirInfo(dir blob.Ref) (fi fileInfo, err error) {
 	}, nil
 }
 
-func (dh *DownloadHandler) fileInfo(file blob.Ref) (fi fileInfo, packed bool, err error) {
-	ctx := context.TODO()
-
+func (dh *DownloadHandler) fileInfo(ctx context.Context, file blob.Ref) (fi fileInfo, packed bool, err error) {
 	// Need to get the type first, because we can't use NewFileReader on a non-regular file.
 	// TODO(mpl): should we let NewFileReader be ok with non-regular files? and fail later when e.g. trying to read?
-	rc, _, err := dh.Fetcher.Fetch(file)
+	rc, _, err := dh.Fetcher.Fetch(ctx, file)
 	if err != nil {
 		return fi, false, fmt.Errorf("could not fetch %v: %v", file, err)
 	}
@@ -171,7 +169,7 @@ func (dh *DownloadHandler) fileInfo(file blob.Ref) (fi fileInfo, packed bool, er
 		return fi, true, nil
 	}
 
-	fr, err := schema.NewFileReader(dh.Fetcher, file)
+	fr, err := schema.NewFileReader(ctx, dh.Fetcher, file)
 	if err != nil {
 		return
 	}
@@ -242,7 +240,7 @@ func fileInfoPacked(ctx context.Context, sh *search.Handler, src blob.Fetcher, r
 	// instead of having to fetch the file schema again, but we don't index the
 	// FileMode for now, so it's not just a matter of adding the FileMode to
 	// camtypes.FileInfo
-	fr, err := schema.NewFileReader(src, file)
+	fr, err := schema.NewFileReader(ctx, src, file)
 	fr.Close()
 	if err != nil {
 		return fileInfo{whyNot: fmt.Sprintf("cannot open a file reader: %v", err)}, false
@@ -289,6 +287,7 @@ func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (dh *DownloadHandler) ServeFile(w http.ResponseWriter, r *http.Request, file blob.Ref) {
+	ctx := r.Context()
 	if r.Method != "GET" && r.Method != "HEAD" {
 		http.Error(w, "Invalid download method", http.StatusBadRequest)
 		return
@@ -301,7 +300,7 @@ func (dh *DownloadHandler) ServeFile(w http.ResponseWriter, r *http.Request, fil
 	}
 
 	dh.r = r
-	fi, packed, err := dh.fileInfo(file)
+	fi, packed, err := dh.fileInfo(ctx, file)
 	if err != nil {
 		http.Error(w, "Can't serve file: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -384,10 +383,10 @@ var allowedFileTypes = map[string]bool{"file": true, "symlink": true, "fifo": tr
 // It is used to check that all files requested for download are readable before
 // starting to reply and/or creating a zip archive of them. It recursively
 // checks directories as well. It also populates dh.pathByRef.
-func (dh *DownloadHandler) checkFiles(parentPath string, fileRefs []blob.Ref) error {
+func (dh *DownloadHandler) checkFiles(ctx context.Context, parentPath string, fileRefs []blob.Ref) error {
 	// TODO(mpl): add some concurrency
 	for _, br := range fileRefs {
-		rc, _, err := dh.Fetcher.Fetch(br)
+		rc, _, err := dh.Fetcher.Fetch(ctx, br)
 		if err != nil {
 			return fmt.Errorf("could not fetch %v: %v", br, err)
 		}
@@ -401,15 +400,15 @@ func (dh *DownloadHandler) checkFiles(parentPath string, fileRefs []blob.Ref) er
 			return fmt.Errorf("%v not a supported file or directory type: %q", br, tp)
 		}
 		if tp == "directory" {
-			dr, err := b.NewDirReader(dh.Fetcher)
+			dr, err := b.NewDirReader(ctx, dh.Fetcher)
 			if err != nil {
 				return fmt.Errorf("could not open %v as directory: %v", br, err)
 			}
-			children, err := dr.StaticSet()
+			children, err := dr.StaticSet(ctx)
 			if err != nil {
 				return fmt.Errorf("could not get dir entries of %v: %v", br, err)
 			}
-			if err := dh.checkFiles(filepath.Join(parentPath, b.FileName()), children); err != nil {
+			if err := dh.checkFiles(ctx, filepath.Join(parentPath, b.FileName()), children); err != nil {
 				return err
 			}
 			continue
@@ -437,6 +436,7 @@ func (dh *DownloadHandler) checkFiles(parentPath string, fileRefs []blob.Ref) er
 // serveZip creates a zip archive from the files provided as
 // ?files=sha1-foo,sha1-bar,... and serves it as the response.
 func (dh *DownloadHandler) serveZip(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	if r.Method != "POST" {
 		http.Error(w, "Invalid download method", http.StatusBadRequest)
 		return
@@ -468,7 +468,7 @@ func (dh *DownloadHandler) serveZip(w http.ResponseWriter, r *http.Request) {
 		// the input refs plus their children, so we don't have to redo later the recursing
 		// work that we're alreading doing in checkFiles.
 		dh.pathByRef = make(map[blob.Ref]string, len(refs))
-		err := dh.checkFiles("", refs)
+		err := dh.checkFiles(ctx, "", refs)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -500,7 +500,7 @@ func (dh *DownloadHandler) serveZip(w http.ResponseWriter, r *http.Request) {
 	zw := zip.NewWriter(w)
 	dh.r = r
 	for br := range allRefs {
-		if err := dh.zipFile("", br, zw); err != nil {
+		if err := dh.zipFile(ctx, "", br, zw); err != nil {
 			log.Printf("error zipping %v: %v", br, err)
 			// http.Error is of no use since we've already started sending a response
 			panic(http.ErrAbortHandler)
@@ -516,24 +516,24 @@ func (dh *DownloadHandler) serveZip(w http.ResponseWriter, r *http.Request) {
 // is a directory, zipFile adds all its files descendants to the zip. parentPath is
 // the path to the parent directory of br. It is only used if dh.pathByRef has not
 // been populated (i.e. if dh does not use a caching fetcher).
-func (dh *DownloadHandler) zipFile(parentPath string, br blob.Ref, zw *zip.Writer) error {
+func (dh *DownloadHandler) zipFile(ctx context.Context, parentPath string, br blob.Ref, zw *zip.Writer) error {
 	if len(dh.pathByRef) == 0 {
 		// if dh.pathByRef is not populated, we have to check for ourselves now whether
 		// br is a directory.
-		di, err := dh.dirInfo(br)
+		di, err := dh.dirInfo(ctx, br)
 		if err != nil && err != errNotDir {
 			return err
 		}
 		if di.isDir {
 			for _, v := range di.children {
-				if err := dh.zipFile(filepath.Join(parentPath, di.name), v, zw); err != nil {
+				if err := dh.zipFile(ctx, filepath.Join(parentPath, di.name), v, zw); err != nil {
 					return err
 				}
 			}
 			return nil
 		}
 	}
-	fi, _, err := dh.fileInfo(br)
+	fi, _, err := dh.fileInfo(ctx, br)
 	if err != nil {
 		return err
 	}

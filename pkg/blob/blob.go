@@ -18,33 +18,34 @@ package blob
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"sync/atomic"
 	"unicode/utf8"
 
-	"go4.org/readerutil"
 	"perkeep.org/pkg/constants"
 )
 
 // Blob represents a blob. Use the methods Size, SizedRef and
-// Open to query and get data from Blob.
+// ReadAll to query and get data from Blob.
 type Blob struct {
-	ref       Ref
-	size      uint32
-	newReader func() readerutil.ReadSeekCloser
-	mem       []byte // if in memory
+	ref     Ref
+	size    uint32
+	readAll func(context.Context) ([]byte, error)
+	mem     atomic.Value // of []byte, if in memory
 }
 
 // NewBlob constructs a Blob from its Ref, size and a function that
 // returns an io.ReadCloser from which the blob can be read. Any error
 // in the function newReader when constructing the io.ReadCloser should
 // be returned upon the first call to Read or Close.
-func NewBlob(ref Ref, size uint32, newReader func() readerutil.ReadSeekCloser) *Blob {
+func NewBlob(ref Ref, size uint32, readAll func(ctx context.Context) ([]byte, error)) *Blob {
 	return &Blob{
-		ref:       ref,
-		size:      size,
-		newReader: newReader,
+		ref:     ref,
+		size:    size,
+		readAll: readAll,
 	}
 }
 
@@ -61,41 +62,57 @@ func (b *Blob) SizedRef() SizedRef {
 // Ref returns the blob's reference.
 func (b *Blob) Ref() Ref { return b.ref }
 
-// Open returns an io.ReadCloser that can be used to read the blob
-// data. The caller must close the io.ReadCloser when finished.
-func (b *Blob) Open() readerutil.ReadSeekCloser {
-	return b.newReader()
+// ReadAll reads the blob completely to memory, using the provided
+// context, and then returns a reader over it. The Reader will not
+// have errors except EOF.
+//
+// The provided is only ctx is used until ReadAll returns.
+func (b *Blob) ReadAll(ctx context.Context) (*bytes.Reader, error) {
+	mem, err := b.getMem(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewReader(mem), nil
+}
+
+func (b *Blob) getMem(ctx context.Context) ([]byte, error) {
+	mem, ok := b.mem.Load().([]byte)
+	if ok {
+		return mem, nil
+	}
+	mem, err := b.readAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if uint32(len(mem)) != b.size {
+		return nil, fmt.Errorf("Blob.ReadAll read %d bytes of %v; expected %d", len(mem), b.ref, b.size)
+	}
+	b.mem.Store(mem)
+	return mem, nil
 }
 
 // ValidContents reports whether the hash of blob's content matches
 // its reference.
-func (b *Blob) ValidContents() bool {
-	h := b.ref.Hash()
-	if b.mem != nil {
-		h.Write(b.mem)
-	} else {
-		rc := b.Open()
-		defer rc.Close()
-		_, err := io.Copy(h, rc)
-		if err != nil {
-			return false
-		}
+func (b *Blob) ValidContents(ctx context.Context) error {
+	mem, err := b.getMem(ctx)
+	if err != nil {
+		return err
 	}
-	return b.ref.HashMatches(h)
+	h := b.ref.Hash()
+	h.Write(mem)
+	if !b.ref.HashMatches(h) {
+		return fmt.Errorf("blob contents don't match digest for ref %v", b.ref)
+	}
+	return nil
 }
 
 // IsUTF8 reports whether the blob is entirely UTF-8.
-func (b *Blob) IsUTF8() bool {
-	if b.mem != nil {
-		return utf8.Valid(b.mem)
-	}
-	rc := b.Open()
-	defer rc.Close()
-	slurp, err := ioutil.ReadAll(rc)
+func (b *Blob) IsUTF8(ctx context.Context) (bool, error) {
+	mem, err := b.getMem(ctx)
 	if err != nil {
-		return false
+		return false, err
 	}
-	return utf8.Valid(slurp)
+	return utf8.Valid(mem), nil
 }
 
 // A reader reads a blob's contents.
@@ -109,23 +126,24 @@ func (reader) Close() error { return nil }
 // FromFetcher fetches br from fetcher and slurps its contents to
 // memory. It does not validate the blob's digest.  Use the
 // Blob.ValidContents method for that.
-func FromFetcher(fetcher Fetcher, br Ref) (*Blob, error) {
-	rc, size, err := fetcher.Fetch(br)
+func FromFetcher(ctx context.Context, fetcher Fetcher, br Ref) (*Blob, error) {
+	rc, size, err := fetcher.Fetch(ctx, br)
 	if err != nil {
 		return nil, err
 	}
 	defer rc.Close()
-	return FromReader(br, rc, size)
+	return FromReader(ctx, br, rc, size)
 }
 
 // FromReader slurps the given blob from r to memory.
 // It does not validate the blob's digest.  Use the
 // Blob.ValidContents method for that.
-func FromReader(br Ref, r io.Reader, size uint32) (*Blob, error) {
+func FromReader(ctx context.Context, br Ref, r io.Reader, size uint32) (*Blob, error) {
 	if size > constants.MaxBlobSize {
 		return nil, fmt.Errorf("blob: %v with reported size %d is over max size of %d", br, size, constants.MaxBlobSize)
 	}
 	buf := make([]byte, size)
+	// TODO: use ctx here during ReadFull? add context-checking Reader wrapper?
 	if n, err := io.ReadFull(r, buf); err != nil {
 		return nil, fmt.Errorf("blob: after reading %d bytes of %v: %v", n, br, err)
 	}
@@ -133,10 +151,9 @@ func FromReader(br Ref, r io.Reader, size uint32) (*Blob, error) {
 	if n > 0 {
 		return nil, fmt.Errorf("blob: %v had more than reported %d bytes", br, size)
 	}
-	opener := func() readerutil.ReadSeekCloser {
-		return reader{bytes.NewReader(buf)}
-	}
-	b := NewBlob(br, uint32(size), opener)
-	b.mem = buf
+	b := NewBlob(br, uint32(size), func(context.Context) ([]byte, error) {
+		return buf, nil
+	})
+	b.mem.Store(buf)
 	return b, nil
 }

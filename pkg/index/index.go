@@ -384,7 +384,7 @@ func (x *Index) Reindex() error {
 	x.Unlock()
 	reindexMaxProcs.RLock()
 	defer reindexMaxProcs.RUnlock()
-	ctx := context.TODO()
+	ctx := context.Background()
 
 	if !x.hasWiped {
 		wiper, ok := x.s.(sorted.Wiper)
@@ -411,7 +411,7 @@ func (x *Index) Reindex() error {
 
 	blobc := make(chan blob.Ref, 32)
 
-	enumCtx := context.TODO()
+	enumCtx := context.Background()
 	enumErr := make(chan error, 1)
 	go func() {
 		defer close(blobc)
@@ -440,7 +440,7 @@ func (x *Index) Reindex() error {
 		go func() {
 			defer wg.Done()
 			for br := range blobc {
-				if err := x.indexBlob(br); err != nil {
+				if err := x.indexBlob(ctx, br); err != nil {
 					log.Printf("Error reindexing %v: %v", br, err)
 					nerrmu.Lock()
 					nerr++

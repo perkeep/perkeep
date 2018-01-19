@@ -67,7 +67,7 @@ func uploadTestBlobs(t *testing.T, s blobserver.Storage, blobs []blobDetails) {
 			t.Fatalf("hex.DecodeString(): %v", err)
 		}
 
-		_, err = blobserver.Receive(s, ref, bytes.NewBuffer(data))
+		_, err = blobserver.Receive(ctxbg, s, ref, bytes.NewBuffer(data))
 		if err != nil {
 			t.Fatalf("blobserver.Receive(): %v", err)
 		}
@@ -173,12 +173,14 @@ func TestBasicStreaming(t *testing.T) {
 
 func verifySizeAndHash(t *testing.T, blob *blob.Blob) {
 	hash := sha1.New()
-	r := blob.Open()
+	r, err := blob.ReadAll(ctxbg)
+	if err != nil {
+		t.Fatal(err)
+	}
 	n, err := io.Copy(hash, r)
 	if err != nil {
 		t.Fatal(err)
 	}
-	r.Close()
 
 	if uint32(n) != blob.Size() {
 		t.Fatalf("read %d bytes from blob %v; want %v", n, blob.Ref(), blob.Size())

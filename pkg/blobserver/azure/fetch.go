@@ -17,21 +17,22 @@ limitations under the License.
 package azure
 
 import (
+	"context"
 	"io"
 
 	"perkeep.org/pkg/blob"
 )
 
-func (sto *azureStorage) Fetch(blob blob.Ref) (file io.ReadCloser, size uint32, err error) {
+func (sto *azureStorage) Fetch(ctx context.Context, blob blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	if sto.cache != nil {
-		if file, size, err = sto.cache.Fetch(blob); err == nil {
+		if file, size, err = sto.cache.Fetch(ctx, blob); err == nil {
 			return
 		}
 	}
-	file, sz, err := sto.azureClient.Get(sto.container, blob.String())
+	file, sz, err := sto.azureClient.Get(ctx, sto.container, blob.String())
 	return file, uint32(sz), err
 }
 
-func (sto *azureStorage) SubFetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, err error) {
-	return sto.azureClient.GetPartial(sto.container, br.String(), offset, length)
+func (sto *azureStorage) SubFetch(ctx context.Context, br blob.Ref, offset, length int64) (rc io.ReadCloser, err error) {
+	return sto.azureClient.GetPartial(ctx, sto.container, br.String(), offset, length)
 }

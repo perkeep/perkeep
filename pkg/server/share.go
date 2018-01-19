@@ -165,6 +165,7 @@ var timeSleep = time.Sleep // for tests
 // Unauthenticated user.  Be paranoid.
 func (h *shareHandler) handleGetViaSharing(rw http.ResponseWriter, req *http.Request,
 	blobRef blob.Ref) error {
+	ctx := req.Context()
 	if !httputil.IsGet(req) {
 		return &shareError{code: invalidMethod, response: badRequest, message: "Invalid method"}
 	}
@@ -207,7 +208,7 @@ func (h *shareHandler) handleGetViaSharing(rw http.ResponseWriter, req *http.Req
 					return unauthorized(shareDeleted, "Share was deleted")
 				}
 			}
-			file, size, err := h.fetcher.Fetch(br)
+			file, size, err := h.fetcher.Fetch(ctx, br)
 			if err != nil {
 				return unauthorized(shareFetchFailed, "Fetch chain 0 of %s failed: %v", br, err)
 			}
@@ -240,7 +241,7 @@ func (h *shareHandler) handleGetViaSharing(rw http.ResponseWriter, req *http.Req
 			// not the first thing in the chain)
 			continue
 		default:
-			rc, _, err := h.fetcher.Fetch(br)
+			rc, _, err := h.fetcher.Fetch(ctx, br)
 			if err != nil {
 				return unauthorized(viaChainFetchFailed, "Fetch chain %d of %s failed: %v", i, br, err)
 			}

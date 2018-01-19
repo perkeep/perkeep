@@ -21,6 +21,7 @@ package serverinit // import "perkeep.org/pkg/serverinit"
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"expvar"
@@ -662,11 +663,11 @@ func (config *Config) StartApps() error {
 
 // UploadPublicKey uploads the public key blob with the sign handler that was
 // configured during InstallHandlers.
-func (config *Config) UploadPublicKey() error {
+func (config *Config) UploadPublicKey(ctx context.Context) error {
 	if config.signHandler == nil {
 		return nil
 	}
-	return config.signHandler.UploadPublicKey()
+	return config.signHandler.UploadPublicKey(ctx)
 }
 
 // AppURL returns a map of app name to app base URL for all the configured

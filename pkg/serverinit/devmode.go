@@ -17,6 +17,7 @@ limitations under the License.
 package serverinit
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -42,7 +43,7 @@ func (hl *handlerLoader) initPublisherRootNode(ah *app.Handler) error {
 	}
 	sh := h.(*search.Handler)
 	camliRootQuery := func(camliRoot string) (*search.SearchResult, error) {
-		return sh.Query(&search.SearchQuery{
+		return sh.Query(context.TODO(), &search.SearchQuery{
 			Limit: 1,
 			Constraint: &search.Constraint{
 				Permanode: &search.PermanodeConstraint{
@@ -80,13 +81,14 @@ func (hl *handlerLoader) initPublisherRootNode(ah *app.Handler) error {
 	}
 	sigh := h.(*signhandler.Handler)
 
+	ctx := context.TODO()
 	signUpload := func(bb *schema.Builder) (blob.Ref, error) {
-		signed, err := sigh.Sign(bb)
+		signed, err := sigh.Sign(ctx, bb)
 		if err != nil {
 			return blob.Ref{}, fmt.Errorf("could not sign blob: %v", err)
 		}
 		br := blob.RefFromString(signed)
-		if _, err := blobserver.Receive(bs, br, strings.NewReader(signed)); err != nil {
+		if _, err := blobserver.Receive(ctx, bs, br, strings.NewReader(signed)); err != nil {
 			return blob.Ref{}, fmt.Errorf("could not upload %v: %v", br.String(), err)
 		}
 		return br, nil

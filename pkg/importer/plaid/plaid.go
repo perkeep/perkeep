@@ -194,7 +194,7 @@ func (im *imp) importTransaction(ctx *importer.RunContext, t *plaid.Transaction)
 		return "", err
 	}
 
-	fileRef, err := schema.WriteFileFromReader(ctx.Host.Target(), "", bytes.NewBuffer(transJSON))
+	fileRef, err := schema.WriteFileFromReader(ctx.Context(), ctx.Host.Target(), "", bytes.NewBuffer(transJSON))
 	if err != nil {
 		return "", err
 	}

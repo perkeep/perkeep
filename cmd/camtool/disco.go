@@ -57,14 +57,14 @@ func (c *discoCmd) RunCommand(args []string) error {
 	}
 	cl := newClient(c.server)
 	if c.httpVer {
-		v, err := cl.HTTPVersion()
+		v, err := cl.HTTPVersion(ctxbg)
 		if err != nil {
 			return err
 		}
 		fmt.Println(v)
 		return nil
 	}
-	disco, err := cl.DiscoveryDoc()
+	disco, err := cl.DiscoveryDoc(ctxbg)
 	if err != nil {
 		return err
 	}

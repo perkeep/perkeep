@@ -17,6 +17,7 @@ limitations under the License.
 package cond
 
 import (
+	"context"
 	"testing"
 
 	"go4.org/jsonconfig"
@@ -26,6 +27,8 @@ import (
 	"perkeep.org/pkg/blobserver/storagetest"
 	"perkeep.org/pkg/test"
 )
+
+var ctxbg = context.Background()
 
 func newCond(t *testing.T, ld *test.Loader, config jsonconfig.Obj) *condStorage {
 	sto, err := newFromConfig(ld, config)
@@ -37,7 +40,7 @@ func newCond(t *testing.T, ld *test.Loader, config jsonconfig.Obj) *condStorage 
 
 func mustReceive(t *testing.T, dst blobserver.Storage, tb *test.Blob) blob.SizedRef {
 	tbRef := tb.BlobRef()
-	sb, err := blobserver.Receive(dst, tbRef, tb.Reader())
+	sb, err := blobserver.Receive(ctxbg, dst, tbRef, tb.Reader())
 	if err != nil {
 		t.Fatalf("Receive: %v", err)
 	}
@@ -88,10 +91,10 @@ func TestReceiveIsSchema(t *testing.T) {
 	ssto, _ := ld.GetStorage("/good-schema/")
 	osto, _ := ld.GetStorage("/good-other/")
 
-	if _, err := blobserver.StatBlob(ssto, ssb.Ref); err != nil {
+	if _, err := blobserver.StatBlob(ctxbg, ssto, ssb.Ref); err != nil {
 		t.Errorf("schema blob didn't end up on schema storage")
 	}
-	if _, err := blobserver.StatBlob(osto, osb.Ref); err != nil {
+	if _, err := blobserver.StatBlob(ctxbg, osto, osb.Ref); err != nil {
 		t.Errorf("other blob didn't end up on other storage")
 	}
 }

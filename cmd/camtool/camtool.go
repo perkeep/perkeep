@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"log"
 
 	"perkeep.org/pkg/client"
@@ -28,6 +29,8 @@ func init() {
 	// For logging that depends on verbosity (cmdmain.FlagVerbose), use cmdmain.Logf/Printf.
 	log.SetOutput(cmdmain.Stderr)
 }
+
+var ctxbg = context.Background()
 
 func main() {
 	cmdmain.Main()

@@ -158,7 +158,7 @@ func (im *imp) Run(ctx *importer.RunContext) (err error) {
 		log.Printf("Dummy importer returned: %v", err)
 	}()
 	root := ctx.RootNode()
-	fileRef, err := schema.WriteFileFromReader(ctx.Host.Target(), "foo.txt", strings.NewReader("Some file.\n"))
+	fileRef, err := schema.WriteFileFromReader(ctx.Context(), ctx.Host.Target(), "foo.txt", strings.NewReader("Some file.\n"))
 	if err != nil {
 		return err
 	}

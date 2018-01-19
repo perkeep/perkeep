@@ -103,7 +103,7 @@ func (n *rootsDir) Remove(ctx context.Context, req *fuse.RemoveRequest) error {
 	}
 
 	claim := schema.NewDelAttributeClaim(br, "camliRoot", "")
-	_, err := n.fs.client.UploadAndSignBlob(claim)
+	_, err := n.fs.client.UploadAndSignBlob(ctx, claim)
 	if err != nil {
 		log.Println("rootsDir.Remove:", err)
 		return fuse.EIO
@@ -157,7 +157,7 @@ func (n *rootsDir) Rename(ctx context.Context, req *fuse.RenameRequest, newDir f
 	}
 
 	claim := schema.NewSetAttributeClaim(target, "camliRoot", req.NewName)
-	_, err = n.fs.client.UploadAndSignBlob(claim)
+	_, err = n.fs.client.UploadAndSignBlob(ctx, claim)
 	if err != nil {
 		log.Printf("Upload rename link error: %v", err)
 		return fuse.EIO
@@ -224,11 +224,11 @@ func (n *rootsDir) condRefresh(ctx context.Context) error {
 	var grp syncutil.Group
 	grp.Go(func() (err error) {
 		// TODO(mpl): use a search query instead.
-		rootRes, err = n.fs.client.GetPermanodesWithAttr(&search.WithAttrRequest{N: 100, Attr: "camliRoot", At: n.at})
+		rootRes, err = n.fs.client.GetPermanodesWithAttr(ctx, &search.WithAttrRequest{N: 100, Attr: "camliRoot", At: n.at})
 		return
 	})
 	grp.Go(func() (err error) {
-		impRes, err = n.fs.client.GetPermanodesWithAttr(&search.WithAttrRequest{N: 100, Attr: "camliImportRoot", At: n.at})
+		impRes, err = n.fs.client.GetPermanodesWithAttr(ctx, &search.WithAttrRequest{N: 100, Attr: "camliImportRoot", At: n.at})
 		return
 	})
 	if err := grp.Err(); err != nil {
@@ -308,7 +308,7 @@ func (n *rootsDir) Mkdir(ctx context.Context, req *fuse.MkdirRequest) (fs.Node, 
 	name := req.Name
 
 	// Create a Permanode for the root.
-	pr, err := n.fs.client.UploadNewPermanode()
+	pr, err := n.fs.client.UploadNewPermanode(ctx)
 	if err != nil {
 		log.Printf("rootsDir.Create(%q): %v", name, err)
 		return nil, fuse.EIO
@@ -318,13 +318,13 @@ func (n *rootsDir) Mkdir(ctx context.Context, req *fuse.MkdirRequest) (fs.Node, 
 	// Add a camliRoot attribute to the root permanode.
 	grp.Go(func() (err error) {
 		claim := schema.NewSetAttributeClaim(pr.BlobRef, "camliRoot", name)
-		_, err = n.fs.client.UploadAndSignBlob(claim)
+		_, err = n.fs.client.UploadAndSignBlob(ctx, claim)
 		return
 	})
 	// Set the title of the root permanode to the root name.
 	grp.Go(func() (err error) {
 		claim := schema.NewSetAttributeClaim(pr.BlobRef, "title", name)
-		_, err = n.fs.client.UploadAndSignBlob(claim)
+		_, err = n.fs.client.UploadAndSignBlob(ctx, claim)
 		return
 	})
 	if err := grp.Err(); err != nil {

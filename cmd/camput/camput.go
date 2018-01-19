@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -37,6 +38,8 @@ import (
 )
 
 const buffered = 16 // arbitrary
+
+var ctxbg = context.Background()
 
 var (
 	flagProxyLocal = false

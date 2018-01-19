@@ -43,7 +43,7 @@ func TestSigner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewSigner: %v", err)
 	}
-	pn, err := NewUnsignedPermanode().Sign(sig)
+	pn, err := NewUnsignedPermanode().Sign(ctxbg, sig)
 	if err != nil {
 		t.Fatalf("NewPermanode: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestClaimDate(t *testing.T) {
 		t.Fatal(err)
 	}
 	share := NewShareRef(ShareHaveRef, true).SetShareTarget(pubRef)
-	signed, err := share.SignAt(sig, sigTime)
+	signed, err := share.SignAt(ctxbg, sig, sigTime)
 	if err != nil {
 		t.Fatal(err)
 	}

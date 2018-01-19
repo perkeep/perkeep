@@ -17,6 +17,7 @@ limitations under the License.
 package union
 
 import (
+	"context"
 	"testing"
 
 	"go4.org/jsonconfig"
@@ -38,7 +39,7 @@ func newUnion(t *testing.T, ld *test.Loader, config jsonconfig.Obj) *unionStorag
 
 func mustReceive(t *testing.T, dst blobserver.Storage, tb *test.Blob) blob.SizedRef {
 	tbRef := tb.BlobRef()
-	sb, err := blobserver.Receive(dst, tbRef, tb.Reader())
+	sb, err := blobserver.Receive(context.Background(), dst, tbRef, tb.Reader())
 	if err != nil {
 		t.Fatalf("Receive: %v", err)
 	}

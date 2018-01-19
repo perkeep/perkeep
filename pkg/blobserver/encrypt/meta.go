@@ -128,8 +128,9 @@ func (s *storage) makePackedMetaBlob(plains, toDelete []blob.Ref) {
 		metaBytes.WriteString(v)
 		metaBytes.WriteString("\n")
 	}
+	ctx := context.Background() // TODO
 	encBytes := s.encryptBlob(nil, metaBytes.Bytes())
-	metaSB, err := blobserver.ReceiveNoHash(s.meta, blob.RefFromBytes(encBytes), bytes.NewReader(encBytes))
+	metaSB, err := blobserver.ReceiveNoHash(ctx, s.meta, blob.RefFromBytes(encBytes), bytes.NewReader(encBytes))
 	if err != nil {
 		log.Printf("encrypt: failed to upload a packed meta: %v", err)
 		return
@@ -173,7 +174,7 @@ func unpackIndexEntry(s string) (plainSize uint32, encBR blob.Ref, err error) {
 }
 
 // fetchMeta returns os.ErrNotExist if the plaintext blob is not in the index.
-func (s *storage) fetchMeta(b blob.Ref) (plainSize uint32, encBR blob.Ref, err error) {
+func (s *storage) fetchMeta(ctx context.Context, b blob.Ref) (plainSize uint32, encBR blob.Ref, err error) {
 	v, err := s.index.Get(b.String())
 	if err == sorted.ErrNotFound {
 		err = os.ErrNotExist
@@ -253,7 +254,8 @@ func (s *storage) readAllMetaBlobs() error {
 	enumErrc := make(chan error, 1)
 	go func() {
 		var wg sync.WaitGroup
-		enumErrc <- blobserver.EnumerateAll(context.TODO(), s.meta, func(sb blob.SizedRef) error {
+		ctx := context.TODO()
+		enumErrc <- blobserver.EnumerateAll(ctx, s.meta, func(sb blob.SizedRef) error {
 			select {
 			case <-stopEnumerate:
 				return errors.New("enumeration stopped")
@@ -265,7 +267,7 @@ func (s *storage) readAllMetaBlobs() error {
 			go func() {
 				defer wg.Done()
 				defer func() { <-gate }()
-				rc, _, err := s.meta.Fetch(sb.Ref)
+				rc, _, err := s.meta.Fetch(ctx, sb.Ref)
 				if err != nil {
 					metac <- encMB{sb.Ref, nil, fmt.Errorf("fetch failed: %v", err)}
 					return

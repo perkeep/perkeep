@@ -196,7 +196,7 @@ func (r *run) urlFileRef(urlstr, filename string) string {
 	}
 	defer res.Body.Close()
 
-	fileRef, err := schema.WriteFileFromReader(r.Host.Target(), filename, res.Body)
+	fileRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), filename, res.Body)
 	if err != nil {
 		r.errorf("couldn't write file: %v", err)
 		return ""

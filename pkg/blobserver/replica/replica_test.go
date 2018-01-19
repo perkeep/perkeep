@@ -17,6 +17,7 @@ limitations under the License.
 package replica
 
 import (
+	"context"
 	"testing"
 
 	"go4.org/jsonconfig"
@@ -25,6 +26,8 @@ import (
 	"perkeep.org/pkg/blobserver/storagetest"
 	"perkeep.org/pkg/test"
 )
+
+var ctxbg = context.Background()
 
 func newReplica(t *testing.T, config jsonconfig.Obj) *replicaStorage {
 	ld := test.NewLoader()
@@ -37,7 +40,7 @@ func newReplica(t *testing.T, config jsonconfig.Obj) *replicaStorage {
 
 func mustReceive(t *testing.T, dst blobserver.Storage, tb *test.Blob) blob.SizedRef {
 	tbRef := tb.BlobRef()
-	sb, err := blobserver.Receive(dst, tbRef, tb.Reader())
+	sb, err := blobserver.Receive(ctxbg, dst, tbRef, tb.Reader())
 	if err != nil {
 		t.Fatalf("Receive: %v", err)
 	}
@@ -61,7 +64,7 @@ func TestReceiveGood(t *testing.T) {
 		t.Fatalf("replicas = %d; want 2", len(sto.replicas))
 	}
 	for i, rep := range sto.replicas {
-		got, err := blobserver.StatBlob(rep, sb.Ref)
+		got, err := blobserver.StatBlob(ctxbg, rep, sb.Ref)
 		if err != nil {
 			t.Errorf("Replica %s got stat error %v", sto.replicaPrefixes[i], err)
 		} else if got != sb {
@@ -82,7 +85,7 @@ func TestReceiveOneGoodOneFail(t *testing.T) {
 		t.Fatalf("replicas = %d; want 2", len(sto.replicas))
 	}
 	for i, rep := range sto.replicas {
-		got, err := blobserver.StatBlob(rep, sb.Ref)
+		got, err := blobserver.StatBlob(ctxbg, rep, sb.Ref)
 		pfx := sto.replicaPrefixes[i]
 		if (i == 0) != (err == nil) {
 			t.Errorf("For replica %s, unexpected error: %v", pfx, err)

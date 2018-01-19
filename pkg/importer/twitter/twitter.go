@@ -213,7 +213,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		if !ok {
 			return fmt.Errorf("invalid zip file blobref %q", zipRef)
 		}
-		fr, err := schema.NewFileReader(r.Host.BlobSource(), zipbr)
+		fr, err := schema.NewFileReader(r.Context(), r.Host.BlobSource(), zipbr)
 		if err != nil {
 			return fmt.Errorf("error opening zip %v: %v", zipbr, err)
 		}
@@ -550,7 +550,7 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 			if !viaAPI {
 				log.Printf("For zip tweet %s, reading %v", url, mediaURL)
 			}
-			fileRef, err := schema.WriteFileFromReader(r.Host.Target(), filename, res.Body)
+			fileRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), filename, res.Body)
 			res.Body.Close()
 			if err != nil {
 				return false, fmt.Errorf("Error fetching media %s for tweet %s: %v", mediaURL, url, err)

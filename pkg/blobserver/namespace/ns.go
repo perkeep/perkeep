@@ -98,7 +98,7 @@ func (ns *nsto) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, a
 	return nil
 }
 
-func (ns *nsto) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
+func (ns *nsto) Fetch(ctx context.Context, br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
 	invSizeStr, err := ns.inventory.Get(br.String())
 	if err == sorted.ErrNotFound {
 		err = os.ErrNotExist
@@ -111,7 +111,7 @@ func (ns *nsto) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
 	if err != nil {
 		return
 	}
-	rc, size, err = ns.master.Fetch(br)
+	rc, size, err = ns.master.Fetch(ctx, br)
 	if err != nil {
 		return
 	}
@@ -122,7 +122,7 @@ func (ns *nsto) Fetch(br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
 	return rc, size, nil
 }
 
-func (ns *nsto) ReceiveBlob(br blob.Ref, src io.Reader) (sb blob.SizedRef, err error) {
+func (ns *nsto) ReceiveBlob(ctx context.Context, br blob.Ref, src io.Reader) (sb blob.SizedRef, err error) {
 	var buf bytes.Buffer
 	size, err := io.Copy(&buf, src)
 	if err != nil {
@@ -134,7 +134,7 @@ func (ns *nsto) ReceiveBlob(br blob.Ref, src io.Reader) (sb blob.SizedRef, err e
 		return blob.SizedRef{br, uint32(size)}, nil
 	}
 
-	sb, err = ns.master.ReceiveBlob(br, &buf)
+	sb, err = ns.master.ReceiveBlob(ctx, br, &buf)
 	if err != nil {
 		return
 	}

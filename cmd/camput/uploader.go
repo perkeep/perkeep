@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"strings"
 
 	"perkeep.org/internal/httputil"
@@ -79,8 +80,8 @@ func (o *fileOptions) wantCapCtime() bool {
 	return o != nil && o.capCtime
 }
 
-func (up *Uploader) uploadString(s string) (*client.PutResult, error) {
-	return up.Upload(client.NewUploadHandleFromString(s))
+func (up *Uploader) uploadString(ctx context.Context, s string) (*client.PutResult, error) {
+	return up.Upload(ctx, client.NewUploadHandleFromString(s))
 }
 
 func (up *Uploader) Close() error {

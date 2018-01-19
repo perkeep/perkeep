@@ -17,11 +17,12 @@ limitations under the License.
 package drive
 
 import (
+	"context"
 	"io"
 
 	"perkeep.org/pkg/blob"
 )
 
-func (sto *driveStorage) Fetch(blob blob.Ref) (file io.ReadCloser, size uint32, reterr error) {
-	return sto.service.Fetch(blob.String())
+func (sto *driveStorage) Fetch(ctx context.Context, blob blob.Ref) (file io.ReadCloser, size uint32, reterr error) {
+	return sto.service.Fetch(ctx, blob.String())
 }

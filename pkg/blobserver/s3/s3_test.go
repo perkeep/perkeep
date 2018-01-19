@@ -45,6 +45,8 @@ var (
 	flagTestData = flag.String("testdata", "", "Optional directory containing some files to write to the bucket, for additional tests.")
 )
 
+var ctxbg = context.Background()
+
 func TestS3(t *testing.T) {
 	testStorage(t, "")
 }
@@ -77,7 +79,7 @@ func TestS3WriteFiles(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer f.Close() // assuming there aren't that many files.
-		if _, err := schema.WriteFileFromReaderWithModTime(sto, name, time.Now(), f); err != nil {
+		if _, err := schema.WriteFileFromReaderWithModTime(ctxbg, sto, name, time.Now(), f); err != nil {
 			t.Fatalf("Error while writing %v to S3: %v", name, err)
 		}
 		t.Logf("Wrote %v successfully to S3", name)
@@ -116,7 +118,7 @@ func testStorage(t *testing.T, bucketDir string) {
 				if err != nil {
 					t.Fatalf("could not insert object %s in bucket %v: %v", key, sto.(*s3Storage).bucket, err)
 				}
-				if err := sto.(*s3Storage).s3Client.PutObject(
+				if err := sto.(*s3Storage).s3Client.PutObject(ctxbg,
 					key, sto.(*s3Storage).bucket, md5h, size, &buf); err != nil {
 					t.Fatalf("could not insert object %s in bucket %v: %v", key, sto.(*s3Storage).bucket, err)
 				}
@@ -125,7 +127,7 @@ func testStorage(t *testing.T, bucketDir string) {
 		clearBucket := func(beforeTests bool) func() {
 			return func() {
 				var all []blob.Ref
-				blobserver.EnumerateAll(context.TODO(), sto, func(sb blob.SizedRef) error {
+				blobserver.EnumerateAll(ctxbg, sto, func(sb blob.SizedRef) error {
 					t.Logf("Deleting: %v", sb.Ref)
 					all = append(all, sb.Ref)
 					return nil
@@ -139,10 +141,10 @@ func testStorage(t *testing.T, bucketDir string) {
 				if bucketWithDir != *bucket {
 					// checking that "a" and "c" at the root were left untouched.
 					for _, key := range []string{"a", "c"} {
-						if _, _, err := sto.(*s3Storage).s3Client.Get(sto.(*s3Storage).bucket, key); err != nil {
+						if _, _, err := sto.(*s3Storage).s3Client.Get(ctxbg, sto.(*s3Storage).bucket, key); err != nil {
 							t.Fatalf("could not find object %s after tests: %v", key, err)
 						}
-						if err := sto.(*s3Storage).s3Client.Delete(sto.(*s3Storage).bucket, key); err != nil {
+						if err := sto.(*s3Storage).s3Client.Delete(ctxbg, sto.(*s3Storage).bucket, key); err != nil {
 							t.Fatalf("could not remove object %s after tests: %v", key, err)
 						}
 					}

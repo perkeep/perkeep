@@ -93,15 +93,15 @@ func squareImage(i image.Image) image.Image {
 	return si.SubImage(newB)
 }
 
-func writeToCache(cache blobserver.Storage, thumbBytes []byte, name string) (br blob.Ref, err error) {
+func writeToCache(ctx context.Context, cache blobserver.Storage, thumbBytes []byte, name string) (br blob.Ref, err error) {
 	tr := bytes.NewReader(thumbBytes)
 	if len(thumbBytes) < constants.MaxBlobSize {
 		br = blob.RefFromBytes(thumbBytes)
-		_, err = blobserver.Receive(cache, br, tr)
+		_, err = blobserver.Receive(ctx, cache, br, tr)
 	} else {
 		// TODO: don't use rolling checksums when writing this. Tell
 		// the filewriter to use 16 MB chunks instead.
-		br, err = schema.WriteFileFromReader(cache, name, tr)
+		br, err = schema.WriteFileFromReader(ctx, cache, name, tr)
 	}
 	if err != nil {
 		return br, errors.New("failed to cache " + name + ": " + err.Error())
@@ -114,8 +114,8 @@ func writeToCache(cache blobserver.Storage, thumbBytes []byte, name string) (br 
 
 // cacheScaled saves in the image handler's cache the scaled image bytes
 // in thumbBytes, and puts its blobref in the scaledImage under the key name.
-func (ih *ImageHandler) cacheScaled(thumbBytes []byte, name string) error {
-	br, err := writeToCache(ih.Cache, thumbBytes, name)
+func (ih *ImageHandler) cacheScaled(ctx context.Context, thumbBytes []byte, name string) error {
+	br, err := writeToCache(ctx, ih.Cache, thumbBytes, name)
 	if err != nil {
 		return err
 	}
@@ -128,8 +128,8 @@ func (ih *ImageHandler) cacheScaled(thumbBytes []byte, name string) error {
 // 16MB) or a file schema blob.
 //
 // The ReadCloser should be closed when done reading.
-func (ih *ImageHandler) cached(br blob.Ref) (io.ReadCloser, error) {
-	rsc, _, err := ih.Cache.Fetch(br)
+func (ih *ImageHandler) cached(ctx context.Context, br blob.Ref) (io.ReadCloser, error) {
+	rsc, _, err := ih.Cache.Fetch(ctx, br)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +178,7 @@ func cacheKey(bref string, width int, height int) string {
 //
 // On successful read and population of buf, the returned format is non-empty.
 // Almost all errors are not interesting. Real errors will be logged.
-func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file blob.Ref) (format string) {
+func (ih *ImageHandler) scaledCached(ctx context.Context, buf *bytes.Buffer, file blob.Ref) (format string) {
 	key := cacheKey(file.String(), ih.MaxWidth, ih.MaxHeight)
 	br, err := ih.ThumbMeta.Get(key)
 	if err == errCacheMiss {
@@ -188,7 +188,7 @@ func (ih *ImageHandler) scaledCached(buf *bytes.Buffer, file blob.Ref) (format s
 		log.Printf("Warning: thumbnail cachekey(%q)->meta lookup error: %v", key, err)
 		return
 	}
-	fr, err := ih.cached(br)
+	fr, err := ih.cached(ctx, br)
 	if err != nil {
 		if imageDebug {
 			log.Printf("Could not get cached image %v: %v\n", br, err)
@@ -228,8 +228,7 @@ func imageConfigFromReader(r io.Reader) (io.Reader, image.Config, error) {
 	return io.MultiReader(header, r), conf, err
 }
 
-func (ih *ImageHandler) newFileReader(fileRef blob.Ref) (io.ReadCloser, error) {
-	ctx := context.TODO()
+func (ih *ImageHandler) newFileReader(ctx context.Context, fileRef blob.Ref) (io.ReadCloser, error) {
 	fi, ok := fileInfoPacked(ctx, ih.Search, ih.Fetcher, nil, fileRef)
 	if debugPack {
 		log.Printf("pkg/server/image.go: fileInfoPacked: ok=%v, %+v", ok, fi)
@@ -248,11 +247,11 @@ func (ih *ImageHandler) newFileReader(fileRef blob.Ref) (io.ReadCloser, error) {
 		}, nil
 	}
 	// Default path, not going through blobpacked's fast path:
-	return schema.NewFileReader(ih.Fetcher, fileRef)
+	return schema.NewFileReader(ctx, ih.Fetcher, fileRef)
 }
 
-func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
-	fr, err := ih.newFileReader(fileRef)
+func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref) (*formatAndImage, error) {
+	fr, err := ih.newFileReader(ctx, fileRef)
 	if err != nil {
 		return nil, err
 	}
@@ -323,6 +322,7 @@ func (ih *ImageHandler) scaleImage(fileRef blob.Ref) (*formatAndImage, error) {
 var singleResize singleflight.Group
 
 func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, file blob.Ref) {
+	ctx := req.Context()
 	if !httputil.IsGet(req) {
 		http.Error(rw, "Invalid method", 400)
 		return
@@ -355,7 +355,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	cacheHit := false
 	if ih.ThumbMeta != nil && !disableThumbCache {
 		var buf bytes.Buffer
-		format = ih.scaledCached(&buf, file)
+		format = ih.scaledCached(ctx, &buf, file)
 		if format != "" {
 			cacheHit = true
 			imageData = buf.Bytes()
@@ -365,7 +365,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 	if !cacheHit {
 		thumbCacheMiss.Add(1)
 		imi, err := singleResize.Do(key, func() (interface{}, error) {
-			return ih.scaleImage(file)
+			return ih.scaleImage(ctx, file)
 		})
 		if err != nil {
 			http.Error(rw, err.Error(), 500)
@@ -375,7 +375,7 @@ func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, fil
 		imageData = im.image
 		format = im.format
 		if ih.ThumbMeta != nil {
-			err := ih.cacheScaled(imageData, key)
+			err := ih.cacheScaled(ctx, imageData, key)
 			if err != nil {
 				log.Printf("image resize: %v", err)
 			}

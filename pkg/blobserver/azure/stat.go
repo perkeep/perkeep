@@ -30,7 +30,7 @@ var statGate = syncutil.NewGate(20) // arbitrary
 func (sto *azureStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) (err error) {
 	// TODO: use sto.cache
 	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (sb blob.SizedRef, err error) {
-		size, err := sto.azureClient.Stat(br.String(), sto.container)
+		size, err := sto.azureClient.Stat(ctx, br.String(), sto.container)
 		if err == nil {
 			return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
 		}

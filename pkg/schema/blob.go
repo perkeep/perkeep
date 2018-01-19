@@ -17,6 +17,7 @@ limitations under the License.
 package schema
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -431,15 +432,15 @@ func (bb *Builder) SetSigner(signer blob.Ref) *Builder {
 
 // Sign sets the blob builder's camliSigner field with SetSigner
 // and returns the signed JSON using the provided signer.
-func (bb *Builder) Sign(signer *Signer) (string, error) {
-	return bb.SignAt(signer, time.Time{})
+func (bb *Builder) Sign(ctx context.Context, signer *Signer) (string, error) {
+	return bb.SignAt(ctx, signer, time.Time{})
 }
 
 // SignAt sets the blob builder's camliSigner field with SetSigner
 // and returns the signed JSON using the provided signer.
 // The provided sigTime is the time of the signature, used mostly
 // for planned permanodes. If the zero value, the current time is used.
-func (bb *Builder) SignAt(signer *Signer, sigTime time.Time) (string, error) {
+func (bb *Builder) SignAt(ctx context.Context, signer *Signer, sigTime time.Time) (string, error) {
 	switch bb.Type() {
 	case "permanode", "claim":
 	default:
@@ -449,7 +450,7 @@ func (bb *Builder) SignAt(signer *Signer, sigTime time.Time) (string, error) {
 		sigTime = time.Now()
 	}
 	bb.SetClaimDate(sigTime)
-	return signer.SignJSON(bb.SetSigner(signer.pubref).Blob().JSON(), sigTime)
+	return signer.SignJSON(ctx, bb.SetSigner(signer.pubref).Blob().JSON(), sigTime)
 }
 
 // SetType sets the camliType field.

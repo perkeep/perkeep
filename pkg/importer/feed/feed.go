@@ -144,7 +144,7 @@ func (r *run) importItem(parent *importer.Object, item *item) error {
 	if err != nil {
 		return err
 	}
-	fileRef, err := schema.WriteFileFromReader(r.Host.Target(), "", bytes.NewBufferString(item.Content))
+	fileRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), "", bytes.NewBufferString(item.Content))
 	if err != nil {
 		return err
 	}

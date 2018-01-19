@@ -93,7 +93,7 @@ func (c *shareCmd) RunCommand(args []string) error {
 		return err
 	}
 
-	pr, err := up.UploadAndSignBlob(unsigned)
+	pr, err := up.UploadAndSignBlob(ctxbg, unsigned)
 	if err := handleResult("share", pr, err); err != nil {
 		// Because handling the failure is left to cmdmain
 		return nil

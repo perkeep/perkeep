@@ -35,7 +35,7 @@ func (sto *s3Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(b
 	}
 	// TODO: use sto.cache
 	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (sb blob.SizedRef, err error) {
-		size, err := sto.s3Client.Stat(sto.dirPrefix+br.String(), sto.bucket)
+		size, err := sto.s3Client.Stat(ctx, sto.dirPrefix+br.String(), sto.bucket)
 		if err == nil {
 			return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
 		}

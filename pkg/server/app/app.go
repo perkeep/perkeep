@@ -21,6 +21,7 @@ limitations under the License.
 package app // import "perkeep.org/pkg/server/app"
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -140,7 +141,7 @@ func (a *Handler) handleMasterQuery(w http.ResponseWriter, r *http.Request) {
 	var masterQuery search.SearchQuery = *(sq)
 	des := *(masterQuery.Describe)
 	masterQuery.Describe = &des
-	sr, err := a.sh.Query(sq)
+	sr, err := a.sh.Query(r.Context(), sq)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("error running master query: %v", err), 500)
 		return
@@ -171,7 +172,7 @@ func (a *Handler) refreshDomainBlobs() error {
 	var sq search.SearchQuery = *(a.masterQuery)
 	des := *(sq.Describe)
 	sq.Describe = &des
-	sr, err := a.sh.Query(&sq)
+	sr, err := a.sh.Query(context.TODO(), &sq)
 	if err != nil {
 		return fmt.Errorf("error running master query: %v", err)
 	}
@@ -207,7 +208,7 @@ func (a *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		camhttputil.ServeJSONError(w, err)
 		return
 	}
-	sr, err := a.sh.Query(&sq)
+	sr, err := a.sh.Query(r.Context(), &sq)
 	if err != nil {
 		camhttputil.ServeJSONError(w, err)
 		return

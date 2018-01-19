@@ -113,7 +113,7 @@ func (c *makeStaticCmd) RunCommand(args []string) error {
 	}
 
 	b := ss.Blob()
-	_, err = cl.UploadBlob(b)
+	_, err = cl.UploadBlob(ctxbg, b)
 	if err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func (c *makeStaticCmd) RunCommand(args []string) error {
 	}
 	dir := schema.NewDirMap(title).PopulateDirectoryMap(b.BlobRef())
 	dirBlob := dir.Blob()
-	_, err = cl.UploadBlob(dirBlob)
+	_, err = cl.UploadBlob(ctxbg, dirBlob)
 	if err == nil {
 		fmt.Println(dirBlob.BlobRef().String())
 	}

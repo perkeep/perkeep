@@ -120,11 +120,11 @@ func (n *versionsDir) condRefresh(ctx context.Context) error {
 	var rootRes, impRes *search.WithAttrResponse
 	var grp syncutil.Group
 	grp.Go(func() (err error) {
-		rootRes, err = n.fs.client.GetPermanodesWithAttr(&search.WithAttrRequest{N: 100, Attr: "camliRoot"})
+		rootRes, err = n.fs.client.GetPermanodesWithAttr(ctx, &search.WithAttrRequest{N: 100, Attr: "camliRoot"})
 		return
 	})
 	grp.Go(func() (err error) {
-		impRes, err = n.fs.client.GetPermanodesWithAttr(&search.WithAttrRequest{N: 100, Attr: "camliImportRoot"})
+		impRes, err = n.fs.client.GetPermanodesWithAttr(ctx, &search.WithAttrRequest{N: 100, Attr: "camliImportRoot"})
 		return
 	})
 	if err := grp.Err(); err != nil {

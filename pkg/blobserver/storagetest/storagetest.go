@@ -104,7 +104,7 @@ func TestOpt(t *testing.T, opt Opts) {
 		if testing.Short() {
 			t.Logf("blob[%d] = %s: %q", i, b1.BlobRef(), x)
 		}
-		b1s, err := sto.ReceiveBlob(b1.BlobRef(), b1.Reader())
+		b1s, err := sto.ReceiveBlob(context.Background(), b1.BlobRef(), b1.Reader())
 		if err != nil {
 			t.Fatalf("ReceiveBlob of %s: %v", b1, err)
 		}
@@ -124,7 +124,7 @@ func TestOpt(t *testing.T, opt Opts) {
 
 	t.Logf("Testing Fetch")
 	for i, b2 := range blobs {
-		rc, size, err := sto.Fetch(b2.BlobRef())
+		rc, size, err := sto.Fetch(context.Background(), b2.BlobRef())
 		if err != nil {
 			t.Fatalf("error fetching %d. %s: %v", i, b2, err)
 		}
@@ -198,7 +198,7 @@ func (r *run) testSubFetcher() {
 	}
 	t.Logf("Testing SubFetch")
 	big := &test.Blob{"Some big blob"}
-	if _, err := sto.ReceiveBlob(big.BlobRef(), big.Reader()); err != nil {
+	if _, err := sto.ReceiveBlob(context.Background(), big.BlobRef(), big.Reader()); err != nil {
 		t.Fatal(err)
 	}
 	regions := []struct {
@@ -211,7 +211,7 @@ func (r *run) testSubFetcher() {
 		{5, 100, "big blob", true},
 	}
 	for _, tt := range regions {
-		r, err := sf.SubFetch(big.BlobRef(), tt.off, tt.limit)
+		r, err := sf.SubFetch(context.Background(), big.BlobRef(), tt.off, tt.limit)
 		if err != nil {
 			t.Fatalf("Error fetching big blob for SubFetch: %v", err)
 		}
@@ -237,7 +237,7 @@ func (r *run) testSubFetcher() {
 		{1, -1},
 	}
 	for _, tt := range invalids {
-		r, err := sf.SubFetch(big.BlobRef(), tt.off, tt.limit)
+		r, err := sf.SubFetch(context.Background(), big.BlobRef(), tt.off, tt.limit)
 		if err == nil {
 			r.Close()
 			t.Errorf("No error fetching with off=%d limit=%d; wanted an error", tt.off, tt.limit)

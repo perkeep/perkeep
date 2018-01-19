@@ -70,7 +70,7 @@ func (c *packBlobsCmd) RunCommand(args []string) error {
 	cl := newClient(c.server)
 	looseClient := cl.NewPathClient("/bs-loose/")
 
-	res, err := cl.Query(req)
+	res, err := cl.Query(ctxbg, req)
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func (c *packBlobsCmd) RunCommand(args []string) error {
 	for _, sr := range res.Blobs {
 		n++
 		fileRef := sr.Blob
-		rc, _, err := looseClient.Fetch(fileRef)
+		rc, _, err := looseClient.Fetch(ctxbg, fileRef)
 		if err == os.ErrNotExist {
 			fmt.Printf("%d/%d: %v already done\n", n, total, fileRef)
 			continue
@@ -96,7 +96,7 @@ func (c *packBlobsCmd) RunCommand(args []string) error {
 			log.Printf("error reading %v: %v\n", fileRef, err)
 			continue
 		}
-		_, err = cl.ReceiveBlob(fileRef, &buf)
+		_, err = cl.ReceiveBlob(ctxbg, fileRef, &buf)
 		if err != nil {
 			log.Printf("error write %v: %v\n", fileRef, err)
 			continue

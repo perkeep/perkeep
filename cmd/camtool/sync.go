@@ -424,7 +424,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 			defer wg.Done()
 			defer gate.Done()
 			fmt.Fprintf(cmdmain.Stdout, "Destination needs blob: %s\n", sb)
-			blobReader, size, err := src.Fetch(sb.Ref)
+			blobReader, size, err := src.Fetch(ctxbg, sb.Ref)
 
 			if err != nil {
 				logErrorf("Error fetching %s: %v", sb.Ref, err)
@@ -436,7 +436,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 				return
 			}
 
-			_, err = blobserver.Receive(firstHopDest, sb.Ref, blobReader)
+			_, err = blobserver.Receive(ctxbg, firstHopDest, sb.Ref, blobReader)
 			if err != nil {
 				logErrorf("Upload of %s to destination blobserver failed: %v", sb.Ref, err)
 				return

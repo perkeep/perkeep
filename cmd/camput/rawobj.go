@@ -68,7 +68,7 @@ func (c *rawCmd) RunCommand(args []string) error {
 
 	up := getUploader()
 	if c.signed {
-		put, err := up.UploadAndSignBlob(bb)
+		put, err := up.UploadAndSignBlob(ctxbg, bb)
 		handleResult("raw-object-signed", put, err)
 		return err
 	}
@@ -76,7 +76,7 @@ func (c *rawCmd) RunCommand(args []string) error {
 	if err != nil {
 		return err
 	}
-	put, err := up.uploadString(cj)
+	put, err := up.uploadString(ctxbg, cj)
 	handleResult("raw-object-unsigned", put, err)
 	return err
 }

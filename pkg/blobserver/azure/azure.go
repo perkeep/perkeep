@@ -34,6 +34,7 @@ Example low-level config:
 package azure
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 
@@ -91,7 +92,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		sto.cache = memory.NewCache(cacheSize)
 	}
 	if !skipStartupCheck {
-		_, err := client.ListBlobs(sto.container, 1)
+		_, err := client.ListBlobs(context.TODO(), sto.container, 1)
 		if serr, ok := err.(*storage.Error); ok {
 			if serr.AzureError.Code == "ContainerNotFound" {
 				return nil, fmt.Errorf("container %q doesn't exist", sto.container)

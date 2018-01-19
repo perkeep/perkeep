@@ -17,6 +17,8 @@ limitations under the License.
 package azure
 
 import (
+	"context"
+
 	"go4.org/syncutil"
 	"perkeep.org/pkg/blob"
 )
@@ -24,6 +26,7 @@ import (
 var removeGate = syncutil.NewGate(20) // arbitrary
 
 func (sto *azureStorage) RemoveBlobs(blobs []blob.Ref) error {
+	ctx := context.TODO()
 	if sto.cache != nil {
 		sto.cache.RemoveBlobs(blobs)
 	}
@@ -34,7 +37,7 @@ func (sto *azureStorage) RemoveBlobs(blobs []blob.Ref) error {
 		removeGate.Start()
 		wg.Go(func() error {
 			defer removeGate.Done()
-			return sto.azureClient.Delete(sto.container, blob.String())
+			return sto.azureClient.Delete(ctx, sto.container, blob.String())
 		})
 	}
 	return wg.Err()

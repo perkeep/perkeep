@@ -19,6 +19,7 @@ package archiver
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -33,6 +34,8 @@ import (
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/test"
 )
+
+var ctxbg = context.Background()
 
 func TestArchiver(t *testing.T) {
 	src := new(test.Fetcher)
@@ -54,7 +57,7 @@ func TestArchiver(t *testing.T) {
 		return errors.New("Store shouldn't be called")
 	}
 	a.MinZipSize = 400 // empirically: the zip will be 416 bytes
-	if err := a.RunOnce(); err != ErrSourceTooSmall {
+	if err := a.RunOnce(ctxbg); err != ErrSourceTooSmall {
 		t.Fatalf("RunOnce with just Hello = %v; want ErrSourceTooSmall", err)
 	}
 
@@ -66,7 +69,7 @@ func TestArchiver(t *testing.T) {
 		inZip = brs
 		return nil
 	}
-	if err := a.RunOnce(); err != nil {
+	if err := a.RunOnce(ctxbg); err != nil {
 		t.Fatalf("RunOnce with Hello and World = %v", err)
 	}
 	if zipData == nil {
@@ -98,7 +101,7 @@ func TestArchiverStress(t *testing.T) {
 	defer testhooks.SetUseSHA1(true)()
 
 	src := new(test.Fetcher)
-	fileRef, err := schema.WriteFileFromReader(src, "random", io.LimitReader(randReader{}, 10<<20))
+	fileRef, err := schema.WriteFileFromReader(ctxbg, src, "random", io.LimitReader(randReader{}, 10<<20))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +128,7 @@ func TestArchiverStress(t *testing.T) {
 		},
 	}
 	for {
-		err := a.RunOnce()
+		err := a.RunOnce(ctxbg)
 		if err == ErrSourceTooSmall {
 			break
 		}

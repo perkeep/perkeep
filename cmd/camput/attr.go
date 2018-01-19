@@ -80,7 +80,7 @@ func (c *attrCmd) RunCommand(args []string) error {
 		}
 	}()
 	bb := claimFunc(pn, attr, value)
-	put, err := getUploader().UploadAndSignBlob(bb)
+	put, err := getUploader().UploadAndSignBlob(ctxbg, bb)
 	handleResult(bb.Type(), put, err)
 	return nil
 }

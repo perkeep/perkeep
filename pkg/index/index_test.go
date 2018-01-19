@@ -38,6 +38,8 @@ import (
 	"perkeep.org/pkg/types/camtypes"
 )
 
+var ctxbg = context.Background()
+
 var (
 	chunk1, chunk2, chunk3, fileBlob, staticSetBlob, dirBlob *test.Blob
 	chunk1ref, chunk2ref, chunk3ref, fileBlobRef             blob.Ref
@@ -368,7 +370,7 @@ func testOutOfOrderIndexing(t *testing.T, sequence []testSequence) {
 
 	add := func(b *test.Blob) {
 		tf.AddBlob(b)
-		if _, err := ix.ReceiveBlob(b.BlobRef(), b.Reader()); err != nil {
+		if _, err := ix.ReceiveBlob(ctxbg, b.BlobRef(), b.Reader()); err != nil {
 			t.Fatalf("ReceiveBlob(%v): %v", b.BlobRef(), err)
 		}
 	}
@@ -491,12 +493,12 @@ func TestIndexingClaimMissingPubkey(t *testing.T) {
 }
 
 func copyBlob(br blob.Ref, dst blobserver.BlobReceiver, src blob.Fetcher) error {
-	rc, _, err := src.Fetch(br)
+	rc, _, err := src.Fetch(ctxbg, br)
 	if err != nil {
 		return err
 	}
 	defer rc.Close()
-	_, err = dst.ReceiveBlob(br, rc)
+	_, err = dst.ReceiveBlob(ctxbg, br, rc)
 	return err
 }
 
@@ -516,7 +518,7 @@ func TestFixMissingWholeref(t *testing.T) {
 	// populate with a file
 	add := func(b *test.Blob) {
 		tf.AddBlob(b)
-		if _, err := ix.ReceiveBlob(b.BlobRef(), b.Reader()); err != nil {
+		if _, err := ix.ReceiveBlob(ctxbg, b.BlobRef(), b.Reader()); err != nil {
 			t.Fatalf("ReceiveBlob(%v): %v", b.BlobRef(), err)
 		}
 	}

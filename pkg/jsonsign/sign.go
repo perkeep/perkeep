@@ -18,6 +18,7 @@ package jsonsign
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -128,7 +129,7 @@ func (sr *SignRequest) secretRingPath() string {
 	return osutil.SecretRingFile()
 }
 
-func (sr *SignRequest) Sign() (signedJSON string, err error) {
+func (sr *SignRequest) Sign(ctx context.Context) (signedJSON string, err error) {
 	trimmedJSON := strings.TrimRightFunc(sr.UnsignedJSON, unicode.IsSpace)
 
 	// TODO: make sure these return different things
@@ -155,7 +156,7 @@ func (sr *SignRequest) Sign() (signedJSON string, err error) {
 		return inputfail("json \"camliSigner\" key is malformed or unsupported")
 	}
 
-	pubkeyReader, _, err := sr.Fetcher.Fetch(signerBlob)
+	pubkeyReader, _, err := sr.Fetcher.Fetch(ctx, signerBlob)
 	if err != nil {
 		// TODO: not really either an inputfail or an execfail.. but going
 		// with exec for now.

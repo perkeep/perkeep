@@ -18,6 +18,7 @@ package blobserver_test
 
 import (
 	"bytes"
+	"context"
 	"testing"
 	"time"
 
@@ -25,6 +26,8 @@ import (
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/test"
 )
+
+var ctxbg = context.Background()
 
 func TestReceive(t *testing.T) {
 	sto := new(test.Fetcher)
@@ -35,7 +38,7 @@ func TestReceive(t *testing.T) {
 	ch := make(chan blob.Ref, 1)
 	hub.RegisterListener(ch)
 
-	sb, err := blobserver.Receive(sto, br, bytes.NewReader(data))
+	sb, err := blobserver.Receive(ctxbg, sto, br, bytes.NewReader(data))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +63,7 @@ func TestReceiveCorrupt(t *testing.T) {
 	data := []byte("some blob")
 	br := blob.RefFromBytes(data)
 	data[0] = 'X' // corrupt it
-	_, err := blobserver.Receive(sto, br, bytes.NewReader(data))
+	_, err := blobserver.Receive(ctxbg, sto, br, bytes.NewReader(data))
 	if err != blobserver.ErrCorruptBlob {
 		t.Errorf("Receive = %v; want ErrCorruptBlob", err)
 	}

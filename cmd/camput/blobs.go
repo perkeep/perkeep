@@ -100,32 +100,32 @@ func (c *blobCmd) RunCommand(args []string) error {
 		if err != nil {
 			return err
 		}
-		put, err = up.Upload(handle)
+		put, err = up.Upload(ctxbg, handle)
 		handleResult("blob", put, err)
 		continue
 	}
 
 	if c.makePermanode {
-		permaNode, err = up.UploadNewPermanode()
+		permaNode, err = up.UploadNewPermanode(ctxbg)
 		if err != nil {
 			return fmt.Errorf("Uploading permanode: %v", err)
 		}
 	}
 
 	if permaNode != nil && put != nil {
-		put, err := up.UploadAndSignBlob(schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", put.BlobRef.String()))
+		put, err := up.UploadAndSignBlob(ctxbg, schema.NewSetAttributeClaim(permaNode.BlobRef, "camliContent", put.BlobRef.String()))
 		if handleResult("claim-permanode-content", put, err) != nil {
 			return err
 		}
 		if c.title != "" {
-			put, err := up.UploadAndSignBlob(schema.NewSetAttributeClaim(permaNode.BlobRef, "title", c.title))
+			put, err := up.UploadAndSignBlob(ctxbg, schema.NewSetAttributeClaim(permaNode.BlobRef, "title", c.title))
 			handleResult("claim-permanode-title", put, err)
 		}
 		if c.tag != "" {
 			tags := strings.Split(c.tag, ",")
 			for _, tag := range tags {
 				m := schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
-				put, err := up.UploadAndSignBlob(m)
+				put, err := up.UploadAndSignBlob(ctxbg, m)
 				handleResult("claim-permanode-tag", put, err)
 			}
 		}

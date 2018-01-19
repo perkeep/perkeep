@@ -29,7 +29,7 @@ var statGate = syncutil.NewGate(20) // arbitrary
 
 func (sto *driveStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (sb blob.SizedRef, err error) {
-		size, err := sto.service.Stat(br.String())
+		size, err := sto.service.Stat(ctx, br.String())
 		switch err {
 		case os.ErrNotExist:
 			return sb, nil

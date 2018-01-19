@@ -31,11 +31,11 @@ type NoImplStorage struct{}
 
 var _ Storage = NoImplStorage{}
 
-func (NoImplStorage) Fetch(blob.Ref) (file io.ReadCloser, size uint32, err error) {
+func (NoImplStorage) Fetch(context.Context, blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	return nil, 0, os.ErrNotExist
 }
 
-func (NoImplStorage) ReceiveBlob(blob.Ref, io.Reader) (sb blob.SizedRef, err error) {
+func (NoImplStorage) ReceiveBlob(context.Context, blob.Ref, io.Reader) (sb blob.SizedRef, err error) {
 	err = errors.New("ReceiveBlob not implemented")
 	return
 }

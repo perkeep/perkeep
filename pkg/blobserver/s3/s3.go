@@ -34,6 +34,7 @@ Example low-level config:
 package s3 // import "perkeep.org/pkg/blobserver/s3"
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
@@ -115,8 +116,9 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 	if cacheSize != 0 {
 		sto.cache = memory.NewCache(cacheSize)
 	}
+	ctx := context.Background() // TODO: 5 min timeout or something?
 	if !skipStartupCheck {
-		_, err := client.ListBucket(sto.bucket, "", 1)
+		_, err := client.ListBucket(ctx, sto.bucket, "", 1)
 		if serr, ok := err.(*s3.Error); ok {
 			if serr.AmazonCode == "NoSuchBucket" {
 				return nil, fmt.Errorf("bucket %q doesn't exist", sto.bucket)
@@ -124,12 +126,12 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 
 			// This code appears when the hostname has dots in it:
 			if serr.AmazonCode == "PermanentRedirect" {
-				loc, lerr := client.BucketLocation(sto.bucket)
+				loc, lerr := client.BucketLocation(ctx, sto.bucket)
 				if lerr != nil {
 					return nil, fmt.Errorf("Wrong server for bucket %q; and error determining bucket's location: %v", sto.bucket, lerr)
 				}
 				client.Auth.Hostname = loc
-				_, err = client.ListBucket(sto.bucket, "", 1)
+				_, err = client.ListBucket(ctx, sto.bucket, "", 1)
 				if err == nil {
 					log.Printf("Warning: s3 server should be %q, not %q. Change config file to avoid start-up latency.", client.Auth.Hostname, hostname)
 				}
@@ -142,7 +144,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 				// UseEndpoint will be e.g. "brads3test-ca.s3-us-west-1.amazonaws.com"
 				// But we only want the "s3-us-west-1.amazonaws.com" part.
 				client.Auth.Hostname = strings.TrimPrefix(serr.UseEndpoint, sto.bucket+".")
-				_, err = client.ListBucket(sto.bucket, "", 1)
+				_, err = client.ListBucket(ctx, sto.bucket, "", 1)
 				if err == nil {
 					log.Printf("Warning: s3 server should be %q, not %q. Change config file to avoid start-up latency.", client.Auth.Hostname, hostname)
 				}

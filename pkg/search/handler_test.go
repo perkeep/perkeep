@@ -103,7 +103,7 @@ func init() {
 	perma123 := schema.NewPlannedPermanode("perma-123")
 	sg, armorPub := testSigner()
 	signer = sg
-	perma123signed, err := perma123.SignAt(signer, test.ClockOrigin)
+	perma123signed, err := perma123.SignAt(ctxbg, signer, test.ClockOrigin)
 	if err != nil {
 		panic(err)
 	}
@@ -161,7 +161,7 @@ type fetcherIndex struct {
 
 func (fi *fetcherIndex) addBlob(b *test.Blob) error {
 	fi.tf.AddBlob(b)
-	if _, err := fi.idx.ReceiveBlob(b.BlobRef(), b.Reader()); err != nil {
+	if _, err := fi.idx.ReceiveBlob(ctxbg, b.BlobRef(), b.Reader()); err != nil {
 		return fmt.Errorf("ReceiveBlob(%v): %v", b.BlobRef(), err)
 	}
 	return nil
@@ -169,7 +169,7 @@ func (fi *fetcherIndex) addBlob(b *test.Blob) error {
 
 func (fi *fetcherIndex) addClaim(cl *schema.Builder) error {
 	lastModtime = lastModtime.Add(time.Second).UTC()
-	signedcl, err := cl.SignAt(signer, lastModtime)
+	signedcl, err := cl.SignAt(ctxbg, signer, lastModtime)
 	if err != nil {
 		return err
 	}
@@ -179,7 +179,7 @@ func (fi *fetcherIndex) addClaim(cl *schema.Builder) error {
 func (fi *fetcherIndex) addPermanode(pnStr string, attrs ...string) error {
 	lastModtime = lastModtime.Add(time.Second).UTC()
 	pn := schema.NewPlannedPermanode(pnStr)
-	pns, err := pn.SignAt(signer, lastModtime)
+	pns, err := pn.SignAt(ctxbg, signer, lastModtime)
 	if err != nil {
 		return err
 	}
@@ -344,7 +344,7 @@ func initTests() []handlerTest {
 				if !ok {
 					panic("blobcontents1 not found")
 				}
-				if _, err := idx.ReceiveBlob(tb.BlobRef(), tb.Reader()); err != nil {
+				if _, err := idx.ReceiveBlob(ctxbg, tb.BlobRef(), tb.Reader()); err != nil {
 					panic(err)
 				}
 				return indexAndOwner{

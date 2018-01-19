@@ -19,6 +19,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -62,6 +63,8 @@ func init() {
 	// For logging that depends on verbosity (cmdmain.FlagVerbose), use cmdmain.Logf/Printf.
 	log.SetOutput(cmdmain.Stderr)
 }
+
+var ctxbg = context.Background()
 
 func main() {
 	var conn *fuse.Conn
@@ -118,7 +121,7 @@ func main() {
 				errorf("Can't use an explicit blobserver with a share URL; the blobserver is implicit from the share URL.")
 			}
 			var err error
-			cl, root, err = client.NewFromShareRoot(rootArg)
+			cl, root, err = client.NewFromShareRoot(ctxbg, rootArg)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -131,7 +134,7 @@ func main() {
 			if !ok {
 				// not a blobref, check for root name instead
 				req := &search.WithAttrRequest{N: 1, Attr: "camliRoot", Value: rootArg}
-				wres, err := cl.GetPermanodesWithAttr(req)
+				wres, err := cl.GetPermanodesWithAttr(ctxbg, req)
 
 				if err != nil {
 					log.Fatal("could not query search")

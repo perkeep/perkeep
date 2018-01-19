@@ -76,12 +76,12 @@ func (sto *shardStorage) shardNum(b blob.Ref) uint32 {
 	return b.Sum32() % uint32(len(sto.shards))
 }
 
-func (sto *shardStorage) Fetch(b blob.Ref) (file io.ReadCloser, size uint32, err error) {
-	return sto.shard(b).Fetch(b)
+func (sto *shardStorage) Fetch(ctx context.Context, b blob.Ref) (file io.ReadCloser, size uint32, err error) {
+	return sto.shard(b).Fetch(ctx, b)
 }
 
-func (sto *shardStorage) ReceiveBlob(b blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
-	return sto.shard(b).ReceiveBlob(b, source)
+func (sto *shardStorage) ReceiveBlob(ctx context.Context, b blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
+	return sto.shard(b).ReceiveBlob(ctx, b, source)
 }
 
 func (sto *shardStorage) batchedShards(ctx context.Context, blobs []blob.Ref, fn func(blobserver.Storage, []blob.Ref) error) error {

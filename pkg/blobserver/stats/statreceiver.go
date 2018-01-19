@@ -67,7 +67,7 @@ func (sr *Receiver) SumBlobSize() int64 {
 	return sum
 }
 
-func (sr *Receiver) ReceiveBlob(br blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
+func (sr *Receiver) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
 	n, err := io.Copy(ioutil.Discard, source)
 	if err != nil {
 		return

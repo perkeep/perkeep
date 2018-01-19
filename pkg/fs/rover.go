@@ -268,7 +268,7 @@ func (n *roFileVersionsDir) populate(ctx context.Context) error {
 	}
 
 	log.Printf("roFileVersionsDir.populate(%q)", n.fullPath())
-	res, err := n.fs.client.GetClaims(&search.ClaimsRequest{n.permanode, "camliContent"})
+	res, err := n.fs.client.GetClaims(ctx, &search.ClaimsRequest{n.permanode, "camliContent"})
 	if err != nil {
 		return errors.New("error while getting claims")
 	}
@@ -379,7 +379,7 @@ func (n *roFileVersion) Open(ctx context.Context, req *fuse.OpenRequest, res *fu
 	}
 
 	log.Printf("roFile.Open: %v: content: %v dir=%v flags=%v", n.permanode, n.content, req.Dir, req.Flags)
-	r, err := schema.NewFileReader(n.fs.fetcher, n.content)
+	r, err := schema.NewFileReader(ctx, n.fs.fetcher, n.content)
 	if err != nil {
 		roFileOpenError.Incr()
 		log.Printf("roFile.Open: %v", err)

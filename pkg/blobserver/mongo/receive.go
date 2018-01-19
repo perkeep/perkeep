@@ -17,6 +17,7 @@ limitations under the License.
 package mongo
 
 import (
+	"context"
 	"io"
 	"io/ioutil"
 
@@ -31,7 +32,7 @@ const (
 	mgoUniqueKeyErr = 11000
 )
 
-func (m *mongoStorage) ReceiveBlob(ref blob.Ref, source io.Reader) (blob.SizedRef, error) {
+func (m *mongoStorage) ReceiveBlob(ctx context.Context, ref blob.Ref, source io.Reader) (blob.SizedRef, error) {
 	blobData, err := ioutil.ReadAll(source)
 	if err != nil {
 		return blob.SizedRef{}, err

@@ -62,7 +62,8 @@ func (h *Handler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 
 // ServeBlobRef serves a blob.
 func ServeBlobRef(rw http.ResponseWriter, req *http.Request, blobRef blob.Ref, fetcher blob.Fetcher) {
-	rc, size, err := fetcher.Fetch(blobRef)
+	ctx := req.Context()
+	rc, size, err := fetcher.Fetch(ctx, blobRef)
 	switch err {
 	case nil:
 		break
@@ -84,19 +85,28 @@ func ServeBlobRef(rw http.ResponseWriter, req *http.Request, blobRef blob.Ref, f
 	if rangeHeader || size < small {
 		// Slurp to memory, so we can actually seek on it (for Range support),
 		// or if we're going to be showing it in the browser (below).
-		b, err = blob.FromReader(blobRef, rc, size)
+		b, err = blob.FromReader(ctx, blobRef, rc, size)
 		if err != nil {
 			httputil.ServeError(rw, req, err)
 			return
 		}
-		content = b.Open()
+		content, err = b.ReadAll(ctx)
+		if err != nil {
+			httputil.ServeError(rw, req, err)
+			return
+		}
 	}
 	if !rangeHeader && size < small {
 		// If it's small and all UTF-8, assume it's text and
 		// just render it in the browser.  This is more for
 		// demos/debuggability than anything else.  It isn't
 		// part of the spec.
-		if b.IsUTF8() {
+		isUTF8, err := b.IsUTF8(ctx)
+		if err != nil {
+			httputil.ServeError(rw, req, err)
+			return
+		}
+		if isUTF8 {
 			rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		}
 	}

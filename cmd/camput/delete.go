@@ -59,7 +59,7 @@ func delete(args []string) error {
 			return fmt.Errorf("Error parsing blobref %q", arg)
 		}
 		bb := schema.NewDeleteClaim(br)
-		put, err := getUploader().UploadAndSignBlob(bb)
+		put, err := getUploader().UploadAndSignBlob(ctxbg, bb)
 		if err := handleResult(bb.Type(), put, err); err != nil {
 			return err
 		}

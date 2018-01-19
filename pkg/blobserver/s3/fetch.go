@@ -17,27 +17,28 @@ limitations under the License.
 package s3
 
 import (
+	"context"
 	"io"
 
 	"perkeep.org/pkg/blob"
 )
 
-func (sto *s3Storage) Fetch(blob blob.Ref) (file io.ReadCloser, size uint32, err error) {
+func (sto *s3Storage) Fetch(ctx context.Context, blob blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	if faultGet.FailErr(&err) {
 		return
 	}
 	if sto.cache != nil {
-		if file, size, err = sto.cache.Fetch(blob); err == nil {
+		if file, size, err = sto.cache.Fetch(ctx, blob); err == nil {
 			return
 		}
 	}
-	file, sz, err := sto.s3Client.Get(sto.bucket, sto.dirPrefix+blob.String())
+	file, sz, err := sto.s3Client.Get(ctx, sto.bucket, sto.dirPrefix+blob.String())
 	return file, uint32(sz), err
 }
 
-func (sto *s3Storage) SubFetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, err error) {
+func (sto *s3Storage) SubFetch(ctx context.Context, br blob.Ref, offset, length int64) (rc io.ReadCloser, err error) {
 	if offset < 0 || length < 0 {
 		return nil, blob.ErrNegativeSubFetch
 	}
-	return sto.s3Client.GetPartial(sto.bucket, sto.dirPrefix+br.String(), offset, length)
+	return sto.s3Client.GetPartial(ctx, sto.bucket, sto.dirPrefix+br.String(), offset, length)
 }
