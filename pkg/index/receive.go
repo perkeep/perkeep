@@ -58,7 +58,14 @@ func init() {
 }
 
 type mutationMap struct {
-	kv map[string]string // the keys and values we populate
+	// When the mutations are from a claim, signerBlobRef is the signer of the
+	// claim, and signerID is its matching GPG key ID. They are copied out of kv because,
+	// when adding the corresponding entries in the corpus, the signerBlobRef-signerID
+	// relation needs to be known before the claim mutations themselves, so we need to
+	// make sure the keySignerKeyID entry is always added first.
+	signerBlobRef blob.Ref
+	signerID      string
+	kv            map[string]string // the keys and values we populate
 
 	// We record if we get a delete claim, so we can update
 	// the deletes cache right after committing the mutation.
@@ -829,6 +836,8 @@ func (ix *Index) populateClaim(ctx context.Context, fetcher *missTrackFetcher, b
 		return err
 	}
 	verifiedKeyId := vr.SignerKeyId
+	mm.signerID = verifiedKeyId
+	mm.signerBlobRef = vr.CamliSigner
 	mm.Set("signerkeyid:"+vr.CamliSigner.String(), verifiedKeyId)
 
 	if claim.ClaimType() == string(schema.DeleteClaim) {
