@@ -200,6 +200,7 @@ func TestStreamMultiplePacks(t *testing.T) {
 }
 
 func TestStreamSkipRemovedBlobs(t *testing.T) {
+	ctx := context.Background()
 	// Note: This is the only streaming test that makes use of the
 	// index (for RemoveBlobs() to succeed). The others do create
 	// an indexed storage but they do not use the index to stream
@@ -215,7 +216,7 @@ func TestStreamSkipRemovedBlobs(t *testing.T) {
 		t.Fatalf("blob.Parse: %s", testPack1[0].digest)
 	}
 
-	err := s.RemoveBlobs([]blob.Ref{ref})
+	err := s.RemoveBlobs(ctx, []blob.Ref{ref})
 	if err != nil {
 		t.Fatalf("RemoveBlobs: %v", err)
 	}

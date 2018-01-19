@@ -114,7 +114,7 @@ func (a *Archiver) RunOnce(ctx context.Context) error {
 		for _, sb := range pz.blobs {
 			blobs = append(blobs, sb.Ref)
 		}
-		if err := a.Source.RemoveBlobs(blobs); err != nil {
+		if err := a.Source.RemoveBlobs(ctx, blobs); err != nil {
 			return err
 		}
 	}

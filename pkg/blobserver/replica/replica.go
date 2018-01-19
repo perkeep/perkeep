@@ -238,10 +238,10 @@ func (sto *replicaStorage) ReceiveBlob(ctx context.Context, br blob.Ref, src io.
 	return
 }
 
-func (sto *replicaStorage) RemoveBlobs(blobs []blob.Ref) error {
+func (sto *replicaStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	errch := make(chan error, buffered)
 	removeFrom := func(s blobserver.Storage) {
-		errch <- s.RemoveBlobs(blobs)
+		errch <- s.RemoveBlobs(ctx, blobs)
 	}
 	for _, replica := range sto.replicas {
 		go removeFrom(replica)

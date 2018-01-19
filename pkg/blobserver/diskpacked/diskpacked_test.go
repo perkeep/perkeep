@@ -126,6 +126,7 @@ func TestDoubleReceive(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
+	ctx := context.Background()
 	sto, cleanup := newTempDiskpacked(t)
 	defer cleanup()
 
@@ -165,7 +166,7 @@ func TestDelete(t *testing.T) {
 
 	stepDelete := func(tb *test.Blob) step {
 		return func() error {
-			if err := sto.RemoveBlobs([]blob.Ref{tb.BlobRef()}); err != nil {
+			if err := sto.RemoveBlobs(ctx, []blob.Ref{tb.BlobRef()}); err != nil {
 				return fmt.Errorf("RemoveBlob(%s): %v", tb.BlobRef(), err)
 			}
 			return nil

@@ -251,7 +251,7 @@ func (s *Storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 	return nil
 }
 
-func (s *Storage) RemoveBlobs(blobs []blob.Ref) error {
+func (s *Storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, br := range blobs {

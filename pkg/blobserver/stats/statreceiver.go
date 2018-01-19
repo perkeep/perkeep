@@ -104,7 +104,7 @@ func (sr *Receiver) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blo
 	return nil
 }
 
-func (sr *Receiver) RemoveBlobs(blobs []blob.Ref) error {
+func (sr *Receiver) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	sr.Lock()
 	defer sr.Unlock()
 	for _, br := range blobs {

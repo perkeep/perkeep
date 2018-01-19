@@ -167,9 +167,9 @@ func (sto *condStorage) ReceiveBlob(ctx context.Context, br blob.Ref, src io.Rea
 	return blobserver.Receive(ctx, destSto, br, src)
 }
 
-func (sto *condStorage) RemoveBlobs(blobs []blob.Ref) error {
+func (sto *condStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	if sto.remove != nil {
-		return sto.remove.RemoveBlobs(blobs)
+		return sto.remove.RemoveBlobs(ctx, blobs)
 	}
 	return errors.New("cond: Remove not configured")
 }

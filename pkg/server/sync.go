@@ -1048,7 +1048,7 @@ func storageDesc(v interface{}) string {
 // For now, don't implement them. Wait until we need them.
 
 func (sh *SyncHandler) Fetch(context.Context, blob.Ref) (file io.ReadCloser, size uint32, err error) {
-	panic("Unimplemeted blobserver.Fetch called")
+	panic("Unimplemented blobserver.Fetch called")
 }
 
 func (sh *SyncHandler) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
@@ -1062,8 +1062,8 @@ func (sh *SyncHandler) EnumerateBlobs(ctx context.Context, dest chan<- blob.Size
 	return nil
 }
 
-func (sh *SyncHandler) RemoveBlobs(blobs []blob.Ref) error {
-	panic("Unimplemeted RemoveBlobs")
+func (sh *SyncHandler) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
+	panic("Unimplemented RemoveBlobs")
 }
 
 var errStopEnumerating = errors.New("sentinel error: reached the hourly compare quota")

@@ -111,6 +111,7 @@ func (s *storage) recordMeta(b *metaBlob) {
 }
 
 func (s *storage) makePackedMetaBlob(plains, toDelete []blob.Ref) {
+	ctx := context.Background() // TODO
 	// We lose track of the small blobs in case of error, but they will be packed at next start.
 	sort.Sort(blob.ByRef(plains))
 	var metaBytes bytes.Buffer
@@ -128,7 +129,6 @@ func (s *storage) makePackedMetaBlob(plains, toDelete []blob.Ref) {
 		metaBytes.WriteString(v)
 		metaBytes.WriteString("\n")
 	}
-	ctx := context.Background() // TODO
 	encBytes := s.encryptBlob(nil, metaBytes.Bytes())
 	metaSB, err := blobserver.ReceiveNoHash(ctx, s.meta, blob.RefFromBytes(encBytes), bytes.NewReader(encBytes))
 	if err != nil {
@@ -138,7 +138,7 @@ func (s *storage) makePackedMetaBlob(plains, toDelete []blob.Ref) {
 	if len(plains) < FullMetaBlobSize {
 		s.recordMeta(&metaBlob{br: metaSB.Ref, plains: plains})
 	}
-	if err := s.meta.RemoveBlobs(toDelete); err != nil {
+	if err := s.meta.RemoveBlobs(ctx, toDelete); err != nil {
 		log.Printf("encrypt: failed to delete small meta blobs: %v", err)
 	}
 	log.Printf("encrypt: packed %d small meta blobs into one (%d refs)", len(toDelete), len(plains))

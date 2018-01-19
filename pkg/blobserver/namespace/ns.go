@@ -143,7 +143,7 @@ func (ns *nsto) ReceiveBlob(ctx context.Context, br blob.Ref, src io.Reader) (sb
 	return
 }
 
-func (ns *nsto) RemoveBlobs(blobs []blob.Ref) error {
+func (ns *nsto) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	for _, br := range blobs {
 		if err := ns.inventory.Delete(br.String()); err != nil {
 			return err

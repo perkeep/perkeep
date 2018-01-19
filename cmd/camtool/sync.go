@@ -447,7 +447,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 			statsMu.Unlock()
 
 			if c.removeSrc {
-				if err := src.RemoveBlobs([]blob.Ref{sb.Ref}); err != nil {
+				if err := src.RemoveBlobs(ctxbg, []blob.Ref{sb.Ref}); err != nil {
 					logErrorf("Failed to delete %s from source: %v", sb.Ref, err)
 				}
 			}
