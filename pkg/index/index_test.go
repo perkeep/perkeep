@@ -151,7 +151,7 @@ func hasAllRequiredTests(name string, t *testing.T) error {
 		switch x := n.(type) {
 		case *ast.FuncDecl:
 			name := x.Name.Name
-			for k, _ := range tests {
+			for k := range tests {
 				if strings.HasPrefix(name, k) {
 					tests[k] = true
 				}
@@ -255,12 +255,12 @@ func TestInitNeededMaps(t *testing.T) {
 	{
 		needs, neededBy, _ := ix.NeededMapsForTest()
 		needsWant := map[blob.Ref][]blob.Ref{
-			fileBlobRef: []blob.Ref{chunk1ref, chunk2ref, chunk3ref},
+			fileBlobRef: {chunk1ref, chunk2ref, chunk3ref},
 		}
 		neededByWant := map[blob.Ref][]blob.Ref{
-			chunk1ref: []blob.Ref{fileBlobRef},
-			chunk2ref: []blob.Ref{fileBlobRef},
-			chunk3ref: []blob.Ref{fileBlobRef},
+			chunk1ref: {fileBlobRef},
+			chunk2ref: {fileBlobRef},
+			chunk3ref: {fileBlobRef},
 		}
 		if !reflect.DeepEqual(needs, needsWant) {
 			t.Errorf("needs = %v; want %v", needs, needsWant)
@@ -275,11 +275,11 @@ func TestInitNeededMaps(t *testing.T) {
 	{
 		needs, neededBy, ready := ix.NeededMapsForTest()
 		needsWant := map[blob.Ref][]blob.Ref{
-			fileBlobRef: []blob.Ref{chunk1ref, chunk3ref},
+			fileBlobRef: {chunk1ref, chunk3ref},
 		}
 		neededByWant := map[blob.Ref][]blob.Ref{
-			chunk1ref: []blob.Ref{fileBlobRef},
-			chunk3ref: []blob.Ref{fileBlobRef},
+			chunk1ref: {fileBlobRef},
+			chunk3ref: {fileBlobRef},
 		}
 		if !reflect.DeepEqual(needs, needsWant) {
 			t.Errorf("needs = %v; want %v", needs, needsWant)
@@ -297,10 +297,10 @@ func TestInitNeededMaps(t *testing.T) {
 	{
 		needs, neededBy, ready := ix.NeededMapsForTest()
 		needsWant := map[blob.Ref][]blob.Ref{
-			fileBlobRef: []blob.Ref{chunk3ref},
+			fileBlobRef: {chunk3ref},
 		}
 		neededByWant := map[blob.Ref][]blob.Ref{
-			chunk3ref: []blob.Ref{fileBlobRef},
+			chunk3ref: {fileBlobRef},
 		}
 		if !reflect.DeepEqual(needs, needsWant) {
 			t.Errorf("needs = %v; want %v", needs, needsWant)

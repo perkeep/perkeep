@@ -176,7 +176,7 @@ func (d ShareItemsBtnDef) OnClick(e *react.SyntheticMouseEvent) {
 			return
 		}
 		sharedURL = prefix + sharedURL
-		anchorText := sharedURL[:20] + "..." + sharedURL[len(sharedURL)-20:len(sharedURL)]
+		anchorText := sharedURL[:20] + "..." + sharedURL[len(sharedURL)-20:]
 		// TODO(mpl): move some of the Dialog code to Go.
 		d.Props().callbacks.ShowSharedURL(sharedURL, anchorText)
 	}()

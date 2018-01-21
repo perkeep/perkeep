@@ -163,9 +163,9 @@ func TestRename(t *testing.T) {
 		t.Skip("Skipping test if not on windows")
 	}
 	files := []file{
-		file{name: filepath.Join(os.TempDir(), "foo"), contents: "foo"},
-		file{name: filepath.Join(os.TempDir(), "bar"), contents: "barr"},
-		file{name: filepath.Join(os.TempDir(), "baz"), contents: "foo"},
+		{name: filepath.Join(os.TempDir(), "foo"), contents: "foo"},
+		{name: filepath.Join(os.TempDir(), "bar"), contents: "barr"},
+		{name: filepath.Join(os.TempDir(), "baz"), contents: "foo"},
 	}
 	for _, v := range files {
 		if err := ioutil.WriteFile(v.name, []byte(v.contents), 0755); err != nil {

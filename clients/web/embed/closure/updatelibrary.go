@@ -118,7 +118,7 @@ func fileList() ([]string, error) {
 		filepath.Join("closure", "goog", "deps.js"),
 	}
 	prefix := filepath.Join("closure", "goog")
-	for k, _ := range jsfilesDone {
+	for k := range jsfilesDone {
 		jsfiles = append(jsfiles, filepath.Join(prefix, k))
 	}
 	sort.Strings(jsfiles)

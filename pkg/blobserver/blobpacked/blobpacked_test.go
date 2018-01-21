@@ -929,15 +929,15 @@ func TestPackerBoundarySplits(t *testing.T) {
 		// Upload the file schema blob.
 		m := schema.NewFileMap("foo.dat")
 		m.PopulateParts(sizeAB+int64(sizeC), []schema.BytesPart{
-			schema.BytesPart{
+			{
 				Size:    sizeAB / 2,
 				BlobRef: refA,
 			},
-			schema.BytesPart{
+			{
 				Size:    sizeAB / 2,
 				BlobRef: refB,
 			},
-			schema.BytesPart{
+			{
 				Size:    uint64(sizeC),
 				BlobRef: refC,
 			},

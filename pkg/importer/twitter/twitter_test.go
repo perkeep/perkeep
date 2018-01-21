@@ -114,7 +114,7 @@ func TestIntegrationRun(t *testing.T) {
 
 	responder := httputil.FileResponder("testdata/user_timeline.json")
 	transport, err := httputil.NewRegexpFakeTransport([]*httputil.Matcher{
-		&httputil.Matcher{`^https\://api\.twitter\.com/1.1/statuses/user_timeline.json\?`, responder},
+		{`^https\://api\.twitter\.com/1.1/statuses/user_timeline.json\?`, responder},
 	})
 	if err != nil {
 		t.Fatal(err)
