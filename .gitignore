@@ -43,7 +43,8 @@ misc/docker/camlistored/djpeg
 /vendor/**/.gitignore
 # contains a private key
 /vendor/github.com/miekg/dns/server_test.go
-/vendor/github.com/mattn/go-sqlite3/sqlite3_windows.c
+/vendor/github.com/mattn/go-sqlite3/sqlite3-binding.c
+/vendor/github.com/mattn/go-sqlite3/sqlite3-binding.h
 /vendor/github.com/rwcarlsen/goexif/exif/example_test.go
 /vendor/github.com/rwcarlsen/goexif/exif/exif_test.go
 /vendor/github.com/rwcarlsen/goexif/exif/sample1.jpg

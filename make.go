@@ -239,6 +239,10 @@ func main() {
 		tags = append(tags, "netgo")
 	}
 	if sql {
+		// used by go-sqlite to use system sqlite libraries
+		tags = append(tags, "libsqlite3")
+		// used by perkeep to switch behavior to sqlite for tests
+		// and some underlying libraries
 		tags = append(tags, "with_sqlite")
 	}
 	baseArgs := []string{"install", "-v"}
@@ -1230,6 +1234,7 @@ func withSQLite() bool {
 		log.Fatalf("SQLite isn't available when cross-compiling to another OS. Set --sqlite=false.")
 	}
 	if sql && !haveSQLite {
+		// TODO(lindner): fix these docs.
 		log.Printf("SQLite not found. Either install it, or run make.go with --sqlite=false  See https://code.google.com/p/camlistore/wiki/SQLite")
 		switch runtime.GOOS {
 		case "darwin":
