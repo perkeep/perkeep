@@ -164,7 +164,7 @@ func searchDescribeSetup(t *testing.T) indexAndOwner {
 		checkErr(t, fi.addBlob(tb))
 		m := schema.NewFileMap(fileName)
 		m.PopulateParts(int64(len(contents)), []schema.BytesPart{
-			schema.BytesPart{
+			{
 				Size:    uint64(len(contents)),
 				BlobRef: tb.BlobRef(),
 			}})

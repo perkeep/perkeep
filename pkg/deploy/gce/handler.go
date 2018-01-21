@@ -66,9 +66,9 @@ var (
 	}
 
 	backupZones = map[string][]string{
-		"us-central1":  []string{"-a", "-b", "-f"},
-		"europe-west1": []string{"-b", "-c", "-d"},
-		"asia-east1":   []string{"-a", "-b", "-c"},
+		"us-central1":  {"-a", "-b", "-f"},
+		"europe-west1": {"-b", "-c", "-d"},
+		"asia-east1":   {"-a", "-b", "-c"},
 	}
 )
 

@@ -33,11 +33,11 @@ func TestDecodeGoogleResponse(t *testing.T) {
 			name: "moscow",
 			res:  googleMoscow,
 			want: []Rect{
-				Rect{
+				{
 					NorthEast: LatLong{pf("56.009657"), pf("37.945661")},
 					SouthWest: LatLong{pf("55.48992699999999"), pf("37.319329")},
 				},
-				Rect{
+				{
 					NorthEast: LatLong{pf("46.758882"), pf("-116.962068")},
 					SouthWest: LatLong{pf("46.710912"), pf("-117.039698")},
 				},
@@ -47,7 +47,7 @@ func TestDecodeGoogleResponse(t *testing.T) {
 			name: "usa",
 			res:  googleUSA,
 			want: []Rect{
-				Rect{
+				{
 					NorthEast: LatLong{pf("49.38"), pf("-66.94")},
 					SouthWest: LatLong{pf("25.82"), pf("-124.39")},
 				},

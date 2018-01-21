@@ -168,7 +168,7 @@ func genContribPage() ([]byte, error) {
 	}
 
 	authors := Authors{}
-	for a, _ := range authorMap {
+	for a := range authorMap {
 		authors = append(authors, a)
 	}
 

@@ -173,7 +173,7 @@ func TestDelete(t *testing.T) {
 	}
 
 	var deleteTests = [][]step{
-		[]step{
+		{
 			stepAdd(A),
 			stepDelete(A),
 			stepCheck(),
@@ -189,7 +189,7 @@ func TestDelete(t *testing.T) {
 			stepDelete(C),
 			stepCheck(),
 		},
-		[]step{
+		{
 			stepAdd(A),
 			stepAdd(B),
 			stepAdd(C),

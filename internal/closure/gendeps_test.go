@@ -42,17 +42,17 @@ var parsedWant = parsedDeps{
 		"goog.string.Unicode":         "string/string.js",
 	},
 	requires: map[string][]string{
-		"goog.asserts":                []string{"goog.debug.Error", "goog.string"},
-		"goog.asserts.AssertionError": []string{"goog.debug.Error", "goog.string"},
+		"goog.asserts":                {"goog.debug.Error", "goog.string"},
+		"goog.asserts.AssertionError": {"goog.debug.Error", "goog.string"},
 	},
 }
 
 var deepParsedWant = map[string][]string{
-	"goog.asserts":                []string{"asserts/asserts.js", "debug/error.js", "string/string.js"},
-	"goog.asserts.AssertionError": []string{"asserts/asserts.js", "debug/error.js", "string/string.js"},
-	"goog.debug.Error":            []string{"debug/error.js"},
-	"goog.string":                 []string{"string/string.js"},
-	"goog.string.Unicode":         []string{"string/string.js"},
+	"goog.asserts":                {"asserts/asserts.js", "debug/error.js", "string/string.js"},
+	"goog.asserts.AssertionError": {"asserts/asserts.js", "debug/error.js", "string/string.js"},
+	"goog.debug.Error":            {"debug/error.js"},
+	"goog.string":                 {"string/string.js"},
+	"goog.string.Unicode":         {"string/string.js"},
 }
 
 func TestParseDeps(t *testing.T) {

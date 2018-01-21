@@ -197,7 +197,7 @@ func (id *IndexDeps) UploadFile(fileName string, contents string, modTime time.T
 
 	m := schema.NewFileMap(fileName)
 	m.PopulateParts(int64(len(contents)), []schema.BytesPart{
-		schema.BytesPart{
+		{
 			Size:    uint64(len(contents)),
 			BlobRef: wholeRef,
 		}})
@@ -1173,7 +1173,7 @@ func Delete(t *testing.T, initIdx func() *index.Index) {
 			t.Errorf("AppendClaims = %v", err)
 		} else {
 			want := []camtypes.Claim{
-				camtypes.Claim{
+				{
 					BlobRef:   cl1,
 					Permanode: pn1,
 					Signer:    id.SignerBlobRef,

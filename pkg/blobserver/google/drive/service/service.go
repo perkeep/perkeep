@@ -106,7 +106,7 @@ func (s *DriveService) Upsert(ctx context.Context, title string, data io.Reader)
 	if file == nil {
 		file = &client.File{Title: title}
 		file.Parents = []*client.ParentReference{
-			&client.ParentReference{Id: s.parentId},
+			{Id: s.parentId},
 		}
 		file.MimeType = MimeTypeCamliBlob
 		return s.apiservice.Files.Insert(file).Media(data).Context(ctx).Do()

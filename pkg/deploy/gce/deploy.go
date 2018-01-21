@@ -602,9 +602,9 @@ func (d *Deployer) createInstance(ctx context.Context, computeService *compute.S
 			},
 		},
 		NetworkInterfaces: []*compute.NetworkInterface{
-			&compute.NetworkInterface{
+			{
 				AccessConfigs: []*compute.AccessConfig{
-					&compute.AccessConfig{
+					{
 						Type: "ONE_TO_ONE_NAT",
 						Name: "External NAT",
 					},
@@ -769,14 +769,14 @@ func (d *Deployer) setFirewall(ctx context.Context, computeService *compute.Serv
 	}
 
 	needRules := map[string]compute.Firewall{
-		"default-allow-http": compute.Firewall{
+		"default-allow-http": {
 			Name:         "default-allow-http",
 			SourceRanges: []string{"0.0.0.0/0"},
 			SourceTags:   []string{"http-server"},
 			Allowed:      []*compute.FirewallAllowed{{IPProtocol: "tcp", Ports: []string{"80"}}},
 			Network:      defaultNet.SelfLink,
 		},
-		"default-allow-https": compute.Firewall{
+		"default-allow-https": {
 			Name:         "default-allow-https",
 			SourceRanges: []string{"0.0.0.0/0"},
 			SourceTags:   []string{"https-server"},

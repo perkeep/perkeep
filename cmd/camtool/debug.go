@@ -26,15 +26,15 @@ import (
 )
 
 var debugSubModes = map[string]*debugSubMode{
-	"splits": &debugSubMode{
+	"splits": {
 		doc: "Show splits of provided file.",
 		fun: showSplits,
 	},
-	"mime": &debugSubMode{
+	"mime": {
 		doc: "Show MIME type of provided file.",
 		fun: showMIME,
 	},
-	"exif": &debugSubMode{
+	"exif": {
 		doc: "Show EXIF dump of provided file.",
 		fun: showEXIF,
 	},

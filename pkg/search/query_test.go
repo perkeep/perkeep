@@ -954,9 +954,9 @@ func testQueryRecentPermanodes_Continue(t *testing.T, sortType SortType) {
 
 		contToken := ""
 		tests := [][]blob.Ref{
-			[]blob.Ref{blobs[3], blobs[2]},
-			[]blob.Ref{blobs[1], blobs[0]},
-			[]blob.Ref{},
+			{blobs[3], blobs[2]},
+			{blobs[1], blobs[0]},
+			{},
 		}
 
 		for i, wantBlobs := range tests {
@@ -1027,8 +1027,8 @@ func testQueryRecentPermanodes_ContinueEndMidPage(t *testing.T, sortType SortTyp
 
 		contToken := ""
 		tests := [][]blob.Ref{
-			[]blob.Ref{blobs[2], blobs[1]},
-			[]blob.Ref{blobs[0]},
+			{blobs[2], blobs[1]},
+			{blobs[0]},
 		}
 
 		for i, wantBlobs := range tests {

@@ -242,7 +242,7 @@ func filter() {
 		}
 		check(cpFile(dstPath, srcPath))
 	}
-	for name, _ := range rootNames {
+	for name := range rootNames {
 		if _, ok := found[name]; !ok {
 			log.Fatalf("file (or directory) %v should be included in release, but not found in source", name)
 		}
