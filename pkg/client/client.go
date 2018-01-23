@@ -161,7 +161,7 @@ const maxParallelHTTP_h2 = 50
 // in the browser.
 var inGopherJS bool
 
-// New returns a new Camlistore Client.
+// New returns a new Perkeep Client.
 // The provided server is either "host:port" (assumed http, not https) or a URL prefix, with or without a path, or a server alias from the client configuration file. A server alias should not be confused with a hostname, therefore it cannot contain any colon or period.
 // Errors are not returned until subsequent operations.
 func New(server string, opts ...ClientOption) *Client {
@@ -176,11 +176,27 @@ func New(server string, opts ...ClientOption) *Client {
 	return newClient(server, auth.None{}, opts...)
 }
 
-func NewOrFail(opts ...ClientOption) *Client {
-	c := New(serverOrDie(), opts...)
-	err := c.SetupAuth()
+// NewDefault returns a Perkeep Client as specified in the user's
+// config file.
+func NewDefault(opts ...ClientOption) (*Client, error) {
+	// XXX: TODO: rename to New. and fix NewOrFail comment below.
+	server, err := getServer()
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
+	}
+	c := New(server, opts...)
+	err = c.SetupAuth()
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+// NewOrFail is like NewDefault, but calls log.Fatal instead of returning an error.
+func NewOrFail(opts ...ClientOption) *Client {
+	c, err := NewDefault(opts...)
+	if err != nil {
+		log.Fatalf("error creating client: %v", err)
 	}
 	return c
 }
@@ -213,7 +229,7 @@ func NewStorageClient(s blobserver.Storage) *Client {
 	}
 }
 
-// TransportConfig contains options for SetupTransport.
+// TransportConfig contains options for how HTTP requests are made.
 type TransportConfig struct {
 	// Proxy optionally specifies the Proxy for the transport. Useful with
 	// camput for debugging even localhost requests.
@@ -294,6 +310,8 @@ type ClientOption interface {
 	modifyClient(*Client)
 }
 
+// OptionTransportConfig returns a ClientOption that makes the client use
+// the provided transport configuration options.
 func OptionTransportConfig(tc *TransportConfig) ClientOption {
 	return optionTransportConfig{tc}
 }
@@ -306,6 +324,10 @@ func (o optionTransportConfig) modifyClient(c *Client) {
 	c.transportConfig = o.tc
 }
 
+// OptionInsecure returns a ClientOption that controls whether HTTP
+// requests are allowed to be insecure (over HTTP or HTTPS without TLS
+// certificate checking). Use of this is strongly discouraged except
+// for local testing.
 func OptionInsecure(v bool) ClientOption {
 	return optionInsecure(v)
 }
@@ -316,7 +338,14 @@ func (o optionInsecure) modifyClient(c *Client) {
 	c.insecureAnyTLSCert = bool(o)
 }
 
+// OptionTrustedCert returns a ClientOption that makes the client
+// trust the provide self-signed cert signature. The value should be
+// the 20 byte hex prefix of the SHA-256 of the cert, as printed by
+// the camlistored server on start-up.
+//
+// If cert is empty, the option has no effect.
 func OptionTrustedCert(cert string) ClientOption {
+	// TODO: remove this whole function now that we have LetsEncrypt?
 	return optionTrustedCert(cert)
 }
 
@@ -1212,6 +1241,8 @@ func (c *Client) serverNameOfAddr(addr string) string {
 	return serverName
 }
 
+// Signer returns the client's Signer, if any. The Signer signs JSON
+// mutation claims.
 func (c *Client) Signer() (*schema.Signer, error) {
 	c.signerOnce.Do(c.signerInit)
 	return c.signer, c.signerErr

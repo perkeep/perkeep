@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 
 	"perkeep.org/internal/osutil"
+	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/cmdmain"
 )
 
@@ -30,7 +31,8 @@ var envMap = map[string]func() string{
 	"configdir":    osutil.CamliConfigDir,
 	"clientconfig": osutil.UserClientConfigPath,
 	"serverconfig": osutil.UserServerConfigPath,
-	"camsrcroot":   srcRoot,
+	"camsrcroot":   envSrcRoot,
+	"secretring":   envSecretRingFile,
 }
 
 type envCmd struct{}
@@ -67,11 +69,19 @@ func (c *envCmd) RunCommand(args []string) error {
 	return nil
 }
 
-func srcRoot() string {
+func envSrcRoot() string {
 	for _, dir := range filepath.SplitList(os.Getenv("GOPATH")) {
-		if d := filepath.Join(dir, "src", "camlistore.org"); osutil.DirExists(d) {
+		if d := filepath.Join(dir, "src", "perkeep.org"); osutil.DirExists(d) {
 			return d
 		}
 	}
 	return ""
+}
+
+func envSecretRingFile() string {
+	cc, err := client.NewDefault()
+	if err != nil {
+		return ""
+	}
+	return cc.SecretRingFile()
 }

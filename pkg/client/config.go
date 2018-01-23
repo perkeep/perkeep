@@ -48,6 +48,7 @@ import (
 // A main binary must call AddFlags to expose it.
 var flagServer string
 
+// AddFlags registers the "server" and "secret-keyring" string flags.
 func AddFlags() {
 	defaultPath := "/x/y/z/we're/in-a-test"
 	if !buildinfo.TestingLinked() {
@@ -57,7 +58,10 @@ func AddFlags() {
 	osutil.AddSecretRingFlag()
 }
 
-// ExplicitServer returns the blobserver given in the flags, if any.
+// ExplicitServer returns the Perkeep server given in the "server"
+// flag, if any.
+//
+// Use AddFlags to register the flag before any flag.Parse call.
 func ExplicitServer() string {
 	return flagServer
 }
@@ -96,7 +100,12 @@ func (c *Client) parseConfig() {
 		}
 		log.Fatal(errMsg)
 	}
-	// TODO: instead of using jsonconfig, we could read the file, and unmarshall into the structs that we now have in pkg/types/clientconfig. But we'll have to add the old fields (before the name changes, and before the multi-servers change) to the structs as well for our graceful conversion/error messages to work.
+	// TODO: instead of using jsonconfig, we could read the file,
+	// and unmarshal into the structs that we now have in
+	// pkg/types/clientconfig. But we'll have to add the old
+	// fields (before the name changes, and before the
+	// multi-servers change) to the structs as well for our
+	// graceful conversion/error messages to work.
 	conf, err := osutil.NewJSONConfigParser().ReadFile(configPath)
 	if err != nil {
 		log.Fatal(err.Error())
@@ -130,8 +139,12 @@ func (c *Client) parseConfig() {
 			log.Fatalf("entry %q in servers section is a %T, want an object", alias, vei)
 		}
 		serverConf := jsonconfig.Obj(serverMap)
+		serverStr, err := cleanServer(serverConf.OptionalString("server", ""))
+		if err != nil {
+			log.Fatalf("invalid server alias %q: %v", alias, err)
+		}
 		server := &clientconfig.Server{
-			Server:       cleanServer(serverConf.OptionalString("server", "")),
+			Server:       serverStr,
 			Auth:         serverConf.OptionalString("auth", ""),
 			IsDefault:    serverConf.OptionalBool("default", false),
 			TrustedCerts: serverConf.OptionalList("trustedCerts"),
@@ -236,9 +249,9 @@ func serverKeyId() string {
 
 // cleanServer returns the canonical URL of the provided server, which must be a URL, IP, host (with dot), or host/ip:port.
 // The returned canonical URL will have trailing slashes removed and be prepended with "https://" if no scheme is provided.
-func cleanServer(server string) string {
+func cleanServer(server string) (string, error) {
 	if !isURLOrHostPort(server) {
-		log.Fatalf("server %q does not look like a server address and could be confused with a server alias. It should look like [http[s]://]foo[.com][:port] with at least one of the optional parts.", server)
+		return "", fmt.Errorf("server %q does not look like a server address and could be confused with a server alias. It should look like [http[s]://]foo[.com][:port] with at least one of the optional parts.", server)
 	}
 	// Remove trailing slash if provided.
 	if strings.HasSuffix(server, "/") {
@@ -248,12 +261,12 @@ func cleanServer(server string) string {
 	if !strings.HasPrefix(server, "http") && !strings.HasPrefix(server, "https") {
 		server = "https://" + server
 	}
-	return server
+	return server, nil
 }
 
-// serverOrDie returns the server's URL found either as a command-line flag,
+// getServer returns the server's URL found either as a command-line flag,
 // or as the default server in the config file.
-func serverOrDie() string {
+func getServer() (string, error) {
 	if s := os.Getenv("CAMLI_SERVER"); s != "" {
 		return cleanServer(s)
 	}
@@ -262,21 +275,24 @@ func serverOrDie() string {
 			configOnce.Do(parseConfig)
 			serverConf, ok := config.Servers[flagServer]
 			if ok {
-				return serverConf.Server
+				return serverConf.Server, nil
 			}
 			log.Printf("%q looks like a server alias, but no such alias found in config.", flagServer)
 		} else {
 			return cleanServer(flagServer)
 		}
 	}
-	server := defaultServer()
+	server, err := defaultServer()
+	if err != nil {
+		return "", err
+	}
 	if server == "" {
-		camtypes.ErrClientNoServer.Fatal()
+		return "", camtypes.ErrClientNoServer
 	}
 	return cleanServer(server)
 }
 
-func defaultServer() string {
+func defaultServer() (string, error) {
 	configOnce.Do(parseConfig)
 	wantAlias := os.Getenv("CAMLI_DEFAULT_SERVER")
 	for alias, serverConf := range config.Servers {
@@ -284,7 +300,7 @@ func defaultServer() string {
 			return cleanServer(serverConf.Server)
 		}
 	}
-	return ""
+	return "", nil
 }
 
 func (c *Client) useTLS() bool {
