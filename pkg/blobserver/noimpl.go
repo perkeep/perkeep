@@ -49,6 +49,6 @@ func (NoImplStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedR
 	return errors.New("EnumerateBlobs not implemented")
 }
 
-func (NoImplStorage) RemoveBlobs(blobs []blob.Ref) error {
+func (NoImplStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	return errors.New("Remove not implemented")
 }

@@ -22,8 +22,7 @@ import (
 	"perkeep.org/pkg/blob"
 )
 
-func (sto *driveStorage) RemoveBlobs(blobs []blob.Ref) error {
-	ctx := context.TODO()
+func (sto *driveStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	var reterr error
 	for _, blob := range blobs {
 		if err := sto.service.Trash(ctx, blob.String()); err != nil {

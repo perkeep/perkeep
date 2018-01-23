@@ -107,9 +107,9 @@ func (sto *shardStorage) batchedShards(ctx context.Context, blobs []blob.Ref, fn
 	return reterr
 }
 
-func (sto *shardStorage) RemoveBlobs(blobs []blob.Ref) error {
+func (sto *shardStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	return sto.batchedShards(context.TODO(), blobs, func(s blobserver.Storage, blobs []blob.Ref) error {
-		return s.RemoveBlobs(blobs)
+		return s.RemoveBlobs(ctx, blobs)
 	})
 }
 

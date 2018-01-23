@@ -17,6 +17,7 @@ limitations under the License.
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -40,6 +41,7 @@ type RemoveResponse struct {
 }
 
 func handleRemove(rw http.ResponseWriter, req *http.Request, storage blobserver.Storage) {
+	ctx := context.TODO()
 	if req.Method != "POST" {
 		log.Fatalf("Invalid method; handlers misconfigured")
 	}
@@ -78,7 +80,7 @@ func handleRemove(rw http.ResponseWriter, req *http.Request, storage blobserver.
 		toRemove = append(toRemove, ref)
 	}
 
-	err := storage.RemoveBlobs(toRemove)
+	err := storage.RemoveBlobs(ctx, toRemove)
 	if err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
 		log.Printf("Server error during remove: %v", err)

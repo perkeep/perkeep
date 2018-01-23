@@ -209,9 +209,9 @@ func (s *Storage) Fetch(ctx context.Context, br blob.Ref) (rc io.ReadCloser, siz
 	return r, size, nil
 }
 
-func (s *Storage) RemoveBlobs(blobs []blob.Ref) error {
+func (s *Storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	if s.cache != nil {
-		s.cache.RemoveBlobs(blobs)
+		s.cache.RemoveBlobs(ctx, blobs)
 	}
 	gate := syncutil.NewGate(5) // arbitrary
 	var grp syncutil.Group

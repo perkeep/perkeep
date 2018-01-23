@@ -43,6 +43,6 @@ func (discardStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.Sized
 	return nil
 }
 
-func (discardStorage) RemoveBlobs(blobs []blob.Ref) error {
+func (discardStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	return nil
 }

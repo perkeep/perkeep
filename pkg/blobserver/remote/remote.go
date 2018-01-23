@@ -91,8 +91,8 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserv
 	return sto, nil
 }
 
-func (sto *remoteStorage) RemoveBlobs(blobs []blob.Ref) error {
-	return sto.client.RemoveBlobs(blobs)
+func (sto *remoteStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
+	return sto.client.RemoveBlobs(ctx, blobs)
 }
 
 func (sto *remoteStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {

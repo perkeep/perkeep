@@ -36,6 +36,7 @@ var (
 )
 
 func TestAzureStorage(t *testing.T) {
+	ctx := context.Background()
 	if *container == "" || *account == "" || *secret == "" {
 		t.Skip("Skipping test because at least one of -azure-key, -azure-secret, or -azure-container flags has not been provided.")
 	}
@@ -56,12 +57,12 @@ func TestAzureStorage(t *testing.T) {
 		}
 		clearContainer := func() {
 			var all []blob.Ref
-			blobserver.EnumerateAll(context.Background(), sto, func(sb blob.SizedRef) error {
+			blobserver.EnumerateAll(ctx, sto, func(sb blob.SizedRef) error {
 				t.Logf("Deleting: %v", sb.Ref)
 				all = append(all, sb.Ref)
 				return nil
 			})
-			if err := sto.RemoveBlobs(all); err != nil {
+			if err := sto.RemoveBlobs(ctx, all); err != nil {
 				t.Fatalf("Error removing blobs during cleanup: %v", err)
 			}
 		}

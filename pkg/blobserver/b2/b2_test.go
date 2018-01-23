@@ -48,6 +48,7 @@ func TestStorageWithBucketDir(t *testing.T) {
 }
 
 func testStorage(t *testing.T, bucketDir string) {
+	ctx := context.Background()
 	if *accountID == "" && *appKey == "" {
 		t.Skip("Skipping test without --account-id or --application-key flag")
 	}
@@ -84,12 +85,12 @@ func testStorage(t *testing.T, bucketDir string) {
 			clearBucket := func(beforeTests bool) func() {
 				return func() {
 					var all []blob.Ref
-					blobserver.EnumerateAll(context.TODO(), sto, func(sb blob.SizedRef) error {
+					blobserver.EnumerateAll(ctx, sto, func(sb blob.SizedRef) error {
 						t.Logf("Deleting: %v", sb.Ref)
 						all = append(all, sb.Ref)
 						return nil
 					})
-					if err := sto.RemoveBlobs(all); err != nil {
+					if err := sto.RemoveBlobs(ctx, all); err != nil {
 						t.Fatalf("Error removing blobs during cleanup: %v", err)
 					}
 					if beforeTests {
@@ -109,7 +110,7 @@ func testStorage(t *testing.T, bucketDir string) {
 						}
 					}
 					if err := sto.(*Storage).b.Delete(); err != nil {
-						t.Fatalf("could not remove bucket %s after tests: %v", sto.(*Storage).b.Name, err)
+						t.Fatalf("could not remove5D bucket %s after tests: %v", sto.(*Storage).b.Name, err)
 					}
 				}
 			}

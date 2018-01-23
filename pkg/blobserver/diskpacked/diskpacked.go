@@ -403,7 +403,7 @@ func (s *storage) filename(file int) string {
 var removeGate = syncutil.NewGate(20) // arbitrary
 
 // RemoveBlobs removes the blobs from index and pads data with zero bytes
-func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
+func (s *storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	batch := s.index.BeginBatch()
 	var wg syncutil.Group
 	for _, br := range blobs {

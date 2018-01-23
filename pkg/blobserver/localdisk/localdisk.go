@@ -222,7 +222,7 @@ func (ds *DiskStorage) fetch(ctx context.Context, br blob.Ref, offset, length in
 	}, 0 /* unused */, err
 }
 
-func (ds *DiskStorage) RemoveBlobs(blobs []blob.Ref) error {
+func (ds *DiskStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	for _, blob := range blobs {
 		fileName := ds.blobPath(blob)
 		err := os.Remove(fileName)

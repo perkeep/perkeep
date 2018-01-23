@@ -173,12 +173,12 @@ func testStorage(t *testing.T, bucketDir string) {
 			clearBucket := func(beforeTests bool) func() {
 				return func() {
 					var all []blob.Ref
-					blobserver.EnumerateAll(context.TODO(), sto, func(sb blob.SizedRef) error {
+					blobserver.EnumerateAll(ctx, sto, func(sb blob.SizedRef) error {
 						t.Logf("Deleting: %v", sb.Ref)
 						all = append(all, sb.Ref)
 						return nil
 					})
-					if err := sto.RemoveBlobs(all); err != nil {
+					if err := sto.RemoveBlobs(ctx, all); err != nil {
 						t.Fatalf("Error removing blobs during cleanup: %v", err)
 					}
 					if beforeTests {

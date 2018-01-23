@@ -26,6 +26,7 @@ import (
 )
 
 func TestStats(t *testing.T) {
+	ctx := context.Background()
 	st := &Receiver{}
 	foo := test.Blob{"foo"}
 	bar := test.Blob{"bar"}
@@ -89,7 +90,7 @@ func TestStats(t *testing.T) {
 		t.Fatal("expected dest to be closed, saw", val)
 	}
 
-	err = st.RemoveBlobs([]blob.Ref{
+	err = st.RemoveBlobs(ctx, []blob.Ref{
 		foo.BlobRef(),
 		bar.BlobRef(),
 		foobar.BlobRef(),

@@ -284,11 +284,9 @@ func (s *Storage) SubFetch(ctx context.Context, br blob.Ref, offset, length int6
 	return rc, err
 }
 
-func (s *Storage) RemoveBlobs(blobs []blob.Ref) error {
-	// TODO(mpl): use context from caller, once one is available (issue 733)
-	ctx := context.TODO()
+func (s *Storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	if s.cache != nil {
-		s.cache.RemoveBlobs(blobs)
+		s.cache.RemoveBlobs(ctx, blobs)
 	}
 	gate := syncutil.NewGate(50) // arbitrary
 	var grp syncutil.Group

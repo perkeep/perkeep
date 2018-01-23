@@ -52,5 +52,5 @@ func (c *removeCmd) RunCommand(args []string) error {
 		}
 		refs = append(refs, br)
 	}
-	return getUploader().RemoveBlobs(refs)
+	return getUploader().RemoveBlobs(ctxbg, refs)
 }

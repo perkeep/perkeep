@@ -150,7 +150,7 @@ func (s *storage) decryptBlob(plaintext, ciphertext []byte) ([]byte, error) {
 	return plaintext, nil
 }
 
-func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
+func (s *storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	return blobserver.ErrNotImplemented // TODO
 }
 

@@ -132,7 +132,7 @@ func testStorage(t *testing.T, bucketDir string) {
 					all = append(all, sb.Ref)
 					return nil
 				})
-				if err := sto.RemoveBlobs(all); err != nil {
+				if err := sto.RemoveBlobs(ctxbg, all); err != nil {
 					t.Fatalf("Error removing blobs during cleanup: %v", err)
 				}
 				if beforeTests {

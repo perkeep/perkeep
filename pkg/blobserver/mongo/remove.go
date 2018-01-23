@@ -17,17 +17,17 @@ limitations under the License.
 package mongo
 
 import (
-	"perkeep.org/pkg/blob"
+	"context"
 
 	"go4.org/syncutil"
-
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
+	"perkeep.org/pkg/blob"
 )
 
 var removeGate = syncutil.NewGate(100) // arbitrary
 
-func (m *mongoStorage) RemoveBlobs(blobs []blob.Ref) error {
+func (m *mongoStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	var wg syncutil.Group
 
 	for _, blob := range blobs {

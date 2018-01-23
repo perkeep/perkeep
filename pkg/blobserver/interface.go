@@ -150,11 +150,13 @@ type Config struct {
 }
 
 type BlobRemover interface {
-	// RemoveBlobs removes 0 or more blobs.  Removal of
-	// non-existent items isn't an error.  Returns failure if any
+	// RemoveBlobs removes 0 or more blobs. Removal of
+	// non-existent items isn't an error. Returns failure if any
 	// items existed but failed to be deleted.
 	// ErrNotImplemented may be returned for storage types not implementing removal.
-	RemoveBlobs(blobs []blob.Ref) error
+	// If RemoveBlobs returns an error, it's possible that either
+	// none or only some of the blobs were deleted.
+	RemoveBlobs(ctx context.Context, blobs []blob.Ref) error
 }
 
 // Storage is the interface that must be implemented by a blobserver

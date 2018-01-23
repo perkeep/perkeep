@@ -110,6 +110,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 // must hold sto.mu.
 // Reports whether an item was removed.
 func (sto *Storage) removeOldest() bool {
+	ctx := context.TODO()
 	k, v := sto.lru.RemoveOldest()
 	if v == nil {
 		return false
@@ -117,7 +118,7 @@ func (sto *Storage) removeOldest() bool {
 	sb := v.(blob.SizedRef)
 	// TODO: run these without sto.mu held in background
 	// goroutine? at least pass a context?
-	err := sto.cache.RemoveBlobs([]blob.Ref{sb.Ref})
+	err := sto.cache.RemoveBlobs(ctx, []blob.Ref{sb.Ref})
 	if err != nil {
 		log.Printf("proxycache: could not remove oldest blob %v (%d bytes): %v", sb.Ref, sb.Size, err)
 		sto.lru.Add(k, v)
@@ -251,13 +252,13 @@ func (sto *Storage) ReceiveBlob(ctx context.Context, br blob.Ref, src io.Reader)
 	return sb, err
 }
 
-func (sto *Storage) RemoveBlobs(blobs []blob.Ref) error {
+func (sto *Storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	var gr syncutil.Group
 	gr.Go(func() error {
-		return sto.cache.RemoveBlobs(blobs)
+		return sto.cache.RemoveBlobs(ctx, blobs)
 	})
 	gr.Go(func() error {
-		return sto.origin.RemoveBlobs(blobs)
+		return sto.origin.RemoveBlobs(ctx, blobs)
 	})
 	gr.Wait()
 	return gr.Err()

@@ -808,7 +808,7 @@ func TestRemoveBlobs(t *testing.T) {
 	for len(all) > 0 {
 		del := all[0].Ref
 		all = all[1:]
-		if err := sto.RemoveBlobs([]blob.Ref{del}); err != nil {
+		if err := sto.RemoveBlobs(ctx, []blob.Ref{del}); err != nil {
 			t.Fatalf("RemoveBlobs: %v", err)
 		}
 		if err := storagetest.CheckEnumerate(sto, all); err != nil {

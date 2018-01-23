@@ -671,7 +671,7 @@ func (s *storage) Fetch(ctx context.Context, br blob.Ref) (io.ReadCloser, uint32
 
 const removeLookups = 50 // arbitrary
 
-func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
+func (s *storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	// Plan:
 	//  -- delete from small (if it's there)
 	//  -- if in big, update the meta index to note that it's there, but deleted.
@@ -713,7 +713,7 @@ func (s *storage) RemoveBlobs(blobs []blob.Ref) error {
 	}
 	if len(unpacked) > 0 {
 		grp.Go(func() error {
-			return s.small.RemoveBlobs(unpacked)
+			return s.small.RemoveBlobs(ctx, unpacked)
 		})
 	}
 	if len(packed) > 0 {
@@ -1157,7 +1157,7 @@ func (pk *packer) writeAZip(ctx context.Context, trunc blob.Ref) (err error) {
 		toDelete := make([]blob.Ref, 0, len(dataRefsWritten)+len(schemaBlobs))
 		toDelete = append(toDelete, dataRefsWritten...)
 		toDelete = append(toDelete, schemaBlobs...)
-		if err := pk.s.small.RemoveBlobs(toDelete); err != nil {
+		if err := pk.s.small.RemoveBlobs(ctx, toDelete); err != nil {
 			// Can't really do anything about it and doesn't really matter, so
 			// just log for now.
 			pk.s.Logf("Error removing blobs from %s: %v", pk.s.small, err)
@@ -1261,7 +1261,7 @@ func (s *storage) deleteZipPack(ctx context.Context, br blob.Ref) error {
 	if len(inUse) > 0 {
 		return fmt.Errorf("can't delete zip pack %v: %d parts in use: %v", br, len(inUse), inUse)
 	}
-	if err := s.large.RemoveBlobs([]blob.Ref{br}); err != nil {
+	if err := s.large.RemoveBlobs(ctx, []blob.Ref{br}); err != nil {
 		return err
 	}
 	return s.meta.Delete("d:" + br.String())

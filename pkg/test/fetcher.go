@@ -76,7 +76,7 @@ func (tf *Fetcher) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reade
 		return sb, err
 	}
 	if err := tf.ReceiveErr; err != nil {
-		tf.RemoveBlobs([]blob.Ref{br})
+		tf.RemoveBlobs(ctx, []blob.Ref{br})
 		return sb, err
 	}
 	return sb, nil

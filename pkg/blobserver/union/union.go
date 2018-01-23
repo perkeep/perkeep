@@ -58,7 +58,7 @@ func (sto *unionStorage) ReceiveBlob(ctx context.Context, br blob.Ref, src io.Re
 }
 
 // RemoveBlobs would remove the given blobs, but now just returns ErrReadonly.
-func (sto *unionStorage) RemoveBlobs(blobs []blob.Ref) error {
+func (sto *unionStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	return blobserver.ErrReadonly
 }
 
