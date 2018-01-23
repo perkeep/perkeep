@@ -60,6 +60,7 @@ import (
 	_ "perkeep.org/pkg/blobserver/google/drive"
 	_ "perkeep.org/pkg/blobserver/localdisk"
 	_ "perkeep.org/pkg/blobserver/mongo"
+	_ "perkeep.org/pkg/blobserver/overlay"
 	_ "perkeep.org/pkg/blobserver/proxycache"
 	_ "perkeep.org/pkg/blobserver/remote"
 	_ "perkeep.org/pkg/blobserver/replica"
