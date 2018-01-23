@@ -838,7 +838,7 @@ func (ix *Index) populateClaim(ctx context.Context, fetcher *missTrackFetcher, b
 	verifiedKeyId := vr.SignerKeyId
 	mm.signerID = verifiedKeyId
 	mm.signerBlobRef = vr.CamliSigner
-	mm.Set("signerkeyid:"+vr.CamliSigner.String(), verifiedKeyId)
+	mm.Set(keySignerKeyID.name+":"+vr.CamliSigner.String(), verifiedKeyId)
 
 	if claim.ClaimType() == string(schema.DeleteClaim) {
 		if err := ix.populateDeleteClaim(ctx, claim, vr, mm); err != nil {

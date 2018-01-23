@@ -142,3 +142,7 @@ var Exp_KeyRecentPermanode = keyRecentPermanode
 func Exp_TypeOfKey(key string) string {
 	return typeOfKey(key)
 }
+
+func Exp_ClaimsAttrValue(claims []camtypes.Claim, attr string, at time.Time) string {
+	return claimsIntfAttrValue(claimSlice(claims), attr, at, nil)
+}

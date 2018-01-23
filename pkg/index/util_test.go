@@ -20,7 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/types/camtypes"
 )
@@ -79,7 +78,7 @@ func TestClaimsAttrValue(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		got := index.ClaimsAttrValue(claims, tt.attr, tt.t, blob.Ref{})
+		got := index.Exp_ClaimsAttrValue(claims, tt.attr, tt.t)
 		if got != tt.want {
 			t.Errorf("%d. attr %q = %v; want %v",
 				i, tt.attr, got, tt.want)

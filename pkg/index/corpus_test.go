@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"go4.org/types"
+	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/index/indextest"
@@ -32,9 +33,9 @@ import (
 func newTestCorpusWithPermanode(t *testing.T) (c *index.Corpus, pn, sig1, sig2 blob.Ref) {
 	c = index.ExpNewCorpus()
 	pn = blob.MustParse("abc-123")
-	sig1 = blob.MustParse("abc-456")
+	sig1 = indextest.PubKey.BlobRef()
 	sig2 = blob.MustParse("abc-789")
-	if err := c.Exp_AddKeyID(sig1, "abc-456"); err != nil {
+	if err := c.Exp_AddKeyID(sig1, indextest.KeyID); err != nil {
 		t.Fatal(err)
 	}
 	if err := c.Exp_AddKeyID(sig2, "abc-789"); err != nil {
@@ -109,6 +110,47 @@ func newTestCorpusWithPermanode(t *testing.T) (c *index.Corpus, pn, sig1, sig2 b
 	})
 
 	return c, pn, sig1, sig2
+}
+
+func TestCorpusAnySignerHashWorks(t *testing.T) {
+	restore := testhooks.SetUseSHA1(true)
+	defer restore()
+	c, pn, sig1, sig2 := newTestCorpusWithPermanode(t)
+
+	// nothing special, just checking setup for foo attr with sig1 is correct
+	got := c.PermanodeAttrValue(pn, "foo", time.Time{}, sig1)
+	if got != "foov" {
+		t.Fatalf("with %v, attr %q = %q; want %q",
+			sig1, "foo", got, "foov")
+	}
+	// and that we can't find it with sig2
+	got = c.PermanodeAttrValue(pn, "foo", time.Time{}, sig2)
+	if got != "" {
+		t.Fatalf("expected empty result with sig2, got %q", got)
+	}
+
+	testhooks.SetUseSHA1(false)
+	// now add sha224 version of sig1, and verify we can also find foo with it
+	//	sig1bis := indextest.PubKey.BlobRefFromHash(sha1.New())
+	sig1Current := indextest.PubKey.BlobRef()
+	if sig1 == sig1Current {
+		t.Fatal("sha1 signer ref and sha224 signer ref should be different")
+	}
+	if err := c.Exp_AddKeyID(sig1Current, indextest.KeyID); err != nil {
+		t.Fatal(err)
+	}
+	got = c.PermanodeAttrValue(pn, "foo", time.Time{}, sig1Current)
+	if got != "foov" {
+		t.Errorf("with %v, attr %q = %q; want %q",
+			sig1Current, "foo", got, "foov")
+	}
+
+	// and just to be sure, verify we can still find it with sig1
+	got = c.PermanodeAttrValue(pn, "foo", time.Time{}, sig1)
+	if got != "foov" {
+		t.Fatalf("with %v, attr %q = %q; want %q",
+			sig1, "foo", got, "foov")
+	}
 }
 
 func TestCorpusAppendPermanodeAttrValues(t *testing.T) {

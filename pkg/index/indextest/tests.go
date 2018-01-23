@@ -252,15 +252,8 @@ func (id *IndexDeps) UploadDir(dirName string, children []blob.Ref, modTime time
 	return dirb.BlobRef()
 }
 
-// NewIndexDeps returns an IndexDeps helper for populating and working
-// with the provided index for tests.
-func NewIndexDeps(index *index.Index) *IndexDeps {
-	camliRootPath, err := osutil.GoPackagePath("perkeep.org")
-	if err != nil {
-		log.Fatal("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
-	}
-	secretRingFile := filepath.Join(camliRootPath, "pkg", "jsonsign", "testdata", "test-secring.gpg")
-	pubKey := &test.Blob{Contents: `-----BEGIN PGP PUBLIC KEY BLOCK-----
+var (
+	PubKey = &test.Blob{Contents: `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 xsBNBEzgoVsBCAC/56aEJ9BNIGV9FVP+WzenTAkg12k86YqlwJVAB/VwdMlyXxvi
 bCT1RVRfnYxscs14LLfcMWF3zMucw16mLlJCBSLvbZ0jn4h+/8vK5WuAdjw2YzLs
@@ -270,6 +263,17 @@ rexKYRRRh9IKAayD4kgS0wdlULjBU98aeEaMz1ckuB46DX3lAYqmmTEL/Rl9cOI0
 Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 =28/7
 -----END PGP PUBLIC KEY BLOCK-----`}
+	KeyID = "2931A67C26F5ABDA"
+)
+
+// NewIndexDeps returns an IndexDeps helper for populating and working
+// with the provided index for tests.
+func NewIndexDeps(index *index.Index) *IndexDeps {
+	camliRootPath, err := osutil.GoPackagePath("perkeep.org")
+	if err != nil {
+		log.Fatal("Package perkeep.org not found in $GOPATH or $GOPATH not defined")
+	}
+	secretRingFile := filepath.Join(camliRootPath, "pkg", "jsonsign", "testdata", "test-secring.gpg")
 
 	id := &IndexDeps{
 		Index:            index,
@@ -278,7 +282,7 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 		EntityFetcher: &jsonsign.CachingEntityFetcher{
 			Fetcher: &jsonsign.FileEntityFetcher{File: secretRingFile},
 		},
-		SignerBlobRef: pubKey.BlobRef(),
+		SignerBlobRef: PubKey.BlobRef(),
 		now:           test.ClockOrigin,
 		Fataler:       logFataler{},
 	}
@@ -287,7 +291,7 @@ Enpn/oOOfYFa5h0AFndZd1blMvruXfdAobjVABEBAAE=
 	if g, w := id.SignerBlobRef.String(), "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"; g != w {
 		id.Fatalf("unexpected signer blobref; got signer = %q; want %q", g, w)
 	}
-	id.PublicKeyFetcher.AddBlob(pubKey)
+	id.PublicKeyFetcher.AddBlob(PubKey)
 	id.Index.KeyFetcher = id.PublicKeyFetcher
 	id.Index.InitBlobSource(id.BlobSource)
 	return id
