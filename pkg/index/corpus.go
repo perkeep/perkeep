@@ -1297,13 +1297,28 @@ func (c *Corpus) AppendClaims(ctx context.Context, dst []camtypes.Claim, permaNo
 	if !ok {
 		return nil, nil
 	}
+
+	var signerRefs signerRefSet
+	if signerFilter.Valid() {
+		signer, ok := c.keyId[signerFilter]
+		if !ok {
+			return dst, nil
+		}
+		signerRefs, ok = c.signerRefs[signer]
+		if !ok {
+			return dst, nil
+		}
+	}
+
 	for _, cl := range pm.Claims {
 		if c.IsDeleted(cl.BlobRef) {
 			continue
 		}
-		if signerFilter.Valid() && cl.Signer != signerFilter {
+
+		if len(signerRefs) > 0 && !signerRefs.blobMatches(cl.Signer) {
 			continue
 		}
+
 		if attrFilter != "" && cl.Attr != attrFilter {
 			continue
 		}
