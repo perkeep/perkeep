@@ -52,7 +52,10 @@ type remoteStorage struct {
 	client *client.Client
 }
 
-var _ = blobserver.Storage((*remoteStorage)(nil))
+var (
+	_ blobserver.Storage = (*remoteStorage)(nil)
+	_ io.Closer          = (*remoteStorage)(nil)
+)
 
 // NewFromClient returns a new Storage implementation using the
 // provided Camlistore client.
@@ -93,6 +96,10 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserv
 		}
 	}
 	return sto, nil
+}
+
+func (sto *remoteStorage) Close() error {
+	return sto.client.Close()
 }
 
 func (sto *remoteStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package client implements a Camlistore client.
+// Package client implements a Perkeep client.
 package client // import "perkeep.org/pkg/client"
 
 import (
@@ -51,7 +51,10 @@ import (
 	"golang.org/x/net/http2"
 )
 
-// A Client provides access to a Camlistore server.
+// A Client provides access to a Perkeep server.
+//
+// After use, a Client should be closed via its Close method to
+// release idle HTTP connections or other resourcedds.
 type Client struct {
 	// server is the input from user, pre-discovery.
 	// For example "http://foo.com" or "foo.com:1234".
@@ -100,7 +103,7 @@ type Client struct {
 	// If not empty, (and if using TLS) the full x509 verification is
 	// disabled, and we instead check the server's certificate against
 	// this list.
-	// The camlistore server prints the fingerprint to add to the config
+	// The camlistored server prints the fingerprint to add to the config
 	// when starting.
 	trustedCerts []string
 
@@ -166,15 +169,6 @@ var inGopherJS bool
 // By default, with no options, it uses the client as configured in
 // the environment or default configuration files.
 func New(opts ...ClientOption) (*Client, error) {
-	var server string
-	var err error
-
-	for _, opt := range opts {
-		if so, ok := opt.(optionServer); ok {
-			server = string(so)
-		}
-	}
-
 	c := &Client{
 		haveCache: noHaveCache{},
 		Logger:    log.New(os.Stderr, "", log.Ldate|log.Ltime),
@@ -182,6 +176,9 @@ func New(opts ...ClientOption) (*Client, error) {
 	}
 	for _, v := range opts {
 		v.modifyClient(c)
+	}
+	if c.sto != nil && len(opts) > 1 {
+		return nil, errors.New("use of OptionUseStorageClient precludes use of any other options")
 	}
 
 	if inGopherJS {
@@ -192,20 +189,20 @@ func New(opts ...ClientOption) (*Client, error) {
 		return c, nil
 	}
 
-	if server != "" {
-		if !isURLOrHostPort(server) {
+	if c.server != "" {
+		if !isURLOrHostPort(c.server) {
 			configOnce.Do(parseConfig)
-			serverConf, ok := config.Servers[server]
+			serverConf, ok := config.Servers[c.server]
 			if !ok {
-				log.Fatalf("%q looks like a server alias, but no such alias found in config at %v", server, osutil.UserClientConfigPath())
+				log.Fatalf("%q looks like a server alias, but no such alias found in config at %v", c.server, osutil.UserClientConfigPath())
 			}
-			server = serverConf.Server
+			c.server = serverConf.Server
 		}
-		c.server = server
 		c.setDefaultHTTPClient()
 		return c, nil
 	}
 
+	var err error
 	c.server, err = getServer()
 	if err != nil {
 		return nil, err
@@ -250,20 +247,6 @@ func (c *Client) NewPathClient(path string) (*Client, error) {
 	pc.authMode = c.authMode
 	pc.discoOnce.Do(noop)
 	return pc, nil
-}
-
-// NewStorageClient returns a Client that doesn't use HTTP, but uses s
-// directly. This exists mainly so all the convenience methods on
-// Client (e.g. the Upload variants) are available against storage
-// directly.
-// When using NewStorageClient, callers should call Close when done,
-// in case the storage wishes to do a cleaner shutdown.
-func NewStorageClient(s blobserver.Storage) *Client {
-	return &Client{
-		sto:       s,
-		Logger:    log.New(os.Stderr, "", log.Ldate|log.Ltime),
-		haveCache: noHaveCache{},
-	}
 }
 
 // TransportConfig contains options for how HTTP requests are made.
@@ -360,9 +343,26 @@ func OptionServer(server string) ClientOption {
 
 type optionServer string
 
-func (s optionServer) modifyClient(c *Client) {
-	c.server = string(s)
+func (s optionServer) modifyClient(c *Client) { c.server = string(s) }
+
+// OptionUseStorageClient returns a Client constructor option that
+// forces use of the provided blob storage target.
+//
+// This exists mainly so all the convenience methods on
+// Client (e.g. the Upload variants) are available against storage
+// directly.
+//
+// Use of OptionUseStorageClient is mutually exclusively
+// with all other options.
+func OptionUseStorageClient(s blobserver.Storage) ClientOption {
+	return optionStorage{s}
 }
+
+type optionStorage struct {
+	sto blobserver.Storage
+}
+
+func (o optionStorage) modifyClient(c *Client) { c.sto = o.sto }
 
 // OptionTransportConfig returns a ClientOption that makes the client use
 // the provided transport configuration options.
@@ -374,9 +374,7 @@ type optionTransportConfig struct {
 	tc *TransportConfig
 }
 
-func (o optionTransportConfig) modifyClient(c *Client) {
-	c.transportConfig = o.tc
-}
+func (o optionTransportConfig) modifyClient(c *Client) { c.transportConfig = o.tc }
 
 // OptionInsecure returns a ClientOption that controls whether HTTP
 // requests are allowed to be insecure (over HTTP or HTTPS without TLS
@@ -388,9 +386,7 @@ func OptionInsecure(v bool) ClientOption {
 
 type optionInsecure bool
 
-func (o optionInsecure) modifyClient(c *Client) {
-	c.insecureAnyTLSCert = bool(o)
-}
+func (o optionInsecure) modifyClient(c *Client) { c.insecureAnyTLSCert = bool(o) }
 
 // OptionTrustedCert returns a ClientOption that makes the client
 // trust the provide self-signed cert signature. The value should be
@@ -415,9 +411,7 @@ func (o optionTrustedCert) modifyClient(c *Client) {
 
 type optionNoExtConfig bool
 
-func (o optionNoExtConfig) modifyClient(c *Client) {
-	c.noExtConfig = bool(o)
-}
+func (o optionNoExtConfig) modifyClient(c *Client) { c.noExtConfig = bool(o) }
 
 // OptionNoExternalConfig returns a Client constructor option that
 // prevents any on-disk config files or environment variables from
@@ -430,9 +424,7 @@ type optionAuthMode struct {
 	m auth.AuthMode
 }
 
-func (o optionAuthMode) modifyClient(c *Client) {
-	c.authMode = o.m
-}
+func (o optionAuthMode) modifyClient(c *Client) { c.authMode = o.m }
 
 // OptionAuthMode returns a Client constructor option that sets the
 // client's authentication mode.
@@ -491,7 +483,7 @@ func NewFromShareRoot(ctx context.Context, shareBlobURL string, opts ...ClientOp
 	return c, target, nil
 }
 
-// SetHTTPClient sets the Camlistore client's HTTP client.
+// SetHTTPClient sets the Perkeep client's HTTP client.
 // If nil, the default HTTP client is used.
 func (c *Client) SetHTTPClient(client *http.Client) {
 	if client == nil {
@@ -1416,12 +1408,18 @@ func (c *Client) IsIgnoredFile(fullpath string) bool {
 	return c.ignoreChecker(fullpath)
 }
 
-// Close closes the client. In most cases, it's not necessary to close a Client.
-// The exception is for Clients created using NewStorageClient, where the Storage
-// might implement io.Closer.
+// Close closes the client.
 func (c *Client) Close() error {
 	if cl, ok := c.sto.(io.Closer); ok {
 		return cl.Close()
+	}
+	if c := c.HTTPClient(); c != nil {
+		switch t := c.Transport.(type) {
+		case *http.Transport:
+			t.CloseIdleConnections()
+		case *http2.Transport:
+			t.CloseIdleConnections()
+		}
 	}
 	return nil
 }
