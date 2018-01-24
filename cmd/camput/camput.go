@@ -169,7 +169,7 @@ func newUploader() *Uploader {
 		if err != nil {
 			log.Fatalf("Error using dir %s as storage: %v", d, err)
 		}
-		cc = client.NewStorageClient(ss)
+		cc = client.NewOrFail(client.OptionUseStorageClient(ss))
 	} else {
 		var proxy func(*http.Request) (*url.URL, error)
 		if flagProxyLocal {
