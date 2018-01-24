@@ -80,7 +80,10 @@ func TestServerOfName(t *testing.T) {
 			want:  "",
 		},
 	}
-	c := NewFromParams("whatever", nil)
+	c, err := New(OptionNoExternalConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, v := range addrs {
 		if got := c.serverNameOfAddr(v.input); got != v.want {
 			t.Errorf("wanted %v, got %q", v.want, got)

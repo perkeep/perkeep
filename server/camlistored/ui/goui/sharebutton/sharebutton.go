@@ -223,7 +223,10 @@ func (d ShareItemsBtnDef) shareSelection() (string, error) {
 // mkdir creates a new directory blob, with children composing its static-set,
 // and uploads it. It returns the blobRef of the new directory.
 func mkdir(am auth.AuthMode, children []blob.Ref) (blob.Ref, error) {
-	cl := client.NewFromParams("", am, client.OptionSameOrigin(true))
+	cl, err := client.New(client.OptionAuthMode(am))
+	if err != nil {
+		return blob.Ref{}, err
+	}
 	var newdir blob.Ref
 	var ss schema.StaticSet
 	for _, br := range children {
@@ -248,7 +251,10 @@ func mkdir(am auth.AuthMode, children []blob.Ref) (blob.Ref, error) {
 // item is a file, the URL can be used directly to fetch the file. If the item is a
 // directory, the URL should be used with camget -shared.
 func shareFile(am auth.AuthMode, target blob.Ref, isDir bool) (string, error) {
-	cl := client.NewFromParams("", am, client.OptionSameOrigin(true))
+	cl, err := client.New(client.OptionAuthMode(am))
+	if err != nil {
+		return "", err
+	}
 	claim, err := newShareClaim(cl, target)
 	if err != nil {
 		return "", err

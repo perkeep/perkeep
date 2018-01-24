@@ -71,7 +71,7 @@ func TestUploadFile(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close()
 
-	c := New(ts.URL)
+	c := NewOrFail(OptionServer(ts.URL))
 
 	f := newFakeFile("foo.txt", "bar", time.Date(2011, 1, 28, 2, 3, 4, 0, time.Local))
 

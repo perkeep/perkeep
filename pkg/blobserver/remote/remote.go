@@ -69,9 +69,13 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (storage blobserv
 		return nil, err
 	}
 
-	client := client.New(url,
+	client, err := client.New(
+		client.OptionServer(url),
 		client.OptionTrustedCert(trustedCert),
 	)
+	if err != nil {
+		return nil, err
+	}
 	if err = client.SetupAuthFromString(auth); err != nil {
 		return nil, err
 	}

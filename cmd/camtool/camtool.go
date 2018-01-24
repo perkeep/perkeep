@@ -48,7 +48,7 @@ func newClient(server string, opts ...client.ClientOption) *client.Client {
 	if server == "" {
 		return client.NewOrFail(opts...)
 	}
-	cl := client.New(server, opts...)
+	cl := client.NewOrFail(append(opts[:len(opts):cap(opts)], client.OptionServer(server))...)
 	if err := cl.SetupAuth(); err != nil {
 		log.Fatalf("Could not setup auth for connecting to %v: %v", server, err)
 	}

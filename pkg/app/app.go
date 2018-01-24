@@ -61,7 +61,11 @@ func Client() (*client.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return client.NewFromParams(server, am), nil
+	return client.New(
+		client.OptionNoExternalConfig(),
+		client.OptionServer(server),
+		client.OptionAuthMode(am),
+	)
 }
 
 // ListenAddress returns the host:[port] network address, derived from the environment,

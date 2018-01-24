@@ -112,7 +112,10 @@ func (q *Query) send() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		q.cl = client.NewFromParams("", am, client.OptionSameOrigin(true))
+		q.cl, err = client.New(client.OptionAuthMode(am))
+		if err != nil {
+			return nil, err
+		}
 	}
 	q.Expr = ShiftZoomPredicate(q.Expr)
 	expr := mapToLocrect(q.Expr)

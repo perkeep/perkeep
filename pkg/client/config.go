@@ -309,13 +309,13 @@ func (c *Client) useTLS() bool {
 
 // SetupAuth sets the client's authMode. It tries from the environment first if we're on android or in dev mode, and then from the client configuration.
 func (c *Client) SetupAuth() error {
-	if c.paramsOnly {
+	if c.noExtConfig {
 		if c.authMode != nil {
 			if _, ok := c.authMode.(*auth.None); !ok {
 				return nil
 			}
 		}
-		return errors.New("client: paramsOnly set; auth should not be configured from config or env vars")
+		return errors.New("client: noExtConfig set; auth should not be configured from config or env vars")
 	}
 	// env var takes precedence, but only if we're in dev mode or on android.
 	// Too risky otherwise.
@@ -377,8 +377,8 @@ func (c *Client) SecretRingFile() string {
 	if android.OnAndroid() {
 		panic("on android, so CAMLI_SECRET_RING should have been defined, or --secret-keyring used.")
 	}
-	if c.paramsOnly {
-		log.Print("client: paramsOnly set; cannot get secret ring file from config or env vars.")
+	if c.noExtConfig {
+		log.Print("client: noExtConfig set; cannot get secret ring file from config or env vars.")
 		return ""
 	}
 	if configDisabled {
@@ -405,8 +405,8 @@ func (c *Client) SignerPublicKeyBlobref() blob.Ref {
 }
 
 func (c *Client) initSignerPublicKeyBlobref() {
-	if c.paramsOnly {
-		log.Print("client: paramsOnly set; cannot get public key from config or env vars.")
+	if c.noExtConfig {
+		log.Print("client: noExtConfig set; cannot get public key from config or env vars.")
 		return
 	}
 	keyId := os.Getenv("CAMLI_KEYID")
@@ -435,7 +435,7 @@ func (c *Client) initSignerPublicKeyBlobref() {
 }
 
 func (c *Client) initTrustedCerts() {
-	if c.paramsOnly {
+	if c.noExtConfig {
 		return
 	}
 	if e := os.Getenv("CAMLI_TRUSTED_CERT"); e != "" {
@@ -481,7 +481,7 @@ func (c *Client) initIgnoredFiles() {
 	defer func() {
 		c.ignoreChecker = newIgnoreChecker(c.ignoredFiles)
 	}()
-	if c.paramsOnly {
+	if c.noExtConfig {
 		return
 	}
 	if e := os.Getenv("CAMLI_IGNORED_FILES"); e != "" {
