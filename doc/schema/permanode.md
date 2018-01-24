@@ -55,7 +55,8 @@ of the following:
   just the provided "value" if multi-valued
 
 * `multi`: atomically do multiple add/set/del from above on potentially
-  different permanodes. looks like:
+  different permanodes. **NOT IMPLEMENTED YET**
+  (see [issue 110](https://perkeep.org/issue/110)), but it might look like:
 
         {"camliVersion": 1,
          "camliType": "claim",
