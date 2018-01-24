@@ -59,7 +59,7 @@ func (c *whoamiCmd) RunCommand(args []string) error {
 		return cmdmain.UsageError("only 0 or 1 arguments allowed")
 	}
 
-	cc, err := client.NewDefault()
+	cc, err := client.New()
 	if err != nil {
 		return fmt.Errorf("creating Client: %v", err)
 	}

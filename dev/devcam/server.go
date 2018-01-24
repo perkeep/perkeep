@@ -437,7 +437,10 @@ func (c *serverCmd) makeThings() error {
 		return errors.New("CAMLI_BASEURL is not set")
 	}
 
-	cl := client.New(baseURL)
+	cl, err := client.New(client.OptionServer(baseURL))
+	if err != nil {
+		return fmt.Errorf("making client: %v", err)
+	}
 	signer, err := cl.Signer()
 	if err != nil {
 		return err

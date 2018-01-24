@@ -145,7 +145,7 @@ type Client struct {
 	httpGate        *syncutil.Gate
 	transportConfig *TransportConfig // or nil
 
-	paramsOnly bool // config file and env vars are ignored.
+	noExtConfig bool // no external config; config file and env vars are ignored.
 
 	// sameOrigin indicates whether URLs in requests should be stripped from
 	// their scheme and HostPort parts. This is meant for when using the client
@@ -162,39 +162,74 @@ const maxParallelHTTP_h2 = 50
 var inGopherJS bool
 
 // New returns a new Perkeep Client.
-// The provided server is either "host:port" (assumed http, not https) or a URL prefix, with or without a path, or a server alias from the client configuration file. A server alias should not be confused with a hostname, therefore it cannot contain any colon or period.
-// Errors are not returned until subsequent operations.
-func New(server string, opts ...ClientOption) *Client {
-	if !isURLOrHostPort(server) {
-		configOnce.Do(parseConfig)
-		serverConf, ok := config.Servers[server]
-		if !ok {
-			log.Fatalf("%q looks like a server alias, but no such alias found in config at %v", server, osutil.UserClientConfigPath())
-		}
-		server = serverConf.Server
-	}
-	return newClient(server, auth.None{}, opts...)
-}
+//
+// By default, with no options, it uses the client as configured in
+// the environment or default configuration files.
+func New(opts ...ClientOption) (*Client, error) {
+	var server string
+	var err error
 
-// NewDefault returns a Perkeep Client as specified in the user's
-// config file.
-func NewDefault(opts ...ClientOption) (*Client, error) {
-	// XXX: TODO: rename to New. and fix NewOrFail comment below.
-	server, err := getServer()
+	for _, opt := range opts {
+		if so, ok := opt.(optionServer); ok {
+			server = string(so)
+		}
+	}
+
+	c := &Client{
+		haveCache: noHaveCache{},
+		Logger:    log.New(os.Stderr, "", log.Ldate|log.Ltime),
+		authMode:  auth.None{},
+	}
+	for _, v := range opts {
+		v.modifyClient(c)
+	}
+
+	if inGopherJS {
+		c.noExtConfig = true
+		c.sameOrigin = true
+	}
+	if c.noExtConfig {
+		return c, nil
+	}
+
+	if server != "" {
+		if !isURLOrHostPort(server) {
+			configOnce.Do(parseConfig)
+			serverConf, ok := config.Servers[server]
+			if !ok {
+				log.Fatalf("%q looks like a server alias, but no such alias found in config at %v", server, osutil.UserClientConfigPath())
+			}
+			server = serverConf.Server
+		}
+		c.server = server
+		c.setDefaultHTTPClient()
+		return c, nil
+	}
+
+	c.server, err = getServer()
 	if err != nil {
 		return nil, err
 	}
-	c := New(server, opts...)
 	err = c.SetupAuth()
 	if err != nil {
 		return nil, err
 	}
+	c.setDefaultHTTPClient()
 	return c, nil
 }
 
-// NewOrFail is like NewDefault, but calls log.Fatal instead of returning an error.
+func (c *Client) setDefaultHTTPClient() {
+	if c.httpClient == nil {
+		c.httpClient = &http.Client{
+			Transport: c.transportForConfig(c.transportConfig),
+		}
+	}
+	c.httpGate = syncutil.NewGate(httpGateSize(c.httpClient.Transport))
+}
+
+// NewOrFail is like New, but calls log.Fatal instead of returning an error.
 func NewOrFail(opts ...ClientOption) *Client {
-	c, err := NewDefault(opts...)
+	c, err := New(opts...)
 	if err != nil {
 		log.Fatalf("error creating client: %v", err)
 	}
@@ -202,17 +237,19 @@ func NewOrFail(opts ...ClientOption) *Client {
 }
 
 // NewPathClient returns a new client accessing a subpath of c.
-func (c *Client) NewPathClient(path string) *Client {
+func (c *Client) NewPathClient(path string) (*Client, error) {
 	u, err := url.Parse(c.server)
 	if err != nil {
-		// Better than nothing
-		return New(c.server + path)
+		return nil, fmt.Errorf("bogus server %q for NewPathClient receiver: %v", c.server, err)
 	}
 	u.Path = path
-	pc := New(u.String())
+	pc, err := New(OptionServer(u.String()))
+	if err != nil {
+		return nil, err
+	}
 	pc.authMode = c.authMode
 	pc.discoOnce.Do(noop)
-	return pc
+	return pc, nil
 }
 
 // NewStorageClient returns a Client that doesn't use HTTP, but uses s
@@ -310,6 +347,23 @@ type ClientOption interface {
 	modifyClient(*Client)
 }
 
+// OptionServer returns a Client constructor option that forces use of
+// the provided server.
+//
+// The provided server is either "host:port" (assumed http, not https)
+// or a URL prefix, with or without a path, or a server alias from the
+// client configuration file. A server alias should not be confused
+// with a hostname, therefore it cannot contain any colon or period.
+func OptionServer(server string) ClientOption {
+	return optionServer(server)
+}
+
+type optionServer string
+
+func (s optionServer) modifyClient(c *Client) {
+	c.server = string(s)
+}
+
 // OptionTransportConfig returns a ClientOption that makes the client use
 // the provided transport configuration options.
 func OptionTransportConfig(tc *TransportConfig) ClientOption {
@@ -359,24 +413,31 @@ func (o optionTrustedCert) modifyClient(c *Client) {
 	}
 }
 
-// OptionSameOrigin sets whether URLs in requests should be stripped from
-// their scheme and HostPort parts. This is meant for when using the client
-// through gopherjs in the web UI. Because we'll run into CORS errors if
-// requests have a Host part.
-func OptionSameOrigin(v bool) ClientOption {
-	return optionSameOrigin(v)
+type optionNoExtConfig bool
+
+func (o optionNoExtConfig) modifyClient(c *Client) {
+	c.noExtConfig = bool(o)
 }
 
-type optionSameOrigin bool
-
-func (o optionSameOrigin) modifyClient(c *Client) {
-	c.sameOrigin = bool(o)
+// OptionNoExternalConfig returns a Client constructor option that
+// prevents any on-disk config files or environment variables from
+// influencing the client. It may still use the disk for caches.
+func OptionNoExternalConfig() ClientOption {
+	return optionNoExtConfig(true)
 }
 
-type optionParamsOnly bool
+type optionAuthMode struct {
+	m auth.AuthMode
+}
 
-func (o optionParamsOnly) modifyClient(c *Client) {
-	c.paramsOnly = bool(o)
+func (o optionAuthMode) modifyClient(c *Client) {
+	c.authMode = o.m
+}
+
+// OptionAuthMode returns a Client constructor option that sets the
+// client's authentication mode.
+func OptionAuthMode(m auth.AuthMode) ClientOption {
+	return optionAuthMode{m}
 }
 
 // noop is for use with syncutil.Onces.
@@ -392,7 +453,10 @@ func NewFromShareRoot(ctx context.Context, shareBlobURL string, opts ...ClientOp
 	if m == nil {
 		return nil, blob.Ref{}, fmt.Errorf("Unknown share URL base")
 	}
-	c = New(m[1], opts...)
+	c, err = New(append(opts[:len(opts):cap(opts)], OptionServer(m[1]))...)
+	if err != nil {
+		return nil, blob.Ref{}, err
+	}
 	c.discoOnce.Do(noop)
 	c.prefixOnce.Do(noop)
 	c.prefixv = m[1]
@@ -1360,39 +1424,6 @@ func (c *Client) Close() error {
 		return cl.Close()
 	}
 	return nil
-}
-
-// NewFromParams returns a Client that uses the specified server base URL
-// and auth but does not use any on-disk config files or environment variables
-// for its configuration. It may still use the disk for caches.
-func NewFromParams(server string, mode auth.AuthMode, opts ...ClientOption) *Client {
-	// paramsOnly = true needs to be passed as soon as an argument, because
-	// there are code paths in newClient (c.transportForConfig) that can lead
-	// to parsing the config file.
-	opts = append(opts[:len(opts):len(opts)], optionParamsOnly(true))
-	return newClient(server, mode, opts...)
-}
-
-// TODO(bradfitz): move auth mode into a ClientOption? And
-// OptionNoDiskConfig to delete NewFromParams, etc, and just have New?
-
-func newClient(server string, mode auth.AuthMode, opts ...ClientOption) *Client {
-	c := &Client{
-		server:    server,
-		haveCache: noHaveCache{},
-		Logger:    log.New(os.Stderr, "", log.Ldate|log.Ltime),
-		authMode:  mode,
-	}
-	for _, v := range opts {
-		v.modifyClient(c)
-	}
-	if c.httpClient == nil {
-		c.httpClient = &http.Client{
-			Transport: c.transportForConfig(c.transportConfig),
-		}
-	}
-	c.httpGate = syncutil.NewGate(httpGateSize(c.httpClient.Transport))
-	return c
 }
 
 func httpGateSize(rt http.RoundTripper) int {

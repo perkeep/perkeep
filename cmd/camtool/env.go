@@ -79,7 +79,7 @@ func envSrcRoot() string {
 }
 
 func envSecretRingFile() string {
-	cc, err := client.NewDefault()
+	cc, err := client.New()
 	if err != nil {
 		return ""
 	}

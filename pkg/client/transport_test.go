@@ -165,7 +165,7 @@ func TestTransportSetup(t *testing.T) {
 	}
 	for tti, tt := range transportTests {
 		cl := &Client{
-			paramsOnly:         true,
+			noExtConfig:        true,
 			server:             tt.server,
 			trustedCerts:       tt.trustedCerts,
 			insecureAnyTLSCert: tt.insecureTLS,

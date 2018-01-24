@@ -187,7 +187,10 @@ func (d SelectAllBtnDef) findAll() (map[string]bool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Error setting up auth: %v", err)
 	}
-	cl := client.NewFromParams("", am, client.OptionSameOrigin(true))
+	cl, err := client.New(client.OptionAuthMode(am))
+	if err != nil {
+		return nil, err
+	}
 	res, err := cl.Query(context.TODO(), query)
 	if err != nil {
 		return nil, err

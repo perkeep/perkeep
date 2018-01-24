@@ -188,7 +188,10 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 		c.oneIsDisk = true
 		return disk, nil
 	}
-	cl := client.New(val, client.OptionInsecure(c.insecureTLS))
+	cl, err := client.New(client.OptionServer(val), client.OptionInsecure(c.insecureTLS))
+	if err != nil {
+		return nil, fmt.Errorf("creating client for %q: %v", val, err)
+	}
 	if httpClient != nil {
 		cl.SetHTTPClient(httpClient)
 	}
@@ -265,13 +268,20 @@ func (c *syncCmd) syncAll() error {
 		cmdmain.Logf("%v -> %v", sh.From, sh.To)
 	}
 	for _, sh := range syncHandlers {
-		from := client.New(sh.From, client.OptionInsecure(c.insecureTLS))
+		from, err := client.New(client.OptionServer(sh.From), client.OptionInsecure(c.insecureTLS))
+		if err != nil {
+			return fmt.Errorf("creating source client from %q: %v", sh.From, err)
+		}
 		from.Verbose = *cmdmain.FlagVerbose
 		from.Logger = log.New(cmdmain.Stderr, "", log.LstdFlags)
 		if err := from.SetupAuth(); err != nil {
 			return fmt.Errorf("could not setup auth for connecting to %v: %v", sh.From, err)
 		}
-		to := client.New(sh.To, client.OptionInsecure(c.insecureTLS))
+
+		to, err := client.New(client.OptionServer(sh.To), client.OptionInsecure(c.insecureTLS))
+		if err != nil {
+			return fmt.Errorf("creating destination client to %q: %v", sh.To, err)
+		}
 		to.Verbose = *cmdmain.FlagVerbose
 		to.Logger = log.New(cmdmain.Stderr, "", log.LstdFlags)
 		if err := to.SetupAuth(); err != nil {

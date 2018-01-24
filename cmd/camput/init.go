@@ -161,9 +161,12 @@ func (c *initCmd) clientConfigFromServer() (*clientconfig.Config, error) {
 		return nil, cmdmain.ErrUsage
 	}
 
-	cl := client.NewFromParams(server,
-		auth.NewBasicAuth(fields[0], fields[1]),
-		client.OptionInsecure(c.insecureTLS))
+	cl := client.NewOrFail(
+		client.OptionNoExternalConfig(),
+		client.OptionServer(server),
+		client.OptionAuthMode(auth.NewBasicAuth(fields[0], fields[1])),
+		client.OptionInsecure(c.insecureTLS),
+	)
 
 	helpRoot, err := cl.HelpRoot()
 	if err != nil {

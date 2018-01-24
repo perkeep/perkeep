@@ -58,8 +58,7 @@ func setupClient(w *test.World) (*client.Client, error) {
 		return nil, err
 	}
 	osutil.AddSecretRingFlag()
-	cl := client.New(w.ServerBaseURL())
-	return cl, nil
+	return client.New(client.OptionServer(w.ServerBaseURL()))
 }
 
 // GetRequiredChildPathObj returns the child object at path or an error if none exists.
