@@ -186,6 +186,7 @@ func New(opts ...ClientOption) (*Client, error) {
 		c.sameOrigin = true
 	}
 	if c.noExtConfig {
+		c.setDefaultHTTPClient()
 		return c, nil
 	}
 
