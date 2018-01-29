@@ -24,6 +24,8 @@ ADD cmd /gopath/src/perkeep.org/cmd
 ADD vendor /gopath/src/perkeep.org/vendor
 ADD server /gopath/src/perkeep.org/server
 ADD pkg /gopath/src/perkeep.org/pkg
+RUN mkdir -p /gopath/src/perkeep.org/clients
+ADD clients/web /gopath/src/perkeep.org/clients/web
 ADD make.go /gopath/src/perkeep.org/make.go
 RUN echo 'dev' > /gopath/src/perkeep.org/VERSION
 
