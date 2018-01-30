@@ -170,7 +170,7 @@ func commitEmailLoop() error {
 		}
 	}()
 
-	dir := camSrcDir()
+	dir := pkSrcDir()
 
 	http.HandleFunc("/latesthash", latestHashHandler)
 	http.HandleFunc("/debug/email", func(w http.ResponseWriter, r *http.Request) {

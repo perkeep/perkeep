@@ -44,7 +44,7 @@ func benchmarkWrite(b *testing.B, cfg string) {
 	if err != nil {
 		b.Fatalf("could not create server for config: %v\nError: %v", cfg, err)
 	}
-	testFile := filepath.Join(w.CamliSourceRoot(), testFileRel)
+	testFile := filepath.Join(w.SourceRoot(), testFileRel)
 	createTestFile(b, testFile, testFileSize)
 	defer os.Remove(testFile)
 	b.ResetTimer()
