@@ -116,7 +116,7 @@ func ServeBlobRef(rw http.ResponseWriter, req *http.Request, blobRef blob.Ref, f
 // dummyModTime is an arbitrary point in time that we send as fake modtimes for blobs.
 // Because blobs are content-addressable, they can never change, so it's better to send
 // *some* modtime and let clients do "If-Modified-Since" requests for it.
-// This time is the first commit of the Camlistore project.
+// This time is the first commit of the Perkeep project.
 var dummyModTime = time.Unix(1276213335, 0)
 
 func blobFromURLPath(path string) blob.Ref {

@@ -36,9 +36,9 @@ func main() {
 	cmdmain.Main()
 }
 
-const serverFlagHelp = "Format is is either a URL prefix (with optional path), a host[:port], a config file server alias, or blank to use the Camlistore client config's default server."
+const serverFlagHelp = "Format is is either a URL prefix (with optional path), a host[:port], a config file server alias, or blank to use the Perkeep client config's default server."
 
-// newClient returns a Camlistore client for the server.
+// newClient returns a Perkeep client for the server.
 // The server may be:
 //   * blank, to use the default in the config file
 //   * an alias, to use that named alias in the config file

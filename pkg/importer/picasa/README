@@ -2,7 +2,7 @@
 Picasa Importer
 ===============
 
-This is a working Camlistore importer for Picasa. So far it can import
+This is a working Perkeep importer for Picasa. So far it can import
 all photos but not their metadata.
 
 To use:

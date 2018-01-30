@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Command monthly builds the tarballs and zip archives for all the monthly
-// released Camlistore downloads. That is: source zip, linux and darwin tarballs,
+// released Perkeep downloads. That is: source zip, linux and darwin tarballs,
 // and windows zip. These files are then uploaded to the dedicated repository, as
 // well as a file with their checksum, for each of them. Finally, the template page
 // to serve these downloads with camweb is generated.
@@ -53,7 +53,7 @@ import (
 )
 
 var (
-	flagRev       = flag.String("rev", "", "Camlistore revision to build (tag or commit hash). For development purposes, you can instead specify the path to a local Camlistore source tree from which to build, with the form \"WIP:/path/to/dir\".")
+	flagRev       = flag.String("rev", "", "Perkeep revision to build (tag or commit hash). For development purposes, you can instead specify the path to a local Perkeep source tree from which to build, with the form \"WIP:/path/to/dir\".")
 	flagDate      = flag.String("date", "", "The release date to use in the file names to be uploaded, in the YYYYMMDD format. Defaults to today's date.")
 	flagUpload    = flag.Bool("upload", true, "Upload all the generated tarballs and zip archives.")
 	flagSkipGen   = flag.Bool("skipgen", false, "Do not recreate the release tarballs, and directly use the ones found in camlistore.org/misc/docker/release. Use -upload=false and -skipgen=true to only generate the monthly release page.")
@@ -226,7 +226,7 @@ var monthlyTemplate = `
 <h1>Monthly Release: {{.Date}}</h1>
 
 <p>
-Camlistore version <a href='https://github.com/perkeep/perkeep/commit/{{.CamliVersion}}'>{{.CamliVersion}}</a> built with Go {{.GoVersion}}.
+Perkeep version <a href='https://github.com/perkeep/perkeep/commit/{{.CamliVersion}}'>{{.CamliVersion}}</a> built with Go {{.GoVersion}}.
 </p>
 
 <h2>Downloads</h2>

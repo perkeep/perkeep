@@ -51,7 +51,7 @@ type Buildable interface {
 	Builder() *Builder
 }
 
-// A Blob represents a Camlistore schema blob.
+// A Blob represents a Perkeep schema blob.
 // It is immutable.
 type Blob struct {
 	br  blob.Ref
@@ -258,7 +258,7 @@ func (sf StaticFile) FileName() string {
 // zero value of StaticFile.
 func (b *Blob) AsStaticFile() (sf StaticFile, ok bool) {
 	// TODO (marete) Add support for device files to
-	// Camlistore and change the implementation of StaticFile to
+	// Perkeep and change the implementation of StaticFile to
 	// reflect that.
 	t := b.ss.Type
 	if t == "file" || t == "symlink" || t == "fifo" || t == "socket" {

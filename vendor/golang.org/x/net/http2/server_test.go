@@ -2327,7 +2327,7 @@ func TestServer_Response_ManyHeaders_With_Continuation(t *testing.T) {
 }
 
 // This previously crashed (reported by Mathieu Lonjaret as observed
-// while using Camlistore) because we got a DATA frame from the client
+// while using Perkeep) because we got a DATA frame from the client
 // after the handler exited and our logic at the time was wrong,
 // keeping a stream in the map in stateClosed, which tickled an
 // invariant check later when we tried to remove that stream (via

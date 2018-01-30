@@ -48,8 +48,8 @@ type PageHeader struct {
 	// subject. e.g. "/pics/foo/-/h341b133369" or "/pics/foo/-" if the subject
 	// is the published root itself.
 	SubjectBasePath string
-	// PathPrefix is the publisher app handler prefix on Camlistore, e.g.
-	// "/pics/", or "/" if the request was not proxied through Camlistore.
+	// PathPrefix is the publisher app handler prefix on Perkeep, e.g.
+	// "/pics/", or "/" if the request was not proxied through Perkeep.
 	PathPrefix string
 	Host       string
 }

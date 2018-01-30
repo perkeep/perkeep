@@ -104,7 +104,7 @@ func CamliBlobRoot() string {
 	return filepath.Join(CamliVarDir(), "blobs")
 }
 
-// RegisterConfigDirFunc registers a func f to return the Camlistore configuration directory.
+// RegisterConfigDirFunc registers a func f to return the Perkeep configuration directory.
 // It may skip by returning the empty string.
 func RegisterConfigDirFunc(f func() string) {
 	configDirFuncs = append(configDirFuncs, f)

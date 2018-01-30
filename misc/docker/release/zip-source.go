@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Command zip-source packs the Camlistore source in a zip file, for a release.
+// Command zip-source packs the Perkeep source in a zip file, for a release.
 // It should be run in a docker container.
 package main
 
@@ -39,7 +39,7 @@ import (
 )
 
 var (
-	flagRev     = flag.String("rev", "", "Camlistore revision to ship (tag or commit hash). For development purposes, you can instead specify the path to a local Camlistore source tree from which to build, with the form \"WIP:/path/to/dir\".")
+	flagRev     = flag.String("rev", "", "Perkeep revision to ship (tag or commit hash). For development purposes, you can instead specify the path to a local Perkeep source tree from which to build, with the form \"WIP:/path/to/dir\".")
 	flagVersion = flag.String("version", "", "The version number that is used in the zip file name, and in the VERSION file, e.g. 0.10")
 	flagOutDir  = flag.String("outdir", "/OUT/", "Directory where to write the zip file.")
 	flagSanity  = flag.Bool("sanity", true, "Check before making the zip that its contents pass the \"go run make.go\" test.")
@@ -98,7 +98,7 @@ func isWIP() bool {
 	return strings.HasPrefix(*flagRev, "WIP")
 }
 
-// localCamliSource returns the path to the local Camlistore source tree
+// localCamliSource returns the path to the local Perkeep source tree
 // that should be specified in *flagRev if *flagRev starts with "WIP:",
 // empty string otherwise.
 func localCamliSource() string {
@@ -248,7 +248,7 @@ func filter() {
 		}
 	}
 	// we insert the version in the VERSION file, so make.go does no need git
-	// in the container to detect the Camlistore version.
+	// in the container to detect the Perkeep version.
 	check(os.Chdir(destDir))
 	check(ioutil.WriteFile("VERSION", []byte(version()), 0777))
 }
@@ -264,7 +264,7 @@ func checkBuild() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("could not build Camlistore from tarball contents: %v", err)
+		log.Fatalf("could not build Perkeep from tarball contents: %v", err)
 	}
 	// cleanup
 	check(os.RemoveAll(path.Join(tarballSrc, "tmp")))
@@ -310,7 +310,7 @@ func pack() {
 	}))
 	check(w.Close())
 	check(fw.Close())
-	fmt.Printf("Camlistore source successfully packed in %v\n", zipFile)
+	fmt.Printf("Perkeep source successfully packed in %v\n", zipFile)
 }
 
 func checkArgs() {

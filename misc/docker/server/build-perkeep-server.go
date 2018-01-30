@@ -17,7 +17,7 @@ limitations under the License.
 */
 
 // Command build-camlistore-server builds camlistored and bundles all the
-// necessary resources for a Camlistore server in docker. It should be run in a
+// necessary resources for a Perkeep server in docker. It should be run in a
 // docker container.
 package main // import "perkeep.org/misc/docker/server"
 
@@ -38,7 +38,7 @@ import (
 )
 
 var (
-	flagRev = flag.String("rev", "", "Camlistore revision to build (tag or commit hash). For development purposes, you can instead specify the path to a local Camlistore source tree from which to build, with the form \"WIP:/path/to/dir\".")
+	flagRev = flag.String("rev", "", "Perkeep revision to build (tag or commit hash). For development purposes, you can instead specify the path to a local Perkeep source tree from which to build, with the form \"WIP:/path/to/dir\".")
 	outDir  = flag.String("outdir", "/OUT/", "Output directory, where camlistored and all the resources will be written")
 )
 
@@ -61,7 +61,7 @@ func isWIP() bool {
 	return strings.HasPrefix(*flagRev, "WIP")
 }
 
-// localCamliSource returns the path to the local Camlistore source tree
+// localCamliSource returns the path to the local Perkeep source tree
 // that should be specified in *flagRev if *flagRev starts with "WIP:",
 // empty string otherwise.
 func localCamliSource() string {
@@ -85,7 +85,7 @@ func getCamliSrc() {
 		fetchCamliSrc()
 	}
 	// we insert the version in the VERSION file, so make.go does no need git
-	// in the container to detect the Camlistore version.
+	// in the container to detect the Perkeep version.
 	check(os.Chdir("/gopath/src/perkeep.org"))
 	check(ioutil.WriteFile("VERSION", []byte(rev()), 0777))
 }

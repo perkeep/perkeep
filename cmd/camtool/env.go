@@ -44,7 +44,7 @@ func init() {
 }
 
 func (c *envCmd) Describe() string {
-	return "Return Camlistore environment information"
+	return "Return Perkeep environment information"
 }
 
 func (c *envCmd) Usage() {

@@ -44,7 +44,7 @@ var (
 )
 
 type tlsOpts struct {
-	autoCert  bool // use Camlistore's Let's Encrypt cache. but httpsCert takes precedence, if set.
+	autoCert  bool // use Perkeep's Let's Encrypt cache. but httpsCert takes precedence, if set.
 	httpsCert string
 	httpsKey  string
 }
@@ -236,7 +236,7 @@ func (b *lowBuilder) addPublishedConfig(tlsO *tlsOpts) error {
 			appConfig["httpsCert"] = v.HTTPSCert
 			appConfig["httpsKey"] = v.HTTPSKey
 		} else {
-			// default to Camlistore parameters, if any
+			// default to Perkeep parameters, if any
 			if tlsO != nil {
 				if tlsO.autoCert {
 					appConfig["certManager"] = tlsO.autoCert
@@ -292,7 +292,7 @@ func (b *lowBuilder) addScanCabConfig(tlsO *tlsOpts) error {
 		appConfig["httpsCert"] = scancab.HTTPSCert
 		appConfig["httpsKey"] = scancab.HTTPSKey
 	} else {
-		// default to Camlistore parameters, if any
+		// default to Perkeep parameters, if any
 		if tlsO != nil {
 			appConfig["httpsCert"] = tlsO.httpsCert
 			appConfig["httpsKey"] = tlsO.httpsKey

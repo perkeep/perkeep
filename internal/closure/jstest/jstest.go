@@ -71,7 +71,7 @@ func getRepoRoot(target string) (string, error) {
 	for ; dir != "" && filepath.Base(dir) != "camlistore.org"; dir = filepath.Dir(dir) {
 	}
 	if dir == "" {
-		return "", fmt.Errorf("Could not find Camlistore repo in ancestors of %q", target)
+		return "", fmt.Errorf("Could not find Perkeep repo in ancestors of %q", target)
 	}
 	return dir, nil
 }

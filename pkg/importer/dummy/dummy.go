@@ -59,7 +59,7 @@ type imp struct {
 	// resources. Some importers (e.g. Foursquare) use this space
 	// to cache mappings from site-specific global resource URLs
 	// (e.g. category icons) to the fileref once it's been copied
-	// into Camlistore.
+	// into Perkeep.
 
 }
 

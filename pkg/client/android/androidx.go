@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package android contains code specific to running the Camlistore client
+// Package android contains code specific to running the Perkeep client
 // code as a child process on Android. This removes ugly API from the
 // client package itself.
 package android // import "perkeep.org/pkg/client/android"

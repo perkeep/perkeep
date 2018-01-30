@@ -14,6 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package jsonsign implements Camlistore's cryptographic signing and
+// Package jsonsign implements Perkeep's cryptographic signing and
 // verification of JSON blobs.
 package jsonsign // import "perkeep.org/pkg/jsonsign"

@@ -591,7 +591,7 @@ func (h *handler) searchDocuments(limit int, opts searchOpts) (*search.SearchRes
 		// TODO(mpl): having added nodeattr.PaymentDueDate at the top of the list for what
 		// "counts" as a creation time in the corpus, we're getting the Due Documents results
 		// sorted for free, without apparently disturbing anything else (here or in the rest of
-		// Camlistore in general). But I feel like we're getting lucky. For example, if
+		// Perkeep in general). But I feel like we're getting lucky. For example, if
 		// somewhere we specifically wanted the list of documents strictly sorted by their
 		// creation date, we couldn't have it because any document with a due date would use it
 		// for the sort instead of its creation date. Anyway, I think sometime we'll have to

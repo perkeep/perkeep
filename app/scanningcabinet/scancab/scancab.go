@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // The scancab tool scans document and uploads them to the scanning cabinet
-// Camlistore application.
+// Perkeep application.
 package main
 
 import (

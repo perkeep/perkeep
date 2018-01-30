@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Some hacks to make make demoing Camlistore less distracting but
+# Some hacks to make make demoing Perkeep less distracting but
 # still permit using the dev-* scripts (which are normally slow and
 # noisy)
 

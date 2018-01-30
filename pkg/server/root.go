@@ -193,7 +193,7 @@ func (rh *RootHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, p, a...)
 	}
 	f("<html><body><p>This is camlistored (%s), a "+
-		"<a href='http://camlistore.org'>Camlistore</a> server.</p>", buildinfo.Version())
+		"<a href='http://perkeep.org'>Perkeep</a> server.</p>", buildinfo.Version())
 	if rh.ui != nil {
 		f("<p>To manage your content, access the <a href='%s'>%s</a>.</p>", rh.ui.prefix, rh.ui.prefix)
 	}

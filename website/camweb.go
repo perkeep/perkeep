@@ -570,7 +570,7 @@ func gceDeployHandler(prefix string) (*gce.DeployHandler, error) {
 		return nil, fmt.Errorf("AddTemplateTheme: %v", err)
 	}
 	gceh.SetScheme(scheme)
-	log.Printf("Starting Camlistore launcher on %s://%s%s", scheme, hostPort, prefix)
+	log.Printf("Starting Perkeep launcher on %s://%s%s", scheme, hostPort, prefix)
 	return gceh, nil
 }
 
@@ -749,10 +749,10 @@ func sendStartingEmail() {
 		return
 	}
 	mailGun = mailgun.NewMailgun(cfg.Domain, cfg.APIKey, cfg.PublicAPIKey)
-	contents := `Camlistore website starting with binary XXXXTODO and content at git rev ` + string(contentRev)
+	contents := `Perkeep website starting with binary XXXXTODO and content at git rev ` + string(contentRev)
 	m := mailGun.NewMessage(
-		"noreply@camlistore.org (Camlistore Website)",
-		"Camlistore camweb restarting",
+		"noreply@perkeep.org (Perkeep Website)",
+		"Perkeep camweb restarting",
 		contents,
 		"brad@danga.com",
 		"mathieu.lonjaret@gmail.com",

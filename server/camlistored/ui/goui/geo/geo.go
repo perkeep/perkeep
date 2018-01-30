@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package geo provides utilities helping with geographic coordinates in the map
-// aspect of the Camlistore web UI.
+// aspect of the Perkeep web UI.
 package geo
 
 import (
@@ -102,7 +102,7 @@ func rectangleFromPredicate(predicate, kind string) (*camtypes.LocationBounds, e
 }
 
 // IsLocPredicate returns whether the given predicate is a simple (as in, not
-// composed) location predicate, such as the one supported by the Camlistore search
+// composed) location predicate, such as the one supported by the Perkeep search
 // handler (e.g. "loc:seattle").
 func IsLocPredicate(predicate string) bool {
 	if !strings.HasPrefix(predicate, LocPredicatePrefix+":") {

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package camlegal registers the Camlistore License
+// Package camlegal registers the Perkeep License
 package camlegal // import "perkeep.org/pkg/camlegal"
 
 import "go4.org/legal"

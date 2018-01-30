@@ -33,7 +33,7 @@ const (
 	// CamliNetDNS is the hostname of the camlistore.net DNS server.
 	CamliNetDNS = "camnetdns.camlistore.org"
 	// CamliNetDomain is the camlistore.net domain name. It is relevant to
-	// Camlistore, because a deployment through the Camlistore on Google Cloud launcher
+	// Perkeep, because a deployment through the Perkeep on Google Cloud launcher
 	// automatically offers a subdomain name in this domain to any instance.
 	CamliNetDomain = "camlistore.net"
 
@@ -89,7 +89,7 @@ func DefaultEnvConfig() (*Config, error) {
 	// if it looks like an FQDN, camlistored is going to rely on Let's
 	// Encrypt, else camlistored is going to generate some self-signed for that
 	// hostname.
-	// Also, if the hostname is in camlistore.net, we want Camlistore to initialize
+	// Also, if the hostname is in camlistore.net, we want Perkeep to initialize
 	// exactly as if the instance had no hostname, so that it registers its hostname/IP
 	// with the camlistore.net DNS server (possibly needlessly, if the instance IP has
 	// not changed) again.

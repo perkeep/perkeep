@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package gce provides tools to deploy Camlistore on Google Compute Engine.
+// Package gce provides tools to deploy Perkeep on Google Compute Engine.
 package gce // import "perkeep.org/pkg/deploy/gce"
 
 import (

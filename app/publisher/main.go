@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // The publisher command is a server application to publish items from a
-// Camlistore server. See also https://camlistore.org/doc/publishing
+// Perkeep server. See also https://camlistore.org/doc/publishing
 package main
 
 import (
@@ -76,11 +76,11 @@ var (
 )
 
 // config is used to unmarshal the application configuration JSON
-// that we get from Camlistore when we request it at $CAMLI_APP_CONFIG_URL.
+// that we get from Perkeep when we request it at $CAMLI_APP_CONFIG_URL.
 type config struct {
 	HTTPSCert      string `json:"httpsCert,omitempty"`      // Path to the HTTPS certificate file.
 	HTTPSKey       string `json:"httpsKey,omitempty"`       // Path to the HTTPS key file.
-	CertManager    bool   `json:"certManager,omitempty"`    // Use Camlistore's Let's Encrypt cache to get a certificate.
+	CertManager    bool   `json:"certManager,omitempty"`    // Use Perkeep's Let's Encrypt cache to get a certificate.
 	RootName       string `json:"camliRoot"`                // Publish root name (i.e. value of the camliRoot attribute on the root permanode).
 	MaxResizeBytes int64  `json:"maxResizeBytes,omitempty"` // See constants.DefaultMaxResizeMem
 	SourceRoot     string `json:"sourceRoot,omitempty"`     // Path to the app's resources dir, such as html and css files.
@@ -218,8 +218,8 @@ func setupTLS(ws *webserver.Server, conf *config) error {
 		return nil
 	}
 
-	// As all requests to the publisher are proxied through Camlistore's app
-	// handler, it makes sense to assume that both Camlistore and the publisher
+	// As all requests to the publisher are proxied through Perkeep's app
+	// handler, it makes sense to assume that both Perkeep and the publisher
 	// are behind the same domain name. Therefore, it follows that
 	// camlistored's autocert is the one actually getting a cert (and answering
 	// the challenge) for the both of them. Plus, if they run on the same host

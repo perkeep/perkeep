@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package gce configures hooks for running Camlistore for Google Compute Engine.
+// Package gce configures hooks for running Perkeep for Google Compute Engine.
 package gce // import "perkeep.org/internal/osutil/gce"
 
 import (

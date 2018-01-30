@@ -125,8 +125,8 @@ Syncing
    cache other recently-accessed content locally, but not worry about
    it being destroyed when you drop and break your phone.
 
--- no encryption is assumed at the Camli storage layer, though you may
-   run a Camli storage node on an encrypted filesystem or blockdevice.
+-- no encryption is assumed at the Perkeep storage layer, though you may
+   run a Perkeep storage node on an encrypted filesystem or blockdevice.
 
 -=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=-=-
 Indexing Layer
@@ -146,12 +146,12 @@ Mid layer
 * It'll often be the case that a client (e.g. your phone) knows about
   a file (e.g. a photo) and has its metadata, but doesn't have its raw
   JPEG blob bytes, which might be several MB, and slow to transfer
-  over a wireless connection.  Camli storage nodes may also declare
+  over a wireless connection.  Perkeep storage nodes may also declare
   their support for helper APIs for when the client knows/assumes the
   type of a given blob.
 
   In addition to the operations in layer 1 above, you could also assume
-  most Camli storage nodes would support any API such as:
+  most Perkeep storage nodes would support any API such as:
 
      getThumbnail(blobName, [ ... sizeParams .. ]) -> JPEG thumbnail
 

@@ -46,7 +46,7 @@ func init() {
 			},
 			describe: false,
 		}
-		flags.StringVar(&cmd.syncCmd.src, "src", "", "Source blobserver is either a URL prefix (with optional path), a host[:port], a path (starting with /, ./, or ../), or blank to use the Camlistore client config's default host.")
+		flags.StringVar(&cmd.syncCmd.src, "src", "", "Source blobserver is either a URL prefix (with optional path), a host[:port], a path (starting with /, ./, or ../), or blank to use the Perkeep client config's default host.")
 		flags.BoolVar(&cmd.describe, "describe", false, "Use describe requests to get each blob's type. Requires a source server with a search endpoint. Mostly used for demos. Requires many extra round-trips to the server currently.")
 		return cmd
 	})

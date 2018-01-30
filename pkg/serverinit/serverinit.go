@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package serverinit is responsible for mapping from a Camlistore
+// Package serverinit is responsible for mapping from a Perkeep
 // configuration file and instantiating HTTP Handlers for all the
 // necessary endpoints.
 package serverinit // import "perkeep.org/pkg/serverinit"
@@ -57,7 +57,7 @@ import (
 
 const camliPrefix = "/camli/"
 
-var ErrCamliPath = errors.New("invalid Camlistore request path")
+var ErrCamliPath = errors.New("invalid Perkeep request path")
 
 type handlerConfig struct {
 	prefix   string         // "/foo/"
@@ -404,7 +404,7 @@ func handlerTypeWantsAuth(handlerType string) bool {
 	return false
 }
 
-// A Config is the wrapper around a Camlistore JSON configuration file.
+// A Config is the wrapper around a Perkeep JSON configuration file.
 // Files on disk can be in either high-level or low-level format, but
 // the Load function always returns the Config in its low-level format.
 type Config struct {
@@ -651,7 +651,7 @@ func dumpGoroutines(w http.ResponseWriter, r *http.Request) {
 // StartApps starts all the server applications that were configured
 // during InstallHandlers. It should only be called after camlistored
 // has started serving, since these apps might request some configuration
-// from Camlistore to finish initializing.
+// from Perkeep to finish initializing.
 func (config *Config) StartApps() error {
 	for _, ap := range config.apps {
 		if err := ap.Start(); err != nil {

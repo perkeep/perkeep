@@ -43,7 +43,7 @@ type memKeys struct {
 }
 
 // memIter converts from leveldb's iterator.Iterator interface, which
-// operates on []byte, to Camlistore's index.Iterator, which operates
+// operates on []byte, to Perkeep's index.Iterator, which operates
 // on string.
 type memIter struct {
 	lit  iterator.Iterator // underlying leveldb iterator

@@ -16,7 +16,7 @@ limitations under the License.
 
 /*
 Package remote registers the "remote" blobserver storage type, storing
-and fetching blobs from a remote Camlistore server over HTTPS.
+and fetching blobs from a remote Perkeep server over HTTPS.
 
 Example low-level config:
 
@@ -58,7 +58,7 @@ var (
 )
 
 // NewFromClient returns a new Storage implementation using the
-// provided Camlistore client.
+// provided Perkeep client.
 func NewFromClient(c *client.Client) blobserver.Storage {
 	return &remoteStorage{client: c}
 }

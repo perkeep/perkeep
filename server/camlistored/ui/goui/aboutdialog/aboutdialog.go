@@ -92,7 +92,7 @@ func (a AboutMenuItemDef) Render() react.Element {
 }
 
 type status struct {
-	Version string // Camlistore build version
+	Version string // Perkeep build version
 	GoInfo  string
 }
 

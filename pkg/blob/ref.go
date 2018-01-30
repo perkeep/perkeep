@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package blob defines types to refer to and retrieve low-level Camlistore blobs.
+// Package blob defines types to refer to and retrieve low-level Perkeep blobs.
 package blob // import "perkeep.org/pkg/blob"
 
 import (
@@ -35,7 +35,7 @@ import (
 // It does not contain ^ or $.
 const Pattern = `\b([a-z][a-z0-9]*)-([a-f0-9]+)\b`
 
-// Ref is a reference to a Camlistore blob.
+// Ref is a reference to a Perkeep blob.
 // It is used as a value type and supports equality (with ==) and the ability
 // to use it as a map key.
 type Ref struct {

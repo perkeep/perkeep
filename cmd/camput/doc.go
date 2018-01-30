@@ -64,7 +64,7 @@ For mode-specific help:
 Global options:
   -help=false: print usage
   -secret-keyring="~/.gnupg/secring.gpg": GnuPG secret keyring file to use.
-  -server="": Camlistore server prefix. If blank, the default from the "server" field of
+  -server="": Perkeep server prefix. If blank, the default from the "server" field of
   ~/.camlistore/config is used.
   Acceptable forms: https://you.example.com, example.com:1345 (https assumed),
   or http://you.example.com/alt-root

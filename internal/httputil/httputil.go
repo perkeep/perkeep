@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package httputil contains a bunch of HTTP utility code, some generic,
-// and some Camlistore-specific.
+// and some Perkeep-specific.
 package httputil // import "perkeep.org/internal/httputil"
 
 import (
@@ -270,7 +270,7 @@ func ServeJSONError(rw http.ResponseWriter, err interface{}) {
 	})
 }
 
-// TODO: use a sync.Pool if/when Go 1.3 includes it and Camlistore depends on that.
+// TODO: use a sync.Pool if/when Go 1.3 includes it and Perkeep depends on that.
 var freeBuf = make(chan *bytes.Buffer, 2)
 
 func getBuf() *bytes.Buffer {

@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Command build-binaries builds camlistored and the Camlistore tools.
+// Command build-binaries builds camlistored and the Perkeep tools.
 // It should be run in a docker container.
 package main // import "perkeep.org/misc/docker/release"
 
@@ -38,7 +38,7 @@ import (
 )
 
 var (
-	flagRev     = flag.String("rev", "", "Camlistore revision to build (tag or commit hash). For development purposes, you can instead specify the path to a local Camlistore source tree from which to build, with the form \"WIP:/path/to/dir\".")
+	flagRev     = flag.String("rev", "", "Perkeep revision to build (tag or commit hash). For development purposes, you can instead specify the path to a local Perkeep source tree from which to build, with the form \"WIP:/path/to/dir\".")
 	flagVersion = flag.String("version", "", "The optional version number (e.g. 0.9) that will be stamped into the binaries, in addition to the revision.")
 	outDir      = flag.String("outdir", "/OUT/", "Output directory, where the binaries will be written")
 	buildOS     = flag.String("os", runtime.GOOS, "Operating system to build for.")
@@ -63,7 +63,7 @@ func isWIP() bool {
 	return strings.HasPrefix(*flagRev, "WIP")
 }
 
-// localCamliSource returns the path to the local Camlistore source tree
+// localCamliSource returns the path to the local Perkeep source tree
 // that should be specified in *flagRev if *flagRev starts with "WIP:",
 // empty string otherwise.
 func localCamliSource() string {
@@ -95,7 +95,7 @@ func getCamliSrc() {
 		fetchCamliSrc()
 	}
 	// we insert the version in the VERSION file, so make.go does no need git
-	// in the container to detect the Camlistore version.
+	// in the container to detect the Perkeep version.
 	check(os.Chdir("/gopath/src/camlistore.org"))
 	check(ioutil.WriteFile("VERSION", []byte(version()), 0777))
 }
@@ -154,7 +154,7 @@ func build() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error building all Camlistore binaries for %v in go container: %v", *buildOS, err)
+		log.Fatalf("Error building all Perkeep binaries for %v in go container: %v", *buildOS, err)
 	}
 	srcDir := "bin"
 	if *buildOS != "linux" {
@@ -163,7 +163,7 @@ func build() {
 	}
 	cmd = exec.Command("mv", srcDir, path.Join(*outDir, "/bin"))
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error copying Camlistore binaries to %v: %v", path.Join(*outDir, "/bin"), err)
+		log.Fatalf("Error copying Perkeep binaries to %v: %v", path.Join(*outDir, "/bin"), err)
 	}
 }
 

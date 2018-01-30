@@ -35,7 +35,7 @@ import (
 
 // Query holds the parameters for the current query.
 type Query struct {
-	// AuthToken is the token for authenticating with Camlistore.
+	// AuthToken is the token for authenticating with Perkeep.
 	AuthToken string
 	// Expr is the search query expression.
 	Expr string

@@ -27,7 +27,7 @@ import (
 	"perkeep.org/pkg/constants"
 )
 
-// MaxBlobSize is the size of a single blob in Camlistore.
+// MaxBlobSize is the size of a single blob in Perkeep.
 const MaxBlobSize = constants.MaxBlobSize
 
 var (
@@ -219,7 +219,7 @@ implementations.
 If the client sees the same random string in multiple upload sessions,
 it assumes that the blobserver still has all the same blobs, and also
 it's the same server.  This mechanism is not fundamental to
-Camlistore's operation: the client could also check each blob before
+Perkeep's operation: the client could also check each blob before
 uploading, or enumerate all blobs from the server too.  This is purely
 an optimization so clients can mix this value into their "is this file
 uploaded?" local cache keys.

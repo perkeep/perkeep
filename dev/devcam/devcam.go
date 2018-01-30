@@ -46,7 +46,7 @@ var (
 	withSqlite bool
 )
 
-// The path to the Camlistore source tree. Any devcam command
+// The path to the Perkeep source tree. Any devcam command
 // should be run from there.
 var camliSrcRoot string
 
@@ -164,7 +164,7 @@ func checkCamliSrcRoot() {
 		if !os.IsNotExist(err) {
 			log.Fatalf("Could not stat make.go: %v", err)
 		}
-		log.Fatal("./make.go not found; devcam needs to be run from the Camlistore source tree root.")
+		log.Fatal("./make.go not found; devcam needs to be run from the Perkeep source tree root.")
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -187,7 +187,7 @@ func repoRoot() (string, error) {
 			return dir, nil
 		}
 		if len(dir) == rootlen && dir[rootlen-1] == filepath.Separator {
-			return "", fmt.Errorf(".git not found. Rerun from within the Camlistore source tree")
+			return "", fmt.Errorf(".git not found. Rerun from within the Perkeep source tree")
 		}
 		dir = filepath.Dir(dir)
 	}
