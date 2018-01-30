@@ -1,8 +1,8 @@
-To build Camlistore:
+To build Perkeep:
 
 1) Install Go 1.5 or later.
 
-2) cd to the root of the Camlistore source (where this file is)
+2) cd to the root of the Perkeep source (where this file is)
 
 3) Run:
 

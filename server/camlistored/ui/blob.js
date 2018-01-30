@@ -20,7 +20,7 @@ goog.require('goog.crypt');
 goog.require('goog.crypt.Sha1');
 goog.require('goog.crypt.Sha224');
 
-// Returns the Camlistore blobref for hash object. The hash function is currently sha224 or sha1, but more might be added later.
+// Returns the Perkeep blobref for hash object. The hash function is currently sha224 or sha1, but more might be added later.
 // @param {!goog.crypt.Hash} hash
 // @returns {!string}
 cam.blob.refFromHash = function(hash) {
@@ -33,7 +33,7 @@ cam.blob.refFromHash = function(hash) {
 	throw new Error('Unsupported hash function type');
 };
 
-// Returns the Camlistore blobref for a string using the currently recommended hash function.
+// Returns the Perkeep blobref for a string using the currently recommended hash function.
 // @param {!string} str
 // @returns {!string}
 cam.blob.refFromString = function(str) {
@@ -43,7 +43,7 @@ cam.blob.refFromString = function(str) {
 	return cam.blob.refFromHash(hash);
 };
 
-// Returns the Camlistore blobref for a DOM blob (different from Camlistore blob) using the currently recommended hash function. This function currently only works within workers.
+// Returns the Perkeep blobref for a DOM blob (different from Perkeep blob) using the currently recommended hash function. This function currently only works within workers.
 // @param {Blob} blob
 // @returns {!string}
 cam.blob.refFromDOMBlob = function(blob) {

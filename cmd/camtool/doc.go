@@ -25,7 +25,7 @@ Usage:
 
 Modes:
 
-  env: Return Camlistore environment information
+  env: Return Perkeep environment information
   googinit: Init Google Drive or Google Cloud Storage.
   list: List blobs on a server.
   claims: Ask the search system to list the claims that modify a permanode.

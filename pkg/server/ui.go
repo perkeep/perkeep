@@ -90,7 +90,7 @@ type UIHandler struct {
 	resizeSem *syncutil.Sem
 	thumbMeta *ThumbMeta // optional thumbnail key->blob.Ref cache
 
-	// sourceRoot optionally specifies the path to root of Camlistore's
+	// sourceRoot optionally specifies the path to root of Perkeep's
 	// source. If empty, the UI files must be compiled in to the
 	// binary (with go run make.go).  This comes from the "sourceRoot"
 	// ui handler config option.
@@ -322,7 +322,7 @@ func (ui *UIHandler) makeClosureHandler(root string) (http.Handler, error) {
 // root is either:
 // 1) empty: use the Closure files compiled in to the binary (if
 //    available), else redirect to the Internet.
-// 2) a URL prefix: base of Camlistore to get Closure to redirect to
+// 2) a URL prefix: base of Perkeep to get Closure to redirect to
 // 3) a path on disk to the root of camlistore's source (which
 //    contains the necessary subset of Closure files)
 func makeClosureHandler(root, handlerName string) (http.Handler, error) {
@@ -372,7 +372,7 @@ const closureBaseURL closureRedirector = "https://closure-library.googlecode.com
 
 // closureRedirector is a hack to redirect requests for Closure's million *.js files
 // to https://closure-library.googlecode.com/git.
-// TODO: this doesn't work when offline. We need to run genjsdeps over all of the Camlistore
+// TODO: this doesn't work when offline. We need to run genjsdeps over all of the Perkeep
 // UI to figure out which Closure *.js files to fileembed and generate zembed. Then this
 // type can be deleted.
 type closureRedirector string

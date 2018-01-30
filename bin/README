@@ -1,2 +1,2 @@
-This is where Camlistore binaries go after running "go run make.go" in
-the Camlistore root directory.
+This is where Perkeep binaries go after running "go run make.go" in
+the Perkeep root directory.

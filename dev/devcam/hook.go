@@ -105,7 +105,7 @@ func (c *hookCmd) Examples() []string {
 }
 
 func (c *hookCmd) Describe() string {
-	return "Install git hooks for Camlistore, and if given, run the hook given as argument. Currently available hooks are: " + strings.TrimSuffix(strings.Join(hookFiles, ", "), ",") + "."
+	return "Install git hooks for Perkeep, and if given, run the hook given as argument. Currently available hooks are: " + strings.TrimSuffix(strings.Join(hookFiles, ", "), ",") + "."
 }
 
 func (c *hookCmd) RunCommand(args []string) error {

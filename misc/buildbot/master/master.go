@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// The buildbot is Camlistore's continuous builder.
-// This master program monitors changes to the Go and Camlistore trees,
+// The buildbot is Perkeep's continuous builder.
+// This master program monitors changes to the Go and Perkeep trees,
 // then rebuilds and restarts a builder when a change dictates as much.
 // It receives a report from a builder when it has finished running
 // a test suite, but it can also poll a builder before completion
@@ -59,7 +59,7 @@ const (
 )
 
 var (
-	altCamliRevURL = flag.String("camlirevurl", "", "alternative URL to query about the latest camlistore revision hash (e.g camlistore.org/latesthash), to alleviate hitting too often the Camlistore git repo.")
+	altCamliRevURL = flag.String("camlirevurl", "", "alternative URL to query about the latest camlistore revision hash (e.g camlistore.org/latesthash), to alleviate hitting too often the Perkeep git repo.")
 	builderOpts    = flag.String("builderopts", "", "list of comma separated options that will be passed to the builders (ex: '-verbose=true,-faketests=true,-skipgo1build=true'). Mainly for debugging.")
 	builderPort    = flag.String("builderport", "8081", "listening port for the builder bot")
 	builderSrc     = flag.String("buildersrc", "", "Go source file for the builder bot. For testing changes to the builder bot that haven't been committed yet.")
@@ -1160,12 +1160,12 @@ var statusHTML = `
 <!DOCTYPE HTML>
 <html>
 	<head>
-		<title>Camlistore tests Dashboard</title>` +
+		<title>Perkeep tests Dashboard</title>` +
 	styleHTML + `
 	</head>
 	<body>
 
-	<h1>Camlibot status<span class="pull-right"><a href="` + stderrPrefix + `">stderr</a></span></h1>
+	<h1>Perkeep status<span class="pull-right"><a href="` + stderrPrefix + `">stderr</a></span></h1>
 
 	<table class="build">
 	<colgroup class="col-hash" span="1"></colgroup>
@@ -1180,7 +1180,7 @@ var statusHTML = `
 	<tr>
 	<th>{{$report.OSArch}}</th>
 	<th colspan="1">Go tip hash</th>
-	<th colspan="1">Camli HEAD hash</th>
+	<th colspan="1">Perkeep HEAD hash</th>
 	<th colspan="1">Go1.5</th>
 	<th colspan="1">Gotip</th>
 	</tr>

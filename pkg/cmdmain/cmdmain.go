@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package cmdmain contains the shared implementation for camget,
-// camput, camtool, and other Camlistore command-line tools.
+// camput, camtool, and other Perkeep command-line tools.
 package cmdmain // import "perkeep.org/pkg/cmdmain"
 
 import (

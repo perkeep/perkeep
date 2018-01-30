@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // The hello application serves as an example on how to make stand-alone
-// server applications, interacting with a Camlistore server.
+// server applications, interacting with a Perkeep server.
 package main // import "perkeep.org/app/hello"
 
 import (
@@ -37,7 +37,7 @@ var (
 )
 
 // config is used to unmarshal the application configuration JSON
-// that we get from Camlistore when we request it at $CAMLI_APP_CONFIG_URL.
+// that we get from Perkeep when we request it at $CAMLI_APP_CONFIG_URL.
 type config struct {
 	Word string `json:"word,omitempty"` // Argument printed after "Hello " in the helloHandler response.
 }
@@ -87,7 +87,7 @@ func main() {
 	conf := appConfig()
 	ws := webserver.New()
 	ws.Handle("/", &helloHandler{who: conf.Word})
-	// TODO(mpl): handle status requests too. Camlistore will send an auth
+	// TODO(mpl): handle status requests too. Perkeep will send an auth
 	// token in the extra config that should be used as the "password" for
 	// subsequent status requests.
 	if err := ws.Listen(listenAddr); err != nil {

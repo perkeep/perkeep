@@ -83,7 +83,7 @@ func (sn *BlobSniffer) Body() ([]byte, error) {
 }
 
 // MIMEType returns the sniffed blob's content-type or the empty string if unknown.
-// If the blob is a Camlistore schema metadata blob, the MIME type will be of
+// If the blob is a Perkeep schema metadata blob, the MIME type will be of
 // the form "application/json; camliType=foo".
 func (sn *BlobSniffer) MIMEType() string { return sn.mimeType }
 

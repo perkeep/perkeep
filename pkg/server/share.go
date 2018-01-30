@@ -309,7 +309,7 @@ func (h *shareHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	h.serveHTTP(rw, req)
 }
 
-// bytesHaveSchemaLink reports whether bb is a valid Camlistore schema
+// bytesHaveSchemaLink reports whether bb is a valid Perkeep schema
 // blob and has target somewhere in a schema field used to represent a
 // Merkle-tree-ish file or directory.
 func bytesHaveSchemaLink(br blob.Ref, bb []byte, target blob.Ref) bool {

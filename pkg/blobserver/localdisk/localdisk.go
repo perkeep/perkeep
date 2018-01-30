@@ -138,8 +138,8 @@ func New(root string) (*DiskStorage, error) {
 	if ul < minFDLimit {
 		return nil, fmt.Errorf("the max number of open file descriptors on your system (ulimit -n) is too low. Please fix it with 'ulimit -S -n X' with X being at least %d", recommendedFDLimit)
 	}
-	// Setting the gate to 80% of the ulimit, to leave a bit of room for other file ops happening in Camlistore.
-	// TODO(mpl): make this used and enforced Camlistore-wide. Issue #837.
+	// Setting the gate to 80% of the ulimit, to leave a bit of room for other file ops happening in Perkeep.
+	// TODO(mpl): make this used and enforced Perkeep-wide. Issue #837.
 	ds.tmpFileGate = syncutil.NewGate(int(ul * 80 / 100))
 	err = ds.checkFS()
 	if err != nil {

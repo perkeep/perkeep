@@ -61,7 +61,7 @@ var (
 )
 
 // config is used to unmarshal the application configuration JSON
-// that we get from Camlistore when we request it at $CAMLI_APP_CONFIG_URL.
+// that we get from Perkeep when we request it at $CAMLI_APP_CONFIG_URL.
 type extraConfig struct {
 	Auth       string `json:"auth,omitempty"`       // userpass:username:password
 	HTTPSCert  string `json:"httpsCert,omitempty"`  // path to the HTTPS certificate file.

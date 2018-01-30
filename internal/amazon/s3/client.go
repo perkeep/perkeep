@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package s3 implements a generic Amazon S3 client, not specific
-// to Camlistore.
+// to Perkeep.
 package s3 // import "perkeep.org/internal/amazon/s3"
 
 import (

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package search describes and answers Camlistore search queries.
+// Package search describes and answers Perkeep search queries.
 //
 // Many of the search methods or functions provide results that are
 // ordered by modification time, or at least depend on modification

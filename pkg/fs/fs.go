@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package fs implements a FUSE filesystem for Camlistore and is
+// Package fs implements a FUSE filesystem for Perkeep and is
 // used by the pk-mount binary.
 package fs // import "perkeep.org/pkg/fs"
 

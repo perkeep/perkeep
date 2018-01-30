@@ -241,7 +241,7 @@ func (c *initCmd) RunCommand(args []string) error {
 
 	bref := blob.RefFromString(string(pubArmor))
 
-	log.Printf("Your Camlistore identity (your GPG public key's blobref) is: %s", bref.String())
+	log.Printf("Your Perkeep identity (your GPG public key's blobref) is: %s", bref.String())
 
 	if c.noconfig {
 		return nil

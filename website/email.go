@@ -132,7 +132,7 @@ https://camlistore.googlesource.com/camlistore/+/%s
 %s`, hash, body)
 
 	m := mailGun.NewMessage(
-		"noreply@camlistore.org (Camlistore Commit)",
+		"noreply@perkeep.org (Perkeep Commit)",
 		string(subj),
 		contents,
 		*emailsTo,

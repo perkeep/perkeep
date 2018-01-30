@@ -245,7 +245,7 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 	if env.OnGCE() {
 		envStr = " (on GCE)"
 	}
-	f("<li><b>Camlistore</b>: %s%s</li>", html.EscapeString(buildinfo.Version()), envStr)
+	f("<li><b>Perkeep</b>: %s%s</li>", html.EscapeString(buildinfo.Version()), envStr)
 	f("<li><b>Go</b>: %s/%s %s, cgo=%v</li>", runtime.GOOS, runtime.GOARCH, runtime.Version(), cgoEnabled)
 	f("<li><b>djpeg</b>: %s", html.EscapeString(buildinfo.DjpegStatus()))
 	f("</ul>")
@@ -268,7 +268,7 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 		if err != nil {
 			log.Printf("error getting Google Cloud Console URL: %v", err)
 		} else {
-			f("   <li><b>Updating:</b> When a new image for Camlistore on GCE is available, you can update by hitting \"Reset\" (or \"Stop\", then \"Start\") for your instance on your <a href='%s'>Google Cloud Console</a>.<br>Alternatively, you can ssh to your instance and restart the Camlistore service with: <b>sudo systemctl restart camlistored</b>.</li>", console)
+			f("   <li><b>Updating:</b> When a new image for Perkeep on GCE is available, you can update by hitting \"Reset\" (or \"Stop\", then \"Start\") for your instance on your <a href='%s'>Google Cloud Console</a>.<br>Alternatively, you can ssh to your instance and restart the Perkeep service with: <b>sudo systemctl restart camlistored</b>.</li>", console)
 		}
 	}
 	f("</ul>")

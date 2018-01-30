@@ -44,7 +44,7 @@ const helpHTML string = `<html>
 			<h3>Client tools</h3>
 
 			<p>
-			You can download the Camlistore command line tools for Linux, Mac, and Windows at:
+			You can download the Perkeep command line tools for Linux, Mac, and Windows at:
 			<ul>
 				<li><a href="https://camlistore.org/download">camlistore.org/download</a></li>
 			</ul>
@@ -56,7 +56,7 @@ const helpHTML string = `<html>
                         {{ .SecringDownloadHint }}
 
 			<h3>Anything Else?</h3>
-			<p>See the Camlistore <a href='https://camlistore.org/doc/'>online documentation</a> and <a href='https://camlistore.org/community'>community contacts</a>.</p>
+			<p>See the Perkeep <a href='https://camlistore.org/doc/'>online documentation</a> and <a href='https://camlistore.org/community'>community contacts</a>.</p>
 		</body>
 	</html>`
 
@@ -168,7 +168,7 @@ func (hh *HelpHandler) serveHelpHTML(cc *clientconfig.Config, rw http.ResponseWr
 	if strings.HasPrefix(hh.serverSecRing, "/gcs/") {
 		bucketdir := strings.TrimPrefix(hh.serverSecRing, "/gcs/")
 		bucketdir = strings.TrimSuffix(bucketdir, "/identity-secring.gpg")
-		hint = template.HTML(fmt.Sprintf("<p>Download your GnuPG secret ring from <a href=\"https://console.developers.google.com/storage/browser/%s/\">https://console.developers.google.com/storage/browser/%s/</a> and place it in your <a href='https://camlistore.org/doc/client-config'>Camlistore client config directory</a>. Keep it private. It's not encrypted or password-protected and anybody in possession of it can create Camlistore claims as your identity.</p>\n",
+		hint = template.HTML(fmt.Sprintf("<p>Download your GnuPG secret ring from <a href=\"https://console.developers.google.com/storage/browser/%s/\">https://console.developers.google.com/storage/browser/%s/</a> and place it in your <a href='https://camlistore.org/doc/client-config'>Perkeep client config directory</a>. Keep it private. It's not encrypted or password-protected and anybody in possession of it can create Perkeep claims as your identity.</p>\n",
 			bucketdir, bucketdir))
 	}
 

@@ -244,7 +244,7 @@ cam.Header = React.createClass({
 			// TODO(mpl): link to https://camlistore.org in
 			// dialog text. But dialogs can only have text. So
 			// we'll need to make our own modal later.
-			'This is the web interface to a Camlistore server',
+			'This is the web interface to a Perkeep server',
 			'cam-header-menu-item',
 			this.props.config);
 	},

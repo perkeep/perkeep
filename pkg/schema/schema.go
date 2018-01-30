@@ -17,7 +17,7 @@ limitations under the License.
 // Package schema manipulates Camlistore schema blobs.
 //
 // A schema blob is a JSON-encoded blob that describes other blobs.
-// See documentation in Camlistore's doc/schema/ directory.
+// See documentation in Perkeep's doc/schema/ directory.
 package schema // import "perkeep.org/pkg/schema"
 
 import (
@@ -236,7 +236,7 @@ func NewDirectoryEntryFromBlobRef(ctx context.Context, fetcher blob.Fetcher, blo
 	return newDirectoryEntry(fetcher, ss)
 }
 
-// superset represents the superset of common Camlistore JSON schema
+// superset represents the superset of common Perkeep JSON schema
 // keys as a convenient json.Unmarshal target.
 // TODO(bradfitz): unexport this type. Getting too gross. Move to schema.Blob
 type superset struct {
@@ -860,7 +860,7 @@ const ShareHaveRef = "haveref"
 var UnknownLocation = time.FixedZone("Unknown", -60) // 1 minute west
 
 // IsZoneKnown reports whether t is in a known timezone.
-// Camlistore uses the magic timezone offset of 1 minute west of UTC
+// Perkeep uses the magic timezone offset of 1 minute west of UTC
 // to mean that the timezone wasn't known.
 func IsZoneKnown(t time.Time) bool {
 	if t.Location() == UnknownLocation {

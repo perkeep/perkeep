@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Command dock builds Camlistore's various Docker images.
-// It can also generate a tarball of the Camlistore server and tools.
+// Command dock builds Perkeep's various Docker images.
+// It can also generate a tarball of the Perkeep server and tools.
 package main // import "perkeep.org/misc/docker"
 
 import (
@@ -44,15 +44,15 @@ import (
 )
 
 var (
-	flagRev     = flag.String("rev", "", "Camlistore revision to build (tag or commit hash). For development purposes, you can instead specify the path to a local Camlistore source tree from which to build, with the form \"WIP:/path/to/dir\".")
+	flagRev     = flag.String("rev", "", "Perkeep revision to build (tag or commit hash). For development purposes, you can instead specify the path to a local Perkeep source tree from which to build, with the form \"WIP:/path/to/dir\".")
 	flagVersion = flag.String("tarball_version", "", "For --build_release mode, the version number (e.g. 0.9) used for the release tarball name. It also defines the destination directory where the release tarball is uploaded.")
 	buildOS     = flag.String("os", runtime.GOOS, "Operating system to build for. Requires --build_release.")
 
-	doImage    = flag.Bool("build_image", true, "build the Camlistore server as a docker image. Conflicts with --build_release.")
+	doImage    = flag.Bool("build_image", true, "build the Perkeep server as a docker image. Conflicts with --build_release.")
 	doUpload   = flag.Bool("upload", false, "With build_image, upload a snapshot of the server in docker as a tarball to https://storage.googleapis.com/camlistore-release/docker/. With build_release, upload the generated tarball at https://storage.googleapis.com/camlistore-release/dl/VERSION/.")
-	doBinaries = flag.Bool("build_release", false, "build the Camlistore server and tools as standalone binaries to a tarball in misc/docker/release. Requires --build_image=false.")
+	doBinaries = flag.Bool("build_release", false, "build the Perkeep server and tools as standalone binaries to a tarball in misc/docker/release. Requires --build_image=false.")
 
-	doZipSource = flag.Bool("zip_source", false, "pack the Camlistore source for a release in a zip file in misc/docker/release. Requires --build_image=false.")
+	doZipSource = flag.Bool("zip_source", false, "pack the Perkeep source for a release in a zip file in misc/docker/release. Requires --build_image=false.")
 	flagSanity  = flag.Bool("sanity", true, "When doing --zip_source, check the source used is buildable with \"go run make.go\".")
 )
 
@@ -83,7 +83,7 @@ const (
 	zoneinfoDockerImage = "perkeep/zoneinfo"
 	serverImage         = "perkeep/server"
 	goCmd               = "/usr/local/go/bin/go"
-	// Path to where the Camlistore builder is mounted on the perkeep/go image.
+	// Path to where the Perkeep builder is mounted on the perkeep/go image.
 	genCamliProgram    = "/usr/local/bin/build-perkeep-server.go"
 	genBinariesProgram = "/usr/local/bin/build-binaries.go"
 	zipSourceProgram   = "/usr/local/bin/zip-source.go"
@@ -93,7 +93,7 @@ func isWIP() bool {
 	return strings.HasPrefix(*flagRev, "WIP")
 }
 
-// localCamliSource returns the path to the local Camlistore source tree
+// localCamliSource returns the path to the local Perkeep source tree
 // that should be specified in *flagRev if *flagRev starts with "WIP:",
 // empty string otherwise.
 func localCamliSource() string {
@@ -157,7 +157,7 @@ func genBinaries(ctxDir string) {
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error building binaries in go container: %v", err)
 	}
-	fmt.Printf("Camlistore binaries successfully generated in %v\n", filepath.Join(ctxDir, "perkeep.org", "bin"))
+	fmt.Printf("Perkeep binaries successfully generated in %v\n", filepath.Join(ctxDir, "perkeep.org", "bin"))
 }
 
 func zipSource(ctxDir string) {
@@ -184,7 +184,7 @@ func zipSource(ctxDir string) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error zipping Camlistore source in go container: %v", err)
+		log.Fatalf("Error zipping Perkeep source in go container: %v", err)
 	}
 	setReleaseTarballName()
 	// can't use os.Rename because invalid cross-device link error likely
@@ -194,7 +194,7 @@ func zipSource(ctxDir string) {
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error moving source zip from %v to %v: %v", filepath.Join(ctxDir, "camlistore-src.zip"), releaseTarball, err)
 	}
-	fmt.Printf("Camlistore source successfully zipped in %v\n", releaseTarball)
+	fmt.Printf("Perkeep source successfully zipped in %v\n", releaseTarball)
 }
 
 func copyFinalDockerfile(ctxDir string) {
@@ -448,7 +448,7 @@ func packBinaries(ctxDir string) {
 				log.Fatalf("%v was not packed in tarball", name)
 			}
 		}
-		fmt.Printf("Camlistore binaries successfully packed in %v\n", releaseTarball)
+		fmt.Printf("Perkeep binaries successfully packed in %v\n", releaseTarball)
 	}()
 
 	binDir := path.Join(ctxDir, "perkeep.org", "bin")

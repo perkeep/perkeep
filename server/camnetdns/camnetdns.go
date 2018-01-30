@@ -35,10 +35,11 @@ import (
 	"perkeep.org/pkg/gpgchallenge"
 	"perkeep.org/pkg/sorted"
 
+	"context"
+
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/datastore"
 	"cloud.google.com/go/logging"
-	"context"
 	"github.com/miekg/dns"
 	"go4.org/cloud/cloudlaunch"
 	"golang.org/x/crypto/acme/autocert"
@@ -73,7 +74,7 @@ const (
 	// max number of records in the lru cache
 	cacheSize = 1e6
 	// stagingCamwebHost is the FQDN of the staging version of the
-	// Camlistore website. We handle it differently from the rest as:
+	// Perkeep website. We handle it differently from the rest as:
 	// 1) we discover its IP using the GCE API, 2) we only trust the stored
 	// version of it for 5 minutes.
 	stagingCamwebHost = "staging.camlistore.net."

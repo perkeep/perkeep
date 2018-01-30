@@ -1,5 +1,5 @@
 /*
-Copyright 2014 the Camlistore authors.
+Copyright 2014 the Perkeep authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,12 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package constants contains Camlistore constants.
+// Package constants contains Perkeep constants.
 //
 // This is a leaf package, without dependencies.
 package constants // import "perkeep.org/pkg/constants"
 
-// MaxBlobSize is the max size of a single blob in Camlistore, in bytes.
+// MaxBlobSize is the max size of a single blob in Perkeep, in bytes.
 const MaxBlobSize = 16 << 20
 
 // DefaultMaxResizeMem is the default maximum number of bytes that

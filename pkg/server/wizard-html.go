@@ -24,7 +24,7 @@ const topWizard = `
 <!doctype html>
 <html>
 <head>
-	<title>Camlistore setup</title>
+	<title>Perkeep setup</title>
 </head>
 <body>
 	<p>[<a href="/">Back</a>]</p>

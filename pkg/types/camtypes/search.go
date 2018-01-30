@@ -214,7 +214,7 @@ type BlobMeta struct {
 	Ref  blob.Ref
 	Size uint32
 
-	// CamliType is non-empty if this blob is a Camlistore JSON
+	// CamliType is non-empty if this blob is a Perkeep JSON
 	// schema blob. If so, this is its "camliType" attribute.
 	CamliType string
 

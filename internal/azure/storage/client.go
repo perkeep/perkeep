@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package storage implements a generic Azure storage client, not specific
-// to Camlistore.
+// to Perkeep.
 package storage
 
 import (

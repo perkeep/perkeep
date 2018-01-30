@@ -7,7 +7,7 @@ GetOptions("force" => \$opt_force) or die "Usage: make-release [-f] <version>";
 
 my $version = shift or die "Usage: make-release <version>";
 
-die "Not being run from root of Camlistore" unless -e ".git" && -e "pkg/blob/ref.go";
+die "Not being run from root of Perkeep" unless -e ".git" && -e "pkg/blob/ref.go";
 
 my $cur_branch = `git rev-parse --abbrev-ref HEAD`;
 chomp $cur_branch;

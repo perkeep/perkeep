@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package env detects what sort of environment Camlistore is running in.
+// Package env detects what sort of environment Perkeep is running in.
 package env // import "perkeep.org/pkg/env"
 
 import (

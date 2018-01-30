@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// The camlistored binary is the Camlistore server.
+// The camlistored binary is the Perkeep server.
 package main // import "perkeep.org/server/camlistored"
 
 import (
@@ -103,7 +103,7 @@ var (
 	flagHelp       = flag.Bool("help", false, "show usage")
 	flagLegal      = flag.Bool("legal", false, "show licenses")
 	flagConfigFile = flag.String("configfile", "",
-		"Config file to use, relative to the Camlistore configuration directory root. "+
+		"Config file to use, relative to the Perkeep configuration directory root. "+
 			"If blank, the default is used or auto-generated. "+
 			"If it starts with 'http:' or 'https:', it is fetched from the network.")
 	flagListen      = flag.String("listen", "", "host:port to listen on, or :0 to auto-select. If blank, the value in the config will be used instead.")
@@ -132,7 +132,7 @@ var (
 
 func init() {
 	if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
-		flag.BoolVar(&flagPollParent, "pollparent", false, "Camlistored regularly polls its parent process to detect if it has been orphaned, and terminates in that case. Mainly useful for tests.")
+		flag.BoolVar(&flagPollParent, "pollparent", false, "Perkeepd regularly polls its parent process to detect if it has been orphaned, and terminates in that case. Mainly useful for tests.")
 		flag.StringVar(&flagGCEProjectID, "gce_project_id", "", "GCE project ID; required by --gce_log_name.")
 		flag.StringVar(&flagGCELogName, "gce_log_name", "", "log all messages to that log name on Google Cloud Logging as well.")
 		flag.StringVar(&flagGCEJWTFile, "gce_jwt_file", "", "Filename to the GCE Service Account's JWT (JSON) config file; required by --gce_log_name.")
@@ -429,8 +429,8 @@ func keyRingAndId(config *serverinit.Config) (keyRing, keyId string, err error) 
 }
 
 // muxChallengeHandler initializes the gpgchallenge Client, and registers its
-// handler with Camlistore's muxer. The returned Client can then be used right
-// after Camlistore starts serving HTTPS connections.
+// handler with Perkeep's muxer. The returned Client can then be used right
+// after Perkeep starts serving HTTPS connections.
 func muxChallengeHandler(ws *webserver.Server, config *serverinit.Config) (*gpgchallenge.Client, error) {
 	camliNetIP := config.OptionalString("camliNetIP", "")
 	if camliNetIP == "" {
@@ -456,7 +456,7 @@ func muxChallengeHandler(ws *webserver.Server, config *serverinit.Config) (*gpgc
 // setInstanceHostname sets the "camlistore-hostname" metadata on the GCE
 // instance where camlistored is running. The value set is the same as the one we
 // register with the camlistore.net DNS, i.e. "<gpgKeyId>.camlistore.net", where
-// <gpgKeyId> is Camlistore's keyId.
+// <gpgKeyId> is Perkeep's keyId.
 func setInstanceHostname() error {
 	if !env.OnGCE() {
 		return nil
@@ -554,7 +554,7 @@ func setInstanceHostname() error {
 
 // requestHostName performs the GPG challenge to register/obtain a name in the
 // camlistore.net domain. The acquired name should be "<gpgKeyId>.camlistore.net",
-// where <gpgKeyId> is Camlistore's keyId.
+// where <gpgKeyId> is Perkeep's keyId.
 // It also starts a goroutine that will rerun the challenge every hour, to keep
 // the camlistore.net DNS server up to date.
 func requestHostName(cl *gpgchallenge.Client) error {
@@ -769,7 +769,7 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 
 	challengeClient, err := muxChallengeHandler(ws, config)
 	if err != nil {
-		exitf("Error registering challenge client with Camlistore muxer: %v", err)
+		exitf("Error registering challenge client with Perkeep muxer: %v", err)
 	}
 
 	go ws.Serve()

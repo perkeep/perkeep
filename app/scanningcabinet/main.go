@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // The scanning cabinet program is a server application to store scanned
-// documents in Camlistore, and to manage them. It is a port of the
+// documents in Perkeep, and to manage them. It is a port of the
 // application originally created by Brad Fitzpatrick:
 // https://github.com/bradfitz/scanningcabinet.
 //

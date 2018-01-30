@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// The buildbot is Camlistore's continuous builder.
+// The buildbot is Perkeep's continuous builder.
 // This builder program is started by the master. It then rebuilds
-// Go 1, GoTip, Camlistore, and runs a battery of tests for Camlistore.
+// Go 1, GoTip, Perkeep, and runs a battery of tests for Camlistore.
 // It then sends a report to the master and terminates.
 // It can also respond to progress requests from the master.
 package main // import "perkeep.org/misc/buildbot/builder"
@@ -792,7 +792,7 @@ func buildCamli() error {
 	if err := os.Chdir(camliRoot); err != nil {
 		log.Fatalf("Could not cd to %v: %v", camliRoot, err)
 	}
-	// Clean up Camlistore's hermetic gopaths
+	// Clean up Perkeep's hermetic gopaths
 	cleanBuildGopaths()
 
 	if *verbose {
@@ -803,7 +803,7 @@ func buildCamli() error {
 			return fmt.Errorf("failed to run 'go version': %v", err)
 		}
 		out = strings.TrimRight(out, "\n")
-		dbg.Printf("Building Camlistore with: %v\n", out)
+		dbg.Printf("Building Perkeep with: %v\n", out)
 	}
 	if _, err := newTaskFrom(buildCamliCmd).run(); err != nil {
 		return err
@@ -852,7 +852,7 @@ func killCamli() {
 	if camliProc == nil {
 		return
 	}
-	dbg.Println("killing Camlistore server")
+	dbg.Println("killing Perkeep server")
 	if err := camliProc.Kill(); err != nil {
 		log.Fatalf("Could not kill server with pid %v: %v", camliProc.Pid, err)
 	}

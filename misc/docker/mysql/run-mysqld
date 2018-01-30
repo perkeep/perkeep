@@ -2,7 +2,7 @@
 
 # Modified from
 # https://github.com/GoogleCloudPlatform/compute-docker-mysql which is
-# also Apache licensed, like Camlistore.
+# also Apache licensed, like Perkeep.
 
 env
 set -e

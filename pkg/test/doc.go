@@ -14,5 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package test provides common Camlistore test objects.
+// Package test provides common Perkeep test objects.
 package test // import "perkeep.org/pkg/test"

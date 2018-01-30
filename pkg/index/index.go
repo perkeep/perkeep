@@ -341,7 +341,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 }
 
 func (x *Index) String() string {
-	return fmt.Sprintf("Camlistore index, using key/value implementation %T", x.s)
+	return fmt.Sprintf("Perkeep index, using key/value implementation %T", x.s)
 }
 
 func (x *Index) isEmpty() bool {

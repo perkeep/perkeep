@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package app helps with configuring and starting server applications
-// from Camlistore.
+// from Perkeep.
 // See also https://camlistore.org/doc/app-environment for the related
 // variables.
 package app // import "perkeep.org/pkg/server/app"
@@ -47,7 +47,7 @@ import (
 )
 
 // Handler acts as a reverse proxy for a server application started by
-// Camlistore. It can also serve some extra JSON configuration to the app.
+// Perkeep. It can also serve some extra JSON configuration to the app.
 // In addition, the handler can be used as a limited search handler proxy.
 type Handler struct {
 	name    string            // Name of the app's program.
@@ -69,7 +69,7 @@ type Handler struct {
 	domainBlobsRefresh time.Time // last time the domainBlobs were refreshed
 
 	// Prefix is the URL path prefix where the app handler is mounted on
-	// Camlistore, stripped of its trailing slash. Examples:
+	// Perkeep, stripped of its trailing slash. Examples:
 	// "/pics", "/blog".
 	prefix             string
 	proxy              *httputil.ReverseProxy // For redirecting requests to the app.
@@ -291,7 +291,7 @@ func baseURL(serverBaseURL, listenAddr string) (string, error) {
 // jsonconfig.Obj.
 
 // HandlerConfig holds the configuration for an app Handler. See
-// https://camlistore.org/doc/app-environment for the corresponding environment
+// https://perkeep.org/doc/app-environment for the corresponding environment
 // variables. If developing an app, see FromJSONConfig and NewHandler for details
 // on where defaults are applied.
 type HandlerConfig struct {
@@ -301,7 +301,7 @@ type HandlerConfig struct {
 
 	// Prefix is the URL path prefix on APIHost where the app handler is mounted.
 	// It always ends with a trailing slash. Examples: "/pics/", "/blog/".
-	// Defaults to the Camlistore URL path prefix for this app handler.
+	// Defaults to the Perkeep URL path prefix for this app handler.
 	Prefix string `json:"prefix,omitempty"`
 
 	// Listen is the address (of the form host|ip:port) on which the app
@@ -310,7 +310,7 @@ type HandlerConfig struct {
 	// part and a random port.
 	Listen string `json:"listen,omitempty"`
 
-	// ServerListen is the Camlistore server's listen address. Defaults to
+	// ServerListen is the Perkeep server's listen address. Defaults to
 	// the ServerBaseURL host part.
 	ServerListen string `json:"serverListen,omitempty"`
 
@@ -321,11 +321,11 @@ type HandlerConfig struct {
 	// scheme, the ServerBaseURL host part, and the port of Listen.
 	BackendURL string `json:"backendURL,omitempty"`
 
-	// ServerBaseURL is the Camlistore server's BaseURL. Defaults to the
-	// BaseURL value in the Camlistore server configuration.
+	// ServerBaseURL is the Perkeep server's BaseURL. Defaults to the
+	// BaseURL value in the Perkeep server configuration.
 	ServerBaseURL string `json:"serverBaseURL,omitempty"`
 
-	// APIHost is the URL of the Camlistore server which the app should
+	// APIHost is the URL of the Perkeep server which the app should
 	// use to make API calls. It always ends in a trailing slash. It defines CAMLI_API_HOST.
 	// If empty, the default is ServerBaseURL, with a trailing slash appended.
 	APIHost string `json:"apiHost,omitempty"`
