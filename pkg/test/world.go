@@ -44,7 +44,7 @@ import (
 // camput, camget, camtool, etc) together in large tests, including
 // building them, finding them, and wiring them up in an isolated way.
 type World struct {
-	camRoot  string // typically $GOPATH[0]/src/perkeep.org
+	srcRoot  string // typically $GOPATH[0]/src/perkeep.org
 	config   string // server config file relative to pkg/test/testdata
 	tempDir  string
 	listener net.Listener // randomly chosen 127.0.0.1 port for the server
@@ -55,8 +55,8 @@ type World struct {
 	serverErr error
 }
 
-// CamliSourceRoot returns the root of the source tree, or an error.
-func camliSourceRoot() (string, error) {
+// pkSourceRoot returns the root of the source tree, or an error.
+func pkSourceRoot() (string, error) {
 	if os.Getenv("GOPATH") == "" {
 		return "", errors.New("GOPATH environment variable isn't set; required to run Perkeep integration tests")
 	}
@@ -77,7 +77,7 @@ func NewWorld() (*World, error) {
 // This cfg is the server config relative to pkg/test/testdata.
 // It requires that GOPATH is set to find the "perkeep.org" root.
 func WorldFromConfig(cfg string) (*World, error) {
-	root, err := camliSourceRoot()
+	root, err := pkSourceRoot()
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func WorldFromConfig(cfg string) (*World, error) {
 	}
 
 	return &World{
-		camRoot:  root,
+		srcRoot:  root,
 		config:   cfg,
 		listener: ln,
 		port:     ln.Addr().(*net.TCPAddr).Port,
@@ -98,9 +98,9 @@ func (w *World) Addr() string {
 	return w.listener.Addr().String()
 }
 
-// CamliSourceRoot returns the root of the source tree.
-func (w *World) CamliSourceRoot() string {
-	return w.camRoot
+// SourceRoot returns the root of the source tree.
+func (w *World) SourceRoot() string {
+	return w.srcRoot
 }
 
 // Build builds the Perkeep binaries.
@@ -120,7 +120,7 @@ func (w *World) Build() error {
 		}
 		var latestModtime time.Time
 		for _, target := range targs {
-			binPath := filepath.Join(w.camRoot, "bin", target)
+			binPath := filepath.Join(w.srcRoot, "bin", target)
 			fi, err := os.Stat(binPath)
 			if err != nil {
 				if !os.IsNotExist(err) {
@@ -141,7 +141,7 @@ func (w *World) Build() error {
 			// can be made true if devcam test -verbose ?
 			cmd.Args = append(cmd.Args, "-v=true")
 		}
-		cmd.Dir = w.camRoot
+		cmd.Dir = w.srcRoot
 		log.Print("Running make.go to build perkeep binaries for testing...")
 		out, err := cmd.CombinedOutput()
 		if err != nil {
@@ -162,7 +162,7 @@ func (w *World) Help() ([]byte, error) {
 	}
 	// Run camlistored -help.
 	cmd := exec.Command(
-		filepath.Join(w.camRoot, "bin", "camlistored"),
+		filepath.Join(w.srcRoot, "bin", "camlistored"),
 		"-help",
 	)
 	return cmd.CombinedOutput()
@@ -176,9 +176,9 @@ func (w *World) Start() error {
 	// Start camlistored.
 	{
 		w.server = exec.Command(
-			filepath.Join(w.camRoot, "bin", "camlistored"),
+			filepath.Join(w.srcRoot, "bin", "camlistored"),
 			"--openbrowser=false",
-			"--configfile="+filepath.Join(w.camRoot, "pkg", "test", "testdata", w.config),
+			"--configfile="+filepath.Join(w.srcRoot, "pkg", "test", "testdata", w.config),
 			"--listen=FD:3",
 			"--pollparent=true",
 		)
@@ -194,7 +194,7 @@ func (w *World) Start() error {
 		w.server.Env = append(os.Environ(),
 			"CAMLI_DEBUG=1",
 			"CAMLI_ROOT="+w.tempDir,
-			"CAMLI_SECRET_RING="+filepath.Join(w.camRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")),
+			"CAMLI_SECRET_RING="+filepath.Join(w.srcRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")),
 			"CAMLI_BASE_URL=http://127.0.0.1:"+strconv.Itoa(w.port),
 		)
 		listenerFD, err := w.listener.(*net.TCPListener).File()
@@ -302,8 +302,8 @@ func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cm
 			// but camtool is never used. (and pk-mount does not even have a -verbose).
 			args = append([]string{"-verbose"}, args...)
 		}
-		cmd = exec.Command(filepath.Join(w.camRoot, "bin", binary), args...)
-		clientConfigDir := filepath.Join(w.camRoot, "config", "dev-client-dir")
+		cmd = exec.Command(filepath.Join(w.srcRoot, "bin", binary), args...)
+		clientConfigDir := filepath.Join(w.srcRoot, "config", "dev-client-dir")
 		cmd.Env = append([]string{
 			"CAMLI_CONFIG_DIR=" + clientConfigDir,
 			// Respected by env expansions in config/dev-client-dir/client-config.json:
@@ -387,7 +387,7 @@ func (w *World) ClientIdentity() string {
 // SecretRingFile returns the GnuPG secret ring, suitable for setting
 // in CAMLI_SECRET_RING.
 func (w *World) SecretRingFile() string {
-	return filepath.Join(w.camRoot, "pkg", "jsonsign", "testdata", "test-secring.gpg")
+	return filepath.Join(w.srcRoot, "pkg", "jsonsign", "testdata", "test-secring.gpg")
 }
 
 // SearchHandlerPath returns the path to the search handler, with trailing slash.
@@ -395,5 +395,5 @@ func (w *World) SearchHandlerPath() string { return "/my-search/" }
 
 // ServerBinary returns the location of the camlistored binary running for this World.
 func (w *World) ServerBinary() string {
-	return filepath.Join(w.camRoot, "bin", "camlistored")
+	return filepath.Join(w.srcRoot, "bin", "camlistored")
 }

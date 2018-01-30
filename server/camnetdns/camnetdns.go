@@ -19,6 +19,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"errors"
@@ -34,8 +35,6 @@ import (
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/gpgchallenge"
 	"perkeep.org/pkg/sorted"
-
-	"context"
 
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/datastore"

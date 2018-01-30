@@ -696,7 +696,7 @@ func runDemoBlobServerContainer(name string) error {
 		"--name="+name,
 		"-e", "CAMLI_ROOT="+prodSrcDir+"/website/blobserver-example/root",
 		"-e", "CAMLI_PASSWORD="+randHex(20),
-		"-v", camSrcDir()+":"+prodSrcDir,
+		"-v", pkSrcDir()+":"+prodSrcDir,
 		"--net=host",
 		"--workdir="+prodSrcDir,
 		"camlistore/demoblobserver",
@@ -1174,7 +1174,7 @@ func errHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func camSrcDir() string {
+func pkSrcDir() string {
 	if inProd {
 		return prodSrcDir
 	}

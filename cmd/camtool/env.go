@@ -31,7 +31,7 @@ var envMap = map[string]func() string{
 	"configdir":    osutil.CamliConfigDir,
 	"clientconfig": osutil.UserClientConfigPath,
 	"serverconfig": osutil.UserServerConfigPath,
-	"camsrcroot":   envSrcRoot,
+	"srcroot":      envSrcRoot,
 	"secretring":   envSecretRingFile,
 }
 
