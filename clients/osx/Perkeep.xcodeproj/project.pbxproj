@@ -9,9 +9,9 @@
 /* Begin PBXBuildFile section */
 		DA31F9381866744D002E3F33 /* TimeTravelWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = DA31F9361866744D002E3F33 /* TimeTravelWindowController.m */; };
 		DA31F9391866744D002E3F33 /* TimeTravelWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = DA31F9371866744D002E3F33 /* TimeTravelWindowController.xib */; };
-		DA71BCB718642A3A000A102C /* Camlicon.icns in Resources */ = {isa = PBXBuildFile; fileRef = DA71BCB618642A3A000A102C /* Camlicon.icns */; };
+		DA71BCB718642A3A000A102C /* PerkeepIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = DA71BCB618642A3A000A102C /* PerkeepIcon.icns */; };
 		DAABA574186435DA000D62B6 /* camlistored in Resources */ = {isa = PBXBuildFile; fileRef = DAABA572186435DA000D62B6 /* camlistored */; };
-		DAABA575186435DA000D62B6 /* cammount in Resources */ = {isa = PBXBuildFile; fileRef = DAABA573186435DA000D62B6 /* cammount */; };
+		DAABA575186435DA000D62B6 /* pk-mount in Resources */ = {isa = PBXBuildFile; fileRef = DAABA573186435DA000D62B6 /* pk-mount */; };
 		DAABA57718643710000D62B6 /* Credits.html in Resources */ = {isa = PBXBuildFile; fileRef = DAABA57618643710000D62B6 /* Credits.html */; };
 		DAD59F8C1877CC250018193C /* camput in Resources */ = {isa = PBXBuildFile; fileRef = DAD59F8B1877CC250018193C /* camput */; };
 		DAF109491863EDAF00F6A3F9 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DAF109481863EDAF00F6A3F9 /* Cocoa.framework */; };
@@ -22,7 +22,7 @@
 		DAF109681863EDAF00F6A3F9 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DAF109671863EDAF00F6A3F9 /* XCTest.framework */; };
 		DAF109691863EDAF00F6A3F9 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DAF109481863EDAF00F6A3F9 /* Cocoa.framework */; };
 		DAF109711863EDAF00F6A3F9 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = DAF1096F1863EDAF00F6A3F9 /* InfoPlist.strings */; };
-		DAF109731863EDAF00F6A3F9 /* CamlistoreTests.m in Sources */ = {isa = PBXBuildFile; fileRef = DAF109721863EDAF00F6A3F9 /* CamlistoreTests.m */; };
+		DAF109731863EDAF00F6A3F9 /* PerkeepTests.m in Sources */ = {isa = PBXBuildFile; fileRef = DAF109721863EDAF00F6A3F9 /* PerkeepTests.m */; };
 		DAF1097E1863EEFB00F6A3F9 /* LoginItemManager.m in Sources */ = {isa = PBXBuildFile; fileRef = DAF1097D1863EEFB00F6A3F9 /* LoginItemManager.m */; };
 		DAF109831863F1F900F6A3F9 /* menuicon-selected.png in Resources */ = {isa = PBXBuildFile; fileRef = DAF1097F1863F1F900F6A3F9 /* menuicon-selected.png */; };
 		DAF109841863F1F900F6A3F9 /* menuicon-selected@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = DAF109801863F1F900F6A3F9 /* menuicon-selected@2x.png */; };
@@ -38,14 +38,14 @@
 			containerPortal = DAF1093D1863EDAF00F6A3F9 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = DAF109441863EDAF00F6A3F9;
-			remoteInfo = Camlistore;
+			remoteInfo = Perkeep;
 		};
 		DAF1096A1863EDAF00F6A3F9 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = DAF1093D1863EDAF00F6A3F9 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = DAF109441863EDAF00F6A3F9;
-			remoteInfo = Camlistore;
+			remoteInfo = Perkeep;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -53,29 +53,29 @@
 		DA31F9351866744D002E3F33 /* TimeTravelWindowController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TimeTravelWindowController.h; sourceTree = "<group>"; };
 		DA31F9361866744D002E3F33 /* TimeTravelWindowController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TimeTravelWindowController.m; sourceTree = "<group>"; };
 		DA31F9371866744D002E3F33 /* TimeTravelWindowController.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = TimeTravelWindowController.xib; sourceTree = "<group>"; };
-		DA71BCB618642A3A000A102C /* Camlicon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Camlicon.icns; sourceTree = "<group>"; };
-		DAABA572186435DA000D62B6 /* camlistored */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = camlistored; path = ../../../bin/camlistored; sourceTree = "<group>"; };
-		DAABA573186435DA000D62B6 /* cammount */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = cammount; path = ../../../bin/cammount; sourceTree = "<group>"; };
+		DA71BCB618642A3A000A102C /* PerkeepIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = PerkeepIcon.icns; sourceTree = "<group>"; };
+		DAABA572186435DA000D62B6 /* camlistored */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = camlistored; path = ../../bin/camlistored; sourceTree = "<group>"; };
+		DAABA573186435DA000D62B6 /* pk-mount */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "pk-mount"; path = "../../bin/pk-mount"; sourceTree = "<group>"; };
 		DAABA57618643710000D62B6 /* Credits.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; path = Credits.html; sourceTree = "<group>"; };
-		DAD59F8B1877CC250018193C /* camput */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = camput; path = ../../../bin/camput; sourceTree = "<group>"; };
-		DAF109451863EDAF00F6A3F9 /* Camlistore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Camlistore.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DAD59F8B1877CC250018193C /* camput */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = camput; path = ../../bin/camput; sourceTree = "<group>"; };
+		DAF109451863EDAF00F6A3F9 /* Perkeep.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Perkeep.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DAF109481863EDAF00F6A3F9 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		DAF1094B1863EDAF00F6A3F9 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
 		DAF1094C1863EDAF00F6A3F9 /* CoreData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreData.framework; path = System/Library/Frameworks/CoreData.framework; sourceTree = SDKROOT; };
 		DAF1094D1863EDAF00F6A3F9 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
-		DAF109501863EDAF00F6A3F9 /* Camlistore-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Camlistore-Info.plist"; sourceTree = "<group>"; };
+		DAF109501863EDAF00F6A3F9 /* Perkeep-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Perkeep-Info.plist"; sourceTree = "<group>"; };
 		DAF109521863EDAF00F6A3F9 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		DAF109541863EDAF00F6A3F9 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
-		DAF109561863EDAF00F6A3F9 /* Camlistore-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Camlistore-Prefix.pch"; sourceTree = "<group>"; };
+		DAF109561863EDAF00F6A3F9 /* Perkeep-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Perkeep-Prefix.pch"; sourceTree = "<group>"; };
 		DAF1095A1863EDAF00F6A3F9 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		DAF1095B1863EDAF00F6A3F9 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
 		DAF1095E1863EDAF00F6A3F9 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
 		DAF109601863EDAF00F6A3F9 /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
-		DAF109661863EDAF00F6A3F9 /* CamlistoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CamlistoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		DAF109661863EDAF00F6A3F9 /* PerkeepTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PerkeepTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DAF109671863EDAF00F6A3F9 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
-		DAF1096E1863EDAF00F6A3F9 /* CamlistoreTests-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "CamlistoreTests-Info.plist"; sourceTree = "<group>"; };
+		DAF1096E1863EDAF00F6A3F9 /* PerkeepTests-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "PerkeepTests-Info.plist"; sourceTree = "<group>"; };
 		DAF109701863EDAF00F6A3F9 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
-		DAF109721863EDAF00F6A3F9 /* CamlistoreTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = CamlistoreTests.m; sourceTree = "<group>"; };
+		DAF109721863EDAF00F6A3F9 /* PerkeepTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PerkeepTests.m; sourceTree = "<group>"; };
 		DAF1097C1863EEFB00F6A3F9 /* LoginItemManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LoginItemManager.h; sourceTree = "<group>"; };
 		DAF1097D1863EEFB00F6A3F9 /* LoginItemManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = LoginItemManager.m; sourceTree = "<group>"; };
 		DAF1097F1863F1F900F6A3F9 /* menuicon-selected.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "menuicon-selected.png"; sourceTree = "<group>"; };
@@ -112,9 +112,9 @@
 			children = (
 				DAD59F8B1877CC250018193C /* camput */,
 				DAABA572186435DA000D62B6 /* camlistored */,
-				DAABA573186435DA000D62B6 /* cammount */,
-				DAF1094E1863EDAF00F6A3F9 /* Camlistore */,
-				DAF1096C1863EDAF00F6A3F9 /* CamlistoreTests */,
+				DAABA573186435DA000D62B6 /* pk-mount */,
+				DAF1094E1863EDAF00F6A3F9 /* Perkeep */,
+				DAF1096C1863EDAF00F6A3F9 /* PerkeepTests */,
 				DAF109471863EDAF00F6A3F9 /* Frameworks */,
 				DAF109461863EDAF00F6A3F9 /* Products */,
 			);
@@ -123,8 +123,8 @@
 		DAF109461863EDAF00F6A3F9 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				DAF109451863EDAF00F6A3F9 /* Camlistore.app */,
-				DAF109661863EDAF00F6A3F9 /* CamlistoreTests.xctest */,
+				DAF109451863EDAF00F6A3F9 /* Perkeep.app */,
+				DAF109661863EDAF00F6A3F9 /* PerkeepTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -149,7 +149,7 @@
 			name = "Other Frameworks";
 			sourceTree = "<group>";
 		};
-		DAF1094E1863EDAF00F6A3F9 /* Camlistore */ = {
+		DAF1094E1863EDAF00F6A3F9 /* Perkeep */ = {
 			isa = PBXGroup;
 			children = (
 				DAF1095A1863EDAF00F6A3F9 /* AppDelegate.h */,
@@ -165,39 +165,39 @@
 				DA31F9361866744D002E3F33 /* TimeTravelWindowController.m */,
 				DA31F9371866744D002E3F33 /* TimeTravelWindowController.xib */,
 			);
-			path = Camlistore;
+			path = Perkeep;
 			sourceTree = "<group>";
 		};
 		DAF1094F1863EDAF00F6A3F9 /* Supporting Files */ = {
 			isa = PBXGroup;
 			children = (
 				DAABA57618643710000D62B6 /* Credits.html */,
-				DA71BCB618642A3A000A102C /* Camlicon.icns */,
+				DA71BCB618642A3A000A102C /* PerkeepIcon.icns */,
 				DAF1097F1863F1F900F6A3F9 /* menuicon-selected.png */,
 				DAF109801863F1F900F6A3F9 /* menuicon-selected@2x.png */,
 				DAF109811863F1F900F6A3F9 /* menuicon.png */,
 				DAF109821863F1F900F6A3F9 /* menuicon@2x.png */,
-				DAF109501863EDAF00F6A3F9 /* Camlistore-Info.plist */,
+				DAF109501863EDAF00F6A3F9 /* Perkeep-Info.plist */,
 				DAF109511863EDAF00F6A3F9 /* InfoPlist.strings */,
 				DAF109541863EDAF00F6A3F9 /* main.m */,
-				DAF109561863EDAF00F6A3F9 /* Camlistore-Prefix.pch */,
+				DAF109561863EDAF00F6A3F9 /* Perkeep-Prefix.pch */,
 			);
 			name = "Supporting Files";
 			sourceTree = "<group>";
 		};
-		DAF1096C1863EDAF00F6A3F9 /* CamlistoreTests */ = {
+		DAF1096C1863EDAF00F6A3F9 /* PerkeepTests */ = {
 			isa = PBXGroup;
 			children = (
-				DAF109721863EDAF00F6A3F9 /* CamlistoreTests.m */,
+				DAF109721863EDAF00F6A3F9 /* PerkeepTests.m */,
 				DAF1096D1863EDAF00F6A3F9 /* Supporting Files */,
 			);
-			path = CamlistoreTests;
+			path = PerkeepTests;
 			sourceTree = "<group>";
 		};
 		DAF1096D1863EDAF00F6A3F9 /* Supporting Files */ = {
 			isa = PBXGroup;
 			children = (
-				DAF1096E1863EDAF00F6A3F9 /* CamlistoreTests-Info.plist */,
+				DAF1096E1863EDAF00F6A3F9 /* PerkeepTests-Info.plist */,
 				DAF1096F1863EDAF00F6A3F9 /* InfoPlist.strings */,
 			);
 			name = "Supporting Files";
@@ -206,10 +206,10 @@
 /* End PBXGroup section */
 
 /* Begin PBXLegacyTarget section */
-		DAC21F08188B358700EEA8BB /* Camlistore.dmg */ = {
+		DAC21F08188B358700EEA8BB /* Perkeep.dmg */ = {
 			isa = PBXLegacyTarget;
-			buildArgumentsString = "Camlistore/make-dmg.sh";
-			buildConfigurationList = DAC21F0B188B358700EEA8BB /* Build configuration list for PBXLegacyTarget "Camlistore.dmg" */;
+			buildArgumentsString = "Perkeep/make-dmg.sh";
+			buildConfigurationList = DAC21F0B188B358700EEA8BB /* Build configuration list for PBXLegacyTarget "Perkeep.dmg" */;
 			buildPhases = (
 			);
 			buildToolPath = /bin/sh;
@@ -217,16 +217,16 @@
 			dependencies = (
 				DAC21F0D188B359300EEA8BB /* PBXTargetDependency */,
 			);
-			name = Camlistore.dmg;
+			name = Perkeep.dmg;
 			passBuildSettingsInEnvironment = 1;
-			productName = CamlistoreDMG;
+			productName = PerkeepDMG;
 		};
 /* End PBXLegacyTarget section */
 
 /* Begin PBXNativeTarget section */
-		DAF109441863EDAF00F6A3F9 /* Camlistore */ = {
+		DAF109441863EDAF00F6A3F9 /* Perkeep */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = DAF109761863EDAF00F6A3F9 /* Build configuration list for PBXNativeTarget "Camlistore" */;
+			buildConfigurationList = DAF109761863EDAF00F6A3F9 /* Build configuration list for PBXNativeTarget "Perkeep" */;
 			buildPhases = (
 				DAF109411863EDAF00F6A3F9 /* Sources */,
 				DAF109421863EDAF00F6A3F9 /* Frameworks */,
@@ -236,14 +236,14 @@
 			);
 			dependencies = (
 			);
-			name = Camlistore;
-			productName = Camlistore;
-			productReference = DAF109451863EDAF00F6A3F9 /* Camlistore.app */;
+			name = Perkeep;
+			productName = Perkeep;
+			productReference = DAF109451863EDAF00F6A3F9 /* Perkeep.app */;
 			productType = "com.apple.product-type.application";
 		};
-		DAF109651863EDAF00F6A3F9 /* CamlistoreTests */ = {
+		DAF109651863EDAF00F6A3F9 /* PerkeepTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = DAF109791863EDAF00F6A3F9 /* Build configuration list for PBXNativeTarget "CamlistoreTests" */;
+			buildConfigurationList = DAF109791863EDAF00F6A3F9 /* Build configuration list for PBXNativeTarget "PerkeepTests" */;
 			buildPhases = (
 				DAF109621863EDAF00F6A3F9 /* Sources */,
 				DAF109631863EDAF00F6A3F9 /* Frameworks */,
@@ -254,9 +254,9 @@
 			dependencies = (
 				DAF1096B1863EDAF00F6A3F9 /* PBXTargetDependency */,
 			);
-			name = CamlistoreTests;
-			productName = CamlistoreTests;
-			productReference = DAF109661863EDAF00F6A3F9 /* CamlistoreTests.xctest */;
+			name = PerkeepTests;
+			productName = PerkeepTests;
+			productReference = DAF109661863EDAF00F6A3F9 /* PerkeepTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
@@ -265,15 +265,15 @@
 		DAF1093D1863EDAF00F6A3F9 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0500;
-				ORGANIZATIONNAME = Camlistore;
+				LastUpgradeCheck = 0920;
+				ORGANIZATIONNAME = Perkeep;
 				TargetAttributes = {
 					DAF109651863EDAF00F6A3F9 = {
 						TestTargetID = DAF109441863EDAF00F6A3F9;
 					};
 				};
 			};
-			buildConfigurationList = DAF109401863EDAF00F6A3F9 /* Build configuration list for PBXProject "Camlistore" */;
+			buildConfigurationList = DAF109401863EDAF00F6A3F9 /* Build configuration list for PBXProject "Perkeep" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = English;
 			hasScannedForEncodings = 0;
@@ -286,9 +286,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				DAF109441863EDAF00F6A3F9 /* Camlistore */,
-				DAF109651863EDAF00F6A3F9 /* CamlistoreTests */,
-				DAC21F08188B358700EEA8BB /* Camlistore.dmg */,
+				DAF109441863EDAF00F6A3F9 /* Perkeep */,
+				DAF109651863EDAF00F6A3F9 /* PerkeepTests */,
+				DAC21F08188B358700EEA8BB /* Perkeep.dmg */,
 			);
 		};
 /* End PBXProject section */
@@ -300,12 +300,12 @@
 			files = (
 				DA31F9391866744D002E3F33 /* TimeTravelWindowController.xib in Resources */,
 				DAABA574186435DA000D62B6 /* camlistored in Resources */,
-				DAABA575186435DA000D62B6 /* cammount in Resources */,
+				DAABA575186435DA000D62B6 /* pk-mount in Resources */,
 				DAD59F8C1877CC250018193C /* camput in Resources */,
 				DAF109531863EDAF00F6A3F9 /* InfoPlist.strings in Resources */,
 				DAF109841863F1F900F6A3F9 /* menuicon-selected@2x.png in Resources */,
 				DAF109861863F1F900F6A3F9 /* menuicon@2x.png in Resources */,
-				DA71BCB718642A3A000A102C /* Camlicon.icns in Resources */,
+				DA71BCB718642A3A000A102C /* PerkeepIcon.icns in Resources */,
 				DAABA57718643710000D62B6 /* Credits.html in Resources */,
 				DAF109611863EDAF00F6A3F9 /* Images.xcassets in Resources */,
 				DAF109851863F1F900F6A3F9 /* menuicon.png in Resources */,
@@ -341,7 +341,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DAF109731863EDAF00F6A3F9 /* CamlistoreTests.m in Sources */,
+				DAF109731863EDAF00F6A3F9 /* PerkeepTests.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -350,12 +350,12 @@
 /* Begin PBXTargetDependency section */
 		DAC21F0D188B359300EEA8BB /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = DAF109441863EDAF00F6A3F9 /* Camlistore */;
+			target = DAF109441863EDAF00F6A3F9 /* Perkeep */;
 			targetProxy = DAC21F0C188B359300EEA8BB /* PBXContainerItemProxy */;
 		};
 		DAF1096B1863EDAF00F6A3F9 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = DAF109441863EDAF00F6A3F9 /* Camlistore */;
+			target = DAF109441863EDAF00F6A3F9 /* Perkeep */;
 			targetProxy = DAF1096A1863EDAF00F6A3F9 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -420,18 +420,30 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
@@ -444,7 +456,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 			};
@@ -457,26 +469,37 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -487,8 +510,9 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
-				GCC_PREFIX_HEADER = "Camlistore/Camlistore-Prefix.pch";
-				INFOPLIST_FILE = "Camlistore/Camlistore-Info.plist";
+				GCC_PREFIX_HEADER = "Perkeep/Perkeep-Prefix.pch";
+				INFOPLIST_FILE = "Perkeep/Perkeep-Info.plist";
+				PRODUCT_BUNDLE_IDENTIFIER = "org.perkeep.${PRODUCT_NAME:rfc1034identifier}";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				WRAPPER_EXTENSION = app;
 			};
@@ -500,8 +524,9 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
-				GCC_PREFIX_HEADER = "Camlistore/Camlistore-Prefix.pch";
-				INFOPLIST_FILE = "Camlistore/Camlistore-Info.plist";
+				GCC_PREFIX_HEADER = "Perkeep/Perkeep-Prefix.pch";
+				INFOPLIST_FILE = "Perkeep/Perkeep-Info.plist";
+				PRODUCT_BUNDLE_IDENTIFIER = "org.perkeep.${PRODUCT_NAME:rfc1034identifier}";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				WRAPPER_EXTENSION = app;
 			};
@@ -510,19 +535,20 @@
 		DAF1097A1863EDAF00F6A3F9 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(BUILT_PRODUCTS_DIR)/Camlistore.app/Contents/MacOS/Camlistore";
+				BUNDLE_LOADER = "$(BUILT_PRODUCTS_DIR)/Perkeep.app/Contents/MacOS/Perkeep";
 				COMBINE_HIDPI_IMAGES = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(DEVELOPER_FRAMEWORKS_DIR)",
 					"$(inherited)",
 				);
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
-				GCC_PREFIX_HEADER = "Camlistore/Camlistore-Prefix.pch";
+				GCC_PREFIX_HEADER = "Perkeep/Perkeep-Prefix.pch";
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
 					"$(inherited)",
 				);
-				INFOPLIST_FILE = "CamlistoreTests/CamlistoreTests-Info.plist";
+				INFOPLIST_FILE = "PerkeepTests/PerkeepTests-Info.plist";
+				PRODUCT_BUNDLE_IDENTIFIER = "org.camlistore.${PRODUCT_NAME:rfc1034identifier}";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TEST_HOST = "$(BUNDLE_LOADER)";
 				WRAPPER_EXTENSION = xctest;
@@ -532,15 +558,16 @@
 		DAF1097B1863EDAF00F6A3F9 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(BUILT_PRODUCTS_DIR)/Camlistore.app/Contents/MacOS/Camlistore";
+				BUNDLE_LOADER = "$(BUILT_PRODUCTS_DIR)/Perkeep.app/Contents/MacOS/Perkeep";
 				COMBINE_HIDPI_IMAGES = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(DEVELOPER_FRAMEWORKS_DIR)",
 					"$(inherited)",
 				);
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
-				GCC_PREFIX_HEADER = "Camlistore/Camlistore-Prefix.pch";
-				INFOPLIST_FILE = "CamlistoreTests/CamlistoreTests-Info.plist";
+				GCC_PREFIX_HEADER = "Perkeep/Perkeep-Prefix.pch";
+				INFOPLIST_FILE = "PerkeepTests/PerkeepTests-Info.plist";
+				PRODUCT_BUNDLE_IDENTIFIER = "org.camlistore.${PRODUCT_NAME:rfc1034identifier}";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TEST_HOST = "$(BUNDLE_LOADER)";
 				WRAPPER_EXTENSION = xctest;
@@ -550,15 +577,16 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		DAC21F0B188B358700EEA8BB /* Build configuration list for PBXLegacyTarget "Camlistore.dmg" */ = {
+		DAC21F0B188B358700EEA8BB /* Build configuration list for PBXLegacyTarget "Perkeep.dmg" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				DAC21F09188B358700EEA8BB /* Debug */,
 				DAC21F0A188B358700EEA8BB /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
-		DAF109401863EDAF00F6A3F9 /* Build configuration list for PBXProject "Camlistore" */ = {
+		DAF109401863EDAF00F6A3F9 /* Build configuration list for PBXProject "Perkeep" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				DAF109741863EDAF00F6A3F9 /* Debug */,
@@ -567,7 +595,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		DAF109761863EDAF00F6A3F9 /* Build configuration list for PBXNativeTarget "Camlistore" */ = {
+		DAF109761863EDAF00F6A3F9 /* Build configuration list for PBXNativeTarget "Perkeep" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				DAF109771863EDAF00F6A3F9 /* Debug */,
@@ -576,7 +604,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		DAF109791863EDAF00F6A3F9 /* Build configuration list for PBXNativeTarget "CamlistoreTests" */ = {
+		DAF109791863EDAF00F6A3F9 /* Build configuration list for PBXNativeTarget "PerkeepTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				DAF1097A1863EDAF00F6A3F9 /* Debug */,

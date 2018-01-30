@@ -28,7 +28,7 @@
         <customObject id="OJb-F9-PP0" customClass="LoginItemManager"/>
         <menu id="fQJ-G9-pV9">
             <items>
-                <menuItem title="About Camlistore" id="2M1-Mo-00O">
+                <menuItem title="About Perkeep" id="2M1-Mo-00O">
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <connections>
                         <action selector="showAboutPanel:" target="494" id="Bun-Q5-GMx"/>
@@ -86,7 +86,7 @@
                     </connections>
                 </menuItem>
                 <menuItem isSeparatorItem="YES" id="9ga-XP-2ib"/>
-                <menuItem title="Quit Camlistore" id="Kw8-MF-pCZ">
+                <menuItem title="Quit Perkeep" id="Kw8-MF-pCZ">
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <connections>
                         <action selector="terminate:" target="-3" id="yNp-Vh-8zG"/>

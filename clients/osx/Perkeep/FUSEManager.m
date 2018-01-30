@@ -42,7 +42,7 @@ limitations under the License.
 - (NSString*) mountPath
 {
     NSArray* paths = NSSearchPathForDirectoriesInDomains(NSDesktopDirectory, NSUserDomainMask, YES );
-    return [NSString stringWithFormat: @"%@/camlistore", [paths objectAtIndex:0]];
+    return [NSString stringWithFormat: @"%@/perkeep", [paths objectAtIndex:0]];
 }
 
 - (void) mount
@@ -164,13 +164,13 @@ limitations under the License.
     if (now - startTime < MIN_FUSE_LIFETIME) {
         // See if we can guide the user to a solution
         if (![self hasFUSE]) {
-            NSRunAlertPanel(@"Problem Mounting Camlistore FUSE",
+            NSRunAlertPanel(@"Problem Mounting Perkeep FUSE",
                             @"You don't seem to have osxfuse installed. "
                             @"Please go here, install, and try again:\n\n"
                             @"http://osxfuse.github.io/", @"OK", nil, nil);
             return NO;
         } else if (![self hasClientConfig]) {
-            NSInteger b = NSRunAlertPanel(@"Problem Mounting Camlistore FUSE",
+            NSInteger b = NSRunAlertPanel(@"Problem Mounting Perkeep FUSE",
                                           @"You don't have a camlistore client config. "
                                           @"Would you like me to make you one?",
                                           @"Make Client Config", @"Don't Mount", nil);
@@ -180,7 +180,7 @@ limitations under the License.
                 return NO;
             }
         } else {
-            NSInteger b = NSRunAlertPanel(@"Problem Mounting Camlistore FUSE",
+            NSInteger b = NSRunAlertPanel(@"Problem Mounting Perkeep FUSE",
                                           @"I'm having trouble mounting the FUSE filesystem. "
                                           @"Check Console logs for more details.",
                                           @"Retry", @"Don't Mount", nil);

@@ -53,10 +53,10 @@ limitations under the License.
 {
     hasSeenStart = NO;
 
-    logPath = [self logFilePath:@"Camlistored.log"];
+    logPath = [self logFilePath:@"Perkeep.log"];
     const char *logPathC = [logPath cStringUsingEncoding:NSUTF8StringEncoding];
 
-    NSString *oldLogFileString = [self logFilePath:@"Camlistored.log.old"];
+    NSString *oldLogFileString = [self logFilePath:@"Perkeep.log.old"];
     const char *oldLogPath = [oldLogFileString cStringUsingEncoding:NSUTF8StringEncoding];
     rename(logPathC, oldLogPath); // This will fail the first time.
 
@@ -216,7 +216,7 @@ limitations under the License.
     } else {
         time_t now = time(NULL);
         if (now - startTime < MIN_LIFETIME) {
-            NSInteger b = NSRunAlertPanel(@"Problem Running Camlistore",
+            NSInteger b = NSRunAlertPanel(@"Problem Running Perkeep",
                                           @"camlistored doesn't seem to be operating properly.  "
                                           @"Check Console logs for more details.", @"Retry", @"Quit", nil);
             if (b == NSAlertAlternateReturn) {
