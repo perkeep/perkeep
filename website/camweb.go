@@ -438,7 +438,7 @@ func serveFile(w http.ResponseWriter, r *http.Request, relPath, absPath string) 
 	}
 
 	// AutoHeadingIDs is the only extension missing
-	data = blackfriday.Run(data, blackfriday.WithExtensions(blackfriday.AutoHeadingIDs))
+	data = blackfriday.Run(data, blackfriday.WithExtensions(blackfriday.CommonExtensions|blackfriday.AutoHeadingIDs))
 
 	title := ""
 	if m := h1TitlePattern.FindSubmatch(data); len(m) > 1 {
