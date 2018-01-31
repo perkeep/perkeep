@@ -795,6 +795,8 @@ func (c *Corpus) mergeImageSizeRow(k, v []byte) error {
 	return nil
 }
 
+var sha1Prefix = []byte("sha1-")
+
 // "wholetofile|sha1-17b53c7c3e664d3613dfdce50ef1f2a09e8f04b5|sha1-fb88f3eab3acfcf3cfc8cd77ae4366f6f975d227" -> "1"
 func (c *Corpus) mergeWholeToFileRow(k, v []byte) error {
 	pair := k[len("wholetofile|"):]
@@ -809,7 +811,6 @@ func (c *Corpus) mergeWholeToFileRow(k, v []byte) error {
 	}
 	c.fileWholeRef[fileRef] = wholeRef
 	if c.building && !c.hasLegacySHA1 {
-		sha1Prefix := []byte("sha1-")
 		if bytes.HasPrefix(pair, sha1Prefix) {
 			c.hasLegacySHA1 = true
 		}
