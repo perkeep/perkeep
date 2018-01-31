@@ -355,7 +355,8 @@ func (s optionServer) modifyClient(c *Client) { c.server = string(s) }
 // directly.
 //
 // Use of OptionUseStorageClient is mutually exclusively
-// with all other options.
+// with all other options, although it does imply
+// OptionNoExternalConfig(true).
 func OptionUseStorageClient(s blobserver.Storage) ClientOption {
 	return optionStorage{s}
 }
@@ -364,7 +365,10 @@ type optionStorage struct {
 	sto blobserver.Storage
 }
 
-func (o optionStorage) modifyClient(c *Client) { c.sto = o.sto }
+func (o optionStorage) modifyClient(c *Client) {
+	c.sto = o.sto
+	c.noExtConfig = true
+}
 
 // OptionTransportConfig returns a ClientOption that makes the client use
 // the provided transport configuration options.
