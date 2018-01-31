@@ -209,3 +209,12 @@ func (ib *invertedBool) UnmarshalJSON(b []byte) error {
 func (ib invertedBool) Get() bool {
 	return !bool(ib)
 }
+
+// Owner holds the search handler's owner configuration.
+type Owner struct {
+	// Identity is the GPG identifier of the user.
+	// It should be 16-characters hex (e.g. "2931A67C26F5ABDA")
+	Identity string `json:"identity"`
+	// SecringFile is the go4.org/wkfs path to the GPG secret ring file.
+	SecringFile string `json:"secring"`
+}

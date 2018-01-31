@@ -37,7 +37,8 @@ type Interface interface {
 	KeyId(context.Context, blob.Ref) (string, error)
 
 	// AppendClaims appends to dst claims on the given permanode.
-	// The signerFilter and attrFilter are both optional.  If non-zero,
+	// The signerFilter - a GPG key ID (e.g. "2931A67C26F5ABDA) -
+	// and attrFilter are both optional.  If non-zero,
 	// they filter the return items to only claims made by the given signer
 	// or claims about the given attribute, respectively.
 	// Deleted claims are never returned.
@@ -49,7 +50,7 @@ type Interface interface {
 	// take the context too, so the channel send's select can read
 	// from the Done channel.
 	AppendClaims(ctx context.Context, dst []camtypes.Claim, permaNode blob.Ref,
-		signerFilter blob.Ref,
+		signerFilter string,
 		attrFilter string) ([]camtypes.Claim, error)
 
 	// TODO(bradfitz): methods below this line are slated for a redesign

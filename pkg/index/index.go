@@ -100,6 +100,68 @@ var (
 
 var aboutToReindex = false
 
+// SignerRefSet is the set of all blob Refs (of different hashes) that represent
+// the same signer GPG identity. They are stored as strings for allocation reasons:
+// we favor allocating when updating SignerRefSets in the corpus over when reading
+// them.
+type SignerRefSet []string
+
+// Owner is the set of methods that identify, through their GPG key, a signer of
+// claims and permanodes.
+type Owner struct {
+	keyID []string
+	// blobByKeyID maps an owner GPG ID to all its owner blobs (because different hashes).
+	// refs are stored as strings for allocation reasons.
+	blobByKeyID map[string]SignerRefSet
+}
+
+// NewOwner returns an Owner that associates keyID with ref.
+func NewOwner(keyID string, ref blob.Ref) *Owner {
+	return &Owner{
+		keyID:       []string{keyID},
+		blobByKeyID: map[string]SignerRefSet{keyID: SignerRefSet{ref.String()}},
+	}
+}
+
+// KeyID returns the GPG key ID (e.g. 2931A67C26F5ABDA) of the owner. Its
+// signature might change when support for multiple GPG keys is introduced.
+func (o *Owner) KeyID() string {
+	if o == nil || len(o.keyID) == 0 {
+		return ""
+	}
+	return o.keyID[0]
+}
+
+// RefSet returns the set of refs that represent the same owner as keyID.
+func (o *Owner) RefSet(keyID string) SignerRefSet {
+	if o == nil || len(o.blobByKeyID) == 0 {
+		return nil
+	}
+	refs := o.blobByKeyID[keyID]
+	if len(refs) == 0 {
+		return nil
+	}
+	return refs
+}
+
+// BlobRef returns the currently recommended ref implementation of the owner GPG
+// key blob. Its signature might change when support for multiple hashes and/or
+// multiple GPG keys is introduced.
+func (o *Owner) BlobRef() blob.Ref {
+	if o == nil || len(o.blobByKeyID) == 0 {
+		return blob.Ref{}
+	}
+	refs := o.blobByKeyID[o.KeyID()]
+	if len(refs) == 0 {
+		return blob.Ref{}
+	}
+	ref, ok := blob.Parse(refs[0])
+	if !ok {
+		return blob.Ref{}
+	}
+	return ref
+}
+
 // TODO(mpl): I'm not sure there are any cases where we don't want the index to
 // have a blobSource, so maybe we should phase out InitBlobSource and integrate it
 // to New or something. But later.
@@ -762,25 +824,25 @@ func (x *Index) GetRecentPermanodes(ctx context.Context, dest chan<- camtypes.Re
 }
 
 func (x *Index) AppendClaims(ctx context.Context, dst []camtypes.Claim, permaNode blob.Ref,
-	signerFilter blob.Ref,
+	signerFilter string,
 	attrFilter string) ([]camtypes.Claim, error) {
 	if x.corpus != nil {
 		return x.corpus.AppendClaims(ctx, dst, permaNode, signerFilter, attrFilter)
 	}
 	var (
-		keyId string
-		err   error
-		it    sorted.Iterator
+		err error
+		it  sorted.Iterator
 	)
-	if signerFilter.Valid() {
-		keyId, err = x.KeyId(ctx, signerFilter)
-		if err == sorted.ErrNotFound {
-			return nil, nil
-		}
+	var signerRefs SignerRefSet
+	if signerFilter != "" {
+		signerRefs, err = x.signerRefs(ctx, signerFilter)
 		if err != nil {
-			return nil, err
+			return dst, err
 		}
-		it = x.queryPrefix(keyPermanodeClaim, permaNode, keyId)
+		if len(signerRefs) == 0 {
+			return dst, nil
+		}
+		it = x.queryPrefix(keyPermanodeClaim, permaNode, signerFilter)
 	} else {
 		it = x.queryPrefix(keyPermanodeClaim, permaNode)
 	}
@@ -809,7 +871,9 @@ func (x *Index) AppendClaims(ctx context.Context, dst []camtypes.Claim, permaNod
 		if attrFilter != "" && cl.Attr != attrFilter {
 			continue
 		}
-		if signerFilter.Valid() && cl.Signer != signerFilter {
+		// TODO(mpl): if we ever pass an Owner to AppendClaims, then we could have a
+		// Matches method on it, that we would use here.
+		if signerFilter != "" && !signerRefs.blobMatches(cl.Signer) {
 			continue
 		}
 		dst = append(dst, cl)
@@ -900,6 +964,25 @@ func (x *Index) KeyId(ctx context.Context, signer blob.Ref) (string, error) {
 		return x.corpus.KeyId(ctx, signer)
 	}
 	return x.s.Get("signerkeyid:" + signer.String())
+}
+
+// signerRefs returns the set of signer blobRefs matching the signer keyID. It
+// does not return an error if none is found.
+func (x *Index) signerRefs(ctx context.Context, keyID string) (SignerRefSet, error) {
+	if x.corpus != nil {
+		return x.corpus.signerRefs[keyID], nil
+	}
+	it := x.queryPrefixString(keySignerKeyID.name)
+	var err error
+	var refs SignerRefSet
+	defer closeIterator(it, &err)
+	prefix := keySignerKeyID.name + ":"
+	for it.Next() {
+		if it.Value() == keyID {
+			refs = append(refs, strings.TrimPrefix(it.Key(), prefix))
+		}
+	}
+	return refs, nil
 }
 
 func (x *Index) PermanodeOfSignerAttrValue(ctx context.Context, signer blob.Ref, attr, val string) (permaNode blob.Ref, err error) {

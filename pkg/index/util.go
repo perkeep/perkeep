@@ -50,7 +50,7 @@ func (s *dupSkipper) Dup(v string) bool {
 // claimPtrsAttrValue returns the value of attr from claims,
 // or the empty string if not found.
 // Claims should be sorted by claim.Date.
-func claimPtrsAttrValue(claims []*camtypes.Claim, attr string, at time.Time, signerFilter signerRefSet) string {
+func claimPtrsAttrValue(claims []*camtypes.Claim, attr string, at time.Time, signerFilter SignerRefSet) string {
 	return claimsIntfAttrValue(claimPtrSlice(claims), attr, at, signerFilter)
 }
 
@@ -73,7 +73,7 @@ func (s claimPtrSlice) Claim(i int) *camtypes.Claim { return s[i] }
 // or empty string if not found. claims must be non-nil.
 // If signerFilter contains any refs, a claim is only taken into account if it
 // has been signed by one of the given signer refs.
-func claimsIntfAttrValue(claims claimsIntf, attr string, at time.Time, signerFilter signerRefSet) string {
+func claimsIntfAttrValue(claims claimsIntf, attr string, at time.Time, signerFilter SignerRefSet) string {
 	if claims == nil {
 		panic("nil claims argument in claimsIntfAttrValue")
 	}

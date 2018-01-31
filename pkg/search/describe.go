@@ -746,7 +746,7 @@ func (dr *DescribeRequest) doDescribe(ctx context.Context, br blob.Ref, depth in
 	switch des.CamliType {
 	case "permanode":
 		des.Permanode = new(DescribedPermanode)
-		dr.populatePermanodeFields(ctx, des.Permanode, br, dr.sh.owner, depth)
+		dr.populatePermanodeFields(ctx, des.Permanode, br, depth)
 		var at time.Time
 		if !dr.At.IsAnyZero() {
 			at = dr.At.Time()
@@ -811,11 +811,11 @@ func (dr *DescribeRequest) doDescribe(ctx context.Context, br blob.Ref, depth in
 	}
 }
 
-func (dr *DescribeRequest) populatePermanodeFields(ctx context.Context, pi *DescribedPermanode, pn, signer blob.Ref, depth int) {
+func (dr *DescribeRequest) populatePermanodeFields(ctx context.Context, pi *DescribedPermanode, pn blob.Ref, depth int) {
 	pi.Attr = make(url.Values)
 	attr := pi.Attr
 
-	claims, err := dr.sh.index.AppendClaims(ctx, nil, pn, signer, "")
+	claims, err := dr.sh.index.AppendClaims(ctx, nil, pn, dr.sh.owner.KeyID(), "")
 	if err != nil {
 		log.Printf("Error getting claims of %s: %v", pn.String(), err)
 		dr.addError(pn, fmt.Errorf("Error getting claims of %s: %v", pn.String(), err))

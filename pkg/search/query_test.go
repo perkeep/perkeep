@@ -135,7 +135,7 @@ func testQueryType(t testing.TB, fn func(*queryTest), itype indexType) {
 	}
 	qt.id.Fataler = t
 	qt.newHandler = func() *Handler {
-		h := NewHandler(idx, qt.id.SignerBlobRef)
+		h := NewHandler(idx, owner)
 		if itype == indexCorpusScan {
 			if corpus, err = idx.KeepInMemory(); err != nil {
 				t.Fatal(err)

@@ -70,7 +70,10 @@
 			"handler": "search",
 			"handlerArgs": {
 				"index": "/index/",
-				"owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4",
+				"owner": {
+					"identity": "26F5ABDA",
+					"secringFile": "/path/to/secring"
+				},
 				"slurpToMemory": true
 			}
 		},

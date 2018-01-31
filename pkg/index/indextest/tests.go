@@ -659,7 +659,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 
 	// AppendClaims
 	{
-		claims, err := id.Index.AppendClaims(ctx, nil, pn, id.SignerBlobRef, "")
+		claims, err := id.Index.AppendClaims(ctx, nil, pn, KeyID, "")
 		if err != nil {
 			t.Errorf("AppendClaims = %v", err)
 		} else {
@@ -1136,7 +1136,7 @@ func Delete(t *testing.T, initIdx func() *index.Index) {
 	}
 	// and now check that AppendClaims finds nothing for pn
 	{
-		claims, err := id.Index.AppendClaims(ctx, nil, pn1, id.SignerBlobRef, "")
+		claims, err := id.Index.AppendClaims(ctx, nil, pn1, KeyID, "")
 		if err != nil {
 			t.Errorf("AppendClaims = %v", err)
 		} else {
@@ -1172,7 +1172,7 @@ func Delete(t *testing.T, initIdx func() *index.Index) {
 	}
 	// and check that AppendClaims finds cl1, with the right modtime too
 	{
-		claims, err := id.Index.AppendClaims(ctx, nil, pn1, id.SignerBlobRef, "")
+		claims, err := id.Index.AppendClaims(ctx, nil, pn1, KeyID, "")
 		if err != nil {
 			t.Errorf("AppendClaims = %v", err)
 		} else {

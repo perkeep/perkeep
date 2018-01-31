@@ -44,13 +44,6 @@ var altLocationRef = map[string][]string{
 	"foursquare.com:checkin": {"foursquareVenuePermanode"},
 }
 
-// signerInfo groups all the info about the different representations of a claim signer.
-type signerInfo struct {
-	signer     blob.Ref     // the ref of some blob representation of the GPG key ID (sha1, sha224, etc)
-	allSigners signerRefSet // the whole set of equivalent blob signers (different hashes)
-	signerID   string       // the signer GPG ID (e.g. 2931A67C26F5ABDA)
-}
-
 // PermanodeLocation returns the location info for a permanode,
 // from one of the following sources:
 //  1. Permanode attributes "latitude" and "longitude"
@@ -60,36 +53,17 @@ type signerInfo struct {
 // The sources are checked in this order, the location from
 // the first source yielding a valid result is returned.
 func (lh *LocationHelper) PermanodeLocation(ctx context.Context, permaNode blob.Ref,
-	at time.Time, signer blob.Ref) (camtypes.Location, error) {
-	si := signerInfo{
-		signer: signer,
-	}
-	if lh.corpus == nil || !signer.Valid() {
-		return lh.permanodeLocation(ctx, permaNode, at, si, true)
-	}
-	signerID, ok := lh.corpus.keyId[signer]
-	if ok {
-		si.signerID = signerID
-		si.allSigners = lh.corpus.signerRefs[signerID]
-	}
-	return lh.permanodeLocation(ctx, permaNode, at, si, true)
+	at time.Time, owner *Owner) (camtypes.Location, error) {
+	return lh.permanodeLocation(ctx, permaNode, at, owner, true)
 }
 
 func (lh *LocationHelper) permanodeLocation(ctx context.Context,
-	pn blob.Ref, at time.Time, si signerInfo,
+	pn blob.Ref, at time.Time, owner *Owner,
 	useRef bool) (loc camtypes.Location, err error) {
 
-	pa := permAttr{at: at}
-	var signerID string
+	signerID := owner.KeyID() // might be empty
+	pa := permAttr{at: at, signerFilter: owner.RefSet(signerID)}
 	if lh.corpus != nil {
-		if si.signer.Valid() {
-			if si.signerID == "" || len(si.allSigners) < 1 {
-				return camtypes.Location{}, os.ErrNotExist
-			}
-			signerID = si.signerID
-			// pa.signerFilter will only get used if pa.attrs == nil below.
-			pa.signerFilter = si.allSigners
-		}
 		var claims []*camtypes.Claim
 		pa.attrs, claims = lh.corpus.permanodeAttrsOrClaims(pn, at, signerID)
 		if claims != nil {
@@ -97,12 +71,11 @@ func (lh *LocationHelper) permanodeLocation(ctx context.Context,
 		}
 	} else {
 		var claims []camtypes.Claim
-		claims, err = lh.index.AppendClaims(ctx, nil, pn, si.signer, "")
+		claims, err = lh.index.AppendClaims(ctx, nil, pn, signerID, "")
 		if err != nil {
 			return camtypes.Location{}, err
 		}
 		pa.claims = claimSlice(claims)
-		// no need for pa.signerFilter because AppendClaims already filtered by signer.
 	}
 
 	// Rule 1: if permanode has an explicit latitude and longitude,
@@ -131,7 +104,7 @@ func (lh *LocationHelper) permanodeLocation(ctx context.Context,
 				if !hasRef {
 					continue
 				}
-				loc, err = lh.permanodeLocation(ctx, refPn, at, si, false)
+				loc, err = lh.permanodeLocation(ctx, refPn, at, owner, false)
 				if err == nil {
 					return loc, err
 				}
@@ -167,7 +140,7 @@ type permAttr struct {
 	claims claimsIntf
 
 	at           time.Time
-	signerFilter signerRefSet
+	signerFilter SignerRefSet
 }
 
 // get returns the value of attr.

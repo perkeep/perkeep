@@ -38,7 +38,9 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/jsonsign"
 	"perkeep.org/pkg/types/camtypes"
+	"perkeep.org/pkg/types/serverconfig"
 )
 
 const buffered = 32     // arbitrary channel buffer size
@@ -62,7 +64,7 @@ var (
 // Handler handles search queries.
 type Handler struct {
 	index index.Interface
-	owner blob.Ref
+	owner *index.Owner
 	// optional for search aliases
 	fetcher blob.Fetcher
 
@@ -88,7 +90,7 @@ type GetRecentPermanoder interface {
 
 var _ GetRecentPermanoder = (*Handler)(nil)
 
-func NewHandler(ix index.Interface, owner blob.Ref) *Handler {
+func NewHandler(ix index.Interface, owner *index.Owner) *Handler {
 	sh := &Handler{
 		index: ix,
 		owner: owner,
@@ -138,7 +140,9 @@ func (h *Handler) SendStatusUpdate(status json.RawMessage) {
 
 func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler, error) {
 	indexPrefix := conf.RequiredString("index") // TODO: add optional help tips here?
-	ownerBlobStr := conf.RequiredString("owner")
+	ownerCfg := conf.RequiredObject("owner")
+	ownerId := ownerCfg.RequiredString("identity")
+	ownerSecring := ownerCfg.RequiredString("secringFile")
 
 	devBlockStartupPrefix := conf.OptionalString("devBlockStartupOn", "")
 	slurpToMemory := conf.OptionalBool("slurpToMemory", false)
@@ -161,12 +165,16 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 	if !ok {
 		return nil, fmt.Errorf("search config references invalid indexer %q (actually a %T)", indexPrefix, indexHandler)
 	}
-	ownerBlobRef, ok := blob.Parse(ownerBlobStr)
-	if !ok {
-		return nil, fmt.Errorf("search 'owner' has malformed blobref %q; expecting e.g. sha1-xxxxxxxxxxxx",
-			ownerBlobStr)
+
+	owner, err := newOwner(serverconfig.Owner{
+		Identity:    ownerId,
+		SecringFile: ownerSecring,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not create Owner %v", err)
 	}
-	h := NewHandler(indexer, ownerBlobRef)
+	h := NewHandler(indexer, owner)
+
 	if slurpToMemory {
 		ii := indexer.(*index.Index)
 		ii.Lock()
@@ -182,11 +190,26 @@ func newHandlerFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handl
 	return h, nil
 }
 
+func newOwner(ownerCfg serverconfig.Owner) (*index.Owner, error) {
+	entity, err := jsonsign.EntityFromSecring(ownerCfg.Identity, ownerCfg.SecringFile)
+	if err != nil {
+		return nil, err
+	}
+	armoredPublicKey, err := jsonsign.ArmoredPublicKey(entity)
+	if err != nil {
+		return nil, err
+	}
+	return index.NewOwner(ownerCfg.Identity, blob.RefFromString(armoredPublicKey)), nil
+}
+
 // Owner returns Handler owner's public key blobref.
+// TODO(mpl): we're changing the index & search funcs to take a keyID (string)
+// or an *index.Owner, so any new func should probably not take/use h.Owner()
+// either.
 func (h *Handler) Owner() blob.Ref {
 	// TODO: figure out a plan for an owner having multiple active public keys, or public
 	// key rotation
-	return h.owner
+	return h.owner.BlobRef()
 }
 
 func (h *Handler) Index() index.Interface {
@@ -499,7 +522,9 @@ func (h *Handler) GetRecentPermanodes(ctx context.Context, req *RecentRequest) (
 		before = req.Before
 	}
 	go func() {
-		errch <- h.index.GetRecentPermanodes(ctx, ch, h.owner, req.n(), before)
+		// TODO(mpl): change index funcs to take signer keyID. dont care for now, just
+		// fixing the essential search and describe ones.
+		errch <- h.index.GetRecentPermanodes(ctx, ch, h.owner.BlobRef(), req.n(), before)
 	}()
 
 	dr := h.NewDescribeRequest()
@@ -557,7 +582,7 @@ func (h *Handler) GetPermanodesWithAttr(req *WithAttrRequest) (*WithAttrResponse
 	go func() {
 		signer := req.Signer
 		if !signer.Valid() {
-			signer = h.owner
+			signer = h.owner.BlobRef()
 		}
 		errch <- h.index.SearchPermanodesWithAttr(ctx, ch,
 			&camtypes.PermanodeByAttrRequest{
@@ -622,7 +647,7 @@ func (h *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
 
 	ctx := context.TODO()
 	var claims []camtypes.Claim
-	claims, err := h.index.AppendClaims(ctx, claims, req.Permanode, h.owner, req.AttrFilter)
+	claims, err := h.index.AppendClaims(ctx, claims, req.Permanode, h.owner.KeyID(), req.AttrFilter)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting claims of %s: %v", req.Permanode.String(), err)
 	}

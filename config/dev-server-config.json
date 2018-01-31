@@ -342,7 +342,10 @@
 			"handler": "search",
 			"handlerArgs": {
 				"index": ["_env", "${CAMLI_INDEXER_PATH}"],
-				"owner": ["_env", "${CAMLI_PUBKEY_BLOBREF}"],
+				"owner": {
+					"identity": ["_env", "${CAMLI_KEYID}"],
+					"secringFile": ["_env", "${CAMLI_SECRET_RING}"]
+				},
 				"slurpToMemory": true,
 				"devBlockStartupOn": "/sync-index/"
 			}

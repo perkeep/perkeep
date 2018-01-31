@@ -30,7 +30,6 @@ import (
 
 	"go4.org/jsonconfig"
 	"perkeep.org/internal/osutil"
-	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/jsonsign"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/types/serverconfig"
@@ -177,19 +176,17 @@ func (b *lowBuilder) oldDBNames(of dbname) string {
 var errNoOwner = errors.New("no owner")
 
 // Error is errNoOwner if no identity configured
-func (b *lowBuilder) searchOwner() (br blob.Ref, err error) {
+func (b *lowBuilder) searchOwner() (owner *serverconfig.Owner, err error) {
 	if b.high.Identity == "" {
-		return br, errNoOwner
+		return nil, errNoOwner
 	}
-	entity, err := jsonsign.EntityFromSecring(b.high.Identity, b.high.IdentitySecretRing)
-	if err != nil {
-		return br, err
+	if b.high.IdentitySecretRing == "" {
+		return nil, errNoOwner
 	}
-	armoredPublicKey, err := jsonsign.ArmoredPublicKey(entity)
-	if err != nil {
-		return br, err
-	}
-	return blob.RefFromString(armoredPublicKey), nil
+	return &serverconfig.Owner{
+		Identity:    b.high.Identity,
+		SecringFile: b.high.IdentitySecretRing,
+	}, nil
 }
 
 func addAppConfig(config map[string]interface{}, appConfig *serverconfig.App, low jsonconfig.Obj) {
@@ -996,7 +993,10 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 		}
 		searchArgs := args{
 			"index": "/index/",
-			"owner": owner.String(),
+			"owner": map[string]interface{}{
+				"identity":    owner.Identity,
+				"secringFile": owner.SecringFile,
+			},
 		}
 		if b.copyIndexToMemory() {
 			searchArgs["slurpToMemory"] = true

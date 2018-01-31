@@ -146,7 +146,8 @@ func replaceRingPath(path string) ([]byte, error) {
 		return nil, err
 	}
 
-	return bytes.Replace(slurpBytes, []byte(secringPlaceholder), []byte(secRing), 1), nil
+	// twice: once in search owner, and once in sighelper.
+	return bytes.Replace(slurpBytes, []byte(secringPlaceholder), []byte(secRing), 2), nil
 }
 
 // We just need to make sure that we don't match the prefix handlers too.
@@ -240,7 +241,8 @@ func canonicalizeGolden(t *testing.T, v []byte) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v = bytes.Replace(v, []byte(localPath), []byte(secringPlaceholder), 1)
+	// twice: once in search owner, and once in sighelper.
+	v = bytes.Replace(v, []byte(localPath), []byte(secringPlaceholder), 2)
 	if !bytes.HasSuffix(v, []byte("\n")) {
 		v = append(v, '\n')
 	}
