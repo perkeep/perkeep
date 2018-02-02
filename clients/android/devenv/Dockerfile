@@ -30,16 +30,16 @@ RUN curl -O https://dl.google.com/android/repository/sdk-tools-linux-3859397.zip
 RUN echo '444e22ce8ca0f67353bda4b85175ed3731cae3ffa695ca18119cbacef1c1bea0  sdk-tools-linux-3859397.zip' | sha256sum -c
 RUN unzip sdk-tools-linux-3859397.zip
 RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager --update
-RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'platforms;android-17'
-RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'build-tools;26.0.0'
+RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'platforms;android-27'
+RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'build-tools;27.0.0'
 RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'extras;android;m2repository'
 RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'ndk-bundle'
 
 # Get Go stable release
 WORKDIR $GOPHER
-RUN curl -O https://storage.googleapis.com/golang/go1.8.3.linux-amd64.tar.gz
-RUN echo '1862f4c3d3907e59b04a757cfda0ea7aa9ef39274af99a784f5be843c80c6772  go1.8.3.linux-amd64.tar.gz' | sha256sum -c
-RUN tar -xzf go1.8.3.linux-amd64.tar.gz
+RUN curl -O https://storage.googleapis.com/golang/go1.9.3.linux-amd64.tar.gz
+RUN echo 'a4da5f4c07dfda8194c4621611aeb7ceaab98af0b38bfb29e1be2ebb04c3556c  go1.9.3.linux-amd64.tar.gz' | sha256sum -c
+RUN tar -xzf go1.9.3.linux-amd64.tar.gz
 ENV GOPATH $GOPHER
 ENV GOROOT $GOPHER/go
 ENV PATH $PATH:$GOROOT/bin:$GOPHER/bin
@@ -47,7 +47,7 @@ ENV PATH $PATH:$GOROOT/bin:$GOPHER/bin
 # Get gomobile
 RUN go get -u golang.org/x/mobile/cmd/gomobile
 WORKDIR $GOPATH/src/golang.org/x/mobile/cmd/gomobile
-RUN git reset --hard c0beac360cc13173963df8872fe4b0f2542cb85b
+RUN git reset --hard 069be623eb8e75049d64f1419849b3e92aab1c81
 RUN go install
 
 # init gomobile
