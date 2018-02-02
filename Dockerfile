@@ -2,8 +2,8 @@
 # Generic purpose Perkeep image, that builds the server (camlistored)
 # and the command-line clients (camput, camget, camtool, and pk-mount).
 
-# See misc/docker/go to generate camlistore/go
-FROM camlistore/go
+# Use misc/docker/go to generate perkeep/go
+FROM perkeep/go
 
 MAINTAINER camlistore <camlistore@googlegroups.com>
 
