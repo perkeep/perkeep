@@ -1,4 +1,4 @@
-# Gopkg for Perkeep
+# Gopkg for Perkeepa, requires dep v0.4.0 or later
 #
 # Refer to https://github.com/golang/dep/blob/master/docs/Gopkg.toml.md
 # for detailed Gopkg.toml documentation.
@@ -82,6 +82,11 @@ ignored = [
   "myitcv.io/react/_talks",
   "myitcv.io/react/_vendor"
 ]
+
+[prune]
+  unused-packages = true
+  go-tests = true
+  non-go = true
 
 # Constraints / Overrides follow
 # Semantic versions (like v1.0.0) are preferred

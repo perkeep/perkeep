@@ -117,7 +117,6 @@ Once you have your changes and versions specified please run the
 following commands to update the vendor directory with your changes:
 
     $ dep ensure
-    $ dep prune
 
 To help track version changes please add the semantic version and the
 revision in your commit message the version which you can find in the
