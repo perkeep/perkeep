@@ -75,8 +75,9 @@ type handlerTest struct {
 }
 
 var (
-	owner  *test.Blob
-	signer *schema.Signer
+	owner    *index.Owner
+	ownerRef *test.Blob
+	signer   *schema.Signer
 	// TODO(mpl): can lastModtime being a global ever become a race problem if tests are concurrent?
 	lastModtime time.Time
 )
@@ -97,19 +98,18 @@ func addToClockOrigin(d time.Duration) string {
 }
 
 func init() {
+	ownerRef = indextest.PubKey
+	owner = index.NewOwner(indextest.KeyID, ownerRef.BlobRef())
+	signer = testSigner()
 	for _, v := range testBlobsContents {
 		testBlobs[v] = &test.Blob{v}
 	}
 	perma123 := schema.NewPlannedPermanode("perma-123")
-	sg, armorPub := testSigner()
-	signer = sg
 	perma123signed, err := perma123.SignAt(ctxbg, signer, test.ClockOrigin)
 	if err != nil {
 		panic(err)
 	}
 	testBlobs["perma-123"] = &test.Blob{perma123signed}
-	pubKeyBlob := &test.Blob{armorPub}
-	owner = pubKeyBlob
 	handlerTests = initTests()
 }
 
@@ -131,25 +131,20 @@ var (
 
 // testSigner returns the signer, as well as its armored public key, from
 // pkg/jsonsign/testdata/test-secring.gpg
-func testSigner() (*schema.Signer, string) {
+func testSigner() *schema.Signer {
 	camliRootPath, err := osutil.GoPackagePath("perkeep.org")
 	if err != nil {
 		panic(fmt.Sprintf("error looking up perkeep.org's location in $GOPATH: %v", err))
 	}
-	ent, err := jsonsign.EntityFromSecring("26F5ABDA", filepath.Join(camliRootPath, "pkg", "jsonsign", "testdata", "test-secring.gpg"))
+	ent, err := jsonsign.EntityFromSecring(indextest.KeyID, filepath.Join(camliRootPath, "pkg", "jsonsign", "testdata", "test-secring.gpg"))
 	if err != nil {
 		panic(err)
 	}
-	armorPub, err := jsonsign.ArmoredPublicKey(ent)
+	sig, err := schema.NewSigner(owner.BlobRef(), strings.NewReader(ownerRef.Contents), ent)
 	if err != nil {
 		panic(err)
 	}
-	pubRef := blob.RefFromString(armorPub)
-	sig, err := schema.NewSigner(pubRef, strings.NewReader(armorPub), ent)
-	if err != nil {
-		panic(err)
-	}
-	return sig, armorPub
+	return sig
 }
 
 // fetcherIndex groups addBlob, addClaim, and addPermanode, that are all methods
@@ -215,7 +210,7 @@ func handlerDescribeTestSetup(t *testing.T) indexAndOwner {
 		idx: idx,
 	}
 
-	checkErr(t, fi.addBlob(owner))
+	checkErr(t, fi.addBlob(ownerRef))
 	perma123 := testBlobs["perma-123"]
 	fi.addBlob(perma123)
 	fakeref232 := testBlobs["fakeref-232"]
@@ -549,7 +544,7 @@ func initTests() []handlerTest {
 					idx: idx,
 				}
 
-				checkErr(t, fi.addBlob(owner))
+				checkErr(t, fi.addBlob(ownerRef))
 				perma123 := testBlobs["perma-123"]
 				checkErr(t, fi.addBlob(perma123))
 				target := testBlobs["fakeref-123"]
@@ -887,7 +882,7 @@ func (ht handlerTest) test(t *testing.T) {
 
 	ixo := ht.setup(t)
 	idx := ixo.index
-	h := NewHandler(idx, ixo.owner)
+	h := NewHandler(idx, owner)
 
 	var body io.Reader
 	var method = "GET"
@@ -965,7 +960,7 @@ func TestGetPermanodeLocationAllocs(t *testing.T) {
 
 	idx := index.NewMemoryIndex() // string key-value pairs in memory, as if they were on disk
 	idd := indextest.NewIndexDeps(idx)
-	h := NewHandler(idx, idd.SignerBlobRef)
+	h := NewHandler(idx, owner)
 	corpus, err := idx.KeepInMemory()
 	if err != nil {
 		t.Fatal(err)

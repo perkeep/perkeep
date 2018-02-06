@@ -75,7 +75,7 @@ type Corpus struct {
 	keyId signerFromBlobrefMap
 
 	// signerRefs maps a signer GPG ID to all its signer blobs (because different hashes).
-	signerRefs   map[string]signerRefSet
+	signerRefs   map[string]SignerRefSet
 	files        map[blob.Ref]camtypes.FileInfo
 	permanodes   map[blob.Ref]*PermanodeMeta
 	imageInfo    map[blob.Ref]camtypes.ImageInfo // keyed by fileref (not wholeref)
@@ -110,14 +110,8 @@ type Corpus struct {
 	ss []string
 }
 
-// signerRefSet is the set of all blob Refs (of different hashes) that represent
-// the same signer GPG identity. They are stored as strings for allocation reasons:
-// we favor allocating when updating signerRefSets in the corpus over when reading
-// them.
-type signerRefSet []string
-
 // blobMatches reports whether br is in the set.
-func (srs signerRefSet) blobMatches(br blob.Ref) bool {
+func (srs SignerRefSet) blobMatches(br blob.Ref) bool {
 	for _, v := range srs {
 		if br.EqualString(v) {
 			return true
@@ -325,7 +319,7 @@ func newCorpus() *Corpus {
 		imageInfo:    make(map[blob.Ref]camtypes.ImageInfo),
 		deletedBy:    make(map[blob.Ref]blob.Ref),
 		keyId:        make(map[blob.Ref]string),
-		signerRefs:   make(map[string]signerRefSet),
+		signerRefs:   make(map[string]SignerRefSet),
 		brOfStr:      make(map[string]blob.Ref),
 		fileWholeRef: make(map[blob.Ref]blob.Ref),
 		gps:          make(map[blob.Ref]latLong),
@@ -1189,7 +1183,7 @@ func (c *Corpus) PermanodeAttrValue(permaNode blob.Ref,
 	}
 
 	var signer string
-	var signerRefs signerRefSet
+	var signerRefs SignerRefSet
 	if signerFilter.Valid() {
 		var ok bool
 		signer, ok = c.keyId[signerFilter]
@@ -1302,20 +1296,16 @@ func (c *Corpus) AppendPermanodeAttrValues(dst []string,
 }
 
 func (c *Corpus) AppendClaims(ctx context.Context, dst []camtypes.Claim, permaNode blob.Ref,
-	signerFilter blob.Ref,
+	signerFilter string,
 	attrFilter string) ([]camtypes.Claim, error) {
 	pm, ok := c.permanodes[permaNode]
 	if !ok {
 		return nil, nil
 	}
 
-	var signerRefs signerRefSet
-	if signerFilter.Valid() {
-		signer, ok := c.keyId[signerFilter]
-		if !ok {
-			return dst, nil
-		}
-		signerRefs, ok = c.signerRefs[signer]
+	var signerRefs SignerRefSet
+	if signerFilter != "" {
+		signerRefs, ok = c.signerRefs[signerFilter]
 		if !ok {
 			return dst, nil
 		}

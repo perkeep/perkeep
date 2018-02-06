@@ -33,7 +33,7 @@ const (
 	// default secret ring used in tests and in devcam commands
 	defaultSecring = "pkg/jsonsign/testdata/test-secring.gpg"
 	// public ID of the GPG key in defaultSecring
-	defaultIdentity = "26F5ABDA"
+	defaultIdentity = "2931A67C26F5ABDA"
 )
 
 var (

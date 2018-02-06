@@ -39,29 +39,29 @@ func init() {
 }
 
 var describedBlobs = map[string]blob.Ref{
-	"abc-123":            blob.MustParse("sha1-44fab17408e86f1a133748daa5b86728f57e4d59"),
-	"abc-123c":           blob.MustParse("sha1-9d96bb2da60d43d4556168fedc6cb199846c6ddb"),
-	"abc-123c1":          blob.MustParse("sha1-85fea96ef4e3ead0aca17e17ab50e090193d3440"),
-	"abc-123cc":          blob.MustParse("sha1-13eee7e046a81581ba178ac6cc2547f9c5a1158b"),
-	"abc-888":            blob.MustParse("sha1-2426c9a061e730cf584c695546d758302de0f4da"),
-	"abc-8881":           blob.MustParse("sha1-05e748612e753884d37f88c5729ac969137e7cf1"),
-	"fourcheckin-0":      blob.MustParse("sha1-2835859f53554db6c37cd647243bc23f417b7669"),
-	"fourvenue-123":      blob.MustParse("sha1-12e863d73f50e68892b4f789e659cd11aeec5447"),
-	"venuepicset-123":    blob.MustParse("sha1-9f3efacee8aaf2951ac11e52d4a6f1d735bf1cce"),
-	"venuepic-1":         blob.MustParse("sha1-c5e248c321fcd8cecf2ecfa06de109dce6b356fe"),
-	"somevenuepic-0":     blob.MustParse("sha1-fd2ccca4313bc1aa0db3f16cf29fcb5de1a4d91c"),
-	"venuepic-2":         blob.MustParse("sha1-7d837226d52292a2895aa467be098ec8d76f50b3"),
-	"somevenuepic-2":     blob.MustParse("sha1-11586984a99c5e0e2c1f8532bd6ecab6d80c867e"),
-	"homedir-0":          blob.MustParse("sha1-d52d7cb33adb0bed68a1423402a6ca712a734282"),
-	"homedir-1":          blob.MustParse("sha1-52100811fb74aadf7b7ebf82cb69f0c7840f3b4b"),
-	"homedir-2":          blob.MustParse("sha1-614f4d1789f278e1da534918af813fddd209de1e"),
-	"set-0":              blob.MustParse("sha1-9b1e652a4e9b19a45aa54a31697af083a3d390f1"),
+	"abc-123":            blob.MustParse("sha1-39606e3c1730123c1cd80857b41a721ea5e6d4c5"),
+	"abc-123c":           blob.MustParse("sha1-d2ec7f86e73d2434df7736bcab47e9cc1507faeb"),
+	"abc-123c1":          blob.MustParse("sha1-6caf362b90f7713558860ef2b43c1bfa1af4d54b"),
+	"abc-123cc":          blob.MustParse("sha1-4542245a5739f14ef5df3e3578603cb5599e979d"),
+	"abc-888":            blob.MustParse("sha1-7a37eadfe010128b452cb950932c408149a0b6aa"),
+	"abc-8881":           blob.MustParse("sha1-0b0fec9002df13dad544e303b932ab7900fe651f"),
+	"fourcheckin-0":      blob.MustParse("sha1-5efbaa0911510dbfd9a3e527de821c9c4aaa1451"),
+	"fourvenue-123":      blob.MustParse("sha1-2bc38525b7f5cb33657079f176b81dfc688a761a"),
+	"venuepicset-123":    blob.MustParse("sha1-14b788811dcbf39aba11d06a7f4c3a85e158372e"),
+	"venuepic-1":         blob.MustParse("sha1-322e19e5e2ff273b0e726817180d4e7a65fd18a6"),
+	"somevenuepic-0":     blob.MustParse("sha1-6293628cff5169c577fa2c27b191827e5537dc2d"),
+	"venuepic-2":         blob.MustParse("sha1-931e6fa5904f8ddb3dab7d6107f4d4acd5dc2c0c"),
+	"somevenuepic-2":     blob.MustParse("sha1-eaa4c47801c00ea55bcca508cd9ac6aef224f8e4"),
+	"homedir-0":          blob.MustParse("sha1-9c8c65b7cdd94fce2162492740a596c44ca87869"),
+	"homedir-1":          blob.MustParse("sha1-5b906a7c5ff14c219fe2a58f97b8cf73814273c4"),
+	"homedir-2":          blob.MustParse("sha1-d5f182577613cd4a0b75e23d461c6ea93c637e85"),
+	"set-0":              blob.MustParse("sha1-db75da7350c909cc24640eff5fcd4613a235d57a"),
+	"location-0":         blob.MustParse("sha1-94618fac5f1257bf0ac52fb07e391295ddb89e3a"),
+	"locationpriority-1": blob.MustParse("sha1-d8d3f7e4a74a7fb29435c6d708f683bf330863a6"),
+	"locationpriority-2": blob.MustParse("sha1-1841d4ee4c6edab302b1f13c78a6d3ee1a09fb38"),
+	"locationoverride-1": blob.MustParse("sha1-6f245d8bd5b18d110d305f33b64cb1be190d43ff"),
+	"locationoverride-2": blob.MustParse("sha1-51271c4962df329d4c32d5c56eccbe996de668b4"),
 	"filewithloc-0":      blob.MustParse("sha1-24c572c7cf48de8c32298b9ac00c7cb7b9922d60"),
-	"location-0":         blob.MustParse("sha1-7edfb82719ed14b43ed6858f67832b799ceae28d"),
-	"locationpriority-1": blob.MustParse("sha1-f9a3ca181956c33add1c4d0973b36907445e8c35"),
-	"locationpriority-2": blob.MustParse("sha1-7522b4bb490202544a5ded6a1d71588f775dfa6d"),
-	"locationoverride-1": blob.MustParse("sha1-bfc3a7dedb35045b3ebe4be073dfb00889d9ae93"),
-	"locationoverride-2": blob.MustParse("sha1-044922d2fe7c183ee901744e6bfcf521788470b5"),
 }
 
 func searchDescribeSetup(t *testing.T) indexAndOwner {
@@ -75,7 +75,7 @@ func searchDescribeSetup(t *testing.T) indexAndOwner {
 	}
 
 	lastModtime = test.ClockOrigin
-	checkErr(t, fi.addBlob(owner))
+	checkErr(t, fi.addBlob(ownerRef))
 	checkErr(t, fi.addPermanode("abc-123",
 		"camliContent", dbRefStr("abc-123c"),
 		"camliImageContent", dbRefStr("abc-888"),
@@ -392,7 +392,7 @@ func TestDescribeRace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error slurping index to memory: %v", err)
 	}
-	h := search.NewHandler(idx, idxd.SignerBlobRef)
+	h := search.NewHandler(idx, owner)
 	h.SetCorpus(corpus)
 	donec := make(chan struct{})
 	headstart := 500
@@ -455,7 +455,7 @@ func TestDescribeLocation(t *testing.T) {
 	ixo := searchDescribeSetup(t)
 	ix := ixo.index
 	ctx := context.Background()
-	h := search.NewHandler(ix, owner.BlobRef())
+	h := search.NewHandler(ix, owner)
 
 	ix.RLock()
 	defer ix.RUnlock()
@@ -499,7 +499,7 @@ func TestDescribeLocation(t *testing.T) {
 func TestDescribePermNoAttr(t *testing.T) {
 	ix := index.NewMemoryIndex()
 	ctx := context.Background()
-	h := search.NewHandler(ix, owner.BlobRef())
+	h := search.NewHandler(ix, owner)
 	corpus, err := ix.KeepInMemory()
 	if err != nil {
 		t.Fatal(err)
