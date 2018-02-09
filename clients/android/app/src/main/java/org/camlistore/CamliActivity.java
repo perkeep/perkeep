@@ -21,14 +21,18 @@ import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
+import android.Manifest;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.MessageQueue;
 import android.os.RemoteException;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -41,12 +45,16 @@ import android.widget.Toast;
 
 public class CamliActivity extends Activity {
     private static final String TAG = "CamliActivity";
+
     private static final int MENU_SETTINGS = 1;
     private static final int MENU_STOP = 2;
     private static final int MENU_STOP_DIE = 3;
     private static final int MENU_UPLOAD_ALL = 4;
     private static final int MENU_VERSION = 5;
     private static final int MENU_PROFILES = 6;
+
+    private static final int READ_EXTERNAL_STORAGE_PERMISSION_RESPONSE = 0;
+
 
     private IUploadService mServiceStub = null;
     private IStatusCallback mCallback = null;
@@ -104,7 +112,9 @@ public class CamliActivity extends Activity {
         final TextView textStats = (TextView) findViewById(R.id.textStats);
         final TextView textBlobsRemain = (TextView) findViewById(R.id.textBlobsRemain);
         final TextView textUploadStatus = (TextView) findViewById(R.id.textUploadStatus);
+        final TextView textByteStatus = (TextView) findViewById(R.id.textByteStatus);
         final ProgressBar progressBytes = (ProgressBar) findViewById(R.id.progressByteStatus);
+        final TextView textFileStatus = (TextView) findViewById(R.id.textFileStatus);
         final ProgressBar progressFile = (ProgressBar) findViewById(R.id.progressFileStatus);
 
         buttonToggle.setOnClickListener(new OnClickListener() {
@@ -170,6 +180,14 @@ public class CamliActivity extends Activity {
                             buttonToggle.setText(getString(R.string.pause_resume));
                         }
 
+                        StringBuilder filesUploaded = new StringBuilder(40);
+                        if (done < 2) {
+                            filesUploaded.append(done).append(" file uploaded");
+                        } else {
+                            filesUploaded.append(done).append(" files uploaded");
+                        }
+                        textFileStatus.setText(filesUploaded.toString());
+
                         StringBuilder sb = new StringBuilder(40);
                         sb.append("Files to upload: ").append(total - done);
                         textBlobsRemain.setText(sb.toString());
@@ -188,6 +206,14 @@ public class CamliActivity extends Activity {
                         progressBytes.setProgress((int) (done / 1024L));
                         // TODO: renable once camput properly sends inflight information
                         // progressBytes.setSecondaryProgress(progressBytes.getProgress() + inFlight / 1024);
+
+                        StringBuilder bytesUploaded = new StringBuilder(40);
+                        if (done < 2) {
+                            bytesUploaded.append(done).append(" byte uploaded");
+                        } else {
+                            bytesUploaded.append(done).append(" bytes uploaded");
+                        }
+                        textByteStatus.setText(bytesUploaded.toString());
                     }
                 });
             }
@@ -315,6 +341,13 @@ public class CamliActivity extends Activity {
     protected void onResume() {
         super.onResume();
 
+        // Check for the right to read the user's files.
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
+                READ_EXTERNAL_STORAGE_PERMISSION_RESPONSE);
+        }
+
         SharedPreferences sp = getSharedPreferences(Preferences.filename(this.getBaseContext()), 0);
         try {
             HostPort hp = new HostPort(sp.getString(Preferences.HOST, ""));
@@ -345,6 +378,24 @@ public class CamliActivity extends Activity {
             setIntent(new Intent(this, CamliActivity.class));
         } else {
             Log.d(TAG, "Normal CamliActivity viewing.");
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+        String permissions[], int[] grantResults) {
+        switch (requestCode) {
+        case READ_EXTERNAL_STORAGE_PERMISSION_RESPONSE: {
+            // If request is cancelled, the result arrays are empty.
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Log.d(TAG, "User authorized us to read his files.");
+            } else {
+                // The app is useless without this permission, so we just kill ourselves.
+                Log.d(TAG, "Permission to read files denied by user.");
+                System.exit(1);
+            }
+            return;
+        }
         }
     }
 }
