@@ -117,7 +117,7 @@ func TestCamputUploadOnce(t *testing.T) {
 		// Also, CAMLI_DEBUG is needed for --contents_only flag.
 		return w.CmdWithEnv("camput", append(os.Environ(), "CAMLI_DEBUG=1"), "file", "--contents_only=true", filepath.FromSlash("../testdata/server-config.json"))
 	}
-	wantBlobRef := "sha1-b6943ef8fa1a7595385a1f9300ce144525d6938a"
+	wantBlobRef := "sha1-381c42a63078ef49a2f1808318dbbafbb31a81d5"
 	cmd := camputCmd()
 	out := test.MustRunCmd(t, cmd)
 	out = strings.TrimSpace(out)

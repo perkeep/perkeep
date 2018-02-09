@@ -76,7 +76,10 @@
          "handlerArgs": {
              "index": "/index-mem/",
              "slurpToMemory": true,
-             "owner": "sha1-f2b0b7da718b97ce8c31591d8ed4645c777f3ef4"
+             "owner": {
+                 "secringFile": ["_env", "${CAMLI_SECRET_RING}"],
+                 "identity": "2931A67C26F5ABDA"
+             }
          }
      },
 

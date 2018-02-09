@@ -219,7 +219,7 @@ func newSigner(bs blobserver.BlobReceiver) (signer *schema.Signer, owner blob.Re
 
 func newHost() (*importer.Host, error) {
 	bs := new(test.Fetcher)
-	sig, owner, err := newSigner(bs)
+	sig, ownerRef, err := newSigner(bs)
 	if err != nil {
 		return nil, err
 	}
@@ -233,6 +233,7 @@ func newHost() (*importer.Host, error) {
 	if err != nil {
 		return nil, err
 	}
+	owner := index.NewOwner(sig.KeyIDLong(), ownerRef)
 	sh := search.NewHandler(ix, owner)
 	sh.SetCorpus(corpus)
 
