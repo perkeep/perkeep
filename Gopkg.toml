@@ -88,6 +88,11 @@ ignored = [
   go-tests = true
   non-go = true
 
+  # To avoid deletion of jsbuiltin.inc.js
+  [[prune.project]]
+    name = "github.com/gopherjs/jsbuiltin"
+    non-go = false
+
 # Constraints / Overrides follow
 # Semantic versions (like v1.0.0) are preferred
 # Please keep alphabetized
