@@ -201,7 +201,8 @@
 [[projects]]
   name = "github.com/mattn/go-sqlite3"
   packages = ["."]
-  revision = "919cf4144a09abfd877330bbe735f3a243a84537"
+  revision = "6c771bb9887719704b210e87e934f08be014bdb1"
+  version = "v1.6.0"
 
 [[projects]]
   name = "github.com/miekg/dns"
@@ -564,6 +565,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "1816b3ce31399ab6398d05881faaa48f6545d46dc62277f72672098e397fb448"
+  inputs-digest = "45918f60981155decec758a08a2d4f27df6253760f470bc0840ac3d353d9bf40"
   solver-name = "gps-cdcl"
   solver-version = 1

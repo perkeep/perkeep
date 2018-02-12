@@ -205,7 +205,7 @@ ignored = [
 
 [[constraint]]
   name = "github.com/mattn/go-sqlite3"
-  revision = "919cf4144a09abfd877330bbe735f3a243a84537"
+  version = "v1.6.0"
 
 [[constraint]]
   name = "github.com/miekg/dns"
