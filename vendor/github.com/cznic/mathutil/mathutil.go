@@ -369,7 +369,7 @@ func AddUint128_64(a, b uint64) (hi uint64, lo uint64) {
 	if lo < a {
 		hi = 1
 	}
-	return
+	return hi, lo
 }
 
 // MulUint128_64 returns the uint128 bit product of uint64 a and b.

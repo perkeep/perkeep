@@ -39,7 +39,7 @@
   branch = "master"
   name = "github.com/cznic/fileutil"
   packages = ["."]
-  revision = "2d566d841097e1297dfb576f809cf9eeecbdbc37"
+  revision = "6a051e75936f623600b67c2b1116b6b6c0ffb936"
 
 [[projects]]
   name = "github.com/cznic/internal"
@@ -65,7 +65,7 @@
   branch = "master"
   name = "github.com/cznic/mathutil"
   packages = ["."]
-  revision = "09cde8d5df5fd3e1944897ce6d00d83dd5ed3a91"
+  revision = "5455a562bccba6fed24079339aa97e44ac0de4bb"
 
 [[projects]]
   branch = "master"
@@ -102,7 +102,6 @@
   version = "v1.3"
 
 [[projects]]
-  branch = "master"
   name = "github.com/golang/protobuf"
   packages = [
     "proto",
@@ -114,7 +113,8 @@
     "ptypes/timestamp",
     "ptypes/wrappers"
   ]
-  revision = "1e59b77b52bf8e4b449a57e6f79f21226d571845"
+  revision = "925541529c1fa6821df4e44ce2723319eb2be768"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/golang/snappy"
