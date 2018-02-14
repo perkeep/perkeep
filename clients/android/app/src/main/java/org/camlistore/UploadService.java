@@ -31,7 +31,6 @@ import org.camlistore.UploadThread.CamputChunkUploadedMessage;
 import org.camlistore.UploadThread.CamputStatsMessage;
 
 import android.app.Notification;
-import android.app.Notification.Builder;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -50,6 +49,7 @@ import android.os.Parcelable;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.provider.MediaStore;
+import android.support.v4.app.TaskStackBuilder;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -57,6 +57,7 @@ public class UploadService extends Service {
     private static final String TAG = "UploadService";
 
     private static int NOTIFY_ID_UPLOADING = 0x001;
+    private static int NOTIFY_ID_FOREGROUND = 0x002;
 
     public static final String INTENT_POWER_CONNECTED = "POWER_CONNECTED";
     public static final String INTENT_POWER_DISCONNECTED = "POWER_DISCONNECTED";
@@ -80,6 +81,8 @@ public class UploadService extends Service {
     private String mLastUploadStatsText = null; // multi-line stats
     private int mBytesInFlight = 0;
     private int mFilesInFlight = 0;
+    private Notification.Builder autoUploadNotif;
+    Preferences mPrefs;
 
     // Stats, all guarded by 'this', and all reset to 0 on queue size transition
     // from 0 -> 1.
@@ -92,12 +95,12 @@ public class UploadService extends Service {
     PowerManager mPowerManager;
     WifiManager mWifiManager;
     NotificationManager mNotificationManager;
-    Preferences mPrefs;
 
     // File Observers. Need to keep a reference to them, as there's no JNI
     // reference and their finalizers would run otherwise, stopping their
     // inotify.
-    private final ArrayList<FileObserver> mObservers = new ArrayList<FileObserver>();
+    // Make them static so that they're never GCed.
+    private final static ArrayList<FileObserver> mObservers = new ArrayList<FileObserver>();
 
     @Override
     public void onCreate() {
@@ -106,10 +109,44 @@ public class UploadService extends Service {
 
         mPowerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         mWifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-        mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         mPrefs = new Preferences(getSharedPreferences(Preferences.filename(this.getBaseContext()), 0));
 
         updateBackgroundWatchers();
+
+        startForeground(NOTIFY_ID_FOREGROUND, newNotification());
+    }
+
+    private Notification newNotification() {
+        Intent notificationIntent = new Intent(this, SettingsActivity.class);
+        // The stack builder object will contain an artificial back stack for the
+        // started Activity.
+        // This ensures that navigating backward from the Activity leads out of
+        // your app to the Home screen.
+        TaskStackBuilder stackBuilder = TaskStackBuilder.create(this);
+        // Adds the back stack for the Intent (but not the Intent itself)
+        stackBuilder.addParentStack(SettingsActivity.class);
+        // Adds the Intent that starts the Activity to the top of the stack
+        stackBuilder.addNextIntent(notificationIntent);
+        PendingIntent pendingIntent = stackBuilder.getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT);
+
+        autoUploadNotif =
+            // TODO(mpl): use API 26 Constructor with a notification channel later, when
+            // Android >=8 is more widely distributed.
+            new Notification.Builder(this)
+            .setContentTitle(getText(R.string.notification_title))
+            .setContentText(notificationMessage())
+            .setSmallIcon(R.drawable.ic_stat_notify)
+            .setContentIntent(pendingIntent);
+
+        return autoUploadNotif.build();
+    }
+
+    private String notificationMessage() {
+        if (mPrefs.autoUpload()) {
+            return "Auto uploading is ON";
+        }
+        return "Auto uploading is OFF";
     }
 
     @Override
@@ -149,13 +186,11 @@ public class UploadService extends Service {
         String action = intent.getAction();
         if (Intent.ACTION_SEND.equals(action)) {
             handleSend(intent);
-            stopServiceIfEmpty();
             return;
         }
 
         if (Intent.ACTION_SEND_MULTIPLE.equals(action)) {
             handleSendMultiple(intent);
-            stopServiceIfEmpty();
             return;
         }
 
@@ -201,7 +236,6 @@ public class UploadService extends Service {
                     Log.d(TAG, "Stopping automatic uploads");
                     service.pause();
                     stopBackgroundWatchers();
-                    stopServiceIfEmpty();
                     return;
                 }
             }
@@ -233,8 +267,6 @@ public class UploadService extends Service {
                 try {
                     service.enqueueUpload(uri);
                 } catch (RemoteException e) {
-                } finally {
-                    stopServiceIfEmpty();
                 }
             }
         });
@@ -255,6 +287,7 @@ public class UploadService extends Service {
                         if (!dir.exists()) {
                             continue;
                         }
+                        Log.d(TAG, "Uploading all in directory: " + dirName);
                         File[] files = dir.listFiles();
                         if (files != null) {
                             for (int i = 0; i < files.length; ++i) {
@@ -274,8 +307,6 @@ public class UploadService extends Service {
                     try {
                         service.enqueueUploadList(filesToQueue);
                     } catch (RemoteException e) {
-                    } finally {
-                        stopServiceIfEmpty();
                     }
                 } finally {
                     wakeLock.release();
@@ -286,16 +317,24 @@ public class UploadService extends Service {
 
     private List<String> getBackupDirs() {
         ArrayList<String> dirs = new ArrayList<String>();
-        if (mPrefs.autoDirPhotos()) {
-            dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/Camera");
-            dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/100MEDIA");
-            dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/100ANDRO");
-            dirs.add(Environment.getExternalStorageDirectory() + "/DCIM/CardboardCamera");
-            dirs.add(Environment.getExternalStorageDirectory() + "/Eye-Fi");
-        }
-        if (mPrefs.autoDirMyTracks()) {
-            dirs.add(Environment.getExternalStorageDirectory() + "/gpx");
-            dirs.add(Environment.getExternalStorageDirectory() + "/kml");
+        String stripped = "/Android/data/org.camlistore/files";
+        // We use getExternalFilesDirs instead of getExternalStorageDirectory, so we can
+        // try both the emulated SD card (the filesystem on the internal memory really),
+        // and any existing SD card as well.
+        for (File dirName : getExternalFilesDirs(null)) {
+            String dirPath =  dirName.getAbsolutePath();
+            String root = dirPath.substring(0, dirPath.indexOf(stripped));
+            if (mPrefs.autoDirPhotos()) {
+                dirs.add(root + "/DCIM/Camera");
+                dirs.add(root + "/DCIM/100MEDIA");
+                dirs.add(root + "/DCIM/100ANDRO");
+                dirs.add(root + "/DCIM/CardboardCamera");
+                dirs.add(root + "/Eye-Fi");
+            }
+            if (mPrefs.autoDirMyTracks()) {
+                dirs.add(root + "/gpx");
+                dirs.add(root + "/kml");
+            }
         }
         return dirs;
     }
@@ -317,8 +356,6 @@ public class UploadService extends Service {
                 try {
                     service.enqueueUploadList(finalUris);
                 } catch (RemoteException e) {
-                } finally {
-                    stopServiceIfEmpty();
                 }
             }
         });
@@ -359,9 +396,17 @@ public class UploadService extends Service {
 
     // Requires that UploadService.this is locked.
     private void maybeAddObserver(String suffix) {
-        File f = new File(Environment.getExternalStorageDirectory(), suffix);
-        if (f.exists()) {
-            mObservers.add(new CamliFileObserver(service, f));
+        String stripped = "Android/data/org.camlistore/files";
+        // We use getExternalFilesDirs instead of getExternalStorageDirectory, so we can
+        // try both the emulated SD card (the filesystem on the internal memory really),
+        // and any existing SD card as well.
+        for (File dirName : getExternalFilesDirs(null)) {
+            String dirPath =  dirName.getAbsolutePath();
+            String root = dirPath.substring(0, dirPath.indexOf(stripped));
+            File f = new File(root, suffix);
+            if (f.exists()) {
+                 mObservers.add(new CamliFileObserver(service, f));
+            }
         }
     }
 
@@ -467,7 +512,6 @@ public class UploadService extends Service {
             } catch (RemoteException e) {
             }
         }
-        stopServiceIfEmpty();
     }
 
     /**
@@ -499,7 +543,6 @@ public class UploadService extends Service {
             mQueueList.remove(qf); // TODO: ghetto, linear scan
         }
         broadcastAllState();
-        stopServiceIfEmpty();
     }
 
     // incrBytes notes that size bytes of qf have been uploaded
@@ -599,7 +642,6 @@ public class UploadService extends Service {
                 ParcelFileDescriptor pfd = getFileDescriptor(uri);
                 if (pfd == null) {
                     incrementFilesToUpload(-1);
-                    stopServiceIfEmpty();
                     return false;
                 }
 
@@ -626,7 +668,6 @@ public class UploadService extends Service {
             synchronized (UploadService.this) {
                 if (mFileBytesRemain.containsKey(qf)) {
                     Log.d(TAG, "Dup blob enqueue, ignoring " + qf);
-                    stopServiceIfEmpty();
                     return false;
                 }
                 Log.d(TAG, "Enqueueing blob: " + qf);
@@ -791,7 +832,21 @@ public class UploadService extends Service {
                 UploadService.this.startBackgroundWatchers();
             } else {
                 UploadService.this.stopBackgroundWatchers();
-                stopServiceIfEmpty();
+            }
+            Notification notif = autoUploadNotif.setContentText(notificationMessage()).build();
+            mNotificationManager.notify(NOTIFY_ID_FOREGROUND, notif);
+        }
+
+        public void reloadSettings() throws RemoteException {
+            String profileName = Preferences.filename(UploadService.this.getBaseContext());
+            Log.d(TAG, "reloading settings from: " + profileName);
+            synchronized (UploadService.this) {
+                boolean oldAutoUpload = mPrefs.autoUpload();
+                mPrefs = new Preferences(getSharedPreferences(profileName, 0));
+                boolean newAutoUpload = mPrefs.autoUpload();
+                if (newAutoUpload != oldAutoUpload) {
+                    this.setBackgroundWatchersEnabled(newAutoUpload);
+                }
             }
         }
     };

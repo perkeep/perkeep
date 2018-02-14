@@ -11,7 +11,9 @@ android {
     defaultConfig {
         applicationId "org.camlistore"
         minSdkVersion 14
-        targetSdkVersion 27
+        // Stay below API 26 for a while, because it deprecates the Notification Builder
+        // constructor we're using.
+        targetSdkVersion 25
         versionCode 1
         versionName "1"
     }
@@ -24,6 +26,6 @@ android {
 
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
-    implementation 'com.android.support:appcompat-v7:27.0.0'
-    implementation 'com.android.support:support-compat:27.0.0'
+    implementation 'com.android.support:appcompat-v7:25.0.0'
+    implementation 'com.android.support:support-compat:25.0.0'
 }
