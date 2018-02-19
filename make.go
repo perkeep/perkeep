@@ -1038,54 +1038,66 @@ func verifyPerkeepRoot(dir string) {
 }
 
 const (
-	goVersionMinor  = '9'
-	gopherJSGoMinor = '9'
+	goVersionMinor  = 9
+	gopherJSGoMinor = 9
 )
 
+var validVersionRx = regexp.MustCompile(`go version go1\.(\d+)`)
+
+// verifyGoVersion runs "go version" and parses the output.  If the version is
+// acceptable a check for gopherjs versions are also done. If problems
+// are found a message is logged and we abort.
 func verifyGoVersion() {
 	_, err := exec.LookPath("go")
 	if err != nil {
-		log.Fatalf("Go doesn't appear to be installed ('go' isn't in your PATH). Install Go 1.%c or newer.", goVersionMinor)
+		log.Fatalf("Go doesn't appear to be installed ('go' isn't in your PATH). Install Go 1.%d or newer.", goVersionMinor)
 	}
 	out, err := exec.Command("go", "version").Output()
+
 	if err != nil {
 		log.Fatalf("Error checking Go version with the 'go' command: %v", err)
 	}
-	fields := strings.Fields(string(out))
-	if len(fields) < 3 || !strings.HasPrefix(string(out), "go version ") {
-		log.Fatalf("Unexpected output while checking 'go version': %q", out)
-	}
-	version := fields[2]
-	if version == "devel" {
+
+	version := string(out)
+
+	// Handle non-versioned binaries
+	// ex: "go version devel +c26fac8 Thu Feb 15 21:41:39 2018 +0000 linux/amd64"
+	if strings.HasPrefix(version, "go version devel ") {
 		verifyGopherjsGoroot()
 		return
 	}
-	// this check is still needed for the "go1" case.
-	if len(version) < len("go1.") {
-		log.Fatalf("Your version of Go (%s) is too old. Perkeep requires Go 1.%c or later.", version, goVersionMinor)
+
+	m := validVersionRx.FindStringSubmatch(version)
+	if m == nil {
+		log.Fatalf("Unexpected output while checking 'go version': %q", version)
 	}
-	minorChar := strings.TrimPrefix(version, "go1.")[0]
-	if minorChar >= goVersionMinor && minorChar <= '9' {
-		if minorChar != gopherJSGoMinor {
-			verifyGopherjsGoroot()
-		}
-		return
+	minorVersion, err := strconv.Atoi(m[1])
+
+	if err != nil {
+		log.Fatalf("Unexpected error while parsing version string %q: %v", m[1], err)
 	}
-	log.Fatalf("Your version of Go (%s) is too old. Perkeep requires Go 1.%c or later.", version, goVersionMinor)
+
+	if minorVersion < goVersionMinor {
+		log.Fatalf("Your version of Go (%s) is too old. Perkeep requires Go 1.%c or later.", string(out), goVersionMinor)
+	}
+
+	if minorVersion != gopherJSGoMinor {
+		verifyGopherjsGoroot()
+	}
 }
 
 func verifyGopherjsGoroot() {
 	goBin := filepath.Join(gopherjsGoroot, "bin", "go")
 	if gopherjsGoroot == "" {
-		gopherjsGoroot = filepath.Join(homeDir(), fmt.Sprintf("go1.%c", gopherJSGoMinor))
+		gopherjsGoroot = filepath.Join(homeDir(), fmt.Sprintf("go1.%d", gopherJSGoMinor))
 		goBin = filepath.Join(gopherjsGoroot, "bin", "go")
-		log.Printf("You're using go != 1.%c, and CAMLI_GOPHERJS_GOROOT was not provided, so defaulting to %v for building gopherjs instead.", gopherJSGoMinor, goBin)
+		log.Printf("You're using go != 1.%d, and CAMLI_GOPHERJS_GOROOT was not provided, so defaulting to %v for building gopherjs instead.", gopherJSGoMinor, goBin)
 	}
 	if _, err := os.Stat(goBin); err != nil {
 		if !os.IsNotExist(err) {
 			log.Fatal(err)
 		}
-		log.Fatalf("%v not found. You need to specify a go1.%c root in CAMLI_GOPHERJS_GOROOT for building gopherjs", goBin, gopherJSGoMinor)
+		log.Fatalf("%v not found. You need to specify a go1.%d root in CAMLI_GOPHERJS_GOROOT for building gopherjs", goBin, gopherJSGoMinor)
 	}
 }
 
