@@ -6,7 +6,7 @@
 			"default": true
 		}
 	},
-	"identity": "26F5ABDA",
+	"identity": "2931A67C26F5ABDA",
 	"identitySecretRing": "/path/to/secring",
 	"ignoredFiles": [
 		".DS_Store",

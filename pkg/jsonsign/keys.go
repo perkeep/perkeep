@@ -191,7 +191,7 @@ func KeyIdFromRing(secRing string) (keyID string, err error) {
 		return "", fmt.Errorf("Secret ring file %v contained %d identities; expected 1", secRing, len(el))
 	}
 	ent := el[0]
-	return ent.PrimaryKey.KeyIdShortString(), nil
+	return ent.PrimaryKey.KeyIdString(), nil
 }
 
 // GenerateNewSecRing creates a new secret ring file secRing, with
@@ -217,5 +217,5 @@ func GenerateNewSecRing(secRing string) (keyID string, err error) {
 	if err := f.Close(); err != nil {
 		return "", fmt.Errorf("Could not close %v: %v", secRing, err)
 	}
-	return ent.PrimaryKey.KeyIdShortString(), nil
+	return ent.PrimaryKey.KeyIdString(), nil
 }

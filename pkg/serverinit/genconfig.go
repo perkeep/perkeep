@@ -189,6 +189,31 @@ func (b *lowBuilder) searchOwner() (owner *serverconfig.Owner, err error) {
 	}, nil
 }
 
+// longIdentity returns the long form (16 chars) of the GPG key ID, in case the
+// user provided the short form (8 chars) in the config.
+func (b *lowBuilder) longIdentity() (string, error) {
+	if b.high.Identity == "" {
+		return "", errNoOwner
+	}
+	if strings.ToUpper(b.high.Identity) != b.high.Identity {
+		return "", fmt.Errorf("identity %q is not all upper-case", b.high.Identity)
+	}
+	if len(b.high.Identity) == 16 {
+		return b.high.Identity, nil
+	}
+	if b.high.IdentitySecretRing == "" {
+		return "", errNoOwner
+	}
+	keyID, err := jsonsign.KeyIdFromRing(b.high.IdentitySecretRing)
+	if err != nil {
+		return "", fmt.Errorf("could not find any keyID in file %q: %v", b.high.IdentitySecretRing, err)
+	}
+	if !strings.HasSuffix(keyID, b.high.Identity) {
+		return "", fmt.Errorf("%q identity not found in secret ring %v", b.high.Identity, b.high.IdentitySecretRing)
+	}
+	return keyID, nil
+}
+
 func addAppConfig(config map[string]interface{}, appConfig *serverconfig.App, low jsonconfig.Obj) {
 	if appConfig.Listen != "" {
 		config["listen"] = appConfig.Listen
@@ -1059,9 +1084,11 @@ func (b *lowBuilder) build() (*Config, error) {
 		log.Printf("Indexer disabled, but %v will be used for other indexes, queues, caches, etc.", b.sortedName())
 	}
 
-	if conf.Identity == "" {
-		return nil, errors.New("no 'identity' in server config")
+	longID, err := b.longIdentity()
+	if err != nil {
+		return nil, err
 	}
+	b.high.Identity = longID
 
 	noLocalDisk := conf.BlobPath == ""
 	if noLocalDisk {
