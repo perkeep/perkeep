@@ -117,36 +117,12 @@ ignored = [
   revision = "b745505085619d2818bc4b32b5a9fcc539e551fd"
 
 [[constraint]]
-  name = "github.com/cznic/fileutil"
-  revision = "2d566d841097e1297dfb576f809cf9eeecbdbc37"
-
-[[constraint]]
   name = "github.com/cznic/internal"
   revision = "4747030f7cf2f4c0a01512b00cd68734b167ac3b"
 
 [[constraint]]
   name = "github.com/cznic/kv"
   revision = "892ccf731fb7aa5e9aa300eb24456d1519afcfc7"
-
-[[constraint]]
-  name = "github.com/cznic/lldb"
-  revision = "v1.1.0"
-
-[[constraint]]
-  name = "github.com/cznic/mathutil"
-  revision = "09cde8d5df5fd3e1944897ce6d00d83dd5ed3a91"
-
-[[constraint]]
-  name = "github.com/cznic/sortutil"
-  revision = "4c7342852e65c2088c981288f2c5610d10b9f7f4"
-
-[[constraint]]
-  name = "github.com/cznic/zappy"
-  revision = "2533cb5b45cc6c07421468ce262899ddc9d53fb7"
-
-[[constraint]]
-  name = "github.com/edsrzf/mmap-go"
-  revision = "0bce6a6887123b67a60366d2c9fe2dfb74289d2e"
 
 [[constraint]]
   name = "github.com/fsnotify/fsnotify"
@@ -159,10 +135,6 @@ ignored = [
 [[constraint]]
   name = "github.com/go-sql-driver/mysql"
   version = "1.3.0"
-
-[[constraint]]
-  name = "github.com/golang/protobuf"
-  revision = "8ee79997227bf9b34611aee7946ae64735e6fd93"
 
 [[constraint]]
   name = "github.com/golang/snappy"
@@ -179,10 +151,6 @@ ignored = [
 [[constraint]]
   name = "github.com/gopherjs/jquery"
   revision = "fbbfc4bbe29a29cb05788b66be44e0ac7f43cac7"
-
-[[constraint]]
-  name = "github.com/gopherjs/jsbuiltin"
-  revision = "67703bfb044e3192fbcab025c3aeaeedafad1f2f"
 
 [[constraint]]
   name = "github.com/kardianos/osext"
@@ -223,10 +191,6 @@ ignored = [
 [[constraint]]
   name = "github.com/nf/cr2"
   revision = "05d46fef4f2f903240751e25871cd318d001deba"
-
-[[constraint]]
-  name = "github.com/pkg/errors"
-  revision = "f15c970de5b76fac0b59abb32d62c17cc7bed265"
 
 [[constraint]]
   name = "github.com/plaid/plaid-go"
