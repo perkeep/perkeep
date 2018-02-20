@@ -73,7 +73,7 @@
 			"handlerArgs": {
 				"index": "/index/",
 				"owner": {
-					"identity": "26F5ABDA",
+					"identity": "2931A67C26F5ABDA",
 					"secringFile": "/path/to/secring"
 				},
 				"slurpToMemory": true
@@ -92,7 +92,7 @@
 		"/sighelper/": {
 			"handler": "jsonsign",
 			"handlerArgs": {
-				"keyId": "26F5ABDA",
+				"keyId": "2931A67C26F5ABDA",
 				"publicKeyDest": "/bs-and-index/",
 				"secretRing": "/path/to/secring"
 			}
@@ -105,7 +105,7 @@
 			"handlerArgs": {
 				"from": "/bs/",
 				"queue": {
-					"database": "pk_26f5abda_syncto_index",
+					"database": "pk_2931a67c26f5abda_syncto_index",
 					"host": "localhost",
 					"password": "",
 					"type": "mongo",

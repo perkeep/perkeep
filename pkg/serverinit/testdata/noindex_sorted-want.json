@@ -60,7 +60,7 @@
 		"/sighelper/": {
 			"handler": "jsonsign",
 			"handlerArgs": {
-				"keyId": "26F5ABDA",
+				"keyId": "2931A67C26F5ABDA",
 				"publicKeyDest": "/bs/",
 				"secretRing": "/path/to/secring"
 			}
