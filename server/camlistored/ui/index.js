@@ -1097,7 +1097,7 @@ cam.IndexPage = React.createClass({
 			fileName = goog.string.subs('/%s', rm.file.fileName);
 		}
 
-		var downloadUrl = goog.string.subs('%s%s%s', this.props.config.downloadHelper, rm.blobRef, fileName);
+		var downloadUrl = goog.string.subs('%s%s%s?inline=1', this.props.config.downloadHelper, rm.blobRef, fileName);
 		return React.DOM.button(
 			{
 				key:'viewSelection',

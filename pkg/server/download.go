@@ -18,6 +18,7 @@ package server
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -30,6 +31,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"go4.org/readerutil"
 	"perkeep.org/internal/httputil"
@@ -263,8 +265,10 @@ func fileInfoPacked(ctx context.Context, sh *search.Handler, src blob.Fetcher, r
 // Creates a zip archive of the provided files and serves it in the response.
 //
 // GET:
-//   /<file-schema-blobref>
+//   /<file-schema-blobref>[?inline=1]
 // Serves the file described by the requested file schema blobref.
+// if inline=1 the Content-Disposition of the response is set to inline, and
+// otherwise it set to attachment.
 func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		dh.serveZip(w, r)
@@ -314,22 +318,38 @@ func (dh *DownloadHandler) ServeFile(w http.ResponseWriter, r *http.Request, fil
 	h := w.Header()
 	h.Set("Content-Length", fmt.Sprint(fi.size))
 	h.Set("Expires", time.Now().Add(oneYear).Format(http.TimeFormat))
-	h.Set("Content-Type", fi.mime)
 	if packed {
 		h.Set("X-Camlistore-Packed", "1")
 	}
 
-	if fi.mime == "application/octet-stream" {
-		// Chrome seems to silently do nothing on
-		// application/octet-stream unless this is set.
-		// Maybe it's confused by lack of URL it recognizes
-		// along with lack of mime type?
-		fileName := fi.name
-		if fileName == "" {
-			fileName = "file-" + file.String() + ".dat"
+	fileName := func(ext string) string {
+		if fi.name != "" {
+			return fi.name
 		}
-		w.Header().Set("Content-Disposition", "attachment; filename="+fileName)
+		return "file-" + file.String() + ext
 	}
+
+	if r.FormValue("inline") == "1" {
+		// TODO(mpl): investigate why at least text files have an incorrect MIME.
+		if fi.mime == "application/octet-stream" {
+			// Since e.g. plain text files are seen as "application/octet-stream", we force
+			// check for that, so we can have the browser display them as text if they are
+			// indeed actually text.
+			text, err := isText(fi.rs)
+			if err != nil {
+				// TODO: https://perkeep.org/issues/1060
+				httputil.ServeError(w, r, fmt.Errorf("cannot verify MIME type of file: %v", err))
+				return
+			}
+			if text {
+				fi.mime = "text/plain"
+			}
+		}
+		h.Set("Content-Disposition", "inline")
+	} else {
+		w.Header().Set("Content-Disposition", "attachment; filename="+fileName(".dat"))
+	}
+	h.Set("Content-Type", fi.mime)
 
 	if r.Method == "HEAD" && r.FormValue("verifycontents") != "" {
 		vbr, ok := blob.Parse(r.FormValue("verifycontents"))
@@ -348,6 +368,24 @@ func (dh *DownloadHandler) ServeFile(w http.ResponseWriter, r *http.Request, fil
 	}
 
 	http.ServeContent(w, r, "", time.Now(), fi.rs)
+}
+
+// isText reports whether the first MB read from rs is valid UTF-8 text.
+func isText(rs io.ReadSeeker) (ok bool, err error) {
+	defer func() {
+		if _, seekErr := rs.Seek(0, io.SeekStart); seekErr != nil {
+			if err == nil {
+				err = seekErr
+			}
+		}
+	}()
+	var buf bytes.Buffer
+	if _, err := io.CopyN(&buf, rs, 1e6); err != nil {
+		if err != io.EOF {
+			return false, err
+		}
+	}
+	return utf8.Valid(buf.Bytes()), nil
 }
 
 // statFiles stats the given refs and returns an error if any one of them is not
