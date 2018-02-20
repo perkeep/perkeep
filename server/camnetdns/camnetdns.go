@@ -59,7 +59,7 @@ var launchConfig = &cloudlaunch.Config{
 	GCEProjectID: GCEProjectID,
 	Scopes: []string{
 		compute.ComputeScope,
-		logging.Scope,
+		logging.WriteScope,
 		datastore.ScopeDatastore,
 	},
 }
@@ -480,6 +480,7 @@ func main() {
 
 	tcperr := make(chan error, 1)
 	udperr := make(chan error, 1)
+	httpserr := make(chan error, 1)
 	httperr := make(chan error, 1)
 	log.Printf("serving DNS on %s\n", *addr)
 	go func() {
@@ -501,6 +502,9 @@ func main() {
 			HostPolicy: autocert.HostWhitelist(hostname),
 			Cache:      autocert.DirCache(osutil.DefaultLetsEncryptCache()),
 		}
+		go func() {
+			httperr <- http.ListenAndServe(":http", m.HTTPHandler(nil))
+		}()
 		ln, err := tls.Listen("tcp", httpsListenAddr, &tls.Config{
 			Rand:           rand.Reader,
 			Time:           time.Now,
@@ -512,7 +516,7 @@ func main() {
 			log.Fatalf("Error listening on %v: %v", httpsListenAddr, err)
 		}
 		go func() {
-			httperr <- http.Serve(ln, cs)
+			httpserr <- http.Serve(ln, cs)
 		}()
 	}
 	select {
@@ -520,7 +524,9 @@ func main() {
 		log.Fatalf("DNS over TCP error: %v", err)
 	case err := <-udperr:
 		log.Fatalf("DNS error: %v", err)
+	case err := <-httpserr:
+		log.Fatalf("HTTPS server error: %v", err)
 	case err := <-httperr:
-		log.Fatalf("HTTP server error: %v", err)
+		log.Fatalf("HTTP server for Let's Encrypt error: %v", err)
 	}
 }
