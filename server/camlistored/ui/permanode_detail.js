@@ -31,6 +31,7 @@ cam.PermanodeDetail = React.createClass({
 		timer: React.PropTypes.shape({
 			setTimeout: React.PropTypes.func.isRequired,
 		}).isRequired,
+		toggleKeyNav: React.PropTypes.func.isRequired,
 	},
 
 	getInitialState: function() {
@@ -46,9 +47,11 @@ cam.PermanodeDetail = React.createClass({
 	componentWillReceiveProps: function(nextProps) {
 		// this.props == nextProps is for the very first load.
 		if (this.props == nextProps || this.props.meta.blobRef != nextProps.meta.blobRef) {
-			this.setState({rows: this.getInitialRows_(nextProps.meta)});
+			this.setState({
+				rows: this.getInitialRows_(nextProps.meta),
+				newRow: {},
+			});
 		}
-		this.setState({newRow: {}});
 	},
 
 	componentWillMount: function() {
@@ -116,7 +119,10 @@ cam.PermanodeDetail = React.createClass({
 			);
 		};
 
-		return React.DOM.table(null,
+		return React.DOM.table({
+				onFocus: this.handleTableFocus_.bind(null),
+				onBlur: this.handleTableBlur_.bind(null),
+			},
 			React.DOM.tbody(null,
 				React.DOM.tr(
 					{key: 'header'},
@@ -140,13 +146,21 @@ cam.PermanodeDetail = React.createClass({
 						row: r,
 					});
 				}, this)
-			)
+			),
 		);
 	},
 
 	handleChange_: function(row, column, e) {
 		row[column] = e.target.value;
 		this.forceUpdate();
+	},
+
+	handleTableBlur_: function() {
+		this.props.toggleKeyNav(true);
+	},
+
+	handleTableFocus_: function() {
+		this.props.toggleKeyNav(false);
 	},
 
 	handleDelete_: function(row) {
@@ -295,7 +309,7 @@ cam.PermanodeDetail.AttributeRow = React.createClass({
 	},
 });
 
-cam.PermanodeDetail.getAspect = function(serverConnection, timer, blobref, targetSearchSession) {
+cam.PermanodeDetail.getAspect = function(serverConnection, timer, toggleKeyNav, blobref, targetSearchSession) {
 	if (!targetSearchSession) {
 		return null;
 	}
@@ -313,6 +327,7 @@ cam.PermanodeDetail.getAspect = function(serverConnection, timer, blobref, targe
 				meta: pm,
 				serverConnection: serverConnection,
 				timer: timer,
+				toggleKeyNav: toggleKeyNav,
 			});
 		},
 	};

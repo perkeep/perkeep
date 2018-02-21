@@ -140,6 +140,7 @@ cam.IndexPage = React.createClass({
 	getInitialState: function() {
 		return {
 			backwardPiggy: false,
+			keyNavEnabled: true,
 			currentURL: null,
 			// currentSearch exists in Index just to wire together the searchbox of Header, and the Map
 			// aspect, so the Map aspect can add the zoom level to the predicate in the search box.
@@ -243,7 +244,7 @@ cam.IndexPage = React.createClass({
 			cam.MapAspect.getAspect.bind(null, this.props.config,
 				this.props.availWidth, this.props.availHeight - this.HEADER_HEIGHT_,
 				this.updateSearchBarOnMap_, this.setPendingQuery_, this.childSearchSession_),
-			cam.PermanodeDetail.getAspect.bind(null, this.props.serverConnection, this.props.timer),
+			cam.PermanodeDetail.getAspect.bind(null, this.props.serverConnection, this.props.timer, this.toggleKeyNavigation_),
 			cam.BlobDetail.getAspect.bind(null, this.getDetailURL_, this.props.serverConnection),
 		].map(getAspect).filter(goog.functions.identity);
 
@@ -900,7 +901,16 @@ cam.IndexPage = React.createClass({
 		}
 	},
 
+	toggleKeyNavigation_: function(enabled) {
+		this.setState({
+			keyNavEnabled: enabled,
+		});
+	},
+
 	handleKeyUp_: function(e) {
+		if (!this.state.keyNavEnabled) {
+			return;
+		}
 		var isEsc = (e.keyCode == 27);
 		var isRight = (e.keyCode == 39);
 		var isLeft = (e.keyCode == 37);
