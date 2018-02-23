@@ -6,7 +6,7 @@ how to [get the code and how to start submitting changes](/code).
 
 -   [**@PerkeepOrg**](https://twitter.com/PerkeepOrg): Perkeep on
     Twitter
--   [**camlistore**](https://groups.google.com/group/camlistore):
+-   [**Perkeep**](https://groups.google.com/group/perkeep):
     Mailing list for official discussion, design, help
 -   [**camlistore-commits**](https://groups.google.com/group/camlistore-commits):
     Mailing list for commit emails, code reviews
