@@ -1038,7 +1038,7 @@ func verifyPerkeepRoot(dir string) {
 }
 
 const (
-	goVersionMinor  = 9
+	goVersionMinor  = 10
 	gopherJSGoMinor = 9
 )
 
