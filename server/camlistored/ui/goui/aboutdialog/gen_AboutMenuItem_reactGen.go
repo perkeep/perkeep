@@ -23,7 +23,7 @@ func buildAboutMenuItem(cd react.ComponentDef) react.Component {
 
 func buildAboutMenuItemElem(props AboutMenuItemProps, children ...react.Element) *AboutMenuItemElem {
 	return &AboutMenuItemElem{
-		Element: react.CreateElement(buildAboutMenuItem, props),
+		Element: react.CreateElement(buildAboutMenuItem, props, children...),
 	}
 }
 

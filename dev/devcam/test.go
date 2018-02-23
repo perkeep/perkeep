@@ -35,10 +35,7 @@ type testCmd struct {
 	precommit bool
 	short     bool
 	run       string
-	// end of flag vars
-
-	// buildGoPath becomes our child "go" processes' GOPATH environment variable
-	buildGoPath string
+	sqlite    bool
 }
 
 func init() {
@@ -48,6 +45,7 @@ func init() {
 		flags.BoolVar(&cmd.precommit, "precommit", true, "Run the pre-commit githook as part of tests.")
 		flags.BoolVar(&cmd.verbose, "v", false, "Use '-v' (for verbose) with go test.")
 		flags.StringVar(&cmd.run, "run", "", "Use '-run' with go test.")
+		flags.BoolVar(&cmd.sqlite, "sqlite", false, "Run tests with SQLite built-in where relevant.")
 		return cmd
 	})
 }
@@ -66,13 +64,6 @@ func (c *testCmd) RunCommand(args []string) error {
 			return err
 		}
 	}
-	if err := c.syncSrc(); err != nil {
-		return err
-	}
-	buildSrcDir := filepath.Join(c.buildGoPath, "src", "perkeep.org")
-	if err := os.Chdir(buildSrcDir); err != nil {
-		return err
-	}
 	if err := c.buildSelf(); err != nil {
 		return err
 	}
@@ -84,26 +75,20 @@ func (c *testCmd) RunCommand(args []string) error {
 }
 
 func (c *testCmd) env() *Env {
-	if c.buildGoPath == "" {
-		panic("called too early")
-	}
 	env := NewCopyEnv()
 	env.NoGo()
-	env.Set("GOPATH", c.buildGoPath)
-	env.Set("CAMLI_MAKE_USEGOPATH", "true")
-	return env
-}
-
-func (c *testCmd) syncSrc() error {
-	args := []string{"run", "make.go", "--onlysync"}
-	cmd := exec.Command("go", args...)
+	cmd := exec.Command("go", "env", "GOPATH")
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("Error populating tmp src tree: %v", err)
+		panic("Cannot find GOPATH with 'go env GOPATH'")
 	}
-	c.buildGoPath = strings.TrimSpace(string(out))
-	return nil
+	gopath := strings.TrimSpace(string(out))
+	if gopath == "" {
+		panic("devcam test needs GOPATH to be set")
+	}
+	env.Set("GOPATH", gopath)
+	return env
 }
 
 func (c *testCmd) buildSelf() error {
@@ -129,7 +114,7 @@ func (c *testCmd) buildSelf() error {
 
 func (c *testCmd) runTests(args []string) error {
 	targs := []string{"test"}
-	if !strings.HasSuffix(c.buildGoPath, "-nosqlite") {
+	if c.sqlite {
 		targs = append(targs, "--tags=with_sqlite fake_android")
 	} else {
 		targs = append(targs, "--tags=fake_android")

@@ -127,7 +127,6 @@
   revision = "da06d194a00e19ce00d9011a13931c3f6f6887c7"
 
 [[projects]]
-  branch = "master"
   name = "github.com/gopherjs/gopherjs"
   packages = [
     ".",
@@ -136,6 +135,7 @@
     "compiler/analysis",
     "compiler/astutil",
     "compiler/filter",
+    "compiler/gopherjspkg",
     "compiler/natives",
     "compiler/prelude",
     "compiler/typesutil",
@@ -143,7 +143,7 @@
     "js",
     "nosync"
   ]
-  revision = "82b322028c96512b15077093b16a5f1c7ea897ac"
+  revision = "2ad4a5b9a30e5f1f31c643c2a2ac27543a5ddb58"
 
 [[projects]]
   name = "github.com/gopherjs/jquery"
@@ -255,7 +255,10 @@
 [[projects]]
   branch = "master"
   name = "github.com/shurcooL/httpfs"
-  packages = ["filter"]
+  packages = [
+    "filter",
+    "vfsutil"
+  ]
   revision = "809beceb23714880abc4a382a00c05f89d13b1cc"
 
 [[projects]]
@@ -438,6 +441,7 @@
 [[projects]]
   name = "golang.org/x/tools"
   packages = [
+    "go/buildutil",
     "go/gcimporter15",
     "go/types/typeutil"
   ]
@@ -570,6 +574,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b8d0884b33e67ca133aabab582669e1f20d4f3b0d9ce53766ae019c5a72e1b96"
+  inputs-digest = "26f145e6f311ff1b65354c9015eb13db4553637e9060d84da915ddabebde2ddf"
   solver-name = "gps-cdcl"
   solver-version = 1

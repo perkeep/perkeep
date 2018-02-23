@@ -151,7 +151,7 @@ func handleSignals(camliProc *os.Process) {
 	}
 }
 
-func checkCamliSrcRoot() {
+func checkPerkeepSrcRoot() {
 	args := flag.Args()
 	// TODO(mpl): we should probably get rid of that limitation someday.
 	if len(args) > 0 && (args[0] == "review" ||
@@ -239,25 +239,13 @@ func build(path string) error {
 		// Demo mode. See dev/demo.sh.
 		return nil
 	}
-	_, cmdName := filepath.Split(path)
 	target := pathpkg.Join("perkeep.org", filepath.ToSlash(path))
-	binPath := filepath.Join("bin", cmdName)
-	var modtime int64
-	fi, err := os.Stat(binPath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("Could not stat %v: %v", binPath, err)
-		}
-	} else {
-		modtime = fi.ModTime().Unix()
-	}
 	args := []string{
 		"run", "make.go",
 		"--quiet",
 		"--race=" + strconv.FormatBool(*race),
 		"--embed_static=false",
 		"--sqlite=" + strconv.FormatBool(withSqlite),
-		fmt.Sprintf("--if_mods_since=%d", modtime),
 		"--targets=" + target,
 	}
 	cmd := exec.Command("go", args...)
@@ -271,7 +259,7 @@ func build(path string) error {
 
 func main() {
 	cmdmain.PostFlag = func() {
-		checkCamliSrcRoot()
+		checkPerkeepSrcRoot()
 		if err := checkModtime(); err != nil {
 			log.Printf("Skipping freshness check: %v", err)
 		}

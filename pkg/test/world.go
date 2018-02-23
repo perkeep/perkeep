@@ -112,30 +112,7 @@ func (w *World) Build() error {
 	}
 	// Build.
 	{
-		targs := []string{
-			"camget",
-			"camput",
-			"pk",
-			"camlistored",
-		}
-		var latestModtime time.Time
-		for _, target := range targs {
-			binPath := filepath.Join(w.srcRoot, "bin", target)
-			fi, err := os.Stat(binPath)
-			if err != nil {
-				if !os.IsNotExist(err) {
-					return fmt.Errorf("could not stat %v: %v", binPath, err)
-				}
-			} else {
-				modTime := fi.ModTime()
-				if modTime.After(latestModtime) {
-					latestModtime = modTime
-				}
-			}
-		}
-		cmd := exec.Command("go", "run", "make.go",
-			fmt.Sprintf("--if_mods_since=%d", latestModtime.Unix()),
-		)
+		cmd := exec.Command("go", "run", "make.go")
 		if testing.Verbose() {
 			// TODO(mpl): do the same when -verbose with devcam test. Even better: see if testing.Verbose
 			// can be made true if devcam test -verbose ?
