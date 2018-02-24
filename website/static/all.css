@@ -283,3 +283,26 @@ a.downloadBox:hover .filename {
 }
 
 a { font-weight: bold; }
+
+/* Header anchor links styling */
+.anchor {
+	padding:4px;
+}
+.anchor svg {
+	visibility: hidden;
+	vertical-align:middle;
+}
+h1 svg,
+h2 svg,
+h3 svg,
+h4 svg {
+	fill: #375EAB;
+}
+h2 svg {
+	fill: #fff;
+}
+h1:hover .anchor svg, h2:hover .anchor svg,
+h3:hover .anchor svg, h4:hover .anchor svg,
+h5:hover .anchor svg, h6:hover .anchor svg {
+	visibility: visible;
+}
