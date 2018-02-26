@@ -1053,7 +1053,6 @@ func verifyGoVersion() {
 		log.Fatalf("Go doesn't appear to be installed ('go' isn't in your PATH). Install Go 1.%d or newer.", goVersionMinor)
 	}
 	out, err := exec.Command("go", "version").Output()
-
 	if err != nil {
 		log.Fatalf("Error checking Go version with the 'go' command: %v", err)
 	}
@@ -1063,7 +1062,7 @@ func verifyGoVersion() {
 	// Handle non-versioned binaries
 	// ex: "go version devel +c26fac8 Thu Feb 15 21:41:39 2018 +0000 linux/amd64"
 	if strings.HasPrefix(version, "go version devel ") {
-		verifyGopherjsGoroot()
+		verifyGopherjsGoroot(" devel")
 		return
 	}
 
@@ -1072,7 +1071,6 @@ func verifyGoVersion() {
 		log.Fatalf("Unexpected output while checking 'go version': %q", version)
 	}
 	minorVersion, err := strconv.Atoi(m[1])
-
 	if err != nil {
 		log.Fatalf("Unexpected error while parsing version string %q: %v", m[1], err)
 	}
@@ -1082,23 +1080,51 @@ func verifyGoVersion() {
 	}
 
 	if minorVersion != gopherJSGoMinor {
-		verifyGopherjsGoroot()
+		verifyGopherjsGoroot(fmt.Sprintf("1.%d", minorVersion))
 	}
 }
 
-func verifyGopherjsGoroot() {
+func verifyGopherjsGoroot(goFound string) {
 	goBin := filepath.Join(gopherjsGoroot, "bin", "go")
 	if gopherjsGoroot == "" {
-		gopherjsGoroot = filepath.Join(homeDir(), fmt.Sprintf("go1.%d", gopherJSGoMinor))
+		goInHomeDir, err := findGopherJSGoroot()
+		if err != nil {
+			log.Fatalf("Error while looking for a go1.%d dir in %v: %v", gopherJSGoMinor, homeDir(), err)
+		}
+		if goInHomeDir == "" {
+			log.Fatalf("You're using go%s != go1.%d, which GopherJS requires, and it was not found in %v. You need to specify a go1.%d root in CAMLI_GOPHERJS_GOROOT for building GopherJS.", goFound, gopherJSGoMinor, homeDir(), gopherJSGoMinor)
+		}
+		gopherjsGoroot = filepath.Join(homeDir(), goInHomeDir)
 		goBin = filepath.Join(gopherjsGoroot, "bin", "go")
-		log.Printf("You're using go != 1.%d, and CAMLI_GOPHERJS_GOROOT was not provided, so defaulting to %v for building gopherjs instead.", gopherJSGoMinor, goBin)
+		log.Printf("You're using go%s != go1.%d, which GopherJS requires, and CAMLI_GOPHERJS_GOROOT was not provided, so defaulting to %v for building GopherJS instead.", goFound, gopherJSGoMinor, goBin)
 	}
 	if _, err := os.Stat(goBin); err != nil {
 		if !os.IsNotExist(err) {
 			log.Fatal(err)
 		}
-		log.Fatalf("%v not found. You need to specify a go1.%d root in CAMLI_GOPHERJS_GOROOT for building gopherjs", goBin, gopherJSGoMinor)
+		log.Fatalf("%v not found. You need to specify a go1.%d root in CAMLI_GOPHERJS_GOROOT for building GopherJS", goBin, gopherJSGoMinor)
 	}
+}
+
+// findGopherJSGoroot tries to find a go1.gopherJSGoMinor.* go root in the home
+// directory. It returns the empty string and no error if none was found.
+func findGopherJSGoroot() (string, error) {
+	dir, err := os.Open(homeDir())
+	if err != nil {
+		return "", err
+	}
+	defer dir.Close()
+	names, err := dir.Readdirnames(-1)
+	if err != nil {
+		return "", err
+	}
+	goVersion := fmt.Sprintf("go1.%d", gopherJSGoMinor)
+	for _, name := range names {
+		if strings.HasPrefix(name, goVersion) {
+			return name, nil
+		}
+	}
+	return "", nil
 }
 
 type walkOpts struct {
