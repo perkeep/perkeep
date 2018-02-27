@@ -30,52 +30,58 @@ import (
 
 var ctxbg = context.Background()
 
-func newStage(t *testing.T) blobserver.Storage {
-	stage, _ := newStageWithBase(t)
-	return stage
+func newOverlay(t *testing.T, withDel bool) blobserver.Storage {
+	overlay, _ := newOverlayWithLower(t, withDel)
+	return overlay
 }
 
-func newStageWithBase(t *testing.T) (stage, base blobserver.Storage) {
+func newOverlayWithLower(t *testing.T, withDel bool) (sto, lower blobserver.Storage) {
 	ld := test.NewLoader()
-	base, _ = ld.GetStorage("/good-base/")
-	ld.GetStorage("/good-stage/")
-	sto, err := newFromConfig(ld, map[string]interface{}{
-		"base":  "/good-base/",
-		"stage": "/good-stage/",
-		"deleted": map[string]interface{}{
+	lower, _ = ld.GetStorage("/good-lower/")
+	ld.GetStorage("/good-upper/")
+	conf := map[string]interface{}{
+		"lower": "/good-lower/",
+		"upper": "/good-upper/",
+	}
+	if withDel {
+		conf["deleted"] = map[string]interface{}{
 			"type": "memory",
-		},
-	})
+		}
+	}
+	sto, err := newFromConfig(ld, conf)
 	if err != nil {
 		t.Fatalf("Invalid config: %v", err)
 	}
-	return sto, base
+	return sto, lower
 }
 
 func TestStorageTest(t *testing.T) {
 	storagetest.Test(t, func(t *testing.T) (_ blobserver.Storage, cleanup func()) {
-		return newStage(t), func() {}
+		return newOverlay(t, true), func() {}
+	})
+	storagetest.Test(t, func(t *testing.T) (_ blobserver.Storage, cleanup func()) {
+		return newOverlay(t, false), func() {}
 	})
 }
 
 func TestDelete(t *testing.T) {
 	ctx := context.Background()
-	stage, base := newStageWithBase(t)
+	sto, lower := newOverlayWithLower(t, true)
 
 	var (
-		// blobs that go into base
-		S0 = &test.Blob{Contents: "source blob 0"}
-		S1 = &test.Blob{Contents: "source blob 1"}
+		// blobs that go into lower
+		S0 = &test.Blob{Contents: "lower blob 0"}
+		S1 = &test.Blob{Contents: "lower blob 1"}
 
-		// blobs that go into stage
+		// blobs that go into sto
 		A = &test.Blob{Contents: "some small blob"}
 		B = &test.Blob{Contents: strings.Repeat("some middle blob", 100)}
 		C = &test.Blob{Contents: strings.Repeat("A 8192 bytes length largish blob", 8192/32)}
 	)
 
-	// add S0 and S1 to the underlying source
+	// add S0 and S1 to lower
 	for _, tb := range []*test.Blob{S0, S1} {
-		sb, err := base.ReceiveBlob(ctxbg, tb.BlobRef(), tb.Reader())
+		sb, err := lower.ReceiveBlob(ctxbg, tb.BlobRef(), tb.Reader())
 		if err != nil {
 			t.Fatalf("ReceiveBlob of %s: %v", sb, err)
 		}
@@ -84,16 +90,16 @@ func TestDelete(t *testing.T) {
 		}
 	}
 
-	baseRefs := []blob.SizedRef{
+	lowerRefs := []blob.SizedRef{
 		S0.SizedRef(),
 		S1.SizedRef(),
 	}
 
 	type step func() error
 
-	stepAdd := func(tb *test.Blob) step { // add the blob to stage
+	stepAdd := func(tb *test.Blob) step { // add the blob to sto
 		return func() error {
-			sb, err := stage.ReceiveBlob(ctxbg, tb.BlobRef(), tb.Reader())
+			sb, err := sto.ReceiveBlob(ctxbg, tb.BlobRef(), tb.Reader())
 			if err != nil {
 				return fmt.Errorf("ReceiveBlob of %s: %v", sb, err)
 			}
@@ -110,17 +116,17 @@ func TestDelete(t *testing.T) {
 			wantRefs[i] = tb.SizedRef()
 		}
 		return func() error {
-			// ensure base was not modified
-			if err := storagetest.CheckEnumerate(base, baseRefs); err != nil {
+			// ensure lower was not modified
+			if err := storagetest.CheckEnumerate(lower, lowerRefs); err != nil {
 				return err
 			}
-			return storagetest.CheckEnumerate(stage, wantRefs)
+			return storagetest.CheckEnumerate(sto, wantRefs)
 		}
 	}
 
-	stepDelete := func(tb *test.Blob) step { // delete the blob in stage
+	stepDelete := func(tb *test.Blob) step { // delete the blob in sto
 		return func() error {
-			if err := stage.RemoveBlobs(ctx, []blob.Ref{tb.BlobRef()}); err != nil {
+			if err := sto.RemoveBlobs(ctx, []blob.Ref{tb.BlobRef()}); err != nil {
 				return fmt.Errorf("RemoveBlob(%s): %v", tb.BlobRef(), err)
 			}
 			return nil
