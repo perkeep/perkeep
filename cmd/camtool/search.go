@@ -36,6 +36,7 @@ type searchCmd struct {
 	cont     string
 	describe bool
 	rawQuery bool
+	one      bool
 }
 
 func init() {
@@ -46,6 +47,7 @@ func init() {
 		flags.StringVar(&cmd.cont, "continue", "", "Continue token from a previously limited search. The query must be identical to the original search.")
 		flags.BoolVar(&cmd.describe, "describe", false, "Describe results as well.")
 		flags.BoolVar(&cmd.rawQuery, "rawquery", false, "If true, the provided JSON is a SearchQuery, and not a Constraint. In this case, the -limit and -continue flags, if non-zero, are applied after parsing the JSON.")
+		flags.BoolVar(&cmd.one, "1", false, "Output one blob ref per line, suitable for piping into xargs.")
 		return cmd
 	})
 }
@@ -114,6 +116,12 @@ func (c *searchCmd) RunCommand(args []string) error {
 	res, err := cl.Query(ctxbg, req)
 	if err != nil {
 		return err
+	}
+	if c.one {
+		for _, bl := range res.Blobs {
+			fmt.Println(bl.Blob)
+		}
+		return nil
 	}
 	resj, err := json.MarshalIndent(res, "", "  ")
 	if err != nil {
