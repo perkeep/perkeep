@@ -964,18 +964,20 @@ func (im *importer) Node() (*Object, error) {
 		attrImporterType, im.name,
 	)
 	res, err := im.host.search.Query(context.TODO(), &search.SearchQuery{
-		Limit:      10, // only expect 1
+		Limit:      10, // might be more than one because of multiple blob hash types
 		Expression: expr,
 	})
 	if err != nil {
 		return nil, err
 	}
-	if len(res.Blobs) > 1 {
-		return nil, fmt.Errorf("Ambiguous; too many permanodes matched query %q: %v", expr, res.Blobs)
+	best, err := im.bestNode(res)
+	if err != nil {
+		return nil, err
 	}
-	if len(res.Blobs) == 1 {
-		return im.host.ObjectFromRef(res.Blobs[0].Blob)
+	if best != nil {
+		return best, nil
 	}
+
 	o, err := im.host.NewObject()
 	if err != nil {
 		return nil, err
@@ -990,6 +992,47 @@ func (im *importer) Node() (*Object, error) {
 
 	im.nodeCache = o
 	return o, nil
+}
+
+// bestNode picks the most populated importer node amongst res.Blobs, or nil if
+// len(res.Blobs) == 0
+// It is the caller's responsibility to create the correct request so that
+// res.Blobs are all importer nodes.
+func (im *importer) bestNode(res *search.SearchResult) (*Object, error) {
+	if len(res.Blobs) == 0 {
+		// let the caller create a fresh node
+		return nil, nil
+	}
+	var best *Object
+	for _, desb := range res.Blobs {
+		o, err := im.host.ObjectFromRef(desb.Blob)
+		if err != nil {
+			return nil, err
+		}
+		if best == nil {
+			best = o
+			continue
+		}
+		if best.Attr(attrClientID) == "" && o.Attr(attrClientID) != "" {
+			best = o
+			continue
+		}
+		if best.Attr(attrClientSecret) == "" && o.Attr(attrClientSecret) != "" {
+			best = o
+			continue
+		}
+		if best.Attr("title") == "" && o.Attr("title") != "" {
+			best = o
+			continue
+		}
+		// all other things being equal, pick the most recent one, as it's more likely
+		// to be a sha224 than a sha1
+		if best.modtime.Before(o.modtime) {
+			best = o
+			continue
+		}
+	}
+	return best, nil
 }
 
 // importerAcct is a long-lived type representing account
@@ -1259,8 +1302,9 @@ type Object struct {
 	h  *Host
 	pn blob.Ref // permanode ref
 
-	mu   sync.RWMutex
-	attr map[string][]string
+	mu      sync.RWMutex
+	attr    map[string][]string
+	modtime time.Time
 }
 
 // PermanodeRef returns the permanode that this object wraps.
@@ -1441,9 +1485,10 @@ func (h *Host) ObjectFromRef(permanodeRef blob.Ref) (*Object, error) {
 		return nil, fmt.Errorf("permanode %v had no DescribedPermanode in Describe response", permanodeRef)
 	}
 	return &Object{
-		h:    h,
-		pn:   permanodeRef,
-		attr: map[string][]string(db.Permanode.Attr),
+		h:       h,
+		pn:      permanodeRef,
+		attr:    map[string][]string(db.Permanode.Attr),
+		modtime: db.Permanode.ModTime,
 	}, nil
 }
 
