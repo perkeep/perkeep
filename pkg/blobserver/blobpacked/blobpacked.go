@@ -354,7 +354,7 @@ func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
 		meta, err := parseMetaRow(t.ValueBytes())
 		if err != nil {
 			t.Close()
-			return FullRecovery, fmt.Errorf("corrupted blobpacked meta: %v")
+			return FullRecovery, fmt.Errorf("corrupted blobpacked meta: %v", err)
 		}
 		inMeta[meta.largeRef] = true
 	}
