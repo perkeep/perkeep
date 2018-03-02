@@ -1055,7 +1055,7 @@ func (c *Corpus) KeyId(ctx context.Context, signer blob.Ref) (string, error) {
 }
 
 func (c *Corpus) pnTimeAttr(pn blob.Ref, attr string) (t time.Time, ok bool) {
-	if v := c.PermanodeAttrValue(pn, attr, time.Time{}, blob.Ref{}); v != "" {
+	if v := c.PermanodeAttrValue(pn, attr, time.Time{}, ""); v != "" {
 		if t, err := time.Parse(time.RFC3339, v); err == nil {
 			return t, true
 		}
@@ -1173,30 +1173,25 @@ func (c *Corpus) PermanodeModtime(pn blob.Ref) (t time.Time, ok bool) {
 }
 
 // PermanodeAttrValue returns a single-valued attribute or "".
+// signerFilter, if set, should be the GPG ID of a signer
+// (e.g. 2931A67C26F5ABDA).
 func (c *Corpus) PermanodeAttrValue(permaNode blob.Ref,
 	attr string,
 	at time.Time,
-	signerFilter blob.Ref) string {
+	signerFilter string) string {
 	pm, ok := c.permanodes[permaNode]
 	if !ok {
 		return ""
 	}
-
-	var signer string
 	var signerRefs SignerRefSet
-	if signerFilter.Valid() {
-		var ok bool
-		signer, ok = c.keyId[signerFilter]
-		if !ok {
-			return ""
-		}
-		signerRefs, ok = c.signerRefs[signer]
+	if signerFilter != "" {
+		signerRefs, ok = c.signerRefs[signerFilter]
 		if !ok {
 			return ""
 		}
 	}
 
-	if values, ok := pm.valuesAtSigner(at, signer); ok {
+	if values, ok := pm.valuesAtSigner(at, signerFilter); ok {
 		v := values[attr]
 		if len(v) == 0 {
 			return ""
@@ -1244,13 +1239,13 @@ func (c *Corpus) permanodeAttrsOrClaims(permaNode blob.Ref,
 
 // AppendPermanodeAttrValues appends to dst all the values for the attribute
 // attr set on permaNode.
-// signerFilter is optional.
+// signerFilter, if set, should be the GPG ID of a signer (e.g. 2931A67C26F5ABDA).
 // dst must start with length 0 (laziness, mostly)
 func (c *Corpus) AppendPermanodeAttrValues(dst []string,
 	permaNode blob.Ref,
 	attr string,
 	at time.Time,
-	signerFilter blob.Ref) []string {
+	signerFilter string) []string {
 	if len(dst) > 0 {
 		panic("len(dst) must be 0")
 	}
@@ -1258,8 +1253,14 @@ func (c *Corpus) AppendPermanodeAttrValues(dst []string,
 	if !ok {
 		return dst
 	}
-	signer := c.signerID(signerFilter)
-	if values, ok := pm.valuesAtSigner(at, signer); ok {
+	var signerRefs SignerRefSet
+	if signerFilter != "" {
+		signerRefs, ok = c.signerRefs[signerFilter]
+		if !ok {
+			return dst
+		}
+	}
+	if values, ok := pm.valuesAtSigner(at, signerFilter); ok {
 		return append(dst, values[attr]...)
 	}
 	if at.IsZero() {
@@ -1269,7 +1270,7 @@ func (c *Corpus) AppendPermanodeAttrValues(dst []string,
 		if cl.Attr != attr || cl.Date.After(at) {
 			continue
 		}
-		if signer != "" && signer != c.signerID(cl.Signer) {
+		if len(signerRefs) > 0 && !signerRefs.blobMatches(cl.Signer) {
 			continue
 		}
 		switch cl.Type {
