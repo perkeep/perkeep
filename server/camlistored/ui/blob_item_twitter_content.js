@@ -99,9 +99,10 @@ cam.BlobItemTwitterContent.getHandler = function(blobref, searchSession, href) {
 
 	// It's OK to not have any content. Tweets can be just images or whatever.
 	var content = cam.permanodeUtils.getSingleAttr(m.permanode, 'content');
-	var imageMeta = cam.permanodeUtils.getSingleAttr(m.permanode, 'camliContentImage');
-	if (imageMeta) {
-		imageMeta = searchSession.getResolvedMeta(imageMeta);
+	var imageMetaBr = cam.permanodeUtils.getSingleAttr(m.permanode, 'camliContentImage');
+	var imageMeta = null;
+	if (imageMetaBr) {
+		imageMeta = searchSession.getResolvedMeta(imageMetaBr);
 	}
 
 	return new cam.BlobItemTwitterContent.Handler(content, Date.parse(date), href, imageMeta, username);
@@ -112,7 +113,7 @@ cam.BlobItemTwitterContent.Handler = function(content, date, href, imageMeta, us
 	this.date_ = date;
 	this.href_ = href;
 	this.username_ = username;
-	this.thumber_ = imageMeta ? new cam.Thumber.fromImageMeta(imageMeta) : null;
+	this.thumber_ = imageMeta ? cam.Thumber.fromImageMeta(imageMeta) : null;
 };
 
 cam.BlobItemTwitterContent.Handler.prototype.getAspectRatio = function() {
