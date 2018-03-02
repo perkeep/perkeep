@@ -1556,7 +1556,7 @@ func (c *PermanodeConstraint) blobMatches(ctx context.Context, s *search, br blo
 			vals = dp.Attr[c.Attr]
 		} else {
 			s.ss = corpus.AppendPermanodeAttrValues(
-				s.ss[:0], br, c.Attr, c.At, s.h.owner.BlobRef())
+				s.ss[:0], br, c.Attr, c.At, s.h.owner.KeyID())
 			vals = s.ss
 		}
 		ok, err := c.permanodeMatchesAttrVals(ctx, s, vals)
@@ -1566,11 +1566,11 @@ func (c *PermanodeConstraint) blobMatches(ctx context.Context, s *search, br blo
 	}
 
 	if c.SkipHidden && corpus != nil {
-		defVis := corpus.PermanodeAttrValue(br, "camliDefVis", c.At, s.h.owner.BlobRef())
+		defVis := corpus.PermanodeAttrValue(br, "camliDefVis", c.At, s.h.owner.KeyID())
 		if defVis == "hide" {
 			return false, nil
 		}
-		nodeType := corpus.PermanodeAttrValue(br, "camliNodeType", c.At, s.h.owner.BlobRef())
+		nodeType := corpus.PermanodeAttrValue(br, "camliNodeType", c.At, s.h.owner.KeyID())
 		if nodeType == "foursquare.com:venue" {
 			// TODO: temporary. remove this, or change
 			// when/where (time) we show these.  But these

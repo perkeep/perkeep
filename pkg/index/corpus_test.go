@@ -30,15 +30,17 @@ import (
 	"perkeep.org/pkg/types/camtypes"
 )
 
-func newTestCorpusWithPermanode(t *testing.T) (c *index.Corpus, pn, sig1, sig2 blob.Ref) {
+
+func newTestCorpusWithPermanode(t *testing.T) (c *index.Corpus, pn blob.Ref, keyID1, keyID2 string) {
 	c = index.ExpNewCorpus()
 	pn = blob.MustParse("abc-123")
-	sig1 = indextest.PubKey.BlobRef()
-	sig2 = blob.MustParse("abc-789")
+	sig1 := indextest.PubKey.BlobRef()
+	keyID2 = "abc-789"
+	sig2 := blob.MustParse(keyID2)
 	if err := c.Exp_AddKeyID(sig1, indextest.KeyID); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.Exp_AddKeyID(sig2, "abc-789"); err != nil {
+	if err := c.Exp_AddKeyID(sig2, keyID2); err != nil {
 		t.Fatal(err)
 	}
 	tm := time.Unix(99, 0)
@@ -109,8 +111,11 @@ func newTestCorpusWithPermanode(t *testing.T) (c *index.Corpus, pn, sig1, sig2 b
 		},
 	})
 
-	return c, pn, sig1, sig2
+	return c, pn, indextest.KeyID, keyID2
 }
+
+
+// TODO(mpl): remove that whole test?
 
 func TestCorpusAnySignerHashWorks(t *testing.T) {
 	restore := testhooks.SetUseSHA1(true)
@@ -129,27 +134,20 @@ func TestCorpusAnySignerHashWorks(t *testing.T) {
 		t.Fatalf("expected empty result with sig2, got %q", got)
 	}
 
+	sig1SHA1 := indextest.PubKey.BlobRef()
 	testhooks.SetUseSHA1(false)
 	// now add sha224 version of sig1, and verify we can also find foo with it
-	//	sig1bis := indextest.PubKey.BlobRefFromHash(sha1.New())
 	sig1Current := indextest.PubKey.BlobRef()
-	if sig1 == sig1Current {
+	if sig1SHA1 == sig1Current {
 		t.Fatal("sha1 signer ref and sha224 signer ref should be different")
 	}
 	if err := c.Exp_AddKeyID(sig1Current, indextest.KeyID); err != nil {
 		t.Fatal(err)
 	}
-	got = c.PermanodeAttrValue(pn, "foo", time.Time{}, sig1Current)
+	got = c.PermanodeAttrValue(pn, "foo", time.Time{}, indextest.KeyID)
 	if got != "foov" {
 		t.Errorf("with %v, attr %q = %q; want %q",
 			sig1Current, "foo", got, "foov")
-	}
-
-	// and just to be sure, verify we can still find it with sig1
-	got = c.PermanodeAttrValue(pn, "foo", time.Time{}, sig1)
-	if got != "foov" {
-		t.Fatalf("with %v, attr %q = %q; want %q",
-			sig1, "foo", got, "foov")
 	}
 }
 
@@ -157,13 +155,13 @@ func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
 	c, pn, sig1, sig2 := newTestCorpusWithPermanode(t)
 	s := func(s ...string) []string { return s }
 
-	sigMissing := blob.MustParse("xyz-123")
+	sigMissing := "xyz-123"
 
 	tests := []struct {
 		attr string
 		want []string
 		t    time.Time
-		sig  blob.Ref
+		sig  string
 	}{
 		{attr: "not-exist", want: s()},
 		{attr: "DelAll", want: s()},
@@ -220,7 +218,7 @@ func TestCorpusPermanodeAttrValue(t *testing.T) {
 		attr string
 		want string
 		t    time.Time
-		sig  blob.Ref
+		sig  string
 	}{
 		{attr: "not-exist", want: ""},
 		{attr: "DelAll", want: ""},
