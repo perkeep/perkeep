@@ -28,6 +28,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -260,8 +261,13 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 
 	f("<h2>Admin</h2>")
 	f("<ul>")
-	f("  <li><form method='post' action='restart' onsubmit='return confirm(\"Really restart now?\")'><button>restart server</button>")
-	f("<input type='checkbox' name='reindex'> reindex <input type='checkbox' name='recovery'> recovery</form></li>")
+	f("  <li><form method='post' action='restart' onsubmit='return confirm(\"Really restart now?\")'><button>restart server</button> ")
+	f("<input type='checkbox' name='reindex' id='reindex'><label for='reindex'> reindex </label>")
+	f("<select name='recovery'><option selected='true' disabled='disabled'>select recovery mode</option>")
+	f("<option value='0'>no recovery</option>")
+	f("<option value='1'>fast recovery</option>")
+	f("<option value='2'>full recovery</option>")
+	f("</select>")
 	f("</form></li>")
 	if env.OnGCE() {
 		console, err := sh.googleCloudConsole()
@@ -314,7 +320,7 @@ func (sh *StatusHandler) serveRestart(rw http.ResponseWriter, req *http.Request)
 	}
 
 	reindex := (req.FormValue("reindex") == "on")
-	recovery := (req.FormValue("recovery") == "on")
+	recovery, _ := strconv.Atoi(req.FormValue("recovery"))
 
 	log.Println("Restarting camlistored")
 	rw.Header().Set("Connection", "close")
@@ -322,7 +328,7 @@ func (sh *StatusHandler) serveRestart(rw http.ResponseWriter, req *http.Request)
 	if f, ok := rw.(http.Flusher); ok {
 		f.Flush()
 	}
-	osutil.RestartProcess(fmt.Sprintf("-reindex=%t", reindex), fmt.Sprintf("-recovery=%t", recovery))
+	osutil.RestartProcess(fmt.Sprintf("-reindex=%t", reindex), fmt.Sprintf("-recovery=%d", recovery))
 }
 
 var cgoEnabled bool
