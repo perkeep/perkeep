@@ -220,7 +220,7 @@ func printConfigChangeHelp(conf jsonconfig.Obj) {
 		}
 	}
 	if oldConfig {
-		configChangedMsg += "Please see https://camlistore.org/doc/client-config, or use camput init to recreate a default one."
+		configChangedMsg += "Please see https://perkeep.org/doc/client-config, or use camput init to recreate a default one."
 		log.Print(configChangedMsg)
 	}
 }

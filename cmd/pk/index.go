@@ -47,7 +47,7 @@ func (c *indexCmd) Describe() string {
 }
 
 func (c *indexCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] index [indexopts] \n")
+	fmt.Fprintf(os.Stderr, "Usage: pk [globalopts] index [indexopts] \n")
 }
 
 func (c *indexCmd) RunCommand(args []string) error {

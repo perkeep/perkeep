@@ -48,10 +48,10 @@ func (c *searchNamesGetCmd) Describe() string { return "Get a named search's cur
 func (c *searchNamesSetCmd) Describe() string { return "Create or update a named search" }
 
 func (c *searchNamesGetCmd) Usage() {
-	fmt.Fprintln(os.Stderr, "camtool named-search-get <name>")
+	fmt.Fprintln(os.Stderr, "pk named-search-get <name>")
 }
 func (c *searchNamesSetCmd) Usage() {
-	fmt.Fprintln(os.Stderr, "camtool named-search-set <name> <new-search-expression>")
+	fmt.Fprintln(os.Stderr, "pk named-search-set <name> <new-search-expression>")
 }
 
 func (c *searchNamesGetCmd) RunCommand(args []string) error {

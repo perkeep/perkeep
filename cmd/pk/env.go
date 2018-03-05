@@ -48,7 +48,7 @@ func (c *envCmd) Describe() string {
 }
 
 func (c *envCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "camtool env [key]\n")
+	fmt.Fprintf(os.Stderr, "pk env [key]\n")
 }
 
 func (c *envCmd) RunCommand(args []string) error {

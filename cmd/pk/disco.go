@@ -44,7 +44,7 @@ func (c *discoCmd) Describe() string {
 }
 
 func (c *discoCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] discovery")
+	fmt.Fprintf(os.Stderr, "Usage: pk [globalopts] discovery")
 }
 
 func (c *discoCmd) Examples() []string {

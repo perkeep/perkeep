@@ -373,12 +373,12 @@ func (c *serverCmd) setupIndexer() error {
 	} else {
 		args = append(args, "-ignoreexists")
 	}
-	binPath := filepath.Join("bin", "camtool")
+	binPath := filepath.Join("bin", "pk")
 	cmd := exec.Command(binPath, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Could not run camtool dbinit: %v", err)
+		return fmt.Errorf("Could not run pk dbinit: %v", err)
 	}
 	return nil
 }
@@ -508,7 +508,7 @@ func (c *serverCmd) RunCommand(args []string) error {
 		withSqlite = c.sqlite
 		targets := []string{
 			filepath.Join("server", "camlistored"),
-			filepath.Join("cmd", "camtool"),
+			filepath.Join("cmd", "pk"),
 		}
 		if c.hello {
 			targets = append(targets, filepath.Join("app", "hello"))

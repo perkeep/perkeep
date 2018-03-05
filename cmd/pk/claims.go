@@ -46,7 +46,7 @@ func (c *claimsCmd) Describe() string {
 }
 
 func (c *claimsCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] claims [--depth=n] [--attr=s] permanodeBlobRef\n")
+	fmt.Fprintf(os.Stderr, "Usage: pk [globalopts] claims [--depth=n] [--attr=s] permanodeBlobRef\n")
 }
 
 func (c *claimsCmd) Examples() []string {

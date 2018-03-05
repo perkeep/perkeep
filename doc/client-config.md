@@ -2,9 +2,9 @@
 
 The various clients (camput, camget, pk-mount...) use a common JSON config
 file. This page documents the configuration parameters in that file. Run
-`camtool env clientconfig` to see the default location for that file
+`pk env clientconfig` to see the default location for that file
 (**$HOME/.config/camlistore/client-config.json** on linux). In the following
-let **$CONFIGDIR** be the location returned by `camtool env configdir`.
+let **$CONFIGDIR** be the location returned by `pk env configdir`.
 
 ## Generating a default config file
 
@@ -88,7 +88,7 @@ server configurations. For example:
     URL, the server URL can point directly to a specific blobserver handler,
     of the form: "[http[s]://]host[:port][/prefix][/handler/]".
 
-    For example, to speed up syncing with `camtool sync`, one could write
+    For example, to speed up syncing with `pk sync`, one could write
     directly to the destination's blobserver, instead of the default, which is
     to write to both the destination blobserver and index.
     The above configuration sample can be extended by adding the following
@@ -104,4 +104,4 @@ server configurations. For example:
         }
 
     And the alias `backup-bs` can then be used as a destination by
-    `camtool sync`.
+    `pk sync`.

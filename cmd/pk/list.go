@@ -59,7 +59,7 @@ func (c *listCmd) Describe() string {
 }
 
 func (c *listCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] list [listopts] \n")
+	fmt.Fprintf(os.Stderr, "Usage: pk [globalopts] list [listopts] \n")
 }
 
 func (c *listCmd) Examples() []string {

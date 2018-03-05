@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package cmdmain contains the shared implementation for camget,
-// camput, camtool, and other Perkeep command-line tools.
+// camput, pk, and other Perkeep command-line tools.
 package cmdmain // import "perkeep.org/pkg/cmdmain"
 
 import (
@@ -214,7 +214,7 @@ func PrintLicenses() {
 }
 
 // Main is meant to be the core of a command that has
-// subcommands (modes), such as camput or camtool.
+// subcommands (modes), such as camput or pk.
 func Main() {
 	registerFlagOnce.Do(ExtraFlagRegistration)
 	if setCommandLineOutput != nil {

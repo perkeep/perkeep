@@ -81,7 +81,7 @@ func (c *syncCmd) Describe() string {
 }
 
 func (c *syncCmd) Usage() {
-	fmt.Fprintf(cmdmain.Stderr, "Usage: camtool [globalopts] sync [syncopts] \n")
+	fmt.Fprintf(cmdmain.Stderr, "Usage: pk [globalopts] sync [syncopts] \n")
 }
 
 func (c *syncCmd) Examples() []string {

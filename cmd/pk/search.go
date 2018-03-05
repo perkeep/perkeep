@@ -57,7 +57,7 @@ func (c *searchCmd) Describe() string {
 }
 
 func (c *searchCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] search <expr or Constraint JSON>\n")
+	fmt.Fprintf(os.Stderr, "Usage: pk [globalopts] search <expr or Constraint JSON>\n")
 }
 
 func (c *searchCmd) Examples() []string {

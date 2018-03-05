@@ -74,7 +74,7 @@ func (c *dbinitCmd) Describe() string {
 }
 
 func (c *dbinitCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] dbinit [dbinitopts] \n")
+	fmt.Fprintf(os.Stderr, "Usage: pk [globalopts] dbinit [dbinitopts] \n")
 }
 
 func (c *dbinitCmd) Examples() []string {

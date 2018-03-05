@@ -51,7 +51,7 @@ func (c *desCmd) Describe() string {
 }
 
 func (c *desCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] describe [--depth=n] blobref [blobref, blobref...]\n")
+	fmt.Fprintf(os.Stderr, "Usage: pk [globalopts] describe [--depth=n] blobref [blobref, blobref...]\n")
 }
 
 func (c *desCmd) Examples() []string {

@@ -49,9 +49,9 @@ func (c *reindexdpCmd) Describe() string {
 }
 
 func (c *reindexdpCmd) Usage() {
-	fmt.Fprintln(os.Stderr, "Usage: camtool [globalopts] reindex-diskpacked [reindex-opts]")
-	fmt.Fprintln(os.Stderr, "       camtool reindex-diskpacked [--overwrite] # dir from server config")
-	fmt.Fprintln(os.Stderr, "       camtool reindex-diskpacked [--overwrite] /path/to/directory")
+	fmt.Fprintln(os.Stderr, "Usage: pk [globalopts] reindex-diskpacked [reindex-opts]")
+	fmt.Fprintln(os.Stderr, "       pk reindex-diskpacked [--overwrite] # dir from server config")
+	fmt.Fprintln(os.Stderr, "       pk reindex-diskpacked [--overwrite] /path/to/directory")
 }
 
 func (c *reindexdpCmd) RunCommand(args []string) error {

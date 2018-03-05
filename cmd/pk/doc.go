@@ -15,13 +15,13 @@ limitations under the License.
 */
 
 /*
-The camtool binary is a collection of commands to help with the use of
+The pk binary is a collection of commands to help with the use of
 a camlistore server. Notably, it can initialize a database for the
 indexer, and it can sync blobs between blobservers.
 
 Usage:
 
-  camtool [globalopts] <mode> [commandopts] [commandargs]
+  pk [globalopts] <mode> [commandopts] [commandargs]
 
 Modes:
 
@@ -40,18 +40,18 @@ Modes:
 
 Examples:
 
-  camtool sync --all
-  camtool sync --src http://localhost:3179/bs/ --dest http://localhost:3179/index-mem/
+  pk sync --all
+  pk sync --src http://localhost:3179/bs/ --dest http://localhost:3179/index-mem/
 
-  camtool dbinit -user root -password root -host localhost -dbname camliprod -wipe
+  pk dbinit -user root -password root -host localhost -dbname camliprod -wipe
 
 For mode-specific help:
 
-  camtool <mode> -help
+  pk <mode> -help
 
 Global options:
   -help=false: print usage
   -verbose=false: extra debug logging
   -version=false: show version
 */
-package main // import "perkeep.org/cmd/camtool"
+package main // import "perkeep.org/cmd/pk"

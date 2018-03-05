@@ -16,7 +16,7 @@ limitations under the License.
 
 /*
 The devcam tool is a collection of wrappers around the camlistore programs
-(camistored, camput, camtool...) which take care of setup and configuration,
+(camistored, camput, pk...) which take care of setup and configuration,
 so they can be used by developers to ease hacking on camlistore.
 
 Usage:

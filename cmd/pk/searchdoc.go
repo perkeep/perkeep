@@ -41,7 +41,7 @@ func (c *searchDocCmd) Describe() string {
 }
 
 func (c *searchDocCmd) Usage() {
-	cmdmain.Errorf("camtool searchdoc")
+	cmdmain.Errorf("pk searchdoc")
 }
 
 func (c *searchDocCmd) RunCommand(args []string) error {

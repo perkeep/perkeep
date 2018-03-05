@@ -47,8 +47,8 @@ func TestSetNamed(t *testing.T) {
 	// Needed to upload the owner public key
 	runCmd(t, w, "camput", "permanode")
 
-	runCmd(t, w, "camtool", "named-search-set", "bar", "is:image and tag:bar")
-	gno := runCmd(t, w, "camtool", "named-search-get", "bar")
+	runCmd(t, w, "pk", "named-search-set", "bar", "is:image and tag:bar")
+	gno := runCmd(t, w, "pk", "named-search-get", "bar")
 	gnr := parseJSON(gno)
 	if gnr["named"] != "bar" || gnr["substitute"] != "is:image and tag:bar" {
 		t.Errorf("Unexpected value %v , expected (bar, is:image and tag:bar)", gnr)
@@ -68,7 +68,7 @@ func TestGetNamed(t *testing.T) {
 	pn := runCmd(t, w, "camput", "permanode")
 	runCmd(t, w, "camput", "attr", strings.TrimSpace(pn), "camliNamedSearch", "foo")
 	runCmd(t, w, "camput", "attr", strings.TrimSpace(pn), "camliContent", strings.TrimSpace(ref))
-	gno := runCmd(t, w, "camtool", "named-search-get", "foo")
+	gno := runCmd(t, w, "pk", "named-search-get", "foo")
 	gnr := parseJSON(gno)
 	if gnr["named"] != "foo" || gnr["substitute"] != "is:pano" {
 		t.Errorf("Unexpected value %v , expected (foo, is:pano)", gnr)
@@ -78,7 +78,7 @@ func TestGetNamed(t *testing.T) {
 func TestNamedSearch(t *testing.T) {
 	w := test.GetWorld(t)
 
-	runCmd(t, w, "camtool", "named-search-set", "favorite", "tag:cats")
+	runCmd(t, w, "pk", "named-search-set", "favorite", "tag:cats")
 	pn := runCmd(t, w, "camput", "permanode", "-title", "Felix", "-tag", "cats")
 	_, lines, err := bufio.ScanLines([]byte(pn), false)
 	if err != nil {
@@ -86,7 +86,7 @@ func TestNamedSearch(t *testing.T) {
 	}
 	pn = string(lines[0])
 
-	sr := runCmd(t, w, "camtool", "search", "named:favorite")
+	sr := runCmd(t, w, "pk", "search", "named:favorite")
 	if !strings.Contains(sr, pn) {
 		t.Fatalf("Expected %v in %v", pn, sr)
 	}
@@ -95,8 +95,8 @@ func TestNamedSearch(t *testing.T) {
 func TestNestedNamedSearch(t *testing.T) {
 	w := test.GetWorld(t)
 
-	runCmd(t, w, "camtool", "named-search-set", "favorite", "tag:cats")
-	runCmd(t, w, "camtool", "named-search-set", "mybest", "named:favorite")
+	runCmd(t, w, "pk", "named-search-set", "favorite", "tag:cats")
+	runCmd(t, w, "pk", "named-search-set", "mybest", "named:favorite")
 	pn := runCmd(t, w, "camput", "permanode", "-title", "Felix", "-tag", "cats")
 	_, lines, err := bufio.ScanLines([]byte(pn), false)
 	if err != nil {
@@ -104,7 +104,7 @@ func TestNestedNamedSearch(t *testing.T) {
 	}
 	pn = string(lines[0])
 
-	sr := runCmd(t, w, "camtool", "search", "named:mybest")
+	sr := runCmd(t, w, "pk", "search", "named:mybest")
 	if !strings.Contains(sr, pn) {
 		t.Fatalf("Expected %v in %v", pn, sr)
 	}

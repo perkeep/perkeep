@@ -426,7 +426,7 @@ func packBinaries(ctxDir string) {
 		exeName("camlistored"): false,
 		exeName("camget"):      false,
 		exeName("camput"):      false,
-		exeName("camtool"):     false,
+		exeName("pk"):          false,
 		exeName("publisher"):   false,
 	}
 	switch *buildOS {

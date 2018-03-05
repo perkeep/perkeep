@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This file adds the "tool" subcommand to devcam, to run camtool against
+// This file adds the "tool" subcommand to devcam, to run pk against
 // the dev server.
 
 package main
@@ -56,13 +56,13 @@ func (c *toolCmd) Examples() []string {
 }
 
 func (c *toolCmd) Describe() string {
-	return "run camtool in dev mode."
+	return "run pk in dev mode."
 }
 
 func (c *toolCmd) RunCommand(args []string) error {
 	if !*noBuild {
-		if err := build(filepath.Join("cmd", "camtool")); err != nil {
-			return fmt.Errorf("Could not build camtool: %v", err)
+		if err := build(filepath.Join("cmd", "pk")); err != nil {
+			return fmt.Errorf("Could not build pk: %v", err)
 		}
 	}
 	c.env.SetCamdevVars(c.altkey)
@@ -72,6 +72,6 @@ func (c *toolCmd) RunCommand(args []string) error {
 		c.env.wipeCacheDir()
 	}
 
-	cmdBin := filepath.Join("bin", "camtool")
+	cmdBin := filepath.Join("bin", "pk")
 	return runExec(cmdBin, args, c.env)
 }

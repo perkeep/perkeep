@@ -49,7 +49,7 @@ func (c *googinitCmd) Describe() string {
 }
 
 func (c *googinitCmd) Usage() {
-	fmt.Fprintf(cmdmain.Stderr, "Usage: camtool [globalopts] googinit [commandopts] \n")
+	fmt.Fprintf(cmdmain.Stderr, "Usage: pk [globalopts] googinit [commandopts] \n")
 }
 
 func (c *googinitCmd) RunCommand(args []string) error {

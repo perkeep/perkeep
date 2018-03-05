@@ -46,7 +46,7 @@ func (c *makeStaticCmd) Describe() string {
 }
 
 func (c *makeStaticCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "Usage: camtool [globalopts] makestatic [permanode]\n")
+	fmt.Fprintf(os.Stderr, "Usage: pk [globalopts] makestatic [permanode]\n")
 }
 
 func (c *makeStaticCmd) Examples() []string {

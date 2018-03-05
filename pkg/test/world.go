@@ -41,7 +41,7 @@ import (
 // World defines an integration test world.
 //
 // It's used to run the actual Perkeep binaries (camlistored,
-// camput, camget, camtool, etc) together in large tests, including
+// camput, camget, pk, etc) together in large tests, including
 // building them, finding them, and wiring them up in an isolated way.
 type World struct {
 	srcRoot  string // typically $GOPATH[0]/src/perkeep.org
@@ -115,7 +115,7 @@ func (w *World) Build() error {
 		targs := []string{
 			"camget",
 			"camput",
-			"camtool",
+			"pk",
 			"camlistored",
 		}
 		var latestModtime time.Time
@@ -295,11 +295,11 @@ func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cm
 	}
 	var cmd *exec.Cmd
 	switch binary {
-	case "camget", "camput", "camtool", "pk-mount":
+	case "camget", "camput", "pk", "pk-mount":
 		// TODO(mpl): lift the camput restriction when we have a unified logging mechanism
 		if binary == "camput" && !hasVerbose() {
-			// camput and camtool are the only ones to have a -verbose flag through cmdmain
-			// but camtool is never used. (and pk-mount does not even have a -verbose).
+			// camput and pk are the only ones to have a -verbose flag through cmdmain
+			// but pk is never used. (and pk-mount does not even have a -verbose).
 			args = append([]string{"-verbose"}, args...)
 		}
 		cmd = exec.Command(filepath.Join(w.srcRoot, "bin", binary), args...)

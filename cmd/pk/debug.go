@@ -65,7 +65,7 @@ func (c *debugCmd) Usage() {
 	}
 	subModes = strings.TrimRight(subModes, "|")
 	fmt.Fprintf(os.Stderr,
-		"Usage: camtool [globalopts] debug %s file\n%s",
+		"Usage: pk [globalopts] debug %s file\n%s",
 		subModes, docs)
 }
 

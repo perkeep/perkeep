@@ -42,7 +42,7 @@ func (c *whoamiCmd) Describe() string {
 }
 
 func (c *whoamiCmd) Usage() {
-	fmt.Fprintf(os.Stderr, "camtool whoami [key]\n")
+	fmt.Fprintf(os.Stderr, "pk whoami [key]\n")
 }
 
 var whoCmds = map[string]func(c *client.Client, s *schema.Signer) error{
