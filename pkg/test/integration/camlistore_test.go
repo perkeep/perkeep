@@ -34,7 +34,7 @@ import (
 )
 
 // Test that running:
-//   $ camput permanode
+//   $ pk-put permanode
 // ... creates and uploads a permanode, and that we can camget it back.
 func TestCamputPermanode(t *testing.T) {
 	w := test.GetWorld(t)
@@ -58,7 +58,7 @@ func TestCamputPermanode(t *testing.T) {
 func TestWebsocketQuery(t *testing.T) {
 	w := test.GetWorld(t)
 	pn := w.NewPermanode(t)
-	test.MustRunCmd(t, w.Cmd("camput", "attr", pn.String(), "tag", "foo"))
+	test.MustRunCmd(t, w.Cmd("pk-put", "attr", pn.String(), "tag", "foo"))
 
 	check := func(err error) {
 		if err != nil {
@@ -123,10 +123,10 @@ func TestWebsocketQuery(t *testing.T) {
 func TestInternalHandler(t *testing.T) {
 	w := test.GetWorld(t)
 	tests := map[string]int{
-		"/no-http-storage/":                                                    401,
-		"/no-http-handler/":                                                    401,
-		"/good-status/":                                                        200,
-		"/bs-and-maybe-also-index/camli":                                       400,
+		"/no-http-storage/":              401,
+		"/no-http-handler/":              401,
+		"/good-status/":                  200,
+		"/bs-and-maybe-also-index/camli": 400,
 		"/bs/camli/sha1-b2201302e129a4396a323cb56283cddeef11bbe8":              404,
 		"/no-http-storage/camli/sha1-b2201302e129a4396a323cb56283cddeef11bbe8": 401,
 	}
@@ -178,8 +178,8 @@ func mustWriteFile(t *testing.T, path, contents string) {
 	}
 }
 
-// Run camput in the environment it runs in under the Android app.
-// This matches how camput is used in UploadThread.java.
+// Run pk-put in the environment it runs in under the Android app.
+// This matches how pk-put is used in UploadThread.java.
 func TestAndroidCamputFile(t *testing.T) {
 	w := test.GetWorld(t)
 	// UploadThread.java sets:
@@ -193,7 +193,7 @@ func TestAndroidCamputFile(t *testing.T) {
 		"CAMPUT_ANDROID_OUTPUT=1",
 		"CAMLI_CACHE_DIR=" + cacheDir,
 	}
-	cmd := w.CmdWithEnv("camput",
+	cmd := w.CmdWithEnv("pk-put",
 		env,
 		"--server="+w.ServerBaseURL(),
 		"file",
@@ -259,10 +259,10 @@ func TestAndroidCamputFile(t *testing.T) {
 	}()
 	select {
 	case <-time.After(5 * time.Second):
-		t.Fatal("timeout waiting for camput to end")
+		t.Fatal("timeout waiting for pk-put to end")
 	case err := <-waitc:
 		if err != nil {
-			t.Errorf("camput exited uncleanly: %v", err)
+			t.Errorf("pk-put exited uncleanly: %v", err)
 		}
 	}
 }

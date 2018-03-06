@@ -38,14 +38,14 @@ pieces and use cases, and where they're at.</p>
 <table class='status'>
 <tr><th>Item</th><th>Status</th><th>Notes</th></tr>
 
-<tr><td><a href="/cmd/camput">camput</a></td><td>99%</td><td>the kitchen sink tool to inject content into a blobserver. Quite good now. Also <a href="https://plus.google.com/u/0/115863474911002159675/posts/DWmyygSrvt7">used by the Android client</a>, as a child process.</td></tr>
+<tr><td><a href="/cmd/pk put">pk put</a></td><td>99%</td><td>the kitchen sink tool to inject content into a blobserver. Quite good now. Also <a href="https://plus.google.com/u/0/115863474911002159675/posts/DWmyygSrvt7">used by the Android client</a>, as a child process.</td></tr>
 
 <tr><td><a href="/cmd/camget">camget</a></td><td>10%</td><td>tool to retrieve content from a blobserver.</td></tr>
 
 <tr><td><a href="/cmd/pk-mount">pk-mount</a></td><td>read-only</td><td>FUSE mounting. Works on Linux and OS X.</td></tr>
 
 <tr><td><a href="/gw/clients/android">Android Uploader</a></td><td>90%</td><td>UI is kinda ugly in spots but it works and
-optionally backs up your SD card (photos, etc) to your blob server. Uses camput.
+optionally backs up your SD card (photos, etc) to your blob server. Uses pk put.
 Can also work in "Share with Perkeep" mode, one resource at a
 time.</td></tr>
 

@@ -1,6 +1,6 @@
 # Configuring a client
 
-The various clients (camput, camget, pk-mount...) use a common JSON config
+The various clients (pk put, camget, pk-mount...) use a common JSON config
 file. This page documents the configuration parameters in that file. Run
 `pk env clientconfig` to see the default location for that file
 (**$HOME/.config/camlistore/client-config.json** on linux). In the following
@@ -8,7 +8,7 @@ let **$CONFIGDIR** be the location returned by `pk env configdir`.
 
 ## Generating a default config file
 
-Run `camput init`.
+Run `pk put init`.
 
 On unix,
 
@@ -35,14 +35,14 @@ should look something like:
 
 ### Top-level keys
 
-* `identity`: your GPG fingerprint. Run `camput init` for help on how to
+* `identity`: your GPG fingerprint. Run `pk put init` for help on how to
   generate a new keypair.
 
 * `identitySecretRing`: Optional. If non-empty, it specifies the location of
   your GPG secret keyring. Defaults to **$CONFIGDIR/identity-secring.gpg**. Run
-  `camput init` for help on how to generate a new keypair.
+  `pk put init` for help on how to generate a new keypair.
 
-* `ignoredFiles`: Optional. The list of of files that camput should ignore and
+* `ignoredFiles`: Optional. The list of of files that pk put should ignore and
   not try to upload.
 
 ### Servers

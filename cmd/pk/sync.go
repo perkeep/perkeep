@@ -55,7 +55,7 @@ type syncCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("sync", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("sync", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(syncCmd)
 		flags.StringVar(&cmd.src, "src", "", "Source blobserver. "+serverFlagHelp)
 		flags.StringVar(&cmd.dest, "dest", "", "Destination blobserver (same format as src), or 'stdout' to just enumerate the --src blobs to stdout.")

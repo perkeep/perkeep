@@ -35,7 +35,7 @@ type reindexdpCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("reindex-diskpacked",
+	cmdmain.RegisterMode("reindex-diskpacked",
 		func(flags *flag.FlagSet) cmdmain.CommandRunner {
 			cmd := new(reindexdpCmd)
 			flags.BoolVar(&cmd.overwrite, "overwrite", false,

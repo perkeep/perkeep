@@ -44,7 +44,7 @@ type gceCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("gce", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("gce", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(gceCmd)
 		flags.StringVar(&cmd.project, "project", "", "Name of Project.")
 		flags.StringVar(&cmd.zone, "zone", gce.DefaultRegion, "GCE zone or region. If a region is given, a random zone in that region is selected. See https://cloud.google.com/compute/docs/zones")

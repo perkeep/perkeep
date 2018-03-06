@@ -46,7 +46,7 @@ type initCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("init", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("init", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(initCmd)
 		flags.BoolVar(&cmd.newKey, "newkey", false,
 			"Automatically generate a new identity in a new secret ring at the default location (~/.config/camlistore/identity-secring.gpg on linux).")
@@ -59,11 +59,11 @@ func init() {
 }
 
 func (c *initCmd) Describe() string {
-	return "Initialize the camput configuration file. With no option, it tries to use the GPG key found in the default identity secret ring."
+	return "Initialize the pk-put configuration file. With no option, it tries to use the GPG key found in the default identity secret ring."
 }
 
 func (c *initCmd) Usage() {
-	usage := "Usage: camput [--server host] init [opts]\n\nExamples:\n"
+	usage := "Usage: pk-put [--server host] init [opts]\n\nExamples:\n"
 	for _, v := range c.usageExamples() {
 		usage += v + "\n"
 	}
@@ -73,10 +73,10 @@ func (c *initCmd) Usage() {
 func (c *initCmd) usageExamples() []string {
 	var examples []string
 	for _, v := range c.Examples() {
-		examples = append(examples, "camput init "+v)
+		examples = append(examples, "pk-put init "+v)
 	}
 	return append(examples,
-		"camput --server=https://localhost:3179 init --userpass=foo:bar --insecure=true")
+		"pk-put --server=https://localhost:3179 init --userpass=foo:bar --insecure=true")
 }
 
 func (c *initCmd) Examples() []string {
@@ -106,7 +106,7 @@ func (c *initCmd) initSecretRing() error {
 		c.secretRing = osutil.SecretRingFile()
 	}
 	if _, err := os.Stat(c.secretRing); err != nil {
-		hint := "\nA GPG key is required, please use 'camput init --newkey'.\n\nOr if you know what you're doing, you can set the global camput flag --secret-keyring, or the CAMLI_SECRET_RING env var, to use your own GPG ring. And --gpgkey=<pubid> or GPGKEY to select which key ID to use."
+		hint := "\nA GPG key is required, please use 'pk-put init --newkey'.\n\nOr if you know what you're doing, you can set the global pk-put flag --secret-keyring, or the CAMLI_SECRET_RING env var, to use your own GPG ring. And --gpgkey=<pubid> or GPGKEY to select which key ID to use."
 		return fmt.Errorf("Could not use secret ring file %v: %v.\n%v", c.secretRing, err, hint)
 	}
 	return nil

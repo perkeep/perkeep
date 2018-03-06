@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Hacks for running camput as a child process on Android.
+// Hacks for running pk-put as a child process on Android.
 
 package main
 

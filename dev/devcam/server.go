@@ -87,7 +87,7 @@ type serverCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("server", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("server", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := &serverCmd{
 			env: NewCopyEnv(),
 		}

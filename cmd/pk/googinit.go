@@ -37,7 +37,7 @@ type googinitCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("googinit", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("googinit", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(googinitCmd)
 		flags.StringVar(&cmd.storageType, "type", "", "Storage type: drive or cloud")
 		return cmd

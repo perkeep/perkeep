@@ -31,7 +31,7 @@ import (
 type searchDocCmd struct{}
 
 func init() {
-	cmdmain.RegisterCommand("searchdoc", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("searchdoc", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		return new(searchDocCmd)
 	})
 }

@@ -46,7 +46,7 @@ type mountCmd struct {
 const mountpoint = "/tmp/pk-mount-dir"
 
 func init() {
-	cmdmain.RegisterCommand("mount", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("mount", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := &mountCmd{
 			env: NewCopyEnv(),
 		}

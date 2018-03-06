@@ -45,7 +45,7 @@ func tempDir(t *testing.T) (path string, cleanup func()) {
 	return
 }
 
-// Test that we can camput and camget a file whose name is not utf8,
+// Test that we can pk-put and camget a file whose name is not utf8,
 // that we don't panic in the process and that the results are
 // correct.
 func TestNonUTF8FileName(t *testing.T) {
@@ -69,10 +69,10 @@ func TestNonUTF8FileName(t *testing.T) {
 	fd.Close()
 
 	w := test.GetWorld(t)
-	out := test.MustRunCmd(t, w.Cmd("camput", "file", fd.Name()))
+	out := test.MustRunCmd(t, w.Cmd("pk-put", "file", fd.Name()))
 	br := strings.Split(out, "\n")[0]
 
-	// camput was a success. Can we get the file back in another directory?
+	// pk-put was a success. Can we get the file back in another directory?
 	dstDir, cleanup := tempDir(t)
 	defer cleanup()
 
@@ -84,7 +84,7 @@ func TestNonUTF8FileName(t *testing.T) {
 	}
 }
 
-// Test that we can camput and camget a symbolic link whose target is
+// Test that we can pk-put and camget a symbolic link whose target is
 // not utf8, that we do no panic in the process and that the results
 // are correct.
 func TestNonUTF8SymlinkTarget(t *testing.T) {
@@ -113,7 +113,7 @@ func TestNonUTF8SymlinkTarget(t *testing.T) {
 	}
 
 	w := test.GetWorld(t)
-	out := test.MustRunCmd(t, w.Cmd("camput", "file", filepath.Join(srcDir, "link")))
+	out := test.MustRunCmd(t, w.Cmd("pk-put", "file", filepath.Join(srcDir, "link")))
 	br := strings.Split(out, "\n")[0]
 
 	// See if we can camget it back correctly

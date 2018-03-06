@@ -44,7 +44,7 @@ in your [server config](/doc/server-config.md).
 
 Now I want to share Hi.txt with you, so I create a share blob:
 
-    camput share --transitive sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d
+    pk put share --transitive sha1-0e5e60f367cc8156ae48198c496b2b2ebdf5313d
 
 I've created this, and its name is `sha1-102758fb54521cb6540d256098e7c0f1625b33e3`
 

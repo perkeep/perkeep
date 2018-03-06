@@ -93,9 +93,9 @@ func (c *Client) parseConfig() {
 		if c != nil && c.isSharePrefix {
 			return
 		}
-		errMsg := fmt.Sprintf("Client configuration file %v does not exist. See 'camput init' to generate it.", configPath)
+		errMsg := fmt.Sprintf("Client configuration file %v does not exist. See 'pk-put init' to generate it.", configPath)
 		if keyID := serverKeyId(); keyID != "" {
-			hint := fmt.Sprintf("\nThe key id %v was found in the server config %v, so you might want:\n'camput init -gpgkey %v'", keyID, osutil.UserServerConfigPath(), keyID)
+			hint := fmt.Sprintf("\nThe key id %v was found in the server config %v, so you might want:\n'pk-put init -gpgkey %v'", keyID, osutil.UserServerConfigPath(), keyID)
 			errMsg += hint
 		}
 		log.Fatal(errMsg)
@@ -220,7 +220,7 @@ func printConfigChangeHelp(conf jsonconfig.Obj) {
 		}
 	}
 	if oldConfig {
-		configChangedMsg += "Please see https://perkeep.org/doc/client-config, or use camput init to recreate a default one."
+		configChangedMsg += "Please see https://perkeep.org/doc/client-config, or use pk-put init to recreate a default one."
 		log.Print(configChangedMsg)
 	}
 }
@@ -414,7 +414,7 @@ func (c *Client) initSignerPublicKeyBlobref() {
 		configOnce.Do(parseConfig)
 		keyID = config.Identity
 		if keyID == "" {
-			log.Fatalf("No 'identity' key in JSON configuration file %q; have you run \"camput init\"?", osutil.UserClientConfigPath())
+			log.Fatalf("No 'identity' key in JSON configuration file %q; have you run \"pk-put init\"?", osutil.UserClientConfigPath())
 		}
 	}
 	keyRing := c.SecretRingFile()

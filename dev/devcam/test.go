@@ -39,7 +39,7 @@ type testCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("test", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("test", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(testCmd)
 		flags.BoolVar(&cmd.short, "short", false, "Use '-short' with go test.")
 		flags.BoolVar(&cmd.precommit, "precommit", true, "Run the pre-commit githook as part of tests.")

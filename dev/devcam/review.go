@@ -38,7 +38,7 @@ var (
 type reviewCmd struct{}
 
 func init() {
-	cmdmain.RegisterCommand("review", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("review", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		return new(reviewCmd)
 	})
 }

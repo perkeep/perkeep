@@ -32,7 +32,7 @@ import (
 type whoamiCmd struct{}
 
 func init() {
-	cmdmain.RegisterCommand("whoami", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("whoami", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		return new(whoamiCmd)
 	})
 }

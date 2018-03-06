@@ -35,7 +35,7 @@ type shareCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("share", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("share", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(shareCmd)
 		flags.StringVar(&cmd.search, "search", "", "share a search result, rather than a single blob. Should be the JSON representation of a search.SearchQuery (see https://perkeep.org/pkg/search/#SearchQuery for details). Exclusive with, and overrides the <blobref> parameter.")
 		flags.BoolVar(&cmd.transitive, "transitive", false, "share everything reachable from the given blobref")
@@ -49,7 +49,7 @@ func (c *shareCmd) Describe() string {
 }
 
 func (c *shareCmd) Usage() {
-	fmt.Fprintf(cmdmain.Stderr, `Usage: camput share [opts] [<blobref>] # blobRef of a file or directory
+	fmt.Fprintf(cmdmain.Stderr, `Usage: pk-put share [opts] [<blobref>] # blobRef of a file or directory
 `)
 }
 

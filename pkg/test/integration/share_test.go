@@ -43,10 +43,10 @@ func TestDirSharing(t *testing.T) {
 
 func share(t *testing.T, file string) {
 	w := test.GetWorld(t)
-	out := test.MustRunCmd(t, w.Cmd("camput", "file", file))
+	out := test.MustRunCmd(t, w.Cmd("pk-put", "file", file))
 	fileRef := strings.Split(out, "\n")[0]
 
-	out = test.MustRunCmd(t, w.Cmd("camput", "share", "-transitive", fileRef))
+	out = test.MustRunCmd(t, w.Cmd("pk-put", "share", "-transitive", fileRef))
 	shareRef := strings.Split(out, "\n")[0]
 
 	testDir, err := ioutil.TempDir("", "camli-share-test-")

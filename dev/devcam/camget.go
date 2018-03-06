@@ -41,7 +41,7 @@ type getCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("get", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("get", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := &getCmd{
 			env: NewCopyEnv(),
 		}

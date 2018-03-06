@@ -425,7 +425,7 @@ func packBinaries(ctxDir string) {
 	binaries := map[string]bool{
 		exeName("camlistored"): false,
 		exeName("camget"):      false,
-		exeName("camput"):      false,
+		exeName("pk-put"):      false,
 		exeName("pk"):          false,
 		exeName("publisher"):   false,
 	}

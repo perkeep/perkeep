@@ -28,7 +28,7 @@ import (
 type deleteCmd struct{}
 
 func init() {
-	cmdmain.RegisterCommand("delete", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("delete", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(deleteCmd)
 		return cmd
 	})
@@ -39,7 +39,7 @@ func (c *deleteCmd) Describe() string {
 }
 
 func (c *deleteCmd) Usage() {
-	cmdmain.Errorf("Usage: camput [globalopts] delete <blobref1> [blobref2]...")
+	cmdmain.Errorf("Usage: pk-put [globalopts] delete <blobref1> [blobref2]...")
 }
 
 func (c *deleteCmd) RunCommand(args []string) error {

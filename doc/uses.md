@@ -7,7 +7,7 @@ are various stages of implementation (as of 2013-06-12).
 
 * **Filesystem backups**: easy initial use case.  Since you can easily put
 [files & directories and such](/doc/schema/) in Perkeep with
-[camput](/cmd/camput), you can use Perkeep for your backups.  Incremental
+[pk put](/cmd/pk put), you can use Perkeep for your backups.  Incremental
 backups are basically free.
 
 * **Efficient remote filesystem**: should be easy to do an aggressively caching

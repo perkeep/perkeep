@@ -43,7 +43,7 @@ valid.
   launched camlistored.
 
 `CAMLI_DEBUG` (bool)
-: Used by camlistored and camput to enable additional commandline options.
+: Used by camlistored and pk put to enable additional commandline options.
   Used in pkg/schema to enable additional logging.
 
 `CAMLI_DEBUG_CONFIG` (bool)
@@ -174,7 +174,7 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
 
 `CAMLI_NO_FILE_DUP_SEARCH` (bool)
 : This will cause the search-for-exists-before-upload step to be skipped when
-  camput is uploading files.
+  pk put is uploading files.
 
 `CAMLI_PPROF_START` (string)
 : Filename base to write a "<base>.cpu" and "<base>.mem" profile out

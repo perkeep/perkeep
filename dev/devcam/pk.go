@@ -36,7 +36,7 @@ type toolCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("tool", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("tool", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := &toolCmd{
 			env: NewCopyEnv(),
 		}

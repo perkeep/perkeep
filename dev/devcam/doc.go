@@ -16,7 +16,7 @@ limitations under the License.
 
 /*
 The devcam tool is a collection of wrappers around the camlistore programs
-(camistored, camput, pk...) which take care of setup and configuration,
+(camistored, pk-put, pk...) which take care of setup and configuration,
 so they can be used by developers to ease hacking on camlistore.
 
 Usage:
@@ -26,7 +26,7 @@ Usage:
 Modes:
 
   get: run camget in dev mode.
-  put: run camput in dev mode.
+  put: run pk-put in dev mode.
   server: run the stand-alone camlistored in dev mode.
 
 Examples:

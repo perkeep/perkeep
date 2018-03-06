@@ -27,14 +27,14 @@ import (
 type removeCmd struct{}
 
 func init() {
-	cmdmain.RegisterCommand("remove", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("remove", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(removeCmd)
 		return cmd
 	})
 }
 
 func (c *removeCmd) Usage() {
-	fmt.Fprintf(cmdmain.Stderr, `Usage: camput remove <blobref(s)>
+	fmt.Fprintf(cmdmain.Stderr, `Usage: pk-put remove <blobref(s)>
 
 This command is for debugging only.  You're not expected to use it in practice.
 `)

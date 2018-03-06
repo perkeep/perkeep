@@ -34,7 +34,7 @@ type Config struct {
 	Servers            map[string]*Server `json:"servers"`                      // maps server alias to server config.
 	Identity           string             `json:"identity"`                     // GPG identity.
 	IdentitySecretRing string             `json:"identitySecretRing,omitempty"` // location of the secret ring file.
-	IgnoredFiles       []string           `json:"ignoredFiles,omitempty"`       // list of files that camput should ignore.
+	IgnoredFiles       []string           `json:"ignoredFiles,omitempty"`       // list of files that pk-put should ignore.
 }
 
 // Server holds the values specific to each server found in the JSON client

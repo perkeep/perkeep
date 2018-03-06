@@ -14,20 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// TODO(mpl): this doc is not in sync with what the pk-put help outputs. But it should be.
+
 /*
-The camput tool mainly pushes blobs, files, and directories. It can also perform various related tasks, such as setting tags, creating permanodes, and creating share blobs.
+The pk-put tool mainly pushes blobs, files, and directories. It can also perform various related tasks, such as setting tags, creating permanodes, and creating share blobs.
 
 
 Usage:
 
-  camput [globalopts] <mode> [commandopts] [commandargs]
+  pk-put [globalopts] <mode> [commandopts] [commandargs]
 
 Modes:
 
   delete: Create and upload a delete claim.
   attr: Add, set, or delete a permanode's attribute.
   file: Upload file(s).
-  init: Initialize the camput configuration file. With no option, it tries to use the GPG key found in the default identity secret ring.
+  init: Initialize the pk-put configuration file. With no option, it tries to use the GPG key found in the default identity secret ring.
   permanode: Create and upload a permanode.
   rawobj: Upload a custom JSON schema blob.
   share: Grant access to a resource by making a "share" blob.
@@ -35,31 +37,31 @@ Modes:
 
 Examples:
 
-  camput file [opts] <file(s)/director(ies)
-  camput file --permanode --title='Homedir backup' --tag=backup,homedir $HOME
-  camput file --filenodes /mnt/camera/DCIM
+  pk-put file [opts] <file(s)/director(ies)
+  pk-put file --permanode --title='Homedir backup' --tag=backup,homedir $HOME
+  pk-put file --filenodes /mnt/camera/DCIM
 
-  camput blob <files>     (raw, without any metadata)
-  camput blob --permanode --title='My Blob' --tag=backup,my_blob
-  camput blob -           (read from stdin)
+  pk-put blob <files>     (raw, without any metadata)
+  pk-put blob --permanode --title='My Blob' --tag=backup,my_blob
+  pk-put blob -           (read from stdin)
 
-  camput permanode                                (create a new permanode)
-  camput permanode --title="Some Name" --tag=foo,bar (with attributes added)
+  pk-put permanode                                (create a new permanode)
+  pk-put permanode --title="Some Name" --tag=foo,bar (with attributes added)
 
-  camput init
-  camput init --gpgkey=XXXXX
+  pk-put init
+  pk-put init --gpgkey=XXXXX
 
-  camput share [opts] <blobref to share via haveref>
+  pk-put share [opts] <blobref to share via haveref>
 
-  camput rawobj (debug command)
+  pk-put rawobj (debug command)
 
-  camput attr <permanode> <name> <value>         Set attribute
-  camput attr --add <permanode> <name> <value>   Adds attribute (e.g. "tag")
-  camput attr --del <permanode> <name> [<value>] Deletes named attribute [value
+  pk-put attr <permanode> <name> <value>         Set attribute
+  pk-put attr --add <permanode> <name> <value>   Adds attribute (e.g. "tag")
+  pk-put attr --del <permanode> <name> [<value>] Deletes named attribute [value
 
 For mode-specific help:
 
-  camput <mode> -help
+  pk-put <mode> -help
 
 Global options:
   -help=false: print usage
@@ -72,4 +74,4 @@ Global options:
   -verbose_http=false: show HTTP request summaries
   -version=false: show version
 */
-package main // import "perkeep.org/cmd/camput"
+package main // import "perkeep.org/cmd/pk-put"

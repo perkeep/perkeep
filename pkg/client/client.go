@@ -114,8 +114,8 @@ type Client struct {
 	insecureAnyTLSCert bool
 
 	initIgnoredFilesOnce sync.Once
-	// list of files that camput should ignore.
-	// Defaults to empty, but camput init creates a config with a non
+	// list of files that pk-put should ignore.
+	// Defaults to empty, but pk-put init creates a config with a non
 	// empty list.
 	// See IsIgnoredFile for the matching rules.
 	ignoredFiles  []string
@@ -255,7 +255,7 @@ func (c *Client) NewPathClient(path string) (*Client, error) {
 // TransportConfig contains options for how HTTP requests are made.
 type TransportConfig struct {
 	// Proxy optionally specifies the Proxy for the transport. Useful with
-	// camput for debugging even localhost requests.
+	// pk-put for debugging even localhost requests.
 	Proxy   func(*http.Request) (*url.URL, error)
 	Verbose bool // Verbose enables verbose logging of HTTP requests.
 }
@@ -1487,7 +1487,7 @@ func (c *Client) UploadPlannedPermanode(ctx context.Context, key string, sigTime
 	return c.uploadString(ctx, signed, true)
 }
 
-// IsIgnoredFile returns whether the file at fullpath should be ignored by camput.
+// IsIgnoredFile returns whether the file at fullpath should be ignored by pk-put.
 // The fullpath is checked against the ignoredFiles list, trying the following rules in this order:
 // 1) star-suffix style matching (.e.g *.jpg).
 // 2) Shell pattern match as done by http://golang.org/pkg/path/filepath/#Match

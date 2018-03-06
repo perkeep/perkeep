@@ -38,7 +38,7 @@ var envMap = map[string]func() string{
 type envCmd struct{}
 
 func init() {
-	cmdmain.RegisterCommand("env", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("env", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		return new(envCmd)
 	})
 }

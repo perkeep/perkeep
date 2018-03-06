@@ -447,7 +447,7 @@ type FileUploadOptions struct {
 // the server, they're not uploaded.
 //
 // Note: this method is still a work in progress, and might change to accommodate
-// the needs of camput file.
+// the needs of pk-put file.
 func (c *Client) UploadFile(ctx context.Context, filename string, contents io.Reader, opts *FileUploadOptions) (blob.Ref, error) {
 	fileMap := schema.NewFileMap(filename)
 	if opts != nil && opts.FileInfo != nil {
@@ -483,7 +483,7 @@ func (c *Client) UploadFile(ctx context.Context, filename string, contents io.Re
 	return schema.WriteFileMap(ctx, c, fileMap, contents)
 }
 
-// TODO(mpl): replace up.wholeFileDigest in camput with c.wholeRef maybe.
+// TODO(mpl): replace up.wholeFileDigest in pk-put with c.wholeRef maybe.
 
 // wholeRef returns the blob ref(s) of the regular file's contents
 // as if it were one entire blob (ignoring blob size limits).

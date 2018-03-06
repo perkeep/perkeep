@@ -74,7 +74,7 @@ var (
 )
 
 func init() {
-	cmdmain.RegisterCommand("file", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("file", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(fileCmd)
 		flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create and associate a new permanode for the uploaded file or directory.")
 		flags.BoolVar(&cmd.filePermanodes, "filenodes", false, "Create (if necessary) content-based permanodes for each uploaded file.")
@@ -115,7 +115,7 @@ func (c *fileCmd) Describe() string {
 }
 
 func (c *fileCmd) Usage() {
-	fmt.Fprintf(cmdmain.Stderr, "Usage: camput [globalopts] file [fileopts] <file/director(ies)>\n")
+	fmt.Fprintf(cmdmain.Stderr, "Usage: pk-put [globalopts] file [fileopts] <file/director(ies)>\n")
 }
 
 func (c *fileCmd) Examples() []string {
@@ -395,7 +395,7 @@ func (up *Uploader) uploadNode(ctx context.Context, n *node) (*client.PutResult,
 	case mode&os.ModeNamedPipe != 0: // fifo
 		bb.SetType("fifo")
 	default:
-		return nil, fmt.Errorf("camput.files: unsupported file type %v for file %v", mode, n.fullPath)
+		return nil, fmt.Errorf("pk-put.files: unsupported file type %v for file %v", mode, n.fullPath)
 	case fi.IsDir():
 		ss, err := n.directoryStaticSet()
 		if err != nil {
@@ -436,7 +436,7 @@ func (up *Uploader) statReceiver(n *node) blobserver.StatReceiver {
 	statReceiver := up.altStatReceiver
 	if statReceiver == nil {
 		// TODO(mpl): simplify the altStatReceiver situation as well,
-		// see TODO in cmd/camput/uploader.go
+		// see TODO in cmd/pk-put/uploader.go
 		statReceiver = up.Client
 	}
 	if android.IsChild() && n != nil && n.fi.Mode()&os.ModeType == 0 {

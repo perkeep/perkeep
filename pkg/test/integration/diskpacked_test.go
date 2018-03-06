@@ -55,7 +55,7 @@ func benchmarkWrite(b *testing.B, cfg string) {
 			b.Fatalf("could not start server for config: %v\nError: %v", cfg, err)
 		}
 		b.StartTimer()
-		test.MustRunCmd(b, w.Cmd("camput", "file", testFile))
+		test.MustRunCmd(b, w.Cmd("pk-put", "file", testFile))
 		b.StopTimer()
 		w.Stop()
 	}

@@ -54,7 +54,7 @@ var (
 	all            = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
 	race           = flag.Bool("race", false, "Build race-detector version of binaries (they will run slowly)")
 	verbose        = flag.Bool("v", strings.Contains(os.Getenv("CAMLI_DEBUG_X"), "makego"), "Verbose mode")
-	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. '*' builds everything.  Empty builds defaults for this platform. Example: perkeep.org/server/camlistored,perkeep.org/cmd/camput")
+	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. '*' builds everything.  Empty builds defaults for this platform. Example: perkeep.org/server/camlistored,perkeep.org/cmd/pk-put")
 	quiet          = flag.Bool("quiet", false, "Don't print anything unless there's a failure.")
 	buildARCH      = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
 	buildOS        = flag.String("os", runtime.GOOS, "Operating system to build for.")
@@ -107,7 +107,7 @@ func main() {
 	targs := []string{
 		"perkeep.org/dev/devcam",
 		"perkeep.org/cmd/camget",
-		"perkeep.org/cmd/camput",
+		"perkeep.org/cmd/pk-put",
 		"perkeep.org/cmd/pk",
 		"perkeep.org/cmd/pk-deploy",
 		"perkeep.org/server/camlistored",

@@ -30,7 +30,7 @@ import (
 	"perkeep.org/pkg/cmdmain"
 )
 
-// env is the environment that a camput test runs within.
+// env is the environment that a pk-put test runs within.
 type env struct {
 	// stdin is the standard input, or /dev/null if nil
 	stdin io.Reader
@@ -88,7 +88,7 @@ func TestUsageOnNoargs(t *testing.T) {
 	if len(out) != 0 {
 		t.Errorf("wanted nothing on stdout; got:\n%s", out)
 	}
-	if !bytes.Contains(err, []byte("Usage: camput")) {
+	if !bytes.Contains(err, []byte("Usage: pk-put")) {
 		t.Errorf("stderr doesn't contain usage. Got:\n%s", err)
 	}
 }
@@ -113,8 +113,8 @@ func TestCommandUsage(t *testing.T) {
 func TestUploadingChangingDirectory(t *testing.T) {
 	// TODO(bradfitz):
 	//    $ mkdir /tmp/somedir
-	//    $ cp dev-camput /tmp/somedir
-	//    $ ./dev-camput  -file /tmp/somedir/ 2>&1 | tee /tmp/somedir/log
+	//    $ cp dev-pk-put /tmp/somedir
+	//    $ ./dev-pk-put  -file /tmp/somedir/ 2>&1 | tee /tmp/somedir/log
 	// ... verify it doesn't hang.
 	t.Logf("TODO")
 }

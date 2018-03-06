@@ -31,7 +31,7 @@ import (
 type dumpconfigCmd struct{}
 
 func init() {
-	cmdmain.RegisterCommand("dumpconfig", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("dumpconfig", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		return new(dumpconfigCmd)
 	})
 }

@@ -45,7 +45,7 @@ func parseJSON(s string) map[string]interface{} {
 func TestSetNamed(t *testing.T) {
 	w := test.GetWorld(t)
 	// Needed to upload the owner public key
-	runCmd(t, w, "camput", "permanode")
+	runCmd(t, w, "pk-put", "permanode")
 
 	runCmd(t, w, "pk", "named-search-set", "bar", "is:image and tag:bar")
 	gno := runCmd(t, w, "pk", "named-search-get", "bar")
@@ -58,16 +58,16 @@ func TestSetNamed(t *testing.T) {
 func TestGetNamed(t *testing.T) {
 	w := test.GetWorld(t)
 
-	putExprCmd := w.Cmd("camput", "blob", "-")
+	putExprCmd := w.Cmd("pk-put", "blob", "-")
 	putExprCmd.Stdin = strings.NewReader("is:pano")
 	ref, err := test.RunCmd(putExprCmd)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pn := runCmd(t, w, "camput", "permanode")
-	runCmd(t, w, "camput", "attr", strings.TrimSpace(pn), "camliNamedSearch", "foo")
-	runCmd(t, w, "camput", "attr", strings.TrimSpace(pn), "camliContent", strings.TrimSpace(ref))
+	pn := runCmd(t, w, "pk-put", "permanode")
+	runCmd(t, w, "pk-put", "attr", strings.TrimSpace(pn), "camliNamedSearch", "foo")
+	runCmd(t, w, "pk-put", "attr", strings.TrimSpace(pn), "camliContent", strings.TrimSpace(ref))
 	gno := runCmd(t, w, "pk", "named-search-get", "foo")
 	gnr := parseJSON(gno)
 	if gnr["named"] != "foo" || gnr["substitute"] != "is:pano" {
@@ -79,7 +79,7 @@ func TestNamedSearch(t *testing.T) {
 	w := test.GetWorld(t)
 
 	runCmd(t, w, "pk", "named-search-set", "favorite", "tag:cats")
-	pn := runCmd(t, w, "camput", "permanode", "-title", "Felix", "-tag", "cats")
+	pn := runCmd(t, w, "pk-put", "permanode", "-title", "Felix", "-tag", "cats")
 	_, lines, err := bufio.ScanLines([]byte(pn), false)
 	if err != nil {
 		t.Fatal(err)
@@ -97,7 +97,7 @@ func TestNestedNamedSearch(t *testing.T) {
 
 	runCmd(t, w, "pk", "named-search-set", "favorite", "tag:cats")
 	runCmd(t, w, "pk", "named-search-set", "mybest", "named:favorite")
-	pn := runCmd(t, w, "camput", "permanode", "-title", "Felix", "-tag", "cats")
+	pn := runCmd(t, w, "pk-put", "permanode", "-title", "Felix", "-tag", "cats")
 	_, lines, err := bufio.ScanLines([]byte(pn), false)
 	if err != nil {
 		t.Fatal(err)

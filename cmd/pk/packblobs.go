@@ -33,7 +33,7 @@ type packBlobsCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("packblobs", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("packblobs", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(packBlobsCmd)
 		flags.StringVar(&cmd.server, "server", "", "Server to search. "+serverFlagHelp)
 		return cmd

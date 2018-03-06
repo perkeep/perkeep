@@ -164,7 +164,7 @@ See the
 [serverconfig.Publish](https://perkeep.org/pkg/types/serverconfig/#Publish)
 type for all the configuration parameters.
 
-One can create any permanode with camput or the UI, and set its camliRoot
+One can create any permanode with pk put or the UI, and set its camliRoot
 attribute to the value set in the config, to use it as the root permanode for
 publishing.
 

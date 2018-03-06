@@ -69,9 +69,9 @@ const (
 	// If set, it should be of a "file" schema blob referencing the tweets.zip
 	// file that Twitter makes available for the full archive download.
 	// The Twitter API doesn't go back forever in time, so if you started using
-	// the Perkeep importer too late, you need to "camput file tweets.zip"
+	// the Perkeep importer too late, you need to "pk-put file tweets.zip"
 	// once downloading it from Twitter, and then:
-	//   $ camput attr <acct-permanode> twitterArchiveZipFileRef <zip-fileref>
+	//   $ pk-put attr <acct-permanode> twitterArchiveZipFileRef <zip-fileref>
 	// ... and re-do an import.
 	acctAttrTweetZip = "twitterArchiveZipFileRef"
 

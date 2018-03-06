@@ -44,7 +44,7 @@ type blobCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("blob", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("blob", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(blobCmd)
 		flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create and associate a new permanode for the blob.")
 		flags.StringVar(&cmd.title, "title", "", "Optional title attribute to set on permanode when using -permanode.")
@@ -59,7 +59,7 @@ func (c *blobCmd) Describe() string {
 }
 
 func (c *blobCmd) Usage() {
-	fmt.Fprintf(cmdmain.Stderr, "Usage: camput [globalopts] blob <files>\n	camput [globalopts] blob -\n")
+	fmt.Fprintf(cmdmain.Stderr, "Usage: pk-put [globalopts] blob <files>\n	pk-put [globalopts] blob -\n")
 }
 
 func (c *blobCmd) Examples() []string {

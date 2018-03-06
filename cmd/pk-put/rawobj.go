@@ -31,7 +31,7 @@ type rawCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("rawobj", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("rawobj", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(rawCmd)
 		flags.StringVar(&cmd.vals, "vals", "", "Pipe-separated key=value properties")
 		flags.BoolVar(&cmd.signed, "signed", true, "whether to sign the JSON object")
@@ -44,7 +44,7 @@ func (c *rawCmd) Describe() string {
 }
 
 func (c *rawCmd) Usage() {
-	cmdmain.Errorf("Usage: camput [globalopts] rawobj [rawopts]\n")
+	cmdmain.Errorf("Usage: pk-put [globalopts] rawobj [rawopts]\n")
 }
 
 func (c *rawCmd) Examples() []string {

@@ -85,7 +85,7 @@ type hookCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("hook", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("hook", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := &hookCmd{}
 		flags.BoolVar(&cmd.verbose, "verbose", false, "Be verbose.")
 		// TODO(mpl): "-w" flag to run gofmt -w and devcam fixv -w. for now just print instruction.

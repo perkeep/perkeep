@@ -33,7 +33,7 @@ type claimsCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("claims", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("claims", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(claimsCmd)
 		flags.StringVar(&cmd.server, "server", "", "Server to fetch claims from. "+serverFlagHelp)
 		flags.StringVar(&cmd.attr, "attr", "", "Filter claims about a specific attribute. If empty, all claims are returned.")

@@ -37,7 +37,7 @@ type desCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("describe", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("describe", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(desCmd)
 		flags.StringVar(&cmd.server, "server", "", "Server to query. "+serverFlagHelp)
 		flags.StringVar(&cmd.at, "at", "", "Describe at what point in time. RFC3339 only for now. Empty string means current time.")

@@ -115,7 +115,7 @@ starts with <code>{</code> and is <a href="http://json.org/">valid JSON</a> in i
      on mutating an object (by all creating new, signed mutation schema blobs),
      the owner ultimately decides the policies on how the mutations are respected.</p>
 
-  <p>Example permanode blob:  (as generated with <code><a href="/cmd/camput">camput</a> --permanode</code>)</p>
+  <p>Example permanode blob:  (as generated with <code><a href="/cmd/pk put">pk put</a> --permanode</code>)</p>
 
      <pre class='sty' style="overflow: auto;">{"camliVersion": 1,
   "camliSigner": "sha1-c4da9d771661563a27704b91b67989e7ea1e50b8",

@@ -36,7 +36,7 @@ type permanodeCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("permanode", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("permanode", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(permanodeCmd)
 		flags.StringVar(&cmd.title, "title", "", "Optional 'title' attribute to set on new permanode")
 		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on new permanode; comma separated.")
@@ -51,7 +51,7 @@ func (c *permanodeCmd) Describe() string {
 }
 
 func (c *permanodeCmd) Usage() {
-	cmdmain.Errorf("Usage: camput [globalopts] permanode [permanodeopts]\n")
+	cmdmain.Errorf("Usage: pk-put [globalopts] permanode [permanodeopts]\n")
 }
 
 func (c *permanodeCmd) Examples() []string {

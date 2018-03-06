@@ -51,7 +51,7 @@ type dbinitCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("dbinit", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("dbinit", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(dbinitCmd)
 		flags.StringVar(&cmd.user, "user", "root", "Admin user.")
 		flags.StringVar(&cmd.password, "password", "", "Admin password.")

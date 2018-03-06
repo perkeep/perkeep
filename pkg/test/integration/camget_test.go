@@ -63,9 +63,9 @@ func TestCamgetSymlink(t *testing.T) {
 		t.Fatalf("os.Symlink(): %v", err)
 	}
 
-	out := test.MustRunCmd(t, w.Cmd("camput", "file", srcDir))
+	out := test.MustRunCmd(t, w.Cmd("pk-put", "file", srcDir))
 	// TODO(mpl): rm call and delete pkg.
-	asserts.ExpectBool(t, true, out != "", "camput")
+	asserts.ExpectBool(t, true, out != "", "pk-put")
 	br := strings.Split(out, "\n")[0]
 	dstDir, err := ioutil.TempDir("", "camget-test-")
 	if err != nil {
@@ -106,7 +106,7 @@ func TestCamgetFIFO(t *testing.T) {
 
 	// Upload the fifo
 	w := test.GetWorld(t)
-	out := test.MustRunCmd(t, w.Cmd("camput", "file", fifo))
+	out := test.MustRunCmd(t, w.Cmd("pk-put", "file", fifo))
 	br := strings.Split(out, "\n")[0]
 
 	// Try and get it back
@@ -139,7 +139,7 @@ func TestCamgetSocket(t *testing.T) {
 
 	// Upload the socket
 	w := test.GetWorld(t)
-	out := test.MustRunCmd(t, w.Cmd("camput", "file", socket))
+	out := test.MustRunCmd(t, w.Cmd("pk-put", "file", socket))
 	br := strings.Split(out, "\n")[0]
 
 	// Try and get it back
@@ -189,7 +189,7 @@ func TestCamgetFile(t *testing.T) {
 	}
 
 	w := test.GetWorld(t)
-	out := test.MustRunCmd(t, w.Cmd("camput", "file", filename))
+	out := test.MustRunCmd(t, w.Cmd("pk-put", "file", filename))
 
 	br := strings.Split(out, "\n")[0]
 	_ = test.MustRunCmd(t, w.Cmd("camget", "-o", outDir, "-contents", br))

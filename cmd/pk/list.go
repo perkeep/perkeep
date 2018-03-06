@@ -39,7 +39,7 @@ type listCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("list", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("list", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := &listCmd{
 			syncCmd: &syncCmd{
 				dest: "stdout",

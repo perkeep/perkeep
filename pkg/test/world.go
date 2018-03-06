@@ -41,7 +41,7 @@ import (
 // World defines an integration test world.
 //
 // It's used to run the actual Perkeep binaries (camlistored,
-// camput, camget, pk, etc) together in large tests, including
+// pk-put, camget, pk, etc) together in large tests, including
 // building them, finding them, and wiring them up in an isolated way.
 type World struct {
 	srcRoot  string // typically $GOPATH[0]/src/perkeep.org
@@ -249,10 +249,10 @@ func (w *World) NewPermanode(t *testing.T) blob.Ref {
 	if err := w.Ping(); err != nil {
 		t.Fatal(err)
 	}
-	out := MustRunCmd(t, w.Cmd("camput", "permanode"))
+	out := MustRunCmd(t, w.Cmd("pk-put", "permanode"))
 	br, ok := blob.Parse(strings.TrimSpace(out))
 	if !ok {
-		t.Fatalf("Expected permanode in camput stdout; got %q", out)
+		t.Fatalf("Expected permanode in pk-put stdout; got %q", out)
 	}
 	return br
 }
@@ -272,10 +272,10 @@ func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cm
 	}
 	var cmd *exec.Cmd
 	switch binary {
-	case "camget", "camput", "pk", "pk-mount":
-		// TODO(mpl): lift the camput restriction when we have a unified logging mechanism
-		if binary == "camput" && !hasVerbose() {
-			// camput and pk are the only ones to have a -verbose flag through cmdmain
+	case "camget", "pk-put", "pk", "pk-mount":
+		// TODO(mpl): lift the pk-put restriction when we have a unified logging mechanism
+		if binary == "pk-put" && !hasVerbose() {
+			// pk-put and pk are the only ones to have a -verbose flag through cmdmain
 			// but pk is never used. (and pk-mount does not even have a -verbose).
 			args = append([]string{"-verbose"}, args...)
 		}
@@ -326,7 +326,7 @@ func GetWorldMaybe(t *testing.T) *World {
 }
 
 // RunCmd runs c (which is assumed to be something short-lived, like a
-// camput or camget command), capturing its stdout for return, and
+// pk-put or camget command), capturing its stdout for return, and
 // also capturing its stderr, just in the case of errors.
 // If there's an error, the return error fully describes the command and
 // all output.

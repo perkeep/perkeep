@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This file adds the "put" subcommand to devcam, to run camput against the dev server.
+// This file adds the "put" subcommand to devcam, to run pk-put against the dev server.
 
 package main
 
@@ -40,7 +40,7 @@ type putCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("put", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("put", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := &putCmd{
 			env: NewCopyEnv(),
 		}
@@ -53,7 +53,7 @@ func init() {
 }
 
 func (c *putCmd) Usage() {
-	fmt.Fprintf(cmdmain.Stderr, "Usage: devcam put [put_opts] camput_args\n")
+	fmt.Fprintf(cmdmain.Stderr, "Usage: devcam put [put_opts] pk-put_args\n")
 }
 
 func (c *putCmd) Examples() []string {
@@ -63,7 +63,7 @@ func (c *putCmd) Examples() []string {
 }
 
 func (c *putCmd) Describe() string {
-	return "run camput in dev mode."
+	return "run pk-put in dev mode."
 }
 
 func (c *putCmd) RunCommand(args []string) error {
@@ -72,8 +72,8 @@ func (c *putCmd) RunCommand(args []string) error {
 		return cmdmain.UsageError(fmt.Sprint(err))
 	}
 	if !*noBuild {
-		if err := build(filepath.Join("cmd", "camput")); err != nil {
-			return fmt.Errorf("Could not build camput: %v", err)
+		if err := build(filepath.Join("cmd", "pk-put")); err != nil {
+			return fmt.Errorf("Could not build pk-put: %v", err)
 		}
 	}
 	c.env.SetCamdevVars(c.altkey)
@@ -88,7 +88,7 @@ func (c *putCmd) RunCommand(args []string) error {
 		blobserver = strings.Replace(blobserver, "http://", "https://", 1)
 	}
 
-	cmdBin := filepath.Join("bin", "camput")
+	cmdBin := filepath.Join("bin", "pk-put")
 	cmdArgs := []string{
 		"-verbose=" + strconv.FormatBool(*cmdmain.FlagVerbose || !quiet),
 		"-server=" + blobserver,

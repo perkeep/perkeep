@@ -286,7 +286,7 @@ func TLSConfig() (*tls.Config, error) {
 	return cfg, nil
 }
 
-// NoteFileUploaded is a hook for camput to report that a file
+// NoteFileUploaded is a hook for pk-put to report that a file
 // was uploaded.  TODO: move this to pkg/client/android probably.
 func NoteFileUploaded(fullPath string, uploaded bool) {
 	if !IsChild() {
@@ -302,7 +302,7 @@ func NoteFileUploaded(fullPath string, uploaded bool) {
 
 // StatusReceiver is a blobserver.StatReceiver wrapper that
 // reports the full filename path and size of uploaded blobs.
-// The android app wrapping camput watches stdout for this, for progress bars.
+// The android app wrapping pk-put watches stdout for this, for progress bars.
 type StatusReceiver struct {
 	Sr   blobserver.StatReceiver
 	Path string

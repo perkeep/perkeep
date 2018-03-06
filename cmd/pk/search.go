@@ -41,7 +41,7 @@ type searchCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("search", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("search", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(searchCmd)
 		flags.StringVar(&cmd.server, "server", "", "Server to search. "+serverFlagHelp)
 		flags.IntVar(&cmd.limit, "limit", 0, "Limit number of results. 0 is default. Negative means no limit.")

@@ -32,7 +32,7 @@ type indexCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("index", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("index", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(indexCmd)
 		flags.BoolVar(&cmd.wipe, "wipe", false, "Erase and recreate all discovered indexes. NOOP for now.")
 		if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {

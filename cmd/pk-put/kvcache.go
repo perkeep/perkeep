@@ -55,7 +55,7 @@ type KvHaveCache struct {
 
 func NewKvHaveCache(gen string) *KvHaveCache {
 	cleanCacheDir()
-	fullPath := filepath.Join(osutil.CacheDir(), "camput.havecache."+escapeGen(gen)+".leveldb")
+	fullPath := filepath.Join(osutil.CacheDir(), "pk-put.havecache."+escapeGen(gen)+".leveldb")
 	db, err := leveldb.OpenFile(fullPath, nil)
 	if err != nil {
 		log.Fatalf("Could not create/open new have cache at %v, %v", fullPath, err)
@@ -152,7 +152,7 @@ type KvStatCache struct {
 }
 
 func NewKvStatCache(gen string) *KvStatCache {
-	fullPath := filepath.Join(osutil.CacheDir(), "camput.statcache."+escapeGen(gen)+".leveldb")
+	fullPath := filepath.Join(osutil.CacheDir(), "pk-put.statcache."+escapeGen(gen)+".leveldb")
 	db, err := leveldb.OpenFile(fullPath, nil)
 	if err != nil {
 		log.Fatalf("Could not create/open new stat cache at %v, %v", fullPath, err)
@@ -376,11 +376,11 @@ func cleanCacheDir() {
 	}
 
 	for _, fi := range fis {
-		if strings.HasPrefix(fi.Name(), "camput.havecache.") {
+		if strings.HasPrefix(fi.Name(), "pk-put.havecache.") {
 			haveCache = append(haveCache, fi)
 			continue
 		}
-		if strings.HasPrefix(fi.Name(), "camput.statcache.") {
+		if strings.HasPrefix(fi.Name(), "pk-put.statcache.") {
 			statCache = append(statCache, fi)
 			continue
 		}

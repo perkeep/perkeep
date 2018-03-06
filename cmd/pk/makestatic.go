@@ -34,7 +34,7 @@ type makeStaticCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("makestatic", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("makestatic", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(makeStaticCmd)
 		flags.StringVar(&cmd.server, "server", "", "Server to search. "+serverFlagHelp)
 		return cmd

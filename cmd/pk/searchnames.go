@@ -36,10 +36,10 @@ type searchNamesSetCmd struct{}
 
 func init() {
 	osutil.AddSecretRingFlag()
-	cmdmain.RegisterCommand("named-search-get", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("named-search-get", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		return new(searchNamesGetCmd)
 	})
-	cmdmain.RegisterCommand("named-search-set", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("named-search-set", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		return new(searchNamesSetCmd)
 	})
 }

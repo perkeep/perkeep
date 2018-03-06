@@ -62,4 +62,4 @@ on the [mailing list](https://groups.google.com/group/camlistore).
 ## Video tutorials {#tutorials}
 
 * 2014-03, [Getting started with Camlistore](https://www.youtube.com/watch?v=RUv-8PhnNp8)
-* 2014-03, [Getting started with camput and the Camlistore client tools](https://www.youtube.com/watch?v=DdccwBFc5ZI)
+* 2014-03, [Getting started with pk put and the Camlistore client tools](https://www.youtube.com/watch?v=DdccwBFc5ZI)

@@ -48,7 +48,7 @@ type debugSubMode struct {
 type debugCmd struct{}
 
 func init() {
-	cmdmain.RegisterCommand("debug", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("debug", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		return new(debugCmd)
 	})
 }

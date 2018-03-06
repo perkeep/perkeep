@@ -31,7 +31,7 @@ type attrCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("attr", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("attr", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(attrCmd)
 		flags.BoolVar(&cmd.add, "add", false, `Adds attribute (e.g. "tag")`)
 		flags.BoolVar(&cmd.del, "del", false, "Deletes named attribute [value]")
@@ -44,7 +44,7 @@ func (c *attrCmd) Describe() string {
 }
 
 func (c *attrCmd) Usage() {
-	cmdmain.Errorf("Usage: camput [globalopts] attr [attroption] <permanode> <name> <value>")
+	cmdmain.Errorf("Usage: pk-put [globalopts] attr [attroption] <permanode> <name> <value>")
 }
 
 func (c *attrCmd) Examples() []string {

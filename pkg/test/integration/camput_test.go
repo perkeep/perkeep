@@ -50,7 +50,7 @@ func mkTmpFIFO(t *testing.T) (path string, cleanup func()) {
 	return
 }
 
-// Test that `camput' can upload fifos correctly.
+// Test that `pk-put' can upload fifos correctly.
 func TestCamputFIFO(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.SkipNow()
@@ -61,7 +61,7 @@ func TestCamputFIFO(t *testing.T) {
 
 	// Can we successfully upload a fifo?
 	w := test.GetWorld(t)
-	out := test.MustRunCmd(t, w.Cmd("camput", "file", fifo))
+	out := test.MustRunCmd(t, w.Cmd("pk-put", "file", fifo))
 
 	br := strings.Split(out, "\n")[0]
 	out = test.MustRunCmd(t, w.Cmd("camget", br))
@@ -88,7 +88,7 @@ func mkTmpSocket(t *testing.T) (path string, cleanup func()) {
 	return
 }
 
-// Test that `camput' can upload sockets correctly.
+// Test that `pk-put' can upload sockets correctly.
 func TestCamputSocket(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.SkipNow()
@@ -99,45 +99,45 @@ func TestCamputSocket(t *testing.T) {
 
 	// Can we successfully upload a socket?
 	w := test.GetWorld(t)
-	out := test.MustRunCmd(t, w.Cmd("camput", "file", socket))
+	out := test.MustRunCmd(t, w.Cmd("pk-put", "file", socket))
 
 	br := strings.Split(out, "\n")[0]
 	out = test.MustRunCmd(t, w.Cmd("camget", br))
 	t.Logf("Retrieved stored socket schema: %s", out)
 }
 
-// Test that camput twice on the same file only uploads once.
+// Test that pk-put twice on the same file only uploads once.
 func TestCamputUploadOnce(t *testing.T) {
 	w := test.GetWorld(t)
 
-	camputCmd := func() *exec.Cmd {
+	pkputCmd := func() *exec.Cmd {
 		// Use --contents_only because if test is run from devcam,
 		// server-config.json is going to be the one from within the fake gopath,
 		// hence with a different cTime and with a different blobRef everytime.
 		// Also, CAMLI_DEBUG is needed for --contents_only flag.
-		return w.CmdWithEnv("camput", append(os.Environ(), "CAMLI_DEBUG=1"), "file", "--contents_only=true", filepath.FromSlash("../testdata/server-config.json"))
+		return w.CmdWithEnv("pk-put", append(os.Environ(), "CAMLI_DEBUG=1"), "file", "--contents_only=true", filepath.FromSlash("../testdata/server-config.json"))
 	}
 	wantBlobRef := "sha1-381c42a63078ef49a2f1808318dbbafbb31a81d5"
-	cmd := camputCmd()
+	cmd := pkputCmd()
 	out := test.MustRunCmd(t, cmd)
 	out = strings.TrimSpace(out)
 	if out != wantBlobRef {
-		t.Fatalf("wrong camput output; wanted %v, got %v", wantBlobRef, out)
+		t.Fatalf("wrong pk-put output; wanted %v, got %v", wantBlobRef, out)
 	}
 
-	cmd = camputCmd()
+	cmd = pkputCmd()
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	output, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("second camput failed: %v, stdout: %v, stderr: %v", err, output, stderr.String())
+		t.Fatalf("second pk-put failed: %v, stdout: %v, stderr: %v", err, output, stderr.String())
 	}
 	out = strings.TrimSpace(string(output))
 	if out != wantBlobRef {
-		t.Fatalf("wrong 2nd camput output; wanted %v, got %v", wantBlobRef, out)
+		t.Fatalf("wrong 2nd pk-put output; wanted %v, got %v", wantBlobRef, out)
 	}
 	wantStats := `[uploadRequests=[blobs=0 bytes=0] uploads=[blobs=0 bytes=0]]`
 	if !strings.Contains(stderr.String(), wantStats) {
-		t.Fatalf("Wrong stats for 2nd camput upload; wanted %v, got %v", wantStats, out)
+		t.Fatalf("Wrong stats for 2nd pk-put upload; wanted %v, got %v", wantStats, out)
 	}
 }

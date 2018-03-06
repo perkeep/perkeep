@@ -31,7 +31,7 @@ type discoCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterCommand("discovery", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+	cmdmain.RegisterMode("discovery", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(discoCmd)
 		flags.StringVar(&cmd.server, "server", "", "Server to do discovery against. "+serverFlagHelp)
 		flags.BoolVar(&cmd.httpVer, "httpversion", false, "discover the HTTP version")
