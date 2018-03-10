@@ -1076,7 +1076,7 @@ func verifyGoVersion() {
 	}
 
 	if minorVersion < goVersionMinor {
-		log.Fatalf("Your version of Go (%s) is too old. Perkeep requires Go 1.%c or later.", string(out), goVersionMinor)
+		log.Fatalf("Your version of Go (%s) is too old. Perkeep requires Go 1.%d or later.", string(out), goVersionMinor)
 	}
 
 	if minorVersion != gopherJSGoMinor {
