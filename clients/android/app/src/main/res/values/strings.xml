@@ -38,5 +38,8 @@
     <string name="browse">Browse</string>
     <string name="results">Results</string>
     <string name="settings_auto_required_ssid">Required SSID</string>
+    <string name="notification_title">Perkeep auto-uploader</string>
+    <string name="channel_name">Perkeep channel</string>
+    <string name="channel_description">Perkeep channel</string>
 
 </resources>

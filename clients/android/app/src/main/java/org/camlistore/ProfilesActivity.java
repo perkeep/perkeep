@@ -19,11 +19,15 @@ package org.camlistore;
 import java.util.HashSet;
 import java.util.Set;
 
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.os.Bundle;
+import android.os.IBinder;
+import android.os.RemoteException;
 import android.preference.ListPreference;
 import android.preference.EditTextPreference;
 import android.preference.Preference;
@@ -37,6 +41,19 @@ public class ProfilesActivity extends PreferenceActivity {
     private EditTextPreference mNewProfilePref;
     private SharedPreferences mSharedPrefs;
 
+    private IUploadService mServiceStub = null;
+
+    private final ServiceConnection mServiceConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            mServiceStub = IUploadService.Stub.asInterface(service);
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            mServiceStub = null;
+        };
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -74,11 +91,37 @@ public class ProfilesActivity extends PreferenceActivity {
         mNewProfilePref.setOnPreferenceChangeListener(onChange);
    }
 
+    private final SharedPreferences.OnSharedPreferenceChangeListener prefChangedHandler = new SharedPreferences.OnSharedPreferenceChangeListener() {
+        @Override
+        public void onSharedPreferenceChanged(SharedPreferences sp, String key) {
+            if (mServiceStub != null) {
+                try {
+                    mServiceStub.reloadSettings();
+                } catch (RemoteException e) {
+                    // Ignore.
+                }
+            }
+
+        }
+    };
+
     @Override
     protected void onResume() {
         super.onResume();
         refreshProfileRef();
         updatePreferenceSummaries();
+        mSharedPrefs.registerOnSharedPreferenceChangeListener(prefChangedHandler);
+        bindService(new Intent(this, UploadService.class), mServiceConnection,
+                Context.BIND_AUTO_CREATE);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        mSharedPrefs.unregisterOnSharedPreferenceChangeListener(prefChangedHandler);
+        if (mServiceConnection != null) {
+            unbindService(mServiceConnection);
+        }
     }
 
     private void updatePreferenceSummaries() {

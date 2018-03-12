@@ -46,4 +46,7 @@ interface IUploadService {
     
     // For the SettingsActivity
     void setBackgroundWatchersEnabled(boolean enabled);
+
+    // For the ProfilesActivity
+    void reloadSettings();
 }

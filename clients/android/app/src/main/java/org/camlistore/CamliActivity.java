@@ -365,16 +365,18 @@ public class CamliActivity extends Activity {
             alert.show();
         }
 
-        bindService(new Intent(this, UploadService.class), mServiceConnection, Context.BIND_AUTO_CREATE);
-
+        // Actually start the service before binding to it, so that unbinding from it does not destroy the service.
         Intent intent = getIntent();
+        Intent serviceIntent = new Intent(intent);
+        serviceIntent.setClass(this, UploadService.class);
+        startService(serviceIntent);
+        bindService(serviceIntent, mServiceConnection, Context.BIND_AUTO_CREATE);
+
+        // TODO(mpl): maybe remove all of that below. Does the intent action still matter now?
         String action = intent.getAction();
         Log.d(TAG, "onResume; action=" + action);
 
         if (Intent.ACTION_SEND.equals(action) || Intent.ACTION_SEND_MULTIPLE.equals(action)) {
-            Intent serviceIntent = new Intent(intent);
-            serviceIntent.setClass(this, UploadService.class);
-            startService(serviceIntent);
             setIntent(new Intent(this, CamliActivity.class));
         } else {
             Log.d(TAG, "Normal CamliActivity viewing.");
