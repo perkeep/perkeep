@@ -287,6 +287,106 @@ func countSortedRows(t *testing.T, meta sorted.KeyValue) int {
 	return rows
 }
 
+func TestParseZipMetaRow(t *testing.T) {
+	tests := []struct {
+		zm       zipMetaInfo
+		wholeRef blob.Ref
+		offset   uint64
+	}{
+		{
+			zm: zipMetaInfo{
+				zipSize:   16738962,
+				wholeSize: 139639864,
+				dataSize:  16659276,
+				wholeRef:  blob.MustParse("sha224-d003d3cf9784df4efe617ba319c5028fe93e5e9188cc448bf6d655b4"),
+			},
+			offset: 0,
+		},
+		{
+			zm: zipMetaInfo{
+				zipSize:   16739170,
+				wholeSize: 139639864,
+				dataSize:  16670204,
+				wholeRef:  blob.MustParse("sha224-d003d3cf9784df4efe617ba319c5028fe93e5e9188cc448bf6d655b4"),
+			},
+			offset: 16659276,
+		},
+		{
+			zm: zipMetaInfo{
+				zipSize:   16744577,
+				wholeSize: 139639864,
+				dataSize:  16668625,
+				wholeRef:  blob.MustParse("sha224-d003d3cf9784df4efe617ba319c5028fe93e5e9188cc448bf6d655b4"),
+			},
+			offset: 33329480,
+		},
+		{
+			zm: zipMetaInfo{
+				zipSize:   16628223,
+				wholeSize: 139639864,
+				dataSize:  16555478,
+				wholeRef:  blob.MustParse("sha224-d003d3cf9784df4efe617ba319c5028fe93e5e9188cc448bf6d655b4"),
+			},
+			offset: 49998105,
+		},
+		{
+			zm: zipMetaInfo{
+				zipSize:   16735901,
+				wholeSize: 139639864,
+				dataSize:  16661990,
+				wholeRef:  blob.MustParse("sha224-d003d3cf9784df4efe617ba319c5028fe93e5e9188cc448bf6d655b4"),
+			},
+			offset: 66553583,
+		},
+		{
+			zm: zipMetaInfo{
+				zipSize:   16628162,
+				wholeSize: 139639864,
+				dataSize:  16555638,
+				wholeRef:  blob.MustParse("sha224-d003d3cf9784df4efe617ba319c5028fe93e5e9188cc448bf6d655b4"),
+			},
+			offset: 83215573,
+		},
+		{
+			zm: zipMetaInfo{
+				zipSize:   16638400,
+				wholeSize: 139639864,
+				dataSize:  16569680,
+				wholeRef:  blob.MustParse("sha224-d003d3cf9784df4efe617ba319c5028fe93e5e9188cc448bf6d655b4"),
+			},
+			offset: 99771211,
+		},
+		{
+			zm: zipMetaInfo{
+				zipSize:   16731570,
+				wholeSize: 139639864,
+				dataSize:  16665343,
+				wholeRef:  blob.MustParse("sha224-d003d3cf9784df4efe617ba319c5028fe93e5e9188cc448bf6d655b4"),
+			},
+			offset: 116340891,
+		},
+		{
+			zm: zipMetaInfo{
+				zipSize:   6656201,
+				wholeSize: 139639864,
+				dataSize:  6633630,
+				wholeRef:  blob.MustParse("sha224-d003d3cf9784df4efe617ba319c5028fe93e5e9188cc448bf6d655b4"),
+			},
+			offset: 133006234,
+		},
+	}
+	for k, tt := range tests {
+		rv := tt.zm.rowValue(tt.offset)
+		got, err := parseZipMetaRow([]byte(rv))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tt.zm != got {
+			t.Errorf("for zip %d;\n got: %#v\n want: %#v\n", k, got, tt.zm)
+		}
+	}
+}
+
 func TestReindex(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode")
@@ -394,6 +494,32 @@ func TestReindex(t *testing.T) {
 	hash := blob.NewHash()
 	hash.Write(files[0].contents)
 	pt.testOpenWholeRef(t, blob.RefFromHash(hash), files[0].size)
+
+	// Specifically check the z: rows.
+	zrows := []string{
+		"z:sha1-41e7665e4e3f491790121fb0440b4f685b3386cb | 16762318 sha1-f6bcda1d4111f45ca785499ae9b3bae019608f65 17825792 0 16709479",
+		"z:sha1-60e61eef95c38e15e8b6422cdaa8a95ad6c38a8b | 1120477 sha1-f6bcda1d4111f45ca785499ae9b3bae019608f65 17825792 16709479 1116313",
+		"z:sha1-9655da8b87e7ccfd804edf1c5967219e2e1ae556 | 5260755 sha1-28aa3334333bb57610ff397432dad6d2c41dc520 5242880 0 5242880",
+		"z:sha1-bc317462c29d9b70891538b7491ac420334d7ef8 | 10516226 sha1-87cdaac04cb9a37c0378970e8ab58f09f22a9907 10485760 0 10485760",
+	}
+	it := pt.sto.meta.Find(zipMetaPrefix, zipMetaPrefixLimit)
+	i := 0
+	for it.Next() {
+		got := it.Key() + " | " + it.Value()
+		if zrows[i] != got {
+			t.Errorf("for row %d;\n got: %v\n want: %v\n", i, got, zrows[i])
+		}
+		i++
+	}
+	it.Close()
+
+	recoMode, err := pt.sto.checkLargeIntegrity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recoMode != NoRecovery {
+		t.Fatalf("recovery mode after integrity check: %v", recoMode)
+	}
 }
 
 func (pt *packTest) testOpenWholeRef(t *testing.T, wholeRef blob.Ref, wantSize int64) {
