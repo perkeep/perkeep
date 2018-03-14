@@ -17,3 +17,9 @@
 - [Community](http://perkeep.org/community)
 - [Bugs and Issues](https://github.com/perkeep/perkeep/issues)
 - [Contributing](https://perkeep.org/code#contributing)
+
+### Code of Conduct
+
+Please note that this project uses a
+[Contributor Code of Conduct](https://opensource.google.com/conduct/}.
+By participating in this project you agree to abide by its terms.
