@@ -18,3 +18,7 @@ how to [get the code and how to start submitting changes](/code).
     Issue/bug tracker
 -   [**\#perkeep**](irc://chat.freenode.net/#perkeep): Perkeep
     on Freenode IRC
+
+Please note that this project uses a
+[Contributor Code of Conduct](https://opensource.google.com/conduct/).
+By participating in this project you agree to abide by its terms.

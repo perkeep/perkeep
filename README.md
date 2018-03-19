@@ -21,5 +21,5 @@
 ### Code of Conduct
 
 Please note that this project uses a
-[Contributor Code of Conduct](https://opensource.google.com/conduct/}.
+[Contributor Code of Conduct](https://opensource.google.com/conduct/).
 By participating in this project you agree to abide by its terms.
