@@ -313,8 +313,8 @@ func main() {
 	// Otherwise switching sqlite true<->false doesn't necessarily cause a rebuild.
 	// See perkeep.org/issue/229
 	for _, targ := range targs {
-		src := exeName(filepath.Join(actualBinDir(filepath.Join(buildGoPath, "bin")), pathpkg.Base(targ)))
-		dst := exeName(filepath.Join(actualBinDir(binDir), pathpkg.Base(targ)))
+		src := buildExeName(filepath.Join(actualBinDir(filepath.Join(buildGoPath, "bin")), pathpkg.Base(targ)))
+		dst := buildExeName(filepath.Join(actualBinDir(binDir), pathpkg.Base(targ)))
 		if err := mirrorFile(src, dst); err != nil {
 			log.Fatalf("Error copying %s to %s: %v", src, dst, err)
 		}
@@ -347,12 +347,7 @@ const (
 // It returns the path to the binary if successful, an error otherwise.
 func buildGopherjs() (string, error) {
 	src := filepath.Join(buildSrcDir, filepath.FromSlash("vendor/github.com/gopherjs/gopherjs"))
-	// Note: do not use exeName for gopherjs, as it will run on the current platform,
-	// not on the one we're cross-compiling for.
-	bin := filepath.Join(buildGoPath, "bin", "gopherjs")
-	if runtime.GOOS == "windows" {
-		bin += ".exe"
-	}
+	bin := runtimeExeName(filepath.Join(buildGoPath, "bin", "gopherjs"))
 	var srcModtime, binModtime time.Time
 	if err := filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
 		if err != nil {
@@ -383,7 +378,7 @@ func buildGopherjs() (string, error) {
 	log.Printf("Now rebuilding gopherjs at %v", bin)
 	goBin := "go"
 	if gopherjsGoroot != "" {
-		goBin = filepath.Join(gopherjsGoroot, "bin", "go")
+		goBin = runtimeExeName(filepath.Join(gopherjsGoroot, "bin", "go"))
 	}
 	cmd := exec.Command(goBin, "install")
 	cmd.Dir = src
@@ -891,12 +886,7 @@ func buildSrcPath(fromSrc string) string {
 // It also populates wantDestFile with those files so they're
 // kept in between runs.
 func genEmbeds() error {
-	// Note: do not use exeName for genfileembed, as it will run on the current platform,
-	// not on the one we're cross-compiling for.
-	cmdName := filepath.Join(buildGoPath, "bin", "genfileembed")
-	if runtime.GOOS == "windows" {
-		cmdName += ".exe"
-	}
+	cmdName := runtimeExeName(filepath.Join(buildGoPath, "bin", "genfileembed"))
 	for _, embeds := range []string{
 		"server/camlistored/ui",
 		"pkg/server",
@@ -1085,7 +1075,7 @@ func verifyGoVersion() {
 }
 
 func verifyGopherjsGoroot(goFound string) {
-	goBin := filepath.Join(gopherjsGoroot, "bin", "go")
+	goBin := runtimeExeName(filepath.Join(gopherjsGoroot, "bin", "go"))
 	if gopherjsGoroot == "" {
 		goInHomeDir, err := findGopherJSGoroot()
 		if err != nil {
@@ -1095,7 +1085,7 @@ func verifyGopherjsGoroot(goFound string) {
 			log.Fatalf("You're using go%s != go1.%d, which GopherJS requires, and it was not found in %v. You need to specify a go1.%d root in CAMLI_GOPHERJS_GOROOT for building GopherJS.", goFound, gopherJSGoMinor, homeDir(), gopherJSGoMinor)
 		}
 		gopherjsGoroot = filepath.Join(homeDir(), goInHomeDir)
-		goBin = filepath.Join(gopherjsGoroot, "bin", "go")
+		goBin = runtimeExeName(filepath.Join(gopherjsGoroot, "bin", "go"))
 		log.Printf("You're using go%s != go1.%d, which GopherJS requires, and CAMLI_GOPHERJS_GOROOT was not provided, so defaulting to %v for building GopherJS instead.", goFound, gopherJSGoMinor, goBin)
 	}
 	if _, err := os.Stat(goBin); err != nil {
@@ -1461,7 +1451,18 @@ func quote(dest *bytes.Buffer, bs []byte) {
 	dest.WriteByte('"')
 }
 
-func exeName(s string) string {
+// runtimeExeName returns the executable name
+// for s on the currently running host OS.
+func runtimeExeName(s string) string {
+	if runtime.GOOS == "windows" {
+		return s + ".exe"
+	}
+	return s
+}
+
+// buildExeName returns the executable name for s,
+// for the OS it is being built for.
+func buildExeName(s string) string {
 	if *buildOS == "windows" {
 		return s + ".exe"
 	}
