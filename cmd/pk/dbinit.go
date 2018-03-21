@@ -47,7 +47,6 @@ type dbinitCmd struct {
 
 	wipe bool
 	keep bool
-	wal  bool // Write-Ahead Logging for SQLite
 }
 
 func init() {
@@ -62,9 +61,6 @@ func init() {
 
 		flags.BoolVar(&cmd.wipe, "wipe", false, "Wipe the database and re-create it?")
 		flags.BoolVar(&cmd.keep, "ignoreexists", false, "Do nothing if database already exists.")
-		// Defaults to true, because it fixes http://perkeep.org/issue/114
-		flags.BoolVar(&cmd.wal, "wal", true, "Enable Write-Ahead Logging with SQLite, for better concurrency. Requires SQLite >= 3.7.0.")
-
 		return cmd
 	})
 }
@@ -95,10 +91,6 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 			if !WithSQLite {
 				return ErrNoSQLite
 			}
-			c.wal = c.wal && sqlite.IsWALCapable()
-			if !c.wal {
-				fmt.Print("WARNING: An SQLite indexer without Write Ahead Logging will most likely fail. See http://perkeep.org/issue/114\n")
-			}
 		} else {
 			return cmdmain.UsageError(fmt.Sprintf("--dbtype flag: got %v, want %v", c.dbType, `"mysql" or "postgres" or "sqlite", or "mongo"`))
 		}
@@ -113,10 +105,13 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 	case "mysql":
 		// need to use an empty dbname to query tables
 		rootdb, err = sql.Open("mysql", c.mysqlDSN(""))
+	case "sqlite":
+		rootdb, err = sql.Open("sqlite3", c.dbName)
 	}
 	if err != nil {
 		exitf("Error connecting to the root %s database: %v", c.dbType, err)
 	}
+	defer rootdb.Close()
 
 	// Validate the DSN to avoid confusion here
 	err = rootdb.Ping()
@@ -169,6 +164,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 	if err != nil {
 		return fmt.Errorf("Connecting to the %s %s database: %v", dbname, c.dbType, err)
 	}
+	defer db.Close()
 
 	switch c.dbType {
 	case "postgres":
@@ -188,13 +184,9 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		}
 		do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, mysql.SchemaVersion()))
 	case "sqlite":
-		for _, tableSql := range sqlite.SQLCreateTables() {
-			do(db, tableSql)
+		if err := sqlite.InitDB(dbname); err != nil {
+			exitf("error calling InitDB(%s): %v", dbname, err)
 		}
-		if c.wal {
-			do(db, sqlite.EnableWAL())
-		}
-		do(db, fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, sqlite.SchemaVersion()))
 	}
 	return nil
 }

@@ -53,7 +53,7 @@ func newKeyValueFromConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 
 	fi, err := os.Stat(file)
 	if os.IsNotExist(err) || (err == nil && fi.Size() == 0) {
-		if err := initDB(file); err != nil {
+		if err := InitDB(file); err != nil {
 			return nil, fmt.Errorf("could not initialize sqlite DB at %s: %v", file, err)
 		}
 	}

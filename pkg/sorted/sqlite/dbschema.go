@@ -17,16 +17,10 @@ limitations under the License.
 package sqlite
 
 import (
-	"bytes"
 	"database/sql"
 	"fmt"
 	"log"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"runtime"
 	"strconv"
-	"strings"
 
 	"perkeep.org/pkg/sorted"
 )
@@ -51,60 +45,34 @@ func SQLCreateTables() []string {
 	}
 }
 
-// IsWALCapable checks if the installed sqlite3 library can
-// use Write-Ahead Logging (i.e version >= 3.7.0)
-func IsWALCapable() bool {
-	// TODO(mpl): alternative to make it work on windows
-	cmdPath, err := exec.LookPath("pkg-config")
-	if err != nil {
-		log.Printf("Could not find pkg-config to check sqlite3 lib version: %v", err)
-		return false
-	}
-	var stderr bytes.Buffer
-	cmd := exec.Command(cmdPath, "--modversion", "sqlite3")
-	cmd.Stderr = &stderr
-	if runtime.GOOS == "darwin" && os.Getenv("PKG_CONFIG_PATH") == "" {
-		matches, err := filepath.Glob("/usr/local/Cellar/sqlite/*/lib/pkgconfig/sqlite3.pc")
-		if err == nil && len(matches) > 0 {
-			cmd.Env = append(os.Environ(), "PKG_CONFIG_PATH="+filepath.Dir(matches[0]))
-		}
-	}
-
-	out, err := cmd.Output()
-	if err != nil {
-		log.Printf("Could not check sqlite3 version: %v\n", stderr.String())
-		return false
-	}
-	version := strings.TrimRight(string(out), "\n")
-	return version >= "3.7.0"
-}
-
-// EnableWAL returns the statement to enable Write-Ahead Logging,
-// which improves SQLite concurrency.
-// Requires SQLite >= 3.7.0
-func EnableWAL() string {
-	return "PRAGMA journal_mode = WAL"
-}
-
-// initDB creates a new sqlite database based on the file at path.
-func initDB(path string) error {
+// InitDB creates a new sqlite database based on the file at path.
+func InitDB(path string) error {
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
-	for _, tableSql := range SQLCreateTables() {
-		if _, err := db.Exec(tableSql); err != nil {
+	for _, tableSQL := range SQLCreateTables() {
+		if _, err := db.Exec(tableSQL); err != nil {
 			return err
 		}
 	}
-	if IsWALCapable() {
-		if _, err := db.Exec(EnableWAL()); err != nil {
-			return err
-		}
-	} else {
-		log.Print("WARNING: An SQLite DB without Write Ahead Logging will most likely fail. See http://perkeep.org/issue/114")
+
+	// Use Write Ahead Logging which improves SQLite concurrency.
+	// Requires SQLite >= 3.7.0
+	if _, err := db.Exec("PRAGMA journal_mode = WAL"); err != nil {
+		return err
 	}
+
+	// Check if the WAL mode was set correctly
+	var journalMode string
+	if err = db.QueryRow("PRAGMA journal_mode").Scan(&journalMode); err != nil {
+		log.Fatalf("Unable to determine sqlite3 journal_mode: %v", err)
+	}
+	if journalMode != "wal" {
+		log.Fatal("SQLite Write Ahead Logging (introducted in v3.7.0) is required. See http://perkeep.org/issue/114")
+	}
+
 	_, err = db.Exec(fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, SchemaVersion()))
 	return err
 }
