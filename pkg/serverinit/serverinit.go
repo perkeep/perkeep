@@ -406,7 +406,12 @@ func handlerTypeWantsAuth(handlerType string) bool {
 
 // A Config is the wrapper around a Perkeep JSON configuration file.
 // Files on disk can be in either high-level or low-level format, but
-// the Load function always returns the Config in its low-level format.
+// the Load function always returns the Config in its low-level format
+// (a.k.a. the "handler" format).
+//
+// TODO(bradfitz): document and/or link to the low-level format; for
+// now you can see the high-level config format at https://perkeep.org/pkg/types/serverconfig/#Config
+// and the the low-level format by running "camtool dumpconfig".
 type Config struct {
 	jsonconfig.Obj
 	UIPath string // Not valid until after InstallHandlers
@@ -438,6 +443,8 @@ func LoadFile(filename string) (*Config, error) {
 	return load(filename, nil)
 }
 
+// jsonFileImpl implements jsonconfig.File using a *bytes.Reader with
+// the contents slurped into memory.
 type jsonFileImpl struct {
 	*bytes.Reader
 	name string
