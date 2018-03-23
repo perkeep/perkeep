@@ -125,6 +125,9 @@ func TestForcedCorrection(t *testing.T) {
 		if strings.HasSuffix(v, "-s.jpg") {
 			continue
 		}
+		if !strings.HasSuffix(v, ".jpg") {
+			continue
+		}
 		name := filepath.Join(datadir, v)
 		t.Logf("forced correction of %s", name)
 		f, err := os.Open(name)
@@ -371,5 +374,31 @@ func TestIssue513(t *testing.T) {
 				t.Errorf("Unexpected rescale for image size %dx%d: needsRescale = %t", rect.Dx(), rect.Dy(), needsRescale)
 			}
 		}()
+	}
+}
+
+func TestHEIF(t *testing.T) {
+	filename := filepath.Join("testdata", "IMG_8062.HEIC")
+	f, err := os.Open(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	// image is in portrait orientation, so dimensions are swapped
+	wantWidth, wantHeight := 1008, 756
+	data, err := HEIFToJPEG(f, &Dimensions{Width: wantWidth, Height: wantHeight})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf, tp, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tp != "jpeg" {
+		t.Fatalf("%v not converted into a jpeg", filename)
+	}
+	if conf.Width != wantWidth || conf.Height != wantHeight {
+		t.Fatalf("wrong width or height, wanted (%d, %d), got (%d, %d)", wantWidth, wantHeight, conf.Width, conf.Height)
 	}
 }

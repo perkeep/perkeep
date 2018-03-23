@@ -59,6 +59,20 @@ var (
 	thumbCacheHeader304  = expvar.NewInt("thumbcache-header-304")
 )
 
+var errHEIC = errors.New("HEIC decoding not implemented yet")
+
+func init() {
+	image.RegisterFormat("heic",
+		"????ftypheic????????????????meta????????hdlr????????pict",
+		func(io.Reader) (image.Image, error) {
+			return nil, errHEIC
+		},
+		func(io.Reader) (image.Config, error) {
+			// TODO: implement with go4.org/media/heif.
+			return image.Config{}, errHEIC
+		})
+}
+
 type ImageHandler struct {
 	Fetcher             blob.Fetcher
 	Search              *search.Handler    // optional
@@ -224,7 +238,12 @@ func imageConfigFromReader(r io.Reader) (io.Reader, image.Config, error) {
 	// We just need width & height for memory considerations, so we use the
 	// standard library's DecodeConfig, skipping the EXIF parsing and
 	// orientation correction for images.DecodeConfig.
-	conf, _, err := image.DecodeConfig(tr)
+	conf, format, err := image.DecodeConfig(tr)
+	if err != nil {
+		if format == "heic" {
+			err = errHEIC
+		}
+	}
 	return io.MultiReader(header, r), conf, err
 }
 
@@ -259,6 +278,13 @@ func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref) (*form
 
 	sr := readerutil.NewStatsReader(imageBytesFetchedVar, fr)
 	sr, conf, err := imageConfigFromReader(sr)
+	if err == errHEIC {
+		jpegBytes, err := images.HEIFToJPEG(sr, &images.Dimensions{Width: ih.MaxWidth, Height: ih.MaxHeight})
+		if err != nil {
+			return nil, err
+		}
+		return &formatAndImage{format: "jpeg", image: jpegBytes}, nil
+	}
 	if err != nil {
 		return nil, err
 	}
