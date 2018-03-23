@@ -362,16 +362,31 @@ func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
 		return NoRecovery, err
 	}
 	inLarge := make(map[blob.Ref]bool)
+	var missing []blob.Ref
 	if err := blobserver.EnumerateAllFrom(context.Background(), s.large, "", func(sb blob.SizedRef) error {
 		if _, ok := inMeta[sb.Ref]; !ok {
-			return fmt.Errorf("packed blobRef %v is not in meta for blobpacked storage", sb.Ref)
+			missing = append(missing, sb.Ref)
+		} else {
+			inLarge[sb.Ref] = true
+			delete(inMeta, sb.Ref)
 		}
-		inLarge[sb.Ref] = true
-		delete(inMeta, sb.Ref)
 		return nil
 	}); err != nil {
 		return FastRecovery, err
 	}
+
+	log.Printf("blobpacked: %d large blobs found in index, %d missing from index", len(inLarge), len(missing))
+	if len(missing) > 0 {
+		sort.Slice(missing, func(i, j int) bool { return missing[i].Less(missing[j]) })
+		for i, br := range missing {
+			if i == 10 {
+				break
+			}
+			log.Printf("  sample missing large blob: %v", br)
+		}
+		return FastRecovery, fmt.Errorf("%d large blobs missing from index", len(missing))
+	}
+
 	// we could simply check whether len(inMeta) > 0, but this below allows us to be
 	// more precise about which blob is problematic.
 	for k, _ := range inMeta {
