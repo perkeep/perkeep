@@ -313,6 +313,9 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 		if err := sto.reindex(context.TODO(), newKv); err != nil {
 			return nil, err
 		}
+		if _, err := sto.checkLargeIntegrity(); err != nil {
+			log.Fatalf("blobpacked: redindexed successfully, but error after validation: %v", err)
+		}
 		return sto, nil
 	}
 
@@ -444,7 +447,7 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 	if err := blobserver.EnumerateAllFrom(ctx, s.large, "", func(sb blob.SizedRef) error {
 		select {
 		case <-t.C:
-			log.Printf("BLOBPACKED: %d / %d packed blobs reindexed", packedCurrent, packedTotal)
+			log.Printf("blobpacked: %d / %d packed blobs reindexed", packedCurrent, packedTotal)
 		default:
 		}
 		zipRef := sb.Ref
@@ -550,7 +553,7 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 	if err := meta.CommitBatch(bm); err != nil {
 		return err
 	}
-	log.Printf("BLOBPACKED: %d / %d packed blobs successfully reindexed", packedCurrent, packedTotal)
+	log.Printf("blobpacked: %d / %d packed blobs successfully reindexed", packedCurrent, packedTotal)
 
 	// TODO(mpl): take into account removed blobs. I can't be done for now
 	// (2015-01-29) because RemoveBlobs currently only updates the meta index.
@@ -602,7 +605,7 @@ func (s *storage) anyZipPacks() (v bool) {
 }
 
 func (s *storage) Close() error {
-	return nil
+	return s.meta.Close()
 }
 
 func (s *storage) StorageGeneration() (initTime time.Time, random string, err error) {
