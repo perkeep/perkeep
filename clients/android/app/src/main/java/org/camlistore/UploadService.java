@@ -907,4 +907,11 @@ public class UploadService extends Service {
         }
         broadcastAllState();
     }
+
+    public void onUploadErrors(String errors) {
+        try {
+            mCallback.setUploadErrorsText(errors);
+        } catch (RemoteException e) {
+        }
+    }
 }

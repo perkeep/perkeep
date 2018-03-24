@@ -53,4 +53,8 @@ public class DummyNullCallback extends IStatusCallback.Stub {
     @Override
     public void setUploadStatsText(String text) throws RemoteException {
     }
+
+    @Override
+    public void setUploadErrorsText(String text) throws RemoteException {
+    }
 }

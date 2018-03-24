@@ -110,6 +110,7 @@ public class CamliActivity extends Activity {
 
         final TextView textStatus = (TextView) findViewById(R.id.textStatus);
         final TextView textStats = (TextView) findViewById(R.id.textStats);
+        final TextView textErrors = (TextView) findViewById(R.id.textErrors);
         final TextView textBlobsRemain = (TextView) findViewById(R.id.textBlobsRemain);
         final TextView textUploadStatus = (TextView) findViewById(R.id.textUploadStatus);
         final TextView textByteStatus = (TextView) findViewById(R.id.textByteStatus);
@@ -154,6 +155,7 @@ public class CamliActivity extends Activity {
                         if (uploading) {
                             buttonToggle.setText(R.string.pause);
                             textStatus.setText(R.string.uploading);
+                            textErrors.setText("");
                         } else if (mLastBlobsDigestRemain > 0) {
                             buttonToggle.setText(R.string.pause);
                             textStatus.setText(R.string.digesting);
@@ -245,6 +247,15 @@ public class CamliActivity extends Activity {
                             textStats.setText(mStatusTextWant);
                             mLastStatusUpdate = System.currentTimeMillis();
                         }
+                    }
+                });
+            }
+
+            public void setUploadErrorsText(final String text) throws RemoteException {
+                mHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        textErrors.setText(text);
                     }
                 });
             }
