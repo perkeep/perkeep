@@ -1245,7 +1245,7 @@ func (c *Client) http2DialTLSFunc() func(network, addr string, cfg *tls.Config) 
 
 // DialTLSFunc returns the adequate dial function, when using SSL, depending on
 // whether we're using insecure TLS (certificate verification is disabled), or we
-// have some trusted certs, or we're on android.1
+// have some trusted certs, or we're on android.
 // If the client's config has some trusted certs, the server's certificate will
 // be checked against those in the config after the TLS handshake.
 func (c *Client) DialTLSFunc() func(network, addr string) (net.Conn, error) {
@@ -1287,6 +1287,11 @@ func (c *Client) DialTLSFunc() func(network, addr string) (net.Conn, error) {
 			conn = tls.Client(ac, tlsConfig)
 			if err := conn.Handshake(); err != nil {
 				return nil, err
+			}
+			if stdTLS {
+				// Normal TLS verification succeeded and we do not have
+				// additional trusted certificate fingerprints to check for.
+				return conn, nil
 			}
 		} else {
 			conn, err = tls.Dial(network, addr, &tls.Config{InsecureSkipVerify: true})
