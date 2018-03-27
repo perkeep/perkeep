@@ -28,9 +28,10 @@ import (
 // serverinit.genLowLevelConfig, and used to configure the various
 // Perkeep components.
 type Config struct {
-	Auth    string `json:"auth"`              // auth scheme and values (ex: userpass:foo:bar).
-	BaseURL string `json:"baseURL,omitempty"` // Base URL the server advertizes. For when behind a proxy.
-	Listen  string `json:"listen"`            // address (of the form host|ip:port) on which the server will listen on.
+	Auth              string `json:"auth"`              // auth scheme and values (ex: userpass:foo:bar).
+	BaseURL           string `json:"baseURL,omitempty"` // Base URL the server advertizes. For when behind a proxy.
+	Listen            string `json:"listen"`            // address (of the form host|ip:port) on which the server will listen on.
+	ListenLetsEncrypt string `json:"listenLetsEncrypt"` // address (of the form host|ip:port) on which the server will listen on for the Let's Encrypt http-01 challange.
 
 	// CamliNetIP is the optional internet-facing IP address for this
 	// Perkeep instance. If set, a name in the camlistore.net domain for
@@ -112,6 +113,12 @@ type App struct {
 	// If empty, the default is the concatenation of the Perkeep server's
 	// Listen host part, and a random port.
 	Listen string `json:"listen,omitempty"`
+
+	// Listen is the address (of the form host|ip:port) on which the app
+	// will listen on for the Let's Encrypt http-01 challange.
+	// If empty, the default is the concatenation of the Perkeep server's
+	// Listen host part, and port 80.
+	ListenLetsEncrypt string `json:"listenLetsEncrypt,omitempty"`
 
 	// BackendURL is the URL of the application's process, always ending in a
 	// trailing slash. It is the URL that the app handler will proxy to when

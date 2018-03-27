@@ -310,6 +310,12 @@ type HandlerConfig struct {
 	// part and a random port.
 	Listen string `json:"listen,omitempty"`
 
+	// Listen is the address (of the form host|ip:port) on which the app
+	// will listen on for the Let's Encrypt http-01 challange.
+	// If empty, the default is the concatenation of the Perkeep server's
+	// Listen host part, and port 80.
+	ListenLetsEncrypt string `json:"listenLetsEncrypt,omitempty"`
+
 	// ServerListen is the Perkeep server's listen address. Defaults to
 	// the ServerBaseURL host part.
 	ServerListen string `json:"serverListen,omitempty"`
@@ -339,14 +345,15 @@ type HandlerConfig struct {
 // prefix and serverBaseURL are used if not found in config.
 func FromJSONConfig(config jsonconfig.Obj, prefix, serverBaseURL string) (HandlerConfig, error) {
 	hc := HandlerConfig{
-		Program:       config.RequiredString("program"),
-		Prefix:        config.OptionalString("prefix", prefix),
-		BackendURL:    config.OptionalString("backendURL", ""),
-		Listen:        config.OptionalString("listen", ""),
-		APIHost:       config.OptionalString("apiHost", ""),
-		ServerListen:  config.OptionalString("serverListen", ""),
-		ServerBaseURL: config.OptionalString("serverBaseURL", serverBaseURL),
-		AppConfig:     config.OptionalObject("appConfig"),
+		Program:           config.RequiredString("program"),
+		Prefix:            config.OptionalString("prefix", prefix),
+		BackendURL:        config.OptionalString("backendURL", ""),
+		Listen:            config.OptionalString("listen", ""),
+		ListenLetsEncrypt: config.OptionalString("listenLetsEncrypt", ""),
+		APIHost:           config.OptionalString("apiHost", ""),
+		ServerListen:      config.OptionalString("serverListen", ""),
+		ServerBaseURL:     config.OptionalString("serverBaseURL", serverBaseURL),
+		AppConfig:         config.OptionalObject("appConfig"),
 	}
 	if err := config.Validate(); err != nil {
 		return HandlerConfig{}, err

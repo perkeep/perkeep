@@ -107,12 +107,13 @@ var (
 		"Config file to use, relative to the Perkeep configuration directory root. "+
 			"If blank, the default is used or auto-generated. "+
 			"If it starts with 'http:' or 'https:', it is fetched from the network.")
-	flagListen      = flag.String("listen", "", "host:port to listen on, or :0 to auto-select. If blank, the value in the config will be used instead.")
-	flagOpenBrowser = flag.Bool("openbrowser", true, "Launches the UI on startup")
-	flagReindex     = flag.Bool("reindex", false, "Reindex all blobs on startup")
-	flagRecovery    = flag.Int("recovery", 0, "Recovery mode: it corresponds for now to the recovery modes of the blobpacked package. Which means: 0 does nothing, 1 rebuilds the blobpacked index without erasing it, and 2 wipes the blobpacked index before rebuilding it.")
-	flagSyslog      = flag.Bool("syslog", false, "Log everything only to syslog. It is an error to use this flag on windows.")
-	flagPollParent  bool
+	flagListen            = flag.String("listen", "", "host:port to listen on, or :0 to auto-select. If blank, the value in the config will be used instead.")
+	flagListenLetsEncrypt = flag.String("listenLetsEncrypt", "", "host:port to listen on for the Let's Encrypt http-01 challange. If blank, the value in the config will be used instead.")
+	flagOpenBrowser       = flag.Bool("openbrowser", true, "Launches the UI on startup")
+	flagReindex           = flag.Bool("reindex", false, "Reindex all blobs on startup")
+	flagRecovery          = flag.Int("recovery", 0, "Recovery mode: it corresponds for now to the recovery modes of the blobpacked package. Which means: 0 does nothing, 1 rebuilds the blobpacked index without erasing it, and 2 wipes the blobpacked index before rebuilding it.")
+	flagSyslog            = flag.Bool("syslog", false, "Log everything only to syslog. It is an error to use this flag on windows.")
+	flagPollParent        bool
 )
 
 // For getting a name in camlistore.net
@@ -209,6 +210,7 @@ func loadConfig(arg string) (conf *serverinit.Config, isNewConfig bool, err erro
 // them (self-signed CA used as a cert), and use them.
 // If cert/key files are not specified, use Let's Encrypt.
 func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) {
+	listenLetsEncryptAddress := config.OptionalString("listenLetsEncrypt", ":http")
 	cert, key := config.OptionalString("httpsCert", ""), config.OptionalString("httpsKey", "")
 	if !config.OptionalBool("https", true) {
 		return
@@ -243,10 +245,10 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) 
 				HostPolicy: autocert.HostWhitelist(hostname),
 				Cache:      autocert.DirCache(osutil.DefaultLetsEncryptCache()),
 			}
-			// TODO(mpl): let the http-01 port be configurable, for when behind a proxy
 			go func() {
+				log.Printf("Starting to listen for Let's Encrypt http-01 challange on %v", listenLetsEncryptAddress)
 				log.Fatalf("Could not start server for http-01 challenge: %v",
-					http.ListenAndServe(":http", m.HTTPHandler(nil)))
+					http.ListenAndServe(listenLetsEncryptAddress, m.HTTPHandler(nil)))
 			}()
 			log.Printf("TLS enabled, with Let's Encrypt for %v", hostname)
 			ws.SetTLS(webserver.TLSSetup{
@@ -323,6 +325,7 @@ func handleSignals(shutdownc <-chan io.Closer) {
 // for Let's Encrypt. It then starts listening and returns the baseURL derived from
 // the hostname we should obtain from the GPG challenge.
 func listenForCamliNet(ws *webserver.Server, config *serverinit.Config) (baseURL string, err error) {
+	listenLetsEncryptAddress := config.OptionalString("listenLetsEncrypt", ":http")
 	camliNetIP := config.OptionalString("camliNetIP", "")
 	if camliNetIP == "" {
 		return "", errors.New("no camliNetIP")
@@ -353,8 +356,9 @@ func listenForCamliNet(ws *webserver.Server, config *serverinit.Config) (baseURL
 		Cache:      autocert.DirCache(osutil.DefaultLetsEncryptCache()),
 	}
 	go func() {
+		log.Printf("Starting to listen for Let's Encrypt http-01 challange on %v", listenLetsEncryptAddress)
 		log.Fatalf("Could not start server for http-01 challenge: %v",
-			http.ListenAndServe(":http", m.HTTPHandler(nil)))
+			http.ListenAndServe(listenLetsEncryptAddress, m.HTTPHandler(nil)))
 	}()
 	getCertificate := func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 		if hello.ServerName == challengeHostname {
