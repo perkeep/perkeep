@@ -62,6 +62,9 @@ JSON. It can either be in [simple mode](#simplemode) (for basic configurations),
 * `listen`: The port (like "80" or ":80") or IP & port (like "10.0.0.2:8080")
   to listen for HTTP(s) connections on.
 
+* `listenLetsEncrypt`: The port (like "80" or ":80") or IP & port (like
+  "10.0.0.2:8080") to listen for HTTP-01 challanges from Let's Encrypt.
+
 * `shareHandler`: if true, the server's sharing functionality is enabled,
   letting your friends have access to any content you've specifically shared.
   Its URL prefix path defaults to "`/share/`".

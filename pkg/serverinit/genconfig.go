@@ -218,6 +218,9 @@ func addAppConfig(config map[string]interface{}, appConfig *serverconfig.App, lo
 	if appConfig.Listen != "" {
 		config["listen"] = appConfig.Listen
 	}
+	if appConfig.ListenLetsEncrypt != "" {
+		config["listenLetsEncrypt"] = appConfig.ListenLetsEncrypt
+	}
 	if appConfig.APIHost != "" {
 		config["apiHost"] = appConfig.APIHost
 	}
@@ -1066,6 +1069,9 @@ func (b *lowBuilder) build() (*Config, error) {
 	}
 	if conf.Listen != "" {
 		low["listen"] = conf.Listen
+	}
+	if conf.ListenLetsEncrypt != "" {
+		low["listenLetsEncrypt"] = conf.ListenLetsEncrypt
 	}
 	if conf.PackBlobs && conf.PackRelated {
 		return nil, errors.New("can't use both packBlobs (for 'diskpacked') and packRelated (for 'blobpacked')")
