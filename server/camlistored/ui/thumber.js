@@ -31,7 +31,7 @@ cam.Thumber = function(pathname, opt_aspect) {
 cam.Thumber.SIZES = [64, 128, 256, 375, 500, 750, 1000, 1500, 2000];
 
 cam.Thumber.fromImageMeta = function(imageMeta) {
-	if (!imageMeta || !imageMeta.image || !imageMeta.blobRef || !imageMeta.file || !imageMeta.file.fileName) {
+	if (!imageMeta || !imageMeta.image || !imageMeta.blobRef) {
 		return null;
 	}
 	return new cam.Thumber(goog.string.subs('thumbnail/%s/%s', imageMeta.blobRef, (imageMeta.file && imageMeta.file.fileName) || imageMeta.blobRef + '.jpg'),

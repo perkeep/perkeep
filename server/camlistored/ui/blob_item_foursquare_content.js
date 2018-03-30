@@ -122,7 +122,7 @@ cam.BlobItemFoursquareContent.Handler = function(href, venueId, venueName, venue
 	this.venueId_ = venueId;
 	this.venueName_ = venueName;
 	this.startDate_ = startDate;
-	this.thumber_ = venuePhotoMeta ? new cam.Thumber.fromImageMeta(venuePhotoMeta) : null;
+	this.thumber_ = venuePhotoMeta ? cam.Thumber.fromImageMeta(venuePhotoMeta) : null;
 };
 
 cam.BlobItemFoursquareContent.Handler.prototype.getAspectRatio = function() {
