@@ -42,6 +42,7 @@ import (
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/buildinfo"
 	"perkeep.org/pkg/client/android"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
@@ -852,6 +853,13 @@ func (c *Client) SearchExistingFileSchema(ctx context.Context, wholeRef ...blob.
 	}
 	var ress camtypes.FileSearchResponse
 	if err := httputil.DecodeJSON(res, &ress); err != nil {
+		// Check that we're not just hitting the change introduced in 2018-01-13-6e8a5930c9fee81640c6c75a9a549fec98064186
+		mismatch, err := c.versionMismatch(ctx)
+		if err != nil {
+			log.Printf("Could not verify whether client is too recent or server is too old: %v", err)
+		} else if mismatch {
+			return blob.Ref{}, fmt.Errorf("Client is too recent for this server. Use a client built before 2018-01-13-6e8a5930c9, or upgrade the server to after that revision.")
+		}
 		return blob.Ref{}, fmt.Errorf("client: error parsing JSON from URL %s: %v", url, err)
 	}
 	if len(ress.Files) == 0 {
@@ -865,6 +873,54 @@ func (c *Client) SearchExistingFileSchema(ctx context.Context, wholeRef ...blob.
 		}
 	}
 	return blob.Ref{}, nil
+}
+
+// versionMismatch returns true if the server was built before 2018-01-13 and
+// the client was built at or after 2018-01-13.
+func (c *Client) versionMismatch(ctx context.Context) (bool, error) {
+	const shortRFC3339 = "2006-01-02"
+	version := buildinfo.Version()
+	if version == "unknown" {
+		return false, errors.New("unknown client version")
+	}
+	version = version[:10] // keep only the date part
+	clientDate, err := time.Parse(shortRFC3339, version)
+	if err != nil {
+		return false, fmt.Errorf("could not parse date from version %q: %v", version, err)
+	}
+	apiChangeDate, _ := time.Parse(shortRFC3339, "2018-01-13")
+	if !clientDate.After(apiChangeDate) {
+		// client is old enough, all good.
+		return false, nil
+	}
+	url := c.discoRoot() + "/status/status.json"
+	println(url)
+	req := c.newRequest(ctx, "GET", url)
+	res, err := c.doReqGated(req)
+	if err != nil {
+		return false, err
+	}
+	if res.StatusCode != 200 {
+		body, _ := ioutil.ReadAll(io.LimitReader(res.Body, 1<<20))
+		res.Body.Close()
+		return false, fmt.Errorf("got status code %d from URL %s; body %s", res.StatusCode, url, body)
+	}
+	var status struct {
+		Version string `json:"version"`
+	}
+	if err := httputil.DecodeJSON(res, &status); err != nil {
+		return false, fmt.Errorf("error parsing JSON from URL %s: %v", url, err)
+	}
+	serverVersion := status.Version[:10]
+	serverDate, err := time.Parse(shortRFC3339, serverVersion)
+	if err != nil {
+		return false, fmt.Errorf("could not parse date from server version %q: %v", status.Version, err)
+	}
+	if serverDate.After(apiChangeDate) {
+		// server is recent enough, all good.
+		return false, nil
+	}
+	return true, nil
 }
 
 // FileHasContents returns true iff f refers to a "file" or "bytes" schema blob,
@@ -1151,7 +1207,7 @@ func (c *Client) post(ctx context.Context, url string, bodyType string, body io.
 	return res, nil
 }
 
-// newRequests creates a request with the authentication header, and with the
+// newRequest creates a request with the authentication header, and with the
 // appropriate scheme and port in the case of self-signed TLS.
 func (c *Client) newRequest(ctx context.Context, method, url string, body ...io.Reader) *http.Request {
 	var bodyR io.Reader
