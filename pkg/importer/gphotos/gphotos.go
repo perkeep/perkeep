@@ -333,7 +333,7 @@ func (r *run) importPhotos(ctx context.Context, sinceToken string) error {
 
 	grp, grpCtx := errgroup.WithContext(ctx)
 
-	nextToken, err := r.dl.foreachPhoto(grpCtx, sinceToken, func(ctx context.Context, ph photo) error {
+	nextToken, err := r.dl.foreachPhoto(grpCtx, sinceToken, func(ctx context.Context, ph *photo) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -408,7 +408,7 @@ func (ph photo) title(altTitle string) string {
 // contents, and with no conflicting attributes, exists. So we reuse that
 // permanode.
 // 4) A permanode for the photo object already exists, so we reuse it.
-func (r *run) updatePhoto(ctx context.Context, parent *importer.Object, ph photo) error {
+func (r *run) updatePhoto(ctx context.Context, parent *importer.Object, ph *photo) error {
 	if ph.ID == "" {
 		return errors.New("photo has no ID")
 	}
@@ -430,7 +430,7 @@ func (r *run) updatePhoto(ctx context.Context, parent *importer.Object, ph photo
 
 	photoNode, err := parent.ChildPathObjectOrFunc(ph.ID, func() (*importer.Object, error) {
 		h := blob.NewHash()
-		rc, err := r.dl.openPhoto(ctx, ph)
+		rc, err := r.dl.openPhoto(ctx, *ph)
 		if err != nil {
 			return nil, err
 		}
@@ -466,7 +466,7 @@ func (r *run) updatePhoto(ctx context.Context, parent *importer.Object, ph photo
 		// been interrupted. So we check for an existing camliContent.
 		if camliContent := photoNode.Attr(nodeattr.CamliContent); camliContent == "" {
 			// looks like an incomplete node, so we need to re-download.
-			rc, err := r.dl.openPhoto(ctx, ph)
+			rc, err := r.dl.openPhoto(ctx, *ph)
 			if err != nil {
 				return err
 			}

@@ -30,7 +30,7 @@ import (
 	"google.golang.org/api/googleapi"
 )
 
-var scopeURLs = []string{drive.DrivePhotosReadonlyScope}
+var scopeURLs = []string{drive.DriveReadonlyScope}
 
 const (
 	// maximum number of results returned per response page
@@ -95,7 +95,7 @@ func newDownloader(client *http.Client) (*downloader, error) {
 // to be passed as the sinceToken in the next photos() call.
 //
 // Returns a new token to watch future changes.
-func (dl *downloader) foreachPhoto(ctx context.Context, sinceToken string, fn func(context.Context, photo) error) (nextToken string, err error) {
+func (dl *downloader) foreachPhoto(ctx context.Context, sinceToken string, fn func(context.Context, *photo) error) (nextToken string, err error) {
 
 	if sinceToken != "" {
 		return dl.foreachPhotoFromChanges(ctx, sinceToken, fn)
@@ -123,9 +123,9 @@ func (dl *downloader) foreachPhoto(ctx context.Context, sinceToken string, fn fu
 	return nextToken, nil
 }
 
-const fields = "id,name,mimeType,description,starred,properties,version,webContentLink,createdTime,modifiedTime,originalFilename,imageMediaMetadata(location,time)"
+const fields = "id,name,size,spaces,mimeType,description,starred,properties,version,webContentLink,createdTime,modifiedTime,originalFilename,imageMediaMetadata(location,time)"
 
-func (dl *downloader) foreachPhotoFromScratch(ctx context.Context, fn func(context.Context, photo) error) error {
+func (dl *downloader) foreachPhotoFromScratch(ctx context.Context, fn func(context.Context, *photo) error) error {
 	var token string
 	for {
 		select {
@@ -146,7 +146,11 @@ func (dl *downloader) foreachPhotoFromScratch(ctx context.Context, fn func(conte
 				// However, https://developers.google.com/drive/v3/reference/files/list
 				// states OrderBy does not work for > 1e6 files.
 				OrderBy("createdTime desc,folder").
-				Spaces("photos").
+				// Apparently (as of January 2018) asking for the "photos" space does not return
+				// anything anymore. So we just ask for all files. Fortunately, we can still
+				// request the Spaces property of the file, and we can filter out all of the ones
+				// not within "photos".
+				Spaces("drive").
 				PageSize(batchSize).
 				PageToken(token)
 			r, err = listCall.Do()
@@ -162,7 +166,12 @@ func (dl *downloader) foreachPhotoFromScratch(ctx context.Context, fn func(conte
 				logf("unexpected nil entry in gdrive file list response")
 				continue
 			}
-			if err := fn(ctx, dl.fileAsPhoto(f)); err != nil {
+			ph := dl.fileAsPhoto(f)
+			if ph == nil {
+				// file is not a photo
+				continue
+			}
+			if err := fn(ctx, ph); err != nil {
 				return err
 			}
 		}
@@ -173,7 +182,7 @@ func (dl *downloader) foreachPhotoFromScratch(ctx context.Context, fn func(conte
 	}
 }
 
-func (dl *downloader) foreachPhotoFromChanges(ctx context.Context, sinceToken string, fn func(context.Context, photo) error) (nextToken string, err error) {
+func (dl *downloader) foreachPhotoFromChanges(ctx context.Context, sinceToken string, fn func(context.Context, *photo) error) (nextToken string, err error) {
 	token := sinceToken
 	for {
 		select {
@@ -189,7 +198,11 @@ func (dl *downloader) foreachPhotoFromChanges(ctx context.Context, sinceToken st
 			r, err = dl.Service.Changes.List(token).
 				Context(ctx).
 				Fields("nextPageToken,newStartPageToken, changes(file(" + fields + "))").
-				Spaces("photos").
+				// Apparently (as of January 2018) asking for the "photos" space does not return
+				// anything anymore. So we just ask for all files. Fortunately, we can still
+				// request the Spaces property of the file, and we can filter out all of the ones
+				// not within "photos".
+				Spaces("drive").
 				PageSize(batchSize).
 				RestrictToMyDrive(true).
 				IncludeRemoved(false).Do()
@@ -203,7 +216,12 @@ func (dl *downloader) foreachPhotoFromChanges(ctx context.Context, sinceToken st
 				logf("unexpected nil entry in gdrive changes response")
 				continue
 			}
-			if err := fn(ctx, dl.fileAsPhoto(c.File)); err != nil {
+			ph := dl.fileAsPhoto(c.File)
+			if ph == nil {
+				// file is not a photo
+				continue
+			}
+			if err := fn(ctx, ph); err != nil {
 				return "", err
 			}
 		}
@@ -244,15 +262,35 @@ func (dl *downloader) openPhoto(ctx context.Context, photo photo) (io.ReadCloser
 	return resp.Body, err
 }
 
-// fileAsPhoto returns a photo populated with the information found about file.
+// TODO: works for now since the Spaces for each file are still provided, but it
+// probably won't last. So this will have to be rethought.
+func inPhotoSpace(f *drive.File) bool {
+	for _, v := range f.Spaces {
+		if v == "photos" {
+			return true
+		}
+	}
+	return false
+}
+
+// fileAsPhoto returns a photo populated with the information found about f,
+// or nil if f is not actually a photo from Google Photos.
 //
 // The returned photo contains only the metadata;
 // the content of the photo can be downloaded with dl.openPhoto.
-func (dl *downloader) fileAsPhoto(f *drive.File) photo {
+func (dl *downloader) fileAsPhoto(f *drive.File) *photo {
 	if f == nil {
-		return photo{}
+		return nil
 	}
-	p := photo{
+	if f.Size == 0 {
+		// anything non-binary can't be a photo, so skip it.
+		return nil
+	}
+	if !inPhotoSpace(f) {
+		// not a photo
+		return nil
+	}
+	p := &photo{
 		ID:               f.Id,
 		Name:             f.Name,
 		Starred:          f.Starred,
