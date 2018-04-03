@@ -42,23 +42,11 @@ misc/docker/camlistored/djpeg
 /vendor/**/.travis.yml
 /vendor/**/.gitignore
 # contains a private key
-/vendor/github.com/miekg/dns/server_test.go
 /vendor/github.com/mattn/go-sqlite3/sqlite3-binding.c
 /vendor/github.com/mattn/go-sqlite3/sqlite3-binding.h
-/vendor/github.com/rwcarlsen/goexif/exif/example_test.go
-/vendor/github.com/rwcarlsen/goexif/exif/exif_test.go
 /vendor/github.com/rwcarlsen/goexif/exif/sample1.jpg
 /vendor/github.com/rwcarlsen/goexif/tiff/sample1.tif
 /vendor/github.com/rwcarlsen/goexif/exif/regen_regress.go
-/vendor/github.com/rwcarlsen/goexif/exif/regress_expected_test.go
-/vendor/github.com/rwcarlsen/goexif/tiff/tiff_test.go
-# contains a private key
-/vendor/golang.org/x/crypto/acme/jws_test.go
-# oauth2 tests have private keys which cause trouble for devcam review
-/vendor/golang.org/x/oauth2/google/example_test.go
-/vendor/golang.org/x/oauth2/google/google_test.go
-/vendor/golang.org/x/oauth2/jwt/example_test.go
-/vendor/golang.org/x/oauth2/jwt/jwt_test.go
 /vendor/myitcv.io/react/internal/dev/dev.inc.js
 /vendor/myitcv.io/react/internal/preact/preact.inc.js
 /vendor/myitcv.io/react/internal/prod/prod.inc.js
