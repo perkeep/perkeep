@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.ListIterator;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -170,7 +171,7 @@ public class UploadThread extends Thread {
             synchronized (stdinLock) {
                 stdinWriter = new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), "UTF-8"));
             }
-            new CopyToAndroidLogThread("stderr", process.getErrorStream()).start();
+            new CopyToAndroidLogThread("stderr", process.getErrorStream(), mService).start();
             new ParseCamputOutputThread(process, mService).start();
             new WaitForProcessThread(process).start();
         } catch (IOException e) {
@@ -376,33 +377,59 @@ public class UploadThread extends Thread {
     }
 
     // CopyToAndroidLogThread copies the camput child process's stderr
-    // to Android's log.
+    // to Android's log and submits it to to the main activity in batches.
     private static class CopyToAndroidLogThread extends Thread {
-        private final BufferedReader mBufIn;
-        private final String mStream;
+        private static final int MAX_LINES = 6; // amount of lines to buffer before submission
 
-        public CopyToAndroidLogThread(String stream, InputStream in) {
+        private final BufferedReader mBufIn;
+        private final UploadService mService;
+        private final String mTag;
+        private final ArrayList<String> mLines = new ArrayList<String>();
+
+        public CopyToAndroidLogThread(String stream, InputStream in, UploadService service) {
             mBufIn = new BufferedReader(new InputStreamReader(in));
-            mStream = stream;
+            mService = service;
+            mTag = TAG + "/" + stream + "-child";
         }
 
         @Override
         public void run() {
-            String tag = TAG + "/" + mStream + "-child";
             while (true) {
                 String line = null;
                 try {
                     line = mBufIn.readLine();
                 } catch (IOException e) {
-                    Log.d(tag, "Exception: " + e.toString());
+                    Log.d(mTag, "Exception: " + e.toString());
                     return;
                 }
                 if (line == null) {
                     // EOF
+                    submitLines();
                     return;
                 }
-                Log.d(tag, line);
+                handle(line);
             }
+        }
+
+        private void handle(String line) {
+            Log.d(mTag, line);
+
+            mLines.add(line);
+            // Prevent accumulation of a large number of lines when camput produces a lot of
+            // logging output for some reason.
+            if (mLines.size() >= MAX_LINES) {
+                submitLines();
+                mLines.clear();
+            }
+        }
+
+        private void submitLines() {
+            StringBuilder sb = new StringBuilder();
+            for (String s : mLines) {
+                sb.append(s);
+                sb.append('\n');
+            }
+            mService.onUploadErrors(sb.toString());
         }
     }
 

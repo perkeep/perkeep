@@ -74,4 +74,15 @@
         android:layout_height="wrap_content"
         android:text="" />
 
+    <HorizontalScrollView android:layout_width="fill_parent"
+        android:layout_height="fill_parent">
+        <TextView
+            android:id="@+id/textErrors"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:scrollHorizontally="true"
+            android:textIsSelectable="true"
+            android:text="" />
+    </HorizontalScrollView>
+
 </LinearLayout>
