@@ -132,15 +132,7 @@ func (q *SearchQuery) URLSuffix() string { return "camli/search/query" }
 
 func (q *SearchQuery) FromHTTP(req *http.Request) error {
 	dec := json.NewDecoder(io.LimitReader(req.Body, 1<<20))
-	if err := dec.Decode(q); err != nil {
-		return err
-	}
-
-	if q.Constraint == nil && q.Expression == "" {
-		return errors.New("query must have at least a constraint or an expression")
-	}
-
-	return nil
+	return dec.Decode(q)
 }
 
 // exprQuery optionally specifies the *SearchQuery prototype that was generated
@@ -250,20 +242,21 @@ func (q *SearchQuery) checkValid(ctx context.Context) (sq *SearchQuery, err erro
 	if q.Sort == MapSort && (q.Continue != "" || q.Around.Valid()) {
 		return nil, errors.New("Continue or Around parameters are not available with MapSort")
 	}
-	if q.Constraint == nil {
-		if expr := q.Expression; expr != "" {
-			sq, err := parseExpression(ctx, expr)
-			if err != nil {
-				return nil, fmt.Errorf("Error parsing search expression %q: %v", expr, err)
-			}
-			if err := sq.Constraint.checkValid(); err != nil {
-				return nil, fmt.Errorf("Internal error: parseExpression(%q) returned invalid constraint: %v", expr, err)
-			}
-			return sq, nil
-		}
-		return nil, errors.New("no search constraint or expression")
+	if q.Constraint != nil && q.Expression != "" {
+		return nil, errors.New("Constraint and Expression are mutually exclusive in a search query")
 	}
-	return nil, q.Constraint.checkValid()
+	if q.Constraint != nil {
+		return sq, q.Constraint.checkValid()
+	}
+	expr := q.Expression
+	sq, err = parseExpression(ctx, expr)
+	if err != nil {
+		return nil, fmt.Errorf("Error parsing search expression %q: %v", expr, err)
+	}
+	if err := sq.Constraint.checkValid(); err != nil {
+		return nil, fmt.Errorf("Internal error: parseExpression(%q) returned invalid constraint: %v", expr, err)
+	}
+	return sq, nil
 }
 
 // SearchResult is the result of the Search method for a given SearchQuery.

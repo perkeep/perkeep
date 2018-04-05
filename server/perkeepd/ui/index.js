@@ -554,7 +554,7 @@ cam.IndexPage = React.createClass({
 	},
 
 	updateChildSearchSession_: function(targetBlobref, newURL) {
-		var query = ' ';
+		var query = '';
 		if (targetBlobref) {
 			query = this.queryFromParentPermanode_(targetBlobref);
 		} else {
@@ -974,8 +974,8 @@ cam.IndexPage = React.createClass({
 		var url = this.getDetailURL_(blobref, opt_fragment);
 		if (targetBlobref) {
 			url.setParameterValue('p', targetBlobref);
-		} else {
-			url.setParameterValue('q', query || ' ');
+		} else if (query && query != '') {
+			url.setParameterValue('q', query);
 		}
 		return url;
 	},
