@@ -127,6 +127,7 @@
   revision = "da06d194a00e19ce00d9011a13931c3f6f6887c7"
 
 [[projects]]
+  branch = "master"
   name = "github.com/gopherjs/gopherjs"
   packages = [
     ".",
@@ -142,7 +143,7 @@
     "js",
     "nosync"
   ]
-  revision = "b40cd48c38f9a18eb3db20d163bad78de12cf0b7"
+  revision = "82b322028c96512b15077093b16a5f1c7ea897ac"
 
 [[projects]]
   name = "github.com/gopherjs/jquery"
@@ -565,6 +566,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "45918f60981155decec758a08a2d4f27df6253760f470bc0840ac3d353d9bf40"
+  inputs-digest = "fe2a2ee0a07f3c16a6cd540e1186ea83994798027939eb9e7697d59cebc4ea8c"
   solver-name = "gps-cdcl"
   solver-version = 1

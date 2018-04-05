@@ -1028,8 +1028,8 @@ func verifyPerkeepRoot(dir string) {
 }
 
 const (
-	goVersionMinor  = 9
-	gopherJSGoMinor = 9
+	goVersionMinor  = 10
+	gopherJSGoMinor = 10
 )
 
 var validVersionRx = regexp.MustCompile(`go version go1\.(\d+)`)
