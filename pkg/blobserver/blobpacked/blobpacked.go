@@ -580,8 +580,7 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 		}
 
 		// record that info for later, when we got them all, so we can write the wholeMetaPrefix entries.
-		zipMetas, _ := zipMetaByWholeRef[mf.WholeRef]
-		zipMetas = append(zipMetas, zipMetaInfo{
+		zipMetaByWholeRef[mf.WholeRef] = append(zipMetaByWholeRef[mf.WholeRef], zipMetaInfo{
 			wholePartIndex: mf.WholePartIndex,
 			zipRef:         zipRef,
 			zipSize:        sb.Size,
@@ -590,8 +589,6 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 			wholeSize:      uint64(mf.WholeSize),
 			wholeRef:       mf.WholeRef, // redundant with zipMetaByWholeRef key for now.
 		})
-
-		zipMetaByWholeRef[mf.WholeRef] = zipMetas
 		packedSeen++
 		return nil
 	}); err != nil {
@@ -599,6 +596,7 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 	}
 
 	// finally, write the wholeMetaPrefix entries
+	foundDups := false
 	packedFiles := 0
 	tt := time.NewTicker(2 * time.Second)
 	defer tt.Stop()
@@ -610,27 +608,19 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 		default:
 		}
 		sort.Slice(zipMetas, func(i, j int) bool { return zipMetas[i].wholePartIndex < zipMetas[j].wholePartIndex })
-		var wholeBytesWritten uint64
-		hasDup := false
-		i := 0 // to deal with duplicates
+		hasDup := hasDups(zipMetas)
+		if hasDup {
+			foundDups = true
+		}
+		offsets := wholeOffsets(zipMetas)
 		for _, z := range zipMetas {
-			if z.wholePartIndex != i {
-				// TODO(mpl): this most likely means we have at least two files with the same
-				// contents (i.e. same wholeRef) but probably different file schemas (because
-				// different filenames for example). For now we're just logging the issue below.
-				// See https://github.com/perkeep/perkeep/issues/1079
-				hasDup = true
-				continue
-			}
+			offset := offsets[z.wholePartIndex]
 			// write the w:row
 			bm.Set(fmt.Sprintf("%s%s:%d", wholeMetaPrefix, wholeRef, z.wholePartIndex),
-				fmt.Sprintf("%s %d %d %d", z.zipRef, z.offsetInZip, wholeBytesWritten, z.dataSize))
+				fmt.Sprintf("%s %d %d %d", z.zipRef, z.offsetInZip, offset, z.dataSize))
 			// write the z: row
-			bm.Set(fmt.Sprintf("%s%v", zipMetaPrefix, z.zipRef),
-				z.rowValue(wholeBytesWritten))
-			wholeBytesWritten += uint64(z.dataSize)
+			bm.Set(fmt.Sprintf("%s%v", zipMetaPrefix, z.zipRef), z.rowValue(offset))
 			packedDone++
-			i++
 		}
 		if hasDup {
 			if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
@@ -638,6 +628,7 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 			}
 		}
 
+		wholeBytesWritten := offsets[len(offsets)-1]
 		if zipMetas[0].wholeSize != wholeBytesWritten {
 			// Any corrupted zip should have been found earlier, so this error means we're
 			// missing at least one full zip for the whole file to be complete.
@@ -671,6 +662,11 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 	} else {
 		log.Printf("blobpacked: %d files reindexed.", packedFiles)
 	}
+	if foundDups {
+		if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); !debug {
+			log.Print("blobpacked: zip blobs with duplicate contents were found. Re-run with CAMLI_DEBUG=true for more detail.")
+		}
+	}
 
 	// TODO(mpl): take into account removed blobs. I can't be done for now
 	// (2015-01-29) because RemoveBlobs currently only updates the meta index.
@@ -680,22 +676,77 @@ func (s *storage) reindex(ctx context.Context, newMeta func() (sorted.KeyValue, 
 	return nil
 }
 
-func printDuplicates(wm []zipMetaInfo) {
-	log.Printf("blobpacked: found probable duplicate parts of same file contents")
-	if len(wm)%2 == 0 {
-		for i := 0; i < len(wm); i++ {
-			if i%2 != 0 {
-				continue
-			}
-			log.Printf("blobpacked: %v duplicate of %v", wm[i+1].zipRef.String(), wm[i].zipRef.String())
-		}
-		return
-	}
-	for i := 0; i < len(wm); i++ {
-		if i%2 == 0 {
+// hasDups reports whether zm contains successive zipRefs which have the same
+// wholePartIndex, which we assume means they have the same data contents. It
+// panics if that assumption seems wrong, i.e. if the data within assumed
+// duplicates is not the same size in all of them. zm must be sorted by
+// wholePartIndex.
+// See https://github.com/perkeep/perkeep/issues/1079
+func hasDups(zm []zipMetaInfo) bool {
+	i := 0
+	var dataSize uint32
+	var firstDup blob.Ref
+	dupFound := false
+	for _, z := range zm {
+		if z.wholePartIndex == i {
+			firstDup = z.zipRef
+			dataSize = z.dataSize
+			i++
 			continue
 		}
-		log.Printf("blobpacked: %v duplicate of %v", wm[i].zipRef.String(), wm[i-1].zipRef.String())
+		// we could return true right now, but we want to go through it all, to make
+		// sure our assumption that "same part index -> duplicate" is true, using at least
+		// the dataSize to confirm. For a better effort, we should use DataBlobsOrigin.
+		if z.dataSize != dataSize {
+			panic(fmt.Sprintf("%v and %v looked like duplicates at first, but don't actually have the same dataSize. TODO: add DataBlobsOrigin checking.", firstDup, z.zipRef))
+		}
+		dupFound = true
+	}
+	return dupFound
+}
+
+// wholeOffsets returns the offset for each part of a file f, in order, assuming
+// zm are all the (wholePartIndex) ordered zip parts that constitute that file. If
+// zm seems to contain duplicates, they are skipped. The additional last item of
+// the returned slice is the sum of all the parts, i.e. the whole size of f.
+func wholeOffsets(zm []zipMetaInfo) []uint64 {
+	i := 0
+	var offsets []uint64
+	var currentOffset uint64
+	for _, z := range zm {
+		if i != z.wholePartIndex {
+			continue
+		}
+		offsets = append(offsets, currentOffset)
+		currentOffset += uint64(z.dataSize)
+		i++
+	}
+	// add the last computed offset to the slice, as it's useful info too: it's the
+	// size of all the data in the zip.
+	offsets = append(offsets, currentOffset)
+	return offsets
+}
+
+func printDuplicates(zm []zipMetaInfo) {
+	i := 0
+	byPartIndex := make(map[int][]zipMetaInfo)
+	for _, z := range zm {
+		if i == z.wholePartIndex {
+			byPartIndex[z.wholePartIndex] = []zipMetaInfo{z}
+			i++
+			continue
+		}
+		byPartIndex[z.wholePartIndex] = append(byPartIndex[z.wholePartIndex], z)
+	}
+	for _, zm := range byPartIndex {
+		if len(zm) <= 1 {
+			continue
+		}
+		br := make([]blob.Ref, 0, len(zm))
+		for _, z := range zm {
+			br = append(br, z.zipRef)
+		}
+		log.Printf("zip blobs with same data contents: %v", br)
 	}
 }
 
