@@ -142,7 +142,7 @@ func writeNode(w io.Writer, fset *token.FileSet, x interface{}) {
 	// the right number of spaces is much harder)
 	//
 	// TODO(gri) rethink printer flags - perhaps tconv can be eliminated
-	//           with an another printer mode (which is more efficiently
+	//           with another printer mode (which is more efficiently
 	//           implemented in the printer than here with another layer)
 	mode := printer.TabIndent | printer.UseSpaces
 	err := (&printer.Config{Mode: mode, Tabwidth: tabwidth}).Fprint(&tconv{output: w}, fset, x)

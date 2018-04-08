@@ -60,7 +60,7 @@ const (
 
 var (
 	// TODO(mpl): use that one, same as in master.
-	altCamliRevURL = flag.String("camlirevurl", "", "alternative URL to query about the latest camlistore revision hash (e.g camlistore.org/latesthash), to alleviate hitting too often the Camlistore git repo.")
+	altCamliRevURL = flag.String("camlirevurl", "", "alternative URL to query about the latest Camlistore revision hash (e.g camlistore.org/latesthash), to alleviate hitting too often the Camlistore git repo.")
 	arch           = flag.String("arch", "", "The arch we report the master(s). Defaults to runtime.GOARCH.")
 	fakeTests      = flag.Bool("faketests", false, "Run fast fake tests instead of the real ones, for faster debugging.")
 	help           = flag.Bool("h", false, "show this help")
@@ -91,7 +91,7 @@ var (
 	currentTestSuite *testSuite
 	currentBiSuite   *biTestSuite
 
-	// Process of the camlistore server, so we can kill it when
+	// Process of the Camlistore server, so we can kill it when
 	// we get killed ourselves.
 	camliProc *os.Process
 
@@ -562,7 +562,7 @@ func setup() {
 		}
 	}
 
-	// get camlistore source
+	// get Camlistore source
 	if err := os.Chdir(cacheDir); err != nil {
 		log.Fatalf("Could not cd to %v: %v", cacheDir, err)
 	}
@@ -570,7 +570,7 @@ func setup() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// if camlistore dir already exists, reuse it
+	// if Camlistore dir already exists, reuse it
 	if _, err := os.Stat(camliRoot); err != nil {
 		if !os.IsNotExist(err) {
 			log.Fatalf("Could not stat %v: %v", camliRoot, err)
@@ -582,7 +582,7 @@ func setup() {
 		}
 	}
 
-	// recording camput cache dir, so we can clean it up fast everytime
+	// recording camput cache dir, so we can clean it up fast every time
 	homeDir := os.Getenv("HOME")
 	if homeDir == "" {
 		log.Fatal("HOME not set")
@@ -611,7 +611,7 @@ func handleSignals() {
 		sig := <-c
 		sysSig, ok := sig.(syscall.Signal)
 		if !ok {
-			log.Fatal("Not a unix signal")
+			log.Fatal("Not a Unix signal")
 		}
 		switch sysSig {
 		case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
@@ -714,7 +714,7 @@ func prepCamliTree(isTip bool) error {
 		hash = strings.TrimRight(out, "\n")
 	}
 	if !plausibleHashRx.MatchString(hash) {
-		return fmt.Errorf("camlistore rev %q does not look like a git hash", hash)
+		return fmt.Errorf("Camlistore rev %q does not look like a git hash", hash)
 	}
 	camliHeadHash = hash
 	return nil

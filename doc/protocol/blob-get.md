@@ -13,7 +13,7 @@ The response must include an explicit Content-Length, even with HTTP/1.1.
 
 ## Get a blob
 
-Reqeust:
+Request:
 
     GET /camli/sha1-126249fd8c18cbb5312a5705746a2af87fba9538 HTTP/1.1
     Host: example.com

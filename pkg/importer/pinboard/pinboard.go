@@ -17,9 +17,9 @@ limitations under the License.
 /*
 Package pinboard imports pinboard.in posts.
 
-This package uses the v1 api documented here:  https://pinboard.in/api.
+This package uses the v1 API documented here:  https://pinboard.in/api.
 
-Note that the api document seems to use 'post' and 'bookmark'
+Note that the API document seems to use 'post' and 'bookmark'
 interchangeably.  We use 'post' everywhere in this code.
 
 Posts in pinboard are mutable; they can be edited or deleted.
@@ -36,7 +36,7 @@ think I really understand the data model here, so this is sort of
 gibberish).
 
 I have exchanged email with Maciej Ceglowski of pinboard, who may in
-the future provide an api that lets us query what has changed.  We
+the future provide an API that lets us query what has changed.  We
 might want to switch to that when available to make the import process
 more light-weight.
 */
@@ -88,7 +88,7 @@ const (
 )
 
 // We expect <username>:<some id>.  Sometimes pinboard calls this an
-// auth token and sometimes they call it an api token.
+// auth token and sometimes they call it an API token.
 func extractUsername(authToken string) string {
 	split := strings.SplitN(authToken, ":", 2)
 	if len(split) == 2 {
@@ -145,7 +145,7 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 		return
 	}
 	if extractUsername(t) == "" {
-		errText := fmt.Sprintf("Unable to parse %q as an api token.  We expect <username>:<somevalue>", t)
+		errText := fmt.Sprintf("Unable to parse %q as an API token.  We expect <username>:<somevalue>", t)
 		http.Error(w, errText, 400)
 	}
 	if err := ctx.AccountNode.SetAttrs(

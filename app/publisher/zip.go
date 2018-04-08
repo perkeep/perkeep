@@ -262,7 +262,7 @@ func (zh *zipHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	for _, file := range blobFiles {
 		fr, err := schema.NewFileReader(context.TODO(), zh.fetcher, file.blobRef)
 		if err != nil {
-			log.Printf("Can not add %v in zip, not a file: %v", file.blobRef, err)
+			log.Printf("Cannot add %v in zip, not a file: %v", file.blobRef, err)
 			http.Error(rw, "Server error", http.StatusInternalServerError)
 			return
 		}

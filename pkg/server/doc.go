@@ -15,5 +15,5 @@ limitations under the License.
 */
 
 // Package server implements the server HTTP interface for the UI,
-// publishing, setup, status, sync, thubnailing, etc.
+// publishing, setup, status, sync, thumbnailing, etc.
 package server // import "perkeep.org/pkg/server"

@@ -266,7 +266,7 @@ func (ins *instance) getConnection() (*mgo.Session, error) {
 
 // TODO(mpl): I'm only calling getCollection at the beginning, and
 // keeping the collection around and reusing it everywhere, instead
-// of calling getCollection everytime, because that's the easiest.
+// of calling getCollection every time, because that's the easiest.
 // But I can easily change that. Gustavo says it does not make
 // much difference either way.
 // Brad, what do you think?

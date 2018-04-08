@@ -332,7 +332,7 @@ func (c *Client) SetupAuth() error {
 		}
 	}
 	if c.server == "" {
-		return fmt.Errorf("no server defined for this client: can not set up auth")
+		return fmt.Errorf("no server defined for this client: cannot set up auth")
 	}
 	authConf := serverAuth(c.server)
 	if authConf == "" {
@@ -375,7 +375,7 @@ func (c *Client) SecretRingFile() string {
 		}
 	}
 	if android.OnAndroid() {
-		panic("on android, so CAMLI_SECRET_RING should have been defined, or --secret-keyring used.")
+		panic("on Android, so CAMLI_SECRET_RING should have been defined, or --secret-keyring used.")
 	}
 	if c.noExtConfig {
 		log.Print("client: noExtConfig set; cannot get secret ring file from config or env vars.")
@@ -447,7 +447,7 @@ func (c *Client) initTrustedCerts() {
 		return
 	}
 	if c.server == "" {
-		log.Printf("No server defined: can not define trustedCerts for this client.")
+		log.Printf("No server defined: cannot define trustedCerts for this client.")
 		return
 	}
 	trustedCerts := c.serverTrustedCerts(c.server)

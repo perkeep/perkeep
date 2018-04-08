@@ -192,7 +192,7 @@ type ShutdownStorage interface {
 
 // WholeRefFetcher is an optional fast-path interface exposed by the
 // 'blobpacked' blob storage implementation, which packs pieces of
-// files together and can efficiently serve them contigously.
+// files together and can efficiently serve them contiguously.
 type WholeRefFetcher interface {
 	// OpenWholeRef returns a ReadCloser reading from offset bytes
 	// into wholeRef (the blobref of an entire file).

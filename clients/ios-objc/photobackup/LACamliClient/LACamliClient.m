@@ -167,7 +167,7 @@ NSString* const CamliStorageGenerationKey = @"org.camlistore.storagetoken";
                     [self.uploadQueue setSuspended:NO];
 
                     // files may have already been rejected for being previously uploaded when
-                    // dicovery returns, this doesn't kick off a new check for files. The next
+                    // discovery returns, this doesn't kick off a new check for files. The next
                     // file check will catch anything that was missed by timing
 
                     // if the storage generation changes, zero the saved array

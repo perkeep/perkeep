@@ -491,7 +491,7 @@ func genPublisherJS(gopherjsBin string) error {
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
 	)
-	// Pretend we're on linux regardless of the actual host, because recommended
+	// Pretend we're on Linux regardless of the actual host, because recommended
 	// hack to work around https://github.com/gopherjs/gopherjs/issues/511
 	cmd.Env = setEnv(cmd.Env, "GOOS", "linux")
 	if gopherjsGoroot != "" {
@@ -571,7 +571,7 @@ func genWebUIJS(gopherjsBin string) error {
 	cmd.Env = append(cleanGoEnv(),
 		"GOPATH="+buildGoPath,
 	)
-	// Pretend we're on linux regardless of the actual host, because recommended
+	// Pretend we're on Linux regardless of the actual host, because recommended
 	// hack to work around https://github.com/gopherjs/gopherjs/issues/511
 	cmd.Env = setEnv(cmd.Env, "GOOS", "linux")
 	if gopherjsGoroot != "" {
@@ -961,7 +961,7 @@ func buildBin(pkg string) error {
 
 	// We don't even need to set GOBIN as it defaults to $GOPATH/bin
 	// and that is where we want the bin to go.
-	// Here we replace the GOOS and GOARCH valuesfrom the env with the host OS,
+	// Here we replace the GOOS and GOARCH values from the env with the host OS,
 	// to support cross-compiling.
 	cmd.Env = cleanGoEnv()
 	cmd.Env = setEnv(cmd.Env, "GOPATH", buildGoPath)
@@ -1270,7 +1270,7 @@ func withSQLite() bool {
 		case "linux":
 			log.Printf("On Linux, run 'sudo apt-get install libsqlite3-dev' or equivalent.")
 		case "windows":
-			log.Printf("SQLite is not easy on windows. Please see https://perkeep.org/doc/server-config#windows")
+			log.Printf("SQLite is not easy on Windows. Please see https://perkeep.org/doc/server-config#windows")
 		}
 		os.Exit(2)
 	}

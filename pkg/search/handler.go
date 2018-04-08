@@ -522,7 +522,7 @@ func (h *Handler) GetRecentPermanodes(ctx context.Context, req *RecentRequest) (
 		before = req.Before
 	}
 	go func() {
-		// TODO(mpl): change index funcs to take signer keyID. dont care for now, just
+		// TODO(mpl): change index funcs to take signer keyID. don't care for now, just
 		// fixing the essential search and describe ones.
 		errch <- h.index.GetRecentPermanodes(ctx, ch, h.owner.BlobRef(), req.n(), before)
 	}()

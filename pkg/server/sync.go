@@ -124,7 +124,7 @@ func init() {
 	blobserver.RegisterHandlerConstructor("sync", newSyncFromConfig)
 }
 
-// TODO: this is is temporary. should delete, or decide when it's on by default (probably always).
+// TODO: this is temporary. should delete, or decide when it's on by default (probably always).
 // Then need genconfig option to disable it.
 var validateOnStartDefault, _ = strconv.ParseBool(os.Getenv("CAMLI_SYNC_VALIDATE"))
 

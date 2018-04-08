@@ -117,7 +117,7 @@ func (s *DriveService) Upsert(ctx context.Context, title string, data io.Reader)
 	return s.apiservice.Files.Update(file.Id, file).Media(data).Context(ctx).Do()
 }
 
-var errNoDownload = errors.New("file can not be downloaded directly (conversion needed?)")
+var errNoDownload = errors.New("file cannot be downloaded directly (conversion needed?)")
 
 // Fetch retrieves the metadata and contents of a file.
 func (s *DriveService) Fetch(ctx context.Context, title string) (body io.ReadCloser, size uint32, err error) {

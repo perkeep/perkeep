@@ -123,7 +123,7 @@ static NSString* const multipartBoundary = @"Qe43VdbVVaGtkkMd";
                 }
             }
 
-            // TODO: there's a posibility all chunks have been uploaded but no permanode exists
+            // TODO: there's a possibility all chunks have been uploaded but no permanode exists
             if (allUploaded) {
                 LALog(@"everything's been uploaded already for this file");
                 [LACamliUtil logText:@[

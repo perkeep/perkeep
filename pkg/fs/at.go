@@ -79,11 +79,11 @@ With Nanosecond Granularity
 
 With Millisecond Granularity
 
-* 1346189075374 - milliseconds since 1970-1-1, common in java
+* 1346189075374 - milliseconds since 1970-1-1, common in Java
 
 With Second Granularity
 
-* 1346189075 - seconds since 1970-1-1, common in unix
+* 1346189075 - seconds since 1970-1-1, common in Unix
 * 2012-08-28T21:24:35Z - RFC3339
 * 2012-08-28T21:24:35-08:00 - RFC3339 with numeric timezone
 * Tue, 28 Aug 2012 21:24:35 +0000 - RFC1123 + numeric timezone

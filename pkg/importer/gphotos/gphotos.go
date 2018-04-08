@@ -202,7 +202,7 @@ func encodeToken(token *oauth2.Token) string {
 }
 
 // decodeToken parses an access token, refresh token, and optional
-// expiry unix timestamp separated by spaces into an oauth2.Token.
+// expiry Unix timestamp separated by spaces into an oauth2.Token.
 // It returns as much as it can.
 func decodeToken(encoded string) *oauth2.Token {
 	t := new(oauth2.Token)

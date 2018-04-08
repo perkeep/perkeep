@@ -233,7 +233,7 @@ type statCacheKey struct {
 // representation of the contents of sk.
 func (sk *statCacheKey) marshalBinary() ([]byte, error) {
 	if sk == nil {
-		return nil, errors.New("Can not marshal from a nil stat cache key")
+		return nil, errors.New("Cannot marshal from a nil stat cache key")
 	}
 	data := make([]byte, 0, len(sk.Filepath)+3)
 	data = append(data, 1) // version number
@@ -256,7 +256,7 @@ type statCacheValue struct {
 // representation of the contents of scv.
 func (scv *statCacheValue) marshalBinary() ([]byte, error) {
 	if scv == nil {
-		return nil, errors.New("Can not marshal from a nil stat cache value")
+		return nil, errors.New("Cannot marshal from a nil stat cache value")
 	}
 	binBr, _ := scv.Result.BlobRef.MarshalBinary()
 	// Blob size fits on 4 bytes when binary encoded

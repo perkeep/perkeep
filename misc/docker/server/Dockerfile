@@ -7,7 +7,7 @@
 FROM scratch
 MAINTAINER Perkeep Contributors <camlistore@googlegroups.com>
 ADD djpeg /usr/bin/djpeg
-# Because one of the default zoneinfo dirs on linux. See zoneDirs in time/zoneinfo_unix.go
+# Because one of the default zoneinfo dirs on Linux. See zoneDirs in time/zoneinfo_unix.go
 ADD zoneinfo /usr/share/zoneinfo
 ADD perkeep.org /perkeep
 

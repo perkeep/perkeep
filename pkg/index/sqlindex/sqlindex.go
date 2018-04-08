@@ -182,7 +182,7 @@ func (s *Storage) Find(start, end string) sorted.Iterator {
 	return it
 }
 
-// iter is a iterator over sorted key/value pairs in rows.
+// iter is iterator over sorted key/value pairs in rows.
 type iter struct {
 	s   *Storage
 	err error // accumulated error, returned at Close

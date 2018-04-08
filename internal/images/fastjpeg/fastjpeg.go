@@ -196,7 +196,7 @@ func DecodeDownsample(r io.Reader, factor int) (image.Image, error) {
 	case color.GrayModel:
 		bpp = 1
 	default:
-		return nil, fmt.Errorf("fastjpeg: Unsupported thumnbnail color model %T", ic.ColorModel)
+		return nil, fmt.Errorf("fastjpeg: Unsupported thumbnail color model %T", ic.ColorModel)
 	}
 	args := []string{djpegBin, "-scale", fmt.Sprintf("1/%d", factor)}
 	cmd := exec.Command(args[0], args[1:]...)

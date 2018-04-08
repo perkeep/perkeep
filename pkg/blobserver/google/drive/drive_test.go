@@ -34,7 +34,7 @@ import (
 
 var (
 	configFile   = flag.String("config", "", "Path to a configuration JSON file. If given, all other configuration flags are ignored. Use \"camtool googinit --type=drive\" to generate the auth parameters.")
-	parentId     = flag.String("parentDir", "", "id of the directory on google drive to use for testing. If empty or \"root\", and --config blank too, testing is skipped.")
+	parentId     = flag.String("parentDir", "", "id of the directory on Google Drive to use for testing. If empty or \"root\", and --config blank too, testing is skipped.")
 	clientID     = flag.String("client_id", "", "OAuth2 client_id for testing")
 	clientSecret = flag.String("client_secret", "", "OAuth2 client secret for testing")
 	tokenCache   = flag.String("token_cache", ".tokencache", "Token cache file.")
@@ -54,7 +54,7 @@ type AuthConfig struct {
 
 func TestStorage(t *testing.T) {
 	if (*parentId == "" || *parentId == "root") && *configFile == "" {
-		t.Skip("Skipping test, refusing to use goodle drive's root directory. (you need to specify --parentDir or --config).")
+		t.Skip("Skipping test, refusing to use Google Drive's root directory. (you need to specify --parentDir or --config).")
 	}
 	var refreshToken string
 	if *configFile != "" {

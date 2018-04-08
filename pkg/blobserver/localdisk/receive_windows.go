@@ -23,7 +23,7 @@ import (
 )
 
 // mapRenameError returns nil if and only if
-// 1) the input err is the error returned on windows when trying to rename
+// 1) the input err is the error returned on Windows when trying to rename
 // a file over one that already exists
 // 2) oldfile and newfile are the same files (i.e have the same size)
 func mapRenameError(err error, oldfile, newfile string) error {
@@ -34,10 +34,10 @@ func mapRenameError(err error, oldfile, newfile string) error {
 	if linkErr.Err != error(syscall.ERROR_ALREADY_EXISTS) {
 		return err
 	}
-	// TODO(mpl): actually on linux at least, os.Rename apparently
+	// TODO(mpl): actually on Linux at least, os.Rename apparently
 	// erases the destination with no error even if it is different
 	// from the source.
-	// So why don't we allow the same for windows? and if needed,
+	// So why don't we allow the same for Windows? and if needed,
 	// do the check size before renaming?
 	statNew, err := os.Stat(newfile)
 	if err != nil {

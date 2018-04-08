@@ -83,7 +83,7 @@ type UIHandler struct {
 	search *search.Handler
 
 	// Cache optionally specifies a cache blob server, used for
-	// caching image thumbnails and other emphemeral data.
+	// caching image thumbnails and other ephemeral data.
 	Cache blobserver.Storage // or nil
 
 	// Limit peak RAM used by concurrent image thumbnail calls.
@@ -323,7 +323,7 @@ func (ui *UIHandler) makeClosureHandler(root string) (http.Handler, error) {
 // 1) empty: use the Closure files compiled in to the binary (if
 //    available), else redirect to the Internet.
 // 2) a URL prefix: base of Perkeep to get Closure to redirect to
-// 3) a path on disk to the root of camlistore's source (which
+// 3) a path on disk to the root of Camlistore's source (which
 //    contains the necessary subset of Closure files)
 func makeClosureHandler(root, handlerName string) (http.Handler, error) {
 	// devcam server environment variable takes precedence:
@@ -521,7 +521,7 @@ func (ui *UIHandler) discovery() *camtypes.UIDiscovery {
 
 func (ui *UIHandler) serveDownload(w http.ResponseWriter, r *http.Request) {
 	if ui.root.Storage == nil {
-		http.Error(w, "No BlobRoot configured", 500)
+		http.Error(w, "No blobRoot configured", 500)
 		return
 	}
 
@@ -537,7 +537,7 @@ func (ui *UIHandler) serveDownload(w http.ResponseWriter, r *http.Request) {
 
 func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 	if ui.root.Storage == nil {
-		http.Error(rw, "No BlobRoot configured", 500)
+		http.Error(rw, "No blobRoot configured", 500)
 		return
 	}
 
@@ -578,7 +578,7 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 
 func (ui *UIHandler) serveFileTree(rw http.ResponseWriter, req *http.Request) {
 	if ui.root.Storage == nil {
-		http.Error(rw, "No BlobRoot configured", 500)
+		http.Error(rw, "No blobRoot configured", 500)
 		return
 	}
 

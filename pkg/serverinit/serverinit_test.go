@@ -120,7 +120,7 @@ func (n namedReadSeeker) Close() error { return nil }
 
 // configParser returns a custom jsonconfig ConfigParser whose reader rewrites
 // "/path/to/secring" to the absolute path of the jsonconfig test-secring.gpg file.
-// On windows, it also fixes the slash separated paths.
+// On Windows, it also fixes the slash separated paths.
 func configParser() *jsonconfig.ConfigParser {
 	return &jsonconfig.ConfigParser{
 		Open: func(path string) (jsonconfig.File, error) {
@@ -153,7 +153,7 @@ func replaceRingPath(path string) ([]byte, error) {
 // We just need to make sure that we don't match the prefix handlers too.
 var unixPathPattern = regexp.MustCompile(`"/.*/.+"`)
 
-// backslashEscape, on windows, changes all the slash separated paths (which
+// backslashEscape, on Windows, changes all the slash separated paths (which
 // match unixPathPattern, to omit the prefix handler paths) with escaped
 // backslashes.
 func backslashEscape(b []byte) []byte {

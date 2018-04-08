@@ -109,7 +109,7 @@ func parseCamliPath(path string) (action string, err error) {
 }
 
 func unsupportedHandler(conn http.ResponseWriter, req *http.Request) {
-	httputil.BadRequestError(conn, "Unsupported camlistore path or method.")
+	httputil.BadRequestError(conn, "Unsupported Camlistore path or method.")
 }
 
 func (s *storageAndConfig) Config() *blobserver.Config {
@@ -411,7 +411,7 @@ func handlerTypeWantsAuth(handlerType string) bool {
 //
 // TODO(bradfitz): document and/or link to the low-level format; for
 // now you can see the high-level config format at https://perkeep.org/pkg/types/serverconfig/#Config
-// and the the low-level format by running "camtool dumpconfig".
+// and the low-level format by running "camtool dumpconfig".
 type Config struct {
 	jsonconfig.Obj
 	UIPath string // Not valid until after InstallHandlers
@@ -420,7 +420,7 @@ type Config struct {
 	// and that should be started after camlistored has started serving.
 	apps []*app.Handler
 	// signHandler is found and configured during InstallHandlers, or nil.
-	// It is stored in the Config, so we can call UploadPublicKey on on it as
+	// It is stored in the Config, so we can call UploadPublicKey on it as
 	// soon as camlistored is ready for it.
 	signHandler *signhandler.Handler
 }

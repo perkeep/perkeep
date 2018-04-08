@@ -119,7 +119,7 @@ type DescribeRequest struct {
 
 	// Rules specifies a set of rules to instruct how to keep
 	// expanding the described set. All rules are tested and
-	// matching rules grow the the response set until all rules no
+	// matching rules grow the response set until all rules no
 	// longer match or internal limits are hit.
 	Rules []*DescribeRule `json:"rules,omitempty"`
 
@@ -462,7 +462,7 @@ func (dr *DescribeRequest) DescribedBlobStr(blobstr string) *DescribedBlob {
 //
 // Unlike DescribedBlobStr, the returned DescribedBlob is never nil.
 //
-// If the blob was never loaded along with the the receiver (or if the
+// If the blob was never loaded along with the receiver (or if the
 // receiver is nil), a stub DescribedBlob is returned with its Stub
 // field set true.
 func (b *DescribedBlob) PeerBlob(br blob.Ref) *DescribedBlob {

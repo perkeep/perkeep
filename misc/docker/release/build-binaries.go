@@ -106,7 +106,7 @@ func mirrorCamliSrc(srcDir string) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error mirroring camlistore source from %v: %v", srcDir, err)
+		log.Fatalf("Error mirroring Camlistore source from %v: %v", srcDir, err)
 	}
 }
 

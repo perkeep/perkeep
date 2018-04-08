@@ -14,7 +14,7 @@ cam.math.scaleToFit = function(subject, frame, opt_bleed) {
 
 // @param goog.math.Size subject
 // @param goog.math.Size frame
-// @return goog.math.Coordinate the left and top coordinat subject should be positioned at relative to frame to be centered within it. This might be negative if subject is larger than frame.
+// @return goog.math.Coordinate the left and top coordinate subject should be positioned at relative to frame to be centered within it. This might be negative if subject is larger than frame.
 cam.math.center = function(subject, frame) {
 	return new goog.math.Coordinate((frame.width - subject.width) / 2, (frame.height - subject.height) / 2);
 };

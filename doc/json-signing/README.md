@@ -42,7 +42,7 @@ Notably, it satisfies on of my other goals:
 
 For instance, the laptop.org project is proposing this Canonical JSON format:
 http://wiki.laptop.org/go/Canonical_JSON.  Unfortunately, all whitespace is
-stripped.  It's not a deal breaker, but lacks human readableness.
+stripped.  It's not a deal breaker, but lacks human readability.
 
 You might say, "Bring your own serialization! Wrap the signed-content
 in a string!"
@@ -68,7 +68,7 @@ and verify JSON documents:
    We'll call this data structure 'O'. While this signing technique
    could be used for applications other than Perkeep, this document
    is specifically about Perkeep, which requires that the JSON
-   object 'O' contain the following two key/value pairs:
+   object 'O' contains the following two key/value pairs:
 
         "camliVersion": "1"
         "camliSigner": "hashalg-xxxxxxxxxxx"  (blobref of ASCII-armored public key)
@@ -83,7 +83,7 @@ and verify JSON documents:
 
     ... so the blobref value for camliSigner is "sha1-8616ebc5143efe038528c2ab8fa6582353805a7a".
     Clients will use this value in the future to find the public key to verify
-    signtures.
+    signatures.
 
 -  Serialize in-memory JSON object 'O' with whatever JSON
    serialization library you have available.  internal or trailing
@@ -128,7 +128,7 @@ In review:
     S == ascii-armored detached signature of T
     C == CONCAT(T, ',"camliSig":"', S, '"}', '\n')
 
-(strictly, the trailing newline and the exact JSON serialziation of
+(strictly, the trailing newline and the exact JSON serialization of
 the camlisig element doesn't matter, but it'd be advised to follow
 this recommendation for compatibility with other verification code)
 

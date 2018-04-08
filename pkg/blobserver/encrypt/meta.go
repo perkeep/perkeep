@@ -90,7 +90,7 @@ func (s *storage) recordMeta(b *metaBlob) {
 	heap.Push(s.smallMeta, b)
 
 	// If the heap is full, pop and group the entries under the lock,
-	// then schedule upload, deletion and reinserion in parallel.
+	// then schedule upload, deletion and reinsertion in parallel.
 	if s.smallMeta.Len() > SmallMetaCountLimit {
 		var plains, toDelete []blob.Ref
 		for s.smallMeta.Len() > 0 {

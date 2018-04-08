@@ -372,7 +372,7 @@ cam.MapAspect = React.createClass({
 			var br = b.blob;
 			var alreadyMarked = this.markers[br]
 			if (alreadyMarked && alreadyMarked != null) {
-				// marker was already added in the previous zoom level, so do not readd it.
+				// marker was already added in the previous zoom level, so do not read it.
 				toKeep[br] = true;
 				return;
 			}

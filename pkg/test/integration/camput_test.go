@@ -113,7 +113,7 @@ func TestCamputUploadOnce(t *testing.T) {
 	camputCmd := func() *exec.Cmd {
 		// Use --contents_only because if test is run from devcam,
 		// server-config.json is going to be the one from within the fake gopath,
-		// hence with a different cTime and with a different blobRef everytime.
+		// hence with a different cTime and with a different blobRef every time.
 		// Also, CAMLI_DEBUG is needed for --contents_only flag.
 		return w.CmdWithEnv("camput", append(os.Environ(), "CAMLI_DEBUG=1"), "file", "--contents_only=true", filepath.FromSlash("../testdata/server-config.json"))
 	}

@@ -143,7 +143,7 @@ func (h *wsHub) run() {
 
 // redoSearch is called (in its own goroutine) when a new schema blob
 // arrives to note that wq might now have new results and we should
-// re-run it.  But because a search can take awhile, don't run more
+// re-run it.  But because a search can take a while, don't run more
 // than one refresh at a time.
 func (h *wsHub) redoSearch(wq *watchedQuery) {
 	wq.mu.Lock()

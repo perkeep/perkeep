@@ -398,7 +398,7 @@ func containsUnsafeRawStrByte(s string) bool {
 			return true
 		}
 		if r == '%' || r == '+' {
-			// Could be interpretted as URL-encoded
+			// Could be interpreted as URL-encoded
 			return true
 		}
 	}

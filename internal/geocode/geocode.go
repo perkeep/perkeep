@@ -46,7 +46,7 @@ type Rect struct {
 // and returns the results unless it is (nil, nil).
 //
 // Lookup performs its standard lookup using its cache
-// and the Google geocoding serice if AltLookupFn is nil,
+// and the Google geocoding service if AltLookupFn is nil,
 // or it returns (nil, nil) for the address being looked up.
 //
 // It's up to the caller to change AltLookupFn only

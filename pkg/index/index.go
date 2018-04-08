@@ -1643,7 +1643,7 @@ func enumerateBlobMeta(s sorted.KeyValue, cb func(camtypes.BlobMeta) error) (err
 var errStopIteration = errors.New("stop iteration") // local error, doesn't escape this package
 
 // EnumerateBlobMeta calls fn for all known meta blobs.
-// If fn returns false, iteration stops and an nil error is returned.
+// If fn returns false, iteration stops and a nil error is returned.
 // If ctx becomes done, iteration stops and ctx.Err() is returned.
 func (x *Index) EnumerateBlobMeta(ctx context.Context, fn func(camtypes.BlobMeta) bool) error {
 	if x.corpus != nil {

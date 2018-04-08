@@ -31,7 +31,7 @@ set to "mypics" which will serve as the root node for publishing.
 (See further settings for running behind a reverse proxy down below.)
 
 Suppose you want to publish two permanodes as "foo" and "bar". The root node
-needs the following atributes:
+needs the following attributes:
 
     camliRoot = mypics // must match server-config.json
     camilPath:foo = sha1-foo
@@ -67,7 +67,7 @@ The settings are:
 * "apiHost" URL prefix for publisher to connect to camlistored
 * "backendURL" URL for camlistored to reach publisher
 
-Assuming camlistored is serving HTTP on port 3179, and we want the to run publisher
+Assuming camlistored is serving HTTP on port 3179, and we want to run the publisher
 on port 3155, the following settings can be used:
 
     "publish": {

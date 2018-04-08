@@ -29,12 +29,12 @@ import (
 	_ "go4.org/wkfs/gcs"
 )
 
-// This is a test comment for github syncing.
+// This is a test comment for GitHub syncing.
 
 const githubSSHKeyGCS = "/gcs/" + prodBucket + "/id_github_camlistorebot_push"
 
 var (
-	githubSSHKey string // Also used to detect whether we do the syncs to github
+	githubSSHKey string // Also used to detect whether we do the syncs to GitHub
 	hostSSHDir   string // path to the ssh config dir on the host
 )
 
@@ -53,7 +53,7 @@ func initGithubSyncing() error {
 	}
 	keyData, err := wkfs.ReadFile(githubSSHKeyGCS)
 	if err != nil {
-		log.Printf("Not syncing to github, because no ssh key found: %v", err)
+		log.Printf("Not syncing to GitHub, because no ssh key found: %v", err)
 		return nil
 	}
 	u, err := user.Current()
@@ -68,21 +68,21 @@ func initGithubSyncing() error {
 	keyFileName := filepath.Base(githubSSHKeyGCS)
 	keyFile := filepath.Join(sshDir, keyFileName)
 	if err := ioutil.WriteFile(keyFile, keyData, 0600); err != nil {
-		return fmt.Errorf("failed to create temp github SSH key %v: %v", keyFile, err)
+		return fmt.Errorf("failed to create temp GitHub SSH key %v: %v", keyFile, err)
 	}
 	if err := ioutil.WriteFile(
 		filepath.Join(sshDir, "config"),
 		[]byte(githubSSHConfig(keyFileName)),
 		0600); err != nil {
-		return fmt.Errorf("failed to create github SSH config: %v", err)
+		return fmt.Errorf("failed to create GitHub SSH config: %v", err)
 	}
 	hostSSHDir = sshDir
 	githubSSHKey = keyFileName
 	return nil
 }
 
-// githubHEAD returns the hash of the HEAD commit on the github repo.
-// The gerritHEAD argument is used as an optimization in the request to github:
+// githubHEAD returns the hash of the HEAD commit on the HitHub repo.
+// The gerritHEAD argument is used as an optimization in the request to GitHub:
 // if it is found as the HEAD commit, the request is not counted in our
 // non-authenticated requests quota.
 func githubHEAD(gerritHEAD string) (string, error) {
@@ -114,9 +114,9 @@ func githubHEAD(gerritHEAD string) (string, error) {
 func syncToGithub(dir, gerritHEAD string) error {
 	gh, err := githubHEAD(gerritHEAD)
 	if err != nil {
-		return fmt.Errorf("error looking up the github HEAD commit: %v", err)
+		return fmt.Errorf("error looking up the GitHub HEAD commit: %v", err)
 	}
-	log.Printf("HEAD commits: on github=%v, on gerrit=%v", gh, gerritHEAD)
+	log.Printf("HEAD commits: on GitHub=%v, on Gerrit=%v", gh, gerritHEAD)
 	if gh == gerritHEAD {
 		return nil
 	}
@@ -126,8 +126,8 @@ func syncToGithub(dir, gerritHEAD string) error {
 	cmd := execGit(dir, "push_github", mounts, "push", "git@github.com:camlistore/camlistore.git", "master:master")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("error running git push to github: %v\n%s", err, out)
+		return fmt.Errorf("error running git push to GitHub: %v\n%s", err, out)
 	}
-	log.Printf("Successfully pushed commit %v to github", gerritHEAD)
+	log.Printf("Successfully pushed commit %v to GitHub", gerritHEAD)
 	return nil
 }

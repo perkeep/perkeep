@@ -137,7 +137,7 @@ func getenvEitherCase(k string) string {
 }
 
 // proxyFromEnvironment is similar to http.ProxyFromEnvironment but it skips
-// $NO_PROXY blacklist so it proxies every requests, including localhost
+// $NO_PROXY blacklist so it proxies every request, including localhost
 // requests.
 func proxyFromEnvironment(req *http.Request) (*url.URL, error) {
 	proxy := getenvEitherCase("HTTP_PROXY")

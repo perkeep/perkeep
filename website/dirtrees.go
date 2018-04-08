@@ -177,7 +177,7 @@ func newDirectory(root string, maxDepth int) *Directory {
 	// The root could be a symbolic link so use Stat not Lstat.
 	d, err := os.Stat(root)
 	// If we fail here, report detailed error messages; otherwise
-	// is is hard to see why a directory tree was not built.
+	// it is hard to see why a directory tree was not built.
 	switch {
 	case err != nil:
 		log.Printf("newDirectory(%s): %s", root, err)
@@ -317,7 +317,7 @@ func (root *Directory) listing(skipRoot bool) *DirList {
 		p := &list[i]
 		p.Depth = d.Depth - minDepth
 		p.Height = maxHeight - p.Depth
-		// the suffix is absolute, with the camlistore dir as the root
+		// the suffix is absolute, with the Camlistore dir as the root
 		idx := strings.LastIndex(d.Path, domainName)
 		if idx == -1 {
 			log.Fatalf("No \"%s\" in path to file %s", domainName, d.Path)
