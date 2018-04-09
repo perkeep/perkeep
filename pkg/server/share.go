@@ -265,7 +265,8 @@ func (h *shareHandler) handleGetViaSharing(rw http.ResponseWriter, req *http.Req
 			return unauthorized(assembleNonTransitive, "Cannot assemble non-transitive share")
 		}
 		dh := &DownloadHandler{
-			Fetcher: h.fetcher,
+			Fetcher:     h.fetcher,
+			forceInline: true,
 			// TODO(aa): It would be nice to specify a local cache here, as the UI handler does.
 		}
 		dh.ServeFile(rw, req, blobRef)

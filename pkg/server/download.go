@@ -66,7 +66,8 @@ type DownloadHandler struct {
 	// to get at a wholeref more efficiently. (e.g. blobpacked)
 	Search *search.Handler
 
-	ForceMIME string // optional
+	ForceMIME   string // optional
+	forceInline bool   // to force Content-Disposition to inline, when it was not set in the request
 
 	// pathByRef maps a file Ref to the path of the file, relative to its ancestor
 	// directory which was requested for download. It is populated by checkFiles, which
@@ -329,7 +330,7 @@ func (dh *DownloadHandler) ServeFile(w http.ResponseWriter, r *http.Request, fil
 		return "file-" + file.String() + ext
 	}
 
-	if r.FormValue("inline") == "1" {
+	if r.FormValue("inline") == "1" || dh.forceInline {
 		// TODO(mpl): investigate why at least text files have an incorrect MIME.
 		if fi.mime == "application/octet-stream" {
 			// Since e.g. plain text files are seen as "application/octet-stream", we force
