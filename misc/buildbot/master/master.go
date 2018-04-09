@@ -59,7 +59,7 @@ const (
 )
 
 var (
-	altCamliRevURL = flag.String("camlirevurl", "", "alternative URL to query about the latest camlistore revision hash (e.g camlistore.org/latesthash), to alleviate hitting too often the Perkeep git repo.")
+	altCamliRevURL = flag.String("camlirevurl", "", "alternative URL to query about the latest Camlistore revision hash (e.g camlistore.org/latesthash), to alleviate hitting too often the Perkeep git repo.")
 	builderOpts    = flag.String("builderopts", "", "list of comma separated options that will be passed to the builders (ex: '-verbose=true,-faketests=true,-skipgo1build=true'). Mainly for debugging.")
 	builderPort    = flag.String("builderport", "8081", "listening port for the builder bot")
 	builderSrc     = flag.String("buildersrc", "", "Go source file for the builder bot. For testing changes to the builder bot that haven't been committed yet.")
@@ -512,7 +512,7 @@ func setup() {
 		}
 	}
 
-	// get camlistore source
+	// get Camlistore source
 	if err := os.Chdir(defaultDir); err != nil {
 		log.Fatalf("Could not cd to %v: %v", defaultDir, err)
 	}
@@ -520,7 +520,7 @@ func setup() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// if camlistore dir already exists, reuse it
+	// if Camlistore dir already exists, reuse it
 	if _, err := os.Stat(camliRoot); err != nil {
 		if !os.IsNotExist(err) {
 			log.Fatalf("Could not stat %v: %v", camliRoot, err)
@@ -530,7 +530,7 @@ func setup() {
 			log.Fatalf("Could not git clone into %v: %v", camliRoot, err)
 		}
 	}
-	// override GOPATH to only point to our freshly updated camlistore source.
+	// override GOPATH to only point to our freshly updated Camlistore source.
 	if err := os.Setenv("GOPATH", defaultDir); err != nil {
 		log.Fatalf("Could not set GOPATH to %v: %v", defaultDir, err)
 	}
@@ -555,7 +555,7 @@ func handleSignals() {
 		sig := <-c
 		sysSig, ok := sig.(syscall.Signal)
 		if !ok {
-			log.Fatal("Not a unix signal")
+			log.Fatal("Not a Unix signal")
 		}
 		switch sysSig {
 		case syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT:
@@ -643,9 +643,9 @@ func pollCamliChange() error {
 		rev, err = altCamliPolling()
 		if err != nil {
 			log.Print(err)
-			dbg.Println("Defaulting to the camli repo instead")
+			dbg.Println("Defaulting to the Camli repo instead")
 		} else {
-			dbg.Printf("Got camli rev %v from %v\n", rev, *altCamliRevURL)
+			dbg.Printf("Got Camli rev %v from %v\n", rev, *altCamliRevURL)
 			altDone = true
 		}
 	}
@@ -669,15 +669,15 @@ func pollCamliChange() error {
 			rev = strings.TrimRight(out, "\n")
 		}
 	}
-	dbg.Println("previous head in camli tree: " + camliHeadHash)
-	dbg.Println("current head in camli tree: " + rev)
+	dbg.Println("previous head in Camli tree: " + camliHeadHash)
+	dbg.Println("current head in Camli tree: " + rev)
 	if rev != camliHeadHash {
 		if !plausibleHashRx.MatchString(rev) {
-			return fmt.Errorf("camlistore rev %q does not look like a git hash", rev)
+			return fmt.Errorf("Camlistore rev %q does not look like a git hash", rev)
 		}
 		camliHeadHash = rev
 		doBuildCamli = true
-		dbg.Println("Changes in camli tree detected; a builder will be started.")
+		dbg.Println("Changes in Camli tree detected; a builder will be started.")
 	}
 	if !plausibleHashRx.MatchString(camliHeadHash) {
 		return fmt.Errorf("camliHeadHash %q does not look like a git hash", camliHeadHash)
@@ -691,18 +691,18 @@ func buildBuilder() error {
 	source := *builderSrc
 	if source == "" {
 		if *altCamliRevURL != "" {
-			// since we used altCamliRevURL (and not git pull), our camli tree
+			// since we used altCamliRevURL (and not git pull), our Camli tree
 			// and hence our buildbot source code, might not be up to date.
 			if err := os.Chdir(camliRoot); err != nil {
 				log.Fatalf("Could not cd to %v: %v", camliRoot, err)
 			}
 			out, err := gitRevCmd.run()
 			if err != nil {
-				return fmt.Errorf("could not get camli tree revision with %v: %v", gitRevCmd.String(), err)
+				return fmt.Errorf("could not get Camli tree revision with %v: %v", gitRevCmd.String(), err)
 			}
 			rev := strings.TrimRight(out, "\n")
 			if rev != camliHeadHash {
-				// camli tree needs to be updated
+				// Camli tree needs to be updated
 				_, err := gitPullCmd.run()
 				if err != nil {
 					log.Printf("Could not update the Camli repo with %v: %v\n", gitPullCmd.String(), err)

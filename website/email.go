@@ -105,7 +105,7 @@ func emailCommit(dir, hash string) (err error) {
 	cmd := execGit(dir, "show", nil, "show", hash)
 	body, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("error runnning git show: %v\n%s", err, body)
+		return fmt.Errorf("error running git show: %v\n%s", err, body)
 	}
 	if !bytes.Contains(body, diffMarker) {
 		// Boring merge commit. Don't email.
@@ -115,7 +115,7 @@ func emailCommit(dir, hash string) (err error) {
 	cmd = execGit(dir, "show_pretty", nil, "show", "--pretty=oneline", hash)
 	out, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("error runnning git show_pretty: %v\n%s", err, string(out))
+		return fmt.Errorf("error running git show_pretty: %v\n%s", err, string(out))
 	}
 	subj := out[41:] // remove hash and space
 	if i := bytes.IndexByte(subj, '\n'); i != -1 {
@@ -146,7 +146,7 @@ https://camlistore.googlesource.com/camlistore/+/%s
 
 var latestHash struct {
 	sync.Mutex
-	s string // hash of the most recent camlistore revision
+	s string // hash of the most recent Camlistore revision
 }
 
 // dsClient is our datastore client to track which commits we've
@@ -247,7 +247,7 @@ func pollCommits(dir string) {
 	go func() {
 		if githubSSHKey != "" {
 			if err := syncToGithub(dir, hashes[0]); err != nil {
-				log.Printf("Failed to push commit %v to github: %v", hashes[0], err)
+				log.Printf("Failed to push commit %v to GitHub: %v", hashes[0], err)
 			}
 		}
 		githubSyncC <- true

@@ -1,5 +1,5 @@
 1. Install Go.
-2. Install xcode.
+2. Install Xcode.
 3. From top-level directory:
    $ go run make.go
    (this will create bin/camlistored, bin/pk-mount, and bin/camput)

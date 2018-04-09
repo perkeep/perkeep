@@ -46,7 +46,7 @@ import (
 	"perkeep.org/pkg/client"
 )
 
-// remoteStorage is a blobserver.Storage proxy for a remote camlistore
+// remoteStorage is a blobserver.Storage proxy for a remote Camlistore
 // blobserver.
 type remoteStorage struct {
 	client *client.Client

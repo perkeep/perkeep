@@ -261,7 +261,7 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 		return nil, fmt.Errorf("client: error slurping upload handle to find its length: %v", err)
 	}
 	if bodySize > constants.MaxBlobSize {
-		return nil, errors.New("client: body is bigger then max blob size")
+		return nil, errors.New("client: body is bigger than max blob size")
 	}
 
 	c.statsMutex.Lock()

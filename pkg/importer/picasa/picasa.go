@@ -125,7 +125,7 @@ func (im imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.S
 		state := "acct:" + ctx.AccountNode.PermanodeRef().String()
 		// AccessType needs to be "offline", as the user is not here all the time;
 		// ApprovalPrompt needs to be "force" to be able to get a RefreshToken
-		// everytime, even for Re-logins, too.
+		// every time, even for Re-logins, too.
 		//
 		// Source: https://developers.google.com/youtube/v3/guides/authentication#server-side-apps
 		http.Redirect(w, r, oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce), 302)
@@ -197,7 +197,7 @@ func encodeToken(token *oauth2.Token) string {
 }
 
 // decodeToken parses an access token, refresh token, and optional
-// expiry unix timestamp separated by spaces into an oauth2.Token.
+// expiry Unix timestamp separated by spaces into an oauth2.Token.
 // It returns as much as it can.
 func decodeToken(encoded string) *oauth2.Token {
 	t := new(oauth2.Token)

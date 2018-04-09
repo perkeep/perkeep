@@ -160,7 +160,7 @@ type file struct {
 
 func TestRename(t *testing.T) {
 	if runtime.GOOS != "windows" {
-		t.Skip("Skipping test if not on windows")
+		t.Skip("Skipping test if not on Windows")
 	}
 	files := []file{
 		{name: filepath.Join(os.TempDir(), "foo"), contents: "foo"},

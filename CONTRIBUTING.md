@@ -23,13 +23,13 @@ hack from a Perkeep release's zip file:
 
     $ git clone https://camlistore.googlesource.com/camlistore perkeep
 
-(We use github for distribution but its code review system is not as
+(We use GitHub for distribution but its code review system is not as
 nice as Gerrit, so we don't use its Pull Request mechanism. The Gerrit
 git server & code review system is the main repo. See
 https://perkeep.org/doc/contributing for how to use them.  We might
-support github for pull requests in the future, once it's properly
+support GitHub for pull requests in the future, once it's properly
 integrated with external code review tools. We had a meeting with
-Github to discuss the ways in which their code review tools are poor.)
+GitHub to discuss the ways in which their code review tools are poor.)
 
 On Debian/Ubuntu, some deps to get started:
 
@@ -86,14 +86,14 @@ Before submitting a patch, you should check that all the tests pass with:
 
 You can use your usual git workflow to commit your changes, but for each
 change to be reviewed you should merge your commits into one before submitting
-to gerrit for review.
+to Gerrit for review.
 
 ## Commit Messages
 
 You should also try to write a meaningful commit message, which at least states
-in the first sentence what part or package of perkeep this commit is affecting.
+in the first sentence what part or package of Perkeep this commit is affecting.
 The following text should state what problem the change is addressing, and how.
-Finally, you should refer to the github issue(s) the commit is addressing, if any,
+Finally, you should refer to the GitHub issue(s) the commit is addressing, if any,
 and with the appropriate keyword if the commit is fixing the issue. (See
 https://help.github.com/articles/closing-issues-via-commit-messages/).
 
@@ -135,7 +135,7 @@ before being submitted (which should be done anyway).
 
     $ devcam hook
 
-Finally, submit your code to gerrit with:
+Finally, submit your code to Gerrit with:
 
     $ devcam review
 

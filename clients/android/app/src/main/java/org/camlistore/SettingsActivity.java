@@ -145,7 +145,7 @@ public class SettingsActivity extends PreferenceActivity {
     }
 
     /**
-     * Receives the results from the custome QRPreference's call to the barcode scanner intent.
+     * Receives the results from the custom QRPreference's call to the barcode scanner intent.
      * 
      * This is never called if the user doesn't have a zxing barcode scanner app installed.
      */

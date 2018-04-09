@@ -422,7 +422,7 @@ func (d *Deployer) enableAPIs() error {
 }
 
 func (d *Deployer) checkProjectID() error {
-	// TODO(mpl): cache the computeService in Deployer, instead of recreating a new one everytime?
+	// TODO(mpl): cache the computeService in Deployer, instead of recreating a new one every time?
 	s, err := compute.New(d.Client)
 	if err != nil {
 		return projectIDError{
@@ -829,7 +829,7 @@ func (d *Deployer) setFirewall(ctx context.Context, computeService *compute.Serv
 func innodbBufferPoolSize(machine string) int {
 	// Totally arbitrary. We don't need much here because
 	// camlistored slurps this all into its RAM on start-up
-	// anyway. So this is all prety overkill and more than the
+	// anyway. So this is all pretty overkill and more than the
 	// 8MB default.
 	switch machine {
 	case "f1-micro":

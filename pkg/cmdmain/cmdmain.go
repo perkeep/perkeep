@@ -206,7 +206,7 @@ var registerFlagOnce sync.Once
 
 var setCommandLineOutput func(io.Writer) // or nil if before Go 1.2
 
-// PrintLicenses prints all the licences registered by go4.org/legal for this program.
+// PrintLicenses prints all the licenses registered by go4.org/legal for this program.
 func PrintLicenses() {
 	for _, text := range legal.Licenses() {
 		fmt.Fprintln(Stderr, text)

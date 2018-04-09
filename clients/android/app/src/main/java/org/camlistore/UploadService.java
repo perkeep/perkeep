@@ -164,7 +164,7 @@ public class UploadService extends Service {
         startService(new Intent(UploadService.this, UploadService.class));
     }
 
-    // This is @Override as of SDK version 5, but we're targetting 4 (Android
+    // This is @Override as of SDK version 5, but we're targeting 4 (Android
     // 1.6)
     private static final int START_STICKY = 1; // in SDK 5
 

@@ -86,7 +86,7 @@ func (s *storage) setPassphrase(passphrase []byte) {
 	// data anymore, but we use a custom one so that generic tables are useless.
 	salt := []byte("camlistore")
 
-	// "Sensitive storage" reccomended parameters. 5s in 2009, probably less now.
+	// "Sensitive storage" recommended parameters. 5s in 2009, probably less now.
 	// https://www.tarsnap.com/scrypt/scrypt-slides.pdf
 	key, err := scrypt.Key(passphrase, salt, scryptN, 8, 1, 32)
 	if err != nil {
@@ -296,7 +296,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 		return nil, errors.New("Must specify passphrase or keyFile")
 	}
 	if keyFile != "" {
-		// TODO: check that keyFile's unix permissions aren't too permissive.
+		// TODO: check that keyFile's Unix permissions aren't too permissive.
 		keyData, err = ioutil.ReadFile(keyFile)
 		if err != nil {
 			return nil, fmt.Errorf("Reading key file %v: %v", keyFile, err)

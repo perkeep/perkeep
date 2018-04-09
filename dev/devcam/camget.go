@@ -47,7 +47,7 @@ func init() {
 		}
 		flags.BoolVar(&cmd.altkey, "altkey", false, "Use different gpg key and password from the server's.")
 		flags.StringVar(&cmd.path, "path", "/bs", "Optional URL prefix path.")
-		flags.StringVar(&cmd.port, "port", "3179", "Port perkeep is listening on.")
+		flags.StringVar(&cmd.port, "port", "3179", "Port Perkeep is listening on.")
 		flags.BoolVar(&cmd.tls, "tls", false, "Use TLS.")
 		return cmd
 	})

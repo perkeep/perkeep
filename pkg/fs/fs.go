@@ -223,7 +223,7 @@ func (nr *nodeReader) Read(ctx context.Context, req *fuse.ReadRequest, res *fuse
 		err = nil
 	}
 	if err != nil {
-		log.Printf("camli read on %v at %d: %v", nr.n.blobref, req.Offset, err)
+		log.Printf("Camli read on %v at %d: %v", nr.n.blobref, req.Offset, err)
 		return fuse.EIO
 	}
 	res.Data = buf[:n]
@@ -333,7 +333,7 @@ func (fs *CamliFileSystem) Statfs(ctx context.Context, req *fuse.StatfsRequest, 
 
 // Errors returned are:
 //    os.ErrNotExist -- blob not found
-//    os.ErrInvalid -- not JSON or a camli schema blob
+//    os.ErrInvalid -- not JSON or a Camli schema blob
 func (fs *CamliFileSystem) fetchSchemaMeta(ctx context.Context, br blob.Ref) (*schema.Blob, error) {
 	blobStr := br.String()
 	if blob, ok := fs.blobToSchema.Get(blobStr); ok {
@@ -372,7 +372,7 @@ func (fs *CamliFileSystem) newNodeFromBlobRef(root blob.Ref) (fusefs.Node, error
 		return n, nil
 
 	case "permanode":
-		// other mutDirs listed in the default fileystem have names and are displayed
+		// other mutDirs listed in the default filesystem have names and are displayed
 		return &mutDir{fs: fs, permanode: root, name: "-"}, nil
 	}
 

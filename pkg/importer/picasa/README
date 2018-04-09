@@ -7,7 +7,7 @@ all photos but not their metadata.
 
 To use:
 
-1) Retrieve an api credential from a project of you from
+1) Retrieve an API credential from a project of you from
    https://console.developers.google.com/
    Select/create a project, then under APIs & auth / Credentials, create a new
    web application client id.
@@ -24,7 +24,7 @@ To use:
         }
     },
 
-    and start your camlistore server.
+    and start your Camlistore server.
 
 3) Navigate to http://<server>/importer-picasa/start and authorize the app
    to manage your Photos.

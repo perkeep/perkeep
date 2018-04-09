@@ -79,7 +79,7 @@ type Enumerator interface {
 
 // ItemEnumerator enumerates all the edges out from an item.
 type ItemEnumerator interface {
-	// EnumerateItme is like Enuerator's Enumerate, but specific
+	// EnumerateItme is like Enumerator's Enumerate, but specific
 	// to the provided item.
 	EnumerateItem(context.Context, Item, chan<- Item) error
 }

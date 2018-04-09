@@ -734,7 +734,7 @@ func not(cond func() bool) func() bool {
 // not connected" error).
 func isInProcMounts(dir string) (error, bool) {
 	if runtime.GOOS != "linux" {
-		return errors.New("only available on linux"), false
+		return errors.New("only available on Linux"), false
 	}
 	data, err := ioutil.ReadFile("/proc/mounts")
 	if err != nil {

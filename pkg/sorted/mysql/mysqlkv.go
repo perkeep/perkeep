@@ -163,7 +163,7 @@ func validDatabaseName(dbname string) bool {
 // CreateDB creates the named database if it does not already exist.
 func CreateDB(db *sql.DB, dbname string) error {
 	if dbname == "" {
-		return errors.New("can not create database: database name is missing")
+		return errors.New("cannot create database: database name is missing")
 	}
 	if _, err := db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", dbname)); err != nil {
 		return fmt.Errorf("error creating database %v: %v", dbname, err)

@@ -97,7 +97,7 @@ func (s status) XML(b *bytes.Buffer) {
 }
 
 // 15.1 creationdate Property
-type creationdate uint64 // seconds from unix epoch
+type creationdate uint64 // seconds from Unix epoch
 
 func (c creationdate) XML(b *bytes.Buffer) {
 	b.WriteString("<creationdate>")
@@ -116,7 +116,7 @@ func (l getcontentlength) XML(b *bytes.Buffer) {
 }
 
 // 15.7 getlastmodified Property
-type getlastmodified uint64 // seconds from unix epoch
+type getlastmodified uint64 // seconds from Unix epoch
 func (g getlastmodified) XML(b *bytes.Buffer) {
 	b.WriteString("<getlastmodified>")
 	b.WriteString(epochToXMLTime(int64(g)))

@@ -161,7 +161,7 @@ func (sto *overlayStorage) isDeleted(br blob.Ref) bool {
 }
 
 // Fetch the blob by trying first the upper and then lower.
-// The lower storage is checked only if the blob was not deleleted in sto itself.
+// The lower storage is checked only if the blob was not deleted in sto itself.
 func (sto *overlayStorage) Fetch(ctx context.Context, br blob.Ref) (file io.ReadCloser, size uint32, err error) {
 	if sto.isDeleted(br) {
 		return nil, 0, os.ErrNotExist

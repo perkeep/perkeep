@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 // Command monthly builds the tarballs and zip archives for all the monthly
-// released Perkeep downloads. That is: source zip, linux and darwin tarballs,
-// and windows zip. These files are then uploaded to the dedicated repository, as
+// released Perkeep downloads. That is: source zip, Linux and Darwin tarballs,
+// and Windows zip. These files are then uploaded to the dedicated repository, as
 // well as a file with their checksum, for each of them. Finally, the template page
 // to serve these downloads with camweb is generated.
 package main
@@ -454,7 +454,7 @@ type stats struct {
 	NamesList       string
 }
 
-// returns commiters names mapped by e-mail, uniqued first by e-mail, then by name.
+// returns committers names mapped by e-mail, uniqued first by e-mail, then by name.
 // When uniquing, higher count of commits wins.
 func committers() (map[string]string, error) {
 	cmd := exec.Command("git", "shortlog", "-n", "-e", "-s", *flagStatsFrom+".."+rev())
@@ -627,7 +627,7 @@ func main() {
 	if err != nil {
 		if *flagSkipGen {
 			// Most likely we're failing because we can't reach the
-			// bucket (working offline), annd we're working on this
+			// bucket (working offline), and we're working on this
 			// program and testing things out, so make this error
 			// non-critical so we can still generate the release notes
 			// and stats.

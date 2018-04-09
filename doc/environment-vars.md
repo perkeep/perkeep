@@ -48,10 +48,10 @@ valid.
 
 `CAMLI_DEBUG_CONFIG` (bool)
 : Causes pkg/serverconfig to dump low-level configuration derived from
-  high-level configuation on load.
+  high-level configuration on load.
 
 `CAMLI_DEBUG_X` (string)
-: String containing magic substring(s) to enable debuggging in code.
+: String containing magic substring(s) to enable debugging in code.
 
 `CAMLI_DEBUG_UPLOADS` (bool)
 : Used by [pkg/client](/pkg/client) to enable additional logging.
@@ -63,7 +63,7 @@ valid.
 
 `CAMLI_DEV_CAMLI_ROOT` (string)
 : If set, the base directory of Perkeep when in dev mode.
-  Used by [pkg/server](/pkg/server) for finding static assests (js, css, html).
+  Used by [pkg/server](/pkg/server) for finding static assets (js, css, html).
   Used as a signal by [pkg/index/\*](/pkg/index) and [pkg/server](/pkg/server)
   to output more helpful error message when run under devcam.
 
@@ -112,7 +112,7 @@ valid.
 `CAMLI_GCE_SERVICE_ACCOUNT` (string)
 : See `CAMLI_GCE_*` first. Path to a Google service account JSON file. This
   account should have at least compute.readonly permissions on the Google
-  Project wih ID CAMLI_GCE_PROJECT.  It is used to authenticate when querying
+  Project with ID CAMLI_GCE_PROJECT.  It is used to authenticate when querying
   for the list of all the existing zones. If blank, a hard-coded list of zones
   is used instead.
 

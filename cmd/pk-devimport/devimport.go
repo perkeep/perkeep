@@ -36,7 +36,7 @@ import (
 	_ "perkeep.org/pkg/importer/allimporters"
 )
 
-const serverFlagHelp = "Format is is either a URL prefix (with optional path), a host[:port], a config file server alias, or blank to use the Perkeep client config's default server."
+const serverFlagHelp = "Format is either a URL prefix (with optional path), a host[:port], a config file server alias, or blank to use the Perkeep client config's default server."
 
 // newClient returns a Perkeep client for the server.
 // The server may be:

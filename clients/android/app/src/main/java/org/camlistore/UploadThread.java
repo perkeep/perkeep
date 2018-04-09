@@ -377,7 +377,7 @@ public class UploadThread extends Thread {
     }
 
     // CopyToAndroidLogThread copies the camput child process's stderr
-    // to Android's log and submits it to to the main activity in batches.
+    // to Android's log and submits it to the main activity in batches.
     private static class CopyToAndroidLogThread extends Thread {
         private static final int MAX_LINES = 6; // amount of lines to buffer before submission
 

@@ -96,7 +96,7 @@ func mirrorCamliSrc(srcDir string) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error mirroring perkeep source from %v: %v", srcDir, err)
+		log.Fatalf("Error mirroring Perkeep source from %v: %v", srcDir, err)
 	}
 }
 

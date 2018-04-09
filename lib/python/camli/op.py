@@ -54,7 +54,7 @@ def buffered_sha1(data, buffer_size=BUFFER_SIZE):
 
   Args:
     data: A string of data to write or an open file-like object. File-like
-      objects will be seeked back to their original position before this
+      objects will be sought back to their original position before this
       function returns.
     buffer_size: How much data to munge at a time.
 

@@ -117,7 +117,7 @@ func (b *lowBuilder) dbUnique() string {
 // scheme for consistency:
 // -prefixed with "pk_", so as to distinguish them from databases for other programs
 // -followed by a username-based uniqueness string
-// -last part says which component/part of perkeep it is about
+// -last part says which component/part of Perkeep it is about
 func (b *lowBuilder) dbName(of dbname) string {
 	unique := b.dbUnique()
 	if unique == "" {

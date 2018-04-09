@@ -64,7 +64,7 @@ Offline list:
    offsets of small blobs into bigger ones
 
 -- diskpacked doesn't seem to sync its index quickly enough.
-   A new blob receieved + process exit + read in a new process
+   A new blob received + process exit + read in a new process
    doesn't find that blob. kv bug? Seems to need an explicit Close.
    This feels broken. Add tests & debug.
 
@@ -83,7 +83,7 @@ Offline list:
 -- measure FUSE operations, latency, round-trips, performance.
    see next item:
 
--- ... we probaby need a "describe all chunks in file" HTTP handler.
+-- ... we probably need a "describe all chunks in file" HTTP handler.
    then FUSE (when it sees sequential access) can say "what's the
    list of all chunks in this file?" and then fetch them all at once.
    see next item:
@@ -158,7 +158,7 @@ Offline list:
 -- get security review on encryption wrapper. (agl?)
 
 -- peer-to-peer server and blobserver target to store encrypted blobs
-   on stranger's hardrives.  server will be open source so groups of
+   on strangers' hard drives.  server will be open source so groups of
    friends/family can run their own for small circles, or some company
    could run a huge instance.  spray encrypted backup chunks across
    friends' machines, and have central server(s) present challenges to

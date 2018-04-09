@@ -58,7 +58,7 @@ var (
 
 // buildDockerImage builds a docker image from the Dockerfile located in
 // imageDir, which is a path relative to dockDir. The image will be named after
-// imageName. dockDir should have been set behorehand.
+// imageName. dockDir should have been set beforehand.
 func buildDockerImage(imageDir, imageName string) {
 	if dockDir == "" {
 		panic("dockDir should be set before calling buildDockerImage")

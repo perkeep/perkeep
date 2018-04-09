@@ -16,7 +16,7 @@ limitations under the License.
 
 // The sigserver is a stand-alone JSON signing and verification server.
 //
-// TODO(bradfitz): as of 2012-01-10 this is very old and superceded by
+// TODO(bradfitz): as of 2012-01-10 this is very old and superseded by
 // the general server and pkg/serverconfig.  We should just make it
 // possible to configure a signing-only server with
 // serverconfig/genconfig.go.  I think we basically already can. Then

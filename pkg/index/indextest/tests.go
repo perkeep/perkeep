@@ -1452,7 +1452,7 @@ func EnumStat(t *testing.T, initIdx func() *index.Index) {
 		t.Fatalf("second enum, testing skipping with after: %v", err)
 	}
 
-	// Now add a delete claim with a missing dep, which should add an "have" row in the old format,
+	// Now add a delete claim with a missing dep, which should add a "have" row in the old format,
 	// i.e. without the "|indexed" suffix. So we can test if we're still compatible with old rows.
 	stepDelete(missingBlob)()
 	if err := stepEnumCheck([]blob.SizedRef{baz, bar, foo, delMissing}, nil)(); err != nil {

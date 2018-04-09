@@ -332,7 +332,7 @@ func (d *staticDir) ModTime() time.Time { return d.modtime }
 func (d *staticDir) IsDir() bool        { return true }
 func (d *staticDir) Sys() interface{}   { return nil }
 
-// JoinStrings joins returns the concatentation of ss.
+// JoinStrings joins returns the concatenation of ss.
 func JoinStrings(ss ...string) string {
 	return strings.Join(ss, "")
 }

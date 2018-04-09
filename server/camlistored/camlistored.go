@@ -133,7 +133,7 @@ var (
 
 func init() {
 	if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
-		flag.BoolVar(&flagPollParent, "pollparent", false, "Perkeepd regularly polls its parent process to detect if it has been orphaned, and terminates in that case. Mainly useful for tests.")
+		flag.BoolVar(&flagPollParent, "pollparent", false, "perkeepd regularly polls its parent process to detect if it has been orphaned, and terminates in that case. Mainly useful for tests.")
 		flag.StringVar(&flagGCEProjectID, "gce_project_id", "", "GCE project ID; required by --gce_log_name.")
 		flag.StringVar(&flagGCELogName, "gce_log_name", "", "log all messages to that log name on Google Cloud Logging as well.")
 		flag.StringVar(&flagGCEJWTFile, "gce_jwt_file", "", "Filename to the GCE Service Account's JWT (JSON) config file; required by --gce_log_name.")
@@ -287,7 +287,7 @@ func handleSignals(shutdownc <-chan io.Closer) {
 		sig := <-c
 		sysSig, ok := sig.(syscall.Signal)
 		if !ok {
-			log.Fatal("Not a unix signal")
+			log.Fatal("Not a Unix signal")
 		}
 		switch sysSig {
 		case syscall.SIGHUP:
@@ -658,7 +658,7 @@ var setupLoggingSyslog func() io.Closer
 // setupLogging sets up logging and returns an io.Closer that flushes logs.
 func setupLogging() io.Closer {
 	if *flagSyslog && runtime.GOOS == "windows" {
-		exitf("-syslog not available on windows")
+		exitf("-syslog not available on Windows")
 	}
 	if fn := setupLoggingSyslog; fn != nil {
 		if flusher := fn(); flusher != nil {
@@ -730,7 +730,7 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 	checkRecovery()
 
 	// In case we're running in a Docker container with no
-	// filesytem from which to load the root CAs, this
+	// filesystem from which to load the root CAs, this
 	// conditionally installs a static set if necessary. We do
 	// this before we load the config file, which might come from
 	// an https URL. And also before setting up the logging,

@@ -42,7 +42,7 @@ should look something like:
   your GPG secret keyring. Defaults to **$CONFIGDIR/identity-secring.gpg**. Run
   `camput init` for help on how to generate a new keypair.
 
-* `ignoredFiles`: Optional. The list of of files that camput should ignore and
+* `ignoredFiles`: Optional. The list of files that camput should ignore and
   not try to upload.
 
 ### Servers

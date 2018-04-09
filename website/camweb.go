@@ -78,7 +78,7 @@ var (
 	logStdout   = flag.Bool("logstdout", true, "Whether to log to stdout")
 	tlsCertFile = flag.String("tlscert", "", "TLS cert file")
 	tlsKeyFile  = flag.String("tlskey", "", "TLS private key file")
-	alsoRun     = flag.String("also_run", "", "[optiona] Path to run as a child process. (Used to run perkeep.org's ./scripts/run-blob-server)")
+	alsoRun     = flag.String("also_run", "", "[optional] Path to run as a child process. (Used to run perkeep.org's ./scripts/run-blob-server)")
 	devMode     = flag.Bool("dev", false, "in dev mode")
 	flagStaging = flag.Bool("staging", false, "Deploy to a test GCE instance. Requires -cloudlaunch=true")
 
@@ -625,7 +625,7 @@ func setProdFlags() {
 	*root = filepath.Join(prodSrcDir, "website")
 	*gitContainer = true
 
-	*adminEmail = "mathieu.lonjaret@gmail.com" // for let's encrypt
+	*adminEmail = "mathieu.lonjaret@gmail.com" // for Let's Encrypt
 	*emailsTo = "camlistore-commits@googlegroups.com"
 	*mailgunCfgFile = "mailgun-config.json"
 	if inStaging {

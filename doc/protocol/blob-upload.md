@@ -48,7 +48,7 @@ Things to note about the request:
    * You (currently) MUST provide a Content-Type for each multipart
      part.  It doesn't matter what it is (it's thrown away), but it's
      necessary to satisfy various HTTP libraries.  Easiest is to just
-     set it to "application/octet-stream" Server implementions SHOULD
+     set it to "application/octet-stream" Server implementations SHOULD
      fail if you clients forget it, to encourage clients to remember
      it for compatibility with all blob servers.
 

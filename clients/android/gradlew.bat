@@ -5,7 +5,7 @@
 @rem
 @rem ##########################################################################
 
-@rem Set local scope for the variables with windows NT shell
+@rem Set local scope for the variables with Windows NT shell
 if "%OS%"=="Windows_NT" setlocal
 
 @rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
@@ -46,7 +46,7 @@ echo location of your Java installation.
 goto fail
 
 :init
-@rem Get command-line arguments, handling Windowz variants
+@rem Get command-line arguments, handling Windows variants
 
 if not "%OS%" == "Windows_NT" goto win9xME_args
 if "%@eval[2+2]" == "4" goto 4NT_args

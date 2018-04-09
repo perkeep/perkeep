@@ -761,7 +761,7 @@ func (im *importer) URL() string { return im.host.ImporterBaseURL() + im.name }
 func (im *importer) ShowClientAuthEditForm() bool {
 	if im.StaticConfig() {
 		// Don't expose the server's statically-configured client secret
-		// to the user. (e.g. a hosted multi-user configuation)
+		// to the user. (e.g. a hosted multi-user configuration)
 		return false
 	}
 	return im.impl.NeedsAPIKey()
@@ -950,7 +950,7 @@ func (im *importer) Accounts() ([]*importerAcct, error) {
 //   camliNodeType: "importer"
 //   importerType: "twitter"
 // And optionally:
-//   authClientID:     "xxx"    // e.g. api token
+//   authClientID:     "xxx"    // e.g. API token
 //   authClientSecret: "sdkojfsldfjlsdkf"
 func (im *importer) Node() (*Object, error) {
 	im.nodemu.Lock()

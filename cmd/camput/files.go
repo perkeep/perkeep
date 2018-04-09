@@ -459,7 +459,7 @@ func (up *Uploader) noStatReceiver(r blobserver.BlobReceiver) blobserver.StatRec
 // already checks the have cache anyway, so going right to mid-chunk
 // receives is fine.
 //
-// TODO(bradfitz): this probabaly all needs an audit/rationalization/tests
+// TODO(bradfitz): this probably all needs an audit/rationalization/tests
 // to make sure all the players are agreeing on the responsibilities.
 // And maybe the Android stats are wrong, too. (see pkg/client/android's
 // StatReceiver)
@@ -658,7 +658,7 @@ func (up *Uploader) uploadNodeRegularFile(ctx context.Context, n *node) (*client
 	}
 
 	// The work for those planned permanodes (and the claims) is redone
-	// everytime we get here (i.e past the stat cache). However, they're
+	// every time we get here (i.e past the stat cache). However, they're
 	// caught by the have cache, so they won't be reuploaded for nothing
 	// at least.
 	if up.fileOpts.wantFilePermanode() {

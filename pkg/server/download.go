@@ -149,7 +149,7 @@ func (dh *DownloadHandler) fileInfo(ctx context.Context, file blob.Ref) (fi file
 			contents = sl.SymlinkTargetString()
 		}
 		size := int64(len(contents))
-		// TODO(mpl): make sure that works on windows too
+		// TODO(mpl): make sure that works on Windows too
 		rd := strings.NewReader(contents)
 		fi = fileInfo{
 			size:    size,
@@ -504,7 +504,7 @@ func (dh *DownloadHandler) serveZip(w http.ResponseWriter, r *http.Request) {
 	if ok {
 		// If we have a caching fetcher, allRefs and dh.pathByRef are populated with all
 		// the input refs plus their children, so we don't have to redo later the recursing
-		// work that we're alreading doing in checkFiles.
+		// work that we're already doing in checkFiles.
 		dh.pathByRef = make(map[blob.Ref]string, len(refs))
 		err := dh.checkFiles(ctx, "", refs)
 		if err != nil {

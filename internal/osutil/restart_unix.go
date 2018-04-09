@@ -35,7 +35,7 @@ var osSelfPath func() (string, error)
 // I know for sure.
 
 // SelfPath returns the path of the executable for the currently running
-// process. At least on linux, the returned path is a symlink to the actual
+// process. At least on Linux, the returned path is a symlink to the actual
 // executable.
 func SelfPath() (string, error) {
 	if f := osSelfPath; f != nil {
@@ -49,7 +49,7 @@ func SelfPath() (string, error) {
 	case "openbsd":
 		return "/proc/curproc/file", nil
 	case "darwin":
-		// TODO(mpl): maybe do the right thing for darwin too, but that may require changes to runtime.
+		// TODO(mpl): maybe do the right thing for Darwin too, but that may require changes to runtime.
 		// See https://codereview.appspot.com/6736069/
 		return exec.LookPath(os.Args[0])
 	}

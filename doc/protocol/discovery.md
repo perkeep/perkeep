@@ -6,7 +6,7 @@ You send the discovery HTTP request to the URL the user has
 configured.  If the user hasn't specified a path, use "/".
 
 Then make a GET request to that URL with either Accept header set to
-"text/x-camli-configuration" or the the URL query parameter
+"text/x-camli-configuration" or the URL query parameter
 "camli.mode" set to "config":
 
     GET /some/user/?camli.mode=config HTTP/1.1

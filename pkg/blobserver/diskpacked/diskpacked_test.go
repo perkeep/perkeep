@@ -345,7 +345,7 @@ func TestClose(t *testing.T) {
 }
 
 func TestBadDir(t *testing.T) {
-	s, err := newStorage("hopefully this is a not existing directory", 1<<20, jsonconfig.Obj{"type": "memory"})
+	s, err := newStorage("hopefully this is not an existing directory", 1<<20, jsonconfig.Obj{"type": "memory"})
 	if err == nil {
 		s.Close()
 		t.Errorf("expected error for non-existing directory")

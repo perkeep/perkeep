@@ -89,7 +89,7 @@ type config struct {
 }
 
 // appConfig keeps on trying to fetch the extra config from the app handler. If
-// it doesn't succed after an hour has passed, the program exits.
+// it doesn't succeed after an hour has passed, the program exits.
 func appConfig() (*config, error) {
 	configURL := os.Getenv("CAMLI_APP_CONFIG_URL")
 	if configURL == "" {
@@ -563,9 +563,9 @@ func (ph *publishHandler) lookupPathTarget(root blob.Ref, suffix string) (blob.R
 // Given a blobref and a few hex characters of the digest of the next hop, return the complete
 // blobref of the prefix, if that's a valid next hop.
 func (ph *publishHandler) resolvePrefixHop(parent blob.Ref, prefix string) (child blob.Ref, err error) {
-	// TODO: this is a linear scan right now. this should be
+	// TODO: this is a linear scan right now. It should be
 	// optimized to use a new database table of members so this is
-	// a quick lookup.  in the meantime it should be in memcached
+	// a quick lookup.  In the meantime it should be in memcached
 	// at least.
 	if len(prefix) < 8 {
 		return blob.Ref{}, fmt.Errorf("Member prefix %q too small", prefix)

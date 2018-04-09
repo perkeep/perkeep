@@ -55,7 +55,7 @@ import (
 // A Client provides access to a Perkeep server.
 //
 // After use, a Client should be closed via its Close method to
-// release idle HTTP connections or other resourcedds.
+// release idle HTTP connections or other resources.
 type Client struct {
 	// server is the input from user, pre-discovery.
 	// For example "http://foo.com" or "foo.com:1234".
@@ -402,7 +402,7 @@ func (o optionInsecure) modifyClient(c *Client) { c.insecureAnyTLSCert = bool(o)
 //
 // If cert is empty, the option has no effect.
 func OptionTrustedCert(cert string) ClientOption {
-	// TODO: remove this whole function now that we have LetsEncrypt?
+	// TODO: remove this whole function now that we have Let's Encrypt?
 	return optionTrustedCert(cert)
 }
 
@@ -553,7 +553,7 @@ var ErrNoStorageGeneration = errors.New("client: server doesn't report a storage
 // ErrNoSync is returned by SyncHandlers if the server does not advertise syncs.
 var ErrNoSync = errors.New("client: server has no sync handlers")
 
-// BlobRoot returns the server's blobroot URL prefix.
+// blobRoot returns the server's blobRoot URL prefix.
 // If the client was constructed with an explicit path,
 // that path is used. Otherwise the server's
 // default advertised blobRoot is used.
@@ -986,7 +986,7 @@ func (c *Client) discoRoot() string {
 
 // initPrefix uses the user provided server URL to define the URL
 // prefix to the blobserver root. If the server URL has a path
-// component then it is directly used, otherwise the blobRoot
+// component then it is directly used, otherwise the BlobRoot
 // from the discovery is used as the path.
 func (c *Client) initPrefix() error {
 	c.isSharePrefix = false
@@ -1314,7 +1314,7 @@ func (c *Client) DialTLSFunc() func(network, addr string) (net.Conn, error) {
 		// TLS with normal/full verification.
 		stdTLS = true
 		if !android.IsChild() {
-			// Not android, so let the stdlib deal with it
+			// Not Android, so let the stdlib deal with it
 			return nil
 		}
 	}

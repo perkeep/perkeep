@@ -158,7 +158,7 @@ func (q *Query) send() ([]byte, error) {
 // 1) only one map predicate per expression
 // 2) since it is interpreted as a logical "and" to the rest of the expression,
 // logical "or"s around it are forbidden.
-// To be complete we should strip any potential parens around the map
+// To be complete we should strip any potential parents around the map
 // predicate itself. But if we start concerning ourselves with such details, we
 // should switch to using a proper parser, like it is done server-side.
 func checkZoomExpr(expr string) error {

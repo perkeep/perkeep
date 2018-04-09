@@ -91,7 +91,7 @@ func (t *SortType) UnmarshalJSON(v []byte) error {
 }
 
 type SearchQuery struct {
-	// Exactly one of Expression or Contraint must be set.
+	// Exactly one of Expression or Constraint must be set.
 	// If an Expression is set, it's compiled to a Constraint.
 
 	// Expression is a textual search query in minimal form,
@@ -276,7 +276,7 @@ type SearchResult struct {
 	// with locations.
 	LocationArea *camtypes.LocationBounds
 
-	// Continue optionally specifies the continuation token to to
+	// Continue optionally specifies the continuation token to
 	// continue fetching results in this result set, if interrupted
 	// by a Limit.
 	Continue string `json:"continue,omitempty"`
@@ -676,7 +676,7 @@ type PermanodeConstraint struct {
 
 	// Location optionally restricts matches to permanodes having
 	// this location. This only affects permanodes with a known
-	// type to have an lat/long location.
+	// type to have a lat/long location.
 	Location *LocationConstraint `json:"location,omitempty"`
 
 	// Continue is for internal use.
@@ -1271,7 +1271,7 @@ type candidateSource struct {
 	name   string
 	sorted bool
 
-	// sends sends to the channel and must close it, regardless of error
+	// sends to the channel and must close it, regardless of error
 	// or interruption from context.Done().
 	send func(context.Context, *search, func(camtypes.BlobMeta) bool) error
 }

@@ -197,7 +197,7 @@ The following steps should get you started with MySQL:
 * Dowload and install [MariaDB](https://downloads.mariadb.org/mariadb/5.5.32/)
   or [MySQL](http://dev.mysql.com/downloads/windows/installer/) (the latter
   requires .NET).
-* Edit your server configuration file (if it does not exit yet, running
+* Edit your server configuration file (if it does not exist yet, running
   **camlistored** will automatically create it):
   * Remove the <b>sqlite</b> option.
   * Add a <b>dbname</b> option. (ex: "dbname": "camliprod")

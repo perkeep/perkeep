@@ -1400,7 +1400,7 @@ func testAroundChildren(limit, pos int, t *testing.T) {
 
 // Around will be found in the first buffered window of results,
 // because it's a position that fits within the limit.
-// So it doesn't exercice the part of the algorithm that discards
+// So it doesn't exercise the part of the algorithm that discards
 // the would-be results that are not within the "around zone".
 func TestQueryChildrenAroundNear(t *testing.T) {
 	testAroundChildren(5, 9, t)

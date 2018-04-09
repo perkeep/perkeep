@@ -66,7 +66,7 @@ server_connection.js for examples.
 Always. No worrying about lining things up vertically with the line above.
 
 ### Type annotations
-We don't currently using the Closure compiler, and there's some debate about
+We don't currently use the Closure compiler, and there's some debate about
 whether we ever will. However, if you're going to have a comment that describes
 the type of some identifier, you may as well make it rigorous. Use the Closure
 [type annotations](https://developers.google.com/closure/compiler/docs/js-for-compiler)

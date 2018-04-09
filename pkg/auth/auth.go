@@ -59,7 +59,7 @@ var (
 	modes []AuthMode
 )
 
-// An AuthMode is the interface implemented by diffent authentication
+// An AuthMode is the interface implemented by different authentication
 // schemes.
 type AuthMode interface {
 	// AllowedAccess returns a bitmask of all operations
