@@ -51,6 +51,15 @@ var tests = []magicTest{
 	{fileName: "silence.flac", want: "audio/x-flac"},
 	{data: "<html>foo</html>", want: "text/html"},
 	{data: "\xff", want: ""},
+	{fileName: "park.heic", want: "image/heic"}, // truncated file for header only
+}
+
+func TestMatcherTableValid(t *testing.T) {
+	for i, mte := range matchTable {
+		if mte.fn != nil && (mte.offset != 0 || mte.prefix != nil) {
+			t.Errorf("entry %d has both function and offset/prefix set: %+v", i, mte)
+		}
+	}
 }
 
 func TestMagic(t *testing.T) {
