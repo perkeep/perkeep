@@ -29,9 +29,8 @@ required = [
   "golang.org/x/tools/go/types/typeutil", # for gopherjs
   "golang.org/x/tools/go/gcimporter15", # for gopherjs
   "google.golang.org/genproto/googleapis/datastore/v1",
-  "myitcv.io/react/cmd/reactGen"
-# TODO(mpl): talk to Paul Jolly about dep whining for myitcv.io/gogenerate
-#  "myitcv.io/gogenerate"
+  "myitcv.io/react/cmd/reactGen",
+  "myitcv.io/gogenerate"
 ]
 
 
@@ -299,9 +298,9 @@ ignored = [
   name = "honnef.co/go/js/dom"
   revision = "24aa052bc5c63cfb9383bf59493ee48621ca788c"
 
-#[[constraint]]
-#  name = "myitcv.io/gogenerate"
-#  revision ="bd69a94c96953d20e106734856b69d71c8fa122b"
+[[constraint]]
+  name = "myitcv.io/gogenerate"
+  revision ="bd69a94c96953d20e106734856b69d71c8fa122b"
 
 [[constraint]]
   name = "myitcv.io/react"
