@@ -20,6 +20,7 @@ package magic // import "perkeep.org/internal/magic"
 
 import (
 	"bytes"
+	"encoding/binary"
 	"io"
 	"mime"
 	"net/http"
@@ -29,15 +30,32 @@ import (
 	"go4.org/legal"
 )
 
-type prefixEntry struct {
+// A matchEntry contains rules for matching byte prefix (typically 1KB)
+// and, on a match, contains the resulting MIME type.
+// A matcher is either a function or an (offset+prefix).
+type matchEntry struct {
+	// fn specifies a matching function. If set, offset & prefix
+	// are not used.
+	fn func(prefix []byte) bool
+
+	// offset is how many bytes of the input 1KB to ignore before
+	// matching the prefix.
 	offset int
+
+	// prefix is the prefix to look for at offset. (admittedly, if
+	// offset is non-zero, it's more of a substring than a prefix)
 	prefix []byte
-	mtype  string
+
+	// mtype is the resulting MIME type, on a match.
+	mtype string
 }
 
+// matchTable is a list of matchers to match prefixes against. The
+// first matching one wins.
+//
 // usable source: http://www.garykessler.net/library/file_sigs.html
 // mime types: http://www.iana.org/assignments/media-types/media-types.xhtml
-var prefixTable = []prefixEntry{
+var matchTable = []matchEntry{
 	{prefix: []byte("GIF87a"), mtype: "image/gif"},
 	{prefix: []byte("GIF89a"), mtype: "image/gif"}, // TODO: Others?
 	{prefix: []byte("\xff\xd8\xff\xe2"), mtype: "image/jpeg"},
@@ -109,6 +127,9 @@ var prefixTable = []prefixEntry{
 	{prefix: []byte("\000\001\000\000\000"), mtype: "application/x-font-ttf"},    // TrueType font data
 	{prefix: []byte("d8:announce"), mtype: "application/x-bittorrent"},           // BitTorrent file
 
+	// iOS HEIC images
+	{fn: isHEIC, mtype: "image/heic"},
+
 	// TODO(bradfitz): popular audio & video formats at least
 }
 
@@ -151,7 +172,13 @@ SUCH DAMAGE.
 // It returns the empty string if the MIME type can't be determined.
 func MIMEType(hdr []byte) string {
 	hlen := len(hdr)
-	for _, pte := range prefixTable {
+	for _, pte := range matchTable {
+		if pte.fn != nil {
+			if pte.fn(hdr) {
+				return pte.mtype
+			}
+			continue
+		}
 		plen := pte.offset + len(pte.prefix)
 		if hlen > plen && bytes.Equal(hdr[pte.offset:plen], pte.prefix) {
 			return pte.mtype
@@ -240,4 +267,61 @@ func HasExtension(filename string, extensions map[string]bool) bool {
 func MIMETypeByExtension(ext string) string {
 	mimeParts := strings.SplitN(mime.TypeByExtension(ext), ";", 2)
 	return strings.TrimSpace(mimeParts[0])
+}
+
+var pict = []byte("pict")
+
+// isHEIC reports whether the prefix looks like a BMFF HEIF file for a
+// still image. (image/heic type)
+//
+// We verify it starts with an "ftyp" box of MajorBrand heic, and then
+// has a "hdlr" box of HandlerType "pict" (inside a meta box which we
+// don't verify). This isn't a compliant parser, so might have false
+// positives on invalid inputs, but that's acceptable, as long as it
+// doesn't reject any valid HEIC images.
+//
+// The structure of the header of such a file looks like:
+//
+// Box: type "ftyp", size 24
+// - *bmff.FileTypeBox: &{box:0xc00009a1e0 MajorBrand:heic MinorVersion:^@^@^@^@ Compatible:[mif1 heic]}
+// Box: type "meta", size 4027
+// - *bmff.MetaBox, 8 children:
+//     Box: type "hdlr", size 34
+//     - *bmff.HandlerBox: &{FullBox:{box:0xc00009a2d0 Version:0 Flags:0} HandlerType:pict Name:}
+func isHEIC(prefix []byte) bool {
+	if len(prefix) < 12 {
+		return false
+	}
+	if string(prefix[4:12]) != "ftypheic" {
+		return false
+	}
+
+	// Mini allocation-free BMFF parser for the two box types we
+	// care about. We consersatively only check whether the "hdlr"
+	// box type is "pict" for now, until we get a larger corpus of
+	// HEIF files from iOS devices. (We'll probably want a
+	// different mime type for videos in HEIF wrappers, but I
+	// haven't run across those ... yet.)
+
+	// Consume the "ftyp" box, required to be first in file.
+	ftypLen := binary.BigEndian.Uint32(prefix[:4])
+	if uint32(len(prefix)) < ftypLen {
+		return false
+	}
+
+	// The meta box should follow the ftyp box, but we don't verify it here.
+	// See comment above.
+	metaBox := prefix[ftypLen:]
+
+	// In the meta box, match /hdlr.{8}pict/, but without using a regexp.
+	// The handler box always has its handler type 12 bytes into the record.
+	const typeOffset = 12 // bytes from "hdlr" literal to 4 byte handler type
+	pictPos := bytes.Index(metaBox, pict)
+	if pictPos < typeOffset { // including -1
+		return false
+	}
+	if string(metaBox[pictPos-12:pictPos-8]) != "hdlr" {
+		return false
+	}
+	return true
 }
