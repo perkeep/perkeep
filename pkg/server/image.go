@@ -59,20 +59,6 @@ var (
 	thumbCacheHeader304  = expvar.NewInt("thumbcache-header-304")
 )
 
-var errHEIC = errors.New("HEIC decoding not implemented yet")
-
-func init() {
-	image.RegisterFormat("heic",
-		"????ftypheic????????????????meta????????hdlr????????pict",
-		func(io.Reader) (image.Image, error) {
-			return nil, errHEIC
-		},
-		func(io.Reader) (image.Config, error) {
-			// TODO: implement with go4.org/media/heif.
-			return image.Config{}, errHEIC
-		})
-}
-
 type ImageHandler struct {
 	Fetcher             blob.Fetcher
 	Search              *search.Handler    // optional
@@ -232,17 +218,19 @@ type formatAndImage struct {
 // imageConfigFromReader calls image.DecodeConfig on r. It returns an
 // io.Reader that is the concatentation of the bytes read and the remaining r,
 // the image configuration, and the error from image.DecodeConfig.
+// If the image is HEIC, and its config was decoded properly (but partially,
+// because we don't do ColorModel yet), it returns images.ErrHEIC.
 func imageConfigFromReader(r io.Reader) (io.Reader, image.Config, error) {
 	header := new(bytes.Buffer)
 	tr := io.TeeReader(r, header)
 	// We just need width & height for memory considerations, so we use the
 	// standard library's DecodeConfig, skipping the EXIF parsing and
 	// orientation correction for images.DecodeConfig.
+	// image.DecodeConfig is able to deal with HEIC because we registered it
+	// in internal/images.
 	conf, format, err := image.DecodeConfig(tr)
-	if err != nil {
-		if format == "heic" {
-			err = errHEIC
-		}
+	if err == nil && format == "heic" {
+		err = images.ErrHEIC
 	}
 	return io.MultiReader(header, r), conf, err
 }
@@ -278,10 +266,11 @@ func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref) (*form
 
 	sr := readerutil.NewStatsReader(imageBytesFetchedVar, fr)
 	sr, conf, err := imageConfigFromReader(sr)
-	if err == errHEIC {
+	if err == images.ErrHEIC {
 		jpegBytes, err := images.HEIFToJPEG(sr, &images.Dimensions{Width: ih.MaxWidth, Height: ih.MaxHeight})
 		if err != nil {
-			return nil, err
+			log.Printf("cannot convert with heiftojpeg: %v", err)
+			return nil, errors.New("error converting HEIC image to jpeg")
 		}
 		return &formatAndImage{format: "jpeg", image: jpegBytes}, nil
 	}

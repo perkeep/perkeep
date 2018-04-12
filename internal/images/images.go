@@ -18,6 +18,7 @@ package images // import "perkeep.org/internal/images"
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"image/draw"
@@ -39,6 +40,8 @@ import (
 
 	"github.com/nf/cr2"
 	"github.com/rwcarlsen/goexif/exif"
+	"go4.org/media/heif"
+	"go4.org/readerutil"
 	"go4.org/syncutil"
 
 	// TODO(mpl, wathiede): add test(s) to check we can decode both tiff and cr2,
@@ -49,6 +52,19 @@ import (
 	// tiff-like formats, i.e. CR2 or DNG
 	_ "golang.org/x/image/tiff"
 )
+
+var ErrHEIC = errors.New("HEIC decoding not implemented yet")
+
+func init() {
+	image.RegisterFormat("heic",
+		"????ftypheic????????????????meta????????hdlr????????pict",
+		func(io.Reader) (image.Image, error) {
+			return nil, ErrHEIC
+		},
+		func(r io.Reader) (image.Config, error) {
+			return decodeHEIFConfig(readerutil.NewBufferingReaderAt(io.LimitReader(r, 8<<20)))
+		})
+}
 
 var disableThumbCache, _ = strconv.ParseBool(os.Getenv("CAMLI_DISABLE_THUMB_CACHE"))
 
@@ -351,6 +367,23 @@ func imageDebug(msg string) {
 	}
 }
 
+func decodeHEIFConfig(rat io.ReaderAt) (image.Config, error) {
+	var c image.Config
+	hf := heif.Open(rat)
+	it, err := hf.PrimaryItem()
+	if err != nil {
+		return c, err
+	}
+	w, h, ok := it.SpatialExtents()
+	if !ok {
+		return c, errors.New("no spacial extents found for primary item")
+	}
+	return image.Config{
+		Width:  w,
+		Height: h,
+	}, nil
+}
+
 // DecodeConfig returns the image Config similarly to
 // the standard library's image.DecodeConfig with the
 // addition that it also checks for an EXIF orientation,
@@ -359,10 +392,26 @@ func imageDebug(msg string) {
 func DecodeConfig(r io.Reader) (Config, error) {
 	var c Config
 	var buf bytes.Buffer
-	tr := io.TeeReader(io.LimitReader(r, 2<<20), &buf)
-	swapDimensions := false
+	tr := io.TeeReader(io.LimitReader(r, 8<<20), &buf)
 
-	ex, err := exif.Decode(tr)
+	conf, format, err := image.DecodeConfig(tr)
+	if err != nil {
+		imageDebug(fmt.Sprintf("Image Decoding failed: %v", err))
+		return c, err
+	}
+	c.Format = format
+	mr := io.LimitReader(io.MultiReader(&buf, r), 8<<20)
+	if format == "heic" {
+		hf := heif.Open(readerutil.NewBufferingReaderAt(mr))
+		exifBytes, err := hf.EXIF()
+		if err != nil {
+			return c, err
+		}
+		mr = bytes.NewReader(exifBytes)
+	}
+
+	swapDimensions := false
+	ex, err := exif.Decode(mr)
 	// trigger a retry when there isn't enough data for reading exif data from a tiff file
 	if exif.IsShortReadTagValueError(err) {
 		return c, io.ErrUnexpectedEOF
@@ -387,12 +436,7 @@ func DecodeConfig(r io.Reader) (Config, error) {
 			}
 		}
 	}
-	conf, format, err := image.DecodeConfig(io.MultiReader(&buf, r))
-	if err != nil {
-		imageDebug(fmt.Sprintf("Image Decoding failed: %v", err))
-		return c, err
-	}
-	c.Format = format
+
 	if swapDimensions {
 		c.Width, c.Height = conf.Height, conf.Width
 	} else {
@@ -592,11 +636,17 @@ var convertGate = syncutil.NewGate(10) // bounds number of HEIF to JPEG subproce
 func HEIFToJPEG(fr io.Reader, size *Dimensions) ([]byte, error) {
 	convertGate.Start()
 	defer convertGate.Done()
+	useDocker := false
 	bin, err := exec.LookPath("heiftojpeg")
 	if err != nil {
-		return nil, fmt.Errorf("heiftojpeg not found in PATH (%v). You need to install github.com/pushd/heif", err)
+		pathErr := err
+		// TODO(mpl): "pre-pull" the image on Perkeep startup or something like that?
+		if err := setUpThumbnailContainer(); err != nil {
+			return nil, fmt.Errorf("heiftojpeg not found in PATH (%v), and could not fallback on docker image because %v. You need to install github.com/pushd/heif, or set up docker.", pathErr, err)
+		}
+		bin = "docker"
+		useDocker = true
 	}
-	// TODO(mpl): use docker container. https://github.com/perkeep/perkeep/issues/1087
 
 	outDir, err := ioutil.TempDir("", "perkeep-heif")
 	if err != nil {
@@ -621,11 +671,18 @@ func HEIFToJPEG(fr io.Reader, size *Dimensions) ([]byte, error) {
 
 	// now actually run heiftojpeg
 	var args []string
+	outFileArg := outFile
+	if useDocker {
+		args = append(args, "run", "--rm", "-v", outDir+":/out/",
+			thumbnailImage)
+		inFile = "/out/input.heic"
+		outFileArg = "/out/output.jpg"
+	}
 	maxDimension := size.max()
 	if maxDimension != 0 {
 		args = append(args, "-s", fmt.Sprintf("%d", maxDimension))
 	}
-	args = append(args, inFile, outFile)
+	args = append(args, inFile, outFileArg)
 	cmd := exec.Command(bin, args...)
 	var buf bytes.Buffer
 	cmd.Stderr = &buf
