@@ -35,6 +35,7 @@ import (
 
 	"go4.org/cloud/google/gceutil"
 
+	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/storage"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
@@ -194,10 +195,13 @@ func (c *Config) MaybeDeploy() {
 }
 
 func (c *Config) restartLoop() {
+	if !metadata.OnGCE() {
+		return
+	}
 	if c.RestartPolicy == RestartNever {
 		return
 	}
-	url := "https://storage.googleapis.com/" + c.BinaryBucket + "/" + c.binaryObject()
+	url := c.binaryURL()
 	var lastEtag string
 	for {
 		res, err := http.Head(url + "?" + fmt.Sprint(time.Now().Unix()))

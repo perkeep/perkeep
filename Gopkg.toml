@@ -226,8 +226,7 @@ ignored = [
 
 [[constraint]]
   name = "go4.org"
-  revision = "c3a8ba339e20006b054736f8eb9fc5e1d5fa6eab"
-
+  branch = "master"
 
 # golang/x
 

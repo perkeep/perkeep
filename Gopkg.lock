@@ -297,6 +297,7 @@
   revision = "9e1ac2306c701ca7477a169b2b49902b7b4c58bf"
 
 [[projects]]
+  branch = "master"
   name = "go4.org"
   packages = [
     "cloud/cloudlaunch",
@@ -308,6 +309,8 @@
     "jsonconfig",
     "legal",
     "lock",
+    "media/heif",
+    "media/heif/bmff",
     "net/throttle",
     "oauthutil",
     "readerutil",
@@ -319,7 +322,7 @@
     "wkfs/gcs",
     "writerutil"
   ]
-  revision = "c3a8ba339e20006b054736f8eb9fc5e1d5fa6eab"
+  revision = "7b81d6948d11710f710d0c4ef52daac1dc7c936b"
 
 [[projects]]
   name = "golang.org/x/crypto"
@@ -567,6 +570,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ea9200f608a8ca6a12f16d664cf7f251bac039dac1f45eae9ff0edd41c5d656b"
+  inputs-digest = "aeffe8df9be98b70a039ac4878af79fd9ce3832218db0f1a62e349bfe4639c74"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -38,6 +38,7 @@ import (
 	"github.com/hjfreyer/taglib-go/taglib"
 	"github.com/rwcarlsen/goexif/exif"
 	"github.com/rwcarlsen/goexif/tiff"
+	_ "go4.org/media/heif"
 	"go4.org/readerutil"
 	"go4.org/types"
 	"perkeep.org/internal/images"
