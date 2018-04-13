@@ -23,8 +23,11 @@ import (
 	"image/draw"
 	"image/jpeg"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -36,6 +39,7 @@ import (
 
 	"github.com/nf/cr2"
 	"github.com/rwcarlsen/goexif/exif"
+	"go4.org/syncutil"
 
 	// TODO(mpl, wathiede): add test(s) to check we can decode both tiff and cr2,
 	// so we don't mess up the import order again.
@@ -562,4 +566,71 @@ func Decode(r io.Reader, opts *DecodeOpts) (image.Image, Config, error) {
 	c.Format = format
 	c.setBounds(im)
 	return im, c, nil
+}
+
+// Dimensions is the width and height of an image.
+type Dimensions struct {
+	Width  int
+	Height int
+}
+
+// max returns the largest of Width and Height.
+func (d *Dimensions) max() int {
+	if d == nil || d.Width == 0 || d.Height == 0 {
+		return 0
+	}
+	if d.Width > d.Height {
+		return d.Width
+	}
+	return d.Height
+}
+
+var convertGate = syncutil.NewGate(10) // bounds number of HEIF to JPEG subprocesses
+
+// HEIFToJPEG converts the HEIF file in fr to JPEG. It optionally resizes it
+// to the given size argument, if any. It returns the contents of the JPEG file.
+func HEIFToJPEG(fr io.Reader, size *Dimensions) ([]byte, error) {
+	convertGate.Start()
+	defer convertGate.Done()
+	bin, err := exec.LookPath("heiftojpeg")
+	if err != nil {
+		return nil, fmt.Errorf("heiftojpeg not found in PATH (%v). You need to install github.com/pushd/heif", err)
+	}
+	// TODO(mpl): use docker container. https://github.com/perkeep/perkeep/issues/1087
+
+	outDir, err := ioutil.TempDir("", "perkeep-heif")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(outDir)
+	inFile := filepath.Join(outDir, "input.heic")
+	outFile := filepath.Join(outDir, "output.jpg")
+
+	// first create the input file in tmp as heiftojpeg cannot take a piped stdin
+	f, err := os.Create(inFile)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := io.Copy(f, fr); err != nil {
+		f.Close()
+		return nil, err
+	}
+	if err := f.Close(); err != nil {
+		return nil, err
+	}
+
+	// now actually run heiftojpeg
+	var args []string
+	maxDimension := size.max()
+	if maxDimension != 0 {
+		args = append(args, "-s", fmt.Sprintf("%d", maxDimension))
+	}
+	args = append(args, inFile, outFile)
+	cmd := exec.Command(bin, args...)
+	var buf bytes.Buffer
+	cmd.Stderr = &buf
+	if err = cmd.Run(); err != nil {
+		return nil, fmt.Errorf("error running heiftojpeg: %v, %v", err, buf.String())
+	}
+	return ioutil.ReadFile(outFile)
 }
