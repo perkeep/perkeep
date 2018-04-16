@@ -112,6 +112,7 @@ var parsers = map[BoxType]parserFunc{
 	boxType("ipco"): parseItemPropertyContainerBox,
 	boxType("ipma"): parseItemPropertyAssociation,
 	boxType("iprp"): parseItemPropertiesBox,
+	boxType("irot"): parseImageRotation,
 	boxType("ispe"): parseImageSpatialExtentsProperty,
 	boxType("meta"): parseMetaBox,
 	boxType("pitm"): parsePrimaryItemBox,
@@ -815,4 +816,18 @@ func parsePrimaryItemBox(gen *box, br *bufReader) (Box, error) {
 		return nil, br.err
 	}
 	return pib, nil
+}
+
+// ImageRotation is a HEIF "irot" rotation property.
+type ImageRotation struct {
+	*box
+	Angle uint8 // 1 means 90 degrees counter-clockwise, 2 means 180 counter-clockwise
+}
+
+func parseImageRotation(gen *box, br *bufReader) (Box, error) {
+	v, err := br.readUint8()
+	if err != nil {
+		return nil, err
+	}
+	return &ImageRotation{box: gen, Angle: v & 3}, nil
 }

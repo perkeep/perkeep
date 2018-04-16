@@ -322,7 +322,7 @@
     "wkfs/gcs",
     "writerutil"
   ]
-  revision = "7b81d6948d11710f710d0c4ef52daac1dc7c936b"
+  revision = "a2a47940e6bcb2098c42264fb0515cb027f2564a"
 
 [[projects]]
   name = "golang.org/x/crypto"
@@ -570,6 +570,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "aeffe8df9be98b70a039ac4878af79fd9ce3832218db0f1a62e349bfe4639c74"
+  inputs-digest = "b8d0884b33e67ca133aabab582669e1f20d4f3b0d9ce53766ae019c5a72e1b96"
   solver-name = "gps-cdcl"
   solver-version = 1
