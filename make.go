@@ -278,10 +278,11 @@ func buildGopherjs() error {
 		return err
 	}
 	modtime := time.Now()
+	var hashBefore string
 	if err == nil {
 		modtime = fi.ModTime()
+		hashBefore = hashsum(outBin)
 	}
-	hashBefore := hashsum(outBin)
 
 	src := filepath.Join(pkRoot, filepath.FromSlash("vendor/github.com/gopherjs/gopherjs"))
 	goBin := "go"
