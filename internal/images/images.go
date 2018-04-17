@@ -640,7 +640,6 @@ func HEIFToJPEG(fr io.Reader, size *Dimensions) ([]byte, error) {
 	bin, err := exec.LookPath("heiftojpeg")
 	if err != nil {
 		pathErr := err
-		// TODO(mpl): "pre-pull" the image on Perkeep startup or something like that?
 		if err := setUpThumbnailContainer(); err != nil {
 			return nil, fmt.Errorf("heiftojpeg not found in PATH (%v), and could not fallback on docker image because %v. You need to install github.com/pushd/heif, or set up docker.", pathErr, err)
 		}

@@ -23,15 +23,27 @@ import (
 	"log"
 	"os/exec"
 	"strings"
+
+	"go4.org/syncutil"
 )
 
 // TODO(mpl): refactor somewhere with pkg/test/dockertest
 
 const thumbnailImage = "gcr.io/perkeep-containers/thumbnail"
 
+var (
+	thumbnailPullGate  = syncutil.NewGate(1)
+	haveThumbnailImage bool
+)
+
 func setUpThumbnailContainer() error {
 	if !haveDocker() {
 		return errors.New("'docker' command not found")
+	}
+	thumbnailPullGate.Start()
+	defer thumbnailPullGate.Done()
+	if haveThumbnailImage {
+		return nil
 	}
 	if ok, err := haveImage(thumbnailImage); !ok || err != nil {
 		if err != nil {
@@ -42,6 +54,7 @@ func setUpThumbnailContainer() error {
 			return fmt.Errorf("error pulling %s: %v", thumbnailImage, err)
 		}
 	}
+	haveThumbnailImage = true
 	return nil
 }
 
