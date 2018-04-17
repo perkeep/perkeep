@@ -23,7 +23,7 @@ func buildDownloadItemsBtn(cd react.ComponentDef) react.Component {
 
 func buildDownloadItemsBtnElem(props DownloadItemsBtnProps, children ...react.Element) *DownloadItemsBtnElem {
 	return &DownloadItemsBtnElem{
-		Element: react.CreateElement(buildDownloadItemsBtn, props),
+		Element: react.CreateElement(buildDownloadItemsBtn, props, children...),
 	}
 }
 

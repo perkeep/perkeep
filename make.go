@@ -28,7 +28,6 @@ package main
 
 import (
 	"archive/zip"
-	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"flag"
@@ -57,8 +56,6 @@ var (
 	verbose        = flag.Bool("v", strings.Contains(os.Getenv("CAMLI_DEBUG_X"), "makego"), "Verbose mode")
 	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. '*' builds everything.  Empty builds defaults for this platform. Example: perkeep.org/server/camlistored,perkeep.org/cmd/camput")
 	quiet          = flag.Bool("quiet", false, "Don't print anything unless there's a failure.")
-	onlysync       = flag.Bool("onlysync", false, "Only populate the temporary source/build tree and output its full path. It is meant to prepare the environment for running the full test suite with 'devcam test'.")
-	ifModsSince    = flag.Int64("if_mods_since", 0, "If non-zero return immediately without building if there aren't any filesystem modifications past this time (in unix seconds)")
 	buildARCH      = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
 	buildOS        = flag.String("os", runtime.GOOS, "Operating system to build for.")
 	buildARM       = flag.String("arm", "7", "ARM version to use if building for ARM. Note that this version applies even if the host arch is ARM too (and possibly of a different version).")
@@ -66,30 +63,16 @@ var (
 	website        = flag.Bool("website", false, "Just build the website.")
 	camnetdns      = flag.Bool("camnetdns", false, "Just build perkeep.org/server/camnetdns.")
 	static         = flag.Bool("static", false, "Build a static binary, so it can run in an empty container.")
-
-	// Use GOPATH from the environment and work from there. Do not create a temporary source tree with a new GOPATH in it.
-	// It is set through CAMLI_MAKE_USEGOPATH for integration tests that call 'go run make.go', and which are already in
-	// a temp GOPATH.
-	useGoPath bool
 )
 
 var (
-	// camRoot is the original Perkeep project root, from where the source files are mirrored.
-	camRoot string
-	// buildGoPath becomes our child "go" processes' GOPATH environment variable
-	buildGoPath string
-	// Our temporary source tree root and build dir, i.e: buildGoPath + "src/perkeep.org"
-	buildSrcDir string
-	// files mirrored from camRoot to buildSrcDir
-	rxMirrored = regexp.MustCompile(`^([a-zA-Z0-9\-\_\.]+\.(?:blobs|camli|css|eot|err|gif|go|s|pb\.go|gpg|html|ico|jpg|js|json|xml|min\.css|min\.js|mp3|otf|png|svg|pdf|psd|tiff|ttf|woff|woff2|xcf|tar\.gz|gz|tar\.xz|tbz2|zip|sh))$`)
-	// base file exceptions for the above matching, so as not to complicate the regexp any further
-	mirrorIgnored = map[string]bool{
-		"publisher.js": true, // because this file is (re)generated after the mirroring
-		"goui.js":      true, // because this file is (re)generated after the mirroring
-	}
+	// pkRoot is the Perkeep project root
+	pkRoot string
+	binDir string // pkRoot + "bin"
+
 	// gopherjsGoroot should be specified through the env var
 	// CAMLI_GOPHERJS_GOROOT when the user's using go tip, because gopherjs only
-	// builds with Go 1.8.
+	// builds with Go 1.10.
 	gopherjsGoroot string
 )
 
@@ -107,61 +90,16 @@ func main() {
 		log.Fatal("-camnetdns and -website are mutually exclusive")
 	}
 
-	gopherjsGoroot = os.Getenv("CAMLI_GOPHERJS_GOROOT")
-
 	failIfCamlistoreOrgDir()
 	verifyGoVersion()
-
-	sql := withSQLite()
-	if useEnvGoPath, _ := strconv.ParseBool(os.Getenv("CAMLI_MAKE_USEGOPATH")); useEnvGoPath {
-		useGoPath = true
-	}
-	latestSrcMod := time.Now()
-	if useGoPath {
-		buildGoPath = os.Getenv("GOPATH")
-		var err error
-		camRoot, err = goPackagePath("perkeep.org")
-		if err != nil {
-			log.Fatalf("Cannot run make.go with --use_gopath: %v (is GOPATH not set?)", err)
-		}
-		buildSrcDir = camRoot
-		if *ifModsSince > 0 {
-			latestSrcMod = walkDirs(sql)
-		}
-	} else {
-		var err error
-		camRoot, err = os.Getwd()
-		if err != nil {
-			log.Fatalf("Failed to get current directory: %v", err)
-		}
-		latestSrcMod = mirror(sql)
-		if *onlysync {
-			if *website {
-				log.Fatal("-onlysync and -website are mutually exclusive")
-			}
-			if *camnetdns {
-				log.Fatal("-onlysync and -camnetdns are mutually exclusive")
-			}
-			mirrorFile("make.go", filepath.Join(buildSrcDir, "make.go"))
-			// Since we have not done the resources embedding, the
-			// z_*.go files have not been marked as wanted and are
-			// going to be removed. And they will have to be
-			// regenerated next time make.go is run.
-			deleteUnwantedOldMirrorFiles(buildSrcDir, true)
-			fmt.Println(buildGoPath)
-			return
-		}
-	}
-	if latestSrcMod.Before(time.Unix(*ifModsSince, 0)) {
-		return
-	}
-	binDir := filepath.Join(camRoot, "bin")
+	verifyPerkeepRoot()
 	version := getVersion()
+	sql := withSQLite()
 
 	if *verbose {
 		log.Printf("Perkeep version = %s", version)
 		log.Printf("SQLite included: %v", sql)
-		log.Printf("Temporary source: %s", buildSrcDir)
+		log.Printf("Project source: %s", pkRoot)
 		log.Printf("Output binaries: %s", binDir)
 	}
 
@@ -208,30 +146,26 @@ func main() {
 	}
 
 	withCamlistored := stringListContains(targs, "perkeep.org/server/camlistored")
+	withPublisher := stringListContains(targs, "perkeep.org/app/publisher")
 
-	// TODO(mpl): no need to build publisher.js if we're not building the publisher app.
-	if withCamlistored {
+	if withCamlistored || withPublisher {
 		if err := buildReactGen(); err != nil {
 			log.Fatal(err)
 		}
-
-		if err := genWebUIReact(); err != nil {
-			log.Fatal(err)
+		if withCamlistored {
+			if err := genWebUIReact(); err != nil {
+				log.Fatal(err)
+			}
 		}
-
 		// gopherjs has to run before doEmbed since we need all the javascript
 		// to be generated before embedding happens.
-		if err := makeGopherjs(); err != nil {
+		if err := makeJS(withCamlistored, withPublisher); err != nil {
 			log.Fatal(err)
 		}
 	}
 
 	if *embedResources && withCamlistored {
 		doEmbed()
-	}
-
-	if !useGoPath {
-		deleteUnwantedOldMirrorFiles(buildSrcDir, withCamlistored)
 	}
 
 	tags := []string{"purego"} // for cznic/zappy
@@ -281,9 +215,7 @@ func main() {
 	}
 
 	cmd := exec.Command("go", args...)
-	cmd.Env = append(cleanGoEnv(),
-		"GOPATH="+buildGoPath,
-	)
+	cmd.Env = cleanGoEnv()
 	if *static {
 		cmd.Env = append(cmd.Env, "CGO_ENABLED=0")
 	}
@@ -307,22 +239,16 @@ func main() {
 		log.Fatalf("Error building main binaries: %v\n%s", err, output.String())
 	}
 
-	// Copy the binaries from $CAMROOT/tmp/build-gopath-foo/bin to $CAMROOT/bin.
-	// This is necessary (instead of just using GOBIN environment variable) so
-	// each tmp/build-gopath-* has its own binary modtimes for its own build tags.
-	// Otherwise switching sqlite true<->false doesn't necessarily cause a rebuild.
-	// See perkeep.org/issue/229
-	for _, targ := range targs {
-		src := buildExeName(filepath.Join(actualBinDir(filepath.Join(buildGoPath, "bin")), pathpkg.Base(targ)))
-		dst := buildExeName(filepath.Join(actualBinDir(binDir), pathpkg.Base(targ)))
-		if err := mirrorFile(src, dst); err != nil {
-			log.Fatalf("Error copying %s to %s: %v", src, dst, err)
-		}
-	}
-
 	if !*quiet {
 		log.Printf("Success. Binaries are in %s", actualBinDir(binDir))
 	}
+}
+
+func actualBinDir(dir string) string {
+	if *buildARCH == runtime.GOARCH && *buildOS == runtime.GOOS {
+		return dir
+	}
+	return filepath.Join(dir, *buildOS+"_"+*buildARCH)
 }
 
 func baseDirName(sql bool) string {
@@ -343,48 +269,28 @@ const (
 	gopherjsUI  = "server/camlistored/ui/goui.js"
 )
 
-// buildGopherjs builds the gopherjs binary from our vendored gopherjs source.
-// It returns the path to the binary if successful, an error otherwise.
-func buildGopherjs() (string, error) {
-	src := filepath.Join(buildSrcDir, filepath.FromSlash("vendor/github.com/gopherjs/gopherjs"))
-	bin := runtimeExeName(filepath.Join(buildGoPath, "bin", "gopherjs"))
-	var srcModtime, binModtime time.Time
-	if err := filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if fi.IsDir() {
-			return nil
-		}
-		if t := fi.ModTime(); t.After(srcModtime) {
-			srcModtime = t
-		}
-		return nil
-	}); err != nil {
-		return "", err
+func buildGopherjs() error {
+	// if gopherjs binary already exists, record its modtime, so we can reset it later.
+	// See explanation below.
+	outBin := hostExeName(filepath.Join(binDir, "gopherjs"))
+	fi, err := os.Stat(outBin)
+	if err != nil && !os.IsNotExist(err) {
+		return err
 	}
-	fi, err := os.Stat(bin)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return "", err
-		}
-		binModtime = srcModtime
-	} else {
-		binModtime = fi.ModTime()
+	modtime := time.Now()
+	if err == nil {
+		modtime = fi.ModTime()
 	}
-	if binModtime.After(srcModtime) {
-		return bin, nil
-	}
-	log.Printf("Now rebuilding gopherjs at %v", bin)
+	hashBefore := hashsum(outBin)
+
+	src := filepath.Join(pkRoot, filepath.FromSlash("vendor/github.com/gopherjs/gopherjs"))
 	goBin := "go"
 	if gopherjsGoroot != "" {
-		goBin = runtimeExeName(filepath.Join(gopherjsGoroot, "bin", "go"))
+		goBin = hostExeName(filepath.Join(gopherjsGoroot, "bin", "go"))
 	}
-	cmd := exec.Command(goBin, "install")
+	cmd := exec.Command(goBin, "install", "-v")
 	cmd.Dir = src
-	cmd.Env = append(cleanGoEnv(),
-		"GOPATH="+buildGoPath,
-	)
+	cmd.Env = cleanGoEnv()
 	// forcing GOOS and GOARCH to prevent cross-compiling, as gopherjs will run on the
 	// current (host) platform.
 	cmd.Env = setEnv(cmd.Env, "GOOS", runtime.GOOS)
@@ -392,277 +298,27 @@ func buildGopherjs() (string, error) {
 	if gopherjsGoroot != "" {
 		cmd.Env = setEnv(cmd.Env, "GOROOT", gopherjsGoroot)
 	}
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("error while building gopherjs: %v, %v", err, string(out))
+	var buf bytes.Buffer
+	cmd.Stderr = &buf
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("error while building gopherjs: %v, %v", err, buf.String())
 	}
-	return bin, nil
-}
+	if *verbose {
+		fmt.Println(buf.String())
+	}
 
-// For some reason (https://github.com/gopherjs/gopherjs/issues/415), the
-// github.com/gopherjs/gopherjs/js import is treated specially, and it cannot be
-// vendored at all for gopherjs to work properly. So we move it to our tmp GOPATH.
-func moveGopherjs() error {
-	dest := filepath.Join(buildGoPath, filepath.FromSlash("src/github.com/gopherjs/gopherjs"))
-	if err := os.MkdirAll(dest, 0700); err != nil {
-		return err
-	}
-	src := filepath.Join(buildSrcDir, filepath.FromSlash("vendor/github.com/gopherjs/gopherjs"))
-	if err := filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		suffix, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		destName := filepath.Join(dest, suffix)
-		if fi.IsDir() {
-			return os.MkdirAll(destName, 0700)
-		}
-		destFi, err := os.Stat(destName)
-		if err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		if err == nil && !fi.ModTime().After(destFi.ModTime()) {
-			return nil
-		}
-		dataSrc, err := ioutil.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		return ioutil.WriteFile(destName, dataSrc, 0600)
-	}); err != nil {
-		return err
-	}
-	return os.RemoveAll(src)
-}
-
-// genSearchTypes duplicates some of the perkeep.org/pkg/search types into
-// perkeep.org/app/publisher/js/zsearch.go , because it's too costly (in output
-// file size) for now to import the search pkg into gopherjs.
-func genSearchTypes() error {
-	sourceFile := filepath.Join(buildSrcDir, filepath.FromSlash("pkg/search/describe.go"))
-	outputFile := filepath.Join(buildSrcDir, filepath.FromSlash("app/publisher/js/zsearch.go"))
-	fi1, err := os.Stat(sourceFile)
-	if err != nil {
-		return err
-	}
-	fi2, err := os.Stat(outputFile)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	if err == nil && fi2.ModTime().After(fi1.ModTime()) {
-		wantDestFile[outputFile] = true
+	hashAfter := hashsum(outBin)
+	if hashAfter != hashBefore {
+		log.Printf("gopherjs rebuilt at %v", outBin)
 		return nil
 	}
-	args := []string{"generate", "perkeep.org/app/publisher/js"}
-	cmd := exec.Command("go", args...)
-	cmd.Env = append(cleanGoEnv(),
-		"GOPATH="+buildGoPath,
-	)
-	cmd.Env = setEnv(cmd.Env, "GOOS", runtime.GOOS)
-	cmd.Env = setEnv(cmd.Env, "GOARCH", runtime.GOARCH)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("go generate for publisher js error: %v, %v", err, string(out))
-	}
-	wantDestFile[outputFile] = true
-	log.Printf("generated %v", outputFile)
-	return nil
-}
-
-// genPublisherJS runs the gopherjs command, using the gopherjsBin binary, on
-// perkeep.org/app/publisher/js, to generate the javascript code at
-// app/publisher/publisher.js
-func genPublisherJS(gopherjsBin string) error {
-	if err := genSearchTypes(); err != nil {
-		return err
-	}
-	// Run gopherjs on a temporary output file, so we don't change the
-	// modtime of the existing gopherjs.js if there was no reason to.
-	output := filepath.Join(buildSrcDir, filepath.FromSlash(publisherJS))
-	tmpOutput := output + ".new"
-	args := []string{"build", "--tags", "nocgo noReactBundle"}
-	if *embedResources {
-		// when embedding for "production", use -m to minify the javascript output
-		args = append(args, "-m")
-	}
-	args = append(args, "-o", tmpOutput, "perkeep.org/app/publisher/js")
-	cmd := exec.Command(gopherjsBin, args...)
-	cmd.Env = append(cleanGoEnv(),
-		"GOPATH="+buildGoPath,
-	)
-	// Pretend we're on linux regardless of the actual host, because recommended
-	// hack to work around https://github.com/gopherjs/gopherjs/issues/511
-	cmd.Env = setEnv(cmd.Env, "GOOS", "linux")
-	if gopherjsGoroot != "" {
-		cmd.Env = setEnv(cmd.Env, "GOROOT", gopherjsGoroot)
-	}
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("gopherjs for publisher error: %v, %v", err, string(out))
-	}
-
-	// check if new output is different from previous run result
-	_, err := os.Stat(output)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	needsUpdate := true
-	if err == nil {
-		if hashsum(tmpOutput) == hashsum(output) {
-			needsUpdate = false
-		}
-	}
-	if needsUpdate {
-		// general case: replace previous run result with new output
-		if err := os.Rename(tmpOutput, output); err != nil {
-			return err
-		}
-		log.Printf("gopherjs generated %v", output)
-	}
-	// And since we're generating after the mirroring, we need to manually
-	// add the output to the wanted files
-	wantDestFile[output] = true
-	wantDestFile[output+".map"] = true
-
-	// Finally, even when embedding resources, we copy the output back to
-	// camRoot. It's a bit unsatisfactory that we have to modify things out of
-	// buildGoPath but it's better than the alternative (the user ending up
-	// without a copy of publisher.js in their camRoot).
-	jsInCamRoot := filepath.Join(camRoot, filepath.FromSlash(publisherJS))
-	if !needsUpdate {
-		_, err := os.Stat(jsInCamRoot)
-		if err == nil {
-			return nil
-		}
-		if !os.IsNotExist(err) {
-			log.Fatal(err)
-		}
-	}
-	data, err := ioutil.ReadFile(output)
-	if err != nil {
-		return err
-	}
-	if err := ioutil.WriteFile(
-		jsInCamRoot,
-		data, 0600); err != nil {
-		return err
-	}
-	log.Printf("Copied gopherjs generated code to  %v", jsInCamRoot)
-	return nil
-}
-
-// TODO(mpl): refactor genWebUIJS with genPublisherJS
-
-// genWebUIJS runs the gopherjs command, using the gopherjsBin binary, on
-// perkeep.org/server/camlistored/ui/goui, to generate the javascript
-// code at perkeep.org/server/camlistored/ui/goui.js
-func genWebUIJS(gopherjsBin string) error {
-	// Run gopherjs on a temporary output file, so we don't change the
-	// modtime of the existing goui.js if there was no reason to.
-	output := filepath.Join(buildSrcDir, filepath.FromSlash(gopherjsUI))
-	tmpOutput := output + ".new"
-	args := []string{"build", "--tags", "nocgo noReactBundle"}
-	if *embedResources {
-		// when embedding for "production", use -m to minify the javascript output
-		args = append(args, "-m")
-	}
-	args = append(args, "-o", tmpOutput, "perkeep.org/server/camlistored/ui/goui")
-	cmd := exec.Command(gopherjsBin, args...)
-	cmd.Env = append(cleanGoEnv(),
-		"GOPATH="+buildGoPath,
-	)
-	// Pretend we're on linux regardless of the actual host, because recommended
-	// hack to work around https://github.com/gopherjs/gopherjs/issues/511
-	cmd.Env = setEnv(cmd.Env, "GOOS", "linux")
-	if gopherjsGoroot != "" {
-		cmd.Env = setEnv(cmd.Env, "GOROOT", gopherjsGoroot)
-	}
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("gopherjs for web UI error: %v, %v", err, string(out))
-	}
-
-	// check if new output is different from previous run result
-	_, err := os.Stat(output)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	needsUpdate := true
-	if err == nil {
-		if hashsum(tmpOutput) == hashsum(output) {
-			needsUpdate = false
-		}
-	}
-	if needsUpdate {
-		// general case: replace previous run result with new output
-		if err := os.Rename(tmpOutput, output); err != nil {
-			return err
-		}
-		log.Printf("gopherjs for web UI generated %v", output)
-	}
-	// And since we're generating after the mirroring, we need to manually
-	// add the output to the wanted files
-	wantDestFile[output] = true
-	wantDestFile[output+".map"] = true
-
-	// Finally, even when embedding resources, we copy the output back to
-	// camRoot. It's a bit unsatisfactory that we have to modify things out of
-	// buildGoPath but it's better than the alternative (the user ending up
-	// without a copy of publisher.js in their camRoot).
-	jsInCamRoot := filepath.Join(camRoot, filepath.FromSlash(gopherjsUI))
-	if !needsUpdate {
-		_, err := os.Stat(jsInCamRoot)
-		if err == nil {
-			return nil
-		}
-		if !os.IsNotExist(err) {
-			log.Fatal(err)
-		}
-	}
-	data, err := ioutil.ReadFile(output)
-	if err != nil {
-		return err
-	}
-	if err := ioutil.WriteFile(
-		jsInCamRoot,
-		data, 0600); err != nil {
-		return err
-	}
-	log.Printf("Copied gopherjs generated code for web UI to  %v", jsInCamRoot)
-	return nil
-}
-
-// genWebUIRect runs go generate on the gopherjs code of the web UI, which
-// invokes reactGen on the Go React components. This generates the boilerplate
-// code, in gen_*_reactGen.go files, required to complete those components.
-func genWebUIReact() error {
-	args := []string{"generate", "perkeep.org/server/camlistored/ui/goui/..."}
-
-	path := strings.Join([]string{
-		filepath.Join(buildGoPath, "bin"),
-		os.Getenv("PATH"),
-	}, string(os.PathListSeparator))
-
-	cmd := exec.Command("go", args...)
-	cmd.Env = append(cleanGoEnv("PATH"),
-		"GOPATH="+buildGoPath,
-		"PATH="+path,
-	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("go generate for web UI error: %v, %v", err, string(out))
-	}
-
-	return nil
-}
-
-// noGopherJS creates a fake (unusable) gopherjs.js file for when we want to skip all of
-// the gopherjs business.
-func noGopherJS(output string) {
-	if err := ioutil.WriteFile(
-		output,
-		[]byte("// This (broken) output should only be generated when CAMLI_MAKE_USEGOPATH is set, which should be only for integration tests.\n"),
-		0600); err != nil {
-		log.Fatal(err)
-	}
+	// even if the source hasn't changed, apparently goinstall still at least bumps
+	// the modtime. Which means, 'gopherjs install' would then always rebuild its
+	// output too, even if no source changed since last time. We want to avoid that
+	// (because then parts of Perkeep get unnecessarily rebuilt too and yada yada), so
+	// we reset the modtime of gopherjs if the binary is the same as the previous time
+	// it was built.
+	return os.Chtimes(outBin, modtime, modtime)
 }
 
 func hashsum(filename string) string {
@@ -678,126 +334,156 @@ func hashsum(filename string) string {
 	return string(h.Sum(nil))
 }
 
-// makeGopherjs builds and runs the gopherjs command on perkeep.org/app/publisher/js
-// and perkeep.org/server/camlistored/ui/goui
-// When CAMLI_MAKE_USEGOPATH is set (for integration tests through devcam), we
-// generate a fake file instead.
-func makeGopherjs() error {
-	if useGoPath {
-		noGopherJS(filepath.Join(buildSrcDir, filepath.FromSlash(publisherJS)))
+// genSearchTypes duplicates some of the perkeep.org/pkg/search types into
+// perkeep.org/app/publisher/js/zsearch.go , because it's too costly (in output
+// file size) for now to import the search pkg into gopherjs.
+func genSearchTypes() error {
+	sourceFile := filepath.Join(pkRoot, filepath.FromSlash("pkg/search/describe.go"))
+	outputFile := filepath.Join(pkRoot, filepath.FromSlash("app/publisher/js/zsearch.go"))
+	fi1, err := os.Stat(sourceFile)
+	if err != nil {
+		return err
+	}
+	fi2, err := os.Stat(outputFile)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err == nil && fi2.ModTime().After(fi1.ModTime()) {
 		return nil
 	}
-	gopherjs, err := buildGopherjs()
+	args := []string{"generate", "-v", "perkeep.org/app/publisher/js"}
+	cmd := exec.Command("go", args...)
+	cmd.Env = cleanGoEnv()
+	cmd.Env = setEnv(cmd.Env, "GOOS", runtime.GOOS)
+	cmd.Env = setEnv(cmd.Env, "GOARCH", runtime.GOARCH)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("go generate for publisher js error: %v, %v", err, string(out))
+	}
+	log.Printf("generated %v", outputFile)
+	return nil
+}
+
+func genPublisherJS() error {
+	if err := genSearchTypes(); err != nil {
+		return err
+	}
+	output := filepath.Join(pkRoot, filepath.FromSlash(publisherJS))
+	pkg := "perkeep.org/app/publisher/js"
+	return genJS(pkg, output)
+}
+
+func genWebUIJS() error {
+	output := filepath.Join(pkRoot, filepath.FromSlash(gopherjsUI))
+	pkg := "perkeep.org/server/camlistored/ui/goui"
+	return genJS(pkg, output)
+}
+
+func genJS(pkg, output string) error {
+	// We want to use 'gopherjs install', and not 'gopherjs build', as the former is
+	// smarter and only rebuilds the output if needed. However, 'install' writes the
+	// output to GOPATH/bin, and not GOBIN. (https://github.com/gopherjs/gopherjs/issues/494)
+	// This means we have to be somewhat careful with naming our source pkg since gopherjs
+	// derives its output name from it.
+	// TODO(mpl): maybe rename the source pkg directories mentioned above.
+
+	if err := runGopherJS(pkg); err != nil {
+		return err
+	}
+
+	// TODO(mpl): set GOBIN, and remove all below, once
+	// https://github.com/gopherjs/gopherjs/issues/494 is fixed
+	jsout := filepath.Join(os.Getenv("GOPATH"), "bin", filepath.Base(pkg)+".js")
+	fi1, err1 := os.Stat(output)
+	if err1 != nil && !os.IsNotExist(err1) {
+		return err1
+	}
+	fi2, err2 := os.Stat(jsout)
+	if err2 != nil && !os.IsNotExist(err2) {
+		return err2
+	}
+	if err1 == nil && fi1.ModTime().After(fi2.ModTime()) {
+		// output exists and is already up to date, nothing to do
+		return nil
+	}
+	data, err := ioutil.ReadFile(jsout)
 	if err != nil {
-		return fmt.Errorf("error building gopherjs: %v", err)
+		return err
 	}
+	return ioutil.WriteFile(output, data, 0600)
+}
 
-	// TODO(mpl): remove when https://github.com/gopherjs/gopherjs/issues/415 is fixed.
-	if err := moveGopherjs(); err != nil {
-		return err
+func runGopherJS(pkg string) error {
+	gopherjsBin := hostExeName(filepath.Join(binDir, "gopherjs"))
+	args := []string{"install", pkg, "-v", "--tags", "nocgo noReactBundle"}
+	if *embedResources {
+		// when embedding for "production", use -m to minify the javascript output
+		args = append(args, "-m")
 	}
-
-	if err := genPublisherJS(gopherjs); err != nil {
-		return err
+	cmd := exec.Command(gopherjsBin, args...)
+	cmd.Env = cleanGoEnv()
+	// Pretend we're on linux regardless of the actual host, because recommended
+	// hack to work around https://github.com/gopherjs/gopherjs/issues/511
+	cmd.Env = setEnv(cmd.Env, "GOOS", "linux")
+	if gopherjsGoroot != "" {
+		cmd.Env = setEnv(cmd.Env, "GOROOT", gopherjsGoroot)
 	}
-	if err := genWebUIJS(gopherjs); err != nil {
-		return err
+	var buf bytes.Buffer
+	cmd.Stderr = &buf
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("gopherjs for %v error: %v, %v", pkg, err, buf.String())
+	}
+	if *verbose {
+		fmt.Println(buf.String())
 	}
 	return nil
 }
 
-// create the tmp GOPATH, and mirror to it from camRoot.
-// return the latest modtime among all of the walked files.
-func mirror(sql bool) (latestSrcMod time.Time) {
-	verifyPerkeepRoot(camRoot)
+// genWebUIReact runs go generate on the gopherjs code of the web UI, which
+// invokes reactGen on the Go React components. This generates the boilerplate
+// code, in gen_*_reactGen.go files, required to complete those components.
+func genWebUIReact() error {
+	args := []string{"generate", "-v", "perkeep.org/server/camlistored/ui/goui/..."}
 
-	buildBaseDir := baseDirName(sql)
+	path := strings.Join([]string{
+		binDir,
+		os.Getenv("PATH"),
+	}, string(os.PathListSeparator))
 
-	buildGoPath = filepath.Join(camRoot, "tmp", buildBaseDir)
-	buildSrcDir = filepath.Join(buildGoPath, "src", "perkeep.org")
-
-	if err := os.MkdirAll(buildSrcDir, 0755); err != nil {
-		log.Fatal(err)
+	cmd := exec.Command("go", args...)
+	cmd.Env = append(cleanGoEnv("PATH"),
+		"PATH="+path,
+	)
+	var buf bytes.Buffer
+	cmd.Stderr = &buf
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("go generate for web UI error: %v, %v", err, buf.String())
 	}
-
-	// We copy all *.go files from camRoot's goDirs to buildSrcDir.
-	goDirs := []string{
-		"app",
-		"cmd",
-		"dev",
-		"internal",
-		"pkg",
-		"server/camlistored",
-		"vendor",
-		"clients/web/embed",
+	if *verbose {
+		fmt.Println(buf.String())
 	}
-	if *onlysync {
-		goDirs = append(goDirs, "config", "misc", "./website")
-	}
-	if *website {
-		goDirs = []string{
-			"internal",
-			"pkg",
-			"vendor",
-			"website",
-		}
-	} else if *camnetdns {
-		goDirs = []string{
-			"internal",
-			"pkg",
-			"vendor",
-			"server/camnetdns",
-		}
-	}
-	// Copy files we do want in our mirrored GOPATH.  This has the side effect of
-	// populating wantDestFile, populated by mirrorFile.
-	for _, dir := range goDirs {
-		srcPath := filepath.Join(camRoot, filepath.FromSlash(dir))
-		dstPath := buildSrcPath(dir)
-		if maxMod, err := mirrorDir(srcPath, dstPath, walkOpts{sqlite: sql}); err != nil {
-			log.Fatalf("Error while mirroring %s to %s: %v", srcPath, dstPath, err)
-		} else {
-			if maxMod.After(latestSrcMod) {
-				latestSrcMod = maxMod
-			}
-		}
-	}
-	return
+	return nil
 }
 
-// TODO(mpl): see if walkDirs and mirror can be refactored further.
-
-// walk all the dirs in camRoot, to return the latest
-// modtime among all of the walked files.
-func walkDirs(sql bool) (latestSrcMod time.Time) {
-	d, err := os.Open(camRoot)
-	if err != nil {
-		log.Fatal(err)
-	}
-	dirs, err := d.Readdirnames(-1)
-	d.Close()
-	if err != nil {
-		log.Fatal(err)
+// makeJS builds and runs the gopherjs command on perkeep.org/app/publisher/js
+// and perkeep.org/server/camlistored/ui/goui
+func makeJS(doWebUI, doPublisher bool) error {
+	if err := buildGopherjs(); err != nil {
+		return fmt.Errorf("error building gopherjs: %v", err)
 	}
 
-	for _, dir := range dirs {
-		srcPath := filepath.Join(camRoot, filepath.FromSlash(dir))
-		if maxMod, err := walkDir(srcPath, walkOpts{sqlite: sql}); err != nil {
-			log.Fatalf("Error while walking %s: %v", srcPath, err)
-		} else {
-			if maxMod.After(latestSrcMod) {
-				latestSrcMod = maxMod
-			}
+	if doPublisher {
+		if err := genPublisherJS(); err != nil {
+			return err
 		}
 	}
-	return
-}
-
-func actualBinDir(dir string) string {
-	if *buildARCH == runtime.GOARCH && *buildOS == runtime.GOOS {
-		return dir
+	if doWebUI {
+		if err := genWebUIJS(); err != nil {
+			return err
+		}
 	}
-	return filepath.Join(dir, *buildOS+"_"+*buildARCH)
+	return nil
 }
 
 // Create an environment variable of the form key=value.
@@ -805,7 +491,7 @@ func envPair(key, value string) string {
 	return fmt.Sprintf("%s=%s", key, value)
 }
 
-// cleanGoEnv returns a copy of the current environment with GOPATH, GOBIN and
+// cleanGoEnv returns a copy of the current environment with GOBIN and
 // any variable listed in others removed.  it also sets GOOS and GOARCH as
 // needed when cross-compiling.
 func cleanGoEnv(others ...string) (clean []string) {
@@ -821,7 +507,7 @@ Env:
 				continue Env
 			}
 		}
-		if strings.HasPrefix(env, "GOPATH=") || strings.HasPrefix(env, "GOBIN=") {
+		if strings.HasPrefix(env, "GOBIN=") {
 			continue
 		}
 		// We skip these two as well, otherwise they'd take precedence over the
@@ -839,6 +525,7 @@ Env:
 
 		clean = append(clean, env)
 	}
+	clean = append(clean, envPair("GOBIN", binDir))
 	if *buildOS != runtime.GOOS {
 		clean = append(clean, envPair("GOOS", *buildOS))
 	}
@@ -874,19 +561,14 @@ func stringListContains(strs []string, str string) bool {
 	return false
 }
 
-// buildSrcPath returns the full path concatenation
-// of buildSrcDir with fromSrc.
-func buildSrcPath(fromSrc string) string {
-	return filepath.Join(buildSrcDir, filepath.FromSlash(fromSrc))
+// fullSrcPath returns the full path concatenation
+// of pkRoot with fromSrc.
+func fullSrcPath(fromSrc string) string {
+	return filepath.Join(pkRoot, filepath.FromSlash(fromSrc))
 }
 
-// genEmbeds generates from the static resources the zembed.*.go
-// files that will allow for these resources to be included in
-// the camlistored binary.
-// It also populates wantDestFile with those files so they're
-// kept in between runs.
 func genEmbeds() error {
-	cmdName := runtimeExeName(filepath.Join(buildGoPath, "bin", "genfileembed"))
+	cmdName := hostExeName(filepath.Join(binDir, "genfileembed"))
 	for _, embeds := range []string{
 		"server/camlistored/ui",
 		"pkg/server",
@@ -899,19 +581,16 @@ func genEmbeds() error {
 		"app/publisher",
 		"app/scanningcabinet/ui",
 	} {
-		embeds := buildSrcPath(embeds)
+		embeds := fullSrcPath(embeds)
 		var args []string
 		if *all {
 			args = append(args, "-all")
 		}
 		args = append(args, "-output-files-stderr", embeds)
 		cmd := exec.Command(cmdName, args...)
-		cmd.Env = append(cleanGoEnv(),
-			"GOPATH="+buildGoPath,
-		)
+		cmd.Env = cleanGoEnv()
 		cmd.Stdout = os.Stdout
-		stderr, err := cmd.StderrPipe()
-		if err != nil {
+		if _, err := cmd.StderrPipe(); err != nil {
 			log.Fatal(err)
 		}
 		if *verbose {
@@ -920,23 +599,11 @@ func genEmbeds() error {
 		if err := cmd.Start(); err != nil {
 			return fmt.Errorf("Error starting %s %s: %v", cmdName, embeds, err)
 		}
-		parseGenEmbedOutputLines(stderr)
 		if err := cmd.Wait(); err != nil {
 			return fmt.Errorf("Error running %s %s: %v", cmdName, embeds, err)
 		}
 	}
 	return nil
-}
-
-func parseGenEmbedOutputLines(r io.Reader) {
-	sc := bufio.NewScanner(r)
-	for sc.Scan() {
-		ln := sc.Text()
-		if !strings.HasPrefix(ln, "OUTPUT:") {
-			continue
-		}
-		wantDestFile[strings.TrimSpace(strings.TrimPrefix(ln, "OUTPUT:"))] = true
-	}
 }
 
 func buildGenfileembed() error {
@@ -959,12 +626,9 @@ func buildBin(pkg string) error {
 	)
 	cmd := exec.Command("go", args...)
 
-	// We don't even need to set GOBIN as it defaults to $GOPATH/bin
-	// and that is where we want the bin to go.
-	// Here we replace the GOOS and GOARCH valuesfrom the env with the host OS,
+	// Here we replace the GOOS and GOARCH values from the env with the host OS,
 	// to support cross-compiling.
 	cmd.Env = cleanGoEnv()
-	cmd.Env = setEnv(cmd.Env, "GOPATH", buildGoPath)
 	cmd.Env = setEnv(cmd.Env, "GOOS", runtime.GOOS)
 	cmd.Env = setEnv(cmd.Env, "GOARCH", runtime.GOARCH)
 
@@ -977,7 +641,7 @@ func buildBin(pkg string) error {
 		return fmt.Errorf("Error building %v: %v", pkgBase, err)
 	}
 	if *verbose {
-		log.Printf("%v installed in %s", pkgBase, filepath.Join(buildGoPath, "bin"))
+		log.Printf("%v installed in %s", pkgBase, binDir)
 	}
 	return nil
 }
@@ -985,7 +649,7 @@ func buildBin(pkg string) error {
 // getVersion returns the version of Perkeep. Either from a VERSION file at the root,
 // or from git.
 func getVersion() string {
-	slurp, err := ioutil.ReadFile(filepath.Join(camRoot, "VERSION"))
+	slurp, err := ioutil.ReadFile(filepath.Join(pkRoot, "VERSION"))
 	if err == nil {
 		return strings.TrimSpace(string(slurp))
 	}
@@ -994,16 +658,16 @@ func getVersion() string {
 
 var gitVersionRx = regexp.MustCompile(`\b\d\d\d\d-\d\d-\d\d-[0-9a-f]{10,10}\b`)
 
-// gitVersion returns the git version of the git repo at camRoot as a
+// gitVersion returns the git version of the git repo at pkRoot as a
 // string of the form "yyyy-mm-dd-xxxxxxx", with an optional trailing
 // '+' if there are any local uncommitted modifications to the tree.
 func gitVersion() string {
 	cmd := exec.Command("git", "rev-list", "--max-count=1", "--pretty=format:'%ad-%h'",
 		"--date=short", "--abbrev=10", "HEAD")
-	cmd.Dir = camRoot
+	cmd.Dir = pkRoot
 	out, err := cmd.Output()
 	if err != nil {
-		log.Fatalf("Error running git rev-list in %s: %v", camRoot, err)
+		log.Fatalf("Error running git rev-list in %s: %v", pkRoot, err)
 	}
 	v := strings.TrimSpace(string(out))
 	if m := gitVersionRx.FindStringSubmatch(v); m != nil {
@@ -1012,19 +676,25 @@ func gitVersion() string {
 		panic("Failed to find git version in " + v)
 	}
 	cmd = exec.Command("git", "diff", "--exit-code")
-	cmd.Dir = camRoot
+	cmd.Dir = pkRoot
 	if err := cmd.Run(); err != nil {
 		v += "+"
 	}
 	return v
 }
 
-// verifyPerkeepRoot crashes if dir isn't the Perkeep root directory.
-func verifyPerkeepRoot(dir string) {
-	testFile := filepath.Join(dir, "pkg", "blob", "ref.go")
-	if _, err := os.Stat(testFile); err != nil {
-		log.Fatalf("make.go must be run from the Perkeep src root directory (where make.go is). Current working directory is %s", dir)
+// verifyPerkeepRoot sets pkRoot and crashes if dir isn't the Perkeep root directory.
+func verifyPerkeepRoot() {
+	var err error
+	pkRoot, err = os.Getwd()
+	if err != nil {
+		log.Fatalf("Failed to get current directory: %v", err)
 	}
+	testFile := filepath.Join(pkRoot, "pkg", "blob", "ref.go")
+	if _, err := os.Stat(testFile); err != nil {
+		log.Fatalf("make.go must be run from the Perkeep src root directory (where make.go is). Current working directory is %s", pkRoot)
+	}
+	binDir = filepath.Join(pkRoot, "bin")
 }
 
 const (
@@ -1075,7 +745,8 @@ func verifyGoVersion() {
 }
 
 func verifyGopherjsGoroot(goFound string) {
-	goBin := runtimeExeName(filepath.Join(gopherjsGoroot, "bin", "go"))
+	gopherjsGoroot = os.Getenv("CAMLI_GOPHERJS_GOROOT")
+	goBin := hostExeName(filepath.Join(gopherjsGoroot, "bin", "go"))
 	if gopherjsGoroot == "" {
 		goInHomeDir, err := findGopherJSGoroot()
 		if err != nil {
@@ -1085,7 +756,7 @@ func verifyGopherjsGoroot(goFound string) {
 			log.Fatalf("You're using go%s != go1.%d, which GopherJS requires, and it was not found in %v. You need to specify a go1.%d root in CAMLI_GOPHERJS_GOROOT for building GopherJS.", goFound, gopherJSGoMinor, homeDir(), gopherJSGoMinor)
 		}
 		gopherjsGoroot = filepath.Join(homeDir(), goInHomeDir)
-		goBin = runtimeExeName(filepath.Join(gopherjsGoroot, "bin", "go"))
+		goBin = hostExeName(filepath.Join(gopherjsGoroot, "bin", "go"))
 		log.Printf("You're using go%s != go1.%d, which GopherJS requires, and CAMLI_GOPHERJS_GOROOT was not provided, so defaulting to %v for building GopherJS instead.", goFound, gopherJSGoMinor, goBin)
 	}
 	if _, err := os.Stat(goBin); err != nil {
@@ -1115,134 +786,6 @@ func findGopherJSGoroot() (string, error) {
 		}
 	}
 	return "", nil
-}
-
-type walkOpts struct {
-	dst    string // if non empty, mirror walked files to this destination.
-	sqlite bool   // want sqlite package?
-}
-
-func walkDir(src string, opts walkOpts) (maxMod time.Time, err error) {
-	err = filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		base := fi.Name()
-		if fi.IsDir() {
-			if !opts.sqlite && strings.Contains(path, "mattn") && strings.Contains(path, "go-sqlite3") {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		dir, _ := filepath.Split(path)
-		parent := filepath.Base(dir)
-		if (strings.HasPrefix(base, ".#") || !rxMirrored.MatchString(base)) && parent != "testdata" {
-			return nil
-		}
-		if _, ok := mirrorIgnored[base]; ok {
-			return nil
-		}
-		suffix, err := filepath.Rel(src, path)
-		if err != nil {
-			return fmt.Errorf("Failed to find Rel(%q, %q): %v", src, path, err)
-		}
-		if t := fi.ModTime(); t.After(maxMod) {
-			maxMod = t
-		}
-		if opts.dst != "" {
-			return mirrorFile(path, filepath.Join(opts.dst, suffix))
-		}
-		return nil
-	})
-	return
-}
-
-func mirrorDir(src, dst string, opts walkOpts) (maxMod time.Time, err error) {
-	opts.dst = dst
-	return walkDir(src, opts)
-}
-
-var wantDestFile = make(map[string]bool) // full dest filename => true
-
-func isExecMode(mode os.FileMode) bool {
-	return (mode & 0111) != 0
-}
-
-func mirrorFile(src, dst string) error {
-	wantDestFile[dst] = true
-	sfi, err := os.Stat(src)
-	if err != nil {
-		return err
-	}
-	if sfi.Mode()&os.ModeType != 0 {
-		log.Fatalf("mirrorFile can't deal with non-regular file %s", src)
-	}
-	dfi, err := os.Stat(dst)
-	if err == nil &&
-		isExecMode(sfi.Mode()) == isExecMode(dfi.Mode()) &&
-		(dfi.Mode()&os.ModeType == 0) &&
-		dfi.Size() == sfi.Size() &&
-		dfi.ModTime().Unix() == sfi.ModTime().Unix() {
-		// Seems to not be modified.
-		return nil
-	}
-
-	dstDir := filepath.Dir(dst)
-	if err := os.MkdirAll(dstDir, 0755); err != nil {
-		return err
-	}
-
-	df, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	sf, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer sf.Close()
-
-	n, err := io.Copy(df, sf)
-	if err == nil && n != sfi.Size() {
-		err = fmt.Errorf("copied wrong size for %s -> %s: copied %d; want %d", src, dst, n, sfi.Size())
-	}
-	cerr := df.Close()
-	if err == nil {
-		err = cerr
-	}
-	if err == nil {
-		err = os.Chmod(dst, sfi.Mode())
-	}
-	if err == nil {
-		err = os.Chtimes(dst, sfi.ModTime(), sfi.ModTime())
-	}
-	return err
-}
-
-func deleteUnwantedOldMirrorFiles(dir string, withCamlistored bool) {
-	filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
-		if err != nil {
-			log.Fatalf("Error stating while cleaning %s: %v", path, err)
-		}
-		if fi.IsDir() {
-			return nil
-		}
-		base := filepath.Base(path)
-		if !wantDestFile[path] {
-			if !withCamlistored && (strings.HasPrefix(base, "zembed_") || strings.Contains(path, "z_data.go")) {
-				// If we're not building the camlistored binary,
-				// no need to clean up the embedded Closure, JS,
-				// CSS, HTML, etc. Doing so would just mean we'd
-				// have to put it back into place later.
-				return nil
-			}
-			if *verbose {
-				log.Printf("Deleting old file from temp build dir: %s", path)
-			}
-			return os.Remove(path)
-		}
-		return nil
-	})
 }
 
 func withSQLite() bool {
@@ -1308,13 +851,12 @@ func doEmbed() {
 	if *verbose {
 		log.Printf("Embedding resources...")
 	}
-	closureEmbed := buildSrcPath("server/camlistored/ui/closure/z_data.go")
-	closureSrcDir := filepath.Join(camRoot, filepath.FromSlash("clients/web/embed/closure/lib"))
+	closureEmbed := fullSrcPath("server/camlistored/ui/closure/z_data.go")
+	closureSrcDir := filepath.Join(pkRoot, filepath.FromSlash("clients/web/embed/closure/lib"))
 	err := embedClosure(closureSrcDir, closureEmbed)
 	if err != nil {
 		log.Fatal(err)
 	}
-	wantDestFile[closureEmbed] = true
 	if err = buildGenfileembed(); err != nil {
 		log.Fatal(err)
 	}
@@ -1451,19 +993,10 @@ func quote(dest *bytes.Buffer, bs []byte) {
 	dest.WriteByte('"')
 }
 
-// runtimeExeName returns the executable name
+// hostExeName returns the executable name
 // for s on the currently running host OS.
-func runtimeExeName(s string) string {
+func hostExeName(s string) string {
 	if runtime.GOOS == "windows" {
-		return s + ".exe"
-	}
-	return s
-}
-
-// buildExeName returns the executable name for s,
-// for the OS it is being built for.
-func buildExeName(s string) string {
-	if *buildOS == "windows" {
 		return s + ".exe"
 	}
 	return s

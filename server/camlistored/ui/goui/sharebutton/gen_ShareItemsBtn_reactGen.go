@@ -23,7 +23,7 @@ func buildShareItemsBtn(cd react.ComponentDef) react.Component {
 
 func buildShareItemsBtnElem(props ShareItemsBtnProps, children ...react.Element) *ShareItemsBtnElem {
 	return &ShareItemsBtnElem{
-		Element: react.CreateElement(buildShareItemsBtn, props),
+		Element: react.CreateElement(buildShareItemsBtn, props, children...),
 	}
 }
 

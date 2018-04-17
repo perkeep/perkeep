@@ -146,7 +146,8 @@ ignored = [
 
 [[constraint]]
   name = "github.com/gopherjs/gopherjs"
-  branch = "master"
+  # temporarily switching to embed-core-pkgs branch, until Dmitri merges it to master.
+  revision = "2ad4a5b9a30e5f1f31c643c2a2ac27543a5ddb58"
 
 [[constraint]]
   name = "github.com/gopherjs/jquery"

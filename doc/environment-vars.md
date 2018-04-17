@@ -172,9 +172,6 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
 `CAMLI_MONGO_WIPE` (bool)
 : Wipe out mongo based index on startup.
 
-`CAMLI_MAKE_USEGOPATH` (bool)
-: When running make.go, overrides the -use_gopath flag.
-
 `CAMLI_NO_FILE_DUP_SEARCH` (bool)
 : This will cause the search-for-exists-before-upload step to be skipped when
   camput is uploading files.
