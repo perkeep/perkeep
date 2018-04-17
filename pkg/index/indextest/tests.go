@@ -382,6 +382,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	if g, e := id.Get(key), "50|100"; g != e {
 		t.Errorf("JPEG dude.jpg key %q = %q; want %q", key, g, e)
 	}
+
 	key = "filetimes|" + jpegFileRef.String()
 	if g, e := id.Get(key), ""; g != e {
 		t.Errorf("JPEG dude.jpg key %q = %q; want %q", key, g, e)

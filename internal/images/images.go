@@ -390,16 +390,19 @@ func decodeHEIFConfig(rat io.ReaderAt) (image.Config, error) {
 // and sets the Width and Height as they would visibly
 // be after correcting for that orientation.
 func DecodeConfig(r io.Reader) (Config, error) {
-	var c Config
 	var buf bytes.Buffer
 	tr := io.TeeReader(io.LimitReader(r, 8<<20), &buf)
 
 	conf, format, err := image.DecodeConfig(tr)
 	if err != nil {
 		imageDebug(fmt.Sprintf("Image Decoding failed: %v", err))
-		return c, err
+		return Config{}, err
 	}
-	c.Format = format
+	c := Config{
+		Format: format,
+		Width:  conf.Width,
+		Height: conf.Height,
+	}
 	mr := io.LimitReader(io.MultiReader(&buf, r), 8<<20)
 	if format == "heic" {
 		hf := heif.Open(readerutil.NewBufferingReaderAt(mr))
@@ -410,7 +413,6 @@ func DecodeConfig(r io.Reader) (Config, error) {
 		mr = bytes.NewReader(exifBytes)
 	}
 
-	swapDimensions := false
 	ex, err := exif.Decode(mr)
 	// trigger a retry when there isn't enough data for reading exif data from a tiff file
 	if exif.IsShortReadTagValueError(err) {
@@ -418,31 +420,25 @@ func DecodeConfig(r io.Reader) (Config, error) {
 	}
 	if err != nil {
 		imageDebug(fmt.Sprintf("No valid EXIF, error: %v.", err))
-	} else {
-		tag, err := ex.Get(exif.Orientation)
-		if err != nil {
-			imageDebug(`No "Orientation" tag in EXIF.`)
-		} else {
-			orient, err := tag.Int(0)
-			if err == nil {
-				switch orient {
-				// those are the orientations that require
-				// a rotation of ±90
-				case leftSideTop, rightSideTop, rightSideBottom, leftSideBottom:
-					swapDimensions = true
-				}
-			} else {
-				imageDebug(fmt.Sprintf("EXIF Error: %v", err))
-			}
-		}
+		return c, nil
 	}
-
-	if swapDimensions {
-		c.Width, c.Height = conf.Height, conf.Width
-	} else {
-		c.Width, c.Height = conf.Width, conf.Height
+	tag, err := ex.Get(exif.Orientation)
+	if err != nil {
+		imageDebug(`No "Orientation" tag in EXIF.`)
+		return c, nil
 	}
-	return c, err
+	orient, err := tag.Int(0)
+	if err != nil {
+		imageDebug(fmt.Sprintf("EXIF Error: %v", err))
+		return c, nil
+	}
+	switch orient {
+	// those are the orientations that require
+	// a rotation of ±90
+	case leftSideTop, rightSideTop, rightSideBottom, leftSideBottom:
+		c.Width, c.Height = c.Height, c.Width
+	}
+	return c, nil
 }
 
 // decoder reads an image from r and modifies the image as defined by opts.
