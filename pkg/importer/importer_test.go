@@ -17,6 +17,8 @@ limitations under the License.
 package importer
 
 import (
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"go4.org/jsonconfig"
@@ -62,5 +64,18 @@ func TestStaticConfig(t *testing.T) {
 
 	if _, err := newFromConfig(ld, jsonconfig.Obj{"dummy1": map[string]interface{}{"clientSecret": "x"}}); err == nil {
 		t.Errorf("expected error from secret without id")
+	}
+}
+
+func TestImportRootPageHTML(t *testing.T) {
+	h, err := NewHost(HostConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/importer/", nil)
+	h.serveImportersRoot(w, r)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "dummy1") {
+		t.Errorf("Got %d response with header %v, body %s", w.Code, w.HeaderMap, w.Body.String())
 	}
 }
