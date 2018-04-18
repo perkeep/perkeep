@@ -587,21 +587,22 @@ func genEmbeds() error {
 		if *all {
 			args = append(args, "-all")
 		}
-		args = append(args, "-output-files-stderr", embeds)
+		args = append(args, embeds)
 		cmd := exec.Command(cmdName, args...)
 		cmd.Env = cleanGoEnv()
 		cmd.Stdout = os.Stdout
-		if _, err := cmd.StderrPipe(); err != nil {
-			log.Fatal(err)
-		}
+		var buf bytes.Buffer
+		cmd.Stderr = &buf
+
 		if *verbose {
 			log.Printf("Running %s %s", cmdName, embeds)
 		}
-		if err := cmd.Start(); err != nil {
-			return fmt.Errorf("Error starting %s %s: %v", cmdName, embeds, err)
+		if err := cmd.Run(); err != nil {
+			os.Stderr.Write(buf.Bytes())
+			return fmt.Errorf("error running %s %s: %v", cmdName, embeds, err)
 		}
-		if err := cmd.Wait(); err != nil {
-			return fmt.Errorf("Error running %s %s: %v", cmdName, embeds, err)
+		if *verbose {
+			fmt.Println(buf.String())
 		}
 	}
 	return nil
