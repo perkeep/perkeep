@@ -489,12 +489,17 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 			mm.Set(keyImageSize.Key(blobRef), keyImageSize.Val(fmt.Sprint(conf.Width), fmt.Sprint(conf.Height)))
 		}
 
+		exifData := imageBuf.Bytes
+		if conf.HEICEXIF != nil {
+			exifData = conf.HEICEXIF
+		}
 		var ft time.Time
 		fileTime := func(r filePrefixReader) error {
 			ft, err = schema.FileTime(r)
 			return err
 		}
-		if err = readPrefixOrFile(imageBuf.Bytes, fetcher, b, fileTime); err == nil {
+
+		if err = readPrefixOrFile(exifData, fetcher, b, fileTime); err == nil {
 			times = append(times, ft)
 		}
 		if exifDebug {
@@ -505,7 +510,7 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 		indexEXIFData := func(r filePrefixReader) error {
 			return indexEXIF(wholeRef, r, mm)
 		}
-		if err = readPrefixOrFile(imageBuf.Bytes, fetcher, b, indexEXIFData); err != nil {
+		if err = readPrefixOrFile(exifData, fetcher, b, indexEXIFData); err != nil {
 			if exifDebug {
 				log.Printf("error parsing EXIF: %v", err)
 			}

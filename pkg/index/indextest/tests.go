@@ -342,7 +342,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	}
 
 	// Upload some files.
-	var jpegFileRef, exifFileRef, exifWholeRef, badExifWholeRef, nanExifWholeRef, mediaFileRef, mediaWholeRef blob.Ref
+	var jpegFileRef, exifFileRef, exifWholeRef, badExifWholeRef, nanExifWholeRef, mediaFileRef, mediaWholeRef, heicEXIFWholeRef blob.Ref
 	{
 		camliRootPath, err := osutil.GoPackagePath("perkeep.org")
 		if err != nil {
@@ -362,6 +362,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		_, badExifWholeRef = uploadFile("bad-exif.jpg", time.Unix(1361248796, 0))
 		_, nanExifWholeRef = uploadFile("nan-exif.jpg", time.Unix(1361248796, 0))
 		mediaFileRef, mediaWholeRef = uploadFile("0s.mp3", noTime)
+		_, heicEXIFWholeRef = uploadFile("black-seattle-truncated.heic", time.Unix(1361248796, 0))
 	}
 
 	// Upload the dir containing the previous files.
@@ -409,6 +410,12 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	key = "exifgps|" + nanExifWholeRef.String()
 	if g, e := id.Get(key), ""; g != e {
 		t.Errorf("EXIF nan-exif.jpg key %q = %q; want %q", key, g, e)
+	}
+
+	// Check that we can read EXIF from HEIC files too
+	key = "exifgps|" + heicEXIFWholeRef.String()
+	if g, e := id.Get(key), "47.6496056|-122.3512806"; g != e {
+		t.Errorf("EXIF black-seattle-truncated.heic key %q = %q; want %q", key, g, e)
 	}
 
 	key = "have:" + pn.String()

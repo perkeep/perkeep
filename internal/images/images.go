@@ -144,7 +144,8 @@ type DecodeOpts struct {
 type Config struct {
 	Width, Height int
 	Format        string
-	Modified      bool // true if Decode actually rotated or flipped the image.
+	Modified      bool   // true if Decode actually rotated or flipped the image.
+	HEICEXIF      []byte // if not nil, the part of the HEIC file that contains EXIF metadata
 }
 
 func (c *Config) setBounds(im image.Image) {
@@ -410,6 +411,7 @@ func DecodeConfig(r io.Reader) (Config, error) {
 		if err != nil {
 			return c, err
 		}
+		c.HEICEXIF = exifBytes
 		mr = bytes.NewReader(exifBytes)
 	}
 
