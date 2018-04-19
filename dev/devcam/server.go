@@ -548,7 +548,10 @@ func (c *serverCmd) RunCommand(args []string) error {
 	log.Printf("Starting dev server on %v/ui/ with password \"pass3179\"\n",
 		c.env.m["CAMLI_BASEURL"])
 
-	camliBin := filepath.Join("bin", "perkeepd")
+	pkBin, err := exec.LookPath("perkeepd")
+	if err != nil {
+		return fmt.Errorf("could not find perkeepd path: %v", err)
+	}
 	cmdArgs := []string{
 		"-configfile=" + filepath.Join(camliSrcRoot, "config", "dev-server-config.json"),
 		"-listen=" + c.listen,
@@ -567,5 +570,5 @@ func (c *serverCmd) RunCommand(args []string) error {
 			}
 		}()
 	}
-	return runExec(camliBin, cmdArgs, c.env)
+	return runExec(pkBin, cmdArgs, c.env)
 }
