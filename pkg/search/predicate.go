@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -868,14 +869,25 @@ func newFilename() keyword {
 }
 
 func (fn filename) Description() string {
-	return "Match filename"
+	return "Match filename, case sensitively. Supports optional '*' wildcard at beginning, end, or both."
 }
 
 func (fn filename) Predicate(ctx context.Context, args []string) (*Constraint, error) {
-	c := permOfFile(&FileConstraint{
-		FileName: &StringConstraint{
-			Equals: args[0],
-		},
-	})
-	return c, nil
+	arg := args[0]
+	switch {
+	case !strings.Contains(arg, "*"):
+		return permOfFile(&FileConstraint{FileName: &StringConstraint{Equals: arg}}), nil
+	case strings.HasPrefix(arg, "*") && !strings.Contains(arg[1:], "*"):
+		suffix := arg[1:]
+		return permOfFile(&FileConstraint{FileName: &StringConstraint{HasSuffix: suffix}}), nil
+	case strings.HasSuffix(arg, "*") && !strings.Contains(arg[:len(arg)-1], "*"):
+		prefix := arg[:len(arg)-1]
+		return permOfFile(&FileConstraint{FileName: &StringConstraint{
+			HasPrefix: prefix,
+		}}), nil
+	case strings.HasSuffix(arg, "*") && strings.HasPrefix(arg, "*") && !strings.Contains(arg[1:len(arg)-1], "*"):
+		sub := arg[1 : len(arg)-1]
+		return permOfFile(&FileConstraint{FileName: &StringConstraint{Contains: sub}}), nil
+	}
+	return nil, errors.New("unsupported glob wildcard in filename search predicate")
 }
