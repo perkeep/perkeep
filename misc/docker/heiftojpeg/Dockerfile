@@ -22,8 +22,6 @@ WORKDIR ..
 
 FROM alpine:3.7
 
-COPY --from=builder /tmp/heif/Bins/heiftojpeg /usr/local/bin
-
 COPY --from=builder /usr/lib/libMagick++-7.Q16HDRI.so.3 /usr/lib/libMagick++-7.Q16HDRI.so.3
 COPY --from=builder /usr/lib/libMagickCore-7.Q16HDRI.so.4 /usr/lib/libMagickCore-7.Q16HDRI.so.4
 COPY --from=builder /usr/lib/libstdc++.so.6 /usr/lib/libstdc++.so.6
@@ -104,5 +102,8 @@ COPY --from=builder /usr/share/fonts/Type1/ /usr/share/fonts/Type1/
 RUN echo -e '#!/bin/sh\n\
 exit 0' > /usr/bin/exiftool
 RUN chmod a+x /usr/bin/exiftool
+
+# Put this at the bottom to take advantage of Docker layer caching. Most of the stuff up there will never change.
+COPY --from=builder /tmp/heif/Bins/heiftojpeg /usr/local/bin
 
 ENTRYPOINT ["/usr/local/bin/heiftojpeg"]
