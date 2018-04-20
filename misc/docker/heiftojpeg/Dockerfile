@@ -4,13 +4,14 @@ FROM alpine:3.7 as builder
 MAINTAINER Perkeep Contributors <perkeep@googlegroups.com>
 RUN apk add --no-cache git cmake alpine-sdk ghostscript-fonts imagemagick imagemagick-dev ffmpeg
 
+ENV HEIF_VERSION e83468424c031af9734f5f382cf0bfb525b63cf6
+
 # Fetch and build heiftojpeg.
 WORKDIR /tmp
-RUN mkdir -p github.com/pushd
-WORKDIR github.com/pushd
-RUN git clone https://github.com/pushd/heif/
+RUN git clone https://github.com/perkeep/heif/
 WORKDIR heif
-RUN git reset --hard 1062c752b0465aabc0f6001d1c20da076bf514f5
+
+RUN git reset --hard $HEIF_VERSION
 WORKDIR build
 
 RUN apk add --update
@@ -19,11 +20,9 @@ RUN cmake ..
 RUN make
 WORKDIR ..
 
-RUN apk add --no-cache bash
-
 FROM alpine:3.7
 
-COPY --from=builder /tmp/github.com/pushd/heif/Bins/heiftojpeg /usr/local/bin
+COPY --from=builder /tmp/heif/Bins/heiftojpeg /usr/local/bin
 
 COPY --from=builder /usr/lib/libMagick++-7.Q16HDRI.so.3 /usr/lib/libMagick++-7.Q16HDRI.so.3
 COPY --from=builder /usr/lib/libMagickCore-7.Q16HDRI.so.4 /usr/lib/libMagickCore-7.Q16HDRI.so.4
