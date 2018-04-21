@@ -27,6 +27,7 @@ import (
 	"perkeep.org/pkg/cmdmain"
 	"perkeep.org/pkg/search"
 
+	"go4.org/errorutil"
 	"go4.org/strutil"
 )
 
@@ -91,6 +92,10 @@ func (c *searchCmd) RunCommand(args []string) error {
 		req.Continue = "" // clear this as well
 
 		if err := json.NewDecoder(strings.NewReader(q)).Decode(&req); err != nil {
+			if se, ok := err.(*json.SyntaxError); ok {
+				line, col, msg := errorutil.HighlightBytePosition(strings.NewReader(q), se.Offset)
+				fmt.Fprintf(os.Stderr, "JSON syntax error at line %d, column %d parsing SearchQuery (https://godoc.org/perkeep.org/pkg/search#SearchQuery):\n%s\n", line, col, msg)
+			}
 			return err
 		}
 		if c.limit != 0 {
@@ -102,6 +107,10 @@ func (c *searchCmd) RunCommand(args []string) error {
 	} else if strutil.IsPlausibleJSON(q) {
 		cs := new(search.Constraint)
 		if err := json.NewDecoder(strings.NewReader(q)).Decode(&cs); err != nil {
+			if se, ok := err.(*json.SyntaxError); ok {
+				line, col, msg := errorutil.HighlightBytePosition(strings.NewReader(q), se.Offset)
+				fmt.Fprintf(os.Stderr, "JSON syntax error at line %d, column %d parsing Constraint (https://godoc.org/perkeep.org/pkg/search#Constraint):\n%s\n", line, col, msg)
+			}
 			return err
 		}
 		req.Constraint = cs
