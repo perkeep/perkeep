@@ -222,6 +222,12 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
 : If true, no thumbnail caching is done, and URLs even have cache
   buster components, to force browsers to reload a lot.
 
+`CAMLI_REDO_INDEX_ON_RECEIVE` (bool)
+: If true, the indexer will always index any blob it receives, regardless of
+  whether it thinks it's done it in the past. This is generally only useful when
+  working on the indexing code and retroactively indexing a subset of content
+  without forcing a global reindexing.
+
 `CAMLI_VAR_DIR` (string)
 : Path used by [pkg/osutil](/pkg/osutil) to override operating system specific
   application storage directory. Generally unused.

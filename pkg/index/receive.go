@@ -220,9 +220,17 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 		}
 	}()
 
-	if haveVal, haveErr := ix.s.Get("have:" + blobRef.String()); haveErr == nil {
-		if strings.HasSuffix(haveVal, "|indexed") {
-			return sbr, nil
+	// By default, return immediately if it looks like we already
+	// have indexed this blob before.  But if the user has
+	// CAMLI_REDO_INDEX_ON_RECEIVE set in their environment,
+	// always index it. This is generally only useful when working
+	// on the indexing code and retroactively indexing a subset of
+	// content without forcing a global reindexing.
+	if allowReindex, _ := strconv.ParseBool(os.Getenv("CAMLI_REDO_INDEX_ON_RECEIVE")); !allowReindex {
+		if haveVal, haveErr := ix.s.Get("have:" + blobRef.String()); haveErr == nil {
+			if strings.HasSuffix(haveVal, "|indexed") {
+				return sbr, nil
+			}
 		}
 	}
 
