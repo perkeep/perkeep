@@ -670,7 +670,10 @@ func HEIFToJPEG(fr io.Reader, size *Dimensions) ([]byte, error) {
 	var args []string
 	outFileArg := outFile
 	if useDocker {
-		args = append(args, "run", "--rm", "-v", outDir+":/out/",
+		args = append(args, "run",
+			"--rm",
+			"--tmpfs", "/tmp",
+			"-v", outDir+":/out/",
 			thumbnailImage)
 		inFile = "/out/input.heic"
 		outFileArg = "/out/output.jpg"
