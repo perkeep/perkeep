@@ -18,6 +18,7 @@ package osutil
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -127,6 +128,25 @@ func CamliConfigDir() string {
 }
 
 func camliConfigDir() string {
+	if fi, err := os.Lstat(oldCamliConfigDir()); err == nil && fi.IsDir() {
+		fmt.Fprintf(os.Stderr, "Error: old configuration directory detected. Not running until it's moved.\nRename %s to %s\n",
+			oldCamliConfigDir(), perkeepConfigDir())
+		os.Exit(1)
+	}
+	return perkeepConfigDir()
+}
+
+func perkeepConfigDir() string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(os.Getenv("APPDATA"), "Perkeep")
+	}
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		return filepath.Join(xdg, "perkeep")
+	}
+	return filepath.Join(HomeDir(), ".config", "perkeep")
+}
+
+func oldCamliConfigDir() string {
 	if runtime.GOOS == "windows" {
 		return filepath.Join(os.Getenv("APPDATA"), "Camlistore")
 	}
