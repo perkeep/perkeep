@@ -221,12 +221,12 @@ func setupTLS(ws *webserver.Server, conf *config) error {
 	// As all requests to the publisher are proxied through Perkeep's app
 	// handler, it makes sense to assume that both Perkeep and the publisher
 	// are behind the same domain name. Therefore, it follows that
-	// camlistored's autocert is the one actually getting a cert (and answering
+	// perkeepd's autocert is the one actually getting a cert (and answering
 	// the challenge) for the both of them. Plus, if they run on the same host
 	// (default setup), they can't both listen on 443 to answer the TLS-SNI
 	// challenge.
-	// TODO(mpl): however, camlistored and publisher could be running on
-	// different hosts, in which case we need to find a way for camlistored to
+	// TODO(mpl): however, perkeepd and publisher could be running on
+	// different hosts, in which case we need to find a way for perkeepd to
 	// share its autocert cache with publisher. But I think that can wait a
 	// later CL.
 	hostname := os.Getenv("CAMLI_API_HOST")
@@ -239,7 +239,7 @@ func setupTLS(ws *webserver.Server, conf *config) error {
 	logger.Print("TLS enabled, with Let's Encrypt")
 
 	// TODO(mpl): we only want publisher to use the same cache as
-	// camlistored, and we don't actually need an autocert.Manager.
+	// perkeepd, and we don't actually need an autocert.Manager.
 	// So we could just instantiate an autocert.DirCache, and generate
 	// from there a *tls.Certificate, but it looks like it would mean
 	// extracting quite a bit of code from the autocert pkg to do it properly.

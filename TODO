@@ -135,11 +135,11 @@ Offline list:
    of where to put new blobs. union could a library (used by sharder)
    with a pluggable policy on that.
 
--- support for running pk-mount under camlistored. especially for OS X,
+-- support for running pk-mount under perkeepd. especially for OS X,
    where the lifetime of the background daemon will be the same as the
    user's login session.
 
--- website: add godoc for /server/camlistored (also without a "go get"
+-- website: add godoc for /server/perkeepd (also without a "go get"
    line)
 
 -- tests for all cmd/* stuff, perhaps as part of some integration
@@ -180,10 +180,10 @@ Offline list:
 
 -- delete mostly-obsolete camsigd.  see big TODO in camsigd.go.
 
--- we used to be able live-edit js/css files in server/camlistored/ui when
+-- we used to be able live-edit js/css files in server/perkeepd/ui when
    running under the App Engine dev_appserver.py.  That's now broken with my
    latest efforts to revive it.  The place to start looking is:
-        server/camlistored/ui/fileembed_appengine.go
+        server/perkeepd/ui/fileembed_appengine.go
 
 -- should a "share" claim be not a claim but its own permanode, so it
    can be rescinded?  right now you can't really unshare a "haveref"

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This file adds the "server" subcommand to devcam, to run camlistored.
+// This file adds the "server" subcommand to devcam, to run perkeepd.
 
 package main
 
@@ -78,7 +78,7 @@ type serverCmd struct {
 	picasaAPIKey     string
 	plaidAPIKey      string
 	twitterAPIKey    string
-	extraArgs        string // passed to camlistored
+	extraArgs        string // passed to perkeepd
 	// end of flag vars
 
 	listen string // address + port to listen on
@@ -128,7 +128,7 @@ func init() {
 		flags.StringVar(&cmd.twitterAPIKey, "twitterapikey", "", "The key and secret to use with the Twitter importer. Formatted as '<APIkey>:<APIsecret>'.")
 		flags.StringVar(&cmd.root, "root", "", "A directory to store data in. Defaults to a location in the OS temp directory.")
 		flags.StringVar(&cmd.extraArgs, "extraargs", "",
-			"List of comma separated options that will be passed to camlistored")
+			"List of comma separated options that will be passed to perkeepd")
 		return cmd
 	})
 }
@@ -144,7 +144,7 @@ func (c *serverCmd) Examples() []string {
 }
 
 func (c *serverCmd) Describe() string {
-	return "run the stand-alone camlistored in dev mode."
+	return "run the stand-alone perkeepd in dev mode."
 }
 
 func (c *serverCmd) checkFlags(args []string) error {
@@ -507,7 +507,7 @@ func (c *serverCmd) RunCommand(args []string) error {
 	if !*noBuild {
 		withSqlite = c.sqlite
 		targets := []string{
-			filepath.Join("server", "camlistored"),
+			filepath.Join("server", "perkeepd"),
 			filepath.Join("cmd", "pk"),
 		}
 		if c.hello {
@@ -548,7 +548,7 @@ func (c *serverCmd) RunCommand(args []string) error {
 	log.Printf("Starting dev server on %v/ui/ with password \"pass3179\"\n",
 		c.env.m["CAMLI_BASEURL"])
 
-	camliBin := filepath.Join("bin", "camlistored")
+	camliBin := filepath.Join("bin", "perkeepd")
 	cmdArgs := []string{
 		"-configfile=" + filepath.Join(camliSrcRoot, "config", "dev-server-config.json"),
 		"-listen=" + c.listen,
@@ -558,7 +558,7 @@ func (c *serverCmd) RunCommand(args []string) error {
 		cmdArgs = append(cmdArgs, strings.Split(c.extraArgs, ",")...)
 	}
 	if c.things {
-		// force camlistored to be run as a child process instead of with
+		// force perkeepd to be run as a child process instead of with
 		// syscall.Exec, so c.makeThings() is able to run.
 		sysExec = nil
 		go func() {

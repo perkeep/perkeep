@@ -111,7 +111,7 @@ type InstanceConf struct {
 
 	Ctime time.Time // Timestamp for this configuration.
 
-	WIP bool // Whether to use the camlistored-WORKINPROGRESS.tar.gz tarball instead of the "production" one
+	WIP bool // Whether to use the perkeepd-WORKINPROGRESS.tar.gz tarball instead of the "production" one
 }
 
 func (conf *InstanceConf) bucketBase() string {
@@ -693,13 +693,13 @@ OpLoop:
 
 func cloudConfig(conf *InstanceConf) string {
 	config := strings.Replace(baseInstanceConfig, "INNODB_BUFFER_POOL_SIZE=NNN", "INNODB_BUFFER_POOL_SIZE="+strconv.Itoa(innodbBufferPoolSize(conf.Machine)), -1)
-	camlistoredTarball := "https://storage.googleapis.com/camlistore-release/docker/"
+	perkeepdTarball := "https://storage.googleapis.com/camlistore-release/docker/"
 	if conf.WIP {
-		camlistoredTarball += "camlistored-WORKINPROGRESS.tar.gz"
+		perkeepdTarball += "camlistored-WORKINPROGRESS.tar.gz"
 	} else {
-		camlistoredTarball += "camlistored.tar.gz"
+		perkeepdTarball += "camlistored.tar.gz"
 	}
-	config = strings.Replace(config, "CAMLISTORED_TARBALL", camlistoredTarball, 1)
+	config = strings.Replace(config, "CAMLISTORED_TARBALL", perkeepdTarball, 1)
 	return config
 }
 
@@ -828,7 +828,7 @@ func (d *Deployer) setFirewall(ctx context.Context, computeService *compute.Serv
 // of the GCE machine type.
 func innodbBufferPoolSize(machine string) int {
 	// Totally arbitrary. We don't need much here because
-	// camlistored slurps this all into its RAM on start-up
+	// perkeepd slurps this all into its RAM on start-up
 	// anyway. So this is all prety overkill and more than the
 	// 8MB default.
 	switch machine {
@@ -902,7 +902,7 @@ coreos:
 
         [Install]
         WantedBy=multi-user.target
-    - name: camlistored.service
+    - name: perkeepd.service
       command: start
       content: |
         [Unit]

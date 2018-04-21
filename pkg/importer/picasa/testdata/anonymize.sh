@@ -1,6 +1,6 @@
 #!/bin/sh -e
 #
-# To save the picasa dialogue, start your camlistored with
+# To save the picasa dialogue, start your perkeepd with
 # PICAGO_DEBUG_DIR=/path/to/save/to
 # CAMLI_PICASA_FULL_IMPORT=1
 #

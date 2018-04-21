@@ -26,14 +26,14 @@ checked out:
 Once you've successfully built the Perkeep components, you can run
 the server with:
 
-    $ ./bin/camlistored
+    $ ./bin/perkeepd
 
 This will create [configuration](/doc/server-config) and public/private
 key information in `$HOME/.config/camlistore/` (or where
-`camtool env configdir` points). You can start and stop camlistored as
+`camtool env configdir` points). You can start and stop perkeepd as
 you see fit.
 
-You're done setting up! Running camlistored should open a new browser
+You're done setting up! Running perkeepd should open a new browser
 window pointed at your keep where you can start uploading and
 interacting with data.
 

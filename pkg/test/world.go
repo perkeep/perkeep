@@ -40,7 +40,7 @@ import (
 
 // World defines an integration test world.
 //
-// It's used to run the actual Perkeep binaries (camlistored,
+// It's used to run the actual Perkeep binaries (perkeepd,
 // pk-put, camget, pk, etc) together in large tests, including
 // building them, finding them, and wiring them up in an isolated way.
 type World struct {
@@ -51,7 +51,7 @@ type World struct {
 	port     int
 
 	server    *exec.Cmd
-	isRunning int32 // state of the camlistored server. Access with sync/atomic only.
+	isRunning int32 // state of the perkeepd server. Access with sync/atomic only.
 	serverErr error
 }
 
@@ -132,14 +132,14 @@ func (w *World) Build() error {
 	return nil
 }
 
-// Help outputs the help of camlistored from the World.
+// Help outputs the help of perkeepd from the World.
 func (w *World) Help() ([]byte, error) {
 	if err := w.Build(); err != nil {
 		return nil, err
 	}
-	// Run camlistored -help.
+	// Run perkeepd -help.
 	cmd := exec.Command(
-		filepath.Join(w.srcRoot, "bin", "camlistored"),
+		filepath.Join(w.srcRoot, "bin", "perkeepd"),
 		"-help",
 	)
 	return cmd.CombinedOutput()
@@ -150,10 +150,10 @@ func (w *World) Start() error {
 	if err := w.Build(); err != nil {
 		return err
 	}
-	// Start camlistored.
+	// Start perkeepd.
 	{
 		w.server = exec.Command(
-			filepath.Join(w.srcRoot, "bin", "camlistored"),
+			filepath.Join(w.srcRoot, "bin", "perkeepd"),
 			"--openbrowser=false",
 			"--configfile="+filepath.Join(w.srcRoot, "pkg", "test", "testdata", w.config),
 			"--listen=FD:3",
@@ -180,7 +180,7 @@ func (w *World) Start() error {
 		}
 		w.server.ExtraFiles = []*os.File{listenerFD}
 		if err := w.server.Start(); err != nil {
-			w.serverErr = fmt.Errorf("starting camlistored: %v", err)
+			w.serverErr = fmt.Errorf("starting perkeepd: %v", err)
 			return w.serverErr
 		}
 
@@ -224,10 +224,10 @@ func (w *World) Start() error {
 	return nil
 }
 
-// Ping returns an error if the world's camlistored is not running.
+// Ping returns an error if the world's perkeepd is not running.
 func (w *World) Ping() error {
 	if atomic.LoadInt32(&w.isRunning) != 1 {
-		return fmt.Errorf("camlistored not running: %v", w.serverErr)
+		return fmt.Errorf("perkeepd not running: %v", w.serverErr)
 	}
 	return nil
 }
@@ -370,7 +370,7 @@ func (w *World) SecretRingFile() string {
 // SearchHandlerPath returns the path to the search handler, with trailing slash.
 func (w *World) SearchHandlerPath() string { return "/my-search/" }
 
-// ServerBinary returns the location of the camlistored binary running for this World.
+// ServerBinary returns the location of the perkeepd binary running for this World.
 func (w *World) ServerBinary() string {
-	return filepath.Join(w.srcRoot, "bin", "camlistored")
+	return filepath.Join(w.srcRoot, "bin", "perkeepd")
 }

@@ -1121,7 +1121,7 @@ func (b *lowBuilder) build() (*Config, error) {
 
 	var cacheDir string
 	if noLocalDisk {
-		// Whether camlistored is run from EC2 or not, we use
+		// Whether perkeepd is run from EC2 or not, we use
 		// a temp dir as the cache when primary storage is S3.
 		// TODO(mpl): s3CacheBucket
 		// See https://perkeep.org/issue/85

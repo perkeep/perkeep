@@ -81,7 +81,7 @@ JSON. It can either be in [simple mode](#simplemode) (for basic configurations),
 
 * `sourceRoot`: Optional. If non-empty, it specifies the path to an alternative
   Perkeep source tree, in order to override the embedded UI and/or Closure
-  resources. The UI files will be expected in `<sourceRoot>/server/camlistored/ui`
+  resources. The UI files will be expected in `<sourceRoot>/server/perkeepd/ui`
   and the Closure library in `<sourceRoot>/third_party/closure/lib`.
 
 
@@ -198,7 +198,7 @@ The following steps should get you started with MySQL:
   or [MySQL](http://dev.mysql.com/downloads/windows/installer/) (the latter
   requires .NET).
 * Edit your server configuration file (if it does not exit yet, running
-  **camlistored** will automatically create it):
+  **perkeepd** will automatically create it):
   * Remove the <b>sqlite</b> option.
   * Add a <b>dbname</b> option. (ex: "dbname": "camliprod")
   * Add a <b>mysql</b> option. (ex: "mysql": "foo@localhost:bar")
@@ -212,7 +212,7 @@ tested as the MySQL one.
 
 # Low-level configuration {#lowlevel}
 
-You can specify a low-level configuration file to camlistored with the same
+You can specify a low-level configuration file to perkeepd with the same
 `-configfile` option that is used to specify the simple mode configuration file.
 Perkeep tests for the presence of the `"handlerConfig": true` key/value
 pair to determine whether the configuration should be considered low-level.

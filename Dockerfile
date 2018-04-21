@@ -1,5 +1,5 @@
 # Copyright 2014 The Perkeep Authors.
-# Generic purpose Perkeep image, that builds the server (camlistored)
+# Generic purpose Perkeep image, that builds the server (perkeepd)
 # and the command-line clients (camput, camget, camtool, and pk-mount).
 
 # Use misc/docker/go to generate perkeep/go

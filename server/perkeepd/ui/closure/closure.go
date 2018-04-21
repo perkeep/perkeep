@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package closure // import "perkeep.org/server/camlistored/ui/closure"
+package closure // import "perkeep.org/server/perkeepd/ui/closure"
 
 import (
 	"archive/zip"

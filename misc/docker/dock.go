@@ -129,7 +129,7 @@ func genCamlistore(ctxDir string) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error building camlistored in go container: %v", err)
+		log.Fatalf("Error building perkeepd in go container: %v", err)
 	}
 }
 
@@ -307,14 +307,14 @@ func uploadReleaseTarball() {
 	}
 }
 
-// uploadDockerImage makes a tar.gz snapshot of the camlistored docker image,
-// and uploads it at camlistore-release/docker/camlistored-REV.tar.gz. It then
-// makes a copy in the same bucket and path as camlistored.tar.gz.
+// uploadDockerImage makes a tar.gz snapshot of the perkeepd docker image,
+// and uploads it at camlistore-release/docker/perkeepd-REV.tar.gz. It then
+// makes a copy in the same bucket and path as perkeepd.tar.gz.
 func uploadDockerImage() {
 	proj := "camlistore-website"
 	bucket := "camlistore-release"
-	versionedTarball := "docker/camlistored-" + rev() + ".tar.gz"
-	tarball := "docker/camlistored.tar.gz"
+	versionedTarball := "docker/perkeepd-" + rev() + ".tar.gz"
+	tarball := "docker/perkeepd.tar.gz"
 	versionFile := "docker/VERSION"
 
 	log.Printf("Uploading %s/%s ...", bucket, versionedTarball)
@@ -423,11 +423,11 @@ func setReleaseTarballName() {
 
 func packBinaries(ctxDir string) {
 	binaries := map[string]bool{
-		exeName("camlistored"): false,
-		exeName("camget"):      false,
-		exeName("pk-put"):      false,
-		exeName("pk"):          false,
-		exeName("publisher"):   false,
+		exeName("perkeepd"):  false,
+		exeName("camget"):    false,
+		exeName("pk-put"):    false,
+		exeName("pk"):        false,
+		exeName("publisher"): false,
 	}
 	switch *buildOS {
 	case "linux", "darwin":

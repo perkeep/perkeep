@@ -12,4 +12,4 @@ ADD zoneinfo /usr/share/zoneinfo
 ADD perkeep.org /perkeep
 
 EXPOSE 80 443
-ENTRYPOINT ["/perkeep/bin/camlistored"]
+ENTRYPOINT ["/perkeep/bin/perkeepd"]

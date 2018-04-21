@@ -10,7 +10,7 @@
 		DA31F9381866744D002E3F33 /* TimeTravelWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = DA31F9361866744D002E3F33 /* TimeTravelWindowController.m */; };
 		DA31F9391866744D002E3F33 /* TimeTravelWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = DA31F9371866744D002E3F33 /* TimeTravelWindowController.xib */; };
 		DA71BCB718642A3A000A102C /* PerkeepIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = DA71BCB618642A3A000A102C /* PerkeepIcon.icns */; };
-		DAABA574186435DA000D62B6 /* camlistored in Resources */ = {isa = PBXBuildFile; fileRef = DAABA572186435DA000D62B6 /* camlistored */; };
+		DAABA574186435DA000D62B6 /* perkeepd in Resources */ = {isa = PBXBuildFile; fileRef = DAABA572186435DA000D62B6 /* camlistored */; };
 		DAABA575186435DA000D62B6 /* pk-mount in Resources */ = {isa = PBXBuildFile; fileRef = DAABA573186435DA000D62B6 /* pk-mount */; };
 		DAABA57718643710000D62B6 /* Credits.html in Resources */ = {isa = PBXBuildFile; fileRef = DAABA57618643710000D62B6 /* Credits.html */; };
 		DAD59F8C1877CC250018193C /* camput in Resources */ = {isa = PBXBuildFile; fileRef = DAD59F8B1877CC250018193C /* camput */; };
@@ -54,7 +54,7 @@
 		DA31F9361866744D002E3F33 /* TimeTravelWindowController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TimeTravelWindowController.m; sourceTree = "<group>"; };
 		DA31F9371866744D002E3F33 /* TimeTravelWindowController.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = TimeTravelWindowController.xib; sourceTree = "<group>"; };
 		DA71BCB618642A3A000A102C /* PerkeepIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = PerkeepIcon.icns; sourceTree = "<group>"; };
-		DAABA572186435DA000D62B6 /* camlistored */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = camlistored; path = ../../bin/camlistored; sourceTree = "<group>"; };
+		DAABA572186435DA000D62B6 /* perkeepd */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = camlistored; path = ../../bin/camlistored; sourceTree = "<group>"; };
 		DAABA573186435DA000D62B6 /* pk-mount */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "pk-mount"; path = "../../bin/pk-mount"; sourceTree = "<group>"; };
 		DAABA57618643710000D62B6 /* Credits.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; path = Credits.html; sourceTree = "<group>"; };
 		DAD59F8B1877CC250018193C /* camput */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = camput; path = ../../bin/camput; sourceTree = "<group>"; };
@@ -111,7 +111,7 @@
 			isa = PBXGroup;
 			children = (
 				DAD59F8B1877CC250018193C /* camput */,
-				DAABA572186435DA000D62B6 /* camlistored */,
+				DAABA572186435DA000D62B6 /* perkeepd */,
 				DAABA573186435DA000D62B6 /* pk-mount */,
 				DAF1094E1863EDAF00F6A3F9 /* Perkeep */,
 				DAF1096C1863EDAF00F6A3F9 /* PerkeepTests */,
@@ -299,7 +299,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DA31F9391866744D002E3F33 /* TimeTravelWindowController.xib in Resources */,
-				DAABA574186435DA000D62B6 /* camlistored in Resources */,
+				DAABA574186435DA000D62B6 /* perkeepd in Resources */,
 				DAABA575186435DA000D62B6 /* pk-mount in Resources */,
 				DAD59F8C1877CC250018193C /* camput in Resources */,
 				DAF109531863EDAF00F6A3F9 /* InfoPlist.strings in Resources */,

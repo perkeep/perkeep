@@ -2,7 +2,7 @@
 2. Install xcode.
 3. From top-level directory:
    $ go run make.go
-   (this will create bin/camlistored, bin/pk-mount, and bin/camput)
+   (this will create bin/perkeepd, bin/pk-mount, and bin/camput)
 4. From this directory:
    $ xcodebuild -target Perkeep.dmg
    (this will create build/Release/Perkeep.app and Perkeep.dmg)

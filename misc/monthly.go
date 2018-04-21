@@ -558,12 +558,12 @@ func genReleaseNotes() (map[string][]string, error) {
 	startsWithContext := regexp.MustCompile(`^(.+?):\s+(.*)$`)
 	// Any of the keys in webUIContext, when encountered as context of
 	// a commit message, means the commit is about the web UI. So we group
-	// them all together under the "camlistored/ui" context.
+	// them all together under the "perkeepd/ui" context.
 	webUIContext := map[string]bool{
-		"server/camlistored/ui": true,
-		"ui":     true,
-		"web ui": true,
-		"webui":  true,
+		"server/perkeepd/ui": true,
+		"ui":                 true,
+		"web ui":             true,
+		"webui":              true,
 	}
 	var noContext []string
 	commitByContext := make(map[string][]string)
@@ -586,10 +586,10 @@ func genReleaseNotes() (map[string][]string, error) {
 		commitContext = strings.TrimPrefix(commitContext, "cmd/")
 		// group together all web UI stuff
 		if _, ok := webUIContext[commitContext]; ok {
-			commitContext = "camlistored/ui"
+			commitContext = "perkeepd/ui"
 		}
-		if commitContext == "server/camlistored" {
-			commitContext = "camlistored"
+		if commitContext == "server/perkeepd" {
+			commitContext = "perkeepd"
 		}
 		var changes []string
 		oldChanges, ok := commitByContext[commitContext]

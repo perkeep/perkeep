@@ -105,7 +105,7 @@ func GenerateClientConfig(serverConfig jsonconfig.Obj) (*Config, error) {
 	camliNetIP := serverConfig.OptionalString("camliNetIP", "")
 	if camliNetIP != "" {
 		listen = ":443"
-		// TODO(mpl): move the camliNetDomain const from camlistored.go
+		// TODO(mpl): move the camliNetDomain const from perkeepd.go
 		// to somewhere importable, so we can use it here. but later.
 		camliNetDomain := "camlistore.net"
 		baseURL = fmt.Sprintf("https://%s.%s/", keyID, camliNetDomain)

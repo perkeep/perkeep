@@ -21,7 +21,7 @@ The below is read by genfileembed.go to determine the files to embed in the
 server binary. Crazy, but true.
 #fileembed pattern .+\.(js|css|html|png|svg)$
 */
-package ui // import "perkeep.org/server/camlistored/ui"
+package ui // import "perkeep.org/server/perkeepd/ui"
 
 import (
 	"perkeep.org/pkg/fileembed"

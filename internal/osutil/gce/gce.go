@@ -131,7 +131,7 @@ func LogWriter() (w io.WriteCloser, err error) {
 	}
 	logw := writer{
 		severity: logging.Debug,
-		logger:   logc.Logger("camlistored-stderr"),
+		logger:   logc.Logger("perkeepd-stderr"),
 	}
 	return multiWriteCloser{
 		w:      io.MultiWriter(w, logw),

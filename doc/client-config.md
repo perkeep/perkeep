@@ -79,7 +79,7 @@ server configurations. For example:
     If the server is not on the same host, it is highly recommended to use TLS
     or another form of secure connection to the server.
 
-* `server`: The camlistored server to connect to, of the form:
+* `server`: The perkeepd server to connect to, of the form:
   "[http[s]://]host[:port][/prefix]". Defaults to https. This option can be
   overriden with the "-server" command-line flag.
 

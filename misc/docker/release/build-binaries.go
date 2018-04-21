@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Command build-binaries builds camlistored and the Perkeep tools.
+// Command build-binaries builds perkeepd and the Perkeep tools.
 // It should be run in a docker container.
 package main // import "perkeep.org/misc/docker/release"
 

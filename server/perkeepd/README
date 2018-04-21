@@ -4,4 +4,4 @@ See also:
  - The storage interface is in <root>/pkg/blobserver
  - The storage implementations are under that e.g. <root>/pkg/blobserver/localdisk
  - The HTTP handlers are implemented in <root>/pkg/blobserver/handlers
- - The UI code is in <root>/server/camlistored/ui
+ - The UI code is in <root>/server/perkeepd/ui

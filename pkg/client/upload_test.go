@@ -136,7 +136,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// because these two are normally consumed in camlistored.go
+	// because these two are normally consumed in perkeepd.go
 	// TODO(mpl): serverinit.Load should consume these 2 as well. Once
 	// consumed, we should keep all the answers as private fields, and then we
 	// put accessors on serverinit.Config. Maybe we even stop embedding

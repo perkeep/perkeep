@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// The camlistored binary is the Perkeep server.
-package main // import "perkeep.org/server/camlistored"
+// The perkeepd binary is the Perkeep server.
+package main // import "perkeep.org/server/perkeepd"
 
 import (
 	"context"
@@ -455,7 +455,7 @@ func muxChallengeHandler(ws *webserver.Server, config *serverinit.Config) (*gpgc
 }
 
 // setInstanceHostname sets the "camlistore-hostname" metadata on the GCE
-// instance where camlistored is running. The value set is the same as the one we
+// instance where perkeepd is running. The value set is the same as the one we
 // register with the camlistore.net DNS, i.e. "<gpgKeyId>.camlistore.net", where
 // <gpgKeyId> is Perkeep's keyId.
 func setInstanceHostname() error {
@@ -713,7 +713,7 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 	flag.Parse()
 
 	if *flagVersion {
-		fmt.Fprintf(os.Stderr, "camlistored version: %s\nGo version: %s (%s/%s)\n",
+		fmt.Fprintf(os.Stderr, "perkeepd version: %s\nGo version: %s (%s/%s)\n",
 			buildinfo.Version(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
 		return
 	}
@@ -745,7 +745,7 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		}
 	}()
 
-	log.Printf("Starting camlistored version %s; Go %s (%s/%s)", buildinfo.Version(), runtime.Version(),
+	log.Printf("Starting perkeepd version %s; Go %s (%s/%s)", buildinfo.Version(), runtime.Version(),
 		runtime.GOOS, runtime.GOARCH)
 
 	shutdownc := make(chan io.Closer, 1) // receives io.Closer to cleanly shut down

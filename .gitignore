@@ -26,6 +26,7 @@ bin/genfileembed
 bin/gopherjs
 bin/hello
 bin/pk*
+bin/perkeepd
 bin/publisher
 bin/reactGen
 bin/scancab
@@ -40,13 +41,13 @@ clients/web/embed/opensans/zembed_*.go
 clients/web/embed/react/zembed_*.go
 config/tls.*
 misc/docker/djpeg-static/djpeg
-misc/docker/camlistored/camlistored*
-misc/docker/camlistored/djpeg
+misc/docker/perkeepd/perkeepd*
+misc/docker/perkeepd/djpeg
 pkg/server/zembed_favicon.ico.go
-server/camlistored/ui/goui.js
-server/camlistored/ui/goui.js.map
-server/camlistored/ui/zembed_*
-server/camlistored/ui/closure/z_data.go
+server/perkeepd/ui/goui.js
+server/perkeepd/ui/goui.js.map
+server/perkeepd/ui/zembed_*
+server/perkeepd/ui/closure/z_data.go
 
 # vendored data we don't want to retain
 /vendor/**/.travis.yml

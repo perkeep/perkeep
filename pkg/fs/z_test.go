@@ -24,7 +24,7 @@ import (
 	"perkeep.org/pkg/test"
 )
 
-// Make sure that the camlistored process started
+// Make sure that the perkeepd process started
 // by the World gets terminated when all the tests
 // are done.
 // This works only as long as TestZLastTest is the

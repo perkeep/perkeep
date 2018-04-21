@@ -236,10 +236,10 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 			fmt.Fprintf(rw, p, a...)
 		}
 	}
-	f("<html><head><title>camlistored status</title></head>")
+	f("<html><head><title>perkeepd status</title></head>")
 	f("<body>")
 
-	f("<h1>camlistored status</h1>")
+	f("<h1>perkeepd status</h1>")
 
 	f("<h2>Versions</h2><ul>")
 	var envStr string
@@ -254,7 +254,7 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 	f("<h2>Logs</h2><ul>")
 	f("  <li><a href='/debug/config'>/debug/config</a> - server config</li>\n")
 	if env.OnGCE() {
-		f("  <li><a href='/debug/logs/camlistored'>camlistored logs on Google Cloud Logging</a></li>\n")
+		f("  <li><a href='/debug/logs/perkeepd'>perkeepd logs on Google Cloud Logging</a></li>\n")
 		f("  <li><a href='/debug/logs/system'>system logs from Google Compute Engine</a></li>\n")
 	}
 	f("</ul>")
@@ -274,7 +274,7 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 		if err != nil {
 			log.Printf("error getting Google Cloud Console URL: %v", err)
 		} else {
-			f("   <li><b>Updating:</b> When a new image for Perkeep on GCE is available, you can update by hitting \"Reset\" (or \"Stop\", then \"Start\") for your instance on your <a href='%s'>Google Cloud Console</a>.<br>Alternatively, you can ssh to your instance and restart the Perkeep service with: <b>sudo systemctl restart camlistored</b>.</li>", console)
+			f("   <li><b>Updating:</b> When a new image for Perkeep on GCE is available, you can update by hitting \"Reset\" (or \"Stop\", then \"Start\") for your instance on your <a href='%s'>Google Cloud Console</a>.<br>Alternatively, you can ssh to your instance and restart the Perkeep service with: <b>sudo systemctl restart perkeepd</b>.</li>", console)
 		}
 	}
 	f("</ul>")
@@ -322,7 +322,7 @@ func (sh *StatusHandler) serveRestart(rw http.ResponseWriter, req *http.Request)
 	reindex := (req.FormValue("reindex") == "on")
 	recovery, _ := strconv.Atoi(req.FormValue("recovery"))
 
-	log.Println("Restarting camlistored")
+	log.Println("Restarting perkeepd")
 	rw.Header().Set("Connection", "close")
 	http.Redirect(rw, req, sh.prefix, http.StatusFound)
 	if f, ok := rw.(http.Flusher); ok {

@@ -27,7 +27,7 @@ valid.
   takes precedence over that specified in the configuration files.
 
 `CAMLI_BASEURL` (string)
-: URL set in devcam to act as a baseURL in the devcam launched camlistored.
+: URL set in devcam to act as a baseURL in the devcam launched perkeepd.
 
 `CAMLI_CACHE_DIR` (string)
 : Path used by [pkg/osutil](/pkg/osutil) to override operating system specific
@@ -40,10 +40,10 @@ valid.
 `CAMLI_DBNAME` (string)
 : Backend specific data source name (DSN).
   Set in devcam to pass database configuration for the indexer to the devcam
-  launched camlistored.
+  launched perkeepd.
 
 `CAMLI_DEBUG` (bool)
-: Used by camlistored and pk put to enable additional commandline options.
+: Used by perkeepd and pk put to enable additional commandline options.
   Used in pkg/schema to enable additional logging.
 
 `CAMLI_DEBUG_CONFIG` (bool)

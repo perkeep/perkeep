@@ -105,7 +105,7 @@ type Client struct {
 	// If not empty, (and if using TLS) the full x509 verification is
 	// disabled, and we instead check the server's certificate against
 	// this list.
-	// The camlistored server prints the fingerprint to add to the config
+	// The perkeepd server prints the fingerprint to add to the config
 	// when starting.
 	trustedCerts []string
 
@@ -398,7 +398,7 @@ func (o optionInsecure) modifyClient(c *Client) { c.insecureAnyTLSCert = bool(o)
 // OptionTrustedCert returns a ClientOption that makes the client
 // trust the provide self-signed cert signature. The value should be
 // the 20 byte hex prefix of the SHA-256 of the cert, as printed by
-// the camlistored server on start-up.
+// the perkeepd server on start-up.
 //
 // If cert is empty, the option has no effect.
 func OptionTrustedCert(cert string) ClientOption {

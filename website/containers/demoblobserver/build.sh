@@ -13,7 +13,7 @@ export GOPATH=/gopath
 export GOBIN=/usr/local/bin
 export GO15VENDOREXPERIMENT=1
 export CGO_ENABLED=0
-/usr/local/go/bin/go install -v camlistore.org/server/camlistored
+/usr/local/go/bin/go install -v camlistore.org/server/perkeepd
 
 rm -rf /usr/local/go
 apt-get remove --yes curl git-core

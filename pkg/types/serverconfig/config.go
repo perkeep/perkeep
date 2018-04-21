@@ -47,7 +47,7 @@ type Config struct {
 
 	// alternative source tree, to override the embedded ui and/or closure resources.
 	// If non empty, the ui files will be expected at
-	// sourceRoot + "/server/camlistored/ui" and the closure library at
+	// sourceRoot + "/server/perkeepd/ui" and the closure library at
 	// sourceRoot + "/clients/web/embed/closure/lib"
 	// Also used by the publish handler.
 	SourceRoot string `json:"sourceRoot,omitempty"`

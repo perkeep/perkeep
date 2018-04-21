@@ -27,7 +27,7 @@ import (
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/types/camtypes"
-	"perkeep.org/server/camlistored/ui/goui/geo"
+	"perkeep.org/server/perkeepd/ui/goui/geo"
 
 	"github.com/gopherjs/gopherjs/js"
 	"honnef.co/go/js/dom"

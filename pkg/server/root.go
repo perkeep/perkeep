@@ -197,7 +197,7 @@ func (rh *RootHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f := func(p string, a ...interface{}) {
 		fmt.Fprintf(w, p, a...)
 	}
-	f("<html><body><p>This is camlistored (%s), a "+
+	f("<html><body><p>This is perkeepd (%s), a "+
 		"<a href='http://perkeep.org'>Perkeep</a> server.</p>", buildinfo.Version())
 	if rh.ui != nil {
 		f("<p>To manage your content, access the <a href='%s'>%s</a>.</p>", rh.ui.prefix, rh.ui.prefix)

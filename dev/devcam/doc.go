@@ -27,7 +27,7 @@ Modes:
 
   get: run camget in dev mode.
   put: run pk-put in dev mode.
-  server: run the stand-alone camlistored in dev mode.
+  server: run the stand-alone perkeepd in dev mode.
 
 Examples:
 

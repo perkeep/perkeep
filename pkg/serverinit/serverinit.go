@@ -345,7 +345,7 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 	var hh http.Handler
 	if h.htype == "app" {
 		// h.conf might already contain the server's baseURL, but
-		// camlistored.go derives (if needed) a more useful hl.baseURL,
+		// perkeepd.go derives (if needed) a more useful hl.baseURL,
 		// after h.conf was generated, so we provide it as well to
 		// FromJSONConfig so NewHandler can benefit from it.
 		hc, err := app.FromJSONConfig(h.conf, prefix, hl.baseURL)
@@ -417,11 +417,11 @@ type Config struct {
 	UIPath string // Not valid until after InstallHandlers
 
 	// apps is the list of server apps configured during InstallHandlers,
-	// and that should be started after camlistored has started serving.
+	// and that should be started after perkeepd has started serving.
 	apps []*app.Handler
 	// signHandler is found and configured during InstallHandlers, or nil.
 	// It is stored in the Config, so we can call UploadPublicKey on on it as
-	// soon as camlistored is ready for it.
+	// soon as perkeepd is ready for it.
 	signHandler *signhandler.Handler
 }
 
@@ -656,7 +656,7 @@ func dumpGoroutines(w http.ResponseWriter, r *http.Request) {
 }
 
 // StartApps starts all the server applications that were configured
-// during InstallHandlers. It should only be called after camlistored
+// during InstallHandlers. It should only be called after perkeepd
 // has started serving, since these apps might request some configuration
 // from Perkeep to finish initializing.
 func (config *Config) StartApps() error {
@@ -768,14 +768,14 @@ func (profileHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 func logsHandler(w http.ResponseWriter, r *http.Request) {
 	suffix := strings.TrimPrefix(r.URL.Path, "/debug/logs/")
 	switch suffix {
-	case "camlistored":
+	case "perkeepd":
 		projID, err := metadata.ProjectID()
 		if err != nil {
 			httputil.ServeError(w, r, fmt.Errorf("Error getting project ID: %v", err))
 			return
 		}
 		http.Redirect(w, r,
-			"https://console.developers.google.com/logs?project="+projID+"&service=custom.googleapis.com&logName=camlistored-stderr",
+			"https://console.developers.google.com/logs?project="+projID+"&service=custom.googleapis.com&logName=perkeepd-stderr",
 			http.StatusFound)
 	case "system":
 		c := &http.Client{

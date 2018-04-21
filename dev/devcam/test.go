@@ -133,7 +133,7 @@ func (c *testCmd) runTests(args []string) error {
 	} else {
 		targs = append(targs, []string{
 			"./pkg/...",
-			"./server/camlistored",
+			"./server/perkeepd",
 			"./cmd/...",
 			"./misc/docker/...",
 			"./website",

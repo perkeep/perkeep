@@ -9,8 +9,8 @@ export CAMLI_ROOT=$Bin/blobserver-example/root
 cd $Bin/..
 go run make.go \
 	-embed_static=false \
-	-targets=camlistore.org/server/camlistored && \
-./bin/camlistored \
+	-targets=camlistore.org/server/perkeepd && \
+./bin/perkeepd \
 	-openbrowser=false \
 	-configfile=$Bin/blobserver-example/example-blobserver-config.json \
 	-listen=:3179 "$@"

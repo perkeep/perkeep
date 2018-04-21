@@ -54,7 +54,7 @@ var (
 	all            = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
 	race           = flag.Bool("race", false, "Build race-detector version of binaries (they will run slowly)")
 	verbose        = flag.Bool("v", strings.Contains(os.Getenv("CAMLI_DEBUG_X"), "makego"), "Verbose mode")
-	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. '*' builds everything.  Empty builds defaults for this platform. Example: perkeep.org/server/camlistored,perkeep.org/cmd/pk-put")
+	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. '*' builds everything.  Empty builds defaults for this platform. Example: perkeep.org/server/perkeepd,perkeep.org/cmd/pk-put")
 	quiet          = flag.Bool("quiet", false, "Don't print anything unless there's a failure.")
 	buildARCH      = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
 	buildOS        = flag.String("os", runtime.GOOS, "Operating system to build for.")
@@ -110,7 +110,7 @@ func main() {
 		"perkeep.org/cmd/pk-put",
 		"perkeep.org/cmd/pk",
 		"perkeep.org/cmd/pk-deploy",
-		"perkeep.org/server/camlistored",
+		"perkeep.org/server/perkeepd",
 		"perkeep.org/app/hello",
 		"perkeep.org/app/publisher",
 		"perkeep.org/app/scanningcabinet",
@@ -145,7 +145,7 @@ func main() {
 		}
 	}
 
-	withCamlistored := stringListContains(targs, "perkeep.org/server/camlistored")
+	withCamlistored := stringListContains(targs, "perkeep.org/server/perkeepd")
 	withPublisher := stringListContains(targs, "perkeep.org/app/publisher")
 
 	if withCamlistored || withPublisher {
@@ -266,7 +266,7 @@ func baseDirName(sql bool) string {
 
 const (
 	publisherJS = "app/publisher/publisher.js"
-	gopherjsUI  = "server/camlistored/ui/goui.js"
+	gopherjsUI  = "server/perkeepd/ui/goui.js"
 )
 
 func buildGopherjs() error {
@@ -375,7 +375,7 @@ func genPublisherJS() error {
 
 func genWebUIJS() error {
 	output := filepath.Join(pkRoot, filepath.FromSlash(gopherjsUI))
-	pkg := "perkeep.org/server/camlistored/ui/goui"
+	pkg := "perkeep.org/server/perkeepd/ui/goui"
 	return genJS(pkg, output)
 }
 
@@ -444,7 +444,7 @@ func runGopherJS(pkg string) error {
 // invokes reactGen on the Go React components. This generates the boilerplate
 // code, in gen_*_reactGen.go files, required to complete those components.
 func genWebUIReact() error {
-	args := []string{"generate", "-v", "perkeep.org/server/camlistored/ui/goui/..."}
+	args := []string{"generate", "-v", "perkeep.org/server/perkeepd/ui/goui/..."}
 
 	path := strings.Join([]string{
 		binDir,
@@ -468,7 +468,7 @@ func genWebUIReact() error {
 }
 
 // makeJS builds and runs the gopherjs command on perkeep.org/app/publisher/js
-// and perkeep.org/server/camlistored/ui/goui
+// and perkeep.org/server/perkeepd/ui/goui
 func makeJS(doWebUI, doPublisher bool) error {
 	if err := buildGopherjs(); err != nil {
 		return fmt.Errorf("error building gopherjs: %v", err)
@@ -571,7 +571,7 @@ func fullSrcPath(fromSrc string) string {
 func genEmbeds() error {
 	cmdName := hostExeName(filepath.Join(binDir, "genfileembed"))
 	for _, embeds := range []string{
-		"server/camlistored/ui",
+		"server/perkeepd/ui",
 		"pkg/server",
 		"clients/web/embed/fontawesome",
 		"clients/web/embed/glitch",
@@ -853,7 +853,7 @@ func doEmbed() {
 	if *verbose {
 		log.Printf("Embedding resources...")
 	}
-	closureEmbed := fullSrcPath("server/camlistored/ui/closure/z_data.go")
+	closureEmbed := fullSrcPath("server/perkeepd/ui/closure/z_data.go")
 	closureSrcDir := filepath.Join(pkRoot, filepath.FromSlash("clients/web/embed/closure/lib"))
 	err := embedClosure(closureSrcDir, closureEmbed)
 	if err != nil {

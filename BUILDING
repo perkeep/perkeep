@@ -9,4 +9,4 @@ To build Perkeep:
    $ go run make.go
 
 4) The compiled binaries should now be in the "bin" subdirectory:
-   camlistored (the server), camget, camput, and camtool.
+   perkeepd (the server), camget, camput, and camtool.

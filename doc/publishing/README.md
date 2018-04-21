@@ -59,15 +59,15 @@ functions available to the template.
 
 When Perkeep is serving in HTTP mode behind a HTTPS reverse proxy,
 further settings are necessary to set up communication between publisher and
-the parent camlistored process.
+the parent perkeepd process.
 
 The settings are:
 
 * "listen" is the address publisher should listen on
-* "apiHost" URL prefix for publisher to connect to camlistored
-* "backendURL" URL for camlistored to reach publisher
+* "apiHost" URL prefix for publisher to connect to perkeepd
+* "backendURL" URL for perkeepd to reach publisher
 
-Assuming camlistored is serving HTTP on port 3179, and we want the to run publisher
+Assuming perkeepd is serving HTTP on port 3179, and we want the to run publisher
 on port 3155, the following settings can be used:
 
     "publish": {

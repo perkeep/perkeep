@@ -1,4 +1,0 @@
-#!/bin/sh
-
-./build.pl camsync && \
-  clients/go/camsync/camsync --verbose --src=http://localhost:3179/bs --srcpassword=pass3179 --dest=http://localhost:3179/indexer --destpassword=pass3179 $@

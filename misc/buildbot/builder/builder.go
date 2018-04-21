@@ -50,12 +50,12 @@ import (
 )
 
 const (
-	interval           = 60 * time.Second // polling frequency
-	warmup             = 30 * time.Second // duration before we test if devcam server has started properly
-	camlistoredTimeOut = time.Minute      // how long we try to dial camlistored after warmup
-	go1BaseURL         = "https://storage.googleapis.com/golang/"
-	go1Tarball         = "go1.5.linux-amd64.tar.gz"
-	go1URL             = go1BaseURL + go1Tarball
+	interval        = 60 * time.Second // polling frequency
+	warmup          = 30 * time.Second // duration before we test if devcam server has started properly
+	perkeepdTimeOut = time.Minute      // how long we try to dial camlistored after warmup
+	go1BaseURL      = "https://storage.googleapis.com/golang/"
+	go1Tarball      = "go1.5.linux-amd64.tar.gz"
+	go1URL          = go1BaseURL + go1Tarball
 )
 
 var (
@@ -862,7 +862,7 @@ func killCamli() {
 
 func hitCamliUi() error {
 	if err := hitURL("http://localhost:3179/ui/"); err != nil {
-		return fmt.Errorf("could not reach camlistored UI page (dead server?): %v", err)
+		return fmt.Errorf("could not reach perkeepd UI page (dead server?): %v", err)
 	}
 	return nil
 }
@@ -884,9 +884,9 @@ func hitURL(uri string) (err error) {
 		return fmt.Errorf("%v: could not get host:port to dial from %v: %v", tsk.String(), uri, err)
 	}
 	hostPort := u.Host
-	err = netutil.AwaitReachable(hostPort, camlistoredTimeOut)
+	err = netutil.AwaitReachable(hostPort, perkeepdTimeOut)
 	if err != nil {
-		return fmt.Errorf("%v: camlistored unreachable at %v after %v: %v", tsk.String(), hostPort, camlistoredTimeOut, err)
+		return fmt.Errorf("%v: perkeepd unreachable at %v after %v: %v", tsk.String(), hostPort, camlistoredTimeOut, err)
 	}
 	var resp *http.Response
 	resp, err = http.Get(uri)

@@ -522,7 +522,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 		}
 		// We also try to get the "camlistore-hostname" from the
 		// instance, so we can tell the user what their hostname is. It can
-		// take a while as camlistored itself sets it after it has
+		// take a while as perkeepd itself sets it after it has
 		// registered with the camlistore.net DNS.
 		giveupTime := time.Now().Add(time.Hour)
 		pause := time.Second

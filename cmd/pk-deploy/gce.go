@@ -50,8 +50,8 @@ func init() {
 		flags.StringVar(&cmd.zone, "zone", gce.DefaultRegion, "GCE zone or region. If a region is given, a random zone in that region is selected. See https://cloud.google.com/compute/docs/zones")
 		flags.StringVar(&cmd.machine, "machine", gce.DefaultMachineType, "GCE machine type (e.g. n1-standard-1, f1-micro, g1-small); see https://cloud.google.com/compute/docs/machine-types")
 		flags.StringVar(&cmd.instName, "instance_name", gce.DefaultInstanceName, "Name of VM instance.")
-		flags.StringVar(&cmd.hostname, "hostname", "", "Optional hostname for the instance. If set, the custom metadata variable \"camlistore-hostname\" on the instance takes that value. Otherwise, camlistored sets that variable to the hostname we get from the camliNet DNS.")
-		flags.BoolVar(&cmd.wip, "wip", false, "Developer option. Deploy the WORKINPROGRESS camlistored tarball.")
+		flags.StringVar(&cmd.hostname, "hostname", "", "Optional hostname for the instance. If set, the custom metadata variable \"camlistore-hostname\" on the instance takes that value. Otherwise, perkeepd sets that variable to the hostname we get from the camliNet DNS.")
+		flags.BoolVar(&cmd.wip, "wip", false, "Developer option. Deploy the WORKINPROGRESS perkeepd tarball.")
 		flags.BoolVar(&cmd.verbose, "verbose", false, "Be verbose.")
 		return cmd
 	})

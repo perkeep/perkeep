@@ -336,7 +336,7 @@ sub start {
     print STDERR "# Running on $self->{root} ...\n";
 
     # Keep a reference to this to write "EXIT\n" to in order
-    # to cleanly shutdown the child camlistored process.
+    # to cleanly shutdown the child perkeepd process.
     # If we close it, the child also dies, though.
     $self->{_exit_wr} = $exit_wr;
     return 1;

@@ -115,7 +115,7 @@ limitations under the License.
     [launchPath appendString:[[NSBundle mainBundle] resourcePath]];
     [task setCurrentDirectoryPath:launchPath];
 
-    [launchPath appendString:@"/camlistored"];
+    [launchPath appendString:@"/perkeepd"];
 
     NSDictionary *env = [NSDictionary dictionaryWithObjectsAndKeys:
                          NSHomeDirectory(), @"HOME",
@@ -217,7 +217,7 @@ limitations under the License.
         time_t now = time(NULL);
         if (now - startTime < MIN_LIFETIME) {
             NSInteger b = NSRunAlertPanel(@"Problem Running Perkeep",
-                                          @"camlistored doesn't seem to be operating properly.  "
+                                          @"perkeepd doesn't seem to be operating properly.  "
                                           @"Check Console logs for more details.", @"Retry", @"Quit", nil);
             if (b == NSAlertAlternateReturn) {
                 [NSApp terminate:self];

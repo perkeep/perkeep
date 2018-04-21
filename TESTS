@@ -5,7 +5,7 @@ Tests needed
 -- support for running race detector on all tests. when in race mode, also run
    integration test children in race mode.
 
--- test that server/camlistored still builds & starts even when sqlite isn't
+-- test that server/perkeepd still builds & starts even when sqlite isn't
    available (TODO: hide it from the test by running make.go in a child
    process with a faked-out PKG_CONFIG environment or something, to make
    cmd/go unable to find it even if it's installed)

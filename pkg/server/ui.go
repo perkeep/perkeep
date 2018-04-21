@@ -51,8 +51,8 @@ import (
 	"perkeep.org/pkg/server/app"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/types/camtypes"
-	uistatic "perkeep.org/server/camlistored/ui"
-	closurestatic "perkeep.org/server/camlistored/ui/closure"
+	uistatic "perkeep.org/server/perkeepd/ui"
+	closurestatic "perkeep.org/server/perkeepd/ui/closure"
 	"rsc.io/qr"
 )
 
@@ -96,7 +96,7 @@ type UIHandler struct {
 	// ui handler config option.
 	sourceRoot string
 
-	uiDir string // if sourceRoot != "", this is sourceRoot+"/server/camlistored/ui"
+	uiDir string // if sourceRoot != "", this is sourceRoot+"/server/perkeepd/ui"
 
 	closureHandler         http.Handler
 	fileLessHandler        http.Handler
@@ -153,10 +153,10 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		ui.sourceRoot = os.Getenv("CAMLI_DEV_CAMLI_ROOT")
 		if uistatic.IsAppEngine {
 			if _, err = os.Stat(filepath.Join(uistatic.GaeSourceRoot,
-				filepath.FromSlash("server/camlistored/ui/index.html"))); err != nil {
+				filepath.FromSlash("server/perkeepd/ui/index.html"))); err != nil {
 				hint := fmt.Sprintf("\"sourceRoot\" was not specified in the config,"+
 					" and the default sourceRoot dir %v does not exist or does not contain"+
-					" \"server/camlistored/ui/index.html\". devcam appengine can do that for you.",
+					" \"server/perkeepd/ui/index.html\". devcam appengine can do that for you.",
 					uistatic.GaeSourceRoot)
 				log.Print(hint)
 				return nil, errors.New("no sourceRoot found; UI not available")
@@ -174,7 +174,7 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		}
 	}
 	if ui.sourceRoot != "" {
-		ui.uiDir = filepath.Join(ui.sourceRoot, filepath.FromSlash("server/camlistored/ui"))
+		ui.uiDir = filepath.Join(ui.sourceRoot, filepath.FromSlash("server/perkeepd/ui"))
 		// Ignore any fileembed files:
 		Files = &fileembed.Files{
 			DirFallback: filepath.Join(ui.sourceRoot, filepath.FromSlash("pkg/server")),
@@ -666,6 +666,6 @@ func serveDepsJS(rw http.ResponseWriter, req *http.Request, dir string) {
 		return
 	}
 	rw.Header().Set("Content-Type", "text/javascript; charset=utf-8")
-	rw.Write([]byte("// auto-generated from camlistored\n"))
+	rw.Write([]byte("// auto-generated from perkeepd\n"))
 	rw.Write(b)
 }

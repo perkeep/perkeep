@@ -31,7 +31,7 @@ Example low-level config:
 
 The "handlerArgs" may also contain an optional "trustedCert" option to
 trust a self-signed TLS certificate. The value is the 20 byte hex prefix
-of the SHA-256 of the cert, as printed by the camlistored server
+of the SHA-256 of the cert, as printed by the perkeepd server
 on start-up.
 */
 package remote // import "perkeep.org/pkg/blobserver/remote"

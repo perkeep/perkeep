@@ -29,7 +29,7 @@ import (
 )
 
 func TestStarts(t *testing.T) {
-	td, err := ioutil.TempDir("", "camlistored-test")
+	td, err := ioutil.TempDir("", "perkeepd-test")
 	if err != nil {
 		t.Fatal(err)
 	}

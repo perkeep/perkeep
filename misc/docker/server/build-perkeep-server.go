@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Command build-camlistore-server builds camlistored and bundles all the
+// Command build-camlistore-server builds perkeepd and bundles all the
 // necessary resources for a Perkeep server in docker. It should be run in a
 // docker container.
 package main // import "perkeep.org/misc/docker/server"
@@ -39,7 +39,7 @@ import (
 
 var (
 	flagRev = flag.String("rev", "", "Perkeep revision to build (tag or commit hash). For development purposes, you can instead specify the path to a local Perkeep source tree from which to build, with the form \"WIP:/path/to/dir\".")
-	outDir  = flag.String("outdir", "/OUT/", "Output directory, where camlistored and all the resources will be written")
+	outDir  = flag.String("outdir", "/OUT/", "Output directory, where perkeepd and all the resources will be written")
 )
 
 func usage() {
@@ -141,19 +141,19 @@ func buildCamlistored() {
 	check(os.Chdir("/gopath/src/perkeep.org"))
 	cmd := exec.Command("go", "run", "make.go",
 		"-static", "true",
-		"-targets", "perkeep.org/server/camlistored")
+		"-targets", "perkeep.org/server/perkeepd")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error building camlistored in go container: %v", err)
+		log.Fatalf("Error building perkeepd in go container: %v", err)
 	}
 
 	// And move it to the output dir
 	check(os.MkdirAll(path.Join(*outDir, "/bin"), 0777))
-	cmd = exec.Command("mv", "/gopath/src/perkeep.org/bin/camlistored", path.Join(*outDir, "/bin"))
+	cmd = exec.Command("mv", "/gopath/src/perkeep.org/bin/perkeepd", path.Join(*outDir, "/bin"))
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error moving camlistored binary %v in output dir %v: %v",
-			"/gopath/src/perkeep.org/bin/camlistored", path.Join(*outDir, "/bin"), err)
+		log.Fatalf("Error moving perkeepd binary %v in output dir %v: %v",
+			"/gopath/src/perkeep.org/bin/perkeepd", path.Join(*outDir, "/bin"), err)
 	}
 }
 

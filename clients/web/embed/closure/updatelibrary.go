@@ -67,7 +67,7 @@ func fileList() ([]string, error) {
 	if err != nil {
 		log.Fatal("Package perkeep.org not found in $GOPATH (or $GOPATH not defined).")
 	}
-	uiDir := filepath.Join(camliRootPath, "server", "camlistored", "ui")
+	uiDir := filepath.Join(camliRootPath, "server", "perkeepd", "ui")
 	closureDepsFile := filepath.Join(closureGitDir, "closure", "goog", "deps.js")
 
 	f, err := os.Open(closureDepsFile)

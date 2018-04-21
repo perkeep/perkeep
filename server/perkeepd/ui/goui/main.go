@@ -19,12 +19,12 @@ limitations under the License.
 package main
 
 import (
-	"perkeep.org/server/camlistored/ui/goui/aboutdialog"
-	"perkeep.org/server/camlistored/ui/goui/downloadbutton"
-	"perkeep.org/server/camlistored/ui/goui/geo"
-	"perkeep.org/server/camlistored/ui/goui/mapquery"
-	"perkeep.org/server/camlistored/ui/goui/selectallbutton"
-	"perkeep.org/server/camlistored/ui/goui/sharebutton"
+	"perkeep.org/server/perkeepd/ui/goui/aboutdialog"
+	"perkeep.org/server/perkeepd/ui/goui/downloadbutton"
+	"perkeep.org/server/perkeepd/ui/goui/geo"
+	"perkeep.org/server/perkeepd/ui/goui/mapquery"
+	"perkeep.org/server/perkeepd/ui/goui/selectallbutton"
+	"perkeep.org/server/perkeepd/ui/goui/sharebutton"
 
 	"github.com/gopherjs/gopherjs/js"
 )

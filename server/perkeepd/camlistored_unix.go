@@ -29,7 +29,7 @@ func init() {
 		if !*flagSyslog {
 			return nil
 		}
-		slog, err := syslog.New(syslog.LOG_INFO|syslog.LOG_DAEMON, "camlistored")
+		slog, err := syslog.New(syslog.LOG_INFO|syslog.LOG_DAEMON, "perkeepd")
 		if err != nil {
 			exitf("Error connecting to syslog: %v", err)
 		}

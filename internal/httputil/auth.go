@@ -48,7 +48,7 @@ func IsLocalhost(req *http.Request) bool {
 	// TODO(bradfitz): netutil on OS X uses "lsof" to figure out
 	// ownership of tcp connections, but when fuse is mounted and a
 	// request is outstanding (for instance, a fuse request that's
-	// making a request to camlistored and landing in this code
+	// making a request to perkeepd and landing in this code
 	// path), lsof then blocks forever waiting on a lock held by the
 	// VFS, leading to a deadlock.  Instead, on darwin, just trust
 	// any localhost connection here, which is kinda lame, but
@@ -57,7 +57,7 @@ func IsLocalhost(req *http.Request) bool {
 		return from.IP.IsLoopback() && to.IP.IsLoopback()
 	}
 	if uid == 0 {
-		log.Printf("camlistored running as root. Don't do that.")
+		log.Printf("perkeepd running as root. Don't do that.")
 		return false
 	}
 	if uid > 0 {
