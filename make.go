@@ -68,7 +68,7 @@ var (
 var (
 	// pkRoot is the Perkeep project root
 	pkRoot string
-	binDir string // pkRoot + "bin"
+	binDir string // $GOBIN or $GOPATH/bin, based on user setting or default Go value.
 
 	// gopherjsGoroot should be specified through the env var
 	// CAMLI_GOPHERJS_GOROOT when the user's using go tip, because gopherjs only
@@ -100,7 +100,7 @@ func main() {
 		log.Printf("Perkeep version = %s", version)
 		log.Printf("SQLite included: %v", sql)
 		log.Printf("Project source: %s", pkRoot)
-		log.Printf("Output binaries: %s", binDir)
+		log.Printf("Output binaries: %s", actualBinDir())
 	}
 
 	buildAll := false
@@ -147,7 +147,6 @@ func main() {
 
 	withCamlistored := stringListContains(targs, "perkeep.org/server/perkeepd")
 	withPublisher := stringListContains(targs, "perkeep.org/app/publisher")
-
 	if withCamlistored || withPublisher {
 		if err := buildReactGen(); err != nil {
 			log.Fatal(err)
@@ -240,15 +239,19 @@ func main() {
 	}
 
 	if !*quiet {
-		log.Printf("Success. Binaries are in %s", actualBinDir(binDir))
+		log.Printf("Success. Binaries are in %s", actualBinDir())
 	}
 }
 
-func actualBinDir(dir string) string {
-	if *buildARCH == runtime.GOARCH && *buildOS == runtime.GOOS {
-		return dir
+func actualBinDir() string {
+	cmd := exec.Command("go", "list", "-f", "{{.Target}}", "perkeep.org/cmd/pk")
+	cmd.Env = cleanGoEnv()
+	cmd.Stderr = os.Stderr
+	out, err := cmd.Output()
+	if err != nil {
+		log.Fatalf("Could not run go list to guess install dir: %v, %v", err, out)
 	}
-	return filepath.Join(dir, *buildOS+"_"+*buildARCH)
+	return filepath.Dir(strings.TrimSpace(string(out)))
 }
 
 func baseDirName(sql bool) string {
@@ -291,13 +294,13 @@ func buildGopherjs() error {
 	}
 	cmd := exec.Command(goBin, "install", "-v")
 	cmd.Dir = src
-	cmd.Env = cleanGoEnv()
+	cmd.Env = os.Environ()
 	// forcing GOOS and GOARCH to prevent cross-compiling, as gopherjs will run on the
 	// current (host) platform.
-	cmd.Env = setEnv(cmd.Env, "GOOS", runtime.GOOS)
-	cmd.Env = setEnv(cmd.Env, "GOARCH", runtime.GOARCH)
+	cmd.Env = append(cmd.Env, "GOOS="+runtime.GOOS)
+	cmd.Env = append(cmd.Env, "GOARCH="+runtime.GOARCH)
 	if gopherjsGoroot != "" {
-		cmd.Env = setEnv(cmd.Env, "GOROOT", gopherjsGoroot)
+		cmd.Env = append(cmd.Env, "GOROOT="+gopherjsGoroot)
 	}
 	var buf bytes.Buffer
 	cmd.Stderr = &buf
@@ -352,11 +355,7 @@ func genSearchTypes() error {
 	if err == nil && fi2.ModTime().After(fi1.ModTime()) {
 		return nil
 	}
-	args := []string{"generate", "-v", "perkeep.org/app/publisher/js"}
-	cmd := exec.Command("go", args...)
-	cmd.Env = cleanGoEnv()
-	cmd.Env = setEnv(cmd.Env, "GOOS", runtime.GOOS)
-	cmd.Env = setEnv(cmd.Env, "GOARCH", runtime.GOARCH)
+	cmd := exec.Command("go", "generate", "-v", "perkeep.org/app/publisher/js")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("go generate for publisher js error: %v, %v", err, string(out))
 	}
@@ -421,12 +420,12 @@ func runGopherJS(pkg string) error {
 		args = append(args, "-m")
 	}
 	cmd := exec.Command(gopherjsBin, args...)
-	cmd.Env = cleanGoEnv()
+	cmd.Env = os.Environ()
 	// Pretend we're on linux regardless of the actual host, because recommended
 	// hack to work around https://github.com/gopherjs/gopherjs/issues/511
-	cmd.Env = setEnv(cmd.Env, "GOOS", "linux")
+	cmd.Env = append(cmd.Env, "GOOS=linux")
 	if gopherjsGoroot != "" {
-		cmd.Env = setEnv(cmd.Env, "GOROOT", gopherjsGoroot)
+		cmd.Env = append(cmd.Env, "GOROOT="+gopherjsGoroot)
 	}
 	var buf bytes.Buffer
 	cmd.Stderr = &buf
@@ -452,9 +451,8 @@ func genWebUIReact() error {
 	}, string(os.PathListSeparator))
 
 	cmd := exec.Command("go", args...)
-	cmd.Env = append(cleanGoEnv("PATH"),
-		"PATH="+path,
-	)
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, "PATH="+path)
 	var buf bytes.Buffer
 	cmd.Stderr = &buf
 	err := cmd.Run()
@@ -492,9 +490,9 @@ func envPair(key, value string) string {
 	return fmt.Sprintf("%s=%s", key, value)
 }
 
-// cleanGoEnv returns a copy of the current environment with GOBIN and
-// any variable listed in others removed.  it also sets GOOS and GOARCH as
-// needed when cross-compiling.
+// cleanGoEnv returns a copy of the current environment with any variable listed
+// in others removed. Also, when cross-compiling, it removes GOBIN and sets GOOS
+// and GOARCH, and GOARM as needed.
 func cleanGoEnv(others ...string) (clean []string) {
 	excl := make([]string, len(others))
 	for i, v := range others {
@@ -508,7 +506,9 @@ Env:
 				continue Env
 			}
 		}
-		if strings.HasPrefix(env, "GOBIN=") {
+		// remove GOBIN if we're cross-compiling
+		if strings.HasPrefix(env, "GOBIN=") &&
+			(*buildOS != runtime.GOOS || *buildARCH != runtime.GOARCH) {
 			continue
 		}
 		// We skip these two as well, otherwise they'd take precedence over the
@@ -526,7 +526,6 @@ Env:
 
 		clean = append(clean, env)
 	}
-	clean = append(clean, envPair("GOBIN", binDir))
 	if *buildOS != runtime.GOOS {
 		clean = append(clean, envPair("GOOS", *buildOS))
 	}
@@ -538,19 +537,6 @@ Env:
 		clean = append(clean, envPair("GOARM", *buildARM))
 	}
 	return
-}
-
-// setEnv sets the given key & value in the provided environment.
-// Each value in the env list should be of the form key=value.
-func setEnv(env []string, key, value string) []string {
-	for i, s := range env {
-		if strings.HasPrefix(s, fmt.Sprintf("%s=", key)) {
-			env[i] = envPair(key, value)
-			return env
-		}
-	}
-	env = append(env, envPair(key, value))
-	return env
 }
 
 func stringListContains(strs []string, str string) bool {
@@ -589,7 +575,6 @@ func genEmbeds() error {
 		}
 		args = append(args, embeds)
 		cmd := exec.Command(cmdName, args...)
-		cmd.Env = cleanGoEnv()
 		cmd.Stdout = os.Stdout
 		var buf bytes.Buffer
 		cmd.Stderr = &buf
@@ -616,6 +601,10 @@ func buildReactGen() error {
 	return buildBin("perkeep.org/vendor/myitcv.io/react/cmd/reactGen")
 }
 
+func buildDevcam() error {
+	return buildBin("perkeep.org/dev/devcam")
+}
+
 func buildBin(pkg string) error {
 	pkgBase := pathpkg.Base(pkg)
 
@@ -627,13 +616,6 @@ func buildBin(pkg string) error {
 		filepath.FromSlash(pkg),
 	)
 	cmd := exec.Command("go", args...)
-
-	// Here we replace the GOOS and GOARCH values from the env with the host OS,
-	// to support cross-compiling.
-	cmd.Env = cleanGoEnv()
-	cmd.Env = setEnv(cmd.Env, "GOOS", runtime.GOOS)
-	cmd.Env = setEnv(cmd.Env, "GOARCH", runtime.GOARCH)
-
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if *verbose {
@@ -643,7 +625,7 @@ func buildBin(pkg string) error {
 		return fmt.Errorf("Error building %v: %v", pkgBase, err)
 	}
 	if *verbose {
-		log.Printf("%v installed in %s", pkgBase, binDir)
+		log.Printf("%v installed in %s", pkgBase, actualBinDir())
 	}
 	return nil
 }
@@ -696,7 +678,14 @@ func verifyPerkeepRoot() {
 	if _, err := os.Stat(testFile); err != nil {
 		log.Fatalf("make.go must be run from the Perkeep src root directory (where make.go is). Current working directory is %s", pkRoot)
 	}
-	binDir = filepath.Join(pkRoot, "bin")
+
+	cmd := exec.Command("go", "list", "-f", "{{.Target}}", "perkeep.org/cmd/pk")
+	cmd.Stderr = os.Stderr
+	out, err := cmd.Output()
+	if err != nil {
+		log.Fatalf("Could not run go list to find install dir: %v, %s", err, out)
+	}
+	binDir = filepath.Dir(strings.TrimSpace(string(out)))
 }
 
 const (
