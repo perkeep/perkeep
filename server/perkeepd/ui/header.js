@@ -24,9 +24,9 @@ goog.require('cam.SpritedImage');
 cam.Header = React.createClass({
 	displayName: 'Header',
 
-	PIGGY_NATIVE_WIDTH: 88,
-	PIGGY_NATIVE_HEIGHT: 62,
-	PIGGY_MARGIN: {
+	KEEPY_NATIVE_WIDTH: 88,
+	KEEPY_NATIVE_HEIGHT: 62,
+	KEEPY_MARGIN: {
 		LEFT: 1,
 		RIGHT: 4,
 		TOP: -1,
@@ -88,7 +88,7 @@ cam.Header = React.createClass({
 				},
 				React.DOM.tbody(null,
 					React.DOM.tr(null,
-						this.getPiggy_(),
+						this.getKeepy_(),
 						this.getTitle_(),
 						this.getSearchbox_(),
 						this.getMainControls_()
@@ -99,16 +99,16 @@ cam.Header = React.createClass({
 		)
 	},
 
-	getPiggy_: function() {
+	getKeepy_: function() {
 		var props = {
 			sheetWidth: 11,
-			spriteWidth: this.PIGGY_NATIVE_WIDTH,
-			spriteHeight: this.PIGGY_NATIVE_HEIGHT,
+			spriteWidth: this.KEEPY_NATIVE_WIDTH,
+			spriteHeight: this.KEEPY_NATIVE_HEIGHT,
 			style: cam.reactUtil.getVendorProps({
 				position: 'absolute',
-				left: this.PIGGY_MARGIN.LEFT,
-				top: this.PIGGY_MARGIN.TOP,
-				transform: 'scale(' + this.getPiggyScale_() + ')',
+				left: this.KEEPY_MARGIN.LEFT,
+				top: this.KEEPY_MARGIN.TOP,
+				transform: 'scale(' + this.getKeepyScale_() + ')',
 				transformOrigin: '0 0',
 			}),
 		};
@@ -140,11 +140,9 @@ cam.Header = React.createClass({
 			{
 				className: 'cam-header-item',
 				style: {
-					minWidth: this.getPiggyWidth_() + this.PIGGY_MARGIN.LEFT + this.PIGGY_MARGIN.RIGHT,
+					minWidth: this.getKeepyWidth_() + this.KEEPY_MARGIN.LEFT + this.KEEPY_MARGIN.RIGHT,
 				},
 				onClick: this.handleClick_,
-				onMouseEnter: this.handleMouseEnter_,
-				onMouseLeave: this.handleMouseLeave_,
 			},
 			image.call(this)
 		)
@@ -155,10 +153,8 @@ cam.Header = React.createClass({
 			{
 				className: 'cam-header-item cam-header-title',
 				onClick: this.handleClick_,
-				onMouseEnter: this.handleMouseEnter_,
-				onMouseLeave: this.handleMouseLeave_,
 			},
-			React.DOM.span(null, 'Camli'),
+			React.DOM.span(null, 'Perkeep'),
 			React.DOM.span(null, '\u25BE')
 		);
 	},
@@ -178,6 +174,7 @@ cam.Header = React.createClass({
 				React.DOM.input(
 					{
 						onChange: this.props.setCurrentSearch,
+						// TODO: onFocus: close the Perkeep menu
 						placeholder: 'Search...',
 						ref: 'searchbox',
 						value: this.props.getCurrentSearch(),
@@ -213,8 +210,6 @@ cam.Header = React.createClass({
 			{
 				className: 'cam-header-menu-dropdown',
 				onClick: this.handleDropdownClick_,
-				onMouseEnter: this.handleMouseEnter_,
-				onMouseLeave: this.handleMouseLeave_,
 				style: cam.reactUtil.getVendorProps({
 					transform: 'translate3d(0, ' + this.getMenuTranslate_() + '%, 0)',
 				}),
@@ -279,30 +274,20 @@ cam.Header = React.createClass({
 		}
 	},
 
-	getPiggyHeight_: function() {
-		return this.props.height - this.PIGGY_MARGIN.TOP - this.PIGGY_MARGIN.BOTTOM;
+	getKeepyHeight_: function() {
+		return this.props.height - this.KEEPY_MARGIN.TOP - this.KEEPY_MARGIN.BOTTOM;
 	},
 
-	getPiggyWidth_: function() {
-		return this.getPiggyScale_() * this.PIGGY_NATIVE_WIDTH;
+	getKeepyWidth_: function() {
+		return this.getKeepyScale_() * this.KEEPY_NATIVE_WIDTH;
 	},
 
-	getPiggyScale_: function() {
-		return this.getPiggyHeight_() / this.PIGGY_NATIVE_HEIGHT;
+	getKeepyScale_: function() {
+		return this.getKeepyHeight_() / this.KEEPY_NATIVE_HEIGHT;
 	},
 
 	handleClick_: function() {
 		this.setState({menuVisible: !this.state.menuVisible});
-	},
-
-	handleMouseEnter_: function() {
-		this.clearTimer_();
-		this.setTimer_(true);
-	},
-
-	handleMouseLeave_: function() {
-		this.clearTimer_();
-		this.setTimer_(false);
 	},
 
 	handleDropdownClick_: function(e) {
