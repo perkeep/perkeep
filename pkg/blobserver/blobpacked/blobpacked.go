@@ -409,6 +409,7 @@ func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
 		inLarge++
 		return nil
 	}
+	log.Printf("blobpacked: checking integrity of packed blobs against index...")
 	if err := blobserver.EnumerateAllFrom(context.Background(), s.large, "", enumFunc); err != nil {
 		return FullRecovery, err
 	}
