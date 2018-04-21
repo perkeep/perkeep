@@ -30,7 +30,7 @@ type chanWorker struct {
 	buf   *list.List
 }
 
-// TODO: make it configurable if need be. Although so far in camput it wasn't.
+// TODO: make it configurable if need be. Although so far in pk-put it wasn't.
 const buffered = 16
 
 // NewWorker starts nWorkers goroutines running fn on incoming

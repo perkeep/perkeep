@@ -144,7 +144,7 @@ limitations under the License.
     NSMutableString *launchPath = [NSMutableString string];
     [launchPath appendString:[[NSBundle mainBundle] resourcePath]];
     [put setCurrentDirectoryPath:launchPath];
-    [launchPath appendString:@"/camput"];
+    [launchPath appendString:@"/pk-put"];
     NSDictionary *env = [NSDictionary dictionaryWithObjectsAndKeys:
                          NSHomeDirectory(), @"HOME",
                          NSUserName(), @"USER",

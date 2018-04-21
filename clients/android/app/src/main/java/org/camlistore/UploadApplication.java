@@ -42,7 +42,7 @@ public class UploadApplication extends Application {
 
     private void copyGoBinary() {
         long myTime = getAPKModTime();
-        String dstFile = getBaseContext().getFilesDir().getAbsolutePath() + "/camput.bin";
+        String dstFile = getBaseContext().getFilesDir().getAbsolutePath() + "/pk-put.bin";
         File f = new File(dstFile);
         Log.d(TAG, " My Time: " + myTime);
         Log.d(TAG, "Bin Time: " + f.lastModified());
@@ -52,8 +52,8 @@ public class UploadApplication extends Application {
         }
         Log.d(TAG, "Go binary missing or modtime stale. Re-copying from APK.");
         try {
-            InputStream is = getAssets().open("camput.arm");
-            FileOutputStream fos = getBaseContext().openFileOutput("camput.bin.writing", MODE_PRIVATE);
+            InputStream is = getAssets().open("pk-put.arm");
+            FileOutputStream fos = getBaseContext().openFileOutput("pk-put.bin.writing", MODE_PRIVATE);
             byte[] buf = new byte[8192];
             int offset;
             while ((offset = is.read(buf)) > 0) {
@@ -115,7 +115,7 @@ public class UploadApplication extends Application {
     public String getCamputVersion() {
         InputStream is = null;
         try {
-            is = getAssets().open("camput-version.txt");
+            is = getAssets().open("pk-put-version.txt");
             BufferedReader br = new BufferedReader(new InputStreamReader(is, "UTF-8"));
             return br.readLine();
         } catch (IOException e) {

@@ -145,9 +145,9 @@ Offline list:
 -- tests for all cmd/* stuff, perhaps as part of some integration
    tests.
 
--- move most of camput into a library, not a package main.
+-- move most of pk-put into a library, not a package main.
 
--- server cron support: full syncs, camput file backups, integrity
+-- server cron support: full syncs, pk-put file backups, integrity
    checks.
 
 -- status in top right of UI: sync, crons. (in-progress, un-acked
@@ -190,10 +190,10 @@ Offline list:
    claim.  or rather, TODO: verify we support "delete" claims to
    delete any claim, and verify the share system and indexer all
    support it.  I think the indexer might, but not the share system.
-   Also TODO: "camput delete" or "rescind" subcommand.
+   Also TODO: "pk-put delete" or "rescind" subcommand.
    Also TODO: document share claims in doc/schema/ and on website.
 
--- make the -transitive flag for "camput share -transitive" be a tri-state:
+-- make the -transitive flag for "pk-put share -transitive" be a tri-state:
    unset, true, false, and unset should then mean default to true for "file"
    and "directory" schema blobs, and "false" for other things.
 

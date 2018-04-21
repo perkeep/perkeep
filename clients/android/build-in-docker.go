@@ -42,7 +42,7 @@ const appVersion = "0.7"
 var (
 	camliDir   = filepath.Join(os.Getenv("GOPATH"), "src/perkeep.org")
 	projectDir = filepath.Join(os.Getenv("GOPATH"), "src/perkeep.org/clients/android")
-	camputBin  = filepath.Join(projectDir, "app/build/generated/assets/camput.arm")
+	pkputBin   = filepath.Join(projectDir, "app/build/generated/assets/pk-put.arm")
 	assetsDir  = filepath.Join(projectDir, "app/src/main/assets")
 )
 
@@ -70,7 +70,7 @@ func buildApp() {
 }
 
 func writeVersion() {
-	if err := ioutil.WriteFile(filepath.Join(assetsDir, "camput-version.txt"), []byte(version()), 0600); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(assetsDir, "pk-put-version.txt"), []byte(version()), 0600); err != nil {
 		log.Fatalf("Error writing app version file: %v", err)
 	}
 }
@@ -78,20 +78,20 @@ func writeVersion() {
 func buildCamput() {
 	os.Setenv("GOARCH", "arm")
 	os.Setenv("GOARM", "7")
-	cmd := exec.Command("go", "build", "-o", camputBin, "perkeep.org/cmd/camput")
+	cmd := exec.Command("go", "build", "-o", pkputBin, "perkeep.org/cmd/pk-put")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error building camput for Android: %v", err)
+		log.Fatalf("Error building pk-put for Android: %v", err)
 	}
 
-	if err := os.Rename(camputBin, filepath.Join(assetsDir, "camput.arm")); err != nil {
-		log.Fatalf("Error moving camput to assets dir: %v", err)
+	if err := os.Rename(pkputBin, filepath.Join(assetsDir, "pk-put.arm")); err != nil {
+		log.Fatalf("Error moving pk-put to assets dir: %v", err)
 	}
 }
 
 func version() string {
-	return "app " + appVersion + " camput " + getVersion() + " " + goVersion()
+	return "app " + appVersion + " pk-put " + getVersion() + " " + goVersion()
 }
 
 func goVersion() string {

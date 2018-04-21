@@ -206,7 +206,7 @@ public class CamliActivity extends Activity {
                         // reasonable upload size, so use units of 1KB instead.
                         progressBytes.setMax((int) (total / 1024L));
                         progressBytes.setProgress((int) (done / 1024L));
-                        // TODO: renable once camput properly sends inflight information
+                        // TODO: renable once pk-put properly sends inflight information
                         // progressBytes.setSecondaryProgress(progressBytes.getProgress() + inFlight / 1024);
 
                         StringBuilder bytesUploaded = new StringBuilder(40);
@@ -321,7 +321,7 @@ public class CamliActivity extends Activity {
             ProfilesActivity.show(this);
             break;
         case MENU_VERSION:
-            Toast.makeText(this, "camput version: " + ((UploadApplication) getApplication()).getCamputVersion(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "pk-put version: " + ((UploadApplication) getApplication()).getCamputVersion(), Toast.LENGTH_LONG).show();
             break;
         case MENU_UPLOAD_ALL:
             Intent uploadAll = new Intent(UploadService.INTENT_UPLOAD_ALL);

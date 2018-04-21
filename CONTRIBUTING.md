@@ -35,7 +35,7 @@ On Debian/Ubuntu, some deps to get started:
 
     $ sudo apt-get install libsqlite3-dev sqlite3 pkg-config git
 
-During development, rather than use the main binaries ("camput",
+During development, rather than use the main binaries ("pk-put",
 "camget", "camtool", "pk-mount", etc) directly, we instead use a
 wrapper (devcam) that automatically configure the environment to use
 the test server & test environment.
@@ -57,10 +57,10 @@ can just:
 
 ## Running devcam
 
-The subcommands of devcam start the server or run camput/camget/etc:
+The subcommands of devcam start the server or run pk-put/camget/etc:
 
     $ devcam server      # main server
-    $ devcam put         # camput
+    $ devcam put         # pk-put
     $ devcam get         # camget
     $ devcam tool        # camtool
     $ devcam mount       # pk-mount

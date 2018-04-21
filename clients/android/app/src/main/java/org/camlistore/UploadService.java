@@ -532,7 +532,7 @@ public class UploadService extends Service {
             if (mFileBytesRemain.isEmpty()) {
                 // Fill up the percentage bars, since we could get
                 // this event before the periodic stats event.
-                // And at the end, we could kill camput between
+                // And at the end, we could kill pk-put between
                 // getting the final "file uploaded" event and the final
                 // stats event.
                 mFilesUploaded = mFilesTotal;

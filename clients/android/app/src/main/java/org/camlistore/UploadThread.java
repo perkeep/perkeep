@@ -76,7 +76,7 @@ public class UploadThread extends Thread {
             }
             try {
                 stdinWriter.close();
-                Log.d(TAG, "Closed camput's stdin");
+                Log.d(TAG, "Closed pk-put's stdin");
                 stdinWriter = null;
             } catch (IOException e) {
                 p.destroy(); // force kill
@@ -139,7 +139,7 @@ public class UploadThread extends Thread {
                 stdinWriter.write(diskPath + "\n");
                 stdinWriter.flush();
             } catch (IOException e) {
-                Log.d(TAG, "Failed to write " + diskPath + " to camput stdin: " + e);
+                Log.d(TAG, "Failed to write " + diskPath + " to pk-put stdin: " + e);
                 return false;
             }
         }
@@ -160,7 +160,7 @@ public class UploadThread extends Thread {
         Process process = null;
         try {
             ProcessBuilder pb = new ProcessBuilder();
-            pb.command(binaryPath("camput.bin"), "--server=" + mHostPort.urlPrefix(), "file", "-stdinargs", "-vivify");
+            pb.command(binaryPath("pk-put.bin"), "--server=" + mHostPort.urlPrefix(), "file", "-stdinargs", "-vivify");
             pb.redirectErrorStream(false);
             pb.environment().put("CAMLI_AUTH", "userpass:" + mUsername + ":" + mPassword);
             pb.environment().put("CAMLI_TRUSTED_CERT", mTrustedCert);
@@ -294,7 +294,7 @@ public class UploadThread extends Thread {
     private class ParseCamputOutputThread extends Thread {
         private final BufferedReader mBufIn;
         private final UploadService mService;
-        private final static String TAG = UploadThread.TAG + "/camput-out";
+        private final static String TAG = UploadThread.TAG + "/pk-put-out";
         private final static boolean DEBUG_CAMPUT_ACTIVITY = false;
 
         public ParseCamputOutputThread(Process process, UploadService service) {
@@ -309,7 +309,7 @@ public class UploadThread extends Thread {
                 try {
                     line = mBufIn.readLine();
                 } catch (IOException e) {
-                    Log.d(TAG, "Exception reading camput's stdout: " + e.toString());
+                    Log.d(TAG, "Exception reading pk-put's stdout: " + e.toString());
                     return;
                 }
                 if (line == null) {
@@ -317,7 +317,7 @@ public class UploadThread extends Thread {
                     return;
                 }
                 if (DEBUG_CAMPUT_ACTIVITY) {
-                    Log.d(TAG, "camput: " + line);
+                    Log.d(TAG, "pk-put: " + line);
                 }
                 if (line.startsWith("CHUNK_UPLOADED ")) {
                     CamputChunkUploadedMessage msg = new CamputChunkUploadedMessage(line);
@@ -348,7 +348,7 @@ public class UploadThread extends Thread {
                     }
                     continue;
                 }
-                Log.d(TAG, "camput said unknown line: " + line);
+                Log.d(TAG, "pk-put said unknown line: " + line);
             }
 
         }
@@ -363,20 +363,20 @@ public class UploadThread extends Thread {
 
         @Override
         public void run() {
-            Log.d(TAG, "Waiting for camput process.");
+            Log.d(TAG, "Waiting for pk-put process.");
             try {
                 mProcess.waitFor();
             } catch (InterruptedException e) {
-                Log.d(TAG, "Interrupted waiting for camput");
+                Log.d(TAG, "Interrupted waiting for pk-put");
                 msgCh.offer(new ProcessExitedMessage(-1));
                 return;
             }
-            Log.d(TAG, "Exit status of camput = " + mProcess.exitValue());
+            Log.d(TAG, "Exit status of pk-put = " + mProcess.exitValue());
             msgCh.offer(new ProcessExitedMessage(mProcess.exitValue()));
         }
     }
 
-    // CopyToAndroidLogThread copies the camput child process's stderr
+    // CopyToAndroidLogThread copies the pk-put child process's stderr
     // to Android's log and submits it to to the main activity in batches.
     private static class CopyToAndroidLogThread extends Thread {
         private static final int MAX_LINES = 6; // amount of lines to buffer before submission
@@ -415,7 +415,7 @@ public class UploadThread extends Thread {
             Log.d(mTag, line);
 
             mLines.add(line);
-            // Prevent accumulation of a large number of lines when camput produces a lot of
+            // Prevent accumulation of a large number of lines when pk-put produces a lot of
             // logging output for some reason.
             if (mLines.size() >= MAX_LINES) {
                 submitLines();

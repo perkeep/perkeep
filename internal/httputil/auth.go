@@ -65,7 +65,7 @@ func IsLocalhost(req *http.Request) bool {
 		if err == nil {
 			if uid == connUID || connUID == 0 {
 				// If it's the same user who's running the server, allow it.
-				// Also allow root, so users can "sudo camput" files.
+				// Also allow root, so users can "sudo pk-put" files.
 				// Allowing root isn't a security problem because if root wants
 				// to mess with the local user, they already can. This whole mechanism
 				// is about protecting regular users from other regular users

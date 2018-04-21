@@ -339,7 +339,7 @@ func IsLocalhost(req *http.Request) bool {
 // against am.
 func AllowedWithAuth(am AuthMode, req *http.Request, op Operation) bool {
 	if op&OpUpload != 0 {
-		// upload (at least from camput) requires stat and get too
+		// upload (at least from pk-put) requires stat and get too
 		op = op | OpVivify
 	}
 	return am.AllowedAccess(req)&op == op

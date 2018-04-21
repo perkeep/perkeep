@@ -32,7 +32,7 @@ import (
 // store anything; it just collects statistics.
 //
 // TODO: we have another copy of this same type in
-// camput/files.go. move them to a common place?  well, the camput one
+// pk-put/files.go. move them to a common place?  well, the pk-put one
 // is probably going away at some point.
 type Receiver struct {
 	sync.Mutex // guards Have

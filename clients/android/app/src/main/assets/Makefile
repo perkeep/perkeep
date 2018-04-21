@@ -8,10 +8,10 @@
 # mirror it all into a separate writable GOROOT under $CAMROOT/tmp and bootstrap
 # it with "GOOS=linux GOARCH=arm make.bash".
 all:
-	(cd ../../.. && go run make.go --os=linux --arch=arm --targets=camlistore.org/cmd/camput)
-	cp -p ../../../bin/linux_arm/camput camput.arm
-	../../../misc/gitversion > camput-version.txt
+	(cd ../../.. && go run make.go --os=linux --arch=arm --targets=camlistore.org/cmd/pk-put)
+	cp -p ../../../bin/linux_arm/pk-put pk-put.arm
+	../../../misc/gitversion > pk-put-version.txt
 	mkdir -p ../gen/org/camlistore
 	/bin/echo -n "package org.camlistore; public final class ChildProcessConfig { // " > ../gen/org/camlistore/ChildProcessConfig.java
-	openssl sha1 camput.arm >> ../gen/org/camlistore/ChildProcessConfig.java
+	openssl sha1 pk-put.arm >> ../gen/org/camlistore/ChildProcessConfig.java
 	/bin/echo "}" >> ../gen/org/camlistore/ChildProcessConfig.java

@@ -8,5 +8,5 @@ To build Perkeep:
 
    $ go run make.go
 
-4) The compiled binaries should now be in the "bin" subdirectory:
-   perkeepd (the server), camget, camput, and camtool.
+4) The compiled binaries should now be in the usual go install directory:
+   perkeepd (the server), pk, pk-put, and pk-get.
