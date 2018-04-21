@@ -18,10 +18,13 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"errors"
 	"flag"
 	"fmt"
+	"hash"
 	"io"
+	"log"
 	"os"
 	"strings"
 
@@ -36,7 +39,8 @@ type blobCmd struct {
 	title string
 	tag   string
 
-	makePermanode bool // make new, unique permanode of the blob
+	makePermanode bool   // make new, unique permanode of the blob
+	hashFunc      string // empty means automatic
 }
 
 func init() {
@@ -45,6 +49,7 @@ func init() {
 		flags.BoolVar(&cmd.makePermanode, "permanode", false, "Create and associate a new permanode for the blob.")
 		flags.StringVar(&cmd.title, "title", "", "Optional title attribute to set on permanode when using -permanode.")
 		flags.StringVar(&cmd.tag, "tag", "", "Optional tag(s) to set on permanode when using -permanode. Single value or comma separated.")
+		flags.StringVar(&cmd.hashFunc, "hash", "", "Name of hash algorithm to use. Empty means to use the current recommended one.")
 		return cmd
 	})
 }
@@ -95,7 +100,7 @@ func (c *blobCmd) RunCommand(args []string) error {
 		if arg == "-" {
 			handle, err = stdinBlobHandle()
 		} else {
-			handle, err = fileBlobHandle(up, arg)
+			handle, err = c.fileBlobHandle(up, arg)
 		}
 		if err != nil {
 			return err
@@ -155,7 +160,7 @@ func stdinBlobHandle() (*client.UploadHandle, error) {
 	}, nil
 }
 
-func fileBlobHandle(up *Uploader, path string) (*client.UploadHandle, error) {
+func (c *blobCmd) fileBlobHandle(up *Uploader, path string) (*client.UploadHandle, error) {
 	fi, err := up.stat(path)
 	if err != nil {
 		return nil, err
@@ -177,7 +182,7 @@ func fileBlobHandle(up *Uploader, path string) (*client.UploadHandle, error) {
 	if _, err := io.ReadFull(file, buf); err != nil {
 		return nil, err
 	}
-	h := blob.NewHash()
+	h := c.newHash()
 	if _, err := h.Write(buf); err != nil {
 		return nil, err
 	}
@@ -186,4 +191,17 @@ func fileBlobHandle(up *Uploader, path string) (*client.UploadHandle, error) {
 		Size:     uint32(size),
 		Contents: bytes.NewReader(buf),
 	}, nil
+}
+
+func (c *blobCmd) newHash() hash.Hash {
+	switch c.hashFunc {
+	case "":
+		return blob.NewHash()
+	case "sha1":
+		return sha1.New()
+	default:
+		// TODO: move all this into the blob package?
+		log.Fatalf("unsupported hash function %q", c.hashFunc)
+		panic("unreachable")
+	}
 }
