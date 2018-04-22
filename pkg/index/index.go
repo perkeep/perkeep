@@ -98,6 +98,10 @@ var (
 	_ Interface          = (*Index)(nil)
 )
 
+func (x *Index) logf(format string, args ...interface{}) {
+	log.Printf("index: "+format, args...)
+}
+
 var aboutToReindex = false
 
 // SignerRefSet is the set of all blob Refs (of different hashes) that represent
@@ -241,13 +245,13 @@ func (x *Index) fixMissingWholeRef(fetcher blob.Fetcher) (err error) {
 	if x.schemaVersion() != 4 || requiredSchemaVersion != 5 {
 		panic("fixMissingWholeRef should only be used when upgrading from v4 to v5 of the index schema")
 	}
-	log.Println("index: fixing the missing wholeRef in the fileInfo rows...")
+	x.logf("fixing the missing wholeRef in the fileInfo rows...")
 	defer func() {
 		if err != nil {
-			log.Printf("index: fixing the fileInfo rows failed: %v", err)
+			x.logf("fixing the fileInfo rows failed: %v", err)
 			return
 		}
-		log.Print("index: successfully fixed wholeRef in FileInfo rows.")
+		x.logf("successfully fixed wholeRef in FileInfo rows.")
 	}()
 
 	// first build a reverted keyWholeToFileRef map, so we can get the wholeRef from the fileRef easily.
@@ -284,7 +288,7 @@ func (x *Index) fixMissingWholeRef(fetcher blob.Fetcher) (err error) {
 	for it.Next() {
 		select {
 		case <-t.C:
-			log.Printf("Recorded %d missing wholeRef that we'll try to fix, and %d that we can't fix.", fixedEntries, missedEntries)
+			x.logf("recorded %d missing wholeRef that we'll try to fix, and %d that we can't fix.", fixedEntries, missedEntries)
 		default:
 		}
 		br, ok := blob.ParseBytes(it.KeyBytes()[len(keyPrefix):])
@@ -294,7 +298,7 @@ func (x *Index) fixMissingWholeRef(fetcher blob.Fetcher) (err error) {
 		wholeRef, ok := fileRefToWholeRef[br]
 		if !ok {
 			missedEntries++
-			log.Printf("WARNING: wholeRef for %v not found in index. You should probably rebuild the whole index.", br)
+			x.logf("WARNING: wholeRef for %v not found in index. You should probably rebuild the whole index.", br)
 			continue
 		}
 		valPart := strutil.AppendSplitN(valA[:0], it.Value(), "|", 3)
@@ -310,7 +314,7 @@ func (x *Index) fixMissingWholeRef(fetcher blob.Fetcher) (err error) {
 			// For the "production" migrations between 0.8 and 0.9, the index should not have any wholeRef
 			// in the keyFileInfo entries. So if something goes wrong and is somehow linked to that happening,
 			// I'd like to know about it, hence the logging.
-			log.Printf("%v: %v already has a wholeRef, not fixing it", it.Key(), it.Value())
+			x.logf("%v: %v already has a wholeRef, not fixing it", it.Key(), it.Value())
 			continue
 		}
 		size, err := strconv.Atoi(size_s)
@@ -323,7 +327,7 @@ func (x *Index) fixMissingWholeRef(fetcher blob.Fetcher) (err error) {
 	if err := it.Close(); err != nil {
 		return err
 	}
-	log.Printf("Starting to commit the missing wholeRef fixes (%d entries) now, this can take a while.", fixedEntries)
+	x.logf("starting to commit the missing wholeRef fixes (%d entries) now, this can take a while.", fixedEntries)
 	bm := x.s.BeginBatch()
 	for k, v := range mutations {
 		bm.Set(k, v)
@@ -333,7 +337,7 @@ func (x *Index) fixMissingWholeRef(fetcher blob.Fetcher) (err error) {
 		return err
 	}
 	if missedEntries > 0 {
-		log.Printf("Some missing wholeRef entries were not fixed (%d), you should do a full reindex.", missedEntries)
+		x.logf("some missing wholeRef entries were not fixed (%d), you should do a full reindex.", missedEntries)
 	}
 	return nil
 }
@@ -547,8 +551,11 @@ func (x *Index) Reindex() error {
 // if any of them is not found. It only returns an error if something went wrong
 // during the enumeration.
 func (x *Index) integrityCheck(timeout time.Duration) error {
-	log.Print("Starting index integrity check.")
-	defer log.Print("Index integrity check done.")
+	t0 := time.Now()
+	x.logf("starting integrity check...")
+	defer func() {
+		x.logf("integrity check done (after %v)", time.Since(t0).Round(10*time.Millisecond))
+	}()
 	if x.blobSource == nil {
 		return errors.New("index: can't check sanity of index: no blobSource")
 	}
@@ -581,7 +588,7 @@ func (x *Index) integrityCheck(timeout time.Duration) error {
 	}
 	if len(notFound) > 0 {
 		// TODO(mpl): at least on GCE, display that message and maybe more on a web UI page as well.
-		log.Printf("WARNING: sanity checking of the index found %d non-indexed blobs out of %d tested blobs. Reindexing is advised.", len(notFound), len(notFound)+len(seen))
+		x.logf("WARNING: sanity checking of the index found %d non-indexed blobs out of %d tested blobs. Reindexing is advised.", len(notFound), len(notFound)+len(seen))
 	}
 	return nil
 }
@@ -772,11 +779,11 @@ func (x *Index) GetRecentPermanodes(ctx context.Context, dest chan<- camtypes.Re
 
 	keyId, err := x.KeyId(ctx, owner)
 	if err == sorted.ErrNotFound {
-		log.Printf("No recent permanodes because keyId for owner %v not found", owner)
+		x.logf("no recent permanodes because keyId for owner %v not found", owner)
 		return nil
 	}
 	if err != nil {
-		log.Printf("Error fetching keyId for owner %v: %v", owner, err)
+		x.logf("error fetching keyId for owner %v: %v", owner, err)
 		return err
 	}
 
@@ -1360,7 +1367,7 @@ func (x *Index) GetFileInfo(ctx context.Context, fileRef blob.Ref) (camtypes.Fil
 	}
 	valPart := strings.Split(iv, "|")
 	if len(valPart) < 3 {
-		log.Printf("index: bogus key %q = %q", ikey, iv)
+		x.logf("bogus key %q = %q", ikey, iv)
 		return camtypes.FileInfo{}, os.ErrNotExist
 	}
 	var wholeRef blob.Ref
@@ -1369,7 +1376,7 @@ func (x *Index) GetFileInfo(ctx context.Context, fileRef blob.Ref) (camtypes.Fil
 	}
 	size, err := strconv.ParseInt(valPart[0], 10, 64)
 	if err != nil {
-		log.Printf("index: bogus integer at position 0 in key %q = %q", ikey, iv)
+		x.logf("bogus integer at position 0 in key %q = %q", ikey, iv)
 		return camtypes.FileInfo{}, os.ErrNotExist
 	}
 	fileName := urld(valPart[1])

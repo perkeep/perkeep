@@ -243,12 +243,12 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) 
 				HostPolicy: autocert.HostWhitelist(hostname),
 				Cache:      autocert.DirCache(osutil.DefaultLetsEncryptCache()),
 			}
+			log.Printf("Starting to listen on http://0.0.0.0:80 (for Let's Encrypt challenges)")
 			// TODO(mpl): let the http-01 port be configurable, for when behind a proxy
 			go func() {
-				log.Fatalf("Could not start server for http-01 challenge: %v",
+				log.Fatalf("Could not start ACME http-014 challenge server: %v",
 					http.ListenAndServe(":http", m.HTTPHandler(nil)))
 			}()
-			log.Printf("TLS enabled, with Let's Encrypt for %v", hostname)
 			ws.SetTLS(webserver.TLSSetup{
 				CertManager: m.GetCertificate,
 			})
@@ -817,7 +817,7 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 			log.Printf("Could not reach app %v: %v", appName, err)
 		}
 	}
-	log.Printf("Available on %s", urlToOpen)
+	log.Printf("server: available at %s", urlToOpen)
 
 	// Block forever, except during tests.
 	up <- struct{}{}

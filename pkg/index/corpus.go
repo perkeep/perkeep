@@ -110,6 +110,10 @@ type Corpus struct {
 	ss []string
 }
 
+func (c *Corpus) logf(format string, args ...interface{}) {
+	log.Printf("index/corpus: "+format, args...)
+}
+
 // blobMatches reports whether br is in the set.
 func (srs SignerRefSet) blobMatches(br blob.Ref) bool {
 	for _, v := range srs {
@@ -427,8 +431,8 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	var ms0 *runtime.MemStats
 	if logCorpusStats {
 		ms0 = memstats()
-		log.Printf("Slurping corpus to memory from index...")
-		log.Printf("Slurping corpus to memory from index... (1/%d: meta rows)", len(slurpPrefixes))
+		c.logf("loading into memory...")
+		c.logf("loading into memory... (1/%d: meta rows)", len(slurpPrefixes))
 	}
 
 	scanmu := new(sync.Mutex)
@@ -452,7 +456,7 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	var grp syncutil.Group
 	for i, prefix := range slurpPrefixes[2:] {
 		if logCorpusStats {
-			log.Printf("Slurping corpus to memory from index... (%d/%d: prefix %q)", i+2, len(slurpPrefixes),
+			c.logf("loading into memory... (%d/%d: prefix %q)", i+2, len(slurpPrefixes),
 				prefix[:len(prefix)-1])
 		}
 		prefix := prefix
@@ -492,7 +496,7 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 		if ms1.Alloc < ms0.Alloc {
 			memUsed = 0
 		}
-		log.Printf("Corpus stats: %.3f MiB mem: %d blobs (%.3f GiB) (%d schema (%d permanode, %d file (%d image), ...)",
+		c.logf("stats: %.3f MiB mem: %d blobs (%.3f GiB) (%d schema (%d permanode, %d file (%d image), ...)",
 			float64(memUsed)/(1<<20),
 			len(c.blobs),
 			float64(c.sumBlobBytes)/(1<<30),
@@ -500,7 +504,7 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 			len(c.permanodes),
 			len(c.files),
 			len(c.imageInfo))
-		log.Printf("Corpus scanning CPU usage: %v", cpu)
+		c.logf("scanning CPU usage: %v", cpu)
 	}
 
 	return nil
@@ -552,7 +556,7 @@ func (c *Corpus) scanPrefix(mu *sync.Mutex, s sorted.KeyValue, prefix string) (e
 		if typeKey == keySignerKeyID.name {
 			signerBlobRef, ok := blob.Parse(strings.TrimPrefix(it.Key(), keySignerKeyID.name+":"))
 			if !ok {
-				log.Printf("Bogus signer blob in %v row: %q", keySignerKeyID.name, it.Key())
+				c.logf("WARNING: bogus signer blob in %v row: %q", keySignerKeyID.name, it.Key())
 				continue
 			}
 			if err := c.addKeyID(&mutationMap{
@@ -569,7 +573,7 @@ func (c *Corpus) scanPrefix(mu *sync.Mutex, s sorted.KeyValue, prefix string) (e
 	}
 	if logCorpusStats {
 		d := time.Since(t0)
-		log.Printf("Scanned prefix %q: %d rows, %v", prefix[:len(prefix)-1], n, d)
+		c.logf("scanned prefix %q: %d rows, %v", prefix[:len(prefix)-1], n, d)
 	}
 	return nil
 }

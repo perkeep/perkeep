@@ -116,8 +116,12 @@ func (sh *SyncHandler) String() string {
 	return fmt.Sprintf("[SyncHandler %v -> %v]", sh.fromName, sh.toName)
 }
 
+func (sh *SyncHandler) fromToString() string {
+	return fmt.Sprintf("%v -> %v", sh.fromName, sh.toName)
+}
+
 func (sh *SyncHandler) logf(format string, args ...interface{}) {
-	log.Printf(sh.String()+" "+format, args...)
+	log.Printf("sync: "+sh.fromToString()+": "+format, args...)
 }
 
 func init() {
@@ -353,7 +357,7 @@ func (sh *SyncHandler) readQueueToMemory() error {
 		sh.addBlobToCopy(sb)
 		n++
 	}
-	sh.logf("Added %d pending blobs from sync queue to pending list", n)
+	sh.logf("added %d pending blobs from sync queue to pending list", n)
 	return <-errc
 }
 
@@ -730,7 +734,7 @@ func (sh *SyncHandler) startFullValidation() {
 	}
 	sh.mu.Unlock()
 
-	sh.logf("Running full validation; determining validation shards...")
+	sh.logf("running full validation; determining validation shards...")
 	shards := sh.shardPrefixes()
 
 	sh.mu.Lock()
@@ -752,7 +756,7 @@ func (sh *SyncHandler) runFullValidation() {
 	wg.Add(len(shards))
 	sh.mu.Unlock()
 
-	sh.logf("full validation beginning with %d shards", len(shards))
+	sh.logf("full validation beginning with %d shards...", len(shards))
 
 	const maxShardWorkers = 30 // arbitrary
 	gate := syncutil.NewGate(maxShardWorkers)
@@ -767,7 +771,7 @@ func (sh *SyncHandler) runFullValidation() {
 		}()
 	}
 	wg.Wait()
-	sh.logf("Validation complete")
+	sh.logf("validation complete")
 }
 
 func (sh *SyncHandler) validateShardPrefix(pfx string) (err error) {
@@ -1048,22 +1052,22 @@ func storageDesc(v interface{}) string {
 // For now, don't implement them. Wait until we need them.
 
 func (sh *SyncHandler) Fetch(context.Context, blob.Ref) (file io.ReadCloser, size uint32, err error) {
-	panic("Unimplemented blobserver.Fetch called")
+	panic("unimplemented blobserver.Fetch called")
 }
 
 func (sh *SyncHandler) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
-	sh.logf("Unexpected StatBlobs call")
+	sh.logf("unexpected StatBlobs call")
 	return nil
 }
 
 func (sh *SyncHandler) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
-	sh.logf("Unexpected EnumerateBlobs call")
+	sh.logf("unexpected EnumerateBlobs call")
 	return nil
 }
 
 func (sh *SyncHandler) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
-	panic("Unimplemented RemoveBlobs")
+	panic("unimplemented RemoveBlobs")
 }
 
 var errStopEnumerating = errors.New("sentinel error: reached the hourly compare quota")

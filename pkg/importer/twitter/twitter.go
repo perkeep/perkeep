@@ -277,7 +277,7 @@ func (im *imp) LongPoll(rctx *importer.RunContext) error {
 	req.URL.RawQuery = form.Encode()
 	req.Cancel = rctx.Context().Done()
 
-	log.Printf("Beginning twitter long poll...")
+	log.Printf("twitter: beginning long poll, awaiting new tweets...")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
@@ -292,17 +292,17 @@ func (im *imp) LongPoll(rctx *importer.RunContext) error {
 		if line == "" || strings.HasPrefix(line, `{"friends`) {
 			continue
 		}
-		log.Printf("Twitter long poll saw a tweet: %s", line)
+		log.Printf("twitter: long poll saw activity")
 		return nil
 	}
 	if err := bs.Err(); err != nil {
 		return err
 	}
-	return errors.New("got EOF without a tweet")
+	return errors.New("twitter: got EOF without a tweet")
 }
 
 func (r *run) errorf(format string, args ...interface{}) {
-	log.Printf(format, args...)
+	log.Printf("twitter: "+format, args...)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.anyErr = true
@@ -336,7 +336,7 @@ func (r *run) importTweets(userID string) error {
 	for continueRequests {
 		select {
 		case <-r.Context().Done():
-			r.errorf("Twitter importer: interrupted")
+			r.errorf("interrupted")
 			return r.Context().Err()
 		default:
 		}
@@ -344,10 +344,10 @@ func (r *run) importTweets(userID string) error {
 		var resp []*apiTweetItem
 		var err error
 		if maxId == "" {
-			log.Printf("Fetching tweets for userid %s", userID)
+			log.Printf("twitter: fetching tweets for userid %s", userID)
 			err = r.doAPI(&resp, userTimeLineAPIPath, attrs...)
 		} else {
-			log.Printf("Fetching tweets for userid %s with max ID %s", userID, maxId)
+			log.Printf("twitter: fetching tweets for userid %s with max ID %s", userID, maxId)
 			err = r.doAPI(&resp, userTimeLineAPIPath,
 				append(attrs, "max_id", maxId)...)
 		}
@@ -383,7 +383,7 @@ func (r *run) importTweets(userID string) error {
 					allDupMu.Unlock()
 				}
 				if err != nil {
-					r.errorf("Twitter importer: error importing tweet %s %v", tweet.Id, err)
+					r.errorf("error importing tweet %s %v", tweet.Id, err)
 				}
 				return err
 			})
@@ -392,14 +392,14 @@ func (r *run) importTweets(userID string) error {
 			return err
 		}
 		numTweets += newThisBatch
-		log.Printf("Imported %d tweets this batch; %d total.", newThisBatch, numTweets)
+		log.Printf("twitter: imported %d tweets this batch; %d total.", newThisBatch, numTweets)
 		if r.incremental && allDups {
-			log.Printf("twitter incremental import found end batch")
+			log.Printf("twitter: incremental import found end batch")
 			break
 		}
 		continueRequests = newThisBatch > 0
 	}
-	log.Printf("Successfully did full run of importing %d tweets", numTweets)
+	log.Printf("twitter: successfully did full run of importing %d tweets", numTweets)
 	return nil
 }
 
@@ -425,7 +425,7 @@ func tweetsFromZipFile(zf *zip.File) (tweets []*zipTweetItem, err error) {
 }
 
 func (r *run) importTweetsFromZip(userID string, zr *zip.Reader) error {
-	log.Printf("Processing zip file with %d files", len(zr.File))
+	log.Printf("twitter: processing zip file with %d files", len(zr.File))
 
 	tweetsNode, err := r.getTopLevelNode("tweets")
 	if err != nil {
@@ -548,7 +548,7 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 				return false, fmt.Errorf("HTTP status %d fetching %s for tweet %s", res.StatusCode, mediaURL, url)
 			}
 			if !viaAPI {
-				log.Printf("For zip tweet %s, reading %v", url, mediaURL)
+				log.Printf("twitter: for zip tweet %s, reading %v", url, mediaURL)
 			}
 			fileRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), filename, res.Body)
 			res.Body.Close()
@@ -559,7 +559,7 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 			if i == 0 {
 				attrs = append(attrs, "camliContentImage", fileRef.String())
 			}
-			log.Printf("Slurped %s as %s for tweet %s (%v)", mediaURL, fileRef.String(), url, tweetNode.PermanodeRef())
+			log.Printf("twitter: slurped %s as %s for tweet %s (%v)", mediaURL, fileRef.String(), url, tweetNode.PermanodeRef())
 			gotMedia = true
 			break
 		}
@@ -570,7 +570,7 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 
 	changes, err := tweetNode.SetAttrs2(attrs...)
 	if err == nil && changes {
-		log.Printf("Imported tweet %s", url)
+		log.Printf("twitter: imported tweet %s", url)
 	}
 	return !changes, err
 }
@@ -650,7 +650,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		return
 	}
 	if tempToken != r.FormValue("oauth_token") {
-		log.Printf("unexpected oauth_token: got %v, want %v", r.FormValue("oauth_token"), tempToken)
+		log.Printf("twitter: unexpected oauth_token: got %v, want %v", r.FormValue("oauth_token"), tempToken)
 		httputil.BadRequestError(w, "unexpected oauth_token")
 		return
 	}
