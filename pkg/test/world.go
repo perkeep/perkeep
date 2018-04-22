@@ -132,16 +132,46 @@ func (w *World) Build() error {
 	return nil
 }
 
+func goPathBinDir() (string, error) {
+	cmd := exec.Command("go", "env", "GOPATH")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("could not get GOPATH: %v, %s", err, out)
+	}
+	paths := filepath.SplitList(strings.TrimSpace(string(out)))
+	if len(paths) < 1 {
+		return "", errors.New("no GOPATH")
+	}
+	return filepath.Join(paths[0], "bin"), nil
+}
+
+func lookPathGopath(binName string) (string, error) {
+	binPath, err := exec.LookPath(binName)
+	if err == nil {
+		return binPath, nil
+	}
+	binDir, err := goPathBinDir()
+	if err != nil {
+		return "", fmt.Errorf("binary %q not found in $PATH, and could not look in $GOPATH/bin because %v", binName, err)
+	}
+	binPath = filepath.Join(binDir, binName)
+	if _, err := os.Stat(binPath); err != nil {
+		return "", err
+	}
+	return binPath, nil
+}
+
 // Help outputs the help of perkeepd from the World.
 func (w *World) Help() ([]byte, error) {
 	if err := w.Build(); err != nil {
 		return nil, err
 	}
+	pkdbin, err := lookPathGopath("perkeepd")
+	if err != nil {
+		return nil, err
+	}
 	// Run perkeepd -help.
-	cmd := exec.Command(
-		filepath.Join(w.srcRoot, "bin", "perkeepd"),
-		"-help",
-	)
+	cmd := exec.Command(pkdbin, "-help")
 	return cmd.CombinedOutput()
 }
 
@@ -152,8 +182,12 @@ func (w *World) Start() error {
 	}
 	// Start perkeepd.
 	{
+		pkdbin, err := lookPathGopath("perkeepd")
+		if err != nil {
+			return err
+		}
 		w.server = exec.Command(
-			filepath.Join(w.srcRoot, "bin", "perkeepd"),
+			pkdbin,
 			"--openbrowser=false",
 			"--configfile="+filepath.Join(w.srcRoot, "pkg", "test", "testdata", w.config),
 			"--listen=FD:3",
@@ -279,7 +313,7 @@ func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cm
 			// but pk is never used. (and pk-mount does not even have a -verbose).
 			args = append([]string{"-verbose"}, args...)
 		}
-		cmd = exec.Command(filepath.Join(w.srcRoot, "bin", binary), args...)
+		cmd = exec.Command(binary, args...)
 		clientConfigDir := filepath.Join(w.srcRoot, "config", "dev-client-dir")
 		cmd.Env = append([]string{
 			"CAMLI_CONFIG_DIR=" + clientConfigDir,
@@ -371,6 +405,6 @@ func (w *World) SecretRingFile() string {
 func (w *World) SearchHandlerPath() string { return "/my-search/" }
 
 // ServerBinary returns the location of the perkeepd binary running for this World.
-func (w *World) ServerBinary() string {
-	return filepath.Join(w.srcRoot, "bin", "perkeepd")
+func (w *World) ServerBinary() (string, error) {
+	return lookPathGopath("perkeepd")
 }
