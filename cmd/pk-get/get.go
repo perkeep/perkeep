@@ -70,7 +70,7 @@ func main() {
 	}
 
 	if *flagVersion {
-		fmt.Fprintf(os.Stderr, "camget version: %s\n", buildinfo.Version())
+		fmt.Fprintf(os.Stderr, "pk-get version: %s\n", buildinfo.Version())
 		return
 	}
 

@@ -1,6 +1,6 @@
 # Sharing
 
-**TODO:** finish documenting this. In particular, add example with camget -shared.
+**TODO:** finish documenting this. In particular, add example with pk-get -shared.
 
 The basic summary is that you create a [claim](/doc/terms.md#claim) that a user
 has access to something, and then your blobserver's public frontend

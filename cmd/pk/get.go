@@ -23,35 +23,33 @@ import (
 	"perkeep.org/pkg/cmdmain"
 )
 
-type putCmd struct {
-	binName string // the executable that is actually called, i.e. "pk-put".
+type getCmd struct {
+	binName string // the executable that is actually called, i.e. "pk-get".
 }
 
 func init() {
-	cmdmain.RegisterCommand("put", func(flags *flag.FlagSet) cmdmain.CommandRunner {
-		return &putCmd{
-			binName: "pk-put",
+	cmdmain.RegisterCommand("get", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+		return &getCmd{
+			binName: "pk-get",
 		}
-		// TODO(mpl): do cmdmain.ExtraFlagRegistration = client.AddFlags somewhere, so
-		// pk has same global flags as pk-put? (which I think it already does anyway).
 	})
 }
 
-func (c *putCmd) Describe() string {
+func (c *getCmd) Describe() string {
 	return "Create and upload blobs to a server."
 }
 
-func (c *putCmd) Usage() {
+func (c *getCmd) Usage() {
 	panic("pk put Usage should never get called, as we should always end up calling either pk's or pk-put's usage")
 }
 
-func (c *putCmd) RunCommand(args []string) error {
+func (c *getCmd) RunCommand(args []string) error {
 	// RunCommand is only implemented to satisfy the CommandRunner interface.
 	panic("pk put RunCommand should never get called, as pk is supposed to invoke pk-put instead.")
 }
 
-// LookPath returns the full path to the executable that "pk put" actually
-// calls, i.e. "pk-put".
-func (c *putCmd) LookPath() (string, error) {
+// LookPath returns the full path to the executable that "pk get" actually
+// calls, i.e. "pk-get".
+func (c *getCmd) LookPath() (string, error) {
 	return osutil.LookPathGopath(c.binName)
 }

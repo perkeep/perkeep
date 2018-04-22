@@ -424,7 +424,7 @@ func setReleaseTarballName() {
 func packBinaries(ctxDir string) {
 	binaries := map[string]bool{
 		exeName("perkeepd"):  false,
-		exeName("camget"):    false,
+		exeName("pk-get"):    false,
 		exeName("pk-put"):    false,
 		exeName("pk"):        false,
 		exeName("publisher"): false,

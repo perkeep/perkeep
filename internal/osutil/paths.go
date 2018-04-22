@@ -17,11 +17,15 @@ limitations under the License.
 package osutil
 
 import (
+	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 
 	"go4.org/jsonconfig"
@@ -280,4 +284,35 @@ func failInTests() {
 	if buildinfo.TestingLinked() {
 		panic("Unexpected non-hermetic use of host configuration during testing. (alternatively: the 'testing' package got accidentally linked in)")
 	}
+}
+
+func goPathBinDir() (string, error) {
+	cmd := exec.Command("go", "env", "GOPATH")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("could not get GOPATH: %v, %s", err, out)
+	}
+	paths := filepath.SplitList(strings.TrimSpace(string(out)))
+	if len(paths) < 1 {
+		return "", errors.New("no GOPATH")
+	}
+	return filepath.Join(paths[0], "bin"), nil
+}
+
+// LookPathGopath uses exec.LookPath to find binName, and then falls back to
+// looking in $GOPATH/bin.
+func LookPathGopath(binName string) (string, error) {
+	binPath, err := exec.LookPath(binName)
+	if err == nil {
+		return binPath, nil
+	}
+	binDir, err := goPathBinDir()
+	if err != nil {
+		return "", fmt.Errorf("command %q not found in $PATH, and could not look in $GOPATH/bin because %v", binName, err)
+	}
+	binPath = filepath.Join(binDir, binName)
+	if _, err := os.Stat(binPath); err != nil {
+		return "", err
+	}
+	return binPath, nil
 }

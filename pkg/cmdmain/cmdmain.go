@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package cmdmain contains the shared implementation for camget,
+// Package cmdmain contains the shared implementation for pk-get,
 // pk-put, pk, and other Perkeep command-line tools.
 package cmdmain // import "perkeep.org/pkg/cmdmain"
 

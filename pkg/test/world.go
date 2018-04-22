@@ -41,7 +41,7 @@ import (
 // World defines an integration test world.
 //
 // It's used to run the actual Perkeep binaries (perkeepd,
-// pk-put, camget, pk, etc) together in large tests, including
+// pk-put, pk-get, pk, etc) together in large tests, including
 // building them, finding them, and wiring them up in an isolated way.
 type World struct {
 	srcRoot  string // typically $GOPATH[0]/src/perkeep.org
@@ -166,7 +166,7 @@ func (w *World) Help() ([]byte, error) {
 	if err := w.Build(); err != nil {
 		return nil, err
 	}
-	pkdbin, err := lookPathGopath("perkeepd")
+	pkdbin, err := osutil.LookPathGopath("perkeepd")
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +182,7 @@ func (w *World) Start() error {
 	}
 	// Start perkeepd.
 	{
-		pkdbin, err := lookPathGopath("perkeepd")
+		pkdbin, err := osutil.LookPathGopath("perkeepd")
 		if err != nil {
 			return err
 		}
@@ -306,7 +306,7 @@ func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cm
 	}
 	var cmd *exec.Cmd
 	switch binary {
-	case "camget", "pk-put", "pk", "pk-mount":
+	case "pk-get", "pk-put", "pk", "pk-mount":
 		// TODO(mpl): lift the pk-put restriction when we have a unified logging mechanism
 		if binary == "pk-put" && !hasVerbose() {
 			// pk-put and pk are the only ones to have a -verbose flag through cmdmain
@@ -360,7 +360,7 @@ func GetWorldMaybe(t *testing.T) *World {
 }
 
 // RunCmd runs c (which is assumed to be something short-lived, like a
-// pk-put or camget command), capturing its stdout for return, and
+// pk-put or pk-get command), capturing its stdout for return, and
 // also capturing its stderr, just in the case of errors.
 // If there's an error, the return error fully describes the command and
 // all output.
@@ -406,5 +406,5 @@ func (w *World) SearchHandlerPath() string { return "/my-search/" }
 
 // ServerBinary returns the location of the perkeepd binary running for this World.
 func (w *World) ServerBinary() (string, error) {
-	return lookPathGopath("perkeepd")
+	return osutil.LookPathGopath("perkeepd")
 }

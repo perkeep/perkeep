@@ -18,7 +18,7 @@ limitations under the License.
 // the web UI, to share the selected items with a share claim. On success, the
 // URL that can be used to share the items is displayed in a dialog. If the one
 // item is a file, the URL can be used directly to fetch the file. If the one item
-// is a directory, the URL should be used with camget -shared. If several (file or
+// is a directory, the URL should be used with pk-get -shared. If several (file or
 // directory) items are selected, a new directory blob containing these items is
 // created, and is the item getting shared instead.
 package sharebutton
@@ -162,7 +162,7 @@ func (d ShareItemsBtnDef) Render() react.Element {
 // On success, handleShareSelection calls d.showSharedURL with the URL that can
 // be used to share the item. If the item is a file, the URL can be used directly
 // to fetch the file. If the item is a directory, the URL should be used with
-// camget -shared.
+// pk-get -shared.
 func (d ShareItemsBtnDef) OnClick(e *react.SyntheticMouseEvent) {
 	go func() {
 		sharedURL, err := d.shareSelection()
@@ -253,7 +253,7 @@ func mkdir(am auth.AuthMode, children []blob.Ref) (blob.Ref, error) {
 
 // shareFile returns the URL that can be used to share the target item. If the
 // item is a file, the URL can be used directly to fetch the file. If the item is a
-// directory, the URL should be used with camget -shared.
+// directory, the URL should be used with pk-get -shared.
 func shareFile(am auth.AuthMode, target blob.Ref, isDir bool) (string, error) {
 	cl, err := client.New(client.OptionAuthMode(am))
 	if err != nil {

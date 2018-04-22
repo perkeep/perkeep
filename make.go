@@ -30,6 +30,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"crypto/sha256"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -106,7 +107,7 @@ func main() {
 	buildAll := false
 	targs := []string{
 		"perkeep.org/dev/devcam",
-		"perkeep.org/cmd/camget",
+		"perkeep.org/cmd/pk-get",
 		"perkeep.org/cmd/pk-put",
 		"perkeep.org/cmd/pk",
 		"perkeep.org/cmd/pk-deploy",
@@ -378,6 +379,19 @@ func genWebUIJS() error {
 	return genJS(pkg, output)
 }
 
+func goPathBinDir() (string, error) {
+	cmd := exec.Command("go", "env", "GOPATH")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("could not get GOPATH: %v, %s", err, out)
+	}
+	paths := filepath.SplitList(strings.TrimSpace(string(out)))
+	if len(paths) < 1 {
+		return "", errors.New("no GOPATH")
+	}
+	return filepath.Join(paths[0], "bin"), nil
+}
+
 func genJS(pkg, output string) error {
 	// We want to use 'gopherjs install', and not 'gopherjs build', as the former is
 	// smarter and only rebuilds the output if needed. However, 'install' writes the
@@ -392,7 +406,11 @@ func genJS(pkg, output string) error {
 
 	// TODO(mpl): set GOBIN, and remove all below, once
 	// https://github.com/gopherjs/gopherjs/issues/494 is fixed
-	jsout := filepath.Join(os.Getenv("GOPATH"), "bin", filepath.Base(pkg)+".js")
+	binDir, err := goPathBinDir()
+	if err != nil {
+		return err
+	}
+	jsout := filepath.Join(binDir, filepath.Base(pkg)+".js")
 	fi1, err1 := os.Stat(output)
 	if err1 != nil && !os.IsNotExist(err1) {
 		return err1
@@ -991,33 +1009,6 @@ func hostExeName(s string) string {
 		return s + ".exe"
 	}
 	return s
-}
-
-// goPackagePath returns the path to the provided Go package's
-// source directory.
-// pkg may be a path prefix without any *.go files.
-// The error is os.ErrNotExist if GOPATH is unset or the directory
-// doesn't exist in any GOPATH component.
-func goPackagePath(pkg string) (path string, err error) {
-	gp := os.Getenv("GOPATH")
-	if gp == "" {
-		return path, os.ErrNotExist
-	}
-	for _, p := range filepath.SplitList(gp) {
-		dir := filepath.Join(p, "src", filepath.FromSlash(pkg))
-		fi, err := os.Stat(dir)
-		if os.IsNotExist(err) {
-			continue
-		}
-		if err != nil {
-			return "", err
-		}
-		if !fi.IsDir() {
-			continue
-		}
-		return dir, nil
-	}
-	return path, os.ErrNotExist
 }
 
 // copied from pkg/osutil/paths.go

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This file adds the "put" subcommand to devcam, to run pk-put against the dev server.
+// This file adds the "get" subcommand to devcam, to run pk-get against the dev server.
 
 package main
 
@@ -22,13 +22,15 @@ import (
 	"flag"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/cmdmain"
 )
 
-type putCmd struct {
+type getCmd struct {
 	// start of flag vars
 	altkey bool
 	path   string
@@ -40,40 +42,41 @@ type putCmd struct {
 }
 
 func init() {
-	cmdmain.RegisterMode("put", func(flags *flag.FlagSet) cmdmain.CommandRunner {
-		cmd := &putCmd{
+	cmdmain.RegisterMode("get", func(flags *flag.FlagSet) cmdmain.CommandRunner {
+		cmd := &getCmd{
 			env: NewCopyEnv(),
 		}
 		flags.BoolVar(&cmd.altkey, "altkey", false, "Use different gpg key and password from the server's.")
+		flags.StringVar(&cmd.path, "path", "/bs", "Optional URL prefix path.")
+		flags.StringVar(&cmd.port, "port", "3179", "Port perkeep is listening on.")
 		flags.BoolVar(&cmd.tls, "tls", false, "Use TLS.")
-		flags.StringVar(&cmd.path, "path", "/", "Optional URL prefix path.")
-		flags.StringVar(&cmd.port, "port", "3179", "Port camlistore is listening on.")
 		return cmd
 	})
 }
 
-func (c *putCmd) Usage() {
-	fmt.Fprintf(cmdmain.Stderr, "Usage: devcam put [put_opts] pk-put_args\n")
+func (c *getCmd) Usage() {
+	fmt.Fprintf(cmdmain.Stderr, "Usage: devcam get [get_opts] -- pkg-get_args\n")
 }
 
-func (c *putCmd) Examples() []string {
+func (c *getCmd) Examples() []string {
 	return []string{
-		"file --filenodes /mnt/camera/DCIM",
+		"<blobref>",
+		"-- --shared http://localhost:3169/share/<blobref>",
 	}
 }
 
-func (c *putCmd) Describe() string {
-	return "run pk-put in dev mode."
+func (c *getCmd) Describe() string {
+	return "run pk-get in dev mode."
 }
 
-func (c *putCmd) RunCommand(args []string) error {
+func (c *getCmd) RunCommand(args []string) error {
 	err := c.checkFlags(args)
 	if err != nil {
 		return cmdmain.UsageError(fmt.Sprint(err))
 	}
 	if !*noBuild {
-		if err := build(filepath.Join("cmd", "pk-put")); err != nil {
-			return fmt.Errorf("Could not build pk-put: %v", err)
+		if err := build(filepath.Join("cmd", "pk-get")); err != nil {
+			return fmt.Errorf("Could not build pk-get: %v", err)
 		}
 	}
 	c.env.SetCamdevVars(c.altkey)
@@ -83,23 +86,37 @@ func (c *putCmd) RunCommand(args []string) error {
 		c.env.wipeCacheDir()
 	}
 
-	blobserver := "http://localhost:" + c.port + c.path
-	if c.tls {
-		blobserver = strings.Replace(blobserver, "http://", "https://", 1)
+	cmdBin, err := osutil.LookPathGopath("pk-get")
+	if err != nil {
+		return err
 	}
-
-	cmdBin := filepath.Join("bin", "pk-put")
 	cmdArgs := []string{
 		"-verbose=" + strconv.FormatBool(*cmdmain.FlagVerbose || !quiet),
-		"-server=" + blobserver,
+	}
+	if !isSharedMode(args) {
+		blobserver := "http://localhost:" + c.port + c.path
+		if c.tls {
+			blobserver = strings.Replace(blobserver, "http://", "https://", 1)
+		}
+		cmdArgs = append(cmdArgs, "-server="+blobserver)
 	}
 	cmdArgs = append(cmdArgs, args...)
 	return runExec(cmdBin, cmdArgs, c.env)
 }
 
-func (c *putCmd) checkFlags(args []string) error {
+func (c *getCmd) checkFlags(args []string) error {
 	if _, err := strconv.ParseInt(c.port, 0, 0); err != nil {
 		return fmt.Errorf("Invalid -port value: %q", c.port)
 	}
 	return nil
+}
+
+func isSharedMode(args []string) bool {
+	sharedRgx := regexp.MustCompile("--?shared")
+	for _, v := range args {
+		if sharedRgx.MatchString(v) {
+			return true
+		}
+	}
+	return false
 }

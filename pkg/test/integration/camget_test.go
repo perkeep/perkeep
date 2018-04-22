@@ -31,11 +31,11 @@ import (
 	"perkeep.org/pkg/test/asserts"
 )
 
-// Test that `camget -o' can restore a symlink correctly.
+// Test that `pk-get -o' can restore a symlink correctly.
 func TestCamgetSymlink(t *testing.T) {
 	w := test.GetWorld(t)
 
-	srcDir, err := ioutil.TempDir("", "camget-test-")
+	srcDir, err := ioutil.TempDir("", "pk-get-test-")
 	if err != nil {
 		t.Fatalf("ioutil.TempDir(): %v", err)
 	}
@@ -67,14 +67,14 @@ func TestCamgetSymlink(t *testing.T) {
 	// TODO(mpl): rm call and delete pkg.
 	asserts.ExpectBool(t, true, out != "", "pk-put")
 	br := strings.Split(out, "\n")[0]
-	dstDir, err := ioutil.TempDir("", "camget-test-")
+	dstDir, err := ioutil.TempDir("", "pk-get-test-")
 	if err != nil {
 		t.Fatalf("ioutil.TempDir(): %v", err)
 	}
 	defer os.RemoveAll(dstDir)
 
 	// Now restore the symlink
-	_ = test.MustRunCmd(t, w.Cmd("camget", "-o", dstDir, br))
+	_ = test.MustRunCmd(t, w.Cmd("pk-get", "-o", dstDir, br))
 
 	symlink := filepath.Join(dstDir, filepath.Base(srcDir), subdirBase,
 		linkBase)
@@ -95,7 +95,7 @@ func TestCamgetSymlink(t *testing.T) {
 	}
 }
 
-// Test that `camget -o' can restore a fifo correctly.
+// Test that `pk-get -o' can restore a fifo correctly.
 func TestCamgetFIFO(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.SkipNow()
@@ -115,7 +115,7 @@ func TestCamgetFIFO(t *testing.T) {
 		t.Fatalf("ioutil.TempDir(): %v", err)
 	}
 	defer os.RemoveAll(tdir)
-	test.MustRunCmd(t, w.Cmd("camget", "-o", tdir, br))
+	test.MustRunCmd(t, w.Cmd("pk-get", "-o", tdir, br))
 
 	// Ensure it is actually a fifo
 	name := filepath.Join(tdir, filepath.Base(fifo))
@@ -128,7 +128,7 @@ func TestCamgetFIFO(t *testing.T) {
 	}
 }
 
-// Test that `camget -o' can restore a socket correctly.
+// Test that `pk-get -o' can restore a socket correctly.
 func TestCamgetSocket(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.SkipNow()
@@ -148,7 +148,7 @@ func TestCamgetSocket(t *testing.T) {
 		t.Fatalf("ioutil.TempDir(): %v", err)
 	}
 	defer os.RemoveAll(tdir)
-	test.MustRunCmd(t, w.Cmd("camget", "-o", tdir, br))
+	test.MustRunCmd(t, w.Cmd("pk-get", "-o", tdir, br))
 
 	// Ensure it is actually a socket
 	name := filepath.Join(tdir, filepath.Base(socket))
@@ -162,7 +162,7 @@ func TestCamgetSocket(t *testing.T) {
 }
 
 // Test that:
-// 1) `camget -contents' can restore a regular file correctly.
+// 1) `pk-get -contents' can restore a regular file correctly.
 // 2) if the file already exists, and has the same size as the one held by the server,
 // stop early and do not even fetch it from the server.
 func TestCamgetFile(t *testing.T) {
@@ -192,7 +192,7 @@ func TestCamgetFile(t *testing.T) {
 	out := test.MustRunCmd(t, w.Cmd("pk-put", "file", filename))
 
 	br := strings.Split(out, "\n")[0]
-	_ = test.MustRunCmd(t, w.Cmd("camget", "-o", outDir, "-contents", br))
+	_ = test.MustRunCmd(t, w.Cmd("pk-get", "-o", outDir, "-contents", br))
 
 	fetchedName := filepath.Join(outDir, "test.txt")
 	b, err := ioutil.ReadFile(fetchedName)
@@ -204,10 +204,10 @@ func TestCamgetFile(t *testing.T) {
 	}
 
 	var stderr bytes.Buffer
-	c := w.Cmd("camget", "-o", outDir, "-contents", "-verbose", br)
+	c := w.Cmd("pk-get", "-o", outDir, "-contents", "-verbose", br)
 	c.Stderr = &stderr
 	if err := c.Run(); err != nil {
-		t.Fatalf("running second camget: %v", err)
+		t.Fatalf("running second pk-get: %v", err)
 	}
 	if !strings.Contains(stderr.String(), fmt.Sprintf("Skipping %s; already exists.", fetchedName)) {
 		t.Fatal(errors.New("Was expecting info message about local file already existing"))
