@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Types for Foursquare's JSON API.
+// Types for Foursquare Swarm's JSON API.
 
-package foursquare
+package swarm
 
 type user struct {
 	Id        string

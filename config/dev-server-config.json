@@ -361,14 +361,14 @@
 				"flickr": {
 					"clientSecret": ["_env", "${CAMLI_FLICKR_API_KEY}", ""]
 				},
-				"foursquare": {
-					"clientSecret": ["_env", "${CAMLI_FOURSQUARE_API_KEY}", ""]
-				},
 				"picasa": {
 					"clientSecret": ["_env", "${CAMLI_PICASA_API_KEY}", ""]
 				},
 				"plaid": {
 					"clientSecret": ["_env", "${CAMLI_PLAID_API_KEY}", ""]
+				},
+				"swarm": {
+					"clientSecret": ["_env", "${CAMLI_SWARM_API_KEY}", ""]
 				},
 				"twitter": {
 					"clientSecret": ["_env", "${CAMLI_TWITTER_API_KEY}", ""]

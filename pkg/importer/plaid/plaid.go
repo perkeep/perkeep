@@ -42,12 +42,11 @@ func init() {
 
 type imp struct{}
 
-func (*imp) SupportsIncremental() bool {
-	return true
-}
-
-func (*imp) NeedsAPIKey() bool {
-	return true
+func (*imp) Properties() importer.Properties {
+	return importer.Properties{
+		SupportsIncremental: true,
+		NeedsAPIKey:         true,
+	}
 }
 
 const (

@@ -101,9 +101,12 @@ type imp struct {
 	importer.OAuth1 // for CallbackRequestAccount and CallbackURLParameters
 }
 
-func (imp) SupportsIncremental() bool { return false }
-
-func (imp) NeedsAPIKey() bool { return false }
+func (imp) Properties() importer.Properties {
+	return importer.Properties{
+		SupportsIncremental: false,
+		NeedsAPIKey:         false,
+	}
+}
 
 func (imp) IsAccountReady(acct *importer.Object) (ready bool, err error) {
 	ready = acct.Attr(attrAuthToken) != ""

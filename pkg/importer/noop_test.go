@@ -28,9 +28,12 @@ type todoImp struct {
 	OAuth1 // for CallbackRequestAccount and CallbackURLParameters
 }
 
-func (todoImp) NeedsAPIKey() bool { return false }
-
-func (todoImp) SupportsIncremental() bool { return false }
+func (todoImp) Properties() Properties {
+	return Properties{
+		NeedsAPIKey:         false,
+		SupportsIncremental: false,
+	}
+}
 
 func (todoImp) Run(*RunContext) error {
 	return errors.New("fake error from todo importer")

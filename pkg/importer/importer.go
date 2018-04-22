@@ -68,19 +68,8 @@ type Importer interface {
 	// importer exits for that reason.
 	Run(*RunContext) error
 
-	// NeedsAPIKey reports whether this importer requires an API key
-	// (OAuth2 client_id & client_secret, or equivalent).
-	// If the API only requires a username & password, or a flow to get
-	// an auth token per-account without an overall API key, importers
-	// can return false here.
-	NeedsAPIKey() bool
-
-	// SupportsIncremental reports whether this importer has been optimized
-	// to run efficiently in regular incremental runs. (e.g. every 5 minutes
-	// or half hour). Eventually all importers might support this and we'll
-	// make it required, in which case we might delete this option.
-	// For now, some importers (e.g. Flickr) don't yet support this.
-	SupportsIncremental() bool
+	// Properties returns properties of this importer type.
+	Properties() Properties
 
 	// IsAccountReady reports whether the provided account node
 	// is configured.
@@ -99,6 +88,34 @@ type Importer interface {
 	// CallbackURLParameters uses the input importer account blobRef to build
 	// and return the URL parameters, that will be appended to the callback URL.
 	CallbackURLParameters(acctRef blob.Ref) url.Values
+}
+
+// Properties contains the properties of an importer type.
+type Properties struct {
+	// NeedsAPIKey reports whether this importer requires an API key
+	// (OAuth2 client_id & client_secret, or equivalent).
+	// If the API only requires a username & password, or a flow to get
+	// an auth token per-account without an overall API key, importers
+	// can return false here.
+	NeedsAPIKey bool
+
+	// SupportsIncremental reports whether this importer has been optimized
+	// to run efficiently in regular incremental runs. (e.g. every 5 minutes
+	// or half hour). Eventually all importers might support this and we'll
+	// make it required, in which case we might delete this option.
+	// For now, some importers (e.g. Flickr) don't yet support this.
+	SupportsIncremental bool
+
+	// PermanodeImporterType optionally specifies the "importerType"
+	// permanode attribute value that should be stored for
+	// accounts of this type. By default, it is the string that it
+	// was registered with. This should only be specified for
+	// products that have been rebranded, and then this should be
+	// the old branding, to not break people who have been
+	// importing the account since before the rebranding.
+	// For example, this is "foursquare" for "swarm", so "swarm" shows
+	// in the UI and URLs, but it's "foursquare" in permanodes.
+	PermanodeImporterType string
 }
 
 // LongPoller is optionally implemented by importers which can long
@@ -131,7 +148,10 @@ type ImporterSetupHTMLer interface {
 	AccountSetupHTML(*Host) string
 }
 
-var importers = make(map[string]Importer)
+var (
+	importers           = map[string]Importer{}
+	reservedImporterKey = map[string]bool{}
+)
 
 // All returns the map of importer implementation name to implementation. This
 // map should not be mutated.
@@ -144,6 +164,18 @@ func All() map[string]Importer {
 func Register(name string, im Importer) {
 	if _, dup := importers[name]; dup {
 		panic("Dup registration of importer " + name)
+	}
+	if _, dup := reservedImporterKey[name]; dup {
+		panic("Dup registration of importer " + name)
+	}
+	if pt := im.Properties().PermanodeImporterType; pt != "" {
+		if _, dup := importers[pt]; dup {
+			panic("Dup registration of importer " + pt)
+		}
+		if _, dup := reservedImporterKey[pt]; dup {
+			panic("Dup registration of importer " + pt)
+		}
+		reservedImporterKey[pt] = true
 	}
 	importers[name] = im
 }
@@ -195,10 +227,12 @@ func NewHost(hc HostConfig) (*Host, error) {
 		if clientSecret != "" && clientId == "" {
 			return nil, fmt.Errorf("Invalid static configuration for importer %q: clientSecret specified without clientId", k)
 		}
+		props := impl.Properties()
 		imp := &importer{
 			host:         h,
 			name:         k,
 			impl:         impl,
+			props:        &props,
 			clientID:     clientId,
 			clientSecret: clientSecret,
 		}
@@ -734,9 +768,10 @@ func (h *Host) Searcher() search.QueryDescriber { return h.search }
 
 // importer is an importer for a certain site, but not a specific account on that site.
 type importer struct {
-	host *Host
-	name string // importer name e.g. "twitter"
-	impl Importer
+	host  *Host
+	name  string // importer name e.g. "twitter"
+	impl  Importer
+	props *Properties // impl.Properties; pointer so we crash on & find uninitialized callers
 
 	// If statically configured in config file, else
 	// they come from the importer node's attributes.
@@ -753,6 +788,17 @@ type importer struct {
 
 func (im *importer) Name() string { return im.name }
 
+// ImporterType returns the account permanode's attrImporterType
+// value. This is almost always the same as the Name, except in cases
+// where a product gets rebranded. (e.g. "foursquare" to "swarm", in
+// which case the importer type remains the old branding)
+func (im *importer) ImporterType() string {
+	if im.props.PermanodeImporterType != "" {
+		return im.props.PermanodeImporterType
+	}
+	return im.name
+}
+
 func (im *importer) StaticConfig() bool { return im.clientSecret != "" }
 
 // URL returns the importer's URL without trailing slash.
@@ -764,7 +810,7 @@ func (im *importer) ShowClientAuthEditForm() bool {
 		// to the user. (e.g. a hosted multi-user configuation)
 		return false
 	}
-	return im.impl.NeedsAPIKey()
+	return im.props.NeedsAPIKey
 }
 
 func (im *importer) InsecureForm() bool {
@@ -772,7 +818,7 @@ func (im *importer) InsecureForm() bool {
 }
 
 func (im *importer) CanAddNewAccount() bool {
-	if !im.impl.NeedsAPIKey() {
+	if !im.props.NeedsAPIKey {
 		return true
 	}
 	id, sec, err := im.credentials()
@@ -790,7 +836,7 @@ func (im *importer) ClientSecret() (v string, err error) {
 }
 
 func (im *importer) Status() (status string, err error) {
-	if !im.impl.NeedsAPIKey() {
+	if !im.props.NeedsAPIKey {
 		return "no configuration required", nil
 	}
 	if im.StaticConfig() {
@@ -838,7 +884,7 @@ func (im *importer) account(nodeRef blob.Ref) (*importerAcct, error) {
 	if acct.Attr(attrNodeType) != nodeTypeImporterAccount {
 		return nil, errors.New("account has wrong node type")
 	}
-	if acct.Attr(attrImporterType) != im.name {
+	if acct.Attr(attrImporterType) != im.ImporterType() {
 		return nil, errors.New("account has wrong importer type")
 	}
 	var root *Object
@@ -884,7 +930,7 @@ func (im *importer) newAccount() (*importerAcct, error) {
 	if err := acct.SetAttrs(
 		"title", fmt.Sprintf("%s account", im.name),
 		attrNodeType, nodeTypeImporterAccount,
-		attrImporterType, im.name,
+		attrImporterType, im.ImporterType(),
 		attrImportRoot, root.PermanodeRef().String(),
 	); err != nil {
 		return nil, err
@@ -917,7 +963,7 @@ func (im *importer) Accounts() ([]*importerAcct, error) {
 		res, err := im.host.search.Query(context.TODO(), &search.SearchQuery{
 			Expression: fmt.Sprintf("attr:%s:%s attr:%s:%s",
 				attrNodeType, nodeTypeImporterAccount,
-				attrImporterType, im.name,
+				attrImporterType, im.ImporterType(),
 			),
 		})
 		if err != nil {
@@ -961,7 +1007,7 @@ func (im *importer) Node() (*Object, error) {
 
 	expr := fmt.Sprintf("attr:%s:%s attr:%s:%s",
 		attrNodeType, nodeTypeImporter,
-		attrImporterType, im.name,
+		attrImporterType, im.ImporterType(),
 	)
 	res, err := im.host.search.Query(context.TODO(), &search.SearchQuery{
 		Limit:      10, // might be more than one because of multiple blob hash types
@@ -985,7 +1031,7 @@ func (im *importer) Node() (*Object, error) {
 	if err := o.SetAttrs(
 		"title", fmt.Sprintf("%s importer", im.name),
 		attrNodeType, nodeTypeImporter,
-		attrImporterType, im.name,
+		attrImporterType, im.ImporterType(),
 	); err != nil {
 		return nil, err
 	}
@@ -1065,7 +1111,7 @@ func (ia *importerAcct) delete() error {
 
 func (ia *importerAcct) toggleAuto() error {
 	old := ia.acct.Attr(attrImportAuto)
-	if old == "" && !ia.im.impl.SupportsIncremental() {
+	if old == "" && !ia.im.props.SupportsIncremental {
 		return fmt.Errorf("Importer %q doesn't support automatic mode", ia.im.name)
 	}
 	var new string

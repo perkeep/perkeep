@@ -21,10 +21,10 @@ import (
 	_ "perkeep.org/pkg/importer/dummy"
 	_ "perkeep.org/pkg/importer/feed"
 	_ "perkeep.org/pkg/importer/flickr"
-	_ "perkeep.org/pkg/importer/foursquare"
 	_ "perkeep.org/pkg/importer/gphotos"
 	_ "perkeep.org/pkg/importer/picasa"
 	_ "perkeep.org/pkg/importer/pinboard"
 	_ "perkeep.org/pkg/importer/plaid"
+	_ "perkeep.org/pkg/importer/swarm"
 	_ "perkeep.org/pkg/importer/twitter"
 )

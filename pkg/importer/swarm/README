@@ -1,7 +1,7 @@
-Foursquare Importer
+Swarm Importer
 ===================
 
-This is an incomplete Perkeep importer for Foursquare.
+This is a Perkeep importer for Swarm (by Foursquare).
 
 To use:
 
@@ -16,4 +16,3 @@ To use:
 TODO:
 
 https://github.com/perkeep/perkeep/issues?q=is%3Aopen+is%3Aissue+foursquare
-

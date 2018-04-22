@@ -85,7 +85,12 @@ type imp struct {
 	importer.OAuth2
 }
 
-func (imp) SupportsIncremental() bool { return true }
+func (imp) Properties() importer.Properties {
+	return importer.Properties{
+		SupportsIncremental: true, // TODO: but not well
+		NeedsAPIKey:         true,
+	}
+}
 
 type userInfo struct {
 	ID    string // numeric gphotos user ID ("11583474931002155675")

@@ -63,21 +63,22 @@ type imp struct {
 
 }
 
-func (*imp) SupportsIncremental() bool {
-	// SupportsIncremental signals to the importer host that this
-	// importer has been optimized to be run regularly (e.g. every 5
-	// minutes or half hour).  If it returns false, the user must
-	// manually start imports.
-	return false
-}
+func (*imp) Properties() importer.Properties {
+	return importer.Properties{
+		// NeedsAPIKey tells the importer framework that this
+		// importer will be calling the
+		// {RunContext,SetupContext}.Credentials method to get
+		// the OAuth client ID & client secret, which may be
+		// either configured on the importer permanode, or
+		// statically in the server's config file.
+		NeedsAPIKey: true,
 
-func (*imp) NeedsAPIKey() bool {
-	// This tells the importer framework that we our importer will
-	// be calling the {RunContext,SetupContext}.Credentials method
-	// to get the OAuth client ID & client secret, which may be
-	// either configured on the importer permanode, or statically
-	// in the server's config file.
-	return true
+		// SupportsIncremental signals to the importer host that this
+		// importer has been optimized to be run regularly (e.g. every 5
+		// minutes or half hour).  If it returns false, the user must
+		// manually start imports.
+		SupportsIncremental: false,
+	}
 }
 
 const (

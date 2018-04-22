@@ -82,7 +82,12 @@ type imp struct {
 	importer.OAuth2
 }
 
-func (imp) SupportsIncremental() bool { return true }
+func (imp) Properties() importer.Properties {
+	return importer.Properties{
+		SupportsIncremental: true,
+		NeedsAPIKey:         true,
+	}
+}
 
 type userInfo struct {
 	ID   string // numeric picasa user ID ("11583474931002155675")

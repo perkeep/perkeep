@@ -55,9 +55,12 @@ type imp struct {
 	importer.OAuth1 // for CallbackRequestAccount and CallbackURLParameters
 }
 
-func (im *imp) NeedsAPIKey() bool { return false }
-
-func (im *imp) SupportsIncremental() bool { return true }
+func (*imp) Properties() importer.Properties {
+	return importer.Properties{
+		SupportsIncremental: true,
+		NeedsAPIKey:         false,
+	}
+}
 
 func (im *imp) IsAccountReady(acctNode *importer.Object) (ok bool, err error) {
 	if acctNode.Attr(acctAttrFeedURL) != "" {

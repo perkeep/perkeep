@@ -126,9 +126,6 @@ func (OAuth2) IsAccountReady(acctNode *Object) (ok bool, err error) {
 	return false, nil
 }
 
-// NeedsAPIKey returns whether the importer needs an API key - returns constant true.
-func (OAuth2) NeedsAPIKey() bool { return true }
-
 // SummarizeAccount returns a summary for the account if it is configured,
 // or an error string otherwise.
 func (im OAuth2) SummarizeAccount(acct *Object) string {

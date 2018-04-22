@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package foursquare implements an importer for foursquare.com accounts.
-package foursquare // import "perkeep.org/pkg/importer/foursquare"
+// Package swarm implements an importer for Foursquare Swarm check-ins.
+package swarm // import "perkeep.org/pkg/importer/swarm"
 
 import (
 	"context"
@@ -72,7 +72,7 @@ const (
 )
 
 func init() {
-	importer.Register("foursquare", &imp{
+	importer.Register("swarm", &imp{
 		imageFileRef: make(map[string]blob.Ref),
 	})
 }
@@ -86,11 +86,12 @@ type imp struct {
 	importer.OAuth2 // for CallbackRequestAccount and CallbackURLParameters
 }
 
-func (im *imp) NeedsAPIKey() bool {
-	return true
-}
-func (im *imp) SupportsIncremental() bool {
-	return true
+func (*imp) Properties() importer.Properties {
+	return importer.Properties{
+		SupportsIncremental:   true,
+		NeedsAPIKey:           true,
+		PermanodeImporterType: "foursquare", // old brand name
+	}
 }
 
 func (im *imp) IsAccountReady(acctNode *importer.Object) (ok bool, err error) {
@@ -191,7 +192,7 @@ func (r *run) urlFileRef(urlstr, filename string) string {
 	}
 	res, err := ctxutil.Client(r.Context()).Get(urlstr)
 	if err != nil {
-		log.Printf("foursquare: couldn't fetch image %q: %v", urlstr, err)
+		log.Printf("swarm: couldn't fetch image %q: %v", urlstr, err)
 		return ""
 	}
 	defer res.Body.Close()
@@ -232,7 +233,7 @@ func (r *run) importCheckins() error {
 		}
 
 		itemcount := len(resp.Response.Checkins.Items)
-		log.Printf("foursquare: importing %d checkins (offset %d)", itemcount, offset)
+		log.Printf("swarm: importing %d checkins (offset %d)", itemcount, offset)
 		if itemcount < limit {
 			continueRequests = false
 		} else {
@@ -341,14 +342,14 @@ func (r *run) importPhotos(placeNode *importer.Object, checkinWasDup bool) error
 
 	if len(need) > 0 {
 		venueTitle := placeNode.Attr(nodeattr.Title)
-		log.Printf("foursquare: importing %d photos for venue %s", len(need), venueTitle)
+		log.Printf("swarm: importing %d photos for venue %s", len(need), venueTitle)
 		for _, photo := range need {
 			attr := "camliPath:" + photo.Id + filepath.Ext(photo.Suffix)
 			if photosNode.Attr(attr) != "" {
 				continue
 			}
 			url := photo.Prefix + "original" + photo.Suffix
-			log.Printf("foursquare: importing photo for venue %s: %s", venueTitle, url)
+			log.Printf("swarm: importing photo for venue %s: %s", venueTitle, url)
 			ref := r.urlFileRef(url, "")
 			if ref == "" {
 				r.errorf("Error slurping photo: %s", url)
