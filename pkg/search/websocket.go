@@ -22,6 +22,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -41,6 +43,8 @@ const (
 	// Maximum message size allowed from peer.
 	maxMessageSize = 10 << 10
 )
+
+var debug, _ = strconv.ParseBool(os.Getenv("CAMLI_DEBUG"))
 
 type wsHub struct {
 	sh             *Handler
@@ -118,7 +122,9 @@ func (h *wsHub) run() {
 				q:    wr.q,
 			}
 			wr.conn.queries[wr.tag] = wq
-			log.Printf("Added/updated search subscription for tag %q", wr.tag)
+			if debug {
+				log.Printf("websocket: added/updated search subscription for tag %q", wr.tag)
+			}
 			go h.doSearch(wq)
 
 		case wq := <-h.updatedResults:
@@ -247,7 +253,9 @@ func (c *wsConn) readPump() {
 		if err != nil {
 			break
 		}
-		log.Printf("Got websocket message %#q", message)
+		if debug {
+			log.Printf("websocket: got message %#q", message)
+		}
 		cm := new(wsClientMessage)
 		if err := json.Unmarshal(message, cm); err != nil {
 			log.Printf("Ignoring bogus websocket message. Err: %v", err)

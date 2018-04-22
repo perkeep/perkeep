@@ -573,7 +573,7 @@ func (c *Corpus) scanPrefix(mu *sync.Mutex, s sorted.KeyValue, prefix string) (e
 	}
 	if logCorpusStats {
 		d := time.Since(t0)
-		c.logf("scanned prefix %q: %d rows, %v", prefix[:len(prefix)-1], n, d)
+		c.logf("loaded prefix %q: %d rows, %v", prefix[:len(prefix)-1], n, d)
 	}
 	return nil
 }

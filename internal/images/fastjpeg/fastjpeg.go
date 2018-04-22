@@ -78,16 +78,17 @@ var (
 func Available() bool {
 	checkAvailability.Do(func() {
 		if ok, _ := strconv.ParseBool(os.Getenv("CAMLI_DISABLE_DJPEG")); ok {
-			log.Println("CAMLI_DISABLE_DJPEG set in environment.  Disabling fastjpeg.")
+			log.Println("images/fastjpeg: CAMLI_DISABLE_DJPEG set in environment; disabling fastjpeg.")
 			return
 		}
 
 		if p, err := exec.LookPath(djpegBin); p != "" && err == nil {
 			available = true
-			log.Printf("fastjpeg enabled with %s.", p)
+			log.Printf("images/fastjpeg: fastjpeg enabled with %s.", p)
 		}
 		if !available {
-			log.Printf("%s not found in PATH, disabling fastjpeg.", djpegBin)
+			// TODO: also use Docker. https://github.com/perkeep/perkeep/issues/1106.
+			log.Printf("images/fastjpeg: %s not found in PATH, disabling fastjpeg.", djpegBin)
 		}
 	})
 

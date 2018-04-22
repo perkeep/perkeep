@@ -729,7 +729,7 @@ func (ia *importerAcct) maybeStart() {
 			}
 			go func() {
 				if err := lp.LongPoll(rc); err == nil {
-					log.Printf("Long poll for %s found an update. Starting run...", ia)
+					log.Printf("importer: long poll for %s found an update. Starting run...", ia)
 					timer.Stop()
 					ia.start()
 				} else {
@@ -740,7 +740,7 @@ func (ia *importerAcct) maybeStart() {
 		return
 	}
 
-	log.Printf("Starting regular periodic import for %v", ia)
+	log.Printf("importer: starting periodic import for %v", ia)
 	go ia.start()
 }
 
