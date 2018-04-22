@@ -233,26 +233,35 @@ func checkModtime() error {
 	return nil
 }
 
-// Build builds the camlistore command at the given path from the source tree root.
-func build(path string) error {
+// build builds the named perkeep targets.
+// Each target may have its "perkeep.org" prefix removed.
+func build(targets ...string) error {
 	if v, _ := strconv.ParseBool(os.Getenv("CAMLI_FAST_DEV")); v {
 		// Demo mode. See dev/demo.sh.
 		return nil
 	}
-	target := pathpkg.Join("perkeep.org", filepath.ToSlash(path))
+	var fullTargets []string
+	for _, t := range targets {
+		t = filepath.ToSlash(t)
+		if !strings.HasPrefix(t, "perkeep.org") {
+			t = pathpkg.Join("perkeep.org", t)
+		}
+		fullTargets = append(fullTargets, t)
+	}
+	targetsComma := strings.Join(fullTargets, ",")
 	args := []string{
 		"run", "make.go",
 		"--quiet",
 		"--race=" + strconv.FormatBool(*race),
 		"--embed_static=false",
 		"--sqlite=" + strconv.FormatBool(withSqlite),
-		"--targets=" + target,
+		"--targets=" + targetsComma,
 	}
 	cmd := exec.Command("go", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Error building %v: %v", target, err)
+		return fmt.Errorf("error building %v: %v", targetsComma, err)
 	}
 	return nil
 }

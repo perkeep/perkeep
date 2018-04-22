@@ -100,7 +100,7 @@ func init() {
 		flags.BoolVar(&cmd.debug, "debug", false, "Enable http debugging.")
 		flags.BoolVar(&cmd.sha1, "sha1", false, "Use sha1 instead of sha224.")
 		flags.BoolVar(&cmd.publish, "publish", true, "Enable publisher app(s)")
-		flags.BoolVar(&cmd.scancab, "scancab", true, "Enable scancab app(s)")
+		flags.BoolVar(&cmd.scancab, "scancab", false, "Enable scancab app(s)")
 		flags.BoolVar(&cmd.hello, "hello", false, "Enable hello (demo) app")
 		flags.BoolVar(&cmd.mini, "mini", false, "Enable minimal mode, where all optional features are disabled. (Currently just publishing)")
 
@@ -511,17 +511,15 @@ func (c *serverCmd) RunCommand(args []string) error {
 			filepath.Join("cmd", "pk"),
 		}
 		if c.hello {
-			targets = append(targets, filepath.Join("app", "hello"))
+			targets = append(targets, "app/hello")
 		}
 		if c.publish {
-			targets = append(targets, filepath.Join("app", "publisher"))
+			targets = append(targets, "app/publisher")
 		}
-		targets = append(targets, filepath.Join("app", "scanningcabinet"))
-		for _, name := range targets {
-			err := build(name)
-			if err != nil {
-				return fmt.Errorf("Could not build %v: %v", name, err)
-			}
+		targets = append(targets, "app/scanningcabinet")
+		err := build(targets...)
+		if err != nil {
+			return err
 		}
 	}
 	if err := c.setRoot(); err != nil {
