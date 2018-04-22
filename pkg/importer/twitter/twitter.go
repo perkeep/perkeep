@@ -575,14 +575,12 @@ func (r *run) importTweet(parent *importer.Object, tweet tweetItem, viaAPI bool)
 	return !changes, err
 }
 
-// The path be one of "tweets".
-// In the future: "lists", "direct_messages", etc.
+// path may be of: "tweets". (TODO: "lists", "direct_messages", etc.)
 func (r *run) getTopLevelNode(path string) (*importer.Object, error) {
 	acctNode := r.AccountNode()
 
 	root := r.RootNode()
 	rootTitle := fmt.Sprintf("%s's Twitter Data", acctNode.Attr(importer.AcctAttrUserName))
-	log.Printf("root title = %q; want %q", root.Attr(nodeattr.Title), rootTitle)
 	if err := root.SetAttr(nodeattr.Title, rootTitle); err != nil {
 		return nil, err
 	}
