@@ -696,6 +696,7 @@ func verifyPerkeepRoot() {
 	if _, err := os.Stat(testFile); err != nil {
 		log.Fatalf("make.go must be run from the Perkeep src root directory (where make.go is). Current working directory is %s", pkRoot)
 	}
+	validateDirInGOPATH(pkRoot)
 
 	cmd := exec.Command("go", "list", "-f", "{{.Target}}", "perkeep.org/cmd/pk")
 	cmd.Stderr = os.Stderr
@@ -704,6 +705,43 @@ func verifyPerkeepRoot() {
 		log.Fatalf("Could not run go list to find install dir: %v, %s", err, out)
 	}
 	binDir = filepath.Dir(strings.TrimSpace(string(out)))
+}
+
+func validateDirInGOPATH(dir string) {
+	fi, err := os.Lstat(dir)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	gopathEnv, err := exec.Command("go", "env", "GOPATH").Output()
+	if err != nil {
+		log.Fatalf("error finding GOPATH: %v", err)
+	}
+	gopaths := filepath.SplitList(strings.TrimSpace(string(gopathEnv)))
+	if len(gopaths) == 0 {
+		log.Fatalf("failed to find your GOPATH: go env GOPATH returned nothing")
+	}
+	var validOpts []string
+	for _, gopath := range gopaths {
+		validDir := filepath.Join(gopath, "src", "perkeep.org")
+		validOpts = append(validOpts, validDir)
+		fi2, err := os.Lstat(validDir)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+		if os.SameFile(fi, fi2) {
+			// In a valid directory.
+			return
+		}
+	}
+	if len(validOpts) == 1 {
+		log.Fatalf("make.go cannot be run from %s; it must be in a valid GOPATH. Move the directory containing make.go to %s", dir, validOpts[0])
+	} else {
+		log.Fatalf("make.go cannot be run from %s; it must be in a valid GOPATH. Move the directory containing make.go to one of %q", dir, validOpts)
+	}
 }
 
 const (
