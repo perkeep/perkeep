@@ -695,9 +695,9 @@ func cloudConfig(conf *InstanceConf) string {
 	config := strings.Replace(baseInstanceConfig, "INNODB_BUFFER_POOL_SIZE=NNN", "INNODB_BUFFER_POOL_SIZE="+strconv.Itoa(innodbBufferPoolSize(conf.Machine)), -1)
 	perkeepdTarball := "https://storage.googleapis.com/camlistore-release/docker/"
 	if conf.WIP {
-		perkeepdTarball += "camlistored-WORKINPROGRESS.tar.gz"
+		perkeepdTarball += "perkeepd-WORKINPROGRESS.tar.gz"
 	} else {
-		perkeepdTarball += "camlistored.tar.gz"
+		perkeepdTarball += "perkeepd.tar.gz"
 	}
 	config = strings.Replace(config, "CAMLISTORED_TARBALL", perkeepdTarball, 1)
 	return config
