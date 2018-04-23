@@ -150,7 +150,7 @@ func buildCamlistored() {
 
 	// And move it to the output dir
 	check(os.MkdirAll(path.Join(*outDir, "/bin"), 0777))
-	cmd = exec.Command("mv", "/gopath/src/perkeep.org/bin/perkeepd", path.Join(*outDir, "/bin"))
+	cmd = exec.Command("mv", "/gopath/bin/perkeepd", path.Join(*outDir, "/bin"))
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error moving perkeepd binary %v in output dir %v: %v",
 			"/gopath/src/perkeep.org/bin/perkeepd", path.Join(*outDir, "/bin"), err)
