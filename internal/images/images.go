@@ -30,6 +30,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	_ "image/gif"
@@ -612,36 +614,58 @@ func Decode(r io.Reader, opts *DecodeOpts) (image.Image, Config, error) {
 	return im, c, nil
 }
 
-// Dimensions is the width and height of an image.
+// Dimensions is the desired max width and height of an image.
 type Dimensions struct {
-	Width  int
-	Height int
-}
-
-// max returns the largest of Width and Height.
-func (d *Dimensions) max() int {
-	if d == nil || d.Width == 0 || d.Height == 0 {
-		return 0
-	}
-	if d.Width > d.Height {
-		return d.Width
-	}
-	return d.Height
+	MaxWidth  int
+	MaxHeight int
 }
 
 var convertGate = syncutil.NewGate(10) // bounds number of HEIF to JPEG subprocesses
 
+var magickHasHEIC struct {
+	sync.Mutex
+	checked bool
+	heic    bool
+}
+
+// localImageMagick returns the path to the local ImageMagick "magick" binary,
+// if it's new enough. Otherwise it returns the empty string.
+func localImageMagick() string {
+	bin, err := exec.LookPath("magick")
+	if err != nil {
+		return ""
+	}
+	magickHasHEIC.Lock()
+	defer magickHasHEIC.Unlock()
+	if magickHasHEIC.checked {
+		if magickHasHEIC.heic {
+			return bin
+		}
+		return ""
+	}
+	magickHasHEIC.checked = true
+	out, err := exec.Command(bin, "-version").CombinedOutput()
+	if err != nil {
+		log.Printf("internal/images: error checking local machine's imagemagick version: %v, %s", err, out)
+		return ""
+	}
+	if strings.Contains(string(out), " heic") {
+		magickHasHEIC.heic = true
+		return bin
+	}
+	return ""
+}
+
 // HEIFToJPEG converts the HEIF file in fr to JPEG. It optionally resizes it
-// to the given size argument, if any. It returns the contents of the JPEG file.
-func HEIFToJPEG(fr io.Reader, size *Dimensions) ([]byte, error) {
+// to the given maxSize argument, if any. It returns the contents of the JPEG file.
+func HEIFToJPEG(fr io.Reader, maxSize *Dimensions) ([]byte, error) {
 	convertGate.Start()
 	defer convertGate.Done()
 	useDocker := false
-	bin, err := exec.LookPath("heiftojpeg")
-	if err != nil {
-		pathErr := err
+	bin := localImageMagick()
+	if bin == "" {
 		if err := setUpThumbnailContainer(); err != nil {
-			return nil, fmt.Errorf("heiftojpeg not found in PATH (%v), and could not fallback on docker image because %v. You need to install github.com/pushd/heif, or set up docker.", pathErr, err)
+			return nil, fmt.Errorf("recent ImageMagick magick binary not found in PATH, and could not fallback on docker image because %v. Install a modern ImageMagick or install docker.", err)
 		}
 		bin = "docker"
 		useDocker = true
@@ -668,28 +692,40 @@ func HEIFToJPEG(fr io.Reader, size *Dimensions) ([]byte, error) {
 		return nil, err
 	}
 
-	// now actually run heiftojpeg
+	// now actually run ImageMagick
 	var args []string
 	outFileArg := outFile
 	if useDocker {
 		args = append(args, "run",
 			"--rm",
-			"--tmpfs", "/tmp",
 			"-v", outDir+":/out/",
-			thumbnailImage)
+			thumbnailImage,
+			"/usr/local/bin/magick",
+		)
 		inFile = "/out/input.heic"
 		outFileArg = "/out/output.jpg"
 	}
-	maxDimension := size.max()
-	if maxDimension != 0 {
-		args = append(args, "-s", fmt.Sprintf("%d", maxDimension))
+	args = append(args, "convert")
+	if maxSize != nil {
+		args = append(args, "-thumbnail", fmt.Sprintf("%dx%d", maxSize.MaxWidth, maxSize.MaxHeight))
 	}
-	args = append(args, inFile, outFileArg)
+	args = append(args, inFile, "-colorspace", "RGB", "-auto-orient", outFileArg)
+
 	cmd := exec.Command(bin, args...)
+	t0 := time.Now()
+	if debug {
+		log.Printf("internal/images: running imagemagick heic conversion: %q %q", bin, args)
+	}
 	var buf bytes.Buffer
 	cmd.Stderr = &buf
 	if err = cmd.Run(); err != nil {
-		return nil, fmt.Errorf("error running heiftojpeg: %v, %v", err, buf.String())
+		if debug {
+			log.Printf("internal/images: error running imagemagick heic conversion: %s", buf.Bytes())
+		}
+		return nil, fmt.Errorf("error running imagemagick: %v, %s", err, buf.Bytes())
+	}
+	if debug {
+		log.Printf("internal/images: ran imagemagick heic conversion in %v", time.Since(t0))
 	}
 	return ioutil.ReadFile(outFile)
 }

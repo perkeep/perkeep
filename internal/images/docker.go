@@ -29,7 +29,8 @@ import (
 
 // TODO(mpl): refactor somewhere with pkg/test/dockertest
 
-const thumbnailImage = "gcr.io/perkeep-containers/thumbnail"
+const thumbnailImage = "gcr.io/perkeep-containers/thumbnail" // without version
+const thumbnailImageID = "sha256:6b810d57896125f25d5d009328e102dc444d95e7b6d5891f19932bd76244c4c3"
 
 var (
 	thumbnailPullGate  = syncutil.NewGate(1)
@@ -45,7 +46,7 @@ func setUpThumbnailContainer() error {
 	if haveThumbnailImage {
 		return nil
 	}
-	if ok, err := haveImage(thumbnailImage); !ok || err != nil {
+	if ok, err := haveImageID(thumbnailImage, thumbnailImageID); !ok || err != nil {
 		if err != nil {
 			return fmt.Errorf("error running docker to check for %s: %v", thumbnailImage, err)
 		}
@@ -64,12 +65,13 @@ func haveDocker() bool {
 	return err == nil
 }
 
-func haveImage(name string) (ok bool, err error) {
-	out, err := exec.Command("docker", "images", "--no-trunc").Output()
+func haveImageID(name, id string) (ok bool, err error) {
+	out, err := exec.Command("docker", "inspect", "-f", "{{.Id}}", name).Output()
 	if err != nil {
-		return
+		return false, err
 	}
-	return bytes.Contains(out, []byte(name)), nil
+	have := strings.TrimSpace(string(out))
+	return have == id, nil
 }
 
 // Pull retrieves the docker image with 'docker pull'.

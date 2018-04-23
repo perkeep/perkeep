@@ -267,7 +267,7 @@ func (ih *ImageHandler) scaleImage(ctx context.Context, fileRef blob.Ref) (*form
 	sr := readerutil.NewStatsReader(imageBytesFetchedVar, fr)
 	sr, conf, err := imageConfigFromReader(sr)
 	if err == images.ErrHEIC {
-		jpegBytes, err := images.HEIFToJPEG(sr, &images.Dimensions{Width: ih.MaxWidth, Height: ih.MaxHeight})
+		jpegBytes, err := images.HEIFToJPEG(sr, &images.Dimensions{MaxWidth: ih.MaxWidth, MaxHeight: ih.MaxHeight})
 		if err != nil {
 			log.Printf("cannot convert with heiftojpeg: %v", err)
 			return nil, errors.New("error converting HEIC image to jpeg")

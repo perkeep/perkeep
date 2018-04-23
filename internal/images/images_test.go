@@ -387,8 +387,9 @@ func TestHEIFToJPEG(t *testing.T) {
 	defer f.Close()
 
 	// image is in portrait orientation, so dimensions are swapped
-	wantWidth, wantHeight := 1008, 756
-	data, err := HEIFToJPEG(f, &Dimensions{Width: wantWidth, Height: wantHeight})
+	wantWidth, wantHeight := 756, 1008
+	max := 1008
+	data, err := HEIFToJPEG(f, &Dimensions{MaxWidth: max, MaxHeight: max})
 	if err != nil {
 		t.Fatal(err)
 	}
