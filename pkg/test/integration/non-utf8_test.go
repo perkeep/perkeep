@@ -45,7 +45,7 @@ func tempDir(t *testing.T) (path string, cleanup func()) {
 	return
 }
 
-// Test that we can pk-put and camget a file whose name is not utf8,
+// Test that we can pk-put and pk-get a file whose name is not utf8,
 // that we don't panic in the process and that the results are
 // correct.
 func TestNonUTF8FileName(t *testing.T) {
@@ -60,7 +60,7 @@ func TestNonUTF8FileName(t *testing.T) {
 	fd, err := os.Create(filepath.Join(srcDir, string(base)))
 	if isBadFilenameError(err) {
 		// TODO: decide how we want to handle this in the future.
-		// Normalize to UTF-8 with heuristics in camget?
+		// Normalize to UTF-8 with heuristics in pk-get?
 		t.Skip("skipping non-UTF-8 test on system requiring UTF-8")
 	}
 	if err != nil {
@@ -76,7 +76,7 @@ func TestNonUTF8FileName(t *testing.T) {
 	dstDir, cleanup := tempDir(t)
 	defer cleanup()
 
-	_ = test.MustRunCmd(t, w.Cmd("camget", "-o", dstDir, br))
+	_ = test.MustRunCmd(t, w.Cmd("pk-get", "-o", dstDir, br))
 	_, err = os.Lstat(filepath.Join(dstDir, string(base)))
 	if err != nil {
 		t.Fatalf("Failed to stat file %s in directory %s",
@@ -84,7 +84,7 @@ func TestNonUTF8FileName(t *testing.T) {
 	}
 }
 
-// Test that we can pk-put and camget a symbolic link whose target is
+// Test that we can pk-put and pk-get a symbolic link whose target is
 // not utf8, that we do no panic in the process and that the results
 // are correct.
 func TestNonUTF8SymlinkTarget(t *testing.T) {
@@ -99,7 +99,7 @@ func TestNonUTF8SymlinkTarget(t *testing.T) {
 	fd, err := os.Create(filepath.Join(srcDir, string(base)))
 	if isBadFilenameError(err) {
 		// TODO: decide how we want to handle this in the future.
-		// Normalize to UTF-8 with heuristics in camget?
+		// Normalize to UTF-8 with heuristics in pk-get?
 		t.Skip("skipping non-UTF-8 test on system requiring UTF-8")
 	}
 	if err != nil {
@@ -116,11 +116,11 @@ func TestNonUTF8SymlinkTarget(t *testing.T) {
 	out := test.MustRunCmd(t, w.Cmd("pk-put", "file", filepath.Join(srcDir, "link")))
 	br := strings.Split(out, "\n")[0]
 
-	// See if we can camget it back correctly
+	// See if we can pk-get it back correctly
 	dstDir, cleanup := tempDir(t)
 	defer cleanup()
 
-	_ = test.MustRunCmd(t, w.Cmd("camget", "-o", dstDir, br))
+	_ = test.MustRunCmd(t, w.Cmd("pk-get", "-o", dstDir, br))
 	target, err := os.Readlink(filepath.Join(dstDir, "link"))
 	if err != nil {
 		t.Fatalf("os.Readlink(): %v", err)

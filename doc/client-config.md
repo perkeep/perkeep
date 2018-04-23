@@ -1,6 +1,6 @@
 # Configuring a client
 
-The various clients (pk put, camget, pk-mount...) use a common JSON config
+The various clients (pk put, pk-get, pk-mount...) use a common JSON config
 file. This page documents the configuration parameters in that file. Run
 `pk env clientconfig` to see the default location for that file
 (**$HOME/.config/camlistore/client-config.json** on linux). In the following

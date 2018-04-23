@@ -15,25 +15,25 @@ limitations under the License.
 */
 
 /*
-The camget tool fetches blobs, files, and directories.
+The pk-get tool fetches blobs, files, and directories.
 
 
 Examples
 
 Writes to stdout by default:
 
-  camget <blobref>                 // dump raw blob
-  camget -contents <file-blobref>  // dump file contents
+  pk-get <blobref>                 // dump raw blob
+  pk-get -contents <file-blobref>  // dump file contents
 
 Like curl, lets you set output file/directory with -o:
 
-  camget -o <dir> <blobref>
+  pk-get -o <dir> <blobref>
     (if <dir> exists and is directory, <blobref> must be a directory;
      use -f to overwrite any files)
 
-  camget -o <filename> <file-blobref>
+  pk-get -o <filename> <file-blobref>
 
 Camget isn't very fleshed out. In general, using 'pk-mount' to just
 mount a tree is an easier way to get files back.
 */
-package main // import "perkeep.org/cmd/camget"
+package main // import "perkeep.org/cmd/pk-get"

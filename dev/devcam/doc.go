@@ -25,7 +25,7 @@ Usage:
 
 Modes:
 
-  get: run camget in dev mode.
+  get: run pk-get in dev mode.
   put: run pk-put in dev mode.
   server: run the stand-alone perkeepd in dev mode.
 

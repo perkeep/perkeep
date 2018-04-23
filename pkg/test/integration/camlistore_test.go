@@ -35,12 +35,12 @@ import (
 
 // Test that running:
 //   $ pk-put permanode
-// ... creates and uploads a permanode, and that we can camget it back.
+// ... creates and uploads a permanode, and that we can pk-get it back.
 func TestCamputPermanode(t *testing.T) {
 	w := test.GetWorld(t)
 	br := w.NewPermanode(t)
 
-	out := test.MustRunCmd(t, w.Cmd("camget", br.String()))
+	out := test.MustRunCmd(t, w.Cmd("pk-get", br.String()))
 	mustHave := []string{
 		`{"camliVersion": 1,`,
 		`"camliSigner": "`,
@@ -123,10 +123,10 @@ func TestWebsocketQuery(t *testing.T) {
 func TestInternalHandler(t *testing.T) {
 	w := test.GetWorld(t)
 	tests := map[string]int{
-		"/no-http-storage/":              401,
-		"/no-http-handler/":              401,
-		"/good-status/":                  200,
-		"/bs-and-maybe-also-index/camli": 400,
+		"/no-http-storage/":                                                    401,
+		"/no-http-handler/":                                                    401,
+		"/good-status/":                                                        200,
+		"/bs-and-maybe-also-index/camli":                                       400,
 		"/bs/camli/sha1-b2201302e129a4396a323cb56283cddeef11bbe8":              404,
 		"/no-http-storage/camli/sha1-b2201302e129a4396a323cb56283cddeef11bbe8": 401,
 	}

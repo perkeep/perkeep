@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/cmdmain"
 )
 
@@ -145,7 +146,11 @@ func (c *testCmd) runTests(args []string) error {
 }
 
 func (c *testCmd) runPrecommitHook() error {
-	out, err := exec.Command(filepath.FromSlash("./bin/devcam"), "hook", "pre-commit", "test").CombinedOutput()
+	cmdBin, err := osutil.LookPathGopath("devcam")
+	if err != nil {
+		return err
+	}
+	out, err := exec.Command(cmdBin, "hook", "pre-commit", "test").CombinedOutput()
 	if err != nil {
 		fmt.Println(string(out))
 	}

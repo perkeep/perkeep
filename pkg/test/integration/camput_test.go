@@ -64,7 +64,7 @@ func TestCamputFIFO(t *testing.T) {
 	out := test.MustRunCmd(t, w.Cmd("pk-put", "file", fifo))
 
 	br := strings.Split(out, "\n")[0]
-	out = test.MustRunCmd(t, w.Cmd("camget", br))
+	out = test.MustRunCmd(t, w.Cmd("pk-get", br))
 	t.Logf("Retrieved stored fifo schema: %s", out)
 }
 
@@ -102,7 +102,7 @@ func TestCamputSocket(t *testing.T) {
 	out := test.MustRunCmd(t, w.Cmd("pk-put", "file", socket))
 
 	br := strings.Split(out, "\n")[0]
-	out = test.MustRunCmd(t, w.Cmd("camget", br))
+	out = test.MustRunCmd(t, w.Cmd("pk-get", br))
 	t.Logf("Retrieved stored socket schema: %s", out)
 }
 

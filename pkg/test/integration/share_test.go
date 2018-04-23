@@ -60,11 +60,11 @@ func share(t *testing.T, file string) {
 	defer os.RemoveAll(testDir)
 
 	// test that we can get it through the share
-	test.MustRunCmd(t, w.Cmd("camget", "-o", testDir, "-shared", fmt.Sprintf("%v/share/%v", w.ServerBaseURL(), shareRef)))
+	test.MustRunCmd(t, w.Cmd("pk-get", "-o", testDir, "-shared", fmt.Sprintf("%v/share/%v", w.ServerBaseURL(), shareRef)))
 	filePath := filepath.Join(testDir, filepath.Base(file))
 	fi, err := os.Stat(filePath)
 	if err != nil {
-		t.Fatalf("camget -shared failed to get %v: %v", file, err)
+		t.Fatalf("pk-get -shared failed to get %v: %v", file, err)
 	}
 	if fi.IsDir() {
 		// test that we also get the dir contents
@@ -78,17 +78,17 @@ func share(t *testing.T, file string) {
 			t.Fatal(err)
 		}
 		if len(names) == 0 {
-			t.Fatalf("camget did not fetch contents of directory %v", file)
+			t.Fatalf("pk-get did not fetch contents of directory %v", file)
 		}
 	}
 
 	// test that we're not allowed to get it directly
 	fileURL := fmt.Sprintf("%v/share/%v", w.ServerBaseURL(), fileRef)
-	_, err = test.RunCmd(w.Cmd("camget", "-shared", fileURL))
+	_, err = test.RunCmd(w.Cmd("pk-get", "-shared", fileURL))
 	if err == nil {
-		t.Fatal("Was expecting error for 'camget -shared " + fileURL + "'")
+		t.Fatal("Was expecting error for 'pk-get -shared " + fileURL + "'")
 	}
 	if !strings.Contains(err.Error(), "client: got status code 401") {
-		t.Fatalf("'camget -shared %v': got error %v, was expecting 401", fileURL, err)
+		t.Fatalf("'pk-get -shared %v': got error %v, was expecting 401", fileURL, err)
 	}
 }

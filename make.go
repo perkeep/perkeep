@@ -107,7 +107,7 @@ func main() {
 	buildAll := false
 	targs := []string{
 		"perkeep.org/dev/devcam",
-		"perkeep.org/cmd/camget",
+		"perkeep.org/cmd/pk-get",
 		"perkeep.org/cmd/pk-put",
 		"perkeep.org/cmd/pk",
 		"perkeep.org/cmd/pk-deploy",

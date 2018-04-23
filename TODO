@@ -165,7 +165,7 @@ Offline list:
    the replicas to have them verify what they have and how big, and
    also occasionally say what the SHA-1("challenge" + blob-data) is.
 
--- sharing: make camget work with permanode sets too, not just
+-- sharing: make pk-get work with permanode sets too, not just
    "directory" and "file" things.
 
 -- sharing: when hitting e.g. http://myserver/share/sha1-xxxxx, if

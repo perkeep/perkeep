@@ -1,6 +1,6 @@
 # Copyright 2014 The Perkeep Authors.
 # Generic purpose Perkeep image, that builds the server (perkeepd)
-# and the command-line clients (pk, pk-put, camget, and pk-mount).
+# and the command-line clients (pk, pk-put, pk-get, and pk-mount).
 
 # Use misc/docker/go to generate perkeep/go
 FROM perkeep/go
