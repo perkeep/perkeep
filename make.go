@@ -140,7 +140,7 @@ func main() {
 	if *website || *camnetdns {
 		buildAll = false
 		if *website {
-			targs = []string{"perkeep.org/website"}
+			targs = []string{"perkeep.org/website/pk-web"}
 		} else if *camnetdns {
 			targs = []string{"perkeep.org/server/camnetdns"}
 		}
