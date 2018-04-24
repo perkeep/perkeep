@@ -208,8 +208,11 @@ func (kv *KeyValue) Close() error { return kv.DB.Close() }
 func (kv *KeyValue) Find(start, end string) sorted.Iterator {
 	var releaseGate func() // nil if unused
 	if kv.Gate != nil {
+		var once sync.Once
 		kv.Gate.Start()
-		releaseGate = kv.Gate.Done
+		releaseGate = func() {
+			once.Do(kv.Gate.Done)
+		}
 	}
 	var rows *sql.Rows
 	var err error
