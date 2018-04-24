@@ -32,7 +32,7 @@ var statGate = syncutil.NewGate(maxParallelStats)
 
 func (ds *DiskStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(ref blob.Ref) (sb blob.SizedRef, err error) {
-		fi, err := os.Stat(ds.blobPath(ref))
+		fi, err := ds.fs.Stat(ds.blobPath(ref))
 		switch {
 		case err == nil && fi.Mode().IsRegular():
 			return blob.SizedRef{Ref: ref, Size: u32(fi.Size())}, nil

@@ -18,7 +18,6 @@ package localdisk
 
 import (
 	"fmt"
-
 	"path/filepath"
 
 	"perkeep.org/pkg/blob"
