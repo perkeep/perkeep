@@ -265,7 +265,7 @@ func (cs *Server) handleClaim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keyID := pk.KeyIdShortString()
+	keyID := pk.KeyIdString()
 	if isSpammer := cs.rateLimit(keyID, claimedIP); isSpammer {
 		http.Error(w, "don't be a spammer", http.StatusTooManyRequests)
 		return
@@ -817,7 +817,7 @@ func publicKeyEntity(keyRing string, keyId string) (*openpgp.Entity, error) {
 	}
 	for _, e := range el {
 		pubk := e.PrimaryKey
-		if pubk.KeyIdShortString() == keyId {
+		if pubk.KeyIdString() == keyId {
 			return e, nil
 		}
 	}
@@ -837,7 +837,7 @@ func secretKeyEntity(keyRing string, keyId string) (*openpgp.Entity, error) {
 	for _, e := range el {
 		pubk := &e.PrivateKey.PublicKey
 		// TODO(mpl): decrypt private key if it is passphrase-encrypted
-		if pubk.KeyIdShortString() == keyId {
+		if pubk.KeyIdString() == keyId {
 			return e, nil
 		}
 	}

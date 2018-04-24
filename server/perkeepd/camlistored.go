@@ -346,7 +346,12 @@ func listenForCamliNet(ws *webserver.Server, config *serverinit.Config) (baseURL
 	if err != nil {
 		return "", fmt.Errorf("could not get keyId for camliNet hostname: %v", err)
 	}
-	camliNetHostName = strings.ToLower(keyId + "." + camliNetDomain)
+	// catch future length changes
+	if len(keyId) != 16 {
+		panic("length of GPG keyId is not 16 anymore")
+	}
+	shortKeyId := keyId[8:]
+	camliNetHostName = strings.ToLower(shortKeyId + "." + camliNetDomain)
 	m := autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
 		HostPolicy: autocert.HostWhitelist(camliNetHostName),
@@ -457,7 +462,7 @@ func muxChallengeHandler(ws *webserver.Server, config *serverinit.Config) (*gpgc
 // setInstanceHostname sets the "camlistore-hostname" metadata on the GCE
 // instance where perkeepd is running. The value set is the same as the one we
 // register with the camlistore.net DNS, i.e. "<gpgKeyId>.camlistore.net", where
-// <gpgKeyId> is Perkeep's keyId.
+// <gpgKeyId> is the short form (8 trailing chars) of Perkeep's keyId.
 func setInstanceHostname() error {
 	if !env.OnGCE() {
 		return nil
@@ -555,7 +560,7 @@ func setInstanceHostname() error {
 
 // requestHostName performs the GPG challenge to register/obtain a name in the
 // camlistore.net domain. The acquired name should be "<gpgKeyId>.camlistore.net",
-// where <gpgKeyId> is Perkeep's keyId.
+// where <gpgKeyId> is the short form (8 trailing chars) of Perkeep's keyId.
 // It also starts a goroutine that will rerun the challenge every hour, to keep
 // the camlistore.net DNS server up to date.
 func requestHostName(cl *gpgchallenge.Client) error {
