@@ -98,12 +98,7 @@ func (c *testCmd) buildSelf() error {
 		filepath.FromSlash("./dev/devcam"),
 	}
 	cmd := exec.Command("go", args...)
-	binDir, err := filepath.Abs("bin")
-	if err != nil {
-		return fmt.Errorf("Error setting GOBIN: %v", err)
-	}
 	env := c.env()
-	env.Set("GOBIN", binDir)
 	cmd.Env = env.Flat()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -137,7 +132,7 @@ func (c *testCmd) runTests(args []string) error {
 			"./server/perkeepd",
 			"./cmd/...",
 			"./misc/docker/...",
-			"./website",
+			"./website/pk-web",
 		}...)
 	}
 	env := c.env()
