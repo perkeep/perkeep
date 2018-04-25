@@ -845,7 +845,12 @@ func (c *Corpus) mergeEXIFGPSRow(k, v []byte) error {
 	lat, err := strconv.ParseFloat(string(v[:pipe]), 64)
 	long, err1 := strconv.ParseFloat(string(v[pipe+1:]), 64)
 	if err != nil || err1 != nil {
-		return fmt.Errorf("bogus row %q = %q", k, v)
+		if err != nil {
+			log.Printf("index: bogus latitude in value of row %q = %q", k, v)
+		} else {
+			log.Printf("index: bogus longitude in value of row %q = %q", k, v)
+		}
+		return nil
 	}
 	c.gps[wholeRef] = latLong{lat, long}
 	return nil
