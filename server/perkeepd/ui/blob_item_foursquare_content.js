@@ -47,7 +47,7 @@ cam.BlobItemFoursquareContent = React.createClass({
 				},
 			},
 			React.DOM.div({className:'cam-blobitem-fs-checkin-content'},
-				React.DOM.img({src: 'foursquare-logo.png'}),
+				React.DOM.img({src: 'swarm-logo.png'}),
 				React.DOM.table(null,
 					React.DOM.tbody(null,
 						React.DOM.tr(null,
