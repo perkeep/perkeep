@@ -42,6 +42,14 @@ test environment from their production instance and to simplify common
 development tasks. If you have questions, you can ask the [mailing
 list](https://groups.google.com/group/camlistore).
 
+## Mobile
+
+The project also has an Android app to upload your files (mainly photos) to a
+Perkeep instance. The official build is on
+[Google Play](https://play.google.com/store/apps/details?id=org.camlistore).
+A [debug version](https://storage.googleapis.com/camlistore-release/android/app-debug.apk)
+is regularly built and uploaded.
+
 ## Release Notes
 
 Previous release notes:
