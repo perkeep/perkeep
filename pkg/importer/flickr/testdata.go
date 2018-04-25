@@ -277,12 +277,12 @@ func fakePhotosPage(page, pages, perPage int, photoIds []string) string {
 }
 
 func fakePicture() string {
-	camliDir, err := osutil.GoPackagePath("camlistore.org")
+	camliDir, err := osutil.GoPackagePath("perkeep.org")
 	if err == os.ErrNotExist {
-		log.Fatal("Directory \"camlistore.org\" not found under GOPATH/src; are you not running with devcam?")
+		log.Fatal("Directory \"perkeep.org\" not found under GOPATH/src; are you not running with devcam?")
 	}
 	if err != nil {
-		log.Fatalf("Error searching for \"camlistore.org\" under GOPATH: %v", err)
+		log.Fatalf("Error searching for \"perkeep.org\" under GOPATH: %v", err)
 	}
 	return filepath.Join(camliDir, filepath.FromSlash("clients/web/embed/glitch/npc_piggy__x1_walk_png_1354829432.png"))
 }
