@@ -23,7 +23,7 @@
 
         <service android:name=".UploadService"
                  android:exported="false"
-                 android:label="Camlistore Upload Service" />
+                 android:label="Perkeep Upload Service" />
 
         <activity android:name=".CamliActivity"
                   android:label="@string/app_name">

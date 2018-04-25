@@ -9,7 +9,7 @@
         android:id="@+id/textStatus"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
-        android:text="Camlistore Uploader" />
+        android:text="Perkeep Uploader" />
 
     <LinearLayout
         android:layout_width="fill_parent"
