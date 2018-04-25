@@ -93,12 +93,17 @@ func main() {
 	if narg > 0 {
 		mountPoint = flag.Arg(0)
 	} else {
-		mountPoint, err = ioutil.TempDir("", "pk-mount")
-		if err != nil {
-			log.Fatal(err)
+		if fi, err := os.Stat("/pk"); err == nil && fi.IsDir() {
+			log.Printf("no mount point given; using /pk")
+			mountPoint = "/pk"
+		} else {
+			mountPoint, err = ioutil.TempDir("", "pk-mount")
+			if err != nil {
+				log.Fatal(err)
+			}
+			log.Printf("no mount point given and recommended directory /pk doesn't exist; using temp directory %s", mountPoint)
+			defer os.Remove(mountPoint)
 		}
-		log.Printf("No mount point given. Using: %s", mountPoint)
-		defer os.Remove(mountPoint)
 	}
 
 	errorf := func(msg string, args ...interface{}) {
