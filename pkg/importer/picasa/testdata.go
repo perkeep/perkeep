@@ -83,8 +83,8 @@ Content-Type: application/json; charset=UTF-8
 
 	// register the photo download calls
 	pudgyPic := fakePhoto()
-	photoURL1 := "https://camlistore.org/pic/pudgy1.png"
-	photoURL2 := "https://camlistore.org/pic/pudgy2.png"
+	photoURL1 := "https://perkeep.org/pic/pudgy1.png"
+	photoURL2 := "https://perkeep.org/pic/pudgy2.png"
 	responses[photoURL1] = httputil.FileResponder(pudgyPic)
 	responses[photoURL2] = httputil.FileResponder(pudgyPic)
 
@@ -172,7 +172,7 @@ func fakePhotoEntry(photoNbr int, albumNbr int) picago.Entry {
 	var content picago.EntryContent
 	if photoNbr%2 == 0 {
 		content = picago.EntryContent{
-			URL:  "https://camlistore.org/pic/pudgy1.png",
+			URL:  "https://perkeep.org/pic/pudgy1.png",
 			Type: "image/png",
 		}
 	}
@@ -183,7 +183,7 @@ func fakePhotoEntry(photoNbr int, albumNbr int) picago.Entry {
 		point = "45.1822842 5.7141854"
 	}
 	mediaContent := picago.MediaContent{
-		URL:  "https://camlistore.org/pic/pudgy2.png",
+		URL:  "https://perkeep.org/pic/pudgy2.png",
 		Type: "image/png",
 	}
 	media := &picago.Media{
@@ -228,12 +228,12 @@ func fakePhotoEntry(photoNbr int, albumNbr int) picago.Entry {
 
 // TODO(mpl): refactor with twitter
 func fakePhoto() string {
-	camliDir, err := osutil.GoPackagePath("camlistore.org")
+	camliDir, err := osutil.GoPackagePath("perkeep.org")
 	if err == os.ErrNotExist {
-		log.Fatal("Directory \"camlistore.org\" not found under GOPATH/src; are you not running with devcam?")
+		log.Fatal("Directory \"perkeep.org\" not found under GOPATH/src; are you not running with devcam?")
 	}
 	if err != nil {
-		log.Fatalf("Error searching for \"camlistore.org\" under GOPATH: %v", err)
+		log.Fatalf("Error searching for \"perkeep.org\" under GOPATH: %v", err)
 	}
 	return filepath.Join(camliDir, filepath.FromSlash("clients/web/embed/glitch/npc_piggy__x1_walk_png_1354829432.png"))
 }

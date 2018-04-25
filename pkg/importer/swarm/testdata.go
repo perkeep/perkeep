@@ -135,9 +135,9 @@ Content-Type: application/json; charset=UTF-8
 
 	// register the photoitem calls
 	pudgyPic := fakePhoto()
-	photoURL := "https://camlistore.org/pic/pudgy.png"
-	originalPhotoURL := "https://camlistore.org/original/pic/pudgy.png"
-	iconURL := "https://camlistore.org/bg_88/pic/pudgy.png"
+	photoURL := "https://perkeep.org/pic/pudgy.png"
+	originalPhotoURL := "https://perkeep.org/original/pic/pudgy.png"
+	iconURL := "https://perkeep.org/bg_88/pic/pudgy.png"
 	responses[photoURL] = httputil.FileResponder(pudgyPic)
 	responses[originalPhotoURL] = httputil.FileResponder(pudgyPic)
 	responses[iconURL] = httputil.FileResponder(pudgyPic)
@@ -211,7 +211,7 @@ func fakeCheckinsList(offset, maxCheckin int, towns map[int]*venueLocationItem, 
 }
 
 func fakeVenue(counter int, towns map[int]*venueLocationItem) venueItem {
-	prefix := "https://camlistore.org/"
+	prefix := "https://perkeep.org/"
 	suffix := "/pic/pudgy.png"
 	// TODO: add more.
 	categories := []*venueCategory{
@@ -256,7 +256,7 @@ func fakePhotosList() string {
 }
 
 func fakePhotoItem() *photoItem {
-	prefix := "https://camlistore.org/"
+	prefix := "https://perkeep.org/"
 	suffix := "/pic/pudgy.png"
 	return &photoItem{
 		Id:     blob.RefFromString(prefix + suffix).DigestPrefix(10),
@@ -269,12 +269,12 @@ func fakePhotoItem() *photoItem {
 
 // TODO(mpl): refactor with twitter
 func fakePhoto() string {
-	camliDir, err := osutil.GoPackagePath("camlistore.org")
+	camliDir, err := osutil.GoPackagePath("perkeep.org")
 	if err == os.ErrNotExist {
-		log.Fatal("Directory \"camlistore.org\" not found under GOPATH/src; are you not running with devcam?")
+		log.Fatal("Directory \"perkeep.org\" not found under GOPATH/src; are you not running with devcam?")
 	}
 	if err != nil {
-		log.Fatalf("Error searching for \"camlistore.org\" under GOPATH: %v", err)
+		log.Fatalf("Error searching for \"perkeep.org\" under GOPATH: %v", err)
 	}
 	return filepath.Join(camliDir, filepath.FromSlash("clients/web/embed/glitch/npc_piggy__x1_walk_png_1354829432.png"))
 }
