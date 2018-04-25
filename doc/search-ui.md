@@ -54,6 +54,8 @@ escaping.  For example:
 : uses the available metadata, such as EXIF GPS fields, or check-in locations,
   to match nodes having a location near the specified location.  Locations are
   resolved using maps.googleapis.com. For example: `loc:"new york, new york"`
+  This requires that you get a Geocoding API key from Google.
+  See the the page on [how to configure geocoding](/doc/geocoding.md).
 
 **<a name="locrect"></a>locrect**
 : uses the various location metadata fields (such as EXIF GPS) to match nodes

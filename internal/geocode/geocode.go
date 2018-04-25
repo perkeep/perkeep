@@ -20,13 +20,20 @@ package geocode // import "perkeep.org/internal/geocode"
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
+
+	"perkeep.org/internal/osutil"
 
 	"go4.org/ctxutil"
 	"go4.org/syncutil/singleflight"
+	"go4.org/wkfs"
 	"golang.org/x/net/context/ctxhttp"
 )
 
@@ -54,11 +61,39 @@ type Rect struct {
 var AltLookupFn func(ctx context.Context, address string) ([]Rect, error)
 
 var (
-	mu    sync.RWMutex
-	cache = map[string][]Rect{}
+	mu     sync.RWMutex
+	cache  = map[string][]Rect{}
+	apiKey string
 
 	sf singleflight.Group
 )
+
+func getAPIKey() (string, error) {
+	mu.RLock()
+	key := apiKey
+	mu.RUnlock()
+	if apiKey != "" {
+		return key, nil
+	}
+	mu.Lock()
+	defer mu.Unlock()
+
+	slurp, err := wkfs.ReadFile(filepath.Join(osutil.CamliConfigDir(), "google-geocode.key"))
+	if os.IsNotExist(err) {
+		return "", ErrNoGoogleKey
+	}
+	if err != nil {
+		return "", err
+	}
+	key = strings.TrimSpace(string(slurp))
+	if key == "" {
+		return "", ErrNoGoogleKey
+	}
+	apiKey = key
+	return key, nil
+}
+
+var ErrNoGoogleKey = errors.New("geocode: geocoding is not configured; see https://perkeep.org/doc/geocoding")
 
 // Lookup returns rectangles for the given address. Currently the only
 // implementation is the Google geocoding service.
@@ -77,16 +112,26 @@ func Lookup(ctx context.Context, address string) ([]Rect, error) {
 		return rects, nil
 	}
 
+	key, err := getAPIKey()
+	if err != nil {
+		return nil, err
+	}
+
 	rectsi, err := sf.Do(address, func() (interface{}, error) {
 		// TODO: static data files from OpenStreetMap, Wikipedia, etc?
-		urlStr := "https://maps.googleapis.com/maps/api/geocode/json?address=" + url.QueryEscape(address) + "&sensor=false"
+		urlStr := "https://maps.googleapis.com/maps/api/geocode/json?address=" + url.QueryEscape(address) + "&sensor=false&key=" + url.QueryEscape(key)
 		res, err := ctxhttp.Get(ctx, ctxutil.Client(ctx), urlStr)
 		if err != nil {
+			log.Printf("geocode: HTTP error doing Google lookup: %v", err)
 			return nil, err
 		}
 		defer res.Body.Close()
 		rects, err := decodeGoogleResponse(res.Body)
-		log.Printf("Google geocode lookup (%q) = %#v, %v", address, rects, err)
+		if err != nil {
+			log.Printf("geocode: error decoding Google geocode response for %q: %v", address, err)
+		} else {
+			log.Printf("geocode: Google lookup (%q) = %#v", address, rects)
+		}
 		if err == nil {
 			mu.Lock()
 			cache[address] = rects
