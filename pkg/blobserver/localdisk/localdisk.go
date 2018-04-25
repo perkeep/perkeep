@@ -45,6 +45,7 @@ import (
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/files"
 	"perkeep.org/pkg/blobserver/local"
 
 	"go4.org/jsonconfig"
@@ -55,6 +56,8 @@ import (
 // local filesystem.
 type DiskStorage struct {
 	root string
+
+	fs files.VFS
 
 	// dirLockMu must be held for writing when deleting an empty directory
 	// and for read when receiving blobs.
@@ -79,6 +82,9 @@ func (ds *DiskStorage) String() string {
 
 // IsDir reports whether root is a localdisk (file-per-blob) storage directory.
 func IsDir(root string) (bool, error) {
+	if osutil.DirExists(filepath.Join(root, "sha1")) {
+		return true, nil
+	}
 	if osutil.DirExists(filepath.Join(root, blob.RefFromString("").HashName())) {
 		return true, nil
 	}
@@ -116,6 +122,7 @@ func New(root string) (*DiskStorage, error) {
 		return nil, fmt.Errorf("storage root %q exists but is not a directory", root)
 	}
 	ds := &DiskStorage{
+		fs:        osFS{},
 		root:      root,
 		dirLockMu: new(sync.RWMutex),
 		gen:       local.NewGenerationer(root),
@@ -163,7 +170,7 @@ func init() {
 func (ds *DiskStorage) tryRemoveDir(dir string) {
 	ds.dirLockMu.Lock()
 	defer ds.dirLockMu.Unlock()
-	os.Remove(dir) // ignore error
+	ds.fs.RemoveDir(dir) // ignore error
 }
 
 func (ds *DiskStorage) Fetch(ctx context.Context, br blob.Ref) (io.ReadCloser, uint32, error) {
@@ -190,20 +197,20 @@ func u32(n int64) uint32 {
 func (ds *DiskStorage) fetch(ctx context.Context, br blob.Ref, offset, length int64) (rc io.ReadCloser, size uint32, err error) {
 	// TODO: use ctx, if the os package ever supports that.
 	fileName := ds.blobPath(br)
-	stat, err := os.Stat(fileName)
+	stat, err := ds.fs.Stat(fileName)
 	if os.IsNotExist(err) {
 		return nil, 0, os.ErrNotExist
 	}
 	size = u32(stat.Size())
-	file, err := os.Open(fileName)
+	file, err := ds.fs.Open(fileName)
 	if err != nil {
 		if os.IsNotExist(err) {
 			err = os.ErrNotExist
 		}
 		return nil, 0, err
 	}
-	// normal Fetch:
-	if length < 0 {
+	// normal Fetch
+	if length < 0 && offset == 0 {
 		return file, size, nil
 	}
 	// SubFetch:
@@ -213,19 +220,25 @@ func (ds *DiskStorage) fetch(ctx context.Context, br blob.Ref, offset, length in
 		}
 		return nil, 0, blob.ErrOutOfRangeOffsetSubFetch
 	}
+	if offset != 0 {
+		if at, err := file.Seek(offset, io.SeekStart); err != nil || at != offset {
+			file.Close()
+			return nil, 0, fmt.Errorf("localdisk: error seeking to %d: got %v, %v", offset, at, err)
+		}
+	}
 	return struct {
 		io.Reader
 		io.Closer
 	}{
-		io.NewSectionReader(file, offset, length),
-		file,
-	}, 0 /* unused */, err
+		Reader: io.LimitReader(file, length),
+		Closer: file,
+	}, 0 /* unused */, nil
 }
 
 func (ds *DiskStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	for _, blob := range blobs {
 		fileName := ds.blobPath(blob)
-		err := os.Remove(fileName)
+		err := ds.fs.Remove(fileName)
 		switch {
 		case err == nil:
 			continue
@@ -283,4 +296,33 @@ func (ds *DiskStorage) checkFS() (ret error) {
 		return fmt.Errorf("localdisk check: after rename passed Lstat had error, err=%v", err)
 	}
 	return nil
+}
+
+// osFS implements the files.VFS interface using the os package and
+// the host filesystem.
+type osFS struct{}
+
+func (osFS) Remove(path string) error                     { return os.Remove(path) }
+func (osFS) RemoveDir(path string) error                  { return os.Remove(path) }
+func (osFS) Stat(path string) (os.FileInfo, error)        { return os.Stat(path) }
+func (osFS) Lstat(path string) (os.FileInfo, error)       { return os.Lstat(path) }
+func (osFS) Open(path string) (files.ReadableFile, error) { return os.Open(path) }
+func (osFS) MkdirAll(path string, perm os.FileMode) error { return os.MkdirAll(path, perm) }
+func (osFS) Rename(oldname, newname string) error         { return os.Rename(oldname, newname) }
+
+func (osFS) TempFile(dir, prefix string) (files.WritableFile, error) {
+	f, err := ioutil.TempFile(dir, prefix)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
+func (osFS) ReadDirNames(dir string) ([]string, error) {
+	d, err := os.Open(dir)
+	if err != nil {
+		return nil, err
+	}
+	defer d.Close()
+	return d.Readdirnames(-1)
 }

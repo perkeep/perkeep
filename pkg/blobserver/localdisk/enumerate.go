@@ -51,22 +51,17 @@ func (ee *enumerateError) Error() string {
 // readBlobs implements EnumerateBlobs. It calls itself recursively on subdirectories.
 func (ds *DiskStorage) readBlobs(ctx context.Context, opts readBlobRequest) error {
 	dirFullPath := filepath.Join(opts.dirRoot, opts.pathInto)
-	dir, err := os.Open(dirFullPath)
+	names, err := ds.fs.ReadDirNames(dirFullPath)
 	if err != nil {
-		return &enumerateError{"opening directory " + dirFullPath, err}
+		return &enumerateError{"readdirnames of " + dirFullPath, err}
 	}
-	names, err := dir.Readdirnames(-1)
-	dir.Close()
-	if err == nil && len(names) == 0 {
+	if len(names) == 0 {
 		// remove empty blob dir if we are in a queue but not the queue root itself
 		if strings.Contains(dirFullPath, "queue-") &&
 			!strings.Contains(filepath.Base(dirFullPath), "queue-") {
 			go ds.tryRemoveDir(dirFullPath)
 		}
 		return nil
-	}
-	if err != nil {
-		return &enumerateError{"readdirnames of " + dirFullPath, err}
 	}
 	sort.Strings(names)
 	stat := make(map[string]*future) // name -> future<os.FileInfo>
@@ -78,7 +73,7 @@ func (ds *DiskStorage) readBlobs(ctx context.Context, opts readBlobRequest) erro
 		}
 		fullFile := filepath.Join(dirFullPath, name)
 		f := newFuture(func() (os.FileInfo, error) {
-			fi, err := os.Stat(fullFile)
+			fi, err := ds.fs.Stat(fullFile)
 			if err != nil {
 				return nil, &enumerateError{"stat", err}
 			}

@@ -21,9 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
-	"os"
 
 	"perkeep.org/pkg/blob"
 )
@@ -47,7 +45,7 @@ func (ds *DiskStorage) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source
 	defer ds.dirLockMu.RUnlock()
 
 	hashedDirectory := ds.blobDirectory(blobRef)
-	err = os.MkdirAll(hashedDirectory, 0700)
+	err = ds.fs.MkdirAll(hashedDirectory, 0700)
 	if err != nil {
 		return
 	}
@@ -55,7 +53,7 @@ func (ds *DiskStorage) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source
 	// TODO(mpl): warn when we hit the gate, and at a limited rate, like maximum once a minute.
 	// Deferring to another CL, since it requires modifications to syncutil.Gate first.
 	ds.startGate()
-	tempFile, err := ioutil.TempFile(hashedDirectory, blobFileBaseName(blobRef)+".tmp")
+	tempFile, err := ds.fs.TempFile(hashedDirectory, blobFileBaseName(blobRef)+".tmp")
 	if err != nil {
 		ds.doneGate()
 		return
@@ -65,7 +63,7 @@ func (ds *DiskStorage) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source
 	defer func() {
 		if !success {
 			log.Println("Removing temp file: ", tempFile.Name())
-			os.Remove(tempFile.Name())
+			ds.fs.Remove(tempFile.Name())
 		}
 		ds.doneGate()
 	}()
@@ -80,7 +78,7 @@ func (ds *DiskStorage) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source
 	if err = tempFile.Close(); err != nil {
 		return
 	}
-	stat, err := os.Lstat(tempFile.Name())
+	stat, err := ds.fs.Lstat(tempFile.Name())
 	if err != nil {
 		return
 	}
@@ -90,13 +88,13 @@ func (ds *DiskStorage) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source
 	}
 
 	fileName := ds.blobPath(blobRef)
-	if err = os.Rename(tempFile.Name(), fileName); err != nil {
+	if err = ds.fs.Rename(tempFile.Name(), fileName); err != nil {
 		if err = mapRenameError(err, tempFile.Name(), fileName); err != nil {
 			return
 		}
 	}
 
-	stat, err = os.Lstat(fileName)
+	stat, err = ds.fs.Lstat(fileName)
 	if err != nil {
 		return
 	}
