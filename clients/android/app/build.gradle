@@ -35,8 +35,10 @@ android {
         // Stay below API 26 for a while, because it deprecates the Notification Builder
         // constructor we're using.
         targetSdkVersion 25
-        versionCode 1
-        versionName "1"
+        // integer. used by android to prevent downgrades. not seen by user.
+        versionCode 2
+        // version shown to the user in play store.
+        versionName "0.10"
     }
     buildTypes {
         release {
