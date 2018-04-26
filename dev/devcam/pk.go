@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/cmdmain"
 )
 
@@ -72,6 +73,9 @@ func (c *toolCmd) RunCommand(args []string) error {
 		c.env.wipeCacheDir()
 	}
 
-	cmdBin := filepath.Join("bin", "pk")
+	cmdBin, err := osutil.LookPathGopath("pk")
+	if err != nil {
+		return err
+	}
 	return runExec(cmdBin, args, c.env)
 }
