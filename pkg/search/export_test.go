@@ -48,3 +48,5 @@ func (s *Handler) ExportGetPermanodeLocation(ctx context.Context, permaNode blob
 func ExportBestByLocation(res *SearchResult, loc map[blob.Ref]camtypes.Location, limit int) {
 	bestByLocation(res, loc, limit)
 }
+
+var ExportUitdamLC = uitdamLC

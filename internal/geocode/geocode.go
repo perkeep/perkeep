@@ -49,11 +49,11 @@ type Rect struct {
 
 // AltLookupFn provides alternative geocode lookup in tests.
 //
-// If AltLookupFn is not nil, Lookup calls AltLookupFn first,
-// and returns the results unless it is (nil, nil).
+// If AltLookupFn is not nil, Lookup returns the results of
+// the AltLookupFn call.
 //
 // Lookup performs its standard lookup using its cache
-// and the Google geocoding serice if AltLookupFn is nil,
+// and the Google geocoding service if AltLookupFn is nil,
 // or it returns (nil, nil) for the address being looked up.
 //
 // It's up to the caller to change AltLookupFn only
@@ -99,10 +99,7 @@ var ErrNoGoogleKey = errors.New("geocode: geocoding is not configured; see https
 // implementation is the Google geocoding service.
 func Lookup(ctx context.Context, address string) ([]Rect, error) {
 	if AltLookupFn != nil {
-		r, err := AltLookupFn(ctx, address)
-		if r != nil || err != nil {
-			return r, err
-		}
+		return AltLookupFn(ctx, address)
 	}
 
 	mu.RLock()

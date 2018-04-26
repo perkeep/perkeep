@@ -1904,6 +1904,7 @@ func init() {
 	cacheGeo("mexico", 32.7187629, -86.7105711, 14.5345486, -118.3649292)
 	cacheGeo("brazil", 5.2717863, -29.3448224, -33.7506241, -73.98281709999999)
 	cacheGeo("argentina", -21.7810459, -53.6374811, -55.05727899999999, -73.56036019999999)
+	cacheGeo("Uitdam", ExportUitdamLC.North, ExportUitdamLC.East, ExportUitdamLC.South, ExportUitdamLC.West)
 
 	geocode.AltLookupFn = func(ctx context.Context, addr string) ([]geocode.Rect, error) {
 		r, ok := altLocCache[addr]
