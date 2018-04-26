@@ -280,12 +280,22 @@ type LocationBounds struct {
 	East  float64 `json:"east"`
 }
 
-func (b LocationBounds) isWithinLongitude(loc Location) bool {
-	if b.East < b.West {
-		// l is spanning over antimeridian
+// SpansDateLine reports whether b spans the antimeridian international date line.
+func (b LocationBounds) SpansDateLine() bool { return b.East < b.West }
+
+// Contains reports whether loc is in the bounds b.
+func (b LocationBounds) Contains(loc Location) bool {
+	if b.SpansDateLine() {
 		return loc.Longitude >= b.West || loc.Longitude <= b.East
 	}
 	return loc.Longitude >= b.West && loc.Longitude <= b.East
+}
+
+func (b LocationBounds) Width() float64 {
+	if !b.SpansDateLine() {
+		return b.East - b.West
+	}
+	return b.East - b.West + 360
 }
 
 // Expand returns a new LocationBounds nb. If either of loc coordinates is
@@ -311,7 +321,7 @@ func (b LocationBounds) Expand(loc Location) LocationBounds {
 	} else if loc.Latitude < nb.South {
 		nb.South = loc.Latitude
 	}
-	if nb.isWithinLongitude(loc) {
+	if nb.Contains(loc) {
 		return nb
 	}
 	center := nb.center()

@@ -106,6 +106,11 @@ type Corpus struct {
 	permanodesByTime    *lazySortedPermanodes // cache of permanodes sorted by creation time.
 	permanodesByModtime *lazySortedPermanodes // cache of permanodes sorted by modtime.
 
+	// permanodesSetByNodeType maps from a camliNodeType attribute
+	// value to the set of permanodes that ever had that
+	// value. The bool is always true.
+	permanodesSetByNodeType map[string]map[blob.Ref]bool
+
 	// scratch string slice
 	ss []string
 }
@@ -316,20 +321,21 @@ func (pm *PermanodeMeta) valuesAtSigner(at time.Time,
 
 func newCorpus() *Corpus {
 	c := &Corpus{
-		blobs:        make(map[blob.Ref]*camtypes.BlobMeta),
-		camBlobs:     make(map[string]map[blob.Ref]*camtypes.BlobMeta),
-		files:        make(map[blob.Ref]camtypes.FileInfo),
-		permanodes:   make(map[blob.Ref]*PermanodeMeta),
-		imageInfo:    make(map[blob.Ref]camtypes.ImageInfo),
-		deletedBy:    make(map[blob.Ref]blob.Ref),
-		keyId:        make(map[blob.Ref]string),
-		signerRefs:   make(map[string]SignerRefSet),
-		brOfStr:      make(map[string]blob.Ref),
-		fileWholeRef: make(map[blob.Ref]blob.Ref),
-		gps:          make(map[blob.Ref]latLong),
-		mediaTags:    make(map[blob.Ref]map[string]string),
-		deletes:      make(map[blob.Ref][]deletion),
-		claimBack:    make(map[blob.Ref][]*camtypes.Claim),
+		blobs:                   make(map[blob.Ref]*camtypes.BlobMeta),
+		camBlobs:                make(map[string]map[blob.Ref]*camtypes.BlobMeta),
+		files:                   make(map[blob.Ref]camtypes.FileInfo),
+		permanodes:              make(map[blob.Ref]*PermanodeMeta),
+		imageInfo:               make(map[blob.Ref]camtypes.ImageInfo),
+		deletedBy:               make(map[blob.Ref]blob.Ref),
+		keyId:                   make(map[blob.Ref]string),
+		signerRefs:              make(map[string]SignerRefSet),
+		brOfStr:                 make(map[string]blob.Ref),
+		fileWholeRef:            make(map[blob.Ref]blob.Ref),
+		gps:                     make(map[blob.Ref]latLong),
+		mediaTags:               make(map[blob.Ref]map[string]string),
+		deletes:                 make(map[blob.Ref][]deletion),
+		claimBack:               make(map[blob.Ref][]*camtypes.Claim),
+		permanodesSetByNodeType: make(map[string]map[blob.Ref]bool),
 	}
 	c.permanodesByModtime = &lazySortedPermanodes{
 		c:      c,
@@ -713,6 +719,14 @@ func (c *Corpus) mergeClaimRow(k, v []byte) error {
 	if vbr, ok := blob.Parse(cl.Value); ok {
 		c.claimBack[vbr] = append(c.claimBack[vbr], &cl)
 	}
+	if cl.Attr == "camliNodeType" {
+		set := c.permanodesSetByNodeType[cl.Value]
+		if set == nil {
+			set = make(map[blob.Ref]bool)
+			c.permanodesSetByNodeType[cl.Value] = set
+		}
+		set[pn] = true
+	}
 	return nil
 }
 
@@ -1052,6 +1066,22 @@ func (c *Corpus) EnumeratePermanodesCreated(fn func(camtypes.BlobMeta) bool, new
 func (c *Corpus) EnumerateSingleBlob(fn func(camtypes.BlobMeta) bool, br blob.Ref) {
 	if bm := c.blobs[br]; bm != nil {
 		fn(*bm)
+	}
+}
+
+// EnumeratePermanodesByNodeTypes enumerates over all permanodes that might
+// have one of the provided camliNodeType values, calling fn for each. If fn returns false,
+// enumeration ends.
+func (c *Corpus) EnumeratePermanodesByNodeTypes(fn func(camtypes.BlobMeta) bool, camliNodeTypes []string) {
+	for _, t := range camliNodeTypes {
+		set := c.permanodesSetByNodeType[t]
+		for br := range set {
+			if bm := c.blobs[br]; bm != nil {
+				if !fn(*bm) {
+					return
+				}
+			}
+		}
 	}
 }
 

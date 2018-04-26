@@ -24,13 +24,10 @@ import (
 	"flag"
 	"fmt"
 	"image"
-	"image/color"
 	"image/jpeg"
-	"image/png"
 	"io/ioutil"
 	"log"
 	"math/rand"
-	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -1837,6 +1834,22 @@ func TestRefQuerySource_Logical(t *testing.T) {
 	})
 }
 
+// permanode camliNodeType candidate source
+func TestIsCheckinQuerySource(t *testing.T) {
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+		pn := id.NewPlannedPermanode("photo")
+		id.SetAttribute(pn, "camliNodeType", "foursquare.com:checkin")
+
+		sq := &SearchQuery{
+			Expression: "is:checkin",
+			Sort:       MapSort,
+		}
+		qt.candidateSource = "corpus_permanode_types"
+		qt.wantRes(sq, pn)
+	})
+}
+
 // BenchmarkLocationPredicate aims at measuring the impact of
 // https://camlistore-review.googlesource.com/8049
 // ( + https://camlistore-review.googlesource.com/8649)
@@ -2138,160 +2151,30 @@ type locationPoints struct {
 }
 
 func TestBestByLocation(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
+	res := &SearchResult{
+		LocationArea: &camtypes.LocationBounds{
+			North: 90,
+			South: -90,
+			East:  180,
+			West:  -180,
+		},
 	}
-	data := make(map[string]locationPoints)
-	f, err := os.Open(filepath.Join("testdata", "locationPoints.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-	dec := json.NewDecoder(f)
-	if err := dec.Decode(&data); err != nil {
-		t.Fatal(err)
-	}
+	locm := map[blob.Ref]camtypes.Location{}
 
-	for _, v := range data {
-		testBestByLocation(t, v, false)
-	}
-}
-
-// call with generate=true to regenerate the png files int testdata/ from testdata/locationPoints.json
-func testBestByLocation(t *testing.T, data locationPoints, generate bool) {
-	var res SearchResult
-	var blobs []*SearchResultBlob
-	meta := make(map[string]*DescribedBlob)
-	var area camtypes.LocationBounds
-	locm := make(map[blob.Ref]camtypes.Location)
-	for _, v := range data.Points {
-		br := blob.RefFromString(fmt.Sprintf("%v,%v", v.Latitude, v.Longitude))
-		blobs = append(blobs, &SearchResultBlob{
-			Blob: br,
-		})
-		loc := camtypes.Location{
-			Latitude:  v.Latitude,
-			Longitude: v.Longitude,
-		}
-		meta[br.String()] = &DescribedBlob{
-			Location: &loc,
-		}
-		locm[br] = loc
-		area = area.Expand(loc)
-	}
-	res.Blobs = blobs
-	res.Describe = &DescribeResponse{
-		Meta: meta,
-	}
-	res.LocationArea = &area
-
-	var widthRatio, heightRatio float64
-	initImage := func() *image.RGBA {
-		maxRelLat := area.North - area.South
-		maxRelLong := area.East - area.West
-		if area.West >= area.East {
-			// area is spanning over the antimeridian
-			maxRelLong += 360
-		}
-		// draw it all on a 1000 px wide image
-		height := int(1000 * maxRelLat / maxRelLong)
-		img := image.NewRGBA(image.Rect(0, 0, 1000, height))
-		for i := 0; i < 1000; i++ {
-			for j := 0; j < 1000; j++ {
-				img.Set(i, j, image.White)
-			}
-		}
-		widthRatio = 1000. / maxRelLong
-		heightRatio = float64(height) / maxRelLat
-		return img
-	}
-
-	img := initImage()
-	for _, v := range data.Points {
-		// draw a little cross of 3x3, because 1px dot is not visible enough.
-		relLong := v.Longitude - area.West
-		if v.Longitude < area.West {
-			relLong += 360
-		}
-		crossX := int(relLong * widthRatio)
-		crossY := int((area.North - v.Latitude) * heightRatio)
-		for i := -1; i < 2; i++ {
-			img.Set(crossX+i, crossY, color.RGBA{127, 0, 0, 127})
-		}
-		for j := -1; j < 2; j++ {
-			img.Set(crossX, crossY+j, color.RGBA{127, 0, 0, 127})
+	const numResults = 5000
+	const limit = 117
+	const scale = 1000
+	for i := 0; i < numResults; i++ {
+		br := blob.RefFromString(fmt.Sprintf("foo %d", i))
+		res.Blobs = append(res.Blobs, &SearchResultBlob{Blob: br})
+		locm[br] = camtypes.Location{
+			Latitude:  float64(rand.Intn(360*scale) - 180*scale),
+			Longitude: float64(rand.Intn(180*scale) - 90*scale),
 		}
 	}
 
-	cmpImage := func(img *image.RGBA, wantImgFile string) {
-		f, err := os.Open(wantImgFile)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer f.Close()
-		wantImg, err := png.Decode(f)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for j := 0; j < wantImg.Bounds().Max.Y; j++ {
-			for i := 0; i < wantImg.Bounds().Max.X; i++ {
-				r1, g1, b1, a1 := wantImg.At(i, j).RGBA()
-				r2, g2, b2, a2 := img.At(i, j).RGBA()
-				if r1 != r2 || g1 != g2 || b1 != b2 || a1 != a2 {
-					t.Fatalf("%v different from %v", wantImg.At(i, j), img.At(i, j))
-				}
-			}
-		}
-	}
-
-	genPng := func(img *image.RGBA, name string) {
-		f, err := os.Create(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer f.Close()
-		if err := png.Encode(f, img); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if generate {
-		genPng(img, filepath.Join("testdata", fmt.Sprintf("%v-beforeMapSort.png", data.Name)))
-	} else {
-		cmpImage(img, filepath.Join("testdata", fmt.Sprintf("%v-beforeMapSort.png", data.Name)))
-	}
-
-	ExportBestByLocation(&res, locm, 100)
-
-	// check that all longitudes are in the [-180,180] range
-	for _, v := range res.Blobs {
-		longitude := meta[v.Blob.String()].Location.Longitude
-		if longitude < -180. || longitude > 180. {
-			t.Errorf("out of range location: %v", longitude)
-		}
-	}
-
-	img = initImage()
-	for _, v := range res.Blobs {
-		loc := meta[v.Blob.String()].Location
-		longitude := loc.Longitude
-		latitude := loc.Latitude
-		// draw a little cross of 3x3, because 1px dot is not visible enough.
-		relLong := longitude - area.West
-		if longitude < area.West {
-			relLong += 360
-		}
-		crossX := int(relLong * widthRatio)
-		crossY := int((area.North - latitude) * heightRatio)
-		for i := -1; i < 2; i++ {
-			img.Set(crossX+i, crossY, color.RGBA{127, 0, 0, 127})
-		}
-		for j := -1; j < 2; j++ {
-			img.Set(crossX, crossY+j, color.RGBA{127, 0, 0, 127})
-		}
-	}
-	if generate {
-		genPng(img, filepath.Join("testdata", fmt.Sprintf("%v-afterMapSort.png", data.Name)))
-	} else {
-		cmpImage(img, filepath.Join("testdata", fmt.Sprintf("%v-afterMapSort.png", data.Name)))
+	ExportBestByLocation(res, locm, limit)
+	if got := len(res.Blobs); got != limit {
+		t.Errorf("got %d blobs; want %d", got, limit)
 	}
 }

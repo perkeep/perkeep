@@ -78,7 +78,7 @@ cam.MapAspect = React.createClass({
 	// (https://github.com/perkeep/perkeep/issues/937)
 	// However, the cluster plugin restricts the number of items displayed at the
 	// same time to a way lower number, allowing us to work-around these glitches.
-	QUERY_LIMIT_: 1000,
+	QUERY_LIMIT_: 250,
 	// ZOOM_COOLDOWN_ is how much time to wait, after we've stopped zooming/panning,
 	// before actually searching for new results.
 	ZOOM_COOLDOWN_: 500,

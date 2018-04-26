@@ -331,6 +331,34 @@ func (c *Constraint) checkValid() error {
 	return nil
 }
 
+// matchesPermanodeTypes returns a set of valid permanode types that a matching
+// permanode must have as its "camliNodeType" attribute.
+// It returns a zero-length slice if this constraint might include things other
+// things.
+func (c *Constraint) matchesPermanodeTypes() []string {
+	if c == nil {
+		return nil
+	}
+	if pc := c.Permanode; pc != nil && pc.Attr == "camliNodeType" && pc.Value != "" {
+		return []string{pc.Value}
+	}
+	if lc := c.Logical; lc != nil {
+		sa := lc.A.matchesPermanodeTypes()
+		sb := lc.B.matchesPermanodeTypes()
+		switch lc.Op {
+		case "and":
+			if len(sa) != 0 {
+				return sa
+			}
+			return sb
+		case "or":
+			return append(sa, sb...)
+		}
+	}
+	return nil
+
+}
+
 // matchesAtMostOneBlob reports whether this constraint matches at most a single blob.
 // If so, it returns that blob. Otherwise it returns a zero, invalid blob.Ref.
 func (c *Constraint) matchesAtMostOneBlob() blob.Ref {
@@ -904,13 +932,13 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 	if debugQuerySpeed {
 		t0 := time.Now()
 		jq, _ := json.Marshal(rawq)
-		log.Printf("Start %v, Doing search %s... ", t0.Format(time.RFC3339), jq)
+		log.Printf("[search=%p] Start %v, Doing search %s... ", rawq, t0.Format(time.RFC3339), jq)
 		defer func() {
 			d := time.Since(t0)
 			if ret_ != nil {
-				log.Printf("Start %v + %v = %v results", t0.Format(time.RFC3339), d, len(ret_.Blobs))
+				log.Printf("[search=%p] Start %v + %v = %v results", rawq, t0.Format(time.RFC3339), d, len(ret_.Blobs))
 			} else {
-				log.Printf("Start %v + %v = error", t0.Format(time.RFC3339), d)
+				log.Printf("[search=%p] Start %v + %v = error", rawq, t0.Format(time.RFC3339), d)
 			}
 		}()
 	}
@@ -938,6 +966,9 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 	cands := q.pickCandidateSource(s)
 	if candSourceHook != nil {
 		candSourceHook(cands.name)
+	}
+	if debugQuerySpeed {
+		log.Printf("[search=%p] using candidate source set %q", rawq, cands.name)
 	}
 
 	wantAround, foundAround := false, false
@@ -1127,6 +1158,82 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 	return s.res, nil
 }
 
+// mapCell is which cell of an NxN cell grid of a map a point is in.
+// The numbering is arbitrary but dense, starting with 0.
+type mapCell int
+
+// mapGrids contains 1 or 2 mapGrids, depending on whether the search
+// area cross the dateline.
+type mapGrids []*mapGrid
+
+func (gs mapGrids) cellOf(loc camtypes.Location) mapCell {
+	for i, g := range gs {
+		cell, ok := g.cellOf(loc)
+		if ok {
+			return cell + mapCell(i*g.dim*g.dim)
+		}
+	}
+	return 0 // shouldn't happen, unless loc is malformed, in which case this is fine.
+}
+
+func newMapGrids(area camtypes.LocationBounds, dim int) mapGrids {
+	if !area.SpansDateLine() {
+		return mapGrids{newMapGrid(area, dim)}
+	}
+	return mapGrids{
+		newMapGrid(camtypes.LocationBounds{
+			North: area.North,
+			South: area.South,
+			West:  area.West,
+			East:  180,
+		}, dim),
+		newMapGrid(camtypes.LocationBounds{
+			North: area.North,
+			South: area.South,
+			West:  -180,
+			East:  area.East,
+		}, dim),
+	}
+}
+
+type mapGrid struct {
+	dim        int // grid is dim*dim cells
+	area       camtypes.LocationBounds
+	cellWidth  float64
+	cellHeight float64
+}
+
+// newMapGrid returns a grid matcher over an area. The area must not
+// span the date line. The mapGrid maps locations to a grid of (dim *
+// dim) cells.
+func newMapGrid(area camtypes.LocationBounds, dim int) *mapGrid {
+	if area.SpansDateLine() {
+		panic("invalid use of newMapGrid: must be called with bounds not overlapping date line")
+	}
+	return &mapGrid{
+		dim:        dim,
+		area:       area,
+		cellWidth:  area.Width() / float64(dim),
+		cellHeight: (area.North - area.South) / float64(dim),
+	}
+}
+
+func (g *mapGrid) cellOf(loc camtypes.Location) (c mapCell, ok bool) {
+	if loc.Latitude > g.area.North || loc.Latitude < g.area.South ||
+		loc.Longitude < g.area.West || loc.Longitude > g.area.East {
+		return
+	}
+	x := int((loc.Longitude - g.area.West) / g.cellWidth)
+	y := int((g.area.North - loc.Latitude) / g.cellHeight)
+	if x >= g.dim {
+		x = g.dim - 1
+	}
+	if y >= g.dim {
+		y = g.dim - 1
+	}
+	return mapCell(y*g.dim + x), true
+}
+
 // bestByLocation conditionally modifies res.Blobs if the number of blobs
 // is greater than limit. If so, it modifies res.Blobs so only `limit`
 // blobs remain, selecting those such that the results are evenly spread
@@ -1153,87 +1260,52 @@ func bestByLocation(res *SearchResult, locm map[blob.Ref]camtypes.Location, limi
 		// No even one result node with a location was found.
 		return
 	}
-	area := res.LocationArea
-	// divide location area in a grid of ~limit cells, such as each cell is of the
-	// same proportion as the location area, i.e. equal number of lines and columns.
-	grid := make(map[camtypes.LocationBounds][]blob.Ref)
-	areaHeight := area.North - area.South
-	areaWidth := area.East - area.West
-	if area.West >= area.East {
-		// area is spanning over the antimeridian
-		areaWidth += 360
-	}
-	nbLines := math.Sqrt(float64(limit))
-	cellLat := areaHeight / nbLines
-	cellLong := areaWidth / nbLines
-	latZero := area.North
-	longZero := area.West
 
-	for _, v := range res.Blobs {
-		br := v.Blob
+	// Divide location area in a grid of (dim * dim) map cells,
+	// such that (dim * dim) is approximately the given limit,
+	// then track which search results are in which cell.
+	cellOccupants := make(map[mapCell][]blob.Ref)
+	dim := int(math.Round(math.Sqrt(float64(limit))))
+	if dim < 3 {
+		dim = 3
+	} else if dim > 100 {
+		dim = 100
+	}
+	grids := newMapGrids(*res.LocationArea, dim)
+
+	resBlob := map[blob.Ref]*SearchResultBlob{}
+	for _, srb := range res.Blobs {
+		br := srb.Blob
 		loc, ok := locm[br]
 		if !ok {
 			continue
 		}
-
-		relLat := latZero - loc.Latitude
-		relLong := loc.Longitude - longZero
-		if loc.Longitude < longZero {
-			// area is spanning over the antimeridian
-			relLong += 360
+		cellKey := grids.cellOf(loc)
+		occupants := cellOccupants[cellKey]
+		if len(occupants) >= limit {
+			// no sense in filling a cell to more than our overall limit
+			continue
 		}
-		line := int(relLat / cellLat)
-		col := int(relLong / cellLong)
-		cellKey := camtypes.LocationBounds{
-			North: latZero - float64(line)*cellLat,
-			West:  camtypes.Longitude(longZero + float64(col)*cellLong).WrapTo180(),
-			South: latZero - float64(line+1)*cellLat,
-			East:  camtypes.Longitude(longZero + float64(col+1)*cellLong).WrapTo180(),
-		}
-
-		var brs []blob.Ref
-		cell, ok := grid[cellKey]
-		if !ok {
-			// cell does not exist yet.
-			brs = []blob.Ref{br}
-		} else {
-			if len(cell) >= limit {
-				// no sense in filling a cell to more than our overall limit
-				continue
-			}
-			brs = append(cell, br)
-		}
-		grid[cellKey] = brs
+		cellOccupants[cellKey] = append(occupants, br)
+		resBlob[br] = srb
 	}
 
-	maxNodesPerCell := limit / len(grid)
-	if len(grid) > limit {
-		maxNodesPerCell = 1
-	}
 	var nodesKept []*SearchResultBlob
-	for _, v := range grid {
-		var brs []blob.Ref
-		if len(v) <= maxNodesPerCell {
-			brs = v
-		} else {
-			// TODO(mpl): remove the nodes that are the most clustered within a cell. For
-			// now simply do first found first picked, for each cell.
-			brs = v[:maxNodesPerCell]
+	for {
+		for cellKey, occupants := range cellOccupants {
+			nodesKept = append(nodesKept, resBlob[occupants[0]])
+			if len(nodesKept) == limit {
+				res.Blobs = nodesKept
+				return
+			}
+			if len(occupants) == 1 {
+				delete(cellOccupants, cellKey)
+			} else {
+				cellOccupants[cellKey] = occupants[1:]
+			}
 		}
-		for _, br := range brs {
-			// TODO(mpl): if grid was instead a
-			// map[camtypes.LocationBounds][]*SearchResultBlob from the start, then here we
-			// could instead do nodesKept = append(nodesKept, brs...), but I'm not sure that's a win?
-			nodesKept = append(nodesKept, &SearchResultBlob{
-				Blob: br,
-			})
-		}
+
 	}
-	res.Blobs = nodesKept
-	// TODO(mpl): we do not trim the described blobs, because some of the described
-	// are children of the kept blobs, and we wouldn't know whether to remove them or
-	// not. If we do care about the size of res.Describe, I suppose we should reissue a
-	// describe query on nodesKept.
 }
 
 // setResultContinue sets res.Continue if q is suitable for having a continue token.
@@ -1315,6 +1387,14 @@ func (q *SearchQuery) pickCandidateSource(s *search) (src candidateSource) {
 				return
 			default:
 				src.sorted = false
+				if typs := c.matchesPermanodeTypes(); len(typs) != 0 {
+					src.name = "corpus_permanode_types"
+					src.send = func(ctx context.Context, s *search, fn func(camtypes.BlobMeta) bool) error {
+						corpus.EnumeratePermanodesByNodeTypes(fn, typs)
+						return nil
+					}
+					return
+				}
 			}
 		}
 		if br := c.matchesAtMostOneBlob(); br.Valid() {
@@ -1633,18 +1713,22 @@ func (c *PermanodeConstraint) blobMatches(ctx context.Context, s *search, br blo
 		}
 	}
 
-	if c.Location != nil {
+	if c.Location != nil || s.q.Sort == MapSort {
 		l, err := s.h.lh.PermanodeLocation(ctx, br, c.At, s.h.owner)
-		if err != nil {
-			if err != os.ErrNotExist {
-				log.Printf("PermanodeLocation(ref %s): %v", br, err)
+		if c.Location != nil {
+			if err != nil {
+				if err != os.ErrNotExist {
+					log.Printf("PermanodeLocation(ref %s): %v", br, err)
+				}
+				return false, nil
 			}
-			return false, nil
+			if !c.Location.matchesLatLong(l.Latitude, l.Longitude) {
+				return false, nil
+			}
 		}
-		if !c.Location.matchesLatLong(l.Latitude, l.Longitude) {
-			return false, nil
+		if err == nil {
+			s.loc[br] = l
 		}
-		s.loc[br] = l
 	}
 
 	if cc := c.Continue; cc != nil {
@@ -1834,6 +1918,13 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 		s.loc[br] = camtypes.Location{
 			Latitude:  lat,
 			Longitude: long,
+		}
+	} else if s.q.Sort == MapSort {
+		if lat, long, found := corpus.FileLatLong(br); found {
+			s.loc[br] = camtypes.Location{
+				Latitude:  lat,
+				Longitude: long,
+			}
 		}
 	}
 	// this makes sure, in conjunction with TestQueryFileLocation, that we only
