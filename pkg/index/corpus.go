@@ -1048,6 +1048,13 @@ func (c *Corpus) EnumeratePermanodesCreated(fn func(camtypes.BlobMeta) bool, new
 	c.enumeratePermanodes(fn, c.permanodesByTime.sorted(newestFirst))
 }
 
+// EnumerateSingleBlob calls fn with br's BlobMeta if br exists in the corpus.
+func (c *Corpus) EnumerateSingleBlob(fn func(camtypes.BlobMeta) bool, br blob.Ref) {
+	if bm := c.blobs[br]; bm != nil {
+		fn(*bm)
+	}
+}
+
 func (c *Corpus) GetBlobMeta(ctx context.Context, br blob.Ref) (camtypes.BlobMeta, error) {
 	bm, ok := c.blobs[br]
 	if !ok {

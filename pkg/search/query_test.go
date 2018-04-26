@@ -1796,6 +1796,47 @@ func BenchmarkQueryPermanodeLocation(b *testing.B) {
 	})
 }
 
+// Issue 1118: be efficient when looking up a direct blobref with a "ref:" query.
+func TestRefQuerySource(t *testing.T) {
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+		fileRef, _ := id.UploadFile("some-stuff.txt", "hello", time.Unix(123, 0))
+		qt.t.Logf("fileRef = %q", fileRef)
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				BlobRefPrefix: fileRef.String(), // exact match
+			},
+		}
+		qt.candidateSource = "one_blob"
+		qt.wantRes(sq, fileRef)
+	})
+}
+
+func TestRefQuerySource_Logical(t *testing.T) {
+	testQueryTypes(t, memIndexTypes, func(qt *queryTest) {
+		id := qt.id
+		fileRef, _ := id.UploadFile("some-stuff.txt", "hello", time.Unix(123, 0))
+		qt.t.Logf("fileRef = %q", fileRef)
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Logical: &LogicalConstraint{
+					Op: "and",
+					A: &Constraint{
+						BlobRefPrefix: fileRef.String()[:10],
+					},
+					B: &Constraint{
+						BlobRefPrefix: fileRef.String(), // exact match
+					},
+				},
+			},
+		}
+		qt.candidateSource = "one_blob"
+		qt.wantRes(sq, fileRef)
+	})
+}
+
 // BenchmarkLocationPredicate aims at measuring the impact of
 // https://camlistore-review.googlesource.com/8049
 // ( + https://camlistore-review.googlesource.com/8649)

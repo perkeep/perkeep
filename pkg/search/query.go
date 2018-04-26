@@ -331,6 +331,29 @@ func (c *Constraint) checkValid() error {
 	return nil
 }
 
+// matchesAtMostOneBlob reports whether this constraint matches at most a single blob.
+// If so, it returns that blob. Otherwise it returns a zero, invalid blob.Ref.
+func (c *Constraint) matchesAtMostOneBlob() blob.Ref {
+	if c == nil {
+		return blob.Ref{}
+	}
+	if c.BlobRefPrefix != "" {
+		br, ok := blob.Parse(c.BlobRefPrefix)
+		if ok {
+			return br
+		}
+	}
+	if c.Logical != nil && c.Logical.Op == "and" {
+		if br := c.Logical.A.matchesAtMostOneBlob(); br.Valid() {
+			return br
+		}
+		if br := c.Logical.B.matchesAtMostOneBlob(); br.Valid() {
+			return br
+		}
+	}
+	return blob.Ref{}
+}
+
 func (c *Constraint) onlyMatchesPermanode() bool {
 	if c.Permanode != nil || c.CamliType == "permanode" {
 		return true
@@ -1294,6 +1317,14 @@ func (q *SearchQuery) pickCandidateSource(s *search) (src candidateSource) {
 				src.sorted = false
 			}
 		}
+		if br := c.matchesAtMostOneBlob(); br.Valid() {
+			src.name = "one_blob"
+			src.send = func(ctx context.Context, s *search, fn func(camtypes.BlobMeta) bool) error {
+				corpus.EnumerateSingleBlob(fn, br)
+				return nil
+			}
+			return
+		}
 		// fastpath for files
 		if c.matchesFileByWholeRef() {
 			src.name = "corpus_file_meta"
@@ -1386,7 +1417,7 @@ func (c *Constraint) genMatcher() matchFn {
 	}
 	if pfx := c.BlobRefPrefix; pfx != "" {
 		addCond(func(ctx context.Context, s *search, br blob.Ref, meta camtypes.BlobMeta) (bool, error) {
-			return strings.HasPrefix(br.String(), pfx), nil
+			return br.HasPrefix(pfx), nil
 		})
 	}
 	switch ncond {
