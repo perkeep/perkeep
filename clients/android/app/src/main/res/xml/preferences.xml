@@ -68,12 +68,6 @@
         android:title="@string/settings_max_cache_size_title" />
 
     <EditTextPreference
-        android:key="camli.trusted_cert"
-        android:persistent="true"
-        android:summary="@string/settings_trusted_cert_summary"
-        android:title="@string/settings_trusted_cert_title" />
-
-    <EditTextPreference
         android:key="camli.dev_ip"
         android:phoneNumber="true"
         android:persistent="true"

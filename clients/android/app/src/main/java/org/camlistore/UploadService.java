@@ -752,7 +752,7 @@ public class UploadService extends Service {
                 mLastNotificationProgress = -1;
 
                 mUploading = true;
-                mUploadThread = new UploadThread(UploadService.this, hp, mPrefs.trustedCert(), mPrefs.username(), mPrefs.password());
+                mUploadThread = new UploadThread(UploadService.this, hp, mPrefs.username(), mPrefs.password());
                 mUploadThread.start();
 
                 // Start a thread to release the wakelock...

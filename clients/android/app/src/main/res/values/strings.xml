@@ -9,8 +9,6 @@
     <string name="profiles_summary">default</string>
     <string name="settings_qr_title">QR</string>
     <string name="settings_qr_summary">Scan QR code from /ui/mobile.html</string>
-    <string name="settings_trusted_cert_title">Self-signed cert fingerprint</string>
-    <string name="settings_trusted_cert_summary">The fingerprint of your self-signed certificate. Not needed for commercial certs.</string>
     <string name="settings_username_title">Username</string>
     <string name="settings_password_title">Password</string>
     <string name="settings_max_cache_size_title">Maximum cache size</string>
