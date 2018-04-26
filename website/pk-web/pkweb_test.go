@@ -21,6 +21,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -95,6 +96,7 @@ func TestDocHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to getwd: %v", err)
 	}
+	*root = filepath.Join(*root, "..")
 	readTemplates()
 
 	tests := []struct {
