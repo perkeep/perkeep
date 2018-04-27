@@ -86,7 +86,7 @@ type handlerLoader struct {
 }
 
 // A HandlerInstaller is anything that can register an HTTP Handler at
-// a prefix path.  Both *http.ServeMux and camlistore.org/pkg/webserver.Server
+// a prefix path.  Both *http.ServeMux and perkeep.org/pkg/webserver.Server
 // implement HandlerInstaller.
 type HandlerInstaller interface {
 	Handle(path string, h http.Handler)
@@ -109,7 +109,7 @@ func parseCamliPath(path string) (action string, err error) {
 }
 
 func unsupportedHandler(conn http.ResponseWriter, req *http.Request) {
-	httputil.BadRequestError(conn, "Unsupported camlistore path or method.")
+	httputil.BadRequestError(conn, "Unsupported Perkeep path or method.")
 }
 
 func (s *storageAndConfig) Config() *blobserver.Config {

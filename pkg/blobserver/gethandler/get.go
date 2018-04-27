@@ -20,6 +20,7 @@ package gethandler // import "perkeep.org/pkg/blobserver/gethandler"
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -63,6 +64,12 @@ func (h *Handler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
 // ServeBlobRef serves a blob.
 func ServeBlobRef(rw http.ResponseWriter, req *http.Request, blobRef blob.Ref, fetcher blob.Fetcher) {
 	ctx := req.Context()
+	if fetcher == nil {
+		log.Printf("gethandler: no fetcher configured for %s (ref=%v)", req.URL.Path, blobRef)
+		rw.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(rw, "no fetcher configured", blobRef)
+		return
+	}
 	rc, size, err := fetcher.Fetch(ctx, blobRef)
 	switch err {
 	case nil:
