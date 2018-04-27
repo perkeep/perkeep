@@ -261,6 +261,11 @@ func awaitQuitKey(done chan<- bool) {
 			return
 		}
 		if buf[0] == 'q' {
+			if *debug {
+				stacks := make([]byte, 1<<20)
+				stacks = stacks[:runtime.Stack(stacks, true)]
+				os.Stderr.Write(stacks)
+			}
 			done <- true
 			return
 		}
