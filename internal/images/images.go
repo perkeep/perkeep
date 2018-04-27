@@ -57,7 +57,7 @@ var ErrHEIC = errors.New("HEIC decoding not implemented yet")
 
 func init() {
 	image.RegisterFormat("heic",
-		"????ftypheic????????????????meta????????hdlr????????pict",
+		"????ftypheic",
 		func(io.Reader) (image.Image, error) {
 			return nil, ErrHEIC
 		},
@@ -364,7 +364,7 @@ var debug, _ = strconv.ParseBool(os.Getenv("CAMLI_DEBUG_IMAGES"))
 
 func imageDebug(msg string) {
 	if debug {
-		log.Print(msg)
+		log.Print("internal/images: " + msg)
 	}
 }
 
@@ -396,7 +396,9 @@ func DecodeConfig(r io.Reader) (Config, error) {
 
 	conf, format, err := image.DecodeConfig(tr)
 	if err != nil {
-		imageDebug(fmt.Sprintf("Image Decoding failed: %v", err))
+		if debug {
+			log.Printf("internal/images: DecodeConfig failed after reading %d bytes: %v", buf.Len(), err)
+		}
 		return Config{}, err
 	}
 	c := Config{

@@ -18,6 +18,7 @@ package images
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/jpeg"
 	"io"
@@ -377,7 +378,7 @@ func TestIssue513(t *testing.T) {
 	}
 }
 
-func TestHEIF(t *testing.T) {
+func TestHEIFToJPEG(t *testing.T) {
 	filename := filepath.Join("testdata", "IMG_8062.HEIC")
 	f, err := os.Open(filename)
 	if err != nil {
@@ -400,5 +401,24 @@ func TestHEIF(t *testing.T) {
 	}
 	if conf.Width != wantWidth || conf.Height != wantHeight {
 		t.Fatalf("wrong width or height, wanted (%d, %d), got (%d, %d)", wantWidth, wantHeight, conf.Width, conf.Height)
+	}
+}
+
+func TestDecodeHEIC_WithJPEGInHeader(t *testing.T) {
+	filename := filepath.Join("testdata", "river-truncated.heic")
+	f, err := os.Open(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	conf, err := DecodeConfig(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := fmt.Sprintf("Width:%d Height:%d Format:%v HEIC:%d bytes", conf.Width, conf.Height, conf.Format, len(conf.HEICEXIF))
+	want := "Width:6302 Height:3912 Format:heic HEIC:1046 bytes"
+	if got != want {
+		t.Errorf("Got:\n  %s\nWant:\n  %s", got, want)
 	}
 }

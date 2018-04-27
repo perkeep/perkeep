@@ -248,6 +248,9 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 	}
 
 	mm, err := ix.populateMutationMap(ctx, fetcher, blobRef, sniffer)
+	if debugEnv {
+		log.Printf("index of %v: mm=%v, err=%v", blobRef, mm, err)
+	}
 	if err != nil {
 		if err != errMissingDep {
 			return blob.SizedRef{}, err
@@ -503,6 +506,8 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 		}
 		if err := readPrefixOrFile(imageBuf.Bytes, fetcher, b, decodeConfig); err == nil {
 			mm.Set(keyImageSize.Key(blobRef), keyImageSize.Val(fmt.Sprint(conf.Width), fmt.Sprint(conf.Height)))
+		} else if debugEnv {
+			log.Printf("index: WARNING: image decodeConfig: %v", err)
 		}
 
 		exifData := imageBuf.Bytes
@@ -517,6 +522,9 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 
 		if err = readPrefixOrFile(exifData, fetcher, b, fileTime); err == nil {
 			times = append(times, ft)
+		} else if debugEnv {
+			log.Printf("index: WARNING: image fileTime: %v", err)
+
 		}
 		if exifDebug {
 			log.Printf("filename %q exif = %v, %v", b.FileName(), ft, err)
