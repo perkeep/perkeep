@@ -52,6 +52,7 @@ cam.Header = React.createClass({
 		height: React.PropTypes.number.isRequired,
 		helpURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		homeURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
+		mobileSetupURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		importersURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		mainControls: React.PropTypes.arrayOf(React.PropTypes.node),
 		onNewPermanode: React.PropTypes.func,
@@ -224,6 +225,7 @@ cam.Header = React.createClass({
 			this.getMenuItem_('Importers', this.props.importersURL),
 			this.getMenuItem_('Server status', this.props.statusURL),
 			this.getMenuItem_('Favorites', this.props.favoritesURL),
+			this.getMenuItem_('Mobile Setup', this.props.mobileSetupURL),
 			this.getMenuItem_('Help', this.props.helpURL),
 			// We could use getMenuItem_, and only implement
 			// the onClick part with Go, but we're instead also

@@ -190,10 +190,20 @@ func (rh *RootHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/ui/", http.StatusMovedPermanently)
 		return
 	}
-	if r.URL.Path == "/favicon.ico" {
+	switch r.URL.Path {
+	case "/favicon.ico":
 		ServeStaticFile(w, r, Files, "favicon.ico")
 		return
+	case "/mobile-setup":
+		http.Redirect(w, r, "/ui/mobile.html", http.StatusFound)
+		return
+	case "/":
+		break
+	default:
+		http.NotFound(w, r)
+		return
 	}
+
 	f := func(p string, a ...interface{}) {
 		fmt.Fprintf(w, p, a...)
 	}

@@ -83,7 +83,7 @@ cam.MobileSetupView = React.createClass({
 			React.DOM.div({},
 				React.DOM.img({src:this.getQRURL_()}),
 				React.DOM.form({ref:'form', onSubmit:this.handleChange_},
-					React.DOM.label({}, 'Camlistore Server:',
+					React.DOM.label({}, 'Perkeep Server:',
 						React.DOM.input({
 							defaultValue: this.state.server,
 							onChange: this.handleServerChange_,
@@ -113,12 +113,6 @@ cam.MobileSetupView = React.createClass({
 							type: 'text'
 						}),
 						'MB'),
-					React.DOM.label({}, 'Self-signed cert fingerprint:',
-						React.DOM.input({
-							onChange: this.handleCertFingerprintChange_,
-							placeholder: '<unset; optional 20 hex SHA-256 prefix>',
-							type: 'text'
-						}))
 			)));
 	},
 
