@@ -84,6 +84,8 @@ type imp struct {
 
 func (imp) Properties() importer.Properties {
 	return importer.Properties{
+		Title:               "Google Photos (via Picasa API)",
+		Description:         "import your photos from Google Photos. (limited to 10,000 photos per Google Photos API bug for now)",
 		SupportsIncremental: true,
 		NeedsAPIKey:         true,
 	}

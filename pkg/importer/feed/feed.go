@@ -57,6 +57,8 @@ type imp struct {
 
 func (*imp) Properties() importer.Properties {
 	return importer.Properties{
+		Title:               "Feed",
+		Description:         "importer for RSS, Atom, and RDF feeds",
 		SupportsIncremental: true,
 		NeedsAPIKey:         false,
 	}

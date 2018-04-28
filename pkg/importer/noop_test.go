@@ -16,45 +16,4 @@ limitations under the License.
 
 package importer
 
-import (
-	"errors"
-	"fmt"
-	"net/http"
-)
-
-var TODOImporter Importer = todoImp{}
-
-type todoImp struct {
-	OAuth1 // for CallbackRequestAccount and CallbackURLParameters
-}
-
-func (todoImp) Properties() Properties {
-	return Properties{
-		NeedsAPIKey:         false,
-		SupportsIncremental: false,
-	}
-}
-
-func (todoImp) Run(*RunContext) error {
-	return errors.New("fake error from todo importer")
-}
-
-func (todoImp) IsAccountReady(acctNode *Object) (ok bool, err error) {
-	return
-}
-
-func (todoImp) SummarizeAccount(acctNode *Object) string { return "" }
-
-func (todoImp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *SetupContext) error {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	fmt.Fprintf(w, "The Setup page for the TODO importer.\nnode = %v\ncallback = %s\naccount URL = %s\n",
-		ctx.AccountNode,
-		ctx.CallbackURL(),
-		"ctx.AccountURL()")
-	return nil
-}
-
-func (todoImp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *SetupContext) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	fmt.Fprintf(w, "The callback page for the TODO importer.\n")
-}
+var TODOImporter Importer = &todoImp{}

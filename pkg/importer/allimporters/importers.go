@@ -18,6 +18,7 @@ limitations under the License.
 package allimporters // import "perkeep.org/pkg/importer/allimporters"
 
 import (
+	"perkeep.org/pkg/importer"
 	_ "perkeep.org/pkg/importer/dummy"
 	_ "perkeep.org/pkg/importer/feed"
 	_ "perkeep.org/pkg/importer/flickr"
@@ -28,3 +29,26 @@ import (
 	_ "perkeep.org/pkg/importer/swarm"
 	_ "perkeep.org/pkg/importer/twitter"
 )
+
+func init() {
+	importer.RegisterTODO("facebook", importer.Properties{
+		Title:       "Facebook",
+		Description: "import Facebook content",
+		TODOIssue:   1027,
+	})
+	importer.RegisterTODO("runkeeper", importer.Properties{
+		Title:       "Runkeeper",
+		Description: "import workout data from Runkeeper",
+		TODOIssue:   1124,
+	})
+	importer.RegisterTODO("strava", importer.Properties{
+		Title:       "Strava",
+		Description: "import workout data from Strava",
+		TODOIssue:   1125,
+	})
+	importer.RegisterTODO("instagram", importer.Properties{
+		Title:       "Instagram",
+		Description: "import photos from Instagram",
+		TODOIssue:   1126,
+	})
+}

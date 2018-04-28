@@ -103,6 +103,8 @@ type imp struct {
 
 func (imp) Properties() importer.Properties {
 	return importer.Properties{
+		Title:               "Pinboard",
+		Description:         "import your pinboard.in posts",
 		SupportsIncremental: false,
 		NeedsAPIKey:         false,
 	}

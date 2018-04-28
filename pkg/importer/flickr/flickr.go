@@ -69,6 +69,8 @@ type imp struct {
 
 func (imp) Properties() importer.Properties {
 	return importer.Properties{
+		Title:               "Flickr",
+		Description:         "import your photos from Flickr.com",
 		SupportsIncremental: false,
 		NeedsAPIKey:         true,
 	}

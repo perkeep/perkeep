@@ -87,6 +87,8 @@ type imp struct {
 
 func (imp) Properties() importer.Properties {
 	return importer.Properties{
+		Title:               "Google Photos (via Drive API)",
+		Description:         "import all your photos from Google Photos, via Google Drive. (requires settings changes in Drive)",
 		SupportsIncremental: true, // TODO: but not well
 		NeedsAPIKey:         true,
 	}

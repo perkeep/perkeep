@@ -88,6 +88,8 @@ type imp struct {
 
 func (*imp) Properties() importer.Properties {
 	return importer.Properties{
+		Title:                 "Swarm",
+		Description:           "import check-ins and venues from Foursquare Swarm (swarmapp.com)",
 		SupportsIncremental:   true,
 		NeedsAPIKey:           true,
 		PermanodeImporterType: "foursquare", // old brand name

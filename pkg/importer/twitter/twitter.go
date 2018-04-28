@@ -104,6 +104,9 @@ type imp struct {
 
 func (*imp) Properties() importer.Properties {
 	return importer.Properties{
+		Title:       "Twitter",
+		Description: "import tweets and media from tweets",
+		// TODO: doc URL for linking to info on historical tweets from ZIP files beyond API limit
 		SupportsIncremental: true,
 		NeedsAPIKey:         true,
 	}

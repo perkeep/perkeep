@@ -92,6 +92,13 @@ type Importer interface {
 
 // Properties contains the properties of an importer type.
 type Properties struct {
+	Title       string
+	Description string
+
+	// TODOIssue, if non-zero, marks the importer as invalid, but the UI
+	// will link to a tracking bug for implementing it.
+	TODOIssue int
+
 	// NeedsAPIKey reports whether this importer requires an API key
 	// (OAuth2 client_id & client_secret, or equivalent).
 	// If the API only requires a username & password, or a flow to get
@@ -178,6 +185,10 @@ func Register(name string, im Importer) {
 		reservedImporterKey[pt] = true
 	}
 	importers[name] = im
+}
+
+func RegisterTODO(name string, p Properties) {
+	Register(name, &todoImp{Props: p})
 }
 
 func init() {
@@ -558,6 +569,9 @@ func (h *Host) serveImportersRoot(w http.ResponseWriter, r *http.Request) {
 	for _, v := range h.importers {
 		body.Importers = append(body.Importers, h.imp[v])
 	}
+	sort.Slice(body.Importers, func(i, j int) bool {
+		return body.Importers[i].Title() < body.Importers[j].Title()
+	})
 	h.execTemplate(w, r, importersRootPage{
 		Title: "Importers",
 		Body:  body,
@@ -656,6 +670,7 @@ func (h *Host) serveImporterAccount(w http.ResponseWriter, r *http.Request, imp 
 
 func (h *Host) startPeriodicImporters() {
 	res, err := h.search.Query(context.TODO(), &search.SearchQuery{
+		Sort:       search.Unsorted,
 		Expression: "attr:camliNodeType:importerAccount",
 		Describe: &search.DescribeRequest{
 			Depth: 1,
@@ -787,6 +802,21 @@ type importer struct {
 }
 
 func (im *importer) Name() string { return im.name }
+
+func (im *importer) Title() string {
+	if im.props.Title != "" {
+		return im.props.Title
+	}
+	return im.name
+}
+
+func (im *importer) TODOIssue() int {
+	return im.props.TODOIssue
+}
+
+func (im *importer) Description() string {
+	return im.props.Description
+}
 
 // ImporterType returns the account permanode's attrImporterType
 // value. This is almost always the same as the Name, except in cases
@@ -961,6 +991,7 @@ func (im *importer) Accounts() ([]*importerAcct, error) {
 
 	if needQuery {
 		res, err := im.host.search.Query(context.TODO(), &search.SearchQuery{
+			Sort: search.Unsorted,
 			Expression: fmt.Sprintf("attr:%s:%s attr:%s:%s",
 				attrNodeType, nodeTypeImporterAccount,
 				attrImporterType, im.ImporterType(),
@@ -1010,6 +1041,7 @@ func (im *importer) Node() (*Object, error) {
 		attrImporterType, im.ImporterType(),
 	)
 	res, err := im.host.search.Query(context.TODO(), &search.SearchQuery{
+		Sort:       search.Unsorted,
 		Limit:      10, // might be more than one because of multiple blob hash types
 		Expression: expr,
 	})

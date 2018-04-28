@@ -104,7 +104,11 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]interface{}{
    <ul>
       {{$base := .Host.ImporterBaseURL}}
       {{range .Importers}}
-         <li><a href="{{$base}}{{.Name}}">{{.Name}}</a></li>
+         {{if .TODOIssue}}
+             <li><b>{{.Title}}</b>: TODO: <a href="https://perkeep.org/issue/{{.TODOIssue}}">Issue {{.TODOIssue}}</a></li>
+         {{else}}
+             <li><b><a href="{{$base}}{{.Name}}">{{.Title}}</a></b>{{if .Description}}: {{.Description}}{{end}}</li>
+         {{end}}
       {{end}}
    </ul>
 {{end}}

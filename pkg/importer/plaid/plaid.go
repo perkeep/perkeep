@@ -44,6 +44,8 @@ type imp struct{}
 
 func (*imp) Properties() importer.Properties {
 	return importer.Properties{
+		Title:               "Plaid",
+		Description:         "import your financial transactions from plaid.com",
 		SupportsIncremental: true,
 		NeedsAPIKey:         true,
 	}
