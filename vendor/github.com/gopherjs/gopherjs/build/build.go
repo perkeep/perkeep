@@ -42,7 +42,7 @@ func (e *ImportCError) Error() string {
 // Core GopherJS packages (i.e., "github.com/gopherjs/gopherjs/js", "github.com/gopherjs/gopherjs/nosync")
 // are loaded from gopherjspkg.FS virtual filesystem rather than GOPATH.
 func NewBuildContext(installSuffix string, buildTags []string) *build.Context {
-	gopherJSRoot := filepath.Join(build.Default.GOROOT, "src", "github.com", "gopherjs", "gopherjs")
+	gopherjsRoot := filepath.Join(build.Default.GOROOT, "src", "github.com", "gopherjs", "gopherjs")
 	return &build.Context{
 		GOROOT:        build.Default.GOROOT,
 		GOPATH:        build.Default.GOPATH,
@@ -58,8 +58,8 @@ func NewBuildContext(installSuffix string, buildTags []string) *build.Context {
 		CgoEnabled:  true, // detect `import "C"` to throw proper error
 
 		IsDir: func(path string) bool {
-			if strings.HasPrefix(path, gopherJSRoot+string(filepath.Separator)) {
-				path = filepath.ToSlash(path[len(gopherJSRoot):])
+			if strings.HasPrefix(path, gopherjsRoot+string(filepath.Separator)) {
+				path = filepath.ToSlash(path[len(gopherjsRoot):])
 				if fi, err := vfsutil.Stat(gopherjspkg.FS, path); err == nil {
 					return fi.IsDir()
 				}
@@ -68,8 +68,8 @@ func NewBuildContext(installSuffix string, buildTags []string) *build.Context {
 			return err == nil && fi.IsDir()
 		},
 		ReadDir: func(path string) ([]os.FileInfo, error) {
-			if strings.HasPrefix(path, gopherJSRoot+string(filepath.Separator)) {
-				path = filepath.ToSlash(path[len(gopherJSRoot):])
+			if strings.HasPrefix(path, gopherjsRoot+string(filepath.Separator)) {
+				path = filepath.ToSlash(path[len(gopherjsRoot):])
 				if fis, err := vfsutil.ReadDir(gopherjspkg.FS, path); err == nil {
 					return fis, nil
 				}
@@ -77,8 +77,8 @@ func NewBuildContext(installSuffix string, buildTags []string) *build.Context {
 			return ioutil.ReadDir(path)
 		},
 		OpenFile: func(path string) (io.ReadCloser, error) {
-			if strings.HasPrefix(path, gopherJSRoot+string(filepath.Separator)) {
-				path = filepath.ToSlash(path[len(gopherJSRoot):])
+			if strings.HasPrefix(path, gopherjsRoot+string(filepath.Separator)) {
+				path = filepath.ToSlash(path[len(gopherjsRoot):])
 				if f, err := gopherjspkg.FS.Open(path); err == nil {
 					return f, nil
 				}
@@ -92,9 +92,9 @@ func NewBuildContext(installSuffix string, buildTags []string) *build.Context {
 // For files in "$GOROOT/src/github.com/gopherjs/gopherjs" directory,
 // gopherjspkg.FS is consulted first.
 func statFile(path string) (os.FileInfo, error) {
-	gopherJSRoot := filepath.Join(build.Default.GOROOT, "src", "github.com", "gopherjs", "gopherjs")
-	if strings.HasPrefix(path, gopherJSRoot+string(filepath.Separator)) {
-		path = filepath.ToSlash(path[len(gopherJSRoot):])
+	gopherjsRoot := filepath.Join(build.Default.GOROOT, "src", "github.com", "gopherjs", "gopherjs")
+	if strings.HasPrefix(path, gopherjsRoot+string(filepath.Separator)) {
+		path = filepath.ToSlash(path[len(gopherjsRoot):])
 		if fi, err := vfsutil.Stat(gopherjspkg.FS, path); err == nil {
 			return fi, nil
 		}

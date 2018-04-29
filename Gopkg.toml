@@ -26,8 +26,8 @@ required = [
   "golang.org/x/text",
   "github.com/neelance/sourcemap",
   "golang.org/x/sys/unix",
+  "golang.org/x/tools/go/gcexportdata", # for gopherjs
   "golang.org/x/tools/go/types/typeutil", # for gopherjs
-  "golang.org/x/tools/go/gcimporter15", # for gopherjs
   "google.golang.org/genproto/googleapis/datastore/v1",
   "myitcv.io/react/cmd/reactGen",
   "myitcv.io/gogenerate"
@@ -65,7 +65,6 @@ ignored = [
   "golang.org/x/oauth2/google/testdata",
   "golang.org/x/text/encoding/testdata",
   "golang.org/x/text/language/testdata",
-  "golang.org/x/tools/go/gcimporter15/testdata",
   "golang.org/x/tools/refactor/importgraph",
   "google.golang.org/grpc/benchmark",
   "google.golang.org/grpc/examples",
@@ -146,8 +145,7 @@ ignored = [
 
 [[constraint]]
   name = "github.com/gopherjs/gopherjs"
-  # temporarily switching to embed-core-pkgs branch, until Dmitri merges it to master.
-  revision = "2ad4a5b9a30e5f1f31c643c2a2ac27543a5ddb58"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/gopherjs/jquery"
