@@ -123,10 +123,11 @@ func TestWebsocketQuery(t *testing.T) {
 func TestInternalHandler(t *testing.T) {
 	w := test.GetWorld(t)
 	tests := map[string]int{
-		"/no-http-storage/":                                                    401,
-		"/no-http-handler/":                                                    401,
-		"/good-status/":                                                        200,
-		"/bs-and-maybe-also-index/camli":                                       400,
+		"/":                                   200,
+		"/test-that-root-handler-returns-404": 404,
+		"/no-http-storage/":                   401,
+		"/no-http-handler/":                   401,
+		"/bs-and-maybe-also-index/camli":      400,
 		"/bs/camli/sha1-b2201302e129a4396a323cb56283cddeef11bbe8":              404,
 		"/no-http-storage/camli/sha1-b2201302e129a4396a323cb56283cddeef11bbe8": 401,
 	}
