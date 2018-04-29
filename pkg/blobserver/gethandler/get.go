@@ -67,7 +67,7 @@ func ServeBlobRef(rw http.ResponseWriter, req *http.Request, blobRef blob.Ref, f
 	if fetcher == nil {
 		log.Printf("gethandler: no fetcher configured for %s (ref=%v)", req.URL.Path, blobRef)
 		rw.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(rw, "no fetcher configured", blobRef)
+		io.WriteString(rw, "no fetcher configured")
 		return
 	}
 	rc, size, err := fetcher.Fetch(ctx, blobRef)
