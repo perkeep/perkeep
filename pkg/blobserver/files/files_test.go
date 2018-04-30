@@ -14,27 +14,4 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package localdisk
-
-import (
-	"fmt"
-	"path/filepath"
-
-	"perkeep.org/pkg/blob"
-)
-
-func blobFileBaseName(b blob.Ref) string {
-	return fmt.Sprintf("%s-%s.dat", b.HashName(), b.Digest())
-}
-
-func (ds *DiskStorage) blobDirectory(b blob.Ref) string {
-	d := b.Digest()
-	if len(d) < 4 {
-		d = d + "____"
-	}
-	return filepath.Join(ds.root, b.HashName(), d[0:2], d[2:4])
-}
-
-func (ds *DiskStorage) blobPath(b blob.Ref) string {
-	return filepath.Join(ds.blobDirectory(b), blobFileBaseName(b))
-}
+package files_test

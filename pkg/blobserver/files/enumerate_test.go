@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package localdisk
+package files_test
 
 import (
 	"context"
@@ -22,16 +22,35 @@ import (
 	"io/ioutil"
 	"os"
 	"sort"
+	"sync"
 	"testing"
 
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/files"
 	"perkeep.org/pkg/test"
-	. "perkeep.org/pkg/test/asserts"
+	. "perkeep.org/pkg/test/asserts" // delete this grossness
 )
 
+var (
+	epochLock sync.Mutex
+	rootEpoch = 0
+)
+
+func NewTestStorage(t *testing.T) (sto blobserver.Storage, root string) {
+	epochLock.Lock()
+	rootEpoch++
+	path := fmt.Sprintf("%s/camli-testroot-%d-%d", os.TempDir(), os.Getpid(), rootEpoch)
+	epochLock.Unlock()
+	if err := os.MkdirAll(path, 0755); err != nil {
+		t.Fatalf("Failed to create temp directory %q: %v", path, err)
+	}
+	return files.NewStorage(files.OSFS(), path), path
+}
+
 func TestEnumerate(t *testing.T) {
-	ds := NewStorage(t)
-	defer cleanUp(ds)
+	ds, root := NewTestStorage(t)
+	defer os.RemoveAll(root)
 
 	// For test simplicity foo, bar, and baz all have ascending
 	// sha1s and lengths.
@@ -86,8 +105,8 @@ func TestEnumerate(t *testing.T) {
 }
 
 func TestEnumerateEmpty(t *testing.T) {
-	ds := NewStorage(t)
-	defer cleanUp(ds)
+	ds, root := NewTestStorage(t)
+	defer os.RemoveAll(root)
 
 	limit := 5000
 	ch := make(chan blob.SizedRef)
@@ -116,8 +135,8 @@ func (sb SortedSizedBlobs) Swap(i, j int) {
 }
 
 func TestEnumerateIsSorted(t *testing.T) {
-	ds := NewStorage(t)
-	defer cleanUp(ds)
+	ds, root := NewTestStorage(t)
+	defer os.RemoveAll(root)
 
 	const blobsToMake = 250
 	t.Logf("Uploading test blobs...")
@@ -129,13 +148,13 @@ func TestEnumerateIsSorted(t *testing.T) {
 	// Make some fake blobs in other partitions to confuse the
 	// enumerate code.
 	// TODO(bradfitz): remove this eventually.
-	fakeDir := ds.root + "/partition/queue-indexer/sha1/1f0/710"
+	fakeDir := root + "/partition/queue-indexer/sha1/1f0/710"
 	ExpectNil(t, os.MkdirAll(fakeDir, 0755), "creating fakeDir")
 	ExpectNil(t, ioutil.WriteFile(fakeDir+"/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat",
 		[]byte("fake file"), 0644), "writing fake blob")
 
 	// And the same for a "cache" directory, used by the default configuration.
-	fakeDir = ds.root + "/cache/sha1/1f0/710"
+	fakeDir = root + "/cache/sha1/1f0/710"
 	ExpectNil(t, os.MkdirAll(fakeDir, 0755), "creating cache fakeDir")
 	ExpectNil(t, ioutil.WriteFile(fakeDir+"/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat",
 		[]byte("fake file"), 0644), "writing fake blob")

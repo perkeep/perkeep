@@ -32,15 +32,11 @@ package localdisk // import "perkeep.org/pkg/blobserver/localdisk"
 
 import (
 	"bytes"
-	"context"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
-	"math"
 	"os"
 	"path/filepath"
-	"sync"
 
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
@@ -55,25 +51,12 @@ import (
 // DiskStorage implements the blobserver.Storage interface using the
 // local filesystem.
 type DiskStorage struct {
+	blobserver.Storage
+
 	root string
-
-	fs files.VFS
-
-	// dirLockMu must be held for writing when deleting an empty directory
-	// and for read when receiving blobs.
-	dirLockMu *sync.RWMutex
 
 	// gen will be nil if partition != ""
 	gen *local.Generationer
-
-	// tmpFileGate limits the number of temporary files open at the same
-	// time, so we don't run into the max set by ulimit. It is nil on
-	// systems (Windows) where we don't know the maximum number of open
-	// file descriptors.
-	tmpFileGate *syncutil.Gate
-
-	// statGate limits how many pending Stat calls we have in flight.
-	statGate *syncutil.Gate
 }
 
 func (ds *DiskStorage) String() string {
@@ -121,15 +104,11 @@ func New(root string) (*DiskStorage, error) {
 	if !fi.IsDir() {
 		return nil, fmt.Errorf("storage root %q exists but is not a directory", root)
 	}
+	fileSto := files.NewStorage(files.OSFS(), root)
 	ds := &DiskStorage{
-		fs:        osFS{},
-		root:      root,
-		dirLockMu: new(sync.RWMutex),
-		gen:       local.NewGenerationer(root),
-		statGate:  syncutil.NewGate(10), // arbitrary, but bounded; be more clever later?
-	}
-	if err := ds.migrate3to2(); err != nil {
-		return nil, fmt.Errorf("Error updating localdisk format: %v", err)
+		Storage: fileSto,
+		root:    root,
+		gen:     local.NewGenerationer(root),
 	}
 	if _, _, err := ds.StorageGeneration(); err != nil {
 		return nil, fmt.Errorf("Error initialization generation for %q: %v", root, err)
@@ -147,7 +126,8 @@ func New(root string) (*DiskStorage, error) {
 	}
 	// Setting the gate to 80% of the ulimit, to leave a bit of room for other file ops happening in Perkeep.
 	// TODO(mpl): make this used and enforced Perkeep-wide. Issue #837.
-	ds.tmpFileGate = syncutil.NewGate(int(ul * 80 / 100))
+	fileSto.SetNewFileGate(syncutil.NewGate(int(ul * 80 / 100)))
+
 	err = ds.checkFS()
 	if err != nil {
 		return nil, err
@@ -167,93 +147,10 @@ func init() {
 	blobserver.RegisterStorageConstructor("filesystem", blobserver.StorageConstructor(newFromConfig))
 }
 
-func (ds *DiskStorage) tryRemoveDir(dir string) {
-	ds.dirLockMu.Lock()
-	defer ds.dirLockMu.Unlock()
-	ds.fs.RemoveDir(dir) // ignore error
-}
-
-func (ds *DiskStorage) Fetch(ctx context.Context, br blob.Ref) (io.ReadCloser, uint32, error) {
-	return ds.fetch(ctx, br, 0, -1)
-}
-
-func (ds *DiskStorage) SubFetch(ctx context.Context, br blob.Ref, offset, length int64) (io.ReadCloser, error) {
-	if offset < 0 || length < 0 {
-		return nil, blob.ErrNegativeSubFetch
-	}
-	rc, _, err := ds.fetch(ctx, br, offset, length)
-	return rc, err
-}
-
-// u32 converts n to an uint32, or panics if n is out of range
-func u32(n int64) uint32 {
-	if n < 0 || n > math.MaxUint32 {
-		panic("bad size " + fmt.Sprint(n))
-	}
-	return uint32(n)
-}
-
-// length -1 means entire file
-func (ds *DiskStorage) fetch(ctx context.Context, br blob.Ref, offset, length int64) (rc io.ReadCloser, size uint32, err error) {
-	// TODO: use ctx, if the os package ever supports that.
-	fileName := ds.blobPath(br)
-	stat, err := ds.fs.Stat(fileName)
-	if os.IsNotExist(err) {
-		return nil, 0, os.ErrNotExist
-	}
-	size = u32(stat.Size())
-	file, err := ds.fs.Open(fileName)
-	if err != nil {
-		if os.IsNotExist(err) {
-			err = os.ErrNotExist
-		}
-		return nil, 0, err
-	}
-	// normal Fetch
-	if length < 0 && offset == 0 {
-		return file, size, nil
-	}
-	// SubFetch:
-	if offset < 0 || offset > stat.Size() {
-		if offset < 0 {
-			return nil, 0, blob.ErrNegativeSubFetch
-		}
-		return nil, 0, blob.ErrOutOfRangeOffsetSubFetch
-	}
-	if offset != 0 {
-		if at, err := file.Seek(offset, io.SeekStart); err != nil || at != offset {
-			file.Close()
-			return nil, 0, fmt.Errorf("localdisk: error seeking to %d: got %v, %v", offset, at, err)
-		}
-	}
-	return struct {
-		io.Reader
-		io.Closer
-	}{
-		Reader: io.LimitReader(file, length),
-		Closer: file,
-	}, 0 /* unused */, nil
-}
-
-func (ds *DiskStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
-	for _, blob := range blobs {
-		fileName := ds.blobPath(blob)
-		err := ds.fs.Remove(fileName)
-		switch {
-		case err == nil:
-			continue
-		case os.IsNotExist(err):
-			// deleting already-deleted file; harmless.
-			continue
-		default:
-			return err
-		}
-	}
-	return nil
-}
-
 // checkFS verifies the DiskStorage root storage path
 // operations include: stat, read/write file, mkdir, delete (files and directories)
+//
+// TODO: move this into the files package too?
 func (ds *DiskStorage) checkFS() (ret error) {
 	tempdir, err := ioutil.TempDir(ds.root, "")
 	if err != nil {
@@ -296,33 +193,4 @@ func (ds *DiskStorage) checkFS() (ret error) {
 		return fmt.Errorf("localdisk check: after rename passed Lstat had error, err=%v", err)
 	}
 	return nil
-}
-
-// osFS implements the files.VFS interface using the os package and
-// the host filesystem.
-type osFS struct{}
-
-func (osFS) Remove(path string) error                     { return os.Remove(path) }
-func (osFS) RemoveDir(path string) error                  { return os.Remove(path) }
-func (osFS) Stat(path string) (os.FileInfo, error)        { return os.Stat(path) }
-func (osFS) Lstat(path string) (os.FileInfo, error)       { return os.Lstat(path) }
-func (osFS) Open(path string) (files.ReadableFile, error) { return os.Open(path) }
-func (osFS) MkdirAll(path string, perm os.FileMode) error { return os.MkdirAll(path, perm) }
-func (osFS) Rename(oldname, newname string) error         { return os.Rename(oldname, newname) }
-
-func (osFS) TempFile(dir, prefix string) (files.WritableFile, error) {
-	f, err := ioutil.TempFile(dir, prefix)
-	if err != nil {
-		return nil, err
-	}
-	return f, nil
-}
-
-func (osFS) ReadDirNames(dir string) ([]string, error) {
-	d, err := os.Open(dir)
-	if err != nil {
-		return nil, err
-	}
-	defer d.Close()
-	return d.Readdirnames(-1)
 }

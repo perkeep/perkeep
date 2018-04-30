@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package localdisk
+package files
 
 import (
 	"context"
@@ -49,7 +49,7 @@ func (ee *enumerateError) Error() string {
 }
 
 // readBlobs implements EnumerateBlobs. It calls itself recursively on subdirectories.
-func (ds *DiskStorage) readBlobs(ctx context.Context, opts readBlobRequest) error {
+func (ds *Storage) readBlobs(ctx context.Context, opts readBlobRequest) error {
 	dirFullPath := filepath.Join(opts.dirRoot, opts.pathInto)
 	names, err := ds.fs.ReadDirNames(dirFullPath)
 	if err != nil {
@@ -165,7 +165,7 @@ func (ds *DiskStorage) readBlobs(ctx context.Context, opts readBlobRequest) erro
 	return nil
 }
 
-func (ds *DiskStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
+func (ds *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	if limit == 0 {
 		log.Printf("Warning: localdisk.EnumerateBlobs called with a limit of 0")

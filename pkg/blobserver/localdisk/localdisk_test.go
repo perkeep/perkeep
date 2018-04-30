@@ -29,6 +29,7 @@ import (
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/blobserver/files"
 	"perkeep.org/pkg/blobserver/storagetest"
 	"perkeep.org/pkg/test"
 )
@@ -105,6 +106,7 @@ func TestMultiStat(t *testing.T) {
 	// In addition to the two "foo" and "bar" blobs, add
 	// maxParallelStats other dummy blobs, to exercise the stat
 	// rate-limiting (which had a deadlock once after a cleanup)
+	const maxParallelStats = 20
 	for i := 0; i < maxParallelStats; i++ {
 		blobs = append(blobs, blob.RefFromString(strconv.Itoa(i)))
 	}
@@ -144,15 +146,6 @@ func TestMissingGetReturnsNoEnt(t *testing.T) {
 	}
 }
 
-func rename(old, new string) error {
-	if err := os.Rename(old, new); err != nil {
-		if renameErr := mapRenameError(err, old, new); renameErr != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 type file struct {
 	name     string
 	contents string
@@ -162,6 +155,7 @@ func TestRename(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		t.Skip("Skipping test if not on windows")
 	}
+	var rename = files.OSFS().Rename
 	files := []file{
 		{name: filepath.Join(os.TempDir(), "foo"), contents: "foo"},
 		{name: filepath.Join(os.TempDir(), "bar"), contents: "barr"},

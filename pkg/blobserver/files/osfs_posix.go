@@ -1,3 +1,5 @@
+// +build !windows
+
 /*
 Copyright 2011 The Perkeep Authors
 
@@ -14,24 +16,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package localdisk
+package files
 
-import (
-	"path/filepath"
-	"testing"
-
-	"perkeep.org/pkg/blob"
-)
-
-func TestPaths(t *testing.T) {
-	br := blob.MustParse("digalg-abc")
-	ds := &DiskStorage{root: "/tmp/dir"}
-
-	slash := filepath.ToSlash
-	if e, g := "/tmp/dir/digalg/ab/c_", slash(ds.blobDirectory(br)); e != g {
-		t.Errorf("short blobref dir; expected path %q; got %q", e, g)
-	}
-	if e, g := "/tmp/dir/digalg/ab/c_/digalg-abc.dat", slash(ds.blobPath(br)); e != g {
-		t.Errorf("short blobref path; expected path %q; got %q", e, g)
-	}
+func mapRenameError(err error, oldfile, newfile string) error {
+	return err
 }
