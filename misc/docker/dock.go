@@ -54,6 +54,8 @@ var (
 
 	doZipSource = flag.Bool("zip_source", false, "pack the Perkeep source for a release in a zip file in misc/docker/release. Requires --build_image=false.")
 	flagSanity  = flag.Bool("sanity", true, "When doing --zip_source, check the source used is buildable with \"go run make.go\".")
+
+	asCamlistore = flag.Bool("as_camli", false, `generate and upload things using the old "camlistore" based names. This exists in order to migrate users on the camlistore named image/systemd service, to the new perkeed named ones.`)
 )
 
 // buildDockerImage builds a docker image from the Dockerfile located in
@@ -75,13 +77,13 @@ func buildDockerImage(imageDir, imageName string) {
 var (
 	dockDir        string
 	releaseTarball string // file path to the tarball generated with -build_release or -zip_source
+	serverImage    = "perkeep/server"
 )
 
 const (
 	goDockerImage       = "perkeep/go"
 	djpegDockerImage    = "perkeep/djpeg"
 	zoneinfoDockerImage = "perkeep/zoneinfo"
-	serverImage         = "perkeep/server"
 	goCmd               = "/usr/local/go/bin/go"
 	// Path to where the Perkeep builder is mounted on the perkeep/go image.
 	genCamliProgram    = "/usr/local/bin/build-perkeep-server.go"
@@ -316,6 +318,10 @@ func uploadDockerImage() {
 	versionedTarball := "docker/perkeepd-" + rev() + ".tar.gz"
 	tarball := "docker/perkeepd.tar.gz"
 	versionFile := "docker/VERSION"
+	if *asCamlistore {
+		versionedTarball = strings.Replace(versionedTarball, "perkeepd", "camlistored", 1)
+		tarball = strings.Replace(tarball, "perkeepd", "camlistored", 1)
+	}
 
 	log.Printf("Uploading %s/%s ...", bucket, versionedTarball)
 
@@ -589,6 +595,10 @@ func main() {
 		log.Fatalf("Error looking up perkeep.org dir: %v", err)
 	}
 	dockDir = filepath.Join(camDir, "misc", "docker")
+
+	if *asCamlistore {
+		serverImage = "camlistore/server"
+	}
 
 	buildDockerImage("go", goDockerImage)
 	// ctxDir is where we run "docker build" to produce the final

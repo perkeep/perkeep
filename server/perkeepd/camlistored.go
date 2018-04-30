@@ -459,6 +459,206 @@ func muxChallengeHandler(ws *webserver.Server, config *serverinit.Config) (*gpgc
 	return cl, nil
 }
 
+// fixUserData checks whether the value of "user-data" in the GCE metadata is up
+// to date with the correct systemd service and docker image tarball based on the
+// "perkeep" name. If not (i.e. they're the old "camlistore" based ones), it fixes
+// said metadata. It returns whether the metadata was indeed changed, which
+// indicates that the instance should be restarted for the change to take effect.
+func fixUserData() (bool, error) {
+	if !env.OnGCE() {
+		return false, nil
+	}
+
+	metadataKey := "user-data"
+
+	var err error
+	userData, err := metadata.InstanceAttributeValue(metadataKey)
+	if err != nil {
+		if _, ok := err.(metadata.NotDefinedError); !ok {
+			return false, fmt.Errorf("error getting existing user-data: %v", err)
+		}
+	}
+
+	goodExecStartPre := `ExecStartPre=/bin/bash -c '/usr/bin/curl https://storage.googleapis.com/camlistore-release/docker/perkeepd.tar.gz`
+	goodExecStart := `ExecStart=/opt/bin/systemd-docker run --rm -p 80:80 -p 443:443 --name %n -v /run/camjournald.sock:/run/camjournald.sock -v /var/lib/camlistore/tmp:/tmp --link=mysql.service:mysqldb perkeep/server`
+	goodServiceName := `- name: perkeepd.service`
+	if strings.Contains(userData, goodExecStartPre) &&
+		strings.Contains(userData, goodExecStart) &&
+		strings.Contains(userData, goodServiceName) {
+		// We're already a proper perkeep deployment, all good.
+		return false, nil
+	}
+
+	oldExecStartPre := `ExecStartPre=/bin/bash -c '/usr/bin/curl https://storage.googleapis.com/camlistore-release/docker/camlistored.tar.gz`
+	oldExecStart := `ExecStart=/opt/bin/systemd-docker run --rm -p 80:80 -p 443:443 --name %n -v /run/camjournald.sock:/run/camjournald.sock -v /var/lib/camlistore/tmp:/tmp --link=mysql.service:mysqldb camlistore/server`
+
+	// double-check that it's our launcher based instance, and not a custom thing,
+	// even though OnGCE is already a pretty strong barrier.
+	if !strings.Contains(userData, oldExecStartPre) {
+		return false, nil
+	}
+
+	oldServiceName := `- name: camlistored.service`
+	userData = strings.Replace(userData, oldExecStartPre, goodExecStartPre, 1)
+	userData = strings.Replace(userData, oldExecStart, goodExecStart, 1)
+	userData = strings.Replace(userData, oldServiceName, goodServiceName, 1)
+
+	ctx := context.Background()
+	inst, err := gceInstance()
+	if err != nil {
+		return false, err
+	}
+	cs, projectID, zone, name := inst.cis, inst.projectID, inst.zone, inst.name
+
+	instance, err := cs.Get(projectID, zone, name).Context(ctx).Do()
+	if err != nil {
+		return false, fmt.Errorf("error getting instance: %v", err)
+	}
+	items := instance.Metadata.Items
+	for k, v := range items {
+		if v.Key == metadataKey {
+			items[k] = &compute.MetadataItems{
+				Key:   metadataKey,
+				Value: googleapi.String(userData),
+			}
+			break
+		}
+	}
+	mdata := &compute.Metadata{
+		Items:       items,
+		Fingerprint: instance.Metadata.Fingerprint,
+	}
+
+	call := cs.SetMetadata(projectID, zone, name, mdata).Context(ctx)
+	op, err := call.Do()
+	if err != nil {
+		if googleapi.IsNotModified(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("error setting instance user-data: %v", err)
+	}
+	// TODO(mpl): refactor this whole pattern below into a func
+	opName := op.Name
+	for {
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+		op, err := inst.cs.ZoneOperations.Get(projectID, zone, opName).Context(ctx).Do()
+		if err != nil {
+			return false, fmt.Errorf("failed to get op %s: %v", opName, err)
+		}
+		switch op.Status {
+		case "PENDING", "RUNNING":
+			continue
+		case "DONE":
+			if op.Error != nil {
+				for _, operr := range op.Error.Errors {
+					log.Printf("operation error: %+v", operr)
+				}
+				return false, fmt.Errorf("operation error: %v", op.Error.Errors[0])
+			}
+			log.Printf("Successfully corrected %v on instance", metadataKey)
+			return true, nil
+		default:
+			return false, fmt.Errorf("unknown operation status %q: %+v", op.Status, op)
+		}
+	}
+}
+
+type gceInst struct {
+	cs        *compute.Service
+	cis       *compute.InstancesService
+	zone      string
+	projectID string
+	name      string
+}
+
+func gceInstance() (*gceInst, error) {
+	ctx := context.Background()
+	hc, err := google.DefaultClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting a default http client: %v", err)
+	}
+	cs, err := compute.New(hc)
+	if err != nil {
+		return nil, fmt.Errorf("error getting a compute service: %v", err)
+	}
+	cis := compute.NewInstancesService(cs)
+	projectID, err := metadata.ProjectID()
+	if err != nil {
+		return nil, fmt.Errorf("error getting projectID: %v", err)
+	}
+	zone, err := metadata.Zone()
+	if err != nil {
+		return nil, fmt.Errorf("error getting zone: %v", err)
+	}
+	name, err := metadata.InstanceName()
+	if err != nil {
+		return nil, fmt.Errorf("error getting instance name: %v", err)
+	}
+	return &gceInst{
+		cs:        cs,
+		cis:       cis,
+		zone:      zone,
+		projectID: projectID,
+		name:      name,
+	}, nil
+}
+
+// resetInstance reboots the GCE VM that this process is running in.
+func resetInstance() error {
+	if !env.OnGCE() {
+		return errors.New("cannot reset instance if not on GCE")
+	}
+
+	ctx := context.Background()
+
+	inst, err := gceInstance()
+	if err != nil {
+		return err
+	}
+	cs, projectID, zone, name := inst.cis, inst.projectID, inst.zone, inst.name
+
+	call := cs.Reset(projectID, zone, name).Context(ctx)
+	op, err := call.Do()
+	if err != nil {
+		if googleapi.IsNotModified(err) {
+			return nil
+		}
+		return fmt.Errorf("error resetting instance: %v", err)
+	}
+	// TODO(mpl): refactor this whole pattern below into a func
+	opName := op.Name
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+		op, err := inst.cs.ZoneOperations.Get(projectID, zone, opName).Context(ctx).Do()
+		if err != nil {
+			return fmt.Errorf("failed to get op %s: %v", opName, err)
+		}
+		switch op.Status {
+		case "PENDING", "RUNNING":
+			continue
+		case "DONE":
+			if op.Error != nil {
+				for _, operr := range op.Error.Errors {
+					log.Printf("operation error: %+v", operr)
+				}
+				return fmt.Errorf("operation error: %v", op.Error.Errors[0])
+			}
+			log.Print("Successfully reset instance")
+			return nil
+		default:
+			return fmt.Errorf("unknown operation status %q: %+v", op.Status, op)
+		}
+	}
+}
+
 // setInstanceHostname sets the "camlistore-hostname" metadata on the GCE
 // instance where perkeepd is running. The value set is the same as the one we
 // register with the camlistore.net DNS, i.e. "<gpgKeyId>.camlistore.net", where
@@ -481,61 +681,44 @@ func setInstanceHostname() error {
 	}
 
 	ctx := context.Background()
+	inst, err := gceInstance()
+	if err != nil {
+		return err
+	}
+	cs, projectID, zone, name := inst.cis, inst.projectID, inst.zone, inst.name
 
-	hc, err := google.DefaultClient(ctx)
-	if err != nil {
-		return fmt.Errorf("error getting a default http client: %v", err)
-	}
-	s, err := compute.New(hc)
-	if err != nil {
-		return fmt.Errorf("error getting a compute service: %v", err)
-	}
-	cs := compute.NewInstancesService(s)
-	projectID, err := metadata.ProjectID()
-	if err != nil {
-		return fmt.Errorf("error getting projectID: %v", err)
-	}
-	zone, err := metadata.Zone()
-	if err != nil {
-		return fmt.Errorf("error getting zone: %v", err)
-	}
-	instance, err := metadata.InstanceName()
-	if err != nil {
-		return fmt.Errorf("error getting instance name: %v", err)
-	}
-
-	inst, err := cs.Get(projectID, zone, instance).Context(ctx).Do()
+	instance, err := cs.Get(projectID, zone, name).Context(ctx).Do()
 	if err != nil {
 		return fmt.Errorf("error getting instance: %v", err)
 	}
-	items := inst.Metadata.Items
+	items := instance.Metadata.Items
 	items = append(items, &compute.MetadataItems{
 		Key:   "camlistore-hostname",
 		Value: googleapi.String(camliNetHostName),
 	})
 	mdata := &compute.Metadata{
 		Items:       items,
-		Fingerprint: inst.Metadata.Fingerprint,
+		Fingerprint: instance.Metadata.Fingerprint,
 	}
 
-	call := cs.SetMetadata(projectID, zone, instance, mdata).Context(ctx)
+	call := cs.SetMetadata(projectID, zone, name, mdata).Context(ctx)
 	op, err := call.Do()
 	if err != nil {
-		if !googleapi.IsNotModified(err) {
-			return fmt.Errorf("error setting instance hostname: %v", err)
+		if googleapi.IsNotModified(err) {
+			return nil
 		}
-		return nil
+		return fmt.Errorf("error setting instance hostname: %v", err)
 	}
+	// TODO(mpl): refactor this whole pattern below into a func
 	opName := op.Name
 	for {
 		// TODO(mpl): add a timeout maybe?
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		default:
+		case <-time.After(500 * time.Millisecond):
 		}
-		time.Sleep(500 * time.Millisecond)
-		op, err := s.ZoneOperations.Get(projectID, zone, opName).Do()
+		op, err := inst.cs.ZoneOperations.Get(projectID, zone, opName).Context(ctx).Do()
 		if err != nil {
 			return fmt.Errorf("failed to get op %s: %v", opName, err)
 		}
@@ -547,7 +730,7 @@ func setInstanceHostname() error {
 				for _, operr := range op.Error.Errors {
 					log.Printf("operation error: %+v", operr)
 				}
-				return fmt.Errorf("operation error")
+				return fmt.Errorf("operation error: %v", op.Error.Errors[0])
 			}
 			log.Printf(`Successfully set "camlistore-hostname" to "%v" on instance`, camliNetHostName)
 			return nil
@@ -555,7 +738,6 @@ func setInstanceHostname() error {
 			return fmt.Errorf("unknown operation status %q: %+v", op.Status, op)
 		}
 	}
-	return nil
 }
 
 // requestHostName performs the GPG challenge to register/obtain a name in the
@@ -785,6 +967,15 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		// to be ready, otherwise we're racy. Should we care?
 		if err := requestHostName(challengeClient); err != nil {
 			exitf("Could not register on camlistore.net: %v", err)
+		}
+	}
+	needsRestart, err := fixUserData()
+	if err != nil {
+		exitf("Could not fix user-data metadata: %v", err)
+	}
+	if needsRestart {
+		if err := resetInstance(); err != nil {
+			exitf("Could not reset instance: %v", err)
 		}
 	}
 
