@@ -2,9 +2,10 @@
 
 The latest release is [2017-05-05](docs/release/monthly/2017-05-05).
 
-Or, the canonical git repo is:
+Or, using the latest code from git:
 
-    $ git clone https://camlistore.googlesource.com/camlistore
+    $ cd $GOPATH/src
+    $ git clone https://camlistore.googlesource.com/camlistore perkeep.org
 
 ## Build
 
@@ -14,10 +15,14 @@ Windows), skip this section.
 [Download and install Go](http://golang.org/doc/install) if you don't
 have that installed already. As of revision
 [2e46fca5cc](https://github.com/perkeep/perkeep/commit/2e46fca5cc1179dbd90bec49fec3870e6eca6c45),
-Perkeep requires [Go 1.9 or newer](https://golang.org/dl/).
+Perkeep requires [Go 1.10 or newer](https://golang.org/dl/).
 
-Build Perkeep by running this command in the folder you downloaded or
-checked out:
+Build Perkeep by making sure you git cloned it to a directory named
+"`perkeep.org`" and that directory is in the right place in your
+`$GOPATH`. If you haven't set `$GOPATH` explicitly, then Go uses
+`$HOME/go` by default, which means your `perkeep.org` directory should
+be at `$HOME/go/src/perkeep.org`. Then from that `perkeep.org`
+directory, run:
 
     $ go run make.go
 

@@ -122,8 +122,8 @@ valid.
 
 `CAMLI_GOPHERJS_GOROOT` (string)
 : As gopherjs does not build with go tip, when make.go is run with go devel,
-  CAMLI_GOPHERJS_GOROOT should be set to a Go 1.9 root so that gopherjs can be
-  built with Go 1.9. Otherwise it defaults to $HOME/go1.9.
+  CAMLI_GOPHERJS_GOROOT should be set to a Go 1.10 root so that gopherjs can be
+  built with Go 1.10. Otherwise it defaults to $HOME/go1.10.
 
 `CAMLI_HELLO_ENABLED (bool)
 : Whether to start the hello world app as well. Variable used only by devcam server.
