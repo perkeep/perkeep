@@ -48,16 +48,25 @@ import (
 	"go4.org/syncutil"
 )
 
+// TODO: rename DiskStorage to Storage.
+
 // DiskStorage implements the blobserver.Storage interface using the
 // local filesystem.
 type DiskStorage struct {
 	blobserver.Storage
+	blob.SubFetcher
 
 	root string
 
 	// gen will be nil if partition != ""
 	gen *local.Generationer
 }
+
+// Validate we implement expected interfaces.
+var (
+	_ blobserver.Storage = (*DiskStorage)(nil)
+	_ blob.SubFetcher    = (*DiskStorage)(nil) // for blobpacked; Issue 1136
+)
 
 func (ds *DiskStorage) String() string {
 	return fmt.Sprintf("\"filesystem\" file-per-blob at %s", ds.root)
@@ -106,9 +115,10 @@ func New(root string) (*DiskStorage, error) {
 	}
 	fileSto := files.NewStorage(files.OSFS(), root)
 	ds := &DiskStorage{
-		Storage: fileSto,
-		root:    root,
-		gen:     local.NewGenerationer(root),
+		Storage:    fileSto,
+		SubFetcher: fileSto,
+		root:       root,
+		gen:        local.NewGenerationer(root),
 	}
 	if _, _, err := ds.StorageGeneration(); err != nil {
 		return nil, fmt.Errorf("Error initialization generation for %q: %v", root, err)
