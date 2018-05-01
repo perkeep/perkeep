@@ -57,9 +57,6 @@ type World struct {
 
 // pkSourceRoot returns the root of the source tree, or an error.
 func pkSourceRoot() (string, error) {
-	if os.Getenv("GOPATH") == "" {
-		return "", errors.New("GOPATH environment variable isn't set; required to run Perkeep integration tests")
-	}
 	root, err := osutil.GoPackagePath("perkeep.org")
 	if err == os.ErrNotExist {
 		return "", errors.New("directory \"perkeep.org\" not found under GOPATH/src; can't run Perkeep integration tests")
@@ -68,14 +65,14 @@ func pkSourceRoot() (string, error) {
 }
 
 // NewWorld returns a new test world.
-// It requires that GOPATH is set to find the "perkeep.org" root.
+// It uses the GOPATH (explicit or implicit) to find the "perkeep.org" root.
 func NewWorld() (*World, error) {
 	return WorldFromConfig("server-config.json")
 }
 
 // WorldFromConfig returns a new test world based on the given configuration file.
 // This cfg is the server config relative to pkg/test/testdata.
-// It requires that GOPATH is set to find the "perkeep.org" root.
+// It uses the GOPATH (explicit or implicit) to find the "perkeep.org" root.
 func WorldFromConfig(cfg string) (*World, error) {
 	root, err := pkSourceRoot()
 	if err != nil {

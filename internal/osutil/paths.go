@@ -275,12 +275,19 @@ func NewJSONConfigParser() *jsonconfig.ConfigParser {
 // GoPackagePath returns the path to the provided Go package's
 // source directory.
 // pkg may be a path prefix without any *.go files.
-// The error is os.ErrNotExist if GOPATH is unset or the directory
-// doesn't exist in any GOPATH component.
+// The error is os.ErrNotExist if GOPATH is unset.
 func GoPackagePath(pkg string) (path string, err error) {
 	gp := os.Getenv("GOPATH")
 	if gp == "" {
-		return path, os.ErrNotExist
+		cmd := exec.Command("go", "env", "GOPATH")
+		out, err := cmd.Output()
+		if err != nil {
+			return "", fmt.Errorf("could not run 'go env GOPATH': %v, %s", err, out)
+		}
+		gp = strings.TrimSpace(string(out))
+		if gp == "" {
+			return "", os.ErrNotExist
+		}
 	}
 	for _, p := range filepath.SplitList(gp) {
 		dir := filepath.Join(p, "src", filepath.FromSlash(pkg))
