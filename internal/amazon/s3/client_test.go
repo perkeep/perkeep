@@ -18,6 +18,7 @@ package s3
 
 import (
 	"bytes"
+	"context"
 	"crypto/md5"
 	"io"
 	"net/http"
@@ -62,7 +63,7 @@ func getTestClient(t *testing.T) {
 func TestBuckets(t *testing.T) {
 	getTestClient(t)
 	defer containerID.KillRemove(t)
-	_, err := tc.Buckets()
+	_, err := tc.Buckets(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +130,7 @@ func TestPutObject(t *testing.T) {
 		t.Fatal(err)
 	}
 	// TODO(mpl): figure how to make fake-s3 work with buckets.
-	if err = tc.PutObject("hello.txt", "", md5h, size, &buf); err != nil {
+	if err = tc.PutObject(context.Background(), "hello.txt", "", md5h, size, &buf); err != nil {
 		t.Fatal(err)
 	}
 	// TODO(mpl): figure out why Stat of newly uploaded object does not match size from above.

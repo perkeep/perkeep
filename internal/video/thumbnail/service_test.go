@@ -18,6 +18,7 @@ package thumbnail
 
 import (
 	"bytes"
+	"context"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -40,7 +41,7 @@ func storageAndBlobRef(t *testing.T) (blobserver.Storage, blob.Ref) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ref, err := schema.WriteFileFromReader(storage, "small.webm", inFile)
+	ref, err := schema.WriteFileFromReader(context.Background(), storage, "small.webm", inFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +50,7 @@ func storageAndBlobRef(t *testing.T) (blobserver.Storage, blob.Ref) {
 
 func TestStorage(t *testing.T) {
 	store, ref := storageAndBlobRef(t)
-	fr, err := schema.NewFileReader(store, ref)
+	fr, err := schema.NewFileReader(context.Background(), store, ref)
 	if err != nil {
 		t.Fatal(err)
 	}

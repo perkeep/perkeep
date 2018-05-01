@@ -17,6 +17,7 @@ limitations under the License.
 package thumbnail
 
 import (
+	"context"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -46,7 +47,7 @@ func TestHandlerWrongRef(t *testing.T) {
 func TestHandlerRightRef(t *testing.T) {
 	b := test.Blob{Contents: "Foo"}
 	storage := new(test.Fetcher)
-	ref, err := schema.WriteFileFromReader(storage, "", b.Reader())
+	ref, err := schema.WriteFileFromReader(context.Background(), storage, "", b.Reader())
 	if err != nil {
 		t.Fatal(err)
 	}

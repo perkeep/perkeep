@@ -62,7 +62,7 @@ func serveRef(rw http.ResponseWriter, req *http.Request, ref blob.Ref, fetcher b
 
 	rw.Header().Set("Content-Type", "application/octet-stream")
 
-	fr, err := schema.NewFileReader(fetcher, ref)
+	fr, err := schema.NewFileReader(req.Context(), fetcher, ref)
 	if err != nil {
 		httputil.ServeError(rw, req, err)
 		return
