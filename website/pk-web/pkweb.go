@@ -700,7 +700,7 @@ func runDemoBlobServerContainer(name string) error {
 		"--net=host",
 		"--workdir="+prodSrcDir,
 		"camlistore/demoblobserver",
-		"perkeepd",
+		"camlistored",
 		"--openbrowser=false",
 		"--listen=:3179",
 		"--configfile="+prodSrcDir+"/website/blobserver-example/example-blobserver-config.json")
