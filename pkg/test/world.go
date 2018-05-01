@@ -17,6 +17,7 @@ limitations under the License.
 package test
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -28,7 +29,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -44,11 +44,11 @@ import (
 // pk-put, pk-get, pk, etc) together in large tests, including
 // building them, finding them, and wiring them up in an isolated way.
 type World struct {
-	srcRoot  string // typically $GOPATH[0]/src/perkeep.org
-	config   string // server config file relative to pkg/test/testdata
-	tempDir  string
-	listener net.Listener // randomly chosen 127.0.0.1 port for the server
-	port     int
+	srcRoot string // typically $GOPATH[0]/src/perkeep.org
+	config  string // server config file relative to pkg/test/testdata
+	tempDir string
+
+	addr string // "127.0.0.1:35"
 
 	server    *exec.Cmd
 	isRunning int32 // state of the perkeepd server. Access with sync/atomic only.
@@ -78,21 +78,14 @@ func WorldFromConfig(cfg string) (*World, error) {
 	if err != nil {
 		return nil, err
 	}
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return nil, err
-	}
-
 	return &World{
-		srcRoot:  root,
-		config:   cfg,
-		listener: ln,
-		port:     ln.Addr().(*net.TCPAddr).Port,
+		srcRoot: root,
+		config:  cfg,
 	}, nil
 }
 
 func (w *World) Addr() string {
-	return w.listener.Addr().String()
+	return w.addr
 }
 
 // SourceRoot returns the root of the source tree.
@@ -109,7 +102,17 @@ func (w *World) Build() error {
 	}
 	// Build.
 	{
-		cmd := exec.Command("go", "run", "make.go")
+		cmd := exec.Command("go", "run", "make.go",
+			"--embed_static=false",
+			"--stampversion=false",
+			"--skip_gopherjs",
+			"--targets="+strings.Join([]string{
+				"perkeep.org/server/perkeepd",
+				"perkeep.org/cmd/pk",
+				"perkeep.org/cmd/pk-get",
+				"perkeep.org/cmd/pk-put",
+				"perkeep.org/cmd/pk-mount",
+			}, ","))
 		if testing.Verbose() {
 			// TODO(mpl): do the same when -verbose with devcam test. Even better: see if testing.Verbose
 			// can be made true if devcam test -verbose ?
@@ -187,8 +190,8 @@ func (w *World) Start() error {
 			pkdbin,
 			"--openbrowser=false",
 			"--configfile="+filepath.Join(w.srcRoot, "pkg", "test", "testdata", w.config),
-			"--listen=FD:3",
 			"--pollparent=true",
+			"--listen=127.0.0.1:0",
 		)
 		var buf bytes.Buffer
 		if testing.Verbose() {
@@ -198,18 +201,23 @@ func (w *World) Start() error {
 			w.server.Stdout = &buf
 			w.server.Stderr = &buf
 		}
-		w.server.Dir = w.tempDir
-		w.server.Env = append(os.Environ(),
-			"CAMLI_DEBUG=1",
-			"CAMLI_ROOT="+w.tempDir,
-			"CAMLI_SECRET_RING="+filepath.Join(w.srcRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")),
-			"CAMLI_BASE_URL=http://127.0.0.1:"+strconv.Itoa(w.port),
-		)
-		listenerFD, err := w.listener.(*net.TCPListener).File()
+
+		getPortListener, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
 			return err
 		}
-		w.server.ExtraFiles = []*os.File{listenerFD}
+		defer getPortListener.Close()
+
+		w.server.Dir = w.tempDir
+		w.server.Env = append(os.Environ(),
+			// "CAMLI_DEBUG=1", // <-- useful for testing
+			"CAMLI_MORE_FLAGS=1",
+			"CAMLI_ROOT="+w.tempDir,
+			"CAMLI_SECRET_RING="+filepath.Join(w.srcRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")),
+			"CAMLI_BASE_URL=http://127.0.0.0:tbd", // filled in later
+			"CAMLI_SET_BASE_URL_AND_SEND_ADDR_TO="+getPortListener.Addr().String(),
+		)
+
 		if err := w.server.Start(); err != nil {
 			w.serverErr = fmt.Errorf("starting perkeepd: %v", err)
 			return w.serverErr
@@ -224,10 +232,24 @@ func (w *World) Start() error {
 			waitc <- w.serverErr
 		}()
 		upc := make(chan bool)
-		timeoutc := make(chan bool)
+		upErr := make(chan error, 1)
 		go func() {
+			c, err := getPortListener.Accept()
+			if err != nil {
+				upErr <- fmt.Errorf("waiting for child to report its port: %v", err)
+				return
+			}
+			defer c.Close()
+			br := bufio.NewReader(c)
+			addr, err := br.ReadString('\n')
+			if err != nil {
+				upErr <- fmt.Errorf("ReadString: %v", err)
+				return
+			}
+			w.addr = strings.TrimSpace(addr)
+
 			for i := 0; i < 100; i++ {
-				res, err := http.Get("http://127.0.0.1:" + strconv.Itoa(w.port))
+				res, err := http.Get("http://" + w.addr)
 				if err == nil {
 					res.Body.Close()
 					upc <- true
@@ -237,14 +259,14 @@ func (w *World) Start() error {
 			}
 			w.serverErr = errors.New(buf.String())
 			atomic.StoreInt32(&w.isRunning, 0)
-			timeoutc <- true
+			upErr <- fmt.Errorf("server never became reachable: %v", w.serverErr)
 		}()
 
 		select {
 		case <-waitc:
 			return fmt.Errorf("server exited: %v", w.serverErr)
-		case <-timeoutc:
-			return fmt.Errorf("server never became reachable: %v", w.serverErr)
+		case err := <-upErr:
+			return err
 		case <-upc:
 			if err := w.Ping(); err != nil {
 				return err
@@ -310,16 +332,23 @@ func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cm
 			// but pk is never used. (and pk-mount does not even have a -verbose).
 			args = append([]string{"-verbose"}, args...)
 		}
+		absBin, err := osutil.LookPathGopath(binary)
+		if err != nil {
+			log.Printf("failed to find %s: %v", binary, err)
+		} else {
+			binary = absBin
+		}
+
 		cmd = exec.Command(binary, args...)
 		clientConfigDir := filepath.Join(w.srcRoot, "config", "dev-client-dir")
-		cmd.Env = append([]string{
-			"CAMLI_CONFIG_DIR=" + clientConfigDir,
+		cmd.Env = append(env,
+			"CAMLI_CONFIG_DIR="+clientConfigDir,
 			// Respected by env expansions in config/dev-client-dir/client-config.json:
-			"CAMLI_SERVER=" + w.ServerBaseURL(),
-			"CAMLI_SECRET_RING=" + w.SecretRingFile(),
-			"CAMLI_KEYID=" + w.ClientIdentity(),
+			"CAMLI_SERVER="+w.ServerBaseURL(),
+			"CAMLI_SECRET_RING="+w.SecretRingFile(),
+			"CAMLI_KEYID="+w.ClientIdentity(),
 			"CAMLI_AUTH=userpass:testuser:passTestWorld",
-		}, env...)
+		)
 	default:
 		panic("Unknown binary " + binary)
 	}
@@ -327,7 +356,7 @@ func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cm
 }
 
 func (w *World) ServerBaseURL() string {
-	return fmt.Sprintf("http://127.0.0.1:%d", w.port)
+	return fmt.Sprintf("http://" + w.addr)
 }
 
 var theWorld *World

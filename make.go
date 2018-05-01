@@ -52,7 +52,6 @@ var haveSQLite = checkHaveSQLite()
 var (
 	embedResources = flag.Bool("embed_static", true, "Whether to embed resources needed by the UI such as images, css, and javascript.")
 	sqlFlag        = flag.String("sqlite", "false", "Whether you want SQLite in your build: true, false, or auto.")
-	all            = flag.Bool("all", false, "Force rebuild of everything (go install -a)")
 	race           = flag.Bool("race", false, "Build race-detector version of binaries (they will run slowly)")
 	verbose        = flag.Bool("v", strings.Contains(os.Getenv("CAMLI_DEBUG_X"), "makego"), "Verbose mode")
 	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. '*' builds everything.  Empty builds defaults for this platform. Example: perkeep.org/server/perkeepd,perkeep.org/cmd/pk-put")
@@ -64,6 +63,7 @@ var (
 	website        = flag.Bool("website", false, "Just build the website.")
 	camnetdns      = flag.Bool("camnetdns", false, "Just build perkeep.org/server/camnetdns.")
 	static         = flag.Bool("static", false, "Build a static binary, so it can run in an empty container.")
+	skipGopherJS   = flag.Bool("skip_gopherjs", false, "skip building/running GopherJS, even if building perkeepd/etc")
 )
 
 var (
@@ -146,25 +146,25 @@ func main() {
 		}
 	}
 
-	withCamlistored := stringListContains(targs, "perkeep.org/server/perkeepd")
+	withPerkeepd := stringListContains(targs, "perkeep.org/server/perkeepd")
 	withPublisher := stringListContains(targs, "perkeep.org/app/publisher")
-	if withCamlistored || withPublisher {
+	if (withPerkeepd || withPublisher) && !*skipGopherJS {
 		if err := buildReactGen(); err != nil {
 			log.Fatal(err)
 		}
-		if withCamlistored {
+		if withPerkeepd {
 			if err := genWebUIReact(); err != nil {
 				log.Fatal(err)
 			}
 		}
 		// gopherjs has to run before doEmbed since we need all the javascript
 		// to be generated before embedding happens.
-		if err := makeJS(withCamlistored, withPublisher); err != nil {
+		if err := makeJS(withPerkeepd, withPublisher); err != nil {
 			log.Fatal(err)
 		}
 	}
 
-	if *embedResources && withCamlistored {
+	if *embedResources && withPerkeepd {
 		doEmbed()
 	}
 
@@ -180,9 +180,6 @@ func main() {
 		tags = append(tags, "with_sqlite")
 	}
 	baseArgs := []string{"install", "-v"}
-	if *all {
-		baseArgs = append(baseArgs, "-a")
-	}
 	if *race {
 		baseArgs = append(baseArgs, "-race")
 	}
@@ -199,7 +196,10 @@ func main() {
 		}
 		ldFlags += "-X \"perkeep.org/pkg/buildinfo.GitInfo=" + version + "\""
 	}
-	baseArgs = append(baseArgs, "--ldflags="+ldFlags, "--tags="+strings.Join(tags, " "))
+	if ldFlags != "" {
+		baseArgs = append(baseArgs, "--ldflags="+ldFlags)
+	}
+	baseArgs = append(baseArgs, "--tags="+strings.Join(tags, " "))
 
 	// First install command: build just the final binaries, installed to a GOBIN
 	// under <perkeep_root>/bin:
@@ -588,9 +588,6 @@ func genEmbeds() error {
 	} {
 		embeds := fullSrcPath(embeds)
 		var args []string
-		if *all {
-			args = append(args, "-all")
-		}
 		args = append(args, embeds)
 		cmd := exec.Command(cmdName, args...)
 		cmd.Stdout = os.Stdout
@@ -627,9 +624,6 @@ func buildBin(pkg string) error {
 	pkgBase := pathpkg.Base(pkg)
 
 	args := []string{"install", "-v"}
-	if *all {
-		args = append(args, "-a")
-	}
 	args = append(args,
 		filepath.FromSlash(pkg),
 	)

@@ -29,6 +29,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"perkeep.org/internal/hashutil"
@@ -40,10 +41,6 @@ import (
 	"perkeep.org/pkg/env"
 	"perkeep.org/pkg/schema"
 )
-
-// multipartOverhead is how many extra bytes mime/multipart's
-// Writer adds around content
-var multipartOverhead = calculateMultipartOverhead()
 
 // UploadHandle contains the parameters is a request to upload a blob.
 type UploadHandle struct {
@@ -91,16 +88,26 @@ type statResponse struct {
 
 type ResponseFormatError error
 
-func calculateMultipartOverhead() int64 {
-	var b bytes.Buffer
-	w := multipart.NewWriter(&b)
-	part, _ := w.CreateFormFile("0", "0")
+var (
+	multipartOnce     sync.Once
+	multipartOverhead int64
+)
 
-	dummyContents := []byte("0")
-	part.Write(dummyContents)
+// multipartOverhead is how many extra bytes mime/multipart's
+// Writer adds around content
+func getMultipartOverhead() int64 {
+	multipartOnce.Do(func() {
+		var b bytes.Buffer
+		w := multipart.NewWriter(&b)
+		part, _ := w.CreateFormFile("0", "0")
 
-	w.Close()
-	return int64(b.Len()) - 3 // remove what was added
+		dummyContents := []byte("0")
+		part.Write(dummyContents)
+
+		w.Close()
+		multipartOverhead = int64(b.Len()) - 3 // remove what was added
+	})
+	return multipartOverhead
 }
 
 func parseStatResponse(res *http.Response) (*statResponse, error) {
@@ -365,7 +372,7 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 		req.Header.Add("X-Camlistore-Vivify", "1")
 	}
 	req.Body = ioutil.NopCloser(pipeReader)
-	req.ContentLength = multipartOverhead + bodySize + int64(len(blobrefStr))*2
+	req.ContentLength = getMultipartOverhead() + bodySize + int64(len(blobrefStr))*2
 	resp, err := c.doReqGated(req)
 	if err != nil {
 		return errorf("upload http error: %v", err)

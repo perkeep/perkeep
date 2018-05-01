@@ -132,7 +132,7 @@ var (
 )
 
 func init() {
-	if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
+	if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_MORE_FLAGS")); debug {
 		flag.BoolVar(&flagPollParent, "pollparent", false, "Perkeepd regularly polls its parent process to detect if it has been orphaned, and terminates in that case. Mainly useful for tests.")
 		flag.StringVar(&flagGCEProjectID, "gce_project_id", "", "GCE project ID; required by --gce_log_name.")
 		flag.StringVar(&flagGCELogName, "gce_log_name", "", "log all messages to that log name on Google Cloud Logging as well.")
