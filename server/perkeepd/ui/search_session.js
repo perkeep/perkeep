@@ -30,11 +30,12 @@ goog.require('cam.ServerConnection');
 // - Initial XHR query can also specify tag. This tag times out if not used rapidly. Send this same tag in socket query.
 // - Socket assumes that client already has first batch of results (slightly racey though)
 // - Prefer to use socket on client-side, test whether it works and fall back to XHR if not.
-cam.SearchSession = function(connection, currentUri, query, opt_aroundBlobref, opt_sort) {
+cam.SearchSession = function(connection, currentUri, query, opt_getDialog, opt_aroundBlobref, opt_sort) {
 	goog.base(this);
 
 	this.connection_ = connection;
 	this.currentUri_ = currentUri;
+	this.getDialog_ = opt_getDialog || function(message) { console.log(message) };
 	this.initSocketUri_(currentUri);
 	this.hasSocketError_ = false;
 	this.query_ = query;
@@ -245,7 +246,13 @@ cam.SearchSession.prototype.getContinuation_ = function(changeType, opts) {
 	opts.describe = cam.ServerConnection.DESCRIBE_REQUEST;
 
 	return this.connection_.search.bind(this.connection_, this.stripMapZoom(this.query_), opts,
-		this.searchDone_.bind(this, changeType));
+		function(result) {
+			if (result && result.error && result.error != '') {
+				this.getDialog_(result.error);
+				return;
+			}
+			this.searchDone_(changeType, result);
+		}.bind(this));
 };
 
 cam.SearchSession.prototype.searchDone_ = function(changeType, result) {

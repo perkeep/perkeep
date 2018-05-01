@@ -153,7 +153,7 @@ cam.ServerConnection.prototype.handleXhrResponseJson_ = function(callbacks, e) {
 
 	if (error) {
 		if (fail) {
-			fail(result.error || result);
+			fail(result);
 		} else {
 			console.log('Failed XHR (JSON) in ServerConnection: ' + result.error || result);
 		}
@@ -250,7 +250,7 @@ cam.ServerConnection.prototype.buildQuery = function(callerQuery, opts) {
 cam.ServerConnection.prototype.search = function(query, opts, callback) {
 	var path = goog.uri.utils.appendPath(this.config_.searchRoot, 'camli/search/query');
 	this.sendXhr_(path,
-		goog.bind(this.handleXhrResponseJson_, this, {success: callback}),
+		goog.bind(this.handleXhrResponseJson_, this, {success: callback, fail: callback}),
 		"POST", JSON.stringify(this.buildQuery(query, opts)));
 };
 

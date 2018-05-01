@@ -171,6 +171,10 @@ cam.IndexPage = React.createClass({
 			// messageDialogVisible to true.
 			messageDialogContents: null,
 			messageDialogVisible: false,
+			// dialogWidth and dialogHeight should be set to accomodate the size of
+			// the text message we display in the dialog.
+			dialogWidth: 0,
+			dialogHeight: 0,
 		};
 	},
 
@@ -726,7 +730,8 @@ cam.IndexPage = React.createClass({
 		}
 
 		console.log('Creating new search session for query %s', queryString);
-		var ss = new cam.SearchSession(this.props.serverConnection, this.baseURL_.clone(), opt_query, opt_targetBlobref, opt_sort);
+		var ss = new cam.SearchSession(this.props.serverConnection, this.baseURL_.clone(), opt_query,
+			this.handleSearchQueryError_.bind(this), opt_targetBlobref, opt_sort);
 		this.eh_.listen(ss, cam.SearchSession.SEARCH_SESSION_CHANGED, function() {
 			this.forceUpdate();
 		});
@@ -741,6 +746,25 @@ cam.IndexPage = React.createClass({
 		ss.loadMoreResults();
 		this.searchSessionCache_.splice(0, 0, ss);
 		return ss;
+	},
+
+	// handleSearchQueryError_ removes the last search query from the search session
+	// cache, and displays the errorMsg in a dialog.
+	handleSearchQueryError_: function(errorMsg) {
+		this.searchSessionCache_.splice(0, 1);
+		var nbl = errorMsg.length / 40; // 40 chars per line.
+		this.setState({
+			messageDialogVisible: true,
+			dialogWidth: 40*16, // 16px char width, 40 chars width
+			dialogHeight: (nbl+1)*1.5*16, // 16px char height, and 1.5 to account for line spacing
+			messageDialogContents: React.DOM.div({
+				style: {
+					textAlign: 'center',
+					fontSize: 'medium',
+				},},
+				React.DOM.div({}, errorMsg)
+			),
+		});
 	},
 
 	pruneSearchSessionCache_: function() {
@@ -1410,23 +1434,27 @@ cam.IndexPage = React.createClass({
 		}
 
 		var borderWidth = 18;
-		// TODO(mpl): make it dynamically proportional to the size of
-		// the contents. For now, I know I want to display a ~40 chars wide
-		// message, hence the rough 50em*16px/em.
-		var w = 50*16;
-		var h = 10*16;
+		var w = this.state.dialogWidth;
+		var h = this.state.dialogHeight;
+		if (w == 0 || h == 0) {
+			// arbitrary defaults
+			w = 50*16;
+			h = 10*16;
+		}
 
 		return React.createElement(cam.Dialog, {
 				availWidth: this.props.availWidth,
 				availHeight: this.props.availHeight,
-				width: w,
-				height: h,
+				width: this.state.dialogWidth,
+				height: this.state.dialogHeight,
 				borderWidth: borderWidth,
 				onClose: function() {
 					this.setState({
 						messageDialogVisible: false,
 						messageDialogContents: null,
 						importShareURL: null,
+						dialogWidth: 0,
+						dialogHeight: 0,
 					});
 				}.bind(this),
 			},
