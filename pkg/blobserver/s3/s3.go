@@ -43,6 +43,7 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/memory"
+	"perkeep.org/pkg/blobserver/proxycache"
 
 	"go4.org/fault"
 	"go4.org/jsonconfig"
@@ -73,7 +74,6 @@ type s3Storage struct {
 	// slash.
 	dirPrefix string
 	hostname  string
-	cache     *memory.Storage // or nil for no cache
 }
 
 func (s *s3Storage) String() string {
@@ -113,9 +113,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	if cacheSize != 0 {
-		sto.cache = memory.NewCache(cacheSize)
-	}
+
 	ctx := context.Background() // TODO: 5 min timeout or something?
 	if !skipStartupCheck {
 		_, err := client.ListBucket(ctx, sto.bucket, "", 1)
@@ -153,6 +151,13 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		if err != nil {
 			return nil, fmt.Errorf("Error listing bucket %s: %v", sto.bucket, err)
 		}
+	}
+
+	if cacheSize != 0 {
+		// This has two layers of LRU caching (proxycache and memory).
+		// We make the outer one 4x the size so that it doesn't evict from the
+		// underlying one when it's about to perform its own eviction.
+		return proxycache.New(cacheSize<<2, memory.NewCache(cacheSize), sto), nil
 	}
 	return sto, nil
 }
