@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -79,6 +80,9 @@ func TestSymlink(t *testing.T) {
 
 	symFile := filepath.Join(td, "test-symlink")
 	if err := os.Symlink("test-target", symFile); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skip("skipping symlink test on Windows")
+		}
 		t.Fatal(err)
 	}
 
@@ -576,9 +580,15 @@ func TestStaticFileAndStaticSymlink(t *testing.T) {
 	target := "bar"
 	src := filepath.Join(dir, "foo")
 	err = os.Symlink(target, src)
+	if err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skip("skipping symlink test on Windows")
+		}
+		t.Fatal(err)
+	}
 	fi, err = os.Lstat(src)
 	if err != nil {
-		t.Fatalf("os.Lstat():  %v", err)
+		t.Fatalf("os.Lstat(): %v", err)
 	}
 
 	bb = NewCommonFileMap(src, fi)
