@@ -109,6 +109,9 @@ func TestNonUTF8SymlinkTarget(t *testing.T) {
 
 	err = os.Symlink(string(base), filepath.Join(srcDir, "link"))
 	if err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skip("skipping symlink test on Windows")
+		}
 		t.Fatalf("os.Symlink(): %v", err)
 	}
 

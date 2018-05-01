@@ -60,6 +60,9 @@ func TestCamgetSymlink(t *testing.T) {
 
 	err = os.Symlink("../"+targetBase, linkName)
 	if err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skip("skipping symlink test on Windows")
+		}
 		t.Fatalf("os.Symlink(): %v", err)
 	}
 
