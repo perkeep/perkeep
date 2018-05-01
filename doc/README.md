@@ -50,6 +50,7 @@ on the [mailing list](https://groups.google.com/group/camlistore).
 
 ## Presentations {#presentations}
 
+* 2018-04, **LinuxFest Northwest**: [[slides]](https://docs.google.com/presentation/d/1suYfv3dmjJQ1mMJIG7_D26e5cudZqPcZTPNgrLvTIrI/view) [[video]](https://www.youtube.com/watch?v=PlAU_da_U4s)
 * 2016-04, **GDG Seattle**: [[slides]](https://docs.google.com/presentation/d/1AmT5DAL9CrzQFS22i0xJ5SYtXQfrHqOyYiQB7imshdw/view) [[video]](https://www.youtube.com/watch?v=dg6OmoKNbcw)
 * 2016-04, **LinuxFest Northwest**: [[slides]](https://docs.google.com/presentation/d/1AmT5DAL9CrzQFS22i0xJ5SYtXQfrHqOyYiQB7imshdw/view) [[video]](https://www.youtube.com/watch?v=8Dk2iVlc67M)
 * 2015-02, **FOSDEM**: [[slides]](https://go-talks.appspot.com/github.com/mpl/talks/fosdem-2015/fosdem-20150201.slide) [[video]](https://www.youtube.com/watch?v=oM-MfeflUZ8)
