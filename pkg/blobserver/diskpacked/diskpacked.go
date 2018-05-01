@@ -664,6 +664,7 @@ func (s *storage) append(br blob.SizedRef, r io.Reader) error {
 	if s.closed {
 		return errors.New("diskpacked: write to closed storage")
 	}
+
 	// to be able to undo the append
 	origOffset := s.size
 

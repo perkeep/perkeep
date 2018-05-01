@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -79,6 +80,7 @@ func TestDiskpacked(t *testing.T) {
 func TestDiskpackedAltIndex(t *testing.T) {
 	storagetest.Test(t, newTempDiskpackedMemory)
 }
+
 func TestDoubleReceive(t *testing.T) {
 	sto, cleanup := newTempDiskpacked(t)
 	defer cleanup()
@@ -112,16 +114,6 @@ func TestDoubleReceive(t *testing.T) {
 	sizePostDup := size(1)
 	if sizePostDup >= blobSize {
 		t.Fatalf("size(pack1) = %d; appeared to double-write.", sizePostDup)
-	}
-
-	os.Remove(sto.(*storage).filename(0))
-	_, err = blobserver.Receive(ctxbg, sto, br, b.Reader())
-	if err != nil {
-		t.Fatal(err)
-	}
-	sizePostDelete := size(1)
-	if sizePostDelete < blobSize {
-		t.Fatalf("after packfile delete + reupload, not big enough. want size of a blob")
 	}
 }
 
@@ -363,6 +355,9 @@ func TestWriteError(t *testing.T) {
 	t.Logf("diskpacked test dir is %q", dir)
 	fn := filepath.Join(dir, "pack-00000.blobs")
 	if err := os.Symlink("/non existing file", fn); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skip("skipping symlink test on Windows")
+		}
 		t.Fatal(err)
 	}
 	s, err := newStorage(dir, 1, jsonconfig.Obj{"type": "memory"})
