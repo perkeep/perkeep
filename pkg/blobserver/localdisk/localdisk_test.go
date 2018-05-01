@@ -19,17 +19,13 @@ package localdisk
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strconv"
 	"sync"
 	"testing"
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
-	"perkeep.org/pkg/blobserver/files"
 	"perkeep.org/pkg/blobserver/storagetest"
 	"perkeep.org/pkg/test"
 )
@@ -149,34 +145,6 @@ func TestMissingGetReturnsNoEnt(t *testing.T) {
 type file struct {
 	name     string
 	contents string
-}
-
-func TestRename(t *testing.T) {
-	if runtime.GOOS != "windows" {
-		t.Skip("Skipping test if not on windows")
-	}
-	var rename = files.OSFS().Rename
-	files := []file{
-		{name: filepath.Join(os.TempDir(), "foo"), contents: "foo"},
-		{name: filepath.Join(os.TempDir(), "bar"), contents: "barr"},
-		{name: filepath.Join(os.TempDir(), "baz"), contents: "foo"},
-	}
-	for _, v := range files {
-		if err := ioutil.WriteFile(v.name, []byte(v.contents), 0755); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	// overwriting "bar" with "foo" should not be allowed
-	if err := rename(files[0].name, files[1].name); err == nil {
-		t.Fatalf("Renaming %v into %v should not succeed", files[0].name, files[1].name)
-	}
-
-	// but overwriting "baz" with "foo" is ok because they have the same
-	// contents
-	if err := rename(files[0].name, files[2].name); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestLocaldisk(t *testing.T) {

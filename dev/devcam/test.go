@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"perkeep.org/internal/osutil"
@@ -89,6 +90,15 @@ func (c *testCmd) env() *Env {
 		panic("devcam test needs GOPATH to be set")
 	}
 	env.Set("GOPATH", gopath)
+
+	// Disable CGO on windows if it doesn't look like it's available.
+	if runtime.GOOS == "windows" {
+		if _, err := exec.LookPath("gcc"); err != nil {
+			if _, err := exec.LookPath("clang"); err != nil {
+				env.Set("CGO_ENABLED", "0")
+			}
+		}
+	}
 	return env
 }
 

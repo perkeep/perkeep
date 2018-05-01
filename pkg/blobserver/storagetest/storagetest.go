@@ -128,8 +128,8 @@ func TestOpt(t *testing.T, opt Opts) {
 		if err != nil {
 			t.Fatalf("error fetching %d. %s: %v", i, b2, err)
 		}
-		defer rc.Close()
 		testSizedBlob(t, rc, b2.BlobRef(), int64(size))
+		rc.Close()
 	}
 
 	t.Logf("Testing Stat")
