@@ -190,11 +190,11 @@ func zipSource(ctxDir string) {
 	}
 	setReleaseTarballName()
 	// can't use os.Rename because invalid cross-device link error likely
-	cmd = exec.Command("mv", filepath.Join(ctxDir, "camlistore-src.zip"), releaseTarball)
+	cmd = exec.Command("mv", filepath.Join(ctxDir, "perkeep-src.zip"), releaseTarball)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error moving source zip from %v to %v: %v", filepath.Join(ctxDir, "camlistore-src.zip"), releaseTarball, err)
+		log.Fatalf("Error moving source zip from %v to %v: %v", filepath.Join(ctxDir, "perkeep-src.zip"), releaseTarball, err)
 	}
 	fmt.Printf("Perkeep source successfully zipped in %v\n", releaseTarball)
 }
@@ -253,13 +253,13 @@ func publicACL(proj string) []storage.ACLRule {
 }
 
 // uploadReleaseTarball uploads the generated tarball of binaries in
-// camlistore-release/VERSION/camlistoreVERSION-REV-CONTENTS.EXT. It then makes a copy in
-// the same bucket and path, as camlistoreVERSION-CONTENTS.EXT.
+// camlistore-release/VERSION/perkeepVERSION-REV-CONTENTS.EXT. It then makes a copy in
+// the same bucket and path, as perkeepVERSION-CONTENTS.EXT.
 func uploadReleaseTarball() {
 	proj := "camlistore-website"
 	bucket := "camlistore-release"
 	tarball := *flagVersion + "/" + filepath.Base(releaseTarball)
-	versionedTarball := strings.Replace(tarball, "camlistore"+*flagVersion, "camlistore"+*flagVersion+"-"+rev(), 1)
+	versionedTarball := strings.Replace(tarball, "perkeep"+*flagVersion, "perkeep"+*flagVersion+"-"+rev(), 1)
 
 	log.Printf("Uploading %s/%s ...", bucket, versionedTarball)
 
@@ -420,9 +420,9 @@ func setReleaseTarballName() {
 		extension = ".tar.gz"
 	}
 	if *flagVersion != "" {
-		filename = "camlistore" + *flagVersion + "-" + contents + extension
+		filename = "perkeep" + *flagVersion + "-" + contents + extension
 	} else {
-		filename = "camlistore-" + contents + extension
+		filename = "perkeep-" + contents + extension
 	}
 	releaseTarball = path.Join(dockDir, "release", filename)
 }
