@@ -22,11 +22,9 @@ limitations under the License.
 package webserver // import "perkeep.org/pkg/webserver"
 
 import (
-	"bufio"
 	"crypto/rand"
 	"crypto/tls"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -171,7 +169,6 @@ func (s *Server) Listen(addr string) error {
 		return nil
 	}
 
-	doLog := os.Getenv("TESTING_PORT_WRITE_FD") == "" // Don't make noise during unit tests
 	if addr == "" {
 		return fmt.Errorf("<host>:<port> needs to be provided to start listening")
 	}
@@ -182,9 +179,7 @@ func (s *Server) Listen(addr string) error {
 		return fmt.Errorf("Failed to listen on %s: %v", addr, err)
 	}
 	base := s.ListenURL()
-	if doLog {
-		s.printf("Starting to listen on %s\n", base)
-	}
+	s.printf("Starting to listen on %s\n", base)
 
 	doEnableTLS := func() error {
 		config := &tls.Config{
@@ -213,7 +208,7 @@ func (s *Server) Listen(addr string) error {
 		}
 	}
 
-	if doLog && strings.HasSuffix(base, ":0") {
+	if strings.HasSuffix(base, ":0") {
 		s.printf("Now listening on %s\n", s.ListenURL())
 	}
 
@@ -263,25 +258,11 @@ func (s *Server) Serve() {
 // TODO: write back the port number that we randomly selected?
 // For now just writes back a single byte.
 func runTestHarnessIntegration(listener net.Listener) {
-	writePipe, err := pipeFromEnvFd("TESTING_PORT_WRITE_FD")
-	if err != nil {
-		return
-	}
-	readPipe, _ := pipeFromEnvFd("TESTING_CONTROL_READ_FD")
-
-	if writePipe != nil {
-		writePipe.Write([]byte(listener.Addr().String() + "\n"))
-	}
-
-	if readPipe != nil {
-		bufr := bufio.NewReader(readPipe)
-		for {
-			line, err := bufr.ReadString('\n')
-			if err == io.EOF || line == "EXIT\n" {
-				os.Exit(0)
-			}
-			return
-		}
+	addr := os.Getenv("CAMLI_SET_BASE_URL_AND_SEND_ADDR_TO")
+	c, err := net.Dial("tcp", addr)
+	if err == nil {
+		fmt.Fprintf(c, "%s\n", listener.Addr())
+		c.Close()
 	}
 }
 

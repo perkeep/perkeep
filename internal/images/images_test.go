@@ -391,6 +391,9 @@ func TestHEIFToJPEG(t *testing.T) {
 	max := 1008
 	data, err := HEIFToJPEG(f, &Dimensions{MaxWidth: max, MaxHeight: max})
 	if err != nil {
+		if _, ok := err.(NoHEICTOJPEGError); ok {
+			t.Skipf("skipping test; missing program: %v", err)
+		}
 		t.Fatal(err)
 	}
 	conf, tp, err := image.DecodeConfig(bytes.NewReader(data))

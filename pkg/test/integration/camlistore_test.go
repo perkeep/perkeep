@@ -190,10 +190,10 @@ func TestAndroidCamputFile(t *testing.T) {
 	//   CAMPUT_ANDROID_OUTPUT=1
 	cacheDir, clean := mustTempDir(t)
 	defer clean()
-	env := []string{
+	env := append(os.Environ(),
 		"CAMPUT_ANDROID_OUTPUT=1",
-		"CAMLI_CACHE_DIR=" + cacheDir,
-	}
+		"CAMLI_CACHE_DIR="+cacheDir,
+	)
 	cmd := w.CmdWithEnv("pk-put",
 		env,
 		"--server="+w.ServerBaseURL(),

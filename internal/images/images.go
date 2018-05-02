@@ -656,6 +656,10 @@ func localImageMagick() string {
 	return ""
 }
 
+type NoHEICTOJPEGError struct {
+	error
+}
+
 // HEIFToJPEG converts the HEIF file in fr to JPEG. It optionally resizes it
 // to the given maxSize argument, if any. It returns the contents of the JPEG file.
 func HEIFToJPEG(fr io.Reader, maxSize *Dimensions) ([]byte, error) {
@@ -665,7 +669,7 @@ func HEIFToJPEG(fr io.Reader, maxSize *Dimensions) ([]byte, error) {
 	bin := localImageMagick()
 	if bin == "" {
 		if err := setUpThumbnailContainer(); err != nil {
-			return nil, fmt.Errorf("recent ImageMagick magick binary not found in PATH, and could not fallback on docker image because %v. Install a modern ImageMagick or install docker.", err)
+			return nil, NoHEICTOJPEGError{fmt.Errorf("recent ImageMagick magick binary not found in PATH, and could not fallback on docker image because %v. Install a modern ImageMagick or install docker.", err)}
 		}
 		bin = "docker"
 		useDocker = true

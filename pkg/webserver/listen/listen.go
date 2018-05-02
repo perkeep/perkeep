@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -36,7 +37,7 @@ func NewFlag(flagName, defaultValue string, serverType string) *Addr {
 }
 
 // Listen is a replacement for net.Listen and supports
-//   port, :port, ip:port, FD:<fd_num>, ADDR:<name>
+//   port, :port, ip:port, FD:<fd_num>
 // Listeners are always TCP.
 func Listen(addr string) (net.Listener, error) {
 	a := &Addr{s: addr}
@@ -52,7 +53,7 @@ func Usage(name string) string {
 	if !strings.HasSuffix(name, " address") {
 		name += " address"
 	}
-	return name + "; may be port, :port, ip:port, FD:<fd_num>, or ADDR:<name> to use named ports"
+	return name + "; may be port, :port, ip:port, or FD:<fd_num>"
 }
 
 // Addr is a flag variable.  Use like:
@@ -103,6 +104,9 @@ func isPort(s string) bool {
 }
 
 func (a *Addr) listenOnFD(fd uintptr) (err error) {
+	if runtime.GOOS == "windows" {
+		panic("listenOnFD unsupported on Windows")
+	}
 	f := os.NewFile(fd, fmt.Sprintf("fd #%d from process parent", fd))
 	a.ln, err = net.FileListener(f)
 	return

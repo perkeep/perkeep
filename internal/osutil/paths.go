@@ -337,6 +337,9 @@ func LookPathGopath(binName string) (string, error) {
 		return "", fmt.Errorf("command %q not found in $PATH, and could not look in $GOPATH/bin because %v", binName, err)
 	}
 	binPath = filepath.Join(binDir, binName)
+	if runtime.GOOS == "windows" {
+		binPath += ".exe"
+	}
 	if _, err := os.Stat(binPath); err != nil {
 		return "", err
 	}
