@@ -64,7 +64,7 @@ func (c *searchCmd) Usage() {
 func (c *searchCmd) Examples() []string {
 	return []string{
 		`"loc:paris is:portrait" # expression`,
-		`'{"blobrefPrefix":"sha1-f00d"}' # SearchConstraint JSON`,
+		`'{"blobrefPrefix":"sha224-f00d"}' # SearchConstraint JSON`,
 		`- # piped from stdin`,
 	}
 }

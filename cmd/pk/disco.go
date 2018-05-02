@@ -39,6 +39,8 @@ func init() {
 	})
 }
 
+func (c *discoCmd) Demote() bool { return true }
+
 func (c *discoCmd) Describe() string {
 	return "Perform configuration discovery against a server."
 }

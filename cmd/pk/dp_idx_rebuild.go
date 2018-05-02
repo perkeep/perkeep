@@ -44,6 +44,8 @@ func init() {
 		})
 }
 
+func (c *reindexdpCmd) Demote() bool { return true }
+
 func (c *reindexdpCmd) Describe() string {
 	return "Rebuild the index of the diskpacked blob store"
 }

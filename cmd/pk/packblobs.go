@@ -40,6 +40,8 @@ func init() {
 	})
 }
 
+func (c *packBlobsCmd) Demote() bool { return true }
+
 func (c *packBlobsCmd) Describe() string {
 	return "Pack related blobs together (migration tool)"
 }

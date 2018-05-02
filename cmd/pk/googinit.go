@@ -44,6 +44,8 @@ func init() {
 	})
 }
 
+func (c *googinitCmd) Demote() bool { return true }
+
 func (c *googinitCmd) Describe() string {
 	return "Init Google Drive or Google Cloud Storage."
 }
