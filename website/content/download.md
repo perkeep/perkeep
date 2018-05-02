@@ -1,6 +1,6 @@
 # Download Perkeep
 
-The latest release is [2017-05-05](docs/release/monthly/2017-05-05).
+The latest release is [0.10 ("Bellingham")](/doc/release/0.10), released 2018-05-02.
 
 Or, using the latest code from git:
 
@@ -59,6 +59,8 @@ is regularly built and uploaded.
 
 Previous release notes:
 
+-   [0.10 ("Bellingham")](/doc/release/0.10), 2018-05-02
+-   [2017-05-05](docs/release/monthly/2017-05-05.html)
 -   [2017-03-01](docs/release/monthly/2017-03-01.html)
 -   [0.9 ("Astrakhan")](/doc/release/0.9), 2015-12-30
 -   [0.8 ("Tokyo")](/doc/release/0.8), 2014-08-03
