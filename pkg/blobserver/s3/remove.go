@@ -27,9 +27,6 @@ import (
 var removeGate = syncutil.NewGate(20) // arbitrary
 
 func (sto *s3Storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
-	if sto.cache != nil {
-		sto.cache.RemoveBlobs(ctx, blobs)
-	}
 	var wg syncutil.Group
 
 	for _, blob := range blobs {
