@@ -1,9 +1,64 @@
 
-<h1>Monthly Release: 2018-05-01</h1>
+<h1>Release 0.10 ("Bellingham")</h1>
+
+<p><b>2018-05-02</b></p>
 
 <p>
-Perkeep version <a href='https://github.com/perkeep/perkeep/commit/c39f4cabd4'>c39f4cabd4</a> built with Go 1.10.
+We're happy to announce Perkeep version 0.10, arriving about one year (too
+long!) after our last release. It's named
+after <a href="https://en.wikipedia.org/wiki/Bellingham,_Washington">Bellingham,
+WA</a>, home of <a href="https://linuxfestnorthwest.org/">LinuxFest
+Northwest</a>, where Mathieu and Brad just met up in person and gave a
+talk on
+Perkeep. [<a href="https://docs.google.com/presentation/d/1suYfv3dmjJQ1mMJIG7_D26e5cudZqPcZTPNgrLvTIrI/view">slides</a>]
+[<a href="https://www.youtube.com/watch?v=PlAU_da_U4s">video</a>].
 </p>
+
+<p>
+This is our first release with the name <b>Perkeep</b> since
+we <a href="https://perkeep.org/issue/981">renamed the project</a>
+from Camlistore.
+</p>
+
+<p>Some notable highlights of 0.10 include:</p>
+
+<ul>
+  <li>New name, <a href="https://perkeep.org/keepy">new mascot</a></li>
+  <li>Map view in the web UI</li>
+  <li>Initial support for iOS HEIC images</li>
+  <li><a href="https://perkeep.org/issue/537">Migration from SHA-1</a> to SHA-224 blobs</li>
+</ul>
+
+<p>See below for the more complete list.</p>
+
+<p>If you're happy with Perkeep and want to fund its development, see
+our new <a href="https://opencollective.com/perkeep">OpenCollective
+    funding page</a>.</p>
+
+<p>And follow us on Twitter
+at <a href="https://twitter.com/PerkeepOrg">@PerkeepOrg</a>!</p>
+
+<h2>Docker</h2>
+
+<p>
+  This is our first release with an official Docker image. It contains
+the server and client binaries, but comes with no documentation. We
+assume for now that you know Docker enough to use it:
+</p>
+
+<code>
+$ docker pull gcr.io/perkeep-containers/perkeep:0.10
+</code>
+
+<h2>Android</h2>
+
+<p>
+  <a href="https://play.google.com/store/apps/details?id=org.camlistore">Our Android app</a> has been updated on the Google Play store.
+</p>
+
+<h2>Cloud Launcher</h2>
+
+<p>To deploy a Perkeep server on Google Cloud, see our <a href="https://perkeep.org/launch/">Cloud Launcher</a> utility.</p>
 
 <h2>Downloads</h2>
 
@@ -42,19 +97,19 @@ Perkeep version <a href='https://github.com/perkeep/perkeep/commit/c39f4cabd4'>c
 <h2>Release Stats</h2>
 
 <p>
-33 total committers over 597 commits since <a href='https://github.com/perkeep/perkeep/commit/d21ecfd24eb7ad8276d2ad54c533d3453b1a4734'>d21ecfd24eb7ad8276d2ad54c533d3453b1a4734</a> including Adam Shannon, Attila Tajti, Brad Fitzpatrick, Bruce C. Dillahunty, Daniel Heath, Daniel Lipovetsky, Eric Drechsel, Fabian Wickborn, Filippo Valsorda, Govert Versluis, Hernan Grecco, James Hillyerd, Josh Bleecher Snyder, Magnus Landerblom, Markus Peröbner, Max Bernstein, Michael Houston, Mike Lloyd, Paul Jolly, Paul Lindner, Peter Etelej, Phillip Couto, Piotr S. Staszewski, Ronald Evers, Sergi Mansilla, Stephen Searles, Sterchele Nicolas, Steve Armstrong, Steven L. Speek, Tamás Gulácsi, Tilman Dilo, Will Norris, mpl.
+33 total committers over 597 commits since <a href='https://github.com/perkeep/perkeep/commit/d21ecfd24eb7ad8276d2ad54c533d3453b1a4734'>d21ecfd24</a> including Adam Shannon, Attila Tajti, Brad Fitzpatrick, Bruce C. Dillahunty, Daniel Heath, Daniel Lipovetsky, Eric Drechsel, Fabian Wickborn, Filippo Valsorda, Govert Versluis, Hernan Grecco, James Hillyerd, Josh Bleecher Snyder, Magnus Landerblom, Markus Peröbner, Max Bernstein, Michael Houston, Mike Lloyd, Paul Jolly, Paul Lindner, Peter Etelej, Phillip Couto, Piotr S. Staszewski, Ronald Evers, Sergi Mansilla, Stephen Searles, Sterchele Nicolas, Steve Armstrong, Steven L. Speek, Tamás Gulácsi, Tilman Dilo, Will Norris, mpl.
 </p>
 
 <p>Thank you!</p>
 
 
 
-<h2>Release Notes</h2>
+<h2>Other Changes</h2>
+
+<p>Some other changes not mentioned above but excluding the most boring cleanups:</p>
 
 <p>
 <ul>
-
-
 
 <li>
 app/scanningcabinet:
@@ -76,7 +131,7 @@ blob:
 <li>
 blobserver:
 <ul>
-<li>add contexts to ReceiveBlob, Fetch, and BlobRemover</li>
+<li>add Go <code>context.Context</code> support to ReceiveBlob, Fetch, and BlobRemover</li>
 <li>change BlobStatter interface, simplify proxycache</li>
 </ul>
 </li>
@@ -84,16 +139,15 @@ blobserver:
 <li>
 blobserver/azure:
 <ul>
-<li>new blobserver pkg for Microsoft Azure</li>
+<li>new support for storing blobs on Microsoft Azure</li>
 </ul>
 </li>
 
 <li>
 blobserver/blobpacked:
 <ul>
-<li>add check for large storage integrity</li>
+<li>add start-up sanity check for integrity of packed zips</li>
 <li>log reindexing progress</li>
-<li>add new z: meta rows in index</li>
 </ul>
 </li>
 
@@ -101,7 +155,7 @@ blobserver/blobpacked:
 blobserver/encrypt:
 <ul>
 <li>implement meta blob packing</li>
-<li>rewrite encryption to use NaCl and a simpler meta</li>
+<li>rewrite encryption to use NaCl and a simpler metadata format</li>
 </ul>
 </li>
 
@@ -205,13 +259,6 @@ cmd:
 </li>
 
 <li>
-cmdmain:
-<ul>
-<li>sort Modes and Examples</li>
-</ul>
-</li>
-
-<li>
 deploy/gce:
 <ul>
 <li>add Google Cloud Free Tier option</li>
@@ -219,31 +266,17 @@ deploy/gce:
 </li>
 
 <li>
-dev/devcam:
-<ul>
-<li>make it faster by calling make.go only one time</li>
-</ul>
-</li>
-
-<li>
 doc:
 <ul>
 <li>update build instructions</li>
-<li>add comparison to other software and services</li>
+<li>add <a href="/doc/compare">comparison</a> to other software and services</li>
 <li>add jsonsign protocol docs</li>
-<li>add lfnw 2018 talk</li>
+<li>add LFNW 2018 talk</li>
 </ul>
 </li>
 
 <li>
-Dockerfile:
-<ul>
-<li>rewrite as multi-stage</li>
-</ul>
-</li>
-
-<li>
-fs:
+FUSE filesystem:
 <ul>
 <li>add &#34;versions&#34; folder</li>
 </ul>
@@ -253,14 +286,13 @@ fs:
 geocode:
 <ul>
 <li>support the now-required Google API key and document how to configure</li>
-<li>change Lookup behavior wrt to AltLookupFn</li>
 </ul>
 </li>
 
 <li>
 gpgchallenge:
 <ul>
-<li>use long form when looking for key ID</li>
+<li>switch to using long forms of key IDs</li>
 </ul>
 </li>
 
@@ -324,13 +356,6 @@ misc/docker:
 <ul>
 <li>add heiftojpeg, for making thumbnails from HEIC images</li>
 <li>update go image to 1.10.2</li>
-</ul>
-</li>
-
-<li>
-old/camwebdav:
-<ul>
-<li>removed</li>
 </ul>
 </li>
 
@@ -401,8 +426,7 @@ pk:
 <li>
 rollsum:
 <ul>
-<li>fix uint8 overflow</li>
-<li>help the compiler</li>
+<li>optimizations to get better generated code from the compiler</li>
 </ul>
 </li>
 
@@ -425,6 +449,7 @@ search:
 <li>add support for wildcards in filename search</li>
 <li>allow empty expression</li>
 <li>optimize searching for a single blob</li>
+<li>optimize several popular search types to use better in-memory indexes</li>
 </ul>
 </li>
 
@@ -434,20 +459,6 @@ server:
 <li>use a caching fetcher when downloading</li>
 <li>add recovery option on web UI and instance page</li>
 <li>add support for directories download</li>
-</ul>
-</li>
-
-<li>
-server/appengine:
-<ul>
-<li>removed</li>
-</ul>
-</li>
-
-<li>
-server/sigserver:
-<ul>
-<li>delete old and unused sigserver</li>
 </ul>
 </li>
 
@@ -475,45 +486,21 @@ sorted/sqlkv:
 </li>
 
 <li>
-test:
-<ul>
-<li>remove FakeIndex</li>
-</ul>
-</li>
-
-<li>
-test/docker:
-<ul>
-<li>force the MySQL version to 5</li>
-</ul>
-</li>
-
-<li>
 vendor:
 <ul>
 <li>switch to using the dep vendor tree management tool, instead of doing things manually</li>
-<li>add rsc.io/pdf</li>
-<li>add myitcv.io/react</li>
-<li>add go4.org/media/heif</li>
-</ul>
-</li>
-
-<li>
-webserver:
-<ul>
-<li>remove usage of runsit package</li>
 </ul>
 </li>
 
 <li>
 website:
 <ul>
-<li>add link to open collective page</li>
+<li>add link to <a href="https://opencollective.com/perkeep">Open Collective page</a></li>
 <li>allow serving godoc for any valid package</li>
-<li>use Lets Encrypt http-01 challenge</li>
+<li>use Let's Encrypt http-01 challenge</li>
 <li>migrate to perkeep.org as the production domain</li>
 <li>Add CoC on community page</li>
-<li>add links to android app</li>
+<li>add links to <a href="https://play.google.com/store/apps/details?id=org.camlistore">Android app</a></li>
 <li>move go code to pk-web package</li>
 </ul>
 </li>
