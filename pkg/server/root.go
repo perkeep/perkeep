@@ -19,6 +19,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"log"
 	"net/http"
 	"sort"
@@ -208,7 +209,8 @@ func (rh *RootHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, p, a...)
 	}
 	f("<html><body><p>This is perkeepd (%s), a "+
-		"<a href='http://perkeep.org'>Perkeep</a> server.</p>", buildinfo.Version())
+		"<a href='http://perkeep.org'>Perkeep</a> server.</p>",
+		html.EscapeString(buildinfo.Summary()))
 	if rh.ui != nil {
 		f("<p>To manage your content, access the <a href='%s'>%s</a>.</p>", rh.ui.prefix, rh.ui.prefix)
 	}

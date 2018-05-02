@@ -25,11 +25,20 @@ import "flag"
 // $ go install --ldflags="-X camlistore.org/pkg/buildinfo.GitInfo "`./misc/gitversion` camlistore.org/server/perkeepd
 var GitInfo string
 
-// Version returns the git version of this binary.
+// Version is a string like "0.10" or "1.0", if applicable.
+var Version string
+
+// Summary returns the version and/or git version of this binary.
 // If the linker flags were not provided, the return value is "unknown".
-func Version() string {
+func Summary() string {
+	if Version != "" && GitInfo != "" {
+		return Version + ", " + GitInfo
+	}
 	if GitInfo != "" {
 		return GitInfo
+	}
+	if Version != "" {
+		return Version
 	}
 	return "unknown"
 }

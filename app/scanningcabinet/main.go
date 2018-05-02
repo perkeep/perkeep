@@ -60,12 +60,12 @@ func main() {
 	if *flagVersion {
 		fmt.Fprintf(os.Stderr, "WARNING: THIS APP IS STILL EXPERIMENTAL, AND EVEN ITS DATA SCHEMA MIGHT CHANGE. DO NOT USE IN PRODUCTION.")
 		fmt.Fprintf(os.Stderr, "scanningcabinet version: %s\nGo version: %s (%s/%s)\n",
-			buildinfo.Version(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
+			buildinfo.Summary(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
 		return
 	}
 
 	logf("WARNING: THIS APP IS STILL EXPERIMENTAL, AND EVEN ITS DATA SCHEMA MIGHT CHANGE. DO NOT USE IN PRODUCTION.")
-	logf("Starting scanning cabinet version %s; Go %s (%s/%s)", buildinfo.Version(), runtime.Version(),
+	logf("Starting scanning cabinet version %s; Go %s (%s/%s)", buildinfo.Summary(), runtime.Version(),
 		runtime.GOOS, runtime.GOARCH)
 
 	listenAddr, err := app.ListenAddress()

@@ -479,7 +479,7 @@ func main() {
 	checkSanity()
 
 	if *flagVersion {
-		fmt.Fprintf(os.Stderr, "scancab version: %s\n", buildinfo.Version())
+		fmt.Fprintf(os.Stderr, "scancab version: %s\n", buildinfo.Summary())
 		return
 	}
 
