@@ -1,0 +1,523 @@
+
+<h1>Monthly Release: 2018-05-01</h1>
+
+<p>
+Perkeep version <a href='https://github.com/perkeep/perkeep/commit/c39f4cabd4'>c39f4cabd4</a> built with Go 1.10.
+</p>
+
+<h2>Downloads</h2>
+
+<center>
+<a class="downloadBox" href="/dl/monthly/perkeep-20180501-darwin.tar.gz">
+<div class="platform">Darwin</div>
+<div>
+	<span class="filename">perkeep-20180501-darwin.tar.gz</span>
+</div>
+<div class="checksum">SHA256: 9b6bd9c696d4ac0bf6c4c75991a2c111974652c84efb6b327b1219ddf3e4a2a9</div>
+</a>
+<a class="downloadBox" href="/dl/monthly/perkeep-20180501-linux.tar.gz">
+<div class="platform">Linux</div>
+<div>
+	<span class="filename">perkeep-20180501-linux.tar.gz</span>
+</div>
+<div class="checksum">SHA256: d471e35f5d5f9b731a97a219bb7816e8a3b3fe778dcac826847bfce098c27de2</div>
+</a>
+<a class="downloadBox" href="/dl/monthly/perkeep-20180501-src.zip">
+<div class="platform">Source</div>
+<div>
+	<span class="filename">perkeep-20180501-src.zip</span>
+</div>
+<div class="checksum">SHA256: 9e527d7317526ab4de6182ec3a1e7bbf4394d8bfb2ca40e17228fad0260dc270</div>
+</a>
+<a class="downloadBox" href="/dl/monthly/perkeep-20180501-windows.zip">
+<div class="platform">Windows</div>
+<div>
+	<span class="filename">perkeep-20180501-windows.zip</span>
+</div>
+<div class="checksum">SHA256: 343364f9ccade95684d7ae68e1d0079921bae038b19abef96b077354ca2d6bf8</div>
+</a>
+</center>
+
+
+<h2>Release Stats</h2>
+
+<p>
+33 total committers over 597 commits since <a href='https://github.com/perkeep/perkeep/commit/d21ecfd24eb7ad8276d2ad54c533d3453b1a4734'>d21ecfd24eb7ad8276d2ad54c533d3453b1a4734</a> including Adam Shannon, Attila Tajti, Brad Fitzpatrick, Bruce C. Dillahunty, Daniel Heath, Daniel Lipovetsky, Eric Drechsel, Fabian Wickborn, Filippo Valsorda, Govert Versluis, Hernan Grecco, James Hillyerd, Josh Bleecher Snyder, Magnus Landerblom, Markus Peröbner, Max Bernstein, Michael Houston, Mike Lloyd, Paul Jolly, Paul Lindner, Peter Etelej, Phillip Couto, Piotr S. Staszewski, Ronald Evers, Sergi Mansilla, Stephen Searles, Sterchele Nicolas, Steve Armstrong, Steven L. Speek, Tamás Gulácsi, Tilman Dilo, Will Norris, mpl.
+</p>
+
+<p>Thank you!</p>
+
+
+
+<h2>Release Notes</h2>
+
+<p>
+<ul>
+
+
+
+<li>
+app/scanningcabinet:
+<ul>
+<li>Show other tags of a doc in search results</li>
+</ul>
+</li>
+
+<li>
+blob:
+<ul>
+<li>support SHA-224 blobrefs, make them the default</li>
+<li>add ref.HasPrefix method</li>
+<li>add ref.EqualString method</li>
+</ul>
+</li>
+
+
+<li>
+blobserver:
+<ul>
+<li>add contexts to ReceiveBlob, Fetch, and BlobRemover</li>
+<li>change BlobStatter interface, simplify proxycache</li>
+</ul>
+</li>
+
+<li>
+blobserver/azure:
+<ul>
+<li>new blobserver pkg for Microsoft Azure</li>
+</ul>
+</li>
+
+<li>
+blobserver/blobpacked:
+<ul>
+<li>add check for large storage integrity</li>
+<li>log reindexing progress</li>
+<li>add new z: meta rows in index</li>
+</ul>
+</li>
+
+<li>
+blobserver/encrypt:
+<ul>
+<li>implement meta blob packing</li>
+<li>rewrite encryption to use NaCl and a simpler meta</li>
+</ul>
+</li>
+
+<li>
+blobserver/files:
+<ul>
+<li>new VFS layer for use by localdisk and other future files based implementations</li>
+</ul>
+</li>
+
+<li>
+blobserver/localdisk:
+<ul>
+<li>check that underlying filesystem can perform operations needed</li>
+<li>limit stat concurrency</li>
+<li>move most of the implementation to blobserver/files</li>
+</ul>
+</li>
+
+<li>
+blobserver/mongo:
+<ul>
+<li>fix stat behavior on missing blob</li>
+</ul>
+</li>
+
+<li>
+blobserver/overlay:
+<ul>
+<li>overlay: new blobserver type</li>
+</ul>
+</li>
+
+<li>
+blobserver/remote:
+<ul>
+<li>added trusted certs option</li>
+</ul>
+</li>
+
+<li>
+blobserver/union:
+<ul>
+<li>union: new blobserver type</li>
+</ul>
+</li>
+
+<li>
+camnetdns:
+<ul>
+<li>use Lets Encrypt http-01 challenge</li>
+</ul>
+</li>
+
+<li>
+client:
+<ul>
+<li>remove and clean most New constructors, replace them with options</li>
+<li>check client/server version mismatch</li>
+<li>make android work with Let's Encrypt</li>
+</ul>
+</li>
+
+<li>
+clients:
+<ul>
+<li>Move all relevant clients code under it</li>
+</ul>
+</li>
+
+<li>
+clients/android:
+<ul>
+<li>migrate to gradle, update build setup</li>
+<li>avoid wifi manager memory leak</li>
+<li>add multiple profile support</li>
+<li>make the upload service permanent</li>
+<li>show pk-put error messages</li>
+<li>remove self-signed cert option</li>
+<li>add Keepy icon</li>
+<li>New release on Google Play Store</li>
+</ul>
+</li>
+
+<li>
+clients/osx:
+<ul>
+<li>fix and update OSX status-menu app</li>
+</ul>
+</li>
+
+<li>
+cmd:
+<ul>
+<li>rename cammount to pk-mount</li>
+<li>rename camget to pk-get, and make it a mode of pk</li>
+<li>rename camput to pk-put, and make it a mode of pk</li>
+<li>rename camweb to pk-web</li>
+<li>rename camdeploy to pk-deploy</li>
+</ul>
+</li>
+
+<li>
+cmdmain:
+<ul>
+<li>sort Modes and Examples</li>
+</ul>
+</li>
+
+<li>
+deploy/gce:
+<ul>
+<li>add Google Cloud Free Tier option</li>
+</ul>
+</li>
+
+<li>
+dev/devcam:
+<ul>
+<li>make it faster by calling make.go only one time</li>
+</ul>
+</li>
+
+<li>
+doc:
+<ul>
+<li>update build instructions</li>
+<li>add comparison to other software and services</li>
+<li>add jsonsign protocol docs</li>
+<li>add lfnw 2018 talk</li>
+</ul>
+</li>
+
+<li>
+Dockerfile:
+<ul>
+<li>rewrite as multi-stage</li>
+</ul>
+</li>
+
+<li>
+fs:
+<ul>
+<li>add &#34;versions&#34; folder</li>
+</ul>
+</li>
+
+<li>
+geocode:
+<ul>
+<li>support the now-required Google API key and document how to configure</li>
+<li>change Lookup behavior wrt to AltLookupFn</li>
+</ul>
+</li>
+
+<li>
+gpgchallenge:
+<ul>
+<li>use long form when looking for key ID</li>
+</ul>
+</li>
+
+<li>
+importer:
+<ul>
+<li>add gphotos, a Google Photos importer</li>
+<li>pick the &#34;best&#34; importer account when several exist</li>
+<li>rename foursquare to swarm, add Properties to Importer interface</li>
+<li>refresh importer root page, add Titles, Descriptions, TODO bugs</li>
+</ul>
+</li>
+
+<li>
+index:
+<ul>
+<li>ignore unset msdos time when possible</li>
+<li>ignore indexed NaN location</li>
+<li>add integrity check</li>
+<li>switch to using the (long) GPG keyID, and not its blobRef, as the owner</li>
+<li>support for HEIC images</li>
+</ul>
+</li>
+
+<li>
+images:
+<ul>
+<li>support for HEIC images</li>
+<li>support making thumbnails for HEIC in docker</li>
+</ul>
+</li>
+
+<li>
+magic:
+<ul>
+<li>support for HEIC images</li>
+</ul>
+</li>
+
+<li>
+osutil:
+<ul>
+<li>rename the config dir to perkeep</li>
+</ul>
+</li>
+
+<li>
+make.go:
+<ul>
+<li>fix building on FreeBSD</li>
+<li>fix building on Windows</li>
+<li>allow specifying CAMLI_GOPHERJS_GOROOT for building gopherjs with different Go</li>
+<li>move to Go 1.10</li>
+<li>remove the tmp source code mirroring, now that Go is caching properly</li>
+<li>rely on Go (GOBIN, GOPATH, or $HOME/go) for install location</li>
+</ul>
+</li>
+
+<li>
+misc/docker:
+<ul>
+<li>add heiftojpeg, for making thumbnails from HEIC images</li>
+<li>update go image to 1.10.2</li>
+</ul>
+</li>
+
+<li>
+old/camwebdav:
+<ul>
+<li>removed</li>
+</ul>
+</li>
+
+<li>
+perkeepd:
+<ul>
+<li>use Let&#39;s Encrypt http-01 challenge</li>
+<li>listen for SIGTERM</li>
+<li>on GCE, automatically migrate itself to Perkeep systemd service</li>
+</ul>
+</li>
+
+<li>
+perkeepd/ui:
+<ul>
+<li>add &#34;Select all&#34; action</li>
+<li>add Map aspect</li>
+<li>disable key navigation when editing permanode attributes</li>
+<li>add sha224 support</li>
+<li>rename UI menu from Camli to Perkeep</li>
+<li>change Foursquare logo to Swarm logo</li>
+<li>add link to mobile setup in UI drop-down</li>
+<li>prefer permanode aspect over map aspect</li>
+</ul>
+</li>
+
+<li>
+pk:
+<ul>
+<li>add &#34;tool whoami&#34; subcommand</li>
+<li>add &#34;-1&#34; flag to search subcommand</li>
+<li>make &#34;search&#34; command highlight position of JSON syntax errors</li>
+</ul>
+</li>
+
+<li>
+pk-devimport:
+<ul>
+<li>new command that runs a local importer</li>
+</ul>
+</li>
+
+<li>
+pk-mount:
+<ul>
+<li>add more documentation and examples to help people get started with PerkeepFs</li>
+<li>in debug mode, dump stacks on SIGQUIT</li>
+<li>default to mounting at /pk if it exists</li>
+</ul>
+</li>
+
+<li>
+pk-put:
+<ul>
+<li>always output on fatal errors</li>
+<li>add --permanode option for blob subcommand</li>
+<li>add flag to specify hash function for raw blobs</li>
+</ul>
+</li>
+
+<li>
+pk:
+<ul>
+<li>move more packages to internal</li>
+</ul>
+</li>
+
+<li>
+rollsum:
+<ul>
+<li>fix uint8 overflow</li>
+<li>help the compiler</li>
+</ul>
+</li>
+
+<li>
+schema:
+<ul>
+<li>support for large directories, by breaking into subsets</li>
+</ul>
+</li>
+
+<li>
+search:
+<ul>
+<li>support location area predicate</li>
+<li>enable using Around with unsorted blob sources</li>
+<li>add Map sort</li>
+<li>add &#34;ref:&#34; predicate support</li>
+<li>add expression/constraint aliases</li>
+<li>switch to using (long) GPG key ID, instead of its blobRef</li>
+<li>add support for wildcards in filename search</li>
+<li>allow empty expression</li>
+<li>optimize searching for a single blob</li>
+</ul>
+</li>
+
+<li>
+server:
+<ul>
+<li>use a caching fetcher when downloading</li>
+<li>add recovery option on web UI and instance page</li>
+<li>add support for directories download</li>
+</ul>
+</li>
+
+<li>
+server/appengine:
+<ul>
+<li>removed</li>
+</ul>
+</li>
+
+<li>
+server/sigserver:
+<ul>
+<li>delete old and unused sigserver</li>
+</ul>
+</li>
+
+<li>
+serverinit:
+<ul>
+<li>catch typos in high-level server config</li>
+<li>remove DBNames and provide consistent default instead</li>
+<li>improve error message to help people find config file with errors</li>
+</ul>
+</li>
+
+<li>
+sorted/postgres:
+<ul>
+<li>create databases on boot</li>
+</ul>
+</li>
+
+<li>
+sorted/sqlkv:
+<ul>
+<li>make multiple close safe</li>
+</ul>
+</li>
+
+<li>
+test:
+<ul>
+<li>remove FakeIndex</li>
+</ul>
+</li>
+
+<li>
+test/docker:
+<ul>
+<li>force the MySQL version to 5</li>
+</ul>
+</li>
+
+<li>
+vendor:
+<ul>
+<li>switch to using the dep vendor tree management tool, instead of doing things manually</li>
+<li>add rsc.io/pdf</li>
+<li>add myitcv.io/react</li>
+<li>add go4.org/media/heif</li>
+</ul>
+</li>
+
+<li>
+webserver:
+<ul>
+<li>remove usage of runsit package</li>
+</ul>
+</li>
+
+<li>
+website:
+<ul>
+<li>add link to open collective page</li>
+<li>allow serving godoc for any valid package</li>
+<li>use Lets Encrypt http-01 challenge</li>
+<li>migrate to perkeep.org as the production domain</li>
+<li>Add CoC on community page</li>
+<li>add links to android app</li>
+<li>move go code to pk-web package</li>
+</ul>
+</li>
+
+</ul>
+</p>
+
