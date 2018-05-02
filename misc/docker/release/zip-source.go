@@ -45,7 +45,7 @@ var (
 	flagSanity  = flag.Bool("sanity", true, "Check before making the zip that its contents pass the \"go run make.go\" test.")
 )
 
-const tmpSource = "/tmp/camlistore.org"
+const tmpSource = "/tmp/perkeep.org"
 
 var (
 	// Everything that should be included in the release.
@@ -53,7 +53,6 @@ var (
 	rootNames = map[string]bool{
 		"app":             true,
 		"AUTHORS":         false,
-		"bin":             true,
 		"BUILDING":        false,
 		"clients":         true,
 		"cmd":             true,
@@ -64,21 +63,22 @@ var (
 		"dev":             true,
 		"doc":             true,
 		"Dockerfile":      false,
+		"Gopkg.lock":      false,
+		"Gopkg.toml":      false,
 		"internal":        true,
 		"lib":             true,
 		"Makefile":        false,
 		"make.go":         false,
 		"misc":            true,
-		"old":             true,
 		"pkg":             true,
-		"README":          false,
+		"README.md":       false,
 		"server":          true,
 		"TESTS":           false,
 		"TODO":            false,
 		"vendor":          true,
 		"website":         true,
 	}
-	tarballSrc = path.Join(*flagOutDir, "camlistore.org")
+	tarballSrc = path.Join(*flagOutDir, "src", "perkeep.org")
 )
 
 func usage() {
@@ -90,8 +90,8 @@ func usage() {
 
 func example() {
 	fmt.Fprintf(os.Stderr, "Examples:\n")
-	fmt.Fprintf(os.Stderr, "\tdocker run --rm --volume /tmp/camlirelease:/OUT --volume $GOPATH/src/camlistore.org/misc/docker/release/cut-source.go:/usr/local/bin/cut-source.go:ro --volume $GOPATH/src/camlistore.org:/IN:ro camlistore/go /usr/local/go/bin/go run /usr/local/bin/zip-source.go --rev WIP:/IN\n")
-	fmt.Fprintf(os.Stderr, "\tdocker run --rm --volume /tmp/camlirelease:/OUT --volume $GOPATH/src/camlistore.org/misc/docker/release/zip-source.go:/usr/local/bin/cut-source.go:ro camlistore/go /usr/local/go/bin/go run /usr/local/bin/cut-source.go --rev=4e8413c5012c\n")
+	fmt.Fprintf(os.Stderr, "\tdocker run --rm --volume /tmp/camlirelease:/OUT --volume $GOPATH/src/perkeep.org/misc/docker/release/cut-source.go:/usr/local/bin/cut-source.go:ro --volume $GOPATH/src/perkeep.org:/IN:ro perkeep/go /usr/local/go/bin/go run /usr/local/bin/zip-source.go --rev WIP:/IN\n")
+	fmt.Fprintf(os.Stderr, "\tdocker run --rm --volume /tmp/camlirelease:/OUT --volume $GOPATH/src/perkeep.org/misc/docker/release/zip-source.go:/usr/local/bin/cut-source.go:ro perkeep/go /usr/local/go/bin/go run /usr/local/bin/cut-source.go --rev=4e8413c5012c\n")
 }
 
 func isWIP() bool {
@@ -139,7 +139,7 @@ func mirrorCamliSrc(srcDir string) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error mirroring camlistore source from %v: %v", srcDir, err)
+		log.Fatalf("Error mirroring perkeep source from %v: %v", srcDir, err)
 	}
 }
 
@@ -260,29 +260,23 @@ func checkBuild() {
 	check(os.Chdir(tarballSrc))
 	check(os.Setenv("PATH", os.Getenv("PATH")+":/usr/local/go/bin/"))
 	check(os.Setenv("CAMLI_GOPHERJS_GOROOT", "/usr/local/go"))
+	check(os.Setenv("GOPATH", *flagOutDir))
 	cmd := exec.Command("go", "run", "make.go")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("could not build Perkeep from tarball contents: %v", err)
 	}
-	// cleanup
-	check(os.RemoveAll(path.Join(tarballSrc, "tmp")))
-	binDir := path.Join(tarballSrc, "bin")
-	check(os.Rename(path.Join(binDir, "README"), "README.bin"))
-	check(os.RemoveAll(binDir))
-	check(os.MkdirAll(binDir, 0755))
-	check(os.Rename("README.bin", path.Join(binDir, "README")))
 }
 
 func pack() {
-	zipFile := path.Join(*flagOutDir, "camlistore-src.zip")
-	check(os.Chdir(*flagOutDir))
+	zipFile := path.Join(*flagOutDir, "perkeep-src.zip")
+	check(os.Chdir(filepath.Join(*flagOutDir, "src")))
 	fw, err := os.Create(zipFile)
 	check(err)
 	w := zip.NewWriter(fw)
 
-	check(filepath.Walk("camlistore.org", func(filePath string, fi os.FileInfo, err error) error {
+	check(filepath.Walk("perkeep.org", func(filePath string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
