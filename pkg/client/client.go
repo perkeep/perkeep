@@ -879,8 +879,8 @@ func (c *Client) SearchExistingFileSchema(ctx context.Context, wholeRef ...blob.
 // the client was built at or after 2018-01-13.
 func (c *Client) versionMismatch(ctx context.Context) (bool, error) {
 	const shortRFC3339 = "2006-01-02"
-	version := buildinfo.Version()
-	if version == "unknown" {
+	version := buildinfo.GitInfo
+	if version == "" {
 		return false, errors.New("unknown client version")
 	}
 	version = version[:10] // keep only the date part

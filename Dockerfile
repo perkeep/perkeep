@@ -39,7 +39,8 @@ WORKDIR $GOPATH
 # Add each directory separately, so our context doesn't include the
 # Dockerfile itself, to permit quicker iteration with docker's
 # caching.
-ADD app /go/src/perkeep.org/app
+ADD .git /go/src/perkeep.org/.git
+add app /go/src/perkeep.org/app
 ADD clients /go/src/perkeep.org/clients
 ADD cmd /go/src/perkeep.org/cmd
 ADD config /go/src/perkeep.org/config
@@ -51,14 +52,18 @@ ADD server /go/src/perkeep.org/server
 ADD vendor /go/src/perkeep.org/vendor
 ADD website /go/src/perkeep.org/website
 ADD make.go /go/src/perkeep.org/make.go
+ADD VERSION /go/src/perkeep.org/VERSION
 
 WORKDIR /go/src/perkeep.org
-RUN echo "0.10" > VERSION
+
 RUN go run make.go --sqlite=true -v
 
 
 
 FROM debian:stretch
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+                libsqlite3-dev && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /home/keepy/bin
 ENV HOME /home/keepy

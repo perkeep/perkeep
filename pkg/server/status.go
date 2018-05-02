@@ -156,7 +156,7 @@ type storageStatus struct {
 
 func (sh *StatusHandler) currentStatus() *status {
 	res := &status{
-		Version: buildinfo.Version(),
+		Version: buildinfo.Summary(),
 		GoInfo:  fmt.Sprintf("%s %s/%s cgo=%v", runtime.Version(), runtime.GOOS, runtime.GOARCH, cgoEnabled),
 		Storage: make(map[string]storageStatus),
 		Sync:    make(map[string]syncStatus),
@@ -246,7 +246,7 @@ func (sh *StatusHandler) serveStatusHTML(rw http.ResponseWriter, req *http.Reque
 	if env.OnGCE() {
 		envStr = " (on GCE)"
 	}
-	f("<li><b>Perkeep</b>: %s%s</li>", html.EscapeString(buildinfo.Version()), envStr)
+	f("<li><b>Perkeep</b>: %s%s</li>", html.EscapeString(buildinfo.Summary()), envStr)
 	f("<li><b>Go</b>: %s/%s %s, cgo=%v</li>", runtime.GOOS, runtime.GOARCH, runtime.Version(), cgoEnabled)
 	f("<li><b>djpeg</b>: %s", html.EscapeString(buildinfo.DjpegStatus()))
 	f("</ul>")

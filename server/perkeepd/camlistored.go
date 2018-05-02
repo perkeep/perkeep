@@ -901,7 +901,7 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 
 	if *flagVersion {
 		fmt.Fprintf(os.Stderr, "perkeepd version: %s\nGo version: %s (%s/%s)\n",
-			buildinfo.Version(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
+			buildinfo.Summary(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
 		return
 	}
 	if *flagHelp {
@@ -932,7 +932,7 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		}
 	}()
 
-	log.Printf("Starting perkeepd version %s; Go %s (%s/%s)", buildinfo.Version(), runtime.Version(),
+	log.Printf("Starting perkeepd version %s; Go %s (%s/%s)", buildinfo.Summary(), runtime.Version(),
 		runtime.GOOS, runtime.GOARCH)
 
 	shutdownc := make(chan io.Closer, 1) // receives io.Closer to cleanly shut down

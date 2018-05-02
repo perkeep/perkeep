@@ -73,11 +73,11 @@ func main() {
 
 	if *flagVersion {
 		fmt.Fprintf(os.Stderr, "hello version: %s\nGo version: %s (%s/%s)\n",
-			buildinfo.Version(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
+			buildinfo.Summary(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
 		return
 	}
 
-	log.Printf("Starting hello version %s; Go %s (%s/%s)", buildinfo.Version(), runtime.Version(),
+	log.Printf("Starting hello version %s; Go %s (%s/%s)", buildinfo.Summary(), runtime.Version(),
 		runtime.GOOS, runtime.GOARCH)
 
 	listenAddr, err := app.ListenAddress()

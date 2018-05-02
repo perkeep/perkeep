@@ -95,10 +95,11 @@ func main() {
 	verifyGoVersion()
 	verifyPerkeepRoot()
 	version := getVersion()
+	gitRev := getGitVersion()
 	sql := withSQLite()
 
 	if *verbose {
-		log.Printf("Perkeep version = %s", version)
+		log.Printf("Perkeep version = %q, git = %q", version, gitRev)
 		log.Printf("SQLite included: %v", sql)
 		log.Printf("Project source: %s", pkRoot)
 		log.Printf("Output binaries: %s", actualBinDir())
@@ -184,7 +185,7 @@ func main() {
 		baseArgs = append(baseArgs, "-race")
 	}
 	if *verbose {
-		log.Printf("version to stamp is %q", version)
+		log.Printf("version to stamp is %q, %q", version, gitRev)
 	}
 	var ldFlags string
 	if *static {
@@ -194,7 +195,8 @@ func main() {
 		if ldFlags != "" {
 			ldFlags += " "
 		}
-		ldFlags += "-X \"perkeep.org/pkg/buildinfo.GitInfo=" + version + "\""
+		ldFlags += "-X \"perkeep.org/pkg/buildinfo.GitInfo=" + gitRev + "\""
+		ldFlags += "-X \"perkeep.org/pkg/buildinfo.Version=" + version + "\""
 	}
 	if ldFlags != "" {
 		baseArgs = append(baseArgs, "--ldflags="+ldFlags)
@@ -646,18 +648,28 @@ func buildBin(pkg string) error {
 // or from git.
 func getVersion() string {
 	slurp, err := ioutil.ReadFile(filepath.Join(pkRoot, "VERSION"))
-	if err == nil {
-		return strings.TrimSpace(string(slurp))
+	v := strings.TrimSpace(string(slurp))
+	if err != nil && !os.IsNotExist(err) {
+		log.Fatal(err)
 	}
-	return gitVersion()
+	if v == "" {
+		return "unknown"
+	}
+	return v
 }
 
 var gitVersionRx = regexp.MustCompile(`\b\d\d\d\d-\d\d-\d\d-[0-9a-f]{10,10}\b`)
 
-// gitVersion returns the git version of the git repo at pkRoot as a
+// getGitVersion returns the git version of the git repo at pkRoot as a
 // string of the form "yyyy-mm-dd-xxxxxxx", with an optional trailing
 // '+' if there are any local uncommitted modifications to the tree.
-func gitVersion() string {
+func getGitVersion() string {
+	if _, err := exec.LookPath("git"); err != nil {
+		return ""
+	}
+	if _, err := os.Stat(filepath.Join(pkRoot, ".git")); os.IsNotExist(err) {
+		return ""
+	}
 	cmd := exec.Command("git", "rev-list", "--max-count=1", "--pretty=format:'%ad-%h'",
 		"--date=short", "--abbrev=10", "HEAD")
 	cmd.Dir = pkRoot
