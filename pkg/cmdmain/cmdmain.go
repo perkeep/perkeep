@@ -105,12 +105,25 @@ type ExecRunner interface {
 	LookPath() (string, error)
 }
 
+// Demoter is an interface that boring commands can implement to
+// demote themselves in the tool listing, for boring or low-level
+// subcommands. They only show up in --help mode.
+type Demoter interface {
+	CommandRunner
+	Demote() bool
+}
+
 type exampler interface {
 	Examples() []string
 }
 
 type describer interface {
 	Describe() string
+}
+
+func demote(c CommandRunner) bool {
+	i, ok := c.(Demoter)
+	return ok && i.Demote()
 }
 
 // RegisterMode adds a mode to the list of modes for the main command.
@@ -151,15 +164,19 @@ func usage(msg string) {
 	if msg != "" {
 		Errorf("Error: %v\n", msg)
 	}
+	var modesQualifer string
+	if !*FlagHelp {
+		modesQualifer = " (use --help to see all modes)"
+	}
 	Errorf(`
-Usage: ` + cmdName + ` [globalopts] <mode> [commandopts] [commandargs]
+Usage: `+cmdName+` [globalopts] <mode> [commandopts] [commandargs]
 
-Modes:
+Modes:%s
 
-`)
+`, modesQualifer)
 	var modes []string
 	for mode, cmd := range modeCommand {
-		if des, ok := cmd.(describer); ok {
+		if des, ok := cmd.(describer); ok && (*FlagHelp || !demote(cmd)) {
 			modes = append(modes, fmt.Sprintf("  %s: %s\n", mode, des.Describe()))
 		}
 	}
@@ -171,7 +188,7 @@ Modes:
 	Errorf("\nExamples:\n")
 	modes = nil
 	for mode, cmd := range modeCommand {
-		if ex, ok := cmd.(exampler); ok {
+		if ex, ok := cmd.(exampler); ok && (*FlagHelp || !demote(cmd)) {
 			line := ""
 			exs := ex.Examples()
 			if len(exs) > 0 {
@@ -250,7 +267,7 @@ func Main() {
 
 	args := flag.Args()
 	if *FlagVersion {
-		fmt.Fprintf(Stderr, "%s version: %s\n", os.Args[0], buildinfo.Version())
+		fmt.Fprintf(Stderr, "%s version: %s\n", os.Args[0], buildinfo.Summary())
 		return
 	}
 	if *FlagHelp {

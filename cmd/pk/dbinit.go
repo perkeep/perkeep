@@ -69,6 +69,8 @@ func init() {
 	})
 }
 
+func (c *dbinitCmd) Demote() bool { return true }
+
 func (c *dbinitCmd) Describe() string {
 	return "Set up the database for the indexer."
 }

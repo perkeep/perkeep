@@ -34,7 +34,9 @@ type indexCmd struct {
 func init() {
 	cmdmain.RegisterMode("index", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(indexCmd)
-		flags.BoolVar(&cmd.wipe, "wipe", false, "Erase and recreate all discovered indexes. NOOP for now.")
+
+		// TODO: add client-initiated wipe support?
+		// flags.BoolVar(&cmd.wipe, "wipe", false, "Erase and recreate all discovered indexes. NOOP for now.")
 		if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_DEBUG")); debug {
 			flags.BoolVar(&cmd.insecureTLS, "insecure", false, "If set, when using TLS, the server's certificates verification is disabled, and they are not checked against the trustedCerts in the client configuration either.")
 		}
@@ -42,8 +44,10 @@ func init() {
 	})
 }
 
+func (c *indexCmd) Demote() bool { return true }
+
 func (c *indexCmd) Describe() string {
-	return "Synchronize blobs for all discovered blobs storage - indexer pairs."
+	return "Synchronize blobs for all discovered blobs storage -> indexer sync pairs."
 }
 
 func (c *indexCmd) Usage() {

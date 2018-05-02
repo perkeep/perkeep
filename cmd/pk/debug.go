@@ -53,6 +53,8 @@ func init() {
 	})
 }
 
+func (c *debugCmd) Demote() bool { return true }
+
 func (c *debugCmd) Describe() string {
 	return "Show misc meta-info from the given file."
 }
