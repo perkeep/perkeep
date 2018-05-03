@@ -7,9 +7,10 @@
 ## For Users
 
 **If you're just looking to set up a Perkeep server and use it yourself,
-check out our [getting started guide](/download).** The documents below go into
-more detail on customizing the high level configuration for use such as
-alternative blob storage or synchronization to cloud storage.
+check out our [getting started guide](https://perkeep.org/download#getting-started).**
+The documents below go into more detail on customizing the high level
+configuration for use such as alternative blob storage or
+synchronization to cloud storage.
 
 * [Command-line tools](/cmd/)
 * [Server Config](/doc/server-config.md): Details for configuring server storage
