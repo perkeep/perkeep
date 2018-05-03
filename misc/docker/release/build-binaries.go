@@ -21,15 +21,10 @@ limitations under the License.
 package main // import "perkeep.org/misc/docker/release"
 
 import (
-	"archive/tar"
 	"bufio"
-	"compress/gzip"
 	"flag"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
 	"path"
@@ -73,31 +68,12 @@ func localCamliSource() string {
 	return strings.TrimPrefix(*flagRev, "WIP:")
 }
 
-func rev() string {
-	if isWIP() {
-		return "WORKINPROGRESS"
-	}
-	return *flagRev
-}
-
-func version() string {
-	// TODO(mpl): cut the rev to 10 chars, like make.go would do?
-	if *flagVersion != "" {
-		return fmt.Sprintf("%v (git rev %v)", *flagVersion, rev())
-	}
-	return rev()
-}
-
 func getCamliSrc() {
 	if localCamliSource() != "" {
 		mirrorCamliSrc(localCamliSource())
 	} else {
 		fetchCamliSrc()
 	}
-	// we insert the version in the VERSION file, so make.go does no need git
-	// in the container to detect the Perkeep version.
-	check(os.Chdir("/gopath/src/perkeep.org"))
-	check(ioutil.WriteFile("VERSION", []byte(version()), 0777))
 }
 
 func mirrorCamliSrc(srcDir string) {
@@ -112,35 +88,17 @@ func mirrorCamliSrc(srcDir string) {
 
 func fetchCamliSrc() {
 	check(os.MkdirAll("/gopath/src/perkeep.org", 0777))
-	check(os.Chdir("/gopath/src/perkeep.org"))
+	check(os.Chdir("/gopath/src"))
 
-	res, err := http.Get("https://camlistore.googlesource.com/camlistore/+archive/" + *flagRev + ".tar.gz")
-	check(err)
-	defer res.Body.Close()
-	gz, err := gzip.NewReader(res.Body)
-	check(err)
-	defer gz.Close()
-	tr := tar.NewReader(gz)
-	for {
-		h, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		check(err)
-		if h.Typeflag == tar.TypeDir {
-			check(os.MkdirAll(h.Name, os.FileMode(h.Mode)))
-			continue
-		}
-		f, err := os.Create(h.Name)
-		check(err)
-		n, err := io.Copy(f, tr)
-		if err != nil && err != io.EOF {
-			log.Fatal(err)
-		}
-		if n != h.Size {
-			log.Fatalf("Error when creating %v: wanted %v bytes, got %v bytes", h.Name, h.Size, n)
-		}
-		check(f.Close())
+	cmd := exec.Command("git", "clone", "https://camlistore.googlesource.com/camlistore", "perkeep.org")
+	if err := cmd.Run(); err != nil {
+		log.Fatal("Error cloning Perkeep")
+	}
+
+	check(os.Chdir("perkeep.org"))
+	cmd = exec.Command("git", "reset", "--hard", *flagRev)
+	if err := cmd.Run(); err != nil {
+		log.Fatalf("Error resetting to %v", *flagRev)
 	}
 }
 
