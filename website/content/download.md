@@ -34,7 +34,7 @@ the server with:
     $ ./bin/perkeepd
 
 This will create [configuration](/doc/server-config) and public/private
-key information in `$HOME/.config/camlistore/` (or where
+key information in `$HOME/.config/perkeep/` (or where
 `camtool env configdir` points). You can start and stop perkeepd as
 you see fit.
 

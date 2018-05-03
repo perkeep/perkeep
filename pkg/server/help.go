@@ -117,7 +117,7 @@ func (hh *HelpHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 	hh.clientConfig = clientConfig
 
 	hh.serverSecRing = clientConfig.IdentitySecretRing
-	clientConfig.IdentitySecretRing = "/home/you/.config/camlistore/identity-secring.gpg"
+	clientConfig.IdentitySecretRing = "/home/you/.config/perkeep/identity-secring.gpg"
 
 	tmpl, err := template.New("help").Parse(helpHTML)
 	if err != nil {

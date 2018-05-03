@@ -3,7 +3,7 @@
 The various clients (pk put, pk-get, pk-mount...) use a common JSON config
 file. This page documents the configuration parameters in that file. Run
 `pk env clientconfig` to see the default location for that file
-(**$HOME/.config/camlistore/client-config.json** on linux). In the following
+(**$HOME/.config/perkeep/client-config.json** on linux). In the following
 let **$CONFIGDIR** be the location returned by `pk env configdir`.
 
 ## Generating a default config file

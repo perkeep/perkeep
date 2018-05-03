@@ -168,7 +168,7 @@ func UserClientConfigPath() string {
 }
 
 // If set, flagSecretRing overrides the JSON config file
-// ~/.config/camlistore/client-config.json
+// ~/.config/perkeep/client-config.json
 // (i.e. UserClientConfigPath()) "identitySecretRing" key.
 var (
 	flagSecretRing      string

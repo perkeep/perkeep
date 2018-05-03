@@ -133,7 +133,7 @@ limitations under the License.
 
 - (BOOL)hasClientConfig
 {
-    NSString *confFile = [NSString stringWithFormat:@"%@/.config/camlistore/client-config.json", NSHomeDirectory()];
+    NSString *confFile = [NSString stringWithFormat:@"%@/.config/perkeep/client-config.json", NSHomeDirectory()];
     return [[NSFileManager defaultManager] fileExistsAtPath:confFile];
 }
 

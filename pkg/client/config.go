@@ -42,7 +42,7 @@ import (
 )
 
 // If set, flagServer overrides the JSON config file
-// ~/.config/camlistore/client-config.json
+// ~/.config/perkeep/client-config.json
 // (i.e. osutil.UserClientConfigPath()) "server" key.
 //
 // A main binary must call AddFlags to expose it.

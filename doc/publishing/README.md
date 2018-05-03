@@ -15,7 +15,7 @@ there already is a go template (gallery.html), and css file (pics.css) that work
 together to provide publishing for image galleries. The dev server config
 (config/dev-server-config.json) already uses them. Here is how one would
 configure publishing for an image gallery in the server config
-($HOME/.config/camlistore/server-config.json):
+($HOME/.config/perkeep/server-config.json):
 
     "publish": {
       "/pics/": {

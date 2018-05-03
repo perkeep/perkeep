@@ -1,6 +1,6 @@
 # Configuring the server
 
-The server's config file at $HOME/.config/camlistore/server-config.json is
+The server's config file at $HOME/.config/perkeep/server-config.json is
 JSON. It can either be in [simple mode](#simplemode) (for basic configurations), or in
 [low-level mode](#lowlevel) (for any sort of crazy configuration).
 

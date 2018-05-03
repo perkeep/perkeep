@@ -28,4 +28,4 @@ TODO:
 - use that package for:
    "httpsCert": "/home/bradfitz/keys/camlihouse/ssl.crt",
    "httpsKey": "/home/bradfitz/keys/camlihouse/ssl.key",
-   "identitySecretRing": "/home/bradfitz/.config/camlistore/identity-secring.gpg",
+   "identitySecretRing": "/home/bradfitz/.config/perkeep/identity-secring.gpg",

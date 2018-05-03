@@ -3,7 +3,7 @@
 set -e
 Bin=$(perl -MFindBin -e 'print $FindBin::Bin')
 
-export CAMLI_PASSWORD=`cat $HOME/.config/camlistore/camorg-blobserver.pass`
+export CAMLI_PASSWORD=`cat $HOME/.config/perkeep/camorg-blobserver.pass`
 export CAMLI_ROOT=$Bin/blobserver-example/root
 
 cd $Bin/..
