@@ -644,8 +644,7 @@ func buildBin(pkg string) error {
 	return nil
 }
 
-// getVersion returns the version of Perkeep. Either from a VERSION file at the root,
-// or from git.
+// getVersion returns the version of Perkeep found in a VERSION file at the root.
 func getVersion() string {
 	slurp, err := ioutil.ReadFile(filepath.Join(pkRoot, "VERSION"))
 	v := strings.TrimSpace(string(slurp))

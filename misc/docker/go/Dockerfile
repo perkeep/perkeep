@@ -4,6 +4,7 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && apt-get -y upgrade
 RUN apt-get -y --no-install-recommends install curl gcc
 RUN apt-get -y --no-install-recommends install ca-certificates libc6-dev
+RUN apt-get -y --no-install-recommends install git
 
 # Get Go stable release
 WORKDIR /tmp
