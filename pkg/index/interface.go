@@ -103,7 +103,7 @@ type Interface interface {
 	// is nil.
 	// dest must be closed, even when returning an error.
 	// limit <= 0 means unlimited.
-	GetDirMembers(dirRef blob.Ref, dest chan<- blob.Ref, limit int) error
+	GetDirMembers(ctx context.Context, dirRef blob.Ref, dest chan<- blob.Ref, limit int) error
 
 	// Given an owner key, a camliType 'claim', 'attribute' name,
 	// and specific 'value', find the most recent permanode that has

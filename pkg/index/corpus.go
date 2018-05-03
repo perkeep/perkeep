@@ -81,6 +81,10 @@ type Corpus struct {
 	imageInfo    map[blob.Ref]camtypes.ImageInfo // keyed by fileref (not wholeref)
 	fileWholeRef map[blob.Ref]blob.Ref           // fileref -> its wholeref (TODO: multi-valued?)
 	gps          map[blob.Ref]latLong            // wholeRef -> GPS coordinates
+	// dirChildren maps a directory to its (direct) children (static-set entries).
+	dirChildren map[blob.Ref]map[blob.Ref]struct{}
+	// fileParents maps a file or directory to its (direct) parents.
+	fileParents map[blob.Ref]map[blob.Ref]struct{}
 
 	// Lack of edge tracking implementation is issue #707
 	// (https://github.com/perkeep/perkeep/issues/707)
@@ -336,6 +340,8 @@ func newCorpus() *Corpus {
 		deletes:                 make(map[blob.Ref][]deletion),
 		claimBack:               make(map[blob.Ref][]*camtypes.Claim),
 		permanodesSetByNodeType: make(map[string]map[blob.Ref]bool),
+		dirChildren:             make(map[blob.Ref]map[blob.Ref]struct{}),
+		fileParents:             make(map[blob.Ref]map[blob.Ref]struct{}),
 	}
 	c.permanodesByModtime = &lazySortedPermanodes{
 		c:      c,
@@ -383,19 +389,20 @@ func (crashStorage) Find(start, end string) sorted.Iterator {
 // *********** Updating the corpus
 
 var corpusMergeFunc = map[string]func(c *Corpus, k, v []byte) error{
-	"have":              nil, // redundant with "meta"
-	"recpn":             nil, // unneeded.
-	"meta":              (*Corpus).mergeMetaRow,
-	keySignerKeyID.name: (*Corpus).mergeSignerKeyIdRow,
-	"claim":             (*Corpus).mergeClaimRow,
-	"fileinfo":          (*Corpus).mergeFileInfoRow,
-	keyFileTimes.name:   (*Corpus).mergeFileTimesRow,
-	"imagesize":         (*Corpus).mergeImageSizeRow,
-	"wholetofile":       (*Corpus).mergeWholeToFileRow,
-	"exifgps":           (*Corpus).mergeEXIFGPSRow,
-	"exiftag":           nil, // not using any for now
-	"signerattrvalue":   nil, // ignoring for now
-	"mediatag":          (*Corpus).mergeMediaTag,
+	"have":                 nil, // redundant with "meta"
+	"recpn":                nil, // unneeded.
+	"meta":                 (*Corpus).mergeMetaRow,
+	keySignerKeyID.name:    (*Corpus).mergeSignerKeyIdRow,
+	"claim":                (*Corpus).mergeClaimRow,
+	"fileinfo":             (*Corpus).mergeFileInfoRow,
+	keyFileTimes.name:      (*Corpus).mergeFileTimesRow,
+	"imagesize":            (*Corpus).mergeImageSizeRow,
+	"wholetofile":          (*Corpus).mergeWholeToFileRow,
+	"exifgps":              (*Corpus).mergeEXIFGPSRow,
+	"exiftag":              nil, // not using any for now
+	"signerattrvalue":      nil, // ignoring for now
+	"mediatag":             (*Corpus).mergeMediaTag,
+	keyStaticDirChild.name: (*Corpus).mergeStaticDirChildRow,
 }
 
 func memstats() *runtime.MemStats {
@@ -420,6 +427,7 @@ var slurpPrefixes = []string{
 	"wholetofile|",
 	"exifgps|",
 	"mediatag|",
+	keyStaticDirChild.name + "|",
 }
 
 // Key types (without trailing punctuation) that we slurp to memory at start.
@@ -765,6 +773,39 @@ func (c *Corpus) mergeFileInfoRow(k, v []byte) error {
 		fi.MIMEType = c.str(urld(c.ss[2]))
 		fi.WholeRef = wholeRef
 	})
+	return nil
+}
+
+func (c *Corpus) mergeStaticDirChildRow(k, v []byte) error {
+	// dirchild|sha1-dir|sha1-child" "1"
+	// strip the key name
+	sk := k[len(keyStaticDirChild.name)+1:]
+	pipe := bytes.IndexByte(sk, '|')
+	if pipe < 0 {
+		return fmt.Errorf("invalid dirchild key %q, missing second pipe", k)
+	}
+	parent, ok := blob.ParseBytes(sk[:pipe])
+	if !ok {
+		return fmt.Errorf("invalid dirchild parent blobref in key %q", k)
+	}
+	child, ok := blob.ParseBytes(sk[pipe+1:])
+	if !ok {
+		return fmt.Errorf("invalid dirchild child blobref in key %q", k)
+	}
+	parent = c.br(parent)
+	child = c.br(child)
+	children, ok := c.dirChildren[parent]
+	if !ok {
+		children = make(map[blob.Ref]struct{})
+	}
+	children[child] = struct{}{}
+	c.dirChildren[parent] = children
+	parents, ok := c.fileParents[child]
+	if !ok {
+		parents = make(map[blob.Ref]struct{})
+	}
+	parents[parent] = struct{}{}
+	c.fileParents[child] = parents
 	return nil
 }
 
@@ -1381,6 +1422,24 @@ func (c *Corpus) GetFileInfo(ctx context.Context, fileRef blob.Ref) (fi camtypes
 		err = os.ErrNotExist
 	}
 	return
+}
+
+// GetDirChildren returns the direct children (static-set entries) of the directory dirRef.
+func (c *Corpus) GetDirChildren(ctx context.Context, dirRef blob.Ref) (map[blob.Ref]struct{}, error) {
+	children, ok := c.dirChildren[dirRef]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return children, nil
+}
+
+// GetParentDirs returns the direct parents (directories) of the file or directory childRef.
+func (c *Corpus) GetParentDirs(ctx context.Context, childRef blob.Ref) (map[blob.Ref]struct{}, error) {
+	parents, ok := c.fileParents[childRef]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return parents, nil
 }
 
 func (c *Corpus) GetImageInfo(ctx context.Context, fileRef blob.Ref) (ii camtypes.ImageInfo, err error) {

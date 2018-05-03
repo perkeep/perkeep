@@ -617,7 +617,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	// GetDirMembers
 	{
 		ch := make(chan blob.Ref, 10) // expect 2 results
-		err := id.Index.GetDirMembers(imagesDirRef, ch, 50)
+		err := id.Index.GetDirMembers(ctx, imagesDirRef, ch, 50)
 		if err != nil {
 			t.Fatalf("GetDirMembers = %v", err)
 		}
