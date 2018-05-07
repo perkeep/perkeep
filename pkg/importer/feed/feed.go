@@ -32,6 +32,7 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/schema"
+	"perkeep.org/pkg/schema/nodeattr"
 
 	"go4.org/ctxutil"
 	"golang.org/x/net/html"
@@ -154,15 +155,33 @@ func (r *run) importItem(parent *importer.Object, item *item) error {
 		return err
 	}
 	if err := itemNode.SetAttrs(
-		"feedItemId", item.ID,
-		"camliNodeType", "feed:item",
-		"title", item.Title,
+		nodeattr.Type, "feed:item",
+		nodeattr.Title, item.Title,
+		nodeattr.CamliContent, fileRef.String(),
 		"link", item.Link,
+		"feedItemId", item.ID,
 		"author", item.Author,
-		"camliContent", fileRef.String(),
 		"feedMediaContentURL", item.MediaContent,
 	); err != nil {
 		return err
+	}
+
+	if !item.Updated.IsZero() {
+		if err := itemNode.SetAttr(nodeattr.DateModified, schema.RFC3339FromTime(item.Updated)); err != nil {
+			return err
+		}
+	}
+
+	if !item.Published.IsZero() {
+		if err := itemNode.SetAttr(nodeattr.DatePublished, schema.RFC3339FromTime(item.Published)); err != nil {
+			return err
+		}
+	}
+
+	if !item.Created.IsZero() {
+		if err := itemNode.SetAttr(nodeattr.DateCreated, schema.RFC3339FromTime(item.Created)); err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -80,9 +80,13 @@ func newImporterHost(server string, importerType string) (*importer.Host, error)
 		return nil, err
 	}
 
-	clientID, clientSecret, err := getCredentials(cl, importerType)
-	if err != nil {
-		return nil, err
+	var clientID, clientSecret string
+
+	if importer.All()[importerType].Properties().NeedsAPIKey {
+		clientID, clientSecret, err = getCredentials(cl, importerType)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	hc := importer.HostConfig{
