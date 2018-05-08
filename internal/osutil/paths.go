@@ -90,22 +90,56 @@ func makeCacheDir() {
 	}
 }
 
-func CamliVarDir() string {
+func upperFirst(s string) string {
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+func CamliVarDir() (string, error) {
+	oldName := camliVarDirOf("camlistore")
+	newName := camliVarDirOf("perkeep")
+
+	if fi, err := os.Lstat(oldName); err == nil && fi.IsDir() && oldName != newName {
+		n := numRegularFilesUnder(oldName)
+		if n == 0 {
+			log.Printf("removing old, empty var directory %s", oldName)
+			os.RemoveAll(oldName)
+		} else {
+			return "", fmt.Errorf("Now that Perkeep has been renamed from Camlistore, you need to rename your data directory from %s to %s", oldName, newName)
+		}
+	}
+	return newName, nil
+}
+
+func numRegularFilesUnder(dir string) (n int) {
+	filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
+		if fi != nil && fi.Mode().IsRegular() {
+			n++
+		}
+		return nil
+	})
+	return
+}
+
+func camliVarDirOf(name string) string {
 	if d := os.Getenv("CAMLI_VAR_DIR"); d != "" {
 		return d
 	}
 	failInTests()
 	switch runtime.GOOS {
 	case "windows":
-		return filepath.Join(os.Getenv("APPDATA"), "Camlistore")
+		return filepath.Join(os.Getenv("APPDATA"), upperFirst(name))
 	case "darwin":
-		return filepath.Join(HomeDir(), "Library", "Camlistore")
+		return filepath.Join(HomeDir(), "Library", upperFirst(name))
 	}
-	return filepath.Join(HomeDir(), "var", "camlistore")
+	return filepath.Join(HomeDir(), "var", name)
 }
 
-func CamliBlobRoot() string {
-	return filepath.Join(CamliVarDir(), "blobs")
+func CamliBlobRoot() (string, error) {
+	varDir, err := CamliVarDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(varDir, "blobs"), nil
 }
 
 // RegisterConfigDirFunc registers a func f to return the Perkeep configuration directory.
@@ -127,36 +161,41 @@ func CamliConfigDir() string {
 	}
 
 	failInTests()
-	return camliConfigDir()
-}
-
-func camliConfigDir() string {
-	if fi, err := os.Lstat(oldCamliConfigDir()); err == nil && fi.IsDir() {
-		fmt.Fprintf(os.Stderr, "Error: old configuration directory detected. Not running until it's moved.\nRename %s to %s\n",
-			oldCamliConfigDir(), perkeepConfigDir())
-		os.Exit(1)
+	dir, err := perkeepConfigDir()
+	if err != nil {
+		log.Fatalf("PerkeepConfigDir: %v", err)
 	}
-	return perkeepConfigDir()
+	return dir
 }
 
-func perkeepConfigDir() string {
+func perkeepConfigDir() (string, error) {
+	oldName := configDirNamed("camlistore")
+	newName := configDirNamed("perkeep")
+	if fi, err := os.Lstat(oldName); err == nil && fi.IsDir() && oldName != newName {
+		n := numRegularFilesUnder(oldName)
+		if n == 0 {
+			log.Printf("removing old, empty config dir %s", oldName)
+			os.RemoveAll(oldName)
+		} else {
+			return "", fmt.Errorf("Error: old configuration directory detected. Not running until it's moved.\nRename %s to %s\n", oldName, newName)
+		}
+	}
+	return newName, nil
+}
+
+var configDirNamedTestHook func(string) string
+
+func configDirNamed(name string) string {
+	if h := configDirNamedTestHook; h != nil {
+		return h(name)
+	}
 	if runtime.GOOS == "windows" {
-		return filepath.Join(os.Getenv("APPDATA"), "Perkeep")
+		return filepath.Join(os.Getenv("APPDATA"), upperFirst(name))
 	}
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		return filepath.Join(xdg, "perkeep")
+		return filepath.Join(xdg, name)
 	}
-	return filepath.Join(HomeDir(), ".config", "perkeep")
-}
-
-func oldCamliConfigDir() string {
-	if runtime.GOOS == "windows" {
-		return filepath.Join(os.Getenv("APPDATA"), "Camlistore")
-	}
-	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		return filepath.Join(xdg, "camlistore")
-	}
-	return filepath.Join(HomeDir(), ".config", "camlistore")
+	return filepath.Join(HomeDir(), ".config", name)
 }
 
 func UserServerConfigPath() string {
@@ -207,13 +246,21 @@ func ExplicitSecretRingFile() (string, bool) {
 // DefaultSecretRingFile returns the path to the default GPG secret
 // keyring. It is not influenced by any flag or CAMLI* env var.
 func DefaultSecretRingFile() string {
-	return filepath.Join(camliConfigDir(), "identity-secring.gpg")
+	dir, err := perkeepConfigDir()
+	if err != nil {
+		log.Fatalf("couldn't compute DefaultSecretRingFile: %v", err)
+	}
+	return filepath.Join(dir, "identity-secring.gpg")
 }
 
 // identitySecretRing returns the path to the default GPG
 // secret keyring. It is still affected by CAMLI_CONFIG_DIR.
 func identitySecretRing() string {
-	return filepath.Join(CamliConfigDir(), "identity-secring.gpg")
+	dir, err := perkeepConfigDir()
+	if err != nil {
+		log.Fatalf("couldn't compute DefaultSecretRingFile: %v", err)
+	}
+	return filepath.Join(dir, "identity-secring.gpg")
 }
 
 // SecretRingFile returns the path to the user's GPG secret ring file.

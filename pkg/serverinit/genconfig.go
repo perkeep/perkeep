@@ -1240,16 +1240,24 @@ var defaultBaseConfig = serverconfig.Config{
 // leveldb. If filePath already exists, it is overwritten.
 func WriteDefaultConfigFile(filePath string, useSQLite bool) error {
 	conf := defaultBaseConfig
-	blobDir := osutil.CamliBlobRoot()
+	blobDir, err := osutil.CamliBlobRoot()
+	if err != nil {
+		return err
+	}
+	varDir, err := osutil.CamliVarDir()
+	if err != nil {
+		return err
+	}
 	if err := wkfs.MkdirAll(blobDir, 0700); err != nil {
 		return fmt.Errorf("Could not create default blobs directory: %v", err)
 	}
 	conf.BlobPath = blobDir
 	conf.PackRelated = true
+
 	if useSQLite {
-		conf.SQLite = filepath.Join(osutil.CamliVarDir(), "index.sqlite")
+		conf.SQLite = filepath.Join(varDir, "index.sqlite")
 	} else {
-		conf.LevelDB = filepath.Join(osutil.CamliVarDir(), "index.leveldb")
+		conf.LevelDB = filepath.Join(varDir, "index.leveldb")
 	}
 
 	keyID, secretRing, err := getOrMakeKeyring()
