@@ -45,11 +45,15 @@ func TestStarts(t *testing.T) {
 	if _, err := os.Stat(osutil.CamliConfigDir()); !os.IsNotExist(err) {
 		t.Fatalf("expected conf dir %q to not exist", osutil.CamliConfigDir())
 	}
-	if !strings.Contains(osutil.CamliBlobRoot(), td) {
-		t.Fatalf("blob root %q should contain the temp dir %q", osutil.CamliBlobRoot(), td)
+	blobRoot, err := osutil.CamliBlobRoot()
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := os.Stat(osutil.CamliBlobRoot()); !os.IsNotExist(err) {
-		t.Fatalf("expected blobroot dir %q to not exist", osutil.CamliBlobRoot())
+	if !strings.Contains(blobRoot, td) {
+		t.Fatalf("blob root %q should contain the temp dir %q", blobRoot, td)
+	}
+	if _, err := os.Stat(blobRoot); !os.IsNotExist(err) {
+		t.Fatalf("expected blobroot dir %q to not exist", blobRoot)
 	}
 	if fi, err := os.Stat(osutil.UserServerConfigPath()); !os.IsNotExist(err) {
 		t.Errorf("expected no server config file; got %v, %v", fi, err)
@@ -57,7 +61,7 @@ func TestStarts(t *testing.T) {
 
 	mkdir(t, confDir)
 	*flagOpenBrowser = false
-	*flagListen = ":0"
+	*flagListen = "localhost:0"
 
 	up := make(chan struct{})
 	down := make(chan struct{})

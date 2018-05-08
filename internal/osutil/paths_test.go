@@ -19,8 +19,10 @@ package osutil
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -139,4 +141,76 @@ func TestOpenCamliIncludePath(t *testing.T) {
 
 	os.Setenv("CAMLI_INCLUDE_PATH", "/not/a/camli/config/dir"+sep+td+sep+"/another/fake/camli/dir")
 	checkOpen(t, name)
+}
+
+func TestCamPkConfigMigration(t *testing.T) {
+	oldFuncs := configDirFuncs
+	defer func() {
+		configDirFuncs = oldFuncs
+		configDirNamedTestHook = nil
+		log.SetOutput(os.Stderr)
+	}()
+	log.SetOutput(ioutil.Discard)
+
+	td, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(td)
+
+	configDirNamedTestHook = func(name string) string {
+		return filepath.Join(td, name)
+	}
+
+	oldDir := filepath.Join(td, "camlistore")
+	newDir := filepath.Join(td, "perkeep")
+
+	if err := os.MkdirAll(filepath.Join(oldDir, "blobs", "foo", "sub"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	calls := 0
+	RegisterConfigDirFunc(func() string {
+		calls++
+		log.Printf("call %d", calls)
+		switch calls {
+		case 1:
+			return oldDir
+		case 2:
+			return newDir
+		}
+		t.Fatalf("unexpected %d calls to get config dir", calls)
+		return ""
+	})
+
+	got, err := perkeepConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != newDir {
+		t.Errorf("first call = %v; want %v", got, newDir)
+	}
+
+	if fi, err := os.Lstat(oldDir); !os.IsNotExist(err) {
+		t.Errorf("Lstat = %v, %v; want IsNotExist error", fi, err)
+	}
+
+	// Now try with some regular file in the old dir.
+	if err := os.MkdirAll(filepath.Join(oldDir, "blobs"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := ioutil.WriteFile(filepath.Join(oldDir, "blobs/x.dat"), []byte("hi"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = perkeepConfigDir()
+	if err == nil {
+		t.Error("unexpected success looking up config dir after the old one had a file in it")
+	} else if !strings.Contains(err.Error(), "old configuration directory detected") {
+		t.Errorf("expected migration error; got: %v", err)
+	}
+
+	if fi, err := os.Lstat(oldDir); err != nil || !fi.IsDir() {
+		t.Errorf("error looking up old directory; want valid directory. Got: %v, %v", fi, err)
+	}
 }
