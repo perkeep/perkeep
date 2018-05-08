@@ -93,10 +93,8 @@ type FileInfo struct {
 	// FileName is the base name of the file or directory.
 	FileName string `json:"fileName"`
 
-	// TODO(mpl): I've noticed that Size is actually set to the
-	// number of entries in the dir. fix the doc or the behaviour?
-
-	// Size is the size of file. It is not set for directories.
+	// Size is the size of file, or if a directory, the number of
+	// its children.
 	Size int64 `json:"size"`
 
 	// MIMEType may be set for files, but never for directories.

@@ -76,7 +76,7 @@ type Corpus struct {
 
 	// signerRefs maps a signer GPG ID to all its signer blobs (because different hashes).
 	signerRefs   map[string]SignerRefSet
-	files        map[blob.Ref]camtypes.FileInfo
+	files        map[blob.Ref]camtypes.FileInfo // keyed by file or directory schema blob
 	permanodes   map[blob.Ref]*PermanodeMeta
 	imageInfo    map[blob.Ref]camtypes.ImageInfo // keyed by fileref (not wholeref)
 	fileWholeRef map[blob.Ref]blob.Ref           // fileref -> its wholeref (TODO: multi-valued?)
@@ -1425,19 +1425,27 @@ func (c *Corpus) GetFileInfo(ctx context.Context, fileRef blob.Ref) (fi camtypes
 }
 
 // GetDirChildren returns the direct children (static-set entries) of the directory dirRef.
+// It only returns an error if dirRef does not exist.
 func (c *Corpus) GetDirChildren(ctx context.Context, dirRef blob.Ref) (map[blob.Ref]struct{}, error) {
 	children, ok := c.dirChildren[dirRef]
 	if !ok {
-		return nil, os.ErrNotExist
+		if _, ok := c.files[dirRef]; !ok {
+			return nil, os.ErrNotExist
+		}
+		return nil, nil
 	}
 	return children, nil
 }
 
 // GetParentDirs returns the direct parents (directories) of the file or directory childRef.
+// It only returns an error if childRef does not exist.
 func (c *Corpus) GetParentDirs(ctx context.Context, childRef blob.Ref) (map[blob.Ref]struct{}, error) {
 	parents, ok := c.fileParents[childRef]
 	if !ok {
-		return nil, os.ErrNotExist
+		if _, ok := c.files[childRef]; !ok {
+			return nil, os.ErrNotExist
+		}
+		return nil, nil
 	}
 	return parents, nil
 }

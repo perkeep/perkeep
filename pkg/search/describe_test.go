@@ -523,3 +523,34 @@ func TestDescribePermNoAttr(t *testing.T) {
 		t.Fatalf("Describe result for %v is missing", br)
 	}
 }
+
+// To make sure we don't regress into https://github.com/perkeep/perkeep/issues/1152
+func TestDescribeEmptyDir(t *testing.T) {
+	ix := index.NewMemoryIndex()
+	ctx := context.Background()
+	h := search.NewHandler(ix, owner)
+	corpus, err := ix.KeepInMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.SetCorpus(corpus)
+	id := indextest.NewIndexDeps(ix)
+
+	dir := id.UploadDir("empty", nil, time.Now().UTC())
+	pn := id.NewPlannedPermanode("empty_dir")
+	id.SetAttribute(pn, "camliContent", dir.String())
+
+	ix.RLock()
+	defer ix.RUnlock()
+
+	if _, err := h.Describe(ctx, &search.DescribeRequest{
+		BlobRef: pn,
+		Rules: []*search.DescribeRule{
+			{
+				Attrs: []string{"camliContent"},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Describe for %v failed: %v", pn, err)
+	}
+}
