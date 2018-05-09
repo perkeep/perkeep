@@ -39,10 +39,9 @@ import (
 )
 
 var (
-	flagRev     = flag.String("rev", "", "Perkeep revision to ship (tag or commit hash). For development purposes, you can instead specify the path to a local Perkeep source tree from which to build, with the form \"WIP:/path/to/dir\".")
-	flagVersion = flag.String("version", "", "The version number that is used in the zip file name, and in the VERSION file, e.g. 0.10")
-	flagOutDir  = flag.String("outdir", "/OUT/", "Directory where to write the zip file.")
-	flagSanity  = flag.Bool("sanity", true, "Check before making the zip that its contents pass the \"go run make.go\" test.")
+	flagRev    = flag.String("rev", "", "Perkeep revision to ship (tag or commit hash). For development purposes, you can instead specify the path to a local Perkeep source tree from which to build, with the form \"WIP:/path/to/dir\".")
+	flagOutDir = flag.String("outdir", "/OUT/", "Directory where to write the zip file.")
+	flagSanity = flag.Bool("sanity", true, "Check before making the zip that its contents pass the \"go run make.go\" test.")
 )
 
 const tmpSource = "/tmp/perkeep.org"
@@ -66,7 +65,6 @@ var (
 		"Gopkg.lock":      false,
 		"Gopkg.toml":      false,
 		"internal":        true,
-		"lib":             true,
 		"Makefile":        false,
 		"make.go":         false,
 		"misc":            true,
@@ -106,20 +104,6 @@ func localCamliSource() string {
 		return ""
 	}
 	return strings.TrimPrefix(*flagRev, "WIP:")
-}
-
-func rev() string {
-	if isWIP() {
-		return "WORKINPROGRESS"
-	}
-	return *flagRev
-}
-
-func version() string {
-	if *flagVersion != "" {
-		return fmt.Sprintf("%v (git rev %v)", *flagVersion, rev())
-	}
-	return rev()
 }
 
 func getCamliSrc() {
@@ -247,10 +231,6 @@ func filter() {
 			log.Fatalf("file (or directory) %v should be included in release, but not found in source", name)
 		}
 	}
-	// we insert the version in the VERSION file, so make.go does no need git
-	// in the container to detect the Perkeep version.
-	check(os.Chdir(destDir))
-	check(ioutil.WriteFile("VERSION", []byte(version()), 0777))
 }
 
 func checkBuild() {
@@ -276,7 +256,7 @@ func pack() {
 	check(err)
 	w := zip.NewWriter(fw)
 
-	check(filepath.Walk("perkeep.org", func(filePath string, fi os.FileInfo, err error) error {
+	if err := filepath.Walk("perkeep.org", func(filePath string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -301,7 +281,9 @@ func pack() {
 			return err
 		}
 		return nil
-	}))
+	}); err != nil {
+		log.Fatalf("Error while walking the source tree for zipping: %v", err)
+	}
 	check(w.Close())
 	check(fw.Close())
 	fmt.Printf("Perkeep source successfully packed in %v\n", zipFile)

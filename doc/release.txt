@@ -1,22 +1,17 @@
+** How to build the Perkeep server docker image (for the GCE launcher): **
+
+$ go run ./misc/docker/dock.go -rev=$GIT_REVISION -upload=true
+
 ** How to build a release tarball for binaries: **
 
-$ go run ./misc/docker/dock.go -build_image=false -build_release=true -rev=$GIT_REVISION -tarball_version=0.9
+$ go run ./misc/release/make-release.go -rev=$GIT_REVISION -kind=darwin
 
-will generate ./misc/docker/release/camlistore0.9-linux.tar.gz
+will generate ./misc/release/perkeep-darwin.tar.gz
 
-use -os to build the binaries for another OS: windows or darwin.
+use -upload=true to directly upload the tarball to the perkeep-release Google Cloud bucket.
 
-use -upload=true to directly upload the tarball to the camlistore-release/0.9/ Google Cloud bucket.
+** How to generate a release, i.e. all the tarballs/zips, and the release page: **
 
-** How to build a release zip for source: **
+go run ./misc/release/make-release.go -rev=$GIT_REVISION -version=0.10.1 -stats_from=d6fb092e69ebf96faa68b3c2379aeb3563840c1b
 
-$ go run ./misc/docker/dock.go -build_image=false -zip_source=true -rev=$GIT_REVISION -tarball_version=0.10 [-sanity=false]
-
-will generate ./misc/docker/release/camlistore0.10-src.zip
-
-use -upload=true to directly upload the zip file to the camlistore-release/0.10/ Google Cloud bucket.
-
-** How to generate a monthly release: **
-
-go run ./misc/monthly.go -rev=$GIT_REVISION -stats_from=9e34d14ef5f240f35bd88d71495da0f6cbf99600
-git commit -m 'monthly release' doc/release/monthly.html
+It will create the archives in ./misc/release, upload them (with a versioned name) to the perkeep-release bucket, and it will create the ./doc/release/release.html page.
