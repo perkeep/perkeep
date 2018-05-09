@@ -45,7 +45,7 @@ type enumerateError struct {
 }
 
 func (ee *enumerateError) Error() string {
-	return fmt.Sprintf("localdisk enumerate error: %s: %v", ee.msg, ee.err)
+	return fmt.Sprintf("files enumerate error: %s: %v", ee.msg, ee.err)
 }
 
 // readBlobs implements EnumerateBlobs. It calls itself recursively on subdirectories.
@@ -80,7 +80,7 @@ func (ds *Storage) readBlobs(ctx context.Context, opts readBlobRequest) error {
 			return fi, nil
 		})
 		stat[name] = f
-		toStat = append(toStat, f.run)
+		toStat = append(toStat, f.ForceLoad)
 	}
 
 	// Start pre-statting things.
@@ -168,7 +168,7 @@ func (ds *Storage) readBlobs(ctx context.Context, opts readBlobRequest) error {
 func (ds *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	if limit == 0 {
-		log.Printf("Warning: localdisk.EnumerateBlobs called with a limit of 0")
+		log.Printf("Warning: files.EnumerateBlobs called with a limit of 0")
 	}
 
 	limitMutable := limit
@@ -211,6 +211,10 @@ func newFuture(f func() (os.FileInfo, error)) *future {
 func (f *future) Get() (os.FileInfo, error) {
 	f.once.Do(f.run)
 	return f.v, f.err
+}
+
+func (f *future) ForceLoad() {
+	f.Get()
 }
 
 func (f *future) run() { f.v, f.err = f.f() }
