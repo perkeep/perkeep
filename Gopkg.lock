@@ -188,6 +188,12 @@
   revision = "0de1eaf82fa3f583ce21fde859f1e7e0c5e9b220"
 
 [[projects]]
+  name = "github.com/kr/fs"
+  packages = ["."]
+  revision = "1455def202f6e05b95cc7bfc7e8ae67ae5141eba"
+  version = "v0.1.0"
+
+[[projects]]
   name = "github.com/lib/pq"
   packages = [
     ".",
@@ -232,6 +238,12 @@
   packages = ["."]
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
   version = "v0.8.0"
+
+[[projects]]
+  name = "github.com/pkg/sftp"
+  packages = ["."]
+  revision = "5bf2a174b604c6b5549dd9740d924ff2f02e3ad7"
+  version = "1.6.0"
 
 [[projects]]
   name = "github.com/plaid/plaid-go"
@@ -334,6 +346,10 @@
     "acme",
     "acme/autocert",
     "cast5",
+    "curve25519",
+    "ed25519",
+    "ed25519/internal/edwards25519",
+    "internal/chacha20",
     "nacl/secretbox",
     "openpgp",
     "openpgp/armor",
@@ -345,9 +361,10 @@
     "poly1305",
     "salsa20/salsa",
     "scrypt",
+    "ssh",
     "ssh/terminal"
   ]
-  revision = "13931e22f9e72ea58bb73048bc752b48c6d4d4ac"
+  revision = "master"
 
 [[projects]]
   name = "golang.org/x/image"
@@ -576,6 +593,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "39db49264581e2491df497d69d2e97d2a2b59650560d6a7e63b2007672a660d8"
+  inputs-digest = "06274b99a4551acdcba8ff508d8f5395cd07d788cb7f629e9361f2c431b72411"
   solver-name = "gps-cdcl"
   solver-version = 1
