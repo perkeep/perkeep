@@ -191,9 +191,10 @@ func loadConfig(arg string) (conf *serverinit.Config, isNewConfig bool, err erro
 				return
 			}
 			log.Printf("Generating template config file %s", absPath)
-			if err = serverinit.WriteDefaultConfigFile(absPath, sqlite.CompiledIn()); err == nil {
-				isNewConfig = true
+			if err = serverinit.WriteDefaultConfigFile(absPath, sqlite.CompiledIn()); err != nil {
+				return
 			}
+			isNewConfig = true
 		}
 	case filepath.IsAbs(arg):
 		absPath = arg
