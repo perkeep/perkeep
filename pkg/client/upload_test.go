@@ -129,7 +129,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 		t.Fatalf("Could not json encode config: %v", err)
 	}
 
-	// Setting CAMLI_CONFIG_DIR to avoid triggering failInTests in osutil.CamliConfigDir
+	// Setting CAMLI_CONFIG_DIR to avoid triggering failInTests in osutil.PerkeepConfigDir
 	defer os.Setenv("CAMLI_CONFIG_DIR", os.Getenv("CAMLI_CONFIG_DIR")) // restore after test
 	os.Setenv("CAMLI_CONFIG_DIR", "whatever")
 	lowConf, err := serverinit.Load(confData)

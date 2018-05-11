@@ -42,8 +42,12 @@ func TestStarts(t *testing.T) {
 	defer pushEnv("CAMLI_CONFIG_DIR", confDir)()
 	defer pushEnv("CAMLI_VAR_DIR", varDir)()
 
-	if _, err := os.Stat(osutil.CamliConfigDir()); !os.IsNotExist(err) {
-		t.Fatalf("expected conf dir %q to not exist", osutil.CamliConfigDir())
+	dir, err := osutil.PerkeepConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("expected conf dir %q to not exist", dir)
 	}
 	blobRoot, err := osutil.CamliBlobRoot()
 	if err != nil {

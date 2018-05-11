@@ -512,7 +512,11 @@ func gceDeployHandlerConfig() (*gce.Config, error) {
 			DataDir:        os.Getenv("CAMLI_GCE_DATA"),
 		}, nil
 	}
-	configFile := filepath.Join(osutil.CamliConfigDir(), "launcher-config.json")
+	configDir, err := osutil.PerkeepConfigDir()
+	if err != nil {
+		return nil, err
+	}
+	configFile := filepath.Join(configDir, "launcher-config.json")
 	data, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return nil, fmt.Errorf("error reading launcher-config.json (expected of type https://godoc.org/"+prodDomain+"/pkg/deploy/gce#Config): %v", err)
