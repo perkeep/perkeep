@@ -78,7 +78,11 @@ func getAPIKey() (string, error) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	slurp, err := wkfs.ReadFile(filepath.Join(osutil.CamliConfigDir(), "google-geocode.key"))
+	dir, err := osutil.PerkeepConfigDir()
+	if err != nil {
+		return "", err
+	}
+	slurp, err := wkfs.ReadFile(filepath.Join(dir, "google-geocode.key"))
 	if os.IsNotExist(err) {
 		return "", ErrNoGoogleKey
 	}

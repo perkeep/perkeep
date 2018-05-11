@@ -150,22 +150,18 @@ func RegisterConfigDirFunc(f func() string) {
 
 var configDirFuncs []func() string
 
-func CamliConfigDir() string {
+func PerkeepConfigDir() (string, error) {
 	if p := os.Getenv("CAMLI_CONFIG_DIR"); p != "" {
-		return p
+		return p, nil
 	}
 	for _, f := range configDirFuncs {
 		if v := f(); v != "" {
-			return v
+			return v, nil
 		}
 	}
 
 	failInTests()
-	dir, err := perkeepConfigDir()
-	if err != nil {
-		log.Fatalf("PerkeepConfigDir: %v", err)
-	}
-	return dir
+	return perkeepConfigDir()
 }
 
 func perkeepConfigDir() (string, error) {
@@ -199,11 +195,19 @@ func configDirNamed(name string) string {
 }
 
 func UserServerConfigPath() string {
-	return filepath.Join(CamliConfigDir(), "server-config.json")
+	dir, err := PerkeepConfigDir()
+	if err != nil {
+		log.Fatalf("Could not compute UserServerConfigPath: %v", err)
+	}
+	return filepath.Join(dir, "server-config.json")
 }
 
 func UserClientConfigPath() string {
-	return filepath.Join(CamliConfigDir(), "client-config.json")
+	dir, err := PerkeepConfigDir()
+	if err != nil {
+		log.Fatalf("Could not compute UserClientConfigPath: %v", err)
+	}
+	return filepath.Join(dir, "client-config.json")
 }
 
 // If set, flagSecretRing overrides the JSON config file
@@ -256,9 +260,9 @@ func DefaultSecretRingFile() string {
 // identitySecretRing returns the path to the default GPG
 // secret keyring. It is still affected by CAMLI_CONFIG_DIR.
 func identitySecretRing() string {
-	dir, err := perkeepConfigDir()
+	dir, err := PerkeepConfigDir()
 	if err != nil {
-		log.Fatalf("couldn't compute DefaultSecretRingFile: %v", err)
+		log.Fatalf("Could not compute identitySecretRing: %v", err)
 	}
 	return filepath.Join(dir, "identity-secring.gpg")
 }
@@ -281,14 +285,22 @@ func SecretRingFile() string {
 // file that is used (creating if necessary) when TLS is specified
 // without the cert file.
 func DefaultTLSCert() string {
-	return filepath.Join(CamliConfigDir(), "tls.crt")
+	dir, err := PerkeepConfigDir()
+	if err != nil {
+		log.Fatalf("Could not compute DefaultTLSCert: %v", err)
+	}
+	return filepath.Join(dir, "tls.crt")
 }
 
 // DefaultTLSKey returns the path to the default TLS key
 // file that is used (creating if necessary) when TLS is specified
 // without the key file.
 func DefaultTLSKey() string {
-	return filepath.Join(CamliConfigDir(), "tls.key")
+	dir, err := PerkeepConfigDir()
+	if err != nil {
+		log.Fatalf("Could not compute DefaultTLSKey: %v", err)
+	}
+	return filepath.Join(dir, "tls.key")
 }
 
 // RegisterLetsEncryptCacheFunc registers a func f to return the path to the
@@ -308,14 +320,22 @@ func DefaultLetsEncryptCache() string {
 			return v
 		}
 	}
-	return filepath.Join(CamliConfigDir(), "letsencrypt.cache")
+	dir, err := PerkeepConfigDir()
+	if err != nil {
+		log.Fatalf("Could not compute DefaultLetsEncryptCache: %v", err)
+	}
+	return filepath.Join(dir, "letsencrypt.cache")
 }
 
 // NewJSONConfigParser returns a jsonconfig.ConfigParser with its IncludeDirs
-// set with CamliConfigDir and the contents of CAMLI_INCLUDE_PATH.
+// set with PerkeepConfigDir and the contents of CAMLI_INCLUDE_PATH.
 func NewJSONConfigParser() *jsonconfig.ConfigParser {
 	var cp jsonconfig.ConfigParser
-	cp.IncludeDirs = append([]string{CamliConfigDir()}, filepath.SplitList(os.Getenv("CAMLI_INCLUDE_PATH"))...)
+	dir, err := PerkeepConfigDir()
+	if err != nil {
+		log.Fatalf("NewJSONConfigParser error: %v", err)
+	}
+	cp.IncludeDirs = append([]string{dir}, filepath.SplitList(os.Getenv("CAMLI_INCLUDE_PATH"))...)
 	return &cp
 }
 

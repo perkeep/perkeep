@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -28,7 +29,13 @@ import (
 )
 
 var envMap = map[string]func() string{
-	"configdir":    osutil.CamliConfigDir,
+	"configdir": func() string {
+		dir, err := osutil.PerkeepConfigDir()
+		if err != nil {
+			log.Fatal(err)
+		}
+		return dir
+	},
 	"clientconfig": osutil.UserClientConfigPath,
 	"serverconfig": osutil.UserServerConfigPath,
 	"srcroot":      envSrcRoot,

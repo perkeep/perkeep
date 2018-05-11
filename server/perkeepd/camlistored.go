@@ -186,7 +186,12 @@ func loadConfig(arg string) (conf *serverinit.Config, isNewConfig bool, err erro
 			if err != nil || conf != nil {
 				return
 			}
-			err = wkfs.MkdirAll(osutil.CamliConfigDir(), 0700)
+			var configDir string
+			configDir, err = osutil.PerkeepConfigDir()
+			if err != nil {
+				return
+			}
+			err = wkfs.MkdirAll(configDir, 0700)
 			if err != nil {
 				return
 			}
@@ -199,7 +204,12 @@ func loadConfig(arg string) (conf *serverinit.Config, isNewConfig bool, err erro
 	case filepath.IsAbs(arg):
 		absPath = arg
 	default:
-		absPath = filepath.Join(osutil.CamliConfigDir(), arg)
+		var configDir string
+		configDir, err = osutil.PerkeepConfigDir()
+		if err != nil {
+			return
+		}
+		absPath = filepath.Join(configDir, arg)
 	}
 	conf, err = serverinit.LoadFile(absPath)
 	return
