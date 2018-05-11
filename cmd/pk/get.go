@@ -36,16 +36,16 @@ func init() {
 }
 
 func (c *getCmd) Describe() string {
-	return "Create and upload blobs to a server."
+	return "Fetches blobs, files, and directories."
 }
 
 func (c *getCmd) Usage() {
-	panic("pk put Usage should never get called, as we should always end up calling either pk's or pk-put's usage")
+	panic("pk get Usage should never get called, as we should always end up calling either pk's or pk-get's usage")
 }
 
 func (c *getCmd) RunCommand(args []string) error {
 	// RunCommand is only implemented to satisfy the CommandRunner interface.
-	panic("pk put RunCommand should never get called, as pk is supposed to invoke pk-put instead.")
+	panic("pk get RunCommand should never get called, as pk is supposed to invoke pk-get instead.")
 }
 
 // LookPath returns the full path to the executable that "pk get" actually
