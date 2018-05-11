@@ -41,6 +41,7 @@ clients/web/embed/opensans/zembed_*.go
 clients/web/embed/react/zembed_*.go
 config/tls.*
 misc/docker/djpeg-static/djpeg
+misc/docker/djpeg-static/djpeg.tar.gz
 misc/docker/perkeepd/perkeepd*
 misc/docker/perkeepd/djpeg
 pkg/server/zembed_favicon.ico.go

@@ -33,10 +33,9 @@ import (
 )
 
 var (
-	flagRev     = flag.String("rev", "", "Perkeep revision to build (tag or commit hash). For development purposes, you can instead specify the path to a local Perkeep source tree from which to build, with the form \"WIP:/path/to/dir\".")
-	flagVersion = flag.String("version", "", "The optional version number (e.g. 0.9) that will be stamped into the binaries, in addition to the revision.")
-	outDir      = flag.String("outdir", "/OUT/", "Output directory, where the binaries will be written")
-	buildOS     = flag.String("os", runtime.GOOS, "Operating system to build for.")
+	flagRev = flag.String("rev", "", "Perkeep revision to build (tag or commit hash). For development purposes, you can instead specify the path to a local Perkeep source tree from which to build, with the form \"WIP:/path/to/dir\".")
+	outDir  = flag.String("outdir", "/OUT/", "Output directory, where the binaries will be written")
+	buildOS = flag.String("os", runtime.GOOS, "Operating system to build for.")
 )
 
 func usage() {
