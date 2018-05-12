@@ -63,33 +63,33 @@ $ docker pull gcr.io/perkeep-containers/perkeep:0.10
 <h2>Downloads</h2>
 
 <center>
-<a class="downloadBox" href="/dl/0.10/perkeep-0.10-darwin.tar.gz">
+<a class="downloadBox" href="/dl/perkeep-0.10.1-darwin.tar.gz">
 <div class="platform">Darwin</div>
 <div>
-	<span class="filename">perkeep-0.10-darwin.tar.gz</span>
+	<span class="filename">perkeep-0.10.1-darwin.tar.gz</span>
 </div>
-<div class="checksum">SHA256: 784f55009a03147b2b8733354463ce29e60a421dd662922e159c87a8ffc13f17</div>
+<div class="checksum">SHA256: a76c17fab2e72cd68c0fb7a2762c21be1b9d6bd06f88c52ef56f3f9f3dba62db</div>
 </a>
-<a class="downloadBox" href="/dl/0.10/perkeep-0.10-linux.tar.gz">
+<a class="downloadBox" href="/dl/perkeep-0.10.1-linux.tar.gz">
 <div class="platform">Linux</div>
 <div>
-	<span class="filename">perkeep-0.10-linux.tar.gz</span>
+	<span class="filename">perkeep-0.10.1-linux.tar.gz</span>
 </div>
-<div class="checksum">SHA256: 9897a6bf2ddf834958aa67ea5e03bb5210b0833186b13e82b3ca16e6c2be315d</div>
+<div class="checksum">SHA256: 96a9832efccad5f8037d75870287539382b22dfa5795f113551bd9386def8f88</div>
 </a>
-<a class="downloadBox" href="/dl/0.10/perkeep-0.10-src.zip">
+<a class="downloadBox" href="/dl/perkeep-0.10.1-src.zip">
 <div class="platform">Source</div>
 <div>
-	<span class="filename">perkeep-0.10-src.zip</span>
+	<span class="filename">perkeep-0.10.1-src.zip</span>
 </div>
-<div class="checksum">SHA256: 3d16ccc23cd6d0581dab3203c4729537d8a8ad68b370d30e269e85bf3c5a4ab1</div>
+<div class="checksum">SHA256: 888a4f4cda2212e8f46194a79dba5c38ad6a5890ea407b4f899645d1c6695244</div>
 </a>
-<a class="downloadBox" href="/dl/0.10/perkeep-0.10-windows.zip">
+<a class="downloadBox" href="/dl/perkeep-0.10.1-windows.zip">
 <div class="platform">Windows</div>
 <div>
-	<span class="filename">perkeep-0.10-windows.zip</span>
+	<span class="filename">perkeep-0.10.1-windows.zip</span>
 </div>
-<div class="checksum">SHA256: 3f5d0395885c8d8b0dcc8eb04aa1287fd48acbb9fe32ac10423dde48a65a0449</div>
+<div class="checksum">SHA256: 87d7a8f1c1a33c8abc6827d67f72decce16424f49a6db51c03d70af89008c034</div>
 </a>
 </center>
 
@@ -517,3 +517,15 @@ website:
 </ul>
 </p>
 
+<h2 id="point-releases">Point Releases</h2>
+
+<h3 id="0.10.1">0.10.1</h3>
+
+<a href='https://github.com/perkeep/perkeep/compare/fcba46d922d3f4b6b860cc080213218258e61f1b...21e2d574e5c637d8c00bc8ab9bf34fd883dece1d'>Bug fixes</a> from 0.10 to 0.10.1:
+
+<ul>
+	<li> <b>cmd/pk</b>: fix summary of the "get" subcommand in help mode (<a href='https://github.com/perkeep/perkeep/commit/361dfcd004e04351e58045fbe4fc75aed4080e7b'>361dfcd</a>) </li>
+	<li> <b>internal/osutil</b>: make perkeepd start on Windows without configuration location errors (<a href='https://github.com/perkeep/perkeep/commit/e607198dfc931cb72c2c77e624a0badcc487f0e9'>e607198</a>) </li>
+	<li> <b>server/perkeepd</b>: stop initialization when creating default configuration fails (<a href='https://github.com/perkeep/perkeep/commit/4a715367ed854e19c204ca7c4014700fec427a76'>4a71536</a>) </li>
+	<li> <b>blobserver/files</b>: fix a data race in enumeration (<a href='https://github.com/perkeep/perkeep/commit/1c0648653102b62baf22d7cf054548bd68f4e3f5'>1c06486</a>) </li>
+</ul>
