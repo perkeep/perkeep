@@ -1,4 +1,4 @@
-# Gopkg for Perkeepa, requires dep v0.4.0 or later
+# Gopkg for Perkeep, requires dep v0.4.0 or later
 #
 # Refer to https://github.com/golang/dep/blob/master/docs/Gopkg.toml.md
 # for detailed Gopkg.toml documentation.
