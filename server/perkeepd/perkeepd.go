@@ -19,8 +19,6 @@ package main // import "perkeep.org/server/perkeepd"
 
 import (
 	"context"
-	"crypto/tls"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -43,7 +41,6 @@ import (
 	"perkeep.org/internal/osutil/gce"
 	"perkeep.org/pkg/buildinfo"
 	"perkeep.org/pkg/env"
-	"perkeep.org/pkg/gpgchallenge"
 	"perkeep.org/pkg/serverinit"
 	"perkeep.org/pkg/webserver"
 
@@ -109,28 +106,9 @@ var (
 	flagPollParent  bool
 )
 
-// For getting a name in camlistore.net
-const (
-	camliNetDNS    = serverinit.CamliNetDNS
-	camliNetDomain = serverinit.CamliNetDomain
-)
-
-var camliNetHostName string // <keyId>.camlistore.net
-
-// For logging on Google Cloud Logging when not running on Google Compute Engine
-// (for debugging).
-var (
-	flagGCEProjectID string
-	flagGCELogName   string
-	flagGCEJWTFile   string
-)
-
 func init() {
 	if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_MORE_FLAGS")); debug {
 		flag.BoolVar(&flagPollParent, "pollparent", false, "Perkeepd regularly polls its parent process to detect if it has been orphaned, and terminates in that case. Mainly useful for tests.")
-		flag.StringVar(&flagGCEProjectID, "gce_project_id", "", "GCE project ID; required by --gce_log_name.")
-		flag.StringVar(&flagGCELogName, "gce_log_name", "", "log all messages to that log name on Google Cloud Logging as well.")
-		flag.StringVar(&flagGCEJWTFile, "gce_jwt_file", "", "Filename to the GCE Service Account's JWT (JSON) config file; required by --gce_log_name.")
 	}
 }
 
@@ -158,55 +136,50 @@ func slurpURL(urls string, limit int64) ([]byte, error) {
 //   no cloud config is available)
 // - a filepath absolute or relative to the user's configuration directory,
 // - a URL
-func loadConfig(arg string) (conf *serverinit.Config, isNewConfig bool, err error) {
+func loadConfig(arg string) (*serverinit.Config, error) {
 	if strings.HasPrefix(arg, "http://") || strings.HasPrefix(arg, "https://") {
 		contents, err := slurpURL(arg, 256<<10)
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
-		conf, err = serverinit.Load(contents)
-		return conf, false, err
+		return serverinit.Load(contents)
 	}
 	var absPath string
 	switch {
 	case arg == "":
 		absPath = osutil.UserServerConfigPath()
-		_, err = wkfs.Stat(absPath)
+		_, err := wkfs.Stat(absPath)
+		if err == nil {
+			break
+		}
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+		conf, err := serverinit.DefaultEnvConfig()
+		if err != nil || conf != nil {
+			return conf, err
+		}
+		configDir, err := osutil.PerkeepConfigDir()
 		if err != nil {
-			if !os.IsNotExist(err) {
-				return
-			}
-			conf, err = serverinit.DefaultEnvConfig()
-			if err != nil || conf != nil {
-				return
-			}
-			var configDir string
-			configDir, err = osutil.PerkeepConfigDir()
-			if err != nil {
-				return
-			}
-			err = wkfs.MkdirAll(configDir, 0700)
-			if err != nil {
-				return
-			}
-			log.Printf("Generating template config file %s", absPath)
-			if err = serverinit.WriteDefaultConfigFile(absPath, sqlite.CompiledIn()); err != nil {
-				return
-			}
-			isNewConfig = true
+			return nil, err
+		}
+		if err := wkfs.MkdirAll(configDir, 0700); err != nil {
+			return nil, err
+		}
+		log.Printf("Generating template config file %s", absPath)
+		if err := serverinit.WriteDefaultConfigFile(absPath, sqlite.CompiledIn()); err != nil {
+			return nil, err
 		}
 	case filepath.IsAbs(arg):
 		absPath = arg
 	default:
-		var configDir string
-		configDir, err = osutil.PerkeepConfigDir()
+		configDir, err := osutil.PerkeepConfigDir()
 		if err != nil {
-			return
+			return nil, err
 		}
 		absPath = filepath.Join(configDir, arg)
 	}
-	conf, err = serverinit.LoadFile(absPath)
-	return
+	return serverinit.LoadFile(absPath)
 }
 
 // If cert/key files are specified, and found, use them.
@@ -283,7 +256,22 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) 
 	})
 }
 
-var osExit = os.Exit // testing hook
+type testHook func()
+
+func (fn testHook) call() bool {
+	if fn != nil {
+		fn()
+		return true
+	}
+	return false
+}
+
+// Test hooks:
+var (
+	osExit                 = os.Exit
+	testHookServerUp       testHook
+	testHookWaitToShutdown testHook
+)
 
 func handleSignals(shutdownc <-chan io.Closer) {
 	c := make(chan os.Signal, 1)
@@ -324,66 +312,6 @@ func handleSignals(shutdownc <-chan io.Closer) {
 	}
 }
 
-// listenForCamliNet prepares the TLS listener for both the GPG challenge, and
-// for Let's Encrypt. It then starts listening and returns the baseURL derived from
-// the hostname we should obtain from the GPG challenge.
-func listenForCamliNet(ws *webserver.Server, config *serverinit.Config) (baseURL string, err error) {
-	camliNetIP := config.CamliNetIP()
-	if camliNetIP == "" {
-		return "", errors.New("no camliNetIP")
-	}
-	if ip := net.ParseIP(camliNetIP); ip == nil {
-		return "", fmt.Errorf("camliNetIP value %q is not a valid IP address", camliNetIP)
-	} else if ip.To4() == nil {
-		// TODO: support IPv6 when GCE supports IPv6: https://code.google.com/p/google-compute-engine/issues/detail?id=8
-		return "", errors.New("CamliNetIP should be an IPv4, as IPv6 is not yet supported on GCE")
-	}
-	challengeHostname := camliNetIP + gpgchallenge.SNISuffix
-	selfCert, selfKey, err := httputil.GenSelfTLS(challengeHostname)
-	if err != nil {
-		return "", fmt.Errorf("could not generate self-signed certificate: %v", err)
-	}
-	gpgchallengeCert, err := tls.X509KeyPair(selfCert, selfKey)
-	if err != nil {
-		return "", fmt.Errorf("could not load TLS certificate: %v", err)
-	}
-	_, keyId, err := config.KeyRingAndId()
-	if err != nil {
-		return "", fmt.Errorf("could not get keyId for camliNet hostname: %v", err)
-	}
-	// catch future length changes
-	if len(keyId) != 16 {
-		panic("length of GPG keyId is not 16 anymore")
-	}
-	shortKeyId := keyId[8:]
-	camliNetHostName = strings.ToLower(shortKeyId + "." + camliNetDomain)
-	m := autocert.Manager{
-		Prompt:     autocert.AcceptTOS,
-		HostPolicy: autocert.HostWhitelist(camliNetHostName),
-		Cache:      autocert.DirCache(osutil.DefaultLetsEncryptCache()),
-	}
-	go func() {
-		log.Fatalf("Could not start server for http-01 challenge: %v",
-			http.ListenAndServe(":http", m.HTTPHandler(nil)))
-	}()
-	getCertificate := func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-		if hello.ServerName == challengeHostname {
-			return &gpgchallengeCert, nil
-		}
-		return m.GetCertificate(hello)
-	}
-	log.Printf("TLS enabled, with Let's Encrypt for %v", camliNetHostName)
-	ws.SetTLS(webserver.TLSSetup{
-		CertManager: getCertificate,
-	})
-
-	err = ws.Listen(fmt.Sprintf(":%d", gpgchallenge.ClientChallengedPort))
-	if err != nil {
-		return "", fmt.Errorf("Listen: %v", err)
-	}
-	return fmt.Sprintf("https://%s", camliNetHostName), nil
-}
-
 // listen discovers the listen address, base URL, and hostname that the ws is
 // going to use, sets up the TLS configuration, and starts listening.
 //
@@ -395,7 +323,17 @@ func listen(ws *webserver.Server, config *serverinit.Config) (baseURL string, er
 		return listenForCamliNet(ws, config)
 	}
 
-	listen, baseURL := listenAndBaseURL(config)
+	baseURL = config.BaseURL()
+
+	// Prefer the --listen flag value. Otherwise use the config value.
+	listen := *flagListen
+	if listen == "" {
+		listen = config.ListenAddr()
+	}
+	if listen == "" {
+		exitf("\"listen\" needs to be specified either in the config or on the command line")
+	}
+
 	hostname, err := certHostname(listen, baseURL)
 	if err != nil {
 		return "", fmt.Errorf("Bad baseURL or listen address: %v", err)
@@ -412,76 +350,6 @@ func listen(ws *webserver.Server, config *serverinit.Config) (baseURL string, er
 	return baseURL, nil
 }
 
-// registerDNSChallengeHandler initializes and returns the
-// gpgchallenge Client if camliNetIP is configured and if so,
-// registers its handler with Perkeep's muxer.
-//
-// If camlistore.net support isn't enabled, it returns (nil, nil).
-func registerDNSChallengeHandler(ws *webserver.Server, config *serverinit.Config) (*gpgchallenge.Client, error) {
-	camliNetIP := config.CamliNetIP()
-	if camliNetIP == "" {
-		return nil, nil
-	}
-	if ip := net.ParseIP(camliNetIP); ip == nil {
-		return nil, fmt.Errorf("camliNetIP value %q is not a valid IP address", camliNetIP)
-	}
-
-	keyRing, keyId, err := config.KeyRingAndId()
-	if err != nil {
-		return nil, err
-	}
-
-	cl, err := gpgchallenge.NewClient(keyRing, keyId, camliNetIP)
-	if err != nil {
-		return nil, fmt.Errorf("could not init gpgchallenge client: %v", err)
-	}
-	ws.Handle(cl.Handler())
-	return cl, nil
-}
-
-// requestHostName performs the GPG challenge to register/obtain a name in the
-// camlistore.net domain. The acquired name should be "<gpgKeyId>.camlistore.net",
-// where <gpgKeyId> is the short form (8 trailing chars) of Perkeep's keyId.
-// It also starts a goroutine that will rerun the challenge every hour, to keep
-// the camlistore.net DNS server up to date.
-func requestHostName(cl *gpgchallenge.Client) error {
-	if err := cl.Challenge(camliNetDNS); err != nil {
-		return err
-	}
-
-	if env.OnGCE() {
-		if err := gce.SetInstanceHostname(camliNetHostName); err != nil {
-			return fmt.Errorf("error setting instance camlistore-hostname: %v", err)
-		}
-	}
-
-	var repeatChallengeFn func()
-	repeatChallengeFn = func() {
-		if err := cl.Challenge(camliNetDNS); err != nil {
-			log.Printf("error with hourly DNS challenge: %v", err)
-		}
-		time.AfterFunc(time.Hour, repeatChallengeFn)
-	}
-	time.AfterFunc(time.Hour, repeatChallengeFn)
-	return nil
-}
-
-// listenAndBaseURL finds the configured, default, or inferred listen address
-// and base URL from the command-line flags and provided config.
-func listenAndBaseURL(config *serverinit.Config) (listen, baseURL string) {
-	baseURL = config.BaseURL()
-	listen = *flagListen
-	listenConfig := config.ListenAddr()
-	// command-line takes priority over config
-	if listen == "" {
-		listen = listenConfig
-		if listen == "" {
-			exitf("\"listen\" needs to be specified either in the config or on the command line")
-		}
-	}
-	return
-}
-
 // certHostname figures out the name to use for the TLS certificates, using baseURL
 // and falling back to the listen address if baseURL is empty or invalid.
 func certHostname(listen, baseURL string) (string, error) {
@@ -496,7 +364,7 @@ func certHostname(listen, baseURL string) (string, error) {
 	return hostname, nil
 }
 
-func checkRecovery() {
+func setBlobpackedRecovery() {
 	if *flagRecovery == 0 && env.OnGCE() {
 		*flagRecovery = gce.BlobpackedRecoveryValue()
 	}
@@ -506,12 +374,9 @@ func checkRecovery() {
 }
 
 // main wraps Main so tests (which generate their own func main) can still run Main.
-func main() {
-	Main(nil, nil)
-}
+func main() { Main() }
 
-// Main sends on up when it's running, and shuts down when it receives from down.
-func Main(up chan<- struct{}, down <-chan struct{}) {
+func Main() {
 	flag.Parse()
 
 	if *flagVersion {
@@ -529,7 +394,7 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		}
 		return
 	}
-	checkRecovery()
+	setBlobpackedRecovery()
 
 	// In case we're running in a Docker container with no
 	// filesytem from which to load the root CAs, this
@@ -553,7 +418,7 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 	shutdownc := make(chan io.Closer, 1) // receives io.Closer to cleanly shut down
 	go handleSignals(shutdownc)
 
-	config, isNewConfig, err := loadConfig(*flagConfigFile)
+	config, err := loadConfig(*flagConfigFile)
 	if err != nil {
 		exitf("Error loading config file: %v", err)
 	}
@@ -587,12 +452,7 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		gce.FixUserDataForPerkeepRename()
 	}
 
-	urlToOpen := baseURL
-	if !isNewConfig {
-		// user may like to configure the server at the initial startup,
-		// open UI if this is not the first run with a new config file.
-		urlToOpen += config.UIPath()
-	}
+	urlToOpen := baseURL + config.UIPath()
 
 	if *flagOpenBrowser {
 		go osutil.OpenURL(urlToOpen)
@@ -623,8 +483,7 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 	}
 	log.Printf("server: available at %s", urlToOpen)
 
-	// Block forever, except during tests.
-	up <- struct{}{}
-	<-down
-	osExit(0)
+	if testHookServerUp.call(); !testHookWaitToShutdown.call() {
+		select {}
+	}
 }

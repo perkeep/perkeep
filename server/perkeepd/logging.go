@@ -18,10 +18,12 @@ package main
 
 import (
 	"context"
+	"flag"
 	"io"
 	"log"
 	"os"
 	"runtime"
+	"strconv"
 
 	"cloud.google.com/go/logging"
 	"go4.org/types"
@@ -29,6 +31,22 @@ import (
 	"perkeep.org/internal/osutil/gce"
 	"perkeep.org/pkg/env"
 )
+
+// For logging on Google Cloud Logging when not running on Google Compute Engine
+// (for debugging).
+var (
+	flagGCEProjectID string
+	flagGCELogName   string
+	flagGCEJWTFile   string
+)
+
+func init() {
+	if debug, _ := strconv.ParseBool(os.Getenv("CAMLI_MORE_FLAGS")); debug {
+		flag.StringVar(&flagGCEProjectID, "gce_project_id", "", "GCE project ID; required by --gce_log_name.")
+		flag.StringVar(&flagGCELogName, "gce_log_name", "", "log all messages to that log name on Google Cloud Logging as well.")
+		flag.StringVar(&flagGCEJWTFile, "gce_jwt_file", "", "Filename to the GCE Service Account's JWT (JSON) config file; required by --gce_log_name.")
+	}
+}
 
 // TODO(mpl): maybe export gce.writer, and reuse it here. Later.
 

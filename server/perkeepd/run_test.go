@@ -18,6 +18,7 @@ package main
 
 import (
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -67,15 +68,26 @@ func TestStarts(t *testing.T) {
 	*flagOpenBrowser = false
 	*flagListen = "localhost:0"
 
-	up := make(chan struct{})
+	up := make(chan struct{}, 1)
 	down := make(chan struct{})
 	dead := make(chan int, 1)
+
+	// Install hooks:
 	osExit = func(status int) {
 		dead <- status
 		close(dead)
 		runtime.Goexit()
 	}
-	go Main(up, down)
+	defer func() { osExit = os.Exit }()
+	testHookServerUp = func() { up <- struct{}{} }
+	defer func() { testHookServerUp = nil }()
+	testHookWaitToShutdown = func() { <-down }
+	defer func() { testHookWaitToShutdown = nil }()
+	log.SetOutput(tlogger{t})
+	defer log.SetOutput(os.Stderr)
+
+	go Main()
+
 	select {
 	case status := <-dead:
 		t.Errorf("os.Exit(%d) before server came up", status)
@@ -91,7 +103,6 @@ func TestStarts(t *testing.T) {
 	}
 
 	down <- struct{}{}
-	<-dead
 }
 
 func pushEnv(k, v string) func() {
@@ -106,4 +117,11 @@ func mkdir(t *testing.T, dir string) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		t.Fatal(err)
 	}
+}
+
+type tlogger struct{ t *testing.T }
+
+func (tl tlogger) Write(p []byte) (n int, err error) {
+	tl.t.Logf("%s", p)
+	return len(p), nil
 }

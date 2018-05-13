@@ -104,19 +104,21 @@ func (s *Server) SetTLS(setup TLSSetup) {
 }
 
 func (s *Server) ListenURL() string {
+	if s.listener == nil {
+		return ""
+	}
+	taddr, ok := s.listener.Addr().(*net.TCPAddr)
+	if !ok {
+		return ""
+	}
 	scheme := "http"
 	if s.enableTLS {
 		scheme = "https"
 	}
-	if s.listener != nil {
-		if taddr, ok := s.listener.Addr().(*net.TCPAddr); ok {
-			if taddr.IP.IsUnspecified() {
-				return fmt.Sprintf("%s://localhost:%d", scheme, taddr.Port)
-			}
-			return fmt.Sprintf("%s://%s", scheme, s.listener.Addr())
-		}
+	if taddr.IP.IsUnspecified() {
+		return fmt.Sprintf("%s://localhost:%d", scheme, taddr.Port)
 	}
-	return ""
+	return fmt.Sprintf("%s://%s", scheme, s.listener.Addr())
 }
 
 func (s *Server) HandleFunc(pattern string, fn func(http.ResponseWriter, *http.Request)) {
