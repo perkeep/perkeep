@@ -16,9 +16,19 @@ limitations under the License.
 
 package serverinit
 
+import (
+	"go4.org/jsonconfig"
+)
+
 var GenLowLevelConfig = genLowLevelConfig
 
 var DefaultBaseConfig = defaultBaseConfig
+
+func (c *Config) Export_Obj() jsonconfig.Obj { return c.jconf }
+
+func ExportNewConfigFromObj(obj jsonconfig.Obj) *Config {
+	return &Config{jconf: obj}
+}
 
 func SetTempDirFunc(f func() string) {
 	tempDir = f

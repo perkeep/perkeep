@@ -147,14 +147,16 @@ const (
 // RecoveryMode is the mode in which the blobpacked server starts.
 type RecoveryMode int
 
+// Note: not using iota for these, because they're stored in GCE
+// instance's metadata values.
 const (
 	// NoRecovery means blobpacked does not attempt to repair its index on startup.
 	// It is the default.
-	NoRecovery RecoveryMode = iota
+	NoRecovery RecoveryMode = 0
 	// FastRecovery populates the blobpacked index, without erasing any existing one.
-	FastRecovery
+	FastRecovery RecoveryMode = 1
 	// FullRecovery erases the existing blobpacked index, then rebuilds it.
-	FullRecovery
+	FullRecovery RecoveryMode = 2
 )
 
 var (

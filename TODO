@@ -4,6 +4,15 @@ There are two TODO lists. This file (good for airplanes) and the online bug trac
 
 Offline list:
 
+-- add a build tag to allow perkeepd to be compiled without any GCE
+   support.  (good for smaller binaries on Raspberry Pis or
+   whatnot). Most code has moved to the osutil/gce package, and
+   there's little gce usage now in perkeepd except for 2-3 things
+   bethind "if env.OnGCE" checks. those things inside the checks can
+   be func pointers registered by a file with a +build gce or
+   !without_gce, depending on which way we decide to go. But make sure
+   our test coverage builds both.
+
 -- fix the presubmit's gofmt to be happy about emacs:
 
         go fmt perkeep.org/cmd... perkeep.org/dev... perkeep.org/misc... perkeep.org/pkg... perkeep.org/server...

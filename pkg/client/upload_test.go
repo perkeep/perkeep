@@ -136,20 +136,11 @@ func newTestServer(t *testing.T) *httptest.Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// because these two are normally consumed in perkeepd.go
-	// TODO(mpl): serverinit.Load should consume these 2 as well. Once
-	// consumed, we should keep all the answers as private fields, and then we
-	// put accessors on serverinit.Config. Maybe we even stop embedding
-	// jsonconfig.Obj in serverinit.Config too, so none of those methods are
-	// accessible.
-	lowConf.OptionalBool("https", true)
-	lowConf.OptionalString("listen", "")
 
 	reindex := false
-	var context *http.Request // only used by App Engine. See handlerLoader in serverinit.go
 	hi := http.NewServeMux()
 	address := "http://" + conf.Listen
-	_, err = lowConf.InstallHandlers(hi, address, reindex, context)
+	_, err = lowConf.InstallHandlers(hi, address, reindex)
 	if err != nil {
 		t.Fatal(err)
 	}

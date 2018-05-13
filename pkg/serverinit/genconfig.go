@@ -1208,7 +1208,7 @@ func (b *lowBuilder) build() (*Config, error) {
 		}
 	}
 
-	return &Config{Obj: b.low}, nil
+	return &Config{jconf: b.low}, nil
 }
 
 func numSet(vv ...interface{}) (num int) {

@@ -40,6 +40,7 @@ import (
 	"perkeep.org/internal/httputil"
 	"perkeep.org/internal/netutil"
 	"perkeep.org/internal/osutil"
+	"perkeep.org/internal/osutil/gce"
 	"perkeep.org/pkg/buildinfo"
 	"perkeep.org/pkg/env"
 	"perkeep.org/pkg/gpgchallenge"
@@ -47,7 +48,7 @@ import (
 	"perkeep.org/pkg/webserver"
 
 	// VM environments:
-	"perkeep.org/internal/osutil/gce" // for init side-effects + LogWriter
+	// for init side-effects + LogWriter
 
 	// Storage options:
 	_ "perkeep.org/pkg/blobserver/azure"
@@ -87,16 +88,9 @@ import (
 	_ "perkeep.org/pkg/camlegal"
 
 	"go4.org/legal"
-	"go4.org/types"
 	"go4.org/wkfs"
 
-	"cloud.google.com/go/compute/metadata"
-	"cloud.google.com/go/logging"
 	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/oauth2/google"
-	compute "google.golang.org/api/compute/v1"
-	"google.golang.org/api/googleapi"
-	"google.golang.org/api/option"
 )
 
 var (
@@ -220,8 +214,8 @@ func loadConfig(arg string) (conf *serverinit.Config, isNewConfig bool, err erro
 // them (self-signed CA used as a cert), and use them.
 // If cert/key files are not specified, use Let's Encrypt.
 func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) {
-	cert, key := config.OptionalString("httpsCert", ""), config.OptionalString("httpsKey", "")
-	if !config.OptionalBool("https", true) {
+	cert, key := config.HTTPSCert(), config.HTTPSKey()
+	if !config.HTTPS() {
 		return
 	}
 	if (cert != "") != (key != "") {
@@ -334,7 +328,7 @@ func handleSignals(shutdownc <-chan io.Closer) {
 // for Let's Encrypt. It then starts listening and returns the baseURL derived from
 // the hostname we should obtain from the GPG challenge.
 func listenForCamliNet(ws *webserver.Server, config *serverinit.Config) (baseURL string, err error) {
-	camliNetIP := config.OptionalString("camliNetIP", "")
+	camliNetIP := config.CamliNetIP()
 	if camliNetIP == "" {
 		return "", errors.New("no camliNetIP")
 	}
@@ -353,7 +347,7 @@ func listenForCamliNet(ws *webserver.Server, config *serverinit.Config) (baseURL
 	if err != nil {
 		return "", fmt.Errorf("could not load TLS certificate: %v", err)
 	}
-	_, keyId, err := keyRingAndId(config)
+	_, keyId, err := config.KeyRingAndId()
 	if err != nil {
 		return "", fmt.Errorf("could not get keyId for camliNet hostname: %v", err)
 	}
@@ -382,10 +376,6 @@ func listenForCamliNet(ws *webserver.Server, config *serverinit.Config) (baseURL
 	ws.SetTLS(webserver.TLSSetup{
 		CertManager: getCertificate,
 	})
-	// Since we're not going through setupTLS, we need to consume manually the 3 below
-	config.OptionalString("httpsCert", "")
-	config.OptionalString("httpsKey", "")
-	config.OptionalBool("https", true)
 
 	err = ws.Listen(fmt.Sprintf(":%d", gpgchallenge.ClientChallengedPort))
 	if err != nil {
@@ -396,10 +386,11 @@ func listenForCamliNet(ws *webserver.Server, config *serverinit.Config) (baseURL
 
 // listen discovers the listen address, base URL, and hostname that the ws is
 // going to use, sets up the TLS configuration, and starts listening.
-// If camliNetIP, it also prepares for the GPG challenge, to register/acquire a
-// name in the camlistore.net domain.
+//
+// If camliNetIP is configured, it also prepares for the GPG
+// challenge, to register/acquire a name in the camlistore.net domain.
 func listen(ws *webserver.Server, config *serverinit.Config) (baseURL string, err error) {
-	camliNetIP := config.OptionalString("camliNetIP", "")
+	camliNetIP := config.CamliNetIP()
 	if camliNetIP != "" {
 		return listenForCamliNet(ws, config)
 	}
@@ -421,35 +412,13 @@ func listen(ws *webserver.Server, config *serverinit.Config) (baseURL string, er
 	return baseURL, nil
 }
 
-func keyRingAndId(config *serverinit.Config) (keyRing, keyId string, err error) {
-	prefixes := config.RequiredObject("prefixes")
-	if len(prefixes) == 0 {
-		return "", "", fmt.Errorf("no prefixes object in config")
-	}
-	sighelper := prefixes.OptionalObject("/sighelper/")
-	if len(sighelper) == 0 {
-		return "", "", fmt.Errorf("no sighelper object in prefixes")
-	}
-	handlerArgs := sighelper.OptionalObject("handlerArgs")
-	if len(handlerArgs) == 0 {
-		return "", "", fmt.Errorf("no handlerArgs object in sighelper")
-	}
-	keyId = handlerArgs.OptionalString("keyId", "")
-	if keyId == "" {
-		return "", "", fmt.Errorf("no keyId in sighelper")
-	}
-	keyRing = handlerArgs.OptionalString("secretRing", "")
-	if keyRing == "" {
-		return "", "", fmt.Errorf("no secretRing in sighelper")
-	}
-	return keyRing, keyId, nil
-}
-
-// muxChallengeHandler initializes the gpgchallenge Client, and registers its
-// handler with Perkeep's muxer. The returned Client can then be used right
-// after Perkeep starts serving HTTPS connections.
-func muxChallengeHandler(ws *webserver.Server, config *serverinit.Config) (*gpgchallenge.Client, error) {
-	camliNetIP := config.OptionalString("camliNetIP", "")
+// registerDNSChallengeHandler initializes and returns the
+// gpgchallenge Client if camliNetIP is configured and if so,
+// registers its handler with Perkeep's muxer.
+//
+// If camlistore.net support isn't enabled, it returns (nil, nil).
+func registerDNSChallengeHandler(ws *webserver.Server, config *serverinit.Config) (*gpgchallenge.Client, error) {
+	camliNetIP := config.CamliNetIP()
 	if camliNetIP == "" {
 		return nil, nil
 	}
@@ -457,7 +426,7 @@ func muxChallengeHandler(ws *webserver.Server, config *serverinit.Config) (*gpgc
 		return nil, fmt.Errorf("camliNetIP value %q is not a valid IP address", camliNetIP)
 	}
 
-	keyRing, keyId, err := keyRingAndId(config)
+	keyRing, keyId, err := config.KeyRingAndId()
 	if err != nil {
 		return nil, err
 	}
@@ -470,287 +439,6 @@ func muxChallengeHandler(ws *webserver.Server, config *serverinit.Config) (*gpgc
 	return cl, nil
 }
 
-// fixUserData checks whether the value of "user-data" in the GCE metadata is up
-// to date with the correct systemd service and docker image tarball based on the
-// "perkeep" name. If not (i.e. they're the old "camlistore" based ones), it fixes
-// said metadata. It returns whether the metadata was indeed changed, which
-// indicates that the instance should be restarted for the change to take effect.
-func fixUserData() (bool, error) {
-	if !env.OnGCE() {
-		return false, nil
-	}
-
-	metadataKey := "user-data"
-
-	var err error
-	userData, err := metadata.InstanceAttributeValue(metadataKey)
-	if err != nil {
-		if _, ok := err.(metadata.NotDefinedError); !ok {
-			return false, fmt.Errorf("error getting existing user-data: %v", err)
-		}
-	}
-
-	goodExecStartPre := `ExecStartPre=/bin/bash -c '/usr/bin/curl https://storage.googleapis.com/camlistore-release/docker/perkeepd.tar.gz`
-	goodExecStart := `ExecStart=/opt/bin/systemd-docker run --rm -p 80:80 -p 443:443 --name %n -v /run/camjournald.sock:/run/camjournald.sock -v /var/lib/camlistore/tmp:/tmp --link=mysql.service:mysqldb perkeep/server`
-	goodServiceName := `- name: perkeepd.service`
-	if strings.Contains(userData, goodExecStartPre) &&
-		strings.Contains(userData, goodExecStart) &&
-		strings.Contains(userData, goodServiceName) {
-		// We're already a proper perkeep deployment, all good.
-		return false, nil
-	}
-
-	oldExecStartPre := `ExecStartPre=/bin/bash -c '/usr/bin/curl https://storage.googleapis.com/camlistore-release/docker/camlistored.tar.gz`
-	oldExecStart := `ExecStart=/opt/bin/systemd-docker run --rm -p 80:80 -p 443:443 --name %n -v /run/camjournald.sock:/run/camjournald.sock -v /var/lib/camlistore/tmp:/tmp --link=mysql.service:mysqldb camlistore/server`
-
-	// double-check that it's our launcher based instance, and not a custom thing,
-	// even though OnGCE is already a pretty strong barrier.
-	if !strings.Contains(userData, oldExecStartPre) {
-		return false, nil
-	}
-
-	oldServiceName := `- name: camlistored.service`
-	userData = strings.Replace(userData, oldExecStartPre, goodExecStartPre, 1)
-	userData = strings.Replace(userData, oldExecStart, goodExecStart, 1)
-	userData = strings.Replace(userData, oldServiceName, goodServiceName, 1)
-
-	ctx := context.Background()
-	inst, err := gceInstance()
-	if err != nil {
-		return false, err
-	}
-	cs, projectID, zone, name := inst.cis, inst.projectID, inst.zone, inst.name
-
-	instance, err := cs.Get(projectID, zone, name).Context(ctx).Do()
-	if err != nil {
-		return false, fmt.Errorf("error getting instance: %v", err)
-	}
-	items := instance.Metadata.Items
-	for k, v := range items {
-		if v.Key == metadataKey {
-			items[k] = &compute.MetadataItems{
-				Key:   metadataKey,
-				Value: googleapi.String(userData),
-			}
-			break
-		}
-	}
-	mdata := &compute.Metadata{
-		Items:       items,
-		Fingerprint: instance.Metadata.Fingerprint,
-	}
-
-	call := cs.SetMetadata(projectID, zone, name, mdata).Context(ctx)
-	op, err := call.Do()
-	if err != nil {
-		if googleapi.IsNotModified(err) {
-			return false, nil
-		}
-		return false, fmt.Errorf("error setting instance user-data: %v", err)
-	}
-	// TODO(mpl): refactor this whole pattern below into a func
-	opName := op.Name
-	for {
-		select {
-		case <-ctx.Done():
-			return false, ctx.Err()
-		case <-time.After(500 * time.Millisecond):
-		}
-		op, err := inst.cs.ZoneOperations.Get(projectID, zone, opName).Context(ctx).Do()
-		if err != nil {
-			return false, fmt.Errorf("failed to get op %s: %v", opName, err)
-		}
-		switch op.Status {
-		case "PENDING", "RUNNING":
-			continue
-		case "DONE":
-			if op.Error != nil {
-				for _, operr := range op.Error.Errors {
-					log.Printf("operation error: %+v", operr)
-				}
-				return false, fmt.Errorf("operation error: %v", op.Error.Errors[0])
-			}
-			log.Printf("Successfully corrected %v on instance", metadataKey)
-			return true, nil
-		default:
-			return false, fmt.Errorf("unknown operation status %q: %+v", op.Status, op)
-		}
-	}
-}
-
-type gceInst struct {
-	cs        *compute.Service
-	cis       *compute.InstancesService
-	zone      string
-	projectID string
-	name      string
-}
-
-func gceInstance() (*gceInst, error) {
-	ctx := context.Background()
-	hc, err := google.DefaultClient(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("error getting a default http client: %v", err)
-	}
-	cs, err := compute.New(hc)
-	if err != nil {
-		return nil, fmt.Errorf("error getting a compute service: %v", err)
-	}
-	cis := compute.NewInstancesService(cs)
-	projectID, err := metadata.ProjectID()
-	if err != nil {
-		return nil, fmt.Errorf("error getting projectID: %v", err)
-	}
-	zone, err := metadata.Zone()
-	if err != nil {
-		return nil, fmt.Errorf("error getting zone: %v", err)
-	}
-	name, err := metadata.InstanceName()
-	if err != nil {
-		return nil, fmt.Errorf("error getting instance name: %v", err)
-	}
-	return &gceInst{
-		cs:        cs,
-		cis:       cis,
-		zone:      zone,
-		projectID: projectID,
-		name:      name,
-	}, nil
-}
-
-// resetInstance reboots the GCE VM that this process is running in.
-func resetInstance() error {
-	if !env.OnGCE() {
-		return errors.New("cannot reset instance if not on GCE")
-	}
-
-	ctx := context.Background()
-
-	inst, err := gceInstance()
-	if err != nil {
-		return err
-	}
-	cs, projectID, zone, name := inst.cis, inst.projectID, inst.zone, inst.name
-
-	call := cs.Reset(projectID, zone, name).Context(ctx)
-	op, err := call.Do()
-	if err != nil {
-		if googleapi.IsNotModified(err) {
-			return nil
-		}
-		return fmt.Errorf("error resetting instance: %v", err)
-	}
-	// TODO(mpl): refactor this whole pattern below into a func
-	opName := op.Name
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(500 * time.Millisecond):
-		}
-		op, err := inst.cs.ZoneOperations.Get(projectID, zone, opName).Context(ctx).Do()
-		if err != nil {
-			return fmt.Errorf("failed to get op %s: %v", opName, err)
-		}
-		switch op.Status {
-		case "PENDING", "RUNNING":
-			continue
-		case "DONE":
-			if op.Error != nil {
-				for _, operr := range op.Error.Errors {
-					log.Printf("operation error: %+v", operr)
-				}
-				return fmt.Errorf("operation error: %v", op.Error.Errors[0])
-			}
-			log.Print("Successfully reset instance")
-			return nil
-		default:
-			return fmt.Errorf("unknown operation status %q: %+v", op.Status, op)
-		}
-	}
-}
-
-// setInstanceHostname sets the "camlistore-hostname" metadata on the GCE
-// instance where perkeepd is running. The value set is the same as the one we
-// register with the camlistore.net DNS, i.e. "<gpgKeyId>.camlistore.net", where
-// <gpgKeyId> is the short form (8 trailing chars) of Perkeep's keyId.
-func setInstanceHostname() error {
-	if !env.OnGCE() {
-		return nil
-	}
-
-	hostname, err := metadata.InstanceAttributeValue("camlistore-hostname")
-	if err != nil {
-		if _, ok := err.(metadata.NotDefinedError); !ok {
-			return fmt.Errorf("error getting existing camlistore-hostname: %v", err)
-		}
-	}
-	if err == nil && hostname != "" {
-		// we do not overwrite an existing value. it's not possible anyway, as the
-		// SetMetadata call won't allow it.
-		return nil
-	}
-
-	ctx := context.Background()
-	inst, err := gceInstance()
-	if err != nil {
-		return err
-	}
-	cs, projectID, zone, name := inst.cis, inst.projectID, inst.zone, inst.name
-
-	instance, err := cs.Get(projectID, zone, name).Context(ctx).Do()
-	if err != nil {
-		return fmt.Errorf("error getting instance: %v", err)
-	}
-	items := instance.Metadata.Items
-	items = append(items, &compute.MetadataItems{
-		Key:   "camlistore-hostname",
-		Value: googleapi.String(camliNetHostName),
-	})
-	mdata := &compute.Metadata{
-		Items:       items,
-		Fingerprint: instance.Metadata.Fingerprint,
-	}
-
-	call := cs.SetMetadata(projectID, zone, name, mdata).Context(ctx)
-	op, err := call.Do()
-	if err != nil {
-		if googleapi.IsNotModified(err) {
-			return nil
-		}
-		return fmt.Errorf("error setting instance hostname: %v", err)
-	}
-	// TODO(mpl): refactor this whole pattern below into a func
-	opName := op.Name
-	for {
-		// TODO(mpl): add a timeout maybe?
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(500 * time.Millisecond):
-		}
-		op, err := inst.cs.ZoneOperations.Get(projectID, zone, opName).Context(ctx).Do()
-		if err != nil {
-			return fmt.Errorf("failed to get op %s: %v", opName, err)
-		}
-		switch op.Status {
-		case "PENDING", "RUNNING":
-			continue
-		case "DONE":
-			if op.Error != nil {
-				for _, operr := range op.Error.Errors {
-					log.Printf("operation error: %+v", operr)
-				}
-				return fmt.Errorf("operation error: %v", op.Error.Errors[0])
-			}
-			log.Printf(`Successfully set "camlistore-hostname" to "%v" on instance`, camliNetHostName)
-			return nil
-		default:
-			return fmt.Errorf("unknown operation status %q: %+v", op.Status, op)
-		}
-	}
-}
-
 // requestHostName performs the GPG challenge to register/obtain a name in the
 // camlistore.net domain. The acquired name should be "<gpgKeyId>.camlistore.net",
 // where <gpgKeyId> is the short form (8 trailing chars) of Perkeep's keyId.
@@ -761,8 +449,10 @@ func requestHostName(cl *gpgchallenge.Client) error {
 		return err
 	}
 
-	if err := setInstanceHostname(); err != nil {
-		return fmt.Errorf("error setting instance camlistore-hostname: %v", err)
+	if env.OnGCE() {
+		if err := gce.SetInstanceHostname(camliNetHostName); err != nil {
+			return fmt.Errorf("error setting instance camlistore-hostname: %v", err)
+		}
 	}
 
 	var repeatChallengeFn func()
@@ -779,9 +469,9 @@ func requestHostName(cl *gpgchallenge.Client) error {
 // listenAndBaseURL finds the configured, default, or inferred listen address
 // and base URL from the command-line flags and provided config.
 func listenAndBaseURL(config *serverinit.Config) (listen, baseURL string) {
-	baseURL = config.OptionalString("baseURL", "")
+	baseURL = config.BaseURL()
 	listen = *flagListen
-	listenConfig := config.OptionalString("listen", "")
+	listenConfig := config.ListenAddr()
 	// command-line takes priority over config
 	if listen == "" {
 		listen = listenConfig
@@ -806,98 +496,12 @@ func certHostname(listen, baseURL string) (string, error) {
 	return hostname, nil
 }
 
-// TODO(mpl): maybe export gce.writer, and reuse it here. Later.
-
-// gclWriter is an io.Writer, where each Write writes a log entry to Google
-// Cloud Logging.
-type gclWriter struct {
-	severity logging.Severity
-	logger   *logging.Logger
-}
-
-func (w gclWriter) Write(p []byte) (n int, err error) {
-	w.logger.Log(logging.Entry{
-		Severity: w.severity,
-		Payload:  string(p),
-	})
-	return len(p), nil
-}
-
-// if a non-nil logging Client is returned, it should be closed before the
-// program terminates to flush any buffered log entries.
-func maybeSetupGoogleCloudLogging() io.Closer {
-	if flagGCEProjectID == "" && flagGCELogName == "" && flagGCEJWTFile == "" {
-		return types.NopCloser
-	}
-	if flagGCEProjectID == "" || flagGCELogName == "" || flagGCEJWTFile == "" {
-		exitf("All of --gce_project_id, --gce_log_name, and --gce_jwt_file must be specified for logging on Google Cloud Logging.")
-	}
-	ctx := context.Background()
-	logc, err := logging.NewClient(ctx,
-		flagGCEProjectID, option.WithServiceAccountFile(flagGCEJWTFile))
-	if err != nil {
-		exitf("Error creating GCL client: %v", err)
-	}
-	if err := logc.Ping(ctx); err != nil {
-		exitf("Google logging client not ready (ping failed): %v", err)
-	}
-	logw := gclWriter{
-		severity: logging.Debug,
-		logger:   logc.Logger(flagGCELogName),
-	}
-	log.SetOutput(io.MultiWriter(os.Stderr, logw))
-	return logc
-}
-
-// setupLoggingSyslog is non-nil on Unix. If it returns a non-nil io.Closer log
-// flush function, setupLogging returns that flush function.
-var setupLoggingSyslog func() io.Closer
-
-// setupLogging sets up logging and returns an io.Closer that flushes logs.
-func setupLogging() io.Closer {
-	if *flagSyslog && runtime.GOOS == "windows" {
-		exitf("-syslog not available on windows")
-	}
-	if fn := setupLoggingSyslog; fn != nil {
-		if flusher := fn(); flusher != nil {
-			return flusher
-		}
-	}
-	if env.OnGCE() {
-		lw, err := gce.LogWriter()
-		if err != nil {
-			log.Fatalf("Error setting up logging: %v", err)
-		}
-		log.SetOutput(lw)
-		return lw
-	}
-	return maybeSetupGoogleCloudLogging()
-}
-
 func checkRecovery() {
+	if *flagRecovery == 0 && env.OnGCE() {
+		*flagRecovery = gce.BlobpackedRecoveryValue()
+	}
 	if blobpacked.RecoveryMode(*flagRecovery) > blobpacked.NoRecovery {
 		blobpacked.SetRecovery(blobpacked.RecoveryMode(*flagRecovery))
-		return
-	}
-	if !env.OnGCE() {
-		return
-	}
-	recovery, err := metadata.InstanceAttributeValue("camlistore-recovery")
-	if err != nil {
-		if _, ok := err.(metadata.NotDefinedError); !ok {
-			log.Printf("error getting camlistore-recovery: %v", err)
-		}
-		return
-	}
-	if recovery == "" {
-		return
-	}
-	mode, err := strconv.Atoi(recovery)
-	if err != nil {
-		log.Printf("invalid int value for \"camlistore-recovery\": %v", err)
-	}
-	if blobpacked.RecoveryMode(mode) > blobpacked.NoRecovery {
-		blobpacked.SetRecovery(blobpacked.RecoveryMode(mode))
 	}
 }
 
@@ -960,34 +564,27 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 		exitf("Error starting webserver: %v", err)
 	}
 
-	shutdownCloser, err := config.InstallHandlers(ws, baseURL, *flagReindex, nil)
+	challengeClient, err := registerDNSChallengeHandler(ws, config)
+	if err != nil {
+		exitf("Error registering challenge client with Perkeep muxer: %v", err)
+	}
+
+	// Finally, install the handlers. This also does the final config validation.
+	shutdownCloser, err := config.InstallHandlers(ws, baseURL, *flagReindex)
 	if err != nil {
 		exitf("Error parsing config: %v", err)
 	}
 	shutdownc <- shutdownCloser
 
-	challengeClient, err := muxChallengeHandler(ws, config)
-	if err != nil {
-		exitf("Error registering challenge client with Perkeep muxer: %v", err)
-	}
-
 	go ws.Serve()
 
 	if challengeClient != nil {
-		// TODO(mpl): we should technically wait for the above ws.Serve
-		// to be ready, otherwise we're racy. Should we care?
 		if err := requestHostName(challengeClient); err != nil {
 			exitf("Could not register on camlistore.net: %v", err)
 		}
 	}
-	needsRestart, err := fixUserData()
-	if err != nil {
-		exitf("Could not fix user-data metadata: %v", err)
-	}
-	if needsRestart {
-		if err := resetInstance(); err != nil {
-			exitf("Could not reset instance: %v", err)
-		}
+	if env.OnGCE() {
+		gce.FixUserDataForPerkeepRename()
 	}
 
 	urlToOpen := baseURL

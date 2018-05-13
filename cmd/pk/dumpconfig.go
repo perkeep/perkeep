@@ -57,11 +57,10 @@ func (c *dumpconfigCmd) RunCommand(args []string) error {
 	if err != nil {
 		return err
 	}
-	cfg.Obj["handlerConfig"] = true
-	ll, err := json.MarshalIndent(cfg.Obj, "", "  ")
+	lowj, err := json.MarshalIndent(cfg.LowLevelJSONConfig(), "", "  ")
 	if err != nil {
 		return err
 	}
-	_, err = os.Stdout.Write(ll)
+	_, err = os.Stdout.Write(lowj)
 	return err
 }
