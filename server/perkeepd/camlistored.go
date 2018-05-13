@@ -994,7 +994,7 @@ func Main(up chan<- struct{}, down <-chan struct{}) {
 	if !isNewConfig {
 		// user may like to configure the server at the initial startup,
 		// open UI if this is not the first run with a new config file.
-		urlToOpen += config.UIPath
+		urlToOpen += config.UIPath()
 	}
 
 	if *flagOpenBrowser {

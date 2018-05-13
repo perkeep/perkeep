@@ -414,7 +414,8 @@ func handlerTypeWantsAuth(handlerType string) bool {
 // and the the low-level format by running "camtool dumpconfig".
 type Config struct {
 	jsonconfig.Obj
-	UIPath string // Not valid until after InstallHandlers
+
+	uiPath string // Not valid until after InstallHandlers
 
 	// apps is the list of server apps configured during InstallHandlers,
 	// and that should be started after perkeepd has started serving.
@@ -424,6 +425,12 @@ type Config struct {
 	// soon as perkeepd is ready for it.
 	signHandler *signhandler.Handler
 }
+
+// UIPath returns the relative path to the server's user interface
+// handler, if the UI is configured. Otherwise it returns the empty
+// string.
+// If non-empty, the returned value will both begin and end with a slash.
+func (c *Config) UIPath() string { return c.uiPath }
 
 // detectConfigChange returns an informative error if conf contains obsolete keys.
 func detectConfigChange(conf jsonconfig.Obj) error {
@@ -611,7 +618,7 @@ func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reind
 		hl.config[prefix] = h
 
 		if handlerType == "ui" {
-			config.UIPath = prefix
+			config.uiPath = prefix
 		}
 	}
 	hl.setupAll()
