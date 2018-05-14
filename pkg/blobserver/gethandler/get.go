@@ -45,20 +45,20 @@ func CreateGetHandler(fetcher blob.Fetcher) http.Handler {
 	return &Handler{Fetcher: fetcher}
 }
 
-func (h *Handler) ServeHTTP(conn http.ResponseWriter, req *http.Request) {
+func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if req.URL.Path == "/camli/sha1-deadbeef00000000000000000000000000000000" {
 		// Test handler.
-		simulatePrematurelyClosedConnection(conn, req)
+		simulatePrematurelyClosedConnection(rw, req)
 		return
 	}
 
 	blobRef := blobFromURLPath(req.URL.Path)
 	if !blobRef.Valid() {
-		http.Error(conn, "Malformed GET URL.", 400)
+		http.Error(rw, "Malformed GET URL.", 400)
 		return
 	}
 
-	ServeBlobRef(conn, req, blobRef, h.Fetcher)
+	ServeBlobRef(rw, req, blobRef, h.Fetcher)
 }
 
 // ServeBlobRef serves a blob.
@@ -135,17 +135,17 @@ func blobFromURLPath(path string) blob.Ref {
 }
 
 // For client testing.
-func simulatePrematurelyClosedConnection(conn http.ResponseWriter, req *http.Request) {
-	flusher, ok := conn.(http.Flusher)
+func simulatePrematurelyClosedConnection(rw http.ResponseWriter, req *http.Request) {
+	flusher, ok := rw.(http.Flusher)
 	if !ok {
 		return
 	}
-	hj, ok := conn.(http.Hijacker)
+	hj, ok := rw.(http.Hijacker)
 	if !ok {
 		return
 	}
 	for n := 1; n <= 100; n++ {
-		fmt.Fprintf(conn, "line %d\n", n)
+		fmt.Fprintf(rw, "line %d\n", n)
 		flusher.Flush()
 	}
 	wrc, _, _ := hj.Hijack()

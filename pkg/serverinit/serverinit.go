@@ -102,8 +102,8 @@ func parseCamliPath(path string) (action string, err error) {
 	return
 }
 
-func unsupportedHandler(conn http.ResponseWriter, req *http.Request) {
-	httputil.BadRequestError(conn, "Unsupported Perkeep path or method.")
+func unsupportedHandler(rw http.ResponseWriter, req *http.Request) {
+	httputil.BadRequestError(rw, "Unsupported Perkeep path or method.")
 }
 
 func (s *storageAndConfig) Config() *blobserver.Config {
@@ -178,16 +178,16 @@ func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage, hf blo
 			HandlerFinder: hf,
 		},
 	}
-	return http.HandlerFunc(func(conn http.ResponseWriter, req *http.Request) {
+	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		action, err := parseCamliPath(req.URL.Path[len(prefix)-1:])
 		if err != nil {
 			log.Printf("Invalid request for method %q, path %q",
 				req.Method, req.URL.Path)
-			unsupportedHandler(conn, req)
+			unsupportedHandler(rw, req)
 			return
 		}
 		handler := auth.RequireAuth(camliHandlerUsingStorage(req, action, storageConfig))
-		handler.ServeHTTP(conn, req)
+		handler.ServeHTTP(rw, req)
 	})
 }
 

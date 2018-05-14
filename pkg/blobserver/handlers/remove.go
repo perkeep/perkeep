@@ -30,8 +30,8 @@ import (
 const maxRemovesPerRequest = 1000
 
 func CreateRemoveHandler(storage blobserver.Storage) http.Handler {
-	return http.HandlerFunc(func(conn http.ResponseWriter, req *http.Request) {
-		handleRemove(conn, req, storage)
+	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		handleRemove(rw, req, storage)
 	})
 }
 
