@@ -222,6 +222,12 @@ func (c Claim) Attribute() string { return c.b.ss.Attribute }
 // Value returns the "value" field, if set.
 func (c Claim) Value() string { return c.b.ss.Value }
 
+// Signer returns the ref of the blob containing the signing key that signed the claim.
+func (c Claim) Signer() blob.Ref { return c.b.ss.Signer }
+
+// Signature returns the claim's signature.
+func (c Claim) Signature() string { return c.b.ss.Sig }
+
 // ModifiedPermanode returns the claim's "permaNode" field, if it's
 // a claim that modifies a permanode. Otherwise a zero blob.Ref is
 // returned.
