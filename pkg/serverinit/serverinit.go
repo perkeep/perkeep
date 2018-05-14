@@ -319,7 +319,11 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		if ix, ok := pstorage.(*index.Index); ok && ix.WantsReindex() {
 			log.Printf("Reindexing %s ...", h.prefix)
 			if err := ix.Reindex(); err != nil {
-				exitFailure("Error reindexing %s: %v", h.prefix, err)
+				if ix.WantsKeepGoing() {
+					log.Printf("Error reindexing %s: %v", h.prefix, err)
+				} else {
+					exitFailure("Error reindexing %s: %v", h.prefix, err)
+				}
 			}
 		}
 		hl.handler[h.prefix] = pstorage
@@ -611,6 +615,31 @@ func (c *Config) SetReindex(v bool) {
 		opts, ok := pconf["handlerArgs"].(map[string]interface{})
 		if ok {
 			opts["reindex"] = v
+		}
+	}
+}
+
+// SetKeepGoing changes each configured prefix to set "keepGoing" to true. This
+// indicates that validation, reindexing, or recovery behavior should not cause
+// the process to end.
+func (c *Config) SetKeepGoing(v bool) {
+	prefixes, _ := c.jconf["prefixes"].(map[string]interface{})
+	for prefix, vei := range prefixes {
+		if prefix == "_knownkeys" {
+			continue
+		}
+		pmap, ok := vei.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		pconf := jsonconfig.Obj(pmap)
+		typ, _ := pconf["handler"].(string)
+		if typ != "storage-index" && typ != "storage-blobpacked" {
+			continue
+		}
+		opts, ok := pconf["handlerArgs"].(map[string]interface{})
+		if ok {
+			opts["keepGoing"] = v
 		}
 	}
 }

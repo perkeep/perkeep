@@ -274,6 +274,7 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 		smallPrefix = conf.RequiredString("smallBlobs")
 		largePrefix = conf.RequiredString("largeBlobs")
 		metaConf    = conf.RequiredObject("metaIndex")
+		keepGoing   = conf.OptionalBool("keepGoing", false)
 	)
 	if err := conf.Validate(); err != nil {
 		return nil, err
@@ -304,6 +305,13 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 
 	recoveryMu.Lock()
 	defer recoveryMu.Unlock()
+	condFatalf := func(pattern string, args ...interface{}) {
+		log.Printf(pattern, args...)
+		if !keepGoing {
+			os.Exit(1)
+		}
+	}
+
 	var newKv func() (sorted.KeyValue, error)
 	switch recovery {
 	case FastRecovery:
@@ -336,7 +344,7 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 			return nil, err
 		}
 		if _, err := sto.checkLargeIntegrity(); err != nil {
-			log.Fatalf("blobpacked: reindexed successfully, but error after validation: %v", err)
+			condFatalf("blobpacked: reindexed successfully, but error after validation: %v", err)
 		}
 		return sto, nil
 	}
@@ -347,20 +355,20 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 	if !sto.anyMeta() && sto.anyZipPacks() {
 		if env.OnGCE() {
 			// TODO(mpl): make web UI page/mode that informs about this error.
-			log.Fatalf("Error: blobpacked storage detects non-zero packed zips, but no metadata. Please switch to recovery mode: add the \"camlistore-recovery = %d\" key/value to the Custom metadata of your instance. And restart the instance.", FastRecovery)
+			condFatalf("Error: blobpacked storage detects non-zero packed zips, but no metadata. Please switch to recovery mode: add the \"camlistore-recovery = %d\" key/value to the Custom metadata of your instance. And restart the instance.", FastRecovery)
 		}
-		log.Fatalf("Error: blobpacked storage detects non-zero packed zips, but no metadata. Please re-start in recovery mode with -recovery=%d", FastRecovery)
+		condFatalf("Error: blobpacked storage detects non-zero packed zips, but no metadata. Please re-start in recovery mode with -recovery=%d", FastRecovery)
 	}
 
 	if mode, err := sto.checkLargeIntegrity(); err != nil {
 		if mode <= NoRecovery {
-			log.Fatal(err)
+			condFatalf("%v", err)
 		}
 		if env.OnGCE() {
 			// TODO(mpl): make web UI page/mode that informs about this error.
-			log.Fatalf("Error: %v. Please switch to recovery mode: add the \"camlistore-recovery = %d\" key/value to the Custom metadata of your instance. And restart the instance.", err, mode)
+			condFatalf("Error: %v. Please switch to recovery mode: add the \"camlistore-recovery = %d\" key/value to the Custom metadata of your instance. And restart the instance.", err, mode)
 		}
-		log.Fatalf("Error: %v. Please re-start in recovery mode with -recovery=%d", err, mode)
+		condFatalf("Error: %v. Please re-start in recovery mode with -recovery=%d", err, mode)
 	}
 
 	return sto, nil
