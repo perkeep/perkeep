@@ -596,7 +596,8 @@ func (c *Config) checkValidAuth() error {
 //
 // The returned shutdown value can be used to cleanly shut down the
 // handlers.
-func (config *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reindex bool) (shutdown io.Closer, err error) {
+func (c *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reindex bool) (shutdown io.Closer, err error) {
+	config := c
 	defer func() {
 		if e := recover(); e != nil {
 			log.Printf("Caught panic installer handlers: %v", e)
@@ -714,8 +715,8 @@ func dumpGoroutines(w http.ResponseWriter, r *http.Request) {
 // during InstallHandlers. It should only be called after perkeepd
 // has started serving, since these apps might request some configuration
 // from Perkeep to finish initializing.
-func (config *Config) StartApps() error {
-	for _, ap := range config.apps {
+func (c *Config) StartApps() error {
+	for _, ap := range c.apps {
 		if err := ap.Start(); err != nil {
 			return fmt.Errorf("error starting app %v: %v", ap.ProgramName(), err)
 		}
@@ -725,18 +726,18 @@ func (config *Config) StartApps() error {
 
 // UploadPublicKey uploads the public key blob with the sign handler that was
 // configured during InstallHandlers.
-func (config *Config) UploadPublicKey(ctx context.Context) error {
-	if config.signHandler == nil {
+func (c *Config) UploadPublicKey(ctx context.Context) error {
+	if c.signHandler == nil {
 		return nil
 	}
-	return config.signHandler.UploadPublicKey(ctx)
+	return c.signHandler.UploadPublicKey(ctx)
 }
 
 // AppURL returns a map of app name to app base URL for all the configured
 // server apps.
-func (config *Config) AppURL() map[string]string {
-	appURL := make(map[string]string, len(config.apps))
-	for _, ap := range config.apps {
+func (c *Config) AppURL() map[string]string {
+	appURL := make(map[string]string, len(c.apps))
+	for _, ap := range c.apps {
 		appURL[ap.ProgramName()] = ap.BackendURL()
 	}
 	return appURL
