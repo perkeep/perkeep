@@ -118,7 +118,12 @@ func main() {
 	}
 	defer os.RemoveAll(workDir)
 
-	var archives []string
+	archives := []string{
+		"perkeep-darwin.tar.gz",
+		"perkeep-linux.tar.gz",
+		"perkeep-src.zip",
+		"perkeep-windows.zip",
+	}
 	if !*flagSkipGen {
 		archives, err = genArchive()
 		if err != nil {
@@ -126,6 +131,9 @@ func main() {
 		}
 	}
 	if *flagUpload {
+		if !*flagSkipGen && *flagArchiveType != "all" {
+			archives = []string{archiveName(*flagArchiveType)}
+		}
 		for _, v := range archives {
 			upload(filepath.Join(releaseDir, v))
 		}
@@ -261,10 +269,7 @@ func genBinaries(osType string) {
 // packBinaries builds the archive that contains the binaries built by
 // genBinaries.
 func packBinaries(osType string) string {
-	archiveName := "perkeep-" + osType + ".tar.gz"
-	if osType == "windows" {
-		archiveName = strings.Replace(archiveName, ".tar.gz", ".zip", 1)
-	}
+	fileName := archiveName(osType)
 	binaries := map[string]bool{
 		exeName("perkeepd", osType):        false,
 		exeName("pk-get", osType):          false,
@@ -287,7 +292,7 @@ func packBinaries(osType string) string {
 		}
 		return false
 	}
-	archivePath := filepath.Join(releaseDir, archiveName)
+	archivePath := filepath.Join(releaseDir, fileName)
 	defer func() {
 		for name, found := range binaries {
 			if !found {
@@ -326,7 +331,7 @@ func packBinaries(osType string) string {
 			_, err = f.Write(b)
 			check(err)
 		}
-		return archiveName
+		return fileName
 	}
 
 	fw, err := os.Create(archivePath)
@@ -366,7 +371,7 @@ func packBinaries(osType string) string {
 	if err := zw.Close(); err != nil {
 		log.Fatalf("gzip.Close: %v", err)
 	}
-	return archiveName
+	return fileName
 }
 
 // zipSource builds the zip archive that contains the source code of Perkeep.
@@ -887,6 +892,15 @@ func homedir() string {
 		return os.Getenv("HOMEDRIVE") + os.Getenv("HOMEPATH")
 	}
 	return os.Getenv("HOME")
+}
+
+func archiveName(archiveType string) string {
+	switch archiveType {
+	case "windows", "src":
+		return "perkeep-" + archiveType + ".zip"
+	default:
+		return "perkeep-" + archiveType + ".tar.gz"
+	}
 }
 
 // ProjectTokenSource returns an OAuth2 TokenSource for the given Google Project ID.
