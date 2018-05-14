@@ -1110,12 +1110,30 @@ func gerritRedirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, dest, http.StatusFound)
 }
 
+// things in the camlistore-release bucket
+var legacyDownloadBucket = map[string]bool{
+	"0.10":       true,
+	"0.9":        true,
+	"android":    true,
+	"djpeg":      true,
+	"docker":     true,
+	"monthly":    true,
+	"README.txt": true,
+}
+
 func releaseRedirect(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/dl" || r.URL.Path == "/dl/" {
 		http.Redirect(w, r, "https://"+prodDomain+"/download/", http.StatusFound)
 		return
 	}
-	dest := "https://storage.googleapis.com/camlistore-release/" + strings.TrimPrefix(r.URL.Path, "/dl/")
+	prefix := strings.TrimPrefix(r.URL.Path, "/dl/")
+	firstDir := strings.Split(prefix, "/")[0]
+	var dest string
+	if legacyDownloadBucket[firstDir] {
+		dest = "https://storage.googleapis.com/camlistore-release/" + prefix
+	} else {
+		dest = "https://storage.googleapis.com/perkeep-release/" + prefix
+	}
 	http.Redirect(w, r, dest, http.StatusFound)
 }
 
