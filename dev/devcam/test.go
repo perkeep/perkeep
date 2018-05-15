@@ -138,9 +138,11 @@ func (c *testCmd) runTests(args []string) error {
 		targs = append(targs, args...)
 	} else {
 		targs = append(targs, []string{
+			"./internal/...",
 			"./pkg/...",
 			"./server/perkeepd",
 			"./cmd/...",
+			"./app/publisher/...",
 			"./misc/docker/...",
 			"./website/pk-web",
 		}...)
