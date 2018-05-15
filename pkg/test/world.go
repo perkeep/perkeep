@@ -47,6 +47,7 @@ type World struct {
 	srcRoot string // typically $GOPATH[0]/src/perkeep.org
 	config  string // server config file relative to pkg/test/testdata
 	tempDir string
+	gobin   string // where the World installs and finds binaries
 
 	addr string // "127.0.0.1:35"
 
@@ -100,6 +101,10 @@ func (w *World) Build() error {
 	if err != nil {
 		return err
 	}
+	w.gobin = filepath.Join(w.tempDir, "bin")
+	if err := os.MkdirAll(w.gobin, 0700); err != nil {
+		return err
+	}
 	// Build.
 	{
 		cmd := exec.Command("go", "run", "make.go",
@@ -119,6 +124,7 @@ func (w *World) Build() error {
 			cmd.Args = append(cmd.Args, "-v=true")
 		}
 		cmd.Dir = w.srcRoot
+		cmd.Env = append(os.Environ(), "GOBIN="+w.gobin)
 		log.Print("Running make.go to build perkeep binaries for testing...")
 		out, err := cmd.CombinedOutput()
 		if err != nil {
@@ -166,10 +172,7 @@ func (w *World) Help() ([]byte, error) {
 	if err := w.Build(); err != nil {
 		return nil, err
 	}
-	pkdbin, err := osutil.LookPathGopath("perkeepd")
-	if err != nil {
-		return nil, err
-	}
+	pkdbin := filepath.Join(w.gobin, "perkeepd")
 	// Run perkeepd -help.
 	cmd := exec.Command(pkdbin, "-help")
 	return cmd.CombinedOutput()
@@ -182,10 +185,7 @@ func (w *World) Start() error {
 	}
 	// Start perkeepd.
 	{
-		pkdbin, err := osutil.LookPathGopath("perkeepd")
-		if err != nil {
-			return err
-		}
+		pkdbin := filepath.Join(w.gobin, "perkeepd")
 		w.server = exec.Command(
 			pkdbin,
 			"--openbrowser=false",
@@ -332,12 +332,7 @@ func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cm
 			// but pk is never used. (and pk-mount does not even have a -verbose).
 			args = append([]string{"-verbose"}, args...)
 		}
-		absBin, err := osutil.LookPathGopath(binary)
-		if err != nil {
-			log.Printf("failed to find %s: %v", binary, err)
-		} else {
-			binary = absBin
-		}
+		binary := filepath.Join(w.gobin, binary)
 
 		cmd = exec.Command(binary, args...)
 		clientConfigDir := filepath.Join(w.srcRoot, "config", "dev-client-dir")
@@ -431,6 +426,6 @@ func (w *World) SecretRingFile() string {
 func (w *World) SearchHandlerPath() string { return "/my-search/" }
 
 // ServerBinary returns the location of the perkeepd binary running for this World.
-func (w *World) ServerBinary() (string, error) {
-	return osutil.LookPathGopath("perkeepd")
+func (w *World) ServerBinary() string {
+	return filepath.Join(w.gobin, "perkeepd")
 }
