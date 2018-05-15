@@ -180,6 +180,9 @@ func main() {
 		// and some underlying libraries
 		tags = append(tags, "with_sqlite")
 	}
+	if *embedResources {
+		tags = append(tags, "with_embed")
+	}
 	baseArgs := []string{"install", "-v"}
 	if *race {
 		baseArgs = append(baseArgs, "-race")
@@ -589,7 +592,7 @@ func genEmbeds() error {
 		"app/scanningcabinet/ui",
 	} {
 		embeds := fullSrcPath(embeds)
-		var args []string
+		args := []string{"-build-tags=with_embed"}
 		args = append(args, embeds)
 		cmd := exec.Command(cmdName, args...)
 		cmd.Stdout = os.Stdout
@@ -984,6 +987,7 @@ func embedClosure(closureDir, embedFile string) error {
 
 	// then embed it as a quoted string
 	var qb bytes.Buffer
+	fmt.Fprint(&qb, "// +build with_embed\n\n")
 	fmt.Fprint(&qb, "package closure\n\n")
 	fmt.Fprint(&qb, "import \"time\"\n\n")
 	fmt.Fprint(&qb, "func init() {\n")
