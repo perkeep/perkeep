@@ -434,8 +434,10 @@ func Main() {
 		exitf("Error registering challenge client with Perkeep muxer: %v", err)
 	}
 
+	config.SetReindex(*flagReindex)
+
 	// Finally, install the handlers. This also does the final config validation.
-	shutdownCloser, err := config.InstallHandlers(ws, baseURL, *flagReindex)
+	shutdownCloser, err := config.InstallHandlers(ws, baseURL)
 	if err != nil {
 		exitf("Error parsing config: %v", err)
 	}
