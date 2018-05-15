@@ -574,9 +574,16 @@ func (c *Config) readFields() error {
 	c.baseURL = strings.TrimSuffix(c.jconf.OptionalString("baseURL", ""), "/")
 	c.httpsCert = c.jconf.OptionalString("httpsCert", "")
 	c.httpsKey = c.jconf.OptionalString("httpsKey", "")
-	c.https = c.jconf.OptionalBool("https", false) || c.httpsCert != "" || c.httpsKey != ""
+	c.https = c.jconf.OptionalBool("https", false)
 
-	return nil // TODO: validate stuff later as needed
+	_, explicitHTTPS := c.jconf["https"]
+	if c.httpsCert != "" && !explicitHTTPS {
+		return errors.New("httpsCert specified but https was not")
+	}
+	if c.httpsKey != "" && !explicitHTTPS {
+		return errors.New("httpsKey specified but https was not")
+	}
+	return nil
 }
 
 func (c *Config) checkValidAuth() error {
