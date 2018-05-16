@@ -119,7 +119,7 @@ func (n *recentDir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 			if ext == "" && ccMeta.File != nil && strings.HasSuffix(ccMeta.File.MIMEType, "image/jpeg") {
 				ext = ".jpg"
 			}
-			name = strings.TrimPrefix(ccMeta.BlobRef.String(), "sha1-")[:10] + ext
+			name = strings.TrimPrefix(ccMeta.BlobRef.String(), ccMeta.BlobRef.HashName()+"-")[:10] + ext
 			if n.ents[name] != nil {
 				continue
 			}

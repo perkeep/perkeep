@@ -35,6 +35,7 @@ Execute the following commands in a shell to mount a Perkeep directory in your h
   recent
   roots
   sha1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  sha224-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   tag
 
 
@@ -70,10 +71,10 @@ The at directory contains full instructions in the README.txt file contained wit
 
 Accessing a specific Node
 
-You can directly access a specific directory by using the full sha1 identifier.
+You can directly access a specific directory by using the full sha224 identifier.
 
    cd ~/Perkeep
-   cd sha1-xxx # where xxx is the full 16 character identifier
+   cd sha224-xxx # where xxx is the full 56 character identifier
 
 
 Full Command Line Usage

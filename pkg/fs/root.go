@@ -64,6 +64,7 @@ func (n *root) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 		{Name: "roots"},
 		{Name: "at"},
 		{Name: "sha1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},
+		{Name: "sha224-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},
 		{Name: "versions"},
 	}, nil
 }
@@ -122,6 +123,8 @@ func (n *root) Lookup(ctx context.Context, name string) (fs.Node, error) {
 	case "versions":
 		return n.getVersionsDir(), nil
 	case "sha1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx":
+		return notImplementDirNode{}, nil
+	case "sha224-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx":
 		return notImplementDirNode{}, nil
 	case ".camli_fs_stats":
 		return statsDir{}, nil
