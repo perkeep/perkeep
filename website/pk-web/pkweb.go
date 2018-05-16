@@ -360,7 +360,7 @@ func checkLastModified(w http.ResponseWriter, r *http.Request, modtime time.Time
 // foo, foo.md, or foo.html.  Requests that map to directories may be served by
 // an index.html or README.md file in that directory.
 func findAndServeFile(rw http.ResponseWriter, req *http.Request, root string) {
-	relPath := req.URL.Path[1:] // serveFile URL paths start with '/'
+	relPath := strings.TrimSuffix(req.URL.Path[1:], "/") // serveFile URL paths start with '/'
 	if strings.Contains(relPath, "..") {
 		return
 	}
@@ -389,6 +389,12 @@ func findAndServeFile(rw http.ResponseWriter, req *http.Request, root string) {
 	// directory work.
 	if fi.IsDir() && !strings.HasSuffix(req.URL.Path, "/") {
 		http.Redirect(rw, req, req.URL.Path+"/", http.StatusFound)
+		return
+	}
+	// If it's a file with a trailing slash, redirect to the URL
+	// without a trailing slash.
+	if !fi.IsDir() && strings.HasSuffix(req.URL.Path, "/") {
+		http.Redirect(rw, req, "/"+relPath, http.StatusFound)
 		return
 	}
 
@@ -421,11 +427,11 @@ func findAndServeFile(rw http.ResponseWriter, req *http.Request, root string) {
 	if checkLastModified(rw, req, fi.ModTime()) {
 		return
 	}
-	serveFile(rw, req, relPath, absPath)
+	serveFile(rw, req, absPath)
 }
 
 // serveFile serves a file from disk, converting any markdown to HTML.
-func serveFile(w http.ResponseWriter, r *http.Request, relPath, absPath string) {
+func serveFile(w http.ResponseWriter, r *http.Request, absPath string) {
 	if !strings.HasSuffix(absPath, ".html") && !strings.HasSuffix(absPath, ".md") {
 		http.ServeFile(w, r, absPath)
 		return
