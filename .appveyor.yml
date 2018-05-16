@@ -1,0 +1,11 @@
+version: '{branch}-{build}'
+skip_tags: true
+image: Visual Studio 2017
+clone_folder: c:\gopath\src\perkeep.org
+environment:
+  GOPATH: c:\gopath
+  PATH: c:\gopath\bin;c:\go\bin;%PATH%
+build_script:
+- cmd: go run make.go
+test_script:
+- cmd: devcam test
