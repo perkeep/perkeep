@@ -38,7 +38,12 @@ import (
 	fusefs "bazil.org/fuse/fs"
 )
 
-var serverStart = time.Now()
+var (
+	serverStart = time.Now()
+	// Logger is used by the package to print all sorts of debugging statements. It
+	// is up to the user of the package to SetOutput the Logger to reduce verbosity.
+	Logger = log.New(os.Stderr, "PerkeepFS: ", log.LstdFlags)
+)
 
 type CamliFileSystem struct {
 	fetcher blob.Fetcher
@@ -180,13 +185,13 @@ func isWriteFlags(flags fuse.OpenFlags) bool {
 var _ fusefs.NodeOpener = (*node)(nil)
 
 func (n *node) Open(ctx context.Context, req *fuse.OpenRequest, res *fuse.OpenResponse) (fusefs.Handle, error) {
-	log.Printf("CAMLI Open on %v: %#v", n.blobref, req)
+	Logger.Printf("CAMLI Open on %v: %#v", n.blobref, req)
 	if isWriteFlags(req.Flags) {
 		return nil, fuse.EPERM
 	}
 	ss, err := n.schema()
 	if err != nil {
-		log.Printf("open of %v: %v", n.blobref, err)
+		Logger.Printf("open of %v: %v", n.blobref, err)
 		return nil, fuse.EIO
 	}
 	if ss.Type() == "directory" {
@@ -195,7 +200,7 @@ func (n *node) Open(ctx context.Context, req *fuse.OpenRequest, res *fuse.OpenRe
 	fr, err := ss.NewFileReader(n.fs.fetcher)
 	if err != nil {
 		// Will only happen if ss.Type != "file" or "bytes"
-		log.Printf("NewFileReader(%s) = %v", n.blobref, err)
+		Logger.Printf("NewFileReader(%s) = %v", n.blobref, err)
 		return nil, fuse.EIO
 	}
 	return &nodeReader{n: n, fr: fr}, nil
@@ -209,7 +214,7 @@ type nodeReader struct {
 var _ fusefs.HandleReader = (*nodeReader)(nil)
 
 func (nr *nodeReader) Read(ctx context.Context, req *fuse.ReadRequest, res *fuse.ReadResponse) error {
-	log.Printf("CAMLI nodeReader READ on %v: %#v", nr.n.blobref, req)
+	Logger.Printf("CAMLI nodeReader READ on %v: %#v", nr.n.blobref, req)
 	if req.Offset >= nr.fr.Size() {
 		return nil
 	}
@@ -223,7 +228,7 @@ func (nr *nodeReader) Read(ctx context.Context, req *fuse.ReadRequest, res *fuse
 		err = nil
 	}
 	if err != nil {
-		log.Printf("camli read on %v at %d: %v", nr.n.blobref, req.Offset, err)
+		Logger.Printf("camli read on %v at %d: %v", nr.n.blobref, req.Offset, err)
 		return fuse.EIO
 	}
 	res.Data = buf[:n]
@@ -233,7 +238,7 @@ func (nr *nodeReader) Read(ctx context.Context, req *fuse.ReadRequest, res *fuse
 var _ fusefs.HandleReleaser = (*nodeReader)(nil)
 
 func (nr *nodeReader) Release(ctx context.Context, req *fuse.ReleaseRequest) error {
-	log.Printf("CAMLI nodeReader RELEASE on %v", nr.n.blobref)
+	Logger.Printf("CAMLI nodeReader RELEASE on %v", nr.n.blobref)
 	nr.fr.Close()
 	return nil
 }
@@ -241,7 +246,7 @@ func (nr *nodeReader) Release(ctx context.Context, req *fuse.ReleaseRequest) err
 var _ fusefs.HandleReadDirAller = (*node)(nil)
 
 func (n *node) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
-	log.Printf("CAMLI ReadDirAll on %v", n.blobref)
+	Logger.Printf("CAMLI ReadDirAll on %v", n.blobref)
 	n.dmu.Lock()
 	defer n.dmu.Unlock()
 	if n.dirents != nil {
@@ -250,17 +255,17 @@ func (n *node) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 
 	ss, err := n.schema()
 	if err != nil {
-		log.Printf("camli.ReadDirAll error on %v: %v", n.blobref, err)
+		Logger.Printf("camli.ReadDirAll error on %v: %v", n.blobref, err)
 		return nil, fuse.EIO
 	}
 	dr, err := schema.NewDirReader(ctx, n.fs.fetcher, ss.BlobRef())
 	if err != nil {
-		log.Printf("camli.ReadDirAll error on %v: %v", n.blobref, err)
+		Logger.Printf("camli.ReadDirAll error on %v: %v", n.blobref, err)
 		return nil, fuse.EIO
 	}
 	schemaEnts, err := dr.Readdir(ctx, -1)
 	if err != nil {
-		log.Printf("camli.ReadDirAll error on %v: %v", n.blobref, err)
+		Logger.Printf("camli.ReadDirAll error on %v: %v", n.blobref, err)
 		return nil, fuse.EIO
 	}
 	n.dirents = make([]fuse.Dirent, 0)
@@ -308,7 +313,7 @@ func (n *node) populateAttr() error {
 	case "symlink":
 		n.attr.Mode |= 0400
 	default:
-		log.Printf("unknown attr ss.Type %q in populateAttr", meta.Type())
+		Logger.Printf("unknown attr ss.Type %q in populateAttr", meta.Type())
 	}
 	return nil
 }
@@ -347,11 +352,11 @@ func (fs *CamliFileSystem) fetchSchemaMeta(ctx context.Context, br blob.Ref) (*s
 	defer rc.Close()
 	blob, err := schema.BlobFromReader(br, rc)
 	if err != nil {
-		log.Printf("Error parsing %s as schema blob: %v", br, err)
+		Logger.Printf("Error parsing %s as schema blob: %v", br, err)
 		return nil, os.ErrInvalid
 	}
 	if blob.Type() == "" {
-		log.Printf("blob %s is JSON but lacks camliType", br)
+		Logger.Printf("blob %s is JSON but lacks camliType", br)
 		return nil, os.ErrInvalid
 	}
 	fs.blobToSchema.Add(blobStr, blob)

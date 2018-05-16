@@ -21,7 +21,6 @@ package fs
 import (
 	"context"
 	"errors"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -89,14 +88,14 @@ func (n *roVersionsDir) populate(ctx context.Context) error {
 		return nil
 	}
 
-	log.Printf("roVersionsDir.populate(%q)", n.fullPath())
+	Logger.Printf("roVersionsDir.populate(%q)", n.fullPath())
 
 	res, err := n.fs.client.Describe(ctx, &search.DescribeRequest{
 		BlobRef: n.permanode,
 		Depth:   3,
 	})
 	if err != nil {
-		log.Println("roVersionsDir.paths:", err)
+		Logger.Println("roVersionsDir.paths:", err)
 		return nil
 	}
 	db := res.Meta[n.permanode.String()]
@@ -116,11 +115,11 @@ func (n *roVersionsDir) populate(ctx context.Context) error {
 		childRef := v[0]
 		child := res.Meta[childRef]
 		if child == nil {
-			log.Printf("child not described: %v", childRef)
+			Logger.Printf("child not described: %v", childRef)
 			continue
 		}
 		if child.Permanode == nil {
-			log.Printf("child Permanode is nil: %v", childRef)
+			Logger.Printf("child Permanode is nil: %v", childRef)
 			continue
 		}
 		if target := child.Permanode.Attr.Get("camliSymlinkTarget"); target != "" {
@@ -145,11 +144,11 @@ func (n *roVersionsDir) populate(ctx context.Context) error {
 			// This is a file.
 			content := res.Meta[contentRef]
 			if content == nil {
-				log.Printf("child content not described: %v", childRef)
+				Logger.Printf("child content not described: %v", childRef)
 				continue
 			}
 			if content.CamliType != "file" {
-				log.Printf("child not a file: %v", childRef)
+				Logger.Printf("child not a file: %v", childRef)
 				continue
 			}
 			n.children[name] = &roFileVersionsDir{
@@ -169,7 +168,7 @@ func (n *roVersionsDir) populate(ctx context.Context) error {
 
 func (n *roVersionsDir) ReadDir(ctx context.Context) ([]fuse.Dirent, error) {
 	if err := n.populate(ctx); err != nil {
-		log.Println("populate:", err)
+		Logger.Println("populate:", err)
 		return nil, fuse.EIO
 	}
 	n.mu.Lock()
@@ -183,7 +182,7 @@ func (n *roVersionsDir) ReadDir(ctx context.Context) ([]fuse.Dirent, error) {
 		case *roFileVersion:
 			ino = v.permanode.Sum64()
 		default:
-			log.Printf("roVersionsDir.ReadDir: unknown child type %T", childNode)
+			Logger.Printf("roVersionsDir.ReadDir: unknown child type %T", childNode)
 		}
 
 		// TODO: figure out what Dirent.Type means.
@@ -192,7 +191,7 @@ func (n *roVersionsDir) ReadDir(ctx context.Context) ([]fuse.Dirent, error) {
 			Name:  name,
 			Inode: ino,
 		}
-		log.Printf("roVersionsDir(%q) appending inode %x, %+v", n.fullPath(), dirent.Inode, dirent)
+		Logger.Printf("roVersionsDir(%q) appending inode %x, %+v", n.fullPath(), dirent.Inode, dirent)
 		ents = append(ents, dirent)
 	}
 	return ents, nil
@@ -200,10 +199,10 @@ func (n *roVersionsDir) ReadDir(ctx context.Context) ([]fuse.Dirent, error) {
 
 func (n *roVersionsDir) Lookup(ctx context.Context, name string) (ret fs.Node, err error) {
 	defer func() {
-		log.Printf("roVersionsDir(%q).Lookup(%q) = %#v, %v", n.fullPath(), name, ret, err)
+		Logger.Printf("roVersionsDir(%q).Lookup(%q) = %#v, %v", n.fullPath(), name, ret, err)
 	}()
 	if err := n.populate(ctx); err != nil {
-		log.Println("populate:", err)
+		Logger.Println("populate:", err)
 		return nil, fuse.EIO
 	}
 	n.mu.Lock()
@@ -267,7 +266,7 @@ func (n *roFileVersionsDir) populate(ctx context.Context) error {
 		return nil
 	}
 
-	log.Printf("roFileVersionsDir.populate(%q)", n.fullPath())
+	Logger.Printf("roFileVersionsDir.populate(%q)", n.fullPath())
 	res, err := n.fs.client.GetClaims(ctx, &search.ClaimsRequest{n.permanode, "camliContent"})
 	if err != nil {
 		return errors.New("error while getting claims")
@@ -308,7 +307,7 @@ func (n *roFileVersionsDir) populate(ctx context.Context) error {
 
 func (n *roFileVersionsDir) ReadDir(ctx context.Context) ([]fuse.Dirent, error) {
 	if err := n.populate(ctx); err != nil {
-		log.Println("populate:", err)
+		Logger.Println("populate:", err)
 		return nil, fuse.EIO
 	}
 	n.mu.Lock()
@@ -322,7 +321,7 @@ func (n *roFileVersionsDir) ReadDir(ctx context.Context) ([]fuse.Dirent, error) 
 		case *roFile:
 			ino = v.permanode.Sum64()
 		default:
-			log.Printf("roFileVersionsDir.ReadDir: unknown child type %T", childNode)
+			Logger.Printf("roFileVersionsDir.ReadDir: unknown child type %T", childNode)
 		}
 
 		// TODO: figure out what Dirent.Type means.
@@ -331,7 +330,7 @@ func (n *roFileVersionsDir) ReadDir(ctx context.Context) ([]fuse.Dirent, error) 
 			Name:  name,
 			Inode: ino,
 		}
-		log.Printf("roFileVersionsDir(%q) appending inode %x, %+v", n.fullPath(), dirent.Inode, dirent)
+		Logger.Printf("roFileVersionsDir(%q) appending inode %x, %+v", n.fullPath(), dirent.Inode, dirent)
 		ents = append(ents, dirent)
 	}
 	return ents, nil
@@ -339,10 +338,10 @@ func (n *roFileVersionsDir) ReadDir(ctx context.Context) ([]fuse.Dirent, error) 
 
 func (n *roFileVersionsDir) Lookup(ctx context.Context, name string) (ret fs.Node, err error) {
 	defer func() {
-		log.Printf("roFileVersionsDir(%q).Lookup(%q) = %#v, %v", n.fullPath(), name, ret, err)
+		Logger.Printf("roFileVersionsDir(%q).Lookup(%q) = %#v, %v", n.fullPath(), name, ret, err)
 	}()
 	if err := n.populate(ctx); err != nil {
-		log.Println("populate:", err)
+		Logger.Println("populate:", err)
 		return nil, fuse.EIO
 	}
 	n.mu.Lock()
@@ -378,11 +377,11 @@ func (n *roFileVersion) Open(ctx context.Context, req *fuse.OpenRequest, res *fu
 		return nil, fuse.EPERM
 	}
 
-	log.Printf("roFile.Open: %v: content: %v dir=%v flags=%v", n.permanode, n.content, req.Dir, req.Flags)
+	Logger.Printf("roFile.Open: %v: content: %v dir=%v flags=%v", n.permanode, n.content, req.Dir, req.Flags)
 	r, err := schema.NewFileReader(ctx, n.fs.fetcher, n.content)
 	if err != nil {
 		roFileOpenError.Incr()
-		log.Printf("roFile.Open: %v", err)
+		Logger.Printf("roFile.Open: %v", err)
 		return nil, fuse.EIO
 	}
 
