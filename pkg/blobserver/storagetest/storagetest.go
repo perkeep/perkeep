@@ -213,6 +213,10 @@ func (r *run) testSubFetcher() {
 	}
 	for _, tt := range regions {
 		r, err := sf.SubFetch(context.Background(), big.BlobRef(), tt.off, tt.limit)
+		if err == blob.ErrUnimplemented {
+			t.Logf("%T implements SubFetcher but its wrapped value doesn't", sto)
+			return
+		}
 		if err != nil {
 			t.Fatalf("Error fetching big blob for SubFetch: %v", err)
 		}
@@ -239,6 +243,10 @@ func (r *run) testSubFetcher() {
 	}
 	for _, tt := range invalids {
 		r, err := sf.SubFetch(context.Background(), big.BlobRef(), tt.off, tt.limit)
+		if err == blob.ErrUnimplemented {
+			t.Logf("%T implements SubFetcher but its wrapped value doesn't", sto)
+			return
+		}
 		if err == nil {
 			r.Close()
 			t.Errorf("No error fetching with off=%d limit=%d; wanted an error", tt.off, tt.limit)

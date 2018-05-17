@@ -67,6 +67,7 @@ type Storage struct {
 
 var (
 	_ blobserver.Storage = (*Storage)(nil)
+	_ blob.SubFetcher    = (*Storage)(nil)
 	// TODO:
 	// _ blobserver.Generationer = (*Storage)(nil)
 )
@@ -174,6 +175,22 @@ func (sto *Storage) Fetch(ctx context.Context, b blob.Ref) (rc io.ReadCloser, si
 		sto.touch(blob.SizedRef{Ref: b, Size: size})
 	}
 	return ioutil.NopCloser(bytes.NewReader(all)), size, nil
+}
+
+func (sto *Storage) SubFetch(ctx context.Context, ref blob.Ref, offset, length int64) (io.ReadCloser, error) {
+	if sf, ok := sto.cache.(blob.SubFetcher); ok {
+		rc, err := sf.SubFetch(ctx, ref, offset, length)
+		if err == nil {
+			return rc, nil
+		}
+		if err != os.ErrNotExist && err != blob.ErrUnimplemented {
+			log.Printf("proxycache: error fetching from cache %T: %v", sto.cache, err)
+		}
+	}
+	if sf, ok := sto.origin.(blob.SubFetcher); ok {
+		return sf.SubFetch(ctx, ref, offset, length)
+	}
+	return nil, blob.ErrUnimplemented
 }
 
 type errList []error

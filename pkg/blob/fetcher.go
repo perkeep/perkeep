@@ -49,6 +49,10 @@ type Fetcher interface {
 	Fetch(context.Context, Ref) (blob io.ReadCloser, size uint32, err error)
 }
 
+// ErrUnimplemented is returned by optional interfaces when their
+// wrapped values don't implemented the optional interface.
+var ErrUnimplemented = errors.New("optional method not implemented")
+
 // A SubFetcher is a Fetcher that can retrieve part of a blob.
 type SubFetcher interface {
 	// SubFetch returns part of a blob.
@@ -57,7 +61,8 @@ type SubFetcher interface {
 	// check. The returned error should be: ErrNegativeSubFetch if any of
 	// offset or length is negative, or os.ErrNotExist if the blob
 	// doesn't exist, or ErrOutOfRangeOffsetSubFetch if offset goes over
-	// the size of the blob.
+	// the size of the blob. If the error is ErrUnimplemented, the caller should
+	// treat this Fetcher as if it doesn't implement SubFetcher.
 	SubFetch(ctx context.Context, ref Ref, offset, length int64) (io.ReadCloser, error)
 }
 
