@@ -9,7 +9,7 @@
 
 ### Other useful files
 
-- [BUILDING](BUILDING) - how to compile it ("go run make.go")
+- [BUILDING](BUILDING) - how to compile it ("go run make.go") [![Build status](https://ci.appveyor.com/api/projects/status/bbdqxcy2b6x4lt2r/branch/master?svg=true)](https://ci.appveyor.com/project/mpl/perkeep/branch/master)
 - [CONTRIBUTING](CONTRIBUTING.md) - how to do development and contribute
 
 ### Perkeep Resources
@@ -17,6 +17,15 @@
 - [Community](http://perkeep.org/community)
 - [Bugs and Issues](https://github.com/perkeep/perkeep/issues)
 - [Contributing](https://perkeep.org/code#contributing)
+
+### Continuous Integration
+
+<table><tr>
+ <td>Linux: </td>
+ <td><a href='https://travis-ci.org/perkeep/perkeep'><img style='vertical-align:middle' src='https://travis-ci.org/perkeep/perkeep.svg?branch=master'></td>
+ <td>Windows: </td>
+ <td><a href='https://ci.appveyor.com/project/mpl/perkeep/branch/master'><img src='https://ci.appveyor.com/api/projects/status/bbdqxcy2b6x4lt2r/branch/master?svg=true'></td>
+</tr></table>
 
 ### Code of Conduct
 
