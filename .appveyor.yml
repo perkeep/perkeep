@@ -5,6 +5,7 @@ clone_folder: c:\gopath\src\perkeep.org
 environment:
   GOPATH: c:\gopath
   PATH: c:\gopath\bin;c:\go\bin;%PATH%
+  CGO_ENABLED: 0
 build_script:
 - cmd: go run make.go
 test_script:
