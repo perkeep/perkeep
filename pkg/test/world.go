@@ -29,6 +29,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -172,7 +173,7 @@ func (w *World) Help() ([]byte, error) {
 	if err := w.Build(); err != nil {
 		return nil, err
 	}
-	pkdbin := filepath.Join(w.gobin, "perkeepd")
+	pkdbin := w.lookPathGobin("perkeepd")
 	// Run perkeepd -help.
 	cmd := exec.Command(pkdbin, "-help")
 	return cmd.CombinedOutput()
@@ -185,7 +186,7 @@ func (w *World) Start() error {
 	}
 	// Start perkeepd.
 	{
-		pkdbin := filepath.Join(w.gobin, "perkeepd")
+		pkdbin := w.lookPathGobin("perkeepd")
 		w.server = exec.Command(
 			pkdbin,
 			"--openbrowser=false",
@@ -332,7 +333,7 @@ func (w *World) CmdWithEnv(binary string, env []string, args ...string) *exec.Cm
 			// but pk is never used. (and pk-mount does not even have a -verbose).
 			args = append([]string{"-verbose"}, args...)
 		}
-		binary := filepath.Join(w.gobin, binary)
+		binary := w.lookPathGobin(binary)
 
 		cmd = exec.Command(binary, args...)
 		clientConfigDir := filepath.Join(w.srcRoot, "config", "dev-client-dir")
@@ -427,5 +428,12 @@ func (w *World) SearchHandlerPath() string { return "/my-search/" }
 
 // ServerBinary returns the location of the perkeepd binary running for this World.
 func (w *World) ServerBinary() string {
-	return filepath.Join(w.gobin, "perkeepd")
+	return w.lookPathGobin("perkeepd")
+}
+
+func (w *World) lookPathGobin(binName string) string {
+	if runtime.GOOS == "windows" && !strings.HasSuffix(binName, ".exe") {
+		return filepath.Join(w.gobin, binName+".exe")
+	}
+	return filepath.Join(w.gobin, binName)
 }
