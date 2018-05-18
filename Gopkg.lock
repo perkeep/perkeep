@@ -263,7 +263,7 @@
     "exif",
     "tiff"
   ]
-  revision = "fb35d3c3290d09f3524b684b5d42d0063c227158"
+  revision = "8d986c03457a2057c7b0fb0a48113f7dd48f9619"
 
 [[projects]]
   branch = "master"
@@ -349,7 +349,6 @@
     "curve25519",
     "ed25519",
     "ed25519/internal/edwards25519",
-    "internal/chacha20",
     "nacl/secretbox",
     "openpgp",
     "openpgp/armor",
