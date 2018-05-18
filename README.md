@@ -9,7 +9,7 @@
 
 ### Other useful files
 
-- [BUILDING](BUILDING) - how to compile it ("go run make.go") [![Build status](https://ci.appveyor.com/api/projects/status/bbdqxcy2b6x4lt2r/branch/master?svg=true)](https://ci.appveyor.com/project/mpl/perkeep/branch/master)
+- [BUILDING](BUILDING) - how to compile it ("go run make.go")
 - [CONTRIBUTING](CONTRIBUTING.md) - how to do development and contribute
 
 ### Perkeep Resources
