@@ -68,6 +68,7 @@ type handlerConfig struct {
 	settingUp, setupDone bool
 }
 
+// handlerLoader implements blobserver.Loader.
 type handlerLoader struct {
 	installer   HandlerInstaller
 	baseURL     string
@@ -76,8 +77,9 @@ type handlerLoader struct {
 	curPrefix   string
 	closers     []io.Closer
 	prefixStack []string
-	reindex     bool
 }
+
+var _ blobserver.Loader = (*handlerLoader)(nil)
 
 // A HandlerInstaller is anything that can register an HTTP Handler at
 // a prefix path.  Both *http.ServeMux and perkeep.org/pkg/webserver.Server
@@ -307,18 +309,14 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 	hl.curPrefix = prefix
 
 	if strings.HasPrefix(h.htype, "storage-") {
-		// Assume a storage interface
+		// Assume a storage interface:
 		stype := strings.TrimPrefix(h.htype, "storage-")
-		if h.htype == "storage-index" && hl.reindex {
-			// Let the indexer know that we're in reindex mode
-			h.conf["reindex"] = true
-		}
 		pstorage, err := blobserver.CreateStorage(stype, hl, h.conf)
 		if err != nil {
 			exitFailure("error instantiating storage for prefix %q, type %q: %v",
 				h.prefix, stype, err)
 		}
-		if ix, ok := pstorage.(*index.Index); ok && hl.reindex {
+		if ix, ok := pstorage.(*index.Index); ok && ix.WantsReindex() {
 			log.Printf("Reindexing %s ...", h.prefix)
 			if err := ix.Reindex(); err != nil {
 				exitFailure("Error reindexing %s: %v", h.prefix, err)
@@ -595,6 +593,28 @@ func (c *Config) checkValidAuth() error {
 	return err
 }
 
+func (c *Config) SetReindex(v bool) {
+	prefixes, _ := c.jconf["prefixes"].(map[string]interface{})
+	for prefix, vei := range prefixes {
+		if prefix == "_knownkeys" {
+			continue
+		}
+		pmap, ok := vei.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		pconf := jsonconfig.Obj(pmap)
+		typ, _ := pconf["handler"].(string)
+		if typ != "storage-index" {
+			continue
+		}
+		opts, ok := pconf["handlerArgs"].(map[string]interface{})
+		if ok {
+			opts["reindex"] = v
+		}
+	}
+}
+
 // InstallHandlers creates and registers all the HTTP Handlers needed
 // by config into the provided HandlerInstaller and validates that the
 // configuration is valid.
@@ -603,7 +623,7 @@ func (c *Config) checkValidAuth() error {
 //
 // The returned shutdown value can be used to cleanly shut down the
 // handlers.
-func (c *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reindex bool) (shutdown io.Closer, err error) {
+func (c *Config) InstallHandlers(hi HandlerInstaller, baseURL string) (shutdown io.Closer, err error) {
 	config := c
 	defer func() {
 		if e := recover(); e != nil {
@@ -636,7 +656,6 @@ func (c *Config) InstallHandlers(hi HandlerInstaller, baseURL string, reindex bo
 		baseURL:   baseURL,
 		config:    make(map[string]*handlerConfig),
 		handler:   make(map[string]interface{}),
-		reindex:   reindex,
 	}
 
 	for prefix, vei := range prefixes {

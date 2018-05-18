@@ -49,8 +49,8 @@ func init() {
 
 type Index struct {
 	*blobserver.NoImplStorage
-
-	s sorted.KeyValue
+	reindex bool // whether "reindex" was set in config (likely via perkeepd flag)
+	s       sorted.KeyValue
 
 	KeyFetcher blob.Fetcher // for verifying claims
 
@@ -389,6 +389,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 		}
 		ix, err = New(kv)
 	}
+	ix.reindex = reindex
 	if reindex {
 		ix.hasWiped = true
 	}
@@ -440,6 +441,8 @@ func ReindexMaxProcs() int {
 	defer reindexMaxProcs.RUnlock()
 	return reindexMaxProcs.v
 }
+
+func (x *Index) WantsReindex() bool { return x.reindex }
 
 func (x *Index) Reindex() error {
 	x.Lock()
