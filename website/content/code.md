@@ -1,7 +1,7 @@
 # Get the code
 
     $ cd $GOPATH/src
-    $ git clone https://camlistore.googlesource.com/camlistore perkeep.org
+    $ git clone https://github.com/perkeep/perkeep perkeep.org
 
 -   [Latest changes](https://camlistore.googlesource.com/camlistore)
 -   [Browse
