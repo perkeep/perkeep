@@ -304,10 +304,9 @@ func TestInstallHandlers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reindex := false
 	hi := http.NewServeMux()
 	address := "http://" + conf.Listen
-	_, err = lowConf.InstallHandlers(hi, address, reindex)
+	_, err = lowConf.InstallHandlers(hi, address)
 	if err != nil {
 		t.Fatal(err)
 	}
