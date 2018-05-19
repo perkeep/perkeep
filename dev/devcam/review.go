@@ -35,11 +35,15 @@ var (
 	hookFile    = filepath.FromSlash(".git/hooks/commit-msg")
 )
 
-type reviewCmd struct{}
+type reviewCmd struct {
+	releaseBranch string
+}
 
 func init() {
 	cmdmain.RegisterMode("review", func(flags *flag.FlagSet) cmdmain.CommandRunner {
-		return new(reviewCmd)
+		cmd := &reviewCmd{}
+		flags.StringVar(&cmd.releaseBranch, "branch", "", "Alternative release branch to push to. Defaults to master branch.")
+		return cmd
 	})
 }
 
@@ -57,7 +61,7 @@ func (c *reviewCmd) RunCommand(args []string) error {
 	}
 	goToCamliRoot()
 	c.checkHook()
-	gitPush()
+	c.gitPush()
 	return nil
 }
 
@@ -113,9 +117,14 @@ func (c *reviewCmd) checkHook() {
 	}
 }
 
-func gitPush() {
-	cmd := exec.Command("git",
-		[]string{"push", "https://camlistore.googlesource.com/camlistore", "HEAD:refs/for/master"}...)
+func (c *reviewCmd) gitPush() {
+	args := []string{"push", "origin"}
+	if c.releaseBranch != "" {
+		args = append(args, "HEAD:refs/for/releases/"+c.releaseBranch)
+	} else {
+		args = append(args, "HEAD:refs/for/master")
+	}
+	cmd := exec.Command("git", args...)
 	cmd.Stdout = cmdmain.Stdout
 	cmd.Stderr = cmdmain.Stderr
 	if err := cmd.Run(); err != nil {
