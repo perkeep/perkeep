@@ -20,7 +20,6 @@ package fs
 
 import (
 	"context"
-	"log"
 	"os"
 	"strings"
 	"sync"
@@ -83,7 +82,7 @@ func (n *rootsDir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 	for name := range n.m {
 		ents = append(ents, fuse.Dirent{Name: name})
 	}
-	log.Printf("rootsDir.ReadDirAll() -> %v", ents)
+	Logger.Printf("rootsDir.ReadDirAll() -> %v", ents)
 	return ents, nil
 }
 
@@ -105,7 +104,7 @@ func (n *rootsDir) Remove(ctx context.Context, req *fuse.RemoveRequest) error {
 	claim := schema.NewDelAttributeClaim(br, "camliRoot", "")
 	_, err := n.fs.client.UploadAndSignBlob(ctx, claim)
 	if err != nil {
-		log.Println("rootsDir.Remove:", err)
+		Logger.Println("rootsDir.Remove:", err)
 		return fuse.EIO
 	}
 
@@ -116,7 +115,7 @@ func (n *rootsDir) Remove(ctx context.Context, req *fuse.RemoveRequest) error {
 }
 
 func (n *rootsDir) Rename(ctx context.Context, req *fuse.RenameRequest, newDir fs.Node) error {
-	log.Printf("rootsDir.Rename %q -> %q", req.OldName, req.NewName)
+	Logger.Printf("rootsDir.Rename %q -> %q", req.OldName, req.NewName)
 	if n.isRO() {
 		return fuse.EPERM
 	}
@@ -126,11 +125,11 @@ func (n *rootsDir) Rename(ctx context.Context, req *fuse.RenameRequest, newDir f
 	_, collision := n.m[req.NewName]
 	n.mu.Unlock()
 	if !exists {
-		log.Printf("*rootsDir.Rename src name %q isn't known", req.OldName)
+		Logger.Printf("*rootsDir.Rename src name %q isn't known", req.OldName)
 		return fuse.ENOENT
 	}
 	if collision {
-		log.Printf("*rootsDir.Rename dest %q already exists", req.NewName)
+		Logger.Printf("*rootsDir.Rename dest %q already exists", req.NewName)
 		return fuse.EIO
 	}
 
@@ -139,19 +138,19 @@ func (n *rootsDir) Rename(ctx context.Context, req *fuse.RenameRequest, newDir f
 	// before asking for the directory name.
 	res, err := n.fs.client.Describe(ctx, &search.DescribeRequest{BlobRef: target})
 	if err != nil {
-		log.Println("rootsDir.Rename:", err)
+		Logger.Println("rootsDir.Rename:", err)
 		return fuse.EIO
 	}
 	db := res.Meta[target.String()]
 	if db == nil {
-		log.Printf("Failed to pull meta for target: %v", target)
+		Logger.Printf("Failed to pull meta for target: %v", target)
 		return fuse.EIO
 	}
 
 	for k := range db.Permanode.Attr {
 		const p = "camliPath:"
 		if strings.HasPrefix(k, p) {
-			log.Printf("Found file in %q: %q, disallowing rename", req.OldName, k[len(p):])
+			Logger.Printf("Found file in %q: %q, disallowing rename", req.OldName, k[len(p):])
 			return fuse.EIO
 		}
 	}
@@ -159,7 +158,7 @@ func (n *rootsDir) Rename(ctx context.Context, req *fuse.RenameRequest, newDir f
 	claim := schema.NewSetAttributeClaim(target, "camliRoot", req.NewName)
 	_, err = n.fs.client.UploadAndSignBlob(ctx, claim)
 	if err != nil {
-		log.Printf("Upload rename link error: %v", err)
+		Logger.Printf("Upload rename link error: %v", err)
 		return fuse.EIO
 	}
 
@@ -182,7 +181,7 @@ func (n *rootsDir) Rename(ctx context.Context, req *fuse.RenameRequest, newDir f
 }
 
 func (n *rootsDir) Lookup(ctx context.Context, name string) (fs.Node, error) {
-	log.Printf("fs.roots: Lookup(%q)", name)
+	Logger.Printf("fs.roots: Lookup(%q)", name)
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if err := n.condRefresh(ctx); err != nil {
@@ -218,7 +217,7 @@ func (n *rootsDir) condRefresh(ctx context.Context) error {
 	if n.lastQuery.After(time.Now().Add(-refreshTime)) {
 		return nil
 	}
-	log.Printf("fs.roots: querying")
+	Logger.Printf("fs.roots: querying")
 
 	var rootRes, impRes *search.WithAttrResponse
 	var grp syncutil.Group
@@ -232,7 +231,7 @@ func (n *rootsDir) condRefresh(ctx context.Context) error {
 		return
 	})
 	if err := grp.Err(); err != nil {
-		log.Printf("fs.roots: error refreshing permanodes: %v", err)
+		Logger.Printf("fs.roots: error refreshing permanodes: %v", err)
 		return fuse.EIO
 	}
 
@@ -256,7 +255,7 @@ func (n *rootsDir) condRefresh(ctx context.Context) error {
 
 	dres, err := n.fs.client.Describe(ctx, dr)
 	if err != nil {
-		log.Printf("Describe failure: %v", err)
+		Logger.Printf("Describe failure: %v", err)
 		return fuse.EIO
 	}
 
@@ -310,7 +309,7 @@ func (n *rootsDir) Mkdir(ctx context.Context, req *fuse.MkdirRequest) (fs.Node, 
 	// Create a Permanode for the root.
 	pr, err := n.fs.client.UploadNewPermanode(ctx)
 	if err != nil {
-		log.Printf("rootsDir.Create(%q): %v", name, err)
+		Logger.Printf("rootsDir.Create(%q): %v", name, err)
 		return nil, fuse.EIO
 	}
 
@@ -328,7 +327,7 @@ func (n *rootsDir) Mkdir(ctx context.Context, req *fuse.MkdirRequest) (fs.Node, 
 		return
 	})
 	if err := grp.Err(); err != nil {
-		log.Printf("rootsDir.Create(%q): %v", name, err)
+		Logger.Printf("rootsDir.Create(%q): %v", name, err)
 		return nil, fuse.EIO
 	}
 

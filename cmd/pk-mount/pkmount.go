@@ -173,7 +173,8 @@ func main() {
 
 	if *debug {
 		fuse.Debug = func(msg interface{}) { log.Print(msg) }
-		// TODO: set fs's logger
+	} else {
+		fs.Logger.SetOutput(ioutil.Discard)
 	}
 
 	// This doesn't appear to work on OS X:

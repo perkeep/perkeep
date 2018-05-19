@@ -106,7 +106,7 @@ func (n *root) getVersionsDir() *versionsDir {
 }
 
 func (n *root) Lookup(ctx context.Context, name string) (fs.Node, error) {
-	log.Printf("root.Lookup(%s)", name)
+	Logger.Printf("root.Lookup(%s)", name)
 	switch name {
 	case ".quitquitquit":
 		log.Fatalf("Shutting down due to root .quitquitquit lookup.")
@@ -134,9 +134,9 @@ func (n *root) Lookup(ctx context.Context, name string) (fs.Node, error) {
 	}
 
 	if br, ok := blob.Parse(name); ok {
-		log.Printf("Root lookup of blobref. %q => %v", name, br)
+		Logger.Printf("Root lookup of blobref. %q => %v", name, br)
 		return &node{fs: n.fs, blobref: br}, nil
 	}
-	log.Printf("Bogus root lookup of %q", name)
+	Logger.Printf("Bogus root lookup of %q", name)
 	return nil, fuse.ENOENT
 }

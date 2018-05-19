@@ -20,7 +20,6 @@ package fs
 
 import (
 	"context"
-	"log"
 	"os"
 	"strings"
 	"sync"
@@ -81,12 +80,12 @@ func (n *versionsDir) ReadDir(ctx context.Context) ([]fuse.Dirent, error) {
 	for name := range n.m {
 		ents = append(ents, fuse.Dirent{Name: name})
 	}
-	log.Printf("fs.versions.ReadDir() -> %v", ents)
+	Logger.Printf("fs.versions.ReadDir() -> %v", ents)
 	return ents, nil
 }
 
 func (n *versionsDir) Lookup(ctx context.Context, name string) (fs.Node, error) {
-	log.Printf("fs.versions: Lookup(%q)", name)
+	Logger.Printf("fs.versions: Lookup(%q)", name)
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if err := n.condRefresh(ctx); err != nil {
@@ -115,7 +114,7 @@ func (n *versionsDir) condRefresh(ctx context.Context) error {
 	if n.lastQuery.After(time.Now().Add(-versionsRefreshTime)) {
 		return nil
 	}
-	log.Printf("fs.versions: querying")
+	Logger.Printf("fs.versions: querying")
 
 	var rootRes, impRes *search.WithAttrResponse
 	var grp syncutil.Group
@@ -128,7 +127,7 @@ func (n *versionsDir) condRefresh(ctx context.Context) error {
 		return
 	})
 	if err := grp.Err(); err != nil {
-		log.Printf("fs.versions: GetRecentPermanodes error in ReadDir: %v", err)
+		Logger.Printf("fs.versions: GetRecentPermanodes error in ReadDir: %v", err)
 		return fuse.EIO
 	}
 
@@ -152,7 +151,7 @@ func (n *versionsDir) condRefresh(ctx context.Context) error {
 
 	dres, err := n.fs.client.Describe(ctx, dr)
 	if err != nil {
-		log.Printf("Describe failure: %v", err)
+		Logger.Printf("Describe failure: %v", err)
 		return fuse.EIO
 	}
 

@@ -20,7 +20,6 @@ package fs
 
 import (
 	"context"
-	"log"
 	"os"
 
 	"bazil.org/fuse"
@@ -102,7 +101,7 @@ With More Coarse Granularities
 `
 
 func (n *atDir) Lookup(ctx context.Context, name string) (fusefs.Node, error) {
-	log.Printf("fs.atDir: Lookup(%q)", name)
+	Logger.Printf("fs.atDir: Lookup(%q)", name)
 
 	if name == "README.txt" {
 		return staticFileNode(atReadme), nil
@@ -110,7 +109,7 @@ func (n *atDir) Lookup(ctx context.Context, name string) (fusefs.Node, error) {
 
 	asOf, err := parseTime(name)
 	if err != nil {
-		log.Printf("Can't parse time: %v", err)
+		Logger.Printf("Can't parse time: %v", err)
 		return nil, fuse.ENOENT
 	}
 
