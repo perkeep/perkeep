@@ -894,9 +894,10 @@ func (sh *SyncHandler) shardPrefixes() []string {
 	var pfx []string
 	// TODO(bradfitz): do limit=1 enumerates against sh.from and sh.to with varying
 	// "after" values to determine all the blobref types on both sides.
-	// For now, be lazy and assume only sha1:
+	// For now, be lazy and assume only sha1 and sha224:
 	for i := 0; i < 256; i++ {
 		pfx = append(pfx, fmt.Sprintf("sha1-%02x", i))
+		pfx = append(pfx, fmt.Sprintf("sha224-%02x", i))
 	}
 	return pfx
 }
