@@ -157,9 +157,11 @@ cam.IndexPage = React.createClass({
 			// TODO: This should be calculated by whether selection is empty, and not need separate state.
 			sidebarVisible: false,
 
-			uploadDialogVisible: false,
+			progressDialogVisible: false,
 			totalBytesToUpload: 0,
 			totalBytesComplete: 0,
+			totalNodesToAdd: 0,
+			nodesAlreadyAdded: 0,
 
 			// messageDialogContents is for displaying a message to
 			// the user. It is the child of getMessageDialog_(). To
@@ -204,7 +206,7 @@ cam.IndexPage = React.createClass({
 				aspects[selectedAspect] && aspects[selectedAspect].createContent(contentSize, this.state.backwardPiggy)
 			),
 			this.getSidebar_(aspects[selectedAspect]),
-			this.getUploadDialog_(),
+			this.getProgressDialog_(),
 			this.getMessageDialog_()
 		);
 	},
@@ -358,7 +360,7 @@ cam.IndexPage = React.createClass({
 		this.dragEndTimer_ = window.setTimeout(this.handleDragStop_, 2000);
 		this.setState({
 			dropActive: true,
-			uploadDialogVisible: false,
+			progressDialogVisible: false,
 		});
 	},
 
@@ -372,6 +374,40 @@ cam.IndexPage = React.createClass({
 			window.clearTimeout(this.dragEndTimer_);
 			this.dragEndTimer_ = 0;
 		}
+	},
+
+	onAddToSetStart_: function() {
+		var numNodes = goog.object.getCount(this.state.selection);
+		this.setState({
+			progressDialogVisible: true,
+			totalNodesToAdd: numNodes,
+			nodesAlreadyAdded: 0,
+		});
+
+		console.log('Adding %d item(s) to set...', numNodes);
+	},
+
+	onAddMemberToSet_: function(ref) {
+		var nodesAdded = this.state.nodesAlreadyAdded + 1;
+		this.setState({
+			nodesAlreadyAdded: nodesAdded
+		});
+
+		console.log('Added item to set: %s', ref);
+	},
+
+	onAddToSetComplete_: function(permanode) {
+		if (this.state.totalNodesToAdd != this.state.nodesAlreadyAdded) {
+			return;
+		}
+		console.log('Set creation complete!');
+		this.setState({
+			progressDialogVisible: false,
+			totalNodesToAdd: 0,
+		});
+		this.setSelection_({});
+		this.refreshIfNecessary_();
+		this.navigator_.navigate(this.getDetailURL_(permanode));
 	},
 
 	onUploadStart_: function(files) {
@@ -403,7 +439,7 @@ cam.IndexPage = React.createClass({
 		this.setState({
 			totalBytesToUpload: 0,
 			totalBytesComplete: 0,
-			uploadDialogVisible: false
+			progressDialogVisible: false
 		});
 	},
 
@@ -793,12 +829,11 @@ cam.IndexPage = React.createClass({
 
 	handleAddToSet_: function() {
 		this.addMembersToSet_(this.state.currentSet, goog.object.getKeys(this.state.selection));
-		alert('Done!');
 	},
 
 	handleUpload_: function() {
 		this.setState({
-			uploadDialogVisible: true,
+			progressDialogVisible: true,
 		});
 	},
 
@@ -812,20 +847,23 @@ cam.IndexPage = React.createClass({
 	},
 
 	addMembersToSet_: function(permanode, blobrefs) {
-		var numComplete = -1;
-		var callback = function() {
-			if (++numComplete == blobrefs.length) {
-				this.setSelection_({});
-				this.refreshIfNecessary_();
-				this.navigator_.navigate(this.getDetailURL_(permanode));
-			}
-		}.bind(this);
+		var sc = this.props.serverConnection;
+		function addMemberToSet(br, pm) {
+			return new goog.Promise(sc.newAddAttributeClaim.bind(sc, pm, 'camliMember', br));
+		}
 
-		callback();
-
-		blobrefs.forEach(function(br) {
-			this.props.serverConnection.newAddAttributeClaim(permanode, 'camliMember', br, callback);
-		}.bind(this));
+		this.onAddToSetStart_();
+		goog.Promise.all(
+			Array.prototype.map.call(blobrefs, function(br) {
+				return addMemberToSet(br, permanode)
+					.thenCatch(function(e) {
+						console.error('Unable to add member to set. item: %s, error: %s', br, e);
+					})
+					.then(this.onAddMemberToSet_.bind(null, br));
+			}.bind(this))
+		).thenCatch(function(e) {
+			console.error('Add members to set failed with error: %s', e);
+		}).then(this.onAddToSetComplete_.bind(null, permanode));
 	},
 
 	handleClearSelection_: function() {
@@ -1343,9 +1381,14 @@ cam.IndexPage = React.createClass({
 		return this.state.totalBytesToUpload > 0;
 	},
 
-	getUploadDialog_: function() {
-		if (!this.state.uploadDialogVisible && !this.state.dropActive && !this.state.totalBytesToUpload) {
-			return null;
+
+	isAddingMembers_: function() {
+		return this.state.totalNodesToAdd > 0;
+	},
+
+	getProgressDialog_: function() {
+		if (!this.state.progressDialogVisible) {
+			return false
 		}
 
 		var piggyWidth = 88;
@@ -1366,7 +1409,7 @@ cam.IndexPage = React.createClass({
 		};
 
 		function getInputFiles() {
-			if (this.isUploading_()) {
+			if (this.isUploading_() || this.isAddingMembers_()) {
 				return null;
 			}
 			return React.DOM.div(
@@ -1401,7 +1444,7 @@ cam.IndexPage = React.createClass({
 		}
 
 		function getIcon() {
-			if (this.isUploading_()) {
+			if (this.isUploading_() || this.isAddingMembers_()) {
 				return React.createElement(cam.SpritedAnimation, cam.object.extend(iconProps, {
 					numFrames: 48,
 					src: 'glitch/npc_piggy__x1_chew_png_1354829433.png',
@@ -1429,7 +1472,11 @@ cam.IndexPage = React.createClass({
 			return React.DOM.div(
 				{},
 				function() {
-					if (this.isUploading_()) {
+					if (this.isAddingMembers_()) {
+						return goog.string.subs('%s of %s items added',
+							this.state.nodesAlreadyAdded,
+							this.state.totalNodesToAdd);
+					} else if (this.isUploading_()) {
 						return goog.string.subs('Uploaded %s (%s%)',
 							goog.format.numBytesToString(this.state.totalBytesComplete, 2),
 							getUploadProgressPercent.call(this));
@@ -1454,7 +1501,7 @@ cam.IndexPage = React.createClass({
 				width: w,
 				height: h,
 				borderWidth: borderWidth,
-				onClose: this.state.uploadDialogVisible ? this.handleCloseUploadDialog_ : null,
+				onClose: this.state.progressDialogVisible ? this.handleCloseProgressDialog_ : null,
 			},
 			React.DOM.div(
 				{
@@ -1473,9 +1520,9 @@ cam.IndexPage = React.createClass({
 		);
 	},
 
-	handleCloseUploadDialog_: function() {
+	handleCloseProgressDialog_: function() {
 		this.setState({
-			uploadDialogVisible: false,
+			progressDialogVisible: false,
 		});
 	},
 
