@@ -3,10 +3,10 @@
     $ cd $GOPATH/src
     $ git clone https://github.com/perkeep/perkeep perkeep.org
 
--   [Latest changes](https://camlistore.googlesource.com/camlistore)
+-   [Latest changes](https://perkeep.googlesource.com/perkeep)
 -   [Browse
-    tree](https://camlistore.googlesource.com/camlistore/+/master)
--   [Code Review](https://camlistore-review.googlesource.com/)
+    tree](https://perkeep.googlesource.com/perkeep/+/master)
+-   [Code Review](https://perkeep-review.googlesource.com/)
 
 ## Making apps that work with Perkeep
 
@@ -21,7 +21,7 @@ place to start.
 
 ## Contributing
 
--   Join the [mailing list](https://groups.google.com/group/camlistore).
+-   Join the [mailing list](https://groups.google.com/group/perkeep).
 
 -   Pick something that interests you, or look through our list of
     [potential projects](/doc/todo) for inspiration. **Discuss it
@@ -37,11 +37,11 @@ place to start.
 
 -   Once your first change has been accepted and merged, send a new change to
     Gerrit, adding yourself to the
-    [AUTHORS](https://camlistore.googlesource.com/camlistore/+/master/AUTHORS)+[CONTRIBUTORS](https://camlistore.googlesource.com/camlistore/+/master/CONTRIBUTORS)
+    [AUTHORS](https://perkeep.googlesource.com/perkeep/+/master/AUTHORS)+[CONTRIBUTORS](https://perkeep.googlesource.com/perkeep/+/master/CONTRIBUTORS)
     files (or just
-    [CONTRIBUTORS](https://camlistore.googlesource.com/camlistore/+/master/CONTRIBUTORS)
+    [CONTRIBUTORS](https://perkeep.googlesource.com/perkeep/+/master/CONTRIBUTORS)
     if the company which owns your Copyright is already in the
-    [AUTHORS](https://camlistore.googlesource.com/camlistore/+/master/AUTHORS)
+    [AUTHORS](https://perkeep.googlesource.com/perkeep/+/master/AUTHORS)
     file). We follow the
     [Go convention](https://golang.org/doc/contribute.html#copyright)
     for the commit messages; see for examples:
@@ -55,14 +55,14 @@ place to start.
 
 -   Update your `~/.gitcookies` file with a Gerrit username and password.
     Click the **"Generate Password"** link from the top of
-    [https://camlistore.googlesource.com/](https://camlistore.googlesource.com/).
+    [https://perkeep.googlesource.com/](https://perkeep.googlesource.com/).
 
 -   Usual Work Flow
 
     -   Create a topic branch, make some changes and commit away.
 
     -   Read
-        [CONTRIBUTING](https://camlistore.googlesource.com/camlistore/+/master/CONTRIBUTING.md).
+        [CONTRIBUTING](https://perkeep.googlesource.com/perkeep/+/master/CONTRIBUTING.md).
         Install devcam.
 
     -   Test. (`devcam test`).
@@ -82,4 +82,4 @@ place to start.
 
 To work on the documentation, you'll need to locally build and run the webserver
 that serves perkeep.org. See
-[/website/README.md](https://camlistore.googlesource.com/camlistore/+/master/website/README.md).
+[/website/README.md](https://perkeep.googlesource.com/perkeep/+/master/website/README.md).

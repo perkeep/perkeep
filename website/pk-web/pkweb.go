@@ -213,7 +213,7 @@ func servePage(w http.ResponseWriter, r *http.Request, params pageParams) {
 		content = bytes.Replace(content, []byte("<p>"), []byte(toInsert), 1)
 	}
 	domain := goGetDomain(r.Host) // camlistore.org or perkeep.org (anti-www redirects already happened)
-	upstream := "https://camlistore.googlesource.com/camlistore"
+	upstream := "https://perkeep.googlesource.com/perkeep"
 	if domain == "camlistore.org" {
 		upstream = "https://github.com/camlistore/old-cam-snapshot"
 	}
@@ -258,7 +258,7 @@ func serveError(w http.ResponseWriter, r *http.Request, relpath string, err erro
 	})
 }
 
-const gerritURLPrefix = "https://camlistore.googlesource.com/camlistore/+/"
+const gerritURLPrefix = "https://perkeep.googlesource.com/perkeep/+/"
 
 var commitHash = regexp.MustCompile(`^(?i)[0-9a-f]+$`)
 var gitwebCommit = regexp.MustCompile(`^p=camlistore.git;a=commit;h=([0-9a-f]+)$`)
@@ -626,8 +626,8 @@ func setProdFlags() {
 	*httpAddr = ":80"
 	*httpsAddr = ":443"
 	// TODO(mpl): investigate why this proxying does not seem to be working (we end up on https://camlistore.org).
-	buildbotBackend = "https://travis-ci.org/camlistore/camlistore"
-	buildbotHost = "build.camlistore.org"
+	buildbotBackend = "https://travis-ci.org/perkeep/perkeep"
+	buildbotHost = "build.perkeep.org"
 	*gceLogName = "camweb-access-log"
 	if inStaging {
 		*gceLogName += "-staging"
@@ -653,7 +653,7 @@ func setProdFlags() {
 	getDockerImage("camlistore/git", "docker-git.tar.gz")
 	getDockerImage("camlistore/demoblobserver", "docker-demoblobserver.tar.gz")
 
-	log.Printf("cloning camlistore git tree...")
+	log.Printf("cloning perkeep git tree...")
 	cloneArgs := []string{
 		"run",
 		"--rm",
@@ -668,7 +668,7 @@ func setProdFlags() {
 		// master branch in the meantime.
 		cloneArgs = append(cloneArgs, "-b", "staging", "https://github.com/perkeep/perkeep.git", prodSrcDir)
 	} else {
-		cloneArgs = append(cloneArgs, "https://camlistore.googlesource.com/camlistore", prodSrcDir)
+		cloneArgs = append(cloneArgs, "https://perkeep.googlesource.com/perkeep", prodSrcDir)
 	}
 	out, err := exec.Command("docker", cloneArgs...).CombinedOutput()
 	if err != nil {
@@ -1109,7 +1109,7 @@ func issueRedirect(urlPath string) (string, bool) {
 }
 
 func gerritRedirect(w http.ResponseWriter, r *http.Request) {
-	dest := "https://camlistore-review.googlesource.com/"
+	dest := "https://perkeep-review.googlesource.com/"
 	if len(r.URL.Path) > len("/r/") {
 		dest += r.URL.Path[1:]
 	}

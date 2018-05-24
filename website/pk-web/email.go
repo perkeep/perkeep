@@ -127,7 +127,7 @@ func emailCommit(dir, hash string) (err error) {
 
 	contents := fmt.Sprintf(`
 
-https://camlistore.googlesource.com/camlistore/+/%s
+https://perkeep.googlesource.com/perkeep/+/%s
 
 %s`, hash, body)
 
@@ -146,7 +146,7 @@ https://camlistore.googlesource.com/camlistore/+/%s
 
 var latestHash struct {
 	sync.Mutex
-	s string // hash of the most recent camlistore revision
+	s string // hash of the most recent perkeep revision
 }
 
 // dsClient is our datastore client to track which commits we've

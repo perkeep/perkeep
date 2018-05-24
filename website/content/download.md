@@ -5,7 +5,7 @@ The latest release is [0.10 ("Bellingham")](/doc/release/0.10), released 2018-05
 Or, using the latest code from git:
 
     $ cd $GOPATH/src
-    $ git clone https://camlistore.googlesource.com/camlistore perkeep.org
+    $ git clone https://perkeep.googlesource.com/perkeep perkeep.org
 
 ## Build
 

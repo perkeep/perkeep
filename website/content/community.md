@@ -10,7 +10,7 @@ how to [get the code and how to start submitting changes](/code).
     Mailing list for official discussion, design, help
 -   [**camlistore-commits**](https://groups.google.com/group/camlistore-commits):
     Mailing list for commit emails, code reviews
--   [**Gerrit**](https://camlistore-review.googlesource.com/): Code
+-   [**Gerrit**](https://perkeep-review.googlesource.com/): Code
     review
 -   [**Github**](https://github.com/perkeep/perkeep): our Github
     home (issues + source mirror)
