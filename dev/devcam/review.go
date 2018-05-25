@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 
 	"perkeep.org/pkg/cmdmain"
 )
@@ -33,6 +34,7 @@ import (
 var (
 	defaultHook = filepath.FromSlash("misc/commit-msg.githook")
 	hookFile    = filepath.FromSlash(".git/hooks/commit-msg")
+	configFile  = filepath.FromSlash(".git/config")
 )
 
 type reviewCmd struct {
@@ -61,6 +63,7 @@ func (c *reviewCmd) RunCommand(args []string) error {
 	}
 	goToCamliRoot()
 	c.checkHook()
+	checkOrigin()
 	c.gitPush()
 	return nil
 }
@@ -114,6 +117,42 @@ func (c *reviewCmd) checkHook() {
 	cmd.Stderr = cmdmain.Stderr
 	if err := cmd.Run(); err != nil {
 		log.Fatal(err)
+	}
+}
+
+const newOrigin = "https://perkeep.googlesource.com/perkeep"
+
+var (
+	newFetch = regexp.MustCompile(`.*Fetch\s+URL:\s+` + newOrigin + `.*`)
+	newPush  = regexp.MustCompile(`.*Push\s+URL:\s+` + newOrigin + `.*`)
+)
+
+func checkOrigin() {
+	out, err := exec.Command("git", "remote", "show", "origin").CombinedOutput()
+	if err != nil {
+		log.Fatalf("%v, %s", err, out)
+	}
+
+	if !newPush.Match(out) {
+		setPushOrigin()
+	}
+
+	if !newFetch.Match(out) {
+		setFetchOrigin()
+	}
+}
+
+func setPushOrigin() {
+	out, err := exec.Command("git", "remote", "set-url", "--push", "origin", newOrigin).CombinedOutput()
+	if err != nil {
+		log.Fatal("%v, %s", err, out)
+	}
+}
+
+func setFetchOrigin() {
+	out, err := exec.Command("git", "remote", "set-url", "origin", newOrigin).CombinedOutput()
+	if err != nil {
+		log.Fatal("%v, %s", err, out)
 	}
 }
 
