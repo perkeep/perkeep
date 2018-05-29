@@ -119,7 +119,7 @@ func (im *imp) SummarizeAccount(acct *importer.Object) string {
 }
 
 func (im *imp) AccountSetupHTML(host *importer.Host) string {
-	base := host.ImporterBaseURL() + "foursquare"
+	base := host.ImporterBaseURL() + "swarm"
 	return fmt.Sprintf(`
 <h1>Configuring Foursquare</h1>
 <p>Visit <a href='https://foursquare.com/developers/apps'>https://foursquare.com/developers/apps</a> and click "Create a new app".</p>
