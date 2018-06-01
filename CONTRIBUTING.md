@@ -21,7 +21,7 @@ godoc.org.
 It's recommended you use git to fetch the source code, rather than
 hack from a Perkeep release's zip file:
 
-    $ git clone https://camlistore.googlesource.com/camlistore perkeep
+    $ git clone https://perkeep.googlesource.com/perkeep perkeep.org
 
 (We use github for distribution but its code review system is not as
 nice as Gerrit, so we don't use its Pull Request mechanism. The Gerrit
