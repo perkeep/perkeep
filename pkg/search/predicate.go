@@ -126,6 +126,7 @@ func init() {
 
 	// Custom predicates
 	registerKeyword(newIsPost())
+	registerKeyword(newIsLike())
 	registerKeyword(newIsCheckin())
 
 	// Location predicates
@@ -835,6 +836,27 @@ func (k isPost) Predicate(ctx context.Context, args []string) (*Constraint, erro
 		Permanode: &PermanodeConstraint{
 			Attr:  nodeattr.Type,
 			Value: "twitter.com:tweet",
+		},
+	}, nil
+}
+
+type isLike struct {
+	matchEqual
+}
+
+func newIsLike() keyword {
+	return isLike{"is:like"}
+}
+
+func (k isLike) Description() string {
+	return "matches liked tweets"
+}
+
+func (k isLike) Predicate(ctx context.Context, args []string) (*Constraint, error) {
+	return &Constraint{
+		Permanode: &PermanodeConstraint{
+			Attr:  nodeattr.Type,
+			Value: "twitter.com:like",
 		},
 	}, nil
 }
