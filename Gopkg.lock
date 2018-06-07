@@ -305,7 +305,7 @@
     "leveldb/table",
     "leveldb/util"
   ]
-  revision = "34011bf325bce385408353a30b101fe5e923eb6e"
+  revision = "db3ee9ee8931e51af7158114b9d02bf93d1a7811"
 
 [[projects]]
   name = "github.com/tgulacsi/picago"
@@ -341,6 +341,7 @@
   revision = "a2a47940e6bcb2098c42264fb0515cb027f2564a"
 
 [[projects]]
+  branch = "master"
   name = "golang.org/x/crypto"
   packages = [
     "acme",
@@ -349,6 +350,7 @@
     "curve25519",
     "ed25519",
     "ed25519/internal/edwards25519",
+    "internal/chacha20",
     "nacl/secretbox",
     "openpgp",
     "openpgp/armor",
@@ -363,7 +365,7 @@
     "ssh",
     "ssh/terminal"
   ]
-  revision = "master"
+  revision = "b47b1587369238182299fe4dad77d05b8b461e06"
 
 [[projects]]
   name = "golang.org/x/image"
@@ -592,6 +594,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "06274b99a4551acdcba8ff508d8f5395cd07d788cb7f629e9361f2c431b72411"
+  inputs-digest = "e756353476bc643bd7718c5f0ddd2492ae24eb60b2fbace4620cb2c6d55890ad"
   solver-name = "gps-cdcl"
   solver-version = 1

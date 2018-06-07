@@ -217,7 +217,7 @@ ignored = [
 
 [[constraint]]
   name = "github.com/syndtr/goleveldb"
-  revision = "34011bf325bce385408353a30b101fe5e923eb6e"
+  revision = "db3ee9ee8931e51af7158114b9d02bf93d1a7811"
 
 [[constraint]]
   name = "github.com/tgulacsi/picago"
@@ -231,7 +231,7 @@ ignored = [
 
 [[constraint]]
   name = "golang.org/x/crypto"
-  revision = "master"
+  branch = "master"
 
 [[constraint]]
   name = "golang.org/x/image"

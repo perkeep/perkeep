@@ -67,7 +67,12 @@ func isErrInvalid(err error) bool {
 	if err == os.ErrInvalid {
 		return true
 	}
+	// Go < 1.8
 	if syserr, ok := err.(*os.SyscallError); ok && syserr.Err == syscall.EINVAL {
+		return true
+	}
+	// Go >= 1.8 returns *os.PathError instead
+	if patherr, ok := err.(*os.PathError); ok && patherr.Err == syscall.EINVAL {
 		return true
 	}
 	return false
