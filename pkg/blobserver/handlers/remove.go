@@ -17,7 +17,6 @@ limitations under the License.
 package handlers
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -38,23 +37,26 @@ func CreateRemoveHandler(storage blobserver.Storage) http.Handler {
 // RemoveResponse is the JSON response to a remove request.
 type RemoveResponse struct {
 	Removed []blob.Ref `json:"removed"` // Refs of the removed blobs.
+	Error   string     `json:"error"`
 }
 
-func handleRemove(rw http.ResponseWriter, req *http.Request, storage blobserver.Storage) {
-	ctx := context.TODO()
-	if req.Method != "POST" {
+func handleRemove(w http.ResponseWriter, r *http.Request, storage blobserver.Storage) {
+	ctx := r.Context()
+	if r.Method != "POST" {
 		log.Fatalf("Invalid method; handlers misconfigured")
 	}
 
 	configer, ok := storage.(blobserver.Configer)
 	if !ok {
-		rw.WriteHeader(http.StatusForbidden)
-		fmt.Fprintf(rw, "Remove handler's blobserver.Storage isn't a blobserver.Configer; can't remove")
+		msg := fmt.Sprintf("remove handler's blobserver.Storage isn't a blobserver.Configer, but a %T; can't remove", storage)
+		log.Printf("blobserver/handlers: %v", msg)
+		httputil.ReturnJSONCode(w, http.StatusForbidden, RemoveResponse{Error: msg})
 		return
 	}
 	if !configer.Config().Deletable {
-		rw.WriteHeader(http.StatusForbidden)
-		fmt.Fprintf(rw, "storage does not permit deletes.\n")
+		msg := fmt.Sprintf("storage %T does not permit deletes", storage)
+		log.Printf("blobserver/handlers: %v", msg)
+		httputil.ReturnJSONCode(w, http.StatusForbidden, RemoveResponse{Error: msg})
 		return
 	}
 
@@ -63,18 +65,18 @@ func handleRemove(rw http.ResponseWriter, req *http.Request, storage blobserver.
 	for {
 		n++
 		if n > maxRemovesPerRequest {
-			httputil.BadRequestError(rw,
+			httputil.BadRequestError(w,
 				fmt.Sprintf("Too many removes in this request; max is %d", maxRemovesPerRequest))
 			return
 		}
 		key := fmt.Sprintf("blob%v", n)
-		value := req.FormValue(key)
+		value := r.FormValue(key)
 		if value == "" {
 			break
 		}
 		ref, ok := blob.Parse(value)
 		if !ok {
-			httputil.BadRequestError(rw, "Bogus blobref for key "+key)
+			httputil.BadRequestError(w, "Bogus blobref for key "+key)
 			return
 		}
 		toRemove = append(toRemove, ref)
@@ -82,11 +84,11 @@ func handleRemove(rw http.ResponseWriter, req *http.Request, storage blobserver.
 
 	err := storage.RemoveBlobs(ctx, toRemove)
 	if err != nil {
-		rw.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
 		log.Printf("Server error during remove: %v", err)
-		fmt.Fprintf(rw, "Server error")
+		fmt.Fprintf(w, "Server error")
 		return
 	}
 
-	httputil.ReturnJSON(rw, &RemoveResponse{Removed: toRemove})
+	httputil.ReturnJSON(w, &RemoveResponse{Removed: toRemove})
 }
