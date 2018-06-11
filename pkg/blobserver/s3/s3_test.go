@@ -101,6 +101,7 @@ func testStorage(t *testing.T, bucketDir string) {
 			"aws_access_key":        *key,
 			"aws_secret_access_key": *secret,
 			"bucket":                bucketWithDir,
+			"cacheSize":             float64(0),
 		})
 		if err != nil {
 			t.Fatalf("newFromConfig error: %v", err)
