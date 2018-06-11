@@ -236,7 +236,8 @@ func (c *hookCmd) hookGofmt() error {
 }
 
 func (c *hookCmd) hookTrailingSpace() error {
-	out, _ := cmdOutputDirErr(".", "git", "diff-index", "--check", "--diff-filter=ACM", "--cached", "HEAD", "--")
+	// see 'pathspec' for the ':!' syntax to ignore a directory.
+	out, _ := cmdOutputDirErr(".", "git", "diff-index", "--check", "--diff-filter=ACM", "--cached", "HEAD", "--", ":!/vendor/")
 	if out != "" {
 		printf("\n%s", out)
 		printf("Trailing whitespace detected, you need to clean it up manually.\n")
@@ -256,11 +257,11 @@ func (c *hookCmd) runGofmt() (files []string, err error) {
 		repo += string(filepath.Separator)
 	}
 
-	out, err := cmdOutputDirErr(".", "git", "diff-index", "--name-only", "--diff-filter=ACM", "--cached", "HEAD", "--")
+	out, err := cmdOutputDirErr(".", "git", "diff-index", "--name-only", "--diff-filter=ACM", "--cached", "HEAD", "--", ":!/vendor/", ":(glob)**/*.go")
 	if err != nil {
 		return nil, err
 	}
-	indexFiles := addRoot(repo, filter(gofmtRequired, nonBlankLines(out)))
+	indexFiles := addRoot(repo, nonBlankLines(out))
 	if len(indexFiles) == 0 {
 		return
 	}
@@ -328,23 +329,6 @@ func filter(f func(string) bool, list []string) []string {
 		}
 	}
 	return out
-}
-
-// gofmtRequired reports whether the specified file should be checked
-// for gofmt'dness by the pre-commit hook.
-// The file name is relative to the repo root.
-func gofmtRequired(file string) bool {
-	if !strings.HasSuffix(file, ".go") {
-		return false
-	}
-	// vendor files should be imported as-is
-	if strings.HasPrefix(file, "vendor/") {
-		return false
-	}
-	if !strings.HasPrefix(file, "test/") {
-		return true
-	}
-	return strings.HasPrefix(file, "test/bench/") || file == "test/run.go"
 }
 
 func commandString(command string, args []string) string {
