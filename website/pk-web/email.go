@@ -132,7 +132,7 @@ https://perkeep.googlesource.com/perkeep/+/%s
 %s`, hash, body)
 
 	m := mailGun.NewMessage(
-		"noreply@perkeep.org (Perkeep Commit)",
+		"noreply@perkeep.org",
 		string(subj),
 		contents,
 		*emailsTo,
