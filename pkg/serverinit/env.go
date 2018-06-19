@@ -119,5 +119,13 @@ func DefaultEnvConfig() (*Config, error) {
 		return nil, fmt.Errorf("unexpected value for VM instance metadata key 'perkeep-config-version': %q", configVersion)
 	}
 
-	return genLowLevelConfig(highConf)
+	conf, err := genLowLevelConfig(highConf)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := conf.readFields(); err != nil {
+		return nil, err
+	}
+	return conf, nil
 }
