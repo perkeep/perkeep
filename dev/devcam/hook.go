@@ -237,7 +237,7 @@ func (c *hookCmd) hookGofmt() error {
 
 func (c *hookCmd) hookTrailingSpace() error {
 	// see 'pathspec' for the ':!' syntax to ignore a directory.
-	out, _ := cmdOutputDirErr(".", "git", "diff-index", "--check", "--diff-filter=ACM", "--cached", "HEAD", "--", ":!/vendor/")
+	out, _ := cmdOutputDirErr(".", "git", "diff-index", "--check", "--diff-filter=ACM", "--cached", "HEAD", "--", ".", ":!/vendor/")
 	if out != "" {
 		printf("\n%s", out)
 		printf("Trailing whitespace detected, you need to clean it up manually.\n")
@@ -257,7 +257,7 @@ func (c *hookCmd) runGofmt() (files []string, err error) {
 		repo += string(filepath.Separator)
 	}
 
-	out, err := cmdOutputDirErr(".", "git", "diff-index", "--name-only", "--diff-filter=ACM", "--cached", "HEAD", "--", ":!/vendor/", ":(glob)**/*.go")
+	out, err := cmdOutputDirErr(".", "git", "diff-index", "--name-only", "--diff-filter=ACM", "--cached", "HEAD", "--", ":(glob)**/*.go", ":!/vendor/")
 	if err != nil {
 		return nil, err
 	}
