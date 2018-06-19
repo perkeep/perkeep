@@ -1,0 +1,5 @@
+Mastodon API importer
+=====================
+
+This is an importer for microblogging servers exposing the Mastodon API. This
+includes Mastodon as well as Pleroma.

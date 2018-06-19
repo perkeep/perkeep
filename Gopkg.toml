@@ -48,6 +48,8 @@ ignored = [
   "github.com/gopherjs/gopherjs/tests",
   "github.com/gopherjs/gopherjs/tests/*",
   "github.com/gorilla/websocket/examples",
+  "github.com/mattn/go-mastodon/testdata",
+  "github.com/mattn/go-mastodon/cmd/*",
   "github.com/rwcarlsen/goexif/exif/corrupt",
   "github.com/rwcarlsen/goexif/exif/samples",
   "github.com/russross/blackfriday/testdata",
@@ -174,6 +176,10 @@ ignored = [
 [[constraint]]
   name = "github.com/mailgun/mailgun-go"
   revision = "17e8bd11e87cb660ba5da8d635bbeae44b9443ac"
+
+[[constraint]]
+  name = "github.com/mattn/go-mastodon"
+  revision = "2ccbcfe14d7ae9129fa84fbf37d030b046abbfdf"
 
 [[constraint]]
   name = "github.com/mattn/go-sqlite3"
