@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"time"
 
 	"go4.org/wkfs"
 	_ "go4.org/wkfs/gcs"
@@ -123,10 +124,15 @@ func syncToGithub(dir, gerritHEAD string) error {
 	mounts := map[string]string{
 		hostSSHDir: "/root/.ssh",
 	}
-	cmd := execGit(dir, "push_github", mounts, "push", "git@github.com:camlistore/camlistore.git", "master:master")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("error running git push to github: %v\n%s", err, out)
+	if err := emailOnTimeout("git push_github", 5*time.Minute, func() error {
+		cmd := execGit(dir, "push_github", mounts, "push", "git@github.com:camlistore/camlistore.git", "master:master")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("error running git push to github: %v\n%s", err, out)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 	log.Printf("Successfully pushed commit %v to github", gerritHEAD)
 	return nil

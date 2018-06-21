@@ -102,20 +102,32 @@ func emailCommit(dir, hash string) (err error) {
 		return nil
 	}
 
-	cmd := execGit(dir, "show", nil, "show", hash)
-	body, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("error runnning git show: %v\n%s", err, body)
+	var body []byte
+	if err := emailOnTimeout("git show", 2*time.Minute, func() error {
+		cmd := execGit(dir, "show", nil, "show", hash)
+		body, err = cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("error runnning git show: %v\n%s", err, body)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 	if !bytes.Contains(body, diffMarker) {
 		// Boring merge commit. Don't email.
 		return nil
 	}
 
-	cmd = execGit(dir, "show_pretty", nil, "show", "--pretty=oneline", hash)
-	out, err := cmd.Output()
-	if err != nil {
-		return fmt.Errorf("error runnning git show_pretty: %v\n%s", err, string(out))
+	var out []byte
+	if err := emailOnTimeout("git show_pretty", 2*time.Minute, func() error {
+		cmd := execGit(dir, "show_pretty", nil, "show", "--pretty=oneline", hash)
+		out, err = cmd.Output()
+		if err != nil {
+			return fmt.Errorf("error runnning git show_pretty: %v\n%s", err, out)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 	subj := out[41:] // remove hash and space
 	if i := bytes.IndexByte(subj, '\n'); i != -1 {
@@ -190,6 +202,31 @@ func commitEmailLoop() error {
 	}
 }
 
+// emailOnTimeout runs fn in a goroutine. If fn is not done after d,
+// a message about fnName is logged, and an e-mail about it is sent.
+func emailOnTimeout(fnName string, d time.Duration, fn func() error) error {
+	c := make(chan error, 1)
+	go func() {
+		c <- fn()
+	}()
+	select {
+	case <-time.After(d):
+		log.Printf("timeout for %s, sending e-mail about it", fnName)
+		m := mailGun.NewMessage(
+			"noreply@perkeep.org",
+			"timeout for docker on pk-web",
+			"Because "+fnName+" is stuck.",
+			"mathieu.lonjaret@gmail.com",
+		)
+		if _, _, err := mailGun.Send(m); err != nil {
+			return fmt.Errorf("failed to send docker restart e-mail: %v", err)
+		}
+		return nil
+	case err := <-c:
+		return err
+	}
+}
+
 // execGit runs the git command with gitArgs. All the other arguments are only
 // relevant if *gitContainer, in which case we run in a docker container.
 func execGit(workdir string, containerName string, mounts map[string]string, gitArgs ...string) *exec.Cmd {
@@ -225,10 +262,15 @@ type GitCommit struct {
 }
 
 func pollCommits(dir string) {
-	cmd := execGit(dir, "pull_origin", nil, "pull", "origin")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		log.Printf("Error running git pull origin master in %s: %v\n%s", dir, err, out)
+	if err := emailOnTimeout("git pull_origin", 5*time.Minute, func() error {
+		cmd := execGit(dir, "pull_origin", nil, "pull", "origin")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("error running git pull origin master in %s: %v\n%s", dir, err, out)
+		}
+		return nil
+	}); err != nil {
+		log.Printf("%v", err)
 		return
 	}
 	log.Printf("Ran git pull.")
@@ -283,10 +325,16 @@ func pollCommits(dir string) {
 }
 
 func recentCommits(dir string) (hashes []string, err error) {
-	cmd := execGit(dir, "log_origin_master", nil, "log", "--since=1 month ago", "--pretty=oneline", "origin/master")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("Error running git log in %s: %v\n%s", dir, err, out)
+	var out []byte
+	if err := emailOnTimeout("git log_origin_master", 2*time.Minute, func() error {
+		cmd := execGit(dir, "log_origin_master", nil, "log", "--since=1 month ago", "--pretty=oneline", "origin/master")
+		out, err = cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("error running git log in %s: %v\n%s", dir, err, out)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 	for _, line := range strings.Split(string(out), "\n") {
 		v := strings.SplitN(line, " ", 2)
