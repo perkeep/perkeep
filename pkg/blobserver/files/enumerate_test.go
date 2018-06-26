@@ -29,7 +29,6 @@ import (
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/files"
 	"perkeep.org/pkg/test"
-	. "perkeep.org/pkg/test/asserts" // delete this grossness
 )
 
 var (
@@ -68,22 +67,23 @@ func TestEnumerate(t *testing.T) {
 		errCh <- ds.EnumerateBlobs(context.TODO(), ch, "", limit)
 	}()
 
-	var (
-		sb blob.SizedRef
-		ok bool
-	)
+	assertBlobSize := func(expected uint32, sb blob.SizedRef, ok bool) {
+		t.Helper()
+		if !ok {
+			t.Error("expected to get blob, but did not")
+		}
+		if sb.Size != expected {
+			t.Errorf("expected size %v; got %v", expected, sb.Size)
+		}
+	}
+
+	sb, ok := <-ch
+	assertBlobSize(3, sb, ok)
 	sb, ok = <-ch
-	Assert(t, ok, "got 1st blob")
-	ExpectInt(t, 3, int(sb.Size), "1st blob size")
+	assertBlobSize(4, sb, ok)
 	sb, ok = <-ch
-	Assert(t, ok, "got 2nd blob")
-	ExpectInt(t, 4, int(sb.Size), "2nd blob size")
-	sb, ok = <-ch
-	Assert(t, ok, "got 3rd blob")
-	ExpectInt(t, 5, int(sb.Size), "3rd blob size")
-	sb, ok = <-ch
-	Assert(t, !ok, "got channel close")
-	ExpectNil(t, <-errCh, "EnumerateBlobs return value")
+	assertBlobSize(5, sb, ok)
+	assertNoBlobsOrErrs(t, ch, errCh)
 
 	// Now again, but skipping foo's blob
 	ch = make(chan blob.SizedRef)
@@ -94,14 +94,10 @@ func TestEnumerate(t *testing.T) {
 			limit)
 	}()
 	sb, ok = <-ch
-	Assert(t, ok, "got 1st blob, skipping foo")
-	ExpectInt(t, 4, int(sb.Size), "blob size")
+	assertBlobSize(4, sb, ok)
 	sb, ok = <-ch
-	Assert(t, ok, "got 2nd blob, skipping foo")
-	ExpectInt(t, 5, int(sb.Size), "blob size")
-	sb, ok = <-ch
-	Assert(t, !ok, "got final nil")
-	ExpectNil(t, <-errCh, "EnumerateBlobs return value")
+	assertBlobSize(5, sb, ok)
+	assertNoBlobsOrErrs(t, ch, errCh)
 }
 
 func TestEnumerateEmpty(t *testing.T) {
@@ -115,9 +111,7 @@ func TestEnumerateEmpty(t *testing.T) {
 		errCh <- ds.EnumerateBlobs(context.TODO(), ch, "", limit)
 	}()
 
-	_, ok := <-ch
-	Expect(t, !ok, "no first blob")
-	ExpectNil(t, <-errCh, "EnumerateBlobs return value")
+	assertNoBlobsOrErrs(t, ch, errCh)
 }
 
 type SortedSizedBlobs []blob.SizedRef
@@ -149,15 +143,29 @@ func TestEnumerateIsSorted(t *testing.T) {
 	// enumerate code.
 	// TODO(bradfitz): remove this eventually.
 	fakeDir := root + "/partition/queue-indexer/sha1/1f0/710"
-	ExpectNil(t, os.MkdirAll(fakeDir, 0755), "creating fakeDir")
-	ExpectNil(t, ioutil.WriteFile(fakeDir+"/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat",
-		[]byte("fake file"), 0644), "writing fake blob")
+	if err := os.MkdirAll(fakeDir, 0755); err != nil {
+		t.Fatalf("error creating fakedir: %v", err)
+	}
+	if err := ioutil.WriteFile(
+		fakeDir+"/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat",
+		[]byte("fake file"),
+		0644,
+	); err != nil {
+		t.Fatalf("error writing fake blob: %v", err)
+	}
 
 	// And the same for a "cache" directory, used by the default configuration.
 	fakeDir = root + "/cache/sha1/1f0/710"
-	ExpectNil(t, os.MkdirAll(fakeDir, 0755), "creating cache fakeDir")
-	ExpectNil(t, ioutil.WriteFile(fakeDir+"/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat",
-		[]byte("fake file"), 0644), "writing fake blob")
+	if err := os.MkdirAll(fakeDir, 0755); err != nil {
+		t.Fatalf("error creating cachedir: %v", err)
+	}
+	if err := ioutil.WriteFile(
+		fakeDir+"/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat",
+		[]byte("fake file"),
+		0644,
+	); err != nil {
+		t.Fatalf("error writing fake file: %v", err)
+	}
 
 	var tests = []struct {
 		limit int
@@ -191,5 +199,16 @@ func TestEnumerateIsSorted(t *testing.T) {
 		if !sort.IsSorted(SortedSizedBlobs(got)) {
 			t.Errorf("case %+v: expected sorted; got: %q", test, got)
 		}
+	}
+}
+
+func assertNoBlobsOrErrs(t *testing.T, blobChannel <-chan blob.SizedRef, errChannel <-chan error) {
+	t.Helper()
+
+	if sb, ok := <-blobChannel; ok {
+		t.Errorf("expected blob channel to be closed, but got %v", sb)
+	}
+	if err := <-errChannel; err != nil {
+		t.Errorf("expected error channel to have a nil err; got %v", err)
 	}
 }
