@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package client
+package integration
 
 import (
 	"context"
@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"perkeep.org/internal/osutil"
+	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/serverinit"
 	"perkeep.org/pkg/types/serverconfig"
@@ -71,7 +72,7 @@ func TestUploadFile(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close()
 
-	c := NewOrFail(OptionServer(ts.URL))
+	c := client.NewOrFail(client.OptionServer(ts.URL))
 
 	f := newFakeFile("foo.txt", "bar", time.Date(2011, 1, 28, 2, 3, 4, 0, time.Local))
 
@@ -88,10 +89,10 @@ func TestUploadFile(t *testing.T) {
 }
 
 // testUploadFile uploads a file and checks if it can be retrieved.
-func testUploadFile(t *testing.T, c *Client, f *fakeFile, withFileOpts bool) *schema.Blob {
-	var opts *FileUploadOptions
+func testUploadFile(t *testing.T, c *client.Client, f *fakeFile, withFileOpts bool) *schema.Blob {
+	var opts *client.FileUploadOptions
 	if withFileOpts {
-		opts = &FileUploadOptions{FileInfo: f}
+		opts = &client.FileUploadOptions{FileInfo: f}
 	}
 	bref, err := c.UploadFile(ctxbg, f.Name(), strings.NewReader(f.content), opts)
 	if err != nil {
