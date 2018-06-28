@@ -24,8 +24,8 @@ cam.ImageDetail = React.createClass({
 	displayName: 'ImageDetail',
 
 	IMG_MARGIN: 20,
-	PIGGY_WIDTH: 88,
-	PIGGY_HEIGHT: 62,
+	KEEPY_WIDTH: 118,
+	KEEPY_HEIGHT: 108,
 
 	propTypes: {
 		backwardPiggy: React.PropTypes.bool.isRequired,
@@ -97,17 +97,17 @@ cam.ImageDetail = React.createClass({
 		if (this.isImage_() && !this.state.imgHasLoaded) {
 			transition.props.children.push(
 				React.createElement(cam.SpritedAnimation, {
-					key: 'piggy-sprite',
-					src: 'glitch/npc_piggy__x1_walk_png_1354829432.png',
+					key: 'keepy-sprite',
+					src: 'keepy/keepy-dancing.png',
 					className: classNames({
 						'detail-view-piggy': true,
 						'detail-view-piggy-backward': this.props.backwardPiggy
 					}),
-					numFrames: 24,
-					spriteWidth: this.PIGGY_WIDTH,
-					spriteHeight: this.PIGGY_HEIGHT,
-					sheetWidth: 8,
-					style: this.getCenteredProps_(this.PIGGY_WIDTH, this.PIGGY_HEIGHT)
+					numFrames: 12,
+					spriteWidth: this.KEEPY_WIDTH,
+					spriteHeight: this.KEEPY_HEIGHT,
+					sheetWidth: 6,
+					style: this.getCenteredProps_(this.KEEPY_WIDTH, this.KEEPY_HEIGHT)
 				}));
 		}
 		return transition;

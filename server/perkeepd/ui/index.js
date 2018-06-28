@@ -1448,16 +1448,16 @@ cam.IndexPage = React.createClass({
 			return false
 		}
 
-		var piggyWidth = 88;
-		var piggyHeight = 62;
+		var keepyWidth = 118;
+		var keepyHeight = 108;
 		var borderWidth = 18;
 		var w = this.props.availWidth * 0.8;
 		var h = this.props.availHeight * 0.8;
 		var iconProps = {
 			key: 'icon',
-			sheetWidth: 10,
-			spriteWidth: piggyWidth,
-			spriteHeight: piggyHeight,
+			sheetWidth: 6,
+			spriteWidth: keepyWidth,
+			spriteHeight: keepyHeight,
 			style: {
 				marginRight: 3,
 				position: 'relative',
@@ -1503,20 +1503,21 @@ cam.IndexPage = React.createClass({
 		function getIcon() {
 			if (this.isUploading_() || this.isAddingMembers_()) {
 				return React.createElement(cam.SpritedAnimation, cam.object.extend(iconProps, {
-					numFrames: 48,
-					src: 'glitch/npc_piggy__x1_chew_png_1354829433.png',
+					numFrames: 12,
+					startFrame: 3,
+					interval: 100,
+					src: 'keepy/keepy-dancing.png',
 				}));
 			} else if (this.state.dropActive) {
-				return React.createElement(cam.SpritedAnimation, cam.object.extend(iconProps, {
-					loopDelay: 4000,
-					numFrames: 48,
-					src: 'glitch/npc_piggy__x1_look_screen_png_1354829434.png',
-					startFrame: 6,
+				// TODO(mpl): keepy expressing interest.
+				return React.createElement(cam.SpritedImage, cam.object.extend(iconProps, {
+					index: 3,
+					src: 'keepy/keepy-dancing.png',
 				}));
 			} else {
 				return React.createElement(cam.SpritedImage, cam.object.extend(iconProps, {
-					index: 0,
-					src: 'glitch/npc_piggy__x1_look_screen_png_1354829434.png',
+					index: 3,
+					src: 'keepy/keepy-dancing.png',
 				}));
 			}
 		}
@@ -1566,8 +1567,8 @@ cam.IndexPage = React.createClass({
 					style: {
 						textAlign: 'center',
 						position: 'relative',
-						left: -piggyWidth / 2,
-						top: (h - piggyHeight - borderWidth * 2) / 2,
+						left: -keepyWidth / 2,
+						top: (h - keepyHeight - borderWidth * 2) / 2,
 					},
 				},
 				getIcon.call(this),
