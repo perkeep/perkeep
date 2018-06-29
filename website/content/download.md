@@ -35,7 +35,7 @@ the server with:
 
 This will create [configuration](/doc/server-config) and public/private
 key information in `$HOME/.config/perkeep/` (or where
-`camtool env configdir` points). You can start and stop perkeepd as
+`pk env configdir` points). You can start and stop perkeepd as
 you see fit.
 
 You're done setting up! Running perkeepd should open a new browser
