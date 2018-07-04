@@ -1,0 +1,7 @@
+#!/bin/bash
+# Copyright 2018 The Perkeep Authors.
+# Licensed under the Apache License, Version 2.0
+
+# TOOD(mpl): remove if not needed
+
+exit 0

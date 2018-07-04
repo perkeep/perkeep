@@ -1,0 +1,12 @@
+#!/bin/sh
+# Copyright 2018 The Perkeep Authors.
+# Licensed under the Apache License, Version 2.0
+
+### This script will be executed when package uninstalled and upgraded.
+### Actions after package uninstalled.
+### ex. remove garbage files.
+
+cd /usr/bin
+rm -f perkeepd pk pk-get pk-put pk-mount
+
+exit 0

@@ -1,0 +1,9 @@
+#!/bin/sh
+# Copyright 2018 The Perkeep Authors.
+# Licensed under the Apache License, Version 2.0
+
+### This script will be execute when package installed and upgraded.
+### Actions before package installed.
+### ex. check environment.
+
+exit 0

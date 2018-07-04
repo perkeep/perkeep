@@ -1,0 +1,8 @@
+#!/bin/sh
+# Copyright (C) 2000-2016 Synology Inc. All rights reserved.
+
+### This script will be executed ONLY at package upgraded.
+### Actions after package upgraded.
+### ex. restore user settings.
+
+exit 0
