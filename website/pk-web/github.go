@@ -88,7 +88,7 @@ func initGithubSyncing() error {
 // non-authenticated requests quota.
 func githubHEAD(gerritHEAD string) (string, error) {
 	const (
-		headAPI  = "https://api.github.com/repos/camlistore/camlistore/commits/HEAD"
+		headAPI  = "https://api.github.com/repos/perkeep/perkeep/commits/HEAD"
 		mimeType = "application/vnd.github.VERSION.sha"
 	)
 	req, err := http.NewRequest("GET", headAPI, nil)
@@ -125,7 +125,7 @@ func syncToGithub(dir, gerritHEAD string) error {
 		hostSSHDir: "/root/.ssh",
 	}
 	if err := emailOnTimeout("git push_github", 5*time.Minute, func() error {
-		cmd := execGit(dir, "push_github", mounts, "push", "git@github.com:camlistore/camlistore.git", "master:master")
+		cmd := execGit(dir, "push_github", mounts, "push", "git@github.com:perkeep/perkeep.git", "master:master")
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("error running git push to github: %v\n%s", err, out)
