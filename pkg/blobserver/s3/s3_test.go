@@ -22,14 +22,18 @@ import (
 	"crypto/md5"
 	"flag"
 	"io"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
+	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/storagetest"
@@ -172,4 +176,124 @@ func TestNextStr(t *testing.T) {
 			t.Errorf("nextStr(%q) = %q; want %q", tt.s, got, tt.want)
 		}
 	}
+}
+
+func TestS3EndpointRedirect(t *testing.T) {
+	transport, err := httputil.NewRegexpFakeTransport([]*httputil.Matcher{
+		{
+			URLRegex: regexp.QuoteMeta("https://s3.amazonaws.com/mock_bucket/?location") + ".*",
+			Fn: func() *http.Response {
+				return &http.Response{
+					Status:     "301 Moved Permanently",
+					StatusCode: 301,
+					Header: http.Header(map[string][]string{
+						"X-Amz-Bucket-Region": []string{"us-east-1"},
+					}),
+					Body: ioutil.NopCloser(strings.NewReader(`<?xml version="1.0" encoding="UTF-8"?>
+<LocationConstraint xmlns="http://s3.amazonaws.com/doc/2006-03-01/">us-west-1</LocationConstraint>`)),
+				}
+			},
+		},
+		{
+			URLRegex: regexp.QuoteMeta("https://s3.amazonaws.com/mock_bucket") + ".*",
+			Fn: func() *http.Response {
+				return &http.Response{
+					Status:     "301 Moved Permanently",
+					StatusCode: 301,
+					Header: http.Header(map[string][]string{
+						"X-Amz-Bucket-Region": []string{"us-east-1"},
+					}),
+					Body: ioutil.NopCloser(strings.NewReader(`<?xml version="1.0" encoding="UTF-8"?>
+<Error><Code>PermanentRedirect</Code><Message>The bucket you are attempting to access must be addressed using the specified endpoint. Please send all future requests to this endpoint.</Message><Bucket>mock_bucket</Bucket><Endpoint>mock_bucket.s3.amazonaws.com</Endpoint><RequestId>123</RequestId><HostId>abc</HostId></Error>`)),
+				}
+			},
+		},
+		{
+			URLRegex: regexp.QuoteMeta("https://s3-us-west-1.amazonaws.com/mock_bucket") + ".*",
+			Fn: func() *http.Response {
+				return &http.Response{
+					Status:     "200 OK",
+					StatusCode: 200,
+					Body: ioutil.NopCloser(strings.NewReader(`
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>mock_bucket</Name><Prefix></Prefix><MaxKeys>1</MaxKeys><Marker></Marker><IsTruncated>false</IsTruncated><Contents></Contents></ListBucketResult>
+					`)),
+				}
+			},
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = newFromConfigWithTransport(nil, jsonconfig.Obj{
+		"aws_access_key":        "key",
+		"aws_secret_access_key": "secret",
+		"bucket":                "mock_bucket",
+	}, transport)
+	if err != nil {
+		t.Fatalf("newFromConfig error: %v", err)
+	}
+}
+
+func TestNonS3Endpoints(t *testing.T) {
+	testValidHostnames := []string{
+		"localhost",
+		"s3-but-not-amazon.notaws.com",
+		"example.com:443",
+	}
+	testInvalidHostnames := []string{
+		"http://localhost",
+	}
+
+	transport := func(hostname string) http.RoundTripper {
+		transport, err := httputil.NewRegexpFakeTransport([]*httputil.Matcher{
+			{
+				URLRegex: regexp.QuoteMeta("https://"+hostname+"/mock_bucket/") + ".*",
+				Fn: func() *http.Response {
+					return &http.Response{
+						Status:     "200 OK",
+						StatusCode: 200,
+						Body: ioutil.NopCloser(strings.NewReader(`
+		<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>mock_bucket</Name><Prefix></Prefix><MaxKeys>1</MaxKeys><Marker></Marker><IsTruncated>false</IsTruncated><Contents></Contents></ListBucketResult>
+							`)),
+					}
+				},
+			},
+		})
+
+		if err != nil {
+			panic(err)
+		}
+
+		return transport
+	}
+
+	for _, hostname := range testValidHostnames {
+		t.Run(hostname, func(t *testing.T) {
+			_, err := newFromConfigWithTransport(nil, jsonconfig.Obj{
+				"aws_access_key":        "key",
+				"aws_secret_access_key": "secret",
+				"bucket":                "mock_bucket",
+				"hostname":              hostname,
+			}, transport(hostname))
+			if err != nil {
+				t.Errorf("newFromConfig error: %v", err)
+			}
+		})
+	}
+
+	for _, hostname := range testInvalidHostnames {
+		t.Run(hostname, func(t *testing.T) {
+			_, err := newFromConfigWithTransport(nil, jsonconfig.Obj{
+				"aws_access_key":        "key",
+				"aws_secret_access_key": "secret",
+				"bucket":                "mock_bucket",
+				"hostname":              hostname,
+			}, transport(hostname))
+			if err == nil {
+				t.Error("expected error, didn't get one")
+			}
+		})
+	}
+
 }
