@@ -20,6 +20,7 @@ synchronization to cloud storage.
   securely connect to your Perkeep server(s)
 * [Search Commands](/doc/search-ui.md): Covers the available search operators
 * [Configuring Geocoding](/doc/geocoding.md): how to enable geocoding (the `loc:` search operator)
+* [Files or Permanodes](/doc/files-and-permanodes.md): explains the basic difference between a file and a permanode
 
 ## For Developers
 
