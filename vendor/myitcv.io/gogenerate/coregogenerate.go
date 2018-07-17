@@ -51,7 +51,6 @@ import (
 type generator struct {
 	f        func(line int, dirArgs []string) error
 	r        io.Reader
-	path     string // full rooted path name.
 	dir      string // full rooted directory of file.
 	file     string // base name of file.
 	pkg      string
@@ -63,8 +62,8 @@ type generator struct {
 // DirFunc runs f(cmds) on each go generate directive (as defined by
 // go generate -help) found in the absolute-named file that is part
 // of package pkg
-func DirFunc(pkg string, name string, f func(line int, dirArgs []string) error) error {
-	fi, err := os.Open(name)
+func DirFunc(pkg string, dir, file string, f func(line int, dirArgs []string) error) error {
+	fi, err := os.Open(filepath.Join(dir, file))
 	if err != nil {
 		return err
 	}
@@ -74,7 +73,8 @@ func DirFunc(pkg string, name string, f func(line int, dirArgs []string) error) 
 		f:        f,
 		pkg:      pkg,
 		commands: make(map[string][]string),
-		path:     name,
+		dir:      dir,
+		file:     file,
 		r:        fi,
 	}
 
@@ -91,9 +91,6 @@ func (g *generator) matches() (err error) {
 			err = e
 		}
 	}()
-
-	g.dir, g.file = filepath.Split(g.path)
-	g.dir = filepath.Clean(g.dir) // No final separator please.
 
 	// Scan for lines that start "//go:generate".
 	// Can't use bufio.Scanner because it can't handle long lines,
@@ -235,7 +232,7 @@ Words:
 // It then exits the program (with exit status 1) because generation stops
 // at the first error.
 func (g *generator) errorf(format string, args ...interface{}) {
-	panic(fmt.Errorf("%s:%d: %s", g.path, g.lineNum, fmt.Sprintf(format, args...)))
+	panic(fmt.Errorf("%s:%d: %s", filepath.Join(g.dir, g.file), g.lineNum, fmt.Sprintf(format, args...)))
 }
 
 // expandVar expands the $XXX invocation in word. It is called

@@ -52,24 +52,22 @@ func mainInit(wd string) {
 func mainGen(wd string) {
 	gogenerate.DefaultLogLevel(fGoGenLog, gogenerate.LogFatal)
 
-	envFileName, ok := os.LookupEnv(gogenerate.GOFILE)
+	envFile, ok := os.LookupEnv(gogenerate.GOFILE)
 	if !ok {
 		fatalf("env not correct; missing %v", gogenerate.GOFILE)
 	}
 
-	// are we running against the first file that contains the reactGen directive?
-	// if not return
 	dirFiles, err := gogenerate.FilesContainingCmd(wd, reactGenCmd)
 	if err != nil {
 		fatalf("could not determine if we are the first file: %v", err)
 	}
 
-	if len(dirFiles) == 0 {
+	if dirFiles == nil {
 		fatalf("cannot find any files containing the %v directive", reactGenCmd)
 	}
 
-	if envFileName != dirFiles[0] {
-		return
+	if dirFiles[envFile] != 1 {
+		fatalf("expected a single occurrence of %v directive in %v. Got: %v", reactGenCmd, envFile, dirFiles)
 	}
 
 	license, err := gogenerate.CommentLicenseHeader(fLicenseFile)

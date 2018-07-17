@@ -8,15 +8,6 @@ type SelectAllBtnElem struct {
 	react.Element
 }
 
-func (s SelectAllBtnDef) ShouldComponentUpdateIntf(nextProps react.Props, prevState, nextState react.State) bool {
-	res := false
-
-	{
-		res = s.Props() != nextProps.(SelectAllBtnProps) || res
-	}
-	return res
-}
-
 func buildSelectAllBtn(cd react.ComponentDef) react.Component {
 	return SelectAllBtnDef{ComponentDef: cd}
 }
@@ -25,6 +16,10 @@ func buildSelectAllBtnElem(props SelectAllBtnProps, children ...react.Element) *
 	return &SelectAllBtnElem{
 		Element: react.CreateElement(buildSelectAllBtn, props, children...),
 	}
+}
+
+func (s SelectAllBtnDef) RendersElement() react.Element {
+	return s.Render()
 }
 
 // IsProps is an auto-generated definition so that SelectAllBtnProps implements

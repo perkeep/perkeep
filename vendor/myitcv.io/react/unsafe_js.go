@@ -9,9 +9,9 @@ import (
 )
 
 func wrapValue(v interface{}) *js.Object {
-	return js.InternalObject(&v)
+	return js.InternalObject(v)
 }
 
 func unwrapValue(v *js.Object) interface{} {
-	return *(*interface{})(unsafe.Pointer(v.Unsafe()))
+	return (interface{})(unsafe.Pointer(v.Unsafe()))
 }
