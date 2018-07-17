@@ -207,6 +207,11 @@
   revision = "17e8bd11e87cb660ba5da8d635bbeae44b9443ac"
 
 [[projects]]
+  name = "github.com/mattn/go-mastodon"
+  packages = ["."]
+  revision = "2ccbcfe14d7ae9129fa84fbf37d030b046abbfdf"
+
+[[projects]]
   name = "github.com/mattn/go-sqlite3"
   packages = ["."]
   revision = "6c771bb9887719704b210e87e934f08be014bdb1"
@@ -311,6 +316,12 @@
   name = "github.com/tgulacsi/picago"
   packages = ["."]
   revision = "9e1ac2306c701ca7477a169b2b49902b7b4c58bf"
+
+[[projects]]
+  name = "github.com/tomnomnom/linkheader"
+  packages = ["."]
+  revision = "6953a30d444317754766fccdd3f7f000edc874f6"
+  version = "0.1.0"
 
 [[projects]]
   branch = "master"
@@ -594,6 +605,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e756353476bc643bd7718c5f0ddd2492ae24eb60b2fbace4620cb2c6d55890ad"
+  inputs-digest = "01ab8a91de9b95cd8772e0b7df0ff75eaf48055c67adafa4ed0e0f474e912364"
   solver-name = "gps-cdcl"
   solver-version = 1
