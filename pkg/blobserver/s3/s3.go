@@ -37,6 +37,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"strings"
 
 	"perkeep.org/internal/amazon/s3"
@@ -83,7 +84,15 @@ func (s *s3Storage) String() string {
 	return fmt.Sprintf("\"s3\" blob storage at host %q, bucket %q", s.hostname, s.bucket)
 }
 
-func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
+func newFromConfig(l blobserver.Loader, config jsonconfig.Obj) (blobserver.Storage, error) {
+	return newFromConfigWithTransport(l, config, nil)
+}
+
+// newFromConfigWithTransport constructs a s3 blobserver using the given
+// transport for all s3 requests.  The transport may be set to 'nil' to use a
+// default transport.
+// This is used for unit tests.
+func newFromConfigWithTransport(_ blobserver.Loader, config jsonconfig.Obj, transport http.RoundTripper) (blobserver.Storage, error) {
 	hostname := config.OptionalString("hostname", "s3.amazonaws.com")
 	cacheSize := config.OptionalInt64("cacheSize", 32<<20)
 	client := &s3.Client{
@@ -92,7 +101,8 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 			SecretAccessKey: config.RequiredString("aws_secret_access_key"),
 			Hostname:        hostname,
 		},
-		PutGate: syncutil.NewGate(maxParallelHTTP),
+		PutGate:   syncutil.NewGate(maxParallelHTTP),
+		Transport: transport,
 	}
 	bucket := config.RequiredString("bucket")
 	var dirPrefix string
