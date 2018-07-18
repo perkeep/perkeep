@@ -271,10 +271,10 @@ cam.BlobItemContainerReact = React.createClass({
 	},
 
 	getNoResultsMessage_: function() {
-		var piggyWidth = 88;
-		var piggyHeight = 62;
-		var w = 350;
-		var h = 100;
+		var keepyWidth = 118;
+		var keepyHeight = 108;
+		var w = 200;
+		var h = 200;
 
 		return React.DOM.div(
 			{
@@ -289,13 +289,13 @@ cam.BlobItemContainerReact = React.createClass({
 			},
 			React.DOM.div(null, 'No results found'),
 			React.createElement(cam.SpritedImage, {
-				index: 6,
-				sheetWidth: 10,
-				spriteWidth: piggyWidth,
-				spriteHeight: piggyHeight,
-				src: 'glitch/npc_piggy__x1_rooked1_png_1354829442.png',
+				index: 0,
+				sheetWidth: 1,
+				spriteWidth: keepyWidth,
+				spriteHeight: keepyHeight,
+				src: 'keepy/keepy-sad.png',
 				style: {
-					marginLeft: (w - piggyWidth) / 2
+					marginLeft: (w - keepyWidth) / 2
 				}
 			})
 		);
