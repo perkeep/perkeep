@@ -583,7 +583,7 @@ func genEmbeds() error {
 		"server/perkeepd/ui",
 		"pkg/server",
 		"clients/web/embed/fontawesome",
-		"clients/web/embed/glitch",
+		"clients/web/embed/keepy",
 		"clients/web/embed/leaflet",
 		"clients/web/embed/less",
 		"clients/web/embed/opensans",
