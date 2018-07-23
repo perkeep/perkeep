@@ -8,15 +8,6 @@ type ShareItemsBtnElem struct {
 	react.Element
 }
 
-func (s ShareItemsBtnDef) ShouldComponentUpdateIntf(nextProps react.Props, prevState, nextState react.State) bool {
-	res := false
-
-	{
-		res = s.Props() != nextProps.(ShareItemsBtnProps) || res
-	}
-	return res
-}
-
 func buildShareItemsBtn(cd react.ComponentDef) react.Component {
 	return ShareItemsBtnDef{ComponentDef: cd}
 }
@@ -25,6 +16,10 @@ func buildShareItemsBtnElem(props ShareItemsBtnProps, children ...react.Element)
 	return &ShareItemsBtnElem{
 		Element: react.CreateElement(buildShareItemsBtn, props, children...),
 	}
+}
+
+func (s ShareItemsBtnDef) RendersElement() react.Element {
+	return s.Render()
 }
 
 // IsProps is an auto-generated definition so that ShareItemsBtnProps implements

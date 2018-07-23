@@ -227,9 +227,5 @@ func dogen(dir, license string) {
 		for cd := range g.components {
 			g.genComp(cd)
 		}
-
-		for pt, t := range g.propsTmpls {
-			g.genProps(pt, t)
-		}
 	}
 }

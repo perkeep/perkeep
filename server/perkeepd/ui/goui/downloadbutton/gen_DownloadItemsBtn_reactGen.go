@@ -8,15 +8,6 @@ type DownloadItemsBtnElem struct {
 	react.Element
 }
 
-func (d DownloadItemsBtnDef) ShouldComponentUpdateIntf(nextProps react.Props, prevState, nextState react.State) bool {
-	res := false
-
-	{
-		res = d.Props() != nextProps.(DownloadItemsBtnProps) || res
-	}
-	return res
-}
-
 func buildDownloadItemsBtn(cd react.ComponentDef) react.Component {
 	return DownloadItemsBtnDef{ComponentDef: cd}
 }
@@ -25,6 +16,10 @@ func buildDownloadItemsBtnElem(props DownloadItemsBtnProps, children ...react.El
 	return &DownloadItemsBtnElem{
 		Element: react.CreateElement(buildDownloadItemsBtn, props, children...),
 	}
+}
+
+func (d DownloadItemsBtnDef) RendersElement() react.Element {
+	return d.Render()
 }
 
 // IsProps is an auto-generated definition so that DownloadItemsBtnProps implements

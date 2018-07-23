@@ -8,15 +8,6 @@ type AboutMenuItemElem struct {
 	react.Element
 }
 
-func (a AboutMenuItemDef) ShouldComponentUpdateIntf(nextProps react.Props, prevState, nextState react.State) bool {
-	res := false
-
-	{
-		res = a.Props() != nextProps.(AboutMenuItemProps) || res
-	}
-	return res
-}
-
 func buildAboutMenuItem(cd react.ComponentDef) react.Component {
 	return AboutMenuItemDef{ComponentDef: cd}
 }
@@ -25,6 +16,10 @@ func buildAboutMenuItemElem(props AboutMenuItemProps, children ...react.Element)
 	return &AboutMenuItemElem{
 		Element: react.CreateElement(buildAboutMenuItem, props, children...),
 	}
+}
+
+func (a AboutMenuItemDef) RendersElement() react.Element {
+	return a.Render()
 }
 
 // IsProps is an auto-generated definition so that AboutMenuItemProps implements

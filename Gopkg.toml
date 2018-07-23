@@ -303,12 +303,8 @@ ignored = [
   revision = "24aa052bc5c63cfb9383bf59493ee48621ca788c"
 
 [[constraint]]
-  name = "myitcv.io/gogenerate"
-  revision ="bd69a94c96953d20e106734856b69d71c8fa122b"
-
-[[constraint]]
-  name = "myitcv.io/react"
-  revision = "bca7c66b77ed8a5b86fb77cff70914c4a7cc3ce5"
+  name = "myitcv.io"
+  revision = "bf2c84553c7827a1cb6cecf19424fdb93b887d5b"
 
 [[constraint]]
   name = "rsc.io/pdf"

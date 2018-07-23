@@ -571,22 +571,18 @@
   revision = "24aa052bc5c63cfb9383bf59493ee48621ca788c"
 
 [[projects]]
-  name = "myitcv.io/gogenerate"
-  packages = ["."]
-  revision = "bd69a94c96953d20e106734856b69d71c8fa122b"
-
-[[projects]]
-  name = "myitcv.io/react"
+  name = "myitcv.io"
   packages = [
-    ".",
-    "cmd/reactGen",
-    "internal/bundle",
-    "internal/core",
-    "internal/dev",
-    "internal/preact",
-    "internal/prod"
+    "gogenerate",
+    "react",
+    "react/cmd/reactGen",
+    "react/internal/bundle",
+    "react/internal/core",
+    "react/internal/dev",
+    "react/internal/preact",
+    "react/internal/prod"
   ]
-  revision = "bca7c66b77ed8a5b86fb77cff70914c4a7cc3ce5"
+  revision = "bf2c84553c7827a1cb6cecf19424fdb93b887d5b"
 
 [[projects]]
   name = "rsc.io/pdf"
@@ -605,6 +601,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "01ab8a91de9b95cd8772e0b7df0ff75eaf48055c67adafa4ed0e0f474e912364"
+  inputs-digest = "d4d5681c06c8397d6676e8bc4a52bd139393195443cb9dd0c73cc27fe72ac384"
   solver-name = "gps-cdcl"
   solver-version = 1

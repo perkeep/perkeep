@@ -11,7 +11,6 @@ import (
 var (
 	fLicenseFile = gogenerate.LicenseFileFlag()
 	fGoGenLog    = gogenerate.LogFlag()
-	fCore        = flag.Bool("core", false, "indicates we are generating for a core component (only do props expansion)")
 	fInit        initFlag
 )
 
