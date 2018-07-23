@@ -17,11 +17,8 @@ limitations under the License.
 package s3
 
 import (
-	"bytes"
 	"context"
-	"crypto/md5"
 	"flag"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -33,6 +30,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
@@ -53,6 +52,37 @@ var ctxbg = context.Background()
 
 func TestS3(t *testing.T) {
 	testStorage(t, "")
+}
+
+// TestS3Endpoints is an integ test for the various forms of s3 bucket urls.
+// It verifies that a blobserver is instantiated without error using those endpoints.
+func TestS3Endpoints(t *testing.T) {
+	if *bucket == "" || *key == "" || *secret == "" {
+		t.Skip("Skipping test because at least one of -s3_key, -s3_secret, or -s3_bucket flags has not been provided.")
+	}
+
+	hostnames := []string{
+		"s3.amazonaws.com",            // us-east-1
+		"s3-external-1.amazonaws.com", // also us-east-1
+		"s3.us-west-2.amazonaws.com",  // us-west-2
+		"s3-us-west-2.amazonaws.com",  // also us-west-2
+	}
+
+	for i := range hostnames {
+		hostname := hostnames[i]
+		t.Run(hostname, func(t *testing.T) {
+			_, err := newFromConfig(nil, jsonconfig.Obj{
+				"aws_access_key":        *key,
+				"aws_secret_access_key": *secret,
+				"bucket":                *bucket,
+				"hostname":              hostname,
+			})
+			if err != nil {
+				t.Errorf("error constructing blobserver: %v", err)
+			}
+		})
+	}
+
 }
 
 func TestS3WithBucketDir(t *testing.T) {
@@ -99,7 +129,6 @@ func testStorage(t *testing.T, bucketDir string) {
 	}
 
 	bucketWithDir := path.Join(*bucket, bucketDir)
-
 	storagetest.Test(t, func(t *testing.T) (sto blobserver.Storage, cleanup func()) {
 		sto, err := newFromConfig(nil, jsonconfig.Obj{
 			"aws_access_key":        *key,
@@ -113,18 +142,19 @@ func testStorage(t *testing.T, bucketDir string) {
 		if !testing.Short() {
 			log.Printf("Warning: this test does many serial operations. Without the go test -short flag, this test will be very slow.")
 		}
+
 		if bucketWithDir != *bucket {
 			// Adding "a", and "c" objects in the bucket to make sure objects out of the
 			// "directory" are not touched and have no influence.
 			for _, key := range []string{"a", "c"} {
-				var buf bytes.Buffer
-				md5h := md5.New()
-				size, err := io.Copy(io.MultiWriter(&buf, md5h), strings.NewReader(key))
 				if err != nil {
 					t.Fatalf("could not insert object %s in bucket %v: %v", key, sto.(*s3Storage).bucket, err)
 				}
-				if err := sto.(*s3Storage).s3Client.PutObject(ctxbg,
-					key, sto.(*s3Storage).bucket, md5h, size, &buf); err != nil {
+				if _, err := sto.(*s3Storage).client.PutObject(&s3.PutObjectInput{
+					Bucket: &sto.(*s3Storage).bucket,
+					Key:    aws.String(key),
+					Body:   strings.NewReader(key),
+				}); err != nil {
 					t.Fatalf("could not insert object %s in bucket %v: %v", key, sto.(*s3Storage).bucket, err)
 				}
 			}
@@ -146,10 +176,16 @@ func testStorage(t *testing.T, bucketDir string) {
 				if bucketWithDir != *bucket {
 					// checking that "a" and "c" at the root were left untouched.
 					for _, key := range []string{"a", "c"} {
-						if _, _, err := sto.(*s3Storage).s3Client.Get(ctxbg, sto.(*s3Storage).bucket, key); err != nil {
+						if _, err := sto.(*s3Storage).client.GetObject(&s3.GetObjectInput{
+							Bucket: &sto.(*s3Storage).bucket,
+							Key:    aws.String(key),
+						}); err != nil {
 							t.Fatalf("could not find object %s after tests: %v", key, err)
 						}
-						if err := sto.(*s3Storage).s3Client.Delete(ctxbg, sto.(*s3Storage).bucket, key); err != nil {
+						if _, err := sto.(*s3Storage).client.DeleteObject(&s3.DeleteObjectInput{
+							Bucket: &sto.(*s3Storage).bucket,
+							Key:    aws.String(key),
+						}); err != nil {
 							t.Fatalf("could not remove object %s after tests: %v", key, err)
 						}
 					}
@@ -159,23 +195,6 @@ func testStorage(t *testing.T, bucketDir string) {
 		clearBucket(true)()
 		return sto, clearBucket(false)
 	})
-}
-
-func TestNextStr(t *testing.T) {
-	tests := []struct {
-		s, want string
-	}{
-		{"", ""},
-		{"abc", "abd"},
-		{"ab\xff", "ac\x00"},
-		{"a\xff\xff", "b\x00\x00"},
-		{"sha1-da39a3ee5e6b4b0d3255bfef95601890afd80709", "sha1-da39a3ee5e6b4b0d3255bfef95601890afd8070:"},
-	}
-	for _, tt := range tests {
-		if got := nextStr(tt.s); got != tt.want {
-			t.Errorf("nextStr(%q) = %q; want %q", tt.s, got, tt.want)
-		}
-	}
 }
 
 func TestS3EndpointRedirect(t *testing.T) {
@@ -248,7 +267,7 @@ func TestNonS3Endpoints(t *testing.T) {
 	transport := func(hostname string) http.RoundTripper {
 		transport, err := httputil.NewRegexpFakeTransport([]*httputil.Matcher{
 			{
-				URLRegex: regexp.QuoteMeta("https://"+hostname+"/mock_bucket/") + ".*",
+				URLRegex: regexp.QuoteMeta("https://"+hostname+"/mock_bucket") + ".*",
 				Fn: func() *http.Response {
 					return &http.Response{
 						Status:     "200 OK",

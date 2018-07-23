@@ -19,24 +19,30 @@ package s3
 import (
 	"context"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"perkeep.org/pkg/blob"
-
-	"go4.org/syncutil"
 )
 
-var removeGate = syncutil.NewGate(20) // arbitrary
+// maxDeleteBatch is the maximum value allowed for the s3 'DeleteObjects' call
+const maxDeleteBatch = 1000
 
 func (sto *s3Storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
-	var wg syncutil.Group
-
+	toDelete := make([]s3manager.BatchDeleteObject, 0, len(blobs))
 	for _, blob := range blobs {
-		blob := blob
-		removeGate.Start()
-		wg.Go(func() error {
-			defer removeGate.Done()
-			return sto.s3Client.Delete(ctx, sto.bucket, sto.dirPrefix+blob.String())
+		toDelete = append(toDelete, s3manager.BatchDeleteObject{
+			Object: &s3.DeleteObjectInput{
+				Bucket: &sto.bucket,
+				Key:    aws.String(sto.dirPrefix + blob.String()),
+			},
 		})
 	}
-	return wg.Err()
 
+	batchDeleter := s3manager.NewBatchDeleteWithClient(sto.client)
+	batchDeleter.BatchSize = maxDeleteBatch
+
+	return batchDeleter.Delete(ctx, &s3manager.DeleteObjectsIterator{
+		Objects: toDelete,
+	})
 }

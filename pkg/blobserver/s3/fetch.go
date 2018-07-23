@@ -18,8 +18,13 @@ package s3
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"os"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"perkeep.org/pkg/blob"
 )
 
@@ -27,13 +32,36 @@ func (sto *s3Storage) Fetch(ctx context.Context, blob blob.Ref) (file io.ReadClo
 	if faultGet.FailErr(&err) {
 		return
 	}
-	file, sz, err := sto.s3Client.Get(ctx, sto.bucket, sto.dirPrefix+blob.String())
-	return file, uint32(sz), err
+	return sto.fetch(ctx, blob, nil)
 }
 
 func (sto *s3Storage) SubFetch(ctx context.Context, br blob.Ref, offset, length int64) (rc io.ReadCloser, err error) {
 	if offset < 0 || length < 0 {
 		return nil, blob.ErrNegativeSubFetch
 	}
-	return sto.s3Client.GetPartial(ctx, sto.bucket, sto.dirPrefix+br.String(), offset, length)
+	rc, _, err = sto.fetch(ctx, br, aws.String(fmt.Sprintf("bytes=%d-%d", offset, offset+length-1)))
+	return
+}
+
+func (sto *s3Storage) fetch(ctx context.Context, br blob.Ref, objRange *string) (rc io.ReadCloser, size uint32, err error) {
+	resp, err := sto.client.GetObjectWithContext(ctx, &s3.GetObjectInput{
+		Bucket: &sto.bucket,
+		Key:    aws.String(sto.dirPrefix + br.String()),
+		Range:  objRange,
+	})
+	if err == nil {
+		return resp.Body, uint32(*resp.ContentLength), err
+	}
+	if resp.Body != nil {
+		resp.Body.Close()
+	}
+	if isNotFound(err) {
+		return nil, 0, os.ErrNotExist
+	}
+	if aerr, ok := err.(awserr.Error); ok {
+		if aerr.Code() == "InvalidRange" {
+			return nil, 0, blob.ErrOutOfRangeOffsetSubFetch
+		}
+	}
+	return nil, 0, err
 }

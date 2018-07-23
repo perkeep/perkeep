@@ -92,10 +92,15 @@ At least one of these must be set:
 * `memoryStorage`: if true, blobs will be stored in memory only. This is
   generally only useful for debugging & development.
 * `blobPath`: local disk path to store blobs. (valid for diskpacked too).
-* `s3`: "`key:secret:bucket[/optional/dir]`" or "`key:secret:bucket[/optional/dir]:hostname`" (with colons,
-  but no quotes).
+* `s3`: "`key:secret:bucket[/optional/dir]`" or
+  "`key:secret:bucket[/optional/dir]:hostname`" (with colons, but no quotes).
 * `b2`: "`account_id:application_key:bucket[/optional/dir]`".
 * `googlecloudstorage`: "`clientId:clientSecret:refreshToken:bucketName[/optional/dir]`"
+
+The `s3` storage option's `hostname` value may be set to use an S3-compatible
+endpoint instead of AWS S3, such as `my-minio-server.example.com`. A specific
+region may be specified by using [Low-level Configuration](#lowlevel), though
+the bucket's region will generally be detected automatically.
 
 Additionally, there are two mutually exclusive options which only apply if `blobPath` is set:
 

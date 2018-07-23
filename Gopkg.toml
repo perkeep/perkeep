@@ -114,6 +114,10 @@ ignored = [
   revision = "b197f7a2c317098d18afe80f0d6789782d52a090"
 
 [[constraint]]
+  name = "github.com/aws/aws-sdk-go"
+  version = "1.14.3"
+
+[[constraint]]
   name = "github.com/bradfitz/latlong"
   revision = "b745505085619d2818bc4b32b5a9fcc539e551fd"
 

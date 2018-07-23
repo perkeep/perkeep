@@ -19,8 +19,9 @@ package s3
 import (
 	"context"
 	"fmt"
-	"os"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 
@@ -33,12 +34,16 @@ func (sto *s3Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(b
 	if faultStat.FailErr(&err) {
 		return
 	}
+
 	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (sb blob.SizedRef, err error) {
-		size, err := sto.s3Client.Stat(ctx, sto.dirPrefix+br.String(), sto.bucket)
+		resp, err := sto.client.HeadObjectWithContext(ctx, &s3.HeadObjectInput{
+			Bucket: &sto.bucket,
+			Key:    aws.String(sto.dirPrefix + br.String()),
+		})
 		if err == nil {
-			return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
+			return blob.SizedRef{Ref: br, Size: uint32(*resp.ContentLength)}, nil
 		}
-		if err == os.ErrNotExist {
+		if isNotFound(err) {
 			return sb, nil
 		}
 		return sb, fmt.Errorf("error statting %v: %v", br, err)

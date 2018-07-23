@@ -19,66 +19,72 @@ package s3
 import (
 	"context"
 	"fmt"
-	"log"
 	"path"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 )
+
+// s3MaxKeys is the maximum value the S3 API documentation claims is supported
+// for the 'MaxKeys' field
+const s3MaxKeys = 1000
 
 var _ blobserver.MaxEnumerateConfig = (*s3Storage)(nil)
 
 func (sto *s3Storage) MaxEnumerate() int { return 1000 }
 
-// marker returns the string lexically greater than the provided s
-// with the same length as s.
-func nextStr(s string) string {
-	if s == "" {
-		return s
-	}
-	b := []byte(s)
-	i := len(b)
-	for i > 0 {
-		i--
-		b[i]++
-		if b[i] != 0 {
-			break
-		}
-	}
-	return string(b)
-}
-
-func (sto *s3Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) (err error) {
+func (sto *s3Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) (retErr error) {
 	defer close(dest)
-	if faultEnumerate.FailErr(&err) {
+	if faultEnumerate.FailErr(&retErr) {
 		return
 	}
-	startAt := after
-	if _, ok := blob.Parse(after); ok {
-		startAt = nextStr(after)
+
+	var maxKeys *int64
+	if limit < s3MaxKeys {
+		maxKeys = aws.Int64(int64(limit))
 	}
-	objs, err := sto.s3Client.ListBucket(ctx, sto.bucket, sto.dirPrefix+startAt, limit)
+
+	keysGotten := 0
+
+	err := sto.client.ListObjectsV2PagesWithContext(ctx, &s3.ListObjectsV2Input{
+		Bucket:     &sto.bucket,
+		StartAfter: aws.String(sto.dirPrefix + after),
+		MaxKeys:    maxKeys,
+	}, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
+		for _, obj := range page.Contents {
+			dir, file := path.Split(*obj.Key)
+			if dir != sto.dirPrefix {
+				continue
+			}
+			if file == after {
+				continue
+			}
+			br, ok := blob.Parse(file)
+			if !ok {
+				retErr = fmt.Errorf("non-Perkeep object named %q found in %v s3 bucket", file, sto.bucket)
+				return false
+			}
+			select {
+			case dest <- blob.SizedRef{Ref: br, Size: uint32(*obj.Size)}:
+			case <-ctx.Done():
+				retErr = ctx.Err()
+				return false
+			}
+			keysGotten++
+			if keysGotten >= limit {
+				return false
+			}
+		}
+		return true
+	})
+	if err == nil {
+		err = retErr
+	}
+
 	if err != nil {
-		log.Printf("s3 ListBucket: %v", err)
-		return err
-	}
-	for _, obj := range objs {
-		dir, file := path.Split(obj.Key)
-		if dir != sto.dirPrefix {
-			continue
-		}
-		if file == after {
-			continue
-		}
-		br, ok := blob.Parse(file)
-		if !ok {
-			return fmt.Errorf("non-Perkeep object named %q found in %v s3 bucket", file, sto.bucket)
-		}
-		select {
-		case dest <- blob.SizedRef{Ref: br, Size: uint32(obj.Size)}:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+		return fmt.Errorf("s3 EnumerateBlobs: %v", err)
 	}
 	return nil
 }
