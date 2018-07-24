@@ -362,6 +362,7 @@
     "ed25519",
     "ed25519/internal/edwards25519",
     "internal/chacha20",
+    "internal/subtle",
     "nacl/secretbox",
     "openpgp",
     "openpgp/armor",
@@ -376,7 +377,7 @@
     "ssh",
     "ssh/terminal"
   ]
-  revision = "b47b1587369238182299fe4dad77d05b8b461e06"
+  revision = "c126467f60eb25f8f27e5a981f32a87e3965053f"
 
 [[projects]]
   name = "golang.org/x/image"
@@ -601,6 +602,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d4d5681c06c8397d6676e8bc4a52bd139393195443cb9dd0c73cc27fe72ac384"
+  inputs-digest = "738fa5a17dc4dae965b8764e225c431bd831f90f98ac870a4f05f3267a14cce7"
   solver-name = "gps-cdcl"
   solver-version = 1

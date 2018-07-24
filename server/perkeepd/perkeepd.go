@@ -222,12 +222,6 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) 
 				HostPolicy: autocert.HostWhitelist(hostname),
 				Cache:      autocert.DirCache(osutil.DefaultLetsEncryptCache()),
 			}
-			log.Printf("Starting to listen on http://0.0.0.0:80 (for Let's Encrypt challenges)")
-			// TODO(mpl): let the http-01 port be configurable, for when behind a proxy
-			go func() {
-				log.Fatalf("Could not start ACME http-014 challenge server: %v",
-					http.ListenAndServe(":http", m.HTTPHandler(nil)))
-			}()
 			ws.SetTLS(webserver.TLSSetup{
 				CertManager: m.GetCertificate,
 			})

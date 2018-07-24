@@ -41,6 +41,8 @@ import (
 	"golang.org/x/net/http2"
 )
 
+const alpnProto = "acme-tls/1" // from golang.org/x/crypto/acme.ALPNProto
+
 type Server struct {
 	mux      *http.ServeMux
 	listener net.Listener
@@ -192,6 +194,7 @@ func (s *Server) Listen(addr string) error {
 		}
 		if s.tlsCertFile == "" && s.certManager != nil {
 			config.GetCertificate = s.certManager
+			config.NextProtos = append(config.NextProtos, alpnProto)
 			s.listener = tls.NewListener(s.listener, config)
 			return nil
 		}
