@@ -317,6 +317,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 	t.Logf("set attribute %q", rootClaim)
 
 	pnChild := id.NewPermanode()
+	id.SetAttribute(pnChild, "unindexed", "lost in time and space")
 	br3 := id.SetAttribute(pnChild, "tag", "bar")
 	br3Time := id.LastTime()
 	t.Logf("set attribute %q", br3)
@@ -533,6 +534,50 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 			if !found {
 				t.Errorf("SearchPermanodesWithAttr: %v was not found.\n", w)
 			}
+		}
+	}
+
+	// SearchPermanodesWithAttr - match none with attr type "tag=nosuchtag"
+	{
+		ch := make(chan blob.Ref, 10)
+		req := &camtypes.PermanodeByAttrRequest{
+			Signer:    id.SignerBlobRef,
+			Attribute: "tag",
+			Query:     "nosuchtag",
+		}
+		err := id.Index.SearchPermanodesWithAttr(ctx, ch, req)
+		if err != nil {
+			t.Fatalf("SearchPermanodesWithAttr = %v", err)
+		}
+		var got []blob.Ref
+		for r := range ch {
+			got = append(got, r)
+		}
+		want := []blob.Ref{}
+		if len(got) != len(want) {
+			t.Errorf("SearchPermanodesWithAttr results differ.\n got: %q\nwant: %q",
+				got, want)
+		}
+	}
+	// SearchPermanodesWithAttr - error for unindexed attr
+	{
+		ch := make(chan blob.Ref, 10)
+		req := &camtypes.PermanodeByAttrRequest{
+			Signer:    id.SignerBlobRef,
+			Attribute: "unindexed",
+		}
+		err := id.Index.SearchPermanodesWithAttr(ctx, ch, req)
+		if err != nil {
+			t.Fatalf("SearchPermanodesWithAttr = %v", err)
+		}
+		var got []blob.Ref
+		for r := range ch {
+			got = append(got, r)
+		}
+		want := []blob.Ref{}
+		if len(got) != len(want) {
+			t.Errorf("SearchPermanodesWithAttr results differ.\n got: %q\nwant: %q",
+				got, want)
 		}
 	}
 
