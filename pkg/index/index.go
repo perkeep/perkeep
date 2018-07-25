@@ -1031,6 +1031,9 @@ func (x *Index) SearchPermanodesWithAttr(ctx context.Context, dest chan<- blob.R
 	if request.Attribute == "" {
 		return errors.New("index: missing Attribute in SearchPermanodesWithAttr")
 	}
+	if !IsIndexedAttribute(request.Attribute) {
+		return fmt.Errorf("SearchPermanodesWithAttr: called with a non-indexed attribute %q", request.Attribute)
+	}
 
 	keyId, err := x.KeyId(ctx, request.Signer)
 	if err == sorted.ErrNotFound {
