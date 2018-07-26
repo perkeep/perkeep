@@ -150,8 +150,25 @@ func (im *imp) AccountSetupHTML(host *importer.Host) string {
   <li>Website: <b>%s</b></li>
   <li>Callback URL: <b>%s</b></li>
 </ul>
-<p>Click "Create your Twitter application".You should be redirected to the Application Management page of your newly created application.
-</br>Go to the API Keys tab. Copy the "API key" and "API secret" into the "Client ID" and "Client Secret" boxes above.</p>
+<!-- TODO(mpl): use CSS to style it to 80 chars wide instead of doing it in source -->
+<p>
+Click "Create your Twitter application".You should be redirected to the</br>
+Application Management page of your newly created application.</br>
+Go to the "Keys and Access Tokens" tab. Copy the "Consumer Key (API Key)" and</br>
+"Consumer Secret (API Secret)" into the "Client ID" and "Client Secret" boxes</br>
+above.
+</p>
+<p>
+Note that the twitter API prevents us from getting more than 3200 tweets<br>
+(including retweets) through your user timeline. So if you have more than that<br>
+limit (and want to get them all), after you have configured this account, you<br>
+need to download all your data as a zip first. Which you can do on your twitter<br>
+page, at: "Settings and Privacy", "Your Twitter data", "Download your Twitter<br>
+data". Then upload it to your instance with "pk-put file tweets.zip" (this will<br>
+return the zip-fileref), and signal the twitter importer that you have it, with<br>
+"pk-put attr &lt;acct-permanode&gt; twitterArchiveZipFileRef &lt;zip-fileref&gt;".<br>
+Then you can start running the importer.
+</p>
 `, base, base+"/callback")
 }
 
