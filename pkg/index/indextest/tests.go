@@ -567,17 +567,8 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 			Attribute: "unindexed",
 		}
 		err := id.Index.SearchPermanodesWithAttr(ctx, ch, req)
-		if err != nil {
-			t.Fatalf("SearchPermanodesWithAttr = %v", err)
-		}
-		var got []blob.Ref
-		for r := range ch {
-			got = append(got, r)
-		}
-		want := []blob.Ref{}
-		if len(got) != len(want) {
-			t.Errorf("SearchPermanodesWithAttr results differ.\n got: %q\nwant: %q",
-				got, want)
+		if err == nil {
+			t.Fatalf("SearchPermanodesWithAttr with unindexed attribute should return an error")
 		}
 	}
 
