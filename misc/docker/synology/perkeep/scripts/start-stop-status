@@ -1,0 +1,39 @@
+#!/bin/sh
+# Copyright 2018 The Perkeep Authors.
+# Licensed under the Apache License, Version 2.0
+
+# TODO(mpl): we can do better, and probably much better. Need to investigate the
+# available tools.
+# https://perkeep-review.googlesource.com/c/perkeep/+/17546/5/misc/docker/synology/perkeep/scripts/start-stop-status#11
+
+case $1 in
+	start)
+		### Start this package.
+		# The doc says the binary is run by the user that owns it (and if we have a
+		# conf/privilege file in pkg), but that's apparently a lie. So we do the su
+		# to another user (http, which should already exist) ourselves.
+		sudo -u admin HOME=/var/services/homes/admin perkeepd -openbrowser=false >> /var/services/homes/admin/var/perkeep.log 2>&1 &
+		exit 0
+	;;
+	stop)
+		### Stop this package.
+		# Apparently pkill is not installed.
+		kill $(ps -u admin | grep -m 1 'perkeepd' | awk '{print $1}')
+		exit 0
+	;;
+	status)
+		### Check package alive.
+		if test -z "$(ps -u admin | grep -m 1 'perkeepd')"
+		then
+			echo "Not running"
+		else
+			echo "Running"
+		fi
+	;;
+	killall)
+        ;;
+	log)
+		exit 0
+	;;
+esac
+

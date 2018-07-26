@@ -1,0 +1,30 @@
+#!/bin/sh
+# Copyright 2018 The Perkeep Authors.
+# Licensed under the Apache License, Version 2.0
+
+### This script will be executed when package installed and upgraded.
+### Actions after package installed.
+### ex. create database, create symbolic link...
+
+# make sure it's only run during package installation
+if test -z "$SYNOPKG_PKGDEST"
+then
+	exit 1
+fi
+
+# according to the doc, the owner of the files is the user that will be used to
+# run the service (even though that does not seem to be enough/working).
+# user http should always exist, so we need not bother with creating a perkeep user.
+chown http:http $SYNOPKG_PKGDEST/usr/bin/*
+ln -sf $SYNOPKG_PKGDEST/usr/bin/perkeepd /usr/bin/
+ln -sf $SYNOPKG_PKGDEST/usr/bin/pk /usr/bin/
+ln -sf $SYNOPKG_PKGDEST/usr/bin/pk-get /usr/bin/
+ln -sf $SYNOPKG_PKGDEST/usr/bin/pk-put /usr/bin/
+ln -sf $SYNOPKG_PKGDEST/usr/bin/pk-mount /usr/bin/
+# we persist the conf, blobs, and log in the admin home.
+# then users can view/modify the conf themselves in the file station.
+mkdir -p /var/services/homes/admin/var
+
+echo "Please see https://perkeep.org/doc/synology for the next steps." > $SYNOPKG_TEMP_LOGFILE
+
+exit 0

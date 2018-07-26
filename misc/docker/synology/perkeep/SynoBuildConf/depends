@@ -1,0 +1,6 @@
+# Copyright (C) 2000-2016 Synology Inc. All rights reserved.
+
+# Keeping this file and section because they're in the doc and examples, but
+# this is overriden by the -v flag of PkgCreate.py anyway
+[default]
+all="6.2"

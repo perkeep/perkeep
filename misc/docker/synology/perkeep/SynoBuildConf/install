@@ -1,0 +1,55 @@
+#!/bin/bash
+# Copyright (C) 2000-2016 Synology Inc. All rights reserved.
+
+### Use PKG_DIR as working directory.
+PKG_DIR=/tmp/_test_spk
+rm -rf $PKG_DIR
+mkdir -p $PKG_DIR
+
+### get spk packing functions
+source /pkgscripts/include/pkg_util.sh
+
+create_package_tgz() {
+	local firewere_version=
+	local package_tgz_dir=/tmp/_package_tgz
+	local binary_dir=$package_tgz_dir/usr/bin
+
+	### clear destination directory
+	rm -rf $package_tgz_dir && mkdir -p $package_tgz_dir
+
+	### install needed file into PKG_DIR
+	mkdir -p $binary_dir
+	cp -av /root/bin/pk* /root/bin/perkeepd $binary_dir
+
+	### create package.tgz $1: source_dir $2: dest_dir
+	pkg_make_package $package_tgz_dir "${PKG_DIR}"
+}
+
+create_spk(){
+	local scripts_dir=$PKG_DIR/scripts
+
+	### Copy package center scripts to PKG_DIR
+	mkdir -p $scripts_dir
+	cp -av scripts/* $scripts_dir
+
+	### Copy package icon
+	cp -av PACKAGE_ICON*.PNG $PKG_DIR
+
+	### Generate INFO file
+	./INFO.sh > INFO
+	cp INFO $PKG_DIR/INFO
+
+	### Create the final spk.
+	# pkg_make_spk <source path> <dest path> <spk file name>
+	# Please put the result spk into /image/packages
+	# spk name functions: pkg_get_spk_name pkg_get_spk_unified_name pkg_get_spk_family_name
+	mkdir -p /image/packages
+	pkg_make_spk ${PKG_DIR} "/image/packages" $(pkg_get_spk_family_name)
+}
+
+main() {
+	create_package_tgz
+	create_spk
+}
+
+main "$@"
