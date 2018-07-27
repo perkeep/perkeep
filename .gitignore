@@ -35,6 +35,7 @@ bin/website
 clients/android/.gradle/
 clients/web/embed/fontawesome/zembed_*.go
 clients/web/embed/glitch/zembed_*.go
+clients/web/embed/keepy/zembed_*.go
 clients/web/embed/leaflet/zembed_*.go
 clients/web/embed/less/zembed_*.go
 clients/web/embed/opensans/zembed_*.go
