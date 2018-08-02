@@ -234,12 +234,6 @@ func (q *Query) SetZoom(north, west, south, east float64) {
 	q.Expr = handleZoomPredicate(q.Expr, false, zoomExpr)
 }
 
-// GetZoom returns the location area that was requested for the last successful
-// query.
-func (q *Query) GetZoom() *camtypes.LocationBounds {
-	return q.zoom
-}
-
 // HasZoomParameter returns whether queryString is the "q" parameter of a search
 // query, and whether that parameter contains a map zoom (map predicate).
 func HasZoomParameter(queryString string) bool {
