@@ -24,7 +24,6 @@ import (
 	"perkeep.org/server/perkeepd/ui/goui/aboutdialog"
 	"perkeep.org/server/perkeepd/ui/goui/dirchildren"
 	"perkeep.org/server/perkeepd/ui/goui/downloadbutton"
-	"perkeep.org/server/perkeepd/ui/goui/geo"
 	"perkeep.org/server/perkeepd/ui/goui/importshare"
 	"perkeep.org/server/perkeepd/ui/goui/mapquery"
 	"perkeep.org/server/perkeepd/ui/goui/selectallbutton"
@@ -40,22 +39,15 @@ func main() {
 		"ShareItemsBtn":    sharebutton.New,
 		"SelectAllBtn":     selectallbutton.New,
 		"NewDirChildren":   dirchildren.New,
-		"Geocode":          geo.Lookup,
-		"IsLocPredicate":   geo.IsLocPredicate,
 		// TODO: we want to investigate integrating the share importer with the other
 		// importers. But if we instead end up keeping it tied to a dialog, we need to add
 		// a cancel button to the dialog, that triggers the context cancellation.
 		"ImportShare": func(cfg map[string]string, shareURL string, updateDialogFunc func(message string, importedBlobRef string)) {
 			importshare.Import(context.TODO(), cfg, shareURL, updateDialogFunc)
 		},
-		"HandleLocAreaPredicate": geo.HandleLocAreaPredicate,
-		"HandleZoomPredicate":    geo.HandleZoomPredicate,
-		"LocPredicatePrefix":     geo.LocPredicatePrefix,
-		"LocationCenter":         geo.LocationCenter,
-		"WrapAntimeridian":       geo.WrapAntimeridian,
-		"NewMapQuery":            mapquery.New,
-		"DeleteMapZoom":          mapquery.DeleteZoomPredicate,
-		"ShiftMapZoom":           mapquery.ShiftZoomPredicate,
-		"HasZoomParameter":       mapquery.HasZoomParameter,
+		"NewMapQuery":      mapquery.New,
+		"DeleteMapZoom":    mapquery.DeleteZoomPredicate,
+		"ShiftMapZoom":     mapquery.ShiftZoomPredicate,
+		"HasZoomParameter": mapquery.HasZoomParameter,
 	})
 }

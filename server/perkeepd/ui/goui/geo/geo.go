@@ -19,14 +19,10 @@ limitations under the License.
 package geo
 
 import (
-	"context"
 	"fmt"
-	"log"
-	"math"
 	"strconv"
 	"strings"
 
-	"perkeep.org/internal/geocode"
 	"perkeep.org/pkg/types/camtypes"
 )
 
@@ -35,35 +31,6 @@ const (
 	LocAreaPredicatePrefix = "locrect"
 	LocMapPredicatePrefix  = "map"
 )
-
-// HandleLocAreaPredicate checks whether predicate is a location area predicate
-// (locrect). If so, it runs asynchronously handleCoordinatesFound on the given
-// coordinates, and returns true. Otherwise, it returns false.
-func HandleLocAreaPredicate(predicate string, handleCoordinatesFound func(*camtypes.LocationBounds)) bool {
-	r, err := rectangleFromPredicate(predicate, LocAreaPredicatePrefix)
-	if err != nil {
-		return false
-	}
-	go handleCoordinatesFound(r)
-	return true
-}
-
-// HandleLocAreaPredicate checks whether predicate contains a map location predicate
-// (map:). If so, it runs asynchronously handleCoordinatesFound on the given
-// coordinates, and returns true. Otherwise, it returns false.
-func HandleZoomPredicate(predicate string, handleCoordinatesFound func(*camtypes.LocationBounds)) bool {
-	tp := strings.TrimSpace(predicate)
-	if tp == "" {
-		return false
-	}
-	fields := strings.Fields(tp)
-	r, err := rectangleFromPredicate(fields[len(fields)-1], LocMapPredicatePrefix)
-	if err != nil {
-		return false
-	}
-	go handleCoordinatesFound(r)
-	return true
-}
 
 // IsLocMapPredicate returns whether predicate is a map location predicate.
 func IsLocMapPredicate(predicate string) bool {
@@ -99,128 +66,4 @@ func rectangleFromPredicate(predicate, kind string) (*camtypes.LocationBounds, e
 		East:  coord[3],
 		West:  coord[1],
 	}, nil
-}
-
-// IsLocPredicate returns whether the given predicate is a simple (as in, not
-// composed) location predicate, such as the one supported by the Perkeep search
-// handler (e.g. "loc:seattle").
-func IsLocPredicate(predicate string) bool {
-	if !strings.HasPrefix(predicate, LocPredicatePrefix+":") {
-		return false
-	}
-	loc := strings.TrimPrefix(predicate, LocPredicatePrefix+":")
-	if !strings.HasPrefix(loc, `"`) {
-		if len(strings.Fields(loc)) > 1 {
-			// Not a simple location query, but a logical one. Deal with it in another CL.
-			// TODO(mpl): accept more complex queries.
-			return false
-		}
-		return true
-	}
-	// we have a quoted location
-	if !strings.HasSuffix(loc, `"`) {
-		// the quoted location ends before the end of the query, or the quote never closes. either way, refuse that.
-		return false
-	}
-	if strings.Count(loc, `"`) != 2 {
-		// refuse anything that is not just one quoted location
-		return false
-	}
-	return true
-}
-
-// Lookup searches for the coordinates of the given location, and passes the
-// found zone (a rectangle), if any, to handleCoordinatesFound.
-func Lookup(location string, handleCoordinatesFound func(*camtypes.LocationBounds)) {
-	go func() {
-		rect, err := geocode.Lookup(context.Background(), location)
-		if err != nil {
-			log.Printf("geocode lookup error: %v", err)
-			return
-		}
-		if len(rect) == 0 {
-			log.Printf("no coordinates found for %v", location)
-			return
-		}
-		handleCoordinatesFound(&camtypes.LocationBounds{
-			North: rect[0].NorthEast.Lat,
-			South: rect[0].SouthWest.Lat,
-			East:  rect[0].NorthEast.Long,
-			West:  rect[0].SouthWest.Long,
-		})
-	}()
-}
-
-// Location is a geographical coordinate, specified by its latitude and its longitude.
-type Location struct {
-	Lat  float64 // -90 (south) to 90 (north)
-	Long float64 // -180 (west) to 180 (east)
-}
-
-// TODO(mpl): write tests for LocationCenter, if we end up keeping it. not
-// needed anymore for now, but might soon very well be. Otherwise remove.
-
-// LocationCenter returns the center of the rectangle defined by the given
-// coordinates.
-func LocationCenter(north, south, west, east float64) Location {
-	var lat, long float64
-	if west < east {
-		long = west + (east-west)/2.
-	} else {
-		// rectangle spanning longitude ±180°
-		awest := math.Abs(west)
-		aeast := math.Abs(east)
-		if awest > aeast {
-			long = east - (awest-aeast)/2.
-		} else {
-			long = west + (aeast-awest)/2.
-		}
-	}
-	// TODO(mpl): are there tricky cases at ±90?
-	lat = south + (north-south)/2.
-	return Location{
-		Lat:  lat,
-		Long: long,
-	}
-}
-
-// EastWest is returned by WrapAntimeridian. It exists only because there's no
-// multi-valued returns with javascript functions, so we need WrapAntimeridian to
-// return some sort of struct, that gets converted to a javascript object by
-// gopherjs.
-type EastWest struct {
-	E float64
-	W float64
-}
-
-// WrapAntimeridian determines if the shortest geodesic between east and west
-// goes over the antimeridian. If yes, it converts one of the two to the closest
-// equivalent value out of the [-180, 180] range. The choice of which of the two to
-// convert is such as to maximize the part of the geodesic that stays in the
-// [-180, 180] range.
-// The reason for that function is that leaflet.js cannot handle drawing areas that
-// cross the antimeridian if both corner are in the [-180, 180] range.
-// https://github.com/Leaflet/Leaflet/issues/82
-func WrapAntimeridian(east, west float64) EastWest {
-	if west < east {
-		return EastWest{
-			E: east,
-			W: west,
-		}
-	}
-	lc := LocationCenter(50, -50, west, east)
-	if lc.Long > 0 {
-		// wrap around the +180 antimeridian.
-		newEast := 180 + (180 - math.Abs(east))
-		return EastWest{
-			E: newEast,
-			W: west,
-		}
-	}
-	// else wrap around the -180 antimeridian
-	newWest := -180 - (180 - west)
-	return EastWest{
-		E: east,
-		W: newWest,
-	}
 }

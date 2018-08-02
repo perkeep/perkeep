@@ -93,12 +93,6 @@ cam.MapAspect = React.createClass({
 	},
 
 	componentWillMount: function() {
-		this.location = {
-			North: 0.0,
-			South: 0.0,
-			East: 0.0,
-			West: 0.0,
-		};
 		this.clusteringOn = this.props.config.mapClustering;
 		if (this.clusteringOn == false) {
 			// Even 100 is actually too much, and https://github.com/perkeep/perkeep/issues/937 ensues
@@ -117,7 +111,6 @@ cam.MapAspect = React.createClass({
 		this.cluster = null;
 		this.markersGroup = null;
 		this.mapQuery = null;
-		this.locationFound = false;
 		this.locationFromMarkers = null;
 		this.initialSearchSession = this.props.searchSession;
 	},
@@ -189,91 +182,18 @@ cam.MapAspect = React.createClass({
 		);
 	},
 
-	// setCoordinatesFromSearchQuery looks into the search session query for obvious
-	// geographic coordinates. Either a location predicate ("loc:seattle"), or a
-	// location area predicate ("locrect:48.63,-123.37,46.59,-121.28") are considered
-	// for now.
-	setCoordinatesFromSearchQuery: function() {
+	triggerInitialZoom: function() {
 		var q = this.initialSearchSession.getQueryExprOrRef();
-		if (goreact.IsLocPredicate(q)) {
-			// a "loc" query
-			goreact.Geocode(q.substring(goreact.LocPredicatePrefix.length), function(rect) {
-				return this.handleCoordinatesFound(rect, true);
-			}.bind(this));
-			return;
-		}
-		if (goreact.HandleLocAreaPredicate(q, function(rect) {
-				return this.handleCoordinatesFound(rect, true);
-			}.bind(this))) {
-			// a "locrect" area query
-			return;
-		}
 		q = goreact.ShiftMapZoom(q);
-		if (goreact.HandleZoomPredicate(q, function(rect) {
-				return this.handleCoordinatesFound(rect, false);
-			}.bind(this))) {
-			// we have a zoom (map:) in the query
-			return;
-		}
-		// Not a location type query
 		window.dispatchEvent(new Event('resize'));
 	},
 
-	// handleCoordinatesFound sets this.location (a rectangle), this.latitude, and
-	// this.longitude (center of this.location), from the given rectangle.
-	handleCoordinatesFound: function(rect, draw) {
-		if (!rect) {
-			return;
-		}
-		var eastWest = goreact.WrapAntimeridian(rect.East, rect.West);
-		rect.West = eastWest.W;
-		rect.East = eastWest.E;
-		if (this.sameLocations(rect, this.location)) {
-			return;
-		}
-		this.location = rect;
-		if (draw) {
-			L.rectangle([[this.location.North, this.location.East],[this.location.South,this.location.West]], {color: "#ff7800", weight: 1}).addTo(this.map);
-		}
-		this.locationFound = true;
-		window.dispatchEvent(new Event('resize'));
-		return;
-	},
-
-	// refreshMapView pans to the relevant coordinates found for the current search
-	// session, if any. Otherwise, pan to englobe all the markers that were drawn.
+	// refreshMapView pans to englobe all the markers that were drawn.
 	refreshMapView: function() {
-		var zoom = null;
-		if (!this.locationFound && !this.locationFromMarkers) {
-			if (!this.mapQuery) {
-				return;
-			}
-			zoom = this.mapQuery.GetZoom();
-			if (!zoom) {
-				return;
-			}
+		if (!this.locationFromMarkers) {
+			return;
 		}
-		if (zoom) {
-			// TODO(mpl): I think we want to remove that case, now that locationFound also
-			// takes into account when a "map:" predicate is found in the initial search
-			// session query.
-			var location = L.latLngBounds(L.latLng(zoom.North, zoom.East), L.latLng(zoom.South, zoom.West));
-		} else if (this.locationFound) {
-			// pan to the location we found in the search query itself.
-			var location = L.latLngBounds(L.latLng(this.location.North, this.location.East),
-				L.latLng(this.location.South, this.location.West));
-		} else {
-			// otherwise, fit the view to encompass all the markers that were drawn
-			var location = this.locationFromMarkers;
-		}
-		this.map.fitBounds(location);
-	},
-
-	sameLocations: function(loc1, loc2) {
-		return (loc1.North == loc2.North &&
-			loc1.South == loc2.South &&
-			loc1.West == loc2.West &&
-			loc1.East == loc2.East)
+		this.map.fitBounds(this.locationFromMarkers);
 	},
 
 	// loadMarkers sets markers on the map for all the permanodes, with a location,
@@ -475,7 +395,7 @@ cam.MapAspect = React.createClass({
 		// needed/useless as MapSorted queries do not support continuation of any kind.
 
 		if (this.firstLoad) {
-			this.setCoordinatesFromSearchQuery();
+			this.triggerInitialZoom();
 		}
 		// even if we're not here because of a zoom change (i.e. either first load, or
 		// new search was entered), we still call updateSearchBar here to update the zoom
