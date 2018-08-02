@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/url"
@@ -60,6 +61,10 @@ type Rect struct {
 // when Lookup is not being called.
 var AltLookupFn func(ctx context.Context, address string) ([]Rect, error)
 
+const (
+	apiKeyName = "google-geocode.key"
+)
+
 var (
 	mu     sync.RWMutex
 	cache  = map[string][]Rect{}
@@ -68,7 +73,18 @@ var (
 	sf singleflight.Group
 )
 
-func getAPIKey() (string, error) {
+// GetAPIKeyPath returns the file path to the Google geocoding API key.
+func GetAPIKeyPath() (string, error) {
+	dir, err := osutil.PerkeepConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("could not get config dir: %v", err)
+	}
+	return filepath.Join(dir, apiKeyName), nil
+}
+
+// GetAPIKey returns the Google geocoding API key stored in the Perkeep
+// configuration directory as google-geocode.key.
+func GetAPIKey() (string, error) {
 	mu.RLock()
 	key := apiKey
 	mu.RUnlock()
@@ -82,7 +98,7 @@ func getAPIKey() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	slurp, err := wkfs.ReadFile(filepath.Join(dir, "google-geocode.key"))
+	slurp, err := wkfs.ReadFile(filepath.Join(dir, apiKeyName))
 	if os.IsNotExist(err) {
 		return "", ErrNoGoogleKey
 	}
@@ -113,7 +129,7 @@ func Lookup(ctx context.Context, address string) ([]Rect, error) {
 		return rects, nil
 	}
 
-	key, err := getAPIKey()
+	key, err := GetAPIKey()
 	if err != nil {
 		return nil, err
 	}

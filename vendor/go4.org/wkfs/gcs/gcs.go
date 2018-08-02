@@ -102,6 +102,9 @@ func (fs *gcsFS) Open(name string) (wkfs.File, error) {
 	obj := fs.sc.Bucket(bucket).Object(fileName)
 	attrs, err := obj.Attrs(fs.ctx)
 	if err != nil {
+		if err == storage.ErrObjectNotExist {
+			return nil, os.ErrNotExist
+		}
 		return nil, err
 	}
 	size := attrs.Size

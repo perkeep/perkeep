@@ -35,6 +35,7 @@ import (
 	"syscall"
 	"time"
 
+	"perkeep.org/internal/geocode"
 	"perkeep.org/internal/httputil"
 	"perkeep.org/internal/netutil"
 	"perkeep.org/internal/osutil"
@@ -369,6 +370,23 @@ func setBlobpackedRecovery() {
 	}
 }
 
+// checkGeoKey returns nil if we have a Google Geocoding API key file stored
+// in the config dir. Otherwise it returns instruction about it as the error.
+func checkGeoKey() error {
+	if _, err := geocode.GetAPIKey(); err == nil {
+		return nil
+	}
+	keyPath, err := geocode.GetAPIKeyPath()
+	if err != nil {
+		return fmt.Errorf("error getting Geocoding API key path: %v", err)
+	}
+	if env.OnGCE() {
+		keyPath = strings.TrimPrefix(keyPath, "/gcs/")
+		return fmt.Errorf("for location related requests to properly work, you need to create a Google Geocoding API Key (see https://developers.google.com/maps/documentation/geocoding/get-api-key ), and save it in your VM's configuration bucket as: %v", keyPath)
+	}
+	return fmt.Errorf("for location related requests to properly work, you need to create a Google Geocoding API Key (see https://developers.google.com/maps/documentation/geocoding/get-api-key ), and save it in Perkeep's configuration directory as: %v", keyPath)
+}
+
 // main wraps Main so tests (which generate their own func main) can still run Main.
 func main() { Main() }
 
@@ -449,6 +467,10 @@ func Main() {
 	}
 	if env.OnGCE() {
 		gce.FixUserDataForPerkeepRename()
+	}
+
+	if err := checkGeoKey(); err != nil {
+		log.Printf("perkeepd: %v", err)
 	}
 
 	urlToOpen := baseURL + config.UIPath()
