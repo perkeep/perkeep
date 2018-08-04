@@ -61,24 +61,16 @@ func main() {
 		goarch = "arm"
 	}
 
-	// docker build -t perkeep/synology --build-arg arch=x64 --build-arg dsm=6.2 --build-arg gobin=/go/bin --build-arg goarch=amd64
-	args := []string{"build"}
-	if *flagNoCache {
-		args = append(args, "--no-cache")
-	}
-	args = append(args, "-t", "perkeep/synology",
-		"--build-arg", "arch="+*flagArch,
-		"--build-arg", "dsm="+*flagDsm,
-		"--build-arg", "gobin="+gobin,
-		"--build-arg", "goarch="+goarch,
-		"--build-arg", "perkeep_version="+*flagPerkeepRev,
-		".")
-	cmd := exec.Command("docker", args...)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		log.Fatalf("Error building synology image: %v, %s", err, out)
-	}
-	fmt.Println(string(out))
+	// we start by building only the first stage of the Dockerfile, even though
+	// we're eventually going to build all the stages. We do that in order to tag the
+	// first stage (with its relevant arch in the tag), and therefore so it does not
+	// get removed by 'docker rmi'.
+
+	// docker build --target pkbuild -t perkeep/synology-pkbuild-x64 --build-arg arch=x64 --build-arg dsm=6.2 --build-arg gobin=/go/bin --build-arg goarch=amd64 --build-arg perkeep_version=8b537a66307cf41a659786f1a898c77b46303601 .
+	buildImage(gobin, goarch, true)
+
+	// docker build -t perkeep/synology-x64 --build-arg arch=x64 --build-arg dsm=6.2 --build-arg gobin=/go/bin --build-arg goarch=amd64 --build-arg perkeep_version=8b537a66307cf41a659786f1a898c77b46303601 .
+	buildImage(gobin, goarch, false)
 
 	if err := os.MkdirAll(filepath.Join(pwd+"/out"), 0755); err != nil {
 		log.Fatalf("Error creating out dir: %v", err)
@@ -102,6 +94,35 @@ func main() {
 	runPkgCreate()
 }
 
+func buildImage(gobin, goarch string, firstStageOnly bool) {
+	args := []string{"build"}
+	if *flagNoCache {
+		args = append(args, "--no-cache")
+	}
+	if firstStageOnly {
+		args = append(args, "--target", "pkbuild",
+			"-t", "perkeep/synology-pkbuild-"+*flagArch)
+	} else {
+		args = append(args, "-t", "perkeep/synology-"+*flagArch)
+	}
+	args = append(args,
+		"--build-arg", "arch="+*flagArch,
+		"--build-arg", "dsm="+*flagDsm,
+		"--build-arg", "gobin="+gobin,
+		"--build-arg", "goarch="+goarch,
+		"--build-arg", "perkeep_version="+*flagPerkeepRev,
+		".")
+	cmd := exec.Command("docker", args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		if firstStageOnly {
+			log.Fatalf("Error building first stage of synology image: %v, %s", err, out)
+		}
+		log.Fatalf("Error building synology image: %v, %s", err, out)
+	}
+	fmt.Println(string(out))
+}
+
 // runPkgCreate runs the actual build/install step provided in the DSM toolkit: ./pkgscripts/PkgCreate.py
 // It can't be run during the build stage (in the Dockerfile), because it does
 // privileged operations (at least chroot) so it is run as a privileged container.
@@ -115,7 +136,7 @@ func runPkgCreate() {
 	cmd := exec.Command("docker", "run", "--rm", "--privileged",
 		"-v", filepath.Join(pwd+"/out")+":/toolkit/result_spk",
 		"-v", filepath.Join(os.Getenv("HOME"), "keys", "perkeep-synology")+":/toolkit/build_env/"+build_env+"/root/.gnupg",
-		"perkeep/synology",
+		"perkeep/synology-"+*flagArch,
 		"./pkgscripts/PkgCreate.py", "-p", *flagArch, "-v", *flagDsm, "-x0", "-c", "--print-log", `--build-opt="-J"`, "perkeep")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
