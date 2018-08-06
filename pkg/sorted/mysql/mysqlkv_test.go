@@ -48,6 +48,7 @@ func TestMySQLKV(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mysql.NewKeyValue = %v", err)
 	}
+	defer kv.Close()
 	kvtest.TestSorted(t, kv)
 }
 
@@ -66,6 +67,7 @@ func TestRollback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mysql.NewKeyValue = %v", err)
 	}
+	defer kv.Close()
 
 	kv.(*keyValue).KeyValue.BatchSetFunc = func(*sql.Tx, string, string) error {
 		return errors.New("Forced failure to trigger a rollback")

@@ -144,8 +144,7 @@
 [[projects]]
   name = "github.com/go-sql-driver/mysql"
   packages = ["."]
-  revision = "a0583e0143b1624142adab07e0e97fe106d99561"
-  version = "v1.3"
+  revision = "99ff426eb706cffe92ff3d058e168b278cabf7c7"
 
 [[projects]]
   name = "github.com/golang/protobuf"
@@ -555,6 +554,7 @@
   name = "google.golang.org/appengine"
   packages = [
     ".",
+    "cloudsql",
     "internal",
     "internal/app_identity",
     "internal/base",
@@ -653,6 +653,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d97242da1ca15b3585cd401e78494a4cbd0958cdfed981ec58bc1a8fad4ea2f6"
+  inputs-digest = "ebed12075db63a1513fef35ee6981243657c31caecbc4cd16d2570e70ae270f9"
   solver-name = "gps-cdcl"
   solver-version = 1

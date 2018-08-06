@@ -271,7 +271,7 @@ func setupContainer(t *testing.T, image string, port int, timeout time.Duration,
 
 const (
 	mongoImage       = "mpl7/mongo"
-	mysqlImage       = "mysql:5"
+	mysqlImage       = "mysql:8"
 	MySQLUsername    = "root"
 	MySQLPassword    = "root"
 	postgresImage    = "nornagon/postgres"
