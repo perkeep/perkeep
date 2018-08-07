@@ -789,6 +789,48 @@ func TestQueryDirWithFileConstraint(t *testing.T) {
 	})
 }
 
+// find a dir that doesn't contain any text files
+func TestQueryDirWithLogicalNotConstraint(t *testing.T) {
+	testQuery(t, func(qt *queryTest) {
+		id := qt.id
+		fileRef1, _ := id.UploadFile("some-stuff.txt", "hello", time.Unix(123, 0))
+		qt.t.Logf("fileRef1 = %q", fileRef1)
+		fileRef2, _ := id.UploadFile("more-stuff.txt", "world", time.Unix(456, 0))
+		qt.t.Logf("fileRef2 = %q", fileRef2)
+		dirRef1 := id.UploadDir("somedir", []blob.Ref{fileRef1, fileRef2}, time.Unix(789, 0))
+		qt.t.Logf("dirRef1 = %q", dirRef1)
+		p1 := id.NewPlannedPermanode("1")
+		id.SetAttribute(p1, "camliContent", dirRef1.String())
+
+		fileRef3, _ := id.UploadFile("other-file", "hellooooo", time.Unix(101112, 0))
+		qt.t.Logf("fileRef3 = %q", fileRef3)
+		dirRef2 := id.UploadDir("anotherdir", []blob.Ref{fileRef3}, time.Unix(181112, 0))
+		qt.t.Logf("dirRef2 = %q", dirRef2)
+		p2 := id.NewPlannedPermanode("2")
+		id.SetAttribute(p2, "camliContent", dirRef2.String())
+
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Dir: &DirConstraint{
+					Contains: &Constraint{
+						Logical: &LogicalConstraint{
+							A: &Constraint{
+								File: &FileConstraint{
+									FileName: &StringConstraint{
+										HasSuffix: ".txt",
+									},
+								},
+							},
+							Op: "not",
+						},
+					},
+				},
+			},
+		}
+		qt.wantRes(sq, dirRef2)
+	})
+}
+
 // find permanode with a dir that contains a certain file or dir
 func TestQueryDirWithFileOrDirConstraint(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
