@@ -226,7 +226,7 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) 
 			ws.SetTLS(webserver.TLSSetup{
 				CertManager: m.GetCertificate,
 			})
-			log.Printf("Using Let's Encrypt tls-apln-01 for %v", hostname)
+			log.Printf("Using Let's Encrypt tls-alpn-01 for %v", hostname)
 			return
 		}
 		// Otherwise generate new certificates
