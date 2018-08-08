@@ -2063,6 +2063,9 @@ func (c *DirConstraint) checkValid() error {
 
 func (c *Constraint) isFileOrDirConstraint() bool {
 	if l := c.Logical; l != nil {
+		if l.Op == "not" {
+			return l.A.isFileOrDirConstraint() // l.B is nil
+		}
 		return l.A.isFileOrDirConstraint() && l.B.isFileOrDirConstraint()
 	}
 	return c.File != nil || c.Dir != nil
