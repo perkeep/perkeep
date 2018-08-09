@@ -19,6 +19,7 @@ package auth // import "perkeep.org/pkg/auth"
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"net/http"
@@ -242,11 +243,11 @@ type UserPass struct {
 func (up *UserPass) AllowedAccess(req *http.Request) Operation {
 	user, pass, err := httputil.BasicAuth(req)
 	if err == nil {
-		if user == up.Username {
-			if pass == up.Password {
+		if subtle.ConstantTimeCompare([]byte(user), []byte(up.Username)) == 1 {
+			if subtle.ConstantTimeCompare([]byte(pass), []byte(up.Password)) == 1 {
 				return OpAll
 			}
-			if up.VivifyPass != nil && pass == *up.VivifyPass {
+			if up.VivifyPass != nil && subtle.ConstantTimeCompare([]byte(pass), []byte(*up.VivifyPass)) == 1 {
 				return OpVivify
 			}
 		}
