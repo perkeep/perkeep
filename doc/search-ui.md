@@ -35,13 +35,20 @@ escaping.  For example:
 **<a name="after"></a>after**
 : date format is RFC3339, but can be shortened as required.
 
-**<a name="before"></a>before**
-: i.e. `2011-01-01` is Jan 1 of year 2011, and `2011` means the same.
-
 **<a name="attr"></a>attr**
 : match on attribute. Use attr:foo:bar to match nodes having their foo attribute
   set to bar, or attr:foo:~bar to match nodes whose foo attribute contains bar
   (case insensitive substring match).
+
+**<a name="before"></a>before**
+: i.e. `2011-01-01` is Jan 1 of year 2011, and `2011` means the same.
+
+**<a name="childrenof"></a>childrenof**
+: Find child permanodes of a parent permanode (or prefix of a parent permanode):
+  `childrenof:sha1-527cf12`
+
+**<a name="filename"></a>filename**
+: search for permanodes of files with this filename (case sensitive)
 
 **<a name="format"></a>format**
 : file's format (or MIME-type) such as jpg, pdf, tiff.
@@ -49,6 +56,26 @@ escaping.  For example:
 **<a name="location"></a>has:location**
 : image has a location (GPSLatitude and GPSLongitude can be retrieved from the
   image's EXIF tags).
+
+**<a name="height"></a>height**
+: use `height:min-max` to match images having a height of at least min and at most
+  max. Use `height:min-` to specify only an underbound and `height:-max` to specify
+  only an upperbound.  Exact matches should use `height:480`
+
+**<a name="image"></a>is:image**
+: object is an image
+
+**<a name="lanscape"></a>is:landscape**
+: the image has a landscape aspect
+
+**<a name="like"></a>is:like**
+: the object is a liked tweet
+
+**<a name="pano"></a>is:pano**
+: the image is panoramic: its width to height ratio is greater than or equal to 2.0.
+
+**<a name="portrait"></a>is:portrait**
+: the image has a portrait aspect.
 
 **<a name="loc"></a>loc**
 : uses the available metadata, such as EXIF GPS fields, or check-in locations,
@@ -75,25 +102,17 @@ escaping.  For example:
      rest of whole expression (regardless of its position within the expression),
      logical 'or's around it are forbidden.
 
-**<a name="like"></a>is:like**
-: object is a liked tweet
+**<a name="parentof"></a>parentof**
+: Find parent permanodes of a child permanode (or prefix of a child permanode):
+  `parentof:sha1-527cf12`
 
-**<a name="image"></a>is:image**
-: object is an image
+**<a name="raw"></a>raw**
+: matches the given JSON [search constraint](https://perkeep.org/pkg/search#Constraint).<br>
+  `raw:{"permanode": {"attr": "camliContent", "valueInSet": {"file": {"mediaTag": {"tag": "title", "string": {"hasPrefix": "Bohemian"}}}}}}`
 
-**<a name="lanscape"></a>is:landscape**
-: the image has a landscape aspect
-
-**<a name="pano"></a>is:pano**
-: the image is panoramic: its width to height ratio is greater than or equal to 2.0.
-
-**<a name="portrait"></a>is:portrait**
-: the image has a portrait aspect.
-
-**<a name="height"></a>height**
-: use `height:min-max` to match images having a height of at least min and at most
-  max. Use `height:min-` to specify only an underbound and `height:-max` to specify
-  only an upperbound.  Exact matches should use `height:480`
+**<a name="ref"></a>ref**
+: matches nodes whose blobRef starts with the given substring:
+  `ref:sha1-527cf12`
 
 **<a name="tag"></a>tag**
 : match on a tag
@@ -102,18 +121,3 @@ escaping.  For example:
 : use width:min-max to match images having a width of at least min and at most
   max. Use width:min- to specify only an underbound and width:-max to specify
   only an upperbound.  Exact matches should use `width:640`
-
-**<a name="filename"></a>filename**
-: search for permanodes of files with this filename (case sensitive)
-
-**<a name="childrenof"></a>childrenof**
-: Find child permanodes of a parent permanode (or prefix of a parent permanode):
-  `childrenof:sha1-527cf12`
-
-**<a name="parentof"></a>parentof**
-: Find parent permanodes of a child permanode (or prefix of a child permanode):
-  `parentof:sha1-527cf12`
-
-**<a name="ref"></a>ref**
-: matches nodes whose blobRef starts with the given substring:
-  `ref:sha1-527cf12`
