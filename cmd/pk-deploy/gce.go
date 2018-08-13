@@ -148,6 +148,7 @@ func (c *gceCmd) RunCommand(args []string) error {
 	depl := &gce.Deployer{
 		Client: hc,
 		Conf:   instConf,
+		Logger: log.New(cmdmain.Stderr, "", log.Flags()),
 	}
 	inst, err := depl.Create(context.Background())
 	if err != nil {
