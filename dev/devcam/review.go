@@ -145,14 +145,14 @@ func checkOrigin() {
 func setPushOrigin() {
 	out, err := exec.Command("git", "remote", "set-url", "--push", "origin", newOrigin).CombinedOutput()
 	if err != nil {
-		log.Fatal("%v, %s", err, out)
+		log.Fatalf("%v, %s", err, out)
 	}
 }
 
 func setFetchOrigin() {
 	out, err := exec.Command("git", "remote", "set-url", "origin", newOrigin).CombinedOutput()
 	if err != nil {
-		log.Fatal("%v, %s", err, out)
+		log.Fatalf("%v, %s", err, out)
 	}
 }
 

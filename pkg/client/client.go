@@ -524,7 +524,7 @@ func (c *Client) SetHaveCache(cache HaveCache) {
 
 func (c *Client) printf(format string, v ...interface{}) {
 	if c.Verbose && c.Logger != nil {
-		c.Logger.Printf(format, v)
+		c.Logger.Printf(format, v...)
 	}
 }
 
