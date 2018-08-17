@@ -14,3 +14,9 @@ fmt:
 
 dockerbuild:
 	docker build --tag=gcr.io/perkeep-containers/perkeep:latest .
+
+dockerbuilddev:
+	docker build --tag=gcr.io/perkeep-containers/perkeep-dev-$(USER):latest .
+
+dockerpushdev: dockerbuilddev
+	docker push gcr.io/perkeep-containers/perkeep-dev-$(USER):latest
