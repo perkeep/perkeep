@@ -17,7 +17,7 @@ require (
 	github.com/fsnotify/fsnotify v1.4.2
 	github.com/garyburd/go-oauth v0.0.0-20140207011728-7d749055310d
 	github.com/go-ini/ini v1.38.1
-	github.com/go-sql-driver/mysql v1.3.0
+	github.com/go-sql-driver/mysql v1.4.1-0.20180719071942-99ff426eb706
 	github.com/golang/protobuf v1.0.0
 	github.com/golang/snappy v0.0.0-20170215233205-553a64147049
 	github.com/googleapis/gax-go v0.0.0-20161107002406-da06d194a00e
