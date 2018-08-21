@@ -75,6 +75,9 @@ escaping.  For example:
      rest of whole expression (regardless of its position within the expression),
      logical 'or's around it are forbidden.
 
+**<a name="like"></a>is:like**
+: object is a liked tweet
+
 **<a name="image"></a>is:image**
 : object is an image
 
