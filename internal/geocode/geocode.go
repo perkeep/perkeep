@@ -181,17 +181,14 @@ func decodeGoogleResponse(r io.Reader) (rects []Rect, err error) {
 		return nil, err
 	}
 	for _, res := range resTop.Results {
-		if res.Geometry != nil && res.Geometry.Bounds != nil {
-			r := res.Geometry.Bounds
-			if r.NorthEast.Lat == 90 && r.NorthEast.Long == 180 &&
-				r.SouthWest.Lat == -90 && r.SouthWest.Long == -180 {
-				// Google sometimes returns a "whole world" rect for large addresses (like "USA")
-				// so instead use the viewport in that case.
-				if res.Geometry.Viewport != nil {
-					rects = append(rects, *res.Geometry.Viewport)
-				}
-			} else {
+		if res.Geometry != nil {
+			if r := res.Geometry.Bounds; r != nil && !(r.NorthEast.Lat == 90 && r.NorthEast.Long == 180 &&
+				r.SouthWest.Lat == -90 && r.SouthWest.Long == -180) {
+				// Google sometimes returns a "whole world" rect for large addresses (like "USA"), so we only
+				// use the Bounds when they exist and make sense. Otherwise we use the Viewport if available.
 				rects = append(rects, *r)
+			} else if res.Geometry.Viewport != nil {
+				rects = append(rects, *res.Geometry.Viewport)
 			}
 		}
 	}
