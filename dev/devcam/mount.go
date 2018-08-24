@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 
+	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/cmdmain"
 )
 
@@ -108,14 +109,17 @@ func (c *mountCmd) RunCommand(args []string) error {
 		blobserver = strings.Replace(blobserver, "http://", "https://", 1)
 	}
 
-	cmdBin := filepath.Join("bin", "pk-mount")
+	cmdBin, err := osutil.LookPathGopath("pk-mount")
+	if err != nil {
+		return err
+	}
 	cmdArgs := []string{
 		"-debug=" + strconv.FormatBool(c.debug),
 		"-server=" + blobserver,
 	}
 	cmdArgs = append(cmdArgs, args...)
 	cmdArgs = append(cmdArgs, mountpoint)
-	fmt.Printf("pk-Mount running with mountpoint %v. Press 'q' <enter> or ctrl-c to shut down.\n", mountpoint)
+	fmt.Printf("pk-mount running with mountpoint %v. Press 'q' <enter> or ctrl-c to shut down.\n", mountpoint)
 	return runExec(cmdBin, cmdArgs, c.env)
 }
 
