@@ -151,7 +151,7 @@ ignored = [
 
 [[constraint]]
   name = "github.com/gopherjs/gopherjs"
-  branch = "master"
+  revision = "0210a2f0f73c96103378b0b935f39868e5731809"
 
 [[constraint]]
   name = "github.com/gopherjs/jquery"

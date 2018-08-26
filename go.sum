@@ -26,6 +26,7 @@ github.com/cznic/zappy v0.0.0-20160723133515-2533cb5b45cc h1:YKKpTb2BrXN2GYyGayg
 github.com/cznic/zappy v0.0.0-20160723133515-2533cb5b45cc/go.mod h1:Y1SNZ4dRUOKXshKUbwUapqNncRrho4mkjQebgEHZLj8=
 github.com/edsrzf/mmap-go v0.0.0-20170320065105-0bce6a688712 h1:aaQcKT9WumO6JEJcRyTqFVq4XUZiUcKR2/GI31TOcz8=
 github.com/edsrzf/mmap-go v0.0.0-20170320065105-0bce6a688712/go.mod h1:YO35OhQPt3KJa3ryjFM5Bs14WD66h8eGKpfaBNrHW5M=
+github.com/fsnotify/fsnotify v1.4.2 h1:v5tKwtf2hNhBV24eNYfQ5UmvFOGlOCmRqk7/P1olxtk=
 github.com/fsnotify/fsnotify v1.4.2/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/garyburd/go-oauth v0.0.0-20140207011728-7d749055310d h1:FHsYOC62LvAanE5RU/MbDhBYG319Ct+xGQme3UGB8cU=
 github.com/garyburd/go-oauth v0.0.0-20140207011728-7d749055310d/go.mod h1:HfkOCN6fkKKaPSAeNq/er3xObxTW4VLeY6UUK895gLQ=
@@ -44,6 +45,8 @@ github.com/googleapis/gax-go v0.0.0-20161107002406-da06d194a00e h1:CYRpN206UTHUi
 github.com/googleapis/gax-go v0.0.0-20161107002406-da06d194a00e/go.mod h1:SFVmujtThgffbyetf+mdk2eWhX2bMyUtNHzFKcPA9HY=
 github.com/gopherjs/gopherjs v0.0.0-20180424202546-8dffc02ea1cb h1:g0omhilXoAZ+6sFcF6puAzT+/MoKK3ZBQ9e7nVIRjrc=
 github.com/gopherjs/gopherjs v0.0.0-20180424202546-8dffc02ea1cb/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
+github.com/gopherjs/gopherjs v0.0.0-20180825215210-0210a2f0f73c h1:16eHWuMGvCjSfgRJKqIzapE78onvvTbdi1rMkU00lZw=
+github.com/gopherjs/gopherjs v0.0.0-20180825215210-0210a2f0f73c/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
 github.com/gopherjs/jquery v0.0.0-20151020083714-fbbfc4bbe29a h1:weMA9gU+G5BrBBBPaS/gRwHhD1+IAUgpnG05s5N9boE=
 github.com/gopherjs/jquery v0.0.0-20151020083714-fbbfc4bbe29a/go.mod h1:xKR3tvLne+vYYPH9d4DM8X9MKlNV2yXDEomxulcK218=
 github.com/gopherjs/jsbuiltin v0.0.0-20170427220125-67703bfb044e h1:IQ+8CE5oBzuXnrTl85ohGltMQt0edvNKdKvM//6Yb6I=
@@ -56,6 +59,7 @@ github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANyt
 github.com/jmespath/go-jmespath v0.0.0-20160202185014-0b12d6b521d8 h1:12VvqtR6Aowv3l/EQUlocDHW2Cp4G9WJVH7uyH8QFJE=
 github.com/jmespath/go-jmespath v0.0.0-20160202185014-0b12d6b521d8/go.mod h1:Nht3zPeWKUH0NzdCt2Blrr5ys8VGpn0CEB0cQHVjt7k=
 github.com/kardianos/osext v0.0.0-20151222153229-29ae4ffbc9a6/go.mod h1:1NbS8ALrpOvjt0rHPNLyCIeMtbizbir8U//inJ+zuB8=
+github.com/kisielk/gotool v0.0.0-20161130080628-0de1eaf82fa3 h1:s/sV9geKJwXXzcrFiQdiiIFgfesbREplXWR9ZFgnGSQ=
 github.com/kisielk/gotool v0.0.0-20161130080628-0de1eaf82fa3/go.mod h1:jxZFDH7ILpTPQTk+E2s+z4CUas9lVNjIuKR4c5/zKgM=
 github.com/kr/fs v0.1.0 h1:Jskdu9ieNAYnjxsi0LbQp1ulIKZV1LAFgK1tWhpZgl8=
 github.com/kr/fs v0.1.0/go.mod h1:FFnZGqtBN9Gxj7eW1uZ42v5BccTP0vu6NEaFoC2HwRg=
@@ -68,7 +72,9 @@ github.com/mattn/go-mastodon v0.0.0-20180129050910-2ccbcfe14d7a/go.mod h1:/OSOSD
 github.com/mattn/go-sqlite3 v1.6.0/go.mod h1:FPy6KqzDD04eiIsT53CuJW3U88zkxoIYsOqkbpncsNc=
 github.com/miekg/dns v0.0.0-20161003181808-3f1f7c8ec9ea h1:OeKTTfcv1UiDsqNpa0rb8hbcH1WFoh9Lx7rgyiQeQvs=
 github.com/miekg/dns v0.0.0-20161003181808-3f1f7c8ec9ea/go.mod h1:W1PPwlIAgtquWBMBEV9nkV9Cazfe8ScdGz/Lj7v3Nrg=
+github.com/neelance/astrewrite v0.0.0-20160511093645-99348263ae86 h1:D6paGObi5Wud7xg83MaEFyjxQB1W5bz5d0IFppr+ymk=
 github.com/neelance/astrewrite v0.0.0-20160511093645-99348263ae86/go.mod h1:kHJEU3ofeGjhHklVoIGuVj85JJwZ6kWPaJwCIxgnFmo=
+github.com/neelance/sourcemap v0.0.0-20151028013722-8c68805598ab h1:eFXv9Nu1lGbrNbj619aWwZfVF5HBrm9Plte8aNptuTI=
 github.com/neelance/sourcemap v0.0.0-20151028013722-8c68805598ab/go.mod h1:Qr6/a/Q4r9LP1IltGz7tA7iOK1WonHEYhu1HRBA7ZiM=
 github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f h1:nyKdx+jcykIdxGNrbgo/TGjdGi99EY9FKBCjYAUS4bU=
 github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f/go.mod h1:HazDB3gS/i//QXMMRmTAV7Ni9gAi4mDNTH2HjZ5aVgU=
@@ -83,10 +89,13 @@ github.com/russross/blackfriday v2.0.0+incompatible h1:cBXrhZNUf9C+La9/YpS+UHpUT
 github.com/russross/blackfriday v2.0.0+incompatible/go.mod h1:JO/DiYxRf+HjHt06OyowR9PTA263kcR/rfWxYHBV53g=
 github.com/rwcarlsen/goexif v0.0.0-20180518182100-8d986c03457a h1:ZDZdsnbMuRSoVbq1gR47o005lfn2OwODNCr23zh9gSk=
 github.com/rwcarlsen/goexif v0.0.0-20180518182100-8d986c03457a/go.mod h1:hPqNNc0+uJM6H+SuU8sEs5K5IQeKccPqeSjfgcKGgPk=
+github.com/shurcooL/httpfs v0.0.0-20171119174359-809beceb2371 h1:SWV2fHctRpRrp49VXJ6UZja7gU9QLHwRpIPBN89SKEo=
 github.com/shurcooL/httpfs v0.0.0-20171119174359-809beceb2371/go.mod h1:ZY1cvUeJuFPAdZ/B6v7RHavJWZn2YPVFQ1OSXhCGOkg=
 github.com/shurcooL/sanitized_anchor_name v0.0.0-20150515002706-11a20b799bf2 h1:YSuCoQrOAAaaU7L/VkFo9UilOcMV19Po32oJAnflq5U=
 github.com/shurcooL/sanitized_anchor_name v0.0.0-20150515002706-11a20b799bf2/go.mod h1:1NzhyTcUVG4SuEtjjoZeVRXNmyL/1OwPU0+IJeTBvfc=
+github.com/spf13/cobra v0.0.0-20160322171042-c678ff029ee2 h1:ZUpMwiqoxlvb/9AuwEkR5ISR/oUsgztJiMykpL5lU2w=
 github.com/spf13/cobra v0.0.0-20160322171042-c678ff029ee2/go.mod h1:1l0Ry5zgKvJasoi3XT1TypsSe7PqH0Sj9dhYf7v3XqQ=
+github.com/spf13/pflag v0.0.0-20151218134703-7f60f83a2c81 h1:e8OMOPK+iXlzdnq5GOtSZDnw9HJi1faEKhCoEIxVUrY=
 github.com/spf13/pflag v0.0.0-20151218134703-7f60f83a2c81/go.mod h1:DYY7MBk1bdzusC3SYhjObp+wFpr4gzcvqqNjLnInEg4=
 github.com/syndtr/goleveldb v0.0.0-20180608030153-db3ee9ee8931 h1:2zIFG6OP0ab/aqPljiAz1WMBGbg63kXTHGab7PueE6s=
 github.com/syndtr/goleveldb v0.0.0-20180608030153-db3ee9ee8931/go.mod h1:Z4AUp2Km+PwemOoO/VB5AOx9XSsIItzFjoJlOSiYmn0=
@@ -114,6 +123,7 @@ golang.org/x/text v0.0.0-20171102192421-88f656faf3f3 h1:TtrmcC9vFAjk6IwmXFdqQovd
 golang.org/x/text v0.0.0-20171102192421-88f656faf3f3/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/time v0.0.0-20160202183820-a4bde1265759 h1:FiPuVGc0Ud5ZYQtBWih0NKTBODXFhxDmOCkzlCXkguA=
 golang.org/x/time v0.0.0-20160202183820-a4bde1265759/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
+golang.org/x/tools v0.0.0-20170915040203-e531a2a1c15f h1:2bTOCVQtYN868SqJlTyB1SOrvrmeurDB7H5ylUynHsY=
 golang.org/x/tools v0.0.0-20170915040203-e531a2a1c15f/go.mod h1:n7NCudcB/nEzxVGmLbDWY5pfWTLqBcC2KZ6jyYvM4mQ=
 google.golang.org/api v0.0.0-20170327174102-48e49d1645e2 h1:LoZZN9cn36HPHmHvxa+FNkIVOP/wGTn88adXVq2HdHc=
 google.golang.org/api v0.0.0-20170327174102-48e49d1645e2/go.mod h1:4mhQ8q/RsB7i+udVvVy5NUi08OU8ZlA0gRVgrF7VFY0=
