@@ -499,7 +499,7 @@ func (r *run) flickrAPIRequest(result interface{}, method string, keyval ...stri
 	return importer.OAuthContext{
 		r.Context(),
 		r.oauthClient,
-		r.accessCreds}.PopulateJSONFromURL(result, apiURL, keyval...)
+		r.accessCreds}.PopulateJSONFromURL(result, http.MethodGet, apiURL, keyval...)
 }
 
 func (r *run) fetch(url string, form url.Values) (*http.Response, error) {

@@ -1423,6 +1423,34 @@ func (o *Object) ForeachAttr(fn func(key, value string)) {
 	}
 }
 
+// DelAttr removes value from the values set for the attribute attr of
+// permaNode. If value is empty then all the values for attribute are cleared.
+func (o *Object) DelAttr(key, value string) error {
+	ctx := context.TODO()
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	_, err := o.h.upload(ctx, schema.NewDelAttributeClaim(o.pn, key, value))
+	if err != nil {
+		return err
+	}
+	if o.attr == nil {
+		o.attr = make(map[string][]string)
+		return nil
+	}
+	if value == "" {
+		delete(o.attr, key)
+		return nil
+	}
+	var values []string
+	for _, v := range o.attr[key] {
+		if v != value {
+			values = append(values, v)
+		}
+	}
+	o.attr[key] = values
+	return nil
+}
+
 // SetAttr sets the attribute key to value.
 func (o *Object) SetAttr(key, value string) error {
 	ctx := context.TODO() // TODO: make it possible to get a context via Object; either new context field, or via some "ImportRun" field?

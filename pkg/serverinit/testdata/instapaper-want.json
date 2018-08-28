@@ -1,0 +1,126 @@
+{
+	"auth": "userpass:camlistore:pass3179",
+	"https": false,
+	"listen": "localhost:3179",
+	"prefixes": {
+		"/": {
+			"handler": "root",
+			"handlerArgs": {
+				"blobRoot": "/bs-and-maybe-also-index/",
+				"helpRoot": "/help/",
+				"jsonSignRoot": "/sighelper/",
+				"ownerName": "Alice",
+				"searchRoot": "/my-search/",
+				"shareRoot": "/share/",
+				"statusRoot": "/status/",
+				"stealth": false
+			}
+		},
+		"/bs-and-index/": {
+			"handler": "storage-replica",
+			"handlerArgs": {
+				"backends": [
+					"/bs/",
+					"/index/"
+				]
+			}
+		},
+		"/bs-and-maybe-also-index/": {
+			"handler": "storage-cond",
+			"handlerArgs": {
+				"read": "/bs/",
+				"write": {
+					"else": "/bs/",
+					"if": "isSchema",
+					"then": "/bs-and-index/"
+				}
+			}
+		},
+		"/bs/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/tmp/blobs"
+			}
+		},
+		"/cache/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/tmp/blobs/cache"
+			}
+		},
+		"/help/": {
+			"handler": "help"
+		},
+		"/importer/": {
+			"handler": "importer",
+			"handlerArgs": {
+				"instapaper": {
+					"clientSecret": "key:secret"
+				}
+			}
+		},
+		"/index/": {
+			"handler": "storage-index",
+			"handlerArgs": {
+				"blobSource": "/bs/",
+				"storage": {
+					"file": "/path/to/indexkv.db",
+					"type": "kv"
+				}
+			}
+		},
+		"/my-search/": {
+			"handler": "search",
+			"handlerArgs": {
+				"index": "/index/",
+				"owner": {
+					"identity": "2931A67C26F5ABDA",
+					"secringFile": "/path/to/secring"
+				},
+				"slurpToMemory": true
+			}
+		},
+		"/setup/": {
+			"handler": "setup"
+		},
+		"/share/": {
+			"handler": "share",
+			"handlerArgs": {
+				"blobRoot": "/bs/",
+				"index": "/index/"
+			}
+		},
+		"/sighelper/": {
+			"handler": "jsonsign",
+			"handlerArgs": {
+				"keyId": "2931A67C26F5ABDA",
+				"publicKeyDest": "/bs-and-index/",
+				"secretRing": "/path/to/secring"
+			}
+		},
+		"/status/": {
+			"handler": "status"
+		},
+		"/sync/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"queue": {
+					"file": "/tmp/blobs/sync-to-index-queue.kv",
+					"type": "kv"
+				},
+				"to": "/index/"
+			}
+		},
+		"/ui/": {
+			"handler": "ui",
+			"handlerArgs": {
+				"cache": "/cache/",
+				"scaledImage": {
+					"file": "/tmp/blobs/thumbmeta.kv",
+					"type": "kv"
+				}
+			}
+		}
+	}
+}

@@ -100,8 +100,9 @@ type Config struct {
 	ScanCab *ScanCab            `json:"scancab,omitempty"` // Scanning cabinet app configuration.
 
 	// TODO(mpl): map of importers instead?
-	Flickr string `json:"flickr,omitempty"` // flicker importer.
-	Picasa string `json:"picasa,omitempty"` // picasa importer.
+	Flickr     string `json:"flickr,omitempty"`     // flicker importer.
+	Picasa     string `json:"picasa,omitempty"`     // picasa importer.
+	Instapaper string `json:"instapaper,omitempty"` // instapaper importer.
 }
 
 // App holds the common configuration values for apps and the app handler.

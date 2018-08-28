@@ -119,4 +119,10 @@ const (
 
 	// Version is http://schema.org/version
 	Version = "version"
+
+	// Starred is a boolean indicating a user "starred" or marked something as a favorite.
+	Starred = "starred"
+
+	// Folder is a string representing a logical collection of files grouped together
+	Folder = "folder"
 )

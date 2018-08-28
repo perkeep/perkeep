@@ -929,6 +929,11 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 			"clientSecret": b.high.Picasa,
 		}
 	}
+	if b.high.Instapaper != "" {
+		importerArgs["instapaper"] = map[string]interface{}{
+			"clientSecret": b.high.Instapaper,
+		}
+	}
 	if b.runIndex() {
 		b.addPrefix("/importer/", "importer", importerArgs)
 	}

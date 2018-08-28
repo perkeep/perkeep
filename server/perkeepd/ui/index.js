@@ -40,6 +40,7 @@ goog.require('cam.BlobItemFoursquareContent');
 goog.require('cam.BlobItemGenericContent');
 goog.require('cam.BlobItemImageContent');
 goog.require('cam.BlobItemMastodonContent');
+goog.require('cam.BlobItemInstapaperContent');
 goog.require('cam.BlobItemTwitterContent');
 goog.require('cam.BlobItemVideoContent');
 goog.require('cam.blobref');
@@ -75,6 +76,7 @@ cam.IndexPage = React.createClass({
 		cam.BlobItemFoursquareContent.getHandler,
 		cam.BlobItemTwitterContent.getHandler,
 		cam.BlobItemMastodonContent.getHandler,
+		cam.BlobItemInstapaperContent.getHandler,
 		cam.BlobItemImageContent.getHandler,
 		cam.BlobItemVideoContent.getHandler,
 		cam.BlobItemGenericContent.getHandler

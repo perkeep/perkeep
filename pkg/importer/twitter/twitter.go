@@ -365,7 +365,7 @@ func (r *run) doAPI(result interface{}, apiPath string, keyval ...string) error 
 	return importer.OAuthContext{
 		r.Context(),
 		r.oauthClient,
-		r.accessCreds}.PopulateJSONFromURL(result, apiURL+apiPath, keyval...)
+		r.accessCreds}.PopulateJSONFromURL(result, http.MethodGet, apiURL+apiPath, keyval...)
 }
 
 // importTweets imports the tweets related to userID, through apiPath.
@@ -676,7 +676,7 @@ type userInfo struct {
 
 func getUserInfo(ctx importer.OAuthContext) (userInfo, error) {
 	var ui userInfo
-	if err := ctx.PopulateJSONFromURL(&ui, apiURL+userInfoAPIPath); err != nil {
+	if err := ctx.PopulateJSONFromURL(&ui, http.MethodGet, apiURL+userInfoAPIPath); err != nil {
 		return ui, err
 	}
 	if ui.ID == "" {

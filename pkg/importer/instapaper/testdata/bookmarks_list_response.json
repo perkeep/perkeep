@@ -1,0 +1,24 @@
+[
+  {
+    "type": "meta"
+  },
+  {
+    "username": "user@email.com",
+    "user_id": 999,
+    "type": "user",
+    "subscription_is_active": "1"
+  },
+  {
+    "hash": "ltAR6oKE",
+    "description": "",
+    "bookmark_id": 1,
+    "private_source": "",
+    "title": "Title 1",
+    "url": "https://www.example.org/title-1",
+    "progress_timestamp": 1534433362,
+    "time": 1533907875,
+    "progress": 0.017718,
+    "starred": "0",
+    "type": "bookmark"
+  }
+]
