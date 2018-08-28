@@ -111,7 +111,7 @@ func (n *root) Lookup(ctx context.Context, name string) (fs.Node, error) {
 	case ".quitquitquit":
 		log.Fatalf("Shutting down due to root .quitquitquit lookup.")
 	case "WELCOME.txt":
-		return staticFileNode("Welcome to PerkeepFS.\n\nMore information is available in the pk-mount documentation.\n\nSee https://perkeep.org/cmd/pk-mount/\n"), nil
+		return staticFileNode("Welcome to PerkeepFS.\n\nMore information is available in the pk-mount documentation.\n\nSee https://perkeep.org/cmd/pk-mount/ , or run 'go doc perkeep.org/cmd/pk-mount'.\n"), nil
 	case "recent":
 		return n.getRecentDir(), nil
 	case "tag", "date":

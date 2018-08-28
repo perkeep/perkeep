@@ -77,6 +77,27 @@ You can directly access a specific directory by using the full sha224 identifier
    cd sha224-xxx # where xxx is the full 56 character identifier
 
 
+Understanding the schema
+
+As there are various ways to model parent/child relationships in Perkeep, and as
+they are represented differently in the FUSE interface and in the web user
+interface, here is a summary of the schema used by the FUSE interface.
+
+A directory is a permanode with a camliRoot set to the name of the directory, or
+a permanode with a camliNodeType set to the "directory" value, and its title set
+to the name of the directory.
+
+A file is a permanode with a camliContent set to the blobRef of a file schema (a
+fileRef).
+
+The child of a directory can be, as expected, another directory or file, as
+defined above.
+
+Permanode X, representing the file or directory "foo", is the child of permanode
+Y, representing the directory "bar", if on permanode Y the attribute
+"camliPath:foo" is set with the blobRef of permanode X as value.
+
+
 Full Command Line Usage
 
   pk-mount [opts] [<mountpoint> [<root-blobref>|<share URL>|<root-name>]]
