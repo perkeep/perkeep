@@ -11,4 +11,4 @@ before_install:
   - sudo chown root:$USER /etc/fuse.conf
 install: go run make.go -v
 before_script: go build -o ./bin/devcam ./dev/devcam
-script: ./bin/devcam test
+script: ./bin/devcam test -sqlite=true
