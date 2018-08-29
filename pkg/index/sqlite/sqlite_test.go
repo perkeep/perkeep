@@ -28,7 +28,7 @@ import (
 	"sync"
 	"testing"
 
-	"go4.org/jsonconfig"
+	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/index/indextest"
 	"perkeep.org/pkg/sorted"
@@ -36,12 +36,17 @@ import (
 	_ "perkeep.org/pkg/sorted/sqlite"
 
 	_ "github.com/mattn/go-sqlite3"
+	"go4.org/jsonconfig"
 )
 
 var (
 	once        sync.Once
 	dbAvailable bool
 )
+
+func init() {
+	testhooks.SetUseSHA1(true)
+}
 
 func do(db *sql.DB, sql string) {
 	_, err := db.Exec(sql)
