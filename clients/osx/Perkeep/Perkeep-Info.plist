@@ -37,6 +37,6 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>SupportPage</key>
-	<string>http://groups.google.com/group/camlistore</string>
+	<string>http://groups.google.com/group/perkeep</string>
 </dict>
 </plist>
