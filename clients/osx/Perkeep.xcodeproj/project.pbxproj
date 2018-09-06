@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		DA31F9381866744D002E3F33 /* TimeTravelWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = DA31F9361866744D002E3F33 /* TimeTravelWindowController.m */; };
 		DA31F9391866744D002E3F33 /* TimeTravelWindowController.xib in Resources */ = {isa = PBXBuildFile; fileRef = DA31F9371866744D002E3F33 /* TimeTravelWindowController.xib */; };
-		DA71BCB718642A3A000A102C /* PerkeepIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = DA71BCB618642A3A000A102C /* PerkeepIcon.icns */; };
 		DAABA574186435DA000D62B6 /* perkeepd in Resources */ = {isa = PBXBuildFile; fileRef = DAABA572186435DA000D62B6 /* perkeepd */; };
 		DAABA575186435DA000D62B6 /* pk-mount in Resources */ = {isa = PBXBuildFile; fileRef = DAABA573186435DA000D62B6 /* pk-mount */; };
 		DAABA57718643710000D62B6 /* Credits.html in Resources */ = {isa = PBXBuildFile; fileRef = DAABA57618643710000D62B6 /* Credits.html */; };
@@ -53,7 +52,6 @@
 		DA31F9351866744D002E3F33 /* TimeTravelWindowController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TimeTravelWindowController.h; sourceTree = "<group>"; };
 		DA31F9361866744D002E3F33 /* TimeTravelWindowController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TimeTravelWindowController.m; sourceTree = "<group>"; };
 		DA31F9371866744D002E3F33 /* TimeTravelWindowController.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = TimeTravelWindowController.xib; sourceTree = "<group>"; };
-		DA71BCB618642A3A000A102C /* PerkeepIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = PerkeepIcon.icns; sourceTree = "<group>"; };
 		DAABA572186435DA000D62B6 /* perkeepd */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = perkeepd; path = ../../bin/perkeepd; sourceTree = "<group>"; };
 		DAABA573186435DA000D62B6 /* pk-mount */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = "pk-mount"; path = "../../bin/pk-mount"; sourceTree = "<group>"; };
 		DAABA57618643710000D62B6 /* Credits.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; path = Credits.html; sourceTree = "<group>"; };
@@ -172,7 +170,6 @@
 			isa = PBXGroup;
 			children = (
 				DAABA57618643710000D62B6 /* Credits.html */,
-				DA71BCB618642A3A000A102C /* PerkeepIcon.icns */,
 				DAF1097F1863F1F900F6A3F9 /* menuicon-selected.png */,
 				DAF109801863F1F900F6A3F9 /* menuicon-selected@2x.png */,
 				DAF109811863F1F900F6A3F9 /* menuicon.png */,
@@ -305,7 +302,6 @@
 				DAF109531863EDAF00F6A3F9 /* InfoPlist.strings in Resources */,
 				DAF109841863F1F900F6A3F9 /* menuicon-selected@2x.png in Resources */,
 				DAF109861863F1F900F6A3F9 /* menuicon@2x.png in Resources */,
-				DA71BCB718642A3A000A102C /* PerkeepIcon.icns in Resources */,
 				DAABA57718643710000D62B6 /* Credits.html in Resources */,
 				DAF109611863EDAF00F6A3F9 /* Images.xcassets in Resources */,
 				DAF109851863F1F900F6A3F9 /* menuicon.png in Resources */,
