@@ -753,8 +753,8 @@ func validateDirInGOPATH(dir string) {
 }
 
 const (
-	goVersionMinor  = 10
-	gopherJSGoMinor = 10
+	goVersionMinor  = 11
+	gopherJSGoMinor = 11
 )
 
 var validVersionRx = regexp.MustCompile(`go version go1\.(\d+)`)
