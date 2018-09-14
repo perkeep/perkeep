@@ -121,7 +121,7 @@ func (c *testCmd) buildSelf() error {
 func (c *testCmd) runTests(args []string) error {
 	targs := []string{"test"}
 	if c.sqlite {
-		targs = append(targs, "--tags=with_sqlite fake_android")
+		targs = append(targs, "--tags=with_sqlite fake_android libsqlite3")
 	} else {
 		targs = append(targs, "--tags=fake_android")
 	}

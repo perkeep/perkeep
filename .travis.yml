@@ -5,10 +5,9 @@ language: go
 go:
   - "1.11.x"
 before_install:
-  - sudo apt-get install -qq pkg-config fuse
+  - sudo apt-get install -qq pkg-config fuse build-essential
   - sudo modprobe fuse
   - sudo chmod 666 /dev/fuse
   - sudo chown root:$USER /etc/fuse.conf
-install: go run make.go -v
-before_script: go build -o ./bin/devcam ./dev/devcam
-script: ./bin/devcam test -sqlite=true
+install: go run make.go -v=true -sqlite=true
+script: ${GOPATH}/bin/devcam test -sqlite=true

@@ -51,12 +51,13 @@ server/perkeepd/ui/goui.js.map
 server/perkeepd/ui/zembed_*
 server/perkeepd/ui/closure/z_data.go
 
+# not vendored in, because we build with the system's libsqlite3
+/vendor/github.com/mattn/go-sqlite3/sqlite3-binding.c
+/vendor/github.com/mattn/go-sqlite3/sqlite3-binding.h
+
 # vendored data we don't want to retain
 /vendor/**/.travis.yml
 /vendor/**/.gitignore
-# contains a private key
-/vendor/github.com/mattn/go-sqlite3/sqlite3-binding.c
-/vendor/github.com/mattn/go-sqlite3/sqlite3-binding.h
 /vendor/github.com/rwcarlsen/goexif/exif/sample1.jpg
 /vendor/github.com/rwcarlsen/goexif/tiff/sample1.tif
 /vendor/github.com/rwcarlsen/goexif/exif/regen_regress.go
