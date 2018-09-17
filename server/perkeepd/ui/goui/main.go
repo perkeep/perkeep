@@ -21,6 +21,7 @@ package main
 import (
 	"context"
 
+	"perkeep.org/pkg/blob"
 	"perkeep.org/server/perkeepd/ui/goui/aboutdialog"
 	"perkeep.org/server/perkeepd/ui/goui/dirchildren"
 	"perkeep.org/server/perkeepd/ui/goui/downloadbutton"
@@ -49,5 +50,9 @@ func main() {
 		"DeleteMapZoom":    mapquery.DeleteZoomPredicate,
 		"ShiftMapZoom":     mapquery.ShiftZoomPredicate,
 		"HasZoomParameter": mapquery.HasZoomParameter,
+		"IsBlobRef": func(ref string) bool {
+			_, ok := blob.Parse(ref)
+			return ok
+		},
 	})
 }

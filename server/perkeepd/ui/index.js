@@ -1162,7 +1162,7 @@ cam.IndexPage = React.createClass({
 	setSearch_: function(query) {
 		var searchURL;
 		var match = query.match(/^ref:(.+)/);
-		if (match) {
+		if (match && goreact.IsBlobRef(match[1])) {
 			searchURL = this.getDetailURL_(match[1]);
 		} else {
 			searchURL = this.baseURL_.clone().setParameterValue('q', query);
