@@ -25,8 +25,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV GOLANG_VERSION 1.10.2
 
 WORKDIR /usr/local
-RUN wget -O go.tgz https://dl.google.com/go/go1.10.2.linux-amd64.tar.gz
-RUN echo "4b677d698c65370afa33757b6954ade60347aaca310ea92a63ed717d7cb0c2ff go.tgz" | sha256sum -c -
+RUN wget -O go.tgz https://dl.google.com/go/go1.11.linux-amd64.tar.gz
+RUN echo "b3fcf280ff86558e0559e185b601c9eade0fd24c900b4c63cd14d1d38613e499 go.tgz" | sha256sum -c -
 RUN tar -zxvf go.tgz
 
 ENV GOROOT /usr/local/go
