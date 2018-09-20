@@ -31,6 +31,7 @@ import org.camlistore.UploadThread.CamputChunkUploadedMessage;
 import org.camlistore.UploadThread.CamputStatsMessage;
 
 import android.app.Notification;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -40,6 +41,7 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.FileObserver;
@@ -72,6 +74,7 @@ public class UploadService extends Service {
                                                // thread exits
     private Notification.Builder mNotificationBuilder; // null until upload is
                                                        // started/resumed
+    private NotificationChannel mNotificationChannel;
     private int mLastNotificationProgress = 0; // last computed value of the uploaded bytes, to avoid excessive notification updates
     private final Map<QueuedFile, Long> mFileBytesRemain = new HashMap<QueuedFile, Long>();
     private final LinkedList<QueuedFile> mQueueList = new LinkedList<QueuedFile>();
@@ -130,11 +133,20 @@ public class UploadService extends Service {
         stackBuilder.addNextIntent(notificationIntent);
         PendingIntent pendingIntent = stackBuilder.getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT);
 
-        autoUploadNotif =
-            // TODO(mpl): use API 26 Constructor with a notification channel later, when
-            // Android >=8 is more widely distributed.
-            new Notification.Builder(this)
-            .setContentTitle(getText(R.string.notification_title))
+        // Create the NotificationChannel, but only on API 26+ because
+        // the NotificationChannel class is new and not in the support library
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            mNotificationChannel = new NotificationChannel(getString(R.string.channel_id),
+                getText(R.string.channel_name), NotificationManager.IMPORTANCE_DEFAULT);
+            mNotificationChannel.setDescription(getString(R.string.channel_description));
+            // Register the channel with the system; you can't change the importance
+            // or other notification behaviors after this
+            mNotificationManager.createNotificationChannel(mNotificationChannel);
+            autoUploadNotif = new Notification.Builder(this, getString(R.string.channel_id));
+        } else {
+            autoUploadNotif = new Notification.Builder(this);
+        }
+        autoUploadNotif.setContentTitle(getText(R.string.notification_title))
             .setContentText(notificationMessage())
             .setSmallIcon(R.drawable.ic_stat_notify)
             .setContentIntent(pendingIntent);
