@@ -37,7 +37,8 @@
     <string name="results">Results</string>
     <string name="settings_auto_required_ssid">Required SSID</string>
     <string name="notification_title">Perkeep auto-uploader</string>
-    <string name="channel_name">Perkeep channel</string>
-    <string name="channel_description">Perkeep channel</string>
+    <string name="channel_id">perkeep auto-upload channel</string>
+    <string name="channel_name">Auto-upload state</string>
+    <string name="channel_description">State of Perkeep auto-uploader</string>
 
 </resources>

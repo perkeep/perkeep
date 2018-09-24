@@ -37,9 +37,9 @@ RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'ndk-bundle'
 
 # Get Go stable release
 WORKDIR $GOPHER
-RUN curl -O https://storage.googleapis.com/golang/go1.9.3.linux-amd64.tar.gz
-RUN echo 'a4da5f4c07dfda8194c4621611aeb7ceaab98af0b38bfb29e1be2ebb04c3556c  go1.9.3.linux-amd64.tar.gz' | sha256sum -c
-RUN tar -xzf go1.9.3.linux-amd64.tar.gz
+RUN curl -O https://storage.googleapis.com/golang/go1.11.linux-amd64.tar.gz
+RUN echo 'b3fcf280ff86558e0559e185b601c9eade0fd24c900b4c63cd14d1d38613e499  go1.11.linux-amd64.tar.gz' | sha256sum -c
+RUN tar -xzf go1.11.linux-amd64.tar.gz
 ENV GOPATH $GOPHER
 ENV GOROOT $GOPHER/go
 ENV PATH $PATH:$GOROOT/bin:$GOPHER/bin
