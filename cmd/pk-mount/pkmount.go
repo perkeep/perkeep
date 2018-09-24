@@ -35,6 +35,7 @@ import (
 
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/buildinfo"
 	"perkeep.org/pkg/cacher"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/cmdmain"
@@ -78,7 +79,10 @@ func main() {
 		cmdmain.PrintLicenses()
 		return
 	}
-
+	if *cmdmain.FlagVersion {
+		fmt.Fprintf(cmdmain.Stderr, "%s version: %s\n", os.Args[0], buildinfo.Summary())
+		return
+	}
 	if *cmdmain.FlagHelp {
 		usage()
 	}
