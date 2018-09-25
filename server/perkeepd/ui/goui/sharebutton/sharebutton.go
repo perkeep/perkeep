@@ -185,7 +185,7 @@ func (d ShareItemsBtnDef) OnClick(e *react.SyntheticMouseEvent) {
 func (d ShareItemsBtnDef) shareSelection() (string, error) {
 	selection := d.Props().callbacks.GetSelection()
 	authToken := d.Props().authToken
-	am, err := auth.NewTokenAuth(authToken)
+	am, err := auth.TokenOrNone(authToken)
 	if err != nil {
 		return "", fmt.Errorf("Error setting up auth for share request: %v", err)
 	}

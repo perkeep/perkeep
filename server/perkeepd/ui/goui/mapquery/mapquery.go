@@ -108,7 +108,7 @@ func (q *Query) send() ([]byte, error) {
 		q.pending = false
 	}()
 	if q.cl == nil {
-		am, err := auth.NewTokenAuth(q.AuthToken)
+		am, err := auth.TokenOrNone(q.AuthToken)
 		if err != nil {
 			return nil, err
 		}

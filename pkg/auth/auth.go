@@ -465,6 +465,15 @@ func DiscoveryToken() string {
 	return Token()
 }
 
+// TokenOrNone returns a token auth mode if token is not OmitAuthToken, and
+// otherwise a None auth mode.
+func TokenOrNone(token string) (AuthMode, error) {
+	if token == OmitAuthToken {
+		return None{}, nil
+	}
+	return NewTokenAuth(token)
+}
+
 func genProcessRand() {
 	processRand = RandToken(20)
 }
