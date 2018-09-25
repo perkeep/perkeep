@@ -21,6 +21,7 @@ import (
 	"errors"
 	"flag"
 	"os"
+	"regexp"
 
 	"perkeep.org/internal/osutil"
 	_ "perkeep.org/internal/osutil/gce"
@@ -61,6 +62,8 @@ func (c *dumpconfigCmd) RunCommand(args []string) error {
 	if err != nil {
 		return err
 	}
+	knownKeys := regexp.MustCompile(`(?ms)^\s+"_knownkeys": {.+?},?\n`)
+	lowj = knownKeys.ReplaceAll(lowj, nil)
 	_, err = os.Stdout.Write(lowj)
 	return err
 }
