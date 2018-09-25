@@ -1447,8 +1447,8 @@ cam.IndexPage = React.createClass({
 		return React.createElement(cam.Dialog, {
 				availWidth: this.props.availWidth,
 				availHeight: this.props.availHeight,
-				width: this.state.dialogWidth,
-				height: this.state.dialogHeight,
+				width: w,
+				height: h,
 				borderWidth: borderWidth,
 				onClose: function() {
 					this.setState({
