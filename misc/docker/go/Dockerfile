@@ -8,6 +8,6 @@ RUN apt-get -y --no-install-recommends install git
 
 # Get Go stable release
 WORKDIR /tmp
-RUN curl -O https://storage.googleapis.com/golang/go1.10.2.linux-amd64.tar.gz
-RUN echo '4b677d698c65370afa33757b6954ade60347aaca310ea92a63ed717d7cb0c2ff  go1.10.2.linux-amd64.tar.gz' | sha256sum -c
-RUN tar -C /usr/local -xzf go1.10.2.linux-amd64.tar.gz
+RUN curl -O https://storage.googleapis.com/golang/go1.11.linux-amd64.tar.gz
+RUN echo 'b3fcf280ff86558e0559e185b601c9eade0fd24c900b4c63cd14d1d38613e499  go1.11.linux-amd64.tar.gz' | sha256sum -c
+RUN tar -C /usr/local -xzf go1.11.linux-amd64.tar.gz
