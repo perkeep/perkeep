@@ -65,7 +65,7 @@ func Import(ctx context.Context, config map[string]string, shareURL string,
 		return
 	}
 
-	am, err := auth.NewTokenAuth(authToken)
+	am, err := auth.TokenOrNone(authToken)
 	if err != nil {
 		printerr(fmt.Sprintf("Error with authToken: %v", err))
 		return

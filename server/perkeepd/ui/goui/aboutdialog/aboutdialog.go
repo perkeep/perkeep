@@ -101,7 +101,7 @@ func (a AboutMenuItemDef) OnClick(e *react.SyntheticMouseEvent) {
 		dialogText := a.Props().dialog
 		if err := func() error {
 			authToken := a.Props().authToken
-			am, err := auth.NewTokenAuth(authToken)
+			am, err := auth.TokenOrNone(authToken)
 			if err != nil {
 				return fmt.Errorf("Error setting up auth for download request: %v", err)
 			}
