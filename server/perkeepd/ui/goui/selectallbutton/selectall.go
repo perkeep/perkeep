@@ -183,7 +183,7 @@ func (d SelectAllBtnDef) findAll() (map[string]bool, error) {
 		return nil, nil
 	}
 	authToken := d.Props().authToken
-	am, err := auth.NewTokenAuth(authToken)
+	am, err := auth.TokenOrNone(authToken)
 	if err != nil {
 		return nil, fmt.Errorf("Error setting up auth: %v", err)
 	}
