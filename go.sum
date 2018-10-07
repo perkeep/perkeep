@@ -47,6 +47,8 @@ github.com/gopherjs/gopherjs v0.0.0-20180424202546-8dffc02ea1cb h1:g0omhilXoAZ+6
 github.com/gopherjs/gopherjs v0.0.0-20180424202546-8dffc02ea1cb/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
 github.com/gopherjs/gopherjs v0.0.0-20180825215210-0210a2f0f73c h1:16eHWuMGvCjSfgRJKqIzapE78onvvTbdi1rMkU00lZw=
 github.com/gopherjs/gopherjs v0.0.0-20180825215210-0210a2f0f73c/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
+github.com/gopherjs/gopherjs v0.0.0-20181004052249-0fee806ad497 h1:fZpNOC68EbKG4nmRx3ZL/XqG/Fd6SIyPUus23DIvm/Q=
+github.com/gopherjs/gopherjs v0.0.0-20181004052249-0fee806ad497/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
 github.com/gopherjs/jquery v0.0.0-20151020083714-fbbfc4bbe29a h1:weMA9gU+G5BrBBBPaS/gRwHhD1+IAUgpnG05s5N9boE=
 github.com/gopherjs/jquery v0.0.0-20151020083714-fbbfc4bbe29a/go.mod h1:xKR3tvLne+vYYPH9d4DM8X9MKlNV2yXDEomxulcK218=
 github.com/gopherjs/jsbuiltin v0.0.0-20170427220125-67703bfb044e h1:IQ+8CE5oBzuXnrTl85ohGltMQt0edvNKdKvM//6Yb6I=

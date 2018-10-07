@@ -21,7 +21,7 @@ require (
 	github.com/golang/protobuf v1.0.0
 	github.com/golang/snappy v0.0.0-20170215233205-553a64147049
 	github.com/googleapis/gax-go v0.0.0-20161107002406-da06d194a00e
-	github.com/gopherjs/gopherjs v0.0.0-20180825215210-0210a2f0f73c
+	github.com/gopherjs/gopherjs v0.0.0-20181004052249-0fee806ad497
 	github.com/gopherjs/jquery v0.0.0-20151020083714-fbbfc4bbe29a
 	github.com/gopherjs/jsbuiltin v0.0.0-20170427220125-67703bfb044e
 	github.com/gorilla/websocket v1.2.0
