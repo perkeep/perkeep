@@ -38,7 +38,6 @@ import (
 	"perkeep.org/pkg/blobserver/memory"
 	"perkeep.org/pkg/constants"
 
-	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/storage"
 	"go4.org/cloud/google/gcsutil"
 	"go4.org/ctxutil"
@@ -121,9 +120,6 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		err error
 	)
 	if clientID == "auto" {
-		if !metadata.OnGCE() {
-			return nil, errors.New(`Cannot use "auto" client_id when not running on GCE`)
-		}
 		ts, err = google.DefaultTokenSource(ctx, storage.ScopeReadWrite)
 		if err != nil {
 			return nil, err
