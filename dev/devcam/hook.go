@@ -48,8 +48,17 @@ func (c *hookCmd) installHook() error {
 	if err != nil {
 		return err
 	}
+	hookDir := filepath.Join(root, hookPath)
+	if _, err := os.Stat(hookDir); err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+		if err := os.MkdirAll(hookDir, 0700); err != nil {
+			return err
+		}
+	}
 	for _, hookFile := range hookFiles {
-		filename := filepath.Join(root, hookPath+hookFile)
+		filename := hookDir + hookFile
 		hookContent := fmt.Sprintf(hookScript, hookFile)
 		// If hook file exists, assume it is okay.
 		_, err := os.Stat(filename)
