@@ -155,37 +155,54 @@ type OAuthContext struct {
 	Creds  *oauth.Credentials
 }
 
-// Get fetches through octx the resource defined by url and the values in form.
-func (octx OAuthContext) Get(url string, form url.Values) (*http.Response, error) {
+// Do sends through octx the request defined by url and the values in form.
+func (octx OAuthContext) do(method string, url string, form url.Values) (*http.Response, error) {
 	if octx.Creds == nil {
 		return nil, errors.New("no OAuth credentials. Not logged in?")
 	}
 	if octx.Client == nil {
 		return nil, errors.New("no OAuth client")
 	}
-	res, err := octx.Client.Get(ctxutil.Client(octx.Ctx), octx.Creds, url, form)
+	var (
+		res *http.Response
+		err error
+	)
+	if method == http.MethodPost {
+		res, err = octx.Client.Post(ctxutil.Client(octx.Ctx), octx.Creds, url, form)
+	} else {
+		res, err = octx.Client.Get(ctxutil.Client(octx.Ctx), octx.Creds, url, form)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("error fetching %s: %v", url, err)
 	}
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("get request on %s failed with: %s", url, res.Status)
+		return res, fmt.Errorf("%s request on %s failed with: %s", method, url, res.Status)
 	}
 	return res, nil
 }
 
-// PopulateJSONFromURL makes a GET call at apiURL, using keyval as parameters of
+func (octx OAuthContext) Get(url string, form url.Values) (*http.Response, error) {
+	return octx.do("GET", url, form)
+}
+
+func (octx OAuthContext) POST(url string, form url.Values) (*http.Response, error) {
+	return octx.do("POST", url, form)
+}
+
+// PopulateJSONFromURL makes a POST or GET call at apiURL, using keyval as parameters of
 // the associated form. The JSON response is decoded into result.
-func (octx OAuthContext) PopulateJSONFromURL(result interface{}, apiURL string, keyval ...string) error {
+func (octx OAuthContext) PopulateJSONFromURL(result interface{}, method string, apiURL string, keyval ...string) error {
+	if method != http.MethodGet && method != http.MethodPost {
+		return fmt.Errorf("only HTTP Get or Post supported: found %v", method)
+	}
 	if len(keyval)%2 == 1 {
 		return errors.New("incorrect number of keyval arguments. must be even")
 	}
-
 	form := url.Values{}
 	for i := 0; i < len(keyval); i += 2 {
 		form.Set(keyval[i], keyval[i+1])
 	}
-
-	hres, err := octx.Get(apiURL, form)
+	hres, err := octx.do(method, apiURL, form)
 	if err != nil {
 		return err
 	}

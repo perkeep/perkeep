@@ -206,6 +206,7 @@ Perkeep has several built-in importers, including:
  * Picasa
  * Pinboard
  * Twitter
+ * Instapaper
 
 These can be setup by visiting the "`/importer/`" URL prefix path, e.g. `http://localhost:3179/importer/`
 

@@ -372,6 +372,9 @@
 				},
 				"twitter": {
 					"clientSecret": ["_env", "${CAMLI_TWITTER_API_KEY}", ""]
+				},
+				"instapaper": {
+					"clientSecret": ["_env", "${CAMLI_INSTAPAPER_API_KEY}", ""]
 				}
 			}
 		},

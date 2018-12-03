@@ -133,7 +133,7 @@
 [[projects]]
   name = "github.com/garyburd/go-oauth"
   packages = ["oauth"]
-  revision = "7d749055310d0d9fed966cd500664dbca484967e"
+  revision = "bca2e7f09a178fd36b034107a00e2323bca6a82e"
 
 [[projects]]
   name = "github.com/go-ini/ini"

@@ -1,0 +1,20 @@
+[
+  {
+    "highlight_id": 1,
+    "text": "Highlighted - 1",
+    "note": "",
+    "bookmark_id": 1,
+    "time": 1532868683,
+    "position": 0,
+    "type": "highlight"
+  },
+  {
+    "highlight_id": 2,
+    "text": "Highlighted - 2",
+    "note": "",
+    "bookmark_id": 1,
+    "time": 1532868683,
+    "position": 0,
+    "type": "highlight"
+  }
+]

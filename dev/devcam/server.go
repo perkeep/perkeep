@@ -78,6 +78,7 @@ type serverCmd struct {
 	picasaAPIKey     string
 	plaidAPIKey      string
 	twitterAPIKey    string
+	instapaperAPIKey string
 	extraArgs        string // passed to perkeepd
 	// end of flag vars
 
@@ -126,6 +127,7 @@ func init() {
 		flags.StringVar(&cmd.picasaAPIKey, "picasakey", "", "The username and password to use with the Picasa importer. Formatted as '<username>:<password>'.")
 		flags.StringVar(&cmd.plaidAPIKey, "plaidkey", "", "The client_id and secret to use with the Plaid importer. Formatted as '<client_id>:<secret>'.")
 		flags.StringVar(&cmd.twitterAPIKey, "twitterapikey", "", "The key and secret to use with the Twitter importer. Formatted as '<APIkey>:<APIsecret>'.")
+		flags.StringVar(&cmd.instapaperAPIKey, "instapaperkey", "", "The key and secret to use with the Instapaper importer. Formatted as '<clientID>:<clientSecret>'.")
 		flags.StringVar(&cmd.root, "root", "", "A directory to store data in. Defaults to a location in the OS temp directory.")
 		flags.StringVar(&cmd.extraArgs, "extraargs", "",
 			"List of comma separated options that will be passed to perkeepd")
@@ -333,6 +335,10 @@ func (c *serverCmd) setEnvVars() error {
 	if c.twitterAPIKey != "" {
 		setenv("CAMLI_TWITTER_ENABLED", "true")
 		setenv("CAMLI_TWITTER_API_KEY", c.twitterAPIKey)
+	}
+	if c.instapaperAPIKey != "" {
+		setenv("CAMLI_INSTAPAPER_ENABLED", "true")
+		setenv("CAMLI_INSTAPAPER_API_KEY", c.instapaperAPIKey)
 	}
 	setenv("CAMLI_CONFIG_DIR", "config")
 	setenv("CAMLI_CACHE_DIR", filepath.Join(c.root, "cache"))
