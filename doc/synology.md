@@ -4,8 +4,8 @@
 
 To facilitate running Perkeep on Synology appliances, we try to provide packages (`.spk` files) that can be readily installed through the **Package Center**. They have been built for **DSM 6.2** but they should at least work for **DSM 6.1** as well. For now the packages have not been published in the Synology Package Center "market", so you need to download them manually among the ones we host:
 
-* [Perkeep-6281-latest.spk](https://storage.googleapis.com/perkeep-release/synology/Perkeep-armv5-b5c76a70e8c8d0b158a3dd19c261c0b2e62cd693.spk)
-* [Perkeep-x64-latest.spk](https://storage.googleapis.com/perkeep-release/synology/Perkeep-x86_64-b5c76a70e8c8d0b158a3dd19c261c0b2e62cd693.spk)
+* [Perkeep-6281-latest.spk](https://storage.googleapis.com/perkeep-release/synology/Perkeep-armv5-8b537a66307cf41a659786f1a898c77b46303601.spk)
+* [Perkeep-x64-latest.spk](https://storage.googleapis.com/perkeep-release/synology/Perkeep-x86_64-8b537a66307cf41a659786f1a898c77b46303601.spk)
 
 Before installing, as we use the admin user home directory to store data, you need to make sure user homes are enabled. To do that: go to **Control Panel** -> **User** -> **Advanced** tab -> **User Home**, and tick **Enable user home service**.
 

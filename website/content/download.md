@@ -47,6 +47,10 @@ test environment from their production instance and to simplify common
 development tasks. If you have questions, you can ask the [mailing
 list](https://groups.google.com/group/camlistore).
 
+## Synology
+
+We are also starting to [provide packages](/doc/synology) for Synology appliances.
+
 ## Mobile
 
 The project also has an Android app to upload your files (mainly photos) to a
