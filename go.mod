@@ -15,7 +15,7 @@ require (
 	github.com/cznic/zappy v0.0.0-20160723133515-2533cb5b45cc
 	github.com/edsrzf/mmap-go v0.0.0-20170320065105-0bce6a688712
 	github.com/fsnotify/fsnotify v1.4.2
-	github.com/garyburd/go-oauth v0.0.0-20140207011728-7d749055310d
+	github.com/garyburd/go-oauth v0.0.0-20180319155456-bca2e7f09a17
 	github.com/go-ini/ini v1.38.1
 	github.com/go-sql-driver/mysql v1.4.1-0.20180719071942-99ff426eb706
 	github.com/golang/protobuf v1.0.0
