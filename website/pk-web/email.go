@@ -282,6 +282,9 @@ func pollCommits(dir string) {
 		log.Print(err)
 		return
 	}
+	if len(hashes) == 0 {
+		return
+	}
 	latestHash.Lock()
 	latestHash.s = hashes[0]
 	latestHash.Unlock()
