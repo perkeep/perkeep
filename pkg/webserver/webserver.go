@@ -194,6 +194,8 @@ func (s *Server) Listen(addr string) error {
 		}
 		if s.tlsCertFile == "" && s.certManager != nil {
 			config.GetCertificate = s.certManager
+			// TODO(mpl): see if we can instead use
+			// https://godoc.org/golang.org/x/crypto/acme/autocert#Manager.TLSConfig
 			config.NextProtos = append(config.NextProtos, alpnProto)
 			s.listener = tls.NewListener(s.listener, config)
 			return nil

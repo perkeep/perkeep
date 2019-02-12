@@ -1036,9 +1036,7 @@ func serve(httpServer *http.Server, onHTTPError func(error)) error {
 	if *adminEmail != "" {
 		m.Email = *adminEmail
 	}
-	httpsServer.TLSConfig = &tls.Config{
-		GetCertificate: m.GetCertificate,
-	}
+	httpsServer.TLSConfig = m.TLSConfig()
 	log.Printf("Listening for HTTPS on %v", *httpsAddr)
 	ln, err := net.Listen("tcp", *httpsAddr)
 	if err != nil {
