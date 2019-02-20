@@ -37,7 +37,7 @@ import (
 	"strings"
 	"time"
 
-	"perkeep.org/internal/rollsum"
+	"go4.org/rollsum"
 )
 
 var (
