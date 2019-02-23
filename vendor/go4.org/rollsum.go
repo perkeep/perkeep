@@ -19,7 +19,11 @@ limitations under the License.
 //
 // The bup project is at https://github.com/apenwarr/bup and its splitting in
 // particular is at https://github.com/apenwarr/bup/blob/master/lib/bup/bupsplit.c
-package rollsum // import "perkeep.org/internal/rollsum"
+package rollsum // import "go4.org/rollsum"
+
+import (
+	"math/bits"
+)
 
 const windowSize = 64 // Roll assumes windowSize is a power of 2
 const charOffset = 31
@@ -46,6 +50,7 @@ func (rs *RollSum) add(drop, add uint32) {
 	rs.s2 += s1 - uint32(windowSize)*(drop+charOffset)
 }
 
+// Roll adds ch to the rolling sum.
 func (rs *RollSum) Roll(ch byte) {
 	wp := &rs.window[rs.wofs]
 	rs.add(uint32(*wp), uint32(ch))
@@ -53,13 +58,13 @@ func (rs *RollSum) Roll(ch byte) {
 	rs.wofs = (rs.wofs + 1) & (windowSize - 1)
 }
 
-// OnSplit returns whether at least 13 consecutive trailing bits of
+// OnSplit reports whether at least 13 consecutive trailing bits of
 // the current checksum are set the same way.
 func (rs *RollSum) OnSplit() bool {
 	return (rs.s2 & (blobSize - 1)) == ((^0) & (blobSize - 1))
 }
 
-// OnSplitWithBits returns whether at least n consecutive trailing bits
+// OnSplitWithBits reports whether at least n consecutive trailing bits
 // of the current checksum are set the same way.
 func (rs *RollSum) OnSplitWithBits(n uint32) bool {
 	mask := (uint32(1) << n) - 1
@@ -67,13 +72,8 @@ func (rs *RollSum) OnSplitWithBits(n uint32) bool {
 }
 
 func (rs *RollSum) Bits() int {
-	bits := blobBits
-	rsum := rs.Digest()
-	rsum >>= blobBits
-	for ; (rsum>>1)&1 != 0; bits++ {
-		rsum >>= 1
-	}
-	return bits
+	rsum := rs.Digest() >> (blobBits + 1)
+	return blobBits + bits.TrailingZeros32(^rsum)
 }
 
 func (rs *RollSum) Digest() uint32 {

@@ -51,7 +51,7 @@ require (
 	github.com/syndtr/goleveldb v0.0.0-20180608030153-db3ee9ee8931
 	github.com/tgulacsi/picago v0.0.0-20171229130838-9e1ac2306c70
 	github.com/tomnomnom/linkheader v0.0.0-20160328204959-6953a30d4443
-	go4.org v0.0.0-20180413184151-a2a47940e6bc
+	go4.org v0.0.0-20190218023631-ce4c26f7be8e
 	golang.org/x/crypto v0.0.0-20180723164146-c126467f60eb
 	golang.org/x/image v0.0.0-20171214225156-12117c17ca67
 	golang.org/x/net v0.0.0-20171212005608-d866cfc389ce
