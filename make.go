@@ -36,6 +36,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	pathpkg "path"
@@ -63,7 +64,7 @@ var (
 	website        = flag.Bool("website", false, "Just build the website.")
 	camnetdns      = flag.Bool("camnetdns", false, "Just build perkeep.org/server/camnetdns.")
 	static         = flag.Bool("static", false, "Build a static binary, so it can run in an empty container.")
-	skipGopherJS   = flag.Bool("skip_gopherjs", false, "skip building/running GopherJS, even if building perkeepd/etc")
+	buildWebUI     = flag.Bool("buildWebUI", false, "Rebuild the JS code of the web UI instead of fetching it from perkeep.org.")
 )
 
 var (
@@ -73,7 +74,7 @@ var (
 
 	// gopherjsGoroot should be specified through the env var
 	// CAMLI_GOPHERJS_GOROOT when the user's using go tip, because gopherjs only
-	// builds with Go 1.10.
+	// builds with Go 1.12.
 	gopherjsGoroot string
 )
 
@@ -149,20 +150,8 @@ func main() {
 
 	withPerkeepd := stringListContains(targs, "perkeep.org/server/perkeepd")
 	withPublisher := stringListContains(targs, "perkeep.org/app/publisher")
-	if (withPerkeepd || withPublisher) && !*skipGopherJS {
-		if err := buildReactGen(); err != nil {
-			log.Fatal(err)
-		}
-		if withPerkeepd {
-			if err := genWebUIReact(); err != nil {
-				log.Fatal(err)
-			}
-		}
-		// gopherjs has to run before doEmbed since we need all the javascript
-		// to be generated before embedding happens.
-		if err := makeJS(withPerkeepd, withPublisher); err != nil {
-			log.Fatal(err)
-		}
+	if err := doUI(withPerkeepd, withPublisher); err != nil {
+		log.Fatal(err)
 	}
 
 	if *embedResources && withPerkeepd {
@@ -274,8 +263,10 @@ func baseDirName(sql bool) string {
 }
 
 const (
-	publisherJS = "app/publisher/publisher.js"
-	gopherjsUI  = "server/perkeepd/ui/goui.js"
+	publisherJS    = "app/publisher/publisher.js"
+	gopherjsUI     = "server/perkeepd/ui/goui.js"
+	gopherjsUIURL  = "https://storage.googleapis.com/perkeep-release/gopherjs/goui.js"
+	publisherJSURL = "https://storage.googleapis.com/perkeep-release/gopherjs/publisher.js"
 )
 
 func buildGopherjs() error {
@@ -293,11 +284,12 @@ func buildGopherjs() error {
 		hashBefore = hashsum(outBin)
 	}
 
-	src := filepath.Join(pkRoot, filepath.FromSlash("vendor/github.com/gopherjs/gopherjs"))
 	goBin := "go"
 	if gopherjsGoroot != "" {
 		goBin = hostExeName(filepath.Join(gopherjsGoroot, "bin", "go"))
 	}
+
+	src := filepath.Join(pkRoot, filepath.FromSlash("vendor/github.com/gopherjs/gopherjs"))
 	cmd := exec.Command(goBin, "install", "-v")
 	cmd.Dir = src
 	cmd.Env = os.Environ()
@@ -308,6 +300,7 @@ func buildGopherjs() error {
 	if gopherjsGoroot != "" {
 		cmd.Env = append(cmd.Env, "GOROOT="+gopherjsGoroot)
 	}
+	cmd.Env = append(cmd.Env, "GO111MODULE=off")
 	var buf bytes.Buffer
 	cmd.Stderr = &buf
 	if err := cmd.Run(); err != nil {
@@ -450,6 +443,7 @@ func runGopherJS(pkg string) error {
 	if gopherjsGoroot != "" {
 		cmd.Env = append(cmd.Env, "GOROOT="+gopherjsGoroot)
 	}
+	cmd.Env = append(cmd.Env, "GO111MODULE=off")
 	var buf bytes.Buffer
 	cmd.Stderr = &buf
 	err := cmd.Run()
@@ -478,6 +472,7 @@ func genWebUIReact() error {
 	cmd.Env = append(cmd.Env, "PATH="+path)
 	var buf bytes.Buffer
 	cmd.Stderr = &buf
+	cmd.Env = append(os.Environ(), "GO111MODULE=off")
 	err := cmd.Run()
 	if err != nil {
 		return fmt.Errorf("go generate for web UI error: %v, %v", err, buf.String())
@@ -508,10 +503,128 @@ func makeJS(doWebUI, doPublisher bool) error {
 	return nil
 }
 
+func fetchAllJS(doWebUI, doPublisher bool) error {
+	if doPublisher {
+		if err := fetchJS(publisherJSURL, publisherJS); err != nil {
+			return err
+		}
+	}
+	if doWebUI {
+		if err := fetchJS(gopherjsUIURL, gopherjsUI); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// fetchJS gets the javascript resource at jsURL and writes it to jsOnDisk.
+// Since said resource can be quite large, it first fetches the hashsum contained
+// in the file at jsURL+".sha256", and if we already have the file on disk, with a
+// matching hashsum, it does not actually fetch jsURL. If it does, it checks that
+// the newly written file does match the hashsum.
+func fetchJS(jsURL, jsOnDisk string) error {
+	// TODO(mpl): use If-Modified-Since? I think pre-fetching hash is good enough already.
+	// See if we already have the file on disk
+	var currentSum string
+	_, err := os.Stat(jsURL)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+	} else {
+		// If yes, compute its hash
+		h := sha256.New()
+		f, err := os.Open(jsOnDisk)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		if _, err := io.Copy(h, f); err != nil {
+			return err
+		}
+		currentSum = fmt.Sprintf("%x", h.Sum(nil))
+	}
+
+	// fetch the hash of the remote
+	resp, err := http.Get(jsURL + ".sha256")
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	upstreamSum := strings.TrimSuffix(string(data), "\n")
+
+	if currentSum != "" &&
+		currentSum == upstreamSum {
+		// We already have the latest version
+		return nil
+	}
+
+	resp, err = http.Get(jsURL)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	js := filepath.Join(pkRoot, filepath.FromSlash(jsOnDisk))
+	f, err := os.Create(js)
+	if err != nil {
+		return err
+	}
+	h := sha256.New()
+	mr := io.MultiWriter(f, h)
+	if _, err := io.Copy(mr, resp.Body); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	sum := fmt.Sprintf("%x", h.Sum(nil))
+
+	if upstreamSum != sum {
+		return fmt.Errorf("checksum mismatch for %q: got %q, want %q", jsURL, sum, upstreamSum)
+	}
+	return nil
+}
+
+func doUI(withPerkeepd, withPublisher bool) error {
+	if !withPerkeepd && !withPublisher {
+		return nil
+	}
+
+	if !*buildWebUI {
+		return fetchAllJS(withPerkeepd, withPublisher)
+	}
+
+	if os.Getenv("GO111MODULE") != "off" {
+		fmt.Println("Cannot rebuild web UI with go modules enabled, as it is not supported by GopherJS. Now rebuilding with GO111MODULE=off.")
+	}
+
+	if err := buildReactGen(); err != nil {
+		return err
+	}
+
+	if withPerkeepd {
+		if err := genWebUIReact(); err != nil {
+			return err
+		}
+	}
+
+	// gopherjs has to run before doEmbed since we need all the javascript
+	// to be generated before embedding happens.
+	return makeJS(withPerkeepd, withPublisher)
+}
+
 // Create an environment variable of the form key=value.
 func envPair(key, value string) string {
 	return fmt.Sprintf("%s=%s", key, value)
 }
+
+// TODO(mpl): we probably can get rid of cleanGoEnv now that "last in wins" for
+// duplicates in Env.
 
 // cleanGoEnv returns a copy of the current environment with any variable listed
 // in others removed. Also, when cross-compiling, it removes GOBIN and sets GOOS
@@ -614,18 +727,18 @@ func genEmbeds() error {
 }
 
 func buildGenfileembed() error {
-	return buildBin("perkeep.org/pkg/fileembed/genfileembed")
+	return buildBin("perkeep.org/pkg/fileembed/genfileembed", false)
 }
 
 func buildReactGen() error {
-	return buildBin("perkeep.org/vendor/myitcv.io/react/cmd/reactGen")
+	return buildBin("perkeep.org/vendor/myitcv.io/react/cmd/reactGen", true)
 }
 
 func buildDevcam() error {
-	return buildBin("perkeep.org/dev/devcam")
+	return buildBin("perkeep.org/dev/devcam", false)
 }
 
-func buildBin(pkg string) error {
+func buildBin(pkg string, forceModulesOff bool) error {
 	pkgBase := pathpkg.Base(pkg)
 
 	args := []string{"install", "-v"}
@@ -637,6 +750,9 @@ func buildBin(pkg string) error {
 	cmd.Stderr = os.Stderr
 	if *verbose {
 		log.Printf("Running go with args %s", args)
+	}
+	if forceModulesOff {
+		cmd.Env = append(os.Environ(), "GO111MODULE=off")
 	}
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("Error building %v: %v", pkgBase, err)
@@ -704,9 +820,18 @@ func verifyPerkeepRoot() {
 	if _, err := os.Stat(testFile); err != nil {
 		log.Fatalf("make.go must be run from the Perkeep src root directory (where make.go is). Current working directory is %s", pkRoot)
 	}
-	validateDirInGOPATH(pkRoot)
 
-	cmd := exec.Command("go", "list", "-f", "{{.Target}}", "perkeep.org/cmd/pk")
+	// we can't rely on perkeep.org/cmd/pk with modules on as we have no assurance
+	// the current dir is $GOPATH/src/perkeep.org, so we use ./cmd/pk instead.
+	cmd := exec.Command("go", "list", "-f", "{{.Target}}", "./cmd/pk")
+	if os.Getenv("GO111MODULE") == "off" || *buildWebUI {
+		// if we're building the webUI we need to be in "legacy" GOPATH mode, so in
+		// $GOPATH/src/perkeep.org
+		if err := validateDirInGOPATH(pkRoot); err != nil {
+			log.Fatalf("We're running in GO111MODULE=off mode, either because you set it, or because you want to build the Web UI, so we need to be in a GOPATH, but: %v", err)
+		}
+		cmd = exec.Command("go", "list", "-f", "{{.Target}}", "perkeep.org/cmd/pk")
+	}
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
 	if err != nil {
@@ -715,19 +840,19 @@ func verifyPerkeepRoot() {
 	binDir = filepath.Dir(strings.TrimSpace(string(out)))
 }
 
-func validateDirInGOPATH(dir string) {
+func validateDirInGOPATH(dir string) error {
 	fi, err := os.Lstat(dir)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	gopathEnv, err := exec.Command("go", "env", "GOPATH").Output()
 	if err != nil {
-		log.Fatalf("error finding GOPATH: %v", err)
+		return fmt.Errorf("error finding GOPATH: %v", err)
 	}
 	gopaths := filepath.SplitList(strings.TrimSpace(string(gopathEnv)))
 	if len(gopaths) == 0 {
-		log.Fatalf("failed to find your GOPATH: go env GOPATH returned nothing")
+		return fmt.Errorf("failed to find your GOPATH: go env GOPATH returned nothing")
 	}
 	var validOpts []string
 	for _, gopath := range gopaths {
@@ -738,23 +863,23 @@ func validateDirInGOPATH(dir string) {
 			continue
 		}
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 		if os.SameFile(fi, fi2) {
 			// In a valid directory.
-			return
+			return nil
 		}
 	}
 	if len(validOpts) == 1 {
-		log.Fatalf("make.go cannot be run from %s; it must be in a valid GOPATH. Move the directory containing make.go to %s", dir, validOpts[0])
+		return fmt.Errorf("make.go cannot be run from %s; it must be in a valid GOPATH. Move the directory containing make.go to %s", dir, validOpts[0])
 	} else {
-		log.Fatalf("make.go cannot be run from %s; it must be in a valid GOPATH. Move the directory containing make.go to one of %q", dir, validOpts)
+		return fmt.Errorf("make.go cannot be run from %s; it must be in a valid GOPATH. Move the directory containing make.go to one of %q", dir, validOpts)
 	}
 }
 
 const (
-	goVersionMinor  = 11
-	gopherJSGoMinor = 11
+	goVersionMinor  = 12
+	gopherJSGoMinor = 12
 )
 
 var validVersionRx = regexp.MustCompile(`go version go1\.(\d+)`)

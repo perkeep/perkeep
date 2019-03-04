@@ -21,9 +21,6 @@ require (
 	github.com/golang/protobuf v1.0.0
 	github.com/golang/snappy v0.0.0-20170215233205-553a64147049
 	github.com/googleapis/gax-go v0.0.0-20161107002406-da06d194a00e
-	github.com/gopherjs/gopherjs v0.0.0-20181004052249-0fee806ad497
-	github.com/gopherjs/jquery v0.0.0-20151020083714-fbbfc4bbe29a
-	github.com/gopherjs/jsbuiltin v0.0.0-20170427220125-67703bfb044e
 	github.com/gorilla/websocket v1.2.0
 	github.com/hjfreyer/taglib-go v0.0.0-20151027170453-0ef8bba9c41b
 	github.com/inconshreveable/mousetrap v1.0.0
@@ -67,7 +64,6 @@ require (
 	google.golang.org/grpc v1.14.0 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20160818020120-3f83fa500528
 	honnef.co/go/js/dom v0.0.0-20160310112645-24aa052bc5c6
-	myitcv.io v0.0.0-20180717150903-bf2c84553c78
 	rsc.io/pdf v0.0.0-20170302045715-1d34785eb915
 	rsc.io/qr v0.1.0
 )
