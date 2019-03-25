@@ -898,7 +898,6 @@ func (c *Client) versionMismatch(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 	url := c.discoRoot() + "/status/status.json"
-	println(url)
 	req := c.newRequest(ctx, "GET", url)
 	res, err := c.doReqGated(req)
 	if err != nil {
