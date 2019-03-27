@@ -794,6 +794,10 @@ func verifyGoVersion() {
 		log.Fatalf("Your version of Go (%s) is too old. Perkeep requires Go 1.%d or later.", string(out), goVersionMinor)
 	}
 
+	if *website || *camnetdns {
+		return
+	}
+
 	if minorVersion != gopherJSGoMinor {
 		verifyGopherjsGoroot(fmt.Sprintf("1.%d", minorVersion))
 	}

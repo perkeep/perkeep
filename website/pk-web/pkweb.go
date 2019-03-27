@@ -43,6 +43,7 @@ import (
 
 	"perkeep.org/internal/netutil"
 	"perkeep.org/internal/osutil"
+	"perkeep.org/pkg/buildinfo"
 	"perkeep.org/pkg/deploy/gce"
 	"perkeep.org/pkg/types/camtypes"
 
@@ -81,6 +82,7 @@ var (
 	alsoRun     = flag.String("also_run", "", "[optiona] Path to run as a child process. (Used to run perkeep.org's ./scripts/run-blob-server)")
 	devMode     = flag.Bool("dev", false, "in dev mode")
 	flagStaging = flag.Bool("staging", false, "Deploy to a test GCE instance. Requires -cloudlaunch=true")
+	flagVersion = flag.Bool("version", false, "show version")
 
 	gceProjectID = flag.String("gce_project_id", "", "GCE project ID; required if not running on GCE and gce_log_name is specified.")
 	gceLogName   = flag.String("gce_log_name", "", "GCE Cloud Logging log name; if non-empty, logs go to Cloud Logging instead of Apache-style local disk log files")
@@ -759,7 +761,7 @@ func sendStartingEmail() {
 		return
 	}
 	mailGun = mailgun.NewMailgun(cfg.Domain, cfg.APIKey, cfg.PublicAPIKey)
-	contents := `Perkeep website starting with binary XXXXTODO and content at git rev ` + string(contentRev)
+	contents := `Perkeep website starting with binary ` + buildinfo.Summary() + ` and content at git rev ` + string(contentRev)
 	m := mailGun.NewMessage(
 		"noreply@perkeep.org (Perkeep Website)",
 		"Perkeep camweb restarting",
@@ -839,6 +841,11 @@ func initStaging() error {
 
 func main() {
 	flag.Parse()
+	if *flagVersion {
+		fmt.Fprintf(os.Stderr, "pk-web version: %s\nGo version: %s (%s/%s)\n",
+			buildinfo.Summary(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
+		return
+	}
 	if err := initStaging(); err != nil {
 		log.Fatalf("Error setting up staging: %v", err)
 	}
