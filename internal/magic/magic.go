@@ -227,6 +227,7 @@ var VideoExtensions = map[string]bool{
 	"m1v": true,
 	"m2v": true,
 	"m4v": true,
+	"mkv": true,
 }
 
 // HasExtension returns whether the file extension of filename is among
