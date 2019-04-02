@@ -137,7 +137,7 @@ func (fi *FileInfo) IsVideo() bool {
 		return true
 	}
 
-	if magic.HasExtension(fi.FileName, magic.VideoExtensions) {
+	if magic.IsVideoFileName(fi.FileName) {
 		return true
 	}
 

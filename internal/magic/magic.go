@@ -219,15 +219,23 @@ type errReader struct{ err error }
 
 func (er errReader) Read([]byte) (int, error) { return 0, er.err }
 
-// TODO(mpl): unexport VideoExtensions
-
-// VideoExtensions are common video filename extensions that are not
-// covered by mime.TypeByExtension.
-var VideoExtensions = map[string]bool{
+// videoExtensions are common video filename extensions that may not
+// be covered by mime.TypeByExtension.
+var videoExtensions = map[string]bool{
+	"3gp": true,
+	"avi": true,
 	"m1v": true,
 	"m2v": true,
 	"m4v": true,
 	"mkv": true,
+	"mov": true,
+	"mp4": true,
+}
+
+// IsVideoFileName reports whether the filename has an extension associated
+// with a video file format.
+func IsVideoFileName(filename string) bool {
+	return HasExtension(filename, videoExtensions)
 }
 
 // HasExtension returns whether the file extension of filename is among
