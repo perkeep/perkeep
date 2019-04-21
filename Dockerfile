@@ -63,7 +63,7 @@ RUN go run make.go --sqlite=true -v
 FROM debian:stretch
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-                libsqlite3-dev && rm -rf /var/lib/apt/lists/*
+                libsqlite3-dev ca-certificates && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /home/keepy/bin
 ENV HOME /home/keepy
