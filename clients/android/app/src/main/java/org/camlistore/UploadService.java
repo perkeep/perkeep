@@ -347,6 +347,10 @@ public class UploadService extends Service {
                 dirs.add(root + "/gpx");
                 dirs.add(root + "/kml");
             }
+            List<String> backupDirs = mPrefs.getAutoBackupDirs();
+            for (String d : backupDirs) {
+                dirs.add(root + d);
+            }
         }
         return dirs;
     }
@@ -403,6 +407,11 @@ public class UploadService extends Service {
             maybeAddObserver("DCIM/CardboardCamera");
             maybeAddObserver("Eye-Fi");
             maybeAddObserver("gpx");
+
+            List<String> backupDirs = mPrefs.getAutoBackupDirs();
+            for (String d : backupDirs) {
+                maybeAddObserver(d.substring(1, d.length()));
+            }
         }
     }
 
@@ -528,7 +537,7 @@ public class UploadService extends Service {
 
     /**
      * Callback from the UploadThread to the service.
-     * 
+     *
      * @param qf
      *            the queued file that was successfully uploaded.
      */

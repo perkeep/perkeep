@@ -16,6 +16,11 @@ limitations under the License.
 
 package org.camlistore;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.ArrayList;
+import android.text.TextUtils;
+
 import android.content.Context;
 import android.content.SharedPreferences;
 
@@ -45,6 +50,9 @@ public final class Preferences {
     public static final String AUTO_REQUIRED_WIFI_SSID = "camli.auto.required_wifi_ssid";
     public static final String AUTO_DIR_PHOTOS = "camli.auto.photos";
     public static final String AUTO_DIR_MYTRACKS = "camli.auto.mytracks";
+    public static final String AUTO_BACKUP_DIRS = "camli.auto.backup_dirs";
+    public static final String AUTO_BACKUP_DIR = "camli.auto.backup_dirs.dir";
+    public static final String AUTO_NEW_BACKUP_DIR = "camli.auto.new_backup_dir";
 
     private final SharedPreferences mSP;
 
@@ -129,4 +137,16 @@ public final class Preferences {
         mSP.edit().putString(DEV_IP, value).apply();
     }
 
+    public void setAutoBackupDirs(List<String> list){
+        mSP.edit().putString(AUTO_BACKUP_DIRS, TextUtils.join("\n", list)).apply();
+    }
+
+    public List<String> getAutoBackupDirs(){
+        String d = mSP.getString(AUTO_BACKUP_DIRS, "");
+        List<String> dirs = new ArrayList<>();
+        if (!d.isEmpty()){
+            dirs = new ArrayList<>(Arrays.asList(d.split("\n")));
+        }
+        return dirs;
+    }
 }

@@ -40,6 +40,16 @@
             android:key="camli.auto.mytracks"
             android:persistent="true"
             android:title="MyTracks exports" />
+        <PreferenceScreen
+            android:key="camli.auto.backup_dirs"
+            android:title="Backup Folders" >
+            <EditTextPreference
+                android:key="camli.auto.new_backup_dir"
+                android:persistent="false"
+                android:singleLine="true"
+                android:summary="Backup new folder from your sdcard"
+                android:title="New Folder" />
+		</PreferenceScreen>
         <CheckBoxPreference
             android:defaultValue="false"
             android:key="camli.auto.require_wifi"

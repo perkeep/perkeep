@@ -19,6 +19,9 @@ package org.camlistore;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.List;
 
 import android.app.AlertDialog;
 import android.content.ComponentName;
@@ -27,6 +30,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
+import android.content.SharedPreferences.Editor;
 import android.net.Uri;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
@@ -58,11 +62,14 @@ public class SettingsActivity extends PreferenceActivity {
     private CheckBoxPreference autoPref;
     private PreferenceScreen autoOpts;
     private EditTextPreference maxCacheSizePref;
+    private EditTextPreference autoNewBackupDirPref;
+    private PreferenceScreen autoBackupDirsPref;
 
     private SharedPreferences mSharedPrefs;
     private Preferences mPrefs;
 
     private Map<CharSequence, String> prefToParam;
+    private OnPreferenceChangeListener onChange;
 
     private final ServiceConnection mServiceConnection = new ServiceConnection() {
         @Override
@@ -98,6 +105,8 @@ public class SettingsActivity extends PreferenceActivity {
         autoOpts = (PreferenceScreen) findPreference(Preferences.AUTO_OPTS);
         maxCacheSizePref = (EditTextPreference) findPreference(Preferences.MAX_CACHE_MB);
         devIPPref = (EditTextPreference) findPreference(Preferences.DEV_IP);
+        autoNewBackupDirPref = (EditTextPreference) findPreference(Preferences.AUTO_NEW_BACKUP_DIR);
+        autoBackupDirsPref = (PreferenceScreen) findPreference(Preferences.AUTO_BACKUP_DIRS);
 
         mSharedPrefs = getSharedPreferences(Preferences.filename(this.getBaseContext()), 0);
         mPrefs = new Preferences(mSharedPrefs);
@@ -106,7 +115,7 @@ public class SettingsActivity extends PreferenceActivity {
         maxCacheSizePref.setSummary(getString(
                 R.string.settings_max_cache_size_summary, mPrefs.maxCacheMb()));
 
-        OnPreferenceChangeListener onChange = new OnPreferenceChangeListener() {
+        onChange = new OnPreferenceChangeListener() {
             @Override
             public boolean onPreferenceChange(Preference pref, Object newValue) {
                 final String key = pref.getKey();
@@ -127,6 +136,12 @@ public class SettingsActivity extends PreferenceActivity {
                         return false;
                 } else if (pref == devIPPref) {
                     updateDevIP(newStr);
+                } else if (pref == autoNewBackupDirPref) {
+                    updateAutoBackupDirList("", newStr);
+                    return false;
+                } else if (key.indexOf(Preferences.AUTO_BACKUP_DIR) != -1){
+                    updateAutoBackupDirList(pref.getTitle().toString(), newStr);
+                    return false;
                 }
                 return true; // yes, persist it
             }
@@ -136,11 +151,13 @@ public class SettingsActivity extends PreferenceActivity {
         usernamePref.setOnPreferenceChangeListener(onChange);
         maxCacheSizePref.setOnPreferenceChangeListener(onChange);
         devIPPref.setOnPreferenceChangeListener(onChange);
+        autoNewBackupDirPref.setOnPreferenceChangeListener(onChange);
+        refreshAutoBackupDirsRef();
     }
 
     /**
      * Receives the results from the custome QRPreference's call to the barcode scanner intent.
-     * 
+     *
      * This is never called if the user doesn't have a zxing barcode scanner app installed.
      */
     @Override
@@ -325,6 +342,63 @@ public class SettingsActivity extends PreferenceActivity {
             return true;
         } catch (NumberFormatException e) {
             return false;
+        }
+    }
+
+    private void updateAutoBackupDirList(String oldDir, String dir) {
+        // keep dirs sorted the way user has added since HashSet is unsorted list we need to use String and split/join with separator
+        List<String> dirs = mPrefs.getAutoBackupDirs();
+        // backup dir removal
+        if (dir == null || dir.isEmpty()) {
+            dirs.remove(oldDir);
+            mPrefs.setAutoBackupDirs(dirs);
+            refreshAutoBackupDirsRef();
+            Log.d(TAG, "Backup dir removed: " + oldDir);
+            return;
+        }
+
+        // backup dir validate/add/update
+        String match = "^(\\.\\.\\/(?:\\.\\.\\/)*)?(?!.*?\\/\\/)(?!(?:.*\\/)?\\.+(?:\\/|$)).+$";
+        if (!dir.matches(match)) {
+            Log.d(TAG, "Invalid dir: " + dir);
+            return;
+        }
+        if(oldDir != ""){
+            Integer i = dirs.indexOf(oldDir);
+            if (i != -1){
+                dirs.set(i, dir);
+            }
+            Log.d(TAG, "Backup dir updated: " + dir);
+        }else{
+            // multidir added by user
+            if (dir.indexOf("\n") != -1){
+               for (String d : dir.split("\n")) {
+                    dirs.add(d);
+                    Log.d(TAG, "New backup dir added: " + d);
+               }
+            }else{
+                dirs.add(dir);
+                Log.d(TAG, "New backup dir added: " + dir);
+            }
+        }
+        mPrefs.setAutoBackupDirs(dirs);
+        refreshAutoBackupDirsRef();
+    }
+
+    // view dirs as preferences, actual dirs lives in a separate key/value store
+    private void refreshAutoBackupDirsRef() {
+        autoBackupDirsPref.removeAll();
+        autoBackupDirsPref.addPreference(autoNewBackupDirPref);
+        List<String> dirs = mPrefs.getAutoBackupDirs();
+        for (String dir : dirs) {
+            EditTextPreference p = new EditTextPreference(autoBackupDirsPref.getContext());
+            p.setKey(Preferences.AUTO_BACKUP_DIR);
+            p.setTitle(dir);
+            p.setPersistent(false);
+            p.setDefaultValue(dir);
+            p.setSingleLineTitle(true);
+            p.setOnPreferenceChangeListener(onChange);
+            autoBackupDirsPref.addPreference(p);
         }
     }
 
