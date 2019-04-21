@@ -53,6 +53,7 @@ public final class Preferences {
     public static final String AUTO_BACKUP_DIRS = "camli.auto.backup_dirs";
     public static final String AUTO_BACKUP_DIR = "camli.auto.backup_dirs.dir";
     public static final String AUTO_NEW_BACKUP_DIR = "camli.auto.new_backup_dir";
+    public static final String INSECURE_SKIP_TLS_VERIFY = "camli.insecure_skip_tls_verify";
 
     private final SharedPreferences mSP;
 
@@ -148,5 +149,9 @@ public final class Preferences {
             dirs = new ArrayList<>(Arrays.asList(d.split("\n")));
         }
         return dirs;
+    }
+
+    public boolean insecureSkipTLSVerify() {
+        return mSP.getBoolean(INSECURE_SKIP_TLS_VERIFY, false);
     }
 }

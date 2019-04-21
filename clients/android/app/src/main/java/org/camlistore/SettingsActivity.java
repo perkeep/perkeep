@@ -64,6 +64,7 @@ public class SettingsActivity extends PreferenceActivity {
     private EditTextPreference maxCacheSizePref;
     private EditTextPreference autoNewBackupDirPref;
     private PreferenceScreen autoBackupDirsPref;
+    private CheckBoxPreference insecureSkipTLSVerifyPref;
 
     private SharedPreferences mSharedPrefs;
     private Preferences mPrefs;
@@ -107,6 +108,7 @@ public class SettingsActivity extends PreferenceActivity {
         devIPPref = (EditTextPreference) findPreference(Preferences.DEV_IP);
         autoNewBackupDirPref = (EditTextPreference) findPreference(Preferences.AUTO_NEW_BACKUP_DIR);
         autoBackupDirsPref = (PreferenceScreen) findPreference(Preferences.AUTO_BACKUP_DIRS);
+        insecureSkipTLSVerifyPref = (CheckBoxPreference) findPreference(Preferences.INSECURE_SKIP_TLS_VERIFY);
 
         mSharedPrefs = getSharedPreferences(Preferences.filename(this.getBaseContext()), 0);
         mPrefs = new Preferences(mSharedPrefs);
@@ -152,6 +154,7 @@ public class SettingsActivity extends PreferenceActivity {
         maxCacheSizePref.setOnPreferenceChangeListener(onChange);
         devIPPref.setOnPreferenceChangeListener(onChange);
         autoNewBackupDirPref.setOnPreferenceChangeListener(onChange);
+        insecureSkipTLSVerifyPref.setOnPreferenceChangeListener(onChange);
         refreshAutoBackupDirsRef();
     }
 

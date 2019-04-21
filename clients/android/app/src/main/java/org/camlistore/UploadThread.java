@@ -41,6 +41,7 @@ public class UploadThread extends Thread {
     private final HostPort mHostPort;
     private final String mUsername;
     private final String mPassword;
+    private final Boolean mInsecure;
     private final LinkedBlockingQueue<UploadThreadMessage> msgCh = new LinkedBlockingQueue<UploadThreadMessage>();
 
     AtomicReference<Process> goProcess = new AtomicReference<Process>();
@@ -53,11 +54,12 @@ public class UploadThread extends Thread {
                                                    // to stdinWriter
     private BufferedWriter stdinWriter;
 
-    public UploadThread(UploadService uploadService, HostPort hp, String username, String password) {
+    public UploadThread(UploadService uploadService, HostPort hp, String username, String password, Boolean insecure) {
         mService = uploadService;
         mHostPort = hp;
         mUsername = username;
         mPassword = password;
+        mInsecure = insecure;
     }
 
     public void stopUploads() {
@@ -158,7 +160,7 @@ public class UploadThread extends Thread {
         Process process = null;
         try {
             ProcessBuilder pb = new ProcessBuilder();
-            pb.command(binaryPath("pk-put.bin"), "--server=" + mHostPort.urlPrefix(), "file", "-stdinargs", "-vivify");
+            pb.command(binaryPath("pk-put.bin"), "--server=" + mHostPort.urlPrefix(), "--insecure=" + mInsecure,  "file", "-stdinargs", "-vivify");
             pb.redirectErrorStream(false);
             pb.environment().put("CAMLI_AUTH", "userpass:" + mUsername + ":" + mPassword);
             pb.environment().put("CAMLI_CACHE_DIR", mService.getCacheDir().getAbsolutePath());

@@ -42,11 +42,12 @@ const buffered = 16 // arbitrary
 var ctxbg = context.Background()
 
 var (
-	flagProxyLocal = false
-	flagHTTP       = flag.Bool("verbose_http", false, "show HTTP request summaries")
-	flagHaveCache  = true
-	flagBlobDir    = flag.String("blobdir", "", "If non-empty, the local directory to put blobs, instead of sending them over the network. If the string \"discard\", no blobs are written or sent over the network anywhere.")
-	flagCacheLog   = flag.Bool("logcache", false, "log caching details")
+	flagProxyLocal  = false
+	flagHTTP        = flag.Bool("verbose_http", false, "show HTTP request summaries")
+	flagHaveCache   = true
+	flagBlobDir     = flag.String("blobdir", "", "If non-empty, the local directory to put blobs, instead of sending them over the network. If the string \"discard\", no blobs are written or sent over the network anywhere.")
+	flagCacheLog    = flag.Bool("logcache", false, "log caching details")
+	flagInsecureTLS = flag.Bool("insecure", false, "If set, then server's certificate verification is disabled. Needed when the server is using a self-signed certificate.")
 )
 
 var (
@@ -175,10 +176,13 @@ func newUploader() *Uploader {
 		if flagProxyLocal {
 			proxy = proxyFromEnvironment
 		}
-		cc = client.NewOrFail(client.OptionTransportConfig(&client.TransportConfig{
-			Proxy:   proxy,
-			Verbose: *flagHTTP,
-		}))
+		cc = client.NewOrFail(
+			client.OptionTransportConfig(&client.TransportConfig{
+				Proxy:   proxy,
+				Verbose: *flagHTTP,
+			}),
+			client.OptionInsecure(*flagInsecureTLS),
+		)
 		httpStats = cc.HTTPStats()
 	}
 	cc.Verbose = *cmdmain.FlagVerbose
