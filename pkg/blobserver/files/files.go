@@ -142,6 +142,8 @@ func (ds *Storage) fetch(ctx context.Context, br blob.Ref, offset, length int64)
 	stat, err := ds.fs.Stat(fileName)
 	if os.IsNotExist(err) {
 		return nil, 0, os.ErrNotExist
+	} else if err != nil {
+		return nil, 0, err
 	}
 	size = u32(stat.Size())
 	file, err := ds.fs.Open(fileName)
