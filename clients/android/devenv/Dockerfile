@@ -26,12 +26,12 @@ WORKDIR $GOPHER
 RUN mkdir android-sdk
 ENV ANDROID_HOME $GOPHER/android-sdk
 WORKDIR $ANDROID_HOME
-RUN curl -O https://dl.google.com/android/repository/sdk-tools-linux-3859397.zip
-RUN echo '444e22ce8ca0f67353bda4b85175ed3731cae3ffa695ca18119cbacef1c1bea0  sdk-tools-linux-3859397.zip' | sha256sum -c
-RUN unzip sdk-tools-linux-3859397.zip
+RUN curl -O https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip
+RUN echo '92ffee5a1d98d856634e8b71132e8a95d96c83a63fde1099be3d86df3106def9  sdk-tools-linux-4333796.zip' | sha256sum -c
+RUN unzip sdk-tools-linux-4333796.zip
 RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager --update
 RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'platforms;android-27'
-RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'build-tools;27.0.0'
+RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'build-tools;28.0.2'
 RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'extras;android;m2repository'
 RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'ndk-bundle'
 
@@ -47,10 +47,7 @@ ENV PATH $PATH:$GOROOT/bin:$GOPHER/bin
 # Get gomobile
 RUN go get -u golang.org/x/mobile/cmd/gomobile
 WORKDIR $GOPATH/src/golang.org/x/mobile/cmd/gomobile
-RUN git reset --hard 069be623eb8e75049d64f1419849b3e92aab1c81
+RUN git reset --hard 3e0bab5405d63a8f5dd9d9764a24c8e5ac4997fa
 RUN go install
-
-# init gomobile
-RUN gomobile init -ndk $ANDROID_HOME/ndk-bundle
 
 CMD ["/bin/bash"]
