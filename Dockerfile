@@ -22,11 +22,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 		pkg-config \
                 libsqlite3-dev
 
-ENV GOLANG_VERSION 1.11.4
+ENV GOLANG_VERSION 1.12.4
 
 WORKDIR /usr/local
 RUN wget -O go.tgz https://dl.google.com/go/go${GOLANG_VERSION}.linux-amd64.tar.gz
-RUN echo "fb26c30e6a04ad937bbc657a1b5bba92f80096af1e8ee6da6430c045a8db3a5b go.tgz" | sha256sum -c -
+RUN echo "d7d1f1f88ddfe55840712dc1747f37a790cbcaa448f6c9cf51bbe10aa65442f5 go.tgz" | sha256sum -c -
 RUN tar -zxvf go.tgz
 
 ENV GOROOT /usr/local/go
