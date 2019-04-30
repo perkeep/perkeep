@@ -505,12 +505,12 @@ func makeJS(doWebUI, doPublisher bool) error {
 
 func fetchAllJS(doWebUI, doPublisher bool) error {
 	if doPublisher {
-		if err := fetchJS(publisherJSURL, publisherJS); err != nil {
+		if err := fetchJS(publisherJSURL, filepath.FromSlash(publisherJS)); err != nil {
 			return err
 		}
 	}
 	if doWebUI {
-		if err := fetchJS(gopherjsUIURL, gopherjsUI); err != nil {
+		if err := fetchJS(gopherjsUIURL, filepath.FromSlash(gopherjsUI)); err != nil {
 			return err
 		}
 	}
@@ -523,10 +523,8 @@ func fetchAllJS(doWebUI, doPublisher bool) error {
 // matching hashsum, it does not actually fetch jsURL. If it does, it checks that
 // the newly written file does match the hashsum.
 func fetchJS(jsURL, jsOnDisk string) error {
-	// TODO(mpl): use If-Modified-Since? I think pre-fetching hash is good enough already.
-	// See if we already have the file on disk
 	var currentSum string
-	_, err := os.Stat(jsURL)
+	_, err := os.Stat(jsOnDisk)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return err
