@@ -354,7 +354,7 @@ func genSearchTypes() error {
 	if err == nil && fi2.ModTime().After(fi1.ModTime()) {
 		return nil
 	}
-	cmd := exec.Command("go", "generate", "-v", "perkeep.org/app/publisher/js")
+	cmd := exec.Command("go", "generate", "-tags=js", "-v", "perkeep.org/app/publisher/js")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("go generate for publisher js error: %v, %v", err, string(out))
 	}
