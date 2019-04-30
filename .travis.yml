@@ -3,7 +3,7 @@ dist: trusty
 go_import_path: perkeep.org
 language: go
 go:
-  - "1.11.x"
+  - "1.12.x"
 before_install:
   - sudo apt-get install -qq pkg-config fuse build-essential
   - sudo modprobe fuse
