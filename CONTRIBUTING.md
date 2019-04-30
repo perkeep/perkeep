@@ -35,10 +35,10 @@ On Debian/Ubuntu, some deps to get started:
 
     $ sudo apt-get install libsqlite3-dev sqlite3 pkg-config git
 
-During development, rather than use the main binaries ("pk-put",
-"pk-get", "camtool", "pk-mount", etc) directly, we instead use a
-wrapper (devcam) that automatically configure the environment to use
-the test server & test environment.
+During development, rather than using the main binaries ("pk", "pk-put",
+"pk-get", "pk-mount", etc) directly, we instead use a wrapper (devcam)
+that automatically configures the environment to use the test server &
+test environment.
 
 ## Building devcam
 
@@ -62,7 +62,7 @@ The subcommands of devcam start the server or run pk-put/pk-get/etc:
     $ devcam server      # main server
     $ devcam put         # pk-put
     $ devcam get         # pk-get
-    $ devcam tool        # camtool
+    $ devcam tool        # pk
     $ devcam mount       # pk-mount
 
 Once the dev server is running,
