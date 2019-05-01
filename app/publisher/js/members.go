@@ -1,3 +1,5 @@
+// +build js
+
 /*
 Copyright 2016 The Perkeep Authors.
 

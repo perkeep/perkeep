@@ -1,3 +1,5 @@
+// +build js
+
 //go:generate go run gensearchtypes.go -out zsearch.go
 
 /*
