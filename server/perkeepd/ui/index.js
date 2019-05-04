@@ -49,6 +49,7 @@ goog.require('cam.Dialog');
 goog.require('cam.MapAspect');
 goog.require('cam.Header');
 goog.require('cam.Navigator');
+goog.require('cam.PdfDetail');
 goog.require('cam.PermanodeDetail');
 goog.require('cam.permanodeUtils');
 goog.require('cam.reactUtil');
@@ -246,6 +247,7 @@ cam.IndexPage = React.createClass({
 
 		var specificAspects = [
 			cam.ImageDetail.getAspect,
+			cam.PdfDetail.getAspect,
 			this.getDirAspect_.bind(null),
 		].map(getAspect).filter(goog.functions.identity);
 

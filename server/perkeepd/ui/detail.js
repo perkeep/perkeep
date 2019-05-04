@@ -30,7 +30,7 @@ goog.require('cam.SearchSession');
 goog.require('cam.SpritedAnimation');
 
 // Top-level control for the detail view. Handles loading data specified in URL and left/right navigation.
-// The details of the actual rendering are left up to child controls which are chosen based on the type of data loaded. However, currently there is only one type of child control: cam.ImageDetail.
+// The details of the actual rendering are left up to child controls which are chosen based on the type of data loaded.
 cam.DetailView = React.createClass({
 	displayName: 'DetailView',
 
