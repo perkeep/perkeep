@@ -51,6 +51,11 @@ func (c *WSClient) StreamingWSHashtag(ctx context.Context, tag string, isLocal b
 	return c.streamingWS(ctx, s, tag)
 }
 
+// StreamingWSList return channel to read events on a list using WebSocket.
+func (c *WSClient) StreamingWSList(ctx context.Context, id ID) (chan Event, error) {
+	return c.streamingWS(ctx, "list", string(id))
+}
+
 func (c *WSClient) streamingWS(ctx context.Context, stream, tag string) (chan Event, error) {
 	params := url.Values{}
 	params.Set("access_token", c.client.config.AccessToken)

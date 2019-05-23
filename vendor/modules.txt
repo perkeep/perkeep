@@ -1,0 +1,26 @@
+# github.com/gopherjs/gopherjs v0.0.0-20190430165422-3e4dfb77656c
+github.com/gopherjs/gopherjs/compiler
+github.com/gopherjs/gopherjs/compiler/analysis
+github.com/gopherjs/gopherjs/compiler/astutil
+github.com/gopherjs/gopherjs/compiler/filter
+github.com/gopherjs/gopherjs/compiler/prelude
+github.com/gopherjs/gopherjs/compiler/typesutil
+github.com/gopherjs/gopherjs/js
+# github.com/gopherjs/jsbuiltin v0.0.0-20180426082241-50091555e127
+github.com/gopherjs/jsbuiltin
+# github.com/neelance/astrewrite v0.0.0-20160511093645-99348263ae86
+github.com/neelance/astrewrite
+# golang.org/x/tools v0.0.0-20190529203303-fb6c8ffd2207
+golang.org/x/tools/go/gcexportdata
+golang.org/x/tools/go/types/typeutil
+golang.org/x/tools/go/internal/gcimporter
+golang.org/x/tools/go/ast/astutil
+# honnef.co/go/js/dom v0.0.0-20180323154144-6da835bec70f
+honnef.co/go/js/dom
+# myitcv.io v0.0.0-20190513145353-42487431adac
+myitcv.io/react
+myitcv.io/react/internal/bundle
+myitcv.io/react/internal/core
+myitcv.io/react/internal/dev
+myitcv.io/react/internal/preact
+myitcv.io/react/internal/prod

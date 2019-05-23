@@ -18,6 +18,10 @@
 // might live in a separate package. This might require special care
 // to avoid circular dependencies.
 //
+// The documentation for some of the identifiers is based on the
+// MDN Web Docs by Mozilla Contributors (https://developer.mozilla.org/en-US/docs/Web/API),
+// licensed under CC-BY-SA 2.5 (https://creativecommons.org/licenses/by-sa/2.5/).
+//
 //
 // Getting started
 //
@@ -109,6 +113,8 @@
 package dom // import "honnef.co/go/js/dom"
 
 import (
+	"image"
+	"image/color"
 	"strings"
 	"time"
 
@@ -623,10 +629,7 @@ func (d *htmlDocument) DefaultView() Window {
 
 func (d *htmlDocument) DesignMode() bool {
 	s := d.Get("designMode").String()
-	if s == "off" {
-		return false
-	}
-	return true
+	return s != "off"
 }
 
 func (d *htmlDocument) SetDesignMode(b bool) {
@@ -797,7 +800,7 @@ func (d document) CreateElement(name string) Element {
 }
 
 func (d document) CreateElementNS(ns string, name string) Element {
-	return wrapElement(d.Call("createElement", ns, name))
+	return wrapElement(d.Call("createElementNS", ns, name))
 }
 
 func (d document) CreateTextNode(s string) *Text {
@@ -1193,6 +1196,10 @@ func (w *window) RemoveEventListener(typ string, useCapture bool, listener func(
 	w.Call("removeEventListener", typ, listener, useCapture)
 }
 
+func (w *window) DispatchEvent(event Event) bool {
+	return w.Call("dispatchEvent", event).Bool()
+}
+
 func wrapDOMHighResTimeStamp(o *js.Object) time.Duration {
 	return time.Duration(o.Float() * float64(time.Millisecond))
 }
@@ -1370,6 +1377,10 @@ func (n *BasicNode) AddEventListener(typ string, useCapture bool, listener func(
 
 func (n *BasicNode) RemoveEventListener(typ string, useCapture bool, listener func(*js.Object)) {
 	n.Call("removeEventListener", typ, listener, useCapture)
+}
+
+func (n *BasicNode) DispatchEvent(event Event) bool {
+	return n.Call("dispatchEvent", event).Bool()
 }
 
 func (n *BasicNode) BaseURI() string {
@@ -1841,21 +1852,18 @@ func (e *HTMLAreaElement) Rel() *TokenList {
 type HTMLAudioElement struct{ *HTMLMediaElement }
 
 type HTMLBRElement struct{ *BasicHTMLElement }
-type HTMLBaseElement struct{ *BasicHTMLElement }
-type HTMLBodyElement struct{ *BasicHTMLElement }
 
-type ValidityState struct {
-	*js.Object
-	CustomError     bool `js:"customError"`
-	PatternMismatch bool `js:"patternMismatch"`
-	RangeOverflow   bool `js:"rangeOverflow"`
-	RangeUnderflow  bool `js:"rangeUnderflow"`
-	StepMismatch    bool `js:"stepMismatch"`
-	TooLong         bool `js:"tooLong"`
-	TypeMismatch    bool `js:"typeMismatch"`
-	Valid           bool `js:"valid"`
-	ValueMissing    bool `js:"valueMissing"`
+type HTMLBaseElement struct{ *BasicHTMLElement }
+
+func (e *HTMLBaseElement) Href() string {
+	return e.Get("href").String()
 }
+
+func (e *HTMLBaseElement) Target() string {
+	return e.Get("target").String()
+}
+
+type HTMLBodyElement struct{ *BasicHTMLElement }
 
 type HTMLButtonElement struct {
 	*BasicHTMLElement
@@ -1932,6 +1940,109 @@ type CanvasRenderingContext2D struct {
 	GlobalCompositeOperation string  `js:"globalCompositeOperation"`
 }
 
+type ImageData struct {
+	*js.Object
+
+	Width  int        `js:"width"`
+	Height int        `js:"height"`
+	Data   *js.Object `js:"data"`
+}
+
+func (m *ImageData) ColorModel() color.Model { return color.NRGBAModel }
+
+func (m *ImageData) Bounds() image.Rectangle {
+	return image.Rect(0, 0, m.Width, m.Height)
+}
+
+func (m *ImageData) At(x, y int) color.Color {
+	return m.NRGBAAt(x, y)
+}
+
+func (m *ImageData) NRGBAAt(x, y int) color.NRGBA {
+	if x < 0 || x >= m.Width ||
+		y < 0 || y >= m.Height {
+		return color.NRGBA{}
+	}
+	i := (y*m.Width + x) * 4
+	return color.NRGBA{
+		R: uint8(m.Data.Index(i + 0).Int()),
+		G: uint8(m.Data.Index(i + 1).Int()),
+		B: uint8(m.Data.Index(i + 2).Int()),
+		A: uint8(m.Data.Index(i + 3).Int()),
+	}
+}
+
+func (m *ImageData) Set(x, y int, c color.Color) {
+	if x < 0 || x >= m.Width ||
+		y < 0 || y >= m.Height {
+		return
+	}
+	c1 := color.NRGBAModel.Convert(c).(color.NRGBA)
+	i := (y*m.Width + x) * 4
+	m.Data.SetIndex(i+0, c1.R)
+	m.Data.SetIndex(i+1, c1.G)
+	m.Data.SetIndex(i+2, c1.B)
+	m.Data.SetIndex(i+3, c1.A)
+}
+
+func (m *ImageData) SetNRGBA(x, y int, c color.NRGBA) {
+	if x < 0 || x >= m.Width ||
+		y < 0 || y >= m.Height {
+		return
+	}
+	i := (y*m.Width + x) * 4
+	m.Data.SetIndex(i+0, c.R)
+	m.Data.SetIndex(i+1, c.G)
+	m.Data.SetIndex(i+2, c.B)
+	m.Data.SetIndex(i+3, c.A)
+}
+
+// CanvasGradient represents an opaque object describing a gradient.
+// It is returned by the methods CanvasRenderingContext2D.CreateLinearGradient
+// or CanvasRenderingContext2D.CreateRadialGradient.
+//
+// Reference: https://developer.mozilla.org/en-US/docs/Web/API/CanvasGradient.
+type CanvasGradient struct {
+	*js.Object
+}
+
+// AddColorStop adds a new stop, defined by an offset and a color, to the gradient.
+// It panics with *js.Error if the offset is not between 0 and 1, or if the color
+// can't be parsed as a CSS <color>.
+//
+// Reference: https://developer.mozilla.org/en-US/docs/Web/API/CanvasGradient/addColorStop.
+func (cg *CanvasGradient) AddColorStop(offset float64, color string) {
+	cg.Call("addColorStop", offset, color)
+}
+
+// CanvasPattern represents an opaque object describing a pattern.
+// It is based on an image, a canvas or a video, created by the
+// CanvasRenderingContext2D.CreatePattern method.
+//
+// Reference: https://developer.mozilla.org/en-US/docs/Web/API/CanvasPattern.
+type CanvasPattern struct {
+	*js.Object
+}
+
+type TextMetrics struct {
+	*js.Object
+
+	Width                    float64 `js:"width"`
+	ActualBoundingBoxLeft    float64 `js:"actualBoundingBoxLeft"`
+	ActualBoundingBoxRight   float64 `js:"actualBoundingBoxRight"`
+	FontBoundingBoxAscent    float64 `js:"fontBoundingBoxAscent"`
+	FontBoundingBoxDescent   float64 `js:"fontBoundingBoxDescent"`
+	ActualBoundingBoxAscent  float64 `js:"actualBoundingBoxAscent"`
+	ActualBoundingBoxDescent float64 `js:"actualBoundingBoxDescent"`
+	EmHeightAscent           float64 `js:"emHeightAscent"`
+	EmHeightDescent          float64 `js:"emHeightDescent"`
+	HangingBaseline          float64 `js:"hangingBaseline"`
+	AlphabeticBaseline       float64 `js:"alphabeticBaseline"`
+	IdeographicBaseline      float64 `js:"ideographicBaseline"`
+}
+
+// Creating canvas 2d context
+
 func (e *HTMLCanvasElement) GetContext2d() *CanvasRenderingContext2D {
 	ctx := e.GetContext("2d")
 	return &CanvasRenderingContext2D{Object: ctx}
@@ -1941,31 +2052,133 @@ func (e *HTMLCanvasElement) GetContext(param string) *js.Object {
 	return e.Call("getContext", param)
 }
 
-// Colors, Styles, and Shadows
+// Drawing Rectangles
 
-func (ctx *CanvasRenderingContext2D) CreateLinearGradient(x0, y0, x1, y1 int) {
-	ctx.Call("createLinearGradient", x0, y0, x1, y1)
-}
-
-// Rectangles
-
-func (ctx *CanvasRenderingContext2D) Rect(x, y, width, height int) {
-	ctx.Call("rect", x, y, width, height)
-}
-
-func (ctx *CanvasRenderingContext2D) FillRect(x, y, width, height int) {
-	ctx.Call("fillRect", x, y, width, height)
-}
-
-func (ctx *CanvasRenderingContext2D) StrokeRect(x, y, width, height int) {
-	ctx.Call("strokeRect", x, y, width, height)
-}
-
-func (ctx *CanvasRenderingContext2D) ClearRect(x, y, width, height int) {
+func (ctx *CanvasRenderingContext2D) ClearRect(x, y, width, height float64) {
 	ctx.Call("clearRect", x, y, width, height)
 }
 
+func (ctx *CanvasRenderingContext2D) FillRect(x, y, width, height float64) {
+	ctx.Call("fillRect", x, y, width, height)
+}
+
+func (ctx *CanvasRenderingContext2D) StrokeRect(x, y, width, height float64) {
+	ctx.Call("strokeRect", x, y, width, height)
+}
+
+// Drawing Text
+
+// FillText fills a given text at the given (x, y) position.
+// If the optional maxWidth parameter is not -1,
+// the text will be scaled to fit that width.
+func (ctx *CanvasRenderingContext2D) FillText(text string, x, y, maxWidth float64) {
+	if maxWidth == -1 {
+		ctx.Call("fillText", text, x, y)
+		return
+	}
+
+	ctx.Call("fillText", text, x, y, maxWidth)
+}
+
+// StrokeText strokes a given text at the given (x, y) position.
+// If the optional maxWidth parameter is not -1,
+// the text will be scaled to fit that width.
+func (ctx *CanvasRenderingContext2D) StrokeText(text string, x, y, maxWidth float64) {
+	if maxWidth == -1 {
+		ctx.Call("strokeText", text, x, y)
+		return
+	}
+
+	ctx.Call("strokeText", text, x, y, maxWidth)
+}
+func (ctx *CanvasRenderingContext2D) MeasureText(text string) *TextMetrics {
+	textMetrics := ctx.Call("measureText", text)
+	return &TextMetrics{Object: textMetrics}
+}
+
+// Line styles
+
+func (ctx *CanvasRenderingContext2D) GetLineDash() []float64 {
+	var dashes []float64
+	for _, dash := range ctx.Call("getLineDash").Interface().([]interface{}) {
+		dashes = append(dashes, dash.(float64))
+	}
+	return dashes
+}
+
+func (ctx *CanvasRenderingContext2D) SetLineDash(dashes []float64) {
+	ctx.Call("setLineDash", dashes)
+}
+
+// Gradients and patterns
+
+// CreateLinearGradient creates a linear gradient along the line given
+// by the coordinates represented by the parameters.
+//
+// Reference: https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/createLinearGradient.
+func (ctx *CanvasRenderingContext2D) CreateLinearGradient(x0, y0, x1, y1 float64) *CanvasGradient {
+	return &CanvasGradient{Object: ctx.Call("createLinearGradient", x0, y0, x1, y1)}
+}
+
+// CreateRadialGradient creates a radial gradient given by the coordinates of the two circles
+// represented by the parameters.
+//
+// Reference: https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/createRadialGradient.
+func (ctx *CanvasRenderingContext2D) CreateRadialGradient(x0, y0, r0, x1, y1, r1 float64) *CanvasGradient {
+	return &CanvasGradient{Object: ctx.Call("createRadialGradient", x0, y0, r0, x1, y1, r1)}
+}
+
+// CreatePattern creates a pattern using the specified image (a CanvasImageSource).
+// It repeats the source in the directions specified by the repetition argument.
+//
+// Reference: https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/createPattern.
+func (ctx *CanvasRenderingContext2D) CreatePattern(image Element, repetition string) *CanvasPattern {
+	return &CanvasPattern{Object: ctx.Call("createPattern", image, repetition)}
+}
+
 // Paths
+
+func (ctx *CanvasRenderingContext2D) BeginPath() {
+	ctx.Call("beginPath")
+}
+
+func (ctx *CanvasRenderingContext2D) ClosePath() {
+	ctx.Call("closePath")
+}
+
+func (ctx *CanvasRenderingContext2D) MoveTo(x, y float64) {
+	ctx.Call("moveTo", x, y)
+}
+
+func (ctx *CanvasRenderingContext2D) LineTo(x, y float64) {
+	ctx.Call("lineTo", x, y)
+}
+
+func (ctx *CanvasRenderingContext2D) BezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y float64) {
+	ctx.Call("bezierCurveTo", cp1x, cp1y, cp2x, cp2y, x, y)
+}
+
+func (ctx *CanvasRenderingContext2D) QuadraticCurveTo(cpx, cpy, x, y float64) {
+	ctx.Call("quadraticCurveTo", cpx, cpy, x, y)
+}
+
+func (ctx *CanvasRenderingContext2D) Arc(x, y, r, sAngle, eAngle float64, counterclockwise bool) {
+	ctx.Call("arc", x, y, r, sAngle, eAngle, counterclockwise)
+}
+
+func (ctx *CanvasRenderingContext2D) ArcTo(x1, y1, x2, y2, r float64) {
+	ctx.Call("arcTo", x1, y1, x2, y2, r)
+}
+
+func (ctx *CanvasRenderingContext2D) Ellipse(x, y, radiusX, radiusY, rotation, startAngle, endAngle float64, anticlockwise bool) {
+	ctx.Call("ellipse", x, y, radiusX, radiusY, rotation, startAngle, endAngle, anticlockwise)
+}
+
+func (ctx *CanvasRenderingContext2D) Rect(x, y, width, height float64) {
+	ctx.Call("rect", x, y, width, height)
+}
+
+// Drawing paths
 
 func (ctx *CanvasRenderingContext2D) Fill() {
 	ctx.Call("fill")
@@ -1975,87 +2188,98 @@ func (ctx *CanvasRenderingContext2D) Stroke() {
 	ctx.Call("stroke")
 }
 
-func (ctx *CanvasRenderingContext2D) BeginPath() {
-	ctx.Call("beginPath")
+func (ctx *CanvasRenderingContext2D) DrawFocusIfNeeded(element HTMLElement, path *js.Object) {
+	ctx.Call("drawFocusIfNeeded", element, path)
 }
 
-func (ctx *CanvasRenderingContext2D) MoveTo(x, y int) {
-	ctx.Call("moveTo", x, y)
-}
-
-func (ctx *CanvasRenderingContext2D) ClosePath() {
-	ctx.Call("closePath")
-}
-
-func (ctx *CanvasRenderingContext2D) LineTo(x, y int) {
-	ctx.Call("lineTo", x, y)
+func (ctx *CanvasRenderingContext2D) ScrollPathIntoView(path *js.Object) {
+	ctx.Call("scrollPathIntoView", path)
 }
 
 func (ctx *CanvasRenderingContext2D) Clip() {
 	ctx.Call("clip")
 }
 
-func (ctx *CanvasRenderingContext2D) QuadraticCurveTo(cpx, cpy, x, y int) {
-	ctx.Call("quadraticCurveTo", cpx, cpy, x, y)
-}
-
-func (ctx *CanvasRenderingContext2D) BezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y int) {
-	ctx.Call("bezierCurveTo", cp1x, cp1y, cp2x, cp2y, x, y)
-}
-
-func (ctx *CanvasRenderingContext2D) Arc(x, y, r, sAngle, eAngle int, counterclockwise bool) {
-	ctx.Call("arc", x, y, r, sAngle, eAngle, counterclockwise)
-}
-
-func (ctx *CanvasRenderingContext2D) ArcTo(x1, y1, x2, y2, r int) {
-	ctx.Call("arcTo", x1, y1, x2, y2, r)
-}
-
-func (ctx *CanvasRenderingContext2D) IsPointInPath(x, y int) bool {
+func (ctx *CanvasRenderingContext2D) IsPointInPath(x, y float64) bool {
 	return ctx.Call("isPointInPath", x, y).Bool()
+}
+
+func (ctx *CanvasRenderingContext2D) IsPointInStroke(path *js.Object, x, y float64) bool {
+	return ctx.Call("isPointInStroke", path, x, y).Bool()
 }
 
 // Transformations
 
-func (ctx *CanvasRenderingContext2D) Scale(scaleWidth, scaleHeight int) {
-	ctx.Call("scale", scaleWidth, scaleHeight)
-}
-
-func (ctx *CanvasRenderingContext2D) Rotate(angle int) {
+func (ctx *CanvasRenderingContext2D) Rotate(angle float64) {
 	ctx.Call("rotate", angle)
 }
 
-func (ctx *CanvasRenderingContext2D) Translate(x, y int) {
+func (ctx *CanvasRenderingContext2D) Scale(scaleWidth, scaleHeight float64) {
+	ctx.Call("scale", scaleWidth, scaleHeight)
+}
+
+func (ctx *CanvasRenderingContext2D) Translate(x, y float64) {
 	ctx.Call("translate", x, y)
 }
 
-func (ctx *CanvasRenderingContext2D) Transform(a, b, c, d, e, f int) {
+func (ctx *CanvasRenderingContext2D) Transform(a, b, c, d, e, f float64) {
 	ctx.Call("transform", a, b, c, d, e, f)
 }
 
-func (ctx *CanvasRenderingContext2D) SetTransform(a, b, c, d, e, f int) {
+func (ctx *CanvasRenderingContext2D) SetTransform(a, b, c, d, e, f float64) {
 	ctx.Call("setTransform", a, b, c, d, e, f)
 }
 
-// Text
-
-func (ctx *CanvasRenderingContext2D) FillText(text string, x, y, maxWidth int) {
-	if maxWidth == -1 {
-		ctx.Call("fillText", text, x, y)
-		return
-	}
-
-	ctx.Call("fillText", text, x, y, maxWidth)
+func (ctx *CanvasRenderingContext2D) ResetTransform() {
+	ctx.Call("resetTransform")
 }
 
-func (ctx *CanvasRenderingContext2D) StrokeText(text string, x, y, maxWidth int) {
-	if maxWidth == -1 {
-		ctx.Call("strokeText", text, x, y)
-		return
-	}
+// Drawing images
 
-	ctx.Call("strokeText", text, x, y, maxWidth)
+func (ctx *CanvasRenderingContext2D) DrawImage(image Element, dx, dy float64) {
+	ctx.Call("drawImage", image, dx, dy)
 }
+
+func (ctx *CanvasRenderingContext2D) DrawImageWithDst(image Element, dx, dy, dWidth, dHeight float64) {
+	ctx.Call("drawImage", image, dx, dy, dWidth, dHeight)
+}
+
+func (ctx *CanvasRenderingContext2D) DrawImageWithSrcAndDst(image Element, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight float64) {
+	ctx.Call("drawImage", image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
+}
+
+// Pixel manipulation
+
+func (ctx *CanvasRenderingContext2D) CreateImageData(width, height int) *ImageData {
+	return &ImageData{Object: ctx.Call("createImageData", width, height)}
+}
+
+func (ctx *CanvasRenderingContext2D) GetImageData(sx, sy, sw, sh int) *ImageData {
+	return &ImageData{Object: ctx.Call("getImageData", sx, sy, sw, sh)}
+}
+
+func (ctx *CanvasRenderingContext2D) PutImageData(imageData *ImageData, dx, dy float64) {
+	ctx.Call("putImageData", imageData, dx, dy)
+}
+
+func (ctx *CanvasRenderingContext2D) PutImageDataDirty(imageData *ImageData, dx, dy float64, dirtyX, dirtyY, dirtyWidth, dirtyHeight int) {
+	ctx.Call("putImageData", imageData, dx, dy, dirtyX, dirtyY, dirtyWidth, dirtyHeight)
+}
+
+// State
+
+func (ctx *CanvasRenderingContext2D) Save() {
+	ctx.Call("save")
+}
+
+func (ctx *CanvasRenderingContext2D) Restore() {
+	ctx.Call("restore")
+}
+
+// TODO Hit regions:
+// addHitRegion
+// removeHitRegion
+// clearHitRegions
 
 type HTMLDListElement struct{ *BasicHTMLElement }
 
@@ -2802,12 +3026,17 @@ type HTMLUnknownElement struct{ *BasicHTMLElement }
 
 type HTMLVideoElement struct{ *HTMLMediaElement }
 
-func (e *HTMLBaseElement) Href() string {
-	return e.Get("href").String()
-}
-
-func (e *HTMLBaseElement) Target() string {
-	return e.Get("target").String()
+type ValidityState struct {
+	*js.Object
+	CustomError     bool `js:"customError"`
+	PatternMismatch bool `js:"patternMismatch"`
+	RangeOverflow   bool `js:"rangeOverflow"`
+	RangeUnderflow  bool `js:"rangeUnderflow"`
+	StepMismatch    bool `js:"stepMismatch"`
+	TooLong         bool `js:"tooLong"`
+	TypeMismatch    bool `js:"typeMismatch"`
+	Valid           bool `js:"valid"`
+	ValueMissing    bool `js:"valueMissing"`
 }
 
 type CSSStyleDeclaration struct{ *js.Object }

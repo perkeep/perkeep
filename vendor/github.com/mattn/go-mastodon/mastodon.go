@@ -14,8 +14,8 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tomnomnom/linkheader"
 )
@@ -83,6 +83,26 @@ func (c *Client) doAPI(ctx context.Context, method string, uri string, params in
 			return err
 		}
 		ct = mw.FormDataContentType()
+	} else if reader, ok := params.(io.Reader); ok {
+		var buf bytes.Buffer
+		mw := multipart.NewWriter(&buf)
+		part, err := mw.CreateFormFile("file", "upload")
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(part, reader)
+		if err != nil {
+			return err
+		}
+		err = mw.Close()
+		if err != nil {
+			return err
+		}
+		req, err = http.NewRequest(method, u.String(), &buf)
+		if err != nil {
+			return err
+		}
+		ct = mw.FormDataContentType()
 	} else {
 		if method == http.MethodGet && pg != nil {
 			u.RawQuery = pg.toValues().Encode()
@@ -98,11 +118,32 @@ func (c *Client) doAPI(ctx context.Context, method string, uri string, params in
 		req.Header.Set("Content-Type", ct)
 	}
 
-	resp, err := c.Do(req)
-	if err != nil {
-		return err
+	var resp *http.Response
+	backoff := 1000 * time.Millisecond
+	for {
+		resp, err = c.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		// handle status code 429, which indicates the server is throttling
+		// our requests. Do an exponential backoff and retry the request.
+		if resp.StatusCode == 429 {
+			if backoff > time.Hour {
+				break
+			}
+			backoff *= 2
+
+			select {
+			case <-time.After(backoff):
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+			continue
+		}
+		break
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return parseAPIError("bad request", resp)
@@ -130,14 +171,34 @@ func NewClient(config *Config) *Client {
 
 // Authenticate get access-token to the API.
 func (c *Client) Authenticate(ctx context.Context, username, password string) error {
-	params := url.Values{}
-	params.Set("client_id", c.config.ClientID)
-	params.Set("client_secret", c.config.ClientSecret)
-	params.Set("grant_type", "password")
-	params.Set("username", username)
-	params.Set("password", password)
-	params.Set("scope", "read write follow")
+	params := url.Values{
+		"client_id":     {c.config.ClientID},
+		"client_secret": {c.config.ClientSecret},
+		"grant_type":    {"password"},
+		"username":      {username},
+		"password":      {password},
+		"scope":         {"read write follow"},
+	}
 
+	return c.authenticate(ctx, params)
+}
+
+// AuthenticateToken logs in using a grant token returned by Application.AuthURI.
+//
+// redirectURI should be the same as Application.RedirectURI.
+func (c *Client) AuthenticateToken(ctx context.Context, authCode, redirectURI string) error {
+	params := url.Values{
+		"client_id":     {c.config.ClientID},
+		"client_secret": {c.config.ClientSecret},
+		"grant_type":    {"authorization_code"},
+		"code":          {authCode},
+		"redirect_uri":  {redirectURI},
+	}
+
+	return c.authenticate(ctx, params)
+}
+
+func (c *Client) authenticate(ctx context.Context, params url.Values) error {
 	u, err := url.Parse(c.config.Server)
 	if err != nil {
 		return err
@@ -160,9 +221,9 @@ func (c *Client) Authenticate(ctx context.Context, username, password string) er
 		return parseAPIError("bad authorization", resp)
 	}
 
-	res := struct {
+	var res struct {
 		AccessToken string `json:"access_token"`
-	}{}
+	}
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	if err != nil {
 		return err
@@ -191,25 +252,50 @@ type Mention struct {
 
 // Tag hold information for tag.
 type Tag struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
+	Name    string    `json:"name"`
+	URL     string    `json:"url"`
+	History []History `json:"history"`
+}
+
+// History hold information for history.
+type History struct {
+	Day      string `json:"day"`
+	Uses     int64  `json:"uses"`
+	Accounts int64  `json:"accounts"`
 }
 
 // Attachment hold information for attachment.
 type Attachment struct {
-	ID         ID     `json:"id"`
-	Type       string `json:"type"`
-	URL        string `json:"url"`
-	RemoteURL  string `json:"remote_url"`
-	PreviewURL string `json:"preview_url"`
-	TextURL    string `json:"text_url"`
+	ID          ID             `json:"id"`
+	Type        string         `json:"type"`
+	URL         string         `json:"url"`
+	RemoteURL   string         `json:"remote_url"`
+	PreviewURL  string         `json:"preview_url"`
+	TextURL     string         `json:"text_url"`
+	Description string         `json:"description"`
+	Meta        AttachmentMeta `json:"meta"`
+}
+
+// AttachmentMeta holds information for attachment metadata.
+type AttachmentMeta struct {
+	Original AttachmentSize `json:"original"`
+	Small    AttachmentSize `json:"small"`
+}
+
+// AttachmentSize holds information for attatchment size.
+type AttachmentSize struct {
+	Width  int64   `json:"width"`
+	Height int64   `json:"height"`
+	Size   string  `json:"size"`
+	Aspect float64 `json:"aspect"`
 }
 
 // Emoji hold information for CustomEmoji.
 type Emoji struct {
-	ShortCode string `json:"shortcode"`
-	URL       string `json:"url"`
-	StaticURL string `json:"static_url"`
+	ShortCode       string `json:"shortcode"`
+	StaticURL       string `json:"static_url"`
+	URL             string `json:"url"`
+	VisibleInPicker bool   `json:"visible_in_picker"`
 }
 
 // Results hold information for search result.
@@ -223,6 +309,7 @@ type Results struct {
 type Pagination struct {
 	MaxID   ID
 	SinceID ID
+	MinID   ID
 	Limit   int64
 }
 
@@ -246,6 +333,12 @@ func newPagination(rawlink string) (*Pagination, error) {
 				return nil, err
 			}
 			p.SinceID = sinceID
+
+			minID, err := getPaginationID(link.URL, "min_id")
+			if err != nil {
+				return nil, err
+			}
+			p.MinID = minID
 		}
 	}
 
@@ -258,12 +351,7 @@ func getPaginationID(rawurl, key string) (ID, error) {
 		return "", err
 	}
 
-	id, err := strconv.ParseInt(u.Query().Get(key), 10, 64)
-	if err != nil {
-		return "", err
-	}
-
-	return ID(fmt.Sprint(id)), nil
+	return ID(u.Query().Get(key)), nil
 }
 
 func (p *Pagination) toValues() url.Values {
@@ -273,8 +361,12 @@ func (p *Pagination) toValues() url.Values {
 func (p *Pagination) setValues(params url.Values) url.Values {
 	if p.MaxID != "" {
 		params.Set("max_id", string(p.MaxID))
-	} else if p.SinceID != "" {
+	}
+	if p.SinceID != "" {
 		params.Set("since_id", string(p.SinceID))
+	}
+	if p.MinID != "" {
+		params.Set("min_id", string(p.MinID))
 	}
 	if p.Limit > 0 {
 		params.Set("limit", fmt.Sprint(p.Limit))

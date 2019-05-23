@@ -3,6 +3,7 @@ package mastodon
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -11,26 +12,31 @@ import (
 // Status is struct to hold status.
 type Status struct {
 	ID                 ID           `json:"id"`
-	CreatedAt          time.Time    `json:"created_at"`
+	URI                string       `json:"uri"`
+	URL                string       `json:"url"`
+	Account            Account      `json:"account"`
 	InReplyToID        interface{}  `json:"in_reply_to_id"`
 	InReplyToAccountID interface{}  `json:"in_reply_to_account_id"`
+	Reblog             *Status      `json:"reblog"`
+	Content            string       `json:"content"`
+	CreatedAt          time.Time    `json:"created_at"`
+	Emojis             []Emoji      `json:"emojis"`
+	RepliesCount       int64        `json:"replies_count"`
+	ReblogsCount       int64        `json:"reblogs_count"`
+	FavouritesCount    int64        `json:"favourites_count"`
+	Reblogged          interface{}  `json:"reblogged"`
+	Favourited         interface{}  `json:"favourited"`
+	Muted              interface{}  `json:"muted"`
 	Sensitive          bool         `json:"sensitive"`
 	SpoilerText        string       `json:"spoiler_text"`
 	Visibility         string       `json:"visibility"`
-	Application        Application  `json:"application"`
-	Account            Account      `json:"account"`
 	MediaAttachments   []Attachment `json:"media_attachments"`
-	Emojis             []Emoji      `json:"emojis"`
 	Mentions           []Mention    `json:"mentions"`
 	Tags               []Tag        `json:"tags"`
-	URI                string       `json:"uri"`
-	Content            string       `json:"content"`
-	URL                string       `json:"url"`
-	ReblogsCount       int64        `json:"reblogs_count"`
-	FavouritesCount    int64        `json:"favourites_count"`
-	Reblog             *Status      `json:"reblog"`
-	Favourited         interface{}  `json:"favourited"`
-	Reblogged          interface{}  `json:"reblogged"`
+	Card               *Card        `json:"card"`
+	Application        Application  `json:"application"`
+	Language           string       `json:"language"`
+	Pinned             interface{}  `json:"pinned"`
 }
 
 // Context hold information for mastodon context.
@@ -41,10 +47,18 @@ type Context struct {
 
 // Card hold information for mastodon card.
 type Card struct {
-	URL         string `json:"url"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Image       string `json:"image"`
+	URL          string `json:"url"`
+	Title        string `json:"title"`
+	Description  string `json:"description"`
+	Image        string `json:"image"`
+	Type         string `json:"type"`
+	AuthorName   string `json:"author_name"`
+	AuthorURL    string `json:"author_url"`
+	ProviderName string `json:"provider_name"`
+	ProviderURL  string `json:"provider_url"`
+	HTML         string `json:"html"`
+	Width        int64  `json:"width"`
+	Height       int64  `json:"height"`
 }
 
 // GetFavourites return the favorite list of the current user.
@@ -187,6 +201,16 @@ func (c *Client) GetTimelineHashtag(ctx context.Context, tag string, isLocal boo
 	return statuses, nil
 }
 
+// GetTimelineList return statuses from a list timeline.
+func (c *Client) GetTimelineList(ctx context.Context, id ID, pg *Pagination) ([]*Status, error) {
+	var statuses []*Status
+	err := c.doAPI(ctx, http.MethodGet, fmt.Sprintf("/api/v1/timelines/list/%s", url.PathEscape(string(id))), nil, &statuses, pg)
+	if err != nil {
+		return nil, err
+	}
+	return statuses, nil
+}
+
 // GetTimelineMedia return statuses from media timeline.
 // NOTE: This is an experimental feature of pawoo.net.
 func (c *Client) GetTimelineMedia(ctx context.Context, isLocal bool, pg *Pagination) ([]*Status, error) {
@@ -220,7 +244,7 @@ func (c *Client) PostStatus(ctx context.Context, toot *Toot) (*Status, error) {
 		params.Set("visibility", fmt.Sprint(toot.Visibility))
 	}
 	if toot.Sensitive {
-		params.Set("senstitive", "true")
+		params.Set("sensitive", "true")
 	}
 	if toot.SpoilerText != "" {
 		params.Set("spoiler_text", toot.SpoilerText)
@@ -252,10 +276,20 @@ func (c *Client) Search(ctx context.Context, q string, resolve bool) (*Results, 
 	return &results, nil
 }
 
-// UploadMedia upload a media attachment.
+// UploadMedia upload a media attachment from a file.
 func (c *Client) UploadMedia(ctx context.Context, file string) (*Attachment, error) {
 	var attachment Attachment
 	err := c.doAPI(ctx, http.MethodPost, "/api/v1/media", file, &attachment, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &attachment, nil
+}
+
+// UploadMediaFromReader uploads a media attachment from a io.Reader.
+func (c *Client) UploadMediaFromReader(ctx context.Context, reader io.Reader) (*Attachment, error) {
+	var attachment Attachment
+	err := c.doAPI(ctx, http.MethodPost, "/api/v1/media", reader, &attachment, nil)
 	if err != nil {
 		return nil, err
 	}

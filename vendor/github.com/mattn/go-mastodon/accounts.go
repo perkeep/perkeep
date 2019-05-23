@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -25,6 +26,26 @@ type Account struct {
 	AvatarStatic   string    `json:"avatar_static"`
 	Header         string    `json:"header"`
 	HeaderStatic   string    `json:"header_static"`
+	Emojis         []Emoji   `json:"emojis"`
+	Moved          *Account  `json:"moved"`
+	Fields         []Field   `json:"fields"`
+	Bot            bool      `json:"bot"`
+}
+
+// Field is a Mastodon account profile field.
+type Field struct {
+	Name       string    `json:"name"`
+	Value      string    `json:"value"`
+	VerifiedAt time.Time `json:"verified_at"`
+}
+
+// AccountSource is a Mastodon account profile field.
+type AccountSource struct {
+	Privacy   *string   `json:"privacy"`
+	Sensitive *bool    `json:"sensitive"`
+	Language  *string   `json:"language"`
+	Note      *string   `json:"note"`
+	Fields    *[]Field `json:"fields"`
 }
 
 // GetAccount return Account.
@@ -53,6 +74,9 @@ type Profile struct {
 	// If it is empty, update it with empty.
 	DisplayName *string
 	Note        *string
+	Locked      *bool
+	Fields      *[]Field
+	Source      *AccountSource
 
 	// Set the base64 encoded character string of the image.
 	Avatar string
@@ -67,6 +91,26 @@ func (c *Client) AccountUpdate(ctx context.Context, profile *Profile) (*Account,
 	}
 	if profile.Note != nil {
 		params.Set("note", *profile.Note)
+	}
+	if profile.Locked != nil {
+		params.Set("locked", strconv.FormatBool(*profile.Locked))
+	}
+	if profile.Fields != nil {
+		for idx, field := range *profile.Fields {
+			params.Set(fmt.Sprintf("fields_attributes[%d][name]", idx), field.Name)
+			params.Set(fmt.Sprintf("fields_attributes[%d][value]", idx), field.Value)
+		}
+	}
+	if profile.Source != nil {
+		if profile.Source.Privacy != nil {
+			params.Set("source[privacy]", *profile.Source.Privacy)
+		}
+		if profile.Source.Sensitive != nil {
+			params.Set("source[sensitive]", strconv.FormatBool(*profile.Source.Sensitive))
+		}
+		if profile.Source.Language != nil {
+			params.Set("source[language]", *profile.Source.Language)
+		}
 	}
 	if profile.Avatar != "" {
 		params.Set("avatar", profile.Avatar)
@@ -125,12 +169,16 @@ func (c *Client) GetBlocks(ctx context.Context, pg *Pagination) ([]*Account, err
 
 // Relationship hold information for relation-ship to the account.
 type Relationship struct {
-	ID         ID   `json:"id"`
-	Following  bool `json:"following"`
-	FollowedBy bool `json:"followed_by"`
-	Blocking   bool `json:"blocking"`
-	Muting     bool `json:"muting"`
-	Requested  bool `json:"requested"`
+	ID                  ID   `json:"id"`
+	Following           bool `json:"following"`
+	FollowedBy          bool `json:"followed_by"`
+	Blocking            bool `json:"blocking"`
+	Muting              bool `json:"muting"`
+	MutingNotifications bool `json:"muting_notifications"`
+	Requested           bool `json:"requested"`
+	DomainBlocking      bool `json:"domain_blocking"`
+	ShowingReblogs      bool `json:"showing_reblogs"`
+	Endorsed            bool `json:"endorsed"`
 }
 
 // AccountFollow follow the account.

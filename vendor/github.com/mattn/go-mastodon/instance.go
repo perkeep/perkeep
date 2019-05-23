@@ -7,14 +7,16 @@ import (
 
 // Instance hold information for mastodon instance.
 type Instance struct {
-	URI         string            `json:"uri"`
-	Title       string            `json:"title"`
-	Description string            `json:"description"`
-	EMail       string            `json:"email"`
-	Version     string            `json:"version,omitempty"`
-	URLs        map[string]string `json:"urls,omitempty"`
-	Stats       *InstanceStats    `json:"stats,omitempty"`
-	Thumbnail   string            `json:"thumbnail,omitempty"`
+	URI            string            `json:"uri"`
+	Title          string            `json:"title"`
+	Description    string            `json:"description"`
+	EMail          string            `json:"email"`
+	Version        string            `json:"version,omitempty"`
+	Thumbnail      string            `json:"thumbnail,omitempty"`
+	URLs           map[string]string `json:"urls,omitempty"`
+	Stats          *InstanceStats    `json:"stats,omitempty"`
+	Languages      []string          `json:"languages"`
+	ContactAccount *Account          `json:"account"`
 }
 
 // InstanceStats hold information for mastodon instance stats.

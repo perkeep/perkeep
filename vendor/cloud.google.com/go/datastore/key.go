@@ -1,4 +1,4 @@
-// Copyright 2014 Google Inc. All Rights Reserved.
+// Copyright 2014 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ package datastore
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/gob"
 	"errors"
@@ -23,52 +24,30 @@ import (
 	"strings"
 
 	"github.com/golang/protobuf/proto"
-	"golang.org/x/net/context"
 	pb "google.golang.org/genproto/googleapis/datastore/v1"
 )
 
-// Key represents the datastore key for a stored entity, and is immutable.
+// Key represents the datastore key for a stored entity.
 type Key struct {
-	kind   string
-	id     int64
-	name   string
-	parent *Key
+	// Kind cannot be empty.
+	Kind string
+	// Either ID or Name must be zero for the Key to be valid.
+	// If both are zero, the Key is incomplete.
+	ID   int64
+	Name string
+	// Parent must either be a complete Key or nil.
+	Parent *Key
 
-	namespace string
-}
-
-func (k *Key) Kind() string {
-	return k.kind
-}
-
-func (k *Key) ID() int64 {
-	return k.id
-}
-
-func (k *Key) Name() string {
-	return k.name
-}
-
-func (k *Key) Parent() *Key {
-	return k.parent
-}
-
-// SetParent sets the parent of a complete key.
-// If the key is incomplete, it panics.
-func (k *Key) SetParent(v *Key) {
-	if v.Incomplete() {
-		panic("can't set an incomplete key as parent")
-	}
-	k.parent = v
-}
-
-func (k *Key) Namespace() string {
-	return k.namespace
+	// Namespace provides the ability to partition your data for multiple
+	// tenants. In most cases, it is not necessary to specify a namespace.
+	// See docs on datastore multitenancy for details:
+	// https://cloud.google.com/datastore/docs/concepts/multitenancy
+	Namespace string
 }
 
 // Incomplete reports whether the key does not refer to a stored entity.
 func (k *Key) Incomplete() bool {
-	return k.name == "" && k.id == 0
+	return k.Name == "" && k.ID == 0
 }
 
 // valid returns whether the key is valid.
@@ -76,18 +55,18 @@ func (k *Key) valid() bool {
 	if k == nil {
 		return false
 	}
-	for ; k != nil; k = k.parent {
-		if k.kind == "" {
+	for ; k != nil; k = k.Parent {
+		if k.Kind == "" {
 			return false
 		}
-		if k.name != "" && k.id != 0 {
+		if k.Name != "" && k.ID != 0 {
 			return false
 		}
-		if k.parent != nil {
-			if k.parent.Incomplete() {
+		if k.Parent != nil {
+			if k.Parent.Incomplete() {
 				return false
 			}
-			if k.parent.namespace != k.namespace {
+			if k.Parent.Namespace != k.Namespace {
 				return false
 			}
 		}
@@ -102,29 +81,29 @@ func (k *Key) Equal(o *Key) bool {
 		if k == nil || o == nil {
 			return k == o // if either is nil, both must be nil
 		}
-		if k.namespace != o.namespace || k.name != o.name || k.id != o.id || k.kind != o.kind {
+		if k.Namespace != o.Namespace || k.Name != o.Name || k.ID != o.ID || k.Kind != o.Kind {
 			return false
 		}
-		if k.parent == nil && o.parent == nil {
+		if k.Parent == nil && o.Parent == nil {
 			return true
 		}
-		k = k.parent
-		o = o.parent
+		k = k.Parent
+		o = o.Parent
 	}
 }
 
 // marshal marshals the key's string representation to the buffer.
 func (k *Key) marshal(b *bytes.Buffer) {
-	if k.parent != nil {
-		k.parent.marshal(b)
+	if k.Parent != nil {
+		k.Parent.marshal(b)
 	}
 	b.WriteByte('/')
-	b.WriteString(k.kind)
+	b.WriteString(k.Kind)
 	b.WriteByte(',')
-	if k.name != "" {
-		b.WriteString(k.name)
+	if k.Name != "" {
+		b.WriteString(k.Name)
 	} else {
-		b.WriteString(strconv.FormatInt(k.id, 10))
+		b.WriteString(strconv.FormatInt(k.ID, 10))
 	}
 }
 
@@ -154,11 +133,11 @@ func keyToGobKey(k *Key) *gobKey {
 		return nil
 	}
 	return &gobKey{
-		Kind:      k.kind,
-		StringID:  k.name,
-		IntID:     k.id,
-		Parent:    keyToGobKey(k.parent),
-		Namespace: k.namespace,
+		Kind:      k.Kind,
+		StringID:  k.Name,
+		IntID:     k.ID,
+		Parent:    keyToGobKey(k.Parent),
+		Namespace: k.Namespace,
 	}
 }
 
@@ -167,11 +146,11 @@ func gobKeyToKey(gk *gobKey) *Key {
 		return nil
 	}
 	return &Key{
-		kind:      gk.Kind,
-		name:      gk.StringID,
-		id:        gk.IntID,
-		parent:    gobKeyToKey(gk.Parent),
-		namespace: gk.Namespace,
+		Kind:      gk.Kind,
+		Name:      gk.StringID,
+		ID:        gk.IntID,
+		Parent:    gobKeyToKey(gk.Parent),
+		Namespace: gk.Namespace,
 	}
 }
 
@@ -247,27 +226,6 @@ func DecodeKey(encoded string) (*Key, error) {
 	return protoToKey(pKey)
 }
 
-// NewIncompleteKey creates a new incomplete key.
-// The supplied kind cannot be empty.
-func NewIncompleteKey(ctx context.Context, kind string, parent *Key) *Key {
-	return NewKey(ctx, kind, "", 0, parent)
-}
-
-// NewKey creates a new key.
-// The supplied kind cannot be empty.
-// At least one of name and id must be zero. If both are zero, the key returned
-// is incomplete.
-// The supplied parent must either be a complete key or nil.
-func NewKey(ctx context.Context, kind, name string, id int64, parent *Key) *Key {
-	return &Key{
-		kind:      kind,
-		name:      name,
-		id:        id,
-		parent:    parent,
-		namespace: ctxNamespace(ctx),
-	}
-}
-
 // AllocateIDs accepts a slice of incomplete keys and returns a
 // slice of complete keys that are guaranteed to be valid in the datastore.
 func (c *Client) AllocateIDs(ctx context.Context, keys []*Key) ([]*Key, error) {
@@ -285,4 +243,38 @@ func (c *Client) AllocateIDs(ctx context.Context, keys []*Key) ([]*Key, error) {
 	}
 
 	return multiProtoToKey(resp.Keys)
+}
+
+// IncompleteKey creates a new incomplete key.
+// The supplied kind cannot be empty.
+// The namespace of the new key is empty.
+func IncompleteKey(kind string, parent *Key) *Key {
+	return &Key{
+		Kind:   kind,
+		Parent: parent,
+	}
+}
+
+// NameKey creates a new key with a name.
+// The supplied kind cannot be empty.
+// The supplied parent must either be a complete key or nil.
+// The namespace of the new key is empty.
+func NameKey(kind, name string, parent *Key) *Key {
+	return &Key{
+		Kind:   kind,
+		Name:   name,
+		Parent: parent,
+	}
+}
+
+// IDKey creates a new key with an ID.
+// The supplied kind cannot be empty.
+// The supplied parent must either be a complete key or nil.
+// The namespace of the new key is empty.
+func IDKey(kind string, id int64, parent *Key) *Key {
+	return &Key{
+		Kind:   kind,
+		ID:     id,
+		Parent: parent,
+	}
 }

@@ -303,7 +303,7 @@ func pollCommits(dir string) {
 		}
 		if dsClient != nil {
 			ctx := context.Background()
-			key := datastore.NewKey(ctx, "git_commit", commit, 0, nil)
+			key := datastore.NameKey("git_commit", commit, nil)
 			var gc GitCommit
 			if err := dsClient.Get(ctx, key, &gc); err == nil && gc.Emailed {
 				log.Printf("Already emailed about commit %v; skipping", commit)
@@ -319,7 +319,7 @@ func pollCommits(dir string) {
 		knownCommit[commit] = true
 		if dsClient != nil {
 			ctx := context.Background()
-			key := datastore.NewKey(ctx, "git_commit", commit, 0, nil)
+			key := datastore.NameKey("git_commit", commit, nil)
 			_, err := dsClient.Put(ctx, key, &GitCommit{Emailed: true})
 			log.Printf("datastore put of git_commit(%v): %v", commit, err)
 		}

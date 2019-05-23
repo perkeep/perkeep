@@ -1,0 +1,19 @@
+This is a Go package which maps (lat, long) to a timezone.
+
+The motivation is figuring out the UTC time of a JPG with EXIF
+metadata containing GPS coordinates and local time, but no timezone
+offset. This is a surprising number of photos.
+
+See docs at http://godoc.org/github.com/bradfitz/latlong
+
+To rebuild the data files, see the Makefile (or just run Make).
+You'll need the data files unzip to the "world" directory.
+
+Some background:
+
+    https://plus.google.com/u/0/+BradFitzpatrick/posts/XVyy1bAzkZd
+
+Another image of the underlying data structure:
+
+    http://i.imgur.com/Rt8bLSD.png
+

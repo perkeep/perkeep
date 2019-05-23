@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/acme"
+	"golang.org/x/net/idna"
 )
 
 // createCertRetryAfter is how much time to wait before removing a failed state
@@ -44,7 +45,7 @@ var createCertRetryAfter = time.Minute
 var pseudoRand *lockedMathRand
 
 func init() {
-	src := mathrand.NewSource(timeNow().UnixNano())
+	src := mathrand.NewSource(time.Now().UnixNano())
 	pseudoRand = &lockedMathRand{rnd: mathrand.New(src)}
 }
 
@@ -62,14 +63,20 @@ type HostPolicy func(ctx context.Context, host string) error
 // HostWhitelist returns a policy where only the specified host names are allowed.
 // Only exact matches are currently supported. Subdomains, regexp or wildcard
 // will not match.
+//
+// Note that all hosts will be converted to Punycode via idna.Lookup.ToASCII so that
+// Manager.GetCertificate can handle the Unicode IDN and mixedcase hosts correctly.
+// Invalid hosts will be silently ignored.
 func HostWhitelist(hosts ...string) HostPolicy {
 	whitelist := make(map[string]bool, len(hosts))
 	for _, h := range hosts {
-		whitelist[h] = true
+		if h, err := idna.Lookup.ToASCII(h); err == nil {
+			whitelist[h] = true
+		}
 	}
 	return func(_ context.Context, host string) error {
 		if !whitelist[host] {
-			return errors.New("acme/autocert: host not configured")
+			return fmt.Errorf("acme/autocert: host %q not configured in HostWhitelist", host)
 		}
 		return nil
 	}
@@ -183,6 +190,9 @@ type Manager struct {
 	// for tls-alpn.
 	// The entries are stored for the duration of the authorization flow.
 	certTokens map[string]*tls.Certificate
+	// nowFunc, if not nil, returns the current time. This may be set for
+	// testing purposes.
+	nowFunc func() time.Time
 }
 
 // certKey is the key by which certificates are tracked in state, renewal and cache.
@@ -223,6 +233,11 @@ func (m *Manager) TLSConfig() *tls.Config {
 // a new cert. A non-nil error returned from m.HostPolicy halts TLS negotiation.
 // The error is propagated back to the caller of GetCertificate and is user-visible.
 // This does not affect cached certs. See HostPolicy field description for more details.
+//
+// If GetCertificate is used directly, instead of via Manager.TLSConfig, package users will
+// also have to add acme.ALPNProto to NextProtos for tls-alpn-01, or use HTTPHandler
+// for http-01. (The tls-sni-* challenges have been deprecated by popular ACME providers
+// due to security issues in the ecosystem.)
 func (m *Manager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	if m.Prompt == nil {
 		return nil, errors.New("acme/autocert: Manager.Prompt not set")
@@ -235,7 +250,17 @@ func (m *Manager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, 
 	if !strings.Contains(strings.Trim(name, "."), ".") {
 		return nil, errors.New("acme/autocert: server name component count invalid")
 	}
-	if strings.ContainsAny(name, `+/\`) {
+
+	// Note that this conversion is necessary because some server names in the handshakes
+	// started by some clients (such as cURL) are not converted to Punycode, which will
+	// prevent us from obtaining certificates for them. In addition, we should also treat
+	// example.com and EXAMPLE.COM as equivalent and return the same certificate for them.
+	// Fortunately, this conversion also helped us deal with this kind of mixedcase problems.
+	//
+	// Due to the "σςΣ" problem (see https://unicode.org/faq/idn.html#22), we can't use
+	// idna.Punycode.ToASCII (or just idna.ToASCII) here.
+	name, err := idna.Lookup.ToASCII(name)
+	if err != nil {
 		return nil, errors.New("acme/autocert: server name contains invalid character")
 	}
 
@@ -356,8 +381,8 @@ func supportsECDSA(hello *tls.ClientHelloInfo) bool {
 // Because the fallback handler is run with unencrypted port 80 requests,
 // the fallback should not serve TLS-only requests.
 //
-// If HTTPHandler is never called, the Manager will only use TLS SNI
-// challenges for domain verification.
+// If HTTPHandler is never called, the Manager will only use the "tls-alpn-01"
+// challenge for domain verification.
 func (m *Manager) HTTPHandler(fallback http.Handler) http.Handler {
 	m.tokensMu.Lock()
 	defer m.tokensMu.Unlock()
@@ -475,7 +500,7 @@ func (m *Manager) cacheGet(ctx context.Context, ck certKey) (*tls.Certificate, e
 	}
 
 	// verify and create TLS cert
-	leaf, err := validCert(ck, pubDER, privKey)
+	leaf, err := validCert(ck, pubDER, privKey, m.now())
 	if err != nil {
 		return nil, ErrCacheMiss
 	}
@@ -570,7 +595,7 @@ func (m *Manager) createCert(ctx context.Context, ck certKey) (*tls.Certificate,
 			if !ok {
 				return
 			}
-			if _, err := validCert(ck, s.cert, s.key); err == nil {
+			if _, err := validCert(ck, s.cert, s.key, m.now()); err == nil {
 				return
 			}
 			delete(m.state, ck)
@@ -639,7 +664,7 @@ func (m *Manager) authorizedCert(ctx context.Context, key crypto.Signer, ck cert
 	if err != nil {
 		return nil, nil, err
 	}
-	leaf, err = validCert(ck, der, key)
+	leaf, err = validCert(ck, der, key, m.now())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -983,6 +1008,13 @@ func (m *Manager) renewBefore() time.Duration {
 	return 720 * time.Hour // 30 days
 }
 
+func (m *Manager) now() time.Time {
+	if m.nowFunc != nil {
+		return m.nowFunc()
+	}
+	return time.Now()
+}
+
 // certState is ready when its mutex is unlocked for reading.
 type certState struct {
 	sync.RWMutex
@@ -1049,7 +1081,7 @@ func parsePrivateKey(der []byte) (crypto.Signer, error) {
 // are valid. It doesn't do any revocation checking.
 //
 // The returned value is the verified leaf cert.
-func validCert(ck certKey, der [][]byte, key crypto.Signer) (leaf *x509.Certificate, err error) {
+func validCert(ck certKey, der [][]byte, key crypto.Signer, now time.Time) (leaf *x509.Certificate, err error) {
 	// parse public part(s)
 	var n int
 	for _, b := range der {
@@ -1066,7 +1098,6 @@ func validCert(ck certKey, der [][]byte, key crypto.Signer) (leaf *x509.Certific
 	}
 	// verify the leaf is not expired and matches the domain name
 	leaf = x509Cert[0]
-	now := timeNow()
 	if now.Before(leaf.NotBefore) {
 		return nil, errors.New("acme/autocert: certificate is not valid yet")
 	}
@@ -1120,8 +1151,6 @@ func (r *lockedMathRand) int63n(max int64) int64 {
 
 // For easier testing.
 var (
-	timeNow = time.Now
-
 	// Called when a state is removed.
 	testDidRemoveState = func(certKey) {}
 )

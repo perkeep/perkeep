@@ -23,14 +23,27 @@ func (l Link) HasParam(key string) bool {
 	return false
 }
 
-// Param returns the value of a parameter, or an error on failure
-func (l Link) Param(key string) (string, error) {
+// Param returns the value of a parameter if it exists
+func (l Link) Param(key string) string {
 	for k, v := range l.Params {
 		if key == k {
-			return v, nil
+			return v
 		}
 	}
-	return "", fmt.Errorf("Could not find param '%s'", key)
+	return ""
+}
+
+// String returns the string representation of a link
+func (l Link) String() string {
+
+	p := make([]string, 0, len(l.Params))
+	for k, v := range l.Params {
+		p = append(p, fmt.Sprintf("%s=\"%s\"", k, v))
+	}
+	if l.Rel != "" {
+		p = append(p, fmt.Sprintf("%s=\"%s\"", "rel", l.Rel))
+	}
+	return fmt.Sprintf("<%s>; %s", l.URL, strings.Join(p, "; "))
 }
 
 // Links is a slice of Link structs
@@ -47,11 +60,25 @@ func (l Links) FilterByRel(r string) Links {
 	return links
 }
 
+// String returns the string representation of multiple Links
+// for use in HTTP responses etc
+func (l Links) String() string {
+	if l == nil {
+		return fmt.Sprint(nil)
+	}
+
+	var strs []string
+	for _, link := range l {
+		strs = append(strs, link.String())
+	}
+	return strings.Join(strs, ", ")
+}
+
 // Parse parses a raw Link header in the form:
 //   <url>; rel="foo", <url>; rel="bar"; wat="dis"
 // returning a slice of Link structs
 func Parse(raw string) Links {
-	links := make(Links, 0)
+	var links Links
 
 	// One chunk: <url>; rel="foo"
 	for _, chunk := range strings.Split(raw, ",") {
@@ -81,13 +108,14 @@ func Parse(raw string) Links {
 			// Special case for rel
 			if strings.ToLower(key) == "rel" {
 				link.Rel = val
+			} else {
+				link.Params[key] = val
 			}
-
-			link.Params[key] = val
-
 		}
 
-		links = append(links, link)
+		if link.URL != "" {
+			links = append(links, link)
+		}
 	}
 
 	return links
@@ -108,6 +136,9 @@ func ParseMultiple(headers []string) Links {
 func parseParam(raw string) (key, val string) {
 
 	parts := strings.SplitN(raw, "=", 2)
+	if len(parts) == 1 {
+		return parts[0], ""
+	}
 	if len(parts) != 2 {
 		return "", ""
 	}

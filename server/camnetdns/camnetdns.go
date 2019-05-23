@@ -127,7 +127,7 @@ func (cs cachedStore) Get(key string) (string, error) {
 	}
 	// Cache Miss. hit the datastore.
 	ctx := context.Background()
-	dk := datastore.NewKey(ctx, "camnetdns", key, 0, nil)
+	dk := datastore.NameKey("camnetdns", key, nil)
 	var value dsValue
 	if err := cs.dsClient.Get(ctx, dk, &value); err != nil {
 		if err != datastore.ErrNoSuchEntity {
@@ -141,7 +141,7 @@ func (cs cachedStore) Get(key string) (string, error) {
 }
 
 func (cs cachedStore) put(ctx context.Context, key, value string) error {
-	dk := datastore.NewKey(ctx, "camnetdns", key, 0, nil)
+	dk := datastore.NameKey("camnetdns", key, nil)
 	val := &dsValue{
 		Record:  value,
 		Updated: time.Now(),
@@ -159,7 +159,7 @@ func (cs cachedStore) put(ctx context.Context, key, value string) error {
 func (cs cachedStore) Set(key, value string) error {
 	// check if record already exists
 	ctx := context.Background()
-	dk := datastore.NewKey(ctx, "camnetdns", key, 0, nil)
+	dk := datastore.NameKey("camnetdns", key, nil)
 	var oldValue dsValue
 	if err := cs.dsClient.Get(ctx, dk, &oldValue); err != nil {
 		if err != datastore.ErrNoSuchEntity {

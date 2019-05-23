@@ -156,3 +156,11 @@ func (c *Client) StreamingHashtag(ctx context.Context, tag string, isLocal bool)
 
 	return c.streaming(ctx, p, params)
 }
+
+// StreamingList return channel to read events on a list.
+func (c *Client) StreamingList(ctx context.Context, id ID) (chan Event, error) {
+	params := url.Values{}
+	params.Set("list", string(id))
+
+	return c.streaming(ctx, "list", params)
+}

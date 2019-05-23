@@ -86,8 +86,28 @@ func (it *Item) SpatialExtents() (width, height int, ok bool) {
 	return
 }
 
-// TODO: add HEIF irot rotation accessor, like Image.SpatialExtents.
-// And imir (mirroring).
+// Rotations returns the number of 90 degree rotations counter-clockwise that this
+// image should be rendered at, in the range [0,3].
+func (it *Item) Rotations() int {
+	for _, p := range it.Properties {
+		if p, ok := p.(*bmff.ImageRotation); ok {
+			return int(p.Angle)
+		}
+	}
+	return 0
+}
+
+// VisualDimensions returns the item's width and height after correcting
+// for any rotations.
+func (it *Item) VisualDimensions() (width, height int, ok bool) {
+	width, height, ok = it.SpatialExtents()
+	for i := 0; i < it.Rotations(); i++ {
+		width, height = height, width
+	}
+	return
+}
+
+// TODO: add HEIF imir (mirroring) accessor, like Image.SpatialExtents.
 
 // Open returns a handle to access a HEIF file.
 func Open(f io.ReaderAt) *File {
