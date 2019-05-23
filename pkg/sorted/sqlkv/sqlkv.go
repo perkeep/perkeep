@@ -18,6 +18,7 @@ limitations under the License.
 package sqlkv // import "perkeep.org/pkg/sorted/sqlkv"
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -122,11 +123,39 @@ func (b *batchTx) Delete(key string) {
 	_, b.err = b.tx.Exec(b.kv.sql("DELETE FROM /*TPRE*/rows WHERE k=?"), key)
 }
 
-func (kv *KeyValue) BeginBatch() sorted.BatchMutation {
+func (b *batchTx) Find(start, end string) sorted.Iterator {
+	if b.err != nil {
+		return &iter{
+			kv:         b.kv,
+			closeCheck: leak.NewChecker(),
+			err:        b.err,
+		}
+	}
+	return find(b.kv, b.tx, start, end)
+}
+
+func (b *batchTx) Get(key string) (value string, err error) {
+	if b.err != nil {
+		return "", b.err
+	}
+	return get(b.kv, b.tx, key)
+}
+
+func (b *batchTx) Close() error {
+	if b.err != nil {
+		return b.err
+	}
+	if b.kv.Gate != nil {
+		defer b.kv.Gate.Done()
+	}
+	return b.tx.Commit()
+}
+
+func (kv *KeyValue) beginTx(txOpts *sql.TxOptions) *batchTx {
 	if kv.Gate != nil {
 		kv.Gate.Start()
 	}
-	tx, err := kv.DB.Begin()
+	tx, err := kv.DB.BeginTx(context.TODO(), txOpts)
 	if err != nil {
 		log.Printf("SQL BEGIN BATCH: %v", err)
 	}
@@ -135,6 +164,10 @@ func (kv *KeyValue) BeginBatch() sorted.BatchMutation {
 		err: err,
 		kv:  kv,
 	}
+}
+
+func (kv *KeyValue) BeginBatch() sorted.BatchMutation {
+	return kv.beginTx(nil)
 }
 
 func (kv *KeyValue) CommitBatch(b sorted.BatchMutation) error {
@@ -154,16 +187,22 @@ func (kv *KeyValue) CommitBatch(b sorted.BatchMutation) error {
 	return bt.tx.Commit()
 }
 
+func (kv *KeyValue) BeginReadTx() sorted.ReadTransaction {
+	return kv.beginTx(&sql.TxOptions{
+		ReadOnly: true,
+		// Needed so that repeated reads of the same data are always
+		// consistent:
+		Isolation: sql.LevelSerializable,
+	})
+
+}
+
 func (kv *KeyValue) Get(key string) (value string, err error) {
 	if kv.Gate != nil {
 		kv.Gate.Start()
 		defer kv.Gate.Done()
 	}
-	err = kv.DB.QueryRow(kv.sql("SELECT v FROM /*TPRE*/rows WHERE k=?"), key).Scan(&value)
-	if err == sql.ErrNoRows {
-		err = sorted.ErrNotFound
-	}
-	return
+	return get(kv, kv.DB, key)
 }
 
 func (kv *KeyValue) Set(key, value string) error {
@@ -205,6 +244,42 @@ func (kv *KeyValue) Wipe() error {
 
 func (kv *KeyValue) Close() error { return kv.DB.Close() }
 
+// Something we can make queries on. This will either be an *sql.DB or an *sql.Tx.
+type queryObject interface {
+	QueryRow(query string, args ...interface{}) *sql.Row
+	Query(query string, args ...interface{}) (*sql.Rows, error)
+}
+
+// Common logic for KeyValue.Find and batchTx.Find.
+func find(kv *KeyValue, qobj queryObject, start, end string) *iter {
+	var rows *sql.Rows
+	var err error
+	if end == "" {
+		rows, err = qobj.Query(kv.sql("SELECT k, v FROM /*TPRE*/rows WHERE k >= ? ORDER BY k "), start)
+	} else {
+		rows, err = qobj.Query(kv.sql("SELECT k, v FROM /*TPRE*/rows WHERE k >= ? AND k < ? ORDER BY k "), start, end)
+	}
+	if err != nil {
+		log.Printf("unexpected query error: %v", err)
+		return &iter{err: err}
+	}
+
+	return &iter{
+		kv:         kv,
+		rows:       rows,
+		closeCheck: leak.NewChecker(),
+	}
+}
+
+// Common logic for KeyValue.Get and batchTx.Get
+func get(kv *KeyValue, qobj queryObject, key string) (value string, err error) {
+	err = qobj.QueryRow(kv.sql("SELECT v FROM /*TPRE*/rows WHERE k=?"), key).Scan(&value)
+	if err == sql.ErrNoRows {
+		err = sorted.ErrNotFound
+	}
+	return
+}
+
 func (kv *KeyValue) Find(start, end string) sorted.Iterator {
 	var releaseGate func() // nil if unused
 	if kv.Gate != nil {
@@ -214,24 +289,8 @@ func (kv *KeyValue) Find(start, end string) sorted.Iterator {
 			once.Do(kv.Gate.Done)
 		}
 	}
-	var rows *sql.Rows
-	var err error
-	if end == "" {
-		rows, err = kv.DB.Query(kv.sql("SELECT k, v FROM /*TPRE*/rows WHERE k >= ? ORDER BY k "), start)
-	} else {
-		rows, err = kv.DB.Query(kv.sql("SELECT k, v FROM /*TPRE*/rows WHERE k >= ? AND k < ? ORDER BY k "), start, end)
-	}
-	if err != nil {
-		log.Printf("unexpected query error: %v", err)
-		return &iter{err: err}
-	}
-
-	it := &iter{
-		kv:          kv,
-		rows:        rows,
-		closeCheck:  leak.NewChecker(),
-		releaseGate: releaseGate,
-	}
+	it := find(kv, kv.DB, start, end)
+	it.releaseGate = releaseGate
 	return it
 }
 

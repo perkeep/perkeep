@@ -2,12 +2,20 @@ package pq
 
 import (
 	"fmt"
+	"net"
 	nurl "net/url"
 	"sort"
 	"strings"
 )
 
-// ParseURL converts url to a connection string for driver.Open.
+// ParseURL no longer needs to be used by clients of this library since supplying a URL as a
+// connection string to sql.Open() is now supported:
+//
+//	sql.Open("postgres", "postgres://bob:secret@1.2.3.4:5432/mydb?sslmode=verify-full")
+//
+// It remains exported here for backwards-compatibility.
+//
+// ParseURL converts a url to a connection string for driver.Open.
 // Example:
 //
 //	"postgres://bob:secret@1.2.3.4:5432/mydb?sslmode=verify-full"
@@ -27,14 +35,15 @@ func ParseURL(url string) (string, error) {
 		return "", err
 	}
 
-	if u.Scheme != "postgres" {
+	if u.Scheme != "postgres" && u.Scheme != "postgresql" {
 		return "", fmt.Errorf("invalid connection protocol: %s", u.Scheme)
 	}
 
 	var kvs []string
+	escaper := strings.NewReplacer(` `, `\ `, `'`, `\'`, `\`, `\\`)
 	accrue := func(k, v string) {
 		if v != "" {
-			kvs = append(kvs, k+"="+v)
+			kvs = append(kvs, k+"="+escaper.Replace(v))
 		}
 	}
 
@@ -46,12 +55,11 @@ func ParseURL(url string) (string, error) {
 		accrue("password", v)
 	}
 
-	i := strings.Index(u.Host, ":")
-	if i < 0 {
+	if host, port, err := net.SplitHostPort(u.Host); err != nil {
 		accrue("host", u.Host)
 	} else {
-		accrue("host", u.Host[:i])
-		accrue("port", u.Host[i+1:])
+		accrue("host", host)
+		accrue("port", port)
 	}
 
 	if u.Path != "" {
@@ -59,7 +67,7 @@ func ParseURL(url string) (string, error) {
 	}
 
 	q := u.Query()
-	for k, _ := range q {
+	for k := range q {
 		accrue(k, q.Get(k))
 	}
 

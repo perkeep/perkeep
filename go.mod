@@ -30,7 +30,7 @@ require (
 	github.com/jonas-p/go-shp v0.1.1 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
-	github.com/lib/pq v0.0.0-20130607063955-9afcd9aa7931
+	github.com/lib/pq v1.1.1
 	github.com/mailgun/mailgun-go v0.0.0-20171127222028-17e8bd11e87c
 	github.com/mattn/go-mastodon v0.0.5-0.20190517015615-8f6192e26b66
 	github.com/mattn/go-sqlite3 v1.6.0
