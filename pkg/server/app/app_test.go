@@ -22,6 +22,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"testing"
 )
 
@@ -170,6 +171,10 @@ sleep 10000`
 func TestQuit(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping test in short mode")
+	}
+	if runtime.GOOS == "windows" {
+		// windows does not support interrupts
+		t.Skip("Skipping interrupt test on windows")
 	}
 
 	cmd := exec.Command("sleep", "10000")
