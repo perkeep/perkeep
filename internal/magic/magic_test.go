@@ -92,6 +92,17 @@ func TestMagic(t *testing.T) {
 	}
 }
 
+func TestIsVideoFilename(t *testing.T) {
+	for _, tt := range tests {
+		want := strings.HasPrefix(tt.want, "video/")
+		got := IsVideoFileName(tt.fileName)
+		if got != want {
+			t.Errorf("IsVideoFileName(%q) = %t; want %t",
+				tt.fileName, got, want)
+		}
+	}
+}
+
 // runFileCmd runs the file utility and returns the mime-type and true
 // or an empty string and false on any error. It also mimics the MIMEType
 // behaviour.
