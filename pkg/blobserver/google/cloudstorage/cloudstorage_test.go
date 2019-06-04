@@ -91,12 +91,12 @@ func testStorage(t *testing.T, bucketDir string) {
 		t.Fatal("bucket not provided in config file or as a flag.")
 	}
 	if *clientID == "" {
-		if !metadata.OnGCE() {
-			if *clientSecret == "" {
-				t.Fatal("client ID and client secret required. Obtain from https://console.developers.google.com/ > Project > APIs & Auth > Credentials. Should be a 'native' or 'Installed application'")
-			}
-		} else {
+		if *clientSecret == "" {
+			// Assume auto if neither the the clientID and clientSecret are specified
+			// A service account key should be specified using the GOOGLE_APPLICATION_CREDENTIALS environment variable.
 			*clientID = "auto"
+		} else {
+			t.Fatal("client ID and client secret must be specified together. Obtain from https://console.developers.google.com/ > Project > APIs & Auth > Credentials. Should be a 'native' or 'Installed application'")
 		}
 	}
 	if *configFile == "" {
@@ -107,7 +107,7 @@ func testStorage(t *testing.T, bucketDir string) {
 			ClientSecret: *clientSecret,
 			RedirectURL:  oauthutil.TitleBarRedirectURL,
 		}
-		if !metadata.OnGCE() {
+		if !metadata.OnGCE() && *clientID != "auto" {
 			token, err := oauth2.ReuseTokenSource(nil,
 				&oauthutil.TokenSource{
 					Config:    config,
