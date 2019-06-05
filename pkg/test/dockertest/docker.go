@@ -20,6 +20,7 @@ Package dockertest contains helper functions for setting up and tearing down doc
 package dockertest // import "perkeep.org/pkg/test/dockertest"
 
 import (
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"database/sql"
@@ -121,7 +122,6 @@ func loadCamliHubImage(image string) error {
 		}
 		return <-errc1
 	}
-	return nil
 }
 
 // haveDocker returns whether the "docker" command was found.
@@ -130,12 +130,30 @@ func haveDocker() bool {
 	return err == nil
 }
 
+// haveImage reports whether we have the the given docker image. The name can
+// either be of the <repository>, or <image id>, or <repository:tag> form.
 func haveImage(name string) (ok bool, err error) {
 	out, err := exec.Command("docker", "images", "--no-trunc").Output()
 	if err != nil {
 		return
 	}
-	return bytes.Contains(out, []byte(name)), nil
+	fields := strings.Split(name, ":")
+	if len(fields) < 2 {
+		return bytes.Contains(out, []byte(name)), nil
+	}
+	tag := fields[1]
+	image := fields[0]
+	sc := bufio.NewScanner(bytes.NewBuffer(out))
+	for sc.Scan() {
+		l := sc.Text()
+		if !strings.HasPrefix(l, image) {
+			continue
+		}
+		if strings.HasPrefix(strings.TrimSpace(strings.TrimPrefix(l, image)), tag) {
+			return true, nil
+		}
+	}
+	return false, sc.Err()
 }
 
 func run(args ...string) (containerID string, err error) {
