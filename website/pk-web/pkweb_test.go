@@ -32,10 +32,10 @@ func TestRedirect(t *testing.T) {
 		want string
 	}{
 		{"/foo", ""},
-		{"/gw/502aff1fd522c454e39a3723b596aca43d206d4e", "https://perkeep.googlesource.com/perkeep/+/502aff1fd522c454e39a3723b596aca43d206d4e"},
-		{"/gw/502AFF", "https://perkeep.googlesource.com/perkeep/+/502AFF"},
-		{"/gw/server", "https://perkeep.googlesource.com/perkeep/+/master/server"},
-		{"/code/?p=camlistore.git;a=commit;h=b0d2a8f0e5f27bbfc025a96ec3c7896b42d198ed", "https://perkeep.googlesource.com/perkeep/+/b0d2a8f0e5f27bbfc025a96ec3c7896b42d198ed"},
+		{"/gw/502aff1fd522c454e39a3723b596aca43d206d4e", "https://github.com/perkeep/perkeep/commit/502aff1fd522c454e39a3723b596aca43d206d4e"},
+		{"/gw/502AFF", "https://github.com/perkeep/perkeep/commit/502AFF"},
+		{"/gw/server", "https://github.com/perkeep/perkeep/blob/master/server"}, // redirects to /tree/ on github's side, which is fine
+		{"/code/?p=camlistore.git;a=commit;h=b0d2a8f0e5f27bbfc025a96ec3c7896b42d198ed", "https://github.com/perkeep/perkeep/commit/b0d2a8f0e5f27bbfc025a96ec3c7896b42d198ed"},
 		{"/docs/schema/", "/doc/schema/"},
 
 		// strip directory index files

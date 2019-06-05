@@ -2,16 +2,15 @@
 
 ## Getting Started
 
-Perkeep contributors regularly use Linux and OS X, and both are
+Perkeep contributors regularly use Linux and macOS, and both are
 100% supported.
 
-Developing on Windows is sometimes broken, but should work.  Let us
+Developing on Windows is sometimes broken, but should work. Let us
 know if we broke something, or we accidentally depend on some
 Unix-specific build tool somewhere.
 
 See https://perkeep.org/doc/contributing for information on how to
-contribute to the project and submit patches.  Notably, we use Gerrit
-for code review.  Our Gerrit instance is at https://perkeep.org/r/
+contribute to the project and submit patches.
 
 See architecture docs: https://perkeep.org/doc/
 
@@ -21,15 +20,7 @@ godoc.org.
 It's recommended you use git to fetch the source code, rather than
 hack from a Perkeep release's zip file:
 
-    $ git clone https://perkeep.googlesource.com/perkeep perkeep.org
-
-(We use github for distribution but its code review system is not as
-nice as Gerrit, so we don't use its Pull Request mechanism. The Gerrit
-git server & code review system is the main repo. See
-https://perkeep.org/doc/contributing for how to use them.  We might
-support github for pull requests in the future, once it's properly
-integrated with external code review tools. We had a meeting with
-Github to discuss the ways in which their code review tools are poor.)
+    $ git clone https://github.com/perkeep/perkeep.git perkeep.org
 
 On Debian/Ubuntu, some deps to get started:
 
@@ -42,11 +33,15 @@ test environment.
 
 ## Building devcam
 
+We have a development tool to help with Perkeep development that's
+named `devcam` (for historical reasons: Perkeep used to be named
+Camlistore).
+
 To build devcam:
 
     $ go run make.go
 
-And devcam will be in &lt;camroot&gt;/bin/devcam.  You'll probably want to
+And devcam will be in &lt;pkroot&gt;/bin/devcam.  You'll probably want to
 symlink it into your $PATH.
 
 Alternatively, if your Perkeep root is checked out at
@@ -85,8 +80,8 @@ Before submitting a patch, you should check that all the tests pass with:
     $ devcam test
 
 You can use your usual git workflow to commit your changes, but for each
-change to be reviewed you should merge your commits into one before submitting
-to gerrit for review.
+change to be reviewed you should merge your commits into one before sending
+a GitHub Pull Request for review.
 
 ## Commit Messages
 
@@ -109,18 +104,9 @@ For example:
 
 ## Vendored Code
 
-Changes to vendored third party code must be done using the dep tool.
-Information on adding, removing and updating vendor deps can be found
-in the [dep documentation](https://github.com/golang/dep/blob/master/README.md).
-
-Once you have your changes and versions specified please run the
-following commands to update the vendor directory with your changes:
-
-    $ dep ensure
-
-To help track version changes please add the semantic version and the
-revision in your commit message the version which you can find in the
-Gopkg.lock file.
+Changes to vendored third party code must be done using Go modules,
+using at least Go 1.12, but often requiring the Go 1.13 development
+tree.
 
 ## Contributors
 
@@ -134,9 +120,5 @@ You can optionally use our pre-commit hook so that your code gets gofmt'ed
 before being submitted (which should be done anyway).
 
     $ devcam hook
-
-Finally, submit your code to gerrit with:
-
-    $ devcam review
 
 Please update this file as appropriate.

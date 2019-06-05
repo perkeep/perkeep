@@ -215,7 +215,7 @@ func servePage(w http.ResponseWriter, r *http.Request, params pageParams) {
 		content = bytes.Replace(content, []byte("<p>"), []byte(toInsert), 1)
 	}
 	domain := goGetDomain(r.Host) // camlistore.org or perkeep.org (anti-www redirects already happened)
-	upstream := "https://perkeep.googlesource.com/perkeep"
+	upstream := "https://github.com/perkeep/perkeep"
 	if domain == "camlistore.org" {
 		upstream = "https://github.com/camlistore/old-cam-snapshot"
 	}
@@ -260,7 +260,10 @@ func serveError(w http.ResponseWriter, r *http.Request, relpath string, err erro
 	})
 }
 
-const gerritURLPrefix = "https://perkeep.googlesource.com/perkeep/+/"
+const (
+	viewCommitPrefix = "https://github.com/perkeep/perkeep/commit/"
+	viewFilePrefix   = "https://github.com/perkeep/perkeep/blob/"
+)
 
 var commitHash = regexp.MustCompile(`^(?i)[0-9a-f]+$`)
 var gitwebCommit = regexp.MustCompile(`^p=camlistore.git;a=commit;h=([0-9a-f]+)$`)
@@ -272,7 +275,7 @@ func redirectPath(u *url.URL) string {
 	if strings.HasPrefix(u.Path, "/code/") {
 		m := gitwebCommit.FindStringSubmatch(u.RawQuery)
 		if len(m) == 2 {
-			return gerritURLPrefix + m[1]
+			return viewCommitPrefix + m[1]
 		}
 	}
 
@@ -280,9 +283,9 @@ func redirectPath(u *url.URL) string {
 		path := strings.TrimPrefix(u.Path, "/gw/")
 		if commitHash.MatchString(path) {
 			// Assume it's a commit
-			return gerritURLPrefix + path
+			return viewCommitPrefix + path
 		}
-		return gerritURLPrefix + "master/" + path
+		return viewFilePrefix + "master/" + path
 	}
 
 	if strings.HasPrefix(u.Path, "/docs/") {
@@ -656,21 +659,19 @@ func setProdFlags() {
 	getDockerImage("camlistore/demoblobserver", "docker-demoblobserver.tar.gz")
 
 	log.Printf("cloning perkeep git tree...")
+	branch := "master"
+	if inStaging {
+		// We work off the staging branch, so we stay in control of the
+		// website contents, regardless of which commits are landing on the
+		// master branch in the meantime.
+		branch = "staging"
+	}
 	cloneArgs := []string{
 		"run",
 		"--rm",
 		"-v", "/var/camweb:/var/camweb",
 		"camlistore/git",
-		"git",
-		"clone",
-	}
-	if inStaging {
-		// We work off the staging branch, so we stay in control of the
-		// website contents, regardless of which commits are landing on the
-		// master branch in the meantime.
-		cloneArgs = append(cloneArgs, "-b", "staging", "https://github.com/perkeep/perkeep.git", prodSrcDir)
-	} else {
-		cloneArgs = append(cloneArgs, "https://perkeep.googlesource.com/perkeep", prodSrcDir)
+		"git", "clone", "-b", branch, "https://github.com/perkeep/perkeep.git", prodSrcDir,
 	}
 	out, err := exec.Command("docker", cloneArgs...).CombinedOutput()
 	if err != nil {
@@ -869,9 +870,6 @@ func main() {
 	domainName = filepath.Base(filepath.Dir(*root))
 
 	readTemplates()
-	if err := initGithubSyncing(); err != nil {
-		log.Fatalf("error setting up syncing to github: %v", err)
-	}
 	go runDemoBlobserverLoop()
 
 	mux := http.DefaultServeMux
@@ -1113,10 +1111,12 @@ func issueRedirect(urlPath string) (string, bool) {
 	return "https://github.com/perkeep/perkeep/issues" + suffix, true
 }
 
+// gerritRedirect redirects /r/ to the old Gerrit reviews, and
+// /r/NNNN to that particular old Gerrit review.
 func gerritRedirect(w http.ResponseWriter, r *http.Request) {
-	dest := "https://perkeep-review.googlesource.com/"
+	dest := "https://perkeep-review.googlesource.com"
 	if len(r.URL.Path) > len("/r/") {
-		dest += r.URL.Path[1:]
+		dest += r.URL.Path
 	}
 	http.Redirect(w, r, dest, http.StatusFound)
 }

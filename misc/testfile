@@ -1,7 +1,0 @@
-New test file for playing with Gerrit.
-
-Testing ref-updated hook.
-
-Yay, all the camlistore VMs finally configured properly with init
-scripts and DNS between them.  Site & Gerrit & email should be much
-more reliable now.

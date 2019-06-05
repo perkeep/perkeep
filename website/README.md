@@ -1,7 +1,9 @@
-This is the webserver that serves perkeep.org. You will need to build and
-run it in order to preview changes to the documentation.
+This directory contains the code & content for the perkeep.org
+website. You will need to build the webserver and run it locally to
+preview cahnges to the documentation:
 
-    go build
-    ./website
+    $ cd <perkeep_checkout>/website
+    $ go install ./pk-web
+    $ pk-web
 
-The webserver runs on port 31798.
+The webserver runs on port 31798: http://localhost:31798/
