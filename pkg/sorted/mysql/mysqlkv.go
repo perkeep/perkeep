@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"go4.org/jsonconfig"
@@ -78,10 +79,7 @@ func newKVDB(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		return nil, err
 	}
 
-	if err := CreateDB(db, database); err != nil {
-		return nil, err
-	}
-	return &keyValue{
+	kv := &keyValue{
 		database: database,
 		dsn:      dsn,
 		db:       db,
@@ -90,7 +88,16 @@ func newKVDB(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 			TablePrefix: database + ".",
 			Gate:        syncutil.NewGate(20), // arbitrary limit. TODO: configurable, automatically-learned?
 		},
-	}, nil
+	}
+	if err := kv.awaitReachable(60 * time.Second); err != nil {
+		return nil, err
+	}
+
+	if err := CreateDB(db, database); err != nil {
+		return nil, err
+	}
+	return kv, nil
+
 }
 
 // Wipe resets the KeyValue by dropping and recreating the database tables.
@@ -231,6 +238,25 @@ func (kv *keyValue) ping() error {
 	// TODO(bradfitz): something more efficient here?
 	_, err := kv.SchemaVersion()
 	return err
+}
+
+// awaitReachable repeatedly tries to reach the databases accessible through kv,
+// with an exponential backoff. It retries until successful, or until timeout
+// otherwise.
+func (kv *keyValue) awaitReachable(timeout time.Duration) error {
+	stop := time.Now().Add(timeout)
+	sleepDuration := 100 * time.Millisecond
+	for {
+		if time.Now().After(stop) {
+			return errors.New("timed out waiting for MySOL DB")
+		}
+		_, err := kv.db.Query("show databases")
+		if err == nil {
+			return nil
+		}
+		time.Sleep(sleepDuration)
+		sleepDuration *= 2
+	}
 }
 
 // SchemaVersion returns the schema version found in the meta table. If no

@@ -17,6 +17,7 @@ limitations under the License.
 package index_test
 
 import (
+	"fmt"
 	"testing"
 
 	"go4.org/jsonconfig"
@@ -30,11 +31,11 @@ import (
 
 func newMySQLSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
 	dbname := "camlitest_" + osutil.Username()
-	containerID, ip := dockertest.SetupMySQLContainer(t, dbname)
+	containerID, ip, port := dockertest.SetupMySQLContainer(t, dbname)
 
 	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
 		"type":     "mysql",
-		"host":     ip + ":3306",
+		"host":     fmt.Sprintf("%s:%d", ip, port),
 		"database": dbname,
 		"user":     dockertest.MySQLUsername,
 		"password": dockertest.MySQLPassword,

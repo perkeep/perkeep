@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -192,8 +193,11 @@ func Pull(image string) error {
 	return nil
 }
 
-// IP returns the IP address of the container.
+// IP returns the IP address of the container if on linux, 127.0.0.1 otherwise.
 func IP(containerID string) (string, error) {
+	if os.Getenv("GOOS") != "linux" {
+		return "127.0.0.1", nil
+	}
 	out, err := exec.Command("docker", "inspect", containerID).Output()
 	if err != nil {
 		return "", err
@@ -309,13 +313,20 @@ func SetupMongoContainer(t *testing.T) (c ContainerID, ip string) {
 }
 
 // SetupMySQLContainer sets up a real MySQL instance for testing purposes,
-// using a Docker container. It returns the container ID and its IP address,
-// or makes the test fail on error.
+// using a Docker container. It returns the container ID, its IP address,
+// and the port it is bound to on the host, or makes the test fail on error.
 // Currently using https://hub.docker.com/_/mysql/
-func SetupMySQLContainer(t *testing.T, dbname string) (c ContainerID, ip string) {
-	return setupContainer(t, mysqlImage, 3306, 20*time.Second, func() (string, error) {
-		return run("-d", "-e", "MYSQL_ROOT_PASSWORD="+MySQLPassword, "-e", "MYSQL_DATABASE="+dbname, mysqlImage)
+func SetupMySQLContainer(t *testing.T, dbname string) (c ContainerID, ip string, port int) {
+	hostPort := int(rand.Int31n(65535-1025) + 1025)
+	cid, ip := setupContainer(t, mysqlImage, hostPort, 20*time.Second, func() (string, error) {
+		cid, err := run("-d", "-p", fmt.Sprintf("%d:3306", hostPort), "-e", "MYSQL_ROOT_PASSWORD="+MySQLPassword,
+			"-e", "MYSQL_DATABASE="+dbname, mysqlImage)
+		if err != nil {
+			return "", err
+		}
+		return cid, nil
 	})
+	return cid, ip, hostPort
 }
 
 // SetupPostgreSQLContainer sets up a real PostgreSQL instance for testing purposes,
