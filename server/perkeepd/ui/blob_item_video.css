@@ -35,19 +35,10 @@ limitations under the License.
 .cam-blobitem-video .fa-pause {
 	cursor: default;
 	position: absolute;
-	left: 35%;
-	top: 40%;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
 	color: rgba(125, 125, 125, 0.85);
 	line-height: 100%;
-}
-
-.cam-blobitem-video .fa-pause {
-	left: 32%;
-}
-
-.cam-blobitem-video-loaded .fa-play {
-	left: 40%;
-}
-.cam-blobitem-video-loaded .fa-pause {
-	left: 37%;
+	cursor: pointer;
 }
