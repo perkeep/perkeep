@@ -42,7 +42,7 @@ limitations under the License.
 		<script>
 			var render = function() {
 				var newURL = new goog.Uri(window.location.href);
-			        var MobileSetupView = React.createFactory(cam.MobileSetupView);
+					var MobileSetupView = React.createFactory(cam.MobileSetupView);
 				var mobile = MobileSetupView({
 					baseURL: newURL.resolve(new goog.Uri(CAMLISTORE_CONFIG.uiRoot)),
 					defaultUsername: CAMLISTORE_CONFIG.username || '',
