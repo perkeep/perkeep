@@ -57,6 +57,7 @@ goog.require('cam.SearchSession');
 goog.require('cam.ServerConnection');
 goog.require('cam.Sidebar');
 goog.require('cam.TagsControl');
+goog.require('cam.DropArea');
 
 cam.IndexPage = React.createClass({
 	displayName: 'IndexPage',
@@ -103,7 +104,6 @@ cam.IndexPage = React.createClass({
 	// of IndexPage here.
 	componentWillMount: function() {
 		this.baseURL_ = null;
-		this.dragEndTimer_ = 0;
 		this.navigator_ = null;
 		this.searchSessionCache_ = [];
 		this.targetSearchSession_ = null;
@@ -136,7 +136,6 @@ cam.IndexPage = React.createClass({
 
 	componentWillUnmount: function() {
 		this.eh_.dispose();
-		this.clearDragTimer_();
 	},
 
 	// Invoked once before everything else on initial rendering. Values are
@@ -151,7 +150,6 @@ cam.IndexPage = React.createClass({
 			// aspect, so the Map aspect can add the zoom level to the predicate in the search box.
 			currentSearch: '',
 			currentSet: '',
-			dropActive: false,
 			selection: {},
 			importShareURL: null,
 			serverStatus: null,
@@ -163,7 +161,7 @@ cam.IndexPage = React.createClass({
 			// TODO: This should be calculated by whether selection is empty, and not need separate state.
 			sidebarVisible: false,
 
-			progressDialogVisible: false,
+			isUploadDialogVisible: false,
 			totalBytesToUpload: 0,
 			totalBytesComplete: 0,
 			totalNodesToAdd: 0,
@@ -204,7 +202,7 @@ cam.IndexPage = React.createClass({
 		}
 
 		var contentSize = new goog.math.Size(this.props.availWidth, this.props.availHeight - this.HEADER_HEIGHT_);
-		return React.DOM.div({onDragEnter:this.handleDragStart_, onDragOver:this.handleDragStart_, onDrop:this.handleDrop_},
+		return React.DOM.div(null,
 			this.getHeader_(aspects, selectedAspect),
 			React.DOM.div(
 				{
@@ -216,8 +214,9 @@ cam.IndexPage = React.createClass({
 				aspects[selectedAspect] && aspects[selectedAspect].createContent(contentSize, this.state.backwardPiggy)
 			),
 			this.getSidebar_(aspects[selectedAspect]),
-			this.getProgressDialog_(),
-			this.getMessageDialog_()
+			this.getMessageDialog_(),
+			this.getUploadDialog(),
+			this.getUploadDropArea_(),
 		);
 	},
 
@@ -365,32 +364,10 @@ cam.IndexPage = React.createClass({
 		this.setState({pendingQuery: pending});
 	},
 
-	handleDragStart_: function(e) {
-		this.clearDragTimer_();
-		e.preventDefault();
-		this.dragEndTimer_ = window.setTimeout(this.handleDragStop_, 2000);
-		this.setState({
-			dropActive: true,
-			progressDialogVisible: false,
-		});
-	},
-
-	handleDragStop_: function() {
-		this.clearDragTimer_();
-		this.setState({dropActive: false});
-	},
-
-	clearDragTimer_: function() {
-		if (this.dragEndTimer_) {
-			window.clearTimeout(this.dragEndTimer_);
-			this.dragEndTimer_ = 0;
-		}
-	},
-
 	onAddToSetStart_: function() {
 		var numNodes = goog.object.getCount(this.state.selection);
 		this.setState({
-			progressDialogVisible: true,
+			isUploadDialogVisible: true,
 			totalNodesToAdd: numNodes,
 			nodesAlreadyAdded: 0,
 		});
@@ -413,7 +390,7 @@ cam.IndexPage = React.createClass({
 		}
 		console.log('Set creation complete!');
 		this.setState({
-			progressDialogVisible: false,
+			isUploadDialogVisible: false,
 			totalNodesToAdd: 0,
 		});
 		this.setSelection_({});
@@ -426,7 +403,6 @@ cam.IndexPage = React.createClass({
 		var totalBytes = Array.prototype.reduce.call(files, function(sum, file) { return sum + file.size; }, 0);
 
 		this.setState({
-			dropActive: false,
 			totalBytesToUpload: totalBytes,
 			totalBytesComplete: 0,
 		});
@@ -450,34 +426,22 @@ cam.IndexPage = React.createClass({
 		this.setState({
 			totalBytesToUpload: 0,
 			totalBytesComplete: 0,
-			progressDialogVisible: false
+			isUploadDialogVisible: false
 		});
 	},
 
-	handleInputFiles_: function(e) {
-		console.log(e.nativeEvent.target.files);
-		if (!e.nativeEvent.target.files) {
+	handleInputFiles_: function(event) {
+		var files = event.nativeEvent.target.files;
+		if (!event.nativeEvent.target.files) {
 			return;
 		}
 
-		e.preventDefault();
+		event.preventDefault();
 
-		var files = e.nativeEvent.target.files;
-		this.handleFilesUpload_(e, files);
+		this.handleFilesUpload_(files);
 	},
 
-	handleDrop_: function(e, files) {
-		if (!e.nativeEvent.dataTransfer.files) {
-			return;
-		}
-
-		e.preventDefault();
-
-		var files = e.nativeEvent.dataTransfer.files;
-		this.handleFilesUpload_(e, files);
-	},
-
-	handleFilesUpload_: function(e, files) {
+	handleFilesUpload_: function(files) {
 		var sc = this.props.serverConnection;
 		var parent = this.getTargetBlobref_();
 
@@ -810,7 +774,7 @@ cam.IndexPage = React.createClass({
 						val.title
 					);
 				}, this),
-				onUpload: this.handleUpload_,
+				onUpload: this.setIsUploadDialogVisible_.bind(this, true),
 				onNewPermanode: this.handleCreateSetWithSelection_,
 				onImportShare: this.getImportShareDialog_,
 				onSearch: this.setSearch_,
@@ -863,9 +827,9 @@ cam.IndexPage = React.createClass({
 		this.addMembersToSet_(this.state.currentSet, goog.object.getKeys(this.state.selection));
 	},
 
-	handleUpload_: function() {
+	setIsUploadDialogVisible_: function(isUploadDialogVisible) {
 		this.setState({
-			progressDialogVisible: true,
+			isUploadDialogVisible: isUploadDialogVisible,
 		});
 	},
 
@@ -1468,6 +1432,18 @@ cam.IndexPage = React.createClass({
 		);
 	},
 
+	getUploadDropArea_: function() {
+		return React.createElement(cam.DropArea, {
+			target: document.body,
+			onDrop: this.onDropFiles_.bind(this),
+			onDragOverlayShown: this.setIsUploadDialogVisible_.bind(this),
+		});
+	},
+
+	onDropFiles_: function (filesPromise) {
+		filesPromise.then(this.handleFilesUpload_.bind(this));
+	},
+
 	isUploading_: function() {
 		return this.state.totalBytesToUpload > 0;
 	},
@@ -1477,21 +1453,16 @@ cam.IndexPage = React.createClass({
 		return this.state.totalNodesToAdd > 0;
 	},
 
-	getProgressDialog_: function() {
-		if (!this.state.progressDialogVisible) {
-			return false
+	getUploadDialog: function() {
+		if (!this.state.isUploadDialogVisible) {
+			return false;
 		}
 
-		var keepyWidth = 118;
-		var keepyHeight = 108;
-		var borderWidth = 18;
-		var w = this.props.availWidth * 0.8;
-		var h = this.props.availHeight * 0.8;
 		var iconProps = {
 			key: 'icon',
 			sheetWidth: 6,
-			spriteWidth: keepyWidth,
-			spriteHeight: keepyHeight,
+			spriteWidth: 118, // keepyWidth
+			spriteHeight: 108, // keepyHeight
 			style: {
 				marginRight: 3,
 				position: 'relative',
@@ -1499,122 +1470,78 @@ cam.IndexPage = React.createClass({
 			}
 		};
 
-		function getInputFiles() {
-			if (this.isUploading_() || this.isAddingMembers_()) {
-				return null;
-			}
-			return React.DOM.div(
-				{},
-				getInputFilesText.call(this),
-				getInputFilesButton.call(this)
-			)
-		}
-
-		function getInputFilesText() {
-			// TODO: It does not have to be a div (it could be just
-			// a string), but it's easier to make it a div than to
-			// figure out the CSS to display it on its own line,
-			// horizontally centered.
-			return React.DOM.div(
-				{},
-				function() {
-					return 'or select files: ';
-				}.call(this)
-			)
-		}
-
-		function getInputFilesButton() {
-			return React.DOM.input(
-			{
-				type: "file",
-				id: "fileupload",
-				multiple: "true",
-				name: "file",
-				onChange: this.handleInputFiles_
-			})
-		}
-
-		function getIcon() {
-			if (this.isUploading_() || this.isAddingMembers_()) {
-				return React.createElement(cam.SpritedAnimation, cam.object.extend(iconProps, {
-					numFrames: 12,
-					startFrame: 3,
-					interval: 100,
-					src: 'keepy/keepy-dancing.png',
-				}));
-			} else if (this.state.dropActive) {
-				// TODO(mpl): keepy expressing interest.
-				return React.createElement(cam.SpritedImage, cam.object.extend(iconProps, {
-					index: 3,
-					src: 'keepy/keepy-dancing.png',
-				}));
-			} else {
-				return React.createElement(cam.SpritedImage, cam.object.extend(iconProps, {
-					index: 3,
-					src: 'keepy/keepy-dancing.png',
-				}));
-			}
-		}
-
-		function getText() {
-			// TODO: It does not have to be a div (it could be just
-			// a string), but it's easier to make it a div than to
-			// figure out the CSS to display it on its own line,
-			// horizontally centered.
-			return React.DOM.div(
-				{},
-				function() {
-					if (this.isAddingMembers_()) {
-						return goog.string.subs('%s of %s items added',
-							this.state.nodesAlreadyAdded,
-							this.state.totalNodesToAdd);
-					} else if (this.isUploading_()) {
-						return goog.string.subs('Uploaded %s (%s%)',
-							goog.format.numBytesToString(this.state.totalBytesComplete, 2),
-							getUploadProgressPercent.call(this));
-					} else {
-						return 'Drop files here to upload,';
-					}
-				}.call(this)
-			)
-		}
-
-		function getUploadProgressPercent() {
-			if (!this.state.totalBytesToUpload) {
-				return 0;
-			}
-
-			return Math.round(100 * (this.state.totalBytesComplete / this.state.totalBytesToUpload));
-		}
-
 		return React.createElement(cam.Dialog, {
 				availWidth: this.props.availWidth,
 				availHeight: this.props.availHeight,
-				width: w,
-				height: h,
-				borderWidth: borderWidth,
-				onClose: this.state.progressDialogVisible ? this.handleCloseProgressDialog_ : null,
+				width: this.props.availWidth * 0.8,
+				height: this.props.availHeight * 0.8,
+				borderWidth: 18,
+				onClose: this.state.isUploadDialogVisible
+					? this.handleCloseProgressDialog_
+					: null,
 			},
-			React.DOM.div(
-				{
+			React.DOM.div({
 					className: 'cam-index-upload-dialog',
-					style: {
-						textAlign: 'center',
-						position: 'relative',
-						left: -keepyWidth / 2,
-						top: (h - keepyHeight - borderWidth * 2) / 2,
-					},
 				},
-				getIcon.call(this),
-				getText.call(this),
-				getInputFiles.call(this)
+
+				this.isUploading_() || this.isAddingMembers_()
+					? React.createElement(cam.SpritedAnimation, cam.object.extend(iconProps, {
+						numFrames: 12,
+						startFrame: 3,
+						interval: 100,
+						src: 'keepy/keepy-dancing.png',
+					}))
+					: null,
+
+				!this.isUploading_() && !this.isAddingMembers_()
+					? React.createElement(cam.SpritedImage, cam.object.extend(iconProps, {
+						index: 3,
+						src: 'keepy/keepy-dancing.png',
+					}))
+					: null,
+
+				this.isAddingMembers_()
+					? React.DOM.span(null,
+						goog.string.subs('%s of %s items added',
+							this.state.nodesAlreadyAdded,
+							this.state.totalNodesToAdd)
+					)
+					: null,
+
+				this.isUploading_()
+					? React.DOM.span(null,
+						goog.string.subs('Uploaded %s (%s%)',
+							goog.format.numBytesToString(this.state.totalBytesComplete, 2),
+							this.state.totalBytesToUpload > 0
+								? Math.round(100 * (this.state.totalBytesComplete / this.state.totalBytesToUpload))
+								: 0)
+					)
+					: null,
+
+				!this.isUploading_() && !this.isAddingMembers_()
+					? React.DOM.span(null, 'Drop files here to upload,')
+					: null,
+
+				!this.isUploading_() && !this.isAddingMembers_()
+					? React.DOM.span(null, 'or select files: ')
+					: null,
+
+				!this.isUploading_() && !this.isAddingMembers_()
+					? React.DOM.input({
+						type: "file",
+						id: "fileupload",
+						multiple: "true",
+						name: "file",
+						onChange: this.handleInputFiles_,
+					})
+					: null,
 			)
 		);
 	},
 
 	handleCloseProgressDialog_: function() {
 		this.setState({
-			progressDialogVisible: false,
+			isUploadDialogVisible: false,
 		});
 	},
 
@@ -1649,7 +1576,6 @@ cam.IndexPage = React.createClass({
 	getBlobItemContainerStyle_: function() {
 		return {
 			left: 0,
-			overflowY: this.state.dropActive ? 'hidden' : '',
 			position: 'absolute',
 			top: 0,
 		};

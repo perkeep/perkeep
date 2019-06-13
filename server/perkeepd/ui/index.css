@@ -44,6 +44,14 @@ body {
 	.user-select(none);
 }
 
-.cam-index-upload-dialog>* {
-	vertical-align: middle;
+.cam-index-upload-dialog {
+	text-align: center;
+	position: relative;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
 }
