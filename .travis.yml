@@ -10,7 +10,9 @@ before_install:
   - sudo chmod 666 /dev/fuse
   - sudo chown root:$USER /etc/fuse.conf
 install: go run make.go -v=true -sqlite=true
-script: ${GOPATH}/bin/devcam test -sqlite=true
+script:
+  - go test -v=true ./...
+  - ${GOPATH}/bin/devcam test -sqlite=true -v=true
 
 notifications:
     webhooks:
