@@ -1,0 +1,56 @@
+/*
+Copyright 2019 The Perkeep Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+.cam-detail-audio {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	background: black;
+
+	&-controls {
+		display: flex;
+		align-items: center;
+
+		@media screen and (max-width: 768px) {
+			flex-direction: column;
+			align-items: flex-start;
+		}
+
+		&-player {
+			padding: 12px;
+			font-size: 0;
+			flex-grow: 1;
+			
+			audio {
+				width: 100%;
+			}
+		}
+
+		&-meta {
+			padding: 12px;
+
+			&-title {
+				color: white;
+				font-size: 17px;
+			}
+
+			&-artist {
+				color: lightgrey;
+				font-size: 15px;
+			}
+		}
+	}
+}

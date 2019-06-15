@@ -33,6 +33,8 @@ goog.require('goog.string');
 goog.require('goog.Uri');
 
 goog.require('cam.BlobDetail');
+goog.require('cam.ImageDetail');
+goog.require('cam.AudioDetail');
 goog.require('cam.BlobItemContainerReact');
 goog.require('cam.DirContainer');
 goog.require('cam.BlobItemDemoContent');
@@ -43,6 +45,7 @@ goog.require('cam.BlobItemMastodonContent');
 goog.require('cam.BlobItemInstapaperContent');
 goog.require('cam.BlobItemTwitterContent');
 goog.require('cam.BlobItemVideoContent');
+goog.require('cam.BlobItemAudioContent');
 goog.require('cam.blobref');
 goog.require('cam.DetailView');
 goog.require('cam.Dialog');
@@ -79,6 +82,7 @@ cam.IndexPage = React.createClass({
 		cam.BlobItemMastodonContent.getHandler,
 		cam.BlobItemInstapaperContent.getHandler,
 		cam.BlobItemImageContent.getHandler,
+		cam.BlobItemAudioContent.getHandler,
 		cam.BlobItemVideoContent.getHandler,
 		cam.BlobItemGenericContent.getHandler
 	],
@@ -247,9 +251,10 @@ cam.IndexPage = React.createClass({
 
 		var specificAspects = [
 			cam.ImageDetail.getAspect,
+			cam.AudioDetail.getAspect,
 			cam.PdfDetail.getAspect,
 			this.getDirAspect_.bind(null),
-		].map(getAspect).filter(goog.functions.identity);
+		];
 
 		var generalAspects = [
 			this.getSearchAspect_.bind(null, specificAspects),
@@ -258,9 +263,12 @@ cam.IndexPage = React.createClass({
 				this.props.availWidth, this.props.availHeight - this.HEADER_HEIGHT_,
 				this.updateSearchBarOnMap_, this.setPendingQuery_, this.childSearchSession_),
 			cam.BlobDetail.getAspect.bind(null, this.getDetailURL_, this.props.serverConnection),
-		].map(getAspect).filter(goog.functions.identity);
+		];
 
-		return specificAspects.concat(generalAspects);
+		return specificAspects
+			.concat(generalAspects)
+			.map(getAspect)
+			.filter(goog.functions.identity);
 	},
 
 	getSearchAspect_: function(specificAspects, blobref, targetSearchSession) {
