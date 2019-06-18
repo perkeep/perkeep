@@ -11,8 +11,7 @@ before_install:
   - sudo chown root:$USER /etc/fuse.conf
 install: go run make.go -v=true -sqlite=true
 script:
-  - go test -v=true ./...
-  - ${GOPATH}/bin/devcam test -sqlite=true -v=true
+  - go test ./pkg/index/ -run .*_Postgres -v=true
 
 notifications:
     webhooks:
