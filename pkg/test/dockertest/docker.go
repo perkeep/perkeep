@@ -334,8 +334,9 @@ func SetupMySQLContainer(t *testing.T, dbname string) (c ContainerID, ip string,
 // or makes the test fail on error.
 // Currently using https://index.docker.io/u/nornagon/postgres
 func SetupPostgreSQLContainer(t *testing.T, dbname string) (c ContainerID, ip string) {
-	c, ip = setupContainer(t, postgresImage, 5432, 15*time.Second, func() (string, error) {
-		return run("-d", postgresImage)
+	hostPort := int(rand.Int31n(65535-1025) + 1025)
+	c, ip = setupContainer(t, postgresImage, hostPort, 15*time.Second, func() (string, error) {
+		return run("-d", "-p", fmt.Sprintf("%d:5432", hostPort), postgresImage)
 	})
 	cleanupAndDie := func(err error) {
 		c.KillRemove(t)
