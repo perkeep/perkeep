@@ -292,13 +292,14 @@ func setupContainer(t *testing.T, image string, port int, timeout time.Duration,
 }
 
 const (
-	mongoImage       = "mpl7/mongo"
-	mysqlImage       = "mysql:8"
-	MySQLUsername    = "root"
-	MySQLPassword    = "root"
-	postgresImage    = "nornagon/postgres"
-	PostgresUsername = "docker" // set up by the dockerfile of postgresImage
-	PostgresPassword = "docker" // set up by the dockerfile of postgresImage
+	mongoImage    = "mpl7/mongo"
+	mysqlImage    = "mysql:8"
+	MySQLUsername = "root"
+	MySQLPassword = "root"
+	//	postgresImage    = "nornagon/postgres"
+	postgresImage    = "postgres"
+	PostgresUsername = "postgres" // set up by the dockerfile of postgresImage
+	PostgresPassword = "postgres" // set up by the dockerfile of postgresImage
 	camliHub         = "https://storage.googleapis.com/camlistore-docker/"
 )
 
@@ -333,26 +334,29 @@ func SetupMySQLContainer(t *testing.T, dbname string) (c ContainerID, ip string,
 // using a Docker container. It returns the container ID and its IP address,
 // or makes the test fail on error.
 // Currently using https://index.docker.io/u/nornagon/postgres
-func SetupPostgreSQLContainer(t *testing.T, dbname string) (c ContainerID, ip string) {
+func SetupPostgreSQLContainer(t *testing.T, dbname string) (c ContainerID, ip string, port int) {
 	hostPort := int(rand.Int31n(65535-1025) + 1025)
 	c, ip = setupContainer(t, postgresImage, hostPort, 15*time.Second, func() (string, error) {
-		return run("-d", "-p", fmt.Sprintf("%d:5432", hostPort), postgresImage)
+		return run("-d", "-p", fmt.Sprintf("%d:5432", hostPort), "-e", "POSTGRES_PASSWORD="+PostgresPassword, postgresImage)
 	})
-	cleanupAndDie := func(err error) {
-		c.KillRemove(t)
-		t.Fatal(err)
-	}
-	rootdb, err := sql.Open("postgres",
-		fmt.Sprintf("user=%s password=%s host=%s dbname=postgres sslmode=disable", PostgresUsername, PostgresPassword, ip))
-	if err != nil {
-		cleanupAndDie(fmt.Errorf("Could not open postgres rootdb: %v", err))
-	}
-	if _, err := sqlExecRetry(rootdb,
-		"CREATE DATABASE "+dbname+" LC_COLLATE = 'C' TEMPLATE = template0",
-		50); err != nil {
-		cleanupAndDie(fmt.Errorf("Could not create database %v: %v", dbname, err))
-	}
-	return
+	/*
+		cleanupAndDie := func(err error) {
+			c.KillRemove(t)
+			t.Fatal(err)
+		}
+
+			rootdb, err := sql.Open("postgres",
+				fmt.Sprintf("user=%s password=%s host=%s dbname=postgres sslmode=disable", PostgresUsername, PostgresPassword, ip))
+			if err != nil {
+				cleanupAndDie(fmt.Errorf("Could not open postgres rootdb: %v", err))
+			}
+			if _, err := sqlExecRetry(rootdb,
+				"CREATE DATABASE "+dbname+" LC_COLLATE = 'C' TEMPLATE = template0",
+				50); err != nil {
+				cleanupAndDie(fmt.Errorf("Could not create database %v: %v", dbname, err))
+			}
+	*/
+	return c, ip, hostPort
 }
 
 // sqlExecRetry keeps calling http://golang.org/pkg/database/sql/#DB.Exec on db

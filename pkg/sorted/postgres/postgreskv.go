@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"time"
 
 	"go4.org/jsonconfig"
 	"perkeep.org/pkg/env"
@@ -41,6 +42,7 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 		user     = cfg.RequiredString("user")
 		database = cfg.RequiredString("database")
 		host     = cfg.OptionalString("host", "localhost")
+		port     = cfg.OptionalString("port", "5432")
 		password = cfg.OptionalString("password", "")
 		sslmode  = cfg.OptionalString("sslmode", "require")
 	)
@@ -49,7 +51,7 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	}
 
 	// connect without a database, it may not exist yet
-	conninfo := fmt.Sprintf("user=%s host=%s sslmode=%s", user, host, sslmode)
+	conninfo := fmt.Sprintf("user=%s host=%s port=%s sslmode=%s", user, host, port, sslmode)
 	if password != "" {
 		conninfo += fmt.Sprintf(" password=%s", password)
 	}
@@ -57,6 +59,20 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	kv := &keyValue{
+		db: db,
+		KeyValue: &sqlkv.KeyValue{
+			DB:              db,
+			SetFunc:         altSet,
+			BatchSetFunc:    altBatchSet,
+			PlaceHolderFunc: replacePlaceHolders,
+		},
+	}
+	if err := kv.awaitReachable(60 * time.Second); err != nil {
+		return nil, err
+	}
+
 	err = createDB(db, database)
 	db.Close() // ignoring error, if createDB failed db.Close() will likely also fail
 	if err != nil {
@@ -86,7 +102,7 @@ func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	}
 	r.Close()
 
-	kv := &keyValue{
+	kv = &keyValue{
 		db: db,
 		KeyValue: &sqlkv.KeyValue{
 			DB:              db,
@@ -191,4 +207,23 @@ func createDB(db *sql.DB, database string) error {
 		return err
 	}
 	return err
+}
+
+// awaitReachable repeatedly tries to reach the databases accessible through kv,
+// with an exponential backoff. It retries until successful, or until timeout
+// otherwise.
+func (kv *keyValue) awaitReachable(timeout time.Duration) error {
+	stop := time.Now().Add(timeout)
+	sleepDuration := 100 * time.Millisecond
+	for {
+		if time.Now().After(stop) {
+			return errors.New("timed out waiting for PostGres DB")
+		}
+		_, err := kv.db.Query("show databases")
+		if err == nil {
+			return nil
+		}
+		time.Sleep(sleepDuration)
+		sleepDuration *= 2
+	}
 }

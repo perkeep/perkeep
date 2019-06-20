@@ -17,6 +17,7 @@ limitations under the License.
 package postgres
 
 import (
+	"fmt"
 	"testing"
 
 	"go4.org/jsonconfig"
@@ -29,12 +30,13 @@ import (
 // TestPostgreSQLKV tests against a real PostgreSQL instance, using a Docker container.
 func TestPostgreSQLKV(t *testing.T) {
 	dbname := "camlitest_" + osutil.Username()
-	containerID, ip := dockertest.SetupPostgreSQLContainer(t, dbname)
+	containerID, ip, port := dockertest.SetupPostgreSQLContainer(t, dbname)
 	defer containerID.KillRemove(t)
 
 	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
 		"type":     "postgres",
 		"host":     ip,
+		"port":     fmt.Sprintf("%d", port),
 		"database": dbname,
 		"user":     dockertest.PostgresUsername,
 		"password": dockertest.PostgresPassword,
