@@ -105,7 +105,9 @@ the bucket's region will generally be detected automatically.
 Additionally, there are two mutually exclusive options which only apply if `blobPath` is set:
 
 * `packRelated`: if true, blobs are automatically repacked for fast read access.
-* `packBlobs`: if true, diskpacked is used instead of the default filestorage.
+* `packBlobs`: if true, diskpacked is used instead of the default
+  filestorage. This gives better write throughput, at the cost of slower
+  read access.
 
 For now, if more than one storage option is set, one of them is the primary
 storage and the other ones are set up as mirrors. The precedence order is the
