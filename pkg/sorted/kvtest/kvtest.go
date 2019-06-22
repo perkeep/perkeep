@@ -84,7 +84,9 @@ func TestSorted(t *testing.T, kv sorted.KeyValue) {
 	testDeletePartialNotFoundBatch(t, kv)
 
 	if txReader, ok := kv.(sorted.TransactionalReader); ok {
-		testReadTransaction(t, txReader)
+		t.Run("ReadTransaction", func(t *testing.T) {
+			testReadTransaction(t, txReader)
+		})
 	}
 }
 
