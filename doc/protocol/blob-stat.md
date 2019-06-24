@@ -2,7 +2,7 @@
 
 This document describes the "batch stat" API end-point, for checking
 the size/existence of multiple blobs when the client and/or server do
-not support SPDY or HTTP/2.0.  See [blob-upload](blob-upload.md) for more
+not support HTTP 2.0.  See [blob-upload](blob-upload.md) for more
 background.
 
 Notably: the HTTP method may be GET or POST.  GET is more correct but

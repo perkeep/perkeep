@@ -13,17 +13,17 @@ Uploading a single blob is done in two parts:
 
 
 When uploading multiple blobs (the common case), the fastest option
-depends on whether or not you're using a modern HTTP transport
-(e.g. SPDY).  If your client and server don't support SPDY, you want
-to use the batch stat and batch upload endpoints, which hopefully can
-die when the future finishes arriving.
+depends on whether or not you're using HTTP/2.0.  If your client and
+server don't support HTTP/2.0, you want to use the batch stat and batch
+upload endpoints, which hopefully can die when the future finishes
+arriving.
 
-If you have SPDY, uploading 100 blobs is just like uploading 100
+If you have HTTP/2.0, uploading 100 blobs is just like uploading 100
 single blobs, but all at once. Send all your 100 HEAD requests at
 once, wait 1 RTT for all 100 replies, and then send then the <= 100
 PUT requests with the blobs that the server didn't have.
 
-If you DON'T have SPDY on both sides, you want to use the batch stat
+If you DON'T have HTTP/2.0 on both sides, you want to use the batch stat
 and batch upload endpoints, described below.
 
 ## Preupload request:
