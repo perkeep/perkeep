@@ -22,8 +22,8 @@ limitations under the License.
 //
 // See the BUILDING file.
 //
-// The output binaries go into the ./bin/ directory (under the
-// Perkeep root, where make.go is)
+// The output binaries go into the usual go install directory:
+// $GOBIN or $GOPATH/bin.
 package main
 
 import (
