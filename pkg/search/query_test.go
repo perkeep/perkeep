@@ -455,6 +455,30 @@ func TestQueryPermanodeAttrMatches(t *testing.T) {
 	})
 }
 
+func TestStringConstraintRegexp(t *testing.T) {
+	testQuery(t, func(qt *queryTest) {
+		id := qt.id
+
+		p1 := id.NewPlannedPermanode("1")
+		p2 := id.NewPlannedPermanode("2")
+		p3 := id.NewPlannedPermanode("3")
+		id.SetAttribute(p1, "someAttr", "value1")
+		id.SetAttribute(p2, "someAttr", "value2")
+		id.SetAttribute(p3, "someAttr", "value3")
+		sq := &SearchQuery{
+			Constraint: &Constraint{
+				Permanode: &PermanodeConstraint{
+					Attr: "someAttr",
+					ValueMatches: &StringConstraint{
+						Regexp: "^val.*[13]$",
+					},
+				},
+			},
+		}
+		qt.wantRes(sq, p1, p3)
+	})
+}
+
 func TestQueryPermanodeAttrNumValue(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id

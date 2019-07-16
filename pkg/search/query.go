@@ -27,10 +27,12 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"perkeep.org/pkg/blob"
@@ -617,8 +619,13 @@ type StringConstraint struct {
 	HasSuffix       string         `json:"hasSuffix,omitempty"`
 	ByteLength      *IntConstraint `json:"byteLength,omitempty"` // length in bytes (not chars)
 	CaseInsensitive bool           `json:"caseInsensitive,omitempty"`
-
 	// TODO: CharLength (assume UTF-8)
+
+	// Regexp, if non-empty, specifies a regular expression that the string must match.
+	// The syntax is as described by the regexp package.
+	Regexp string `json:"regexp,omitempty"`
+
+	regexp atomic.Pointer[regexp.Regexp] // lazily compiled version of Regexp
 }
 
 // stringCompareFunc contains a function to get a value from a StringConstraint and a second function to compare it
@@ -650,6 +657,19 @@ func (c *StringConstraint) stringMatches(s string) bool {
 	}
 	if c.ByteLength != nil && !c.ByteLength.intMatches(int64(len(s))) {
 		return false
+	}
+	if c.Regexp != "" {
+		re := c.regexp.Load()
+		if re == nil {
+			var err error
+			re, err = regexp.Compile(c.Regexp)
+			if err != nil {
+				log.Printf("Failed to parse regexp %q: %v", c.Regexp, err)
+				return false
+			}
+			c.regexp.Store(re)
+		}
+		return re.MatchString(s)
 	}
 
 	funcs := stringConstraintFuncs
