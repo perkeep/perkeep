@@ -1,5 +1,7 @@
 module perkeep.org
 
+go 1.12
+
 require (
 	bazil.org/fuse v0.0.0-20160811212531-371fbbdaa898
 	cloud.google.com/go v0.39.0

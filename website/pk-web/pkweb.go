@@ -546,6 +546,7 @@ func gceDeployHandlerConfig() (*gce.Config, error) {
 // - neither CAMLI_GCE_CLIENTID is set, nor launcher-config.json is found in the
 // camlistore server config dir.
 func gceDeployHandler(prefix string) (*gce.DeployHandler, error) {
+	return nil, errors.New("The Perkeep Cloud Launcher is no longer available.")
 	var hostPort string
 	var err error
 	scheme := "https"
@@ -909,6 +910,7 @@ func main() {
 	gceLauncher, err := gceDeployHandler("/launch/")
 	if err != nil {
 		log.Printf("Not installing GCE /launch/ handler: %v", err)
+		err := err
 		mux.HandleFunc("/launch/", func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("GCE launcher disabled: %v", err), 500)
 		})
