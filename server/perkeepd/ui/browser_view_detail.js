@@ -14,15 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-goog.provide('cam.PdfDetail');
+goog.provide('cam.BrowserViewDetail');
 
-// Renders PDFs. This matches files with a "mimeType" of "application/pdf",
-// and displays them by embedding the PDF in an iframe.
+// Renders content that browsers understand natively. Works by embedding it in
+// an iframe.
 //
-// It would be easy to extend this to any content that browsers know how
-// to render themselves.
-cam.PdfDetail = React.createClass({
-	displayName: 'PdfDetail',
+// Note that not all content that browsers understand natively is covered here.
+// For example, images have their own custom support (ImageDetail) which provides
+// a nicer UI.
+cam.BrowserViewDetail = React.createClass({
+	displayName: 'BrowserViewDetail',
 
 	propTypes: {
 		height: React.PropTypes.number.isRequired,
@@ -49,7 +50,12 @@ cam.PdfDetail = React.createClass({
 	},
 });
 
-cam.PdfDetail.getAspect = function(blobref, searchSession) {
+cam.BrowserViewDetail.getAspect = function(blobref, searchSession) {
+	const supportedMimeTypes = [
+		"application/pdf",
+		"text/plain",
+	]
+
 	if(!blobref) {
 		return null;
 	}
@@ -66,7 +72,7 @@ cam.PdfDetail.getAspect = function(blobref, searchSession) {
 	}
 
 
-	if(rm.camliType !== 'file' || rm.file.mimeType !== 'application/pdf') {
+	if(rm.camliType !== 'file' || !supportedMimeTypes.includes(rm.file.mimeType)) {
 		return null;
 	}
 
@@ -74,7 +80,7 @@ cam.PdfDetail.getAspect = function(blobref, searchSession) {
 		fragment: 'document',
 		title: 'Document',
 		createContent: function(size, backwardPiggy) {
-			return React.createElement(cam.PdfDetail, {
+			return React.createElement(cam.BrowserViewDetail, {
 				resolvedMeta: rm,
 				height: size.height,
 				width: size.width,
