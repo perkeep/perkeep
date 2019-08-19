@@ -27,6 +27,7 @@ Modes:
 
 	delete: Create and upload a delete claim.
 	attr: Add, set, or delete a permanode's attribute.
+	attr-bulk: Add, set, or delete permanode attributes from tab-separated stdin.
 	file: Upload file(s).
 	init: Initialize the pk-put configuration file. With no option, it tries to use the GPG key found in the default identity secret ring.
 	permanode: Create and upload a permanode.
@@ -57,6 +58,19 @@ Examples:
 	pk-put attr <permanode> <name> <value>         Set attribute
 	pk-put attr --add <permanode> <name> <value>   Adds attribute (e.g. "tag")
 	pk-put attr --del <permanode> <name> [<value>] Deletes named attribute [value
+
+	pk-put attr-bulk < attributes.tsv
+	pk-put attr-bulk --add < attributes.tsv
+	pk-put attr-bulk --del < attributes.tsv
+
+The attr-bulk mode reads one tab-separated <permanode>, <name>, <value>
+record per line, with LF or CRLF line endings. Use full permanode blobrefs.
+With --del, the value may be omitted to delete all values of the named
+attribute. Fields are literal:
+there is no quoting or escaping, and tabs and newlines cannot appear in
+fields. Each uploaded claim's blobref is printed on stdout. Claims are
+uploaded in input order; an error stops processing and reports the line
+number, but does not roll back earlier claims.
 
 For mode-specific help:
 
