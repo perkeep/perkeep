@@ -876,7 +876,7 @@ func validateDirInGOPATH(dir string) error {
 }
 
 const (
-	goVersionMinor  = 12
+	goVersionMinor  = 13
 	gopherJSGoMinor = 12
 )
 
@@ -927,6 +927,9 @@ func verifyGoVersion() {
 }
 
 func verifyGopherjsGoroot(goFound string) {
+	if !*buildWebUI {
+		return
+	}
 	gopherjsGoroot = os.Getenv("CAMLI_GOPHERJS_GOROOT")
 	goBin := hostExeName(filepath.Join(gopherjsGoroot, "bin", "go"))
 	if gopherjsGoroot == "" {
