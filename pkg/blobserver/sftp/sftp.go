@@ -392,7 +392,7 @@ func (s sftpFS) TempFile(dir, prefix string) (files.WritableFile, error) {
 		rand.Read(sufRand)
 		suffix := fmt.Sprintf("%x", sufRand)
 		name := path.Join(dir, prefix+suffix)
-		f, err := sc.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_APPEND|os.O_WRONLY)
+		f, err := sc.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_RDWR)
 		if err == nil {
 			return writableFile{
 				name:        name,
