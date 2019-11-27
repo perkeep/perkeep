@@ -10,6 +10,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
+	"go4.org/jsonconfig"
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
@@ -316,3 +317,23 @@ const schema = `
 
 	CREATE INDEX IF NOT EXISTS file_ref ON file (ref);
 `
+
+func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storage, error) {
+	var (
+		root      = conf.RequiredString("root")
+		db        = conf.RequiredString("db")
+		nestedStr = conf.RequiredString("nested")
+	)
+	if err := conf.Validate(); err != nil {
+		return nil, errors.Wrap(err, "validating config")
+	}
+	nested, err := ld.GetStorage(nestedStr)
+	if err != nil {
+		return nil, errors.Wrap(err, "instantiating nested storage")
+	}
+	return New(context.Background(), root, db, nested)
+}
+
+func init() {
+	blobserver.RegisterStorageConstructor("fsbacked", blobserver.StorageConstructor(newFromConfig))
+}
