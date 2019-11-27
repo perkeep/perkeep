@@ -50,7 +50,7 @@ func New(ctx context.Context, root, dbConnStr string, nested blobserver.Storage)
 func (s *Storage) Fetch(ctx context.Context, ref blob.Ref) (io.ReadCloser, uint32, error) {
 	const q = `SELECT path FROM file WHERE ref = $1 LIMIT 1`
 	var path string
-	err := s.db.QueryRowContext(ctx, q, ref).Scan(&path)
+	err := s.db.QueryRowContext(ctx, q, ref.String()).Scan(&path)
 	if err == sql.ErrNoRows {
 		return s.nested.Fetch(ctx, ref)
 	}
@@ -88,7 +88,7 @@ func (s *Storage) ReceiveBlob(ctx context.Context, ref blob.Ref, r io.Reader) (b
 	}
 
 	const q = `INSERT INTO file (ref, path) VALUES ($1, $2) ON CONFLICT DO NOTHING`
-	res, err := s.db.ExecContext(ctx, q, ref, relpath)
+	res, err := s.db.ExecContext(ctx, q, ref.String(), relpath)
 	if err != nil {
 		return blob.SizedRef{}, errors.Wrap(err, "writing to db")
 	}
@@ -99,11 +99,12 @@ func (s *Storage) ReceiveBlob(ctx context.Context, ref blob.Ref, r io.Reader) (b
 	if aff == 0 {
 		// Path was already present. Check that it has the right ref.
 		const checkQ = `SELECT ref FROM file WHERE path = $1`
-		var got blob.Ref
-		err = s.db.QueryRowContext(ctx, checkQ, relpath).Scan(&got)
+		var gotstr string
+		err = s.db.QueryRowContext(ctx, checkQ, relpath).Scan(&gotstr)
 		if err != nil {
 			return blob.SizedRef{}, errors.Wrapf(err, "checking existing ref for %s", relpath)
 		}
+		got, _ := blob.Parse(gotstr)
 		if got != ref {
 			return blob.SizedRef{}, blobserver.ErrCorruptBlob
 		}
@@ -116,7 +117,7 @@ func (s *Storage) StatBlobs(ctx context.Context, refs []blob.Ref, fn func(blob.S
 	for _, ref := range refs {
 		const q = `SELECT path FROM file WHERE ref = $1 LIMIT 1`
 		var path string
-		err := s.db.QueryRowContext(ctx, q, ref).Scan(&path)
+		err := s.db.QueryRowContext(ctx, q, ref.String()).Scan(&path)
 		if err == sql.ErrNoRows {
 			nested = append(nested, ref)
 			continue
@@ -195,12 +196,13 @@ func (s *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef,
 
 		if dbloop && dbref == nil {
 			if rows.Next() {
-				var ref blob.Ref
+				var refstr string
 
-				err = rows.Scan(&ref, &path)
+				err = rows.Scan(&refstr, &path)
 				if err != nil {
 					return errors.Wrap(err, "scanning db row")
 				}
+				ref, _ := blob.Parse(refstr)
 				dbref = &ref
 			} else {
 				dbloop = false
@@ -213,16 +215,6 @@ func (s *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef,
 		if nestedref == nil && dbref == nil {
 			// Done.
 			return nil
-		}
-
-		if nestedref != nil && (nestedref.Ref.Less(last) || nestedref.Ref == last) {
-			nestedref = nil
-			continue
-		}
-
-		if dbref != nil && (dbref.Less(last) || *dbref == last) {
-			dbref = nil
-			continue
 		}
 
 		var out *blob.SizedRef
@@ -243,6 +235,10 @@ func (s *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef,
 		}
 
 		if out != nil {
+			if out.Ref == last || out.Ref.Less(last) {
+				continue
+			}
+
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -272,7 +268,7 @@ func (s *Storage) RemoveBlobs(ctx context.Context, refs []blob.Ref) error {
 
 func (s *Storage) removeBlob(ctx context.Context, ref blob.Ref) error {
 	const q = `DELETE FROM file WHERE ref = $1`
-	_, err := s.db.ExecContext(ctx, q, ref)
+	_, err := s.db.ExecContext(ctx, q, ref.String())
 	return err
 }
 
