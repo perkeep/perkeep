@@ -69,6 +69,8 @@ type Event struct {
 	Which          int        `js:"which"`
 	Namespace      string     `js:"namespace"`
 	MetaKey        bool       `js:"metaKey"`
+	ShiftKey       bool       `js:"shiftKey"`
+	CtrlKey        bool       `js:"ctrlKey"`
 	PageX          int        `js:"pageX"`
 	PageY          int        `js:"pageY"`
 	Type           string     `js:"type"`
@@ -209,7 +211,7 @@ func (j JQuery) Each(fn func(int, interface{})) JQuery {
 }
 
 func (j JQuery) Call(name string, args ...interface{}) JQuery {
-	return NewJQuery( j.o.Call(name, args...) )
+	return NewJQuery(j.o.Call(name, args...))
 }
 
 func (j JQuery) Underlying() *js.Object {
@@ -419,13 +421,13 @@ func (j JQuery) InsertBefore(i interface{}) JQuery {
 	return j
 }
 
-func (j JQuery) Show() JQuery {
-	j.o = j.o.Call("show")
+func (j JQuery) Show(i ...interface{}) JQuery {
+	j.o = j.o.Call("show", i...)
 	return j
 }
 
-func (j JQuery) Hide() JQuery {
-	j.o.Call("hide")
+func (j JQuery) Hide(i ...interface{}) JQuery {
+	j.o.Call("hide", i...)
 	return j
 }
 
@@ -498,6 +500,10 @@ func (j JQuery) SetWidth(i interface{}) JQuery {
 
 	j.o = j.o.Call("width", i)
 	return j
+}
+
+func (j JQuery) Index(i interface{}) int {
+	return j.o.Call("index", i).Int()
 }
 
 func (j JQuery) InnerHeight() int {
