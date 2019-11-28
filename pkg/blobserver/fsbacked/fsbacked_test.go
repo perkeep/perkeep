@@ -32,8 +32,6 @@ func TestStore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dbfile := filepath.Join(tmpdir, "db")
-
 	foofile := filepath.Join(rootdir, "foo")
 	err = ioutil.WriteFile(foofile, []byte("foo"), 0600)
 	if err != nil {
@@ -74,6 +72,13 @@ func TestStore(t *testing.T) {
 
 	for i, c := range cases {
 		t.Run(fmt.Sprintf("case_%02d", i+1), func(t *testing.T) {
+			f, err := ioutil.TempFile(tmpdir, "db")
+			if err != nil {
+				t.Fatal(err)
+			}
+			dbfile := f.Name()
+			f.Close()
+
 			ctx := context.Background()
 			nested := new(memory.Storage)
 			fsb, err := New(ctx, rootdir, dbfile, nested)
@@ -102,16 +107,21 @@ func TestStore(t *testing.T) {
 			got := make([]blob.Ref, 0) // `var got []blob.Ref` makes reflect.DeepEqual fail when got is nil
 			ch := make(chan blob.SizedRef)
 
+			done := make(chan struct{})
+
 			go func() {
 				for sr := range ch {
 					got = append(got, sr.Ref)
 				}
+				close(done)
 			}()
 
 			err = fsb.EnumerateBlobs(ctx, ch, "", -1)
 			if err != nil {
 				t.Fatal(err)
 			}
+
+			<-done
 
 			want := make([]blob.Ref, len(c.addrefs))
 			copy(want, c.addrefs)
