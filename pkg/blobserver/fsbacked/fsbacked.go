@@ -49,32 +49,36 @@ func New(ctx context.Context, root, dbConnStr string, nested blobserver.Storage)
 }
 
 func (s *Storage) Fetch(ctx context.Context, ref blob.Ref) (io.ReadCloser, uint32, error) {
-	const q = `SELECT path FROM file WHERE ref = $1 LIMIT 1`
-	var path string
-	err := s.db.QueryRowContext(ctx, q, ref.String()).Scan(&path)
+	const q = `SELECT path, offset, size FROM file WHERE ref = $1 LIMIT 1`
+	var (
+		path   string
+		offset int64
+		size   int64
+	)
+	err := s.db.QueryRowContext(ctx, q, ref.String()).Scan(&path, &offset, &size)
 	if err == sql.ErrNoRows {
 		return s.nested.Fetch(ctx, ref)
 	}
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "querying db")
 	}
-	abspath, size, err := s.stat(path)
-	if err != nil {
-		return nil, 0, errors.Wrapf(err, "getting size of file %s", abspath)
-	}
+	abspath := filepath.Join(s.root, path)
 	f, err := os.Open(abspath)
-	return f, size, errors.Wrapf(err, "opening file %s", abspath)
+	if err != nil {
+		return nil, 0, errors.Wrapf(err, "opening file %s", abspath)
+	}
+	return NewFileSectionReader(f, offset, size), uint32(size), nil
 }
 
 func (s *Storage) ReceiveBlob(ctx context.Context, ref blob.Ref, r io.Reader) (blob.SizedRef, error) {
-	f, ok := r.(*os.File)
+	n, ok := r.(Namer)
 	if !ok {
 		return s.nested.ReceiveBlob(ctx, ref, r)
 	}
 
-	abspath, err := filepath.Abs(f.Name())
+	abspath, err := filepath.Abs(n.Name())
 	if err != nil {
-		return blob.SizedRef{}, errors.Wrapf(err, "getting absolute path of %s", f.Name())
+		return blob.SizedRef{}, errors.Wrapf(err, "getting absolute path of %s", n.Name())
 	}
 
 	relpath := s.findRelPath(abspath)
@@ -83,13 +87,29 @@ func (s *Storage) ReceiveBlob(ctx context.Context, ref blob.Ref, r io.Reader) (b
 		return s.nested.ReceiveBlob(ctx, ref, r)
 	}
 
-	_, size, err := s.stat(relpath)
-	if err != nil {
-		return blob.SizedRef{}, errors.Wrapf(err, "statting %s", abspath)
+	var offset, size int64
+
+	if sec, ok := r.(Section); ok {
+		offset = sec.Offset()
+		size = sec.Size()
+		if size > math.MaxUint32 {
+			return blob.SizedRef{}, ErrTooBig
+		}
+	} else {
+		offset = 0
+		fi, err := os.Stat(abspath)
+		if err != nil {
+			return blob.SizedRef{}, errors.Wrapf(err, "statting %s", abspath)
+		}
+		size = fi.Size()
 	}
 
-	const q = `INSERT INTO file (ref, path) VALUES ($1, $2) ON CONFLICT DO NOTHING`
-	res, err := s.db.ExecContext(ctx, q, ref.String(), relpath)
+	const q = `
+		INSERT INTO file (ref, path, offset, size)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT DO NOTHING
+	`
+	res, err := s.db.ExecContext(ctx, q, ref.String(), relpath, offset, size)
 	if err != nil {
 		return blob.SizedRef{}, errors.Wrap(err, "writing to db")
 	}
@@ -99,36 +119,35 @@ func (s *Storage) ReceiveBlob(ctx context.Context, ref blob.Ref, r io.Reader) (b
 	}
 	if aff == 0 {
 		// Path was already present. Check that it has the right ref.
-		const checkQ = `SELECT ref FROM file WHERE path = $1`
+		const checkQ = `SELECT ref FROM file WHERE path = $1 AND offset = $2 AND size = $3`
 		var gotstr string
-		err = s.db.QueryRowContext(ctx, checkQ, relpath).Scan(&gotstr)
+		err = s.db.QueryRowContext(ctx, checkQ, relpath, offset, size).Scan(&gotstr)
 		if err != nil {
-			return blob.SizedRef{}, errors.Wrapf(err, "checking existing ref for %s", relpath)
+			return blob.SizedRef{}, errors.Wrapf(err, "checking existing ref for %s (%d/%d)", relpath, offset, size)
 		}
 		got, _ := blob.Parse(gotstr)
 		if got != ref {
 			return blob.SizedRef{}, blobserver.ErrCorruptBlob
 		}
 	}
-	return blob.SizedRef{Ref: ref, Size: size}, nil
+	return blob.SizedRef{Ref: ref, Size: uint32(size)}, nil
 }
 
 func (s *Storage) StatBlobs(ctx context.Context, refs []blob.Ref, fn func(blob.SizedRef) error) error {
 	var nested []blob.Ref
 	for _, ref := range refs {
-		const q = `SELECT path FROM file WHERE ref = $1 LIMIT 1`
-		var path string
-		err := s.db.QueryRowContext(ctx, q, ref.String()).Scan(&path)
+		const q = `SELECT path, size FROM file WHERE ref = $1 LIMIT 1`
+		var (
+			path string
+			size uint32
+		)
+		err := s.db.QueryRowContext(ctx, q, ref.String()).Scan(&path, &size)
 		if err == sql.ErrNoRows {
 			nested = append(nested, ref)
 			continue
 		}
 		if err != nil {
 			return errors.Wrapf(err, "querying db for %s", ref)
-		}
-		_, size, err := s.stat(path)
-		if err != nil {
-			return errors.Wrapf(err, "statting %s", path)
 		}
 		err = fn(blob.SizedRef{Ref: ref, Size: size})
 		if err != nil {
@@ -155,12 +174,11 @@ func (s *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef,
 	defer cancel()
 
 	go func() {
-		defer close(nestedErr)
-
 		nestedErr <- s.nested.EnumerateBlobs(nestedCtx, nestedCh, after, limit)
+		close(nestedErr)
 	}()
 
-	const q = `SELECT ref, path FROM file WHERE ref > $1 ORDER BY ref`
+	const q = `SELECT ref, size FROM file WHERE ref > $1 ORDER BY ref`
 	rows, err := s.db.QueryContext(ctx, q, after)
 	if err != nil {
 		return errors.Wrap(err, "querying db")
@@ -171,8 +189,7 @@ func (s *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef,
 		dbloop     = true
 		nestedloop = true
 		last       blob.Ref
-		dbref      *blob.Ref
-		path       string
+		dbref      *blob.SizedRef
 		nestedref  *blob.SizedRef
 	)
 	for {
@@ -197,14 +214,17 @@ func (s *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef,
 
 		if dbloop && dbref == nil {
 			if rows.Next() {
-				var refstr string
+				var (
+					refstr string
+					size   uint32
+				)
 
-				err = rows.Scan(&refstr, &path)
+				err = rows.Scan(&refstr, &size)
 				if err != nil {
 					return errors.Wrap(err, "scanning db row")
 				}
 				ref, _ := blob.Parse(refstr)
-				dbref = &ref
+				dbref = &blob.SizedRef{Ref: ref, Size: size}
 			} else {
 				dbloop = false
 				if err = rows.Err(); err != nil {
@@ -220,18 +240,11 @@ func (s *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef,
 
 		var out *blob.SizedRef
 
-		if nestedref != nil && (dbref == nil || nestedref.Ref.Less(*dbref)) {
+		if nestedref != nil && (dbref == nil || nestedref.Ref.Less(dbref.Ref)) {
 			out = nestedref
 			nestedref = nil
-		} else if dbref != nil && (nestedref == nil || dbref.Less(nestedref.Ref)) {
-			_, size, err := s.stat(path)
-			if err != nil {
-				return errors.Wrapf(err, "statting %s", path)
-			}
-			out = &blob.SizedRef{
-				Ref:  *dbref,
-				Size: size,
-			}
+		} else if dbref != nil && (nestedref == nil || dbref.Ref.Less(nestedref.Ref)) {
+			out = dbref
 			dbref = nil
 		}
 
@@ -276,19 +289,6 @@ func (s *Storage) removeBlob(ctx context.Context, ref blob.Ref) error {
 // ErrTooBig is the error when a file's size will not fit into a uint32.
 var ErrTooBig = errors.New("file size is too big")
 
-func (s *Storage) stat(path string) (string, uint32, error) {
-	abspath := filepath.Join(s.root, path)
-	fi, err := os.Stat(abspath)
-	if err != nil {
-		return "", 0, errors.Wrapf(err, "statting %s", abspath)
-	}
-	size := fi.Size()
-	if size > math.MaxUint32 {
-		return "", 0, ErrTooBig
-	}
-	return abspath, uint32(size), nil
-}
-
 func (s *Storage) findRelPath(path string) string {
 	if s.root == path {
 		return ""
@@ -311,8 +311,11 @@ func (s *Storage) findRelPath(path string) string {
 
 const schema = `
 	CREATE TABLE IF NOT EXISTS file (
-		path TEXT NOT NULL PRIMARY KEY,
-		ref TEXT NOT NULL
+		path TEXT NOT NULL,
+		ref TEXT NOT NULL,
+		offset INT NOT NULL,
+		size INT NOT NULL,
+		PRIMARY KEY (path, offset, size)
 	);
 
 	CREATE INDEX IF NOT EXISTS file_ref ON file (ref);
