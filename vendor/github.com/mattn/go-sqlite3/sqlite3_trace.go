@@ -2,8 +2,7 @@
 //
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
-
-// +build sqlite_trace trace
+// +build trace
 
 package sqlite3
 
@@ -29,10 +28,10 @@ import (
 // Trace... constants identify the possible events causing callback invocation.
 // Values are same as the corresponding SQLite Trace Event Codes.
 const (
-	TraceStmt    = uint32(C.SQLITE_TRACE_STMT)
-	TraceProfile = uint32(C.SQLITE_TRACE_PROFILE)
-	TraceRow     = uint32(C.SQLITE_TRACE_ROW)
-	TraceClose   = uint32(C.SQLITE_TRACE_CLOSE)
+	TraceStmt    = C.SQLITE_TRACE_STMT
+	TraceProfile = C.SQLITE_TRACE_PROFILE
+	TraceRow     = C.SQLITE_TRACE_ROW
+	TraceClose   = C.SQLITE_TRACE_CLOSE
 )
 
 type TraceInfo struct {
@@ -72,7 +71,7 @@ type TraceUserCallback func(TraceInfo) int
 
 type TraceConfig struct {
 	Callback        TraceUserCallback
-	EventMask       uint32
+	EventMask       C.uint
 	WantExpandedSQL bool
 }
 
@@ -106,8 +105,6 @@ func traceCallbackTrampoline(
 	// Parameter named 'X' in SQLite docs (eXtra event data?):
 	xValue unsafe.Pointer) C.int {
 
-	eventCode := uint32(traceEventCode)
-
 	if ctx == nil {
 		panic(fmt.Sprintf("No context (ev 0x%x)", traceEventCode))
 	}
@@ -117,7 +114,7 @@ func traceCallbackTrampoline(
 
 	var traceConf TraceConfig
 	var found bool
-	if eventCode == TraceClose {
+	if traceEventCode == TraceClose {
 		// clean up traceMap: 'pop' means get and delete
 		traceConf, found = popTraceMapping(connHandle)
 	} else {
@@ -126,16 +123,16 @@ func traceCallbackTrampoline(
 
 	if !found {
 		panic(fmt.Sprintf("Mapping not found for handle 0x%x (ev 0x%x)",
-			connHandle, eventCode))
+			connHandle, traceEventCode))
 	}
 
 	var info TraceInfo
 
-	info.EventCode = eventCode
+	info.EventCode = uint32(traceEventCode)
 	info.AutoCommit = (int(C.sqlite3_get_autocommit(contextDB)) != 0)
 	info.ConnHandle = connHandle
 
-	switch eventCode {
+	switch traceEventCode {
 	case TraceStmt:
 		info.StmtHandle = uintptr(p)
 
@@ -186,7 +183,7 @@ func traceCallbackTrampoline(
 	// registering this callback trampoline with SQLite --- for cleanup.
 	// In the future there may be more events forced to "selected" in SQLite
 	// for the driver's needs.
-	if traceConf.EventMask&eventCode == 0 {
+	if traceConf.EventMask&traceEventCode == 0 {
 		return 0
 	}
 
