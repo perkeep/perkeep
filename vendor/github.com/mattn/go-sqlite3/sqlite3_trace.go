@@ -1,8 +1,9 @@
-// Copyright (C) 2016 Yasuhiro Matsumoto <mattn.jp@gmail.com>.
+// Copyright (C) 2019 Yasuhiro Matsumoto <mattn.jp@gmail.com>.
 //
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
-// +build trace
+
+// +build sqlite_trace trace
 
 package sqlite3
 
@@ -28,10 +29,10 @@ import (
 // Trace... constants identify the possible events causing callback invocation.
 // Values are same as the corresponding SQLite Trace Event Codes.
 const (
-	TraceStmt    = C.SQLITE_TRACE_STMT
-	TraceProfile = C.SQLITE_TRACE_PROFILE
-	TraceRow     = C.SQLITE_TRACE_ROW
-	TraceClose   = C.SQLITE_TRACE_CLOSE
+	TraceStmt    = uint32(C.SQLITE_TRACE_STMT)
+	TraceProfile = uint32(C.SQLITE_TRACE_PROFILE)
+	TraceRow     = uint32(C.SQLITE_TRACE_ROW)
+	TraceClose   = uint32(C.SQLITE_TRACE_CLOSE)
 )
 
 type TraceInfo struct {
@@ -71,7 +72,7 @@ type TraceUserCallback func(TraceInfo) int
 
 type TraceConfig struct {
 	Callback        TraceUserCallback
-	EventMask       C.uint
+	EventMask       uint32
 	WantExpandedSQL bool
 }
 
@@ -88,6 +89,7 @@ func fillExpandedSQL(info *TraceInfo, db *C.sqlite3, pStmt unsafe.Pointer) {
 	}
 
 	expSQLiteCStr := C.sqlite3_expanded_sql((*C.sqlite3_stmt)(pStmt))
+	defer C.sqlite3_free(unsafe.Pointer(expSQLiteCStr))
 	if expSQLiteCStr == nil {
 		fillDBError(&info.DBError, db)
 		return
@@ -105,6 +107,8 @@ func traceCallbackTrampoline(
 	// Parameter named 'X' in SQLite docs (eXtra event data?):
 	xValue unsafe.Pointer) C.int {
 
+	eventCode := uint32(traceEventCode)
+
 	if ctx == nil {
 		panic(fmt.Sprintf("No context (ev 0x%x)", traceEventCode))
 	}
@@ -114,7 +118,7 @@ func traceCallbackTrampoline(
 
 	var traceConf TraceConfig
 	var found bool
-	if traceEventCode == TraceClose {
+	if eventCode == TraceClose {
 		// clean up traceMap: 'pop' means get and delete
 		traceConf, found = popTraceMapping(connHandle)
 	} else {
@@ -123,16 +127,16 @@ func traceCallbackTrampoline(
 
 	if !found {
 		panic(fmt.Sprintf("Mapping not found for handle 0x%x (ev 0x%x)",
-			connHandle, traceEventCode))
+			connHandle, eventCode))
 	}
 
 	var info TraceInfo
 
-	info.EventCode = uint32(traceEventCode)
+	info.EventCode = eventCode
 	info.AutoCommit = (int(C.sqlite3_get_autocommit(contextDB)) != 0)
 	info.ConnHandle = connHandle
 
-	switch traceEventCode {
+	switch eventCode {
 	case TraceStmt:
 		info.StmtHandle = uintptr(p)
 
@@ -183,7 +187,7 @@ func traceCallbackTrampoline(
 	// registering this callback trampoline with SQLite --- for cleanup.
 	// In the future there may be more events forced to "selected" in SQLite
 	// for the driver's needs.
-	if traceConf.EventMask&traceEventCode == 0 {
+	if traceConf.EventMask&eventCode == 0 {
 		return 0
 	}
 

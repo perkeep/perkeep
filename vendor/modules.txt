@@ -1,26 +1,456 @@
-# github.com/gopherjs/gopherjs v0.0.0-20190430165422-3e4dfb77656c
-github.com/gopherjs/gopherjs/compiler
-github.com/gopherjs/gopherjs/compiler/analysis
-github.com/gopherjs/gopherjs/compiler/astutil
-github.com/gopherjs/gopherjs/compiler/filter
-github.com/gopherjs/gopherjs/compiler/prelude
-github.com/gopherjs/gopherjs/compiler/typesutil
+# bazil.org/fuse v0.0.0-20160811212531-371fbbdaa898
+bazil.org/fuse
+bazil.org/fuse/fs
+bazil.org/fuse/fuseutil
+bazil.org/fuse/syscallx
+# cloud.google.com/go v0.49.0
+cloud.google.com/go
+cloud.google.com/go/compute/metadata
+cloud.google.com/go/iam
+cloud.google.com/go/internal
+cloud.google.com/go/internal/fields
+cloud.google.com/go/internal/optional
+cloud.google.com/go/internal/trace
+cloud.google.com/go/internal/version
+# cloud.google.com/go/datastore v1.0.0
+cloud.google.com/go/datastore
+cloud.google.com/go/datastore/internal/gaepb
+# cloud.google.com/go/logging v1.0.0
+cloud.google.com/go/logging
+cloud.google.com/go/logging/apiv2
+cloud.google.com/go/logging/internal
+# cloud.google.com/go/storage v1.0.0
+cloud.google.com/go/storage
+# github.com/BurntSushi/toml v0.3.1
+github.com/BurntSushi/toml
+# github.com/FiloSottile/b2 v0.0.0-20170207175032-b197f7a2c317
+github.com/FiloSottile/b2
+# github.com/aws/aws-sdk-go v1.25.43
+github.com/aws/aws-sdk-go/aws
+github.com/aws/aws-sdk-go/aws/awserr
+github.com/aws/aws-sdk-go/aws/awsutil
+github.com/aws/aws-sdk-go/aws/client
+github.com/aws/aws-sdk-go/aws/client/metadata
+github.com/aws/aws-sdk-go/aws/corehandlers
+github.com/aws/aws-sdk-go/aws/credentials
+github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds
+github.com/aws/aws-sdk-go/aws/credentials/endpointcreds
+github.com/aws/aws-sdk-go/aws/credentials/processcreds
+github.com/aws/aws-sdk-go/aws/credentials/stscreds
+github.com/aws/aws-sdk-go/aws/csm
+github.com/aws/aws-sdk-go/aws/defaults
+github.com/aws/aws-sdk-go/aws/ec2metadata
+github.com/aws/aws-sdk-go/aws/endpoints
+github.com/aws/aws-sdk-go/aws/request
+github.com/aws/aws-sdk-go/aws/session
+github.com/aws/aws-sdk-go/aws/signer/v4
+github.com/aws/aws-sdk-go/internal/ini
+github.com/aws/aws-sdk-go/internal/s3err
+github.com/aws/aws-sdk-go/internal/sdkio
+github.com/aws/aws-sdk-go/internal/sdkmath
+github.com/aws/aws-sdk-go/internal/sdkrand
+github.com/aws/aws-sdk-go/internal/sdkuri
+github.com/aws/aws-sdk-go/internal/shareddefaults
+github.com/aws/aws-sdk-go/private/protocol
+github.com/aws/aws-sdk-go/private/protocol/eventstream
+github.com/aws/aws-sdk-go/private/protocol/eventstream/eventstreamapi
+github.com/aws/aws-sdk-go/private/protocol/json/jsonutil
+github.com/aws/aws-sdk-go/private/protocol/query
+github.com/aws/aws-sdk-go/private/protocol/query/queryutil
+github.com/aws/aws-sdk-go/private/protocol/rest
+github.com/aws/aws-sdk-go/private/protocol/restxml
+github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil
+github.com/aws/aws-sdk-go/service/s3
+github.com/aws/aws-sdk-go/service/s3/s3iface
+github.com/aws/aws-sdk-go/service/s3/s3manager
+github.com/aws/aws-sdk-go/service/sts
+github.com/aws/aws-sdk-go/service/sts/stsiface
+# github.com/bradfitz/latlong v0.0.0-20140711231157-b74550508561
+github.com/bradfitz/latlong
+# github.com/cznic/fileutil v0.0.0-20180108211300-6a051e75936f
+github.com/cznic/fileutil
+# github.com/cznic/internal v0.0.0-20170905175358-4747030f7cf2
+github.com/cznic/internal/buffer
+github.com/cznic/internal/file
+github.com/cznic/internal/slice
+# github.com/cznic/kv v0.0.0-20170515202733-892ccf731fb7
+github.com/cznic/kv
+# github.com/cznic/lldb v1.1.0
+github.com/cznic/lldb
+# github.com/cznic/mathutil v0.0.0-20180214153908-5455a562bccb
+github.com/cznic/mathutil
+# github.com/cznic/sortutil v0.0.0-20150617083342-4c7342852e65
+github.com/cznic/sortutil
+# github.com/cznic/zappy v0.0.0-20160723133515-2533cb5b45cc
+github.com/cznic/zappy
+# github.com/edsrzf/mmap-go v0.0.0-20170320065105-0bce6a688712
+github.com/edsrzf/mmap-go
+# github.com/garyburd/go-oauth v0.0.0-20180319155456-bca2e7f09a17
+github.com/garyburd/go-oauth/oauth
+# github.com/go-sql-driver/mysql v1.4.1
+github.com/go-sql-driver/mysql
+# github.com/golang/groupcache v0.0.0-20191027212112-611e8accdfc9
+github.com/golang/groupcache/lru
+# github.com/golang/protobuf v1.3.2
+github.com/golang/protobuf/proto
+github.com/golang/protobuf/protoc-gen-go
+github.com/golang/protobuf/protoc-gen-go/descriptor
+github.com/golang/protobuf/protoc-gen-go/generator
+github.com/golang/protobuf/protoc-gen-go/generator/internal/remap
+github.com/golang/protobuf/protoc-gen-go/grpc
+github.com/golang/protobuf/protoc-gen-go/plugin
+github.com/golang/protobuf/ptypes
+github.com/golang/protobuf/ptypes/any
+github.com/golang/protobuf/ptypes/duration
+github.com/golang/protobuf/ptypes/empty
+github.com/golang/protobuf/ptypes/struct
+github.com/golang/protobuf/ptypes/timestamp
+github.com/golang/protobuf/ptypes/wrappers
+# github.com/golang/snappy v0.0.0-20170215233205-553a64147049
+github.com/golang/snappy
+# github.com/google/go-cmp v0.3.1
+github.com/google/go-cmp/cmp
+github.com/google/go-cmp/cmp/internal/diff
+github.com/google/go-cmp/cmp/internal/flags
+github.com/google/go-cmp/cmp/internal/function
+github.com/google/go-cmp/cmp/internal/value
+# github.com/googleapis/gax-go/v2 v2.0.5
+github.com/googleapis/gax-go/v2
+# github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1
 github.com/gopherjs/gopherjs/js
-# github.com/gopherjs/jsbuiltin v0.0.0-20180426082241-50091555e127
-github.com/gopherjs/jsbuiltin
-# github.com/neelance/astrewrite v0.0.0-20160511093645-99348263ae86
-github.com/neelance/astrewrite
-# golang.org/x/tools v0.0.0-20190529203303-fb6c8ffd2207
-golang.org/x/tools/go/gcexportdata
-golang.org/x/tools/go/types/typeutil
-golang.org/x/tools/go/internal/gcimporter
+# github.com/gopherjs/jquery v0.0.0-20180404123100-3ba2b901425e
+github.com/gopherjs/jquery
+# github.com/gorilla/websocket v1.4.1
+github.com/gorilla/websocket
+# github.com/hjfreyer/taglib-go v0.0.0-20151027170453-0ef8bba9c41b
+github.com/hjfreyer/taglib-go/taglib
+github.com/hjfreyer/taglib-go/taglib/id3
+# github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af
+github.com/jmespath/go-jmespath
+# github.com/jstemmer/go-junit-report v0.9.1
+github.com/jstemmer/go-junit-report
+github.com/jstemmer/go-junit-report/formatter
+github.com/jstemmer/go-junit-report/parser
+# github.com/kr/fs v0.1.0
+github.com/kr/fs
+# github.com/lib/pq v1.2.0
+github.com/lib/pq
+github.com/lib/pq/oid
+github.com/lib/pq/scram
+# github.com/mailgun/mailgun-go v0.0.0-20171127222028-17e8bd11e87c
+github.com/mailgun/mailgun-go
+# github.com/mattn/go-mastodon v0.0.5-0.20190517015615-8f6192e26b66
+github.com/mattn/go-mastodon
+# github.com/mattn/go-sqlite3 v1.13.0
+github.com/mattn/go-sqlite3
+# github.com/miekg/dns v0.0.0-20161003181808-3f1f7c8ec9ea
+github.com/miekg/dns
+# github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f
+github.com/nf/cr2
+# github.com/pkg/errors v0.8.0
+github.com/pkg/errors
+# github.com/pkg/sftp v0.0.0-20180419200840-5bf2a174b604
+github.com/pkg/sftp
+# github.com/plaid/plaid-go v0.0.0-20161222051224-02b6af68061b
+github.com/plaid/plaid-go/plaid
+# github.com/russross/blackfriday v2.0.0+incompatible
+github.com/russross/blackfriday
+# github.com/rwcarlsen/goexif v0.0.0-20180518182100-8d986c03457a
+github.com/rwcarlsen/goexif/exif
+github.com/rwcarlsen/goexif/tiff
+# github.com/shurcooL/sanitized_anchor_name v1.0.0
+github.com/shurcooL/sanitized_anchor_name
+# github.com/syndtr/goleveldb v0.0.0-20180608030153-db3ee9ee8931
+github.com/syndtr/goleveldb/leveldb
+github.com/syndtr/goleveldb/leveldb/cache
+github.com/syndtr/goleveldb/leveldb/comparer
+github.com/syndtr/goleveldb/leveldb/errors
+github.com/syndtr/goleveldb/leveldb/filter
+github.com/syndtr/goleveldb/leveldb/iterator
+github.com/syndtr/goleveldb/leveldb/journal
+github.com/syndtr/goleveldb/leveldb/memdb
+github.com/syndtr/goleveldb/leveldb/opt
+github.com/syndtr/goleveldb/leveldb/storage
+github.com/syndtr/goleveldb/leveldb/table
+github.com/syndtr/goleveldb/leveldb/util
+# github.com/tgulacsi/picago v0.0.0-20171229130838-9e1ac2306c70
+github.com/tgulacsi/picago
+# github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80
+github.com/tomnomnom/linkheader
+# go.opencensus.io v0.22.2
+go.opencensus.io
+go.opencensus.io/internal
+go.opencensus.io/internal/tagencoding
+go.opencensus.io/metric/metricdata
+go.opencensus.io/metric/metricproducer
+go.opencensus.io/plugin/ocgrpc
+go.opencensus.io/plugin/ochttp
+go.opencensus.io/plugin/ochttp/propagation/b3
+go.opencensus.io/resource
+go.opencensus.io/stats
+go.opencensus.io/stats/internal
+go.opencensus.io/stats/view
+go.opencensus.io/tag
+go.opencensus.io/trace
+go.opencensus.io/trace/internal
+go.opencensus.io/trace/propagation
+go.opencensus.io/trace/tracestate
+# go4.org v0.0.0-20190218023631-ce4c26f7be8e
+go4.org/cloud/cloudlaunch
+go4.org/cloud/google/gceutil
+go4.org/cloud/google/gcsutil
+go4.org/ctxutil
+go4.org/errorutil
+go4.org/fault
+go4.org/jsonconfig
+go4.org/legal
+go4.org/lock
+go4.org/media/heif
+go4.org/media/heif/bmff
+go4.org/net/throttle
+go4.org/oauthutil
+go4.org/readerutil
+go4.org/rollsum
+go4.org/strutil
+go4.org/syncutil
+go4.org/syncutil/singleflight
+go4.org/types
+go4.org/wkfs
+go4.org/wkfs/gcs
+go4.org/writerutil
+# golang.org/x/crypto v0.0.0-20190605123033-f99c8df09eb5
+golang.org/x/crypto/acme
+golang.org/x/crypto/acme/autocert
+golang.org/x/crypto/cast5
+golang.org/x/crypto/curve25519
+golang.org/x/crypto/ed25519
+golang.org/x/crypto/ed25519/internal/edwards25519
+golang.org/x/crypto/internal/chacha20
+golang.org/x/crypto/internal/subtle
+golang.org/x/crypto/nacl/secretbox
+golang.org/x/crypto/openpgp
+golang.org/x/crypto/openpgp/armor
+golang.org/x/crypto/openpgp/elgamal
+golang.org/x/crypto/openpgp/errors
+golang.org/x/crypto/openpgp/packet
+golang.org/x/crypto/openpgp/s2k
+golang.org/x/crypto/pbkdf2
+golang.org/x/crypto/poly1305
+golang.org/x/crypto/salsa20/salsa
+golang.org/x/crypto/scrypt
+golang.org/x/crypto/ssh
+# golang.org/x/exp v0.0.0-20191129062945-2f5052295587
+golang.org/x/exp/apidiff
+golang.org/x/exp/cmd/apidiff
+# golang.org/x/image v0.0.0-20190802002840-cff245a6509b
+golang.org/x/image/ccitt
+golang.org/x/image/draw
+golang.org/x/image/math/f64
+golang.org/x/image/tiff
+golang.org/x/image/tiff/lzw
+# golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f
+golang.org/x/lint
+golang.org/x/lint/golint
+# golang.org/x/net v0.0.0-20191126235420-ef20fe5d7933
+golang.org/x/net/context
+golang.org/x/net/context/ctxhttp
+golang.org/x/net/html
+golang.org/x/net/html/atom
+golang.org/x/net/html/charset
+golang.org/x/net/http/httpguts
+golang.org/x/net/http2
+golang.org/x/net/http2/hpack
+golang.org/x/net/idna
+golang.org/x/net/internal/timeseries
+golang.org/x/net/trace
+golang.org/x/net/xsrftoken
+# golang.org/x/oauth2 v0.0.0-20191122200657-5d9234df094c
+golang.org/x/oauth2
+golang.org/x/oauth2/google
+golang.org/x/oauth2/internal
+golang.org/x/oauth2/jws
+golang.org/x/oauth2/jwt
+# golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
+golang.org/x/sync/errgroup
+golang.org/x/sync/semaphore
+# golang.org/x/sys v0.0.0-20191128015809-6d18c012aee9
+golang.org/x/sys/cpu
+golang.org/x/sys/unix
+golang.org/x/sys/windows
+# golang.org/x/text v0.3.2
+golang.org/x/text/encoding
+golang.org/x/text/encoding/charmap
+golang.org/x/text/encoding/htmlindex
+golang.org/x/text/encoding/internal
+golang.org/x/text/encoding/internal/identifier
+golang.org/x/text/encoding/japanese
+golang.org/x/text/encoding/korean
+golang.org/x/text/encoding/simplifiedchinese
+golang.org/x/text/encoding/traditionalchinese
+golang.org/x/text/encoding/unicode
+golang.org/x/text/internal/language
+golang.org/x/text/internal/language/compact
+golang.org/x/text/internal/tag
+golang.org/x/text/internal/utf8internal
+golang.org/x/text/language
+golang.org/x/text/runes
+golang.org/x/text/secure/bidirule
+golang.org/x/text/transform
+golang.org/x/text/unicode/bidi
+golang.org/x/text/unicode/norm
+# golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
+golang.org/x/time/rate
+# golang.org/x/tools v0.0.0-20191130070609-6e064ea0cf2d
+golang.org/x/tools/cmd/goimports
+golang.org/x/tools/go/analysis
+golang.org/x/tools/go/analysis/passes/inspect
 golang.org/x/tools/go/ast/astutil
-# honnef.co/go/js/dom v0.0.0-20180323154144-6da835bec70f
-honnef.co/go/js/dom
-# myitcv.io v0.0.0-20190513145353-42487431adac
-myitcv.io/react
-myitcv.io/react/internal/bundle
-myitcv.io/react/internal/core
-myitcv.io/react/internal/dev
-myitcv.io/react/internal/preact
-myitcv.io/react/internal/prod
+golang.org/x/tools/go/ast/inspector
+golang.org/x/tools/go/buildutil
+golang.org/x/tools/go/gcexportdata
+golang.org/x/tools/go/internal/gcimporter
+golang.org/x/tools/go/internal/packagesdriver
+golang.org/x/tools/go/packages
+golang.org/x/tools/go/types/objectpath
+golang.org/x/tools/go/types/typeutil
+golang.org/x/tools/internal/fastwalk
+golang.org/x/tools/internal/gopathwalk
+golang.org/x/tools/internal/imports
+golang.org/x/tools/internal/module
+golang.org/x/tools/internal/semver
+golang.org/x/tools/internal/span
+# google.golang.org/api v0.14.0
+google.golang.org/api/cloudresourcemanager/v1
+google.golang.org/api/compute/v1
+google.golang.org/api/drive/v2
+google.golang.org/api/drive/v3
+google.golang.org/api/googleapi
+google.golang.org/api/googleapi/transport
+google.golang.org/api/internal
+google.golang.org/api/internal/gensupport
+google.golang.org/api/internal/third_party/uritemplates
+google.golang.org/api/iterator
+google.golang.org/api/option
+google.golang.org/api/servicemanagement/v1
+google.golang.org/api/sqladmin/v1beta4
+google.golang.org/api/storage/v1
+google.golang.org/api/support/bundler
+google.golang.org/api/transport
+google.golang.org/api/transport/grpc
+google.golang.org/api/transport/http
+google.golang.org/api/transport/http/internal/propagation
+# google.golang.org/appengine v1.6.5
+google.golang.org/appengine
+google.golang.org/appengine/cloudsql
+google.golang.org/appengine/internal
+google.golang.org/appengine/internal/app_identity
+google.golang.org/appengine/internal/base
+google.golang.org/appengine/internal/datastore
+google.golang.org/appengine/internal/log
+google.golang.org/appengine/internal/modules
+google.golang.org/appengine/internal/remote_api
+google.golang.org/appengine/internal/socket
+google.golang.org/appengine/internal/urlfetch
+google.golang.org/appengine/socket
+google.golang.org/appengine/urlfetch
+# google.golang.org/genproto v0.0.0-20191115221424-83cc0476cb11
+google.golang.org/genproto/googleapis/api
+google.golang.org/genproto/googleapis/api/annotations
+google.golang.org/genproto/googleapis/api/distribution
+google.golang.org/genproto/googleapis/api/label
+google.golang.org/genproto/googleapis/api/metric
+google.golang.org/genproto/googleapis/api/monitoredres
+google.golang.org/genproto/googleapis/datastore/v1
+google.golang.org/genproto/googleapis/iam/v1
+google.golang.org/genproto/googleapis/logging/type
+google.golang.org/genproto/googleapis/logging/v2
+google.golang.org/genproto/googleapis/rpc/code
+google.golang.org/genproto/googleapis/rpc/status
+google.golang.org/genproto/googleapis/type/expr
+google.golang.org/genproto/googleapis/type/latlng
+google.golang.org/genproto/protobuf/field_mask
+# google.golang.org/grpc v1.25.1
+google.golang.org/grpc
+google.golang.org/grpc/backoff
+google.golang.org/grpc/balancer
+google.golang.org/grpc/balancer/base
+google.golang.org/grpc/balancer/grpclb
+google.golang.org/grpc/balancer/grpclb/grpc_lb_v1
+google.golang.org/grpc/balancer/roundrobin
+google.golang.org/grpc/binarylog/grpc_binarylog_v1
+google.golang.org/grpc/codes
+google.golang.org/grpc/connectivity
+google.golang.org/grpc/credentials
+google.golang.org/grpc/credentials/alts
+google.golang.org/grpc/credentials/alts/internal
+google.golang.org/grpc/credentials/alts/internal/authinfo
+google.golang.org/grpc/credentials/alts/internal/conn
+google.golang.org/grpc/credentials/alts/internal/handshaker
+google.golang.org/grpc/credentials/alts/internal/handshaker/service
+google.golang.org/grpc/credentials/alts/internal/proto/grpc_gcp
+google.golang.org/grpc/credentials/google
+google.golang.org/grpc/credentials/internal
+google.golang.org/grpc/credentials/oauth
+google.golang.org/grpc/encoding
+google.golang.org/grpc/encoding/proto
+google.golang.org/grpc/grpclog
+google.golang.org/grpc/internal
+google.golang.org/grpc/internal/backoff
+google.golang.org/grpc/internal/balancerload
+google.golang.org/grpc/internal/binarylog
+google.golang.org/grpc/internal/buffer
+google.golang.org/grpc/internal/channelz
+google.golang.org/grpc/internal/envconfig
+google.golang.org/grpc/internal/grpcrand
+google.golang.org/grpc/internal/grpcsync
+google.golang.org/grpc/internal/resolver/dns
+google.golang.org/grpc/internal/resolver/passthrough
+google.golang.org/grpc/internal/syscall
+google.golang.org/grpc/internal/transport
+google.golang.org/grpc/keepalive
+google.golang.org/grpc/metadata
+google.golang.org/grpc/naming
+google.golang.org/grpc/peer
+google.golang.org/grpc/resolver
+google.golang.org/grpc/serviceconfig
+google.golang.org/grpc/stats
+google.golang.org/grpc/status
+google.golang.org/grpc/tap
+# gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
+gopkg.in/mgo.v2
+gopkg.in/mgo.v2/bson
+gopkg.in/mgo.v2/internal/json
+gopkg.in/mgo.v2/internal/sasl
+gopkg.in/mgo.v2/internal/scram
+# honnef.co/go/tools v0.0.1-2019.2.3
+honnef.co/go/tools/arg
+honnef.co/go/tools/cmd/staticcheck
+honnef.co/go/tools/config
+honnef.co/go/tools/deprecated
+honnef.co/go/tools/facts
+honnef.co/go/tools/functions
+honnef.co/go/tools/go/types/typeutil
+honnef.co/go/tools/internal/cache
+honnef.co/go/tools/internal/passes/buildssa
+honnef.co/go/tools/internal/renameio
+honnef.co/go/tools/internal/sharedcheck
+honnef.co/go/tools/lint
+honnef.co/go/tools/lint/lintdsl
+honnef.co/go/tools/lint/lintutil
+honnef.co/go/tools/lint/lintutil/format
+honnef.co/go/tools/loader
+honnef.co/go/tools/printf
+honnef.co/go/tools/simple
+honnef.co/go/tools/ssa
+honnef.co/go/tools/ssautil
+honnef.co/go/tools/staticcheck
+honnef.co/go/tools/staticcheck/vrp
+honnef.co/go/tools/stylecheck
+honnef.co/go/tools/unused
+honnef.co/go/tools/version
+# rsc.io/pdf v0.0.0-20170302045715-1d34785eb915
+rsc.io/pdf
+# rsc.io/qr v0.2.0
+rsc.io/qr
+rsc.io/qr/coding
+rsc.io/qr/gf256

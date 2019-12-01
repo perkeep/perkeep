@@ -17,6 +17,7 @@ package datastore
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"cloud.google.com/go/internal"
 	"cloud.google.com/go/internal/version"
@@ -98,7 +99,7 @@ func (dc *datastoreClient) AllocateIds(ctx context.Context, in *pb.AllocateIdsRe
 
 func (dc *datastoreClient) invoke(ctx context.Context, f func(ctx context.Context) error) error {
 	ctx = metadata.NewOutgoingContext(ctx, dc.md)
-	return internal.Retry(ctx, gax.Backoff{}, func() (stop bool, err error) {
+	return internal.Retry(ctx, gax.Backoff{Initial: 100 * time.Millisecond}, func() (stop bool, err error) {
 		err = f(ctx)
 		return !shouldRetry(err), err
 	})

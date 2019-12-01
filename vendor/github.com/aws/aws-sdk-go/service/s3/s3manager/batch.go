@@ -273,7 +273,7 @@ type DeleteObjectsIterator struct {
 	inc     bool
 }
 
-// Next will increment the default iterator's index and and ensure that there
+// Next will increment the default iterator's index and ensure that there
 // is another object to iterator to.
 func (iter *DeleteObjectsIterator) Next() bool {
 	if iter.inc {
@@ -336,6 +336,11 @@ func (d *BatchDelete) Delete(ctx aws.Context, iter BatchDeleteIterator) error {
 				})
 			}
 		}
+	}
+
+	// iter.Next() could return false (above) plus populate iter.Err()
+	if iter.Err() != nil {
+		errs = append(errs, newError(iter.Err(), nil, nil))
 	}
 
 	if input != nil && len(input.Delete.Objects) > 0 {
@@ -453,7 +458,7 @@ type DownloadObjectsIterator struct {
 	inc     bool
 }
 
-// Next will increment the default iterator's index and and ensure that there
+// Next will increment the default iterator's index and ensure that there
 // is another object to iterator to.
 func (batcher *DownloadObjectsIterator) Next() bool {
 	if batcher.inc {
@@ -492,7 +497,7 @@ type UploadObjectsIterator struct {
 	inc     bool
 }
 
-// Next will increment the default iterator's index and and ensure that there
+// Next will increment the default iterator's index and ensure that there
 // is another object to iterator to.
 func (batcher *UploadObjectsIterator) Next() bool {
 	if batcher.inc {

@@ -20,8 +20,8 @@ import (
 
 	"cloud.google.com/go/internal/trace"
 	pb "google.golang.org/genproto/googleapis/datastore/v1"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // ErrConcurrentTransaction is returned when a transaction is rolled back due
@@ -196,7 +196,7 @@ func (t *Transaction) Commit() (c *Commit, err error) {
 		Mode:                pb.CommitRequest_TRANSACTIONAL,
 	}
 	resp, err := t.client.client.Commit(t.ctx, req)
-	if grpc.Code(err) == codes.Aborted {
+	if status.Code(err) == codes.Aborted {
 		return nil, ErrConcurrentTransaction
 	}
 	t.id = nil // mark the transaction as expired

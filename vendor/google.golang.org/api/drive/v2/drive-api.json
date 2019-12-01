@@ -38,7 +38,7 @@
   "description": "Manages files in Drive including uploading, downloading, searching, detecting changes, and updating sharing permissions.",
   "discoveryVersion": "v1",
   "documentationLink": "https://developers.google.com/drive/",
-  "etag": "\"VPK3KBfpaEgZ16pozGOoMYfKc0U/sPg4ftiBD1CFuyJFjn6aWg4p7EE\"",
+  "etag": "\"F5McR9eEaw0XRpaO3M9gbIugkbs/46Qjt4BhPnhiVVSUSh-Zxw9mvPw\"",
   "icons": {
     "x16": "https://ssl.gstatic.com/docs/doclist/images/drive_icon_16.png",
     "x32": "https://ssl.gstatic.com/docs/doclist/images/drive_icon_32.png"
@@ -831,7 +831,7 @@
           ]
         },
         "patch": {
-          "description": "Updates an existing comment. This method supports patch semantics.",
+          "description": "Updates an existing comment.",
           "httpMethod": "PATCH",
           "id": "drive.comments.patch",
           "parameterOrder": [
@@ -1263,7 +1263,7 @@
           "supportsMediaDownload": true
         },
         "generateIds": {
-          "description": "Generates a set of file IDs which can be provided in insert requests.",
+          "description": "Generates a set of file IDs which can be provided in insert or copy requests.",
           "httpMethod": "GET",
           "id": "drive.files.generateIds",
           "parameters": {
@@ -3041,7 +3041,7 @@
           ]
         },
         "patch": {
-          "description": "Updates an existing reply. This method supports patch semantics.",
+          "description": "Updates an existing reply.",
           "httpMethod": "PATCH",
           "id": "drive.replies.patch",
           "parameterOrder": [
@@ -3235,7 +3235,7 @@
           ]
         },
         "patch": {
-          "description": "Updates a revision. This method supports patch semantics.",
+          "description": "Updates a revision.",
           "httpMethod": "PATCH",
           "id": "drive.revisions.patch",
           "parameterOrder": [
@@ -3459,7 +3459,7 @@
       }
     }
   },
-  "revision": "20190501",
+  "revision": "20191017",
   "rootUrl": "https://www.googleapis.com/",
   "schemas": {
     "About": {
@@ -3664,7 +3664,7 @@
           "type": "array"
         },
         "quotaBytesTotal": {
-          "description": "The total number of quota bytes.",
+          "description": "The total number of quota bytes. This is only relevant when quotaType is LIMITED.",
           "format": "int64",
           "type": "string"
         },
@@ -4021,7 +4021,7 @@
         },
         "kind": {
           "default": "api#channel",
-          "description": "Identifies this as a notification channel used to watch for changes to a resource. Value: the fixed string \"api#channel\".",
+          "description": "Identifies this as a notification channel used to watch for changes to a resource, which is \"api#channel\".",
           "type": "string"
         },
         "params": {
@@ -4129,7 +4129,7 @@
         },
         "author": {
           "$ref": "User",
-          "description": "The user who wrote this comment."
+          "description": "The author of the comment. The author's email address and permission ID will not be populated."
         },
         "commentId": {
           "description": "The ID of the comment.",
@@ -4246,7 +4246,7 @@
       "properties": {
         "author": {
           "$ref": "User",
-          "description": "The user who wrote this reply."
+          "description": "The author of the reply. The author's email address and permission ID will not be populated."
         },
         "content": {
           "annotations": {
@@ -4573,11 +4573,15 @@
               "type": "boolean"
             },
             "canEdit": {
-              "description": "Whether the current user can edit this file.",
+              "description": "Whether the current user can edit this file. Other factors may limit the type of changes a user can make to a file. For example, see canChangeCopyRequiresWriterPermission or canModifyContent.",
               "type": "boolean"
             },
             "canListChildren": {
               "description": "Whether the current user can list the children of this folder. This is always false when the item is not a folder.",
+              "type": "boolean"
+            },
+            "canModifyContent": {
+              "description": "Whether the current user can modify the content of this file.",
               "type": "boolean"
             },
             "canMoveChildrenOutOfDrive": {
@@ -4730,7 +4734,7 @@
           "type": "string"
         },
         "hasAugmentedPermissions": {
-          "description": "Whether any users are granted file access directly on this file. This field is only populated for items in shared drives.",
+          "description": "Whether there are permissions directly on this file. This field is only populated for items in shared drives.",
           "type": "boolean"
         },
         "hasThumbnail": {
@@ -5570,7 +5574,7 @@
           "type": "string"
         },
         "pinned": {
-          "description": "Whether this revision is pinned to prevent automatic purging. This will only be populated and can only be modified on files with content stored in Drive which are not Google Docs. Revisions can also be pinned when they are created through the drive.files.insert/update/copy by using the pinned query parameter.",
+          "description": "Whether this revision is pinned to prevent automatic purging. This will only be populated and can only be modified on files with content stored in Drive which are not Google Docs. Revisions can also be pinned when they are created through the drive.files.insert/update/copy by using the pinned query parameter. Pinned revisions are stored indefinitely using additional storage quota, up to a maximum of 200 revisions.",
           "type": "boolean"
         },
         "publishAuto": {

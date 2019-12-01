@@ -11,6 +11,8 @@ import (
 	proto "github.com/golang/protobuf/proto"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1610,6 +1612,32 @@ type DatastoreServer interface {
 	// Prevents the supplied keys' IDs from being auto-allocated by Cloud
 	// Datastore.
 	ReserveIds(context.Context, *ReserveIdsRequest) (*ReserveIdsResponse, error)
+}
+
+// UnimplementedDatastoreServer can be embedded to have forward compatible implementations.
+type UnimplementedDatastoreServer struct {
+}
+
+func (*UnimplementedDatastoreServer) Lookup(ctx context.Context, req *LookupRequest) (*LookupResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Lookup not implemented")
+}
+func (*UnimplementedDatastoreServer) RunQuery(ctx context.Context, req *RunQueryRequest) (*RunQueryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RunQuery not implemented")
+}
+func (*UnimplementedDatastoreServer) BeginTransaction(ctx context.Context, req *BeginTransactionRequest) (*BeginTransactionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BeginTransaction not implemented")
+}
+func (*UnimplementedDatastoreServer) Commit(ctx context.Context, req *CommitRequest) (*CommitResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Commit not implemented")
+}
+func (*UnimplementedDatastoreServer) Rollback(ctx context.Context, req *RollbackRequest) (*RollbackResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Rollback not implemented")
+}
+func (*UnimplementedDatastoreServer) AllocateIds(ctx context.Context, req *AllocateIdsRequest) (*AllocateIdsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AllocateIds not implemented")
+}
+func (*UnimplementedDatastoreServer) ReserveIds(ctx context.Context, req *ReserveIdsRequest) (*ReserveIdsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReserveIds not implemented")
 }
 
 func RegisterDatastoreServer(s *grpc.Server, srv DatastoreServer) {

@@ -292,6 +292,18 @@ func setVal(v reflect.Value, p Property) (s string) {
 			return overflowReason(x, v)
 		}
 		v.SetFloat(x)
+
+	case reflect.Interface:
+		if !v.CanSet() {
+			return fmt.Sprintf("%v is unsettable", v.Type())
+		}
+
+		rpValue := reflect.ValueOf(pValue)
+		if !rpValue.Type().AssignableTo(v.Type()) {
+			return fmt.Sprintf("%q is not assignable to %q", rpValue.Type(), v.Type())
+		}
+		v.Set(rpValue)
+
 	case reflect.Ptr:
 		// v must be a pointer to either a Key, an Entity, or one of the supported basic types.
 		if v.Type() != typeOfKeyPtr && v.Type().Elem().Kind() != reflect.Struct && !isValidPointerType(v.Type().Elem()) {
@@ -344,6 +356,18 @@ func setVal(v reflect.Value, p Property) (s string) {
 	case reflect.Struct:
 		switch v.Type() {
 		case typeOfTime:
+			// Some time values are converted into microsecond integer values
+			// (for example when used with projects). So, here we check first
+			// whether this value is an int64, and next whether it's time.
+			//
+			// See more at https://cloud.google.com/datastore/docs/concepts/queries#limitations_on_projections
+			micros, ok := pValue.(int64)
+			if ok {
+				s := micros / 1e6
+				ns := micros % 1e6
+				v.Set(reflect.ValueOf(time.Unix(s, ns)))
+				break
+			}
 			x, ok := pValue.(time.Time)
 			if !ok && pValue != nil {
 				return typeMismatchReason(p, v)
