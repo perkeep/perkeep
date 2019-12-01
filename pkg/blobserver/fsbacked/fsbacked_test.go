@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"sync"
@@ -241,12 +242,12 @@ func TestFindRelPath(t *testing.T) {
 	cases := []struct {
 		root, path, want string
 	}{
-		{"/a/b", "/a/b/c", "c"},
-		{"/a/b", "/a/b/c/d", "c/d"},
-		{"/a/b", "/a/b", ""},
-		{"/a/b", "/a/c", ""},
-		{"/a/b", "/a", ""},
-		{"/a/b", "/c/d", ""},
+		{filepath.Join("a", "b"), filepath.Join("a", "b", "c"), "c"},
+		{filepath.Join("a", "b"), filepath.Join("a", "b", "c", "d"), filepath.Join("c", "d")},
+		{filepath.Join("a", "b"), filepath.Join("a", "b"), ""},
+		{filepath.Join("a", "b"), filepath.Join("a", "c"), ""},
+		{filepath.Join("a", "b"), "a", ""},
+		{filepath.Join("a", "b"), filepath.Join("c", "d"), ""},
 	}
 
 	for i, c := range cases {
