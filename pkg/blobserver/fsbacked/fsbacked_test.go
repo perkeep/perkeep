@@ -241,12 +241,12 @@ func TestFindRelPath(t *testing.T) {
 	cases := []struct {
 		root, path, want string
 	}{
-		{"a/b", "a/b/c", "c"},
-		{"a/b", "a/b/c/d", "c/d"},
-		{"a/b", "a/b", ""},
-		{"a/b", "a/c", ""},
-		{"a/b", "a", ""},
-		{"a/b", "c/d", ""},
+		{"/a/b", "/a/b/c", "c"},
+		{"/a/b", "/a/b/c/d", "c/d"},
+		{"/a/b", "/a/b", ""},
+		{"/a/b", "/a/c", ""},
+		{"/a/b", "/a", ""},
+		{"/a/b", "/c/d", ""},
 	}
 
 	for i, c := range cases {
