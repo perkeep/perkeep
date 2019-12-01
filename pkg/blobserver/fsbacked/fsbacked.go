@@ -72,7 +72,7 @@ func (s *Storage) Fetch(ctx context.Context, ref blob.Ref) (io.ReadCloser, uint3
 
 func (s *Storage) ReceiveBlob(ctx context.Context, ref blob.Ref, r io.Reader) (blob.SizedRef, error) {
 	n, ok := r.(Namer)
-	if !ok {
+	if !ok || n.Name() == "" {
 		return s.nested.ReceiveBlob(ctx, ref, r)
 	}
 
@@ -87,21 +87,22 @@ func (s *Storage) ReceiveBlob(ctx context.Context, ref blob.Ref, r io.Reader) (b
 		return s.nested.ReceiveBlob(ctx, ref, r)
 	}
 
-	var offset, size int64
+	var offset, size int64 = -1, -1
 
 	if sec, ok := r.(Section); ok {
 		offset = sec.Offset()
 		size = sec.Size()
-		if size > math.MaxUint32 {
-			return blob.SizedRef{}, ErrTooBig
-		}
-	} else {
+	}
+	if offset < 0 || size < 0 {
 		offset = 0
 		fi, err := os.Stat(abspath)
 		if err != nil {
 			return blob.SizedRef{}, errors.Wrapf(err, "statting %s", abspath)
 		}
 		size = fi.Size()
+	}
+	if size > math.MaxUint32 {
+		return blob.SizedRef{}, ErrTooBig
 	}
 
 	const q = `

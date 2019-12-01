@@ -13,6 +13,8 @@ import (
 // In particular, the io.Reader presented to fsbacked.Storage.ReceiveBlob
 // should be a Namer in order to get fsbacked functionality.
 type Namer interface {
+	// Name reports the name of the object.
+	// If the name isn't known, Name returns "".
 	Name() string
 }
 
@@ -31,12 +33,17 @@ type NamedReadAtCloser interface {
 // If a Section that is also a Namer is presented to fsbacked.Storage.ReceiveBlob,
 // then the designated section of the existing file is used as storage for that blob.
 type Section interface {
+	// Offset reports the offset of this section relative to the underlying source.
+	// If the offset isn't known, this returns -1.
 	Offset() int64
+
+	// Size reports the size of this section.
+	// If the size isn't known, this returns -1.
 	Size() int64
 }
 
 // FileSectionReader is an io.SectionReader built on an underlying NamedReadAtCloser
-// that also implements Section.
+// that also implements Namer and Section.
 type FileSectionReader struct {
 	*io.SectionReader
 	r      NamedReadAtCloser
