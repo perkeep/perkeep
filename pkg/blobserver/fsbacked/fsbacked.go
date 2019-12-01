@@ -14,6 +14,7 @@ import (
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
+	"perkeep.org/pkg/iohelp"
 )
 
 type Storage struct {
@@ -67,11 +68,11 @@ func (s *Storage) Fetch(ctx context.Context, ref blob.Ref) (io.ReadCloser, uint3
 	if err != nil {
 		return nil, 0, errors.Wrapf(err, "opening file %s", abspath)
 	}
-	return NewFileSectionReader(f, offset, size), uint32(size), nil
+	return iohelp.NewNamedSectionReader(f, offset, size), uint32(size), nil
 }
 
 func (s *Storage) ReceiveBlob(ctx context.Context, ref blob.Ref, r io.Reader) (blob.SizedRef, error) {
-	n, ok := r.(Namer)
+	n, ok := r.(iohelp.Namer)
 	if !ok || n.Name() == "" {
 		return s.nested.ReceiveBlob(ctx, ref, r)
 	}
@@ -89,7 +90,7 @@ func (s *Storage) ReceiveBlob(ctx context.Context, ref blob.Ref, r io.Reader) (b
 
 	var offset, size int64 = -1, -1
 
-	if sec, ok := r.(Section); ok {
+	if sec, ok := r.(iohelp.Section); ok {
 		offset = sec.Offset()
 		size = sec.Size()
 	}

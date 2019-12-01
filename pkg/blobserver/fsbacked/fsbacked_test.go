@@ -15,6 +15,7 @@ import (
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver/memory"
+	"perkeep.org/pkg/iohelp"
 )
 
 func TestStore(t *testing.T) {
@@ -125,7 +126,7 @@ func TestStore(t *testing.T) {
 				var r io.Reader = f
 
 				if u.size > 0 {
-					r = NewFileSectionReader(f, u.offset, u.size)
+					r = iohelp.NewNamedSectionReader(f, u.offset, u.size)
 					texts[k] = u.text
 				} else {
 					text, err := ioutil.ReadAll(f)
