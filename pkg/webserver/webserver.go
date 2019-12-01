@@ -34,11 +34,12 @@ import (
 	"sync"
 	"time"
 
-	"perkeep.org/pkg/webserver/listen"
-
+	"github.com/NYTimes/gziphandler"
 	"go4.org/net/throttle"
 	"go4.org/wkfs"
 	"golang.org/x/net/http2"
+
+	"perkeep.org/pkg/webserver/listen"
 )
 
 const alpnProto = "acme-tls/1" // from golang.org/x/crypto/acme.ALPNProto
@@ -141,7 +142,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		s.printf("Request #%d: %s %s (from %s) ...", n, req.Method, req.RequestURI, req.RemoteAddr)
 		rw = &trackResponseWriter{ResponseWriter: rw}
 	}
-	s.mux.ServeHTTP(rw, req)
+	gziphandler.GzipHandler(s.mux).ServeHTTP(rw, req)
 	if s.verbose {
 		tw := rw.(*trackResponseWriter)
 		s.printf("Request #%d: %s %s = code %d, %d bytes", n, req.Method, req.RequestURI, tw.code, tw.resSize)

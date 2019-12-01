@@ -6,6 +6,7 @@ require (
 	bazil.org/fuse v0.0.0-20160811212531-371fbbdaa898
 	cloud.google.com/go v0.39.0
 	github.com/FiloSottile/b2 v0.0.0-20170207175032-b197f7a2c317
+	github.com/NYTimes/gziphandler v1.1.1
 	github.com/aws/aws-sdk-go v1.14.31
 	github.com/bradfitz/latlong v0.0.0-20140711231157-b74550508561
 	github.com/cznic/fileutil v0.0.0-20180108211300-6a051e75936f // indirect
@@ -47,7 +48,6 @@ require (
 	github.com/rwcarlsen/goexif v0.0.0-20180518182100-8d986c03457a
 	github.com/shurcooL/sanitized_anchor_name v0.0.0-20150515002706-11a20b799bf2 // indirect
 	github.com/smartystreets/goconvey v0.0.0-20190330032615-68dc04aab96a // indirect
-	github.com/stretchr/testify v1.3.0 // indirect
 	github.com/syndtr/goleveldb v0.0.0-20180608030153-db3ee9ee8931
 	github.com/tgulacsi/picago v0.0.0-20171229130838-9e1ac2306c70
 	go4.org v0.0.0-20190218023631-ce4c26f7be8e
