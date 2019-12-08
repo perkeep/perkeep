@@ -758,15 +758,18 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 	isReplica := b.hasPrefix("/bs/")
 	if isReplica {
 		gsPrefix := "/sto-googlecloudstorage/"
-		b.addPrefix(gsPrefix, "storage-googlecloudstorage", args{
-			"bucket":     bucket,
-			"rate_limit": rate,
+		a := args{
+			"bucket": bucket,
 			"auth": map[string]interface{}{
 				"client_id":     clientID,
 				"client_secret": secret,
 				"refresh_token": refreshToken,
 			},
-		})
+		}
+		if rate != "" {
+			a["rate_limit"] = rate
+		}
+		b.addPrefix(gsPrefix, "storage-googlecloudstorage", a)
 
 		b.addPrefix("/sync-to-googlecloudstorage/", "sync", args{
 			"from": "/bs/",
