@@ -23,13 +23,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha1"
-	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +39,7 @@ import (
 	"perkeep.org/pkg/constants"
 
 	"cloud.google.com/go/storage"
+	"github.com/pkg/errors"
 	"go4.org/cloud/google/gcsutil"
 	"go4.org/ctxutil"
 	"go4.org/jsonconfig"
@@ -89,7 +90,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		auth      = config.RequiredObject("auth")
 		bucket    = config.RequiredString("bucket")
 		cacheSize = config.OptionalInt64("cacheSize", 32<<20)
-		ratestr   = config.OptionalString("rate_limit", "10ms") // no faster than 1 req per this duration
+		qpsstr    = config.OptionalString("qps", "100") // Conservative! See https://cloud.google.com/storage/docs/request-rate.
 
 		clientID     = auth.RequiredString("client_id") // or "auto" for service accounts
 		clientSecret = auth.OptionalString("client_secret", "")
@@ -112,15 +113,15 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		dirPrefix += "/"
 	}
 
-	dur, err := time.ParseDuration(ratestr)
-	if err != nil {
-		return nil, err
+	qps, err := strconv.ParseFloat(qpsstr, 64)
+	if err != nil || qps <= 0 {
+		return nil, errors.Wrap(err, "parsing qps value (want a number > 0)")
 	}
 
 	gs := &Storage{
 		bucket:    bucket,
 		dirPrefix: dirPrefix,
-		limiter:   rate.NewLimiter(rate.Every(dur), 1),
+		limiter:   rate.NewLimiter(rate.Limit(qps), 1),
 	}
 
 	var (

@@ -734,16 +734,16 @@ func (b *lowBuilder) addGoogleDriveConfig(v string) error {
 	return nil
 }
 
-var errGCSUsage = errors.New(`genconfig: expected "googlecloudstorage" field to be of form "client_id:client_secret:refresh_token:bucket[/dir/][:ratelimit]" or ":bucketname[/dir/]"`)
+var errGCSUsage = errors.New(`genconfig: expected "googlecloudstorage" field to be of form "client_id:client_secret:refresh_token:bucket[/dir/][:qps]" or ":bucketname[/dir/]"`)
 
 func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
-	var clientID, secret, refreshToken, bucket, rate string
+	var clientID, secret, refreshToken, bucket, qps string
 	f := strings.Split(v, ":")
 	switch len(f) {
 	default:
 		return errGCSUsage
 	case 5:
-		rate = f[4]
+		qps = f[4]
 		fallthrough
 	case 4:
 		clientID, secret, refreshToken, bucket = f[0], f[1], f[2], f[3]
@@ -766,8 +766,8 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 				"refresh_token": refreshToken,
 			},
 		}
-		if rate != "" {
-			a["rate_limit"] = rate
+		if qps != "" {
+			a["qps"] = qps
 		}
 		b.addPrefix(gsPrefix, "storage-googlecloudstorage", a)
 
