@@ -46,7 +46,10 @@ import (
 	"go4.org/syncutil"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type Storage struct {
@@ -204,11 +207,24 @@ func (s *Storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader
 		return blob.SizedRef{}, err
 	}
 
-	w := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).NewWriter(ctx)
-	if _, err := io.Copy(w, bytes.NewReader(buf.Bytes())); err != nil {
+	sr := blob.SizedRef{Ref: br, Size: uint32(size)}
+
+	obj := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String())
+	w := obj.If(storage.Conditions{DoesNotExist: true}).NewWriter(ctx)
+
+	_, err = io.Copy(w, bytes.NewReader(buf.Bytes()))
+	if isFailedPrecondition(err) {
+		return sr, nil
+	}
+	if err != nil {
 		return blob.SizedRef{}, err
 	}
-	if err := w.Close(); err != nil {
+
+	err = w.Close()
+	if isFailedPrecondition(err) {
+		return sr, nil
+	}
+	if err != nil {
 		return blob.SizedRef{}, err
 	}
 
@@ -217,7 +233,20 @@ func (s *Storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader
 		// without errors on the io.Copy above.
 		blobserver.ReceiveNoHash(ctx, s.cache, br, bytes.NewReader(buf.Bytes()))
 	}
-	return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
+	return sr, nil
+}
+
+func isFailedPrecondition(err error) bool {
+	if err == nil {
+		return false
+	}
+	if status.Code(err) == codes.FailedPrecondition {
+		return true
+	}
+	if g, ok := err.(*googleapi.Error); ok {
+		return g.Code == http.StatusPreconditionFailed
+	}
+	return false
 }
 
 var statGate = syncutil.NewGate(20) // arbitrary cap
