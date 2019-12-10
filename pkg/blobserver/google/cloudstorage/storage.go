@@ -200,16 +200,35 @@ func (s *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef,
 	return nil
 }
 
+// ReceiveBlob implements blobserver.BlobReceiver.
+// It first tries to access the requested blob, to see if it's already present.
+// If it is, the function returns early.
 func (s *Storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader) (blob.SizedRef, error) {
+	sr, err := s.statBlob(ctx, br)
+	if err == nil {
+		return sr, nil // TODO(bobg): is it necessary to discard the contents of source in this case?
+	}
+	if err != storage.ErrObjectNotExist {
+		return blob.SizedRef{}, err
+	}
+
 	var buf bytes.Buffer
 	size, err := io.Copy(&buf, source)
 	if err != nil {
 		return blob.SizedRef{}, err
 	}
 
-	sr := blob.SizedRef{Ref: br, Size: uint32(size)}
+	sr = blob.SizedRef{Ref: br, Size: uint32(size)}
 
 	obj := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String())
+
+	// This If is just a backup to the statBlob call above,
+	// in case the blob has been created in the interim.
+	// Unfortunately obj.If(...).NewWriter by itself does not suffice:
+	// it doesn't detect the "object already exists" case
+	// until after the data is transmitted to GCS,
+	// consuming much extra bandwidth
+	// and potentially running afoul of the GCS rate limiter.
 	w := obj.If(storage.Conditions{DoesNotExist: true}).NewWriter(ctx)
 
 	_, err = io.Copy(w, bytes.NewReader(buf.Bytes()))
@@ -253,20 +272,25 @@ var statGate = syncutil.NewGate(20) // arbitrary cap
 
 func (s *Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	// TODO: use cache
-	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (sb blob.SizedRef, err error) {
-		attrs, err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).Attrs(ctx)
+	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (blob.SizedRef, error) {
+		sb, err := s.statBlob(ctx, br)
 		if err == storage.ErrObjectNotExist {
-			return sb, nil
+			err = nil
 		}
-		if err != nil {
-			return sb, err
-		}
-		size := attrs.Size
-		if size > constants.MaxBlobSize {
-			return sb, fmt.Errorf("blob %s stat size too large (%d)", br, size)
-		}
-		return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
+		return sb, err
 	})
+}
+
+func (s *Storage) statBlob(ctx context.Context, br blob.Ref) (sb blob.SizedRef, err error) {
+	attrs, err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).Attrs(ctx)
+	if err != nil {
+		return sb, err
+	}
+	size := attrs.Size
+	if size > constants.MaxBlobSize {
+		return sb, fmt.Errorf("blob %s stat size too large (%d)", br, size)
+	}
+	return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
 }
 
 func (s *Storage) Fetch(ctx context.Context, br blob.Ref) (rc io.ReadCloser, size uint32, err error) {
