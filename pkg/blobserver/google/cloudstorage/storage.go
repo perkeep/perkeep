@@ -122,6 +122,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		ctx = context.Background()
 		ts  oauth2.TokenSource
 		cl  *storage.Client
+		err error
 	)
 	if clientID == "auto" {
 		ts, err = google.DefaultTokenSource(ctx, storage.ScopeReadWrite)
