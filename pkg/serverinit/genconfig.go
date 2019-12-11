@@ -18,7 +18,6 @@ package serverinit
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -28,14 +27,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pkg/errors"
 	"go4.org/jsonconfig"
+	"go4.org/wkfs"
 
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/jsonsign"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/types/serverconfig"
-
-	"go4.org/wkfs"
 )
 
 var (
@@ -737,13 +736,13 @@ func (b *lowBuilder) addGoogleDriveConfig(v string) error {
 var errGCSUsage = errors.New(`genconfig: expected "googlecloudstorage" field to be of form "client_id:client_secret:refresh_token:bucket[/dir/][:qps]" or ":bucketname[/dir/]"`)
 
 func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
-	var clientID, secret, refreshToken, bucket, qps string
+	var clientID, secret, refreshToken, bucket, qpsstr string
 	f := strings.Split(v, ":")
 	switch len(f) {
 	default:
 		return errGCSUsage
 	case 5:
-		qps = f[4]
+		qpsstr = f[4]
 		fallthrough
 	case 4:
 		clientID, secret, refreshToken, bucket = f[0], f[1], f[2], f[3]
@@ -766,7 +765,11 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 				"refresh_token": refreshToken,
 			},
 		}
-		if qps != "" {
+		if qpsstr != "" {
+			qps, err := strconv.ParseInt(qpsstr, 10, 64)
+			if err != nil || qps <= 0 {
+				return errors.Wrap(err, "qps must be an integer > 0")
+			}
 			a["qps"] = qps
 		}
 		b.addPrefix(gsPrefix, "storage-googlecloudstorage", a)

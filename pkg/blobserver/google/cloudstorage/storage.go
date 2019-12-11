@@ -29,7 +29,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"strconv"
 	"strings"
 	"time"
 
@@ -90,7 +89,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		auth      = config.RequiredObject("auth")
 		bucket    = config.RequiredString("bucket")
 		cacheSize = config.OptionalInt64("cacheSize", 32<<20)
-		qpsstr    = config.OptionalString("qps", "100") // Conservative! See https://cloud.google.com/storage/docs/request-rate.
+		qps       = config.OptionalInt("qps", 100) // Conservative! See https://cloud.google.com/storage/docs/request-rate.
 
 		clientID     = auth.RequiredString("client_id") // or "auto" for service accounts
 		clientSecret = auth.OptionalString("client_secret", "")
@@ -113,15 +112,10 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		dirPrefix += "/"
 	}
 
-	qps, err := strconv.ParseFloat(qpsstr, 64)
-	if err != nil || qps <= 0 {
-		return nil, errors.Wrap(err, "parsing qps value (want a number > 0)")
-	}
-
 	gs := &Storage{
 		bucket:    bucket,
 		dirPrefix: dirPrefix,
-		limiter:   rate.NewLimiter(rate.Limit(qps), 1),
+		limiter:   rate.NewLimiter(rate.Limit(float64(qps)), 1),
 	}
 
 	var (
