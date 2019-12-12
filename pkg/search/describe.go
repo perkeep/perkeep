@@ -32,6 +32,7 @@ import (
 
 	"go4.org/syncutil"
 	"go4.org/types"
+
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/types/camtypes"
@@ -135,6 +136,16 @@ type DescribeRequest struct {
 	flatRuleCache []*DescribeRule // flattened once, by flatRules
 
 	wg *sync.WaitGroup // for load requests
+}
+
+// Clone clones a DescribeRequest by JSON marshaling it and then unmarshaling it into a new object
+// (which is then also initialized with initDescribeRequest).
+func (dr *DescribeRequest) Clone() *DescribeRequest {
+	marshaled, _ := json.Marshal(dr)
+	res := new(DescribeRequest)
+	json.Unmarshal(marshaled, res)
+	dr.sh.initDescribeRequest(res)
+	return res
 }
 
 type blobrefAndDepth struct {

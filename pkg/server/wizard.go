@@ -271,17 +271,17 @@ func (sh *SetupHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// can take care of updating it as something nicer which would fit better with the
 	// react UI. But in the meantime we don't link to it anymore.
 
-	if req.Method == "POST" {
-		err := req.ParseMultipartForm(10e6)
-		if err != nil {
-			httputil.ServeError(rw, req, err)
-			return
-		}
-		if len(req.Form) > 0 {
-			handleSetupChange(rw, req)
-		}
-		return
-	}
+	// if req.Method == "POST" {
+	// 	err := req.ParseMultipartForm(10e6)
+	// 	if err != nil {
+	// 		httputil.ServeError(rw, req, err)
+	// 		return
+	// 	}
+	// 	if len(req.Form) > 0 {
+	// 		handleSetupChange(rw, req)
+	// 	}
+	// 	return
+	// }
 
-	sendWizard(rw, req, false)
+	// sendWizard(rw, req, false)
 }

@@ -75,8 +75,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		dirPrefix += "/"
 	}
 
-	t := &http.Transport{}
-	*t = *http.DefaultTransport.(*http.Transport)
+	t := http.DefaultTransport.(*http.Transport).Clone()
 	t.MaxIdleConnsPerHost = 50 // we do delete bursts
 	httpClient := &http.Client{Transport: t}
 	cl, err := b2.NewClient(accountID, appKey, httpClient)

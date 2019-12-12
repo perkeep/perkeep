@@ -522,41 +522,48 @@ func TestStreamer(t *testing.T, bs blobserver.BlobStreamer, opts ...StreamerTest
 	gotRefs = gotRefs[:0]
 	contToken := ""
 	for i := 0; i < len(wantRefs); i++ {
-		ctx, cancel := context.WithCancel(context.TODO())
-		ch := make(chan blobserver.BlobAndToken)
-		errc := make(chan error, 1)
-		go func() {
-			errc <- bs.StreamBlobs(ctx, ch, contToken)
-		}()
-		nrecv := 0
-		nextToken := ""
-		for bt := range ch {
-			nrecv++
-			sbr := bt.Blob.SizedRef()
-			isNew := len(gotRefs) == 0 || sbr != gotRefs[len(gotRefs)-1]
-			if isNew {
-				if sawStreamed[sbr.Ref] > 0 {
-					t.Fatalf("In complex pass, returned duplicate blob %v\n\nSo far, before interrupting:\n%v\n\nWant:\n%v", sbr, gotRefs, wantRefs)
+		brk := func() bool {
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			ch := make(chan blobserver.BlobAndToken)
+			errc := make(chan error, 1)
+			go func() {
+				errc <- bs.StreamBlobs(ctx, ch, contToken)
+			}()
+			nrecv := 0
+			nextToken := ""
+			for bt := range ch {
+				nrecv++
+				sbr := bt.Blob.SizedRef()
+				isNew := len(gotRefs) == 0 || sbr != gotRefs[len(gotRefs)-1]
+				if isNew {
+					if sawStreamed[sbr.Ref] > 0 {
+						t.Fatalf("In complex pass, returned duplicate blob %v\n\nSo far, before interrupting:\n%v\n\nWant:\n%v", sbr, gotRefs, wantRefs)
+					}
+					sawStreamed[sbr.Ref]++
+					gotRefs = append(gotRefs, sbr)
+					nextToken = bt.Token
+					return true
+				} else if i == 0 {
+					t.Fatalf("first iteration should receive a new value")
+				} else if nrecv == 2 {
+					t.Fatalf("at cut point %d of testStream, Streamer received 2 values, both not unique. Looping?", i)
 				}
-				sawStreamed[sbr.Ref]++
-				gotRefs = append(gotRefs, sbr)
-				nextToken = bt.Token
-				cancel()
-				break
-			} else if i == 0 {
-				t.Fatalf("first iteration should receive a new value")
-			} else if nrecv == 2 {
-				t.Fatalf("at cut point %d of testStream, Streamer received 2 values, both not unique. Looping?", i)
 			}
-		}
-		err := <-errc
-		if err != nil && err != context.Canceled {
-			t.Fatalf("StreamBlobs on iteration %d (token %q) returned error: %v", i, contToken, err)
-		}
-		if err == nil {
+			err := <-errc
+			if err != nil && err != context.Canceled {
+				t.Fatalf("StreamBlobs on iteration %d (token %q) returned error: %v", i, contToken, err)
+			}
+			if err == nil {
+				return true
+			}
+			contToken = nextToken
+			return false
+		}()
+		if brk {
 			break
 		}
-		contToken = nextToken
 	}
 	if !reflect.DeepEqual(gotRefs, wantRefs) {
 		t.Errorf("Mismatch on complex pass (got %d, want %d):\n got %q\nwant %q\n", len(gotRefs), len(wantRefs), gotRefs, wantRefs)

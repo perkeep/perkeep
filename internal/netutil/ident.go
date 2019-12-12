@@ -258,5 +258,4 @@ func uidFromProcReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader
 			return uid, err
 		}
 	}
-	panic("unreachable")
 }

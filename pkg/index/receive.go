@@ -41,6 +41,7 @@ import (
 	_ "go4.org/media/heif"
 	"go4.org/readerutil"
 	"go4.org/types"
+
 	"perkeep.org/internal/images"
 	"perkeep.org/internal/magic"
 	"perkeep.org/internal/media"
@@ -138,29 +139,49 @@ func (ix *Index) indexReadyBlobs(ctx context.Context) {
 		return
 	}
 	ix.RUnlock()
+	failed := ix.indexReadyBlobsHelper(ctx)
+	if len(failed) > 0 {
+		ix.Lock()
+		defer ix.Unlock()
+		for br := range failed {
+			ix.readyReindex[br] = true
+		}
+	}
+}
+
+func (ix *Index) indexReadyBlobsHelper(ctx context.Context) map[blob.Ref]bool {
 	failed := make(map[blob.Ref]bool)
 	for {
-		ix.Lock()
-		if len(ix.readyReindex) == 0 {
-			ix.Unlock()
-			return
-		}
-		var br blob.Ref
-		for br = range ix.readyReindex {
-			break
-		}
-		delete(ix.readyReindex, br)
-		ix.Unlock()
-		if err := ix.indexBlob(ctx, br); err != nil {
+		br, err := ix.indexNextReadyBlob(ctx)
+		if err != nil {
 			log.Printf("out-of-order indexBlob(%v) = %v", br, err)
 			failed[br] = true
+			continue
+		}
+		if br == (blob.Ref{}) {
+			return failed
 		}
 	}
+}
+
+func (ix *Index) indexNextReadyBlob(ctx context.Context) (blob.Ref, error) {
 	ix.Lock()
-	defer ix.Unlock()
-	for br := range failed {
-		ix.readyReindex[br] = true
+
+	if len(ix.readyReindex) == 0 {
+		ix.Unlock()
+		return blob.Ref{}, nil
 	}
+
+	var br blob.Ref
+	for br = range ix.readyReindex {
+		break
+	}
+	delete(ix.readyReindex, br)
+
+	ix.Unlock()
+
+	err := ix.indexBlob(ctx, br)
+	return br, err
 }
 
 // noteBlobIndexed checks if the recent indexing of br now allows the blobs that

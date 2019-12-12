@@ -147,7 +147,7 @@ func (c *listCmd) RunCommand(args []string) error {
 func (c *listCmd) setClient() error {
 	ss, err := c.syncCmd.storageFromParam("src", c.syncCmd.src)
 	if err != nil {
-		fmt.Errorf("Could not set client for describe requests: %v", err)
+		return fmt.Errorf("Could not set client for describe requests: %v", err)
 	}
 	var ok bool
 	c.cl, ok = ss.(*client.Client)

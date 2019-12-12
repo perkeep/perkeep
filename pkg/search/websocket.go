@@ -175,8 +175,7 @@ func (h *wsHub) doSearch(wq *watchedQuery) {
 	q := new(SearchQuery)
 	*q = *wq.q // shallow copy, since Query will mutate its internal state fields
 	if q.Describe != nil {
-		q.Describe = new(DescribeRequest)
-		*q.Describe = *wq.q.Describe
+		q.Describe = wq.q.Describe.Clone()
 	}
 
 	res, err := h.sh.Query(context.TODO(), q)

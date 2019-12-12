@@ -539,6 +539,8 @@ func gceDeployHandlerConfig() (*gce.Config, error) {
 	return &config, nil
 }
 
+var cloudLauncherEnabled = false
+
 // gceDeployHandler returns an http.Handler for a GCE launcher,
 // configured to run at /prefix/ (the trailing slash can be omitted).
 // The launcher is not initialized if:
@@ -546,7 +548,9 @@ func gceDeployHandlerConfig() (*gce.Config, error) {
 // - neither CAMLI_GCE_CLIENTID is set, nor launcher-config.json is found in the
 // camlistore server config dir.
 func gceDeployHandler(prefix string) (*gce.DeployHandler, error) {
-	return nil, errors.New("The Perkeep Cloud Launcher is no longer available.")
+	if !cloudLauncherEnabled {
+		return nil, errors.New("The Perkeep Cloud Launcher is no longer available.")
+	}
 	var hostPort string
 	var err error
 	scheme := "https"
@@ -1000,9 +1004,21 @@ func serve(httpServer *http.Server, onHTTPError func(error)) error {
 		return nil
 	}
 	log.Printf("Starting TLS server on %s", *httpsAddr)
-	httpsServer := new(http.Server)
-	*httpsServer = *httpServer
-	httpsServer.Addr = *httpsAddr
+	httpsServer := &http.Server{
+		Addr:              *httpsAddr,
+		Handler:           httpServer.Handler,
+		TLSConfig:         httpServer.TLSConfig,
+		ReadTimeout:       httpServer.ReadTimeout,
+		ReadHeaderTimeout: httpServer.ReadHeaderTimeout,
+		WriteTimeout:      httpServer.WriteTimeout,
+		IdleTimeout:       httpServer.IdleTimeout,
+		MaxHeaderBytes:    httpServer.MaxHeaderBytes,
+		TLSNextProto:      httpServer.TLSNextProto,
+		ConnState:         httpServer.ConnState,
+		ErrorLog:          httpServer.ErrorLog,
+		BaseContext:       httpServer.BaseContext,
+		ConnContext:       httpServer.ConnContext,
+	}
 	cacheDir := autocert.DirCache("letsencrypt.cache")
 	var hostPolicy autocert.HostPolicy
 	if !inProd {

@@ -101,6 +101,8 @@ func (c *Collector) markItem(ctx context.Context, it Item, isRoot bool) error {
 
 	// FIXME(tgulacsi): is it a problem that we cannot cancel the parent?
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	ch := make(chan Item, buffered)
 	var grp syncutil.Group
 	grp.Go(func() error {
@@ -114,11 +116,7 @@ func (c *Collector) markItem(ctx context.Context, it Item, isRoot bool) error {
 		}
 		return nil
 	})
-	if err := grp.Err(); err != nil {
-		cancel()
-		return err
-	}
-	return nil
+	return grp.Err()
 }
 
 // Collect performs a garbage collection.
@@ -173,13 +171,13 @@ func (c *Collector) Collect(ctx context.Context) (err error) {
 
 	// Sweep.
 	all := make(chan Item, buffered)
-	sweepCtx, _ := context.WithCancel(ctx)
+	sweepCtx, cancelSweep := context.WithCancel(ctx)
 	var sweeper syncutil.Group
 	sweeper.Go(func() error {
 		return c.Sweeper.Enumerate(sweepCtx, all)
 	})
 	sweeper.Go(func() error {
-		defer sweepCtx.Done()
+		defer cancelSweep()
 		for it := range all {
 			ok, err := c.Marker.IsMarked(it)
 			if err != nil {

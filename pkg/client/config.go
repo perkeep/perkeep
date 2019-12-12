@@ -593,5 +593,4 @@ func hasComponent(component, fullpath string) bool {
 		}
 		fullpath = fullpath[i+1:]
 	}
-	panic("unreachable")
 }

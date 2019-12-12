@@ -249,6 +249,6 @@ func (vr *VerifyRequest) Verify(ctx context.Context) (info VerifiedSignature, er
 	}
 
 	return VerifiedSignature{
-	// ...
+		// ...
 	}, nil
 }
