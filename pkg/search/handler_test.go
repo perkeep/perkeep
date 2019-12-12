@@ -102,14 +102,14 @@ func init() {
 	owner = index.NewOwner(indextest.KeyID, ownerRef.BlobRef())
 	signer = testSigner()
 	for _, v := range testBlobsContents {
-		testBlobs[v] = &test.Blob{v}
+		testBlobs[v] = &test.Blob{Contents: v}
 	}
 	perma123 := schema.NewPlannedPermanode("perma-123")
 	perma123signed, err := perma123.SignAt(ctxbg, signer, test.ClockOrigin)
 	if err != nil {
 		panic(err)
 	}
-	testBlobs["perma-123"] = &test.Blob{perma123signed}
+	testBlobs["perma-123"] = &test.Blob{Contents: perma123signed}
 	handlerTests = initTests()
 }
 
@@ -168,7 +168,7 @@ func (fi *fetcherIndex) addClaim(cl *schema.Builder) error {
 	if err != nil {
 		return err
 	}
-	return fi.addBlob(&test.Blob{signedcl})
+	return fi.addBlob(&test.Blob{Contents: signedcl})
 }
 
 func (fi *fetcherIndex) addPermanode(pnStr string, attrs ...string) error {
@@ -178,7 +178,7 @@ func (fi *fetcherIndex) addPermanode(pnStr string, attrs ...string) error {
 	if err != nil {
 		return err
 	}
-	tpn := &test.Blob{pns}
+	tpn := &test.Blob{Contents: pns}
 	if err := fi.addBlob(tpn); err != nil {
 		return err
 	}

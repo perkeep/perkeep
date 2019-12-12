@@ -59,8 +59,8 @@ func TestShardBasic(t *testing.T) {
 }
 
 func TestShard(t *testing.T) {
-	thingA := &test.Blob{"thing A"} // sha224-2b18a3b52a7211954fb97145cf50a29a6e189a6443f7f1e0fa4529f9, shard 1
-	thingB := &test.Blob{"thing B"} // sha224-f19faf56e53a22bc6f84595b5533e943c98d263b232131881f6ace8f, shard 0
+	thingA := &test.Blob{Contents: "thing A"} // sha224-2b18a3b52a7211954fb97145cf50a29a6e189a6443f7f1e0fa4529f9, shard 1
+	thingB := &test.Blob{Contents: "thing B"} // sha224-f19faf56e53a22bc6f84595b5533e943c98d263b232131881f6ace8f, shard 0
 
 	ts := newTestStorage(t)
 

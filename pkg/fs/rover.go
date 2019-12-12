@@ -267,7 +267,7 @@ func (n *roFileVersionsDir) populate(ctx context.Context) error {
 	}
 
 	Logger.Printf("roFileVersionsDir.populate(%q)", n.fullPath())
-	res, err := n.fs.client.GetClaims(ctx, &search.ClaimsRequest{n.permanode, "camliContent"})
+	res, err := n.fs.client.GetClaims(ctx, &search.ClaimsRequest{Permanode: n.permanode, AttrFilter: "camliContent"})
 	if err != nil {
 		return errors.New("error while getting claims")
 	}

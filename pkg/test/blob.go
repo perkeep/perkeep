@@ -64,7 +64,7 @@ func (tb *Blob) BlobRef() blob.Ref {
 }
 
 func (tb *Blob) SizedRef() blob.SizedRef {
-	return blob.SizedRef{tb.BlobRef(), tb.Size()}
+	return blob.SizedRef{Ref: tb.BlobRef(), Size: tb.Size()}
 }
 
 func (tb *Blob) BlobRefSlice() []blob.Ref {

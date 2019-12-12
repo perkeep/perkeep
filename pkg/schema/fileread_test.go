@@ -34,9 +34,9 @@ var ctxbg = context.Background()
 
 var testFetcher = &test.Fetcher{}
 
-var blobA = &test.Blob{"AAAAAaaaaa"}
-var blobB = &test.Blob{"BBBBBbbbbb"}
-var blobC = &test.Blob{"CCCCCccccc"}
+var blobA = &test.Blob{Contents: "AAAAAaaaaa"}
+var blobB = &test.Blob{Contents: "BBBBBbbbbb"}
+var blobC = &test.Blob{Contents: "CCCCCccccc"}
 
 func init() {
 	testFetcher.AddBlob(blobA)
@@ -72,7 +72,7 @@ func filePart(cps []*BytesPart, skip uint64) *BytesPart {
 	if err != nil {
 		panic(err)
 	}
-	tb := &test.Blob{json}
+	tb := &test.Blob{Contents: json}
 	testFetcher.AddBlob(tb)
 	return &BytesPart{BytesRef: tb.BlobRef(), Size: uint64(fileSize) - skip, Offset: skip}
 }
@@ -368,14 +368,14 @@ func TestReaderForeachChunk(t *testing.T) {
 
 func TestForeachChunkAllSchemaBlobs(t *testing.T) {
 	sto := new(test.Fetcher) // in-memory blob storage
-	foo := &test.Blob{"foo"}
-	bar := &test.Blob{"bar"}
+	foo := &test.Blob{Contents: "foo"}
+	bar := &test.Blob{Contents: "bar"}
 	sto.AddBlob(foo)
 	sto.AddBlob(bar)
 
 	// Make a "bytes" schema blob referencing the "foo" and "bar" chunks.
 	// Verify it works.
-	bytesBlob := &test.Blob{`{"camliVersion": 1,
+	bytesBlob := &test.Blob{Contents: `{"camliVersion": 1,
 "camliType": "bytes",
 "parts": [
    {"blobRef": "` + foo.BlobRef().String() + `", "size": 3},
@@ -401,7 +401,7 @@ func TestForeachChunkAllSchemaBlobs(t *testing.T) {
 	mustRead("bytesBlob", bytesBlob.BlobRef(), "foobar")
 
 	// Now make another bytes schema blob embedding the previous one.
-	bytesBlob2 := &test.Blob{`{"camliVersion": 1,
+	bytesBlob2 := &test.Blob{Contents: `{"camliVersion": 1,
 "camliType": "bytes",
 "parts": [
    {"bytesRef": "` + bytesBlob.BlobRef().String() + `", "size": 6}
@@ -457,22 +457,22 @@ func TestReadDirs(t *testing.T) {
 
 	// small directory, no splitting needed.
 	testReadDir(t, []*test.Blob{
-		&test.Blob{"AAAAAaaaaa"},
-		&test.Blob{"BBBBBbbbbb"},
-		&test.Blob{"CCCCCccccc"},
+		&test.Blob{Contents: "AAAAAaaaaa"},
+		&test.Blob{Contents: "BBBBBbbbbb"},
+		&test.Blob{Contents: "CCCCCccccc"},
 	})
 
 	// large (over maxStaticSetMembers) directory. splitting, but no recursion needed.
 	var members []*test.Blob
 	for i := 0; i < maxStaticSetMembers+3; i++ {
-		members = append(members, &test.Blob{fmt.Sprintf("sha1-%2d", i)})
+		members = append(members, &test.Blob{Contents: fmt.Sprintf("sha1-%2d", i)})
 	}
 	testReadDir(t, members)
 
 	// very large (over maxStaticSetMembers^2) directory. splitting with recursion.
 	members = nil
 	for i := 0; i < maxStaticSetMembers*maxStaticSetMembers+3; i++ {
-		members = append(members, &test.Blob{fmt.Sprintf("sha1-%3d", i)})
+		members = append(members, &test.Blob{Contents: fmt.Sprintf("sha1-%3d", i)})
 	}
 	testReadDir(t, members)
 }
@@ -489,12 +489,12 @@ func testReadDir(t *testing.T, members []*test.Blob) {
 	ssb := NewStaticSet()
 	subsets := ssb.SetStaticSetMembers(membersRefs)
 	for _, v := range subsets {
-		fetcher.AddBlob(&test.Blob{v.str})
+		fetcher.AddBlob(&test.Blob{Contents: v.str})
 	}
-	fetcher.AddBlob(&test.Blob{ssb.Blob().str})
+	fetcher.AddBlob(&test.Blob{Contents: ssb.Blob().str})
 	dir := NewDirMap("whatever").PopulateDirectoryMap(ssb.Blob().BlobRef())
 	dirBlob := dir.Blob()
-	fetcher.AddBlob(&test.Blob{dirBlob.str})
+	fetcher.AddBlob(&test.Blob{Contents: dirBlob.str})
 
 	dr, err := NewDirReader(context.Background(), fetcher, dirBlob.BlobRef())
 	if err != nil {

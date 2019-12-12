@@ -87,7 +87,7 @@ func maybeRunCompaction(dbname string, db *leveldb.DB) error {
 	if nbFiles < 4 {
 		return nil
 	}
-	if err := db.CompactRange(util.Range{nil, nil}); err != nil {
+	if err := db.CompactRange(util.Range{}); err != nil {
 		return fmt.Errorf("could not run compaction on %v's LevelDB: %v", dbname, err)
 	}
 	return nil

@@ -126,7 +126,7 @@ func TestBadPass(t *testing.T) {
 	for i := range ts.sto.key {
 		ts.sto.key[i] = 0
 	}
-	tb := &test.Blob{"foo"}
+	tb := &test.Blob{Contents: "foo"}
 	mustPanic(t, "no passphrase set", func() { tb.MustUpload(t, ts.sto) })
 }
 
@@ -134,7 +134,7 @@ func TestEncrypt(t *testing.T) {
 	ts := newTestStorage()
 
 	const blobData = "foofoofoo"
-	tb := &test.Blob{blobData}
+	tb := &test.Blob{Contents: blobData}
 	tb.MustUpload(t, ts.sto)
 	if got := ts.fetchOrErrorString(tb.BlobRef()); got != blobData {
 		t.Errorf("Fetching plaintext blobref %v = %v; want %q", tb.BlobRef(), got, blobData)
@@ -156,14 +156,14 @@ func TestEncrypt(t *testing.T) {
 	}
 
 	const blobData2 = "bar"
-	tb2 := &test.Blob{blobData2}
+	tb2 := &test.Blob{Contents: blobData2}
 	tb2.MustUpload(t, ts.sto)
 	if got := ts.fetchOrErrorString(tb2.BlobRef()); got != blobData2 {
 		t.Errorf("Fetching plaintext blobref %v = %v; want %q", tb2.BlobRef(), got, blobData2)
 	}
 
 	missingError := "Error: file does not exist"
-	tb3 := &test.Blob{"xxx"}
+	tb3 := &test.Blob{Contents: "xxx"}
 	if got := ts.fetchOrErrorString(tb3.BlobRef()); got != missingError {
 		t.Errorf("Fetching missing blobref %v; want %q", got, missingError)
 	}
@@ -206,10 +206,10 @@ func TestEncrypt(t *testing.T) {
 func TestLoadMeta(t *testing.T) {
 	ts := newTestStorage()
 	const blobData = "foo"
-	tb := &test.Blob{blobData}
+	tb := &test.Blob{Contents: blobData}
 	tb.MustUpload(t, ts.sto)
 	const blobData2 = "bar"
-	tb2 := &test.Blob{blobData2}
+	tb2 := &test.Blob{Contents: blobData2}
 	tb2.MustUpload(t, ts.sto)
 	meta, blobs := ts.meta, ts.blobs
 

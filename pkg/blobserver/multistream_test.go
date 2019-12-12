@@ -57,7 +57,7 @@ func TestStaticStreamer(t *testing.T) {
 	var blobs []*blob.Blob
 	var want []blob.SizedRef
 	for i := 0; i < 5; i++ {
-		tb := &test.Blob{strconv.Itoa(i)}
+		tb := &test.Blob{Contents: strconv.Itoa(i)}
 		b := tb.Blob()
 		blobs = append(blobs, b)
 		want = append(want, b.SizedRef())
@@ -75,7 +75,7 @@ func TestMultiStreamer(t *testing.T) {
 		var blobs []*blob.Blob
 		for i := 0; i < 3; i++ {
 			n++
-			tb := &test.Blob{strconv.Itoa(n)}
+			tb := &test.Blob{Contents: strconv.Itoa(n)}
 			b := tb.Blob()
 			want = append(want, b.SizedRef()) // overall
 			blobs = append(blobs, b)          // this sub-streamer

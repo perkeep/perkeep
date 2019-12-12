@@ -227,8 +227,8 @@ func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiv
 		var tooBig int64 = blobserver.MaxBlobSize + 1
 		var readBytes int64
 		blobGot, err := blobserver.Receive(ctx, blobReceiver, ref, &readerutil.CountingReader{
-			io.LimitReader(mimePart, tooBig),
-			&readBytes,
+			Reader: io.LimitReader(mimePart, tooBig),
+			N:      &readBytes,
 		})
 		if readBytes == tooBig {
 			err = fmt.Errorf("blob over the limit of %d bytes", blobserver.MaxBlobSize)

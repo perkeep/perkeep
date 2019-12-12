@@ -31,7 +31,7 @@ type discardStorage struct {
 
 func (discardStorage) ReceiveBlob(ctx context.Context, br blob.Ref, r io.Reader) (sb blob.SizedRef, err error) {
 	n, err := io.Copy(ioutil.Discard, r)
-	return blob.SizedRef{br, uint32(n)}, err
+	return blob.SizedRef{Ref: br, Size: uint32(n)}, err
 }
 
 func (discardStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {

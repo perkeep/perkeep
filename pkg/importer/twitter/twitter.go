@@ -363,9 +363,10 @@ func (r *run) errorf(format string, args ...interface{}) {
 
 func (r *run) doAPI(result interface{}, apiPath string, keyval ...string) error {
 	return importer.OAuthContext{
-		r.Context(),
-		r.oauthClient,
-		r.accessCreds}.PopulateJSONFromURL(result, http.MethodGet, apiURL+apiPath, keyval...)
+		Ctx:    r.Context(),
+		Client: r.oauthClient,
+		Creds:  r.accessCreds,
+	}.PopulateJSONFromURL(result, http.MethodGet, apiURL+apiPath, keyval...)
 }
 
 // importTweets imports the tweets related to userID, through apiPath.
@@ -756,7 +757,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		return
 	}
 
-	u, err := getUserInfo(importer.OAuthContext{ctx.Context, oauthClient, tokenCred})
+	u, err := getUserInfo(importer.OAuthContext{Ctx: ctx.Context, Client: oauthClient, Creds: tokenCred})
 	if err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Couldn't get user info: %v", err))
 		return

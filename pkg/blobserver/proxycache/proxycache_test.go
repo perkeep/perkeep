@@ -104,7 +104,7 @@ func TestEviction(t *testing.T) {
 func TestMissingGetReturnsNoEnt(t *testing.T) {
 	px, ds := NewProxiedDisk(t)
 	defer cleanUp(ds)
-	foo := &test.Blob{"foo"}
+	foo := &test.Blob{Contents: "foo"}
 
 	blob, _, err := px.Fetch(ctxbg, foo.BlobRef())
 	if err != os.ErrNotExist {

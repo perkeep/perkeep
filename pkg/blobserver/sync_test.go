@@ -64,7 +64,7 @@ func sendTestBlobs(ch chan blob.SizedRef, list string, size uint32) {
 		return
 	}
 	for _, br := range strings.Split(list, ",") {
-		ch <- blob.SizedRef{blob.MustParse(br), size}
+		ch <- blob.SizedRef{Ref: blob.MustParse(br), Size: size}
 	}
 }
 

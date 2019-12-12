@@ -44,7 +44,7 @@ func TestStreamBlobs(t *testing.T) {
 	all := map[blob.Ref]bool{}
 	const nBlobs = 10
 	for i := 0; i < nBlobs; i++ {
-		b := &test.Blob{strconv.Itoa(i)}
+		b := &test.Blob{Contents: strconv.Itoa(i)}
 		b.MustUpload(t, small)
 		all[b.BlobRef()] = true
 	}
@@ -131,7 +131,7 @@ func testStreamBlobs(t *testing.T,
 func populateLoose(t *testing.T, s *storage) (wants []storagetest.StreamerTestOpt) {
 	const nBlobs = 10
 	for i := 0; i < nBlobs; i++ {
-		(&test.Blob{strconv.Itoa(i)}).MustUpload(t, s)
+		(&test.Blob{Contents: strconv.Itoa(i)}).MustUpload(t, s)
 	}
 	return append(wants, storagetest.WantN(nBlobs))
 }
