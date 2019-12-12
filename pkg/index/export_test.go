@@ -64,8 +64,10 @@ func (c *Corpus) Exp_AddKeyID(signerRef blob.Ref, signerID string) error {
 	})
 }
 
-func (x *Index) NeededMapsForTest() (needs, neededBy map[blob.Ref][]blob.Ref, ready map[blob.Ref]bool) {
-	return x.needs, x.neededBy, x.readyReindex
+func (x *Index) WithNeededMapsForTest(f func(needs, neededBy map[blob.Ref][]blob.Ref, ready map[blob.Ref]bool)) {
+	x.RLock()
+	f(x.needs, x.neededBy, x.readyReindex)
+	x.RUnlock()
 }
 
 func Exp_missingKey(have, missing blob.Ref) string {

@@ -198,19 +198,6 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 	}
 	sbr := blob.SizedRef{Ref: blobRef, Size: uint32(written)}
 
-	ix.Lock()
-	defer ix.Unlock()
-
-	missingDeps := false
-	defer func() {
-		if err == nil {
-			ix.noteBlobIndexed(blobRef)
-			if !missingDeps {
-				ix.removeAllMissingEdges(blobRef)
-			}
-		}
-	}()
-
 	// By default, return immediately if it looks like we already
 	// have indexed this blob before.  But if the user has
 	// CAMLI_REDO_INDEX_ON_RECEIVE set in their environment,
@@ -238,10 +225,26 @@ func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Re
 		fetcher: ix.blobSource,
 	}
 
+	// Read subsidiary blobs from source before acquiring ix.Lock (also issue 878).
 	mm, err := ix.populateMutationMap(ctx, fetcher, blobRef, sniffer)
 	if debugEnv {
 		log.Printf("index of %v: mm=%v, err=%v", blobRef, mm, err)
 	}
+	// err is checked below
+
+	ix.Lock()
+	defer ix.Unlock()
+
+	missingDeps := false
+	defer func() {
+		if err == nil {
+			ix.noteBlobIndexed(blobRef)
+			if !missingDeps {
+				ix.removeAllMissingEdges(blobRef)
+			}
+		}
+	}()
+
 	if err != nil {
 		if !errors.Is(err, errMissingDep) {
 			return blob.SizedRef{}, err

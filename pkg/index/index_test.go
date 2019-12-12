@@ -247,9 +247,7 @@ func TestInitNeededMaps(t *testing.T) {
 		t.Fatal(err)
 	}
 	ix.InitBlobSource(bs)
-	{
-		ix.Lock()
-		needs, neededBy, _ := ix.NeededMapsForTest()
+	ix.WithNeededMapsForTest(func(needs, neededBy map[blob.Ref][]blob.Ref, _ map[blob.Ref]bool) {
 		needsWant := map[blob.Ref][]blob.Ref{
 			fileBlobRef: {chunk2ref, chunk1ref, chunk3ref},
 		}
@@ -264,14 +262,11 @@ func TestInitNeededMaps(t *testing.T) {
 		if !reflect.DeepEqual(neededBy, neededByWant) {
 			t.Errorf("neededBy = %v; \nwant %v", neededBy, neededByWant)
 		}
-		ix.Unlock()
-	}
+	})
 
 	ix.Exp_noteBlobIndexed(chunk2ref)
 
-	{
-		ix.Lock()
-		needs, neededBy, ready := ix.NeededMapsForTest()
+	ix.WithNeededMapsForTest(func(needs, neededBy map[blob.Ref][]blob.Ref, ready map[blob.Ref]bool) {
 		needsWant := map[blob.Ref][]blob.Ref{
 			fileBlobRef: {chunk1ref, chunk3ref},
 		}
@@ -288,14 +283,11 @@ func TestInitNeededMaps(t *testing.T) {
 		if len(ready) != 0 {
 			t.Errorf("ready = %v; want nothing", ready)
 		}
-		ix.Unlock()
-	}
+	})
 
 	ix.Exp_noteBlobIndexed(chunk1ref)
 
-	{
-		ix.Lock()
-		needs, neededBy, ready := ix.NeededMapsForTest()
+	ix.WithNeededMapsForTest(func(needs, neededBy map[blob.Ref][]blob.Ref, ready map[blob.Ref]bool) {
 		needsWant := map[blob.Ref][]blob.Ref{
 			fileBlobRef: {chunk3ref},
 		}
@@ -311,14 +303,11 @@ func TestInitNeededMaps(t *testing.T) {
 		if len(ready) != 0 {
 			t.Errorf("ready = %v; want nothing", ready)
 		}
-		ix.Unlock()
-	}
+	})
 
 	ix.Exp_noteBlobIndexed(chunk3ref)
 
-	{
-		ix.Lock()
-		needs, neededBy, ready := ix.NeededMapsForTest()
+	ix.WithNeededMapsForTest(func(needs, neededBy map[blob.Ref][]blob.Ref, ready map[blob.Ref]bool) {
 		needsWant := map[blob.Ref][]blob.Ref{}
 		neededByWant := map[blob.Ref][]blob.Ref{}
 		if !reflect.DeepEqual(needs, needsWant) {
@@ -330,8 +319,7 @@ func TestInitNeededMaps(t *testing.T) {
 		if !ready[fileBlobRef] {
 			t.Error("fileBlobRef not ready")
 		}
-		ix.Unlock()
-	}
+	})
 	// We also technically don't need to wait for the ooo indexing goroutine
 	// to finish for this unit test, but it's cleaner.
 	ix.Exp_AwaitAsyncIndexing(t)
