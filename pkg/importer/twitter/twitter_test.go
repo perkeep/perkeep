@@ -46,7 +46,7 @@ func TestGetUserID(t *testing.T) {
 		}),
 	}))
 	defer cancel()
-	inf, err := getUserInfo(importer.OAuthContext{ctx, &oauth.Client{}, &oauth.Credentials{}})
+	inf, err := getUserInfo(importer.OAuthContext{Ctx: ctx, Client: &oauth.Client{}, Creds: &oauth.Credentials{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestIntegrationRun(t *testing.T) {
 
 	responder := httputil.FileResponder("testdata/user_timeline.json")
 	transport, err := httputil.NewRegexpFakeTransport([]*httputil.Matcher{
-		{`^https\://api\.twitter\.com/1.1/statuses/user_timeline.json\?`, responder},
+		{URLRegex: `^https\://api\.twitter\.com/1.1/statuses/user_timeline.json\?`, Fn: responder},
 	})
 	if err != nil {
 		t.Fatal(err)

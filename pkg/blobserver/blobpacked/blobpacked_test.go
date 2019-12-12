@@ -747,7 +747,7 @@ func TestSmallFallback(t *testing.T) {
 		log:   test.NewLogger(t, "blobpacked: "),
 	}
 	s.init()
-	b1 := &test.Blob{"foo"}
+	b1 := &test.Blob{Contents: "foo"}
 	b1.MustUpload(t, small)
 	wantSB := b1.SizedRef()
 
@@ -994,8 +994,8 @@ func TestPackerBoundarySplits(t *testing.T) {
 	const sizeAB = 12 << 20
 	const maxBlobSize = 16 << 20
 	bytesAB := randBytes(sizeAB)
-	blobA := &test.Blob{string(bytesAB[:sizeAB/2])}
-	blobB := &test.Blob{string(bytesAB[sizeAB/2:])}
+	blobA := &test.Blob{Contents: string(bytesAB[:sizeAB/2])}
+	blobB := &test.Blob{Contents: string(bytesAB[sizeAB/2:])}
 	refA := blobA.BlobRef()
 	refB := blobB.BlobRef()
 	bytesCFull := randBytes(maxBlobSize - sizeAB) // will be sliced down

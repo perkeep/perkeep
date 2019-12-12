@@ -50,7 +50,10 @@ func TestIntegrationRun(t *testing.T) {
 
 	responder := httputil.FileResponder("testdata/batchresponse.json")
 	transport, err := httputil.NewRegexpFakeTransport([]*httputil.Matcher{
-		{`^https\://api\.pinboard\.in/v1/posts/all\?auth_token=gina:foo&format=json&results=10000&todt=\d\d\d\d.*`, responder},
+		{
+			URLRegex: `^https\://api\.pinboard\.in/v1/posts/all\?auth_token=gina:foo&format=json&results=10000&todt=\d\d\d\d.*`,
+			Fn:       responder,
+		},
 	})
 	if err != nil {
 		t.Fatal(err)

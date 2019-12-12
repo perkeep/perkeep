@@ -317,7 +317,7 @@ func (c *Client) transportForConfig(tc *TransportConfig) http.RoundTripper {
 	}
 	transport = httpStats
 	if android.IsChild() {
-		transport = &android.StatsTransport{transport}
+		transport = &android.StatsTransport{Rt: transport}
 	}
 	return transport
 }

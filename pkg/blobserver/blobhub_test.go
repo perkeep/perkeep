@@ -73,12 +73,12 @@ func TestHubFiring(t *testing.T) {
 	blob1 := blob.MustParse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
 	blobsame := blob.MustParse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
 
-	hub.NotifyBlobReceived(blob.SizedRef{blob1, 123}) // no-op
+	hub.NotifyBlobReceived(blob.SizedRef{Ref: blob1, Size: 123}) // no-op
 
 	hub.RegisterListener(ch)
 	hub.RegisterBlobListener(blob1, bch)
 
-	hub.NotifyBlobReceived(blob.SizedRef{blobsame, 456})
+	hub.NotifyBlobReceived(blob.SizedRef{Ref: blobsame, Size: 456})
 
 	tmr1 := time.NewTimer(1 * time.Second)
 	select {

@@ -82,7 +82,7 @@ func TestOpt(t *testing.T, opt Opts) {
 
 	t.Logf("Test stat of blob not existing")
 	{
-		b := &test.Blob{"not exist"}
+		b := &test.Blob{Contents: "not exist"}
 		blobRefs := []blob.Ref{b.BlobRef()}
 		testStat(t, sto, blobRefs, nil)
 	}
@@ -100,7 +100,7 @@ func TestOpt(t *testing.T, opt Opts) {
 
 	t.Logf("Testing receive")
 	for i, x := range contents {
-		b1 := &test.Blob{x}
+		b1 := &test.Blob{Contents: x}
 		if testing.Short() {
 			t.Logf("blob[%d] = %s: %q", i, b1.BlobRef(), x)
 		}
@@ -198,7 +198,7 @@ func (r *run) testSubFetcher() {
 		return
 	}
 	t.Logf("Testing SubFetch")
-	big := &test.Blob{"Some big blob"}
+	big := &test.Blob{Contents: "Some big blob"}
 	if _, err := sto.ReceiveBlob(context.Background(), big.BlobRef(), big.Reader()); err != nil {
 		t.Fatal(err)
 	}
@@ -523,6 +523,7 @@ func TestStreamer(t *testing.T, bs blobserver.BlobStreamer, opts ...StreamerTest
 	contToken := ""
 	for i := 0; i < len(wantRefs); i++ {
 		ctx, cancel := context.WithCancel(context.TODO())
+		defer cancel()
 		ch := make(chan blobserver.BlobAndToken)
 		errc := make(chan error, 1)
 		go func() {

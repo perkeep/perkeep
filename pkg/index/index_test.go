@@ -56,7 +56,7 @@ func init() {
 	chunk2ref = chunk2.BlobRef()
 	chunk3ref = chunk3.BlobRef()
 
-	fileBlob = &test.Blob{fmt.Sprintf(`{"camliVersion": 1,
+	fileBlob = &test.Blob{Contents: fmt.Sprintf(`{"camliVersion": 1,
 "camliType": "file",
 "fileName": "stuff.txt",
 "parts": [
@@ -66,13 +66,13 @@ func init() {
 ]}`, chunk1ref, chunk2ref, chunk3ref)}
 	fileBlobRef = fileBlob.BlobRef()
 
-	staticSetBlob = &test.Blob{fmt.Sprintf(`{"camliVersion": 1,
+	staticSetBlob = &test.Blob{Contents: fmt.Sprintf(`{"camliVersion": 1,
 "camliType": "static-set",
 "members": [
   "%s"
 ]}`, fileBlobRef)}
 
-	dirBlob = &test.Blob{fmt.Sprintf(`{"camliVersion": 1,
+	dirBlob = &test.Blob{Contents: fmt.Sprintf(`{"camliVersion": 1,
 "camliType": "directory",
 "fileName": "someDir",
 "entries": "%s"

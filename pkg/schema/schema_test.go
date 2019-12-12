@@ -730,22 +730,22 @@ func TestLargeDirs(t *testing.T) {
 
 	// small directory, no splitting needed.
 	testLargeDir(t, []blob.Ref{
-		(&test.Blob{"AAAAAaaaaa"}).BlobRef(),
-		(&test.Blob{"BBBBBbbbbb"}).BlobRef(),
-		(&test.Blob{"CCCCCccccc"}).BlobRef(),
+		(&test.Blob{Contents: "AAAAAaaaaa"}).BlobRef(),
+		(&test.Blob{Contents: "BBBBBbbbbb"}).BlobRef(),
+		(&test.Blob{Contents: "CCCCCccccc"}).BlobRef(),
 	})
 
 	// large (over maxStaticSetMembers) directory. splitting, but no recursion needed.
 	var members []blob.Ref
 	for i := 0; i < maxStaticSetMembers+3; i++ {
-		members = append(members, (&test.Blob{fmt.Sprintf("%2d", i)}).BlobRef())
+		members = append(members, (&test.Blob{Contents: fmt.Sprintf("%2d", i)}).BlobRef())
 	}
 	testLargeDir(t, members)
 
 	// very large (over maxStaticSetMembers^2) directory. splitting with recursion.
 	members = nil
 	for i := 0; i < maxStaticSetMembers*maxStaticSetMembers+3; i++ {
-		members = append(members, (&test.Blob{fmt.Sprintf("%3d", i)}).BlobRef())
+		members = append(members, (&test.Blob{Contents: fmt.Sprintf("%3d", i)}).BlobRef())
 	}
 	testLargeDir(t, members)
 }

@@ -139,8 +139,7 @@ func (a *Handler) handleMasterQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var masterQuery search.SearchQuery = *(sq)
-	des := *(masterQuery.Describe)
-	masterQuery.Describe = &des
+	masterQuery.Describe = masterQuery.Describe.Clone()
 	sr, err := a.sh.Query(r.Context(), sq)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("error running master query: %v", err), 500)
@@ -170,8 +169,7 @@ func (a *Handler) refreshDomainBlobs() error {
 		return errors.New("no master query")
 	}
 	var sq search.SearchQuery = *(a.masterQuery)
-	des := *(sq.Describe)
-	sq.Describe = &des
+	sq.Describe = sq.Describe.Clone()
 	sr, err := a.sh.Query(context.TODO(), &sq)
 	if err != nil {
 		return fmt.Errorf("error running master query: %v", err)

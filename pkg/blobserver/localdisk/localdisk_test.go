@@ -57,7 +57,7 @@ func NewStorage(t *testing.T) *DiskStorage {
 func TestUploadDup(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
-	tb := &test.Blob{"Foo"}
+	tb := &test.Blob{Contents: "Foo"}
 	tb.MustUpload(t, ds)
 	tb.MustUpload(t, ds)
 }
@@ -66,7 +66,7 @@ func TestReceiveStat(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
 
-	tb := &test.Blob{"Foo"}
+	tb := &test.Blob{Contents: "Foo"}
 	tb.MustUpload(t, ds)
 
 	ctx := context.Background()
@@ -88,8 +88,8 @@ func TestMultiStat(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
 
-	blobfoo := &test.Blob{"foo"}
-	blobbar := &test.Blob{"bar!"}
+	blobfoo := &test.Blob{Contents: "foo"}
+	blobbar := &test.Blob{Contents: "bar!"}
 	blobfoo.MustUpload(t, ds)
 	blobbar.MustUpload(t, ds)
 
@@ -131,7 +131,7 @@ func TestMultiStat(t *testing.T) {
 func TestMissingGetReturnsNoEnt(t *testing.T) {
 	ds := NewStorage(t)
 	defer cleanUp(ds)
-	foo := &test.Blob{"foo"}
+	foo := &test.Blob{Contents: "foo"}
 
 	blob, _, err := ds.Fetch(context.Background(), foo.BlobRef())
 	if err != os.ErrNotExist {
