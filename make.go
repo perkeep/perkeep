@@ -65,6 +65,7 @@ var (
 	camnetdns      = flag.Bool("camnetdns", false, "Just build perkeep.org/server/camnetdns.")
 	static         = flag.Bool("static", false, "Build a static binary, so it can run in an empty container.")
 	buildWebUI     = flag.Bool("buildWebUI", false, "Rebuild the JS code of the web UI instead of fetching it from perkeep.org.")
+	offline        = flag.Bool("offline", false, "Do not fetch the JS code for the web UI from perkeep.org. If not rebuilding the web UI, just trust the files on disk (if they exist).")
 )
 
 var (
@@ -594,7 +595,28 @@ func doUI(withPerkeepd, withPublisher bool) error {
 	}
 
 	if !*buildWebUI {
-		return fetchAllJS(withPerkeepd, withPublisher)
+		if !*offline {
+			return fetchAllJS(withPerkeepd, withPublisher)
+		}
+		if withPublisher {
+			_, err := os.Stat(filepath.FromSlash(publisherJS))
+			if os.IsNotExist(err) {
+				return fmt.Errorf("%s on disk is required for offline building. Fetch if first at %s.", publisherJS, publisherJSURL)
+			}
+			if err != nil {
+				return err
+			}
+		}
+		if withPerkeepd {
+			_, err := os.Stat(filepath.FromSlash(gopherjsUI))
+			if os.IsNotExist(err) {
+				return fmt.Errorf("%s on disk is required for offline building. Fetch if first at %s.", gopherjsUI, gopherjsUIURL)
+			}
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	if os.Getenv("GO111MODULE") != "off" {
