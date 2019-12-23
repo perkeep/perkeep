@@ -1788,12 +1788,15 @@ func fileConstraintBlobMatches(c *FileConstraint, ctx context.Context, s *search
 	if expandLocationHook {
 		return false, nil
 	}
+
+	// match mediaTags
 	if mt := c.MediaTag; mt != nil {
 		if corpus == nil {
 			return false, nil
 		}
 		var tagValue string
-		if mediaTags, err := corpus.GetMediaTags(ctx, br); err == nil && mt.Tag != "" {
+		var mediaTags, err = corpus.GetMediaTags(ctx, br)
+		if err == nil && mt.Tag != "" {
 			tagValue = mediaTags[mt.Tag]
 		}
 		if mt.Int != nil {
@@ -1801,8 +1804,23 @@ func fileConstraintBlobMatches(c *FileConstraint, ctx context.Context, s *search
 				return false, nil
 			}
 		}
-		if mt.String != nil && !stringConstraintStringMatches(mt.String, tagValue) {
-			return false, nil
+		if mt.String != nil {
+			if mt.Tag != "" {
+				if !stringConstraintStringMatches(mt.String, tagValue) {
+					return false, nil
+				}
+			} else {
+				found := false
+				for _, value := range mediaTags {
+					if stringConstraintStringMatches(mt.String, value) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					return false, nil
+				}
+			}
 		}
 	}
 	// TODO: EXIF timeconstraint
