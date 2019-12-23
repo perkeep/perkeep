@@ -44,3 +44,7 @@ limitations under the License.
 		color: #5E9ED6;
 	}
 }
+
+.cam-blobitem-audio-trackinfo {
+	opacity: 0.65;
+}
