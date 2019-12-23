@@ -91,7 +91,7 @@ cam.BlobItemAudioContent = React.createClass({
 	},
 
 	getPlayPauseButton_: function() {
-		if (!this.state.mouseover) {
+		if (!this.state.playing && !this.state.mouseover) {
 			return null;
 		}
 		return (
@@ -118,7 +118,13 @@ cam.BlobItemAudioContent = React.createClass({
 	},
 
 	setAudioRef_: function(audio) {
-		this.audioRef_ = audio;
+		var self = this;
+		if (audio) {
+			self.audioRef_ = audio;
+			audio.addEventListener('pause', function() {
+				self.setState({ playing: false })
+			})
+		}
 	},
 
 	handlePlayPauseClick_: function(e) {
