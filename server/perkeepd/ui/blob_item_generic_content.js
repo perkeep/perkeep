@@ -31,8 +31,9 @@ cam.BlobItemGenericContent = React.createClass({
 	propTypes: {
 		href: React.PropTypes.string.isRequired,
 		size: React.PropTypes.instanceOf(goog.math.Size).isRequired,
-		thumbSrc: React.PropTypes.string.isRequired,
-		thumbAspect: React.PropTypes.number.isRequired,
+		thumbSrc: React.PropTypes.string,
+		thumbAspect: React.PropTypes.number,
+		thumbFAIcon: React.PropTypes.string,
 		title: React.PropTypes.string.isRequired,
 	},
 
@@ -55,16 +56,33 @@ cam.BlobItemGenericContent = React.createClass({
 	},
 
 	getThumb_: function(thumbClipSize) {
-		var thumbSize = this.getThumbSize_(thumbClipSize);
-		var pos = cam.math.center(thumbSize, thumbClipSize);
-		return React.DOM.img({
-			className: 'cam-blobitem-thumb',
-			ref: 'thumb',
-			src: this.props.thumbSrc,
-			style: {left:pos.x, top:pos.y},
-			width: thumbSize.width,
-			height: thumbSize.height,
-		})
+		if (this.props.thumbSrc && this.props.thumbAspect) {
+			var thumbSize = this.getThumbSize_(thumbClipSize);
+			var pos = cam.math.center(thumbSize, thumbClipSize);
+			return React.DOM.img({
+				className: 'cam-blobitem-thumb',
+				ref: 'thumb',
+				src: this.props.thumbSrc,
+				style: {left:pos.x, top:pos.y},
+				width: thumbSize.width,
+				height: thumbSize.height,
+			})
+		} else if (this.props.thumbFAIcon) {
+			return React.DOM.div({
+				className: 'cam-blobitem-thumb',
+				width: '100%',
+				height: '100%',
+			}, [
+				React.DOM.i({
+					className: 'fa fa-' + this.props.thumbFAIcon,
+					style: {
+						fontSize: this.props.size.height / 1.5 + 'px',
+						lineHeight: this.props.size.height + 'px',
+						width: this.props.size.width,
+					},
+				})
+			]);
+		}
 	},
 
 	getLabel_: function() {
