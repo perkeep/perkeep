@@ -443,7 +443,7 @@ type FileConstraint struct {
 }
 
 type MediaTagConstraint struct {
-	// Tag is the tag to match.
+	// Tag is the tag to match, or empty to find at least 1 matching tag value
 	// For ID3, this includes: title, artist, album, genre, musicbrainzalbumid, year, track, disc, mediaref, durationms.
 	Tag string `json:"tag"`
 
@@ -2009,12 +2009,15 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 	if expandLocationHook {
 		return false, nil
 	}
+
+	// match mediaTags
 	if mt := c.MediaTag; mt != nil {
 		if corpus == nil {
 			return false, nil
 		}
 		var tagValue string
-		if mediaTags, err := corpus.GetMediaTags(ctx, br); err == nil && mt.Tag != "" {
+		var mediaTags, err = corpus.GetMediaTags(ctx, br)
+		if err == nil && mt.Tag != "" {
 			tagValue = mediaTags[mt.Tag]
 		}
 		if mt.Int != nil {
@@ -2022,8 +2025,22 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 				return false, nil
 			}
 		}
-		if mt.String != nil && !mt.String.stringMatches(tagValue) {
-			return false, nil
+		if mt.String != nil {
+			if mt.Tag != "" && !mt.String.stringMatches(tagValue) {
+				return false, nil
+			} else {
+				// if no tag was specified then find at least 1 matching tag
+				var found = false
+				for _, value := range mediaTags {
+					if mt.String.stringMatches(value) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					return false, nil
+				}
+			}
 		}
 	}
 	// TODO: EXIF timeconstraint

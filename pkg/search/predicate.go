@@ -121,6 +121,11 @@ func init() {
 	registerKeyword(newIsPortait())
 	registerKeyword(newWidth())
 
+	// MediaTags predicates
+	registerKeyword(newMedia())
+	//registerKeyword(newArtist())
+	//registerKeyword(newAlbum())
+
 	// File predicates
 	registerKeyword(newFilename())
 
@@ -569,6 +574,39 @@ func (h height) Predicate(ctx context.Context, args []string) (*Constraint, erro
 		IsImage: true,
 		Height:  whIntConstraint(mins, maxs),
 	})
+	return c, nil
+}
+
+// MediaTags Predicates
+
+type media struct {
+	matchPrefix
+}
+
+func newMedia() keyword {
+	return media{newMatchPrefix("media")}
+}
+
+func (t media) Description() string {
+	return "match nodes containing substring in their media tags"
+}
+
+func (t media) Predicate(ctx context.Context, args []string) (*Constraint, error) {
+	c := &Constraint{
+		Permanode: &PermanodeConstraint{
+			Attr: nodeattr.CamliContent,
+			ValueInSet: &Constraint{
+				File: &FileConstraint{
+					MediaTag: &MediaTagConstraint{
+						String: &StringConstraint{
+							Contains:				 args[0],
+							CaseInsensitive: true,
+						},
+					},
+				},
+			},
+		},
+	}
 	return c, nil
 }
 
