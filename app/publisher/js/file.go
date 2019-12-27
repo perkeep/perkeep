@@ -161,7 +161,7 @@ func newFileItemContainer(thumbHeight int) (*fileItemContainer, error) {
 			parent = root
 		} else {
 			_, parentPrefixPath := path.Split(basePath)
-			parentPrefix := "sha1-" + strings.TrimPrefix(parentPrefixPath, "h")
+			parentPrefix := strings.TrimPrefix(parentPrefixPath, "h")
 			parent, err = getFullRef(scheme, host, prefix, parentPrefix)
 			if err != nil {
 				return nil, err
@@ -251,7 +251,9 @@ func (fic *fileItemContainer) populate() error {
 
 func getFullRef(scheme, host, pathPrefix, digestPrefix string) (blob.Ref, error) {
 	var br blob.Ref
-	query := fmt.Sprintf(`{"constraint":{"blobRefPrefix": "%s"}}`, digestPrefix)
+	ca := fmt.Sprintf(`{"blobRefPrefix":"sha224-%s"}`, digestPrefix)
+	cb := fmt.Sprintf(`{"blobRefPrefix":"sha1-%s"}`, digestPrefix)
+	query := fmt.Sprintf(`{"constraint":{"logical":{"op":"or","a":%s,"b":%s}}}`, ca, cb)
 	resp, err := http.Post(fmt.Sprintf("%s://%s%ssearch", scheme, host, pathPrefix), "application/json", strings.NewReader(query))
 	if err != nil {
 		return br, err
