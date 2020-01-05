@@ -19,10 +19,8 @@ limitations under the License.
 package httputil // import "perkeep.org/internal/httputil"
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -270,35 +268,12 @@ func ServeJSONError(rw http.ResponseWriter, err interface{}) {
 	})
 }
 
-// TODO: use a sync.Pool if/when Go 1.3 includes it and Perkeep depends on that.
-var freeBuf = make(chan *bytes.Buffer, 2)
-
-func getBuf() *bytes.Buffer {
-	select {
-	case b := <-freeBuf:
-		b.Reset()
-		return b
-	default:
-		return new(bytes.Buffer)
-	}
-}
-
-func putBuf(b *bytes.Buffer) {
-	select {
-	case freeBuf <- b:
-	default:
-	}
-}
-
 // DecodeJSON decodes the JSON in res.Body into dest and then closes
 // res.Body.
-// It defensively caps the JSON at 8 MB for now.
 func DecodeJSON(res *http.Response, dest interface{}) error {
 	defer res.Body.Close()
-	buf := getBuf()
-	defer putBuf(buf)
-	if err := json.NewDecoder(io.TeeReader(io.LimitReader(res.Body, 8<<20), buf)).Decode(dest); err != nil {
-		return fmt.Errorf("httputil.DecodeJSON: %v, on input: %s", err, buf.Bytes())
+	if err := json.NewDecoder(res.Body).Decode(dest); err != nil {
+		return fmt.Errorf("httputil.DecodeJSON: %v", err)
 	}
 	return nil
 }
