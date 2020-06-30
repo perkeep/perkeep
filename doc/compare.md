@@ -25,11 +25,10 @@ and their investors aren't happy. By paying for keeping your own data,
 you avoid the uncertainty of what other people (companies, investors)
 are going to do to your data.
 
-We do provide the [Cloud Launcher](https://perkeep.org/launch/) to run
-a copy on Google Compute Engine yourself. Perkeep runs happily on
-desktop machines, Raspberry Pis, home servers, Amazon EC2, Google
-Cloud Platform, or any other cloud provider. We suggest using at least
-two for redundancy. Your replicas can sync amongst themselves.
+Perkeep runs happily on desktop machines, Raspberry Pis, home servers,
+Amazon EC2, Google Cloud Platform, or any other cloud provider. 
+We suggest using at least two for redundancy. Your replicas can sync
+amongst themselves.
 
 ## Open source
 
