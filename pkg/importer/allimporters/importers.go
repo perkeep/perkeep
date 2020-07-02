@@ -29,6 +29,7 @@ import (
 	_ "perkeep.org/pkg/importer/pinboard"
 	_ "perkeep.org/pkg/importer/plaid"
 	_ "perkeep.org/pkg/importer/swarm"
+	_ "perkeep.org/pkg/importer/takeout"
 	_ "perkeep.org/pkg/importer/twitter"
 )
 
