@@ -17,6 +17,10 @@ limitations under the License.
 @import (less) "prefix-free.css";
 
 
+.cam-blobitem-takeout-item-title {
+	font-weight: bold;
+}
+
 .cam-blobitem-takeout-item {
 	color: black;
 	display: block;

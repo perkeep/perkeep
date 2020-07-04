@@ -46,6 +46,8 @@ cam.BlobItemTakeoutContent = React.createClass({
 						React.DOM.td({className: 'cam-blobitem-takeout-item-meta'},
 							React.DOM.span({className: 'cam-blobitem-takeout-item-date'}, cam.dateUtils.formatDateShort(this.props.date)),
 							React.DOM.br(),
+							React.DOM.span({className: ' cam-blobitem-takeout-item-title'}, this.props.title),
+							React.DOM.br(),
 							React.DOM.span({className: ' cam-blobitem-takeout-item-content'}, this.props.content)
 						)
 					)
@@ -67,7 +69,7 @@ cam.BlobItemTakeoutContent.getHandler = function(blobref, searchSession, href) {
 
 	var date = cam.permanodeUtils.getSingleAttr(m.permanode, 'startDate');
 
-	// It's OK to not have any content. Tweets can be just images or whatever.
+	var title = cam.permanodeUtils.getSingleAttr(m.permanode, 'title');
 	var content = cam.permanodeUtils.getSingleAttr(m.permanode, 'content');
 	var imageMetaBr = cam.permanodeUtils.getSingleAttr(m.permanode, 'camliContentImage');
 	var imageMeta = null;
@@ -75,10 +77,11 @@ cam.BlobItemTakeoutContent.getHandler = function(blobref, searchSession, href) {
 		imageMeta = searchSession.getResolvedMeta(imageMetaBr);
 	}
 
-	return new cam.BlobItemTakeoutContent.Handler(content, Date.parse(date), href, imageMeta);
+	return new cam.BlobItemTakeoutContent.Handler(title, content, Date.parse(date), href, imageMeta);
 };
 
-cam.BlobItemTakeoutContent.Handler = function(content, date, href, imageMeta) {
+cam.BlobItemTakeoutContent.Handler = function(title, content, date, href, imageMeta) {
+	this.title_ = title
 	this.content_ = content;
 	this.date_ = date;
 	this.href_ = href;
@@ -91,6 +94,7 @@ cam.BlobItemTakeoutContent.Handler.prototype.getAspectRatio = function() {
 
 cam.BlobItemTakeoutContent.Handler.prototype.createContent = function(size) {
 	return React.createElement(cam.BlobItemTakeoutContent, {
+		title: this.title_,
 		content: this.content_,
 		date: this.date_,
 		href: this.href_,
