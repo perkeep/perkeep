@@ -16,11 +16,14 @@ limitations under the License.
 
 package takeout
 
-import "html"
+import (
+	"html"
+	"strings"
+)
 
 type item interface {
 	Title() string
-	TextContent() string
+	Content() string
 	Timestamp() int64
 	Service() string
 }
@@ -34,9 +37,10 @@ type annotation interface {
 
 // Schema for notes
 type noteItem struct {
-	NTitle       string `json:"title"`
-	NTextContent string `json:"textContent"`
-	NTimestamp   int64  `json:"userEditedTimestampUsec"`
+	NoteTitle     string      `json:"title"`
+	TextContent   string      `json:"textContent,omitempty"`
+	ListContent   []*listItem `json:"listContent,omitempty"`
+	EditTimestamp int64       `json:"userEditedTimestampUsec"`
 	/* NAnnotations string `json:annotations`
 	NTrashed     bool   `json:trashed`
 	NArchived    bool   `json:archived`
@@ -45,9 +49,32 @@ type noteItem struct {
 }
 
 func (i *noteItem) Title() string {
-	return i.NTitle
+	return i.NoteTitle
 }
 
-func (i *noteItem) TextContent() string { return html.UnescapeString(i.NTextContent) }
-func (i *noteItem) Timestamp() int64    { return i.NTimestamp / 1000000 }
-func (i *noteItem) Service() string     { return "Google Keep" } //TODO official name? Formerly Google Keep, now Google Notizen in German
+func (i *noteItem) Content() string {
+	if len(i.ListContent) > 0 {
+		var sb strings.Builder
+
+		for _, item := range i.ListContent {
+			sb.WriteString("\n *")
+			sb.WriteString(html.UnescapeString(item.Text))
+			if item.Checked {
+				sb.WriteString(" [x]")
+			} else {
+				sb.WriteString(" [ ]")
+			}
+		}
+
+		return sb.String()
+	}
+
+	return html.UnescapeString(i.TextContent)
+}
+func (i *noteItem) Timestamp() int64 { return i.EditTimestamp / 1000000 }
+func (i *noteItem) Service() string  { return "Google Keep" } //TODO official name? Formerly Google Keep, now Google Notizen in German
+
+type listItem struct {
+	Text    string `json:"text"`
+	Checked bool   `json:"isChecked"`
+}

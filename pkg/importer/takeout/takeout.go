@@ -214,8 +214,8 @@ func noteItemFromZipFile(zf *zip.File) (item *noteItem, err error) {
 		return nil, fmt.Errorf("JSON error: %v", err.Error())
 	}
 
-	if item.NTitle == "" {
-		item.NTitle = strings.Replace(path.Base(zf.Name), ".json", "", -1)
+	if item.NoteTitle == "" {
+		item.NoteTitle = strings.Replace(path.Base(zf.Name), ".json", "", -1)
 	}
 	return
 }
@@ -284,7 +284,7 @@ func (r *run) importItem(parent *importer.Object, item item) (dup bool, err erro
 		nodeattr.Title, id,
 		nodeattr.Type, nodeType,
 		nodeattr.StartDate, schema.RFC3339FromTime(createdTime),
-		nodeattr.Content, item.TextContent(),
+		nodeattr.Content, item.Content(),
 		nodeattr.URL, url,
 		"service", item.Service(),
 	}

@@ -58,7 +58,7 @@ func checkItems(t *testing.T, rc *importer.RunContext, expectedItems map[string]
 		}
 		title := childNode.Attr("title")
 		expectedItem := expectedItems[title]
-		expectedContent := expectedItem.TextContent()
+		expectedContent := expectedItem.Content()
 		foundContent := childNode.Attr(nodeattr.Content)
 		if foundContent != expectedContent {
 			t.Fatalf("Found unexpected child node %v with content %q when we want %q", childNode, foundContent, expectedContent)
@@ -117,12 +117,18 @@ func TestIntegrationRun(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		item1 := &noteItem{NTitle: "Test 1", NTextContent: "Test 1", NTimestamp: 1525639240544000}
-		item2 := &noteItem{NTitle: "", NTextContent: "No title ", NTimestamp: 1525639240544000}
+		li1 := &listItem{Text: "Halt and Catch Fire ", Checked: false}
+		li2 := &listItem{Text: "Sillicon Valley", Checked: true}
+		li3 := &listItem{Text: "Mr. Robot", Checked: true}
+
+		i1 := &noteItem{NoteTitle: "Test 1", TextContent: "Test 1", EditTimestamp: 1525639240544000}
+		i2 := &noteItem{NoteTitle: "", TextContent: "No title ", EditTimestamp: 1525639240544000}
+		i3 := &noteItem{NoteTitle: "Series", EditTimestamp: 1563310284270000, ListContent: []*listItem{li1, li2, li3}}
 
 		testItems := map[string]item{
-			"Test 1": item1,
-			"2":      item2,
+			"Test 1": i1,
+			"2":      i2,
+			"Series": i3,
 		}
 		checkItems(t, rc, testItems)
 	})
