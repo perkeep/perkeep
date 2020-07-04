@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -60,9 +59,9 @@ const (
 
 	// acctAttrZipDoneVersion is updated at the end of a successful zip import and
 	// is used to determine whether the zip file needs to be re-imported in a future run.
-	acctAttrZipDoneVersion = "twitterZipDoneVersion" // == "<fileref>:<runCompleteVersion>"
+	acctAttrZipDoneVersion = "takeoutZipDoneVersion" // == "<fileref>:<runCompleteVersion>"
 
-	// A tweet is stored as a permanode with the "twitter.com:tweet" camliNodeType value.
+	// A item is stored as a permanode with the "google.com:takeout" camliNodeType value.
 	nodeTypeTakeoutItem = "google.com:takeout"
 
 	itemsAtOnce = 20
@@ -167,7 +166,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		defer fr.Close()
 		zr, err := zip.NewReader(fr, fr.Size())
 		if err != nil {
-			return fmt.Errorf("Error opening twitter zip file %v: %v", zipRef, err)
+			return fmt.Errorf("Error opening takeout zip file %v: %v", zipRef, err)
 		}
 		if err := r.importItemsFromZip(zr); err != nil {
 			return err
@@ -191,7 +190,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 }
 
 func (r *run) errorf(format string, args ...interface{}) {
-	log.Printf("twitter: "+format, args...)
+	log.Printf("takeout: "+format, args...)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.anyErr = true
@@ -212,8 +211,6 @@ func noteItemFromZipFile(zf *zip.File) (item *noteItem, err error) {
 		return nil, errors.New("No '{' found in zip file")
 	}
 	slurp = slurp[i:]
-	s := string(slurp)
-	fmt.Println(s)
 	item = &noteItem{}
 	if err := json.Unmarshal(slurp, item); err != nil {
 		return nil, fmt.Errorf("JSON error: %v", err.Error())
@@ -292,7 +289,7 @@ func (r *run) importItem(parent *importer.Object, item item) (dup bool, err erro
 	attrs = append(attrs, attrImportMethod, "zip")
 
 	//TODO annotations and files
-	/* for i, m := range tweet.Media() {
+	/* for i, m := range item.Media() {
 		filename := m.BaseFilename()
 		if itemNode.Attr("camliPath:"+filename) != "" && (i > 0 || itemNode.Attr("camliContentImage") != "") {
 			// Don't re-import media we've already fetched.
@@ -303,32 +300,32 @@ func (r *run) importItem(parent *importer.Object, item item) (dup bool, err erro
 			tried++
 			res, err := ctxutil.Client(r.Context()).Get(mediaURL)
 			if err != nil {
-				return false, fmt.Errorf("Error fetching %s for tweet %s : %v", mediaURL, url, err)
+				return false, fmt.Errorf("Error fetching %s for item %s : %v", mediaURL, url, err)
 			}
 			if res.StatusCode == http.StatusNotFound {
 				continue
 			}
 			if res.StatusCode != 200 {
-				return false, fmt.Errorf("HTTP status %d fetching %s for tweet %s", res.StatusCode, mediaURL, url)
+				return false, fmt.Errorf("HTTP status %d fetching %s for item %s", res.StatusCode, mediaURL, url)
 			}
 			if !viaAPI {
-				log.Printf("twitter: for zip tweet %s, reading %v", url, mediaURL)
+				log.Printf("takeout: for zip item %s, reading %v", url, mediaURL)
 			}
 			fileRef, err := schema.WriteFileFromReader(r.Context(), r.Host.Target(), filename, res.Body)
 			res.Body.Close()
 			if err != nil {
-				return false, fmt.Errorf("Error fetching media %s for tweet %s: %v", mediaURL, url, err)
+				return false, fmt.Errorf("Error fetching media %s for item %s: %v", mediaURL, url, err)
 			}
 			attrs = append(attrs, "camliPath:"+filename, fileRef.String())
 			if i == 0 {
 				attrs = append(attrs, "camliContentImage", fileRef.String())
 			}
-			log.Printf("twitter: slurped %s as %s for tweet %s (%v)", mediaURL, fileRef.String(), url, itemNode.PermanodeRef())
+			log.Printf("takeout: slurped %s as %s for item %s (%v)", mediaURL, fileRef.String(), url, itemNode.PermanodeRef())
 			gotMedia = true
 			break
 		}
 		if !gotMedia && tried > 0 {
-			return false, fmt.Errorf("All media URLs 404s for tweet %s", url)
+			return false, fmt.Errorf("All media URLs 404s for item %s", url)
 		}
 	}
 	*/
@@ -340,7 +337,7 @@ func (r *run) importItem(parent *importer.Object, item item) (dup bool, err erro
 	return !changes, err
 }
 
-// path may be of: "tweets". (TODO: "lists", "direct_messages", etc.)
+// path may be of: "items". (TODO: "lists", "direct_messages", etc.)
 func (r *run) getTopLevelNode(service string) (*importer.Object, error) {
 	acctNode := r.AccountNode()
 
@@ -408,37 +405,3 @@ func getUserInfo(ctx importer.OAuthContext) (userInfo, error) {
 	}
 	return ui, nil
 }
-
-type item interface {
-	Title() string
-	TextContent() string
-	Timestamp() int64
-	Service() string
-}
-
-type annotation interface {
-	URL() string
-	Description() string
-	Title() string
-	Source() string
-}
-
-// Schema for notes
-type noteItem struct {
-	NTitle       string `json:"title"`
-	NTextContent string `json:"textContent"`
-	NTimestamp   int64  `json:"userEditedTimestampUsec"`
-	/* NAnnotations string `json:annotations`
-	NTrashed     bool   `json:trashed`
-	NArchived    bool   `json:archived`
-	NPinned      bool   `json:pinned`
-	NColor       string `json:color` */
-}
-
-func (i *noteItem) Title() string {
-	return i.NTitle
-}
-
-func (i *noteItem) TextContent() string { return html.UnescapeString(i.NTextContent) }
-func (i *noteItem) Timestamp() int64    { return i.NTimestamp / 1000000 }
-func (i *noteItem) Service() string     { return "Google Keep" } //TODO official name? Formerly Google Keep, now Google Notizen in German
