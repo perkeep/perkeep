@@ -287,6 +287,7 @@ func (r *run) importItem(parent *importer.Object, item item) (dup bool, err erro
 		nodeattr.StartDate, schema.RFC3339FromTime(createdTime),
 		nodeattr.Content, item.TextContent(),
 		nodeattr.URL, url,
+		"service", item.Service(),
 	}
 	attrs = append(attrs, attrImportMethod, "zip")
 
@@ -439,5 +440,5 @@ func (i *noteItem) Title() string {
 }
 
 func (i *noteItem) TextContent() string { return html.UnescapeString(i.NTextContent) }
-func (i *noteItem) Timestamp() int64    { return i.NTimestamp }
+func (i *noteItem) Timestamp() int64    { return i.NTimestamp / 1000000 }
 func (i *noteItem) Service() string     { return "Google Keep" } //TODO official name? Formerly Google Keep, now Google Notizen in German

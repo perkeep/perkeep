@@ -20,6 +20,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"perkeep.org/internal/httputil"
 	"perkeep.org/internal/testhooks"
@@ -35,7 +36,7 @@ func init() {
 	testhooks.SetUseSHA1(true)
 }
 
-func checkItems(t *testing.T, rc *importer.RunContext, expectedPostGroups ...map[string]string) {
+func checkItems(t *testing.T, rc *importer.RunContext, expectedItems map[string]item) {
 	postsNode, err := imptest.GetRequiredChildPathObj(rc.RootNode(), "takeout")
 	if err != nil {
 		t.Fatal(err)
@@ -46,16 +47,8 @@ func checkItems(t *testing.T, rc *importer.RunContext, expectedPostGroups ...map
 		t.Fatal(err)
 	}
 
-	// Merges groups, last wins
-	expectedPosts := map[string]string{}
-	for _, posts := range expectedPostGroups {
-		for k, v := range posts {
-			expectedPosts[k] = v
-		}
-	}
-
-	if len(childRefs) != len(expectedPosts) {
-		t.Fatalf("After import, found %d child refs, want %d: %v", len(childRefs), len(expectedPosts), childRefs)
+	if len(childRefs) != len(expectedItems) {
+		t.Fatalf("After import, found %d child refs, want %d: %v", len(childRefs), len(expectedItems), childRefs)
 	}
 
 	for _, ref := range childRefs {
@@ -64,18 +57,21 @@ func checkItems(t *testing.T, rc *importer.RunContext, expectedPostGroups ...map
 			t.Fatal(err)
 		}
 		title := childNode.Attr("title")
-		expectedContent, ok := expectedPosts[title]
-		if !ok {
-			t.Fatalf("Found unexpected child node %v with id %q", childNode, title)
-		}
+		expectedItem := expectedItems[title]
+		expectedContent := expectedItem.TextContent()
 		foundContent := childNode.Attr(nodeattr.Content)
 		if foundContent != expectedContent {
 			t.Fatalf("Found unexpected child node %v with content %q when we want %q", childNode, foundContent, expectedContent)
 		}
-		delete(expectedPosts, title)
+		expectedDate := schema.RFC3339FromTime(time.Unix(expectedItem.Timestamp(), 0))
+		foundDate := childNode.Attr(nodeattr.StartDate)
+		if expectedDate != foundDate {
+			t.Fatalf("Found unexpected child node %v with date %q when we want %q", childNode, foundDate, expectedDate)
+		}
+		delete(expectedItems, title)
 	}
-	if len(expectedPosts) != 0 {
-		t.Fatalf("The following entries were expected but not found: %#v", expectedPosts)
+	if len(expectedItems) != 0 {
+		t.Fatalf("The following entries were expected but not found: %#v", expectedItems)
 	}
 }
 
@@ -121,9 +117,12 @@ func TestIntegrationRun(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		testItems := map[string]string{
-			"2":      "No title ",
-			"Test 1": `Test 1`,
+		item1 := &noteItem{NTitle: "Test 1", NTextContent: "Test 1", NTimestamp: 1525639240544000}
+		item2 := &noteItem{NTitle: "", NTextContent: "No title ", NTimestamp: 1525639240544000}
+
+		testItems := map[string]item{
+			"Test 1": item1,
+			"2":      item2,
 		}
 		checkItems(t, rc, testItems)
 	})
