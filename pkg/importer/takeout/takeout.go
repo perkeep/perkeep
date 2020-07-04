@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 	"sync"
@@ -81,7 +82,6 @@ func init() {
 var _ importer.ImporterSetupHTMLer = (*imp)(nil)
 
 type imp struct {
-	importer.OAuth1 // for CallbackRequestAccount and CallbackURLParameters
 }
 
 func (*imp) Properties() importer.Properties {
@@ -378,6 +378,23 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)
+}
+
+func (im *imp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	httputil.BadRequestError(w, "Unexpected path: %s", r.URL.Path)
+}
+
+func (im *imp) CallbackRequestAccount(r *http.Request) (blob.Ref, error) {
+	// We do not actually use OAuth, but this method works for us anyway.
+	// Even if your importer implementation does not use OAuth, you can
+	// probably just embed importer.OAuth1 in your implementation type.
+	// If OAuth2, embedding importer.OAuth2 should work.
+	return importer.OAuth1{}.CallbackRequestAccount(r)
+}
+
+func (im *imp) CallbackURLParameters(acctRef blob.Ref) url.Values {
+	// See comment in CallbackRequestAccount.
+	return importer.OAuth1{}.CallbackURLParameters(acctRef)
 }
 
 type userInfo struct {
