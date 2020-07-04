@@ -200,7 +200,7 @@ func (r *run) errorf(format string, args ...interface{}) {
 	r.anyErr = true
 }
 
-func tweetsFromZipFile(zf *zip.File) (tweets []*zipItem, err error) {
+func tweetsFromZipFile(zf *zip.File) (tweets []*noteItem, err error) {
 	rc, err := zf.Open()
 	if err != nil {
 		return nil, err
@@ -404,11 +404,6 @@ type item interface {
 	Title() string
 	TextContent() string
 	Timestamp() string
-	Annotations() []annotation
-	Trashed() bool
-	Archived() bool
-	Pinned() bool
-	Color() string
 }
 
 type annotation interface {
@@ -419,31 +414,26 @@ type annotation interface {
 }
 
 // zipTweetItem is like apiTweetItem, but twitter is annoying and the schema for the JSON inside zip files is slightly different.
-type zipItem struct {
-	ZTitle       string `json:"title"`
-	ZTextContent string `json:"textContent"`
-	ZTimestamp   string `json:"userEditedTimestampUsec"`
-	ZAnnotations string `json:annotations`
-	ZTrashed     bool   `json:trashed`
-	ZArchived    bool   `json:archived`
-	ZPinned      bool   `json:pinned`
-	ZColor       string `json:color`
+type noteItem struct {
+	NTitle       string `json:"title"`
+	NTextContent string `json:"textContent"`
+	NTimestamp   string `json:"userEditedTimestampUsec"`
+	/* NAnnotations string `json:annotations`
+	NTrashed     bool   `json:trashed`
+	NArchived    bool   `json:archived`
+	NPinned      bool   `json:pinned`
+	NColor       string `json:color` */
 }
 
-func (t *zipItem) Title() string {
-	if t.ZTitle == "" {
+func (i *noteItem) Title() string {
+	if i.NTitle == "" {
 		panic("empty id")
 	}
-	return t.ZTitle
+	return i.NTitle
 }
 
-func (t *zipItem) Timestamp() string   { return t.ZTimestamp }
-func (t *zipItem) TextContent() string { return html.UnescapeString(t.ZTextContent) }
-
-func (t *zipItem) Annotations() (ret []annotation) {
-	//TODO
-	return
-}
+func (i *noteItem) Timestamp() string   { return i.NTimestamp }
+func (i *noteItem) TextContent() string { return html.UnescapeString(i.NTextContent) }
 
 type mediaSize struct {
 	W      int    `json:"w"`
