@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package twitter implements a twitter.com importer.
-package takeout // import "perkeep.org/pkg/importer/twitter"
+// Package takeout implements a Google takeout importer.
+package takeout // import "perkeep.org/pkg/importer/takeout"
 
 import (
 	"archive/zip"
@@ -53,12 +53,7 @@ const (
 	// permanode and subsequent importers can stop early.
 	runCompleteVersion = "1"
 
-	// acctAttrTweetZip specifies an optional attribte for the account permanode.
-	// If set, it should be of a "file" schema blob referencing the tweets.zip
-	// file that Twitter makes available for the full archive download.
-	// The Twitter API doesn't go back forever in time, so if you started using
-	// the Perkeep importer too late, you need to "pk-put file tweets.zip"
-	// once downloading it from Twitter, and then:
+	// Download a takeout zip file, create an account and add the file ref:
 	//   $ pk-put attr <acct-permanode> takeoutArchiveZipFileRef <zip-fileref>
 	// ... and re-do an import.
 	acctAttrTakeoutZip = "takeoutArchiveZipFileRef"
@@ -120,11 +115,12 @@ func (im *imp) SummarizeAccount(acct *importer.Object) string {
 }
 
 func (im *imp) AccountSetupHTML(host *importer.Host) string {
-	base := host.ImporterBaseURL() + "takeout"
-	return fmt.Sprintf(`
+	return fmt.Sprint(`
 <h1>Configuring Takeout</h1>
 <p>Visit <a href='https://takeout.google.com/'>https://takeout.google.com/</a> and export all Google Producs you are interested in</p>
-`, base, base+"/callback")
+<p>Add the zip file to Perkeep, create an account and add the file ref:</p>
+<p>pk-put attr <acct-permanode> takeoutArchiveZipFileRef <zip-fileref></p>
+`)
 }
 
 // A run is our state for a given run of the importer.
