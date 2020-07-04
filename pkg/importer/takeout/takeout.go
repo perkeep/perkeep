@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -70,7 +71,7 @@ const (
 
 	itemsAtOnce = 20
 
-	attrImportMethod = "twitterImportMethod"
+	attrImportMethod = "takeoutImportMethod"
 )
 
 func init() {
@@ -200,7 +201,7 @@ func (r *run) errorf(format string, args ...interface{}) {
 	r.anyErr = true
 }
 
-func tweetsFromZipFile(zf *zip.File) (tweets []*noteItem, err error) {
+func noteItemFromZipFile(zf *zip.File) (item *noteItem, err error) {
 	rc, err := zf.Open()
 	if err != nil {
 		return nil, err
@@ -210,13 +211,20 @@ func tweetsFromZipFile(zf *zip.File) (tweets []*noteItem, err error) {
 	if err != nil {
 		return nil, err
 	}
-	i := bytes.IndexByte(slurp, '[')
+	i := bytes.IndexByte(slurp, '{')
 	if i < 0 {
-		return nil, errors.New("No '[' found in zip file")
+		return nil, errors.New("No '{' found in zip file")
 	}
 	slurp = slurp[i:]
-	if err := json.Unmarshal(slurp, &tweets); err != nil {
-		return nil, fmt.Errorf("JSON error: %v", err)
+	s := string(slurp)
+	fmt.Println(s)
+	item = &noteItem{}
+	if err := json.Unmarshal(slurp, item); err != nil {
+		return nil, fmt.Errorf("JSON error: %v", err.Error())
+	}
+
+	if item.NTitle == "" {
+		item.NTitle = path.Base(zf.Name)
 	}
 	return
 }
@@ -233,45 +241,36 @@ func (r *run) importItemsFromZip(zr *zip.Reader) error {
 		if !(strings.HasSuffix(zf.Name, ".json")) {
 			continue
 		}
-		log.Printf("File %s", zf.Name)
-		/* tweets, err := tweetsFromZipFile(zf)
-		if err != nil {
-			return fmt.Errorf("error reading tweets from %s: %v", zf.Name, err)
+
+		takeoutNode, err := r.getTopLevelNode("takeout")
+
+		// service is the folder name
+		service := path.Base(path.Dir(zf.Name))
+
+		var item item
+		// "Notes" in English, Notizen in German. TODO find better ways to determine service properly
+		if strings.Contains(service, "Not") {
+			item, err = noteItemFromZipFile(zf)
 		}
 
-		for i := range tweets {
-			total++
-			tweet := tweets[i]
-			gate.Start()
-			grp.Go(func() error {
-				defer gate.Done()
-				_, err := r.importItem(tweetsNode, item)
-				return err
-			})
-		} */
+		if err != nil {
+			return fmt.Errorf("error reading items from %s: %v", zf.Name, err)
+		}
+
+		grp.Go(func() error {
+			_, err := r.importItem(takeoutNode, item)
+			return err
+		})
 	}
 	err := grp.Err()
 	log.Printf("zip import of tweets: %d total, err = %v", total, err)
 	return err
 }
 
-func timeParseFirstFormat(timeStr string, format ...string) (t time.Time, err error) {
-	if len(format) == 0 {
-		panic("need more than 1 format")
-	}
-	for _, f := range format {
-		t, err = time.Parse(f, timeStr)
-		if err == nil {
-			break
-		}
-	}
-	return
-}
-
 func (r *run) importItem(parent *importer.Object, item item) (dup bool, err error) {
 	select {
 	case <-r.Context().Done():
-		r.errorf("Twitter importer: interrupted")
+		r.errorf("Takeout importer: interrupted")
 		return false, r.Context().Err()
 	default:
 	}
@@ -281,12 +280,7 @@ func (r *run) importItem(parent *importer.Object, item item) (dup bool, err erro
 		return false, err
 	}
 
-	// e.g. "2014-06-12 19:11:51 +0000"
-	createdTime, err := timeParseFirstFormat(item.Timestamp(), time.UnixDate, "2006-01-02 15:04:05 -0700")
-	if err != nil {
-		return false, fmt.Errorf("could not parse time %q: %v", item.Timestamp(), err)
-	}
-
+	createdTime := time.Unix(item.Timestamp(), 0)
 	url := "https://takeout.google.com"
 
 	nodeType := nodeTypeTakeoutItem
@@ -343,7 +337,7 @@ func (r *run) importItem(parent *importer.Object, item item) (dup bool, err erro
 
 	changes, err := itemNode.SetAttrs2(attrs...)
 	if err == nil && changes {
-		log.Printf("takeout: imported item %s", url)
+		log.Printf("takeout: imported item %s", id)
 	}
 	return !changes, err
 }
@@ -378,7 +372,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		importer.AcctAttrUserID, "Takeout",
 		importer.AcctAttrName, "Takeout",
 		importer.AcctAttrUserName, "Takeout",
-		nodeattr.Title, fmt.Sprintf("%s's Takeout Account"),
+		nodeattr.Title, fmt.Sprintf("Takeout Account"),
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
 		return
@@ -403,7 +397,8 @@ func getUserInfo(ctx importer.OAuthContext) (userInfo, error) {
 type item interface {
 	Title() string
 	TextContent() string
-	Timestamp() string
+	Timestamp() int64
+	Service() string
 }
 
 type annotation interface {
@@ -413,11 +408,11 @@ type annotation interface {
 	Source() string
 }
 
-// zipTweetItem is like apiTweetItem, but twitter is annoying and the schema for the JSON inside zip files is slightly different.
+// Schema for notes
 type noteItem struct {
 	NTitle       string `json:"title"`
 	NTextContent string `json:"textContent"`
-	NTimestamp   string `json:"userEditedTimestampUsec"`
+	NTimestamp   int64  `json:"userEditedTimestampUsec"`
 	/* NAnnotations string `json:annotations`
 	NTrashed     bool   `json:trashed`
 	NArchived    bool   `json:archived`
@@ -426,17 +421,9 @@ type noteItem struct {
 }
 
 func (i *noteItem) Title() string {
-	if i.NTitle == "" {
-		panic("empty id")
-	}
 	return i.NTitle
 }
 
-func (i *noteItem) Timestamp() string   { return i.NTimestamp }
 func (i *noteItem) TextContent() string { return html.UnescapeString(i.NTextContent) }
-
-type mediaSize struct {
-	W      int    `json:"w"`
-	H      int    `json:"h"`
-	Resize string `json:"resize"`
-}
+func (i *noteItem) Timestamp() int64    { return i.NTimestamp }
+func (i *noteItem) Service() string     { return "Google Keep" } //TODO official name? Formerly Google Keep, now Google Notizen in German
