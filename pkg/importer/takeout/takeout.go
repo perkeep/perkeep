@@ -220,7 +220,7 @@ func noteItemFromZipFile(zf *zip.File) (item *noteItem, err error) {
 	}
 
 	if item.NTitle == "" {
-		item.NTitle = path.Base(zf.Name)
+		item.NTitle = strings.Replace(path.Base(zf.Name), ".json", "", -1)
 	}
 	return
 }
@@ -237,6 +237,7 @@ func (r *run) importItemsFromZip(zr *zip.Reader) error {
 		if !(strings.HasSuffix(zf.Name, ".json")) {
 			continue
 		}
+		total++
 
 		takeoutNode, err := r.getTopLevelNode("takeout")
 
@@ -259,7 +260,7 @@ func (r *run) importItemsFromZip(zr *zip.Reader) error {
 		})
 	}
 	err := grp.Err()
-	log.Printf("zip import of tweets: %d total, err = %v", total, err)
+	log.Printf("zip import of items: %d total, err = %v", total, err)
 	return err
 }
 
