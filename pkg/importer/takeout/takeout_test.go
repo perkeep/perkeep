@@ -37,12 +37,12 @@ func init() {
 }
 
 func checkItems(t *testing.T, rc *importer.RunContext, expectedItems map[string]item) {
-	postsNode, err := imptest.GetRequiredChildPathObj(rc.RootNode(), "takeout")
+	itemsNode, err := imptest.GetRequiredChildPathObj(rc.RootNode(), "Google Notes")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	childRefs, err := imptest.FindChildRefs(postsNode)
+	childRefs, err := imptest.FindChildRefs(itemsNode)
 	if err != nil {
 		t.Fatal(err)
 	}

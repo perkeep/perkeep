@@ -30,6 +30,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 
 	"perkeep.org/internal/httputil"
@@ -102,10 +103,8 @@ func (im *imp) SummarizeAccount(acct *importer.Object) string {
 	if !ok {
 		return "Not configured"
 	}
-	s := fmt.Sprintf("@%s (%s), takeout id %s",
-		acct.Attr(importer.AcctAttrUserName),
+	s := fmt.Sprintf("takeout id %s",
 		acct.Attr(importer.AcctAttrName),
-		acct.Attr(importer.AcctAttrUserID),
 	)
 	if acct.Attr(acctAttrTakeoutZip) != "" {
 		s += " + zip file"
@@ -117,8 +116,7 @@ func (im *imp) AccountSetupHTML(host *importer.Host) string {
 	return fmt.Sprint(`
 <h1>Configuring Takeout</h1>
 <p>Visit <a href='https://takeout.google.com/'>https://takeout.google.com/</a> and export all Google Producs you are interested in</p>
-<p>Add the zip file to Perkeep, create an account and add the file ref:</p>
-<p>pk-put attr <acct-permanode> takeoutArchiveZipFileRef <zip-fileref></p>
+<p>Add the zip file to Perkeep first then create an account and add the file ref</p>
 `)
 }
 
@@ -168,7 +166,7 @@ func (im *imp) Run(ctx *importer.RunContext) error {
 		if err != nil {
 			return fmt.Errorf("Error opening takeout zip file %v: %v", zipRef, err)
 		}
-		if err := r.importItemsFromZip(zr); err != nil {
+		if err := r.importItemsFromZip(zr, acctNode.Attr(importer.AcctAttrName)); err != nil {
 			return err
 		}
 		if err := acctNode.SetAttrs(acctAttrZipDoneVersion, zipDoneVal); err != nil {
@@ -222,7 +220,7 @@ func noteItemFromZipFile(zf *zip.File) (item *noteItem, err error) {
 	return
 }
 
-func (r *run) importItemsFromZip(zr *zip.Reader) error {
+func (r *run) importItemsFromZip(zr *zip.Reader, account string) error {
 	log.Printf("takeout: processing zip file with %d files", len(zr.File))
 
 	var (
@@ -236,10 +234,10 @@ func (r *run) importItemsFromZip(zr *zip.Reader) error {
 		}
 		total++
 
-		takeoutNode, err := r.getTopLevelNode("takeout")
-
 		// service is the folder name
 		service := path.Base(path.Dir(zf.Name))
+
+		parent, err := r.getTopLevelNode(service)
 
 		var item item
 		// "Notes" in English, Notizen in German. TODO find better ways to determine service properly
@@ -252,7 +250,7 @@ func (r *run) importItemsFromZip(zr *zip.Reader) error {
 		}
 
 		grp.Go(func() error {
-			_, err := r.importItem(takeoutNode, item)
+			_, err := r.importItem(parent, item)
 			return err
 		})
 	}
@@ -264,11 +262,15 @@ func (r *run) importItemsFromZip(zr *zip.Reader) error {
 func (r *run) importItem(parent *importer.Object, item item) (dup bool, err error) {
 	select {
 	case <-r.Context().Done():
-		r.errorf("Takeout importer: interrupted")
+		r.errorf("takeout importer: interrupted")
 		return false, r.Context().Err()
 	default:
 	}
 	id := item.Title()
+	// duplicate here!!!
+	if err != nil {
+		return false, err
+	}
 	itemNode, err := parent.ChildPathObject(id)
 	if err != nil {
 		return false, err
@@ -279,7 +281,7 @@ func (r *run) importItem(parent *importer.Object, item item) (dup bool, err erro
 
 	nodeType := nodeTypeTakeoutItem
 	attrs := []string{
-		"title", id,
+		nodeattr.Title, id,
 		nodeattr.Type, nodeType,
 		nodeattr.StartDate, schema.RFC3339FromTime(createdTime),
 		nodeattr.Content, item.TextContent(),
@@ -337,12 +339,11 @@ func (r *run) importItem(parent *importer.Object, item item) (dup bool, err erro
 	return !changes, err
 }
 
-// path may be of: "items". (TODO: "lists", "direct_messages", etc.)
 func (r *run) getTopLevelNode(service string) (*importer.Object, error) {
 	acctNode := r.AccountNode()
 
 	root := r.RootNode()
-	rootTitle := fmt.Sprintf("%s's Takeout Data", acctNode.Attr(importer.AcctAttrUserName))
+	rootTitle := fmt.Sprintf("Takeout")
 	if err := root.SetAttr(nodeattr.Title, rootTitle); err != nil {
 		return nil, err
 	}
@@ -352,22 +353,42 @@ func (r *run) getTopLevelNode(service string) (*importer.Object, error) {
 		return nil, err
 	}
 	var title string
-	title = fmt.Sprintf("%s's %s Takeout", service, acctNode.Attr(importer.AcctAttrUserName))
+	title = fmt.Sprintf("Takeout: %s (%s)", service, acctNode.Attr(importer.AcctAttrName))
 	return obj, obj.SetAttr(nodeattr.Title, title)
 }
 
 func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) error {
-	//TODO
-
-	return nil
+	return tmpl.ExecuteTemplate(w, "serveSetup", ctx)
 }
 
+var tmpl = template.Must(template.New("root").Parse(`
+{{define "serveSetup"}}
+<h1>Configuring Takeout</h1>
+<form method="get" action="{{.CallbackURL}}">
+  <input type="hidden" name="acct" value="{{.AccountNode.PermanodeRef}}">
+  <table border=0 cellpadding=3>
+  <tr><td align=right>Takeout Name</td><td><input name="name" size=100></td></tr>
+  <tr><td align=right>Takeout ZIP file ref</td><td><input name="fileRef" size=50></td></tr>
+  <tr><td align=right></td><td><input type="submit" value="Add"></td></tr>
+  </table>
+</form>
+{{end}}
+`))
+
 func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
+	n := r.FormValue("name")
+	if n == "" {
+		http.Error(w, "Expected a name", 400)
+		return
+	}
+	f := r.FormValue("fileRef")
+	if f == "" {
+		http.Error(w, "Expected a file ref", 400)
+		return
+	}
 	if err := ctx.AccountNode.SetAttrs(
-		importer.AcctAttrUserID, "Takeout",
-		importer.AcctAttrName, "Takeout",
-		importer.AcctAttrUserName, "Takeout",
-		nodeattr.Title, fmt.Sprintf("Takeout Account"),
+		importer.AcctAttrName, n,
+		acctAttrTakeoutZip, f,
 	); err != nil {
 		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
 		return
