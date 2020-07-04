@@ -68,7 +68,7 @@ const (
 	acctAttrZipDoneVersion = "twitterZipDoneVersion" // == "<fileref>:<runCompleteVersion>"
 
 	// A tweet is stored as a permanode with the "twitter.com:tweet" camliNodeType value.
-	nodeTypeTakeoutItem = "google.com:Takeout"
+	nodeTypeTakeoutItem = "google.com:takeout"
 
 	itemsAtOnce = 20
 
