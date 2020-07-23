@@ -19,6 +19,7 @@ package mysql
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -32,7 +33,7 @@ import (
 // TestMySQLKV tests against a real MySQL instance, using a Docker container.
 func TestMySQLKV(t *testing.T) {
 	dbname := "camlitest_" + osutil.Username()
-	containerID, ip := dockertest.SetupMySQLContainer(t, dbname)
+	containerID, ip, port := dockertest.SetupMySQLContainer(t, dbname)
 	defer containerID.KillRemove(t)
 
 	// TODO(mpl): add test for serverVersion once we host the docker image ourselves
@@ -40,7 +41,7 @@ func TestMySQLKV(t *testing.T) {
 
 	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
 		"type":     "mysql",
-		"host":     ip + ":3306",
+		"host":     fmt.Sprintf("%s:%d", ip, port),
 		"database": dbname,
 		"user":     dockertest.MySQLUsername,
 		"password": dockertest.MySQLPassword,
@@ -54,12 +55,12 @@ func TestMySQLKV(t *testing.T) {
 
 func TestRollback(t *testing.T) {
 	dbname := "camlitest_" + osutil.Username()
-	containerID, ip := dockertest.SetupMySQLContainer(t, dbname)
+	containerID, ip, port := dockertest.SetupMySQLContainer(t, dbname)
 	defer containerID.KillRemove(t)
 
 	kv, err := sorted.NewKeyValue(jsonconfig.Obj{
 		"type":     "mysql",
-		"host":     ip + ":3306",
+		"host":     fmt.Sprintf("%s:%d", ip, port),
 		"database": dbname,
 		"user":     dockertest.MySQLUsername,
 		"password": dockertest.MySQLPassword,
