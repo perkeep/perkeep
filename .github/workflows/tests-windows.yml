@@ -1,0 +1,32 @@
+on: [push, pull_request]
+name: "tests/windows"
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        go-version: [1.13.x]
+        platform: [windows-latest]
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go-version }}
+
+    - uses: actions/cache@v2
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ runner.os }}-go-
+
+    - name: Symlink source into GOPATH for devcam
+      run: |
+        mkdir "$(go env GOPATH)/src"
+        New-Item -ItemType SymbolicLink -Path "$(go env GOPATH)/src/perkeep.org" -Target "$(pwd)"
+
+    - name: Build and test
+      run: |
+        go run make.go -v
+        devcam test

@@ -20,12 +20,8 @@
 
 ### Continuous Integration
 
-<table><tr>
- <td>Linux: </td>
- <td><a href='https://travis-ci.org/perkeep/perkeep'><img style='vertical-align:middle' src='https://travis-ci.org/perkeep/perkeep.svg?branch=master'></td>
- <td>Windows: </td>
- <td><a href='https://ci.appveyor.com/project/mpl/perkeep/branch/master'><img src='https://ci.appveyor.com/api/projects/status/bbdqxcy2b6x4lt2r/branch/master?svg=true'></td>
-</tr></table>
+[![Linux Test Status](https://github.com/perkeep/perkeep/workflows/tests/linux/badge.svg)](https://github.com/perkeep/perkeep/actions?query=workflow:tests/linux)
+[![Windows Test Status](https://github.com/perkeep/perkeep/workflows/tests/windows/badge.svg)](https://github.com/perkeep/perkeep/actions?query=workflow:tests/windows)
 
 ### Code of Conduct
 
