@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go v0.39.0
 	github.com/FiloSottile/b2 v0.0.0-20170207175032-b197f7a2c317
 	github.com/aws/aws-sdk-go v1.14.31
-	github.com/bradfitz/latlong v0.0.0-20140711231157-b74550508561
+	github.com/bradfitz/latlong v0.0.0-20170410180902-f3db6d0dff40
 	github.com/cznic/fileutil v0.0.0-20180108211300-6a051e75936f // indirect
 	github.com/cznic/internal v0.0.0-20170905175358-4747030f7cf2 // indirect
 	github.com/cznic/kv v0.0.0-20170515202733-892ccf731fb7
@@ -22,6 +22,7 @@ require (
 	github.com/garyburd/go-oauth v0.0.0-20180319155456-bca2e7f09a17
 	github.com/go-ini/ini v1.38.1 // indirect
 	github.com/go-sql-driver/mysql v1.4.1-0.20180719071942-99ff426eb706
+	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/golang/snappy v0.0.0-20170215233205-553a64147049 // indirect
 	github.com/google/go-cmp v0.3.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1
@@ -30,7 +31,6 @@ require (
 	github.com/hashicorp/golang-lru v0.5.1 // indirect
 	github.com/hjfreyer/taglib-go v0.0.0-20151027170453-0ef8bba9c41b
 	github.com/jonas-p/go-shp v0.1.1 // indirect
-	github.com/kr/fs v0.1.0 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/lib/pq v1.1.1
 	github.com/mailgun/mailgun-go v0.0.0-20171127222028-17e8bd11e87c
@@ -40,23 +40,21 @@ require (
 	github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f
 	github.com/onsi/ginkgo v1.8.0 // indirect
 	github.com/onsi/gomega v1.5.0 // indirect
-	github.com/pkg/errors v0.8.0 // indirect
-	github.com/pkg/sftp v0.0.0-20180419200840-5bf2a174b604
+	github.com/pkg/sftp v1.12.1-0.20200915114829-37434b9e086f
 	github.com/plaid/plaid-go v0.0.0-20161222051224-02b6af68061b
 	github.com/russross/blackfriday v2.0.0+incompatible
 	github.com/rwcarlsen/goexif v0.0.0-20180518182100-8d986c03457a
 	github.com/shurcooL/sanitized_anchor_name v0.0.0-20150515002706-11a20b799bf2 // indirect
 	github.com/smartystreets/goconvey v0.0.0-20190330032615-68dc04aab96a // indirect
-	github.com/stretchr/testify v1.3.0 // indirect
 	github.com/syndtr/goleveldb v0.0.0-20180608030153-db3ee9ee8931
 	github.com/tgulacsi/picago v0.0.0-20171229130838-9e1ac2306c70
 	go4.org v0.0.0-20190218023631-ce4c26f7be8e
-	golang.org/x/crypto v0.0.0-20190513172903-22d7a77e9e5f
+	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
 	golang.org/x/image v0.0.0-20190523035834-f03afa92d3ff
 	golang.org/x/net v0.0.0-20190522155817-f3200d17e092
 	golang.org/x/oauth2 v0.0.0-20190523182746-aaccbc9213b0
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
-	golang.org/x/sys v0.0.0-20190528183647-3626398d7749 // indirect
+	golang.org/x/sys v0.0.0-20200909081042-eff7692f9009 // indirect
 	golang.org/x/text v0.3.2 // indirect
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	google.golang.org/api v0.5.0
