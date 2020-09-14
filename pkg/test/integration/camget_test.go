@@ -85,7 +85,7 @@ func TestCamgetSymlink(t *testing.T) {
 	if err != nil {
 		t.Fatalf("os.Readlink(): %v", err)
 	}
-	expected := "../a"
+	expected := filepath.Join("..", "a")
 	if expected != link {
 		t.Fatalf("os.Readlink(): Expected: %s, got %s", expected,
 			link)
