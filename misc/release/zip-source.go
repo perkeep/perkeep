@@ -62,8 +62,8 @@ var (
 		"dev":             true,
 		"doc":             true,
 		"Dockerfile":      false,
-		"Gopkg.lock":      false,
-		"Gopkg.toml":      false,
+		"go.mod":          false,
+		"go.sum":          false,
 		"internal":        true,
 		"Makefile":        false,
 		"make.go":         false,
@@ -131,31 +131,43 @@ func fetchCamliSrc() {
 	check(os.MkdirAll(tmpSource, 0777))
 	check(os.Chdir(tmpSource))
 
-	res, err := http.Get("https://camlistore.googlesource.com/camlistore/+archive/" + *flagRev + ".tar.gz")
+	res, err := http.Get("https://api.github.com/repos/perkeep/perkeep/tarball/" + *flagRev)
 	check(err)
 	defer res.Body.Close()
 	gz, err := gzip.NewReader(res.Body)
 	check(err)
 	defer gz.Close()
 	tr := tar.NewReader(gz)
+	var prefix string
 	for {
 		h, err := tr.Next()
 		if err == io.EOF {
 			break
 		}
 		check(err)
-		if h.Typeflag == tar.TypeDir {
-			check(os.MkdirAll(h.Name, os.FileMode(h.Mode)))
+		if strings.HasPrefix(h.Name, "pax_global_header") {
 			continue
 		}
-		f, err := os.Create(h.Name)
+		if prefix == "" {
+			fields := strings.Split(h.Name, "/")
+			prefix = fields[0] + "/"
+		}
+		name := strings.TrimPrefix(h.Name, prefix)
+		if name == "" {
+			continue
+		}
+		if h.Typeflag == tar.TypeDir {
+			check(os.MkdirAll(name, os.FileMode(h.Mode)))
+			continue
+		}
+		f, err := os.Create(name)
 		check(err)
 		n, err := io.Copy(f, tr)
 		if err != nil && err != io.EOF {
 			log.Fatal(err)
 		}
 		if n != h.Size {
-			log.Fatalf("Error when creating %v: wanted %v bytes, got %v bytes", h.Name, h.Size, n)
+			log.Fatalf("Error when creating %v: wanted %v bytes, got %v bytes", name, h.Size, n)
 		}
 		check(f.Close())
 	}
@@ -311,6 +323,9 @@ func inDocker() bool {
 		fields := strings.SplitN(l, ":", 3)
 		if len(fields) != 3 {
 			log.Fatal(`unexpected line in "/proc/self/cgroup"`)
+		}
+		if fields[2] == "/" {
+			continue
 		}
 		if !strings.HasPrefix(fields[2], "/docker/") {
 			return false

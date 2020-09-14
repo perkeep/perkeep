@@ -89,7 +89,7 @@ func fetchCamliSrc() {
 	check(os.MkdirAll("/gopath/src/perkeep.org", 0777))
 	check(os.Chdir("/gopath/src"))
 
-	cmd := exec.Command("git", "clone", "https://camlistore.googlesource.com/camlistore", "perkeep.org")
+	cmd := exec.Command("git", "clone", "https://github.com/perkeep/perkeep", "perkeep.org")
 	if err := cmd.Run(); err != nil {
 		log.Fatal("Error cloning Perkeep")
 	}
@@ -146,6 +146,9 @@ func inDocker() bool {
 		fields := strings.SplitN(l, ":", 3)
 		if len(fields) != 3 {
 			log.Fatal(`unexpected line in "/proc/self/cgroup"`)
+		}
+		if fields[2] == "/" {
+			continue
 		}
 		if !strings.HasPrefix(fields[2], "/docker/") {
 			return false
