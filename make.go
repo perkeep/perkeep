@@ -898,7 +898,7 @@ func validateDirInGOPATH(dir string) error {
 }
 
 const (
-	goVersionMinor  = 13
+	goVersionMinor  = 15
 	gopherJSGoMinor = 12
 )
 
