@@ -116,6 +116,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if runtime.GOOS == "darwin" {
+		workDir = "/private" + workDir
+	}
 	defer os.RemoveAll(workDir)
 
 	archives := []string{

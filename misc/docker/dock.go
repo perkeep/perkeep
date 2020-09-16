@@ -310,6 +310,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// Docker Desktop for Mac by default shares /private, but does not share /var.
+	// ioutil.TempDir gives us something in /var/folders, but apparently the same
+	// location prefixed with /private is equivalent, so it all works out if we use
+	// everywhere the path prefixed with /private.
+	if runtime.GOOS == "darwin" {
+		ctxDir = "/private" + ctxDir
+	}
 	defer os.RemoveAll(ctxDir)
 
 	buildDockerImage("djpeg-static", djpegDockerImage)
