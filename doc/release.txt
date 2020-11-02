@@ -1,3 +1,8 @@
+** How to build the perkeep/go image: **
+
+# TODO(mpl): make the tools build it.
+docker build -t perkeep/go ./misc/docker/go
+
 ** How to build the Perkeep server docker image (for the GCE launcher): **
 
 $ go run ./misc/docker/dock.go -rev=$GIT_REVISION -upload=true
