@@ -1,0 +1,348 @@
+
+<h1>Release 0.11 ("Seattle")</h1>
+
+<p><b>2020-11-09</b></p>
+
+<p>
+We're happy to announce Perkeep version 0.11. Breaking with tradition, this release isn't about any particular new feature, but it seemed as good a time as any to cut one, given that it was repeatedly requested (on GitHub in particular). It is named after the iconic Pacific NorthWest City, where some of the latest (as well as some older ones) ideas for Perkeep were born and brainstormed.
+</p>
+
+<p>This release is mostly a bug fixes one. However, some of the notable changes, related to the development and lifecycle of the project itself are:</p>
+
+<ul>
+  <li>The whole project development moved to GitHub, including Pull Requests, and Continuous Integration.</li>
+  <li>The Cloud Launcher was disabled, as it was underused, and thus not worth keeping alive.</li>
+  <li>Dependencies are now (almost fully) handled with Go modules.</li>
+</ul>
+
+<p>In addition, with the intention on making providers development more modular (and for other reasons explained in the project), we started this related project for importing Google Photos: <a href="https://github.com/perkeep/gphotos-cdp">gphotos-cdp</a>.</p>
+
+<p>See below for the more complete list of changes.</p>
+
+<h2>Downloads</h2>
+
+<center>
+<a class="downloadBox" href="/dl/perkeep-0.11-darwin.tar.gz">
+<div class="platform">Darwin</div>
+<div>
+	<span class="filename">perkeep-0.11-darwin.tar.gz</span>
+</div>
+<div class="checksum">SHA256: a79494d507fd076c301878af8606a7d401493b2cafa86d24e96c6a9c4f890327</div>
+</a>
+<a class="downloadBox" href="/dl/perkeep-0.11-linux.tar.gz">
+<div class="platform">Linux</div>
+<div>
+	<span class="filename">perkeep-0.11-linux.tar.gz</span>
+</div>
+<div class="checksum">SHA256: b3fc257a3831e7782dd76731f286d3e914c2aac37a198eee7c7f076909eb6fb9</div>
+</a>
+<a class="downloadBox" href="/dl/perkeep-0.11-src.zip">
+<div class="platform">Source</div>
+<div>
+	<span class="filename">perkeep-0.11-src.zip</span>
+</div>
+<div class="checksum">SHA256: 9ca95022a5b7547dbcfa0cc6558676c02d3a282f8a4b3c950d8d68291b40a4eb</div>
+</a>
+<a class="downloadBox" href="/dl/perkeep-0.11-windows.zip">
+<div class="platform">Windows</div>
+<div>
+	<span class="filename">perkeep-0.11-windows.zip</span>
+</div>
+<div class="checksum">SHA256: 59d1303414db7bcf1e59bcac89b215c5e82a1d389fc1c1d20750d44326abddfe</div>
+</a>
+</center>
+
+
+<h2>Release Stats</h2>
+
+<p>
+22 total committers over 213 commits since <a href='https://github.com/perkeep/perkeep/commit/b57013cb8296ee4b670aaf5b15ed5912595d37c6'>b57013cb8296ee4b670aaf5b15ed5912595d37c6</a> including Angel, Attila Tajti, Brad Fitzpatrick, Chirag Sukhala, D Anzorge, Euan Kemp, Ian Denhardt, Ian Lewis, Neil Pankey, Nick Loadholtes, Niklas Merz, Omar Chehab, Omer Davutoglu, Paul Lindner, Philip Silva, Robert Günzler, Sergio Pantoja, Stephen Searles, gina, Viktor, Will Norris, mpl.
+</p>
+
+<p>Thank you!</p>
+
+
+
+<h2>Other Changes</h2>
+
+<p>Some other changes not mentioned above but excluding the most boring cleanups:</p>
+
+<p>
+<ul>
+
+<li>
+app/publisher/js:
+<ul>
+<li>support for sha224 hashes</li>
+</ul>
+</li>
+
+<li>
+auth:
+<ul>
+<li>userpass: compare strings in constant time</li>
+</ul>
+</li>
+
+<li>
+blob:
+<ul>
+<li>specify &#34;oh, nevermind&#34; error value for optional SubFetcher interface</li>
+</ul>
+</li>
+
+<li>
+blobserver:
+<ul>
+<li>print RemoveBlobs errors</li>
+</ul>
+</li>
+
+<li>
+blobserver/files:
+<ul>
+<li>remove use of &#39;asserts&#39; pkg</li>
+</ul>
+</li>
+
+<li>
+blobserver/google/cloudstorage:
+<ul>
+<li>allow service accounts w/o GCE</li>
+</ul>
+</li>
+
+<li>
+blobserver/s3:
+<ul>
+<li>use official aws client</li>
+<li>add unit test for endpoint handling</li>
+</ul>
+</li>
+
+<li>
+CI:
+<ul>
+<li>move continuous integration tests to GitHub Actions</li>
+</ul>
+</li>
+
+<li>
+client:
+<ul>
+<li>return error for unindexed attr search</li>
+</ul>
+</li>
+
+<li>
+clients/android:
+<ul>
+<li>bump targetSdkVersion to 26</li>
+</ul>
+</li>
+
+<li>
+clients/osx:
+<ul>
+<li>use Keepy for all app icons</li>
+<li>update link to new Google Group</li>
+</ul>
+</li>
+
+<li>
+dev/devcam:
+<ul>
+<li>use libsqlite3 tag when -sqlite=true</li>
+<li>create hooks dir if it does not exist</li>
+<li>review: fix origin in git config</li>
+<li>add -branch option to review mode</li>
+<li>hook: correct pathspec for older gits</li>
+<li>hook: ignore vendor in whitespace check</li>
+<li>mount: look for pk-mount in GOPATH</li>
+<li>test: add internal and app/publisher to the list of tests</li>
+</ul>
+</li>
+
+<li>
+doc:
+<ul>
+<li>remove cloud launcher mentions</li>
+<li>add reverse-proxy section in server-config</li>
+<li>add files vs permanodes explanation</li>
+<li>remove references to SPDY</li>
+<li>server-config: mention diskpacked perf trade-off.</li>
+</ul>
+</li>
+
+<li>
+fs:
+<ul>
+<li>add sha224-xx...xx hint dir</li>
+</ul>
+</li>
+
+<li>
+importer:
+<ul>
+<li>add &#34;instapaper&#34; importer for Instapaper service</li>
+<li>Add a Mastodon importer</li>
+<li>pinboard: add incremental import</li>
+<li>twitter: add likes import</li>
+<li>twitter: update importer account instruction</li>
+</ul>
+</li>
+
+<li>
+internal/geocode:
+<ul>
+<li>use viewport if bounds is not defined</li>
+</ul>
+</li>
+
+<li>
+internal/magic:
+<ul>
+<li>add mkv as a known video extension</li>
+</ul>
+</li>
+
+<li>
+internal/rollsum:
+<ul>
+<li>replace with go4.org/rollsum</li>
+</ul>
+</li>
+
+<li>
+make.go:
+<ul>
+<li>add -offline flag</li>
+<li>fix paths for windows</li>
+<li>build embeds for keepy</li>
+<li>add with_embed build tag to all generated resources</li>
+</ul>
+</li>
+
+<li>
+misc/docker/synology:
+<ul>
+<li>tag images and build stages</li>
+<li>package Perkeep for Synology</li>
+</ul>
+</li>
+
+<li>
+misc/release:
+<ul>
+<li>enable upload of existing archives</li>
+</ul>
+</li>
+
+<li>
+perkeepd:
+<ul>
+<li>remove map zoom guided by loc: or locrect:</li>
+<li>added --keep-going flag to start after index/recovery errors</li>
+<li>opaque-ify serverinit.Config, trim camlistored.go</li>
+</ul>
+</li>
+
+<li>
+perkeepd/ui:
+<ul>
+<li>viewer for plain text files</li>
+<li>Fix blob item video play button styling</li>
+<li>Implement blob detail audio</li>
+<li>Implement blob item audio</li>
+<li>Render PDFs in detail view.</li>
+<li>use TokenOrNone in selectall</li>
+<li>actually use defaults for dialog size</li>
+<li>treat ref: as special case only with full blobRef</li>
+<li>replace pudgy with keepy</li>
+<li>display search query errors</li>
+<li>add dialog to import shared items</li>
+<li>show progress dialog when adding items to set</li>
+<li>new directory view</li>
+</ul>
+</li>
+
+<li>
+pk:
+<ul>
+<li>strip knownKeys from dumpconfig</li>
+<li>deploy: set logger to fix panic</li>
+<li>mount: make -version flag actually work</li>
+<li>mount: add schema summary to doc</li>
+<li>mount: add Logger, set it to discard when not debugging</li>
+</ul>
+</li>
+
+<li>
+pk-web:
+<ul>
+<li>enable TLS-ALPN-01 for Lets Encrypt</li>
+<li>push commit to perkeep repo instead of camlistore one</li>
+<li>add paging on timeout for docker runs</li>
+<li>handle new perkeep-release download bucket</li>
+</ul>
+</li>
+
+<li>
+schema:
+<ul>
+<li>expose signer and signature information on claims</li>
+</ul>
+</li>
+
+<li>
+search:
+<ul>
+<li>fix dir search with logical not constraints</li>
+</ul>
+</li>
+
+<li>
+server/perkeepd/ui/goui:
+<ul>
+<li>suppress basic auth on OmitAuthToken</li>
+</ul>
+</li>
+
+<li>
+server/sync:
+<ul>
+<li>add sha-224 to the sync&#39;d prefixes</li>
+</ul>
+</li>
+
+<li>
+serverinit:
+<ul>
+<li>call readFields on GCE too</li>
+<li>revert change that enabled https if cert or key was specified</li>
+<li>remove reindex parameter to InstallHandlers</li>
+<li>make receiver names consistent</li>
+<li>start making serverinit.Config representation more opaque</li>
+</ul>
+</li>
+
+<li>
+sorted:
+<ul>
+<li>add read transactions.</li>
+</ul>
+</li>
+
+<li>
+website:
+<ul>
+<li>record version with buildinfo</li>
+<li>remove opencollective links</li>
+<li>document raw search operator</li>
+<li>0.10.1 release</li>
+</ul>
+</li>
+
+</ul>
+</p>
+
