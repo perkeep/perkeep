@@ -1,10 +1,9 @@
 # Download Perkeep
 
-The latest release is [0.10 ("Bellingham")](/doc/release/0.10), released 2018-05-02.
+The latest release is [0.11 ("Seattle")](/doc/release/0.11), released 2020-11-11.
 
 Or, using the latest code from git:
 
-    $ cd $GOPATH/src
     $ git clone https://github.com/perkeep/perkeep.git perkeep.org
 
 ## Build
@@ -14,16 +13,10 @@ Windows), skip this section.
 
 [Download and install Go](http://golang.org/doc/install) if you don't
 have that installed already. As of revision
-[2e46fca5cc](https://github.com/perkeep/perkeep/commit/2e46fca5cc1179dbd90bec49fec3870e6eca6c45),
-Perkeep requires [Go 1.10 or newer](https://golang.org/dl/).
+[cb96bb8bd3](https://github.com/perkeep/perkeep/commit/cb96bb8bd32ce5f1a882b6d06a869a1a1925c57d),
+Perkeep requires [Go 1.15 or newer](https://golang.org/dl/).
 
-Build Perkeep by making sure you git cloned it to a directory named
-"`perkeep.org`" and that directory is in the right place in your
-`$GOPATH`. If you haven't set `$GOPATH` explicitly, then Go uses
-`$HOME/go` by default, which means your `perkeep.org` directory should
-be at `$HOME/go/src/perkeep.org`. Then from that `perkeep.org`
-directory, run:
-
+    $ cd perkeep.org
     $ go run make.go
 
 ## Getting started
@@ -46,10 +39,6 @@ Developers typically use the `./bin/devcam` wrapper to isolate their
 test environment from their production instance and to simplify common
 development tasks. If you have questions, you can ask the [mailing
 list](https://groups.google.com/group/camlistore).
-
-## Synology
-
-We are also starting to [provide packages](/doc/synology) for Synology appliances.
 
 ## Mobile
 

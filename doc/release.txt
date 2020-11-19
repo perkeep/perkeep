@@ -17,6 +17,6 @@ use -upload=true to directly upload the tarball to the perkeep-release Google Cl
 
 ** How to generate a release, i.e. all the tarballs/zips, and the release page: **
 
-go run ./misc/release/make-release.go -rev=$GIT_REVISION -version=0.10.1 -stats_from=d6fb092e69ebf96faa68b3c2379aeb3563840c1b
+go run ./misc/release/make-release.go -rev=76755286451a1b08e2356f549574be3eea0185e5 -version=0.11 -stats_from=b57013cb8296ee4b670aaf5b15ed5912595d37c6
 
 It will create the archives in ./misc/release, upload them (with a versioned name) to the perkeep-release bucket, and it will create the ./doc/release/release.html page.
