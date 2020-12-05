@@ -51,12 +51,11 @@ require (
 	github.com/syndtr/goleveldb v0.0.0-20180608030153-db3ee9ee8931
 	github.com/tgulacsi/picago v0.0.0-20171229130838-9e1ac2306c70
 	go4.org v0.0.0-20190218023631-ce4c26f7be8e
-	golang.org/x/crypto v0.0.0-20190513172903-22d7a77e9e5f
+	golang.org/x/crypto v0.0.0-20201203163018-be400aefbc4c
 	golang.org/x/image v0.0.0-20190523035834-f03afa92d3ff
 	golang.org/x/net v0.0.0-20190522155817-f3200d17e092
 	golang.org/x/oauth2 v0.0.0-20190523182746-aaccbc9213b0
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
-	golang.org/x/sys v0.0.0-20190528183647-3626398d7749 // indirect
 	golang.org/x/text v0.3.2 // indirect
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	google.golang.org/api v0.5.0
