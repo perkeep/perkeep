@@ -570,6 +570,19 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 					"file": filepath.Join(b.high.BlobPath, "sync-to-s3-queue."+b.kvFileType()),
 				}),
 		})
+		syncFromS3Dest := "/bs/"
+		if b.runIndex() {
+			syncFromS3Dest = "/bs-and-maybe-also-index/"
+		}
+		b.addPrefix("/sync-from-s3/", "sync", args{
+			"from": s3Prefix,
+			"to":   syncFromS3Dest,
+			"queue": b.thatQueueUnlessMemory(
+				map[string]interface{}{
+					"type": b.kvFileType(),
+					"file": filepath.Join(b.high.BlobPath, "sync-from-s3-queue."+b.kvFileType()),
+				}),
+		})
 		return nil
 	}
 
@@ -644,6 +657,19 @@ func (b *lowBuilder) addB2Config(b2 string) error {
 				map[string]interface{}{
 					"type": b.kvFileType(),
 					"file": filepath.Join(b.high.BlobPath, "sync-to-b2-queue."+b.kvFileType()),
+				}),
+		})
+		syncFromB2Dest := "/bs/"
+		if b.runIndex() {
+			syncFromB2Dest = "/bs-and-maybe-also-index/"
+		}
+		b.addPrefix("/sync-from-b2/", "sync", args{
+			"from": b2Prefix,
+			"to":   syncFromB2Dest,
+			"queue": b.thatQueueUnlessMemory(
+				map[string]interface{}{
+					"type": b.kvFileType(),
+					"file": filepath.Join(b.high.BlobPath, "sync-from-b2-queue."+b.kvFileType()),
 				}),
 		})
 		return nil
@@ -770,6 +796,19 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 				map[string]interface{}{
 					"type": b.kvFileType(),
 					"file": filepath.Join(b.high.BlobPath, "sync-to-googlecloud-queue."+b.kvFileType()),
+				}),
+		})
+		syncFromGoogleCloudStorageDest := "/bs/"
+		if b.runIndex() {
+			syncFromGoogleCloudStorageDest = "/bs-and-maybe-also-index/"
+		}
+		b.addPrefix("/sync-from-googlecloudstorage/", "sync", args{
+			"from": gsPrefix,
+			"to":   syncFromGoogleCloudStorageDest,
+			"queue": b.thatQueueUnlessMemory(
+				map[string]interface{}{
+					"type": b.kvFileType(),
+					"file": filepath.Join(b.high.BlobPath, "sync-from-googlecloud-queue."+b.kvFileType()),
 				}),
 		})
 		return nil

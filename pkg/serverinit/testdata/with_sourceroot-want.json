@@ -104,6 +104,17 @@
 				"bucket": "bucket"
 			}
 		},
+		"/sync-from-s3/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/sto-s3/",
+				"queue": {
+					"file": "/tmp/blobs/sync-from-s3-queue.kv",
+					"type": "kv"
+				},
+				"to": "/bs-and-maybe-also-index/"
+			}
+		},
 		"/sync-to-s3/": {
 			"handler": "sync",
 			"handlerArgs": {

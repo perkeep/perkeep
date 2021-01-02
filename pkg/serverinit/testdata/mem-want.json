@@ -127,6 +127,28 @@
 				"bucket": "bucket"
 			}
 		},
+		"/sync-from-googlecloudstorage/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/sto-googlecloudstorage/",
+				"queue": {
+					"file": "/tmp/blobs/sync-from-googlecloud-queue.kv",
+					"type": "kv"
+				},
+				"to": "/bs-and-maybe-also-index/"
+			}
+		},
+		"/sync-from-s3/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/sto-s3/",
+				"queue": {
+					"file": "/tmp/blobs/sync-from-s3-queue.kv",
+					"type": "kv"
+				},
+				"to": "/bs-and-maybe-also-index/"
+			}
+		},
 		"/sync-to-googlecloudstorage/": {
 			"handler": "sync",
 			"handlerArgs": {
