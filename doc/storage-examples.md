@@ -24,6 +24,7 @@ It is advisable to use a dedicated key/secret for Perkeep:
     "Statement": [
         {
             "Resource": [
+                "arn:aws:s3:::YOUR_BUCKET_NAME",
                 "arn:aws:s3:::YOUR_BUCKET_NAME/*"
             ],
             "Sid": "Stmt1464826210000",
