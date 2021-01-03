@@ -546,18 +546,51 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 		hostname = f[3]
 	}
 	isReplica := b.hasPrefix("/bs/")
-	s3Prefix := ""
-	s3Args := args{
-		"aws_access_key":        accessKey,
-		"aws_secret_access_key": secret,
-		"bucket":                bucket,
-	}
-	if hostname != "" {
-		s3Args["hostname"] = hostname
-	}
+	s3Prefix := "/bs/"
 	if isReplica {
 		s3Prefix = "/sto-s3/"
-		b.addPrefix(s3Prefix, "storage-s3", s3Args)
+	}
+
+	s3Args := func(bucket string) args {
+		a := args{
+			"bucket":                bucket,
+			"aws_access_key":        accessKey,
+			"aws_secret_access_key": secret,
+		}
+		if hostname != "" {
+			a["hostname"] = hostname
+		}
+		return a
+	}
+
+	if !b.high.PackRelated {
+		b.addPrefix(s3Prefix, "storage-s3", s3Args(bucket))
+	} else {
+		bsLoose := "/bs-loose/"
+		bsPacked := "/bs-packed/"
+		if isReplica {
+			bsLoose = "/sto-s3-bs-loose/"
+			bsPacked = "/sto-s3-bs-packed/"
+		}
+
+		b.addPrefix(bsLoose, "storage-s3", s3Args(path.Join(bucket, "loose")))
+		b.addPrefix(bsPacked, "storage-s3", s3Args(path.Join(bucket, "packed")))
+
+		// If index is DBMS, then blobPackedIndex is in DBMS too.
+		// Otherwise blobPackedIndex is same file-based DB as the index,
+		// in same dir, but named packindex.dbtype.
+		blobPackedIndex, err := b.sortedStorageAt(dbBlobpackedIndex, filepath.Join(b.indexFileDir(), "packindex"))
+		if err != nil {
+			return err
+		}
+		b.addPrefix(s3Prefix, "storage-blobpacked", args{
+			"smallBlobs": bsLoose,
+			"largeBlobs": bsPacked,
+			"metaIndex":  blobPackedIndex,
+		})
+	}
+
+	if isReplica {
 		if b.high.BlobPath == "" && !b.high.MemoryStorage {
 			panic("unexpected empty blobpath with sync-to-s3")
 		}
@@ -579,39 +612,6 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 		"path": filepath.Join(tempDir(), "camli-cache"),
 	})
 
-	s3Prefix = "/bs/"
-	if !b.high.PackRelated {
-		b.addPrefix(s3Prefix, "storage-s3", s3Args)
-		return nil
-	}
-	packedS3Args := func(bucket string) args {
-		a := args{
-			"bucket":                bucket,
-			"aws_access_key":        accessKey,
-			"aws_secret_access_key": secret,
-		}
-		if hostname != "" {
-			a["hostname"] = hostname
-		}
-		return a
-	}
-
-	b.addPrefix("/bs-loose/", "storage-s3", packedS3Args(path.Join(bucket, "loose")))
-	b.addPrefix("/bs-packed/", "storage-s3", packedS3Args(path.Join(bucket, "packed")))
-
-	// If index is DBMS, then blobPackedIndex is in DBMS too.
-	// Otherwise blobPackedIndex is same file-based DB as the index,
-	// in same dir, but named packindex.dbtype.
-	blobPackedIndex, err := b.sortedStorageAt(dbBlobpackedIndex, filepath.Join(b.indexFileDir(), "packindex"))
-	if err != nil {
-		return err
-	}
-	b.addPrefix(s3Prefix, "storage-blobpacked", args{
-		"smallBlobs": "/bs-loose/",
-		"largeBlobs": "/bs-packed/",
-		"metaIndex":  blobPackedIndex,
-	})
-
 	return nil
 }
 
@@ -622,18 +622,50 @@ func (b *lowBuilder) addB2Config(b2 string) error {
 	}
 	account, key, bucket := f[0], f[1], f[2]
 	isReplica := b.hasPrefix("/bs/")
-	b2Prefix := ""
-	b2Auth := map[string]interface{}{
-		"account_id":      account,
-		"application_key": key,
-	}
-	b2Args := args{
-		"auth":   b2Auth,
-		"bucket": bucket,
-	}
+	b2Prefix := "/bs/"
 	if isReplica {
 		b2Prefix = "/sto-b2/"
-		b.addPrefix(b2Prefix, "storage-b2", b2Args)
+	}
+
+	b2Args := func(bucket string) args {
+		a := args{
+			"bucket": bucket,
+			"auth": map[string]interface{}{
+				"account_id":      account,
+				"application_key": key,
+			},
+		}
+		return a
+	}
+
+	if !b.high.PackRelated {
+		b.addPrefix(b2Prefix, "storage-b2", b2Args(bucket))
+	} else {
+		bsLoose := "/bs-loose/"
+		bsPacked := "/bs-packed/"
+		if isReplica {
+			bsLoose = "/sto-b2-bs-loose/"
+			bsPacked = "/sto-b2-bs-packed/"
+		}
+
+		b.addPrefix(bsLoose, "storage-b2", b2Args(path.Join(bucket, "loose")))
+		b.addPrefix(bsPacked, "storage-b2", b2Args(path.Join(bucket, "packed")))
+
+		// If index is DBMS, then blobPackedIndex is in DBMS too.
+		// Otherwise blobPackedIndex is same file-based DB as the index,
+		// in same dir, but named packindex.dbtype.
+		blobPackedIndex, err := b.sortedStorageAt(dbBlobpackedIndex, filepath.Join(b.indexFileDir(), "packindex"))
+		if err != nil {
+			return err
+		}
+		b.addPrefix(b2Prefix, "storage-blobpacked", args{
+			"smallBlobs": "/bs-loose/",
+			"largeBlobs": "/bs-packed/",
+			"metaIndex":  blobPackedIndex,
+		})
+	}
+
+	if isReplica {
 		if b.high.BlobPath == "" && !b.high.MemoryStorage {
 			panic("unexpected empty blobpath with sync-to-b2")
 		}
@@ -651,38 +683,6 @@ func (b *lowBuilder) addB2Config(b2 string) error {
 
 	b.addPrefix("/cache/", "storage-filesystem", args{
 		"path": filepath.Join(tempDir(), "camli-cache"),
-	})
-
-	b2Prefix = "/bs/"
-	if !b.high.PackRelated {
-		b.addPrefix(b2Prefix, "storage-b2", b2Args)
-		return nil
-	}
-	packedB2Args := func(bucket string) args {
-		a := args{
-			"bucket": bucket,
-			"auth": map[string]interface{}{
-				"account_id":      account,
-				"application_key": key,
-			},
-		}
-		return a
-	}
-
-	b.addPrefix("/bs-loose/", "storage-b2", packedB2Args(path.Join(bucket, "loose")))
-	b.addPrefix("/bs-packed/", "storage-b2", packedB2Args(path.Join(bucket, "packed")))
-
-	// If index is DBMS, then blobPackedIndex is in DBMS too.
-	// Otherwise blobPackedIndex is same file-based DB as the index,
-	// in same dir, but named packindex.dbtype.
-	blobPackedIndex, err := b.sortedStorageAt(dbBlobpackedIndex, filepath.Join(b.indexFileDir(), "packindex"))
-	if err != nil {
-		return err
-	}
-	b.addPrefix(b2Prefix, "storage-blobpacked", args{
-		"smallBlobs": "/bs-loose/",
-		"largeBlobs": "/bs-packed/",
-		"metaIndex":  blobPackedIndex,
 	})
 
 	return nil
@@ -752,17 +752,54 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 	}
 
 	isReplica := b.hasPrefix("/bs/")
+	gsPrefix := "/bs/"
 	if isReplica {
-		gsPrefix := "/sto-googlecloudstorage/"
-		b.addPrefix(gsPrefix, "storage-googlecloudstorage", args{
+		gsPrefix = "/sto-googlecloudstorage/"
+	}
+
+	gsArgs := func(bucket string) args {
+		a := args{
 			"bucket": bucket,
 			"auth": map[string]interface{}{
 				"client_id":     clientID,
 				"client_secret": secret,
 				"refresh_token": refreshToken,
 			},
-		})
+		}
+		return a
+	}
 
+	if !b.high.PackRelated {
+		b.addPrefix(gsPrefix, "storage-googlecloudstorage", gsArgs(bucket))
+	} else {
+		bsLoose := "/bs-loose/"
+		bsPacked := "/bs-packed/"
+		if isReplica {
+			bsLoose = "/sto-googlecloudstorage-bs-loose/"
+			bsPacked = "/sto-googlecloudstorage-bs-packed/"
+		}
+
+		b.addPrefix(bsLoose, "storage-googlecloudstorage", gsArgs(path.Join(bucket, "loose")))
+		b.addPrefix(bsPacked, "storage-googlecloudstorage", gsArgs(path.Join(bucket, "packed")))
+
+		// If index is DBMS, then blobPackedIndex is in DBMS too.
+		// Otherwise blobPackedIndex is same file-based DB as the index,
+		// in same dir, but named packindex.dbtype.
+		blobPackedIndex, err := b.sortedStorageAt(dbBlobpackedIndex, filepath.Join(b.indexFileDir(), "packindex"))
+		if err != nil {
+			return err
+		}
+		b.addPrefix(gsPrefix, "storage-blobpacked", args{
+			"smallBlobs": bsLoose,
+			"largeBlobs": bsPacked,
+			"metaIndex":  blobPackedIndex,
+		})
+	}
+
+	if isReplica {
+		if b.high.BlobPath == "" && !b.high.MemoryStorage {
+			panic("unexpected empty blobpath with sync-to-googlecloudstorage")
+		}
 		b.addPrefix("/sync-to-googlecloudstorage/", "sync", args{
 			"from": "/bs/",
 			"to":   gsPrefix,
@@ -778,45 +815,6 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 	// TODO: cacheBucket like s3CacheBucket?
 	b.addPrefix("/cache/", "storage-filesystem", args{
 		"path": filepath.Join(tempDir(), "camli-cache"),
-	})
-	if b.high.PackRelated {
-		b.addPrefix("/bs-loose/", "storage-googlecloudstorage", args{
-			"bucket": bucket + "/loose",
-			"auth": map[string]interface{}{
-				"client_id":     clientID,
-				"client_secret": secret,
-				"refresh_token": refreshToken,
-			},
-		})
-		b.addPrefix("/bs-packed/", "storage-googlecloudstorage", args{
-			"bucket": bucket + "/packed",
-			"auth": map[string]interface{}{
-				"client_id":     clientID,
-				"client_secret": secret,
-				"refresh_token": refreshToken,
-			},
-		})
-		// If index is DBMS, then blobPackedIndex is in DBMS too.
-		// Otherwise blobPackedIndex is same file-based DB as the index,
-		// in same dir, but named packindex.dbtype.
-		blobPackedIndex, err := b.sortedStorageAt(dbBlobpackedIndex, filepath.Join(b.indexFileDir(), "packindex"))
-		if err != nil {
-			return err
-		}
-		b.addPrefix("/bs/", "storage-blobpacked", args{
-			"smallBlobs": "/bs-loose/",
-			"largeBlobs": "/bs-packed/",
-			"metaIndex":  blobPackedIndex,
-		})
-		return nil
-	}
-	b.addPrefix("/bs/", "storage-googlecloudstorage", args{
-		"bucket": bucket,
-		"auth": map[string]interface{}{
-			"client_id":     clientID,
-			"client_secret": secret,
-			"refresh_token": refreshToken,
-		},
 	})
 
 	return nil
