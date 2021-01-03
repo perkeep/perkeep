@@ -102,7 +102,7 @@ endpoint instead of AWS S3, such as `my-minio-server.example.com`. A specific
 region may be specified by using [Low-level Configuration](#lowlevel), though
 the bucket's region will generally be detected automatically.
 
-Additionally, there are two mutually exclusive options which only apply if `blobPath` is set:
+Additionally, there are two mutually exclusive options:
 
 * `packRelated`: if true, blobs are automatically repacked for fast read access.
 * `packBlobs`: if true, diskpacked is used instead of the default
