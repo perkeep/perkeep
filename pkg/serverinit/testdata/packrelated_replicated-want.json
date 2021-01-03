@@ -1,0 +1,262 @@
+{
+	"auth": "userpass:camlistore:pass3179",
+	"https": false,
+	"listen": "localhost:3179",
+	"prefixes": {
+		"/": {
+			"handler": "root",
+			"handlerArgs": {
+				"blobRoot": "/bs-and-maybe-also-index/",
+				"helpRoot": "/help/",
+				"jsonSignRoot": "/sighelper/",
+				"searchRoot": "/my-search/",
+				"shareRoot": "/share/",
+				"statusRoot": "/status/",
+				"stealth": false
+			}
+		},
+		"/bs-and-index/": {
+			"handler": "storage-replica",
+			"handlerArgs": {
+				"backends": [
+					"/bs/",
+					"/index/"
+				]
+			}
+		},
+		"/bs-and-maybe-also-index/": {
+			"handler": "storage-cond",
+			"handlerArgs": {
+				"read": "/bs/",
+				"write": {
+					"else": "/bs/",
+					"if": "isSchema",
+					"then": "/bs-and-index/"
+				}
+			}
+		},
+		"/bs-loose/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/path/to/blobs/"
+			}
+		},
+		"/bs-packed/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/path/to/blobs/packed"
+			}
+		},
+		"/bs/": {
+			"handler": "storage-blobpacked",
+			"handlerArgs": {
+				"largeBlobs": "/bs-packed/",
+				"metaIndex": {
+					"file": "/path/to/blobs/packed/packindex.kv",
+					"type": "kv"
+				},
+				"smallBlobs": "/bs-loose/"
+			}
+		},
+		"/cache/": {
+			"handler": "storage-filesystem",
+			"handlerArgs": {
+				"path": "/path/to/blobs/cache"
+			}
+		},
+		"/help/": {
+			"handler": "help"
+		},
+		"/importer/": {
+			"handler": "importer",
+			"handlerArgs": {}
+		},
+		"/index/": {
+			"handler": "storage-index",
+			"handlerArgs": {
+				"blobSource": "/bs/",
+				"storage": {
+					"file": "/path/to/indexkv.db",
+					"type": "kv"
+				}
+			}
+		},
+		"/my-search/": {
+			"handler": "search",
+			"handlerArgs": {
+				"index": "/index/",
+				"owner": {
+					"identity": "2931A67C26F5ABDA",
+					"secringFile": "/path/to/secring"
+				},
+				"slurpToMemory": true
+			}
+		},
+		"/setup/": {
+			"handler": "setup"
+		},
+		"/share/": {
+			"handler": "share",
+			"handlerArgs": {
+				"blobRoot": "/bs/",
+				"index": "/index/"
+			}
+		},
+		"/sighelper/": {
+			"handler": "jsonsign",
+			"handlerArgs": {
+				"keyId": "2931A67C26F5ABDA",
+				"publicKeyDest": "/bs-and-index/",
+				"secretRing": "/path/to/secring"
+			}
+		},
+		"/status/": {
+			"handler": "status"
+		},
+		"/sto-b2-bs-loose/": {
+			"handler": "storage-b2",
+			"handlerArgs": {
+				"auth": {
+					"account_id": "b2account",
+					"application_key": "b2key"
+				},
+				"bucket": "b2bucket/loose"
+			}
+		},
+		"/sto-b2-bs-packed/": {
+			"handler": "storage-b2",
+			"handlerArgs": {
+				"auth": {
+					"account_id": "b2account",
+					"application_key": "b2key"
+				},
+				"bucket": "b2bucket/packed"
+			}
+		},
+		"/sto-b2/": {
+			"handler": "storage-blobpacked",
+			"handlerArgs": {
+				"largeBlobs": "/bs-packed/",
+				"metaIndex": {
+					"file": "/path/to/packindex.kv",
+					"type": "kv"
+				},
+				"smallBlobs": "/bs-loose/"
+			}
+		},
+		"/sto-googlecloudstorage-bs-loose/": {
+			"handler": "storage-googlecloudstorage",
+			"handlerArgs": {
+				"auth": {
+					"client_id": "gcsClientId",
+					"client_secret": "gcsClientSecret",
+					"refresh_token": "gcsRefreshToken"
+				},
+				"bucket": "gcsBucketName/blobs/loose"
+			}
+		},
+		"/sto-googlecloudstorage-bs-packed/": {
+			"handler": "storage-googlecloudstorage",
+			"handlerArgs": {
+				"auth": {
+					"client_id": "gcsClientId",
+					"client_secret": "gcsClientSecret",
+					"refresh_token": "gcsRefreshToken"
+				},
+				"bucket": "gcsBucketName/blobs/packed"
+			}
+		},
+		"/sto-s3-bs-loose/": {
+			"handler": "storage-s3",
+			"handlerArgs": {
+				"aws_access_key": "s3key",
+				"aws_secret_access_key": "s3secret",
+				"bucket": "s3bucket/loose"
+			}
+		},
+		"/sto-s3-bs-packed/": {
+			"handler": "storage-s3",
+			"handlerArgs": {
+				"aws_access_key": "s3key",
+				"aws_secret_access_key": "s3secret",
+				"bucket": "s3bucket/packed"
+			}
+		},
+		"/sto-s3/": {
+			"handler": "storage-blobpacked",
+			"handlerArgs": {
+				"largeBlobs": "/sto-s3-bs-packed/",
+				"metaIndex": {
+					"file": "/path/to/packindex.kv",
+					"type": "kv"
+				},
+				"smallBlobs": "/sto-s3-bs-loose/"
+			}
+		},
+		"/sto-googlecloudstorage/": {
+			"handler": "storage-blobpacked",
+			"handlerArgs": {
+				"largeBlobs": "/sto-googlecloudstorage-bs-packed/",
+				"metaIndex": {
+					"file": "/path/to/packindex.kv",
+					"type": "kv"
+				},
+				"smallBlobs": "/sto-googlecloudstorage-bs-loose/"
+			}
+		},
+		"/sync-to-b2/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"queue": {
+					"file": "/path/to/blobs/sync-to-b2-queue.kv",
+					"type": "kv"
+				},
+				"to": "/sto-b2/"
+			}
+		},
+		"/sync-to-googlecloudstorage/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"queue": {
+					"file": "/path/to/blobs/sync-to-googlecloud-queue.kv",
+					"type": "kv"
+				},
+				"to": "/sto-googlecloudstorage/"
+			}
+		},
+		"/sync-to-s3/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"queue": {
+					"file": "/path/to/blobs/sync-to-s3-queue.kv",
+					"type": "kv"
+				},
+				"to": "/sto-s3/"
+			}
+		},
+		"/sync/": {
+			"handler": "sync",
+			"handlerArgs": {
+				"from": "/bs/",
+				"queue": {
+					"file": "/path/to/blobs/sync-to-index-queue.kv",
+					"type": "kv"
+				},
+				"to": "/index/"
+			}
+		},
+		"/ui/": {
+			"handler": "ui",
+			"handlerArgs": {
+				"cache": "/cache/",
+				"scaledImage": {
+					"file": "/path/to/blobs/thumbmeta.kv",
+					"type": "kv"
+				}
+			}
+		}
+	}
+}
