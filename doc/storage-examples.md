@@ -29,7 +29,6 @@ It is advisable to use a dedicated key/secret for Perkeep:
             "Sid": "Stmt1464826210000",
             "Effect": "Allow",
             "Action": [
-                "s3:DeleteObject",
                 "s3:GetBucketLocation",
                 "s3:GetObject",
                 "s3:ListBucket",
