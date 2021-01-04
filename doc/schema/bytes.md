@@ -27,6 +27,9 @@ a "file" schema blob.
       //                these in a hash tree.  it is an error if both "bytesRef"
       //                and "blobRef" are specified.
       //
+      //    The absence of "blobRef" or "bytesRef" is used to represent a hole in a
+      //    sparse file. Or just zeros.
+      //
       // Optional:
       //    "offset": the number of bytes into blobRef or bytesRef to skip to
       //              get the necessary bytes for the range. usually zero (unspecified)
