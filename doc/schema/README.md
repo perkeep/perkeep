@@ -7,7 +7,7 @@ classes of data.
 
 Schema blobs are JSON objects with at least two attributes always set:
 `camliVersion`, which is always 1, and `camliType`, which tells you the type of
-metadata the blob contains.
+metadata the blob contains. The blob must not be larger than 1MB.
 
 Here are some of the data types we've started to formalize a
 [JSON](http://json.org/) schema for:
