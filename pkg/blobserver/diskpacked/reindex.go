@@ -23,10 +23,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
+	"runtime"
 	"strconv"
+
+	"golang.org/x/sync/errgroup"
 
 	"go4.org/jsonconfig"
 	"perkeep.org/pkg/blob"
@@ -56,21 +58,25 @@ func Reindex(ctx context.Context, root string, overwrite bool, indexConf jsoncon
 		}
 	}()
 
+	grp, ctx := errgroup.WithContext(ctx)
+	concCh := make(chan struct{}, runtime.GOMAXPROCS(-1))
+	var token struct{}
 	for i := 0; i >= 0; i++ {
-		fh, err := os.Open(s.filename(i))
-		if err != nil {
-			if os.IsNotExist(err) {
-				break
-			}
-			return err
+		i, fn := i, s.filename(i)
+		if _, err := os.Stat(fn); err != nil && os.IsNotExist(err) {
+			break
 		}
-		err = s.reindexOne(ctx, index, overwrite, i)
-		fh.Close()
-		if err != nil {
-			return err
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case concCh <- token:
+			grp.Go(func() error {
+				defer func() { <-concCh }()
+				return s.reindexOne(ctx, index, overwrite, i)
+			})
 		}
 	}
-	return nil
+	return grp.Wait()
 }
 
 func (s *storage) reindexOne(ctx context.Context, index sorted.KeyValue, overwrite bool, packID int) error {
@@ -168,6 +174,7 @@ func (s *storage) walkPack(verbose bool, packID int,
 	}
 	defer fh.Close()
 	name := fh.Name()
+	log.Println(name)
 
 	var (
 		pos  int64
@@ -185,7 +192,8 @@ func (s *storage) walkPack(verbose bool, packID int,
 		return fmt.Errorf(prefix+"at %d (0x%x) in %q:"+suffix, pos, pos, name)
 	}
 
-	br := bufio.NewReaderSize(fh, 512)
+	const minBufSize, maxBufSize = 512, 16 << 20
+	br := bufio.NewReaderSize(fh, minBufSize)
 	for {
 		if b, err := br.ReadByte(); err != nil {
 			if errors.Is(err, io.EOF) {
@@ -193,7 +201,33 @@ func (s *storage) walkPack(verbose bool, packID int,
 			}
 			return errAt("error while reading", err.Error())
 		} else if b != '[' {
-			return errAt(fmt.Sprintf("found byte 0x%x", b), "but '[' should be here!")
+			// Try to find a proper "[sha" beginning
+			origErr := errAt(fmt.Sprintf("found byte 0x%x", b), "but '[' should be here!")
+			if pos, err = fh.Seek(pos+1, 0); err != nil {
+				return fmt.Errorf("%v: %w", err, origErr)
+			}
+			// Use a bigger buffer size - meta + max blob size should be enough
+			br = bufio.NewReaderSize(fh, minBufSize+maxBufSize)
+			for {
+				// Skip still [
+				c, err := br.ReadSlice('[')
+				if err != nil {
+					return fmt.Errorf("%v: %w", err, origErr)
+				}
+				pos += int64(len(c))
+				if c, err = br.Peek(3); err != nil {
+					return fmt.Errorf("%v: %w", err, origErr)
+				}
+				// Must continue with "sha"
+				if bytes.Equal(c, []byte("sha")) {
+					break
+				}
+			}
+			// Return to a smaller buffered reader
+			if pos, err = fh.Seek(pos, 0); err != nil {
+				return fmt.Errorf("%v: %w", err, origErr)
+			}
+			br = bufio.NewReaderSize(fh, minBufSize)
 		}
 		chunk, err := br.ReadSlice(']')
 		if err != nil {
@@ -229,18 +263,17 @@ func (s *storage) walkPack(verbose bool, packID int,
 				log.Printf("found %s at %d", ref, pos)
 			}
 		}
-		if err = walker(packID, ref, pos+1+int64(m), size); err != nil {
+		pos += 1 + int64(m)
+		if err = walker(packID, ref, pos, size); err != nil {
 			return err
 		}
 
-		pos += 1 + int64(m)
 		// TODO(tgulacsi): not just seek, but check the hashes of the files
 		// maybe with a different command-line flag, only.
 		if pos, err = fh.Seek(pos+int64(size), 0); err != nil {
 			return errAt("", "cannot seek +"+strconv.FormatUint(size64, 10)+" bytes")
 		}
-		// drain the buffer after the underlying reader Seeks
-		_, _ = io.CopyN(ioutil.Discard, br, int64(br.Buffered()))
+		br.Reset(fh)
 	}
 	return nil
 }
