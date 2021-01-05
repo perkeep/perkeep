@@ -34,8 +34,9 @@ import (
 type listCmd struct {
 	*syncCmd
 
-	describe bool           // whether to describe each blob.
-	cl       *client.Client // client used for the describe requests.
+	describe  bool           // whether to describe each blob.
+	camliType string         // filter by schema blob type
+	cl        *client.Client // client used for the describe requests.
 }
 
 func init() {
@@ -44,10 +45,12 @@ func init() {
 			syncCmd: &syncCmd{
 				dest: "stdout",
 			},
-			describe: false,
+			describe:  false,
+			camliType: "",
 		}
 		flags.StringVar(&cmd.syncCmd.src, "src", "", "Source blobserver is either a URL prefix (with optional path), a host[:port], a path (starting with /, ./, or ../), or blank to use the Perkeep client config's default host.")
-		flags.BoolVar(&cmd.describe, "describe", false, "Use describe requests to get each blob's type. Requires a source server with a search endpoint. Mostly used for demos. Requires many extra round-trips to the server currently.")
+		flags.BoolVar(&cmd.describe, "describe", false, "Use describe requests to get each schema blob's type. Requires a source server with a search endpoint. Mostly used for demos. Requires many extra round-trips to the server currently.")
+		flags.StringVar(&cmd.camliType, "type", "", "Filter by schema blob type. Empty string means no filter. Implies -describe.")
 		return cmd
 	})
 }
@@ -67,6 +70,8 @@ func (c *listCmd) Examples() []string {
 }
 
 func (c *listCmd) RunCommand(args []string) error {
+	c.describe = c.describe || c.camliType != ""
+
 	if !c.describe {
 		return c.syncCmd.RunCommand(args)
 	}
@@ -113,11 +118,14 @@ func (c *listCmd) RunCommand(args []string) error {
 				fmt.Fprintf(stdout, "%v <not described>\n", v)
 				continue
 			}
-			detailed := detail(blob)
-			if detailed != "" {
-				detailed = fmt.Sprintf("\t%v", detailed)
+
+			if c.camliType == "" || blob.CamliType == c.camliType {
+				detailed := detail(blob)
+				if detailed != "" {
+					detailed = fmt.Sprintf("\t%v", detailed)
+				}
+				fmt.Fprintf(stdout, "%v %v%v\n", v, blob.Size, detailed)
 			}
-			fmt.Fprintf(stdout, "%v %v%v\n", v, blob.Size, detailed)
 		}
 		blobRefs = make([]blob.Ref, 0, describeBatchSize)
 		return nil
