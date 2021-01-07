@@ -943,7 +943,7 @@ func verifyGoVersion() {
 		return
 	}
 
-	if minorVersion != gopherJSGoMinor {
+	if minorVersion < gopherJSGoMinor {
 		verifyGopherjsGoroot(fmt.Sprintf("1.%d", minorVersion))
 	}
 }
@@ -960,11 +960,11 @@ func verifyGopherjsGoroot(goFound string) {
 			log.Fatalf("Error while looking for a go1.%d dir in %v: %v", gopherJSGoMinor, homeDir(), err)
 		}
 		if goInHomeDir == "" {
-			log.Fatalf("You're using go%s != go1.%d, which GopherJS requires, and it was not found in %v. You need to specify a go1.%d root in CAMLI_GOPHERJS_GOROOT for building GopherJS.", goFound, gopherJSGoMinor, homeDir(), gopherJSGoMinor)
+			log.Fatalf("You're using go%s < go1.%d, which GopherJS requires, and it was not found in %v. You need to specify a go1.%d root in CAMLI_GOPHERJS_GOROOT for building GopherJS.", goFound, gopherJSGoMinor, homeDir(), gopherJSGoMinor)
 		}
 		gopherjsGoroot = filepath.Join(homeDir(), goInHomeDir)
 		goBin = hostExeName(filepath.Join(gopherjsGoroot, "bin", "go"))
-		log.Printf("You're using go%s != go1.%d, which GopherJS requires, and CAMLI_GOPHERJS_GOROOT was not provided, so defaulting to %v for building GopherJS instead.", goFound, gopherJSGoMinor, goBin)
+		log.Printf("You're using go%s < go1.%d, which GopherJS requires, and CAMLI_GOPHERJS_GOROOT was not provided, so defaulting to %v for building GopherJS instead.", goFound, gopherJSGoMinor, goBin)
 	}
 	if _, err := os.Stat(goBin); err != nil {
 		if !os.IsNotExist(err) {
