@@ -31,10 +31,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"strings"
 	"sync"
 	"testing"
 
+	"go4.org/jsonconfig"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/storagetest"
@@ -225,6 +227,69 @@ func TestLoadMeta(t *testing.T) {
 	if got := ts.fetchOrErrorString(tb2.BlobRef()); got != blobData2 {
 		t.Errorf("Fetching plaintext blobref %v = %v; want %q", tb2.BlobRef(), got, blobData2)
 	}
+}
+
+func TestNewFromConfig(t *testing.T) {
+	ld := test.NewLoader()
+
+	// Using passphrase
+	if _, err := newFromConfig(ld, jsonconfig.Obj{
+		"I_AGREE":    "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change.",
+		"passphrase": "secret123",
+		"blobs":      "/good-blobs/",
+		"meta":       "/good-meta/",
+		"metaIndex": map[string]interface{}{
+			"type": "memory",
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Using passphrase and key file
+	if _, err := newFromConfig(ld, jsonconfig.Obj{
+		"I_AGREE":    "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change.",
+		"passphrase": "secret123",
+		"keyFile":    "key.file",
+		"blobs":      "/good-blobs/",
+		"meta":       "/good-meta/",
+		"metaIndex": map[string]interface{}{
+			"type": "memory",
+		},
+	}); err == nil || !strings.Contains(err.Error(), "both passphrase and keyFile") {
+		t.Fatal(err)
+	}
+
+	// Using key file
+	tmpKeyFile, _ := ioutil.TempFile(t.TempDir(), "camlitest")
+	defer os.Remove((tmpKeyFile.Name()))
+	defer tmpKeyFile.Close()
+	tmpKeyFile.WriteString("secret123")
+	if _, err := newFromConfig(ld, jsonconfig.Obj{
+		"I_AGREE": "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change.",
+		"keyFile": tmpKeyFile.Name(),
+		"blobs":   "/good-blobs/",
+		"meta":    "/good-meta/",
+		"metaIndex": map[string]interface{}{
+			"type": "memory",
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Using public key file
+	os.Chmod(tmpKeyFile.Name(), 0644)
+	if _, err := newFromConfig(ld, jsonconfig.Obj{
+		"I_AGREE": "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change.",
+		"keyFile": tmpKeyFile.Name(),
+		"blobs":   "/good-blobs/",
+		"meta":    "/good-meta/",
+		"metaIndex": map[string]interface{}{
+			"type": "memory",
+		},
+	}); err == nil || !strings.Contains(err.Error(), "Key file permissions are too permissive") {
+		t.Fatal(err)
+	}
+
 }
 
 func mustPanic(t *testing.T, msg string, f func()) {

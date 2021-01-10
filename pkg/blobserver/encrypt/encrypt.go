@@ -317,7 +317,11 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 		return nil, errors.New("Must specify passphrase or keyFile")
 	}
 	if keyFile != "" {
-		// TODO: check that keyFile's unix permissions aren't too permissive.
+		if fileInfo, err := os.Stat(keyFile); err != nil {
+			return nil, fmt.Errorf("Checking for key file permissions %v: %v", keyFile, err)
+		} else if fileInfo.Mode().Perm()&0077 != 0 {
+			return nil, fmt.Errorf("Key file permissions are too permissive (%o), they should be 600", fileInfo.Mode().Perm())
+		}
 		keyData, err = ioutil.ReadFile(keyFile)
 		if err != nil {
 			return nil, fmt.Errorf("Reading key file %v: %v", keyFile, err)
