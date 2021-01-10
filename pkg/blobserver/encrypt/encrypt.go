@@ -25,6 +25,27 @@ limitations under the License.
 //
 // Encryption is currently always NaCl SecretBox.  See code for metadata
 // formats and configuration details, which are currently subject to change.
+//
+// The low-level config requires exactly one of 'passphrase' or 'keyFile'
+// to be set.
+//
+// Example low-level config:
+//
+//     "/storage-encrypted/": {
+//         "handler": "storage-encrypt",
+//         "handlerArgs": {
+//             "I_AGREE": "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change.",
+//             "passphrase": "secret123",
+//             "keyFile": "/path/to/keyfile",
+//             "blobs": "/blobs-storage/",
+//             "meta": "/meta-storage/",
+//             "metaIndex": {
+//                 "file": "/path/to/index.leveldb",
+//                 "type": "leveldb"
+//             },
+//         }
+//     },
+//
 package encrypt // import "perkeep.org/pkg/blobserver/encrypt"
 
 import (
