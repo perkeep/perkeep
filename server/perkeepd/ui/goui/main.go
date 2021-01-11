@@ -24,7 +24,6 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/server/perkeepd/ui/goui/aboutdialog"
 	"perkeep.org/server/perkeepd/ui/goui/dirchildren"
-	"perkeep.org/server/perkeepd/ui/goui/downloadbutton"
 	"perkeep.org/server/perkeepd/ui/goui/importshare"
 	"perkeep.org/server/perkeepd/ui/goui/mapquery"
 	"perkeep.org/server/perkeepd/ui/goui/selectallbutton"
@@ -35,11 +34,10 @@ import (
 
 func main() {
 	js.Global.Set("goreact", map[string]interface{}{
-		"AboutMenuItem":    aboutdialog.New,
-		"DownloadItemsBtn": downloadbutton.New,
-		"ShareItemsBtn":    sharebutton.New,
-		"SelectAllBtn":     selectallbutton.New,
-		"NewDirChildren":   dirchildren.New,
+		"AboutMenuItem":  aboutdialog.New,
+		"ShareItemsBtn":  sharebutton.New,
+		"SelectAllBtn":   selectallbutton.New,
+		"NewDirChildren": dirchildren.New,
 		// TODO: we want to investigate integrating the share importer with the other
 		// importers. But if we instead end up keeping it tied to a dialog, we need to add
 		// a cancel button to the dialog, that triggers the context cancellation.
