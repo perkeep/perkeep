@@ -1010,6 +1010,53 @@ cam.IndexPage = React.createClass({
 		goog.Promise.all(changes).then(this.refreshIfNecessary_);
 	},
 
+	handleDownload_: function() {
+		var files = [];
+		goog.object.getKeys(this.state.selection).forEach(function(br) {
+			var meta = this.childSearchSession_.getResolvedMeta(br);
+			if (!meta) {
+				return;
+			}
+			if (!meta.file && !meta.dir) {
+				// br does not have a file or a directory description, so it's probably neither.
+				return;
+			}
+			if (meta.file && !meta.file.fileName) {
+				// looks like a file, but no file name
+				return;
+			}
+			if (meta.dir && !meta.dir.fileName) {
+				// looks like a dir, but no file name
+				return;
+			}
+			files.push(meta.blobRef);
+		}.bind(this));
+
+		var downloadPrefix = this.props.config.downloadHelper;
+
+		if (files.length < 2) {
+			window.open(`${downloadPrefix}/${files[0]}`);
+		}
+
+		var input = document.createElement("input");
+		input.type = "text";
+		input.name = "files";
+		input.value = files.join(",");
+
+		var form = document.createElement("form");
+		form.action = downloadPrefix;
+		form.method = "POST";
+		form.appendChild(input);
+
+		// As per
+		// https://html.spec.whatwg.org/multipage/forms.html#form-submission-algorithm
+		// step 2., a form must be connected to the DOM for submission.
+		var body = document.querySelector("body");
+		body.appendChild(form);
+		form.submit();
+		body.removeChild(form);
+	},
+
 	handleOpenWindow_: function(url) {
 		this.props.openWindow(url);
 	},
@@ -1301,37 +1348,13 @@ cam.IndexPage = React.createClass({
 	},
 
 	getDownloadSelectionItem_: function() {
-		var callbacks = {};
-
-		// TODO(mpl): I'm doing the selection business in javascript for now,
-		// since we already have the search session results handy.
-		// It shouldn't be any problem to move it to Go later.
-		callbacks.getSelection = function() {
-			var selection = goog.object.getKeys(this.state.selection);
-			var files = [];
-			selection.forEach(function(br) {
-				var meta = this.childSearchSession_.getResolvedMeta(br);
-				if (!meta) {
-					return;
-				}
-				if (!meta.file && !meta.dir) {
-					// br does not have a file or a directory description, so it's probably neither.
-					return;
-				}
-				if (meta.file && !meta.file.fileName) {
-					// looks like a file, but no file name
-					return;
-				}
-				if (meta.dir && !meta.dir.fileName) {
-					// looks like a dir, but no file name
-					return;
-				}
-				files.push(meta.blobRef);
-			}.bind(this))
-			return files;
-		}.bind(this);
-
-		return goreact.DownloadItemsBtn('donwloadBtnSidebar', this.props.config, callbacks);
+		return React.DOM.button(
+			{
+				key: "download",
+				onClick: this.handleDownload_,
+			},
+			"Download",
+		)
 	},
 
 	getShareSelectionItem_: function() {
