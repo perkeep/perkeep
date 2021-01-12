@@ -18,7 +18,6 @@ package serverinit
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -28,13 +27,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pkg/errors"
 	"go4.org/jsonconfig"
+	"go4.org/wkfs"
+
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/jsonsign"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/types/serverconfig"
-
-	"go4.org/wkfs"
 )
 
 var (
@@ -733,14 +733,17 @@ func (b *lowBuilder) addGoogleDriveConfig(v string) error {
 	return nil
 }
 
-var errGCSUsage = errors.New(`genconfig: expected "googlecloudstorage" field to be of form "client_id:client_secret:refresh_token:bucket[/dir/]" or ":bucketname[/dir/]"`)
+var errGCSUsage = errors.New(`genconfig: expected "googlecloudstorage" field to be of form "client_id:client_secret:refresh_token:bucket[/dir/][:qps]" or ":bucketname[/dir/]"`)
 
 func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
-	var clientID, secret, refreshToken, bucket string
-	f := strings.SplitN(v, ":", 4)
+	var clientID, secret, refreshToken, bucket, qpsstr string
+	f := strings.Split(v, ":")
 	switch len(f) {
 	default:
 		return errGCSUsage
+	case 5:
+		qpsstr = f[4]
+		fallthrough
 	case 4:
 		clientID, secret, refreshToken, bucket = f[0], f[1], f[2], f[3]
 	case 2:
@@ -754,14 +757,22 @@ func (b *lowBuilder) addGoogleCloudStorageConfig(v string) error {
 	isReplica := b.hasPrefix("/bs/")
 	if isReplica {
 		gsPrefix := "/sto-googlecloudstorage/"
-		b.addPrefix(gsPrefix, "storage-googlecloudstorage", args{
+		a := args{
 			"bucket": bucket,
 			"auth": map[string]interface{}{
 				"client_id":     clientID,
 				"client_secret": secret,
 				"refresh_token": refreshToken,
 			},
-		})
+		}
+		if qpsstr != "" {
+			qps, err := strconv.ParseInt(qpsstr, 10, 64)
+			if err != nil || qps <= 0 {
+				return errors.Wrap(err, "qps must be an integer > 0")
+			}
+			a["qps"] = qps
+		}
+		b.addPrefix(gsPrefix, "storage-googlecloudstorage", a)
 
 		b.addPrefix("/sync-to-googlecloudstorage/", "sync", args{
 			"from": "/bs/",

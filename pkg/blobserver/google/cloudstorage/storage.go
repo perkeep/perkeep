@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha1"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -39,6 +38,7 @@ import (
 	"perkeep.org/pkg/constants"
 
 	"cloud.google.com/go/storage"
+	"github.com/pkg/errors"
 	"go4.org/cloud/google/gcsutil"
 	"go4.org/ctxutil"
 	"go4.org/jsonconfig"
@@ -46,6 +46,7 @@ import (
 	"go4.org/syncutil"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"golang.org/x/time/rate"
 	"google.golang.org/api/option"
 )
 
@@ -59,6 +60,7 @@ type Storage struct {
 	dirPrefix string
 	client    *storage.Client
 	cache     *memory.Storage // or nil for no cache
+	limiter   *rate.Limiter
 
 	// an OAuth-authenticated HTTP client, for methods that can't yet use a
 	// *storage.Client
@@ -87,6 +89,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 		auth      = config.RequiredObject("auth")
 		bucket    = config.RequiredString("bucket")
 		cacheSize = config.OptionalInt64("cacheSize", 32<<20)
+		qps       = config.OptionalInt("qps", 100) // Conservative! See https://cloud.google.com/storage/docs/request-rate.
 
 		clientID     = auth.RequiredString("client_id") // or "auto" for service accounts
 		clientSecret = auth.OptionalString("client_secret", "")
@@ -108,9 +111,11 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 	if dirPrefix != "" && !strings.HasSuffix(dirPrefix, "/") {
 		dirPrefix += "/"
 	}
+
 	gs := &Storage{
 		bucket:    bucket,
 		dirPrefix: dirPrefix,
+		limiter:   rate.NewLimiter(rate.Limit(float64(qps)), 1),
 	}
 
 	var (
@@ -204,6 +209,10 @@ func (s *Storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader
 		return blob.SizedRef{}, err
 	}
 
+	err = s.limiter.Wait(ctx)
+	if err != nil {
+		return blob.SizedRef{}, err
+	}
 	w := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).NewWriter(ctx)
 	if _, err := io.Copy(w, bytes.NewReader(buf.Bytes())); err != nil {
 		return blob.SizedRef{}, err
@@ -225,6 +234,10 @@ var statGate = syncutil.NewGate(20) // arbitrary cap
 func (s *Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	// TODO: use cache
 	return blobserver.StatBlobsParallelHelper(ctx, blobs, fn, statGate, func(br blob.Ref) (sb blob.SizedRef, err error) {
+		err = s.limiter.Wait(ctx)
+		if err != nil {
+			return sb, err
+		}
 		attrs, err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).Attrs(ctx)
 		if err == storage.ErrObjectNotExist {
 			return sb, nil
@@ -245,6 +258,10 @@ func (s *Storage) Fetch(ctx context.Context, br blob.Ref) (rc io.ReadCloser, siz
 		if rc, size, err = s.cache.Fetch(ctx, br); err == nil {
 			return
 		}
+	}
+	err = s.limiter.Wait(ctx)
+	if err != nil {
+		return nil, 0, err
 	}
 	r, err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).NewReader(ctx)
 	if err == storage.ErrObjectNotExist {
@@ -291,7 +308,11 @@ func (s *Storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 		br := blobs[i]
 		grp.Go(func() error {
 			defer gate.Done()
-			err := s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).Delete(ctx)
+			err := s.limiter.Wait(ctx)
+			if err != nil {
+				return err
+			}
+			err = s.client.Bucket(s.bucket).Object(s.dirPrefix + br.String()).Delete(ctx)
 			if err == storage.ErrObjectNotExist {
 				return nil
 			}
