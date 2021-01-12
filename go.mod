@@ -35,12 +35,12 @@ require (
 	github.com/lib/pq v1.1.1
 	github.com/mailgun/mailgun-go v0.0.0-20171127222028-17e8bd11e87c
 	github.com/mattn/go-mastodon v0.0.5-0.20190517015615-8f6192e26b66
-	github.com/mattn/go-sqlite3 v1.6.0
+	github.com/mattn/go-sqlite3 v1.10.0
 	github.com/miekg/dns v0.0.0-20161003181808-3f1f7c8ec9ea
 	github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f
 	github.com/onsi/ginkgo v1.8.0 // indirect
 	github.com/onsi/gomega v1.5.0 // indirect
-	github.com/pkg/errors v0.8.0 // indirect
+	github.com/pkg/errors v0.8.0
 	github.com/pkg/sftp v0.0.0-20180419200840-5bf2a174b604
 	github.com/plaid/plaid-go v0.0.0-20161222051224-02b6af68061b
 	github.com/russross/blackfriday v2.0.0+incompatible
