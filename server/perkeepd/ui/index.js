@@ -1036,6 +1036,7 @@ cam.IndexPage = React.createClass({
 
 		if (files.length < 2) {
 			window.open(`${downloadPrefix}/${files[0]}`);
+			return;
 		}
 
 		var input = document.createElement("input");
