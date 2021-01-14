@@ -37,7 +37,7 @@ require (
 	github.com/lib/pq v1.1.1
 	github.com/mailgun/mailgun-go v0.0.0-20171127222028-17e8bd11e87c
 	github.com/mattn/go-mastodon v0.0.5-0.20190517015615-8f6192e26b66
-	github.com/mattn/go-sqlite3 v1.6.0
+	github.com/mattn/go-sqlite3 v1.14.7-0.20201227235208-3cbdae750e52
 	github.com/miekg/dns v1.0.14
 	github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f
 	github.com/onsi/ginkgo v1.8.0 // indirect
