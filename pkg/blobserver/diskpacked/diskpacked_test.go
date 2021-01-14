@@ -345,6 +345,9 @@ func TestBadDir(t *testing.T) {
 }
 
 func TestWriteError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping symlink test on Windows")
+	}
 	dir, err := ioutil.TempDir("", "diskpacked-test")
 	if err != nil {
 		t.Fatal(err)
@@ -355,9 +358,6 @@ func TestWriteError(t *testing.T) {
 	t.Logf("diskpacked test dir is %q", dir)
 	fn := filepath.Join(dir, "pack-00000.blobs")
 	if err := os.Symlink("/non existing file", fn); err != nil {
-		if runtime.GOOS == "windows" {
-			t.Skip("skipping symlink test on Windows")
-		}
 		t.Fatal(err)
 	}
 	s, err := newStorage(dir, 1, jsonconfig.Obj{"type": "memory"})

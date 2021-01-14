@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -277,17 +278,19 @@ func TestNewFromConfig(t *testing.T) {
 	}
 
 	// Using public key file
-	os.Chmod(tmpKeyFile.Name(), 0644)
-	if _, err := newFromConfig(ld, jsonconfig.Obj{
-		"I_AGREE": "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change.",
-		"keyFile": tmpKeyFile.Name(),
-		"blobs":   "/good-blobs/",
-		"meta":    "/good-meta/",
-		"metaIndex": map[string]interface{}{
-			"type": "memory",
-		},
-	}); err == nil || !strings.Contains(err.Error(), "Key file permissions are too permissive") {
-		t.Fatal(err)
+	if runtime.GOOS != "windows" {
+		os.Chmod(tmpKeyFile.Name(), 0644)
+		if _, err := newFromConfig(ld, jsonconfig.Obj{
+			"I_AGREE": "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change.",
+			"keyFile": tmpKeyFile.Name(),
+			"blobs":   "/good-blobs/",
+			"meta":    "/good-meta/",
+			"metaIndex": map[string]interface{}{
+				"type": "memory",
+			},
+		}); err == nil || !strings.Contains(err.Error(), "Key file permissions are too permissive") {
+			t.Fatal(err)
+		}
 	}
 
 }

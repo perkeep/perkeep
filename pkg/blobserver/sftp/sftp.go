@@ -449,47 +449,10 @@ func (s sftpFS) Lstat(dir string) (os.FileInfo, error) {
 }
 
 func (s sftpFS) MkdirAll(dir string, perm os.FileMode) error {
-	if dir == "." {
-		return nil
-	}
-
 	sc, err := s.sftp()
 	if err != nil {
 		return err
 	}
 
-	fi, err := sc.Lstat(dir)
-	if err == nil {
-		if fi.IsDir() {
-			return nil
-		}
-		return fmt.Errorf("sftp.MkdirAll: path %q already exists of type %v", dir, fi.Mode())
-	}
-	if !os.IsNotExist(err) {
-		return err
-	}
-
-	// Just try and and hope for the best.
-	if err := s.mkdirCheckRace(sc, dir); err == nil {
-		return nil
-	}
-
-	// Nope, parents don't exist. Make them.
-	if err := s.MkdirAll(path.Dir(dir), perm); err != nil {
-		return nil
-	}
-
-	return s.mkdirCheckRace(sc, dir)
-}
-
-func (s sftpFS) mkdirCheckRace(sc *sftp.Client, dir string) error {
-	err := sc.Mkdir(dir)
-	if err == nil {
-		return nil
-	}
-	// Maybe we raced with somebody else?
-	if fi, err := sc.Lstat(dir); err == nil && fi.IsDir() {
-		return nil
-	}
-	return err
+	return sc.MkdirAll(dir)
 }

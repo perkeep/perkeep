@@ -42,7 +42,7 @@ require (
 	github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f
 	github.com/onsi/ginkgo v1.8.0 // indirect
 	github.com/onsi/gomega v1.5.0 // indirect
-	github.com/pkg/sftp v0.0.0-20180419200840-5bf2a174b604
+	github.com/pkg/sftp v1.12.1-0.20200915114829-37434b9e086f
 	github.com/plaid/plaid-go v0.0.0-20161222051224-02b6af68061b
 	github.com/russross/blackfriday v2.0.0+incompatible
 	github.com/rwcarlsen/goexif v0.0.0-20180518182100-8d986c03457a

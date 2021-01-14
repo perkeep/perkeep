@@ -88,6 +88,10 @@ func TestNonUTF8FileName(t *testing.T) {
 // not utf8, that we do no panic in the process and that the results
 // are correct.
 func TestNonUTF8SymlinkTarget(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping symlink test on Windows")
+	}
+
 	srcDir, cleanup := tempDir(t)
 	defer cleanup()
 
@@ -109,9 +113,6 @@ func TestNonUTF8SymlinkTarget(t *testing.T) {
 
 	err = os.Symlink(string(base), filepath.Join(srcDir, "link"))
 	if err != nil {
-		if runtime.GOOS == "windows" {
-			t.Skip("skipping symlink test on Windows")
-		}
 		t.Fatalf("os.Symlink(): %v", err)
 	}
 
