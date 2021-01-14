@@ -72,11 +72,6 @@ var (
 	// pkRoot is the Perkeep project root
 	pkRoot string
 	binDir string // $GOBIN or $GOPATH/bin, based on user setting or default Go value.
-
-	// gopherjsGoroot should be specified through the env var
-	// CAMLI_GOPHERJS_GOROOT when the user's using go tip, because gopherjs only
-	// builds with Go 1.12.
-	gopherjsGoroot string
 )
 
 func main() {
@@ -94,6 +89,7 @@ func main() {
 	}
 
 	failIfCamlistoreOrgDir()
+	verifyGoModules()
 	verifyGoVersion()
 	verifyPerkeepRoot()
 	version := getVersion()
@@ -270,61 +266,6 @@ const (
 	publisherJSURL = "https://storage.googleapis.com/perkeep-release/gopherjs/publisher.js"
 )
 
-func buildGopherjs() error {
-	// if gopherjs binary already exists, record its modtime, so we can reset it later.
-	// See explanation below.
-	outBin := hostExeName(filepath.Join(binDir, "gopherjs"))
-	fi, err := os.Stat(outBin)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	modtime := time.Now()
-	var hashBefore string
-	if err == nil {
-		modtime = fi.ModTime()
-		hashBefore = hashsum(outBin)
-	}
-
-	goBin := "go"
-	if gopherjsGoroot != "" {
-		goBin = hostExeName(filepath.Join(gopherjsGoroot, "bin", "go"))
-	}
-
-	src := filepath.Join(pkRoot, filepath.FromSlash("vendor/github.com/gopherjs/gopherjs"))
-	cmd := exec.Command(goBin, "install", "-v")
-	cmd.Dir = src
-	cmd.Env = os.Environ()
-	// forcing GOOS and GOARCH to prevent cross-compiling, as gopherjs will run on the
-	// current (host) platform.
-	cmd.Env = append(cmd.Env, "GOOS="+runtime.GOOS)
-	cmd.Env = append(cmd.Env, "GOARCH="+runtime.GOARCH)
-	if gopherjsGoroot != "" {
-		cmd.Env = append(cmd.Env, "GOROOT="+gopherjsGoroot)
-	}
-	cmd.Env = append(cmd.Env, "GO111MODULE=off")
-	var buf bytes.Buffer
-	cmd.Stderr = &buf
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("error while building gopherjs: %v, %v", err, buf.String())
-	}
-	if *verbose {
-		fmt.Println(buf.String())
-	}
-
-	hashAfter := hashsum(outBin)
-	if hashAfter != hashBefore {
-		log.Printf("gopherjs rebuilt at %v", outBin)
-		return nil
-	}
-	// even if the source hasn't changed, apparently goinstall still at least bumps
-	// the modtime. Which means, 'gopherjs install' would then always rebuild its
-	// output too, even if no source changed since last time. We want to avoid that
-	// (because then parts of Perkeep get unnecessarily rebuilt too and yada yada), so
-	// we reset the modtime of gopherjs if the binary is the same as the previous time
-	// it was built.
-	return os.Chtimes(outBin, modtime, modtime)
-}
-
 func hashsum(filename string) string {
 	h := sha256.New()
 	f, err := os.Open(filename)
@@ -430,21 +371,16 @@ func genJS(pkg, output string) error {
 }
 
 func runGopherJS(pkg string) error {
-	gopherjsBin := hostExeName(filepath.Join(binDir, "gopherjs"))
-	args := []string{"install", pkg, "-v", "--tags", "nocgo noReactBundle"}
+	args := []string{"run", "-mod=readonly", "github.com/goplusjs/gopherjs", "install", pkg, "-v", "--tags", "nocgo noReactBundle"}
 	if *embedResources {
 		// when embedding for "production", use -m to minify the javascript output
 		args = append(args, "-m")
 	}
-	cmd := exec.Command(gopherjsBin, args...)
+	cmd := exec.Command("go", args...)
 	cmd.Env = os.Environ()
 	// Pretend we're on linux regardless of the actual host, because recommended
 	// hack to work around https://github.com/gopherjs/gopherjs/issues/511
 	cmd.Env = append(cmd.Env, "GOOS=linux")
-	if gopherjsGoroot != "" {
-		cmd.Env = append(cmd.Env, "GOROOT="+gopherjsGoroot)
-	}
-	cmd.Env = append(cmd.Env, "GO111MODULE=off")
 	var buf bytes.Buffer
 	cmd.Stderr = &buf
 	err := cmd.Run()
@@ -487,10 +423,6 @@ func genWebUIReact() error {
 // makeJS builds and runs the gopherjs command on perkeep.org/app/publisher/js
 // and perkeep.org/server/perkeepd/ui/goui
 func makeJS(doWebUI, doPublisher bool) error {
-	if err := buildGopherjs(); err != nil {
-		return fmt.Errorf("error building gopherjs: %v", err)
-	}
-
 	if doPublisher {
 		if err := genPublisherJS(); err != nil {
 			return err
@@ -619,10 +551,6 @@ func doUI(withPerkeepd, withPublisher bool) error {
 		return nil
 	}
 
-	if os.Getenv("GO111MODULE") != "off" {
-		fmt.Println("Cannot rebuild web UI with go modules enabled, as it is not supported by GopherJS. Now rebuilding with GO111MODULE=off.")
-	}
-
 	if err := buildReactGen(); err != nil {
 		return err
 	}
@@ -747,21 +675,21 @@ func genEmbeds() error {
 }
 
 func buildGenfileembed() error {
-	return buildBin("perkeep.org/pkg/fileembed/genfileembed", false)
+	return buildBin("perkeep.org/pkg/fileembed/genfileembed")
 }
 
 func buildReactGen() error {
-	return buildBin("perkeep.org/vendor/myitcv.io/react/cmd/reactGen", true)
+	return buildBin("myitcv.io/react/cmd/reactGen")
 }
 
 func buildDevcam() error {
-	return buildBin("perkeep.org/dev/devcam", false)
+	return buildBin("perkeep.org/dev/devcam")
 }
 
-func buildBin(pkg string, forceModulesOff bool) error {
+func buildBin(pkg string) error {
 	pkgBase := pathpkg.Base(pkg)
 
-	args := []string{"install", "-v"}
+	args := []string{"install", "-mod=readonly", "-v"}
 	args = append(args,
 		filepath.FromSlash(pkg),
 	)
@@ -770,9 +698,6 @@ func buildBin(pkg string, forceModulesOff bool) error {
 	cmd.Stderr = os.Stderr
 	if *verbose {
 		log.Printf("Running go with args %s", args)
-	}
-	if forceModulesOff {
-		cmd.Env = append(os.Environ(), "GO111MODULE=off")
 	}
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("Error building %v: %v", pkgBase, err)
@@ -898,11 +823,18 @@ func validateDirInGOPATH(dir string) error {
 }
 
 const (
-	goVersionMinor  = 15
-	gopherJSGoMinor = 12
+	goVersionMinor = 15
 )
 
 var validVersionRx = regexp.MustCompile(`go version go1\.(\d+)`)
+
+// verifyGoModules ensures that "GO111MODULE" isn't set to "off"
+func verifyGoModules() {
+	gomodules := os.Getenv("GO11MODULE")
+	if gomodules == "off" {
+		log.Fatalf("GO11MODULE is set to 'off'. Please enable it to continue.")
+	}
+}
 
 // verifyGoVersion runs "go version" and parses the output.  If the version is
 // acceptable a check for gopherjs versions are also done. If problems
@@ -922,7 +854,6 @@ func verifyGoVersion() {
 	// Handle non-versioned binaries
 	// ex: "go version devel +c26fac8 Thu Feb 15 21:41:39 2018 +0000 linux/amd64"
 	if strings.HasPrefix(version, "go version devel ") {
-		verifyGopherjsGoroot(" devel")
 		return
 	}
 
@@ -939,60 +870,6 @@ func verifyGoVersion() {
 		log.Fatalf("Your version of Go (%s) is too old. Perkeep requires Go 1.%d or later.", string(out), goVersionMinor)
 	}
 
-	if *website || *camnetdns {
-		return
-	}
-
-	if minorVersion != gopherJSGoMinor {
-		verifyGopherjsGoroot(fmt.Sprintf("1.%d", minorVersion))
-	}
-}
-
-func verifyGopherjsGoroot(goFound string) {
-	if !*buildWebUI {
-		return
-	}
-	gopherjsGoroot = os.Getenv("CAMLI_GOPHERJS_GOROOT")
-	goBin := hostExeName(filepath.Join(gopherjsGoroot, "bin", "go"))
-	if gopherjsGoroot == "" {
-		goInHomeDir, err := findGopherJSGoroot()
-		if err != nil {
-			log.Fatalf("Error while looking for a go1.%d dir in %v: %v", gopherJSGoMinor, homeDir(), err)
-		}
-		if goInHomeDir == "" {
-			log.Fatalf("You're using go%s != go1.%d, which GopherJS requires, and it was not found in %v. You need to specify a go1.%d root in CAMLI_GOPHERJS_GOROOT for building GopherJS.", goFound, gopherJSGoMinor, homeDir(), gopherJSGoMinor)
-		}
-		gopherjsGoroot = filepath.Join(homeDir(), goInHomeDir)
-		goBin = hostExeName(filepath.Join(gopherjsGoroot, "bin", "go"))
-		log.Printf("You're using go%s != go1.%d, which GopherJS requires, and CAMLI_GOPHERJS_GOROOT was not provided, so defaulting to %v for building GopherJS instead.", goFound, gopherJSGoMinor, goBin)
-	}
-	if _, err := os.Stat(goBin); err != nil {
-		if !os.IsNotExist(err) {
-			log.Fatal(err)
-		}
-		log.Fatalf("%v not found. You need to specify a go1.%d root in CAMLI_GOPHERJS_GOROOT for building GopherJS", goBin, gopherJSGoMinor)
-	}
-}
-
-// findGopherJSGoroot tries to find a go1.gopherJSGoMinor.* go root in the home
-// directory. It returns the empty string and no error if none was found.
-func findGopherJSGoroot() (string, error) {
-	dir, err := os.Open(homeDir())
-	if err != nil {
-		return "", err
-	}
-	defer dir.Close()
-	names, err := dir.Readdirnames(-1)
-	if err != nil {
-		return "", err
-	}
-	goVersion := fmt.Sprintf("go1.%d", gopherJSGoMinor)
-	for _, name := range names {
-		if strings.HasPrefix(name, goVersion) {
-			return name, nil
-		}
-	}
-	return "", nil
 }
 
 func withSQLite() bool {
