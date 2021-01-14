@@ -1,0 +1,31 @@
+on: [push, pull_request]
+name: "tests/fmt"
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        go-version: [1.15.x]
+        platform: [ubuntu-latest]
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go-version }}
+
+    - uses: actions/cache@v2
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ runner.os }}-go-
+
+    - name: Symlink source into GOPATH for devcam
+      run: |
+        mkdir $(go env GOPATH)/src
+        ln -s $(pwd) $(go env GOPATH)/src/perkeep.org
+    - name: Check for fmt compliance
+      run: |
+        go fmt ./...
+        test -z "$(git status --porcelain)"

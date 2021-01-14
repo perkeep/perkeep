@@ -30,7 +30,6 @@ import (
 	"perkeep.org/pkg/types/camtypes"
 )
 
-
 func newTestCorpusWithPermanode(t *testing.T) (c *index.Corpus, pn blob.Ref, keyID1, keyID2 string) {
 	c = index.ExpNewCorpus()
 	pn = blob.MustParse("abc-123")
@@ -113,7 +112,6 @@ func newTestCorpusWithPermanode(t *testing.T) (c *index.Corpus, pn blob.Ref, key
 
 	return c, pn, indextest.KeyID, keyID2
 }
-
 
 // TODO(mpl): remove that whole test?
 

@@ -73,11 +73,11 @@ func GenSelfTLS(hostname string) (certPEM, keyPEM []byte, err error) {
 			CommonName:   hostname,
 			Organization: []string{hostname},
 		},
-		NotBefore:    now.Add(-5 * time.Minute).UTC(),
-		NotAfter:     now.AddDate(1, 0, 0).UTC(),
-		SubjectKeyId: []byte{1, 2, 3, 4},
-		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		IsCA:         true,
+		NotBefore:             now.Add(-5 * time.Minute).UTC(),
+		NotAfter:              now.AddDate(1, 0, 0).UTC(),
+		SubjectKeyId:          []byte{1, 2, 3, 4},
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		IsCA:                  true,
 		BasicConstraintsValid: true,
 	}
 
