@@ -8,7 +8,7 @@ require (
 	cloud.google.com/go/datastore v1.1.0
 	cloud.google.com/go/logging v1.1.2
 	cloud.google.com/go/storage v1.10.0
-	github.com/FiloSottile/b2 v0.0.0-20170207175032-b197f7a2c317
+	github.com/FiloSottile/b2 v0.0.0-20170207175032-b197f7a2c317 // indirect
 	github.com/aws/aws-sdk-go v1.14.31
 	github.com/bradfitz/latlong v0.0.0-20170410180902-f3db6d0dff40
 	github.com/cznic/fileutil v0.0.0-20180108211300-6a051e75936f // indirect
@@ -42,6 +42,7 @@ require (
 	github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f
 	github.com/onsi/ginkgo v1.8.0 // indirect
 	github.com/onsi/gomega v1.5.0 // indirect
+	github.com/perkeep/b2 v0.0.0-20180913003434-1ae8d9b78db9
 	github.com/pkg/sftp v1.12.1-0.20200915114829-37434b9e086f
 	github.com/plaid/plaid-go v0.0.0-20161222051224-02b6af68061b
 	github.com/russross/blackfriday v2.0.0+incompatible

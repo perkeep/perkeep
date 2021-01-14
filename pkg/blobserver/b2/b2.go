@@ -32,7 +32,7 @@ import (
 	"perkeep.org/pkg/blobserver/memory"
 	"perkeep.org/pkg/constants"
 
-	"github.com/FiloSottile/b2"
+	"github.com/perkeep/b2"
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"
 )
