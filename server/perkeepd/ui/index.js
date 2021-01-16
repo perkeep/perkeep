@@ -828,6 +828,7 @@ cam.IndexPage = React.createClass({
 				timer: this.props.timer,
 				width: this.props.availWidth,
 				config: this.props.config,
+				serverConnection: this.props.serverConnection,
 			}
 		)
 	},
