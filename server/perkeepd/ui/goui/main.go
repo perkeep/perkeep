@@ -22,7 +22,6 @@ import (
 	"context"
 
 	"perkeep.org/pkg/blob"
-	"perkeep.org/server/perkeepd/ui/goui/aboutdialog"
 	"perkeep.org/server/perkeepd/ui/goui/dirchildren"
 	"perkeep.org/server/perkeepd/ui/goui/importshare"
 	"perkeep.org/server/perkeepd/ui/goui/mapquery"
@@ -34,7 +33,6 @@ import (
 
 func main() {
 	js.Global.Set("goreact", map[string]interface{}{
-		"AboutMenuItem":  aboutdialog.New,
 		"ShareItemsBtn":  sharebutton.New,
 		"SelectAllBtn":   selectallbutton.New,
 		"NewDirChildren": dirchildren.New,

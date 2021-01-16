@@ -20,6 +20,7 @@ goog.require('goog.Uri');
 
 goog.require('cam.reactUtil');
 goog.require('cam.SpritedImage');
+goog.require('cam.ServerConnection');
 
 cam.Header = React.createClass({
 	displayName: 'Header',
@@ -63,6 +64,7 @@ cam.Header = React.createClass({
 		timer: React.PropTypes.shape({setTimeout:React.PropTypes.func.isRequired, clearTimeout:React.PropTypes.func.isRequired}).isRequired,
 		width: React.PropTypes.number.isRequired,
 		config: React.PropTypes.object.isRequired,
+		serverConnection: React.PropTypes.instanceOf(cam.ServerConnection).isRequired,
 	},
 
 	focusSearch: function() {
@@ -239,13 +241,28 @@ cam.Header = React.createClass({
 	},
 
 	getAboutDialog_: function() {
-		return goreact.AboutMenuItem('About',
-			// TODO(mpl): link to https://camlistore.org in
-			// dialog text. But dialogs can only have text. So
-			// we'll need to make our own modal later.
-			'This is the web interface to a Perkeep server',
-			'cam-header-menu-item',
-			this.props.config);
+		return React.DOM.div(
+			{
+				className: 'cam-header-menu-item',
+				onClick: this.handleAboutClick_,
+			},
+			'About',
+		);
+	},
+
+	handleAboutClick_: function() {
+		this.props.serverConnection.serverStatus(
+			function(serverStatus) {
+				var dialogText = 'This is the web interface to a Perkeep server';
+				if (serverStatus.version) {
+					dialogText += `\n\nPerkeep ${serverStatus.version}`;
+				}
+				if (serverStatus.goInfo) {
+					dialogText += `\n\n${serverStatus.goInfo}`;
+				}
+				alert(dialogText);
+			}.bind(this),
+		);
 	},
 
 	getMenuItem_: function(text, opt_link, opt_onClick, opt_class) {
