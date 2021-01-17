@@ -391,9 +391,9 @@ func (up *Uploader) uploadNode(ctx context.Context, n *node) (*client.PutResult,
 		// including mode & os.ModeCharDevice
 		fallthrough
 	case mode&os.ModeSocket != 0:
-		bb.SetType("socket")
+		bb.SetType(schema.TypeSocket)
 	case mode&os.ModeNamedPipe != 0: // fifo
-		bb.SetType("fifo")
+		bb.SetType(schema.TypeFIFO)
 	default:
 		return nil, fmt.Errorf("pk-put.files: unsupported file type %v for file %v", mode, n.fullPath)
 	case fi.IsDir():

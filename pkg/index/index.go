@@ -1533,7 +1533,7 @@ func (x *Index) EdgesTo(ref blob.Ref, opts *camtypes.EdgesToOpts) (edges []*camt
 			continue
 		}
 		edge.To = ref
-		if edge.FromType == "permanode" {
+		if edge.FromType == schema.TypePermanode {
 			permanodeParents[edge.From.String()] = edge
 		} else {
 			edges = append(edges, edge)
@@ -1569,7 +1569,7 @@ func kvEdgeBackward(k, v string) (edge *camtypes.Edge, ok bool) {
 	}
 	return &camtypes.Edge{
 		From:      parentRef,
-		FromType:  valPart[0],
+		FromType:  schema.CamliType(valPart[0]),
 		FromTitle: valPart[1],
 		BlobRef:   blobRef,
 	}, true
@@ -1771,16 +1771,16 @@ var camliTypeMIMEPrefixBytes = []byte(camliTypeMIMEPrefix)
 
 // "application/json; camliType=file" => "file"
 // "image/gif" => ""
-func camliTypeFromMIME(mime string) string {
+func camliTypeFromMIME(mime string) schema.CamliType {
 	if v := strings.TrimPrefix(mime, camliTypeMIMEPrefix); v != mime {
-		return v
+		return schema.CamliType(v)
 	}
 	return ""
 }
 
-func camliTypeFromMIME_bytes(mime []byte) string {
+func camliTypeFromMIME_bytes(mime []byte) schema.CamliType {
 	if v := bytes.TrimPrefix(mime, camliTypeMIMEPrefixBytes); len(v) != len(mime) {
-		return strutil.StringFromBytes(v)
+		return schema.CamliType(strutil.StringFromBytes(v))
 	}
 	return ""
 }

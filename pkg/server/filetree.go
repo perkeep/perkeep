@@ -37,7 +37,7 @@ type FileTreeNode struct {
 	Name string `json:"name"`
 	// Type is the camliType of the node. This may be "file", "directory", "symlink"
 	// or other in the future.
-	Type string `json:"type"`
+	Type schema.CamliType `json:"type"`
 	// BlobRef is the blob.Ref of the node.
 	BlobRef blob.Ref `json:"blobRef"`
 }

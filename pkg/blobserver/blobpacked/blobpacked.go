@@ -956,7 +956,7 @@ func (s *storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader
 	size := uint32(buf.Len())
 	isFile := false
 	fileBlob, err := schema.BlobFromReader(br, bytes.NewReader(buf.Bytes()))
-	if err == nil && fileBlob.Type() == "file" {
+	if err == nil && fileBlob.Type() == schema.TypeFile {
 		isFile = true
 	}
 	meta, err := s.getMetaRow(br)

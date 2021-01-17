@@ -141,10 +141,10 @@ func (dh *DownloadHandler) fileInfo(ctx context.Context, file blob.Ref) (fi file
 		return fi, false, fmt.Errorf("could not read %v as blob: %v", file, err)
 	}
 	tp := b.Type()
-	if tp != "file" {
+	if tp != schema.TypeFile {
 		// for non-regular files
 		var contents string
-		if tp == "symlink" {
+		if tp == schema.TypeSymlink {
 			sf, _ := b.AsStaticFile()
 			sl, _ := sf.AsStaticSymlink()
 			contents = sl.SymlinkTargetString()
@@ -416,7 +416,12 @@ func (dh *DownloadHandler) statFiles(refs []blob.Ref) error {
 	return nil
 }
 
-var allowedFileTypes = map[string]bool{"file": true, "symlink": true, "fifo": true, "socket": true}
+var allowedFileTypes = map[schema.CamliType]bool{
+	schema.TypeFile:    true,
+	schema.TypeSymlink: true,
+	schema.TypeFIFO:    true,
+	schema.TypeSocket:  true,
+}
 
 // checkFiles reads, and discards, the file contents for each of the given file refs.
 // It is used to check that all files requested for download are readable before
@@ -435,10 +440,10 @@ func (dh *DownloadHandler) checkFiles(ctx context.Context, parentPath string, fi
 			return fmt.Errorf("could not read %v as blob: %v", br, err)
 		}
 		tp := b.Type()
-		if _, ok := allowedFileTypes[tp]; !ok && tp != "directory" {
+		if _, ok := allowedFileTypes[tp]; !ok && tp != schema.TypeDirectory {
 			return fmt.Errorf("%v not a supported file or directory type: %q", br, tp)
 		}
-		if tp == "directory" {
+		if tp == schema.TypeDirectory {
 			dr, err := b.NewDirReader(ctx, dh.Fetcher)
 			if err != nil {
 				return fmt.Errorf("could not open %v as directory: %v", br, err)
@@ -452,7 +457,7 @@ func (dh *DownloadHandler) checkFiles(ctx context.Context, parentPath string, fi
 			}
 			continue
 		}
-		if tp != "file" {
+		if tp != schema.TypeFile {
 			// We only bother checking regular files. symlinks, fifos, and sockets are
 			// assumed ok.
 			dh.pathByRef[br] = filepath.Join(parentPath, b.FileName())

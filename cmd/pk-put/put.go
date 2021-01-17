@@ -33,6 +33,7 @@ import (
 	"perkeep.org/pkg/blobserver/dir"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/schema"
 
 	"go4.org/syncutil"
 )
@@ -119,7 +120,7 @@ func initUploader() {
 	uploader = up
 }
 
-func handleResult(what string, pr *client.PutResult, err error) error {
+func handleResult(what schema.CamliType, pr *client.PutResult, err error) error {
 	if err != nil {
 		cmdmain.Errorf("Error putting %s: %s\n", what, err)
 		cmdmain.ExitWithFailure = true

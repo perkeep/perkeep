@@ -55,6 +55,7 @@ import (
 	"perkeep.org/pkg/constants"
 	"perkeep.org/pkg/fileembed"
 	"perkeep.org/pkg/publish"
+	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/server"
 	"perkeep.org/pkg/sorted"
@@ -869,7 +870,7 @@ func (pr *publishRequest) serveSubjectTemplate() {
 	pr.ph.cacheDescribed(res.Meta)
 
 	subdes := res.Meta[pr.subject.String()]
-	if subdes.CamliType == "file" {
+	if subdes.CamliType == schema.TypeFile {
 		pr.serveFileDownload(subdes)
 		return
 	}

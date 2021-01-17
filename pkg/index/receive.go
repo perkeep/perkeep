@@ -336,11 +336,11 @@ func (ix *Index) populateMutationMap(ctx context.Context, fetcher *missTrackFetc
 	var err error
 	if blob, ok := sniffer.SchemaBlob(); ok {
 		switch blob.Type() {
-		case "claim":
+		case schema.TypeClaim:
 			err = ix.populateClaim(ctx, fetcher, blob, mm)
-		case "file":
+		case schema.TypeFile:
 			err = ix.populateFile(ctx, fetcher, blob, mm)
-		case "directory":
+		case schema.TypeDirectory:
 			err = ix.populateDir(ctx, fetcher, blob, mm)
 		}
 	}
@@ -827,14 +827,12 @@ func (ix *Index) populateDeleteClaim(ctx context.Context, cl schema.Claim, vr *j
 		return nil
 	}
 
-	// TODO(mpl): create consts somewhere for "claim" and "permanode" as camliTypes, and use them,
-	// instead of hardcoding. Unless they already exist ? (didn't find them).
-	if meta.CamliType != "permanode" && meta.CamliType != "claim" {
+	if meta.CamliType != schema.TypePermanode && meta.CamliType != schema.TypeClaim {
 		log.Print(fmt.Errorf("delete claim target in %v is neither a permanode nor a claim: %v", br, meta.CamliType))
 		return nil
 	}
 	mm.Set(keyDeleted.Key(target, cl.ClaimDateString(), br), "")
-	if meta.CamliType == "claim" {
+	if meta.CamliType == schema.TypeClaim {
 		return nil
 	}
 	recentKey := keyRecentPermanode.Key(vr.SignerKeyId, cl.ClaimDateString(), br)

@@ -79,7 +79,7 @@ func (c *makeStaticCmd) RunCommand(args []string) error {
 		return err
 	}
 
-	camliType := func(ref string) string {
+	camliType := func(ref string) schema.CamliType {
 		m := res.Meta[ref]
 		if m == nil {
 			return ""

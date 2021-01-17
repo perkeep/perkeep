@@ -167,7 +167,7 @@ func (si *shareImporter) imprt(ctx context.Context, br blob.Ref) error {
 		return nil
 	// TODO(mpl): other camliTypes, at least symlink.
 	default:
-		return errors.New("unknown blob type: " + b.Type())
+		return errors.New("unknown blob type: " + string(b.Type()))
 	}
 }
 

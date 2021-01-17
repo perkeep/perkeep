@@ -27,6 +27,7 @@ import (
 
 	"perkeep.org/internal/magic"
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/schema"
 
 	"go4.org/types"
 )
@@ -196,8 +197,8 @@ type EdgesToOpts struct {
 
 type Edge struct {
 	From      blob.Ref
-	FromType  string // "permanode", "directory", etc
-	FromTitle string // name of source permanode or directory
+	FromType  schema.CamliType // "permanode", "directory", etc
+	FromTitle string           // name of source permanode or directory
 	To        blob.Ref
 	BlobRef   blob.Ref // the blob responsible for the edge relationship
 }
@@ -214,7 +215,7 @@ type BlobMeta struct {
 
 	// CamliType is non-empty if this blob is a Perkeep JSON
 	// schema blob. If so, this is its "camliType" attribute.
-	CamliType string
+	CamliType schema.CamliType
 
 	// TODO(bradfitz): change CamliTypethis *string to save 8 bytes
 }
