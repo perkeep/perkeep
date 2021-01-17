@@ -1404,21 +1404,69 @@ cam.IndexPage = React.createClass({
 	},
 
 	getSelectAllItem_: function() {
-		var callbacks = {};
-		callbacks.getQuery = function() {
-			var target = this.getTargetBlobref_();
-			var query = '';
-			if (target) {
-				query = 'ref:' + target;
-			} else {
-				query = this.state.currentURL.getParameterValue('q') || '';
+		// Don't display the button when we are on the "main" page
+		// with no search.
+		const selectionQuery = this.getSelectionQuery_();
+		if (selectionQuery === '') {
+			return;
+		}
+		return React.DOM.button(
+			{
+				key: "selectallBtnSidebar",
+				onClick: this.handleSelectAll_,
+			},
+			"Select all",
+		);
+	},
+
+	handleSelectAll_: function() {
+		// Find all permanodes matching the current search session.
+		const sc = this.props.serverConnection;
+		const selectionQuery = this.getSelectionQuery_();
+
+		const query = function() {
+			if (!selectionQuery.startsWith("ref:")) {
+				return selectionQuery;
 			}
-			return query;
-		}.bind(this);
-		callbacks.setSelection = function(selection) {
-				this.setSelection_(selection);
-		}.bind(this);
-		return goreact.SelectAllBtn('selectallBtnSidebar', this.props.config, callbacks);
+			// If we've got a 'ref:' predicate, assume the given blobRef is a container, and
+			// find its children.
+			const blobRef = selectionQuery.split(":")[1];
+			return {
+				"permanode": {
+					"relation": {
+						"Relation": "parent",
+						"Any": {
+							"blobRefPrefix": blobRef,
+						},
+					}
+				},
+			};
+		}.bind(this)();
+
+		sc.search(
+			query,
+			{
+				limit: -1
+			},
+			function(response){
+				const newSelection = {};
+				for (const blob of response.blobs) {
+					newSelection[blob.blob] = true;
+				}
+				this.setSelection_(newSelection);
+			}.bind(this),
+		);
+	},
+
+	getSelectionQuery_: function() {
+		const target = this.getTargetBlobref_();
+		let query = '';
+		if (target) {
+			query = 'ref:' + target;
+		} else {
+			query = this.state.currentURL.getParameterValue('q') || '';
+		}
+		return query;
 	},
 
 	getSidebar_: function(selectedAspect) {
