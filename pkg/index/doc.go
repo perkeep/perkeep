@@ -37,9 +37,9 @@ for search operations:
 
  * Other:
    "meta:<blobref>" -> "<size>|<mimetype>"
-   "have:<blobref>" -> "<size>" (used for enumeration, which doesn't need mime type)
+   "have:<blobref>" -> "<size>" or "<size>|indexed" (used for enumeration, which doesn't need mime type and for marking indexed blobs)
 
- * For GetOwnerClaims(permanode, signer):
+ * Permanode Claims:
    "claim|<permanode-blobref>|<keyid>|<date>|<claim-blobref>" -> "<URL:type>|<URL:attr>|<URL:value>"
 
 */
