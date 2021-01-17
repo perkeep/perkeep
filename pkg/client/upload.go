@@ -464,7 +464,7 @@ func (c *Client) UploadFile(ctx context.Context, filename string, contents io.Re
 			fileMap.SetModTime(modTime)
 		}
 	}
-	fileMap.SetType("file")
+	fileMap.SetType(schema.TypeFile)
 
 	var wholeRef []blob.Ref
 	if opts != nil && opts.WholeRef.Valid() {

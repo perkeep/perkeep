@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"perkeep.org/pkg/schema"
 )
 
 const (
@@ -51,7 +52,7 @@ type wsHub struct {
 	register       chan *wsConn
 	unregister     chan *wsConn
 	watchReq       chan watchReq
-	newBlobRecv    chan string // new blob received. string is camliType.
+	newBlobRecv    chan schema.CamliType // new blob received.
 	updatedResults chan *watchedQuery
 	statusUpdate   chan json.RawMessage
 
@@ -66,7 +67,7 @@ func newWebsocketHub(sh *Handler) *wsHub {
 		unregister:     make(chan *wsConn), // unbuffered; issue 563
 		conns:          make(map[*wsConn]bool),
 		watchReq:       make(chan watchReq, buffered),
-		newBlobRecv:    make(chan string, buffered),
+		newBlobRecv:    make(chan schema.CamliType, buffered),
 		updatedResults: make(chan *watchedQuery, buffered),
 		statusUpdate:   make(chan json.RawMessage, buffered),
 	}

@@ -35,6 +35,7 @@ import (
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/index"
+	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/types/camtypes"
 
 	"context"
@@ -294,9 +295,9 @@ type Constraint struct {
 	// Anything, if true, matches all blobs.
 	Anything bool `json:"anything,omitempty"`
 
-	CamliType     string `json:"camliType,omitempty"`    // camliType of the JSON blob
-	AnyCamliType  bool   `json:"anyCamliType,omitempty"` // if true, any camli JSON blob matches
-	BlobRefPrefix string `json:"blobRefPrefix,omitempty"`
+	CamliType     schema.CamliType `json:"camliType,omitempty"`    // camliType of the JSON blob
+	AnyCamliType  bool             `json:"anyCamliType,omitempty"` // if true, any camli JSON blob matches
+	BlobRefPrefix string           `json:"blobRefPrefix,omitempty"`
 
 	File *FileConstraint `json:"file,omitempty"`
 	Dir  *DirConstraint  `json:"dir,omitempty"`
@@ -383,7 +384,7 @@ func (c *Constraint) matchesAtMostOneBlob() blob.Ref {
 }
 
 func (c *Constraint) onlyMatchesPermanode() bool {
-	if c.Permanode != nil || c.CamliType == "permanode" {
+	if c.Permanode != nil || c.CamliType == schema.TypePermanode {
 		return true
 	}
 
@@ -1455,7 +1456,7 @@ func (q *SearchQuery) pickCandidateSource(s *search) (src candidateSource) {
 		if c.matchesFileByWholeRef() {
 			src.name = "corpus_file_meta"
 			src.send = func(ctx context.Context, s *search, fn func(camtypes.BlobMeta) bool) error {
-				corpus.EnumerateCamliBlobs("file", fn)
+				corpus.EnumerateCamliBlobs(schema.TypeFile, fn)
 				return nil
 			}
 			return
@@ -1679,7 +1680,7 @@ func (c *PermanodeConstraint) hasValueConstraint() bool {
 }
 
 func (c *PermanodeConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (ok bool, err error) {
-	if bm.CamliType != "permanode" {
+	if bm.CamliType != schema.TypePermanode {
 		return false, nil
 	}
 	corpus := s.h.corpus
@@ -2085,7 +2086,7 @@ func (c *Constraint) fileOrDirOrLogicalMatches(ctx context.Context, s *search, b
 }
 
 func (c *DirConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref, bm camtypes.BlobMeta) (bool, error) {
-	if bm.CamliType != "directory" {
+	if bm.CamliType != schema.TypeDirectory {
 		return false, nil
 	}
 	// TODO(mpl): I've added c.BlobRefPrefix, so that c.ParentDir can be directly

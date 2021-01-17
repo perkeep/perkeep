@@ -34,6 +34,7 @@ import (
 	"go4.org/types"
 	"perkeep.org/internal/httputil"
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/types/camtypes"
 )
 
@@ -223,9 +224,9 @@ type MetaMap map[string]*DescribedBlob
 type DescribedBlob struct {
 	Request *DescribeRequest `json:"-"`
 
-	BlobRef   blob.Ref `json:"blobRef"`
-	CamliType string   `json:"camliType,omitempty"`
-	Size      int64    `json:"size,"`
+	BlobRef   blob.Ref         `json:"blobRef"`
+	CamliType schema.CamliType `json:"camliType,omitempty"`
+	Size      int64            `json:"size,"`
 
 	// if camliType "permanode"
 	Permanode *DescribedPermanode `json:"permanode,omitempty"`
@@ -739,7 +740,7 @@ func (dr *DescribeRequest) doDescribe(ctx context.Context, br blob.Ref, depth in
 	// maps.  Then add JSON marhsallers to those types. Add tests.
 	des := dr.describedBlob(br)
 	if meta.CamliType != "" {
-		des.setMIMEType("application/json; camliType=" + meta.CamliType)
+		des.setMIMEType("application/json; camliType=" + string(meta.CamliType))
 	}
 	des.Size = int64(meta.Size)
 
@@ -907,6 +908,6 @@ func (dr *DescribeRequest) describeRefs(ctx context.Context, str string, depth i
 
 func (b *DescribedBlob) setMIMEType(mime string) {
 	if strings.HasPrefix(mime, camliTypePrefix) {
-		b.CamliType = strings.TrimPrefix(mime, camliTypePrefix)
+		b.CamliType = schema.CamliType(strings.TrimPrefix(mime, camliTypePrefix))
 	}
 }

@@ -53,7 +53,7 @@ func (n *node) dotLabel() string {
 	if n.blob == nil {
 		return fmt.Sprintf("%s\n%d bytes", name, n.size)
 	}
-	return name + "\n" + n.blob.Type()
+	return name + "\n" + string(n.blob.Type())
 }
 
 func (n *node) color() string {

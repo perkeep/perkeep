@@ -324,7 +324,7 @@ func bytesHaveSchemaLink(br blob.Ref, bb []byte, target blob.Ref) bool {
 	}
 	typ := b.Type()
 	switch typ {
-	case "file", "bytes":
+	case schema.TypeFile, schema.TypeBytes:
 		for _, bp := range b.ByteParts() {
 			if bp.BlobRef.Valid() {
 				if bp.BlobRef == target {
@@ -337,11 +337,11 @@ func bytesHaveSchemaLink(br blob.Ref, bb []byte, target blob.Ref) bool {
 				}
 			}
 		}
-	case "directory":
+	case schema.TypeDirectory:
 		if d, ok := b.DirectoryEntries(); ok {
 			return d == target
 		}
-	case "static-set":
+	case schema.TypeStaticSet:
 		for _, m := range b.StaticSetMembers() {
 			if m == target {
 				return true

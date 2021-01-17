@@ -173,7 +173,7 @@ func uploadBytes(ctx context.Context, bs blobserver.StatReceiver, bb *Builder, s
 	// the "file" schema before any of its parts arrive, then the indexer
 	// can get confused.  So wait on the parts before, and then upload
 	// the "file" blob afterwards.
-	if bb.Type() == "file" {
+	if bb.Type() == TypeFile {
 		future.errc <- nil
 		_, err := future.Get() // may not be nil, if children parts failed
 		future = newUploadBytesFuture()

@@ -126,7 +126,7 @@ type DirectoryEntry interface {
 	// CamliType returns the schema blob's "camliType" field.
 	// This may be "file", "directory", "symlink", or other more
 	// obscure types added in the future.
-	CamliType() string
+	CamliType() CamliType
 
 	FileName() string
 	BlobRef() blob.Ref
@@ -150,7 +150,7 @@ type dirEntry struct {
 // This type breaks an otherwise-circular dependency.
 type SearchQuery interface{}
 
-func (de *dirEntry) CamliType() string {
+func (de *dirEntry) CamliType() CamliType {
 	return de.ss.Type
 }
 
@@ -164,8 +164,8 @@ func (de *dirEntry) BlobRef() blob.Ref {
 
 func (de *dirEntry) File(ctx context.Context) (File, error) {
 	if de.fr == nil {
-		if de.ss.Type != "file" {
-			return nil, fmt.Errorf("DirectoryEntry is camliType %q, not %q", de.ss.Type, "file")
+		if de.ss.Type != TypeFile {
+			return nil, fmt.Errorf("DirectoryEntry is camliType %q, not %q", de.ss.Type, TypeFile)
 		}
 		fr, err := NewFileReader(ctx, de.fetcher, de.ss.BlobRef)
 		if err != nil {
@@ -178,8 +178,8 @@ func (de *dirEntry) File(ctx context.Context) (File, error) {
 
 func (de *dirEntry) Directory(ctx context.Context) (Directory, error) {
 	if de.dr == nil {
-		if de.ss.Type != "directory" {
-			return nil, fmt.Errorf("DirectoryEntry is camliType %q, not %q", de.ss.Type, "directory")
+		if de.ss.Type != TypeDirectory {
+			return nil, fmt.Errorf("DirectoryEntry is camliType %q, not %q", de.ss.Type, TypeDirectory)
 		}
 		dr, err := NewDirReader(ctx, de.fetcher, de.ss.BlobRef)
 		if err != nil {
@@ -214,7 +214,7 @@ func newDirectoryEntry(fetcher blob.Fetcher, ss *superset) (DirectoryEntry, erro
 		return nil, errors.New("ss.BlobRef was invalid")
 	}
 	switch ss.Type {
-	case "file", "directory", "symlink", "fifo", "socket":
+	case TypeFile, TypeDirectory, TypeSymlink, TypeFIFO, TypeSocket:
 		// Okay
 	default:
 		return nil, fmt.Errorf("invalid DirectoryEntry camliType of %q", ss.Type)
@@ -244,8 +244,8 @@ type superset struct {
 	// for convenience.
 	BlobRef blob.Ref
 
-	Version int    `json:"camliVersion"`
-	Type    string `json:"camliType"`
+	Version int       `json:"camliVersion"`
+	Type    CamliType `json:"camliType"`
 
 	Signer blob.Ref `json:"camliSigner"`
 	Sig    string   `json:"camliSig"`
@@ -484,20 +484,20 @@ func (ss *superset) FileMode() os.FileMode {
 
 	// TODO: add other types (block, char, etc)
 	switch ss.Type {
-	case "directory":
+	case TypeDirectory:
 		mode = mode | os.ModeDir
-	case "file":
+	case TypeFile:
 		// No extra bit.
-	case "symlink":
+	case TypeSymlink:
 		mode = mode | os.ModeSymlink
-	case "fifo":
+	case TypeFIFO:
 		mode = mode | os.ModeNamedPipe
-	case "socket":
+	case TypeSocket:
 		mode = mode | os.ModeSocket
 	}
 	if !hasPerm {
 		switch ss.Type {
-		case "directory":
+		case TypeDirectory:
 			mode |= 0755
 		default:
 			mode |= 0644
@@ -579,7 +579,7 @@ var maxStaticSetMembers = 10000
 // NewStaticSet returns the "static-set" schema for a directory. Its members
 // should be populated with SetStaticSetMembers.
 func NewStaticSet() *Builder {
-	return base(1, "static-set")
+	return base(1, TypeStaticSet)
 }
 
 // SetStaticSetMembers sets the given members as the static-set members of this
@@ -590,7 +590,7 @@ func NewStaticSet() *Builder {
 // static-set created from this builder.
 // SetStaticSetMembers panics if bb isn't a "static-set" claim type.
 func (bb *Builder) SetStaticSetMembers(members []blob.Ref) []*Blob {
-	if bb.Type() != "static-set" {
+	if bb.Type() != TypeStaticSet {
 		panic("called SetStaticSetMembers on non static-set")
 	}
 
@@ -649,16 +649,16 @@ func (bb *Builder) SetStaticSetMembers(members []blob.Ref) []*Blob {
 	return allSubsets
 }
 
-func base(version int, ctype string) *Builder {
+func base(version int, ctype CamliType) *Builder {
 	return &Builder{map[string]interface{}{
 		"camliVersion": version,
-		"camliType":    ctype,
+		"camliType":    string(ctype),
 	}}
 }
 
 // NewUnsignedPermanode returns a new random permanode, not yet signed.
 func NewUnsignedPermanode() *Builder {
-	bb := base(1, "permanode")
+	bb := base(1, TypePermanode)
 	chars := make([]byte, 20)
 	_, err := io.ReadFull(rand.Reader, chars)
 	if err != nil {
@@ -674,7 +674,7 @@ func NewUnsignedPermanode() *Builder {
 // GPG date to create consistent JSON encodings of the Map (its
 // blobref), between runs.
 func NewPlannedPermanode(key string) *Builder {
-	bb := base(1, "permanode")
+	bb := base(1, TypePermanode)
 	bb.m["key"] = key
 	return bb
 }
@@ -711,12 +711,12 @@ func mapJSON(m map[string]interface{}) (string, error) {
 // NewFileMap returns a new builder of a type "file" schema for the provided fileName.
 // The chunk parts of the file are not populated.
 func NewFileMap(fileName string) *Builder {
-	return newCommonFilenameMap(fileName).SetType("file")
+	return newCommonFilenameMap(fileName).SetType(TypeFile)
 }
 
 // NewDirMap returns a new builder of a type "directory" schema for the provided fileName.
 func NewDirMap(fileName string) *Builder {
-	return newCommonFilenameMap(fileName).SetType("directory")
+	return newCommonFilenameMap(fileName).SetType(TypeDirectory)
 }
 
 func newCommonFilenameMap(fileName string) *Builder {
@@ -785,8 +785,26 @@ func populateParts(m map[string]interface{}, size int64, parts []BytesPart) erro
 }
 
 func newBytes() *Builder {
-	return base(1, "bytes")
+	return base(1, TypeBytes)
 }
+
+// CamliType is one of the valid "camliType" fields in a schema blob. See doc/schema.
+type CamliType string
+
+const (
+	TypeBytes     CamliType = "bytes"
+	TypeClaim     CamliType = "claim"
+	TypeDirectory CamliType = "directory"
+	TypeFIFO      CamliType = "fifo"
+	TypeFile      CamliType = "file"
+	TypeInode     CamliType = "inode"
+	TypeKeep      CamliType = "keep"
+	TypePermanode CamliType = "permanode"
+	TypeShare     CamliType = "share"
+	TypeSocket    CamliType = "socket"
+	TypeStaticSet CamliType = "static-set"
+	TypeSymlink   CamliType = "symlink"
+)
 
 // ClaimType is one of the valid "claimType" fields in a "claim" schema blob. See doc/schema/claims/.
 type ClaimType string
@@ -819,7 +837,7 @@ type claimParam struct {
 }
 
 func newClaim(claims ...*claimParam) *Builder {
-	bb := base(1, "claim")
+	bb := base(1, TypeClaim)
 	bb.SetClaimDate(clockNow())
 	if len(claims) == 1 {
 		cp := claims[0]

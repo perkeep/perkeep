@@ -194,7 +194,7 @@ func (n *node) Open(ctx context.Context, req *fuse.OpenRequest, res *fuse.OpenRe
 		Logger.Printf("open of %v: %v", n.blobref, err)
 		return nil, fuse.EIO
 	}
-	if ss.Type() == "directory" {
+	if ss.Type() == schema.TypeDirectory {
 		return n, nil
 	}
 	fr, err := ss.NewFileReader(n.fs.fetcher)
@@ -304,13 +304,13 @@ func (n *node) populateAttr() error {
 	}
 
 	switch meta.Type() {
-	case "file":
+	case schema.TypeFile:
 		n.attr.Size = uint64(meta.PartsSize())
 		n.attr.Blocks = 0 // TODO: set?
 		n.attr.Mode |= 0400
-	case "directory":
+	case schema.TypeDirectory:
 		n.attr.Mode |= 0500
-	case "symlink":
+	case schema.TypeSymlink:
 		n.attr.Mode |= 0400
 	default:
 		Logger.Printf("unknown attr ss.Type %q in populateAttr", meta.Type())
@@ -371,12 +371,12 @@ func (fs *CamliFileSystem) newNodeFromBlobRef(root blob.Ref) (fusefs.Node, error
 	}
 
 	switch blob.Type() {
-	case "directory":
+	case schema.TypeDirectory:
 		n := &node{fs: fs, blobref: root, meta: blob}
 		n.populateAttr()
 		return n, nil
 
-	case "permanode":
+	case schema.TypePermanode:
 		// other mutDirs listed in the default fileystem have names and are displayed
 		return &mutDir{fs: fs, permanode: root, name: "-"}, nil
 	}

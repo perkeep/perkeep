@@ -686,7 +686,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		if err != nil {
 			t.Errorf("GetBlobMeta(%q) = %v", pn, err)
 		} else {
-			if e := "permanode"; meta.CamliType != e {
+			if e := schema.TypePermanode; meta.CamliType != e {
 				t.Errorf("GetBlobMeta(%q) mime = %q, want %q", pn, meta.CamliType, e)
 			}
 			if meta.Size == 0 {

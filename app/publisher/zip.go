@@ -169,9 +169,9 @@ func (zh *zipHandler) blobsFromDir(dirPath string, dirBlob blob.Ref) ([]*blobFil
 	for _, v := range ent {
 		fullpath := path.Join(dirPath, v.FileName())
 		switch v.CamliType() {
-		case "file":
+		case schema.TypeFile:
 			list = append(list, &blobFile{v.BlobRef(), fullpath})
-		case "directory":
+		case schema.TypeDirectory:
 			children, err := zh.blobsFromDir(fullpath, v.BlobRef())
 			if err != nil {
 				return nil, fmt.Errorf("Could not get list of blobs from %v: %v", v.BlobRef(), err)

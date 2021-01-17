@@ -240,7 +240,7 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 	rcc.Close()
 
 	switch b.Type() {
-	case "directory":
+	case schema.TypeDirectory:
 		dir := filepath.Join(targ, b.FileName())
 		if *flagVerbose {
 			log.Printf("Fetching directory %v into %s", br, dir)
@@ -256,7 +256,7 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 			return fmt.Errorf("bad entries blobref in dir %v", b.BlobRef())
 		}
 		return smartFetch(ctx, src, dir, entries)
-	case "static-set":
+	case schema.TypeStaticSet:
 		if *flagVerbose {
 			log.Printf("Fetching directory entries %v into %s", br, targ)
 		}
@@ -289,7 +289,7 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 			}
 		}
 		return nil
-	case "file":
+	case schema.TypeFile:
 		fr, err := schema.NewFileReader(ctx, src, br)
 		if err != nil {
 			return fmt.Errorf("NewFileReader: %v", err)
@@ -322,7 +322,7 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 			log.Print(err)
 		}
 		return nil
-	case "symlink":
+	case schema.TypeSymlink:
 		if *flagSkipIrregular {
 			return nil
 		}
@@ -354,7 +354,7 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 		// os.Chtimes always dereferences (does not act on the
 		// symlink but its target).
 		return err
-	case "fifo":
+	case schema.TypeFIFO:
 		if *flagSkipIrregular {
 			return nil
 		}
@@ -389,7 +389,7 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 
 		return nil
 
-	case "socket":
+	case schema.TypeSocket:
 		if *flagSkipIrregular {
 			return nil
 		}
@@ -425,7 +425,7 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 		return nil
 
 	default:
-		return errors.New("unknown blob type: " + b.Type())
+		return errors.New("unknown blob type: " + string(b.Type()))
 	}
 	panic("unreachable")
 }

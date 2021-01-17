@@ -60,7 +60,7 @@ type Blob struct {
 }
 
 // Type returns the blob's "camliType" field.
-func (b *Blob) Type() string { return b.ss.Type }
+func (b *Blob) Type() CamliType { return b.ss.Type }
 
 // BlobRef returns the schema blob's blobref.
 func (b *Blob) BlobRef() blob.Ref { return b.br }
@@ -144,7 +144,7 @@ func (b *Blob) AsShare() (s Share, ok bool) {
 
 // DirectoryEntries the "entries" field if valid and b's type is "directory".
 func (b *Blob) DirectoryEntries() (br blob.Ref, ok bool) {
-	if b.Type() != "directory" {
+	if b.Type() != TypeDirectory {
 		return
 	}
 	return b.ss.Entries, true
@@ -154,7 +154,7 @@ func (b *Blob) DirectoryEntries() (br blob.Ref, ok bool) {
 // "static-set" schema. Note that if it is a large static-set, the members are
 // actually spread as subsets in "mergeSets". See StaticSetMergeSets.
 func (b *Blob) StaticSetMembers() []blob.Ref {
-	if b.Type() != "static-set" {
+	if b.Type() != TypeStaticSet {
 		return nil
 	}
 
@@ -170,7 +170,7 @@ func (b *Blob) StaticSetMembers() []blob.Ref {
 // StaticSetMergeSets returns the refs of the static-sets in "mergeSets". These
 // are the subsets of all the static-set members in the case of a large directory.
 func (b *Blob) StaticSetMergeSets() []blob.Ref {
-	if b.Type() != "static-set" {
+	if b.Type() != TypeStaticSet {
 		return nil
 	}
 
@@ -287,7 +287,7 @@ func (b *Blob) AsStaticFile() (sf StaticFile, ok bool) {
 	// Perkeep and change the implementation of StaticFile to
 	// reflect that.
 	t := b.ss.Type
-	if t == "file" || t == "symlink" || t == "fifo" || t == "socket" {
+	if t == TypeFile || t == TypeSymlink || t == TypeFIFO || t == TypeSocket {
 		return StaticFile{b}, true
 	}
 
@@ -322,7 +322,7 @@ func (sl StaticSymlink) SymlinkTargetString() string {
 // StaticFile represents a symlink. Othwerwise, it returns the zero
 // value of StaticSymlink and false.
 func (sf StaticFile) AsStaticSymlink() (s StaticSymlink, ok bool) {
-	if sf.b.ss.Type == "symlink" {
+	if sf.b.ss.Type == TypeSymlink {
 		return StaticSymlink{sf}, true
 	}
 
@@ -333,7 +333,7 @@ func (sf StaticFile) AsStaticSymlink() (s StaticSymlink, ok bool) {
 // StaticFile represents a fifo. Otherwise, it returns the zero value
 // of StaticFIFO and false.
 func (sf StaticFile) AsStaticFIFO() (fifo StaticFIFO, ok bool) {
-	if sf.b.ss.Type == "fifo" {
+	if sf.b.ss.Type == TypeFIFO {
 		return StaticFIFO{sf}, true
 	}
 
@@ -344,7 +344,7 @@ func (sf StaticFile) AsStaticFIFO() (fifo StaticFIFO, ok bool) {
 // StaticFile represents a socket. Otherwise, it returns the zero
 // value of StaticSocket and false.
 func (sf StaticFile) AsStaticSocket() (ss StaticSocket, ok bool) {
-	if sf.b.ss.Type == "socket" {
+	if sf.b.ss.Type == TypeSocket {
 		return StaticSocket{sf}, true
 	}
 
@@ -369,7 +369,7 @@ func NewBuilder() *Builder {
 // SetShareTarget sets the target of share claim.
 // It panics if bb isn't a "share" claim type.
 func (bb *Builder) SetShareTarget(t blob.Ref) *Builder {
-	if bb.Type() != "claim" || bb.ClaimType() != ShareClaim {
+	if bb.Type() != TypeClaim || bb.ClaimType() != ShareClaim {
 		panic("called SetShareTarget on non-share")
 	}
 	bb.m["target"] = t.String()
@@ -380,7 +380,7 @@ func (bb *Builder) SetShareTarget(t blob.Ref) *Builder {
 // q is assumed to be of type *search.SearchQuery.
 // It panics if bb isn't a "share" claim type.
 func (bb *Builder) SetShareSearch(q SearchQuery) *Builder {
-	if bb.Type() != "claim" || bb.ClaimType() != ShareClaim {
+	if bb.Type() != TypeClaim || bb.ClaimType() != ShareClaim {
 		panic("called SetShareSearch on non-share")
 	}
 	bb.m["search"] = q
@@ -391,7 +391,7 @@ func (bb *Builder) SetShareSearch(q SearchQuery) *Builder {
 // It panics if bb isn't a "share" claim type.
 // If t is zero, the expiration is removed.
 func (bb *Builder) SetShareExpiration(t time.Time) *Builder {
-	if bb.Type() != "claim" || bb.ClaimType() != ShareClaim {
+	if bb.Type() != TypeClaim || bb.ClaimType() != ShareClaim {
 		panic("called SetShareExpiration on non-share")
 	}
 	if t.IsZero() {
@@ -403,7 +403,7 @@ func (bb *Builder) SetShareExpiration(t time.Time) *Builder {
 }
 
 func (bb *Builder) SetShareIsTransitive(b bool) *Builder {
-	if bb.Type() != "claim" || bb.ClaimType() != ShareClaim {
+	if bb.Type() != TypeClaim || bb.ClaimType() != ShareClaim {
 		panic("called SetShareIsTransitive on non-share")
 	}
 	if !b {
@@ -468,7 +468,7 @@ func (bb *Builder) Sign(ctx context.Context, signer *Signer) (string, error) {
 // for planned permanodes. If the zero value, the current time is used.
 func (bb *Builder) SignAt(ctx context.Context, signer *Signer, sigTime time.Time) (string, error) {
 	switch bb.Type() {
-	case "permanode", "claim":
+	case TypePermanode, TypeClaim:
 	default:
 		return "", fmt.Errorf("can't sign camliType %q", bb.Type())
 	}
@@ -480,15 +480,15 @@ func (bb *Builder) SignAt(ctx context.Context, signer *Signer, sigTime time.Time
 }
 
 // SetType sets the camliType field.
-func (bb *Builder) SetType(t string) *Builder {
-	bb.m["camliType"] = t
+func (bb *Builder) SetType(t CamliType) *Builder {
+	bb.m["camliType"] = string(t)
 	return bb
 }
 
 // Type returns the camliType value.
-func (bb *Builder) Type() string {
+func (bb *Builder) Type() CamliType {
 	if s, ok := bb.m["camliType"].(string); ok {
-		return s
+		return CamliType(s)
 	}
 	return ""
 }
@@ -515,7 +515,7 @@ func (bb *Builder) SetFileName(name string) *Builder {
 
 // SetSymlinkTarget sets bb to be of type "symlink" and sets the symlink's target.
 func (bb *Builder) SetSymlinkTarget(target string) *Builder {
-	bb.SetType("symlink")
+	bb.SetType(TypeSymlink)
 	if utf8.ValidString(target) {
 		bb.m["symlinkTarget"] = target
 	} else {
@@ -528,7 +528,7 @@ func (bb *Builder) SetSymlinkTarget(target string) *Builder {
 // which should be signed. (a "claim" or "permanode")
 func (bb *Builder) IsClaimType() bool {
 	switch bb.Type() {
-	case "claim", "permanode":
+	case TypeClaim, TypePermanode:
 		return true
 	}
 	return false
@@ -583,7 +583,7 @@ func (bb *Builder) ModTime() (t time.Time, ok bool) {
 // PopulateDirectoryMap sets the type of *Builder to "directory" and sets
 // the "entries" field to the provided staticSet blobref.
 func (bb *Builder) PopulateDirectoryMap(staticSetRef blob.Ref) *Builder {
-	bb.m["camliType"] = "directory"
+	bb.m["camliType"] = string(TypeDirectory)
 	bb.m["entries"] = staticSetRef.String()
 	return bb
 }

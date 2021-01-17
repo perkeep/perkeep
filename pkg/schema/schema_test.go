@@ -553,7 +553,7 @@ func TestStaticFileAndStaticSymlink(t *testing.T) {
 	}
 
 	bb := NewCommonFileMap(fd.Name(), fi)
-	bb.SetType("file")
+	bb.SetType(TypeFile)
 	bb.SetFileName(fd.Name())
 	blob := bb.Blob()
 
@@ -592,7 +592,7 @@ func TestStaticFileAndStaticSymlink(t *testing.T) {
 	}
 
 	bb = NewCommonFileMap(src, fi)
-	bb.SetType("symlink")
+	bb.SetType(TypeSymlink)
 	bb.SetFileName(src)
 	bb.SetSymlinkTarget(target)
 	blob = bb.Blob()
@@ -638,7 +638,7 @@ func TestStaticFIFO(t *testing.T) {
 	}
 
 	bb := NewCommonFileMap(fifoPath, fi)
-	bb.SetType("fifo")
+	bb.SetType(TypeFIFO)
 	bb.SetFileName(fifoPath)
 	blob := bb.Blob()
 	t.Logf("Got JSON for fifo: %s\n", blob.JSON())
@@ -675,7 +675,7 @@ func TestStaticSocket(t *testing.T) {
 	}
 
 	bb := NewCommonFileMap(sockPath, fi)
-	bb.SetType("socket")
+	bb.SetType(TypeSocket)
 	bb.SetFileName(sockPath)
 	blob := bb.Blob()
 	t.Logf("Got JSON for socket: %s\n", blob.JSON())

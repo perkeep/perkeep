@@ -69,7 +69,7 @@ type Corpus struct {
 
 	// camBlobs maps from camliType ("file") to blobref to the meta.
 	// The value is the same one in blobs.
-	camBlobs map[string]map[blob.Ref]*camtypes.BlobMeta
+	camBlobs map[schema.CamliType]map[blob.Ref]*camtypes.BlobMeta
 
 	// TODO: add GoLLRB to vendor; keep sorted BlobMeta
 	keyId signerFromBlobrefMap
@@ -326,7 +326,7 @@ func (pm *PermanodeMeta) valuesAtSigner(at time.Time,
 func newCorpus() *Corpus {
 	c := &Corpus{
 		blobs:                   make(map[blob.Ref]*camtypes.BlobMeta),
-		camBlobs:                make(map[string]map[blob.Ref]*camtypes.BlobMeta),
+		camBlobs:                make(map[schema.CamliType]map[blob.Ref]*camtypes.BlobMeta),
 		files:                   make(map[blob.Ref]camtypes.FileInfo),
 		permanodes:              make(map[blob.Ref]*PermanodeMeta),
 		imageInfo:               make(map[blob.Ref]camtypes.ImageInfo),
@@ -463,8 +463,8 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 		return err
 	}
 
-	c.files = make(map[blob.Ref]camtypes.FileInfo, len(c.camBlobs["file"]))
-	c.permanodes = make(map[blob.Ref]*PermanodeMeta, len(c.camBlobs["permanode"]))
+	c.files = make(map[blob.Ref]camtypes.FileInfo, len(c.camBlobs[schema.TypeFile]))
+	c.permanodes = make(map[blob.Ref]*PermanodeMeta, len(c.camBlobs[schema.TypePermanode]))
 	cpu0 := osutil.CPUUsage()
 
 	var grp syncutil.Group
@@ -675,7 +675,7 @@ func (c *Corpus) mergeBlobMeta(bm camtypes.BlobMeta) error {
 	if _, dup := c.blobs[bm.Ref]; dup {
 		panic("dup blob seen")
 	}
-	bm.CamliType = c.str(bm.CamliType)
+	bm.CamliType = schema.CamliType((c.str(string(bm.CamliType))))
 
 	c.blobs[bm.Ref] = &bm
 	c.sumBlobBytes += int64(bm.Size)
@@ -961,7 +961,7 @@ func (c *Corpus) br(br blob.Ref) blob.Ref {
 // types to call fn for. If empty, all are emitted.
 //
 // If fn returns false, iteration ends.
-func (c *Corpus) EnumerateCamliBlobs(camType string, fn func(camtypes.BlobMeta) bool) {
+func (c *Corpus) EnumerateCamliBlobs(camType schema.CamliType, fn func(camtypes.BlobMeta) bool) {
 	if camType != "" {
 		for _, bm := range c.camBlobs[camType] {
 			if !fn(*bm) {

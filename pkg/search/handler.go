@@ -39,6 +39,7 @@ import (
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/jsonsign"
+	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/types/camtypes"
 	"perkeep.org/pkg/types/serverconfig"
 )
@@ -504,8 +505,8 @@ type EdgesResponse struct {
 
 // An EdgeItem is an item returned from $searchRoot/camli/search/edgesto.
 type EdgeItem struct {
-	From     blob.Ref `json:"from"`
-	FromType string   `json:"fromType"`
+	From     blob.Ref         `json:"from"`
+	FromType schema.CamliType `json:"fromType"`
 }
 
 var testHookBug121 = func() {}
@@ -808,14 +809,14 @@ func (h *Handler) EdgesTo(req *EdgesRequest) (*EdgesResponse, error) {
 		if found {
 			ei = &EdgeItem{
 				From:     edge.From,
-				FromType: "permanode",
+				FromType: schema.TypePermanode,
 			}
 		}
 		resc <- edgeOrError{edge: ei}
 	}
 	verifying := 0
 	for _, edge := range edges {
-		if edge.FromType == "permanode" {
+		if edge.FromType == schema.TypePermanode {
 			verifying++
 			go verify(edge)
 			continue

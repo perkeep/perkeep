@@ -28,6 +28,7 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
 )
 
@@ -119,7 +120,7 @@ func (c *listCmd) RunCommand(args []string) error {
 				continue
 			}
 
-			if c.camliType == "" || blob.CamliType == c.camliType {
+			if c.camliType == "" || string(blob.CamliType) == c.camliType {
 				detailed := detail(blob)
 				if detailed != "" {
 					detailed = fmt.Sprintf("\t%v", detailed)
@@ -167,8 +168,8 @@ func (c *listCmd) setClient() error {
 
 func detail(blob *search.DescribedBlob) string {
 	// TODO(mpl): attrType, value for claim. but I don't think they're accessible just with a describe req.
-	if blob.CamliType == "file" {
+	if blob.CamliType == schema.TypeFile {
 		return fmt.Sprintf("%v (%v size=%v)", blob.CamliType, blob.File.FileName, blob.File.Size)
 	}
-	return blob.CamliType
+	return string(blob.CamliType)
 }
