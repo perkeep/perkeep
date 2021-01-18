@@ -352,6 +352,7 @@ cam.IndexPage = React.createClass({
 				selection: this.state.selection,
 				style: this.getBlobItemContainerStyle_(),
 				thumbnailSize: this.THUMBNAIL_SIZE_,
+				serverConnection: this.props.serverConnection,
 				});
 			}.bind(this),
 		};
