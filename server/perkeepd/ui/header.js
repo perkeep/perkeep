@@ -20,7 +20,6 @@ goog.require('goog.Uri');
 
 goog.require('cam.reactUtil');
 goog.require('cam.SpritedImage');
-goog.require('cam.ServerConnection');
 
 cam.Header = React.createClass({
 	displayName: 'Header',
@@ -58,13 +57,13 @@ cam.Header = React.createClass({
 		mainControls: React.PropTypes.arrayOf(React.PropTypes.node),
 		onNewPermanode: React.PropTypes.func,
 		onImportShare: React.PropTypes.func,
+		onAbout: React.PropTypes.func,
 		onSearch: React.PropTypes.func,
 		favoritesURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		statusURL: React.PropTypes.instanceOf(goog.Uri).isRequired,
 		timer: React.PropTypes.shape({setTimeout:React.PropTypes.func.isRequired, clearTimeout:React.PropTypes.func.isRequired}).isRequired,
 		width: React.PropTypes.number.isRequired,
 		config: React.PropTypes.object.isRequired,
-		serverConnection: React.PropTypes.instanceOf(cam.ServerConnection).isRequired,
 	},
 
 	focusSearch: function() {
@@ -231,37 +230,8 @@ cam.Header = React.createClass({
 			this.getMenuItem_('Favorites', this.props.favoritesURL),
 			this.getMenuItem_('Mobile Setup', this.props.mobileSetupURL),
 			this.getMenuItem_('Help', this.props.helpURL),
-			// We could use getMenuItem_, and only implement
-			// the onClick part with Go, but we're instead also
-			// reimplementing getMenuItem_ to demo that we can
-			// create react elements in Go.
-			this.getAboutDialog_(),
+			this.getMenuItem_('About', null, this.props.onAbout),
 			errorItems
-		);
-	},
-
-	getAboutDialog_: function() {
-		return React.DOM.div(
-			{
-				className: 'cam-header-menu-item',
-				onClick: this.handleAboutClick_,
-			},
-			'About',
-		);
-	},
-
-	handleAboutClick_: function() {
-		this.props.serverConnection.serverStatus(
-			function(serverStatus) {
-				var dialogText = 'This is the web interface to a Perkeep server';
-				if (serverStatus.version) {
-					dialogText += `\n\nPerkeep ${serverStatus.version}`;
-				}
-				if (serverStatus.goInfo) {
-					dialogText += `\n\n${serverStatus.goInfo}`;
-				}
-				alert(dialogText);
-			}.bind(this),
 		);
 	},
 
