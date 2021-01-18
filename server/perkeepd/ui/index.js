@@ -821,6 +821,7 @@ cam.IndexPage = React.createClass({
 				onUpload: this.handleUpload_,
 				onNewPermanode: this.handleCreateSetWithSelection_,
 				onImportShare: this.getImportShareDialog_,
+				onAbout: this.handleAbout_,
 				onSearch: this.setSearch_,
 				favoritesURL: this.getFavoritesURL_(),
 				statusURL: this.baseURL_.resolve(new goog.Uri(this.props.config.statusRoot)),
@@ -828,7 +829,6 @@ cam.IndexPage = React.createClass({
 				timer: this.props.timer,
 				width: this.props.availWidth,
 				config: this.props.config,
-				serverConnection: this.props.serverConnection,
 			}
 		)
 	},
@@ -839,6 +839,21 @@ cam.IndexPage = React.createClass({
 			return [];
 		}
 		return aspects;
+	},
+
+	handleAbout_: function() {
+		this.props.serverConnection.serverStatus(
+			function(serverStatus) {
+				var dialogText = 'This is the web interface to a Perkeep server';
+				if (serverStatus.version) {
+					dialogText += `\n\nPerkeep ${serverStatus.version}`;
+				}
+				if (serverStatus.goInfo) {
+					dialogText += `\n\n${serverStatus.goInfo}`;
+				}
+				alert(dialogText);
+			}.bind(this),
+		);
 	},
 
 	handleNewPermanode_: function() {
