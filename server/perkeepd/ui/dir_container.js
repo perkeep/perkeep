@@ -27,12 +27,195 @@ goog.require('goog.style');
 
 goog.require('cam.BlobItemReact');
 goog.require('cam.SpritedImage');
+goog.require('cam.ServerConnection');
+
+// DirChildrenSession provides a Query object suitable to send search queries
+// to get the children of a directory.
+cam.DirChildrenSession = function(
+	serverConnection,
+	parentDir,
+	limit,
+	updateSearchSession,
+	triggerRender
+) {
+	this.serverConnection_ = serverConnection;
+
+	// Directory the query is about
+	this.parentDir_ = parentDir;
+
+	// Maximum number of search results that should be returned
+	this.limit_ = limit;
+
+	// Blob around which the returned results should be centered. It
+	// implies that the search results can be sorted.
+	this.around_ = null;
+
+	// Provided by the caller, to update its search session,
+	// with the provided set of results, in JSON form.
+	this.updateSearchSession_ = updateSearchSession;
+
+	// Provided by the caller, to start rerendering the DOM, after
+	// the query's results have been merged with the current set of
+	// results, and the caller's search session has been updated with
+	// that set.
+	this.triggerRender_ = triggerRender;
+
+	// Currently known set of descendants of ParentDir. Subsequent new
+	// query results, i.e. with a movind Around parameter, are merged
+	// with Blobs.
+	this.blobs_ = [];
+
+	// Meta is the map of descriptions for the blobs.
+	this.meta_ = {};
+
+	// Makes sure there's only ever one query at most in flight.
+	this.pending_ = false;
+
+	// Wether we've already gotten all the descendants of ParentDir.
+	this.isComplete_ = false;
+};
+
+cam.DirChildrenSession.prototype.isComplete = function() {
+	return this.isComplete_;
+};
+
+cam.DirChildrenSession.prototype.get = function() {
+	if (this.isComplete_) {
+		return;
+	}
+	if (this.pending_) {
+		return;
+	}
+	this.pending_ = true;
+
+	const query = {
+		"logical": {
+			"op": "or",
+			"a": {
+				"file": {
+					"parentDir": {
+						"blobRefPrefix": this.parentDir_,
+					},
+				},
+			},
+			"b": {
+				"dir": {
+					"parentDir": {
+						"blobRefPrefix": this.parentDir_,
+					},
+				},
+			},
+		},
+	};
+	const opts = {
+		"limit": this.limit_,
+		"sort": "blobref",
+		"describe": {
+			"rules": [
+				{
+					"attrs": ["camliContent", "camliContentImage"],
+				},
+			],
+		},
+		"around": this.around_,
+	};
+
+	this.serverConnection_.search(
+		query,
+		opts,
+		function(results){
+			this.mergeResults_(results);
+			const newResults = this.results_();
+			this.updateSearchSession_(newResults);
+			this.triggerRender_();
+			this.pending_ = false;
+		}.bind(this),
+	);
+};
+
+cam.DirChildrenSession.prototype.mergeResults_ = function(results) {
+	if (this.isComplete_) {
+		return;
+	}
+	if (!results || !results.blobs || results.blobs.length === 0) {
+		return;
+	}
+	if (!results.description || !results.description.meta) {
+		return;
+	}
+
+	const requestedAround = this.around_;
+	if (this.blobs_.length === 0) {
+		// first batch
+		this.blobs_ = results.blobs;
+		this.meta_ = results.description.meta;
+		this.around_ = this.blobs_[this.blobs_.length-1].blob;
+		return;
+	}
+	const lastInResults = results.blobs[results.blobs.length-1].blob;
+
+	let found = false;
+	let afterAroundIdx = 0;
+	// Look for merging point.
+	// First jump to the middle of the results.Blobs and see if that's
+	// Around. If not, do slow search.
+	const middle = Math.floor(results.blobs.length / 2);
+	if (results.blobs[middle].blob === requestedAround) {
+		// odd case
+		found = true;
+		afterAroundIdx = middle + 1;
+	} else if (results.blobs[middle+1].blob === requestedAround) {
+		// even case
+		found = true;
+		afterAroundIdx = middle + 2;
+	} else {
+		// slow search
+		for(let i = results.blobs.length-1; i>=0; i--) {
+			if (results.blobs[i].blob !== requestedAround) {
+				continue;
+			}
+			afterAroundIdx = i + 1;
+			found = true;
+			break;
+		}
+	}
+	if (!found) {
+		return;
+	}
+
+	if (requestedAround === lastInResults) {
+		// we don't have to worry about out of order batches, because we only "increment"
+		// this.around_ when we've received the previously requested one.
+		this.isComplete_ = true;
+	}
+	// Reject "stale" results. They should never occur though, since we
+	// supress with this.pending_, and we request everything in order.
+	if (this.meta_[lastInResults]) {
+		return;
+	}
+
+	this.blobs_.push(...results.blobs.slice(afterAroundIdx));
+	for (const [key, value] of Object.entries(results.description.meta)) {
+		this.meta_[key] = value;
+	}
+	this.around_ = this.blobs_[this.blobs_.length-1].blob;
+};
+
+cam.DirChildrenSession.prototype.results_ = function(){
+	const res = {
+		blobs: this.blobs_,
+		description: {
+			meta: this.meta_,
+		},
+	};
+	return res;
+};
 
 
 // FakeSearchSession provides just enough of a common interface with
 // cam.SearchSession to satisfy the needs of the objects within the container
 // (this.props.handlers). It does not actually do any searching; it is populated
-// with the results found with the gopherjs based query (goreact.NewDirChildren).
+// with the results found with DirChildrenSession.
 cam.FakeSearchSession = function(data) {
 	this.isComplete_ = false;
 	this.resetData_();
@@ -145,6 +328,7 @@ cam.DirContainer = React.createClass({
 		selection: React.PropTypes.object.isRequired,
 		style: React.PropTypes.object,
 		thumbnailSize: React.PropTypes.number.isRequired,
+		serverConnection: React.PropTypes.instanceOf(cam.ServerConnection).isRequired,
 	},
 
 	getDefaultProps: function() {
@@ -173,24 +357,21 @@ cam.DirContainer = React.createClass({
 
 	setupSearchSession_: function() {
 		this.searchSession = new cam.FakeSearchSession();
-		this.DirChildrenSession = goreact.NewDirChildren(this.props.config.authToken, this.props.blobRef, this.QUERY_LIMIT_,
-			// TODO(mpl): there has to be a more efficient way for passing the results to
-			// the search session through this function, than encoding the results to JSON, but
-			// I haven't found it. Waiting for Paul's feedback on it.
-			function(res) {
-				if (res == '') {
-					return;
-				}
-				var sr = JSON.parse(res);
-				if (!sr || !sr.blobs || sr.blobs.length == 0) {
+		this.DirChildrenSession = new cam.DirChildrenSession(
+			this.props.serverConnection,
+			this.props.blobRef,
+			this.QUERY_LIMIT_,
+			function(sr) {
+				if (!sr || !sr.blobs || sr.blobs.length === 0) {
 					return;
 				}
 				this.searchSession.populate(sr);
-				this.searchSession.setComplete(this.DirChildrenSession.IsComplete());
+				this.searchSession.setComplete(this.DirChildrenSession.isComplete());
 			}.bind(this),
 			function() {
 				this.handleSearchSessionChanged_();
-			}.bind(this));
+			}.bind(this),
+		);
 	},
 
 	componentDidMount: function() {
@@ -469,7 +650,7 @@ cam.DirContainer = React.createClass({
 		if (!this.DirChildrenSession) {
 			return;
 		}
-		this.DirChildrenSession.Get();
+		this.DirChildrenSession.get();
 	},
 
 });

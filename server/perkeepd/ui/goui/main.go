@@ -20,7 +20,6 @@ package main
 
 import (
 	"perkeep.org/pkg/blob"
-	"perkeep.org/server/perkeepd/ui/goui/dirchildren"
 	"perkeep.org/server/perkeepd/ui/goui/mapquery"
 	"perkeep.org/server/perkeepd/ui/goui/sharebutton"
 
@@ -30,7 +29,6 @@ import (
 func main() {
 	js.Global.Set("goreact", map[string]interface{}{
 		"ShareItemsBtn":    sharebutton.New,
-		"NewDirChildren":   dirchildren.New,
 		"NewMapQuery":      mapquery.New,
 		"DeleteMapZoom":    mapquery.DeleteZoomPredicate,
 		"ShiftMapZoom":     mapquery.ShiftZoomPredicate,
