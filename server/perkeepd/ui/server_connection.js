@@ -179,6 +179,29 @@ cam.ServerConnection.prototype.serverStatus = function(success) {
 		}}));
 };
 
+// @param {string} shareURL
+// @param {Function} success callback.
+// @param {?Function} opt_fail optional failure calback.
+cam.ServerConnection.prototype.importShare = function(shareURL, success, opt_fail) {
+	this.sendXhr_(
+		goog.uri.utils.appendPath(this.config_.uiRoot, 'importshare'),
+		goog.bind(this.handleXhrResponseEmpty_, this, {success: success, fail: opt_fail}),
+		"POST",
+		"shareurl=" + encodeURIComponent(shareURL),
+		{"Content-Type": "application/x-www-form-urlencoded"},
+	);
+};
+
+// @param {function(cam.ServerType.StatusResponse)} success.
+cam.ServerConnection.prototype.importShareStatus = function(success) {
+	this.sendXhr_(
+		goog.uri.utils.appendPath(this.config_.uiRoot, 'importshare'),
+		goog.bind(this.handleXhrResponseJson_, this, {success: success, fail: function(msg) {
+			console.log("importShareStatus error: " + msg);
+		}}));
+};
+
+
 // @param {string} blobref root of the tree
 // @param {Function} success callback with data.
 // @param {?Function} opt_fail optional failure calback
@@ -356,6 +379,22 @@ cam.ServerConnection.prototype.verify_ = function(signed, success, opt_fail) {
 		"sjson=" + encodeURIComponent(signed),
 		header
 	);
+};
+
+// @param {goog.events.Event} e Event that triggered this
+cam.ServerConnection.prototype.handleXhrResponseEmpty_ = function(callbacks, e) {
+	const fail = callbacks.fail;
+	const xhr = e.target;
+	const error = !xhr.isSuccess();
+	if (error) {
+		if (fail) {
+			fail(xhr.getLastError());
+		} else {
+			console.log('Failed XHR (empty) in ServerConnection: ' + xhr.getLastError());
+		}
+		return;
+	}
+	callbacks.success();
 };
 
 // @param {goog.events.Event} e Event that triggered this
