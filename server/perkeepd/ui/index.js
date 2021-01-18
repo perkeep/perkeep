@@ -899,7 +899,15 @@ cam.IndexPage = React.createClass({
 				React.DOM.div({},
 					React.DOM.form({onSubmit: function(e) {
 							e.preventDefault();
-							goreact.ImportShare(this.props.config, this.state.importShareURL, this.updateImportShareDialog_);
+							this.props.serverConnection.importShare(
+								this.state.importShareURL,
+								function(){
+									this.updateImportShareStatusLoop_();
+								}.bind(this),
+								function(error){
+									this.updateImportShareDialog_(error);
+								}.bind(this),
+							);
 						}.bind(this)},
 						React.DOM.input({
 							type: 'text',
@@ -915,6 +923,35 @@ cam.IndexPage = React.createClass({
 				)
 			),
 		});
+	},
+
+	updateImportShareStatusLoop_: function() {
+		const updateDialog = function(progress){
+			const blobRef = progress.BlobRef || '<invalid-blob.Ref>';
+			if (progress.Running) {
+				if (progress.Assembled) {
+					this.updateImportShareDialog_("Importing file in progress", "");
+					return;
+				}
+				this.updateImportShareDialog_(`Working - ${progress.FilesCopied}/${progress.FilesSeen} files imported`, "");
+				return;
+			}
+
+			if (progress.Assembled) {
+				this.updateImportShareDialog_("File successfully imporoted as", blobRef)
+				return;
+			}
+			this.updateImportShareDialog_(`Done - ${progress.FilesCopied}/${progress.FilesSeen} files imported under`, blobRef);
+		}.bind(this);
+
+		this.props.serverConnection.importShareStatus(
+			function(progress){
+				updateDialog(progress);
+				if (progress.Running) {
+					window.setTimeout(this.updateImportShareStatusLoop_, 2 * 1000);
+				}
+			}.bind(this),
+		);
 	},
 
 	updateImportShareDialog_: function(resultMessage, br) {
