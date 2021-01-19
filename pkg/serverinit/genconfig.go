@@ -190,7 +190,7 @@ func (b *lowBuilder) searchOwner() (owner *serverconfig.Owner, err error) {
 }
 
 // longIdentity returns the long form (16 chars) of the GPG key ID, in case the
-// user provided the short form (8 chars) in the config.
+// user provided the short form (8 chars) or the fingerprint (40 chars) in the config.
 func (b *lowBuilder) longIdentity() (string, error) {
 	if b.high.Identity == "" {
 		return "", errNoOwner
@@ -200,6 +200,9 @@ func (b *lowBuilder) longIdentity() (string, error) {
 	}
 	if len(b.high.Identity) == 16 {
 		return b.high.Identity, nil
+	}
+	if len(b.high.Identity) == 40 {
+		return b.high.Identity[24:], nil
 	}
 	if b.high.IdentitySecretRing == "" {
 		return "", errNoOwner

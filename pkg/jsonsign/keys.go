@@ -119,7 +119,9 @@ func EntityFromSecring(keyID, keyFile string) (*openpgp.Entity, error) {
 	var entity *openpgp.Entity
 	for _, e := range el {
 		pk := e.PrivateKey
-		if pk == nil || (pk.KeyIdString() != keyID && pk.KeyIdShortString() != keyID) {
+		if pk == nil || (keyID != fmt.Sprintf("%X", pk.Fingerprint) &&
+			pk.KeyIdString() != keyID &&
+			pk.KeyIdShortString() != keyID) {
 			continue
 		}
 		entity = e
@@ -131,7 +133,7 @@ func EntityFromSecring(keyID, keyFile string) (*openpgp.Entity, error) {
 			if pk == nil {
 				continue
 			}
-			found = append(found, pk.KeyIdShortString())
+			found = append(found, pk.KeyIdString())
 		}
 		return nil, fmt.Errorf("didn't find a key in %q for keyID %q; other keyIDs in file = %v", keyFile, keyID, found)
 	}
