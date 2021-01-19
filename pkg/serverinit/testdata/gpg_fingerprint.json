@@ -1,0 +1,10 @@
+{
+	"listen": "localhost:3179",
+	"auth": "userpass:camlistore:pass3179",
+	"blobPath": "/tmp/blobs",
+	"kvIndexFile": "/path/to/indexkv.db",
+	"identity": "FBB89AA320A2806FE497C0492931A67C26F5ABDA",
+	"identitySecretRing": "/path/to/secring",
+	"ownerName": "Alice",
+	"shareHandlerPath": "/share/"
+}

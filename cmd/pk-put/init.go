@@ -87,7 +87,7 @@ func (c *initCmd) Examples() []string {
 	// like a lame hack.
 	return []string{
 		"",
-		"--gpgkey=XXXXX",
+		"--gpgkey=XXXXXXXXXXXXXXXX",
 		"--newkey #Creates a new identity",
 	}
 }
@@ -115,21 +115,20 @@ func (c *initCmd) initSecretRing() error {
 // initKeyId sets c.keyId. It checks, in this order, the --gpgkey flag, the GPGKEY env var,
 // and in the default identity secret ring.
 func (c *initCmd) initKeyId() error {
-	if k := c.keyId; k != "" {
-		return nil
-	}
-	if k := os.Getenv("GPGKEY"); k != "" {
+	if c.keyId != "" {
+	} else if k := os.Getenv("GPGKEY"); k != "" {
 		c.keyId = k
-		return nil
-	}
-
-	k, err := jsonsign.KeyIdFromRing(c.secretRing)
-	if err != nil {
+	} else if k, err := jsonsign.KeyIdFromRing(c.secretRing); err == nil {
+		c.keyId = k
+		log.Printf("Re-using identity with keyId %q found in file %s", c.keyId, c.secretRing)
+	} else {
 		hint := "You can set --gpgkey=<pubid> or the GPGKEY env var to select which key ID to use.\n"
 		return fmt.Errorf("No suitable gpg key was found in %v: %v.\n%v", c.secretRing, err, hint)
 	}
-	c.keyId = k
-	log.Printf("Re-using identity with keyId %q found in file %s", c.keyId, c.secretRing)
+	c.keyId = strings.TrimPrefix(
+		strings.ReplaceAll(c.keyId, " ", ""),
+		"0x",
+	)
 	return nil
 }
 
