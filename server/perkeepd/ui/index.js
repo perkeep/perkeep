@@ -1413,12 +1413,21 @@ cam.IndexPage = React.createClass({
 	},
 
 	getShareSelectionItem_: function() {
-		var callbacks = {};
+		const shareRoot = this.props.config.shareRoot;
+		if (!shareRoot) {
+			return;
+		}
+		return React.DOM.button(
+			{
+				key: "shareItemsButton",
+				onClick: this.handleShareItems_,
+			},
+			"Share",
+		);
+	},
 
-		// TODO(mpl): I'm doing the selection business in javascript for now,
-		// since we already have the search session results handy.
-		// It shouldn't be any problem to move it to Go later.
-		callbacks.getSelection = function() {
+	handleShareItems_: function() {
+		const getSelection = function() {
 			var selection = goog.object.getKeys(this.state.selection);
 			var files = [];
 			selection.forEach(function(br) {
@@ -1427,19 +1436,19 @@ cam.IndexPage = React.createClass({
 					return;
 				}
 				if (meta.dir) {
-					files.push({'blobRef': meta.blobRef, 'isDir': 'true'});
+					files.push({'blobRef': meta.blobRef, 'isDir': true});
 					return;
 				}
 				if (meta.file) {
-					files.push({'blobRef': meta.blobRef, 'isDir': 'false'});
+					files.push({'blobRef': meta.blobRef, 'isDir': false});
 					return;
 				}
 			}.bind(this))
 			return files;
 		}.bind(this);
 
-		callbacks.showSharedURL = function(sharedURL, anchorText) {
-			// TODO(mpl): Port the dialog to Go.
+		const showSharedURL = function(sharedURL) {
+			const anchorText = sharedURL.substring(0,20) + "..." + sharedURL.slice(-20);
 			this.setState({
 				messageDialogVisible: true,
 				messageDialogContents: React.DOM.div({
@@ -1453,7 +1462,75 @@ cam.IndexPage = React.createClass({
 			});
 		}.bind(this);
 
-		return goreact.ShareItemsBtn('shareBtnSidebar', this.props.config, callbacks);
+		// newShareClaim creates, signs and uploads a transitive haveref share claim
+		// for sharing the target item. It passes to cb the ref of the claim.
+		const newShareClaim = function(fileRef, cb) {
+			this.props.serverConnection.newShareClaim(
+				"haveref",
+				true,
+				fileRef,
+				function(claimRef){
+					cb(claimRef);
+				}.bind(this),
+			);
+		}.bind(this);
+
+		// shareFile passes to cb the URL that can be used to share the target item.
+		// If the item is a file, the URL can be used directly to fetch the file.
+		// If the item is a directory, the URL should be used with pk-get -shared.
+		const shareFile = function(fileRef, isDir, cb) {
+			newShareClaim(
+				fileRef,
+				function(claimRef){
+					const shareRoot = this.props.config.shareRoot;
+					let shareURL = "";
+					if (isDir) {
+						shareURL = `${shareRoot}${claimRef}`;
+					} else {
+						shareURL = `${shareRoot}${fileRef}?via=${claimRef}&assemble=1`;
+					}
+					cb(shareURL);
+				}.bind(this),
+			);
+		}.bind(this);
+
+		// mkdir creates a new directory blob, whith children composing its
+		// static-set, and uploads it. It passes to cb the blobRef of the new
+		// directory.
+		const mkdir = function(children, cb) {
+			this.props.serverConnection.newStaticSet(
+				children,
+				null,
+				function(ssRef) {
+					cb(ssRef);
+				}.bind(this),
+			)
+		}.bind(this);
+
+		const selection = getSelection();
+
+		const fileRefs = [];
+		let isDir = false;
+		for (const item of selection) {
+			fileRefs.push(item.blobRef);
+			isDir = item.isDir;
+		}
+
+		if (fileRefs.length === 1) {
+			shareFile(fileRefs[0], isDir, showSharedURL);
+			return;
+		}
+
+		mkdir(
+			fileRefs,
+			function(dirRef){
+				// TODO(mpl): should we bother deleting the dir and static set if
+				// there's any failure from this point on? I think that as long as there's
+				// no share claim referencing them, they're supposed to be GCed eventually,
+				// aren't they? in which case, no need to worry about it.
+				shareFile(dirRef, true, showSharedURL);
+			}.bind(this),
+		);
 	},
 
 	getSelectAllItem_: function() {

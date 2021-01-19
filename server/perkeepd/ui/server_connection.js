@@ -535,6 +535,63 @@ cam.ServerConnection.prototype.changeAttribute_ = function(permanode, claimType,
 	);
 };
 
+// @param {Function} success Success callback.
+// @param {?Function} opt_fail Optional fail callback.
+cam.ServerConnection.prototype.newShareClaim = function(
+	authType,
+	transitive,
+	target,
+	success,
+	opt_fail,
+) {
+	const json = {
+		"camliVersion": 1,
+		"camliType": "claim",
+		"claimType": "share",
+		"claimDate": dateToRfc3339String(new Date()),
+		"authType": authType,
+		"transitive": transitive,
+		"target": target,
+	};
+	this.sign_(json,
+		goog.bind(function(signed) {
+			this.uploadString_(signed, success, opt_fail)
+		}, this),
+		goog.bind(function(msg) {
+			this.failOrLog_(opt_fail, "share claim: signing failed: " + msg);
+		}, this)
+	);
+};
+
+// @param {Function} success Success callback.
+// @param {?Function} opt_fail Optional fail callback.
+cam.ServerConnection.prototype.newStaticSet = function(
+	members,
+	mergeSets,
+	success,
+	opt_fail,
+) {
+	const json = {
+		"camliVersion": 1,
+		"camliType": "static-set",
+	}
+	// TODO(aviau): Avoid > 1MB blobs by using mergeSets if required.
+	if (members) {
+		json["members"] = members;
+	}
+	if (mergeSets) {
+		json["mergeSets"] = mergeSets;
+	}
+	this.sign_(json,
+		goog.bind(function(signed) {
+			this.uploadString_(signed, success, opt_fail)
+		}, this),
+		goog.bind(function(msg) {
+			this.failOrLog_(opt_fail, "static-set: signing failed: " + msg);
+		}, this)
+	);
+};
+
 // @param {string} permanode Permanode to delete.
 // @param {Function} success Success callback.
 // @param {?Function} opt_fail Optional fail callback.
