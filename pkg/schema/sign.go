@@ -35,7 +35,6 @@ import (
 // A Signer signs the JSON schema blobs that require signing, such as claims
 // and permanodes.
 type Signer struct {
-	keyID      string // short one; 8 capital hex digits
 	pubref     blob.Ref
 	privEntity *openpgp.Entity
 
@@ -45,12 +44,7 @@ type Signer struct {
 }
 
 func (s *Signer) String() string {
-	return fmt.Sprintf("[*schema.Signer for key=%s pubkey=%s]", s.keyID, s.pubref)
-}
-
-// KeyID returns the short (8 digit) capital hex GPG key ID.
-func (s *Signer) KeyID() string {
-	return s.keyID
+	return fmt.Sprintf("[*schema.Signer for key=%s pubkey=%s]", s.KeyIDLong(), s.pubref)
 }
 
 // KeyIDLong returns the long (16 digit) capital hex GPG key ID.
@@ -68,7 +62,7 @@ func (s *Signer) Entity() *openpgp.Entity {
 // The privateKeySource must be either an *openpgp.Entity or a string filename to a secret key.
 func NewSigner(pubKeyRef blob.Ref, armoredPubKey io.Reader, privateKeySource interface{}) (*Signer, error) {
 	hash := pubKeyRef.Hash()
-	keyID, armoredPubKeyString, err := jsonsign.ParseArmoredPublicKey(io.TeeReader(armoredPubKey, hash))
+	fingerprint, armoredPubKeyString, err := jsonsign.ParseArmoredPublicKey(io.TeeReader(armoredPubKey, hash))
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +75,7 @@ func NewSigner(pubKeyRef blob.Ref, armoredPubKey io.Reader, privateKeySource int
 	case *openpgp.Entity:
 		privateKey = v
 	case string:
-		privateKey, err = jsonsign.EntityFromSecring(keyID, v)
+		privateKey, err = jsonsign.EntityFromSecring(fingerprint, v)
 		if err != nil {
 			return nil, err
 		}
@@ -93,7 +87,6 @@ func NewSigner(pubKeyRef blob.Ref, armoredPubKey io.Reader, privateKeySource int
 	}
 
 	return &Signer{
-		keyID:      keyID,
 		pubref:     pubKeyRef,
 		privEntity: privateKey,
 		baseSigReq: jsonsign.SignRequest{
@@ -104,10 +97,11 @@ func NewSigner(pubKeyRef blob.Ref, armoredPubKey io.Reader, privateKeySource int
 				},
 			},
 			EntityFetcher: entityFetcherFunc(func(wantKeyId string) (*openpgp.Entity, error) {
-				if privateKey.PrivateKey.KeyIdString() != wantKeyId &&
+				if fingerprint != wantKeyId &&
+					privateKey.PrivateKey.KeyIdString() != wantKeyId &&
 					privateKey.PrivateKey.KeyIdShortString() != wantKeyId {
 					return nil, fmt.Errorf("jsonsign code unexpectedly requested keyID %q; only have %q",
-						wantKeyId, keyID)
+						wantKeyId, fingerprint)
 				}
 				return privateKey, nil
 			}),

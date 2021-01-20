@@ -38,39 +38,21 @@ const publicKeyMaxSize = 256 * 1024
 
 // ParseArmoredPublicKey tries to parse an armored public key from r,
 // taking care to bound the amount it reads.
-// The returned shortKeyId is 8 capital hex digits.
+// The returned fingerprint is 40 capital hex digits.
 // The returned armoredKey is a copy of the contents read.
-func ParseArmoredPublicKey(r io.Reader) (shortKeyId, armoredKey string, err error) {
+func ParseArmoredPublicKey(r io.Reader) (fingerprint, armoredKey string, err error) {
 	var buf bytes.Buffer
 	pk, err := openArmoredPublicKeyFile(ioutil.NopCloser(io.TeeReader(r, &buf)))
 	if err != nil {
 		return
 	}
-	return publicKeyID(pk), buf.String(), nil
+	return fingerprintString(pk), buf.String(), nil
 }
 
-func VerifyPublicKeyFile(file, keyid string) (bool, error) {
-	f, err := wkfs.Open(file)
-	if err != nil {
-		return false, err
-	}
-
-	key, err := openArmoredPublicKeyFile(f)
-	if err != nil {
-		return false, err
-	}
-	keyID := publicKeyID(key)
-	if keyID != strings.ToUpper(keyid) {
-		return false, fmt.Errorf("Key in file %q has id %q; expected %q",
-			file, keyID, keyid)
-	}
-	return true, nil
-}
-
-// publicKeyID returns the short (8 character) capital hex GPG key ID
-// of the provided public key.
-func publicKeyID(pubKey *packet.PublicKey) string {
-	return fmt.Sprintf("%X", pubKey.Fingerprint[len(pubKey.Fingerprint)-4:])
+// fingerprintString returns the fingerprint (40 characters) capital hex GPG
+// key ID of the provided public key.
+func fingerprintString(pubKey *packet.PublicKey) string {
+	return fmt.Sprintf("%X", pubKey.Fingerprint)
 }
 
 func openArmoredPublicKeyFile(reader io.ReadCloser) (*packet.PublicKey, error) {
