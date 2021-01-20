@@ -1438,13 +1438,12 @@ func (c *Client) uploadPublicKey(ctx context.Context) error {
 // checkMatchingKeys compares the client's and the server's keys and logs if they differ.
 func (c *Client) checkMatchingKeys() {
 	serverKey, err := c.ServerKeyID()
-	// The server provides the full (16 digit) key fingerprint but schema.Signer only stores
-	// the short (8 digit) key ID.
-	if err == nil && len(serverKey) >= 8 {
-		shortServerKey := serverKey[len(serverKey)-8:]
-		if shortServerKey != c.signer.KeyID() {
-			log.Printf("Warning: client (%s) and server (%s) keys differ.", c.signer.KeyID(), shortServerKey)
-		}
+	if err != nil {
+		log.Printf("Warning: Could not obtain ther server's key id: %v", err)
+		return
+	}
+	if serverKey != c.signer.KeyIDLong() {
+		log.Printf("Warning: client (%s) and server (%s) keys differ.", c.signer.KeyIDLong(), serverKey)
 	}
 }
 
