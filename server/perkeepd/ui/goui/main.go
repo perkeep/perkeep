@@ -19,7 +19,6 @@ limitations under the License.
 package main
 
 import (
-	"perkeep.org/pkg/blob"
 	"perkeep.org/server/perkeepd/ui/goui/mapquery"
 
 	"github.com/gopherjs/gopherjs/js"
@@ -31,9 +30,5 @@ func main() {
 		"DeleteMapZoom":    mapquery.DeleteZoomPredicate,
 		"ShiftMapZoom":     mapquery.ShiftZoomPredicate,
 		"HasZoomParameter": mapquery.HasZoomParameter,
-		"IsBlobRef": func(ref string) bool {
-			_, ok := blob.Parse(ref)
-			return ok
-		},
 	})
 }
