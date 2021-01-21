@@ -60,6 +60,7 @@ goog.require('cam.SearchSession');
 goog.require('cam.ServerConnection');
 goog.require('cam.Sidebar');
 goog.require('cam.TagsControl');
+goog.require('cam.MapUtils');
 
 cam.IndexPage = React.createClass({
 	displayName: 'IndexPage',
@@ -197,7 +198,7 @@ cam.IndexPage = React.createClass({
 				return true;
 			}
 			// we favor the map aspect if a "map:" query parameter is found.
-			if (v.fragment == 'map' && goreact.HasZoomParameter(this.state.currentURL.getDecodedQuery())) {
+			if (v.fragment == 'map' && cam.MapUtils.hasZoomParameter(this.state.currentURL.getDecodedQuery())) {
 				return true;
 			}
 			return false;
@@ -259,9 +260,16 @@ cam.IndexPage = React.createClass({
 		var generalAspects = [
 			this.getSearchAspect_.bind(null, specificAspects),
 			cam.PermanodeDetail.getAspect.bind(null, this.props.serverConnection, this.props.timer, this.toggleKeyNavigation_),
-			cam.MapAspect.getAspect.bind(null, this.props.config,
-				this.props.availWidth, this.props.availHeight - this.HEADER_HEIGHT_,
-				this.updateSearchBarOnMap_, this.setPendingQuery_, this.childSearchSession_),
+			cam.MapAspect.getAspect.bind(
+				null,
+				this.props.config,
+				this.props.serverConnection,
+				this.props.availWidth,
+				this.props.availHeight - this.HEADER_HEIGHT_,
+				this.updateSearchBarOnMap_,
+				this.setPendingQuery_,
+				this.childSearchSession_,
+			),
 			cam.BlobDetail.getAspect.bind(null, this.getDetailURL_, this.props.serverConnection),
 		];
 

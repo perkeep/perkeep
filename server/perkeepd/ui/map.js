@@ -18,6 +18,8 @@ goog.provide('cam.MapAspect');
 
 goog.require('cam.SearchSession');
 goog.require('cam.Thumber');
+goog.require('cam.MapUtils');
+goog.require('cam.ServerConnection');
 
 // freeze/unfreeze cluster plugin, strongly inspired from
 // https://github.com/ghybs/Leaflet.MarkerCluster.Freezable
@@ -90,6 +92,7 @@ cam.MapAspect = React.createClass({
 		config: React.PropTypes.object.isRequired,
 		updateSearchBar: React.PropTypes.func.isRequired,
 		setPendingQuery: React.PropTypes.func.isRequired,
+		serverConnection: React.PropTypes.instanceOf(cam.ServerConnection).isRequired,
 	},
 
 	componentWillMount: function() {
@@ -184,7 +187,7 @@ cam.MapAspect = React.createClass({
 
 	triggerInitialZoom: function() {
 		var q = this.initialSearchSession.getQueryExprOrRef();
-		q = goreact.ShiftMapZoom(q);
+		q = cam.MapUtils.shiftZoomPredicate(q);
 		window.dispatchEvent(new Event('resize'));
 	},
 
@@ -208,17 +211,17 @@ cam.MapAspect = React.createClass({
 			q = 'has:location';
 		}
 		if (this.mapQuery == null) {
-			this.mapQuery = goreact.NewMapQuery(this.props.config.authToken, q, this.handleSearchResults,
+			this.mapQuery = cam.MapUtils.NewMapQuery(this.props.serverConnection, q, this.handleSearchResults,
 				function(){
 					this.props.setPendingQuery(false);
 				}.bind(this));
 			if (this.mapQuery == null) {
 				return;
 			}
-			this.mapQuery.SetLimit(this.QUERY_LIMIT_);
+			this.mapQuery.setLimit(this.QUERY_LIMIT_);
 		}
 		this.props.setPendingQuery(true);
-		this.mapQuery.Send();
+		this.mapQuery.send();
 	},
 
 	// TODO(mpl): if we add caching of the results to the gopherjs searchsession,
@@ -261,8 +264,7 @@ cam.MapAspect = React.createClass({
 		return (rm && rm.camliType == 'file' && rm.file.fileName) || (rm && rm.camliType == 'directory' && rm.dir.fileName) || '';
 	},
 
-	handleSearchResults: function(searchResultsJSON) {
-		var searchResults = JSON.parse(searchResultsJSON);
+	handleSearchResults: function(searchResults) {
 		var blobs = searchResults.blobs;
 		if (blobs == null) {
 			blobs = [];
@@ -400,7 +402,7 @@ cam.MapAspect = React.createClass({
 		// even if we're not here because of a zoom change (i.e. either first load, or
 		// new search was entered), we still call updateSearchBar here to update the zoom
 		// predicate right shift to the search bar.
-		this.props.updateSearchBar(this.mapQuery.GetExpr());
+		this.props.updateSearchBar(this.mapQuery.getExpr());
 	},
 
 	onMapClick: function() {
@@ -434,13 +436,22 @@ cam.MapAspect = React.createClass({
 			return;
 		}
 		var newBounds = this.map.getBounds();
-		this.mapQuery.SetZoom(newBounds.getNorth(), newBounds.getWest(), newBounds.getSouth(), newBounds.getEast());
+		this.mapQuery.setZoom(newBounds.getNorth(), newBounds.getWest(), newBounds.getSouth(), newBounds.getEast());
 		this.loadMarkers();
 	}
 });
 
-cam.MapAspect.getAspect = function(config, availWidth, availHeight, updateSearchBar, setPendingQuery,
-	childSearchSession, targetBlobRef, parentSearchSession) {
+cam.MapAspect.getAspect = function(
+	config,
+	serverConnection,
+	availWidth,
+	availHeight,
+	updateSearchBar,
+	setPendingQuery,
+	childSearchSession,
+	targetBlobRef,
+	parentSearchSession,
+) {
 	var searchSession = childSearchSession;
 	if (targetBlobRef) {
 		// we have a "ref:sha1-foobar" kind of query
@@ -467,6 +478,7 @@ cam.MapAspect.getAspect = function(config, availWidth, availHeight, updateSearch
 				searchSession: searchSession,
 				updateSearchBar: updateSearchBar,
 				setPendingQuery: setPendingQuery,
+				serverConnection: serverConnection,
 			});
 		},
 	};

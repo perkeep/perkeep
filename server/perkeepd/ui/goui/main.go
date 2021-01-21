@@ -19,16 +19,9 @@ limitations under the License.
 package main
 
 import (
-	"perkeep.org/server/perkeepd/ui/goui/mapquery"
-
 	"github.com/gopherjs/gopherjs/js"
 )
 
 func main() {
-	js.Global.Set("goreact", map[string]interface{}{
-		"NewMapQuery":      mapquery.New,
-		"DeleteMapZoom":    mapquery.DeleteZoomPredicate,
-		"ShiftMapZoom":     mapquery.ShiftZoomPredicate,
-		"HasZoomParameter": mapquery.HasZoomParameter,
-	})
+	js.Global.Set("goreact", map[string]interface{}{})
 }

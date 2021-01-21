@@ -22,6 +22,7 @@ goog.require('goog.Uri.QueryData');
 goog.require('goog.uri.utils');
 
 goog.require('cam.ServerConnection');
+goog.require('cam.MapUtils');
 
 // A search session is a standing query that notifies you when results change. It caches previous results and handles merging new data as it is received. It does not tell you _what_ changed; clients must reconcile as they see fit.
 //
@@ -101,7 +102,7 @@ cam.SearchSession.prototype.stripMapZoom = function(q) {
 		return null;
 	}
 	if (typeof q === 'string') {
-		return goreact.DeleteMapZoom(q);
+		return cam.MapUtils.deleteZoomPredicate(q);
 	}
 	return q;
 };
