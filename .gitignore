@@ -46,8 +46,6 @@ misc/docker/djpeg-static/djpeg.tar.gz
 misc/docker/perkeepd/perkeepd*
 misc/docker/perkeepd/djpeg
 pkg/server/zembed_favicon.ico.go
-server/perkeepd/ui/goui.js
-server/perkeepd/ui/goui.js.map
 server/perkeepd/ui/zembed_*
 server/perkeepd/ui/closure/z_data.go
 

@@ -70,10 +70,6 @@ func GenDepsWithPath(pathPrefix string, root http.FileSystem) ([]byte, error) {
 			// Emacs noise.
 			continue
 		}
-		if strings.HasPrefix(name, "goui.js") {
-			// because it is too large for bufio.Scanner
-			continue
-		}
 		f, err := root.Open(name)
 		if err != nil {
 			return nil, fmt.Errorf("Could not open %v: %v", name, err)

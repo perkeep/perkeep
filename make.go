@@ -51,21 +51,21 @@ import (
 var haveSQLite = checkHaveSQLite()
 
 var (
-	embedResources = flag.Bool("embed_static", true, "Whether to embed resources needed by the UI such as images, css, and javascript.")
-	sqlFlag        = flag.String("sqlite", "false", "Whether you want SQLite in your build: true, false, or auto.")
-	race           = flag.Bool("race", false, "Build race-detector version of binaries (they will run slowly)")
-	verbose        = flag.Bool("v", strings.Contains(os.Getenv("CAMLI_DEBUG_X"), "makego"), "Verbose mode")
-	targets        = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. '*' builds everything.  Empty builds defaults for this platform. Example: perkeep.org/server/perkeepd,perkeep.org/cmd/pk-put")
-	quiet          = flag.Bool("quiet", false, "Don't print anything unless there's a failure.")
-	buildARCH      = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
-	buildOS        = flag.String("os", runtime.GOOS, "Operating system to build for.")
-	buildARM       = flag.String("arm", "7", "ARM version to use if building for ARM. Note that this version applies even if the host arch is ARM too (and possibly of a different version).")
-	stampVersion   = flag.Bool("stampversion", true, "Stamp version into buildinfo.GitInfo")
-	website        = flag.Bool("website", false, "Just build the website.")
-	camnetdns      = flag.Bool("camnetdns", false, "Just build perkeep.org/server/camnetdns.")
-	static         = flag.Bool("static", false, "Build a static binary, so it can run in an empty container.")
-	buildWebUI     = flag.Bool("buildWebUI", false, "Rebuild the JS code of the web UI instead of fetching it from perkeep.org.")
-	offline        = flag.Bool("offline", false, "Do not fetch the JS code for the web UI from perkeep.org. If not rebuilding the web UI, just trust the files on disk (if they exist).")
+	embedResources   = flag.Bool("embed_static", true, "Whether to embed resources needed by the UI such as images, css, and javascript.")
+	sqlFlag          = flag.String("sqlite", "false", "Whether you want SQLite in your build: true, false, or auto.")
+	race             = flag.Bool("race", false, "Build race-detector version of binaries (they will run slowly)")
+	verbose          = flag.Bool("v", strings.Contains(os.Getenv("CAMLI_DEBUG_X"), "makego"), "Verbose mode")
+	targets          = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. '*' builds everything.  Empty builds defaults for this platform. Example: perkeep.org/server/perkeepd,perkeep.org/cmd/pk-put")
+	quiet            = flag.Bool("quiet", false, "Don't print anything unless there's a failure.")
+	buildARCH        = flag.String("arch", runtime.GOARCH, "Architecture to build for.")
+	buildOS          = flag.String("os", runtime.GOOS, "Operating system to build for.")
+	buildARM         = flag.String("arm", "7", "ARM version to use if building for ARM. Note that this version applies even if the host arch is ARM too (and possibly of a different version).")
+	stampVersion     = flag.Bool("stampversion", true, "Stamp version into buildinfo.GitInfo")
+	website          = flag.Bool("website", false, "Just build the website.")
+	camnetdns        = flag.Bool("camnetdns", false, "Just build perkeep.org/server/camnetdns.")
+	static           = flag.Bool("static", false, "Build a static binary, so it can run in an empty container.")
+	buildPublisherUI = flag.Bool("buildPublisherUI", false, "Rebuild the JS code of the web UI instead of fetching it from perkeep.org.")
+	offline          = flag.Bool("offline", false, "Do not fetch the JS code for the web UI from perkeep.org. If not rebuilding the web UI, just trust the files on disk (if they exist).")
 )
 
 var (
@@ -145,12 +145,14 @@ func main() {
 		}
 	}
 
-	withPerkeepd := stringListContains(targs, "perkeep.org/server/perkeepd")
 	withPublisher := stringListContains(targs, "perkeep.org/app/publisher")
-	if err := doUI(withPerkeepd, withPublisher); err != nil {
-		log.Fatal(err)
+	if withPublisher {
+		if err := doPublisherUI(); err != nil {
+			log.Fatal(err)
+		}
 	}
 
+	withPerkeepd := stringListContains(targs, "perkeep.org/server/perkeepd")
 	if *embedResources && withPerkeepd {
 		doEmbed()
 	}
@@ -261,8 +263,6 @@ func baseDirName(sql bool) string {
 
 const (
 	publisherJS    = "app/publisher/publisher.js"
-	gopherjsUI     = "server/perkeepd/ui/goui.js"
-	gopherjsUIURL  = "https://storage.googleapis.com/perkeep-release/gopherjs/goui.js"
 	publisherJSURL = "https://storage.googleapis.com/perkeep-release/gopherjs/publisher.js"
 )
 
@@ -310,12 +310,6 @@ func genPublisherJS() error {
 	}
 	output := filepath.Join(pkRoot, filepath.FromSlash(publisherJS))
 	pkg := "perkeep.org/app/publisher/js"
-	return genJS(pkg, output)
-}
-
-func genWebUIJS() error {
-	output := filepath.Join(pkRoot, filepath.FromSlash(gopherjsUI))
-	pkg := "perkeep.org/server/perkeepd/ui/goui"
 	return genJS(pkg, output)
 }
 
@@ -393,63 +387,6 @@ func runGopherJS(pkg string) error {
 	return nil
 }
 
-// genWebUIReact runs go generate on the gopherjs code of the web UI, which
-// invokes reactGen on the Go React components. This generates the boilerplate
-// code, in gen_*_reactGen.go files, required to complete those components.
-func genWebUIReact() error {
-	args := []string{"generate", "-v", "perkeep.org/server/perkeepd/ui/goui/..."}
-
-	path := strings.Join([]string{
-		binDir,
-		os.Getenv("PATH"),
-	}, string(os.PathListSeparator))
-
-	cmd := exec.Command("go", args...)
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "PATH="+path)
-	var buf bytes.Buffer
-	cmd.Stderr = &buf
-	cmd.Env = append(os.Environ(), "GO111MODULE=off")
-	err := cmd.Run()
-	if err != nil {
-		return fmt.Errorf("go generate for web UI error: %v, %v", err, buf.String())
-	}
-	if *verbose {
-		fmt.Println(buf.String())
-	}
-	return nil
-}
-
-// makeJS builds and runs the gopherjs command on perkeep.org/app/publisher/js
-// and perkeep.org/server/perkeepd/ui/goui
-func makeJS(doWebUI, doPublisher bool) error {
-	if doPublisher {
-		if err := genPublisherJS(); err != nil {
-			return err
-		}
-	}
-	if doWebUI {
-		if err := genWebUIJS(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func fetchAllJS(doWebUI, doPublisher bool) error {
-	if doPublisher {
-		if err := fetchJS(publisherJSURL, filepath.FromSlash(publisherJS)); err != nil {
-			return err
-		}
-	}
-	if doWebUI {
-		if err := fetchJS(gopherjsUIURL, filepath.FromSlash(gopherjsUI)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // fetchJS gets the javascript resource at jsURL and writes it to jsOnDisk.
 // Since said resource can be quite large, it first fetches the hashsum contained
 // in the file at jsURL+".sha256", and if we already have the file on disk, with a
@@ -521,49 +458,25 @@ func fetchJS(jsURL, jsOnDisk string) error {
 	return nil
 }
 
-func doUI(withPerkeepd, withPublisher bool) error {
-	if !withPerkeepd && !withPublisher {
-		return nil
-	}
-
-	if !*buildWebUI {
+func doPublisherUI() error {
+	if !*buildPublisherUI {
 		if !*offline {
-			return fetchAllJS(withPerkeepd, withPublisher)
+			return fetchJS(publisherJSURL, filepath.FromSlash(publisherJS))
 		}
-		if withPublisher {
-			_, err := os.Stat(filepath.FromSlash(publisherJS))
-			if os.IsNotExist(err) {
-				return fmt.Errorf("%s on disk is required for offline building. Fetch if first at %s.", publisherJS, publisherJSURL)
-			}
-			if err != nil {
-				return err
-			}
+		_, err := os.Stat(filepath.FromSlash(publisherJS))
+		if os.IsNotExist(err) {
+			return fmt.Errorf("%s on disk is required for offline building. Fetch if first at %s.", publisherJS, publisherJSURL)
 		}
-		if withPerkeepd {
-			_, err := os.Stat(filepath.FromSlash(gopherjsUI))
-			if os.IsNotExist(err) {
-				return fmt.Errorf("%s on disk is required for offline building. Fetch if first at %s.", gopherjsUI, gopherjsUIURL)
-			}
-			if err != nil {
-				return err
-			}
-		}
-		return nil
+		return err
 	}
 
 	if err := buildReactGen(); err != nil {
 		return err
 	}
 
-	if withPerkeepd {
-		if err := genWebUIReact(); err != nil {
-			return err
-		}
-	}
-
 	// gopherjs has to run before doEmbed since we need all the javascript
 	// to be generated before embedding happens.
-	return makeJS(withPerkeepd, withPublisher)
+	return genPublisherJS()
 }
 
 // Create an environment variable of the form key=value.
@@ -769,7 +682,7 @@ func verifyPerkeepRoot() {
 	// we can't rely on perkeep.org/cmd/pk with modules on as we have no assurance
 	// the current dir is $GOPATH/src/perkeep.org, so we use ./cmd/pk instead.
 	cmd := exec.Command("go", "list", "-f", "{{.Target}}", "./cmd/pk")
-	if os.Getenv("GO111MODULE") == "off" || *buildWebUI {
+	if os.Getenv("GO111MODULE") == "off" || *buildPublisherUI {
 		// if we're building the webUI we need to be in "legacy" GOPATH mode, so in
 		// $GOPATH/src/perkeep.org
 		if err := validateDirInGOPATH(pkRoot); err != nil {
