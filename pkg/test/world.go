@@ -111,7 +111,7 @@ func (w *World) Build() error {
 		cmd := exec.Command("go", "run", "make.go",
 			"--embed_static=false",
 			"--stampversion=false",
-			"--buildWebUI=false",
+			"--buildPublisherUI=false",
 			"--targets="+strings.Join([]string{
 				"perkeep.org/server/perkeepd",
 				"perkeep.org/cmd/pk",
