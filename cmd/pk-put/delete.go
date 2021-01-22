@@ -42,6 +42,12 @@ func (c *deleteCmd) Usage() {
 	cmdmain.Errorf("Usage: pk-put [globalopts] delete <blobref1> [blobref2]...")
 }
 
+func (c *deleteCmd) Examples() []string {
+	return []string{
+		"<permanode>",
+	}
+}
+
 func (c *deleteCmd) RunCommand(args []string) error {
 	if len(args) < 1 {
 		return cmdmain.UsageError("Need at least one blob to delete.")
