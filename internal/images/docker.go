@@ -17,6 +17,7 @@ limitations under the License.
 package images // import "perkeep.org/internal/images"
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -66,12 +67,26 @@ func haveDocker() bool {
 }
 
 func haveImageID(name, id string) (ok bool, err error) {
-	out, err := exec.Command("docker", "inspect", "-f", "{{.Id}}", name).Output()
+	out, err := exec.Command(
+		"docker",
+		"images",
+		"--quiet",
+		"--no-trunc",
+		"--format",
+		"{{.ID}}",
+		name,
+	).Output()
 	if err != nil {
 		return false, err
 	}
-	have := strings.TrimSpace(string(out))
-	return have == id, nil
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	for scanner.Scan() {
+		line := strings.TrimSpace((scanner.Text()))
+		if line == id {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // Pull retrieves the docker image with 'docker pull'.
