@@ -66,7 +66,7 @@ func haveDocker() bool {
 }
 
 func haveImageID(name, id string) (ok bool, err error) {
-	out, err := exec.Command("docker", "inspect", "-f", "{{.Id}}", name).Output()
+	out, err := exec.Command("docker", "inspect", "--format", "{{.Id}}", name).Output()
 	if err != nil {
 		return false, err
 	}
