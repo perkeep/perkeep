@@ -75,7 +75,7 @@ type Client struct {
 	storageGen             string      // storage generation, or "" if not reported
 	hasLegacySHA1          bool        // Whether server has SHA-1 blobs indexed.
 	syncHandlers           []*SyncInfo // "from" and "to" url prefix for each syncHandler
-	serverKeyID            string      // Server's GPG public key ID.
+	serverKeyFingerprint   string      // Server's GPG public key fingerprint.
 	helpRoot               string      // Handler prefix, or "" if none
 	shareRoot              string      // Share handler prefix, or "" if none
 	serverPublicKeyBlobRef blob.Ref    // Server's public key blobRef
@@ -565,17 +565,17 @@ func (c *Client) BlobRoot() (string, error) {
 	return prefix + "/", nil
 }
 
-// ServerKeyID returns the server's GPG public key ID, in its long (16 capital
-// hex digits) format. If the server isn't running a sign handler, the error
-// will be ErrNoSigning.
-func (c *Client) ServerKeyID() (string, error) {
+// ServerKeyFingerprint returns the server's GPG public key fingerprint,
+// in its full (40 capital hex digits) format. If the server isn't running
+// a sign handler, the error will be ErrNoSigning.
+func (c *Client) ServerKeyFingerprint() (string, error) {
 	if err := c.condDiscovery(); err != nil {
 		return "", err
 	}
-	if c.serverKeyID == "" {
+	if c.serverKeyFingerprint == "" {
 		return "", ErrNoSigning
 	}
-	return c.serverKeyID, nil
+	return c.serverKeyFingerprint, nil
 }
 
 // ServerPublicKeyBlobRef returns the server's public key blobRef
@@ -1147,7 +1147,7 @@ func (c *Client) doDiscovery() error {
 	}
 
 	if disco.Signing != nil {
-		c.serverKeyID = disco.Signing.PublicKeyID
+		c.serverKeyFingerprint = disco.Signing.PublicKeyFingerprint
 		c.serverPublicKeyBlobRef = disco.Signing.PublicKeyBlobRef
 		c.signHandler = disco.Signing.SignHandler
 	}
@@ -1437,13 +1437,13 @@ func (c *Client) uploadPublicKey(ctx context.Context) error {
 
 // checkMatchingKeys compares the client's and the server's keys and logs if they differ.
 func (c *Client) checkMatchingKeys() {
-	serverKey, err := c.ServerKeyID()
+	serverFingerprint, err := c.ServerKeyFingerprint()
 	if err != nil {
-		log.Printf("Warning: Could not obtain ther server's key id: %v", err)
+		log.Printf("Warning: Could not obtain the server's key fingerprint: %v", err)
 		return
 	}
-	if serverKey != c.signer.KeyIDLong() {
-		log.Printf("Warning: client (%s) and server (%s) keys differ.", c.signer.KeyIDLong(), serverKey)
+	if serverFingerprint != c.signer.Fingerprint() {
+		log.Printf("Warning: client (%s) and server (%s) key fingerprints differ.", c.signer.Fingerprint(), serverFingerprint)
 	}
 }
 

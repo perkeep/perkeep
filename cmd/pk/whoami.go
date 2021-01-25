@@ -81,7 +81,7 @@ func (c *whoamiCmd) RunCommand(args []string) error {
 }
 
 func whoamiIdentity(c *client.Client, s *schema.Signer) error {
-	v := s.KeyIDLong()
+	v := s.Fingerprint()
 	if v == "" {
 		return errors.New("no configured identity")
 	}

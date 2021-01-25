@@ -44,12 +44,17 @@ type Signer struct {
 }
 
 func (s *Signer) String() string {
-	return fmt.Sprintf("[*schema.Signer for key=%s pubkey=%s]", s.KeyIDLong(), s.pubref)
+	return fmt.Sprintf("[*schema.Signer for key=%s pubkey=%s]", s.Fingerprint(), s.pubref)
 }
 
 // KeyIDLong returns the long (16 digit) capital hex GPG key ID.
 func (s *Signer) KeyIDLong() string {
 	return s.privEntity.PrivateKey.KeyIdString()
+}
+
+// Fingerprint returns the (40 characters) capital hex GPG key fingerprint.
+func (s *Signer) Fingerprint() string {
+	return fmt.Sprintf("%X", s.privEntity.PrivateKey.Fingerprint)
 }
 
 // Entity returns the signer's entity, which includes its public and private keys.

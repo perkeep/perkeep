@@ -46,12 +46,12 @@ func ParseArmoredPublicKey(r io.Reader) (fingerprint, armoredKey string, err err
 	if err != nil {
 		return
 	}
-	return fingerprintString(pk), buf.String(), nil
+	return FingerprintString(pk), buf.String(), nil
 }
 
-// fingerprintString returns the fingerprint (40 characters) capital hex GPG
+// FingerprintString returns the fingerprint (40 characters) capital hex GPG
 // key ID of the provided public key.
-func fingerprintString(pubKey *packet.PublicKey) string {
+func FingerprintString(pubKey *packet.PublicKey) string {
 	return fmt.Sprintf("%X", pubKey.Fingerprint)
 }
 
