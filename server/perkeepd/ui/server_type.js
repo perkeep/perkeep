@@ -38,6 +38,7 @@ cam.ServerType.DiscoveryDocument;
  *   publicKey: string,
  *   publicKeyBlobRef: string,
  *   publicKeyId: string,
+ *   publicKeyFingerprint: (string|undefined),
  *   signHandler: string,
  *   verifyHandler: string
  * }}

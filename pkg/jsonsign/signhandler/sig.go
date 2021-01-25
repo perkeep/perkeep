@@ -167,9 +167,10 @@ func (h *Handler) UploadPublicKey(ctx context.Context) error {
 // Discovery returns the Discovery response for the signing handler.
 func (h *Handler) Discovery(base string) *camtypes.SignDiscovery {
 	sd := &camtypes.SignDiscovery{
-		PublicKeyID:   h.entity.PrimaryKey.KeyIdString(),
-		SignHandler:   base + "camli/sig/sign",
-		VerifyHandler: base + "camli/sig/verify",
+		PublicKeyID:          h.entity.PrimaryKey.KeyIdString(),
+		PublicKeyFingerprint: h.signer.Fingerprint(),
+		SignHandler:          base + "camli/sig/sign",
+		VerifyHandler:        base + "camli/sig/verify",
 	}
 	if h.pubKeyBlobRef.Valid() {
 		sd.PublicKeyBlobRef = h.pubKeyBlobRef

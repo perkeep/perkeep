@@ -51,6 +51,11 @@ func (s *Signer) KeyIDLong() string {
 	return s.privEntity.PrivateKey.KeyIdString()
 }
 
+// Fingerprint returns the full uppercase hexadecimal GPG key fingerprint.
+func (s *Signer) Fingerprint() string {
+	return fmt.Sprintf("%X", s.privEntity.PrivateKey.Fingerprint)
+}
+
 // Entity returns the signer's entity, which includes its public and private keys.
 func (s *Signer) Entity() *openpgp.Entity {
 	return s.privEntity
