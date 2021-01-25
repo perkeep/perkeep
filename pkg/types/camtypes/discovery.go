@@ -78,8 +78,11 @@ type SignDiscovery struct {
 	PublicKey string `json:"publicKey,omitempty"`
 	// PublicKeyBlobRef is the blob.Ref for the public key.
 	PublicKeyBlobRef blob.Ref `json:"publicKeyBlobRef,omitempty"`
-	// PublicKeyID is the ID of the public key.
+	// PublicKeyID is the long ID of the public key, retained for older clients.
 	PublicKeyID string `json:"publicKeyId"`
+	// PublicKeyFingerprint is the full uppercase hexadecimal public key fingerprint.
+	// Older servers may omit it.
+	PublicKeyFingerprint string `json:"publicKeyFingerprint,omitempty"`
 	// SignHandler is the URL path prefix to the signing handler.
 	SignHandler string `json:"signHandler"`
 	// VerifyHandler it the URL path prefix to the signature verification handler.
