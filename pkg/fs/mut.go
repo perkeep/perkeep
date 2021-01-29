@@ -195,7 +195,7 @@ func (n *mutDir) populate() error {
 				Logger.Printf("child content not described: %v", childRef)
 				continue
 			}
-			if content.CamliType != "file" {
+			if content.CamliType != schema.TypeFile {
 				Logger.Printf("child not a file: %v", childRef)
 				continue
 			}
