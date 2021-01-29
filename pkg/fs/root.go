@@ -27,6 +27,7 @@ import (
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
 	"perkeep.org/pkg/blob"
+	"perkeep.org/pkg/schema"
 )
 
 // root implements fuse.Node and is the typical root of a
@@ -136,12 +137,18 @@ func (n *root) Lookup(ctx context.Context, name string) (fs.Node, error) {
 	if br, ok := blob.Parse(name); ok {
 		Logger.Printf("Root lookup of blobref. %q => %v", name, br)
 		node := &node{fs: n.fs, blobref: br}
-		if _, err := node.schema(ctx); err != nil {
+		meta, err := node.schema(ctx)
+		if err != nil {
 			if os.IsNotExist(err) {
 				return nil, fuse.ENOENT
 			} else {
 				return nil, handleEIOorEINTR(err)
 			}
+		}
+		if meta.Type() == schema.TypePermanode {
+			// Use the same mutable directory as an explicitly rooted mount.
+			// The schema is already cached, so this does not fetch it again.
+			return n.fs.newNodeFromBlobRef(br)
 		}
 		return node, nil
 	}
