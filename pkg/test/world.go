@@ -311,6 +311,15 @@ func (w *World) NewPermanode(t *testing.T) blob.Ref {
 	return br
 }
 
+func (w *World) PutFile(t *testing.T, name string) blob.Ref {
+	out := MustRunCmd(t, w.Cmd("pk-put", "file", name))
+	br, ok := blob.Parse(strings.TrimSpace(out))
+	if !ok {
+		t.Fatalf("Expected blobref in pk-put stdout; got %q", out)
+	}
+	return br
+}
+
 func (w *World) Cmd(binary string, args ...string) *exec.Cmd {
 	return w.CmdWithEnv(binary, os.Environ(), args...)
 }

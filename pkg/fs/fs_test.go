@@ -90,6 +90,7 @@ type mountEnv struct {
 	t          *testing.T
 	mountPoint string
 	process    *os.Process
+	world      *test.World
 }
 
 func (e *mountEnv) Stat(s *stat) int64 {
@@ -200,6 +201,7 @@ func pkmountTest(t *testing.T, fn func(env *mountEnv)) {
 		t:          t,
 		mountPoint: mountPoint,
 		process:    mount.Process,
+		world:      w,
 	})
 
 }
@@ -220,6 +222,33 @@ func TestRoot(t *testing.T) {
 		want := []string{"WELCOME.txt", "at", "date", "recent", "roots", "sha1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "sha224-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "tag", "versions"}
 		if !reflect.DeepEqual(names, want) {
 			t.Errorf("root directory = %q; want %q", names, want)
+		}
+	})
+}
+
+func TestReadFileFromRoot(t *testing.T) {
+	condSkip(t)
+	pkmountTest(t, func(env *mountEnv) {
+		// pk-put a file
+		tmpFile, err := ioutil.TempFile(t.TempDir(), "camlitest")
+		if err != nil {
+			t.Fatal(err)
+		}
+		testContent := "some test content"
+		tmpFile.WriteString(testContent)
+		blobRef := env.world.PutFile(t, tmpFile.Name())
+
+		// Read it using the file's blobref
+		if contents, err := ioutil.ReadFile(filepath.Join(env.mountPoint, blobRef.String())); err != nil {
+			t.Fatal(err)
+		} else if got := string(contents); got != testContent {
+			t.Fatalf("Expected test content, got %q", got)
+		}
+
+		// Read a non-existing blobref, should return NotExist.
+		badRefPath := filepath.Join(env.mountPoint, "sha224-1853501438ffe541dd1e48b9efc4a230f67f7b98afe83df24bfbfa25")
+		if _, err := os.Stat(badRefPath); !os.IsNotExist(err) {
+			t.Fatalf("expected NotExist; got stat err = %v instead", err)
 		}
 	})
 }
