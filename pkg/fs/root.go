@@ -135,7 +135,7 @@ func (n *root) Lookup(ctx context.Context, name string) (fs.Node, error) {
 
 	if br, ok := blob.Parse(name); ok {
 		Logger.Printf("Root lookup of blobref. %q => %v", name, br)
-		return &node{fs: n.fs, blobref: br}, nil
+		return n.fs.newNodeFromBlobRef(br)
 	}
 	Logger.Printf("Bogus root lookup of %q", name)
 	return nil, fuse.ENOENT

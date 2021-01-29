@@ -89,6 +89,14 @@ func NewRootedCamliFileSystem(cli *client.Client, fetcher blob.Fetcher, root blo
 	fs := newCamliFileSystem(fetcher)
 	fs.client = cli
 
+	blob, err := fs.fetchSchemaMeta(context.TODO(), root)
+	if err != nil {
+		return nil, err
+	}
+	if blobType := blob.Type(); blobType != schema.TypeDirectory && blobType != schema.TypePermanode {
+		return nil, fmt.Errorf("Blobref must be of a directory or permanode got a %v", blobType)
+	}
+
 	n, err := fs.newNodeFromBlobRef(root)
 
 	if err != nil {
@@ -363,7 +371,7 @@ func (fs *CamliFileSystem) fetchSchemaMeta(ctx context.Context, br blob.Ref) (*s
 	return blob, nil
 }
 
-// consolated logic for determining a node to mount based on an arbitrary blobref
+// consolated logic for creating a node based on an arbitrary blobref
 func (fs *CamliFileSystem) newNodeFromBlobRef(root blob.Ref) (fusefs.Node, error) {
 	blob, err := fs.fetchSchemaMeta(context.TODO(), root)
 	if err != nil {
@@ -379,9 +387,12 @@ func (fs *CamliFileSystem) newNodeFromBlobRef(root blob.Ref) (fusefs.Node, error
 	case schema.TypePermanode:
 		// other mutDirs listed in the default fileystem have names and are displayed
 		return &mutDir{fs: fs, permanode: root, name: "-"}, nil
+
+	case schema.TypeFile:
+		return &node{fs: fs, blobref: root}, nil
 	}
 
-	return nil, fmt.Errorf("Blobref must be of a directory or permanode got a %v", blob.Type())
+	return nil, fmt.Errorf("Blobref must be of a directory, permanode, or a File, got a %v", blob.Type())
 }
 
 type notImplementDirNode struct{}
