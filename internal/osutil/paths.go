@@ -59,6 +59,9 @@ func CacheDir() string {
 }
 
 func cacheDir() string {
+	if d := os.Getenv("PERKEEP_CACHE_DIR"); d != "" {
+		return d
+	}
 	if d := os.Getenv("CAMLI_CACHE_DIR"); d != "" {
 		return d
 	}
@@ -72,15 +75,15 @@ func cacheDir() string {
 		// both. This seems to work.
 		for _, ev := range []string{"TEMP", "TMP"} {
 			if v := os.Getenv(ev); v != "" {
-				return filepath.Join(v, "Camlistore")
+				return filepath.Join(v, "Perkeep")
 			}
 		}
 		panic("No Windows TEMP or TMP environment variables found; please file a bug report.")
 	}
 	if xdg := os.Getenv("XDG_CACHE_HOME"); xdg != "" {
-		return filepath.Join(xdg, "camlistore")
+		return filepath.Join(xdg, "perkeep")
 	}
-	return filepath.Join(HomeDir(), ".cache", "camlistore")
+	return filepath.Join(HomeDir(), ".cache", "perkeep")
 }
 
 func makeCacheDir() {

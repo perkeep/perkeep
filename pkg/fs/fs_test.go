@@ -141,15 +141,7 @@ func pkmountTest(t *testing.T, fn func(env *mountEnv)) {
 	defer log.SetOutput(os.Stderr)
 
 	w := test.GetWorld(t)
-	mountPoint, err := ioutil.TempDir("", "fs-test-mount")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := os.RemoveAll(mountPoint); err != nil {
-			t.Fatal(err)
-		}
-	}()
+	mountPoint := t.TempDir()
 	verbose := "false"
 	var stderrDest io.Writer = ioutil.Discard
 	if v, _ := strconv.ParseBool(os.Getenv("VERBOSE_FUSE")); v {
@@ -160,7 +152,15 @@ func pkmountTest(t *testing.T, fn func(env *mountEnv)) {
 		stderrDest = io.MultiWriter(stderrDest, os.Stderr)
 	}
 
-	mount := w.Cmd("pk-mount", "--debug="+verbose, mountPoint)
+	mount := w.CmdWithEnv(
+		"pk-mount",
+		append(
+			os.Environ(),
+			"PERKEEP_CACHE_DIR="+t.TempDir(),
+		),
+		"--debug="+verbose,
+		mountPoint,
+	)
 	mount.Stderr = stderrDest
 	mount.Env = append(mount.Env, "CAMLI_TRACK_FS_STATS=1")
 
