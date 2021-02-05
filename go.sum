@@ -243,8 +243,8 @@ github.com/mailgun/mailgun-go v0.0.0-20171127222028-17e8bd11e87c/go.mod h1:NWTyU
 github.com/mattn/go-colorable v0.1.1/go.mod h1:FuOcm+DKB9mbwrcAfNl7/TZVBZ6rcnceauSikq3lYCQ=
 github.com/mattn/go-isatty v0.0.5/go.mod h1:Iq45c/XA43vh69/j3iqttzPXn0bhXyGjM0Hdxcsrc5s=
 github.com/mattn/go-isatty v0.0.7/go.mod h1:Iq45c/XA43vh69/j3iqttzPXn0bhXyGjM0Hdxcsrc5s=
-github.com/mattn/go-mastodon v0.0.5-0.20190517015615-8f6192e26b66 h1:TbnaLJhq+sFuqZ1wxdfF5Uk7A2J41iOobCCFnLI+RPE=
-github.com/mattn/go-mastodon v0.0.5-0.20190517015615-8f6192e26b66/go.mod h1:ZBkemyyYYhNAN5JJ0H/ZSW8HfPCW45rHFHyWNwSfpTA=
+github.com/mattn/go-mastodon v0.0.4 h1:+F2RbXbHkiBfx6SXMJEvEwZ0i8pI9nMnZhKkvjxq9Rs=
+github.com/mattn/go-mastodon v0.0.4/go.mod h1:ZBkemyyYYhNAN5JJ0H/ZSW8HfPCW45rHFHyWNwSfpTA=
 github.com/mattn/go-sqlite3 v1.14.7-0.20201227235208-3cbdae750e52 h1:UyFNu0Tv5cEd/VPtY73BK//owiWwcBZvsOkwdVdR3FY=
 github.com/mattn/go-sqlite3 v1.14.7-0.20201227235208-3cbdae750e52/go.mod h1:NyWgC/yNuGj7Q9rpYnZvas74GogHl5/Z4A/KQRfk6bU=
 github.com/mattn/go-tty v0.0.0-20190424173100-523744f04859/go.mod h1:XPvLUNfbS4fJH25nqRHfWLMa1ONC8Amw+mIA639KxkE=
