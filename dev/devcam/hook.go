@@ -55,7 +55,7 @@ func (c *hookCmd) installHook() error {
 		}
 	}
 	for _, hookFile := range hookFiles {
-		filename := hookDir + hookFile
+		filename := filepath.Join(hookDir, hookFile)
 		hookContent := fmt.Sprintf(hookScript, hookFile)
 		// If hook file exists, assume it is okay.
 		_, err := os.Stat(filename)
