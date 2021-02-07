@@ -48,6 +48,7 @@ on the [mailing list](https://groups.google.com/group/camlistore).
 * [Protocol](/doc/protocol/): HTTP APIs (discovery, blob storage, JSON signing, ...)
 * [JSON Signing](/doc/json-signing/)
 * [Sharing](/doc/sharing.md)
+* [Environement Variables](/doc/environment-vars.md)
 
 
 ## Presentations {#presentations}

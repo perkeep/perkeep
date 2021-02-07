@@ -10,7 +10,11 @@ valid.
 [strconv.ParseBool]: https://golang.org/pkg/strconv/#ParseBool
 [strconv.Atoi]: https://golang.org/pkg/strconv/#Atoi
 
-`AWS_ACCESS_KEY_ID` (string) and `AWS_ACCESS_KEY_SECRET` (string)
+## General
+
+`AWS_ACCESS_KEY_ID` (string)
+and
+`AWS_ACCESS_KEY_SECRET` (string)
 : See http://docs.aws.amazon.com/fws/1.1/GettingStartedGuide/index.html?AWSCredentials.html.
   Used in s3 tests.  If not set some tests are skip.  If set, queries will be
   sent to Amazon's S3 service.
@@ -29,6 +33,8 @@ valid.
 `CAMLI_BASEURL` (string)
 : URL set in devcam to act as a baseURL in the devcam launched perkeepd.
 
+`PERKEEP_CACHE_DIR` (string)
+or
 `CAMLI_CACHE_DIR` (string)
 : Path used by [pkg/osutil](/pkg/osutil) to override operating system specific
   cache directory.
@@ -41,20 +47,6 @@ valid.
 : Backend specific data source name (DSN).
   Set in devcam to pass database configuration for the indexer to the devcam
   launched perkeepd.
-
-`CAMLI_DEBUG` (bool)
-: Used by perkeepd and pk put to enable additional commandline options.
-  Used in pkg/schema to enable additional logging.
-
-`CAMLI_DEBUG_CONFIG` (bool)
-: Causes pkg/serverconfig to dump low-level configuration derived from
-  high-level configuation on load.
-
-`CAMLI_DEBUG_X` (string)
-: String containing magic substring(s) to enable debuggging in code.
-
-`CAMLI_DEBUG_UPLOADS` (bool)
-: Used by [pkg/client](/pkg/client) to enable additional logging.
 
 `CAMLI_DEFAULT_SERVER` (string)
 : The server alias to use by default. The string is the server's alias key
@@ -74,10 +66,6 @@ valid.
 `CAMLI_DISABLE_IMPORTERS` (bool)
 : If true, importers are disabled (at least automatic background
   importing, e.g. at start-up). Mostly for debugging.
-
-`CAMLI_FAST_DEV` (bool)
-: Used by dev/demo.sh for giving presentations with devcam server/put/etc
-  for faster pre-built builds, without calling make.go.
 
 `CAMLI_FORCE_OSARCH` (bool)
   Used by make.go to force building an unrecommended OS/ARCH pair.
@@ -125,11 +113,8 @@ valid.
   CAMLI_GOPHERJS_GOROOT should be set to a Go 1.10 root so that gopherjs can be
   built with Go 1.10. Otherwise it defaults to $HOME/go1.10.
 
-`CAMLI_HELLO_ENABLED (bool)
+`CAMLI_HELLO_ENABLED` (bool)
 : Whether to start the hello world app as well. Variable used only by devcam server.
-
-`CAMLI_HTTP_DEBUG` (bool)
-: Enable per-request logging in [pkg/webserver](/pkg/webserver).
 
 `CAMLI_HTTP_EXPVAR` (bool)
 : Enable json export of expvars at /debug/vars
@@ -191,11 +176,6 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
 : Path to the GPG secret keyring, which is otherwise set by identitySecretRing
   in the server config, and secretRing in the client config.
 
-`CAMLI_SHA1_ENABLED (bool)
-: Whether to enable the use of legacy sha1 blobs. Only used for development, for
-  creating new blobs with the legacy SHA-1 hash, instead of with the current one.
-  It does not affect the ability of Perkeep to read SHA-1 blobs.
-
 `CAMLI_DISABLE_CLIENT_CONFIG_FILE` (bool)
 : If set, the [pkg/client](/pkg/client) code will never use the on-disk config
   file.
@@ -209,10 +189,6 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
 
 `CAMPUT_ANDROID_OUTPUT` (bool)
 : Enable pkg/client status messages to print to stdout. Used in android client.
-
-`CAMLI_DEBUG_IMAGES` (bool)
-: Enable extra debugging in [pkg/images](/pkg/images) when decoding images.
-  Used by indexers.
 
 `CAMLI_DISABLE_DJPEG` (bool)
 : Disable use of djpeg(1) to down-sample JPEG images by a factor of 2, 4 or 8.
@@ -236,9 +212,83 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
 : Number from 0-100 of what percentage of the time to fail receiving blobs
   for the S3 handler.
 
+## Development
+
+`CAMLI_DEBUG` (bool)
+: Used by perkeepd and pk put to enable additional commandline options.
+  Used in pkg/schema to enable additional logging.
+
+`CAMLI_HTTP_DEBUG` (bool)
+: Enable per-request logging in [pkg/webserver](/pkg/webserver).
+
+`CAMLI_DEBUG_CONFIG` (bool)
+: Causes pkg/serverconfig to dump low-level configuration derived from
+  high-level configuation on load.
+
+`CAMLI_DEBUG_X` (string)
+: String containing magic substring(s) to enable debuggging in code.
+
+`CAMLI_DEBUG_UPLOADS` (bool)
+: Used by [pkg/client](/pkg/client) to enable additional logging.
+
+`CAMLI_DEBUG_IMAGES` (bool)
+: Enable extra debugging in [pkg/images](/pkg/images) when decoding images.
+  Used by indexers.
+
+`CAMLI_SHA1_ENABLED` (bool)
+: Whether to enable the use of legacy sha1 blobs. Only used for development, for
+  creating new blobs with the legacy SHA-1 hash, instead of with the current one.
+  It does not affect the ability of Perkeep to read SHA-1 blobs.
+
+`CAMLI_FAST_DEV` (bool)
+: Used by dev/demo.sh for giving presentations with devcam server/put/etc
+  for faster pre-built builds, without calling make.go.
+
 `DEV_THROTTLE_KBPS` (integer) and `DEV_THROTTLE_LATENCY_MS` (integer)
 : Rate limit and/or inject latency in pkg/webserver responses. A value of 0
   disables traffic-shaping.
 
 `RUN_BROKEN_TESTS` (bool)
 : Run known-broken tests.
+
+## Undocumented
+
+These variables are yet to be documented:
+
+`CAMLI_API_HOST` (todo)
+
+`CAMLI_APP_LISTEN` (todo)
+
+`CAMLI_DEBUG_QUERY_SPEED` (todo)
+
+`CAMLI_DEV_MAP_CLUSTERING` (todo)
+
+`CAMLI_FAKE_STATUS_ERROR` (todo)
+
+`CAMLI_GPHOTOS_FULL_IMPORT` (todo)
+
+`CAMLI_MORE_FLAGS` (todo)
+
+`CAMLI_MORE_FLAGS` (todo)
+
+`CAMLI_PICASA_FULL_IMPORT` (todo)
+
+`CAMLI_QUIET` (todo)
+
+`CAMLI_REINDEX_START` (todo)
+
+`CAMLI_SERVER` (todo)
+
+`CAMLI_SET_BASE_URL_AND_SEND_ADDR_TO` (todo)
+
+`CAMLI_SYNC_VALIDATE` (todo)
+
+`CAMLI_TWITTER_FULL_IMPORT` (todo)
+
+`CAMLI_TWITTER_SKIP_API_IMPORT` (todo)
+
+`DEV_THROTTLE_KBPS` (todo)
+
+`DEV_THROTTLE_LATENCY_MS` (todo)
+
+`PERKEEP_MASTODON_FULL_IMPORT` (todo)
