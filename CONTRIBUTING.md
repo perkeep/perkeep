@@ -102,12 +102,6 @@ For example:
 >
 > Fixes #10987
 
-## Vendored Code
-
-Changes to vendored third party code must be done using Go modules,
-using at least Go 1.12, but often requiring the Go 1.13 development
-tree.
-
 ## Contributors
 
 We follow the Go convention for commits (messages) about new Contributors.
