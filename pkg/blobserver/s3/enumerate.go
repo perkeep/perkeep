@@ -48,11 +48,16 @@ func (sto *s3Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.Sized
 
 	keysGotten := 0
 
-	err := sto.client.ListObjectsV2PagesWithContext(ctx, &s3.ListObjectsV2Input{
+	lo := &s3.ListObjectsV2Input{
 		Bucket:     &sto.bucket,
 		StartAfter: aws.String(sto.dirPrefix + after),
 		MaxKeys:    maxKeys,
-	}, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
+	}
+	if sto.dirPrefix != "" {
+		lo.Prefix = &sto.dirPrefix
+	}
+
+	err := sto.client.ListObjectsV2PagesWithContext(ctx, lo, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
 		for _, obj := range page.Contents {
 			dir, file := path.Split(*obj.Key)
 			if dir != sto.dirPrefix {
