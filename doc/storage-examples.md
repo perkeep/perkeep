@@ -51,6 +51,7 @@ Finally, add the s3 config line to your Perkeep `server-config.json`:
 [Backblaze B2](https://www.backblaze.com/b2/cloud-storage.html) is simple, reliable, affordable object storage.
 
 To use b2 with Perkep, you need to:
+
 * Sign up for a Backblaze account.
 * Sign in to the Backblaze console, navigate to 'Buckets'.
 * Create a bucket for your Perkeep backups (Perkeep will not work if you put other files on this bucket).
