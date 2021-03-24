@@ -52,6 +52,7 @@ func (sto *s3Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.Sized
 		Bucket:     &sto.bucket,
 		StartAfter: aws.String(sto.dirPrefix + after),
 		MaxKeys:    maxKeys,
+		Prefix:     &sto.dirPrefix,
 	}, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
 		for _, obj := range page.Contents {
 			dir, file := path.Split(*obj.Key)
