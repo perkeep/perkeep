@@ -144,6 +144,7 @@ func loadConfig(arg string) (*serverinit.Config, error) {
 		if err != nil {
 			return nil, err
 		}
+		log.Printf("Loading the config under the following URL %s", arg)
 		return serverinit.Load(contents)
 	}
 	var absPath string
@@ -152,6 +153,7 @@ func loadConfig(arg string) (*serverinit.Config, error) {
 		absPath = osutil.UserServerConfigPath()
 		_, err := wkfs.Stat(absPath)
 		if err == nil {
+			log.Printf("Loading the config named server-config.json prefixed by the directory from the environnement variable CAMLI_CONFIG_DIR %s", absPath)
 			break
 		}
 		if !os.IsNotExist(err) {
@@ -173,6 +175,7 @@ func loadConfig(arg string) (*serverinit.Config, error) {
 			return nil, err
 		}
 	case filepath.IsAbs(arg):
+		log.Printf("Loading the config file configure from this flag -configfile %s", arg)
 		absPath = arg
 	default:
 		configDir, err := osutil.PerkeepConfigDir()
