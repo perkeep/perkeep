@@ -96,9 +96,9 @@ var (
 	flagHelp       = flag.Bool("help", false, "show usage")
 	flagLegal      = flag.Bool("legal", false, "show licenses")
 	flagConfigFile = flag.String("configfile", "",
-		"Config file to use, relative to the Perkeep configuration directory root. "+
-			"If blank, the default is used or auto-generated. "+
-			"If it starts with 'http:' or 'https:', it is fetched from the network.")
+		"Config file to use, relative to the Perkeep configuration directory root specified by this environnement variable CAMLI_CONFIG_DIR defaulted to $HOME/.config/perkeep. "+
+			"If the value of -configfile is blank, the default is used or auto-generated. "+
+			"If the value of -configfile is starts with 'http:' or 'https:', it is fetched from the network.")
 	flagListen      = flag.String("listen", "", "host:port to listen on, or :0 to auto-select. If blank, the value in the config will be used instead.")
 	flagOpenBrowser = flag.Bool("openbrowser", true, "Launches the UI on startup")
 	flagReindex     = flag.Bool("reindex", false, "Reindex all blobs on startup")
