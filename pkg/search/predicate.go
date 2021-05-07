@@ -128,6 +128,7 @@ func init() {
 	registerKeyword(newIsPost())
 	registerKeyword(newIsLike())
 	registerKeyword(newIsCheckin())
+	registerKeyword(newIsUntagged())
 
 	// Location predicates
 	registerKeyword(newHasLocation())
@@ -878,6 +879,39 @@ func (k isCheckin) Predicate(ctx context.Context, args []string) (*Constraint, e
 		Permanode: &PermanodeConstraint{
 			Attr:  nodeattr.Type,
 			Value: "foursquare.com:checkin",
+		},
+	}, nil
+}
+
+type isUntagged struct {
+	matchEqual
+}
+
+func newIsUntagged() keyword {
+	return isUntagged{"is:untagged"}
+}
+
+func (k isUntagged) Description() string {
+	return "matches untagged permanodes"
+}
+
+func (k isUntagged) Predicate(ctx context.Context, args []string) (*Constraint, error) {
+	return &Constraint{
+		// Note: we can't just match the Empty string constraint for the tag attribute,
+		// because we actually want to match the absence of any tag attribute, hence below.
+		Logical: &LogicalConstraint{
+			Op: "not",
+			A: &Constraint{
+				Permanode: &PermanodeConstraint{
+					Attr:       "tag",
+					SkipHidden: true,
+					ValueMatches: &StringConstraint{
+						ByteLength: &IntConstraint{
+							Min: 1,
+						},
+					},
+				},
+			},
 		},
 	}, nil
 }
