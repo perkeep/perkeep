@@ -27,7 +27,6 @@ require (
 	github.com/go-ini/ini v1.38.1 // indirect
 	github.com/go-sql-driver/mysql v1.4.1-0.20180719071942-99ff426eb706
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
-	github.com/golang/snappy v0.0.0-20170215233205-553a64147049 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00
 	github.com/gopherjs/jquery v0.0.0-20180404123100-3ba2b901425e
 	github.com/goplusjs/gopherjs v1.1.6
@@ -49,7 +48,7 @@ require (
 	github.com/rwcarlsen/goexif v0.0.0-20180518182100-8d986c03457a
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
 	github.com/smartystreets/goconvey v1.6.4 // indirect
-	github.com/syndtr/goleveldb v0.0.0-20180608030153-db3ee9ee8931
+	github.com/syndtr/goleveldb v1.0.0
 	github.com/tgulacsi/picago v0.0.0-20171229130838-9e1ac2306c70
 	go4.org v0.0.0-20190218023631-ce4c26f7be8e
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
