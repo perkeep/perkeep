@@ -39,8 +39,6 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.7-0.20201227235208-3cbdae750e52
 	github.com/miekg/dns v1.0.14
 	github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f
-	github.com/onsi/ginkgo v1.8.0 // indirect
-	github.com/onsi/gomega v1.5.0 // indirect
 	github.com/perkeep/b2 v0.0.0-20180913003434-1ae8d9b78db9
 	github.com/pkg/sftp v1.12.1-0.20200915114829-37434b9e086f
 	github.com/plaid/plaid-go v0.0.0-20161222051224-02b6af68061b
@@ -48,7 +46,7 @@ require (
 	github.com/rwcarlsen/goexif v0.0.0-20180518182100-8d986c03457a
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
 	github.com/smartystreets/goconvey v1.6.4 // indirect
-	github.com/syndtr/goleveldb v1.0.0
+	github.com/syndtr/goleveldb v1.0.1-0.20210305035536-64b5b1c73954
 	github.com/tgulacsi/picago v0.0.0-20171229130838-9e1ac2306c70
 	go4.org v0.0.0-20190218023631-ce4c26f7be8e
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
@@ -64,7 +62,6 @@ require (
 	google.golang.org/api v0.35.0
 	gopkg.in/ini.v1 v1.51.0 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20160818020120-3f83fa500528
-	gopkg.in/yaml.v2 v2.2.8 // indirect
 	honnef.co/go/js/dom v0.0.0-20200509013220-d4405f7ab4d8
 	myitcv.io v0.0.0-20201125173645-a7167afc9e13
 	rsc.io/pdf v0.0.0-20170302045715-1d34785eb915

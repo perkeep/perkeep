@@ -310,6 +310,8 @@ github.com/syndtr/goleveldb v0.0.0-20180608030153-db3ee9ee8931 h1:2zIFG6OP0ab/aq
 github.com/syndtr/goleveldb v0.0.0-20180608030153-db3ee9ee8931/go.mod h1:Z4AUp2Km+PwemOoO/VB5AOx9XSsIItzFjoJlOSiYmn0=
 github.com/syndtr/goleveldb v1.0.0 h1:fBdIW9lB4Iz0n9khmH8w27SJ3QEJ7+IgjPEwGSZiFdE=
 github.com/syndtr/goleveldb v1.0.0/go.mod h1:ZVVdQEZoIme9iO1Ch2Jdy24qqXrMMOU6lpPAyBWyWuQ=
+github.com/syndtr/goleveldb v1.0.1-0.20210305035536-64b5b1c73954 h1:xQdMZ1WLrgkkvOZ/LDQxjVxMLdby7osSh4ZEVa5sIjs=
+github.com/syndtr/goleveldb v1.0.1-0.20210305035536-64b5b1c73954/go.mod h1:u2MKkTVTVJWe5D1rCvame8WqhBd88EuIwODJZ1VHCPM=
 github.com/tgulacsi/picago v0.0.0-20171229130838-9e1ac2306c70 h1:elvpffAnrLcWnsunBkvTwxr+Q79bPSNT1+2/pOFkCj0=
 github.com/tgulacsi/picago v0.0.0-20171229130838-9e1ac2306c70/go.mod h1:YOW4MCz1GRh0aqedyC48A1CRXSHngOB/O/4+1rUjDQg=
 github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80 h1:nrZ3ySNYwJbSpD6ce9duiP+QkD3JuLCcWkdaehUS/3Y=
