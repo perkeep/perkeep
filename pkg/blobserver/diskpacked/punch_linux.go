@@ -17,6 +17,7 @@ limitations under the License.
 package diskpacked
 
 import (
+	"errors"
 	"os"
 	"syscall"
 )
@@ -39,7 +40,7 @@ func punchHoleLinux(file *os.File, offset int64, size int64) error {
 	err := syscall.Fallocate(int(file.Fd()),
 		falloc_fl_punch_hole|falloc_fl_keep_size,
 		offset, size)
-	if err == syscall.ENOSYS || err == syscall.EOPNOTSUPP {
+	if errors.Is(err, syscall.ENOSYS) || errors.Is(err, syscall.EOPNOTSUPP) {
 		return errNoPunch
 	}
 	return err
