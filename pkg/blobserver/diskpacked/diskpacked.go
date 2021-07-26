@@ -168,7 +168,7 @@ func newStorage(root string, maxFileSize int64, indexConf jsonconfig.Obj) (s *st
 		return nil, fmt.Errorf("storage root %q doesn't exist", root)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("Failed to stat directory %q: %w", root, err)
+		return nil, fmt.Errorf("failed to stat directory %q: %w", root, err)
 	}
 	if !fi.IsDir() {
 		return nil, fmt.Errorf("storage root %q exists but is not a directory", root)
@@ -202,7 +202,7 @@ func newStorage(root string, maxFileSize int64, indexConf jsonconfig.Obj) (s *st
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, _, err := s.StorageGeneration(); err != nil {
-		return nil, fmt.Errorf("Error initialization generation for %q: %w", root, err)
+		return nil, fmt.Errorf("error initialization generation for %q: %w", root, err)
 	}
 	return s, nil
 }
