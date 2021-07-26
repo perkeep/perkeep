@@ -566,6 +566,8 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 	}
 
 	const ioBufSize = 256 * 1024
+	fhc := newFileHandleCache(128)
+	defer fhc.Close()
 
 	// We'll use bufio to avoid read system call overhead.
 	r := bufio.NewReaderSize(fd, ioBufSize)
@@ -600,7 +602,7 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 		offset += int64(consumed)
 		if deletedBlobRef.Match(digest) {
 			// Skip over deletion padding
-			if _, err := io.CopyN(ioutil.Discard, r, int64(size)); err != nil {
+			if _, err = io.CopyN(ioutil.Discard, r, int64(size)); err != nil {
 				return err
 			}
 			offset += int64(size)
@@ -614,23 +616,31 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 
 		// Finally, read and send the blob.
 
-		// TODO: remove this allocation per blob. We can make one instead
-		// outside of the loop, guarded by a mutex, and re-use it, only to
-		// lock the mutex and clone it if somebody actually calls ReadFull
-		// on the *blob.Blob. Otherwise callers just scanning all the blobs
-		// to see if they have everything incur lots of garbage if they
-		// don't open any blobs.
-		data := make([]byte, size)
-		if _, err := io.ReadFull(r, data); err != nil {
-			return err
+		var br *blob.Blob
+		{
+			fn := fd.Name()
+			size, offset := size, offset
+			if _, err = io.CopyN(ioutil.Discard, r, int64(size)); err != nil {
+				return err
+			}
+			br = blob.NewBlob(ref, size, func(context.Context) ([]byte, error) {
+				fh, err := fhc.Get(fn)
+				if err != nil {
+					return nil, err
+				}
+				data := make([]byte, size)
+				r := io.NewSectionReader(fh, offset, int64(size))
+				_, err = io.ReadFull(r, data)
+				fhc.Put(fh)
+				return data, err
+			})
 		}
+
 		offset += int64(size)
-		blob := blob.NewBlob(ref, size, func(context.Context) ([]byte, error) {
-			return data, nil
-		})
+
 		select {
 		case dest <- blobserver.BlobAndToken{
-			Blob:  blob,
+			Blob:  br,
 			Token: fmt.Sprintf("%d %d", fileNum, thisOffset),
 		}:
 			// Nothing.
@@ -760,4 +770,78 @@ func (m blobMeta) String() string {
 
 func (m blobMeta) SizedRef(br blob.Ref) blob.SizedRef {
 	return blob.SizedRef{Ref: br, Size: m.size}
+}
+
+type fileRefCount struct {
+	*os.File
+	refCount int
+}
+type fileHandleCache struct {
+	m       map[string]*fileRefCount
+	mu      sync.RWMutex
+	maxSize int
+}
+
+func newFileHandleCache(maxSize int) *fileHandleCache {
+	if maxSize == 0 {
+		maxSize = 512
+	}
+	return &fileHandleCache{m: make(map[string]*fileRefCount, maxSize)}
+}
+
+func (fhc *fileHandleCache) Get(fn string) (*fileRefCount, error) {
+	fhc.mu.RLock()
+	fh := fhc.m[fn]
+	fhc.mu.RUnlock()
+	if fh != nil {
+		fh.refCount++
+		return fh, nil
+	}
+	fhc.mu.Lock()
+	defer fhc.mu.Unlock()
+	fd, err := os.Open(fn)
+	if err != nil {
+		return nil, err
+	}
+	fh = &fileRefCount{File: fd, refCount: 1}
+	fhc.m[fn] = fh
+	return fh, nil
+}
+func (fhc *fileHandleCache) Put(fh *fileRefCount) {
+	if fh == nil {
+		return
+	}
+	fh.refCount--
+	fhc.mu.RLock()
+	length := len(fhc.m)
+	fhc.mu.RUnlock()
+	if length < fhc.maxSize {
+		return
+	}
+	fhc.mu.Lock()
+	defer fhc.mu.Unlock()
+	if len(fhc.m) < fhc.maxSize {
+		return
+	}
+	for k, v := range fhc.m {
+		if v.refCount == 0 {
+			delete(fhc.m, k)
+			_ = v.File.Close()
+		}
+	}
+}
+
+func (fhc *fileHandleCache) Close() error {
+	fhc.mu.Lock()
+	defer fhc.mu.Unlock()
+	var firstErr error
+	for k, v := range fhc.m {
+		if v != nil {
+			if err := v.Close(); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+		delete(fhc.m, k)
+	}
+	return firstErr
 }
