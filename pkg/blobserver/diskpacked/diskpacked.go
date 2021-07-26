@@ -126,12 +126,12 @@ func IsDir(dir string) (bool, error) {
 func New(dir string) (blobserver.Storage, error) {
 	var maxSize int64
 	var n, atMax int
-	if des, err := os.ReadDir(dir); err == nil {
-		// Detect existing max size from size of files, if obvious, and set maxSize to that
-		for _, de := range des {
-			if nm := de.Name(); strings.HasPrefix(nm, "pack-") && strings.HasSuffix(nm, ".blobs") {
-				n++
-				if fi, err := de.Info(); err == nil {
+	if dh, err := os.Open(dir); err == nil {
+		if fis, err := dh.Readdir(-1); err == nil {
+			// Detect existing max size from size of files, if obvious, and set maxSize to that
+			for _, fi := range fis {
+				if nm := fi.Name(); strings.HasPrefix(nm, "pack-") && strings.HasSuffix(nm, ".blobs") {
+					n++
 					if s := fi.Size(); s > maxSize {
 						maxSize, atMax = fi.Size(), 0
 					} else if s == maxSize {
