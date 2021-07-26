@@ -26,10 +26,8 @@ require (
 	github.com/go-ini/ini v1.38.1 // indirect
 	github.com/go-sql-driver/mysql v1.4.1-0.20180719071942-99ff426eb706
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
-	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/martian/v3 v3.2.1 // indirect
-	github.com/google/pprof v0.0.0-20210609004039-a478d1d731e9 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00
 	github.com/gopherjs/jquery v0.0.0-20180404123100-3ba2b901425e
 	github.com/goplusjs/gopherjs v1.1.6

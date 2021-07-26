@@ -48,6 +48,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -123,11 +124,11 @@ func NewStorage(addr, dir string, cc *ssh.ClientConfig) (*Storage, error) {
 
 func (s *Storage) adjustFDLimit(fs *files.Storage) error {
 	ul, err := osutil.MaxFD()
-	if err == osutil.ErrNotSupported {
+	if errors.Is(err, osutil.ErrNotSupported) {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("sftp failed to determine system's file descriptor limit: %v", err)
+		return fmt.Errorf("sftp failed to determine system's file descriptor limit: %w", err)
 	}
 	if ul < minFDLimit {
 		return fmt.Errorf("the max number of open file descriptors on your system (ulimit -n) is too low. Please fix it with 'ulimit -S -n X' with X being at least %d", recommendedFDLimit)
@@ -241,15 +242,18 @@ func (s *Storage) dialSFTP() (sc *sftp.Client, waiter func() error, toClose io.C
 		// get stdin and stdout
 		pw, err = cmd.StdinPipe()
 		if err != nil {
+			err = fmt.Errorf("%v: %w", cmd.Args, err)
 			return
 		}
 		pr, err = cmd.StdoutPipe()
 		if err != nil {
+			err = fmt.Errorf("%v: %w", cmd.Args, err)
 			return
 		}
 
 		// start the process
 		if err = cmd.Start(); err != nil {
+			err = fmt.Errorf("%v: %w", cmd.Args, err)
 			return
 		}
 		log.Printf("using sftp directly")
@@ -355,7 +359,7 @@ func (s sftpFS) Remove(file string) error {
 	if err != nil {
 		return err
 	}
-	return sc.Remove(file)
+	return sc.Remove(filepath.ToSlash(file))
 }
 
 func (s sftpFS) RemoveDir(dir string) error {
@@ -363,7 +367,7 @@ func (s sftpFS) RemoveDir(dir string) error {
 	if err != nil {
 		return err
 	}
-	return sc.RemoveDirectory(dir)
+	return sc.RemoveDirectory(filepath.ToSlash(dir))
 }
 
 func (s sftpFS) Open(file string) (files.ReadableFile, error) {
@@ -371,7 +375,7 @@ func (s sftpFS) Open(file string) (files.ReadableFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	return sc.Open(file)
+	return sc.Open(filepath.ToSlash(file))
 }
 
 func (s sftpFS) Rename(oldname, newname string) error {
@@ -379,7 +383,7 @@ func (s sftpFS) Rename(oldname, newname string) error {
 	if err != nil {
 		return err
 	}
-	return sc.PosixRename(oldname, newname)
+	return sc.PosixRename(filepath.ToSlash(oldname), filepath.ToSlash(newname))
 }
 
 func (s sftpFS) TempFile(dir, prefix string) (files.WritableFile, error) {
@@ -387,9 +391,10 @@ func (s sftpFS) TempFile(dir, prefix string) (files.WritableFile, error) {
 	if err != nil {
 		return nil, err
 	}
+	dir = filepath.ToSlash(dir)
 	for tries := 0; tries < 5; tries++ {
 		sufRand := make([]byte, 5)
-		rand.Read(sufRand)
+		_, _ = rand.Read(sufRand)
 		suffix := fmt.Sprintf("%x", sufRand)
 		name := path.Join(dir, prefix+suffix)
 		f, err := sc.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_RDWR)
@@ -416,7 +421,7 @@ func (s sftpFS) ReadDirNames(dir string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	fis, err := sc.ReadDir(dir)
+	fis, err := sc.ReadDir(filepath.ToSlash(dir))
 	if err != nil {
 		return nil, err
 	}
@@ -437,7 +442,7 @@ func (s sftpFS) Stat(path string) (os.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return sc.Stat(path)
+	return sc.Stat(filepath.ToSlash(path))
 }
 
 func (s sftpFS) Lstat(dir string) (os.FileInfo, error) {
@@ -445,7 +450,7 @@ func (s sftpFS) Lstat(dir string) (os.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return sc.Lstat(dir)
+	return sc.Lstat(filepath.ToSlash(dir))
 }
 
 func (s sftpFS) MkdirAll(dir string, perm os.FileMode) error {
@@ -454,5 +459,5 @@ func (s sftpFS) MkdirAll(dir string, perm os.FileMode) error {
 		return err
 	}
 
-	return sc.MkdirAll(dir)
+	return sc.MkdirAll(filepath.ToSlash(dir))
 }
