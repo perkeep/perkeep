@@ -125,9 +125,26 @@ func IsDir(dir string) (bool, error) {
 // files.
 func New(dir string) (blobserver.Storage, error) {
 	var maxSize int64
-	if ok, _ := IsDir(dir); ok {
-		// TODO: detect existing max size from size of files, if obvious,
-		// and set maxSize to that?
+	var n, atMax int
+	if des, err := os.ReadDir(dir); err == nil {
+		// Detect existing max size from size of files, if obvious, and set maxSize to that
+		for _, de := range des {
+			if nm := de.Name(); strings.HasPrefix(nm, "pack-") && strings.HasSuffix(nm, ".blobs") {
+				n++
+				if fi, err := de.Info(); err == nil {
+					if s := fi.Size(); s > maxSize {
+						maxSize, atMax = fi.Size(), 0
+					} else if s == maxSize {
+						atMax++
+					}
+				}
+			}
+		}
+	}
+	// Believe to the deduced size only if at least 2 files has that maximum size,
+	// and all files (except one) has the same.
+	if !(atMax > 1 && n == atMax+1) {
+		maxSize = 0
 	}
 	return newStorage(dir, maxSize, nil)
 }
@@ -151,7 +168,7 @@ func newStorage(root string, maxFileSize int64, indexConf jsonconfig.Obj) (s *st
 		return nil, fmt.Errorf("storage root %q doesn't exist", root)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("Failed to stat directory %q: %v", root, err)
+		return nil, fmt.Errorf("Failed to stat directory %q: %w", root, err)
 	}
 	if !fi.IsDir() {
 		return nil, fmt.Errorf("storage root %q exists but is not a directory", root)
@@ -185,7 +202,7 @@ func newStorage(root string, maxFileSize int64, indexConf jsonconfig.Obj) (s *st
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, _, err := s.StorageGeneration(); err != nil {
-		return nil, fmt.Errorf("Error initialization generation for %q: %v", root, err)
+		return nil, fmt.Errorf("Error initialization generation for %q: %w", root, err)
 	}
 	return s, nil
 }
@@ -342,19 +359,19 @@ func (s *storage) Close() error {
 }
 
 func (s *storage) Fetch(ctx context.Context, br blob.Ref) (io.ReadCloser, uint32, error) {
-	return s.fetch(ctx, br, 0, -1)
+	return s.fetch(br, 0, -1)
 }
 
 func (s *storage) SubFetch(ctx context.Context, br blob.Ref, offset, length int64) (io.ReadCloser, error) {
 	if offset < 0 || length < 0 {
 		return nil, blob.ErrNegativeSubFetch
 	}
-	rc, _, err := s.fetch(ctx, br, offset, length)
+	rc, _, err := s.fetch(br, offset, length)
 	return rc, err
 }
 
 // length of -1 means all
-func (s *storage) fetch(ctx context.Context, br blob.Ref, offset, length int64) (rc io.ReadCloser, size uint32, err error) {
+func (s *storage) fetch(br blob.Ref, offset, length int64) (rc io.ReadCloser, size uint32, err error) {
 	meta, err := s.meta(br)
 	if err != nil {
 		return nil, 0, err
@@ -412,7 +429,7 @@ func (s *storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 		batch.Delete(br.String())
 		wg.Go(func() error {
 			defer removeGate.Done()
-			if err := s.delete(br); err != nil && err != os.ErrNotExist {
+			if err := s.delete(br); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
 			return nil
@@ -434,7 +451,7 @@ func (s *storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.
 		if err == nil {
 			return m.SizedRef(br), nil
 		}
-		if err == os.ErrNotExist {
+		if errors.Is(err, os.ErrNotExist) {
 			return sb, nil
 		}
 		return sb, err
@@ -508,17 +525,6 @@ func readHeader(br *bufio.Reader) (consumed int, digest []byte, size uint32, err
 	return len(line), line[1:sp], uint32(size64), nil
 }
 
-// Type readSeekNopCloser is an io.ReadSeeker with a no-op Close method.
-type readSeekNopCloser struct {
-	io.ReadSeeker
-}
-
-func (readSeekNopCloser) Close() error { return nil }
-
-func newReadSeekNopCloser(rs io.ReadSeeker) readerutil.ReadSeekCloser {
-	return readSeekNopCloser{rs}
-}
-
 // The header of deleted blobs has a digest in which the hash type is
 // set to all 'x', the hash value is all '0', and has the correct size.
 var deletedBlobRef = regexp.MustCompile(`^x+-0+$`)
@@ -554,7 +560,7 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 	// TODO: probably be stricter here and don't allow seek past
 	// the end, since we know the size of closed files and the
 	// size of the file diskpacked currently still writing.
-	_, err = fd.Seek(offset, os.SEEK_SET)
+	_, err = fd.Seek(offset, io.SeekStart)
 	if err != nil {
 		return err
 	}
@@ -567,7 +573,7 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 	for {
 		//  Are we at the EOF of this pack?
 		if _, err := r.Peek(1); err != nil {
-			if err != io.EOF {
+			if !errors.Is(err, io.EOF) {
 				return err
 			}
 			// EOF case; continue to the next pack, if any.
@@ -635,7 +641,6 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 }
 
 func (s *storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader) (sbr blob.SizedRef, err error) {
-	// TODO: use ctx somehow?
 	var b bytes.Buffer
 	n, err := b.ReadFrom(source)
 	if err != nil {
@@ -678,7 +683,7 @@ func (s *storage) append(br blob.SizedRef, r io.Reader) error {
 	}
 
 	// TODO(adg): remove this seek and the offset check once confident
-	offset, err := s.writer.Seek(0, os.SEEK_CUR)
+	offset, err := s.writer.Seek(0, io.SeekCurrent)
 	if err != nil {
 		return err
 	}
@@ -710,7 +715,7 @@ func (s *storage) append(br blob.SizedRef, r io.Reader) error {
 	}
 	err = s.index.Set(br.Ref.String(), blobMeta{packIdx, offset, br.Size}.String())
 	if err != nil {
-		if _, seekErr := s.writer.Seek(origOffset, os.SEEK_SET); seekErr != nil {
+		if _, seekErr := s.writer.Seek(origOffset, io.SeekStart); seekErr != nil {
 			log.Printf("ERROR seeking back to the original offset: %v", seekErr)
 		} else if truncErr := s.writer.Truncate(origOffset); truncErr != nil {
 			log.Printf("ERROR truncating file after index error: %v", truncErr)
@@ -725,7 +730,7 @@ func (s *storage) append(br blob.SizedRef, r io.Reader) error {
 func (s *storage) meta(br blob.Ref) (m blobMeta, err error) {
 	ms, err := s.index.Get(br.String())
 	if err != nil {
-		if err == sorted.ErrNotFound {
+		if errors.Is(err, sorted.ErrNotFound) {
 			err = os.ErrNotExist
 		}
 		return

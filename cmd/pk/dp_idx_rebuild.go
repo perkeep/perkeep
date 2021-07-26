@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -27,6 +28,7 @@ import (
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blobserver/diskpacked"
 	"perkeep.org/pkg/cmdmain"
+	"perkeep.org/pkg/env"
 	"perkeep.org/pkg/serverinit"
 )
 
@@ -127,5 +129,8 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 	}
 	log.Printf("indexConf: %v", indexConf)
 
-	return diskpacked.Reindex(path, c.overwrite, indexConf)
+	ctx := diskpacked.CtxSetVerbose(context.Background(), env.IsDebug())
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	return diskpacked.Reindex(ctx, path, c.overwrite, indexConf)
 }

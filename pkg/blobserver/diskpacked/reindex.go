@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -29,7 +30,6 @@ import (
 
 	"go4.org/jsonconfig"
 	"perkeep.org/pkg/blob"
-	"perkeep.org/pkg/env"
 	"perkeep.org/pkg/sorted"
 
 	// possible index formats
@@ -39,7 +39,7 @@ import (
 )
 
 // Reindex rewrites the index files of the diskpacked .pack files
-func Reindex(root string, overwrite bool, indexConf jsonconfig.Obj) (err error) {
+func Reindex(ctx context.Context, root string, overwrite bool, indexConf jsonconfig.Obj) (err error) {
 	// there is newStorage, but that may open a file for writing
 	var s = &storage{root: root}
 	index, err := newIndex(root, indexConf)
@@ -56,7 +56,6 @@ func Reindex(root string, overwrite bool, indexConf jsonconfig.Obj) (err error) 
 		}
 	}()
 
-	ctx := context.TODO() // TODO(tgulacsi): get the verbosity from context
 	for i := 0; i >= 0; i++ {
 		fh, err := os.Open(s.filename(i))
 		if err != nil {
@@ -82,8 +81,7 @@ func (s *storage) reindexOne(ctx context.Context, index sorted.KeyValue, overwri
 	}
 	allOk := true
 
-	// TODO(tgulacsi): proper verbose from context
-	verbose := env.IsDebug()
+	verbose := ctxGetVerbose(ctx)
 	misses := make(map[blob.Ref]string, 8)
 	err := s.walkPack(verbose, packID,
 		func(packID int, ref blob.Ref, offset int64, size uint32) error {
@@ -98,12 +96,10 @@ func (s *storage) reindexOne(ctx context.Context, index sorted.KeyValue, overwri
 				batch.Set(ref.String(), meta)
 				return nil
 			}
-			if _, ok := misses[ref]; ok { // maybe this is the last of this blob.
-				delete(misses, ref)
-			}
+			delete(misses, ref)
 			if old, err := index.Get(ref.String()); err != nil {
 				allOk = false
-				if err == sorted.ErrNotFound {
+				if errors.Is(err, sorted.ErrNotFound) {
 					log.Println(ref.String() + ": cannot find in index!")
 				} else {
 					log.Println(ref.String()+": error getting from index: ", err.Error())
@@ -143,8 +139,7 @@ func (s *storage) reindexOne(ctx context.Context, index sorted.KeyValue, overwri
 func (s *storage) Walk(ctx context.Context,
 	walker func(packID int, ref blob.Ref, offset int64, size uint32) error) error {
 
-	// TODO(tgulacsi): proper verbose flag from context
-	verbose := env.IsDebug()
+	verbose := ctxGetVerbose(ctx)
 
 	for i := 0; i >= 0; i++ {
 		fh, err := os.Open(s.filename(i))
@@ -193,7 +188,7 @@ func (s *storage) walkPack(verbose bool, packID int,
 	br := bufio.NewReaderSize(fh, 512)
 	for {
 		if b, err := br.ReadByte(); err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return errAt("error while reading", err.Error())
@@ -202,7 +197,7 @@ func (s *storage) walkPack(verbose bool, packID int,
 		}
 		chunk, err := br.ReadSlice(']')
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return errAt("error reading blob header", err.Error())
@@ -245,7 +240,17 @@ func (s *storage) walkPack(verbose bool, packID int,
 			return errAt("", "cannot seek +"+strconv.FormatUint(size64, 10)+" bytes")
 		}
 		// drain the buffer after the underlying reader Seeks
-		io.CopyN(ioutil.Discard, br, int64(br.Buffered()))
+		_, _ = io.CopyN(ioutil.Discard, br, int64(br.Buffered()))
 	}
 	return nil
+}
+
+type verboseCtxKey struct{}
+
+func ctxGetVerbose(ctx context.Context) bool {
+	b, _ := ctx.Value(verboseCtxKey{}).(bool)
+	return b
+}
+func CtxSetVerbose(ctx context.Context, verbose bool) context.Context {
+	return context.WithValue(ctx, verboseCtxKey{}, verbose)
 }
