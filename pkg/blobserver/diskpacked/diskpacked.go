@@ -600,12 +600,14 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 		}
 
 		offset += int64(consumed)
+		dataOffset := offset
+		if _, err = io.CopyN(ioutil.Discard, r, int64(size)); err != nil {
+			return err
+		}
+		offset += int64(size)
+
 		if deletedBlobRef.Match(digest) {
 			// Skip over deletion padding
-			if _, err = io.CopyN(ioutil.Discard, r, int64(size)); err != nil {
-				return err
-			}
-			offset += int64(size)
 			continue
 		}
 
@@ -618,11 +620,9 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 
 		var br *blob.Blob
 		{
+			// Closure up on new variables
 			fn := fd.Name()
-			size, offset := size, offset
-			if _, err = io.CopyN(ioutil.Discard, r, int64(size)); err != nil {
-				return err
-			}
+			size, offset := size, dataOffset
 			br = blob.NewBlob(ref, size, func(context.Context) ([]byte, error) {
 				fh, err := fhc.Get(fn)
 				if err != nil {
@@ -635,8 +635,6 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 				return data, err
 			})
 		}
-
-		offset += int64(size)
 
 		select {
 		case dest <- blobserver.BlobAndToken{
@@ -799,6 +797,11 @@ func (fhc *fileHandleCache) Get(fn string) (*fileRefCount, error) {
 	}
 	fhc.mu.Lock()
 	defer fhc.mu.Unlock()
+	// Double check
+	if fh = fhc.m[fn]; fh != nil {
+		fh.refCount++
+		return fh, nil
+	}
 	fd, err := os.Open(fn)
 	if err != nil {
 		return nil, err
@@ -820,9 +823,11 @@ func (fhc *fileHandleCache) Put(fh *fileRefCount) {
 	}
 	fhc.mu.Lock()
 	defer fhc.mu.Unlock()
+	// Double check
 	if len(fhc.m) < fhc.maxSize {
 		return
 	}
+	// If refCount==0 then it is not used, can be Close()d.
 	for k, v := range fhc.m {
 		if v.refCount == 0 {
 			delete(fhc.m, k)
@@ -836,7 +841,10 @@ func (fhc *fileHandleCache) Close() error {
 	defer fhc.mu.Unlock()
 	var firstErr error
 	for k, v := range fhc.m {
-		if v != nil {
+		if v != nil && v.File != nil {
+			if v.refCount != 0 {
+				log.Printf("WARN! Closing still used (%d) %q", v.refCount, v.File.Name())
+			}
 			if err := v.Close(); err != nil && firstErr == nil {
 				firstErr = err
 			}
