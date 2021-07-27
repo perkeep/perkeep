@@ -156,11 +156,14 @@ func (ix *Index) indexReadyBlobs(ctx context.Context) {
 			failed[br] = true
 		}
 	}
-	ix.Lock()
-	defer ix.Unlock()
-	for br := range failed {
-		ix.readyReindex[br] = true
-	}
+	// TODO(aviau): This code is unreachable. Will fix this in a follow-up PR.
+	/*
+		ix.Lock()
+		defer ix.Unlock()
+		for br := range failed {
+			ix.readyReindex[br] = true
+		}
+	*/
 }
 
 // noteBlobIndexed checks if the recent indexing of br now allows the blobs that

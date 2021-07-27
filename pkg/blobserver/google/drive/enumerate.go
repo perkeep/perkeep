@@ -30,5 +30,4 @@ func (sto *driveStorage) MaxEnumerate() int { return 1000 }
 func (sto *driveStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	defer close(dest)
 	panic("not implemented")
-	return nil
 }

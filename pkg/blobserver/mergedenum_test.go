@@ -158,7 +158,7 @@ func (te testEnum) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef
 			continue
 		}
 		br := blob.MustParse(bs)
-		dest <- blob.SizedRef{br, 1}
+		dest <- blob.SizedRef{Ref: br, Size: 1}
 		done++
 		if done == limit {
 			break

@@ -730,19 +730,21 @@ func (ia *importerAcct) maybeStart() {
 		return
 	}
 	if ia.lastRunDone.After(time.Now().Add(-duration)) {
-		sleepFor := ia.lastRunDone.Add(duration).Sub(time.Now())
-		sleepCtx, _ := context.WithTimeout(context.Background(), sleepFor)
-		log.Printf("%v ran recently enough. Sleeping for %v.", ia, sleepFor)
-		timer := time.AfterFunc(sleepFor, ia.maybeStart)
-
 		// Kick off long poller wait if supported.
 		if lp, ok := ia.im.impl.(LongPoller); ok {
+			sleepFor := ia.lastRunDone.Add(duration).Sub(time.Now())
+			sleepCtx, cancel := context.WithTimeout(context.Background(), sleepFor)
+			log.Printf("%v ran recently enough. Sleeping for %v.", ia, sleepFor)
+			timer := time.AfterFunc(sleepFor, ia.maybeStart)
+
 			rc := &RunContext{
 				ctx:  sleepCtx,
 				Host: ia.im.host,
 				ia:   ia,
 			}
 			go func() {
+				defer cancel()
+
 				if err := lp.LongPoll(rc); err == nil {
 					log.Printf("importer: long poll for %s found an update. Starting run...", ia)
 					timer.Stop()

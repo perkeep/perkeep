@@ -168,7 +168,7 @@ func (s *Storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader
 			}
 		}
 	}
-	return blob.SizedRef{br, uint32(len(all))}, nil
+	return blob.SizedRef{Ref: br, Size: uint32(len(all))}, nil
 }
 
 func (s *Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
@@ -177,7 +177,7 @@ func (s *Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.
 		b, ok := s.m[br]
 		s.mu.RUnlock()
 		if ok {
-			if err := fn(blob.SizedRef{br, uint32(len(b))}); err != nil {
+			if err := fn(blob.SizedRef{Ref: br, Size: uint32(len(b))}); err != nil {
 				return err
 			}
 		}
@@ -208,7 +208,7 @@ func (s *Storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef,
 			continue
 		}
 		select {
-		case dest <- blob.SizedRef{br, uint32(len(s.m[br]))}:
+		case dest <- blob.SizedRef{Ref: br, Size: uint32(len(s.m[br]))}:
 		case <-ctx.Done():
 			return ctx.Err()
 		}

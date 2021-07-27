@@ -82,7 +82,7 @@ func (sr *Receiver) ReceiveRef(br blob.Ref, size int64) (sb blob.SizedRef, err e
 		sr.Have = make(map[blob.Ref]int64)
 	}
 	sr.Have[br] = size
-	return blob.SizedRef{br, uint32(size)}, nil
+	return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
 }
 
 func (sr *Receiver) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
@@ -90,7 +90,7 @@ func (sr *Receiver) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blo
 	sr.Lock()
 	for _, br := range blobs {
 		if size, ok := sr.Have[br]; ok {
-			sized = append(sized, blob.SizedRef{br, uint32(size)})
+			sized = append(sized, blob.SizedRef{Ref: br, Size: uint32(size)})
 		}
 	}
 	sr.Unlock()

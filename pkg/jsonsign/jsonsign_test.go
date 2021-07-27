@@ -95,8 +95,8 @@ jyVNPb8AaaWVW1uZLg6Em61aKnbOG10B30m3CQ8dwBjF9hgmtcY0IZ/Y
 -----END PGP PUBLIC KEY BLOCK-----
 `
 
-var pubKeyBlob1 = &test.Blob{pubKey1} // user 1
-var pubKeyBlob2 = &test.Blob{pubKey2} // user 2
+var pubKeyBlob1 = &test.Blob{Contents: pubKey1} // user 1
+var pubKeyBlob2 = &test.Blob{Contents: pubKey2} // user 2
 
 var testFetcher = &test.Fetcher{}
 

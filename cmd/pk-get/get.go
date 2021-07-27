@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 
 	"go4.org/types"
+
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/buildinfo"
@@ -289,6 +290,7 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 			}
 		}
 		return nil
+
 	case schema.TypeFile:
 		fr, err := schema.NewFileReader(ctx, src, br)
 		if err != nil {
@@ -322,6 +324,7 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 			log.Print(err)
 		}
 		return nil
+
 	case schema.TypeSymlink:
 		if *flagSkipIrregular {
 			return nil
@@ -386,7 +389,6 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 		if err := setFileMeta(name, b); err != nil {
 			log.Print(err)
 		}
-
 		return nil
 
 	case schema.TypeSocket:
@@ -421,13 +423,11 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 		if err := setFileMeta(name, b); err != nil {
 			log.Print(err)
 		}
-
 		return nil
 
 	default:
 		return errors.New("unknown blob type: " + string(b.Type()))
 	}
-	panic("unreachable")
 }
 
 func setFileMeta(name string, blob *schema.Blob) error {

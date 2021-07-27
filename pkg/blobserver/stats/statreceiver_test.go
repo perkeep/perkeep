@@ -28,9 +28,9 @@ import (
 func TestStats(t *testing.T) {
 	ctx := context.Background()
 	st := &Receiver{}
-	foo := test.Blob{"foo"}
-	bar := test.Blob{"bar"}
-	foobar := test.Blob{"foobar"}
+	foo := test.Blob{Contents: "foo"}
+	bar := test.Blob{Contents: "bar"}
+	foobar := test.Blob{Contents: "foobar"}
 
 	foo.MustUpload(t, st)
 	bar.MustUpload(t, st)

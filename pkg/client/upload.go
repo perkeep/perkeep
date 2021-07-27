@@ -76,7 +76,7 @@ type PutResult struct {
 }
 
 func (pr *PutResult) SizedBlobRef() blob.SizedRef {
-	return blob.SizedRef{pr.BlobRef, pr.Size}
+	return blob.SizedRef{Ref: pr.BlobRef, Size: pr.Size}
 }
 
 // TODO: ditch this type and use protocol.StatResponse directly?
@@ -123,7 +123,7 @@ func parseStatResponse(res *http.Response) (*statResponse, error) {
 		if !br.Valid() {
 			continue
 		}
-		s.HaveMap[br.String()] = blob.SizedRef{br, uint32(statItem.Size)}
+		s.HaveMap[br.String()] = blob.SizedRef{Ref: br, Size: uint32(statItem.Size)}
 	}
 	return s, nil
 }
@@ -167,7 +167,7 @@ func (c *Client) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.S
 			panic("invalid blob")
 		}
 		if size, ok := c.haveCache.StatBlobCache(br); ok {
-			if err := fn(blob.SizedRef{br, size}); err != nil {
+			if err := fn(blob.SizedRef{Ref: br, Size: size}); err != nil {
 				return err
 			}
 		} else {

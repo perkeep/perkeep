@@ -86,7 +86,7 @@ func (ns *nsto) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, a
 			continue
 		}
 		select {
-		case dest <- blob.SizedRef{br, uint32(size)}:
+		case dest <- blob.SizedRef{Ref: br, Size: uint32(size)}:
 		case <-done:
 			return ctx.Err()
 		}
@@ -131,7 +131,7 @@ func (ns *nsto) ReceiveBlob(ctx context.Context, br blob.Ref, src io.Reader) (sb
 
 	// Check if a duplicate blob, already uploaded previously.
 	if _, ierr := ns.inventory.Get(br.String()); ierr == nil {
-		return blob.SizedRef{br, uint32(size)}, nil
+		return blob.SizedRef{Ref: br, Size: uint32(size)}, nil
 	}
 
 	sb, err = ns.master.ReceiveBlob(ctx, br, &buf)
@@ -165,7 +165,7 @@ func (ns *nsto) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.Si
 		if err != nil {
 			log.Printf("Bogus namespace key %q / value %q", br.String(), invSizeStr)
 		}
-		if err := fn(blob.SizedRef{br, uint32(invSize)}); err != nil {
+		if err := fn(blob.SizedRef{Ref: br, Size: uint32(invSize)}); err != nil {
 			return err
 		}
 	}

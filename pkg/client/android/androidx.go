@@ -211,7 +211,6 @@ func androidLookupHost(host string) string {
 		c <- host
 	}()
 	return <-c
-	return v
 }
 
 type StatsTransport struct {

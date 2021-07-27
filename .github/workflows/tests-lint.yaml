@@ -1,5 +1,5 @@
 on: [push, pull_request]
-name: "tests/fmt"
+name: "tests/lint"
 
 jobs:
   test:
@@ -29,3 +29,4 @@ jobs:
       run: |
         go fmt ./...
         test -z "$(git status --porcelain)"
+        go vet ./...

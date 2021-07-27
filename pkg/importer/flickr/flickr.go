@@ -497,16 +497,18 @@ func (r *run) getTopLevelNode(path string, title string) (*importer.Object, erro
 func (r *run) flickrAPIRequest(result interface{}, method string, keyval ...string) error {
 	keyval = append([]string{"method", method, "format", "json", "nojsoncallback", "1"}, keyval...)
 	return importer.OAuthContext{
-		r.Context(),
-		r.oauthClient,
-		r.accessCreds}.PopulateJSONFromURL(result, http.MethodGet, apiURL, keyval...)
+		Ctx:    r.Context(),
+		Client: r.oauthClient,
+		Creds:  r.accessCreds,
+	}.PopulateJSONFromURL(result, http.MethodGet, apiURL, keyval...)
 }
 
 func (r *run) fetch(url string, form url.Values) (*http.Response, error) {
 	return importer.OAuthContext{
-		r.Context(),
-		r.oauthClient,
-		r.accessCreds}.Get(url, form)
+		Ctx:    r.Context(),
+		Client: r.oauthClient,
+		Creds:  r.accessCreds,
+	}.Get(url, form)
 }
 
 // TODO(mpl): same in twitter. refactor. Except for the additional perms in AuthorizationURL call.

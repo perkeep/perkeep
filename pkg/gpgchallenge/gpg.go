@@ -397,7 +397,7 @@ func genNonce() (string, error) {
 	return fmt.Sprintf("%x", buf), nil
 }
 
-func (cs Server) validateToken(token string) error {
+func (cs *Server) validateToken(token string) error {
 	// Check the token is one of ours, and not too old
 	parts := strings.Split(token, "-")
 	if len(parts) != 2 {
@@ -437,7 +437,7 @@ func (cs Server) validateToken(token string) error {
 	return nil
 }
 
-func (cs Server) validateTokenSignature(pk *packet.PublicKey, token, tokenSig string) error {
+func (cs *Server) validateTokenSignature(pk *packet.PublicKey, token, tokenSig string) error {
 	sig, err := cs.receiveSignedNonce(strings.NewReader(tokenSig))
 	if err != nil {
 		return err
@@ -465,7 +465,7 @@ func parsePubKey(r io.Reader) (*packet.PublicKey, error) {
 	return pk, nil
 }
 
-func (cs Server) receiveSignedNonce(r io.Reader) (*packet.Signature, error) {
+func (cs *Server) receiveSignedNonce(r io.Reader) (*packet.Signature, error) {
 	block, _ := armor.Decode(r)
 	if block == nil {
 		return nil, errors.New("can't parse armor")
@@ -751,7 +751,7 @@ func (cl *Client) signToken(token string) (string, error) {
 
 }
 
-func (cl Client) sendClaim(server, token string) error {
+func (cl *Client) sendClaim(server, token string) error {
 	pubkey, err := armorPubKey(cl.keyRing, cl.keyId)
 	if err != nil {
 		return err
