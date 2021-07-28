@@ -551,46 +551,6 @@ func fullSrcPath(fromSrc string) string {
 	return filepath.Join(pkRoot, filepath.FromSlash(fromSrc))
 }
 
-func genEmbeds() error {
-	cmdName := hostExeName(filepath.Join(binDir, "genfileembed"))
-	for _, embeds := range []string{
-		"server/perkeepd/ui",
-		"pkg/server",
-		"clients/web/embed/fontawesome",
-		"clients/web/embed/keepy",
-		"clients/web/embed/leaflet",
-		"clients/web/embed/less",
-		"clients/web/embed/opensans",
-		"clients/web/embed/react",
-		"app/publisher",
-		"app/scanningcabinet/ui",
-	} {
-		embeds := fullSrcPath(embeds)
-		args := []string{"-build-tags=with_embed"}
-		args = append(args, embeds)
-		cmd := exec.Command(cmdName, args...)
-		cmd.Stdout = os.Stdout
-		var buf bytes.Buffer
-		cmd.Stderr = &buf
-
-		if *verbose {
-			log.Printf("Running %s %s", cmdName, embeds)
-		}
-		if err := cmd.Run(); err != nil {
-			os.Stderr.Write(buf.Bytes())
-			return fmt.Errorf("error running %s %s: %v", cmdName, embeds, err)
-		}
-		if *verbose {
-			fmt.Println(buf.String())
-		}
-	}
-	return nil
-}
-
-func buildGenfileembed() error {
-	return buildBin("perkeep.org/pkg/fileembed/genfileembed")
-}
-
 func buildReactGen() error {
 	return buildBin("myitcv.io/react/cmd/reactGen")
 }
@@ -852,12 +812,6 @@ func doEmbed() {
 	closureSrcDir := filepath.Join(pkRoot, filepath.FromSlash("clients/web/embed/closure/lib"))
 	err := embedClosure(closureSrcDir, closureEmbed)
 	if err != nil {
-		log.Fatal(err)
-	}
-	if err = buildGenfileembed(); err != nil {
-		log.Fatal(err)
-	}
-	if err = genEmbeds(); err != nil {
 		log.Fatal(err)
 	}
 }

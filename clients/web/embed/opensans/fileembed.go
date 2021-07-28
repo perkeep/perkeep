@@ -20,11 +20,10 @@ embeds them into the Go binary when compiled with the genfileembed
 tool.
 
 See https://www.fontsquirrel.com/fonts/open-sans
-
-#fileembed pattern .*\.(css|eot|svg|ttf|woff|otf)$
 */
 package opensans
 
-import "perkeep.org/pkg/fileembed"
+import "embed"
 
-var Files = &fileembed.Files{}
+//go:embed *.css *.ttf
+var Files embed.FS

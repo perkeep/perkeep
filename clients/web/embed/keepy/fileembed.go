@@ -16,11 +16,10 @@ limitations under the License.
 
 /*
 Package keepy embeds the keepy parakeet animation resources.
-
-#fileembed pattern .*\.png
 */
 package keepy
 
-import "perkeep.org/pkg/fileembed"
+import "embed"
 
-var Files = &fileembed.Files{}
+//go:embed *.png
+var Files embed.FS

@@ -16,11 +16,10 @@ limitations under the License.
 
 /*
 Package glich embeds the little piggy animation resources.
-
-#fileembed pattern .*\.png
 */
 package glitch
 
-import "perkeep.org/pkg/fileembed"
+import "embed"
 
-var Files = &fileembed.Files{}
+//go:embed *.png
+var Files embed.FS

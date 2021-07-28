@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -38,7 +39,6 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/constants"
-	"perkeep.org/pkg/fileembed"
 	"perkeep.org/pkg/search"
 	camliserver "perkeep.org/pkg/server"
 
@@ -98,6 +98,8 @@ type handler struct {
 
 	signer blob.Ref
 	server string
+
+	uiFiles fs.FS
 }
 
 func newHandler() (*handler, error) {
@@ -106,8 +108,9 @@ func newHandler() (*handler, error) {
 		return nil, fmt.Errorf("could not initialize a client: %v", err)
 	}
 	h := &handler{
-		sh: cl,
-		cl: cl,
+		sh:      cl,
+		cl:      cl,
+		uiFiles: uistatic.Files,
 	}
 
 	config, err := appConfig()
@@ -118,14 +121,12 @@ func newHandler() (*handler, error) {
 	// Serve files from source root when running devcam
 	if config.SourceRoot != "" {
 		logf("Using UI resources (HTML, JS, CSS) from disk, under %v", config.SourceRoot)
-		uistatic.Files = &fileembed.Files{
-			DirFallback: config.SourceRoot,
-		}
+		h.uiFiles = os.DirFS(config.SourceRoot)
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", h.handleRoot)
-	mux.HandleFunc("/ui/", handleUiFile)
+	mux.HandleFunc("/ui/", h.handleUiFile)
 	mux.HandleFunc("/uploadurl", h.handleUploadURL)
 	mux.HandleFunc("/upload", h.handleUpload)
 	mux.HandleFunc("/resource/", h.handleResource)
@@ -642,12 +643,12 @@ func handleRobots(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "User-agent: *\nDisallow: /\n")
 }
 
-func handleUiFile(w http.ResponseWriter, r *http.Request) {
+func (h *handler) handleUiFile(w http.ResponseWriter, r *http.Request) {
 	file := strings.TrimPrefix(r.URL.Path, "/ui")
 
-	root := uistatic.Files
+	root := h.uiFiles
 
-	f, err := root.Open("/" + file)
+	f, err := root.Open(file)
 	if err != nil {
 		http.NotFound(w, r)
 		logf("Failed to open file %v from embedded resources: %v", file, err)
@@ -663,5 +664,5 @@ func handleUiFile(w http.ResponseWriter, r *http.Request) {
 	} else if strings.HasSuffix(file, ".js") {
 		w.Header().Set("Content-Type", "application/javascript")
 	}
-	http.ServeContent(w, r, file, modTime, f)
+	http.ServeContent(w, r, file, modTime, f.(io.ReadSeeker))
 }

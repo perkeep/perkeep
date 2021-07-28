@@ -20,11 +20,10 @@ embeds them into the Go binary when compiled with the genfileembed
 tool.
 
 See http://fortawesome.github.io/Font-Awesome/
-
-#fileembed pattern .*\.(css|eot|svg|ttf|woff|woff2|otf)$
 */
 package fontawesome
 
-import "perkeep.org/pkg/fileembed"
+import "embed"
 
-var Files = &fileembed.Files{}
+//go:embed css/* fonts/*
+var Files embed.FS

@@ -20,6 +20,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -46,7 +48,6 @@ import (
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/cacher"
 	"perkeep.org/pkg/constants"
-	"perkeep.org/pkg/fileembed"
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/server/app"
 	"perkeep.org/pkg/sorted"
@@ -106,6 +107,17 @@ type UIHandler struct {
 	fileFontawesomeHandler http.Handler
 	fileOpenSansHandler    http.Handler
 	fileKeepyHandler       http.Handler
+
+	// Embed Filesystems.
+	// Some of them may point to the disk.
+	uiFiles                fs.FS
+	serverFiles            fs.FS
+	lessStaticFiles        fs.FS
+	reactStaticFiles       fs.FS
+	leafletStaticFiles     fs.FS
+	keepyStaticFiles       fs.FS
+	fontawesomeStaticFiles fs.FS
+	opensansStaticFiles    fs.FS
 }
 
 func init() {
@@ -127,6 +139,15 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		sourceRoot: conf.OptionalString("sourceRoot", ""),
 		resizeSem: syncutil.NewSem(int64(conf.OptionalInt("maxResizeBytes",
 			constants.DefaultMaxResizeMem))),
+
+		serverFiles:            Files,
+		uiFiles:                uistatic.Files,
+		lessStaticFiles:        lessstatic.Files,
+		reactStaticFiles:       reactstatic.Files,
+		leafletStaticFiles:     leafletstatic.Files,
+		keepyStaticFiles:       keepystatic.Files,
+		fontawesomeStaticFiles: fontawesomestatic.Files,
+		opensansStaticFiles:    opensansstatic.Files,
 	}
 	cachePrefix := conf.OptionalString("cache", "")
 	scaledImageConf := conf.OptionalObject("scaledImage")
@@ -165,29 +186,26 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 			log.Printf("Using the default \"%v\" as the sourceRoot for AppEngine", uistatic.GaeSourceRoot)
 			ui.sourceRoot = uistatic.GaeSourceRoot
 		}
-		if ui.sourceRoot == "" && uistatic.Files.IsEmpty() {
-			ui.sourceRoot, err = osutil.GoPackagePath("perkeep.org")
+		if ui.sourceRoot == "" {
+			files, err := uistatic.Files.ReadDir(".")
 			if err != nil {
-				log.Printf("Warning: server not compiled with linked-in UI resources (HTML, JS, CSS), and perkeep.org not found in GOPATH.")
-			} else {
-				log.Printf("Using UI resources (HTML, JS, CSS) from disk, under %v", ui.sourceRoot)
+				return nil, fmt.Errorf("Could not read static files: %v", err)
+			}
+			if len(files) == 0 {
+				ui.sourceRoot, err = osutil.GoPackagePath("perkeep.org")
+				if err != nil {
+					log.Printf("Warning: server not compiled with linked-in UI resources (HTML, JS, CSS), and perkeep.org not found in GOPATH.")
+				} else {
+					log.Printf("Using UI resources (HTML, JS, CSS) from disk, under %v", ui.sourceRoot)
+				}
 			}
 		}
 	}
 	if ui.sourceRoot != "" {
 		ui.uiDir = filepath.Join(ui.sourceRoot, filepath.FromSlash("server/perkeepd/ui"))
 		// Ignore any fileembed files:
-		Files = &fileembed.Files{
-			DirFallback: filepath.Join(ui.sourceRoot, filepath.FromSlash("pkg/server")),
-		}
-		uistatic.Files = &fileembed.Files{
-			DirFallback: ui.uiDir,
-			Listable:    true,
-			// In dev_appserver, allow edit-and-reload without
-			// restarting. In production, though, it's faster to just
-			// slurp it in.
-			SlurpToMemory: uistatic.IsProdAppEngine,
-		}
+		ui.serverFiles = os.DirFS(filepath.Join(ui.sourceRoot, filepath.FromSlash("pkg/server")))
+		ui.uiFiles = os.DirFS(ui.uiDir)
 	}
 
 	ui.closureHandler, err = ui.makeClosureHandler(ui.sourceRoot)
@@ -446,17 +464,17 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	case getSuffixMatches(req, closurePattern):
 		ui.serveClosure(rw, req)
 	case getSuffixMatches(req, lessPattern):
-		ui.serveFromDiskOrStatic(rw, req, lessPattern, ui.fileLessHandler, lessstatic.Files)
+		ui.serveFromDiskOrStatic(rw, req, lessPattern, ui.fileLessHandler, ui.lessStaticFiles)
 	case getSuffixMatches(req, reactPattern):
-		ui.serveFromDiskOrStatic(rw, req, reactPattern, ui.fileReactHandler, reactstatic.Files)
+		ui.serveFromDiskOrStatic(rw, req, reactPattern, ui.fileReactHandler, ui.reactStaticFiles)
 	case getSuffixMatches(req, leafletPattern):
-		ui.serveFromDiskOrStatic(rw, req, leafletPattern, ui.fileLeafletHandler, leafletstatic.Files)
+		ui.serveFromDiskOrStatic(rw, req, leafletPattern, ui.fileLeafletHandler, ui.leafletStaticFiles)
 	case getSuffixMatches(req, keepyPattern):
-		ui.serveFromDiskOrStatic(rw, req, keepyPattern, ui.fileKeepyHandler, keepystatic.Files)
+		ui.serveFromDiskOrStatic(rw, req, keepyPattern, ui.fileKeepyHandler, ui.keepyStaticFiles)
 	case getSuffixMatches(req, fontawesomePattern):
-		ui.serveFromDiskOrStatic(rw, req, fontawesomePattern, ui.fileFontawesomeHandler, fontawesomestatic.Files)
+		ui.serveFromDiskOrStatic(rw, req, fontawesomePattern, ui.fileFontawesomeHandler, ui.fontawesomeStaticFiles)
 	case getSuffixMatches(req, openSansPattern):
-		ui.serveFromDiskOrStatic(rw, req, openSansPattern, ui.fileOpenSansHandler, opensansstatic.Files)
+		ui.serveFromDiskOrStatic(rw, req, openSansPattern, ui.fileOpenSansHandler, ui.opensansStaticFiles)
 	default:
 		file := ""
 		if m := staticFilePattern.FindStringSubmatch(suffix); m != nil {
@@ -480,13 +498,13 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			serveDepsJS(rw, req, ui.uiDir)
 			return
 		}
-		ServeStaticFile(rw, req, uistatic.Files, file)
+		ServeStaticFile(rw, req, ui.uiFiles, file)
 	}
 }
 
 // ServeStaticFile serves file from the root virtual filesystem.
-func ServeStaticFile(rw http.ResponseWriter, req *http.Request, root http.FileSystem, file string) {
-	f, err := root.Open("/" + file)
+func ServeStaticFile(rw http.ResponseWriter, req *http.Request, root fs.FS, file string) {
+	f, err := root.Open(file)
 	if err != nil {
 		http.NotFound(rw, req)
 		log.Printf("Failed to open file %q from embedded resources: %v", file, err)
@@ -502,7 +520,7 @@ func ServeStaticFile(rw http.ResponseWriter, req *http.Request, root http.FileSy
 	if strings.HasSuffix(file, ".svg") {
 		rw.Header().Set("Content-Type", "image/svg+xml")
 	}
-	http.ServeContent(rw, req, file, modTime, f)
+	http.ServeContent(rw, req, file, modTime, f.(io.ReadSeeker))
 }
 
 func (ui *UIHandler) discovery() *camtypes.UIDiscovery {
@@ -637,7 +655,7 @@ func (ui *UIHandler) serveClosure(rw http.ResponseWriter, req *http.Request) {
 }
 
 // serveFromDiskOrStatic matches rx against req's path and serves the match either from disk (if non-nil) or from static (embedded in the binary).
-func (ui *UIHandler) serveFromDiskOrStatic(rw http.ResponseWriter, req *http.Request, rx *regexp.Regexp, disk http.Handler, static *fileembed.Files) {
+func (ui *UIHandler) serveFromDiskOrStatic(rw http.ResponseWriter, req *http.Request, rx *regexp.Regexp, disk http.Handler, static fs.FS) {
 	suffix := httputil.PathSuffix(req)
 	m := rx.FindStringSubmatch(suffix)
 	if m == nil {
@@ -672,7 +690,7 @@ func (ui *UIHandler) serveQR(rw http.ResponseWriter, req *http.Request) {
 func serveDepsJS(rw http.ResponseWriter, req *http.Request, dir string) {
 	var root http.FileSystem
 	if dir == "" {
-		root = uistatic.Files
+		root = http.FS(uistatic.Files)
 	} else {
 		root = http.Dir(dir)
 	}

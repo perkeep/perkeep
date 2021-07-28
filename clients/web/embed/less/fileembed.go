@@ -18,11 +18,10 @@ limitations under the License.
 Package less provides the LESS CSS framework/rewriter.
 
 See http://lesscss.org/
-
-#fileembed pattern .*\.js$
 */
 package less
 
-import "perkeep.org/pkg/fileembed"
+import "embed"
 
-var Files = &fileembed.Files{}
+//go:embed *.js
+var Files embed.FS

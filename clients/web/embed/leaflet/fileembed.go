@@ -22,11 +22,10 @@ compiled with the genfileembed tool.
 
 See http://leafletjs.com/ and
 https://github.com/lvoogdt/Leaflet.awesome-markers
-
-#fileembed pattern .*\.(js|css|png)$
 */
 package leaflet
 
-import "perkeep.org/pkg/fileembed"
+import "embed"
 
-var Files = &fileembed.Files{}
+//go:embed *.js *.css *.png
+var Files embed.FS
