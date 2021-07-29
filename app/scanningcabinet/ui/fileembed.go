@@ -18,13 +18,10 @@ limitations under the License.
 TODO(steve.armstrong): Until app/scanningcabinet/handler.go handleUiFile()
 properly manages Content-Type, be sure to update it whenever adding a new
 file type to the pattern below.
-
-#fileembed pattern .+\.(js|css)$
 */
 package ui // import "perkeep.org/app/scanningcabinet/ui"
 
-import (
-	"perkeep.org/pkg/fileembed"
-)
+import "embed"
 
-var Files = &fileembed.Files{}
+//go:embed *.js *.css
+var Files embed.FS

@@ -28,6 +28,7 @@ import (
 	"html"
 	"html/template"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -53,7 +54,6 @@ import (
 	"perkeep.org/pkg/buildinfo"
 	"perkeep.org/pkg/cacher"
 	"perkeep.org/pkg/constants"
-	"perkeep.org/pkg/fileembed"
 	"perkeep.org/pkg/publish"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/search"
@@ -324,10 +324,9 @@ func newPublishHandler(conf *config) *publishHandler {
 		maxResizeBytes = constants.DefaultMaxResizeMem
 	}
 	var CSSFiles, JSDeps []string
+	var staticFiles fs.FS = Files
 	if conf.SourceRoot != "" {
-		Files = &fileembed.Files{
-			DirFallback: conf.SourceRoot,
-		}
+		staticFiles = os.DirFS(conf.SourceRoot)
 		// TODO(mpl): Can I readdir by listing with "/" on Files, even with DirFallBack?
 		// Apparently not, but retry later.
 		dir, err := os.Open(conf.SourceRoot)
@@ -354,13 +353,7 @@ func newPublishHandler(conf *config) *publishHandler {
 		}
 		sort.Strings(JSDeps)
 	} else {
-		Files.Listable = true
-		dir, err := Files.Open("/")
-		if err != nil {
-			logger.Fatal(err)
-		}
-		defer dir.Close()
-		fis, err := dir.Readdir(-1)
+		fis, err := Files.ReadDir(".")
 		if err != nil {
 			logger.Fatal(err)
 		}
@@ -380,7 +373,7 @@ func newPublishHandler(conf *config) *publishHandler {
 	if conf.GoTemplate == "" {
 		logger.Fatal("a go template is required in the app configuration")
 	}
-	goTemplate, err := goTemplate(Files, conf.GoTemplate)
+	goTemplate, err := goTemplate(staticFiles, conf.GoTemplate)
 	if err != nil {
 		logger.Fatal(err)
 	}
@@ -410,7 +403,7 @@ func newPublishHandler(conf *config) *publishHandler {
 		rootName:       conf.RootName,
 		cl:             cl,
 		resizeSem:      syncutil.NewSem(maxResizeBytes),
-		staticFiles:    Files,
+		staticFiles:    staticFiles,
 		goTemplate:     goTemplate,
 		CSSFiles:       CSSFiles,
 		JSDeps:         JSDeps,
@@ -420,7 +413,7 @@ func newPublishHandler(conf *config) *publishHandler {
 	}
 }
 
-func goTemplate(files *fileembed.Files, templateFile string) (*template.Template, error) {
+func goTemplate(files fs.FS, templateFile string) (*template.Template, error) {
 	f, err := files.Open(templateFile)
 	if err != nil {
 		return nil, fmt.Errorf("Could not open template %v: %v", templateFile, err)
@@ -454,7 +447,7 @@ type publishHandler struct {
 
 	cl client // Used for searching, and remote storage.
 
-	staticFiles *fileembed.Files   // For static resources.
+	staticFiles fs.FS              // For static resources.
 	goTemplate  *template.Template // For publishing/rendering.
 	CSSFiles    []string
 	JSDeps      []string

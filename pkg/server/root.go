@@ -193,7 +193,7 @@ func (rh *RootHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.URL.Path {
 	case "/favicon.ico":
-		ServeStaticFile(w, r, Files, "favicon.ico")
+		ServeStaticFile(w, r, &Files, "favicon.ico")
 		return
 	case "/mobile-setup":
 		http.Redirect(w, r, "/ui/mobile.html", http.StatusFound)

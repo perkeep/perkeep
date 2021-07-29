@@ -17,8 +17,6 @@ _cgo*
 app/publisher/publisher.js
 app/publisher/publisher.js.map
 app/publisher/js/zsearch.go
-app/publisher/zembed_*.go
-app/scanningcabinet/ui/zembed_*
 bin/*_*
 bin/cam*
 bin/devcam
@@ -33,20 +31,11 @@ bin/scancab
 bin/scanningcabinet
 bin/website
 clients/android/.gradle/
-clients/web/embed/fontawesome/zembed_*.go
-clients/web/embed/glitch/zembed_*.go
-clients/web/embed/keepy/zembed_*.go
-clients/web/embed/leaflet/zembed_*.go
-clients/web/embed/less/zembed_*.go
-clients/web/embed/opensans/zembed_*.go
-clients/web/embed/react/zembed_*.go
 config/tls.*
 misc/docker/djpeg-static/djpeg
 misc/docker/djpeg-static/djpeg.tar.gz
 misc/docker/perkeepd/perkeepd*
 misc/docker/perkeepd/djpeg
-pkg/server/zembed_favicon.ico.go
-server/perkeepd/ui/zembed_*
 server/perkeepd/ui/closure/z_data.go
 
 # not vendored in, because we build with the system's libsqlite3

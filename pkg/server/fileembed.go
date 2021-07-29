@@ -14,22 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/*
-#fileembed pattern .+\.(ico)$
-*/
 package server
 
 import (
-	"os"
-	"path/filepath"
-
-	"perkeep.org/pkg/fileembed"
+	"embed"
 )
 
-var Files = &fileembed.Files{}
-
-func init() {
-	if root := os.Getenv("CAMLI_DEV_CAMLI_ROOT"); root != "" {
-		Files.DirFallback = filepath.Join(root, filepath.FromSlash("pkg/server"))
-	}
-}
+//go:embed *.ico
+var Files embed.FS

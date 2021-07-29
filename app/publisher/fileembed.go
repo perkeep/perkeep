@@ -18,15 +18,12 @@ limitations under the License.
 The publisher application serves and renders items published by Perkeep.
 That is, items that are children, through a (direct or not) camliPath relation,
 of a camliRoot node (a permanode with a camliRoot attribute set).
-
-#fileembed pattern .+\.(js|css|html|png|svg|js.map)$
 */
 package main // import "perkeep.org/app/publisher"
 
-import (
-	"perkeep.org/pkg/fileembed"
-)
+import "embed"
 
 // TODO(mpl): appengine case
 
-var Files = &fileembed.Files{}
+//go:embed *.js *.css *.html *.png
+var Files embed.FS

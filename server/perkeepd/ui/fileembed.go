@@ -16,20 +16,18 @@ limitations under the License.
 
 /*
 Package ui contains the resources for the Camlistore web UI.
-
-The below is read by genfileembed.go to determine the files to embed in the
-server binary. Crazy, but true.
-#fileembed pattern .+\.(js|css|html|png|svg)$
 */
 package ui // import "perkeep.org/server/perkeepd/ui"
 
 import (
-	"perkeep.org/pkg/fileembed"
+	"embed"
 )
 
 const GaeSourceRoot = "source_root"
 
+//go:embed *.js *.html *.png *.svg *.css
+var Files embed.FS
+
 var (
-	Files                        *fileembed.Files
 	IsAppEngine, IsProdAppEngine bool
 )

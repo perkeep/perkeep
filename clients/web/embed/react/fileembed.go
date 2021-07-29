@@ -20,11 +20,10 @@ embeds them into the Go binary when compiled with the genfileembed
 tool.
 
 See http://facebook.github.io/react/
-
-#fileembed pattern .*\.js$
 */
 package react
 
-import "perkeep.org/pkg/fileembed"
+import "embed"
 
-var Files = &fileembed.Files{}
+//go:embed *.js
+var Files embed.FS
