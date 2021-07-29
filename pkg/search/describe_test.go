@@ -425,7 +425,8 @@ func TestDescribeRace(t *testing.T) {
 				Depth:   1,
 			})
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
+				return
 			}
 			_, ok := res.Meta[br.String()]
 			if !ok {

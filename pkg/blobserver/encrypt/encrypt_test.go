@@ -192,7 +192,7 @@ func TestEncrypt(t *testing.T) {
 	c := make(chan blob.SizedRef)
 	go func() {
 		if err := ts.sto.EnumerateBlobs(context.TODO(), c, "", 0); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 	}()
 	if sr := <-c; sr != tb2.SizedRef() {
