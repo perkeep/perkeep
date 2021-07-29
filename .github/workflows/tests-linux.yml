@@ -15,12 +15,6 @@ jobs:
       with:
         go-version: ${{ matrix.go-version }}
 
-    - uses: actions/cache@v2
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: ${{ runner.os }}-go-
-
     - name: Symlink source into GOPATH for devcam
       run: |
         mkdir $(go env GOPATH)/src
