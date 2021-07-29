@@ -736,7 +736,7 @@ func validateDirInGOPATH(dir string) error {
 }
 
 const (
-	goVersionMinor = 15
+	goVersionMinor = 16
 )
 
 var validVersionRx = regexp.MustCompile(`go version go1\.(\d+)`)
