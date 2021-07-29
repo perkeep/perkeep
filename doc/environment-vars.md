@@ -166,10 +166,10 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
   to during server start-up.  Used to profile index corpus scanning,
   mostly.
 
-`CAMLI_PUBLISH_ENABLED (bool)
+`CAMLI_PUBLISH_ENABLED` (bool)
 : Whether to start the publisher app as well. Variable used only by devcam server.
 
-`CAMLI_SCANCAB_ENABLED (bool)
+`CAMLI_SCANCAB_ENABLED` (bool)
 : Whether to start the scanning cabinet app as well. Variable used only by devcam server.
 
 `CAMLI_SECRET_RING` (string)
