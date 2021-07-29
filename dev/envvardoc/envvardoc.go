@@ -17,15 +17,17 @@ import (
 )
 
 var (
-	srcDirs = flag.String("srcDirs", "cmd,dev,pkg,server",
+	srcDirs = flag.String("srcDirs", "cmd,dev,pkg,server,internal",
 		"comma separated source directories")
-	doc = flag.String("doc", "doc/environment-vars.txt",
+	doc = flag.String("doc", "doc/environment-vars.md",
 		"file containing environment variable documentation")
 	all      = flag.Bool("all", false, "show all environment vars found")
-	prefixes = flag.String("prefixes", "CAM,DEV,AWS",
+	prefixes = flag.String("prefixes", "PERKEEP,CAM,DEV,AWS",
 		"comma-separated list of env var prefixes we care about. Empty implies all")
 
-	docVar         = regexp.MustCompile(`^(\w+) \(.+?\):$`)
+	//	^`(\w+)`\s+\(\w+\)\s*$
+	docVar = regexp.MustCompile(`^` + "`" + `(\w+)` + "`" + `\s+\(\w+\)\s*$`)
+
 	literalEnvVar  = regexp.MustCompile(`os.Getenv\("(\w+)"\)`)
 	variableEnvVar = regexp.MustCompile(`os.Getenv\((\w+)\)`)
 )
@@ -82,7 +84,14 @@ func (ec *envCollector) findEnvVars(path string, r io.Reader) error {
 		}
 		line++
 	}
-	return scanner.Err()
+
+	err := scanner.Err()
+	if err == bufio.ErrTooLong {
+		// Happens only for unreasonably long lines.
+		// In our case the webui's embeded stuff.
+		return nil
+	}
+	return err
 }
 
 func (ec *envCollector) findDocVars(r io.Reader) error {
