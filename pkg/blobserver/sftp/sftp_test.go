@@ -37,7 +37,7 @@ var runBrokenTests = flag.Bool("run-broken-tests", false, "run known-broken test
 
 const testEnvKey = "PK_SFTP_TEST_AUTH_JSON"
 
-func testSFTPServer(t *testing.T, root string, handleConn func(net.Conn)) {
+func testSFTPServer(t *testing.T, root string, handleConn func(net.Conn) error) {
 	ln, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		t.Fatal(err)
@@ -48,7 +48,9 @@ func testSFTPServer(t *testing.T, root string, handleConn func(net.Conn)) {
 			if c, err := ln.Accept(); err != nil {
 				return
 			} else {
-				go handleConn(c)
+				if err := handleConn(c); err != nil {
+					t.Errorf("handleConn: %+v", err)
+				}
 			}
 		}
 	}()
@@ -57,7 +59,7 @@ func testSFTPServer(t *testing.T, root string, handleConn func(net.Conn)) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return sto, func() {}
+		return sto, func() { ln.Close() }
 	})
 }
 
@@ -65,8 +67,8 @@ func TestStorage_Memory(t *testing.T) {
 	if !*runBrokenTests {
 		t.Skip("skipping; the sftp package's in-memory Handler server seems to not work correctly")
 	}
-	testSFTPServer(t, ".", func(c net.Conn) {
-		sftp.NewRequestServer(c, sftp.InMemHandler()).Serve()
+	testSFTPServer(t, ".", func(c net.Conn) error {
+		return sftp.NewRequestServer(c, sftp.InMemHandler()).Serve()
 	})
 }
 
@@ -76,13 +78,12 @@ func TestStorage_TempDir(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(td)
-	testSFTPServer(t, td, func(c net.Conn) {
+	testSFTPServer(t, td, func(c net.Conn) error {
 		srv, err := sftp.NewServer(c)
 		if err != nil {
-			// sftp.NewServer only returns a non-nil error on options, and we have no options.
-			panic(err)
+			return err
 		}
-		srv.Serve()
+		return srv.Serve()
 	})
 }
 
@@ -141,7 +142,9 @@ func TestStorage_Manual(t *testing.T) {
 				return len(toDelete[i]) > len(toDelete[j])
 			})
 			for _, f := range toDelete {
-				sc.Remove(f)
+				if err = sc.Remove(f); err != nil {
+					t.Errorf("remove %q: %v", f, err)
+				}
 			}
 		}
 		clean()

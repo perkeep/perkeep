@@ -994,6 +994,8 @@ func TestGetPermanodeLocationAllocs(t *testing.T) {
 		camliContentFileLoc = blobParseAlloc
 	)
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
 	for _, tt := range []struct {
 		title    string
 		pn       blob.Ref
@@ -1004,7 +1006,7 @@ func TestGetPermanodeLocationAllocs(t *testing.T) {
 		{"location from exif photo", pnPhoto, latLongAttr + camliContentFileLoc},
 	} {
 		n := testing.AllocsPerRun(20, func() {
-			loc, err := h.ExportGetPermanodeLocation(context.TODO(), tt.pn, time.Now())
+			loc, err := h.ExportGetPermanodeLocation(ctx, tt.pn, time.Now())
 			if err != nil {
 				t.Fatal(err)
 			}
