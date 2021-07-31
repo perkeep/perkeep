@@ -55,7 +55,7 @@ func reArmor(line string) string {
 		fmt.Fprintf(buf, "%s\n", payload[0:chunkLen])
 		payload = payload[chunkLen:]
 	}
-	fmt.Fprintf(buf, "%s\n-----BEGIN PGP SIGNATURE-----\n", crc)
+	fmt.Fprintf(buf, "%s\n-----END PGP SIGNATURE-----\n", crc)
 	return buf.String()
 }
 
