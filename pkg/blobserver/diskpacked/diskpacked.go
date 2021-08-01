@@ -125,13 +125,13 @@ func IsDir(dir string) (bool, error) {
 // files.
 func New(dir string) (blobserver.Storage, error) {
 	var maxSize int64
-	var n, atMax int
 	if dh, err := os.Open(dir); err == nil {
+		var nBlobFiles, atMax int
 		if fis, err := dh.Readdir(-1); err == nil {
 			// Detect existing max size from size of files, if obvious, and set maxSize to that
 			for _, fi := range fis {
 				if nm := fi.Name(); strings.HasPrefix(nm, "pack-") && strings.HasSuffix(nm, ".blobs") {
-					n++
+					nBlobFiles++
 					if s := fi.Size(); s > maxSize {
 						maxSize, atMax = fi.Size(), 0
 					} else if s == maxSize {
@@ -140,11 +140,11 @@ func New(dir string) (blobserver.Storage, error) {
 				}
 			}
 		}
-	}
-	// Believe to the deduced size only if at least 2 files has that maximum size,
-	// and all files (except one) has the same.
-	if !(atMax > 1 && n == atMax+1) {
-		maxSize = 0
+		// Believe the deduced size only if at least 2 files has that maximum size,
+		// and all files (except one) has the same.
+		if !(atMax > 1 && nBlobFiles == atMax+1) {
+			maxSize = 0
+		}
 	}
 	return newStorage(dir, maxSize, nil)
 }
