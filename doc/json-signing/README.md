@@ -70,7 +70,7 @@ and verify JSON documents:
    is specifically about Perkeep, which requires that the JSON
    object 'O' contain the following two key/value pairs:
 
-        "camliVersion": "1"
+        "camliVersion": 1
         "camliSigner": "hashalg-xxxxxxxxxxx"  (blobref of ASCII-armored public key)
 
 -  To find your camliSigner value, you could use GPG like:
