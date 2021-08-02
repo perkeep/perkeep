@@ -262,10 +262,12 @@ func (s *Server) Serve() {
 }
 
 // Signals the test harness that we've started listening.
-// TODO: write back the port number that we randomly selected?
-// For now just writes back a single byte.
+// Writes back the address that we randomly selected.
 func runTestHarnessIntegration(listener net.Listener) {
 	addr := os.Getenv("CAMLI_SET_BASE_URL_AND_SEND_ADDR_TO")
+	if addr == "" {
+		return
+	}
 	c, err := net.Dial("tcp", addr)
 	if err == nil {
 		fmt.Fprintf(c, "%s\n", listener.Addr())
