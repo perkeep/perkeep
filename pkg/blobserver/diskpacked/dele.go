@@ -83,14 +83,13 @@ func (s *storage) delete(br blob.Ref) error {
 		if err == nil {
 			return nil
 		}
-		if err != errNoPunch {
+		if !errors.Is(err, errNoPunch) {
 			return err
 		}
-		// err == errNoPunch - not implemented
 	}
 
 	// fill with zero
-	n, err := f.Seek(meta.offset, os.SEEK_SET)
+	n, err := f.Seek(meta.offset, io.SeekStart)
 	if err != nil {
 		return err
 	}

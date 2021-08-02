@@ -116,7 +116,10 @@ func newTestStorage(t *testing.T, packs ...pack) (s *storage, clean func()) {
 		writePack(t, dir, i, p)
 	}
 
-	if err := Reindex(dir, true, nil); err != nil {
+	ctx, cancel := context.WithCancel(context.Background())
+	err = Reindex(ctx, dir, true, nil)
+	cancel()
+	if err != nil {
 		t.Fatalf("Reindexing after writing pack files: %v", err)
 	}
 	s, err = newStorage(dir, 0, nil)
@@ -136,11 +139,12 @@ func newTestStorage(t *testing.T, packs ...pack) (s *storage, clean func()) {
 // before returning and fails the test if any of the checks fail. It
 // also fails the test if StreamBlobs returns a non-nil error.
 func streamAll(t *testing.T, s *storage) []*blob.Blob {
-	var blobs []*blob.Blob
-	ctx := context.TODO()
+	blobs := make([]*blob.Blob, 0, 1024)
 	ch := make(chan blobserver.BlobAndToken)
 	errCh := make(chan error, 1)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go func() { errCh <- s.StreamBlobs(ctx, ch, "") }()
 
 	for bt := range ch {

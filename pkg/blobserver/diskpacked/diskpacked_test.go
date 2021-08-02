@@ -105,7 +105,9 @@ func TestDoubleReceive(t *testing.T) {
 	if size(0) < blobSize {
 		t.Fatalf("size = %d; want at least %d", size(0), blobSize)
 	}
-	sto.(*storage).nextPack()
+	if err = sto.(*storage).nextPack(); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err = blobserver.Receive(ctxbg, sto, br, b.Reader())
 	if err != nil {
@@ -134,7 +136,7 @@ func TestDelete(t *testing.T) {
 		return func() error {
 			sb, err := sto.ReceiveBlob(ctxbg, tb.BlobRef(), tb.Reader())
 			if err != nil {
-				return fmt.Errorf("ReceiveBlob of %s: %v", sb, err)
+				return fmt.Errorf("ReceiveBlob of %s: %w", sb, err)
 			}
 			if sb != tb.SizedRef() {
 				return fmt.Errorf("Received %v; want %v", sb, tb.SizedRef())
@@ -159,7 +161,7 @@ func TestDelete(t *testing.T) {
 	stepDelete := func(tb *test.Blob) step {
 		return func() error {
 			if err := sto.RemoveBlobs(ctx, []blob.Ref{tb.BlobRef()}); err != nil {
-				return fmt.Errorf("RemoveBlob(%s): %v", tb.BlobRef(), err)
+				return fmt.Errorf("RemoveBlob(%s): %w", tb.BlobRef(), err)
 			}
 			return nil
 		}
@@ -223,7 +225,7 @@ func TestDoubleReceiveFailingIndex(t *testing.T) {
 
 	_, err := blobserver.Receive(ctxbg, sto, br, b.Reader())
 	if err != nil {
-		if err != errDummy {
+		if !errors.Is(err, errDummy) {
 			t.Fatal(err)
 		}
 		t.Logf("dummy fail")
