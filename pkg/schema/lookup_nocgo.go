@@ -1,3 +1,4 @@
+//go:build nocgo
 // +build nocgo
 
 /*
