@@ -254,7 +254,6 @@ func uploadLoop(ctx context.Context) error {
 		fmt.Println("Uploads complete. Waiting for new files.")
 		time.Sleep(5 * time.Second)
 	}
-	return nil
 }
 
 func batchScanHelper(img string) {
