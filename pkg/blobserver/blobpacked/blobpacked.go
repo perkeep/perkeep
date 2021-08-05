@@ -326,7 +326,7 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 			}
 			wiper, ok := kv.(sorted.Wiper)
 			if !ok {
-				return nil, fmt.Errorf("blobpacked meta index of type %T needs to be wiped, but does not support automatic wiping. It should be removed manually", kv)
+				return nil, fmt.Errorf("blobpacked meta index of type %T needs to be wiped, but does not support automatic wiping - it should be removed manually", kv)
 			}
 			if err := wiper.Wipe(); err != nil {
 				return nil, fmt.Errorf("blobpacked meta index of type %T could not be wiped: %v", kv, err)
@@ -1340,7 +1340,8 @@ func (pk *packer) writeAZip(ctx context.Context, trunc blob.Ref) (err error) {
 		Name:   baseFileName,
 		Method: zip.Store, // uncompressed
 	}
-	fh.Modified = pk.fr.ModTime()
+	//fh.SetModTime(pk.fr.ModTime())
+	blobserver.ZipSetModTime(fh, pk.fr.ModTime())
 	fh.SetMode(0644)
 	fw, err := zw.CreateHeader(fh)
 	check(err)

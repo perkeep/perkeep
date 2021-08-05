@@ -36,7 +36,7 @@ func TestFromConfig(t *testing.T) {
 		wanterr interface{}
 	}{
 		{in: "", wanterr: ErrNoAuth},
-		{in: "slkdjflksdjf", wanterr: `Unknown auth type: "slkdjflksdjf"`},
+		{in: "slkdjflksdjf", wanterr: `unknown auth type: "slkdjflksdjf"`},
 		{in: "none", want: None{}},
 		{in: "localhost", want: Localhost{}},
 		{in: "userpass:alice:secret", want: &UserPass{Username: "alice", Password: "secret", OrLocalhost: false, VivifyPass: nil}},
