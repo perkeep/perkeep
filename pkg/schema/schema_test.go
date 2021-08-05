@@ -421,7 +421,7 @@ func TestAsClaimAndAsShare(t *testing.T) {
 	}
 
 	bb.SetShareTarget(br)
-	s, ok = getBlob().AsShare()
+	_, ok = getBlob().AsShare()
 	if !ok {
 		t.Error("Share claim failed to return share with target")
 	}
@@ -431,7 +431,7 @@ func TestAsClaimAndAsShare(t *testing.T) {
 	bb = bb.SetClaimDate(time.Now())
 	// Would be better to use search.SearchQuery but we can't reference it here.
 	bb.SetShareSearch(&struct{}{})
-	s, ok = getBlob().AsShare()
+	_, ok = getBlob().AsShare()
 	if !ok {
 		t.Error("Share claim failed to return share with search")
 	}

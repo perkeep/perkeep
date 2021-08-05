@@ -65,7 +65,6 @@ func handleStat(rw http.ResponseWriter, req *http.Request, storage blobserver.Bl
 		key := fmt.Sprintf("blob%v", n)
 		value := req.FormValue(key)
 		if value == "" {
-			n--
 			break
 		}
 		if n > maxStatBlobs {

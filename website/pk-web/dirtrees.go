@@ -103,7 +103,7 @@ func (b *treeBuilder) newDirTree(fset *token.FileSet, path, name string, depth i
 					hasPkgFiles = true
 					if file.Doc != nil {
 						// prioritize documentation
-						i := -1
+						var i int
 						switch file.Name.Name {
 						case name:
 							i = 0 // normal case: directory name matches package name

@@ -123,7 +123,6 @@ func (c *Client) fetchVia(ctx context.Context, b blob.Ref, v []blob.Ref) (body i
 		size = uint32(resp.ContentLength)
 	} else {
 		var buf bytes.Buffer
-		size = 0
 		// Might be compressed. Slurp it to memory.
 		n, err := io.CopyN(&buf, resp.Body, constants.MaxBlobSize+1)
 		if n > blobserver.MaxBlobSize {
@@ -131,7 +130,7 @@ func (c *Client) fetchVia(ctx context.Context, b blob.Ref, v []blob.Ref) (body i
 		}
 		if err == nil {
 			panic("unexpected")
-		} else if err == io.EOF {
+		} else if errors.Is(err, io.EOF) {
 			size = uint32(n)
 			reader, closer = &buf, types.NopCloser
 		} else {
@@ -141,7 +140,7 @@ func (c *Client) fetchVia(ctx context.Context, b blob.Ref, v []blob.Ref) (body i
 
 	var buf bytes.Buffer
 	if err := c.UpdateShareChain(b, io.TeeReader(reader, &buf)); err != nil {
-		if err != ErrNotSharing {
+		if !errors.Is(err, ErrNotSharing) {
 			return nil, 0, err
 		}
 	}

@@ -209,7 +209,7 @@ func New(s sorted.KeyValue) (*Index, error) {
 			return nil, fmt.Errorf("could not write index schema version %q: %w", requiredSchemaVersion, err)
 		}
 	case schemaVersion != requiredSchemaVersion:
-		tip := ""
+		var tip string
 		if env.IsDev() {
 			// Good signal that we're using the devcam server, so help out
 			// the user with a more useful tip:

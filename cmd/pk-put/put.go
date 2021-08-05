@@ -147,7 +147,7 @@ func proxyFromEnvironment(req *http.Request) (*url.URL, error) {
 	}
 	proxyURL, err := url.Parse(proxy)
 	if err != nil || proxyURL.Scheme == "" {
-		if u, err := url.Parse("http://" + proxy); err == nil {
+		if u, parseErr := url.Parse("http://" + proxy); parseErr == nil {
 			proxyURL = u
 			err = nil
 		}

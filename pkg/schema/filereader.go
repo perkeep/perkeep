@@ -181,14 +181,14 @@ func (fr *FileReader) ReadAt(p []byte, offset int64) (n int, err error) {
 	}
 	want := len(p)
 	for len(p) > 0 && err == nil {
-		rc, err := fr.readerForOffset(context.TODO(), offset)
-		if err != nil {
+		var rc io.ReadCloser
+		if rc, err = fr.readerForOffset(context.TODO(), offset); err != nil {
 			return n, err
 		}
 		var n1 int
 		n1, err = io.ReadFull(rc, p)
 		rc.Close()
-		if err == io.EOF || err == io.ErrUnexpectedEOF {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 			err = nil
 		}
 		if n1 == 0 {
