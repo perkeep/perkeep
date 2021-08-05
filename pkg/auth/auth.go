@@ -124,7 +124,7 @@ func newDevAuth(pw string) (AuthMode, error) {
 func newUserPassAuth(arg string) (AuthMode, error) {
 	pieces := strings.Split(arg, ":")
 	if len(pieces) < 2 {
-		return nil, fmt.Errorf("Wrong userpass auth string; needs to be \"user:password\"")
+		return nil, fmt.Errorf("wrong userpass auth string; needs to be \"user:password\"")
 	}
 	username := pieces[0]
 	password := pieces[1]
@@ -138,7 +138,7 @@ func newUserPassAuth(arg string) (AuthMode, error) {
 			vp := strings.Replace(opt, "vivify=", "", -1)
 			mode.VivifyPass = &vp
 		default:
-			return nil, fmt.Errorf("Unknown userpass option %q", opt)
+			return nil, fmt.Errorf("unknown userpass option %q", opt)
 		}
 	}
 	return mode, nil
@@ -182,7 +182,7 @@ func FromConfig(authConfig string) (AuthMode, error) {
 	}
 	pieces := strings.SplitN(authConfig, ":", 2)
 	if len(pieces) < 1 {
-		return nil, fmt.Errorf("Invalid auth string: %q", authConfig)
+		return nil, fmt.Errorf("invalid auth string: %q", authConfig)
 	}
 	authType := pieces[0]
 
@@ -193,7 +193,7 @@ func FromConfig(authConfig string) (AuthMode, error) {
 		}
 		return fn(arg)
 	}
-	return nil, fmt.Errorf("Unknown auth type: %q", authType)
+	return nil, fmt.Errorf("unknown auth type: %q", authType)
 }
 
 // SetMode sets the given authentication mode as the only allowed one for

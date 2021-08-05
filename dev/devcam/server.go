@@ -171,11 +171,11 @@ func (c *serverCmd) checkFlags(args []string) error {
 		}
 	}
 	if nindex > 1 {
-		return fmt.Errorf("Only one index option allowed")
+		return fmt.Errorf("only one index option allowed")
 	}
 
 	if _, err := strconv.ParseInt(c.port, 0, 0); err != nil {
-		return fmt.Errorf("Invalid -port value: %q", c.port)
+		return fmt.Errorf("invalid -port value: %q", c.port)
 	}
 	return nil
 }
@@ -192,7 +192,7 @@ func (c *serverCmd) setRoot() error {
 	if c.wipe {
 		log.Printf("Wiping %v", c.root)
 		if err := os.RemoveAll(c.root); err != nil {
-			return fmt.Errorf("Could not wipe %v: %v", c.root, err)
+			return fmt.Errorf("could not wipe %v: %w", c.root, err)
 		}
 	}
 	return nil
@@ -218,7 +218,7 @@ func (c *serverCmd) setEnvVars() error {
 	}
 	user := osutil.Username()
 	if user == "" {
-		return errors.New("Could not get username from environment")
+		return errors.New("could not get username from environment")
 	}
 	setenv("CAMLI_FULL_INDEX_SYNC_ON_START", "false")
 	if c.fullIndexSync {
@@ -280,7 +280,7 @@ func (c *serverCmd) setEnvVars() error {
 		if c.hostname == "" {
 			hostname, err := os.Hostname()
 			if err != nil {
-				return fmt.Errorf("Could not get system hostname: %v", err)
+				return fmt.Errorf("could not get system hostname: %w", err)
 			}
 			base = "http://" + hostname + ":" + c.port
 		} else {
@@ -384,7 +384,7 @@ func (c *serverCmd) setupIndexer() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Could not run pk dbinit: %v", err)
+		return fmt.Errorf("could not run pk dbinit: %w", err)
 	}
 	return nil
 }
@@ -400,7 +400,7 @@ func (c *serverCmd) syncTemplateBlobs() error {
 		}
 		blobsDir := filepath.Join(c.root, "sha1")
 		if err := cpDir(templateDir, blobsDir, nil); err != nil {
-			return fmt.Errorf("Could not cp template blobs: %v", err)
+			return fmt.Errorf("could not cp template blobs: %w", err)
 		}
 	}
 	return nil
@@ -410,7 +410,7 @@ func (c *serverCmd) setFullClosure() error {
 	if c.fullClosure {
 		oldsvn := filepath.Join(c.root, filepath.FromSlash("tmp/closure-lib/.svn"))
 		if err := os.RemoveAll(oldsvn); err != nil {
-			return fmt.Errorf("Could not remove svn checkout of closure-lib %v: %v",
+			return fmt.Errorf("could not remove svn checkout of closure-lib %v: %w",
 				oldsvn, err)
 		}
 		log.Println("Updating closure library...")
@@ -419,7 +419,7 @@ func (c *serverCmd) setFullClosure() error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("Could not run updatelibrary.go: %v", err)
+			return fmt.Errorf("could not run updatelibrary.go: %w", err)
 		}
 		c.env.Set("CAMLI_DEV_CLOSURE_DIR", "clients/web/embed/closure/lib/closure")
 	}
@@ -529,10 +529,10 @@ func (c *serverCmd) RunCommand(args []string) error {
 		}
 	}
 	if err := c.setRoot(); err != nil {
-		return fmt.Errorf("Could not setup the camli root: %v", err)
+		return fmt.Errorf("could not setup the camli root: %w", err)
 	}
 	if err := c.setEnvVars(); err != nil {
-		return fmt.Errorf("Could not setup the env vars: %v", err)
+		return fmt.Errorf("could not setup the env vars: %w", err)
 	}
 	// wipeCacheDir needs to be called after setEnvVars, because that is where
 	// CAMLI_CACHE_DIR is defined.
@@ -540,13 +540,13 @@ func (c *serverCmd) RunCommand(args []string) error {
 		c.env.wipeCacheDir()
 	}
 	if err := c.setupIndexer(); err != nil {
-		return fmt.Errorf("Could not setup the indexer: %v", err)
+		return fmt.Errorf("could not setup the indexer: %w", err)
 	}
 	if err := c.syncTemplateBlobs(); err != nil {
-		return fmt.Errorf("Could not copy the template blobs: %v", err)
+		return fmt.Errorf("could not copy the template blobs: %w", err)
 	}
 	if err := c.setFullClosure(); err != nil {
-		return fmt.Errorf("Could not setup the closure lib: %v", err)
+		return fmt.Errorf("could not setup the closure lib: %w", err)
 	}
 
 	log.Printf("Starting dev server on %v/ui/ with password \"pass3179\"\n",

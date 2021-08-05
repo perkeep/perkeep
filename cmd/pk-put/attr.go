@@ -67,7 +67,7 @@ func (c *attrCmd) RunCommand(args []string) error {
 
 	pn, ok := blob.Parse(permanode)
 	if !ok {
-		return fmt.Errorf("Error parsing blobref %q", permanode)
+		return fmt.Errorf("error parsing blobref %q", permanode)
 	}
 	claimFunc := func() func(blob.Ref, string, string) *schema.Builder {
 		switch {

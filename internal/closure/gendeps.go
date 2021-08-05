@@ -47,7 +47,7 @@ func GenDeps(root http.FileSystem) ([]byte, error) {
 func GenDepsWithPath(pathPrefix string, root http.FileSystem) ([]byte, error) {
 	d, err := root.Open("/")
 	if err != nil {
-		return nil, fmt.Errorf("Failed to open root of %v: %v", root, err)
+		return nil, fmt.Errorf("failed to open root of %v: %w", root, err)
 	}
 	fi, err := d.Stat()
 	if err != nil {
@@ -58,7 +58,7 @@ func GenDepsWithPath(pathPrefix string, root http.FileSystem) ([]byte, error) {
 	}
 	ent, err := d.Readdir(-1)
 	if err != nil {
-		return nil, fmt.Errorf("Could not read dir entries of root: %v", err)
+		return nil, fmt.Errorf("could not read dir entries of root: %w", err)
 	}
 	var buf bytes.Buffer
 	for _, info := range ent {
@@ -72,12 +72,12 @@ func GenDepsWithPath(pathPrefix string, root http.FileSystem) ([]byte, error) {
 		}
 		f, err := root.Open(name)
 		if err != nil {
-			return nil, fmt.Errorf("Could not open %v: %v", name, err)
+			return nil, fmt.Errorf("could not open %v: %w", name, err)
 		}
 		prov, req, err := parseProvidesRequires(info, name, f)
 		f.Close()
 		if err != nil {
-			return nil, fmt.Errorf("Could not parse deps for %v: %v", name, err)
+			return nil, fmt.Errorf("could not parse deps for %v: %w", name, err)
 		}
 		if len(prov) > 0 {
 			fmt.Fprintf(&buf, "goog.addDependency(%q, %v, %v);\n", pathPrefix+name, jsList(prov), jsList(req))
@@ -169,7 +169,7 @@ func ParseDeps(r io.Reader) (providedBy map[string]string, requires map[string][
 		}
 		m := depsRx.FindStringSubmatch(l)
 		if m == nil {
-			return nil, nil, fmt.Errorf("Invalid line in deps: %q", l)
+			return nil, nil, fmt.Errorf("invalid line in deps: %q", l)
 		}
 		jsfile := m[1]
 		provides := strings.Split(m[2], ", ")
@@ -181,11 +181,11 @@ func ParseDeps(r io.Reader) (providedBy map[string]string, requires map[string][
 		for _, v := range provides {
 			namespace := strings.Trim(v, `'"`)
 			if otherjs, ok := providedBy[namespace]; ok {
-				return nil, nil, fmt.Errorf("Name %v is provided by both %v and %v", namespace, jsfile, otherjs)
+				return nil, nil, fmt.Errorf("name %v is provided by both %v and %v", namespace, jsfile, otherjs)
 			}
 			providedBy[namespace] = jsfile
 			if _, ok := requires[namespace]; ok {
-				return nil, nil, fmt.Errorf("Name %v has two sets of dependencies", namespace)
+				return nil, nil, fmt.Errorf("name %v has two sets of dependencies", namespace)
 			}
 			if required != nil {
 				requires[namespace] = required

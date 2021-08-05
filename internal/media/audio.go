@@ -42,7 +42,7 @@ func HasID3v1Tag(r readerutil.SizeReaderAt) (bool, error) {
 
 	buf := make([]byte, len(id3v1Magic))
 	if _, err := r.ReadAt(buf, r.Size()-ID3v1TagLength); err != nil {
-		return false, fmt.Errorf("Failed to read ID3v1 data: %v", err)
+		return false, fmt.Errorf("failed to read ID3v1 data: %w", err)
 	}
 	if bytes.Equal(buf, id3v1Magic) {
 		return true, nil
@@ -132,31 +132,31 @@ var infoHeaderName = []byte("Info")
 func GetMPEGAudioDuration(r readerutil.SizeReaderAt) (time.Duration, error) {
 	var header uint32
 	if err := binary.Read(io.NewSectionReader(r, 0, r.Size()), binary.BigEndian, &header); err != nil {
-		return 0, fmt.Errorf("Failed to read MPEG frame header: %v", err)
+		return 0, fmt.Errorf("failed to read MPEG frame header: %w", err)
 	}
 	getBits := func(startBit, numBits uint) uint32 {
 		return (header << startBit) >> (32 - numBits)
 	}
 
 	if getBits(0, 11) != 0x7ff {
-		return 0, errors.New("Missing sync bits in MPEG frame header")
+		return 0, errors.New("missing sync bits in MPEG frame header")
 	}
 	var version mpegVersion
 	var ok bool
 	if version, ok = mpegVersionsByID[getBits(11, 2)]; !ok {
-		return 0, errors.New("Invalid MPEG version index")
+		return 0, errors.New("invalid MPEG version index")
 	}
 	var layer mpegLayer
 	if layer, ok = mpegLayersByIndex[getBits(13, 2)]; !ok {
-		return 0, errors.New("Invalid MPEG layer index")
+		return 0, errors.New("invalid MPEG layer index")
 	}
 	bitrate := mpegBitrates[version][layer][getBits(16, 4)]
 	if bitrate == 0 {
-		return 0, errors.New("Invalid MPEG bitrate")
+		return 0, errors.New("invalid MPEG bitrate")
 	}
 	samplingRate := mpegSamplingRates[version][getBits(20, 2)]
 	if samplingRate == 0 {
-		return 0, errors.New("Invalid MPEG sample rate")
+		return 0, errors.New("invalid MPEG sample rate")
 	}
 	samplesPerFrame := mpegSamplesPerFrame[version][layer]
 
@@ -174,7 +174,7 @@ func GetMPEGAudioDuration(r readerutil.SizeReaderAt) (time.Duration, error) {
 
 	b := make([]byte, 12)
 	if _, err := r.ReadAt(b, xingHeaderStart); err != nil {
-		return 0, fmt.Errorf("Unable to read Xing header at %d: %v", xingHeaderStart, err)
+		return 0, fmt.Errorf("unable to read Xing header at %d: %w", xingHeaderStart, err)
 	}
 	var ms int64
 	if bytes.Equal(b[0:4], xingHeaderName) || bytes.Equal(b[0:4], infoHeaderName) {
@@ -182,7 +182,7 @@ func GetMPEGAudioDuration(r readerutil.SizeReaderAt) (time.Duration, error) {
 		var xingFlags uint32
 		binary.Read(r, binary.BigEndian, &xingFlags)
 		if xingFlags&0x1 == 0x0 {
-			return 0, fmt.Errorf("Xing header at %d lacks number of frames", xingHeaderStart)
+			return 0, fmt.Errorf("xing header at %d lacks number of frames", xingHeaderStart)
 		}
 		var numFrames uint32
 		binary.Read(r, binary.BigEndian, &numFrames)

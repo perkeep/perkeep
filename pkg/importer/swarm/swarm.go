@@ -470,7 +470,7 @@ func (im *imp) getUserInfo(ctx context.Context, accessToken string) (user, error
 		return user{}, err
 	}
 	if ui.Response.User.Id == "" {
-		return user{}, fmt.Errorf("No userid returned")
+		return user{}, fmt.Errorf("no userid returned")
 	}
 	return ui.Response.User, nil
 }
@@ -528,7 +528,7 @@ func doGet(ctx context.Context, url string, form url.Values) (*http.Response, er
 		return nil, err
 	}
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Get request on %s failed with: %s", requestURL, res.Status)
+		return nil, fmt.Errorf("get request on %s failed with: %s", requestURL, res.Status)
 	}
 	return res, nil
 }
@@ -568,7 +568,7 @@ func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.
 func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
 	oauthConfig, err := auth(ctx)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error getting oauth config: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("error getting oauth config: %w", err))
 		return
 	}
 
@@ -601,7 +601,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		acctAttrUserLast, u.LastName,
 		acctAttrAccessToken, token.AccessToken,
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("error setting attribute: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)

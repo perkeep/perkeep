@@ -26,7 +26,6 @@ import (
 	"image"
 	"image/jpeg"
 	"io/ioutil"
-	"log"
 	"math/rand"
 	"path/filepath"
 	"reflect"
@@ -2418,36 +2417,6 @@ func (x *exifBuf) reservePtr() int {
 // that have been reserved with reservePtr.
 func (x *exifBuf) storePtr(p int) {
 	x.bo.PutUint32(x.p[p:], uint32(len(x.p)))
-}
-
-// function to generate data for TestBestByLocation
-func generateLocationPoints(north, south, west, east float64, limit int) string {
-	points := make([]camtypes.Location, limit)
-	height := north - south
-	width := east - west
-	if west >= east {
-		// area is spanning over the antimeridian
-		width += 360
-	}
-	for i := 0; i < limit; i++ {
-		lat := rand.Float64()*height + south
-		long := camtypes.Longitude(rand.Float64()*width + west).WrapTo180()
-		points[i] = camtypes.Location{
-			Latitude:  lat,
-			Longitude: long,
-		}
-	}
-	data, err := json.Marshal(points)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return string(data)
-}
-
-type locationPoints struct {
-	Name    string
-	Comment string
-	Points  []camtypes.Location
 }
 
 func TestBestByLocation(t *testing.T) {

@@ -94,7 +94,6 @@ type handler struct {
 	sh        search.QueryDescriber
 	// TODO(mpl): later we should have an uploader interface instead. implemented by *client.Client like sh, but they wouldn't have to be the same in theory. right now they actually are.
 	cl *client.Client
-	ih *camliserver.ImageHandler
 
 	signer blob.Ref
 	server string
@@ -302,7 +301,6 @@ func baseURL(r *http.Request) string {
 func (h *handler) handleUploadURL(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	fmt.Fprintf(w, "%supload", baseURL(r))
-	return
 }
 
 func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
@@ -457,7 +455,6 @@ func (h *handler) handleResource(w http.ResponseWriter, r *http.Request) {
 		ih.MaxHeight = resized
 	}
 	ih.ServeHTTP(w, r, mediaObject.contentRef)
-	return
 }
 
 func (h *handler) handleMakedoc(w http.ResponseWriter, r *http.Request) {

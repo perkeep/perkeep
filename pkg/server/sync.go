@@ -151,7 +151,7 @@ func newSyncFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Handler,
 		return newIdleSyncHandler(from, to), nil
 	}
 	if len(queueConf) == 0 {
-		return nil, errors.New(`Missing required "queue" object`)
+		return nil, errors.New(`missing required "queue" object`)
 	}
 	q, err := sorted.NewKeyValueMaybeWipe(queueConf)
 	if err != nil {
@@ -321,7 +321,7 @@ func (sh *SyncHandler) currentStatus() syncStatus {
 	defer sh.mu.Unlock()
 	ago := 0
 	if !sh.recentCopyTime.IsZero() {
-		ago = int(time.Now().Sub(sh.recentCopyTime).Seconds())
+		ago = int(time.Since(sh.recentCopyTime).Seconds())
 	}
 	return syncStatus{
 		sh:             sh,
@@ -657,10 +657,10 @@ func (sh *SyncHandler) copyBlob(ctx context.Context, sb blob.SizedRef) (err erro
 		)), buf)
 	rc.Close()
 	if err != nil {
-		return fmt.Errorf("Read error after %d/%d bytes: %v", n, fromSize, err)
+		return fmt.Errorf("read error after %d/%d bytes: %w", n, fromSize, err)
 	}
 	if !br.HashMatches(hash) {
-		return fmt.Errorf("Read data has unexpected digest %x", hash.Sum(nil))
+		return fmt.Errorf("read data has unexpected digest %x", hash.Sum(nil))
 	}
 
 	cs.setStatus(statusWriting)

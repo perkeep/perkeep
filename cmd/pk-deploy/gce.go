@@ -109,7 +109,7 @@ func (c *gceCmd) RunCommand(args []string) error {
 	config := gce.NewOAuthConfig(clientID, clientSecret)
 	config.RedirectURL = "urn:ietf:wg:oauth:2.0:oob"
 
-	hc := oauth2.NewClient(oauth2.NoContext, oauth2.ReuseTokenSource(nil, &oauthutil.TokenSource{
+	hc := oauth2.NewClient(context.Background(), oauth2.ReuseTokenSource(nil, &oauthutil.TokenSource{
 		Config:    config,
 		CacheFile: c.project + "-token.json",
 		AuthCode: func() string {

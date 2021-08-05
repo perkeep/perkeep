@@ -25,9 +25,9 @@ import (
 
 func checkKeyFilePermissions(keyFile string) error {
 	if fileInfo, err := os.Stat(keyFile); err != nil {
-		return fmt.Errorf("Checking for key file permissions %v: %v", keyFile, err)
+		return fmt.Errorf("checking for key file permissions %v: %w", keyFile, err)
 	} else if fileInfo.Mode().Perm()&0077 != 0 {
-		return fmt.Errorf("Key file permissions are too permissive (%o), they should be 600", fileInfo.Mode().Perm())
+		return fmt.Errorf("key file permissions are too permissive (%o), they should be 600", fileInfo.Mode().Perm())
 	}
 	return nil
 }

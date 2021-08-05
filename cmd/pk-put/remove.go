@@ -48,7 +48,7 @@ func (c *removeCmd) RunCommand(args []string) error {
 	for _, s := range args {
 		br, ok := blob.Parse(s)
 		if !ok {
-			return fmt.Errorf("Invalid blobref %q", s)
+			return fmt.Errorf("invalid blobref %q", s)
 		}
 		refs = append(refs, br)
 	}

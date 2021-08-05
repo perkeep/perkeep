@@ -53,7 +53,7 @@ func FileSystem() (http.FileSystem, error) {
 		}
 		fi, err := newFileInfo(zf)
 		if err != nil {
-			return nil, fmt.Errorf("Error reading zip file %q: %v", zf.Name, err)
+			return nil, fmt.Errorf("error reading zip file %q: %w", zf.Name, err)
 		}
 		m[strings.TrimPrefix(zf.Name, "closure")] = fi
 	}

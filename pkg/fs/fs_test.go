@@ -761,13 +761,13 @@ func not(cond func() bool) func() bool {
 // /proc/mounts. It does not guarantee the dir is usable as such, as it could have
 // been left unmounted by a previously interrupted process ("transport endpoint is
 // not connected" error).
-func isInProcMounts(dir string) (error, bool) {
+func isInProcMounts(dir string) (bool, error) {
 	if runtime.GOOS != "linux" {
-		return errors.New("only available on linux"), false
+		return false, errors.New("only available on linux")
 	}
 	data, err := ioutil.ReadFile("/proc/mounts")
 	if err != nil {
-		return err, false
+		return false, err
 	}
 	sc := bufio.NewScanner(bytes.NewReader(data))
 	dir = strings.TrimSuffix(dir, "/")
@@ -777,10 +777,10 @@ func isInProcMounts(dir string) (error, bool) {
 			continue
 		}
 		if strings.Fields(l)[1] == dir {
-			return nil, true
+			return true, nil
 		}
 	}
-	return sc.Err(), false
+	return false, sc.Err()
 }
 
 // isMounted returns whether dir is considered mounted as far as the filesystem
@@ -792,7 +792,7 @@ func isMounted(dir string) func() bool {
 		return dirToBeFUSE(dir)
 	}
 	return func() bool {
-		err, ok := isInProcMounts(dir)
+		ok, err := isInProcMounts(dir)
 		if err != nil {
 			log.Print(err)
 		}

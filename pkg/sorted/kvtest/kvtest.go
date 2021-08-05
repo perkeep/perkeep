@@ -76,6 +76,8 @@ func TestSorted(t *testing.T, kv sorted.KeyValue) {
 	testInsertLarge(t, kv)
 	testInsertTooLarge(t, kv)
 
+	testDeleteNotFound(t, kv)
+
 	// TODO: test batch commits
 
 	// Deleting a non-existent item in a batch should not be an error

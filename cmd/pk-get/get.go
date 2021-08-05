@@ -196,7 +196,7 @@ func fetch(ctx context.Context, src blob.Fetcher, br blob.Ref) (r io.ReadCloser,
 	}
 	r, _, err = src.Fetch(ctx, br)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch %s: %s", br, err)
+		return nil, fmt.Errorf("failed to fetch %s: %w", br, err)
 	}
 	return r, err
 }
@@ -318,7 +318,7 @@ func smartFetch(ctx context.Context, src blob.Fetcher, targ string, br blob.Ref)
 		}
 		defer f.Close()
 		if _, err := io.Copy(f, fr); err != nil {
-			return fmt.Errorf("Copying %s to %s: %v", br, name, err)
+			return fmt.Errorf("copying %s to %s: %w", br, name, err)
 		}
 		if err := setFileMeta(name, b); err != nil {
 			log.Print(err)

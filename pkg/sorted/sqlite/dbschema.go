@@ -70,7 +70,7 @@ func InitDB(path string) error {
 		log.Fatalf("Unable to determine sqlite3 journal_mode: %v", err)
 	}
 	if journalMode != "wal" {
-		log.Fatal("SQLite Write Ahead Logging (introducted in v3.7.0) is required. See http://perkeep.org/issue/114")
+		log.Fatal("SQLite Write Ahead Logging (introduced in v3.7.0) is required. See http://perkeep.org/issue/114")
 	}
 
 	_, err = db.Exec(fmt.Sprintf(`REPLACE INTO meta VALUES ('version', '%d')`, SchemaVersion()))

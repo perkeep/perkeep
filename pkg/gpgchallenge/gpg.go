@@ -423,7 +423,7 @@ func (cs *Server) validateToken(token string) error {
 	}
 
 	cs.nonceUsedMu.Lock()
-	if used, _ := cs.nonceUsed[nonce]; used {
+	if used := cs.nonceUsed[nonce]; used {
 		log.Printf("nonce %q has already been received", nonce)
 		return nil
 	}
@@ -599,7 +599,7 @@ func (cl *Client) listenSelfCheck(serverAddr string) error {
 	case err = <-errc:
 		resp = <-respc
 	case <-timeout.C:
-		return errors.New("The client needs an HTTPS listener for its handler to answer the server's challenge. You need to call Handler and register the http.Handler with an HTTPS server, before calling Challenge.")
+		return errors.New("the client needs an HTTPS listener for its handler to answer the server's challenge. You need to call Handler and register the http.Handler with an HTTPS server, before calling Challenge")
 	}
 	if err != nil {
 		return fmt.Errorf("error starting challenge: %v", err)
@@ -735,20 +735,6 @@ func (cl *Client) getToken(serverAddr string) (string, error) {
 		return "", errors.New("error getting initial token from server")
 	}
 	return token, nil
-}
-
-func (cl *Client) signToken(token string) (string, error) {
-	var buf bytes.Buffer
-	if err := openpgp.ArmoredDetachSign(
-		&buf,
-		cl.signer,
-		strings.NewReader(token),
-		nil,
-	); err != nil {
-		return "", err
-	}
-	return buf.String(), nil
-
 }
 
 func (cl *Client) sendClaim(server, token string) error {

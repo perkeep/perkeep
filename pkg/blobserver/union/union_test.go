@@ -17,11 +17,9 @@ limitations under the License.
 package union
 
 import (
-	"context"
 	"testing"
 
 	"go4.org/jsonconfig"
-	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	_ "perkeep.org/pkg/blobserver/cond"
 	"perkeep.org/pkg/blobserver/replica"
@@ -35,21 +33,6 @@ func newUnion(t *testing.T, ld *test.Loader, config jsonconfig.Obj) *unionStorag
 		t.Fatalf("Invalid config: %v", err)
 	}
 	return sto.(*unionStorage)
-}
-
-func mustReceive(t *testing.T, dst blobserver.Storage, tb *test.Blob) blob.SizedRef {
-	tbRef := tb.BlobRef()
-	sb, err := blobserver.Receive(context.Background(), dst, tbRef, tb.Reader())
-	if err != nil {
-		t.Fatalf("Receive: %v", err)
-	}
-	if int(sb.Size) != len(tb.Contents) {
-		t.Fatalf("size = %d; want %d", sb.Size, len(tb.Contents))
-	}
-	if sb.Ref != tbRef {
-		t.Fatal("wrong blob received")
-	}
-	return sb
 }
 
 func TestStorageTest(t *testing.T) {

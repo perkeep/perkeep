@@ -45,8 +45,6 @@ func TestExtractUsername(t *testing.T) {
 // Verify that a batch import of 3 posts works
 func TestIntegrationRun(t *testing.T) {
 	const authToken = "gina:foo"
-	const attrKey = "key"
-	const attrValue = "value"
 
 	responder := httputil.FileResponder("testdata/batchresponse.json")
 	transport, err := httputil.NewRegexpFakeTransport([]*httputil.Matcher{

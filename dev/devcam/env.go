@@ -100,7 +100,7 @@ func setCamdevVars() {
 func rootInTmpDir() (string, error) {
 	user := osutil.Username()
 	if user == "" {
-		return "", errors.New("Could not get username from environment")
+		return "", errors.New("could not get username from environment")
 	}
 	return filepath.Join(os.TempDir(), "camliroot-"+user), nil
 }
@@ -155,7 +155,7 @@ func setCamdevVarsFor(e *Env, altkey bool) {
 }
 
 func (e *Env) wipeCacheDir() {
-	cacheDir, _ := e.m["CAMLI_CACHE_DIR"]
+	cacheDir := e.m["CAMLI_CACHE_DIR"]
 	if cacheDir == "" {
 		log.Fatal("Could not wipe cache dir, CAMLI_CACHE_DIR not defined")
 	}

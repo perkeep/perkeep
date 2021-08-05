@@ -67,7 +67,7 @@ func (m *ThumbMeta) Get(key string) (blob.Ref, error) {
 		}
 		br, ok := blob.Parse(v)
 		if !ok {
-			return br, fmt.Errorf("Invalid blobref %q found for key %q in thumbnail mea", v, key)
+			return br, fmt.Errorf("invalid blobref %q found for key %q in thumbnail meta", v, key)
 		}
 		m.mem.Add(key, br)
 		return br, nil

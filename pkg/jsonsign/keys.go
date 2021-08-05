@@ -61,19 +61,19 @@ func openArmoredPublicKeyFile(reader io.ReadCloser) (*packet.PublicKey, error) {
 	var lr = io.LimitReader(reader, publicKeyMaxSize)
 	block, _ := armor.Decode(lr)
 	if block == nil {
-		return nil, errors.New("Couldn't find PGP block in public key file")
+		return nil, errors.New("couldn't find PGP block in public key file")
 	}
 	if block.Type != "PGP PUBLIC KEY BLOCK" {
 		return nil, errors.New("invalid public key blob")
 	}
 	p, err := packet.Read(block.Body)
 	if err != nil {
-		return nil, fmt.Errorf("Invalid public key blob: %v", err)
+		return nil, fmt.Errorf("invalid public key blob: %w", err)
 	}
 
 	pk, ok := p.(*packet.PublicKey)
 	if !ok {
-		return nil, fmt.Errorf("Invalid public key blob; not a public key packet")
+		return nil, fmt.Errorf("invalid public key blob; not a public key packet")
 	}
 	return pk, nil
 }
@@ -164,15 +164,15 @@ func WriteKeyRing(w io.Writer, el openpgp.EntityList) error {
 func KeyIdFromRing(secRing string) (keyID string, err error) {
 	f, err := wkfs.Open(secRing)
 	if err != nil {
-		return "", fmt.Errorf("Could not open secret ring file %v: %v", secRing, err)
+		return "", fmt.Errorf("could not open secret ring file %v: %w", secRing, err)
 	}
 	defer f.Close()
 	el, err := openpgp.ReadKeyRing(f)
 	if err != nil {
-		return "", fmt.Errorf("Could not read secret ring file %s: %v", secRing, err)
+		return "", fmt.Errorf("could not read secret ring file %s: %w", secRing, err)
 	}
 	if len(el) != 1 {
-		return "", fmt.Errorf("Secret ring file %v contained %d identities; expected 1", secRing, len(el))
+		return "", fmt.Errorf("secret ring file %v contained %d identities; expected 1", secRing, len(el))
 	}
 	ent := el[0]
 	return ent.PrimaryKey.KeyIdString(), nil
@@ -184,7 +184,7 @@ func KeyIdFromRing(secRing string) (keyID string, err error) {
 func GenerateNewSecRing(secRing string) (keyID string, err error) {
 	ent, err := NewEntity()
 	if err != nil {
-		return "", fmt.Errorf("generating new identity: %v", err)
+		return "", fmt.Errorf("generating new identity: %w", err)
 	}
 	if err := os.MkdirAll(filepath.Dir(secRing), 0700); err != nil {
 		return "", err
@@ -196,10 +196,10 @@ func GenerateNewSecRing(secRing string) (keyID string, err error) {
 	err = WriteKeyRing(f, openpgp.EntityList([]*openpgp.Entity{ent}))
 	if err != nil {
 		f.Close()
-		return "", fmt.Errorf("Could not write new key ring to %s: %v", secRing, err)
+		return "", fmt.Errorf("could not write new key ring to %s: %w", secRing, err)
 	}
 	if err := f.Close(); err != nil {
-		return "", fmt.Errorf("Could not close %v: %v", secRing, err)
+		return "", fmt.Errorf("could not close %v: %w", secRing, err)
 	}
 	return ent.PrimaryKey.KeyIdString(), nil
 }

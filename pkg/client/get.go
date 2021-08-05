@@ -111,14 +111,14 @@ func (c *Client) fetchVia(ctx context.Context, b blob.Ref, v []blob.Ref) (body i
 		return nil, 0, os.ErrNotExist
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, 0, fmt.Errorf("Got status code %d from blobserver for %s", resp.StatusCode, b)
+		return nil, 0, fmt.Errorf("got status code %d from blobserver for %s", resp.StatusCode, b)
 	}
 
 	var reader io.Reader = resp.Body
 	var closer io.Closer = resp.Body
 	if resp.ContentLength > 0 {
 		if resp.ContentLength > math.MaxUint32 {
-			return nil, 0, fmt.Errorf("Blob %s over %d bytes", b, uint32(math.MaxUint32))
+			return nil, 0, fmt.Errorf("blob %s over %d bytes", b, uint32(math.MaxUint32))
 		}
 		size = uint32(resp.ContentLength)
 	} else {
@@ -127,7 +127,7 @@ func (c *Client) fetchVia(ctx context.Context, b blob.Ref, v []blob.Ref) (body i
 		// Might be compressed. Slurp it to memory.
 		n, err := io.CopyN(&buf, resp.Body, constants.MaxBlobSize+1)
 		if n > blobserver.MaxBlobSize {
-			return nil, 0, fmt.Errorf("Blob %s over %d bytes; not reading more", b, blobserver.MaxBlobSize)
+			return nil, 0, fmt.Errorf("blob %s over %d bytes; not reading more", b, blobserver.MaxBlobSize)
 		}
 		if err == nil {
 			panic("unexpected")
@@ -135,7 +135,7 @@ func (c *Client) fetchVia(ctx context.Context, b blob.Ref, v []blob.Ref) (body i
 			size = uint32(n)
 			reader, closer = &buf, types.NopCloser
 		} else {
-			return nil, 0, fmt.Errorf("Error reading %s: %v", b, err)
+			return nil, 0, fmt.Errorf("error reading %s: %w", b, err)
 		}
 	}
 

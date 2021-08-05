@@ -107,14 +107,8 @@ func (w *chanWorker) pump() {
 }
 
 func (w *chanWorker) work() {
-	for {
-		select {
-		case n, ok := <-w.workc:
-			if !ok {
-				w.donec <- true
-				return
-			}
-			w.fn(n, true)
-		}
+	for n := range w.workc {
+		w.fn(n, true)
 	}
+	w.donec <- true
 }

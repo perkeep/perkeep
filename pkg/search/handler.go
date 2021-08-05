@@ -961,13 +961,13 @@ func (sh *Handler) getNamed(ctx context.Context, name string) (string, error) {
 	}
 
 	if len(sr.Blobs) < 1 {
-		return "", fmt.Errorf("No named search found for: %s", name)
+		return "", fmt.Errorf("no named search found for: %s", name)
 	}
 	permaRef := sr.Blobs[0].Blob
 	substRefS := sr.Describe.Meta.Get(permaRef).Permanode.Attr.Get("camliContent")
 	br, ok := blob.Parse(substRefS)
 	if !ok {
-		return "", fmt.Errorf("Invalid blob ref: %s", substRefS)
+		return "", fmt.Errorf("invalid blob ref: %s", substRefS)
 	}
 
 	reader, _, err := sh.fetcher.Fetch(ctx, br)

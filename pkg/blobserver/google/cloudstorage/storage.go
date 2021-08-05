@@ -253,11 +253,11 @@ func (s *Storage) Fetch(ctx context.Context, br blob.Ref) (rc io.ReadCloser, siz
 	if err != nil {
 		return nil, 0, err
 	}
-	if r.Size() >= 1<<32 {
+	if r.Attrs.Size >= 1<<32 {
 		r.Close()
 		return nil, 0, errors.New("object larger than a uint32")
 	}
-	size = uint32(r.Size())
+	size = uint32(r.Attrs.Size)
 	if size > constants.MaxBlobSize {
 		r.Close()
 		return nil, size, errors.New("object too big")

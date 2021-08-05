@@ -364,7 +364,7 @@ func TestIssue513(t *testing.T) {
 					t.Errorf("Unexpected panic for image size %dx%d: %v", rect.Dx(), rect.Dy(), r)
 				}
 			}()
-			_, format, err, needsRescale := decode(buf, opts, false)
+			_, format, needsRescale, err := decode(buf, opts, false)
 			if err != nil {
 				t.Errorf("Unexpected error for image size %dx%d: %v", rect.Dx(), rect.Dy(), err)
 			}

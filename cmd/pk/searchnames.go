@@ -135,13 +135,13 @@ func getNamedSearch(named string) (getNamedResponse, error) {
 		return gnr, err
 	}
 	if len(sr.Blobs) < 1 {
-		return gnr, fmt.Errorf("No named search found for: %s", named)
+		return gnr, fmt.Errorf("no named search found for: %s", named)
 	}
 	gnr.PermaRef = sr.Blobs[0].Blob
 	substRefS := sr.Describe.Meta.Get(gnr.PermaRef).Permanode.Attr.Get("camliContent")
 	br, ok := blob.Parse(substRefS)
 	if !ok {
-		return gnr, fmt.Errorf("Invalid blob ref: %s", substRefS)
+		return gnr, fmt.Errorf("invalid blob ref: %s", substRefS)
 	}
 	reader, _, err := cc.Fetch(ctxbg, br)
 	if err != nil {

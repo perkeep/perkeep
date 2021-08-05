@@ -39,7 +39,7 @@ func (m fakeTransport) RoundTrip(req *http.Request) (res *http.Response, err err
 	urls := req.URL.String()
 	fn, ok := m[urls]
 	if !ok {
-		return nil, fmt.Errorf("Unexpected FakeTransport URL requested: %s", urls)
+		return nil, fmt.Errorf("unexpected FakeTransport URL requested: %s", urls)
 	}
 	return fn(), nil
 }
@@ -81,7 +81,7 @@ func (rft regexpFakeTransport) RoundTrip(req *http.Request) (*http.Response, err
 			return p.fn(), nil
 		}
 	}
-	return nil, fmt.Errorf("Unexpected RegexpFakeTransport URL requested: %s", s)
+	return nil, fmt.Errorf("unexpected RegexpFakeTransport URL requested: %s", s)
 }
 
 // FileResponder returns an HTTP response generator that returns the

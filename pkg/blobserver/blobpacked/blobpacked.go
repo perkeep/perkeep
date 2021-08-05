@@ -236,7 +236,7 @@ var (
 )
 
 func (s *storage) String() string {
-	return fmt.Sprintf("\"blobpacked\" storage")
+	return `"blobpacked" storage`
 }
 
 func (s *storage) Logf(format string, args ...interface{}) {
@@ -326,7 +326,7 @@ func newFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (blobserver.Storag
 			}
 			wiper, ok := kv.(sorted.Wiper)
 			if !ok {
-				return nil, fmt.Errorf("blobpacked meta index of type %T needs to be wiped, but does not support automatic wiping. It should be removed manually.", kv)
+				return nil, fmt.Errorf("blobpacked meta index of type %T needs to be wiped, but does not support automatic wiping. It should be removed manually", kv)
 			}
 			if err := wiper.Wipe(); err != nil {
 				return nil, fmt.Errorf("blobpacked meta index of type %T could not be wiped: %v", kv, err)
@@ -1334,13 +1334,13 @@ func (pk *packer) writeAZip(ctx context.Context, trunc blob.Ref) (err error) {
 
 	baseFileName := pk.fr.FileName()
 	if strings.Contains(baseFileName, "/") || strings.Contains(baseFileName, "\\") {
-		return fmt.Errorf("File schema blob %v filename had a slash in it: %q", pk.fr.SchemaBlobRef(), baseFileName)
+		return fmt.Errorf("file schema blob %v filename had a slash in it: %q", pk.fr.SchemaBlobRef(), baseFileName)
 	}
 	fh := &zip.FileHeader{
 		Name:   baseFileName,
 		Method: zip.Store, // uncompressed
 	}
-	fh.SetModTime(pk.fr.ModTime())
+	fh.Modified = pk.fr.ModTime()
 	fh.SetMode(0644)
 	fw, err := zw.CreateHeader(fh)
 	check(err)

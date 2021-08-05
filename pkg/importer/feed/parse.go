@@ -51,7 +51,7 @@ type item struct {
 	MediaContent string
 }
 
-func parseFeed(body []byte, feedURL string) (*feed, error) {
+func parseFeed(body []byte) (*feed, error) {
 	var f *feed
 	var atomerr, rsserr, rdferr error
 	f, atomerr = parseAtom(body)
@@ -65,7 +65,7 @@ func parseFeed(body []byte, feedURL string) (*feed, error) {
 		log.Printf("atom parse error: %s", atomerr.Error())
 		log.Printf("xml parse error: %s", rsserr.Error())
 		log.Printf("rdf parse error: %s", rdferr.Error())
-		return nil, fmt.Errorf("Could not parse feed data")
+		return nil, fmt.Errorf("could not parse feed data")
 	}
 	return f, nil
 }
@@ -229,10 +229,10 @@ func atomTitle(t *atom.Text) string {
 	if t == nil {
 		return ""
 	}
-	if t.Type == "html" {
-		// see: https://github.com/mjibson/goread/blob/59aec794f3ef87b36c1bac029438c33a6aa6d8d3/utils.go#L533
-		//return html.UnescapeString(sanitizer.StripTags(t.Body))
-	}
+	//if t.Type == "html" {
+	// see: https://github.com/mjibson/goread/blob/59aec794f3ef87b36c1bac029438c33a6aa6d8d3/utils.go#L533
+	//return html.UnescapeString(sanitizer.StripTags(t.Body))
+	//}
 	return textTitle(t.Body)
 }
 

@@ -107,8 +107,8 @@ func GenerateClientConfig(serverConfig jsonconfig.Obj) (*Config, error) {
 		listen = ":443"
 		// TODO(mpl): move the camliNetDomain const from perkeepd.go
 		// to somewhere importable, so we can use it here. but later.
-		camliNetDomain := "camlistore.net"
-		baseURL = fmt.Sprintf("https://%s.%s/", keyID, camliNetDomain)
+		//camliNetDomain := "camlistore.net"
+		//baseURL = fmt.Sprintf("https://%s.%s/", keyID, camliNetDomain)
 	} else {
 		listen = serverConfig.OptionalString("listen", "")
 		baseURL = serverConfig.OptionalString("baseURL", "")

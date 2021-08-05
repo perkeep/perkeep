@@ -72,7 +72,7 @@ func (r *Request) GetPIN() (pin string, outerr error) {
 	br := bufio.NewReader(stdout)
 	lineb, _, err := br.ReadLine()
 	if err != nil {
-		return "", fmt.Errorf("Failed to get getpin greeting")
+		return "", fmt.Errorf("failed to get getpin greeting")
 	}
 	line := string(lineb)
 	if !strings.HasPrefix(line, "OK") {
@@ -104,7 +104,7 @@ func (r *Request) GetPIN() (pin string, outerr error) {
 	fmt.Fprintf(stdin, "GETPIN\n")
 	lineb, _, err = br.ReadLine()
 	if err != nil {
-		return "", fmt.Errorf("Failed to read line after GETPIN: %v", err)
+		return "", fmt.Errorf("failed to read line after GETPIN: %w", err)
 	}
 	line = string(lineb)
 	if strings.HasPrefix(line, "D ") {

@@ -66,7 +66,7 @@ func DefaultEnvConfig() (*Config, error) {
 	}
 
 	if v := osutil.SecretRingFile(); !strings.HasPrefix(v, "/gcs/") {
-		return nil, fmt.Errorf("Internal error: secret ring path on GCE should be at /gcs/, not %q", v)
+		return nil, fmt.Errorf("internal error: secret ring path on GCE should be at /gcs/, not %q", v)
 	}
 	keyID, secRing, err := getOrMakeKeyring()
 	if err != nil {

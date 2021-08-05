@@ -107,7 +107,7 @@ func CamliVarDir() (string, error) {
 			log.Printf("removing old, empty var directory %s", oldName)
 			os.RemoveAll(oldName)
 		} else {
-			return "", fmt.Errorf("Now that Perkeep has been renamed from Camlistore, you need to rename your data directory from %s to %s", oldName, newName)
+			return "", fmt.Errorf("now that Perkeep has been renamed from Camlistore, you need to rename your data directory from %s to %s", oldName, newName)
 		}
 	}
 	return newName, nil
@@ -176,7 +176,7 @@ func perkeepConfigDir() (string, error) {
 			log.Printf("removing old, empty config dir %s", oldName)
 			os.RemoveAll(oldName)
 		} else {
-			return "", fmt.Errorf("Error: old configuration directory detected. Not running until it's moved.\nRename %s to %s\n", oldName, newName)
+			return "", fmt.Errorf("error: old configuration directory detected. Not running until it's moved.\nRename %s to %s", oldName, newName)
 		}
 	}
 	return newName, nil

@@ -162,7 +162,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		db, err = sql.Open("mysql", c.mysqlDSN(dbname))
 	}
 	if err != nil {
-		return fmt.Errorf("Connecting to the %s %s database: %v", dbname, c.dbType, err)
+		return fmt.Errorf("connecting to the %s %s database: %w", dbname, c.dbType, err)
 	}
 	defer db.Close()
 

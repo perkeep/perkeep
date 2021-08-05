@@ -77,7 +77,6 @@ const (
 	goCmd              = "/usr/local/go/bin/go"
 	genBinariesProgram = "/usr/local/bin/build-binaries.go"
 	zipSourceProgram   = "/usr/local/bin/zip-source.go"
-	titleDateFormat    = "2006-01-02"
 	fileDateFormat     = "20060102"
 	project            = "camlistore-website"
 	bucket             = "perkeep-release"
@@ -730,8 +729,8 @@ func committers() (map[string]string, error) {
 			committerByName[name] = email
 			continue
 		}
-		c1, _ := commitCountByEmail[firstEmail]
-		c2, _ := commitCountByEmail[email]
+		c1 := commitCountByEmail[firstEmail]
+		c2 := commitCountByEmail[email]
 		if c1 < c2 {
 			delete(committers, firstEmail)
 		} else {
@@ -761,13 +760,13 @@ func countCommits() (int, error) {
 func genCommitStats() (*stats, error) {
 	committers, err := committers()
 	if err != nil {
-		return nil, fmt.Errorf("Could not count number of committers: %v", err)
+		return nil, fmt.Errorf("could not count number of committers: %w", err)
 	}
 	commits, err := countCommits()
 	if err != nil {
-		return nil, fmt.Errorf("Could not count number of commits: %v", err)
+		return nil, fmt.Errorf("could not count number of commits: %w", err)
 	}
-	var names []string
+	names := make([]string, 0, len(committers))
 	for _, v := range committers {
 		names = append(names, v)
 	}
@@ -917,7 +916,7 @@ func ProjectTokenSource(proj string, scopes ...string) (oauth2.TokenSource, erro
 	jsonConf, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("Missing JSON key configuration. Download the Service Account JSON key from https://console.developers.google.com/project/%s/apiui/credential and place it at %s", proj, fileName)
+			return nil, fmt.Errorf("missing JSON key configuration. Download the Service Account JSON key from https://console.developers.google.com/project/%s/apiui/credential and place it at %s", proj, fileName)
 		}
 		return nil, err
 	}
@@ -925,7 +924,7 @@ func ProjectTokenSource(proj string, scopes ...string) (oauth2.TokenSource, erro
 	if err != nil {
 		return nil, fmt.Errorf("reading JSON config from %s: %v", fileName, err)
 	}
-	return conf.TokenSource(oauth2.NoContext), nil
+	return conf.TokenSource(context.Background()), nil
 }
 
 var bucketProject = map[string]string{

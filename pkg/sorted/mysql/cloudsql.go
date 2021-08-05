@@ -23,10 +23,12 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/option"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
 
@@ -38,14 +40,16 @@ func maybeRemapCloudSQL(host string) (out string, err error) {
 	}
 	inst := strings.TrimSuffix(host, cloudSQLSuffix)
 	if !metadata.OnGCE() {
-		return "", errors.New("CloudSQL support only available when running on Google Compute Engine.")
+		return "", errors.New("cloudSQL support only available when running on Google Compute Engine")
 	}
 	proj, err := metadata.ProjectID()
 	if err != nil {
-		return "", fmt.Errorf("Failed to lookup GCE project ID: %v", err)
+		return "", fmt.Errorf("failed to lookup GCE project ID: %w", err)
 	}
 
-	admin, _ := sqladmin.New(oauth2.NewClient(context.Background(), google.ComputeTokenSource("")))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	admin, _ := sqladmin.NewService(ctx, option.WithHTTPClient(oauth2.NewClient(context.Background(), google.ComputeTokenSource(""))))
+	cancel()
 	listRes, err := admin.Instances.List(proj).Do()
 	if err != nil {
 		return "", fmt.Errorf("error enumerating Cloud SQL instances: %v", err)
@@ -59,11 +63,11 @@ func maybeRemapCloudSQL(host string) (out string, err error) {
 		for _, ipm := range it.IpAddresses {
 			return ipm.IpAddress, nil
 		}
-		return "", fmt.Errorf("No external IP address for Cloud SQL instances %s", inst)
+		return "", fmt.Errorf("no external IP address for Cloud SQL instances %s", inst)
 	}
-	var found []string
+	found := make([]string, 0, len(listRes.Items))
 	for _, it := range listRes.Items {
 		found = append(found, it.Name)
 	}
-	return "", fmt.Errorf("Cloud SQL instance %q not found. Found: %q", inst, found)
+	return "", fmt.Errorf("cloud SQL instance %q not found, only: %q", inst, found)
 }

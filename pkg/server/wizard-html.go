@@ -19,21 +19,3 @@ package server
 // TODO: this file and the code in wizard.go is outdated. Anyone interested enough
 // can take care of updating it as something nicer which would fit better with the
 // react UI. But in the meantime we don't link to it anymore.
-
-const topWizard = `
-<!doctype html>
-<html>
-<head>
-	<title>Perkeep setup</title>
-</head>
-<body>
-	<p>[<a href="/">Back</a>]</p>
-	<h1>Setup Wizard</h1>
-	<p> See <a href="https://camlistore.org/doc/server-config">Server Configuration</a> for information on configuring the values below.</p>
-	<form id="WizardForm" action="" method="post" enctype="multipart/form-data">
-`
-
-const bottomWizard = `
-</body>
-</html>
-`

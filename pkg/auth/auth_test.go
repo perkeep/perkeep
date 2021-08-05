@@ -17,10 +17,12 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestFromConfig(t *testing.T) {
@@ -60,7 +62,9 @@ func TestFromConfig(t *testing.T) {
 }
 
 func TestMultiMode(t *testing.T) {
-	req, err := http.NewRequest("GET", "/", nil)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", "/", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,8 +120,10 @@ func TestEmptyPasswords(t *testing.T) {
 		{config: "foo:bar:vivify=otherbar", providedPassword: "otherbar", allowed: true},
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
 	for _, test := range tests {
-		req, err := http.NewRequest("GET", "/", nil)
+		req, err := http.NewRequestWithContext(ctx, "GET", "/", nil)
 		if err != nil {
 			t.Fatal(err)
 		}

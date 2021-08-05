@@ -180,7 +180,7 @@ func (s *Server) Listen(addr string) error {
 	var err error
 	s.listener, err = listen.Listen(addr)
 	if err != nil {
-		return fmt.Errorf("Failed to listen on %s: %v", addr, err)
+		return fmt.Errorf("failed to listen on %s: %w", addr, err)
 	}
 	base := s.ListenURL()
 	s.printf("Starting to listen on %s\n", base)
@@ -204,7 +204,7 @@ func (s *Server) Listen(addr string) error {
 		config.Certificates = make([]tls.Certificate, 1)
 		config.Certificates[0], err = loadX509KeyPair(s.tlsCertFile, s.tlsKeyFile)
 		if err != nil {
-			return fmt.Errorf("Failed to load TLS cert: %v", err)
+			return fmt.Errorf("failed to load TLS cert: %w", err)
 		}
 		s.listener = tls.NewListener(s.listener, config)
 		return nil

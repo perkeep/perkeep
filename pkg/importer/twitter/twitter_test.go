@@ -109,8 +109,6 @@ func TestIntegrationRun(t *testing.T) {
 	const accessToken = "foo"
 	const accessSecret = "bar"
 	const userID = "camlistore_test"
-	const attrKey = "key"
-	const attrValue = "value"
 
 	responder := httputil.FileResponder("testdata/user_timeline.json")
 	transport, err := httputil.NewRegexpFakeTransport([]*httputil.Matcher{

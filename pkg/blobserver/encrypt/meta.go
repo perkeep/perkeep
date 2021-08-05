@@ -198,7 +198,7 @@ func (s *storage) processEncryptedMetaBlob(br blob.Ref, dat []byte) error {
 
 	header, err := p.ReadString('\n')
 	if err != nil {
-		return errors.New("No first line")
+		return errors.New("no first line")
 	}
 	if header != "#camlistore/encmeta=2\n" {
 		if len(header) > 80 {

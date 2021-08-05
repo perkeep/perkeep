@@ -749,7 +749,7 @@ var null = []byte(`null`)
 
 func (r *Ref) UnmarshalJSON(d []byte) error {
 	if r.digest != nil {
-		return errors.New("Can't UnmarshalJSON into a non-zero Ref")
+		return errors.New("can't UnmarshalJSON into a non-zero Ref")
 	}
 	if len(d) == 0 || bytes.Equal(d, null) {
 		return nil
@@ -793,7 +793,7 @@ func (r Ref) MarshalBinary() (data []byte, err error) {
 // UnmarshalBinary implements Go's encoding.BinaryUnmarshaler interface.
 func (r *Ref) UnmarshalBinary(data []byte) error {
 	if r.digest != nil {
-		return errors.New("Can't UnmarshalBinary into a non-zero Ref")
+		return errors.New("can't UnmarshalBinary into a non-zero Ref")
 	}
 	i := bytes.IndexByte(data, '-')
 	if i < 1 {

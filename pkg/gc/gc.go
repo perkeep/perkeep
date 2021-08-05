@@ -166,7 +166,7 @@ func (c *Collector) Collect(ctx context.Context) (err error) {
 		return c.Roots.Enumerate(markCtx, roots)
 	})
 	if err := marker.Err(); err != nil {
-		return fmt.Errorf("Mark failure: %v", err)
+		return fmt.Errorf("mark failure: %w", err)
 	}
 
 	// Sweep.
@@ -192,7 +192,7 @@ func (c *Collector) Collect(ctx context.Context) (err error) {
 		return nil
 	})
 	if err := sweeper.Err(); err != nil {
-		return fmt.Errorf("Sweep failure: %v", err)
+		return fmt.Errorf("sweep failure: %w", err)
 	}
 	return nil
 }

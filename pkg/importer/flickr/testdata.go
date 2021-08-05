@@ -182,10 +182,12 @@ func fakePhotosetsList(sets int) string {
 }
 
 func fakePhotoset(photosetId string, page, pages int, photoIds []string) string {
-	var photos []struct {
-		Id             string
-		OriginalFormat string
-	}
+	photos := make(
+		[]struct {
+			Id             string
+			OriginalFormat string
+		},
+		0, len(photoIds))
 	for _, v := range photoIds {
 		item := struct {
 			Id             string
@@ -217,13 +219,13 @@ func fakePhotoset(photosetId string, page, pages int, photoIds []string) string 
 }
 
 func fakePhotosPage(page, pages, perPage int, photoIds []string) string {
-	var photos []*photosSearchItem
 	currentPage := 1
 	indexOnPage := 1
 	day := time.Hour * 24
 	year := day * 365
 	const dateCreatedFormat = "2006-01-02 15:04:05"
 
+	photos := make([]*photosSearchItem, 0, len(photoIds))
 	for k, v := range photoIds {
 		if indexOnPage > perPage {
 			currentPage++

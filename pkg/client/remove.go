@@ -45,7 +45,7 @@ func (c *Client) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	needsDelete := make(map[blob.Ref]bool) // BlobRefStr -> true
 	for n, b := range blobs {
 		if !b.Valid() {
-			return errors.New("Cannot delete invalid blobref")
+			return errors.New("cannot delete invalid blobref")
 		}
 		key := fmt.Sprintf("blob%v", n+1)
 		params.Add(key, b.String())
@@ -54,7 +54,7 @@ func (c *Client) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 
 	req, err := http.NewRequest("POST", url_, strings.NewReader(params.Encode()))
 	if err != nil {
-		return fmt.Errorf("Error creating RemoveBlobs POST request: %v", err)
+		return fmt.Errorf("error creating RemoveBlobs POST request: %w", err)
 	}
 	req = req.WithContext(ctx)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
@@ -62,7 +62,7 @@ func (c *Client) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		resp.Body.Close()
-		return fmt.Errorf("Got status code %d from blobserver for remove %s", resp.StatusCode, params.Encode())
+		return fmt.Errorf("got status code %d from blobserver for remove %s", resp.StatusCode, params.Encode())
 	}
 	var remResp handlers.RemoveResponse
 	decodeErr := httputil.DecodeJSON(resp, &remResp)

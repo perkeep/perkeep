@@ -170,7 +170,7 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 	if err := ctx.AccountNode.SetAttrs(
 		attrAuthToken, t,
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("error setting attribute: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)
@@ -291,7 +291,7 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 		r.nextAfter = time.Now().Add(r.lastPause)
 		return true, nil
 	case resp.StatusCode != http.StatusOK:
-		return false, fmt.Errorf("Unexpected status code %v fetching %v", resp.StatusCode, u)
+		return false, fmt.Errorf("unexpected status code %v fetching %v", resp.StatusCode, u)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)

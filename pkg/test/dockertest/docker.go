@@ -333,12 +333,12 @@ func SetupPostgreSQLContainer(t *testing.T, dbname string) (c ContainerID, ip st
 	rootdb, err := sql.Open("postgres",
 		fmt.Sprintf("user=%s password=%s host=%s dbname=postgres sslmode=disable", PostgresUsername, PostgresPassword, ip))
 	if err != nil {
-		cleanupAndDie(fmt.Errorf("Could not open postgres rootdb: %v", err))
+		cleanupAndDie(fmt.Errorf("could not open postgres rootdb: %w", err))
 	}
 	if _, err := sqlExecRetry(rootdb,
 		"CREATE DATABASE "+dbname+" LC_COLLATE = 'C' TEMPLATE = template0",
 		50); err != nil {
-		cleanupAndDie(fmt.Errorf("Could not create database %v: %v", dbname, err))
+		cleanupAndDie(fmt.Errorf("could not create database %v: %w", dbname, err))
 	}
 	return
 }
