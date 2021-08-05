@@ -280,6 +280,27 @@ var keywordTests = []keywordTestcase{
 	},
 
 	{
+		object: newIsUntagged(),
+		args:   []string{""},
+		want: &Constraint{
+			Logical: &LogicalConstraint{
+				Op: "not",
+				A: &Constraint{
+					Permanode: &PermanodeConstraint{
+						Attr:       "tag",
+						SkipHidden: true,
+						ValueMatches: &StringConstraint{
+							ByteLength: &IntConstraint{
+								Min: 1,
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+
+	{
 		object: newTitle(),
 		args:   []string{""},
 		want: &Constraint{
