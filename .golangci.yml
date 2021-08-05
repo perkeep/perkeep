@@ -1,24 +1,29 @@
 linters:
   enable:
-    - dupl
-    - misspell
-    - unparam
-    - prealloc
-    - unused
-    - staticcheck
+    - errorlint
+    - gocritic
     - gofmt
+    - ineffassign
+    - misspell
     - noctx
+    - prealloc
     - sqlclosecheck
+    - staticcheck
     - unconvert
+    - unused
+    - wastedassign
 
   disable:
-    - errorlint
+    - bodyclose
+    - dupl
     - errcheck
     - goconst
     - interfacer
+    - unparam
 
 issues:
   exclude:
     - "`?encodeFixed(32|64)Pb`? is unused"
 
 # vim: set et shiftwidth=2:
+#

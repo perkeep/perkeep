@@ -33,7 +33,7 @@ func showEXIF(file string) {
 	ex, err := exif.Decode(f)
 	if err != nil {
 		if exif.IsCriticalError(err) {
-			log.Fatalf("exif.Decode, critical error: %v", err)
+			panic(fmt.Errorf("exif.Decode, critical error: %w", err))
 		}
 		log.Printf("exif.Decode, warning: %v", err)
 	}

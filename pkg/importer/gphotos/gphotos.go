@@ -375,7 +375,7 @@ func (ph photo) filename() string {
 	if filename == "" {
 		filename = ph.ID
 	}
-	return strings.Replace(filename, "/", "-", -1)
+	return strings.ReplaceAll(filename, "/", "-")
 }
 
 func orAltAttr(attr, alt string) string {

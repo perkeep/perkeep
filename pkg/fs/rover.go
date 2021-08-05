@@ -174,7 +174,7 @@ func (n *roVersionsDir) ReadDir(ctx context.Context) ([]fuse.Dirent, error) {
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	var ents []fuse.Dirent
+	ents := make([]fuse.Dirent, 0, len(n.children))
 	for name, childNode := range n.children {
 		var ino uint64
 		switch v := childNode.(type) {
@@ -305,7 +305,7 @@ func (n *roFileVersionsDir) ReadDir(ctx context.Context) ([]fuse.Dirent, error) 
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	var ents []fuse.Dirent
+	ents := make([]fuse.Dirent, 0, len(n.children))
 	for name, childNode := range n.children {
 		var ino uint64
 		switch v := childNode.(type) {

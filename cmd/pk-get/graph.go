@@ -45,7 +45,7 @@ type node struct {
 }
 
 func (n *node) dotName() string {
-	return strings.Replace(n.br.String(), "-", "_", -1)
+	return strings.ReplaceAll(n.br.String(), "-", "_")
 }
 
 func (n *node) dotLabel() string {

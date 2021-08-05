@@ -156,7 +156,7 @@ func (c *hookCmd) hookGofmt() error {
 
 	files, err := c.runGofmt()
 	if err != nil {
-		printf("gofmt hook reported errors:\n\t%v\n", strings.Replace(strings.TrimSpace(err.Error()), "\n", "\n\t", -1))
+		printf("gofmt hook reported errors:\n\t%v\n", strings.ReplaceAll(strings.TrimSpace(err.Error()), "\n", "\n\t"))
 		return errors.New("gofmt errors")
 	}
 	if len(files) == 0 {
@@ -231,7 +231,7 @@ func printf(format string, args ...interface{}) {
 }
 
 func addRoot(root string, list []string) []string {
-	var out []string
+	out := make([]string, 0, len(list))
 	for _, x := range list {
 		out = append(out, filepath.Join(root, x))
 	}

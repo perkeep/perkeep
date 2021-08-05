@@ -62,7 +62,7 @@ func (c *desCmd) RunCommand(args []string) error {
 	if len(args) == 0 {
 		return cmdmain.UsageError("requires blobref")
 	}
-	var blobs []blob.Ref
+	blobs := make([]blob.Ref, 0, len(args))
 	for _, arg := range args {
 		br, ok := blob.Parse(arg)
 		if !ok {

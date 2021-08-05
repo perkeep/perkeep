@@ -884,7 +884,9 @@ func (ht handlerTest) test(t *testing.T) {
 		method = "POST"
 		body = strings.NewReader(ht.postBody)
 	}
-	req, err := http.NewRequest(method, "/camli/search/"+ht.query, body)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, method, "/camli/search/"+ht.query, body)
 	if err != nil {
 		t.Fatalf("%s: bad query: %v", ht.name, err)
 	}

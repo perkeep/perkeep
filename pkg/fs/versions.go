@@ -183,8 +183,8 @@ func (n *versionsDir) condRefresh(ctx context.Context) error {
 		if db != nil && db.Permanode != nil {
 			name := db.Permanode.Attr.Get("camliImportRoot")
 			if name != "" {
-				name = strings.Replace(name, ":", "-", -1)
-				name = strings.Replace(name, "/", "-", -1)
+				name = strings.ReplaceAll(name, ":", "-")
+				name = strings.ReplaceAll(name, "/", "-")
 				n.m["importer-"+name] = pn
 			}
 		}

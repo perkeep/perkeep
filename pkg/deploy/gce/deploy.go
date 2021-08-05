@@ -243,7 +243,7 @@ func (d *Deployer) CreateProject(ctx context.Context) (string, error) {
 			projectName = projectID
 		} else {
 			projectID = genRandomProjectID()
-			projectName = strings.Replace(projectID, "camlistore-launcher-", "Camlistore ", 1)
+			projectName = strings.ReplaceAll(projectID, "camlistore-launcher-", "Camlistore ")
 		}
 		project := cloudresourcemanager.Project{
 			Name:      projectName,
@@ -696,7 +696,7 @@ OpLoop:
 }
 
 func cloudConfig(conf *InstanceConf) string {
-	config := strings.Replace(baseInstanceConfig, "INNODB_BUFFER_POOL_SIZE=NNN", "INNODB_BUFFER_POOL_SIZE="+strconv.Itoa(innodbBufferPoolSize(conf.Machine)), -1)
+	config := strings.ReplaceAll(baseInstanceConfig, "INNODB_BUFFER_POOL_SIZE=NNN", "INNODB_BUFFER_POOL_SIZE="+strconv.Itoa(innodbBufferPoolSize(conf.Machine)))
 	perkeepdTarball := "https://storage.googleapis.com/camlistore-release/docker/"
 	if conf.WIP {
 		perkeepdTarball += "perkeepd-WORKINPROGRESS.tar.gz"

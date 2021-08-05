@@ -176,7 +176,7 @@ func ParseDeps(r io.Reader) (providedBy map[string]string, requires map[string][
 		var required []string
 		if m[5] != "" {
 			required = strings.Split(
-				strings.Replace(strings.Replace(m[5], "'", "", -1), `"`, "", -1), ", ")
+				strings.ReplaceAll(strings.ReplaceAll(m[5], "'", ""), `"`, ""), ", ")
 		}
 		for _, v := range provides {
 			namespace := strings.Trim(v, `'"`)
