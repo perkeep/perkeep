@@ -138,7 +138,7 @@ func replaceRingPath(path string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Could not get absolute path of %v: %v", relativeRing, err)
 	}
-	secRing = strings.Replace(secRing, `\`, `\\`, -1)
+	secRing = strings.ReplaceAll(secRing, `\`, `\\`)
 	slurpBytes, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -162,10 +162,10 @@ func backslashEscape(b []byte) []byte {
 	if unixPaths == nil {
 		return b
 	}
-	var oldNew []string
+	oldNew := make([]string, 0, len(unixPaths))
 	for _, v := range unixPaths {
 		bStr := string(v)
-		oldNew = append(oldNew, bStr, strings.Replace(bStr, `/`, `\\`, -1))
+		oldNew = append(oldNew, bStr, strings.ReplaceAll(bStr, `/`, `\\`))
 	}
 	r := strings.NewReplacer(oldNew...)
 	return []byte(r.Replace(string(b)))
