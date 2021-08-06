@@ -209,7 +209,7 @@ func TestWriteKeyRing(t *testing.T) {
 func entityString(ent *openpgp.Entity) string {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "PublicKey=%s", ent.PrimaryKey.KeyIdShortString())
-	var ids []string
+	ids := make([]string, 0, len(ent.Identities))
 	for k := range ent.Identities {
 		ids = append(ids, k)
 	}

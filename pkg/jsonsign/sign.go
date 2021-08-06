@@ -214,7 +214,7 @@ func (sr *SignRequest) Sign(ctx context.Context) (signedJSON string, err error) 
 		return execfail("Failed to parse signature from gpg.")
 	}
 	inner := output[index1+2 : index2]
-	signature := strings.Replace(inner, "\n", "", -1)
+	signature := strings.ReplaceAll(inner, "\n", "")
 
 	return fmt.Sprintf("%s,\"camliSig\":\"%s\"}\n", trimmedJSON, signature), nil
 }
