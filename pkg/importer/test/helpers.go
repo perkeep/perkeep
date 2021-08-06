@@ -64,7 +64,7 @@ func setupClient(w *test.World) (*client.Client, error) {
 // GetRequiredChildPathObj returns the child object at path or an error if none exists.
 func GetRequiredChildPathObj(parent *importer.Object, path string) (*importer.Object, error) {
 	return parent.ChildPathObjectOrFunc(path, func() (*importer.Object, error) {
-		return nil, fmt.Errorf("Unable to locate child path %s of node %v", path, parent.PermanodeRef())
+		return nil, fmt.Errorf("unable to locate child path %s of node %v", path, parent.PermanodeRef())
 	})
 }
 
