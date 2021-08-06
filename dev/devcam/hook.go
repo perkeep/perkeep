@@ -38,8 +38,6 @@ var hookFiles = []string{
 	"commit-msg",
 }
 
-var ignoreBelow = []byte("\n# ------------------------ >8 ------------------------\n")
-
 func (c *hookCmd) installHook() error {
 	root, err := repoRoot()
 	if err != nil {
@@ -200,13 +198,10 @@ func (c *hookCmd) runGofmt() (files []string, err error) {
 		return
 	}
 
-	args := []string{"-l"}
 	// TODO(mpl): it would be nice to TrimPrefix the pwd from each file to get a shorter output.
 	// However, since git sets the pwd to GIT_DIR before running the pre-commit hook, we lost
 	// the actual pwd from when we ran `git commit`, so no dice so far.
-	for _, file := range indexFiles {
-		args = append(args, file)
-	}
+	args := append(append(make([]string, 0, 1+len(indexFiles)), "-l"), indexFiles...)
 
 	if c.verbose {
 		fmt.Fprintln(cmdmain.Stderr, commandString("gofmt", args))
@@ -249,17 +244,6 @@ func nonBlankLines(text string) []string {
 	for _, s := range lines(text) {
 		if strings.TrimSpace(s) != "" {
 			out = append(out, s)
-		}
-	}
-	return out
-}
-
-// filter returns the elements in list satisfying f.
-func filter(f func(string) bool, list []string) []string {
-	var out []string
-	for _, x := range list {
-		if f(x) {
-			out = append(out, x)
 		}
 	}
 	return out

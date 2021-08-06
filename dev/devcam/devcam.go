@@ -65,7 +65,7 @@ func runExec(bin string, args []string, env *Env) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("Could not run %v: %v", bin, err)
+		return fmt.Errorf("could not run %v: %w", bin, err)
 	}
 	go handleSignals(cmd.Process)
 	return cmd.Wait()
@@ -85,7 +85,7 @@ func cpDir(src, dst string, filter []string) error {
 		}
 		suffix, err := filepath.Rel(src, fullpath)
 		if err != nil {
-			return fmt.Errorf("Failed to find Rel(%q, %q): %v", src, fullpath, err)
+			return fmt.Errorf("failed to find Rel(%q, %q): %w", src, fullpath, err)
 		}
 		if fi.IsDir() {
 			return nil
