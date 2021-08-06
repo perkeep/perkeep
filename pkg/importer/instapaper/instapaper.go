@@ -164,13 +164,13 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 
 	// We have to assume password can be blank as Instapaper does not require a password
 	if username == "" {
-		httputil.BadRequestError(w, "Expected a username")
+		httputil.BadRequestError(w, "expected a username")
 		return
 	}
 
 	clientID, secret, err := ctx.Credentials()
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Credentials error: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("credentials error: %w", err))
 		return
 	}
 
@@ -183,13 +183,13 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 	}
 	creds, _, err := oauthClient.RequestTokenXAuth(ctxutil.Client(ctx), nil, username, password)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Failed to get access token: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("failed to get access token: %w", err))
 		return
 	}
 
 	user, err := getUserInfo(importer.OAuthContext{Ctx: ctx.Context, Client: oauthClient, Creds: creds})
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Failed to verify credentials: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("failed to verify credentials: %w", err))
 		return
 	}
 
@@ -200,7 +200,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		importer.AcctAttrUserName, user.Username,
 		importer.AcctAttrUserID, fmt.Sprint(user.UserId),
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting attributes: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("error setting attributes: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)
