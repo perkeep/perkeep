@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 
 	"go4.org/syncutil"
 
@@ -63,7 +62,7 @@ func (b *Blob) NewDirReader(ctx context.Context, fetcher blob.Fetcher) (*DirRead
 
 func (ss *superset) NewDirReader(fetcher blob.Fetcher) (*DirReader, error) {
 	if ss.Type != "directory" {
-		return nil, fmt.Errorf("Superset not of type \"directory\"")
+		return nil, fmt.Errorf("superset not of type \"directory\"")
 	}
 	return &DirReader{fetcher: fetcher, ss: ss}, nil
 }
@@ -154,7 +153,7 @@ func (dr *DirReader) Readdir(ctx context.Context, n int) (entries []DirectoryEnt
 		up = len(sts)
 	} else {
 		if n > (len(sts) - dr.current) {
-			err = io.EOF
+			//err = io.EOF
 			up = len(sts)
 		}
 	}

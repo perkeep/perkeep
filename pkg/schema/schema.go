@@ -627,10 +627,7 @@ func (bb *Builder) SetStaticSetMembers(members []blob.Ref) []*Blob {
 		ss := NewStaticSet()
 		subss := ss.SetStaticSetMembers(members[i*perSubset : (i+1)*perSubset])
 		subsets = append(subsets, ss.Blob())
-		allSubsets = append(allSubsets, ss.Blob())
-		for _, v := range subss {
-			allSubsets = append(allSubsets, v)
-		}
+		allSubsets = append(append(allSubsets, ss.Blob()), subss...)
 	}
 
 	// Deal with the rest (of the euclidian division)
@@ -1011,7 +1008,7 @@ func FileTime(f io.ReaderAt) (time.Time, error) {
 		if osf, ok := f.(*os.File); ok {
 			fi, err := osf.Stat()
 			if err != nil {
-				return ct, fmt.Errorf("Failed to find a modtime: stat: %v", err)
+				return ct, fmt.Errorf("failed to find a modtime: stat: %w", err)
 			}
 			return fi.ModTime(), nil
 		}
