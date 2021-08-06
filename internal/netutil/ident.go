@@ -226,8 +226,7 @@ func uidFromSockstatReader(lip net.IP, lport int, rip net.IP, rport int, r io.Re
 func uidFromProcReader(lip net.IP, lport int, rip net.IP, rport int, r io.Reader) (uid int, err error) {
 	buf := bufio.NewReader(r)
 
-	localHex := ""
-	remoteHex := ""
+	var localHex, remoteHex string
 	ipv4 := lip.To4() != nil
 	if ipv4 {
 		// In the kernel, the port is run through ntohs(), and
