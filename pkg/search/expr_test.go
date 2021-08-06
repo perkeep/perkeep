@@ -588,12 +588,12 @@ var parseExpTests = []parserTestCase{
 
 	{
 		in:          "after:foo:bar",
-		errContains: `Wrong number of arguments for "after", given 2, expected 1 at position 0, token: "after:foo:bar"`,
+		errContains: `wrong number of arguments for "after", given 2, expected 1 at position 0, token: "after:foo:bar"`,
 	},
 
 	{
 		in:          "     attr:foo",
-		errContains: `Wrong number of arguments for "attr", given 1, expected 2 at position 5, token: "attr:foo"`,
+		errContains: `wrong number of arguments for "attr", given 1, expected 2 at position 5, token: "attr:foo"`,
 	},
 
 	{
@@ -644,7 +644,7 @@ var parseExpTests = []parserTestCase{
 
 	{
 		in:          "height:++0",
-		errContains: "Unable to parse \"++0\" as range, wanted something like 480-1024, 480-, -1024 or 1024 at position 0",
+		errContains: "unable to parse \"++0\" as range, wanted something like 480-1024, 480-, -1024 or 1024 at position 0",
 	},
 
 	{
@@ -667,7 +667,7 @@ var parseExpTests = []parserTestCase{
 
 	{
 		in:          "width:++0",
-		errContains: "Unable to parse \"++0\" as range, wanted something like 480-1024, 480-, -1024 or 1024 at position 0",
+		errContains: "unable to parse \"++0\" as range, wanted something like 480-1024, 480-, -1024 or 1024 at position 0",
 	},
 
 	{

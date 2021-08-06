@@ -88,7 +88,7 @@ func (t *SortType) UnmarshalJSON(v []byte) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("Bogus search sort type %q", v)
+	return fmt.Errorf("bogus search sort type %q", v)
 }
 
 type SearchQuery struct {
@@ -201,7 +201,7 @@ func (q *SearchQuery) addContinueConstraint() error {
 	if q.Constraint.onlyMatchesPermanode() {
 		tokent, lastbr, ok := parsePermanodeContinueToken(cont)
 		if !ok {
-			return errors.New("Unexpected continue token")
+			return errors.New("unexpected continue token")
 		}
 		if q.Sort == LastModifiedDesc || q.Sort == CreatedDesc {
 			var lastMod, lastCreated time.Time
@@ -238,13 +238,13 @@ func (q *SearchQuery) checkValid(ctx context.Context) (sq *SearchQuery, err erro
 		return nil, errors.New("invalid sort type")
 	}
 	if q.Continue != "" && q.Around.Valid() {
-		return nil, errors.New("Continue and Around parameters are mutually exclusive")
+		return nil, errors.New("continue and Around parameters are mutually exclusive")
 	}
 	if q.Sort == MapSort && (q.Continue != "" || q.Around.Valid()) {
-		return nil, errors.New("Continue or Around parameters are not available with MapSort")
+		return nil, errors.New("continue or Around parameters are not available with MapSort")
 	}
 	if q.Constraint != nil && q.Expression != "" {
-		return nil, errors.New("Constraint and Expression are mutually exclusive in a search query")
+		return nil, errors.New("constraint and Expression are mutually exclusive in a search query")
 	}
 	if q.Constraint != nil {
 		return sq, q.Constraint.checkValid()
@@ -252,10 +252,10 @@ func (q *SearchQuery) checkValid(ctx context.Context) (sq *SearchQuery, err erro
 	expr := q.Expression
 	sq, err = parseExpression(ctx, expr)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing search expression %q: %v", expr, err)
+		return nil, fmt.Errorf("error parsing search expression %q: %w", expr, err)
 	}
 	if err := sq.Constraint.checkValid(); err != nil {
-		return nil, fmt.Errorf("Internal error: parseExpression(%q) returned invalid constraint: %v", expr, err)
+		return nil, fmt.Errorf("internal error: parseExpression(%q) returned invalid constraint: %w", expr, err)
 	}
 	return sq, nil
 }
@@ -990,7 +990,7 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 	}
 	exprResult, err := rawq.checkValid(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("Invalid SearchQuery: %v", err)
+		return nil, fmt.Errorf("invalid SearchQuery: %w", err)
 	}
 	q := rawq.plannedQuery(exprResult)
 	res := new(SearchResult)
@@ -1049,10 +1049,7 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 				return true
 			}
 			if !wantAround || foundAround {
-				if len(res.Blobs) == q.Limit {
-					return false
-				}
-				return true
+				return len(res.Blobs) != q.Limit
 			}
 			if q.Around == meta.Ref {
 				foundAround = true
@@ -1130,7 +1127,7 @@ func (h *Handler) Query(ctx context.Context, rawq *SearchQuery) (ret_ *SearchRes
 			}
 		// TODO(mpl): LastModifiedDesc, LastModifiedAsc
 		default:
-			return nil, errors.New("TODO: unsupported sort+query combination.")
+			return nil, errors.New("unsupported sort+query combination (TODO)")
 		}
 		if q.Sort != MapSort {
 			if q.Limit > 0 && len(res.Blobs) > q.Limit {
@@ -1562,7 +1559,7 @@ func (c *LogicalConstraint) checkValid() error {
 		return nil
 	}
 	if c.A == nil {
-		return errors.New("In LogicalConstraint, need to set A")
+		return errors.New("in LogicalConstraint, need to set A")
 	}
 	if err := c.A.checkValid(); err != nil {
 		return err
@@ -1570,14 +1567,14 @@ func (c *LogicalConstraint) checkValid() error {
 	switch c.Op {
 	case "and", "xor", "or":
 		if c.B == nil {
-			return errors.New("In LogicalConstraint, need both A and B set")
+			return errors.New("in LogicalConstraint, need both A and B set")
 		}
 		if err := c.B.checkValid(); err != nil {
 			return err
 		}
 	case "not":
 	default:
-		return fmt.Errorf("In LogicalConstraint, unknown operation %q", c.Op)
+		return fmt.Errorf("in LogicalConstraint, unknown operation %q", c.Op)
 	}
 	return nil
 }
@@ -1925,7 +1922,7 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 			return false, err
 		}
 		matches := false
-		for parent, _ := range parents {
+		for parent := range parents {
 			meta, err := s.blobMeta(ctx, parent)
 			if err != nil {
 				if os.IsNotExist(err) {
@@ -2057,7 +2054,7 @@ func (c *DirConstraint) checkValid() error {
 		return nil
 	}
 	if c.Contains != nil && c.RecursiveContains != nil {
-		return errors.New("Contains and RecursiveContains in a DirConstraint are mutually exclusive")
+		return errors.New("contains and RecursiveContains in a DirConstraint are mutually exclusive")
 	}
 	return nil
 }
@@ -2154,7 +2151,7 @@ func (c *DirConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref,
 			})
 		} else {
 			if !cc.isFileOrDirConstraint() {
-				return false, errors.New("[Recursive]Contains constraint should have a *FileConstraint, or a *DirConstraint, or a *LogicalConstraint combination of the aforementioned.")
+				return false, errors.New("the [Recursive]Contains constraint should have a *FileConstraint, or a *DirConstraint, or a *LogicalConstraint combination of the aforementioned")
 			}
 			containsMatch, err = c.hasMatchingChild(ctx, s, children, cc.fileOrDirOrLogicalMatches)
 		}
@@ -2209,7 +2206,7 @@ func (c *DirConstraint) hasMatchingChild(ctx context.Context, s *search, childre
 	matcher func(context.Context, *search, blob.Ref, camtypes.BlobMeta) (bool, error)) (bool, error) {
 	// TODO(mpl): See if we're guaranteed to be CPU-bound (i.e. all resources are in
 	// corpus), and if not, add some concurrency to spread costly index lookups.
-	for child, _ := range children {
+	for child := range children {
 		meta, err := s.blobMeta(ctx, child)
 		if err != nil {
 			if os.IsNotExist(err) {

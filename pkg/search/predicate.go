@@ -169,7 +169,7 @@ func (mp matchPrefix) Name() string {
 func (mp matchPrefix) Match(a atom) (bool, error) {
 	if mp.prefix == a.predicate {
 		if len(a.args) != mp.count {
-			return true, fmt.Errorf("Wrong number of arguments for %q, given %d, expected %d", mp.prefix, len(a.args), mp.count)
+			return true, fmt.Errorf("wrong number of arguments for %q, given %d, expected %d", mp.prefix, len(a.args), mp.count)
 		}
 		return true, nil
 	}
@@ -620,7 +620,7 @@ func (l namedLocation) Predicate(ctx context.Context, args []string) (*Constrain
 		return nil, err
 	}
 	if len(rects) == 0 {
-		return nil, fmt.Errorf("No location found for %q", where)
+		return nil, fmt.Errorf("no location found for %q", where)
 	}
 	return locationPredicate(ctx, rects)
 }
@@ -770,7 +770,7 @@ func parseWHExpression(expr string) (min, max string, err error) {
 	if m := whValueExpr.FindStringSubmatch(expr); m != nil {
 		return m[1], m[1], nil
 	}
-	return "", "", fmt.Errorf("Unable to parse %q as range, wanted something like 480-1024, 480-, -1024 or 1024", expr)
+	return "", "", fmt.Errorf("unable to parse %q as range, wanted something like 480-1024, 480-, -1024 or 1024", expr)
 }
 
 func parseTimePrefix(when string) (time.Time, error) {
@@ -815,7 +815,7 @@ func mimeFromFormat(v string) (string, error) {
 	case "pdf":
 		return "application/pdf", nil // RFC 3778
 	}
-	return "", fmt.Errorf("Unknown format: %s", v)
+	return "", fmt.Errorf("unknown format: %s", v)
 }
 
 // Custom predicates

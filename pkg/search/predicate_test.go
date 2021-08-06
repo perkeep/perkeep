@@ -235,7 +235,7 @@ var keywordTests = []keywordTestcase{
 	{
 		object:      newFormat(),
 		args:        []string{"faulty"},
-		errContains: "Unknown format: faulty",
+		errContains: "unknown format: faulty",
 	},
 
 	{
@@ -436,7 +436,7 @@ var keywordTests = []keywordTestcase{
 	{
 		object:      newWidth(),
 		args:        []string{""},
-		errContains: "Unable to parse \"\" as range, wanted something like 480-1024, 480-, -1024 or 1024",
+		errContains: "unable to parse \"\" as range, wanted something like 480-1024, 480-, -1024 or 1024",
 	},
 
 	{
@@ -516,7 +516,7 @@ var keywordTests = []keywordTestcase{
 	{
 		object:      newHeight(),
 		args:        []string{""},
-		errContains: "Unable to parse \"\" as range, wanted something like 480-1024, 480-, -1024 or 1024",
+		errContains: "unable to parse \"\" as range, wanted something like 480-1024, 480-, -1024 or 1024",
 	},
 
 	{
@@ -657,8 +657,8 @@ func TestParseWHExpression(t *testing.T) {
 		errContains string
 	}{
 		{in: "450-470", wantMin: "450", wantMax: "470"},
-		{in: "450-470+", errContains: "Unable to parse \"450-470+\" as range, wanted something like 480-1024, 480-, -1024 or 1024"},
-		{in: "", errContains: "Unable to parse \"\" as range, wanted something like 480-1024, 480-, -1024 or 1024"},
+		{in: "450-470+", errContains: "unable to parse \"450-470+\" as range, wanted something like 480-1024, 480-, -1024 or 1024"},
+		{in: "", errContains: "unable to parse \"\" as range, wanted something like 480-1024, 480-, -1024 or 1024"},
 		{in: "450", wantMin: "450", wantMax: "450"},
 	}
 
