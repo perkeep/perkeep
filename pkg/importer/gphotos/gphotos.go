@@ -140,7 +140,7 @@ func (im imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.S
 		// everytime, even for Re-logins, too.
 		//
 		// Source: https://developers.google.com/youtube/v3/guides/authentication#server-side-apps
-		http.Redirect(w, r, oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce), 302)
+		http.Redirect(w, r, oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce), http.StatusFound)
 	}
 	return err
 }
@@ -153,7 +153,7 @@ func (im imp) CallbackURLParameters(acctRef blob.Ref) url.Values {
 func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
 	oauthConfig, err := im.auth(ctx)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error getting oauth config: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("error getting oauth config: %w", err))
 		return
 	}
 
@@ -179,7 +179,7 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 	userInfo, err := im.getUserInfo(gphotosCtx)
 	if err != nil {
 		logf("couldn't get username: %v", err)
-		httputil.ServeError(w, r, fmt.Errorf("can't get username: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("can't get username: %w", err))
 		return
 	}
 
@@ -189,7 +189,7 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 		importer.AcctAttrUserName, userInfo.Email,
 		acctAttrOAuthToken, encodeToken(token),
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("error setting attribute: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)
@@ -279,8 +279,6 @@ type run struct {
 	setNextToken func(string) error
 	dl           *downloader
 }
-
-var forceFullImport, _ = strconv.ParseBool(os.Getenv("CAMLI_GPHOTOS_FULL_IMPORT"))
 
 func (imp) Run(rctx *importer.RunContext) error {
 	clientID, secret, err := rctx.Credentials()
