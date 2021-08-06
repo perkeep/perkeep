@@ -273,21 +273,6 @@ func (pm *PermanodeMeta) appendAttrClaim(cl *camtypes.Claim, signers signerFromB
 	return nil
 }
 
-// signerID returns the GPG ID (e.g. 2931A67C26F5ABDA) corresponding to the
-// signer. It returns the empty value if signer is not a valid blob Ref, and the
-// unusable value "unknown GPG key" when it applies, as a convenience to help
-// with the different cases covered by valuesAtSigner.
-func (c *Corpus) signerID(signer blob.Ref) string {
-	if !signer.Valid() {
-		return ""
-	}
-	id, ok := c.keyId[signer]
-	if !ok {
-		return "unknown GPG key"
-	}
-	return id
-}
-
 // valuesAtSigner returns an attrValues to query permanode attr values at the
 // given time for the signerFilter, which is the GPG ID of a signer (e.g. 2931A67C26F5ABDA).
 // It returns (nil, true) if signerFilter is not empty but pm has no
@@ -500,7 +485,7 @@ func (c *Corpus) scanFromStorage(s sorted.KeyValue) error {
 	// log.V(1).Printf("interned blob.Ref = %d", c.brInterns)
 
 	if err := c.initDeletes(s); err != nil {
-		return fmt.Errorf("Could not populate the corpus deletes: %v", err)
+		return fmt.Errorf("could not populate the corpus deletes: %w", err)
 	}
 
 	if logCorpusStats {
@@ -531,7 +516,7 @@ func (c *Corpus) initDeletes(s sorted.KeyValue) (err error) {
 	for it.Next() {
 		cl, ok := kvDeleted(it.Key())
 		if !ok {
-			return fmt.Errorf("Bogus keyDeleted entry key: want |\"deleted\"|<deleted blobref>|<reverse claimdate>|<deleter claim>|, got %q", it.Key())
+			return fmt.Errorf("bogus keyDeleted entry key: want |\"deleted\"|<deleted blobref>|<reverse claimdate>|<deleter claim>|, got %q", it.Key())
 		}
 		targetDeletions := append(c.deletes[cl.Target],
 			deletion{
@@ -633,7 +618,7 @@ func (c *Corpus) addBlob(ctx context.Context, br blob.Ref, mm *mutationMap) erro
 	}
 	for _, cl := range mm.deletes {
 		if err := c.updateDeletes(cl); err != nil {
-			return fmt.Errorf("Could not update the deletes cache after deletion from %v: %v", cl, err)
+			return fmt.Errorf("could not update the deletes cache after deletion from %v: %w", cl, err)
 		}
 	}
 	return nil
@@ -646,7 +631,7 @@ func (c *Corpus) updateDeletes(deleteClaim schema.Claim) error {
 	deleter := deleteClaim.Blob()
 	when, err := deleter.ClaimDate()
 	if err != nil {
-		return fmt.Errorf("Could not get date of delete claim %v: %v", deleteClaim, err)
+		return fmt.Errorf("could not get date of delete claim %v: %w", deleteClaim, err)
 	}
 	del := deletion{
 		deleter: c.br(deleter.BlobRef()),
@@ -1177,7 +1162,7 @@ func (c *Corpus) PermanodeTime(pn blob.Ref) (t time.Time, ok bool) {
 	var fi camtypes.FileInfo
 	ccRef, ccTime, ok := c.pnCamliContent(pn)
 	if ok {
-		fi, _ = c.files[ccRef]
+		fi = c.files[ccRef]
 	}
 	if fi.Time != nil {
 		return time.Time(*fi.Time), true
