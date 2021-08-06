@@ -231,14 +231,14 @@ func NewKeyValue(cfg jsonconfig.Obj) (KeyValue, error) {
 	typ := cfg.RequiredString("type")
 	ctor, ok := ctors[typ]
 	if typ != "" && !ok {
-		return nil, fmt.Errorf("Invalid sorted.KeyValue type %q", typ)
+		return nil, fmt.Errorf("invalid sorted.KeyValue type %q", typ)
 	}
 	if ok {
 		s, err = ctor(cfg)
 		if err != nil {
 			we, ok := err.(NeedWipeError)
 			if !ok {
-				return nil, fmt.Errorf("error from %q KeyValue: %v", typ, err)
+				return nil, fmt.Errorf("error from %q KeyValue: %w", typ, err)
 			}
 			if err := cfg.Validate(); err != nil {
 				return nil, err

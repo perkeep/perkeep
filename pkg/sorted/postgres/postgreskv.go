@@ -184,7 +184,7 @@ func createDB(db *sql.DB, database string) error {
 
 	// Verify database only has runes we expect
 	if !validDatabaseName(database) {
-		return fmt.Errorf("Invalid postgres database name: %q", database)
+		return fmt.Errorf("invalid postgres database name: %q", database)
 	}
 	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", database))
 	if err != nil {
