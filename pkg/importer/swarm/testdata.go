@@ -102,7 +102,7 @@ func (im *imp) MakeTestData() http.RoundTripper {
 
 	// We need to compute the venueIds in advance, because the venue id is used as a parameter
 	// in some of the requests we need to register.
-	var venueIds []string
+	venueIds := make([]string, 0, len(towns))
 	for _, v := range towns {
 		venueIds = append(venueIds, blob.RefFromString(v.City).DigestPrefix(10))
 	}
