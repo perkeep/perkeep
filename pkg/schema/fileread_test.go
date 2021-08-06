@@ -482,7 +482,7 @@ func testReadDir(t *testing.T, members []*test.Blob) {
 	for _, v := range members {
 		fetcher.AddBlob(v)
 	}
-	var membersRefs []blob.Ref
+	membersRefs := make([]blob.Ref, 0, len(members))
 	for _, v := range members {
 		membersRefs = append(membersRefs, v.BlobRef())
 	}

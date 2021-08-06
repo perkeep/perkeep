@@ -170,7 +170,7 @@ func (dr *DirReader) Readdir(ctx context.Context, n int) (entries []DirectoryEnt
 		ent DirectoryEntry
 		err error
 	}
-	var cs []chan res
+	cs := make([]chan res, 0, up-dr.current)
 
 	// Kick off all directory entry loads.
 	gate := syncutil.NewGate(20) // Limit IO concurrency
