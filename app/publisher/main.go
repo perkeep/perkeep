@@ -1101,10 +1101,8 @@ func (pr *publishRequest) subjectMembers(resMap map[string]*search.DescribedBlob
 		return nil, nil
 	}
 
-	zipName := ""
-	if title := getTitle(subdes.BlobRef, resMap); title == "" {
-		zipName = "download.zip"
-	} else {
+	zipName := "download.zip"
+	if title := getTitle(subdes.BlobRef, resMap); title != "" {
 		zipName = title + ".zip"
 	}
 	subjectPath := pr.subjectBasePath
