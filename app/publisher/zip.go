@@ -209,7 +209,7 @@ func renameDuplicates(bf []*blobFile) sortedFiles {
 	}
 
 	// reinsert in a slice and sort it
-	var sorted sortedFiles
+	sorted := make(sortedFiles, 0, len(noDup))
 	for p, b := range noDup {
 		sorted = append(sorted, &blobFile{path: p, blobRef: b})
 	}
