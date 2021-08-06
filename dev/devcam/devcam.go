@@ -240,7 +240,7 @@ func build(targets ...string) error {
 		// Demo mode. See dev/demo.sh.
 		return nil
 	}
-	var fullTargets []string
+	fullTargets := make([]string, 0, len(targets))
 	for _, t := range targets {
 		t = filepath.ToSlash(t)
 		if !strings.HasPrefix(t, "perkeep.org") {
