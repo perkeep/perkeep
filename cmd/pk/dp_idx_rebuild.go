@@ -67,7 +67,7 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 	case 1:
 		path = args[0]
 	default:
-		return errors.New("More than 1 argument not allowed")
+		return errors.New("more than 1 argument not allowed")
 	}
 	cfg, err := serverinit.LoadFile(osutil.UserServerConfigPath())
 	if err != nil {
@@ -76,7 +76,7 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 	low := cfg.LowLevelJSONConfig()
 	prefixes, ok := low["prefixes"].(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("No 'prefixes' object in low-level (or converted) config file %s", osutil.UserServerConfigPath())
+		return fmt.Errorf("no 'prefixes' object in low-level (or converted) config file %s", osutil.UserServerConfigPath())
 	}
 	paths, confs := []string{}, []jsonconfig.Obj{}
 	for prefix, vei := range prefixes {
@@ -115,7 +115,7 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 			osutil.UserServerConfigPath())
 	}
 	if len(paths) > 1 {
-		return fmt.Errorf("Ambiguity. Server config file %s d specify more than 1 disk-packed storage handler. Please specify one of: %v", osutil.UserServerConfigPath(), paths)
+		return fmt.Errorf("ambiguity: server config file %s d specify more than 1 disk-packed storage handler. Please specify one of: %v", osutil.UserServerConfigPath(), paths)
 	}
 	path = paths[0]
 	if path == "" {

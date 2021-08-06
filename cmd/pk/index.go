@@ -64,7 +64,7 @@ func (c *indexCmd) RunCommand(args []string) error {
 	for _, sh := range syncHandlers {
 		if sh.ToIndex {
 			if err := c.sync(sh.From, sh.To); err != nil {
-				return fmt.Errorf("Error while indexing from %v to %v: %v", sh.From, sh.To, err)
+				return fmt.Errorf("error while indexing from %v to %v: %w", sh.From, sh.To, err)
 			}
 		}
 	}

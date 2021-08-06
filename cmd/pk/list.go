@@ -81,7 +81,7 @@ func (c *listCmd) RunCommand(args []string) error {
 	defer func() { cmdmain.Stdout = stdout }()
 	pr, pw, err := os.Pipe()
 	if err != nil {
-		return fmt.Errorf("Could not create pipe to read from stdout: %v", err)
+		return fmt.Errorf("could not create pipe to read from stdout: %w", err)
 	}
 	defer pr.Close()
 	cmdmain.Stdout = pw
@@ -110,7 +110,7 @@ func (c *listCmd) RunCommand(args []string) error {
 			Depth:    1,
 		})
 		if err != nil {
-			return fmt.Errorf("Error when describing blobs %v: %v", blobRefs, err)
+			return fmt.Errorf("error when describing blobs %v: %w", blobRefs, err)
 		}
 		for _, v := range blobRefs {
 			blob, ok := described.Meta[v.String()]
@@ -134,7 +134,7 @@ func (c *listCmd) RunCommand(args []string) error {
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
 		if len(fields) != 2 {
-			return fmt.Errorf("Bogus output from sync: got %q, wanted \"blobref size\"", scanner.Text())
+			return fmt.Errorf("bogus output from sync: got %q, wanted \"blobref size\"", scanner.Text())
 		}
 		blobRefs = append(blobRefs, blob.MustParse(fields[0]))
 		if len(blobRefs) == describeBatchSize {
@@ -147,7 +147,7 @@ func (c *listCmd) RunCommand(args []string) error {
 		return err
 	}
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("Error reading on pipe from stdout: %v", err)
+		return fmt.Errorf("error reading on pipe from stdout: %w", err)
 	}
 	return nil
 }
@@ -156,7 +156,7 @@ func (c *listCmd) RunCommand(args []string) error {
 func (c *listCmd) setClient() error {
 	ss, err := c.syncCmd.storageFromParam("src", c.syncCmd.src)
 	if err != nil {
-		return fmt.Errorf("Could not set client for describe requests: %v", err)
+		return fmt.Errorf("could not set client for describe requests: %w", err)
 	}
 	var ok bool
 	c.cl, ok = ss.(*client.Client)

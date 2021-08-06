@@ -168,7 +168,7 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 			discl := c.discoClient()
 			src, err := discl.BlobRoot()
 			if err != nil {
-				return nil, fmt.Errorf("Failed to discover source server's blob path: %v", err)
+				return nil, fmt.Errorf("failed to discover source server's blob path: %w", err)
 			}
 			val = src
 			httpClient = discl.HTTPClient()
@@ -183,7 +183,7 @@ func (c *syncCmd) storageFromParam(which storageType, val string) (blobserver.St
 	if looksLikePath(val) {
 		disk, err := localdisk.New(val)
 		if err != nil {
-			return nil, fmt.Errorf("Interpreted --%v=%q as a local disk path, but got error: %v", which, val, err)
+			return nil, fmt.Errorf("interpreted --%v=%q as a local disk path, but got error: %w", which, val, err)
 		}
 		c.oneIsDisk = true
 		return disk, nil
@@ -355,7 +355,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 	go enumerate(srcErr, src, srcBlobs)
 	checkSourceError := func() {
 		if err := <-srcErr; err != nil && err != context.Canceled {
-			retErr = fmt.Errorf("Enumerate error from source: %v", err)
+			retErr = fmt.Errorf("enumerate error from source: %w", err)
 		}
 	}
 
@@ -376,7 +376,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 	go enumerate(destErr, dest, destBlobs)
 	checkDestError := func() {
 		if err := <-destErr; err != nil && err != context.Canceled {
-			retErr = fmt.Errorf("Enumerate error from destination: %v", err)
+			retErr = fmt.Errorf("enumerate error from destination: %w", err)
 		}
 	}
 
@@ -414,7 +414,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 		go enumerate(thirdErr, thirdLeg, thirdBlobs)
 		checkThirdError = func() {
 			if err := <-thirdErr; err != nil && err != context.Canceled {
-				retErr = fmt.Errorf("Enumerate error from third leg: %v", err)
+				retErr = fmt.Errorf("enumerate error from third leg: %w", err)
 			}
 		}
 		thirdNeedBlobs := make(chan blob.SizedRef)
