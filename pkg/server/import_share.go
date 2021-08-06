@@ -98,7 +98,7 @@ func (si *shareImporter) imprt(ctx context.Context, br blob.Ref) error {
 	sniffer.Parse()
 	b, ok := sniffer.SchemaBlob()
 	if !ok {
-		return fmt.Errorf("%q: not a Perkeep schema.", br)
+		return fmt.Errorf("%q: not a Perkeep schema", br)
 	}
 	body, err := sniffer.Body()
 	if err != nil {
@@ -220,7 +220,6 @@ func (si *shareImporter) importAssembled(ctx context.Context) {
 	si.mu.Lock()
 	si.br = br
 	si.mu.Unlock()
-	return
 }
 
 // isAssembled reports whether si.shareURL is of a shared assembled file.

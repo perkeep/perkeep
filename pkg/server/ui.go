@@ -157,7 +157,7 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 
 	scaledImageKV, err := newKVOrNil(scaledImageConf)
 	if err != nil {
-		return nil, fmt.Errorf("in UI handler's scaledImage: %v", err)
+		return nil, fmt.Errorf("in UI handler's scaledImage: %w", err)
 	}
 	if scaledImageKV != nil && cachePrefix == "" {
 		return nil, fmt.Errorf("in UI handler, can't specify scaledImage without cache")
@@ -165,7 +165,7 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 	if cachePrefix != "" {
 		bs, err := ld.GetStorage(cachePrefix)
 		if err != nil {
-			return nil, fmt.Errorf("UI handler's cache of %q error: %v", cachePrefix, err)
+			return nil, fmt.Errorf("ui handler's cache of %q error: %w", cachePrefix, err)
 		}
 		ui.Cache = bs
 		ui.thumbMeta = NewThumbMeta(scaledImageKV)
@@ -189,7 +189,7 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 		if ui.sourceRoot == "" {
 			files, err := uistatic.Files.ReadDir(".")
 			if err != nil {
-				return nil, fmt.Errorf("Could not read static files: %v", err)
+				return nil, fmt.Errorf("could not read static files: %w", err)
 			}
 			if len(files) == 0 {
 				ui.sourceRoot, err = osutil.GoPackagePath("perkeep.org")
@@ -210,39 +210,39 @@ func uiFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (h http.Handler, er
 
 	ui.closureHandler, err = ui.makeClosureHandler(ui.sourceRoot)
 	if err != nil {
-		return nil, fmt.Errorf(`Invalid "sourceRoot" value of %q: %v"`, ui.sourceRoot, err)
+		return nil, fmt.Errorf(`invalid "sourceRoot" value of %q: %w"`, ui.sourceRoot, err)
 	}
 
 	if ui.sourceRoot != "" {
 		ui.fileReactHandler, err = makeFileServer(ui.sourceRoot, filepath.Join(vendorEmbed, "react"), "react-dom.min.js")
 		if err != nil {
-			return nil, fmt.Errorf("Could not make react handler: %s", err)
+			return nil, fmt.Errorf("could not make react handler: %w", err)
 		}
 		ui.fileLeafletHandler, err = makeFileServer(ui.sourceRoot, filepath.Join(vendorEmbed, "leaflet"), "leaflet.js")
 		if err != nil {
-			return nil, fmt.Errorf("Could not make leaflet handler: %s", err)
+			return nil, fmt.Errorf("could not make leaflet handler: %w", err)
 		}
 		ui.fileKeepyHandler, err = makeFileServer(ui.sourceRoot, filepath.Join(vendorEmbed, "keepy"), "keepy-dancing.png")
 		if err != nil {
-			return nil, fmt.Errorf("Could not make keepy handler: %s", err)
+			return nil, fmt.Errorf("could not make keepy handler: %w", err)
 		}
 		ui.fileFontawesomeHandler, err = makeFileServer(ui.sourceRoot, filepath.Join(vendorEmbed, "fontawesome"), "css/font-awesome.css")
 		if err != nil {
-			return nil, fmt.Errorf("Could not make fontawesome handler: %s", err)
+			return nil, fmt.Errorf("could not make fontawesome handler: %w", err)
 		}
 		ui.fileLessHandler, err = makeFileServer(ui.sourceRoot, filepath.Join(vendorEmbed, "less"), "less.js")
 		if err != nil {
-			return nil, fmt.Errorf("Could not make less handler: %s", err)
+			return nil, fmt.Errorf("could not make less handler: %w", err)
 		}
 		ui.fileOpenSansHandler, err = makeFileServer(ui.sourceRoot, filepath.Join(vendorEmbed, "opensans"), "OpenSans.css")
 		if err != nil {
-			return nil, fmt.Errorf("Could not make Open Sans handler: %s", err)
+			return nil, fmt.Errorf("could not make Open Sans handler: %w", err)
 		}
 	}
 
 	rootPrefix, _, err := ld.FindHandlerByType("root")
 	if err != nil {
-		return nil, errors.New("No root handler configured, which is necessary for the ui handler")
+		return nil, errors.New("no root handler configured, which is necessary for the ui handler")
 	}
 	if h, err := ld.GetHandler(rootPrefix); err == nil {
 		ui.root = h.(*RootHandler)
@@ -273,7 +273,7 @@ func (ui *UIHandler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 	// of the camliRoot node for publishers in dev-mode is already done.
 	searchPrefix, _, err := hl.FindHandlerByType("search")
 	if err != nil {
-		return errors.New("No search handler configured, which is necessary for the ui handler")
+		return errors.New("no search handler configured, which is necessary for the ui handler")
 	}
 	var sh *search.Handler
 	htype, hi := hl.AllHandlers()
