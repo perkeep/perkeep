@@ -71,7 +71,7 @@ func (c *initCmd) Usage() {
 }
 
 func (c *initCmd) usageExamples() []string {
-	var examples []string
+	examples := make([]string, 0, len(c.Examples())+1)
 	for _, v := range c.Examples() {
 		examples = append(examples, "pk-put init "+v)
 	}

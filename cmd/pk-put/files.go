@@ -357,7 +357,7 @@ func (up *Uploader) open(path string) (*os.File, error) {
 // of the first (and only) static-set returned. Otherwise they are split and spread
 // on several subsets (i.e. "mergeSets") which are all returned.
 func (n *node) directoryStaticSet() ([]*schema.Blob, error) {
-	var members []blob.Ref
+	members := make([]blob.Ref, 0, len(n.children))
 	ss := schema.NewStaticSet()
 	for _, c := range n.children {
 		pr, err := c.PutResult()
