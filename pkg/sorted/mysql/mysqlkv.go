@@ -173,7 +173,7 @@ func CreateDB(db *sql.DB, dbname string) error {
 
 func createTables(db *sql.DB, database string) error {
 	for _, tableSQL := range SQLCreateTables() {
-		tableSQL = strings.Replace(tableSQL, "/*DB*/", database, -1)
+		tableSQL = strings.ReplaceAll(tableSQL, "/*DB*/", database)
 		if _, err := db.Exec(tableSQL); err != nil {
 			errMsg := "error creating table with %q: %v."
 			createError := err
