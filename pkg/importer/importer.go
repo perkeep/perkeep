@@ -236,7 +236,7 @@ func NewHost(hc HostConfig) (*Host, error) {
 		h.importers = append(h.importers, k)
 		clientId, clientSecret := hc.ClientId[k], hc.ClientSecret[k]
 		if clientSecret != "" && clientId == "" {
-			return nil, fmt.Errorf("Invalid static configuration for importer %q: clientSecret specified without clientId", k)
+			return nil, fmt.Errorf("invalid static configuration for importer %q: clientSecret specified without clientId", k)
 		}
 		props := impl.Properties()
 		imp := &importer{
@@ -281,7 +281,7 @@ func newFromConfig(ld blobserver.Loader, cfg jsonconfig.Obj) (http.Handler, erro
 				}
 			}
 			if err := impConf.Validate(); err != nil {
-				return nil, fmt.Errorf("Invalid static configuration for importer %q: %v", k, err)
+				return nil, fmt.Errorf("invalid static configuration for importer %q: %w", k, err)
 			}
 			ClientId[k] = clientId
 			ClientSecret[k] = clientSecret
@@ -613,7 +613,7 @@ func (h *Host) serveImporterAcctCallback(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	if !acctRef.Valid() {
-		httputil.ServeError(w, r, errors.New("No valid blobref returned from CallbackRequestAccount(r)"))
+		httputil.ServeError(w, r, errors.New("no valid blobref returned from CallbackRequestAccount(r)"))
 		return
 	}
 	ia, err := imp.account(acctRef)
@@ -732,7 +732,7 @@ func (ia *importerAcct) maybeStart() {
 	if ia.lastRunDone.After(time.Now().Add(-duration)) {
 		// Kick off long poller wait if supported.
 		if lp, ok := ia.im.impl.(LongPoller); ok {
-			sleepFor := ia.lastRunDone.Add(duration).Sub(time.Now())
+			sleepFor := time.Until(ia.lastRunDone.Add(duration))
 			sleepCtx, cancel := context.WithTimeout(context.Background(), sleepFor)
 			log.Printf("%v ran recently enough. Sleeping for %v.", ia, sleepFor)
 			timer := time.AfterFunc(sleepFor, ia.maybeStart)

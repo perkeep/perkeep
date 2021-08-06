@@ -125,7 +125,7 @@ func (r *run) importFeed() error {
 			}
 		}
 	}
-	feed, err := parseFeed(body, feedURL.String())
+	feed, err := parseFeed(body)
 	if err != nil {
 		return err
 	}
@@ -210,11 +210,11 @@ func autoDiscover(body []byte) (feedURL string, err error) {
 			}
 		}
 	}
-	return "", fmt.Errorf("No feed link found")
+	return "", fmt.Errorf("no feed link found")
 }
 
 func doGet(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +225,7 @@ func doGet(ctx context.Context, url string) ([]byte, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Get request on %s failed with: %s", url, res.Status)
+		return nil, fmt.Errorf("get request on %s failed with: %s", url, res.Status)
 	}
 	return ioutil.ReadAll(io.LimitReader(res.Body, 8<<20))
 }
@@ -264,7 +264,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 	if err := ctx.AccountNode.SetAttrs(
 		acctAttrFeedURL, feed.String(),
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("error setting attribute: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)

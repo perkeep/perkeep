@@ -104,13 +104,13 @@ var tmpl = template.Must(template.New("root").Parse(`
 var _ importer.ImporterSetupHTMLer = (*imp)(nil)
 
 func (im *imp) AccountSetupHTML(host *importer.Host) string {
-	return fmt.Sprintf(`
+	return `
 <h1>Configuring Plaid</h1>
 <p>Signup for a developer account on <a href='https://dashboard.plaid.com/signup'>Plaid dashboard</a>
 <p>After following signup steps and verifying your email, get your developer credentials
 (under "Send your first request"), and copy your client ID and secret above.
 <p>
-`)
+`
 }
 
 func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
@@ -124,14 +124,14 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 
 	clientID, secret, err := ctx.Credentials()
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Credentials error: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("credentials error: %w", err))
 		return
 	}
 
 	client := plaid.NewClient(clientID, secret, plaid.Tartan)
 	res, _, err := client.ConnectAddUser(username, password, "", institution, nil)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("ConnectAddUser error: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("error in ConnectAddUser: %w", err))
 		return
 	}
 
@@ -141,7 +141,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 		acctAttrToken, res.AccessToken,
 		acctInstitution, institution,
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting attributes: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("error setting attributes: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)

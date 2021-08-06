@@ -135,7 +135,7 @@ func (im imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.S
 		// everytime, even for Re-logins, too.
 		//
 		// Source: https://developers.google.com/youtube/v3/guides/authentication#server-side-apps
-		http.Redirect(w, r, oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce), 302)
+		http.Redirect(w, r, oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce), http.StatusFound)
 	}
 	return err
 }
@@ -148,7 +148,7 @@ func (im imp) CallbackURLParameters(acctRef blob.Ref) url.Values {
 func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
 	oauthConfig, err := im.auth(ctx)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error getting oauth config: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("error getting oauth config: %w", err))
 		return
 	}
 
@@ -184,7 +184,7 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 		importer.AcctAttrName, userInfo.Name,
 		acctAttrOAuthToken, encodeToken(token),
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting attribute: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("error setting attribute: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)
@@ -324,6 +324,9 @@ func (r *run) importAlbums(ctx context.Context) error {
 		return fmt.Errorf("importAlbums: error listing albums: %v", err)
 	}
 	albumsNode, err := r.getTopLevelNode("albums", "Albums")
+	if err != nil {
+		return err
+	}
 	for _, album := range albums {
 		select {
 		case <-ctx.Done():
