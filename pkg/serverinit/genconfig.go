@@ -699,9 +699,8 @@ func (b *lowBuilder) addGoogleDriveConfig(v string) error {
 	clientId, secret, refreshToken, parentId := f[0], f[1], f[2], f[3]
 
 	isPrimary := !b.hasPrefix("/bs/")
-	prefix := ""
+	prefix := "/bs/"
 	if isPrimary {
-		prefix = "/bs/"
 		if b.high.PackRelated {
 			return errors.New("TODO: finish packRelated support for Google Drive")
 		}
