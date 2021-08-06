@@ -1,3 +1,4 @@
+//go:build !appengine && (linux || darwin || freebsd || netbsd || openbsd || solaris)
 // +build !appengine
 // +build linux darwin freebsd netbsd openbsd solaris
 
@@ -68,10 +69,7 @@ func RestartProcess(arg ...string) error {
 
 	var args []string
 	if len(arg) > 0 {
-		args = append(args, os.Args[0])
-		for _, v := range arg {
-			args = append(args, v)
-		}
+		args = append(append(args, os.Args[0]), arg...)
 	} else {
 		args = os.Args
 	}
