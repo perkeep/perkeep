@@ -66,7 +66,7 @@ func (ds *Storage) readBlobs(ctx context.Context, opts readBlobRequest) error {
 	sort.Strings(names)
 	stat := make(map[string]*future) // name -> future<os.FileInfo>
 
-	var toStat []func()
+	toStat := make([]func(), 0, len(names))
 	for _, name := range names {
 		if skipDir(name) || isShardDir(name) {
 			continue

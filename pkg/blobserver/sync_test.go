@@ -40,7 +40,7 @@ func (lt *lmdbTest) run(t *testing.T) {
 	sendTestBlobs(destBlobs, lt.dst, destSize)
 
 	missingc := make(chan blob.SizedRef)
-	var missing, mismatch []string
+	missing, mismatch := make([]string, 0, 100), make([]string, 0, 100)
 	onMismatch := func(br blob.Ref) {
 		mismatch = append(mismatch, br.String())
 	}

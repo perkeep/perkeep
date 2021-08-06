@@ -133,8 +133,7 @@ const (
 	blobMetaPrefix      = "b:"
 	blobMetaPrefixLimit = "b;"
 
-	wholeMetaPrefix      = "w:"
-	wholeMetaPrefixLimit = "w;"
+	wholeMetaPrefix = "w:"
 
 	zipMetaPrefix      = "z:"
 	zipMetaPrefixLimit = "z;"
@@ -722,7 +721,7 @@ func hasDups(zm []zipMetaInfo) bool {
 // the returned slice is the sum of all the parts, i.e. the whole size of f.
 func wholeOffsets(zm []zipMetaInfo) []uint64 {
 	i := 0
-	var offsets []uint64
+	offsets := make([]uint64, 0, len(zm))
 	var currentOffset uint64
 	for _, z := range zm {
 		if i != z.wholePartIndex {
@@ -928,7 +927,7 @@ func parseZipMetaRow(v []byte) (m zipMetaInfo, err error) {
 	if err != nil {
 		return zipMetaInfo{}, fmt.Errorf("invalid wholeSize %q in z: meta row: %q", v[:sp], row)
 	}
-	m.wholeSize = uint64(wholeSize)
+	m.wholeSize = wholeSize
 
 	v = v[sp+1:]
 	sp = bytes.IndexByte(v, ' ')
@@ -1340,7 +1339,6 @@ func (pk *packer) writeAZip(ctx context.Context, trunc blob.Ref) (err error) {
 		Name:   baseFileName,
 		Method: zip.Store, // uncompressed
 	}
-	//fh.SetModTime(pk.fr.ModTime())
 	blobserver.ZipSetModTime(fh, pk.fr.ModTime())
 	fh.SetMode(0644)
 	fw, err := zw.CreateHeader(fh)
@@ -1402,8 +1400,7 @@ func (pk *packer) writeAZip(ctx context.Context, trunc blob.Ref) (err error) {
 
 	// zipBlobs is where a schema or data blob is relative to the beginning
 	// of the zip file.
-	var zipBlobs []BlobAndPos
-
+	zipBlobs := make([]BlobAndPos, 0, len(dataRefsWritten))
 	var dataOffset int64
 	for _, br := range dataRefsWritten {
 		size := pk.dataSize[br]

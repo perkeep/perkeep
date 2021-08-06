@@ -87,9 +87,9 @@ func TestOpt(t *testing.T, opt Opts) {
 		testStat(t, sto, blobRefs, nil)
 	}
 
-	var blobs []*test.Blob
-	var blobRefs []blob.Ref
-	var blobSizedRefs []blob.SizedRef
+	blobs := make([]*test.Blob, 0, 100)
+	blobRefs := make([]blob.Ref, 0, 100)
+	blobSizedRefs := make([]blob.SizedRef, 0, 100)
 
 	contents := []string{"foo", "quux", "asdf", "qwerty", "0123456789"}
 	if !testing.Short() {
@@ -468,7 +468,7 @@ func TestStreamer(t *testing.T, bs blobserver.BlobStreamer, opts ...StreamerTest
 		defer cancel()
 		errCh <- bs.StreamBlobs(ctx, ch, "")
 	}()
-	var gotRefs []blob.SizedRef
+	gotRefs := make([]blob.SizedRef, 0, len(sawEnum))
 	sawStreamed := map[blob.Ref]int{}
 	for b := range ch {
 		sawStreamed[b.Ref()]++
