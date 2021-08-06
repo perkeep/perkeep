@@ -63,7 +63,7 @@ func (n *recentDir) Attr(ctx context.Context, a *fuse.Attr) error {
 const recentSearchInterval = 10 * time.Second
 
 func (n *recentDir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
-	var ents []fuse.Dirent
+	ents := make([]fuse.Dirent, 0, 100)
 
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -80,7 +80,7 @@ func (n *recentDir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 	n.ents = make(map[string]*search.DescribedBlob)
 	n.modTime = make(map[string]time.Time)
 
-	req := &search.RecentRequest{N: 100}
+	req := &search.RecentRequest{N: cap(ents)}
 	res, err := n.fs.client.GetRecentPermanodes(ctx, req)
 	if err != nil {
 		Logger.Printf("fs.recent: GetRecentPermanodes error in ReadDirAll: %v", err)
