@@ -605,7 +605,7 @@ func (up *Uploader) uploadNodeRegularFile(ctx context.Context, n *node) (*client
 		}
 		wholeRef, err = up.wholeFileDigest(n.fullPath)
 		if err == nil {
-			ok := false
+			var ok bool
 			pr, ok = up.fileMapFromDuplicate(ctx, up.statReceiver(n), filebb, wholeRef)
 			if ok {
 				br = pr.BlobRef
