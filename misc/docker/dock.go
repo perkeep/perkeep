@@ -356,15 +356,15 @@ func ProjectTokenSource(proj string, scopes ...string) (oauth2.TokenSource, erro
 	jsonConf, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("Missing JSON key configuration. Download the Service Account JSON key from https://console.developers.google.com/project/%s/apiui/credential and place it at %s", proj, fileName)
+			return nil, fmt.Errorf("missing JSON key configuration. Download the Service Account JSON key from https://console.developers.google.com/project/%s/apiui/credential and place it at %s", proj, fileName)
 		}
 		return nil, err
 	}
 	conf, err := google.JWTConfigFromJSON(jsonConf, scopes...)
 	if err != nil {
-		return nil, fmt.Errorf("reading JSON config from %s: %v", fileName, err)
+		return nil, fmt.Errorf("reading JSON config from %s: %w", fileName, err)
 	}
-	return conf.TokenSource(oauth2.NoContext), nil
+	return conf.TokenSource(context.Background()), nil
 }
 
 var bucketProject = map[string]string{
