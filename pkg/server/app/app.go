@@ -55,7 +55,6 @@ type Handler struct {
 
 	auth      auth.AuthMode   // Used for basic HTTP authenticating against the app requests.
 	appConfig jsonconfig.Obj  // Additional parameters the app can request, or nil.
-	hasSearch bool            // Determines whether sh should be setup during InitHandler.
 	sh        *search.Handler // or nil, if !hasSearch.
 
 	masterQueryMu sync.RWMutex // guards two following fields
@@ -441,7 +440,7 @@ func (a *Handler) InitHandler(hl blobserver.FindHandlerByTyper) error {
 	apName := a.ProgramName()
 	searchPrefix, _, err := hl.FindHandlerByType("search")
 	if err != nil {
-		return fmt.Errorf("No search handler configured, which is necessary for the %v app handler", apName)
+		return fmt.Errorf("no search handler configured, which is necessary for the %v app handler", apName)
 	}
 	var sh *search.Handler
 	_, hi := hl.AllHandlers()
