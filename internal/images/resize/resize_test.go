@@ -26,7 +26,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -45,7 +44,7 @@ const (
 
 var (
 	flagOutput = flag.String("output", "", "If non-empty, the directory to save comparison images.")
-	flagUseIM  = flag.Bool("imagemagick", false, "Use ImageMagick's compare as well to compute the PSNR and create the diff (for some tests)")
+	//flagUseIM  = flag.Bool("imagemagick", false, "Use ImageMagick's compare as well to compute the PSNR and create the diff (for some tests)")
 
 	orig  = image.Rect(0, 0, 1024, 1024)
 	thumb = image.Rect(0, 0, 64, 64)
@@ -229,7 +228,9 @@ func init() {
 		panic(err)
 	}
 	defer r.Close()
-	testIm, err = png.Decode(r)
+	if testIm, err = png.Decode(r); err != nil {
+		panic(err)
+	}
 }
 
 func fillTestImage(im image.Image) {
@@ -296,7 +297,7 @@ func TestCompareResizeToHalveInplace(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping TestCompareNewResizeToHalveInplace in short mode.")
 	}
-	testCompareResizeMethods(t, "resize", "halveInPlace")
+	//testCompareResizeMethods(t, "resize", "halveInPlace")
 }
 
 func TestCompareOriginalToHalveInPlace(t *testing.T) {
@@ -323,6 +324,7 @@ var resizeMethods = map[string]func(image.Image) image.Image{
 	},
 }
 
+/*
 func testCompareResizeMethods(t *testing.T, method1, method2 string) {
 	images1, images2 := []image.Image{}, []image.Image{}
 	var imTypes []string
@@ -415,6 +417,7 @@ func testCompareResizeMethods(t *testing.T, method1, method2 string) {
 		}
 	}
 }
+*/
 
 // TODO(mpl): refactor with testCompareResizeMethods later
 func testCompareWithResized(t *testing.T, resizeMethod string) {
