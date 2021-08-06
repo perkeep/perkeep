@@ -135,7 +135,7 @@ func newUserPassAuth(arg string) (AuthMode, error) {
 			mode.OrLocalhost = true
 		case strings.HasPrefix(opt, "vivify="):
 			// optional vivify mode password: "userpass:joe:ponies:vivify=rainbowdash"
-			vp := strings.Replace(opt, "vivify=", "", -1)
+			vp := strings.ReplaceAll(opt, "vivify=", "")
 			mode.VivifyPass = &vp
 		default:
 			return nil, fmt.Errorf("unknown userpass option %q", opt)
