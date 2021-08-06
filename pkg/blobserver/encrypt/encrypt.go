@@ -311,10 +311,10 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 	passphrase := config.OptionalString("passphrase", "")
 	keyFile := config.OptionalString("keyFile", "")
 	if passphrase != "" && keyFile != "" {
-		return nil, errors.New("Can't specify both passphrase and keyFile")
+		return nil, errors.New("can't specify both passphrase and keyFile")
 	}
 	if passphrase == "" && keyFile == "" {
-		return nil, errors.New("Must specify passphrase or keyFile")
+		return nil, errors.New("must specify passphrase or keyFile")
 	}
 	if keyFile != "" {
 		if err := checkKeyFilePermissions(keyFile); err != nil {
@@ -322,7 +322,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 		}
 		keyData, err = ioutil.ReadFile(keyFile)
 		if err != nil {
-			return nil, fmt.Errorf("Reading key file %v: %v", keyFile, err)
+			return nil, fmt.Errorf("reading key file %v: %w", keyFile, err)
 		}
 	} else {
 		keyData = []byte(passphrase)

@@ -288,7 +288,7 @@ func TestNewFromConfig(t *testing.T) {
 			"metaIndex": map[string]interface{}{
 				"type": "memory",
 			},
-		}); err == nil || !strings.Contains(err.Error(), "Key file permissions are too permissive") {
+		}); err == nil || !strings.Contains(err.Error(), "key file permissions are too permissive") {
 			t.Fatal(err)
 		}
 	}
