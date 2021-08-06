@@ -1,3 +1,4 @@
+//go:build linux || darwin
 // +build linux darwin
 
 /*
@@ -150,7 +151,7 @@ func (n *node) Lookup(ctx context.Context, name string) (fusefs.Node, error) {
 	loaded := n.dirents != nil
 	n.dmu.Unlock()
 	if !loaded {
-		n.ReadDirAll(nil)
+		n.ReadDirAll(ctx)
 	}
 
 	n.mu.Lock()
@@ -381,7 +382,7 @@ func (fs *CamliFileSystem) newNodeFromBlobRef(root blob.Ref) (fusefs.Node, error
 		return &mutDir{fs: fs, permanode: root, name: "-"}, nil
 	}
 
-	return nil, fmt.Errorf("Blobref must be of a directory or permanode got a %v", blob.Type())
+	return nil, fmt.Errorf("blobref must be of a directory or permanode got a %v", blob.Type())
 }
 
 type notImplementDirNode struct{}
