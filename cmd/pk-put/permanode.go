@@ -63,7 +63,7 @@ func (c *permanodeCmd) Examples() []string {
 
 func (c *permanodeCmd) RunCommand(args []string) error {
 	if len(args) > 0 {
-		return errors.New("Permanode command doesn't take any additional arguments")
+		return errors.New("permanode command doesn't take any additional arguments")
 	}
 
 	var (
@@ -79,9 +79,9 @@ func (c *permanodeCmd) RunCommand(args []string) error {
 		permaNode, err = up.UploadNewPermanode(ctxbg)
 	} else {
 		const format = "2006-01-02 15:04:05"
-		sigTime, err := time.Parse(format, c.sigTime)
-		if err != nil {
-			return fmt.Errorf("Error parsing time %q; expecting time of form %q", c.sigTime, format)
+		var sigTime time.Time
+		if sigTime, err = time.Parse(format, c.sigTime); err != nil {
+			return fmt.Errorf("error parsing time %q; expecting time of form %q", c.sigTime, format)
 		}
 		permaNode, err = up.UploadPlannedPermanode(ctxbg, c.key, sigTime)
 	}
@@ -96,6 +96,8 @@ func (c *permanodeCmd) RunCommand(args []string) error {
 	if c.tag != "" {
 		tags := strings.Split(c.tag, ",")
 		m := schema.NewSetAttributeClaim(permaNode.BlobRef, "tag", tags[0])
+		put, err := up.UploadAndSignBlob(ctxbg, m)
+		handleResult("claim-permanode-tag", put, err)
 		for _, tag := range tags {
 			m = schema.NewAddAttributeClaim(permaNode.BlobRef, "tag", tag)
 			put, err := up.UploadAndSignBlob(ctxbg, m)

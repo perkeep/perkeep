@@ -116,9 +116,6 @@ func (c *KvHaveCache) StatBlobCache(br blob.Ref) (size uint32, ok bool) {
 	if err != nil {
 		log.Fatalf("Could not decode have cache binary value for %v: %v", br, err)
 	}
-	if val < 0 {
-		log.Fatalf("Error decoding have cache binary value for %v: size=%d", br, val)
-	}
 	cachelog.Printf("have cache HIT on %v", br)
 	return uint32(val), true
 }
@@ -126,9 +123,6 @@ func (c *KvHaveCache) StatBlobCache(br blob.Ref) (size uint32, ok bool) {
 func (c *KvHaveCache) NoteBlobExists(br blob.Ref, size uint32) {
 	if !br.Valid() {
 		return
-	}
-	if size < 0 {
-		log.Fatalf("Got a negative blob size to note in have cache for %v", br)
 	}
 	binBr, _ := br.MarshalBinary()
 	binVal := []byte(strconv.Itoa(int(size)))
@@ -181,6 +175,9 @@ func (c *KvStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo, with
 		Permanode: withPermanode,
 	}
 	binKey, err := cacheKey.marshalBinary()
+	if err != nil {
+		return nil, err
+	}
 	binVal, err := c.db.Get(binKey, nil)
 	if err != nil {
 		if err == leveldb.ErrNotFound {
@@ -191,7 +188,7 @@ func (c *KvStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo, with
 	}
 	val := &statCacheValue{}
 	if err = val.unmarshalBinary(binVal); err != nil {
-		return nil, fmt.Errorf("Bogus stat cached value for %q: %v", binKey, err)
+		return nil, fmt.Errorf("bogus stat cached value for %q: %w", binKey, err)
 	}
 	fp := fileInfoToFingerprint(fi)
 	if val.Fingerprint != fp {
@@ -233,7 +230,7 @@ type statCacheKey struct {
 // representation of the contents of sk.
 func (sk *statCacheKey) marshalBinary() ([]byte, error) {
 	if sk == nil {
-		return nil, errors.New("Can not marshal from a nil stat cache key")
+		return nil, errors.New("can not marshal from a nil stat cache key")
 	}
 	data := make([]byte, 0, len(sk.Filepath)+3)
 	data = append(data, 1) // version number
@@ -256,7 +253,7 @@ type statCacheValue struct {
 // representation of the contents of scv.
 func (scv *statCacheValue) marshalBinary() ([]byte, error) {
 	if scv == nil {
-		return nil, errors.New("Can not marshal from a nil stat cache value")
+		return nil, errors.New("can not marshal from a nil stat cache value")
 	}
 	binBr, _ := scv.Result.BlobRef.MarshalBinary()
 	// Blob size fits on 4 bytes when binary encoded
@@ -264,23 +261,23 @@ func (scv *statCacheValue) marshalBinary() ([]byte, error) {
 	buf := bytes.NewBuffer(data)
 	_, err := buf.WriteString(string(scv.Fingerprint))
 	if err != nil {
-		return nil, fmt.Errorf("Could not write fingerprint %v: %v", scv.Fingerprint, err)
+		return nil, fmt.Errorf("could not write fingerprint %v: %w", scv.Fingerprint, err)
 	}
 	err = buf.WriteByte('|')
 	if err != nil {
-		return nil, fmt.Errorf("Could not write '|': %v", err)
+		return nil, fmt.Errorf("could not write '|': %w", err)
 	}
 	err = binary.Write(buf, binary.BigEndian, int32(scv.Result.Size))
 	if err != nil {
-		return nil, fmt.Errorf("Could not write blob size %d: %v", scv.Result.Size, err)
+		return nil, fmt.Errorf("could not write blob size %d: %w", scv.Result.Size, err)
 	}
 	err = buf.WriteByte('|')
 	if err != nil {
-		return nil, fmt.Errorf("Could not write '|': %v", err)
+		return nil, fmt.Errorf("could not write '|': %w", err)
 	}
 	_, err = buf.Write(binBr)
 	if err != nil {
-		return nil, fmt.Errorf("Could not write binary blobref %q: %v", binBr, err)
+		return nil, fmt.Errorf("could not write binary blobref %q: %w", binBr, err)
 	}
 	return buf.Bytes(), nil
 }
@@ -289,26 +286,26 @@ var pipe = []byte("|")
 
 func (scv *statCacheValue) unmarshalBinary(data []byte) error {
 	if scv == nil {
-		return errors.New("Can't unmarshalBinary into a nil stat cache value")
+		return errors.New("can't unmarshalBinary into a nil stat cache value")
 	}
 	if scv.Fingerprint != "" {
-		return errors.New("Can't unmarshalBinary into a non empty stat cache value")
+		return errors.New("can't unmarshalBinary into a non empty stat cache value")
 	}
 
 	parts := bytes.SplitN(data, pipe, 3)
 	if len(parts) != 3 {
-		return fmt.Errorf("Bogus stat cache value; was expecting fingerprint|blobSize|blobRef, got %q", data)
+		return fmt.Errorf("bogus stat cache value; was expecting fingerprint|blobSize|blobRef, got %q", data)
 	}
 	fingerprint := string(parts[0])
 	buf := bytes.NewReader(parts[1])
 	var size int32
 	err := binary.Read(buf, binary.BigEndian, &size)
 	if err != nil {
-		return fmt.Errorf("Could not decode blob size from stat cache value part %q: %v", parts[1], err)
+		return fmt.Errorf("could not decode blob size from stat cache value part %q: %w", parts[1], err)
 	}
 	br := new(blob.Ref)
 	if err := br.UnmarshalBinary(parts[2]); err != nil {
-		return fmt.Errorf("Could not unmarshalBinary for %q: %v", parts[2], err)
+		return fmt.Errorf("could not unmarshalBinary for %q: %w", parts[2], err)
 	}
 
 	scv.Fingerprint = statFingerprint(fingerprint)

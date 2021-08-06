@@ -53,11 +53,11 @@ func (c *rawCmd) Examples() []string {
 
 func (c *rawCmd) RunCommand(args []string) error {
 	if len(args) > 0 {
-		return errors.New("Raw Object command doesn't take any additional arguments")
+		return errors.New("raw object command doesn't take any additional arguments")
 	}
 
 	if c.vals == "" {
-		return errors.New("No values")
+		return errors.New("no values")
 	}
 
 	bb := schema.NewBuilder()
