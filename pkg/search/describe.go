@@ -697,10 +697,7 @@ func (dr *DescribeRequest) noteResultFromRule(rule *DescribeRule, br blob.Ref) {
 }
 
 func (dr *DescribeRequest) expandRules(ctx context.Context) error {
-	loop := true
-
-	for loop {
-		loop = false
+	for {
 		dr.wg.Wait()
 		dr.mu.Lock()
 		len0 := len(dr.m)
@@ -721,7 +718,9 @@ func (dr *DescribeRequest) expandRules(ctx context.Context) error {
 		dr.mu.Lock()
 		len1 := len(dr.m)
 		dr.mu.Unlock()
-		loop = len0 != len1
+		if len0 == len1 {
+			break
+		}
 	}
 	return nil
 }
