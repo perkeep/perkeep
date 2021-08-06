@@ -370,7 +370,7 @@ func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStat
 	if c.wipe {
 		// TODO(mpl): dest is a client. make it send a "wipe" request?
 		// upon reception its server then wipes itself if it is a wiper.
-		log.Fatal("Index wiping not yet supported.")
+		panic("Index wiping not yet supported.")
 	}
 
 	go enumerate(destErr, dest, destBlobs)

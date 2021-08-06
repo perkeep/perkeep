@@ -253,7 +253,7 @@ func check(err error, query string) {
 
 func exitf(format string, args ...interface{}) {
 	if !strings.HasSuffix(format, "\n") {
-		format = format + "\n"
+		format += "\n"
 	}
 	cmdmain.Errorf(format, args...)
 	cmdmain.Exit(1)
@@ -276,10 +276,8 @@ func (c *dbinitCmd) mongoSession() (*mgo.Session, error) {
 	if c.dbType != "mongo" {
 		return nil, nil
 	}
-	url := ""
-	if c.user == "" || c.password == "" {
-		url = c.host
-	} else {
+	url := c.host
+	if c.user != "" && c.password != "" {
 		url = c.user + ":" + c.password + "@" + c.host + "/" + c.dbName
 	}
 	return mgo.Dial(url)

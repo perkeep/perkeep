@@ -126,7 +126,7 @@ func (c *makeStaticCmd) RunCommand(args []string) error {
 		return err
 	}
 	title := pnDes.Title()
-	title = strings.Replace(title, string(os.PathSeparator), "", -1)
+	title = strings.ReplaceAll(title, string(os.PathSeparator), "")
 	if title == "" {
 		title = pn.String()
 	}
