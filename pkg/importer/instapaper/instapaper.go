@@ -271,7 +271,7 @@ func getUserInfo(ctx importer.OAuthContext) (*user, error) {
 }
 
 func parseFilename(t string, id string) string {
-	return fmt.Sprintf("%v_%v.html", strings.Replace(t, "/", "-", -1), id)
+	return fmt.Sprintf("%v_%v.html", strings.ReplaceAll(t, "/", "-"), id)
 }
 
 func (r *run) findExistingBookmark(bookmarkId string) (*importer.Object, error) {
