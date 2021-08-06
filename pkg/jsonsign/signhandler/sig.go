@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"perkeep.org/internal/httputil"
 	"perkeep.org/internal/osutil"
@@ -100,10 +101,12 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 		return nil, err
 	}
 
-	h.pubKey, err = jsonsign.ArmoredPublicKey(h.entity)
+	if h.pubKey, err = jsonsign.ArmoredPublicKey(h.entity); err != nil {
+		return nil, err
+	}
 
-	ctx := context.Background() // TODO: 15 second or global-configurable start-up limit?
-
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second) // TODO: global-configurable start-up limit?
+	defer cancel()
 	ms := &memory.Storage{}
 	h.pubKeyBlobRef = blob.RefFromString(h.pubKey)
 	if _, err := ms.ReceiveBlob(ctx, h.pubKeyBlobRef, strings.NewReader(h.pubKey)); err != nil {
@@ -240,7 +243,6 @@ func (h *Handler) handleSign(rw http.ResponseWriter, req *http.Request) {
 	badReq := func(s string) {
 		http.Error(rw, s, http.StatusBadRequest)
 		log.Printf("bad request: %s", s)
-		return
 	}
 
 	jsonStr := req.FormValue("json")
