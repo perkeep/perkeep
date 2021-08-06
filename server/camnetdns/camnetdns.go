@@ -43,9 +43,9 @@ import (
 	"go4.org/cloud/cloudlaunch"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/http2"
-	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/api/option"
 )
 
 var (
@@ -335,7 +335,6 @@ func (ds *DNSServer) ServeDNS(rw dns.ResponseWriter, mes *dns.Msg) {
 		// look compliant. Or at least more than if we replied with
 		// RcodeNotImplemented.
 		case dns.TypeDNSKEY, dns.TypeTXT, dns.TypeMX:
-			break
 
 		case dns.TypeSOA:
 			resp.Answer = []dns.RR{startOfAuthoritySection}
@@ -411,11 +410,11 @@ func stagingCamwebIP() (string, error) {
 		instName  = "camweb-staging"
 		zone      = "us-central1-f"
 	)
-	hc, err := google.DefaultClient(oauth2.NoContext)
+	hc, err := google.DefaultClient(context.Background())
 	if err != nil {
 		return "", fmt.Errorf("error getting an http client: %v", err)
 	}
-	s, err := compute.New(hc)
+	s, err := compute.NewService(context.Background(), option.WithHTTPClient(hc))
 	if err != nil {
 		return "", fmt.Errorf("error getting compute service: %v", err)
 	}
