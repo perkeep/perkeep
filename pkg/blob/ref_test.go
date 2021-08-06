@@ -18,6 +18,7 @@ package blob
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -91,7 +92,11 @@ func TestParse(t *testing.T) {
 		if dig := r.Digest(); dig != wantDig {
 			t.Errorf("Digest(%q) = %q; want %q", tt.in, dig, wantDig)
 		}
-		_ = r == r // test that concrete type of r supports equality
+		if !reflect.TypeOf(r).Comparable() {
+			t.Errorf("%T is not comparable", r)
+		}
+		r2 := r
+		_ = r == r2 // test that concrete type of r supports equality
 	}
 }
 
