@@ -121,9 +121,6 @@ type Client struct {
 	ignoredFiles  []string
 	ignoreChecker func(path string) bool
 
-	pendStatMu sync.Mutex             // guards pendStat
-	pendStat   map[blob.Ref][]statReq // blobref -> reqs; for next batch(es)
-
 	initSignerPublicKeyBlobrefOnce sync.Once
 	signerPublicKeyRef             blob.Ref
 	publicKeyArmored               string
@@ -450,7 +447,7 @@ func NewFromShareRoot(ctx context.Context, shareBlobURL string, opts ...ClientOp
 	var root string
 	m := shareURLRx.FindStringSubmatch(shareBlobURL)
 	if m == nil {
-		return nil, blob.Ref{}, fmt.Errorf("Unknown share URL base")
+		return nil, blob.Ref{}, fmt.Errorf("unknown share URL base")
 	}
 	c, err = New(append(opts[:len(opts):cap(opts)], OptionServer(m[1]))...)
 	if err != nil {
@@ -862,7 +859,7 @@ func (c *Client) SearchExistingFileSchema(ctx context.Context, wholeRef ...blob.
 		if err != nil {
 			log.Printf("Could not verify whether client is too recent or server is too old: %v", err)
 		} else if mismatch {
-			return blob.Ref{}, fmt.Errorf("Client is too recent for this server. Use a client built before 2018-01-13-6e8a5930c9, or upgrade the server to after that revision.")
+			return blob.Ref{}, fmt.Errorf("client is too recent for this server. Use a client built before 2018-01-13-6e8a5930c9, or upgrade the server to after that revision")
 		}
 		return blob.Ref{}, fmt.Errorf("client: error parsing JSON from URL %s: %v", url, err)
 	}
@@ -1067,7 +1064,7 @@ func (c *Client) discoveryResp(ctx context.Context) (*http.Response, error) {
 	// text/javascript.  Make them consistent.
 	if ct := res.Header.Get("Content-Type"); ct != "text/javascript" {
 		res.Body.Close()
-		return nil, fmt.Errorf("Blobserver returned unexpected type %q from discovery", ct)
+		return nil, fmt.Errorf("blobserver returned unexpected type %q from discovery", ct)
 	}
 	return res, nil
 }
@@ -1284,9 +1281,6 @@ func (c *Client) http2DialTLSFunc() func(network, addr string, cfg *tls.Config) 
 		state := conn.ConnectionState()
 		if p := state.NegotiatedProtocol; p != http2.NextProtoTLS {
 			return nil, fmt.Errorf("http2: unexpected ALPN protocol %q; want %q", p, http2.NextProtoTLS)
-		}
-		if !state.NegotiatedProtocolIsMutual {
-			return nil, errors.New("http2: could not negotiate protocol mutually")
 		}
 		certs := state.PeerCertificates
 		if len(certs) < 1 {

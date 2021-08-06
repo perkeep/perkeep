@@ -251,12 +251,10 @@ func serverKeyId() string {
 // The returned canonical URL will have trailing slashes removed and be prepended with "https://" if no scheme is provided.
 func cleanServer(server string) (string, error) {
 	if !isURLOrHostPort(server) {
-		return "", fmt.Errorf("server %q does not look like a server address and could be confused with a server alias. It should look like [http[s]://]foo[.com][:port] with at least one of the optional parts.", server)
+		return "", fmt.Errorf("server %q does not look like a server address and could be confused with a server alias. It should look like [http[s]://]foo[.com][:port] with at least one of the optional parts", server)
 	}
 	// Remove trailing slash if provided.
-	if strings.HasSuffix(server, "/") {
-		server = server[0 : len(server)-1]
-	}
+	server = strings.TrimSuffix(server, "/")
 	// Default to "https://" when not specified
 	if !strings.HasPrefix(server, "http") && !strings.HasPrefix(server, "https") {
 		server = "https://" + server
@@ -328,7 +326,7 @@ func (c *Client) SetupAuth() error {
 			return nil
 		}
 		if err != auth.ErrNoAuth {
-			return fmt.Errorf("Could not set up auth from env var CAMLI_AUTH: %v", err)
+			return fmt.Errorf("could not set up auth from env var CAMLI_AUTH: %w", err)
 		}
 	}
 	if c.server == "" {
