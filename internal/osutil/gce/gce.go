@@ -32,6 +32,7 @@ import (
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/option"
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/env"
 
@@ -132,7 +133,7 @@ func LogWriter() (w io.WriteCloser, err error) {
 		return nil, fmt.Errorf("error creating Google logging client: %v", err)
 	}
 	if err := logc.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("Google logging client not ready (ping failed): %v", err)
+		return nil, fmt.Errorf("google logging client not ready (ping failed): %w", err)
 	}
 	logw := writer{
 		severity: logging.Debug,
@@ -156,24 +157,24 @@ func gceInstance() (*gceInst, error) {
 	ctx := context.Background()
 	hc, err := google.DefaultClient(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error getting a default http client: %v", err)
+		return nil, fmt.Errorf("error getting a default http client: %w", err)
 	}
-	cs, err := compute.New(hc)
+	cs, err := compute.NewService(ctx, option.WithHTTPClient(hc))
 	if err != nil {
-		return nil, fmt.Errorf("error getting a compute service: %v", err)
+		return nil, fmt.Errorf("error getting a compute service: %w", err)
 	}
 	cis := compute.NewInstancesService(cs)
 	projectID, err := metadata.ProjectID()
 	if err != nil {
-		return nil, fmt.Errorf("error getting projectID: %v", err)
+		return nil, fmt.Errorf("error getting projectID: %w", err)
 	}
 	zone, err := metadata.Zone()
 	if err != nil {
-		return nil, fmt.Errorf("error getting zone: %v", err)
+		return nil, fmt.Errorf("error getting zone: %w", err)
 	}
 	name, err := metadata.InstanceName()
 	if err != nil {
-		return nil, fmt.Errorf("error getting instance name: %v", err)
+		return nil, fmt.Errorf("error getting instance name: %w", err)
 	}
 	return &gceInst{
 		cs:        cs,
