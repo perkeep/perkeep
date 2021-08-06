@@ -99,7 +99,7 @@ func listenForCamliNet(ws *webserver.Server, config *serverinit.Config) (baseURL
 
 	err = ws.Listen(fmt.Sprintf(":%d", gpgchallenge.ClientChallengedPort))
 	if err != nil {
-		return "", fmt.Errorf("Listen: %v", err)
+		return "", fmt.Errorf("listen: %w", err)
 	}
 	return fmt.Sprintf("https://%s", camliNetHostName), nil
 }

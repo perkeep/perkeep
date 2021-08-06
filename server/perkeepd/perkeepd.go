@@ -66,6 +66,7 @@ import (
 	_ "perkeep.org/pkg/blobserver/s3"
 	_ "perkeep.org/pkg/blobserver/shard"
 	_ "perkeep.org/pkg/blobserver/union"
+
 	// Indexers: (also present themselves as storage targets)
 	// KeyValue implementations:
 	_ "perkeep.org/pkg/sorted/kvfile"
@@ -333,13 +334,13 @@ func listen(ws *webserver.Server, config *serverinit.Config) (baseURL string, er
 
 	hostname, err := certHostname(listen, baseURL)
 	if err != nil {
-		return "", fmt.Errorf("Bad baseURL or listen address: %v", err)
+		return "", fmt.Errorf("bad baseURL or listen address: %w", err)
 	}
 	setupTLS(ws, config, hostname)
 
 	err = ws.Listen(listen)
 	if err != nil {
-		return "", fmt.Errorf("Listen: %v", err)
+		return "", fmt.Errorf("listen: %w", err)
 	}
 	if baseURL == "" {
 		baseURL = ws.ListenURL()
