@@ -476,7 +476,7 @@ func (ui *UIHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	case getSuffixMatches(req, openSansPattern):
 		ui.serveFromDiskOrStatic(rw, req, openSansPattern, ui.fileOpenSansHandler, ui.opensansStaticFiles)
 	default:
-		file := ""
+		var file string
 		if m := staticFilePattern.FindStringSubmatch(suffix); m != nil {
 			file = m[1]
 		} else {
