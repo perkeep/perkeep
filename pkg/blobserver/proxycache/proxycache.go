@@ -37,12 +37,10 @@ package proxycache // import "perkeep.org/pkg/blobserver/proxycache"
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
-	"strings"
 	"sync"
 
 	"go4.org/jsonconfig"
@@ -191,34 +189,6 @@ func (sto *Storage) SubFetch(ctx context.Context, ref blob.Ref, offset, length i
 		return sf.SubFetch(ctx, ref, offset, length)
 	}
 	return nil, blob.ErrUnimplemented
-}
-
-type errList []error
-
-func (e errList) OrNil() error {
-	switch len(e) {
-	case 0:
-		return nil
-	case 1:
-		return e[0]
-	default:
-		return e
-	}
-}
-
-func (e errList) Error() string {
-	switch len(e) {
-	case 0:
-		return ""
-	case 1:
-		return e[0].Error()
-	default:
-		strs := make([]string, len(e))
-		for i, err := range e {
-			strs[i] = err.Error()
-		}
-		return fmt.Sprintf("%d errors: %s", len(strs), strings.Join(strs, ", "))
-	}
 }
 
 func (sto *Storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
