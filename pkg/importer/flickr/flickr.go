@@ -521,7 +521,7 @@ func (imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.Setu
 	}
 	tempCred, err := oauthClient.RequestTemporaryCredentials(ctxutil.Client(ctx), ctx.CallbackURL(), nil)
 	if err != nil {
-		err = fmt.Errorf("Error getting temp cred: %v", err)
+		err = fmt.Errorf("error getting temp cred: %w", err)
 		httputil.ServeError(w, r, err)
 		return err
 	}
@@ -529,7 +529,7 @@ func (imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.Setu
 		importer.AcctAttrTempToken, tempCred.Token,
 		importer.AcctAttrTempSecret, tempCred.Secret,
 	); err != nil {
-		err = fmt.Errorf("Error saving temp creds: %v", err)
+		err = fmt.Errorf("error saving temp creds: %w", err)
 		httputil.ServeError(w, r, err)
 		return err
 	}
@@ -567,17 +567,17 @@ func (imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.S
 		r.FormValue("oauth_verifier"),
 	)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error getting request token: %v ", err))
+		httputil.ServeError(w, r, fmt.Errorf("error getting request token: %w", err))
 		return
 	}
 	userID := vals.Get("user_nsid")
 	if userID == "" {
-		httputil.ServeError(w, r, fmt.Errorf("Couldn't get user id: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("couldn't get user id: %w", err))
 		return
 	}
 	username := vals.Get("username")
 	if username == "" {
-		httputil.ServeError(w, r, fmt.Errorf("Couldn't get user name: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("couldn't get user name: %w", err))
 		return
 	}
 
@@ -588,7 +588,7 @@ func (imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.S
 		importer.AcctAttrUserID, userID,
 		importer.AcctAttrUserName, username,
 	); err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Error setting basic account attributes: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("error setting basic account attributes: %w", err))
 		return
 	}
 	http.Redirect(w, r, ctx.AccountURL(), http.StatusFound)
