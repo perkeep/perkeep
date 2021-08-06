@@ -249,6 +249,9 @@ func TestPublishMembers(t *testing.T) {
 			}
 
 			members, err := pr.subjectMembers(res.Meta)
+			if err != nil {
+				t.Fatal(err)
+			}
 			if len(members.Members) != 2 {
 				t.Errorf("Expected two members in publish root (one camlipath, one camlimember), got %d", len(members.Members))
 			}

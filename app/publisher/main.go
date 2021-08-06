@@ -94,7 +94,7 @@ type config struct {
 func appConfig() (*config, error) {
 	configURL := os.Getenv("CAMLI_APP_CONFIG_URL")
 	if configURL == "" {
-		return nil, fmt.Errorf("Publisher application needs a CAMLI_APP_CONFIG_URL env var")
+		return nil, fmt.Errorf("publisher application needs a CAMLI_APP_CONFIG_URL env var")
 	}
 	cl, err := app.Client()
 	if err != nil {
@@ -416,12 +416,12 @@ func newPublishHandler(conf *config) *publishHandler {
 func goTemplate(files fs.FS, templateFile string) (*template.Template, error) {
 	f, err := files.Open(templateFile)
 	if err != nil {
-		return nil, fmt.Errorf("Could not open template %v: %v", templateFile, err)
+		return nil, fmt.Errorf("could not open template %v: %w", templateFile, err)
 	}
 	defer f.Close()
 	templateBytes, err := ioutil.ReadAll(f)
 	if err != nil {
-		return nil, fmt.Errorf("Could not read template %v: %v", templateFile, err)
+		return nil, fmt.Errorf("could not read template %v: %w", templateFile, err)
 	}
 	return template.Must(template.New("subject").Parse(string(templateBytes))), nil
 }
@@ -467,7 +467,7 @@ func (ph *publishHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// (by e.g. the owner) since last time.
 		err := ph.initRootNode()
 		if err != nil {
-			httputil.ServeError(w, r, fmt.Errorf("No publish root node: %v", err))
+			httputil.ServeError(w, r, fmt.Errorf("no publish root node: %w", err))
 			ph.rootNodeMu.Unlock()
 			return
 		}
@@ -486,7 +486,7 @@ func (ph *publishHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	preq, err := ph.NewRequest(w, r)
 	if err != nil {
-		httputil.ServeError(w, r, fmt.Errorf("Could not create publish request: %v", err))
+		httputil.ServeError(w, r, fmt.Errorf("could not create publish request: %w", err))
 		return
 	}
 	preq.serveHTTP()
@@ -562,11 +562,11 @@ func (ph *publishHandler) resolvePrefixHop(parent blob.Ref, prefix string) (chil
 	// a quick lookup.  in the meantime it should be in memcached
 	// at least.
 	if len(prefix) < 8 {
-		return blob.Ref{}, fmt.Errorf("Member prefix %q too small", prefix)
+		return blob.Ref{}, fmt.Errorf("member prefix %q too small", prefix)
 	}
 	des, err := ph.describe(parent)
 	if err != nil {
-		return blob.Ref{}, fmt.Errorf("Failed to describe member %q in parent %q", prefix, parent)
+		return blob.Ref{}, fmt.Errorf("failed to describe member %q in parent %q", prefix, parent)
 	}
 	if des.Permanode != nil {
 		cr, ok := des.ContentRef()
@@ -580,7 +580,7 @@ func (ph *publishHandler) resolvePrefixHop(parent blob.Ref, prefix string) (chil
 		}
 		crdes, err := ph.describe(cr)
 		if err != nil {
-			return blob.Ref{}, fmt.Errorf("Failed to describe content %q of parent %q", cr, parent)
+			return blob.Ref{}, fmt.Errorf("failed to describe content %q of parent %q", cr, parent)
 		}
 		if crdes.Dir != nil {
 			return ph.resolvePrefixHop(cr, prefix)
@@ -592,7 +592,7 @@ func (ph *publishHandler) resolvePrefixHop(parent blob.Ref, prefix string) (chil
 			}
 		}
 	}
-	return blob.Ref{}, fmt.Errorf("Member prefix %q not found in %q", prefix, parent)
+	return blob.Ref{}, fmt.Errorf("member prefix %q not found in %q", prefix, parent)
 }
 
 func (ph *publishHandler) describe(br blob.Ref) (*search.DescribedBlob, error) {
@@ -608,11 +608,11 @@ func (ph *publishHandler) describe(br blob.Ref) (*search.DescribedBlob, error) {
 		Depth:   1,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("Could not describe %v: %v", br, err)
+		return nil, fmt.Errorf("could not describe %v: %w", br, err)
 	}
 	// TODO(mpl): check why Describe is not giving us an error when br is invalid.
 	if res == nil || res.Meta == nil || res.Meta[br.String()] == nil {
-		return nil, fmt.Errorf("Could not describe %v", br)
+		return nil, fmt.Errorf("could not describe %v", br)
 	}
 	return res.Meta[br.String()], nil
 }
@@ -634,7 +634,7 @@ func (ph *publishHandler) deepDescribe(br blob.Ref) (*search.DescribeResponse, e
 		Limit: -1,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("Could not deep describe %v: %v", br, err)
+		return nil, fmt.Errorf("could not deep describe %v: %w", br, err)
 	}
 	if res == nil || res.Describe == nil {
 		return nil, fmt.Errorf("no describe result for %v", br)
@@ -789,7 +789,7 @@ func (pr *publishRequest) findSubject() error {
 		match, memberPrefix := m[0], m[1]
 
 		if err != nil {
-			return fmt.Errorf("Error looking up potential member %q in describe of subject %q: %v",
+			return fmt.Errorf("error looking up potential member %q in describe of subject %q: %w",
 				memberPrefix, subject, err)
 		}
 
@@ -826,12 +826,6 @@ func addPathComponent(base, addition string) string {
 	}
 	return base + "/-" + addition
 }
-
-const (
-	resSeparator = "/-"
-	digestPrefix = "h"
-	digestLen    = 10
-)
 
 // var hopRE = regexp.MustCompile(fmt.Sprintf("^/%s([0-9a-f]{%d})", digestPrefix, digestLen))
 
@@ -1183,7 +1177,7 @@ func (ph *publishHandler) describeMembers(br blob.Ref) (*search.SearchResult, er
 		Limit: -1,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("Could not describe members of %v: %v", br, err)
+		return nil, fmt.Errorf("could not describe members of %v: %w", br, err)
 	}
 	return res, nil
 }
