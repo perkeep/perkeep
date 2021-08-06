@@ -351,12 +351,12 @@ func (opts *DecodeOpts) forcedOrientation() (angle int, flipMode FlipDirection, 
 	)
 	if opts.forcedRotate() {
 		if angle, ok = opts.Rotate.(int); !ok {
-			return 0, 0, fmt.Errorf("Rotate should be an int, not a %T", opts.Rotate)
+			return 0, 0, fmt.Errorf("rotate should be an int, not a %T", opts.Rotate)
 		}
 	}
 	if opts.forcedFlip() {
 		if flipMode, ok = opts.Flip.(FlipDirection); !ok {
-			return 0, 0, fmt.Errorf("Flip should be a FlipDirection, not a %T", opts.Flip)
+			return 0, 0, fmt.Errorf("flip should be a FlipDirection, not a %T", opts.Flip)
 		}
 	}
 	return angle, flipMode, nil
@@ -455,18 +455,18 @@ func DecodeConfig(r io.Reader) (Config, error) {
 // used is returned in format. If the image was not successfully decoded, err
 // will be non-nil.  If the decoded image was made smaller, needRescale will
 // be true.
-func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image, format string, err error, needRescale bool) {
+func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image, format string, needRescale bool, err error) {
 	if opts == nil {
 		// Fall-back to normal decode.
 		im, format, err = image.Decode(r)
-		return im, format, err, false
+		return im, format, false, err
 	}
 
 	var buf bytes.Buffer
 	tr := io.TeeReader(r, &buf)
 	ic, format, err := image.DecodeConfig(tr)
 	if err != nil {
-		return nil, "", err, false
+		return nil, "", false, err
 	}
 
 	mr := io.MultiReader(&buf, r)
@@ -474,7 +474,7 @@ func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image,
 	sw, sh, needRescale := opts.rescaleDimensions(b, swapDimensions)
 	if !needRescale {
 		im, format, err = image.Decode(mr)
-		return im, format, err, false
+		return im, format, false, err
 	}
 
 	imageDebug(fmt.Sprintf("Resizing from %dx%d -> %dx%d", ic.Width, ic.Height, sw, sh))
@@ -482,7 +482,7 @@ func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image,
 		// Replace mr with an io.Reader to the JPEG thumbnail embedded in a
 		// CR2 image.
 		if mr, err = cr2.NewReader(mr); err != nil {
-			return nil, "", err, false
+			return nil, "", false, err
 		}
 		format = "jpeg"
 	}
@@ -500,18 +500,18 @@ func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image,
 			case nil:
 				// fallthrough to rescale() below.
 			default:
-				return nil, format, err, false
+				return nil, format, false, err
 			}
-			return rescale(im, sw, sh), format, err, true
+			return rescale(im, sw, sh), format, true, err
 		}
 	}
 
 	// Fall-back to normal decode.
 	im, format, err = image.Decode(mr)
 	if err != nil {
-		return nil, "", err, false
+		return nil, "", false, err
 	}
-	return rescale(im, sw, sh), format, err, needRescale
+	return rescale(im, sw, sh), format, needRescale, err
 }
 
 // exifOrientation parses the  EXIF data in r and returns the stored
@@ -593,7 +593,7 @@ func Decode(r io.Reader, opts *DecodeOpts) (image.Image, Config, error) {
 	}
 
 	mr := io.MultiReader(&buf, r)
-	im, format, err, rescaled := decode(mr, opts, swapDimensions)
+	im, format, rescaled, err := decode(mr, opts, swapDimensions)
 	if err != nil {
 		return nil, c, err
 	}
@@ -669,7 +669,7 @@ func HEIFToJPEG(fr io.Reader, maxSize *Dimensions) ([]byte, error) {
 	bin := localImageMagick()
 	if bin == "" {
 		if err := setUpThumbnailContainer(); err != nil {
-			return nil, NoHEICTOJPEGError{fmt.Errorf("recent ImageMagick magick binary not found in PATH, and could not fallback on docker image because %v. Install a modern ImageMagick or install docker.", err)}
+			return nil, NoHEICTOJPEGError{fmt.Errorf("recent ImageMagick magick binary not found in PATH, and could not fallback on docker image because %v. Install a modern ImageMagick or install docker", err)}
 		}
 		bin = "docker"
 		useDocker = true
