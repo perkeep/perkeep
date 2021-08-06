@@ -36,19 +36,19 @@ func (NoImplStorage) Fetch(context.Context, blob.Ref) (file io.ReadCloser, size 
 }
 
 func (NoImplStorage) ReceiveBlob(context.Context, blob.Ref, io.Reader) (sb blob.SizedRef, err error) {
-	err = errors.New("ReceiveBlob not implemented")
+	err = errors.New("receiveBlob not implemented")
 	return
 }
 
 func (NoImplStorage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
-	return errors.New("Stat not implemented")
+	return errors.New("stat not implemented")
 }
 
 func (NoImplStorage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
 	close(dest)
-	return errors.New("EnumerateBlobs not implemented")
+	return errors.New("enumerateBlobs not implemented")
 }
 
 func (NoImplStorage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
-	return errors.New("Remove not implemented")
+	return errors.New("remove not implemented")
 }

@@ -127,7 +127,7 @@ func (s *Storage) SubFetch(ctx context.Context, ref blob.Ref, offset, length int
 		*io.SectionReader
 		io.Closer
 	}{
-		io.NewSectionReader(bytes.NewReader(b), offset, int64(length)),
+		io.NewSectionReader(bytes.NewReader(b), offset, length),
 		types.NopCloser,
 	}, nil
 }
@@ -136,7 +136,7 @@ func (s *Storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader
 	sb := blob.SizedRef{}
 	h := br.Hash()
 	if h == nil {
-		return sb, fmt.Errorf("Unsupported blobref hash for %s", br)
+		return sb, fmt.Errorf("unsupported blobref hash for %s", br)
 	}
 	all, err := ioutil.ReadAll(io.TeeReader(source, h))
 	if err != nil {
@@ -146,7 +146,7 @@ func (s *Storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader
 		// This is a somewhat redundant check, since
 		// blobserver.Receive now does it. But for testing code,
 		// it's worth the cost.
-		return sb, fmt.Errorf("Hash mismatch receiving blob %s", br)
+		return sb, fmt.Errorf("hash mismatch receiving blob %s", br)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

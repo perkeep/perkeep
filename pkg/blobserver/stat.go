@@ -17,9 +17,11 @@ limitations under the License.
 package blobserver
 
 import (
+	"archive/zip"
 	"context"
 	"os"
 	"sync"
+	"time"
 
 	"go4.org/syncutil"
 
@@ -74,6 +76,7 @@ func StatBlobsParallelHelper(ctx context.Context, blobs []blob.Ref, fn func(blob
 	var fnMu sync.Mutex // serializes calls to fn
 
 	var wg syncutil.Group
+Loop:
 	for i := range blobs {
 		gate.Start()
 		b := blobs[i]
@@ -81,7 +84,7 @@ func StatBlobsParallelHelper(ctx context.Context, blobs []blob.Ref, fn func(blob
 		select {
 		case <-ctx.Done():
 			// If a previous failed, stop.
-			break
+			break Loop
 		default:
 		}
 
@@ -125,4 +128,17 @@ func StatBlobsParallelHelper(ctx context.Context, blobs []blob.Ref, fn func(blob
 	default:
 		return nil
 	}
+}
+
+// Copied from archive/zip/struct.go because zip.FileHeader.SetModTime is deprecated,
+// but has no real successor (setting Modified alone is not enough).
+func timeToMsDosTime(t time.Time) (fDate uint16, fTime uint16) {
+	fDate = uint16(t.Day() + int(t.Month())<<5 + (t.Year()-1980)<<9)
+	fTime = uint16(t.Second()/2 + t.Minute()<<5 + t.Hour()<<11)
+	return
+}
+func ZipSetModTime(h *zip.FileHeader, t time.Time) {
+	t = t.UTC()
+	h.Modified = t
+	h.ModifiedDate, h.ModifiedTime = timeToMsDosTime(t)
 }

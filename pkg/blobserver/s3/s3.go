@@ -67,8 +67,6 @@ var (
 	faultGet       = fault.NewInjector("s3_get")
 )
 
-const maxParallelHTTP = 5
-
 type s3Storage struct {
 	client s3iface.S3API
 	bucket string
@@ -119,7 +117,10 @@ func newFromConfigWithTransport(_ blobserver.Loader, config jsonconfig.Obj, tran
 		httpClient.Transport = transport
 		s3Cfg.WithHTTPClient(&httpClient)
 	}
-	awsSession := session.New(s3Cfg)
+	awsSession, err := session.NewSession(s3Cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	bucket := config.RequiredString("bucket")
 	var dirPrefix string

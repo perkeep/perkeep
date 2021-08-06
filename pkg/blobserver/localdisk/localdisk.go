@@ -104,11 +104,11 @@ func New(root string) (*DiskStorage, error) {
 			}
 			fi, err = os.Stat(root)
 		} else {
-			return nil, fmt.Errorf("Storage root %q doesn't exist", root)
+			return nil, fmt.Errorf("storage root %q doesn't exist", root)
 		}
 	}
 	if err != nil {
-		return nil, fmt.Errorf("Failed to stat directory %q: %v", root, err)
+		return nil, fmt.Errorf("failed to stat directory %q: %w", root, err)
 	}
 	if !fi.IsDir() {
 		return nil, fmt.Errorf("storage root %q exists but is not a directory", root)
@@ -121,7 +121,7 @@ func New(root string) (*DiskStorage, error) {
 		gen:        local.NewGenerationer(root),
 	}
 	if _, _, err := ds.StorageGeneration(); err != nil {
-		return nil, fmt.Errorf("Error initialization generation for %q: %v", root, err)
+		return nil, fmt.Errorf("error initialization generation for %q: %w", root, err)
 	}
 	ul, err := osutil.MaxFD()
 	if err != nil {
@@ -190,7 +190,7 @@ func (ds *DiskStorage) checkFS() (ret error) {
 	if err != nil {
 		return fmt.Errorf("localdisk check: unable to read from %s, err=%v", tempfile, err)
 	}
-	if bytes.Compare(out, data) != 0 {
+	if !bytes.Equal(out, data) {
 		return fmt.Errorf("localdisk check: tempfile contents didn't match, got=%q", out)
 	}
 	if _, err := os.Lstat(filename); !os.IsNotExist(err) {

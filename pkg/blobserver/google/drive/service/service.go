@@ -28,6 +28,7 @@ import (
 	"os"
 
 	client "google.golang.org/api/drive/v2"
+	"google.golang.org/api/option"
 )
 
 const (
@@ -48,7 +49,7 @@ type DriveService struct {
 // DriveService (such as Get). If empty, it defaults to the root of the
 // drive.
 func New(oauthClient *http.Client, parentID string) (*DriveService, error) {
-	apiservice, err := client.New(oauthClient)
+	apiservice, err := client.NewService(context.Background(), option.WithHTTPClient(oauthClient))
 	if err != nil {
 		return nil, err
 	}
@@ -139,8 +140,7 @@ func (s *DriveService) Fetch(ctx context.Context, title string) (body io.ReadClo
 		return
 	}
 
-	req, _ := http.NewRequest("GET", file.DownloadUrl, nil)
-	req.WithContext(ctx)
+	req, _ := http.NewRequestWithContext(ctx, "GET", file.DownloadUrl, nil)
 	var resp *http.Response
 	if resp, err = s.client.Transport.RoundTrip(req); err != nil {
 		return

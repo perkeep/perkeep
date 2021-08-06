@@ -308,7 +308,7 @@ func (sto *replicaStorage) StorageGeneration() (initTime time.Time, random strin
 		}
 	}
 	if n == 0 {
-		err = errors.New("No replicas support StorageGeneration")
+		err = errors.New("no replicas support StorageGeneration")
 	}
 	return initTime, buf.String(), err
 }
