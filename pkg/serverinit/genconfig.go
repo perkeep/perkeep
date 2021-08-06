@@ -414,7 +414,7 @@ func (b *lowBuilder) mongoIndexStorage(confStr string, sortedType dbname) (map[s
 			}, nil
 		}
 	}
-	return nil, errors.New("Malformed mongo config string; want form: \"user:password@host\"")
+	return nil, errors.New("malformed mongo config string; want form: \"user:password@host\"")
 }
 
 // parses "user@host:password", which you think would be easy, but we
@@ -450,7 +450,7 @@ func (b *lowBuilder) dbIndexStorage(rdbms, confStr string, sortedType dbname) (m
 	}
 	user, host, password, ok := parseUserHostPass(confStr)
 	if !ok {
-		return nil, fmt.Errorf("Malformed %s config string. Want: \"user@host:password\"", rdbms)
+		return nil, fmt.Errorf("malformed %s config string. Want: \"user@host:password\"", rdbms)
 	}
 	return map[string]interface{}{
 		"type":     rdbms,
@@ -1051,7 +1051,7 @@ func (b *lowBuilder) build() (*Config, error) {
 	}
 	if conf.HTTPS {
 		if (conf.HTTPSCert != "") != (conf.HTTPSKey != "") {
-			return nil, errors.New("Must set both httpsCert and httpsKey (or neither to generate a self-signed cert)")
+			return nil, errors.New("must set both httpsCert and httpsKey (or neither to generate a self-signed cert)")
 		}
 		if conf.HTTPSCert != "" {
 			low["httpsCert"] = conf.HTTPSCert
@@ -1062,7 +1062,7 @@ func (b *lowBuilder) build() (*Config, error) {
 	if conf.BaseURL != "" {
 		u, err := url.Parse(conf.BaseURL)
 		if err != nil {
-			return nil, fmt.Errorf("Error parsing baseURL %q as a URL: %v", conf.BaseURL, err)
+			return nil, fmt.Errorf("error parsing baseURL %q as a URL: %w", conf.BaseURL, err)
 		}
 		if u.Path != "" && u.Path != "/" {
 			return nil, fmt.Errorf("baseURL can't have a path, only a scheme, host, and optional port")
@@ -1083,9 +1083,9 @@ func (b *lowBuilder) build() (*Config, error) {
 
 	switch {
 	case b.runIndex() && numIndexers == 0:
-		return nil, fmt.Errorf("Unless runIndex is set to false, you must specify an index option (kvIndexFile, leveldb, mongo, mysql, postgres, sqlite, memoryIndex).")
+		return nil, fmt.Errorf("unless runIndex is set to false, you must specify an index option (kvIndexFile, leveldb, mongo, mysql, postgres, sqlite, memoryIndex)")
 	case b.runIndex() && numIndexers != 1:
-		return nil, fmt.Errorf("With runIndex set true, you can only pick exactly one indexer (mongo, mysql, postgres, sqlite, kvIndexFile, leveldb, memoryIndex).")
+		return nil, fmt.Errorf("with runIndex set true, you can only pick exactly one indexer (mongo, mysql, postgres, sqlite, kvIndexFile, leveldb, memoryIndex)")
 	case !b.runIndex() && numIndexers != 0:
 		log.Printf("Indexer disabled, but %v will be used for other indexes, queues, caches, etc.", b.sortedName())
 	}
@@ -1099,13 +1099,13 @@ func (b *lowBuilder) build() (*Config, error) {
 	noLocalDisk := conf.BlobPath == ""
 	if noLocalDisk {
 		if !conf.MemoryStorage && conf.S3 == "" && conf.B2 == "" && conf.GoogleCloudStorage == "" {
-			return nil, errors.New("Unless memoryStorage is set, you must specify at least one storage option for your blobserver (blobPath (for localdisk), s3, b2, googlecloudstorage).")
+			return nil, errors.New("unless memoryStorage is set, you must specify at least one storage option for your blobserver (blobPath (for localdisk), s3, b2, googlecloudstorage)")
 		}
 		if !conf.MemoryStorage && conf.S3 != "" && conf.GoogleCloudStorage != "" {
-			return nil, errors.New("Using S3 as a primary storage and Google Cloud Storage as a mirror is not supported for now.")
+			return nil, errors.New("using S3 as a primary storage and Google Cloud Storage as a mirror is not supported for now")
 		}
 		if !conf.MemoryStorage && conf.B2 != "" && conf.GoogleCloudStorage != "" {
-			return nil, errors.New("Using B2 as a primary storage and Google Cloud Storage as a mirror is not supported for now.")
+			return nil, errors.New("using B2 as a primary storage and Google Cloud Storage as a mirror is not supported for now")
 		}
 	}
 	if conf.ShareHandler && conf.ShareHandlerPath == "" {
@@ -1114,10 +1114,10 @@ func (b *lowBuilder) build() (*Config, error) {
 	if conf.MemoryStorage {
 		noMkdir = true
 		if conf.BlobPath != "" {
-			return nil, errors.New("memoryStorage and blobPath are mutually exclusive.")
+			return nil, errors.New("memoryStorage and blobPath are mutually exclusive")
 		}
 		if conf.PackRelated {
-			return nil, errors.New("memoryStorage doesn't support packRelated.")
+			return nil, errors.New("memoryStorage doesn't support packRelated")
 		}
 	}
 
@@ -1137,7 +1137,7 @@ func (b *lowBuilder) build() (*Config, error) {
 	}
 	if !noMkdir {
 		if err := os.MkdirAll(cacheDir, 0700); err != nil {
-			return nil, fmt.Errorf("Could not create blobs cache dir %s: %v", cacheDir, err)
+			return nil, fmt.Errorf("could not create blobs cache dir %s: %w", cacheDir, err)
 		}
 	}
 
@@ -1159,7 +1159,7 @@ func (b *lowBuilder) build() (*Config, error) {
 			}
 		}
 		if err := b.addPublishedConfig(tlsO); err != nil {
-			return nil, fmt.Errorf("Could not generate config for published: %v", err)
+			return nil, fmt.Errorf("could not generate config for published: %w", err)
 		}
 	}
 
@@ -1177,7 +1177,7 @@ func (b *lowBuilder) build() (*Config, error) {
 			}
 		}
 		if err := b.addScanCabConfig(tlsO); err != nil {
-			return nil, fmt.Errorf("Could not generate config for scanning cabinet: %v", err)
+			return nil, fmt.Errorf("could not generate config for scanning cabinet: %w", err)
 		}
 	}
 
@@ -1255,7 +1255,7 @@ func WriteDefaultConfigFile(filePath string, useSQLite bool) error {
 		return err
 	}
 	if err := wkfs.MkdirAll(blobDir, 0700); err != nil {
-		return fmt.Errorf("Could not create default blobs directory: %v", err)
+		return fmt.Errorf("could not create default blobs directory: %w", err)
 	}
 	conf.BlobPath = blobDir
 	conf.PackRelated = true
@@ -1275,11 +1275,11 @@ func WriteDefaultConfigFile(filePath string, useSQLite bool) error {
 
 	confData, err := json.MarshalIndent(conf, "", "    ")
 	if err != nil {
-		return fmt.Errorf("Could not json encode config file : %v", err)
+		return fmt.Errorf("could not json encode config file : %w", err)
 	}
 
 	if err := wkfs.WriteFile(filePath, confData, 0600); err != nil {
-		return fmt.Errorf("Could not create or write default server config: %v", err)
+		return fmt.Errorf("could not create or write default server config: %w", err)
 	}
 
 	return nil
@@ -1292,19 +1292,19 @@ func getOrMakeKeyring() (keyID, secRing string, err error) {
 	case err == nil:
 		keyID, err = jsonsign.KeyIdFromRing(secRing)
 		if err != nil {
-			err = fmt.Errorf("Could not find any keyID in file %q: %v", secRing, err)
+			err = fmt.Errorf("could not find any keyID in file %q: %w", secRing, err)
 			return
 		}
 		log.Printf("Re-using identity with keyID %q found in file %s", keyID, secRing)
 	case os.IsNotExist(err):
 		keyID, err = jsonsign.GenerateNewSecRing(secRing)
 		if err != nil {
-			err = fmt.Errorf("Could not generate new secRing at file %q: %v", secRing, err)
+			err = fmt.Errorf("could not generate new secRing at file %q: %w", secRing, err)
 			return
 		}
 		log.Printf("Generated new identity with keyID %q in file %s", keyID, secRing)
 	default:
-		err = fmt.Errorf("Could not stat secret ring %q: %v", secRing, err)
+		err = fmt.Errorf("could not stat secret ring %q: %w", secRing, err)
 	}
 	return
 }

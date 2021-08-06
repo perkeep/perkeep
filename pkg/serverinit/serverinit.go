@@ -534,12 +534,12 @@ func load(filename string, opener func(filename string) (jsonconfig.File, error)
 	// struct later.
 	highExpandedJSON, err := json.Marshal(m)
 	if err != nil {
-		return nil, fmt.Errorf("Can't re-marshal high-level JSON config: %v", err)
+		return nil, fmt.Errorf("can't re-marshal high-level JSON config: %w", err)
 	}
 
 	var hiLevelConf serverconfig.Config
 	if err := json.Unmarshal(highExpandedJSON, &hiLevelConf); err != nil {
-		return nil, fmt.Errorf("Could not unmarshal into a serverconfig.Config: %v", err)
+		return nil, fmt.Errorf("could not unmarshal into a serverconfig.Config: %w", err)
 	}
 
 	// At this point, conf.jconf.UnknownKeys() contains all the names found in
@@ -658,7 +658,7 @@ func (c *Config) InstallHandlers(hi HandlerInstaller, baseURL string) (shutdown 
 		if e := recover(); e != nil {
 			log.Printf("Caught panic installer handlers: %v", e)
 			debug.PrintStack()
-			err = fmt.Errorf("Caught panic: %v", e)
+			err = fmt.Errorf("caught panic: %w", e)
 		}
 	}()
 
@@ -741,7 +741,7 @@ func (c *Config) InstallHandlers(hi HandlerInstaller, baseURL string) (shutdown 
 		}
 		if in, ok := handler.(blobserver.HandlerIniter); ok {
 			if err := in.InitHandler(hl); err != nil {
-				return nil, fmt.Errorf("Error calling InitHandler on %s: %v", pfx, err)
+				return nil, fmt.Errorf("error calling InitHandler on %s: %w", pfx, err)
 			}
 		}
 	}
@@ -882,7 +882,7 @@ func logsHandler(w http.ResponseWriter, r *http.Request) {
 	case "perkeepd":
 		projID, err := metadata.ProjectID()
 		if err != nil {
-			httputil.ServeError(w, r, fmt.Errorf("Error getting project ID: %v", err))
+			httputil.ServeError(w, r, fmt.Errorf("error getting project ID: %w", err))
 			return
 		}
 		http.Redirect(w, r,
@@ -962,7 +962,7 @@ func (c *Config) KeyRingAndId() (keyRing, keyId string, err error) {
 // LowLevelJSONConfig returns the config's underlying low-level JSON form
 // for debugging.
 //
-// Deprecated: this is provided for debugging only and will be going away
+// D e p r e c a t e d: this is provided for debugging only and will be going away
 // as the move to TOML-based configuration progresses. Do not depend on this.
 func (c *Config) LowLevelJSONConfig() map[string]interface{} {
 	// Make a shallow clone of c.jconf so we can mutate the

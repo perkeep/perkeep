@@ -52,8 +52,6 @@ import (
 	_ "perkeep.org/pkg/blobserver/cond"
 	_ "perkeep.org/pkg/blobserver/replica"
 	_ "perkeep.org/pkg/importer/allimporters"
-	_ "perkeep.org/pkg/search"
-	_ "perkeep.org/pkg/server"
 )
 
 var (
