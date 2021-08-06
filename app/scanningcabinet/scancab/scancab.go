@@ -20,6 +20,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -30,11 +31,13 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"perkeep.org/pkg/auth"
@@ -104,7 +107,7 @@ func getUploadURL() (string, error) {
 	return uploadURL, nil
 }
 
-func uploadFile(filename string) error {
+func uploadFile(ctx context.Context, filename string) error {
 	uploadURL, err := getUploadURL()
 	if err != nil {
 		return err
@@ -127,7 +130,7 @@ func uploadFile(filename string) error {
 	if err := bw.Close(); err != nil {
 		return err
 	}
-	req, err := http.NewRequest("POST", uploadURL, &buf)
+	req, err := http.NewRequestWithContext(ctx, "POST", uploadURL, &buf)
 	if err != nil {
 		return err
 	}
@@ -137,19 +140,19 @@ func uploadFile(filename string) error {
 	return err
 }
 
-func uploadOne(filename string) {
+func uploadOne(ctx context.Context, filename string) error {
 	if _, err := os.Stat(filename); err != nil {
 		if os.IsNotExist(err) {
-			log.Fatalf("File %v does not exist", filename)
+			return fmt.Errorf("file %v does not exist", filename)
 		}
-		log.Fatal(err)
+		return err
 	}
 	fmt.Printf("Uploading %v ...\n", filename)
 	if !strings.HasSuffix(strings.ToLower(filename), ".pdf") {
-		if err := uploadFile(filename); err != nil {
-			log.Fatalf("Could not upload file %v: %v", filename, err)
+		if err := uploadFile(ctx, filename); err != nil {
+			return fmt.Errorf("could not upload file %v: %w", filename, err)
 		}
-		return
+		return nil
 	}
 	var args []string
 	var ext string
@@ -162,11 +165,11 @@ func uploadOne(filename string) {
 	}
 	cnt, err := pageCount(filename)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	tmpDir, err := ioutil.TempDir("", "scancabcli")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer func() {
 		// not using RemoveAll on purpose, so that it does not remove if some of the temp files are still in there
@@ -177,18 +180,19 @@ func uploadOne(filename string) {
 		converted := path.Join(tmpDir, fmt.Sprintf("page-%04d.%v", i+1, ext))
 		pageArgs := append(args, fmt.Sprintf("%v[%d]", filename, i), converted)
 		// TODO(mpl): how about using pdftk instead of convert, to get contents without rasterizing them ?
-		cmd := exec.Command("convert", pageArgs...)
+		cmd := exec.CommandContext(ctx, "convert", pageArgs...)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			log.Fatalf("could not convert page %d of %v: %v, %v", i, filename, err, string(out))
+			return fmt.Errorf("could not convert page %d of %v: %w, %v", i, filename, err, string(out))
 		}
-		if err := uploadFile(converted); err != nil {
-			log.Fatalf("Could not upload file %v: %v", converted, err)
+		if err := uploadFile(ctx, converted); err != nil {
+			return fmt.Errorf("could not upload file %v: %w", converted, err)
 		}
 		if err := os.Remove(converted); err != nil {
-			log.Printf("could not remove %v: %v", converted, err)
+			return fmt.Errorf("could not remove %v: %w", converted, err)
 		}
 	}
+	return nil
 }
 
 type imageNameByTime []struct {
@@ -200,12 +204,15 @@ func (a imageNameByTime) Len() int           { return len(a) }
 func (a imageNameByTime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a imageNameByTime) Less(i, j int) bool { return a[i].nanoTime < a[j].nanoTime }
 
-func uploadLoop() {
+func uploadLoop(ctx context.Context) error {
 	toUploadPattern := regexp.MustCompile(`^image-.+-unx(\d+)\.(png|jpg)$`)
 	if err := os.Chdir(queueDir); err != nil {
 		log.Fatalf("Could not chdir to queue directory %v: %v", queueDir, err)
 	}
 	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		dir, err := os.Open(".")
 		if err != nil {
 			log.Fatalf("Could not open queue directory: %v", err)
@@ -235,7 +242,7 @@ func uploadLoop() {
 		}
 		sort.Sort(sortedNames)
 		for _, v := range sortedNames {
-			if err := uploadFile(v.name); err != nil {
+			if err := uploadFile(ctx, v.name); err != nil {
 				log.Print("Upload error. Sleeping for 5 seconds...")
 				break
 			}
@@ -282,15 +289,15 @@ func batchScanHelper(img string) {
 	}
 }
 
-func scan() {
+func scan(ctx context.Context) error {
 	imagennnPattern := regexp.MustCompile(`^image-(\d\d\d\d)(\.tiff|\.jpg|\.png)?$`)
 	di, err := os.Open(".")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	names, err := di.Readdirnames(-1)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	// TODO(mpl): I did that part a bit differently from the original code,
 	// so extra testing will be needed.
@@ -304,11 +311,11 @@ func scan() {
 	lastOne := sortedNames[len(sortedNames)-1]
 	m := imagennnPattern.FindStringSubmatch(lastOne)
 	if len(m) < 2 {
-		panic(fmt.Sprintf("matched scan %q does not actually match after. probably wrong regexp.", lastOne))
+		return fmt.Errorf("matched scan %q does not actually match after, probably wrong regexp", lastOne)
 	}
 	lastPage, err := strconv.Atoi(m[1])
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	lastPage++
 
@@ -325,7 +332,7 @@ func scan() {
 			args = append(args, `--source="ADF Duplex"`)
 		}
 		args = append(args, "--scan-script", flag.Args()[0], "-s", fmt.Sprintf("%d", lastPage))
-		cmd := exec.Command("scanadf", args...)
+		cmd := exec.CommandContext(ctx, "scanadf", args...)
 		env := os.Environ()
 		if *flagLineart {
 			env = append(env, "SCAN_LINEART=1")
@@ -333,9 +340,9 @@ func scan() {
 		cmd.Env = env
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			log.Fatalf("Failed to run scanadf: %v, %v", err, string(out))
+			return fmt.Errorf("failed to run scanadf: %w, %v", err, string(out))
 		}
-		return
+		return nil
 	}
 
 	baseName := fmt.Sprintf("image-%04d", lastPage)
@@ -348,7 +355,7 @@ func scan() {
 	}
 	f, err := os.Create(tiffName)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	closedYet := false
 	defer func() {
@@ -359,42 +366,42 @@ func scan() {
 			log.Fatal(err)
 		}
 	}()
-	cmd := exec.Command("scanimage", "-d", *flagDevice, "--mode", mode, "--resolution", "300", "--format", "tiff")
+	cmd := exec.CommandContext(ctx, "scanimage", "-d", *flagDevice, "--mode", mode, "--resolution", "300", "--format", "tiff")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	if err := cmd.Start(); err != nil {
-		log.Fatalf("Failed to start scanimage: %v", err)
+		return fmt.Errorf("failed to start scanimage: %w", err)
 	}
 	if _, err := io.Copy(f, stdout); err != nil {
-		log.Fatalf("Failed to write to %v: %v", tiffName, err)
+		return fmt.Errorf("failed to write to %v: %w", tiffName, err)
 	}
 	if err := cmd.Wait(); err != nil {
-		log.Fatal(err)
+		return err
 	}
 	if err := f.Close(); err != nil {
-		log.Fatal(err)
+		return err
 	}
 	closedYet = true
 	fmt.Printf("Scanned. Converting %v -> %v\n", tiffName, imgName)
 
-	cmd = exec.Command("convert", "-quality", "90", tiffName, imgName)
+	cmd = exec.CommandContext(ctx, "convert", "-quality", "90", tiffName, imgName)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Fatalf("Failed to run convert: %v, %v", err, string(out))
+		return fmt.Errorf("failed to run convert: %w, %v", err, string(out))
 	}
 	if err := os.Remove(tiffName); err != nil {
-		log.Fatal(err)
+		return err
 	}
 	if *flagNoQueue {
-		if err := uploadFile(imgName); err != nil {
-			log.Fatalf("Could not upload file %v: %v", imgName, err)
+		if err := uploadFile(ctx, imgName); err != nil {
+			return fmt.Errorf("could not upload file %v: %w", imgName, err)
 		}
 		if err := os.Remove(imgName); err != nil {
-			log.Fatal(err)
+			return err
 		}
-		return
+		return nil
 	}
 	// TODO(mpl): original code had
 	// my $qfile = "$whatever/$out-unx" . time() . substr($out, -4);
@@ -404,8 +411,9 @@ func scan() {
 	queuedName := path.Join(queueDir, fmt.Sprintf("%v-unx%d.%v", baseName, time.Now().UnixNano(), ext))
 	fmt.Printf("Moving file from %v to %v\n", imgName, queuedName)
 	if err := os.Rename(imgName, queuedName); err != nil {
-		log.Fatal(err)
+		return err
 	}
+	return nil
 }
 
 func checkSanity() {
@@ -476,6 +484,8 @@ func checkSanity() {
 func main() {
 	flag.Parse()
 
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 	checkSanity()
 
 	if *flagVersion {
@@ -491,16 +501,21 @@ func main() {
 	am = auth.NewBasicAuth(*flagUsername, *flagPassword)
 
 	if *flagLoop {
-		uploadLoop()
+		if err := uploadLoop(ctx); err != nil {
+			log.Fatal(err)
+		}
 		os.Exit(0)
 	}
 
 	if *flagUpload != "" {
-		uploadOne(*flagUpload)
+		if err := uploadOne(ctx, *flagUpload); err != nil {
+			log.Fatal(err)
+		}
 		os.Exit(0)
 	}
 
-	scan()
-
-	return
+	if err := scan(ctx); err != nil {
+		log.Fatal(err)
+	}
+	os.Exit(0)
 }

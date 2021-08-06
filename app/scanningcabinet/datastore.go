@@ -33,12 +33,6 @@ import (
 	"perkeep.org/pkg/search"
 )
 
-const (
-	mediaObjectKind = "MediaObject"
-	userInfoKind    = "UserInfo"
-	documentKind    = "Document"
-)
-
 func (h *handler) searchScans(limit int) (*search.SearchResult, error) {
 	q := &search.SearchQuery{
 		Limit: limit,
@@ -155,11 +149,11 @@ func (h *handler) describeScan(b *search.DescribedBlob) (mediaObject, error) {
 	var document blob.Ref
 	documentRef := attrs.Get("document")
 	if documentRef != "" {
-		var ok bool
-		document, ok = blob.Parse(documentRef)
-		if ok {
-			// TODO(mpl): more to be done here ? Do we ever want to display something about the document of a scan ?
-		}
+		//var ok bool
+		document, _ = blob.Parse(documentRef)
+		//if ok {
+		// TODO(mpl): more to be done here ? Do we ever want to display something about the document of a scan ?
+		//}
 	}
 	content, ok := blob.Parse(attrs.Get("camliContent"))
 	if !ok {
