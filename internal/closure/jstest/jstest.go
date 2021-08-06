@@ -35,7 +35,7 @@ func checkSystemRequirements() error {
 	binaries := []string{"mocha", "node", "npm"}
 	for _, b := range binaries {
 		if _, err := exec.LookPath(b); err != nil {
-			return fmt.Errorf("Required dependency %q not present", b)
+			return fmt.Errorf("required dependency %q not present", b)
 		}
 	}
 
@@ -50,7 +50,7 @@ func checkSystemRequirements() error {
 		modules := []string{"mocha", "assert"}
 		for _, m := range modules {
 			if !strings.Contains(s, fmt.Sprintf(" %s@", m)) {
-				return fmt.Errorf("Required npm module %v not present", m)
+				return fmt.Errorf("required npm module %v not present", m)
 			}
 		}
 		return nil
@@ -66,12 +66,12 @@ func checkSystemRequirements() error {
 func getRepoRoot(target string) (string, error) {
 	dir, err := filepath.Abs(filepath.Dir(target))
 	if err != nil {
-		return "", fmt.Errorf("Could not get working directory: %v", err)
+		return "", fmt.Errorf("could not get working directory: %w", err)
 	}
 	for ; dir != "" && filepath.Base(dir) != "camlistore.org"; dir = filepath.Dir(dir) {
 	}
 	if dir == "" {
-		return "", fmt.Errorf("Could not find Perkeep repo in ancestors of %q", target)
+		return "", fmt.Errorf("could not find Perkeep repo in ancestors of %q", target)
 	}
 	return dir, nil
 }
@@ -81,21 +81,21 @@ func writeDeps(baseJS, targetDir string) (string, error) {
 	closureBaseDir := filepath.Dir(baseJS)
 	depPrefix, err := filepath.Rel(closureBaseDir, targetDir)
 	if err != nil {
-		return "", fmt.Errorf("Could not compute relative path from %q to %q: %v", baseJS, targetDir, err)
+		return "", fmt.Errorf("could not compute relative path from %q to %q: %w", baseJS, targetDir, err)
 	}
 
 	depPrefix += string(os.PathSeparator)
 	b, err := closure.GenDepsWithPath(depPrefix, http.Dir(targetDir))
 	if err != nil {
-		return "", fmt.Errorf("GenDepsWithPath failed: %v", err)
+		return "", fmt.Errorf("genDepsWithPath failed: %w", err)
 	}
 	depsFile, err := ioutil.TempFile("", "camlistore_closure_test_runner")
 	if err != nil {
-		return "", fmt.Errorf("Could not create temp js deps file: %v", err)
+		return "", fmt.Errorf("could not create temp js deps file: %w", err)
 	}
 	err = ioutil.WriteFile(depsFile.Name(), b, 0644)
 	if err != nil {
-		return "", fmt.Errorf("Could not write js deps file: %v", err)
+		return "", fmt.Errorf("could not write js deps file: %w", err)
 	}
 	return depsFile.Name(), nil
 }
