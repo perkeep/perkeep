@@ -97,17 +97,17 @@ func vivify(ctx context.Context, blobReceiver blobserver.BlobReceiveConfiger, fi
 	}
 	fr, err := schema.NewFileReader(ctx, sf, fileblob.Ref)
 	if err != nil {
-		return fmt.Errorf("Filereader error for blobref %v: %v", fileblob.Ref.String(), err)
+		return fmt.Errorf("filereader error for blobref %v: %w", fileblob.Ref.String(), err)
 	}
 	defer fr.Close()
 
 	h := blob.NewHash()
 	n, err := io.Copy(h, fr)
 	if err != nil {
-		return fmt.Errorf("Could not read all file of blobref %v: %v", fileblob.Ref.String(), err)
+		return fmt.Errorf("could not read all file of blobref %v: %w", fileblob.Ref.String(), err)
 	}
 	if n != fr.Size() {
-		return fmt.Errorf("Could not read all file of blobref %v. Wanted %v, got %v", fileblob.Ref.String(), fr.Size(), n)
+		return fmt.Errorf("could not read all file of blobref %v. Wanted %v, got %v", fileblob.Ref.String(), fr.Size(), n)
 	}
 
 	config := blobReceiver.Config()
@@ -137,7 +137,7 @@ func vivify(ctx context.Context, blobReceiver blobserver.BlobReceiveConfiger, fi
 	// 3) the signature time of 2)
 	claimDate := fr.UnixMtime()
 	if claimDate.IsZero() {
-		return fmt.Errorf("While parsing modtime for file %v: %v", fr.FileName(), err)
+		return fmt.Errorf("while parsing modtime for file %v: %w", fr.FileName(), err)
 	}
 
 	permanodeBB := schema.NewHashPlannedPermanode(h)
