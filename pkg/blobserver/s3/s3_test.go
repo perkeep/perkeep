@@ -107,6 +107,9 @@ func TestS3WriteFiles(t *testing.T) {
 	}
 	defer dir.Close()
 	names, err := dir.Readdirnames(-1)
+	if err != nil {
+		t.Error(err)
+	}
 	for _, name := range names {
 		f, err := os.Open(filepath.Join(*flagTestData, name))
 		if err != nil {
@@ -206,7 +209,7 @@ func TestS3EndpointRedirect(t *testing.T) {
 					Status:     "301 Moved Permanently",
 					StatusCode: 301,
 					Header: http.Header(map[string][]string{
-						"X-Amz-Bucket-Region": []string{"us-east-1"},
+						"X-Amz-Bucket-Region": {"us-east-1"},
 					}),
 					Body: ioutil.NopCloser(strings.NewReader(`<?xml version="1.0" encoding="UTF-8"?>
 <LocationConstraint xmlns="http://s3.amazonaws.com/doc/2006-03-01/">us-west-1</LocationConstraint>`)),
@@ -220,7 +223,7 @@ func TestS3EndpointRedirect(t *testing.T) {
 					Status:     "301 Moved Permanently",
 					StatusCode: 301,
 					Header: http.Header(map[string][]string{
-						"X-Amz-Bucket-Region": []string{"us-east-1"},
+						"X-Amz-Bucket-Region": {"us-east-1"},
 					}),
 					Body: ioutil.NopCloser(strings.NewReader(`<?xml version="1.0" encoding="UTF-8"?>
 <Error><Code>PermanentRedirect</Code><Message>The bucket you are attempting to access must be addressed using the specified endpoint. Please send all future requests to this endpoint.</Message><Bucket>mock_bucket</Bucket><Endpoint>mock_bucket.s3.amazonaws.com</Endpoint><RequestId>123</RequestId><HostId>abc</HostId></Error>`)),
