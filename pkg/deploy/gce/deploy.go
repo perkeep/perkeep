@@ -43,6 +43,7 @@ import (
 	cloudresourcemanager "google.golang.org/api/cloudresourcemanager/v1"
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/option"
 	servicemanagement "google.golang.org/api/servicemanagement/v1"
 	storage "google.golang.org/api/storage/v1"
 )
@@ -114,10 +115,6 @@ type InstanceConf struct {
 	WIP bool // Whether to use the perkeepd-WORKINPROGRESS.tar.gz tarball instead of the "production" one
 }
 
-func (conf *InstanceConf) bucketBase() string {
-	return conf.Project + "-camlistore"
-}
-
 // Deployer creates and starts an instance such as defined in Conf.
 type Deployer struct {
 	// Client is an OAuth2 client, authenticated for working with
@@ -126,17 +123,15 @@ type Deployer struct {
 
 	Conf *InstanceConf
 
-	// SHA-1 and SHA-256 fingerprints of the HTTPS certificate created during setupHTTPS, if any.
-	// Keyed by hash name: "SHA-1", and "SHA-256".
-	certFingerprints map[string]string
-
 	*log.Logger // Cannot be nil.
 }
 
 // Get returns the Instance corresponding to the Project, Zone, and Name defined in the
 // Deployer's Conf.
 func (d *Deployer) Get() (*compute.Instance, error) {
-	computeService, err := compute.New(d.Client)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	computeService, err := compute.NewService(ctx, option.WithHTTPClient(d.Client))
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +162,9 @@ func (e instanceExistsError) Error() string {
 // projectHasInstance checks for all the possible zones if there's already an instance for the project.
 // It returns the name of the zone at the first instance it finds, if any.
 func (d *Deployer) projectHasInstance() (zone string, err error) {
-	s, err := compute.New(d.Client)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	s, err := compute.NewService(ctx, option.WithHTTPClient(d.Client))
 	if err != nil {
 		return "", err
 	}
@@ -176,7 +173,7 @@ func (d *Deployer) projectHasInstance() (zone string, err error) {
 	if err != nil {
 		return "", fmt.Errorf("could not get a list of zones: %v", err)
 	}
-	computeService, _ := compute.New(d.Client)
+	computeService, _ := compute.NewService(ctx, option.WithHTTPClient(d.Client))
 	var zoneOnce sync.Once
 	var grp syncutil.Group
 	errc := make(chan error, 1)
@@ -233,7 +230,7 @@ func (e projectIDError) Error() string {
 // CreateProject creates a new Google Cloud Project. It returns the project ID,
 // which is a random number in (0,1e10), prefixed with "camlistore-launcher-".
 func (d *Deployer) CreateProject(ctx context.Context) (string, error) {
-	s, err := cloudresourcemanager.New(d.Client)
+	s, err := cloudresourcemanager.NewService(ctx, option.WithHTTPClient(d.Client))
 	if err != nil {
 		return "", err
 	}
@@ -334,7 +331,9 @@ func (d *Deployer) enableAPIs() error {
 	// work even when the Service Management API hasn't been enabled for the
 	// project. If/when it does not anymore, then we should use serviceuser
 	// instead. http://stackoverflow.com/a/43503392/1775619
-	s, err := servicemanagement.New(d.Client)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	s, err := servicemanagement.NewService(ctx, option.WithHTTPClient(d.Client))
 	if err != nil {
 		return err
 	}
@@ -424,7 +423,9 @@ func (d *Deployer) enableAPIs() error {
 
 func (d *Deployer) checkProjectID() error {
 	// TODO(mpl): cache the computeService in Deployer, instead of recreating a new one everytime?
-	s, err := compute.New(d.Client)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	s, err := compute.NewService(ctx, option.WithHTTPClient(d.Client))
 	if err != nil {
 		return projectIDError{
 			id:    d.Conf.Project,
@@ -453,7 +454,9 @@ var errAttrNotFound = errors.New("attribute not found")
 // instance. It returns errAttrNotFound is such a metadata attributed does not
 // exist.
 func (d *Deployer) getInstanceAttribute(attr string) (string, error) {
-	s, err := compute.New(d.Client)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	s, err := compute.NewService(ctx, option.WithHTTPClient(d.Client))
 	if err != nil {
 		return "", fmt.Errorf("error getting compute service: %v", err)
 	}
@@ -482,8 +485,8 @@ func (d *Deployer) Create(ctx context.Context) (*compute.Instance, error) {
 		return nil, err
 	}
 
-	computeService, _ := compute.New(d.Client)
-	storageService, _ := storage.New(d.Client)
+	computeService, _ := compute.NewService(ctx, option.WithHTTPClient(d.Client))
+	storageService, _ := storage.NewService(ctx, option.WithHTTPClient(d.Client))
 
 	fwc := make(chan error, 1)
 	go func() {

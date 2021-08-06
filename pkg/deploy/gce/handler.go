@@ -51,6 +51,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/api/option"
 )
 
 const cookieExpiration = 24 * time.Hour
@@ -149,11 +150,11 @@ func NewDeployHandlerFromConfig(host, prefix string, cfg *Config) (*DeployHandle
 func NewDeployHandler(host, prefix string) (*DeployHandler, error) {
 	clientID := os.Getenv("CAMLI_GCE_CLIENTID")
 	if clientID == "" {
-		return nil, errors.New("Need an oauth2 client ID defined in CAMLI_GCE_CLIENTID")
+		return nil, errors.New("need an oauth2 client ID defined in CAMLI_GCE_CLIENTID")
 	}
 	clientSecret := os.Getenv("CAMLI_GCE_CLIENTSECRET")
 	if clientSecret == "" {
-		return nil, errors.New("Need an oauth2 client secret defined in CAMLI_GCE_CLIENTSECRET")
+		return nil, errors.New("need an oauth2 client secret defined in CAMLI_GCE_CLIENTSECRET")
 	}
 	tpl, err := template.New("root").Parse(noTheme + tplHTML())
 	if err != nil {
@@ -169,7 +170,7 @@ func NewDeployHandler(host, prefix string) (*DeployHandler, error) {
 	}
 	instConf, instState, err := dataStores()
 	if err != nil {
-		return nil, fmt.Errorf("could not initialize conf or state storage: %v", err)
+		return nil, fmt.Errorf("could not initialize conf or state storage: %w", err)
 	}
 	h := &DeployHandler{
 		host:           host,
@@ -314,7 +315,9 @@ func (h *DeployHandler) refreshZones() error {
 		}
 		return err
 	}
-	s, err := compute.New(hc)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	s, err := compute.NewService(ctx, option.WithHTTPClient(hc))
 	if err != nil {
 		return err
 	}
@@ -405,7 +408,6 @@ func (h *DeployHandler) serveSetup(w http.ResponseWriter, r *http.Request) {
 	state := fmt.Sprintf("%s:%x", br.String(), xsrfToken)
 	redirectURL := h.oAuthConfig().AuthCodeURL(state)
 	http.Redirect(w, r, redirectURL, http.StatusFound)
-	return
 }
 
 func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
@@ -421,7 +423,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	code := r.FormValue("code")
 	if code == "" {
-		h.serveError(w, r, errors.New("No oauth code parameter in callback URL"))
+		h.serveError(w, r, errors.New("no oauth code parameter in callback URL"))
 		return
 	}
 	h.logger.Printf("successful authentication: %v", r.URL.RawQuery)
@@ -432,7 +434,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !xsrftoken.Valid(tk, h.xsrfKey, ck.Value, br.String()) {
-		h.serveError(w, r, fmt.Errorf("Invalid xsrf token: %q", tk))
+		h.serveError(w, r, fmt.Errorf("invalid xsrf token: %q", tk))
 		return
 	}
 
@@ -541,7 +543,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 			if time.Now().After(giveupTime) {
 				h.logger.Printf("Giving up on getting camlistore-hostname of instance")
 				state.Success = false
-				state.Err = fmt.Sprintf("could not get camlistore-hostname of instance")
+				state.Err = "could not get camlistore-hostname of instance"
 				break
 			}
 			time.Sleep(pause)
@@ -577,7 +579,7 @@ func (h *DeployHandler) serveOldInstance(w http.ResponseWriter, br blob.Ref, dep
 		Exists:   true,
 	}); err != nil {
 		h.logger.Printf("Could not record creation state for %v: %v", br, err)
-		h.serveErrorPage(w, fmt.Errorf("An error occurred while recording the state of your instance. %v", fileIssue(br.String())))
+		h.serveErrorPage(w, fmt.Errorf("an error occurred while recording the state of your instance. %v", fileIssue(br.String())))
 		return true
 	}
 	h.serveProgress(w, br)
@@ -612,7 +614,7 @@ func fileIssue(br string) string {
 func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if r.Method != "GET" {
-		h.serveError(w, r, fmt.Errorf("Wrong method: %v", r.Method))
+		h.serveError(w, r, fmt.Errorf("wrong method: %v", r.Method))
 		return
 	}
 	br := r.URL.Query().Get("instancekey")
@@ -654,7 +656,7 @@ func (h *DeployHandler) serveInstanceState(w http.ResponseWriter, r *http.Reques
 	defer h.recordStateErrMu.RUnlock()
 	if _, ok := h.recordStateErr[br]; ok {
 		// No need to log that error here since we're already doing it in serveCallback
-		h.serveErrorPage(w, fmt.Errorf("An error occurred while recording the state of your instance. %v", fileIssue(br)))
+		h.serveErrorPage(w, fmt.Errorf("an error occurred while recording the state of your instance. %v", fileIssue(br)))
 		return
 	}
 	fmt.Fprintf(w, "running")
@@ -741,15 +743,15 @@ func (h *DeployHandler) confFromForm(r *http.Request) (*InstanceConf, error) {
 	}
 	isFreeTier, err := strconv.ParseBool(formValueOrDefault(r, "freetier", "false"))
 	if err != nil {
-		return nil, fmt.Errorf("could not convert \"freetier\" value to bool: %v", err)
+		return nil, fmt.Errorf("could not convert \"freetier\" value to bool: %w", err)
 	}
 	machine := formValueOrDefault(r, "machine", DefaultMachineType)
 	if isFreeTier {
 		if !strings.HasPrefix(zone, "us-") {
-			return nil, fmt.Errorf("The %v zone was selected, but the Google Cloud Free Tier is only available for US zones", zone)
+			return nil, fmt.Errorf("the %v zone was selected, but the Google Cloud Free Tier is only available for US zones", zone)
 		}
 		if machine != "f1-micro" {
-			return nil, fmt.Errorf("The %v machine type was selected, but the Google Cloud Free Tier is only available for f1-micro", machine)
+			return nil, fmt.Errorf("the %v machine type was selected, but the Google Cloud Free Tier is only available for f1-micro", machine)
 		}
 	}
 	return &InstanceConf{
@@ -799,15 +801,15 @@ func (h *DeployHandler) oAuthConfig() *oauth2.Config {
 func fromState(r *http.Request) (br blob.Ref, xsrfToken string, err error) {
 	params := strings.Split(r.FormValue("state"), ":")
 	if len(params) != 2 {
-		return br, "", fmt.Errorf("Invalid format for state parameter: %q, wanted blobRef:xsrfToken", r.FormValue("state"))
+		return br, "", fmt.Errorf("invalid format for state parameter: %q, wanted blobRef:xsrfToken", r.FormValue("state"))
 	}
 	br, ok := blob.Parse(params[0])
 	if !ok {
-		return br, "", fmt.Errorf("Invalid blobRef in state parameter: %q", params[0])
+		return br, "", fmt.Errorf("invalid blobRef in state parameter: %q", params[0])
 	}
 	token, err := hex.DecodeString(params[1])
 	if err != nil {
-		return br, "", fmt.Errorf("can't decode hex xsrftoken %q: %v", params[1], err)
+		return br, "", fmt.Errorf("can't decode hex xsrftoken %q: %w", params[1], err)
 	}
 	return br, string(token), nil
 }
@@ -815,12 +817,12 @@ func fromState(r *http.Request) (br blob.Ref, xsrfToken string, err error) {
 func (h *DeployHandler) storeInstanceConf(ctx context.Context, conf *InstanceConf) (blob.Ref, error) {
 	contents, err := json.Marshal(conf)
 	if err != nil {
-		return blob.Ref{}, fmt.Errorf("could not json encode instance config: %v", err)
+		return blob.Ref{}, fmt.Errorf("could not json encode instance config: %w", err)
 	}
 	hash := blob.NewHash()
 	_, err = io.Copy(hash, bytes.NewReader(contents))
 	if err != nil {
-		return blob.Ref{}, fmt.Errorf("could not hash blob contents: %v", err)
+		return blob.Ref{}, fmt.Errorf("could not hash blob contents: %w", err)
 	}
 	br := blob.RefFromHash(hash)
 	if _, err := blobserver.Receive(ctx, h.instConf, br, bytes.NewReader(contents)); err != nil {
@@ -954,10 +956,6 @@ type TemplateData struct {
 	GoImportDomain   string
 	GoImportUpstream string
 }
-
-const toHyperlink = `<a href="$1$3">$1$3</a>`
-
-var googURLPattern = regexp.MustCompile(`(https://([a-zA-Z0-9\-\.]+)?\.google.com)([a-zA-Z0-9\-\_/]+)?`)
 
 // empty definitions for "banner", "toplinks", and "footer" to avoid error on
 // ExecuteTemplate when the definitions have not been added with AddTemplateTheme.
@@ -1309,7 +1307,9 @@ and visit both the "Compute Engine" and "Storage" sections for your project.
 
 // TODO(bradfitz,mpl): move this to go4.org/cloud/google/gceutil
 func ZonesOfRegion(hc *http.Client, project, region string) (zones []string, err error) {
-	s, err := compute.New(hc)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	s, err := compute.NewService(ctx, option.WithHTTPClient(hc))
 	if err != nil {
 		return nil, err
 	}
