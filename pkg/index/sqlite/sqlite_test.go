@@ -1,3 +1,4 @@
+//go:build with_sqlite
 // +build with_sqlite
 
 /*
