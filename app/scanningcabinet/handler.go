@@ -469,7 +469,7 @@ func (h *handler) handleMakedoc(w http.ResponseWriter, r *http.Request) {
 		r.ParseMultipartForm(1)
 	}
 	refs := r.Form["blobref"]
-	var pages []blob.Ref
+	pages := make([]blob.Ref, 0, len(refs))
 	for _, ref := range refs {
 		br, ok := blob.Parse(ref)
 		if !ok {
@@ -529,7 +529,7 @@ func (h *handler) handleDoc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var pages []mediaObject
+	pages := make([]mediaObject, 0, len(document.pages))
 	for _, v := range document.pages {
 		// TODO(mpl): group fetch ?
 		page, err := h.fetchScan(v)
