@@ -118,15 +118,8 @@ var (
 )
 
 var fmap = template.FuncMap{
-	//	"":        textFmt,  // Used to work in Go 1.5
 	"html":    htmlFmt,
 	"htmlesc": htmlEscFmt,
-}
-
-// Template formatter for "" (default) format.
-func textFmt(w io.Writer, format string, x ...interface{}) string {
-	writeAny(w, false, x[0])
-	return ""
 }
 
 // Template formatter for "html" format.
@@ -549,7 +542,7 @@ var cloudLauncherEnabled = false
 // camlistore server config dir.
 func gceDeployHandler(prefix string) (*gce.DeployHandler, error) {
 	if !cloudLauncherEnabled {
-		return nil, errors.New("The Perkeep Cloud Launcher is no longer available.")
+		return nil, errors.New("the Perkeep Cloud Launcher is no longer available")
 	}
 	var hostPort string
 	var err error
@@ -753,7 +746,7 @@ func sendStartingEmail() {
 	if *mailgunCfgFile == "" {
 		return
 	}
-	contentRev, err := exec.Command("docker", "run",
+	contentRev, _ := exec.Command("docker", "run",
 		"--rm",
 		"-v", "/var/camweb:/var/camweb",
 		"-w", prodSrcDir,
@@ -837,7 +830,7 @@ func initStaging() error {
 	}
 	instName, err := metadata.InstanceName()
 	if err != nil {
-		return fmt.Errorf("Instance could not get its Instance Name: %v", err)
+		return fmt.Errorf("instance could not get its Instance Name: %v", err)
 	}
 	if instName == stagingInstName {
 		launchConfig.Name = stagingInstName
@@ -1091,7 +1084,7 @@ func fromGCS(filename string) ([]byte, error) {
 	slurp := func(key string) ([]byte, error) {
 		rc, err := sc.Bucket(prodBucket).Object(key).NewReader(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("Error fetching GCS object %q in bucket %q: %v", key, prodBucket, err)
+			return nil, fmt.Errorf("error fetching GCS object %q in bucket %q: %v", key, prodBucket, err)
 		}
 		defer rc.Close()
 		return ioutil.ReadAll(rc)
@@ -1191,7 +1184,7 @@ func ipHandler(w http.ResponseWriter, r *http.Request) {
 var startTime = time.Now()
 
 func uptimeHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "%v", time.Now().Sub(startTime))
+	fmt.Fprintf(w, "%v", time.Since(startTime))
 }
 
 const (

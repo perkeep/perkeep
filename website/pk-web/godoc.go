@@ -222,8 +222,7 @@ func srcLinkFunc(s string) string {
 }
 
 func (pi *PageInfo) populateDirs(diskPath string, depth int) {
-	var dir *Directory
-	dir = newDirectory(diskPath, depth)
+	dir := newDirectory(diskPath, depth)
 	pi.Dirs = dir.listing(true)
 	pi.DirTime = time.Now()
 }
