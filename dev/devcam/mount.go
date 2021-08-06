@@ -89,7 +89,7 @@ func (c *mountCmd) RunCommand(args []string) error {
 	}
 	if !*noBuild {
 		if err := build(filepath.Join("cmd", "pk-mount")); err != nil {
-			return fmt.Errorf("Could not build pk-mount: %v", err)
+			return fmt.Errorf("could not build pk-mount: %w", err)
 		}
 	}
 	c.env.SetCamdevVars(c.altkey)
@@ -101,7 +101,7 @@ func (c *mountCmd) RunCommand(args []string) error {
 
 	tryUnmount(mountpoint)
 	if err := os.Mkdir(mountpoint, 0700); err != nil && !os.IsExist(err) {
-		return fmt.Errorf("Could not make mount point: %v", err)
+		return fmt.Errorf("could not make mount point: %w", err)
 	}
 
 	blobserver := "http://localhost:" + c.port + c.path
@@ -125,7 +125,7 @@ func (c *mountCmd) RunCommand(args []string) error {
 
 func (c *mountCmd) checkFlags(args []string) error {
 	if _, err := strconv.ParseInt(c.port, 0, 0); err != nil {
-		return fmt.Errorf("Invalid -port value: %q", c.port)
+		return fmt.Errorf("invalid -port value: %q", c.port)
 	}
 	return nil
 }

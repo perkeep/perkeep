@@ -76,7 +76,7 @@ func (c *getCmd) RunCommand(args []string) error {
 	}
 	if !*noBuild {
 		if err := build(filepath.Join("cmd", "pk-get")); err != nil {
-			return fmt.Errorf("Could not build pk-get: %v", err)
+			return fmt.Errorf("could not build pk-get: %w", err)
 		}
 	}
 	c.env.SetCamdevVars(c.altkey)
@@ -106,7 +106,7 @@ func (c *getCmd) RunCommand(args []string) error {
 
 func (c *getCmd) checkFlags(args []string) error {
 	if _, err := strconv.ParseInt(c.port, 0, 0); err != nil {
-		return fmt.Errorf("Invalid -port value: %q", c.port)
+		return fmt.Errorf("invalid -port value: %q", c.port)
 	}
 	return nil
 }
