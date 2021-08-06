@@ -83,12 +83,12 @@ func IsLocalhost(req *http.Request) bool {
 func BasicAuth(req *http.Request) (username, password string, err error) {
 	auth := req.Header.Get("Authorization")
 	if auth == "" {
-		err = fmt.Errorf("Missing \"Authorization\" in header")
+		err = fmt.Errorf("missing \"Authorization\" in header")
 		return
 	}
 	matches := basicAuthPattern.FindStringSubmatch(auth)
 	if len(matches) != 2 {
-		err = fmt.Errorf("Bogus Authorization header")
+		err = fmt.Errorf("bogus Authorization header")
 		return
 	}
 	encoded := matches[1]
