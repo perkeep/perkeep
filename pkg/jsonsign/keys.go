@@ -124,16 +124,33 @@ func EntityFromSecring(keyID, keyFile string) (*openpgp.Entity, error) {
 
 var newlineBytes = []byte("\n")
 
+// ArmoredPublicKey serializes an entity and its identities.
 func ArmoredPublicKey(entity *openpgp.Entity) (string, error) {
 	var buf bytes.Buffer
 	wc, err := armor.Encode(&buf, openpgp.PublicKeyType, nil)
 	if err != nil {
 		return "", err
 	}
-	err = entity.PrivateKey.PublicKey.Serialize(wc)
+	err = entity.PrimaryKey.Serialize(wc)
 	if err != nil {
 		return "", err
 	}
+
+	// We used not to include UIDs. However, keys in that format
+	// are not compatible with GNUPG. Making the key smaller is not
+	// worth it compared with the compatibility issues this could cause.
+	// See: https://github.com/perkeep/perkeep/issues/1562
+	for _, ident := range entity.Identities {
+		err = ident.UserId.Serialize(wc)
+		if err != nil {
+			return "", err
+		}
+		err = ident.SelfSignature.Serialize(wc)
+		if err != nil {
+			return "", err
+		}
+	}
+
 	wc.Close()
 	if !bytes.HasSuffix(buf.Bytes(), newlineBytes) {
 		buf.WriteString("\n")
