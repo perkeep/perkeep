@@ -115,14 +115,6 @@ func (b *Blob) IsUTF8(ctx context.Context) (bool, error) {
 	return utf8.Valid(mem), nil
 }
 
-// A reader reads a blob's contents.
-// It adds a no-op Close method to a *bytes.Reader.
-type reader struct {
-	*bytes.Reader
-}
-
-func (reader) Close() error { return nil }
-
 // FromFetcher fetches br from fetcher and slurps its contents to
 // memory. It does not validate the blob's digest.  Use the
 // Blob.ValidContents method for that.

@@ -94,7 +94,6 @@ type handler struct {
 	sh        search.QueryDescriber
 	// TODO(mpl): later we should have an uploader interface instead. implemented by *client.Client like sh, but they wouldn't have to be the same in theory. right now they actually are.
 	cl *client.Client
-	ih *camliserver.ImageHandler
 
 	signer blob.Ref
 	server string

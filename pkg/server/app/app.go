@@ -55,7 +55,6 @@ type Handler struct {
 
 	auth      auth.AuthMode   // Used for basic HTTP authenticating against the app requests.
 	appConfig jsonconfig.Obj  // Additional parameters the app can request, or nil.
-	hasSearch bool            // Determines whether sh should be setup during InitHandler.
 	sh        *search.Handler // or nil, if !hasSearch.
 
 	masterQueryMu sync.RWMutex // guards two following fields

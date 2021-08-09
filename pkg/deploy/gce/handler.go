@@ -955,10 +955,6 @@ type TemplateData struct {
 	GoImportUpstream string
 }
 
-const toHyperlink = `<a href="$1$3">$1$3</a>`
-
-var googURLPattern = regexp.MustCompile(`(https://([a-zA-Z0-9\-\.]+)?\.google.com)([a-zA-Z0-9\-\_/]+)?`)
-
 // empty definitions for "banner", "toplinks", and "footer" to avoid error on
 // ExecuteTemplate when the definitions have not been added with AddTemplateTheme.
 var noTheme = `

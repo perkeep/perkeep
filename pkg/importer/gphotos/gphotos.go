@@ -280,8 +280,6 @@ type run struct {
 	dl           *downloader
 }
 
-var forceFullImport, _ = strconv.ParseBool(os.Getenv("CAMLI_GPHOTOS_FULL_IMPORT"))
-
 func (imp) Run(rctx *importer.RunContext) error {
 	clientID, secret, err := rctx.Credentials()
 	if err != nil {

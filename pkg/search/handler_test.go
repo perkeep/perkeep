@@ -43,12 +43,6 @@ import (
 	"perkeep.org/pkg/test"
 )
 
-// An indexOwnerer is something that knows who owns the index.
-// It is implemented by indexAndOwner for use by TestHandler.
-type indexOwnerer interface {
-	IndexOwner() blob.Ref
-}
-
 type indexAndOwner struct {
 	index *index.Index
 	owner blob.Ref

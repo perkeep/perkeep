@@ -114,10 +114,6 @@ type InstanceConf struct {
 	WIP bool // Whether to use the perkeepd-WORKINPROGRESS.tar.gz tarball instead of the "production" one
 }
 
-func (conf *InstanceConf) bucketBase() string {
-	return conf.Project + "-camlistore"
-}
-
 // Deployer creates and starts an instance such as defined in Conf.
 type Deployer struct {
 	// Client is an OAuth2 client, authenticated for working with
@@ -125,10 +121,6 @@ type Deployer struct {
 	Client *http.Client
 
 	Conf *InstanceConf
-
-	// SHA-1 and SHA-256 fingerprints of the HTTPS certificate created during setupHTTPS, if any.
-	// Keyed by hash name: "SHA-1", and "SHA-256".
-	certFingerprints map[string]string
 
 	*log.Logger // Cannot be nil.
 }

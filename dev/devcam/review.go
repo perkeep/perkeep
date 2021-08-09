@@ -34,7 +34,6 @@ import (
 var (
 	defaultHook = filepath.FromSlash("misc/commit-msg.githook")
 	hookFile    = filepath.FromSlash(".git/hooks/commit-msg")
-	configFile  = filepath.FromSlash(".git/config")
 )
 
 type reviewCmd struct {

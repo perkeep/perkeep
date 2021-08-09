@@ -139,35 +139,6 @@ func (w *World) Build() error {
 	return nil
 }
 
-func goPathBinDir() (string, error) {
-	cmd := exec.Command("go", "env", "GOPATH")
-	out, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("could not get GOPATH: %v, %s", err, out)
-	}
-	paths := filepath.SplitList(strings.TrimSpace(string(out)))
-	if len(paths) < 1 {
-		return "", errors.New("no GOPATH")
-	}
-	return filepath.Join(paths[0], "bin"), nil
-}
-
-func lookPathGopath(binName string) (string, error) {
-	binPath, err := exec.LookPath(binName)
-	if err == nil {
-		return binPath, nil
-	}
-	binDir, err := goPathBinDir()
-	if err != nil {
-		return "", fmt.Errorf("binary %q not found in $PATH, and could not look in $GOPATH/bin because %v", binName, err)
-	}
-	binPath = filepath.Join(binDir, binName)
-	if _, err := os.Stat(binPath); err != nil {
-		return "", err
-	}
-	return binPath, nil
-}
-
 // Help outputs the help of perkeepd from the World.
 func (w *World) Help() ([]byte, error) {
 	if err := w.Build(); err != nil {

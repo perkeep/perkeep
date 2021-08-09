@@ -123,12 +123,6 @@ var fmap = template.FuncMap{
 	"htmlesc": htmlEscFmt,
 }
 
-// Template formatter for "" (default) format.
-func textFmt(w io.Writer, format string, x ...interface{}) string {
-	writeAny(w, false, x[0])
-	return ""
-}
-
 // Template formatter for "html" format.
 func htmlFmt(w io.Writer, format string, x ...interface{}) string {
 	writeAny(w, true, x[0])
