@@ -237,8 +237,7 @@ func TestBlobFromReader(t *testing.T) {
 		t.Errorf("got type %q; want foo", blob.Type())
 	}
 
-	blob, err = BlobFromReader(br, strings.NewReader(`{"camliVersion": 1, "camliType": "foo"}  X  `))
-	if err == nil {
+	if _, err = BlobFromReader(br, strings.NewReader(`{"camliVersion": 1, "camliType": "foo"}  X  `)); err == nil {
 		// TODO(bradfitz): fix this somehow. Currently encoding/json's
 		// decoder over-reads.
 		// See: https://code.google.com/p/go/issues/detail?id=1955 ,

@@ -107,6 +107,12 @@ func TestS3WriteFiles(t *testing.T) {
 	}
 	defer dir.Close()
 	names, err := dir.Readdirnames(-1)
+	if err != nil {
+		if len(names) == 0 {
+			t.Fatal(err)
+		}
+		t.Log("read", dir.Name(), err)
+	}
 	for _, name := range names {
 		f, err := os.Open(filepath.Join(*flagTestData, name))
 		if err != nil {

@@ -193,5 +193,5 @@ func (dr *DirReader) Readdir(ctx context.Context, n int) (entries []DirectoryEnt
 		}
 		entries = append(entries, res.ent)
 	}
-	return entries, nil
+	return entries, err
 }

@@ -1,5 +1,5 @@
-//+build linux darwin netbsd freebsd openbsd
-//+build !appengine
+// +build linux darwin netbsd freebsd openbsd
+// +build !appengine
 
 package schema
 

@@ -45,4 +45,4 @@ jobs:
         # Target of staticcheck
         #target: # optional, default is ./...
         # staticcheck flags
-        staticcheck_flags: '-checks=U1000,S1012,S1024'
+        staticcheck_flags: '-checks=U1000,S1012,S1024,SA4006'

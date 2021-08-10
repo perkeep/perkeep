@@ -754,6 +754,10 @@ func sendStartingEmail() {
 		"camlistore/git",
 		"/bin/bash", "-c",
 		"git show --pretty=format:'%ad-%h' --abbrev-commit --date=short | head -1").Output()
+	if err != nil {
+		log.Printf("Failed to start docker camlistore/git: %v", err)
+		return
+	}
 
 	cfg, err := mailgunCfgFromGCS()
 	if err != nil {

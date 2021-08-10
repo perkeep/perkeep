@@ -1,5 +1,4 @@
-//+build darwin
-//+build !appengine
+// +build darwin,!appengine
 
 package schema
 

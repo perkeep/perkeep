@@ -100,7 +100,9 @@ func newJSONSignFromConfig(ld blobserver.Loader, conf jsonconfig.Obj) (http.Hand
 		return nil, err
 	}
 
-	h.pubKey, err = jsonsign.ArmoredPublicKey(h.entity)
+	if h.pubKey, err = jsonsign.ArmoredPublicKey(h.entity); err != nil {
+		return nil, err
+	}
 
 	ctx := context.Background() // TODO: 15 second or global-configurable start-up limit?
 

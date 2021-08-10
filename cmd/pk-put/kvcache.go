@@ -181,6 +181,9 @@ func (c *KvStatCache) CachedPutResult(pwd, filename string, fi os.FileInfo, with
 		Permanode: withPermanode,
 	}
 	binKey, err := cacheKey.marshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("marshal %v: %w", cacheKey, err)
+	}
 	binVal, err := c.db.Get(binKey, nil)
 	if err != nil {
 		if err == leveldb.ErrNotFound {

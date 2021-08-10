@@ -40,10 +40,7 @@ func ParseFields(v []byte, dst ...interface{}) error {
 		}
 		switch dv := dv.(type) {
 		case *blob.Ref:
-			br, ok := blob.ParseBytes(thisv)
-			if !ok {
-
-			}
+			br, _ := blob.ParseBytes(thisv)
 			*dv = br
 		case *uint32:
 			n, err := strutil.ParseUintBytes(thisv, 10, 32)

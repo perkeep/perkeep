@@ -1,5 +1,4 @@
-//+build linux
-//+build !appengine
+// +build linux,!appengine
 
 package schema
 
