@@ -96,12 +96,10 @@ func NewSigner(pubKeyRef blob.Ref, armoredPubKey io.Reader, privateKeySource int
 					return uint32(len(armoredPubKeyString)), ioutil.NopCloser(strings.NewReader(armoredPubKeyString))
 				},
 			},
-			EntityFetcher: entityFetcherFunc(func(wantKeyId string) (*openpgp.Entity, error) {
-				if fingerprint != wantKeyId &&
-					privateKey.PrivateKey.KeyIdString() != wantKeyId &&
-					privateKey.PrivateKey.KeyIdShortString() != wantKeyId {
-					return nil, fmt.Errorf("jsonsign code unexpectedly requested keyID %q; only have %q",
-						wantKeyId, fingerprint)
+			EntityFetcher: entityFetcherFunc(func(wantFingerprint string) (*openpgp.Entity, error) {
+				if fingerprint != wantFingerprint {
+					return nil, fmt.Errorf("jsonsign code unexpectedly requested fingerprint %q; only have %q",
+						wantFingerprint, fingerprint)
 				}
 				return privateKey, nil
 			}),
