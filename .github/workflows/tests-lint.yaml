@@ -25,24 +25,17 @@ jobs:
       run: |
         mkdir $(go env GOPATH)/src
         ln -s $(pwd) $(go env GOPATH)/src/perkeep.org
+
     - name: Check for fmt compliance
       run: |
         go fmt ./...
         test -z "$(git status --porcelain)"
-        go vet ./...
-        go run dev/envvardoc/envvardoc.go
 
-    - name: Run staticcheck with reviewdog
-      # You may pin to the exact commit or the version.
-      # uses: reviewdog/action-staticcheck@ebb262679ca6a0ab7b43ea94dbcbbc98ae077940
-      uses: reviewdog/action-staticcheck@v1.7.0
-      with:
-        # Reporter of reviewdog command [github-check,github-pr-review].
-        #reporter: # optional, default is github-pr-review
-        #filter_mode: # optional, default is added
-        #fail_on_error: # optional, default is false
-        # Additional reviewdog flags
-        # Target of staticcheck
-        #target: # optional, default is ./...
-        # staticcheck flags
-        staticcheck_flags: '-checks=U1000'  # only unused (yet)
+    - name: Go vet
+      run: go vet ./...
+
+    - name: Run staticcheck
+      run: go run honnef.co/go/tools/cmd/staticcheck -checks=U1000 ./...
+
+    - name: Check for env vars documentation
+      run: go run dev/envvardoc/envvardoc.go
