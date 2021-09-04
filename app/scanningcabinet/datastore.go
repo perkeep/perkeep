@@ -33,12 +33,6 @@ import (
 	"perkeep.org/pkg/search"
 )
 
-const (
-	mediaObjectKind = "MediaObject"
-	userInfoKind    = "UserInfo"
-	documentKind    = "Document"
-)
-
 func (h *handler) searchScans(limit int) (*search.SearchResult, error) {
 	q := &search.SearchQuery{
 		Limit: limit,

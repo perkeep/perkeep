@@ -150,13 +150,6 @@ func (c *Client) responseJSONMap(requestName string, resp *http.Response) (map[s
 	return jmap, nil
 }
 
-// statReq is a request to stat a blob.
-type statReq struct {
-	br   blob.Ref
-	dest chan<- blob.SizedRef // written to on success
-	errc chan<- error         // written to on both failure and success (after any dest)
-}
-
 func (c *Client) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.SizedRef) error) error {
 	if c.sto != nil {
 		return c.sto.StatBlobs(ctx, blobs, fn)

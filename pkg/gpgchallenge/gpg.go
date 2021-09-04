@@ -737,20 +737,6 @@ func (cl *Client) getToken(serverAddr string) (string, error) {
 	return token, nil
 }
 
-func (cl *Client) signToken(token string) (string, error) {
-	var buf bytes.Buffer
-	if err := openpgp.ArmoredDetachSign(
-		&buf,
-		cl.signer,
-		strings.NewReader(token),
-		nil,
-	); err != nil {
-		return "", err
-	}
-	return buf.String(), nil
-
-}
-
 func (cl *Client) sendClaim(server, token string) error {
 	pubkey, err := armorPubKey(cl.keyRing, cl.keyId)
 	if err != nil {

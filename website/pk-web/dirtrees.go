@@ -7,7 +7,7 @@
 package main
 
 import (
-	"bytes"
+
 	//	"fmt"
 	"go/doc"
 	"go/parser"
@@ -195,20 +195,6 @@ func newDirectory(root string, maxDepth int) *Directory {
 	return b.newDirTree(token.NewFileSet(), root, d.Name(), 0)
 }
 
-func (dir *Directory) writeLeafs(buf *bytes.Buffer) {
-	if dir != nil {
-		if len(dir.Dirs) == 0 {
-			buf.WriteString(dir.Path)
-			buf.WriteByte('\n')
-			return
-		}
-
-		for _, d := range dir.Dirs {
-			d.writeLeafs(buf)
-		}
-	}
-}
-
 func (dir *Directory) walk(c chan<- *Directory, skipRoot bool) {
 	if dir != nil {
 		if !skipRoot {
@@ -227,43 +213,6 @@ func (dir *Directory) iter(skipRoot bool) <-chan *Directory {
 		close(c)
 	}()
 	return c
-}
-
-func (dir *Directory) lookupLocal(name string) *Directory {
-	for _, d := range dir.Dirs {
-		if d.Name == name {
-			return d
-		}
-	}
-	return nil
-}
-
-func splitPath(p string) []string {
-	if strings.HasPrefix(p, "/") {
-		p = p[1:]
-	}
-	if p == "" {
-		return nil
-	}
-	return strings.Split(p, "/")
-}
-
-// lookup looks for the *Directory for a given path, relative to dir.
-func (dir *Directory) lookup(path string) *Directory {
-	d := splitPath(dir.Path)
-	p := splitPath(path)
-	i := 0
-	for i < len(d) {
-		if i >= len(p) || d[i] != p[i] {
-			return nil
-		}
-		i++
-	}
-	for dir != nil && i < len(p) {
-		dir = dir.lookupLocal(p[i])
-		i++
-	}
-	return dir
 }
 
 // DirEntry describes a directory entry. The Depth and Height values

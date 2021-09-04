@@ -231,14 +231,6 @@ type roFileVersionsDir struct {
 	xattrs   map[string][]byte
 }
 
-func newROFileVersionsDir(fs *CamliFileSystem, permanode blob.Ref, name string) *roFileVersionsDir {
-	return &roFileVersionsDir{
-		fs:        fs,
-		permanode: permanode,
-		name:      name,
-	}
-}
-
 // for debugging
 func (n *roFileVersionsDir) fullPath() string {
 	if n == nil {
@@ -363,7 +355,6 @@ type roFileVersion struct {
 
 	mu           sync.Mutex // protects all following fields
 	symLink      bool       // if true, is a symlink
-	target       string     // if a symlink
 	content      blob.Ref   // if a regular file
 	size         int64
 	mtime, atime time.Time // if zero, use serverStart
@@ -419,14 +410,6 @@ func (n *roFileVersion) Removexattr(ctx context.Context, req *fuse.RemovexattrRe
 
 func (n *roFileVersion) Setxattr(ctx context.Context, req *fuse.SetxattrRequest) error {
 	return fuse.EPERM
-}
-
-// for debugging
-func (n *roFileVersion) fullPath() string {
-	if n == nil {
-		return ""
-	}
-	return filepath.Join(n.parent.fullPath(), n.name)
 }
 
 func (n *roFileVersion) Attr(ctx context.Context, a *fuse.Attr) error {

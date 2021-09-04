@@ -101,11 +101,6 @@ func testDeleteNotFoundBatch(t *testing.T, kv sorted.KeyValue) {
 	}
 }
 
-func testDeleteNotFound(t *testing.T, kv sorted.KeyValue) {
-	if err := kv.Delete(notExistKey); err != nil {
-		t.Fatalf("Deletion of non existing key returned an error: %v", err)
-	}
-}
 func testDeletePartialNotFoundBatch(t *testing.T, kv sorted.KeyValue) {
 	if err := kv.Set(butIExistKey, "whatever"); err != nil {
 		t.Fatal(err)

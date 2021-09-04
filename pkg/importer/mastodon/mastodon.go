@@ -245,7 +245,6 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 
 type run struct {
 	*importer.RunContext
-	im *imp
 
 	incremental bool // true if importing only part
 	cl          *mastodon.Client
