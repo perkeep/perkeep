@@ -65,6 +65,7 @@ require (
 	gopkg.in/ini.v1 v1.51.0 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20160818020120-3f83fa500528
 	honnef.co/go/js/dom v0.0.0-20200509013220-d4405f7ab4d8
+	honnef.co/go/tools v0.2.1
 	myitcv.io v0.0.0-20201125173645-a7167afc9e13
 	rsc.io/pdf v0.1.1
 	rsc.io/qr v0.2.0
