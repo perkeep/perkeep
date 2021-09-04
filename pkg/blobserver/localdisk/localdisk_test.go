@@ -142,11 +142,6 @@ func TestMissingGetReturnsNoEnt(t *testing.T) {
 	}
 }
 
-type file struct {
-	name     string
-	contents string
-}
-
 func TestLocaldisk(t *testing.T) {
 	storagetest.Test(t, func(t *testing.T) (blobserver.Storage, func()) {
 		ds := NewStorage(t)

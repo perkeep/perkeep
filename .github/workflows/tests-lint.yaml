@@ -25,9 +25,17 @@ jobs:
       run: |
         mkdir $(go env GOPATH)/src
         ln -s $(pwd) $(go env GOPATH)/src/perkeep.org
+
     - name: Check for fmt compliance
       run: |
         go fmt ./...
         test -z "$(git status --porcelain)"
-        go vet ./...
-        go run dev/envvardoc/envvardoc.go
+
+    - name: Go vet
+      run: go vet ./...
+
+    - name: Run staticcheck
+      run: go run honnef.co/go/tools/cmd/staticcheck -checks=U1000
+
+    - name: Check for env vars documentation
+      run: go run dev/envvardoc/envvardoc.go

@@ -22,8 +22,6 @@ import (
 	"testing"
 )
 
-var tc *Client
-
 func TestParseContainers(t *testing.T) {
 	res := `<?xml version="1.0" encoding="utf-8"?>
 <EnumerationResults ServiceEndpoint="https://myaccount.blob.core.windows.net/">

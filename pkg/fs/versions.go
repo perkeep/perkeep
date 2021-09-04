@@ -46,10 +46,8 @@ type versionsDir struct {
 
 	mu        sync.Mutex
 	lastQuery time.Time
-	ents      map[string]*search.DescribedBlob // filename to blob meta
-	modTime   map[string]time.Time             // filename to permanode modtime
-	m         map[string]blob.Ref              // ent name => permanode
-	children  map[string]fs.Node               // ent name => child node
+	m         map[string]blob.Ref // ent name => permanode
+	children  map[string]fs.Node  // ent name => child node
 }
 
 func (n *versionsDir) isRO() bool {

@@ -121,9 +121,6 @@ type Client struct {
 	ignoredFiles  []string
 	ignoreChecker func(path string) bool
 
-	pendStatMu sync.Mutex             // guards pendStat
-	pendStat   map[blob.Ref][]statReq // blobref -> reqs; for next batch(es)
-
 	initSignerPublicKeyBlobrefOnce sync.Once
 	signerPublicKeyRef             blob.Ref
 	publicKeyArmored               string

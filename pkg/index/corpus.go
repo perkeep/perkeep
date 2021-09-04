@@ -273,21 +273,6 @@ func (pm *PermanodeMeta) appendAttrClaim(cl *camtypes.Claim, signers signerFromB
 	return nil
 }
 
-// signerID returns the GPG ID (e.g. 2931A67C26F5ABDA) corresponding to the
-// signer. It returns the empty value if signer is not a valid blob Ref, and the
-// unusable value "unknown GPG key" when it applies, as a convenience to help
-// with the different cases covered by valuesAtSigner.
-func (c *Corpus) signerID(signer blob.Ref) string {
-	if !signer.Valid() {
-		return ""
-	}
-	id, ok := c.keyId[signer]
-	if !ok {
-		return "unknown GPG key"
-	}
-	return id
-}
-
 // valuesAtSigner returns an attrValues to query permanode attr values at the
 // given time for the signerFilter, which is the GPG ID of a signer (e.g. 2931A67C26F5ABDA).
 // It returns (nil, true) if signerFilter is not empty but pm has no

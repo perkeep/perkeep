@@ -38,8 +38,6 @@ var hookFiles = []string{
 	"commit-msg",
 }
 
-var ignoreBelow = []byte("\n# ------------------------ >8 ------------------------\n")
-
 func (c *hookCmd) installHook() error {
 	root, err := repoRoot()
 	if err != nil {
@@ -249,17 +247,6 @@ func nonBlankLines(text string) []string {
 	for _, s := range lines(text) {
 		if strings.TrimSpace(s) != "" {
 			out = append(out, s)
-		}
-	}
-	return out
-}
-
-// filter returns the elements in list satisfying f.
-func filter(f func(string) bool, list []string) []string {
-	var out []string
-	for _, x := range list {
-		if f(x) {
-			out = append(out, x)
 		}
 	}
 	return out

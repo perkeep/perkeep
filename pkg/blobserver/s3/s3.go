@@ -67,8 +67,6 @@ var (
 	faultGet       = fault.NewInjector("s3_get")
 )
 
-const maxParallelHTTP = 5
-
 type s3Storage struct {
 	client s3iface.S3API
 	bucket string

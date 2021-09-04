@@ -827,12 +827,6 @@ func addPathComponent(base, addition string) string {
 	return base + "/-" + addition
 }
 
-const (
-	resSeparator = "/-"
-	digestPrefix = "h"
-	digestLen    = 10
-)
-
 // var hopRE = regexp.MustCompile(fmt.Sprintf("^/%s([0-9a-f]{%d})", digestPrefix, digestLen))
 
 func getFileInfo(item blob.Ref, peers map[string]*search.DescribedBlob) (path []blob.Ref, fi *camtypes.FileInfo, ok bool) {
