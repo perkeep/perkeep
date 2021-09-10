@@ -1185,7 +1185,7 @@ func ipHandler(w http.ResponseWriter, r *http.Request) {
 var startTime = time.Now()
 
 func uptimeHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "%v", time.Now().Sub(startTime))
+	fmt.Fprintf(w, "%v", time.Since(startTime))
 }
 
 const (

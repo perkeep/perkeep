@@ -732,7 +732,7 @@ func (ia *importerAcct) maybeStart() {
 	if ia.lastRunDone.After(time.Now().Add(-duration)) {
 		// Kick off long poller wait if supported.
 		if lp, ok := ia.im.impl.(LongPoller); ok {
-			sleepFor := ia.lastRunDone.Add(duration).Sub(time.Now())
+			sleepFor := time.Until(ia.lastRunDone.Add(duration))
 			sleepCtx, cancel := context.WithTimeout(context.Background(), sleepFor)
 			log.Printf("%v ran recently enough. Sleeping for %v.", ia, sleepFor)
 			timer := time.AfterFunc(sleepFor, ia.maybeStart)
