@@ -178,7 +178,7 @@ func (h *shareHandler) handleGetViaSharing(rw http.ResponseWriter, req *http.Req
 		if !viaPathOkay {
 			// Insert a delay, to hide timing attacks probing
 			// for the existence of blobs.
-			sleep := fetchFailureDelay - (time.Now().Sub(startTime))
+			sleep := fetchFailureDelay - time.Since(startTime)
 			timeSleep(sleep)
 		}
 	}()
