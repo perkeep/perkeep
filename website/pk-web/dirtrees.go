@@ -7,8 +7,6 @@
 package main
 
 import (
-
-	//	"fmt"
 	"go/doc"
 	"go/parser"
 	"go/token"

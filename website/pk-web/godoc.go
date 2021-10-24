@@ -29,6 +29,7 @@ import (
 	"go/printer"
 	"go/token"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -38,6 +39,8 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"perkeep.org/website"
 )
 
 const (
@@ -222,8 +225,7 @@ func srcLinkFunc(s string) string {
 }
 
 func (pi *PageInfo) populateDirs(diskPath string, depth int) {
-	var dir *Directory
-	dir = newDirectory(diskPath, depth)
+	dir := newDirectory(diskPath, depth)
 	pi.Dirs = dir.listing(true)
 	pi.DirTime = time.Now()
 }
@@ -347,14 +349,13 @@ func (p *tconv) Write(data []byte) (n int, err error) {
 }
 
 func readTextTemplate(name string) *template.Template {
-	fileName := filepath.Join(*root, "tmpl", name)
-	data, err := ioutil.ReadFile(fileName)
+	data, err := fs.ReadFile(website.Root, filepath.Join("tmpl", name))
 	if err != nil {
-		log.Fatalf("ReadFile %s: %v", fileName, err)
+		log.Fatalf("readTextTemplate(%q): %v", name, err)
 	}
 	t, err := template.New(name).Funcs(godocFmap).Parse(string(data))
 	if err != nil {
-		log.Fatalf("%s: %v", fileName, err)
+		log.Fatalf("readTextTemplate(%q): %v", name, err)
 	}
 	return t
 }
