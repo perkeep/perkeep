@@ -18,18 +18,13 @@ package main // import "perkeep.org/website/pk-web"
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
-	"crypto/tls"
-	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
+	"io/fs"
 	"log"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -41,69 +36,44 @@ import (
 	txttemplate "text/template"
 	"time"
 
-	"perkeep.org/internal/netutil"
-	"perkeep.org/internal/osutil"
-	"perkeep.org/pkg/buildinfo"
-	"perkeep.org/pkg/deploy/gce"
-	"perkeep.org/pkg/types/camtypes"
-
-	"cloud.google.com/go/compute/metadata"
-	"cloud.google.com/go/datastore"
-	"cloud.google.com/go/logging"
-	"cloud.google.com/go/storage"
-	"github.com/mailgun/mailgun-go"
 	"github.com/russross/blackfriday"
-	"go4.org/cloud/cloudlaunch"
-	"go4.org/writerutil"
-	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/oauth2/google"
-	cloudresourcemanager "google.golang.org/api/cloudresourcemanager/v1"
-	compute "google.golang.org/api/compute/v1"
-	"google.golang.org/api/option"
-	storageapi "google.golang.org/api/storage/v1"
+	"perkeep.org/doc"
+	"perkeep.org/pkg/buildinfo"
+	"perkeep.org/pkg/types/camtypes"
+	"perkeep.org/website"
 )
 
 const (
-	defaultAddr = ":31798"                      // default webserver address
-	prodBucket  = "camlistore-website-resource" // where we store misc resources for the production website
-	prodDomain  = "perkeep.org"
+	prodBucket = "camlistore-website-resource" // where we store misc resources for the production website
+	prodDomain = "perkeep.org"
 )
 
 var h1TitlePattern = regexp.MustCompile(`<h1[^>]*>([^<]+)</h1>`)
 
 var (
-	httpAddr    = flag.String("http", defaultAddr, "HTTP address. If using Let's Encrypt, this server needs to be able to answer the http-01 challenge on port 80.")
-	httpsAddr   = flag.String("https", "", "HTTPS address")
+	httpAddr    = flag.String("http", defaultAddr(), "HTTP address.")
 	root        = flag.String("root", "", "Website root (parent of 'static', 'content', and 'tmpl)")
-	logDir      = flag.String("logdir", "", "Directory to write log files to (one per hour), or empty to not log.")
-	logStdout   = flag.Bool("logstdout", true, "Whether to log to stdout")
-	tlsCertFile = flag.String("tlscert", "", "TLS cert file")
-	tlsKeyFile  = flag.String("tlskey", "", "TLS private key file")
-	alsoRun     = flag.String("also_run", "", "[optiona] Path to run as a child process. (Used to run perkeep.org's ./scripts/run-blob-server)")
-	devMode     = flag.Bool("dev", false, "in dev mode")
-	flagStaging = flag.Bool("staging", false, "Deploy to a test GCE instance. Requires -cloudlaunch=true")
 	flagVersion = flag.Bool("version", false, "show version")
-
-	gceProjectID = flag.String("gce_project_id", "", "GCE project ID; required if not running on GCE and gce_log_name is specified.")
-	gceLogName   = flag.String("gce_log_name", "", "GCE Cloud Logging log name; if non-empty, logs go to Cloud Logging instead of Apache-style local disk log files")
-	gceJWTFile   = flag.String("gce_jwt_file", "", "If non-empty, a filename to the GCE Service Account's JWT (JSON) config file.")
-	gitContainer = flag.Bool("git_container", false, "Use git from the `camlistore/git` Docker container; if false, the system `git` is used.")
-
-	adminEmail = flag.String("email", "", "Address that Let's Encrypt will notify about problems with issued certificates")
 )
 
-const (
-	stagingInstName = "camweb-staging" // name of the GCE instance when testing
-	stagingHostname = "staging.camlistore.net"
-)
+func defaultAddr() string {
+	if inKnative() {
+		return ":" + os.Getenv("PORT")
+	}
+	return ":31798"
+}
+
+func inKnative() bool {
+	// https://cloud.google.com/run/docs/reference/container-contract#env-vars
+	if os.Getenv("K_REVISION") != "" && os.Getenv("K_CONFIGURATION") != "" &&
+		os.Getenv("K_SERVICE") != "" && os.Getenv("PORT") != "" {
+		return true
+	}
+	return false
+}
 
 var (
 	inProd bool
-	// inStaging is whether this instance is the staging server. This should only be true
-	// if inProd is also true - they are not mutually exclusive; staging is still prod -
-	// because we want to test the same code paths as in production. The code then runs
-	// on another GCE instance, and on the stagingHostname host.
-	inStaging bool
 
 	pageHTML, errorHTML, camliErrorHTML *template.Template
 	packageHTML                         *txttemplate.Template
@@ -225,14 +195,13 @@ func servePage(w http.ResponseWriter, r *http.Request, params pageParams) {
 }
 
 func readTemplate(name string) *template.Template {
-	fileName := filepath.Join(*root, "tmpl", name)
-	data, err := ioutil.ReadFile(fileName)
+	data, err := fs.ReadFile(website.Root, filepath.Join("tmpl", name))
 	if err != nil {
-		log.Fatalf("ReadFile %s: %v", fileName, err)
+		log.Fatalf("ReadFile tmpl/%s: %v", name, err)
 	}
 	t, err := template.New(name).Funcs(fmap).Parse(string(data))
 	if err != nil {
-		log.Fatalf("%s: %v", fileName, err)
+		log.Fatalf("tmpl/%s: %v", name, err)
 	}
 	return t
 }
@@ -321,7 +290,13 @@ func mainHandler(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	findAndServeFile(rw, req, filepath.Join(*root, "content"))
+	// TODO(bradfitz): move this/these to globals
+	contentFS, err := fs.Sub(website.Root, "content")
+	if err != nil {
+		http.Error(rw, "bad content root", 500)
+		return
+	}
+	findAndServeFile(rw, req, contentFS)
 }
 
 func docHandler(rw http.ResponseWriter, req *http.Request) {
@@ -330,7 +305,7 @@ func docHandler(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	findAndServeFile(rw, req, filepath.Dir(*root))
+	findAndServeFile(rw, req, doc.Root)
 }
 
 // modtime is the modification time of the resource to be served, or IsZero().
@@ -358,21 +333,28 @@ func checkLastModified(w http.ResponseWriter, r *http.Request, modtime time.Time
 // ".html".  For example, a request for "/foo" may be served by a file named
 // foo, foo.md, or foo.html.  Requests that map to directories may be served by
 // an index.html or README.md file in that directory.
-func findAndServeFile(rw http.ResponseWriter, req *http.Request, root string) {
+func findAndServeFile(rw http.ResponseWriter, req *http.Request, baseFS fs.FS) {
 	relPath := strings.TrimSuffix(req.URL.Path[1:], "/") // serveFile URL paths start with '/'
 	if strings.Contains(relPath, "..") {
 		return
 	}
+	relPath = strings.TrimPrefix(relPath, "doc/")
+	if relPath == "doc" {
+		relPath = ""
+	}
 
 	var (
-		absPath string
-		fi      os.FileInfo
-		err     error
+		fsPath string
+		fi     os.FileInfo
+		err    error
 	)
 
 	for _, ext := range append([]string{""}, fileExtensions...) {
-		absPath = filepath.Join(root, relPath+ext)
-		fi, err = os.Lstat(absPath)
+		fsPath = relPath + ext
+		if fsPath == "" {
+			fsPath = "."
+		}
+		fi, err = fs.Stat(baseFS, fsPath)
 		if err == nil || !os.IsNotExist(err) {
 			break
 		}
@@ -400,45 +382,54 @@ func findAndServeFile(rw http.ResponseWriter, req *http.Request, root string) {
 	// if directory request, try to find an index file
 	if fi.IsDir() {
 		for _, index := range indexFiles {
-			childAbsPath := filepath.Join(root, relPath, index)
-			childFi, err := os.Lstat(childAbsPath)
+			fileRel := strings.TrimPrefix(fsPath+"/"+index, "./")
+			childFi, err := fs.Stat(baseFS, fileRel)
+			if os.IsNotExist(err) {
+				// didn't find this file, try the next
+				continue
+			}
 			if err != nil {
-				if os.IsNotExist(err) {
-					// didn't find this file, try the next
-					continue
-				}
 				log.Print(err)
 				serveError(rw, req, relPath, err)
 				return
 			}
 			fi = childFi
-			absPath = childAbsPath
+			fsPath = fileRel
 			break
 		}
 	}
 
 	if fi.IsDir() {
-		log.Printf("Error serving website content: %q is a directory", absPath)
-		serveError(rw, req, relPath, fmt.Errorf("error: %q is a directory", absPath))
+		log.Printf("Error serving website content: %q is a directory", fsPath)
+		serveError(rw, req, relPath, fmt.Errorf("error: %q is a directory", fsPath))
 		return
 	}
 
 	if checkLastModified(rw, req, fi.ModTime()) {
 		return
 	}
-	serveFile(rw, req, absPath)
+	serveFile(rw, req, baseFS, fsPath)
 }
 
 // serveFile serves a file from disk, converting any markdown to HTML.
-func serveFile(w http.ResponseWriter, r *http.Request, absPath string) {
-	if !strings.HasSuffix(absPath, ".html") && !strings.HasSuffix(absPath, ".md") {
-		http.ServeFile(w, r, absPath)
+func serveFile(w http.ResponseWriter, r *http.Request, baseFS fs.FS, path string) {
+	f, err := baseFS.Open(path)
+	var fi fs.FileInfo
+	if err == nil {
+		defer f.Close()
+		fi, err = f.Stat()
+	}
+	var data []byte
+	if err == nil {
+		data, err = io.ReadAll(f)
+	}
+	if err != nil {
+		serveError(w, r, path, err)
 		return
 	}
 
-	data, err := ioutil.ReadFile(absPath)
-	if err != nil {
-		serveError(w, r, absPath, err)
+	if !strings.HasSuffix(path, ".html") && !strings.HasSuffix(path, ".md") {
+		http.ServeContent(w, r, path, fi.ModTime(), bytes.NewReader(data))
 		return
 	}
 
@@ -472,10 +463,6 @@ func (h *redirectRootHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 	host := strings.ToLower(r.Host)
 	if host == "www.camlistore.org" || host == "camlistore.org" ||
 		host == "www."+prodDomain || (inProd && r.TLS == nil) {
-		if inStaging {
-			http.Redirect(rw, r, "https://"+stagingHostname+r.URL.RequestURI(), http.StatusFound)
-			return
-		}
 		http.Redirect(rw, r, "https://"+prodDomain+r.URL.RequestURI(), http.StatusFound)
 		return
 	}
@@ -503,91 +490,7 @@ func runAsChild(res string) {
 	}()
 }
 
-func gceDeployHandlerConfig() (*gce.Config, error) {
-	if inProd {
-		return deployerCredsFromGCS()
-	}
-	clientId := os.Getenv("CAMLI_GCE_CLIENTID")
-	if clientId != "" {
-		return &gce.Config{
-			ClientID:       clientId,
-			ClientSecret:   os.Getenv("CAMLI_GCE_CLIENTSECRET"),
-			Project:        os.Getenv("CAMLI_GCE_PROJECT"),
-			ServiceAccount: os.Getenv("CAMLI_GCE_SERVICE_ACCOUNT"),
-			DataDir:        os.Getenv("CAMLI_GCE_DATA"),
-		}, nil
-	}
-	configDir, err := osutil.PerkeepConfigDir()
-	if err != nil {
-		return nil, err
-	}
-	configFile := filepath.Join(configDir, "launcher-config.json")
-	data, err := ioutil.ReadFile(configFile)
-	if err != nil {
-		return nil, fmt.Errorf("error reading launcher-config.json (expected of type https://godoc.org/"+prodDomain+"/pkg/deploy/gce#Config): %v", err)
-	}
-	var config gce.Config
-	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, err
-	}
-	return &config, nil
-}
-
-var cloudLauncherEnabled = false
-
-// gceDeployHandler returns an http.Handler for a GCE launcher,
-// configured to run at /prefix/ (the trailing slash can be omitted).
-// The launcher is not initialized if:
-// - in production, the launcher-config.json file is not found in the relevant bucket
-// - neither CAMLI_GCE_CLIENTID is set, nor launcher-config.json is found in the
-// camlistore server config dir.
-func gceDeployHandler(prefix string) (*gce.DeployHandler, error) {
-	if !cloudLauncherEnabled {
-		return nil, errors.New("The Perkeep Cloud Launcher is no longer available.")
-	}
-	var hostPort string
-	var err error
-	scheme := "https"
-	if inProd {
-		if inStaging {
-			hostPort = stagingHostname + ":443"
-		} else {
-			hostPort = prodDomain + ":443"
-		}
-	} else {
-		addr := *httpsAddr
-		if *devMode && *httpsAddr == "" {
-			addr = *httpAddr
-			scheme = "http"
-		}
-		hostPort, err = netutil.ListenHostPort(addr)
-		if err != nil {
-			// the deploy handler needs to know its own
-			// hostname or IP for the oauth2 callback.
-			return nil, fmt.Errorf("invalid -https flag: %v", err)
-		}
-	}
-	config, err := gceDeployHandlerConfig()
-	if config == nil {
-		return nil, err
-	}
-	gceh, err := gce.NewDeployHandlerFromConfig(hostPort, prefix, config)
-	if err != nil {
-		return nil, fmt.Errorf("NewDeployHandlerFromConfig: %v", err)
-	}
-
-	pageBytes, err := ioutil.ReadFile(filepath.Join(*root, "tmpl", "page.html"))
-	if err != nil {
-		return nil, err
-	}
-	if err := gceh.AddTemplateTheme(string(pageBytes)); err != nil {
-		return nil, fmt.Errorf("AddTemplateTheme: %v", err)
-	}
-	gceh.SetScheme(scheme)
-	log.Printf("Starting Perkeep launcher on %s://%s%s", scheme, hostPort, prefix)
-	return gceh, nil
-}
-
+/*
 var launchConfig = &cloudlaunch.Config{
 	Name:         "camweb",
 	BinaryBucket: prodBucket,
@@ -600,86 +503,7 @@ var launchConfig = &cloudlaunch.Config{
 		cloudresourcemanager.CloudPlatformScope,
 	},
 }
-
-func checkInProduction() bool {
-	if !metadata.OnGCE() {
-		return false
-	}
-	proj, _ := metadata.ProjectID()
-	inst, _ := metadata.InstanceName()
-	log.Printf("Running on GCE: %v / %v", proj, inst)
-	prod := proj == "camlistore-website" && inst == "camweb" || inst == stagingInstName
-	inStaging = prod && inst == stagingInstName
-	return prod
-}
-
-const (
-	prodSrcDir     = "/var/camweb/src/" + prodDomain
-	prodLECacheDir = "/var/le/letsencrypt.cache"
-)
-
-func setProdFlags() {
-	inProd = checkInProduction()
-	if !inProd {
-		return
-	}
-	if *devMode {
-		log.Fatal("can't use dev mode in production")
-	}
-	log.Printf("Running in production; configuring prod flags & containers")
-	*httpAddr = ":80"
-	*httpsAddr = ":443"
-	// TODO(mpl): investigate why this proxying does not seem to be working (we end up on https://camlistore.org).
-	buildbotBackend = "https://travis-ci.org/perkeep/perkeep"
-	buildbotHost = "build.perkeep.org"
-	*gceLogName = "camweb-access-log"
-	if inStaging {
-		*gceLogName += "-staging"
-	}
-	*root = filepath.Join(prodSrcDir, "website")
-	*gitContainer = true
-
-	*adminEmail = "mathieu.lonjaret@gmail.com" // for let's encrypt
-	*emailsTo = "camlistore-commits@googlegroups.com"
-	*mailgunCfgFile = "mailgun-config.json"
-	if inStaging {
-		// in staging, keep emailsTo so we get in the loop that does the
-		// git pull and refreshes the content, but no mailgunCfgFile so
-		// we don't actually try to send any e-mail.
-		*mailgunCfgFile = ""
-	}
-
-	os.RemoveAll(prodSrcDir)
-	if err := os.MkdirAll(prodSrcDir, 0755); err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("fetching git docker image...")
-	getDockerImage("camlistore/git", "docker-git.tar.gz")
-	getDockerImage("camlistore/demoblobserver", "docker-demoblobserver.tar.gz")
-
-	log.Printf("cloning perkeep git tree...")
-	branch := "master"
-	if inStaging {
-		// We work off the staging branch, so we stay in control of the
-		// website contents, regardless of which commits are landing on the
-		// master branch in the meantime.
-		branch = "staging"
-	}
-	cloneArgs := []string{
-		"run",
-		"--rm",
-		"-v", "/var/camweb:/var/camweb",
-		"camlistore/git",
-		"git", "clone", "-b", branch, "https://github.com/perkeep/perkeep.git", prodSrcDir,
-	}
-	out, err := exec.Command("docker", cloneArgs...).CombinedOutput()
-	if err != nil {
-		log.Fatalf("git clone: %v, %s", err, out)
-	}
-	os.Chdir(*root)
-	log.Printf("Starting.")
-	sendStartingEmail()
-}
+*/
 
 func randHex(n int) string {
 	buf := make([]byte, n/2+1)
@@ -687,157 +511,35 @@ func randHex(n int) string {
 	return fmt.Sprintf("%x", buf)[:n]
 }
 
-func removeContainer(name string) {
-	if err := exec.Command("docker", "kill", name).Run(); err == nil {
-		// It was actually running.
-		log.Printf("Killed old %q container.", name)
-	}
-	if err := exec.Command("docker", "rm", name).Run(); err == nil {
-		// Always try to remove, in case we end up with a stale,
-		// non-running one (which has happened in the past).
-		log.Printf("Removed old %q container.", name)
-	}
-}
-
 // runDemoBlobServerContainer runs the demo blobserver as name in a docker
 // container. It is not run in daemon mode, so it never returns if successful.
-func runDemoBlobServerContainer(name string) error {
-	removeContainer(name)
-	cmd := exec.Command("docker", "run",
-		"--rm",
-		"--name="+name,
-		"-e", "CAMLI_ROOT="+prodSrcDir+"/website/blobserver-example/root",
-		"-e", "CAMLI_PASSWORD="+randHex(20),
-		"-v", pkSrcDir()+":"+prodSrcDir,
-		"--net=host",
-		"--workdir="+prodSrcDir,
-		"camlistore/demoblobserver",
-		"camlistored",
+func runDemoBlobServerContainer() error {
+	cmd := exec.Command("/bin/perkeepd",
 		"--openbrowser=false",
 		"--listen=:3179",
-		"--configfile="+prodSrcDir+"/website/blobserver-example/example-blobserver-config.json")
-	stderr := &writerutil.PrefixSuffixSaver{N: 32 << 10}
-	cmd.Stderr = stderr
+		"--configfile="+*root+"/blobserver-example/example-blobserver-config.json",
+	)
+	cmd.Env = append(os.Environ(),
+		"CAMLI_ROOT="+*root+"/blobserver-example/root",
+		"CAMLI_PASSWORD="+randHex(20),
+	)
+	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to run demo blob server: %v, stderr: %v", err, string(stderr.Bytes()))
+		return fmt.Errorf("failed to run demo blob server: %v", err)
 	}
 	return nil
 }
 
 func runDemoBlobserverLoop() {
-	if runtime.GOOS != "linux" {
-		return
-	}
-	if _, err := exec.LookPath("docker"); err != nil {
-		return
-	}
 	for {
-		if err := runDemoBlobServerContainer("demoblob3179"); err != nil {
+		if err := runDemoBlobServerContainer(); err != nil {
 			log.Printf("%v", err)
-		}
-		if !inProd {
-			// Do not bother retrying if we're most likely just testing on localhost
-			return
 		}
 		time.Sleep(10 * time.Second)
 	}
 }
 
-func sendStartingEmail() {
-	if *mailgunCfgFile == "" {
-		return
-	}
-	contentRev, err := exec.Command("docker", "run",
-		"--rm",
-		"-v", "/var/camweb:/var/camweb",
-		"-w", prodSrcDir,
-		"camlistore/git",
-		"/bin/bash", "-c",
-		"git show --pretty=format:'%ad-%h' --abbrev-commit --date=short | head -1").Output()
-
-	cfg, err := mailgunCfgFromGCS()
-	if err != nil {
-		log.Printf("Failed to get mailgun config: %v", err)
-		return
-	}
-	mailGun = mailgun.NewMailgun(cfg.Domain, cfg.APIKey, cfg.PublicAPIKey)
-	contents := `Perkeep website starting with binary ` + buildinfo.Summary() + ` and content at git rev ` + string(contentRev)
-	m := mailGun.NewMessage(
-		"noreply@perkeep.org (Perkeep Website)",
-		"Perkeep camweb restarting",
-		contents,
-		"brad@danga.com",
-		"mathieu.lonjaret@gmail.com",
-	)
-	if _, _, err := mailGun.Send(m); err != nil {
-		log.Printf("Failed to send camweb startup e-mail: %v", err)
-	}
-}
-
-func getDockerImage(tag, file string) {
-	have, err := exec.Command("docker", "inspect", tag).Output()
-	if err == nil && len(have) > 0 {
-		return // we have it.
-	}
-	url := "https://storage.googleapis.com/" + prodBucket + "/" + file
-	err = exec.Command("/bin/bash", "-c", "curl --silent "+url+" | docker load").Run()
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// httpClient returns an http Client suitable for Google Cloud Storage or Google Cloud
-// Logging calls with the projID project ID.
-func httpClient(projID string) *http.Client {
-	if *gceJWTFile == "" {
-		log.Fatal("Cannot initialize an authorized http Client without --gce_jwt_file")
-	}
-	jsonSlurp, err := ioutil.ReadFile(*gceJWTFile)
-	if err != nil {
-		log.Fatalf("Error reading --gce_jwt_file value: %v", err)
-	}
-	jwtConf, err := google.JWTConfigFromJSON(jsonSlurp, logging.WriteScope)
-	if err != nil {
-		log.Fatalf("Error reading --gce_jwt_file value: %v", err)
-	}
-	return jwtConf.Client(context.Background())
-}
-
-// projectID returns the GCE project ID used for running this camweb on GCE
-// and/or for logging on Google Cloud Logging, if any.
-func projectID() string {
-	if *gceProjectID != "" {
-		return *gceProjectID
-	}
-	projID, err := metadata.ProjectID()
-	if projID == "" || err != nil {
-		log.Fatalf("GCE project ID needed but --gce_project_id not specified (and not running on GCE); metadata error: %v", err)
-	}
-	return projID
-}
-
-func initStaging() error {
-	if *flagStaging {
-		launchConfig.Name = stagingInstName
-		return nil
-	}
-	// If we are the instance that has just been deployed, we can't rely on
-	// *flagStaging, since there's no way to pass flags through launchConfig.
-	// And we need to know if we're a staging instance, so we can set
-	// launchConfig.Name properly before we get into restartLoop from
-	// MaybeDeploy. So we use our own instance name as a hint.
-	if !metadata.OnGCE() {
-		return nil
-	}
-	instName, err := metadata.InstanceName()
-	if err != nil {
-		return fmt.Errorf("Instance could not get its Instance Name: %v", err)
-	}
-	if instName == stagingInstName {
-		launchConfig.Name = stagingInstName
-	}
-	return nil
-}
+var inContainer = os.Getenv("IN_PKWEB_CONTAINER") == "1"
 
 func main() {
 	flag.Parse()
@@ -846,17 +548,15 @@ func main() {
 			buildinfo.Summary(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
 		return
 	}
-	if err := initStaging(); err != nil {
-		log.Fatalf("Error setting up staging: %v", err)
-	}
-	launchConfig.MaybeDeploy()
-	setProdFlags()
-
 	if *root == "" {
-		var err error
-		*root, err = os.Getwd()
-		if err != nil {
-			log.Fatalf("Failed to getwd: %v", err)
+		if inContainer {
+			*root = "/perkeep/website"
+		} else {
+			var err error
+			*root, err = os.Getwd()
+			if err != nil {
+				log.Fatalf("Failed to getwd: %v", err)
+			}
 		}
 	}
 	// ensure root is always a cleaned absolute path
@@ -865,17 +565,26 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to get absolute path of root: %v", err)
 	}
-	// calculate domain name we are serving packages for based on the directory we are serving from
-	domainName = filepath.Base(filepath.Dir(*root))
 
 	readTemplates()
-	go runDemoBlobserverLoop()
+	if inContainer {
+		go runDemoBlobserverLoop()
+	}
 
 	mux := http.DefaultServeMux
-	mux.Handle("/favicon.ico", http.FileServer(http.Dir(filepath.Join(*root, "static"))))
-	mux.Handle("/robots.txt", http.FileServer(http.Dir(filepath.Join(*root, "static"))))
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(filepath.Join(*root, "static")))))
-	mux.Handle("/talks/", http.StripPrefix("/talks/", http.FileServer(http.Dir(filepath.Join(*root, "talks")))))
+	staticFS, err := fs.Sub(website.Root, "static")
+	if err != nil {
+		log.Fatal(err)
+	}
+	talksFS, err := fs.Sub(website.Root, "talks")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mux.Handle("/favicon.ico", http.FileServer(http.FS(staticFS)))
+	mux.Handle("/robots.txt", http.FileServer(http.FS(staticFS)))
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	mux.Handle("/talks/", http.StripPrefix("/talks/", http.FileServer(http.FS(talksFS))))
 	mux.HandleFunc(errPattern, errHandler)
 
 	// Google Webmaster Tools ownership proof:
@@ -886,7 +595,6 @@ func main() {
 
 	mux.HandleFunc("/r/", gerritRedirect)
 	mux.HandleFunc("/dl/", releaseRedirect)
-	mux.HandleFunc("/debug/ip", ipHandler)
 	mux.HandleFunc("/debug/uptime", uptimeHandler)
 	mux.Handle("/doc/contributing", redirTo("/code#contributing"))
 	mux.Handle("/lists", redirTo("/community"))
@@ -905,66 +613,11 @@ func main() {
 		})
 	}
 
-	gceLauncher, err := gceDeployHandler("/launch/")
-	if err != nil {
-		log.Printf("Not installing GCE /launch/ handler: %v", err)
-		err := err
-		mux.HandleFunc("/launch/", func(w http.ResponseWriter, r *http.Request) {
-			http.Error(w, fmt.Sprintf("GCE launcher disabled: %v", err), 500)
-		})
-	} else {
-		mux.Handle("/launch/", gceLauncher)
-	}
+	mux.HandleFunc("/launch/", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "The Perkeep Cloud Launcher is no longer available.", 404)
+	})
 
 	var handler http.Handler = &redirectRootHandler{Handler: mux}
-	if *logDir != "" || *logStdout {
-		handler = NewLoggingHandler(handler, NewApacheLogger(*logDir, *logStdout))
-	}
-	if *gceLogName != "" {
-		projID := projectID()
-		var hc *http.Client
-		if !metadata.OnGCE() {
-			hc = httpClient(projID)
-		}
-		ctx := context.Background()
-		var logc *logging.Client
-		if metadata.OnGCE() {
-			logc, err = logging.NewClient(ctx, projID)
-		} else {
-			logc, err = logging.NewClient(ctx, projID, option.WithHTTPClient(hc))
-		}
-		if err != nil {
-			log.Fatal(err)
-		}
-		if err := logc.Ping(ctx); err != nil {
-			log.Fatalf("Failed to ping Google Cloud Logging: %v", err)
-		}
-		handler = NewLoggingHandler(handler, gceLogger{logc.Logger(*gceLogName)})
-		if gceLauncher != nil {
-			var logc *logging.Client
-			if metadata.OnGCE() {
-				logc, err = logging.NewClient(ctx, projID)
-			} else {
-				logc, err = logging.NewClient(ctx, projID, option.WithHTTPClient(hc))
-			}
-			if err != nil {
-				log.Fatal(err)
-			}
-			commonLabels := logging.CommonLabels(map[string]string{
-				"from": "camli-gce-launcher",
-			})
-			logger := logc.Logger(*gceLogName, commonLabels).StandardLogger(logging.Default)
-			logger.SetPrefix("launcher: ")
-			gceLauncher.SetLogger(logger)
-		}
-	}
-
-	emailErr := make(chan error)
-	startEmailCommitLoop(emailErr)
-
-	if *alsoRun != "" {
-		runAsChild(*alsoRun)
-	}
 
 	httpServer := &http.Server{
 		Addr:         *httpAddr,
@@ -973,136 +626,7 @@ func main() {
 		WriteTimeout: 30 * time.Minute,
 	}
 
-	httpsErr := make(chan error)
-	go func() {
-		httpsErr <- serve(httpServer, func(err error) {
-			log.Fatalf("Error serving HTTP: %v", err)
-		})
-	}()
-
-	select {
-	case err := <-emailErr:
-		log.Fatalf("Error sending emails: %v", err)
-	case err := <-httpsErr:
-		log.Fatalf("Error serving HTTPS: %v", err)
-	}
-}
-
-// serve starts listening and serving for HTTP, and for HTTPS if it applies.
-// onHTTPError, if non-nil, is called if there's a problem serving the HTTP
-// (typically port 80) server. Any error from the HTTPS server is returned.
-func serve(httpServer *http.Server, onHTTPError func(error)) error {
-	if *httpsAddr == "" {
-		log.Printf("Listening for HTTP on %v", *httpAddr)
-		onHTTPError(httpServer.ListenAndServe())
-		return nil
-	}
-	log.Printf("Starting TLS server on %s", *httpsAddr)
-	httpsServer := &http.Server{
-		Addr:              *httpsAddr,
-		Handler:           httpServer.Handler,
-		TLSConfig:         httpServer.TLSConfig,
-		ReadTimeout:       httpServer.ReadTimeout,
-		ReadHeaderTimeout: httpServer.ReadHeaderTimeout,
-		WriteTimeout:      httpServer.WriteTimeout,
-		IdleTimeout:       httpServer.IdleTimeout,
-		MaxHeaderBytes:    httpServer.MaxHeaderBytes,
-		TLSNextProto:      httpServer.TLSNextProto,
-		ConnState:         httpServer.ConnState,
-		ErrorLog:          httpServer.ErrorLog,
-		BaseContext:       httpServer.BaseContext,
-		ConnContext:       httpServer.ConnContext,
-	}
-	cacheDir := autocert.DirCache("letsencrypt.cache")
-	var hostPolicy autocert.HostPolicy
-	if !inProd {
-		if *tlsCertFile != "" && *tlsKeyFile != "" {
-			go func() {
-				log.Printf("Listening for HTTP on %v", *httpAddr)
-				onHTTPError(httpServer.ListenAndServe())
-			}()
-			return httpsServer.ListenAndServeTLS(*tlsCertFile, *tlsKeyFile)
-		}
-		// Otherwise use Let's Encrypt, i.e. same use case as in prod
-		if strings.HasPrefix(*httpsAddr, ":") {
-			return errors.New("for Let's Encrypt, -https needs to start with a host name")
-		}
-		host, _, err := net.SplitHostPort(*httpsAddr)
-		if err != nil {
-			return err
-		}
-		hostPolicy = autocert.HostWhitelist(host)
-	} else {
-		if inStaging {
-			hostPolicy = autocert.HostWhitelist(stagingHostname)
-		} else {
-			hostPolicy = autocert.HostWhitelist(prodDomain, "www."+prodDomain,
-				"www.camlistore.org", "camlistore.org")
-		}
-		cacheDir = autocert.DirCache(prodLECacheDir)
-	}
-	m := autocert.Manager{
-		Prompt:     autocert.AcceptTOS,
-		HostPolicy: hostPolicy,
-		Cache:      cacheDir,
-	}
-	go func() {
-		log.Printf("Listening for HTTP on %v", *httpAddr)
-		onHTTPError(http.ListenAndServe(*httpAddr, m.HTTPHandler(httpServer.Handler)))
-	}()
-	if *adminEmail != "" {
-		m.Email = *adminEmail
-	}
-	httpsServer.TLSConfig = m.TLSConfig()
-	log.Printf("Listening for HTTPS on %v", *httpsAddr)
-	ln, err := net.Listen("tcp", *httpsAddr)
-	if err != nil {
-		return err
-	}
-	return httpsServer.Serve(tls.NewListener(tcpKeepAliveListener{ln.(*net.TCPListener)}, httpsServer.TLSConfig))
-}
-
-type tcpKeepAliveListener struct {
-	*net.TCPListener
-}
-
-func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
-	tc, err := ln.AcceptTCP()
-	if err != nil {
-		return
-	}
-	tc.SetKeepAlive(true)
-	tc.SetKeepAlivePeriod(3 * time.Minute)
-	return tc, nil
-}
-
-func fromGCS(filename string) ([]byte, error) {
-	ctx := context.Background()
-	sc, err := storage.NewClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-	slurp := func(key string) ([]byte, error) {
-		rc, err := sc.Bucket(prodBucket).Object(key).NewReader(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("Error fetching GCS object %q in bucket %q: %v", key, prodBucket, err)
-		}
-		defer rc.Close()
-		return ioutil.ReadAll(rc)
-	}
-	return slurp(filename)
-}
-
-func deployerCredsFromGCS() (*gce.Config, error) {
-	var cfg gce.Config
-	data, err := fromGCS("launcher-config.json")
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("could not JSON decode camli GCE launcher config: %v", err)
-	}
-	return &cfg, nil
+	log.Fatal(httpServer.ListenAndServe())
 }
 
 var issueNum = regexp.MustCompile(`^/(?:issue|bug)s?(/\d*)?$`)
@@ -1166,26 +690,10 @@ func redirTo(dest string) http.Handler {
 	})
 }
 
-func ipHandler(w http.ResponseWriter, r *http.Request) {
-	out, _ := exec.Command("ip", "-f", "inet", "addr", "show", "dev", "eth0").Output()
-	str := string(out)
-	pos := strings.Index(str, "inet ")
-	if pos == -1 {
-		return
-	}
-	str = str[pos+5:]
-	pos = strings.Index(str, "/")
-	if pos == -1 {
-		return
-	}
-	str = str[:pos]
-	w.Write([]byte(str))
-}
-
 var startTime = time.Now()
 
 func uptimeHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "%v", time.Now().Sub(startTime))
+	fmt.Fprintf(w, "%v", time.Since(startTime).Round(time.Second/10))
 }
 
 const (
@@ -1217,15 +725,4 @@ func errHandler(w http.ResponseWriter, r *http.Request) {
 		title:   errString,
 		content: contents,
 	})
-}
-
-func pkSrcDir() string {
-	if inProd {
-		return prodSrcDir
-	}
-	dir, err := osutil.GoPackagePath(prodDomain)
-	if err != nil {
-		log.Fatalf("Failed to find the root of the %s source code via osutil.GoPackagePath: %v", prodDomain, err)
-	}
-	return dir
 }

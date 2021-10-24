@@ -1,0 +1,19 @@
+FROM golang:1.17-bullseye
+
+RUN apt-get update && apt-get install git
+
+RUN mkdir /perkeep
+WORKDIR /perkeep
+
+ADD go.mod .
+ADD go.sum .
+RUN go mod download
+
+ADD . .
+RUN git fetch --unshallow || true
+RUN git log | git shortlog -sen > /perkeep-gitstats.txt
+RUN go build -o /bin/pk-web ./website/pk-web
+RUN go build -o /bin/perkeepd ./server/perkeepd
+
+ENV IN_PKWEB_CONTAINER 1
+CMD ["/bin/pk-web"]

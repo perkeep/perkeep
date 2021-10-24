@@ -11,19 +11,17 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-
-	"perkeep.org/internal/osutil"
 )
 
 var urlsMap = map[string]author{
-	"brad@danga.com":     {URL: "http://bradfitz.com/", Role: "founder, lead"},
-	"bslatkin@gmail.com": {URL: "http://www.onebigfluke.com/", Role: "co-founder"},
+	"brad@danga.com":     {URL: "https://bradfitz.com/", Role: "founder, lead"},
+	"bslatkin@gmail.com": {URL: "https://www.onebigfluke.com/", Role: "co-founder"},
 	"mathieu.lonjaret@gmail.com": {
 		URL:   "https://granivo.re/mpl.html",
 		Role:  "has touched almost everything",
 		Names: []string{"Mathieu Lonjaret"},
 	},
-	"zboogs@gmail.com":    {URL: "http://www.aaronboodman.com/", Role: "web interface lead"},
+	"zboogs@gmail.com":    {URL: "http://www.aaronboodman.com/", Role: "created web UI"},
 	"adg@golang.org":      {URL: "http://nf.id.au/"},
 	"dustin@spy.net":      {URL: "http://dustin.sallings.org/"},
 	"dan@erat.org":        {URL: "http://www.erat.org/"},
@@ -57,12 +55,6 @@ func (a *author) add(src *author) {
 	}
 }
 
-type Authors []*author
-
-func (s Authors) Len() int           { return len(s) }
-func (s Authors) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s Authors) Less(i, j int) bool { return s[i].Commits > s[j].Commits }
-
 func parseLine(l string) (name, email string, commits int, err error) {
 	t := strings.Split(strings.TrimSpace(l), "	")
 	if len(t) < 2 {
@@ -76,31 +68,11 @@ func parseLine(l string) (name, email string, commits int, err error) {
 	return
 }
 
-func gitShortlog() *exec.Cmd {
-	if !*gitContainer {
-		return exec.Command("/bin/bash", "-c", "git log | git shortlog -sen")
+func gitStats() ([]byte, error) {
+	if inContainer {
+		return os.ReadFile("/perkeep-gitstats.txt")
 	}
-	args := []string{"run", "--rm"}
-	if inProd {
-		args = append(args,
-			"-v", "/var/camweb:/var/camweb",
-			"--workdir="+prodSrcDir,
-		)
-	} else {
-		hostRoot, err := osutil.GoPackagePath(prodDomain)
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Printf("Using bind root of %q", hostRoot)
-		args = append(args,
-			"-v", hostRoot+":"+prodSrcDir,
-			"--workdir="+prodSrcDir,
-		)
-	}
-	args = append(args, "camlistore/git", "/bin/bash", "-c", "git log | git shortlog -sen")
-	cmd := exec.Command("docker", args...)
-	cmd.Stderr = os.Stderr
-	return cmd
+	return exec.Command("/bin/bash", "-c", "git log | git shortlog -sen").Output()
 }
 
 func genContribPage() ([]byte, error) {
@@ -113,17 +85,12 @@ func genContribPage() ([]byte, error) {
 	byEmail := make(map[string]*author)
 	authorMap := make(map[*author]bool)
 
-	shortlog := gitShortlog()
-	shortlogOut, err := shortlog.StdoutPipe()
+	shortlogOut, err := gitStats()
 	if err != nil {
 		return nil, err
 	}
-	err = shortlog.Start()
-	if err != nil {
-		return nil, fmt.Errorf("couldn't run git shortlog: %v", err)
-	}
 
-	scn := bufio.NewScanner(shortlogOut)
+	scn := bufio.NewScanner(bytes.NewReader(shortlogOut))
 	for scn.Scan() {
 		name, email, commits, err := parseLine(scn.Text())
 		if err != nil {
@@ -151,31 +118,30 @@ func genContribPage() ([]byte, error) {
 	if scn.Err() != nil {
 		return nil, scn.Err()
 	}
-	err = shortlog.Wait()
-	if err != nil {
-		return nil, fmt.Errorf("git shortlog failed: %v", err)
-	}
 
 	// Add URLs and roles
 	for email, m := range urlsMap {
 		a := byEmail[email]
-		if a != nil {
-			a.add(&m)
+		if a == nil {
+			continue
 		}
+		a.add(&m)
 		if len(m.Names) > 0 {
 			a.Names = []string{m.Names[0]}
 		}
 	}
 
-	authors := Authors{}
+	var authors []*author
 	for a := range authorMap {
 		authors = append(authors, a)
 	}
 
-	sort.Sort(authors)
+	sort.Slice(authors, func(i, j int) bool {
+		return authors[i].Commits > authors[j].Commits
+	})
 
-	b := &bytes.Buffer{}
-	err = contribHTML.Execute(b, authors)
+	var b bytes.Buffer
+	err = contribHTML.Execute(&b, authors)
 	return b.Bytes(), err
 }
 

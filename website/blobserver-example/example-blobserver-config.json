@@ -11,10 +11,18 @@
 				"path": ["_env", "${CAMLI_ROOT}"]
 			}
 		},
+		"/index/": {
+			"handler": "storage-index",
+			"handlerArgs": {
+				"blobSource": "/",
+				"storage": { "type": "memory" }
+			}
+		},
 		"/share/": {
 			"handler": "share",
 			"handlerArgs": {
-				"blobRoot": "/"
+				"blobRoot": "/",
+				"index": "/index/"
 			}
 		}
 	}
