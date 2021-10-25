@@ -31,15 +31,25 @@ import (
 // NewMemoryKeyValue returns a KeyValue implementation that's backed only
 // by memory. It's mostly useful for tests and development.
 func NewMemoryKeyValue() KeyValue {
-	db := memdb.New(comparer.DefaultComparer, 128)
-	return &memKeys{db: db}
+	kv := new(memKeys)
+	kv.Wipe()
+	return kv
 }
+
+var _ Wiper = (*memKeys)(nil)
 
 // memKeys is a naive in-memory implementation of KeyValue for test & development
 // purposes only.
 type memKeys struct {
 	mu sync.Mutex // guards db
 	db *memdb.DB
+}
+
+func (s *memKeys) Wipe() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.db = memdb.New(comparer.DefaultComparer, 128)
+	return nil
 }
 
 // memIter converts from leveldb's iterator.Iterator interface, which
