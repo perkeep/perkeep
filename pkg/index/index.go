@@ -535,12 +535,29 @@ func (x *Index) Reindex() error {
 	x.RLock()
 	readyCount := len(x.readyReindex)
 	needed := len(x.needs)
+	var needSample bytes.Buffer
+	if needed > 0 {
+		n := 0
+	Sample:
+		for x, needs := range x.needs {
+			for _, need := range needs {
+				n++
+				if n == 10 {
+					break Sample
+				}
+				if n > 1 {
+					fmt.Fprintf(&needSample, ", ")
+				}
+				fmt.Fprintf(&needSample, "%v needs %v", x, need)
+			}
+		}
+	}
 	x.RUnlock()
 	if readyCount > 0 {
 		return fmt.Errorf("%d blobs were ready to reindex in out-of-order queue, but not yet ran", readyCount)
 	}
 	if needed > 0 {
-		return fmt.Errorf("%d blobs are still needed as dependencies", needed)
+		return fmt.Errorf("%d blobs are still needed as dependencies; a sample: %s", needed, needSample.Bytes())
 	}
 
 	nerrmu.Lock() // no need to unlock
