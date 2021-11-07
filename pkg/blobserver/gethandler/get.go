@@ -33,6 +33,11 @@ import (
 	"go4.org/readerutil"
 )
 
+const (
+	// TODO: Expose this to the config somehow?
+	HTTP_CACHE_DURATION = 10 * 356 * 24 * time.Hour
+)
+
 var getPattern = regexp.MustCompile(`/camli/` + blob.Pattern + `$`)
 
 // Handler is the HTTP handler for serving GET requests of blobs.
@@ -84,6 +89,7 @@ func ServeBlobRef(rw http.ResponseWriter, req *http.Request, blobRef blob.Ref, f
 	}
 	defer rc.Close()
 	rw.Header().Set("Content-Type", "application/octet-stream")
+	rw.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d", int(HTTP_CACHE_DURATION.Seconds())))
 
 	var content io.ReadSeeker = readerutil.NewFakeSeeker(rc, int64(size))
 	rangeHeader := req.Header.Get("Range") != ""
