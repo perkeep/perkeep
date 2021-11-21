@@ -1,6 +1,6 @@
 This directory contains the code & content for the perkeep.org
 website. You will need to build the webserver and run it locally to
-preview cahnges to the documentation:
+preview changes to the documentation:
 
     $ cd <perkeep_checkout>/website
     $ go install ./pk-web
