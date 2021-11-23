@@ -107,7 +107,7 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]interface{}{
          {{if .TODOIssue}}
              <li><b>{{.Title}}</b>: TODO: <a href="https://perkeep.org/issue/{{.TODOIssue}}">Issue {{.TODOIssue}}</a></li>
          {{else}}
-             <li><b><a href="{{$base}}{{.Name}}">{{.Title}}</a></b>{{if .Description}}: {{.Description}}{{end}}</li>
+             <li><b><a href="{{.Name}}">{{.Title}}</a></b>{{if .Description}}: {{.Description}}{{end}}</li>
          {{end}}
       {{end}}
    </ul>

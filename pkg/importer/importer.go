@@ -1163,7 +1163,7 @@ func (ia *importerAcct) AccountObject() *Object { return ia.acct }
 func (ia *importerAcct) RootObject() *Object    { return ia.root }
 
 func (ia *importerAcct) AccountURL() string {
-	return ia.im.URL() + "/" + ia.acct.PermanodeRef().String()
+	return "/" + ia.acct.PermanodeRef().String()
 }
 
 func (ia *importerAcct) AccountLinkText() string {
