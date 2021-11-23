@@ -252,6 +252,17 @@ type HostConfig struct {
 }
 
 func NewHost(hc HostConfig) (*Host, error) {
+	importerURL, err := url.Parse(hc.BaseURL + hc.Prefix)
+	if err != nil {
+		return nil, fmt.Errorf("importer: invalid base URL: %w", err)
+	}
+	importerPath := importerURL.EscapedPath()
+	if importerPath == "" {
+		importerPath = "/"
+	}
+	if !strings.HasPrefix(importerPath, "/") || strings.HasPrefix(importerPath, "//") {
+		return nil, fmt.Errorf("importer: invalid handler path %q", importerPath)
+	}
 	if hc.Cache != nil && (hc.CacheRoot != "" || hc.CacheType != "") {
 		return nil, errors.New("importer: Cache cannot be combined with CacheRoot or CacheType")
 	}
@@ -266,12 +277,12 @@ func NewHost(hc HostConfig) (*Host, error) {
 	h := &Host{
 		baseURL:       hc.BaseURL,
 		importerBase:  hc.BaseURL + hc.Prefix,
+		importerPath:  importerPath,
 		discoveryRoot: "/",
 		imp:           make(map[string]*importer),
 		cacheRoot:     hc.CacheRoot,
 		cacheType:     hc.CacheType,
 	}
-	var err error
 	h.tmpl, err = tmpl.Clone()
 	if err != nil {
 		return nil, err
@@ -501,6 +512,7 @@ type Host struct {
 	imp           map[string]*importer
 	baseURL       string
 	importerBase  string
+	importerPath  string
 	discoveryRoot string // root handler prefix, used for browser discovery
 	target        blobserver.StatReceiver
 	blobSource    blob.Fetcher // e.g. twitter reading zip file
@@ -976,6 +988,13 @@ func (h *Host) ImporterBaseURL() string {
 	return h.importerBase
 }
 
+// ImporterBasePath returns the absolute URL path of the importer handler,
+// including trailing slash, for same-origin links and redirects.
+// Unlike ImporterBaseURL, it has no scheme or authority.
+func (h *Host) ImporterBasePath() string {
+	return h.importerPath
+}
+
 func (h *Host) Target() blobserver.StatReceiver {
 	return h.target
 }
@@ -1401,7 +1420,7 @@ func (ia *importerAcct) AccountObject() *Object { return ia.acct }
 func (ia *importerAcct) RootObject() *Object    { return ia.root }
 
 func (ia *importerAcct) AccountURL() string {
-	return ia.im.URL() + "/" + ia.acct.PermanodeRef().String()
+	return ia.im.host.ImporterBasePath() + ia.im.name + "/" + ia.acct.PermanodeRef().String()
 }
 
 func (ia *importerAcct) AccountLinkText() string {

@@ -110,7 +110,7 @@ var tmpl = template.Must(template.New("root").Funcs(map[string]any{
 
 {{define "importersRootBody"}}
    <ul>
-      {{$base := .Host.ImporterBaseURL}}
+      {{$base := .Host.ImporterBasePath}}
       {{range .Importers}}
          {{if .TODOIssue}}
              <li><b>{{.Title}}</b>: TODO: <a href="https://perkeep.org/issue/{{.TODOIssue}}">Issue {{.TODOIssue}}</a></li>

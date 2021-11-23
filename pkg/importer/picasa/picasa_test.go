@@ -241,7 +241,7 @@ func newHost(t testing.TB) (*importer.Host, error) {
 	server.NewSyncHandler("/bs/", "/index/", bs, ix, sorted.NewMemoryKeyValue())
 
 	return importer.NewHost(importer.HostConfig{
-		Prefix:     "picasa",
+		Prefix:     "/importer/",
 		Signer:     sig,
 		Target:     bs,
 		BlobSource: bs,
