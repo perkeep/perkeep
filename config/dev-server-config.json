@@ -33,6 +33,19 @@
 			}
 		},
 
+		"/static-app/": {
+			"handler": "app",
+			"enabled": ["_env", "${CAMLI_STATICAPP_ENABLED}"],
+			"handlerArgs": {
+				"prefix": "/static-app/",
+				"serverListen": "localhost:3179",
+				"program": "staticapp",
+				"appConfig": {
+					"staticRoot": "Static App Source"
+				}
+			}
+		},
+
 		"/scancab/": {
 			"handler": "app",
 			"enabled": ["_env", "${CAMLI_SCANCAB_ENABLED}"],
