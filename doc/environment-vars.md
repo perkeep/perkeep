@@ -116,6 +116,9 @@ or
 `CAMLI_HELLO_ENABLED` (bool)
 : Whether to start the hello world app as well. Variable used only by devcam server.
 
+`CAMLI_STATICAPP_ENABLED` (bool)
+: Whether to start the static app app as well. Variable used only by devcam server.
+
 `CAMLI_HTTP_EXPVAR` (bool)
 : Enable json export of expvars at /debug/vars
 

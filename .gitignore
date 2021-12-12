@@ -23,6 +23,7 @@ bin/devcam
 bin/genfileembed
 bin/gopherjs
 bin/hello
+bin/staticapp
 bin/pk*
 bin/perkeepd
 bin/publisher

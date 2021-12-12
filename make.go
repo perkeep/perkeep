@@ -112,6 +112,7 @@ func main() {
 		"perkeep.org/cmd/pk-deploy",
 		"perkeep.org/server/perkeepd",
 		"perkeep.org/app/hello",
+		"perkeep.org/app/staticapp",
 		"perkeep.org/app/publisher",
 		"perkeep.org/app/scanningcabinet",
 		"perkeep.org/app/scanningcabinet/scancab",
