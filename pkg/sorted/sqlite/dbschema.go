@@ -47,7 +47,7 @@ func SQLCreateTables() []string {
 
 // InitDB creates a new sqlite database based on the file at path.
 func InitDB(path string) error {
-	db, err := sql.Open("sqlite3", path)
+	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return err
 	}

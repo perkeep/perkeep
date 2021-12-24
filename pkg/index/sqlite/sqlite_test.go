@@ -1,5 +1,3 @@
-// +build with_sqlite
-
 /*
 Copyright 2012 The Perkeep Authors.
 
@@ -35,8 +33,8 @@ import (
 	"perkeep.org/pkg/sorted/kvtest"
 	_ "perkeep.org/pkg/sorted/sqlite"
 
-	_ "github.com/mattn/go-sqlite3"
 	"go4.org/jsonconfig"
+	_ "modernc.org/sqlite"
 )
 
 var (

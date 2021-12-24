@@ -1,5 +1,3 @@
-// +build with_sqlite
-
 /*
 Copyright 2013 The Perkeep Authors.
 
@@ -19,7 +17,7 @@ limitations under the License.
 package main
 
 import (
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 func init() {

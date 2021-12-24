@@ -37,7 +37,6 @@ require (
 	github.com/lib/pq v1.10.2
 	github.com/mailgun/mailgun-go v0.0.0-20171127222028-17e8bd11e87c
 	github.com/mattn/go-mastodon v0.0.5-0.20190517015615-8f6192e26b66
-	github.com/mattn/go-sqlite3 v1.14.7-0.20201227235208-3cbdae750e52
 	github.com/miekg/dns v1.1.43
 	github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f
 	github.com/perkeep/b2 v0.0.0-20180913003434-1ae8d9b78db9
@@ -56,7 +55,6 @@ require (
 	golang.org/x/net v0.0.0-20210716203947-853a461950ff
 	golang.org/x/oauth2 v0.0.0-20210628180205-a41e5a781914
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
 	golang.org/x/term v0.0.0-20201210144234-2321bbc49cbf // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
 	golang.org/x/tools v0.1.5 // indirect
@@ -66,6 +64,7 @@ require (
 	gopkg.in/mgo.v2 v2.0.0-20160818020120-3f83fa500528
 	honnef.co/go/js/dom v0.0.0-20200509013220-d4405f7ab4d8
 	honnef.co/go/tools v0.2.1
+	modernc.org/sqlite v1.14.3
 	myitcv.io v0.0.0-20201125173645-a7167afc9e13
 	rsc.io/pdf v0.1.1
 	rsc.io/qr v0.2.0

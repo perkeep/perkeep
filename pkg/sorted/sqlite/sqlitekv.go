@@ -57,7 +57,7 @@ func newKeyValueFromConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 			return nil, fmt.Errorf("could not initialize sqlite DB at %s: %v", file, err)
 		}
 	}
-	db, err := sql.Open("sqlite3", file)
+	db, err := sql.Open("sqlite", file)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,6 @@ type keyValue struct {
 var compiled = false
 
 // CompiledIn returns whether SQLite support is compiled in.
-// If it returns false, the build tag "with_sqlite" was not specified.
 func CompiledIn() bool {
 	return compiled
 }
@@ -111,9 +110,6 @@ func CompiledIn() bool {
 var ErrNotCompiled = errors.New("perkeepd was not built with SQLite support. If you built with make.go, use go run make.go --sqlite=true. If you used go get or get install, use go {get,install} --tags=with_sqlite" + compileHint())
 
 func compileHint() string {
-	if _, err := os.Stat("/etc/apt"); err == nil {
-		return " (Hint: apt-get install libsqlite3-dev)"
-	}
 	return ""
 }
 

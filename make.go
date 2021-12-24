@@ -1,3 +1,4 @@
+//go:build ignore
 // +build ignore
 
 /*
@@ -52,7 +53,7 @@ var haveSQLite = checkHaveSQLite()
 
 var (
 	embedResources   = flag.Bool("embed_static", true, "Whether to embed resources needed by the UI such as images, css, and javascript.")
-	sqlFlag          = flag.String("sqlite", "false", "Whether you want SQLite in your build: true, false, or auto.")
+	sqlFlag          = flag.String("sqlite", "false", "DEPRECATED. Whether you want SQLite in your build: true, false, or auto.")
 	race             = flag.Bool("race", false, "Build race-detector version of binaries (they will run slowly)")
 	verbose          = flag.Bool("v", strings.Contains(os.Getenv("CAMLI_DEBUG_X"), "makego"), "Verbose mode")
 	targets          = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. '*' builds everything.  Empty builds defaults for this platform. Example: perkeep.org/server/perkeepd,perkeep.org/cmd/pk-put")
@@ -161,13 +162,6 @@ func main() {
 	if *static {
 		tags = append(tags, "netgo")
 	}
-	if sql {
-		// used by go-sqlite to use system sqlite libraries
-		tags = append(tags, "libsqlite3")
-		// used by perkeep to switch behavior to sqlite for tests
-		// and some underlying libraries
-		tags = append(tags, "with_sqlite")
-	}
 	if *embedResources {
 		tags = append(tags, "with_embed")
 	}
@@ -250,9 +244,6 @@ func actualBinDir() string {
 
 func baseDirName(sql bool) string {
 	buildBaseDir := "build-gopath"
-	if !sql {
-		buildBaseDir += "-nosqlite"
-	}
 	// We don't even consider whether we're cross-compiling. As long as we
 	// build for ARM, we do it in its own versioned dir.
 	if *buildARCH == "arm" {
@@ -746,62 +737,11 @@ func verifyGoVersion() {
 }
 
 func withSQLite() bool {
-	cross := runtime.GOOS != *buildOS || runtime.GOARCH != *buildARCH
-	var sql bool
-	var err error
-	if *sqlFlag == "auto" {
-		sql = !cross && haveSQLite
-	} else {
-		sql, err = strconv.ParseBool(*sqlFlag)
-		if err != nil {
-			log.Fatalf("Bad boolean --sql flag %q", *sqlFlag)
-		}
-	}
-
-	if cross && sql {
-		log.Fatalf("SQLite isn't available when cross-compiling to another OS. Set --sqlite=false.")
-	}
-	if sql && !haveSQLite {
-		// TODO(lindner): fix these docs.
-		log.Printf("SQLite not found. Either install it, or run make.go with --sqlite=false  See https://code.google.com/p/camlistore/wiki/SQLite")
-		switch runtime.GOOS {
-		case "darwin":
-			log.Printf("On OS X, run 'brew install sqlite3 pkg-config'. Get brew from http://mxcl.github.io/homebrew/")
-		case "linux":
-			log.Printf("On Linux, run 'sudo apt-get install libsqlite3-dev' or equivalent.")
-		case "windows":
-			log.Printf("SQLite is not easy on windows. Please see https://perkeep.org/doc/server-config#windows")
-		}
-		os.Exit(2)
-	}
-	return sql
+	return true
 }
 
 func checkHaveSQLite() bool {
-	if runtime.GOOS == "windows" {
-		// TODO: Find some other non-pkg-config way to test, like
-		// just compiling a small Go program that sees whether
-		// it's available.
-		//
-		// For now:
-		return false
-	}
-	_, err := exec.LookPath("pkg-config")
-	if err != nil {
-		return false
-	}
-	out, err := exec.Command("pkg-config", "--libs", "sqlite3").Output()
-	if err != nil && err.Error() == "exit status 1" {
-		// This is sloppy (comparing against a string), but
-		// doing it correctly requires using multiple *.go
-		// files to portably get the OS-syscall bits, and I
-		// want to keep make.go a single file.
-		return false
-	}
-	if err != nil {
-		log.Fatalf("Can't determine whether sqlite3 is available, and where. pkg-config error was: %v, %s", err, out)
-	}
-	return strings.TrimSpace(string(out)) != ""
+	return true
 }
 
 func doEmbed() {
