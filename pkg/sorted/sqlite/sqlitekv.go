@@ -20,9 +20,10 @@ package sqlite // import "perkeep.org/pkg/sorted/sqlite"
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"os"
+
+	_ "modernc.org/sqlite"
 
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"
@@ -42,10 +43,6 @@ func NewStorage(file string) (sorted.KeyValue, error) {
 }
 
 func newKeyValueFromConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
-	if !compiled {
-		return nil, ErrNotCompiled
-	}
-
 	file := cfg.RequiredString("file")
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -99,15 +96,6 @@ type keyValue struct {
 	file string
 	db   *sql.DB
 }
-
-var compiled = false
-
-// CompiledIn returns whether SQLite support is compiled in.
-func CompiledIn() bool {
-	return compiled
-}
-
-var ErrNotCompiled = errors.New("perkeepd was not built with SQLite support. If you built with make.go, use go run make.go --sqlite=true. If you used go get or get install, use go {get,install} --tags=with_sqlite" + compileHint())
 
 func compileHint() string {
 	return ""

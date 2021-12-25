@@ -43,7 +43,6 @@ var (
 	wipeCache = flag.Bool("wipecache", false, "wipe the cache directory. Server cache with devcam server, client cache otherwise.")
 	// Whether to build the subcommand with sqlite support. This only
 	// concerns the server subcommand, which sets it to serverCmd.sqlite.
-	withSqlite bool
 )
 
 // The path to the Perkeep source tree. Any devcam command
@@ -254,7 +253,6 @@ func build(targets ...string) error {
 		"--quiet",
 		"--race=" + strconv.FormatBool(*race),
 		"--embed_static=false",
-		"--sqlite=" + strconv.FormatBool(withSqlite),
 		"--targets=" + targetsComma,
 	}
 	cmd := exec.Command("go", args...)

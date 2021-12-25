@@ -57,7 +57,7 @@ ADD go.sum /go/src/perkeep.org/go.sum
 
 WORKDIR /go/src/perkeep.org
 
-RUN go run make.go --sqlite=true -v
+RUN go run make.go -v
 
 
 
