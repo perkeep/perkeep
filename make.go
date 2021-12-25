@@ -49,11 +49,8 @@ import (
 	"time"
 )
 
-var haveSQLite = checkHaveSQLite()
-
 var (
 	embedResources   = flag.Bool("embed_static", true, "Whether to embed resources needed by the UI such as images, css, and javascript.")
-	sqlFlag          = flag.String("sqlite", "false", "DEPRECATED. Whether you want SQLite in your build: true, false, or auto.")
 	race             = flag.Bool("race", false, "Build race-detector version of binaries (they will run slowly)")
 	verbose          = flag.Bool("v", strings.Contains(os.Getenv("CAMLI_DEBUG_X"), "makego"), "Verbose mode")
 	targets          = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. '*' builds everything.  Empty builds defaults for this platform. Example: perkeep.org/server/perkeepd,perkeep.org/cmd/pk-put")
@@ -95,11 +92,9 @@ func main() {
 	verifyPerkeepRoot()
 	version := getVersion()
 	gitRev := getGitVersion()
-	sql := withSQLite()
 
 	if *verbose {
 		log.Printf("Perkeep version = %q, git = %q", version, gitRev)
-		log.Printf("SQLite included: %v", sql)
 		log.Printf("Project source: %s", pkRoot)
 		log.Printf("Output binaries: %s", actualBinDir())
 	}
@@ -240,16 +235,6 @@ func actualBinDir() string {
 		log.Fatalf("Could not run go list to guess install dir: %v, %v", err, out)
 	}
 	return filepath.Dir(strings.TrimSpace(string(out)))
-}
-
-func baseDirName(sql bool) string {
-	buildBaseDir := "build-gopath"
-	// We don't even consider whether we're cross-compiling. As long as we
-	// build for ARM, we do it in its own versioned dir.
-	if *buildARCH == "arm" {
-		buildBaseDir += "-armv" + *buildARM
-	}
-	return buildBaseDir
 }
 
 const (
@@ -734,14 +719,6 @@ func verifyGoVersion() {
 		log.Fatalf("Your version of Go (%s) is too old. Perkeep requires Go 1.%d or later.", string(out), goVersionMinor)
 	}
 
-}
-
-func withSQLite() bool {
-	return true
-}
-
-func checkHaveSQLite() bool {
-	return true
 }
 
 func doEmbed() {
