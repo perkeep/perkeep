@@ -97,10 +97,6 @@ type keyValue struct {
 	db   *sql.DB
 }
 
-func compileHint() string {
-	return ""
-}
-
 func (kv *keyValue) ping() error {
 	// TODO(bradfitz): something more efficient here?
 	_, err := kv.SchemaVersion()

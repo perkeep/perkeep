@@ -18,7 +18,6 @@ package sqlite_test
 
 import (
 	"bytes"
-	"database/sql"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -37,21 +36,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-var (
-	once        sync.Once
-	dbAvailable bool
-)
-
 func init() {
 	testhooks.SetUseSHA1(true)
-}
-
-func do(db *sql.DB, sql string) {
-	_, err := db.Exec(sql)
-	if err == nil {
-		return
-	}
-	panic(fmt.Sprintf("Error %v running SQL: %s", err, sql))
 }
 
 func newSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
