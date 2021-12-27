@@ -1,5 +1,3 @@
-// +build with_sqlite
-
 /*
 Copyright 2012 The Perkeep Authors.
 
@@ -20,7 +18,6 @@ package sqlite_test
 
 import (
 	"bytes"
-	"database/sql"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -35,25 +32,12 @@ import (
 	"perkeep.org/pkg/sorted/kvtest"
 	_ "perkeep.org/pkg/sorted/sqlite"
 
-	_ "github.com/mattn/go-sqlite3"
 	"go4.org/jsonconfig"
-)
-
-var (
-	once        sync.Once
-	dbAvailable bool
+	_ "modernc.org/sqlite"
 )
 
 func init() {
 	testhooks.SetUseSHA1(true)
-}
-
-func do(db *sql.DB, sql string) {
-	_, err := db.Exec(sql)
-	if err == nil {
-		return
-	}
-	panic(fmt.Sprintf("Error %v running SQL: %s", err, sql))
 }
 
 func newSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {

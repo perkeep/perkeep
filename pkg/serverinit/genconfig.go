@@ -1242,9 +1242,9 @@ var defaultBaseConfig = serverconfig.Config{
 }
 
 // WriteDefaultConfigFile generates a new default high-level server configuration
-// file at filePath. If useSQLite, the default indexer will use SQLite, otherwise
-// leveldb. If filePath already exists, it is overwritten.
-func WriteDefaultConfigFile(filePath string, useSQLite bool) error {
+// file at filePath. The default indexer will use SQLite.
+// If filePath already exists, it is overwritten.
+func WriteDefaultConfigFile(filePath string) error {
 	conf := defaultBaseConfig
 	blobDir, err := osutil.CamliBlobRoot()
 	if err != nil {
@@ -1260,11 +1260,7 @@ func WriteDefaultConfigFile(filePath string, useSQLite bool) error {
 	conf.BlobPath = blobDir
 	conf.PackRelated = true
 
-	if useSQLite {
-		conf.SQLite = filepath.Join(varDir, "index.sqlite")
-	} else {
-		conf.LevelDB = filepath.Join(varDir, "index.leveldb")
-	}
+	conf.SQLite = filepath.Join(varDir, "index.sqlite")
 
 	keyID, secretRing, err := getOrMakeKeyring()
 	if err != nil {

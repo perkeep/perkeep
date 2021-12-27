@@ -511,7 +511,6 @@ func (c *serverCmd) RunCommand(args []string) error {
 		return cmdmain.UsageError(fmt.Sprint(err))
 	}
 	if !*noBuild {
-		withSqlite = c.sqlite
 		targets := []string{
 			filepath.Join("server", "perkeepd"),
 			filepath.Join("cmd", "pk"),

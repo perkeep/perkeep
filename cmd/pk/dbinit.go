@@ -106,7 +106,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		// need to use an empty dbname to query tables
 		rootdb, err = sql.Open("mysql", c.mysqlDSN(""))
 	case "sqlite":
-		rootdb, err = sql.Open("sqlite3", c.dbName)
+		rootdb, err = sql.Open("sqlite", c.dbName)
 	}
 	if err != nil {
 		exitf("Error connecting to the root %s database: %v", c.dbType, err)
@@ -157,7 +157,7 @@ func (c *dbinitCmd) RunCommand(args []string) error {
 		conninfo := fmt.Sprintf("user=%s dbname=%s host=%s password=%s sslmode=%s", c.user, dbname, c.host, c.password, c.sslMode)
 		db, err = sql.Open("postgres", conninfo)
 	case "sqlite":
-		db, err = sql.Open("sqlite3", dbname)
+		db, err = sql.Open("sqlite", dbname)
 	default:
 		db, err = sql.Open("mysql", c.mysqlDSN(dbname))
 	}
@@ -264,9 +264,6 @@ var WithSQLite = false
 var ErrNoSQLite = errors.New("the command was not built with SQLite support. See https://code.google.com/p/camlistore/wiki/SQLite" + compileHint())
 
 func compileHint() string {
-	if _, err := os.Stat("/etc/apt"); err == nil {
-		return " (Required: apt-get install libsqlite3-dev)"
-	}
 	return ""
 }
 

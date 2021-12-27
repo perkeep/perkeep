@@ -47,7 +47,7 @@ func init() {
 		flags.BoolVar(&cmd.precommit, "precommit", true, "Run the pre-commit githook as part of tests.")
 		flags.BoolVar(&cmd.verbose, "v", false, "Use '-v' (for verbose) with go test.")
 		flags.StringVar(&cmd.run, "run", "", "Use '-run' with go test.")
-		flags.BoolVar(&cmd.sqlite, "sqlite", false, "Run tests with SQLite built-in where relevant.")
+		flags.BoolVar(&cmd.sqlite, "sqlite", true, "Run tests with SQLite built-in where relevant.")
 		return cmd
 	})
 }

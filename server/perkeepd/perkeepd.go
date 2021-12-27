@@ -66,6 +66,7 @@ import (
 	_ "perkeep.org/pkg/blobserver/s3"
 	_ "perkeep.org/pkg/blobserver/shard"
 	_ "perkeep.org/pkg/blobserver/union"
+
 	// Indexers: (also present themselves as storage targets)
 	// KeyValue implementations:
 	_ "perkeep.org/pkg/sorted/kvfile"
@@ -73,7 +74,6 @@ import (
 	_ "perkeep.org/pkg/sorted/mongo"
 	_ "perkeep.org/pkg/sorted/mysql"
 	_ "perkeep.org/pkg/sorted/postgres"
-	"perkeep.org/pkg/sorted/sqlite" // for sqlite.CompiledIn()
 
 	// Handlers:
 	_ "perkeep.org/pkg/search"
@@ -169,7 +169,7 @@ func loadConfig(arg string) (*serverinit.Config, error) {
 			return nil, err
 		}
 		log.Printf("Generating template config file %s", absPath)
-		if err := serverinit.WriteDefaultConfigFile(absPath, sqlite.CompiledIn()); err != nil {
+		if err := serverinit.WriteDefaultConfigFile(absPath); err != nil {
 			return nil, err
 		}
 	case filepath.IsAbs(arg):

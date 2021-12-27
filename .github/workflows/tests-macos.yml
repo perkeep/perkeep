@@ -25,5 +25,5 @@ jobs:
 
     - name: Build and test
       run: |
-        go run make.go -v=true -sqlite=true
-        devcam test -sqlite=true
+        go run make.go -v=true
+        devcam test
