@@ -75,7 +75,6 @@ import (
 	_ "perkeep.org/pkg/sorted/mysql"
 	_ "perkeep.org/pkg/sorted/postgres"
 
-	// for sqlite.CompiledIn()
 	// Handlers:
 	_ "perkeep.org/pkg/search"
 	_ "perkeep.org/pkg/server" // UI, publish, etc
