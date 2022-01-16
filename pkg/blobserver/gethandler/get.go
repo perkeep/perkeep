@@ -46,12 +46,6 @@ func CreateGetHandler(fetcher blob.Fetcher) http.Handler {
 }
 
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if req.URL.Path == "/camli/sha1-deadbeef00000000000000000000000000000000" {
-		// Test handler.
-		simulatePrematurelyClosedConnection(rw, req)
-		return
-	}
-
 	blobRef := blobFromURLPath(req.URL.Path)
 	if !blobRef.Valid() {
 		http.Error(rw, "Malformed GET URL.", 400)
@@ -132,22 +126,4 @@ func blobFromURLPath(path string) blob.Ref {
 		return blob.Ref{}
 	}
 	return blob.ParseOrZero(strings.TrimPrefix(matches[0], "/camli/"))
-}
-
-// For client testing.
-func simulatePrematurelyClosedConnection(rw http.ResponseWriter, req *http.Request) {
-	flusher, ok := rw.(http.Flusher)
-	if !ok {
-		return
-	}
-	hj, ok := rw.(http.Hijacker)
-	if !ok {
-		return
-	}
-	for n := 1; n <= 100; n++ {
-		fmt.Fprintf(rw, "line %d\n", n)
-		flusher.Flush()
-	}
-	wrc, _, _ := hj.Hijack()
-	wrc.Close() // without sending final chunk; should be an error for the client
 }
