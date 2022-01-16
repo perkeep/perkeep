@@ -1,0 +1,130 @@
+{
+  "auth": [
+    "basic:foo:bar"
+  ],
+  "https": true,
+  "httpsCert": "server.cert",
+  "httpsKey": "server.key",
+  "listen": "0.0.0.0:4443",
+  "prefixes": {
+    "/": {
+      "handler": "root",
+      "handlerArgs": {
+        "blobRoot": "/perkeepd/blobsource-and-maybe-also-index/",
+        "helpRoot": "/help/",
+        "jsonSignRoot": "/sighelper/",
+        "searchRoot": "/search/",
+        "statusRoot": "/status/",
+        "stealth": false
+      }
+    },
+    "/cache/": {
+      "handler": "storage-filesystem",
+      "handlerArgs": {
+        "path": "/var/perkeep/home/perkeepd/ui/cache"
+      }
+    },
+    "/help/": {
+      "handler": "help"
+    },
+    "/perkeepd/blobsource-and-index/": {
+      "handler": "storage-replica",
+      "handlerArgs": {
+        "backends": [
+          "/storage-blobpacked/",
+          "/perkeepd/index/"
+        ]
+      }
+    },
+    "/perkeepd/blobsource-and-maybe-also-index/": {
+      "handler": "storage-cond",
+      "handlerArgs": {
+        "read": "/storage-blobpacked/",
+        "write": {
+          "else": "/storage-blobpacked/",
+          "if": "isSchema",
+          "then": "/perkeepd/blobsource-and-index/"
+        }
+      }
+    },
+    "/perkeepd/index/": {
+      "handler": "storage-index",
+      "handlerArgs": {
+        "blobSource": "/storage-blobpacked/",
+        "keepGoing": true,
+        "reindex": false,
+        "storage": {
+          "file": "/var/perkeep/home/perkeepd/index/index.sqlite",
+          "type": "sqlite"
+        }
+      }
+    },
+    "/perkeepd/sync-blobsource-to-index/": {
+      "handler": "sync",
+      "handlerArgs": {
+        "from": "/storage-blobpacked/",
+        "queue": {
+          "file": "/var/perkeep/home/perkeepd/sync-bs-to-index/queue.sqlite",
+          "type": "sqlite"
+        },
+        "to": "/perkeepd/index/"
+      }
+    },
+    "/search/": {
+      "handler": "search",
+      "handlerArgs": {
+        "index": "/perkeepd/index/",
+        "owner": {
+          "identity": "F120C18FF0D9EFA5",
+          "secringFile": "/var/perkeep/home/perkeepd/identity-secring.gpg"
+        },
+        "slurpToMemory": true
+      }
+    },
+    "/setup/": {
+      "handler": "setup"
+    },
+    "/sighelper/": {
+      "handler": "jsonsign",
+      "handlerArgs": {
+        "keyId": "F120C18FF0D9EFA5",
+        "publicKeyDest": "/perkeepd/blobsource-and-index/",
+        "secretRing": "/var/perkeep/home/perkeepd/identity-secring.gpg"
+      }
+    },
+    "/storage-blobpacked/": {
+      "handler": "storage-blobpacked",
+      "handlerArgs": {
+        "keepGoing": false,
+        "largeBlobs": "/storage-blobpacked/large_blobs/",
+        "metaIndex": {
+          "file": "/var/perkeep/home/blobpacked/index.sqlite",
+          "type": "sqlite"
+        },
+        "smallBlobs": "/storage-blobpacked/small_blobs/"
+      }
+    },
+    "/storage-blobpacked/large_blobs/": {
+      "handler": "storage-localdisk",
+      "handlerArgs": {
+        "path": "/var/perkeep/home/blobpacked/large"
+      }
+    },
+    "/storage-blobpacked/small_blobs/": {
+      "handler": "storage-localdisk",
+      "handlerArgs": {
+        "path": "/var/perkeep/home/blobpacked/small"
+      }
+    },
+    "/ui/": {
+      "handler": "ui",
+      "handlerArgs": {
+        "cache": "/cache/",
+        "scaledImage": {
+          "file": "/var/perkeep/home/perkeepd/ui/thumbmeta.sqlite",
+          "type": "sqlite"
+        }
+      }
+    }
+  }
+}
