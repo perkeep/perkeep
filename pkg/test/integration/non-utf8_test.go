@@ -19,7 +19,6 @@ package integration
 import (
 	"bytes"
 	"encoding/hex"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -32,25 +31,11 @@ import (
 
 var nonUTF8 = "416c697ae965202d204d6f69204c6f6c6974612e6d7033" // hex-encoding
 
-func tempDir(t *testing.T) (path string, cleanup func()) {
-	path, err := ioutil.TempDir("", "camtest-")
-	if err != nil {
-		t.Fatalf("ioutil.TempDir(): %v", err)
-	}
-
-	cleanup = func() {
-		os.RemoveAll(path)
-	}
-
-	return
-}
-
 // Test that we can pk-put and pk-get a file whose name is not utf8,
 // that we don't panic in the process and that the results are
 // correct.
 func TestNonUTF8FileName(t *testing.T) {
-	srcDir, cleanup := tempDir(t)
-	defer cleanup()
+	srcDir := t.TempDir()
 
 	base, err := hex.DecodeString(nonUTF8)
 	if err != nil {
@@ -73,8 +58,7 @@ func TestNonUTF8FileName(t *testing.T) {
 	br := strings.Split(out, "\n")[0]
 
 	// pk-put was a success. Can we get the file back in another directory?
-	dstDir, cleanup := tempDir(t)
-	defer cleanup()
+	dstDir := t.TempDir()
 
 	_ = test.MustRunCmd(t, w.Cmd("pk-get", "-o", dstDir, br))
 	_, err = os.Lstat(filepath.Join(dstDir, string(base)))
@@ -92,8 +76,7 @@ func TestNonUTF8SymlinkTarget(t *testing.T) {
 		t.Skip("skipping symlink test on Windows")
 	}
 
-	srcDir, cleanup := tempDir(t)
-	defer cleanup()
+	srcDir := t.TempDir()
 
 	base, err := hex.DecodeString(nonUTF8)
 	if err != nil {
@@ -121,8 +104,7 @@ func TestNonUTF8SymlinkTarget(t *testing.T) {
 	br := strings.Split(out, "\n")[0]
 
 	// See if we can pk-get it back correctly
-	dstDir, cleanup := tempDir(t)
-	defer cleanup()
+	dstDir := t.TempDir()
 
 	_ = test.MustRunCmd(t, w.Cmd("pk-get", "-o", dstDir, br))
 	target, err := os.Readlink(filepath.Join(dstDir, "link"))

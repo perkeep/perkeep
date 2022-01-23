@@ -18,7 +18,6 @@ package integration
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,11 +48,7 @@ func share(t *testing.T, file string) {
 	out = test.MustRunCmd(t, w.Cmd("pk-put", "share", "-transitive", fileRef))
 	shareRef := strings.Split(out, "\n")[0]
 
-	testDir, err := ioutil.TempDir("", "camli-share-test-")
-	if err != nil {
-		t.Fatalf("ioutil.TempDir(): %v", err)
-	}
-	defer os.RemoveAll(testDir)
+	testDir := t.TempDir()
 
 	// test that we can get it through the share
 	test.MustRunCmd(t, w.Cmd("pk-get", "-o", testDir, "-shared", fmt.Sprintf("%v/share/%v", w.ServerBaseURL(), shareRef)))

@@ -164,14 +164,6 @@ func TestNoTestingLinking(t *testing.T) {
 	}
 }
 
-func mustTempDir(t *testing.T) (name string, cleanup func()) {
-	dir, err := ioutil.TempDir("", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return dir, func() { os.RemoveAll(dir) }
-}
-
 func mustWriteFile(t *testing.T, path, contents string) {
 	err := ioutil.WriteFile(path, []byte(contents), 0644)
 	if err != nil {
@@ -188,8 +180,7 @@ func TestAndroidCamputFile(t *testing.T) {
 	//   CAMLI_TRUSTED_CERT (not needed)
 	//   CAMLI_CACHE_DIR
 	//   CAMPUT_ANDROID_OUTPUT=1
-	cacheDir, clean := mustTempDir(t)
-	defer clean()
+	cacheDir := t.TempDir()
 	env := append(os.Environ(),
 		"CAMPUT_ANDROID_OUTPUT=1",
 		"CAMLI_CACHE_DIR="+cacheDir,
@@ -217,8 +208,7 @@ func TestAndroidCamputFile(t *testing.T) {
 	}
 	defer cmd.Process.Kill()
 
-	srcDir, clean := mustTempDir(t)
-	defer clean()
+	srcDir := t.TempDir()
 
 	file1 := filepath.Join(srcDir, "file1.txt")
 	mustWriteFile(t, file1, "contents 1")

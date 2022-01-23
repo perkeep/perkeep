@@ -23,7 +23,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -107,17 +106,14 @@ func writePack(t *testing.T, dir string, i int, p pack) {
 
 func newTestStorage(t *testing.T, packs ...pack) (s *storage, clean func()) {
 	restoreLogging := test.TLog(t)
-	dir, err := ioutil.TempDir("", "diskpacked-test")
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := t.TempDir()
 
 	for i, p := range packs {
 		writePack(t, dir, i, p)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	err = Reindex(ctx, dir, true, nil)
+	err := Reindex(ctx, dir, true, nil)
 	cancel()
 	if err != nil {
 		t.Fatalf("Reindexing after writing pack files: %v", err)
@@ -129,7 +125,6 @@ func newTestStorage(t *testing.T, packs ...pack) (s *storage, clean func()) {
 
 	clean = func() {
 		s.Close()
-		os.RemoveAll(dir)
 		restoreLogging()
 	}
 	return s, clean

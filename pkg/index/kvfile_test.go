@@ -17,8 +17,6 @@ limitations under the License.
 package index_test
 
 import (
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -32,18 +30,13 @@ import (
 )
 
 func newKvfileSorted(t *testing.T) (kv sorted.KeyValue, cleanup func()) {
-	td, err := ioutil.TempDir("", "kvfile-test")
+	td := t.TempDir()
+	kv, err := kvfile.NewStorage(filepath.Join(td, "kvfile"))
 	if err != nil {
-		t.Fatal(err)
-	}
-	kv, err = kvfile.NewStorage(filepath.Join(td, "kvfile"))
-	if err != nil {
-		os.RemoveAll(td)
 		t.Fatal(err)
 	}
 	return kv, func() {
 		kv.Close()
-		os.RemoveAll(td)
 	}
 }
 

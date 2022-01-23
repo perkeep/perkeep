@@ -18,7 +18,6 @@ package integration
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,19 +29,12 @@ import (
 	"perkeep.org/pkg/test"
 )
 
-// mkTmpFIFO makes a fifo in a temporary directory and returns the
-// path it and a function to clean-up when done.
-func mkTmpFIFO(t *testing.T) (path string, cleanup func()) {
-	tdir, err := ioutil.TempDir("", "fifo-test-")
-	if err != nil {
-		t.Fatalf("iouti.TempDir(): %v", err)
-	}
-	cleanup = func() {
-		os.RemoveAll(tdir)
-	}
+// mkTmpFIFO makes a fifo in a temporary directory and returns the path to it.
+func mkTmpFIFO(t *testing.T) (path string) {
+	tdir := t.TempDir()
 
 	path = filepath.Join(tdir, "fifo")
-	err = osutil.Mkfifo(path, 0660)
+	err := osutil.Mkfifo(path, 0660)
 	if err != nil {
 		t.Fatalf("osutil.mkfifo(): %v", err)
 	}
@@ -56,8 +48,7 @@ func TestCamputFIFO(t *testing.T) {
 		t.SkipNow()
 	}
 
-	fifo, cleanup := mkTmpFIFO(t)
-	defer cleanup()
+	fifo := mkTmpFIFO(t)
 
 	// Can we successfully upload a fifo?
 	w := test.GetWorld(t)
@@ -68,19 +59,13 @@ func TestCamputFIFO(t *testing.T) {
 	t.Logf("Retrieved stored fifo schema: %s", out)
 }
 
-// mkTmpSocket makes a socket in a temporary directory and returns the
-// path to it and a function to clean-up when done.
-func mkTmpSocket(t *testing.T) (path string, cleanup func()) {
-	tdir, err := ioutil.TempDir("", "socket-test-")
-	if err != nil {
-		t.Fatalf("iouti.TempDir(): %v", err)
-	}
-	cleanup = func() {
-		os.RemoveAll(tdir)
-	}
+// mkTmpSocket makes a socket in a temporary directory and returns the path to
+// it.
+func mkTmpSocket(t *testing.T) (path string) {
+	tdir := t.TempDir()
 
 	path = filepath.Join(tdir, "socket")
-	err = osutil.Mksocket(path)
+	err := osutil.Mksocket(path)
 	if err != nil {
 		t.Fatalf("osutil.Mksocket(): %v", err)
 	}
@@ -94,8 +79,7 @@ func TestCamputSocket(t *testing.T) {
 		t.SkipNow()
 	}
 
-	socket, cleanup := mkTmpSocket(t)
-	defer cleanup()
+	socket := mkTmpSocket(t)
 
 	// Can we successfully upload a socket?
 	w := test.GetWorld(t)

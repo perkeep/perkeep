@@ -120,12 +120,7 @@ func TestUploadingChangingDirectory(t *testing.T) {
 }
 
 func testWithTempDir(t *testing.T, fn func(tempDir string)) {
-	tempDir, err := ioutil.TempDir("", "")
-	if err != nil {
-		t.Errorf("error creating temp dir: %v", err)
-		return
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	confDir := filepath.Join(tempDir, "conf")
 	mustMkdir(t, confDir, 0700)
