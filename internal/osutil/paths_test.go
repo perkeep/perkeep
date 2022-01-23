@@ -93,18 +93,9 @@ func TestOpenCamliIncludeCWD(t *testing.T) {
 	checkOpen(t, path)
 }
 
-func tempDir(t *testing.T) (path string, cleanup func()) {
-	dir, err := ioutil.TempDir("", "")
-	if err != nil {
-		t.Fatalf("making tempdir: %v", err)
-	}
-	return dir, func() { os.RemoveAll(dir) }
-}
-
 // Test for when a file exists in CAMLI_CONFIG_DIR
 func TestOpenCamliIncludeDir(t *testing.T) {
-	td, clean := tempDir(t)
-	defer clean()
+	td := t.TempDir()
 
 	const name string = "TestOpenCamliIncludeDir.config"
 	if e := createTestInclude(filepath.Join(td, name)); e != nil {
@@ -119,8 +110,7 @@ func TestOpenCamliIncludeDir(t *testing.T) {
 
 // Test for when a file exits in CAMLI_INCLUDE_PATH
 func TestOpenCamliIncludePath(t *testing.T) {
-	td, clean := tempDir(t)
-	defer clean()
+	td := t.TempDir()
 
 	const name string = "TestOpenCamliIncludePath.config"
 	if e := createTestInclude(filepath.Join(td, name)); e != nil {
@@ -152,11 +142,7 @@ func TestCamPkConfigMigration(t *testing.T) {
 	}()
 	log.SetOutput(ioutil.Discard)
 
-	td, err := ioutil.TempDir("", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(td)
+	td := t.TempDir()
 
 	configDirNamedTestHook = func(name string) string {
 		return filepath.Join(td, name)

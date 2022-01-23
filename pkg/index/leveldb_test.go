@@ -17,8 +17,6 @@ limitations under the License.
 package index_test
 
 import (
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -30,18 +28,13 @@ import (
 )
 
 func newLevelDBSorted(t *testing.T) (kv sorted.KeyValue, cleanup func()) {
-	td, err := ioutil.TempDir("", "camli-index-leveldb")
+	td := t.TempDir()
+	kv, err := leveldb.NewStorage(filepath.Join(td, "leveldb"))
 	if err != nil {
-		t.Fatal(err)
-	}
-	kv, err = leveldb.NewStorage(filepath.Join(td, "leveldb"))
-	if err != nil {
-		os.RemoveAll(td)
 		t.Fatal(err)
 	}
 	return kv, func() {
 		kv.Close()
-		os.RemoveAll(td)
 	}
 }
 

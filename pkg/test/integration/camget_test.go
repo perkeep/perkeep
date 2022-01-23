@@ -34,11 +34,7 @@ import (
 func TestCamgetSymlink(t *testing.T) {
 	w := test.GetWorld(t)
 
-	srcDir, err := ioutil.TempDir("", "pk-get-test-")
-	if err != nil {
-		t.Fatalf("ioutil.TempDir(): %v", err)
-	}
-	defer os.RemoveAll(srcDir)
+	srcDir := t.TempDir()
 
 	targetBase := "a"
 	target := filepath.Join(srcDir, targetBase)
@@ -70,11 +66,7 @@ func TestCamgetSymlink(t *testing.T) {
 		t.Fatalf("pk-put: expected output to be non-empty")
 	}
 	br := strings.Split(out, "\n")[0]
-	dstDir, err := ioutil.TempDir("", "pk-get-test-")
-	if err != nil {
-		t.Fatalf("ioutil.TempDir(): %v", err)
-	}
-	defer os.RemoveAll(dstDir)
+	dstDir := t.TempDir()
 
 	// Now restore the symlink
 	_ = test.MustRunCmd(t, w.Cmd("pk-get", "-o", dstDir, br))
@@ -104,8 +96,7 @@ func TestCamgetFIFO(t *testing.T) {
 		t.SkipNow()
 	}
 
-	fifo, cleanup := mkTmpFIFO(t)
-	defer cleanup()
+	fifo := mkTmpFIFO(t)
 
 	// Upload the fifo
 	w := test.GetWorld(t)
@@ -113,11 +104,7 @@ func TestCamgetFIFO(t *testing.T) {
 	br := strings.Split(out, "\n")[0]
 
 	// Try and get it back
-	tdir, err := ioutil.TempDir("", "fifo-test-")
-	if err != nil {
-		t.Fatalf("ioutil.TempDir(): %v", err)
-	}
-	defer os.RemoveAll(tdir)
+	tdir := t.TempDir()
 	test.MustRunCmd(t, w.Cmd("pk-get", "-o", tdir, br))
 
 	// Ensure it is actually a fifo
@@ -137,8 +124,7 @@ func TestCamgetSocket(t *testing.T) {
 		t.SkipNow()
 	}
 
-	socket, cleanup := mkTmpSocket(t)
-	defer cleanup()
+	socket := mkTmpSocket(t)
 
 	// Upload the socket
 	w := test.GetWorld(t)
@@ -146,11 +132,7 @@ func TestCamgetSocket(t *testing.T) {
 	br := strings.Split(out, "\n")[0]
 
 	// Try and get it back
-	tdir, err := ioutil.TempDir("", "socket-test-")
-	if err != nil {
-		t.Fatalf("ioutil.TempDir(): %v", err)
-	}
-	defer os.RemoveAll(tdir)
+	tdir := t.TempDir()
 	test.MustRunCmd(t, w.Cmd("pk-get", "-o", tdir, br))
 
 	// Ensure it is actually a socket
@@ -169,11 +151,7 @@ func TestCamgetSocket(t *testing.T) {
 // 2) if the file already exists, and has the same size as the one held by the server,
 // stop early and do not even fetch it from the server.
 func TestCamgetFile(t *testing.T) {
-	dirName, err := ioutil.TempDir("", "camli-TestCamgetFile")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dirName)
+	dirName := t.TempDir()
 	f, err := os.Create(filepath.Join(dirName, "test.txt"))
 	if err != nil {
 		t.Fatal(err)
