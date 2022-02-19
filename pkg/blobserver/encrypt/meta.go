@@ -129,7 +129,11 @@ func (s *storage) makePackedMetaBlob(plains, toDelete []blob.Ref) {
 		metaBytes.WriteString(v)
 		metaBytes.WriteString("\n")
 	}
-	encBytes := s.encryptBlob(nil, metaBytes.Bytes())
+	encBytes, err := s.encryptBlob(nil, metaBytes.Bytes())
+	if err != nil {
+		log.Printf("encrypt: failed to encrypt meta: %v", err)
+		return
+	}
 	metaSB, err := blobserver.ReceiveNoHash(ctx, s.meta, blob.RefFromBytes(encBytes), bytes.NewReader(encBytes))
 	if err != nil {
 		log.Printf("encrypt: failed to upload a packed meta: %v", err)
@@ -145,7 +149,7 @@ func (s *storage) makePackedMetaBlob(plains, toDelete []blob.Ref) {
 }
 
 // makeSingleMetaBlob makes and encrypts a metaBlob with one entry.
-func (s *storage) makeSingleMetaBlob(plainBR, encBR blob.Ref, plainSize uint32) []byte {
+func (s *storage) makeSingleMetaBlob(plainBR, encBR blob.Ref, plainSize uint32) ([]byte, error) {
 	plain := fmt.Sprintf("#camlistore/encmeta=2\n%s/%d/%s\n", plainBR, plainSize, encBR)
 	return s.encryptBlob(nil, []byte(plain))
 }

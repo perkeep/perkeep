@@ -28,15 +28,14 @@ $ ./dev-camtool sync --src=http://localhost:3179/enc/ --dest=stdout
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"runtime"
 	"strings"
-	"sync"
 	"testing"
 
+	"filippo.io/age"
 	"go4.org/jsonconfig"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
@@ -47,32 +46,12 @@ import (
 
 var ctxbg = context.Background()
 
-func TestSetPassphrase(t *testing.T) {
-	scryptN = 1 << 10
-	s := storage{}
-	if s.key != [32]byte{} {
-		t.Fail()
-	}
-	s.setPassphrase([]byte("foo"))
-	fooPass := s.key
-	if fooPass == [32]byte{} {
-		t.Fail()
-	}
-	s.setPassphrase([]byte("bar"))
-	if fooPass == s.key {
-		t.Fail()
-	}
-}
-
-var testPass = []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+var testIdentity, _ = age.GenerateX25519Identity()
 
 type testStorage struct {
 	sto   *storage
 	blobs *test.Fetcher
 	meta  *test.Fetcher
-
-	mu sync.Mutex
-	iv uint64
 }
 
 // fetchOrErrorString fetches br from sto and returns its body as a string.
@@ -94,9 +73,8 @@ func newTestStorage() *testStorage {
 	sto := &storage{
 		index:     sorted.NewMemoryKeyValue(),
 		smallMeta: &metaBlobHeap{},
+		identity:  testIdentity,
 	}
-	scryptN = 1 << 10
-	sto.setPassphrase(testPass)
 	ts := &testStorage{
 		sto:   sto,
 		blobs: new(test.Fetcher),
@@ -104,13 +82,6 @@ func newTestStorage() *testStorage {
 	}
 	sto.blobs = ts.blobs
 	sto.meta = ts.meta
-	sto.testRand = func(b []byte) (int, error) {
-		ts.mu.Lock()
-		defer ts.mu.Unlock()
-		ts.iv++
-		binary.BigEndian.PutUint64(b, ts.iv)
-		return len(b), nil
-	}
 	return ts
 }
 
@@ -120,17 +91,6 @@ func TestStorage(t *testing.T) {
 			return newTestStorage().sto, func() {}
 		},
 	})
-}
-
-func TestBadPass(t *testing.T) {
-	ts := newTestStorage()
-	mustPanic(t, "tried to set empty passphrase", func() { ts.sto.setPassphrase([]byte("")) })
-
-	for i := range ts.sto.key {
-		ts.sto.key[i] = 0
-	}
-	tb := &test.Blob{Contents: "foo"}
-	mustPanic(t, "no passphrase set", func() { tb.MustUpload(t, ts.sto) })
 }
 
 func TestEncrypt(t *testing.T) {
@@ -233,38 +193,12 @@ func TestLoadMeta(t *testing.T) {
 func TestNewFromConfig(t *testing.T) {
 	ld := test.NewLoader()
 
-	// Using passphrase
-	if _, err := newFromConfig(ld, jsonconfig.Obj{
-		"I_AGREE":    "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change.",
-		"passphrase": "secret123",
-		"blobs":      "/good-blobs/",
-		"meta":       "/good-meta/",
-		"metaIndex": map[string]interface{}{
-			"type": "memory",
-		},
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	// Using passphrase and key file
-	if _, err := newFromConfig(ld, jsonconfig.Obj{
-		"I_AGREE":    "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change.",
-		"passphrase": "secret123",
-		"keyFile":    "key.file",
-		"blobs":      "/good-blobs/",
-		"meta":       "/good-meta/",
-		"metaIndex": map[string]interface{}{
-			"type": "memory",
-		},
-	}); err == nil || !strings.Contains(err.Error(), "both passphrase and keyFile") {
-		t.Fatal(err)
-	}
-
 	// Using key file
 	tmpKeyFile, _ := ioutil.TempFile(t.TempDir(), "camlitest")
 	defer os.Remove((tmpKeyFile.Name()))
 	defer tmpKeyFile.Close()
-	tmpKeyFile.WriteString("secret123")
+	tmpKeyFile.WriteString(testIdentity.String())
+
 	if _, err := newFromConfig(ld, jsonconfig.Obj{
 		"I_AGREE": "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change.",
 		"keyFile": tmpKeyFile.Name(),
@@ -293,16 +227,4 @@ func TestNewFromConfig(t *testing.T) {
 		}
 	}
 
-}
-
-func mustPanic(t *testing.T, msg string, f func()) {
-	defer func() {
-		err := recover()
-		if err == nil {
-			t.Errorf("function did not panic, wanted %q", msg)
-		} else if err != msg {
-			t.Errorf("got panic %v, wanted %q", err, msg)
-		}
-	}()
-	f()
 }
