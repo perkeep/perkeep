@@ -230,7 +230,7 @@
 				"meta": "/encmeta/",
 				"blobs": "/encblob/",
 				"metaIndex": { "type": "memory" },
-				"passphrase": "password"
+				"keyFile": "config/age.key"
 			}
 		},
 

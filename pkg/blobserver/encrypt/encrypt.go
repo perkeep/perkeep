@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package encrypt registers the "encrypt" blobserver storage type
-// which stores all blobs and metadata with NaCl encryption into other
+// which stores all blobs and metadata with age encryption into other
 // wrapped storage targets (e.g. localdisk, s3, remote, google).
 //
 // An encrypt storage target is configured with two other storage targets:
@@ -23,11 +23,10 @@ limitations under the License.
 // the encrypted blobs. On start-up, all the metadata blobs are read
 // to discover the plaintext blobrefs.
 //
-// Encryption is currently always NaCl SecretBox.  See code for metadata
+// Encryption is currently always age. See code for metadata
 // formats and configuration details, which are currently subject to change.
 //
-// The low-level config requires exactly one of 'passphrase' or 'keyFile'
-// to be set.
+// The low-level config requires 'keyFile' to be set.
 //
 // Example low-level config:
 //
@@ -35,7 +34,6 @@ limitations under the License.
 //         "handler": "storage-encrypt",
 //         "handlerArgs": {
 //             "I_AGREE": "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change.",
-//             "passphrase": "secret123",
 //             "keyFile": "/path/to/keyfile",
 //             "blobs": "/blobs-storage/",
 //             "meta": "/meta-storage/",
@@ -49,9 +47,9 @@ limitations under the License.
 package encrypt // import "perkeep.org/pkg/blobserver/encrypt"
 
 import (
+	"bufio"
 	"bytes"
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -60,10 +58,9 @@ import (
 	"os"
 	"time"
 
+	"filippo.io/age"
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"
-	"golang.org/x/crypto/nacl/secretbox"
-	"golang.org/x/crypto/scrypt"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/sorted"
@@ -75,8 +72,8 @@ type storage struct {
 	// value: <plaintext length>/<encrypted blob.Ref>
 	index sorted.KeyValue
 
-	// Encryption key.
-	key [32]byte
+	// identity is used to encrypt and decrypt the blobs.
+	identity *age.X25519Identity
 
 	// blobs holds encrypted versions of all plaintext blobs.
 	blobs blobserver.Storage
@@ -91,84 +88,55 @@ type storage struct {
 
 	// smallMeta tracks a heap of meta blobs smaller than the target size.
 	smallMeta *metaBlobHeap
-
-	// Hooks for testing
-	testRand func([]byte) (int, error)
-}
-
-var scryptN = 1 << 20 // DO NOT change, except in tests
-
-func (s *storage) setPassphrase(passphrase []byte) {
-	if len(passphrase) == 0 {
-		panic("tried to set empty passphrase")
-	}
-
-	// We can't use a random salt as the passphrase wouldn't be enough to recover the
-	// data anymore, but we use a custom one so that generic tables are useless.
-	salt := []byte("camlistore")
-
-	// "Sensitive storage" reccomended parameters. 5s in 2009, probably less now.
-	// https://www.tarsnap.com/scrypt/scrypt-slides.pdf
-	key, err := scrypt.Key(passphrase, salt, scryptN, 8, 1, 32)
-	if err != nil {
-		// This can't happen with good parameters, which are fixed.
-		panic("scrypt key derivation failed: " + err.Error())
-	}
-
-	if copy(s.key[:], key) != 32 {
-		panic("copied wrong key length")
-	}
-}
-
-func (s *storage) randNonce(nonce *[24]byte) {
-	rand := rand.Read
-	if s.testRand != nil {
-		rand = s.testRand
-	}
-	_, err := rand(nonce[:])
-	if err != nil {
-		panic(err)
-	}
 }
 
 // Format of encrypted blobs:
-// versionByte (0x01) || 24 bytes nonce || secretbox(plaintext)
-// The plaintext is long len(ciphertext) - 1 - 24 - secretbox.Overhead (16)
+// versionByte (0x02) || age_v1(plaintext)
 
-const version = 1
-
-const overhead = 1 + 24 + secretbox.Overhead
+const version = 2
 
 // encryptBlob encrypts plaintext and appends the result to ciphertext,
 // which must not overlap plaintext.
-func (s *storage) encryptBlob(ciphertext, plaintext []byte) []byte {
-	if s.key == [32]byte{} {
-		// Safety check, we really don't want this to happen.
-		panic("no passphrase set")
+func (s *storage) encryptBlob(ciphertext, plaintext []byte) ([]byte, error) {
+	in := bytes.NewBuffer(plaintext)
+	out := bytes.NewBuffer(ciphertext)
+
+	if err := out.WriteByte(version); err != nil {
+		return ciphertext, fmt.Errorf("unable to write version byte: %w", err)
 	}
-	var nonce [24]byte
-	s.randNonce(&nonce)
-	ciphertext = append(ciphertext, version)
-	ciphertext = append(ciphertext, nonce[:]...)
-	return secretbox.Seal(ciphertext, plaintext, &nonce, &s.key)
+	enc, err := age.Encrypt(out, s.identity.Recipient())
+	if err != nil {
+		return ciphertext, fmt.Errorf("unable to encrypt plaintext: %w", err)
+	}
+	if _, err := io.Copy(enc, in); err != nil {
+		return ciphertext, fmt.Errorf("unable to encrypt plaintext: %w", err)
+	}
+	if err := enc.Close(); err != nil {
+		return ciphertext, fmt.Errorf("unable to encrypt plaintext: %w", err)
+	}
+	return out.Bytes(), nil
 }
 
 // decryptBlob decrypts ciphertext and appends the result to plaintext,
 // which must not overlap ciphertext.
 func (s *storage) decryptBlob(plaintext, ciphertext []byte) ([]byte, error) {
-	if len(ciphertext) < overhead {
-		return nil, errors.New("blob too short to be encrypted")
+	in := bytes.NewBuffer(ciphertext)
+	out := bytes.NewBuffer(plaintext)
+
+	if versionByte, err := in.ReadByte(); err != nil {
+		return ciphertext, fmt.Errorf("unable to read version byte: %w", err)
+	} else if versionByte != version {
+		return ciphertext, fmt.Errorf("unknown encrypted blob version: %d", versionByte)
 	}
-	if ciphertext[0] != version {
-		return nil, errors.New("unknown encrypted blob version")
+
+	dec, err := age.Decrypt(in, s.identity)
+	if err != nil {
+		return ciphertext, fmt.Errorf("unable to decrypt ciphertext: %w", err)
 	}
-	var nonce [24]byte
-	copy(nonce[:], ciphertext[1:])
-	plaintext, success := secretbox.Open(plaintext, ciphertext[25:], &nonce, &s.key)
-	if !success {
-		return nil, errors.New("encrypted blob failed authentication")
+	if _, err := io.Copy(out, dec); err != nil {
+		return ciphertext, fmt.Errorf("unable to decrypt plaintext: %w", err)
 	}
-	return plaintext, nil
+	return out.Bytes(), nil
 }
 
 func (s *storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
@@ -192,8 +160,7 @@ func (s *storage) StatBlobs(ctx context.Context, blobs []blob.Ref, fn func(blob.
 }
 
 func (s *storage) ReceiveBlob(ctx context.Context, plainBR blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
-	// Aggressively check for duplicates since there's nothing else to
-	// ensure we don't store blobs twice with different nonces.
+	// Aggressively check for duplicates since there's nothing else to ensure we don't store blobs twice
 	if plainSize, _, err := s.fetchMeta(ctx, plainBR); err == nil {
 		log.Println("encrypt: duplicated blob received", plainBR)
 		return blob.SizedRef{Ref: plainBR, Size: uint32(plainSize)}, nil
@@ -209,7 +176,10 @@ func (s *storage) ReceiveBlob(ctx context.Context, plainBR blob.Ref, source io.R
 		return sb, blobserver.ErrCorruptBlob
 	}
 
-	enc := s.encryptBlob(nil, buf.Bytes())
+	enc, err := s.encryptBlob(nil, buf.Bytes())
+	if err != nil {
+		return sb, fmt.Errorf("encrypt: error encrypting blob: %w", err)
+	}
 	encBR := blob.RefFromBytes(enc)
 
 	_, err = blobserver.ReceiveNoHash(ctx, s.blobs, encBR, bytes.NewReader(enc))
@@ -217,7 +187,10 @@ func (s *storage) ReceiveBlob(ctx context.Context, plainBR blob.Ref, source io.R
 		return sb, fmt.Errorf("encrypt: error writing encrypted blob %v (plaintext %v): %v", encBR, plainBR, err)
 	}
 
-	metaBytes := s.makeSingleMetaBlob(plainBR, encBR, uint32(plainSize))
+	metaBytes, err := s.makeSingleMetaBlob(plainBR, encBR, uint32(plainSize))
+	if err != nil {
+		return sb, fmt.Errorf("encrypt: error making meta blob: %w", err)
+	}
 	metaSB, err := blobserver.ReceiveNoHash(ctx, s.meta, blob.RefFromBytes(metaBytes), bytes.NewReader(metaBytes))
 	if err != nil {
 		return sb, fmt.Errorf("encrypt: error writing encrypted meta for plaintext %v (encrypted blob %v): %v", plainBR, encBR, err)
@@ -244,7 +217,6 @@ func (s *storage) Fetch(ctx context.Context, plainBR blob.Ref) (io.ReadCloser, u
 	defer encData.Close()
 
 	var ciphertext bytes.Buffer
-	ciphertext.Grow(int(plainSize + overhead))
 	encHash := encBR.Hash()
 	_, err = io.Copy(io.MultiWriter(&ciphertext, encHash), encData)
 	if err != nil {
@@ -264,7 +236,7 @@ func (s *storage) Fetch(ctx context.Context, plainBR blob.Ref) (io.ReadCloser, u
 		return nil, 0, fmt.Errorf("encrypt: encrypted blob %s failed validation: %s", encBR, err)
 	}
 
-	return ioutil.NopCloser(bytes.NewReader(plaintext)), uint32(len(plaintext)), nil
+	return ioutil.NopCloser(bytes.NewReader(plaintext)), plainSize, nil
 }
 
 func (s *storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
@@ -299,37 +271,17 @@ func init() {
 }
 
 func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.Storage, err error) {
-	metaConf := config.RequiredObject("metaIndex")
 	sto := &storage{}
-	agreement := config.OptionalString("I_AGREE", "")
+	agreement := config.RequiredString("I_AGREE")
 	const wantAgreement = "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change."
 	if agreement != wantAgreement {
 		return nil, errors.New("use of the 'encrypt' target without the proper I_AGREE value")
 	}
 
-	var keyData []byte
-	passphrase := config.OptionalString("passphrase", "")
-	keyFile := config.OptionalString("keyFile", "")
-	if passphrase != "" && keyFile != "" {
-		return nil, errors.New("Can't specify both passphrase and keyFile")
-	}
-	if passphrase == "" && keyFile == "" {
-		return nil, errors.New("Must specify passphrase or keyFile")
-	}
-	if keyFile != "" {
-		if err := checkKeyFilePermissions(keyFile); err != nil {
-			return nil, err
-		}
-		keyData, err = ioutil.ReadFile(keyFile)
-		if err != nil {
-			return nil, fmt.Errorf("Reading key file %v: %v", keyFile, err)
-		}
-	} else {
-		keyData = []byte(passphrase)
-	}
-
+	keyFile := config.RequiredString("keyFile")
 	blobStorage := config.RequiredString("blobs")
 	metaStorage := config.RequiredString("meta")
+	metaConf := config.RequiredObject("metaIndex")
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -348,7 +300,16 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 		return
 	}
 
-	sto.setPassphrase(keyData)
+	keyData, err := readKeyFile(keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("error reading key file '%s': %w", keyFile, err)
+	}
+
+	identity, err := age.ParseX25519Identity(keyData)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing x25519 identity: %w", err)
+	}
+	sto.identity = identity
 
 	start := time.Now()
 	log.Printf("Reading encryption metadata...")
@@ -359,4 +320,27 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (bs blobserver.S
 	log.Printf("Read all encryption metadata in %.3f seconds", time.Since(start).Seconds())
 
 	return sto, nil
+}
+
+func readKeyFile(keyFile string) (string, error) {
+	if err := checkKeyFilePermissions(keyFile); err != nil {
+		return "", fmt.Errorf("error checking key file permissions: %w", err)
+	}
+	f, err := os.Open(keyFile)
+	if err != nil {
+		return "", fmt.Errorf("error opening key file: %w", err)
+	}
+	defer f.Close()
+
+	keyScanner := bufio.NewScanner(f)
+	if !keyScanner.Scan() {
+		return "", errors.New("empty key file")
+	}
+	keyData := keyScanner.Text()
+
+	if keyScanner.Scan() {
+		return "", errors.New("key file contained multiple lines")
+	}
+
+	return keyData, keyScanner.Err()
 }
