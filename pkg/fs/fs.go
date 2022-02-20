@@ -150,7 +150,7 @@ func (n *node) Lookup(ctx context.Context, name string) (fusefs.Node, error) {
 	loaded := n.dirents != nil
 	n.dmu.Unlock()
 	if !loaded {
-		n.ReadDirAll(nil)
+		n.ReadDirAll(ctx)
 	}
 
 	n.mu.Lock()
