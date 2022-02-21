@@ -36,7 +36,6 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
-	"go4.org/readerutil"
 	"go4.org/syncutil"
 )
 
@@ -661,25 +660,6 @@ func (n *mutFile) modTime() time.Time {
 	return serverStart
 }
 
-func (n *mutFile) setContent(ctx context.Context, br blob.Ref, size int64) error {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.content = br
-	n.size = size
-	claim := schema.NewSetAttributeClaim(n.permanode, "camliContent", br.String())
-	_, err := n.fs.client.UploadAndSignBlob(ctx, claim)
-	return err
-}
-
-func (n *mutFile) setSizeAtLeast(size int64) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	Logger.Printf("mutFile.setSizeAtLeast(%d). old size = %d", size, n.size)
-	if size > n.size {
-		n.size = size
-	}
-}
-
 // Empirically:
 //  open for read:   req.Flags == 0
 //  open for append: req.Flags == 1
@@ -740,14 +720,13 @@ func (n *mutFile) Setattr(ctx context.Context, req *fuse.SetattrRequest, res *fu
 	// 2013/07/17 19:43:41 mutFile.Setattr on "foo": &fuse.SetattrRequest{Header:fuse.Header{Conn:(*fuse.Conn)(0xc210047180), ID:0x3, Node:0x3d, Uid:0xf0d4, Gid:0x1388, Pid:0x75e8}, Valid:0x30, Handle:0x0, Size:0x0, Atime:time.Time{sec:63509651021, nsec:0x4aec6b8, loc:(*time.Location)(0x47f7600)}, Mtime:time.Time{sec:63509651021, nsec:0x4aec6b8, loc:(*time.Location)(0x47f7600)}, Mode:0x4000000, Uid:0x0, Gid:0x0, Bkuptime:time.Time{sec:62135596800, nsec:0x0, loc:(*time.Location)(0x47f7600)}, Chgtime:time.Time{sec:62135596800, nsec:0x0, loc:(*time.Location)(0x47f7600)}, Crtime:time.Time{sec:0, nsec:0x0, loc:(*time.Location)(nil)}, Flags:0x0}
 
 	n.mu.Lock()
-	if req.Valid&fuse.SetattrMtime != 0 {
+	if req.Valid.Mtime() {
 		n.mtime = req.Mtime
 	}
-	if req.Valid&fuse.SetattrAtime != 0 {
+	if req.Valid.Atime() {
 		n.atime = req.Atime
 	}
-	if req.Valid&fuse.SetattrSize != 0 {
-		// TODO(bradfitz): truncate?
+	if req.Valid.Size() {
 		n.size = int64(req.Size)
 	}
 	n.mu.Unlock()
@@ -791,12 +770,23 @@ var (
 )
 
 func (h *mutFileHandle) Read(ctx context.Context, req *fuse.ReadRequest, res *fuse.ReadResponse) error {
+	h.f.mu.Lock()
+	defer h.f.mu.Unlock()
+
 	if h.tmp == nil {
 		Logger.Printf("Read called on camli mutFileHandle without a tempfile set")
 		return fuse.EIO
 	}
 
-	buf := make([]byte, req.Size)
+	if req.Offset > h.f.size {
+		return nil
+	}
+	toRead := int64(req.Size)
+	if remain := h.f.size - req.Offset; remain < toRead {
+		toRead = remain
+	}
+
+	buf := make([]byte, toRead)
 	n, err := h.tmp.ReadAt(buf, req.Offset)
 	if err == io.EOF {
 		err = nil
@@ -810,6 +800,9 @@ func (h *mutFileHandle) Read(ctx context.Context, req *fuse.ReadRequest, res *fu
 }
 
 func (h *mutFileHandle) Write(ctx context.Context, req *fuse.WriteRequest, res *fuse.WriteResponse) error {
+	h.f.mu.Lock()
+	defer h.f.mu.Unlock()
+
 	if h.tmp == nil {
 		Logger.Printf("Write called on camli mutFileHandle without a tempfile set")
 		return fuse.EIO
@@ -822,8 +815,12 @@ func (h *mutFileHandle) Write(ctx context.Context, req *fuse.WriteRequest, res *
 		Logger.Println("mutFileHandle.Write:", err)
 		return fuse.EIO
 	}
+
+	if h.f.size < req.Offset+int64(n) {
+		h.f.size = req.Offset + int64(n)
+	}
 	res.Size = n
-	h.f.setSizeAtLeast(req.Offset + int64(n))
+
 	return nil
 }
 
@@ -842,6 +839,9 @@ func (h *mutFileHandle) Write(ctx context.Context, req *fuse.WriteRequest, res *
 // Note that this is distinct from Fsync -- which is a user-requested
 // flush (fsync, etc...)
 func (h *mutFileHandle) Flush(ctx context.Context, req *fuse.FlushRequest) error {
+	h.f.mu.Lock()
+	defer h.f.mu.Unlock()
+
 	if h.tmp == nil {
 		Logger.Printf("Flush called on camli mutFileHandle without a tempfile set")
 		return fuse.EIO
@@ -851,14 +851,14 @@ func (h *mutFileHandle) Flush(ctx context.Context, req *fuse.FlushRequest) error
 		Logger.Println("mutFileHandle.Flush:", err)
 		return fuse.EIO
 	}
-	var n int64
-	br, err := schema.WriteFileFromReader(ctx, h.f.fs.client, h.f.name, readerutil.CountingReader{Reader: h.tmp, N: &n})
+	br, err := schema.WriteFileFromReader(ctx, h.f.fs.client, h.f.name, &io.LimitedReader{R: h.tmp, N: h.f.size})
 	if err != nil {
 		Logger.Println("mutFileHandle.Flush:", err)
 		return fuse.EIO
 	}
-	err = h.f.setContent(ctx, br, n)
-	if err != nil {
+	h.f.content = br
+	claim := schema.NewSetAttributeClaim(h.f.permanode, "camliContent", br.String())
+	if _, err := h.f.fs.client.UploadAndSignBlob(ctx, claim); err != nil {
 		Logger.Printf("mutFileHandle.Flush: %v", err)
 		return fuse.EIO
 	}
@@ -869,6 +869,9 @@ func (h *mutFileHandle) Flush(ctx context.Context, req *fuse.FlushRequest) error
 // Release is called when a file handle is no longer needed.  This is
 // called asynchronously after the last handle to a file is closed.
 func (h *mutFileHandle) Release(ctx context.Context, req *fuse.ReleaseRequest) error {
+	h.f.mu.Lock()
+	defer h.f.mu.Unlock()
+
 	h.tmp.Close()
 	os.Remove(h.tmp.Name())
 	h.tmp = nil

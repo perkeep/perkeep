@@ -253,6 +253,52 @@ func TestReadFileFromRoot(t *testing.T) {
 	})
 }
 
+func TestTruncateFile(t *testing.T) {
+	condSkip(t)
+	inEmptyMutDir(t, func(env *mountEnv, rootDir string) {
+		tmpFile, err := ioutil.TempFile(rootDir, "camlitest")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = tmpFile.WriteString("hello world from test"); err != nil {
+			t.Fatal(err)
+		}
+		if err = tmpFile.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		const truncateAt = 6
+
+		tmpFile, err = os.OpenFile(tmpFile.Name(), os.O_RDWR, 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = tmpFile.Truncate(truncateAt); err != nil {
+			t.Fatal(err)
+		}
+		if stat, err := tmpFile.Stat(); err != nil {
+			t.Fatal(err)
+		} else if stat.Size() != truncateAt {
+			t.Fatalf("file size = %d, want %d", stat.Size(), truncateAt)
+		}
+
+		if _, err = tmpFile.WriteAt([]byte("perkeep"), truncateAt); err != nil {
+			t.Fatal(err)
+		}
+		if err = tmpFile.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		got, err := ioutil.ReadFile(tmpFile.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := "hello perkeep"; string(got) != want {
+			t.Fatalf("file content = %q, want %q", got, want)
+		}
+	})
+}
+
 type testLog struct {
 	t *testing.T
 }
