@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	"perkeep.org/pkg/blob"
-	. "perkeep.org/pkg/test/asserts"
 )
 
 type emptyEnumerator struct {
@@ -59,7 +58,12 @@ func TestEnumerateInput(t *testing.T) {
 		wr.Code = 200 // default
 		req, _ := http.NewRequest("GET", test.url, nil)
 		handleEnumerateBlobs(wr, req, enumerator)
-		ExpectInt(t, test.expectedCode, wr.Code, "response code for "+test.name)
-		ExpectString(t, test.expectedBody, wr.Body.String(), "output for "+test.name)
+
+		if got := wr.Code; got != test.expectedCode {
+			t.Fatalf("response code for %q: %d want %d", test.name, got, test.expectedCode)
+		}
+		if got := wr.Body.String(); got != test.expectedBody {
+			t.Fatalf("output for %q: %q want %q", test.name, got, wr.Body.String())
+		}
 	}
 }

@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"perkeep.org/pkg/blob"
-	. "perkeep.org/pkg/test/asserts"
 )
 
 func TestHubRegistration(t *testing.T) {
@@ -31,39 +30,71 @@ func TestHubRegistration(t *testing.T) {
 	b1 := blob.MustParse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
 	b2 := blob.MustParse("sha1-62cdb7020ff920e5aa642c3d4066950dd1f01f4d")
 
-	Expect(t, hub.listeners == nil, "hub.listeners is nil before RegisterListener")
+	if hub.listeners != nil {
+		t.Fatalf("hub.listeners is not nil before RegisterListener")
+	}
 
 	hub.RegisterListener(ch)
-	ExpectInt(t, 1, len(hub.listeners), "len(hub.listeners) after RegisterListener")
+	if want := 1; len(hub.listeners) != want {
+		t.Fatalf("len(hub.listeners) after RegisterListener: got: %d, expected: %d", len(hub.listeners), want)
+	}
 
 	hub.RegisterListener(ch2)
-	ExpectInt(t, 2, len(hub.listeners), "len(hub.listeners) after ch2 RegisterListener")
+	if want := 2; len(hub.listeners) != want {
+		t.Fatalf("len(hub.listeners) after ch2 RegisterListener: got: %d, expected: %d", len(hub.listeners), want)
+	}
 
 	hub.UnregisterListener(ch)
-	ExpectInt(t, 1, len(hub.listeners), "len(hub.listeners) after UnregisterListener")
+	if want := 1; len(hub.listeners) != want {
+		t.Fatalf("len(hub.listeners) after UnregisterListener: got: %d, expected: %d", len(hub.listeners), want)
+	}
 
 	hub.UnregisterListener(ch2)
-	ExpectInt(t, 0, len(hub.listeners), "len(hub.listeners) after UnregisterListener")
+	if want := 0; len(hub.listeners) != want {
+		t.Fatalf("len(hub.listeners) after UnregisterListener: got: %d, expected: %d", len(hub.listeners), want)
+	}
 
-	Expect(t, hub.blobListeners == nil, "hub.blobListeners is nil before RegisterBlobListener")
+	if hub.blobListeners != nil {
+		t.Fatalf("hub.blobListeners is not nil before RegisterBlobListener")
+	}
 
 	hub.RegisterBlobListener(b1, ch)
-	Expect(t, hub.blobListeners != nil, "hub.blobListeners is not nil before RegisterBlobListener")
-	Expect(t, hub.blobListeners[b1] != nil, "b1 in hub.blobListeners map")
-	ExpectInt(t, 1, len(hub.blobListeners[b1]), "hub.blobListeners[b1] size")
-	ExpectInt(t, 1, len(hub.blobListeners), "hub.blobListeners size")
+	if hub.blobListeners == nil {
+		t.Fatal("hub.blobListeners is nil after RegisterBlobListener")
+	}
+	if hub.blobListeners[b1] == nil {
+		t.Fatal("b1 in hub.blobListeners map is nil")
+	}
+	if want := 1; len(hub.blobListeners[b1]) != want {
+		t.Fatalf("hub.blobListeners[b1] size: got: %d, expected: %d", len(hub.blobListeners[b1]), want)
+	}
+	if want := 1; len(hub.blobListeners) != want {
+		t.Fatalf("hub.blobListeners size: got: %d, expected: %d", len(hub.listeners), want)
+	}
 
 	hub.RegisterBlobListener(b2, ch)
-	ExpectInt(t, 1, len(hub.blobListeners[b2]), "hub.blobListeners[b1] size")
-	ExpectInt(t, 2, len(hub.blobListeners), "hub.blobListeners size")
+	if want := 1; len(hub.blobListeners[b2]) != want {
+		t.Fatalf("hub.blobListeners[b2] size: got: %d, expected: %d", len(hub.blobListeners[b2]), want)
+	}
+	if want := 2; len(hub.blobListeners) != want {
+		t.Fatalf("hub.blobListeners size: got: %d, expected: %d", len(hub.listeners), want)
+	}
 
 	hub.UnregisterBlobListener(b2, ch)
-	Expect(t, hub.blobListeners[b2] == nil, "b2 not in hub.blobListeners")
-	ExpectInt(t, 1, len(hub.blobListeners), "hub.blobListeners size")
+	if hub.blobListeners[b2] != nil {
+		t.Fatalf("b2 in hub.blobListeners map is not nil")
+	}
+	if want := 1; len(hub.blobListeners) != want {
+		t.Fatalf("hub.blobListeners size: got: %d, expected: %d", len(hub.blobListeners), want)
+	}
 
 	hub.UnregisterBlobListener(b1, ch)
-	Expect(t, hub.blobListeners[b1] == nil, "b1 not in hub.blobListeners")
-	ExpectInt(t, 0, len(hub.blobListeners), "hub.blobListeners size")
+	if hub.blobListeners[b1] != nil {
+		t.Fatalf("b1 in hub.blobListeners map is not nil")
+	}
+	if want := 0; len(hub.blobListeners) != want {
+		t.Fatalf("hub.blobListeners size: got: %d, expected: %d", len(hub.blobListeners), want)
+	}
 }
 
 func TestHubFiring(t *testing.T) {
