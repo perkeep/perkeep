@@ -28,7 +28,6 @@ import (
 	"testing"
 
 	"perkeep.org/pkg/test"
-	"perkeep.org/pkg/test/asserts"
 )
 
 // Test that `pk-get -o' can restore a symlink correctly.
@@ -67,8 +66,9 @@ func TestCamgetSymlink(t *testing.T) {
 	}
 
 	out := test.MustRunCmd(t, w.Cmd("pk-put", "file", srcDir))
-	// TODO(mpl): rm call and delete pkg.
-	asserts.ExpectBool(t, true, out != "", "pk-put")
+	if out == "" {
+		t.Fatalf("pk-put: expected output to be non-empty")
+	}
 	br := strings.Split(out, "\n")[0]
 	dstDir, err := ioutil.TempDir("", "pk-get-test-")
 	if err != nil {

@@ -33,7 +33,6 @@ import (
 	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/test"
-	. "perkeep.org/pkg/test/asserts"
 )
 
 const expectedHeader = `{"camliVersion"`
@@ -62,7 +61,9 @@ func TestJSON(t *testing.T) {
 func TestRegularFile(t *testing.T) {
 	fileName := "schema_test.go"
 	fi, err := os.Lstat(fileName)
-	AssertNil(t, err, "schema_test.go stat")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 	m := NewCommonFileMap("schema_test.go", fi)
 	json, err := m.JSON()
 	if err != nil {
