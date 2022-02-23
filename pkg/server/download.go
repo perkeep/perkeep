@@ -235,9 +235,12 @@ func fileInfoPacked(ctx context.Context, sh *search.Handler, src blob.Fetcher, r
 		log.Printf("ui: fileInfoPacked: skipping fast path due to error from WholeRefFetcher (%T): %v", src, err)
 		return fileInfo{whyNot: "WholeRefFetcher error"}, false
 	}
-	modtime := fi.ModTime
-	if modtime.IsAnyZero() {
-		modtime = fi.Time
+
+	var modtime time.Time
+	if !fi.ModTime.IsAnyZero() {
+		modtime = fi.ModTime.Time()
+	} else if !fi.Time.IsAnyZero() {
+		modtime = fi.Time.Time()
 	}
 	// TODO(mpl): it'd be nicer to get the FileMode from the describe response,
 	// instead of having to fetch the file schema again, but we don't index the
@@ -252,7 +255,7 @@ func fileInfoPacked(ctx context.Context, sh *search.Handler, src blob.Fetcher, r
 		mime:    fi.MIMEType,
 		name:    fi.FileName,
 		size:    fi.Size,
-		modtime: modtime.Time(),
+		modtime: modtime,
 		mode:    fr.FileMode(),
 		rs:      readerutil.NewFakeSeeker(rc, fi.Size-offset),
 		close:   rc.Close,
