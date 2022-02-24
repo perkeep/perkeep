@@ -31,6 +31,7 @@ import (
 	"strings"
 	"sync"
 
+	"perkeep.org/internal/pools"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/sorted"
@@ -114,7 +115,10 @@ func (s *storage) makePackedMetaBlob(plains, toDelete []blob.Ref) {
 	ctx := context.Background() // TODO
 	// We lose track of the small blobs in case of error, but they will be packed at next start.
 	sort.Sort(blob.ByRef(plains))
-	var metaBytes bytes.Buffer
+
+	metaBytes := pools.BytesBuffer()
+	defer pools.PutBuffer(metaBytes)
+
 	metaBytes.WriteString("#camlistore/encmeta=2\n")
 	metaBytes.Grow(len(plains[0].String()) * len(plains) * 2)
 	for _, plain := range plains {
@@ -129,12 +133,17 @@ func (s *storage) makePackedMetaBlob(plains, toDelete []blob.Ref) {
 		metaBytes.WriteString(v)
 		metaBytes.WriteString("\n")
 	}
-	encBytes, err := s.encryptBlob(nil, metaBytes.Bytes())
-	if err != nil {
+
+	encBytes := pools.BytesBuffer()
+	defer pools.PutBuffer(encBytes)
+
+	if err := s.encryptBlob(encBytes, metaBytes); err != nil {
 		log.Printf("encrypt: failed to encrypt meta: %v", err)
 		return
 	}
-	metaSB, err := blobserver.ReceiveNoHash(ctx, s.meta, blob.RefFromBytes(encBytes), bytes.NewReader(encBytes))
+
+	metaBR := blob.RefFromBytes(encBytes.Bytes())
+	metaSB, err := blobserver.ReceiveNoHash(ctx, s.meta, metaBR, encBytes)
 	if err != nil {
 		log.Printf("encrypt: failed to upload a packed meta: %v", err)
 		return
@@ -150,8 +159,15 @@ func (s *storage) makePackedMetaBlob(plains, toDelete []blob.Ref) {
 
 // makeSingleMetaBlob makes and encrypts a metaBlob with one entry.
 func (s *storage) makeSingleMetaBlob(plainBR, encBR blob.Ref, plainSize uint32) ([]byte, error) {
+	// would be racy to use the pool and return Bytes() here, just use a fresh buffer
+	encBytes := bytes.NewBuffer(nil)
+
 	plain := fmt.Sprintf("#camlistore/encmeta=2\n%s/%d/%s\n", plainBR, plainSize, encBR)
-	return s.encryptBlob(nil, []byte(plain))
+	if err := s.encryptBlob(encBytes, bytes.NewBufferString(plain)); err != nil {
+		return nil, err
+	}
+
+	return encBytes.Bytes(), nil
 }
 
 func packIndexEntry(plainSize uint32, encBR blob.Ref) string {
@@ -194,13 +210,14 @@ func (s *storage) fetchMeta(ctx context.Context, b blob.Ref) (plainSize uint32, 
 //
 // processEncryptedMetaBlob is not thread-safe.
 func (s *storage) processEncryptedMetaBlob(br blob.Ref, dat []byte) error {
-	plain, err := s.decryptBlob(nil, dat)
-	if err != nil {
+	plainBytes := pools.BytesBuffer()
+	defer pools.PutBuffer(plainBytes)
+
+	if err := s.decryptBlob(plainBytes, bytes.NewBuffer(dat)); err != nil {
 		return err
 	}
-	p := bytes.NewBuffer(plain)
 
-	header, err := p.ReadString('\n')
+	header, err := plainBytes.ReadString('\n')
 	if err != nil {
 		return errors.New("No first line")
 	}
@@ -212,7 +229,7 @@ func (s *storage) processEncryptedMetaBlob(br blob.Ref, dat []byte) error {
 	}
 	var plains []blob.Ref
 	for {
-		line, err := p.ReadString('\n')
+		line, err := plainBytes.ReadString('\n')
 		if err != nil && len(line) != 0 {
 			return io.ErrUnexpectedEOF
 		} else if err != nil {
