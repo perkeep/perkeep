@@ -61,6 +61,7 @@ import (
 	"filippo.io/age"
 	"go4.org/jsonconfig"
 	"go4.org/syncutil"
+	"perkeep.org/internal/pools"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/sorted"
@@ -96,47 +97,39 @@ type storage struct {
 const version = 2
 
 // encryptBlob encrypts plaintext and appends the result to ciphertext,
-// which must not overlap plaintext.
-func (s *storage) encryptBlob(ciphertext, plaintext []byte) ([]byte, error) {
-	in := bytes.NewBuffer(plaintext)
-	out := bytes.NewBuffer(ciphertext)
-
-	if err := out.WriteByte(version); err != nil {
-		return ciphertext, fmt.Errorf("unable to write version byte: %w", err)
+func (s *storage) encryptBlob(ciphertext, plaintext *bytes.Buffer) error {
+	if err := ciphertext.WriteByte(version); err != nil {
+		return fmt.Errorf("unable to write version byte: %w", err)
 	}
-	enc, err := age.Encrypt(out, s.identity.Recipient())
+	enc, err := age.Encrypt(ciphertext, s.identity.Recipient())
 	if err != nil {
-		return ciphertext, fmt.Errorf("unable to encrypt plaintext: %w", err)
+		return fmt.Errorf("unable to encrypt plaintext: %w", err)
 	}
-	if _, err := io.Copy(enc, in); err != nil {
-		return ciphertext, fmt.Errorf("unable to encrypt plaintext: %w", err)
+	if _, err := io.Copy(enc, plaintext); err != nil {
+		return fmt.Errorf("unable to encrypt plaintext: %w", err)
 	}
 	if err := enc.Close(); err != nil {
-		return ciphertext, fmt.Errorf("unable to encrypt plaintext: %w", err)
+		return fmt.Errorf("unable to encrypt plaintext: %w", err)
 	}
-	return out.Bytes(), nil
+	return nil
 }
 
 // decryptBlob decrypts ciphertext and appends the result to plaintext,
-// which must not overlap ciphertext.
-func (s *storage) decryptBlob(plaintext, ciphertext []byte) ([]byte, error) {
-	in := bytes.NewBuffer(ciphertext)
-	out := bytes.NewBuffer(plaintext)
-
-	if versionByte, err := in.ReadByte(); err != nil {
-		return ciphertext, fmt.Errorf("unable to read version byte: %w", err)
+func (s *storage) decryptBlob(plaintext, ciphertext *bytes.Buffer) error {
+	if versionByte, err := ciphertext.ReadByte(); err != nil {
+		return fmt.Errorf("unable to read version byte: %w", err)
 	} else if versionByte != version {
-		return ciphertext, fmt.Errorf("unknown encrypted blob version: %d", versionByte)
+		return fmt.Errorf("unknown encrypted blob version: %d", versionByte)
 	}
 
-	dec, err := age.Decrypt(in, s.identity)
+	dec, err := age.Decrypt(ciphertext, s.identity)
 	if err != nil {
-		return ciphertext, fmt.Errorf("unable to decrypt ciphertext: %w", err)
+		return fmt.Errorf("unable to decrypt ciphertext: %w", err)
 	}
-	if _, err := io.Copy(out, dec); err != nil {
-		return ciphertext, fmt.Errorf("unable to decrypt plaintext: %w", err)
+	if _, err := io.Copy(plaintext, dec); err != nil {
+		return fmt.Errorf("unable to decrypt plaintext: %w", err)
 	}
-	return out.Bytes(), nil
+	return nil
 }
 
 func (s *storage) RemoveBlobs(ctx context.Context, blobs []blob.Ref) error {
@@ -166,9 +159,11 @@ func (s *storage) ReceiveBlob(ctx context.Context, plainBR blob.Ref, source io.R
 		return blob.SizedRef{Ref: plainBR, Size: uint32(plainSize)}, nil
 	}
 
+	plainBytes := pools.BytesBuffer()
+	defer pools.PutBuffer(plainBytes)
+
 	hash := plainBR.Hash()
-	var buf bytes.Buffer
-	plainSize, err := io.Copy(io.MultiWriter(&buf, hash), source)
+	plainSize, err := io.Copy(io.MultiWriter(plainBytes, hash), source)
 	if err != nil {
 		return sb, err
 	}
@@ -176,14 +171,15 @@ func (s *storage) ReceiveBlob(ctx context.Context, plainBR blob.Ref, source io.R
 		return sb, blobserver.ErrCorruptBlob
 	}
 
-	enc, err := s.encryptBlob(nil, buf.Bytes())
-	if err != nil {
+	encBytes := pools.BytesBuffer()
+	defer pools.PutBuffer(encBytes)
+
+	if err := s.encryptBlob(encBytes, plainBytes); err != nil {
 		return sb, fmt.Errorf("encrypt: error encrypting blob: %w", err)
 	}
-	encBR := blob.RefFromBytes(enc)
+	encBR := blob.RefFromBytes(encBytes.Bytes())
 
-	_, err = blobserver.ReceiveNoHash(ctx, s.blobs, encBR, bytes.NewReader(enc))
-	if err != nil {
+	if _, err = blobserver.ReceiveNoHash(ctx, s.blobs, encBR, encBytes); err != nil {
 		return sb, fmt.Errorf("encrypt: error writing encrypted blob %v (plaintext %v): %v", encBR, plainBR, err)
 	}
 
@@ -191,7 +187,9 @@ func (s *storage) ReceiveBlob(ctx context.Context, plainBR blob.Ref, source io.R
 	if err != nil {
 		return sb, fmt.Errorf("encrypt: error making meta blob: %w", err)
 	}
-	metaSB, err := blobserver.ReceiveNoHash(ctx, s.meta, blob.RefFromBytes(metaBytes), bytes.NewReader(metaBytes))
+
+	metaBR := blob.RefFromBytes(metaBytes)
+	metaSB, err := blobserver.ReceiveNoHash(ctx, s.meta, metaBR, bytes.NewReader(metaBytes))
 	if err != nil {
 		return sb, fmt.Errorf("encrypt: error writing encrypted meta for plaintext %v (encrypted blob %v): %v", plainBR, encBR, err)
 	}
@@ -216,9 +214,11 @@ func (s *storage) Fetch(ctx context.Context, plainBR blob.Ref) (io.ReadCloser, u
 	}
 	defer encData.Close()
 
-	var ciphertext bytes.Buffer
+	encBytes := pools.BytesBuffer()
+	defer pools.PutBuffer(encBytes)
+
 	encHash := encBR.Hash()
-	_, err = io.Copy(io.MultiWriter(&ciphertext, encHash), encData)
+	_, err = io.Copy(io.MultiWriter(encBytes, encHash), encData)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -231,12 +231,14 @@ func (s *storage) Fetch(ctx context.Context, plainBR blob.Ref) (io.ReadCloser, u
 		return nil, 0, blobserver.ErrCorruptBlob
 	}
 
-	plaintext, err := s.decryptBlob(nil, ciphertext.Bytes())
-	if err != nil {
+	plainBytes := pools.BytesBuffer()
+	defer pools.PutBuffer(plainBytes)
+
+	if err := s.decryptBlob(plainBytes, encBytes); err != nil {
 		return nil, 0, fmt.Errorf("encrypt: encrypted blob %s failed validation: %s", encBR, err)
 	}
 
-	return ioutil.NopCloser(bytes.NewReader(plaintext)), plainSize, nil
+	return ioutil.NopCloser(plainBytes), plainSize, nil
 }
 
 func (s *storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {
