@@ -136,7 +136,7 @@ func newFromConfigWithTransport(_ blobserver.Loader, config jsonconfig.Obj, tran
 
 	ctx := context.TODO() // TODO: 5 min timeout or something?
 	if !skipStartupCheck {
-		info, err := normalizeBucketLocation(ctx, awsSession, hostname, bucket)
+		info, err := normalizeBucketLocation(ctx, awsSession, hostname, bucket, region)
 		if err != nil {
 			return nil, err
 		}
