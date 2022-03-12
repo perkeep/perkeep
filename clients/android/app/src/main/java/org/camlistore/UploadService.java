@@ -35,15 +35,14 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.app.TaskStackBuilder;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.FileObserver;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
@@ -51,15 +50,13 @@ import android.os.Parcelable;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.provider.MediaStore;
-import android.support.v4.app.TaskStackBuilder;
 import android.util.Log;
-import android.widget.Toast;
 
 public class UploadService extends Service {
     private static final String TAG = "UploadService";
 
-    private static int NOTIFY_ID_UPLOADING = 0x001;
-    private static int NOTIFY_ID_FOREGROUND = 0x002;
+    private static final int NOTIFY_ID_UPLOADING = 0x001;
+    private static final int NOTIFY_ID_FOREGROUND = 0x002;
 
     public static final String INTENT_POWER_CONNECTED = "POWER_CONNECTED";
     public static final String INTENT_POWER_DISCONNECTED = "POWER_DISCONNECTED";
@@ -68,17 +65,13 @@ public class UploadService extends Service {
     public static final String INTENT_NETWORK_NOT_WIFI = "NOT_WIFI_NOW";
 
     // Everything in this block guarded by 'this':
-    private boolean mUploading = false; // user's desired state (notified
-                                        // quickly)
-    private UploadThread mUploadThread = null; // last thread created; null when
-                                               // thread exits
-    private Notification.Builder mNotificationBuilder; // null until upload is
-                                                       // started/resumed
-    private NotificationChannel mNotificationChannel;
+    private boolean mUploading = false; // user's desired state (notified quickly)
+    private UploadThread mUploadThread = null; // last thread created; null when thread exits
+    private Notification.Builder mNotificationBuilder; // null until upload is started/resumed
     private int mLastNotificationProgress = 0; // last computed value of the uploaded bytes, to avoid excessive notification updates
-    private final Map<QueuedFile, Long> mFileBytesRemain = new HashMap<QueuedFile, Long>();
-    private final LinkedList<QueuedFile> mQueueList = new LinkedList<QueuedFile>();
-    private final Map<String, Long> mStatValue = new TreeMap<String, Long>();
+    private final Map<QueuedFile, Long> mFileBytesRemain = new HashMap<>();
+    private final LinkedList<QueuedFile> mQueueList = new LinkedList<>();
+    private final Map<String, Long> mStatValue = new TreeMap<>();
     private IStatusCallback mCallback = DummyNullCallback.instance();
     private String mLastUploadStatusText = null; // single line
     private String mLastUploadStatsText = null; // multi-line stats
@@ -131,21 +124,17 @@ public class UploadService extends Service {
         stackBuilder.addParentStack(SettingsActivity.class);
         // Adds the Intent that starts the Activity to the top of the stack
         stackBuilder.addNextIntent(notificationIntent);
-        PendingIntent pendingIntent = stackBuilder.getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT);
+        PendingIntent pendingIntent = stackBuilder.getPendingIntent(0, PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
 
-        // Create the NotificationChannel, but only on API 26+ because
-        // the NotificationChannel class is new and not in the support library
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            mNotificationChannel = new NotificationChannel(getString(R.string.channel_id),
-                getText(R.string.channel_name), NotificationManager.IMPORTANCE_DEFAULT);
-            mNotificationChannel.setDescription(getString(R.string.channel_description));
-            // Register the channel with the system; you can't change the importance
-            // or other notification behaviors after this
-            mNotificationManager.createNotificationChannel(mNotificationChannel);
-            autoUploadNotif = new Notification.Builder(this, getString(R.string.channel_id));
-        } else {
-            autoUploadNotif = new Notification.Builder(this);
-        }
+        NotificationChannel mNotificationChannel = new NotificationChannel(
+                getString(R.string.channel_id),
+                getText(R.string.channel_name),
+                NotificationManager.IMPORTANCE_DEFAULT);
+        mNotificationChannel.setDescription(getString(R.string.channel_description));
+        // Register the channel with the system; you can't change the importance
+        // or other notification behaviors after this
+        mNotificationManager.createNotificationChannel(mNotificationChannel);
+        autoUploadNotif = new Notification.Builder(this, getString(R.string.channel_id));
         autoUploadNotif.setContentTitle(getText(R.string.notification_title))
             .setContentText(notificationMessage())
             .setSmallIcon(R.drawable.ic_stat_notify)
@@ -176,16 +165,16 @@ public class UploadService extends Service {
         startService(new Intent(UploadService.this, UploadService.class));
     }
 
-    // This is @Override as of SDK version 5, but we're targeting 4 (Android
-    // 1.6)
-    private static final int START_STICKY = 1; // in SDK 5
-
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         handleCommand(intent);
         // We want this service to continue running until it is explicitly
         // stopped, so return sticky.
-        return START_STICKY;
+        return Service.START_STICKY;
+    }
+
+    private String getPkBin() {
+        return getApplicationInfo().nativeLibraryDir + "/libpkput.so";
     }
 
     private void handleCommand(Intent intent) {
@@ -273,62 +262,55 @@ public class UploadService extends Service {
         }
 
         final Uri uri = (Uri) streamValue;
-        Util.runAsync(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    service.enqueueUpload(uri);
-                } catch (RemoteException e) {
-                }
+        Util.runAsync(() -> {
+            try {
+                service.enqueueUpload(uri);
+            } catch (RemoteException ignored) {
             }
         });
     }
 
     private void handleUploadAll() {
         startService(new Intent(UploadService.this, UploadService.class));
-        final PowerManager.WakeLock wakeLock = mPowerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Camli Upload All");
+        final PowerManager.WakeLock wakeLock = mPowerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PerkeepUploadService:UploadAll");
         wakeLock.acquire();
-        Util.runAsync(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    List<String> dirs = getBackupDirs();
-                    List<Uri> filesToQueue = new ArrayList<Uri>();
-                    for (String dirName : dirs) {
-                        File dir = new File(dirName);
-                        if (!dir.exists()) {
-                            continue;
-                        }
-                        Log.d(TAG, "Uploading all in directory: " + dirName);
-                        File[] files = dir.listFiles();
-                        if (files != null) {
-                            for (int i = 0; i < files.length; ++i) {
-                                File f = files[i];
-                                if (f.isDirectory()) {
-                                    // Skip thumbnails directory.
-                                    // TODO: are any interesting enough to recurse into?
-                                    // Definitely don't need to upload thumbnails, but
-                                    // but maybe some other app in the the future creates
-                                    // sharded directories. Eye-Fi doesn't, though.
-                                    continue;
-                                }
-                                filesToQueue.add(Uri.fromFile(f));
+        Util.runAsync(() -> {
+            try {
+                List<String> dirs = getBackupDirs();
+                List<Uri> filesToQueue = new ArrayList<>();
+                for (String dirName : dirs) {
+                    File dir = new File(dirName);
+                    if (!dir.exists()) {
+                        continue;
+                    }
+                    Log.d(TAG, "Uploading all in directory: " + dirName);
+                    File[] files = dir.listFiles();
+                    if (files != null) {
+                        for (File f : files) {
+                            if (f.isDirectory()) {
+                                // Skip thumbnails directory.
+                                // TODO: are any interesting enough to recurse into?
+                                // Definitely don't need to upload thumbnails, but
+                                // but maybe some other app in the the future creates
+                                // sharded directories. Eye-Fi doesn't, though.
+                                continue;
                             }
+                            filesToQueue.add(Uri.fromFile(f));
                         }
                     }
-                    try {
-                        service.enqueueUploadList(filesToQueue);
-                    } catch (RemoteException e) {
-                    }
-                } finally {
-                    wakeLock.release();
                 }
+                try {
+                    service.enqueueUploadList(filesToQueue);
+                } catch (RemoteException ignored) {
+                }
+            } finally {
+                wakeLock.release();
             }
         });
     }
 
     private List<String> getBackupDirs() {
-        ArrayList<String> dirs = new ArrayList<String>();
+        ArrayList<String> dirs = new ArrayList<>();
         String stripped = "/Android/data/org.camlistore/files";
         // We use getExternalFilesDirs instead of getExternalStorageDirectory, so we can
         // try both the emulated SD card (the filesystem on the internal memory really),
@@ -337,6 +319,7 @@ public class UploadService extends Service {
             String dirPath =  dirName.getAbsolutePath();
             String root = dirPath.substring(0, dirPath.indexOf(stripped));
             if (mPrefs.autoDirPhotos()) {
+                dirs.add(root + "/Pictures");
                 dirs.add(root + "/DCIM/Camera");
                 dirs.add(root + "/DCIM/100MEDIA");
                 dirs.add(root + "/DCIM/100ANDRO");
@@ -353,7 +336,7 @@ public class UploadService extends Service {
 
     private void handleSendMultiple(Intent intent) {
         ArrayList<Parcelable> items = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
-        ArrayList<Uri> uris = new ArrayList<Uri>(items.size());
+        ArrayList<Uri> uris = new ArrayList<>(items.size());
         for (Parcelable p : items) {
             if (!(p instanceof Uri)) {
                 Log.d(TAG, "uh, unknown thing " + p);
@@ -362,13 +345,10 @@ public class UploadService extends Service {
             uris.add((Uri) p);
         }
         final ArrayList<Uri> finalUris = uris;
-        Util.runAsync(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    service.enqueueUploadList(finalUris);
-                } catch (RemoteException e) {
-                }
+        Util.runAsync(() -> {
+            try {
+                service.enqueueUploadList(finalUris);
+            } catch (RemoteException ignored) {
             }
         });
     }
@@ -397,27 +377,8 @@ public class UploadService extends Service {
     private void startBackgroundWatchers() {
         Log.d(TAG, "Starting background watchers...");
         synchronized (UploadService.this) {
-            maybeAddObserver("DCIM/Camera");
-            maybeAddObserver("DCIM/100MEDIA");
-            maybeAddObserver("DCIM/100ANDRO");
-            maybeAddObserver("DCIM/CardboardCamera");
-            maybeAddObserver("Eye-Fi");
-            maybeAddObserver("gpx");
-        }
-    }
-
-    // Requires that UploadService.this is locked.
-    private void maybeAddObserver(String suffix) {
-        String stripped = "Android/data/org.camlistore/files";
-        // We use getExternalFilesDirs instead of getExternalStorageDirectory, so we can
-        // try both the emulated SD card (the filesystem on the internal memory really),
-        // and any existing SD card as well.
-        for (File dirName : getExternalFilesDirs(null)) {
-            String dirPath =  dirName.getAbsolutePath();
-            String root = dirPath.substring(0, dirPath.indexOf(stripped));
-            File f = new File(root, suffix);
-            if (f.exists()) {
-                 mObservers.add(new CamliFileObserver(service, f));
+            for (String dir: getBackupDirs()) {
+                mObservers.add(new PerkeepFileObserver(service, new File(dir)));
             }
         }
     }
@@ -425,7 +386,7 @@ public class UploadService extends Service {
     @Override
     public void onDestroy() {
         synchronized (this) {
-            Log.d(TAG, "onDestroy of camli UploadService; thread=" + mUploadThread + "; uploading=" + mUploading + "; queue size=" + mFileBytesRemain.size());
+            Log.d(TAG, "onDestroy of perkeep UploadService; thread=" + mUploadThread + "; uploading=" + mUploading + "; queue size=" + mFileBytesRemain.size());
         }
         super.onDestroy();
         if (mUploadThread != null) {
@@ -439,9 +400,7 @@ public class UploadService extends Service {
     // LinkedList. Doesn't return null.
     LinkedList<QueuedFile> uploadQueue() {
         synchronized (this) {
-            LinkedList<QueuedFile> copy = new LinkedList<QueuedFile>();
-            copy.addAll(mQueueList);
-            return copy;
+            return new LinkedList<>(mQueueList);
         }
     }
 
@@ -453,40 +412,29 @@ public class UploadService extends Service {
         }
         try {
             cb.setUploadStatusText(status);
-        } catch (RemoteException e) {
+        } catch (RemoteException ignored) {
         }
-    }
-
-    void setInFlightBytes(int v) {
-        synchronized (this) {
-            mBytesInFlight = v;
-        }
-        broadcastByteStatus();
     }
 
     void broadcastByteStatus() {
-        Notification notification = null;
         synchronized (this) {
-            if (mNotificationBuilder != null) {
-                int progress = (int)(100 * (double)mBytesUploaded/(double)mBytesTotal);
+            if (mNotificationBuilder == null) {
+                return;
+            }
+            int progress = (int)(100 * (double)mBytesUploaded/(double)mBytesTotal);
 
-                // Only build new notification when progress value actually changes. Some
-                // devices slow down and finally freeze completely when updating too often.
-                if (mLastNotificationProgress != progress) {
-                    mLastNotificationProgress = progress;
+            // Only build new notification when progress value actually changes. Some
+            // devices slow down and finally freeze completely when updating too often.
+            if (mLastNotificationProgress != progress) {
+                mLastNotificationProgress = progress;
 
-                    mNotificationBuilder.setProgress(100, progress, false);
-                    notification = mNotificationBuilder.build();
-                }
+                mNotificationBuilder.setProgress(100, progress, false);
+                mNotificationManager.notify(NOTIFY_ID_UPLOADING, mNotificationBuilder.build());
             }
             try {
                 mCallback.setByteStatus(mBytesUploaded, mBytesInFlight, mBytesTotal);
-            } catch (RemoteException e) {
+            } catch (RemoteException ignored) {
             }
-        }
-
-        if (notification != null) {
-            mNotificationManager.notify(NOTIFY_ID_UPLOADING, notification);
         }
     }
 
@@ -495,7 +443,7 @@ public class UploadService extends Service {
         synchronized (this) {
             try {
                 mCallback.setFileStatus(mFilesUploaded, mFilesInFlight, mFilesTotal);
-            } catch (RemoteException e) {
+            } catch (RemoteException ignored) {
             }
         }
     }
@@ -506,7 +454,7 @@ public class UploadService extends Service {
                 mCallback.setUploading(mUploading);
                 mCallback.setUploadStatusText(mLastUploadStatusText);
                 mCallback.setUploadStatsText(mLastUploadStatsText);
-            } catch (RemoteException e) {
+            } catch (RemoteException ignored) {
             }
         }
         broadcastFileStatus();
@@ -521,14 +469,14 @@ public class UploadService extends Service {
             mUploading = false;
             try {
                 mCallback.setUploading(false);
-            } catch (RemoteException e) {
+            } catch (RemoteException ignored) {
             }
         }
     }
 
     /**
      * Callback from the UploadThread to the service.
-     * 
+     *
      * @param qf
      *            the queued file that was successfully uploaded.
      */
@@ -563,7 +511,7 @@ public class UploadService extends Service {
         synchronized (this) {
             Long remain = mFileBytesRemain.get(qf);
             if (remain != null) {
-                long actual = Math.min(size, remain.longValue());
+                long actual = Math.min(size, remain);
                 mBytesUploaded += actual;
                 mFileBytesRemain.put(qf, remain - actual);
             }
@@ -578,22 +526,28 @@ public class UploadService extends Service {
                 stopSelf();
             } else {
                 Log.d(TAG, "stopServiceIfEmpty; NOT stopping; " + mFileBytesRemain.isEmpty() + "; " + mUploading + "; " + (mUploadThread != null));
-                return;
             }
         }
     }
 
     ParcelFileDescriptor getFileDescriptor(Uri uri) {
+        // short race between inotify and the content resolver; retry a few times with a short sleep
         ContentResolver cr = getContentResolver();
         try {
-            return cr.openFileDescriptor(uri, "r");
-        } catch (FileNotFoundException e) {
-            Log.w(TAG, "FileNotFound in getFileDescriptor() for " + uri);
-            return null;
-        }
+            for (int i = 0; i < 2; i++) {
+                try {
+                    return cr.openFileDescriptor(uri, "r");
+                } catch (FileNotFoundException  e) {
+                    Log.w(TAG, "FileNotFound in getFileDescriptor() for " + uri);
+                }
+                Thread.sleep(500);
+            }
+        } catch (InterruptedException ignored){}
+
+        return null;
     }
 
-    private void incrementFilesToUpload(int size) throws RemoteException {
+    private void incrementFilesToUpload(int size) {
         synchronized (UploadService.this) {
             mFilesTotal += size;
         }
@@ -610,19 +564,13 @@ public class UploadService extends Service {
             return uri.getPath();
         }
         String[] proj = { MediaStore.Images.Media.DATA };
-        Cursor cursor = null;
-        try {
-            cursor = getContentResolver().query(uri, proj, null, null, null);
+        try (Cursor cursor = getContentResolver().query(uri, proj, null, null, null)) {
             if (cursor == null) {
                 return null;
             }
             cursor.moveToFirst();
             int columnIndex = cursor.getColumnIndex(proj[0]);
             return cursor.getString(columnIndex); // might still be null
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
         }
     }
 
@@ -649,7 +597,7 @@ public class UploadService extends Service {
         }
 
         private boolean enqueueSingleUri(Uri uri) throws RemoteException {
-            long statSize = 0;
+            long statSize;
             {
                 ParcelFileDescriptor pfd = getFileDescriptor(uri);
                 if (pfd == null) {
@@ -662,7 +610,7 @@ public class UploadService extends Service {
                 } finally {
                     try {
                         pfd.close();
-                    } catch (IOException e) {
+                    } catch (IOException ignored) {
                     }
                 }
             }
@@ -676,7 +624,7 @@ public class UploadService extends Service {
 
             QueuedFile qf = new QueuedFile(uri, statSize, diskPath);
 
-            boolean needResume = false;
+            boolean needResume;
             synchronized (UploadService.this) {
                 if (mFileBytesRemain.containsKey(qf)) {
                     Log.d(TAG, "Dup blob enqueue, ignoring " + qf);
@@ -709,14 +657,14 @@ public class UploadService extends Service {
         }
 
         @Override
-        public boolean isUploading() throws RemoteException {
+        public boolean isUploading() {
             synchronized (UploadService.this) {
                 return mUploading;
             }
         }
 
         @Override
-        public void registerCallback(IStatusCallback cb) throws RemoteException {
+        public void registerCallback(IStatusCallback cb) {
             // TODO: permit multiple listeners? when need comes.
             synchronized (UploadService.this) {
                 if (cb == null) {
@@ -728,7 +676,7 @@ public class UploadService extends Service {
         }
 
         @Override
-        public void unregisterCallback(IStatusCallback cb) throws RemoteException {
+        public void unregisterCallback(IStatusCallback cb) {
             synchronized (UploadService.this) {
                 mCallback = DummyNullCallback.instance();
             }
@@ -743,8 +691,8 @@ public class UploadService extends Service {
                 return false;
             }
 
-            final PowerManager.WakeLock wakeLock = mPowerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Camli Upload");
-            final WifiManager.WifiLock wifiLock = mWifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL, "Camli Upload");
+            final PowerManager.WakeLock wakeLock = mPowerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PerkeepUploadService:resume");
+            final WifiManager.WifiLock wifiLock = mWifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL, "PerkeepUploadService:resume");
 
             synchronized (UploadService.this) {
                 if (mUploadThread != null) {
@@ -758,13 +706,13 @@ public class UploadService extends Service {
                 mNotificationBuilder = new Notification.Builder(UploadService.this);
                 mNotificationBuilder.setOngoing(true)
                     .setContentTitle("Uploading")
-                    .setContentText("Camlistore uploader running")
+                    .setContentText("perkeep uploader running")
                     .setSmallIcon(android.R.drawable.stat_sys_upload);
                 mNotificationManager.notify(NOTIFY_ID_UPLOADING, mNotificationBuilder.build());
                 mLastNotificationProgress = -1;
 
                 mUploading = true;
-                mUploadThread = new UploadThread(UploadService.this, hp, mPrefs.username(), mPrefs.password());
+                mUploadThread = new UploadThread(UploadService.this, hp, mPrefs.username(), mPrefs.password(), getPkBin());
                 mUploadThread.start();
 
                 // Start a thread to release the wakelock...
@@ -801,7 +749,7 @@ public class UploadService extends Service {
         }
 
         @Override
-        public boolean pause() throws RemoteException {
+        public boolean pause() {
             synchronized (UploadService.this) {
                 if (mUploadThread != null) {
                     stopUploadThread();
@@ -812,14 +760,14 @@ public class UploadService extends Service {
         }
 
         @Override
-        public int queueSize() throws RemoteException {
+        public int queueSize() {
             synchronized (UploadService.this) {
                 return mQueueList.size();
             }
         }
 
         @Override
-        public void stopEverything() throws RemoteException {
+        public void stopEverything() {
             synchronized (UploadService.this) {
                 mNotificationManager.cancel(NOTIFY_ID_UPLOADING);
                 mFileBytesRemain.clear();
@@ -837,7 +785,7 @@ public class UploadService extends Service {
         }
 
         @Override
-        public void setBackgroundWatchersEnabled(boolean enabled) throws RemoteException {
+        public void setBackgroundWatchersEnabled(boolean enabled) {
             if (enabled) {
                 startUploadService();
                 UploadService.this.stopBackgroundWatchers();
@@ -849,7 +797,7 @@ public class UploadService extends Service {
             mNotificationManager.notify(NOTIFY_ID_FOREGROUND, notif);
         }
 
-        public void reloadSettings() throws RemoteException {
+        public void reloadSettings() {
             String profileName = Preferences.filename(UploadService.this.getBaseContext());
             Log.d(TAG, "reloading settings from: " + profileName);
             synchronized (UploadService.this) {
@@ -891,7 +839,7 @@ public class UploadService extends Service {
         }
         try {
             mCallback.setUploadStatsText(v);
-        } catch (RemoteException e) {
+        } catch (RemoteException ignored) {
         }
     }
 
@@ -903,7 +851,7 @@ public class UploadService extends Service {
                 mUploadThread = null;
                 try {
                     mCallback.setUploading(false);
-                } catch (RemoteException e) {
+                } catch (RemoteException ignored) {
                 }
             }
             mUploading = false;
@@ -923,7 +871,7 @@ public class UploadService extends Service {
     public void onUploadErrors(String errors) {
         try {
             mCallback.setUploadErrorsText(errors);
-        } catch (RemoteException e) {
+        } catch (RemoteException ignored) {
         }
     }
 }

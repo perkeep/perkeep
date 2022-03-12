@@ -18,6 +18,8 @@ package org.camlistore;
 
 import android.net.Uri;
 
+import androidx.annotation.NonNull;
+
 /**
  * Immutable struct for tuple (sha1 blobRef, URI to upload, size of blob).
  */
@@ -36,10 +38,6 @@ public class QueuedFile {
         mDiskPath = diskPath;
     }
 
-    public Uri getUri() {
-        return mUri;
-    }
-
     public long getSize() {
         return mSize;
     }
@@ -49,6 +47,7 @@ public class QueuedFile {
         return mDiskPath;
     }
 
+    @NonNull
     @Override
     public String toString() {
         return "QueuedFile [mSize=" + mSize + ", mUri=" + mUri + "]";
@@ -59,7 +58,7 @@ public class QueuedFile {
         final int prime = 31;
         int result = 1;
         result = prime * result + (int) (mSize ^ (mSize >>> 32));
-        result = prime * result + ((mUri == null) ? 0 : mUri.hashCode());
+        result = prime * result + mUri.hashCode();
         return result;
     }
 
@@ -74,10 +73,7 @@ public class QueuedFile {
         QueuedFile other = (QueuedFile) obj;
         if (mSize != other.mSize)
             return false;
-        if (mUri == null) {
-            if (other.mUri != null)
-                return false;
-        } else if (!mUri.equals(other.mUri))
+        if (!mUri.equals(other.mUri))
             return false;
         return true;
     }

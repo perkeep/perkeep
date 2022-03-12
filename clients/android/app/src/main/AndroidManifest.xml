@@ -2,31 +2,32 @@
 <!-- Copyright 2017 The Perkeep Authors.
      Use of this source code is governed by a BSD-style
      license that can be found in the LICENSE file.  -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-      package="org.camlistore"
-      android:versionCode="2"
-      android:versionName="0.6.1">
 
-    <uses-sdk android:minSdkVersion="14" android:targetSdkVersion="26" />
+<!-- We are using org.camlistore here for backwards compatibility -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.camlistore">
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <uses-permission android:name="android.permission.BATTERY_STATS" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.READ_SYNC_SETTINGS" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
 
-    <application android:icon="@drawable/icon" android:label="@string/app_name"
-                 android:name=".UploadApplication" android:allowBackup="true">
+    <application android:icon="@drawable/icon"
+                 android:label="@string/app_name"
+                 android:name="org.camlistore.UploadApplication"
+                 android:allowBackup="true">
 
-        <service android:name=".UploadService"
+        <service android:name="org.camlistore.UploadService"
                  android:exported="false"
                  android:label="Perkeep Upload Service" />
 
-        <activity android:name=".CamliActivity"
-                  android:label="@string/app_name">
+        <activity
+            android:name="org.camlistore.PerkeepActivity"
+            android:exported="true">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -43,37 +44,33 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".BrowseActivity">
-        </activity>
+        <activity android:name="org.camlistore.SettingsActivity"/>
 
-	<activity android:name=".SettingsActivity">
-	</activity>
+        <activity android:name="org.camlistore.ProfilesActivity"/>
 
-	<activity android:name=".ProfilesActivity">
-	</activity>
-		
-	<receiver android:name=".OnBootReceiver">
-	  <intent-filter>
-	    <action android:name="android.intent.action.BOOT_COMPLETED" />
-	  </intent-filter>
-	</receiver>
+        <receiver android:name="org.camlistore.OnBootReceiver" android:exported="false">
+          <intent-filter>
+            <action android:name="android.intent.action.BOOT_COMPLETED" />
+          </intent-filter>
+        </receiver>
 
-	<receiver android:name=".OnAlarmReceiver">
-	</receiver>
-	    
-        <receiver android:name=".WifiPowerReceiver" 
-                  android:enabled="true" 
-                  android:priority="0"> 
-          <intent-filter> 
+        <receiver android:name="org.camlistore.OnAlarmReceiver"/>
+
+        <receiver
+            android:name="org.camlistore.WifiPowerReceiver"
+            android:enabled="true"
+            android:priority="0"
+            android:exported="false">
+          <intent-filter>
             <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
-          </intent-filter> 
-          <intent-filter> 
+          </intent-filter>
+          <intent-filter>
             <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
-          </intent-filter> 
-          <intent-filter> 
+          </intent-filter>
+          <intent-filter>
             <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
-          </intent-filter> 
-        </receiver> 
+          </intent-filter>
+        </receiver>
 
     </application>
 </manifest>

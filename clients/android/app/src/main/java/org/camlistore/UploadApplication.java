@@ -16,75 +16,23 @@ limitations under the License.
 
 package org.camlistore;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Scanner;
 
 import android.app.Application;
-import android.content.pm.PackageManager.NameNotFoundException;
 import android.util.Log;
+
 
 public class UploadApplication extends Application {
     private final static String TAG = "UploadApplication";
     private final static boolean STRICT_MODE = true;
 
-    private long getAPKModTime() {
-        try {
-            return getPackageManager().getPackageInfo(getPackageName(), 0).lastUpdateTime;
-        } catch (NameNotFoundException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void copyGoBinary() {
-        long myTime = getAPKModTime();
-        String dstFile = getBaseContext().getFilesDir().getAbsolutePath() + "/pk-put.bin";
-        File f = new File(dstFile);
-        Log.d(TAG, " My Time: " + myTime);
-        Log.d(TAG, "Bin Time: " + f.lastModified());
-        if (f.exists() && f.lastModified() > myTime) {
-            Log.d(TAG, "Go binary modtime up-to-date.");
-            return;
-        }
-        Log.d(TAG, "Go binary missing or modtime stale. Re-copying from APK.");
-        try {
-            InputStream is = getAssets().open("pk-put.arm");
-            FileOutputStream fos = getBaseContext().openFileOutput("pk-put.bin.writing", MODE_PRIVATE);
-            byte[] buf = new byte[8192];
-            int offset;
-            while ((offset = is.read(buf)) > 0) {
-                fos.write(buf, 0, offset);
-            }
-            is.close();
-            fos.flush();
-            // Make sure that all data is written before rename by calling fsync (ext4 file system)
-            fos.getFD().sync();
-            fos.close();
-
-            String writingFilePath = dstFile + ".writing";
-            Log.d(TAG, "wrote out " + writingFilePath);
-            f = new File(writingFilePath);
-            f.setLastModified(myTime);
-            Log.d(TAG, "set modtime of " + writingFilePath);
-            f.setExecutable(true);
-            Log.d(TAG, "made " + writingFilePath + " executable");
-
-            f.renameTo(new File(dstFile));
-            Log.d(TAG, "moved " + writingFilePath + " to " + dstFile);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     @Override
     public void onCreate() {
         super.onCreate();
-
-        copyGoBinary();
 
         if (!STRICT_MODE) {
             Log.d(TAG, "Starting UploadApplication; release build.");
@@ -98,35 +46,33 @@ public class UploadApplication extends Application {
         }
 
         try {
-            Class strictmode = Class.forName("android.os.StrictMode");
+            Class<?> strictmode = Class.forName("android.os.StrictMode");
             Log.d(TAG, "StrictMode class found.");
             Method method = strictmode.getMethod("enableDefaults");
             Log.d(TAG, "enableDefaults method found.");
             method.invoke(null);
-        } catch (ClassNotFoundException e) {
-        } catch (LinkageError e) {
-        } catch (IllegalAccessException e) {
-        } catch (NoSuchMethodException e) {
-        } catch (SecurityException e) {
-        } catch (java.lang.reflect.InvocationTargetException e) {
+        } catch (ClassNotFoundException | LinkageError | IllegalAccessException | NoSuchMethodException | SecurityException | InvocationTargetException ignored) {
         }
     }
 
-    public String getCamputVersion() {
-        InputStream is = null;
+    private String getPkBin() {
+        return getApplicationInfo().nativeLibraryDir + "/libpkput.so";
+    }
+
+    public String getPkPutVersion() {
+        String prefix = getPkBin() + " version:";
         try {
-            is = getAssets().open("pk-put-version.txt");
-            BufferedReader br = new BufferedReader(new InputStreamReader(is, "UTF-8"));
-            return br.readLine();
+            ProcessBuilder pb = new ProcessBuilder();
+            pb.command(getPkBin(), "-version");
+            pb.redirectErrorStream(true);
+            Scanner scanner = new java.util.Scanner(new InputStreamReader(pb.start().getInputStream())).useDelimiter("\\A");
+            String versionOutput = scanner.hasNext() ? scanner.next() : "";
+            if (versionOutput.startsWith(prefix)) {
+                return versionOutput.substring(prefix.length());
+            }
+            return versionOutput;
         } catch (IOException e) {
             return e.toString();
-        } finally {
-            if (is != null) {
-                try {
-                    is.close();
-                } catch (IOException e) {
-                }
-            }
         }
     }
 }

@@ -35,7 +35,6 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.preference.CheckBoxPreference;
 import android.preference.EditTextPreference;
-import android.preference.Preference;
 import android.preference.Preference.OnPreferenceChangeListener;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceScreen;
@@ -106,30 +105,27 @@ public class SettingsActivity extends PreferenceActivity {
         maxCacheSizePref.setSummary(getString(
                 R.string.settings_max_cache_size_summary, mPrefs.maxCacheMb()));
 
-        OnPreferenceChangeListener onChange = new OnPreferenceChangeListener() {
-            @Override
-            public boolean onPreferenceChange(Preference pref, Object newValue) {
-                final String key = pref.getKey();
-                Log.v(TAG, "preference change for: " + key);
+        OnPreferenceChangeListener onChange = (pref, newValue) -> {
+            final String key = pref.getKey();
+            Log.v(TAG, "preference change for: " + key);
 
-                // Note: newValue isn't yet persisted, but easiest to update the
-                // UI here.
-                String newStr = (newValue instanceof String) ? (String) newValue
-                        : null;
-                if (pref == hostPref) {
-                    updateHostSummary(newStr);
-                } else if (pref == passwordPref) {
-                    updatePasswordSummary(newStr);
-                } else if (pref == usernamePref) {
-                    updateUsernameSummary(newStr);
-                } else if (pref == maxCacheSizePref) {
-                    if (!updateMaxCacheSizeSummary(newStr))
-                        return false;
-                } else if (pref == devIPPref) {
-                    updateDevIP(newStr);
-                }
-                return true; // yes, persist it
+            // Note: newValue isn't yet persisted, but easiest to update the
+            // UI here.
+            String newStr = (newValue instanceof String) ? (String) newValue
+                    : null;
+            if (pref == hostPref) {
+                updateHostSummary(newStr);
+            } else if (pref == passwordPref) {
+                updatePasswordSummary(newStr);
+            } else if (pref == usernamePref) {
+                updateUsernameSummary(newStr);
+            } else if (pref == maxCacheSizePref) {
+                if (!updateMaxCacheSizeSummary(newStr))
+                    return false;
+            } else if (pref == devIPPref) {
+                updateDevIP(newStr);
             }
+            return true; // yes, persist it
         };
         hostPref.setOnPreferenceChangeListener(onChange);
         passwordPref.setOnPreferenceChangeListener(onChange);
@@ -140,7 +136,7 @@ public class SettingsActivity extends PreferenceActivity {
 
     /**
      * Receives the results from the custome QRPreference's call to the barcode scanner intent.
-     * 
+     *
      * This is never called if the user doesn't have a zxing barcode scanner app installed.
      */
     @Override
@@ -161,14 +157,14 @@ public class SettingsActivity extends PreferenceActivity {
      * confirmNewSettingsDialog will set preferences based on the parameters
      * in uri.
      *
-     * It is expected the schema of uri is 'camli' and the host is 'settings'.
+     * It is expected the schema of uri is 'perkeep' and the host is 'settings'.
      * Uri parameters expected are server, certFingerprint, username,
      * autoUpload, maxCacheSize, and password
      */
-    private final void confirmNewSettingsDialog(final Uri uri) {
+    private void confirmNewSettingsDialog(final Uri uri) {
         Log.v(TAG, "QR resolved to: " + uri);
-        if (!(uri.getScheme().equals("camli") && uri.getHost().equals("settings"))) {
-            Toast.makeText(this, "QR code not a camli://settings/ URL", Toast.LENGTH_LONG).show();
+        if (!(uri.getScheme().equals("perkeep") && uri.getHost().equals("settings"))) {
+            Toast.makeText(this, "QR code not a perkeep://settings/ URL", Toast.LENGTH_LONG).show();
             return;
         }
 
@@ -230,21 +226,16 @@ public class SettingsActivity extends PreferenceActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        mSharedPrefs
-                .unregisterOnSharedPreferenceChangeListener(prefChangedHandler);
-        if (mServiceConnection != null) {
-            unbindService(mServiceConnection);
-        }
+        mSharedPrefs.unregisterOnSharedPreferenceChangeListener(prefChangedHandler);
+        unbindService(mServiceConnection);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         updatePreferenceSummaries();
-        mSharedPrefs
-                .registerOnSharedPreferenceChangeListener(prefChangedHandler);
-        bindService(new Intent(this, UploadService.class), mServiceConnection,
-                Context.BIND_AUTO_CREATE);
+        mSharedPrefs.registerOnSharedPreferenceChangeListener(prefChangedHandler);
+        bindService(new Intent(this, UploadService.class), mServiceConnection, Context.BIND_AUTO_CREATE);
     }
 
     private void updatePreferenceSummaries() {
@@ -265,8 +256,7 @@ public class SettingsActivity extends PreferenceActivity {
             WifiInfo wifiInfo = wifiManager.getConnectionInfo();
             if (wifiInfo != null) {
                 int ip = wifiInfo.getIpAddress();
-                value = String.format("%d.%d.%d.", ip & 0xff, (ip >> 8) & 0xff,
-                        (ip >> 16) & 0xff) + value;
+                value = String.format("%d.%d.%d.", ip & 0xff, (ip >> 8) & 0xff, (ip >> 16) & 0xff) + value;
                 devIPPref.setText(value);
                 mPrefs.setDevIP(value);
             }
@@ -277,8 +267,7 @@ public class SettingsActivity extends PreferenceActivity {
         usernamePref.setEnabled(enabled);
         passwordPref.setEnabled(enabled);
         if (!enabled) {
-            devIPPref.setSummary("Using http://" + value
-                    + ":3179 user/pass \"camlistore\", \"pass3179\"");
+            devIPPref.setSummary("Using http://" + value + ":3179 user/pass \"perkeep\", \"pass3179\"");
         } else {
             devIPPref.setSummary("(Dev-server IP to override settings above)");
         }

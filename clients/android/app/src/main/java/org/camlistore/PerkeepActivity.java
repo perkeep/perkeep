@@ -31,20 +31,19 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.MessageQueue;
 import android.os.RemoteException;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
-import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-public class CamliActivity extends Activity {
-    private static final String TAG = "CamliActivity";
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+public class PerkeepActivity extends Activity {
+    private static final String TAG = "PerkeepActivity";
 
     private static final int MENU_SETTINGS = 1;
     private static final int MENU_STOP = 2;
@@ -66,17 +65,14 @@ public class CamliActivity extends Activity {
 
     private final Handler mHandler = new Handler();
 
-    private final MessageQueue.IdleHandler mIdleHandler = new MessageQueue.IdleHandler() {
-        @Override
-        public boolean queueIdle() {
-            if (mStatusTextCurrent != mStatusTextWant) {
-                TextView textStats = (TextView) findViewById(R.id.textStats);
-                mLastStatusUpdate = System.currentTimeMillis();
-                mStatusTextCurrent = mStatusTextWant;
-                textStats.setText(mStatusTextWant);
-            }
-            return true;
+    private final MessageQueue.IdleHandler mIdleHandler = () -> {
+        if (mStatusTextCurrent != mStatusTextWant) {
+            TextView textStats = findViewById(R.id.textStats);
+            mLastStatusUpdate = System.currentTimeMillis();
+            mStatusTextCurrent = mStatusTextWant;
+            textStats.setText(mStatusTextWant);
         }
+        return true;
     };
 
     private final ServiceConnection mServiceConnection = new ServiceConnection() {
@@ -97,7 +93,7 @@ public class CamliActivity extends Activity {
         public void onServiceDisconnected(ComponentName name) {
             Log.d(TAG, "Service disconnected");
             mServiceStub = null;
-        };
+        }
     };
 
     @Override
@@ -106,158 +102,131 @@ public class CamliActivity extends Activity {
         setContentView(R.layout.main);
 
         Looper.myQueue().addIdleHandler(mIdleHandler);
-        final Button buttonToggle = (Button) findViewById(R.id.buttonToggle);
+        final Button buttonToggle = findViewById(R.id.buttonToggle);
 
-        final TextView textStatus = (TextView) findViewById(R.id.textStatus);
-        final TextView textStats = (TextView) findViewById(R.id.textStats);
-        final TextView textErrors = (TextView) findViewById(R.id.textErrors);
-        final TextView textBlobsRemain = (TextView) findViewById(R.id.textBlobsRemain);
-        final TextView textUploadStatus = (TextView) findViewById(R.id.textUploadStatus);
-        final TextView textByteStatus = (TextView) findViewById(R.id.textByteStatus);
-        final ProgressBar progressBytes = (ProgressBar) findViewById(R.id.progressByteStatus);
-        final TextView textFileStatus = (TextView) findViewById(R.id.textFileStatus);
-        final ProgressBar progressFile = (ProgressBar) findViewById(R.id.progressFileStatus);
+        final TextView textStatus = findViewById(R.id.textStatus);
+        final TextView textStats = findViewById(R.id.textStats);
+        final TextView textErrors = findViewById(R.id.textErrors);
+        final TextView textBlobsRemain = findViewById(R.id.textBlobsRemain);
+        final TextView textUploadStatus = findViewById(R.id.textUploadStatus);
+        final TextView textByteStatus = findViewById(R.id.textByteStatus);
+        final ProgressBar progressBytes = findViewById(R.id.progressByteStatus);
+        final TextView textFileStatus = findViewById(R.id.textFileStatus);
+        final ProgressBar progressFile = findViewById(R.id.progressFileStatus);
 
-        buttonToggle.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View btn) {
-                Log.d(TAG, "button click!  text=" + buttonToggle.getText());
-                if (getString(R.string.pause).equals(buttonToggle.getText())) {
-                    try {
-                        Log.d(TAG, "Pausing..");
-                        mServiceStub.pause();
-                    } catch (RemoteException e) {
-                    }
-                } else if (getString(R.string.resume).equals(buttonToggle.getText())) {
-                    try {
-                        Log.d(TAG, "Resuming..");
-                        mServiceStub.resume();
-                    } catch (RemoteException e) {
-                    }
+        buttonToggle.setOnClickListener(btn -> {
+            Log.d(TAG, "button click!  text=" + buttonToggle.getText());
+            if (getString(R.string.pause).contentEquals(buttonToggle.getText())) {
+                try {
+                    Log.d(TAG, "Pausing..");
+                    mServiceStub.pause();
+                } catch (RemoteException ignored) {
+                }
+            } else if (getString(R.string.resume).contentEquals(buttonToggle.getText())) {
+                try {
+                    Log.d(TAG, "Resuming..");
+                    mServiceStub.resume();
+                } catch (RemoteException ignored) {
                 }
             }
         });
 
         mCallback = new IStatusCallback.Stub() {
-            private volatile int mLastBlobsUploadRemain = 0;
-            private volatile int mLastBlobsDigestRemain = 0;
+            private final int mLastBlobsUploadRemain = 0;
+            private final int mLastBlobsDigestRemain = 0;
 
             @Override
-            public void logToClient(String stuff) throws RemoteException {
+            public void logToClient(String stuff) {
                 // TODO Auto-generated method stub
             }
 
             @Override
-            public void setUploading(final boolean uploading) throws RemoteException {
-                mHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (uploading) {
-                            buttonToggle.setText(R.string.pause);
-                            textStatus.setText(R.string.uploading);
-                            textErrors.setText("");
-                        } else if (mLastBlobsDigestRemain > 0) {
-                            buttonToggle.setText(R.string.pause);
-                            textStatus.setText(R.string.digesting);
-                        } else {
-                            buttonToggle.setText(R.string.resume);
-                            int stepsRemain = mLastBlobsUploadRemain + mLastBlobsDigestRemain;
-                            textStatus.setText(stepsRemain > 0 ? "Paused." : "Idle.");
-                        }
+            public void setUploading(final boolean uploading) {
+                mHandler.post(() -> {
+                    if (uploading) {
+                        buttonToggle.setText(R.string.pause);
+                        textStatus.setText(R.string.uploading);
+                        textErrors.setText("");
+                    } else if (mLastBlobsDigestRemain > 0) {
+                        buttonToggle.setText(R.string.pause);
+                        textStatus.setText(R.string.digesting);
+                    } else {
+                        buttonToggle.setText(R.string.resume);
+                        int stepsRemain = mLastBlobsUploadRemain + mLastBlobsDigestRemain;
+                        textStatus.setText(stepsRemain > 0 ? "Paused." : "Idle.");
                     }
                 });
             }
 
             @Override
-            public void setFileStatus(final int done, final int inFlight, final int total) throws RemoteException {
-                mHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        boolean finished = (done == total && mLastBlobsDigestRemain == 0);
-                        buttonToggle.setEnabled(!finished);
-                        progressFile.setMax(total);
-                        progressFile.setProgress(done);
-                        progressFile.setSecondaryProgress(done + inFlight);
-                        if (finished) {
-                            buttonToggle.setText(getString(R.string.pause_resume));
-                        }
-
-                        StringBuilder filesUploaded = new StringBuilder(40);
-                        if (done < 2) {
-                            filesUploaded.append(done).append(" file uploaded");
-                        } else {
-                            filesUploaded.append(done).append(" files uploaded");
-                        }
-                        textFileStatus.setText(filesUploaded.toString());
-
-                        StringBuilder sb = new StringBuilder(40);
-                        sb.append("Files to upload: ").append(total - done);
-                        textBlobsRemain.setText(sb.toString());
+            public void setFileStatus(final int done, final int inFlight, final int total) {
+                mHandler.post(() -> {
+                    boolean finished = (done == total && mLastBlobsDigestRemain == 0);
+                    buttonToggle.setEnabled(!finished);
+                    progressFile.setMax(total);
+                    progressFile.setProgress(done);
+                    progressFile.setSecondaryProgress(done + inFlight);
+                    if (finished) {
+                        buttonToggle.setText(getString(R.string.pause_resume));
                     }
+
+                    StringBuilder filesUploaded = new StringBuilder(40);
+                    if (done < 2) {
+                        filesUploaded.append(done).append(" file uploaded");
+                    } else {
+                        filesUploaded.append(done).append(" files uploaded");
+                    }
+                    textFileStatus.setText(filesUploaded.toString());
+
+                    textBlobsRemain.setText("Files to upload: " + (total - done));
                 });
             }
 
             @Override
-            public void setByteStatus(final long done, final int inFlight, final long total) throws RemoteException {
-                mHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        // setMax takes an (signed) int, but 2GB is a totally
-                        // reasonable upload size, so use units of 1KB instead.
-                        progressBytes.setMax((int) (total / 1024L));
-                        progressBytes.setProgress((int) (done / 1024L));
-                        // TODO: renable once pk-put properly sends inflight information
-                        // progressBytes.setSecondaryProgress(progressBytes.getProgress() + inFlight / 1024);
+            public void setByteStatus(final long done, final int inFlight, final long total) {
+                mHandler.post(() -> {
+                    // setMax takes an (signed) int, but 2GB is a totally
+                    // reasonable upload size, so use units of 1KB instead.
+                    progressBytes.setMax((int) (total / 1024L));
+                    progressBytes.setProgress((int) (done / 1024L));
+                    // TODO: renable once pk-put properly sends inflight information
+                    // progressBytes.setSecondaryProgress(progressBytes.getProgress() + inFlight / 1024);
 
-                        StringBuilder bytesUploaded = new StringBuilder(40);
-                        if (done < 2) {
-                            bytesUploaded.append(done).append(" byte uploaded");
-                        } else {
-                            bytesUploaded.append(done).append(" bytes uploaded");
-                        }
-                        textByteStatus.setText(bytesUploaded.toString());
+                    StringBuilder bytesUploaded = new StringBuilder(40);
+                    if (done < 2) {
+                        bytesUploaded.append(done).append(" byte uploaded");
+                    } else {
+                        bytesUploaded.append(done).append(" bytes uploaded");
                     }
+                    textByteStatus.setText(bytesUploaded.toString());
                 });
             }
 
             @Override
-            public void setUploadStatusText(final String text) throws RemoteException {
-                mHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        textUploadStatus.setText(text);
-                    }
-                });
+            public void setUploadStatusText(final String text) {
+                mHandler.post(() -> textUploadStatus.setText(text));
             }
 
             @Override
-            public void setUploadStatsText(final String text) throws RemoteException {
+            public void setUploadStatsText(final String text) {
                 // We were getting these status updates so quickly that the calls to TextView.setText
                 // were consuming all CPU on the main thread and it was stalling the main thread
                 // for seconds, sometimes even triggering device freezes. Ridiculous. So instead,
                 // only update this every 30 milliseconds, otherwise wait for the looper to be idle
                 // to update it.
-                mHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        mStatusTextWant = text;
-                        long now = System.currentTimeMillis();
-                        if (mLastStatusUpdate < now - 30) {
-                            mStatusTextCurrent = mStatusTextWant;
-                            textStats.setText(mStatusTextWant);
-                            mLastStatusUpdate = System.currentTimeMillis();
-                        }
+                mHandler.post(() -> {
+                    mStatusTextWant = text;
+                    long now = System.currentTimeMillis();
+                    if (mLastStatusUpdate < now - 30) {
+                        mStatusTextCurrent = mStatusTextWant;
+                        textStats.setText(mStatusTextWant);
+                        mLastStatusUpdate = System.currentTimeMillis();
                     }
                 });
             }
 
-            public void setUploadErrorsText(final String text) throws RemoteException {
-                mHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        textErrors.setText(text);
-                    }
-                });
+            public void setUploadErrorsText(final String text) {
+                mHandler.post(() -> textErrors.setText(text));
             }
         };
 
@@ -321,7 +290,7 @@ public class CamliActivity extends Activity {
             ProfilesActivity.show(this);
             break;
         case MENU_VERSION:
-            Toast.makeText(this, "pk-put version: " + ((UploadApplication) getApplication()).getCamputVersion(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "pk-put version: " + ((UploadApplication) getApplication()).getPkPutVersion(), Toast.LENGTH_LONG).show();
             break;
         case MENU_UPLOAD_ALL:
             Intent uploadAll = new Intent(UploadService.INTENT_UPLOAD_ALL);
@@ -353,6 +322,8 @@ public class CamliActivity extends Activity {
         super.onResume();
 
         // Check for the right to read the user's files.
+
+
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
             != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
@@ -388,18 +359,15 @@ public class CamliActivity extends Activity {
         Log.d(TAG, "onResume; action=" + action);
 
         if (Intent.ACTION_SEND.equals(action) || Intent.ACTION_SEND_MULTIPLE.equals(action)) {
-            setIntent(new Intent(this, CamliActivity.class));
+            setIntent(new Intent(this, PerkeepActivity.class));
         } else {
-            Log.d(TAG, "Normal CamliActivity viewing.");
+            Log.d(TAG, "Normal perkeepActivity viewing.");
         }
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode,
-        String permissions[], int[] grantResults) {
-        switch (requestCode) {
-        case READ_EXTERNAL_STORAGE_PERMISSION_RESPONSE: {
-            // If request is cancelled, the result arrays are empty.
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        if (requestCode == READ_EXTERNAL_STORAGE_PERMISSION_RESPONSE) {// If request is cancelled, the result arrays are empty.
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 Log.d(TAG, "User authorized us to read his files.");
             } else {
@@ -407,8 +375,6 @@ public class CamliActivity extends Activity {
                 Log.d(TAG, "Permission to read files denied by user.");
                 System.exit(1);
             }
-            return;
-        }
         }
     }
 }
