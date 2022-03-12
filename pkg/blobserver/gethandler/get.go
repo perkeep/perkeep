@@ -34,7 +34,6 @@ import (
 )
 
 const (
-	// TODO: Expose this to the config somehow?
 	HTTP_CACHE_DURATION = 10 * 356 * 24 * time.Hour
 )
 
