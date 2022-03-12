@@ -3,72 +3,72 @@
     android:key="first_preferencescreen" >
 
     <org.camlistore.QRPreference
-        android:key="camli.qr"
+        android:key="perkeep.qr"
 	    android:summary="@string/settings_qr_summary"
         android:title="@string/settings_qr_title"/>
     <EditTextPreference
-        android:key="camli.host"
+        android:key="perkeep.host"
         android:persistent="true"
         android:summary="@string/settings_host_summary"
         android:title="@string/settings_host_title" />
     <EditTextPreference
-        android:key="camli.username"
+        android:key="perkeep.username"
         android:persistent="true"
         android:title="@string/settings_username_title" />
     <EditTextPreference
         android:inputType="textPassword"
-        android:key="camli.password"
+        android:key="perkeep.password"
         android:persistent="true"
         android:title="@string/settings_password_title" />
 
     <CheckBoxPreference
-        android:key="camli.auto"
+        android:key="perkeep.auto"
         android:persistent="true"
         android:summary="@string/settings_auto_summary"
         android:title="@string/settings_auto" />
 
     <PreferenceScreen
-        android:key="camli.auto.opts"
+        android:key="perkeep.auto.opts"
         android:title="Auto-upload settings" >
         <CheckBoxPreference
             android:defaultValue="true"
-            android:key="camli.auto.photos"
+            android:key="perkeep.auto.photos"
             android:persistent="true"
             android:title="Photos (DCIM/Camera/)" />
         <CheckBoxPreference
             android:defaultValue="true"
-            android:key="camli.auto.mytracks"
+            android:key="perkeep.auto.mytracks"
             android:persistent="true"
             android:title="MyTracks exports" />
         <CheckBoxPreference
             android:defaultValue="false"
-            android:key="camli.auto.require_wifi"
+            android:key="perkeep.auto.require_wifi"
             android:persistent="true"
             android:summary="Wait for Wifi to auto-upload"
             android:title="Require Wifi" />
         <EditTextPreference
-            android:key="camli.auto.required_wifi_ssid"
+            android:key="perkeep.auto.required_wifi_ssid"
             android:persistent="true"
             android:singleLine="true"
             android:summary="Restrict auto-upload to this SSID"
             android:title="@string/settings_auto_required_ssid" />
         <CheckBoxPreference
             android:defaultValue="false"
-            android:key="camli.auto.require_power"
+            android:key="perkeep.auto.require_power"
             android:persistent="true"
             android:summary="Wait until charging to auto-upload"
             android:title="Require Power" />
     </PreferenceScreen>
 
     <EditTextPreference
-        android:key="camli.max_cache_mb"
+        android:key="perkeep.max_cache_mb"
         android:numeric="integer"
         android:persistent="true"
         android:singleLine="true"
         android:title="@string/settings_max_cache_size_title" />
 
     <EditTextPreference
-        android:key="camli.dev_ip"
+        android:key="perkeep.dev_ip"
         android:phoneNumber="true"
         android:persistent="true"
         android:singleLine="true"

@@ -17,6 +17,7 @@ limitations under the License.
 package org.camlistore;
 
 import java.io.File;
+import java.nio.file.Paths;
 
 import android.net.Uri;
 import android.os.FileObserver;
@@ -25,13 +26,13 @@ import android.util.Log;
 
 import org.camlistore.IUploadService.Stub;
 
-public class CamliFileObserver extends FileObserver {
-    private static final String TAG = "CamliFileObserver";
+public class PerkeepFileObserver extends FileObserver {
+    private static final String TAG = "PerkeepFileObserver";
 
     private final File mDirectory;
     private final Stub mServiceStub;
 
-    public CamliFileObserver(IUploadService.Stub service, File directory) {
+    public PerkeepFileObserver(IUploadService.Stub service, File directory) {
         super(directory.getAbsolutePath(), FileObserver.CLOSE_WRITE | FileObserver.MOVED_TO);
         // TODO: Docs say: "The monitored file or directory must exist at this
         // time, or else no events will be reported (even if it appears
@@ -45,21 +46,29 @@ public class CamliFileObserver extends FileObserver {
 
     @Override
     public void onEvent(int event, String path) {
-        if (path == null) {
-            // It's null for certain directory-level events.
+        if (!shouldActOnEvent(path)){
             return;
         }
-
-        // Note from docs:
-        // "This method is invoked on a special FileObserver thread."
-
-        // Order in which we get events for a new camera picture:
-        // CREATE, OPEN, MODIFY, [OPEN, CLOSE_NOWRITE], CLOSE_WRITE
         File fullFile = new File(mDirectory, path);
         Log.d(TAG, "event " + event + " for " + fullFile.getAbsolutePath());
         try {
-            mServiceStub.enqueueUpload(Uri.fromFile(fullFile));
-        } catch (RemoteException e) {
+                mServiceStub.enqueueUpload(Uri.fromFile(fullFile));
+        } catch (RemoteException ignored) {
         }
+    }
+
+    private boolean shouldActOnEvent(String path) {
+        // It's null for certain directory-level events.
+        if (path == null) {
+            return false;
+        }
+        // Taking a photo will generate a ".pending-*" file before moving it into the proper
+        // path leading to double uploads sometimes ( race between enqueue and upload). We
+        // get around that by the heuristic of ignoring ".pending" filenames here.
+        if (Paths.get(path).getFileName().toString().startsWith(".pending")) {
+            return false;
+        }
+        // act on all other events
+        return true;
     }
 }
