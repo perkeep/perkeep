@@ -20,31 +20,30 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 public final class Preferences {
-    private static final String TAG = "Preferences";
-    public static final String NAME = "CamliUploader";
+    public static final String NAME = "perkeepUploader";
 
 	// key/value store file where we keep the profile names
-    public static final String PROFILES_FILE = "CamliUploader_profiles";
+    public static final String PROFILES_FILE = "perkeepUploader_profiles";
 	// key to the set of profile names
-    public static final String PROFILES = "camli.profiles";
+    public static final String PROFILES = "perkeep.profiles";
 	// key to the currently selected profile
-    public static final String PROFILE = "camli.profile";
+    public static final String PROFILE = "perkeep.profile";
 	// for the preference element that lets us create a new profile name
-    public static final String NEWPROFILE = "camli.newprofile";
+    public static final String NEWPROFILE = "perkeep.newprofile";
 
-    public static final String HOST = "camli.host";
+    public static final String HOST = "perkeep.host";
     // TODO(mpl): list instead of single string later? seems overkill for now.
-    public static final String USERNAME = "camli.username";
-    public static final String PASSWORD = "camli.password";
-    public static final String AUTO = "camli.auto";
-    public static final String AUTO_OPTS = "camli.auto.opts";
-    public static final String MAX_CACHE_MB = "camli.max_cache_mb";
-    public static final String DEV_IP = "camli.dev_ip";
-    public static final String AUTO_REQUIRE_POWER = "camli.auto.require_power";
-    public static final String AUTO_REQUIRE_WIFI = "camli.auto.require_wifi";
-    public static final String AUTO_REQUIRED_WIFI_SSID = "camli.auto.required_wifi_ssid";
-    public static final String AUTO_DIR_PHOTOS = "camli.auto.photos";
-    public static final String AUTO_DIR_MYTRACKS = "camli.auto.mytracks";
+    public static final String USERNAME = "perkeep.username";
+    public static final String PASSWORD = "perkeep.password";
+    public static final String AUTO = "perkeep.auto";
+    public static final String AUTO_OPTS = "perkeep.auto.opts";
+    public static final String MAX_CACHE_MB = "perkeep.max_cache_mb";
+    public static final String DEV_IP = "perkeep.dev_ip";
+    public static final String AUTO_REQUIRE_POWER = "perkeep.auto.require_power";
+    public static final String AUTO_REQUIRE_WIFI = "perkeep.auto.require_wifi";
+    public static final String AUTO_REQUIRED_WIFI_SSID = "perkeep.auto.required_wifi_ssid";
+    public static final String AUTO_DIR_PHOTOS = "perkeep.auto.photos";
+    public static final String AUTO_DIR_MYTRACKS = "perkeep.auto.mytracks";
 
     private final SharedPreferences mSP;
 
@@ -57,7 +56,7 @@ public final class Preferences {
         SharedPreferences profiles = ctx.getSharedPreferences(PROFILES_FILE, 0);
         String currentProfile = profiles.getString(Preferences.PROFILE, "default");
         if (currentProfile.equals("default")) {
-            // Special case: we keep CamliUploader as the conf file name by default, to stay
+            // Special case: we keep perkeepUploader as the conf file name by default, to stay
             // backwards compatible.
             return NAME;
         }
@@ -84,10 +83,6 @@ public final class Preferences {
         return Integer.parseInt(mSP.getString(MAX_CACHE_MB, "256"));
     }
 
-    public long maxCacheBytes() {
-        return maxCacheMb() * 1024 * 1024;
-    }
-
     public boolean autoDirPhotos() {
         return mSP.getBoolean(AUTO_DIR_PHOTOS, true);
     }
@@ -106,7 +101,7 @@ public final class Preferences {
 
     public String username() {
         if (inDevMode()) {
-            return "camlistore";
+            return "perkeep";
         }
         return mSP.getString(USERNAME, "");
     }

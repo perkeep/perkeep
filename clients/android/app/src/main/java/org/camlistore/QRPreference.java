@@ -1,6 +1,5 @@
 package org.camlistore;
 
-import android.app.AlertDialog;
 import android.content.Context;
 import android.preference.Preference;
 import android.util.AttributeSet;

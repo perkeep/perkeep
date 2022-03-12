@@ -22,7 +22,7 @@ oneway interface IStatusCallback {
     void setUploadStatsText(String text);  // big box
     void setUploadErrorsText(String text);
     void setUploading(boolean uploading);
-    
+
     // done: acknowledged by server
     // inFlight: those written to the server, but no reply yet (i.e. large HTTP POST body) (does NOT include the "done" ones)
     // total: "this batch" size.  reset on transition from 0 -> 1 blobs remain.

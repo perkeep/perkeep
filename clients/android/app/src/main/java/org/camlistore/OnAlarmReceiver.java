@@ -22,7 +22,7 @@ import android.content.Intent;
 import android.util.Log;
 
 public class OnAlarmReceiver extends BroadcastReceiver {
-    private static final String TAG = "Camli_OnAlarmReceiver";
+    private static final String TAG = "perkeep_OnAlarmReceiver";
 
     @Override
     public void onReceive(Context context, Intent intent) {

@@ -3,7 +3,7 @@
     android:key="profilescreen" >
 
     <ListPreference
-        android:key="camli.profile"
+        android:key="perkeep.profile"
         android:persistent="true"
         android:summary="@string/profiles_summary"
         android:title="@string/profiles_title"
@@ -12,7 +12,7 @@
 		android:defaultValue="default"/>
 
     <EditTextPreference
-        android:key="camli.newprofile"
+        android:key="perkeep.newprofile"
         android:persistent="false"
         android:summary="Create a new profile"
         android:title="New Profile" />

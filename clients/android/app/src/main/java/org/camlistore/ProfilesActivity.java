@@ -30,7 +30,6 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.preference.ListPreference;
 import android.preference.EditTextPreference;
-import android.preference.Preference;
 import android.preference.Preference.OnPreferenceChangeListener;
 import android.preference.PreferenceActivity;
 import android.util.Log;
@@ -68,41 +67,34 @@ public class ProfilesActivity extends PreferenceActivity {
         refreshProfileRef();
         mNewProfilePref = (EditTextPreference) findPreference(Preferences.NEWPROFILE);
 
-        OnPreferenceChangeListener onChange = new OnPreferenceChangeListener() {
-            @Override
-            public boolean onPreferenceChange(Preference pref, Object newValue) {
-                // Note: newValue isn't yet persisted, but easiest to update the
-                // UI here.
-                if (!(newValue instanceof String)) {
-                    return false;
-                }
-                String newStr = (String) newValue;
-                if (pref == mProfilePref) {
-                    updateProfilesSummary(newStr);
-                } else if (pref == mNewProfilePref) {
-                    updateProfilesList(newStr);
-                    return false; // do not actually persist it.
-                }
-                // TODO(mpl): some way to remove a profile.
-                return true; // yes, persist it
+        OnPreferenceChangeListener onChange = (pref, newValue) -> {
+            // Note: newValue isn't yet persisted, but easiest to update the
+            // UI here.
+            if (!(newValue instanceof String)) {
+                return false;
             }
+            String newStr = (String) newValue;
+            if (pref == mProfilePref) {
+                updateProfilesSummary(newStr);
+            } else if (pref == mNewProfilePref) {
+                updateProfilesList(newStr);
+                return false; // do not actually persist it.
+            }
+            // TODO(mpl): some way to remove a profile.
+            return true; // yes, persist it
         };
         mProfilePref.setOnPreferenceChangeListener(onChange);
         mNewProfilePref.setOnPreferenceChangeListener(onChange);
    }
 
-    private final SharedPreferences.OnSharedPreferenceChangeListener prefChangedHandler = new SharedPreferences.OnSharedPreferenceChangeListener() {
-        @Override
-        public void onSharedPreferenceChanged(SharedPreferences sp, String key) {
-            if (mServiceStub != null) {
-                try {
-                    mServiceStub.reloadSettings();
-                } catch (RemoteException e) {
-                    // Ignore.
-                }
+    private final SharedPreferences.OnSharedPreferenceChangeListener prefChangedHandler = (sp, key) -> {
+        if (mServiceStub != null) {
+            try {
+                mServiceStub.reloadSettings();
+            } catch (RemoteException ignored) {
             }
-
         }
+
     };
 
     @Override
@@ -111,17 +103,18 @@ public class ProfilesActivity extends PreferenceActivity {
         refreshProfileRef();
         updatePreferenceSummaries();
         mSharedPrefs.registerOnSharedPreferenceChangeListener(prefChangedHandler);
-        bindService(new Intent(this, UploadService.class), mServiceConnection,
-                Context.BIND_AUTO_CREATE);
+        bindService(
+                new Intent(this, UploadService.class),
+                mServiceConnection,
+                Context.BIND_AUTO_CREATE
+        );
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         mSharedPrefs.unregisterOnSharedPreferenceChangeListener(prefChangedHandler);
-        if (mServiceConnection != null) {
-            unbindService(mServiceConnection);
-        }
+        unbindService(mServiceConnection);
     }
 
     private void updatePreferenceSummaries() {
@@ -147,11 +140,11 @@ public class ProfilesActivity extends PreferenceActivity {
             return;
         }
 
-        Set<String> profiles = mSharedPrefs.getStringSet(Preferences.PROFILES, new HashSet<String>());
+        Set<String> profiles = mSharedPrefs.getStringSet(Preferences.PROFILES, new HashSet<>());
         profiles.add(value);
         Editor ed = mSharedPrefs.edit();
         ed.putStringSet(Preferences.PROFILES, profiles);
-        ed.commit();
+        ed.apply();
         refreshProfileRef();
         mProfilePref.setValue(value);
         mProfilePref.setSummary(value);
@@ -161,13 +154,13 @@ public class ProfilesActivity extends PreferenceActivity {
     // refreshProfileRef refreshes the profiles preference list with the profile
     // values stored in the key/value file.
     private void refreshProfileRef() {
-        Set<String> profiles = mSharedPrefs.getStringSet(Preferences.PROFILES, new HashSet<String>());
+        Set<String> profiles = mSharedPrefs.getStringSet(Preferences.PROFILES, new HashSet<>());
         if (profiles.isEmpty()) {
             // make sure there's always at least the "default" profile.
             profiles.add("default");
             Editor ed = mSharedPrefs.edit();
             ed.putStringSet(Preferences.PROFILES, profiles);
-            ed.commit();
+            ed.apply();
         }
         CharSequence[] listValues = profiles.toArray(new String[]{});
         mProfilePref.setEntries(listValues);
