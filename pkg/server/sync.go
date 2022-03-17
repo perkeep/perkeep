@@ -321,7 +321,7 @@ func (sh *SyncHandler) currentStatus() syncStatus {
 	defer sh.mu.Unlock()
 	ago := 0
 	if !sh.recentCopyTime.IsZero() {
-		ago = int(time.Now().Sub(sh.recentCopyTime).Seconds())
+		ago = int(time.Since(sh.recentCopyTime) / time.Second)
 	}
 	return syncStatus{
 		sh:             sh,

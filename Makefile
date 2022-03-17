@@ -12,6 +12,9 @@ presubmit: fmt
 fmt:
 	go fmt perkeep.org/cmd/... perkeep.org/dev/... perkeep.org/misc/... perkeep.org/pkg/... perkeep.org/server/... perkeep.org/internal/...
 
+lint:
+	go run honnef.co/go/tools/cmd/staticcheck ./...
+
 dockerbuild:
 	docker build --tag=gcr.io/perkeep-containers/perkeep:latest .
 

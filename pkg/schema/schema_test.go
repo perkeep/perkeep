@@ -33,7 +33,6 @@ import (
 	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/test"
-	. "perkeep.org/pkg/test/asserts"
 )
 
 const expectedHeader = `{"camliVersion"`
@@ -62,7 +61,9 @@ func TestJSON(t *testing.T) {
 func TestRegularFile(t *testing.T) {
 	fileName := "schema_test.go"
 	fi, err := os.Lstat(fileName)
-	AssertNil(t, err, "schema_test.go stat")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 	m := NewCommonFileMap("schema_test.go", fi)
 	json, err := m.JSON()
 	if err != nil {
@@ -72,11 +73,7 @@ func TestRegularFile(t *testing.T) {
 }
 
 func TestSymlink(t *testing.T) {
-	td, err := ioutil.TempDir("", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(td)
+	td := t.TempDir()
 
 	symFile := filepath.Join(td, "test-symlink")
 	if err := os.Symlink("test-target", symFile); err != nil {
@@ -571,11 +568,7 @@ func TestStaticFileAndStaticSymlink(t *testing.T) {
 		t.Fatalf("StaticFile.AsStaticSymlink(): Unexpected return value: true")
 	}
 
-	dir, err := ioutil.TempDir("", "schema-test-")
-	if err != nil {
-		t.Fatalf("ioutil.TempDir(): %v", err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	target := "bar"
 	src := filepath.Join(dir, "foo")
@@ -617,14 +610,10 @@ func TestStaticFileAndStaticSymlink(t *testing.T) {
 }
 
 func TestStaticFIFO(t *testing.T) {
-	tdir, err := ioutil.TempDir("", "schema-test-")
-	if err != nil {
-		t.Fatalf("ioutil.TempDir(): %v", err)
-	}
-	defer os.RemoveAll(tdir)
+	tdir := t.TempDir()
 
 	fifoPath := filepath.Join(tdir, "fifo")
-	err = osutil.Mkfifo(fifoPath, 0660)
+	err := osutil.Mkfifo(fifoPath, 0660)
 	if err == osutil.ErrNotSupported {
 		t.SkipNow()
 	}
@@ -654,14 +643,10 @@ func TestStaticFIFO(t *testing.T) {
 }
 
 func TestStaticSocket(t *testing.T) {
-	tdir, err := ioutil.TempDir("", "schema-test-")
-	if err != nil {
-		t.Fatalf("ioutil.TempDir(): %v", err)
-	}
-	defer os.RemoveAll(tdir)
+	tdir := t.TempDir()
 
 	sockPath := filepath.Join(tdir, "socket")
-	err = osutil.Mksocket(sockPath)
+	err := osutil.Mksocket(sockPath)
 	if err == osutil.ErrNotSupported {
 		t.SkipNow()
 	}

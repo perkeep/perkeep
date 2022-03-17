@@ -27,7 +27,6 @@ import (
 	"golang.org/x/crypto/openpgp"
 	. "perkeep.org/pkg/jsonsign"
 	"perkeep.org/pkg/test"
-	. "perkeep.org/pkg/test/asserts"
 )
 
 var ctxbg = context.Background()
@@ -105,24 +104,39 @@ func init() {
 	testFetcher.AddBlob(pubKeyBlob2)
 }
 
+func isErrorWithSubstring(err error, substr string) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), substr)
+}
+
 func TestSigningBadInput(t *testing.T) {
 	sr := newRequest(1)
 
 	sr.UnsignedJSON = ""
 	_, err := sr.Sign(ctxbg)
-	ExpectErrorContains(t, err, "json parse error", "empty input")
+	if substr := "json parse error"; !isErrorWithSubstring(err, substr) {
+		t.Errorf("empty input: expected error containing %q, got %q instead", substr, err)
+	}
 
 	sr.UnsignedJSON = "{}"
 	_, err = sr.Sign(ctxbg)
-	ExpectErrorContains(t, err, "json lacks \"camliSigner\" key", "just braces")
+	if substr := "json lacks \"camliSigner\" key"; !isErrorWithSubstring(err, substr) {
+		t.Errorf("just braces: expected error containing %q, got %q instead", substr, err)
+	}
 
 	sr.UnsignedJSON = `{"camliSigner": 123}`
 	_, err = sr.Sign(ctxbg)
-	ExpectErrorContains(t, err, "\"camliSigner\" key is malformed or unsupported", "camliSigner 123")
+	if substr := "\"camliSigner\" key is malformed or unsupported"; !isErrorWithSubstring(err, substr) {
+		t.Errorf("camliSigner 123: expected error containing %q, got %q instead", substr, err)
+	}
 
 	sr.UnsignedJSON = `{"camliSigner": ""}`
 	_, err = sr.Sign(ctxbg)
-	ExpectErrorContains(t, err, "\"camliSigner\" key is malformed or unsupported", "empty camliSigner")
+	if substr := "\"camliSigner\" key is malformed or unsupported"; !isErrorWithSubstring(err, substr) {
+		t.Errorf("empty camliSigner: expected error containing %q, got %q instead", substr, err)
+	}
 }
 
 func newRequest(userN int) *SignRequest {
@@ -145,15 +159,23 @@ func TestSigning(t *testing.T) {
 	sr := newRequest(1)
 	sr.UnsignedJSON = fmt.Sprintf(`{"camliVersion": 1, "foo": "fooVal", "camliSigner": %q  }`, pubKeyBlob1.BlobRef().String())
 	signed, err := sr.Sign(ctxbg)
-	AssertNil(t, err, "no error signing")
-	Assert(t, strings.Contains(signed, `"camliSig":`), "got a camliSig")
+	if err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+	if !strings.Contains(signed, `"camliSig":`) {
+		t.Fatalf("Signed JSON %q did not contain a camliSig", signed)
+	}
 
 	vr := NewVerificationRequest(signed, testFetcher)
 	if _, err := vr.Verify(ctxbg); err != nil {
 		t.Fatalf("verification failed on signed json [%s]: %v", signed, err)
 	}
-	ExpectString(t, "fooVal", vr.PayloadMap["foo"].(string), "PayloadMap")
-	ExpectString(t, "2931A67C26F5ABDA", vr.SignerKeyId, "SignerKeyId")
+	if got, want := vr.PayloadMap["foo"].(string), "fooVal"; got != want {
+		t.Errorf("PayloadMap: got %q, expected %q", got, want)
+	}
+	if got, want := vr.SignerKeyId, "2931A67C26F5ABDA"; got != want {
+		t.Errorf("SignerKeyId: got %q, expected %q", got, want)
+	}
 
 	// Test a non-matching signature.
 	fakeSigned := strings.Replace(signed, pubKeyBlob1.BlobRef().String(), pubKeyBlob2.BlobRef().String(), 1)
@@ -161,9 +183,9 @@ func TestSigning(t *testing.T) {
 	if _, err := vr.Verify(ctxbg); err == nil {
 		t.Fatalf("unexpected verification of faked signature")
 	}
-	AssertErrorContains(t, vr.Err, "openpgp: invalid signature: hash tag doesn't match",
-		"expected signature verification error")
-
+	if substr := "openpgp: invalid signature: hash tag doesn't match"; !isErrorWithSubstring(vr.Err, substr) {
+		t.Errorf("signature verification request: expected error containing %q, got %q instead", substr, vr.Err)
+	}
 	t.Logf("TODO: verify GPG-vs-Go sign & verify interop both ways, once implemented.")
 }
 

@@ -8,6 +8,7 @@ require (
 	cloud.google.com/go/datastore v1.1.0
 	cloud.google.com/go/logging v1.3.0
 	cloud.google.com/go/storage v1.10.0
+	filippo.io/age v1.0.0
 	github.com/FiloSottile/b2 v0.0.0-20170207175032-b197f7a2c317 // indirect
 	github.com/aws/aws-sdk-go v1.14.31
 	github.com/bradfitz/latlong v0.0.0-20170410180902-f3db6d0dff40
@@ -50,12 +51,11 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20210305035536-64b5b1c73954
 	github.com/tgulacsi/picago v0.0.0-20171229130838-9e1ac2306c70
 	go4.org v0.0.0-20190218023631-ce4c26f7be8e
-	golang.org/x/crypto v0.0.0-20210421170649-83a5a9bb288b
+	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5
 	golang.org/x/image v0.0.0-20210628002857-a66eb6448b8d
 	golang.org/x/net v0.0.0-20210716203947-853a461950ff
 	golang.org/x/oauth2 v0.0.0-20210628180205-a41e5a781914
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/term v0.0.0-20201210144234-2321bbc49cbf // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
 	golang.org/x/tools v0.1.5 // indirect
 	google.golang.org/api v0.42.0
