@@ -70,3 +70,20 @@ Finally, add the b2 config line to your perkeep `server-config.json`:
 ```
 "b2": "keyID:applicationKey:bucket"
 ```
+
+It is also possible to use `s3` configuration to interact with `b2` API.
+
+This is an example of low-level configuration file:
+
+```json
+"/bs2/": {
+            "handler": "storage-s3",
+            "handlerArgs":{
+                "bucket":"<BUCKET>",
+                "aws_region":"us-west-004",
+                "aws_access_key":"<API_KEY>",
+                "aws_secret_access_key":"<APPLICATION_KEY>",
+                "hostname":"s3.us-west-004.backblazeb2.com"
+            }
+        }
+```

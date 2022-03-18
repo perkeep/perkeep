@@ -102,6 +102,8 @@ endpoint instead of AWS S3, such as `my-minio-server.example.com`. A specific
 region may be specified by using [Low-level Configuration](#lowlevel), though
 the bucket's region will generally be detected automatically.
 
+The `s3` storage option can be used for `b2` since it's possible to use AWS go SDK [backblaze article](https://help.backblaze.com/hc/en-us/articles/360047629713-Using-the-AWS-Go-SDK-with-B2). However since it requires the region to be provided, using [Low-level Configuration](#lowlevel) is preferred.
+
 Additionally, there are two mutually exclusive options:
 
 * `packRelated`: if true, blobs are automatically repacked for fast read access.
