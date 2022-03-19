@@ -68,12 +68,12 @@ It is advisable to create a dedicated Application Key for Perkeep:
 
 Finally, add the b2 config line to your perkeep `server-config.json`:
 ```
-"b2": "keyID:applicationKey:bucket"
+"b2": "keyID:applicationKey:bucket:endpoint"
 ```
 
-It is also possible to use `s3` configuration to interact with `b2` API.
+- `endpoint` can be found on the backblaze buckets' interface https://secure.backblaze.com/b2_buckets.htm.
 
-This is an example of low-level configuration file:
+Using low-level configuration:
 
 ```json
 "/bs2/": {
