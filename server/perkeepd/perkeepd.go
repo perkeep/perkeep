@@ -50,7 +50,6 @@ import (
 
 	// Storage options:
 	_ "perkeep.org/pkg/blobserver/azure"
-	_ "perkeep.org/pkg/blobserver/b2"
 	"perkeep.org/pkg/blobserver/blobpacked"
 	_ "perkeep.org/pkg/blobserver/cond"
 	_ "perkeep.org/pkg/blobserver/diskpacked"

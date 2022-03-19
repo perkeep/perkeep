@@ -168,6 +168,7 @@ func newFromConfigWithTransport(_ blobserver.Loader, config jsonconfig.Obj, tran
 
 func init() {
 	blobserver.RegisterStorageConstructor("s3", blobserver.StorageConstructor(newFromConfig))
+	blobserver.RegisterStorageConstructor("b12", blobserver.StorageConstructor(newFromConfig))
 }
 
 // isNotFound checks for s3 errors which indicate the object doesn't exist.
