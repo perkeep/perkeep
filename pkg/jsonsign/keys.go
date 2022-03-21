@@ -94,9 +94,9 @@ func EntityFromSecring(keyID, keyFile string) (*openpgp.Entity, error) {
 	}
 	defer secring.Close()
 
-	el, err := openpgp.ReadKeyRing(secring)
+	el, err := readKeyRing(secring)
 	if err != nil {
-		return nil, fmt.Errorf("openpgp.ReadKeyRing of %q: %v", keyFile, err)
+		return nil, fmt.Errorf("readKeyRing of %q: %v", keyFile, err)
 	}
 	var entity *openpgp.Entity
 	for _, e := range el {
@@ -150,12 +150,25 @@ func NewEntity() (*openpgp.Entity, error) {
 }
 
 func WriteKeyRing(w io.Writer, el openpgp.EntityList) error {
+	armoredWriter, err := armor.Encode(w, openpgp.PrivateKeyType, nil)
+	if err != nil {
+		return err
+	}
 	for _, ent := range el {
-		if err := ent.SerializePrivate(w, nil); err != nil {
+		if err := ent.SerializePrivate(armoredWriter, nil); err != nil {
 			return err
 		}
 	}
-	return nil
+	return armoredWriter.Close()
+}
+
+// readKeyRing reads a keyring, armored or not.
+func readKeyRing(r io.Reader) (openpgp.EntityList, error) {
+	var buffer bytes.Buffer
+	if el, err := openpgp.ReadArmoredKeyRing(io.TeeReader(r, &buffer)); err == nil {
+		return el, err
+	}
+	return openpgp.ReadKeyRing(&buffer)
 }
 
 // KeyIdFromRing returns the public keyID contained in the secret
@@ -167,7 +180,7 @@ func KeyIdFromRing(secRing string) (keyID string, err error) {
 		return "", fmt.Errorf("Could not open secret ring file %v: %v", secRing, err)
 	}
 	defer f.Close()
-	el, err := openpgp.ReadKeyRing(f)
+	el, err := readKeyRing(f)
 	if err != nil {
 		return "", fmt.Errorf("Could not read secret ring file %s: %v", secRing, err)
 	}
