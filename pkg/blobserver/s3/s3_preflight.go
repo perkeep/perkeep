@@ -77,7 +77,7 @@ func normalizeBucketLocation(ctx context.Context, cfg client.ConfigProvider, end
 	if err != nil {
 		return bucketInfo{}, err
 	}
-	// if isAWS is false, this is b2 related
+	// if isAWS is false, the target also supports AWS s3 API
 	if !isAWS {
 		return bucketInfo{
 			endpoint: endpoint,

@@ -72,18 +72,3 @@ Finally, add the b2 config line to your perkeep `server-config.json`:
 ```
 
 - `endpoint` can be found on the backblaze buckets' interface https://secure.backblaze.com/b2_buckets.htm.
-
-Using low-level configuration:
-
-```json
-"/bs2/": {
-            "handler": "storage-s3",
-            "handlerArgs":{
-                "bucket":"<BUCKET>",
-                "aws_region":"us-west-004",
-                "aws_access_key":"<API_KEY>",
-                "aws_secret_access_key":"<APPLICATION_KEY>",
-                "hostname":"s3.us-west-004.backblazeb2.com"
-            }
-        }
-```
