@@ -346,7 +346,7 @@ func (b *lowBuilder) sortedName() string {
 	case b.high.SQLite != "":
 		return "SQLite"
 	case b.high.KVFile != "":
-		return "cznic/kv"
+		return "KVFile"
 	case b.high.LevelDB != "":
 		return "LevelDB"
 	}
