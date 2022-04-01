@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package kvutil contains helpers related to
-// github.com/cznic/kv.
+// modernc.org/kv.
 package kvutil // import "perkeep.org/pkg/kvutil"
 
 import (
@@ -24,9 +24,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/cznic/kv"
-
 	"go4.org/lock"
+	"modernc.org/kv"
 )
 
 // Open opens the named kv DB file for reading/writing. It

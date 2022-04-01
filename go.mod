@@ -12,14 +12,6 @@ require (
 	github.com/FiloSottile/b2 v0.0.0-20170207175032-b197f7a2c317 // indirect
 	github.com/aws/aws-sdk-go v1.14.31
 	github.com/bradfitz/latlong v0.0.0-20170410180902-f3db6d0dff40
-	github.com/cznic/fileutil v0.0.0-20180108211300-6a051e75936f // indirect
-	github.com/cznic/internal v0.0.0-20170905175358-4747030f7cf2 // indirect
-	github.com/cznic/kv v0.0.0-20181122101858-e9cdcade440e
-	github.com/cznic/lldb v1.1.0 // indirect
-	github.com/cznic/mathutil v0.0.0-20180214153908-5455a562bccb // indirect
-	github.com/cznic/sortutil v0.0.0-20150617083342-4c7342852e65 // indirect
-	github.com/cznic/zappy v0.0.0-20160723133515-2533cb5b45cc // indirect
-	github.com/edsrzf/mmap-go v0.0.0-20170320065105-0bce6a688712 // indirect
 	github.com/facebookgo/ensure v0.0.0-20160127193407-b4ab57deab51 // indirect
 	github.com/facebookgo/stack v0.0.0-20160209184415-751773369052 // indirect
 	github.com/facebookgo/subset v0.0.0-20150612182917-8dac2c3c4870 // indirect
@@ -64,6 +56,8 @@ require (
 	gopkg.in/mgo.v2 v2.0.0-20160818020120-3f83fa500528
 	honnef.co/go/js/dom v0.0.0-20200509013220-d4405f7ab4d8
 	honnef.co/go/tools v0.2.1
+	modernc.org/fileutil v1.0.1-0.20200808163328-2079183a536e // indirect
+	modernc.org/kv v1.0.4
 	modernc.org/sqlite v1.14.3
 	myitcv.io v0.0.0-20201125173645-a7167afc9e13
 	rsc.io/pdf v0.1.1

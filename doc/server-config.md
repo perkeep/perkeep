@@ -123,7 +123,7 @@ Examples for [configuring storage backends](/doc/storage-examples.md)
 Unless `runIndex` is set to `false`, exactly one of these must be set:
 
 * `sqlite`: path to SQLite database file to use for indexing
-* `kvIndexFile`: path to kv (https://github.com/cznic/kv) database file to use for indexing
+* `kvIndexFile`: path to kv (modernc.org/kv) database file to use for indexing
 * `levelDB`: path to levelDB (https://github.com/syndtr/goleveldb) database file to use for indexing
 * `mongo`: user:password@host
 * `mysql`: user@host:password
