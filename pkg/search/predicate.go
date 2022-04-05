@@ -115,6 +115,8 @@ func init() {
 
 	// Image predicates
 	registerKeyword(newIsImage())
+	registerKeyword(newIsVideo())
+	registerKeyword(newIsAudio())
 	registerKeyword(newHeight())
 	registerKeyword(newIsLandscape())
 	registerKeyword(newIsPano())
@@ -573,6 +575,58 @@ func (h height) Predicate(ctx context.Context, args []string) (*Constraint, erro
 	return c, nil
 }
 
+type isVideo struct {
+	matchEqual
+}
+
+func newIsVideo() keyword {
+	return isVideo{"is:video"}
+}
+
+func (k isVideo) Description() string {
+	return "object is a video"
+}
+
+func (k isVideo) Predicate(ctx context.Context, args []string) (*Constraint, error) {
+	c := &Constraint{
+		Permanode: &PermanodeConstraint{
+			Attr: nodeattr.CamliContent,
+			ValueInSet: &Constraint{
+				File: &FileConstraint{
+					IsVideo: true,
+				},
+			},
+		},
+	}
+	return c, nil
+}
+
+type isAudio struct {
+	matchEqual
+}
+
+func newIsAudio() keyword {
+	return isAudio{"is:audio"}
+}
+
+func (k isAudio) Description() string {
+	return "object is an audio file"
+}
+
+func (k isAudio) Predicate(ctx context.Context, args []string) (*Constraint, error) {
+	c := &Constraint{
+		Permanode: &PermanodeConstraint{
+			Attr: nodeattr.CamliContent,
+			ValueInSet: &Constraint{
+				File: &FileConstraint{
+					IsAudio: true,
+				},
+			},
+		},
+	}
+	return c, nil
+}
+
 // Location predicates
 
 // namedLocation matches e.g. `loc:Paris` or `loc:"New York, New York"` queries.
@@ -814,6 +868,30 @@ func mimeFromFormat(v string) (string, error) {
 		return "image/png", nil
 	case "pdf":
 		return "application/pdf", nil // RFC 3778
+	case "mp3":
+		return "audio/mpeg", nil
+	case "weba":
+		return "audio/webm", nil
+	case "webn":
+		return "video/webm", nil
+	case "oga":
+		return "audio/ogg", nil
+	case "flac":
+		return "audio/flac", nil
+	case "theora":
+		return "video/theora", nil
+	case "ogv":
+		return "video/ogg", nil
+	case "mp4":
+		return "video/mp4", nil
+	case "mov":
+		return "video/quicktime", nil
+	case "avi":
+		return "video/x-msvideo", nil
+	case "wmv":
+		return "video/x-ms-wmv", nil
+	case "mkv":
+		return "video/x-matroska", nil
 	}
 	return "", fmt.Errorf("Unknown format: %s", v)
 }

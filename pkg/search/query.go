@@ -433,6 +433,8 @@ type FileConstraint struct {
 
 	// For images:
 	IsImage  bool                `json:"isImage,omitempty"`
+	IsVideo  bool                `json:"isVideo,omitempty"`
+	IsAudio  bool                `json:"isVideo,omitempty"`
 	EXIF     *EXIFConstraint     `json:"exif,omitempty"` // TODO: implement
 	Width    *IntConstraint      `json:"width,omitempty"`
 	Height   *IntConstraint      `json:"height,omitempty"`
@@ -1898,6 +1900,12 @@ func (c *FileConstraint) blobMatches(ctx context.Context, s *search, br blob.Ref
 		return false, nil
 	}
 	if c.IsImage && !strings.HasPrefix(fi.MIMEType, "image/") {
+		return false, nil
+	}
+	if c.IsVideo && !strings.HasPrefix(fi.MIMEType, "video/") {
+		return false, nil
+	}
+	if c.IsAudio && !strings.HasPrefix(fi.MIMEType, "audio/") {
 		return false, nil
 	}
 	if sc := c.FileName; sc != nil && !sc.stringMatches(fi.FileName) {
