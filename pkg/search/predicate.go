@@ -872,7 +872,7 @@ func mimeFromFormat(v string) (string, error) {
 		return "audio/mpeg", nil
 	case "weba":
 		return "audio/webm", nil
-	case "webn":
+	case "webm":
 		return "video/webm", nil
 	case "oga":
 		return "audio/ogg", nil
