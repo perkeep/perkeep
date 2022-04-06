@@ -434,7 +434,7 @@ type FileConstraint struct {
 	// For images:
 	IsImage  bool                `json:"isImage,omitempty"`
 	IsVideo  bool                `json:"isVideo,omitempty"`
-	IsAudio  bool                `json:"isVideo,omitempty"`
+	IsAudio  bool                `json:"isAudio,omitempty"`
 	EXIF     *EXIFConstraint     `json:"exif,omitempty"` // TODO: implement
 	Width    *IntConstraint      `json:"width,omitempty"`
 	Height   *IntConstraint      `json:"height,omitempty"`
