@@ -114,34 +114,32 @@
 			"handler": "status"
 		},
 		"/sto-b2-bs-loose/": {
-			"handler": "storage-b2",
+			"handler": "storage-s3",
 			"handlerArgs": {
-				"auth": {
-					"account_id": "b2account",
-					"application_key": "b2key"
-				},
-				"bucket": "b2bucket/loose"
+				"aws_access_key": "b2account",
+				"aws_secret_access_key": "b2key",
+				"bucket": "b2bucket/loose",
+				"hostname": "b2endpoint"
 			}
 		},
 		"/sto-b2-bs-packed/": {
-			"handler": "storage-b2",
+			"handler": "storage-s3",
 			"handlerArgs": {
-				"auth": {
-					"account_id": "b2account",
-					"application_key": "b2key"
-				},
-				"bucket": "b2bucket/packed"
+				"aws_access_key": "b2account",
+				"aws_secret_access_key": "b2key",
+				"bucket": "b2bucket/packed",
+				"hostname": "b2endpoint"
 			}
 		},
 		"/sto-b2/": {
 			"handler": "storage-blobpacked",
 			"handlerArgs": {
-				"largeBlobs": "/bs-packed/",
+				"largeBlobs": "/sto-b2-bs-packed/",
 				"metaIndex": {
 					"file": "/path/to/packindex.kv",
 					"type": "kv"
 				},
-				"smallBlobs": "/bs-loose/"
+				"smallBlobs": "/sto-b2-bs-loose/"
 			}
 		},
 		"/sto-googlecloudstorage-bs-loose/": {
