@@ -6,7 +6,7 @@
 	"identitySecretRing": "/path/to/secring",
 	"kvIndexFile": "/path/to/indexkv.db",
 	"s3": "s3key:s3secret:s3bucket",
-	"b2": "b2account:b2key:b2bucket",
+	"b2": "b2account:b2key:b2bucket:b2endpoint",
 	"googlecloudstorage": "gcsClientId:gcsClientSecret:gcsRefreshToken:gcsBucketName/blobs",
 	"blobPath": "/path/to/blobs/",
 	"packRelated": true,
