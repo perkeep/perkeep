@@ -53,7 +53,7 @@ func TestJSON(t *testing.T) {
 	// TODO: test it parses back
 
 	if !strings.HasPrefix(json, expectedHeader) {
-		t.Errorf("JSON does't start with expected header.")
+		t.Errorf("JSON doesn't start with expected header.")
 	}
 
 }

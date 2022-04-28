@@ -80,7 +80,7 @@ cam.blob.refFromDOMBlob = function(blob, doLegacySHA1) {
 	return refs;
 };
 
-// Creates an instance of the currently recommened hash function.
+// Creates an instance of the currently recommended hash function.
 // @return {!goog.crypt.Hash'}
 cam.blob.createHash = function() {
 	return new goog.crypt.Sha224();

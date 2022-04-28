@@ -31,7 +31,7 @@ func init() {
 func NewMemoryIndex() *Index {
 	ix, err := New(sorted.NewMemoryKeyValue())
 	if err != nil {
-		// Nothing to fail in memory, so worth panicing about
+		// Nothing to fail in memory, so worth panicking about
 		// if we ever see something.
 		panic(err)
 	}

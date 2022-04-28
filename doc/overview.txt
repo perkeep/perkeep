@@ -3,7 +3,7 @@ Perkeep (was Camlistore: Content-Addressable Multi-Layer, Indexed Store)
 ============================================================================
 
 This file contains old design notes.  They're correct in spirit, but shouldn't
-be considered authorative.
+be considered authoritative.
 
 See http://perkeep.org/doc/
 
@@ -65,7 +65,7 @@ Schema of files/objects in Layer 1:
 
 * The filename, stat(2) metadata (modtime, ctime, permissions, etc) now
   also need to be stored.  The key design point here is that file
-  metdata is ALSO just a blob, content-addressed.  The blob is a JSON
+  metadata is ALSO just a blob, content-addressed.  The blob is a JSON
   file (for human readability, compactness).  XML and Protocol Buffers
   were both also considered, but the former is too redundant, bloaty,
   tree-ish (overkill) and out of vogue, while Protocol Buffers don't

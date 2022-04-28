@@ -29,7 +29,7 @@ import (
 // Perkeep components.
 type Config struct {
 	Auth    string `json:"auth"`              // auth scheme and values (ex: userpass:foo:bar).
-	BaseURL string `json:"baseURL,omitempty"` // Base URL the server advertizes. For when behind a proxy.
+	BaseURL string `json:"baseURL,omitempty"` // Base URL the server advertises. For when behind a proxy.
 	Listen  string `json:"listen"`            // address (of the form host|ip:port) on which the server will listen on.
 
 	// CamliNetIP is the optional internet-facing IP address for this

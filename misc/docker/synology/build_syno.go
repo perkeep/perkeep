@@ -54,7 +54,7 @@ func main() {
 
 	gobin := "/go/bin"
 	goarch := "amd64"
-	// TODO(mpl): figure out the correspondance between all the other arches and the
+	// TODO(mpl): figure out the correspondence between all the other arches and the
 	// values for the go vars.
 	if *flagArch == "6281" {
 		gobin = "/go/bin/linux_arm"

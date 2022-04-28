@@ -411,7 +411,7 @@ func Main() {
 	setBlobpackedRecovery()
 
 	// In case we're running in a Docker container with no
-	// filesytem from which to load the root CAs, this
+	// filesystem from which to load the root CAs, this
 	// conditionally installs a static set if necessary. We do
 	// this before we load the config file, which might come from
 	// an https URL. And also before setting up the logging,

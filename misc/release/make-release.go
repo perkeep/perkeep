@@ -688,7 +688,7 @@ type stats struct {
 	NamesList       string
 }
 
-// returns commiters names mapped by e-mail, uniqued first by e-mail, then by name.
+// returns committers names mapped by e-mail, uniqued first by e-mail, then by name.
 // When uniquing, higher count of commits wins.
 func committers() (map[string]string, error) {
 	cmd := exec.Command("git", "shortlog", "-n", "-e", "-s", *flagStatsFrom+".."+revOrHEAD())

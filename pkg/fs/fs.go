@@ -377,7 +377,7 @@ func (fs *CamliFileSystem) newNodeFromBlobRef(root blob.Ref) (fusefs.Node, error
 		return n, nil
 
 	case schema.TypePermanode:
-		// other mutDirs listed in the default fileystem have names and are displayed
+		// other mutDirs listed in the default filesystem have names and are displayed
 		return &mutDir{fs: fs, permanode: root, name: "-"}, nil
 	}
 

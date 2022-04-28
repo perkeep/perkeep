@@ -14,7 +14,7 @@ Perkeep is built so that other apps can securely access and store
 data without running alongside it. Perkeep is the perfect backing
 store for other web apps and CMSes.
 
-Detailed documention on the HTTP blob retrieval protocol can be found at
+Detailed documentation on the HTTP blob retrieval protocol can be found at
 [the protocol documentation](/doc/protocol). The [client](/pkg/client),
 [search](/pkg/search) and [schema](/pkg/schema) packages are also a good
 place to start.

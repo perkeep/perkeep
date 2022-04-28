@@ -571,7 +571,7 @@ func (x *Index) Reindex() error {
 	return nil
 }
 
-// integrityCheck enumerates blobs through x.blobSource during timemout, and
+// integrityCheck enumerates blobs through x.blobSource during timeout, and
 // verifies for each of them that it has a meta row in the index. It logs a message
 // if any of them is not found. It only returns an error if something went wrong
 // during the enumeration.

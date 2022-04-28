@@ -77,7 +77,7 @@ var godocFmap = template.FuncMap{
 	"filename": filenameFunc,
 	"repeat":   strings.Repeat,
 
-	// accss to FileInfos (directory listings)
+	// access to FileInfos (directory listings)
 	"fileInfoName": fileInfoNameFunc,
 	"fileInfoTime": fileInfoTimeFunc,
 

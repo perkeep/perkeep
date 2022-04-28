@@ -100,7 +100,7 @@ or
 `CAMLI_GCE_SERVICE_ACCOUNT` (string)
 : See `CAMLI_GCE_*` first. Path to a Google service account JSON file. This
   account should have at least compute.readonly permissions on the Google
-  Project wih ID CAMLI_GCE_PROJECT.  It is used to authenticate when querying
+  Project with ID CAMLI_GCE_PROJECT.  It is used to authenticate when querying
   for the list of all the existing zones. If blank, a hard-coded list of zones
   is used instead.
 
@@ -223,10 +223,10 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
 
 `CAMLI_DEBUG_CONFIG` (bool)
 : Causes pkg/serverconfig to dump low-level configuration derived from
-  high-level configuation on load.
+  high-level configuration on load.
 
 `CAMLI_DEBUG_X` (string)
-: String containing magic substring(s) to enable debuggging in code.
+: String containing magic substring(s) to enable debugging in code.
 
 `CAMLI_DEBUG_UPLOADS` (bool)
 : Used by [pkg/client](/pkg/client) to enable additional logging.

@@ -102,7 +102,7 @@ func (s *storage) OpenWholeRef(wholeRef blob.Ref, offset int64) (rc io.ReadClose
 	sort.Sort(byZipIndex(parts))
 	for i, zp := range parts {
 		if zp.idx != uint32(i) {
-			log.Printf("blobpacked: discontigous or overlapping index for wholeref %v", wholeRef)
+			log.Printf("blobpacked: discontiguous or overlapping index for wholeref %v", wholeRef)
 			return nil, 0, os.ErrNotExist
 		}
 	}

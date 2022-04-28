@@ -68,7 +68,7 @@ func (b *Blob) BlobRef() blob.Ref { return b.br }
 // JSON returns the JSON bytes of the schema blob.
 func (b *Blob) JSON() string { return b.str }
 
-// Blob returns itself, so it satisifies the AnyBlob interface.
+// Blob returns itself, so it satisfies the AnyBlob interface.
 func (b *Blob) Blob() *Blob { return b }
 
 // PartsSize returns the number of bytes represented by the "parts" field.
@@ -319,7 +319,7 @@ func (sl StaticSymlink) SymlinkTargetString() string {
 }
 
 // AsStaticSymlink returns the StaticFile as a StaticSymlink if the
-// StaticFile represents a symlink. Othwerwise, it returns the zero
+// StaticFile represents a symlink. Otherwise, it returns the zero
 // value of StaticSymlink and false.
 func (sf StaticFile) AsStaticSymlink() (s StaticSymlink, ok bool) {
 	if sf.b.ss.Type == TypeSymlink {
@@ -439,7 +439,7 @@ func (bb *Builder) Blob() *Blob {
 	}
 }
 
-// Builder returns a clone of itself and satisifies the Buildable interface.
+// Builder returns a clone of itself and satisfies the Buildable interface.
 func (bb *Builder) Builder() *Builder {
 	return &Builder{clone(bb.m).(map[string]interface{})}
 }

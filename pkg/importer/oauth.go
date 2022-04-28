@@ -87,7 +87,7 @@ func (OAuth2) CallbackURLParameters(acctRef blob.Ref) url.Values {
 func (OAuth2) RedirectURL(imp Importer, ctx *SetupContext) string {
 	// We strip our callback URL of its query component, because the Redirect URI
 	// we send during authorization has to match exactly the registered redirect
-	// URI(s). This query component should be stored in the "state" paremeter instead.
+	// URI(s). This query component should be stored in the "state" parameter instead.
 	// See http://tools.ietf.org/html/rfc6749#section-3.1.2.2
 	fullCallback := ctx.CallbackURL()
 	queryPart := imp.CallbackURLParameters(ctx.AccountNode.PermanodeRef())

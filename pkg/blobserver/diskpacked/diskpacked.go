@@ -85,7 +85,7 @@ type storage struct {
 	index       sorted.KeyValue
 	maxFileSize int64
 
-	writeLock io.Closer // Provided by lock.Lock, and guards other processes from accesing the file open for writes.
+	writeLock io.Closer // Provided by lock.Lock, and guards other processes from accessing the file open for writes.
 
 	*local.Generationer
 
