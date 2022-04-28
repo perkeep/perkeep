@@ -66,7 +66,7 @@ const (
 	// permanode and subsequent importers can stop early.
 	runCompleteVersion = "5"
 
-	// acctAttrTweetZip specifies an optional attribte for the account permanode.
+	// acctAttrTweetZip specifies an optional attribute for the account permanode.
 	// If set, it should be of a "file" schema blob referencing the tweets.zip
 	// file that Twitter makes available for the full archive download.
 	// The Twitter API doesn't go back forever in time, so if you started using
@@ -76,7 +76,7 @@ const (
 	// ... and re-do an import.
 	acctAttrTweetZip = "twitterArchiveZipFileRef"
 
-	// acctAttrImportLikes specifies an optional attribte for the account permanode.
+	// acctAttrImportLikes specifies an optional attribute for the account permanode.
 	// If set to true likes are imported via the twitter API.
 	// You can enable importing likes like this:
 	//   $ pk-put attr <acct-permanode> twitterImportLikes true

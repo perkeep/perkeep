@@ -234,7 +234,7 @@ func HalveInplace(m image.Image) image.Image {
 	}
 }
 
-// ResampleInplace will resample m inplace, overwritting existing pixel data,
+// ResampleInplace will resample m inplace, overwriting existing pixel data,
 // and return a subimage of m sized to w and h.
 func ResampleInplace(m image.Image, r image.Rectangle, w, h int) image.Image {
 	// We don't support scaling up.

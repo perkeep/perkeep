@@ -220,7 +220,7 @@ not straightforward, so we suggest using one of the other indexers, like MySQL.
 
 The following steps should get you started with MySQL:
 
-* Dowload and install [MariaDB](https://downloads.mariadb.org/mariadb/5.5.32/)
+* Download and install [MariaDB](https://downloads.mariadb.org/mariadb/5.5.32/)
   or [MySQL](http://dev.mysql.com/downloads/windows/installer/) (the latter
   requires .NET).
 * Edit your server configuration file (if it does not exit yet, running

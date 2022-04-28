@@ -181,7 +181,7 @@ cam.IndexPage = React.createClass({
 			// messageDialogVisible to true.
 			messageDialogContents: null,
 			messageDialogVisible: false,
-			// dialogWidth and dialogHeight should be set to accomodate the size of
+			// dialogWidth and dialogHeight should be set to accommodate the size of
 			// the text message we display in the dialog.
 			dialogWidth: 0,
 			dialogHeight: 0,
@@ -962,7 +962,7 @@ cam.IndexPage = React.createClass({
 			}
 
 			if (progress.Assembled) {
-				this.updateImportShareDialog_("File successfully imporoted as", blobRef)
+				this.updateImportShareDialog_("File successfully imported as", blobRef)
 				return;
 			}
 			this.updateImportShareDialog_(`Done - ${progress.FilesCopied}/${progress.FilesSeen} files imported under`, blobRef);
@@ -1502,7 +1502,7 @@ cam.IndexPage = React.createClass({
 			);
 		}.bind(this);
 
-		// mkdir creates a new directory blob, whith children composing its
+		// mkdir creates a new directory blob, with children composing its
 		// static-set, and uploads it. It passes to cb the blobRef of the new
 		// directory.
 		const mkdir = function(children, cb) {

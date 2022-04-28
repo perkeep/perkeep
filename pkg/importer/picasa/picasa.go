@@ -169,7 +169,7 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 		return
 	}
 
-	log.Printf("importer/picasa: got exhanged token.")
+	log.Printf("importer/picasa: got exchange token.")
 	picagoCtx := context.WithValue(ctx, ctxutil.HTTPClient, oauthConfig.Client(ctx, token))
 
 	userInfo, err := im.getUserInfo(picagoCtx)

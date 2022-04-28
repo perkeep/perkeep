@@ -546,7 +546,7 @@ func (h *handler) handleDoc(w http.ResponseWriter, r *http.Request) {
 	if sizeParam := r.FormValue("size"); sizeParam != "" {
 		sizeint, err := strconv.Atoi(sizeParam)
 		if err != nil {
-			httputil.ServeError(w, r, fmt.Errorf("invalide size param %q: %v", sizeParam, err))
+			httputil.ServeError(w, r, fmt.Errorf("invalid size param %q: %v", sizeParam, err))
 			return
 		}
 		size = sizeint

@@ -459,7 +459,7 @@ func (up *Uploader) noStatReceiver(r blobserver.BlobReceiver) blobserver.StatRec
 // already checks the have cache anyway, so going right to mid-chunk
 // receives is fine.
 //
-// TODO(bradfitz): this probabaly all needs an audit/rationalization/tests
+// TODO(bradfitz): this probably all needs an audit/rationalization/tests
 // to make sure all the players are agreeing on the responsibilities.
 // And maybe the Android stats are wrong, too. (see pkg/client/android's
 // StatReceiver)

@@ -125,7 +125,7 @@ cam.ServerConnection.prototype.getConfig = function() {
 
 // @param {string} blobref blobref whose contents we want.
 // @param {Function} success callback with data.
-// @param {?Function} opt_fail optional failure calback
+// @param {?Function} opt_fail optional failure callback
 cam.ServerConnection.prototype.getBlobContents = function(blobref, success, opt_fail) {
 	var path = goog.uri.utils.appendPath(
 		this.config_.blobRoot, 'camli/' + blobref
@@ -163,7 +163,7 @@ cam.ServerConnection.prototype.handleXhrResponseJson_ = function(callbacks, e) {
 };
 
 // @param {Function} success callback with data.
-// @param {?Function} opt_fail optional failure calback
+// @param {?Function} opt_fail optional failure callback
 cam.ServerConnection.prototype.discoSignRoot = function(success, opt_fail) {
 	var path = goog.uri.utils.appendPath(this.config_.jsonSignRoot, '/camli/sig/discovery');
 	this.sendXhr_(path, goog.bind(this.handleXhrResponseJson_, this, {success: success, fail: opt_fail}));
@@ -181,7 +181,7 @@ cam.ServerConnection.prototype.serverStatus = function(success) {
 
 // @param {string} shareURL
 // @param {Function} success callback.
-// @param {?Function} opt_fail optional failure calback.
+// @param {?Function} opt_fail optional failure callback.
 cam.ServerConnection.prototype.importShare = function(shareURL, success, opt_fail) {
 	this.sendXhr_(
 		goog.uri.utils.appendPath(this.config_.uiRoot, 'importshare'),
@@ -204,7 +204,7 @@ cam.ServerConnection.prototype.importShareStatus = function(success) {
 
 // @param {string} blobref root of the tree
 // @param {Function} success callback with data.
-// @param {?Function} opt_fail optional failure calback
+// @param {?Function} opt_fail optional failure callback
 cam.ServerConnection.prototype.getFileTree = function(blobref, success, opt_fail) {
 	// TODO(mpl): do it relatively to a discovered root?
 	var path = "./tree/" + blobref;
@@ -736,7 +736,7 @@ cam.ServerConnection.prototype.handleUpload_ = function(file, contentsBlobRef, c
 
 // @param {List} wholeDigestRefs file contents digests (current hash in use, then optionally legacy SHA-1 hash).
 // @param {Function} success callback with data.
-// @param {?Function} opt_fail optional failure calback
+// @param {?Function} opt_fail optional failure callback
 cam.ServerConnection.prototype.findExistingFileSchemas_ = function(wholeDigestRefs, success, opt_fail) {
 	var path = goog.uri.utils.appendPath(this.config_.searchRoot, 'camli/search/files');
 	for (var i=0; i<wholeDigestRefs.length; i++) {

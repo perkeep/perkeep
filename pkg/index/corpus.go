@@ -1138,7 +1138,7 @@ func (c *Corpus) pnTimeAttr(pn blob.Ref, attr string) (t time.Time, ok bool) {
 // PermanodeTime returns the time of the content in permanode.
 func (c *Corpus) PermanodeTime(pn blob.Ref) (t time.Time, ok bool) {
 	// TODO(bradfitz): keep this time property cached on the permanode / files
-	// TODO(bradfitz): finish implmenting all these
+	// TODO(bradfitz): finish implementing all these
 
 	// Priorities:
 	// -- Permanode explicit "camliTime" property

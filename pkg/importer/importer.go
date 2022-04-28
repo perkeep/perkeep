@@ -839,7 +839,7 @@ func (im *importer) URL() string { return im.host.ImporterBaseURL() + im.name }
 func (im *importer) ShowClientAuthEditForm() bool {
 	if im.StaticConfig() {
 		// Don't expose the server's statically-configured client secret
-		// to the user. (e.g. a hosted multi-user configuation)
+		// to the user. (e.g. a hosted multi-user configuration)
 		return false
 	}
 	return im.props.NeedsAPIKey

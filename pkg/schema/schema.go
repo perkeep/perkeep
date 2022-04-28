@@ -633,7 +633,7 @@ func (bb *Builder) SetStaticSetMembers(members []blob.Ref) []*Blob {
 		}
 	}
 
-	// Deal with the rest (of the euclidian division)
+	// Deal with the rest (of the euclidean division)
 	if perSubset*subsetsNumber < len(members) {
 		ss := NewStaticSet()
 		ss.SetStaticSetMembers(members[perSubset*subsetsNumber:])

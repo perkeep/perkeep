@@ -128,7 +128,7 @@ In review:
     S == ascii-armored detached signature of T
     C == CONCAT(T, ',"camliSig":"', S, '"}', '\n')
 
-(strictly, the trailing newline and the exact JSON serialziation of
+(strictly, the trailing newline and the exact JSON serialization of
 the camlisig element doesn't matter, but it'd be advised to follow
 this recommendation for compatibility with other verification code)
 

@@ -31,7 +31,7 @@ set to "mypics" which will serve as the root node for publishing.
 (See further settings for running behind a reverse proxy down below.)
 
 Suppose you want to publish two permanodes as "foo" and "bar". The root node
-needs the following atributes:
+needs the following attributes:
 
     camliRoot = mypics // must match server-config.json
     camilPath:foo = sha1-foo

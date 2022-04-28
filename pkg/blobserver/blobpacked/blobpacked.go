@@ -407,7 +407,7 @@ func (s *storage) checkLargeIntegrity() (RecoveryMode, error) {
 			// zipRef in meta that actually does not exist in s.large.
 			xbr, ok := blob.Parse(strings.TrimPrefix(metaKey, zipMetaPrefix))
 			if !ok {
-				return fmt.Errorf("boggus key in z: row: %q", metaKey)
+				return fmt.Errorf("bogus key in z: row: %q", metaKey)
 			}
 			extra = append(extra, xbr)
 			// iterate meta once more at the same storage enumeration point
@@ -1204,7 +1204,7 @@ func (pk *packer) pack(ctx context.Context) error {
 		return err
 	}
 
-	// TODO: decide as a fuction of schemaRefs and dataRefs
+	// TODO: decide as a function of schemaRefs and dataRefs
 	// already in s.large whether it makes sense to still compact
 	// this from a savings standpoint. For now we just always do.
 	// Maybe we'd have knobs in the future. Ideally not.

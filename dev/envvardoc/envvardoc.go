@@ -88,7 +88,7 @@ func (ec *envCollector) findEnvVars(path string, r io.Reader) error {
 	err := scanner.Err()
 	if err == bufio.ErrTooLong {
 		// Happens only for unreasonably long lines.
-		// In our case the webui's embeded stuff.
+		// In our case the webui's embedded stuff.
 		return nil
 	}
 	return err
