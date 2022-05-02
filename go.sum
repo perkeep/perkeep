@@ -51,8 +51,6 @@ filippo.io/edwards25519 v1.0.0-rc.1/go.mod h1:N1IkdkCkiLB6tki+MYJoSx2JTY9NUlxZE7
 github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
-github.com/FiloSottile/b2 v0.0.0-20170207175032-b197f7a2c317 h1:1GuMjC4tjfwnWBdoTS7YqtQ3JIsEft6NRcdmXdzvYYc=
-github.com/FiloSottile/b2 v0.0.0-20170207175032-b197f7a2c317/go.mod h1:3DBotXAz3n/g1px/orhrK7xBJLjfaJRRrsEAJiUYEtY=
 github.com/PuerkitoBio/goquery v1.5.0/go.mod h1:qD2PgZ9lccMbQlc7eEOjaeRlFQON7xY8kdmcsrnKqMg=
 github.com/Quasilyte/inltest v0.7.0/go.mod h1:dtucUPCtVvdlfhpampYI/MiobiJL3sUD/58/lgeWwFs=
 github.com/andybalholm/cascadia v1.0.0/go.mod h1:GsXiBklL0woXo1j/WYWtSYYC4ouU9PqHO0sqidkEA4Y=
@@ -295,8 +293,6 @@ github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7J
 github.com/onsi/gomega v1.10.1 h1:o0+MgICZLuZ7xjH7Vx6zS/zcu93/BEp1VwkIW1mEXCE=
 github.com/onsi/gomega v1.10.1/go.mod h1:iN09h71vgCQne3DLsj+A5owkum+a2tYe+TOCB1ybHNo=
 github.com/pelletier/go-toml v1.2.0/go.mod h1:5z9KED0ma1S8pY6P1sdut58dfprrGBbd/94hg7ilaic=
-github.com/perkeep/b2 v0.0.0-20180913003434-1ae8d9b78db9 h1:Wns4DneT6dMNbGPylkKfdU992jsoEL7bvwlnPQ46+fg=
-github.com/perkeep/b2 v0.0.0-20180913003434-1ae8d9b78db9/go.mod h1:wr5gMCoMWNiQbxfI5DTPRtwdTHMHheInIYNljOvo2ZE=
 github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
