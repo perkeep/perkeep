@@ -7,34 +7,11 @@
 # misc/docker/heiftojpeg's Dockerfile entirely. Not decided best way.
 # TODO: likewise, djpeg binary? maybe. https://perkeep.org/issue/1142
 
-FROM buildpack-deps:stretch-scm AS pkbuild
+FROM golang:1.18 AS pkbuild
 
 MAINTAINER Perkeep Authors <perkeep@googlegroups.com>
 
 ENV DEBIAN_FRONTEND noninteractive
-
-# gcc for cgo, sqlite
-RUN apt-get update && apt-get install -y --no-install-recommends \
-		g++ \
-		gcc \
-		libc6-dev \
-		make \
-		pkg-config \
-		libsqlite3-dev
-
-ENV GOLANG_VERSION 1.16.6
-
-WORKDIR /usr/local
-RUN wget -O go.tgz https://dl.google.com/go/go${GOLANG_VERSION}.linux-amd64.tar.gz
-RUN echo "be333ef18b3016e9d7cb7b1ff1fdb0cac800ca0be4cf2290fe613b3d069dfe0d go.tgz" | sha256sum -c -
-RUN tar -zxvf go.tgz
-
-ENV GOROOT /usr/local/go
-ENV GOPATH /go
-ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
-
-RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
-WORKDIR $GOPATH
 
 # Add each directory separately, so our context doesn't include the
 # Dockerfile itself, to permit quicker iteration with docker's
