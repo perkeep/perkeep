@@ -13,6 +13,11 @@ MAINTAINER Perkeep Authors <perkeep@googlegroups.com>
 
 ENV DEBIAN_FRONTEND noninteractive
 
+WORKDIR /go/src/perkeep.org
+
+COPY go.mod go.sum ./
+RUN go mod download
+
 # Add each directory separately, so our context doesn't include the
 # Dockerfile itself, to permit quicker iteration with docker's
 # caching.
@@ -29,10 +34,6 @@ ADD server /go/src/perkeep.org/server
 ADD website /go/src/perkeep.org/website
 ADD make.go /go/src/perkeep.org/make.go
 ADD VERSION /go/src/perkeep.org/VERSION
-ADD go.mod /go/src/perkeep.org/go.mod
-ADD go.sum /go/src/perkeep.org/go.sum
-
-WORKDIR /go/src/perkeep.org
 
 RUN go run make.go -v
 
