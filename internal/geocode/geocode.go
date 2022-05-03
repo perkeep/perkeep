@@ -24,15 +24,19 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
 	"perkeep.org/internal/osutil"
+	"perkeep.org/pkg/buildinfo"
 
 	"go4.org/ctxutil"
+	"go4.org/legal"
 	"go4.org/syncutil/singleflight"
 	"go4.org/wkfs"
 	"golang.org/x/net/context/ctxhttp"
@@ -113,7 +117,7 @@ func GetAPIKey() (string, error) {
 	return key, nil
 }
 
-var ErrNoGoogleKey = errors.New("geocode: geocoding is not configured; see https://perkeep.org/doc/geocoding")
+var ErrNoGoogleKey = errors.New("geocode: Google API key not configured, using OpenStreetMap; see https://perkeep.org/doc/geocoding")
 
 // Lookup returns rectangles for the given address. Currently the only
 // implementation is the Google geocoding service.
@@ -130,36 +134,44 @@ func Lookup(ctx context.Context, address string) ([]Rect, error) {
 	}
 
 	key, err := GetAPIKey()
-	if err != nil {
+	if err != nil && err != ErrNoGoogleKey {
 		return nil, err
 	}
 
 	rectsi, err := sf.Do(address, func() (interface{}, error) {
-		// TODO: static data files from OpenStreetMap, Wikipedia, etc?
-		urlStr := "https://maps.googleapis.com/maps/api/geocode/json?address=" + url.QueryEscape(address) + "&sensor=false&key=" + url.QueryEscape(key)
-		res, err := ctxhttp.Get(ctx, ctxutil.Client(ctx), urlStr)
-		if err != nil {
-			log.Printf("geocode: HTTP error doing Google lookup: %v", err)
-			return nil, err
-		}
-		defer res.Body.Close()
-		rects, err := decodeGoogleResponse(res.Body)
-		if err != nil {
-			log.Printf("geocode: error decoding Google geocode response for %q: %v", address, err)
+		if key != "" {
+			return lookupGoogle(ctx, address, key)
 		} else {
-			log.Printf("geocode: Google lookup (%q) = %#v", address, rects)
+			return lookupOpenStreetMap(ctx, address)
 		}
-		if err == nil {
-			mu.Lock()
-			cache[address] = rects
-			mu.Unlock()
-		}
-		return rects, err
 	})
 	if err != nil {
 		return nil, err
 	}
-	return rectsi.([]Rect), nil
+	rects = rectsi.([]Rect)
+
+	mu.Lock()
+	cache[address] = rects
+	mu.Unlock()
+	return rects, nil
+}
+
+func lookupGoogle(ctx context.Context, address string, key string) ([]Rect, error) {
+	// TODO: static data files from OpenStreetMap, Wikipedia, etc?
+	urlStr := "https://maps.googleapis.com/maps/api/geocode/json?address=" + url.QueryEscape(address) + "&sensor=false&key=" + url.QueryEscape(key)
+	res, err := ctxhttp.Get(ctx, ctxutil.Client(ctx), urlStr)
+	if err != nil {
+		log.Printf("geocode: HTTP error doing Google lookup: %v", err)
+		return nil, err
+	}
+	defer res.Body.Close()
+	rects, err := decodeGoogleResponse(res.Body)
+	if err != nil {
+		log.Printf("geocode: error decoding Google geocode response for %q: %v", address, err)
+	} else {
+		log.Printf("geocode: Google lookup (%q) = %#v", address, rects)
+	}
+	return rects, err
 }
 
 type googleResTop struct {
@@ -193,4 +205,68 @@ func decodeGoogleResponse(r io.Reader) (rects []Rect, err error) {
 		}
 	}
 	return
+}
+
+var openstreetmapUserAgent = fmt.Sprintf("perkeep/%v", buildinfo.Summary())
+
+func lookupOpenStreetMap(ctx context.Context, address string) ([]Rect, error) {
+	// TODO: static data files from OpenStreetMap, Wikipedia, etc?
+	urlStr := "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + url.QueryEscape(address)
+	req, err := http.NewRequest("GET", urlStr, nil)
+	if err != nil {
+		log.Printf("geocode: HTTP error doing OpenStreetMap lookup: %v", err)
+		return nil, err
+	}
+	// Nominatim Usage Policy requires a user agent (https://operations.osmfoundation.org/policies/nominatim/)
+	req.Header.Set("User-Agent", openstreetmapUserAgent)
+	res, err := ctxhttp.Do(ctx, ctxutil.Client(ctx), req)
+	if err != nil {
+		log.Printf("geocode: HTTP error doing OpenStreetMap lookup: %v", err)
+		return nil, err
+	}
+	defer res.Body.Close()
+	rects, err := decodeOpenStreetMapResponse(res.Body)
+	if err != nil {
+		log.Printf("geocode: error decoding OpenStreetMap geocode response for %q: %v", address, err)
+	} else {
+		log.Printf("geocode: OpenStreetMap lookup (%q) = %#v", address, rects)
+	}
+	return rects, err
+}
+
+type openstreetmapResult struct {
+	// BoundingBox is encoded as four floats (encoded as strings) in order: SW Lat, NE Lat, SW Long, NE Long
+	BoundingBox []string `json:"boundingbox"`
+}
+
+func decodeOpenStreetMapResponse(r io.Reader) (rects []Rect, err error) {
+	var osmResults []*openstreetmapResult
+	if err := json.NewDecoder(r).Decode(&osmResults); err != nil {
+		return nil, err
+	}
+	for _, res := range osmResults {
+		if len(res.BoundingBox) == 4 {
+			var coords []float64
+			for _, b := range res.BoundingBox {
+				f, err := strconv.ParseFloat(b, 64)
+				if err != nil {
+					return nil, err
+				}
+				coords = append(coords, f)
+			}
+			rect := Rect{
+				NorthEast: LatLong{Lat: coords[1], Long: coords[3]},
+				SouthWest: LatLong{Lat: coords[0], Long: coords[2]},
+			}
+			rects = append(rects, rect)
+		}
+	}
+
+	return
+}
+
+func init() {
+	legal.RegisterLicense(`
+Mapping data and services copyright OpenStreetMap contributors, ODbL 1.0. 
+https://osm.org/copyright.`)
 }

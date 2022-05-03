@@ -382,9 +382,9 @@ func checkGeoKey() error {
 	}
 	if env.OnGCE() {
 		keyPath = strings.TrimPrefix(keyPath, "/gcs/")
-		return fmt.Errorf("for location related requests to properly work, you need to create a Google Geocoding API Key (see https://developers.google.com/maps/documentation/geocoding/get-api-key ), and save it in your VM's configuration bucket as: %v", keyPath)
+		return fmt.Errorf("using OpenStreetMap for location related requests. To use the Google Geocoding API, create a key (see https://developers.google.com/maps/documentation/geocoding/get-api-key ) and save it in your VM's configuration bucket as: %v", keyPath)
 	}
-	return fmt.Errorf("for location related requests to properly work, you need to create a Google Geocoding API Key (see https://developers.google.com/maps/documentation/geocoding/get-api-key ), and save it in Perkeep's configuration directory as: %v", keyPath)
+	return fmt.Errorf("using OpenStreetMap for location related requests. To use the Google Geocoding API, create a key (see https://developers.google.com/maps/documentation/geocoding/get-api-key ) and save it in Perkeep's configuration directory as: %v", keyPath)
 }
 
 // main wraps Main so tests (which generate their own func main) can still run Main.
