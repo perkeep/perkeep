@@ -57,6 +57,10 @@ const helpHTML string = `<html>
 
 			<h3>Anything Else?</h3>
 			<p>See the Perkeep <a href='https://perkeep.org/doc/'>online documentation</a> and <a href='https://perkeep.org/community'>community contacts</a>.</p>
+
+			<h3>Attribution</h3>
+			<p>Various mapping data and services <a href="https://osm.org/copyright">copyright OpenStreetMap contributors</a>, ODbL 1.0.</p>
+
 		</body>
 	</html>`
 
