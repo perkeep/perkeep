@@ -18,22 +18,7 @@ WORKDIR /go/src/perkeep.org
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Add each directory separately, so our context doesn't include the
-# Dockerfile itself, to permit quicker iteration with docker's
-# caching.
-ADD .git /go/src/perkeep.org/.git
-add app /go/src/perkeep.org/app
-ADD clients /go/src/perkeep.org/clients
-ADD cmd /go/src/perkeep.org/cmd
-ADD config /go/src/perkeep.org/config
-ADD dev /go/src/perkeep.org/dev
-ADD doc /go/src/perkeep.org/doc
-ADD internal /go/src/perkeep.org/internal
-ADD pkg /go/src/perkeep.org/pkg
-ADD server /go/src/perkeep.org/server
-ADD website /go/src/perkeep.org/website
-ADD make.go /go/src/perkeep.org/make.go
-ADD VERSION /go/src/perkeep.org/VERSION
+COPY . .
 
 RUN go run make.go -v
 
