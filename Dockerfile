@@ -24,12 +24,8 @@ RUN go run make.go -v
 
 
 
-FROM debian:stretch
+FROM gcr.io/distroless/base
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-                libsqlite3-dev ca-certificates && rm -rf /var/lib/apt/lists/*
-
-RUN mkdir -p /home/keepy/bin
 ENV HOME /home/keepy
 ENV PATH /home/keepy/bin:$PATH
 
@@ -39,4 +35,4 @@ COPY --from=pkbuild /go/bin/perkeepd /home/keepy/bin/
 EXPOSE 80 443 3179 8080
 
 WORKDIR /home/keepy
-CMD /bin/bash
+CMD ["perkeepd"]
