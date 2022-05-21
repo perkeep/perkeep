@@ -35,7 +35,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hjfreyer/taglib-go/taglib"
 	"github.com/rwcarlsen/goexif/exif"
 	"github.com/rwcarlsen/goexif/tiff"
 	_ "go4.org/media/heif"
@@ -43,7 +42,7 @@ import (
 	"go4.org/types"
 	"perkeep.org/internal/images"
 	"perkeep.org/internal/magic"
-	"perkeep.org/internal/media"
+	"perkeep.org/internal/media/audio"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/jsonsign"
@@ -572,7 +571,7 @@ func (ix *Index) populateFile(ctx context.Context, fetcher blob.Fetcher, b *sche
 	mm.Set(keyFileTimes.Key(blobRef), keyFileTimes.Val(time3339s))
 
 	if strings.HasPrefix(mimeType, "audio/") {
-		indexMusic(io.NewSectionReader(fr, 0, fr.Size()), wholeRef, mm)
+		indexMusic(io.NewSectionReader(fr, 0, fr.Size()), b, wholeRef, mm)
 	}
 
 	return nil
@@ -707,70 +706,47 @@ func indexEXIF(wholeRef blob.Ref, r io.Reader, mm *mutationMap) (err error) {
 }
 
 // indexMusic adds mutations to index the wholeRef by attached metadata and other properties.
-func indexMusic(r readerutil.SizeReaderAt, wholeRef blob.Ref, mm *mutationMap) {
-	tag, err := taglib.Decode(r, r.Size())
+func indexMusic(r readerutil.SizeReaderAt, b *schema.Blob, wholeRef blob.Ref, mm *mutationMap) {
+	tag, err := audio.GetMediaTags(b, r)
 	if err != nil {
-		log.Print("index: error parsing tag: ", err)
-		return
-	}
-
-	var footerLength int64 = 0
-	if hasTag, err := media.HasID3v1Tag(r); err != nil {
-		log.Print("index: unable to check for ID3v1 tag: ", err)
-		return
-	} else if hasTag {
-		footerLength = media.ID3v1TagLength
-	}
-
-	// Generate a hash of the audio portion of the file (i.e. excluding ID3v1 and v2 tags).
-	audioStart := int64(tag.TagSize())
-	audioSize := r.Size() - audioStart - footerLength
-	hash := blob.NewHash()
-	if _, err := io.Copy(hash, io.NewSectionReader(r, audioStart, audioSize)); err != nil {
-		log.Print("index: error generating hash of audio data: ", err)
-		return
-	}
-	mediaRef := blob.RefFromHash(hash)
-
-	duration, err := media.GetMPEGAudioDuration(io.NewSectionReader(r, audioStart, audioSize))
-	if err != nil {
-		log.Print("index: unable to calculate audio duration: ", err)
-		duration = 0
+		log.Printf("Index: unable to get media tags: %v", err)
 	}
 
 	var yearStr, trackStr, discStr, durationStr string
-	if !tag.Year().IsZero() {
+	if !tag.Year.IsZero() {
 		const justYearLayout = "2006"
-		yearStr = tag.Year().Format(justYearLayout)
+		yearStr = tag.Year.Format(justYearLayout)
 	}
-	if tag.Track() != 0 {
-		trackStr = fmt.Sprintf("%d", tag.Track())
+	if tag.Track != 0 {
+		trackStr = fmt.Sprintf("%d", tag.Track)
 	}
-	if tag.Disc() != 0 {
-		discStr = fmt.Sprintf("%d", tag.Disc())
+	if tag.Disc != 0 {
+		discStr = fmt.Sprintf("%d", tag.Disc)
 	}
-	if duration != 0 {
-		durationStr = fmt.Sprintf("%d", duration/time.Millisecond)
+	if tag.Duration != 0 {
+		durationStr = fmt.Sprintf("%d", tag.Duration.Milliseconds())
 	}
 
 	// Note: if you add to this map, please update
 	// pkg/search/query.go's MediaTagConstraint Tag docs.
-	tags := map[string]string{
-		"title":              tag.Title(),
-		"artist":             tag.Artist(),
-		"album":              tag.Album(),
-		"genre":              tag.Genre(),
-		"musicbrainzalbumid": tag.CustomFrames()["MusicBrainz Album Id"],
-		"year":               yearStr,
-		"track":              trackStr,
-		"disc":               discStr,
-		"mediaref":           mediaRef.String(),
-		"durationms":         durationStr,
+	indexTags := map[string]string{
+		"title":      tag.Title,
+		"artist":     tag.Artist,
+		"album":      tag.Album,
+		"genre":      tag.Genre,
+		"year":       yearStr,
+		"track":      trackStr,
+		"disc":       discStr,
+		"durationms": durationStr,
 	}
 
-	for tag, value := range tags {
-		if value != "" {
-			mm.Set(keyMediaTag.Key(wholeRef, tag), keyMediaTag.Val(value))
+	for k, v := range tag.Misc {
+		indexTags[k] = v
+	}
+
+	for k, v := range indexTags {
+		if v != "" {
+			mm.Set(keyMediaTag.Key(wholeRef, k), keyMediaTag.Val(v))
 		}
 	}
 }

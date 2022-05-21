@@ -1,3 +1,5 @@
+// +build !taglib
+
 /*
 Copyright 2014 The Perkeep Authors.
 
@@ -15,7 +17,7 @@ limitations under the License.
 */
 
 // Package media provides means for querying information about audio and video data.
-package media // import "perkeep.org/internal/media"
+package audio // import "perkeep.org/internal/media/audio"
 
 import (
 	"bytes"
@@ -25,23 +27,65 @@ import (
 	"io"
 	"time"
 
+	"github.com/hjfreyer/taglib-go/taglib"
 	"go4.org/readerutil"
+	"perkeep.org/pkg/schema"
 )
 
-// ID3v1TagLength is the length of an MP3 ID3v1 tag in bytes.
-const ID3v1TagLength = 128
+func getMediaTags(_ *schema.Blob, r readerutil.SizeReaderAt) (MediaTags, error) {
+	tag, err := taglib.Decode(r, r.Size())
+	if err != nil {
+		return MediaTags{}, fmt.Errorf("error parsing tag: %w", err)
+	}
+
+	var footerLength int64 = 0
+	if hasTag, err := hasID3v1Tag(r); err != nil {
+		return MediaTags{}, fmt.Errorf("unable to check for ID3v1 tag: %w", err)
+	} else if hasTag {
+		footerLength = id3v1TagLength
+	}
+
+	audioStart := int64(tag.TagSize())
+	audioSize := r.Size() - audioStart - footerLength
+
+	duration, err := getMPEGAudioDuration(io.NewSectionReader(r, audioStart, audioSize))
+	if err != nil {
+		return MediaTags{}, fmt.Errorf("unable to calculate audio duration: %w", err)
+	}
+
+	mt := MediaTags{
+		Title:    tag.Title(),
+		Artist:   tag.Artist(),
+		Album:    tag.Album(),
+		Genre:    tag.Genre(),
+		Year:     tag.Year(),
+		Track:    int(tag.Track()),
+		Disc:     int(tag.Disc()),
+		Duration: duration,
+		Misc:     map[string]string{},
+	}
+
+	for k, v := range tag.CustomFrames() {
+		mt.Misc[k] = v
+	}
+
+	return mt, nil
+}
+
+// id3v1TagLength is the length of an MP3 ID3v1 tag in bytes.
+const id3v1TagLength = 128
 
 // id3v1Magic is the byte sequence appearing at the beginning of an ID3v1 tag.
 var id3v1Magic = []byte("TAG")
 
-// HasID3v1Tag returns true if an ID3v1 tag is present at the end of r.
-func HasID3v1Tag(r readerutil.SizeReaderAt) (bool, error) {
-	if r.Size() < ID3v1TagLength {
+// hasId3v1Tag returns true if an ID3v1 tag is present at the end of r.
+func hasID3v1Tag(r readerutil.SizeReaderAt) (bool, error) {
+	if r.Size() < id3v1TagLength {
 		return false, nil
 	}
 
 	buf := make([]byte, len(id3v1Magic))
-	if _, err := r.ReadAt(buf, r.Size()-ID3v1TagLength); err != nil {
+	if _, err := r.ReadAt(buf, r.Size()-id3v1TagLength); err != nil {
 		return false, fmt.Errorf("Failed to read ID3v1 data: %v", err)
 	}
 	if bytes.Equal(buf, id3v1Magic) {
@@ -127,9 +171,9 @@ var mpegSamplesPerFrame = map[mpegVersion]map[mpegLayer]int{
 var xingHeaderName = []byte("Xing")
 var infoHeaderName = []byte("Info")
 
-// GetMPEGAudioDuration reads the first frame in r and returns the audio length with millisecond precision.
+// getMPEGAudioDuration reads the first frame in r and returns the audio length with millisecond precision.
 // Format details are at http://www.codeproject.com/Articles/8295/MPEG-Audio-Frame-Header.
-func GetMPEGAudioDuration(r readerutil.SizeReaderAt) (time.Duration, error) {
+func getMPEGAudioDuration(r readerutil.SizeReaderAt) (time.Duration, error) {
 	var header uint32
 	if err := binary.Read(io.NewSectionReader(r, 0, r.Size()), binary.BigEndian, &header); err != nil {
 		return 0, fmt.Errorf("Failed to read MPEG frame header: %v", err)

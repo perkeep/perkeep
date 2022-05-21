@@ -1,3 +1,5 @@
+// +build !taglib
+
 /*
 Copyright 2014 The Perkeep Authors.
 
@@ -14,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package media
+package audio // import "perkeep.org/internal/media/audio"
 
 import (
 	"io"
@@ -53,7 +55,7 @@ func TestHasID3v1Tag(t *testing.T) {
 		}
 		defer f.Close()
 
-		hasTag, err := HasID3v1Tag(io.NewSectionReader(f, 0, s))
+		hasTag, err := hasID3v1Tag(io.NewSectionReader(f, 0, s))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -78,7 +80,7 @@ func TestGetMPEGAudioDuration(t *testing.T) {
 		}
 		defer f.Close()
 
-		d, err := GetMPEGAudioDuration(io.NewSectionReader(f, 0, s))
+		d, err := getMPEGAudioDuration(io.NewSectionReader(f, 0, s))
 		if err != nil {
 			t.Fatal(err)
 		}

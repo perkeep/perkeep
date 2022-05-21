@@ -39,6 +39,7 @@ import (
 var (
 	noBuild   = flag.Bool("nobuild", false, "do not rebuild anything")
 	race      = flag.Bool("race", false, "build with race detector")
+	taglib    = flag.Bool("taglib", false, "build with taglib (needs cgo and taglib)")
 	quiet, _  = strconv.ParseBool(os.Getenv("CAMLI_QUIET"))
 	wipeCache = flag.Bool("wipecache", false, "wipe the cache directory. Server cache with devcam server, client cache otherwise.")
 	// Whether to build the subcommand with sqlite support. This only
@@ -252,6 +253,7 @@ func build(targets ...string) error {
 		"run", "make.go",
 		"--quiet",
 		"--race=" + strconv.FormatBool(*race),
+		"--taglib=" + strconv.FormatBool(*taglib),
 		"--embed_static=false",
 		"--targets=" + targetsComma,
 	}

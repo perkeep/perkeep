@@ -62,6 +62,7 @@ var (
 	website          = flag.Bool("website", false, "Just build the website.")
 	camnetdns        = flag.Bool("camnetdns", false, "Just build perkeep.org/server/camnetdns.")
 	static           = flag.Bool("static", false, "Build a static binary, so it can run in an empty container.")
+	taglib           = flag.Bool("taglib", false, "Use taglib for reading audio tags (needs cgo and taglib)")
 	buildPublisherUI = flag.Bool("buildPublisherUI", false, "Rebuild the JS code of the web UI instead of fetching it from perkeep.org.")
 	offline          = flag.Bool("offline", false, "Do not fetch the JS code for the web UI from perkeep.org. If not rebuilding the web UI, just trust the files on disk (if they exist).")
 )
@@ -153,9 +154,16 @@ func main() {
 		doEmbed()
 	}
 
+	if *static && *taglib {
+		log.Fatal("cannot use 'static' and 'taglib'")
+	}
+
 	tags := []string{"purego"} // for cznic/zappy
 	if *static {
 		tags = append(tags, "netgo")
+	}
+	if *taglib {
+		tags = append(tags, "taglib")
 	}
 	if *embedResources {
 		tags = append(tags, "with_embed")

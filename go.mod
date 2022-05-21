@@ -32,6 +32,7 @@ require (
 	github.com/mattn/go-mastodon v0.0.5-0.20190517015615-8f6192e26b66
 	github.com/miekg/dns v1.1.43
 	github.com/nf/cr2 v0.0.0-20140528043846-05d46fef4f2f
+	github.com/nicksellen/audiotags v0.0.0-20160226222119-94015fa599bd
 	github.com/perkeep/b2 v0.0.0-20180913003434-1ae8d9b78db9
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/sftp v1.13.2
@@ -48,6 +49,7 @@ require (
 	golang.org/x/net v0.0.0-20210716203947-853a461950ff
 	golang.org/x/oauth2 v0.0.0-20210628180205-a41e5a781914
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
+	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
 	golang.org/x/tools v0.1.5 // indirect
 	google.golang.org/api v0.42.0
