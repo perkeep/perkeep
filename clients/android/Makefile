@@ -32,6 +32,9 @@ installdebug:
 install:
 	adb install -r app/build/outputs/apk/release/app-release.apk
 
+clean:
+	/bin/rm -fr ./app/build
+
 test:
 	# TODO(mpl): can't run the instrumentation tests within docker, since
 	# can't connect to the phone from in there.
