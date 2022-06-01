@@ -41,10 +41,8 @@ var flagRelease = flag.Bool("release", false, "Whether to assemble the release b
 const appVersion = "0.7"
 
 var (
-	camliDir   = filepath.Join(os.Getenv("GOPATH"), "src/perkeep.org")
+	pkDir      = filepath.Join(os.Getenv("GOPATH"), "src/perkeep.org")
 	projectDir = filepath.Join(os.Getenv("GOPATH"), "src/perkeep.org/clients/android")
-	pkputBin   = filepath.Join(projectDir, "app/build/generated/assets/pk-put.arm")
-	assetsDir  = filepath.Join(projectDir, "app/src/main/assets")
 )
 
 func main() {
@@ -53,8 +51,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Usage error: this program should be run within a docker container\n")
 		os.Exit(2)
 	}
-	buildCamput()
-	writeVersion()
+	buildPkput()
 	buildApp()
 }
 
@@ -82,26 +79,20 @@ keyPassword=gopher
 		}
 		defer os.Remove("./keystore.properties")
 	}
-}
 
-func writeVersion() {
-	if err := ioutil.WriteFile(filepath.Join(assetsDir, "pk-put-version.txt"), []byte(version()), 0600); err != nil {
-		log.Fatalf("Error writing app version file: %v", err)
+	if err := cmd.Run(); err != nil {
+		log.Fatalf("Error building Android app: %v", err)
 	}
 }
 
-func buildCamput() {
-	os.Setenv("GOARCH", "arm")
-	os.Setenv("GOARM", "7")
-	cmd := exec.Command("go", "build", "-o", pkputBin, "perkeep.org/cmd/pk-put")
+func buildPkput() {
+	cmd := exec.Command("make")
+	cmd.Dir = "./app"
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error building pk-put for Android: %v", err)
-	}
-
-	if err := os.Rename(pkputBin, filepath.Join(assetsDir, "pk-put.arm")); err != nil {
-		log.Fatalf("Error moving pk-put to assets dir: %v", err)
+	err := cmd.Run()
+	if err != nil {
+		log.Fatalf("could not build pk-put for Android: %+v", err)
 	}
 }
 
@@ -120,7 +111,7 @@ func goVersion() string {
 // getVersion returns the version of Perkeep. Either from a VERSION file at the root,
 // or from git.
 func getVersion() string {
-	slurp, err := ioutil.ReadFile(filepath.Join(camliDir, "VERSION"))
+	slurp, err := ioutil.ReadFile(filepath.Join(pkDir, "VERSION"))
 	if err == nil {
 		return strings.TrimSpace(string(slurp))
 	}
@@ -129,16 +120,16 @@ func getVersion() string {
 
 var gitVersionRx = regexp.MustCompile(`\b\d\d\d\d-\d\d-\d\d-[0-9a-f]{10,10}\b`)
 
-// gitVersion returns the git version of the git repo at camRoot as a
+// gitVersion returns the git version of the git repo at pkDir as a
 // string of the form "yyyy-mm-dd-xxxxxxx", with an optional trailing
 // '+' if there are any local uncommitted modifications to the tree.
 func gitVersion() string {
 	cmd := exec.Command("git", "rev-list", "--max-count=1", "--pretty=format:'%ad-%h'",
 		"--date=short", "--abbrev=10", "HEAD")
-	cmd.Dir = camliDir
+	cmd.Dir = pkDir
 	out, err := cmd.Output()
 	if err != nil {
-		log.Fatalf("Error running git rev-list in %s: %v", camliDir, err)
+		log.Fatalf("Error running git rev-list in %s: %v", pkDir, err)
 	}
 	v := strings.TrimSpace(string(out))
 	if m := gitVersionRx.FindStringSubmatch(v); m != nil {
@@ -147,7 +138,7 @@ func gitVersion() string {
 		panic("Failed to find git version in " + v)
 	}
 	cmd = exec.Command("git", "diff", "--exit-code")
-	cmd.Dir = camliDir
+	cmd.Dir = pkDir
 	if err := cmd.Run(); err != nil {
 		v += "+"
 	}
