@@ -1,6 +1,6 @@
 # Copyright 2017 The Perkeep Authors.
 
-FROM openjdk:8-jdk
+FROM openjdk:11-jdk
 
 MAINTAINER camlistore <camlistore@googlegroups.com>
 
@@ -14,7 +14,7 @@ RUN echo "Adding gopher user and group" \
 RUN apt-get update && apt-get -y upgrade
 RUN apt-get install -y lib32z1 lib32stdc++6
 # For Go:
-RUN apt-get -y --no-install-recommends install curl gcc
+RUN apt-get -y --no-install-recommends install curl gcc make
 RUN apt-get -y --no-install-recommends install ca-certificates libc6-dev git
 
 USER gopher
@@ -26,31 +26,34 @@ WORKDIR $GOPHER
 RUN mkdir android-sdk
 ENV ANDROID_HOME $GOPHER/android-sdk
 WORKDIR $ANDROID_HOME
-RUN curl -O https://dl.google.com/android/repository/sdk-tools-linux-3859397.zip
-RUN echo '444e22ce8ca0f67353bda4b85175ed3731cae3ffa695ca18119cbacef1c1bea0  sdk-tools-linux-3859397.zip' | sha256sum -c
-RUN unzip sdk-tools-linux-3859397.zip
-RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager --update
-RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'platforms;android-27'
-RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'build-tools;27.0.0'
-RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'extras;android;m2repository'
-RUN echo y | $ANDROID_HOME/tools/bin/sdkmanager 'ndk-bundle'
+RUN curl -O -L https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip
+RUN echo '2ccbda4302db862a28ada25aa7425d99dce9462046003c1714b059b5c47970d8  ./commandlinetools-linux-8512546_latest.zip' | sha256sum -c
+RUN unzip ./commandlinetools-linux-8512546_latest.zip
+ENV SDK_MGR "$ANDROID_HOME/cmdline-tools/bin/sdkmanager --sdk_root=$ANDROID_HOME"
+RUN echo y | $SDK_MGR --update
+RUN echo y | $SDK_MGR 'platforms;android-27'
+RUN echo y | $SDK_MGR 'build-tools;27.0.0'
+RUN echo y | $SDK_MGR 'extras;android;m2repository'
+RUN echo y | $SDK_MGR 'ndk-bundle'
+RUN echo y | keytool -genkeypair -dname "cn=Gopher" \
+	-alias perkeep \
+	-keypass gopher -keystore $GOPHER/keystore \
+	-storepass gopher \
+	-validity 20000
 
 # Get Go stable release
 WORKDIR $GOPHER
-RUN curl -O https://storage.googleapis.com/golang/go1.11.linux-amd64.tar.gz
-RUN echo 'b3fcf280ff86558e0559e185b601c9eade0fd24c900b4c63cd14d1d38613e499  go1.11.linux-amd64.tar.gz' | sha256sum -c
-RUN tar -xzf go1.11.linux-amd64.tar.gz
+RUN curl -O https://storage.googleapis.com/golang/go1.18.linux-amd64.tar.gz
+RUN echo 'e85278e98f57cdb150fe8409e6e5df5343ecb13cebf03a5d5ff12bd55a80264f  go1.18.linux-amd64.tar.gz' | sha256sum -c
+RUN tar -xzf go1.18.linux-amd64.tar.gz
 ENV GOPATH $GOPHER
 ENV GOROOT $GOPHER/go
 ENV PATH $PATH:$GOROOT/bin:$GOPHER/bin
 
 # Get gomobile
-RUN go get -u golang.org/x/mobile/cmd/gomobile
-WORKDIR $GOPATH/src/golang.org/x/mobile/cmd/gomobile
-RUN git reset --hard 069be623eb8e75049d64f1419849b3e92aab1c81
-RUN go install
+RUN go install -v golang.org/x/mobile/cmd/gomobile@8578da9835fd
 
 # init gomobile
-RUN gomobile init -ndk $ANDROID_HOME/ndk-bundle
+RUN gomobile init
 
 CMD ["/bin/bash"]
