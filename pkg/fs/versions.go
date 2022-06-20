@@ -1,3 +1,4 @@
+//go:build linux || darwin
 // +build linux darwin
 
 /*
@@ -72,7 +73,7 @@ func (n *versionsDir) ReadDir(ctx context.Context) ([]fuse.Dirent, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if err := n.condRefresh(ctx); err != nil {
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 	var ents []fuse.Dirent
 	for name := range n.m {
@@ -87,7 +88,7 @@ func (n *versionsDir) Lookup(ctx context.Context, name string) (fs.Node, error) 
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if err := n.condRefresh(ctx); err != nil {
-		return nil, err
+		return nil, handleEIOorEINTR(err)
 	}
 	br := n.m[name]
 	if !br.Valid() {
@@ -126,7 +127,7 @@ func (n *versionsDir) condRefresh(ctx context.Context) error {
 	})
 	if err := grp.Err(); err != nil {
 		Logger.Printf("fs.versions: GetRecentPermanodes error in ReadDir: %v", err)
-		return fuse.EIO
+		return err
 	}
 
 	n.m = make(map[string]blob.Ref)
@@ -150,7 +151,7 @@ func (n *versionsDir) condRefresh(ctx context.Context) error {
 	dres, err := n.fs.client.Describe(ctx, dr)
 	if err != nil {
 		Logger.Printf("Describe failure: %v", err)
-		return fuse.EIO
+		return err
 	}
 
 	// Roots

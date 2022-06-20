@@ -1,3 +1,6 @@
+//go:build linux || darwin
+// +build linux darwin
+
 /*
 Copyright 2013 The Perkeep Authors
 
@@ -17,10 +20,13 @@ limitations under the License.
 package fs
 
 import (
+	"context"
 	"errors"
 	"os/exec"
 	"runtime"
 	"time"
+
+	"bazil.org/fuse"
 )
 
 // Unmount attempts to unmount the provided FUSE mount point, forcibly
@@ -49,5 +55,16 @@ func Unmount(point string) error {
 		return errors.New("umount timeout")
 	case err := <-errc:
 		return err
+	}
+}
+
+func handleEIOorEINTR(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, context.Canceled) {
+		return fuse.EINTR
+	} else {
+		return fuse.EIO
 	}
 }

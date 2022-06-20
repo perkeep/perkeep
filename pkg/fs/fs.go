@@ -1,3 +1,4 @@
+//go:build linux || darwin
 // +build linux darwin
 
 /*
@@ -120,8 +121,8 @@ type node struct {
 var _ fusefs.Node = (*node)(nil)
 
 func (n *node) Attr(ctx context.Context, a *fuse.Attr) error {
-	if _, err := n.schema(); err != nil {
-		return err
+	if _, err := n.schema(ctx); err != nil {
+		return handleEIOorEINTR(err)
 	}
 	*a = n.attr
 	return nil
@@ -162,14 +163,13 @@ func (n *node) Lookup(ctx context.Context, name string) (fusefs.Node, error) {
 	return &node{fs: n.fs, blobref: ref}, nil
 }
 
-func (n *node) schema() (*schema.Blob, error) {
-	// TODO: use singleflight library here instead of a lock?
+func (n *node) schema(ctx context.Context) (*schema.Blob, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.meta != nil {
 		return n.meta, nil
 	}
-	blob, err := n.fs.fetchSchemaMeta(context.TODO(), n.blobref)
+	blob, err := n.fs.fetchSchemaMeta(ctx, n.blobref)
 	if err == nil {
 		n.meta = blob
 		n.populateAttr()
@@ -189,10 +189,10 @@ func (n *node) Open(ctx context.Context, req *fuse.OpenRequest, res *fuse.OpenRe
 	if isWriteFlags(req.Flags) {
 		return nil, fuse.EPERM
 	}
-	ss, err := n.schema()
+	ss, err := n.schema(ctx)
 	if err != nil {
 		Logger.Printf("open of %v: %v", n.blobref, err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 	if ss.Type() == schema.TypeDirectory {
 		return n, nil
@@ -253,20 +253,20 @@ func (n *node) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 		return n.dirents, nil
 	}
 
-	ss, err := n.schema()
+	ss, err := n.schema(ctx)
 	if err != nil {
 		Logger.Printf("camli.ReadDirAll error on %v: %v", n.blobref, err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 	dr, err := schema.NewDirReader(ctx, n.fs.fetcher, ss.BlobRef())
 	if err != nil {
 		Logger.Printf("camli.ReadDirAll error on %v: %v", n.blobref, err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 	schemaEnts, err := dr.Readdir(ctx, -1)
 	if err != nil {
 		Logger.Printf("camli.ReadDirAll error on %v: %v", n.blobref, err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 	n.dirents = make([]fuse.Dirent, 0)
 	for _, sent := range schemaEnts {
@@ -378,7 +378,7 @@ func (fs *CamliFileSystem) newNodeFromBlobRef(root blob.Ref) (fusefs.Node, error
 
 	case schema.TypePermanode:
 		// other mutDirs listed in the default filesystem have names and are displayed
-		return &mutDir{fs: fs, permanode: root, name: "-"}, nil
+		return &mutDir{fs: fs, permanode: root, name: "-", children: make(map[string]mutFileOrDir)}, nil
 	}
 
 	return nil, fmt.Errorf("Blobref must be of a directory or permanode got a %v", blob.Type())
