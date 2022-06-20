@@ -1,3 +1,4 @@
+//go:build linux || darwin
 // +build linux darwin
 
 /*
@@ -76,7 +77,7 @@ func (n *rootsDir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if err := n.condRefresh(ctx); err != nil {
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 	var ents []fuse.Dirent
 	for name := range n.m {
@@ -94,7 +95,7 @@ func (n *rootsDir) Remove(ctx context.Context, req *fuse.RemoveRequest) error {
 	defer n.mu.Unlock()
 
 	if err := n.condRefresh(ctx); err != nil {
-		return err
+		return handleEIOorEINTR(err)
 	}
 	br := n.m[req.Name]
 	if !br.Valid() {
@@ -105,7 +106,7 @@ func (n *rootsDir) Remove(ctx context.Context, req *fuse.RemoveRequest) error {
 	_, err := n.fs.client.UploadAndSignBlob(ctx, claim)
 	if err != nil {
 		Logger.Println("rootsDir.Remove:", err)
-		return fuse.EIO
+		return handleEIOorEINTR(err)
 	}
 
 	delete(n.m, req.Name)
@@ -139,7 +140,7 @@ func (n *rootsDir) Rename(ctx context.Context, req *fuse.RenameRequest, newDir f
 	res, err := n.fs.client.Describe(ctx, &search.DescribeRequest{BlobRef: target})
 	if err != nil {
 		Logger.Println("rootsDir.Rename:", err)
-		return fuse.EIO
+		return handleEIOorEINTR(err)
 	}
 	db := res.Meta[target.String()]
 	if db == nil {
@@ -159,7 +160,7 @@ func (n *rootsDir) Rename(ctx context.Context, req *fuse.RenameRequest, newDir f
 	_, err = n.fs.client.UploadAndSignBlob(ctx, claim)
 	if err != nil {
 		Logger.Printf("Upload rename link error: %v", err)
-		return fuse.EIO
+		return handleEIOorEINTR(err)
 	}
 
 	// Comment transplanted from mutDir.Rename
@@ -185,7 +186,7 @@ func (n *rootsDir) Lookup(ctx context.Context, name string) (fs.Node, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if err := n.condRefresh(ctx); err != nil {
-		return nil, err
+		return nil, handleEIOorEINTR(err)
 	}
 	br := n.m[name]
 	if !br.Valid() {
@@ -204,7 +205,8 @@ func (n *rootsDir) Lookup(ctx context.Context, name string) (fs.Node, error) {
 			fs:        n.fs,
 			permanode: br,
 			name:      name,
-			xattrs:    map[string][]byte{},
+			xattrs:    make(map[string][]byte),
+			children:  make(map[string]mutFileOrDir),
 		}
 	}
 	n.children[name] = nod
@@ -232,7 +234,7 @@ func (n *rootsDir) condRefresh(ctx context.Context) error {
 	})
 	if err := grp.Err(); err != nil {
 		Logger.Printf("fs.roots: error refreshing permanodes: %v", err)
-		return fuse.EIO
+		return err
 	}
 
 	n.m = make(map[string]blob.Ref)
@@ -256,7 +258,7 @@ func (n *rootsDir) condRefresh(ctx context.Context) error {
 	dres, err := n.fs.client.Describe(ctx, dr)
 	if err != nil {
 		Logger.Printf("Describe failure: %v", err)
-		return fuse.EIO
+		return err
 	}
 
 	// Roots
@@ -310,7 +312,7 @@ func (n *rootsDir) Mkdir(ctx context.Context, req *fuse.MkdirRequest) (fs.Node, 
 	pr, err := n.fs.client.UploadNewPermanode(ctx)
 	if err != nil {
 		Logger.Printf("rootsDir.Create(%q): %v", name, err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 
 	var grp syncutil.Group
@@ -328,14 +330,15 @@ func (n *rootsDir) Mkdir(ctx context.Context, req *fuse.MkdirRequest) (fs.Node, 
 	})
 	if err := grp.Err(); err != nil {
 		Logger.Printf("rootsDir.Create(%q): %v", name, err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 
 	nod := &mutDir{
 		fs:        n.fs,
 		permanode: pr.BlobRef,
 		name:      name,
-		xattrs:    map[string][]byte{},
+		xattrs:    make(map[string][]byte),
+		children:  make(map[string]mutFileOrDir),
 	}
 	n.mu.Lock()
 	n.m[name] = pr.BlobRef

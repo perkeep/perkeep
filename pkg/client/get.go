@@ -135,7 +135,7 @@ func (c *Client) fetchVia(ctx context.Context, b blob.Ref, v []blob.Ref) (body i
 			size = uint32(n)
 			reader, closer = &buf, types.NopCloser
 		} else {
-			return nil, 0, fmt.Errorf("Error reading %s: %v", b, err)
+			return nil, 0, fmt.Errorf("Error reading %s: %w", b, err)
 		}
 	}
 

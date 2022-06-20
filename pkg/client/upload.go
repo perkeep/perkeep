@@ -212,7 +212,7 @@ func (c *Client) doStat(ctx context.Context, blobs []blob.Ref, wait time.Duratio
 		resp, err = c.httpClient.Do(req)
 	}
 	if err != nil {
-		return fmt.Errorf("stat HTTP error: %v", err)
+		return fmt.Errorf("stat HTTP error: %w", err)
 	}
 	if resp.Body != nil {
 		defer resp.Body.Close()
@@ -303,7 +303,7 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 
 		resp, err := c.doReqGated(req)
 		if err != nil {
-			return errorf("stat http error: %v", err)
+			return errorf("stat http error: %w", err)
 		}
 		defer resp.Body.Close()
 
@@ -368,13 +368,13 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 	req.ContentLength = getMultipartOverhead() + bodySize + int64(len(blobrefStr))*2
 	resp, err := c.doReqGated(req)
 	if err != nil {
-		return errorf("upload http error: %v", err)
+		return errorf("upload http error: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// check error from earlier copy
 	if err := <-copyResult; err != nil {
-		return errorf("failed to copy contents into multipart writer: %v", err)
+		return errorf("failed to copy contents into multipart writer: %w", err)
 	}
 
 	// The only valid HTTP responses are 200 and 303.
@@ -390,18 +390,18 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 		baseURL, _ := url.Parse(uploadURL)
 		absURL, err := baseURL.Parse(otherLocation)
 		if err != nil {
-			return errorf("303 Location URL relative resolve error: %v", err)
+			return errorf("303 Location URL relative resolve error: %w", err)
 		}
 		otherLocation = absURL.String()
 		resp, err = http.Get(otherLocation)
 		if err != nil {
-			return errorf("error following 303 redirect after upload: %v", err)
+			return errorf("error following 303 redirect after upload: %w", err)
 		}
 	}
 
 	var ures protocol.UploadResponse
 	if err := httputil.DecodeJSON(resp, &ures); err != nil {
-		return errorf("error in upload response: %v", err)
+		return errorf("error in upload response: %w", err)
 	}
 
 	if ures.ErrorText != "" {

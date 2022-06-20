@@ -1,3 +1,4 @@
+//go:build linux || darwin
 // +build linux darwin
 
 /*
@@ -83,7 +84,7 @@ func (n *recentDir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 	res, err := n.fs.client.GetRecentPermanodes(ctx, req)
 	if err != nil {
 		Logger.Printf("fs.recent: GetRecentPermanodes error in ReadDirAll: %v", err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 
 	n.lastNames = nil
@@ -142,9 +143,16 @@ func (n *recentDir) Lookup(ctx context.Context, name string) (fs.Node, error) {
 	if n.ents == nil {
 		// Odd case: a Lookup before a Readdir. Force a readdir to
 		// seed our map. Mostly hit just during development.
-		n.mu.Unlock() // release, since ReadDirAll will acquire
-		n.ReadDirAll(ctx)
-		n.mu.Lock()
+		refresh := func() error {
+			n.mu.Unlock() // release, since ReadDirAll will acquire
+			defer n.mu.Lock()
+
+			_, err := n.ReadDirAll(ctx)
+			return err
+		}
+		if err := refresh(); err != nil {
+			return nil, err
+		}
 	}
 	db := n.ents[name]
 	Logger.Printf("fs.recent: Lookup(%q) = %v", name, db)
