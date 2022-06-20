@@ -231,9 +231,8 @@ func (s *storage) Fetch(ctx context.Context, plainBR blob.Ref) (io.ReadCloser, u
 		return nil, 0, blobserver.ErrCorruptBlob
 	}
 
-	plainBytes := pools.BytesBuffer()
-	defer pools.PutBuffer(plainBytes)
-
+	// Using the pool here would be racy since the caller will read this asynchronously
+	plainBytes := bytes.NewBuffer(nil)
 	if err := s.decryptBlob(plainBytes, encBytes); err != nil {
 		return nil, 0, fmt.Errorf("encrypt: encrypted blob %s failed validation: %s", encBR, err)
 	}
