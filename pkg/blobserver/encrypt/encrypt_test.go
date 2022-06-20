@@ -33,6 +33,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"filippo.io/age"
@@ -163,6 +164,39 @@ func TestEncrypt(t *testing.T) {
 	}
 	if _, ok := <-c; ok {
 		t.Error("did not close the channel")
+	}
+}
+
+func TestEncryptStress(t *testing.T) {
+	const (
+		workers  = 20
+		numBlobs = 1000
+	)
+
+	ts := newTestStorage()
+
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	blobs := make(chan string, workers)
+	defer close(blobs)
+
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for blob := range blobs {
+				tb := &test.Blob{Contents: blob}
+				tb.MustUpload(t, ts.sto)
+				if got := ts.fetchOrErrorString(tb.BlobRef()); got != blob {
+					t.Errorf("Fetching plaintext blobref %v = %v; want %q", tb.BlobRef(), got, blob)
+				}
+			}
+		}()
+	}
+
+	for i := 0; i < numBlobs; i++ {
+		blobs <- fmt.Sprintf("%d", i)
 	}
 }
 
