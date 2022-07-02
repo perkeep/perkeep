@@ -109,25 +109,10 @@ func (e *mountEnv) Stat(s *stat) int64 {
 	return v
 }
 
-func testName() string {
-	skip := 0
-	for {
-		pc, _, _, ok := runtime.Caller(skip)
-		skip++
-		if !ok {
-			panic("Failed to find test name")
-		}
-		name := strings.TrimPrefix(runtime.FuncForPC(pc).Name(), "perkeep.org/pkg/fs.")
-		if strings.HasPrefix(name, "Test") {
-			return name
-		}
-	}
-}
-
 func inEmptyMutDir(t *testing.T, fn func(env *mountEnv, dir string)) {
 	pkmountTest(t, func(env *mountEnv) {
-		dir := filepath.Join(env.mountPoint, "roots", testName())
-		if err := os.Mkdir(dir, 0755); err != nil {
+		dir := filepath.Join(env.mountPoint, "roots", t.Name())
+		if err := os.MkdirAll(dir, 0755); err != nil {
 			t.Fatalf("Failed to make roots/r dir: %v", err)
 		}
 		fi, err := os.Stat(dir)
@@ -538,7 +523,7 @@ func TestMoveAt(t *testing.T) {
 	})
 	pkmountTest(t, func(env *mountEnv) {
 		atPrefix := filepath.Join(env.mountPoint, "at")
-		testname := strings.Split(testName(), ".")[0]
+		testname := t.Name()
 
 		beforeName := filepath.Join(beforeTime.Format(time.RFC3339), testname, oldName)
 		notYetExistName := filepath.Join(beforeTime.Format(time.RFC3339), testname, newName)
