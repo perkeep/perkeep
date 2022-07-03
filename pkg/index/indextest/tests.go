@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -46,8 +45,6 @@ import (
 )
 
 var ctxbg = context.Background()
-
-var flagShowReindexRace = flag.Bool("show_reindex_race", false, "demonstrate the reindex race reported at issue #756")
 
 // An IndexDeps is a helper for populating and querying an Index for tests.
 type IndexDeps struct {
@@ -1259,36 +1256,16 @@ func (s searchResults) String() string {
 }
 
 func Reindex(t *testing.T, initIdx func() *index.Index) {
-	defaultReindexMaxProcs := index.ReindexMaxProcs()
-	// if noAsyncIndexing, there won't be any out of order indexing taking place.
-	// During reindexing, since delpn1 is enumerated before pn1, and since
-	// pn1 is a dependency of delpn1, reindexing of delpn1 is supposed to fail
-	// when noAsyncIndexing.
-	reindex := func(t *testing.T, initIdx func() *index.Index, noAsyncIndexing bool) {
+	testReindex := func(t *testing.T, initIdx func() *index.Index, noAsyncIndexing bool) {
 		if noAsyncIndexing {
-			// idx.Reindex starts reindexMaxProcs goroutines to
-			// index the blobs that are enumerated.
-			// The first one created will receive delpn1 to index
-			// (because it's first in the enumeration order), and is
-			// supposed to fail at it, because pn1, which is a
-			// dependency of delpn1, has not yet been seen/indexed.
-			// If at least 2 goroutines were created, it could
-			// happen that "by chance" the 2nd (or 3rd, etc) would
-			// index pn1 before the first goroutine "notices" that pn1
-			// is missing, which would defeat the purpose of our test.
-			// Therefore, we disable the reindexMaxProcs-based
-			// concurrency in Reindex to make sure that does not
-			// happen.
+			defaultReindexMaxProcs := index.ReindexMaxProcs()
 			index.SetReindexMaxProcs(1)
-		} else {
-			index.SetReindexMaxProcs(defaultReindexMaxProcs)
+			defer index.SetReindexMaxProcs(defaultReindexMaxProcs)
 		}
 		idx := initIdx()
 		id := NewIndexDeps(idx)
 		id.Fataler = t
-		if noAsyncIndexing {
-			idx.DisableOutOfOrderIndexing()
-		}
+		defer id.DumpIndex(t)
 
 		pn1 := id.NewPlannedPermanode("foo1") // sha1-f06e30253644014922f955733a641cbc64d43d73
 		t.Logf("uploaded permanode %q", pn1)
@@ -1296,49 +1273,21 @@ func Reindex(t *testing.T, initIdx func() *index.Index) {
 		// delete pn1
 		delpn1 := id.Delete(pn1) // sha1-1d4c60cb3ce967edfb3194afd36124ce3f87ece0
 		t.Logf("del claim %q deletes %q", delpn1, pn1)
-		deleted := idx.IsDeleted(pn1)
-		if !deleted {
+		if deleted := idx.IsDeleted(pn1); !deleted {
 			t.Fatal("pn1 should be deleted")
 		}
 
-		err := id.Index.Reindex()
-		if noAsyncIndexing {
-			if err == nil {
-				t.Fatal("Reindexing without out of order indexing should have failed")
-			}
-			t.Logf("Reindexing without out of order indexing failed as expected: %v", err)
+		if err := id.Index.Reindex(); err != nil {
+			t.Fatalf("reindexing failed: %v", err)
 		}
-		if !noAsyncIndexing && err != nil {
-			t.Fatalf("Reindexing with out of order indexing failed: %v", err)
+
+		if deleted := idx.IsDeleted(pn1); !deleted {
+			t.Fatal("pn1 should be deleted after reindexing")
 		}
 	}
 
-	reindex(t, initIdx, false)
-	reindex(t, initIdx, true)
-}
-
-func ShowReindexRace(t *testing.T, initIdx func() *index.Index) {
-	if !*flagShowReindexRace {
-		t.Skipf("skipping test without --show_reindex_race")
-	}
-	os.Setenv("CAMLI_SHOW_REINDEX_RACE", "true")
-	idx := initIdx()
-	id := NewIndexDeps(idx)
-	id.Fataler = t
-
-	pn1 := id.NewPlannedPermanode("foo1") // sha1-f06e30253644014922f955733a641cbc64d43d73
-	t.Logf("uploaded permanode %q", pn1)
-
-	// delete pn1
-	delpn1 := id.Delete(pn1) // sha1-1d4c60cb3ce967edfb3194afd36124ce3f87ece0
-	t.Logf("del claim %q deletes %q", delpn1, pn1)
-	deleted := idx.IsDeleted(pn1)
-	if !deleted {
-		t.Fatal("pn1 should be deleted")
-	}
-
-	if err := id.Index.Reindex(); err != nil {
-		t.Fatalf("Reindexing was not finished: %v", err)
+	for _, disableAsyncReindex := range []bool{true, false} {
+		testReindex(t, initIdx, disableAsyncReindex)
 	}
 }
 

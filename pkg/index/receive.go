@@ -118,31 +118,10 @@ func (ix *Index) indexBlob(ctx context.Context, br blob.Ref) error {
 	return nil
 }
 
-// DisableOutOfOrderIndexing should only be used for tests. It disables the
-// asynchronous, out of order, indexing to demonstrate that e.g. reindexing fails
-// without it.
-func (ix *Index) DisableOutOfOrderIndexing() {
-	ix.Lock()
-	defer ix.Unlock()
-	ix.oooDisabled = true
-}
-
-func (ix *Index) outOfOrderIndexingDisabled() bool {
-	ix.RLock()
-	defer ix.RUnlock()
-
-	return ix.oooDisabled
-}
-
 // indexReadyBlobs indexes blobs that have been recently marked as ready to be
 // reindexed, after the blobs they depend on eventually were indexed.
 func (ix *Index) indexReadyBlobs(ctx context.Context) {
 	defer ix.reindexWg.Done()
-
-	// for tests
-	if ix.outOfOrderIndexingDisabled() {
-		return
-	}
 
 	popReadyReindex := func() (blob.Ref, bool) {
 		ix.Lock()
