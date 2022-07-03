@@ -78,7 +78,3 @@ func TestDelete_MySQL(t *testing.T) {
 func TestReindex_MySQL(t *testing.T) {
 	indexTest(t, newMySQLSorted, indextest.Reindex)
 }
-
-func TestShowReindexRace_MySQL(t *testing.T) {
-	indexTest(t, newMySQLSorted, indextest.ShowReindexRace)
-}

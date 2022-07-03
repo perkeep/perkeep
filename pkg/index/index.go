@@ -77,9 +77,6 @@ type Index struct {
 	// reindexWg is used to make sure that we wait for all asynchronous, out
 	// of order, indexing to be finished, at the end of reindexing.
 	reindexWg sync.WaitGroup
-	// oooDisabled reports whether out of order indexing is disabled. It
-	// should only be the case in some very specific tests.
-	oooDisabled bool
 	// blobSource is used for fetching blobs when indexing files and other
 	// blobs types that reference other objects.
 	// The only write access to blobSource should be its initialization (transition

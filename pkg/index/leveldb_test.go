@@ -19,7 +19,6 @@ package index_test
 import (
 	"path/filepath"
 	"testing"
-	"time"
 
 	"perkeep.org/pkg/index/indextest"
 	"perkeep.org/pkg/sorted"
@@ -65,24 +64,7 @@ func TestDelete_LevelDB(t *testing.T) {
 }
 
 func TestReindex_LevelDB(t *testing.T) {
-	t.Skip("Disabled until issue #756 is fixed")
-	t.Log("WARNING: as this test can get into an infinite loop, it will automatically terminate after a few seconds")
-	tim := time.After(2 * time.Second)
-	c := make(chan struct{}, 1)
-	go func() {
-		indexTest(t, newLevelDBSorted, indextest.Reindex)
-		c <- struct{}{}
-	}()
-	select {
-	case <-c:
-		// all good
-	case <-tim:
-		// Because of at least (I suspect) issue #756, we not only
-		// sometimes get a failing test here, but we also get into an
-		// infinite loop retrying out-of-order indexing.Hence the Fatal
-		// below as a temporary measure to interrupt that loop.
-		t.Fatal("forced interruption of TestReindex_LevelDB infinite loop")
-	}
+	indexTest(t, newLevelDBSorted, indextest.Reindex)
 }
 
 func TestEnumStat_LevelDB(t *testing.T) {
