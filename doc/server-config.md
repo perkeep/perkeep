@@ -94,7 +94,7 @@ At least one of these must be set:
 * `blobPath`: local disk path to store blobs. (valid for diskpacked too).
 * `s3`: "`key:secret:bucket[/optional/dir]`" or
   "`key:secret:bucket[/optional/dir]:hostname`" (with colons, but no quotes).
-* `b2`: "`account_id:application_key:bucket[/optional/dir]`".
+* `b2`: "`account_id:application_key:bucket[/optional/dir]:endpoint`"
 * `googlecloudstorage`: "`clientId:clientSecret:refreshToken:bucketName[/optional/dir]`"
 
 The `s3` storage option's `hostname` value may be set to use an S3-compatible
@@ -123,7 +123,7 @@ Examples for [configuring storage backends](/doc/storage-examples.md)
 Unless `runIndex` is set to `false`, exactly one of these must be set:
 
 * `sqlite`: path to SQLite database file to use for indexing
-* `kvIndexFile`: path to kv (https://github.com/cznic/kv) database file to use for indexing
+* `kvIndexFile`: path to kv (modernc.org/kv) database file to use for indexing
 * `levelDB`: path to levelDB (https://github.com/syndtr/goleveldb) database file to use for indexing
 * `mongo`: user:password@host
 * `mysql`: user@host:password
@@ -220,7 +220,7 @@ not straightforward, so we suggest using one of the other indexers, like MySQL.
 
 The following steps should get you started with MySQL:
 
-* Dowload and install [MariaDB](https://downloads.mariadb.org/mariadb/5.5.32/)
+* Download and install [MariaDB](https://downloads.mariadb.org/mariadb/5.5.32/)
   or [MySQL](http://dev.mysql.com/downloads/windows/installer/) (the latter
   requires .NET).
 * Edit your server configuration file (if it does not exit yet, running

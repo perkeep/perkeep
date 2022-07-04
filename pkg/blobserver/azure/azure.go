@@ -106,7 +106,7 @@ func newFromConfig(_ blobserver.Loader, config jsonconfig.Obj) (blobserver.Stora
 }
 
 func init() {
-	// It's assumed the MaxBlobSize won't change in the forseeable future.
+	// It's assumed the MaxBlobSize won't change in the foreseeable future.
 	// However, just in case it does, let's be aware that the current implementation doesn't support it.
 	// Azure itself can support it by splitting up requests in multiple parts but that's more work which is not yet needed.
 	if constants.MaxBlobSize > 64000000 {

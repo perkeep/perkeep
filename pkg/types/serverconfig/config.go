@@ -29,7 +29,7 @@ import (
 // Perkeep components.
 type Config struct {
 	Auth    string `json:"auth"`              // auth scheme and values (ex: userpass:foo:bar).
-	BaseURL string `json:"baseURL,omitempty"` // Base URL the server advertizes. For when behind a proxy.
+	BaseURL string `json:"baseURL,omitempty"` // Base URL the server advertises. For when behind a proxy.
 	Listen  string `json:"listen"`            // address (of the form host|ip:port) on which the server will listen on.
 
 	// CamliNetIP is the optional internet-facing IP address for this
@@ -88,7 +88,7 @@ type Config struct {
 	// index database, DBName takes priority.
 	DBUnique   string `json:"dbUnique,omitempty"`
 	LevelDB    string `json:"levelDB,omitempty"`     // path to the levelDB directory, for indexing with github.com/syndtr/goleveldb.
-	KVFile     string `json:"kvIndexFile,omitempty"` // path to the kv file, for indexing with github.com/cznic/kv.
+	KVFile     string `json:"kvIndexFile,omitempty"` // path to the kv file, for indexing with modernc.org/kv.
 	MySQL      string `json:"mysql,omitempty"`       // MySQL credentials (username@host:password), for indexing with MySQL.
 	Mongo      string `json:"mongo,omitempty"`       // MongoDB credentials ([username:password@]host), for indexing with MongoDB.
 	PostgreSQL string `json:"postgres,omitempty"`    // PostgreSQL credentials (username@host:password), for indexing with PostgreSQL.

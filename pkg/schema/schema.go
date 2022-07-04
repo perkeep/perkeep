@@ -231,7 +231,7 @@ func NewDirectoryEntryFromBlobRef(ctx context.Context, fetcher blob.Fetcher, blo
 	ss := new(superset)
 	err := ss.setFromBlobRef(ctx, fetcher, blobRef)
 	if err != nil {
-		return nil, fmt.Errorf("schema/filereader: can't fill superset: %v", err)
+		return nil, fmt.Errorf("schema/filereader: can't fill superset: %w", err)
 	}
 	return newDirectoryEntry(fetcher, ss)
 }
@@ -633,7 +633,7 @@ func (bb *Builder) SetStaticSetMembers(members []blob.Ref) []*Blob {
 		}
 	}
 
-	// Deal with the rest (of the euclidian division)
+	// Deal with the rest (of the euclidean division)
 	if perSubset*subsetsNumber < len(members) {
 		ss := NewStaticSet()
 		ss.SetStaticSetMembers(members[perSubset*subsetsNumber:])
@@ -1011,7 +1011,7 @@ func FileTime(f io.ReaderAt) (time.Time, error) {
 		if osf, ok := f.(*os.File); ok {
 			fi, err := osf.Stat()
 			if err != nil {
-				return ct, fmt.Errorf("Failed to find a modtime: stat: %v", err)
+				return ct, fmt.Errorf("Failed to find a modtime: stat: %w", err)
 			}
 			return fi.ModTime(), nil
 		}

@@ -216,7 +216,7 @@ type formatAndImage struct {
 }
 
 // imageConfigFromReader calls image.DecodeConfig on r. It returns an
-// io.Reader that is the concatentation of the bytes read and the remaining r,
+// io.Reader that is the concatenation of the bytes read and the remaining r,
 // the image configuration, and the error from image.DecodeConfig.
 // If the image is HEIC, and its config was decoded properly (but partially,
 // because we don't do ColorModel yet), it returns images.ErrHEIC.

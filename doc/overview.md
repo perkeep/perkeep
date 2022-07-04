@@ -30,7 +30,7 @@ The project began because I wanted to...
 
 * ... **have a POSIX-y filesystem when I want one**. And it should all be
   logically available on my tiny laptop's SSD disk, even if my laptop's disk is
-  miniscule compared to my entire repo.  That is, there should actually be a
+  minuscule compared to my entire repo.  That is, there should actually be a
   caching virtual filesystem, not a daemon running rsync in the background. If
   I have to have a complete copy of my data locally, or I have to "choose which
   folders" to sync, that's broken.
@@ -106,7 +106,7 @@ that.
 
 You are in control of your Perkeep server(s), whether you run
 your own copy or use a hosted version. In the latter case, you're at
-least logically in control, analagous to how you're in charge of your
+least logically in control, analogous to how you're in charge of your
 email (and it's your private repository of all your email), even if a
 big company runs your email for you. Of course, you can also store all
 your email in Perkeep too, but Gmail's interface and search is much

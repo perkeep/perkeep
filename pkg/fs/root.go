@@ -1,3 +1,4 @@
+//go:build linux || darwin
 // +build linux darwin
 
 /*
@@ -136,8 +137,12 @@ func (n *root) Lookup(ctx context.Context, name string) (fs.Node, error) {
 	if br, ok := blob.Parse(name); ok {
 		Logger.Printf("Root lookup of blobref. %q => %v", name, br)
 		node := &node{fs: n.fs, blobref: br}
-		if _, err := node.schema(); os.IsNotExist(err) {
-			return nil, fuse.ENOENT
+		if _, err := node.schema(ctx); err != nil {
+			if os.IsNotExist(err) {
+				return nil, fuse.ENOENT
+			} else {
+				return nil, handleEIOorEINTR(err)
+			}
 		}
 		return node, nil
 	}

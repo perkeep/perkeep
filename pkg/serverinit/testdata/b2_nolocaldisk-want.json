@@ -36,13 +36,12 @@
 			}
 		},
 		"/bs/": {
-			"handler": "storage-b2",
+			"handler": "storage-s3",
 			"handlerArgs": {
-				"auth": {
-					"account_id": "account",
-					"application_key": "key"
-				},
-				"bucket": "bucket"
+				"aws_access_key": "account",
+				"aws_secret_access_key": "key",
+				"bucket": "bucket",
+				"hostname": "endpoint"
 			}
 		},
 		"/cache/": {

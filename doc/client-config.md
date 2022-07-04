@@ -81,7 +81,7 @@ server configurations. For example:
 
 * `server`: The perkeepd server to connect to, of the form:
   "[http[s]://]host[:port][/prefix]". Defaults to https. This option can be
-  overriden with the "-server" command-line flag.
+  overridden with the "-server" command-line flag.
 
     Most client commands are meant to communicate with a blobserver. For such
     commands, instead of the client relying on discovery to choose the actual

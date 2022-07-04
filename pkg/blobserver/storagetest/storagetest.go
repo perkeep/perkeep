@@ -459,7 +459,7 @@ func TestStreamer(t *testing.T, bs blobserver.BlobStreamer, opts ...StreamerTest
 		}
 	}
 
-	// See if, without cancelation, it yields the right
+	// See if, without cancellation, it yields the right
 	// result and without errors.
 	ch := make(chan blobserver.BlobAndToken)
 	errCh := make(chan error, 1)
@@ -508,7 +508,7 @@ func TestStreamer(t *testing.T, bs blobserver.BlobStreamer, opts ...StreamerTest
 		return
 	}
 
-	// Next, the "complex pass": test a cancelation at each point,
+	// Next, the "complex pass": test a cancellation at each point,
 	// to test that resume works properly.
 	//
 	// Basic strategy:

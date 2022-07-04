@@ -213,7 +213,7 @@ func TestWriteKeyRing(t *testing.T) {
 		t.Fatalf("WriteKeyRing: %v", err)
 	}
 
-	el, err := openpgp.ReadKeyRing(&buf)
+	el, err := openpgp.ReadArmoredKeyRing(&buf)
 	if err != nil {
 		t.Fatalf("ReadKeyRing: %v", err)
 	}

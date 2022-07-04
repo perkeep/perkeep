@@ -92,7 +92,7 @@ func (t *SortType) UnmarshalJSON(v []byte) error {
 }
 
 type SearchQuery struct {
-	// Exactly one of Expression or Contraint must be set.
+	// Exactly one of Expression or Constraint must be set.
 	// If an Expression is set, it's compiled to a Constraint.
 
 	// Expression is a textual search query in minimal form,

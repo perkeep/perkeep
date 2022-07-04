@@ -264,7 +264,7 @@ cam.MapQuery = function(
 	// expr is the search query expression.
 	this.expr_ = expr;
 
-	// callback is the function to run on the JSON-ified serach results, if the
+	// callback is the function to run on the JSON-ified search results, if the
 	// search was successful.
 	this.callback_ = callback;
 
@@ -281,7 +281,7 @@ cam.MapQuery = function(
 	// nextZoom is the location area that is requested for the next query.
 	this.nextZoom_ = null;
 
-	// zoom is the location area that was requested for the last successfull query.
+	// zoom is the location area that was requested for the last successful query.
 	this.zoom_ = null;
 };
 

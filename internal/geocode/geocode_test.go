@@ -236,3 +236,57 @@ var googleUSA = `
    "status" : "OK"
 }
 `
+
+func TestDecodeOpenStreetMapResponse(t *testing.T) {
+	tests := []struct {
+		name string
+		res  string
+		want []Rect
+	}{
+		{
+			name: "moscow",
+			res:  openstreetmapMoscow,
+			want: []Rect{
+				{
+					NorthEast: LatLong{pf("55.9577717"), pf("37.9674277")},
+					SouthWest: LatLong{pf("55.4913076"), pf("37.290502")},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		rects, err := decodeOpenStreetMapResponse(strings.NewReader(tt.res))
+		if err != nil {
+			t.Errorf("Decoding %s: %v", tt.name, err)
+			continue
+		}
+		if !reflect.DeepEqual(rects, tt.want) {
+			t.Errorf("Test %s: wrong rects\n Got %#v\nWant %#v", tt.name, rects, tt.want)
+		}
+	}
+}
+
+// https://nominatim.openstreetmap.org/search?format=json&limit=1&q=moscow
+var openstreetmapMoscow = `
+[
+   {
+     "place_id": 282700412,
+     "licence": "Data © OpenStreetMap contributors, ODbL 1.0. https://osm.org/copyright",
+     "osm_type": "relation",
+     "osm_id": 2555133,
+     "boundingbox": [
+       "55.4913076",
+       "55.9577717",
+       "37.290502",
+       "37.9674277"
+     ],
+     "lat": "55.7504461",
+     "lon": "37.6174943",
+     "display_name": "Москва, Центральный федеральный округ, Россия",
+     "class": "place",
+     "type": "city",
+     "importance": 0.7908193282833463,
+     "icon": "https://nominatim.openstreetmap.org/ui/mapicons//poi_place_city.p.20.png"
+   }
+ ]
+ `

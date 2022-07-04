@@ -44,7 +44,7 @@ type Fetcher interface {
 	// The caller must close blob.
 	//
 	// The provided context is used until blob is closed and its
-	// cancelation should but may not necessarily cause reads from
+	// cancellation should but may not necessarily cause reads from
 	// blob to fail with an error.
 	Fetch(context.Context, Ref) (blob io.ReadCloser, size uint32, err error)
 }

@@ -60,13 +60,13 @@ type bucketInfo struct {
 // "test.s3-us-west-1.amazonaws.com", and it would return
 // endpoint=s3.us-west-1.amazonaws.com, isAWS=true, region=us-west-1 (assuming,
 // of course, the bucket is in us-west-1).
-func normalizeBucketLocation(ctx context.Context, cfg client.ConfigProvider, endpoint string, bucket string) (bucketInfo, error) {
+func normalizeBucketLocation(ctx context.Context, cfg client.ConfigProvider, endpoint string, bucket string, configRegion string) (bucketInfo, error) {
 	if strings.HasPrefix(endpoint, "https://") || strings.HasPrefix(endpoint, "http://") {
 		return bucketInfo{}, fmt.Errorf("invalid s3 endpoint: must not include uri scheme")
 	}
 
 	svc := s3.New(cfg)
-	endpoint, region, err := determineEndpoint(ctx, svc, endpoint, bucket, "")
+	endpoint, region, err := determineEndpoint(ctx, svc, endpoint, bucket, configRegion)
 	if err != nil {
 		return bucketInfo{}, err
 	}
@@ -76,6 +76,14 @@ func normalizeBucketLocation(ctx context.Context, cfg client.ConfigProvider, end
 	isAWS, endpoint, err := endpointIsOfficial(endpoint)
 	if err != nil {
 		return bucketInfo{}, err
+	}
+	// if isAWS is false, the target also supports AWS s3 API
+	if !isAWS {
+		return bucketInfo{
+			endpoint: endpoint,
+			isAWS:    isAWS,
+			region:   region,
+		}, nil
 	}
 	// the endpoint should be corrected before being used to determine a region
 	// or else the region request can fail spuriously

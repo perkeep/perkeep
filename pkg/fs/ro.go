@@ -1,3 +1,4 @@
+//go:build linux || darwin
 // +build linux darwin
 
 /*
@@ -21,6 +22,7 @@ package fs
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -82,10 +84,9 @@ func (n *roDir) Attr(ctx context.Context, a *fuse.Attr) error {
 }
 
 // populate hits the blobstore to populate map of child nodes.
-func (n *roDir) populate() error {
+func (n *roDir) populate(ctx context.Context) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	ctx := context.TODO()
 	// Things never change here, so if we've ever populated, we're
 	// populated.
 	if n.children != nil {
@@ -101,7 +102,7 @@ func (n *roDir) populate() error {
 	})
 	if err != nil {
 		Logger.Println("roDir.paths:", err)
-		return nil
+		return fmt.Errorf("error while describing permanode: %w", err)
 	}
 	db := res.Meta[n.permanode.String()]
 	if db == nil {
@@ -170,9 +171,9 @@ func (n *roDir) populate() error {
 }
 
 func (n *roDir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
-	if err := n.populate(); err != nil {
+	if err := n.populate(ctx); err != nil {
 		Logger.Println("populate:", err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -206,9 +207,9 @@ func (n *roDir) Lookup(ctx context.Context, name string) (ret fs.Node, err error
 	defer func() {
 		Logger.Printf("roDir(%q).Lookup(%q) = %#v, %v", n.fullPath(), name, ret, err)
 	}()
-	if err := n.populate(); err != nil {
+	if err := n.populate(ctx); err != nil {
 		Logger.Println("populate:", err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -346,7 +347,7 @@ func (n *roFile) Open(ctx context.Context, req *fuse.OpenRequest, res *fuse.Open
 	if err != nil {
 		roFileOpenError.Incr()
 		Logger.Printf("roFile.Open: %v", err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 
 	// Turn off the OpenDirectIO bit (on by default in rsc fuse server.go),

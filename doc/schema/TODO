@@ -71,7 +71,7 @@ Claim types:
 Tagging something:
 
     {"claimType": "add-attribute", //
-      "attribute": "tag",  // utf-8, should have list of valid attributes names, preferrably not made up by us (open social spec?)
+      "attribute": "tag",  // utf-8, should have list of valid attributes names, preferably not made up by us (open social spec?)
       "value": "funny",  // value that doesn’t have lasting value
       "valueRef": "sha1-blobref",  // hefty reference to a lasting value
 

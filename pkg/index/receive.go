@@ -127,43 +127,52 @@ func (ix *Index) DisableOutOfOrderIndexing() {
 	ix.oooDisabled = true
 }
 
+func (ix *Index) outOfOrderIndexingDisabled() bool {
+	ix.RLock()
+	defer ix.RUnlock()
+
+	return ix.oooDisabled
+}
+
 // indexReadyBlobs indexes blobs that have been recently marked as ready to be
 // reindexed, after the blobs they depend on eventually were indexed.
 func (ix *Index) indexReadyBlobs(ctx context.Context) {
 	defer ix.reindexWg.Done()
-	ix.RLock()
-	// For tests
-	if ix.oooDisabled {
-		ix.RUnlock()
+
+	// for tests
+	if ix.outOfOrderIndexingDisabled() {
 		return
 	}
-	ix.RUnlock()
-	failed := make(map[blob.Ref]bool)
-	for {
+
+	popReadyReindex := func() (blob.Ref, bool) {
 		ix.Lock()
+		defer ix.Unlock()
+
 		if len(ix.readyReindex) == 0 {
-			ix.Unlock()
-			return
+			return blob.Ref{}, false
 		}
 		var br blob.Ref
 		for br = range ix.readyReindex {
 			break
 		}
 		delete(ix.readyReindex, br)
-		ix.Unlock()
+
+		return br, true
+	}
+
+	failed := make(map[blob.Ref]bool)
+	for br, ok := popReadyReindex(); ok; br, ok = popReadyReindex() {
 		if err := ix.indexBlob(ctx, br); err != nil {
 			log.Printf("out-of-order indexBlob(%v) = %v", br, err)
 			failed[br] = true
 		}
 	}
-	// TODO(aviau): This code is unreachable. Will fix this in a follow-up PR.
-	/*
-		ix.Lock()
-		defer ix.Unlock()
-		for br := range failed {
-			ix.readyReindex[br] = true
-		}
-	*/
+
+	ix.Lock()
+	defer ix.Unlock()
+	for br := range failed {
+		ix.readyReindex[br] = true
+	}
 }
 
 // noteBlobIndexed checks if the recent indexing of br now allows the blobs that

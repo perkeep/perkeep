@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package kvfile provides an implementation of sorted.KeyValue
 // on top of a single mutable database file on disk using
-// github.com/cznic/kv.
+// modernc.org/kv.
 package kvfile // import "perkeep.org/pkg/sorted/kvfile"
 
 import (
@@ -29,10 +29,9 @@ import (
 	"sync"
 
 	"go4.org/jsonconfig"
+	"modernc.org/kv"
 	"perkeep.org/pkg/kvutil"
 	"perkeep.org/pkg/sorted"
-
-	"github.com/cznic/kv"
 )
 
 var _ sorted.Wiper = (*kvis)(nil)
@@ -48,7 +47,7 @@ func NewStorage(file string) (sorted.KeyValue, error) {
 }
 
 // newKeyValueFromJSONConfig returns a KeyValue implementation on top of a
-// github.com/cznic/kv file.
+// modernc.org/kv file.
 func newKeyValueFromJSONConfig(cfg jsonconfig.Obj) (sorted.KeyValue, error) {
 	file := cfg.RequiredString("file")
 	if err := cfg.Validate(); err != nil {

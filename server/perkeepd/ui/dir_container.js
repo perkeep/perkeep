@@ -71,7 +71,7 @@ cam.DirChildrenSession = function(
 	// Makes sure there's only ever one query at most in flight.
 	this.pending_ = false;
 
-	// Wether we've already gotten all the descendants of ParentDir.
+	// Whether we've already gotten all the descendants of ParentDir.
 	this.isComplete_ = false;
 };
 
@@ -189,7 +189,7 @@ cam.DirChildrenSession.prototype.mergeResults_ = function(results) {
 		this.isComplete_ = true;
 	}
 	// Reject "stale" results. They should never occur though, since we
-	// supress with this.pending_, and we request everything in order.
+	// suppress with this.pending_, and we request everything in order.
 	if (this.meta_[lastInResults]) {
 		return;
 	}

@@ -28,7 +28,7 @@ import (
 	"perkeep.org/pkg/sorted"
 )
 
-// New returnes a sorted.KeyValue implementation that adds a Flush
+// New returns a sorted.KeyValue implementation that adds a Flush
 // method to flush the buffer to the backing storage. A flush will
 // also be performed when maxBufferBytes are reached. If
 // maxBufferBytes <= 0, no automatic flushing is performed.

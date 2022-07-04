@@ -21,11 +21,11 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.ListIterator;
+import java.util.Objects;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -41,23 +41,21 @@ public class UploadThread extends Thread {
     private final HostPort mHostPort;
     private final String mUsername;
     private final String mPassword;
-    private final LinkedBlockingQueue<UploadThreadMessage> msgCh = new LinkedBlockingQueue<UploadThreadMessage>();
+    private final String mPkPut;
+    private final LinkedBlockingQueue<UploadThreadMessage> msgCh = new LinkedBlockingQueue<>();
 
-    AtomicReference<Process> goProcess = new AtomicReference<Process>();
-    AtomicReference<OutputStream> toChildRef = new AtomicReference<OutputStream>();
-    HashMap<String, QueuedFile> mQueuedFile = new HashMap<String, QueuedFile>(); // guarded
-                                                                                 // by
-                                                                                 // itself
+    AtomicReference<Process> goProcess = new AtomicReference<>();
+    final HashMap<String, QueuedFile> mQueuedFile = new HashMap<>(); // guarded by itself
 
-    private final Object stdinLock = new Object(); // guards setting and writing
-                                                   // to stdinWriter
+    private final Object stdinLock = new Object(); // guards setting and writing to stdinWriter
     private BufferedWriter stdinWriter;
 
-    public UploadThread(UploadService uploadService, HostPort hp, String username, String password) {
+    public UploadThread(UploadService uploadService, HostPort hp, String username, String password, String pkput) {
         mService = uploadService;
         mHostPort = hp;
         mUsername = username;
         mPassword = password;
+        mPkPut = pkput;
     }
 
     public void stopUploads() {
@@ -83,22 +81,15 @@ public class UploadThread extends Thread {
             }
 
             // Unnecessary paranoia, never seen in practice:
-            new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        Thread.sleep(750, 0);
-                        stopUploads(); // force kill if still alive.
-                    } catch (InterruptedException e) {
-                    }
-
+            new Thread(() -> {
+                try {
+                    Thread.sleep(750, 0);
+                    stopUploads(); // force kill if still alive.
+                } catch (InterruptedException ignored) {
                 }
-            }.start();
-        }
-    }
 
-    private String binaryPath(String suffix) {
-        return mService.getBaseContext().getFilesDir().getAbsolutePath() + "/" + suffix;
+            }).start();
+        }
     }
 
     private void status(String st) {
@@ -120,15 +111,15 @@ public class UploadThread extends Thread {
         }
     }
 
-    public boolean enqueueFile(QueuedFile qf) {
+    public void enqueueFile(QueuedFile qf) {
         String diskPath = qf.getDiskPath();
         if (diskPath == null) {
             Log.d(TAG, "file has no disk path: " + qf);
-            return false;
+            return;
         }
         synchronized (stdinLock) {
             if (stdinWriter == null) {
-                return false;
+                return;
             }
             synchronized (mQueuedFile) {
                 mQueuedFile.put(diskPath, qf);
@@ -138,10 +129,8 @@ public class UploadThread extends Thread {
                 stdinWriter.flush();
             } catch (IOException e) {
                 Log.d(TAG, "Failed to write " + diskPath + " to pk-put stdin: " + e);
-                return false;
             }
         }
-        return true;
     }
 
     @Override
@@ -155,10 +144,10 @@ public class UploadThread extends Thread {
 
         mService.onStatReceived(null, 0);
 
-        Process process = null;
+        Process process;
         try {
             ProcessBuilder pb = new ProcessBuilder();
-            pb.command(binaryPath("pk-put.bin"), "--server=" + mHostPort.urlPrefix(), "file", "-stdinargs", "-vivify");
+            pb.command(mPkPut, "--server=" + mHostPort.urlPrefix(), "file", "-stdinargs", "-vivify");
             pb.redirectErrorStream(false);
             pb.environment().put("CAMLI_AUTH", "userpass:" + mUsername + ":" + mPassword);
             pb.environment().put("CAMLI_CACHE_DIR", mService.getCacheDir().getAbsolutePath());
@@ -166,7 +155,7 @@ public class UploadThread extends Thread {
             process = pb.start();
             goProcess.set(process);
             synchronized (stdinLock) {
-                stdinWriter = new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), "UTF-8"));
+                stdinWriter = new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
             }
             new CopyToAndroidLogThread("stderr", process.getErrorStream(), mService).start();
             new ParseCamputOutputThread(process, mService).start();
@@ -175,14 +164,13 @@ public class UploadThread extends Thread {
             throw new RuntimeException(e);
         }
 
-        ListIterator<QueuedFile> iter = mService.uploadQueue().listIterator();
-        while (iter.hasNext()) {
-            enqueueFile(iter.next());
+        for (QueuedFile queuedFile : mService.uploadQueue()) {
+            enqueueFile(queuedFile);
         }
 
         // Loop forever reading from msgCh
         while (true) {
-            UploadThreadMessage msg = null;
+            UploadThreadMessage msg;
             try {
                 msg = msgCh.poll(10, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
@@ -209,7 +197,7 @@ public class UploadThread extends Thread {
             if (!m.matches()) {
                 throw new RuntimeException("bogus CamputChunkMessage: " + line);
             }
-            mSize = Long.parseLong(m.group(1));
+            mSize = Long.parseLong(Objects.requireNonNull(m.group(1)));
             mFilename = m.group(3);
         }
 
@@ -227,7 +215,7 @@ public class UploadThread extends Thread {
     // STAT %s %d\n
     private final static Pattern statPattern = Pattern.compile("^STAT (\\S+) (\\d+)\\b");
 
-    public class CamputStatMessage {
+    public static class CamputStatMessage {
         private final Matcher mm;
 
         public CamputStatMessage(String line) {
@@ -242,14 +230,14 @@ public class UploadThread extends Thread {
         }
 
         public long value() {
-            return Long.parseLong(mm.group(2));
+            return Long.parseLong(Objects.requireNonNull(mm.group(2)));
         }
     }
 
     // STATS nfile=%d nbyte=%d skfile=%d skbyte=%d upfile=%d upbyte=%d\n
     private final static Pattern statsPattern = Pattern.compile("^STATS nfile=(\\d+) nbyte=(\\d+) skfile=(\\d+) skbyte=(\\d+) upfile=(\\d+) upbyte=(\\d+)");
 
-    public class CamputStatsMessage {
+    public static class CamputStatsMessage {
         private final Matcher mm;
 
         public CamputStatsMessage(String line) {
@@ -260,7 +248,7 @@ public class UploadThread extends Thread {
         }
 
         private long field(int n) {
-            return Long.parseLong(mm.group(n));
+            return Long.parseLong(Objects.requireNonNull(mm.group(n)));
         }
 
         public long totalFiles() {
@@ -302,11 +290,11 @@ public class UploadThread extends Thread {
         @Override
         public void run() {
             while (true) {
-                String line = null;
+                String line;
                 try {
                     line = mBufIn.readLine();
                 } catch (IOException e) {
-                    Log.d(TAG, "Exception reading pk-put's stdout: " + e.toString());
+                    Log.d(TAG, "Exception reading pk-put's stdout: " + e);
                     return;
                 }
                 if (line == null) {
@@ -333,7 +321,7 @@ public class UploadThread extends Thread {
                 }
                 if (line.startsWith("FILE_UPLOADED ")) {
                     String filename = line.substring(14).trim();
-                    QueuedFile qf = null;
+                    QueuedFile qf;
                     synchronized (mQueuedFile) {
                         qf = mQueuedFile.get(filename);
                         if (qf != null) {
@@ -381,7 +369,7 @@ public class UploadThread extends Thread {
         private final BufferedReader mBufIn;
         private final UploadService mService;
         private final String mTag;
-        private final ArrayList<String> mLines = new ArrayList<String>();
+        private final ArrayList<String> mLines = new ArrayList<>();
 
         public CopyToAndroidLogThread(String stream, InputStream in, UploadService service) {
             mBufIn = new BufferedReader(new InputStreamReader(in));
@@ -392,11 +380,11 @@ public class UploadThread extends Thread {
         @Override
         public void run() {
             while (true) {
-                String line = null;
+                String line;
                 try {
                     line = mBufIn.readLine();
                 } catch (IOException e) {
-                    Log.d(mTag, "Exception: " + e.toString());
+                    Log.d(mTag, "Exception: " + e);
                     return;
                 }
                 if (line == null) {

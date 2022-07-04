@@ -84,9 +84,9 @@ func (fe *FileEntityFetcher) FetchEntity(fingerprint string) (*openpgp.Entity, e
 		return nil, fmt.Errorf("jsonsign: FetchEntity: %v", err)
 	}
 	defer f.Close()
-	el, err := openpgp.ReadKeyRing(f)
+	el, err := readKeyRing(f)
 	if err != nil {
-		return nil, fmt.Errorf("jsonsign: openpgp.ReadKeyRing of %q: %v", fe.File, err)
+		return nil, fmt.Errorf("jsonsign: readKeyRing of %q: %v", fe.File, err)
 	}
 	for _, e := range el {
 		pubk := &e.PrivateKey.PublicKey

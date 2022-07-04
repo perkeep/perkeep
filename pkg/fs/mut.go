@@ -1,3 +1,4 @@
+//go:build linux || darwin
 // +build linux darwin
 
 /*
@@ -123,10 +124,9 @@ func (n *mutFile) Access(ctx context.Context, req *fuse.AccessRequest) error {
 }
 
 // populate hits the blobstore to populate map of child nodes.
-func (n *mutDir) populate() error {
+func (n *mutDir) populate(ctx context.Context) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	ctx := context.TODO()
 
 	// Only re-populate if we haven't done so recently.
 	now := time.Now()
@@ -140,8 +140,7 @@ func (n *mutDir) populate() error {
 		Depth:   3,
 	})
 	if err != nil {
-		Logger.Println("mutDir.paths:", err)
-		return nil
+		return err
 	}
 	db := res.Meta[n.permanode.String()]
 	if db == nil {
@@ -149,9 +148,6 @@ func (n *mutDir) populate() error {
 	}
 
 	// Find all child permanodes and stick them in n.children
-	if n.children == nil {
-		n.children = make(map[string]mutFileOrDir)
-	}
 	currentChildren := map[string]bool{}
 	for k, v := range db.Permanode.Attr {
 		const p = "camliPath:"
@@ -186,6 +182,7 @@ func (n *mutDir) populate() error {
 				permanode: blob.ParseOrZero(childRef),
 				parent:    n,
 				name:      name,
+				children:  make(map[string]mutFileOrDir),
 			})
 		} else if contentRef := child.Permanode.Attr.Get("camliContent"); contentRef != "" {
 			// This is a file.
@@ -254,9 +251,9 @@ func isDir(d *search.DescribedPermanode) bool {
 }
 
 func (n *mutDir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
-	if err := n.populate(); err != nil {
+	if err := n.populate(ctx); err != nil {
 		Logger.Println("populate:", err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -288,9 +285,9 @@ func (n *mutDir) Lookup(ctx context.Context, name string) (ret fs.Node, err erro
 	defer func() {
 		Logger.Printf("mutDir(%q).Lookup(%q) = %v, %v", n.fullPath(), name, ret, err)
 	}()
-	if err := n.populate(); err != nil {
+	if err := n.populate(ctx); err != nil {
 		Logger.Println("populate:", err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -313,7 +310,7 @@ func (n *mutDir) Create(ctx context.Context, req *fuse.CreateRequest, res *fuse.
 	child, err := n.creat(ctx, req.Name, fileType)
 	if err != nil {
 		Logger.Printf("mutDir.Create(%q): %v", req.Name, err)
-		return nil, nil, fuse.EIO
+		return nil, nil, handleEIOorEINTR(err)
 	}
 
 	// Create and return a file handle.
@@ -329,7 +326,7 @@ func (n *mutDir) Mkdir(ctx context.Context, req *fuse.MkdirRequest) (fs.Node, er
 	child, err := n.creat(ctx, req.Name, dirType)
 	if err != nil {
 		Logger.Printf("mutDir.Mkdir(%q): %v", req.Name, err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 	return child, nil
 }
@@ -339,7 +336,7 @@ func (n *mutDir) Symlink(ctx context.Context, req *fuse.SymlinkRequest) (fs.Node
 	node, err := n.creat(ctx, req.NewName, symlinkType)
 	if err != nil {
 		Logger.Printf("mutDir.Symlink(%q): %v", req.NewName, err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 	mf := node.(*mutFile)
 	mf.symLink = true
@@ -349,7 +346,7 @@ func (n *mutDir) Symlink(ctx context.Context, req *fuse.SymlinkRequest) (fs.Node
 	_, err = n.fs.client.UploadAndSignBlob(ctx, claim)
 	if err != nil {
 		Logger.Printf("mutDir.Symlink(%q) upload error: %v", req.NewName, err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 
 	return node, nil
@@ -407,8 +404,9 @@ func (n *mutDir) creat(ctx context.Context, name string, typ nodeType) (fs.Node,
 			permanode:       pr.BlobRef,
 			parent:          n,
 			name:            name,
-			xattrs:          map[string][]byte{},
+			xattrs:          make(map[string][]byte),
 			localCreateTime: time.Now(),
+			children:        make(map[string]mutFileOrDir),
 		}
 	case fileType, symlinkType:
 		child = &mutFile{
@@ -416,16 +414,13 @@ func (n *mutDir) creat(ctx context.Context, name string, typ nodeType) (fs.Node,
 			permanode:       pr.BlobRef,
 			parent:          n,
 			name:            name,
-			xattrs:          map[string][]byte{},
+			xattrs:          make(map[string][]byte),
 			localCreateTime: time.Now(),
 		}
 	default:
 		panic("bogus creat type")
 	}
 	n.mu.Lock()
-	if n.children == nil {
-		n.children = make(map[string]mutFileOrDir)
-	}
 	n.children[name] = child
 	n.mu.Unlock()
 
@@ -440,7 +435,7 @@ func (n *mutDir) Remove(ctx context.Context, req *fuse.RemoveRequest) error {
 	_, err := n.fs.client.UploadAndSignBlob(ctx, claim)
 	if err != nil {
 		Logger.Println("mutDir.Remove:", err)
-		return fuse.EIO
+		return handleEIOorEINTR(err)
 	}
 	// Remove child from map.
 	n.mu.Lock()
@@ -464,11 +459,11 @@ func (n *mutDir) Rename(ctx context.Context, req *fuse.RenameRequest, newDir fs.
 	}
 
 	var wg syncutil.Group
-	wg.Go(n.populate)
-	wg.Go(n2.populate)
+	wg.Go(func() error { return n.populate(ctx) })
+	wg.Go(func() error { return n2.populate(ctx) })
 	if err := wg.Err(); err != nil {
 		Logger.Printf("*mutDir.Rename src dir populate = %v", err)
-		return fuse.EIO
+		return handleEIOorEINTR(err)
 	}
 
 	n.mu.Lock()
@@ -488,7 +483,7 @@ func (n *mutDir) Rename(ctx context.Context, req *fuse.RenameRequest, newDir fs.
 	_, err := n.fs.client.UploadAndSignBlob(ctx, claim)
 	if err != nil {
 		Logger.Printf("Upload rename link error: %v", err)
-		return fuse.EIO
+		return handleEIOorEINTR(err)
 	}
 
 	var grp syncutil.Group
@@ -509,7 +504,7 @@ func (n *mutDir) Rename(ctx context.Context, req *fuse.RenameRequest, newDir fs.
 	}
 	if err := grp.Err(); err != nil {
 		Logger.Printf("Upload rename unlink/title error: %v", err)
-		return fuse.EIO
+		return handleEIOorEINTR(err)
 	}
 
 	// TODO(bradfitz): this locking would be racy, if the kernel
@@ -677,7 +672,7 @@ func (n *mutFile) Open(ctx context.Context, req *fuse.OpenRequest, res *fuse.Ope
 	if err != nil {
 		mutFileOpenError.Incr()
 		Logger.Printf("mutFile.Open: %v", err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 
 	// Read-only.
@@ -854,13 +849,13 @@ func (h *mutFileHandle) Flush(ctx context.Context, req *fuse.FlushRequest) error
 	br, err := schema.WriteFileFromReader(ctx, h.f.fs.client, h.f.name, &io.LimitedReader{R: h.tmp, N: h.f.size})
 	if err != nil {
 		Logger.Println("mutFileHandle.Flush:", err)
-		return fuse.EIO
+		return handleEIOorEINTR(err)
 	}
 	h.f.content = br
 	claim := schema.NewSetAttributeClaim(h.f.permanode, "camliContent", br.String())
 	if _, err := h.f.fs.client.UploadAndSignBlob(ctx, claim); err != nil {
 		Logger.Printf("mutFileHandle.Flush: %v", err)
-		return fuse.EIO
+		return handleEIOorEINTR(err)
 	}
 
 	return nil

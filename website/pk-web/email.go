@@ -107,7 +107,7 @@ func emailCommit(dir, hash string) (err error) {
 		cmd := execGit(dir, "show", nil, "show", hash)
 		body, err = cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("error runnning git show: %v\n%s", err, body)
+			return fmt.Errorf("error running git show: %v\n%s", err, body)
 		}
 		return nil
 	}); err != nil {
@@ -123,7 +123,7 @@ func emailCommit(dir, hash string) (err error) {
 		cmd := execGit(dir, "show_pretty", nil, "show", "--pretty=oneline", hash)
 		out, err = cmd.Output()
 		if err != nil {
-			return fmt.Errorf("error runnning git show_pretty: %v\n%s", err, out)
+			return fmt.Errorf("error running git show_pretty: %v\n%s", err, out)
 		}
 		return nil
 	}); err != nil {

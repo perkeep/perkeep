@@ -90,7 +90,7 @@ type config struct {
 }
 
 // appConfig keeps on trying to fetch the extra config from the app handler. If
-// it doesn't succed after an hour has passed, the program exits.
+// it doesn't succeed after an hour has passed, the program exits.
 func appConfig() (*config, error) {
 	configURL := os.Getenv("CAMLI_APP_CONFIG_URL")
 	if configURL == "" {

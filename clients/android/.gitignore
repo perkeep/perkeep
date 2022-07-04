@@ -2,7 +2,10 @@ build
 gen
 bin
 local.properties
+keystore.properties
 test/local.properties
 test/build
 test/gen
 test/bin
+app/libs
+app/release

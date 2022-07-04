@@ -1,3 +1,4 @@
+//go:build linux || darwin
 // +build linux darwin
 
 /*
@@ -35,6 +36,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -107,25 +109,10 @@ func (e *mountEnv) Stat(s *stat) int64 {
 	return v
 }
 
-func testName() string {
-	skip := 0
-	for {
-		pc, _, _, ok := runtime.Caller(skip)
-		skip++
-		if !ok {
-			panic("Failed to find test name")
-		}
-		name := strings.TrimPrefix(runtime.FuncForPC(pc).Name(), "perkeep.org/pkg/fs.")
-		if strings.HasPrefix(name, "Test") {
-			return name
-		}
-	}
-}
-
 func inEmptyMutDir(t *testing.T, fn func(env *mountEnv, dir string)) {
 	pkmountTest(t, func(env *mountEnv) {
-		dir := filepath.Join(env.mountPoint, "roots", testName())
-		if err := os.Mkdir(dir, 0755); err != nil {
+		dir := filepath.Join(env.mountPoint, "roots", t.Name())
+		if err := os.MkdirAll(dir, 0755); err != nil {
 			t.Fatalf("Failed to make roots/r dir: %v", err)
 		}
 		fi, err := os.Stat(dir)
@@ -536,7 +523,7 @@ func TestMoveAt(t *testing.T) {
 	})
 	pkmountTest(t, func(env *mountEnv) {
 		atPrefix := filepath.Join(env.mountPoint, "at")
-		testname := strings.Split(testName(), ".")[0]
+		testname := t.Name()
 
 		beforeName := filepath.Join(beforeTime.Format(time.RFC3339), testname, oldName)
 		notYetExistName := filepath.Join(beforeTime.Format(time.RFC3339), testname, newName)
@@ -571,6 +558,31 @@ func parseXattrList(from []byte) map[string]bool {
 }
 
 func TestXattr(t *testing.T) {
+	setxattr := func(path, attr string, data []byte, flags int) error {
+		return ignoringEINTR(func() error {
+			return syscallx.Setxattr(path, attr, data, flags)
+		})
+	}
+	getxattr := func(path, attr string, data []byte) (sz int, err error) {
+		err = ignoringEINTR(func() error {
+			sz, err = syscallx.Getxattr(path, attr, data)
+			return err
+		})
+		return
+	}
+	listxattr := func(path string, data []byte) (sz int, err error) {
+		err = ignoringEINTR(func() error {
+			sz, err = syscallx.Listxattr(path, data)
+			return err
+		})
+		return
+	}
+	removexattr := func(path, attr string) (err error) {
+		return ignoringEINTR(func() error {
+			return syscallx.Removexattr(path, attr)
+		})
+	}
+
 	condSkip(t)
 	inEmptyMutDir(t, func(env *mountEnv, rootDir string) {
 		name1 := filepath.Join(rootDir, "1")
@@ -585,7 +597,7 @@ func TestXattr(t *testing.T) {
 
 		buf := make([]byte, 8192)
 		// list empty
-		n, err := syscallx.Listxattr(name1, buf)
+		n, err := listxattr(name1, buf)
 		if err != nil {
 			t.Errorf("Error in initial listxattr: %v", err)
 		}
@@ -594,28 +606,28 @@ func TestXattr(t *testing.T) {
 		}
 
 		// get missing
-		n, err = syscallx.Getxattr(name1, attr1, buf)
+		n, err = getxattr(name1, attr1, buf)
 		if err == nil {
 			t.Errorf("Expected error getting non-existent xattr, got %q", buf[:n])
 		}
 
 		// Set (two different attributes)
-		err = syscallx.Setxattr(name1, attr1, []byte("hello1"), 0)
+		err = setxattr(name1, attr1, []byte("hello1"), 0)
 		if err != nil {
 			t.Fatalf("Error setting xattr: %v", err)
 		}
-		err = syscallx.Setxattr(name1, attr2, []byte("hello2"), 0)
+		err = setxattr(name1, attr2, []byte("hello2"), 0)
 		if err != nil {
 			t.Fatalf("Error setting xattr: %v", err)
 		}
 		// Alternate value for first attribute
-		err = syscallx.Setxattr(name1, attr1, []byte("hello1a"), 0)
+		err = setxattr(name1, attr1, []byte("hello1a"), 0)
 		if err != nil {
 			t.Fatalf("Error setting xattr: %v", err)
 		}
 
 		// list attrs
-		n, err = syscallx.Listxattr(name1, buf)
+		n, err = listxattr(name1, buf)
 		if err != nil {
 			t.Errorf("Error in initial listxattr: %v", err)
 		}
@@ -625,13 +637,13 @@ func TestXattr(t *testing.T) {
 		}
 
 		// Remove attr
-		err = syscallx.Removexattr(name1, attr2)
+		err = removexattr(name1, attr2)
 		if err != nil {
 			t.Errorf("Failed to remove attr: %v", err)
 		}
 
 		// List attrs
-		n, err = syscallx.Listxattr(name1, buf)
+		n, err = listxattr(name1, buf)
 		if err != nil {
 			t.Errorf("Error in initial listxattr: %v", err)
 		}
@@ -641,7 +653,7 @@ func TestXattr(t *testing.T) {
 		}
 
 		// Get remaining attr
-		n, err = syscallx.Getxattr(name1, attr1, buf)
+		n, err = getxattr(name1, attr1, buf)
 		if err != nil {
 			t.Errorf("Error getting attr1: %v", err)
 		}
@@ -893,4 +905,15 @@ func shortenString(v string) string {
 	}
 	flush()
 	return buf.String()
+}
+
+// https://cs.opensource.google/go/go/+/refs/tags/go1.18.3:src/os/file_posix.go;drc=635b1244aa7671bcd665613680f527452cac7555;l=243
+// some code to deal with EINTR on the application side
+func ignoringEINTR(fn func() error) error {
+	for {
+		err := fn()
+		if err != syscall.EINTR {
+			return err
+		}
+	}
 }

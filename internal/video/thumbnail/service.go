@@ -58,7 +58,7 @@ type Service struct {
 //   // command defaults to FFmpegThumbnailer and $uri is replaced by
 //   // the real value at runtime.
 //   "command": ["/opt/local/bin/ffmpeg", "-i", "$uri", "pipe:1"],
-//   // Maximun number of milliseconds for running the thumbnailing subprocess.
+//   // Maximum number of milliseconds for running the thumbnailing subprocess.
 //   // A zero or negative timeout means no timeout.
 //   "timeout": 2000,
 //   // Maximum number of thumbnailing subprocess running at same time.

@@ -1,3 +1,4 @@
+//go:build linux || darwin
 // +build linux darwin
 
 /*
@@ -21,6 +22,7 @@ package fs
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -96,7 +98,7 @@ func (n *roVersionsDir) populate(ctx context.Context) error {
 	})
 	if err != nil {
 		Logger.Println("roVersionsDir.paths:", err)
-		return nil
+		return fmt.Errorf("error while describing permanode: %w", err)
 	}
 	db := res.Meta[n.permanode.String()]
 	if db == nil {
@@ -169,7 +171,7 @@ func (n *roVersionsDir) populate(ctx context.Context) error {
 func (n *roVersionsDir) ReadDir(ctx context.Context) ([]fuse.Dirent, error) {
 	if err := n.populate(ctx); err != nil {
 		Logger.Println("populate:", err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -203,7 +205,7 @@ func (n *roVersionsDir) Lookup(ctx context.Context, name string) (ret fs.Node, e
 	}()
 	if err := n.populate(ctx); err != nil {
 		Logger.Println("populate:", err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -261,7 +263,7 @@ func (n *roFileVersionsDir) populate(ctx context.Context) error {
 	Logger.Printf("roFileVersionsDir.populate(%q)", n.fullPath())
 	res, err := n.fs.client.GetClaims(ctx, &search.ClaimsRequest{Permanode: n.permanode, AttrFilter: "camliContent"})
 	if err != nil {
-		return errors.New("error while getting claims")
+		return fmt.Errorf("error while getting claims: %w", err)
 	}
 
 	n.children = make(map[string]roFileOrDir)
@@ -276,7 +278,7 @@ func (n *roFileVersionsDir) populate(ctx context.Context) error {
 			At:      cl.Date,
 		})
 		if err != nil {
-			return errors.New("blobref not described")
+			return fmt.Errorf("blobref not described: %w", err)
 		}
 		db := res.Meta[cl.Value]
 		if db == nil {
@@ -300,7 +302,7 @@ func (n *roFileVersionsDir) populate(ctx context.Context) error {
 func (n *roFileVersionsDir) ReadDir(ctx context.Context) ([]fuse.Dirent, error) {
 	if err := n.populate(ctx); err != nil {
 		Logger.Println("populate:", err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -334,7 +336,7 @@ func (n *roFileVersionsDir) Lookup(ctx context.Context, name string) (ret fs.Nod
 	}()
 	if err := n.populate(ctx); err != nil {
 		Logger.Println("populate:", err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -373,7 +375,7 @@ func (n *roFileVersion) Open(ctx context.Context, req *fuse.OpenRequest, res *fu
 	if err != nil {
 		roFileOpenError.Incr()
 		Logger.Printf("roFile.Open: %v", err)
-		return nil, fuse.EIO
+		return nil, handleEIOorEINTR(err)
 	}
 
 	// Turn off the OpenDirectIO bit (on by default in rsc fuse server.go),

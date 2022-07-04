@@ -1,3 +1,4 @@
+//go:build linux || darwin
 // +build linux darwin
 
 /*
@@ -81,7 +82,7 @@ func (x *xattr) set(ctx context.Context, req *fuse.SetxattrRequest) error {
 	_, err := x.fs.client.UploadAndSignBlob(ctx, claim)
 	if err != nil {
 		Logger.Printf("Error setting xattr: %v", err)
-		return fuse.EIO
+		return handleEIOorEINTR(err)
 	}
 
 	val := make([]byte, len(req.Xattr))
@@ -101,7 +102,7 @@ func (x *xattr) remove(ctx context.Context, req *fuse.RemovexattrRequest) error 
 
 	if err != nil {
 		Logger.Printf("Error removing xattr: %v", err)
-		return fuse.EIO
+		return handleEIOorEINTR(err)
 	}
 
 	x.mu.Lock()

@@ -346,7 +346,7 @@ func (b *lowBuilder) sortedName() string {
 	case b.high.SQLite != "":
 		return "SQLite"
 	case b.high.KVFile != "":
-		return "cznic/kv"
+		return "KVFile"
 	case b.high.LevelDB != "":
 		return "LevelDB"
 	}
@@ -538,10 +538,11 @@ func (b *lowBuilder) thatQueueUnlessMemory(thatQueue map[string]interface{}) (qu
 	return thatQueue
 }
 
-func (b *lowBuilder) addS3Config(s3 string) error {
+func (b *lowBuilder) addS3Config(s3 string, vendor string) error {
 	f := strings.SplitN(s3, ":", 4)
 	if len(f) < 3 {
-		return errors.New(`genconfig: expected "s3" field to be of form "access_key_id:secret_access_key:bucket[/optional/dir][:hostname]"`)
+		m := fmt.Sprintf(`genconfig: expected "%s" field to be of form "access_key_id:secret_access_key:bucket[/optional/dir][:hostname]"`, vendor)
+		return errors.New(m)
 	}
 	accessKey, secret, bucket := f[0], f[1], f[2]
 	var hostname string
@@ -551,7 +552,7 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 	isReplica := b.hasPrefix("/bs/")
 	s3Prefix := "/bs/"
 	if isReplica {
-		s3Prefix = "/sto-s3/"
+		s3Prefix = fmt.Sprintf("/sto-%s/", vendor)
 	}
 
 	s3Args := func(bucket string) args {
@@ -572,8 +573,8 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 		bsLoose := "/bs-loose/"
 		bsPacked := "/bs-packed/"
 		if isReplica {
-			bsLoose = "/sto-s3-bs-loose/"
-			bsPacked = "/sto-s3-bs-packed/"
+			bsLoose = fmt.Sprintf("/sto-%s-bs-loose/", vendor)
+			bsPacked = fmt.Sprintf("/sto-%s-bs-packed/", vendor)
 		}
 
 		b.addPrefix(bsLoose, "storage-s3", s3Args(path.Join(bucket, "loose")))
@@ -597,13 +598,15 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 		if b.high.BlobPath == "" && !b.high.MemoryStorage {
 			panic("unexpected empty blobpath with sync-to-s3")
 		}
-		b.addPrefix("/sync-to-s3/", "sync", args{
+		p := fmt.Sprintf("/sync-to-%s/", vendor)
+		queue := fmt.Sprintf("sync-to-%s-queue.", vendor)
+		b.addPrefix(p, "sync", args{
 			"from": "/bs/",
 			"to":   s3Prefix,
 			"queue": b.thatQueueUnlessMemory(
 				map[string]interface{}{
 					"type": b.kvFileType(),
-					"file": filepath.Join(b.high.BlobPath, "sync-to-s3-queue."+b.kvFileType()),
+					"file": filepath.Join(b.high.BlobPath, queue+b.kvFileType()),
 				}),
 		})
 		return nil
@@ -619,76 +622,7 @@ func (b *lowBuilder) addS3Config(s3 string) error {
 }
 
 func (b *lowBuilder) addB2Config(b2 string) error {
-	f := strings.SplitN(b2, ":", 3)
-	if len(f) < 3 {
-		return errors.New(`genconfig: expected "b2" field to be of form "account_id:application_key:bucket[/optional/dir]"`)
-	}
-	account, key, bucket := f[0], f[1], f[2]
-	isReplica := b.hasPrefix("/bs/")
-	b2Prefix := "/bs/"
-	if isReplica {
-		b2Prefix = "/sto-b2/"
-	}
-
-	b2Args := func(bucket string) args {
-		a := args{
-			"bucket": bucket,
-			"auth": map[string]interface{}{
-				"account_id":      account,
-				"application_key": key,
-			},
-		}
-		return a
-	}
-
-	if !b.high.PackRelated {
-		b.addPrefix(b2Prefix, "storage-b2", b2Args(bucket))
-	} else {
-		bsLoose := "/bs-loose/"
-		bsPacked := "/bs-packed/"
-		if isReplica {
-			bsLoose = "/sto-b2-bs-loose/"
-			bsPacked = "/sto-b2-bs-packed/"
-		}
-
-		b.addPrefix(bsLoose, "storage-b2", b2Args(path.Join(bucket, "loose")))
-		b.addPrefix(bsPacked, "storage-b2", b2Args(path.Join(bucket, "packed")))
-
-		// If index is DBMS, then blobPackedIndex is in DBMS too.
-		// Otherwise blobPackedIndex is same file-based DB as the index,
-		// in same dir, but named packindex.dbtype.
-		blobPackedIndex, err := b.sortedStorageAt(dbBlobpackedIndex, filepath.Join(b.indexFileDir(), "packindex"))
-		if err != nil {
-			return err
-		}
-		b.addPrefix(b2Prefix, "storage-blobpacked", args{
-			"smallBlobs": "/bs-loose/",
-			"largeBlobs": "/bs-packed/",
-			"metaIndex":  blobPackedIndex,
-		})
-	}
-
-	if isReplica {
-		if b.high.BlobPath == "" && !b.high.MemoryStorage {
-			panic("unexpected empty blobpath with sync-to-b2")
-		}
-		b.addPrefix("/sync-to-b2/", "sync", args{
-			"from": "/bs/",
-			"to":   b2Prefix,
-			"queue": b.thatQueueUnlessMemory(
-				map[string]interface{}{
-					"type": b.kvFileType(),
-					"file": filepath.Join(b.high.BlobPath, "sync-to-b2-queue."+b.kvFileType()),
-				}),
-		})
-		return nil
-	}
-
-	b.addPrefix("/cache/", "storage-filesystem", args{
-		"path": filepath.Join(tempDir(), "camli-cache"),
-	})
-
-	return nil
+	return b.addS3Config(b2, "b2")
 }
 
 func (b *lowBuilder) addGoogleDriveConfig(v string) error {
@@ -1194,7 +1128,7 @@ func (b *lowBuilder) build() (*Config, error) {
 	}
 
 	if conf.S3 != "" {
-		if err := b.addS3Config(conf.S3); err != nil {
+		if err := b.addS3Config(conf.S3, "s3"); err != nil {
 			return nil, err
 		}
 	}

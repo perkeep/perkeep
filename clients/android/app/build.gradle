@@ -5,50 +5,51 @@
  */
 apply plugin: 'com.android.application'
 
-// Create a variable called keystorePropertiesFile, and initialize it to your
-// keystore.properties file, in the rootProject folder.
 def keystorePropertiesFile = rootProject.file("keystore.properties")
-
-// Initialize a new Properties() object called keystoreProperties.
 def keystoreProperties = new Properties()
-
-// Load your keystore.properties file into the keystoreProperties object.
 keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 
 android {
-    compileSdkVersion 27
-
-    // TODO(mpl): this should make signing the apk automatic when building the
-    // release flavor, but it does not seem to. figure out why. use Makefile in the
-    // meantime.
-    signingConfigs {
-        config {
-            keyAlias keystoreProperties['keyAlias']
-            storeFile file(keystoreProperties['storeFile'])
-            storePassword keystoreProperties['storePassword']
-        }
-    }
+    compileSdkVersion 32
 
     defaultConfig {
         applicationId "org.camlistore"
-        minSdkVersion 14
-        // Stay below API 26 for a while, because it deprecates the Notification Builder
-        // constructor we're using.
-        targetSdkVersion 26
-        // integer. used by android to prevent downgrades. not seen by user.
-        versionCode 4
-        // version shown to the user in play store.
-        versionName "0.10"
+        minSdkVersion 26
+        targetSdkVersion 32
+        versionCode 7
+        versionName "0.11"
     }
+
+    packagingOptions {
+        jniLibs.useLegacyPackaging = true
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['libs']
+        }
+    }
+
+    signingConfigs {
+        release {
+            storeFile file(keystoreProperties['storeFile'])
+            storePassword keystoreProperties['storePassword']
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+
+            v1SigningEnabled true
+            v2SigningEnabled true
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
+            signingConfig signingConfigs.release
         }
     }
 }
 
 dependencies {
-    implementation fileTree(include: ['*.jar'], dir: 'libs')
-    implementation 'com.android.support:appcompat-v7:26.0.0'
-    implementation 'com.android.support:support-compat:26.0.0'
+    implementation 'androidx.appcompat:appcompat:1.4.1'
 }
