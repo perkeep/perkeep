@@ -96,7 +96,7 @@ func (id *IndexDeps) DumpIndex(t *testing.T) {
 	t.Logf("End index dump.")
 }
 
-func (id *IndexDeps) uploadAndSign(m *schema.Builder) blob.Ref {
+func (id *IndexDeps) Sign(m *schema.Builder) *test.Blob {
 	m.SetSigner(id.SignerBlobRef)
 	unsigned, err := m.JSON()
 	if err != nil {
@@ -113,15 +113,23 @@ func (id *IndexDeps) uploadAndSign(m *schema.Builder) blob.Ref {
 		id.Fatalf("problem signing: " + err.Error())
 	}
 	tb := &test.Blob{Contents: signed}
-	_, err = id.BlobSource.ReceiveBlob(ctxbg, tb.BlobRef(), tb.Reader())
+	return tb
+}
+
+func (id *IndexDeps) Upload(tb *test.Blob) blob.Ref {
+	_, err := id.BlobSource.ReceiveBlob(ctxbg, tb.BlobRef(), tb.Reader())
 	if err != nil {
 		id.Fatalf("public uploading signed blob to blob source, pre-indexing: %v, %v", tb.BlobRef(), err)
 	}
 	_, err = id.Index.ReceiveBlob(ctxbg, tb.BlobRef(), tb.Reader())
 	if err != nil {
-		id.Fatalf("problem indexing blob: %v\nblob was:\n%s", err, signed)
+		id.Fatalf("problem indexing blob: %v\nblob was:\n%s", err, tb.Contents)
 	}
 	return tb.BlobRef()
+}
+
+func (id *IndexDeps) uploadAndSign(m *schema.Builder) blob.Ref {
+	return id.Upload(id.Sign(m))
 }
 
 // NewPermanode creates (& signs) a new permanode and adds it

@@ -33,6 +33,7 @@ import (
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/index/indextest"
+	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/test"
 	"perkeep.org/pkg/types/camtypes"
@@ -436,6 +437,42 @@ func TestOutOfOrderIndexingDirectory(t *testing.T) {
 			wait: true,
 		},
 	})
+}
+
+func TestIndexingPermanodeBadSignature(t *testing.T) {
+	s := sorted.NewMemoryKeyValue()
+	idx, err := index.New(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	id := indextest.NewIndexDeps(idx)
+	id.Fataler = t
+
+	// Create a new permanode and break the signature
+	goodPermanode := id.Sign(schema.NewPlannedPermanode("replaceme"))
+	badPermanode := &test.Blob{
+		Contents: strings.ReplaceAll(goodPermanode.Contents, "replaceme", "replaced"),
+	}
+
+	// We can upload it, but the indexing should fail.
+	if _, err := id.BlobSource.ReceiveBlob(ctxbg, badPermanode.BlobRef(), badPermanode.Reader()); err != nil {
+		t.Fatalf("public uploading signed blob to blob source, pre-indexing: %v, %v", badPermanode.BlobRef(), err)
+	}
+	if _, err = id.Index.ReceiveBlob(ctxbg, badPermanode.BlobRef(), badPermanode.Reader()); err == nil {
+		t.Fatalf("Successfully indexed a permanode with a bad signature")
+	} else if !strings.Contains(err.Error(), "signature verification failed") {
+		t.Fatalf("Expected signature error, got: %v", err)
+	}
+
+	// Now upload the good one, everything is OK.
+	if _, err := id.BlobSource.ReceiveBlob(ctxbg, goodPermanode.BlobRef(), goodPermanode.Reader()); err != nil {
+		t.Fatalf("public uploading signed blob to blob source, pre-indexing: %v, %v", goodPermanode.BlobRef(), err)
+	}
+	if _, err = id.Index.ReceiveBlob(ctxbg, goodPermanode.BlobRef(), goodPermanode.Reader()); err != nil {
+		t.Fatalf("Failed to index the good permanode: %v", err)
+	}
+
 }
 
 func TestIndexingClaimMissingPubkey(t *testing.T) {

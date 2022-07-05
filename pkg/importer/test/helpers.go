@@ -18,6 +18,7 @@ limitations under the License.
 package test // import "perkeep.org/pkg/importer/test"
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -82,6 +83,10 @@ func ImporterTest(t *testing.T, importerName string, transport http.RoundTripper
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := cl.UploadPublicKey(context.TODO()); err != nil {
+		t.Fatal(err)
+	}
+
 	signer, err := cl.Signer()
 	if err != nil {
 		t.Fatal(err)

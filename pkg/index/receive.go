@@ -334,6 +334,43 @@ func (ix *Index) commit(mm *mutationMap) error {
 	return nil
 }
 
+func (ix *Index) verifySignature(ctx context.Context, fetcher *missTrackFetcher, schemaBlob *schema.Blob) (*jsonsign.VerifyRequest, error) {
+	tf := &trackErrorsFetcher{f: fetcher}
+	vr := jsonsign.NewVerificationRequest(schemaBlob.JSON(), blob.NewSerialFetcher(ix.KeyFetcher, tf))
+	_, err := vr.Verify(ctx)
+
+	if err != nil {
+		// TODO(bradfitz): ask if the vr.Err.(jsonsign.Error).IsPermanent() and retry
+		// later if it's not permanent?
+		if tf.hasErrNotExist() {
+			return nil, errMissingDep
+		}
+		return nil, err
+	}
+
+	return vr, nil
+}
+
+func (ix *Index) populateMutationMapForSchema(ctx context.Context, fetcher *missTrackFetcher, schemaBlob *schema.Blob, mm *mutationMap) error {
+	switch schemaBlob.Type() {
+	case schema.TypePermanode:
+		_, err := ix.verifySignature(ctx, fetcher, schemaBlob)
+		return err
+	case schema.TypeClaim:
+		vr, err := ix.verifySignature(ctx, fetcher, schemaBlob)
+		if err != nil {
+			return err
+		}
+		return ix.populateClaim(ctx, fetcher, schemaBlob, vr, mm)
+	case schema.TypeFile:
+		return ix.populateFile(ctx, fetcher, schemaBlob, mm)
+	case schema.TypeDirectory:
+		return ix.populateDir(ctx, fetcher, schemaBlob, mm)
+	default:
+		return nil
+	}
+}
+
 // populateMutationMap populates keys & values that will be committed
 // into the returned map.
 //
@@ -346,16 +383,10 @@ func (ix *Index) populateMutationMap(ctx context.Context, fetcher *missTrackFetc
 		},
 	}
 	var err error
-	if blob, ok := sniffer.SchemaBlob(); ok {
-		switch blob.Type() {
-		case schema.TypeClaim:
-			err = ix.populateClaim(ctx, fetcher, blob, mm)
-		case schema.TypeFile:
-			err = ix.populateFile(ctx, fetcher, blob, mm)
-		case schema.TypeDirectory:
-			err = ix.populateDir(ctx, fetcher, blob, mm)
-		}
+	if schemaBlob, ok := sniffer.SchemaBlob(); ok {
+		err = ix.populateMutationMapForSchema(ctx, fetcher, schemaBlob, mm)
 	}
+
 	if err != nil && err != errMissingDep {
 		return nil, err
 	}
@@ -855,7 +886,7 @@ func (ix *Index) populateDeleteClaim(ctx context.Context, cl schema.Claim, vr *j
 	return nil
 }
 
-func (ix *Index) populateClaim(ctx context.Context, fetcher *missTrackFetcher, b *schema.Blob, mm *mutationMap) error {
+func (ix *Index) populateClaim(ctx context.Context, fetcher *missTrackFetcher, b *schema.Blob, vr *jsonsign.VerifyRequest, mm *mutationMap) error {
 	br := b.BlobRef()
 
 	claim, ok := b.AsClaim()
@@ -864,17 +895,6 @@ func (ix *Index) populateClaim(ctx context.Context, fetcher *missTrackFetcher, b
 		return nil
 	}
 
-	tf := &trackErrorsFetcher{f: fetcher}
-	vr := jsonsign.NewVerificationRequest(b.JSON(), blob.NewSerialFetcher(ix.KeyFetcher, tf))
-	_, err := vr.Verify(ctx)
-	if err != nil {
-		// TODO(bradfitz): ask if the vr.Err.(jsonsign.Error).IsPermanent() and retry
-		// later if it's not permanent? or maybe do this up a level?
-		if tf.hasErrNotExist() {
-			return errMissingDep
-		}
-		return err
-	}
 	verifiedKeyId := vr.SignerKeyId
 	mm.signerID = verifiedKeyId
 	mm.signerBlobRef = vr.CamliSigner

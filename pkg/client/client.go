@@ -1416,11 +1416,11 @@ func (c *Client) signBlob(ctx context.Context, bb schema.Buildable, sigTime time
 	return bb.Builder().SignAt(ctx, signer, sigTime)
 }
 
-// uploadPublicKey uploads the public key (if one is defined), so
+// UploadPublicKey uploads the public key (if one is defined), so
 // subsequent (likely synchronous) indexing of uploaded signed blobs
 // will have access to the public key to verify it. In the normal
 // case, the stat cache prevents this from doing anything anyway.
-func (c *Client) uploadPublicKey(ctx context.Context) error {
+func (c *Client) UploadPublicKey(ctx context.Context) error {
 	sigRef := c.SignerPublicKeyBlobref()
 	if !sigRef.Valid() {
 		return nil
@@ -1450,7 +1450,7 @@ func (c *Client) UploadAndSignBlob(ctx context.Context, b schema.AnyBlob) (*PutR
 		return nil, err
 	}
 	c.checkMatchingKeys()
-	if err := c.uploadPublicKey(ctx); err != nil {
+	if err := c.UploadPublicKey(ctx); err != nil {
 		return nil, err
 	}
 	return c.uploadString(ctx, signed, false)
@@ -1480,7 +1480,7 @@ func (c *Client) UploadPlannedPermanode(ctx context.Context, key string, sigTime
 		return nil, err
 	}
 	c.checkMatchingKeys()
-	if err := c.uploadPublicKey(ctx); err != nil {
+	if err := c.UploadPublicKey(ctx); err != nil {
 		return nil, err
 	}
 	return c.uploadString(ctx, signed, true)
