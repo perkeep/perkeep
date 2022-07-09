@@ -213,14 +213,25 @@ func DecodeDownsample(r io.Reader, factor int) (image.Image, error) {
 	stderrW := new(bytes.Buffer)
 	cmd.Stderr = stderrW
 	if err := cmd.Run(); err != nil {
+		// If djpeg finished with warnings (exit code 2)
+		// the output is still usable most of the time.
+		// If not `readPNM` will fail its sanity checks
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			if exiterr.ExitCode() == 2 {
+				goto Success
+			}
+		}
 		djpegFailureVar.Add(1)
 		return nil, DjpegFailedError{Err: fmt.Errorf("%v: %s", err, stderrW)}
 	}
-	djpegSuccessVar.Add(1)
-	djpegBytesReadVar.Add(int64(w.Len()))
+
+Success:
 	m, err := readPNM(w)
 	if err != nil {
 		return m, DjpegFailedError{Err: err}
 	}
+	djpegSuccessVar.Add(1)
+	djpegBytesReadVar.Add(int64(w.Len()))
+
 	return m, nil
 }

@@ -497,6 +497,9 @@ func decode(r io.Reader, opts *DecodeOpts, swapDimensions bool) (im image.Image,
 			case fastjpeg.DjpegFailedError:
 				log.Printf("Retrying with jpeg.Decode, because djpeg failed with: %v", err)
 				im, err = jpeg.Decode(io.MultiReader(&buf, mr))
+				if err != nil {
+					return nil, format, err, false
+				}
 			case nil:
 				// fallthrough to rescale() below.
 			default:
