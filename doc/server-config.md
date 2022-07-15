@@ -95,7 +95,7 @@ At least one of these must be set:
 * `s3`: "`key:secret:bucket[/optional/dir]`" or
   "`key:secret:bucket[/optional/dir]:hostname`" (with colons, but no quotes).
 * `b2`: "`account_id:application_key:bucket[/optional/dir]:endpoint`"
-* `googlecloudstorage`: "`clientId:clientSecret:refreshToken:bucketName[/optional/dir]`"
+* `googlecloudstorage`: "`clientId:clientSecret:refreshToken:bucketName/optional/dir`"
 
 The `s3` storage option's `hostname` value may be set to use an S3-compatible
 endpoint instead of AWS S3, such as `my-minio-server.example.com`. A specific

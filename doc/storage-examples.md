@@ -72,3 +72,21 @@ Finally, add the b2 config line to your perkeep `server-config.json`:
 ```
 
 - `endpoint` can be found on the backblaze buckets' interface https://secure.backblaze.com/b2_buckets.htm.
+
+## Google Cloud Storage (GCS)
+
+[Google Cloud Storage (GCS)](https://cloud.google.com/storage/) Reliable and secure object storage.
+
+To use GCS with Perkeep, you need to:
+
+* Sign up for a Google Cloud Platform account.
+* Sign in to the GCP console, navigate to 'Storage'.
+* [Create a bucket](https://cloud.google.com/storage/docs/creating-buckets#create_a_new_bucket)
+* Configure your perkeep server to sync blobs to the GCS bucket by adding the following to your perkeep `service-config.json`:
+
+```
+"googlecloudstorage": "clientId:clientSecret:refreshToken:bucketName/optional/dir"
+```
+
+NOTE: The `clientId` and `clientSecret` could come from `$HOME/.config/gcloud/application_default_credentials.json`
+or you could create a new service account following [this guide](https://support.google.com/workspacemigrate/answer/10839762).
