@@ -529,6 +529,53 @@ func TestIndexingClaimMissingPubkey(t *testing.T) {
 	}
 }
 
+func TestIndexingPermanodeMissingPubkey(t *testing.T) {
+	s := sorted.NewMemoryKeyValue()
+	idx, err := index.New(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	id := indextest.NewIndexDeps(idx)
+	id.Fataler = t
+
+	goodKeyFetcher := id.Index.KeyFetcher
+	emptyFetcher := new(test.Fetcher)
+
+	// Prevent the index from being able to find the public key:
+	idx.KeyFetcher = emptyFetcher
+
+	pn := id.NewPermanode()
+
+	// Verify that populateClaim noted the missing public key blob:
+	{
+		key := fmt.Sprintf("missing|%s|%s", pn, id.SignerBlobRef)
+		if got, err := s.Get(key); got == "" || err != nil {
+			t.Errorf("key %q missing (err: %v); want 1", key, err)
+		}
+	}
+
+	// Now make it available again:
+	idx.KeyFetcher = idx.Exp_BlobSource()
+
+	if err := copyBlob(id.SignerBlobRef, idx.Exp_BlobSource().(*test.Fetcher), goodKeyFetcher); err != nil {
+		t.Errorf("Error copying public key to BlobSource: %v", err)
+	}
+	if err := copyBlob(id.SignerBlobRef, idx, goodKeyFetcher); err != nil {
+		t.Errorf("Error uploading public key to indexer: %v", err)
+	}
+
+	idx.Exp_AwaitAsyncIndexing(t)
+
+	// Verify that populateClaim noted the now present public key blob:
+	{
+		key := fmt.Sprintf("missing|%s|%s", pn, id.SignerBlobRef)
+		if got, err := s.Get(key); got != "" || err == nil {
+			t.Errorf("row %q still exists", key)
+		}
+	}
+}
+
 func copyBlob(br blob.Ref, dst blobserver.BlobReceiver, src blob.Fetcher) error {
 	rc, _, err := src.Fetch(ctxbg, br)
 	if err != nil {
