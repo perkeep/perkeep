@@ -43,7 +43,7 @@ It is advisable to use a dedicated key/secret for Perkeep:
 
 Finally, add the s3 config line to your Perkeep `server-config.json`:
 ```
-"s3": "ACCESS_KEY:SECRET_KEY:YOUR_BUCKET_NAME"
+"s3": "accessKey:secretKey:bucketName[/optional/dir][:hostname]"
 ```
 
 ## B2
@@ -68,10 +68,10 @@ It is advisable to create a dedicated Application Key for Perkeep:
 
 Finally, add the b2 config line to your perkeep `server-config.json`:
 ```
-"b2": "keyID:applicationKey:bucket:endpoint"
+"b2": "accessKey:secretKey:bucketName[/optional/dir][:hostname]"
 ```
 
-- `endpoint` can be found on the backblaze buckets' interface https://secure.backblaze.com/b2_buckets.htm.
+- `hostname` can be found on the backblaze buckets' interface https://secure.backblaze.com/b2_buckets.htm.
 
 ## Google Cloud Storage (GCS)
 
@@ -85,7 +85,7 @@ To use GCS with Perkeep, you need to:
 * Configure your perkeep server to sync blobs to the GCS bucket by adding the following to your perkeep `service-config.json`:
 
 ```
-"googlecloudstorage": "clientId:clientSecret:refreshToken:bucketName/optional/dir"
+"googlecloudstorage": "clientId:clientSecret:refreshToken:bucketName[/optional/dir]"
 ```
 
 NOTE: The `clientId` and `clientSecret` could come from `$HOME/.config/gcloud/application_default_credentials.json`
