@@ -266,45 +266,56 @@ func (s *storage) readAllMetaBlobs() error {
 		dat []byte // encrypted blob
 		err error
 	}
-	metac := make(chan encMB, 16)
+	ctx := context.Background()
+
+	// Fetch all blobRefs in the meta store before processing further. If we enumerate and concurrently
+	// upload we we will fail during startup if the backing blobstorage is eventually consistent and we
+	// upload a blob that happens to have a hash that will get enumerated later. When we eventually
+	// enumerate this hash we will try to fetch it and fail. Since we aggregate several key value pairs
+	// in meta blobs it should be feasible to hold all the meta blobrefs in memory.
+	blobRefs := make([]blob.SizedRef, 0)
+	if err := blobserver.EnumerateAll(ctx, s.meta, func(sr blob.SizedRef) error {
+		blobRefs = append(blobRefs, sr)
+		return nil
+	}); err != nil {
+		return fmt.Errorf("error enumerating encrypted meta blobs: %w", err)
+	}
 
 	const maxInFlight = 5 // arbitrary
-	var gate = make(chan bool, maxInFlight)
-
-	var stopEnumerate = make(chan bool) // closed on error
-	enumErrc := make(chan error, 1)
+	gate := make(chan bool, maxInFlight)
+	metac := make(chan encMB, 16)
+	stopEnumerate := make(chan bool) // closed on error
 	go func() {
+		defer close(metac)
+
 		var wg sync.WaitGroup
-		ctx := context.TODO()
-		enumErrc <- blobserver.EnumerateAll(ctx, s.meta, func(sb blob.SizedRef) error {
+		defer wg.Wait()
+		for _, br := range blobRefs {
 			select {
 			case <-stopEnumerate:
-				return errors.New("enumeration stopped")
+				return
 			default:
 			}
 
 			wg.Add(1)
 			gate <- true
-			go func() {
+			go func(aux blob.SizedRef) {
 				defer wg.Done()
 				defer func() { <-gate }()
-				rc, _, err := s.meta.Fetch(ctx, sb.Ref)
+				rc, _, err := s.meta.Fetch(ctx, aux.Ref)
 				if err != nil {
-					metac <- encMB{sb.Ref, nil, fmt.Errorf("fetch failed: %v", err)}
+					metac <- encMB{aux.Ref, nil, fmt.Errorf("fetch failed: %w", err)}
 					return
 				}
 				defer rc.Close()
 				all, err := ioutil.ReadAll(rc)
 				if err != nil {
-					metac <- encMB{sb.Ref, nil, fmt.Errorf("read failed: %v", err)}
+					metac <- encMB{aux.Ref, nil, fmt.Errorf("read failed: %w", err)}
 					return
 				}
-				metac <- encMB{sb.Ref, all, nil}
-			}()
-			return nil
-		})
-		wg.Wait()
-		close(metac)
+				metac <- encMB{aux.Ref, all, nil}
+			}(br)
+		}
 	}()
 
 	for mi := range metac {
@@ -324,6 +335,5 @@ func (s *storage) readAllMetaBlobs() error {
 			return fmt.Errorf("error with meta blob %v: %v", mi.br, err)
 		}
 	}
-
-	return <-enumErrc
+	return nil
 }
