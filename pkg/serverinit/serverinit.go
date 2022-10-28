@@ -463,6 +463,12 @@ func (c *Config) HTTPSKey() string { return c.httpsKey }
 // HTTPS reports whether this configuration wants to serve HTTPS.
 func (c *Config) HTTPS() bool { return c.https }
 
+// IsTailscaleListener reports whether c is configured to run in
+// Tailscale tsnet mode.
+func (c *Config) IsTailscaleListener() bool {
+	return c.listenAddr == "tailscale" || strings.HasPrefix(c.listenAddr, "tailscale:")
+}
+
 // detectConfigChange returns an informative error if conf contains obsolete keys.
 func detectConfigChange(conf jsonconfig.Obj) error {
 	oldHTTPSKey, oldHTTPSCert := conf.OptionalString("HTTPSKeyFile", ""), conf.OptionalString("HTTPSCertFile", "")

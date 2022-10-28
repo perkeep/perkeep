@@ -21,6 +21,10 @@ JSON. It can either be in [simple mode](#simplemode) (for basic configurations),
   * `userpass:alice:secret:vivify=othersecret`: Alice has password "secret",
     but her Android phone can use password "othersecret" to do a minimal set of
     operations (upload new things, but not access anything).
+  * `tailscale:ARG`: permit access only over Tailscale, where ARG is one of:
+    * `full-access-to-tailnet`: to grant full read/write access to Perkeep to any
+      entity on the Tailscale tailnet which has network-level access to the Perkeep server;
+    * `foo@bar`: permit read/write Perkeep accesss only to the provided email (or email-like, e.g. `foo@github`) address.
 
 * `baseURL`: Optional. If non-empty, this is the root of your URL prefix for
   your Perkeep server. Useful for when running behind a reverse proxy.

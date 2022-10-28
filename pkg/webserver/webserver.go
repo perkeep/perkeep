@@ -22,6 +22,7 @@ limitations under the License.
 package webserver // import "perkeep.org/pkg/webserver"
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"fmt"
@@ -29,24 +30,26 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"perkeep.org/pkg/webserver/listen"
-
 	"go4.org/net/throttle"
 	"go4.org/wkfs"
 	"golang.org/x/net/http2"
+	"perkeep.org/pkg/webserver/listen"
+	"tailscale.com/tsnet"
 )
 
 const alpnProto = "acme-tls/1" // from golang.org/x/crypto/acme.ALPNProto
 
 type Server struct {
-	mux      *http.ServeMux
-	listener net.Listener
-	verbose  bool // log HTTP requests and response codes
+	mux       *http.ServeMux
+	listener  net.Listener
+	listenURL string // optional forced value for ListenURL, if set (used by Tailscale)
+	verbose   bool   // log HTTP requests and response codes
 
 	Logger *log.Logger // or nil.
 
@@ -59,6 +62,9 @@ type Server struct {
 	tlsCertFile, tlsKeyFile string
 	// certManager is set as GetCertificate in the tls.Config of the listener. But tlsCertFile takes precedence.
 	certManager func(*tls.ClientHelloInfo) (*tls.Certificate, error)
+
+	// tsnetServer is non-nil when running in Tailscale tsnet mode.
+	tsnetServer *tsnet.Server
 
 	mu   sync.Mutex
 	reqs int64
@@ -105,7 +111,12 @@ func (s *Server) SetTLS(setup TLSSetup) {
 	s.tlsKeyFile = setup.KeyFile
 }
 
+// ListenURL returns the base URL of the server, including its scheme and
+// authority, but without a trailing slash or any path.
 func (s *Server) ListenURL() string {
+	if s.listenURL != "" {
+		return s.listenURL
+	}
 	if s.listener == nil {
 		return ""
 	}
@@ -168,6 +179,10 @@ func (tw *trackResponseWriter) Write(p []byte) (int, error) {
 }
 
 // Listen starts listening on the given host:port addr.
+//
+// If the "host" part is "tailscale", it goes into Tailscale tsnet mode, and the
+// "port" is instead an optional state directory path or a bare name for the
+// instance name.
 func (s *Server) Listen(addr string) error {
 	if s.listener != nil {
 		return nil
@@ -177,49 +192,126 @@ func (s *Server) Listen(addr string) error {
 		return fmt.Errorf("<host>:<port> needs to be provided to start listening")
 	}
 
+	preColon, _, _ := strings.Cut(addr, ":")
+	isTailscale := preColon == "tailscale"
+
 	var err error
-	s.listener, err = listen.Listen(addr)
+	if isTailscale {
+		s.listener, err = s.listenTailscale(addr, s.enableTLS)
+	} else {
+		s.listener, err = listen.Listen(addr)
+	}
 	if err != nil {
 		return fmt.Errorf("Failed to listen on %s: %v", addr, err)
 	}
 	base := s.ListenURL()
 	s.printf("Starting to listen on %s\n", base)
 
-	doEnableTLS := func() error {
-		config := &tls.Config{
-			Rand:       rand.Reader,
-			Time:       time.Now,
-			NextProtos: []string{http2.NextProtoTLS, "http/1.1"},
-			MinVersion: tls.VersionTLS12,
+	if s.enableTLS {
+		if s.tsnetServer != nil {
+			lc, err := s.tsnetServer.LocalClient()
+			if err != nil {
+				return err
+			}
+			s.SetTLS(TLSSetup{
+				CertManager: lc.GetCertificate,
+			})
 		}
-		if s.tlsCertFile == "" && s.certManager != nil {
-			config.GetCertificate = s.certManager
-			// TODO(mpl): see if we can instead use
-			// https://godoc.org/golang.org/x/crypto/acme/autocert#Manager.TLSConfig
-			config.NextProtos = append(config.NextProtos, alpnProto)
+		doEnableTLS := func() error {
+			config := &tls.Config{
+				Rand:       rand.Reader,
+				Time:       time.Now,
+				NextProtos: []string{http2.NextProtoTLS, "http/1.1"},
+				MinVersion: tls.VersionTLS12,
+			}
+			if s.tlsCertFile == "" && s.certManager != nil {
+				config.GetCertificate = s.certManager
+				// TODO(mpl): see if we can instead use
+				// https://godoc.org/golang.org/x/crypto/acme/autocert#Manager.TLSConfig
+				config.NextProtos = append(config.NextProtos, alpnProto)
+				s.listener = tls.NewListener(s.listener, config)
+				return nil
+			}
+
+			config.Certificates = make([]tls.Certificate, 1)
+			config.Certificates[0], err = loadX509KeyPair(s.tlsCertFile, s.tlsKeyFile)
+			if err != nil {
+				return fmt.Errorf("Failed to load TLS cert: %v", err)
+			}
 			s.listener = tls.NewListener(s.listener, config)
 			return nil
 		}
-
-		config.Certificates = make([]tls.Certificate, 1)
-		config.Certificates[0], err = loadX509KeyPair(s.tlsCertFile, s.tlsKeyFile)
-		if err != nil {
-			return fmt.Errorf("Failed to load TLS cert: %v", err)
-		}
-		s.listener = tls.NewListener(s.listener, config)
-		return nil
-	}
-	if s.enableTLS {
 		if err := doEnableTLS(); err != nil {
 			return err
 		}
 	}
 
-	if strings.HasSuffix(base, ":0") {
-		s.printf("Now listening on %s\n", s.ListenURL())
-	}
-
 	return nil
+}
+
+func (s *Server) listenTailscale(addr string, withTLS bool) (net.Listener, error) {
+	preColon, postColon, _ := strings.Cut(addr, ":")
+	if preColon != "tailscale" {
+		panic("caller error")
+	}
+	var dir string
+	name := "perkeep"
+	if postColon != "" {
+		// Make sure they didn't think it was a port number.
+		if _, err := strconv.Atoi(postColon); err == nil {
+			return nil, fmt.Errorf("invalid %q Tailscale listen address; the part after the colon should be a name or directory, not a port number", addr)
+		}
+		if strings.Contains(postColon, string(os.PathSeparator)) {
+			dir = postColon
+		} else {
+			name = postColon
+		}
+	}
+	if dir == "" {
+		confDir, err := os.UserConfigDir()
+		if err != nil {
+			return nil, fmt.Errorf("failed to find user config dir: %v", err)
+		}
+		dir = filepath.Join(confDir, "tsnet-"+name)
+	}
+	if fi, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			return nil, fmt.Errorf("error creating Tailscale state directory: %w", err)
+		}
+	} else if err != nil {
+		return nil, fmt.Errorf("error checking Tailscale state directory: %w", err)
+	} else if !fi.IsDir() {
+		return nil, fmt.Errorf("Tailscale state directory %q (from listen arg %q) is not a directory", dir, addr)
+	}
+	ts := &tsnet.Server{
+		Dir:      dir, // or empty for automatic
+		Hostname: name,
+	}
+	s.printf("Tailscale tsnet starting for name %q in directory %q ...", name, dir)
+	if err := ts.Start(); err != nil {
+		return nil, err
+	}
+	s.printf("Tailscale started; waiting Up...")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	st, err := ts.Up(ctx)
+	if err != nil {
+		return nil, err
+	}
+	dnsName := strings.TrimSuffix(st.Self.DNSName, ".")
+	s.printf("Tailscale up; state=%v, self=%v (%q)", st.BackendState, dnsName, st.Self.TailscaleIPs)
+	if withTLS {
+		if len(st.CertDomains) == 0 {
+			return nil, fmt.Errorf("HTTPS is not enabled for Tailnet %q", st.CurrentTailnet.Name)
+		}
+	}
+	s.tsnetServer = ts
+	if withTLS {
+		s.listenURL = "https://" + dnsName
+		return ts.Listen("tcp", ":443")
+	}
+	s.listenURL = "http://" + dnsName
+	return ts.Listen("tcp", ":80")
 }
 
 func (s *Server) throttleListener() net.Listener {

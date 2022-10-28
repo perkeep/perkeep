@@ -94,6 +94,7 @@ var authConstructor = map[string]AuthConfigParser{
 	"token":     NewTokenAuth,
 	"devauth":   newDevAuth,
 	"basic":     newBasicAuth,
+	"tailscale": newTailscaleAuth,
 }
 
 // RegisterAuth registers a new authentication scheme.

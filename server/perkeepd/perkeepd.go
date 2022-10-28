@@ -194,6 +194,16 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) 
 	if (cert != "") != (key != "") {
 		exitf("httpsCert and httpsKey must both be either present or absent")
 	}
+	if config.IsTailscaleListener() {
+		if cert != "" {
+			exitf("httpsCert and httpsKey must be empty when using the tailscale listener")
+		}
+		// Call SetTLS to set enableTLS to true for now. The rest (the
+		// GetCertificate hook) will be initialized later when tsnet is
+		// initialized.
+		ws.SetTLS(webserver.TLSSetup{})
+		return
+	}
 
 	defCert := osutil.DefaultTLSCert()
 	defKey := osutil.DefaultTLSKey()
@@ -312,11 +322,15 @@ func listen(ws *webserver.Server, config *serverinit.Config) (baseURL string, er
 		exitf("\"listen\" needs to be specified either in the config or on the command line")
 	}
 
-	hostname, err := certHostname(listen, baseURL)
-	if err != nil {
-		return "", fmt.Errorf("Bad baseURL or listen address: %v", err)
+	if config.IsTailscaleListener() {
+		setupTLS(ws, config, "unused-hostname")
+	} else {
+		hostname, err := certHostname(listen, baseURL)
+		if err != nil {
+			return "", fmt.Errorf("Bad baseURL or listen address: %v", err)
+		}
+		setupTLS(ws, config, hostname)
 	}
-	setupTLS(ws, config, hostname)
 
 	err = ws.Listen(listen)
 	if err != nil {
@@ -337,7 +351,7 @@ func certHostname(listen, baseURL string) (string, error) {
 	}
 	hostname, _, err := net.SplitHostPort(hostPort)
 	if err != nil {
-		return "", fmt.Errorf("failed to find hostname for cert from address %q: %v", hostPort, err)
+		return "", fmt.Errorf("failed to find hostname for cert from address %q (baseURL %q): %v", hostPort, baseURL, err)
 	}
 	return hostname, nil
 }
