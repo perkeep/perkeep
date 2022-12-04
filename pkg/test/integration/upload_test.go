@@ -18,30 +18,15 @@ package integration
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/schema"
-	"perkeep.org/pkg/serverinit"
-	"perkeep.org/pkg/types/serverconfig"
-
-	// For registering all the handler constructors needed in newTestServer
-	_ "perkeep.org/pkg/blobserver/cond"
-	_ "perkeep.org/pkg/blobserver/replica"
-	_ "perkeep.org/pkg/importer/allimporters"
-	_ "perkeep.org/pkg/search"
-	_ "perkeep.org/pkg/server"
+	"perkeep.org/pkg/test"
 )
-
-var ctxbg = context.Background()
 
 type fakeFile struct {
 	name    string
@@ -65,32 +50,26 @@ func (f *fakeFile) Sys() interface{}   { return nil }
 // TestUploadFile checks if uploading a file with the same content
 // but different metadata works, and whether camliType is set to "file".
 func TestUploadFile(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping in short mode")
-	}
-
-	ts := newTestServer(t)
-	defer ts.Close()
-
-	c := client.NewOrFail(client.OptionServer(ts.URL))
-
+	w := test.GetWorld(t)
+	c := client.NewOrFail(client.OptionServer(w.ServerBaseURL()))
 	f := newFakeFile("foo.txt", "bar", time.Date(2011, 1, 28, 2, 3, 4, 0, time.Local))
 
 	testUploadFile(t, c, f, false)
 	testUploadFile(t, c, f, true)
 
 	f.modTime.Add(time.Hour)
-
 	testUploadFile(t, c, f, true)
 
 	f.name = "baz.txt"
-
 	testUploadFile(t, c, f, true)
 }
 
 // testUploadFile uploads a file and checks if it can be retrieved.
 func testUploadFile(t *testing.T, c *client.Client, f *fakeFile, withFileOpts bool) *schema.Blob {
-	var opts *client.FileUploadOptions
+	var (
+		ctxbg = context.Background()
+		opts  *client.FileUploadOptions
+	)
 	if withFileOpts {
 		opts = &client.FileUploadOptions{FileInfo: f}
 	}
@@ -106,44 +85,4 @@ func testUploadFile(t *testing.T, c *client.Client, f *fakeFile, withFileOpts bo
 		t.Fatal(`schema blob from UploadFile must have "file" type`)
 	}
 	return sb
-}
-
-// newTestServer creates a new test server with in memory storage for use in upload tests
-func newTestServer(t *testing.T) *httptest.Server {
-	camroot, err := osutil.GoPackagePath("perkeep.org")
-	if err != nil {
-		t.Fatalf("failed to find perkeep.org GOPATH root: %v", err)
-	}
-
-	conf := serverconfig.Config{
-		Listen:             ":3179",
-		HTTPS:              false,
-		Auth:               "localhost",
-		Identity:           "26F5ABDA",
-		IdentitySecretRing: filepath.Join(camroot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")),
-		MemoryStorage:      true,
-		MemoryIndex:        true,
-	}
-
-	confData, err := json.MarshalIndent(conf, "", "    ")
-	if err != nil {
-		t.Fatalf("Could not json encode config: %v", err)
-	}
-
-	// Setting CAMLI_CONFIG_DIR to avoid triggering failInTests in osutil.PerkeepConfigDir
-	defer os.Setenv("CAMLI_CONFIG_DIR", os.Getenv("CAMLI_CONFIG_DIR")) // restore after test
-	os.Setenv("CAMLI_CONFIG_DIR", "whatever")
-	lowConf, err := serverinit.Load(confData)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	hi := http.NewServeMux()
-	address := "http://" + conf.Listen
-	_, err = lowConf.InstallHandlers(hi, address)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return httptest.NewServer(hi)
 }
