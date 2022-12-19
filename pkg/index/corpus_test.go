@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"go4.org/types"
-	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/index/indextest"
@@ -111,42 +110,6 @@ func newTestCorpusWithPermanode(t *testing.T) (c *index.Corpus, pn blob.Ref, key
 	})
 
 	return c, pn, indextest.KeyID, keyID2
-}
-
-// TODO(mpl): remove that whole test?
-
-func TestCorpusAnySignerHashWorks(t *testing.T) {
-	restore := testhooks.SetUseSHA1(true)
-	defer restore()
-	c, pn, sig1, sig2 := newTestCorpusWithPermanode(t)
-
-	// nothing special, just checking setup for foo attr with sig1 is correct
-	got := c.PermanodeAttrValue(pn, "foo", time.Time{}, sig1)
-	if got != "foov" {
-		t.Fatalf("with %v, attr %q = %q; want %q",
-			sig1, "foo", got, "foov")
-	}
-	// and that we can't find it with sig2
-	got = c.PermanodeAttrValue(pn, "foo", time.Time{}, sig2)
-	if got != "" {
-		t.Fatalf("expected empty result with sig2, got %q", got)
-	}
-
-	sig1SHA1 := indextest.PubKey.BlobRef()
-	testhooks.SetUseSHA1(false)
-	// now add sha224 version of sig1, and verify we can also find foo with it
-	sig1Current := indextest.PubKey.BlobRef()
-	if sig1SHA1 == sig1Current {
-		t.Fatal("sha1 signer ref and sha224 signer ref should be different")
-	}
-	if err := c.Exp_AddKeyID(sig1Current, indextest.KeyID); err != nil {
-		t.Fatal(err)
-	}
-	got = c.PermanodeAttrValue(pn, "foo", time.Time{}, indextest.KeyID)
-	if got != "foov" {
-		t.Errorf("with %v, attr %q = %q; want %q",
-			sig1Current, "foo", got, "foov")
-	}
 }
 
 func TestCorpusAppendPermanodeAttrValues(t *testing.T) {
@@ -304,8 +267,8 @@ func TestCorpusPermanodeHasAttrValue(t *testing.T) {
 
 func TestKVClaimAllocs(t *testing.T) {
 	n := testing.AllocsPerRun(20, func() {
-		index.ExpKvClaim("claim|sha1-b380b3080f9c71faa5c1d82bbd4d583a473bc77d|2931A67C26F5ABDA|2011-11-28T01:32:37.000123456Z|sha1-b3d93daee62e40d36237ff444022f42d7d0e43f2",
-			"set-attribute|tag|foo1|sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007",
+		index.ExpKvClaim("claim|sha224-d159f351eca8c09dcf649aae43bbf92d99293242d520a9c0b41070ca|2931A67C26F5ABDA|2011-11-28T01:32:37.000123456Z|sha224-39020aa3cc25f74ea6e75793203ef31143dfe3604fb80af3d3816c5c",
+			"set-attribute|tag|foo1|sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd",
 			blob.Parse)
 	})
 	t.Logf("%v allocations", n)
@@ -318,13 +281,13 @@ func TestKVClaim(t *testing.T) {
 		want camtypes.Claim
 	}{
 		{
-			k:  "claim|sha1-b380b3080f9c71faa5c1d82bbd4d583a473bc77d|2931A67C26F5ABDA|2011-11-28T01:32:37.000123456Z|sha1-b3d93daee62e40d36237ff444022f42d7d0e43f2",
-			v:  "set-attribute|tag|foo1|sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007",
+			k:  "claim|sha224-d159f351eca8c09dcf649aae43bbf92d99293242d520a9c0b41070ca|2931A67C26F5ABDA|2011-11-28T01:32:37.000123456Z|sha224-39020aa3cc25f74ea6e75793203ef31143dfe3604fb80af3d3816c5c",
+			v:  "set-attribute|tag|foo1|sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd",
 			ok: true,
 			want: camtypes.Claim{
-				BlobRef:   blob.MustParse("sha1-b3d93daee62e40d36237ff444022f42d7d0e43f2"),
-				Signer:    blob.MustParse("sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"),
-				Permanode: blob.MustParse("sha1-b380b3080f9c71faa5c1d82bbd4d583a473bc77d"),
+				BlobRef:   blob.MustParse("sha224-39020aa3cc25f74ea6e75793203ef31143dfe3604fb80af3d3816c5c"),
+				Signer:    blob.MustParse("sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"),
+				Permanode: blob.MustParse("sha224-d159f351eca8c09dcf649aae43bbf92d99293242d520a9c0b41070ca"),
 				Type:      "set-attribute",
 				Attr:      "tag",
 				Value:     "foo1",

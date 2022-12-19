@@ -34,7 +34,6 @@ import (
 	"testing"
 	"time"
 
-	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/storagetest"
@@ -45,10 +44,6 @@ import (
 
 	"go4.org/syncutil"
 )
-
-func init() {
-	testhooks.SetUseSHA1(true)
-}
 
 const debug = false
 
@@ -497,10 +492,10 @@ func TestReindex(t *testing.T) {
 
 	// Specifically check the z: rows.
 	zrows := []string{
-		"z:sha1-41e7665e4e3f491790121fb0440b4f685b3386cb | 16762318 sha1-f6bcda1d4111f45ca785499ae9b3bae019608f65 17825792 0 16709479",
-		"z:sha1-60e61eef95c38e15e8b6422cdaa8a95ad6c38a8b | 1120477 sha1-f6bcda1d4111f45ca785499ae9b3bae019608f65 17825792 16709479 1116313",
-		"z:sha1-9655da8b87e7ccfd804edf1c5967219e2e1ae556 | 5260755 sha1-28aa3334333bb57610ff397432dad6d2c41dc520 5242880 0 5242880",
-		"z:sha1-bc317462c29d9b70891538b7491ac420334d7ef8 | 10516226 sha1-87cdaac04cb9a37c0378970e8ab58f09f22a9907 10485760 0 10485760",
+		"z:sha224-32505a4f8af2a4f86dda5680caa759ed3c229a3d484ed37b85707a53 | 10521605 sha224-336161c04a4e2ea1ac15dd2fe81820b8a5254c7030d840b61a5deb85 10485760 0 10485760",
+		"z:sha224-c778d4f89f70ec7068230fe07c172e3107fbad4d9d1664c9cc83fd67 | 5263814 sha224-440ee7ebd58d2adcf48089dfc5ba1ea00d7fb1c887b52874b1fb44a4 5242880 0 5242880",
+		"z:sha224-d9063688aa83bbc6ec9747222d0499196785f662d0f02ac91e852fa1 | 1121155 sha224-f039af7fe0b27aee76e301a9b3fc92ebbd2ef64b4a4abf6115356441 17825792 16709479 1116313",
+		"z:sha224-fc99c9411ac39dcdba687a24fef294ba1c4ac731df4ce090a2afea0f | 16771653 sha224-f039af7fe0b27aee76e301a9b3fc92ebbd2ef64b4a4abf6115356441 17825792 0 16709479",
 	}
 	it := pt.sto.meta.Find(zipMetaPrefix, zipMetaPrefixLimit)
 	i := 0
@@ -565,7 +560,7 @@ func TestPackTwoIdenticalfiles(t *testing.T) {
 		func(pt *packTest) { pt.sto.packGate = syncutil.NewGate(1) }, // one pack at a time
 		wantNumLargeBlobs(1),
 		wantNumSmallBlobs(1), // just the "b.txt" file schema blob
-		okayWithoutMeta("sha1-7912d1f93942e84cb7ebd6bd6c83b7c152dc102b"),
+		okayWithoutMeta("sha224-8cafef47a63c2bb4f5dd6edc656c606cab803460360989c38ee2dc57"),
 	)
 }
 

@@ -28,7 +28,6 @@ import (
 	"strings"
 	"testing"
 
-	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/index"
@@ -47,8 +46,6 @@ var (
 )
 
 func init() {
-	testhooks.SetUseSHA1(true)
-
 	chunk1 = &test.Blob{Contents: "foo"}
 	chunk2 = &test.Blob{Contents: "bar"}
 	chunk3 = &test.Blob{Contents: "baz"}
@@ -218,8 +215,8 @@ func testMergeFileInfoRow(t *testing.T, wholeRef string) {
 		value += "|" + wholeRef
 		want.WholeRef = blob.MustParse(wholeRef)
 	}
-	c.Exp_mergeFileInfoRow("fileinfo|sha1-579f7f246bd420d486ddeb0dadbb256cfaf8bf6b", value)
-	fi := c.Exp_files(blob.MustParse("sha1-579f7f246bd420d486ddeb0dadbb256cfaf8bf6b"))
+	c.Exp_mergeFileInfoRow("fileinfo|sha224-d78d192115bd8773d7b98b7b9812d1c9d137e8a930041e04a03b8428", value)
+	fi := c.Exp_files(blob.MustParse("sha224-d78d192115bd8773d7b98b7b9812d1c9d137e8a930041e04a03b8428"))
 	if !reflect.DeepEqual(want, fi) {
 		t.Errorf("Got %+v; want %+v", fi, want)
 	}
@@ -231,7 +228,7 @@ func TestMergeFileInfoRow4(t *testing.T) {
 }
 
 func TestMergeFileInfoRow(t *testing.T) {
-	testMergeFileInfoRow(t, "sha1-142b504945338158e0149d4ed25a41a522a28e88")
+	testMergeFileInfoRow(t, "sha224-7032b0e01d39d3eac638f74512e19580212fc13bf846524d5eb6d1cb")
 }
 
 func TestInitNeededMaps(t *testing.T) {
@@ -257,18 +254,18 @@ func TestInitNeededMaps(t *testing.T) {
 		ix.Lock()
 		needs, neededBy, _ := ix.NeededMapsForTest()
 		needsWant := map[blob.Ref][]blob.Ref{
-			fileBlobRef: {chunk1ref, chunk2ref, chunk3ref},
+			fileBlobRef: {chunk2ref, chunk1ref, chunk3ref},
+		}
+		if !reflect.DeepEqual(needs, needsWant) {
+			t.Errorf("needs = %v; want \n%v", needs, needsWant)
 		}
 		neededByWant := map[blob.Ref][]blob.Ref{
 			chunk1ref: {fileBlobRef},
 			chunk2ref: {fileBlobRef},
 			chunk3ref: {fileBlobRef},
 		}
-		if !reflect.DeepEqual(needs, needsWant) {
-			t.Errorf("needs = %v; want %v", needs, needsWant)
-		}
 		if !reflect.DeepEqual(neededBy, neededByWant) {
-			t.Errorf("neededBy = %v; want %v", neededBy, neededByWant)
+			t.Errorf("neededBy = %v; \nwant %v", neededBy, neededByWant)
 		}
 		ix.Unlock()
 	}

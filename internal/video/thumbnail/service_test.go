@@ -77,12 +77,11 @@ func TestMakeThumbnail(t *testing.T) {
 	}
 
 	store, ref := storageAndBlobRef(t)
-	tmpFile, _ := ioutil.TempFile(os.TempDir(), "camlitest")
+	tmpFile, _ := ioutil.TempFile(t.TempDir(), "camlitest")
 	defer tmpFile.Close()
-	service := NewService(DefaultThumbnailer, 30*time.Second, 5)
-	err := service.Generate(ref, tmpFile, store)
 
-	if err != nil {
+	service := NewService(DefaultThumbnailer, 30*time.Second, 5)
+	if err := service.Generate(ref, tmpFile, store); err != nil {
 		t.Fatal(err)
 	}
 
@@ -101,12 +100,11 @@ func TestMakeThumbnailWithZeroMaxProcsAndTimeout(t *testing.T) {
 	}
 
 	store, ref := storageAndBlobRef(t)
-	tmpFile, _ := ioutil.TempFile(os.TempDir(), "camlitest")
+	tmpFile, _ := ioutil.TempFile(t.TempDir(), "camlitest")
 	defer tmpFile.Close()
-	service := NewService(DefaultThumbnailer, 0, 0)
-	err := service.Generate(ref, tmpFile, store)
 
-	if err != nil {
+	service := NewService(DefaultThumbnailer, 0, 0)
+	if err := service.Generate(ref, tmpFile, store); err != nil {
 		t.Fatal(err)
 	}
 }

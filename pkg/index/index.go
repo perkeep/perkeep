@@ -25,6 +25,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -425,7 +426,7 @@ func (x *Index) isEmpty() bool {
 var reindexMaxProcs = struct {
 	sync.RWMutex
 	v int
-}{v: 4}
+}{v: runtime.NumCPU()}
 
 // SetReindexMaxProcs sets the maximum number of concurrent goroutines that are
 // used during reindexing.
@@ -453,8 +454,10 @@ func (x *Index) Reindex() error {
 		return errors.New("index: can't re-index: no blobSource")
 	}
 	x.Unlock()
+
 	reindexMaxProcs.RLock()
 	defer reindexMaxProcs.RUnlock()
+
 	ctx := context.Background()
 
 	if !x.hasWiped {

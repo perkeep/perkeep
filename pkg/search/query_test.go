@@ -240,14 +240,14 @@ func TestQueryBlobRefPrefix(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
-		// foo is 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
+		// foo is sha224-0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db
 		id.UploadFile("file.txt", "foo", time.Unix(1382073153, 0))
-		// "bar.." is 08ef767ba2c93f8f40902118fa5260a65a2a4975
-		id.UploadFile("file.txt", "bar..", time.Unix(1382073153, 0))
+		// bar is sha224-07daf010de7f7f0d8d76a76eb8d1eb40182c8d1e7a3877a6686c9bf0
+		id.UploadFile("file.txt", "bar", time.Unix(1382073153, 0))
 
 		sq := &SearchQuery{
 			Constraint: &Constraint{
-				BlobRefPrefix: "sha1-0",
+				BlobRefPrefix: "sha224-0",
 			},
 		}
 		sres, err := qt.Handler().Query(ctxbg, sq)
@@ -259,8 +259,8 @@ func TestQueryBlobRefPrefix(t *testing.T) {
 		}
 		for _, res := range sres.Blobs {
 			brStr := res.Blob.String()
-			if !strings.HasPrefix(brStr, "sha1-0") {
-				t.Errorf("matched blob %s didn't begin with sha1-0", brStr)
+			if !strings.HasPrefix(brStr, "sha224-0") {
+				t.Errorf("matched blob %s didn't begin with sha224-0", brStr)
 			}
 		}
 	})
@@ -269,20 +269,20 @@ func TestQueryBlobRefPrefix(t *testing.T) {
 func TestQueryTwoConstraints(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
-		id.UploadString("a")      // 86f7e437faa5a7fce15d1ddcb9eaeaea377667b8
-		b := id.UploadString("b") // e9d71f5ee7c92d6dc9e92ffdad17b8bd49418f98
-		id.UploadString("c4")     // e4666a670f042877c67a84473a71675ee0950a08
+		a := id.UploadString("a") // sha224-abd37534c7d9a2efb9465de931cd7055ffdb8879563ae98078d6d6d5
+		id.UploadString("b")      // sha224-c681e18b81edaf2b66dd22376734dba5992e362bc3f91ab225854c17
+		id.UploadString("c4")     // sha224-a71e32daa65b29de49a1497d23d47e663534a4cde5e329eda508d6f5
 
 		sq := &SearchQuery{
 			Constraint: &Constraint{
-				BlobRefPrefix: "sha1-e", // matches b and c4
+				BlobRefPrefix: "sha224-a", // matches a and c4
 				BlobSize: &IntConstraint{ // matches a and b
 					Min: 1,
 					Max: 1,
 				},
 			},
 		}
-		qt.wantRes(sq, b)
+		qt.wantRes(sq, a)
 	})
 }
 
@@ -290,20 +290,20 @@ func TestQueryLogicalOr(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
-		// foo is 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
+		// foo is sha224-0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db
 		_, foo := id.UploadFile("file.txt", "foo", time.Unix(1382073153, 0))
-		// "bar.." is 08ef767ba2c93f8f40902118fa5260a65a2a4975
-		_, bar := id.UploadFile("file.txt", "bar..", time.Unix(1382073153, 0))
+		// bar is sha224-07daf010de7f7f0d8d76a76eb8d1eb40182c8d1e7a3877a6686c9bf0
+		_, bar := id.UploadFile("file.txt", "bar", time.Unix(1382073153, 0))
 
 		sq := &SearchQuery{
 			Constraint: &Constraint{
 				Logical: &LogicalConstraint{
 					Op: "or",
 					A: &Constraint{
-						BlobRefPrefix: "sha1-0beec7b5ea3f0fdbc95d0dd",
+						BlobRefPrefix: "sha224-08",
 					},
 					B: &Constraint{
-						BlobRefPrefix: "sha1-08ef767ba2c93f8f40",
+						BlobRefPrefix: "sha224-07",
 					},
 				},
 			},
@@ -316,9 +316,9 @@ func TestQueryLogicalAnd(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
-		// foo is 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
+		// foo is sha224-0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db
 		_, foo := id.UploadFile("file.txt", "foo", time.Unix(1382073153, 0))
-		// "bar.." is 08ef767ba2c93f8f40902118fa5260a65a2a4975
+		// bar.. is sha224-81d6d49dac1a465f90b0225461a90cc11a5a8675b4457762d52760aa
 		id.UploadFile("file.txt", "bar..", time.Unix(1382073153, 0))
 
 		sq := &SearchQuery{
@@ -326,7 +326,7 @@ func TestQueryLogicalAnd(t *testing.T) {
 				Logical: &LogicalConstraint{
 					Op: "and",
 					A: &Constraint{
-						BlobRefPrefix: "sha1-0",
+						BlobRefPrefix: "sha224-08",
 					},
 					B: &Constraint{
 						BlobSize: &IntConstraint{
@@ -344,20 +344,20 @@ func TestQueryLogicalXor(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
-		// foo is 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
+		// foo is sha224-0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db
 		_, foo := id.UploadFile("file.txt", "foo", time.Unix(1382073153, 0))
-		// "bar.." is 08ef767ba2c93f8f40902118fa5260a65a2a4975
-		id.UploadFile("file.txt", "bar..", time.Unix(1382073153, 0))
+		// bar is sha224-07daf010de7f7f0d8d76a76eb8d1eb40182c8d1e7a3877a6686c9bf0
+		id.UploadFile("file.txt", "bar", time.Unix(1382073153, 0))
 
 		sq := &SearchQuery{
 			Constraint: &Constraint{
 				Logical: &LogicalConstraint{
 					Op: "xor",
 					A: &Constraint{
-						BlobRefPrefix: "sha1-0",
+						BlobRefPrefix: "sha224-0",
 					},
 					B: &Constraint{
-						BlobRefPrefix: "sha1-08ef767ba2c93f8f40",
+						BlobRefPrefix: "sha224-07da",
 					},
 				},
 			},
@@ -370,10 +370,10 @@ func TestQueryLogicalNot(t *testing.T) {
 	testQuery(t, func(qt *queryTest) {
 		id := qt.id
 
-		// foo is 0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33
+		// foo is sha224-0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db
 		_, foo := id.UploadFile("file.txt", "foo", time.Unix(1382073153, 0))
-		// "bar.." is 08ef767ba2c93f8f40902118fa5260a65a2a4975
-		_, bar := id.UploadFile("file.txt", "bar..", time.Unix(1382073153, 0))
+		// bar is sha224-07daf010de7f7f0d8d76a76eb8d1eb40182c8d1e7a3877a6686c9bf0
+		_, bar := id.UploadFile("file.txt", "bar", time.Unix(1382073153, 0))
 
 		sq := &SearchQuery{
 			Constraint: &Constraint{
@@ -1192,7 +1192,7 @@ func testQueryRecentPermanodes(t *testing.T, sortType SortType, source string) {
 
 		// And test whether continue (for infinite scroll) works:
 		{
-			if got, want := res.Continue, "pn:1322443958000123456:sha1-fbb5be10fcb4c88d32cfdddb20a7b8d13e9ba284"; got != want {
+			if got, want := res.Continue, "pn:1322443958000123456:sha224-e1bd2812721791c0d087778220fa307e059da6501a1a4fd7a9f34703"; got != want {
 				t.Fatalf("Continue token = %q; want %q", got, want)
 			}
 			req := &SearchQuery{

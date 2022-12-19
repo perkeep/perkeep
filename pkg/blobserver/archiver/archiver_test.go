@@ -29,7 +29,6 @@ import (
 	"strings"
 	"testing"
 
-	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/schema"
 	"perkeep.org/pkg/test"
@@ -98,7 +97,6 @@ func TestArchiverStress(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping in short mode")
 	}
-	defer testhooks.SetUseSHA1(true)()
 
 	src := new(test.Fetcher)
 	fileRef, err := schema.WriteFileFromReader(ctxbg, src, "random", io.LimitReader(randReader{}, 10<<20))

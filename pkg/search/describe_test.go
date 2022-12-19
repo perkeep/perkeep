@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"perkeep.org/internal/osutil"
-	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/index/indextest"
@@ -34,44 +33,39 @@ import (
 	"perkeep.org/pkg/test"
 )
 
-func init() {
-	testhooks.SetUseSHA1(true)
-}
-
 var describedBlobs = map[string]blob.Ref{
-	"abc-123":            blob.MustParse("sha1-39606e3c1730123c1cd80857b41a721ea5e6d4c5"),
-	"abc-123c":           blob.MustParse("sha1-d2ec7f86e73d2434df7736bcab47e9cc1507faeb"),
-	"abc-123c1":          blob.MustParse("sha1-6caf362b90f7713558860ef2b43c1bfa1af4d54b"),
-	"abc-123cc":          blob.MustParse("sha1-4542245a5739f14ef5df3e3578603cb5599e979d"),
-	"abc-888":            blob.MustParse("sha1-7a37eadfe010128b452cb950932c408149a0b6aa"),
-	"abc-8881":           blob.MustParse("sha1-0b0fec9002df13dad544e303b932ab7900fe651f"),
-	"fourcheckin-0":      blob.MustParse("sha1-5efbaa0911510dbfd9a3e527de821c9c4aaa1451"),
-	"fourvenue-123":      blob.MustParse("sha1-2bc38525b7f5cb33657079f176b81dfc688a761a"),
-	"venuepicset-123":    blob.MustParse("sha1-14b788811dcbf39aba11d06a7f4c3a85e158372e"),
-	"venuepic-1":         blob.MustParse("sha1-322e19e5e2ff273b0e726817180d4e7a65fd18a6"),
-	"somevenuepic-0":     blob.MustParse("sha1-6293628cff5169c577fa2c27b191827e5537dc2d"),
-	"venuepic-2":         blob.MustParse("sha1-931e6fa5904f8ddb3dab7d6107f4d4acd5dc2c0c"),
-	"somevenuepic-2":     blob.MustParse("sha1-eaa4c47801c00ea55bcca508cd9ac6aef224f8e4"),
-	"homedir-0":          blob.MustParse("sha1-9c8c65b7cdd94fce2162492740a596c44ca87869"),
-	"homedir-1":          blob.MustParse("sha1-5b906a7c5ff14c219fe2a58f97b8cf73814273c4"),
-	"homedir-2":          blob.MustParse("sha1-d5f182577613cd4a0b75e23d461c6ea93c637e85"),
-	"set-0":              blob.MustParse("sha1-db75da7350c909cc24640eff5fcd4613a235d57a"),
-	"location-0":         blob.MustParse("sha1-94618fac5f1257bf0ac52fb07e391295ddb89e3a"),
-	"locationpriority-1": blob.MustParse("sha1-d8d3f7e4a74a7fb29435c6d708f683bf330863a6"),
-	"locationpriority-2": blob.MustParse("sha1-1841d4ee4c6edab302b1f13c78a6d3ee1a09fb38"),
-	"locationoverride-1": blob.MustParse("sha1-6f245d8bd5b18d110d305f33b64cb1be190d43ff"),
-	"locationoverride-2": blob.MustParse("sha1-51271c4962df329d4c32d5c56eccbe996de668b4"),
-	"filewithloc-0":      blob.MustParse("sha1-24c572c7cf48de8c32298b9ac00c7cb7b9922d60"),
+	"abc-123":            blob.MustParse("sha224-79038fc0d2e810fbb5dc690bc968d723238054b400b236849a12f715"),
+	"abc-123c":           blob.MustParse("sha224-02ac4ea5801f067f06cc81a4f563b8858efffdc16095b281e697d58c"),
+	"abc-123c1":          blob.MustParse("sha224-fb9935d85877a9bc171bab2c8323a779a68ab6e5be3f682d62996f35"),
+	"abc-123cc":          blob.MustParse("sha224-00dbf97acb90a281ba0384aed708bd878f2e7f3d03ced900e567316d"),
+	"abc-888":            blob.MustParse("sha224-a56191dc9fc29e381d38355bac8bc521650544e211f966707698eb3f"),
+	"abc-8881":           blob.MustParse("sha224-7f8e9759c99bf52ea7b0d38a67170e7054ec09fcdd31919320ddcd3d"),
+	"fourcheckin-0":      blob.MustParse("sha224-df25f3b243f2f5d96481804c1d1984f8c224d35be8bedc557e72bcc5"),
+	"fourvenue-123":      blob.MustParse("sha224-2d92cc32c84496f368cadea7e47f678672433daa565811a469a9223d"),
+	"venuepicset-123":    blob.MustParse("sha224-c788aec1b0deca7362cc7149a53ef5ff6dfd9ed1e80ba07ab58b06e6"),
+	"venuepic-1":         blob.MustParse("sha224-8ad366b377b98c6dcabab3d4e42fde987123bc3e0e40dec7be4a83df"),
+	"somevenuepic-0":     blob.MustParse("sha224-a9d921d8379ac0c15673d9e186c6621a5946ac4c22ecb5c167e5a3f1"),
+	"venuepic-2":         blob.MustParse("sha224-fb6218e8a4a418e433c3110f75be36f8e1f58ed60e052c48646443c7"),
+	"somevenuepic-2":     blob.MustParse("sha224-74d722cca8a4fd475299119183d7379157c1f973ff326e1fa37298dc"),
+	"homedir-0":          blob.MustParse("sha224-c7a4437350dab36c2ae8b042c2bf99d8caa57d045d9ad4b9a487377d"),
+	"homedir-1":          blob.MustParse("sha224-bde3c6f57bbc3fed5979eb9d3d56573a814985ccc6f8e4c669a1d8d4"),
+	"homedir-2":          blob.MustParse("sha224-4aa170e43fb854631d63417ce31fa088f602668345b4011ef50d516e"),
+	"set-0":              blob.MustParse("sha224-84d98395687a89cb973cb62cef77549ff133f19dd497e4ef277bcd6b"),
+	"location-0":         blob.MustParse("sha224-ce0aa94f630097f2406abf9e4b54f28b65761bdaf791c5c621287227"),
+	"locationpriority-1": blob.MustParse("sha224-b29ef5825b42f27c9383cf929d5340aed35da07a4577fa75d837378c"),
+	"locationpriority-2": blob.MustParse("sha224-5f41f325a975fb2c402c3dcadfb96a119f020be074a6f58d2bdd2c77"),
+	"locationoverride-1": blob.MustParse("sha224-c52bd08e3a80f73cb859a005bc9f4c3b9eae6a651b726e32cdf18d42"),
+	"locationoverride-2": blob.MustParse("sha224-77f3c44baec0d0fc245b56bfaaa2f3be0910634b214de9b1b17d12e5"),
+	"filewithloc-0":      blob.MustParse("sha224-7fa40667d233910c4fa7a6bd199aab43f330f8f1b9701de15459b2cb"),
 }
 
 func searchDescribeSetup(t *testing.T) indexAndOwner {
-	idx := index.NewMemoryIndex()
-	tf := new(test.Fetcher)
-	idx.InitBlobSource(tf)
-	idx.KeyFetcher = tf
+	id := indextest.NewIndexDeps(index.NewMemoryIndex())
+	defer id.DumpIndex(t)
+
 	fi := &fetcherIndex{
-		tf:  tf,
-		idx: idx,
+		tf:  id.BlobSource,
+		idx: id.Index,
 	}
 
 	lastModtime = test.ClockOrigin
@@ -212,7 +206,7 @@ func searchDescribeSetup(t *testing.T) indexAndOwner {
 	))
 
 	return indexAndOwner{
-		index: idx,
+		index: id.Index,
 		owner: owner.BlobRef(),
 	}
 }
