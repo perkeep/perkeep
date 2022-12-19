@@ -596,19 +596,19 @@ func initTests() []handlerTest {
 			query: "recent",
 			want: parseJSON(`{
 						"recent": [
-							{"blobref": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+							{"blobref": "sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0",
 							 "modtime": "2011-11-28T01:32:37.000123456Z",
-							 "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"}
+							 "owner": "sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"}
 						],
 						"meta": {
-							  "sha1-7ca7743e38854598680d94ef85348f2c48a44513": {
-				 "blobRef": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+							  "sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0": {
+				 "blobRef": "sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0",
 				 "camliType": "permanode",
 						 "permanode": {
 						   "attr": { "title": [ "Some title" ] },
 							"modtime": "` + addToClockOrigin(1*time.Second) + `"
 						 },
-						 "size": 534
+						 "size": 552
 							 }
 						 }
 					   }`),
@@ -646,33 +646,33 @@ func initTests() []handlerTest {
 			query: "recent",
 			want: parseJSON(`{
 						"recent": [
-							{"blobref": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+							{"blobref": "sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0",
 							 "modtime": "2011-11-28T01:32:37.000123456Z",
-							 "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"}
+							 "owner": "sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"}
 						],
 						"meta": {
-							  "sha1-7ca7743e38854598680d94ef85348f2c48a44513": {
-				 "blobRef": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+							  "sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0": {
+				 "blobRef": "sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0",
 				 "camliType": "permanode",
 						 "permanode": {
 						"attr": {
 						  "camliContent": [
-							"sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb"
+							"sha224-37f88a4216d12c6907ea8422cf8389460e8c5c56b5e58ac1dbbcb430"
 						  ]
 						},
 						"modtime": "` + addToClockOrigin(1*time.Second) + `"
 					  },
-						 "size": 534
+						 "size": 552
 							 },
-					"sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb": {
-					  "blobRef": "sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb",
+					"sha224-37f88a4216d12c6907ea8422cf8389460e8c5c56b5e58ac1dbbcb430": {
+					  "blobRef": "sha224-37f88a4216d12c6907ea8422cf8389460e8c5c56b5e58ac1dbbcb430",
 					  "camliType": "file",
-					  "size": 184,
+					  "size": 202,
 					  "file": {
 						"fileName": "dude.jpg",
 						"size": 1932,
 						"mimeType": "image/jpeg",
-						"wholeRef": "sha1-142b504945338158e0149d4ed25a41a522a28e88"
+						"wholeRef": "sha224-ed1f1bfda8e23983dd49d98748a8867fd8d926adb6aa396041a860cb"
 					  },
 					  "image": {
 						"width": 50,
@@ -720,52 +720,52 @@ func initTests() []handlerTest {
 			want: parseJSON(`{
 				  "recent": [
 					{
-					  "blobref": "sha1-3c8b5d36bd4182c6fe802984832f197786662ccf",
+					  "blobref": "sha224-5a04f1cc2d464f4b7bfe206cf22808ae86d2572913fc603dfceb504c",
 					  "modtime": "2011-11-28T01:32:38.000123456Z",
-					  "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
+					  "owner": "sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"
 					},
 					{
-					  "blobref": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+					  "blobref": "sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0",
 					  "modtime": "2011-11-28T01:32:37.000123456Z",
-					  "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
+					  "owner": "sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"
 					}
 				  ],
 				  "meta": {
-					"sha1-3c8b5d36bd4182c6fe802984832f197786662ccf": {
-					  "blobRef": "sha1-3c8b5d36bd4182c6fe802984832f197786662ccf",
+					"sha224-5a04f1cc2d464f4b7bfe206cf22808ae86d2572913fc603dfceb504c": {
+					  "blobRef": "sha224-5a04f1cc2d464f4b7bfe206cf22808ae86d2572913fc603dfceb504c",
 					  "camliType": "permanode",
-					  "size": 534,
+					  "size": 552,
 					  "permanode": {
 						"attr": {
 						  "camliMember": [
-							"sha1-7ca7743e38854598680d94ef85348f2c48a44513"
+							"sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0"
 						  ]
 						},
 						"modtime": "` + addToClockOrigin(2*time.Second) + `"
 					  }
 					},
-					"sha1-7ca7743e38854598680d94ef85348f2c48a44513": {
-					  "blobRef": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+					"sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0": {
+					  "blobRef": "sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0",
 					  "camliType": "permanode",
-					  "size": 534,
+					  "size": 552,
 					  "permanode": {
 						"attr": {
 						  "camliContent": [
-							"sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb"
+							"sha224-37f88a4216d12c6907ea8422cf8389460e8c5c56b5e58ac1dbbcb430"
 						  ]
 						},
 						"modtime": "` + addToClockOrigin(1*time.Second) + `"
 					  }
 					},
-					"sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb": {
-					  "blobRef": "sha1-e3f0ee86622dda4d7e8a4a4af51117fb79dbdbbb",
+					"sha224-37f88a4216d12c6907ea8422cf8389460e8c5c56b5e58ac1dbbcb430": {
+					  "blobRef": "sha224-37f88a4216d12c6907ea8422cf8389460e8c5c56b5e58ac1dbbcb430",
 					  "camliType": "file",
-					  "size": 184,
+					  "size": 202,
 					  "file": {
 						"fileName": "dude.jpg",
 						"size": 1932,
 						"mimeType": "image/jpeg",
-						"wholeRef": "sha1-142b504945338158e0149d4ed25a41a522a28e88"
+						"wholeRef": "sha224-ed1f1bfda8e23983dd49d98748a8867fd8d926adb6aa396041a860cb"
 					  },
 					  "image": {
 						"width": 50,
@@ -792,19 +792,19 @@ func initTests() []handlerTest {
 			query: "recent?thumbnails=100",
 			want: parseJSON(`{
 						"recent": [
-							{"blobref": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+							{"blobref": "sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0",
 							 "modtime": "2011-11-28T01:32:37.000123456Z",
-							 "owner": "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"}
+							 "owner": "sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"}
 						],
 						"meta": {
-						   "sha1-7ca7743e38854598680d94ef85348f2c48a44513": {
-				 "blobRef": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+						   "sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0": {
+				 "blobRef": "sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0",
 				 "camliType": "permanode",
 						 "permanode": {
 						   "attr": { "title": [ "Some title" ] },
 							"modtime": "` + addToClockOrigin(1*time.Second) + `"
 						 },
-						 "size": 534
+						 "size": 552
 							}
 						}
 					   }`),
@@ -821,19 +821,20 @@ func initTests() []handlerTest {
 				idx := index.NewMemoryIndex()
 				id := indextest.NewIndexDeps(idx)
 
-				parent1 := id.NewPlannedPermanode("pn1") // sha1-7ca7743e38854598680d94ef85348f2c48a44513
+				parent1 := id.NewPlannedPermanode("pn1") // sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0
 				parent2 := id.NewPlannedPermanode("pn2")
-				member := id.NewPlannedPermanode("member") // always sha1-9ca84f904a9bc59e6599a53f0a3927636a6dbcae
+				member := id.NewPlannedPermanode("member") // always sha224-4dc5db784a471953512550ccb87eaa3b526013db66b9fc93aa4441b7
+
 				id.AddAttribute(parent1, "camliMember", member.String())
 				id.AddAttribute(parent2, "camliMember", member.String())
 				id.DelAttribute(parent2, "camliMember", "")
 				return indexAndOwner{idx, id.SignerBlobRef}
 			},
-			query: "edgesto?blobref=sha1-9ca84f904a9bc59e6599a53f0a3927636a6dbcae",
+			query: "edgesto?blobref=sha224-4dc5db784a471953512550ccb87eaa3b526013db66b9fc93aa4441b7",
 			want: parseJSON(`{
-					"toRef": "sha1-9ca84f904a9bc59e6599a53f0a3927636a6dbcae",
+					"toRef": "sha224-4dc5db784a471953512550ccb87eaa3b526013db66b9fc93aa4441b7",
 					"edgesTo": [
-						{"from": "sha1-7ca7743e38854598680d94ef85348f2c48a44513",
+						{"from": "sha224-e42e49e034a0c34d959fe6d9a5b7074822bca4ce660792727c6a90a0",
 						"fromType": "permanode"}
 						]
 					}`),

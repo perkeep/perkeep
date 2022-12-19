@@ -37,7 +37,6 @@ import (
 	"go4.org/jsonconfig"
 	"perkeep.org/internal/httputil"
 	"perkeep.org/internal/osutil"
-	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/importer"
 	"perkeep.org/pkg/jsonsign/signhandler"
@@ -73,7 +72,6 @@ func init() {
 	// Avoid Linux vs. OS X differences in tests.
 	serverinit.SetTempDirFunc(func() string { return "/tmp" })
 	serverinit.SetNoMkdir(true)
-	testhooks.SetUseSHA1(true)
 }
 
 func prettyPrint(t *testing.T, w io.Writer, v interface{}) {

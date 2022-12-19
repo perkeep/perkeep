@@ -26,7 +26,6 @@ import (
 	"github.com/garyburd/go-oauth/oauth"
 	"go4.org/ctxutil"
 	"perkeep.org/internal/httputil"
-	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/importer"
 	imptest "perkeep.org/pkg/importer/test"
 	"perkeep.org/pkg/schema"
@@ -34,10 +33,6 @@ import (
 )
 
 var ctxbg = context.Background()
-
-func init() {
-	testhooks.SetUseSHA1(true)
-}
 
 func TestGetUserID(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.WithValue(context.TODO(), ctxutil.HTTPClient, &http.Client{

@@ -26,14 +26,14 @@ for search operations:
     "2011-11-27T01:23:45Z" = "rt7988-88-72T98:76:54Z"
 
   - signer blobref of ascii public key -> gpg key id
-    "signerkeyid:sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007" = "2931A67C26F5ABDA"
+    "signerkeyid:sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd" = "2931A67C26F5ABDA"
 
   - PermanodeOfSignerAttrValue:
     "signerattrvalue|<keyid>|<URLEscape(attr)>|<URLEscape(value)>|<reverse-claimtime>|<claim-blobref>" -> "<permanode>"
     e.g.
     "signerattrvalue|2931A67C26F5ABDA|camliRoot|rootval|"+
-    "rt7988-88-71T98:67:60.999876543Z|sha1-bf115940641f1aae2e007edcf36b3b18c17256d9" =
-    "sha1-7a14cce982aa73ab519e63050f82e2a2adfcf039"
+    "rt7988-88-71T98:67:60.999876543Z|sha224-d78d192115bd8773d7b98b7b9812d1c9d137e8a930041e04a03b8428" =
+    "sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"
 
   - Other:
     "meta:<blobref>" -> "<size>|<mimetype>"

@@ -48,18 +48,18 @@ func TestWriteFileMap(t *testing.T) {
 	// Real tests to add:
 	//   -- no "bytes" schema with a single "blobref"
 	//   -- more seeds (including some that tickle the above)
-	//   -- file reader reading back the root gets the same sha1 content back
+	//   -- file reader reading back the root gets the same sha224 content back
 	//      (will require keeping the full data in our stats receiver, not
 	//       just the size)
 	//   -- well-balanced tree
 	//   -- nothing too big, nothing too small.
-	if g, w := br.String(), "sha1-d0f22d5a3787abcf38109408891825b37b99d6f8"; g != w {
+	if g, w := br.String(), "sha224-4c6e23fe27b76bb61f433b5870b75828a4ab14d728333e1e201595e6"; g != w {
 		t.Errorf("root blobref = %v; want %v", g, w)
 	}
 	if g, w := sr.NumBlobs(), 84; g != w {
 		t.Errorf("num blobs = %v; want %v", g, w)
 	}
-	if g, w := sr.SumBlobSize(), int64(5252007); g != w {
+	if g, w := sr.SumBlobSize(), int64(5253501); g != w {
 		t.Errorf("sum blob size = %v; want %v", g, w)
 	}
 	if g, w := sizes[len(sizes)-1], 262144; g != w {

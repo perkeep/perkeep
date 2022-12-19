@@ -290,8 +290,8 @@ func NewIndexDeps(index *index.Index) *IndexDeps {
 		Fataler:       logFataler{},
 	}
 	// Add dev client test key public key, keyid 26F5ABDA,
-	// blobref sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007
-	if g, w := id.SignerBlobRef.String(), "sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"; g != w {
+	// blobref sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd
+	if g, w := id.SignerBlobRef.String(), "sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"; g != w {
 		id.Fatalf("unexpected signer blobref; got signer = %q; want %q", g, w)
 	}
 	id.PublicKeyFetcher.AddBlob(PubKey)
@@ -380,7 +380,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 
 	lastPermanodeMutation := id.LastTime()
 
-	key := "signerkeyid:sha1-ad87ca5c78bd0ce1195c46f7c98e6025abbaf007"
+	key := "signerkeyid:sha224-a794846212ff67acdd00c6b90eee492baf674d41da8a621d2e8042dd"
 	if g, e := id.Get(key), "2931A67C26F5ABDA"; g != e {
 		t.Fatalf("%q = %q, want %q", key, g, e)
 	}
@@ -461,7 +461,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		{"year", "1992"},
 		{"track", "1"},
 		{"disc", "2"},
-		{"mediaref", "sha1-fefac74a1d5928316d7131747107c8a61b71ffe4"},
+		{"mediaref", "sha224-c4ebd5b557419a68ba6e0af716deeb9196e71e0dca65a7f805e3f723"},
 		{"durationms", "26"},
 	}
 	for _, tt := range mediaTests {
@@ -955,7 +955,7 @@ func Files(t *testing.T, initIdx func() *index.Index) {
 	// FileInfo
 	{
 		key := fmt.Sprintf("fileinfo|%s", fileRef)
-		if g, e := id.Get(key), "31|foo.html|text%2Fhtml|sha1-153cb1b63a8f120a0e3e14ff34c64f169df9430f"; g != e {
+		if g, e := id.Get(key), "31|foo.html|text%2Fhtml|sha224-35ef6689bf1b7981fb44a033ddd704ff28440779a11d927f2322bac7"; g != e {
 			t.Fatalf("%q = %q, want %q", key, g, e)
 		}
 
@@ -975,7 +975,7 @@ func Files(t *testing.T, initIdx func() *index.Index) {
 		if got, want := fi.Time, fileTime; !got.Time().Equal(want) {
 			t.Errorf("Time = %v; want %v", got, want)
 		}
-		if got, want := fi.WholeRef, blob.MustParse("sha1-153cb1b63a8f120a0e3e14ff34c64f169df9430f"); got != want {
+		if got, want := fi.WholeRef, blob.MustParse("sha224-35ef6689bf1b7981fb44a033ddd704ff28440779a11d927f2322bac7"); got != want {
 			t.Errorf("WholeRef = %v; want %v", got, want)
 		}
 	}
@@ -1256,38 +1256,27 @@ func (s searchResults) String() string {
 }
 
 func Reindex(t *testing.T, initIdx func() *index.Index) {
-	testReindex := func(t *testing.T, initIdx func() *index.Index, noAsyncIndexing bool) {
-		if noAsyncIndexing {
-			defaultReindexMaxProcs := index.ReindexMaxProcs()
-			index.SetReindexMaxProcs(1)
-			defer index.SetReindexMaxProcs(defaultReindexMaxProcs)
-		}
-		idx := initIdx()
-		id := NewIndexDeps(idx)
-		id.Fataler = t
-		defer id.DumpIndex(t)
+	idx := initIdx()
+	id := NewIndexDeps(idx)
+	id.Fataler = t
+	defer id.DumpIndex(t)
 
-		pn1 := id.NewPlannedPermanode("foo1") // sha1-f06e30253644014922f955733a641cbc64d43d73
-		t.Logf("uploaded permanode %q", pn1)
+	pn1 := id.NewPlannedPermanode("foo1")
+	t.Logf("uploaded permanode %q", pn1)
 
-		// delete pn1
-		delpn1 := id.Delete(pn1) // sha1-1d4c60cb3ce967edfb3194afd36124ce3f87ece0
-		t.Logf("del claim %q deletes %q", delpn1, pn1)
-		if deleted := idx.IsDeleted(pn1); !deleted {
-			t.Fatal("pn1 should be deleted")
-		}
-
-		if err := id.Index.Reindex(); err != nil {
-			t.Fatalf("reindexing failed: %v", err)
-		}
-
-		if deleted := idx.IsDeleted(pn1); !deleted {
-			t.Fatal("pn1 should be deleted after reindexing")
-		}
+	// delete pn1
+	delpn1 := id.Delete(pn1)
+	t.Logf("del claim %q deletes %q", delpn1, pn1)
+	if deleted := idx.IsDeleted(pn1); !deleted {
+		t.Fatal("pn1 should be deleted")
 	}
 
-	for _, disableAsyncReindex := range []bool{true, false} {
-		testReindex(t, initIdx, disableAsyncReindex)
+	if err := id.Index.Reindex(); err != nil {
+		t.Fatalf("reindexing failed: %v", err)
+	}
+
+	if deleted := idx.IsDeleted(pn1); !deleted {
+		t.Fatal("pn1 should be deleted after reindexing")
 	}
 }
 
@@ -1398,7 +1387,7 @@ func EnumStat(t *testing.T, initIdx func() *index.Index) {
 		}
 	}
 
-	missingBlob := blob.MustParse("sha1-0000000000000000000000000000000000000000")
+	missingBlob := blob.MustParse("sha224-00000000000000000000000000000000000000000000000000000000")
 	stepDelete := func(toDelete blob.Ref) step {
 		return func() error {
 			del := id.Delete(missingBlob)
@@ -1423,31 +1412,31 @@ func EnumStat(t *testing.T, initIdx func() *index.Index) {
 	} {
 		stepAdd(v)()
 	}
-	foo := blob.SizedRef{ // sha1-95d7290eb38520b257ef88d32f5b8d6be4fa9203
+	foo := blob.SizedRef{ // sha224-c4c574a741e1728662095a720f8a98158706d9fe4fc5d565cca77f61
 		Ref:  blob.MustParse(added["foo"].String()),
-		Size: 534,
+		Size: 552,
 	}
-	bar := blob.SizedRef{ // sha1-88c232875c2d6cfedfe91a2b06ea5c236e0389f4
+	bar := blob.SizedRef{ // sha224-8254816368fb26b5b0f58b312c39e537ed93cbfe04db4f14e7559f93;
 		Ref:  blob.MustParse(added["barr"].String()),
-		Size: 535,
+		Size: 553,
 	}
-	baz := blob.SizedRef{ // sha1-718177762f7aba80a8b156bdd2b5a775b15a3132
+	baz := blob.SizedRef{ // sha224-fee45fffbf949219eb4db6f393dd206a5371709fbf093218e6f272ec;
 		Ref:  blob.MustParse(added["bazzz"].String()),
-		Size: 536,
+		Size: 554,
 	}
-	delMissing := blob.SizedRef{ // sha1-a0b4db6c57851e5c63bfa81f5bdfd1eb9e32624e
-		Ref:  blob.MustParse("sha1-a0b4db6c57851e5c63bfa81f5bdfd1eb9e32624e"),
-		Size: 649,
+	delMissing := blob.SizedRef{ // sha224-7fcb38ca16606814881678d30874f1b59953bc522570be8645da1d14
+		Ref:  blob.MustParse("sha224-7fcb38ca16606814881678d30874f1b59953bc522570be8645da1d14"),
+		Size: 685,
 	}
 
-	if err := stepEnumCheck([]blob.SizedRef{baz, bar, foo}, nil)(); err != nil {
+	if err := stepEnumCheck([]blob.SizedRef{bar, foo, baz}, nil)(); err != nil {
 		t.Fatalf("first enum, testing order: %v", err)
 	}
 
-	// Now again, but skipping baz's blob
-	if err := stepEnumCheck([]blob.SizedRef{bar, foo},
+	// Now again, but skipping bar's blob
+	if err := stepEnumCheck([]blob.SizedRef{foo, baz},
 		&enumArgs{
-			after: added["bazzz"].String(),
+			after: added["barr"].String(),
 		},
 	)(); err != nil {
 		t.Fatalf("second enum, testing skipping with after: %v", err)
@@ -1456,11 +1445,11 @@ func EnumStat(t *testing.T, initIdx func() *index.Index) {
 	// Now add a delete claim with a missing dep, which should add an "have" row in the old format,
 	// i.e. without the "|indexed" suffix. So we can test if we're still compatible with old rows.
 	stepDelete(missingBlob)()
-	if err := stepEnumCheck([]blob.SizedRef{baz, bar, foo, delMissing}, nil)(); err != nil {
+	if err := stepEnumCheck([]blob.SizedRef{delMissing, bar, foo, baz}, nil)(); err != nil {
 		t.Fatalf("third enum, testing old \"have\" row compat: %v", err)
 	}
 
-	if err := stepStatCheck([]blob.SizedRef{foo, bar, baz, delMissing})(); err != nil {
+	if err := stepStatCheck([]blob.SizedRef{delMissing, foo, bar, baz})(); err != nil {
 		t.Fatalf("stat check: %v", err)
 	}
 }

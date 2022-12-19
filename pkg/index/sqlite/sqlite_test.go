@@ -25,7 +25,6 @@ import (
 	"sync"
 	"testing"
 
-	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/index/indextest"
 	"perkeep.org/pkg/sorted"
@@ -35,10 +34,6 @@ import (
 	"go4.org/jsonconfig"
 	_ "modernc.org/sqlite"
 )
-
-func init() {
-	testhooks.SetUseSHA1(true)
-}
 
 func newSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
 	f, err := ioutil.TempFile("", "sqlite-test")

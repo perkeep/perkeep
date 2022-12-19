@@ -30,16 +30,11 @@ import (
 	"time"
 
 	"perkeep.org/internal/osutil"
-	"perkeep.org/internal/testhooks"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/test"
 )
 
 const expectedHeader = `{"camliVersion"`
-
-func init() {
-	testhooks.SetUseSHA1(true)
-}
 
 func TestJSON(t *testing.T) {
 	fileName := "schema_test.go"

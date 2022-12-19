@@ -27,8 +27,6 @@ import (
 	"io"
 	"reflect"
 	"strings"
-
-	"perkeep.org/internal/testhooks"
 )
 
 // Pattern is the regular expression which matches a blobref.
@@ -734,9 +732,6 @@ func putBuf(b []byte) {
 // NewHash returns a new hash.Hash of the currently recommended hash type.
 // Currently this is SHA-224, but is subject to change over time.
 func NewHash() hash.Hash {
-	if testhooks.UseSHA1() {
-		return sha1.New()
-	}
 	return sha256.New224()
 }
 
