@@ -53,3 +53,8 @@ server/perkeepd/ui/closure/z_data.go
 /vendor/myitcv.io/react/internal/prod/prod.inc.js
 
 tmp
+
+# editor
+.idea
+.vscode
+
