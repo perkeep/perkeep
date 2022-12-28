@@ -113,6 +113,10 @@ const (
 	// The integers do not need to be contiguous, nor 0- (or 1-) based.
 	CamliPathOrderColon = "camliPathOrder:"
 
+	// CamliPathColon describes dynamic directories. Every directory entry
+	// is defined like "camliPath:foo = sha224-..."
+	CamliPathColon = "camliPath:"
+
 	// DefaultVisibility is "camliDefVis", which affects the default
 	// visibility of the concerned permanode in the web UI.
 	DefaultVisibility = "camliDefVis"

@@ -68,6 +68,7 @@ type serverCmd struct {
 	fullClosure bool
 	mini        bool
 	publish     bool // whether to build and start the publisher app(s)
+	webdav      bool // whether to build and start the webdav app(s)
 	scancab     bool // whether to build and start the scancab app(s)
 	hello       bool // whether to build and start the hello demo app
 
@@ -101,6 +102,7 @@ func init() {
 		flags.BoolVar(&cmd.debug, "debug", false, "Enable http debugging.")
 		flags.BoolVar(&cmd.sha1, "sha1", false, "Use sha1 instead of sha224.")
 		flags.BoolVar(&cmd.publish, "publish", true, "Enable publisher app(s)")
+		flags.BoolVar(&cmd.webdav, "webdav", true, "Enable webdav app(s)")
 		flags.BoolVar(&cmd.scancab, "scancab", false, "Enable scancab app(s)")
 		flags.BoolVar(&cmd.hello, "hello", false, "Enable hello (demo) app")
 		flags.BoolVar(&cmd.mini, "mini", false, "Enable minimal mode, where all optional features are disabled. (Currently just publishing)")
@@ -157,6 +159,7 @@ func (c *serverCmd) checkFlags(args []string) error {
 		if c.things {
 			return cmdmain.UsageError("--mini and --makethings are mutually exclusive.")
 		}
+		c.webdav = false
 		c.publish = false
 		c.scancab = false
 		c.hello = false
@@ -234,6 +237,7 @@ func (c *serverCmd) setEnvVars() error {
 	setenv("CAMLI_LEVELDB_ENABLED", "false")
 
 	setenv("CAMLI_PUBLISH_ENABLED", strconv.FormatBool(c.publish))
+	setenv("CAMLI_WEBDAV_ENABLED", strconv.FormatBool(c.webdav))
 	setenv("CAMLI_SCANCAB_ENABLED", strconv.FormatBool(c.scancab))
 	setenv("CAMLI_HELLO_ENABLED", strconv.FormatBool(c.hello))
 	setenv("CAMLI_SHA1_ENABLED", strconv.FormatBool(c.sha1))
@@ -520,6 +524,9 @@ func (c *serverCmd) RunCommand(args []string) error {
 		}
 		if c.publish {
 			targets = append(targets, "app/publisher")
+		}
+		if c.webdav {
+			targets = append(targets, "app/webdav")
 		}
 		targets = append(targets, "app/scanningcabinet")
 		err := build(targets...)

@@ -409,9 +409,10 @@ func NewHandler(cfg HandlerConfig) (*Handler, error) {
 	camliAuth := username + ":" + password
 	basicAuth := auth.NewBasicAuth(username, password)
 	envVars := map[string]string{
-		"CAMLI_API_HOST":   apiHost,
-		"CAMLI_AUTH":       camliAuth,
-		"CAMLI_APP_LISTEN": listen,
+		"CAMLI_API_HOST":         apiHost,
+		"CAMLI_AUTH":             camliAuth,
+		"CAMLI_APP_LISTEN":       listen,
+		"CAMLI_APP_ROUTE_PREFIX": cfg.Prefix,
 	}
 	var configURLPath string
 	if cfg.AppConfig != nil {

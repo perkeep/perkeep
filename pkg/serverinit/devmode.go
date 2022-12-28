@@ -18,7 +18,6 @@ package serverinit
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -32,10 +31,11 @@ import (
 	"perkeep.org/pkg/server/app"
 )
 
-func (hl *handlerLoader) initPublisherRootNode(ah *app.Handler) error {
+func (hl *handlerLoader) initAppCamliRoot(ah *app.Handler) error {
 	if !env.IsDev() {
 		return nil
 	}
+	name := ah.ProgramName()
 
 	h, err := hl.GetHandler("/my-search/")
 	if err != nil {
@@ -56,20 +56,20 @@ func (hl *handlerLoader) initPublisherRootNode(ah *app.Handler) error {
 
 	appConfig := ah.AppConfig()
 	if appConfig == nil {
-		return errors.New("publisher app handler has no AppConfig")
+		return fmt.Errorf("%s app handler has no AppConfig", name)
 	}
 	camliRoot, ok := appConfig["camliRoot"].(string)
 	if !ok {
-		return fmt.Errorf("camliRoot in publisher app handler appConfig is %T, want string", appConfig["camliRoot"])
+		return fmt.Errorf("camliRoot in %s app handler appConfig is %T, want string", name, appConfig["camliRoot"])
 	}
 	result, err := camliRootQuery(camliRoot)
 	if err == nil && len(result.Blobs) > 0 && result.Blobs[0].Blob.Valid() {
 		// root node found, nothing more to do.
-		log.Printf("Found %v camliRoot node for publisher: %v", camliRoot, result.Blobs[0].Blob.String())
+		log.Printf("Found %v camliRoot node for %s: %v", camliRoot, name, result.Blobs[0].Blob.String())
 		return nil
 	}
 
-	log.Printf("No %v camliRoot node found, creating one from scratch now.", camliRoot)
+	log.Printf("No %v camliRoot node found for app %s, creating one from scratch now.", camliRoot, name)
 
 	bs, err := hl.GetStorage("/bs-recv/")
 	if err != nil {
@@ -101,7 +101,7 @@ func (hl *handlerLoader) initPublisherRootNode(ah *app.Handler) error {
 	if _, err := signUpload(schema.NewSetAttributeClaim(pn, "camliRoot", camliRoot)); err != nil {
 		return fmt.Errorf("could not set camliRoot on new node %v: %v", pn, err)
 	}
-	if _, err := signUpload(schema.NewSetAttributeClaim(pn, "title", "Publish root node for "+camliRoot)); err != nil {
+	if _, err := signUpload(schema.NewSetAttributeClaim(pn, "title", fmt.Sprintf("[%s] root node for "+camliRoot, name))); err != nil {
 		return fmt.Errorf("could not set camliRoot on new node %v: %v", pn, err)
 	}
 	return nil

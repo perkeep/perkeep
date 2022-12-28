@@ -45,6 +45,7 @@ import (
 	"perkeep.org/pkg/auth"
 	"perkeep.org/pkg/blobserver"
 	"perkeep.org/pkg/blobserver/handlers"
+	"perkeep.org/pkg/env"
 	"perkeep.org/pkg/index"
 	"perkeep.org/pkg/jsonsign/signhandler"
 	"perkeep.org/pkg/server"
@@ -354,12 +355,10 @@ func (hl *handlerLoader) setupHandler(prefix string) {
 		}
 		hh = ap
 		auth.AddMode(ap.AuthMode())
-		// TODO(mpl): this check is weak, as the user could very well
-		// use another binary name for the publisher app. We should
-		// introduce/use another identifier.
-		if ap.ProgramName() == "publisher" {
-			if err := hl.initPublisherRootNode(ap); err != nil {
-				exitFailure("Error looking/setting up root node for publisher on %v: %v", h.prefix, err)
+		if env.IsDev() {
+			// In dev mode we create camli roots for apps automatically
+			if err := hl.initAppCamliRoot(ap); err != nil {
+				exitFailure("Error looking/setting up root node for %s on %v: %v", ap.ProgramName(), h.prefix, err)
 			}
 		}
 	} else {

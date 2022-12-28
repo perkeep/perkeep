@@ -63,6 +63,20 @@
 			}
 		},
 
+		"/webdav/": {
+			"handler": "app",
+			"enabled": ["_env", "${CAMLI_WEBDAV_ENABLED}"],
+			"handlerArgs": {
+				"program": "webdav",
+				"prefix": "/webdav/",
+				"serverListen": "localhost:3179",
+				"serverBaseURL": ["_env", "${CAMLI_BASEURL}"],
+				"appConfig": {
+					"camliRoot": "dev-webdav-root"
+				}
+			}
+		},
+
 		"/stub-test-disable/": {
 			"handler": "publish",
 			"enabled": false,
