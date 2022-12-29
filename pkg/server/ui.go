@@ -345,11 +345,11 @@ func (ui *UIHandler) makeClosureHandler(root string) (http.Handler, error) {
 
 // makeClosureHandler returns a handler to serve Closure files.
 // root is either:
-// 1) empty: use the Closure files compiled in to the binary (if
-//    available), else redirect to the Internet.
-// 2) a URL prefix: base of Perkeep to get Closure to redirect to
-// 3) a path on disk to the root of camlistore's source (which
-//    contains the necessary subset of Closure files)
+//  1. empty: use the Closure files compiled in to the binary (if
+//     available), else redirect to the Internet.
+//  2. a URL prefix: base of Perkeep to get Closure to redirect to
+//  3. a path on disk to the root of camlistore's source (which
+//     contains the necessary subset of Closure files)
 func makeClosureHandler(root, handlerName string) (http.Handler, error) {
 	// devcam server environment variable takes precedence:
 	if d := os.Getenv("CAMLI_DEV_CLOSURE_DIR"); d != "" {
@@ -514,11 +514,6 @@ func ServeStaticFile(rw http.ResponseWriter, req *http.Request, root fs.FS, file
 	var modTime time.Time
 	if fi, err := f.Stat(); err == nil {
 		modTime = fi.ModTime()
-	}
-	// TODO(wathiede): should pkg/magic be leveraged here somehow?  It has a
-	// slightly different purpose.
-	if strings.HasSuffix(file, ".svg") {
-		rw.Header().Set("Content-Type", "image/svg+xml")
 	}
 	http.ServeContent(rw, req, file, modTime, f.(io.ReadSeeker))
 }
