@@ -29,7 +29,7 @@ var camErrors = map[string]*camErr{}
 
 var (
 	ErrClientNoServer = addCamError("client-no-server", funcStr(func() string {
-		return fmt.Sprintf("No valid server defined. It can be set with the CAMLI_SERVER environment variable, or the --server flag, or in the \"servers\" section of %q (see https://camlistore.org/doc/client-config).", osutil.UserClientConfigPath())
+		return fmt.Sprintf("No valid server defined. It can be set with the CAMLI_SERVER environment variable, or the --server flag, or in the \"servers\" section of %q (see https://perkeep.org/doc/client-config).", osutil.UserClientConfigPath())
 	}))
 	ErrClientNoPublicKey = addCamError("client-no-public-key", str("No public key configured: see 'pk-put init'."))
 )
@@ -60,7 +60,7 @@ func (ce *camErr) Warn() {
 }
 
 func (ce *camErr) URL() string {
-	return fmt.Sprintf("https://camlistore.org/err/%s", ce.key)
+	return fmt.Sprintf("https://perkeep.org/err/%s", ce.key)
 }
 
 // Err returns the error registered for key.

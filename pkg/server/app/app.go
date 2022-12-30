@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package app helps with configuring and starting server applications
 // from Perkeep.
-// See also https://camlistore.org/doc/app-environment for the related
+// See also https://perkeep.org/doc/app-environment for the related
 // variables.
 package app // import "perkeep.org/pkg/server/app"
 

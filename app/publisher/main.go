@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // The publisher command is a server application to publish items from a
-// Perkeep server. See also https://camlistore.org/doc/publishing
+// Perkeep server. See also https://perkeep.org/doc/publishing
 package main
 
 import (
