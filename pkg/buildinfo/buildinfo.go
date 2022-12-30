@@ -22,7 +22,7 @@ import "flag"
 // GitInfo is either the empty string (the default)
 // or is set to the git hash of the most recent commit
 // using the -X linker flag. For example, it's set like:
-// $ go install --ldflags="-X camlistore.org/pkg/buildinfo.GitInfo "`./misc/gitversion` camlistore.org/server/perkeepd
+// $ go install --ldflags="-X perkeep.org/pkg/buildinfo.GitInfo "`./misc/gitversion` perkeep.org/server/perkeepd
 var GitInfo string
 
 // Version is a string like "0.10" or "1.0", if applicable.

@@ -106,7 +106,7 @@ type Config struct {
 }
 
 // App holds the common configuration values for apps and the app handler.
-// See https://camlistore.org/doc/app-environment
+// See https://perkeep.org/doc/app-environment
 type App struct {
 	// Listen is the address (of the form host|ip:port) on which the app
 	// will listen. It defines CAMLI_APP_LISTEN.
@@ -183,7 +183,7 @@ type ScanCab struct {
 	// Auth is the authentication scheme and values to access the app.
 	// It defaults to the server config auth.
 	// Common uses are HTTP basic auth: "userpass:foo:bar", or no authentication:
-	// "none". See https://camlistore.org/pkg/auth for other schemes.
+	// "none". See https://perkeep.org/pkg/auth for other schemes.
 	Auth string `json:"auth"`
 
 	// App is for the common apps and app handler configuration.

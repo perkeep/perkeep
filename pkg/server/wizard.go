@@ -47,7 +47,7 @@ func (sh *SetupHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				"</body></html>\n")
 		return
 	}
-	http.Redirect(rw, req, "https://camlistore.org/doc/server-config", http.StatusMovedPermanently)
+	http.Redirect(rw, req, "https://perkeep.org/doc/server-config", http.StatusMovedPermanently)
 	return
 
 	// TODO: this file and the code in wizard-html.go is outdated. Anyone interested enough

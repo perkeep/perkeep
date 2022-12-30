@@ -135,7 +135,7 @@ func NewUploadHandleFromString(data string) *UploadHandle {
 	return &UploadHandle{BlobRef: bref, Size: uint32(len(data)), Contents: r}
 }
 
-// TODO(bradfitz): delete most of this. use new camlistore.org/pkg/blobserver/protocol types instead
+// TODO(bradfitz): delete most of this. use new perkeep.org/pkg/blobserver/protocol types instead
 // of a map[string]interface{}.
 func (c *Client) responseJSONMap(requestName string, resp *http.Response) (map[string]interface{}, error) {
 	if resp.StatusCode != 200 {
