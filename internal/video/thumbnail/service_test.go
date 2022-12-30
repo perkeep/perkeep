@@ -79,7 +79,7 @@ func TestMakeThumbnail(t *testing.T) {
 	store, ref := storageAndBlobRef(t)
 	tmpFile, _ := ioutil.TempFile(os.TempDir(), "camlitest")
 	defer tmpFile.Close()
-	service := NewService(DefaultThumbnailer, 2*time.Second, 5)
+	service := NewService(DefaultThumbnailer, 30*time.Second, 5)
 	err := service.Generate(ref, tmpFile, store)
 
 	if err != nil {
