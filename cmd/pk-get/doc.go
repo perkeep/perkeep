@@ -17,21 +17,20 @@ limitations under the License.
 /*
 The pk-get tool fetches blobs, files, and directories.
 
-
-Examples
+# Examples
 
 Writes to stdout by default:
 
-  pk-get <blobref>                 // dump raw blob
-  pk-get -contents <file-blobref>  // dump file contents
+	pk-get <blobref>                 // dump raw blob
+	pk-get -contents <file-blobref>  // dump file contents
 
 Like curl, lets you set output file/directory with -o:
 
-  pk-get -o <dir> <blobref>
-    (if <dir> exists and is directory, <blobref> must be a directory;
-     use -f to overwrite any files)
+	pk-get -o <dir> <blobref>
+	  (if <dir> exists and is directory, <blobref> must be a directory;
+	   use -f to overwrite any files)
 
-  pk-get -o <filename> <file-blobref>
+	pk-get -o <filename> <file-blobref>
 
 Camget isn't very fleshed out. In general, using 'pk-mount' to just
 mount a tree is an easier way to get files back.

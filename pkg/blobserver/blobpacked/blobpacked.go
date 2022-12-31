@@ -23,46 +23,46 @@ physical blobs.
 
 Example low-level config:
 
-     "/storage/": {
-         "handler": "storage-blobpacked",
-         "handlerArgs": {
-            "smallBlobs": "/small/",
-            "largeBlobs": "/large/",
-            "metaIndex": {
-               "type": "mysql",
-                .....
-            }
-          }
-     }
+	"/storage/": {
+	    "handler": "storage-blobpacked",
+	    "handlerArgs": {
+	       "smallBlobs": "/small/",
+	       "largeBlobs": "/large/",
+	       "metaIndex": {
+	          "type": "mysql",
+	           .....
+	       }
+	     }
+	}
 
 The resulting large blobs are valid zip files. Those blobs may up be up to
 16 MB and contain the original contiguous file (or fractions of it), as well
 as metadata about how the file is cut up. The zip file will have the
 following structure:
 
-    foo.jpg       (or whatever)
-    camlistore/sha1-beb1df0b75952c7d277905ad14de71ef7ef90c44.json (some file ref)
-    camlistore/sha1-a0ceb10b04403c9cc1d032e07a9071db5e711c9a.json (some bytes ref)
-    camlistore/sha1-7b4d9c8529c27d592255c6dfb17188493db96ccc.json (another bytes ref)
-    camlistore/camlistore-pack-manifest.json
+	foo.jpg       (or whatever)
+	camlistore/sha1-beb1df0b75952c7d277905ad14de71ef7ef90c44.json (some file ref)
+	camlistore/sha1-a0ceb10b04403c9cc1d032e07a9071db5e711c9a.json (some bytes ref)
+	camlistore/sha1-7b4d9c8529c27d592255c6dfb17188493db96ccc.json (another bytes ref)
+	camlistore/camlistore-pack-manifest.json
 
 The camlistore-pack-manifest.json is documented on the exported
 Manifest type. It looks like this:
 
-    {
-      "wholeRef": "sha1-0e64816d731a56915e8bb4ae4d0ac7485c0b84da",
-      "wholeSize": 2962227200, // 2.8GB; so will require ~176-180 16MB chunks
-      "wholePartIndex": 17,    // 0-based
-      "dataBlobsOrigin": "sha1-355705cf62a56669303d2561f29e0620a676c36e",
-      "dataBlobs": [
-          {"blob": "sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15", "offset": 0, "size": 273048},
-          {"blob": "sha1-e242ed3bffccdf271b7fbaf34ed72d089537b42f", "offset": 273048, "size": 112783},
-          {"blob": "sha1-6eadeac2dade6347e87c0d24fd455feffa7069f0", "offset": 385831, ...},
-          {"blob": "sha1-9425cca1dde5d8b6eb70cd087db4e356da92396e", "offset": ...},
-          {"blob": "sha1-7709559a3c8668c57cc0a2f57c418b1cc3598049", "offset": ...},
-          {"blob": "sha1-f62cb5d05cfbf2a7a6c7f8339d0a4bf1dcd0ab6c", "offset": ...}
-      ] // raw data blobs of foo.jpg
-    }
+	{
+	  "wholeRef": "sha1-0e64816d731a56915e8bb4ae4d0ac7485c0b84da",
+	  "wholeSize": 2962227200, // 2.8GB; so will require ~176-180 16MB chunks
+	  "wholePartIndex": 17,    // 0-based
+	  "dataBlobsOrigin": "sha1-355705cf62a56669303d2561f29e0620a676c36e",
+	  "dataBlobs": [
+	      {"blob": "sha1-f1d2d2f924e986ac86fdf7b36c94bcdf32beec15", "offset": 0, "size": 273048},
+	      {"blob": "sha1-e242ed3bffccdf271b7fbaf34ed72d089537b42f", "offset": 273048, "size": 112783},
+	      {"blob": "sha1-6eadeac2dade6347e87c0d24fd455feffa7069f0", "offset": 385831, ...},
+	      {"blob": "sha1-9425cca1dde5d8b6eb70cd087db4e356da92396e", "offset": ...},
+	      {"blob": "sha1-7709559a3c8668c57cc0a2f57c418b1cc3598049", "offset": ...},
+	      {"blob": "sha1-f62cb5d05cfbf2a7a6c7f8339d0a4bf1dcd0ab6c", "offset": ...}
+	  ] // raw data blobs of foo.jpg
+	}
 
 The manifest.json ensures that if the metadata index is lost, all the
 data can be reconstructed from the raw zip files.

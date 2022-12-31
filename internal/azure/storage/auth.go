@@ -61,19 +61,20 @@ func (a *Auth) SignRequest(req *http.Request) {
 
 // From the Mirosoft docs:
 // StringToSign = VERB + "\n" +
-//                Content-Encoding + "\n"
-//                Content-Language + "\n"
-//                Content-Length + "\n"
-//                Content-MD5 + "\n" +
-//                Content-Type + "\n" +
-//                Date + "\n" +
-//                If-Modified-Since + "\n"
-//                If-Match + "\n"
-//                If-None-Match + "\n"
-//                If-Unmodified-Since + "\n"
-//                Range + "\n"
-//                CanonicalizedHeaders +
-//                CanonicalizedResource;
+//
+//	Content-Encoding + "\n"
+//	Content-Language + "\n"
+//	Content-Length + "\n"
+//	Content-MD5 + "\n" +
+//	Content-Type + "\n" +
+//	Date + "\n" +
+//	If-Modified-Since + "\n"
+//	If-Match + "\n"
+//	If-None-Match + "\n"
+//	If-Unmodified-Since + "\n"
+//	Range + "\n"
+//	CanonicalizedHeaders +
+//	CanonicalizedResource;
 func (a *Auth) stringToSign(req *http.Request) string {
 	buf := new(bytes.Buffer)
 	buf.WriteString(req.Method)

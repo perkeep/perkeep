@@ -22,19 +22,18 @@ structure as the "localdisk" storage type.
 
 Example low-level config:
 
-     "/storage/": {
-         "handler": "storage-sftp",
-         "handlerArgs": {
-              "user": "alice",
-              "addr": "10.1.2.3",
-              "dir": "/remote/path/to/store/blobs/in",
-              "serverFingerprint": "SHA256:fBkTSuUzQVnVMJ9+e74XNTCnQKSHldbfFiOI9kBMemc",
+	"/storage/": {
+	    "handler": "storage-sftp",
+	    "handlerArgs": {
+	         "user": "alice",
+	         "addr": "10.1.2.3",
+	         "dir": "/remote/path/to/store/blobs/in",
+	         "serverFingerprint": "SHA256:fBkTSuUzQVnVMJ9+e74XNTCnQKSHldbfFiOI9kBMemc",
 
-              "pass": "s3cr3thunteR1!",
-              "passFile": "/home/alice/keys/sftp.password"
-          }
-     },
-
+	         "pass": "s3cr3thunteR1!",
+	         "passFile": "/home/alice/keys/sftp.password"
+	     }
+	},
 */
 package sftp // import "perkeep.org/pkg/blobserver/sftp"
 

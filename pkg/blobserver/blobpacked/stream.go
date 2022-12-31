@@ -66,8 +66,9 @@ func (st smallBlobStreamer) StreamBlobs(ctx context.Context, dest chan<- blobser
 var errContToken = errors.New("blobpacked: bad continuation token")
 
 // contToken is of forms:
-//    ""                : start from beginning of zip files
-//    "sha1-xxxxx:n"    : start at == (sha1-xxxx, file n), else next zip
+//
+//	""                : start from beginning of zip files
+//	"sha1-xxxxx:n"    : start at == (sha1-xxxx, file n), else next zip
 func (st largeBlobStreamer) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
 	defer close(dest)
 	s := st.sto

@@ -133,10 +133,10 @@ func slurpURL(urls string, limit int64) ([]byte, error) {
 // loadConfig returns the server's parsed config file, locating it using the provided arg.
 //
 // The arg may be of the form:
-// - empty, to mean automatic (will write a default high-level config if
-//   no cloud config is available)
-// - a filepath absolute or relative to the user's configuration directory,
-// - a URL
+//   - empty, to mean automatic (will write a default high-level config if
+//     no cloud config is available)
+//   - a filepath absolute or relative to the user's configuration directory,
+//   - a URL
 func loadConfig(arg string) (*serverinit.Config, error) {
 	if strings.HasPrefix(arg, "http://") || strings.HasPrefix(arg, "https://") {
 		contents, err := slurpURL(arg, 256<<10)

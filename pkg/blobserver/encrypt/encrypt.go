@@ -30,20 +30,19 @@ limitations under the License.
 //
 // Example low-level config:
 //
-//     "/storage-encrypted/": {
-//         "handler": "storage-encrypt",
-//         "handlerArgs": {
-//             "I_AGREE": "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change.",
-//             "keyFile": "/path/to/keyfile",
-//             "blobs": "/blobs-storage/",
-//             "meta": "/meta-storage/",
-//             "metaIndex": {
-//                 "file": "/path/to/index.leveldb",
-//                 "type": "leveldb"
-//             },
-//         }
-//     },
-//
+//	"/storage-encrypted/": {
+//	    "handler": "storage-encrypt",
+//	    "handlerArgs": {
+//	        "I_AGREE": "that encryption support hasn't been peer-reviewed, isn't finished, and its format might change.",
+//	        "keyFile": "/path/to/keyfile",
+//	        "blobs": "/blobs-storage/",
+//	        "meta": "/meta-storage/",
+//	        "metaIndex": {
+//	            "file": "/path/to/index.leveldb",
+//	            "type": "leveldb"
+//	        },
+//	    }
+//	},
 package encrypt // import "perkeep.org/pkg/blobserver/encrypt"
 
 import (

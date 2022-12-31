@@ -236,7 +236,9 @@ func (si *shareImporter) isAssembled() (bool, error) {
 // ServeHTTP answers the following queries:
 //
 // POST:
-//   ?shareurl=https://yourfriendserver/share/sha224-shareclaim
+//
+//	?shareurl=https://yourfriendserver/share/sha224-shareclaim
+//
 // Imports all the contents transitively reachable under that shared URL.
 //
 // GET:

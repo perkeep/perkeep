@@ -20,17 +20,16 @@ blobs in an Amazon Web Services' S3 storage bucket.
 
 Example low-level config:
 
-     "/r1/": {
-         "handler": "storage-s3",
-         "handlerArgs": {
-            "bucket": "foo",
-            "aws_region": "us-east-1",
-            "aws_access_key": "...",
-            "aws_secret_access_key": "...",
-            "skipStartupCheck": false
-          }
-     },
-
+	"/r1/": {
+	    "handler": "storage-s3",
+	    "handlerArgs": {
+	       "bucket": "foo",
+	       "aws_region": "us-east-1",
+	       "aws_access_key": "...",
+	       "aws_secret_access_key": "...",
+	       "skipStartupCheck": false
+	     }
+	},
 */
 package s3 // import "perkeep.org/pkg/blobserver/s3"
 

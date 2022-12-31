@@ -221,7 +221,6 @@ func TestReaderSeekStress(t *testing.T) {
 }
 
 /*
-
 1KB ReadAt calls before:
 fileread_test.go:253: Blob Size: 4194304 raw, 4201523 with meta (1.00172x)
 fileread_test.go:283: Blobs fetched: 4160 (63.03x)

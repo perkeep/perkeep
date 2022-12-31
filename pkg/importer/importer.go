@@ -378,8 +378,8 @@ func (rc *RunContext) Credentials() (clientID, clientSecret string, err error) {
 
 // AccountNode returns the permanode storing account information for this permanode.
 // It will contain the attributes:
-//   * camliNodeType = "importerAccount"
-//   * importerType = "registered-type"
+//   - camliNodeType = "importerAccount"
+//   - importerType = "registered-type"
 //
 // You must not change the camliNodeType or importerType.
 //
@@ -525,10 +525,11 @@ func (h *Host) InitHandler(hl blobserver.FindHandlerByTyper) error {
 }
 
 // ServeHTTP serves:
-//   http://host/importer/
-//   http://host/importer/twitter/
-//   http://host/importer/twitter/callback
-//   http://host/importer/twitter/sha1-abcabcabcabcabc (single account)
+//
+//	http://host/importer/
+//	http://host/importer/twitter/
+//	http://host/importer/twitter/callback
+//	http://host/importer/twitter/sha1-abcabcabcabcabc (single account)
 func (h *Host) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	suffix := httputil.PathSuffix(r)
 	seg := strings.Split(suffix, "/")
@@ -1026,11 +1027,14 @@ func (im *importer) Accounts() ([]*importerAcct, error) {
 // on that importer site)
 //
 // It is a permanode with:
-//   camliNodeType: "importer"
-//   importerType: "twitter"
+//
+//	camliNodeType: "importer"
+//	importerType: "twitter"
+//
 // And optionally:
-//   authClientID:     "xxx"    // e.g. api token
-//   authClientSecret: "sdkojfsldfjlsdkf"
+//
+//	authClientID:     "xxx"    // e.g. api token
+//	authClientSecret: "sdkojfsldfjlsdkf"
 func (im *importer) Node() (*Object, error) {
 	im.nodemu.Lock()
 	defer im.nodemu.Unlock()

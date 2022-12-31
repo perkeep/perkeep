@@ -265,11 +265,15 @@ func fileInfoPacked(ctx context.Context, sh *search.Handler, src blob.Fetcher, r
 // ServeHTTP answers the following queries:
 //
 // POST:
-//   ?files=sha1-foo,sha1-bar,sha1-baz
+//
+//	?files=sha1-foo,sha1-bar,sha1-baz
+//
 // Creates a zip archive of the provided files and serves it in the response.
 //
 // GET:
-//   /<file-schema-blobref>[?inline=1]
+//
+//	/<file-schema-blobref>[?inline=1]
+//
 // Serves the file described by the requested file schema blobref.
 // if inline=1 the Content-Disposition of the response is set to inline, and
 // otherwise it set to attachment.

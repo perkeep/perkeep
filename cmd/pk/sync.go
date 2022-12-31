@@ -330,9 +330,10 @@ func enumerateAllBlobs(ctx context.Context, s blobserver.Storage, destc chan<- b
 // src: non-nil source
 // dest: non-nil destination
 // thirdLeg: optional third-leg client. if not nil, anything on src
-//     but not on dest will instead be copied to thirdLeg, instead of
-//     directly to dest. (sneakernet mode, copying to a portable drive
-//     and transporting thirdLeg to dest)
+//
+//	but not on dest will instead be copied to thirdLeg, instead of
+//	directly to dest. (sneakernet mode, copying to a portable drive
+//	and transporting thirdLeg to dest)
 func (c *syncCmd) doPass(src, dest, thirdLeg blobserver.Storage) (stats SyncStats, retErr error) {
 	var statsMu sync.Mutex // guards stats return value
 

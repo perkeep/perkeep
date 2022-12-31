@@ -887,18 +887,18 @@ upload.  Call Wait to get the final result.
 Uploading a directory tree involves several concurrent processes, each
 which may involve multiple goroutines:
 
- 1) one process stats all files and walks all directories as fast as possible
+ 1. one process stats all files and walks all directories as fast as possible
     to calculate how much total work there will be.  this goroutine also
     filters out directories to be skipped. (caches, temp files, ignoredFiles, etc)
 
- 2) one process works though the files that were discovered and checks
+ 2. one process works though the files that were discovered and checks
     the statcache to see what actually needs to be uploaded.
     The statcache is
-        full path => {last os.FileInfo signature, put result from last time}
+    full path => {last os.FileInfo signature, put result from last time}
     and is used to avoid re-reading/digesting the file even locally,
     trusting that it's already on the server.
 
- 3) one process uploads files & metadata.  This process checks the "havecache"
+ 3. one process uploads files & metadata.  This process checks the "havecache"
     to see which blobs are already on the server.  For awhile the local havecache
     (if configured) and the remote blobserver "stat" RPC are raced to determine
     if the local havecache is even faster. If not, it's not consulted. But if the

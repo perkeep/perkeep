@@ -22,13 +22,12 @@ within the large files.
 
 Example low-level config:
 
-     "/storage/": {
-         "handler": "storage-diskpacked",
-         "handlerArgs": {
-            "path": "/var/camlistore/blobs"
-          }
-     },
-
+	"/storage/": {
+	    "handler": "storage-diskpacked",
+	    "handlerArgs": {
+	       "path": "/var/camlistore/blobs"
+	     }
+	},
 */
 package diskpacked // import "perkeep.org/pkg/blobserver/diskpacked"
 

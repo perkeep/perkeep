@@ -21,13 +21,12 @@ based on their blobref. Each blob maps to exactly one backend.
 
 Example low-level config:
 
-     "/foo/": {
-         "handler": "storage-shard",
-         "handlerArgs": {
-             "backends": ["/s1/", "/s2/"]
-          }
-     },
-
+	"/foo/": {
+	    "handler": "storage-shard",
+	    "handlerArgs": {
+	        "backends": ["/s1/", "/s2/"]
+	     }
+	},
 */
 package shard // import "perkeep.org/pkg/blobserver/shard"
 

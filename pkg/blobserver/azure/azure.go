@@ -20,16 +20,15 @@ blobs in a Microsoft Azure Blob Storage container.
 
 Example low-level config:
 
-     "/r1/": {
-         "handler": "storage-azure",
-         "handlerArgs": {
-            "container": "foo",
-            "azure_account": "...",
-            "azure_access_key": "...",
-            "skipStartupCheck": false
-          }
-     },
-
+	"/r1/": {
+	    "handler": "storage-azure",
+	    "handlerArgs": {
+	       "container": "foo",
+	       "azure_account": "...",
+	       "azure_access_key": "...",
+	       "skipStartupCheck": false
+	     }
+	},
 */
 package azure
 

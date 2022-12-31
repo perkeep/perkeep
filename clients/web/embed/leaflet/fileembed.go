@@ -19,7 +19,6 @@ Package leaflet provides access to the Leaflet JavaScript and CSS resources, as
 well as the Leaflet.awesome-markers, and embeds them into the Go binary when
 compiled with the genfileembed tool.
 
-
 See http://leafletjs.com/ and
 https://github.com/lvoogdt/Leaflet.awesome-markers
 */

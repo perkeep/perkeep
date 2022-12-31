@@ -23,14 +23,14 @@ If the provided maxCacheBytes is unspecified, the default is 512MB.
 
 Example config:
 
-      "/cache/": {
-          "handler": "storage-proxycache",
-          "handlerArgs": {
-		  "origin": "/cloud-blobs/",
-		  "cache": "/local-ssd/",
-		  "maxCacheBytes": 536870912
-          }
-      },
+	      "/cache/": {
+	          "handler": "storage-proxycache",
+	          "handlerArgs": {
+			  "origin": "/cloud-blobs/",
+			  "cache": "/local-ssd/",
+			  "maxCacheBytes": 536870912
+	          }
+	      },
 */
 package proxycache // import "perkeep.org/pkg/blobserver/proxycache"
 

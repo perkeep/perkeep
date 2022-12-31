@@ -42,7 +42,7 @@ import (
 // Debug when set, prevents any container from being removed.
 var Debug bool
 
-/// runLongTest checks all the conditions for running a docker container
+// / runLongTest checks all the conditions for running a docker container
 // based on image.
 func runLongTest(t *testing.T, image string) {
 	if testing.Short() {
