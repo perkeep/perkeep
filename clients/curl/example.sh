@@ -40,3 +40,6 @@ curl -v -u $AUTH http://$BSHOST/camli/enumerate-blobs?limit=1
 
 # List offset -- 200 with list of no blobs
 curl -v -u $AUTH http://$BSHOST/camli/enumerate-blobs?after=sha1-126249fd8c18cbb5312a5705746a2af87fba9538
+
+# Search for all images
+echo '{"expression":"is:image","describe":{"rules":[{"attrs":["camliContent"]}]}}' | curl -v  --data-binary  @- -u $AUTH http://localhost:3179/my-search/camli/search/query
