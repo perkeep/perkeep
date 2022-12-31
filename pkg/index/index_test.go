@@ -254,6 +254,7 @@ func TestInitNeededMaps(t *testing.T) {
 	}
 	ix.InitBlobSource(bs)
 	{
+		ix.Lock()
 		needs, neededBy, _ := ix.NeededMapsForTest()
 		needsWant := map[blob.Ref][]blob.Ref{
 			fileBlobRef: {chunk1ref, chunk2ref, chunk3ref},
@@ -269,11 +270,13 @@ func TestInitNeededMaps(t *testing.T) {
 		if !reflect.DeepEqual(neededBy, neededByWant) {
 			t.Errorf("neededBy = %v; want %v", neededBy, neededByWant)
 		}
+		ix.Unlock()
 	}
 
 	ix.Exp_noteBlobIndexed(chunk2ref)
 
 	{
+		ix.Lock()
 		needs, neededBy, ready := ix.NeededMapsForTest()
 		needsWant := map[blob.Ref][]blob.Ref{
 			fileBlobRef: {chunk1ref, chunk3ref},
@@ -291,11 +294,13 @@ func TestInitNeededMaps(t *testing.T) {
 		if len(ready) != 0 {
 			t.Errorf("ready = %v; want nothing", ready)
 		}
+		ix.Unlock()
 	}
 
 	ix.Exp_noteBlobIndexed(chunk1ref)
 
 	{
+		ix.Lock()
 		needs, neededBy, ready := ix.NeededMapsForTest()
 		needsWant := map[blob.Ref][]blob.Ref{
 			fileBlobRef: {chunk3ref},
@@ -312,11 +317,13 @@ func TestInitNeededMaps(t *testing.T) {
 		if len(ready) != 0 {
 			t.Errorf("ready = %v; want nothing", ready)
 		}
+		ix.Unlock()
 	}
 
 	ix.Exp_noteBlobIndexed(chunk3ref)
 
 	{
+		ix.Lock()
 		needs, neededBy, ready := ix.NeededMapsForTest()
 		needsWant := map[blob.Ref][]blob.Ref{}
 		neededByWant := map[blob.Ref][]blob.Ref{}
@@ -329,6 +336,7 @@ func TestInitNeededMaps(t *testing.T) {
 		if !ready[fileBlobRef] {
 			t.Error("fileBlobRef not ready")
 		}
+		ix.Unlock()
 	}
 	// We also technically don't need to wait for the ooo indexing goroutine
 	// to finish for this unit test, but it's cleaner.

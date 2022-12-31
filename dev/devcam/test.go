@@ -36,6 +36,7 @@ type testCmd struct {
 	verbose   bool
 	precommit bool
 	short     bool
+	race      bool
 	run       string
 	sqlite    bool
 }
@@ -44,6 +45,7 @@ func init() {
 	cmdmain.RegisterMode("test", func(flags *flag.FlagSet) cmdmain.CommandRunner {
 		cmd := new(testCmd)
 		flags.BoolVar(&cmd.short, "short", false, "Use '-short' with go test.")
+		flags.BoolVar(&cmd.race, "race", false, "Use '-race' with go test.")
 		flags.BoolVar(&cmd.precommit, "precommit", true, "Run the pre-commit githook as part of tests.")
 		flags.BoolVar(&cmd.verbose, "v", false, "Use '-v' (for verbose) with go test.")
 		flags.StringVar(&cmd.run, "run", "", "Use '-run' with go test.")
@@ -127,6 +129,9 @@ func (c *testCmd) runTests(args []string) error {
 	}
 	if c.short {
 		targs = append(targs, "-short")
+	}
+	if c.race {
+		targs = append(targs, "-race")
 	}
 	if c.verbose {
 		targs = append(targs, "-v")
