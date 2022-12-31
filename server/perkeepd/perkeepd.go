@@ -118,7 +118,7 @@ func exitf(pattern string, args ...interface{}) {
 		pattern = pattern + "\n"
 	}
 	fmt.Fprintf(os.Stderr, pattern, args...)
-	osExit(1)
+	os.Exit(1)
 }
 
 func slurpURL(urls string, limit int64) ([]byte, error) {
@@ -133,10 +133,10 @@ func slurpURL(urls string, limit int64) ([]byte, error) {
 // loadConfig returns the server's parsed config file, locating it using the provided arg.
 //
 // The arg may be of the form:
-// - empty, to mean automatic (will write a default high-level config if
-//   no cloud config is available)
-// - a filepath absolute or relative to the user's configuration directory,
-// - a URL
+//   - empty, to mean automatic (will write a default high-level config if
+//     no cloud config is available)
+//   - a filepath absolute or relative to the user's configuration directory,
+//   - a URL
 func loadConfig(arg string) (*serverinit.Config, error) {
 	if strings.HasPrefix(arg, "http://") || strings.HasPrefix(arg, "https://") {
 		contents, err := slurpURL(arg, 256<<10)
@@ -252,23 +252,6 @@ func setupTLS(ws *webserver.Server, config *serverinit.Config, hostname string) 
 	})
 }
 
-type testHook func()
-
-func (fn testHook) call() bool {
-	if fn != nil {
-		fn()
-		return true
-	}
-	return false
-}
-
-// Test hooks:
-var (
-	osExit                 = os.Exit
-	testHookServerUp       testHook
-	testHookWaitToShutdown testHook
-)
-
 func handleSignals(shutdownc <-chan io.Closer) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
@@ -298,7 +281,7 @@ func handleSignals(shutdownc <-chan io.Closer) {
 			select {
 			case <-donec:
 				log.Printf("Shut down.")
-				osExit(0)
+				os.Exit(0)
 			case <-time.After(2 * time.Second):
 				exitf("Timeout shutting down. Exiting uncleanly.")
 			}
@@ -386,10 +369,7 @@ func checkGeoKey() error {
 	return fmt.Errorf("using OpenStreetMap for location related requests. To use the Google Geocoding API, create a key (see https://developers.google.com/maps/documentation/geocoding/get-api-key ) and save it in Perkeep's configuration directory as: %v", keyPath)
 }
 
-// main wraps Main so tests (which generate their own func main) can still run Main.
-func main() { Main() }
-
-func Main() {
+func main() {
 	flag.Parse()
 
 	if *flagVersion {
@@ -503,7 +483,5 @@ func Main() {
 	}
 	log.Printf("server: available at %s", urlToOpen)
 
-	if testHookServerUp.call(); !testHookWaitToShutdown.call() {
-		select {}
-	}
+	select {}
 }
