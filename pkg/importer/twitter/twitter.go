@@ -893,12 +893,12 @@ type zipEntities struct {
 	URLs  []*urlEntity `json:"urls"`
 }
 
-// e.g.  {
-//   "indices" : [ 105, 125 ],
-//   "url" : "http:\/\/t.co\/gbGO8Qep",
-//   "expanded_url" : "http:\/\/twitpic.com\/6mdqac",
-//   "display_url" : "twitpic.com\/6mdqac"
-// }
+//	e.g.  {
+//	  "indices" : [ 105, 125 ],
+//	  "url" : "http:\/\/t.co\/gbGO8Qep",
+//	  "expanded_url" : "http:\/\/twitpic.com\/6mdqac",
+//	  "display_url" : "twitpic.com\/6mdqac"
+//	}
 type urlEntity struct {
 	URL         string `json:"url"`
 	ExpandedURL string `json:"expanded_url"`

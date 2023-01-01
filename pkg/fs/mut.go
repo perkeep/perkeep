@@ -301,8 +301,9 @@ func (n *mutDir) Lookup(ctx context.Context, name string) (ret fs.Node, err erro
 //
 // Flags are always 514:  O_CREAT is 0x200 | O_RDWR is 0x2.
 // From fuse_vnops.c:
-//    /* XXX: We /always/ creat() like this. Wish we were on Linux. */
-//    foi->flags = O_CREAT | O_RDWR;
+//
+//	/* XXX: We /always/ creat() like this. Wish we were on Linux. */
+//	foi->flags = O_CREAT | O_RDWR;
 //
 // 2013/07/21 05:26:35 <- &{Create [ID=0x3 Node=0x8 Uid=61652 Gid=5000 Pid=13115] "x" fl=514 mode=-rw-r--r-- fuse.Intr}
 // 2013/07/21 05:26:36 -> 0x3 Create {LookupResponse:{Node:23 Generation:0 EntryValid:1m0s AttrValid:1m0s Attr:{Inode:15976986887557313215 Size:0 Blocks:0 Atime:2013-07-21 05:23:51.537251251 +1200 NZST Mtime:2013-07-21 05:23:51.537251251 +1200 NZST Ctime:2013-07-21 05:23:51.537251251 +1200 NZST Crtime:2013-07-21 05:23:51.537251251 +1200 NZST Mode:-rw------- Nlink:1 Uid:61652 Gid:5000 Rdev:0 Flags:0}} OpenResponse:{Handle:1 Flags:0}}
@@ -656,10 +657,11 @@ func (n *mutFile) modTime() time.Time {
 }
 
 // Empirically:
-//  open for read:   req.Flags == 0
-//  open for append: req.Flags == 1
-//  open for write:  req.Flags == 1
-//  open for read/write (+<)   == 2 (bitmask? of?)
+//
+//	open for read:   req.Flags == 0
+//	open for append: req.Flags == 1
+//	open for write:  req.Flags == 1
+//	open for read/write (+<)   == 2 (bitmask? of?)
 //
 // open flags are O_WRONLY (1), O_RDONLY (0), or O_RDWR (2). and also
 // bitmaks of O_SYMLINK (0x200000) maybe. (from

@@ -20,13 +20,12 @@ storing blobs in a forest of sharded directories at the specified root.
 
 Example low-level config:
 
-     "/storage/": {
-         "handler": "storage-filesystem",
-         "handlerArgs": {
-            "path": "/var/camlistore/blobs"
-          }
-     },
-
+	"/storage/": {
+	    "handler": "storage-filesystem",
+	    "handlerArgs": {
+	       "path": "/var/camlistore/blobs"
+	     }
+	},
 */
 package localdisk // import "perkeep.org/pkg/blobserver/localdisk"
 

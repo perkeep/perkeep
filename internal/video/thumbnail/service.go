@@ -54,17 +54,18 @@ type Service struct {
 
 // ServiceFromConfig builds a new Service from configuration.
 // Example expected configuration object (all keys are optional) :
-// {
-//   // command defaults to FFmpegThumbnailer and $uri is replaced by
-//   // the real value at runtime.
-//   "command": ["/opt/local/bin/ffmpeg", "-i", "$uri", "pipe:1"],
-//   // Maximum number of milliseconds for running the thumbnailing subprocess.
-//   // A zero or negative timeout means no timeout.
-//   "timeout": 2000,
-//   // Maximum number of thumbnailing subprocess running at same time.
-//   // A zero or negative maxProcs means no limit.
-//   "maxProcs": 5
-// }
+//
+//	{
+//	  // command defaults to FFmpegThumbnailer and $uri is replaced by
+//	  // the real value at runtime.
+//	  "command": ["/opt/local/bin/ffmpeg", "-i", "$uri", "pipe:1"],
+//	  // Maximum number of milliseconds for running the thumbnailing subprocess.
+//	  // A zero or negative timeout means no timeout.
+//	  "timeout": 2000,
+//	  // Maximum number of thumbnailing subprocess running at same time.
+//	  // A zero or negative maxProcs means no limit.
+//	  "maxProcs": 5
+//	}
 func ServiceFromConfig(conf jsonconfig.Obj) (*Service, error) {
 	th := thumbnailerFromConfig(conf)
 	timeout := conf.OptionalInt("timeout", 5000)

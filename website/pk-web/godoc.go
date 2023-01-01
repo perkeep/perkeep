@@ -70,8 +70,9 @@ type PageInfo struct {
 
 // godocFmap describes the template functions installed with all godoc templates.
 // Convention: template function names ending in "_html" or "_url" produce
-//             HTML- or URL-escaped strings; all other function results may
-//             require explicit escaping in the template.
+//
+//	HTML- or URL-escaped strings; all other function results may
+//	require explicit escaping in the template.
 var godocFmap = template.FuncMap{
 	// various helpers
 	"filename": filenameFunc,

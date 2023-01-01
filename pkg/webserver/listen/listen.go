@@ -37,7 +37,9 @@ func NewFlag(flagName, defaultValue string, serverType string) *Addr {
 }
 
 // Listen is a replacement for net.Listen and supports
-//   port, :port, ip:port, FD:<fd_num>
+//
+//	port, :port, ip:port, FD:<fd_num>
+//
 // Listeners are always TCP.
 func Listen(addr string) (net.Listener, error) {
 	a := &Addr{s: addr}
@@ -58,10 +60,10 @@ func Usage(name string) string {
 
 // Addr is a flag variable.  Use like:
 //
-//   var webPort listen.Addr
-//   flag.Var(&webPort, "web_addr", listen.Usage("Web server address"))
-//   flag.Parse()
-//   webListener, err := webPort.Listen()
+//	var webPort listen.Addr
+//	flag.Var(&webPort, "web_addr", listen.Usage("Web server address"))
+//	flag.Parse()
+//	webListener, err := webPort.Listen()
 type Addr struct {
 	s   string
 	ln  net.Listener

@@ -34,7 +34,9 @@ import (
 )
 
 // Test that running:
-//   $ pk-put permanode
+//
+//	$ pk-put permanode
+//
 // ... creates and uploads a permanode, and that we can pk-get it back.
 func TestCamputPermanode(t *testing.T) {
 	w := test.GetWorld(t)

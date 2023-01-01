@@ -337,8 +337,9 @@ func (fs *CamliFileSystem) Statfs(ctx context.Context, req *fuse.StatfsRequest, 
 }
 
 // Errors returned are:
-//    os.ErrNotExist -- blob not found
-//    os.ErrInvalid -- not JSON or a camli schema blob
+//
+//	os.ErrNotExist -- blob not found
+//	os.ErrInvalid -- not JSON or a camli schema blob
 func (fs *CamliFileSystem) fetchSchemaMeta(ctx context.Context, br blob.Ref) (*schema.Blob, error) {
 	blobStr := br.String()
 	if blob, ok := fs.blobToSchema.Get(blobStr); ok {

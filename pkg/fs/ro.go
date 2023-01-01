@@ -327,10 +327,11 @@ func (n *roFile) modTime() time.Time {
 }
 
 // Empirically:
-//  open for read:   req.Flags == 0
-//  open for append: req.Flags == 1
-//  open for write:  req.Flags == 1
-//  open for read/write (+<)   == 2 (bitmask? of?)
+//
+//	open for read:   req.Flags == 0
+//	open for append: req.Flags == 1
+//	open for write:  req.Flags == 1
+//	open for read/write (+<)   == 2 (bitmask? of?)
 //
 // open flags are O_WRONLY (1), O_RDONLY (0), or O_RDWR (2). and also
 // bitmaks of O_SYMLINK (0x200000) maybe. (from

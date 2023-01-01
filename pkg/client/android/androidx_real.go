@@ -1,3 +1,4 @@
+//go:build !fake_android
 // +build !fake_android
 
 /*

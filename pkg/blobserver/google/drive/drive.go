@@ -20,17 +20,17 @@ type, storing blobs in a Google Drive folder.
 
 Example low-level config:
 
-    "/storage-googledrive/": {
-      "handler": "storage-googledrive",
-      "handlerArgs": map[string]interface{}{
-        "parent_id": parentId,
-        "auth": map[string]interface{}{
-          "client_id":     clientId,
-          "client_secret": clientSecret,
-          "refresh_token": refreshToken,
-        },
-      },
-    },
+	"/storage-googledrive/": {
+	  "handler": "storage-googledrive",
+	  "handlerArgs": map[string]interface{}{
+	    "parent_id": parentId,
+	    "auth": map[string]interface{}{
+	      "client_id":     clientId,
+	      "client_secret": clientSecret,
+	      "refresh_token": refreshToken,
+	    },
+	  },
+	},
 */
 package drive // import "perkeep.org/pkg/blobserver/google/drive"
 

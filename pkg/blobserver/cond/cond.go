@@ -23,17 +23,17 @@ Currently only the "isSchema" predicate is defined.
 
 Example usage:
 
-  "/bs-and-maybe-also-index/": {
-	"handler": "storage-cond",
-	"handlerArgs": {
-		"write": {
-			"if": "isSchema",
-			"then": "/bs-and-index/",
-			"else": "/bs/"
-		},
-		"read": "/bs/"
-	}
-  }
+	  "/bs-and-maybe-also-index/": {
+		"handler": "storage-cond",
+		"handlerArgs": {
+			"write": {
+				"if": "isSchema",
+				"then": "/bs-and-index/",
+				"else": "/bs/"
+			},
+			"read": "/bs/"
+		}
+	  }
 */
 package cond // import "perkeep.org/pkg/blobserver/cond"
 

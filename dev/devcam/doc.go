@@ -25,22 +25,21 @@ Usage:
 
 Modes:
 
-  get: run pk-get in dev mode.
-  put: run pk-put in dev mode.
-  server: run the stand-alone perkeepd in dev mode.
+	get: run pk-get in dev mode.
+	put: run pk-put in dev mode.
+	server: run the stand-alone perkeepd in dev mode.
 
 Examples:
 
-  devcam get <blobref>
-  devcam get -- --shared http://localhost:3169/share/<blobref>
+	devcam get <blobref>
+	devcam get -- --shared http://localhost:3169/share/<blobref>
 
-  devcam put file --filenodes /mnt/camera/DCIM
+	devcam put file --filenodes /mnt/camera/DCIM
 
-  devcam server -wipe -mysql -fullclosure
+	devcam server -wipe -mysql -fullclosure
 
 For mode-specific help:
 
-  devcam <mode> -help
-
+	devcam <mode> -help
 */
 package main // import "perkeep.org/dev/devcam"

@@ -24,13 +24,13 @@ default.
 
 Example config:
 
-      "/repl/": {
-          "handler": "storage-replica",
-          "handlerArgs": {
-              "backends": ["/b1/", "/b2/", "/b3/"],
-              "minWritesForSuccess": 2
-          }
-      },
+	"/repl/": {
+	    "handler": "storage-replica",
+	    "handlerArgs": {
+	        "backends": ["/b1/", "/b2/", "/b3/"],
+	        "minWritesForSuccess": 2
+	    }
+	},
 */
 package replica // import "perkeep.org/pkg/blobserver/replica"
 
