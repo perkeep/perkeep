@@ -14,7 +14,7 @@ Windows), skip this section.
 [Download and install Go](http://golang.org/doc/install) if you don't
 have that installed already. As of revision
 [cb96bb8bd3](https://github.com/perkeep/perkeep/commit/cb96bb8bd32ce5f1a882b6d06a869a1a1925c57d),
-Perkeep requires [Go 1.16 or newer](https://golang.org/dl/).
+Perkeep requires [Go 1.19 or newer](https://golang.org/dl/).
 
     $ cd perkeep.org
     $ go run make.go
