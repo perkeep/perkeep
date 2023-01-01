@@ -25,17 +25,17 @@ deleted blobs. When "deleted" is missing, deletion returns an error.
 
 Example usage:
 
-  "/bs/": {
-    "handler": "storage-overlay",
-    "handlerArgs": {
-      "lower": "/sto-base/",
-      "upper": "/bs-local-changes/",
-      "deleted": {
-        "file": "/volume1/camlistore/home/var/camlistore/blobs/deleted.leveldb",
-        "type": "leveldb"
-      }
-    }
-  }
+	"/bs/": {
+	  "handler": "storage-overlay",
+	  "handlerArgs": {
+	    "lower": "/sto-base/",
+	    "upper": "/bs-local-changes/",
+	    "deleted": {
+	      "file": "/volume1/camlistore/home/var/camlistore/blobs/deleted.leveldb",
+	      "type": "leveldb"
+	    }
+	  }
+	}
 */
 package overlay // import "perkeep.org/pkg/blobserver/overlay"
 

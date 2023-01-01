@@ -19,13 +19,14 @@ Package mongo registers the "mongo" blobserver storage type, storing
 blobs using MongoDB.
 
 Sample (low-level) config:
-"/bs/": {
-    "handler": "storage-mongo",
-    "handlerArgs": {
-       "host": "172.17.0.2",
-       "database": "camlitest"
-     }
-},
+
+	"/bs/": {
+	    "handler": "storage-mongo",
+	    "handlerArgs": {
+	       "host": "172.17.0.2",
+	       "database": "camlitest"
+	     }
+	},
 
 Possible parameters:
 host (optional, defaults to localhost)

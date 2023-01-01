@@ -224,8 +224,10 @@ func newDirectoryEntry(fetcher blob.Fetcher, ss *superset) (DirectoryEntry, erro
 }
 
 // NewDirectoryEntryFromBlobRef takes a BlobRef and returns a
-//  DirectoryEntry if the BlobRef contains a type "file", "directory",
-//  "symlink", "fifo" or "socket".
+//
+//	DirectoryEntry if the BlobRef contains a type "file", "directory",
+//	"symlink", "fifo" or "socket".
+//
 // TODO: ""char", "block", probably.  later.
 func NewDirectoryEntryFromBlobRef(ctx context.Context, fetcher blob.Fetcher, blobRef blob.Ref) (DirectoryEntry, error) {
 	ss := new(superset)
@@ -689,8 +691,7 @@ func NewHashPlannedPermanode(h hash.Hash) *Builder {
 // recommended canonical form. The canonical form is readable with newlines and indentation,
 // and always starts with the header bytes:
 //
-//   {"camliVersion":
-//
+//	{"camliVersion":
 func mapJSON(m map[string]interface{}) (string, error) {
 	version, hasVersion := m["camliVersion"]
 	if !hasVersion {
@@ -1059,8 +1060,8 @@ func FileTime(f io.ReaderAt) (time.Time, error) {
 }
 
 // This is basically a copy of the exif.Exif.DateTime() method, except:
-//   * it takes a *time.Location to assume
-//   * the caller already assumes there's no timezone offset or GPS time
+//   - it takes a *time.Location to assume
+//   - the caller already assumes there's no timezone offset or GPS time
 //     in the EXIF, so any of that code can be ignored.
 func exifDateTimeInLocation(x *exif.Exif, loc *time.Location) (time.Time, error) {
 	tag, err := x.Get(exif.DateTimeOriginal)

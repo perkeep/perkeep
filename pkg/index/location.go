@@ -50,6 +50,7 @@ var altLocationRef = map[string][]string{
 //  2. Referenced permanode attributes (eg. for "foursquare.com:checkin"
 //     its "foursquareVenuePermanode")
 //  3. Location in permanode camliContent file metadata
+//
 // The sources are checked in this order, the location from
 // the first source yielding a valid result is returned.
 func (lh *LocationHelper) PermanodeLocation(ctx context.Context, permaNode blob.Ref,

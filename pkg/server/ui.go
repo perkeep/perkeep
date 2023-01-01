@@ -345,11 +345,11 @@ func (ui *UIHandler) makeClosureHandler(root string) (http.Handler, error) {
 
 // makeClosureHandler returns a handler to serve Closure files.
 // root is either:
-// 1) empty: use the Closure files compiled in to the binary (if
-//    available), else redirect to the Internet.
-// 2) a URL prefix: base of Perkeep to get Closure to redirect to
-// 3) a path on disk to the root of camlistore's source (which
-//    contains the necessary subset of Closure files)
+//  1. empty: use the Closure files compiled in to the binary (if
+//     available), else redirect to the Internet.
+//  2. a URL prefix: base of Perkeep to get Closure to redirect to
+//  3. a path on disk to the root of camlistore's source (which
+//     contains the necessary subset of Closure files)
 func makeClosureHandler(root, handlerName string) (http.Handler, error) {
 	// devcam server environment variable takes precedence:
 	if d := os.Getenv("CAMLI_DEV_CLOSURE_DIR"); d != "" {

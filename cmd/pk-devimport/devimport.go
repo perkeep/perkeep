@@ -40,10 +40,10 @@ const serverFlagHelp = "Format is is either a URL prefix (with optional path), a
 
 // newClient returns a Perkeep client for the server.
 // The server may be:
-//   * blank, to use the default in the config file
-//   * an alias, to use that named alias in the config file
-//   * host:port
-//   * https?://host[:port][/path]
+//   - blank, to use the default in the config file
+//   - an alias, to use that named alias in the config file
+//   - host:port
+//   - https?://host[:port][/path]
 func newClient(server string, opts ...client.ClientOption) *client.Client {
 	if server == "" {
 		return client.NewOrFail(opts...)

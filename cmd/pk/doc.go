@@ -21,37 +21,38 @@ indexer, and it can sync blobs between blobservers.
 
 Usage:
 
-  pk [globalopts] <mode> [commandopts] [commandargs]
+	pk [globalopts] <mode> [commandopts] [commandargs]
 
 Modes:
 
-  env: Return Perkeep environment information
-  googinit: Init Google Drive or Google Cloud Storage.
-  list: List blobs on a server.
-  claims: Ask the search system to list the claims that modify a permanode.
-  dumpconfig: Dump the low-level server config from its simple config.
-  describe: Ask the search system to describe one or more blobs.
-  discovery: Perform configuration discovery against a server.
-  reindex-diskpacked: Rebuild the index of the diskpacked blob store
-  index: Synchronize blobs for all discovered blobs storage - indexer pairs.
-  sync: Synchronize blobs from a source to a destination.
-  dbinit: Set up the database for the indexer.
-  debug: Show misc meta-info from the given file.
+	env: Return Perkeep environment information
+	googinit: Init Google Drive or Google Cloud Storage.
+	list: List blobs on a server.
+	claims: Ask the search system to list the claims that modify a permanode.
+	dumpconfig: Dump the low-level server config from its simple config.
+	describe: Ask the search system to describe one or more blobs.
+	discovery: Perform configuration discovery against a server.
+	reindex-diskpacked: Rebuild the index of the diskpacked blob store
+	index: Synchronize blobs for all discovered blobs storage - indexer pairs.
+	sync: Synchronize blobs from a source to a destination.
+	dbinit: Set up the database for the indexer.
+	debug: Show misc meta-info from the given file.
 
 Examples:
 
-  pk sync --all
-  pk sync --src http://localhost:3179/bs/ --dest http://localhost:3179/index-mem/
+	pk sync --all
+	pk sync --src http://localhost:3179/bs/ --dest http://localhost:3179/index-mem/
 
-  pk dbinit -user root -password root -host localhost -dbname camliprod -wipe
+	pk dbinit -user root -password root -host localhost -dbname camliprod -wipe
 
 For mode-specific help:
 
-  pk <mode> -help
+	pk <mode> -help
 
 Global options:
-  -help=false: print usage
-  -verbose=false: extra debug logging
-  -version=false: show version
+
+	-help=false: print usage
+	-verbose=false: extra debug logging
+	-version=false: show version
 */
 package main // import "perkeep.org/cmd/pk"

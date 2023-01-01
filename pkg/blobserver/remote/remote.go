@@ -20,14 +20,14 @@ and fetching blobs from a remote Perkeep server over HTTPS.
 
 Example low-level config:
 
-     "/peer/": {
-         "handler": "storage-remote",
-         "handlerArgs": {
-             "url": "https://some-other-server/base",
-             "auth": "userpass:user:pass",
-             "skipStartupCheck": false
-          }
-     },
+	"/peer/": {
+	    "handler": "storage-remote",
+	    "handlerArgs": {
+	        "url": "https://some-other-server/base",
+	        "auth": "userpass:user:pass",
+	        "skipStartupCheck": false
+	     }
+	},
 
 The "handlerArgs" may also contain an optional "trustedCert" option to
 trust a self-signed TLS certificate. The value is the 20 byte hex prefix

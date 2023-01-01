@@ -1,3 +1,4 @@
+//go:build !windows && !appengine && !solaris
 // +build !windows,!appengine,!solaris
 
 /*

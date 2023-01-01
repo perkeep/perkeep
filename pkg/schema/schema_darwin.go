@@ -1,5 +1,5 @@
-//+build darwin
-//+build !appengine
+//go:build darwin && !appengine
+// +build darwin,!appengine
 
 package schema
 

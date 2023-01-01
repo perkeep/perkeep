@@ -1,3 +1,4 @@
+//go:build deps
 // +build deps
 
 // Package deps depends on go modules in order to work around the fact that

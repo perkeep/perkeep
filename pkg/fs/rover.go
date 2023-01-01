@@ -43,7 +43,8 @@ import (
 // the different versions of the file (roFileVersion).
 // It is read-only.
 // Its permanode is the permanode with camliPath:entname attributes.
-//  TODO: There might be a way to reuse roDir
+//
+//	TODO: There might be a way to reuse roDir
 type roVersionsDir struct {
 	fs        *CamliFileSystem
 	permanode blob.Ref

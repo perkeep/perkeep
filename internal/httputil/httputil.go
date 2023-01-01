@@ -165,10 +165,10 @@ func RequestTargetPort(req *http.Request) int {
 // Recover is meant to be used at the top of handlers with "defer"
 // to catch errors from MustGet, etc:
 //
-//   func handler(rw http.ResponseWriter, req *http.Request) {
-//       defer httputil.Recover(rw, req)
-//       id := req.MustGet("id")
-//       ....
+//	func handler(rw http.ResponseWriter, req *http.Request) {
+//	    defer httputil.Recover(rw, req)
+//	    id := req.MustGet("id")
+//	    ....
 //
 // Recover will send the proper HTTP error type and message (e.g.
 // a 400 Bad Request for MustGet)

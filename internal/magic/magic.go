@@ -294,9 +294,9 @@ var pict = []byte("pict")
 // Box: type "ftyp", size 24
 // - *bmff.FileTypeBox: &{box:0xc00009a1e0 MajorBrand:heic MinorVersion:^@^@^@^@ Compatible:[mif1 heic]}
 // Box: type "meta", size 4027
-// - *bmff.MetaBox, 8 children:
+//   - *bmff.MetaBox, 8 children:
 //     Box: type "hdlr", size 34
-//     - *bmff.HandlerBox: &{FullBox:{box:0xc00009a2d0 Version:0 Flags:0} HandlerType:pict Name:}
+//   - *bmff.HandlerBox: &{FullBox:{box:0xc00009a2d0 Version:0 Flags:0} HandlerType:pict Name:}
 func isHEIC(prefix []byte) bool {
 	if len(prefix) < 12 {
 		return false

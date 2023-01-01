@@ -173,9 +173,7 @@ func (l *lexer) run() {
 	}
 }
 
-//
 // State functions
-//
 type stateFn func(*lexer) stateFn
 
 func readNeg(l *lexer) stateFn {
