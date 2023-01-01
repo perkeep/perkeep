@@ -643,7 +643,7 @@ func handleRobots(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) handleUiFile(w http.ResponseWriter, r *http.Request) {
-	file := strings.TrimPrefix(r.URL.Path, "/ui")
+	file := strings.TrimPrefix(r.URL.Path, "/ui/")
 
 	root := h.uiFiles
 
