@@ -73,37 +73,6 @@ func (h *handler) searchPDFs(limit int) (*search.SearchResult, error) {
 	return res, nil
 }
 
-func (h *handler) searchPDF(pn blob.Ref) (*search.SearchResult, error) {
-	q := &search.SearchQuery{
-		Constraint: &search.Constraint{
-			Logical: &search.LogicalConstraint{
-				Op: "and",
-				A: &search.Constraint{Permanode: &search.PermanodeConstraint{
-					SkipHidden: true,
-					Attr:       nodeattr.Type,
-					Value:      pdfNodeType,
-				}},
-				B: &search.Constraint{
-					BlobRefPrefix: pn.String(),
-				},
-			},
-		},
-		Describe: &search.DescribeRequest{
-			Depth: 1,
-			Rules: []*search.DescribeRule{
-				{
-					Attrs: []string{"camliContent"},
-				},
-			},
-		},
-	}
-	res, err := h.sh.Query(context.TODO(), q)
-	if err != nil {
-		return nil, err
-	}
-	return res, nil
-}
-
 func (h *handler) searchPDFByContent(contentRef blob.Ref) (*search.SearchResult, error) {
 	q := &search.SearchQuery{
 		Constraint: &search.Constraint{
@@ -199,11 +168,6 @@ func (h *handler) fetchPDFs(limit int) ([]pdfObject, error) {
 // returns os.ErrNotExist when pdf was not found
 func (h *handler) fetchPDFByContent(contentRef blob.Ref) (pdfObject, error) {
 	return h.fetchPDFFunc(contentRef, h.searchPDFByContent)
-}
-
-// returns os.ErrNotExist when pdf was not found
-func (h *handler) fetchPDF(pn blob.Ref) (pdfObject, error) {
-	return h.fetchPDFFunc(pn, h.searchPDF)
 }
 
 // returns os.ErrNotExist when pdf was not found

@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -51,8 +50,6 @@ const (
 var (
 	rootTemplate = template.Must(template.New("root").Parse(rootHTML))
 	docTemplate  = template.Must(template.New("doc").Parse(docHTML))
-
-	resourcePattern *regexp.Regexp = regexp.MustCompile(`^/resource/(` + blob.Pattern + `)$`)
 )
 
 // config is used to unmarshal the application configuration JSON

@@ -56,11 +56,6 @@ type pdfObject struct {
 	documentRef blob.Ref
 }
 
-// displayURL returns the URL that displays this struct at its original size
-func (mo *pdfObject) displayURL() string {
-	return fmt.Sprintf("resource/%s", mo.permanode.String())
-}
-
 // PDFObjectVM stores the PDFObject data required by the view templates
 type PDFObjectVM struct {
 	BlobRef  blob.Ref
