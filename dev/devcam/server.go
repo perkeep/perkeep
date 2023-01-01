@@ -69,6 +69,7 @@ type serverCmd struct {
 	mini        bool
 	publish     bool // whether to build and start the publisher app(s)
 	scancab     bool // whether to build and start the scancab app(s)
+	pdfcab      bool // whether to build and start the pdfcab app(s)
 	hello       bool // whether to build and start the hello demo app
 
 	openBrowser      bool
@@ -102,6 +103,7 @@ func init() {
 		flags.BoolVar(&cmd.sha1, "sha1", false, "Use sha1 instead of sha224.")
 		flags.BoolVar(&cmd.publish, "publish", true, "Enable publisher app(s)")
 		flags.BoolVar(&cmd.scancab, "scancab", false, "Enable scancab app(s)")
+		flags.BoolVar(&cmd.pdfcab, "pdfcab", false, "Enable pdfcab app(s)")
 		flags.BoolVar(&cmd.hello, "hello", false, "Enable hello (demo) app")
 		flags.BoolVar(&cmd.mini, "mini", false, "Enable minimal mode, where all optional features are disabled. (Currently just publishing)")
 
@@ -159,6 +161,7 @@ func (c *serverCmd) checkFlags(args []string) error {
 		}
 		c.publish = false
 		c.scancab = false
+		c.pdfcab = false
 		c.hello = false
 	}
 	if c.things && !c.wipe {
@@ -235,6 +238,7 @@ func (c *serverCmd) setEnvVars() error {
 
 	setenv("CAMLI_PUBLISH_ENABLED", strconv.FormatBool(c.publish))
 	setenv("CAMLI_SCANCAB_ENABLED", strconv.FormatBool(c.scancab))
+	setenv("CAMLI_PDFCAB_ENABLED", strconv.FormatBool(c.pdfcab))
 	setenv("CAMLI_HELLO_ENABLED", strconv.FormatBool(c.hello))
 	setenv("CAMLI_SHA1_ENABLED", strconv.FormatBool(c.sha1))
 	switch {
@@ -521,7 +525,7 @@ func (c *serverCmd) RunCommand(args []string) error {
 		if c.publish {
 			targets = append(targets, "app/publisher")
 		}
-		targets = append(targets, "app/scanningcabinet")
+		targets = append(targets, "app/pdfcabinet")
 		err := build(targets...)
 		if err != nil {
 			return err
