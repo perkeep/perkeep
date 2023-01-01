@@ -1,6 +1,6 @@
 To build Perkeep:
 
-1) Install Go 1.16 or later.
+1) Install Go 1.19 or later.
 
 2) cd to the root of the Perkeep source (where this file is)
 
