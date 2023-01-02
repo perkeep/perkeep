@@ -4,6 +4,7 @@
 
 # Configuration variables here:
 BSHOST=localhost:3179/bs
+SEARCHHOST=localhost:3179/my-search
 BSUSER=user
 BSPASS=foo
 
@@ -42,4 +43,4 @@ curl -v -u $AUTH http://$BSHOST/camli/enumerate-blobs?limit=1
 curl -v -u $AUTH http://$BSHOST/camli/enumerate-blobs?after=sha1-126249fd8c18cbb5312a5705746a2af87fba9538
 
 # Search for all images
-echo '{"expression":"is:image","describe":{"rules":[{"attrs":["camliContent"]}]}}' | curl -v  --data-binary  @- -u $AUTH http://localhost:3179/my-search/camli/search/query
+echo '{"expression":"is:image","describe":{"rules":[{"attrs":["camliContent"]}]}}' | curl -v  --data-binary  @- -u $AUTH $SEARCHHOST/camli/search/query
