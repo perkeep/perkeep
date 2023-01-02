@@ -36,35 +36,35 @@ import (
 	"golang.org/x/net/webdav"
 )
 
-type webdavFs struct {
-	root   *webdavFsNode
+type fs struct {
+	root   *fsNode
 	client *client.Client
 }
 
-func newWebDavFS(c *client.Client, br blob.Ref) (*webdavFs, error) {
-	return &webdavFs{client: c, root: &webdavFsNode{br: br, sub: make(map[string]*webdavFsNode)}}, nil
+func newFS(c *client.Client, br blob.Ref) (*fs, error) {
+	return &fs{client: c, root: &fsNode{br: br, sub: make(map[string]*fsNode)}}, nil
 }
 
 var (
-	_ webdav.FileSystem = (*webdavFs)(nil)
+	_ webdav.FileSystem = (*fs)(nil)
 )
 
 // fs is read only
-func (fs *webdavFs) Mkdir(ctx context.Context, name string, perm os.FileMode) error {
+func (fs *fs) Mkdir(ctx context.Context, name string, perm os.FileMode) error {
 	return os.ErrPermission
 }
 
 // fs is read only
-func (fs *webdavFs) RemoveAll(ctx context.Context, name string) error {
+func (fs *fs) RemoveAll(ctx context.Context, name string) error {
 	return os.ErrPermission
 }
 
 // fs is read only
-func (fs *webdavFs) Rename(ctx context.Context, oldName, newName string) error {
+func (fs *fs) Rename(ctx context.Context, oldName, newName string) error {
 	return os.ErrPermission
 }
 
-func (fs *webdavFs) Stat(ctx context.Context, name string) (os.FileInfo, error) {
+func (fs *fs) Stat(ctx context.Context, name string) (os.FileInfo, error) {
 	f, err := fs.OpenFile(ctx, name, os.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
@@ -74,7 +74,7 @@ func (fs *webdavFs) Stat(ctx context.Context, name string) (os.FileInfo, error) 
 	return f.Stat()
 }
 
-func (fs *webdavFs) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
+func (fs *fs) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
 	if flag != os.O_RDONLY {
 		return nil, os.ErrPermission
 	}
@@ -97,14 +97,14 @@ func (fs *webdavFs) OpenFile(ctx context.Context, name string, flag int, perm os
 	return fs.openFile(ctx, n)
 }
 
-func (fs *webdavFs) openFile(ctx context.Context, n *webdavFsNode) (*webdavFsFile, error) {
+func (fs *fs) openFile(ctx context.Context, n *fsNode) (*roFile, error) {
 	if n.fi.IsDir() {
 		dentries := make([]os.FileInfo, 0)
 		for _, v := range n.sub {
 			if err := fs.refresh(ctx, v); err != nil {
 				return nil, fmt.Errorf("unable to refresh fs node: %w", err)
 			}
-			dentries = append(dentries, webdavFsFileInfo{
+			dentries = append(dentries, fileInfo{
 				isDir:   v.fi.IsDir(),
 				name:    v.fi.Name(),
 				size:    v.fi.Size(),
@@ -112,13 +112,13 @@ func (fs *webdavFs) openFile(ctx context.Context, n *webdavFsNode) (*webdavFsFil
 				modTime: v.fi.ModTime(),
 			})
 		}
-		return &webdavFsFile{n: n, dentries: dentries}, nil
+		return &roFile{n: n, dentries: dentries}, nil
 	} else {
 		r, err := schema.NewFileReader(ctx, fs.client, n.br)
 		if err != nil {
 			return nil, fmt.Errorf("unable to open file to read: %w", err)
 		}
-		return &webdavFsFile{n: n, r: r}, nil
+		return &roFile{n: n, r: r}, nil
 	}
 }
 
@@ -142,12 +142,12 @@ func splitIntoParts(name string) []string {
 	return s
 }
 
-type webdavFsNode struct {
+type fsNode struct {
 	br blob.Ref
 
 	mu  sync.Mutex
 	fi  os.FileInfo
-	sub map[string]*webdavFsNode
+	sub map[string]*fsNode
 
 	// cache invalidation data
 	static        bool
@@ -156,15 +156,15 @@ type webdavFsNode struct {
 
 var refreshInterval = 1 * time.Minute
 
-func needsRefresh(n *webdavFsNode) bool {
+func (n *fsNode) needsRefreshLocked() bool {
 	return !n.static && time.Now().After(n.lastRefreshed.Add(refreshInterval))
 }
 
-func (fs *webdavFs) refreshRoot(ctx context.Context, n *webdavFsNode) error {
+func (fs *fs) refreshRoot(ctx context.Context, n *fsNode) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	if !needsRefresh(n) {
+	if !n.needsRefreshLocked() {
 		return nil
 	}
 
@@ -178,7 +178,7 @@ func (fs *webdavFs) refreshRoot(ctx context.Context, n *webdavFsNode) error {
 		return fmt.Errorf("root %s should be a permanode", n.br)
 	}
 
-	sub := make(map[string]*webdavFsNode, 0)
+	sub := make(map[string]*fsNode, 0)
 	for k := range db.Permanode.Attr {
 		if !strings.HasPrefix(k, nodeattr.CamliPathColon) {
 			continue
@@ -189,7 +189,7 @@ func (fs *webdavFs) refreshRoot(ctx context.Context, n *webdavFsNode) error {
 		}
 		name := strings.TrimPrefix(k, nodeattr.CamliPathColon)
 		dbm := des.Meta.Get(cb)
-		sub[name] = &webdavFsNode{br: dbm.BlobRef}
+		sub[name] = &fsNode{br: dbm.BlobRef}
 	}
 	for k, v := range sub {
 		if c, ok := n.sub[k]; ok {
@@ -207,7 +207,7 @@ func (fs *webdavFs) refreshRoot(ctx context.Context, n *webdavFsNode) error {
 
 	n.static = false
 	n.sub = sub
-	n.fi = webdavFsFileInfo{
+	n.fi = fileInfo{
 		isDir:   true,
 		name:    "/",
 		mode:    0400,
@@ -218,11 +218,11 @@ func (fs *webdavFs) refreshRoot(ctx context.Context, n *webdavFsNode) error {
 	return nil
 }
 
-func (fs *webdavFs) refresh(ctx context.Context, n *webdavFsNode) error {
+func (fs *fs) refresh(ctx context.Context, n *fsNode) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	if !needsRefresh(n) {
+	if !n.needsRefreshLocked() {
 		return nil
 	}
 
@@ -238,7 +238,7 @@ func (fs *webdavFs) refresh(ctx context.Context, n *webdavFsNode) error {
 		return fmt.Errorf("unable to refresh permanodes %s: %w", n.br, err)
 	case schema.TypeFile:
 		n.static = true
-		n.fi = webdavFsFileInfo{
+		n.fi = fileInfo{
 			isDir:   false,
 			name:    db.File.FileName,
 			size:    db.File.Size,
@@ -247,14 +247,14 @@ func (fs *webdavFs) refresh(ctx context.Context, n *webdavFsNode) error {
 		}
 	case schema.TypeDirectory:
 		n.static = true
-		n.fi = webdavFsFileInfo{
+		n.fi = fileInfo{
 			isDir:   true,
 			name:    db.Dir.FileName,
 			size:    db.Dir.Size,
 			mode:    0400,
 			modTime: modtimeFromFileInfo(db.Dir),
 		}
-		n.sub = make(map[string]*webdavFsNode)
+		n.sub = make(map[string]*fsNode)
 		for _, m := range db.DirMembers() {
 			dmc := des.Meta.Get(m.BlobRef)
 			var fi *camtypes.FileInfo
@@ -266,15 +266,15 @@ func (fs *webdavFs) refresh(ctx context.Context, n *webdavFsNode) error {
 			if fi == nil {
 				continue
 			}
-			n.sub[fi.FileName] = &webdavFsNode{br: m.BlobRef}
+			n.sub[fi.FileName] = &fsNode{br: m.BlobRef}
 		}
 	}
 	n.lastRefreshed = time.Now()
 	return nil
 }
 
-type webdavFsFile struct {
-	n   *webdavFsNode
+type roFile struct {
+	n   *fsNode
 	pos int
 
 	// file
@@ -285,14 +285,14 @@ type webdavFsFile struct {
 }
 
 var (
-	_ webdav.File = (*webdavFsFile)(nil)
+	_ webdav.File = (*roFile)(nil)
 )
 
-func (f *webdavFsFile) isDir() bool {
+func (f *roFile) isDir() bool {
 	return f.r == nil
 }
 
-func (f *webdavFsFile) Seek(offset int64, whence int) (int64, error) {
+func (f *roFile) Seek(offset int64, whence int) (int64, error) {
 	npos := f.pos
 	switch whence {
 	case io.SeekStart:
@@ -311,11 +311,11 @@ func (f *webdavFsFile) Seek(offset int64, whence int) (int64, error) {
 	return int64(f.pos), nil
 }
 
-func (f *webdavFsFile) ETag(ctx context.Context) (string, error) {
+func (f *roFile) ETag(ctx context.Context) (string, error) {
 	return f.n.br.Digest(), nil
 }
 
-func (f *webdavFsFile) Read(p []byte) (int, error) {
+func (f *roFile) Read(p []byte) (int, error) {
 	if f.isDir() {
 		return 0, os.ErrInvalid
 	}
@@ -324,18 +324,18 @@ func (f *webdavFsFile) Read(p []byte) (int, error) {
 	return n, err
 }
 
-func (f *webdavFsFile) Write(p []byte) (int, error) {
+func (f *roFile) Write(p []byte) (int, error) {
 	return 0, os.ErrPermission
 }
 
-func (f *webdavFsFile) Close() error {
+func (f *roFile) Close() error {
 	if f.isDir() {
 		return nil
 	}
 	return f.r.Close()
 }
 
-func (f *webdavFsFile) Readdir(count int) ([]os.FileInfo, error) {
+func (f *roFile) Readdir(count int) ([]os.FileInfo, error) {
 	if !f.isDir() {
 		return nil, os.ErrInvalid
 	}
@@ -369,11 +369,11 @@ func modtimeFromFileInfo(fi *camtypes.FileInfo) time.Time {
 	return t
 }
 
-func (f *webdavFsFile) Stat() (os.FileInfo, error) {
+func (f *roFile) Stat() (os.FileInfo, error) {
 	return f.n.fi, nil
 }
 
-type webdavFsFileInfo struct {
+type fileInfo struct {
 	isDir bool
 
 	name    string
@@ -382,26 +382,26 @@ type webdavFsFileInfo struct {
 	modTime time.Time
 }
 
-func (fi webdavFsFileInfo) IsDir() bool {
+func (fi fileInfo) IsDir() bool {
 	return fi.isDir
 }
 
-func (fi webdavFsFileInfo) Name() string {
+func (fi fileInfo) Name() string {
 	return fi.name
 }
 
-func (fi webdavFsFileInfo) Size() int64 {
+func (fi fileInfo) Size() int64 {
 	return fi.size
 }
 
-func (fi webdavFsFileInfo) Mode() os.FileMode {
+func (fi fileInfo) Mode() os.FileMode {
 	return fi.mode
 }
 
-func (fi webdavFsFileInfo) ModTime() time.Time {
+func (fi fileInfo) ModTime() time.Time {
 	return fi.modTime
 }
 
-func (fi webdavFsFileInfo) Sys() interface{} {
+func (fi fileInfo) Sys() interface{} {
 	return nil
 }

@@ -96,7 +96,7 @@ func newWebdavHandler(conf *config) (*webdavHandler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to look up camli root: %w", err)
 	}
-	webdavFs, err := newWebDavFS(client, camliRoot)
+	fs, err := newFS(client, camliRoot)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create new webdav fs: %w", err)
 	}
@@ -104,7 +104,7 @@ func newWebdavHandler(conf *config) (*webdavHandler, error) {
 	return &webdavHandler{
 		Handler: webdav.Handler{
 			Prefix:     conf.Prefix,
-			FileSystem: webdavFs,
+			FileSystem: fs,
 			LockSystem: webdav.NewMemLS(),
 		},
 	}, nil
