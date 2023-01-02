@@ -22,14 +22,12 @@ import (
 	"io"
 	"os"
 	"path"
-	"strings"
 	"sync"
 	"time"
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/client"
 	"perkeep.org/pkg/schema"
-	"perkeep.org/pkg/schema/nodeattr"
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/types/camtypes"
 
@@ -81,7 +79,7 @@ func (fs *fs) OpenFile(ctx context.Context, name string, flag int, perm os.FileM
 	parts := splitIntoParts(name)
 
 	n := fs.root
-	if err := fs.refreshRoot(ctx, n); err != nil {
+	if err := fs.refresh(ctx, n); err != nil {
 		return nil, fmt.Errorf("unable to refresh fs node: %w", err)
 	}
 	for i := range parts {
@@ -101,9 +99,6 @@ func (fs *fs) openFile(ctx context.Context, n *fsNode) (*roFile, error) {
 	if n.fi.IsDir() {
 		dentries := make([]os.FileInfo, 0)
 		for _, v := range n.sub {
-			if err := fs.refresh(ctx, v); err != nil {
-				return nil, fmt.Errorf("unable to refresh fs node: %w", err)
-			}
 			dentries = append(dentries, fileInfo{
 				isDir:   v.fi.IsDir(),
 				name:    v.fi.Name(),
@@ -114,7 +109,13 @@ func (fs *fs) openFile(ctx context.Context, n *fsNode) (*roFile, error) {
 		}
 		return &roFile{n: n, dentries: dentries}, nil
 	} else {
-		r, err := schema.NewFileReader(ctx, fs.client, n.br)
+		// static files or directories can use their blobref
+		br := n.br
+		// dynamic files or directories use their content blobref
+		if n.cbr.Valid() {
+			br = n.cbr
+		}
+		r, err := schema.NewFileReader(ctx, fs.client, br)
 		if err != nil {
 			return nil, fmt.Errorf("unable to open file to read: %w", err)
 		}
@@ -143,7 +144,8 @@ func splitIntoParts(name string) []string {
 }
 
 type fsNode struct {
-	br blob.Ref
+	br  blob.Ref
+	cbr blob.Ref
 
 	mu  sync.Mutex
 	fi  os.FileInfo
@@ -160,64 +162,6 @@ func (n *fsNode) needsRefreshLocked() bool {
 	return !n.static && time.Now().After(n.lastRefreshed.Add(refreshInterval))
 }
 
-func (fs *fs) refreshRoot(ctx context.Context, n *fsNode) error {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-
-	if !n.needsRefreshLocked() {
-		return nil
-	}
-
-	des, err := fs.client.Describe(ctx, &search.DescribeRequest{BlobRef: n.br, Depth: 3})
-	if err != nil {
-		return fmt.Errorf("unable to describe blob ref %s: %w", n.br, err)
-	}
-	db := des.Meta.Get(n.br)
-
-	if db.CamliType != schema.TypePermanode {
-		return fmt.Errorf("root %s should be a permanode", n.br)
-	}
-
-	sub := make(map[string]*fsNode, 0)
-	for k := range db.Permanode.Attr {
-		if !strings.HasPrefix(k, nodeattr.CamliPathColon) {
-			continue
-		}
-		cb := blob.ParseOrZero(db.Permanode.Attr.Get(k))
-		if !cb.Valid() {
-			continue
-		}
-		name := strings.TrimPrefix(k, nodeattr.CamliPathColon)
-		dbm := des.Meta.Get(cb)
-		sub[name] = &fsNode{br: dbm.BlobRef}
-	}
-	for k, v := range sub {
-		if c, ok := n.sub[k]; ok {
-			if c.br == v.br {
-				continue
-			}
-		}
-		n.sub[k] = v
-	}
-	for k, v := range n.sub {
-		if _, ok := sub[k]; !ok {
-			sub[k] = v
-		}
-	}
-
-	n.static = false
-	n.sub = sub
-	n.fi = fileInfo{
-		isDir:   true,
-		name:    "/",
-		mode:    0400,
-		size:    int64(len(n.sub)),
-		modTime: time.Now(),
-	}
-	n.lastRefreshed = time.Now()
-	return nil
-}
-
 func (fs *fs) refresh(ctx context.Context, n *fsNode) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -232,45 +176,119 @@ func (fs *fs) refresh(ctx context.Context, n *fsNode) error {
 	}
 	db := des.Meta.Get(n.br)
 
+	fi, ok := fileInfoFromDescribedBlob(db, des.Meta)
+	if !ok {
+		return fmt.Errorf("unable to extract file info from described blob %s", n.br)
+	}
+	n.fi = fi
+
+	// refresh child nodes
 	switch db.CamliType {
-	case schema.TypePermanode:
-		// TODO
-		return fmt.Errorf("unable to refresh permanodes %s: %w", n.br, err)
 	case schema.TypeFile:
 		n.static = true
-		n.fi = fileInfo{
-			isDir:   false,
-			name:    db.File.FileName,
-			size:    db.File.Size,
-			mode:    0400,
-			modTime: modtimeFromFileInfo(db.File),
-		}
 	case schema.TypeDirectory:
 		n.static = true
-		n.fi = fileInfo{
-			isDir:   true,
-			name:    db.Dir.FileName,
-			size:    db.Dir.Size,
-			mode:    0400,
-			modTime: modtimeFromFileInfo(db.Dir),
-		}
 		n.sub = make(map[string]*fsNode)
 		for _, m := range db.DirMembers() {
-			dmc := des.Meta.Get(m.BlobRef)
-			var fi *camtypes.FileInfo
-			if dmc.File != nil {
-				fi = dmc.File
-			} else if dmc.Dir != nil {
-				fi = dmc.Dir
+			mfi, ok := fileInfoFromDescribedBlob(des.Meta.Get(m.BlobRef), des.Meta)
+			if !ok {
+				// TODO log + skip
+				return fmt.Errorf("unable to extract file info directory child %s: %s", n.br, m.BlobRef)
 			}
-			if fi == nil {
-				continue
+			n.sub[mfi.name] = &fsNode{br: m.BlobRef, fi: mfi}
+		}
+	case schema.TypePermanode:
+		n.static = false
+		if cbr, ok := db.ContentRef(); ok {
+			cdb := des.Meta.Get(cbr)
+			if cdb.CamliType != schema.TypeFile && cdb.CamliType != schema.TypeDirectory {
+				return fmt.Errorf("only contentRef attributes of camliType 'file' or 'directory' are allowed: %s", n.br)
 			}
-			n.sub[fi.FileName] = &fsNode{br: m.BlobRef}
+			n.cbr = cbr
+		}
+		if db.Permanode.IsContainer() {
+			sub := make(map[string]*fsNode, 0)
+			for _, m := range db.Members() {
+				mfi, ok := fileInfoFromDescribedBlob(des.Meta.Get(m.BlobRef), des.Meta)
+				if !ok {
+					// TODO log + skip
+					return fmt.Errorf("unable to extract file info directory child %s: %s", n.br, m.BlobRef)
+				}
+				// TODO: camliPath:X where X might be different from "Title", names could collide
+				sub[mfi.name] = &fsNode{br: m.BlobRef, fi: mfi}
+			}
+			for k, v := range sub {
+				if c, ok := n.sub[k]; ok {
+					if c.br == v.br {
+						continue
+					}
+				}
+				n.sub[k] = v
+			}
+			for k, v := range n.sub {
+				if _, ok := sub[k]; !ok {
+					sub[k] = v
+				}
+			}
 		}
 	}
 	n.lastRefreshed = time.Now()
 	return nil
+}
+
+// TODO: return error if we cannot calculate fileInfo
+func fileInfoFromDescribedBlob(db *search.DescribedBlob, meta search.MetaMap) (fileInfo, bool) {
+	switch db.CamliType {
+	case schema.TypeFile:
+		if db.File == nil {
+			return fileInfo{}, false
+		}
+		return fileInfo{
+			isDir:   false,
+			name:    db.Title(),
+			size:    db.File.Size,
+			mode:    0400,
+			modTime: modtimeFromFileInfo(db.File),
+		}, true
+	case schema.TypeDirectory:
+		if db.Dir == nil {
+			return fileInfo{}, false
+		}
+		return fileInfo{
+			isDir:   true,
+			name:    db.Title(),
+			mode:    0400,
+			modTime: modtimeFromFileInfo(db.Dir),
+		}, true
+	case schema.TypePermanode:
+		if cbr, ok := db.ContentRef(); ok {
+			cdb := meta.Get(cbr)
+			if cdb.CamliType != schema.TypeFile && cdb.CamliType != schema.TypeDirectory {
+				return fileInfo{}, false
+			}
+			return fileInfoFromDescribedBlob(cdb, meta)
+		}
+		if db.Permanode.IsContainer() {
+			return fileInfo{
+				isDir:   true,
+				name:    db.Title(),
+				mode:    0400,
+				modTime: db.Permanode.ModTime,
+			}, true
+		}
+	}
+	return fileInfo{}, false
+}
+
+func modtimeFromFileInfo(fi *camtypes.FileInfo) time.Time {
+	t := time.Now()
+	if fi.Time != nil {
+		t = fi.Time.Time()
+	}
+	if fi.ModTime != nil {
+		t = fi.ModTime.Time()
+	}
+	return t
 }
 
 type roFile struct {
@@ -311,9 +329,13 @@ func (f *roFile) Seek(offset int64, whence int) (int64, error) {
 	return int64(f.pos), nil
 }
 
+/*
+TODO: this only works for static directories or files
+
 func (f *roFile) ETag(ctx context.Context) (string, error) {
 	return f.n.br.Digest(), nil
 }
+*/
 
 func (f *roFile) Read(p []byte) (int, error) {
 	if f.isDir() {
@@ -356,17 +378,6 @@ func (f *roFile) Readdir(count int) ([]os.FileInfo, error) {
 		old = 0
 	}
 	return f.dentries[old:f.pos], nil
-}
-
-func modtimeFromFileInfo(fi *camtypes.FileInfo) time.Time {
-	t := time.Now()
-	if fi.Time != nil {
-		t = fi.Time.Time()
-	}
-	if fi.ModTime != nil {
-		t = fi.ModTime.Time()
-	}
-	return t
 }
 
 func (f *roFile) Stat() (os.FileInfo, error) {
