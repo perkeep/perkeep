@@ -101,7 +101,7 @@ func TestCamputUploadOnce(t *testing.T) {
 		// Also, CAMLI_DEBUG is needed for --contents_only flag.
 		return w.CmdWithEnv("pk-put", append(os.Environ(), "CAMLI_DEBUG=1"), "file", "--contents_only=true", filepath.FromSlash("../testdata/server-config.json"))
 	}
-	wantBlobRef := "sha1-381c42a63078ef49a2f1808318dbbafbb31a81d5"
+	wantBlobRef := "sha1-a99dfe6f51dc7087e7f9d4bf5b741d04f4e99966"
 	cmd := pkputCmd()
 	out := test.MustRunCmd(t, cmd)
 	out = strings.TrimSpace(out)

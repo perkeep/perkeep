@@ -243,8 +243,6 @@ func (s *Server) Serve() {
 	if err := s.Listen(""); err != nil {
 		s.fatalf("Listen error: %v", err)
 	}
-	go runTestHarnessIntegration(s.listener)
-
 	srv := &http.Server{
 		Handler: s,
 	}
@@ -258,20 +256,6 @@ func (s *Server) Serve() {
 	if err != nil {
 		s.printf("Error in http server: %v\n", err)
 		os.Exit(1)
-	}
-}
-
-// Signals the test harness that we've started listening.
-// Writes back the address that we randomly selected.
-func runTestHarnessIntegration(listener net.Listener) {
-	addr := os.Getenv("CAMLI_SET_BASE_URL_AND_SEND_ADDR_TO")
-	if addr == "" {
-		return
-	}
-	c, err := net.Dial("tcp", addr)
-	if err == nil {
-		fmt.Fprintf(c, "%s\n", listener.Addr())
-		c.Close()
 	}
 }
 

@@ -227,6 +227,7 @@ func (c *serverCmd) setEnvVars() error {
 	if c.fullIndexSync {
 		setenv("CAMLI_FULL_INDEX_SYNC_ON_START", "true")
 	}
+	setenv("CAMLI_DEVMODE", "true")
 	setenv("CAMLI_DBNAME", "devcamli"+user)
 	setenv("CAMLI_MYSQL_ENABLED", "false")
 	setenv("CAMLI_MONGO_ENABLED", "false")
