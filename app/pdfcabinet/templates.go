@@ -174,11 +174,6 @@ var docHTML = `
   <tr><td align='right'>Tags</td><td><input id="tags" name='tags' value="{{.Doc.Tags | html}}" size=80/></td></tr>
   <tr><td align='right'>Doc Date</td><td><input name='date' value="{{.Doc.DateYyyyMmDd}}" maxlength=10 /> (yyyy-mm-dd)</td></tr>
   <tr><td align='right'>Due Date</td><td><input name='due_date' value="{{.Doc.DueYyyyMmDd}}" maxlength=10 /> (yyyy-mm-dd)</td></tr>
-  <tr><td align='right'>Location</td>
-      <td><input name='physical_location'
-           value="{{ if .Doc.PhysicalLocation }}{{.Doc.PhysicalLocation | html}}{{ end }}" size=60 />
-           (of physical document)</td>
-  </tr>
   <tr>
     <td></td>
     <td><input type='submit' value="Save" />
