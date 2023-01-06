@@ -29,57 +29,6 @@ const (
 	dateformatYyyyMmDd = "2006-01-02"
 )
 
-// pdfObject represents the metadata associated with each individual uploaded pdf.
-// It is stored as a permanode with the "pdfcabinet:pdf" camliNodeType value.
-type pdfObject struct {
-	// permanode for this pdf.
-	permanode blob.Ref
-
-	// contentRef is the image file blobRef.
-	// Stored as nodeattr.CamliContent.
-	contentRef blob.Ref
-
-	// Creation is the time when this struct was originally created.
-	// Stored as nodeattr.DateCreated, which makes this field the default
-	// sorting criterion when searching for pdfs.
-	creation time.Time
-
-	// TODO(gina) see if there is way to efficiently fetch these from
-	// the file permanode instead of storing a copy here.  We use this
-	// in the UI when displaying pdfs waiting to be turned into
-	// documents.
-	fileName string
-
-	// DocumentRef is the blobRef of the associated Document permanode.
-	// A Document has many MediaObjects. When newly uploaded,
-	// a MediaObject is not associated with a Document.
-	documentRef blob.Ref
-}
-
-// PDFObjectVM stores the PDFObject data required by the view templates
-type PDFObjectVM struct {
-	BlobRef  blob.Ref
-	FileName string
-}
-
-// MakeViewModel returns a new DocumentVM with the data from this struct
-func (po *pdfObject) MakeViewModel() PDFObjectVM {
-	return PDFObjectVM{
-		BlobRef:  po.permanode,
-		FileName: po.fileName,
-	}
-}
-
-// MakePDFObjectViewModels takes a slice of PDFObjects and returns a slice of
-// the same number of PDFObjectVMs with the data converted.
-func MakePDFObjectViewModels(pdfObjects []pdfObject) []PDFObjectVM {
-	models := make([]PDFObjectVM, len(pdfObjects))
-	for i := 0; i < len(pdfObjects); i++ {
-		models[i] = pdfObjects[i].MakeViewModel()
-	}
-	return models
-}
-
 // Document is a structure that groups adds information to a pdf.
 // It is stored as a permanode with the "pdfcabinet:doc" camliNodeType value.
 type document struct {
@@ -101,7 +50,8 @@ type document struct {
 	// Stored as nodeattr.StartDate.
 	docDate time.Time
 
-	// Title is the user-nominated title of the document.
+	// Title is the user-nominated title of the document.  We default
+	// to be the same as the pdf file name.
 	// Stored as nodeattr.Title.
 	title string
 
