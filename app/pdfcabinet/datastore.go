@@ -31,173 +31,6 @@ import (
 	"perkeep.org/pkg/search"
 )
 
-func (h *handler) searchPDFs(limit int) (*search.SearchResult, error) {
-	q := &search.SearchQuery{
-		Limit: limit,
-		Constraint: &search.Constraint{
-			Logical: &search.LogicalConstraint{
-				Op: "and",
-				A: &search.Constraint{Permanode: &search.PermanodeConstraint{
-					SkipHidden: true,
-					Attr:       nodeattr.Type,
-					Value:      pdfNodeType,
-				}},
-				B: &search.Constraint{Logical: &search.LogicalConstraint{
-					Op: "not",
-					A: &search.Constraint{Permanode: &search.PermanodeConstraint{
-						SkipHidden: true,
-						Attr:       "document",
-						ValueMatches: &search.StringConstraint{
-							ByteLength: &search.IntConstraint{
-								Min: 1,
-							},
-						},
-					}},
-				}},
-			},
-		},
-		Describe: &search.DescribeRequest{
-			Depth: 1,
-			Rules: []*search.DescribeRule{
-				{
-					Attrs: []string{"camliContent"},
-				},
-			},
-		},
-	}
-
-	res, err := h.sh.Query(context.TODO(), q)
-	if err != nil {
-		return nil, err
-	}
-	return res, nil
-}
-
-func (h *handler) searchPDFByContent(contentRef blob.Ref) (*search.SearchResult, error) {
-	q := &search.SearchQuery{
-		Constraint: &search.Constraint{
-			Logical: &search.LogicalConstraint{
-				Op: "and",
-				A: &search.Constraint{Permanode: &search.PermanodeConstraint{
-					SkipHidden: true,
-					Attr:       nodeattr.Type,
-					Value:      pdfNodeType,
-				}},
-				B: &search.Constraint{Permanode: &search.PermanodeConstraint{
-					SkipHidden: true,
-					Attr:       "camliContent",
-					Value:      contentRef.String(),
-				}},
-			},
-		},
-		Describe: &search.DescribeRequest{
-			Depth: 1,
-			Rules: []*search.DescribeRule{
-				{
-					Attrs: []string{"camliContent"},
-				},
-			},
-		},
-	}
-	res, err := h.sh.Query(context.TODO(), q)
-	if err != nil {
-		return nil, err
-	}
-	return res, nil
-}
-
-func (h *handler) describePDF(b *search.DescribedBlob) (pdfObject, error) {
-	var pdf pdfObject
-	attrs := b.Permanode.Attr
-	creationTime, err := time.Parse(time.RFC3339, attrs.Get(nodeattr.DateCreated)) // TODO: or types.Time3339 ?
-	if err != nil {
-		return pdf, err
-	}
-	var document blob.Ref
-	documentRef := attrs.Get("document")
-	if documentRef != "" {
-		var ok bool
-		document, ok = blob.Parse(documentRef)
-		if ok {
-			// TODO(mpl): more to be done here ? Do we ever want to display something about the document of a pdf ?
-		}
-	}
-	content, ok := blob.Parse(attrs.Get("camliContent"))
-	if !ok {
-		return pdf, fmt.Errorf("pdf permanode has invalid content blobref: %q", attrs.Get("camliContent"))
-	}
-
-	fileName := attrs.Get("filename")
-
-	return pdfObject{
-		permanode:   b.BlobRef,
-		contentRef:  content,
-		creation:    creationTime,
-		fileName:    fileName,
-		documentRef: document,
-	}, nil
-}
-
-func (h *handler) fetchPDFs(limit int) ([]pdfObject, error) {
-	res, err := h.searchPDFs(limit)
-	if err != nil {
-		return nil, err
-	}
-	if len(res.Blobs) == 0 {
-		return nil, nil
-	}
-	if res.Describe == nil || len(res.Describe.Meta) == 0 {
-		return nil, errors.New("pdf permanodes were not described")
-	}
-	pdfs := make([]pdfObject, 0)
-	for _, sbr := range res.Blobs {
-		br := sbr.Blob
-		des, ok := res.Describe.Meta[br.String()]
-		if !ok || des == nil || des.Permanode == nil {
-			continue
-		}
-		pdf, err := h.describePDF(des)
-		if err != nil {
-			return nil, fmt.Errorf("error describing pdf %v: %v", br, err)
-		}
-		pdfs = append(pdfs, pdf)
-	}
-	return pdfs, nil
-}
-
-// returns os.ErrNotExist when pdf was not found
-func (h *handler) fetchPDFByContent(contentRef blob.Ref) (pdfObject, error) {
-	return h.fetchPDFFunc(contentRef, h.searchPDFByContent)
-}
-
-// returns os.ErrNotExist when pdf was not found
-func (h *handler) fetchPDFFunc(br blob.Ref, searchFunc func(blob.Ref) (*search.SearchResult, error)) (pdfObject, error) {
-	var mo pdfObject
-	res, err := searchFunc(br)
-	if err != nil {
-		return mo, err
-	}
-	if len(res.Blobs) != 1 {
-		return mo, os.ErrNotExist
-	}
-	if res.Describe == nil || len(res.Describe.Meta) == 0 {
-		return mo, errors.New("pdf permanode was not described")
-	}
-	for _, des := range res.Describe.Meta {
-		if des.Permanode == nil {
-			continue
-		}
-		pdf, err := h.describePDF(des)
-		if err != nil {
-			return mo, fmt.Errorf("error describing pdf %v: %v", des.BlobRef, err)
-		}
-		return pdf, nil
-	}
-	return mo, os.ErrNotExist
-}
-
-// TODO(mpl): move that to client pkg, with a good API ?
-
 func (h *handler) signAndSend(ctx context.Context, json string) error {
 	// TODO(mpl): sign things ourselves if we can.
 	scl, err := h.cl.Sign(ctx, h.server, strings.NewReader("json="+json))
@@ -260,35 +93,6 @@ func (h *handler) newPermanode() (blob.Ref, error) {
 		return pn, fmt.Errorf("could not upload permanode: %v", err)
 	}
 	return sbr.BlobRef, nil
-}
-
-func (h *handler) createPDF(ctx context.Context, po pdfObject) (blob.Ref, error) {
-	pn, err := h.newPermanode()
-	if err != nil {
-		return pn, fmt.Errorf("could not create pdf: %v", err)
-	}
-
-	// make it a pdf
-	if err := h.setAttribute(ctx, pn, nodeattr.Type, pdfNodeType); err != nil {
-		return pn, fmt.Errorf("could not set %v as a pdf: %v", pn, err)
-	}
-
-	// give it a name
-	if err := h.setAttribute(ctx, pn, "filename", po.fileName); err != nil {
-		return pn, fmt.Errorf("could not set %v with filename %v: %v", pn, po.fileName, err)
-	}
-
-	// give it content
-	if err := h.setAttribute(ctx, pn, nodeattr.CamliContent, po.contentRef.String()); err != nil {
-		return pn, fmt.Errorf("could not set content for pdf %v: %v", pn, err)
-	}
-
-	// set creationTime
-	if err := h.setAttribute(ctx, pn, nodeattr.DateCreated, po.creation.UTC().Format(time.RFC3339)); err != nil {
-		return pn, fmt.Errorf("could not set creationTime for pdf %v: %v", pn, err)
-	}
-
-	return pn, nil
 }
 
 func (h *handler) updateDocument(ctx context.Context, pn blob.Ref, new *document) error {
@@ -388,6 +192,11 @@ func (h *handler) createDocument(ctx context.Context, doc document) (blob.Ref, e
 	}
 
 	if err := h.setAttribute(ctx, pn, nodeattr.CamliContent, doc.pdf.String()); err != nil {
+		return pn, fmt.Errorf("could not set camliContent for document %v: %v", pn, err)
+	}
+
+	if err := h.setAttribute(ctx, pn, nodeattr.Title, doc.title); err != nil {
+		return pn, fmt.Errorf("could not set title for document %v: %v", pn, err)
 	}
 
 	return pn, nil
@@ -402,9 +211,6 @@ func (h *handler) persistDocAndPdf(ctx context.Context, newDoc document) (blob.R
 	pn, err := h.createDocument(ctx, newDoc)
 	if err != nil {
 		return br, err
-	}
-	if err := h.setAttribute(ctx, newDoc.pdf, "document", pn.String()); err != nil {
-		return br, fmt.Errorf("could not update pdf %v with %v:%v", newDoc.pdf, "document", pn)
 	}
 	return pn, nil
 }

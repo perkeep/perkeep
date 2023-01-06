@@ -49,24 +49,6 @@ var rootHTML = `
 <div>Tag search: <input type='text' size='50' name='tags' id='taginput' value='{{.Tags}}' /> <input type='submit' value='Search' /> (comma-separated union)</div>
 </form>
 
-{{ if .Pdfs}}
-<h2>Un-annotated raw pdfs</h2>
-    <form method='POST' action='makedoc' />
-    <div id='pdfs'>
-    {{ range .Pdfs}}
-      <div style='margin: 1em; float:left; height: auto'>
-        <div style='display: block'>
-          <p><a href="/ui/{{.BlobRef}}">{{.FileName}}</a></p>
-          <input type='submit' value='Make doc' name='{{.BlobRef}}' />
-        </div>
-      </div>
-	{{ end }}
-    </div> <!-- pdfs -->
-    </form>
-    <br clear='both' />
-{{ end }}
-
-
 {{ if .SearchedDocs }}
 <h2>Search Results</h2>
     <ul>

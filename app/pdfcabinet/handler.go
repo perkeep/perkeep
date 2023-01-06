@@ -174,7 +174,6 @@ func (h *handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 type rootData struct {
 	BaseURL      string
-	Pdfs         []PDFObjectVM
 	Tags         separatedString
 	SearchedDocs []DocumentVM
 	UntaggedDocs []DocumentVM
@@ -219,10 +218,7 @@ func (h *handler) handleRoot(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var (
-		povm         []PDFObjectVM
-		searchedDocs []DocumentVM
-	)
+	var searchedDocs []DocumentVM
 	tags := newSeparatedString(r.FormValue("tags"))
 	docs, err := h.fetchDocuments(limit, searchOpts{tags: tags})
 	if err != nil {
@@ -234,14 +230,6 @@ func (h *handler) handleRoot(w http.ResponseWriter, r *http.Request) {
 		searchedDocs = MakeDocumentViewModels(docs)
 		// We've just done a search, in which case we don't show the pdfs,
 		// so no need to look for them.
-	} else {
-		// fetch pdf objects
-		pdfObjects, err := h.fetchPDFs(limit)
-		if err != nil {
-			httputil.ServeError(w, r, err)
-			return
-		}
-		povm = MakePDFObjectViewModels(pdfObjects)
 	}
 	allTags, err := h.fetchTags()
 	if err != nil {
@@ -266,7 +254,6 @@ func (h *handler) handleRoot(w http.ResponseWriter, r *http.Request) {
 	d := rootData{
 		BaseURL:      baseURL(r),
 		Tags:         tags,
-		Pdfs:         povm,
 		SearchedDocs: searchedDocs,
 		UntaggedDocs: MakeDocumentViewModels(untagged),
 		UpcomingDocs: MakeDocumentViewModels(upcoming),
@@ -330,7 +317,7 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		pdf, err := h.fetchPDFByContent(br)
+		pdf, err := h.fetchDocumentByPDF(br)
 		if err == nil {
 			w.Write([]byte(pdf.permanode.String()))
 			return
@@ -340,17 +327,17 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		pdfRef, err := h.createPDF(ctx, pdfObject{
-			contentRef: br,
-			fileName:   fileName,
-			creation:   time.Now(),
+		docRef, err := h.createDocument(ctx, document{
+			pdf:      br,
+			creation: time.Now(),
+			title:    fileName,
 		})
 
 		if err != nil {
 			httputil.ServeError(w, r, fmt.Errorf("could not create pdf object for %v: %v", fileName, err))
 			return
 		}
-		io.WriteString(w, pdfRef.String())
+		io.WriteString(w, docRef.String())
 		return
 	}
 }
