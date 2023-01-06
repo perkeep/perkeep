@@ -506,7 +506,6 @@ func (h *handler) handleChangedoc(w http.ResponseWriter, r *http.Request) {
 	}
 
 	document := &document{}
-	document.physicalLocation = r.FormValue("physical_location")
 	document.title = r.FormValue("title")
 	document.tags = newSeparatedString(r.FormValue("tags"))
 

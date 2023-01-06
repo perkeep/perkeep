@@ -296,11 +296,6 @@ func (h *handler) updateDocument(ctx context.Context, pn blob.Ref, new *document
 	if err != nil {
 		return fmt.Errorf("document %v not found: %v", pn, err)
 	}
-	if old.physicalLocation != new.physicalLocation {
-		if err := h.setAttribute(ctx, pn, nodeattr.LocationText, new.physicalLocation); err != nil {
-			return fmt.Errorf("could not set physicalLocation for document %v: %v", pn, err)
-		}
-	}
 
 	if old.title != new.title {
 		if err := h.setAttribute(ctx, pn, nodeattr.Title, new.title); err != nil {
@@ -716,14 +711,13 @@ func (h *handler) describeDocument(b *search.DescribedBlob) (*document, error) {
 		return nil, err
 	}
 	return &document{
-		pdf:              pdf,
-		permanode:        b.BlobRef,
-		docDate:          docDate,
-		creation:         creationTime,
-		title:            b.Permanode.Attr.Get(nodeattr.Title),
-		tags:             newSeparatedString(strings.Join(b.Permanode.Attr["tag"], ",")),
-		physicalLocation: b.Permanode.Attr.Get(nodeattr.LocationText),
-		dueDate:          dueDate,
+		pdf:       pdf,
+		permanode: b.BlobRef,
+		docDate:   docDate,
+		creation:  creationTime,
+		title:     b.Permanode.Attr.Get(nodeattr.Title),
+		tags:      newSeparatedString(strings.Join(b.Permanode.Attr["tag"], ",")),
+		dueDate:   dueDate,
 	}, nil
 }
 

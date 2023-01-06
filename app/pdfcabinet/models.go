@@ -109,11 +109,6 @@ type document struct {
 	// Stored as tag.
 	tags separatedString
 
-	// PhysicalLocation is the user-nominated description of the location
-	// of the physical document of which the PDFObject associated with this
-	// Stored as nodeAttr.LocationText.
-	physicalLocation string
-
 	// DueDate is the user-nominated date that the document is "due". The
 	// meaning of what "due" means in relation to each particular document
 	// is up to the user
@@ -159,29 +154,27 @@ func formatYyyyMmDd(indate time.Time) string {
 
 // DocumentVM stores the Document data required by the view templates
 type DocumentVM struct {
-	BlobRef          blob.Ref
-	Pdf              blob.Ref
-	Title            string
-	SomeTitle        string
-	DateYyyyMmDd     string
-	DueYyyyMmDd      string
-	DisplayUrl       string
-	Tags             separatedString
-	PhysicalLocation string
+	BlobRef      blob.Ref
+	Pdf          blob.Ref
+	Title        string
+	SomeTitle    string
+	DateYyyyMmDd string
+	DueYyyyMmDd  string
+	DisplayUrl   string
+	Tags         separatedString
 }
 
 // MakeViewModel returns a new DocumentVM with the data from this struct
 func (doc *document) MakeViewModel() DocumentVM {
 	return DocumentVM{
-		BlobRef:          doc.permanode,
-		Pdf:              doc.pdf,
-		DisplayUrl:       doc.displayURL(),
-		Title:            doc.title,
-		SomeTitle:        doc.someTitle(),
-		DateYyyyMmDd:     doc.dateYyyyMmDd(),
-		DueYyyyMmDd:      doc.dueYyyyMmDd(),
-		Tags:             doc.tags,
-		PhysicalLocation: doc.physicalLocation,
+		BlobRef:      doc.permanode,
+		Pdf:          doc.pdf,
+		DisplayUrl:   doc.displayURL(),
+		Title:        doc.title,
+		SomeTitle:    doc.someTitle(),
+		DateYyyyMmDd: doc.dateYyyyMmDd(),
+		DueYyyyMmDd:  doc.dueYyyyMmDd(),
+		Tags:         doc.tags,
 	}
 }
 
