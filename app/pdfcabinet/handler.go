@@ -327,10 +327,16 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		title := fileName
+		parts := strings.Split(title, ".")
+		if len(parts) > 0 {
+			title = parts[0]
+		}
+
 		docRef, err := h.createDocument(ctx, document{
 			pdf:      br,
 			creation: time.Now(),
-			title:    fileName,
+			title:    title,
 		})
 
 		if err != nil {
