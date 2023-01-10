@@ -321,39 +321,16 @@ func BlobFromReader(ref blob.Ref, r io.Reader) (*Blob, error) {
 	if err != nil {
 		return nil, err
 	}
-	var wb [16]byte
-	afterObj := 0
-	for {
-		n, err := tee.Read(wb[:])
-		afterObj += n
-		for i := 0; i < n; i++ {
-			if !isASCIIWhite(wb[i]) {
-				return nil, fmt.Errorf("invalid bytes after JSON schema blob in %v", ref)
-			}
-		}
-		if afterObj > MaxSchemaBlobSize {
-			break
-		}
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
+	bs := buf.String()
+	if len(bs) > MaxSchemaBlobSize {
+		return nil, fmt.Errorf("schema: metadata blob %v is over expected limit; size=%d", ref, len(bs))
 	}
-	json := buf.String()
-	if len(json) > MaxSchemaBlobSize {
-		return nil, fmt.Errorf("schema: metadata blob %v is over expected limit; size=%d", ref, len(json))
+	// if we were able to parse the superset fine but the consumed input is not json
+	// we must have had invalid characters after the json
+	if !json.Valid(buf.Bytes()) {
+		return nil, fmt.Errorf("invalid bytes after JSON schema blob in %v", ref)
 	}
-	return &Blob{ref, json, ss}, nil
-}
-
-func isASCIIWhite(b byte) bool {
-	switch b {
-	case ' ', '\t', '\r', '\n':
-		return true
-	}
-	return false
+	return &Blob{ref, bs, ss}, nil
 }
 
 // BytesPart is the type representing one of the "parts" in a "file"
