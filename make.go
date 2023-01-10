@@ -111,6 +111,7 @@ func main() {
 		"perkeep.org/app/publisher",
 		"perkeep.org/app/scanningcabinet",
 		"perkeep.org/app/scanningcabinet/scancab",
+		"perkeep.org/app/webdav",
 	}
 	switch *targets {
 	case "*":

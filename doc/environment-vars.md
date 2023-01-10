@@ -251,6 +251,10 @@ files to be ignored by [pkg/client](/pkg/client) when uploading.
 `RUN_BROKEN_TESTS` (bool)
 : Run known-broken tests.
 
+`CAMLI_DEVMODE` (bool)
+: Toggle 'dev mode'. Currently this is used to create some camliroots on startup.
+
+
 ## Undocumented
 
 These variables are yet to be documented:
@@ -278,8 +282,6 @@ These variables are yet to be documented:
 `CAMLI_REINDEX_START` (todo)
 
 `CAMLI_SERVER` (todo)
-
-`CAMLI_SET_BASE_URL_AND_SEND_ADDR_TO` (todo)
 
 `CAMLI_SYNC_VALIDATE` (todo)
 

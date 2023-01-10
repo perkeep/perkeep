@@ -17,24 +17,22 @@ limitations under the License.
 package test
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
+	"perkeep.org/internal/netutil"
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 )
@@ -53,7 +51,6 @@ type World struct {
 	addr string // "127.0.0.1:35"
 
 	server    *exec.Cmd
-	isRunning int32 // state of the perkeepd server. Access with sync/atomic only.
 	serverErr error
 }
 
@@ -118,6 +115,7 @@ func (w *World) Build() error {
 				"perkeep.org/cmd/pk-get",
 				"perkeep.org/cmd/pk-put",
 				"perkeep.org/cmd/pk-mount",
+				"perkeep.org/app/webdav",
 			}, ","))
 		if testing.Verbose() {
 			// TODO(mpl): do the same when -verbose with devcam test. Even better: see if testing.Verbose
@@ -155,104 +153,80 @@ func (w *World) Start() error {
 	if err := w.Build(); err != nil {
 		return err
 	}
-	// Start perkeepd.
-	{
-		pkdbin := w.lookPathGobin("perkeepd")
-		w.server = exec.Command(
-			pkdbin,
-			"--openbrowser=false",
-			"--configfile="+filepath.Join(w.srcRoot, "pkg", "test", "testdata", w.config),
-			"--pollparent=true",
-			"--listen=127.0.0.1:0",
-		)
-		var buf bytes.Buffer
-		if testing.Verbose() {
-			w.server.Stdout = os.Stdout
-			w.server.Stderr = os.Stderr
-		} else {
-			w.server.Stdout = &buf
-			w.server.Stderr = &buf
-		}
-
-		getPortListener, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			return err
-		}
-		defer getPortListener.Close()
-
-		w.server.Dir = w.tempDir
-		w.server.Env = append(os.Environ(),
-			// "CAMLI_DEBUG=1", // <-- useful for testing
-			"CAMLI_MORE_FLAGS=1",
-			"CAMLI_ROOT="+w.tempDir,
-			"CAMLI_SECRET_RING="+filepath.Join(w.srcRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")),
-			"CAMLI_BASE_URL=http://127.0.0.0:tbd", // filled in later
-			"CAMLI_SET_BASE_URL_AND_SEND_ADDR_TO="+getPortListener.Addr().String(),
-		)
-
-		if err := w.server.Start(); err != nil {
-			w.serverErr = fmt.Errorf("starting perkeepd: %v", err)
-			return w.serverErr
-		}
-
-		atomic.StoreInt32(&w.isRunning, 1)
-		waitc := make(chan error, 1)
-		go func() {
-			err := w.server.Wait()
-			w.serverErr = fmt.Errorf("%v: %s", err, buf.String())
-			atomic.StoreInt32(&w.isRunning, 0)
-			waitc <- w.serverErr
-		}()
-		upc := make(chan bool)
-		upErr := make(chan error, 1)
-		go func() {
-			c, err := getPortListener.Accept()
-			if err != nil {
-				upErr <- fmt.Errorf("waiting for child to report its port: %v", err)
-				return
-			}
-			defer c.Close()
-			br := bufio.NewReader(c)
-			addr, err := br.ReadString('\n')
-			if err != nil {
-				upErr <- fmt.Errorf("ReadString: %v", err)
-				return
-			}
-			w.addr = strings.TrimSpace(addr)
-
-			for i := 0; i < 100; i++ {
-				res, err := http.Get("http://" + w.addr)
-				if err == nil {
-					res.Body.Close()
-					upc <- true
-					return
-				}
-				time.Sleep(50 * time.Millisecond)
-			}
-			w.serverErr = errors.New(buf.String())
-			atomic.StoreInt32(&w.isRunning, 0)
-			upErr <- fmt.Errorf("server never became reachable: %v", w.serverErr)
-		}()
-
-		select {
-		case <-waitc:
-			return fmt.Errorf("server exited: %v", w.serverErr)
-		case err := <-upErr:
-			return err
-		case <-upc:
-			if err := w.Ping(); err != nil {
-				return err
-			}
-			// Success.
-		}
+	port, err := netutil.RandPort()
+	if err != nil {
+		return err
 	}
-	return nil
+	w.addr = fmt.Sprintf("127.0.0.1:%d", port)
+
+	pkdbin := w.lookPathGobin("perkeepd")
+	w.server = exec.Command(
+		pkdbin,
+		"--openbrowser=false",
+		"--configfile="+filepath.Join(w.srcRoot, "pkg", "test", "testdata", w.config),
+		"--pollparent=true",
+		"--listen="+w.addr,
+	)
+	var buf bytes.Buffer
+	if testing.Verbose() {
+		w.server.Stdout = wrapWriter{os.Stdout}
+		w.server.Stderr = wrapWriter{os.Stderr}
+	} else {
+		w.server.Stdout = &buf
+		w.server.Stderr = &buf
+	}
+
+	w.server.Dir = w.tempDir
+	w.server.Env = append(os.Environ(),
+		// "CAMLI_DEBUG=1", // <-- useful for testing
+		"CAMLI_MORE_FLAGS=1",
+		"CAMLI_ROOT="+w.tempDir,
+		"CAMLI_SECRET_RING="+filepath.Join(w.srcRoot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")),
+		"CAMLI_BASE_URL=http://"+w.addr,
+		"CAMLI_DEVMODE=1",
+	)
+
+	if err := w.server.Start(); err != nil {
+		w.serverErr = fmt.Errorf("starting perkeepd: %v", err)
+		return w.serverErr
+	}
+
+	waitc := make(chan error, 1)
+	go func() {
+		err := w.server.Wait()
+		w.serverErr = fmt.Errorf("%v: %s", err, buf.String())
+		waitc <- w.serverErr
+	}()
+	upc := make(chan bool)
+	upErr := make(chan error, 1)
+	go func() {
+		if ok := WaitFor(func() bool { return w.Ping() == nil }, time.Minute, 1*time.Second); !ok {
+			upErr <- fmt.Errorf("server never became reachable")
+		} else {
+			upc <- true
+		}
+	}()
+
+	select {
+	case <-waitc:
+		return fmt.Errorf("server exited: %v", w.serverErr)
+	case err := <-upErr:
+		return err
+	case <-upc:
+		return nil
+	}
 }
 
 // Ping returns an error if the world's perkeepd is not running.
 func (w *World) Ping() error {
-	if atomic.LoadInt32(&w.isRunning) != 1 {
-		return fmt.Errorf("perkeepd not running: %v", w.serverErr)
+	res, err := http.Get(w.ServerBaseURL())
+	if err != nil {
+		return fmt.Errorf("unable to get %s: %w", w.addr, err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status: %s", res.Status)
 	}
 	return nil
 }
@@ -264,9 +238,8 @@ func (w *World) Stop() {
 	if err := w.server.Process.Kill(); err != nil {
 		log.Fatalf("killed failed: %v", err)
 	}
-
-	if d := w.tempDir; d != "" {
-		os.RemoveAll(d)
+	if err := os.RemoveAll(w.tempDir); err != nil {
+		log.Printf("removing %s failed: %v", w.tempDir, err)
 	}
 }
 
@@ -416,4 +389,12 @@ func (w *World) lookPathGobin(binName string) string {
 		return filepath.Join(w.gobin, binName+".exe")
 	}
 	return filepath.Join(w.gobin, binName)
+}
+
+type wrapWriter struct {
+	io.Writer
+}
+
+func (l wrapWriter) Write(p []byte) (n int, err error) {
+	return l.Writer.Write(p)
 }

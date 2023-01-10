@@ -8,7 +8,7 @@
          "handler": "root",
          "handlerArgs": {
              "ownerName": "test",
-             "blobRoot": "/bs-and-maybe-also-index/",
+             "blobRoot": "/bs-recv/",
              "helpRoot": "/help/",
              "statusRoot": "/status/",
              "searchRoot": "/my-search/",
@@ -36,7 +36,7 @@
           "handler": "status"
       },
 
-      "/bs-and-maybe-also-index/": {
+      "/bs-recv/": {
           "handler": "storage-cond",
           "handlerArgs": {
               "write": {
@@ -89,6 +89,16 @@
                "blobRoot": "/bs/",
                "index": "/index-mem/"
           }
-     }
+     },
+     "/webdav/": {
+          "handler": "app",
+          "handlerArgs": {
+              "program": "webdav",
+              "prefix": "/webdav/",
+              "appConfig": {
+                  "camliRoot": "dev-webdav-root"
+              }
+          }
+      }
   }
 }

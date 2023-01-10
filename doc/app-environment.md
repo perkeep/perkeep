@@ -28,6 +28,9 @@ Perkeep applications run with the following environment variables set:
   the SearchQuery is ignored and the app handler will rerun the currently registered
   master query to refresh the corresponding cache.
 
+`CAMLI_APP_ROUTE_PREFIX` (string)
+: The prefix for the route that the app is registered under in perkeepd.
+
 `CAMLI_AUTH` (string)
 : Username and password (username:password) that the app should use to
   authenticate over HTTP basic auth with the Perkeep server. Basic auth is
