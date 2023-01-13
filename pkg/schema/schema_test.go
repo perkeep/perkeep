@@ -236,11 +236,7 @@ func TestBlobFromReader(t *testing.T) {
 
 	blob, err = BlobFromReader(br, strings.NewReader(`{"camliVersion": 1, "camliType": "foo"}  X  `))
 	if err == nil {
-		// TODO(bradfitz): fix this somehow. Currently encoding/json's
-		// decoder over-reads.
-		// See: https://code.google.com/p/go/issues/detail?id=1955 ,
-		// which was "fixed", but not really.
-		t.Logf("TODO(bradfitz): make sure bogus non-whitespace after the JSON object causes an error.")
+		t.Errorf("bogus non-whitespace after the JSON object should cause an error")
 	}
 }
 

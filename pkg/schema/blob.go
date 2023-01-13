@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 	"time"
@@ -431,7 +432,7 @@ func (bb *Builder) Blob() *Blob {
 		panic(err)
 	}
 	h := blob.NewHash()
-	h.Write([]byte(json))
+	io.WriteString(h, json)
 	return &Blob{
 		str: json,
 		ss:  ss,
