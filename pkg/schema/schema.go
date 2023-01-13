@@ -40,6 +40,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/bradfitz/latlong"
+	"perkeep.org/internal/pools"
 	"perkeep.org/pkg/blob"
 
 	"github.com/rwcarlsen/goexif/exif"
@@ -300,12 +301,25 @@ type superset struct {
 	Expires  types.Time3339 `json:"expires"` // or zero for no expiration
 }
 
+var errSchemaBlobTooLarge = errors.New("schema blob too large")
+
 func parseSuperset(r io.Reader) (*superset, error) {
-	var ss superset
-	if err := json.NewDecoder(io.LimitReader(r, MaxSchemaBlobSize)).Decode(&ss); err != nil {
+	buf := pools.BytesBuffer()
+	defer pools.PutBuffer(buf)
+
+	n, err := io.CopyN(buf, r, MaxSchemaBlobSize+1)
+	if err != nil && err != io.EOF {
 		return nil, err
 	}
-	return &ss, nil
+	if n > MaxSchemaBlobSize {
+		return nil, errSchemaBlobTooLarge
+	}
+
+	ss := new(superset)
+	if err := json.Unmarshal(buf.Bytes(), ss); err != nil {
+		return nil, err
+	}
+	return ss, nil
 }
 
 // BlobFromReader returns a new Blob from the provided Reader r,
@@ -319,41 +333,9 @@ func BlobFromReader(ref blob.Ref, r io.Reader) (*Blob, error) {
 	tee := io.TeeReader(r, &buf)
 	ss, err := parseSuperset(tee)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error parsing Blob %v: %w", ref, err)
 	}
-	var wb [16]byte
-	afterObj := 0
-	for {
-		n, err := tee.Read(wb[:])
-		afterObj += n
-		for i := 0; i < n; i++ {
-			if !isASCIIWhite(wb[i]) {
-				return nil, fmt.Errorf("invalid bytes after JSON schema blob in %v", ref)
-			}
-		}
-		if afterObj > MaxSchemaBlobSize {
-			break
-		}
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-	}
-	json := buf.String()
-	if len(json) > MaxSchemaBlobSize {
-		return nil, fmt.Errorf("schema: metadata blob %v is over expected limit; size=%d", ref, len(json))
-	}
-	return &Blob{ref, json, ss}, nil
-}
-
-func isASCIIWhite(b byte) bool {
-	switch b {
-	case ' ', '\t', '\r', '\n':
-		return true
-	}
-	return false
+	return &Blob{ref, buf.String(), ss}, nil
 }
 
 // BytesPart is the type representing one of the "parts" in a "file"
