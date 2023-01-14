@@ -88,11 +88,6 @@ type HandlerInstaller interface {
 	Handle(path string, h http.Handler)
 }
 
-type storageAndConfig struct {
-	blobserver.Storage
-	config *blobserver.Config
-}
-
 // parseCamliPath looks for "/camli/" in the path and returns
 // what follows it (the action).
 func parseCamliPath(path string) (action string, err error) {
@@ -108,19 +103,9 @@ func unsupportedHandler(rw http.ResponseWriter, req *http.Request) {
 	httputil.BadRequestError(rw, "Unsupported Perkeep path or method.")
 }
 
-func (s *storageAndConfig) Config() *blobserver.Config {
-	return s.config
-}
-
-// GetStorage returns the unwrapped blobserver.Storage interface value for
-// callers to type-assert optional interface implementations on. (e.g. EnumeratorConfig)
-func (s *storageAndConfig) GetStorage() blobserver.Storage {
-	return s.Storage
-}
-
 // action is the part following "/camli/" in the URL. It's either a
 // string like "enumerate-blobs", "stat", "upload", or a blobref.
-func camliHandlerUsingStorage(req *http.Request, action string, storage blobserver.StorageConfiger) (http.Handler, auth.Operation) {
+func camliHandlerUsingStorage(req *http.Request, action string, storage blobserver.Storage, config *blobserver.Config) (http.Handler, auth.Operation) {
 	var handler http.Handler
 	op := auth.OpAll
 	switch req.Method {
@@ -130,7 +115,7 @@ func camliHandlerUsingStorage(req *http.Request, action string, storage blobserv
 			handler = handlers.CreateEnumerateHandler(storage)
 			op = auth.OpGet
 		case "stat":
-			handler = handlers.CreateStatHandler(storage)
+			handler = handlers.CreateStatHandler(storage, config)
 		case "ws":
 			handler = nil         // TODO: handlers.CreateSocketHandler(storage)
 			op = auth.OpDiscovery // rest of operation auth checks done in handler
@@ -141,13 +126,13 @@ func camliHandlerUsingStorage(req *http.Request, action string, storage blobserv
 	case "POST":
 		switch action {
 		case "stat":
-			handler = handlers.CreateStatHandler(storage)
+			handler = handlers.CreateStatHandler(storage, config)
 			op = auth.OpStat
 		case "upload":
-			handler = handlers.CreateBatchUploadHandler(storage)
+			handler = handlers.CreateBatchUploadHandler(storage, config)
 			op = auth.OpUpload
 		case "remove":
-			handler = handlers.CreateRemoveHandler(storage)
+			handler = handlers.CreateRemoveHandler(storage, config)
 		}
 	case "PUT":
 		handler = handlers.CreatePutUploadHandler(storage)
@@ -169,16 +154,13 @@ func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage, hf blo
 	canLongPoll := true
 	// TODO(bradfitz): set to false if this is App Engine, or provide some way to disable
 
-	storageConfig := &storageAndConfig{
-		storage,
-		&blobserver.Config{
-			Writable:      true,
-			Readable:      true,
-			Deletable:     false,
-			URLBase:       baseURL + prefix[:len(prefix)-1],
-			CanLongPoll:   canLongPoll,
-			HandlerFinder: hf,
-		},
+	config := &blobserver.Config{
+		Writable:      true,
+		Readable:      true,
+		Deletable:     false,
+		URLBase:       baseURL + prefix[:len(prefix)-1],
+		CanLongPoll:   canLongPoll,
+		HandlerFinder: hf,
 	}
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		action, err := parseCamliPath(req.URL.Path[len(prefix)-1:])
@@ -188,7 +170,7 @@ func makeCamliHandler(prefix, baseURL string, storage blobserver.Storage, hf blo
 			unsupportedHandler(rw, req)
 			return
 		}
-		handler := auth.RequireAuth(camliHandlerUsingStorage(req, action, storageConfig))
+		handler := auth.RequireAuth(camliHandlerUsingStorage(req, action, storage, config))
 		handler.ServeHTTP(rw, req)
 	})
 }

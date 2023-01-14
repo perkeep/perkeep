@@ -6,7 +6,7 @@
 		"/": {
 			"handler": "root",
 			"handlerArgs": {
-				"blobRoot": "/bs-and-maybe-also-index/",
+				"blobRoot": "/bs/",
 				"helpRoot": "/help/",
 				"jsonSignRoot": "/sighelper/",
 				"searchRoot": "/my-search/",
@@ -27,26 +27,6 @@
 				"prefix": "/blog/",
 				"program": "publisher",
 				"serverListen": "localhost:3179"
-			}
-		},
-		"/bs-and-index/": {
-			"handler": "storage-replica",
-			"handlerArgs": {
-				"backends": [
-					"/bs/",
-					"/index/"
-				]
-			}
-		},
-		"/bs-and-maybe-also-index/": {
-			"handler": "storage-cond",
-			"handlerArgs": {
-				"read": "/bs/",
-				"write": {
-					"else": "/bs/",
-					"if": "isSchema",
-					"then": "/bs-and-index/"
-				}
 			}
 		},
 		"/bs/": {
@@ -103,7 +83,7 @@
 			"handler": "jsonsign",
 			"handlerArgs": {
 				"keyId": "2931A67C26F5ABDA",
-				"publicKeyDest": "/bs-and-index/",
+				"publicKeyDest": "/bs/",
 				"secretRing": "/path/to/secring"
 			}
 		},

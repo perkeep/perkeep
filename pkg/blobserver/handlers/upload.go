@@ -40,9 +40,9 @@ import (
 
 // CreateBatchUploadHandler returns the handler that receives multi-part form uploads
 // to upload many blobs at once. See doc/protocol/blob-upload-protocol.txt.
-func CreateBatchUploadHandler(storage blobserver.BlobReceiveConfiger) http.Handler {
+func CreateBatchUploadHandler(storage blobserver.BlobReceiver, config *blobserver.Config) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		handleMultiPartUpload(rw, req, storage)
+		handleMultiPartUpload(rw, req, storage, config)
 	})
 }
 
@@ -90,7 +90,7 @@ func CreatePutUploadHandler(storage blobserver.BlobReceiver) http.Handler {
 // vivify verifies that all the chunks for the file described by fileblob are on the blobserver.
 // It makes a planned permanode, signs it, and uploads it. It finally makes a camliContent claim
 // on that permanode for fileblob, signs it, and uploads it to the blobserver.
-func vivify(ctx context.Context, blobReceiver blobserver.BlobReceiveConfiger, fileblob blob.SizedRef) error {
+func vivify(ctx context.Context, blobReceiver blobserver.BlobReceiver, config *blobserver.Config, fileblob blob.SizedRef) error {
 	sf, ok := blobReceiver.(blob.Fetcher)
 	if !ok {
 		return fmt.Errorf("BlobReceiver is not a Fetcher")
@@ -110,10 +110,6 @@ func vivify(ctx context.Context, blobReceiver blobserver.BlobReceiveConfiger, fi
 		return fmt.Errorf("Could not read all file of blobref %v. Wanted %v, got %v", fileblob.Ref.String(), fr.Size(), n)
 	}
 
-	config := blobReceiver.Config()
-	if config == nil {
-		return errors.New("blobReceiver has no config")
-	}
 	hf := config.HandlerFinder
 	if hf == nil {
 		return errors.New("blobReceiver config has no HandlerFinder")
@@ -168,7 +164,7 @@ func vivify(ctx context.Context, blobReceiver blobserver.BlobReceiveConfiger, fi
 	return nil
 }
 
-func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiveConfiger) {
+func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiver blobserver.BlobReceiver, config *blobserver.Config) {
 	ctx := req.Context()
 	res := new(protocol.UploadResponse)
 
@@ -226,7 +222,7 @@ func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiv
 
 		var tooBig int64 = blobserver.MaxBlobSize + 1
 		var readBytes int64
-		blobGot, err := blobserver.Receive(ctx, blobReceiver, ref, &readerutil.CountingReader{
+		blobGot, err := blobserver.Receive(ctx, blobReceiver.(blobserver.BlobReceiver), ref, &readerutil.CountingReader{
 			Reader: io.LimitReader(mimePart, tooBig),
 			N:      &readBytes,
 		})
@@ -251,7 +247,7 @@ func handleMultiPartUpload(rw http.ResponseWriter, req *http.Request, blobReceiv
 		// Or I suppose we could document that a file schema blob that
 		// wants to be vivified should always be sent alone.
 		for _, got := range receivedBlobs {
-			err := vivify(ctx, blobReceiver, got)
+			err := vivify(ctx, blobReceiver, config, got)
 			if err != nil {
 				addError(fmt.Sprintf("Error vivifying blob %v: %v\n", got.Ref.String(), err))
 			} else {

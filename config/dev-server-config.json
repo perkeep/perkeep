@@ -11,7 +11,7 @@
 			"handlerArgs": {
 				"ownerName": ["_env", "${USER}-dev"],
 				"jsonSignRoot": "/sighelper/",
-				"blobRoot": "/bs-recv/",
+				"blobRoot": "/bs/",
 				"helpRoot": "/help/",
 				"statusRoot": "/status/",
 				"searchRoot": "/my-search/",
@@ -116,27 +116,6 @@
 				"secretRing": ["_env", "${CAMLI_SECRET_RING}"],
 				"keyId": ["_env", "${CAMLI_KEYID}"],
 				"publicKeyDest": "/bs/"
-			}
-		},
-
-		"/bs-recv/": {
-			"handler": "storage-replica",
-			"handlerArgs": {
-				"minWritesForSuccess": 2,
-				"backends": ["/bs/", ["_env", "${CAMLI_INDEXER_PATH}"]],
-				"readBackends": ["/bs/"]
-			}
-		},
-
-		"/cond-unused/": {
-			"handler": "storage-cond",
-			"handlerArgs": {
-				"write": {
-					"if": "isSchema",
-					"then": "/bs-recv/",
-					"else": "/bs/"
-				},
-				"read": "/bs/"
 			}
 		},
 
