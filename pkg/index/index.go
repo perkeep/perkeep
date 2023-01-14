@@ -410,8 +410,7 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 	return ix, err
 }
 
-func (x *Index) storageReceiveHook(bsr blob.SizedRef) error {
-	ctx := context.TODO()
+func (x *Index) storageReceiveHook(ctx context.Context, bsr blob.SizedRef) error {
 	blob, _, err := x.blobSource.Fetch(ctx, bsr.Ref)
 	if err != nil {
 		return fmt.Errorf("unable to fetch blob: %w", err)

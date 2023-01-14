@@ -17,6 +17,7 @@ limitations under the License.
 package blobserver
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -103,13 +104,14 @@ func TestHubFiring(t *testing.T) {
 	bch := make(chan blob.Ref)
 	blob1 := blob.MustParse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
 	blobsame := blob.MustParse("sha1-0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33")
+	ctx := context.Background()
 
-	hub.NotifyBlobReceived(blob.SizedRef{Ref: blob1, Size: 123}) // no-op
+	hub.NotifyBlobReceived(ctx, blob.SizedRef{Ref: blob1, Size: 123}) // no-op
 
 	hub.RegisterListener(ch)
 	hub.RegisterBlobListener(blob1, bch)
 
-	hub.NotifyBlobReceived(blob.SizedRef{Ref: blobsame, Size: 456})
+	hub.NotifyBlobReceived(ctx, blob.SizedRef{Ref: blobsame, Size: 456})
 
 	tmr1 := time.NewTimer(1 * time.Second)
 	select {
