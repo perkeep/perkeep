@@ -25,7 +25,6 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -111,7 +110,7 @@ func goVersion() string {
 // getVersion returns the version of Perkeep. Either from a VERSION file at the root,
 // or from git.
 func getVersion() string {
-	slurp, err := ioutil.ReadFile(filepath.Join(pkDir, "VERSION"))
+	slurp, err := os.ReadFile(filepath.Join(pkDir, "VERSION"))
 	if err == nil {
 		return strings.TrimSpace(string(slurp))
 	}

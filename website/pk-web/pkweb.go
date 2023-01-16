@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -226,7 +225,7 @@ func servePage(w http.ResponseWriter, r *http.Request, params pageParams) {
 
 func readTemplate(name string) *template.Template {
 	fileName := filepath.Join(*root, "tmpl", name)
-	data, err := ioutil.ReadFile(fileName)
+	data, err := os.ReadFile(fileName)
 	if err != nil {
 		log.Fatalf("ReadFile %s: %v", fileName, err)
 	}
@@ -436,7 +435,7 @@ func serveFile(w http.ResponseWriter, r *http.Request, absPath string) {
 		return
 	}
 
-	data, err := ioutil.ReadFile(absPath)
+	data, err := os.ReadFile(absPath)
 	if err != nil {
 		serveError(w, r, absPath, err)
 		return
@@ -522,7 +521,7 @@ func gceDeployHandlerConfig() (*gce.Config, error) {
 		return nil, err
 	}
 	configFile := filepath.Join(configDir, "launcher-config.json")
-	data, err := ioutil.ReadFile(configFile)
+	data, err := os.ReadFile(configFile)
 	if err != nil {
 		return nil, fmt.Errorf("error reading launcher-config.json (expected of type https://godoc.org/"+prodDomain+"/pkg/deploy/gce#Config): %v", err)
 	}
@@ -576,7 +575,7 @@ func gceDeployHandler(prefix string) (*gce.DeployHandler, error) {
 		return nil, fmt.Errorf("NewDeployHandlerFromConfig: %v", err)
 	}
 
-	pageBytes, err := ioutil.ReadFile(filepath.Join(*root, "tmpl", "page.html"))
+	pageBytes, err := os.ReadFile(filepath.Join(*root, "tmpl", "page.html"))
 	if err != nil {
 		return nil, err
 	}
@@ -792,7 +791,7 @@ func httpClient(projID string) *http.Client {
 	if *gceJWTFile == "" {
 		log.Fatal("Cannot initialize an authorized http Client without --gce_jwt_file")
 	}
-	jsonSlurp, err := ioutil.ReadFile(*gceJWTFile)
+	jsonSlurp, err := os.ReadFile(*gceJWTFile)
 	if err != nil {
 		log.Fatalf("Error reading --gce_jwt_file value: %v", err)
 	}
@@ -1088,7 +1087,7 @@ func fromGCS(filename string) ([]byte, error) {
 			return nil, fmt.Errorf("Error fetching GCS object %q in bucket %q: %v", key, prodBucket, err)
 		}
 		defer rc.Close()
-		return ioutil.ReadAll(rc)
+		return io.ReadAll(rc)
 	}
 	return slurp(filename)
 }

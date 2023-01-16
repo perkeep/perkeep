@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 
 	"gopkg.in/mgo.v2/bson"
 	"perkeep.org/pkg/blob"
@@ -36,5 +35,5 @@ func (m *mongoStorage) Fetch(ctx context.Context, ref blob.Ref) (io.ReadCloser, 
 	if len(b.Blob) != int(b.Size) {
 		return nil, 0, fmt.Errorf("blob data size %d doesn't match meta size %d", len(b.Blob), b.Size)
 	}
-	return ioutil.NopCloser(bytes.NewReader(b.Blob)), b.Size, nil
+	return io.NopCloser(bytes.NewReader(b.Blob)), b.Size, nil
 }

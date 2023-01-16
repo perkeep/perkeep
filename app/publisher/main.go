@@ -29,7 +29,6 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -159,7 +158,7 @@ func (ph *publishHandler) setMasterQuery(topNode blob.Ref) error {
 		return err
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -188,7 +187,7 @@ func (ph *publishHandler) refreshMasterQuery() error {
 		// request suppression. let's not consider it an error.
 		return nil
 	}
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -419,7 +418,7 @@ func goTemplate(files fs.FS, templateFile string) (*template.Template, error) {
 		return nil, fmt.Errorf("Could not open template %v: %v", templateFile, err)
 	}
 	defer f.Close()
-	templateBytes, err := ioutil.ReadAll(f)
+	templateBytes, err := io.ReadAll(f)
 	if err != nil {
 		return nil, fmt.Errorf("Could not read template %v: %v", templateFile, err)
 	}

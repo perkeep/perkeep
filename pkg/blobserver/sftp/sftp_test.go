@@ -19,7 +19,6 @@ package sftp
 import (
 	"encoding/json"
 	"flag"
-	"io/ioutil"
 	"net"
 	"os"
 	"path"
@@ -73,7 +72,7 @@ func TestStorage_Memory(t *testing.T) {
 }
 
 func TestStorage_TempDir(t *testing.T) {
-	td, err := ioutil.TempDir("", "sftptest")
+	td, err := os.MkdirTemp("", "sftptest")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +91,7 @@ func TestStorage_Manual(t *testing.T) {
 	if sftpTestAuthFile == "" {
 		t.Skipf("skipping integration test when %s not set to path to JSON file of config for testing", testEnvKey)
 	}
-	jconf, err := ioutil.ReadFile(sftpTestAuthFile)
+	jconf, err := os.ReadFile(sftpTestAuthFile)
 	if err != nil {
 		t.Fatal(err)
 	}

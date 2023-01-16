@@ -23,7 +23,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"mime/multipart"
 	"net/http"
@@ -93,7 +92,7 @@ func getUploadURL() (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -164,7 +163,7 @@ func uploadOne(filename string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	tmpDir, err := ioutil.TempDir("", "scancabcli")
+	tmpDir, err := os.MkdirTemp("", "scancabcli")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -423,7 +422,7 @@ func checkSanity() {
 	if !*flagLoop && *flagUpload == "" {
 		if *flagDevice == "" {
 			deviceFile := path.Join(confDir, "device")
-			device, err := ioutil.ReadFile(deviceFile)
+			device, err := os.ReadFile(deviceFile)
 			if err != nil {
 				log.Printf("error reading device conf file %v: %v", deviceFile, err)
 				usageAndDie(fmt.Sprintf("Please specify your scanning device with the -device option, or in %v", deviceFile))
@@ -444,7 +443,7 @@ func checkSanity() {
 	if !*flagADF {
 		if *flagURL == "" {
 			urlFile := path.Join(confDir, "url")
-			URL, err := ioutil.ReadFile(urlFile)
+			URL, err := os.ReadFile(urlFile)
 			if err != nil {
 				log.Printf("error reading url file %v: %v", urlFile, err)
 				usageAndDie(fmt.Sprintf("Please specify the scanning cabinet app URL with the -url option, or in %v", urlFile))
@@ -453,7 +452,7 @@ func checkSanity() {
 		}
 		if *flagUsername == "" {
 			userFile := path.Join(confDir, "user")
-			username, err := ioutil.ReadFile(userFile)
+			username, err := os.ReadFile(userFile)
 			if err != nil {
 				log.Printf("error reading username file %v: %v", userFile, err)
 				usageAndDie(fmt.Sprintf("Please specify your username with the -user option, or in %v", userFile))
@@ -462,7 +461,7 @@ func checkSanity() {
 		}
 		if *flagPassword == "" {
 			passFile := path.Join(confDir, "password")
-			password, err := ioutil.ReadFile(passFile)
+			password, err := os.ReadFile(passFile)
 			if err != nil {
 				log.Printf("error reading password file %v: %v", passFile, err)
 				usageAndDie(fmt.Sprintf("Please specify your password with the -pass option, or in %v", passFile))

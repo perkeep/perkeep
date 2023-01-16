@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -93,7 +92,7 @@ func NewSigner(pubKeyRef blob.Ref, armoredPubKey io.Reader, privateKeySource int
 			ServerMode: true, // shouldn't matter, since we're supplying the rest of the fields
 			Fetcher: memoryBlobFetcher{
 				pubKeyRef: func() (uint32, io.ReadCloser) {
-					return uint32(len(armoredPubKeyString)), ioutil.NopCloser(strings.NewReader(armoredPubKeyString))
+					return uint32(len(armoredPubKeyString)), io.NopCloser(strings.NewReader(armoredPubKeyString))
 				},
 			},
 			EntityFetcher: entityFetcherFunc(func(wantFingerprint string) (*openpgp.Entity, error) {

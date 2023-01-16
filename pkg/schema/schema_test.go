@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -79,7 +78,7 @@ func TestSymlink(t *testing.T) {
 	}
 
 	// Shouldn't be accessed:
-	if err := ioutil.WriteFile(filepath.Join(td, "test-target"), []byte("foo bar"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(td, "test-target"), []byte("foo bar"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -528,7 +527,7 @@ func TestIssue305(t *testing.T) {
 
 func TestStaticFileAndStaticSymlink(t *testing.T) {
 	// TODO (marete): Split this into two test functions.
-	fd, err := ioutil.TempFile("", "schema-test-")
+	fd, err := os.CreateTemp("", "schema-test-")
 	if err != nil {
 		t.Fatalf("io.TempFile(): %v", err)
 	}

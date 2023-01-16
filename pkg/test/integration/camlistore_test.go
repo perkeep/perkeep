@@ -20,7 +20,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -167,7 +166,7 @@ func TestNoTestingLinking(t *testing.T) {
 }
 
 func mustWriteFile(t *testing.T, path, contents string) {
-	err := ioutil.WriteFile(path, []byte(contents), 0644)
+	err := os.WriteFile(path, []byte(contents), 0644)
 	if err != nil {
 		t.Fatal(err)
 	}

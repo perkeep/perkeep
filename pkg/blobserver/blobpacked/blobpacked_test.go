@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"runtime"
 	"sort"
@@ -638,7 +637,7 @@ func testPack(t *testing.T,
 		if err != nil {
 			t.Fatal(err)
 		}
-		zipBytes, err := ioutil.ReadAll(rc)
+		zipBytes, err := io.ReadAll(rc)
 		rc.Close()
 		if err != nil {
 			t.Fatalf("Error slurping %s: %v", zipRef, err)
@@ -666,7 +665,7 @@ func testPack(t *testing.T,
 		if err != nil {
 			t.Fatalf("Error opening manifest JSON: %v", err)
 		}
-		maniJSON, err := ioutil.ReadAll(mfr)
+		maniJSON, err := io.ReadAll(mfr)
 		if err != nil {
 			t.Fatalf("Error reading manifest JSON: %v", err)
 		}
@@ -1098,7 +1097,7 @@ func slurpBlob(t *testing.T, sto blob.Fetcher, br blob.Ref) []byte {
 		t.Fatal(err)
 	}
 	defer rc.Close()
-	slurp, err := ioutil.ReadAll(rc)
+	slurp, err := io.ReadAll(rc)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -17,7 +17,6 @@ limitations under the License.
 package kvfile
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,7 +27,7 @@ import (
 )
 
 func TestKvfileKV(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "camlistore-kvfilekv_test")
+	tmpDir, err := os.MkdirTemp("", "camlistore-kvfilekv_test")
 	if err != nil {
 		t.Fatal(err)
 	}

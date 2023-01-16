@@ -25,7 +25,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -59,7 +58,7 @@ func (g Generationer) StorageGeneration() (initTime time.Time, random string, er
 		return
 	}
 	defer f.Close()
-	bs, err := ioutil.ReadAll(f)
+	bs, err := io.ReadAll(f)
 	if err != nil {
 		return
 	}
@@ -101,5 +100,5 @@ delete this file so clients can safely re-upload them.
 
 `)
 
-	return ioutil.WriteFile(g.generationFile(), buf.Bytes(), 0644)
+	return os.WriteFile(g.generationFile(), buf.Bytes(), 0644)
 }

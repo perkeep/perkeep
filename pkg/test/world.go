@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -98,7 +97,7 @@ func (w *World) SourceRoot() string {
 // Build builds the Perkeep binaries.
 func (w *World) Build() error {
 	var err error
-	w.tempDir, err = ioutil.TempDir("", "perkeep-test-")
+	w.tempDir, err = os.MkdirTemp("", "perkeep-test-")
 	if err != nil {
 		return err
 	}

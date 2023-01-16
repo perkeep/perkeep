@@ -17,7 +17,7 @@ limitations under the License.
 package client
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"reflect"
 	"strings"
@@ -43,7 +43,7 @@ var response = `{
 
 func TestParseStatResponse(t *testing.T) {
 	res, err := parseStatResponse(&http.Response{
-		Body: ioutil.NopCloser(strings.NewReader(response)),
+		Body: io.NopCloser(strings.NewReader(response)),
 	})
 	if err != nil {
 		t.Fatal(err)

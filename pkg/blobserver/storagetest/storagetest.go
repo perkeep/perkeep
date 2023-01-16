@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"reflect"
 	"sort"
 	"strconv"
@@ -223,7 +222,7 @@ func (r *run) testSubFetcher() {
 		if r == nil {
 			t.Fatal("SubFetch returned nil, nil")
 		}
-		all, err := ioutil.ReadAll(r)
+		all, err := io.ReadAll(r)
 		r.Close()
 		if err != nil && !tt.errok {
 			t.Errorf("Unexpected error reading SubFetch region %+v: %v", tt, err)

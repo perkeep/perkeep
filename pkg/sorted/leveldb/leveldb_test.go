@@ -17,7 +17,6 @@ limitations under the License.
 package leveldb
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,7 +27,7 @@ import (
 )
 
 func TestLeveldbKV(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "camlistore-leveldbkv_test")
+	tmpDir, err := os.MkdirTemp("", "camlistore-leveldbkv_test")
 	if err != nil {
 		t.Fatal(err)
 	}

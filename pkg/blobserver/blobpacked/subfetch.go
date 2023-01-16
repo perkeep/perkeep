@@ -19,7 +19,6 @@ package blobpacked
 import (
 	"context"
 	"io"
-	"io/ioutil"
 
 	"perkeep.org/pkg/blob"
 )
@@ -62,7 +61,7 @@ func (s *storage) SubFetch(ctx context.Context, ref blob.Ref, offset, length int
 		return nil, err
 	}
 	if offset != 0 {
-		if _, err = io.CopyN(ioutil.Discard, rc, offset); err != nil {
+		if _, err = io.CopyN(io.Discard, rc, offset); err != nil {
 			rc.Close()
 			return nil, err
 		}

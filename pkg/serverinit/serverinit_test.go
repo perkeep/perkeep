@@ -23,7 +23,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -139,7 +138,7 @@ func replaceRingPath(path string) ([]byte, error) {
 		return nil, fmt.Errorf("Could not get absolute path of %v: %v", relativeRing, err)
 	}
 	secRing = strings.Replace(secRing, `\`, `\\`, -1)
-	slurpBytes, err := ioutil.ReadFile(path)
+	slurpBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +172,7 @@ func backslashEscape(b []byte) []byte {
 
 func testConfig(name string, t *testing.T) {
 	wantedError := func() error {
-		slurp, err := ioutil.ReadFile(strings.Replace(name, ".json", ".err", 1))
+		slurp, err := os.ReadFile(strings.Replace(name, ".json", ".err", 1))
 		if os.IsNotExist(err) {
 			return nil
 		}
@@ -216,7 +215,7 @@ func testConfig(name string, t *testing.T) {
 			t.Fatal(err)
 		}
 		contents = canonicalizeGolden(t, contents)
-		if err := ioutil.WriteFile(wantFile, contents, 0644); err != nil {
+		if err := os.WriteFile(wantFile, contents, 0644); err != nil {
 			t.Fatal(err)
 		}
 	}

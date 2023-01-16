@@ -17,7 +17,6 @@ limitations under the License.
 package sqlite
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,7 +27,7 @@ import (
 )
 
 func TestSQLiteKV(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "camlistore-sqlitekv_test")
+	tmpDir, err := os.MkdirTemp("", "camlistore-sqlitekv_test")
 	if err != nil {
 		t.Fatal(err)
 	}

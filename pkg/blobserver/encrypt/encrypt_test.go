@@ -29,7 +29,7 @@ $ ./dev-camtool sync --src=http://localhost:3179/enc/ --dest=stdout
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"runtime"
 	"strings"
@@ -62,7 +62,7 @@ func (ts *testStorage) fetchOrErrorString(br blob.Ref) string {
 	var slurp []byte
 	if err == nil {
 		defer rc.Close()
-		slurp, err = ioutil.ReadAll(rc)
+		slurp, err = io.ReadAll(rc)
 	}
 	if err != nil {
 		return fmt.Sprintf("Error: %v", err)
@@ -228,7 +228,7 @@ func TestNewFromConfig(t *testing.T) {
 	ld := test.NewLoader()
 
 	// Using key file
-	tmpKeyFile, _ := ioutil.TempFile(t.TempDir(), "camlitest")
+	tmpKeyFile, _ := os.CreateTemp(t.TempDir(), "camlitest")
 	defer os.Remove((tmpKeyFile.Name()))
 	defer tmpKeyFile.Close()
 	tmpKeyFile.WriteString(testIdentity.String())

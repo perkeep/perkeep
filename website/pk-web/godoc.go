@@ -29,7 +29,6 @@ import (
 	"go/printer"
 	"go/token"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -349,7 +348,7 @@ func (p *tconv) Write(data []byte) (n int, err error) {
 
 func readTextTemplate(name string) *template.Template {
 	fileName := filepath.Join(*root, "tmpl", name)
-	data, err := ioutil.ReadFile(fileName)
+	data, err := os.ReadFile(fileName)
 	if err != nil {
 		log.Fatalf("ReadFile %s: %v", fileName, err)
 	}
@@ -369,7 +368,7 @@ func applyTextTemplate(t *template.Template, name string, data interface{}) []by
 }
 
 func serveTextFile(w http.ResponseWriter, r *http.Request, abspath, relpath, title string) {
-	src, err := ioutil.ReadFile(abspath)
+	src, err := os.ReadFile(abspath)
 	if err != nil {
 		log.Printf("ReadFile: %s", err)
 		serveError(w, r, relpath, err)

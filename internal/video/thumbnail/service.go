@@ -32,7 +32,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
@@ -127,7 +126,7 @@ func (s *Service) Generate(videoRef blob.Ref, w io.Writer, src blob.Fetcher) err
 	}
 	defer cmd.Process.Kill()
 	go func() {
-		out, err := ioutil.ReadAll(cmdErrOut)
+		out, err := io.ReadAll(cmdErrOut)
 		if err != nil {
 			cmdErrc <- err
 			return

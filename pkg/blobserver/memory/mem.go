@@ -23,7 +23,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"sort"
 	"sync"
@@ -138,7 +137,7 @@ func (s *Storage) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader
 	if h == nil {
 		return sb, fmt.Errorf("Unsupported blobref hash for %s", br)
 	}
-	all, err := ioutil.ReadAll(io.TeeReader(source, h))
+	all, err := io.ReadAll(io.TeeReader(source, h))
 	if err != nil {
 		return sb, err
 	}

@@ -18,7 +18,7 @@ package thumbnail
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -66,7 +66,7 @@ func TestHandlerRightRef(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Fatalf("expected 200 status: %v", resp)
 	}
-	content, err := ioutil.ReadAll(resp.Body)
+	content, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}

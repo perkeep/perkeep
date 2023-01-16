@@ -23,7 +23,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -102,7 +102,7 @@ func main() {
 			log.Printf("no mount point given; using /pk")
 			mountPoint = "/pk"
 		} else {
-			mountPoint, err = ioutil.TempDir("", "pk-mount")
+			mountPoint, err = os.MkdirTemp("", "pk-mount")
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -179,7 +179,7 @@ func main() {
 	if *debug {
 		fuse.Debug = func(msg interface{}) { log.Print(msg) }
 	} else {
-		fs.Logger.SetOutput(ioutil.Discard)
+		fs.Logger.SetOutput(io.Discard)
 	}
 
 	// This doesn't appear to work on OS X:

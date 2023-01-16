@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -92,7 +91,7 @@ type mountEnv struct {
 
 func (e *mountEnv) Stat(s *stat) int64 {
 	file := filepath.Join(e.mountPoint, ".camli_fs_stats", s.name)
-	slurp, err := ioutil.ReadFile(file)
+	slurp, err := os.ReadFile(file)
 	if err != nil {
 		e.t.Fatal(err)
 	}
@@ -126,7 +125,7 @@ func pkmountTest(t *testing.T, fn func(env *mountEnv)) {
 	w := test.GetWorld(t)
 	mountPoint := t.TempDir()
 	verbose := "false"
-	var stderrDest io.Writer = ioutil.Discard
+	var stderrDest io.Writer = io.Discard
 	if v, _ := strconv.ParseBool(os.Getenv("VERBOSE_FUSE")); v {
 		verbose = "true"
 		stderrDest = testLog{t}
@@ -212,7 +211,7 @@ func TestReadFileFromRoot(t *testing.T) {
 	condSkip(t)
 	pkmountTest(t, func(env *mountEnv) {
 		// pk-put a file
-		tmpFile, err := ioutil.TempFile(t.TempDir(), "camlitest")
+		tmpFile, err := os.CreateTemp(t.TempDir(), "camlitest")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -221,7 +220,7 @@ func TestReadFileFromRoot(t *testing.T) {
 		blobRef := env.world.PutFile(t, tmpFile.Name())
 
 		// Read it using the file's blobref
-		if contents, err := ioutil.ReadFile(filepath.Join(env.mountPoint, blobRef.String())); err != nil {
+		if contents, err := os.ReadFile(filepath.Join(env.mountPoint, blobRef.String())); err != nil {
 			t.Fatal(err)
 		} else if got := string(contents); got != testContent {
 			t.Fatalf("Expected test content, got %q", got)
@@ -238,7 +237,7 @@ func TestReadFileFromRoot(t *testing.T) {
 func TestTruncateFile(t *testing.T) {
 	condSkip(t)
 	inEmptyMutDir(t, func(env *mountEnv, rootDir string) {
-		tmpFile, err := ioutil.TempFile(rootDir, "camlitest")
+		tmpFile, err := os.CreateTemp(rootDir, "camlitest")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -271,7 +270,7 @@ func TestTruncateFile(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		got, err := ioutil.ReadFile(tmpFile.Name())
+		got, err := os.ReadFile(tmpFile.Name())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -322,7 +321,7 @@ func TestMutable(t *testing.T) {
 			}
 		}
 		ro0 := env.Stat(mutFileOpenRO)
-		slurp, err := ioutil.ReadFile(filename)
+		slurp, err := os.ReadFile(filename)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -412,7 +411,7 @@ func TestDifferentWriteTypes(t *testing.T) {
 				t.Fatalf("%s: Close: %v", wr.name, err)
 			}
 
-			slurp, err := ioutil.ReadFile(filename)
+			slurp, err := os.ReadFile(filename)
 			if err != nil {
 				t.Fatalf("%s: Slurp: %v", wr.name, err)
 			}
@@ -452,7 +451,7 @@ func TestRename(t *testing.T) {
 		const gone = "ENOENT"
 		const reg = "file -rw-------, size 18"
 
-		if err := ioutil.WriteFile(name1, contents, 0644); err != nil {
+		if err := os.WriteFile(name1, contents, 0644); err != nil {
 			t.Fatal(err)
 		}
 		if err := os.Mkdir(subdir, 0755); err != nil {
@@ -586,7 +585,7 @@ func TestXattr(t *testing.T) {
 
 		contents := []byte("Some file contents")
 
-		if err := ioutil.WriteFile(name1, contents, 0644); err != nil {
+		if err := os.WriteFile(name1, contents, 0644); err != nil {
 			t.Fatal(err)
 		}
 
@@ -705,7 +704,7 @@ func TestFinderCopy(t *testing.T) {
 	}
 	condSkip(t)
 	inEmptyMutDir(t, func(env *mountEnv, destDir string) {
-		f, err := ioutil.TempFile("", "finder-copy-file")
+		f, err := os.CreateTemp("", "finder-copy-file")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -740,7 +739,7 @@ end tell
 		if fi.Size() != int64(len(want)) {
 			t.Errorf("Dest stat size = %d; want %d", fi.Size(), len(want))
 		}
-		slurp, err := ioutil.ReadFile(destFile)
+		slurp, err := os.ReadFile(destFile)
 		if err != nil {
 			t.Fatalf("ReadFile: %v", err)
 		}
@@ -764,7 +763,7 @@ func TestTextEdit(t *testing.T) {
 			content1 = []byte("Some text content.")
 			content2 = []byte("Some replacement content.")
 		)
-		if err := ioutil.WriteFile(testFile, content1, 0644); err != nil {
+		if err := os.WriteFile(testFile, content1, 0644); err != nil {
 			t.Fatal(err)
 		}
 
@@ -794,7 +793,7 @@ end tell
 		} else if fi.Size() != int64(len(content2)) {
 			t.Errorf("Stat size = %d; want %d", fi.Size(), len(content2))
 		}
-		slurp, err := ioutil.ReadFile(testFile)
+		slurp, err := os.ReadFile(testFile)
 		if err != nil {
 			t.Fatalf("ReadFile: %v", err)
 		}
@@ -818,7 +817,7 @@ func isInProcMounts(dir string) (error, bool) {
 	if runtime.GOOS != "linux" {
 		return errors.New("only available on linux"), false
 	}
-	data, err := ioutil.ReadFile("/proc/mounts")
+	data, err := os.ReadFile("/proc/mounts")
 	if err != nil {
 		return err, false
 	}

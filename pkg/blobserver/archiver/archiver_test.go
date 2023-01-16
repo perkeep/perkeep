@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"reflect"
 	"strings"
@@ -193,7 +192,7 @@ func foreachZipEntry(zipData []byte, fn func(blob.Ref, []byte)) error {
 		if err != nil {
 			return err
 		}
-		all, err := ioutil.ReadAll(rc)
+		all, err := io.ReadAll(rc)
 		rc.Close()
 		if err != nil {
 			return err

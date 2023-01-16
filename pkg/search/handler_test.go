@@ -22,9 +22,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -630,7 +630,7 @@ func initTests() []handlerTest {
 				}
 				uploadFile := func(file string, modTime time.Time) blob.Ref {
 					fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", file)
-					contents, err := ioutil.ReadFile(fileName)
+					contents, err := os.ReadFile(fileName)
 					if err != nil {
 						panic(err)
 					}
@@ -702,7 +702,7 @@ func initTests() []handlerTest {
 				}
 				uploadFile := func(file string, modTime time.Time) blob.Ref {
 					fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", file)
-					contents, err := ioutil.ReadFile(fileName)
+					contents, err := os.ReadFile(fileName)
 					if err != nil {
 						panic(err)
 					}

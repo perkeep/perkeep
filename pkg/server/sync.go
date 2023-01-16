@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -676,7 +675,7 @@ func (sh *SyncHandler) copyBlob(ctx context.Context, sb blob.SizedRef) (err erro
 
 func (sh *SyncHandler) ReceiveBlob(ctx context.Context, br blob.Ref, r io.Reader) (sb blob.SizedRef, err error) {
 	// TODO: use ctx?
-	n, err := io.Copy(ioutil.Discard, r)
+	n, err := io.Copy(io.Discard, r)
 	if err != nil {
 		return
 	}

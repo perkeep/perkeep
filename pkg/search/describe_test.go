@@ -19,7 +19,7 @@ package search_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -150,7 +150,7 @@ func searchDescribeSetup(t *testing.T) indexAndOwner {
 			t.Fatalf("looking up perkeep.org location in $GOPATH: %v", err)
 		}
 		fileName := filepath.Join(camliRootPath, "pkg", "search", "testdata", file)
-		contents, err := ioutil.ReadFile(fileName)
+		contents, err := os.ReadFile(fileName)
 		if err != nil {
 			t.Fatal(err)
 		}

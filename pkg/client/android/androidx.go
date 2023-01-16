@@ -26,7 +26,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -276,7 +275,7 @@ func TLSConfig() (*tls.Config, error) {
 	defer f.Close()
 	names, _ := f.Readdirnames(-1)
 	for _, name := range names {
-		pem, err := ioutil.ReadFile(filepath.Join(certDir, name))
+		pem, err := os.ReadFile(filepath.Join(certDir, name))
 		if err != nil {
 			return nil, err
 		}

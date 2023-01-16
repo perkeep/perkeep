@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 
 	"perkeep.org/internal/osutil"
@@ -147,7 +147,7 @@ func getNamedSearch(named string) (getNamedResponse, error) {
 	if err != nil {
 		return gnr, err
 	}
-	result, err := ioutil.ReadAll(reader)
+	result, err := io.ReadAll(reader)
 	if err != nil {
 		return gnr, err
 	}

@@ -19,8 +19,8 @@ package drive
 import (
 	"encoding/json"
 	"flag"
-	"io/ioutil"
 	"log"
+	"os"
 	"testing"
 
 	"go4.org/jsonconfig"
@@ -58,7 +58,7 @@ func TestStorage(t *testing.T) {
 	}
 	var refreshToken string
 	if *configFile != "" {
-		data, err := ioutil.ReadFile(*configFile)
+		data, err := os.ReadFile(*configFile)
 		if err != nil {
 			t.Fatalf("Error reading config file %v: %v", *configFile, err)
 		}

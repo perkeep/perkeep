@@ -20,7 +20,6 @@ package cacher // import "perkeep.org/pkg/cacher"
 import (
 	"context"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -114,7 +113,7 @@ func NewDiskCache(fetcher blob.Fetcher) (*DiskCache, error) {
 	if !osutil.DirExists(cacheDir) {
 		if err := os.Mkdir(cacheDir, 0700); err != nil {
 			log.Printf("Warning: failed to make %s: %v; using tempdir instead", cacheDir, err)
-			cacheDir, err = ioutil.TempDir("", "camlicache")
+			cacheDir, err = os.MkdirTemp("", "camlicache")
 			if err != nil {
 				return nil, err
 			}

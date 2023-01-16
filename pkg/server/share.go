@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -247,7 +246,7 @@ func (h *shareHandler) handleGetViaSharing(rw http.ResponseWriter, req *http.Req
 			}
 			defer rc.Close()
 			lr := io.LimitReader(rc, schema.MaxSchemaBlobSize)
-			slurpBytes, err := ioutil.ReadAll(lr)
+			slurpBytes, err := io.ReadAll(lr)
 			if err != nil {
 				return unauthorized(viaChainReadFailed,
 					"Fetch chain %d of %s failed in slurp: %v", i, br, err)

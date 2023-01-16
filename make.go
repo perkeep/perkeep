@@ -35,7 +35,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -333,11 +332,11 @@ func genJS(pkg, output string) error {
 		// output exists and is already up to date, nothing to do
 		return nil
 	}
-	data, err := ioutil.ReadFile(jsout)
+	data, err := os.ReadFile(jsout)
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(output, data, 0600)
+	return os.WriteFile(output, data, 0600)
 }
 
 func runGopherJS(pkg string) error {
@@ -395,7 +394,7 @@ func fetchJS(jsURL, jsOnDisk string) error {
 		return err
 	}
 	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -559,7 +558,7 @@ func buildBin(pkg string) error {
 
 // getVersion returns the version of Perkeep found in a VERSION file at the root.
 func getVersion() string {
-	slurp, err := ioutil.ReadFile(filepath.Join(pkRoot, "VERSION"))
+	slurp, err := os.ReadFile(filepath.Join(pkRoot, "VERSION"))
 	v := strings.TrimSpace(string(slurp))
 	if err != nil && !os.IsNotExist(err) {
 		log.Fatal(err)
@@ -782,7 +781,7 @@ func embedClosure(closureDir, embedFile string) error {
 	}
 	w := zip.NewWriter(zipdest)
 	for _, elt := range files {
-		b, err := ioutil.ReadFile(elt.path)
+		b, err := os.ReadFile(elt.path)
 		if err != nil {
 			return err
 		}
@@ -822,11 +821,11 @@ func writeFileIfDifferent(filename string, contents []byte) error {
 	if err == nil && fi.Size() == int64(len(contents)) && contentsEqual(filename, contents) {
 		return nil
 	}
-	return ioutil.WriteFile(filename, contents, 0644)
+	return os.WriteFile(filename, contents, 0644)
 }
 
 func contentsEqual(filename string, contents []byte) bool {
-	got, err := ioutil.ReadFile(filename)
+	got, err := os.ReadFile(filename)
 	if os.IsNotExist(err) {
 		return false
 	}

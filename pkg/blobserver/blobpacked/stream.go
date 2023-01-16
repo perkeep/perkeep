@@ -20,7 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strconv"
 	"strings"
 
@@ -135,7 +135,7 @@ func slurpSizedRef(ctx context.Context, f blob.Fetcher, sb blob.SizedRef) ([]byt
 	if size != sb.Size {
 		return nil, fmt.Errorf("blobpacked fetch of %v reported %d bytes; expected %d", sb.Ref, size, sb.Size)
 	}
-	slurp, err := ioutil.ReadAll(rc)
+	slurp, err := io.ReadAll(rc)
 	if err != nil {
 		return nil, err
 	}

@@ -22,7 +22,6 @@ import (
 	"flag"
 	"hash"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -55,7 +54,7 @@ var (
 )
 
 func benchmarkPopulate(b *testing.B, dbname string, sortedProvider func(dbfile string) (sorted.KeyValue, error)) {
-	tempDir, err := ioutil.TempDir(*flagTempDir, "camli-index-stress")
+	tempDir, err := os.MkdirTemp(*flagTempDir, "camli-index-stress")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -199,7 +198,7 @@ func BenchmarkInterruptSQLite(b *testing.B) {
 }
 
 func benchmarkAll(b *testing.B, dbname string, sortedProvider func(dbfile string) (sorted.KeyValue, error)) {
-	tempDir, err := ioutil.TempDir(*flagTempDir, "camli-index-stress")
+	tempDir, err := os.MkdirTemp(*flagTempDir, "camli-index-stress")
 	if err != nil {
 		b.Fatal(err)
 	}

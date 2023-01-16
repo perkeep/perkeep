@@ -12,7 +12,6 @@ import (
 	"go/doc"
 	"go/parser"
 	"go/token"
-	"io/ioutil"
 	"log"
 	"os"
 	pathpkg "path"
@@ -71,7 +70,7 @@ func (b *treeBuilder) newDirTree(fset *token.FileSet, path, name string, depth i
 		}
 	}
 
-	list, err := ioutil.ReadDir(path)
+	list, err := os.ReadDir(path)
 	if err != nil {
 		log.Printf("Could not read %v\n", path)
 		return nil
@@ -81,7 +80,12 @@ func (b *treeBuilder) newDirTree(fset *token.FileSet, path, name string, depth i
 	ndirs := 0
 	hasPkgFiles := false
 	var synopses [4]string // prioritized package documentation (0 == highest priority)
-	for _, d := range list {
+	for _, entry := range list {
+		d, err := entry.Info()
+		if err != nil {
+			log.Printf("Could not get info for entry: %v\n", entry)
+			continue
+		}
 		switch {
 		case isPkgDir(d):
 			ndirs++
@@ -91,7 +95,7 @@ func (b *treeBuilder) newDirTree(fset *token.FileSet, path, name string, depth i
 			// though the directory doesn't contain any real package files - was bug)
 			if synopses[0] == "" {
 				// no "optimal" package synopsis yet; continue to collect synopses
-				src, err := ioutil.ReadFile(pathpkg.Join(path, d.Name()))
+				src, err := os.ReadFile(pathpkg.Join(path, d.Name()))
 				if err != nil {
 					log.Printf("Could not read %v\n", pathpkg.Join(path, d.Name()))
 					continue
@@ -125,7 +129,12 @@ func (b *treeBuilder) newDirTree(fset *token.FileSet, path, name string, depth i
 	if ndirs > 0 {
 		dirs = make([]*Directory, ndirs)
 		i := 0
-		for _, d := range list {
+		for _, entry := range list {
+			d, err := entry.Info()
+			if err != nil {
+				log.Printf("Could not get info for entry: %v\n", entry)
+				continue
+			}
 			if isPkgDir(d) {
 				name := d.Name()
 				dd := b.newDirTree(fset, pathpkg.Join(path, name), name, depth+1)

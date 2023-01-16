@@ -19,7 +19,6 @@ package sqlite_test
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"sync"
@@ -36,7 +35,7 @@ import (
 )
 
 func newSorted(t *testing.T) (kv sorted.KeyValue, clean func()) {
-	f, err := ioutil.TempFile("", "sqlite-test")
+	f, err := os.CreateTemp("", "sqlite-test")
 	if err != nil {
 		t.Fatal(err)
 	}

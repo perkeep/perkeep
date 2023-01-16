@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"sort"
@@ -294,7 +293,7 @@ func (s *storage) readAllMetaBlobs() error {
 					return
 				}
 				defer rc.Close()
-				all, err := ioutil.ReadAll(rc)
+				all, err := io.ReadAll(rc)
 				if err != nil {
 					metac <- encMB{sb.Ref, nil, fmt.Errorf("read failed: %v", err)}
 					return

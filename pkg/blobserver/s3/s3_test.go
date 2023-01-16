@@ -19,7 +19,7 @@ package s3
 import (
 	"context"
 	"flag"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -208,7 +208,7 @@ func TestS3EndpointRedirect(t *testing.T) {
 					Header: http.Header(map[string][]string{
 						"X-Amz-Bucket-Region": []string{"us-east-1"},
 					}),
-					Body: ioutil.NopCloser(strings.NewReader(`<?xml version="1.0" encoding="UTF-8"?>
+					Body: io.NopCloser(strings.NewReader(`<?xml version="1.0" encoding="UTF-8"?>
 <LocationConstraint xmlns="http://s3.amazonaws.com/doc/2006-03-01/">us-west-1</LocationConstraint>`)),
 				}
 			},
@@ -222,7 +222,7 @@ func TestS3EndpointRedirect(t *testing.T) {
 					Header: http.Header(map[string][]string{
 						"X-Amz-Bucket-Region": []string{"us-east-1"},
 					}),
-					Body: ioutil.NopCloser(strings.NewReader(`<?xml version="1.0" encoding="UTF-8"?>
+					Body: io.NopCloser(strings.NewReader(`<?xml version="1.0" encoding="UTF-8"?>
 <Error><Code>PermanentRedirect</Code><Message>The bucket you are attempting to access must be addressed using the specified endpoint. Please send all future requests to this endpoint.</Message><Bucket>mock_bucket</Bucket><Endpoint>mock_bucket.s3.amazonaws.com</Endpoint><RequestId>123</RequestId><HostId>abc</HostId></Error>`)),
 				}
 			},
@@ -233,7 +233,7 @@ func TestS3EndpointRedirect(t *testing.T) {
 				return &http.Response{
 					Status:     "200 OK",
 					StatusCode: 200,
-					Body: ioutil.NopCloser(strings.NewReader(`
+					Body: io.NopCloser(strings.NewReader(`
 <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>mock_bucket</Name><Prefix></Prefix><MaxKeys>1</MaxKeys><Marker></Marker><IsTruncated>false</IsTruncated><Contents></Contents></ListBucketResult>
 					`)),
 				}
@@ -272,7 +272,7 @@ func TestNonS3Endpoints(t *testing.T) {
 					return &http.Response{
 						Status:     "200 OK",
 						StatusCode: 200,
-						Body: ioutil.NopCloser(strings.NewReader(`
+						Body: io.NopCloser(strings.NewReader(`
 		<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>mock_bucket</Name><Prefix></Prefix><MaxKeys>1</MaxKeys><Marker></Marker><IsTruncated>false</IsTruncated><Contents></Contents></ListBucketResult>
 							`)),
 					}

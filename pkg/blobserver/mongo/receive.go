@@ -19,7 +19,6 @@ package mongo
 import (
 	"context"
 	"io"
-	"io/ioutil"
 
 	"perkeep.org/pkg/blob"
 
@@ -33,7 +32,7 @@ const (
 )
 
 func (m *mongoStorage) ReceiveBlob(ctx context.Context, ref blob.Ref, source io.Reader) (blob.SizedRef, error) {
-	blobData, err := ioutil.ReadAll(source)
+	blobData, err := io.ReadAll(source)
 	if err != nil {
 		return blob.SizedRef{}, err
 	}

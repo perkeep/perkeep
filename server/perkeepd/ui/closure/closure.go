@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
@@ -66,7 +65,7 @@ type fs struct {
 	m  map[string]*fileInfo // keyed by what Open gets. see Open's comment.
 }
 
-var nopCloser = ioutil.NopCloser(nil)
+var nopCloser = io.NopCloser(nil)
 
 // Open is called with names like "/goog/base.js", but the zip contains Files named like "closure/goog/base.js".
 func (s *fs) Open(name string) (http.File, error) {
@@ -103,7 +102,7 @@ func newFileInfo(zf *zip.File) (*fileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	all, err := ioutil.ReadAll(rc)
+	all, err := io.ReadAll(rc)
 	if err != nil {
 		return nil, err
 	}

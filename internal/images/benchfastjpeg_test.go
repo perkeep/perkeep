@@ -21,7 +21,6 @@ import (
 	"image"
 	"image/jpeg"
 	"io"
-	"io/ioutil"
 	"testing"
 
 	"perkeep.org/internal/images/fastjpeg"
@@ -104,7 +103,7 @@ func testRun(b testing.TB, decode decodeFunc) {
 	rect := im.Bounds()
 	w, h := 128, 128
 	im = resize.Resize(im, rect, w, h)
-	err = jpeg.Encode(ioutil.Discard, im, nil)
+	err = jpeg.Encode(io.Discard, im, nil)
 	if err != nil {
 		b.Fatal(err)
 	}

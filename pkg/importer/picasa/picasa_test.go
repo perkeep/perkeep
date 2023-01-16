@@ -19,10 +19,10 @@ package picasa
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -132,7 +132,7 @@ func testImportAlbums(t *testing.T, data testData, caseNum int) {
 var rJPGurl = regexp.MustCompile(`url="([^"]*[.](?:jpg|JPG))"`)
 
 func TestImportAlbums(t *testing.T) {
-	fis, err := ioutil.ReadDir("testdata")
+	fis, err := os.ReadDir("testdata")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestImportAlbums(t *testing.T) {
 			response, URL = resp, U
 		}
 
-		b, err := ioutil.ReadFile(fn)
+		b, err := os.ReadFile(fn)
 		if err != nil {
 			t.Logf("Cannot read %q: %v", fn, err)
 			continue

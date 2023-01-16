@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"hash"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -156,7 +155,7 @@ func (c *Client) PutObject(ctx context.Context, key, container string, md5 hash.
 	req.Header.Set("Content-Length", strconv.Itoa(int(size)))
 	req.Header.Set("x-ms-blob-type", "BlockBlob")
 	c.Auth.SignRequest(req)
-	req.Body = ioutil.NopCloser(body)
+	req.Body = io.NopCloser(body)
 
 	res, err := c.transport().RoundTrip(req)
 	if res != nil && res.Body != nil {
@@ -258,7 +257,7 @@ func (c *Client) ListBlobs(ctx context.Context, container string, maxResults int
 }
 
 func getAzureError(operation string, res *http.Response) *Error {
-	body, _ := ioutil.ReadAll(io.LimitReader(res.Body, 1<<20))
+	body, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
 	aerr := &Error{
 		Op:     operation,
 		Code:   res.StatusCode,

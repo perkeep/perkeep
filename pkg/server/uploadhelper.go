@@ -18,7 +18,6 @@ package server
 
 import (
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 
@@ -65,7 +64,7 @@ func (ui *UIHandler) serveUploadHelper(rw http.ResponseWriter, req *http.Request
 			break
 		}
 		if part.FormName() == "modtime" {
-			payload, err := ioutil.ReadAll(part)
+			payload, err := io.ReadAll(part)
 			if err != nil {
 				log.Printf("ui uploadhelper: unable to read part for modtime: %v", err)
 				continue

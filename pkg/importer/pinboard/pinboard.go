@@ -46,7 +46,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -294,7 +294,7 @@ func (r *run) importBatch(authToken string, parent *importer.Object) (keepTrying
 		return false, fmt.Errorf("Unexpected status code %v fetching %v", resp.StatusCode, u)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return false, err
 	}

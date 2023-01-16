@@ -52,7 +52,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"time"
@@ -236,7 +235,7 @@ func (s *storage) Fetch(ctx context.Context, plainBR blob.Ref) (io.ReadCloser, u
 		return nil, 0, fmt.Errorf("encrypt: encrypted blob %s failed validation: %s", encBR, err)
 	}
 
-	return ioutil.NopCloser(plainBytes), plainSize, nil
+	return io.NopCloser(plainBytes), plainSize, nil
 }
 
 func (s *storage) EnumerateBlobs(ctx context.Context, dest chan<- blob.SizedRef, after string, limit int) error {

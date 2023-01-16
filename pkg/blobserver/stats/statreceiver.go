@@ -21,7 +21,6 @@ package stats // import "perkeep.org/pkg/blobserver/stats"
 import (
 	"context"
 	"io"
-	"io/ioutil"
 	"sort"
 	"sync"
 
@@ -68,7 +67,7 @@ func (sr *Receiver) SumBlobSize() int64 {
 }
 
 func (sr *Receiver) ReceiveBlob(ctx context.Context, br blob.Ref, source io.Reader) (sb blob.SizedRef, err error) {
-	n, err := io.Copy(ioutil.Discard, source)
+	n, err := io.Copy(io.Discard, source)
 	if err != nil {
 		return
 	}

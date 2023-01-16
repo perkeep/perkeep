@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"testing"
@@ -153,7 +152,7 @@ func TestReader(t *testing.T) {
 			continue
 		}
 		skipBytes(fr, rt.skip)
-		all, err := ioutil.ReadAll(fr)
+		all, err := io.ReadAll(fr)
 		if err != nil {
 			t.Errorf("read error on test %d: %v", idx, err)
 			continue
@@ -200,7 +199,7 @@ func TestReaderSeekStress(t *testing.T) {
 		}
 
 		skipBytes(fr, uint64(off))
-		got, err := ioutil.ReadAll(fr)
+		got, err := io.ReadAll(fr)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -389,7 +388,7 @@ func TestForeachChunkAllSchemaBlobs(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
-		all, err := ioutil.ReadAll(fr)
+		all, err := io.ReadAll(fr)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
