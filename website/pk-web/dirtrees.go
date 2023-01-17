@@ -31,20 +31,25 @@ type Directory struct {
 	Dirs     []*Directory // subdirectories
 }
 
-func isGoFile(fi os.FileInfo) bool {
+type dirEntry interface {
+	Name() string
+	IsDir() bool
+}
+
+func isGoFile(fi dirEntry) bool {
 	name := fi.Name()
 	return !fi.IsDir() &&
 		len(name) > 0 && name[0] != '.' && // ignore .files
 		pathpkg.Ext(name) == ".go"
 }
 
-func isPkgFile(fi os.FileInfo) bool {
+func isPkgFile(fi dirEntry) bool {
 	return isGoFile(fi) &&
 		!strings.HasSuffix(fi.Name(), "_test.go") && // ignore test files
 		!strings.HasSuffix(fi.Name(), fileembedPattern)
 }
 
-func isPkgDir(fi os.FileInfo) bool {
+func isPkgDir(fi dirEntry) bool {
 	name := fi.Name()
 	return fi.IsDir() && len(name) > 0 &&
 		name[0] != '_' && name[0] != '.' // ignore _files and .files
@@ -80,12 +85,7 @@ func (b *treeBuilder) newDirTree(fset *token.FileSet, path, name string, depth i
 	ndirs := 0
 	hasPkgFiles := false
 	var synopses [4]string // prioritized package documentation (0 == highest priority)
-	for _, entry := range list {
-		d, err := entry.Info()
-		if err != nil {
-			log.Printf("Could not get info for entry: %v\n", entry)
-			continue
-		}
+	for _, d := range list {
 		switch {
 		case isPkgDir(d):
 			ndirs++
@@ -129,12 +129,7 @@ func (b *treeBuilder) newDirTree(fset *token.FileSet, path, name string, depth i
 	if ndirs > 0 {
 		dirs = make([]*Directory, ndirs)
 		i := 0
-		for _, entry := range list {
-			d, err := entry.Info()
-			if err != nil {
-				log.Printf("Could not get info for entry: %v\n", entry)
-				continue
-			}
+		for _, d := range list {
 			if isPkgDir(d) {
 				name := d.Name()
 				dd := b.newDirTree(fset, pathpkg.Join(path, name), name, depth+1)
