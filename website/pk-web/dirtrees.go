@@ -31,27 +31,29 @@ type Directory struct {
 	Dirs     []*Directory // subdirectories
 }
 
+// dirEntry defines functions for determining whether
+// entry is a directory or a file.
 type dirEntry interface {
 	Name() string
 	IsDir() bool
 }
 
-func isGoFile(fi dirEntry) bool {
-	name := fi.Name()
-	return !fi.IsDir() &&
+func isGoFile(de dirEntry) bool {
+	name := de.Name()
+	return !de.IsDir() &&
 		len(name) > 0 && name[0] != '.' && // ignore .files
 		pathpkg.Ext(name) == ".go"
 }
 
-func isPkgFile(fi dirEntry) bool {
-	return isGoFile(fi) &&
-		!strings.HasSuffix(fi.Name(), "_test.go") && // ignore test files
-		!strings.HasSuffix(fi.Name(), fileembedPattern)
+func isPkgFile(de dirEntry) bool {
+	return isGoFile(de) &&
+		!strings.HasSuffix(de.Name(), "_test.go") && // ignore test files
+		!strings.HasSuffix(de.Name(), fileembedPattern)
 }
 
-func isPkgDir(fi dirEntry) bool {
-	name := fi.Name()
-	return fi.IsDir() && len(name) > 0 &&
+func isPkgDir(de dirEntry) bool {
+	name := de.Name()
+	return de.IsDir() && len(name) > 0 &&
 		name[0] != '_' && name[0] != '.' // ignore _files and .files
 }
 
