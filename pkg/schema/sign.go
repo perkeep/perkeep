@@ -28,7 +28,7 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/jsonsign"
 
-	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp" //lint:ignore SA1019 the package is deprecated
 )
 
 // A Signer signs the JSON schema blobs that require signing, such as claims

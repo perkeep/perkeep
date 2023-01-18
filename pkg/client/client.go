@@ -1281,9 +1281,6 @@ func (c *Client) http2DialTLSFunc() func(network, addr string, cfg *tls.Config) 
 		if p := state.NegotiatedProtocol; p != http2.NextProtoTLS {
 			return nil, fmt.Errorf("http2: unexpected ALPN protocol %q; want %q", p, http2.NextProtoTLS)
 		}
-		if !state.NegotiatedProtocolIsMutual {
-			return nil, errors.New("http2: could not negotiate protocol mutually")
-		}
 		certs := state.PeerCertificates
 		if len(certs) < 1 {
 			return nil, fmt.Errorf("no TLS peer certificates from %s", addr)

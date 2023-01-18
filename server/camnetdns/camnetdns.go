@@ -43,9 +43,9 @@ import (
 	"go4.org/cloud/cloudlaunch"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/http2"
-	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/api/option"
 )
 
 var (
@@ -222,7 +222,7 @@ func (ds *DNSServer) HandleLookup(name string) (string, error) {
 	if time.Now().Before(lastCamwebUpdate.Add(lowTTL * time.Second)) {
 		return ds.dataSource.Get(loName)
 	}
-	stagingIP, err := stagingCamwebIP()
+	stagingIP, err := stagingCamwebIP(context.Background())
 	if err != nil {
 		log.Printf("Could not get new IP of %v: %v. Serving old value instead.", stagingCamwebHost, err)
 		return ds.dataSource.Get(loName)
@@ -405,17 +405,17 @@ func (ds *DNSServer) ServeDNS(rw dns.ResponseWriter, mes *dns.Msg) {
 	}
 }
 
-func stagingCamwebIP() (string, error) {
+func stagingCamwebIP(ctx context.Context) (string, error) {
 	const (
 		projectID = "camlistore-website"
 		instName  = "camweb-staging"
 		zone      = "us-central1-f"
 	)
-	hc, err := google.DefaultClient(oauth2.NoContext)
+	hc, err := google.DefaultClient(ctx)
 	if err != nil {
 		return "", fmt.Errorf("error getting an http client: %v", err)
 	}
-	s, err := compute.New(hc)
+	s, err := compute.NewService(ctx, option.WithHTTPClient(hc))
 	if err != nil {
 		return "", fmt.Errorf("error getting compute service: %v", err)
 	}
@@ -464,7 +464,7 @@ func main() {
 		log.Fatalf("Error adding %v:%v record: %v", "www.camlistore.net.", *flagServerIP, err)
 	}
 	lastCamwebUpdate = time.Now()
-	if stagingIP, err := stagingCamwebIP(); err == nil {
+	if stagingIP, err := stagingCamwebIP(context.Background()); err == nil {
 		if err := kv.Set(stagingCamwebHost+".", stagingIP); err != nil {
 			log.Fatalf("Error adding %v:%v record: %v", stagingCamwebHost+".", stagingIP, err)
 		}

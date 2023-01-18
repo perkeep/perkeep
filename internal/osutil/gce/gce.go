@@ -32,6 +32,7 @@ import (
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/option"
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/env"
 
@@ -158,7 +159,7 @@ func gceInstance() (*gceInst, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error getting a default http client: %v", err)
 	}
-	cs, err := compute.New(hc)
+	cs, err := compute.NewService(ctx, option.WithHTTPClient(hc))
 	if err != nil {
 		return nil, fmt.Errorf("error getting a compute service: %v", err)
 	}

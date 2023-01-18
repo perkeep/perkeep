@@ -43,6 +43,7 @@ import (
 	cloudresourcemanager "google.golang.org/api/cloudresourcemanager/v1"
 	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/option"
 	servicemanagement "google.golang.org/api/servicemanagement/v1"
 	storage "google.golang.org/api/storage/v1"
 )
@@ -128,7 +129,8 @@ type Deployer struct {
 // Get returns the Instance corresponding to the Project, Zone, and Name defined in the
 // Deployer's Conf.
 func (d *Deployer) Get() (*compute.Instance, error) {
-	computeService, err := compute.New(d.Client)
+	ctx := context.Background()
+	computeService, err := compute.NewService(ctx, option.WithHTTPClient(d.Client))
 	if err != nil {
 		return nil, err
 	}
@@ -158,8 +160,8 @@ func (e instanceExistsError) Error() string {
 
 // projectHasInstance checks for all the possible zones if there's already an instance for the project.
 // It returns the name of the zone at the first instance it finds, if any.
-func (d *Deployer) projectHasInstance() (zone string, err error) {
-	s, err := compute.New(d.Client)
+func (d *Deployer) projectHasInstance(ctx context.Context) (zone string, err error) {
+	s, err := compute.NewService(ctx, option.WithHTTPClient(d.Client))
 	if err != nil {
 		return "", err
 	}
@@ -168,7 +170,7 @@ func (d *Deployer) projectHasInstance() (zone string, err error) {
 	if err != nil {
 		return "", fmt.Errorf("could not get a list of zones: %v", err)
 	}
-	computeService, _ := compute.New(d.Client)
+	computeService, _ := compute.NewService(ctx, option.WithHTTPClient(d.Client))
 	var zoneOnce sync.Once
 	var grp syncutil.Group
 	errc := make(chan error, 1)
@@ -225,7 +227,7 @@ func (e projectIDError) Error() string {
 // CreateProject creates a new Google Cloud Project. It returns the project ID,
 // which is a random number in (0,1e10), prefixed with "camlistore-launcher-".
 func (d *Deployer) CreateProject(ctx context.Context) (string, error) {
-	s, err := cloudresourcemanager.New(d.Client)
+	s, err := cloudresourcemanager.NewService(ctx, option.WithHTTPClient(d.Client))
 	if err != nil {
 		return "", err
 	}
@@ -321,12 +323,12 @@ func genRandomProjectID() string {
 	return fmt.Sprintf("camlistore-launcher-%d", n)
 }
 
-func (d *Deployer) enableAPIs() error {
+func (d *Deployer) enableAPIs(ctx context.Context) error {
 	// TODO(mpl): For now we're lucky enough that servicemanagement seems to
 	// work even when the Service Management API hasn't been enabled for the
 	// project. If/when it does not anymore, then we should use serviceuser
 	// instead. http://stackoverflow.com/a/43503392/1775619
-	s, err := servicemanagement.New(d.Client)
+	s, err := servicemanagement.NewService(ctx, option.WithHTTPClient(d.Client))
 	if err != nil {
 		return err
 	}
@@ -414,9 +416,9 @@ func (d *Deployer) enableAPIs() error {
 	return nil
 }
 
-func (d *Deployer) checkProjectID() error {
+func (d *Deployer) checkProjectID(ctx context.Context) error {
 	// TODO(mpl): cache the computeService in Deployer, instead of recreating a new one everytime?
-	s, err := compute.New(d.Client)
+	s, err := compute.NewService(ctx, option.WithHTTPClient(d.Client))
 	if err != nil {
 		return projectIDError{
 			id:    d.Conf.Project,
@@ -444,8 +446,8 @@ var errAttrNotFound = errors.New("attribute not found")
 // getInstanceAttribute returns the value for attr in the custom metadata of the
 // instance. It returns errAttrNotFound is such a metadata attributed does not
 // exist.
-func (d *Deployer) getInstanceAttribute(attr string) (string, error) {
-	s, err := compute.New(d.Client)
+func (d *Deployer) getInstanceAttribute(ctx context.Context, attr string) (string, error) {
+	s, err := compute.NewService(ctx, option.WithHTTPClient(d.Client))
 	if err != nil {
 		return "", fmt.Errorf("error getting compute service: %v", err)
 	}
@@ -464,18 +466,18 @@ func (d *Deployer) getInstanceAttribute(attr string) (string, error) {
 // Create sets up and starts a Google Compute Engine instance as defined in d.Conf. It
 // creates the necessary Google Storage buckets beforehand.
 func (d *Deployer) Create(ctx context.Context) (*compute.Instance, error) {
-	if err := d.enableAPIs(); err != nil {
+	if err := d.enableAPIs(ctx); err != nil {
 		return nil, projectIDError{
 			id:    d.Conf.Project,
 			cause: err,
 		}
 	}
-	if err := d.checkProjectID(); err != nil {
+	if err := d.checkProjectID(ctx); err != nil {
 		return nil, err
 	}
 
-	computeService, _ := compute.New(d.Client)
-	storageService, _ := storage.New(d.Client)
+	computeService, _ := compute.NewService(ctx, option.WithHTTPClient(d.Client))
+	storageService, _ := storage.NewService(ctx, option.WithHTTPClient(d.Client))
 
 	fwc := make(chan error, 1)
 	go func() {
@@ -488,7 +490,7 @@ func (d *Deployer) Create(ctx context.Context) (*compute.Instance, error) {
 		return nil, fmt.Errorf("cloud config length of %d bytes is over %d byte limit", len(config), maxCloudConfig)
 	}
 
-	if zone, err := d.projectHasInstance(); zone != "" {
+	if zone, err := d.projectHasInstance(ctx); zone != "" {
 		return nil, instanceExistsError{
 			project: d.Conf.Project,
 			zone:    zone,

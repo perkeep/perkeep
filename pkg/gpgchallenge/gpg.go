@@ -74,9 +74,9 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/openpgp"
-	"golang.org/x/crypto/openpgp/armor"
-	"golang.org/x/crypto/openpgp/packet"
+	"golang.org/x/crypto/openpgp"        //lint:ignore SA1019 the package is deprecated
+	"golang.org/x/crypto/openpgp/armor"  //lint:ignore SA1019 the package is deprecated
+	"golang.org/x/crypto/openpgp/packet" //lint:ignore SA1019 the package is deprecated
 	"golang.org/x/time/rate"
 
 	"go4.org/wkfs"

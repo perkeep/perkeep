@@ -73,6 +73,7 @@ func (c *reindexdpCmd) RunCommand(args []string) error {
 	if err != nil {
 		return err
 	}
+	//lint:ignore SA1019 we depend on cfg.LowLevelJSONConfig for now
 	low := cfg.LowLevelJSONConfig()
 	prefixes, ok := low["prefixes"].(map[string]interface{})
 	if !ok {

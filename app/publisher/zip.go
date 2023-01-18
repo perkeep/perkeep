@@ -267,10 +267,10 @@ func (zh *zipHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 		zh := zip.FileHeader{
-			Name:   file.path,
-			Method: zip.Store,
+			Name:     file.path,
+			Method:   zip.Store,
+			Modified: fr.ModTime(),
 		}
-		zh.SetModTime(fr.ModTime())
 		f, err := zw.CreateHeader(&zh)
 		if err != nil {
 			log.Printf("Could not create %q in zip: %v", file.path, err)

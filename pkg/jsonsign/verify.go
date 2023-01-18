@@ -30,8 +30,8 @@ import (
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/camerrors"
 
-	"golang.org/x/crypto/openpgp/armor"
-	"golang.org/x/crypto/openpgp/packet"
+	"golang.org/x/crypto/openpgp/armor"//lint:ignore SA1019 the package is deprecated
+	"golang.org/x/crypto/openpgp/packet"//lint:ignore SA1019 the package is deprecated
 )
 
 const sigSeparator = `,"camliSig":"`

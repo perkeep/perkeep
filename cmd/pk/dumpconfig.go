@@ -58,6 +58,7 @@ func (c *dumpconfigCmd) RunCommand(args []string) error {
 	if err != nil {
 		return err
 	}
+	//lint:ignore SA1019 we depend on cfg.LowLevelJSONConfig for now
 	lowj, err := json.MarshalIndent(cfg.LowLevelJSONConfig(), "", "  ")
 	if err != nil {
 		return err

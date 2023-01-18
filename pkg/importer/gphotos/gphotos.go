@@ -309,7 +309,7 @@ func (imp) Run(rctx *importer.RunContext) error {
 		}
 	}
 
-	dl, err := newDownloader(ctxutil.Client(ctx))
+	dl, err := newDownloader(ctx, ctxutil.Client(ctx))
 	if err != nil {
 		return err
 	}

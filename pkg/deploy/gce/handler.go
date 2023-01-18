@@ -50,6 +50,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	compute "google.golang.org/api/compute/v1"
+	"google.golang.org/api/option"
 )
 
 const cookieExpiration = 24 * time.Hour
@@ -202,7 +203,7 @@ func NewDeployHandler(host, prefix string) (*DeployHandler, error) {
 	h.zones = backupZones
 	var refreshZonesFn func()
 	refreshZonesFn = func() {
-		if err := h.refreshZones(); err != nil {
+		if err := h.refreshZones(context.Background()); err != nil {
 			h.logger.Printf("error while refreshing zones: %v", err)
 		}
 		time.AfterFunc(24*time.Hour, refreshZonesFn)
@@ -295,7 +296,7 @@ func (h *DeployHandler) camliRev() string {
 
 var errNoRefresh error = errors.New("not on GCE, and at least one of CAMLI_GCE_PROJECT or CAMLI_GCE_SERVICE_ACCOUNT not defined")
 
-func (h *DeployHandler) refreshZones() error {
+func (h *DeployHandler) refreshZones(ctx context.Context) error {
 	h.zonesMu.Lock()
 	defer h.zonesMu.Unlock()
 	defer func() {
@@ -313,7 +314,7 @@ func (h *DeployHandler) refreshZones() error {
 		}
 		return err
 	}
-	s, err := compute.New(hc)
+	s, err := compute.NewService(ctx, option.WithHTTPClient(hc))
 	if err != nil {
 		return err
 	}
@@ -485,7 +486,8 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
-		inst, err := depl.Create(context.Background())
+		ctx := context.Background()
+		inst, err := depl.Create(ctx)
 		state := &creationState{
 			InstConf: br,
 		}
@@ -526,7 +528,7 @@ func (h *DeployHandler) serveCallback(w http.ResponseWriter, r *http.Request) {
 		giveupTime := time.Now().Add(time.Hour)
 		pause := time.Second
 		for {
-			hostname, err := depl.getInstanceAttribute("camlistore-hostname")
+			hostname, err := depl.getInstanceAttribute(ctx, "camlistore-hostname")
 			if err != nil && err != errAttrNotFound {
 				h.logger.Printf("could not get camlistore-hostname of instance: %v", err)
 				state.Success = false
@@ -1304,7 +1306,7 @@ and visit both the "Compute Engine" and "Storage" sections for your project.
 
 // TODO(bradfitz,mpl): move this to go4.org/cloud/google/gceutil
 func ZonesOfRegion(hc *http.Client, project, region string) (zones []string, err error) {
-	s, err := compute.New(hc)
+	s, err := compute.NewService(context.Background(), option.WithHTTPClient(hc))
 	if err != nil {
 		return nil, err
 	}
