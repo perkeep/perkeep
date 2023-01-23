@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -104,7 +103,7 @@ func (si *shareImporter) imprt(ctx context.Context, br blob.Ref) error {
 	if err != nil {
 		return err
 	}
-	rc = ioutil.NopCloser(io.MultiReader(bytes.NewReader(body), rc))
+	rc = io.NopCloser(io.MultiReader(bytes.NewReader(body), rc))
 
 	switch b.Type() {
 	case "directory":

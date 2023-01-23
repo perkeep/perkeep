@@ -19,7 +19,7 @@ package thumbnail
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"io"
 	"net/url"
 	"os"
 	"os/exec"
@@ -58,11 +58,11 @@ func TestStorage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := ioutil.ReadAll(inFile)
+	data, err := io.ReadAll(inFile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	bd, err := ioutil.ReadAll(fr)
+	bd, err := io.ReadAll(fr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestMakeThumbnail(t *testing.T) {
 	}
 
 	store, ref := storageAndBlobRef(t)
-	tmpFile, _ := ioutil.TempFile(t.TempDir(), "camlitest")
+	tmpFile, _ := os.CreateTemp(t.TempDir(), "camlitest")
 	defer tmpFile.Close()
 
 	service := NewService(DefaultThumbnailer, 30*time.Second, 5)
@@ -100,7 +100,7 @@ func TestMakeThumbnailWithZeroMaxProcsAndTimeout(t *testing.T) {
 	}
 
 	store, ref := storageAndBlobRef(t)
-	tmpFile, _ := ioutil.TempFile(t.TempDir(), "camlitest")
+	tmpFile, _ := os.CreateTemp(t.TempDir(), "camlitest")
 	defer tmpFile.Close()
 
 	service := NewService(DefaultThumbnailer, 0, 0)
@@ -122,7 +122,7 @@ func TestMakeThumbnailFailure(t *testing.T) {
 
 	store, ref := storageAndBlobRef(t)
 	service := NewService(failingThumbnailer{}, 2*time.Second, 5)
-	err := service.Generate(ref, ioutil.Discard, store)
+	err := service.Generate(ref, io.Discard, store)
 
 	if err == nil {
 		t.Error("expected to fail.")
@@ -145,7 +145,7 @@ func TestThumbnailGenerateTimeout(t *testing.T) {
 
 	store, ref := storageAndBlobRef(t)
 	service := NewService(sleepyThumbnailer{}, time.Duration(time.Millisecond), 5)
-	err := service.Generate(ref, ioutil.Discard, store)
+	err := service.Generate(ref, io.Discard, store)
 
 	if err != errTimeout {
 		t.Errorf("expected to timeout: %v", err)

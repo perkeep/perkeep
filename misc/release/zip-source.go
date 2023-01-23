@@ -29,7 +29,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -276,7 +275,7 @@ func pack() {
 		if fi.IsDir() {
 			return nil
 		}
-		b, err := ioutil.ReadFile(filePath)
+		b, err := os.ReadFile(filePath)
 		if err != nil {
 			return err
 		}

@@ -18,7 +18,7 @@ package osutil
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -140,7 +140,7 @@ func TestCamPkConfigMigration(t *testing.T) {
 		configDirNamedTestHook = nil
 		log.SetOutput(os.Stderr)
 	}()
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 
 	td := t.TempDir()
 
@@ -185,7 +185,7 @@ func TestCamPkConfigMigration(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(oldDir, "blobs"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := ioutil.WriteFile(filepath.Join(oldDir, "blobs/x.dat"), []byte("hi"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(oldDir, "blobs/x.dat"), []byte("hi"), 0644); err != nil {
 		t.Fatal(err)
 	}
 

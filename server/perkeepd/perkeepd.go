@@ -22,7 +22,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -127,7 +126,7 @@ func slurpURL(urls string, limit int64) ([]byte, error) {
 		return nil, err
 	}
 	defer res.Body.Close()
-	return ioutil.ReadAll(io.LimitReader(res.Body, limit))
+	return io.ReadAll(io.LimitReader(res.Body, limit))
 }
 
 // loadConfig returns the server's parsed config file, locating it using the provided arg.

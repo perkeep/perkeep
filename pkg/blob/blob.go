@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"sync/atomic"
 	"unicode/utf8"
 
@@ -139,7 +138,7 @@ func FromReader(ctx context.Context, br Ref, r io.Reader, size uint32) (*Blob, e
 	if n, err := io.ReadFull(r, buf); err != nil {
 		return nil, fmt.Errorf("blob: after reading %d bytes of %v: %v", n, br, err)
 	}
-	n, _ := io.CopyN(ioutil.Discard, r, 1)
+	n, _ := io.CopyN(io.Discard, r, 1)
 	if n > 0 {
 		return nil, fmt.Errorf("blob: %v had more than reported %d bytes", br, size)
 	}

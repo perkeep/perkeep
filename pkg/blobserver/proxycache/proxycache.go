@@ -38,7 +38,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"sync"
@@ -163,7 +162,7 @@ func (sto *Storage) Fetch(ctx context.Context, b blob.Ref) (rc io.ReadCloser, si
 	if err != nil {
 		return
 	}
-	all, err := ioutil.ReadAll(rc)
+	all, err := io.ReadAll(rc)
 	if err != nil {
 		return
 	}
@@ -172,7 +171,7 @@ func (sto *Storage) Fetch(ctx context.Context, b blob.Ref) (rc io.ReadCloser, si
 	} else {
 		sto.touch(blob.SizedRef{Ref: b, Size: size})
 	}
-	return ioutil.NopCloser(bytes.NewReader(all)), size, nil
+	return io.NopCloser(bytes.NewReader(all)), size, nil
 }
 
 func (sto *Storage) SubFetch(ctx context.Context, ref blob.Ref, offset, length int64) (io.ReadCloser, error) {

@@ -22,7 +22,6 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -53,7 +52,7 @@ func newTempDiskpackedMemory(t *testing.T) (sto blobserver.Storage, cleanup func
 
 func newTempDiskpackedWithIndex(t *testing.T, indexConf jsonconfig.Obj) (sto blobserver.Storage, cleanup func()) {
 	restoreLogging := test.TLog(t)
-	dir, err := ioutil.TempDir("", "diskpacked-test")
+	dir, err := os.MkdirTemp("", "diskpacked-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +349,7 @@ func TestWriteError(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("skipping symlink test on Windows")
 	}
-	dir, err := ioutil.TempDir("", "diskpacked-test")
+	dir, err := os.MkdirTemp("", "diskpacked-test")
 	if err != nil {
 		t.Fatal(err)
 	}

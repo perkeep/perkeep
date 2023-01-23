@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -176,7 +175,7 @@ func TestCamgetFile(t *testing.T) {
 	_ = test.MustRunCmd(t, w.Cmd("pk-get", "-o", outDir, "-contents", br))
 
 	fetchedName := filepath.Join(outDir, "test.txt")
-	b, err := ioutil.ReadFile(fetchedName)
+	b, err := os.ReadFile(fetchedName)
 	if err != nil {
 		t.Fatal(err)
 	}

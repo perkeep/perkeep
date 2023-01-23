@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"io"
-	"io/ioutil"
 
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/blobserver"
@@ -30,7 +29,7 @@ type discardStorage struct {
 }
 
 func (discardStorage) ReceiveBlob(ctx context.Context, br blob.Ref, r io.Reader) (sb blob.SizedRef, err error) {
-	n, err := io.Copy(ioutil.Discard, r)
+	n, err := io.Copy(io.Discard, r)
 	return blob.SizedRef{Ref: br, Size: uint32(n)}, err
 }
 

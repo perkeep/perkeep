@@ -29,7 +29,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -88,7 +87,7 @@ func getCamliSrc() {
 	// we insert the version in the VERSION file, so make.go does no need git
 	// in the container to detect the Perkeep version.
 	check(os.Chdir("/gopath/src/perkeep.org"))
-	check(ioutil.WriteFile("VERSION", []byte(rev()), 0777))
+	check(os.WriteFile("VERSION", []byte(rev()), 0777))
 }
 
 func mirrorCamliSrc(srcDir string) {

@@ -19,7 +19,6 @@ package jstest // import "perkeep.org/internal/closure/jstest"
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -89,11 +88,11 @@ func writeDeps(baseJS, targetDir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("GenDepsWithPath failed: %v", err)
 	}
-	depsFile, err := ioutil.TempFile("", "camlistore_closure_test_runner")
+	depsFile, err := os.CreateTemp("", "camlistore_closure_test_runner")
 	if err != nil {
 		return "", fmt.Errorf("Could not create temp js deps file: %v", err)
 	}
-	err = ioutil.WriteFile(depsFile.Name(), b, 0644)
+	err = os.WriteFile(depsFile.Name(), b, 0644)
 	if err != nil {
 		return "", fmt.Errorf("Could not write js deps file: %v", err)
 	}

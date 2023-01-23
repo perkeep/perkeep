@@ -24,7 +24,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/url"
 	"os"
@@ -339,7 +338,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		for i := 1; i <= 8; i++ {
 			fileBase := fmt.Sprintf("f%d-exif.jpg", i)
 			fileName := filepath.Join(camliRootPath, "pkg", "images", "testdata", fileBase)
-			contents, err := ioutil.ReadFile(fileName)
+			contents, err := os.ReadFile(fileName)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -356,7 +355,7 @@ func Index(t *testing.T, initIdx func() *index.Index) {
 		}
 		uploadFile := func(file string, modTime time.Time) (fileRef, wholeRef blob.Ref) {
 			fileName := filepath.Join(camliRootPath, "pkg", "index", "indextest", "testdata", file)
-			contents, err := ioutil.ReadFile(fileName)
+			contents, err := os.ReadFile(fileName)
 			if err != nil {
 				t.Fatal(err)
 			}

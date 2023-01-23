@@ -17,7 +17,6 @@ limitations under the License.
 package files
 
 import (
-	"io/ioutil"
 	"os"
 )
 
@@ -46,7 +45,7 @@ func (osFS) Rename(oldname, newname string) error {
 }
 
 func (osFS) TempFile(dir, prefix string) (WritableFile, error) {
-	f, err := ioutil.TempFile(dir, prefix)
+	f, err := os.CreateTemp(dir, prefix)
 	if err != nil {
 		return nil, err
 	}

@@ -23,7 +23,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -486,7 +485,7 @@ func (up *Uploader) wholeFileDigest(fullPath string) ([]blob.Ref, error) {
 	defer file.Close()
 	td := hashutil.NewTrackDigestReader(file)
 	td.DoLegacySHA1 = up.doLegacySHA1
-	_, err = io.Copy(ioutil.Discard, td)
+	_, err = io.Copy(io.Discard, td)
 	atomic.AddInt64(&atomicDigestOps, 1)
 	if err != nil {
 		return nil, err

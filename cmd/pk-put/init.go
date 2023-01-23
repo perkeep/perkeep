@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -192,7 +191,7 @@ func (c *initCmd) writeConfig(cc *clientconfig.Config) error {
 	if err != nil {
 		log.Fatalf("JSON serialization error: %v", err)
 	}
-	if err := ioutil.WriteFile(configFilePath, jsonBytes, 0600); err != nil {
+	if err := os.WriteFile(configFilePath, jsonBytes, 0600); err != nil {
 		return fmt.Errorf("could not write client config file %v: %v", configFilePath, err)
 	}
 	log.Printf("Wrote %q; modify as necessary.", configFilePath)

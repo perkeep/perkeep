@@ -32,7 +32,6 @@ package localdisk // import "perkeep.org/pkg/blobserver/localdisk"
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -161,7 +160,7 @@ func init() {
 //
 // TODO: move this into the files package too?
 func (ds *DiskStorage) checkFS() (ret error) {
-	tempdir, err := ioutil.TempDir(ds.root, "")
+	tempdir, err := os.MkdirTemp(ds.root, "")
 	if err != nil {
 		return fmt.Errorf("localdisk check: unable to create tempdir in %s, err=%v", ds.root, err)
 	}
@@ -180,12 +179,12 @@ func (ds *DiskStorage) checkFS() (ret error) {
 	tempfile := filepath.Join(tempdir, "FILE.tmp")
 	filename := filepath.Join(tempdir, "FILE")
 	data := []byte("perkeep rocks")
-	err = ioutil.WriteFile(tempfile, data, 0644)
+	err = os.WriteFile(tempfile, data, 0644)
 	if err != nil {
 		return fmt.Errorf("localdisk check: unable to write into %s, err=%v", ds.root, err)
 	}
 
-	out, err := ioutil.ReadFile(tempfile)
+	out, err := os.ReadFile(tempfile)
 	if err != nil {
 		return fmt.Errorf("localdisk check: unable to read from %s, err=%v", tempfile, err)
 	}

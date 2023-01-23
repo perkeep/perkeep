@@ -21,8 +21,8 @@ import (
 	"encoding/json"
 	"flag"
 	"io"
-	"io/ioutil"
 	"log"
+	"os"
 	"path"
 	"strings"
 	"testing"
@@ -74,7 +74,7 @@ func testStorage(t *testing.T, bucketDir string) {
 	}
 	var refreshToken string
 	if *configFile != "" {
-		data, err := ioutil.ReadFile(*configFile)
+		data, err := os.ReadFile(*configFile)
 		if err != nil {
 			t.Fatalf("Error reading config file %v: %v", *configFile, err)
 		}
@@ -191,7 +191,7 @@ func testStorage(t *testing.T, bucketDir string) {
 							if err != nil {
 								t.Fatalf("could not find object %s after tests: %v", key, err)
 							}
-							if _, err := io.Copy(ioutil.Discard, rc); err != nil {
+							if _, err := io.Copy(io.Discard, rc); err != nil {
 								t.Fatalf("could not find object %s after tests: %v", key, err)
 							}
 							if err := stor.client.Bucket(stor.bucket).Object(key).Delete(ctx); err != nil {

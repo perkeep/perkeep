@@ -22,7 +22,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -59,7 +58,7 @@ func (c *hookCmd) installHook() error {
 		_, err := os.Stat(filename)
 		if err == nil {
 			if c.verbose {
-				data, err := ioutil.ReadFile(filename)
+				data, err := os.ReadFile(filename)
 				if err != nil {
 					c.verbosef("reading hook: %v", err)
 				} else if string(data) != hookContent {
@@ -73,7 +72,7 @@ func (c *hookCmd) installHook() error {
 			return fmt.Errorf("checking hook: %v", err)
 		}
 		c.verbosef("installing %s hook", hookFile)
-		if err := ioutil.WriteFile(filename, []byte(hookContent), 0700); err != nil {
+		if err := os.WriteFile(filename, []byte(hookContent), 0700); err != nil {
 			return fmt.Errorf("writing hook: %v", err)
 		}
 	}

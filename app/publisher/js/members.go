@@ -23,7 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -202,7 +202,7 @@ func (bic blobItemContainer) getMembers() (items []*blobItem, cont string, err e
 		return nil, "", fmt.Errorf("search error: %v", resp.Status)
 	}
 	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, "", err
 	}

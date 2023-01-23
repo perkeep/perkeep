@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -812,7 +811,7 @@ func (c *Client) QueryRaw(ctx context.Context, req *search.SearchQuery) ([]byte,
 		return nil, err
 	}
 	defer hres.Body.Close()
-	return ioutil.ReadAll(hres.Body)
+	return io.ReadAll(hres.Body)
 }
 
 // SearchExistingFileSchema does a search query looking for an
@@ -848,7 +847,7 @@ func (c *Client) SearchExistingFileSchema(ctx context.Context, wholeRef ...blob.
 		return blob.Ref{}, err
 	}
 	if res.StatusCode != 200 {
-		body, _ := ioutil.ReadAll(io.LimitReader(res.Body, 1<<20))
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
 		res.Body.Close()
 		return blob.Ref{}, fmt.Errorf("client: got status code %d from URL %s; body %s", res.StatusCode, url, body)
 	}
@@ -901,7 +900,7 @@ func (c *Client) versionMismatch(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	if res.StatusCode != 200 {
-		body, _ := ioutil.ReadAll(io.LimitReader(res.Body, 1<<20))
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
 		res.Body.Close()
 		return false, fmt.Errorf("got status code %d from URL %s; body %s", res.StatusCode, url, body)
 	}
@@ -1019,7 +1018,7 @@ func (c *Client) DiscoveryDoc(ctx context.Context) (io.Reader, error) {
 	}
 	defer res.Body.Close()
 	const maxSize = 1 << 20
-	all, err := ioutil.ReadAll(io.LimitReader(res.Body, maxSize+1))
+	all, err := io.ReadAll(io.LimitReader(res.Body, maxSize+1))
 	if err != nil {
 		return nil, err
 	}
@@ -1191,7 +1190,7 @@ func (c *Client) Sign(ctx context.Context, server string, r io.Reader) (signed [
 		return nil, err
 	}
 	defer resp.Body.Close()
-	return ioutil.ReadAll(resp.Body)
+	return io.ReadAll(resp.Body)
 }
 
 func (c *Client) post(ctx context.Context, url string, bodyType string, body io.Reader) (*http.Response, error) {

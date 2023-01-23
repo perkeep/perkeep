@@ -26,7 +26,6 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -133,7 +132,7 @@ func (ih *ImageHandler) cached(ctx context.Context, br blob.Ref) (io.ReadCloser,
 	if err != nil {
 		return nil, err
 	}
-	slurp, err := ioutil.ReadAll(rsc)
+	slurp, err := io.ReadAll(rsc)
 	rsc.Close()
 	if err != nil {
 		return nil, err
@@ -145,7 +144,7 @@ func (ih *ImageHandler) cached(ctx context.Context, br blob.Ref) (io.ReadCloser,
 		if imageDebug {
 			log.Printf("Image Cache: hit: %v\n", br)
 		}
-		return ioutil.NopCloser(bytes.NewReader(slurp)), nil
+		return io.NopCloser(bytes.NewReader(slurp)), nil
 	}
 
 	// For large scaled images, the cached blob is a file schema blob referencing

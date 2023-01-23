@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,7 +41,7 @@ const publicKeyMaxSize = 256 * 1024
 // The returned armoredKey is a copy of the contents read.
 func ParseArmoredPublicKey(r io.Reader) (fingerprint, armoredKey string, err error) {
 	var buf bytes.Buffer
-	pk, err := openArmoredPublicKeyFile(ioutil.NopCloser(io.TeeReader(r, &buf)))
+	pk, err := openArmoredPublicKeyFile(io.NopCloser(io.TeeReader(r, &buf)))
 	if err != nil {
 		return
 	}

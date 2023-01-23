@@ -65,7 +65,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -661,7 +660,7 @@ func (h *clientHandler) handleChallenge(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, stickyErr.Error(), http.StatusMethodNotAllowed)
 		return
 	}
-	nonce, err := ioutil.ReadAll(r.Body)
+	nonce, err := io.ReadAll(r.Body)
 	if err != nil {
 		stickyErr = err
 		http.Error(w, err.Error(), 500)
@@ -701,7 +700,7 @@ func (h *clientHandler) handleACK(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, stickyErr.Error(), http.StatusBadRequest)
 		return
 	}
-	ack, err := ioutil.ReadAll(r.Body)
+	ack, err := io.ReadAll(r.Body)
 	if err != nil {
 		stickyErr = err
 		http.Error(w, err.Error(), 500)
@@ -726,7 +725,7 @@ func (cl *Client) getToken(serverAddr string) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -763,7 +762,7 @@ func (cl *Client) sendClaim(server, token string) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent {
-		msg, err := ioutil.ReadAll(resp.Body)
+		msg, err := io.ReadAll(resp.Body)
 		if err == nil {
 			return fmt.Errorf("unexpected claim response: %v, %v", resp.Status, string(msg))
 		}

@@ -23,7 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -263,7 +263,7 @@ func getFullRef(scheme, host, pathPrefix, digestPrefix string) (blob.Ref, error)
 		return br, fmt.Errorf("search error: %v", resp.Status)
 	}
 	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return br, err
 	}
@@ -288,7 +288,7 @@ func (fic fileItemContainer) describe(pn blob.Ref) (*SearchResult, error) {
 		return nil, fmt.Errorf("search error: %v", resp.Status)
 	}
 	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +312,7 @@ func (fic fileItemContainer) getPeers(around blob.Ref, limit int) (*SearchResult
 		return nil, fmt.Errorf("search error: %v", resp.Status)
 	}
 	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}

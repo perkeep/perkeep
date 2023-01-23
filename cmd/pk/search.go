@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"strings"
 
@@ -75,7 +75,7 @@ func (c *searchCmd) RunCommand(args []string) error {
 	}
 	q := args[0]
 	if q == "-" {
-		slurp, err := ioutil.ReadAll(cmdmain.Stdin)
+		slurp, err := io.ReadAll(cmdmain.Stdin)
 		if err != nil {
 			return err
 		}

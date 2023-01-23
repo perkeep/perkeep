@@ -25,8 +25,8 @@ import (
 	"fmt"
 	"image"
 	"image/jpeg"
-	"io/ioutil"
 	"math/rand"
+	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -600,7 +600,7 @@ func TestQueryPermanodeLocation(t *testing.T) {
 		}
 		uploadFile := func(file string, modTime time.Time) blob.Ref {
 			fileName := filepath.Join(camliRootPath, "pkg", "search", "testdata", file)
-			contents, err := ioutil.ReadFile(fileName)
+			contents, err := os.ReadFile(fileName)
 			if err != nil {
 				panic(err)
 			}
@@ -636,7 +636,7 @@ func TestQueryFileLocation(t *testing.T) {
 		}
 		uploadFile := func(file string, modTime time.Time) blob.Ref {
 			fileName := filepath.Join(camliRootPath, "pkg", "search", "testdata", file)
-			contents, err := ioutil.ReadFile(fileName)
+			contents, err := os.ReadFile(fileName)
 			if err != nil {
 				panic(err)
 			}
@@ -2038,7 +2038,7 @@ func BenchmarkQueryPermanodeLocation(b *testing.B) {
 		}
 		uploadFile := func(file string, modTime time.Time) blob.Ref {
 			fileName := filepath.Join(camliRootPath, "pkg", "search", "testdata", file)
-			contents, err := ioutil.ReadFile(fileName)
+			contents, err := os.ReadFile(fileName)
 			if err != nil {
 				panic(err)
 			}

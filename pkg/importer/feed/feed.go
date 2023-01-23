@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -227,7 +226,7 @@ func doGet(ctx context.Context, url string) ([]byte, error) {
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("Get request on %s failed with: %s", url, res.Status)
 	}
-	return ioutil.ReadAll(io.LimitReader(res.Body, 8<<20))
+	return io.ReadAll(io.LimitReader(res.Body, 8<<20))
 }
 
 func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) error {

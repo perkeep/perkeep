@@ -19,7 +19,6 @@ package files_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"sort"
 	"sync"
@@ -146,7 +145,7 @@ func TestEnumerateIsSorted(t *testing.T) {
 	if err := os.MkdirAll(fakeDir, 0755); err != nil {
 		t.Fatalf("error creating fakedir: %v", err)
 	}
-	if err := ioutil.WriteFile(
+	if err := os.WriteFile(
 		fakeDir+"/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat",
 		[]byte("fake file"),
 		0644,
@@ -159,7 +158,7 @@ func TestEnumerateIsSorted(t *testing.T) {
 	if err := os.MkdirAll(fakeDir, 0755); err != nil {
 		t.Fatalf("error creating cachedir: %v", err)
 	}
-	if err := ioutil.WriteFile(
+	if err := os.WriteFile(
 		fakeDir+"/sha1-1f07105465650aa243cfc1b1bbb1c68ea95c6812.dat",
 		[]byte("fake file"),
 		0644,

@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -733,7 +732,7 @@ func (n *mutFile) Setattr(ctx context.Context, req *fuse.SetattrRequest, res *fu
 }
 
 func (n *mutFile) newHandle(body io.Reader) (fs.Handle, error) {
-	tmp, err := ioutil.TempFile("", "camli-")
+	tmp, err := os.CreateTemp("", "camli-")
 	if err == nil && body != nil {
 		_, err = io.Copy(tmp, body)
 	}

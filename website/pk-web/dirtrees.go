@@ -12,7 +12,6 @@ import (
 	"go/doc"
 	"go/parser"
 	"go/token"
-	"io/ioutil"
 	"log"
 	"os"
 	pathpkg "path"
@@ -32,22 +31,32 @@ type Directory struct {
 	Dirs     []*Directory // subdirectories
 }
 
-func isGoFile(fi os.FileInfo) bool {
-	name := fi.Name()
-	return !fi.IsDir() &&
+// dirEntry defines functions for determining whether
+// entry is a directory or a file.
+// The interface is a common part of fs.FileInfo and fs.DirEntry.
+type dirEntry interface {
+	// Name is returns the base name of the file or subdirectory.
+	Name() string
+	// IsDir returns whether the entry describes a directory.
+	IsDir() bool
+}
+
+func isGoFile(de dirEntry) bool {
+	name := de.Name()
+	return !de.IsDir() &&
 		len(name) > 0 && name[0] != '.' && // ignore .files
 		pathpkg.Ext(name) == ".go"
 }
 
-func isPkgFile(fi os.FileInfo) bool {
-	return isGoFile(fi) &&
-		!strings.HasSuffix(fi.Name(), "_test.go") && // ignore test files
-		!strings.HasSuffix(fi.Name(), fileembedPattern)
+func isPkgFile(de dirEntry) bool {
+	return isGoFile(de) &&
+		!strings.HasSuffix(de.Name(), "_test.go") && // ignore test files
+		!strings.HasSuffix(de.Name(), fileembedPattern)
 }
 
-func isPkgDir(fi os.FileInfo) bool {
-	name := fi.Name()
-	return fi.IsDir() && len(name) > 0 &&
+func isPkgDir(de dirEntry) bool {
+	name := de.Name()
+	return de.IsDir() && len(name) > 0 &&
 		name[0] != '_' && name[0] != '.' // ignore _files and .files
 }
 
@@ -71,7 +80,7 @@ func (b *treeBuilder) newDirTree(fset *token.FileSet, path, name string, depth i
 		}
 	}
 
-	list, err := ioutil.ReadDir(path)
+	list, err := os.ReadDir(path)
 	if err != nil {
 		log.Printf("Could not read %v\n", path)
 		return nil
@@ -91,7 +100,7 @@ func (b *treeBuilder) newDirTree(fset *token.FileSet, path, name string, depth i
 			// though the directory doesn't contain any real package files - was bug)
 			if synopses[0] == "" {
 				// no "optimal" package synopsis yet; continue to collect synopses
-				src, err := ioutil.ReadFile(pathpkg.Join(path, d.Name()))
+				src, err := os.ReadFile(pathpkg.Join(path, d.Name()))
 				if err != nil {
 					log.Printf("Could not read %v\n", pathpkg.Join(path, d.Name()))
 					continue

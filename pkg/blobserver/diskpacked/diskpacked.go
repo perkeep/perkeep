@@ -39,7 +39,6 @@ import (
 	"expvar"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -599,7 +598,7 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 		offset += int64(consumed)
 		if deletedBlobRef.Match(digest) {
 			// Skip over deletion padding
-			if _, err := io.CopyN(ioutil.Discard, r, int64(size)); err != nil {
+			if _, err := io.CopyN(io.Discard, r, int64(size)); err != nil {
 				return err
 			}
 			offset += int64(size)

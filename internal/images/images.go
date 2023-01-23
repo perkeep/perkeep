@@ -24,7 +24,6 @@ import (
 	"image/draw"
 	"image/jpeg"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -678,7 +677,7 @@ func HEIFToJPEG(fr io.Reader, maxSize *Dimensions) ([]byte, error) {
 		useDocker = true
 	}
 
-	outDir, err := ioutil.TempDir("", "perkeep-heif")
+	outDir, err := os.MkdirTemp("", "perkeep-heif")
 	if err != nil {
 		return nil, err
 	}
@@ -734,5 +733,5 @@ func HEIFToJPEG(fr io.Reader, maxSize *Dimensions) ([]byte, error) {
 	if debug {
 		log.Printf("internal/images: ran imagemagick heic conversion in %v", time.Since(t0))
 	}
-	return ioutil.ReadFile(outFile)
+	return os.ReadFile(outFile)
 }

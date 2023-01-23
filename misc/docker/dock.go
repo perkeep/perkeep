@@ -24,7 +24,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -124,9 +123,9 @@ func genPerkeep(ctxDir string) {
 
 func copyFinalDockerfile(ctxDir string) {
 	// Copy Dockerfile into the temp dir.
-	serverDockerFile, err := ioutil.ReadFile(filepath.Join(dockDir, "server", "Dockerfile"))
+	serverDockerFile, err := os.ReadFile(filepath.Join(dockDir, "server", "Dockerfile"))
 	check(err)
-	check(ioutil.WriteFile(filepath.Join(ctxDir, "Dockerfile"), serverDockerFile, 0644))
+	check(os.WriteFile(filepath.Join(ctxDir, "Dockerfile"), serverDockerFile, 0644))
 }
 
 func genDjpeg(ctxDir string) {
@@ -306,12 +305,12 @@ func main() {
 	buildDockerImage("go", goDockerImage)
 	// ctxDir is where we run "docker build" to produce the final
 	// "FROM scratch" Docker image.
-	ctxDir, err := ioutil.TempDir("", "pk-build_docker_image")
+	ctxDir, err := os.MkdirTemp("", "pk-build_docker_image")
 	if err != nil {
 		log.Fatal(err)
 	}
 	// Docker Desktop for Mac by default shares /private, but does not share /var.
-	// ioutil.TempDir gives us something in /var/folders, but apparently the same
+	// os.MkdirTemp gives us something in /var/folders, but apparently the same
 	// location prefixed with /private is equivalent, so it all works out if we use
 	// everywhere the path prefixed with /private.
 	if runtime.GOOS == "darwin" {
@@ -353,7 +352,7 @@ func ProjectTokenSource(proj string, scopes ...string) (oauth2.TokenSource, erro
 	// option, for environments without stdin/stdout available to the user.
 	// We'll figure it out as needed.
 	fileName := filepath.Join(homedir(), "keys", proj+".key.json")
-	jsonConf, err := ioutil.ReadFile(fileName)
+	jsonConf, err := os.ReadFile(fileName)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("Missing JSON key configuration. Download the Service Account JSON key from https://console.developers.google.com/project/%s/apiui/credential and place it at %s", proj, fileName)

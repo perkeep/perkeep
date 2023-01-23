@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"mime/multipart"
 	"net/http"
@@ -364,7 +363,7 @@ func (c *Client) Upload(ctx context.Context, h *UploadHandle) (*PutResult, error
 	if h.Vivify {
 		req.Header.Add("X-Camlistore-Vivify", "1")
 	}
-	req.Body = ioutil.NopCloser(pipeReader)
+	req.Body = io.NopCloser(pipeReader)
 	req.ContentLength = getMultipartOverhead() + bodySize + int64(len(blobrefStr))*2
 	resp, err := c.doReqGated(req)
 	if err != nil {
@@ -496,7 +495,7 @@ func (c *Client) wholeRef(contents io.Reader) ([]blob.Ref, error) {
 	}
 	td := hashutil.NewTrackDigestReader(contents)
 	td.DoLegacySHA1 = hasLegacySHA1
-	if _, err := io.Copy(ioutil.Discard, td); err != nil {
+	if _, err := io.Copy(io.Discard, td); err != nil {
 		return nil, err
 	}
 	refs := []blob.Ref{blob.RefFromHash(td.Hash())}

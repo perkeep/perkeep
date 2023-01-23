@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"io/ioutil"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -72,7 +72,7 @@ func TestMagic(t *testing.T) {
 		var err error
 		data := []byte(tt.data)
 		if tt.fileName != "" {
-			data, err = ioutil.ReadFile("testdata/" + tt.fileName)
+			data, err = os.ReadFile("testdata/" + tt.fileName)
 			if err != nil {
 				t.Fatalf("Error reading %s: %v", tt.fileName,
 					err)
@@ -136,7 +136,7 @@ func TestMIMETypeFromReader(t *testing.T) {
 	if want := "text/html"; mime != want {
 		t.Errorf("mime = %q; want %q", mime, want)
 	}
-	slurp, err := ioutil.ReadAll(r)
+	slurp, err := io.ReadAll(r)
 	if string(slurp) != "<html>foobar" {
 		t.Errorf("read = %q; want %q", slurp, content)
 	}

@@ -18,7 +18,6 @@ package test
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"os/exec"
 )
@@ -29,11 +28,11 @@ func Diff(a, b []byte) string {
 	if bytes.Equal(a, b) {
 		return ""
 	}
-	ta, err := ioutil.TempFile("", "")
+	ta, err := os.CreateTemp("", "")
 	if err != nil {
 		return err.Error()
 	}
-	tb, err := ioutil.TempFile("", "")
+	tb, err := os.CreateTemp("", "")
 	if err != nil {
 		return err.Error()
 	}

@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -158,7 +157,7 @@ func (dh *DownloadHandler) fileInfo(ctx context.Context, file blob.Ref) (fi file
 			name:    b.FileName(),
 			mode:    b.FileMode(),
 			rs:      readerutil.NewFakeSeeker(rd, size),
-			close:   ioutil.NopCloser(rd).Close,
+			close:   io.NopCloser(rd).Close,
 		}
 		return fi, false, nil
 	}
@@ -474,7 +473,7 @@ func (dh *DownloadHandler) checkFiles(ctx context.Context, parentPath string, fi
 		if err != nil {
 			return fmt.Errorf("could not open %v: %v", br, err)
 		}
-		_, err = io.Copy(ioutil.Discard, fr)
+		_, err = io.Copy(io.Discard, fr)
 		fr.Close()
 		if err != nil {
 			return fmt.Errorf("could not read %v: %v", br, err)

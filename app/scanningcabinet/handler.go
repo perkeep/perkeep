@@ -22,7 +22,6 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
@@ -337,7 +336,7 @@ func (h *handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 				logf("form field %q provided in upload, but ignored", part.FormName())
 				continue
 			}
-			creationParam, err := ioutil.ReadAll(part)
+			creationParam, err := io.ReadAll(part)
 			if err != nil {
 				httputil.ServeError(w, r, fmt.Errorf("could not read provided creation time: %v", err))
 				return

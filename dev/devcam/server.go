@@ -23,7 +23,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -430,7 +429,7 @@ func (c *serverCmd) makeThings() error {
 	const importerPrefix = "/importer/"
 	// check that "/importer/" prefix is in config, just in case it ever changes.
 	configFile := filepath.Join(camliSrcRoot, "config", "dev-server-config.json")
-	config, err := ioutil.ReadFile(configFile)
+	config, err := os.ReadFile(configFile)
 	if err != nil {
 		return fmt.Errorf("could not read config file %v: %v", configFile, err)
 	}

@@ -21,7 +21,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -132,7 +131,7 @@ func (f fetcher) Fetch(ctx context.Context, br blob.Ref) (rc io.ReadCloser, size
 	if rc, ok := f.r.(io.ReadCloser); ok {
 		return rc, uint32(f.size), nil
 	}
-	return ioutil.NopCloser(f.r), uint32(f.size), nil
+	return io.NopCloser(f.r), uint32(f.size), nil
 }
 
 type altWriterRecorder struct {

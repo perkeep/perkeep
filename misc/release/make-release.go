@@ -33,7 +33,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -112,7 +111,7 @@ func main() {
 	}
 	releaseDir = filepath.Join(pkDir, "misc", "release")
 
-	workDir, err = ioutil.TempDir("", "pk-build_release")
+	workDir, err = os.MkdirTemp("", "pk-build_release")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -327,7 +326,7 @@ func packBinaries(osType string) string {
 			if !toPack(name) {
 				continue
 			}
-			b, err := ioutil.ReadFile(path.Join(binDir, name))
+			b, err := os.ReadFile(path.Join(binDir, name))
 			check(err)
 			f, err := w.Create(name)
 			check(err)
@@ -675,7 +674,7 @@ func genReleasePage(releaseData *ReleaseData) error {
 		return err
 	}
 	releaseDocPage := filepath.Join(releaseDocDir, "release.html")
-	if err := ioutil.WriteFile(releaseDocPage, buf.Bytes(), 0700); err != nil {
+	if err := os.WriteFile(releaseDocPage, buf.Bytes(), 0700); err != nil {
 		return fmt.Errorf("could not write template to file %v: %v", releaseDocPage, err)
 	}
 	return nil
@@ -914,7 +913,7 @@ func ProjectTokenSource(proj string, scopes ...string) (oauth2.TokenSource, erro
 	// option, for environments without stdin/stdout available to the user.
 	// We'll figure it out as needed.
 	fileName := filepath.Join(homedir(), "keys", proj+".key.json")
-	jsonConf, err := ioutil.ReadFile(fileName)
+	jsonConf, err := os.ReadFile(fileName)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("Missing JSON key configuration. Download the Service Account JSON key from https://console.developers.google.com/project/%s/apiui/credential and place it at %s", proj, fileName)

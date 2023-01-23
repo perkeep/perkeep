@@ -52,7 +52,7 @@ type VFS interface {
 	// Rename is a POSIX-style rename, overwriting newname if it exists.
 	Rename(oldname, newname string) error
 
-	// TempFile should behave like io/ioutil.TempFile.
+	// TempFile should behave like os.CreateTemp
 	TempFile(dir, prefix string) (WritableFile, error)
 
 	ReadDirNames(dir string) ([]string, error)

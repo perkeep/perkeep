@@ -22,7 +22,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/url"
 	"regexp"
@@ -141,7 +140,7 @@ func determineEndpoint(ctx context.Context, svc s3iface.S3API, endpoint, bucket,
 			return
 		}
 		determinedEndpoint = epErr.Endpoint
-		r.HTTPResponse.Body = ioutil.NopCloser(&b)
+		r.HTTPResponse.Body = io.NopCloser(&b)
 	})
 	err := req.Send()
 	if determinedEndpoint == "" && err != nil {

@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
@@ -244,7 +243,7 @@ func (h *DeployHandler) authenticatedClient() (project string, hc *http.Client, 
 	project = os.Getenv("CAMLI_GCE_PROJECT")
 	accountFile := os.Getenv("CAMLI_GCE_SERVICE_ACCOUNT")
 	if project != "" && accountFile != "" {
-		data, errr := ioutil.ReadFile(accountFile)
+		data, errr := os.ReadFile(accountFile)
 		err = errr
 		if err != nil {
 			return
@@ -276,7 +275,7 @@ func (h *DeployHandler) refreshCamliVersion() error {
 		return err
 	}
 	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -835,7 +834,7 @@ func (h *DeployHandler) instanceConf(ctx context.Context, br blob.Ref) (*Instanc
 		return nil, fmt.Errorf("could not fetch conf at %v: %v", br, err)
 	}
 	defer rc.Close()
-	contents, err := ioutil.ReadAll(rc)
+	contents, err := io.ReadAll(rc)
 	if err != nil {
 		return nil, fmt.Errorf("could not read conf in blob %v: %v", br, err)
 	}
@@ -887,7 +886,7 @@ func dataStores() (blobserver.Storage, sorted.KeyValue, error) {
 	dataDir := os.Getenv("CAMLI_GCE_DATA")
 	if dataDir == "" {
 		var err error
-		dataDir, err = ioutil.TempDir("", "camli-gcedeployer-data")
+		dataDir, err = os.MkdirTemp("", "camli-gcedeployer-data")
 		if err != nil {
 			return nil, nil, err
 		}

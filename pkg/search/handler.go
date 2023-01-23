@@ -22,7 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -974,7 +974,7 @@ func (sh *Handler) getNamed(ctx context.Context, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	result, err := ioutil.ReadAll(reader)
+	result, err := io.ReadAll(reader)
 	if err != nil {
 		return "", err
 	}

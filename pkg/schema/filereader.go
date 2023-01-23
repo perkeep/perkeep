@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"sync"
@@ -343,7 +342,7 @@ func (fr *FileReader) readerForOffset(ctx context.Context, off int64) (io.ReadCl
 	case p0.BlobRef.Valid() && p0.BytesRef.Valid():
 		return nil, fmt.Errorf("part illegally contained both a blobRef and bytesRef")
 	case !p0.BlobRef.Valid() && !p0.BytesRef.Valid():
-		return ioutil.NopCloser(
+		return io.NopCloser(
 			io.LimitReader(zeroReader{},
 				int64(p0.Size-uint64(offRemain)))), nil
 	case p0.BlobRef.Valid():
@@ -360,7 +359,7 @@ func (fr *FileReader) readerForOffset(ctx context.Context, off int64) (io.ReadCl
 			io.Closer
 		}{
 			byteReader,
-			ioutil.NopCloser(nil),
+			io.NopCloser(nil),
 		}
 	case p0.BytesRef.Valid():
 		var ss *superset

@@ -19,7 +19,6 @@ package main
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -126,7 +125,7 @@ func testWithTempDir(t *testing.T, fn func(tempDir string)) {
 	mustMkdir(t, confDir, 0700)
 	defer os.Setenv("CAMLI_CONFIG_DIR", os.Getenv("CAMLI_CONFIG_DIR"))
 	os.Setenv("CAMLI_CONFIG_DIR", confDir)
-	if err := ioutil.WriteFile(filepath.Join(confDir, "client-config.json"), []byte("{}"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(confDir, "client-config.json"), []byte("{}"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -171,7 +170,7 @@ func TestUploadDirectories(t *testing.T) {
 			mustMkdir(t, dirPath, 0700)
 			for _, baseFile := range []string{"file.txt", "FILE.txt"} {
 				filePath := filepath.Join(dirPath, baseFile)
-				if err := ioutil.WriteFile(filePath, []byte("some file contents "+filePath), 0600); err != nil {
+				if err := os.WriteFile(filePath, []byte("some file contents "+filePath), 0600); err != nil {
 					t.Fatalf("error writing to %s: %v", filePath, err)
 				}
 				t.Logf("Wrote file %s", filePath)

@@ -20,7 +20,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -78,7 +78,7 @@ func init() {
 			cachelog = log.New(cmdmain.Stderr, "", log.LstdFlags)
 		} else {
 			// It's only ok to do that because we don't expect any cachelog.Fatal* calls.
-			cachelog = log.New(ioutil.Discard, "", log.LstdFlags)
+			cachelog = log.New(io.Discard, "", log.LstdFlags)
 		}
 	}
 

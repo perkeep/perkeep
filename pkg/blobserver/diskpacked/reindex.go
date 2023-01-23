@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
@@ -240,7 +239,7 @@ func (s *storage) walkPack(verbose bool, packID int,
 			return errAt("", "cannot seek +"+strconv.FormatUint(size64, 10)+" bytes")
 		}
 		// drain the buffer after the underlying reader Seeks
-		_, _ = io.CopyN(ioutil.Discard, br, int64(br.Buffered()))
+		_, _ = io.CopyN(io.Discard, br, int64(br.Buffered()))
 	}
 	return nil
 }
