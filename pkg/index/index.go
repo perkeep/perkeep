@@ -406,7 +406,19 @@ func newFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blobserver.Stor
 		}
 	}
 
+	blobserver.GetHub(sto).AddReceiveHook(ix.storageReceiveHook)
 	return ix, err
+}
+
+func (x *Index) storageReceiveHook(ctx context.Context, bsr blob.SizedRef) error {
+	blob, _, err := x.blobSource.Fetch(ctx, bsr.Ref)
+	if err != nil {
+		return fmt.Errorf("unable to fetch blob: %w", err)
+	}
+	if _, err = x.ReceiveBlob(ctx, bsr.Ref, blob); err != nil {
+		return fmt.Errorf("unable to receive blob: %w", err)
+	}
+	return nil
 }
 
 func (x *Index) String() string {

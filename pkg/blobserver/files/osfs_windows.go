@@ -17,6 +17,7 @@ limitations under the License.
 package files
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"syscall"
@@ -24,14 +25,25 @@ import (
 
 // mapRenameError returns nil if and only if
 // 1) the input err is the error returned on windows when trying to rename
-// a file over one that already exists
+// a file over one that already exists or has open handles
 // 2) oldfile and newfile are the same files (i.e have the same size)
 func mapRenameError(err error, oldfile, newfile string) error {
 	linkErr, ok := err.(*os.LinkError)
 	if !ok {
 		return err
 	}
-	if linkErr.Err != error(syscall.ERROR_ALREADY_EXISTS) {
+
+	found := false
+	for _, errno := range []error{
+		syscall.ERROR_ALREADY_EXISTS,
+		syscall.ERROR_ACCESS_DENIED,
+	} {
+		if errors.Is(linkErr, errno) {
+			found = true
+			break
+		}
+	}
+	if !found {
 		return err
 	}
 	// TODO(mpl): actually on linux at least, os.Rename apparently

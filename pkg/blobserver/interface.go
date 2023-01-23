@@ -133,11 +133,6 @@ type Cache interface {
 	BlobStatter
 }
 
-type BlobReceiveConfiger interface {
-	BlobReceiver
-	Configer
-}
-
 type Config struct {
 	Writable    bool
 	Readable    bool
@@ -237,15 +232,6 @@ type Generationer interface {
 	// ResetGeneration deletes the information returned by Generation
 	// and re-generates it.
 	ResetStorageGeneration() error
-}
-
-type Configer interface {
-	Config() *Config
-}
-
-type StorageConfiger interface {
-	Storage
-	Configer
 }
 
 // MaxEnumerateConfig is an optional interface implemented by Storage

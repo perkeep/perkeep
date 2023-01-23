@@ -128,7 +128,7 @@ func TestInternalHandler(t *testing.T) {
 		"/test-that-root-handler-returns-404": 404,
 		"/no-http-storage/":                   401,
 		"/no-http-handler/":                   401,
-		"/bs-and-maybe-also-index/camli":      400,
+		"/bs/camli":                           400,
 		"/bs/camli/sha1-b2201302e129a4396a323cb56283cddeef11bbe8":              404,
 		"/no-http-storage/camli/sha1-b2201302e129a4396a323cb56283cddeef11bbe8": 401,
 	}

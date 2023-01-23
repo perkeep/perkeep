@@ -41,6 +41,7 @@ import (
 	_ "go4.org/media/heif"
 	"go4.org/readerutil"
 	"go4.org/types"
+	"golang.org/x/sync/singleflight"
 	"perkeep.org/internal/images"
 	"perkeep.org/internal/magic"
 	"perkeep.org/internal/media"
@@ -189,7 +190,21 @@ func (ix *Index) removeAllMissingEdges(br blob.Ref) {
 	}
 }
 
+var g singleflight.Group
+
 func (ix *Index) ReceiveBlob(ctx context.Context, blobRef blob.Ref, source io.Reader) (blob.SizedRef, error) {
+	res, err, _ := g.Do(blobRef.String(), func() (interface{}, error) {
+		return ix.receiveBlob(ctx, blobRef, source)
+	})
+	io.Copy(io.Discard, source)
+
+	if err != nil {
+		return blob.SizedRef{}, err
+	}
+	return res.(blob.SizedRef), nil
+}
+
+func (ix *Index) receiveBlob(ctx context.Context, blobRef blob.Ref, source io.Reader) (blob.SizedRef, error) {
 	// Read from source before acquiring ix.Lock (Issue 878):
 	sniffer := NewBlobSniffer(blobRef)
 	written, err := io.Copy(sniffer, source)

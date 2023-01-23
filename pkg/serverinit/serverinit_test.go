@@ -386,16 +386,6 @@ func TestInstallHandlers(t *testing.T) {
 		},
 
 		{
-			prefix:      "/bs-and-index/camli/",
-			handlerType: reflect.TypeOf(http.HandlerFunc(nil)),
-		},
-
-		{
-			prefix:      "/bs-and-maybe-also-index/camli/",
-			handlerType: reflect.TypeOf(http.HandlerFunc(nil)),
-		},
-
-		{
 			prefix:      "/cache/camli/",
 			handlerType: reflect.TypeOf(http.HandlerFunc(nil)),
 		},

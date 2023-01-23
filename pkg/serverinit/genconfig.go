@@ -823,10 +823,6 @@ func (b *lowBuilder) syncToIndexArgs() (map[string]interface{}, error) {
 func (b *lowBuilder) genLowLevelPrefixes() error {
 	root := "/bs/"
 	pubKeyDest := root
-	if b.runIndex() {
-		root = "/bs-and-maybe-also-index/"
-		pubKeyDest = "/bs-and-index/"
-	}
 
 	rootArgs := map[string]interface{}{
 		"stealth":      false,
@@ -938,19 +934,6 @@ func (b *lowBuilder) genLowLevelPrefixes() error {
 			return err
 		}
 		b.addPrefix("/sync/", "sync", syncArgs)
-
-		b.addPrefix("/bs-and-index/", "storage-replica", args{
-			"backends": []interface{}{"/bs/", "/index/"},
-		})
-
-		b.addPrefix("/bs-and-maybe-also-index/", "storage-cond", args{
-			"write": map[string]interface{}{
-				"if":   "isSchema",
-				"then": "/bs-and-index/",
-				"else": "/bs/",
-			},
-			"read": "/bs/",
-		})
 
 		owner, err := b.searchOwner()
 		if err != nil {

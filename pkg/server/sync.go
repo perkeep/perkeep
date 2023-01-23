@@ -680,7 +680,7 @@ func (sh *SyncHandler) ReceiveBlob(ctx context.Context, br blob.Ref, r io.Reader
 		return
 	}
 	sb = blob.SizedRef{Ref: br, Size: uint32(n)}
-	return sb, sh.enqueue(sb)
+	return sb, sh.enqueue(ctx, sb)
 }
 
 // addBlobToCopy adds a blob to copy to memory (not to disk: that's enqueue).
@@ -704,7 +704,7 @@ func (sh *SyncHandler) addBlobToCopy(sb blob.SizedRef) bool {
 	return true
 }
 
-func (sh *SyncHandler) enqueue(sb blob.SizedRef) error {
+func (sh *SyncHandler) enqueue(_ context.Context, sb blob.SizedRef) error {
 	if !sh.addBlobToCopy(sb) {
 		// Dup
 		return nil
@@ -817,7 +817,7 @@ func (sh *SyncHandler) validateShardPrefix(pfx string) (err error) {
 	}
 
 	for _, sb := range missing {
-		if enqErr := sh.enqueue(sb); enqErr != nil {
+		if enqErr := sh.enqueue(ctx, sb); enqErr != nil {
 			if err == nil {
 				err = enqErr
 			}

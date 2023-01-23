@@ -71,7 +71,7 @@ func (hl *handlerLoader) initPublisherRootNode(ah *app.Handler) error {
 
 	log.Printf("No %v camliRoot node found, creating one from scratch now.", camliRoot)
 
-	bs, err := hl.GetStorage("/bs-recv/")
+	bs, err := hl.GetStorage("/bs/")
 	if err != nil {
 		return err
 	}

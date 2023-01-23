@@ -28,9 +28,9 @@ import (
 
 const maxRemovesPerRequest = 1000
 
-func CreateRemoveHandler(storage blobserver.Storage) http.Handler {
+func CreateRemoveHandler(storage blobserver.Storage, config *blobserver.Config) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		handleRemove(rw, req, storage)
+		handleRemove(rw, req, storage, config)
 	})
 }
 
@@ -40,20 +40,13 @@ type RemoveResponse struct {
 	Error   string     `json:"error"`
 }
 
-func handleRemove(w http.ResponseWriter, r *http.Request, storage blobserver.Storage) {
+func handleRemove(w http.ResponseWriter, r *http.Request, storage blobserver.Storage, config *blobserver.Config) {
 	ctx := r.Context()
 	if r.Method != "POST" {
 		log.Fatalf("Invalid method; handlers misconfigured")
 	}
 
-	configer, ok := storage.(blobserver.Configer)
-	if !ok {
-		msg := fmt.Sprintf("remove handler's blobserver.Storage isn't a blobserver.Configer, but a %T; can't remove", storage)
-		log.Printf("blobserver/handlers: %v", msg)
-		httputil.ReturnJSONCode(w, http.StatusForbidden, RemoveResponse{Error: msg})
-		return
-	}
-	if !configer.Config().Deletable {
+	if !config.Deletable {
 		msg := fmt.Sprintf("storage %T does not permit deletes", storage)
 		log.Printf("blobserver/handlers: %v", msg)
 		httputil.ReturnJSONCode(w, http.StatusForbidden, RemoveResponse{Error: msg})

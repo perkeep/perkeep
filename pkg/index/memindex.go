@@ -50,6 +50,7 @@ func newMemoryIndexFromConfig(ld blobserver.Loader, config jsonconfig.Obj) (blob
 
 	ix := NewMemoryIndex()
 	ix.InitBlobSource(sto)
+	blobserver.GetHub(sto).AddReceiveHook(ix.storageReceiveHook)
 
 	return ix, err
 }

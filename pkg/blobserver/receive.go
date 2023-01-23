@@ -64,7 +64,7 @@ func receive(ctx context.Context, dst BlobReceiver, br blob.Ref, src io.Reader, 
 		}
 		return
 	}
-	err = GetHub(dst).NotifyBlobReceived(sb)
+	err = GetHub(dst).NotifyBlobReceived(ctx, sb)
 	return
 }
 
