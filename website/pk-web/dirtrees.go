@@ -33,8 +33,11 @@ type Directory struct {
 
 // dirEntry defines functions for determining whether
 // entry is a directory or a file.
+// The interface is a common part of fs.FileInfo and fs.DirEntry.
 type dirEntry interface {
+	// Name is returns the base name of the file or subdirectory.
 	Name() string
+	// IsDir returns whether the entry describes a directory.
 	IsDir() bool
 }
 
