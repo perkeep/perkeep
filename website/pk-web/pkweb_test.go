@@ -108,7 +108,7 @@ func TestDocHandler(t *testing.T) {
 		{"/website/testdata/sample", http.StatusOK,
 			"<title>Lorem Ipsum - Perkeep</title>"},
 		// Test that an html extension redirects to the base path
-		{"/website/testdata/sample.html", 302, "Found"},
+		{"/website/testdata/sample.html", http.StatusFound, "Found"},
 	}
 
 	for _, tt := range tests {

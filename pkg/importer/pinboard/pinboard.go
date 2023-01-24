@@ -160,12 +160,12 @@ var tmpl = template.Must(template.New("root").Parse(`
 func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
 	t := r.FormValue("apiToken")
 	if t == "" {
-		http.Error(w, "Expected an API Token", 400)
+		http.Error(w, "Expected an API Token", http.StatusBadRequest)
 		return
 	}
 	if extractUsername(t) == "" {
 		errText := fmt.Sprintf("Unable to parse %q as an api token.  We expect <username>:<somevalue>", t)
-		http.Error(w, errText, 400)
+		http.Error(w, errText, http.StatusBadRequest)
 	}
 	if err := ctx.AccountNode.SetAttrs(
 		attrAuthToken, t,

@@ -124,13 +124,13 @@ func TestWebsocketQuery(t *testing.T) {
 func TestInternalHandler(t *testing.T) {
 	w := test.GetWorld(t)
 	tests := map[string]int{
-		"/":                                   200,
-		"/test-that-root-handler-returns-404": 404,
-		"/no-http-storage/":                   401,
-		"/no-http-handler/":                   401,
-		"/bs-and-maybe-also-index/camli":      400,
-		"/bs/camli/sha1-b2201302e129a4396a323cb56283cddeef11bbe8":              404,
-		"/no-http-storage/camli/sha1-b2201302e129a4396a323cb56283cddeef11bbe8": 401,
+		"/":                                   http.StatusOK,
+		"/test-that-root-handler-returns-404": http.StatusNotFound,
+		"/no-http-storage/":                   http.StatusUnauthorized,
+		"/no-http-handler/":                   http.StatusUnauthorized,
+		"/bs-and-maybe-also-index/camli":      http.StatusBadRequest,
+		"/bs/camli/sha1-b2201302e129a4396a323cb56283cddeef11bbe8":              http.StatusNotFound,
+		"/no-http-storage/camli/sha1-b2201302e129a4396a323cb56283cddeef11bbe8": http.StatusUnauthorized,
 	}
 	for suffix, want := range tests {
 		res, err := http.Get(w.ServerBaseURL() + suffix)

@@ -51,7 +51,7 @@ type FileTreeResponse struct {
 func (fth *FileTreeHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	if req.Method != "GET" && req.Method != "HEAD" {
-		http.Error(rw, "Invalid method", 400)
+		http.Error(rw, "Invalid method", http.StatusBadRequest)
 		return
 	}
 

@@ -32,31 +32,31 @@ import (
 func serveRef(rw http.ResponseWriter, req *http.Request, ref blob.Ref, fetcher blob.Fetcher) {
 
 	if !httputil.IsGet(req) {
-		http.Error(rw, "Invalid download method.", 400)
+		http.Error(rw, "Invalid download method.", http.StatusBadRequest)
 		return
 	}
 
 	if !httputil.IsLocalhost(req) {
-		http.Error(rw, "Forbidden.", 403)
+		http.Error(rw, "Forbidden.", http.StatusForbidden)
 		return
 	}
 
 	parts := strings.Split(req.URL.Path, "/")
 	if len(parts) < 2 {
-		http.Error(rw, "Malformed GET URL.", 400)
+		http.Error(rw, "Malformed GET URL.", http.StatusBadRequest)
 		return
 	}
 
 	blobRef, ok := blob.Parse(parts[1])
 	if !ok {
-		http.Error(rw, "Malformed GET URL.", 400)
+		http.Error(rw, "Malformed GET URL.", http.StatusBadRequest)
 		return
 	}
 
 	// only serves its ref
 	if blobRef != ref {
 		log.Printf("videothumbnail: access to %v forbidden; wrong blobref for handler", blobRef)
-		http.Error(rw, "Forbidden.", 403)
+		http.Error(rw, "Forbidden.", http.StatusForbidden)
 		return
 	}
 

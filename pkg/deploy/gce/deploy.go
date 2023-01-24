@@ -361,7 +361,7 @@ func (d *Deployer) enableAPIs() error {
 			if !ok {
 				return err
 			}
-			if gerr.Code != 400 {
+			if gerr.Code != http.StatusBadRequest {
 				return err
 			}
 			for _, v := range gerr.Errors {

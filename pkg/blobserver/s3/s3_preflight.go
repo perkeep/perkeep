@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
@@ -120,7 +121,7 @@ func determineEndpoint(ctx context.Context, svc s3iface.S3API, endpoint, bucket,
 
 	var determinedEndpoint string
 	req.Handlers.UnmarshalError.PushFront(func(r *request.Request) {
-		if r.HTTPResponse.StatusCode != 301 {
+		if r.HTTPResponse.StatusCode != http.StatusMovedPermanently {
 			return
 		}
 		var b bytes.Buffer

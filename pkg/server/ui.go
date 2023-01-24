@@ -584,7 +584,7 @@ func (ui *UIHandler) serveThumbnail(rw http.ResponseWriter, req *http.Request) {
 	height, _ := strconv.Atoi(query.Get("mh"))
 	blobref, ok := blob.Parse(m[1])
 	if !ok {
-		http.Error(rw, "Invalid blobref", 400)
+		http.Error(rw, "Invalid blobref", http.StatusBadRequest)
 		return
 	}
 
@@ -622,7 +622,7 @@ func (ui *UIHandler) serveFileTree(rw http.ResponseWriter, req *http.Request) {
 
 	blobref, ok := blob.Parse(m[1])
 	if !ok {
-		http.Error(rw, "Invalid blobref", 400)
+		http.Error(rw, "Invalid blobref", http.StatusBadRequest)
 		return
 	}
 

@@ -336,7 +336,7 @@ func (dl *downloader) rateLimit(ctx context.Context, f func() error) error {
 			return nil
 		}
 		ge, ok := err.(*googleapi.Error)
-		if !ok || ge.Code != 403 {
+		if !ok || ge.Code != http.StatusForbidden {
 			return err
 		}
 		if ge.Message == "" {

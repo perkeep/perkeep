@@ -742,7 +742,7 @@ func (pr *publishRequest) serveHTTP() {
 	case "z":
 		pr.serveZip()
 	default:
-		pr.rw.WriteHeader(400)
+		pr.rw.WriteHeader(http.StatusBadRequest)
 		pr.pf("<p>Invalid or unsupported resource request.</p>")
 	}
 }

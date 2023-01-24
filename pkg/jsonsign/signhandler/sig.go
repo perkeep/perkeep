@@ -187,7 +187,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		case "camli/sig/sign":
 			fallthrough
 		case "camli/sig/verify":
-			http.Error(rw, "POST required", 400)
+			http.Error(rw, "POST required", http.StatusBadRequest)
 			return
 		case "camli/sig/discovery":
 			httputil.ReturnJSON(rw, h.Discovery(base))

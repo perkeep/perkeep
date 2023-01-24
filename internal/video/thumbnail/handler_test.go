@@ -39,7 +39,7 @@ func TestHandlerWrongRef(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.StatusCode != 403 {
+	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("excepted forbidden status when the wrong ref is requested")
 	}
 }

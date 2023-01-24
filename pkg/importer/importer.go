@@ -605,7 +605,7 @@ func (h *Host) serveImporter(w http.ResponseWriter, r *http.Request, imp *import
 // Serves oauth callback at http://host/importer/TYPE/callback
 func (h *Host) serveImporterAcctCallback(w http.ResponseWriter, r *http.Request, imp *importer) {
 	if r.Method != "GET" {
-		http.Error(w, "invalid method", 400)
+		http.Error(w, "invalid method", http.StatusBadRequest)
 		return
 	}
 	acctRef, err := imp.impl.CallbackRequestAccount(r)
@@ -619,7 +619,7 @@ func (h *Host) serveImporterAcctCallback(w http.ResponseWriter, r *http.Request,
 	}
 	ia, err := imp.account(acctRef)
 	if err != nil {
-		http.Error(w, "invalid 'acct' param: "+err.Error(), 400)
+		http.Error(w, "invalid 'acct' param: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	imp.impl.ServeCallback(w, r, &SetupContext{
@@ -633,7 +633,7 @@ func (h *Host) serveImporterAcctCallback(w http.ResponseWriter, r *http.Request,
 func (h *Host) serveImporterPost(w http.ResponseWriter, r *http.Request, imp *importer) {
 	switch r.FormValue("mode") {
 	default:
-		http.Error(w, "Unknown mode.", 400)
+		http.Error(w, "Unknown mode.", http.StatusBadRequest)
 	case "newacct":
 		ia, err := imp.newAccount()
 		if err != nil {
@@ -663,7 +663,7 @@ func (h *Host) serveImporterPost(w http.ResponseWriter, r *http.Request, imp *im
 func (h *Host) serveImporterAccount(w http.ResponseWriter, r *http.Request, imp *importer, acctRef blob.Ref) {
 	ia, err := imp.account(acctRef)
 	if err != nil {
-		http.Error(w, "Unknown or invalid importer account "+acctRef.String()+": "+err.Error(), 400)
+		http.Error(w, "Unknown or invalid importer account "+acctRef.String()+": "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	ia.ServeHTTP(w, r)
@@ -1249,7 +1249,7 @@ func (ia *importerAcct) serveHTTPPost(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, ia.im.URL(), http.StatusFound)
 		return
 	default:
-		http.Error(w, "Unknown mode", 400)
+		http.Error(w, "Unknown mode", http.StatusBadRequest)
 		return
 	}
 	http.Redirect(w, r, ia.AccountURL(), http.StatusFound)
