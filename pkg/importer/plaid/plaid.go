@@ -117,7 +117,7 @@ func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *import
 	username := r.FormValue("username")
 	password := r.FormValue("password")
 	if username == "" || password == "" {
-		http.Error(w, "Username and password are both required", 400)
+		http.Error(w, "Username and password are both required", http.StatusBadRequest)
 		return
 	}
 	institution := r.FormValue("institution")

@@ -450,7 +450,7 @@ func (r *run) importBookmarkText(req txtReq) error {
 		Client: r.oauthClient,
 		Creds:  r.accessCreds}.POST(bookmarkTextRequestURL, form)
 	if err != nil {
-		if resp != nil && resp.StatusCode == 400 {
+		if resp != nil && resp.StatusCode == http.StatusBadRequest {
 			// Ignore 400 Bad Request HTTP response codes for bookmark text given some bookmarks won't have full text available but we do not
 			// know which ones until we make the /get_text request and the call fails with a 400 status.
 			logger.Printf("no text available for %v: %v", req.bm.Url, err)

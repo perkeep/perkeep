@@ -204,7 +204,7 @@ func TestS3EndpointRedirect(t *testing.T) {
 			Fn: func() *http.Response {
 				return &http.Response{
 					Status:     "301 Moved Permanently",
-					StatusCode: 301,
+					StatusCode: http.StatusMovedPermanently,
 					Header: http.Header(map[string][]string{
 						"X-Amz-Bucket-Region": []string{"us-east-1"},
 					}),
@@ -218,7 +218,7 @@ func TestS3EndpointRedirect(t *testing.T) {
 			Fn: func() *http.Response {
 				return &http.Response{
 					Status:     "301 Moved Permanently",
-					StatusCode: 301,
+					StatusCode: http.StatusMovedPermanently,
 					Header: http.Header(map[string][]string{
 						"X-Amz-Bucket-Region": []string{"us-east-1"},
 					}),

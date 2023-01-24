@@ -135,7 +135,7 @@ func (im imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.S
 		// everytime, even for Re-logins, too.
 		//
 		// Source: https://developers.google.com/youtube/v3/guides/authentication#server-side-apps
-		http.Redirect(w, r, oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce), 302)
+		http.Redirect(w, r, oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce), http.StatusFound)
 	}
 	return err
 }
@@ -153,12 +153,12 @@ func (im imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importe
 	}
 
 	if r.Method != "GET" {
-		http.Error(w, "Expected a GET", 400)
+		http.Error(w, "Expected a GET", http.StatusBadRequest)
 		return
 	}
 	code := r.FormValue("code")
 	if code == "" {
-		http.Error(w, "Expected a code", 400)
+		http.Error(w, "Expected a code", http.StatusBadRequest)
 		return
 	}
 

@@ -338,12 +338,12 @@ var singleResize singleflight.Group
 func (ih *ImageHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request, file blob.Ref) {
 	ctx := req.Context()
 	if !httputil.IsGet(req) {
-		http.Error(rw, "Invalid method", 400)
+		http.Error(rw, "Invalid method", http.StatusBadRequest)
 		return
 	}
 	mw, mh := ih.MaxWidth, ih.MaxHeight
 	if mw == 0 || mh == 0 || mw > search.MaxImageSize || mh > search.MaxImageSize {
-		http.Error(rw, "bogus dimensions", 400)
+		http.Error(rw, "bogus dimensions", http.StatusBadRequest)
 		return
 	}
 

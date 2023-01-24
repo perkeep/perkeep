@@ -52,7 +52,7 @@ func CreateGetHandler(fetcher blob.Fetcher) http.Handler {
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	blobRef := blobFromURLPath(req.URL.Path)
 	if !blobRef.Valid() {
-		http.Error(rw, "Malformed GET URL.", 400)
+		http.Error(rw, "Malformed GET URL.", http.StatusBadRequest)
 		return
 	}
 

@@ -249,7 +249,7 @@ var tmpl = template.Must(template.New("root").Parse(`
 func (im *imp) ServeCallback(w http.ResponseWriter, r *http.Request, ctx *importer.SetupContext) {
 	u := r.FormValue("feedURL")
 	if u == "" {
-		http.Error(w, "Expected a feed URL", 400)
+		http.Error(w, "Expected a feed URL", http.StatusBadRequest)
 		return
 	}
 	feed, err := url.Parse(u)

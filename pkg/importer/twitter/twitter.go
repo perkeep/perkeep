@@ -709,7 +709,7 @@ func (im *imp) ServeSetup(w http.ResponseWriter, r *http.Request, ctx *importer.
 	}
 
 	authURL := oauthClient.AuthorizationURL(tempCred, nil)
-	http.Redirect(w, r, authURL, 302)
+	http.Redirect(w, r, authURL, http.StatusFound)
 	return nil
 }
 
