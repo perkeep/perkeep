@@ -155,7 +155,7 @@ type ReadTransaction interface {
 	Get(key string) (string, error)
 	Find(start, end string) Iterator
 
-	// End the transaction.
+	// Close ends the transaction.
 	Close() error
 }
 

@@ -53,7 +53,7 @@ type Corpus struct {
 	building bool
 
 	// hasLegacySHA1 reports whether some SHA-1 blobs are indexed. It is set while
-	//building the corpus from the initial index scan.
+	// building the corpus from the initial index scan.
 	hasLegacySHA1 bool
 
 	// gen is incremented on every blob received.

@@ -72,7 +72,7 @@ type keyword interface {
 	// It should return true if it wishes to handle this search atom.
 	// An error if the number of arguments mismatches.
 	Match(a atom) (bool, error)
-	// Predicates will be called with the args array from an atom instance.
+	// Predicate will be called with the args array from an atom instance.
 	// Note that len(args) > 0 (see atom-struct comment above).
 	// It should return a pointer to a Constraint object, expressing the meaning of
 	// its keyword.

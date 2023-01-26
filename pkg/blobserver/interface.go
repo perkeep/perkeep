@@ -57,7 +57,7 @@ type BlobReceiver interface {
 
 // BlobStatter is the interface for checking the size and existence of blobs.
 type BlobStatter interface {
-	// Stat checks for the existence of blobs, calling fn in
+	// StatBlobs checks for the existence of blobs, calling fn in
 	// serial for each found blob, in any order, but with no
 	// duplicates. The blobs slice should not have duplicates.
 	//
@@ -75,7 +75,7 @@ type StatReceiver interface {
 }
 
 type BlobEnumerator interface {
-	// EnumerateBobs sends at most limit SizedBlobRef into dest,
+	// EnumerateBlobs sends at most limit SizedBlobRef into dest,
 	// sorted, as long as they are lexigraphically greater than
 	// after (if provided).
 	// limit will be supplied and sanity checked by caller.
@@ -101,10 +101,9 @@ type BlobAndToken struct {
 	Token string
 }
 
+// BlobStreamer is an optional interface that may be implemented by
+// Storage implementations.
 type BlobStreamer interface {
-	// BlobStream is an optional interface that may be implemented by
-	// Storage implementations.
-	//
 	// StreamBlobs sends blobs to dest in an unspecified order. It is
 	// expected that a Storage implementation implementing
 	// BlobStreamer will send blobs to dest in the most efficient
@@ -226,7 +225,7 @@ an optimization so clients can mix this value into their "is this file
 uploaded?" local cache keys.
 */
 type Generationer interface {
-	// Generation returns a Storage's initialization time and
+	// StorageGeneration returns a Storage's initialization time and
 	// and unique random string (or UUID).  Implementations
 	// should call ResetStorageGeneration on demand if no
 	// information is known.
@@ -234,7 +233,7 @@ type Generationer interface {
 	// storage target doesn't support the Generationer interface.
 	StorageGeneration() (initTime time.Time, random string, err error)
 
-	// ResetGeneration deletes the information returned by Generation
+	// ResetStorageGeneration deletes the information returned by Generation
 	// and re-generates it.
 	ResetStorageGeneration() error
 }

@@ -44,21 +44,21 @@ const (
 	// Found at http://schema.org/Person.
 	// Example: "John Smith".
 	AcctAttrName = "name"
-	// http://schema.org/givenName
+	// AcctAttrGivenName found at http://schema.org/givenName.
 	// Example: "John".
 	AcctAttrGivenName = "givenName"
-	// http://schema.org/familyName
+	// AcctAttrFamilyName found at http://schema.org/familyNameA.
 	// Example: "Smith".
 	AcctAttrFamilyName = "familyName"
 
 	// Generic item, object.
 
-	// ItemAttrID is the generic identifier of an item when nothing suitable and more specific
+	// AttrID is the generic identifier of an item when nothing suitable and more specific
 	// was found on http://schema.org. Usually a number.
 	AttrID = "ID"
-	// http://schema.org/name
+	// AttrName found at http://schema.org/name
 	AttrName = "name"
-	// Free-flowing text definition of a location or place, such
+	// AttrLocationText is free-flowing text definition of a location or place, such
 	// as a city name, or a full postal address.
 	AttrLocationText = "locationText"
 	// AttrURL is the item's original or origin URL.

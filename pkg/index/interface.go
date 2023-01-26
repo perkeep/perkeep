@@ -14,16 +14,16 @@ type Interface interface {
 	RLock()
 	RUnlock()
 
-	// os.ErrNotExist should be returned if the blob isn't known
+	// GetBlobMeta returns os.ErrNotExist if the blob isn't known.
 	GetBlobMeta(context.Context, blob.Ref) (camtypes.BlobMeta, error)
 
-	// Should return os.ErrNotExist if not found.
+	// GetFileInfo returns os.ErrNotExist if not found.
 	GetFileInfo(ctx context.Context, fileRef blob.Ref) (camtypes.FileInfo, error)
 
-	// Should return os.ErrNotExist if not found.
+	// GetImageInfo returns os.ErrNotExist if not found.
 	GetImageInfo(ctx context.Context, fileRef blob.Ref) (camtypes.ImageInfo, error)
 
-	// Should return os.ErrNotExist if not found.
+	// GetMediaTags return os.ErrNotExist if not found.
 	GetMediaTags(ctx context.Context, fileRef blob.Ref) (map[string]string, error)
 
 	// GetFileLocation returns the location info (currently Exif) of the fileRef.
@@ -63,7 +63,7 @@ type Interface interface {
 		limit int,
 		before time.Time) error
 
-	// SearchPermanodes finds permanodes matching the provided
+	// SearchPermanodesWithAttr finds permanodes matching the provided
 	// request and sends unique permanode blobrefs to dest.
 	// In particular, if request.FuzzyMatch is true, a fulltext
 	// search is performed (if supported by the attribute(s))
@@ -105,9 +105,9 @@ type Interface interface {
 	// limit <= 0 means unlimited.
 	GetDirMembers(ctx context.Context, dirRef blob.Ref, dest chan<- blob.Ref, limit int) error
 
-	// Given an owner key, a camliType 'claim', 'attribute' name,
-	// and specific 'value', find the most recent permanode that has
-	// a corresponding 'set-attribute' claim attached.
+	// PermanodeOfSignerAttrValue does the following: given an owner key, a camliType
+	// 'claim', 'attribute' name, and specific 'value', find the most recent permanode
+	// that has a corresponding 'set-attribute' claim attached.
 	// Returns os.ErrNotExist if none is found.
 	// Only attributes white-listed by IsIndexedAttribute are valid.
 	// TODO(bradfitz): ErrNotExist here is a weird error message ("file" not found). change.
@@ -126,10 +126,10 @@ type Interface interface {
 	// then the complete URL(s) of a target can be found.
 	PathsOfSignerTarget(ctx context.Context, signer, target blob.Ref) ([]*camtypes.Path, error)
 
-	// All Path claims for (signer, base, suffix)
+	// PathsLookup returns all Path claims for (signer, base, suffix)
 	PathsLookup(ctx context.Context, signer, base blob.Ref, suffix string) ([]*camtypes.Path, error)
 
-	// Most recent Path claim for (signer, base, suffix) as of
+	// PathLookup returns most recent Path claim for (signer, base, suffix) as of
 	// provided time 'at', or most recent if 'at' is nil.
 	PathLookup(ctx context.Context, signer, base blob.Ref, suffix string, at time.Time) (*camtypes.Path, error)
 

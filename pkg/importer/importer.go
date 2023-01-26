@@ -1023,7 +1023,7 @@ func (im *importer) Accounts() ([]*importerAcct, error) {
 	return accts, nil
 }
 
-// node returns the importer node. (not specific to a certain account
+// Node returns the importer node. (not specific to a certain account
 // on that importer site)
 //
 // It is a permanode with:

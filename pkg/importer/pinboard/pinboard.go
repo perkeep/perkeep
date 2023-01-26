@@ -365,7 +365,7 @@ func (r *run) importPost(post *apiPost, parent *importer.Object) (dup bool, err 
 		return false, err
 	}
 
-	//Check for duplicates
+	// Check for duplicates
 	if post.Meta != "" && postNode.Attr(attrPostMeta) == post.Meta {
 		return true, nil
 	}

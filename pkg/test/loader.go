@@ -25,7 +25,6 @@ import (
 	"perkeep.org/pkg/blobserver"
 )
 
-// NewLoader
 func NewLoader() *Loader {
 	return &Loader{}
 }

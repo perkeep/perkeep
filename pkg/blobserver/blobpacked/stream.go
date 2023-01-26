@@ -40,7 +40,7 @@ func (s *storage) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAn
 type smallBlobStreamer struct{ sto *storage }
 type largeBlobStreamer struct{ sto *storage }
 
-// stream the loose blobs
+// StreamBlobs streams the loose blobs
 func (st smallBlobStreamer) StreamBlobs(ctx context.Context, dest chan<- blobserver.BlobAndToken, contToken string) (err error) {
 	small := st.sto.small
 	if bs, ok := small.(blobserver.BlobStreamer); ok {
