@@ -525,6 +525,7 @@ func (c *serverCmd) RunCommand(args []string) error {
 		if c.publish {
 			targets = append(targets, "app/publisher")
 		}
+		targets = append(targets, "app/scanningcabinet")
 		targets = append(targets, "app/pdfcabinet")
 		err := build(targets...)
 		if err != nil {
