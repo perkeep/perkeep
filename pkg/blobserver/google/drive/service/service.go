@@ -140,7 +140,7 @@ func (s *DriveService) Fetch(ctx context.Context, title string) (body io.ReadClo
 	}
 
 	req, _ := http.NewRequest("GET", file.DownloadUrl, nil)
-	req.WithContext(ctx)
+	req = req.WithContext(ctx)
 	var resp *http.Response
 	if resp, err = s.client.Transport.RoundTrip(req); err != nil {
 		return

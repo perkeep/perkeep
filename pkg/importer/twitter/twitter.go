@@ -328,7 +328,7 @@ func (im *imp) LongPoll(rctx *importer.RunContext) error {
 	req, _ := http.NewRequest("GET", "https://userstream.twitter.com/1.1/user.json", nil)
 	req.Header.Set("Authorization", oauthClient.AuthorizationHeader(accessCreds, "GET", req.URL, form))
 	req.URL.RawQuery = form.Encode()
-	req.Cancel = rctx.Context().Done()
+	req = req.WithContext(rctx.Context())
 
 	log.Printf("twitter: beginning long poll, awaiting new tweets...")
 	res, err := http.DefaultClient.Do(req)
