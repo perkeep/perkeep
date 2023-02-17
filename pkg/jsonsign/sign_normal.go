@@ -25,7 +25,7 @@ import (
 	"log"
 	"os"
 
-	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp" //lint:ignore SA1019 the package is deprecated
 	"perkeep.org/internal/gpgagent"
 	"perkeep.org/internal/pinentry"
 )

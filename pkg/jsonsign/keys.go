@@ -28,9 +28,9 @@ import (
 	"perkeep.org/internal/osutil"
 
 	"go4.org/wkfs"
-	"golang.org/x/crypto/openpgp"
-	"golang.org/x/crypto/openpgp/armor"
-	"golang.org/x/crypto/openpgp/packet"
+	"golang.org/x/crypto/openpgp"        //lint:ignore SA1019 the package is deprecated
+	"golang.org/x/crypto/openpgp/armor"  //lint:ignore SA1019 the package is deprecated
+	"golang.org/x/crypto/openpgp/packet" //lint:ignore SA1019 the package is deprecated
 )
 
 const publicKeyMaxSize = 256 * 1024

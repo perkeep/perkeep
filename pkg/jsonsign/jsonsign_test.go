@@ -24,7 +24,7 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp" //lint:ignore SA1019 the package is deprecated
 	. "perkeep.org/pkg/jsonsign"
 	"perkeep.org/pkg/test"
 )

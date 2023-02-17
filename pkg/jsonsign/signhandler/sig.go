@@ -37,7 +37,7 @@ import (
 	"perkeep.org/pkg/types/camtypes"
 
 	"go4.org/jsonconfig"
-	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp" //lint:ignore SA1019 the package is deprecated
 )
 
 const maxJSONLength = 1024 * 1024

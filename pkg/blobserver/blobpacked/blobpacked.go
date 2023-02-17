@@ -1340,7 +1340,7 @@ func (pk *packer) writeAZip(ctx context.Context, trunc blob.Ref) (err error) {
 		Name:   baseFileName,
 		Method: zip.Store, // uncompressed
 	}
-	fh.SetModTime(pk.fr.ModTime())
+	fh.SetModTime(pk.fr.ModTime()) //lint:ignore SA1019 SetModTime is deprecated
 	fh.SetMode(0644)
 	fw, err := zw.CreateHeader(fh)
 	check(err)
