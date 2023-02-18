@@ -1401,7 +1401,7 @@ func (pk *packer) writeAZip(ctx context.Context, trunc blob.Ref) (err error) {
 
 	// zipBlobs is where a schema or data blob is relative to the beginning
 	// of the zip file.
-	var zipBlobs []BlobAndPos
+	zipBlobs := make([]BlobAndPos, 0, len(dataRefsWritten))
 
 	var dataOffset int64
 	for _, br := range dataRefsWritten {

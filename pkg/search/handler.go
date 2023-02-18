@@ -653,7 +653,7 @@ func (h *Handler) GetClaims(req *ClaimsRequest) (*ClaimsResponse, error) {
 		return nil, fmt.Errorf("Error getting claims of %s: %v", req.Permanode.String(), err)
 	}
 	sort.Sort(camtypes.ClaimsByDate(claims))
-	var jclaims []*ClaimsItem
+	jclaims := make([]*ClaimsItem, 0, len(claims))
 	for _, claim := range claims {
 		jclaim := &ClaimsItem{
 			BlobRef:   claim.BlobRef,
@@ -707,7 +707,7 @@ func (h *Handler) serveFiles(rw http.ResponseWriter, req *http.Request) {
 		ret.ErrorType = "input"
 		return
 	}
-	var digests []blob.Ref
+	digests := make([]blob.Ref, 0, len(values))
 	for _, v := range values {
 		br, ok := blob.Parse(v)
 		if !ok {
@@ -891,7 +891,7 @@ func (h *Handler) GetSignerPaths(req *SignerPathsRequest) (*SignerPathsResponse,
 	if err != nil {
 		return nil, fmt.Errorf("Error getting paths of %s: %v", req.Target.String(), err)
 	}
-	var jpaths []*SignerPathsItem
+	jpaths := make([]*SignerPathsItem, 0, len(paths))
 	for _, path := range paths {
 		jpaths = append(jpaths, &SignerPathsItem{
 			ClaimRef: path.Claim,

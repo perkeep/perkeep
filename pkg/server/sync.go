@@ -804,7 +804,7 @@ func (sh *SyncHandler) validateShardPrefix(pfx string) (err error) {
 	missingc := make(chan blob.SizedRef, 8)
 	go blobserver.ListMissingDestinationBlobs(missingc, func(blob.Ref) {}, src, dst)
 
-	var missing []blob.SizedRef
+	missing := make([]blob.SizedRef, 0, len(missingc))
 	for sb := range missingc {
 		missing = append(missing, sb)
 	}

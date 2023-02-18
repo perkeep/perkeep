@@ -827,7 +827,7 @@ func newClaim(claims ...*claimParam) *Builder {
 		populateClaimMap(bb.m, cp)
 		return bb
 	}
-	var claimList []interface{}
+	claimList := make([]interface{}, 0, len(claims))
 	for _, cp := range claims {
 		m := map[string]interface{}{}
 		populateClaimMap(m, cp)

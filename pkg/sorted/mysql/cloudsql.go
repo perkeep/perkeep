@@ -61,7 +61,7 @@ func maybeRemapCloudSQL(host string) (out string, err error) {
 		}
 		return "", fmt.Errorf("No external IP address for Cloud SQL instances %s", inst)
 	}
-	var found []string
+	found := make([]string, 0, len(listRes.Items))
 	for _, it := range listRes.Items {
 		found = append(found, it.Name)
 	}

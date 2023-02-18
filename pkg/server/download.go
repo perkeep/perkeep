@@ -499,7 +499,7 @@ func (dh *DownloadHandler) serveZip(w http.ResponseWriter, r *http.Request) {
 	}
 	files := strings.Split(filesValue, ",")
 
-	var refs []blob.Ref
+	refs := make([]blob.Ref, 0, len(files))
 	for _, file := range files {
 		br, ok := blob.Parse(file)
 		if !ok {
