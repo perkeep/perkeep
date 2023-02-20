@@ -123,8 +123,7 @@ func testWithTempDir(t *testing.T, fn func(tempDir string)) {
 
 	confDir := filepath.Join(tempDir, "conf")
 	mustMkdir(t, confDir, 0700)
-	defer os.Setenv("CAMLI_CONFIG_DIR", os.Getenv("CAMLI_CONFIG_DIR"))
-	os.Setenv("CAMLI_CONFIG_DIR", confDir)
+	t.Setenv("CAMLI_CONFIG_DIR", confDir)
 	if err := os.WriteFile(filepath.Join(confDir, "client-config.json"), []byte("{}"), 0644); err != nil {
 		t.Fatal(err)
 	}

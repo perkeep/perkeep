@@ -252,11 +252,10 @@ func TestExpansionsInHighlevelConfig(t *testing.T) {
 		t.Fatalf("failed to find perkeep.org GOPATH root: %v", err)
 	}
 	const keyID = "26F5ABDA"
-	os.Setenv("TMP_EXPANSION_TEST", keyID)
-	os.Setenv("TMP_EXPANSION_SECRING", filepath.Join(camroot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")))
+	t.Setenv("TMP_EXPANSION_TEST", keyID)
+	t.Setenv("TMP_EXPANSION_SECRING", filepath.Join(camroot, filepath.FromSlash("pkg/jsonsign/testdata/test-secring.gpg")))
 	// Setting CAMLI_CONFIG_DIR to avoid triggering failInTests in osutil.PerkeepConfigDir
-	defer os.Setenv("CAMLI_CONFIG_DIR", os.Getenv("CAMLI_CONFIG_DIR")) // restore after test
-	os.Setenv("CAMLI_CONFIG_DIR", "whatever")
+	t.Setenv("CAMLI_CONFIG_DIR", "whatever")
 	conf, err := serverinit.Load([]byte(`
 {
     "auth": "localhost",
@@ -294,8 +293,7 @@ func TestInstallHandlers(t *testing.T) {
 	}
 
 	// Setting CAMLI_CONFIG_DIR to avoid triggering failInTests in osutil.PerkeepConfigDir
-	defer os.Setenv("CAMLI_CONFIG_DIR", os.Getenv("CAMLI_CONFIG_DIR")) // restore after test
-	os.Setenv("CAMLI_CONFIG_DIR", "whatever")
+	t.Setenv("CAMLI_CONFIG_DIR", "whatever")
 	lowConf, err := serverinit.Load(confData)
 	if err != nil {
 		t.Fatal(err)

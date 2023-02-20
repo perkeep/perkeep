@@ -114,9 +114,8 @@ func TestDecodeDownsample(t *testing.T) {
 // a subprocess to simulate unavailability.
 func TestUnavailable(t *testing.T) {
 	checkAvailability = sync.Once{}
-	defer os.Setenv("CAMLI_DISABLE_DJPEG", "0")
 	if ok, _ := strconv.ParseBool(os.Getenv("CAMLI_DISABLE_DJPEG")); !ok {
-		os.Setenv("CAMLI_DISABLE_DJPEG", "1")
+		t.Setenv("CAMLI_DISABLE_DJPEG", "1")
 		out, err := exec.Command(os.Args[0], "-test.v",
 			"-test.run=TestUnavailable$").CombinedOutput()
 		if err != nil {
@@ -149,14 +148,12 @@ func TestFailed(t *testing.T) {
 		t.Skip("djpeg isn't available.")
 	}
 
-	oldPath := os.Getenv("PATH")
-	defer os.Setenv("PATH", oldPath)
 	// Use djpeg that exits after calling false.
 	newPath, err := filepath.Abs("testdata")
 	if err != nil {
 		t.Fatal(err)
 	}
-	os.Setenv("PATH", newPath)
+	t.Setenv("PATH", newPath)
 	t.Log("PATH", os.Getenv("PATH"))
 	t.Log(exec.LookPath("djpeg"))
 

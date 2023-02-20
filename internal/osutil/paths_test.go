@@ -69,8 +69,7 @@ func TestOpenCamliIncludeNoFile(t *testing.T) {
 	// Test that error occurs if no such file
 	const notExist = "this_config_doesnt_exist.config"
 
-	defer os.Setenv("CAMLI_CONFIG_DIR", os.Getenv("CAMLI_CONFIG_DIR"))
-	os.Setenv("CAMLI_CONFIG_DIR", filepath.Join(os.TempDir(), "/x/y/z/not-exist"))
+	t.Setenv("CAMLI_CONFIG_DIR", filepath.Join(os.TempDir(), "/x/y/z/not-exist"))
 
 	_, e := findCamliInclude(notExist)
 	if e == nil {
@@ -88,8 +87,7 @@ func TestOpenCamliIncludeCWD(t *testing.T) {
 	defer os.Remove(path)
 
 	// Setting CAMLI_CONFIG_DIR just to avoid triggering failInTests in CamliConfigDir
-	defer os.Setenv("CAMLI_CONFIG_DIR", os.Getenv("CAMLI_CONFIG_DIR"))
-	os.Setenv("CAMLI_CONFIG_DIR", "whatever") // Restore after test
+	t.Setenv("CAMLI_CONFIG_DIR", "whatever") // Restore after test
 	checkOpen(t, path)
 }
 
@@ -102,8 +100,7 @@ func TestOpenCamliIncludeDir(t *testing.T) {
 		t.Errorf("Couldn't create test config file, aborting test: %v", e)
 		return
 	}
-	os.Setenv("CAMLI_CONFIG_DIR", td)
-	defer os.Setenv("CAMLI_CONFIG_DIR", "")
+	t.Setenv("CAMLI_CONFIG_DIR", td)
 
 	checkOpen(t, name)
 }
@@ -117,19 +114,17 @@ func TestOpenCamliIncludePath(t *testing.T) {
 		t.Errorf("Couldn't create test config file, aborting test: %v", e)
 		return
 	}
-	defer os.Setenv("CAMLI_INCLUDE_PATH", "")
 
-	defer os.Setenv("CAMLI_CONFIG_DIR", os.Getenv("CAMLI_CONFIG_DIR"))
-	os.Setenv("CAMLI_CONFIG_DIR", filepath.Join(td, "/x/y/z/not-exist"))
+	t.Setenv("CAMLI_CONFIG_DIR", filepath.Join(td, "/x/y/z/not-exist"))
 
-	os.Setenv("CAMLI_INCLUDE_PATH", td)
+	t.Setenv("CAMLI_INCLUDE_PATH", td)
 	checkOpen(t, name)
 
 	const sep = string(filepath.ListSeparator)
-	os.Setenv("CAMLI_INCLUDE_PATH", "/not/a/camli/config/dir"+sep+td)
+	t.Setenv("CAMLI_INCLUDE_PATH", "/not/a/camli/config/dir"+sep+td)
 	checkOpen(t, name)
 
-	os.Setenv("CAMLI_INCLUDE_PATH", "/not/a/camli/config/dir"+sep+td+sep+"/another/fake/camli/dir")
+	t.Setenv("CAMLI_INCLUDE_PATH", "/not/a/camli/config/dir"+sep+td+sep+"/another/fake/camli/dir")
 	checkOpen(t, name)
 }
 
