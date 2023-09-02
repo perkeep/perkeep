@@ -138,7 +138,7 @@ cam.MapAspect = React.createClass({
 		this.eh_ = new goog.events.EventHandler(this);
 		var map = this.map = L.map(ReactDOM.findDOMNode(this), {
 			layers: [
-				L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+				L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 					attribution: '©  <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 				})
 			],
