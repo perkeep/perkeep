@@ -69,6 +69,7 @@ type serverCmd struct {
 	publish     bool // whether to build and start the publisher app(s)
 	scancab     bool // whether to build and start the scancab app(s)
 	hello       bool // whether to build and start the hello demo app
+	staticapp   bool // whether to build and start the staticapp demo app
 
 	openBrowser      bool
 	flickrAPIKey     string
@@ -102,6 +103,7 @@ func init() {
 		flags.BoolVar(&cmd.publish, "publish", true, "Enable publisher app(s)")
 		flags.BoolVar(&cmd.scancab, "scancab", false, "Enable scancab app(s)")
 		flags.BoolVar(&cmd.hello, "hello", false, "Enable hello (demo) app")
+		flags.BoolVar(&cmd.staticapp, "staticapp", false, "Enable static app (demo) app")
 		flags.BoolVar(&cmd.mini, "mini", false, "Enable minimal mode, where all optional features are disabled. (Currently just publishing)")
 
 		flags.BoolVar(&cmd.mongo, "mongo", false, "Use mongodb as the index storage. Excludes -mysql, -postgres, -sqlite, -memory, -kvfile.")
@@ -159,6 +161,7 @@ func (c *serverCmd) checkFlags(args []string) error {
 		c.publish = false
 		c.scancab = false
 		c.hello = false
+		c.staticapp = false
 	}
 	if c.things && !c.wipe {
 		return cmdmain.UsageError("--makethings requires --wipe.")
@@ -235,6 +238,7 @@ func (c *serverCmd) setEnvVars() error {
 	setenv("CAMLI_PUBLISH_ENABLED", strconv.FormatBool(c.publish))
 	setenv("CAMLI_SCANCAB_ENABLED", strconv.FormatBool(c.scancab))
 	setenv("CAMLI_HELLO_ENABLED", strconv.FormatBool(c.hello))
+	setenv("CAMLI_STATICAPP_ENABLED", strconv.FormatBool(c.staticapp))
 	setenv("CAMLI_SHA1_ENABLED", strconv.FormatBool(c.sha1))
 	switch {
 	case c.memory:
@@ -516,6 +520,9 @@ func (c *serverCmd) RunCommand(args []string) error {
 		}
 		if c.hello {
 			targets = append(targets, "app/hello")
+		}
+		if c.staticapp {
+			targets = append(targets, "app/staticapp")
 		}
 		if c.publish {
 			targets = append(targets, "app/publisher")
