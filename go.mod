@@ -17,6 +17,7 @@ require (
 	github.com/gopherjs/jquery v0.0.0-20180404123100-3ba2b901425e
 	github.com/goplusjs/gopherjs v1.1.6
 	github.com/gorilla/websocket v1.4.2
+	github.com/hashicorp/hcl/v2 v2.11.1
 	github.com/hjfreyer/taglib-go v0.0.0-20151027170453-0ef8bba9c41b
 	github.com/lib/pq v1.10.2
 	github.com/mailgun/mailgun-go v0.0.0-20171127222028-17e8bd11e87c
@@ -29,6 +30,7 @@ require (
 	github.com/rwcarlsen/goexif v0.0.0-20190401172101-9e8deecbddbd
 	github.com/syndtr/goleveldb v1.0.1-0.20210305035536-64b5b1c73954
 	github.com/tgulacsi/picago v0.0.0-20171229130838-9e1ac2306c70
+	github.com/zclconf/go-cty v1.10.0
 	go4.org v0.0.0-20190218023631-ce4c26f7be8e
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/image v0.0.0-20210628002857-a66eb6448b8d
