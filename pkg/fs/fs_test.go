@@ -1,5 +1,4 @@
-//go:build linux || darwin
-// +build linux darwin
+//go:build linux
 
 /*
 Copyright 2013 The Perkeep Authors
@@ -39,14 +38,13 @@ import (
 	"testing"
 	"time"
 
-	"bazil.org/fuse"
 	"bazil.org/fuse/syscallx"
+	"golang.org/x/sys/unix"
 	"perkeep.org/pkg/test"
 )
 
 var (
-	errmu         sync.Mutex
-	osxFuseMarker string
+	errmu sync.Mutex
 )
 
 func condSkip(t *testing.T) {
@@ -55,30 +53,8 @@ func condSkip(t *testing.T) {
 	}
 	errmu.Lock()
 	defer errmu.Unlock()
-	if !(runtime.GOOS == "darwin" || runtime.GOOS == "linux") {
+	if runtime.GOOS != "linux" {
 		t.Skipf("Skipping test on OS %q", runtime.GOOS)
-	}
-	if runtime.GOOS == "darwin" {
-		// TODO: simplify if/when bazil drops 2.x support.
-		_, err := os.Stat(fuse.OSXFUSELocationV3.Mount)
-		if err == nil {
-			osxFuseMarker = "pkmount@osxfuse"
-			return
-		}
-		if !os.IsNotExist(err) {
-			t.Fatal(err)
-		}
-		_, err = os.Stat(fuse.OSXFUSELocationV2.Mount)
-		if err == nil {
-			osxFuseMarker = "mount_osxfusefs@"
-			// TODO(mpl): add a similar check/warning to pkg/fs or pk-mount.
-			t.Log("OSXFUSE version 2.x detected. Please consider upgrading to v 3.x.")
-			return
-		}
-		if !os.IsNotExist(err) {
-			t.Fatal(err)
-		}
-		test.DependencyErrorOrSkip(t)
 	}
 }
 
@@ -285,6 +261,7 @@ type testLog struct {
 }
 
 func (tl testLog) Write(p []byte) (n int, err error) {
+	tl.t.Helper()
 	tl.t.Log(strings.TrimSpace(string(p)))
 	return len(p), nil
 }
@@ -854,18 +831,15 @@ func isMounted(dir string) func() bool {
 
 func dirToBeFUSE(dir string) func() bool {
 	return func() bool {
-		out, err := exec.Command("df", dir).CombinedOutput()
-		if err != nil {
+		//func Statfs(path string, buf *Statfs_t) (err error)
+		var st unix.Statfs_t
+		if err := unix.Statfs(dir, &st); err != nil {
+			log.Printf("Statfs: %v", err)
 			return false
 		}
-		if runtime.GOOS == "darwin" {
-			return strings.Contains(string(out), osxFuseMarker)
-		}
-		if runtime.GOOS == "linux" {
-			return strings.Contains(string(out), "/dev/fuse") &&
-				strings.Contains(string(out), dir)
-		}
-		return false
+		log.Printf("Statsfs: %+v", st)
+		const FUSE_SUPER_MAGIC = 0x65735546
+		return st.Type == FUSE_SUPER_MAGIC
 	}
 }
 

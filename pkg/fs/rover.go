@@ -1,5 +1,4 @@
-//go:build linux || darwin
-// +build linux darwin
+//go:build linux
 
 /*
 Copyright 2014 The Perkeep Authors
@@ -441,7 +440,6 @@ func (n *roFileVersion) Attr(ctx context.Context, a *fuse.Attr) error {
 		Mtime:  n.modTime(),
 		Atime:  n.accessTime(),
 		Ctime:  serverStart,
-		Crtime: serverStart,
 	}
 	return nil
 }

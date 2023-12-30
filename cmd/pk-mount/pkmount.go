@@ -1,5 +1,4 @@
-//go:build linux || darwin
-// +build linux darwin
+//go:build linux
 
 /*
 Copyright 2011 The Perkeep Authors
@@ -28,13 +27,11 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
 	"time"
 
-	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/blob"
 	"perkeep.org/pkg/buildinfo"
 	"perkeep.org/pkg/cacher"
@@ -50,8 +47,6 @@ import (
 var (
 	debug = flag.Bool("debug", false, "print debugging messages.")
 	xterm = flag.Bool("xterm", false, "Run an xterm in the mounted directory. Shut down when xterm ends.")
-	term  = flag.Bool("term", false, "Open a terminal window. Doesn't shut down when exited. Mostly for demos.")
-	open  = flag.Bool("open", false, "Open a GUI window")
 )
 
 func usage() {
@@ -182,14 +177,10 @@ func main() {
 		fs.Logger.SetOutput(io.Discard)
 	}
 
-	// This doesn't appear to work on OS X:
 	sigc := make(chan os.Signal, 1)
 
-	conn, err = fuse.Mount(mountPoint, fuse.VolumeName(filepath.Base(mountPoint)))
+	conn, err = fuse.Mount(mountPoint, fuse.FSName("perkeep"))
 	if err != nil {
-		if err == fuse.ErrOSXFUSENotFound {
-			log.Fatal("FUSE not available; install from http://osxfuse.github.io/")
-		}
 		log.Fatalf("Mount: %v", err)
 	}
 
@@ -207,20 +198,6 @@ func main() {
 			defer cmd.Process.Kill()
 		}
 	}
-	if *open {
-		if runtime.GOOS == "darwin" {
-			go exec.Command("open", mountPoint).Run()
-		}
-	}
-	if *term {
-		if runtime.GOOS == "darwin" {
-			if osutil.DirExists("/Applications/iTerm.app/") {
-				go exec.Command("open", "-a", "iTerm", mountPoint).Run()
-			} else {
-				log.Printf("TODO: iTerm not installed. Figure out how to open with Terminal.app instead.")
-			}
-		}
-	}
 
 	signal.Notify(sigc, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGINT)
 
@@ -235,12 +212,6 @@ func main() {
 	select {
 	case err := <-doneServe:
 		log.Printf("conn.Serve returned %v", err)
-
-		// check if the mount process has an error to report
-		<-conn.Ready
-		if err := conn.MountError; err != nil {
-			log.Printf("conn.MountError: %v", err)
-		}
 	case sig := <-sigc:
 		log.Printf("Signal %s received, shutting down.", sig)
 	case <-quitKey:
@@ -248,10 +219,11 @@ func main() {
 	case <-xtermDone:
 		log.Printf("xterm done")
 	}
-
 	time.AfterFunc(2*time.Second, func() {
+		log.Printf("shutdown timer elapsed; calling os.Exit(1)")
 		os.Exit(1)
 	})
+
 	log.Printf("Unmounting...")
 	err = fs.Unmount(mountPoint)
 	log.Printf("Unmount = %v", err)

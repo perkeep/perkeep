@@ -1,5 +1,4 @@
-//go:build linux || darwin
-// +build linux darwin
+//go:build linux
 
 /*
 Copyright 2011 The Perkeep Authors
@@ -407,7 +406,6 @@ func (s staticFileNode) Attr(ctx context.Context, a *fuse.Attr) error {
 	a.Size = uint64(len(s))
 	a.Mtime = serverStart
 	a.Ctime = serverStart
-	a.Crtime = serverStart
 	return nil
 }
 
