@@ -70,44 +70,6 @@ or
 `CAMLI_FORCE_OSARCH` (bool)
   Used by make.go to force building an unrecommended OS/ARCH pair.
 
-`CAMLI_GCE_\*`
-: Variables prefixed with `CAMLI_GCE_` concern the Google Compute Engine deploy
-  handler in [pkg/deploy/gce](/pkg/deploy/gce), which is only used by camweb to
-  launch Perkeep on Google Compute Engine. They do not affect Perkeep's
-  behaviour.
-
-`CAMLI_GCE_CLIENTID` (string)
-: See `CAMLI_GCE_*` first. This string is used by gce.DeployHandler as the
-  application's OAuth Client ID. If blank, camweb does not enable the Google
-  Compute Engine launcher.
-
-`CAMLI_GCE_CLIENTSECRET` (string)
-: See `CAMLI_GCE_*` first. Used by gce.DeployHandler as the application's OAuth
-  Client Secret. If blank, gce.NewDeployHandler returns an error, and camweb
-  fails to start if the Google Compute Engine launcher was enabled.
-
-`CAMLI_GCE_DATA` (string)
-: See `CAMLI_GCE_*` first. Path to the directory where gce.DeployHandler stores
-  the instances configuration and state. If blank, the "camli-gce-data" default
-  is used instead.
-
-`CAMLI_GCE_PROJECT` (string)
-: See `CAMLI_GCE_*` first. ID of the Google Project that provides the above
-  client ID and secret. It is used when we query for the list of all the
-  existing zones, since such a query requires a project ID. If blank, a
-  hard-coded list of zones is used instead.
-
-`CAMLI_GCE_SERVICE_ACCOUNT` (string)
-: See `CAMLI_GCE_*` first. Path to a Google service account JSON file. This
-  account should have at least compute.readonly permissions on the Google
-  Project with ID CAMLI_GCE_PROJECT.  It is used to authenticate when querying
-  for the list of all the existing zones. If blank, a hard-coded list of zones
-  is used instead.
-
-`CAMLI_GCE_XSRFKEY` (string)
-: See `CAMLI_GCE_*` first. Used by gce.DeployHandler as the XSRF protection key.
-  If blank, gce.NewDeployHandler generates a new random key instead.
-
 `CAMLI_GOPHERJS_GOROOT` (string)
 : As gopherjs does not build with go tip, when make.go is run with go devel,
   CAMLI_GOPHERJS_GOROOT should be set to a Go 1.10 root so that gopherjs can be

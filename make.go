@@ -104,7 +104,6 @@ func main() {
 		"perkeep.org/cmd/pk-get",
 		"perkeep.org/cmd/pk-put",
 		"perkeep.org/cmd/pk",
-		"perkeep.org/cmd/pk-deploy",
 		"perkeep.org/server/perkeepd",
 		"perkeep.org/app/hello",
 		"perkeep.org/app/publisher",

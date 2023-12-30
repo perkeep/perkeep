@@ -1,4 +1,9 @@
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+    # all PRs on all branches
 name: "tests/windows"
 
 jobs:
