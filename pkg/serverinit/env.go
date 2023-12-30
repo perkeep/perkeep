@@ -85,7 +85,7 @@ func DefaultEnvConfig() (*Config, error) {
 
 	externalIP, _ := metadata.ExternalIP()
 	hostName, _ := metadata.InstanceAttributeValue("camlistore-hostname")
-	// If they specified a hostname (probably with pk-deploy), then:
+	// If they specified a hostname (previously common with old pk-deploy), then:
 	// if it looks like an FQDN, perkeepd is going to rely on Let's
 	// Encrypt, else perkeepd is going to generate some self-signed for that
 	// hostname.

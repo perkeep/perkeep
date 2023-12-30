@@ -21,7 +21,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -40,26 +39,19 @@ import (
 	txttemplate "text/template"
 	"time"
 
-	"perkeep.org/internal/netutil"
 	"perkeep.org/internal/osutil"
 	"perkeep.org/pkg/buildinfo"
-	"perkeep.org/pkg/deploy/gce"
 	"perkeep.org/pkg/types/camtypes"
 
 	"cloud.google.com/go/compute/metadata"
-	"cloud.google.com/go/datastore"
 	"cloud.google.com/go/logging"
 	"cloud.google.com/go/storage"
 	"github.com/mailgun/mailgun-go"
 	"github.com/russross/blackfriday"
-	"go4.org/cloud/cloudlaunch"
 	"go4.org/writerutil"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/oauth2/google"
-	cloudresourcemanager "google.golang.org/api/cloudresourcemanager/v1"
-	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/option"
-	storageapi "google.golang.org/api/storage/v1"
 )
 
 const (
@@ -80,7 +72,6 @@ var (
 	tlsKeyFile  = flag.String("tlskey", "", "TLS private key file")
 	alsoRun     = flag.String("also_run", "", "[optiona] Path to run as a child process. (Used to run perkeep.org's ./scripts/run-blob-server)")
 	devMode     = flag.Bool("dev", false, "in dev mode")
-	flagStaging = flag.Bool("staging", false, "Deploy to a test GCE instance. Requires -cloudlaunch=true")
 	flagVersion = flag.Bool("version", false, "show version")
 
 	gceProjectID = flag.String("gce_project_id", "", "GCE project ID; required if not running on GCE and gce_log_name is specified.")
@@ -502,104 +493,6 @@ func runAsChild(res string) {
 	}()
 }
 
-func gceDeployHandlerConfig() (*gce.Config, error) {
-	if inProd {
-		return deployerCredsFromGCS()
-	}
-	clientId := os.Getenv("CAMLI_GCE_CLIENTID")
-	if clientId != "" {
-		return &gce.Config{
-			ClientID:       clientId,
-			ClientSecret:   os.Getenv("CAMLI_GCE_CLIENTSECRET"),
-			Project:        os.Getenv("CAMLI_GCE_PROJECT"),
-			ServiceAccount: os.Getenv("CAMLI_GCE_SERVICE_ACCOUNT"),
-			DataDir:        os.Getenv("CAMLI_GCE_DATA"),
-		}, nil
-	}
-	configDir, err := osutil.PerkeepConfigDir()
-	if err != nil {
-		return nil, err
-	}
-	configFile := filepath.Join(configDir, "launcher-config.json")
-	data, err := os.ReadFile(configFile)
-	if err != nil {
-		return nil, fmt.Errorf("error reading launcher-config.json (expected of type https://godoc.org/"+prodDomain+"/pkg/deploy/gce#Config): %v", err)
-	}
-	var config gce.Config
-	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, err
-	}
-	return &config, nil
-}
-
-var cloudLauncherEnabled = false
-
-// gceDeployHandler returns an http.Handler for a GCE launcher,
-// configured to run at /prefix/ (the trailing slash can be omitted).
-// The launcher is not initialized if:
-// - in production, the launcher-config.json file is not found in the relevant bucket
-// - neither CAMLI_GCE_CLIENTID is set, nor launcher-config.json is found in the
-// camlistore server config dir.
-func gceDeployHandler(prefix string) (*gce.DeployHandler, error) {
-	if !cloudLauncherEnabled {
-		return nil, errors.New("The Perkeep Cloud Launcher is no longer available.")
-	}
-	var hostPort string
-	var err error
-	scheme := "https"
-	if inProd {
-		if inStaging {
-			hostPort = stagingHostname + ":443"
-		} else {
-			hostPort = prodDomain + ":443"
-		}
-	} else {
-		addr := *httpsAddr
-		if *devMode && *httpsAddr == "" {
-			addr = *httpAddr
-			scheme = "http"
-		}
-		hostPort, err = netutil.ListenHostPort(addr)
-		if err != nil {
-			// the deploy handler needs to know its own
-			// hostname or IP for the oauth2 callback.
-			return nil, fmt.Errorf("invalid -https flag: %v", err)
-		}
-	}
-	config, err := gceDeployHandlerConfig()
-	if config == nil {
-		return nil, err
-	}
-	gceh, err := gce.NewDeployHandlerFromConfig(hostPort, prefix, config)
-	if err != nil {
-		return nil, fmt.Errorf("NewDeployHandlerFromConfig: %v", err)
-	}
-
-	pageBytes, err := os.ReadFile(filepath.Join(*root, "tmpl", "page.html"))
-	if err != nil {
-		return nil, err
-	}
-	if err := gceh.AddTemplateTheme(string(pageBytes)); err != nil {
-		return nil, fmt.Errorf("AddTemplateTheme: %v", err)
-	}
-	gceh.SetScheme(scheme)
-	log.Printf("Starting Perkeep launcher on %s://%s%s", scheme, hostPort, prefix)
-	return gceh, nil
-}
-
-var launchConfig = &cloudlaunch.Config{
-	Name:         "camweb",
-	BinaryBucket: prodBucket,
-	GCEProjectID: "camlistore-website",
-	Scopes: []string{
-		storageapi.DevstorageFullControlScope,
-		compute.ComputeScope,
-		logging.WriteScope,
-		datastore.ScopeDatastore,
-		cloudresourcemanager.CloudPlatformScope,
-	},
-}
-
 func checkInProduction() bool {
 	if !metadata.OnGCE() {
 		return false
@@ -815,29 +708,6 @@ func projectID() string {
 	return projID
 }
 
-func initStaging() error {
-	if *flagStaging {
-		launchConfig.Name = stagingInstName
-		return nil
-	}
-	// If we are the instance that has just been deployed, we can't rely on
-	// *flagStaging, since there's no way to pass flags through launchConfig.
-	// And we need to know if we're a staging instance, so we can set
-	// launchConfig.Name properly before we get into restartLoop from
-	// MaybeDeploy. So we use our own instance name as a hint.
-	if !metadata.OnGCE() {
-		return nil
-	}
-	instName, err := metadata.InstanceName()
-	if err != nil {
-		return fmt.Errorf("Instance could not get its Instance Name: %v", err)
-	}
-	if instName == stagingInstName {
-		launchConfig.Name = stagingInstName
-	}
-	return nil
-}
-
 func main() {
 	flag.Parse()
 	if *flagVersion {
@@ -845,10 +715,6 @@ func main() {
 			buildinfo.Summary(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
 		return
 	}
-	if err := initStaging(); err != nil {
-		log.Fatalf("Error setting up staging: %v", err)
-	}
-	launchConfig.MaybeDeploy()
 	setProdFlags()
 
 	if *root == "" {
@@ -904,16 +770,9 @@ func main() {
 		})
 	}
 
-	gceLauncher, err := gceDeployHandler("/launch/")
-	if err != nil {
-		log.Printf("Not installing GCE /launch/ handler: %v", err)
-		err := err
-		mux.HandleFunc("/launch/", func(w http.ResponseWriter, r *http.Request) {
-			http.Error(w, fmt.Sprintf("GCE launcher disabled: %v", err), 500)
-		})
-	} else {
-		mux.Handle("/launch/", gceLauncher)
-	}
+	mux.HandleFunc("/launch/", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "GCE launcher no longer supported", 500)
+	})
 
 	var handler http.Handler = &redirectRootHandler{Handler: mux}
 	if *logDir != "" || *logStdout {
@@ -939,23 +798,6 @@ func main() {
 			log.Fatalf("Failed to ping Google Cloud Logging: %v", err)
 		}
 		handler = NewLoggingHandler(handler, gceLogger{logc.Logger(*gceLogName)})
-		if gceLauncher != nil {
-			var logc *logging.Client
-			if metadata.OnGCE() {
-				logc, err = logging.NewClient(ctx, projID)
-			} else {
-				logc, err = logging.NewClient(ctx, projID, option.WithHTTPClient(hc))
-			}
-			if err != nil {
-				log.Fatal(err)
-			}
-			commonLabels := logging.CommonLabels(map[string]string{
-				"from": "camli-gce-launcher",
-			})
-			logger := logc.Logger(*gceLogName, commonLabels).StandardLogger(logging.Default)
-			logger.SetPrefix("launcher: ")
-			gceLauncher.SetLogger(logger)
-		}
 	}
 
 	emailErr := make(chan error)
@@ -1090,18 +932,6 @@ func fromGCS(filename string) ([]byte, error) {
 		return io.ReadAll(rc)
 	}
 	return slurp(filename)
-}
-
-func deployerCredsFromGCS() (*gce.Config, error) {
-	var cfg gce.Config
-	data, err := fromGCS("launcher-config.json")
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("could not JSON decode camli GCE launcher config: %v", err)
-	}
-	return &cfg, nil
 }
 
 var issueNum = regexp.MustCompile(`^/(?:issue|bug)s?(/\d*)?$`)
