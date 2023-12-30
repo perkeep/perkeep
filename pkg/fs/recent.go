@@ -1,5 +1,4 @@
-//go:build linux || darwin
-// +build linux darwin
+//go:build linux
 
 /*
 Copyright 2013 The Perkeep Authors

@@ -1,5 +1,4 @@
-//go:build linux || darwin
-// +build linux darwin
+//go:build linux
 
 /*
 Copyright 2013 The Perkeep Authors
@@ -632,7 +631,6 @@ func (n *mutFile) Attr(ctx context.Context, a *fuse.Attr) error {
 	a.Mtime = n.modTime()
 	a.Atime = n.accessTime()
 	a.Ctime = serverStart
-	a.Crtime = serverStart
 	return nil
 }
 

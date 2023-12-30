@@ -3,7 +3,7 @@ module perkeep.org
 go 1.19
 
 require (
-	bazil.org/fuse v0.0.0-20200524192727-fb710f7dfd05
+	bazil.org/fuse v0.0.0-20230120002735-62a210ff1fd5
 	cloud.google.com/go v0.80.0
 	cloud.google.com/go/datastore v1.1.0
 	cloud.google.com/go/logging v1.3.0
@@ -35,6 +35,7 @@ require (
 	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
 	golang.org/x/oauth2 v0.0.0-20210628180205-a41e5a781914
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
+	golang.org/x/sys v0.4.0
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
 	google.golang.org/api v0.42.0
 	gopkg.in/mgo.v2 v2.0.0-20160818020120-3f83fa500528
@@ -86,7 +87,6 @@ require (
 	golang.org/x/exp/typeparams v0.0.0-20220218215828-6cf2b201936e // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
-	golang.org/x/sys v0.0.0-20220928140112-f11e5e49a4ec // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/tools v0.1.11-0.20220513221640-090b14e8501f // indirect
@@ -125,5 +125,3 @@ exclude (
 )
 
 replace google.golang.org/grpc v1.14.0 => github.com/bradfitz/grpc-go v0.0.0-20170203184515-188a132adcfb
-
-replace bazil.org/fuse => bazil.org/fuse v0.0.0-20180421153158-65cc252bf669 // pin to latest version that supports macOS. see https://github.com/bazil/fuse/issues/224
