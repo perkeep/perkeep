@@ -8,7 +8,6 @@ export CAMLI_ROOT=$Bin/blobserver-example/root
 
 cd $Bin/..
 go run make.go \
-	-embed_static=false \
 	-targets=camlistore.org/server/perkeepd && \
 ./bin/perkeepd \
 	-openbrowser=false \

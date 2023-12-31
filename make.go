@@ -27,7 +27,6 @@ limitations under the License.
 package main
 
 import (
-	"archive/zip"
 	"bytes"
 	"crypto/sha256"
 	"errors"
@@ -42,13 +41,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
-	"time"
 )
 
 var (
-	embedResources   = flag.Bool("embed_static", true, "Whether to embed resources needed by the UI such as images, css, and javascript.")
 	race             = flag.Bool("race", false, "Build race-detector version of binaries (they will run slowly)")
 	verbose          = flag.Bool("v", strings.Contains(os.Getenv("CAMLI_DEBUG_X"), "makego"), "Verbose mode")
 	targets          = flag.String("targets", "", "Optional comma-separated list of targets (i.e go packages) to build and install. '*' builds everything.  Empty builds defaults for this platform. Example: perkeep.org/server/perkeepd,perkeep.org/cmd/pk-put")
@@ -138,24 +136,16 @@ func main() {
 		}
 	}
 
-	withPublisher := stringListContains(targs, "perkeep.org/app/publisher")
+	withPublisher := slices.Contains(targs, "perkeep.org/app/publisher")
 	if withPublisher {
 		if err := doPublisherUI(); err != nil {
 			log.Fatal(err)
 		}
 	}
 
-	withPerkeepd := stringListContains(targs, "perkeep.org/server/perkeepd")
-	if *embedResources && withPerkeepd {
-		doEmbed()
-	}
-
 	tags := []string{"purego"} // for cznic/zappy
 	if *static {
 		tags = append(tags, "netgo", "osusergo")
-	}
-	if *embedResources {
-		tags = append(tags, "with_embed")
 	}
 	baseArgs := []string{"install", "-v"}
 	if *race {
@@ -339,10 +329,6 @@ func genJS(pkg, output string) error {
 
 func runGopherJS(pkg string) error {
 	args := []string{"run", "-mod=readonly", "github.com/goplusjs/gopherjs", "install", pkg, "-v", "--tags", "nocgo noReactBundle"}
-	if *embedResources {
-		// when embedding for "production", use -m to minify the javascript output
-		args = append(args, "-m")
-	}
 	cmd := exec.Command("go", args...)
 	cmd.Env = os.Environ()
 	// Pretend we're on linux regardless of the actual host, because recommended
@@ -447,8 +433,6 @@ func doPublisherUI() error {
 		return err
 	}
 
-	// gopherjs has to run before doEmbed since we need all the javascript
-	// to be generated before embedding happens.
 	return genPublisherJS()
 }
 
@@ -507,15 +491,6 @@ Env:
 		clean = append(clean, envPair("GOARM", *buildARM))
 	}
 	return
-}
-
-func stringListContains(strs []string, str string) bool {
-	for _, s := range strs {
-		if s == str {
-			return true
-		}
-	}
-	return false
 }
 
 // fullSrcPath returns the full path concatenation
@@ -716,147 +691,6 @@ func verifyGoVersion() {
 		log.Fatalf("Your version of Go (%s) is too old. Perkeep requires Go 1.%d or later.", string(out), goVersionMinor)
 	}
 
-}
-
-func doEmbed() {
-	if *verbose {
-		log.Printf("Embedding resources...")
-	}
-	closureEmbed := fullSrcPath("server/perkeepd/ui/closure/z_data.go")
-	closureSrcDir := filepath.Join(pkRoot, filepath.FromSlash("clients/web/embed/closure/lib"))
-	err := embedClosure(closureSrcDir, closureEmbed)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func embedClosure(closureDir, embedFile string) error {
-	if _, err := os.Stat(closureDir); err != nil {
-		return fmt.Errorf("Could not stat %v: %v", closureDir, err)
-	}
-
-	// first collect the files and modTime
-	var modTime time.Time
-	type pathAndSuffix struct {
-		path, suffix string
-	}
-	var files []pathAndSuffix
-	err := filepath.Walk(closureDir, func(path string, fi os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		suffix, err := filepath.Rel(closureDir, path)
-		if err != nil {
-			return fmt.Errorf("Failed to find Rel(%q, %q): %v", closureDir, path, err)
-		}
-		if fi.IsDir() {
-			return nil
-		}
-		if mt := fi.ModTime(); mt.After(modTime) {
-			modTime = mt
-		}
-		files = append(files, pathAndSuffix{path, suffix})
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	// do not regenerate the whole embedFile if it exists and newer than modTime.
-	if fi, err := os.Stat(embedFile); err == nil && fi.Size() > 0 && fi.ModTime().After(modTime) {
-		if *verbose {
-			log.Printf("skipping regeneration of %s", embedFile)
-		}
-		return nil
-	}
-
-	// second, zip it
-	var zipbuf bytes.Buffer
-	var zipdest io.Writer = &zipbuf
-	if os.Getenv("CAMLI_WRITE_TMP_ZIP") != "" {
-		f, _ := os.Create("/tmp/camli-closure.zip")
-		zipdest = io.MultiWriter(zipdest, f)
-		defer f.Close()
-	}
-	w := zip.NewWriter(zipdest)
-	for _, elt := range files {
-		b, err := os.ReadFile(elt.path)
-		if err != nil {
-			return err
-		}
-		f, err := w.Create(filepath.ToSlash(elt.suffix))
-		if err != nil {
-			return err
-		}
-		if _, err = f.Write(b); err != nil {
-			return err
-		}
-	}
-	if err = w.Close(); err != nil {
-		return err
-	}
-
-	// then embed it as a quoted string
-	var qb bytes.Buffer
-	fmt.Fprint(&qb, "//go:build with_embed\n\n")
-	fmt.Fprint(&qb, "package closure\n\n")
-	fmt.Fprint(&qb, "import \"time\"\n\n")
-	fmt.Fprint(&qb, "func init() {\n")
-	fmt.Fprintf(&qb, "\tZipModTime = time.Unix(%d, 0)\n", modTime.Unix())
-	fmt.Fprint(&qb, "\tZipData = ")
-	quote(&qb, zipbuf.Bytes())
-	fmt.Fprint(&qb, "\n}\n")
-
-	// and write to a .go file
-	if err := writeFileIfDifferent(embedFile, qb.Bytes()); err != nil {
-		return err
-	}
-	return nil
-
-}
-
-func writeFileIfDifferent(filename string, contents []byte) error {
-	fi, err := os.Stat(filename)
-	if err == nil && fi.Size() == int64(len(contents)) && contentsEqual(filename, contents) {
-		return nil
-	}
-	return os.WriteFile(filename, contents, 0644)
-}
-
-func contentsEqual(filename string, contents []byte) bool {
-	got, err := os.ReadFile(filename)
-	if os.IsNotExist(err) {
-		return false
-	}
-	if err != nil {
-		log.Fatalf("Error reading %v: %v", filename, err)
-	}
-	return bytes.Equal(got, contents)
-}
-
-// quote escapes and quotes the bytes from bs and writes
-// them to dest.
-func quote(dest *bytes.Buffer, bs []byte) {
-	dest.WriteByte('"')
-	for _, b := range bs {
-		if b == '\n' {
-			dest.WriteString(`\n`)
-			continue
-		}
-		if b == '\\' {
-			dest.WriteString(`\\`)
-			continue
-		}
-		if b == '"' {
-			dest.WriteString(`\"`)
-			continue
-		}
-		if (b >= 32 && b <= 126) || b == '\t' {
-			dest.WriteByte(b)
-			continue
-		}
-		fmt.Fprintf(dest, "\\x%02x", b)
-	}
-	dest.WriteByte('"')
 }
 
 // hostExeName returns the executable name

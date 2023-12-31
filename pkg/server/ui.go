@@ -32,6 +32,7 @@ import (
 	"strings"
 	"time"
 
+	closurestatic "perkeep.org/clients/web/embed/closure/lib"
 	fontawesomestatic "perkeep.org/clients/web/embed/fontawesome"
 	keepystatic "perkeep.org/clients/web/embed/keepy"
 	leafletstatic "perkeep.org/clients/web/embed/leaflet"
@@ -53,7 +54,6 @@ import (
 	"perkeep.org/pkg/sorted"
 	"perkeep.org/pkg/types/camtypes"
 	uistatic "perkeep.org/server/perkeepd/ui"
-	closurestatic "perkeep.org/server/perkeepd/ui/closure"
 	"rsc.io/qr"
 )
 
@@ -62,7 +62,7 @@ var (
 	identOrDotPattern  = regexp.MustCompile(`^[a-zA-Z\_]+(\.[a-zA-Z\_]+)*$`)
 	thumbnailPattern   = regexp.MustCompile(`^thumbnail/([^/]+)(/.*)?$`)
 	treePattern        = regexp.MustCompile(`^tree/([^/]+)(/.*)?$`)
-	closurePattern     = regexp.MustCompile(`^closure/(([^/]+)(/.*)?)$`)
+	closurePattern     = regexp.MustCompile(`^(closure/([^/]+)(/.*)?)$`)
 	lessPattern        = regexp.MustCompile(`^less/(.+)$`)
 	reactPattern       = regexp.MustCompile(`^react/(.+)$`)
 	leafletPattern     = regexp.MustCompile(`^leaflet/(.+)$`)
@@ -344,16 +344,9 @@ func makeClosureHandler(root, handlerName string) (http.Handler, error) {
 		return http.FileServer(http.Dir(d)), nil
 	}
 	if root == "" {
-		fs, err := closurestatic.FileSystem()
-		if err == os.ErrNotExist {
-			log.Printf("%v: no configured setting or embedded resources; serving Closure via %v", handlerName, closureBaseURL)
-			return closureBaseURL, nil
-		}
-		if err != nil {
-			return nil, fmt.Errorf("error loading embedded Closure zip file: %v", err)
-		}
+		fs := closurestatic.Closure
 		log.Printf("%v: serving Closure from embedded resources", handlerName)
-		return http.FileServer(fs), nil
+		return http.FileServer(http.FS(fs)), nil
 	}
 	if strings.HasPrefix(root, "http") {
 		log.Printf("%v: serving Closure using redirects to %v", handlerName, root)
@@ -379,8 +372,6 @@ func makeFileServer(sourceRoot string, pathToServe string, expectedContentPath s
 	}
 	return http.FileServer(http.Dir(dirToServe)), nil
 }
-
-const closureBaseURL closureRedirector = "https://closure-library.googlecode.com/git"
 
 // closureRedirector is a hack to redirect requests for Closure's million *.js files
 // to https://closure-library.googlecode.com/git.

@@ -252,7 +252,6 @@ func build(targets ...string) error {
 		"run", "make.go",
 		"--quiet",
 		"--race=" + strconv.FormatBool(*race),
-		"--embed_static=false",
 		"--targets=" + targetsComma,
 	}
 	cmd := exec.Command("go", args...)
