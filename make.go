@@ -116,15 +116,15 @@ func main() {
 	case "":
 		// Add pk-mount to default build targets on OSes that support FUSE.
 		switch *buildOS {
-		case "linux", "darwin":
+		case "linux":
 			targs = append(targs, "perkeep.org/cmd/pk-mount")
 		}
 	default:
 		if *website {
-			log.Fatal("-targets and -website are mutually exclusive")
+			log.Fatal("--targets and --website are mutually exclusive")
 		}
 		if *camnetdns {
-			log.Fatal("-targets and -camnetdns are mutually exclusive")
+			log.Fatal("--targets and --camnetdns are mutually exclusive")
 		}
 		if t := strings.Split(*targets, ","); len(t) != 0 {
 			targs = t
@@ -153,7 +153,7 @@ func main() {
 
 	tags := []string{"purego"} // for cznic/zappy
 	if *static {
-		tags = append(tags, "netgo")
+		tags = append(tags, "netgo", "osusergo")
 	}
 	if *embedResources {
 		tags = append(tags, "with_embed")
@@ -179,7 +179,7 @@ func main() {
 	if ldFlags != "" {
 		baseArgs = append(baseArgs, "--ldflags="+ldFlags)
 	}
-	baseArgs = append(baseArgs, "--tags="+strings.Join(tags, " "))
+	baseArgs = append(baseArgs, "--tags="+strings.Join(tags, ","))
 
 	// First install command: build just the final binaries, installed to a GOBIN
 	// under <perkeep_root>/bin:
