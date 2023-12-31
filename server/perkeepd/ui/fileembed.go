@@ -23,11 +23,5 @@ import (
 	"embed"
 )
 
-const GaeSourceRoot = "source_root"
-
 //go:embed *.js *.html *.png *.svg *.css
 var Files embed.FS
-
-var (
-	IsAppEngine, IsProdAppEngine bool
-)

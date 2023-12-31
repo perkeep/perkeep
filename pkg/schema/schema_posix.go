@@ -1,6 +1,4 @@
-//go:build (linux || darwin || netbsd || freebsd || openbsd) && !appengine
-// +build linux darwin netbsd freebsd openbsd
-// +build !appengine
+//go:build linux || darwin || netbsd || freebsd || openbsd
 
 package schema
 
