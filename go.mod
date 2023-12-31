@@ -15,7 +15,6 @@ require (
 	github.com/go-sql-driver/mysql v1.4.1-0.20180719071942-99ff426eb706
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00
 	github.com/gopherjs/jquery v0.0.0-20180404123100-3ba2b901425e
-	github.com/goplusjs/gopherjs v1.1.6
 	github.com/gorilla/websocket v1.4.2
 	github.com/hjfreyer/taglib-go v0.0.0-20151027170453-0ef8bba9c41b
 	github.com/lib/pq v1.10.2
@@ -39,11 +38,9 @@ require (
 	golang.org/x/time v0.5.0
 	google.golang.org/api v0.42.0
 	gopkg.in/mgo.v2 v2.0.0-20160818020120-3f83fa500528
-	honnef.co/go/js/dom v0.0.0-20200509013220-d4405f7ab4d8
 	honnef.co/go/tools v0.4.6
 	modernc.org/kv v1.0.4
 	modernc.org/sqlite v1.28.0
-	myitcv.io v0.0.0-20201125173645-a7167afc9e13
 	rsc.io/pdf v0.1.1
 	rsc.io/qr v0.2.0
 )
@@ -55,7 +52,6 @@ require (
 	github.com/facebookgo/ensure v0.0.0-20160127193407-b4ab57deab51 // indirect
 	github.com/facebookgo/stack v0.0.0-20160209184415-751773369052 // indirect
 	github.com/facebookgo/subset v0.0.0-20150612182917-8dac2c3c4870 // indirect
-	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
@@ -64,31 +60,20 @@ require (
 	github.com/google/martian/v3 v3.2.1 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.0.5 // indirect
-	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jonas-p/go-shp v0.1.1 // indirect
 	github.com/jstemmer/go-junit-report v0.9.1 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
-	github.com/kisielk/gotool v1.0.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
-	github.com/neelance/astrewrite v0.0.0-20160511093645-99348263ae86 // indirect
-	github.com/neelance/sourcemap v0.0.0-20151028013722-8c68805598ab // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/rogpeppe/go-internal v1.3.0 // indirect
-	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749 // indirect
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
-	github.com/spf13/cobra v0.0.5 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80 // indirect
-	github.com/visualfc/fastmod v1.3.6 // indirect
-	github.com/visualfc/goversion v1.0.0 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20221208152030-732eee02a75a // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/mod v0.12.0 // indirect
-	golang.org/x/term v0.15.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.13.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect

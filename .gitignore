@@ -26,7 +26,6 @@ bin/hello
 bin/pk*
 bin/perkeepd
 bin/publisher
-bin/reactGen
 bin/scancab
 bin/scanningcabinet
 bin/website

@@ -158,10 +158,6 @@ type Client struct {
 const maxParallelHTTP_h1 = 5
 const maxParallelHTTP_h2 = 50
 
-// inGopherJS reports whether the client package is compiled by GopherJS, for use
-// in the browser.
-var inGopherJS bool
-
 // New returns a new Perkeep Client.
 //
 // By default, with no options, it uses the client as configured in
@@ -179,10 +175,6 @@ func New(opts ...ClientOption) (*Client, error) {
 		return nil, errors.New("use of OptionUseStorageClient precludes use of any other options")
 	}
 
-	if inGopherJS {
-		c.noExtConfig = true
-		c.sameOrigin = true
-	}
 	if c.noExtConfig {
 		c.setDefaultHTTPClient()
 		return c, nil
@@ -277,13 +269,6 @@ func (c *Client) useHTTP2(tc *TransportConfig) bool {
 // It is the caller's responsibility to then use that transport to set
 // the client's httpClient with SetHTTPClient.
 func (c *Client) transportForConfig(tc *TransportConfig) http.RoundTripper {
-	if inGopherJS {
-		// Calls to net.Dial* functions - which would happen if the client's transport
-		// is not nil - are prohibited with GopherJS. So we force nil here, so that the
-		// call to transportForConfig in newClient is of no consequence when on the
-		// browser.
-		return nil
-	}
 	if c == nil {
 		return nil
 	}
