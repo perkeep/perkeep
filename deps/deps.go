@@ -1,5 +1,4 @@
 //go:build deps
-// +build deps
 
 // Package deps depends on go modules in order to work around the fact that
 // `go mod` subcommands will end up removing dependencies from the vendor directory

@@ -1,5 +1,4 @@
 //go:build js
-// +build js
 
 /*
 Copyright 2018 The Perkeep Authors.

@@ -1,5 +1,4 @@
 //go:build fake_android
-// +build fake_android
 
 /*
 Copyright 2015 The Perkeep Authors.

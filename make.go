@@ -1,5 +1,4 @@
 //go:build ignore
-// +build ignore
 
 /*
 Copyright 2013 The Perkeep Authors
@@ -798,7 +797,7 @@ func embedClosure(closureDir, embedFile string) error {
 
 	// then embed it as a quoted string
 	var qb bytes.Buffer
-	fmt.Fprint(&qb, "// +build with_embed\n\n")
+	fmt.Fprint(&qb, "//go:build with_embed\n\n")
 	fmt.Fprint(&qb, "package closure\n\n")
 	fmt.Fprint(&qb, "import \"time\"\n\n")
 	fmt.Fprint(&qb, "func init() {\n")

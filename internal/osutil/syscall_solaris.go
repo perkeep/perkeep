@@ -1,5 +1,4 @@
 //go:build solaris
-// +build solaris
 
 /*
 Copyright 2014 The Perkeep Authors.
