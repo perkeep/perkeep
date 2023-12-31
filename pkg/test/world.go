@@ -108,7 +108,6 @@ func (w *World) Build() error {
 	// Build.
 	{
 		cmd := exec.Command("go", "run", "make.go",
-			"--embed_static=false",
 			"--stampversion=false",
 			"--buildPublisherUI=false",
 			"--targets="+strings.Join([]string{
